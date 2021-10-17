@@ -6,6 +6,7 @@
 <title>LAN Interface Setup </title>
 <% language=javascript %>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <SCRIPT>
 var initialDhcp;
 function checkMode()
@@ -86,10 +87,16 @@ function saveChanges()
 
   if (checkIPMask(document.tcpip.lan_mask) == false)
   	return false ;
+  
+  if(checkHostIPValid(document.tcpip.lan_ip,document.tcpip.lan_mask,'Invalid IP address value! ')== false) 
+		return false;
 
-  if ( document.tcpip.dhcp.selectedIndex == 1) {
+  if ( document.tcpip.dhcp.selectedIndex == 2) {
   	if ( checkIpAddr(document.tcpip.dhcpRangeStart, 'Invalid DHCP client start address! ') == false )
 	    return false;
+
+	if(checkHostIPValid(document.tcpip.dhcpRangeStart,document.tcpip.lan_mask,'Invalid DHCP client start address! ')== false) 
+		return false;
 
 	if ( !checkSubnet(document.tcpip.lan_ip.value,document.tcpip.lan_mask.value,document.tcpip.dhcpRangeStart.value)) {
 		alert('Invalid DHCP client start address!\nIt should be located in the same subnet of current IP address.');
@@ -98,7 +105,10 @@ function saveChanges()
 		return false;
 	}
   	if ( checkIpAddr(document.tcpip.dhcpRangeEnd, 'Invalid DHCP client End address! ') == false )
-	    return false;	
+	    return false;
+
+	if(checkHostIPValid(document.tcpip.dhcpRangeEnd,document.tcpip.lan_mask,'Invalid DHCP client End address! ')== false) 
+			return false;
 
 	if ( !checkSubnet(document.tcpip.lan_ip.value,document.tcpip.lan_mask.value,document.tcpip.dhcpRangeEnd.value)) {
 		alert('Invalid DHCP client end address!\nIt should be located in the same subnet of current IP address.');
@@ -133,7 +143,6 @@ function saveChanges()
   	document.tcpip.lan_macAddr.value = "000000000000";
  // 	return true;
   }
-
   if ( str.length > 0 && str.length < 12) {
 	alert("Input MAC address is not complete. It should be 12 digits in hex.");
 	document.tcpip.lan_macAddr.focus();
@@ -227,7 +236,7 @@ function staticdhcpTblClick(url) {
 
 <body onload="checkMode();">
 <blockquote>
-<h2><font color="#0000FF">LAN Interface Setup</font></h2>
+<h2>LAN Interface Setup</h2>
 
 <form action=/boafrm/formTcpipSetup method=POST name="tcpip">
 <table border=0 width="500" cellspacing=4 cellpadding=0>

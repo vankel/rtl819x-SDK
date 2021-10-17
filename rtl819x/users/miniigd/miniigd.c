@@ -31,7 +31,12 @@
 #endif
 #include <linux/wireless.h>
 #include <sys/ioctl.h>
-#include <sys/sysinfo.h> 
+#ifdef KERNEL_3_10
+#include <linux/sysinfo.h>
+#endif
+#ifdef KERNEL_2_6_30
+#include <sys/sysinfo.h>
+#endif 
 /* miniupnp includes : */
 #include "upnpglobalvars.h"
 #include "upnphttp.h"
@@ -1755,6 +1760,7 @@ int main(int argc, char * * argv)
 		printf("Please specify the WAN type\n");
 		return 1;
 	}
+	
 #if 0
 	if(!ext_if_name || !listen_addr || port<=0)
 	{

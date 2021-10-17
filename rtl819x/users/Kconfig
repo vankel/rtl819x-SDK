@@ -7,10 +7,11 @@
 #############################################################################
 
 comment "Applications"
-config APP_AP_CONTROLER
-	bool "ap controler"
+
+config SIXRD_SUPPORT
+	bool "6rd"
 	help
-		config ap controler for remote host control ap
+	  6rd tunnel support
 
 config APP_AUTH
 	bool "auth"
@@ -40,6 +41,15 @@ config APP_BLUEZ
 	bool "bluez"
 	help
 	   bluez is bluetooth utility
+choice
+        prompt "Bluez Version"
+        default APP_BLUEZ_522
+	depends on APP_BLUEZ
+        config APP_BLUEZ_522
+                bool "Bluez 5.22"
+        config APP_BLUEZ_496
+                bool "Bluez 4.96"
+endchoice
 
 source "rtk_bluetooth_firmware/Kconfig"
 
@@ -51,6 +61,25 @@ config APP_BUSYBOX
 	  for most of the utilities you usually find in fileutils, shellutils,
 	  findutils, textutils, grep, gzip, tar, etc.  Simply select those
 	  utilities and options you want.
+
+config APP_CPU_UTILIZATION
+	bool "CPU utilization"
+	help
+	  Display CPU utilization on WEB page.
+	choice
+	prompt "Histroy data file size"
+	default APP_CPU_UTILIZATION_36K
+	depends on APP_CPU_UTILIZATION
+		config APP_CPU_UTILIZATION_36K
+		bool "36K"
+		config APP_CPU_UTILIZATION_72K
+		bool "72K"
+	endchoice
+
+config DSLITE_SUPPORT
+	bool "ds-lite"
+	help
+	  ds-lite tunnel support
 
 config APP_LOGIN_CONSOLE
 	bool "login on console"
@@ -119,6 +148,18 @@ config APP_BOA_IPV6_SUPPORT
 	help
 	  Make boa web server to support ipv6.
 
+config APP_BOA_NEW_UI
+	depends on APP_BOA
+	bool "boa new UI Support"
+	help
+	  boa use new web UI.
+
+config APP_BOA_WITH_SSL
+	depends on APP_BOA && APP_OPENSSL-0.9.8I
+	bool "boa SSL Support"
+	help
+	  boa with openssl support, which will enable HTTPS visit.
+
 config APP_UWIFI
 	bool "uWiFi"
 	help
@@ -131,8 +172,6 @@ config APP_ALSA_AUDIO
 
 config APP_APPLE_MFI_WAC
 	bool "Apple WAC Support"
-	select APP_AVAHI
-	select LIB_LIBDAEMON
 	help
 	    Apple Support Package, including WAC wifi audio
 
@@ -142,24 +181,30 @@ config APP_APPLE_HOMEKIT
 	help
 	    Apple Support Package, including Homekit accessory protocol
 	choice 
-		prompt "Choose Homekit Services"
+            prompt "Choose Homekit Services"
 		depends on APP_APPLE_HOMEKIT
+		
             config APP_HAP_SWITCH_SERVICE
             bool "Homekit Switch Service"
             depends on APP_APPLE_HOMEKIT
+
             config APP_HAP_IP_CAM_SERVICE
             bool "Homekit IP Camera Services"
             depends on APP_APPLE_HOMEKIT
-    endchoice
+
+	endchoice
+
 config APP_HAP_CAM_SERVICE
-bool "Homekit Camera Services"
-depends on APP_HAP_IP_CAM_SERVICE
+        bool "Homekit Camera Services"
+        depends on APP_HAP_IP_CAM_SERVICE
+
 config APP_HAP_MICROPHONE_SERVICE
-bool "Homekit Microphone Services"
-depends on APP_HAP_IP_CAM_SERVICE
+	bool "Homekit Microphone Services"
+        depends on APP_HAP_IP_CAM_SERVICE
+
 config APP_HAP_SPEAKER_SERVICE
-bool "Homekit Speaker Services"
-depends on APP_HAP_IP_CAM_SERVICE
+	bool "Homekit Speaker Services"
+        depends on APP_HAP_IP_CAM_SERVICE
 
 config APP_GPROXY
 	bool "gproxy"
@@ -170,24 +215,6 @@ config APP_MULTIPPPOE
 	bool "Multi PPPoE Support"
 	help
 	  Multi PPPoE Support
-
-config APP_IAPP
-	bool "iapp"
-	help
-          The IAPP application
-
-config APP_IGMPPROXY
-	bool "igmp proxy"
-	help
-	  The igmp proxy daemon
-
-config IGMPPROXY_MULTIWAN
-	depends on APP_IGMPPROXY
-        bool "support igmp proxy multiwan"
-
-config IGMPV3_SUPPORT
-	depends on APP_IGMPPROXY
-	bool "support igmpv3 proxy"
 
 config APP_MLDPROXY
         bool "mld proxy"
@@ -201,7 +228,33 @@ config MLDPROXY_MULTIWAN
 #config MLDV2_SUPPORT
 #        depends on APP_MLDPROXY
 #        bool "support mldv2 proxy"
+
+config APP_NDP_PROXY
+	bool "ndp proxy"
+	help
+	    ipv6 neighbor discover protocol proxy
 	   			 
+config APP_NETATALK
+        bool "netatalk"
+	help
+	  Apple File Protocol Support
+config APP_IAPP
+	bool "iapp"
+	help
+	  The IAPP application
+config APP_IGMPPROXY
+	bool "igmp proxy"
+	help
+	  The igmp proxy daemon
+
+config IGMPPROXY_MULTIWAN
+	depends on APP_IGMPPROXY
+        bool "support igmp proxy multiwan"
+
+config IGMPV3_SUPPORT
+	depends on APP_IGMPPROXY
+	bool "support igmpv3 proxy"
+
 config APP_IPROUTE
 	bool "iproute2"
 	help
@@ -308,6 +361,10 @@ comment "Choose openssl version."
 				bool "openssl-0.9.8i"
 				help 
 					This version used for toolchain-1.5.5.
+			config APP_OPENSSL-0.9.8Y
+                                bool "openssl-0.9.8y"
+                                help
+                                        This version used for toolchain-1.5.5.
 	endchoice
 
 #config APP_HOSTAPD_HCM
@@ -348,12 +405,7 @@ config  PPPOE_DISCONNECT_FLOW_PATCH
         bool "pppoe_disc_flow_patch"
         help
            A pppoe disconect flow patch.
-
-config  PPP_REJECT_ERROR_SESSION_PATCH
-	bool "ppp reject error session patch"
-	help
-	  A  ppp reject error session patch.
-
+ 
 config APP_PPTP
 	bool "pptp"
 	help
@@ -378,6 +430,12 @@ config APP_ROUTED
 	bool "routed"
 	help
 	   RIP daemon for dynamic routing
+
+config APP_BIRD
+	bool "bird-1.4.0"
+	depends on APP_ROUTED
+	help
+	   RIPng daemon for dynamic routing
 
 config APP_FWD
 	bool "firmware write daemon"
@@ -422,6 +480,12 @@ config USER_CWMP_WITH_TR181_V6
 	depends on USER_CWMP_WITH_TR181	
 	bool "support TR181 V6 part in TR069"
 
+config USER_CWMP_WITH_TR069_ANNEX_G
+	depends on USER_CWMP_WITH_TR181	
+	bool "support TR069 Annex G"
+	help
+	  TR069 Annex G - Connection Request via NAT Gateway
+
 config USER_CWMP_WITH_TR143
 	depends on APP_TR069	
 	bool "support TR143 in TR069"
@@ -464,11 +528,6 @@ config USER_CWMP_WITH_MATRIXSSL
 	select USER_CWMP_WITH_SSL
 	
 endchoice
-
-config APP_TRACEROUTE
-	bool "traceroute"
-	help
-	  traceroute support
 
 config APP_UDHCPD
 	bool "udhcp" 
@@ -524,6 +583,18 @@ config APP_RTK_VOIP_E8C
 	help
 	  The rtk voip-e8c
 
+config APP_RTL8686_IPC_UTIL
+	bool "RTL8686 IPC User Utility"
+	#depends on APP_RTK_VOIP
+	help
+	  RTL8686 IPC User Utility Support
+
+config APP_TCP2DEV
+	bool "RTK tcp2dev utility"
+	#depends on APP_RTK_VOIP
+	help
+	  RTK tcp2dev utility Support
+
 config APP_PMC_UTILS
 	bool "pmc utils"
 	select LIB_Z
@@ -540,42 +611,10 @@ config APP_RTK_INBAND_CTL
         help
           This daemon support realtek proprietary inband control
 
-config RTK_INBAND_CTL_AUTO_RECOVER
-	depends on APP_RTK_INBAND_CTL
-        bool "rtk inband ctl auto recover"
-        help
-          For rtk inband ctl auto recover when dead
-	default y
-# config APP_CLOUD_AUTO_RECOVER
-#	bool "cloud thread auto recover"
-#       depends on RTK_INBAND_CTL_AUTO_RECOVER
-#	default n
-#	help
-#		cloud_device and cloud_misc_app auto recover
-config APP_RTK_INBAND_CTL_REPORT_ERROR
-        depends on APP_RTK_INBAND_CTL
-        bool "report error information"
-        help
-          Report error information when inband commands failed
 config APP_RTK_INBAND_HOST
         bool "rtk inband Host utility sample"
         help
           rtk inband Host utility sample
-config APP_RTK_INBAND_HOST_LIBRARY
-        depends on APP_RTK_INBAND_HOST
-        bool "rtk inband Host as library"
-        help
-          rtk inband host as shared library
-config APP_RTK_INBANDHOST_PTHREAD_LOCK
-        depends on APP_RTK_INBAND_HOST
-        bool "rtk inband host pthread lock"
-        help
-          rtk inband host pthread lock, allow multi-thread send inband commands
-config APP_RTK_INBAND_HOST_LIBRARY_TEST
-        depends on APP_RTK_INBAND_HOST_LIBRARY
-        bool "Test rtk inband host library"
-        help
-          Test rtk inband host shared library
 
 config APP_NFBI
 	bool "nfbi"
@@ -601,17 +640,16 @@ config APP_AUTORUNIMG
 	bool "ulinker autorun image tool"
 	help
 	  Tool for generate ulinker auto install image.
-
 config APP_SIMPLE_CONFIG
 	bool "simple config support"
 	help
 	  Tool for client mode device connect to AP.
 
-config APP_UBUS
-	bool "ubus"
-	default n
-	help
-		ubus support	
+config SIMPLE_CONFIG_SYNC_VXD_PROFILE
+	depends on APP_SIMPLE_CONFIG 
+	bool "simple config sync repeater interface setting to root interface"
+	help 
+	  Sync repeater client setting to root AP interface after simple config success.
 
 comment "USB3G support"
 config APP_COMGT
@@ -661,10 +699,16 @@ config APP_MNET
 
 comment "Libraries"
 
+config LIB_CURL
+    bool "curl-7.34.0"
+        help
+	  curl-7.34.0 required by transmission	
+
 config LIB_LIBDAEMON
 	bool "libdaemon-0.14"
 	help
 	  A lightweight C library that eases the writing of UNIX daemons.
+
 config LIB_PNG
     bool "libpng"
     select LIB_Z
@@ -691,7 +735,7 @@ config LIB_FUSE
 	bool "fuse library"
 	help
 		library required by exfat-fuse
-		
+	
 comment "Debug & Test"
 
 config APP_CLE_SHELL
@@ -753,11 +797,6 @@ config APP_MINIDLNA
 	help
 		minidlna deamon
 
-# config APP_CLOUD
-#	bool "cloud"
-#	default n
-#	help
-#		cloud daemon
 config APP_MT_DAAPD
 	bool "mt-daapd"
 	help
@@ -775,16 +814,10 @@ config SIGMA_VHT
         bool "VHT5G"
         
 config SIGMA_HS2
-        bool "HS2R1"
-
+        bool "HS2R2"
 config SIGMA_PMF
         bool "PMF"
-
 endchoice
-	
-config APP_SPEEDTEST
-	bool "speedtest"
-    default n
-	help
-	 daemon for speed test
+
+source "rtl_fs/Kconfig"
 #############################################################################

@@ -168,19 +168,6 @@ int read_opt_from_isp(char *data){
 #endif
 
 #ifdef STATIC_LEASE
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-static void read_port(const char *line, int *port_id)
-{
-	char *ptoken=NULL;
-	char str_port[4];
-	memset(str_port, 0, sizeof(str_port));
-	if((ptoken=strchr(line, ' '))!=NULL)
-	{
-		strncpy(str_port, line, ptoken-line);
-		*port_id=atoi(str_port);
-	}	
-}
-#endif
 static int read_mac(const char *line, void *arg)
 {
 	unsigned char *mac_bytes = arg;
@@ -202,28 +189,19 @@ static int read_staticlease(char *const_line, void *arg)
 	char *line;
 //	char *mac_string;
 	char *ip_string;
-	unsigned char *mac_bytes=NULL;
-	u_int32_t *ip=NULL;
+	unsigned char *mac_bytes;
+	u_int32_t *ip;
 	char *host_str, *host=NULL;
 
 
 	/* Allocate memory for addresses */
-//	mac_bytes = xmalloc(sizeof(unsigned char) * 8);
+	mac_bytes = xmalloc(sizeof(unsigned char) * 8);
 	ip = xmalloc(sizeof(u_int32_t));
 
 	/* Read mac */
 	line = (char *) const_line;
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-	unsigned int port_id=0;
-	ip_string = strchr(line, ' ');
-	if(ip_string-line<4)
-		read_port(line, &port_id);
-	else		
-#endif
-	{		
-		mac_bytes = xmalloc(sizeof(unsigned char) * 8);
 	read_mac(line, mac_bytes);
-	}
+
 	/* Read ip */
 	ip_string = strstr(line, " ");
 	ip_string = ip_string + strspn(ip_string, " ");	
@@ -236,11 +214,6 @@ static int read_staticlease(char *const_line, void *arg)
 		host = xmalloc(strlen(host_str)+1);
 		strcpy(host, host_str);
 	}
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-	if(port_id>0)
-		addStaticLeaseWithPort(arg, port_id, ip, host);
-	else
-#endif
 	addStaticLease(arg, mac_bytes, ip, host);
 
 #ifdef UDHCP_DEBUG
@@ -257,7 +230,7 @@ static struct config_keyword keywords[] = {
 	/* keyword[14]	handler   variable address		default[20] */
 	{"start",	read_ip,  &(server_config.start),	"192.168.0.20"},
 	{"end",		read_ip,  &(server_config.end),		"192.168.0.254"},
-	{"interface",	read_str, &(server_config.interface),	"eth0"},
+	{"interface",	read_str, &(server_config.interface),	"br0"},
 	{"option",	read_opt, &(server_config.options),	""},
 	{"opt",		read_opt, &(server_config.options),	""},
 	{"max_leases",	read_u32, &(server_config.max_leases),	"254"},
@@ -276,24 +249,90 @@ static struct config_keyword keywords[] = {
 #ifdef GUEST_ZONE	
 	{"guestmac_check",	read_u32, &(server_config.guestmac_check),	""},
 #endif	
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	{"poolname",	read_str, &(server_config.poolname),	""},
+	{"cwmpinstnum", read_u32, &(server_config.cwmpinstnum), "0"},
+	{"poolorder",	read_u32, &(server_config.poolorder),	"0"},
+	{"sourceinterface", read_u32, &(server_config.sourceinterface), "0"},
+	{"vendorclass", read_str, &(server_config.vendorclass), ""},
+	{"vendorclassflag", read_u32, &(server_config.vendorclassflag), "0"},
+	{"vendorclassmode", read_str, &(server_config.vendorclassmode), "Exact"},
+	{"clientid",	read_str, &(server_config.clientid),	""},
+	{"clientidflag",	read_u32, &(server_config.clientidflag),	"0"},
+	{"userclass",	read_str, &(server_config.userclass),	""},
+	{"userclassflag",	read_u32, &(server_config.userclassflag),	"0"},
+	{"chaddr",	read_str, &(server_config.chaddr),	""},
+	{"chaddrmask",	read_str, &(server_config.chaddrmask),	""},
+	{"chaddrflag",	read_u32, &(server_config.chaddrflag),	"0"},
+#endif
+
 #ifdef STATIC_LEASE
 	{"static_lease",read_staticlease, &(server_config.static_leases),	""},
 #endif	
 #if defined(CONFIG_RTL865X_KLD)	
-{"updatecfg_isp",	read_u32, &(server_config.upateConfig_isp),	""},
-{"res_br",	read_u32, &(server_config.response_broadcast),	""},
-{"updatecfg_dns",	read_u32, &(server_config.upateConfig_isp_dns),	""},
+	{"updatecfg_isp",	read_u32, &(server_config.upateConfig_isp),	""},
+	{"res_br",	read_u32, &(server_config.response_broadcast),	""},
+	{"updatecfg_dns",	read_u32, &(server_config.upateConfig_isp_dns),	""},
 #endif
 	/*ADDME: static lease */
 	{"",		NULL, 	  NULL,				""}
 };
 
 
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+extern struct server_config_t* p_serverpool_config;
+
+void add_serving_pool(struct server_config_t* pserving_pool )
+{
+	struct server_config_t* ptmp=p_serverpool_config;
+	struct server_config_t* ptmpnext;
+	int found=0;
+	//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
+	pserving_pool->clientRange = malloc(sizeof(struct client_category_t));
+	pserving_pool->clientRange->next = NULL;
+	pserving_pool->clientRange->ipstart = pserving_pool->start;
+	pserving_pool->clientRange->ipend = pserving_pool->end;
+
+	if(ptmp==NULL)
+		p_serverpool_config=pserving_pool;
+	else
+	{
+		while(ptmp!=NULL)
+		{
+			if((pserving_pool->poolorder) >= (ptmp->poolorder))
+			{
+				if((ptmp->next)!=NULL)
+				{
+					if((pserving_pool->poolorder) <= (ptmp->next->poolorder))
+						found=1;
+				}
+				else
+					found=1;
+			}
+			if(found==1)
+			{
+				ptmpnext=ptmp->next;
+				ptmp->next=pserving_pool;
+				pserving_pool->next=ptmpnext;
+				break;
+			}
+			ptmp=ptmp->next;
+		}
+	}
+}
+#endif
+
 int read_config(char *file)
 {
 	FILE *in;
 	char buffer[80], orig[80], *token, *line;
 	int i;
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	char poolname[30+1]={0};
+	char poolflag=0;
+	struct server_config_t *serving_pool_config=NULL;
+#endif
 
 	for (i = 0; strlen(keywords[i].keyword); i++)
 		if (strlen(keywords[i].def))
@@ -321,6 +360,53 @@ int read_config(char *file)
 		for (i = strlen(line); i > 0 && isspace(line[i - 1]); i--);
 		line[i] = '\0';
 		
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_	
+		if(!strcmp(token,"poolname"))
+		{
+			strncpy(poolname,line,30);
+			//printf("\ndhcpd server read configfile:poolname=%s\n",poolname);
+		}
+		if(!strcmp(token,"poolend"))
+		{			
+			//printf("%s:%d ####poolend\n",__FUNCTION__,__LINE__);
+			poolflag=0;
+			poolname[0]=0;
+			if(serving_pool_config!=NULL)
+				add_serving_pool(serving_pool_config);
+			serving_pool_config=NULL;
+			continue;
+		}
+		if(poolname[0]!=0)
+		{
+			//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
+			if(poolflag==0)
+			{
+				serving_pool_config=malloc(sizeof(struct server_config_t));
+				memset(serving_pool_config,0,sizeof(struct server_config_t));
+				poolflag=1;
+				for (i = 0; strlen(keywords[i].keyword); i++)
+					if (strlen(keywords[i].def))
+						keywords[i].handler(keywords[i].def,(void*)((int)serving_pool_config+((int)(keywords[i].var)-(int)(&server_config))));						
+			}
+			if(poolflag==1)
+			{
+				if(serving_pool_config==NULL)
+					continue;
+				for (i = 0; strlen(keywords[i].keyword); i++)
+				{
+					if (!strcasecmp(token, keywords[i].keyword))
+					{
+						if (!keywords[i].handler(line, (void*)((int)serving_pool_config+((int)(keywords[i].var)-(int)(&server_config))))) 
+						{
+							//printf("%s:%d####\n",__FUNCTION__,__LINE__);
+							LOG(LOG_ERR, "unable to parse '%s'", orig);
+							keywords[i].handler(keywords[i].def,(void*)((int)serving_pool_config+((int)(keywords[i].var)-(int)(&server_config))));
+						}
+					}
+				}
+			}
+		}
+#else
 		for (i = 0; strlen(keywords[i].keyword); i++)
 			if (!strcasecmp(token, keywords[i].keyword))
 				if (!keywords[i].handler(line, keywords[i].var)) {
@@ -328,7 +414,10 @@ int read_config(char *file)
 					/* reset back to the default value */
 					keywords[i].handler(keywords[i].def, keywords[i].var);
 				}
+#endif
 	}
+
+	//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
 	fclose(in);
 	return 1;
 }

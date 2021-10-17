@@ -568,11 +568,10 @@ static void send6(struct RTK_TRAP_profile *ptr, const void *ptr_data, uint32 dat
 	udphdr->source = ptr->udp_dst_port;
 	udphdr->dest = ptr->udp_src_port;
 	udphdr->len = htons(data_len + 8);
-	udphdr->check = 0;
+	udphdr->check = csum_ipv6_magic(&iphdr->saddr, &iphdr->daddr, udphdr->len, IPPROTO_UDP,0);
 
 /* rtp */	
 	memcpy(tmp+48, ptr_data, data_len);
-	udphdr->check = csum_ipv6_magic(&iphdr->saddr, &iphdr->daddr, udphdr->len, IPPROTO_UDP, csum_partial((char *)udphdr, udphdr->len, 0));
 
 #ifdef USE_DST_OUTPUT
 

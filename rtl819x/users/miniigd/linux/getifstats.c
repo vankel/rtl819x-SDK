@@ -153,13 +153,11 @@ int wanip3=0;
 	}
 
 #endif
-
 if(wisp_interface_num == -1){
 	if (getWanLink("eth1") < 0){  // eth1 link down		
 		return(LINK_DOWN);	//Brad modify from LINK_WAIT to LINK_DOWN		
 		}
 }
-
 
 if (wan_type == PPPOE || wan_type == PPTP || wan_type ==L2TP || wan_type ==PPPOE_RU || wan_type == PPTP_RU) {		
 #ifdef MULTI_PPPOE

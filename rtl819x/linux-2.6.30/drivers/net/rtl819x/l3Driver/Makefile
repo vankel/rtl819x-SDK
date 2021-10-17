@@ -20,6 +20,11 @@ endif
 	
 	obj-$(CONFIG_RTL_HARDWARE_MULTICAST) := rtl865x_multicast.o
 
+ifeq ($(CONFIG_RTL_8198C),y)
+	obj-$(CONFIG_IPV6) += rtl8198c_routeIpv6.o
+	obj-$(CONFIG_IPV6) += rtl8198c_arpIpv6.o
+	obj-$(CONFIG_IPV6) += rtl8198c_nexthopIpv6.o
+endif
 	ifdef CONFIG_RTL_LAYERED_DRIVER_L3
 		obj-y += rtl865x_arp.o rtl865x_ip.o rtl865x_ppp.o rtl865x_nexthop.o rtl865x_route.o 
 	endif
@@ -28,6 +33,10 @@ ifdef CONFIG_RTL_MULTIPLE_WAN
 endif
 ifdef CONFIG_RTL_LOCAL_PUBLIC
 		obj-y += rtl865x_localPublic.o
+endif
+
+ifdef CONFIG_RTL_HW_DSLITE_SUPPORT
+		obj-y += rtl865x_dslite.o
 endif
 
 EXTRA_CFLAGS += -O1 -DRTL_TBLDRV -D__linux__  -mno-memcpy -DRTL865X_OVER_KERNEL -DRTL865X_OVER_LINUX -Werror

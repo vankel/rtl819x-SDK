@@ -142,6 +142,7 @@ struct exfat_dev* exfat_open(const char* spec, enum exfat_mode mode)
 		exfat_error("failed to open '%s': %s", spec, strerror(errno));
 		return NULL;
 	}
+
 #if defined(HOTPLUG_MOUNT_PATCH)
 	oldfd = dev->fd;
 	if(oldfd == 0){

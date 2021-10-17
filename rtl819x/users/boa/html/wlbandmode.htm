@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Operation Mode</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 wlan_num =<% getIndex("wlan_num"); %> ;
 var isPocketRouter="<% getInfo("isPocketRouter"); %>"*1;
@@ -16,7 +17,7 @@ var POCKETROUTER_BRIDGE_CLIENT = 1;
 </head>
 <body>
 <blockquote>
-<h2><font color="#0000FF">Wireless Band Setting</font></h2>
+<h2>Wireless Band Setting</h2>
 
 
 <table border=0 width="500" cellspacing=0 cellpadding=0>

@@ -468,7 +468,6 @@ static void ENTRY_SLIC_Hook_Polling(
 			voip_event_hook_in( cch, VEID_HOOK_FXO_ON_HOOK );
 		} else {
 			voip_event_hook_in( cch, VEID_HOOK_PHONE_ON_HOOK );
-			p_snd ->fxs_ops ->SLIC_Set_Power_Save_Mode( p_snd );
 		}
 		//printk("hook_in: ON\n");
 	}
@@ -484,7 +483,6 @@ static void ENTRY_SLIC_Hook_Polling(
 #endif
 
 			voip_event_hook_in( cch, VEID_HOOK_PHONE_OFF_HOOK );
-			p_snd ->fxs_ops ->OnHookLineReversal( p_snd, 0 );
 			//printk("hook_in: OFF\n");
 
 #ifndef CONFIG_AUDIOCODES_VOIP

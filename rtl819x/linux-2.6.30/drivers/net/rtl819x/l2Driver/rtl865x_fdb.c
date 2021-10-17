@@ -8,7 +8,13 @@
  */
 
 
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#else
 #include <linux/config.h>
+#endif
 #include <linux/module.h>
 #include <linux/kernel.h>
 
@@ -52,7 +58,9 @@ int32    arpAgingTime = 450;
 ether_addr_t cpu_mac = { {0x00, 0x00, 0x0a, 0x00, 0x00, 0x0f} };
 rtl865x_tblAsicDrv_l2Param_t tmpL2buff;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 static RTL_DECLARE_MUTEX(l2_sem);
+#endif
 int32 _rtl865x_fdb_alloc(void)
 {
 	int32 index = 0;
@@ -321,7 +329,7 @@ int32 rtl865x_Lookup_fdb_entry(uint32 fid, ether_addr_t *mac, uint32 flags, uint
 int32 rtl865x_addFilterDatabaseEntry( uint32 fid, ether_addr_t * mac, uint32 portmask, uint32 type )
 {
         int32 retval;
-	 unsigned long flags;	
+	 unsigned long flags=0;	
         if (type != FDB_TYPE_FWD && type != FDB_TYPE_SRCBLK && type != FDB_TYPE_TRAPCPU)
                 return RTL_EINVALIDINPUT; /* Invalid parameter */
  
@@ -333,7 +341,7 @@ int32 rtl865x_addFilterDatabaseEntry( uint32 fid, ether_addr_t * mac, uint32 por
                 return RTL_EINVALIDFID;
         /*l2 lock*/
 	//rtl_down_interruptible(&l2_sem);
-	local_irq_save(flags);	
+	SMP_LOCK_ETH(flags);	
 #ifdef CONFIG_RTL865X_LANPORT_RESTRICTION
         retval = _rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, fid,  mac, type, portmask, TRUE, FALSE);
 #else
@@ -341,14 +349,14 @@ int32 rtl865x_addFilterDatabaseEntry( uint32 fid, ether_addr_t * mac, uint32 por
 #endif
         /*l2 unlock*/
 	//rtl_up(&l2_sem);
- 	local_irq_restore(flags);
+ 	SMP_UNLOCK_ETH(flags);
         return retval;
 }
 
 int32 rtl865x_addFilterDatabaseEntryExtension( uint16 fid, rtl865x_filterDbTableEntry_t * L2entry)
 {
         int32 retval;
-	 unsigned long flags;
+	 //unsigned long flags=0;
         if (L2entry->process != FDB_TYPE_FWD && L2entry->process != FDB_TYPE_SRCBLK && L2entry->process != FDB_TYPE_TRAPCPU)
                 return RTL_EINVALIDINPUT; /* Invalid parameter */
  
@@ -360,7 +368,8 @@ int32 rtl865x_addFilterDatabaseEntryExtension( uint16 fid, rtl865x_filterDbTable
                 return RTL_EINVALIDFID;
         /*l2 lock*/
 	//rtl_down_interruptible(&l2_sem);	
-	local_irq_save(flags);	
+	/*Fix jwj: disable SMP_LOCK_ETH*/
+	//SMP_LOCK_ETH(flags);	
 	retval = _rtl865x_addFilterDatabaseEntry(	L2entry->l2type, 
 											fid,  
 											&(L2entry->macAddr),
@@ -371,7 +380,7 @@ int32 rtl865x_addFilterDatabaseEntryExtension( uint16 fid, rtl865x_filterDbTable
 
         /*l2 unlock*/
 	//rtl_up(&l2_sem);
- 	local_irq_restore(flags);
+ 	//SMP_UNLOCK_ETH(flags);
         return retval;
 }
 
@@ -752,7 +761,7 @@ int32 _rtl865x_addFilterDatabaseEntry(uint16 l2Type, uint16 fid,  ether_addr_t *
 */
 int32 rtl865x_delFilterDatabaseEntry(uint16 l2Type, uint16 fid, ether_addr_t * macAddr) {
 	int32 retval;
-	unsigned long flags;
+	unsigned long flags=0;
 	if (fid >= RTL865x_FDB_NUMBER)
 		return RTL_EINVALIDINPUT;
 	if (macAddr == (ether_addr_t *)NULL)
@@ -762,11 +771,11 @@ int32 rtl865x_delFilterDatabaseEntry(uint16 l2Type, uint16 fid, ether_addr_t * m
 	
 /*	L2 lock		*/
 	//rtl_down_interruptible(&l2_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEII, fid, macAddr);
 /*	L2 unlock		*/
 	//rtl_up(&l2_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return retval;
 }
 
@@ -1629,7 +1638,7 @@ int32 _rtl865x_addAuthSWl2Entry(uint16 l2Type, uint16 fid,  ether_addr_t * macAd
 int32 rtl865x_addAuthFilterDatabaseEntryExtension( uint16 fid, rtl865x_filterDbTableEntry_t * L2entry)
 {
         int32 retval;
-	unsigned long flags;	
+	unsigned long flags=0;	
         if (L2entry->process != FDB_TYPE_FWD && L2entry->process != FDB_TYPE_SRCBLK && L2entry->process != FDB_TYPE_TRAPCPU)
                 return RTL_EINVALIDINPUT; /* Invalid parameter */
  
@@ -1642,7 +1651,7 @@ int32 rtl865x_addAuthFilterDatabaseEntryExtension( uint16 fid, rtl865x_filterDbT
 	
         /*l2 lock*/
 	//rtl_down_interruptible(&l2_sem);	
-	local_irq_save(flags);	
+	SMP_LOCK_ETH(flags);	
         retval = _rtl865x_addAuthFilterDatabaseEntry(	L2entry->l2type, 
         										fid,  
         										&(L2entry->macAddr),
@@ -1652,7 +1661,7 @@ int32 rtl865x_addAuthFilterDatabaseEntryExtension( uint16 fid, rtl865x_filterDbT
         										L2entry->SrcBlk);
         /*l2 unlock*/
 	//rtl_up(&l2_sem);
- 	local_irq_restore(flags);
+ 	SMP_UNLOCK_ETH(flags);
         return retval;
 }
 
@@ -1667,7 +1676,7 @@ int32 rtl865x_addAuthFilterDatabaseEntryExtension( uint16 fid, rtl865x_filterDbT
 */
 int32 rtl865x_delAuthFilterDatabaseEntry(uint16 l2Type, uint16 fid, ether_addr_t * macAddr) {
 	int32 retval;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	if (fid >= RTL865x_FDB_NUMBER)
 		return RTL_EINVALIDINPUT;
 	if (macAddr == (ether_addr_t *)NULL)
@@ -1677,11 +1686,11 @@ int32 rtl865x_delAuthFilterDatabaseEntry(uint16 l2Type, uint16 fid, ether_addr_t
 	
 /*	L2 lock		*/
 	//rtl_down_interruptible(&l2_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delAuthFilterDatabaseEntry(RTL865x_L2_TYPEII, fid, macAddr);
 /*	L2 unlock		*/
 	//rtl_up(&l2_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 
@@ -2134,6 +2143,74 @@ int32 rtl865x_LinkChange_Process(void)
 #endif
 
 #ifdef CONFIG_RTL_PROC_DEBUG
+#ifdef CONFIG_RTL_PROC_NEW
+int32 rtl865x_sw_l2_proc_read(struct seq_file *s, void *v)
+{
+	int32 index = 0;
+	int32 index1 = 0;	
+	//int len=0;
+	uint32 port, m=0;
+	rtl865x_filterDbTable_t *filterDbPtr;
+	rtl865x_filterDbTableEntry_t  *tempFilterDbPtr;
+	
+	seq_printf(s, "%s\n", "sw l2 table:");	
+	
+	for(index=0,filterDbPtr=&sw_FDB_Table.filterDB[0]; index<RTL865x_FDB_NUMBER; index++,filterDbPtr++) {
+		for(index1=0; index1<RTL8651_L2TBL_ROW; index1++)		
+			if (SLIST_FIRST(&(filterDbPtr->database[index1]))) 
+			{
+				SLIST_FOREACH(tempFilterDbPtr, &(filterDbPtr->database[index1]), nextFDB) 
+				{
+					seq_printf(s, "%4d.[%3d,%d] %02x:%02x:%02x:%02x:%02x:%02x FID:%x mbr(",m, index1, tempFilterDbPtr->asicPos, 
+								tempFilterDbPtr->macAddr.octet[0], tempFilterDbPtr->macAddr.octet[1], tempFilterDbPtr->macAddr.octet[2], 
+								tempFilterDbPtr->macAddr.octet[3], tempFilterDbPtr->macAddr.octet[4], tempFilterDbPtr->macAddr.octet[5], index);
+
+					m++;
+
+					for (port = 0 ; port < RTL8651_PORT_NUMBER + rtl8651_totalExtPortNum ; port ++)
+					{
+						if (tempFilterDbPtr->memberPortMask & (1<<port))
+						{
+							seq_printf(s,"%d ", port);
+						}
+					}
+					seq_printf(s,")");
+					
+					switch(tempFilterDbPtr->process)
+					{
+						case FDB_TYPE_FWD:
+								seq_printf(s,"%s ", "FWD");
+								break;
+						case FDB_TYPE_DSTBLK:
+								seq_printf(s,"%s ", "DSTBLK");
+								break;
+						case FDB_TYPE_SRCBLK:
+								seq_printf(s,"%s ", "SRCBLK");
+								break;
+						case FDB_TYPE_TRAPCPU:
+								seq_printf(s,"%s ", "CPU");
+								break;
+					}
+//					seq_printf(s,"%s %s %s",tempFilterDbPtr->process?"CPU":"FWD", tempFilterDbPtr->l2type?"STA":"DYN",  tempFilterDbPtr->SrcBlk?"BLK":"");
+					seq_printf(s,"%s ",  (tempFilterDbPtr->l2type != RTL865x_L2_TYPEI)?"STA":"DYN");	
+					seq_printf(s,"%s ",  (tempFilterDbPtr->l2type == RTL865x_L2_TYPEII)?"NH":"");
+
+					seq_printf(s,"%s ", tempFilterDbPtr->SrcBlk?"BLK":"");
+					
+					if (tempFilterDbPtr->auth)
+					{
+						seq_printf(s,"AUTH:%d  ",tempFilterDbPtr->auth);
+					}
+
+/*					seq_printf(s,"reference count:%d",tempFilterDbPtr->refCount);*/
+					seq_printf(s,"\n");
+				}
+			}
+		}
+
+	return 0;
+}
+#else
 int32 rtl865x_sw_l2_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int32 index = 0;
@@ -2200,10 +2277,78 @@ int32 rtl865x_sw_l2_proc_read( char *page, char **start, off_t off, int count, i
 
 	return len;
 }
+#endif
 
 int32 rtl865x_sw_l2_proc_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 #endif
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+int32 rtl865x_updateAuthState(int32 auth, const unsigned char *addr)
+{
+    int32 found = FAILED;
+    ether_addr_t *macAddr;
+    int32 ret=FAILED;
+    //int8 port_num = -1;
+    int32 column;
+    uint32 rowIdx;
+    rtl865x_tblAsicDrv_l2Param_t    fdbEntry;
+    //rtl865x_filterDbTableEntry_t        l2temp_entry;
+	rtl865x_filterDbTable_t *fdb_t = &sw_FDB_Table.filterDB[RTL_LAN_FID];
+	rtl865x_filterDbTableEntry_t *tmpL2;
+    
+    if (addr == NULL)
+        return RTL_EINVALIDINPUT;
+    //printk("[%s][%d].\n", __FUNCTION__, __LINE__);
+    macAddr = (ether_addr_t *)(addr);
+	rowIdx = rtl8651_filterDbIndex(macAddr, RTL_LAN_FID);
+    found = rtl865x_Lookup_fdb_entry(RTL_LAN_FID, macAddr, FDB_DYNAMIC, &column, &fdbEntry);
+    if (found == SUCCESS )
+    {
+        //port_num = rtl865x_ConvertPortMasktoPortNum(fdbEntry.memberPortMask);
+        //printk("[%s][%d].\n", __FUNCTION__, __LINE__);
+        //printk("\nbefore rtl865x_lookup_FilterDatabaseEntry, port is %d\n", port_num);
 
+        if (auth != fdbEntry.auth)
+        {
+            //update hw l2
+    		rtl8651_setAsicL2Table_Patch(
+    				rowIdx, 
+    				column, 
+    				macAddr, 
+    				fdbEntry.cpu, 
+    				fdbEntry.srcBlk, 
+    				fdbEntry.memberPortMask, 
+    				fdbEntry.ageSec, 
+    				fdbEntry.isStatic, 
+    				fdbEntry.nhFlag,
+    				fdbEntry.fid,
+    				auth);
+            //update sw l2
+            if (SLIST_FIRST(&(fdb_t->database[rowIdx]))) 
+            {   
+                SLIST_FOREACH(tmpL2, &(fdb_t->database[rowIdx]), nextFDB) 
+                {
+                     if (memcmp(&(tmpL2->macAddr), macAddr, 6)== 0)
+                    {
+                        if((tmpL2->auth != auth))
+                        {
+                            tmpL2->auth             = auth;
+                            break;
+                        }           
+                    }           
+                }
+            }
+
+        }
+        
+    }
+    else
+    {
+        //printk("[%s][%d].\n", __FUNCTION__, __LINE__);
+        /*add */
+    }
+    return ret;
+}
+#endif

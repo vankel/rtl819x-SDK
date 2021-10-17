@@ -70,7 +70,6 @@ typedef enum
 
 }TdtmfPowerLevel;
 
-#if 0
 typedef enum
 {
 	DTMF_TWIST_1DB = 0x65810624,		//0x80000000*0.793
@@ -92,28 +91,7 @@ typedef enum
 	DTMF_TWIST_ERR = 0
 
 }TdtmfTwistLevel;
-#else
-typedef enum
-{
-	DTMF_TWIST_1DB = 0x5A7EF9DB,		//0x80000000*0.707 (1.5dB)
-	DTMF_TWIST_2DB = 0x47EF9DB2,		//0x80000000*0.562 (2.5dB)
-	DTMF_TWIST_3DB = 0x3916872B,		//0x80000000*0.446 (3.5dB)
-	DTMF_TWIST_4DB = 0x2DB22D0E,		//0x80000000*0.357
-	DTMF_TWIST_5DB = 0x24189374,		//0x80000000*0.282
-	DTMF_TWIST_6DB = 0x1C8B4395,		//0x80000000*0.223
-	DTMF_TWIST_7DB = 0x16D5CFAA,		//0x80000000*0.1784
-	DTMF_TWIST_8DB = 0x12161E4F,		//0x80000000*0.1413
-	DTMF_TWIST_9DB = 0xE45A1CA,			//0x80000000*0.1115  
-	DTMF_TWIST_10DB = 0xB6AE7D5,		//0x80000000*0.0892
-	DTMF_TWIST_11DB = 0x90CB295,		//0x80000000*0.0707
-	DTMF_TWIST_12DB	= 0x7318FC5,		//0x80000000*0.0562
-	DTMF_TWIST_13DB = 0x5B573EA,		//0x80000000*0.0446
-	DTMF_TWIST_14DB	= 0x474538E,		//0x80000000*0.0348 
-	DTMF_TWIST_15DB = 0x39C0EBE,		//0x80000000*0.0282
-	DTMF_TWIST_16DB	= 0x2DAB9F5,		//0x80000000*0.0223
-	DTMF_TWIST_ERR = 0
-}TdtmfTwistLevel;
-#endif
+
 
 /* larger percent, more strict DTMF detection */
 typedef enum
@@ -300,7 +278,7 @@ TstVoipFaxV21;//For fax v21 data
 #define HS_FAX_V21_CH2_HEADER	0x6602
 
 extern TstVoipFaxV21 stVoipFaxV21[];
-extern unsigned char dtmf_chid[MAX_DSP_RTK_CH_NUM][DTMF_DIR_SIZE];
+extern unsigned char dtmf_chid[MAX_DSP_RTK_CH_NUM][2];
 
 void init_fax_v21(unsigned int chid);
 void exit_fax_v21(unsigned int chid);

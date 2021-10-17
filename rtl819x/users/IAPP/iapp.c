@@ -701,7 +701,7 @@ int main(int argc, char *argv[])
 	/*
 	 * create layer 2 socket
 	 */
-	hapd->iapp_packet_sock = socket(PF_PACKET, SOCK_RAW, 0);
+	hapd->iapp_packet_sock = socket(PF_PACKET, SOCK_RAW, IPPROTO_RAW);
 	if (hapd->iapp_packet_sock < 0) {
 		perror("socket[PF_PACKET,SOCK_RAW]");
 		return -1;

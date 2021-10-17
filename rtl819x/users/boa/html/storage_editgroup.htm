@@ -1,0 +1,44 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>Disk Setup </title>
+<script language="javascript" type="text/javascript" src="util_gw.js"> </script>
+<script>
+
+</script>
+</head>
+
+<blockquote>
+<h2><font color="#0000FF">Edit Group</font></h2>
+
+<body onload="init();">
+
+<form action=/boafrm/formDiskEditGroup method=POST name="formDiskEditGroup">
+ <table border=0 width=500>
+  <tr>
+  <font size=2><b>Group Account</b></font>
+  </tr>
+    <% GroupEditName(); %>
+  <tr>
+    <td width="20%"><font size=2><b>New Access:</b></td>
+    <td width="50%">
+      <select name="Access">
+	    <option value="r-w">read-write</option>
+	    <option value="r">read</option>
+	  </select>
+    </td>
+  </tr>
+  <tr>
+     <td width="30%"><font size=2><input type="submit" name="EditGroup" value="EditGroup"></td>
+    <td width="30%"><font size=2><input type="reset" name="reset" value="reset"></td>
+    <input type="hidden" value="/administration.htm" name="submit-url">
+  </tr>  
+</table>
+</form>
+
+</body>
+
+</html>
+

@@ -16,9 +16,9 @@
 #define	IF_PPPOE 2
 #define	IF_PPTP 3
 #define	IF_L2TP 4
-#if defined(CONFIG_RTL_INBAND_CTL_ACL)
-#define RTL865X_ACL_TEST_USED		-30002
-#endif
+#define IF_6RD	5
+#define IF_DSLT	6
+
 #define RTL865X_ACL_IPV6_USED		-30000
 #define RTL865X_ACL_QOS_USED2		-20002		/* dummy queue for iptable 2 acl translate */
 #define RTL865X_ACL_QOS_USED1		-20000		/* for default queue */
@@ -108,6 +108,18 @@ typedef struct _rtl865x_AclRule_s
 			}is;
 		}L3L4;
 
+
+#if defined(CONFIG_RTL_8198C)
+		struct
+		{        
+			inv6_addr_t _srcIpV6Addr, _srcIpV6AddrMask;
+			inv6_addr_t _dstIpV6Addr, _dstIpV6AddrMask;
+            uint32 _INV:1,_ETY:1, _comb:1,_ip_tunnel:1 ,_httpFilter:1, _httpFilterM:1, _identSrcDstIp:1, _identSrcDstIpM:1;
+            uint32 _flowLabel, _flowLabelMask;
+            uint8 _trafficClass, _trafficClassMask;
+            uint8 _nextheader, _nextheaderMask;
+        }L3V6;
+ #endif       
 		/* Source filter ACL rule */
 		struct
 		{
@@ -130,7 +142,7 @@ typedef struct _rtl865x_AclRule_s
 			uint32 _ignoreL4:1, //L3 rule
 				   _ignoreL3L4:1; //L2 rule
 		} DSTFILTER;
-#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
+#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT) ||defined(CONFIG_RTL_MULTIPLE_WAN)
 		struct {
 			uint8	vlanTagPri;
 		} VLANTAG;
@@ -143,7 +155,7 @@ typedef struct _rtl865x_AclRule_s
 			pktOpApp_:3,
 			priority_:3,
 			direction_:2,
-#if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) ||defined(CONFIG_RTL_MULTIPLE_WAN)
 			upDown_:1,//0: uplink acl rule for hw qos; 1: downlink acl rule for hw qos
 #endif
 			nexthopIdx_:5, /* Index of nexthop table (NOT L2 table) */	/* used as network interface index for 865xC qos system */
@@ -154,8 +166,15 @@ typedef struct _rtl865x_AclRule_s
 			pppoeIdx_:3, /*for redirect*/
 			L2Idx_:10, /* Index of L2 table */
 			inv_flag:8, /*mainly for iptables-->acl rule, when iptables rule has invert netif flag, this acl rule is added to other netifs*/
+#if defined(CONFIG_RTL_8198C)
+			aclIdx:8;	/* aisc entry idx */
+#else
 			aclIdx:7;	/* aisc entry idx */
+#endif
 
+#if defined(CONFIG_RTL_8198C)
+	uint32 aclvid_:12; /* vid if ActionType =1111 */
+#endif
 	struct _rtl865x_AclRule_s *pre,*next;
 
 }rtl865x_AclRule_t;
@@ -202,7 +221,31 @@ typedef struct _rtl865x_AclRule_s
 #define ipFlag_					un_ty.L3L4.is.ip.un._flag
 #define ipDF_					un_ty.L3L4.is.ip.un.s._DF
 #define ipMF_					un_ty.L3L4.is.ip.un.s._MF
-
+#if defined(CONFIG_RTL_8198C)
+/* IPv6 ACL Rule Definition */
+#define srcIpV6Addr_			un_ty.L3V6._srcIpV6Addr
+#define srcIpV6AddrMask_		un_ty.L3V6._srcIpV6AddrMask
+#define srcIpV6AddrUB_			un_ty.L3V6._srcIpV6Addr
+#define srcIpV6AddrLB_			un_ty.L3V6._srcIpV6AddrMask
+#define dstIpV6Addr_			un_ty.L3V6._dstIpV6Addr
+#define dstIpV6AddrMask_		un_ty.L3V6._dstIpV6AddrMask
+#define dstIpV6AddrUB_			un_ty.L3V6._dstIpV6Addr
+#define dstIpV6AddrLB_			un_ty.L3V6._dstIpV6AddrMask
+#define ipv6Invert_      	    un_ty.L3V6._INV
+#define ipv6EntryType_     	    un_ty.L3V6._ETY
+#define ipv6Combine_	        un_ty.L3V6._comb
+#define ipv6IPtunnel_	        un_ty.L3V6._ip_tunnel
+#define ipv6HttpFilter_      	un_ty.L3V6._httpFilter
+#define ipv6HttpFilterM_	    un_ty.L3V6._httpFilterM
+#define ipv6IdentSrcDstIp_   	un_ty.L3V6._identSrcDstIp
+#define ipv6IdentSrcDstIpM_		un_ty.L3V6._identSrcDstIpM
+#define ipv6FlowLabel_      	un_ty.L3V6._flowLabel
+#define ipv6FlowLabelM_	        un_ty.L3V6._flowLabelMask
+#define ipv6TrafficClass_      	un_ty.L3V6._trafficClass
+#define ipv6TrafficClassM_	    un_ty.L3V6._trafficClassMask
+#define ipv6NextHeader_      	un_ty.L3V6._nextheader
+#define ipv6NextHeaderM_	    un_ty.L3V6._nextheaderMask
+#endif
 /* ICMP ACL Rule Definition */
 #define icmpType_				un_ty.L3L4.is.icmp._type
 #define icmpTypeMask_			un_ty.L3L4.is.icmp._typeMask
@@ -287,6 +330,9 @@ typedef struct _rtl865x_AclRule_s
 #define RTL865X_ACL_DROP_RATE_EXCEED_BPS		0x0c
 #define RTL865X_ACL_LOG_RATE_EXCEED_BPS		0x0d
 #define RTL865X_ACL_PRIORITY					0x0e
+#if defined(CONFIG_RTL_8198C)
+#define RTL865X_ACL_VID                     0x0f
+#endif
 
 /* ACL Rule type Definition */
 #define RTL865X_ACL_MAC				0x00
@@ -305,6 +351,12 @@ typedef struct _rtl865x_AclRule_s
 #define RTL865X_ACL_TCP_IPRANGE		0x0E
 #define RTL865X_ACL_UDP_IPRANGE		0x0F
 
+#if defined(CONFIG_RTL_8198C)
+#define RTL865X_ACL_IPV6			0x12 /* ipv6 mask */
+#define RTL865X_ACL_IPV6_RANGE		0x1A
+#endif
+
+
 #if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
 /*	dummy acl type for qos	*/
 #define RTL865X_ACL_802D1P				0x1f
@@ -318,14 +370,26 @@ typedef struct _rtl865x_AclRule_s
 #define RTL865X_ACL_L3_AND_L4			6 /* Only for L3 routing and L4 translation packets (including IP multicast) */
 #define RTL865X_ACL_ALL_LAYER			7 /* No operation. Don't apply this rule. */
 
-#define RTL865X_ACL_MAX_NUMBER		125
-//#define RTL865X_ACL_MAX_NUMBER		64
-#define RTL865X_ACL_RESERVED_NUMBER	3
+#if defined (CONFIG_RTL_8198C)////8198C has 256 acl rules
+#define RTL865X_ACL_MAX_NUMBER		252
+#else
+#define RTL865X_ACL_MAX_NUMBER		124
+#endif
 
+//#define RTL865X_ACL_MAX_NUMBER		64
+#define RTL865X_ACL_RESERVED_NUMBER	4
+
+#if defined (CONFIG_RTL_8198C)
+#define RTL865X_ACLTBL_ALL_TO_CPU		255  // This rule is always "To CPU"
+#define RTL865X_ACLTBL_DROP_ALL		254 //This rule is always "Drop"
+#define RTL865X_ACLTBL_PERMIT_ALL		253     // This rule is always "Permit"
+#define RTL865X_ACLTBL_IPV6_TO_CPU		252
+#else
 #define RTL865X_ACLTBL_ALL_TO_CPU		127  // This rule is always "To CPU"
 #define RTL865X_ACLTBL_DROP_ALL		126 //This rule is always "Drop"
 #define RTL865X_ACLTBL_PERMIT_ALL		125     // This rule is always "Permit"
 #define RTL865X_ACLTBL_IPV6_TO_CPU		124
+#endif
 
 #define MAX_IFNAMESIZE 16
 #define NETIF_NUMBER 8
@@ -360,6 +424,8 @@ typedef struct _rtl865x_AclRule_s
 #define RTL_DRV_WAN1_NETIF_NAME "eth6"
 #endif
 #define RTL_DRV_PPP_NETIF_NAME "ppp0"
+#define RTL_DRV_DSLT_NETIF_NAME "dslt"
+#define RTL_DRV_6RD_NETIF_NAME "6rd"
 
 #define RTL_DRV_LAN_P0_NETIF_NAME RTL_DRV_LAN_NETIF_NAME
 #define RTL_DRV_LAN_P1_NETIF_NAME "eth2"
@@ -490,13 +556,6 @@ typedef struct _rtl865x_AclRule_s
 	#endif
 #endif	/*	defined(CONFIG_RTL8186_KB_N) || defined(CONFIG_RTL_819X)	*/
 
-#if defined(CONFIG_RTL_8881A) && defined(CONFIG_RTL_8211F_SUPPORT)
-#undef RTL_WANPORT_MASK
-#undef RTL_LANPORT_MASK
-#define	RTL_WANPORT_MASK		0x1
-#define	RTL_LANPORT_MASK		0x110
-#endif
-
 #if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
 #if defined(CONFIG_8198_PORT5_GMII)
 #if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
@@ -528,6 +587,10 @@ typedef struct rtl865x_netif_s
 	uint16	enableRoute;
 #if defined (CONFIG_RTL_LOCAL_PUBLIC) ||defined(CONFIG_RTL_MULTIPLE_WAN)
 	uint16	forMacBasedMCast;
+#endif
+#if defined(CONFIG_RTL_8198C)
+	uint16	enableRouteV6;
+	uint16 	mtuV6; /*netif's ipv6 MTU*/
 #endif
 }rtl865x_netif_t;
 
@@ -581,6 +644,10 @@ int32 rtl865x_attachMasterNetif(char *slave, char *master);
 int32 rtl865x_detachMasterNetif(char *slave);
 
 int32 rtl865x_setPortToNetif(char *name,uint32 port);
+
+#if defined(CONFIG_RTL_8198C)
+int32 rtl865x_setNetifMtuV6(rtl865x_netif_t *netif);
+#endif
 
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
 int32 rtl865x_getNetifVid(char *name, uint32 *vid);

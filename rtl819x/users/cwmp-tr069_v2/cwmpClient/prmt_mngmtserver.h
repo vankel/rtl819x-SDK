@@ -10,7 +10,7 @@ extern "C" {
 //#define _TR_111_PRMT_
 #ifdef _TR_111_PRMT_
 //#define TR111_DEVICEFILE	"/tmp/tr111device.txt"
-#define TR111_DEVICEFILE	"/var/udhcpd/tr111device.txt"
+#define TR111_DEVICEFILE	"/var/udhcpd/tr069_annex_f_device.dat"
 extern struct CWMP_LEAF tManageDevEntityLeaf[];
 extern struct CWMP_LINKNODE tManageableDeviceObject[];
 int getManageDevEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data);

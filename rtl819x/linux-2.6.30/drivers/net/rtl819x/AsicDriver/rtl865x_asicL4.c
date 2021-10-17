@@ -459,12 +459,6 @@ int32 rtl865x_initAsicL4(void)
 		return FAILED;
 	
 	/*clear asic table*/
-#if !defined(CONFIG_RTL8196C_REVISION_B) && !defined(CONFIG_RTL_8198) && !defined(CONFIG_RTL_819XD) && !defined(CONFIG_RTL_8196E)
-	// SERVER_PORT_TABLE, ALG_TABLE and L4_ICMP_TABLE are removed in formal chip
-	rtl8651_clearSpecifiedAsicTable(TYPE_ALG_TABLE, RTL8651_ALGTBL_SIZE);
-	rtl8651_clearSpecifiedAsicTable(TYPE_SERVER_PORT_TABLE, RTL8651_SERVERPORTTBL_SIZE);
-	rtl8651_clearSpecifiedAsicTable(TYPE_L4_ICMP_TABLE, RTL8651_ICMPTBL_SIZE);
-#endif
 	rtl8651_clearSpecifiedAsicTable(TYPE_L4_TCP_UDP_TABLE, RTL8651_TCPUDPTBL_SIZE);
 
 	WRITE_MEM32(SWTCR0,READ_MEM32(SWTCR0)&~NAPTR_NOT_FOUND_DROP);//When reverse NAPT entry not found, CPU process it.

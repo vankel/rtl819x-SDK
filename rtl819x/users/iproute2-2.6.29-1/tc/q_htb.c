@@ -28,6 +28,8 @@
 #error "Different kernel and TC HTB versions"
 #endif
 
+
+
 static void explain(void)
 {
 	fprintf(stderr, "Usage: ... qdisc add ... htb [default N] [r2q N]\n"
@@ -210,8 +212,14 @@ static int htb_parse_class_opt(struct qdisc_util *qu, int argc, char **argv, str
 
 	/* compute minimal allowed burst from rate; mtu is added here to make
 	   sute that buffer is larger than mtu and to have some safeguard space */
+
+	#if defined(QOS_IMPROVEMENT)
+	if (!buffer) buffer = 5*(opt.rate.rate / get_hz() + mtu);
+	if (!cbuffer) cbuffer = 5*(opt.ceil.rate / get_hz() + mtu);
+	#else
 	if (!buffer) buffer = opt.rate.rate / get_hz() + mtu;
 	if (!cbuffer) cbuffer = opt.ceil.rate / get_hz() + mtu;
+	#endif
 
 	opt.ceil.overhead = overhead;
 	opt.rate.overhead = overhead;

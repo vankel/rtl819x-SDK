@@ -64,12 +64,25 @@ CFLAGS += $(EXTRA_CFLAGS)
 #reduce code size
 CFLAGS += -Os
 
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
 include ../../linux-2.6.30/.config
+else
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+ifeq ($(KERNEL_VER),linux-2.6.30)
+include ../../linux-2.6.30/.config
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+include ../../linux-3.10/.config
+endif
+endif
+#include ../../linux-2.6.30/.config
 
 ifeq ($(CONFIG_SUPPORT_RUSSIA_FEATURES),y)
 CFLAGS += -DSUPPORT_ZIONCOM_RUSSIA
 endif
-
+ifeq ($(CONFIG_RTL_8198C),y)
+     CFLAGS += -DCONFIG_RTL_8198C
+endif
 HDRS=l2tp.h avp.h misc.h control.h call.h scheduler.h file.h aaa.h md5.h
 OBJS=l2tpd.o pty.o misc.o control.o avp.o call.o network.o avpsend.o scheduler.o file.o aaa.o md5.o
 #LIBS= $(OSLIB) # -lefence # efence for malloc checking

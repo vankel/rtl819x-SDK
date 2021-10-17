@@ -18,6 +18,10 @@
 
 unsigned char blank_chaddr[] = {[0 ... 15] = 0};
 
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+extern unsigned int serverpool;
+#endif
+
 #ifdef GUEST_ZONE
  int is_guest_mac(char *iface, unsigned char *addr)
 {
@@ -191,33 +195,9 @@ struct dhcpOfferedAddr *find_lease_by_chaddr(u_int8_t *chaddr)
 {
 	unsigned int i;
 
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-	unsigned int port_id;
-	struct static_lease *tmp_static_lease;
-#endif
 	for (i = 0; i < server_config.max_leases; i++)
-	{
-		if(leases[i].chaddr==NULL)
-			continue;
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-		if(reservedIp(server_config.static_leases, leases[i].yiaddr))
-		{
-			//DEBUG(LOG_INFO, "%s:%d##leases[i].yiaddr=%s\n",__FUNCTION__,__LINE__,inet_ntoa(*((struct in_addr*)&leases[i].yiaddr)));
-			port_id=getPortIdByMac(LAN_IFNAME, chaddr);			
-			for(tmp_static_lease=server_config.static_leases; tmp_static_lease!=NULL; tmp_static_lease=tmp_static_lease->next)
-			{
-				if(tmp_static_lease->port_id==port_id && *(tmp_static_lease->ip)==leases[i].yiaddr)
-					break;
-			}
-			if(tmp_static_lease==NULL)
-				continue;
-		}
-#endif
-		if (!memcmp(leases[i].chaddr, chaddr, 16)) 
-		{			
-			return &(leases[i]);	
-		}
-	}
+		if (!memcmp(leases[i].chaddr, chaddr, 16)) return &(leases[i]);
+	
 	return NULL;
 }
 
@@ -236,10 +216,96 @@ struct dhcpOfferedAddr *find_lease_by_yiaddr(u_int32_t yiaddr)
 
 /* find an assignable address, it check_expired is true, we check all the expired leases as well.
  * Maybe this should try expired leases by age... */
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+u_int32_t find_address(int check_expired, struct client_category_t *deviceCategory)
+#else
 u_int32_t find_address(int check_expired) 
+#endif
 {
 	u_int32_t addr, ret;
-	struct dhcpOfferedAddr *lease = NULL;		
+	struct dhcpOfferedAddr *lease = NULL;	
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+		u_int32_t addrend;
+		if (serverpool) {
+				addr = ntohl(server_config.start);
+				addrend = ntohl(server_config.end);
+		} else {
+			if (deviceCategory == NULL) {
+				addr = ntohl(server_config.start);
+				addrend = ntohl(server_config.end);
+			} else {
+				addr = ntohl(deviceCategory->ipstart);
+				addrend = ntohl(deviceCategory->ipend);
+			}
+		}
+	
+		for (;addr <= addrend; addr++) {
+			if (!serverpool) {
+				if (deviceCategory == NULL) {
+					struct client_category_t *pDhcp;
+					for (pDhcp=server_config.clientRange; pDhcp; pDhcp=pDhcp->next) {
+						if ((addr >= ntohl(pDhcp->ipstart)) && (addr <= ntohl(pDhcp->ipend)))
+							break;
+					}
+					if (!pDhcp)
+						continue;
+				}
+			}
+	
+			/* ie, 192.168.55.0 */
+			if (!(addr & 0xFF)) continue;
+	
+			/* ie, 192.168.55.255 */
+			if ((addr & 0xFF) == 0xFF) continue;
+
+			/* not lease server ip */
+        		if(addr == server_config.server) continue;			
+			
+#ifdef STATIC_LEASE
+			/* Only do if it isn't an assigned as a static lease */ 	
+			if(reservedIp(server_config.static_leases, htonl(addr)))
+				continue;
+#endif	
+			/* lease is not taken */
+			ret = htonl(addr);
+			if ((!(lease = find_lease_by_yiaddr(ret)) ||
+
+			     /* or it expired and we are checking for expired leases */
+			     ( (check_expired == 1)  && lease_expired(lease))) &&
+
+			     /* and it isn't on the network */
+		    	     !check_ip(ret)) {
+				return ret;
+			}
+			else if(check_expired == 2) //some one leases this ip and this ip is not expired.
+			{
+				int arpping_time = 0;
+				int ret_arpping = 0;
+				
+				for(arpping_time = 0; arpping_time<3; arpping_time++)
+				{
+					char ret_hwaddr[6];
+					if (arpping(ret, server_config.server, server_config.arp, server_config.interface, ret_hwaddr) == 0)
+					{
+						ret_arpping = 1;
+						break;
+					}					
+				}
+
+				// But this ip is not alive in network. we release this ip
+				if ( ret_arpping == 1)
+				{
+				}
+				else
+				{
+					return ret;
+				}				
+			}
+		}
+		
+#else  // _PRMT_X_TELEFONICA_ES_DHCPOPTION_
 
 	addr = ntohl(server_config.start); /* addr is in host order here */
 	for (;addr <= ntohl(server_config.end); addr++) {
@@ -307,6 +373,9 @@ u_int32_t find_address(int check_expired)
 			}
 		}
 	}
+
+#endif
+
 	return 0;
 }
 

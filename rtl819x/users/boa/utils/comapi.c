@@ -25,9 +25,17 @@
 
 //#if defined(CONFIG_NET_RADIO)
 #if defined(CONFIG_RTL_8196B)
-#include "../../../linux-2.6.30/drivers/net/wireless/rtl8190/ieee802_mib.h"
+	#if defined(KERNEL_2_6_30)
+		#include "../../../linux-2.6.30/drivers/net/wireless/rtl8190/ieee802_mib.h"
+	#elif defined(KERNEL_3_10)
+		#include "../../../linux-3.10/drivers/net/wireless/rtl8190/ieee802_mib.h"
+	#endif
 #else /*rtl8196C*/
-#include "../../../linux-2.6.30/drivers/net/wireless/rtl8192cd/ieee802_mib.h"
+	#if defined(KERNEL_2_6_30)
+		#include "../../../linux-2.6.30/drivers/net/wireless/rtl8192cd/ieee802_mib.h"
+	#elif defined(KERNEL_3_10)
+		#include "../../../linux-3.10/drivers/net/wireless/rtl8192cd/ieee802_mib.h"
+	#endif
 #endif
 //#endif //#if defined(CONFIG_NET_RADIO)
 
@@ -84,15 +92,14 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 		fprintf(fp, "%s_"str"=%ld\n", ifname, val)
 #define FPRINTF_STR(str,val) \
 		fprintf(fp, "%s_"str"=\"%s\"\n", ifname, val)
-		
-#if !defined(CONFIG_RTL_8196C)
+
+#if  0//!defined(CONFIG_RTL_8196C)
 #define CFG_FILE_PATH "/var/RTL8190N.dat"
 #else
 #define CFG_FILE_PATH "/var/RTL8192CD.dat"
 #endif
 
-	// open config file
-	printf("dumpCfgFile!!!!!!!!!!!!!!!!!!! %s %d\n", ifname, idx);
+	printf("dumpCfgFile!!!! %s %d\n", ifname, idx);
 	if (memcmp("wlan0", ifname, strlen(ifname)) == 0)
 		fp = fopen( CFG_FILE_PATH,"w" );
 	else
@@ -101,133 +108,227 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 		printf("Open configure file failed!\n");
 		return -1;
 	}
-	
-	FPRINTF_INT("regdomain", 			pmib->dot11StationConfigEntry.dot11RegDomain);
+
+	FPRINTF_INT("func_off",             pmib->miscEntry.func_off);
 	fprintf_BArray(fp,"hwaddr",ifname,	pmib->dot11OperationEntry.hwaddr, 6);
 	FPRINTF_INT("disable_brsc", 		pmib->dot11OperationEntry.disable_brsc);
 	FPRINTF_INT("led_type", 			pmib->dot11OperationEntry.ledtype);
-	//FPRINTF_INT("dot11DesiredSSIDLen", 	pmib->dot11StationConfigEntry.dot11DesiredSSIDLen);
-	FPRINTF_STR("ssid", 				pmib->dot11StationConfigEntry.dot11DesiredSSID);
-	//FPRINTF_INT("dot11SSIDtoScanLen", 	pmib->dot11StationConfigEntry.dot11SSIDtoScanLen);
-	FPRINTF_STR("ssid2scan", 			pmib->dot11StationConfigEntry.dot11SSIDtoScan);
 	FPRINTF_INT("opmode", 				pmib->dot11OperationEntry.opmode);
-	//FPRINTF_INT("dot11DefaultSSIDLen", 	pmib->dot11StationConfigEntry.dot11DefaultSSIDLen);
+	//FPRINTF_INT("RFChipID", 			pmib->dot11RFEntry.dot11RFType); 
+	FPRINTF_INT("regdomain", 			pmib->dot11StationConfigEntry.dot11RegDomain);
+	//FPRINTF_INT("dot11DesiredSSIDLen", 	pmib->dot11StationConfigEntry.dot11DesiredSSIDLen); //len can be get by ssid.
+	FPRINTF_STR("ssid", 				pmib->dot11StationConfigEntry.dot11DesiredSSID);
+	//FPRINTF_INT("dot11SSIDtoScanLen", 	pmib->dot11StationConfigEntry.dot11SSIDtoScanLen);//len can be get by ssid.
+	FPRINTF_STR("ssid2scan", 			pmib->dot11StationConfigEntry.dot11SSIDtoScan);
+	//FPRINTF_INT("dot11DefaultSSIDLen", 	pmib->dot11StationConfigEntry.dot11DefaultSSIDLen);//len can be get by ssid.
 	FPRINTF_STR("dot11DefaultSSID", 	pmib->dot11StationConfigEntry.dot11DefaultSSID);
-	FPRINTF_INT("wds_pure", 				pmib->dot11WdsInfo.wdsPure);
-	//FPRINTF_INT("RFChipID", 			pmib->dot11RFEntry.dot11RFType);
-#if defined(CONFIG_RTL_92D_SUPPORT)
-	FPRINTF_INT("phyBandSelect", 			pmib->dot11RFEntry.phyBandSelect);
-	FPRINTF_INT("macPhyMode", 			pmib->dot11RFEntry.macPhyMode);
-#endif
-
-#if defined(CONFIG_RTL_819X) 
-  #if !defined(CONFIG_RTL_8196C)
-	FPRINTF_INT("MIMO_TR_mode",			pmib->dot11RFEntry.MIMO_TR_mode);
-	fprintf_BArray(fp,"TxPowerCCK",ifname,pmib->dot11RFEntry.pwrlevelCCK,14);
-	fprintf_BArray(fp,"TxPowerOFDM_1SS",ifname,pmib->dot11RFEntry.pwrlevelOFDM_1SS,162);
-	fprintf_BArray(fp,"TxPowerOFDM_2SS",ifname,pmib->dot11RFEntry.pwrlevelOFDM_2SS,162);
-	FPRINTF_INT("LOFDM_pwd_A",			pmib->dot11RFEntry.LOFDM_pwd_A);
-	FPRINTF_INT("LOFDM_pwd_B",			pmib->dot11RFEntry.LOFDM_pwd_B);
-	FPRINTF_INT("tssi1",				pmib->dot11RFEntry.tssi1);
-	FPRINTF_INT("tssi2",				pmib->dot11RFEntry.tssi2);
-	FPRINTF_INT("ther",					pmib->dot11RFEntry.ther);
-  #else 
-	FPRINTF_INT("MIMO_TR_mode",			pmib->dot11RFEntry.MIMO_TR_mode);
-  	fprintf_BArray(fp,"pwrlevelCCK_A",ifname,pmib->dot11RFEntry.pwrlevelCCK_A,MAX_2G_CHANNEL_NUM_MIB);
-	fprintf_BArray(fp,"pwrlevelCCK_B",ifname,pmib->dot11RFEntry.pwrlevelCCK_B,MAX_2G_CHANNEL_NUM_MIB);
-	fprintf_BArray(fp,"pwrlevelHT40_1S_A",ifname,pmib->dot11RFEntry.pwrlevelHT40_1S_A,MAX_2G_CHANNEL_NUM_MIB);
-	fprintf_BArray(fp,"pwrlevelHT40_1S_B",ifname,pmib->dot11RFEntry.pwrlevelHT40_1S_B,MAX_2G_CHANNEL_NUM_MIB);
-	fprintf_BArray(fp,"pwrdiffHT40_2S",ifname,pmib->dot11RFEntry.pwrdiffHT40_2S,MAX_2G_CHANNEL_NUM_MIB);
-	fprintf_BArray(fp,"pwrdiffHT20",ifname,pmib->dot11RFEntry.pwrdiffHT20,MAX_2G_CHANNEL_NUM_MIB);
-	fprintf_BArray(fp,"pwrdiffOFDM",ifname,pmib->dot11RFEntry.pwrdiffOFDM,MAX_2G_CHANNEL_NUM_MIB);
-	FPRINTF_INT("tssi1",				pmib->dot11RFEntry.tssi1);
-	FPRINTF_INT("tssi2",				pmib->dot11RFEntry.tssi2);
-	FPRINTF_INT("ther",					pmib->dot11RFEntry.ther);
-  #endif //!defined(CONFIG_RTL8196C)
-#else
-	//!CONFIG_RTL8196B => rtl8651c+rtl8190
-	FPRINTF_INT("dot11DiversitySupport",pmib->dot11RFEntry.dot11DiversitySupport);
-	FPRINTF_INT("defaultAntennaB",		pmib->dot11RFEntry.defaultAntennaB);
-	fprintf_BArray(fp,"TxPowerCCK",ifname,pmib->dot11RFEntry.pwrlevelCCK,14);
-	fprintf_BArray(fp,"TxPowerOFDM",ifname,pmib->dot11RFEntry.pwrlevelOFDM,162);
-	FPRINTF_INT("LOFDM_pwrdiff",	pmib->dot11RFEntry.legacyOFDM_pwrdiff);
-	FPRINTF_INT("antC_pwrdiff",			pmib->dot11RFEntry.antC_pwrdiff);
-	FPRINTF_INT("ther_rfic",			pmib->dot11RFEntry.ther_rfic);
-	FPRINTF_INT("crystalCap",			pmib->dot11RFEntry.crystalCap);
-#endif //defined(CONFIG_RTL8196B)
-
-	FPRINTF_INT("bcnint",				pmib->dot11StationConfigEntry.dot11BeaconPeriod);
-	FPRINTF_INT("channel",				pmib->dot11RFEntry.dot11channel);
-	FPRINTF_INT("rtsthres",				pmib->dot11OperationEntry.dot11RTSThreshold);
-	FPRINTF_INT("fragthres",			pmib->dot11OperationEntry.dot11FragmentationThreshold);
-	FPRINTF_INT("expired_time",			pmib->dot11OperationEntry.expiretime);
-	FPRINTF_INT("preamble",				pmib->dot11RFEntry.shortpreamble);
-	FPRINTF_INT("dtimperiod",			pmib->dot11StationConfigEntry.dot11DTIMPeriod);
-	FPRINTF_INT("iapp_enable",			pmib->dot11OperationEntry.iapp_enable);
-	FPRINTF_INT("disable_protection",	pmib->dot11StationConfigEntry.protectionDisabled);
-	FPRINTF_INT("block_relay",			pmib->dot11OperationEntry.block_relay);
-	FPRINTF_INT("wifi_specific",		pmib->dot11OperationEntry.wifi_specific);
-	FPRINTF_INT("wds_num",				0);
-	FPRINTF_INT("wds_enable",			pmib->dot11WdsInfo.wdsEnabled);
-	FPRINTF_INT("wds_encrypt",			pmib->dot11WdsInfo.wdsPrivacy);
-	for (i=0; i<pmib->dot11WdsInfo.wdsNum; i++){
-		struct wdsEntry *wds_Entry;
-		wds_Entry = &(pmib->dot11WdsInfo.entry[i]);
-		fprintf(fp, "%s_wds_add=%02x%02x%02x%02x%02x%02x,%d\n",ifname,wds_Entry->macAddr[0],wds_Entry->macAddr[1],wds_Entry->macAddr[2],
-										wds_Entry->macAddr[3], wds_Entry->macAddr[4], wds_Entry->macAddr[5], wds_Entry->txRate);
-		
-	}
-
-	memset(buf1, 0, 1024);
-	apmib_get(MIB_WLAN_WDS_WEP_KEY, (void *)buf1);
-	FPRINTF_STR("wds_wepkey",			(char *)buf1);
+	FPRINTF_INT("aclmode",				pmib->dot11StationConfigEntry.dot11AclMode);
 	//FPRINTF_INT("aclnum",				pmib->dot11StationConfigEntry.dot11AclNum);
 	FPRINTF_INT("aclnum",				0);
-	FPRINTF_INT("aclmode",				pmib->dot11StationConfigEntry.dot11AclMode);
-	for (i=0; i<pmib->dot11StationConfigEntry.dot11AclNum; i++)
-		fprintf_BArray(fp,"acladdr",ifname,pmib->dot11StationConfigEntry.dot11AclAddr[i],6);
-	
-#if defined(CONFIG_RTK_MESH) && defined(_MESH_ACL_ENABLE_) // below code copy above ACL code
-	//FPRINTF_INT("meshaclnum",			pmib->dot1180211sInfo.mesh_acl_num);
-	//fprintf_BArray(fp,"meshacladdr",ifname,pmib->dot1180211sInfo.mesh_acl_addr[0],
-	//				pmib->dot1180211sInfo.mesh_acl_num*6);
-	for (i=0; i<pmib->dot1180211sInfo.mesh_acl_num; i++)
-		fprintf_BArray(fp,"meshacladdr",ifname,pmib->dot1180211sInfo.mesh_acl_addr[i],6);
+    if(0!=pmib->dot11StationConfigEntry.dot11AclNum) {
+    	for (i=0; i<pmib->dot11StationConfigEntry.dot11AclNum; i++)
+    		fprintf_BArray(fp,"acladdr",ifname,pmib->dot11StationConfigEntry.dot11AclAddr[i],6);
+    }
+
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT)
+	FPRINTF_INT("phyBandSelect", 	    pmib->dot11RFEntry.phyBandSelect);
+	FPRINTF_INT("macPhyMode", 			pmib->dot11RFEntry.macPhyMode);
+#endif
+#ifdef WLAN_PROFILE
+    char tmpstr0[1024],tmpstr1[26];
+    int offset,j,len;
+    FPRINTF_INT("ap_profile_enable", pmib->ap_profile.enable_profile);
+    //FPRINTF_INT("ap_profile_num",    pmib->ap_profile.profile_num); // the add_ap_profile will increase it automatically.
+	if((8==pmib->dot11OperationEntry.opmode)&&(0!=pmib->ap_profile.enable_profile)&&(0!=pmib->ap_profile.profile_num))
+	{
+	    for(i=0;i<pmib->ap_profile.profile_num && i<PROFILE_NUM;i++) {
+                offset=sprintf(tmpstr0,"%s,%d,%d",  \
+                                 pmib->ap_profile.profile[i].ssid,
+                                 pmib->ap_profile.profile[i].encryption,
+                                 pmib->ap_profile.profile[i].auth_type);
+
+            if(0!=pmib->ap_profile.profile[i].auth_type) {
+                 if (pmib->ap_profile.profile[i].encryption == 1 || pmib->ap_profile.profile[i].encryption == 2) {
+                    offset+=sprintf(tmpstr0+offset,",%d",pmib->ap_profile.profile[i].wep_default_key);
+                    if(1==pmib->ap_profile.profile[i].encryption)
+                        len=10;
+                    else
+                        len=26;
+                    convert_bin_to_str(pmib->ap_profile.profile[i].wep_key1,len/2,tmpstr1);
+                    offset+=sprintf(tmpstr0+offset,",%s",tmpstr1);
+                    convert_bin_to_str(pmib->ap_profile.profile[i].wep_key2,len/2,tmpstr1);
+                    offset+=sprintf(tmpstr0+offset,",%s",tmpstr1);
+                    convert_bin_to_str(pmib->ap_profile.profile[i].wep_key3,len/2,tmpstr1);
+                    offset+=sprintf(tmpstr0+offset,",%s",tmpstr1);
+                    convert_bin_to_str(pmib->ap_profile.profile[i].wep_key4,len/2,tmpstr1);
+                    offset+=sprintf(tmpstr0+offset,",%s",tmpstr1);
+                    
+                 }else if(0!=pmib->ap_profile.profile[i].encryption) {
+                    offset+=sprintf(tmpstr0+offset,",%d",pmib->ap_profile.profile[i].wpa_cipher);
+                    offset+=sprintf(tmpstr0+offset,",%s",pmib->ap_profile.profile[i].wpa_psk);
+                 }
+             }
+             FPRINTF_STR("ap_profile_add", 			tmpstr0); //multi "ap_profile_add" will cause "profile_num" to increase.
+        } 
+	}
 #endif
 
-	FPRINTF_INT("nat25_disable",		pmib->ethBrExtInfo.nat25_disable);
-	FPRINTF_INT("macclone_enable",		pmib->ethBrExtInfo.macclone_enable);
-#ifdef WIFI_SIMPLE_CONFIG
-	FPRINTF_INT("wsc_enable",			pmib->wscEntry.wsc_enable);
+#ifdef CONFIG_RTL_P2P_SUPPORT
+    FPRINTF_INT("p2p_type",              pmib->p2p_mib.p2p_type);
+    FPRINTF_INT("p2p_intent",            pmib->p2p_mib.p2p_intent);
+    FPRINTF_INT("p2p_listen_channel",    pmib->p2p_mib.p2p_listen_channel);
+    FPRINTF_INT("p2p_op_channel",        pmib->p2p_mib.p2p_op_channel);
+    FPRINTF_STR("p2p_device_name",       pmib->p2p_mib.p2p_device_name);
+    fprintf_BArray(fp,"p2p_wsc_pin_code",ifname,pmib->p2p_mib.p2p_wsc_pin_code,9);
+    FPRINTF_INT("p2p_wsc_config_method", pmib->p2p_mib.p2p_wsc_config_method);
 #endif
-#ifdef WLAN_HS2_CONFIG
-	FPRINTF_INT("hs_enable",			pmib->hs2Entry.hs_enable);
-#endif
+
+#if defined(CONFIG_RTL_8196B)
+        FPRINTF_INT("MIMO_TR_mode",         pmib->dot11RFEntry.MIMO_TR_mode);
+        FPRINTF_INT("tssi1",                pmib->dot11RFEntry.tssi1);
+        FPRINTF_INT("tssi2",                pmib->dot11RFEntry.tssi2);
+        FPRINTF_INT("ther",                 pmib->dot11RFEntry.ther);
+        /* fprintf_BArray(fp,"TxPowerCCK",ifname,pmib->dot11RFEntry.pwrlevelCCK,14);//not existed now
+            fprintf_BArray(fp,"",ifname,pmib->dot11RFEntry.pwrlevelOFDM_1SS,162); 
+            fprintf_BArray(fp,"",ifname,pmib->dot11RFEntry.pwrlevelOFDM_2SS,162);
+            pmib->dot11RFEntry.LOFDM_pwd_A = intVal;
+            pmib->dot11RFEntry.LOFDM_pwd_B = intVal; */
+            
+#elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
+
+        FPRINTF_INT("MIMO_TR_mode",                  pmib->dot11RFEntry.MIMO_TR_mode);
+        fprintf_BArray(fp,"pwrlevelCCK_A",ifname,    pmib->dot11RFEntry.pwrlevelCCK_A,MAX_2G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrlevelCCK_B",ifname,    pmib->dot11RFEntry.pwrlevelCCK_B,MAX_2G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrlevelHT40_1S_A",ifname,pmib->dot11RFEntry.pwrlevelHT40_1S_A,MAX_2G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrlevelHT40_1S_B",ifname,pmib->dot11RFEntry.pwrlevelHT40_1S_B,MAX_2G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiffHT40_2S",ifname,   pmib->dot11RFEntry.pwrdiffHT40_2S,MAX_2G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiffHT20",ifname,      pmib->dot11RFEntry.pwrdiffHT20,MAX_2G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiffOFDM",ifname,      pmib->dot11RFEntry.pwrdiffOFDM,MAX_2G_CHANNEL_NUM);
+
+        #if defined(CONFIG_RTL_92D_SUPPORT)
+        fprintf_BArray(fp,"pwrlevel5GHT40_1S_A",ifname, pmib->dot11RFEntry.pwrlevel5GHT40_1S_A, MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrlevel5GHT40_1S_B",ifname, pmib->dot11RFEntry.pwrlevel5GHT40_1S_B, MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff5GHT40_2S",ifname,    pmib->dot11RFEntry.pwrdiff5GHT40_2S, MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff5GHT20",ifname,       pmib->dot11RFEntry.pwrdiff5GHT20, MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff5GOFDM",ifname,       pmib->dot11RFEntry.pwrdiff5GOFDM, MAX_5G_CHANNEL_NUM);
+        #endif
+        #if defined(CONFIG_RTL_8812_SUPPORT)
+        fprintf_BArray(fp,"pwrdiff_5G_20BW1S_OFDM1T_A",ifname,  pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_A, MAX_5G_CHANNEL_NUM);   
+        fprintf_BArray(fp,"pwrdiff_5G_40BW2S_20BW2S_A",ifname,  pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_A,MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff_5G_80BW1S_160BW1S_A",ifname, pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_A,MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff_5G_80BW2S_160BW2S_A",ifname, pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_A,MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff_5G_20BW1S_OFDM1T_B",ifname,  pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_B,MAX_5G_CHANNEL_NUM);    
+        fprintf_BArray(fp,"pwrdiff_5G_40BW2S_20BW2S_B",ifname,  pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_B,MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff_5G_80BW1S_160BW1S_B",ifname, pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_B,MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff_5G_80BW2S_160BW2S_B",ifname, pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_B,MAX_5G_CHANNEL_NUM);
+        fprintf_BArray(fp,"pwrdiff_20BW1S_OFDM1T_A",ifname,     pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_A, MAX_2G_CHANNEL_NUM_MIB);   
+        fprintf_BArray(fp,"pwrdiff_40BW2S_20BW2S_A",ifname,     pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_A, MAX_2G_CHANNEL_NUM_MIB);
+        fprintf_BArray(fp,"pwrdiff_20BW1S_OFDM1T_B",ifname,     pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_B, MAX_2G_CHANNEL_NUM_MIB);
+        fprintf_BArray(fp,"pwrdiff_40BW2S_20BW2S_B",ifname,     pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_B, MAX_2G_CHANNEL_NUM_MIB);
+        #endif
+        FPRINTF_INT("tssi1",pmib->dot11RFEntry.tssi1);
+        FPRINTF_INT("tssi2",pmib->dot11RFEntry.tssi2);
+
+     #if defined(CONFIG_RTL_8881A_SELECTIVE)
+        FPRINTF_INT("ther", pmib->dot11RFEntry.ther);     
+        FPRINTF_INT("xcap", pmib->dot11RFEntry.xcap);
+     #endif
+        FPRINTF_INT("trswitch",    pmib->dot11RFEntry.trswitch);   
+        FPRINTF_INT("trsw_pape_C9",pmib->dot11RFEntry.trsw_pape_C9);
+        FPRINTF_INT("trsw_pape_CC",pmib->dot11RFEntry.trsw_pape_CC);
+        FPRINTF_INT("target_pwr",  pmib->dot11RFEntry.target_pwr);
+        FPRINTF_INT("pa_type",     pmib->dot11RFEntry.pa_type);
+        
+#else
+        FPRINTF_INT("dot11DiversitySupport",  pmib->dot11RFEntry.dot11DiversitySupport);
+        FPRINTF_INT("defaultAntennaB",        pmib->dot11RFEntry.defaultAntennaB);
+        //fprintf_BArray(fp,"TxPowerCCK",ifname,pmib->dot11RFEntry.pwrlevelCCK,14);
+        //fprintf_BArray(fp,"TxPowerOFDM",ifname,pmib->dot11RFEntry.pwrlevelOFDM,162);
+        //FPRINTF_INT("LOFDM_pwrdiff",          pmib->dot11RFEntry.legacyOFDM_pwrdiff);
+        //FPRINTF_INT("antC_pwrdiff",           pmib->dot11RFEntry.antC_pwrdiff);
+        //FPRINTF_INT("ther_rfic",              pmib->dot11RFEntry.ther_rfic);
+        //FPRINTF_INT("crystalCap",             pmib->dot11RFEntry.crystalCap);
+#endif  //For Check CONFIG_RTL_8196B
+
+    FPRINTF_INT("bcnint",				pmib->dot11StationConfigEntry.dot11BeaconPeriod);
+    FPRINTF_INT("dtimperiod",			pmib->dot11StationConfigEntry.dot11DTIMPeriod);
+    FPRINTF_INT("disable_protection",	pmib->dot11StationConfigEntry.protectionDisabled);
+    FPRINTF_INT("channel",				pmib->dot11RFEntry.dot11channel);
+    FPRINTF_INT("preamble",				pmib->dot11RFEntry.shortpreamble);
+    FPRINTF_INT("txbf",                 pmib->dot11RFEntry.txbf);
+	FPRINTF_INT("rtsthres",				pmib->dot11OperationEntry.dot11RTSThreshold);
+    FPRINTF_INT("shortretry",           pmib->dot11OperationEntry.dot11ShortRetryLimit);
+	FPRINTF_INT("fragthres",			pmib->dot11OperationEntry.dot11FragmentationThreshold);
+	FPRINTF_INT("expired_time",			pmib->dot11OperationEntry.expiretime);
+    FPRINTF_INT("block_relay",          pmib->dot11OperationEntry.block_relay);
+    FPRINTF_INT("stbc",                 pmib->dot11nConfigEntry.dot11nSTBC);
+    FPRINTF_INT("ldpc",                 pmib->dot11nConfigEntry.dot11nLDPC);
+    FPRINTF_INT("coexist",              pmib->dot11nConfigEntry.dot11nCoexist);
+	FPRINTF_INT("tdls_prohibited",      pmib->dot11OperationEntry.tdls_prohibited);
+	FPRINTF_INT("tdls_cs_prohibited",   pmib->dot11OperationEntry.tdls_cs_prohibited);
 	FPRINTF_INT("use40M",				pmib->dot11nConfigEntry.dot11nUse40M);
 	FPRINTF_INT("2ndchoffset",			pmib->dot11nConfigEntry.dot11n2ndChOffset);
 	FPRINTF_INT("shortGI20M",			pmib->dot11nConfigEntry.dot11nShortGIfor20M);
 	FPRINTF_INT("shortGI40M",			pmib->dot11nConfigEntry.dot11nShortGIfor40M);
-	FPRINTF_INT("stbc",					pmib->dot11nConfigEntry.dot11nSTBC);
-	FPRINTF_INT("coexist",				pmib->dot11nConfigEntry.dot11nCoexist);
 	FPRINTF_INT("ampdu",				pmib->dot11nConfigEntry.dot11nAMPDU);
 	FPRINTF_INT("amsdu",				pmib->dot11nConfigEntry.dot11nAMSDU);
+    FPRINTF_INT("ack_timeout",          pmib->miscEntry.ack_timeout);
+#ifdef CONFIG_IEEE80211W
+	FPRINTF_INT("dot11IEEE80211W",      pmib->dot1180211AuthEntry.dot11IEEE80211W);
+	FPRINTF_INT("enableSHA256",         pmib->dot1180211AuthEntry.dot11EnableSHA256);
+#endif
+	FPRINTF_INT("iapp_enable",			pmib->dot11OperationEntry.iapp_enable);
+	FPRINTF_INT("block_relay",			pmib->dot11OperationEntry.block_relay);
+	FPRINTF_INT("wifi_specific",		pmib->dot11OperationEntry.wifi_specific);
+	FPRINTF_INT("wds_num",				0);
+	FPRINTF_INT("wds_pure", 		    pmib->dot11WdsInfo.wdsPure);
+	FPRINTF_INT("wds_enable",			pmib->dot11WdsInfo.wdsEnabled);
+	FPRINTF_INT("wds_encrypt",			pmib->dot11WdsInfo.wdsPrivacy);
+    FPRINTF_STR("wds_passphrase",       pmib->dot11WdsInfo.wdsPskPassPhrase);
+	for (i=0; i<pmib->dot11WdsInfo.wdsNum; i++) {
+		struct wdsEntry *wds_Entry;
+		wds_Entry = &(pmib->dot11WdsInfo.entry[i]);
+		fprintf(fp, "%s_wds_add=%02x%02x%02x%02x%02x%02x,%d\n",ifname,wds_Entry->macAddr[0],wds_Entry->macAddr[1],wds_Entry->macAddr[2],
+										wds_Entry->macAddr[3], wds_Entry->macAddr[4], wds_Entry->macAddr[5], wds_Entry->txRate);
+	}
+	memset(buf1, 0, 1024);
+	apmib_get(MIB_WLAN_WDS_WEP_KEY, (void *)buf1);
+	FPRINTF_STR("wds_wepkey",			(char *)buf1);
+
+	FPRINTF_INT("nat25_disable",		pmib->ethBrExtInfo.nat25_disable);
+	FPRINTF_INT("macclone_enable",		pmib->ethBrExtInfo.macclone_enable);
+    
+#ifdef WIFI_SIMPLE_CONFIG
+	FPRINTF_INT("wsc_enable",			pmib->wscEntry.wsc_enable);
+#endif
+
+#ifdef WLAN_HS2_CONFIG
+	FPRINTF_INT("hs_enable",			pmib->hs2Entry.hs_enable);
+#endif
+
 #if defined(CONFIG_RTL_819X) && defined(MBSSID)
 	FPRINTF_INT("vap_enable",			pmib->miscEntry.vap_enable);
 #endif
-	FPRINTF_INT("basicrates",			pmib->dot11StationConfigEntry.dot11BasicRates);
-	FPRINTF_INT("oprates",				pmib->dot11StationConfigEntry.dot11SupportedRates);
-	FPRINTF_INT("fixrate",				pmib->dot11StationConfigEntry.fixedTxRate);
-	FPRINTF_INT("autorate",				pmib->dot11StationConfigEntry.autoRate);
-	FPRINTF_INT("hiddenAP",				pmib->dot11OperationEntry.hiddenAP);
-	FPRINTF_INT("deny_legacy",			pmib->dot11StationConfigEntry.legacySTADeny);
-	FPRINTF_INT("band",					pmib->dot11BssType.net_work_type);
-	FPRINTF_INT("guest_access",			pmib->dot11OperationEntry.guest_access);
-	FPRINTF_INT("qos_enable",			pmib->dot11QosEntry.dot11QosEnable);	
-#ifdef CONFIG_RTL_WAPI_SUPPORT
-	FPRINTF_INT("wapiType",				pmib->wapiInfo.wapiType);
-#endif
-	FPRINTF_INT("authtype",				pmib->dot1180211AuthEntry.dot11AuthAlgrthm);
-	FPRINTF_INT("encmode",				pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm);
+
+    FPRINTF_INT("lowestMlcstRate",  pmib->dot11StationConfigEntry.lowestMlcstRate);
+	FPRINTF_INT("basicrates",	    pmib->dot11StationConfigEntry.dot11BasicRates);
+	FPRINTF_INT("oprates",		    pmib->dot11StationConfigEntry.dot11SupportedRates);
+	FPRINTF_INT("fixrate",			pmib->dot11StationConfigEntry.fixedTxRate);
+	FPRINTF_INT("autorate",		    pmib->dot11StationConfigEntry.autoRate);
+	FPRINTF_INT("deny_legacy",		pmib->dot11StationConfigEntry.legacySTADeny);
+	FPRINTF_INT("hiddenAP",	        pmib->dot11OperationEntry.hiddenAP);
+    FPRINTF_INT("guest_access",		pmib->dot11OperationEntry.guest_access);
+	FPRINTF_INT("band",			    pmib->dot11BssType.net_work_type);
+	FPRINTF_INT("qos_enable",		pmib->dot11QosEntry.dot11QosEnable);	
+    FPRINTF_INT("apsd_enable",      pmib->dot11QosEntry.dot11QosAPSD);
+	FPRINTF_INT("psk_enable",       pmib->dot1180211AuthEntry.dot11EnablePSK);
+	FPRINTF_INT("wpa_cipher",	    pmib->dot1180211AuthEntry.dot11WPACipher);
+	FPRINTF_INT("wpa2_cipher",	    pmib->dot1180211AuthEntry.dot11WPA2Cipher);
+	FPRINTF_STR("passphrase",	    pmib->dot1180211AuthEntry.dot11PassPhrase);
+	FPRINTF_LONG("gk_rekey",	    pmib->dot1180211AuthEntry.dot11GKRekeyTime);
+	FPRINTF_INT("authtype",		    pmib->dot1180211AuthEntry.dot11AuthAlgrthm);
+	FPRINTF_INT("encmode",		    pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm);
+	FPRINTF_INT("wepdkeyid",	    pmib->dot1180211AuthEntry.dot11PrivacyKeyIndex);
 	switch (pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm) {
 		case 1:
 			keylength = 5;
@@ -238,17 +339,15 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 		default:
 			keylength = 0;
 	};
+    
 	fprintf_BArray(fp,"wepkey1",ifname,(unsigned char *)&pmib->dot11DefaultKeysTable.keytype[0], keylength);
 	fprintf_BArray(fp,"wepkey2",ifname,(unsigned char *)&pmib->dot11DefaultKeysTable.keytype[1], keylength);
 	fprintf_BArray(fp,"wepkey3",ifname,(unsigned char *)&pmib->dot11DefaultKeysTable.keytype[2], keylength);
 	fprintf_BArray(fp,"wepkey4",ifname,(unsigned char *)&pmib->dot11DefaultKeysTable.keytype[3], keylength);
-	FPRINTF_INT("wepdkeyid",			pmib->dot1180211AuthEntry.dot11PrivacyKeyIndex);
-#ifndef CONFIG_RTL8196B_TLD
-#ifdef MBSSID
-	FPRINTF_INT("block_relay",			pmib->dot11OperationEntry.block_relay);
-#endif
-#endif
-	FPRINTF_INT("802_1x",				pmib->dot118021xAuthEntry.dot118021xAlgrthm);	
+    
+	FPRINTF_INT("802_1x",	   pmib->dot118021xAuthEntry.dot118021xAlgrthm);
+    FPRINTF_INT("acct_enabled",pmib->dot118021xAuthEntry.acct_enabled);
+
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 	FPRINTF_INT("wapiType",				pmib->wapiInfo.wapiType);
 	FPRINTF_INT("wapiMCastKeyPktNum",	pmib->wapiInfo.wapiUpdateMCastKeyPktNum);
@@ -263,8 +362,20 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 	FPRINTF_STR("wapiPsk",				(char *)buf1);
 #endif
 
+    //for qos
+    FPRINTF_INT("gbwcmode",   pmib->gbwcEntry.GBWCMode);
+    FPRINTF_INT("gbwcthrd_tx",pmib->gbwcEntry.GBWCThrd_tx);
+    FPRINTF_INT("gbwcthrd_rx",pmib->gbwcEntry.GBWCThrd_rx);
+
 #ifdef CONFIG_RTK_MESH
-#ifdef CONFIG_NEW_MESH_UI
+    #ifdef _MESH_ACL_ENABLE_
+    FPRINTF_INT("meshaclnum",        pmib->dot1180211sInfo.mesh_acl_num);
+    FPRINTF_INT("meshaclmode",       pmib->dot1180211sInfo.mesh_acl_mode);
+    for (i=0; i<pmib->dot1180211sInfo.mesh_acl_num; i++)
+        fprintf_BArray(fp,"meshacladdr",ifname,pmib->dot1180211sInfo.mesh_acl_addr[i],6);
+    #endif
+
+    #ifdef CONFIG_NEW_MESH_UI
 	FPRINTF_INT("meshSilence",			pmib->dot1180211sInfo.meshSilence);
 	FPRINTF_INT("mesh_enable",			pmib->dot1180211sInfo.mesh_enable);
 	FPRINTF_INT("mesh_ap_enable",		pmib->dot1180211sInfo.mesh_ap_enable);
@@ -273,30 +384,47 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 	FPRINTF_INT("mesh_max_neightbor",	pmib->dot1180211sInfo.mesh_max_neightbor);
 	FPRINTF_INT("log_enabled",			pmib->dot1180211sInfo.log_enabled);
 	FPRINTF_STR("mesh_id",				pmib->dot1180211sInfo.mesh_id);
-#endif 
+    #endif 
+    
+	FPRINTF_INT("mesh_privacy",pmib->dot11sKeysTable.dot11Privacy);
+    #ifdef 	_11s_TEST_MODE_  
+	FPRINTF_INT("mesh_reserved1",pmib->dot1180211sInfo.mesh_reserved1);
+	FPRINTF_INT("mesh_reserved2",pmib->dot1180211sInfo.mesh_reserved2);
+	FPRINTF_INT("mesh_reserved3",pmib->dot1180211sInfo.mesh_reserved3);
+	FPRINTF_INT("mesh_reserved4",pmib->dot1180211sInfo.mesh_reserved4);
+	FPRINTF_INT("mesh_reserved5",pmib->dot1180211sInfo.mesh_reserved5);
+	FPRINTF_INT("mesh_reserved6",pmib->dot1180211sInfo.mesh_reserved6);
+	FPRINTF_INT("mesh_reserved7",pmib->dot1180211sInfo.mesh_reserved7);
+	FPRINTF_INT("mesh_reserved8",pmib->dot1180211sInfo.mesh_reserved8);
+	FPRINTF_INT("mesh_reserved9",pmib->dot1180211sInfo.mesh_reserved9);
+	FPRINTF_INT("mesh_reserveda",pmib->dot1180211sInfo.mesh_reserveda);
+	FPRINTF_INT("mesh_reservedb",pmib->dot1180211sInfo.mesh_reservedb);
+	FPRINTF_INT("mesh_reservedc",pmib->dot1180211sInfo.mesh_reservedc);
+	FPRINTF_INT("mesh_reservedd",pmib->dot1180211sInfo.mesh_reservedd);
+	FPRINTF_INT("mesh_reservede",pmib->dot1180211sInfo.mesh_reservede);
+	FPRINTF_INT("mesh_reservedf",pmib->dot1180211sInfo.mesh_reservedf);
+	fprintf_BArray(fp,"mesh_reservedstr1",ifname,pmib->dot1180211sInfo.mesh_reservedstr1,16);
+    #endif
 #endif
-
-	FPRINTF_INT("psk_enable",			pmib->dot1180211AuthEntry.dot11EnablePSK);
-	FPRINTF_INT("wpa_cipher",			pmib->dot1180211AuthEntry.dot11WPACipher);
-	FPRINTF_INT("wpa2_cipher",			pmib->dot1180211AuthEntry.dot11WPA2Cipher);
-	FPRINTF_STR("passphrase",			pmib->dot1180211AuthEntry.dot11PassPhrase);
-	FPRINTF_LONG("gk_rekey",			pmib->dot1180211AuthEntry.dot11GKRekeyTime);
+    
 	/* wps relative config */
-	if( strcmp(ifname,"wlan0") )
-	   return 0;
+    if( strcmp(ifname,"wlan0"))  { // only  wlan0  print wps . others go out.
+        goto out;
+       }
 
+//begin WPS>>>
 	apmib_get(MIB_WLAN_MODE, (void *)&is_client);
 	apmib_get(MIB_WLAN_WSC_CONFIGURED, (void *)&is_config);
 	apmib_get(MIB_WLAN_WSC_REGISTRAR_ENABLED, (void *)&is_registrar);
 	if (is_client == CLIENT_MODE) {
-#ifdef CONFIG_RTL8186_KLD_REPEATER
+    #ifdef CONFIG_RTL8186_KLD_REPEATER
 		if (is_repeater_enabled==1 && is_config) {
 			intVal = MODE_AP_PROXY_REGISTRAR;
 			wps_vxdAP_enabled = 1;
 			WRITE_WSC_PARAM(ptr, tmpbuf, "disable_configured_by_exReg = %d\n", 1);
 		}
 		else
-#endif
+    #endif
 		{
 			if (is_registrar) {
 				if (!is_config)
@@ -314,9 +442,12 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 		else
 			intVal = MODE_AP_PROXY_REGISTRAR;
 	}
+
+
+
 	fprintf(fp, "wps_mode=%d\n", intVal);
 	apmib_get(MIB_WLAN_WSC_UPNP_ENABLED, (void *)&intVal);
-	FPRINTF_INT("wps_upnp_enable",		intVal);
+	fprintf(fp,"wps_upnp_enable=%d",		intVal);
 	apmib_get(MIB_WLAN_WSC_METHOD, (void *)&intVal);
 	//Ethernet(0x2)+Label(0x4)+PushButton(0x80) Bitwise OR
 	if (intVal == 1) //Pin+Ethernet
@@ -325,13 +456,16 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 		intVal = (CONFIG_METHOD_ETH | CONFIG_METHOD_PBC);
 	if (intVal == 3) //Pin+PBC+Ethernet
 		intVal = (CONFIG_METHOD_ETH | CONFIG_METHOD_PIN | CONFIG_METHOD_PBC);
+
 	fprintf(fp, "wps_config_method=%d\n",intVal);
 	apmib_get(MIB_WLAN_WSC_AUTH, (void *)&intVal);
-	FPRINTF_INT("wps_auth",				intVal);
+	fprintf(fp,"wps_auth=%d",				intVal);
 	apmib_get(MIB_WLAN_WSC_ENC, (void *)&intVal);
-	FPRINTF_INT("wps_enc",				intVal);
+	fprintf(fp,"wps_enc=%d",				intVal);
+
 	apmib_get(MIB_WLAN_WPA_PSK, (void *)buf1);
 	apmib_get(MIB_WLAN_WEP_KEY_TYPE, (void *)&wep_key_type);
+
 	if( intVal == 2 ){
         	int x=0, wep_keylen;
 	        char key[32];
@@ -386,12 +520,13 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
         fprintf(fp,"#");
         FPRINTF_STR("network_key",			buf1);
     }
+
     if (is_client) {
-#ifdef CONFIG_RTL8186_KLD_REPEATER
+    #ifdef CONFIG_RTL8186_KLD_REPEATER
 		if (wps_vxdAP_enabled)
 			intVal = 1;
 		else
-#endif
+    #endif
 		{
 			apmib_get(MIB_WLAN_NETWORK_TYPE, (void *)&intVal);
 			if (intVal == 0)
@@ -448,6 +583,9 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
     */
     fprintf(fp, "wps_disable_hidden_ap=%d\n", 1);
     fprintf(fp, "wps_button_hold_time=%d\n", 3);
+//<<< end WPS
+
+out:
 	fclose(fp);
 	return 0;
 
@@ -477,6 +615,7 @@ static int string_to_hex(char *string, unsigned char *key, int len)
 	return 1;
 }
 
+#if 0
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/wireless.h>
@@ -677,7 +816,7 @@ int comapi_initWlan(char *ifname)
 		pmib->dot11RFEntry.dot11RFType = intVal;
 		
 #if defined(CONFIG_RTL_819X)
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_8198C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 		apmib_get(MIB_HW_BOARD_VER, (void *)&intVal);
 	if (intVal == 1)
 		pmib->dot11RFEntry.MIMO_TR_mode = 3;	// 2T2R
@@ -1592,5 +1731,5 @@ int comapi_initWlan(char *ifname)
 	free(pmib);
 	return 0;
 }
-
+#endif
 

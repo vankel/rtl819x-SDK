@@ -46,3 +46,5 @@ config PCIEASPM_DEBUG
 	help
 	  This enables PCI Express ASPM debug support. It will add per-device
 	  interface to control ASPM.
+	  
+source "drivers/pci/pcie/rts5229/Kconfig"

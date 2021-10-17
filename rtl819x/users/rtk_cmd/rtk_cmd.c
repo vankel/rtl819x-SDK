@@ -7,7 +7,12 @@
 #include <string.h>
 #include <asm/types.h>
 #include <linux/socket.h>
+#ifdef KERNEL_2_6_30
 #include <linux/config.h>
+#endif
+#ifdef KERNEL_3_10
+#include "../../linux-3.10/include/generated/autoconf.h"
+#endif
 #include <netinet/in.h>
 
 #include "rtk_cmd.h"

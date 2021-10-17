@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-
+#include <string.h> // memcpy
 #include "hs2.h"
 
 unsigned short convert_atob_sh(char *data, int base)

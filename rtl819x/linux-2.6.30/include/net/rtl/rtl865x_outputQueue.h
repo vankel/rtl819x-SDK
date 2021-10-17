@@ -28,6 +28,9 @@ typedef struct rtl865xC_outputQueuePara_s {
 	uint32	queuePktFCON;				/* Queue-Packet=Based Flow Control turn on Threshold  */
 }	rtl865xC_outputQueuePara_t;
 #endif
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
+#define CONFIG_RTL_HW_QOS_SP_PRIO		1
+#endif
 
 #define	MAX_QOS_RULE_NUM		10
 #define	MAX_MARK_NUM_PER_DEV	5	// Note: not include the default mark(0) and should be <= (hw queue number - 1(for default))
@@ -103,6 +106,9 @@ typedef struct {
 	bwu			ceil;
 	bwu			burst;
 	bwu			bandwidth;		/* average bandwidth, unit kbps	*/
+#if defined (CONFIG_RTL_HW_QOS_SP_PRIO)	
+	bwu			prio;
+#endif
 } rtl865x_qos_t, *rtl865x_qos_p;
 
 typedef	rtl865x_qos_entry_t		QOS_T;

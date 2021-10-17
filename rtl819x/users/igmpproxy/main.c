@@ -1995,7 +1995,7 @@ int main(int argc, char **argv)
 #ifdef CONFIG_IGMPPROXY_MULTIWAN
 
         if(argc == 2)
-		strcpy(igmp_down_if_name, "eth0");
+		strcpy(igmp_down_if_name, "br0");
 	else
 		strcpy(igmp_down_if_name, argv[argc-1]);
 	
@@ -2006,7 +2006,7 @@ int main(int argc, char **argv)
 	
 #else 
 	if(argc == 2)
-		strcpy(igmp_down_if_name, "eth0");
+		strcpy(igmp_down_if_name, "br0");
 	else
 		strcpy(igmp_down_if_name, argv[2]);
 //#endif			
@@ -2025,6 +2025,11 @@ int main(int argc, char **argv)
 	//Brad add 20080605			
 	memset(cmdBuffer, '\0',sizeof(cmdBuffer));
 	sprintf(cmdBuffer, "echo %s > /var/igmp_up", igmp_up_if_name);
+	system(cmdBuffer);
+
+	//jwj add 20140709
+	memset(cmdBuffer, '\0',sizeof(cmdBuffer));
+	sprintf(cmdBuffer, "echo %s > /proc/igmp_proxy_wan_dev", igmp_up_if_name);
 	system(cmdBuffer);
 #endif
 	write_pid();

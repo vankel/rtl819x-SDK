@@ -153,7 +153,7 @@ typedef struct _BssDscr {
 	unsigned char	p2prole;	
 	unsigned short	p2pwscconfig;		
 	unsigned char	p2paddress[6];	
-	unsigned char	stage;	    
+   unsigned char        stage;
 } BssDscr, *pBssDscr;
 	// P2P_SUPPORT
 enum p2p_role_s {
@@ -448,4 +448,9 @@ int get_net_link_status(const char *ifname);
 int get_net_link_info(const char *ifname, struct net_link_info *info);
 
 #endif
+
+#ifdef SAMBA_WEB_SUPPORT
+void storage_UpdateSambaConf(void);
+#endif
+
 #endif // INCLUDE_UTILITY_H

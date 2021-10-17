@@ -21,7 +21,26 @@
 #include <includes.h>
 #include <defaults.h>
 
+#ifdef KERNEL_3_10
+struct in6_pktinfo {
+	struct in6_addr	ipi6_addr;
+	unsigned int	ipi6_ifindex;
+};
+#endif
+
 #define CONTACT_EMAIL	"Pekka Savola <pekkas@netcore.fi>"
+
+#ifndef SUPPORT_RDNSS_OPTION
+#define SUPPORT_RDNSS_OPTION
+#endif
+
+#ifndef SUPPORT_DNSSL_OPTION
+#define SUPPORT_DNSSL_OPTION
+#endif
+
+//#ifndef CONFIG_IPV6_CE_ROUTER_SUPPORT
+//#define CONFIG_IPV6_CE_ROUTER_SUPPORT
+//#endif
 
 /* for log.c */
 #define	L_NONE		0
@@ -56,6 +75,7 @@ struct Interface {
 	int			if_hwaddr_len;
 	int			if_prefix_len;
 	int			if_maxmtu;
+	int			cease_adv;
 
 	int			IgnoreIfMissing;
 	int			AdvSendAdvert;
@@ -85,6 +105,8 @@ struct Interface {
 
 	struct AdvPrefix	*AdvPrefixList;
 	struct AdvRoute		*AdvRouteList;
+	struct AdvRDNSS		*AdvRDNSSList;
+	struct AdvDNSSL		*AdvDNSSLList;
 	struct timer_lst	tm;
 	time_t                  last_multicast_sec;
 	suseconds_t             last_multicast_usec;
@@ -122,6 +144,28 @@ struct AdvRoute {
 
 	struct AdvRoute		*next;
 };
+/* Options for DNS configuration */
+
+struct AdvRDNSS {
+	int 			AdvRDNSSNumber;
+	uint32_t		AdvRDNSSLifetime;
+	int			FlushRDNSSFlag;
+	struct in6_addr		AdvRDNSSAddr1;
+	struct in6_addr		AdvRDNSSAddr2;
+	struct in6_addr		AdvRDNSSAddr3;
+
+	struct AdvRDNSS 	*next;
+};
+
+struct AdvDNSSL {
+	uint32_t		AdvDNSSLLifetime;
+
+	int			AdvDNSSLNumber;
+	int			FlushDNSSLFlag;
+	char			**AdvDNSSLSuffixes;
+
+	struct AdvDNSSL 	*next;
+};
 
 /* Mobile IPv6 extensions */
 
@@ -149,6 +193,11 @@ int yylex(void);
 
 /* radvd.c */
 int check_ip6_forwarding(void);
+
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+int check_wan_addr();
+int check_default_router();
+#endif
 
 /* timer.c */
 void set_timer(struct timer_lst *tm, double);
@@ -180,6 +229,8 @@ int set_interface_retranstimer(const char *, uint32_t);
 void iface_init_defaults(struct Interface *);
 void prefix_init_defaults(struct AdvPrefix *);
 void route_init_defaults(struct AdvRoute *, struct Interface *);
+void rdnss_init_defaults(struct AdvRDNSS *, struct Interface *);
+void dnssl_init_defaults(struct AdvDNSSL *, struct Interface *);
 int check_iface(struct Interface *);
 
 /* socket.c */
@@ -199,5 +250,7 @@ int recv_rs_ra(int, unsigned char *, struct sockaddr_in6 *, struct in6_pktinfo *
 void mdelay(double);
 double rand_between(double, double);
 void print_addr(struct in6_addr *, char *);
+int check_rdnss_presence(struct AdvRDNSS *, struct in6_addr *);
+int check_dnssl_presence(struct AdvDNSSL *, const char *);
 
 #endif

@@ -7,7 +7,13 @@
  *  published by the Free Software Foundation.
  */
 
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#else
 #include <linux/config.h>
+#endif
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
 #include <common/rtl8651_tblDrvProto.h>
@@ -38,6 +44,33 @@
 
 uint8	netIfNameArray[NETIF_NUMBER][IFNAMSIZ] = {{0}};
 static int8	(*rtl865x_compFunc)(rtl865x_qos_t	*entry1, rtl865x_qos_t	*entry2);
+#if defined (CONFIG_RTL_8198C)
+/*add 7 queue and 8 queue*/
+
+static uint8	priorityMatrix[RTL8651_OUTPUTQUEUE_SIZE][TOTAL_VLAN_PRIORITY_NUM] = 
+								{{0,0,0,0,0,0,0,0},	
+								{0,0,0,0,5,5,5,5},	
+								{0,0,0,0,1,1,5,5},
+								{0,0,0,1,2,2,5,5},
+								{0,0,0,1,2,3,5,5},
+								{0,0,1,2,3,4,5,5},
+								{0,0,1,2,3,4,5,6},
+								{0,1,2,3,4,5,6,7}
+								};
+//priority used for not mapping to the same queue  
+
+static int32	queueMatrix[RTL8651_OUTPUTQUEUE_SIZE][RTL8651_OUTPUTQUEUE_SIZE] =
+								{{0, -1, -1, -1, -1, -1, -1, -1},
+								{0, -1, -1, -1, -1, 5, -1, -1},
+								{0, 4, -1, -1, -1, 6, -1, -1},
+								{0, 3, 4, -1, -1, 6, -1, -1},
+								{0, 3, 4, 5, -1, 6, -1, -1},
+								{0, 2, 3, 4, 5, 6, -1, -1},
+								{0, 2, 3, 4, 5 ,6, 7, -1},
+								{0, 1, 2, 3, 4, 5 ,6, 7}
+								};
+
+#else
 static uint8	priorityMatrix[RTL8651_OUTPUTQUEUE_SIZE][TOTAL_VLAN_PRIORITY_NUM] = 
 								{{0,0,0,0,0,0,0,0},	
 								{0,0,0,0,5,5,5,5},	
@@ -53,7 +86,7 @@ static int32	queueMatrix[RTL8651_OUTPUTQUEUE_SIZE][RTL8651_OUTPUTQUEUE_SIZE] =
 								{0, 3, 4, -1, -1, 6},
 								{0, 3, 4, 5, -1, 6},
 								{0, 2, 3, 4, 5 ,6}};
-
+#endif
 static uint8    priorityDecisionArray[] = {	2,		/* port base */
 									8,		/*         802.1p base */ 
 #if defined (CONFIG_RTK_VOIP_QOS) 
@@ -64,6 +97,7 @@ static uint8    priorityDecisionArray[] = {	2,		/* port base */
 									8,		/*         acl base */    
 									8		/* nat base */
 								};
+
 
 static uint32	defPriority[NETIF_NUMBER] = {0};
 static uint32	queueNumber[NETIF_NUMBER] = {0};
@@ -352,7 +386,18 @@ static int8 _rtl865x_compare2Entry(rtl865x_qos_t	*entry1, rtl865x_qos_t	*entry2)
 		return 0;
 #endif
 }
+#if defined (CONFIG_RTL_HW_QOS_SP_PRIO)	
 
+static int8 rtl865x_compPri(rtl865x_qos_t	*entry1, rtl865x_qos_t	*entry2)
+{
+	if (entry1->prio<entry2->prio)
+		return 1;
+	else if (entry1->prio>entry2->prio)
+		return -1;
+	else
+		return 0;
+}
+#endif
 int32	rtl865x_registerQosCompFunc(int8 (*p_cmpFunc)(rtl865x_qos_t	*entry1, rtl865x_qos_t	*entry2))
 {
 	if (p_cmpFunc==NULL)
@@ -412,7 +457,9 @@ static int32 _rtl865x_qosArrangeQueue(rtl865x_qos_t *qosInfo)
 	rtl865x_qos_t	*outputQueue;
 	rtl865x_qos_t	tmp_qosInfo[RTL8651_OUTPUTQUEUE_SIZE];
 	const int32	idx = _rtl865x_getNetifIdxByNameExt(qosInfo->ifname);
-
+#if defined (CONFIG_RTL_HW_QOS_SP_PRIO) 	
+	int ret;
+#endif	
 	/*	Process the queue type & ratio	*/
 	{
 		int			divisor;
@@ -551,11 +598,25 @@ static int32 _rtl865x_qosArrangeQueue(rtl865x_qos_t *qosInfo)
 			{
 				while(i>mStart)
 				{
-					if (rtl865x_compFunc(outputQueue, &qosInfo[queueOrder[i-1]])>0)
+					
+					#if defined (CONFIG_RTL_HW_QOS_SP_PRIO) 
+					
+					ret =rtl865x_compPri(outputQueue, &qosInfo[queueOrder[i-1]]);
+					if (ret>0)
 					{
 						queueOrder[i] = queueOrder[i-1];
 						i--;
 						continue;
+					}
+					else if(ret==0)
+					#endif
+					{
+						if (rtl865x_compFunc(outputQueue, &qosInfo[queueOrder[i-1]])>0)
+						{
+							queueOrder[i] = queueOrder[i-1];
+							i--;
+							continue;
+						}
 					}
 					break;
 				}
@@ -655,7 +716,8 @@ int32 rtl865x_qosProcessQueue(uint8 *netIfName, rtl865x_qos_t *qosInfo)
 	uint32	queueNum;
 	rtl865x_qos_t		*tmp_info;
 	int32	asicBandwidth;
-
+	int32 	weight=0;
+	
 	if (qosInfo==NULL)
 		return FAILED;
 	
@@ -732,9 +794,13 @@ int32 rtl865x_qosProcessQueue(uint8 *netIfName, rtl865x_qos_t *qosInfo)
 			else
 			{
 				rtl8651_setAsicQueueRate(port, qosInfo[queue].queueId, 
-					1>>PPR_OFFSET, 
+					1, 
 					L1_MASK>>L1_OFFSET, 
 					asicBandwidth);
+				weight =qosInfo[queue].bandwidth-1;
+				if(weight<1)
+					rtl8651_setAsicQueueWeight(port, qosInfo[queue].queueId, WFQ_PRIO, 1);
+				else	
 				rtl8651_setAsicQueueWeight(port, qosInfo[queue].queueId, WFQ_PRIO, qosInfo[queue].bandwidth-1);
 			}
 		}
@@ -1100,8 +1166,12 @@ int __init rtl865x_initOutputQueue(uint8 **netIfName)
 				rtl8651_setAsicCPUPriorityToQIDMappingTable(i,j,5);
 	}
 #endif
-		for(j=0;j<8;j++)
-			rtl8651_setAsicCPUPriorityToQIDMappingTable(CPU, j, j<4?0:5);
+	/* default value is 0, so skip the code.
+	for(j=0;j<8;j++) {
+		//rtl8651_setAsicCPUPriorityToQIDMappingTable(CPU, j, j<4?0:5);
+		rtl8651_setAsicCPUPriorityToQIDMappingTable(CPU, j, 0);
+	}
+	*/
 	
 	rtl8651_setAsicPriorityDecision(priorityDecisionArray[PORT_BASE], 
 		priorityDecisionArray[D1P_BASE], priorityDecisionArray[DSCP_BASE], 
@@ -1198,7 +1268,11 @@ void rtl865x_reinitOutputQueuePatchForQoS(uint32 qosEnabled)
 		{
 			rtl8651_setAsicOutputQueueNumber(port, DEF_QUEUE_NUM);
 			
+#if defined (CONFIG_RTL_8198C) 	
+			for ( queue = QUEUE0 ; queue <= QUEUE7 ; queue ++ )
+#else		
 			for ( queue = QUEUE0 ; queue <= QUEUE5 ; queue ++ )
+#endif	
 			{				
 				rtl8651_setAsicQueueWeight(port, queue, STR_PRIO, 0);
 				rtl8651_setAsicQueueRate(port,queue, PPR_MASK>>PPR_OFFSET, L1_MASK>>L1_OFFSET,APR_MASK>>APR_OFFSET);
@@ -1218,7 +1292,11 @@ void rtl865x_reinitOutputQueuePatchForQoS(uint32 qosEnabled)
 		{				
 			rtl8651_setAsicOutputQueueNumber(port, MAX_QOS_PATCH_QUEUE_NUM);
 			
+#if defined (CONFIG_RTL_8198C) 	
+			for ( queue = QUEUE0 ; queue <= QUEUE7 ; queue ++ )
+#else		
 			for ( queue = QUEUE0 ; queue <= QUEUE5 ; queue ++ )
+#endif	
 			{
 				if((queue == QUEUE0) || (queue == QUEUE5))
 					rtl8651_setAsicQueueRate(port, queue,PPR_MASK>>PPR_OFFSET, L1_MASK>>L1_OFFSET, APR_MASK>>APR_OFFSET);	// full speed
@@ -1608,4 +1686,5 @@ int32 rtl865x_show_allQosAcl(void)
 
 }
 #endif
+
 

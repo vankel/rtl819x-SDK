@@ -96,10 +96,13 @@ struct CWMP_PRMT tHostEntityLeafInfo[] =
 {"LeaseTimeRemaining",		eCWMP_tINT,	CWMP_READ|CWMP_DENY_ACT,&tHostEntityLeafOP},
 {"MACAddress",			eCWMP_tSTRING,	CWMP_READ,		&tHostEntityLeafOP},
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 {"Layer2Interface",			eCWMP_tSTRING,	CWMP_READ,		&tHostEntityLeafOP},
 #endif
 /*ping_zhang:20081217 END*/
+{"VendorClassID",			eCWMP_tSTRING,	CWMP_READ,		&tHostEntityLeafOP},
+{"ClientID",			eCWMP_tSTRING,	CWMP_READ,		&tHostEntityLeafOP},
+{"UserClassID",			eCWMP_tSTRING,	CWMP_READ,		&tHostEntityLeafOP},
 {"HostName",			eCWMP_tSTRING,	CWMP_READ,		&tHostEntityLeafOP},
 {"InterfaceType",		eCWMP_tSTRING,	CWMP_READ,		&tHostEntityLeafOP},
 {"Active",			eCWMP_tBOOLEAN,	CWMP_READ,		&tHostEntityLeafOP}
@@ -111,10 +114,13 @@ enum eHostEntityLeaf
 	eHost_LeaseTimeRemaining,
 	eHost_MACAddress,
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	eHost_Layer2Interface,
 #endif
 /*ping_zhang:20081217 END*/	
+	eHost_VendorClassID,
+	eHost_ClientID,
+	eHost_UserClassID,
 	eHost_HostName,
 	eHost_InterfaceType,
 	eHost_Active
@@ -126,10 +132,13 @@ struct CWMP_LEAF tHostEntityLeaf[] =
 { &tHostEntityLeafInfo[eHost_LeaseTimeRemaining] },
 { &tHostEntityLeafInfo[eHost_MACAddress] },
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 { &tHostEntityLeafInfo[eHost_Layer2Interface] },
 #endif
 /*ping_zhang:20081217 END*/
+{ &tHostEntityLeafInfo[eHost_VendorClassID] },
+{ &tHostEntityLeafInfo[eHost_ClientID] },
+{ &tHostEntityLeafInfo[eHost_UserClassID] },
 { &tHostEntityLeafInfo[eHost_HostName] },
 { &tHostEntityLeafInfo[eHost_InterfaceType] },
 { &tHostEntityLeafInfo[eHost_Active] },
@@ -376,6 +385,31 @@ struct CWMP_LEAF tDHCPConSPENTITYLeaf[] =
 { NULL }
 };
 
+
+
+/*InternetGatewayDevice.LANDevice.{i}.LANHostConfigManagement.DHCPStaticAddress.{i}.*/
+struct CWMP_OP tDHCPStaticAddrENTITYLeafOP = { getDHCPStaticAddrEntity, setDHCPStaticAddrEntity };
+struct CWMP_PRMT tDHCPStaticAddrENTITYLeafInfo[] =
+{
+/*(name,			type,		flag,			op)*/
+{"Enable",		eCWMP_tBOOLEAN,		CWMP_READ|CWMP_WRITE,	&tDHCPStaticAddrENTITYLeafOP},
+{"Chaddr",		eCWMP_tSTRING,		CWMP_READ|CWMP_WRITE,	&tDHCPStaticAddrENTITYLeafOP},
+{"Yiaddr",		eCWMP_tSTRING,		CWMP_READ|CWMP_WRITE,	&tDHCPStaticAddrENTITYLeafOP},
+};
+enum eDHCPStaticAddrDHCPOptionEntityLeaf
+{
+	eDHCPStaticAddrEnable,
+	eDHCPStaticAddrPoolOrder,
+	eDHCPStaticAddrSourceInterface,
+};
+struct CWMP_LEAF tDHCPStaticAddrENTITYLeaf[] =
+{
+{ &tDHCPStaticAddrENTITYLeafInfo[eDHCPStaticAddrEnable] },
+{ &tDHCPStaticAddrENTITYLeafInfo[eDHCPStaticAddrPoolOrder] },
+{ &tDHCPStaticAddrENTITYLeafInfo[eDHCPStaticAddrSourceInterface] },
+{ NULL }
+};
+
 struct CWMP_OP tDHCPConSPDHCPOption_OP = { NULL, objDHCPOption};
 struct CWMP_PRMT tDHCPConSPENTITYObjectInfo[] =
 {
@@ -407,6 +441,23 @@ struct CWMP_LINKNODE tDHCPConSPObject[] =
 /*info,  				leaf,			next,				sibling,		instnum)*/
 {&tDHCPConSPObjectInfo[eDHCPConSP0],	tDHCPConSPENTITYLeaf,	tDHCPConSPENTITYObject,		NULL,			0}
 };
+
+
+
+struct CWMP_PRMT tDHCPStaticAddrObjectInfo[] =
+{
+/*(name,			type,		flag,			op)*/
+{"0",			eCWMP_tOBJECT,	CWMP_READ|CWMP_WRITE|CWMP_LNKLIST,		NULL}
+};
+enum eDHCPStaticAddrObject
+{
+	eDHCPStaticAddr0
+};
+struct CWMP_LINKNODE tDHCPStaticAddrObject[] =
+{
+/*info,  				leaf,			next,				sibling,		instnum)*/
+{&tDHCPStaticAddrObjectInfo[eDHCPStaticAddr0],	tDHCPStaticAddrENTITYLeaf,	NULL,		NULL,			0}
+};
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
 /*ping_zhang:20080919 END*/
 
@@ -415,7 +466,7 @@ struct CWMP_PRMT tLANHostConfLeafInfo[] =
 {
 /*(name,			type,		flag,			op)*/
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 {"MACAddress",			eCWMP_tSTRING,	CWMP_READ,		&tLANHostConfLeafOP},
 #endif
 /*ping_zhang:20081217 END*/
@@ -454,6 +505,7 @@ struct CWMP_PRMT tLANHostConfLeafInfo[] =
 {"IPInterfaceNumberOfEntries",	eCWMP_tUINT,	CWMP_READ,		&tLANHostConfLeafOP},
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+{"DHCPStaticAddressNumberOfEntries",	eCWMP_tUINT,	CWMP_READ,		&tLANHostConfLeafOP},
 {"DHCPOptionNumberOfEntries",	eCWMP_tUINT,	CWMP_READ,		&tLANHostConfLeafOP},
 {"DHCPConditionalPoolNumberOfEntries",	eCWMP_tUINT,	CWMP_READ,		&tLANHostConfLeafOP},
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -462,7 +514,7 @@ struct CWMP_PRMT tLANHostConfLeafInfo[] =
 enum eLANHostConfLeaf
 {
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	eMACAddress,
 #endif
 /*ping_zhang:20081217 END*/
@@ -501,6 +553,7 @@ enum eLANHostConfLeaf
 	eIPInterfaceNumberOfEntries,
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	eDHCPStaticAddressNumberOfEntries,
 	eDHCPOptionNumberOfEntries,
 	eDHCPConditionalPoolNumberOfEntries
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -509,7 +562,7 @@ enum eLANHostConfLeaf
 struct CWMP_LEAF tLANHostConfLeaf[] =
 {
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 { &tLANHostConfLeafInfo[eMACAddress] },
 #endif
 /*ping_zhang:20081217 END*/
@@ -548,6 +601,7 @@ struct CWMP_LEAF tLANHostConfLeaf[] =
 { &tLANHostConfLeafInfo[eIPInterfaceNumberOfEntries] },
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+{ &tLANHostConfLeafInfo[eDHCPStaticAddressNumberOfEntries] },
 { &tLANHostConfLeafInfo[eDHCPOptionNumberOfEntries] },
 { &tLANHostConfLeafInfo[eDHCPConditionalPoolNumberOfEntries] },
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -557,6 +611,7 @@ struct CWMP_LEAF tLANHostConfLeaf[] =
 
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+struct CWMP_OP tDHCPStaticAddr_OP = { NULL, objDHCPStaticAddr};
 struct CWMP_OP tDHCPOption_OP = { NULL, objDHCPOption};
 struct CWMP_OP tDHCPConSP_OP = { NULL, objDHCPConSP};
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -567,8 +622,9 @@ struct CWMP_PRMT tLANHostConfObjectInfo[] =
 {"IPInterface",			eCWMP_tOBJECT,	CWMP_READ,		NULL},
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
-{"DHCPOption",		eCWMP_tOBJECT,	CWMP_WRITE|CWMP_READ,		&tDHCPOption_OP},
-{"DHCPConditionalServingPool",		eCWMP_tOBJECT,	CWMP_WRITE|CWMP_READ,		&tDHCPConSP_OP},
+{"DHCPStaticAddress",			eCWMP_tOBJECT,	CWMP_WRITE|CWMP_READ,		&tDHCPStaticAddr_OP},
+{"DHCPOption",					eCWMP_tOBJECT,	CWMP_WRITE|CWMP_READ,		&tDHCPOption_OP},
+{"DHCPConditionalServingPool",	eCWMP_tOBJECT,	CWMP_WRITE|CWMP_READ,		&tDHCPConSP_OP},
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
 /*ping_zhang:20080919 END*/
 };
@@ -577,6 +633,7 @@ enum eLANHostConfObject
 	eIPInterface,
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	eDHCPStaticAddress,
 	eDHCPOption,
 	eDHCPConditionServingPool
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -588,6 +645,7 @@ struct CWMP_NODE tLANHostConfObject[] =
 { &tLANHostConfObjectInfo[eIPInterface],	NULL,		tIPInterfaceObject},
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+{ &tLANHostConfObjectInfo[eDHCPStaticAddress],	NULL,		NULL},
 { &tLANHostConfObjectInfo[eDHCPOption],	NULL,		NULL},
 { &tLANHostConfObjectInfo[eDHCPConditionServingPool],	NULL,		NULL},
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -686,6 +744,327 @@ struct CWMP_NODE tLANDeviceObject[] =
 {NULL,					NULL,			NULL}
 };
 
+
+
+// add function
+//---------------------------------------------------------------------------------------
+unsigned int findDHCPOptionNum(int usedFor, unsigned int ifIndex)
+{
+	unsigned int ret=0, i,num;
+	MIB_CE_DHCP_OPTION_T *p,DHCPOption_entity;
+#if 1//tmp
+	//num = mib_chain_total( MIB_DHCP_CLIENT_OPTION_TBL );
+	apmib_get( MIB_DHCP_CLIENT_OPTION_TBL_NUM, (void *)&num );
+	p = &DHCPOption_entity;
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCP_CLIENT_OPTION_TBL, (void*)p ))
+			continue;
+		if(p->usedFor==usedFor && p->ifIndex==ifIndex)
+			ret++;
+	}
+#else
+	num = mib_chain_total( MIB_DHCP_CLIENT_OPTION_TBL );
+	for( i=0; i<num;i++ )
+	{
+		p = &DHCPOption_entity;
+		if( !mib_chain_get( MIB_DHCP_CLIENT_OPTION_TBL, i, (void*)p ))
+			continue;
+		if(p->usedFor==usedFor && p->ifIndex==ifIndex)
+			ret++;
+	}
+#endif
+	return ret;
+}
+
+int getATMVCEntry(char *name, MIB_CE_ATM_VC_T *p, unsigned int *idx)
+{
+	int ret = -1;
+	unsigned int i,num, wandev, devcon, ip, ppp;
+
+	if( name == NULL )
+		return ret;
+#if 0//tmp
+	wandev = getWANDevInstNum(name);
+	devcon= getWANConDevInstNum(name);
+	ip = getWANIPConInstNum(name);
+	ppp = getWANPPPConInstNum(name);
+
+	if(wandev == 0 || devcon == 0 || (ip == 0 && ppp == 0))
+		return ret;
+
+	num = mib_chain_total( MIB_ATM_VC_TBL );
+	for( i=0; i<num;i++ )
+	{
+		if( !mib_chain_get( MIB_ATM_VC_TBL, i, (void*)p ) )
+			continue;
+
+		if(!isWANDevModeMatch(wandev, p->ifIndex))
+			continue;
+
+		//fix for multi conppp/ip per ConDevInstNum
+		//if((p->ConDevInstNum == devcon) && (p->ConPPPInstNum == ppp || p->ConIPInstNum == ip))
+		if((p->ConDevInstNum == devcon) && (p->ConPPPInstNum == ppp) && (p->ConIPInstNum == ip))
+		{
+			*idx = i;
+			ret = 0;
+			break;
+		}
+	}
+#endif
+	return ret;
+}
+
+unsigned int findMaxDHCPReqOptionOrder(void )
+{
+	unsigned int ret=0, i,num;
+	MIB_CE_DHCP_OPTION_T *p,DHCPSP_entity;
+
+	//num = mib_chain_total( MIB_DHCP_CLIENT_OPTION_TBL );
+	apmib_get( MIB_DHCP_CLIENT_OPTION_TBL_NUM, (void *)&num );
+	p = &DHCPSP_entity;	
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+		*((char *)p) = (char)i;		
+		if( !apmib_get( MIB_DHCP_CLIENT_OPTION_TBL, (void*)p ))
+			continue;
+		if(p->usedFor!=eUsedFor_DHCPClient_Req)
+			continue;
+		if(p->order>ret)
+			ret=p->order;
+	}
+
+	return ret;
+}
+
+void clearOptTbl(unsigned int instnum)
+{
+	unsigned int  i,num,found;
+	MIB_CE_DHCP_OPTION_T *p,DHCPOption_entity;
+
+delOpt:
+	//num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
+	apmib_get( MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num );
+	p = &DHCPOption_entity;
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void *)p ))
+			continue;
+		if(p->usedFor!=eUsedFor_DHCPServer_ServingPool)
+			continue;
+		if(p->dhcpConSPInstNum==instnum){
+			apmib_set(MIB_DHCP_SERVER_OPTION_DEL, (void *)p);
+			break;
+		}
+	}
+	if(i<num)
+		goto delOpt;
+	return;
+
+}
+
+unsigned int findMaxDHCPStaticAddrInsNum(void )
+{
+	unsigned int ret=0, i,num;
+	DHCPRSVDIP_T *p,DHCPStaticAddr_entity;
+
+	apmib_get( MIB_DHCPRSVDIP_TBL_NUM, (void *)&num );
+	p = &DHCPStaticAddr_entity;
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(DHCPRSVDIP_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCPRSVDIP_TBL, (void*)p ))
+			continue;
+		if(p->InstanceNum>ret)
+			ret=p->InstanceNum;
+	}
+
+	return ret;
+}
+
+unsigned int findMaxDHCPConSPInsNum(void )
+{
+	unsigned int ret=0, i,num;
+	DHCPS_SERVING_POOL_T *p,DHCPSP_entity;
+
+	//num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
+	apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+	p = &DHCPSP_entity;
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(DHCPS_SERVING_POOL_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)p ))
+			continue;
+		if(p->InstanceNum>ret)
+			ret=p->InstanceNum;
+	}
+
+	return ret;
+}
+
+int getDHCPOptionByOptInstNum( unsigned int dhcpOptNum, unsigned int dhcpSPNum, unsigned int usedFor, MIB_CE_DHCP_OPTION_T *p, unsigned int *id )
+{
+	int ret = -1;
+	unsigned int i,num;
+
+	apmib_get(MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num);
+	for (i=1; i<=num; i++) {
+		memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+		*((char *)p) = (char)i;
+		if (!apmib_get(MIB_DHCP_SERVER_OPTION_TBL, (void *)p))
+			continue;
+
+		if( (p->usedFor==usedFor) && (p->dhcpOptInstNum==dhcpOptNum) && (p->dhcpConSPInstNum==dhcpSPNum) )
+		{
+			*id = i;
+			ret = 0;
+			break;
+		}
+	}
+	return 0;
+}
+
+unsigned int findMaxDHCPOptionInstNum( unsigned int usedFor, unsigned int dhcpConSPInstNum)
+{
+	unsigned int ret=0, i,num;
+	MIB_CE_DHCP_OPTION_T *p,DHCPOption_entity;
+
+	apmib_get(MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num);
+	p = &DHCPOption_entity;
+	for(i=1; i<=num;i++) {
+		memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+		*((char *)p) = (char)i;
+		if (!apmib_get(MIB_DHCP_SERVER_OPTION_TBL, (void *)p))
+			continue;
+		if(p->usedFor!=usedFor || dhcpConSPInstNum != p->dhcpConSPInstNum)
+			continue;
+		if(p->dhcpOptInstNum>ret)
+			ret=p->dhcpOptInstNum;
+	}
+
+	return ret;
+}
+
+int getDHCPStaticAddrByInstNum( unsigned int dhcpStaticAddrNum,  DHCPRSVDIP_T *p, unsigned int *id )
+{
+	int ret=-1;
+	unsigned int i,num;
+
+	if( (dhcpStaticAddrNum==0) || (p==NULL) || (id==NULL) )
+		return ret;
+#if 1//tmp
+	//num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
+	apmib_get( MIB_DHCPRSVDIP_TBL_NUM, (void *)&num );
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(DHCPRSVDIP_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCPRSVDIP_TBL, (void*)p ) )
+			continue;
+
+		if( p->InstanceNum==dhcpStaticAddrNum)
+		{
+			*id = i;
+			ret = 0;
+			break;
+		}
+	}
+#endif
+	return ret;
+}
+
+int getDHCPConSPByInstNum( unsigned int dhcpspNum,  DHCPS_SERVING_POOL_T *p, unsigned int *id )
+{
+	int ret=-1;
+	unsigned int i,num;
+
+	if( (dhcpspNum==0) || (p==NULL) || (id==NULL) )
+		return ret;
+#if 1//tmp
+	//num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
+	apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(DHCPS_SERVING_POOL_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)p ) )
+			continue;
+
+		if( p->InstanceNum==dhcpspNum)
+		{
+			*id = i;
+			ret = 0;
+			break;
+		}
+	}
+#endif
+	return ret;
+}
+
+unsigned int getSPDHCPOptEntryNum(unsigned int usedFor, unsigned int instnum)
+{
+	unsigned int ret=0, i,num;
+	MIB_CE_DHCP_OPTION_T *p,DHCPOPT_entity;
+#if 1//tmp
+	//num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
+	apmib_get( MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num );
+	p = &DHCPOPT_entity;
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void*)p ))
+			continue;
+		if(p->usedFor==usedFor && p->dhcpConSPInstNum==instnum)
+			ret++;
+	}
+#endif
+	return ret;
+}
+
+
+unsigned int findMaxDHCPConSPOrder(void )
+{
+	unsigned int ret=0, i,num;
+	DHCPS_SERVING_POOL_T *p,DHCPSP_entity;
+
+	//num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
+	apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+	p = &DHCPSP_entity;
+	for( i=1; i<=num;i++ )
+	{
+		memset(p, '\0', sizeof(DHCPS_SERVING_POOL_T));
+		*((char *)p) = (char)i;
+		if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)p ))
+			continue;
+		if(p->poolorder>ret)
+			ret=p->poolorder;
+	}
+
+	return ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+//---------------------------------------------------------------------------------------
+
+
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
 #ifdef _PRMT_WT107_
 int getLANInterfaces(char *name, struct CWMP_LEAF *entity, int *type, void **data)
@@ -775,56 +1154,14 @@ int getHostEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 		*data = strdup( ipAddr );
 	}else if( strcmp( lastname, "AddressSource" )==0 )
 	{
-        int i, total=0;
-        int ret=0;
-        DHCPRSVDIP_T Entry;
-        char m[6];
-
-        if( macAddr==NULL || ipAddr==NULL ) ret = -1;
-        if( sscanf( macAddr, "%x:%x:%x:%x:%x:%x", 
-                    &m[0],&m[1],&m[2],&m[3],&m[4],&m[5] )!=6 )
-            ret=-1;
-
-        mib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&total);
-        for( i=1;i<=total;i++ )
-        {
-            *((char *)&Entry) = (char)i;
-            if(!mib_get(MIB_DHCPRSVDIP_TBL, (void *)&Entry))
-                continue;
-            if( memcmp(Entry.macAddr, m, 6 )==0  && strcmp( inet_ntoa(*((struct in_addr *)Entry.ipAddr)), ipAddr)==0 ){
-                ret=1;
-                break;
-            }
-        }
-        if( ret>0 )
-            *data = strdup( "Static" );
-        else
-            *data = strdup( "DHCP" );
-    }else if( strcmp( lastname, "LeaseTimeRemaining" )==0 )
-    {
-        //the value must be 0 if the AddressSource is not DHCP
-        int i, total=0;
-        int ret=0;
-        DHCPRSVDIP_T Entry;
-        char m[6];
-
-        if( macAddr==NULL || ipAddr==NULL ) ret = -1;
-        if( sscanf( macAddr, "%x:%x:%x:%x:%x:%x", 
-                    &m[0],&m[1],&m[2],&m[3],&m[4],&m[5] )!=6 )
-            ret=-1;
-
-        mib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&total);
-        for( i=1;i<=total;i++ )
-        {
-            *((char *)&Entry) = (char)i;
-            if(!mib_get(MIB_DHCPRSVDIP_TBL, (void *)&Entry))
-                continue;
-            if( memcmp(Entry.macAddr, m, 6 )==0  && strcmp( inet_ntoa(*((struct in_addr *)Entry.ipAddr)), ipAddr)==0 ){
-                ret=1;
-                break;
-            }
-        }
-		if( ret>0 )
+		if( findDHCPStaticAssign( macAddr, ipAddr )>0 )
+			*data = strdup( "Static" );
+		else
+			*data = strdup( "DHCP" );
+	}else if( strcmp( lastname, "LeaseTimeRemaining" )==0 )
+	{
+		//the value must be 0 if the AddressSource is not DHCP
+		if( findDHCPStaticAssign( macAddr, ipAddr )>0 )
 			*data = intdup( 0 );
 		else
 			*data = intdup( livetime );
@@ -832,13 +1169,22 @@ int getHostEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 	{
 		*data = strdup( macAddr );
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	}else if( strcmp( lastname, "Layer2Interface" )==0 )
 	{
 		/*currently we don't known wich interface the host connect with, so just return eth0_sw0.*/
 		*data = strdup( "InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.1." );
 #endif
 /*ping_zhang:20081217 END*/
+	}else if( strcmp( lastname, "VendorClassID" )==0 )
+	{
+		*data = strdup( "" );
+	}else if( strcmp( lastname, "ClientID" )==0 )
+	{
+		*data = strdup( "" );
+	}else if( strcmp( lastname, "UserClassID" )==0 )
+	{
+		*data = strdup( "" );
 	}else if( strcmp( lastname, "HostName" )==0 )
 	{
 		*data = strdup( "" );
@@ -1094,6 +1440,11 @@ int setIPItfEntity(char *name, struct CWMP_LEAF *entity, int type, void *data)
 
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+unsigned int getDHCPStaticAddrInstNum( char *name )
+{
+	return getInstNum( name, "DHCPStaticAddress" );
+}
+
 unsigned int getDHCPConSPInstNum( char *name )
 {
 	return getInstNum( name, "DHCPConditionalServingPool" );
@@ -1109,12 +1460,12 @@ unsigned int getDHCPOptEntryNum(unsigned int usedFor)
 	unsigned int ret=0, i,num;
 	MIB_CE_DHCP_OPTION_T *p,DHCPOPT_entity;
 
-	num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
-	for( i=0; i<num;i++ )
-	{
-		p = &DHCPOPT_entity;
-		if( !mib_chain_get( MIB_DHCP_SERVER_OPTION_TBL, i, (void*)p ))
-			continue;
+	p = &DHCPOPT_entity;
+	apmib_get(MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num);
+	for (i=1; i<=num; i++) {
+		memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+		*((char *)p) = (char)i;
+		apmib_get(MIB_DHCP_SERVER_OPTION_TBL, (void *)p);
 		if(p->usedFor==usedFor)
 			ret++;
 	}
@@ -1258,7 +1609,7 @@ int setDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int type, void *da
 {
 	char	*lastname = entity->info->name;
 	char *buf = data;
-	MIB_CE_DHCP_OPTION_T *pDHCPOptEntry, DhcpOptEntry;
+	MIB_CE_DHCP_OPTION_T *pDHCPOptEntry, DhcpOptEntry[2];
 	unsigned int dhcpOptNum,dhcpConSPOptNum;
 	unsigned char usedFor;
 	unsigned int chainid;
@@ -1269,7 +1620,7 @@ int setDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int type, void *da
 	dhcpOptNum = getDHCPOptInstNum( name );
 	dhcpConSPOptNum = getDHCPConSPInstNum( name );
 
-	pDHCPOptEntry = &DhcpOptEntry;
+	pDHCPOptEntry = &DhcpOptEntry[0];
 	if(dhcpConSPOptNum != 0)  						 //for IGD.LANDevice.{i}.LANHostConfigManagement.DHCPOption.{i}.
 	{
 		usedFor = eUsedFor_DHCPServer_ServingPool;
@@ -1285,12 +1636,15 @@ int setDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int type, void *da
 	else
 		return ERR_9005;
 
+	memcpy(&DhcpOptEntry[1], &DhcpOptEntry[0], sizeof(MIB_CE_DHCP_OPTION_T));
+	pDHCPOptEntry = &DhcpOptEntry[1];
+	
 	if( strcmp( lastname, "Enable" )==0 )
 	{
 		int *i=data;
 		if(i==NULL) return ERR_9007;
 		pDHCPOptEntry->enable = (*i==0) ? 0:1;
-		mib_chain_update( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)pDHCPOptEntry, chainid );
+		apmib_set(MIB_DHCP_SERVER_OPTION_MOD, (void *)&DhcpOptEntry);	
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -1305,7 +1659,7 @@ int setDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int type, void *da
 		if(*i<1 || *i>254) return ERR_9007;
 		if(checkDHCPOptionTag(*i)<0)  return ERR_9001;
 		pDHCPOptEntry->tag = *i;
-		mib_chain_update( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)pDHCPOptEntry, chainid );
+		apmib_set(MIB_DHCP_SERVER_OPTION_MOD, (void *)&DhcpOptEntry);
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -1331,7 +1685,7 @@ int setDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int type, void *da
 			   pDHCPOptEntry->len=b->__size;
 			   memcpy(pDHCPOptEntry->value,b->__ptr,b->__size);
 		}
-		mib_chain_update( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)pDHCPOptEntry, chainid );
+		apmib_set(MIB_DHCP_SERVER_OPTION_MOD, (void *)&DhcpOptEntry);
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -1346,10 +1700,160 @@ int setDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int type, void *da
 	return 0;
 }
 
+int objDHCPStaticAddr(char *name, struct CWMP_LEAF *e, int type, void *data)
+{
+	struct CWMP_NODE *entity=(struct CWMP_NODE *)e;
+	DHCPRSVDIP_T *pDHCPRsvdEntry, DhcpRsvdEntry[2];
+	unsigned int chainid;
+	unsigned int num,i;
+	pDHCPRsvdEntry = &DhcpRsvdEntry[1];
+	switch(type)
+	{
+		case eCWMP_tINITOBJ:
+		{
+			int MaxInstNum;
+			struct CWMP_LINKNODE **c = (struct CWMP_LINKNODE **)data;
+
+			if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
+
+			MaxInstNum = findMaxDHCPStaticAddrInsNum();
+			apmib_get( MIB_DHCPRSVDIP_TBL_NUM, (void *)&num );
+			for( i=1; i<=num;i++ )
+			{
+				memset(pDHCPRsvdEntry, '\0', sizeof(DHCPRSVDIP_T));
+				*((char *)pDHCPRsvdEntry) = (char)i;
+				if( !apmib_get( MIB_DHCPRSVDIP_TBL, (void*)pDHCPRsvdEntry ))
+					continue;
+				else
+					memcpy(&DhcpRsvdEntry[0], &DhcpRsvdEntry[1], sizeof(DHCPRSVDIP_T));
+
+				if( pDHCPRsvdEntry->InstanceNum==0 )
+				{
+					MaxInstNum++;
+					pDHCPRsvdEntry->InstanceNum = MaxInstNum;
+					apmib_set( MIB_DHCPRSVDIP_MOD, (void *)&DhcpRsvdEntry);
+				}
+				if( create_Object( c, tDHCPStaticAddrObject, sizeof(tDHCPStaticAddrObject), 1, pDHCPRsvdEntry->InstanceNum ) < 0 )
+					return -1;
+			}
+			add_objectNum( name, MaxInstNum );
+			return 0;
+		}
+		case eCWMP_tADDOBJ:
+		{
+			int ret;
+			char tmpbuf[128];
+
+			if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
+
+			ret = add_Object( name, (struct CWMP_LINKNODE **)&entity->next,  tDHCPStaticAddrObject, sizeof(tDHCPStaticAddrObject), data );
+			if( ret >= 0 )
+			{
+				DHCPRSVDIP_T entry;
+				memset( &entry, 0, sizeof( DHCPRSVDIP_T ) );
+				{ //default values for this new entry
+					memset(entry.ipAddr, 0, sizeof(entry.ipAddr));
+					memset(entry.macAddr, 0, sizeof(entry.macAddr));
+					memset(entry.hostName, 0, sizeof(entry.hostName));
+
+					entry.InstanceNum = *(int *)data;
+				}
+				if ( apmib_set( MIB_DHCPRSVDIP_ADD, (void*)&entry) == 0)
+				{
+					fprintf(stderr,"\r\n Add DHCPRSVDIP table entry error!");
+					return -1;
+				}						
+			}
+			return ret;
+		}
+		case eCWMP_tDELOBJ:
+		{
+			int ret, num, i;
+			int found = 0;
+			unsigned int *pUint=data;
+
+			if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
+
+			apmib_get( MIB_DHCPRSVDIP_TBL_NUM, (void *)&num );
+			pDHCPRsvdEntry = &DhcpRsvdEntry;
+			for( i=1; i<=num;i++ )
+			{
+				memset(pDHCPRsvdEntry, '\0', sizeof(DHCPRSVDIP_T));
+				*((char *)pDHCPRsvdEntry) = (char)i;				
+				if( !apmib_get( MIB_DHCPRSVDIP_TBL, (void*)pDHCPRsvdEntry ) )
+					continue;
+				if(pDHCPRsvdEntry->InstanceNum==*pUint)
+				{
+					found =1;
+					//clearOptTbl(pDHCPRsvdEntry->InstanceNum);
+				#ifdef SUPPORT_DHCP_RESERVED_IPADDR
+					clearDHCPReservedIPAddrByInstNum( pDHCPRsvdEntry->InstanceNum );
+				#endif //SUPPORT_DHCP_RESERVED_IPADDR
+					apmib_set( MIB_DHCPRSVDIP_DEL, (void *)pDHCPRsvdEntry );
+					//compact_poolorder();
+					break;
+				}
+			}
+
+			if(found==0) return ERR_9005;
+			ret = del_Object( name, (struct CWMP_LINKNODE **)&entity->next, *(int*)data );
+		#if 0
+			apply_DHCP(CWMP_RESTART,0,NULL);
+		#endif
+			//if( ret==0 )	ret=1;
+			return ret;
+		}
+		case eCWMP_tUPDATEOBJ:
+		{
+			int num,i;
+			struct CWMP_LINKNODE *old_table;
+
+			apmib_get( MIB_DHCPRSVDIP_TBL_NUM, (void *)&num );
+			old_table = (struct CWMP_LINKNODE *)entity->next;
+			entity->next = NULL;
+			pDHCPRsvdEntry = &DhcpRsvdEntry[1];
+			for( i=1; i<=num;i++ )
+			{
+				struct CWMP_LINKNODE *remove_entity=NULL;
+				memset(pDHCPRsvdEntry, '\0', sizeof(DHCPRSVDIP_T));
+				*((char *)pDHCPRsvdEntry) = (char)i;
+				if( !apmib_get( MIB_DHCPRSVDIP_TBL, (void*)pDHCPRsvdEntry ))
+					continue;
+				else
+					memcpy(&DhcpRsvdEntry[0], &DhcpRsvdEntry[1], sizeof(DHCPRSVDIP_T));
+
+				remove_entity = remove_SiblingEntity( &old_table, pDHCPRsvdEntry->InstanceNum );
+				if( remove_entity!=NULL )
+				{
+						add_SiblingEntity( (struct CWMP_LINKNODE **)&entity->next, remove_entity );
+				}
+				else
+				{
+						if( find_SiblingEntity( (struct CWMP_LINKNODE **)&entity->next, pDHCPRsvdEntry->InstanceNum )==NULL )
+						{
+							unsigned int MaxInstNum = pDHCPRsvdEntry->InstanceNum;
+							add_Object( name, (struct CWMP_LINKNODE **)&entity->next,  tDHCPStaticAddrObject, sizeof(tDHCPStaticAddrObject), &MaxInstNum );
+							if(MaxInstNum!=pDHCPRsvdEntry->InstanceNum)
+							{
+								pDHCPRsvdEntry->InstanceNum = MaxInstNum;
+								apmib_set( MIB_DHCPRSVDIP_MOD, (void *)&DhcpRsvdEntry );
+							}
+						}//else already in next_table
+				}
+			}
+
+			if( old_table )
+				destroy_ParameterTable( (struct CWMP_NODE *)old_table );
+
+			return 0;
+		}
+	}
+}
+
 int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 {
 	struct CWMP_NODE *entity=(struct CWMP_NODE *)e;
-	MIB_CE_DHCP_OPTION_T *pDHCPOptEntry, DhcpOptEntry;
+	MIB_CE_DHCP_OPTION_T *pDHCPOptEntry, DhcpOptEntry[2];
 	unsigned int dhcpConSPInstNum, usedFor,num,i;
 	unsigned int chainid;
 
@@ -1367,12 +1871,15 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 				if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
 				MaxInstNum = findMaxDHCPOptionInstNum(usedFor,dhcpConSPInstNum);
-				num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
-				for( i=0; i<num;i++ )
-				{
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCP_SERVER_OPTION_TBL, i, (void*)pDHCPOptEntry ))
+				apmib_get(MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num);
+				pDHCPOptEntry = &DhcpOptEntry[1];
+				for (i=1; i<=num; i++) {
+					memset(pDHCPOptEntry, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+					*((char *)pDHCPOptEntry) = (char)i;
+					if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void*)pDHCPOptEntry ))
 						continue;
+					else
+						memcpy(&DhcpOptEntry[0], &DhcpOptEntry[1], sizeof(MIB_CE_DHCP_OPTION_T));
 
 					if(pDHCPOptEntry->usedFor != usedFor)
 						continue;
@@ -1383,7 +1890,7 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 						{
 							MaxInstNum++;
 							pDHCPOptEntry->dhcpOptInstNum = MaxInstNum;
-							mib_chain_update( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)pDHCPOptEntry, i );
+							apmib_set(MIB_DHCP_SERVER_OPTION_MOD, (void *)&DhcpOptEntry);
 						}
 						if( create_Object( c, tDHCPOptionObject, sizeof(tDHCPOptionObject), 1, pDHCPOptEntry->dhcpOptInstNum ) < 0 )
 							return -1;
@@ -1399,11 +1906,13 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 
 				if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
-				num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
-				for(i=0; i<num; i++)
-				{
-					pDHCPSPOptEntry = &DhcpSPOptEntry;
-					if( !mib_chain_get( MIB_DHCPS_SERVING_POOL_TBL, i, (void*)pDHCPSPOptEntry ) )
+				apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+				pDHCPSPOptEntry = &DhcpSPOptEntry;
+				for (i=1; i<=num; i++)
+				{	
+					memset(pDHCPSPOptEntry, '\0', sizeof(DHCPS_SERVING_POOL_T));
+					*((char *)pDHCPSPOptEntry) = (char)i;
+					if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)pDHCPSPOptEntry ) )
 						continue;
 					if(pDHCPSPOptEntry->InstanceNum == dhcpConSPInstNum )
 					{
@@ -1423,7 +1932,7 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 						entry.usedFor = usedFor;
 						entry.dhcpOptInstNum =*(int*)data;
 					}
-					mib_chain_add( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)&entry);
+					apmib_set( MIB_DHCP_SERVER_OPTION_ADD, (void *)&entry);
 				}
 				return ret;
 			}
@@ -1435,25 +1944,29 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 
 				if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
-				num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
-				for( i=0;i<num;i++ )
+				apmib_get( MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num );
+				pDHCPOptEntry = &DhcpOptEntry;
+				for( i=1;i<=num;i++ )
 				{
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCP_SERVER_OPTION_TBL, i, (void*)pDHCPOptEntry ) )
+					memset(pDHCPOptEntry, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+					*((char *)pDHCPOptEntry) = (char)i;					
+					if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void*)pDHCPOptEntry ) )
 						continue;
 					if(pDHCPOptEntry->usedFor == usedFor
 						&& pDHCPOptEntry->dhcpConSPInstNum==dhcpConSPInstNum
 						&& pDHCPOptEntry->dhcpOptInstNum==*pUint)
 					{
 						found =1;
-						mib_chain_delete( MIB_DHCP_SERVER_OPTION_TBL, i );
+						apmib_set( MIB_DHCP_SERVER_OPTION_DEL, (void *)pDHCPOptEntry );
 						break;
 					}
 				}
 
 				if(found==0) return ERR_9005;
 				ret = del_Object( name, (struct CWMP_LINKNODE **)&entity->next, *(int*)data );
+			#if 0
 				apply_DHCP(CWMP_RESTART,0,NULL);
+			#endif
 				//if( ret==0 )	ret=1;
 				return ret;
 			}
@@ -1462,16 +1975,19 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 				int num,i;
 				struct CWMP_LINKNODE *old_table;
 
-				num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
+				 apmib_get( MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num );
 				old_table = (struct CWMP_LINKNODE *)entity->next;
 				entity->next = NULL;
-				for( i=0; i<num;i++ )
+				pDHCPOptEntry = &DhcpOptEntry[1];
+				for( i=1; i<=num;i++ )
 				{
-					struct CWMP_LINKNODE *remove_entity=NULL;
-
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCP_SERVER_OPTION_TBL, i, (void*)pDHCPOptEntry ))
+					struct CWMP_LINKNODE *remove_entity=NULL;				
+					memset(pDHCPOptEntry, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+					*((char *)pDHCPOptEntry) = (char)i;
+					if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void*)pDHCPOptEntry ))
 						continue;
+					else
+						memcpy(&DhcpOptEntry[0], &DhcpOptEntry[1], sizeof(MIB_CE_DHCP_OPTION_T));
 
 					if( (pDHCPOptEntry->usedFor == usedFor) &&
 						(pDHCPOptEntry->dhcpConSPInstNum == dhcpConSPInstNum) ) // &&
@@ -1491,7 +2007,7 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 								if(MaxInstNum!=pDHCPOptEntry->dhcpOptInstNum)
 								{
 									pDHCPOptEntry->dhcpOptInstNum = MaxInstNum;
-									mib_chain_update( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)pDHCPOptEntry, i );
+									apmib_set(MIB_DHCP_SERVER_OPTION_MOD, (void *)&DhcpOptEntry);
 								}
 							}//else already in next_table
 						}
@@ -1518,19 +2034,24 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 				if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
 				MaxInstNum = findMaxDHCPOptionInstNum(usedFor,0);
-				num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
-				for( i=0; i<num;i++ )
+				apmib_get( MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num );
+				pDHCPOptEntry = &DhcpOptEntry[1];
+				for( i=1; i<=num;i++ )
 				{
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCP_SERVER_OPTION_TBL, i, (void*)pDHCPOptEntry ))
+					memset(pDHCPOptEntry, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+					*((char *)pDHCPOptEntry) = (char)i;
+					if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void*)pDHCPOptEntry ))
 						continue;
+					else
+						memcpy(&DhcpOptEntry[0], &DhcpOptEntry[1], sizeof(MIB_CE_DHCP_OPTION_T));
+
 					if(pDHCPOptEntry->usedFor != usedFor )
 						continue;
 					if( pDHCPOptEntry->dhcpOptInstNum==0 ) //maybe createn by web or cli
 					{
 						MaxInstNum++;
 						pDHCPOptEntry->dhcpOptInstNum = MaxInstNum;
-						mib_chain_update( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)pDHCPOptEntry, i );
+						apmib_set( MIB_DHCP_SERVER_OPTION_MOD, (void*)&DhcpOptEntry );
 					}
 					if( create_Object( c, tDHCPOptionObject, sizeof(tDHCPOptionObject), 1, pDHCPOptEntry->dhcpOptInstNum ) < 0 )
 						return -1;
@@ -1556,7 +2077,7 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 						entry.dhcpOptInstNum = *(int*)data;
 						entry.dhcpConSPInstNum = 0;
 					}
-					mib_chain_add( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)&entry);
+					apmib_set( MIB_DHCP_SERVER_OPTION_ADD, (void*)&entry);
 				}
 				return ret;
 			}
@@ -1568,16 +2089,18 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 
 				if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
-				num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
-				for( i=0;i<num;i++ )
+				apmib_get( MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num );
+				pDHCPOptEntry = &DhcpOptEntry;
+				for( i=1;i<=num;i++ )
 				{
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCP_SERVER_OPTION_TBL, i, (void*)pDHCPOptEntry ) )
+					memset(pDHCPOptEntry, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+					*((char *)pDHCPOptEntry) = (char)i;					
+					if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void*)pDHCPOptEntry ) )
 						continue;
 					if(pDHCPOptEntry->usedFor == eUsedFor_DHCPServer && pDHCPOptEntry->dhcpOptInstNum==*pUint)
 					{
 						found =1;
-						mib_chain_delete( MIB_DHCP_SERVER_OPTION_TBL, i );
+						apmib_set( MIB_DHCP_SERVER_OPTION_DEL, (void *)pDHCPOptEntry );
 						break;
 					}
 				}
@@ -1592,19 +2115,23 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 				int num,i;
 				struct CWMP_LINKNODE *old_table;
 
-				num = mib_chain_total( MIB_DHCP_SERVER_OPTION_TBL );
+				apmib_get( MIB_DHCP_SERVER_OPTION_TBL_NUM, (void *)&num );
 				old_table = (struct CWMP_LINKNODE *)entity->next;
 				entity->next = NULL;
-				for( i=0; i<num;i++ )
+				pDHCPOptEntry = &DhcpOptEntry[1];
+				for( i=1; i<=num;i++ )
 				{
 					struct CWMP_LINKNODE *remove_entity=NULL;
+					memset(pDHCPOptEntry, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+					*((char *)pDHCPOptEntry) = (char)i;
 
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCP_SERVER_OPTION_TBL, i, (void*)pDHCPOptEntry ))
+					if( !apmib_get( MIB_DHCP_SERVER_OPTION_TBL, (void*)pDHCPOptEntry ))
 						continue;
+					else
+						memcpy(&DhcpOptEntry[0], &DhcpOptEntry[1], sizeof(MIB_CE_DHCP_OPTION_T));
 
 					if( (pDHCPOptEntry->usedFor == usedFor) ) //&& (pDHCPOptEntry->dhcpOptInstNum!=0))
-	{
+					{
 						remove_entity = remove_SiblingEntity( &old_table, pDHCPOptEntry->dhcpOptInstNum );
 						if( remove_entity!=NULL )
 						{
@@ -1619,7 +2146,7 @@ int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data)
 								if(MaxInstNum!=pDHCPOptEntry->dhcpOptInstNum)
 								{
 									pDHCPOptEntry->dhcpOptInstNum = MaxInstNum;
-									mib_chain_update( MIB_DHCP_SERVER_OPTION_TBL, (unsigned char*)pDHCPOptEntry, i );
+									apmib_set( MIB_DHCP_SERVER_OPTION_MOD, (void *)&DhcpOptEntry );
 								}
 							}//else already in next_table
 						}
@@ -1737,23 +2264,28 @@ int checkandmodify_poolorder(unsigned int order, int chainid)
 	int ret=-1;
 	int num,i;
 	int maxorder;
-	DHCPS_SERVING_POOL_T *p,pentry;
+	DHCPS_SERVING_POOL_T *p,pentry[2];
 
-	p=&pentry;
+	p=&pentry[1];
 	maxorder=findMaxDHCPConSPOrder();
 	if(order>maxorder+1)
 		goto checkresult;
 	else{
-		num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
-		for( i=0; i<num;i++ )
+		apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+		for( i=1; i<=num;i++ )
 		{
+			memset(p, '\0', sizeof(DHCPS_SERVING_POOL_T));
+			*((char *)p) = (char)i;		
 			if(i==chainid)
 				continue;
-			if( !mib_chain_get( MIB_DHCPS_SERVING_POOL_TBL, i, (void*)p ))
+			if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)p ))
 				continue;
+			else
+				memcpy(&pentry[0], &pentry[1], sizeof(DHCPS_SERVING_POOL_T));
+
 			if(p->poolorder>=order){
 				(p->poolorder)++;
-				mib_chain_update(MIB_DHCPS_SERVING_POOL_TBL,(void*)p,i);
+				apmib_set(MIB_DHCPS_SERVING_POOL_MOD,(void*)&pentry);
 			}
 		}
 		ret=0;
@@ -1768,22 +2300,24 @@ void compact_poolorder( )
 	int ret=-1;
 	int num,i,j;
 	int maxorder;
-	DHCPS_SERVING_POOL_T *p,pentry;
+	DHCPS_SERVING_POOL_T *p,pentry[2];
 	char *orderflag;
 
 	while(1){
-		p=&pentry;
+		p=&pentry[1];
 		maxorder=findMaxDHCPConSPOrder();
 		orderflag=(char*)malloc(maxorder+1);
 		if(orderflag==NULL) return;
 		memset(orderflag,0,maxorder+1);
 
-		num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
-		for( i=0; i<num;i++ )
+		apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+		for( i=1; i<=num;i++ )
 		{
-				if( !mib_chain_get( MIB_DHCPS_SERVING_POOL_TBL, i, (void*)p ))
-					continue;
-				orderflag[p->poolorder]=1;
+			memset(p, '\0', sizeof(DHCPS_SERVING_POOL_T));
+			*((char *)p) = (char)i;
+			if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)p ))
+				continue;
+			orderflag[p->poolorder]=1;
 		}
 		for(j=1;j<=maxorder;j++){
 			if(orderflag[j]==0)
@@ -1791,15 +2325,19 @@ void compact_poolorder( )
 		} //star: there only one 0 in orderflag array
 		if(j==(maxorder+1))
 			break;
-		for( i=0; i<num;i++ )
+		for( i=1; i<=num;i++ )
 		{
+			memset(p, '\0', sizeof(DHCPS_SERVING_POOL_T));
+			*((char *)p) = (char)i;		
+			if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)p ))
+				continue;
+			else			
+				memcpy(&pentry[0], &pentry[1], sizeof(DHCPS_SERVING_POOL_T));
 
-				if( !mib_chain_get( MIB_DHCPS_SERVING_POOL_TBL, i, (void*)p ))
-					continue;
-				if(p->poolorder>j){
-					(p->poolorder)--;
-					mib_chain_update(MIB_DHCPS_SERVING_POOL_TBL,(void*)p,i);
-				}
+			if(p->poolorder>j){
+				(p->poolorder)--;
+				apmib_set(MIB_DHCPS_SERVING_POOL_MOD,(void*)&pentry);
+			}
 		}
 
 		if(orderflag)
@@ -1848,6 +2386,121 @@ int compactmacaddr(char *newmac, char* oldmac){
 
 	printf("newmac=%s,oldmac=%s",newmac,oldmac);
 	return 1;
+}
+int getDHCPStaticAddrEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data)
+{
+	char	*lastname = entity->info->name;;
+	unsigned int chainid;
+	unsigned int dhcpStaticAddrInstNum;
+	int num,i;
+	int ret=0;
+	char buf[256];
+	unsigned int uInt;
+	DHCPRSVDIP_T *pDHCPStaticEntry, DhcpStaticAddrEntry;
+
+	*type = entity->info->type;
+	*data = NULL;
+		
+	pDHCPStaticEntry = &DhcpStaticAddrEntry;
+	dhcpStaticAddrInstNum = getDHCPStaticAddrInstNum( name );
+	ret=getDHCPStaticAddrByInstNum(dhcpStaticAddrInstNum,pDHCPStaticEntry,&chainid);
+	if(ret<0) return ERR_9002;
+
+	if( strcmp( lastname, "Enable" )==0 )
+	{
+		mib_get(MIB_DHCPRSVDIP_ENABLED, (void *)&uInt);
+		*data = booldup(uInt);
+	}else if( strcmp( lastname, "Chaddr" )==0 )
+	{
+		char macaddr[30];
+
+		sprintf(macaddr," %02x:%02x:%02x:%02x:%02x:%02x",
+			pDHCPStaticEntry->macAddr[0], pDHCPStaticEntry->macAddr[1],
+			pDHCPStaticEntry->macAddr[2], pDHCPStaticEntry->macAddr[3],
+			pDHCPStaticEntry->macAddr[4], pDHCPStaticEntry->macAddr[5]);
+		
+		*data = strdup(macaddr);
+	}else if( strcmp( lastname, "Yiaddr" )==0 )
+	{
+		*data = strdup(inet_ntoa(*((struct in_addr*)pDHCPStaticEntry->ipAddr)));
+	}else
+	{
+		return ERR_9005;
+	}
+	
+	return 0;
+}
+int setDHCPStaticAddrEntity(char *name, struct CWMP_LEAF *entity, int type, void *data)
+{
+	char	*lastname = entity->info->name;
+	unsigned int chainid;
+	unsigned int dhcpStaticAddrInstNum;
+	int num,i;
+	int ret=0;
+	char *buf=data;
+	DHCPRSVDIP_T *pDHCPStaticAddrEntry, DhcpStaticAddrEntry[2];
+	char tmpbuf[30]={0};
+	char *tok, del[] = ", ", *pstr;
+
+	if( (name==NULL) || (entity==NULL)) return -1;
+	if( entity->info->type!=type ) return ERR_9006;
+
+	pDHCPStaticAddrEntry = &DhcpStaticAddrEntry[1];
+	dhcpStaticAddrInstNum = getDHCPStaticAddrInstNum( name );
+	ret=getDHCPStaticAddrByInstNum(dhcpStaticAddrInstNum,pDHCPStaticAddrEntry,&chainid);
+	if(ret<0) return ERR_9002;
+
+	memcpy(&DhcpStaticAddrEntry[0], &DhcpStaticAddrEntry[1], sizeof(DHCPRSVDIP_T));
+	if( strcmp( lastname, "Enable" )==0 )
+	{
+		int *i = data;
+
+		int iVal;
+		if( i==NULL ) return ERR_9007;
+		iVal = (*i==0) ? 0:1;
+		mib_set(MIB_DHCPRSVDIP_ENABLED, (void *)&iVal);
+
+		return 1;
+	}else if( strcmp( lastname, "Chaddr" )==0 )
+	{
+		char m0, m1, m2, m3, m4, m5;
+
+		//tr098_printf("buf %s", buf);
+
+		if (sscanf(buf, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &m0, &m1, &m2, &m3, &m4, &m5 ) == 6)
+		{
+			pDHCPStaticAddrEntry->macAddr[0] = (unsigned char) m0;
+			pDHCPStaticAddrEntry->macAddr[1] = (unsigned char) m1;
+			pDHCPStaticAddrEntry->macAddr[2] = (unsigned char) m2;
+			pDHCPStaticAddrEntry->macAddr[3] = (unsigned char) m3;
+			pDHCPStaticAddrEntry->macAddr[4] = (unsigned char) m4;
+			pDHCPStaticAddrEntry->macAddr[5] = (unsigned char) m5;
+
+			apmib_set( MIB_DHCPRSVDIP_MOD, (void*)&DhcpStaticAddrEntry );
+		}
+		else
+		{
+			return ERR_9007;
+		}
+		
+		return 1;
+			
+	}else if( strcmp( lastname, "Yiaddr" )==0 )
+	{
+		struct in_addr inIp;
+		
+		inet_aton(buf, &inIp);
+		memcpy(pDHCPStaticAddrEntry->ipAddr, &inIp, 4);
+
+		apmib_set( MIB_DHCPRSVDIP_MOD, (void*)&DhcpStaticAddrEntry );
+		
+		return 1;
+	}else
+	{
+		return ERR_9005;
+	}
+	
+	return 0;
 }
 int getDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 {
@@ -2021,24 +2674,26 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 	int num,i;
 	int ret=0;
 	char *buf=data;
-	DHCPS_SERVING_POOL_T *pDHCPSPEntry, DhcpSPEntry;
+	DHCPS_SERVING_POOL_T *pDHCPSPEntry, DhcpSPEntry[2];
 	char tmpbuf[30]={0};
 	char *tok, del[] = ", ", *pstr;
 
 	if( (name==NULL) || (entity==NULL)) return -1;
 	if( entity->info->type!=type ) return ERR_9006;
 
-	pDHCPSPEntry = &DhcpSPEntry;
+	pDHCPSPEntry = &DhcpSPEntry[1];
 	dhcpConSPInstNum = getDHCPConSPInstNum( name );
 	ret=getDHCPConSPByInstNum(dhcpConSPInstNum,pDHCPSPEntry,&chainid);
 	if(ret<0) return ERR_9002;
 
+	memcpy(&DhcpSPEntry[0], &DhcpSPEntry[1], sizeof(DHCPS_SERVING_POOL_T));
 	if( strcmp( lastname, "Enable" )==0 )
 	{
 		int *i=data;
 		if(i==NULL) return ERR_9007;
 		pDHCPSPEntry->enable = (*i==0) ? 0:1;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
+		
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_L, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2052,7 +2707,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		if(*i<1) return ERR_9007;
 		if(checkandmodify_poolorder(*i,chainid)<0) return ERR_9007;
 		pDHCPSPEntry->poolorder = *i;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 		compact_poolorder();
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
@@ -2097,7 +2752,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		else
 				return ERR_9007;
 		}
-		mib_chain_update(MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid);
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 		
 		printf("source interface=%d%d%d%d%d\n", (pDHCPSPEntry->sourceinterface & 0x10) >> 4, (pDHCPSPEntry->sourceinterface & 0x8) >> 3,
 			(pDHCPSPEntry->sourceinterface & 0x4) >> 2, (pDHCPSPEntry->sourceinterface & 0x2) >> 1,	pDHCPSPEntry->sourceinterface & 0x1);
@@ -2127,7 +2782,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		}
 #endif
 /*ping_zhang:20090319 END*/
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2139,7 +2794,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		int *i=data;
 		if(i==NULL) return ERR_9007;
 		pDHCPSPEntry->vendorclassflag = (*i==0) ? 0:1;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2157,7 +2812,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			strncpy(pDHCPSPEntry->vendorclassmode,buf,MODE_LEN-1);
 			pDHCPSPEntry->vendorclassmode[MODE_LEN-1]=0;
 		}
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2173,7 +2828,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			strncpy(pDHCPSPEntry->clientid,buf,OPTION_LEN-1);
 			pDHCPSPEntry->clientid[OPTION_LEN-1]=0;
 		}
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2184,7 +2839,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		int *i=data;
 		if(i==NULL) return ERR_9007;
 		pDHCPSPEntry->clientidflag = (*i==0) ? 0:1;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2200,7 +2855,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			strncpy(pDHCPSPEntry->userclass,buf,OPTION_LEN-1);
 			pDHCPSPEntry->userclass[OPTION_LEN-1]=0;
 		}
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2212,7 +2867,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		int *i=data;
 		if(i==NULL) return ERR_9007;
 		pDHCPSPEntry->userclassflag = (*i==0) ? 0:1;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2231,7 +2886,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			if(compactmacaddr(tmpbuf,buf)==0) return ERR_9007;
 			if(string_to_hex(tmpbuf,pDHCPSPEntry->chaddr,12)==0) return ERR_9007;
 		}
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2249,7 +2904,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			if(compactmacaddr(tmpbuf,buf)==0) return ERR_9007;
 			if(string_to_hex(tmpbuf,pDHCPSPEntry->chaddrmask,12)==0) return ERR_9007;
 		}
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2261,7 +2916,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		int *i=data;
 		if(i==NULL) return ERR_9007;
 		pDHCPSPEntry->chaddrflag = (*i==0) ? 0:1;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2273,7 +2928,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		int *i=data;
 		if(i==NULL) return ERR_9007;
 		pDHCPSPEntry->localserved = (*i==0) ? 0:1;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2287,7 +2942,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			memset(pDHCPSPEntry->startaddr,0,IP_ADDR_LEN);
 		else
 			if(!inet_aton(buf, (struct in_addr *)&pDHCPSPEntry->startaddr)) return ERR_9007;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2301,7 +2956,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			memset(pDHCPSPEntry->endaddr,0,IP_ADDR_LEN);
 		else
 			if(!inet_aton(buf, (struct in_addr *)&pDHCPSPEntry->endaddr)) return ERR_9007;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2330,7 +2985,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			memset(pDHCPSPEntry->subnetmask,0,IP_ADDR_LEN);
 		else
 			if(!inet_aton(buf, (struct in_addr *)&pDHCPSPEntry->subnetmask)) return ERR_9007;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2349,7 +3004,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		}else
 			 return ERR_9007;
 		
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2365,7 +3020,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			strncpy(pDHCPSPEntry->domainname,buf,GENERAL_LEN-1);
 			pDHCPSPEntry->domainname[GENERAL_LEN-1]=0;
 		}
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2379,7 +3034,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			memset(pDHCPSPEntry->iprouter,0,IP_ADDR_LEN);
 		else
 			if(!inet_aton(buf, (struct in_addr *)&pDHCPSPEntry->iprouter)) return ERR_9007;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2392,7 +3047,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		if(i==NULL) return ERR_9007;
 		if(*i<-1) return ERR_9007;
 		pDHCPSPEntry->leasetime=*i;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2418,7 +3073,7 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 			memset(pDHCPSPEntry->dhcprelayip,0,IP_ADDR_LEN);
 		else
 			if(!inet_aton(buf, (struct in_addr *)&pDHCPSPEntry->dhcprelayip)) return ERR_9007;
-		mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPSPEntry, chainid );
+		apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void*)&DhcpSPEntry );
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_DHCP, CWMP_RESTART, 0, NULL, 0 );
 		return 0;
@@ -2435,10 +3090,10 @@ int setDHCPConSPEntity(char *name, struct CWMP_LEAF *entity, int type, void *dat
 int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 {
 	struct CWMP_NODE *entity=(struct CWMP_NODE *)e;
-	DHCPS_SERVING_POOL_T *pDHCPOptEntry, DhcpOptEntry;
+	DHCPS_SERVING_POOL_T *pDHCPOptEntry, DhcpOptEntry[2];
 	unsigned int chainid;
 	unsigned int num,i;
-
+	pDHCPOptEntry = &DhcpOptEntry[1];
 	switch(type)
 		{
 		case eCWMP_tINITOBJ:
@@ -2449,25 +3104,28 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 				if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
 				MaxInstNum = findMaxDHCPConSPInsNum();
-				num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
-				for( i=0; i<num;i++ )
+				apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+				for( i=1; i<=num;i++ )
 				{
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCPS_SERVING_POOL_TBL, i, (void*)pDHCPOptEntry ))
+					memset(pDHCPOptEntry, '\0', sizeof(DHCPS_SERVING_POOL_T));
+					*((char *)pDHCPOptEntry) = (char)i;
+					if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)pDHCPOptEntry ))
 						continue;
+					else
+						memcpy(&DhcpOptEntry[0], &DhcpOptEntry[1], sizeof(DHCPS_SERVING_POOL_T));
 	
 					if( pDHCPOptEntry->InstanceNum==0 )
 					{
 						MaxInstNum++;
 						pDHCPOptEntry->InstanceNum = MaxInstNum;
-						mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPOptEntry, i );
+						apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void *)&DhcpOptEntry);
 					}
 					if( create_Object( c, tDHCPConSPObject, sizeof(tDHCPConSPObject), 1, pDHCPOptEntry->InstanceNum ) < 0 )
 						return -1;
 				}
 				add_objectNum( name, MaxInstNum );
-	return 0;
-}
+				return 0;
+			}
 		case eCWMP_tADDOBJ:
 			{
 				int ret;
@@ -2492,7 +3150,11 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 						strncpy(entry.vendorclassmode,"Substring",MODE_LEN-1);
 						entry.vendorclassmode[MODE_LEN-1]=0;
 					}
-					mib_chain_add( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)&entry);
+					if ( apmib_set( MIB_DHCPS_SERVING_POOL_ADD, (void*)&entry) == 0)
+					{
+						fprintf(stderr,"\r\n Add DHCPS_SERVING_POOL table entry error!");
+						return -1;
+					}						
 				}
 				return ret;
 			}
@@ -2504,11 +3166,13 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 
 				if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
-				num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
-				for( i=0; i<num;i++ )
+				apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
+				pDHCPOptEntry = &DhcpOptEntry;
+				for( i=1; i<=num;i++ )
 				{
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCPS_SERVING_POOL_TBL, i, (void*)pDHCPOptEntry ) )
+					memset(pDHCPOptEntry, '\0', sizeof(DHCPS_SERVING_POOL_T));
+					*((char *)pDHCPOptEntry) = (char)i;				
+					if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)pDHCPOptEntry ) )
 						continue;
 					if(pDHCPOptEntry->InstanceNum==*pUint)
 					{
@@ -2517,7 +3181,7 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 					#ifdef SUPPORT_DHCP_RESERVED_IPADDR
 						clearDHCPReservedIPAddrByInstNum( pDHCPOptEntry->InstanceNum );
 					#endif //SUPPORT_DHCP_RESERVED_IPADDR
-						mib_chain_delete( MIB_DHCPS_SERVING_POOL_TBL, i );
+						apmib_set( MIB_DHCPS_SERVING_POOL_DEL, (void *)pDHCPOptEntry );
 						compact_poolorder();
 						break;
 					}
@@ -2525,7 +3189,9 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 
 				if(found==0) return ERR_9005;
 				ret = del_Object( name, (struct CWMP_LINKNODE **)&entity->next, *(int*)data );
+			#if 0
 				apply_DHCP(CWMP_RESTART,0,NULL);
+			#endif
 				//if( ret==0 )	ret=1;
 				return ret;
 			}
@@ -2534,16 +3200,19 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 				int num,i;
 				struct CWMP_LINKNODE *old_table;
 
-				num = mib_chain_total( MIB_DHCPS_SERVING_POOL_TBL );
+				apmib_get( MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&num );
 				old_table = (struct CWMP_LINKNODE *)entity->next;
 				entity->next = NULL;
-				for( i=0; i<num;i++ )
+				pDHCPOptEntry = &DhcpOptEntry[1];
+				for( i=1; i<=num;i++ )
 				{
 					struct CWMP_LINKNODE *remove_entity=NULL;
-
-					pDHCPOptEntry = &DhcpOptEntry;
-					if( !mib_chain_get( MIB_DHCPS_SERVING_POOL_TBL, i, (void*)pDHCPOptEntry ))
+					memset(pDHCPOptEntry, '\0', sizeof(DHCPS_SERVING_POOL_T));
+					*((char *)pDHCPOptEntry) = (char)i;
+					if( !apmib_get( MIB_DHCPS_SERVING_POOL_TBL, (void*)pDHCPOptEntry ))
 						continue;
+					else
+						memcpy(&DhcpOptEntry[0], &DhcpOptEntry[1], sizeof(DHCPS_SERVING_POOL_T));
 
 					remove_entity = remove_SiblingEntity( &old_table, pDHCPOptEntry->InstanceNum );
 					if( remove_entity!=NULL )
@@ -2559,7 +3228,7 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 								if(MaxInstNum!=pDHCPOptEntry->InstanceNum)
 								{
 									pDHCPOptEntry->InstanceNum = MaxInstNum;
-									mib_chain_update( MIB_DHCPS_SERVING_POOL_TBL, (unsigned char*)pDHCPOptEntry, i );
+									apmib_set( MIB_DHCPS_SERVING_POOL_MOD, (void *)&DhcpOptEntry );
 								}
 							}//else already in next_table
 					}
@@ -2567,9 +3236,9 @@ int objDHCPConSP(char *name, struct CWMP_LEAF *e, int type, void *data)
 
 				if( old_table )
 					destroy_ParameterTable( (struct CWMP_NODE *)old_table );
-	
-	return 0;
-}
+
+				return 0;
+			}
 		}
 }
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -2591,7 +3260,7 @@ int getLANHostConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 	*type = entity->info->type;
 	*data = NULL;
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	if( strcmp( lastname, "MACAddress" )==0 )
 	{
 		unsigned char buffer[64];
@@ -2755,7 +3424,12 @@ int getLANHostConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 	}
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
-	
+	else if( strcmp( lastname, "DHCPStaticAddressNumberOfEntries" )==0 )
+	{
+		int var=0;
+		apmib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&var);
+		*data = uintdup(var);
+	}
 	else if( strcmp( lastname, "DHCPOptionNumberOfEntries" )==0 )
 	{
 		unsigned int usedFor=eUsedFor_DHCPServer;
@@ -2763,7 +3437,8 @@ int getLANHostConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 	}
 	else if( strcmp( lastname, "DHCPConditionalPoolNumberOfEntries" )==0 )
 	{
-		int var=mib_chain_total(MIB_DHCPS_SERVING_POOL_TBL);
+		int var=0;
+		apmib_get(MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&var);
 		*data = uintdup(var);
 	}	
 #endif //_PRMT_X_TELEFONICA_ES_DHCPOPTION_
@@ -2795,7 +3470,7 @@ int setLANHostConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 #endif
 	//if( data==NULL ) return ERR_9007;
 
-	mib_get( MIB_DHCP, (void *)&ServerEn);
+	mib_get( MIB_LAN_DHCP_CONFIGURABLE, (void *)&ServerEn);
 	if( strcmp( lastname, "DHCPServerConfigurable" )==0 )
 	{
 #ifdef _PRMT_X_CT_COM_DATATYPE
@@ -3395,6 +4070,89 @@ int setDNSList( char *buf)
 #ifdef _CWMP_MAC_FILTER_
 int getMACAddressList( char *buf, int len )
 {
+#if 1
+	int i, j, total;
+	int wlanMacType;
+	MACFILTER_T macEntry;
+
+	if (buf == NULL) return -1;
+	if (len <= 0) return -1;
+
+	buf[0] = '\0';
+
+	mib_get(MIB_MACFILTER_TBL_NUM, (void *)&total);
+
+	//tr098_printf("total %d", total);
+
+	for (i=1; i<=total; i++)
+	{
+		char mac[19];
+	
+		*( (char *) &macEntry ) = (char) i;
+		
+		if (!mib_get(MIB_MACFILTER_TBL, (void *)&macEntry))
+			break;
+
+		if ((strlen(buf)+19) > len) break;
+
+		snprintf(mac, 18, "%02x:%02x:%02x:%02x:%02x:%02x",
+				macEntry.macAddr[0], macEntry.macAddr[1], macEntry.macAddr[2],
+				macEntry.macAddr[3], macEntry.macAddr[4], macEntry.macAddr[5]);
+
+		//tr098_printf("mac %s", mac);
+
+		if (strstr(buf, mac) == NULL)
+		{
+			//tr098_printf("mac %s", mac);
+			if (buf[0]) strcat(buf, ",");
+			strcat(buf, mac);
+		}
+	}
+	
+	//tr098_printf("buf %s", buf);
+
+	for (i=0; i<NUM_WLAN_INTERFACE; i++)
+	{
+		/* 0: disable, 1: allow list, 2: deny list */
+		getWlanMib(i, 0, MIB_WLAN_MACAC_ENABLED, (void *)&wlanMacType);
+
+		//tr098_printf("wlanMacType %d", wlanMacType);
+
+		if (wlanMacType != 2) continue;
+		
+		getWlanMib(i, 0, MIB_WLAN_MACAC_NUM, (void *)&total);
+
+		//tr098_printf("total %d", total);
+
+		for (j=1; j<=total; j++)
+		{
+			char mac[19];
+
+			*( (char *) &macEntry ) = (char) j;
+
+			getWlanMib(i, 0, MIB_WLAN_MACAC_ADDR, (void *)&macEntry);
+
+			if ((strlen(buf)+19) > len) break;
+
+			snprintf(mac, 18, "%02x:%02x:%02x:%02x:%02x:%02x",
+					macEntry.macAddr[0], macEntry.macAddr[1], macEntry.macAddr[2],
+					macEntry.macAddr[3], macEntry.macAddr[4], macEntry.macAddr[5]);
+
+			//tr098_printf("mac %s", mac);
+
+			if (strstr(buf, mac) == NULL)
+			{
+				//tr098_printf("mac %s", mac);
+				if (buf[0]) strcat(buf, ",");
+				strcat(buf, mac);		
+			}
+		}
+	}
+
+	//tr098_printf("buf %s", buf);
+	
+	return 0;
+#else
 	int total,i;
 	CWMP_MAC_FILTER_T MacEntry;
 	
@@ -3409,10 +4167,10 @@ int getMACAddressList( char *buf, int len )
 		if ( !mib_get(MIB_CWMP_MACFILTER_TBL, (void *)&MacEntry))
 			continue;
 		//action==allow, dstMac==0, dir==outgoing
-		if( (MacEntry.action==1)    && (MacEntry.dir==DIR_OUT) &&
-		    (MacEntry.dstMac[0]==0) && (MacEntry.dstMac[1]==0) &&
-		    (MacEntry.dstMac[2]==0) && (MacEntry.dstMac[3]==0) &&
-		    (MacEntry.dstMac[4]==0) && (MacEntry.dstMac[5]==0)
+		if( (MacpDHCPStaticEntry->action==1)    && (MacpDHCPStaticEntry->dir==DIR_OUT) &&
+		    (MacpDHCPStaticEntry->dstMac[0]==0) && (MacpDHCPStaticEntry->dstMac[1]==0) &&
+		    (MacpDHCPStaticEntry->dstMac[2]==0) && (MacpDHCPStaticEntry->dstMac[3]==0) &&
+		    (MacpDHCPStaticEntry->dstMac[4]==0) && (MacpDHCPStaticEntry->dstMac[5]==0)
 		  )
 		{
 			char tmp[19];
@@ -3420,17 +4178,94 @@ int getMACAddressList( char *buf, int len )
 			
 			if(buf[0]) strcat(buf,",");
 			snprintf( tmp, 18, "%02x:%02x:%02x:%02x:%02x:%02x",
-				MacEntry.srcMac[0], MacEntry.srcMac[1],
-				MacEntry.srcMac[2], MacEntry.srcMac[3],
-				MacEntry.srcMac[4], MacEntry.srcMac[5]);
+				MacpDHCPStaticEntry->srcMac[0], MacpDHCPStaticEntry->srcMac[1],
+				MacpDHCPStaticEntry->srcMac[2], MacpDHCPStaticEntry->srcMac[3],
+				MacpDHCPStaticEntry->srcMac[4], MacpDHCPStaticEntry->srcMac[5]);
 			strcat(buf,tmp);
 	}
 	}
 	return 0;
+#endif
 }
 
 int setMACAddressList( char *buf )
 {
+#if 1
+	int i;
+	char *token;
+	int wlanMacType;
+	MACFILTER_T macEntry;
+
+	if (buf == NULL) return -1;
+
+	//tr098_trace();
+
+	// clear all allow lists
+	mib_set(MIB_MACFILTER_DELALL, (void *)&macEntry);
+
+	for (i=0; i<NUM_WLAN_INTERFACE; i++)
+	{
+		setWlanMib(i, 0, MIB_WLAN_AC_ADDR_DELALL, (void *)&macEntry);
+	}
+
+	// set new allow lists
+	token = strtok(buf, ", \n\r");
+
+	while (token != NULL)
+	{
+		char m0, m1, m2, m3, m4, m5;
+
+		//tr098_printf("token %s", token);
+
+		if (sscanf(token, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &m0, &m1, &m2, &m3, &m4, &m5 ) == 6)
+		{
+			if (m0<256 && m1<256 && m2<256 && m3<256 && m4<256 && m5<256)
+			{
+				//tr098_trace();
+				memset(&macEntry, 0, sizeof(MACFILTER_T));
+
+				macEntry.macAddr[0] = (unsigned char) m0;
+				macEntry.macAddr[1] = (unsigned char) m1;
+				macEntry.macAddr[2] = (unsigned char) m2;
+				macEntry.macAddr[3] = (unsigned char) m3;
+				macEntry.macAddr[4] = (unsigned char) m4;
+				macEntry.macAddr[5] = (unsigned char) m5;
+
+				//tr098_printf("%d:%d:%d:%d:%d:%d",
+				//	macpDHCPStaticEntry->macAddr[0], macpDHCPStaticEntry->macAddr[1], macpDHCPStaticEntry->macAddr[2],
+				//	macpDHCPStaticEntry->macAddr[3], macpDHCPStaticEntry->macAddr[4], macpDHCPStaticEntry->macAddr[5]);
+
+				mib_set(MIB_MACFILTER_ADD, (void *)&macEntry);
+
+				for (i=0; i<NUM_WLAN_INTERFACE; i++)
+				{
+					setWlanMib(i, 0, MIB_WLAN_AC_ADDR_ADD, (void *)&macEntry);
+				}
+			}
+			else
+			{
+				//tr098_trace();
+				return -1;
+			}
+		}
+		else
+		{
+			//tr098_trace();
+			return -1;
+		}
+
+		token = strtok(NULL, ", \n\r");
+	}
+
+	/* 0: disable, 1: allow list, 2: deny list */
+	wlanMacType = 2;
+	for (i=0; i<NUM_WLAN_INTERFACE; i++)
+	{
+		setWlanMib(i, 0, MIB_WLAN_MACAC_ENABLED, (void *)&wlanMacType);
+	}
+
+	return 0;
+#else
 	int total,i;
 	CWMP_MAC_FILTER_T MacEntry;
 	
@@ -3445,10 +4280,10 @@ int setMACAddressList( char *buf )
 			continue;
 
 		//action==allow, dstMac==0, dir==outgoing
-		if( (MacEntry.action==1)    && (MacEntry.dir==DIR_OUT) &&
-		    (MacEntry.dstMac[0]==0) && (MacEntry.dstMac[1]==0) &&
-		    (MacEntry.dstMac[2]==0) && (MacEntry.dstMac[3]==0) &&
-		    (MacEntry.dstMac[4]==0) && (MacEntry.dstMac[5]==0)
+		if( (MacpDHCPStaticEntry->action==1)    && (MacpDHCPStaticEntry->dir==DIR_OUT) &&
+		    (MacpDHCPStaticEntry->dstMac[0]==0) && (MacpDHCPStaticEntry->dstMac[1]==0) &&
+		    (MacpDHCPStaticEntry->dstMac[2]==0) && (MacpDHCPStaticEntry->dstMac[3]==0) &&
+		    (MacpDHCPStaticEntry->dstMac[4]==0) && (MacpDHCPStaticEntry->dstMac[5]==0)
 		  )
 		{
 			mib_set(MIB_CWMP_MACFILTER_DEL, (void *)&MacEntry);
@@ -3468,14 +4303,14 @@ int setMACAddressList( char *buf )
 				if( m0<256 && m1<256 && m2<256 && m3<256 && m4<256 && m5<256)
 				{
 					memset( &MacEntry, 0, sizeof( CWMP_MAC_FILTER_T ) );
-					MacEntry.action=1;
-					MacEntry.dir=DIR_OUT;
-					MacEntry.srcMac[0]=(unsigned char)m0;
-					MacEntry.srcMac[1]=(unsigned char)m1;
-					MacEntry.srcMac[2]=(unsigned char)m2;
-					MacEntry.srcMac[3]=(unsigned char)m3;
-					MacEntry.srcMac[4]=(unsigned char)m4;
-					MacEntry.srcMac[5]=(unsigned char)m5;
+					MacpDHCPStaticEntry->action=1;
+					MacpDHCPStaticEntry->dir=DIR_OUT;
+					MacpDHCPStaticEntry->srcMac[0]=(unsigned char)m0;
+					MacpDHCPStaticEntry->srcMac[1]=(unsigned char)m1;
+					MacpDHCPStaticEntry->srcMac[2]=(unsigned char)m2;
+					MacpDHCPStaticEntry->srcMac[3]=(unsigned char)m3;
+					MacpDHCPStaticEntry->srcMac[4]=(unsigned char)m4;
+					MacpDHCPStaticEntry->srcMac[5]=(unsigned char)m5;
 					mib_set(MIB_CWMP_MACFILTER_ADD, (void *)&MacEntry);
 				}else
 					return -1;
@@ -3488,6 +4323,7 @@ int setMACAddressList( char *buf )
 	}
 
 	return 0;
+#endif
 }
 #endif /*_CWMP_MAC_FILTER_*/
 
@@ -3629,6 +4465,38 @@ int updateDHCP(void)
 	return 0;
 }
 
+//return -1:error, 0:not found, 1:found
+int findDHCPStaticAssign( char *mac, char *ip )
+{
+	int i, total=0;
+	int ret=0;
+	DHCPRSVDIP_T Entry;
+	char m[6];
+	
+	if( mac==NULL || ip==NULL ) return ret;
+	if( sscanf( mac, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", 
+		&m[0],&m[1],&m[2],&m[3],&m[4],&m[5] )!=6 )
+		return ret;
+	
+	mib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&total);
+	for( i=1;i<=total;i++ )
+	{
+
+
+		*((char *)&Entry) = (char)i;
+		if(!mib_get(MIB_DHCPRSVDIP_TBL, (void *)&Entry))
+			continue;
+		
+		if( memcmp(Entry.macAddr, m, 6 )==0  && strcmp( inet_ntoa(*((struct in_addr *)Entry.ipAddr)), ip)==0 )
+		{
+			ret=1;
+			break;
+		}
+	}
+	
+	return ret;	
+}
+
 #ifdef SECONDARY_IP
 unsigned int getIPItfInstNum( char *name )
 {
@@ -3656,12 +4524,12 @@ int getDHCPReservedIPAddr( unsigned int inst_num, char *pfilename )
 		*((char *)&Entry) = (char)i;
 		mib_get(MIB_DHCPRSVDIP_TBL, (void *)&Entry);
 		
-		if( Entry.InstanceNum==inst_num )
+		if( pDHCPStaticEntry->InstanceNum==inst_num )
 		{
-			//fprintf( stderr, "(get: inst_num=%u, ip=%d:%d:%d:%d)\n", Entry.InstanceNum, Entry.IPAddr[0], Entry.IPAddr[1], Entry.IPAddr[2], Entry.IPAddr[3] );
+			//fprintf( stderr, "(get: inst_num=%u, ip=%d:%d:%d:%d)\n", pDHCPStaticEntry->InstanceNum, pDHCPStaticEntry->IPAddr[0], pDHCPStaticEntry->IPAddr[1], pDHCPStaticEntry->IPAddr[2], pDHCPStaticEntry->IPAddr[3] );
 			count++;
 			if(count>1) fprintf( fp, "," );
-			fprintf( fp, "%s",  inet_ntoa(*((struct in_addr *)&(Entry.ipAddr))) );			
+			fprintf( fp, "%s",  inet_ntoa(*((struct in_addr *)&(pDHCPStaticEntry->ipAddr))) );			
 		}
 	}
 	fclose(fp);
@@ -3712,7 +4580,7 @@ int setDHCPReservedIPAddr( unsigned int inst_num, char *iplist )
 			DHCPRSVDIP_T Entry;
 			*((char *)&Entry) = (char)i;
 			mib_get(MIB_DHCPRSVDIP_TBL, (void *)&Entry);
-			if ( Entry.InstanceNum==inst_num )
+			if ( pDHCPStaticEntry->InstanceNum==inst_num )
 				mib_set(MIB_DHCPRSVDIP_DEL,(void *)&Entry);
 		}
 	}
@@ -3728,9 +4596,9 @@ int setDHCPReservedIPAddr( unsigned int inst_num, char *iplist )
 		//fprintf( stderr, "set:buf=%s\n", buf );
 		p=strchr( buf, '\n' );
 		if(p) *p=0;
-		inet_aton(buf, (struct in_addr *)Entry.ipAddr);
-		Entry.InstanceNum=inst_num;
-		//fprintf( stderr, "set:ipbuf=%s(%d,%d,%d,%d, inst_num=%u)\n", buf, Entry.IPAddr[0], Entry.IPAddr[1], Entry.IPAddr[2], Entry.IPAddr[3],Entry.InstanceNum );
+		inet_aton(buf, (struct in_addr *)pDHCPStaticEntry->ipAddr);
+		pDHCPStaticEntry->InstanceNum=inst_num;
+		//fprintf( stderr, "set:ipbuf=%s(%d,%d,%d,%d, inst_num=%u)\n", buf, pDHCPStaticEntry->IPAddr[0], pDHCPStaticEntry->IPAddr[1], pDHCPStaticEntry->IPAddr[2], pDHCPStaticEntry->IPAddr[3],pDHCPStaticEntry->InstanceNum );
 		mib_set( MIB_DHCPRSVDIP_ADD, (unsigned char*)&Entry);
 	}
 	fclose(fp);

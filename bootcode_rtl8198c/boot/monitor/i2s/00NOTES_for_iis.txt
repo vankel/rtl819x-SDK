@@ -1,0 +1,91 @@
+
+
+author jwsyu@realtek.com #5402
+version 01 date 2012/09/19 AM 11:25:16
+
+
+
+8198, 8881A iis enable clock procedure
+0. trun on 24.576Mhz and 22.579Mhz PLL (in 0xb8000058)
+1. config internal clock for 24.576Mhz (in 0xb8000010)
+2. turn on iis ip (in 0xb8000010)
+
+
+internal/external loopback test command
+config bit16:14 change sampling rate form 8khz ~ 96khz
+iis 92
+// 8kHz, internal loopback 16bit, mono tx
+4092, 8092, c092, 14092, 18092
+
+iis 14
+// 8kHz, disable loopback 16bit, mono tx+rx
+4014, 8014, c014, 14014, 18014, 40014014(44.1k)
+
+iis 82
+// 8kHz, internal loopback 16bit, stereo tx
+4082, 8082, c082, 14082, 18082, 40014082(44.1k)
+
+iis c2
+// 8kHz, internal loopback 24bit, stereo tx
+40c2, 80c2, c0c2, 140c2, 180c2, 400140c2(44.1k)
+
+iis 4
+// 8khz, disable loopback 16bit, stereo tx+rx
+4004, 8004, c004, 14004, 18004, 40014004(44.1k)
+
+iis 44
+// 8khz, disable loopback 24bit, stereo tx+rx
+4044, 8044, c044, 14044, 18044, 40014044(44.1k)
+
+
+playtone test command
+iis 12
+// 8kHz, disable loopback 16bit, mono tx
+4012, 8012, c012, 14012, 18012
+
+iis 2
+// 8khz, disable loopback 16bit, stereo tx
+4002, 8002, c002, 14002, 18002, 40014002(44.1k)
+
+iis 42
+// 8khz, disable loopback 24bit, stereo tx
+4042, 8042, c042, 14042, 18042, 40014042(44.1k)
+
+iis a
+// 8khz, disable loopback 16bit, 5.1ch tx
+400a, 800a, c00a, 1400a, 1800a, 4001400a(44.1k)
+
+iis 4a
+// 8khz, disable loopback 24bit, 5.1ch tx
+404a, 804a, c04a, 1404a, 1804a, 4001404a(44.1k)
+
+Note 24bit 5.1 ch
+SD0_o left channel is memory address 0, right channel is memory address 3
+SD1_o left channel is memory address 1, right channel is memory address 4
+SD2_o left channel is memory address 2, right channel is memory address 5
+
+mic input and loopback to speaker test command
+
+iis 14
+// 8kHz, disable loopback 16bit, mono tx+rx
+4014, 8014, c014, 14014, 18014, 40014014(44.1k)
+
+
+iis 4
+// 8khz, disable loopback 16bit, stereo tx+rx
+4004, 8004, c004, 14004, 18004, 40014004(44.1k)
+
+iis 44
+// 8khz, disable loopback 24bit, stereo tx+rx
+4044, 8044, c044, 14044, 18044, 40014044(44.1k)
+
+
+==========================================================================
+Notes: test 8881a iis with piggy.bin
+
+--enable timer clock interrupt:
+boot\init\utility.c:doBooting()
+change REG32(GIMR_REG)=0x0; 
+to REG32(GIMR_REG)=0x100;
+
+==========================================================================

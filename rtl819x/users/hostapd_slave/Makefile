@@ -23,8 +23,8 @@ SYSINIT_OBJS = $(SYSINIT_SRCS:.c=.o)
 
 LDLIBS += ../inband_lib/inband.a
 
-CC = rsdk-linux-gcc
-LD = rsdk-linux-gcc
+CC = $(CROSS_COMPILE)gcc
+LD = $(CROSS_COMPILE)gcc
 
 all: $(EXEC) $(SYSINIT_EXEC)
 

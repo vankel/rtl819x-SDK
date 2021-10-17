@@ -120,6 +120,17 @@ function checkIPv6(str) {
     }
 }
 
+function validateNum(str)
+{
+  for (var i=0; i<str.length; i++) {
+   	if ( !(str.charAt(i) >='0' && str.charAt(i) <= '9')) {
+		alert("Invalid value. It should be in decimal number (0-9).");
+		return false;
+  	}
+  }
+  return true;
+}
+
 function isHex(str) {
     if(str.length == 0 || str.length > 4) {
         return false;
@@ -133,17 +144,6 @@ function isHex(str) {
         }
     }
     return true;
-}
-
-function validateNum(str)
-{
-  for (var i=0; i<str.length; i++) {
-   	if ( !(str.charAt(i) >='0' && str.charAt(i) <= '9')) {
-		alert("Invalid value. It should be in decimal number (0-9).");
-		return false;
-  	}
-  }
-  return true;
 }
 
 function skip () { this.blur(); }
@@ -211,10 +211,10 @@ function saveChanges_basic(form, wlan_id)
 	if(tx_restrict)
 	{
 		if (validateNum(tx_restrict.value)==0)
-		{
-			tx_restrict.focus();
-			return false;
-		}
+        {
+         	tx_restrict.focus();
+        	return false;
+        }
 		if (tx_restrict.value == "") 
 		{
 			alert('tx_restrict cannot be empty!');
@@ -340,7 +340,6 @@ function wanShowDiv(pptp_bool, dns_bool, dnsMode_bool, pppoe_bool, static_bool, 
 function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 {
   var wanType = form.wanType.selectedIndex ;
-  
   if(form.pppoeNumber)
   var pppoeNumber = form.pppoeNumber.selectedIndex ; 
   else
@@ -353,6 +352,9 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	    return false;
   	  if (checkIPMask(form.wan_mask) == false)
   		return false ;
+
+	  if(checkHostIPValid(form.wan_ip,form.wan_mask,'Invalid IP address')== false) 
+		return false;
 
 	  if (form.wan_gateway.value!="" && form.wan_gateway.value!="0.0.0.0") {
 
@@ -390,7 +392,7 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	     d2 = getDigit(form.dhcpMtuSize.value, 1);
 	     if ( validateKey(form.dhcpMtuSize.value) == 0 ||
 			(d2 > 1500 || d2 < 1400) ) {
-			alert("Invalid MTU size! You should set a value between 1400-1492.");
+			alert("Invalid MTU size! You should set a value between 1400-1500.");
 			form.dhcpMtuSize.value = form.dhcpMtuSize.defaultValue;
 			form.dhcpMtuSize.focus();
 			return false;
@@ -593,14 +595,17 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	   
   }
   else if ( wanType == 3){ //pptp wanType
+	  	 
 	  if(dynamicWanIP == 0)
-	  {	  	  
+	  { 
 	  	  if ( checkIpAddr(form.pptpIpAddr, 'Invalid IP address') == false )
 		    return false;
 		  if (checkIPMask(form.pptpSubnetMask) == false)
 	  			return false ;
-		  if (checkIpAddr(form.pptpDefGw,'Invalid IP address') == false )
-		  		return false;
+		  
+		  if(checkHostIPValid(form.pptpIpAddr,form.pptpSubnetMask,'Invalid IP address')== false) 
+			return false;
+		  
 		  if ( checkIpAddr(form.pptpServerIpAddr, 'Invalid server IP address') == false )
 		      return false;
 		  if ( !checkSubnet(form.pptpIpAddr.value,form.pptpSubnetMask.value,form.pptpDefGw.value)) {
@@ -664,8 +669,10 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		    return false;
 		  if (checkIPMask(form.l2tpSubnetMask) == false)
 	  			return false ;
-		  if (checkIpAddr(form.l2tpDefGw,'Invalid IP address') == false)
-		  		return false;
+
+		   if(checkHostIPValid(form.l2tpIpAddr,form.l2tpSubnetMask,'Invalid IP address')== false) 
+			return false;
+		  
 		  if ( checkIpAddr(form.l2tpServerIpAddr, 'Invalid server IP address') == false )
 		      return false;
 		  if ( !checkSubnet(form.l2tpIpAddr.value,form.l2tpSubnetMask.value,form.l2tpDefGw.value)) {
@@ -721,39 +728,42 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
    }
 // --------------- USB3G wanType ---------------
    else if ( wanType == 5){
-        if (form.USB3G_APN.value=="") {
-            alert('APN name cannot be empty!');
-            form.USB3G_APN.value = form.USB3G_APN.defaultValue;
-            form.USB3G_APN.focus();
-            return false;
-        }
+	if(form.wanType.options[5].text == "USB3G")
+	{
+	        if (form.USB3G_APN.value=="") {
+	            alert('APN name cannot be empty!');
+	            form.USB3G_APN.value = form.USB3G_APN.defaultValue;
+	            form.USB3G_APN.focus();
+	            return false;
+	        }
 
-        if (form.USB3G_DIALNUM.value=="") {
-            alert('Dial number cannot be empty!');
-            form.USB3G_DIALNUM.value = form.USB3G_DIALNUM.defaultValue;
-            form.USB3G_DIALNUM.focus();
-            return false;
-        }
+	        if (form.USB3G_DIALNUM.value=="") {
+	            alert('Dial number cannot be empty!');
+	            form.USB3G_DIALNUM.value = form.USB3G_DIALNUM.defaultValue;
+	            form.USB3G_DIALNUM.focus();
+	            return false;
+	        }
 
-        if ( form.USB3GConnectType != null){
-            if ( form.USB3GConnectType.selectedIndex == 1 ) {
-                d1 = getDigit(form.USB3GIdleTime.value, 1);
-                if ( validateKey(form.USB3GIdleTime.value) == 0 || (d1 > 1000 || d1 < 1) ) {
-                    alert("Invalid idle time value! You should set a value between 1-1000.");
-                    form.USB3GIdleTime.focus();
-                    return false;
-                }
-            }
-        }
-        if ( form.USB3GMtuSize != null){
-            d2 = getDigit(form.USB3GMtuSize.value, 1);
-            if ( validateKey(form.USB3GMtuSize.value) == 0 || (d2 > 1490 || d2 < 1420) ) {
-                alert("Invalid MTU size! You should set a value between 1420-1490.");
-                form.USB3GMtuSize.value = form.USB3GMtuSize.defaultValue;
-                form.USB3GMtuSize.focus();
-			return false;
-	   	}
-	  } 
+	        if ( form.USB3GConnectType != null){
+	            if ( form.USB3GConnectType.selectedIndex == 1 ) {
+	                d1 = getDigit(form.USB3GIdleTime.value, 1);
+	                if ( validateKey(form.USB3GIdleTime.value) == 0 || (d1 > 1000 || d1 < 1) ) {
+	                    alert("Invalid idle time value! You should set a value between 1-1000.");
+	                    form.USB3GIdleTime.focus();
+	                    return false;
+	                }
+	            }
+	        }
+	        if ( form.USB3GMtuSize != null){
+	            d2 = getDigit(form.USB3GMtuSize.value, 1);
+	            if ( validateKey(form.USB3GMtuSize.value) == 0 || (d2 > 1490 || d2 < 1420) ) {
+	                alert("Invalid MTU size! You should set a value between 1420-1490.");
+	                form.USB3GMtuSize.value = form.USB3GMtuSize.defaultValue;
+	                form.USB3GMtuSize.focus();
+				return false;
+		   	}
+		  } 
+   	}
    } 
 
    if( wanType != 0 ) { // not static IP
@@ -761,6 +771,11 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	   for (var r = 0; r < group.length; r++)
 		  if (group[r].checked)
 		    break;
+	   if(wanType == 5)
+   	   {
+   	   	if(form.wanType.options[5].text != "USB3G")
+			r=0;
+   	   }
 
 	   if (r == 1) {
 	      if (form.dns1.value==""){
@@ -844,7 +859,7 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		form.wan_macAddr.value = form.wan_macAddr.defaultValue;
 		form.wan_macAddr.focus();
 		return false;
-	}
+  	}
 
 	//var reg = /01005[eE][0-7][0-9a-fA-F]{5}/;
 	//if(reg.exec(str))
@@ -1026,13 +1041,15 @@ function enableButton (button) {
     button.value = button.oldValue;
   }
 }
-
+	
 function showChannel5G(form, wlan_id)
 {
 	var sideBand=form.elements["controlsideband"+wlan_id].value;
 	var dsf_enable=form.elements["dsf_enable"].value;
 	var idx=0;
-	var wlan_support_8812e=form.elements["wlan_support_8812e"].value;
+	var wlan_support_8812e=0;
+	if(form.elements["wlan_support_8812e"])
+		wlan_support_8812e=form.elements["wlan_support_8812e"].value;
 	var defChanIdx;
 	form.elements["chan"+wlan_id].length=startChanIdx[wlan_id];
 	
@@ -1296,7 +1313,7 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 	}
 
 
-	if(band_value == 9 || band_value == 10 || band_value==7 || band_value == 74){ //ac2g
+	if(band_value == 9 || band_value == 10 || band_value==7){
 		if(bound_40 ==1){
 			var sideBand_idex = form.elements["controlsideband"+wlan_id].selectedIndex;
 			var sideBand=form.elements["controlsideband"+wlan_id].options[sideBand_idex].value;
@@ -1349,7 +1366,21 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 	idx++;	
 	var chan;
 	
-
+//ac2g
+if(band_value == 74)
+{
+	start = 1;
+	end = 13;
+	for (chan=start; chan<=end; idx++) {
+		form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
+		if(chan == wlan_channel[wlan_id]){
+			form.elements["chan"+wlan_id].selectedIndex = idx;
+			defChanIdx = idx;
+		}
+		chan=chan+4;
+	}
+}
+else
 {
 	for (chan=start; chan<=end; chan++, idx++) {
 		form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
@@ -1446,11 +1477,11 @@ var currentBand;
 		Band2G5GSupport = 1;
   	}
  	
- 	/*if(band_value==9 || band_value==10 || band_value ==7 || band_value ==11 || band_value ==14){
+ 	if(band_value==9 || band_value==10 || band_value ==7 || band_value ==11 || band_value ==14){
 	  	if(form.elements["chan"+wlan_id].value == 0){ // 0:auto	  
 	  		disableTextField(form.elements["controlsideband"+wlan_id]);	
 		}
-	}*/
+	}
 }
 
 function updateChan(form, wlan_id)
@@ -1509,7 +1540,7 @@ function updateChan(form, wlan_id)
   }
 
   	if(band_value==9 || band_value==10 || band_value ==7 || band_value ==11 || band_value ==14){
-	  	//if(form.elements["chan"+wlan_id].value ==0)
+	  	if(form.elements["chan"+wlan_id].selectedIndex ==0)
 	  	{ // 0:auto
 	  		disableTextField(form.elements["controlsideband"+wlan_id]);	
 		}
@@ -2215,7 +2246,7 @@ function saveChanges_wpa(form, wlan_id)
 /*   tcpiplan.htm  */
 function checkMask(str, num)
 {
-  var d = getDigit(str,num);  
+  var d = getDigit(str,num);
   if(num==1)
   {
   	if( !(d==128 || d==192 || d==224 || d==240 || d==248 || d==252 || d==254 || d==255 ))
@@ -2247,7 +2278,6 @@ function checkWholeMask(str)
 		return false;
 	return true;
 }
-
 
 function checkSubnet(ip, mask, client)
 {
@@ -2286,12 +2316,14 @@ function checkIPMask(field)
 	field.focus();
 	return false;
   }
+  
   if(field.value=="0.0.0.0"){
   		alert("Subnet mask cannot be 0.0.0.0!");
 	field.value = field.defaultValue;
 	field.focus();
 	return false;
   }
+	
   if ( validateKey( field.value ) == 0 ) {
       	alert("Invalid subnet mask value. It should be the decimal number (0-9).");
       	field.value = field.defaultValue;
@@ -2323,13 +2355,13 @@ function checkIPMask(field)
 	field.focus();
 	return false;
   }
-   if(!checkWholeMask(field.value)){
+  if(!checkWholeMask(field.value)){
   		alert("Invalid subnet mask.");
 	field.value = field.defaultValue;
 	field.focus;
 	return false;
   }
-
+  
 }  
 function checkIpAddr(field, msg)
 {
@@ -2363,14 +2395,67 @@ function checkIpAddr(field, msg)
       field.focus();
       return false;
    }
+   /*
    if ( !checkDigitRange(field.value,4,1,254) ) {
       alert(msg + ' range in 4th digit. It should be 1-254.');
       field.value = field.defaultValue;
       field.focus();
       return false;
    }
+   */
    return true;
 }
+
+/*
+ * ipv4_to_unsigned_integer
+ *	Convert an IPv4 address dotted string to an unsigned integer.
+ */
+function ipv4_to_unsigned_integer(ipaddr)
+{
+	var ip = ipaddr + "";
+	var got = ip.match (/^\s*(\d{1,3})\s*[.]\s*(\d{1,3})\s*[.]\s*(\d{1,3})\s*[.]\s*(\d{1,3})\s*$/);
+	if (!got) {
+		return null;
+	}
+	var x = 0;
+	var q = 0;
+	for (var i = 1; i <= 4; i++) {
+		q = parseInt(got[i], 10);
+		if (q < 0 || q > 255) {
+			return null;
+		}
+		x = x * 256 + q;
+	}
+	return x;
+}
+
+function checkHostIPValid(ipAddr,mask,msg)
+{		
+	if(!checkIpAddr(ipAddr,msg))	    return false;
+	var ip_int = ipv4_to_unsigned_integer(ipAddr.value);
+	var mask_int = ipv4_to_unsigned_integer(mask.value);
+	var mask_str = mask_int.toString(2);
+	//alert(mask_str);
+	var index0 = 32 - mask_str.indexOf('0');
+	//alert("mask len:"+index0); 	
+
+	var tmp = Math.pow(2,index0) -1;
+	//alert("tmp:"+tmp);
+
+	//var tmp_str = tmp.toString(2);
+	//alert("tmp_str:"+tmp_str);
+
+	var host = ip_int & tmp;
+	//alert("host:"+host);
+
+	if(host == 0 || host == tmp){
+		alert(msg);
+		return false;
+	}
+	return true;
+
+}
+
 //check ipv6 addr available
 function checkIpv6DigitRange(ipField)
 {
@@ -2395,6 +2480,7 @@ function checkIpv6Addr(ipField0,ipField1,ipField2,ipField3,ipField4,ipField5,ipF
 			return false;	
 		}
 	var reg = /[^0-9]/;
+	if(!prefixField) return false;
 	if(reg.exec(prefixField.value)||prefixField.value<0 ||prefixField.value>128)
 	{
 		//prefixField.value = prefixField.defaultValue;
@@ -2428,6 +2514,7 @@ function checkFieldDigitRange(field,start,end,msg)
 }
 function checkFieldEmpty(field,msg)
 {
+	if(!field) return false;
 	if(field.value=="")
 	{
 		//field.value = field.defaultValue;
@@ -2442,6 +2529,7 @@ function checkFieldEmpty(field,msg)
 function checkMacAddr_is_legal(field)
 {
 	var reg = /[0-9a-fA-F]{12}/;
+	if(!field) return false;
 	if(!reg.exec(field.value))
 	{
 		field.focus();
@@ -2453,6 +2541,7 @@ function checkMacAddr_is_legal(field)
 }
 function checkMacAddr_is_zero(field)
 {
+	if(!field) return false;
 	if(field.value == "000000000000")
 	{
 		field.focus();
@@ -2464,6 +2553,7 @@ function checkMacAddr_is_zero(field)
 }
 function checkMacAddr_is_broadcast(field)
 {
+	if(!field) return false;
 	if(field.value == "ffffffffffff")
 	{
 		field.focus();
@@ -2481,14 +2571,14 @@ function checkMacAddr_is_muticast(field)
 	{
 		field.focus();
 		field.select();
-		alert("Invalid MAC address. It should not be multicast mac address between.");
+		alert("Invalid MAC address. It should not be multicast mac address between 01:00:5e:00:00:00 and 01:00:5e:7f:ff:ff.");
 		return false;
 	}
 	return true;
 }
 function checkMacAddr(field,msg)
 {
-	return (checkMacAddr_is_legal(field) && checkMacAddr_is_zero(field) && checkMacAddr_is_broadcast(field) && checkMacAddr_is_muticast(field));
+	return (checkMacAddr_is_legal(field) & checkMacAddr_is_zero(field) & checkMacAddr_is_broadcast(field) & checkMacAddr_is_muticast(field));
 }
 function ppp_checkSubNetFormat(field,msg)
 {
@@ -2926,7 +3016,7 @@ function showchannelbound_updated(form, band, wlan_id, rf_num)
  form.elements["channelbound"+wlan_id].options[idx++] = new Option("20MHz", "0", false, false);
  form.elements["channelbound"+wlan_id].options[idx++] = new Option("40MHz", "1", false, false);
  
- if(band == 75 || band ==71 || band ==63){ //ac2g
+ if(band == 75 || band ==71|| band ==63 || band==74){ //ac2g
  form.elements["channelbound"+wlan_id].options[idx++] = new Option("80MHz", "2", false, false);
  }
  
@@ -3040,7 +3130,7 @@ function update_controlsideband(form, wlan_id)
 	var band_value= form.elements["band"+wlan_id].options[idx_value].value;
 	
 //ac2g
-	if(index ==0 || index==2 || (wlan_support_8812e==1 && (band_value==11 || band_value==63 || band_value==71 || band_value==75 ||(band_value==7 && idx_value==1)))) //8812
+	if(index ==0 || index==2 || (wlan_support_8812e==1 && (band_value==11 || band_value==63 || band_value==71 || band_value==75 || band_value==74 ||(band_value==7 && idx_value==1)))) //8812
 		disableTextField(form.elements["controlsideband"+wlan_id]);	
 	else
 		enableTextField(form.elements["controlsideband"+wlan_id]);
@@ -3058,6 +3148,8 @@ function updateChan_selectedIndex(form, wlan_id)
 	var chan_number_idx=form.elements["chan"+wlan_id].selectedIndex;
 	var chan_number= form.elements["chan"+wlan_id].options[chan_number_idx].value;
 	var wlan_support_8812e=form.elements["wlan_support_8812e"].value;
+	var idx_value= form.elements["band"+wlan_id].selectedIndex;
+	var band_value= form.elements["band"+wlan_id].options[idx_value].value;
 
 	
 	wlan_channel[wlan_id] = chan_number;
@@ -3073,6 +3165,6 @@ function updateChan_selectedIndex(form, wlan_id)
 		}
 	
 //ac2g	
-	if( ((wlan_support_8812e==1) && (chan_number > 14))) //8812
+	if( ((wlan_support_8812e==1) && (chan_number > 14)) || band_value==74) //8812
 		disableTextField(form.elements["controlsideband"+wlan_id]);	
 }

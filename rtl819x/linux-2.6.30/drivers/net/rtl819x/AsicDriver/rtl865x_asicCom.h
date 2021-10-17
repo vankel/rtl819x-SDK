@@ -17,9 +17,17 @@
 #endif
 
 #define RTL865XC_NETIFTBL_SIZE			8
+#if defined(CONFIG_RTL_8198C)
+#define RTL8651_ACLTBL_SIZE			252
+#define RTL8651_ACLHWTBL_SIZE			256
+#define RTL8651_ACLTBL_RESERV_SIZE	4
+
+#define CONFIG_RTL_GIGA_LITE_REFINE		1
+#else
 #define RTL8651_ACLTBL_SIZE			125
 #define RTL8651_ACLHWTBL_SIZE			128
 #define RTL8651_ACLTBL_RESERV_SIZE	3
+#endif
 
 #define RTL8651_MAC_NUMBER				6
 #define RTL8651_PORT_NUMBER				RTL8651_MAC_NUMBER
@@ -175,20 +183,41 @@ typedef struct {
     uint32          vid		 : 12;
     uint32          valid       : 1;	
     /* word 1 */
+#if defined(CONFIG_RTL_8198C)
+    uint32          inACLStartL:1;
+    uint32          enHWRouteV6    : 1;	
+#else    
     uint32         inACLStartL:2;	
+#endif
     uint32         enHWRoute : 1;	
     uint32         mac47_19:29;
 
     /* word 2 */
+#if defined(CONFIG_RTL_8198C)
+    uint32         macMaskL    :1;
+    uint32         outACLEnd   :8;
+    uint32         outACLStart :8;
+    uint32         inACLEnd    :8;	
+    uint32         inACLStartH :7;	
+#else
     uint32         mtuL       : 3;
     uint32         macMask :3;	
     uint32         outACLEnd : 7;	
     uint32         outACLStart : 7;	
     uint32         inACLEnd : 7;	
     uint32         inACLStartH: 5;	
+#endif
+
     /* word 3 */
+#if defined(CONFIG_RTL_8198C)
+    uint32         mtuV6       :15;
+    uint32         mtu         :15;
+    uint32         macMaskH    :2;
+#else
     uint32          reserv10   : 20;
     uint32          mtuH       : 12;
+#endif
+
 #else /*_LITTLE_ENDIAN*/
     /* word 0 */
     uint32          valid       : 1;	
@@ -198,21 +227,39 @@ typedef struct {
     /* word 1 */
     uint32         mac47_19:29;
     uint32          enHWRoute      : 1;	
+#if defined(CONFIG_RTL_8198C)
+    uint32          enHWRouteV6    : 1;	
+    uint32          inACLStartL:1;
+#else
     uint32          inACLStartL:2;	
+#endif
 
 
     /* word 2 */
+#if defined(CONFIG_RTL_8198C)
+    uint32         inACLStartH :7;	
+    uint32         inACLEnd    :8;	
+    uint32         outACLStart :8;
+    uint32         outACLEnd   :8;
+    uint32         macMaskL    :1;
+#else
     uint32         inACLStartH : 5;	
     uint32         inACLEnd : 7;	
     uint32         outACLStart : 7;
     uint32         outACLEnd : 7;	
     uint32         macMask :3;
     uint32         mtuL       : 3;
-
+#endif
 
     /* word 3 */
+#if defined(CONFIG_RTL_8198C)
+    uint32         macMaskH    :2;
+    uint32         mtu         :15;
+    uint32         mtuV6       :15;
+#else
     uint32          mtuH       : 12;
     uint32          reserv10   : 20;
+#endif
 
 #endif /*_LITTLE_ENDIAN*/
     /* word 4 */
@@ -230,7 +277,7 @@ typedef struct {
 typedef struct {
 #ifndef _LITTLE_ENDIAN
 	 /* word 0 */
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && !defined(CONFIG_RTL_8198C)
 	uint32	vid:12;
 #else
 	uint32	reserved1:12;
@@ -379,6 +426,44 @@ typedef struct {
             } is;
         } L3L4;
 
+#if defined(CONFIG_RTL_8198C)
+        struct{
+            union{
+                struct{
+                    /* word 0 */
+                    uint32        sip_addr31_0;
+                    /* word 1 */
+                    uint32        sip_addr63_32;
+                    /* word 2 */
+                    uint32        sip_addr95_64;
+                    /* word 3 */
+                    uint32        sip_addr127_96;
+                    /* word 4 */
+                    uint32        sip_mask31_0;
+                    /* word 5 */
+                    uint32        sip_mask63_32;
+                    /* word 6 */
+                    uint32        sip_mask95_64;             
+                }entry0;
+                struct{
+                    /* word 0 */
+                    uint32        dip_addr31_0;
+                    /* word 1 */
+                    uint32        dip_addr63_32;
+                    /* word 2 */
+                    uint32        dip_addr95_64;
+                    /* word 3 */
+                    uint32        dip_addr127_96;
+                    /* word 4 */
+                    uint32        dip_mask31_0;
+                    /* word 5 */
+                    uint32        dip_mask63_32;
+                    /* word 6 */
+                    uint32        dip_mask95_64;     
+                }entry1;
+            }is;
+        }L3V6;
+#endif        
         struct {
             /* word 0 */
             uint16          sMacP31_16;
@@ -431,13 +516,57 @@ typedef struct {
 
     } is;
     /* word 7 */
+#if defined(CONFIG_RTL_8198C)
+    uint32          ip_tunnel   : 1;
+    uint32          comb      : 1;
+    uint32          ruleType1 : 1;
+    uint32          ipv6ETY0  : 1;
+    uint32          inv       : 1;
+#else
     uint32          reserv0     : 5;
+#endif
     uint32          pktOpApp    : 3;
     uint32          PPPoEIndex  : 3;
     uint32          vid         : 3;
     uint32          nextHop     : 10; //index of l2, next hop, or rate limit tables
     uint32          actionType  : 4;
     uint32          ruleType    : 4;
+
+#if defined(CONFIG_RTL_8198C)
+    struct{
+        union{
+            struct{
+                /*word 8*/
+                uint32 sip_mask119_96  :24;
+                uint32 reserv1         :8;
+                /*word 9*/
+                uint32 flowLabelM3_0   :4;
+                uint32 flowLabel       :20;
+                uint32 sip_mask127_120 :8;
+                /*word 10*/
+                uint32 reserv2         :16;
+                uint32 flowLabelM19_4  :16;
+            }entry0;
+            struct{
+                /*word 8*/
+                uint32 dip_mask119_96  :24;
+                uint32 reserv1         :8;
+                /*word 9*/
+                uint32 nextHeader      :8;
+                uint32 trafficClassM   :8;                
+                uint32 trafficClass    :8;
+                uint32 dip_mask127_120 :8;
+                /*word 10*/             
+                uint32 reserv2         :20;
+                uint32 identSDIPM     :1;
+                uint32 identSDIPP      :1;                 
+                uint32 HTTPM          :1;
+                uint32 HTTPP           :1;              
+                uint32 nextHeaderM     :8;
+            }entry1;
+        }is;
+    }ipv6;
+#endif    
 #else /* littlen endian*/
     union {
         struct {
@@ -549,6 +678,46 @@ typedef struct {
                 } UDP;
             } is;
         } L3L4;
+
+#if defined(CONFIG_RTL_8198C)
+        struct{
+            union{
+                struct{
+                    /* word 0 */
+                    uint32        sip_addr31_0;
+                    /* word 1 */
+                    uint32        sip_addr63_32;
+                    /* word 2 */
+                    uint32        sip_addr95_64;
+                    /* word 3 */
+                    uint32        sip_addr127_96;
+                    /* word 4 */
+                    uint32        sip_mask31_0;
+                    /* word 5 */
+                    uint32        sip_mask63_32;
+                    /* word 6 */
+                    uint32        sip_mask95_64;             
+                }entry0;
+                struct{
+                    /* word 0 */
+                    uint32        dip_addr31_0;
+                    /* word 1 */
+                    uint32        dip_addr63_32;
+                    /* word 2 */
+                    uint32        dip_addr95_64;
+                    /* word 3 */
+                    uint32        dip_addr127_96;
+                    /* word 4 */
+                    uint32        dip_mask31_0;
+                    /* word 5 */
+                    uint32        dip_mask63_32;
+                    /* word 6 */
+                    uint32        dip_mask95_64;     
+                }entry1;
+            }is;
+        }L3V6;
+#endif
+
         struct {
             /* word 0 */
             uint16          sMacP15_0;
@@ -609,7 +778,52 @@ typedef struct {
     uint32          vid         : 3;
     uint32          PPPoEIndex  : 3;
     uint32          pktOpApp    : 3;
+
+#if defined(CONFIG_RTL_8198C)
+    uint32          inv       : 1;
+    uint32          ipv6ETY0  : 1;
+    uint32          ruleType1 : 1;
+    uint32          comb      : 1;
+    uint32          ip_tunnel : 1;
+#else
     uint32          reserv0     : 5;
+#endif
+
+#if defined(CONFIG_RTL_8198C)
+    struct{
+        union{
+            struct{
+                /*word 8*/
+                uint32 reserv1         :8;
+                uint32 sip_mask119_96  :24;
+                /*word 9*/
+                uint32 sip_mask127_120 :8;
+                uint32 flowLabel       :20;
+                uint32 flowLabelM3_0   :4;
+                /*word 10*/
+                uint32 flowLabelM19_4  :16;
+                uint32 reserv2         :16;
+            }entry0;
+            struct{
+                /*word 8*/
+                uint32 reserv1         :8;
+                uint32 dip_mask119_96  :24;
+                /*word 9*/
+                uint32 dip_mask127_120 :8;
+                uint32 trafficClass    :8;
+                uint32 trafficClassM   :8;                
+                uint32 nextHeader      :8;
+                /*word 10*/             
+                uint32 nextHeaderM     :8;
+                uint32 HTTPP           :1;
+                uint32 HTTPM          :1;
+                uint32 identSDIPP      :1;                
+                uint32 identSDIPM     :1;
+                uint32 reserv2         :20;
+            }entry1;
+        }is;
+    }ipv6;
+#endif
 
 #endif /*_LITTLE_ENDIAN*/
 } rtl865xc_tblAsic_aclTable_t;
@@ -618,7 +832,7 @@ typedef struct rtl865x_tblAsicDrv_vlanParam_s {
 	uint32 	memberPortMask; /*extension ports [rtl8651_totalExtPortNum-1:0] are located at bits [RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum-1:RTL8651_PORT_NUMBER]*/
 	uint32 	untagPortMask; /*extension ports [rtl8651_totalExtPortNum-1:0] are located at bits [RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum-1:RTL8651_PORT_NUMBER]*/
 	uint32  fid:2;
-#if defined(CONFIG_RTL_819XD)  || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && !defined(CONFIG_RTL_8198C)
 	uint32  vid:12;
 #endif
 } rtl865x_tblAsicDrv_vlanParam_t;
@@ -629,8 +843,15 @@ typedef struct rtl865x_tblAsicDrv_intfParam_s {
 	uint16 	vid;
 	uint32 	inAclStart, inAclEnd, outAclStart, outAclEnd;
 	uint32 	mtu;
-	uint32 	enableRoute:1,
-			valid:1;
+#if defined(CONFIG_RTL_8198C)
+    uint32  mtuV6;
+#endif        
+	uint32 	enableRoute:1;
+#if defined(CONFIG_RTL_8198C)
+	uint32  enableRouteV6:1;
+#endif    
+	uint32  valid:1;
+
 } rtl865x_tblAsicDrv_intfParam_t;
 
 
@@ -713,7 +934,7 @@ extern rtl8651_tblAsic_InitPara_t rtl8651_tblAsicDrvPara;
 
 int32 rtl8651_clearAsicCommTable(void);
 /*vlan*/
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E))  && !defined(CONFIG_RTL_8198C)
 int rtl8651_findAsicVlanIndexByVid(uint16 *vid);
 #endif
 int32 rtl8651_setAsicVlan(uint16 vid, rtl865x_tblAsicDrv_vlanParam_t *vlanp);
@@ -754,7 +975,6 @@ void rtl8651_clearSpecifiedAsicTable(uint32 type, uint32 count);
 int32 rtl8651_setAsicAgingFunction(int8 l2Enable, int8 l4Enable);
 int32 rtl8651_setAsicAgingFunction(int8 l2Enable, int8 l4Enable);
 
-unsigned int read_gpio_hw_setting(void);
 unsigned int rtl865x_probeSdramSize(void);
 void rtl865x_start(void);
 void rtl865x_down(void);
@@ -764,5 +984,10 @@ uint32 rtl8651_returnAsicCounter(uint32 offset);
 int32 rtl8651_clearAsicCounter(void);
 int32 rtl865xC_dumpAsicDiagCounter(void);
 int32 rtl865xC_dumpAsicCounter(void);
+
+#if defined(CONFIG_RTL_8198C)
+extern int rtl819x_setSwEthPvid(uint16 port, uint16 pvid);
+extern int rtl819x_getSwEthPvid(uint16 port, uint16* pvid);
+#endif
 
 #endif

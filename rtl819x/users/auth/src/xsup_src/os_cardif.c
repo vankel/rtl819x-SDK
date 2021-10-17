@@ -777,7 +777,9 @@ int sendframe(struct interface_data *thisint, char *sendframe, int sendsize)
 {
   char nomac[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   int retval;
-
+#ifdef RTL_ETH_CLIENT
+ 	unsigned char dot1x_group_mac[6] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+#endif
   debug_printf(DEBUG_STATE, "%s:\n", __FUNCTION__);
 
   if (thisint == NULL) return XEMALLOC;
@@ -802,6 +804,12 @@ int sendframe(struct interface_data *thisint, char *sendframe, int sendsize)
 #endif
 
   // The frame we are handed in shouldn't have a src/dest, so put it in.
+#ifdef RTL_ETH_CLIENT
+ 	if(RTLClient.auth->currentRole == role_eth){
+		memcpy(&sendframe[0], dot1x_group_mac, 6); 
+ 	}
+	else
+#endif
   memcpy(&sendframe[0], &thisint->dest_mac[0], 6);  
   memcpy(&sendframe[6], &thisint->source_mac[0], 6);
   debug_printf(DEBUG_EVERYTHING, "%s(%d): [%02x:%02x:%02x:%02x:%02x:%02x] ==> [%02x:%02x:%02x:%02x:%02x:%02x]\n",__FUNCTION__,__LINE__,

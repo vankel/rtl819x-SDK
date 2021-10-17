@@ -258,15 +258,26 @@ static unsigned int get_umount_partition_id(const char *dev) {
 
 static int try_mount(const char *devnode, const char *mnt) {
 	char cmd_buffer[220];
-	const char *fstypes[] = { "vfat", "ntfs", "exfat", "ext2", "ext3", 0 };
+	const char *fstypes[] = { "vfat", "ntfs", "exfat", "ext2", "ext3", "hfs+", 0 };
 	const char *fstype;
 	int rv, idx;
 	//int retry = 0;
 	struct timeval expiry, now;
 	DEBUG("%s(1) %s, %s\n", __FUNCTION__, devnode, mnt);
 
-	//do {
+#if defined(CONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM)
+	int nb_of_modules = 0;
+	FILE *fp;
+	fp = popen("lsmod | grep ufsd 2>&1", "r");
+	if(fp)
+	{
+		while (fgets(cmd_buffer, sizeof(cmd_buffer)-1, fp) != NULL) {
+			++nb_of_modules;
+		}
+	}
+#endif
 		
+	//do {
 	for (idx = 0; fstypes[idx] != 0; idx++) {
 		char source[80];
 		fstype =fstypes[idx];
@@ -285,6 +296,14 @@ static int try_mount(const char *devnode, const char *mnt) {
 			 MS_NODIRATIME | MS_NOATIME, 
 			0);
   	}
+#if defined(CONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM)
+	else if((idx == 1 || idx == 2 || idx == 5) && nb_of_modules > 0)
+	{
+		rv = mount(source, mnt, "ufsd", 
+				MS_NODIRATIME | MS_NOATIME, 
+				"nls=utf8");
+	}
+#endif
 	else if(idx == 1)
         {
 		snprintf(cmd_buffer, sizeof(cmd_buffer), CMD_MOUNT_FMT_NTFS,devnode,mnt);

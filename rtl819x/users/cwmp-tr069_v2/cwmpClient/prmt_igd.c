@@ -35,6 +35,10 @@
 #include "prmt_traceroute.h"
 #endif //_SUPPORT_TRACEROUTE_PROFILE_
 
+#ifdef _PRMT_TR143_
+#define _PRMT_CAPABILITIES_
+#endif //_SUPPORT_TRACEROUTE_PROFILE_
+
 #define LANDEVICE_NUM	1	/* one instance of LANDevice*/
 #define WANDEVICE_NUM	1	/* one instance of WANDevice*/
 

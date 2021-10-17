@@ -1,0 +1,49 @@
+
+====================================================================================================================
+1. 新增 DIAG_UTIL_PARAM_ERR_CHK((NULL == max_count_ptr), RT_ERR_NULL_POINTER)
+   API
+  
+  不只return error 也會刷出error code
+  
+  
+  在diag_xxx.c 中不要用 RT_PARAM_CHK
+  請改用 DIAG_UTIL_PARAM_ERR_CHK 這樣才會刷出error, 避免user 輸入錯誤但卻不知道發生什麼事
+   
+====================================================================================================================
+2. add dsl port list and ext port list
+
+DIAG_UTIL_EXTRACT_DSLLIST   --> for DSL port list
+DIAG_UTIL_EXTRACT_EXTLIST   --> for extension port list
+
+command 的部份 若是要get DSL port 的 all list 請用 dsl_all  key word
+
+command 的部份 若是要get extension port 的 all list 請用 ext_all  key word
+
+
+
+command example
+
+//port list test
+//mac port
+//mac port list <0-6>
+//all port list
+//dsl port 
+//dsl port list <0-15>
+//all dsl port list
+//extension port 
+//extension port list <1-5>
+//all extension port list
+port_test mac ( <PORT_LIST:port> | all ) dsl ( <PORT_LIST:port> | dsl_all ) ext ( <PORT_LIST:port> | ext_all )
+
+
+DIAG_UTIL_ERR_CHK(DIAG_UTIL_EXTRACT_DSLLIST(portlist, 4), ret); 
+
+====================================================================================================================
+3. 修改 diag_util_extract_portlist API
+   原先若輸入的port list 超出範圍 不會return error, 修改成會return error 
+
+====================================================================================================================
+ 
+
+  
+

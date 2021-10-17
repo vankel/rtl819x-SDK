@@ -1,0 +1,51 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>Disk Setup </title>
+<script language="javascript" type="text/javascript" src="util_gw.js"> </script>
+<script>
+
+function Close()
+{
+	window.close();
+}
+
+</script>
+</head>
+
+<blockquote>
+<h2><font color="#0000FF">Create Group</font></h2>
+
+<body onload="init();">
+
+<form action=/boafrm/formDiskCreateGroup method=POST name="formDiskCreateGroup">
+ <table border=0 width=500>
+  <tr>
+  <font size=2><b>Group Account</b></font>
+  </tr>
+  <tr>
+    <td width="20%"><font size=2><b>Group Name:</b></td>
+    <td width="50%"><font size=2><input type="text" name="groupname" size="20" maxlength="30"></td>
+  </tr>
+  <tr>
+    <td width="20%"><font size=2><b>Access:</b></td>
+    <td width="50%">
+      <select name="Access">
+	    <option value="r-w">read-write</option>
+	    <option value="r">read</option>
+	  </select>
+    </td>
+  </tr>
+  <tr>
+     <td width="30%"><font size=2><input type="submit" name="CreateGroup" value="CreateGroup"></td>
+    <td width="30%"><font size=2><input type="button" name="Close" value="Close" onClick="Close()"></td>
+    <input type="hidden" value="/administration.htm" name="submit-url">
+  </tr>  
+</table>
+</form>
+
+</body>
+
+</html>

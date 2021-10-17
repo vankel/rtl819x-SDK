@@ -280,6 +280,9 @@ loop_frame(frame, len)
     if (!active_packet(frame, len))
 	return 0;
 
+//do not queue the packet received before PPP dail success,
+//this fix the issue of dns packet (src: 10.64.64.64, dst: 168.95.1.1) is sent out
+#if 0 
     pkt = (struct packet *) malloc(sizeof(struct packet) + len);
     if (pkt != NULL) {
 	pkt->length = len;
@@ -291,6 +294,7 @@ loop_frame(frame, len)
 	    pend_qtail->next = pkt;
 	pend_qtail = pkt;
     }
+#endif
     return 1;
 }
 

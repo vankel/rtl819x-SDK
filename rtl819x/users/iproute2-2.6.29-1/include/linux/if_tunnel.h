@@ -12,6 +12,11 @@
 #define SIOCADDPRL      (SIOCDEVPRIVATE + 5)
 #define SIOCDELPRL      (SIOCDEVPRIVATE + 6)
 #define SIOCCHGPRL      (SIOCDEVPRIVATE + 7)
+#define SIOCGET6RD      (SIOCDEVPRIVATE + 8)
+#define SIOCADD6RD      (SIOCDEVPRIVATE + 9)
+#define SIOCDEL6RD      (SIOCDEVPRIVATE + 10)
+#define SIOCCHG6RD      (SIOCDEVPRIVATE + 11)
+
 
 #define GRE_CSUM	__constant_htons(0x8000)
 #define GRE_ROUTING	__constant_htons(0x4000)
@@ -47,6 +52,14 @@ struct ip_tunnel_prl {
 
 /* PRL flags */
 #define	PRL_DEFAULT		0x0001
+
+struct ip_tunnel_6rd {
+	struct in6_addr		prefix;
+	__be32			relay_prefix;
+	__u16			prefixlen;
+	__u16			relay_prefixlen;
+};
+
 
 enum
 {

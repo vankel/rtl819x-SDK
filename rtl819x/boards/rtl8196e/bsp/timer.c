@@ -72,7 +72,6 @@ void __init bsp_timer_init(void)
 #ifdef CONFIG_RTL_TIMER_ADJUSTMENT
    	rtl865x_setupTimer1();
 #endif   
-//#ifndef CONFIG_RTL_USERSPACE_WTDOG   
 #if defined(CONFIG_RTL_WTDOG)
 #ifdef CONFIG_RTK_VOIP
 	{
@@ -83,7 +82,7 @@ void __init bsp_timer_init(void)
 	REG32(BSP_WDTCNR) = 0x00600000;
 #endif
 #endif
-//#endif
+
     /* hook up timer interrupt handler */
     rlx_clockevent_init(BSP_TC0_IRQ);
     

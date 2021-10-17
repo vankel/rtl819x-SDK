@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Wireless Site Survey</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 var connectEnabled=0, autoconf=0;
 
@@ -35,15 +36,13 @@ function enableConnect(selId, isMesh)
 		enableTextField(parent.document.getElementById("next"));
 
 	if(parent.document.getElementById("pocket_ssid"))		
-		//parent.document.getElementById("pocket_ssid").value = document.getElementById("selSSID_"+selId).value;
-		parent.document.getElementById("pocket_ssid").value = document.getElementById("realSSID_"+selId).value; //selSSID_x is bssid
+		parent.document.getElementById("pocket_ssid").value = document.getElementById("selSSID_"+selId).value;
 
 	parent.document.getElementById("pocket_channel").value = document.getElementById("selChannel_"+selId).value;
 
 	//alert("pocket_channel="+parent.document.getElementById("pocket_channel").value);  
 
 	parent.document.getElementById("pocketAP_ssid").value = document.getElementById("selSSID_"+selId).value;
-	parent.document.getElementById("pocketAP_realssid").value = document.getElementById("realSSID_"+selId).value;
 	parent.document.getElementById("pocket_encrypt").value = document.getElementById("selEncrypt_"+selId).value;
 
 	if(parent.document.getElementById("pocket_wpa_tkip_aes"))
@@ -55,7 +54,7 @@ function enableConnect(selId, isMesh)
 	if(parent.document.wizardPocketGW)
 	{
 		if(document.getElementById("wpa_tkip_aes_"+selId).value == "aes/tkip")
-			parent.document.wizardPocketGW.elements["ciphersuite0"].value = "aes";
+			parent.document.wizardPocketGW.elements["ciphersuite0"].value = "tkip";
 		else if(document.getElementById("wpa_tkip_aes_"+selId).value == "tkip")
 			parent.document.wizardPocketGW.elements["ciphersuite0"].value = "tkip";
 		else if(document.getElementById("wpa_tkip_aes_"+selId).value == "aes")

@@ -31,17 +31,6 @@ static const char __module_cat(name,__LINE__)[]				  \
 
 struct kernel_param;
 
-#ifdef CONFIG_KERNEL_POLLING
-struct kernel_param_ops {
-	/* Returns 0, or -errno.  arg is in kp->arg. */
-	int (*set)(const char *val, struct kernel_param *kp);
-	/* Returns length written or -errno.  Buffer is 4k (ie. be short!) */
-	int (*get)(char *buffer, struct kernel_param *kp);
-	/* Optional function to free kp->arg when module unloaded. */
-	void (*free)(void *arg);
-};
-#endif
-
 /* Returns 0, or -errno.  arg is in kp->arg. */
 typedef int (*param_set_fn)(const char *val, struct kernel_param *kp);
 /* Returns length written or -errno.  Buffer is 4k (ie. be short!) */
@@ -75,20 +64,6 @@ struct kparam_array
 	unsigned int elemsize;
 	void *elem;
 };
-
-#ifdef CONFIG_KERNEL_POLLING
-/**
- * module_param_cb - general callback for a module/cmdline parameter
- * @name: a valid C identifier which is the parameter name.
- * @ops: the set & get operations for this parameter.
- * @perm: visibility in sysfs.
- *
- * The ops can have NULL set or get functions.
- */
-#define module_param_cb(name, ops, arg, perm)				      \
-	__module_param_call(MODULE_PARAM_PREFIX,			      \
-			    name, ops, arg, __same_type((arg), bool *), perm)
-#endif
 
 /* On alpha, ia64 and ppc64 relocations to global data cannot go into
    read-only sections (which is part of respective UNIX ABI on these

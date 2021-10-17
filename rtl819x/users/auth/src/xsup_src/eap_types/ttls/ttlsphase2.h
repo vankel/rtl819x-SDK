@@ -70,13 +70,24 @@
 #define TTLS_PHASE2_CHAP      2
 #define TTLS_PHASE2_MSCHAP    3
 #define TTLS_PHASE2_MSCHAPv2  4
-
+#ifdef RTL_TTLS_MD5_CLIENT
+void ttls_do_bogus(struct generic_eap_data *, char *, int , char *, int *);
+void ttls_do_pap(struct generic_eap_data *, char *, int , char *, int *);
+void ttls_do_chap(struct generic_eap_data *, char *, int , char *, int *);
+void ttls_do_mschap(struct generic_eap_data *, char *, int , char *, int *);
+void ttls_do_mschapv2(struct generic_eap_data *, char *, int , char *, int *);
+void ttls_do_phase2(struct generic_eap_data *,  char *, int , char *, int *);
+void ttls_do_eap_md5(struct generic_eap_data *,  char *, int , char *, int *);
+#else
 void ttls_do_bogus(struct generic_eap_data *, char *, int *);
 void ttls_do_pap(struct generic_eap_data *, char *, int *);
 void ttls_do_chap(struct generic_eap_data *, char *, int *);
 void ttls_do_mschap(struct generic_eap_data *, char *, int *);
 void ttls_do_mschapv2(struct generic_eap_data *, char *, int *);
 void ttls_do_phase2(struct generic_eap_data *, char *,int, char *, int *);
+
+#endif
+
 void ttls_phase2_failed(struct generic_eap_data *);
 
 #endif

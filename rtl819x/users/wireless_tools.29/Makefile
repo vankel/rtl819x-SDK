@@ -11,7 +11,7 @@ endif
 ## Compiler to use (modify this for cross compile).
 #CC = gcc
 #CROSS_COMPILE=mips-uclibc-
-#CC = $(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)gcc
 
 ## Other tools you need to modify for cross compile (static lib only).
 #AR = ar

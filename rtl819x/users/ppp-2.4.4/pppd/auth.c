@@ -400,6 +400,9 @@ option_t auth_options[] = {
     { NULL }
 };
 
+
+
+
 /*dzh add for fast clear ppp kernel info!!!*/
 void clear_ppp_info(void)
 {
@@ -408,6 +411,7 @@ void clear_ppp_info(void)
 	 #define PPPIOCDETACH _IOW('t', 60, int) /* detach from ppp unit/chan */
 	 ioctl(ppp_dev_fd, PPPIOCDETACH, &req_unit);
 }
+
 /*
  * setupapfile - specifies UPAP info for authenticating with peer.
  */
@@ -638,16 +642,20 @@ void rtl_ppp_disconnect()
 			system(cmd); 
 		}		
 #else
+		extern unsigned int exit_from_sig;
+		if(!exit_from_sig)
 		system("/bin/disconnect.sh option");
 #endif
-	    notice("Connection terminated.");		
+	    notice("Connection terminated.");
 		{
 		 extern int ppp_dev_fd;
 		 extern int req_unit;
-	 	 #define PPPIOCDETACH _IOW('t', 60, int) /* detach from ppp unit/chan */
+	 #define PPPIOCDETACH _IOW('t', 60, int) /* detach from ppp unit/chan */
 		 ioctl(ppp_dev_fd, PPPIOCDETACH, &req_unit);
 		}
-	}
+
+	}	
+	
 }
 
 /*
@@ -1092,7 +1100,6 @@ auth_withpeer_success(unit, protocol, prot_flavor)
 
     notice("%s authentication succeeded", prot);
 
-    system("echo 0 > /var/ppp_error");
     /* Save the authentication method for later. */
     auth_done[unit] |= bit;
 

@@ -15,11 +15,10 @@ ALSA_LIB = alsa_lib
 all:$(ALSA_LIB)
 	if [ ! -e ./$(SUBDIR_ALSA_UTILS)/Makefile ]; then \
 		cd ./$(SUBDIR_ALSA_UTILS); \
-		LD="mips-linux-ld" CC="rsdk-linux-gcc -fPIC" ./configure --disable-xmlto --build=i686-pc-linux-gnu --host=mips-linux --disable-alsamixer  --with-alsa-prefix=$(RSDK_LIB_DIR)/../lib  --with-alsa-inc-prefix=$(RSDK_LIB_DIR)/../include/alsa; \
+		LD="mips-linux-ld" CC="$(CROSS_COMPILE)gcc -fPIC" ./configure --disable-xmlto --build=i686-pc-linux-gnu --host=mips-linux --disable-alsamixer  --with-alsa-prefix=$(RSDK_LIB_DIR)/../lib  --with-alsa-inc-prefix=$(RSDK_LIB_DIR)/../include/alsa; \
 		touch ./configure; \
 		touch ./config.status; \
 		touch ./Makefile.in; \
-		touch ./Makefile; \
 		touch ./po/Makefile.in; \
 		touch ./po/Makefile.in.in; \
 		touch ./po/Makefile; \
@@ -35,7 +34,7 @@ all:$(ALSA_LIB)
 alsa_lib:
 	if [ ! -e ./$(SUBDIR_ALSA_LIB)/Makefile ]; then \
 		cd ./$(SUBDIR_ALSA_LIB); \
-		LD="mips-linux-ld" CC="rsdk-linux-gcc -fPIC" CFLAGS="-Os" ./configure --build=i686-pc-linux-gnu --with-debug --host=mips-linux --enable-static=no --enable-shared=yes  --with-versioned=no --with-debug=yes; \
+		LD="mips-linux-ld" CC="$(CROSS_COMPILE)gcc -fPIC" CFLAGS="-Os" ./configure --build=i686-pc-linux-gnu --with-debug --host=mips-linux --enable-static=no --enable-shared=yes  --with-versioned=no --with-debug=yes; \
 		touch ./configure; \
 		touch ./config.status; \
 		touch ./Makefile.in; \
@@ -87,7 +86,7 @@ romfs:
 	
 	$(ROMFSINST) -s /bin/aplay /bin/arecord
 	$(ROMFSINST) ./audio_src_16k_le.wav /bin/audio_src_16k_le.wav
-	$(ROMFSINST) ./audio_src_16k_be.pcm /bin/audio_src_16k_be.pcm
+	#$(ROMFSINST) ./audio_src_16k_be.pcm /bin/audio_src_16k_be.pcm
 	#$(ROMFSINST) ./audio_src_48k_le.wav /bin/audio_src_48k_le.wav
 	
 	

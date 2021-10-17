@@ -7,7 +7,6 @@ int __init fast_l2tp_init(void);
 void __exit fast_l2tp_exit(void);
 void event_ppp_dev_down(const char *name);
 int fast_l2tp_to_wan(void *skb);
-
 //#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
 int fast_l2tp_rx(void *skb);
 //#else

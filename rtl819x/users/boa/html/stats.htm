@@ -4,10 +4,11 @@
 <meta http-equiv="Content-Type" content="text/html">
 <% getIndex("no-cache"); %>
 <title>Statisitcs</title>
+<% getInfo("include_css"); %>
 </head>
 <body>
 <blockquote>
-<h2><font color="#0000FF">Statistics</font></h2>
+<h2>Statistics</h2>
 
 <table border=0 width="500" cellpadding=0>
   <tr><font size=2>
@@ -217,7 +218,7 @@
 				return;
 				
 
-			if( "<% getInfo("vlanOnOff"); %>"*1 == 0)
+			if( "<% getInfo("rtlMultiLanDev"); %>"*1 ==0 && "<% getInfo("vlanOnOff"); %>"*1 == 0)
 			{
 				var lanTx="<% getInfo("lanTxPacketNum"); %>";
 				var lanRx="<% getInfo("lanRxPacketNum"); %>";

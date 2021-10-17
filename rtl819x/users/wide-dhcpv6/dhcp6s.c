@@ -313,14 +313,18 @@ main(argc, argv)
 	}
 
 	if ((cfparse(conffile)) != 0) {
-		dprintf(LOG_ERR, FNAME, "failed to parse configuration file");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to parse configuration file");
 		exit(1);
 	}
 	if (foreground == 0) {
+		int fd;
+
 		if (daemon(0, 0) < 0)
 		{
 			err(1, "daemon");
 		}
+		for (fd = 3; fd < 1024; fd++)
+			close(fd);
 	}
 
 	/* dump current PID */
@@ -333,7 +337,7 @@ main(argc, argv)
 	/* prohibit a mixture of old and new style of DNS server config */
 	if (!TAILQ_EMPTY(&arg_dnslist)) {
 		if (!TAILQ_EMPTY(&dnslist)) {
-			dprintf(LOG_INFO, FNAME, "do not specify DNS servers "
+			dprintf_rtk(LOG_INFO, FNAME, "do not specify DNS servers "
 			    "both by command line and by configuration file.");
 			exit(1);
 		}
@@ -372,24 +376,24 @@ server6_init()
 
 	TAILQ_INIT(&dhcp6_binding_head);
 	if (lease_init() != 0) {
-		dprintf(LOG_ERR, FNAME, "failed to initialize the lease table");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to initialize the lease table");
 		exit(1);
 	}
 
 	ifidx = if_nametoindex(device);
 	if (ifidx == 0) {
-		dprintf(LOG_ERR, FNAME, "invalid interface %s", device);
+		dprintf_rtk(LOG_ERR, FNAME, "invalid interface %s", device);
 		exit(1);
 	}
 
 	/* get our DUID */
 	if (get_duid(DUID_FILE, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to get a DUID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to get a DUID");
 		exit(1);
 	}
 
 	if (dhcp6_ctl_authinit(ctlkeyfile, &ctlkey, &ctldigestlen) != 0) {
-		dprintf(LOG_NOTICE, FNAME,
+		dprintf_rtk(LOG_NOTICE, FNAME,
 		    "failed to initialize control message authentication");
 		/* run the server anyway */
 	}
@@ -401,7 +405,7 @@ server6_init()
 	rmh.msg_iovlen = 1;
 	rmsgctllen = CMSG_SPACE(sizeof(struct in6_pktinfo));
 	if ((rmsgctlbuf = (char *)malloc(rmsgctllen)) == NULL) {
-		dprintf(LOG_ERR, FNAME, "memory allocation failed");
+		dprintf_rtk(LOG_ERR, FNAME, "memory allocation failed");
 		exit(1);
 	}
 
@@ -413,32 +417,32 @@ server6_init()
 	hints.ai_flags = AI_PASSIVE;
 	error = getaddrinfo(NULL, DH6PORT_UPSTREAM, &hints, &res);
 	if (error) {
-		dprintf(LOG_ERR, FNAME, "getaddrinfo: %s",
+		dprintf_rtk(LOG_ERR, FNAME, "getaddrinfo: %s",
 		    gai_strerror(error));
 		exit(1);
 	}
 	insock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	if (insock < 0) {
-		dprintf(LOG_ERR, FNAME, "socket(insock): %s",
+		dprintf_rtk(LOG_ERR, FNAME, "socket(insock): %s",
 		    strerror(errno));
 		exit(1);
 	}
 	if (setsockopt(insock, SOL_SOCKET, SO_REUSEPORT, &on,
 		       sizeof(on)) < 0) {
-		dprintf(LOG_ERR, FNAME, "setsockopt(insock, SO_REUSEPORT): %s",
+		dprintf_rtk(LOG_ERR, FNAME, "setsockopt(insock, SO_REUSEPORT): %s",
 		    strerror(errno));
 		exit(1);
 	}
 	if (setsockopt(insock, SOL_SOCKET, SO_REUSEADDR, &on,
 		       sizeof(on)) < 0) {
-		dprintf(LOG_ERR, FNAME, "setsockopt(insock, SO_REUSEADDR): %s",
+		dprintf_rtk(LOG_ERR, FNAME, "setsockopt(insock, SO_REUSEADDR): %s",
 		    strerror(errno));
 		exit(1);
 	}
 #ifdef IPV6_RECVPKTINFO
 	if (setsockopt(insock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
 		       sizeof(on)) < 0) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "setsockopt(inbound, IPV6_RECVPKTINFO): %s",
 		    strerror(errno));
 		exit(1);
@@ -446,7 +450,7 @@ server6_init()
 #else
 	if (setsockopt(insock, IPPROTO_IPV6, IPV6_PKTINFO, &on,
 		       sizeof(on)) < 0) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "setsockopt(inbound, IPV6_PKTINFO): %s",
 		    strerror(errno));
 		exit(1);
@@ -455,13 +459,13 @@ server6_init()
 #ifdef IPV6_V6ONLY
 	if (setsockopt(insock, IPPROTO_IPV6, IPV6_V6ONLY,
 	    &on, sizeof(on)) < 0) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "setsockopt(inbound, IPV6_V6ONLY): %s", strerror(errno));
 		exit(1);
 	}
 #endif
 	if (bind(insock, res->ai_addr, res->ai_addrlen) < 0) {
-		dprintf(LOG_ERR, FNAME, "bind(insock): %s", strerror(errno));
+		dprintf_rtk(LOG_ERR, FNAME, "bind(insock): %s", strerror(errno));
 		exit(1);
 	}
 	freeaddrinfo(res);
@@ -469,7 +473,7 @@ server6_init()
 	hints.ai_flags = 0;
 	error = getaddrinfo(DH6ADDR_ALLAGENT, DH6PORT_UPSTREAM, &hints, &res2);
 	if (error) {
-		dprintf(LOG_ERR, FNAME, "getaddrinfo: %s",
+		dprintf_rtk(LOG_ERR, FNAME, "getaddrinfo: %s",
 		    gai_strerror(error));
 		exit(1);
 	}
@@ -480,7 +484,7 @@ server6_init()
 	    sizeof(mreq6.ipv6mr_multiaddr));
 	if (setsockopt(insock, IPPROTO_IPV6, IPV6_JOIN_GROUP,
 	    &mreq6, sizeof(mreq6))) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "setsockopt(insock, IPV6_JOIN_GROUP): %s",
 		    strerror(errno));
 		exit(1);
@@ -491,7 +495,7 @@ server6_init()
 	error = getaddrinfo(DH6ADDR_ALLSERVER, DH6PORT_UPSTREAM,
 			    &hints, &res2);
 	if (error) {
-		dprintf(LOG_ERR, FNAME, "getaddrinfo: %s",
+		dprintf_rtk(LOG_ERR, FNAME, "getaddrinfo: %s",
 		    gai_strerror(error));
 		exit(1);
 	}
@@ -502,7 +506,7 @@ server6_init()
 	    sizeof(mreq6.ipv6mr_multiaddr));
 	if (setsockopt(insock, IPPROTO_IPV6, IPV6_JOIN_GROUP,
 	    &mreq6, sizeof(mreq6))) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "setsockopt(insock, IPV6_JOIN_GROUP): %s",
 		    strerror(errno));
 		exit(1);
@@ -512,20 +516,20 @@ server6_init()
 	hints.ai_flags = 0;
 	error = getaddrinfo(NULL, DH6PORT_DOWNSTREAM, &hints, &res);
 	if (error) {
-		dprintf(LOG_ERR, FNAME, "getaddrinfo: %s",
+		dprintf_rtk(LOG_ERR, FNAME, "getaddrinfo: %s",
 		    gai_strerror(error));
 		exit(1);
 	}
 	outsock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	if (outsock < 0) {
-		dprintf(LOG_ERR, FNAME, "socket(outsock): %s",
+		dprintf_rtk(LOG_ERR, FNAME, "socket(outsock): %s",
 		    strerror(errno));
 		exit(1);
 	}
 	/* set outgoing interface of multicast packets for DHCP reconfig */
 	if (setsockopt(outsock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
 	    &ifidx, sizeof(ifidx)) < 0) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "setsockopt(outsock, IPV6_MULTICAST_IF): %s",
 		    strerror(errno));
 		exit(1);
@@ -533,7 +537,7 @@ server6_init()
 #if !defined(__linux__) && !defined(__sun__)
 	/* make the socket write-only */
 	if (shutdown(outsock, 0)) {
-		dprintf(LOG_ERR, FNAME, "shutdown(outbound, 0): %s",
+		dprintf_rtk(LOG_ERR, FNAME, "shutdown(outbound, 0): %s",
 		    strerror(errno));
 		exit(1);
 	}
@@ -546,7 +550,7 @@ server6_init()
 	hints.ai_protocol = IPPROTO_UDP;
 	error = getaddrinfo("::", DH6PORT_DOWNSTREAM, &hints, &res);
 	if (error) {
-		dprintf(LOG_ERR, FNAME, "getaddrinfo: %s",
+		dprintf_rtk(LOG_ERR, FNAME, "getaddrinfo: %s",
 		    gai_strerror(error));
 		exit(1);
 	}
@@ -561,7 +565,7 @@ server6_init()
 	hints.ai_protocol = IPPROTO_UDP;
 	error = getaddrinfo("::", DH6PORT_UPSTREAM, &hints, &res);
 	if (error) {
-		dprintf(LOG_ERR, FNAME, "getaddrinfo: %s",
+		dprintf_rtk(LOG_ERR, FNAME, "getaddrinfo: %s",
 		    gai_strerror(error));
 		exit(1);
 	}
@@ -572,16 +576,16 @@ server6_init()
 
 	/* set up control socket */
 	if (ctlkey == NULL)
-		dprintf(LOG_NOTICE, FNAME, "skip opening control port");
+		dprintf_rtk(LOG_NOTICE, FNAME, "skip opening control port");
 	else if (dhcp6_ctl_init(ctladdr, ctlport,
 	    DHCP6CTL_DEF_COMMANDQUEUELEN, &ctlsock)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to initialize control channel");
 		exit(1);
 	}
 
 	if (signal(SIGTERM, server6_signal) == SIG_ERR) {
-		dprintf(LOG_WARNING, FNAME, "failed to set signal: %s",
+		dprintf_rtk(LOG_WARNING, FNAME, "failed to set signal: %s",
 		    strerror(errno));
 		exit(1);
 	}
@@ -625,7 +629,7 @@ server6_mainloop()
 		switch (ret) {
 		case -1:
 			if (errno != EINTR) {
-				dprintf(LOG_ERR, FNAME, "select: %s",
+				dprintf_rtk(LOG_ERR, FNAME, "select: %s",
 				    strerror(errno));
 				exit(1);
 			}
@@ -712,31 +716,31 @@ server6_do_ctlcommand(buf, len)
 	commandlen = (int)(ntohs(ctlhead->len));
 	version = ntohs(ctlhead->version);
 	if (len != sizeof(struct dhcp6ctl) + commandlen) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "assumption failure: command length mismatch");
 		return (DHCP6CTL_R_FAILURE);
 	}
 
 	/* replay protection and message authentication */
 	if ((now = time(NULL)) < 0) {
-		dprintf(LOG_ERR, FNAME, "failed to get current time: %s",
+		dprintf_rtk(LOG_ERR, FNAME, "failed to get current time: %s",
 		    strerror(errno));
 		return (DHCP6CTL_R_FAILURE);
 	}
 	ts0 = (u_int32_t)now;
 	ts = ntohl(ctlhead->timestamp);
 	if (ts + CTLSKEW < ts0 || (ts - CTLSKEW) > ts0) {
-		dprintf(LOG_INFO, FNAME, "timestamp is out of range");
+		dprintf_rtk(LOG_INFO, FNAME, "timestamp is out of range");
 		return (DHCP6CTL_R_FAILURE);
 	}
 
 	if (ctlkey == NULL) {	/* should not happen!! */
-		dprintf(LOG_ERR, FNAME, "no secret key for control channel");
+		dprintf_rtk(LOG_ERR, FNAME, "no secret key for control channel");
 		return (DHCP6CTL_R_FAILURE);
 	}
 	if (dhcp6_verify_mac(buf, len, DHCP6CTL_AUTHPROTO_UNDEF,
 	    DHCP6CTL_AUTHALG_HMACMD5, sizeof(*ctlhead), ctlkey) != 0) {
-		dprintf(LOG_INFO, FNAME, "authentication failure");
+		dprintf_rtk(LOG_INFO, FNAME, "authentication failure");
 		return (DHCP6CTL_R_FAILURE);
 	}
 
@@ -744,14 +748,14 @@ server6_do_ctlcommand(buf, len)
 	commandlen -= ctldigestlen;
 
 	if (version > DHCP6CTL_VERSION) {
-		dprintf(LOG_INFO, FNAME, "unsupported version: %d", version);
+		dprintf_rtk(LOG_INFO, FNAME, "unsupported version: %d", version);
 		return (DHCP6CTL_R_FAILURE);
 	}
 
 	switch (command) {
 	case DHCP6CTL_COMMAND_RELOAD:
 		if (commandlen != 0) {
-			dprintf(LOG_INFO, FNAME, "invalid command length "
+			dprintf_rtk(LOG_INFO, FNAME, "invalid command length "
 			    "for reload: %d", commandlen);
 			return (DHCP6CTL_R_DONE);
 		}
@@ -759,7 +763,7 @@ server6_do_ctlcommand(buf, len)
 		break;
 	case DHCP6CTL_COMMAND_STOP:
 		if (commandlen != 0) {
-			dprintf(LOG_INFO, FNAME, "invalid command length "
+			dprintf_rtk(LOG_INFO, FNAME, "invalid command length "
 			    "for stop: %d", commandlen);
 			return (DHCP6CTL_R_DONE);
 		}
@@ -769,7 +773,7 @@ server6_do_ctlcommand(buf, len)
 		if (get_val32(&bp, &commandlen, &p32))
 			return (DHCP6CTL_R_FAILURE);
 		if (p32 != DHCP6CTL_BINDING) {
-			dprintf(LOG_INFO, FNAME,
+			dprintf_rtk(LOG_INFO, FNAME,
 			    "unknown remove target: %ul", p32);
 			return (DHCP6CTL_R_FAILURE);
 		}
@@ -777,7 +781,7 @@ server6_do_ctlcommand(buf, len)
 		if (get_val32(&bp, &commandlen, &p32))
 			return (DHCP6CTL_R_FAILURE);
 		if (p32 != DHCP6CTL_BINDING_IA) {
-			dprintf(LOG_INFO, FNAME, "unknown binding type: %ul",
+			dprintf_rtk(LOG_INFO, FNAME, "unknown binding type: %ul",
 			    p32);
 			return (DHCP6CTL_R_FAILURE);
 		}
@@ -786,7 +790,7 @@ server6_do_ctlcommand(buf, len)
 			return (DHCP6CTL_R_FAILURE);
 		if (ntohl(iaspec.type) != DHCP6CTL_IA_PD &&
 		    ntohl(iaspec.type) != DHCP6CTL_IA_NA) {
-			dprintf(LOG_INFO, FNAME, "unknown IA type: %ul",
+			dprintf_rtk(LOG_INFO, FNAME, "unknown IA type: %ul",
 			    ntohl(iaspec.type));
 			return (DHCP6CTL_R_FAILURE);
 		}
@@ -794,7 +798,7 @@ server6_do_ctlcommand(buf, len)
 		duidlen = ntohl(iaspec.duidlen);
 
 		if (duidlen > commandlen) {
-			dprintf(LOG_INFO, FNAME, "DUID length mismatch");
+			dprintf_rtk(LOG_INFO, FNAME, "DUID length mismatch");
 			return (DHCP6CTL_R_FAILURE);
 		}
 
@@ -807,7 +811,7 @@ server6_do_ctlcommand(buf, len)
 			binding = find_binding(&duid, DHCP6_BINDING_IA,
 			    DHCP6_LISTVAL_IANA, iaid);
 			if (binding == NULL) {
-				dprintf(LOG_INFO, FNAME, "no such binding");
+				dprintf_rtk(LOG_INFO, FNAME, "no such binding");
 				return (DHCP6CTL_R_FAILURE);
 			}
 		}
@@ -815,7 +819,7 @@ server6_do_ctlcommand(buf, len)
 		    
 		break;
 	default:
-		dprintf(LOG_INFO, FNAME,
+		dprintf_rtk(LOG_INFO, FNAME,
 		    "unknown control command: %d (len=%d)",
 		    (int)command, commandlen);
 		return (DHCP6CTL_R_FAILURE);
@@ -829,12 +833,12 @@ server6_reload()
 {
 	/* reload the configuration file */
 	if (cfparse(conffile) != 0) {
-		dprintf(LOG_WARNING, FNAME,
+		dprintf_rtk(LOG_WARNING, FNAME,
 		    "failed to reload configuration file");
 		return;
 	}
 
-	dprintf(LOG_NOTICE, FNAME, "server reloaded");
+	dprintf_rtk(LOG_NOTICE, FNAME, "server reloaded");
 
 	return;
 }
@@ -844,7 +848,7 @@ server6_stop()
 {
 	/* Right now, we simply stop running */
 
-	dprintf(LOG_NOTICE, FNAME, "exiting");
+	dprintf_rtk(LOG_NOTICE, FNAME, "exiting");
 
 	exit (0);
 }
@@ -883,7 +887,7 @@ server6_recv(s)
 	mhdr.msg_controllen = sizeof(cmsgbuf);
 
 	if ((len = recvmsg(insock, &mhdr, 0)) < 0) {
-		dprintf(LOG_ERR, FNAME, "recvmsg: %s", strerror(errno));
+		dprintf_rtk(LOG_ERR, FNAME, "recvmsg: %s", strerror(errno));
 		return;
 	}
 	fromlen = mhdr.msg_namelen;
@@ -897,7 +901,7 @@ server6_recv(s)
 		}
 	}
 	if (pi == NULL) {
-		dprintf(LOG_NOTICE, FNAME, "failed to get packet info");
+		dprintf_rtk(LOG_NOTICE, FNAME, "failed to get packet info");
 		return;
 	}
 	/*
@@ -908,7 +912,7 @@ server6_recv(s)
 	if (pi->ipi6_ifindex != ifidx)
 		return;
 	if ((ifp = find_ifconfbyid((unsigned int)pi->ipi6_ifindex)) == NULL) {
-		dprintf(LOG_INFO, FNAME, "unexpected interface (%d)",
+		dprintf_rtk(LOG_INFO, FNAME, "unexpected interface (%d)",
 		    (unsigned int)pi->ipi6_ifindex);
 		return;
 	}
@@ -916,11 +920,11 @@ server6_recv(s)
 	dh6 = (struct dhcp6 *)rdatabuf;
 
 	if (len < sizeof(*dh6)) {
-		dprintf(LOG_INFO, FNAME, "short packet (%d bytes)", len);
+		dprintf_rtk(LOG_INFO, FNAME, "short packet (%d bytes)", len);
 		return;
 	}
 
-	dprintf(LOG_DEBUG, FNAME, "received %s from %s",
+	dprintf_rtk(LOG_DEBUG, FNAME, "received %s from %s",
 	    dhcp6msgstr(dh6->dh6_msgtype),
 	    addr2str((struct sockaddr *)&from));
 
@@ -935,7 +939,7 @@ server6_recv(s)
 	    dh6->dh6_msgtype == DH6_CONFIRM ||
 	    dh6->dh6_msgtype == DH6_REBIND ||
 	    dh6->dh6_msgtype == DH6_INFORM_REQ)) {
-		dprintf(LOG_INFO, FNAME, "invalid unicast message");
+		dprintf_rtk(LOG_INFO, FNAME, "invalid unicast message");
 		return;
 	}
 
@@ -945,7 +949,7 @@ server6_recv(s)
 	 * reject them here.
 	 */
 	if (dh6->dh6_msgtype == DH6_RELAY_REPLY) {
-		dprintf(LOG_INFO, FNAME, "relay reply message from %s",
+		dprintf_rtk(LOG_INFO, FNAME, "relay reply message from %s",
 		    addr2str((struct sockaddr *)&from));
 		return;
 		
@@ -966,7 +970,7 @@ server6_recv(s)
 	dhcp6_init_options(&optinfo);
 	if (dhcp6_get_options((struct dhcp6opt *)(dh6 + 1),
 	    optend, &optinfo) < 0) {
-		dprintf(LOG_INFO, FNAME, "failed to parse options");
+		dprintf_rtk(LOG_INFO, FNAME, "failed to parse options");
 		goto end;
 	}
 
@@ -1004,7 +1008,7 @@ server6_recv(s)
 		    (struct sockaddr *)&from, fromlen, &relayinfohead);
 		break;
 	default:
-		dprintf(LOG_INFO, FNAME, "unknown or unsupported msgtype (%s)",
+		dprintf_rtk(LOG_INFO, FNAME, "unknown or unsupported msgtype (%s)",
 		    dhcp6msgstr(dh6->dh6_msgtype));
 		break;
 	}
@@ -1049,11 +1053,11 @@ process_relayforw(dh6p, optendp, relayinfohead, from)
   again:
 	len = (void *)optend - (void *)dh6relay;
 	if (len < sizeof (*dh6relay)) {
-		dprintf(LOG_INFO, FNAME, "short relay message from %s",
+		dprintf_rtk(LOG_INFO, FNAME, "short relay message from %s",
 		    addr2str(from));
 		return (-1);
 	}
-	dprintf(LOG_DEBUG, FNAME,
+	dprintf_rtk(LOG_DEBUG, FNAME,
 	    "dhcp6 relay: hop=%d, linkaddr=%s, peeraddr=%s",
 	    dh6relay->dh6relay_hcnt,
 	    in6addr2str(&dh6relay->dh6relay_linkaddr, 0),
@@ -1065,13 +1069,13 @@ process_relayforw(dh6p, optendp, relayinfohead, from)
 	dhcp6_init_options(&optinfo);
 	if (dhcp6_get_options((struct dhcp6opt *)(dh6relay + 1),
 	    optend, &optinfo) < 0) {
-		dprintf(LOG_INFO, FNAME, "failed to parse options");
+		dprintf_rtk(LOG_INFO, FNAME, "failed to parse options");
 		return (-1);
 	}
 
 	/* A relay forward message must include a relay message option */
 	if (optinfo.relaymsg_msg == NULL) {
-		dprintf(LOG_INFO, FNAME, "relay forward from %s "
+		dprintf_rtk(LOG_INFO, FNAME, "relay forward from %s "
 		    "without a relay message", addr2str(from));
 		return (-1);
 	}
@@ -1079,13 +1083,13 @@ process_relayforw(dh6p, optendp, relayinfohead, from)
 	/* relay message must contain a DHCPv6 message. */
 	len = optinfo.relaymsg_len;
 	if (len < sizeof (struct dhcp6)) {
-		dprintf(LOG_INFO, FNAME,
+		dprintf_rtk(LOG_INFO, FNAME,
 		    "short packet (%d bytes) in relay message", len);
 		return (-1);
 	}
 
 	if ((relayinfo = malloc(sizeof (*relayinfo))) == NULL) {
-		dprintf(LOG_ERR, FNAME, "failed to allocate relay info");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to allocate relay info");
 		return (-1);
 	}
 	memset(relayinfo, 0, sizeof (*relayinfo));
@@ -1136,71 +1140,71 @@ set_statelessinfo(type, optinfo)
 {
 	/* SIP domain name */
 	if (dhcp6_copy_list(&optinfo->sipname_list, &sipnamelist)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to copy SIP domain list");
 		return (-1);
 	}
 
 	/* SIP server */
 	if (dhcp6_copy_list(&optinfo->sip_list, &siplist)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy SIP servers");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy SIP servers");
 		return (-1);
 	}
 
 	/* DNS server */
 	if (dhcp6_copy_list(&optinfo->dns_list, &dnslist)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy DNS servers");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy DNS servers");
 		return (-1);
 	}
 
 	/* DNS search list */
 	if (dhcp6_copy_list(&optinfo->dnsname_list, &dnsnamelist)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy DNS search list");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy DNS search list");
 		return (-1);
 	}
 
 	/* NTP server */
 	if (dhcp6_copy_list(&optinfo->ntp_list, &ntplist)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy NTP servers");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy NTP servers");
 		return (-1);
 	}
 
 	/* NIS domain name */
 	if (dhcp6_copy_list(&optinfo->nisname_list, &nisnamelist)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to copy NIS domain list");
 		return (-1);
 	}
 
 	/* NIS server */
 	if (dhcp6_copy_list(&optinfo->nis_list, &nislist)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy NIS servers");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy NIS servers");
 		return (-1);
 	}
 
 	/* NIS+ domain name */
 	if (dhcp6_copy_list(&optinfo->nispname_list, &nispnamelist)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to copy NIS+ domain list");
 		return (-1);
 	}
 
 	/* NIS+ server */
 	if (dhcp6_copy_list(&optinfo->nisp_list, &nisplist)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy NIS+ servers");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy NIS+ servers");
 		return (-1);
 	}
 
 	/* BCMCS domain name */
 	if (dhcp6_copy_list(&optinfo->bcmcsname_list, &bcmcsnamelist)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to copy BCMCS domain list");
 		return (-1);
 	}
 
 	/* BCMCS server */
 	if (dhcp6_copy_list(&optinfo->bcmcs_list, &bcmcslist)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy BCMCS servers");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy BCMCS servers");
 		return (-1);
 	}
 
@@ -1236,10 +1240,10 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 	 * [RFC3315 Section 15.2]
 	 */
 	if (optinfo->clientID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no client ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no client ID option");
 		return (-1);
 	} else {
-		dprintf(LOG_DEBUG, FNAME, "client ID %s",
+		dprintf_rtk(LOG_DEBUG, FNAME, "client ID %s",
 		    duidstr(&optinfo->clientID));
 	}
 
@@ -1249,13 +1253,13 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 	 * [RFC3315 Section 15.2]
 	 */
 	if (optinfo->serverID.duid_len) {
-		dprintf(LOG_INFO, FNAME, "server ID option found");
+		dprintf_rtk(LOG_INFO, FNAME, "server ID option found");
 		return (-1);
 	}
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME, "found a host configuration for %s",
+		dprintf_rtk(LOG_DEBUG, FNAME, "found a host configuration for %s",
 		    client_conf->name);
 	}
 
@@ -1266,7 +1270,7 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* process authentication */
 	if (process_auth(dh6, len, client_conf, optinfo, &roptinfo)) {
-		dprintf(LOG_INFO, FNAME, "failed to process authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "failed to process authentication "
 		    "information for %s",
 		    clientstr(client_conf, &optinfo->clientID));
 		goto fail;
@@ -1274,13 +1278,13 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 
 	/* copy client information back */
 	if (duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
@@ -1290,7 +1294,7 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* add other configuration information */
 	if (set_statelessinfo(DH6_SOLICIT, &roptinfo)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to set other stateless information");
 		goto fail;
 	}
@@ -1317,7 +1321,7 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 		/* make a local copy of the configured prefixes */
 		if (client_conf &&
 		    dhcp6_copy_list(&conflist, &client_conf->prefix_list)) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to make local data");
 			goto fail;
 		}
@@ -1363,7 +1367,7 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 		if (client_conf == NULL && ifp->pool.name) {
 			if ((client_conf = create_dynamic_hostconf(&optinfo->clientID,
 				&ifp->pool)) == NULL)
-				dprintf(LOG_NOTICE, FNAME,
+				dprintf_rtk(LOG_NOTICE, FNAME,
 			    	"failed to make host configuration");
 		}
 		TAILQ_INIT(&conflist);
@@ -1371,7 +1375,7 @@ react_solicit(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 		/* make a local copy of the configured addresses */
 		if (client_conf &&
 		    dhcp6_copy_list(&conflist, &client_conf->addr_list)) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to make local data");
 			goto fail;
 		}
@@ -1441,17 +1445,17 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* the message must include a Server Identifier option */
 	if (optinfo->serverID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no server ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no server ID option");
 		return (-1);
 	}
 	/* the contents of the Server Identifier option must match ours */
 	if (duidcmp(&optinfo->serverID, &server_duid)) {
-		dprintf(LOG_INFO, FNAME, "server ID mismatch");
+		dprintf_rtk(LOG_INFO, FNAME, "server ID mismatch");
 		return (-1);
 	}
 	/* the message must include a Client Identifier option */
 	if (optinfo->clientID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no client ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no client ID option");
 		return (-1);
 	}
 
@@ -1462,24 +1466,24 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 	/* copy client information back */
 	if (duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "found a host configuration named %s", client_conf->name);
 	}
 
 	/* process authentication */
 	if (process_auth(dh6, len, client_conf, optinfo, &roptinfo)) {
-		dprintf(LOG_INFO, FNAME, "failed to process authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "failed to process authentication "
 		    "information for %s",
 		    clientstr(client_conf, &optinfo->clientID));
 		goto fail;
@@ -1501,11 +1505,11 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	    TAILQ_EMPTY(relayinfohead)) {
 		u_int16_t stcode = DH6OPT_STCODE_USEMULTICAST;
 
-		dprintf(LOG_INFO, FNAME, "unexpected unicast message from %s",
+		dprintf_rtk(LOG_INFO, FNAME, "unexpected unicast message from %s",
 		    addr2str(from));
 		if (dhcp6_add_listval(&roptinfo.stcode_list,
 		    DHCP6_LISTVAL_STCODE, &stcode, NULL) == NULL) {
-			dprintf(LOG_ERR, FNAME, "failed to add a status code");
+			dprintf_rtk(LOG_ERR, FNAME, "failed to add a status code");
 			goto fail;
 		}
 		server6_send(DH6_REPLY, ifp, dh6, optinfo, from,
@@ -1535,7 +1539,7 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 		/* make a local copy of the configured prefixes */
 		if (client_conf &&
 		    dhcp6_copy_list(&conflist, &client_conf->prefix_list)) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to make local data");
 			goto fail;
 		}
@@ -1560,7 +1564,7 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 				    iapd->val_ia.iaid,
 				    DH6OPT_STCODE_NOPREFIXAVAIL,
 				    &roptinfo.iapd_list)) {
-					dprintf(LOG_NOTICE, FNAME,
+					dprintf_rtk(LOG_NOTICE, FNAME,
 					    "failed to make an option list");
 					dhcp6_clear_list(&conflist);
 					goto fail;
@@ -1578,7 +1582,7 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 		if (client_conf == NULL && ifp->pool.name) {
 			if ((client_conf = create_dynamic_hostconf(&optinfo->clientID,
 				&ifp->pool)) == NULL)
-				dprintf(LOG_NOTICE, FNAME,
+				dprintf_rtk(LOG_NOTICE, FNAME,
 			    	"failed to make host configuration");
 		}
 		TAILQ_INIT(&conflist);
@@ -1586,7 +1590,7 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 		/* make a local copy of the configured prefixes */
 		if (client_conf &&
 		    dhcp6_copy_list(&conflist, &client_conf->addr_list)) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to make local data");
 			goto fail;
 		}
@@ -1604,7 +1608,7 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 				    iana->val_ia.iaid,
 				    DH6OPT_STCODE_NOADDRSAVAIL,
 				    &roptinfo.iana_list)) {
-					dprintf(LOG_NOTICE, FNAME,
+					dprintf_rtk(LOG_NOTICE, FNAME,
 					    "failed to make an option list");
 					dhcp6_clear_list(&conflist);
 					goto fail;
@@ -1637,7 +1641,7 @@ react_request(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	 * information to be assigned to the client.
 	 */
 	if (set_statelessinfo(DH6_REQUEST, &roptinfo)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to set other stateless information");
 		goto fail;
 	}
@@ -1674,17 +1678,17 @@ react_renew(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* the message must include a Server Identifier option */
 	if (optinfo->serverID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no server ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no server ID option");
 		return (-1);
 	}
 	/* the contents of the Server Identifier option must match ours */
 	if (duidcmp(&optinfo->serverID, &server_duid)) {
-		dprintf(LOG_INFO, FNAME, "server ID mismatch");
+		dprintf_rtk(LOG_INFO, FNAME, "server ID mismatch");
 		return (-1);
 	}
 	/* the message must include a Client Identifier option */
 	if (optinfo->clientID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no client ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no client ID option");
 		return (-1);
 	}
 
@@ -1695,24 +1699,24 @@ react_renew(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 	/* copy client information back */
 	if (duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "found a host configuration named %s", client_conf->name);
 	}
 
 	/* process authentication */
 	if (process_auth(dh6, len, client_conf, optinfo, &roptinfo)) {
-		dprintf(LOG_INFO, FNAME, "failed to process authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "failed to process authentication "
 		    "information for %s",
 		    clientstr(client_conf, &optinfo->clientID));
 		goto fail;
@@ -1732,11 +1736,11 @@ react_renew(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	    TAILQ_EMPTY(relayinfohead)) {
 		u_int16_t stcode = DH6OPT_STCODE_USEMULTICAST;
 
-		dprintf(LOG_INFO, FNAME, "unexpected unicast message from %s",
+		dprintf_rtk(LOG_INFO, FNAME, "unexpected unicast message from %s",
 		    addr2str(from));
 		if (dhcp6_add_listval(&roptinfo.stcode_list,
 		    DHCP6_LISTVAL_STCODE, &stcode, NULL) == NULL) {
-			dprintf(LOG_ERR, FNAME, "failed to add a status code");
+			dprintf_rtk(LOG_ERR, FNAME, "failed to add a status code");
 			goto fail;
 		}
 		server6_send(DH6_REPLY, ifp, dh6, optinfo, from,
@@ -1761,7 +1765,7 @@ react_renew(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* add other configuration information */
 	if (set_statelessinfo(DH6_RENEW, &roptinfo)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to set other stateless information");
 		goto fail;
 	}
@@ -1796,13 +1800,13 @@ react_rebind(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* the message must include a Client Identifier option */
 	if (optinfo->clientID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no client ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no client ID option");
 		return (-1);
 	}
 
 	/* the message must not include a server Identifier option */
 	if (optinfo->serverID.duid_len) {
-		dprintf(LOG_INFO, FNAME, "server ID option is included in "
+		dprintf_rtk(LOG_INFO, FNAME, "server ID option is included in "
 		    "a rebind message");
 		return (-1);
 	}
@@ -1814,24 +1818,24 @@ react_rebind(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 	/* copy client information back */
 	if (duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "found a host configuration named %s", client_conf->name);
 	}
 
 	/* process authentication */
 	if (process_auth(dh6, len, client_conf, optinfo, &roptinfo)) {
-		dprintf(LOG_INFO, FNAME, "failed to process authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "failed to process authentication "
 		    "information for %s",
 		    clientstr(client_conf, &optinfo->clientID));
 		goto fail;
@@ -1863,13 +1867,13 @@ react_rebind(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 	 */
 	if (TAILQ_EMPTY(&roptinfo.iapd_list) &&
 	    TAILQ_EMPTY(&roptinfo.iana_list)) {
-		dprintf(LOG_INFO, FNAME, "no useful information for a rebind");
+		dprintf_rtk(LOG_INFO, FNAME, "no useful information for a rebind");
 		goto fail;	/* discard the rebind */
 	}
 
 	/* add other configuration information */
 	if (set_statelessinfo(DH6_REBIND, &roptinfo)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to set other stateless information");
 		goto fail;
 	}
@@ -1905,17 +1909,17 @@ react_release(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* the message must include a Server Identifier option */
 	if (optinfo->serverID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no server ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no server ID option");
 		return (-1);
 	}
 	/* the contents of the Server Identifier option must match ours */
 	if (duidcmp(&optinfo->serverID, &server_duid)) {
-		dprintf(LOG_INFO, FNAME, "server ID mismatch");
+		dprintf_rtk(LOG_INFO, FNAME, "server ID mismatch");
 		return (-1);
 	}
 	/* the message must include a Client Identifier option */
 	if (optinfo->clientID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no client ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no client ID option");
 		return (-1);
 	}
 
@@ -1926,24 +1930,24 @@ react_release(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 	/* copy client information back */
 	if (duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "found a host configuration named %s", client_conf->name);
 	}
 
 	/* process authentication */
 	if (process_auth(dh6, len, client_conf, optinfo, &roptinfo)) {
-		dprintf(LOG_INFO, FNAME, "failed to process authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "failed to process authentication "
 		    "information for %s",
 		    clientstr(client_conf, &optinfo->clientID));
 		goto fail;
@@ -1963,11 +1967,11 @@ react_release(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	    TAILQ_EMPTY(relayinfohead)) {
 		u_int16_t stcode = DH6OPT_STCODE_USEMULTICAST;
 
-		dprintf(LOG_INFO, FNAME, "unexpected unicast message from %s",
+		dprintf_rtk(LOG_INFO, FNAME, "unexpected unicast message from %s",
 		    addr2str(from));
 		if (dhcp6_add_listval(&roptinfo.stcode_list,
 		    DHCP6_LISTVAL_STCODE, &stcode, NULL) == NULL) {
-			dprintf(LOG_ERR, FNAME, "failed to add a status code");
+			dprintf_rtk(LOG_ERR, FNAME, "failed to add a status code");
 			goto fail;
 		}
 		server6_send(DH6_REPLY, ifp, dh6, optinfo, from,
@@ -1998,7 +2002,7 @@ react_release(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	stcode = DH6OPT_STCODE_SUCCESS;
 	if (dhcp6_add_listval(&roptinfo.stcode_list,
 	    DHCP6_LISTVAL_STCODE, &stcode, NULL) == NULL) {
-		dprintf(LOG_NOTICE, FNAME, "failed to add a status code");
+		dprintf_rtk(LOG_NOTICE, FNAME, "failed to add a status code");
 		goto fail;
 	}
 
@@ -2034,17 +2038,17 @@ react_decline(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* the message must include a Server Identifier option */
 	if (optinfo->serverID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no server ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no server ID option");
 		return (-1);
 	}
 	/* the contents of the Server Identifier option must match ours */
 	if (duidcmp(&optinfo->serverID, &server_duid)) {
-		dprintf(LOG_INFO, FNAME, "server ID mismatch");
+		dprintf_rtk(LOG_INFO, FNAME, "server ID mismatch");
 		return (-1);
 	}
 	/* the message must include a Client Identifier option */
 	if (optinfo->clientID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no client ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no client ID option");
 		return (-1);
 	}
 
@@ -2055,24 +2059,24 @@ react_decline(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 	/* copy client information back */
 	if (duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "found a host configuration named %s", client_conf->name);
 	}
 
 	/* process authentication */
 	if (process_auth(dh6, len, client_conf, optinfo, &roptinfo)) {
-		dprintf(LOG_INFO, FNAME, "failed to process authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "failed to process authentication "
 		    "information for %s",
 		    clientstr(client_conf, &optinfo->clientID));
 		goto fail;
@@ -2092,11 +2096,11 @@ react_decline(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	    TAILQ_EMPTY(relayinfohead)) {
 		stcode = DH6OPT_STCODE_USEMULTICAST;
 
-		dprintf(LOG_INFO, FNAME, "unexpected unicast message from %s",
+		dprintf_rtk(LOG_INFO, FNAME, "unexpected unicast message from %s",
 		    addr2str(from));
 		if (dhcp6_add_listval(&roptinfo.stcode_list,
 		    DHCP6_LISTVAL_STCODE, &stcode, NULL) == NULL) {
-			dprintf(LOG_ERR, FNAME, "failed to add a status code");
+			dprintf_rtk(LOG_ERR, FNAME, "failed to add a status code");
 			goto fail;
 		}
 		server6_send(DH6_REPLY, ifp, dh6, optinfo, from,
@@ -2123,7 +2127,7 @@ react_decline(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	stcode = DH6OPT_STCODE_SUCCESS;
 	if (dhcp6_add_listval(&roptinfo.stcode_list,
 	    DHCP6_LISTVAL_STCODE, &stcode, NULL) == NULL) {
-		dprintf(LOG_NOTICE, FNAME, "failed to add a status code");
+		dprintf_rtk(LOG_NOTICE, FNAME, "failed to add a status code");
 		goto fail;
 	}
 
@@ -2161,12 +2165,12 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* the message may not include a Server Identifier option */
 	if (optinfo->serverID.duid_len) {
-		dprintf(LOG_INFO, FNAME, "server ID option found");
+		dprintf_rtk(LOG_INFO, FNAME, "server ID option found");
 		return (-1);
 	}
 	/* the message must include a Client Identifier option */
 	if (optinfo->clientID.duid_len == 0) {
-		dprintf(LOG_INFO, FNAME, "no client ID option");
+		dprintf_rtk(LOG_INFO, FNAME, "no client ID option");
 		return (-1);
 	}
 
@@ -2174,24 +2178,24 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 	/* copy client information back */
 	if (duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "found a host configuration named %s", client_conf->name);
 	}
 
 	/* process authentication */
 	if (process_auth(dh6, len, client_conf, optinfo, &roptinfo)) {
-		dprintf(LOG_INFO, FNAME, "failed to process authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "failed to process authentication "
 		    "information for %s",
 		    clientstr(client_conf, &optinfo->clientID));
 		goto fail;
@@ -2200,7 +2204,7 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	if (client_conf == NULL && ifp->pool.name) {
 		if ((client_conf = create_dynamic_hostconf(&optinfo->clientID,
 			&ifp->pool)) == NULL) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 		    	"failed to make host configuration");
 			goto fail;
 		}
@@ -2208,7 +2212,7 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	TAILQ_INIT(&conflist);
 	/* make a local copy of the configured addresses */
 	if (dhcp6_copy_list(&conflist, &client_conf->addr_list)) {
-		dprintf(LOG_NOTICE, FNAME,
+		dprintf_rtk(LOG_NOTICE, FNAME,
 		    "failed to make local data");
 		goto fail;
 	}
@@ -2218,13 +2222,13 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	 * [RFC3315 18.2]. (IA-PD is just ignored [RFC3633 12.1])
 	 */
 	if (TAILQ_EMPTY(&optinfo->iana_list)) {
-		dprintf(LOG_INFO, FNAME, "no IA-NA option found");
+		dprintf_rtk(LOG_INFO, FNAME, "no IA-NA option found");
 		goto fail;
 	}
 	for (iana = TAILQ_FIRST(&optinfo->iana_list); iana;
 	    iana = TAILQ_NEXT(iana, link)) {
 		if (TAILQ_EMPTY(&iana->sublist)) {
-			dprintf(LOG_INFO, FNAME,
+			dprintf_rtk(LOG_INFO, FNAME,
 			    "no IA-ADDR option found in IA-NA %d",
 			    iana->val_ia.iaid);
 			goto fail;
@@ -2247,7 +2251,7 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 				struct relayinfo *relayinfo;
 
 				if (relayinfohead == NULL) {
-					dprintf(LOG_INFO, FNAME,
+					dprintf_rtk(LOG_INFO, FNAME,
 					    "no link-addr found");
 					goto fail;
 				}
@@ -2261,7 +2265,7 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 			}
 
 			if (memcmp(linkaddr, confaddr, 8) != 0) {
-				dprintf(LOG_INFO, FNAME,
+				dprintf_rtk(LOG_INFO, FNAME,
 				    "%s does not seem to belong to %s's link",
 				    in6addr2str(confaddr, 0),
 				    in6addr2str(linkaddr, 0));
@@ -2280,7 +2284,7 @@ react_confirm(ifp, pi, dh6, len, optinfo, from, fromlen, relayinfohead)
 	    iana = TAILQ_NEXT(iana, link)) {
 		if (make_ia(iana, &conflist, &roptinfo.iana_list,
 		    client_conf, 1) == 0) {
-			dprintf(LOG_DEBUG, FNAME,
+			dprintf_rtk(LOG_DEBUG, FNAME,
 			    "IA-NA configuration not found");
 			goto fail;
 		}
@@ -2323,12 +2327,12 @@ react_informreq(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 	 * [RFC3315 Section 15]
 	 */
 	if (!TAILQ_EMPTY(&optinfo->iapd_list)) {
-		dprintf(LOG_INFO, FNAME,
+		dprintf_rtk(LOG_INFO, FNAME,
 		    "information request contains an IA_PD option");
 		return (-1);
 	}
 	if (!TAILQ_EMPTY(&optinfo->iana_list)) {
-		dprintf(LOG_INFO, FNAME,
+		dprintf_rtk(LOG_INFO, FNAME,
 		    "information request contains an IA_NA option");
 		return (-1);
 	}
@@ -2336,7 +2340,7 @@ react_informreq(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 	/* if a server identifier is included, it must match ours. */
 	if (optinfo->serverID.duid_len &&
 	    duidcmp(&optinfo->serverID, &server_duid)) {
-		dprintf(LOG_INFO, FNAME, "server DUID mismatch");
+		dprintf_rtk(LOG_INFO, FNAME, "server DUID mismatch");
 		return (-1);
 	}
 
@@ -2347,20 +2351,20 @@ react_informreq(ifp, dh6, len, optinfo, from, fromlen, relayinfohead)
 
 	/* server identifier option */
 	if (duidcpy(&roptinfo.serverID, &server_duid)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy server ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy server ID");
 		goto fail;
 	}
 
 	/* copy client information back (if provided) */
 	if (optinfo->clientID.duid_id &&
 	    duidcpy(&roptinfo.clientID, &optinfo->clientID)) {
-		dprintf(LOG_ERR, FNAME, "failed to copy client ID");
+		dprintf_rtk(LOG_ERR, FNAME, "failed to copy client ID");
 		goto fail;
 	}
 
 	/* set stateless information */
 	if (set_statelessinfo(DH6_INFORM_REQ, &roptinfo)) {
-		dprintf(LOG_ERR, FNAME,
+		dprintf_rtk(LOG_ERR, FNAME,
 		    "failed to set other stateless information");
 		goto fail;
 	}
@@ -2388,7 +2392,7 @@ update_ia(msgtype, iap, retlist, optinfo)
 
 	/* get per-host configuration for the client, if any. */
 	if ((client_conf = find_hostconf(&optinfo->clientID))) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "found a host configuration named %s", client_conf->name);
 	}
 
@@ -2401,7 +2405,7 @@ update_ia(msgtype, iap, retlist, optinfo)
 		 * Sections 18.2.3 and 18.2.4 of RFC3315, and the two sets
 		 * of behavior are identical.
 		 */
-		dprintf(LOG_INFO, FNAME, "no binding found for %s",
+		dprintf_rtk(LOG_INFO, FNAME, "no binding found for %s",
 		    duidstr(&optinfo->clientID));
 
 		switch (msgtype) {
@@ -2415,7 +2419,7 @@ update_ia(msgtype, iap, retlist, optinfo)
 			 */
 			if (make_ia_stcode(iap->type, iap->val_ia.iaid,
 			    DH6OPT_STCODE_NOBINDING, retlist)) {
-				dprintf(LOG_NOTICE, FNAME,
+				dprintf_rtk(LOG_NOTICE, FNAME,
 				    "failed to make an option list");
 				return (-1);
 			}
@@ -2437,7 +2441,7 @@ update_ia(msgtype, iap, retlist, optinfo)
 			 */
 			return (-1);
 		default:	/* XXX: should be a bug */
-			dprintf(LOG_ERR, FNAME, "impossible message type %s",
+			dprintf_rtk(LOG_ERR, FNAME, "impossible message type %s",
 			    dhcp6msgstr(msgtype));
 			return (-1);
 		}
@@ -2465,7 +2469,7 @@ update_ia(msgtype, iap, retlist, optinfo)
 				blv = dhcp6_find_listval(&binding->val_list,
 				    DHCP6_LISTVAL_PREFIX6, &prefix, 0);
 				if (blv == NULL) {
-					dprintf(LOG_DEBUG, FNAME,
+					dprintf_rtk(LOG_DEBUG, FNAME,
 					    "%s/%d is not found in %s",
 					    in6addr2str(&prefix.addr, 0),
 					    prefix.plen, bindingstr(binding));
@@ -2481,7 +2485,7 @@ update_ia(msgtype, iap, retlist, optinfo)
 				if (dhcp6_add_listval(&ialist,
 				    DHCP6_LISTVAL_PREFIX6, &prefix, NULL)
 				    == NULL) {
-					dprintf(LOG_NOTICE, FNAME,
+					dprintf_rtk(LOG_NOTICE, FNAME,
 					    "failed  to copy binding info");
 					dhcp6_clear_list(&ialist);
 					return (-1);
@@ -2495,7 +2499,7 @@ update_ia(msgtype, iap, retlist, optinfo)
 				blv = dhcp6_find_listval(&binding->val_list,
 				    DHCP6_LISTVAL_STATEFULADDR6, &saddr, 0);
 				if (blv == NULL) {
-					dprintf(LOG_DEBUG, FNAME,
+					dprintf_rtk(LOG_DEBUG, FNAME,
 					    "%s is not found in %s",
 					    in6addr2str(&saddr.addr, 0),
 					    bindingstr(binding));
@@ -2511,14 +2515,14 @@ update_ia(msgtype, iap, retlist, optinfo)
 				if (dhcp6_add_listval(&ialist,
 				    DHCP6_LISTVAL_STATEFULADDR6, &saddr, NULL)
 				    == NULL) {
-					dprintf(LOG_NOTICE, FNAME,
+					dprintf_rtk(LOG_NOTICE, FNAME,
 					    "failed  to copy binding info");
 					dhcp6_clear_list(&ialist);
 					return (-1);
 				}
 				break;
 			default:
-				dprintf(LOG_ERR, FNAME, "unsupported IA type");
+				dprintf_rtk(LOG_ERR, FNAME, "unsupported IA type");
 				return (-1); /* XXX */
 			}
 		}
@@ -2557,7 +2561,7 @@ release_binding_ia(iap, retlist, optinfo)
 		 */
 		if (make_ia_stcode(iap->type, iap->val_ia.iaid,
 		    DH6OPT_STCODE_NOBINDING, retlist)) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to make an option list");
 			return (-1);
 		}
@@ -2579,7 +2583,7 @@ release_binding_ia(iap, retlist, optinfo)
 			if ((lvia = find_binding_ia(lv, binding)) != NULL) {
 				switch (binding->iatype) {
 					case DHCP6_LISTVAL_IAPD:
-						dprintf(LOG_DEBUG, FNAME,
+						dprintf_rtk(LOG_DEBUG, FNAME,
 						    "bound prefix %s/%d "
 						    "has been released",
 						    in6addr2str(&lvia->val_prefix6.addr,
@@ -2588,7 +2592,7 @@ release_binding_ia(iap, retlist, optinfo)
 						break;
 					case DHCP6_LISTVAL_IANA:
 						release_address(&lvia->val_prefix6.addr);
-						dprintf(LOG_DEBUG, FNAME,
+						dprintf_rtk(LOG_DEBUG, FNAME,
 						    "bound address %s "
 						    "has been released",
 						    in6addr2str(&lvia->val_prefix6.addr,
@@ -2632,7 +2636,7 @@ decline_binding_ia(iap, retlist, optinfo)
 		 */
 		if (make_ia_stcode(iap->type, iap->val_ia.iaid,
 		    DH6OPT_STCODE_NOBINDING, retlist)) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to make an option list");
 			return (-1);
 		}
@@ -2654,13 +2658,13 @@ decline_binding_ia(iap, retlist, optinfo)
 		}
 
 		if ((lvia = find_binding_ia(lv, binding)) == NULL) {
-			dprintf(LOG_DEBUG, FNAME, "no binding found "
+			dprintf_rtk(LOG_DEBUG, FNAME, "no binding found "
 			    "for address %s",
 			    in6addr2str(&lvia->val_prefix6.addr, 0));
 			continue;
 		}
 
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "bound address %s has been marked as declined",
 		    in6addr2str(&lvia->val_prefix6.addr, 0));
 		decline_address(&lvia->val_prefix6.addr);
@@ -2685,7 +2689,7 @@ server6_signal(sig)
 	int sig;
 {
 
-	dprintf(LOG_INFO, FNAME, "received a signal (%d)", sig);
+	dprintf_rtk(LOG_INFO, FNAME, "received a signal (%d)", sig);
 
 	switch (sig) {
 	case SIGTERM:
@@ -2714,7 +2718,7 @@ server6_send(type, ifp, origmsg, optinfo, from, fromlen,
 	struct relayinfo *relayinfo;
 
 	if (sizeof(struct dhcp6) > sizeof(replybuf)) {
-		dprintf(LOG_ERR, FNAME, "buffer size assumption failed");
+		dprintf_rtk(LOG_ERR, FNAME, "buffer size assumption failed");
 		return (-1);
 	}
 
@@ -2727,7 +2731,7 @@ server6_send(type, ifp, origmsg, optinfo, from, fromlen,
 	/* set options in the reply message */
 	if ((optlen = dhcp6_set_options(type, (struct dhcp6opt *)(dh6 + 1),
 	    (struct dhcp6opt *)(replybuf + sizeof(replybuf)), roptinfo)) < 0) {
-		dprintf(LOG_INFO, FNAME, "failed to construct reply options");
+		dprintf_rtk(LOG_INFO, FNAME, "failed to construct reply options");
 		return (-1);
 	}
 	len += optlen;
@@ -2737,7 +2741,7 @@ server6_send(type, ifp, origmsg, optinfo, from, fromlen,
 	case DHCP6_AUTHPROTO_DELAYED:
 		if (client_conf == NULL || client_conf->delayedkey == NULL) {
 			/* This case should have been caught earlier */
-			dprintf(LOG_ERR, FNAME, "authentication required "
+			dprintf_rtk(LOG_ERR, FNAME, "authentication required "
 			    "but not key provided");
 			break;
 		}
@@ -2745,7 +2749,7 @@ server6_send(type, ifp, origmsg, optinfo, from, fromlen,
 		    roptinfo->authalgorithm,
 		    roptinfo->delayedauth_offset + sizeof(*dh6),
 		    client_conf->delayedkey)) {
-			dprintf(LOG_WARNING, FNAME, "failed to calculate MAC");
+			dprintf_rtk(LOG_WARNING, FNAME, "failed to calculate MAC");
 			return (-1);
 		}
 		break;
@@ -2789,7 +2793,7 @@ server6_send(type, ifp, origmsg, optinfo, from, fromlen,
 		    (struct dhcp6opt *)(dh6relay + 1),
 		    (struct dhcp6opt *)(replybuf + sizeof(replybuf)),
 		    &relayopt)) < 0) {
-			dprintf(LOG_INFO, FNAME,
+			dprintf_rtk(LOG_INFO, FNAME,
 			    "failed to construct relay message");
 			dhcp6_clear_options(&relayopt);
 			return (-1);
@@ -2805,12 +2809,12 @@ server6_send(type, ifp, origmsg, optinfo, from, fromlen,
 	dst.sin6_scope_id = ((struct sockaddr_in6 *)from)->sin6_scope_id;
 	if (transmit_sa(outsock, (struct sockaddr *)&dst,
 	    replybuf, len) != 0) {
-		dprintf(LOG_ERR, FNAME, "transmit %s to %s failed",
+		dprintf_rtk(LOG_ERR, FNAME, "transmit %s to %s failed",
 		    dhcp6msgstr(type), addr2str((struct sockaddr *)&dst));
 		return (-1);
 	}
 
-	dprintf(LOG_DEBUG, FNAME, "transmit %s to %s",
+	dprintf_rtk(LOG_DEBUG, FNAME, "transmit %s to %s",
 	    dhcp6msgstr(type), addr2str((struct sockaddr *)&dst));
 
 	return (0);
@@ -2832,13 +2836,13 @@ make_ia_stcode(iatype, iaid, stcode, retlist)
 	TAILQ_INIT(&stcode_list);
 	if (dhcp6_add_listval(&stcode_list, DHCP6_LISTVAL_STCODE,
 	    &stcode, NULL) == NULL) {
-		dprintf(LOG_NOTICE, FNAME, "failed to make an option list");
+		dprintf_rtk(LOG_NOTICE, FNAME, "failed to make an option list");
 		return (-1);
 	}
 
 	if (dhcp6_add_listval(retlist, iatype,
 	    &ia_empty, &stcode_list) == NULL) {
-		dprintf(LOG_NOTICE, FNAME, "failed to make an option list");
+		dprintf_rtk(LOG_NOTICE, FNAME, "failed to make an option list");
 		dhcp6_clear_list(&stcode_list);
 		return (-1);
 	}
@@ -2869,7 +2873,7 @@ make_ia(spec, conflist, retlist, client_conf, do_binding)
 		struct dhcp6_list *blist = &binding->val_list;
 		struct dhcp6_listval *bia, *v;
 
-		dprintf(LOG_DEBUG, FNAME, "we have a binding already: %s",
+		dprintf_rtk(LOG_DEBUG, FNAME, "we have a binding already: %s",
 		    bindingstr(binding));
 
 		update_binding(binding);
@@ -2880,7 +2884,7 @@ make_ia(spec, conflist, retlist, client_conf, do_binding)
 		calc_ia_timo(&ia, blist, client_conf);
 		if (dhcp6_add_listval(retlist, spec->type, &ia, blist)
 		    == NULL) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to copy binding info");
 			return (0);
 		}
@@ -2956,7 +2960,7 @@ make_ia(spec, conflist, retlist, client_conf, do_binding)
 		if (do_binding) {
 			if (add_binding(&client_conf->duid, DHCP6_BINDING_IA,
 			    spec->type, spec->val_ia.iaid, &ialist) == NULL) {
-				dprintf(LOG_NOTICE, FNAME,
+				dprintf_rtk(LOG_NOTICE, FNAME,
 				    "failed to make a binding");
 				found = 0;
 			}
@@ -2997,7 +3001,7 @@ make_match_ia(spec, conflist, retlist)
 				match = 0;
 			break;
 		default:
-			dprintf(LOG_ERR, FNAME, "unsupported IA type");
+			dprintf_rtk(LOG_ERR, FNAME, "unsupported IA type");
 			return (0); /* XXX */
 		}
 	}
@@ -3029,10 +3033,10 @@ make_iana_from_pool(poolspec, spec, retlist)
 	struct pool_conf *pool;
 	int found = 0;
 
-	dprintf(LOG_DEBUG, FNAME, "called");
+	dprintf_rtk(LOG_DEBUG, FNAME, "called");
 
 	if ((pool = find_pool(poolspec->name)) == NULL) {
-		dprintf(LOG_ERR, FNAME, "pool '%s' not found", poolspec->name);
+		dprintf_rtk(LOG_ERR, FNAME, "pool '%s' not found", poolspec->name);
 		return (0);
 	}
 
@@ -3057,7 +3061,7 @@ make_iana_from_pool(poolspec, spec, retlist)
 		}
 	}
 
-	dprintf(LOG_DEBUG, FNAME, "returns (found=%d)", found);
+	dprintf_rtk(LOG_DEBUG, FNAME, "returns (found=%d)", found);
 
 	return (found);
 }
@@ -3075,7 +3079,7 @@ calc_ia_timo(ia, ialist, client_conf)
 	iatype = TAILQ_FIRST(ialist)->type;
 	for (iav = TAILQ_FIRST(ialist); iav; iav = TAILQ_NEXT(iav, link)) {
 		if (iav->type != iatype) {
-			dprintf(LOG_ERR, FNAME,
+			dprintf_rtk(LOG_ERR, FNAME,
 			    "assumption failure: IA list is not consistent");
 			exit (1); /* XXX */
 		}
@@ -3141,7 +3145,7 @@ update_binding_duration(binding)
 				lifetime = iav->val_statefuladdr6.vltime;
 				break;
 			default:
-				dprintf(LOG_ERR, FNAME, "unsupported IA type");
+				dprintf_rtk(LOG_ERR, FNAME, "unsupported IA type");
 				return;	/* XXX */
 			}
 
@@ -3159,7 +3163,7 @@ update_binding_duration(binding)
 		break;
 	default:
 		/* should be internal error. */
-		dprintf(LOG_ERR, FNAME, "unknown binding type (%d)",
+		dprintf_rtk(LOG_ERR, FNAME, "unknown binding type (%d)",
 		    binding->type);
 		return;
 	}
@@ -3179,13 +3183,13 @@ add_binding(clientid, btype, iatype, iaid, val0)
 	u_int32_t duration = DHCP6_DURATION_INFINITE;
 
 	if ((binding = malloc(sizeof(*binding))) == NULL) {
-		dprintf(LOG_NOTICE, FNAME, "failed to allocate memory");
+		dprintf_rtk(LOG_NOTICE, FNAME, "failed to allocate memory");
 		return (NULL);
 	}
 	memset(binding, 0, sizeof(*binding));
 	binding->type = btype;
 	if (duidcpy(&binding->clientid, clientid)) {
-		dprintf(LOG_NOTICE, FNAME, "failed to copy DUID");
+		dprintf_rtk(LOG_NOTICE, FNAME, "failed to copy DUID");
 		goto fail;
 	}
 	binding->iatype = iatype;
@@ -3197,7 +3201,7 @@ add_binding(clientid, btype, iatype, iaid, val0)
 		TAILQ_INIT(&binding->val_list);
 		if (dhcp6_copy_list(&binding->val_list,
 		    (struct dhcp6_list *)val0)) {
-			dprintf(LOG_NOTICE, FNAME,
+			dprintf_rtk(LOG_NOTICE, FNAME,
 			    "failed to copy binding data");
 			goto fail;
 		}
@@ -3210,13 +3214,13 @@ add_binding(clientid, btype, iatype, iaid, val0)
 				lv_next = TAILQ_NEXT(lv, link);
 
 				if (lv->type != DHCP6_LISTVAL_STATEFULADDR6) {
-					dprintf(LOG_ERR, FNAME,
+					dprintf_rtk(LOG_ERR, FNAME,
 						"unexpected binding value type(%d)", lv->type);
 					continue;
 				}
 
 				if (!lease_address(&lv->val_statefuladdr6.addr)) {
-					dprintf(LOG_NOTICE, FNAME,
+					dprintf_rtk(LOG_NOTICE, FNAME,
 						"cannot lease address %s",
 						in6addr2str(&lv->val_statefuladdr6.addr, 0));
 					TAILQ_REMOVE(ia_list, lv, link);
@@ -3224,13 +3228,13 @@ add_binding(clientid, btype, iatype, iaid, val0)
 				}
 			}
 			if (TAILQ_EMPTY(ia_list)) {
-				dprintf(LOG_NOTICE, FNAME, "cannot lease any address");
+				dprintf_rtk(LOG_NOTICE, FNAME, "cannot lease any address");
 				goto fail;
 			}
 		}
 		break;
 	default:
-		dprintf(LOG_ERR, FNAME, "unexpected binding type(%d)", btype);
+		dprintf_rtk(LOG_ERR, FNAME, "unexpected binding type(%d)", btype);
 		goto fail;
 	}
 
@@ -3242,7 +3246,7 @@ add_binding(clientid, btype, iatype, iaid, val0)
 
 		binding->timer = dhcp6_add_timer(binding_timo, binding);
 		if (binding->timer == NULL) {
-			dprintf(LOG_NOTICE, FNAME, "failed to add timer");
+			dprintf_rtk(LOG_NOTICE, FNAME, "failed to add timer");
 			goto fail;
 		}
 		timo.tv_sec = (long)duration;
@@ -3252,7 +3256,7 @@ add_binding(clientid, btype, iatype, iaid, val0)
 
 	TAILQ_INSERT_TAIL(&dhcp6_binding_head, binding, link);
 
-	dprintf(LOG_DEBUG, FNAME, "add a new binding %s", bindingstr(binding));
+	dprintf_rtk(LOG_DEBUG, FNAME, "add a new binding %s", bindingstr(binding));
 
 	return (binding);
 
@@ -3292,7 +3296,7 @@ update_binding(binding)
 {
 	struct timeval timo;
 
-	dprintf(LOG_DEBUG, FNAME, "update binding %s for %s",
+	dprintf_rtk(LOG_DEBUG, FNAME, "update binding %s for %s",
 	    bindingstr(binding), duidstr(&binding->clientid));
 
 	/* update timestamp and calculate new duration */
@@ -3313,7 +3317,7 @@ static void
 remove_binding(binding)
 	struct dhcp6_binding *binding;
 {
-	dprintf(LOG_DEBUG, FNAME, "remove a binding %s",
+	dprintf_rtk(LOG_DEBUG, FNAME, "remove a binding %s",
 	    bindingstr(binding));
 
 	if (binding->timer)
@@ -3340,7 +3344,7 @@ free_binding(binding)
 
 			for (lv = TAILQ_FIRST(ia_list); lv; lv = TAILQ_NEXT(lv, link)) {
 				if (lv->type != DHCP6_LISTVAL_STATEFULADDR6) {
-					dprintf(LOG_ERR, FNAME,
+					dprintf_rtk(LOG_ERR, FNAME,
 						"unexpected binding value type(%d)", lv->type);
 					continue;
 				}
@@ -3350,7 +3354,7 @@ free_binding(binding)
 		dhcp6_clear_list(&binding->val_list);
 		break;
 	default:
-		dprintf(LOG_ERR, FNAME, "unknown binding type %d",
+		dprintf_rtk(LOG_ERR, FNAME, "unknown binding type %d",
 		    binding->type);
 		break;
 	}
@@ -3383,7 +3387,7 @@ binding_timo(arg)
 				lifetime = iav->val_prefix6.vltime;
 				break;
 			default:
-				dprintf(LOG_ERR, FNAME, "internal error: "
+				dprintf_rtk(LOG_ERR, FNAME, "internal error: "
 				    "unknown binding type (%d)",
 				    binding->iatype);
 				return (NULL); /* XXX */
@@ -3391,7 +3395,7 @@ binding_timo(arg)
 
 			if (lifetime != DHCP6_DURATION_INFINITE &&
 			    lifetime <= past) {
-				dprintf(LOG_DEBUG, FNAME, "bound prefix %s/%d"
+				dprintf_rtk(LOG_DEBUG, FNAME, "bound prefix %s/%d"
 				    " in %s has expired",
 				    in6addr2str(&iav->val_prefix6.addr, 0),
 				    iav->val_prefix6.plen,
@@ -3411,7 +3415,7 @@ binding_timo(arg)
 
 		break;
 	default:
-		dprintf(LOG_ERR, FNAME, "unknown binding type %d",
+		dprintf_rtk(LOG_ERR, FNAME, "unknown binding type %d",
 		    binding->type);
 		return (NULL);	/* XXX */
 	}
@@ -3441,7 +3445,7 @@ find_binding_ia(key, binding)
 	case DHCP6_BINDING_IA:
 		return (dhcp6_find_listval(ia_list, key->type, &key->uv, 0));
 	default:
-		dprintf(LOG_ERR, FNAME, "unknown binding type %d",
+		dprintf_rtk(LOG_ERR, FNAME, "unknown binding type %d",
 		    binding->type);
 		return (NULL);	/* XXX */
 	}
@@ -3471,7 +3475,7 @@ bindingstr(binding)
 		    (u_long)binding->duration);
 		break;
 	default:
-		dprintf(LOG_ERR, FNAME, "unexpected binding type(%d)",
+		dprintf_rtk(LOG_ERR, FNAME, "unexpected binding type(%d)",
 		    binding->type);
 		return ("???");
 	}
@@ -3505,7 +3509,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 		return (0);
 	case DHCP6_AUTHPROTO_DELAYED:
 		if (optinfo->authalgorithm != DHCP6_AUTHALG_HMACMD5) {
-			dprintf(LOG_INFO, FNAME, "unknown authentication "
+			dprintf_rtk(LOG_INFO, FNAME, "unknown authentication "
 			    "algorithm (%d) required by %s",
 			    optinfo->authalgorithm,
 			    clientstr(client_conf, &optinfo->clientID));
@@ -3513,7 +3517,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 		}
 
 		if (optinfo->authrdm != DHCP6_AUTHRDM_MONOCOUNTER) {
-			dprintf(LOG_INFO, FNAME,
+			dprintf_rtk(LOG_INFO, FNAME,
 			    "unknown RDM (%d) required by %s",
 			    optinfo->authrdm,
 			    clientstr(client_conf, &optinfo->clientID));
@@ -3522,13 +3526,13 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 
 		/* see if we have a key for the client */
 		if (client_conf == NULL || client_conf->delayedkey == NULL) {
-			dprintf(LOG_INFO, FNAME, "client %s wanted "
+			dprintf_rtk(LOG_INFO, FNAME, "client %s wanted "
 			    "authentication, but no key found",
 			    clientstr(client_conf, &optinfo->clientID));
 			break;
 		}
 		key = client_conf->delayedkey;
-		dprintf(LOG_DEBUG, FNAME, "found key %s for client %s",
+		dprintf_rtk(LOG_DEBUG, FNAME, "found key %s for client %s",
 		    key->name, clientstr(client_conf, &optinfo->clientID));
 
 		if (msgtype == DH6_SOLICIT) {
@@ -3537,7 +3541,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 				 * A solicit message should not contain
 				 * authentication information.
 				 */
-				dprintf(LOG_INFO, FNAME,
+				dprintf_rtk(LOG_INFO, FNAME,
 				    "authentication information "
 				    "provided in solicit from %s",
 				    clientstr(client_conf,
@@ -3547,7 +3551,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 		} else {
 			/* replay protection */
 			if (!client_conf->saw_previous_rd) {
-				dprintf(LOG_WARNING, FNAME,
+				dprintf_rtk(LOG_WARNING, FNAME,
 				    "previous RD value for %s is unknown "
 				    "(accept it)", clientstr(client_conf,
 				    &optinfo->clientID));
@@ -3555,7 +3559,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 				if (dhcp6_auth_replaycheck(optinfo->authrdm,
 				    client_conf->previous_rd,
 				    optinfo->authrd)) {
-					dprintf(LOG_INFO, FNAME,
+					dprintf_rtk(LOG_INFO, FNAME,
 					    "possible replay attack detected "
 					    "for client %s",
 					    clientstr(client_conf,
@@ -3565,7 +3569,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 			}
 
 			if ((optinfo->authflags & DHCP6OPT_AUTHFLAG_NOINFO)) {
-				dprintf(LOG_INFO, FNAME,
+				dprintf_rtk(LOG_INFO, FNAME,
 				    "client %s did not provide authentication "
 				    "information in %s",
 				    clientstr(client_conf, &optinfo->clientID),
@@ -3585,7 +3589,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 			    optinfo->delayedauth_realmlen != key->realmlen ||
 			    memcmp(optinfo->delayedauth_realmval, key->realm,
 			    key->realmlen) != 0) {
-				dprintf(LOG_INFO, FNAME, "authentication key "
+				dprintf_rtk(LOG_INFO, FNAME, "authentication key "
 				    "mismatch with client %s",
 				    clientstr(client_conf,
 				    &optinfo->clientID));
@@ -3594,7 +3598,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 
 			/* check for the key lifetime */
 			if (dhcp6_validate_key(key)) {
-				dprintf(LOG_INFO, FNAME, "key %s has expired",
+				dprintf_rtk(LOG_INFO, FNAME, "key %s has expired",
 				    key->name);
 				break;
 			}
@@ -3604,12 +3608,12 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 			    optinfo->authproto, optinfo->authalgorithm,
 			    optinfo->delayedauth_offset + sizeof(*dh6), key)
 			    == 0) {
-				dprintf(LOG_DEBUG, FNAME,
+				dprintf_rtk(LOG_DEBUG, FNAME,
 				    "message authentication validated for "
 				    "client %s", clientstr(client_conf,
 				    &optinfo->clientID));
 			} else {
-				dprintf(LOG_INFO, FNAME, "invalid message "
+				dprintf_rtk(LOG_INFO, FNAME, "invalid message "
 				    "authentication");
 				break;
 			}
@@ -3621,7 +3625,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 
 		if (get_rdvalue(roptinfo->authrdm, &roptinfo->authrd,
 		    sizeof(roptinfo->authrd))) {
-			dprintf(LOG_ERR, FNAME, "failed to get a replay "
+			dprintf_rtk(LOG_ERR, FNAME, "failed to get a replay "
 			    "detection value for %s",
 			    clientstr(client_conf, &optinfo->clientID));
 			break;	/* XXX: try to recover? */
@@ -3632,7 +3636,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 		roptinfo->delayedauth_realmval =
 		    malloc(roptinfo->delayedauth_realmlen);
 		if (roptinfo->delayedauth_realmval == NULL) {
-			dprintf(LOG_ERR, FNAME, "failed to allocate memory "
+			dprintf_rtk(LOG_ERR, FNAME, "failed to allocate memory "
 			    "for authentication realm for %s",
 			    clientstr(client_conf, &optinfo->clientID));
 			break;
@@ -3644,7 +3648,7 @@ process_auth(dh6, len, client_conf, optinfo, roptinfo)
 
 		break;
 	default:
-		dprintf(LOG_INFO, FNAME, "client %s wanted authentication "
+		dprintf_rtk(LOG_INFO, FNAME, "client %s wanted authentication "
 		    "with unsupported protocol (%d)",
 		    clientstr(client_conf, &optinfo->clientID),
 		    optinfo->authproto);

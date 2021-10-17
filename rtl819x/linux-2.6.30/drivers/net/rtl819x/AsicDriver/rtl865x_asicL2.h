@@ -95,7 +95,21 @@ enum GROUP
 	GR1 = 1,
 	GR2 = 2,
 };
+#ifdef CONFIG_RTL_8198C
+/* enum for queue ID */
+enum QUEUEID
+{
+	QUEUE0 = 0,
+	QUEUE1,
+	QUEUE2,
+	QUEUE3,
+	QUEUE4,
+	QUEUE5,
+	QUEUE6,
+	QUEUE7,
+};
 
+#else
 /* enum for queue ID */
 enum QUEUEID
 {
@@ -106,7 +120,7 @@ enum QUEUEID
 	QUEUE4,
 	QUEUE5,
 };
-
+#endif
 /* enum for queue type */
 enum QUEUETYPE
 {
@@ -115,6 +129,20 @@ enum QUEUETYPE
 };
 
 /* enum for output queue number */
+#ifdef CONFIG_RTL_8198C
+enum QUEUENUM
+{
+	QNUM1 = 1,
+	QNUM2,
+	QNUM3,
+	QNUM4,
+	QNUM5,
+	QNUM6,
+	QNUM7,
+	QNUM8
+};
+#else
+
 enum QUEUENUM
 {
 	QNUM1 = 1,
@@ -124,6 +152,8 @@ enum QUEUENUM
 	QNUM5,
 	QNUM6,
 };
+#endif
+
 
 /* enum for priority value type */
 enum PRIORITYVALUE
@@ -284,7 +314,6 @@ int32 rtl8651_getAsicPortPatternMatch(uint32 port, uint32 *pattern, uint32 *patt
 
 int32 rtl8651_setAsicSpanningEnable(int8 spanningTreeEnabled);
 int32 rtl8651_getAsicSpanningEnable(int8 *spanningTreeEnabled);
-int32 rtl8651_asicEthernetCableMeterInit(void);
 
 int32 rtl865xC_setAsicSpanningTreePortState(uint32 port, uint32 portState);
 int32 rtl865xC_getAsicSpanningTreePortState(uint32 port, uint32 *portState);

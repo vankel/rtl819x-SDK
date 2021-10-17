@@ -63,6 +63,9 @@ int32 do_eventAction(int32 event,void *param);
 #define DEFAULT_LAYER2_EVENT_LIST_ID		0x20000000
 #define DEFAULT_LAYER3_EVENT_LIST_ID		0x30000000
 #define DEFAULT_LAYER4_EVENT_LIST_ID		0x40000000
+#if defined(CONFIG_RTL_8198C)	//jwj
+#define DEFAULT_IPV6_LAYER3_EVENT_LIST_ID	0x50000000
+#endif
 
 #define RTL865X_EVENT_PROC_DIR "reasilEvent"
 
@@ -116,7 +119,9 @@ int32 do_eventAction(int32 event,void *param);
 #define EVENT_DEL_MEMBER			0x30000017
 #define EVENT_ADD_SOURCE			0x30000018
 #define EVENT_DEL_SOURCE			0x30000019
-
+#if defined(CONFIG_RTL_8198C)
+#define EVENT_UPDATE_MCAST6		0x30000020
+#endif
 /*layer4 event definition, layer4 event range 0x40000000~0x4FFFFFFF*/
 #define MIN_LAYER4_EVENT_ID 		0x40000000
 #define MAX_LAYER4_EVENT_ID 		0x4FFFFFFF
@@ -124,7 +129,20 @@ int32 do_eventAction(int32 event,void *param);
 #define EVENT_ADD_NAPT				0x40000001
 #define EVENT_DELETE_NAPT			0x40000002
 
+#if defined(CONFIG_RTL_8198C)	//jwj
+/*layer3 event definition, ipv6 layer3 event range 0x50000000~0x5FFFFFFF*/
+#define MIN_IPV6_LAYER3_EVENT_ID 		0x50000000
+#define MAX_IPV6_LAYER3_EVENT_ID 		0x5FFFFFFF
+
+#define EVENT_ADD_IPV6_ARP			0x50000001
+#define EVENT_DEL_IPV6_ARP			0x50000002
+#endif
+
+#if defined(CONFIG_RTL_8198C)	//jwj
+#define MAX_SYSTEM_EVENT_ID		0x5FFFFFFF
+#else
 #define MAX_SYSTEM_EVENT_ID		0x4FFFFFFF
+#endif
 
 #define HIGHEST_EVENT_PRIORITY		1
 #define LOWEST_EVENT_PRIORITY		65535
@@ -206,8 +224,15 @@ void rtl865x_dumpAllEventLayerListInfo(void);
 int32 rtl865x_destroyEventMgr(void);
 
 #ifdef CONFIG_RTL865X_EVENT_PROC_DEBUG
+#ifdef CONFIG_RTL_PROC_NEW
+#include <linux/debugfs.h>
+
+int32 rtl865x_event_proc_read(struct seq_file *s, void *v);
+int32  rtl865x_event_proc_write( struct file *filp, const char *buff,unsigned long len, void *data );
+#else
 int32 rtl865x_event_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data );
 int32  rtl865x_event_proc_write( struct file *filp, const char *buff,unsigned long len, void *data );
+#endif
 #endif
 
 #endif

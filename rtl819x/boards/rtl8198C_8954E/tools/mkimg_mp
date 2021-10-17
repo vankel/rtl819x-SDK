@@ -1,0 +1,22 @@
+#!/bin/sh
+
+for i in $*; do
+    echo $i
+        eval $i
+done
+
+if [ -f $USERS_DIR/.config ]; then
+. $USERS_DIR/.config
+fi
+
+if [ -f $LINUX_DIR/.config ]; then
+. $LINUX_DIR/.config
+fi
+
+
+RAMFSDIR=$PWD/romfs
+
+if [ "$CONFIG_YAFFS_FS" = "y" ]; then
+	mkdir $RAMFSDIR/hw_setting
+	chmod 777 $RAMFSDIR/hw_setting
+fi

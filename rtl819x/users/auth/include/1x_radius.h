@@ -45,7 +45,6 @@
 
 /*HS2 SUPPORT*/
 
-
 #define  LIB1X_LIL_ENDIAN
 
 
@@ -154,6 +153,12 @@
 #define LIB1X_IPPROTO_UDP		 17
 
 #define LIB1X_80211_NAS_PORTTYPE	19	/* port type for 802.11 */
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+#define LIB1X_802DOT3_NAS_PORTTYPE	15	/* port type for 802.3 */
+#endif
+
+
 
 #define	LIB1X_RADACCT_ACCT_ON_USER_NAME		"ACCT_ON"
 
@@ -311,6 +316,10 @@ struct radius_info	 /* one struct for radius related bookkeeping */
 };
 
 struct Auth_Pae_tag;
+
+#ifdef HS2_SUPPORT
+int lib1x_rad_vendor_attr_WFA(	Global_Params * global,	u_char * rattr_ptr,	int length) ;
+#endif
 
 void lib1x_create_reqauth( struct Auth_Pae_tag * auth_pae );
 u_short lib1x_ip_check(u_short *addr, int len);

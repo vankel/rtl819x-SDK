@@ -90,6 +90,23 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv6.h>
 
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+struct sock * nl_ra_sock=NULL;
+
+typedef struct RA_INFO_ITEM_T
+{
+	int enable;
+	int pid;
+	int slaacFail;
+	int icmp6_managed;
+	int icmp6_other;
+} RA_INFO_ITEM_T, *RA_INFO_ITEM_Tp;
+
+
+RA_INFO_ITEM_T raInfoItem={0};
+int slaac_get_ip_success=0;
+#endif
+
 static u32 ndisc_hash(const void *pkey, const struct net_device *dev);
 static int ndisc_constructor(struct neighbour *neigh);
 static void ndisc_solicit(struct neighbour *neigh, struct sk_buff *skb);
@@ -711,8 +728,6 @@ static int pndisc_is_router(const void *pkey,
 		ret = !!(n->flags & NTF_ROUTER);
 	read_unlock_bh(&nd_tbl.lock);
 
-	printk("%s %d ret %d\n", __FUNCTION__, __LINE__, ret);
-
 	return ret;
 }
 
@@ -855,9 +870,6 @@ static void ndisc_recv_ns(struct sk_buff *skb)
 
 	if (is_router < 0)
 		is_router = !!idev->cnf.forwarding;
-	printk("%s %d %s forward %d\n", __FUNCTION__, __LINE__, idev->dev->name, idev->cnf.forwarding);
-
-	printk("%s %d cnf.forwarding is %d, is_router is %d\n", __FUNCTION__, __LINE__, idev->cnf.forwarding, is_router);
 
 	if (dad) {
 		ndisc_send_na(dev, NULL, &in6addr_linklocal_allnodes, &msg->target,
@@ -1109,7 +1121,24 @@ nla_put_failure:
 errout:
 	rtnl_set_sk_err(net, RTNLGRP_ND_USEROPT, err);
 }
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+void ra_netlink_receive (struct sk_buff *skb)
+{
+	int pid=0;
+	pid=rtk_nlrecvmsg(skb,sizeof(raInfoItem),&raInfoItem);
+	if(pid<0)
+	{
+		ND_PRINTK2(KERN_ERR
+			   "pid=%d\n",pid);
+		return;
+	}
+	//raInfoItem=*((RA_INFO_ITEM_Tp)skb);
+	ND_PRINTK2(KERN_ERR
+			   "ICMPv6 RA: receive ra netlink! enable=%d,pid=%d\n",raInfoItem.enable,raInfoItem.pid);
+		return;
+}
 
+#endif
 static void ndisc_router_discovery(struct sk_buff *skb)
 {
 	struct ra_msg *ra_msg = (struct ra_msg *)skb_transport_header(skb);
@@ -1191,7 +1220,10 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 					IF_RA_MANAGED : 0) |
 				(ra_msg->icmph.icmp6_addrconf_other ?
 					IF_RA_OTHERCONF : 0);
-
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+	raInfoItem.icmp6_managed=ra_msg->icmph.icmp6_addrconf_managed?1:0;
+	raInfoItem.icmp6_other=ra_msg->icmph.icmp6_addrconf_other?1:0;
+#endif
 	if (!in6_dev->cnf.accept_ra_defrtr)
 		goto skip_defrtr;
 
@@ -1341,16 +1373,32 @@ skip_linkparms:
 	if (skb->ndisc_nodetype == NDISC_NODETYPE_NODEFAULT)
 		goto out;
 #endif
+#ifndef CONFIG_IPV6_CE_ROUTER_SUPPORT
 
 	if (in6_dev->cnf.accept_ra_pinfo && ndopts.nd_opts_pi) {
 		struct nd_opt_hdr *p;
 		for (p = ndopts.nd_opts_pi;
 		     p;
 		     p = ndisc_next_option(p, ndopts.nd_opts_pi_end)) {
-			addrconf_prefix_rcv(skb->dev, (u8*)p, (p->nd_opt_len) << 3);
-		}
+			 addrconf_prefix_rcv(skb->dev, (u8*)p, (p->nd_opt_len) << 3);
+		}			 
 	}
-
+#else
+	if (in6_dev->cnf.accept_ra_pinfo && ndopts.nd_opts_pi) {
+		struct nd_opt_hdr *p;
+		int retval=-EINVAL;
+		for (p = ndopts.nd_opts_pi;
+		     p;
+		     p = ndisc_next_option(p, ndopts.nd_opts_pi_end)) {
+			retval= retval && addrconf_prefix_rcv(skb->dev, (u8*)p, (p->nd_opt_len) << 3);
+		}
+			 raInfoItem.slaacFail=0;
+			 if(retval!=0)
+			 {//fail!
+			 	raInfoItem.slaacFail=1;
+			 }
+	}
+#endif
 	if (ndopts.nd_opts_mtu) {
 		__be32 n;
 		u32 mtu;
@@ -1385,6 +1433,20 @@ skip_linkparms:
 		ND_PRINTK2(KERN_WARNING
 			   "ICMPv6 RA: invalid RA options");
 	}
+	
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+
+			//int status=0;
+			//ND_PRINTK2(KERN_WARNING
+				//	 "ICMPv6 RA: netlink enable=%d pid=%d M=%d,O=%d\n",raInfoItem.enable,raInfoItem.pid,raInfoItem.icmp6_managed,raInfoItem.icmp6_other);
+		if(raInfoItem.enable)
+		{
+			rtk_nlsendmsg(raInfoItem.pid,nl_ra_sock,sizeof(raInfoItem),&raInfoItem);
+			//ND_PRINTK2(KERN_WARNING
+			 //  "ICMPv6 RA: netlink send\n");
+		}
+
+#endif
 out:
 	if (rt)
 		dst_release(&rt->u.dst);
@@ -1831,7 +1893,13 @@ static int ndisc_net_init(struct net *net)
 	np->hop_limit = 255;
 	/* Do not loopback ndisc messages */
 	np->mc_loop = 0;
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+	nl_ra_sock = netlink_kernel_create(&init_net, NETLINK_RTK_IPV6_RA, 0, ra_netlink_receive, NULL, THIS_MODULE);
+ND_PRINTK0(KERN_ERR
+			   "netlink_kernel_create nl_ra_sock.\n"
+			  );
 
+#endif
 	return 0;
 }
 

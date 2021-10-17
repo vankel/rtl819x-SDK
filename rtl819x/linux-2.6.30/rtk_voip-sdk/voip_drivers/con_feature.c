@@ -128,7 +128,7 @@
 #endif
 
 /* AMR */
-#if defined (CONFIG_RTK_VOIP_AMR_NB)
+#if defined (CONFIG_RTK_VOIP_AMR)
 #define  RTK_VOIP_AMR_FEATURE		CODEC_AMR_SUPPORT
 #else
 #define  RTK_VOIP_AMR_FEATURE		0x0

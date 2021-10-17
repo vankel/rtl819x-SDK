@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Wi-Fi Protected Setup</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -27,7 +28,7 @@ var is_adhoc=<% getIndex("networkType");%>; //INFRASTRUCTURE=0, ADHOC=1
 
 var wps_either_ap_or_vxd=<% getIndex("wps_either_ap_or_vxd");%>;
 var is_rpt=<% getIndex("repeaterEnabled");%>;
-var is_rpt_wps_support=<% getIndex("is_rpt_wps_support");%>;
+var is_rpt_wps_support=<% getIndex("is_rpt_wps_support");%>*1;
 var is_ulinker="<% getInfo("is_ulinker"); %>"*1;
 
 var isRptConfig=<% getIndex("wscRptConfig"); %>;
@@ -175,6 +176,8 @@ function check_pin_code(str)
 function setPinClicked(peerPingObj)
 {
 	var ret;
+	var form=document.formWsc;
+
 	ret = check_pin_code(peerPingObj.value);
 	if (ret == 1) {
 		alert('Invalid Enrollee PIN length! The device PIN is usually four or eight digits long.');
@@ -307,8 +310,8 @@ function saveChangesWPS(form)
 		form.localPin.focus();		
 		return false;
 	}
-*/  	
-   	var tmp_mac=form.elements["targetAPMac"].value;
+*/  
+	var tmp_mac=form.elements["targetAPMac"].value;
 	if(tmp_mac.length > 0)
 	{
 			if (tmp_mac.length < 12) {
@@ -370,7 +373,7 @@ function Load_Setting()
 
 <body onload="Load_Setting();">
 <blockquote>
-<h2><font color="#0000FF">Wi-Fi Protected Setup</font></h2>
+<h2>Wi-Fi Protected Setup</h2>
 
 <form action=/boafrm/formWsc method=POST name="formWsc">
 <table border=0 width="500" cellspacing=4 cellpadding=0>
@@ -566,7 +569,7 @@ if (isClient)
 <table border='0' width="500">
 <tr><td><font size=2><b>Current Key Info:</b></td></tr>
 <table border='1' width="500">
-<tr bgcolor=#7f7f7f>
+<tr class="tbl_head">
    <td width="30%"><font size=2><b>Authentication</b></td>
    <td width="20%"><font size=2><b>Encryption</b></td>
    <td width="50%"><font size=2><b>Key</b></td>
@@ -743,7 +746,7 @@ if (isRptClient)
 <table border='0' width="500">
 <tr><td><font size=2><b>Current Key Info:</b></td></tr>
 <table border='1' width="500">
-<tr bgcolor=#7f7f7f>
+<tr class="tbl_head">
    <td width="30%"><font size=2><b>Authentication</b></td>
    <td width="20%"><font size=2><b>Encryption</b></td>
    <td width="50%"><font size=2><b>Key</b></td>

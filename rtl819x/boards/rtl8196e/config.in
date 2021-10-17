@@ -210,9 +210,10 @@ config RTL_USB_ISOCHRONOUS_WEIGHT
 
 config APPLE_MFI_SUPPORT
         bool "Apple MFi program support"
+
 config APPLE_HOMEKIT_BLOCK_SUPPORT
-	depends on APPLE_MFI_SUPPORT
-	bool "Apple Homekit mtd block support"
+        depends on APPLE_MFI_SUPPORT
+        bool "Apple Homekit mtd block support"
 
 config HTTP_FILE_SERVER_SUPPORT
 	bool "Http File server support"
@@ -318,7 +319,16 @@ config RTL_ROOT_IMAGE_OFFSET
         default "0xF0000"
         help
 	  root image store in flash from the offset.
-	  
+
+comment "Hap config table offset,should be 4K alignment."
+        depends on RTL_FLASH_MAPPING_ENABLE && APPLE_HOMEKIT_BLOCK_SUPPORT
+config HAP_CONFIG_TABLE_OFFSET
+        hex "hap config table offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE && APPLE_HOMEKIT_BLOCK_SUPPORT
+        default "0x3D0000"
+        help
+          hap config table store in flash from the offset.
+
 comment "Flatfs image offset,should be 128K alignment."
 	depends on RTL_FLASH_MAPPING_ENABLE
 config RTL_FLATFS_IMAGE_OFFSET
@@ -387,6 +397,9 @@ config JFFS2_ERASE_SIZE
 		boot failure. 
 		Given 0x1000 and 0x10000 for 4k and 64k flash respectively. 
 	
+config BT
+	bool "Bluetooth subsystem support"
+	select FW_LOADER
+	select FIRMWARE_IN_KERNEL
 #------------------------------------------------------------------------
-
 endmenu

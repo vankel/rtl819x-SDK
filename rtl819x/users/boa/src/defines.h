@@ -30,7 +30,7 @@
 
 #define NEW_POST
 #define USE_AUTH
-//#define CSRF_SECURITY_PATCH
+#define CSRF_SECURITY_PATCH
 
 /***** Change this, or use -c on the command line to specify it *****/
 
@@ -56,6 +56,8 @@
 //#define SINGLE_POST_LIMIT_DEFAULT               1024 * 1024 /* 1 MB */
 #if defined(CONFIG_RTL_WAPI_SUPPORT) || defined(HTTP_FILE_SERVER_SUPPORTED) || defined(CONFIG_RTK_VOIP) || defined(CONFIG_RTL_ULINKER) || defined (CONFIG_APP_TR069)
 #define SINGLE_POST_LIMIT_DEFAULT             1024*1024*4 /* 4 MB */
+#elif defined(CONFIG_APP_APPLE_MFI_WAC)
+#define SINGLE_POST_LIMIT_DEFAULT             1024*1024*8 /* 8 MB */
 #else
 #define SINGLE_POST_LIMIT_DEFAULT             1024*1024*2 /* 2 MB */
 #endif
@@ -207,4 +209,25 @@ extern int debug_level;
 #define EXIT_FAILURE 1
 #endif
 
+#ifdef SERVER_SSL
+/******************* ERRORS *****************/
+
+#define SERVER_ERROR    1
+#define OUT_OF_MEMORY   2
+#define NO_CREATE_SOCKET  3
+#define NO_FCNTL    4
+#define NO_SETSOCKOPT   5
+#define NO_BIND     6
+#define NO_LISTEN   7
+#define NO_SETGID   8
+#define NO_SETUID   9
+#define NO_OPEN_LOG   10
+#define SELECT      11
+#define GETPWUID    12
+#define INITGROUPS    13
+#define CANNOT_CHROOT           14
+
+#define SHUTDOWN    15    /* do not change */
+#define NO_SSL 		16
+#endif
 #endif

@@ -1690,8 +1690,8 @@ nopage:
 		printk(KERN_DEBUG "%s: page allocation failure."
 			" order:%d, mode:0x%x\n",
 			p->comm, order, gfp_mask);
-		//dump_stack();
-		//show_mem();
+//		dump_stack();
+//		show_mem();
 	}
 got_pg:
 	return page;

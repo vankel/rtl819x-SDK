@@ -1922,9 +1922,9 @@ CU_TestInfo fwall_testcases[]={
 	RTK_TEST_INFO_DEF(fwall_nas_filter),
 	RTK_TEST_INFO_DEF(fwall_url_filter_enable),
 	RTK_TEST_INFO_DEF(fwall_url_filter_mode),
-	RTK_TEST_INFO_DEF(fwall_url_filter),
+	//RTK_TEST_INFO_DEF(fwall_url_filter),
 	//RTK_TEST_INFO_DEF(fwall_url_filter_take_effect),
-	RTK_TEST_INFO_DEF(fwall_dmz),
+	//RTK_TEST_INFO_DEF(fwall_dmz),
 	CU_TEST_INFO_NULL
 };
 CU_TestInfo qos_testcases[]={

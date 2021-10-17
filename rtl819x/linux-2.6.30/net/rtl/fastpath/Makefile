@@ -8,21 +8,11 @@ include $(DIR_ROOT)/.config
 EXTRA_CFLAGS += -I $(DIR_LINUX)/net
 EXTRA_CFLAGS += -D__KERNEL__
 #EXTRA_CFLAGS += -Wno-implicit -Werror
-
-ifeq ($(CONFIG_RTL_819XD),y)
-TARGET = 9xD
-endif
-
 ifeq ($(CONFIG_RTL_8196E),y)
 TARGET = 96E
 endif
-
-ifeq ($(CONFIG_RTL_8196C),y)
-TARGET = 96C
-endif
-
-ifeq ($(CONFIG_RTL_8198),y)
-TARGET = 98
+ifeq ($(CONFIG_RTL_8198C_GW),y)
+TARGET = 98C
 endif
 
 ifeq "$(CONFIG_MODEL_RTL89xxC_SDK)" "y"
@@ -50,9 +40,12 @@ ifeq ($(CONFIG_RTL_FAST_PPPOE), y)
 obj-$(CONFIG_RTL_IPTABLES_FAST_PATH) += $(TARGET)/fast_pppoe_core.o
 endif
 
+ifeq ($(CONFIG_RTL_FAST_IPV6), y)
+obj-$(CONFIG_RTL_IPTABLES_FAST_PATH) += fast_ipv6_core.o
+endif
 endif
 
-
+#obj-$(CONFIG_RTL_FAST_BRIDGE) += fast_br.o 
 
 clean:
 	rm -rf *.o *.ko *.mod.c

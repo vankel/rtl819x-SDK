@@ -835,7 +835,7 @@ menu "RTK VoIP Suite"
 		# Sound category - ATA - silab - si3226x
 
 		config	RTK_VOIP_DRIVERS_SLIC_SI3226x
-			bool "SI3226x(FB)"
+			bool "SI3226x"
 			depends on RTK_VOIP_DRIVERS_SLIC_SILAB
 		
 		comment "SI3226x options"

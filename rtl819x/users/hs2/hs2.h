@@ -5,9 +5,20 @@
 
 extern unsigned int HS_debug_info;
 
+#define HS2MSG_NOOUT  0
+#define HS2MSG_DEBUG  1
+#define HS2MSG_INFO   2
+#define HS2MSG_DETIAL 3
+#define HS2MSG_TRACE  4
+
+
 #define DEBUG_INFO(level, fmt, args...) \
-	if (HS_debug_info >= level) \
-		printf(fmt, ## args)
+	if ( HS_debug_info >= level) \
+		printf("[%s %d]"fmt,__func__,__LINE__, ## args)
+		
+#define _DEBUG_INFO(level, fmt, args...) \
+        if ( (HS_debug_info) >= level) \
+            printf(""fmt, ## args)
 #define DEBUG_ERR(fmt, args...) (printf("[%s %d]"fmt,__func__,__LINE__,## args))
 
 #define FIFO_HEADER_LEN 		5
@@ -217,27 +228,27 @@ typedef struct sta_ctx
 	//unsigned char		query_rsp[1024];
 } STA_CTX, *pSTA_CTX;
 
-struct hs2_eap_method {
+typedef struct hs2_eap_method {
 	struct hs2_eap_method	*next;
 	unsigned char			method;
 	unsigned char			auth_id[10];
 	unsigned char			auth_val[10][8];
 	unsigned char			auth_cnt;
-};
+}hs2_eap_method_t;
 
-struct hs2_realm {
+typedef struct hs2_realm {
 	struct hs2_realm		*next;
 	unsigned char			name[255];
 	unsigned char			eap_method_cnt;
 	struct hs2_eap_method	*eap_method;	
-};
+}hs2_realm_t;
 
-struct proto_port {
+typedef struct proto_port {
 	struct proto_port	*next;
 	unsigned char		ip_proto;
 	unsigned short		port;
 	unsigned char		status;
-};
+}proto_port_t;
 
 struct wan_metric {
 	unsigned char		waninfo;
@@ -248,11 +259,14 @@ struct wan_metric {
 	unsigned short		lmd;
 };
 
-struct hs2_OSU_FName {
+
+
+typedef struct hs2_OSU_FName {
 	struct hs2_OSU_FName *next;
 	unsigned char LangCode[4]; // Language Code
 	unsigned char OSU_FName[253]; // OSU Friendly Name
-};
+}hs2_OSU_FName_t;
+
 struct hs2_IconMetadata {
 	struct hs2_IconMetadata *next;	
 	unsigned short Width;
@@ -361,7 +375,7 @@ struct hs2_config {
 	unsigned char		MBSSID_ie[20];	// release 2
 	unsigned char		MBSSID_ielen;	// release 2
 	unsigned char		rsn_ie[4][256];	
-	unsigned char		rsnielen[4];
+	unsigned int		rsnielen[4];
     unsigned char		utc_countdown;
     unsigned char		proxy_arp;
 	unsigned char		ICMPv4ECHO;

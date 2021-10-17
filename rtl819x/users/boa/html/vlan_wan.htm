@@ -71,7 +71,7 @@ function check_param()
 
 </head>
 <body bgcolor="#ffffff" text="#000000" onload="Init()">
-<form method="get" action="/goform/formVlanWAN" name=net_form>
+<form method="post" action="/boafrm/formVlanWAN" name=net_form>
 
 <p>
 <tr>
@@ -100,6 +100,7 @@ function check_param()
         <td bgColor=#ddeeff width=150>
                VLAN ID <input type=text name=vlan_wan_host_tag size=4 maxlength=4 value="<%getInfo("vlan_wan_host_tag");%>"> 
         </td>
+<td bgColor=#ddeeff width=150>For Local Packet</td>
         <td bgColor=#ddeeff width=150>
                Priority <input type=text name=vlan_wan_host_pri size=1 maxlength=1 value="<%getInfo("vlan_wan_host_pri");%>"> ( 0~7 )
         </td>

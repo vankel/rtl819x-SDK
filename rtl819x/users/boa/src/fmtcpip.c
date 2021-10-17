@@ -209,19 +209,15 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 				wlan_idx=i;
 #if defined(CONFIG_APP_APPLE_MFI_WAC)//set wlan ssid
 				unsigned char ssid_str[64];
-				unsigned char* ptr = NULL;
-				unsigned char hwmac_addr[6];
-				apmib_get(MIB_HW_WLAN_ADDR,  (void *)hwmac_addr);	
-				apmib_get(MIB_WLAN_SSID,ssid_str);
-				if(ptr = strstr(ssid_str,"_WAC_"))
-					*ptr = '\0';
-				sprintf(ssid_str+strlen(ssid_str),"_WAC_%02X%02X%02X",(unsigned char)hwmac_addr[3],(unsigned char)hwmac_addr[4],(unsigned char)hwmac_addr[5]);
+				unsigned char tmpBuf2[32];
+				apmib_get(MIB_HW_WLAN_ADDR,  (void *)tmpBuf2);	
+				sprintf(ssid_str,"WAC_%02X%02X%02X",(unsigned char)tmpBuf2[3],(unsigned char)tmpBuf2[4],(unsigned char)tmpBuf2[5]);
 				if ( !apmib_set(MIB_WLAN_SSID, (void *)ssid_str)) {
 						strcpy(tmpBuf, ("Set MIB_WLAN_SSID mib error!"));
 						goto setErr_tcpip;
 				}
 				if(0 == i){
-					sprintf(ssid_str,"Realtek_WAC_%02X%02X%02X",(unsigned char)hwmac_addr[3],(unsigned char)hwmac_addr[4],(unsigned char)hwmac_addr[5]);
+					sprintf(ssid_str,"Realtek_WAC_%02X%02X%02X",(unsigned char)tmpBuf2[3],(unsigned char)tmpBuf2[4],(unsigned char)tmpBuf2[5]);
 					if ( !apmib_set(MIB_MFI_WAC_DEVICE_NAME, (void *)ssid_str)) {
 							strcpy(tmpBuf, ("Set MIB_MFI_WAC_DEVICE_NAME mib error!"));
 							goto setErr_tcpip;
@@ -245,11 +241,7 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 				wlan_idx=i;
 #if defined(CONFIG_APP_APPLE_MFI_WAC)//set wlan ssid
 				unsigned char ssid_str[64];
-				unsigned char* ptr = NULL;
-				apmib_get(MIB_WLAN_SSID,ssid_str);
-				if(ptr = strstr(ssid_str,"_WAC_"))
-					*ptr = '\0';
-				sprintf(ssid_str+strlen(ssid_str),"_WAC_%02X%02X%02X",(unsigned char)tmpBuf[3],(unsigned char)tmpBuf[4],(unsigned char)tmpBuf[5]);
+				sprintf(ssid_str,"WAC_%02X%02X%02X",(unsigned char)tmpBuf[3],(unsigned char)tmpBuf[4],(unsigned char)tmpBuf[5]);
 				if ( !apmib_set(MIB_WLAN_SSID, (void *)ssid_str)) {
 						strcpy(tmpBuf, ("Set MIB_WLAN_SSID mib error!"));
 						goto setErr_tcpip;
@@ -261,7 +253,7 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 							goto setErr_tcpip;
 					}
 				}
-#endif					
+#endif				
 				for(j=0;j<NUM_VWLAN_INTERFACE;j++)
 				{
 					vwlan_idx=j;
@@ -659,6 +651,139 @@ void kill_3G_ppp_inet(void)
 #endif
 
 #ifdef HOME_GATEWAY
+#ifdef CONFIG_DSLITE_SUPPORT
+#define NS_INT16SZ   2
+#define NS_INADDRSZ  4
+#define NS_IN6ADDRSZ    16
+
+//add string to IPv4 address exchange
+int
+inet_pton4(src, dst)
+	const char *src;
+	unsigned char *dst;
+{
+	static const char digits[] = "0123456789";
+	int saw_digit, octets, ch;
+	unsigned char tmp[NS_INADDRSZ], *tp;
+	 
+	saw_digit = 0;
+	octets = 0;
+	*(tp = tmp) = 0;
+	while ((ch = *src++) != '\0') {
+		const char *pch;
+
+		if ((pch = strchr(digits, ch)) != NULL) {
+		unsigned int new = *tp * 10 + (pch - digits);
+ 
+		if (new > 255)
+			return (0);
+		*tp = new;
+		if (! saw_digit) {
+			if (++octets > 4)
+				return (0);
+			saw_digit = 1;
+			}
+		} else if (ch == '.' && saw_digit) {
+			if (octets == 4)
+				return (0);
+			*++tp = 0;
+			saw_digit = 0;
+		} else
+			return (0);
+	}
+	if (octets < 4)
+		return (0);
+	memcpy(dst, tmp, NS_INADDRSZ);
+	return (1);
+}
+
+//add string to IPv6 address exchange
+int
+inet_pton6(src, dst)
+	const char *src;
+	unsigned char *dst;
+{
+	static const char xdigits_l[] = "0123456789abcdef",
+		xdigits_u[] = "0123456789ABCDEF";
+	unsigned char tmp[NS_IN6ADDRSZ], *tp, *endp, *colonp;
+	const char *xdigits, *curtok;
+	int ch, saw_xdigit;
+	unsigned int val;
+ 
+	memset((tp = tmp), '\0', NS_IN6ADDRSZ);
+	endp = tp + NS_IN6ADDRSZ;
+	colonp = NULL;
+	/** Leading :: requires some special handling. */
+	if (*src == ':')
+		if (*++src != ':')
+			return (0);
+	curtok = src;
+	saw_xdigit = 0;
+	val = 0;
+	while ((ch = *src++) != '\0') {
+		const char *pch;
+	 
+		if ((pch = strchr((xdigits = xdigits_l), ch)) == NULL)
+			pch = strchr((xdigits = xdigits_u), ch);
+		if (pch != NULL) {
+			val <<= 4;
+			val |= (pch - xdigits);
+			if (val > 0xffff)
+				return (0);
+			saw_xdigit = 1;
+			continue;
+		}
+		if (ch == ':') {
+			curtok = src;
+		if (!saw_xdigit) {
+			if (colonp)
+				return (0);
+			colonp = tp;
+				continue;
+		}
+		if (tp + NS_INT16SZ > endp)
+			return (0);
+		*tp++ = (unsigned char) (val >> 8) & 0xff;
+		*tp++ = (unsigned char) val & 0xff;
+		saw_xdigit = 0;
+		val = 0;
+		continue;
+		}
+		if (ch == '.' && ((tp + NS_INADDRSZ) <= endp) &&
+			inet_pton4(curtok, tp) > 0) {
+			tp += NS_INADDRSZ;
+			saw_xdigit = 0;
+			break;  /** '\0' was seen by inet_pton4(). */
+		}
+		return (0);
+	}
+	if (saw_xdigit) {
+		if (tp + NS_INT16SZ > endp)
+			return (0);
+		*tp++ = (unsigned char) (val >> 8) & 0xff;
+		*tp++ = (unsigned char) val & 0xff;
+	}
+	if (colonp != NULL) {
+	/**
+	  * Since some memmove()'s erroneously fail to handle
+	  * overlapping regions, we'll do the shift by hand.
+	  */
+		const int n = tp - colonp;
+		int i;
+	 
+		for (i = 1; i <= n; i++) {
+			endp[- i] = colonp[n - i];
+			colonp[n - i] = 0;
+		}
+		tp = endp;
+	}
+	if (tp != endp)
+		return (0);
+	memcpy(dst, tmp, NS_IN6ADDRSZ);
+	return (1);
+}
+#endif //end CONFIG_DSLITE_SUPPORT
+
 int tcpipWanHandler(request *wp, char * tmpBuf, int *dns_changed)
 {
 	
@@ -693,7 +818,9 @@ int tcpipWanHandler(request *wp, char * tmpBuf, int *dns_changed)
 	char *strGatewayDomain;
 #endif
 #endif
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	int intVal2,dot1x_mode,val,dot1x_enable;
+#endif
 	strVal = req_get_cstream_var(wp, ("lan_ip"), "");
 	if (strVal[0])
 		call_from_wizard = 1;	
@@ -1570,6 +1697,17 @@ set_ppp:
 					}
 				}
 			}			
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+			strVal = req_get_cstream_var(wp, ("pppVlanId"), "");
+			if ( strVal[0] ) {
+				int vlanId;
+ 				vlanId = strtol(strVal, (char**)NULL, 10);
+				if ( apmib_set(MIB_CWMP_PPPOE_WAN_VLANID, (void *)&vlanId) == 0) {
+					strcpy(tmpBuf, ("Set PPP vlan id MIB error!"));
+					goto setErr_tcpip;
+				}
+			}
+#endif
 			strVal = req_get_cstream_var(wp, ("pppMtuSize"), "");
 			if ( strVal[0] ) {
 				int mtuSize;
@@ -2038,6 +2176,62 @@ set_ppp:
             }
         }
 #endif /* #ifdef RTK_USB3G */
+#ifdef CONFIG_IPV6
+#ifdef CONFIG_DSLITE_SUPPORT
+	else if ( !strcmp(strMode, ("dslite")))
+	{
+		int dslite;
+		addr6CfgParam_t ipaddr6;
+		char *strAFTR;
+		dhcp = AFTR;
+		strMode = req_get_cstream_var(wp, ("dsliteMode"), "");
+
+		if ( strMode && strMode[0] ) 
+		{
+			if (!strcmp(strMode, ("dsliteAuto")))
+				dslite = 0;
+			else if (!strcmp(strMode, ("dsliteManual")))
+				dslite = 1;
+			else {
+				strcpy(tmpBuf, ("Invalid ds-lite mode value!"));
+				goto setErr_tcpip;
+			}
+
+			if ( !apmib_set(MIB_DSLITE_MODE, (void *)&dslite)) {
+	  			strcpy(tmpBuf, "Set DSLITE MODE MIB error!");
+				goto setErr_tcpip;
+			}
+
+			if(dslite == 1)
+			{
+				strAFTR = req_get_cstream_var(wp, ("dsliteAftrIpAddr6"), "");
+				if(strAFTR[0])
+				{
+					if(inet_pton6(strAFTR, ipaddr6.addrIPv6) == 0)
+					{
+						strcpy(tmpBuf, ("Invalid AFTR address value!"));
+						goto setErr_tcpip;
+					}
+					
+					if ( !apmib_set(MIB_IPV6_ADDR_AFTR_PARAM, (void *)&ipaddr6))
+					{
+	  					strcpy(tmpBuf, "Set AFTR MIB error!");
+						goto setErr_tcpip;
+					}
+				}
+				else
+				{
+					if ( !apmib_get(MIB_IPV6_ADDR_AFTR_PARAM, (void *)&ipaddr6) )
+					{
+						strcpy(tmpBuf, "Get AFTR MIB error!");
+						goto setErr_tcpip;
+					}
+				}
+			}
+		}
+	}
+#endif
+#endif
 
 		else {
 			strcpy(tmpBuf, ("Invalid IP mode value!"));
@@ -2152,11 +2346,10 @@ End:
 			}
 			else if(opmode ==0)
 				WAN_IF = ("eth1");
-			
+
 			system("killall -9 igmpproxy 2> /dev/null");
 			system("echo 1,1 > /proc/br_mCastFastFwd");
 			system("killall -9 dnrd 2> /dev/null");
-			
 			if(dhcp == PPPOE || dhcp == PPTP)
 			{
 				//system("killall -15 pppd 2> /dev/null");
@@ -2171,7 +2364,6 @@ End:
 			}
 				
 				system("disconnect.sh option");
-				
 #ifndef NO_ACTION
         #ifdef RTK_USB3G
             if (dhcp == USB3G)
@@ -2299,7 +2491,7 @@ end:
                 kill_3G_ppp_inet();
             else
         #endif
-		//if(dhcp != PPTP)
+			//if(dhcp != PPTP)
 			if(1)
 			{
 			pid = fork();
@@ -2409,7 +2601,17 @@ end:
 				}	
 			}					
 		}	
-		
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		strVal = req_get_cstream_var(wp, ("pppoeWithDhcpEnabled"), "");
+		if ( !strcmp(strVal, "ON"))
+			intVal = 1;
+		else
+			intVal = 0;
+		if ( !apmib_set(MIB_PPPOE_DHCP_ENABLED, (void *)&intVal)) {
+			strcpy(tmpBuf, ("Set MIB_PPPOE_DHCP_ENABLED error!"));
+			goto setErr_tcpip;
+		}
+#endif
 		strVal = req_get_cstream_var(wp, ("upnpEnabled"), "");
 		if ( !strcmp(strVal, "ON"))
 			intVal = 1;
@@ -2489,6 +2691,330 @@ end:
 	                strcpy(tmpBuf, ("Set custom passthru enabled error!"));
 	                goto setErr_tcpip;
 	        }
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		strVal = req_get_cstream_var(wp, ("WANDot1xEnabled"), "");
+		apmib_get(MIB_ELAN_DOT1X_MODE,(void *)&dot1x_mode);
+		apmib_get(MIB_ELAN_ENABLE_1X,(void *)&dot1x_enable);
+		#if 0
+		if(strcmp(strVal,"ON")){
+			intVal = 1;
+			dot1x_mode |= ETH_DOT1X_CLIENT_MODE;
+		}
+		else{
+			dot1x_mode &= (~ETH_DOT1X_CLIENT_MODE);
+			if(dot1x_mode)
+				intVal = 1;
+			else
+				intVal = 0;
+		}
+		#else
+		if(strcmp(strVal,"ON"))
+		{
+			dot1x_enable |= ETH_DOT1X_CLIENT_MODE_ENABLE_BIT;
+			dot1x_mode |= ETH_DOT1X_CLIENT_MODE_BIT;
+		}
+		else
+		{
+			dot1x_enable &= ~ETH_DOT1X_CLIENT_MODE_ENABLE_BIT;
+			dot1x_mode &= (~ETH_DOT1X_CLIENT_MODE_BIT);
+		}
+		#endif		
+		apmib_set(MIB_ELAN_DOT1X_MODE,(void *)&dot1x_mode);
+		apmib_set(MIB_ELAN_ENABLE_1X,(void *)&dot1x_enable);
+		
+		strVal = req_get_cstream_var(wp, "eapType", "");
+		if (strVal[0]) {
+				if ( !string_to_dec(strVal, &intVal) ) {
+					strcpy(tmpBuf, ("Invalid 802.1x EAP type value!"));
+					goto setErr_tcpip;
+				}
+				if ( !apmib_set(MIB_ELAN_EAP_TYPE, (void *)&intVal)) {
+					strcpy(tmpBuf, ("Set MIB_ELAN_EAP_TYPE error!"));
+					goto setErr_tcpip;
+				}
+			}
+			else{
+				strcpy(tmpBuf, ("No 802.1x EAP type!"));
+				goto setErr_tcpip;
+			}
+
+			if(intVal == EAP_MD5){
+				strVal = req_get_cstream_var(wp, "eapUserId", "");
+				if (strVal[0]) {
+					if(strlen(strVal)>MAX_EAP_USER_ID_LEN){
+						strcpy(tmpBuf, ("EAP user ID too long!"));
+						goto setErr_tcpip;
+					}
+					if ( !apmib_set(MIB_ELAN_EAP_USER_ID, (void *)strVal)) {
+						strcpy(tmpBuf, ("Set MIB_ELAN_EAP_USER_ID error!"));
+						goto setErr_tcpip;
+					}
+				}
+				else{
+					strcpy(tmpBuf, ("No 802.1x EAP User ID!"));
+					goto setErr_tcpip;
+				}
+				
+				strVal = req_get_cstream_var(wp, "radiusUserName", "");
+				if (strVal[0]) {
+					if(strlen(strVal)>MAX_RS_USER_NAME_LEN){
+						strcpy(tmpBuf, ("RADIUS user name too long!"));
+						goto setErr_tcpip;
+					}
+					if ( !apmib_set(MIB_ELAN_RS_USER_NAME, (void *)strVal)) {
+						strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_NAME error!"));
+						goto setErr_tcpip;
+					}
+				}
+				else{
+					strcpy(tmpBuf, ("No 802.1x RADIUS User Name!"));
+					goto setErr_tcpip;
+				}
+
+				
+				strVal = req_get_cstream_var(wp, "radiusUserPass", "");
+				if (strVal[0]) {
+					if(strlen(strVal)>MAX_RS_USER_PASS_LEN){
+						strcpy(tmpBuf, ("RADIUS user password too long!"));
+						goto setErr_tcpip;
+					}
+					if ( !apmib_set(MIB_ELAN_RS_USER_PASSWD, (void *)strVal)) {
+						strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_PASSWD error!"));
+						goto setErr_tcpip;
+					}
+				}
+				else{
+					strcpy(tmpBuf, ("No 802.1x RADIUS User Password!"));
+					goto setErr_tcpip;
+				}
+			}
+			else if(intVal == EAP_TLS){
+			
+				strVal = req_get_cstream_var(wp, "eapUserId", "");
+				if (strVal[0]) {
+					if(strlen(strVal)>MAX_EAP_USER_ID_LEN){
+						strcpy(tmpBuf, ("EAP user ID too long!"));
+						goto setErr_tcpip;
+					}
+					if ( !apmib_set(MIB_ELAN_EAP_USER_ID, (void *)strVal)) {
+						strcpy(tmpBuf, ("Set MIB_ELAN_EAP_USER_ID error!"));
+						goto setErr_tcpip;
+					}
+				}
+				else{
+					strcpy(tmpBuf, ("No 802.1x EAP User ID!"));
+					goto setErr_tcpip;
+				}
+				
+				strVal = req_get_cstream_var(wp, "radiusUserCertPass", "");
+				if (strVal[0]) {
+					if(strlen(strVal)>MAX_RS_USER_CERT_PASS_LEN){
+						strcpy(tmpBuf, ("RADIUS user cert password too long!"));
+						goto setErr_tcpip;
+					}
+					if ( !apmib_set(MIB_ELAN_RS_USER_CERT_PASSWD, (void *)strVal)) {
+						strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_CERT_PASSWD error!"));
+						goto setErr_tcpip;
+					}
+				}
+				else{
+					if ( !apmib_set(MIB_ELAN_RS_USER_CERT_PASSWD, (void *)strVal)) {
+						strcpy(tmpBuf, ("Clear MIB_ELAN_RS_USER_CERT_PASSWD error!"));
+						goto setErr_tcpip;
+					}
+					//strcpy(tmpBuf, ("No 802.1x RADIUS user cert password!"));
+					//goto setErr_encrypt;
+				}
+
+				
+					if(isFileExist(RS_USER_CERT_ETH) != 1){
+						strcpy(tmpBuf, ("No 802.1x RADIUS ethernet user cert!\nPlease upload it."));
+						goto setErr_tcpip;
+					}
+					
+					if(isFileExist(RS_ROOT_CERT_ETH) != 1){
+						strcpy(tmpBuf, ("No 802.1x RADIUS ethernet root cert!\nPlease upload it."));
+						goto setErr_tcpip;
+					}
+				
+				
+			}
+			else if(intVal == EAP_PEAP){
+				strVal = req_get_cstream_var(wp, "eapInsideType", "");
+				if (strVal[0]) {
+					if ( !string_to_dec(strVal, &intVal2) ) {
+						strcpy(tmpBuf, ("Invalid 802.1x inside tunnel type value!"));
+						goto setErr_tcpip;
+					}
+					if ( !apmib_set(MIB_ELAN_EAP_INSIDE_TYPE, (void *)&intVal2)) {
+						strcpy(tmpBuf, ("Set MIB_ELAN_EAP_INSIDE_TYPE error!"));
+						goto setErr_tcpip;
+					}
+				}
+				else{
+					strcpy(tmpBuf, ("No 802.1x inside tunnel type!"));
+					goto setErr_tcpip;
+				}
+
+				if(intVal2 == INSIDE_MSCHAPV2){
+					strVal = req_get_cstream_var(wp, "eapUserId", "");
+					if (strVal[0]) {
+						if(strlen(strVal)>MAX_EAP_USER_ID_LEN){
+							strcpy(tmpBuf, ("EAP user ID too long!"));
+							goto setErr_tcpip;
+						}
+						if ( !apmib_set(MIB_ELAN_EAP_USER_ID, (void *)strVal)) {
+							strcpy(tmpBuf, ("Set MIB_ELAN_EAP_USER_ID error!"));
+							goto setErr_tcpip;
+						}
+					}
+					else{
+						strcpy(tmpBuf, ("No 802.1x EAP User ID!"));
+						goto setErr_tcpip;
+					}
+					
+					strVal = req_get_cstream_var(wp, "radiusUserName", "");
+					if (strVal[0]) {
+						if(strlen(strVal)>MAX_RS_USER_NAME_LEN){
+							strcpy(tmpBuf, ("RADIUS user name too long!"));
+							goto setErr_tcpip;
+						}
+						if ( !apmib_set(MIB_ELAN_RS_USER_NAME, (void *)strVal)) {
+							strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_NAME error!"));
+							goto setErr_tcpip;
+						}
+					}
+					else{
+						strcpy(tmpBuf, ("No 802.1x RADIUS User Name!"));
+						goto setErr_tcpip;
+					}
+
+					strVal = req_get_cstream_var(wp, "radiusUserPass", "");
+					if (strVal[0]) {
+						if(strlen(strVal)>MAX_RS_USER_PASS_LEN){
+							strcpy(tmpBuf, ("RADIUS user password too long!"));
+							goto setErr_tcpip;
+						}
+						if ( !apmib_set(MIB_ELAN_RS_USER_PASSWD, (void *)strVal)) {
+							strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_PASSWD error!"));
+							goto setErr_tcpip;
+						}
+					}
+					else{
+						strcpy(tmpBuf, ("No 802.1x RADIUS User Password!"));
+						goto setErr_tcpip;
+					}
+
+//					if(isFileExist(RS_USER_CERT) == 1){
+						strVal = req_get_cstream_var(wp, "radiusUserCertPass", "");
+						if (strVal[0]) {
+							if(strlen(strVal)>MAX_RS_USER_CERT_PASS_LEN){
+								strcpy(tmpBuf, ("RADIUS user cert password too long!"));
+								goto setErr_tcpip;
+							}
+							if ( !apmib_set(MIB_ELAN_RS_USER_CERT_PASSWD, (void *)strVal)) {
+								strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_CERT_PASSWD error!"));
+								goto setErr_tcpip;
+							}
+						}
+						else{
+							if ( !apmib_set(MIB_ELAN_RS_USER_CERT_PASSWD, (void *)strVal)) {
+								strcpy(tmpBuf, ("[1] Clear MIB_ELAN_RS_USER_CERT_PASSWD error!"));
+								goto setErr_tcpip;
+							}
+							//strcpy(tmpBuf, ("No 802.1x RADIUS user cert password!"));
+							//goto setErr_encrypt;
+						}
+//					}
+				}
+				else{
+					strcpy(tmpBuf, ("802.1x inside tunnel type not support!"));
+					goto setErr_tcpip;
+				}
+			}
+			else if (intVal == EAP_TTLS){
+				strVal = req_get_cstream_var(wp, "eapPhase2Type", "");
+				if (strVal[0]) {
+					if ( !string_to_dec(strVal, &intVal2) ) {
+						strcpy(tmpBuf, ("Invalid 802.1x phase2 type value!"));
+						goto setErr_tcpip;
+					}
+					if ( !apmib_set(MIB_ELAN_EAP_PHASE2_TYPE, (void *)&intVal2)) {
+						strcpy(tmpBuf, ("Set MIB_ELAN_EAP_INSIDE_TYPE error!"));
+						goto setErr_tcpip;
+					}
+				}
+				else{
+					strcpy(tmpBuf, ("No 802.1x phase 2 type!"));
+					goto setErr_tcpip;
+				}
+
+				if(intVal2 == TTLS_PHASE2_EAP){
+					val = TTLS_PHASE2_EAP_MD5;
+					apmib_set(MIB_ELAN_PHASE2_EAP_METHOD,(void *)&val);
+					strVal = req_get_cstream_var(wp, "eapUserId", "");
+					if (strVal[0]) {
+						if(strlen(strVal)>MAX_EAP_USER_ID_LEN){
+							strcpy(tmpBuf, ("EAP user ID too long!"));
+							goto setErr_tcpip;
+						}
+						if ( !apmib_set(MIB_ELAN_EAP_USER_ID, (void *)strVal)) {
+							strcpy(tmpBuf, ("Set MIB_ELAN_EAP_USER_ID error!"));
+							goto setErr_tcpip;
+						}
+					}
+					else{
+						strcpy(tmpBuf, ("No 802.1x EAP User ID!"));
+						goto setErr_tcpip;
+					}
+					
+					strVal = req_get_cstream_var(wp, "radiusUserName", "");
+					if (strVal[0]) {
+						if(strlen(strVal)>MAX_RS_USER_NAME_LEN){
+							strcpy(tmpBuf, ("RADIUS user name too long!"));
+							goto setErr_tcpip;
+						}
+						if ( !apmib_set(MIB_ELAN_RS_USER_NAME, (void *)strVal)) {
+							strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_NAME error!"));
+							goto setErr_tcpip;
+						}
+					}
+					else{
+						strcpy(tmpBuf, ("No 802.1x RADIUS User Name!"));
+						goto setErr_tcpip;
+					}
+
+					strVal = req_get_cstream_var(wp, "radiusUserPass", "");
+					if (strVal[0]) {
+						if(strlen(strVal)>MAX_RS_USER_PASS_LEN){
+							strcpy(tmpBuf, ("RADIUS user password too long!"));
+							goto setErr_tcpip;
+						}
+						if ( !apmib_set(MIB_ELAN_RS_USER_PASSWD, (void *)strVal)) {
+							strcpy(tmpBuf, ("Set MIB_ELAN_RS_USER_PASSWD error!"));
+							goto setErr_tcpip;
+						}
+					}
+					else{
+						strcpy(tmpBuf, ("No 802.1x RADIUS User Password!"));
+						goto setErr_tcpip;
+					}
+					if(isFileExist(RS_ROOT_CERT_ETH) != 1){
+						strcpy(tmpBuf, ("No 802.1x RADIUS ethernet root cert!\nPlease upload it."));
+						goto setErr_tcpip;
+					}
+//					
+				}
+				else{
+					strcpy(tmpBuf, ("802.1x ttls phase2 type not support!"));
+					goto setErr_tcpip;
+				}
+			}
+			else{
+				strcpy(tmpBuf, ("802.1x EAP type not support!"));
+				goto setErr_tcpip;
+			}
+#endif
 		
 	}
 	return 0 ;
@@ -2542,30 +3068,6 @@ setErr_end:
 	ERR_MSG(tmpBuf);
 }
 #endif
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-int checkSameIpOrPort(struct in_addr *IpAddr, int port_num, int entryNum)
-{
-	if(IpAddr==NULL || entryNum<1)
-		return 0;
-	int i;
-	DHCPRSVDIP_T entry;
-	
-	for (i=1; i<=entryNum; i++) 
-	{
-		*((char *)&entry) = (char)i;
-		if(!apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&entry))
-		{
-			printf("get mib MIB_DHCPRSVDIP_TBL fail!\n");
-			return -1;
-		}
-		if(memcmp(IpAddr, entry.ipAddr, 4)==0)
-			return 1;
-		if(port_num==entry.portId)
-			return 3;
-	}
-	return 0;
-}
-#endif
 int checkSameIpOrMac(struct in_addr *IpAddr, char *macAddr, int entryNum)
 {
 	if(IpAddr==NULL || macAddr==NULL)
@@ -2595,7 +3097,6 @@ int checkSameIpOrMac(struct in_addr *IpAddr, char *macAddr, int entryNum)
 		return 3;
 	return 0;
 }
-
 //////////////////////////////////////////////////////////////////////////////
 //Static DHCP 
 void formStaticDHCP(request *wp, char *path, char *query)
@@ -2649,11 +3150,6 @@ void formStaticDHCP(request *wp, char *path, char *query)
 	//		strcpy(tmpBuf, ("Error! No mac address to set."));
 			goto setac_ret;
 		}
-#ifdef  SUPPORT_DHCP_PORT_IP_BIND
-		if(strlen(strVal)==1)
-			staticIPEntry.portId=atoi(strVal);
-		else
-#endif
 		if (strlen(strVal)!=12 || !string_to_hex(strVal, staticIPEntry.macAddr, 12)) {
 			strcpy(tmpBuf, ("Error! Invalid MAC address."));
 			goto setErr_rsv;
@@ -2671,11 +3167,6 @@ void formStaticDHCP(request *wp, char *path, char *query)
 			goto setErr_rsv;
 		}
 	
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-                if(staticIPEntry.portId>0)
-			retval=checkSameIpOrPort(&inIp, staticIPEntry.portId, entryNum);
-                else
-#endif	
 		retval=checkSameIpOrMac(&inIp, staticIPEntry.macAddr, entryNum);
 		if(retval>0)
 		{
@@ -2690,7 +3181,7 @@ void formStaticDHCP(request *wp, char *path, char *query)
 			
 			goto setErr_rsv;
 		}
-		
+	
 		// set to MIB. try to delete it first to avoid duplicate case
 		apmib_set(MIB_DHCPRSVDIP_DEL, (void *)&staticIPEntry);
 		if ( apmib_set(MIB_DHCPRSVDIP_ADD, (void *)&staticIPEntry) == 0) {
@@ -2755,28 +3246,24 @@ int dhcpRsvdIp_List(request *wp, int argc, char **argv)
 	DHCPRSVDIP_T entry;
 	char macaddr[30];
 	apmib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&entryNum);
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>IP Address</b></font></td>\n"
-      	"<td align=center width=\"45%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>IP Address</b></font></td>\n"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>MAC Address</b></font></td>\n"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"10%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
 		apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&entry);
-
-			
-		{
-			if (memcmp(entry.macAddr, "\x0\x0\x0\x0\x0\x0", 6))
-			{				
+		if (!memcmp(entry.macAddr, "\x0\x0\x0\x0\x0\x0", 6))
+			macaddr[0]='\0';
+		else			
 			sprintf(macaddr," %02x-%02x-%02x-%02x-%02x-%02x", entry.macAddr[0], entry.macAddr[1], entry.macAddr[2], entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-       			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+       			"<td align=center width=\"10%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 			inet_ntoa(*((struct in_addr*)entry.ipAddr)), macaddr,entry.hostName, i);	
-			}		
-		}
 	}
 	return 0;
 }
@@ -2826,14 +3313,14 @@ int dhcpClientList(request *wp, int argc, char **argv)
 		if (ret == 0)
 			continue;
 		nBytesSent += req_format_write(wp,
-			("<tr bgcolor=#b7b7b7><td><font size=2>%s</td><td><font size=2>%s</td><td><font size=2>%s</td></tr>"),
+			("<tr class=\"tbl_body\"><td><font size=2>%s</td><td><font size=2>%s</td><td><font size=2>%s</td></tr>"),
 			ipAddr, macAddr, liveTime);
 		element++;
 	}
 err:
 	if (element == 0) {
 		nBytesSent += req_format_write(wp,
-			("<tr bgcolor=#b7b7b7><td><font size=2>None</td><td><font size=2>----</td><td><font size=2>----</td></tr>"));
+			("<tr class=\"tbl_body\"><td><font size=2>None</td><td><font size=2>----</td><td><font size=2>----</td></tr>"));
 	}
 	if (buf)
 		free(buf);

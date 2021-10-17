@@ -28,6 +28,8 @@
 #include "utility.h"
 
 #ifdef CONFIG_RTL_BT_CLIENT
+
+#define TORRENT_FILE_NAME_LEN 64
 /* Down Up Dir and Download Limit Upload limt and refresh time
   *Fiv MIB Save To Flash
   *Shell Script should call the dctcs(need to check dir exits)
@@ -237,18 +239,65 @@ void formBTClientSetting(request *wp, char *path, char *query)
 	send_redirect_perm(wp,tmpbuf);
 }
 
+#if 0
+static void get_token_string(char *val, char *token, int *tokenlen)
+{
+	char *p = NULL, *q = val;
+	int len;
+	
+	p = strstr(val, "\r\n");
+	if(p == NULL)
+	{
+		*token = '\0';
+		*tokenlen = 0;
+	}
+	else
+	{
+		len = (p - q);
+		memcpy(token, q, len);
+		token[len] = '\0';
+		*tokenlen = len;
+	}
+}
+#endif
+
+static void get_torrent_name(char *val, char *name)
+{
+	char *p = NULL;
+	int i=0;
+
+	p = strstr(val, "filename");
+	p = p + 10; //strlen("filename=\"")
+	while(*p != '\"' & *p != '\r' & *p != '\n' & i<TORRENT_FILE_NAME_LEN)
+	{
+		name[i] = *p;
+		p++;
+		i++;
+	}
+	if(i>=TORRENT_FILE_NAME_LEN)
+	{
+		printf("WARNING: torrent name too long!\n");
+		name[TORRENT_FILE_NAME_LEN-1] = '\0';
+	}
+	else
+	{
+		name[i]='\0';
+	}
+//	printf("name is %s.\n", name);
+}
+
+
 /*New BT Torrent*/
 void formBTNewTorrent(request *wp, char *path, char *query)
 {
 	char filepath[128];
 	char *strptr;
-	char *filename;
-	char *nextwebpage;
-	nextwebpage=req_get_cstream_var(wp, "submit-url","");
-	strptr=req_get_cstream_var(wp,("filename"),"");
-	char_replace(strptr,'\\','/');
-	filename=strrchr(strptr, '/');
-	if(filename == NULL)
+	char filename[TORRENT_FILE_NAME_LEN];
+	char *nextwebpage = "/btnewtorrent.htm";
+	get_torrent_name(wp->upload_data, filename);
+	strptr=strrchr(filename, '/');
+
+	if(!filename[0])
 	{
 		printf("ERROR, filename NULL\n");
 		return;
@@ -264,9 +313,9 @@ void formBTNewTorrent(request *wp, char *path, char *query)
 		ERR_MSG("Seeds Directory Not Exists");
 		return;
 	}
-	strcat(filepath,filename);
-	//printf("filepath %s\n",filepath);
-	bt_saveTorrentfile(filepath,wp->post_data, wp->post_data_len);
+	sprintf(filepath, "%s/%s", filepath, strptr);
+//	printf("filepath %s\n",filepath);
+	bt_saveTorrentfile(filepath,wp->upload_data, wp->upload_len);
 	send_redirect_perm(wp,nextwebpage);
 }
 #endif

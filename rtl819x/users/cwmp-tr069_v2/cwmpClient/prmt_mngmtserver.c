@@ -1,5 +1,8 @@
 #include "prmt_mngmtserver.h"
 
+
+#define CWMPPID  "/var/run/cwmp.pid"
+
 /*star:20091228 START add for store parameterkey*/
 //char gParameterKey[32+1];
 /*star:20091228 END*/
@@ -69,7 +72,7 @@ struct CWMP_OP tManagementServerLeafOP = { getMngmntServer,setMngmntServer };
 struct CWMP_PRMT tManagementServerLeafInfo[] =
 {
 /*(name,				type,		flag,			op)*/
-{"EnableCWMP",          eCWMP_tBOOLEAN, CWMP_WRITE|CWMP_READ,   &tManagementServerLeafOP},
+{"EnableCWMP",			eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tManagementServerLeafOP},
 {"URL",					eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tManagementServerLeafOP},
 {"Username",				eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tManagementServerLeafOP},
 {"Password",				eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tManagementServerLeafOP},
@@ -83,14 +86,15 @@ struct CWMP_PRMT tManagementServerLeafInfo[] =
 {"UpgradesManaged",			eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tManagementServerLeafOP},
 {"KickURL",				eCWMP_tSTRING,	CWMP_READ,		&tManagementServerLeafOP},
 {"DownloadProgressURL",			eCWMP_tSTRING,	CWMP_READ,		&tManagementServerLeafOP},
+{"DefaultActiveNotificationThrottle",	eCWMP_tUINT,	CWMP_READ|CWMP_WRITE,		&tManagementServerLeafOP},
 #ifdef _TR_111_PRMT_
 {"ManageableDeviceNumberOfEntries",	eCWMP_tUINT,	CWMP_READ,		&tManagementServerLeafOP},
-/*ManageableDeviceNotificationLimit*/
+{"ManageableDeviceNotificationLimit",	eCWMP_tUINT,	CWMP_READ|CWMP_WRITE,		&tManagementServerLeafOP},
 #endif
 };
 enum eManagementServerLeaf
 {
-    eMSEnableCWMP,
+	eMSEnableCWMP,
 	eMSURL,
 	eMSUsername,
 	eMSPassword,
@@ -104,13 +108,15 @@ enum eManagementServerLeaf
 	eMSUpgradesManaged,
 	eMSKickURL,
 	eMSDownloadProgressURL,
+	eMSDefaultActiveNotificationThrottle,
 #ifdef _TR_111_PRMT_
 	eMSManageableDeviceNumberOfEntries,
+	eMSManageableDeviceNotificationLimit,
 #endif
 };
 struct CWMP_LEAF tManagementServerLeaf[] =
 {
-{ &tManagementServerLeafInfo[eMSEnableCWMP]},
+{ &tManagementServerLeafInfo[eMSEnableCWMP] },
 { &tManagementServerLeafInfo[eMSURL] },
 { &tManagementServerLeafInfo[eMSUsername] },
 { &tManagementServerLeafInfo[eMSPassword] },
@@ -124,8 +130,10 @@ struct CWMP_LEAF tManagementServerLeaf[] =
 { &tManagementServerLeafInfo[eMSUpgradesManaged] },
 { &tManagementServerLeafInfo[eMSKickURL] },
 { &tManagementServerLeafInfo[eMSDownloadProgressURL] },
+{ &tManagementServerLeafInfo[eMSDefaultActiveNotificationThrottle] },
 #ifdef _TR_111_PRMT_
 { &tManagementServerLeafInfo[eMSManageableDeviceNumberOfEntries] },
+{ &tManagementServerLeafInfo[eMSManageableDeviceNotificationLimit] },
 #endif
 { NULL	}
 };
@@ -160,7 +168,7 @@ struct CWMP_NODE tManagementServerObject[] =
 #define CHECK_PARAM_NUM(input, min, max) if ( (input < min) || (input > max) ) return ERR_9007;
 
 enum {
-    EN_ENABLECWMP = 0,
+	EN_ENABLE_CWMP = 0,
 	EN_URL,
 	EN_USERNAME, 
 	EN_PASSWORD,
@@ -173,9 +181,11 @@ enum {
 	EN_CONNREQ_PASSWORD,
 	EN_UPGRADE_MANAGED,
 	EN_KICKURL,
-	EN_DOWNLOADURL
+	EN_DOWNLOADURL,
+	EN_DEFAULT_ACTIVE_NORTIFICATION_THROTTLE,
 #ifdef _TR_111_PRMT_
-	,EN_MANAGEABLEDEVICENUMBER
+	EN_MANAGEABLEDEVICENUMBER,
+	EN_MANAGEABLE_DEVICE_NORTIFICATION_LIMIT,
 #endif
 };
 
@@ -207,20 +217,17 @@ int getMngmntServer(char *name, struct CWMP_LEAF *entity, int *type, void **data
 	unsigned char buf[256+1]={0};
 	unsigned char ch=0;
 	unsigned int  in=0;
-    int enableCWMP = -1;
-
+	
 	if( (name==NULL) || (type==NULL) || (data==NULL) || (entity==NULL)) 
 		return -1;
 
 	*type = entity->info->type;
 	*data = NULL;
 	switch(getIndexOf(tManagementServerLeaf, entity->info->name)) {
-    case EN_ENABLECWMP: //EnableCWMP
-        CONFIG_GET(MIB_CWMP_FLAG, (void *)&enableCWMP);
-        enableCWMP = (enableCWMP>1)?1:0;
-        *data = booldup( enableCWMP );
-        break;
-
+	case EN_ENABLE_CWMP:
+		CONFIG_GET(MIB_CWMP_ENABLED, &in);
+		*data = booldup(in);
+		break;
 	case EN_URL: //URL
 		CONFIG_GET(MIB_CWMP_ACS_URL, buf);
 		*data = strdup( buf );
@@ -291,7 +298,11 @@ int getMngmntServer(char *name, struct CWMP_LEAF *entity, int *type, void **data
 	case EN_DOWNLOADURL:
 		CONFIG_GET(MIB_CWMP_ACS_DOWNLOADURL, buf);
 		*data = strdup(buf);
-		break;				
+		break;		
+	case EN_DEFAULT_ACTIVE_NORTIFICATION_THROTTLE:
+		CONFIG_GET(MIB_CWMP_DEF_ACT_NOTIF_THROTTLE, &in);
+		*data = uintdup(in);
+		break;
 #ifdef _TR_111_PRMT_
 	case EN_MANAGEABLEDEVICENUMBER:
 	{
@@ -316,6 +327,10 @@ int getMngmntServer(char *name, struct CWMP_LEAF *entity, int *type, void **data
 		*data = uintdup(gDeviceNumber);
 	}
 		break;
+	case EN_MANAGEABLE_DEVICE_NORTIFICATION_LIMIT:
+		CONFIG_GET(MIB_CWMP_MANAGE_DEV_NOTIF_LIMIT, &in);
+		*data = uintdup(in);
+		break;
 #endif
 	default:
 		return ERR_9005;
@@ -334,6 +349,7 @@ int setMngmntServer(char *name, struct CWMP_LEAF *entity, int type, void *data)
 	unsigned int *pNum;
 	unsigned char byte;
 	unsigned int iVal;
+	unsigned int flag;
 	
 	if( (name==NULL) || (entity==NULL)) return -1;
 #ifdef _PRMT_X_CT_COM_DATATYPE
@@ -346,13 +362,31 @@ int setMngmntServer(char *name, struct CWMP_LEAF *entity, int type, void *data)
 	if( entity->info->type!=type ) return ERR_9006;
 #endif
 
-	switch(getIndexOf(tManagementServerLeaf, entity->info->name)) {
-    case EN_ENABLECWMP: // EnableCWMP
-		pNum = (unsigned int *)data;
-        iVal = (*pNum==1)?CWMP_FLAG_AUTORUN:0;
-        CONFIG_SET(MIB_CWMP_FLAG, &iVal);
-        return 1;   // reboot to take effect
+	printf("name is <%s>\n", lastname);
 
+	switch(getIndexOf(tManagementServerLeaf, entity->info->name)) {
+	case EN_ENABLE_CWMP:
+		pNum = (unsigned int *)data;
+		CHECK_PARAM_NUM(*pNum, 0, 1);
+		iVal = (*pNum == 0) ? 0 : 1;
+		CONFIG_SET(MIB_CWMP_ENABLED, &iVal);	
+
+		if (iVal == 0)
+		{
+			//int cwmppid = 0;
+			
+			CONFIG_GET(MIB_CWMP_FLAG, &flag);
+			flag = flag & (~CWMP_FLAG_AUTORUN);
+			CONFIG_SET(MIB_CWMP_FLAG, &flag);	
+
+			//cwmppid = getPid((char*)CWMPPID);
+			//printf("\ncwmppid=%d\n",cwmppid);
+			//if(cwmppid > 0)
+			//	kill(cwmppid, 15);
+
+			return 1;
+		}
+		break;
 	case EN_URL: //URL
 		CHECK_PARAM_STR(buf, 0, 256+1);
 #if defined(CTC_WAN_NAME)&&defined(CONFIG_BOA_WEB_E8B_CH)
@@ -400,6 +434,7 @@ int setMngmntServer(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		break;	
 	case EN_PERIODIC_TIME: // PeriodicInformTime
 		pNum = (unsigned int *)buf;
+		printf("time is %u\n", *pNum);
 		CONFIG_SET(MIB_CWMP_INFORM_TIME, buf);
 /*star:20100112 START move to port_update_userdata()*/
 		//cwmpMgmtSrvInformInterval();
@@ -424,6 +459,18 @@ int setMngmntServer(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		byte = (*pNum == 0) ? 0 : 1;
 		CONFIG_SET(MIB_CWMP_ACS_UPGRADESMANAGED, &byte);	
 		break;
+	case EN_DEFAULT_ACTIVE_NORTIFICATION_THROTTLE:
+		pNum = (unsigned int *)data;
+		iVal = (*pNum );
+		CONFIG_SET(MIB_CWMP_DEF_ACT_NOTIF_THROTTLE, &iVal);
+		break;
+#ifdef _TR_111_PRMT_
+	case EN_MANAGEABLE_DEVICE_NORTIFICATION_LIMIT:
+		pNum = (unsigned int *)data;
+		iVal = (*pNum );
+		CONFIG_SET(MIB_CWMP_MANAGE_DEV_NOTIF_LIMIT, &iVal);
+		break;
+#endif
 	default:
 		return ERR_9005;
 				

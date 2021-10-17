@@ -1224,6 +1224,7 @@ static void set_params(void)
 		stop_threshold = buffer_size + (double) rate * stop_delay / 1000000;
 	else
 		stop_threshold = (double) rate * stop_delay / 1000000;
+		stop_threshold = stop_threshold*4;
 	err = snd_pcm_sw_params_set_stop_threshold(handle, swparams, stop_threshold);
 	assert(err >= 0);
 

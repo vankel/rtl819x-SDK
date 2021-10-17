@@ -27,6 +27,10 @@
 #include "l3Driver/rtl865x_multipleWan.h"
 #endif
 
+#ifdef CONFIG_RTL_HW_DSLITE_SUPPORT
+#include "l3Driver/rtl865x_dslite.h"
+#endif
+
 #endif
 
 #include "AsicDriver/rtl865x_asicBasic.h"
@@ -71,10 +75,11 @@ struct proc_dir_entry *rtl865x_proc_dir;
 static struct proc_dir_entry *rtl865x_proc_dir;
 #endif
 
+#ifndef CONFIG_RTL_PROC_NEW
 #ifdef CONFIG_RTL_PROC_DEBUG	//proc debug flag
 static struct proc_dir_entry *vlan_entry,*netif_entry,*l2_entry, *arp_entry,
 		*nexthop_entry,*l3_entry,*ip_entry,*pppoe_entry,*napt_entry,
-		*acl_entry,*storm_control,
+		*acl_entry,*storm_control,*sw_netif_entry,*sw_nexthop_entry,*sw_l3_entry,
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
 		*advRt_entry,
 #endif
@@ -95,10 +100,6 @@ static struct proc_dir_entry *vlan_entry,*netif_entry,*l2_entry, *arp_entry,
 #endif
 		*port_bandwidth_entry, *queue_bandwidth_entry,
 		*priority_decision_entry,
-#ifdef CONFIG_RTK_VOIP_QOS
-		*port_priority_entry, *dscp_priority_entry,
-#endif
-
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
 		*swMCast_entry,
 #endif
@@ -114,16 +115,26 @@ static struct proc_dir_entry *prive_skb_debug_entry;
 /*#endif*/
 
 static struct proc_dir_entry *mmd_entry,	*mem_entry, *diagnostic_entry,	
-		*asicCnt_entry,*phyReg_entry,*port_status_entry,*mac_entry,*fc_threshold_entry,*stats_debug_entry
-#if defined (CONFIG_RTL_INBAND_CTL_API)
-		,*portRate_entry
-#endif
-;
+		*asicCnt_entry,*phyReg_entry,*port_status_entry,*mac_entry,*fc_threshold_entry,*stats_debug_entry;
 #define	PROC_READ_RETURN_VALUE		0
 extern int32 mmd_read(uint32 phyId, uint32 devId, uint32 regId, uint32 *rData);
 extern int32 mmd_write(uint32 phyId, uint32 devId, uint32 regId, uint32 wData);
 
+
+#if defined (CONFIG_RTL_8198C)
+//#define CONFIG_RTL_PROC_NEW
+static struct proc_dir_entry *l3v6_entry,	*arp6_entry, *nexthop6_entry,	
+		*mcast6_entry,*ip6rd_entry,*dslite_entry,*sw_dslite_entry,	*sw_arp6_entry;
 #endif
+
+#endif
+#endif
+
+#ifndef PROC_READ_RETURN_VALUE
+#define	PROC_READ_RETURN_VALUE		0
+#endif
+
+
 
 #if defined CONFIG_RTL_DEBUG_TOOL	//debug tool flag
 #ifndef CONFIG_RTL_PROC_DEBUG
@@ -205,6 +216,8 @@ static uint32 queue_bandwidth_record_portmask = 0;
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
 int32 rtl_dumpSwMulticastInfo(void);
 #endif
+
+#ifndef CONFIG_RTL_PROC_NEW
 #if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL865X_EVENT_PROC_DEBUG)
 static struct proc_dir_entry *eventMgr_entry;
 #endif
@@ -212,23 +225,40 @@ static struct proc_dir_entry *eventMgr_entry;
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
 static struct proc_dir_entry *igmp_entry;
 #endif
+#endif
 
 extern int32 rtl865x_sw_napt_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data );
 extern int32  rtl865x_sw_napt_proc_write( struct file *filp, const char *buff,unsigned long len, void *data );
 
 #ifdef CONFIG_RTL_LAYERED_DRIVER
 #ifdef CONFIG_RTL_LAYERED_DRIVER_L2
+#ifdef CONFIG_RTL_PROC_NEW
+extern int32 rtl865x_sw_l2_proc_read(struct seq_file *s, void *v);
+extern int32 rtl865x_sw_l2_proc_write( struct file *filp, const char *buff,unsigned long len, void *data );
+#else
 static struct proc_dir_entry *sw_l2_entry;
 extern int32 rtl865x_sw_l2_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data );
 extern int32 rtl865x_sw_l2_proc_write( struct file *filp, const char *buff,unsigned long len, void *data );
 #endif
 #endif
+#endif
 
 #ifdef CONFIG_RTL865X_ROMEPERF
+#ifdef CONFIG_RTL_PROC_NEW
+extern int32 rtl865x_perf_proc_read(struct seq_file *s, void *v);
+extern int32 rtl865x_perf_proc_write(struct file *file, const char *buffer, unsigned long count, void *data);
+#else
 static struct proc_dir_entry *perf_dump;
 extern int32 rtl865x_perf_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data );
 extern int32 rtl865x_perf_proc_write(struct file *file, const char *buffer, unsigned long count, void *data);
 #endif
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+extern int32 sw_arp6_read(struct seq_file *s, void *v);
+#else
+extern int32 sw_arp6_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+#endif
+extern int32 sw_arp6_write( struct file *filp, const char *buff,unsigned long len, void *data );
 
 #if 0
 int vlan_show(void)
@@ -269,7 +299,6 @@ int vlan_show(void)
 
 //static int32 vlan_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 static int32 vlan_single_show(struct seq_file *s, void *v)
-
 {
 	seq_printf(s,"%s\n", "ASIC VLAN Table:");
 
@@ -283,7 +312,7 @@ static int32 vlan_single_show(struct seq_file *s, void *v)
 			if ( rtl8651_getAsicVlan( i, &vlan ) == FAILED )
 				continue;
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && !defined(CONFIG_RTL_8198C)
 			seq_printf(s, "  idx [%d]  VID[%d] ", i, vlan.vid);
 #else
 			seq_printf(s, "  VID[%d] ", i);
@@ -315,6 +344,11 @@ static int32 vlan_single_show(struct seq_file *s, void *v)
 #if defined(CONFIG_RTL_DYNAMIC_IRAM_MAPPING_FOR_WAPI)
 extern int switch_iram(uint32 addr);
 #endif
+extern 	int32 rtl865x_addVlan(uint16 vid);
+extern 	int32 rtl865x_addVlanPortMember(uint16 vid, uint32 portMask);
+extern 	int32 rtl865x_setVlanPortTag(uint16 vid,uint32 portMask,uint8 tag);
+extern 	int32 rtl865x_setVlanFilterDatabase(uint16 vid, uint32 fid);
+extern  int32 rtl865x_delVlan(uint16 vid);
 static int32 vlan_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	char 		tmpbuf[256];
@@ -494,6 +528,103 @@ struct file_operations vlan_single_seq_file_operations = {
 #define RTL8651_ACLTBL_PERMIT_ALL RTL865X_ACLTBL_PERMIT_ALL
 #define RTL8651_ACLTBL_ALL_TO_CPU RTL865X_ACLTBL_ALL_TO_CPU
 #endif
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 netif_read(struct seq_file *s, void *v)
+{
+	int8	*pst[] = { "DIS/BLK",  "LIS", "LRN", "FWD" };
+	uint8 *mac;
+	int32 i, j;
+
+	seq_printf(s, "%s\n", "ASIC Network Interface Table:");
+	for ( i = 0; i < RTL865XC_NETIFTBL_SIZE; i++ )
+	{
+		rtl865x_tblAsicDrv_intfParam_t intf;
+		rtl865x_tblAsicDrv_vlanParam_t vlan;
+		memset(&vlan, 0x00, sizeof(rtl865x_tblAsicDrv_vlanParam_t));
+
+		if ( rtl8651_getAsicNetInterface( i, &intf ) == FAILED )
+			continue;
+
+		if ( intf.valid )
+		{
+			mac = (uint8 *)&intf.macAddr.octet[0];
+			seq_printf(s,"[%d]  VID[%d] %x:%x:%x:%x:%x:%x",
+				i, intf.vid, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+			seq_printf(s,"  Routing %s \n",
+				intf.enableRoute==TRUE? "enabled": "disabled" );
+
+			seq_printf(s,"      ingress ");
+
+			if ( RTL8651_ACLTBL_DROP_ALL <= intf.inAclStart )
+			{
+				if ( intf.inAclStart == RTL8651_ACLTBL_PERMIT_ALL )
+					seq_printf(s,"permit all,");
+				if ( intf.inAclStart == RTL8651_ACLTBL_ALL_TO_CPU )
+					seq_printf(s,"all to cpu,");
+				if ( intf.inAclStart == RTL8651_ACLTBL_DROP_ALL )
+					seq_printf(s,"drop all,");
+			}
+			else
+				seq_printf(s,"ACL %d-%d, ", intf.inAclStart, intf.inAclEnd);
+
+			seq_printf(s,"  egress ");
+
+			if ( RTL8651_ACLTBL_DROP_ALL <= intf.outAclStart )
+			{
+				if ( intf.outAclStart == RTL8651_ACLTBL_PERMIT_ALL )
+					seq_printf(s,"permit all,");
+				if ( intf.outAclStart==RTL8651_ACLTBL_ALL_TO_CPU )
+					seq_printf(s,"all to cpu,");
+				if ( intf.outAclStart==RTL8651_ACLTBL_DROP_ALL )
+					seq_printf(s,"drop all,");
+			}
+			else
+				seq_printf(s,"ACL %d-%d, ", intf.outAclStart, intf.outAclEnd);
+
+			seq_printf(s, "\n      %d MAC Addresses, MTU %d Bytes\n", intf.macAddrNumber, intf.mtu);
+#ifdef CONFIG_RTL_8198C 
+			seq_printf(s, "      enableRouteV6:%d,    mtuv6:%d\n", intf.enableRouteV6, intf.mtuV6);
+#endif
+
+			#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && !defined(CONFIG_RTL_8198C)
+			rtl8651_findAsicVlanIndexByVid(&intf.vid);
+			#endif
+			rtl8651_getAsicVlan( intf.vid, &vlan );
+
+			seq_printf(s,"\n      Untag member ports:");
+
+			for ( j = 0; j < RTL8651_PORT_NUMBER + rtl8651_totalExtPortNum; j++ )
+			{
+				if ( vlan.untagPortMask & ( 1 << j ) )
+					seq_printf(s,"%d ", j);
+			}
+			seq_printf(s, "\n      Active member ports:");
+
+			for ( j = 0; j < RTL8651_PORT_NUMBER + rtl8651_totalExtPortNum; j++ )
+			{
+				if ( vlan.memberPortMask & ( 1 << j ) )
+					seq_printf(s, "%d ", j);
+			}
+
+			seq_printf(s, "\n      Port state(");
+
+			for ( j = 0; j < RTL8651_PORT_NUMBER + rtl8651_totalExtPortNum; j++ )
+			{
+				if ( ( vlan.memberPortMask & ( 1 << j ) ) == 0 )
+					continue;
+				if ((( READ_MEM32( PCRP0 + j * 4 ) & STP_PortST_MASK) >> STP_PortST_OFFSET ) > 4 )
+					seq_printf(s, "--- ");
+				else
+					seq_printf(s, "%d:%s ", j, pst[(( READ_MEM32( PCRP0 + j * 4 ) & STP_PortST_MASK) >> STP_PortST_OFFSET )]);
+
+			}
+			seq_printf(s, ")\n\n");
+		}
+
+	}
+	return 0;
+}
+#else
 static int32 netif_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -505,7 +636,7 @@ static int32 netif_read( char *page, char **start, off_t off, int count, int *eo
 	for ( i = 0; i < RTL865XC_NETIFTBL_SIZE; i++ )
 	{
 		rtl865x_tblAsicDrv_intfParam_t intf;
-	  	rtl865x_tblAsicDrv_vlanParam_t vlan;
+		rtl865x_tblAsicDrv_vlanParam_t vlan;
 		memset(&vlan, 0x00, sizeof(rtl865x_tblAsicDrv_vlanParam_t));
 
 		if ( rtl8651_getAsicNetInterface( i, &intf ) == FAILED )
@@ -548,7 +679,11 @@ static int32 netif_read( char *page, char **start, off_t off, int count, int *eo
 				len += sprintf(page+len,"ACL %d-%d, ", intf.outAclStart, intf.outAclEnd);
 
 			len += sprintf(page+len, "\n      %d MAC Addresses, MTU %d Bytes\n", intf.macAddrNumber, intf.mtu);
-			#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#ifdef CONFIG_RTL_8198C 
+			len += sprintf(page+len, "      enableRouteV6:%d,    mtuv6:%d\n", intf.enableRouteV6, intf.mtuV6);
+#endif
+
+			#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && !defined(CONFIG_RTL_8198C)
 			rtl8651_findAsicVlanIndexByVid(&intf.vid);
 			#endif
 			rtl8651_getAsicVlan( intf.vid, &vlan );
@@ -595,12 +730,23 @@ static int32 netif_read( char *page, char **start, off_t off, int count, int *eo
 
 	return len;
 }
+#endif
 
 static int32 netif_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 
+#ifdef CONFIG_RTL_PROC_NEW
+extern int32 sw_netif_read(struct seq_file *s, void *v);
+#else
+extern int32 sw_netif_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+
+#endif
+static int32 sw_netif_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	return len;
+}
 #if 0
 static int32 acl_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
@@ -1370,12 +1516,20 @@ static int32 acl_write( struct file *filp, const char *buff,unsigned long len, v
 #endif
 
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 advRt_read(struct seq_file *s, void *v)
+{
+	rtl_show_advRt_table();
+	return 0;
+}
+#else
 static int32 advRt_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len = 0;
 	rtl_show_advRt_table();
 	return len;
 }
+#endif
 
 static int32 advRt_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -1476,9 +1630,17 @@ int acl_show(struct seq_file *s, void *v)
 	int8 *actionT[] = { "permit", "redirect to ether", "drop", "to cpu", "legacy drop",
 					"drop for log", "mirror", "redirect to pppoe", "default redirect", "mirror keep match",
 					"drop rate exceed pps", "log rate exceed pps", "drop rate exceed bps", "log rate exceed bps","priority "
+#if defined(CONFIG_RTL_8198C)
+                    , "change vid"
+#endif
 					};
 #ifdef CONFIG_RTL_LAYERED_DRIVER
 	rtl865x_AclRule_t asic_acl;
+#if defined(CONFIG_RTL_8198C)
+    rtl865x_AclRule_t asic_acl2;
+    uint32 acl_temp = 0;
+#endif
+
 #else
 	_rtl8651_tblDrvAclRule_t asic_acl;
 #endif
@@ -1810,6 +1972,146 @@ int acl_show(struct seq_file *s, void *v)
 					);
 				break;
 
+#if defined(CONFIG_RTL_8198C)
+                case RTL865X_ACL_IPV6: /* IP Rule Type: 0x0010 */
+                case RTL865X_ACL_IPV6_RANGE:
+                    /* a ipv6 rule occupied  two entry, function _rtl865x_getAclFromAsic take one entry at a time,
+                                 * so, need to call function _rtl865x_getAclFromAsic again.
+                                */
+                    acl_temp = acl_start;            
+                    acl_temp++;
+                    if (acl_temp<=acl_end)//the second entry index of ipv6 rule, should  less than or equal to acl_end.
+                    {
+                        memset(&asic_acl2, 0x00, sizeof(rtl865x_AclRule_t));
+                        if ( _rtl865x_getAclFromAsic(acl_temp, &asic_acl2) == FAILED)
+                            rtlglue_printf("=============%s(%d): get asic acl rule error!\n",__FUNCTION__, __LINE__);
+                        if ((!asic_acl2.ipv6EntryType_) && asic_acl.ipv6EntryType_)
+                        {
+                            asic_acl.dstIpV6Addr_.v6_addr32[3] = asic_acl2.dstIpV6Addr_.v6_addr32[3];
+                            asic_acl.dstIpV6Addr_.v6_addr32[2] = asic_acl2.dstIpV6Addr_.v6_addr32[2];
+                            asic_acl.dstIpV6Addr_.v6_addr32[1] = asic_acl2.dstIpV6Addr_.v6_addr32[1];
+                            asic_acl.dstIpV6Addr_.v6_addr32[0] = asic_acl2.dstIpV6Addr_.v6_addr32[0];
+                            
+                            asic_acl.dstIpV6AddrMask_.v6_addr32[3] = asic_acl2.dstIpV6AddrMask_.v6_addr32[3];
+                            asic_acl.dstIpV6AddrMask_.v6_addr32[2] = asic_acl2.dstIpV6AddrMask_.v6_addr32[2];
+                            asic_acl.dstIpV6AddrMask_.v6_addr32[1] = asic_acl2.dstIpV6AddrMask_.v6_addr32[1];
+                            asic_acl.dstIpV6AddrMask_.v6_addr32[0] = asic_acl2.dstIpV6AddrMask_.v6_addr32[0];
+
+                            asic_acl.ipv6TrafficClass_ = asic_acl2.ipv6TrafficClass_;
+                            asic_acl.ipv6TrafficClassM_ = asic_acl2.ipv6TrafficClassM_; 
+                            asic_acl.ipv6NextHeader_    = asic_acl2.ipv6NextHeader_; 
+                            asic_acl.ipv6NextHeaderM_   = asic_acl2.ipv6NextHeaderM_; 
+                            asic_acl.ipv6HttpFilter_    = asic_acl2.ipv6HttpFilter_;
+                            asic_acl.ipv6HttpFilterM_ = asic_acl2.ipv6HttpFilterM_;
+                            asic_acl.ipv6IdentSrcDstIp_ = asic_acl2.ipv6IdentSrcDstIp_;
+                            asic_acl.ipv6IdentSrcDstIpM_ = asic_acl2.ipv6IdentSrcDstIpM_;
+                            /* ActionType and ActionField useless in entry0 */
+                            asic_acl.actionType_ = asic_acl2.actionType_;
+                            switch(asic_acl.actionType_) {
+                        
+                            case RTL865X_ACL_PERMIT:
+                            case RTL865X_ACL_REDIRECT_ETHER:
+                            case RTL865X_ACL_DROP:
+                            case RTL865X_ACL_TOCPU:
+                            case RTL865X_ACL_LEGACY_DROP:
+                            case RTL865X_ACL_DROPCPU_LOG:
+                            case RTL865X_ACL_MIRROR:
+                            case RTL865X_ACL_REDIRECT_PPPOE:
+                            case RTL865X_ACL_MIRROR_KEEP_MATCH:
+                                asic_acl.L2Idx_ = asic_acl2.L2Idx_ ;
+                                asic_acl.netifIdx_ =  asic_acl2.netifIdx_;
+                                asic_acl.pppoeIdx_ = asic_acl2.pppoeIdx_;
+                                 break;
+                        
+                            case RTL865X_ACL_DEFAULT_REDIRECT:
+                                asic_acl.nexthopIdx_ = asic_acl2.nexthopIdx_;
+                                break;
+                        
+                            case RTL865X_ACL_DROP_RATE_EXCEED_PPS:
+                            case RTL865X_ACL_LOG_RATE_EXCEED_PPS:
+                            case RTL865X_ACL_DROP_RATE_EXCEED_BPS:
+                            case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
+                                asic_acl.ratelimtIdx_ = asic_acl2.ratelimtIdx_;
+                                break;
+                            case RTL865X_ACL_PRIORITY:
+                                asic_acl.priority_ = asic_acl2.priority_;
+                                break;
+                            case RTL865X_ACL_VID:
+                                asic_acl.aclvid_ = asic_acl2.aclvid_;
+                                break;                      
+                            }
+                            /* INV useless in entry 0 */
+                            asic_acl.ipv6Invert_    = asic_acl2.ipv6Invert_;
+                            //asic_acl.ipv6Combine_  = asic_acl2.ipv6Combine_ ;
+                            //asic_acl.ipv6IPtunnel_ = asic_acl2.ipv6IPtunnel_;
+                            seq_printf(s, " [%d-%d] rule type: %s   rule action: %s\n", acl_start, acl_temp, "IPv6", actionT[asic_acl.actionType_]);
+                            if (RTL865X_ACL_IPV6 == asic_acl.ruleType_)
+                            {
+                                seq_printf(s, "\tsip: %x:%x:%x:%x:%x:%x:%x:%x  sipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                        asic_acl.srcIpV6Addr_.v6_addr16[0], asic_acl.srcIpV6Addr_.v6_addr16[1], 
+                                        asic_acl.srcIpV6Addr_.v6_addr16[2],asic_acl.srcIpV6Addr_.v6_addr16[3],
+                                        asic_acl.srcIpV6Addr_.v6_addr16[4],asic_acl.srcIpV6Addr_.v6_addr16[5],
+                                        asic_acl.srcIpV6Addr_.v6_addr16[6],asic_acl.srcIpV6Addr_.v6_addr16[7],
+                                        asic_acl.srcIpV6AddrMask_.v6_addr16[0], asic_acl.srcIpV6AddrMask_.v6_addr16[1], 
+                                        asic_acl.srcIpV6AddrMask_.v6_addr16[2],asic_acl.srcIpV6AddrMask_.v6_addr16[3],
+                                        asic_acl.srcIpV6AddrMask_.v6_addr16[4],asic_acl.srcIpV6AddrMask_.v6_addr16[5],
+                                        asic_acl.srcIpV6AddrMask_.v6_addr16[6],asic_acl.srcIpV6AddrMask_.v6_addr16[7]
+                                        );
+                                seq_printf(s, "\tdip: %x:%x:%x:%x:%x:%x:%x:%x  dipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                        asic_acl.dstIpV6Addr_.v6_addr16[0], asic_acl.dstIpV6Addr_.v6_addr16[1], 
+                                        asic_acl.dstIpV6Addr_.v6_addr16[2],asic_acl.dstIpV6Addr_.v6_addr16[3],
+                                        asic_acl.dstIpV6Addr_.v6_addr16[4],asic_acl.dstIpV6Addr_.v6_addr16[5],
+                                        asic_acl.dstIpV6Addr_.v6_addr16[6],asic_acl.dstIpV6Addr_.v6_addr16[7],
+                                        asic_acl.dstIpV6AddrMask_.v6_addr16[0], asic_acl.dstIpV6AddrMask_.v6_addr16[1], 
+                                        asic_acl.dstIpV6AddrMask_.v6_addr16[2],asic_acl.dstIpV6AddrMask_.v6_addr16[3],
+                                        asic_acl.dstIpV6AddrMask_.v6_addr16[4],asic_acl.dstIpV6AddrMask_.v6_addr16[5],
+                                        asic_acl.dstIpV6AddrMask_.v6_addr16[6],asic_acl.dstIpV6AddrMask_.v6_addr16[7]
+                                        );
+
+
+                            }
+                            else if (RTL865X_ACL_IPV6_RANGE == asic_acl.ruleType_)
+                            {
+                                seq_printf(s, "\tsipLB: %x:%x:%x:%x:%x:%x:%x:%x  sipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                        asic_acl.srcIpV6AddrLB_.v6_addr16[0], asic_acl.srcIpV6AddrLB_.v6_addr16[1], 
+                                        asic_acl.srcIpV6AddrLB_.v6_addr16[2],asic_acl.srcIpV6AddrLB_.v6_addr16[3],
+                                        asic_acl.srcIpV6AddrLB_.v6_addr16[4],asic_acl.srcIpV6AddrLB_.v6_addr16[5],
+                                        asic_acl.srcIpV6AddrLB_.v6_addr16[6],asic_acl.srcIpV6AddrLB_.v6_addr16[7],
+                                        asic_acl.srcIpV6AddrUB_.v6_addr16[0], asic_acl.srcIpV6AddrUB_.v6_addr16[1], 
+                                        asic_acl.srcIpV6AddrUB_.v6_addr16[2],asic_acl.srcIpV6AddrUB_.v6_addr16[3],
+                                        asic_acl.srcIpV6AddrUB_.v6_addr16[4],asic_acl.srcIpV6AddrUB_.v6_addr16[5],
+                                        asic_acl.srcIpV6AddrUB_.v6_addr16[6],asic_acl.srcIpV6AddrUB_.v6_addr16[7]
+                                        );
+                                seq_printf(s, "\tdipLB: %x:%x:%x:%x:%x:%x:%x:%x  dipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                        asic_acl.dstIpV6AddrLB_.v6_addr16[0], asic_acl.dstIpV6AddrLB_.v6_addr16[1], 
+                                        asic_acl.dstIpV6AddrLB_.v6_addr16[2],asic_acl.dstIpV6AddrLB_.v6_addr16[3],
+                                        asic_acl.dstIpV6AddrLB_.v6_addr16[4],asic_acl.dstIpV6AddrLB_.v6_addr16[5],
+                                        asic_acl.dstIpV6AddrLB_.v6_addr16[6],asic_acl.dstIpV6AddrLB_.v6_addr16[7],
+                                        asic_acl.dstIpV6AddrUB_.v6_addr16[0], asic_acl.dstIpV6AddrUB_.v6_addr16[1], 
+                                        asic_acl.dstIpV6AddrUB_.v6_addr16[2],asic_acl.dstIpV6AddrUB_.v6_addr16[3],
+                                        asic_acl.dstIpV6AddrUB_.v6_addr16[4],asic_acl.dstIpV6AddrUB_.v6_addr16[5],
+                                        asic_acl.dstIpV6AddrUB_.v6_addr16[6],asic_acl.dstIpV6AddrUB_.v6_addr16[7]
+                                        );
+                            }
+                            seq_printf(s, "\tFlowLabel: 0x%x   FlowLabelM: 0x%x\n",
+                                    asic_acl.ipv6FlowLabel_, asic_acl.ipv6FlowLabelM_
+                                    );
+                            seq_printf(s, "\tInvert: %d   Combine: %d   IPtunnel: %d\n",
+                                    asic_acl.ipv6Invert_, asic_acl.ipv6Combine_,asic_acl.ipv6IPtunnel_
+                                    );
+                            seq_printf(s, "\tTrafficClassP: %d   TrafficClassM: %d   NextHeaderP: %d   NextHeaderM: %d\n",
+                                    asic_acl.ipv6TrafficClass_, asic_acl.ipv6TrafficClassM_,asic_acl.ipv6NextHeader_,asic_acl.ipv6NextHeaderM_ 
+                                    );
+                            seq_printf(s, "\tHTTPP: %d   HTTPM: %d   IdentSDIPP: %d   IdentSDIPM: %d\n",
+                                    asic_acl.ipv6HttpFilter_, asic_acl.ipv6HttpFilterM_,asic_acl.ipv6IdentSrcDstIp_,asic_acl.ipv6IdentSrcDstIpM_ 
+                                    );
+                            /* update acl index */
+                            acl_start = acl_temp;
+                        }
+                        
+                    }
+                break;
+#endif
 				default:
 					seq_printf(s, "asic_acl.ruleType_(0x%x)\n", asic_acl.ruleType_);
 
@@ -1846,6 +2148,11 @@ int acl_show(struct seq_file *s, void *v)
 			case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
 				seq_printf(s, "\tratelimitIdx: %d  ", asic_acl.ratelimtIdx_);
 				break;
+#if defined(CONFIG_RTL_8198C)
+            case RTL865X_ACL_VID:
+				seq_printf(s, "\taclvid: %d  ", asic_acl.aclvid_);
+                break;
+#endif
 			default:
 				;
 
@@ -2520,6 +2827,148 @@ again_forOutAcl:
 					);
 				break;
 
+#if defined(CONFIG_RTL_8198C)
+            case RTL865X_ACL_IPV6: /* IP Rule Type: 0x0010 */
+            case RTL865X_ACL_IPV6_RANGE:
+                /* a ipv6 rule occupied  two entry, function _rtl865x_getAclFromAsic take one entry at a time,
+                             * so, need to call function _rtl865x_getAclFromAsic again.
+                            */
+                //rtl865x_AclRule_t asic_acl2;
+                //unsigned int acl_temp = acl_start;
+                acl_temp = acl_start;
+                acl_temp++;
+                if (acl_temp<=acl_end)//the second entry index of ipv6 rule, should  less than or equal to acl_end.
+                {
+                    memset(&asic_acl2, 0x00, sizeof(rtl865x_AclRule_t));
+                    if ( _rtl865x_getAclFromAsic(acl_temp, &asic_acl2) == FAILED)
+                        rtlglue_printf("=============%s(%d): get asic acl rule error!\n",__FUNCTION__, __LINE__);
+                    if ((!asic_acl2.ipv6EntryType_) && asic_acl.ipv6EntryType_)
+                    {
+                        asic_acl.dstIpV6Addr_.v6_addr32[3] = asic_acl2.dstIpV6Addr_.v6_addr32[3];
+                        asic_acl.dstIpV6Addr_.v6_addr32[2] = asic_acl2.dstIpV6Addr_.v6_addr32[2];
+                        asic_acl.dstIpV6Addr_.v6_addr32[1] = asic_acl2.dstIpV6Addr_.v6_addr32[1];
+                        asic_acl.dstIpV6Addr_.v6_addr32[0] = asic_acl2.dstIpV6Addr_.v6_addr32[0];
+                        
+                        asic_acl.dstIpV6AddrMask_.v6_addr32[3] = asic_acl2.dstIpV6AddrMask_.v6_addr32[3];
+                        asic_acl.dstIpV6AddrMask_.v6_addr32[2] = asic_acl2.dstIpV6AddrMask_.v6_addr32[2];
+                        asic_acl.dstIpV6AddrMask_.v6_addr32[1] = asic_acl2.dstIpV6AddrMask_.v6_addr32[1];
+                        asic_acl.dstIpV6AddrMask_.v6_addr32[0] = asic_acl2.dstIpV6AddrMask_.v6_addr32[0];
+
+                        asic_acl.ipv6TrafficClass_ = asic_acl2.ipv6TrafficClass_;
+                        asic_acl.ipv6TrafficClassM_ = asic_acl2.ipv6TrafficClassM_; 
+                        asic_acl.ipv6NextHeader_    = asic_acl2.ipv6NextHeader_; 
+                        asic_acl.ipv6NextHeaderM_   = asic_acl2.ipv6NextHeaderM_; 
+                        asic_acl.ipv6HttpFilter_    = asic_acl2.ipv6HttpFilter_;
+                        asic_acl.ipv6HttpFilterM_ = asic_acl2.ipv6HttpFilterM_;
+                        asic_acl.ipv6IdentSrcDstIp_ = asic_acl2.ipv6IdentSrcDstIp_;
+                        asic_acl.ipv6IdentSrcDstIpM_ = asic_acl2.ipv6IdentSrcDstIpM_;
+                        /* ActionType and ActionField useless in entry0 */
+                        asic_acl.actionType_ = asic_acl2.actionType_;
+                        switch(asic_acl.actionType_) {
+                    
+                        case RTL865X_ACL_PERMIT:
+                        case RTL865X_ACL_REDIRECT_ETHER:
+                        case RTL865X_ACL_DROP:
+                        case RTL865X_ACL_TOCPU:
+                        case RTL865X_ACL_LEGACY_DROP:
+                        case RTL865X_ACL_DROPCPU_LOG:
+                        case RTL865X_ACL_MIRROR:
+                        case RTL865X_ACL_REDIRECT_PPPOE:
+                        case RTL865X_ACL_MIRROR_KEEP_MATCH:
+                            asic_acl.L2Idx_ = asic_acl2.L2Idx_ ;
+                            asic_acl.netifIdx_ =  asic_acl2.netifIdx_;
+                            asic_acl.pppoeIdx_ = asic_acl2.pppoeIdx_;
+                             break;
+                    
+                        case RTL865X_ACL_DEFAULT_REDIRECT:
+                            asic_acl.nexthopIdx_ = asic_acl2.nexthopIdx_;
+                            break;
+                    
+                        case RTL865X_ACL_DROP_RATE_EXCEED_PPS:
+                        case RTL865X_ACL_LOG_RATE_EXCEED_PPS:
+                        case RTL865X_ACL_DROP_RATE_EXCEED_BPS:
+                        case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
+                            asic_acl.ratelimtIdx_ = asic_acl2.ratelimtIdx_;
+                            break;
+                        case RTL865X_ACL_PRIORITY:
+                            asic_acl.priority_ = asic_acl2.priority_;
+                            break;
+                        case RTL865X_ACL_VID:
+                            asic_acl.aclvid_ = asic_acl2.aclvid_;
+                            break;                      
+                        }
+                        /* INV useless in entry 0 */
+                        asic_acl.ipv6Invert_    = asic_acl2.ipv6Invert_;
+                        //asic_acl.ipv6Combine_  = asic_acl2.ipv6Combine_ ;
+                        //asic_acl.ipv6IPtunnel_ = asic_acl2.ipv6IPtunnel_;
+                        seq_printf(s, " [%d-%d] rule type: %s   rule action: %s\n", acl_start, acl_temp, "IPv6", actionT[asic_acl.actionType_]);
+                        if (RTL865X_ACL_IPV6 == asic_acl.ruleType_)
+                        {
+                            seq_printf(s, "\tsip: %x:%x:%x:%x:%x:%x:%x:%x  sipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                    asic_acl.srcIpV6Addr_.v6_addr16[0], asic_acl.srcIpV6Addr_.v6_addr16[1], 
+                                    asic_acl.srcIpV6Addr_.v6_addr16[2],asic_acl.srcIpV6Addr_.v6_addr16[3],
+                                    asic_acl.srcIpV6Addr_.v6_addr16[4],asic_acl.srcIpV6Addr_.v6_addr16[5],
+                                    asic_acl.srcIpV6Addr_.v6_addr16[6],asic_acl.srcIpV6Addr_.v6_addr16[7],
+                                    asic_acl.srcIpV6AddrMask_.v6_addr16[0], asic_acl.srcIpV6AddrMask_.v6_addr16[1], 
+                                    asic_acl.srcIpV6AddrMask_.v6_addr16[2],asic_acl.srcIpV6AddrMask_.v6_addr16[3],
+                                    asic_acl.srcIpV6AddrMask_.v6_addr16[4],asic_acl.srcIpV6AddrMask_.v6_addr16[5],
+                                    asic_acl.srcIpV6AddrMask_.v6_addr16[6],asic_acl.srcIpV6AddrMask_.v6_addr16[7]
+                                    );
+                            seq_printf(s, "\tdip: %x:%x:%x:%x:%x:%x:%x:%x  dipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                    asic_acl.dstIpV6Addr_.v6_addr16[0], asic_acl.dstIpV6Addr_.v6_addr16[1], 
+                                    asic_acl.dstIpV6Addr_.v6_addr16[2],asic_acl.dstIpV6Addr_.v6_addr16[3],
+                                    asic_acl.dstIpV6Addr_.v6_addr16[4],asic_acl.dstIpV6Addr_.v6_addr16[5],
+                                    asic_acl.dstIpV6Addr_.v6_addr16[6],asic_acl.dstIpV6Addr_.v6_addr16[7],
+                                    asic_acl.dstIpV6AddrMask_.v6_addr16[0], asic_acl.dstIpV6AddrMask_.v6_addr16[1], 
+                                    asic_acl.dstIpV6AddrMask_.v6_addr16[2],asic_acl.dstIpV6AddrMask_.v6_addr16[3],
+                                    asic_acl.dstIpV6AddrMask_.v6_addr16[4],asic_acl.dstIpV6AddrMask_.v6_addr16[5],
+                                    asic_acl.dstIpV6AddrMask_.v6_addr16[6],asic_acl.dstIpV6AddrMask_.v6_addr16[7]
+                                    );
+
+
+                        }
+                        else if (RTL865X_ACL_IPV6_RANGE == asic_acl.ruleType_)
+                        {
+                            seq_printf(s, "\tsipLB: %x:%x:%x:%x:%x:%x:%x:%x  sipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                    asic_acl.srcIpV6AddrLB_.v6_addr16[0], asic_acl.srcIpV6AddrLB_.v6_addr16[1], 
+                                    asic_acl.srcIpV6AddrLB_.v6_addr16[2],asic_acl.srcIpV6AddrLB_.v6_addr16[3],
+                                    asic_acl.srcIpV6AddrLB_.v6_addr16[4],asic_acl.srcIpV6AddrLB_.v6_addr16[5],
+                                    asic_acl.srcIpV6AddrLB_.v6_addr16[6],asic_acl.srcIpV6AddrLB_.v6_addr16[7],
+                                    asic_acl.srcIpV6AddrUB_.v6_addr16[0], asic_acl.srcIpV6AddrUB_.v6_addr16[1], 
+                                    asic_acl.srcIpV6AddrUB_.v6_addr16[2],asic_acl.srcIpV6AddrUB_.v6_addr16[3],
+                                    asic_acl.srcIpV6AddrUB_.v6_addr16[4],asic_acl.srcIpV6AddrUB_.v6_addr16[5],
+                                    asic_acl.srcIpV6AddrUB_.v6_addr16[6],asic_acl.srcIpV6AddrUB_.v6_addr16[7]
+                                    );
+                            seq_printf(s, "\tdipLB: %x:%x:%x:%x:%x:%x:%x:%x  dipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                    asic_acl.dstIpV6AddrLB_.v6_addr16[0], asic_acl.dstIpV6AddrLB_.v6_addr16[1], 
+                                    asic_acl.dstIpV6AddrLB_.v6_addr16[2],asic_acl.dstIpV6AddrLB_.v6_addr16[3],
+                                    asic_acl.dstIpV6AddrLB_.v6_addr16[4],asic_acl.dstIpV6AddrLB_.v6_addr16[5],
+                                    asic_acl.dstIpV6AddrLB_.v6_addr16[6],asic_acl.dstIpV6AddrLB_.v6_addr16[7],
+                                    asic_acl.dstIpV6AddrUB_.v6_addr16[0], asic_acl.dstIpV6AddrUB_.v6_addr16[1], 
+                                    asic_acl.dstIpV6AddrUB_.v6_addr16[2],asic_acl.dstIpV6AddrUB_.v6_addr16[3],
+                                    asic_acl.dstIpV6AddrUB_.v6_addr16[4],asic_acl.dstIpV6AddrUB_.v6_addr16[5],
+                                    asic_acl.dstIpV6AddrUB_.v6_addr16[6],asic_acl.dstIpV6AddrUB_.v6_addr16[7]
+                                    );
+                        }
+                        seq_printf(s, "\tFlowLabel: 0x%x   FlowLabelM: 0x%x\n",
+                                asic_acl.ipv6FlowLabel_, asic_acl.ipv6FlowLabelM_
+                                );
+                        seq_printf(s, "\tInvert: %d   Combine: %d   IPtunnel: %d\n",
+                                asic_acl.ipv6Invert_, asic_acl.ipv6Combine_,asic_acl.ipv6IPtunnel_
+                                );
+                        seq_printf(s, "\tTrafficClassP: %d   TrafficClassM: %d   NextHeaderP: %d   NextHeaderM: %d\n",
+                                asic_acl.ipv6TrafficClass_, asic_acl.ipv6TrafficClassM_,asic_acl.ipv6NextHeader_,asic_acl.ipv6NextHeaderM_ 
+                                );
+                        seq_printf(s, "\tHTTPP: %d   HTTPM: %d   IdentSDIPP: %d   IdentSDIPM: %d\n",
+                                asic_acl.ipv6HttpFilter_, asic_acl.ipv6HttpFilterM_,asic_acl.ipv6IdentSrcDstIp_,asic_acl.ipv6IdentSrcDstIpM_ 
+                                );
+                        /* update acl index */
+                        acl_start = acl_temp;
+                    }
+                    
+                }
+            break;
+#endif
 				default:
 					seq_printf(s, "asic_acl.ruleType_(0x%x)\n", asic_acl.ruleType_);
 
@@ -2556,6 +3005,11 @@ again_forOutAcl:
 			case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
 				seq_printf(s, "\tratelimitIdx: %d  ", asic_acl.ratelimtIdx_);
 				break;
+#if defined(CONFIG_RTL_8198C)
+            case RTL865X_ACL_VID:
+                seq_printf(s, "\taclvid: %d  ", asic_acl.aclvid_);
+                break;
+#endif
 			default:
 				;
 
@@ -2647,6 +3101,215 @@ struct file_operations qosRule_single_seq_file_operations = {
 
 #endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 hs_read(struct seq_file *s, void *v)
+{
+	hsb_param_t *hsb_r, dummy_hsb_r;
+	hsa_param_t *hsa_r, dummy_hsa_r;
+	ipaddr_t addr;
+	char addr_s[100];
+
+	hsb_r = &dummy_hsb_r;
+	hsa_r = &dummy_hsa_r;
+	memset((void*)hsb_r,0,sizeof(hsb_r));
+	memset((void*)hsa_r,0,sizeof(hsa_r));
+
+	virtualMacGetHsb( hsb_r );
+	{
+		seq_printf(s,"HSB(");
+		seq_printf(s,"\ttype:%d",hsb_r->type);
+
+		seq_printf(s,"\tspa:%d",hsb_r->spa);
+		seq_printf(s,"\tlen:%d",hsb_r->len);
+		seq_printf(s,"\tvid :%d\n",hsb_r->vid);
+		seq_printf(s,"\tpppoe:%d",hsb_r->pppoeif);
+
+		/* Protocol contents */
+		seq_printf(s,"\ttagif:%d\tpppoeId:%d",hsb_r->tagif,hsb_r->pppoeid);
+		seq_printf(s,"\tethrtype:0x%04x\n",hsb_r->ethtype);
+		seq_printf(s,"\tllc_other:%d\tsnap:%d\n",hsb_r->llcothr,hsb_r->snap);
+		seq_printf(s,"\tda:%02x-%02x-%02x-%02x-%02x-%02x",hsb_r->da[0],hsb_r->da[1],hsb_r->da[2],hsb_r->da[3],hsb_r->da[4],hsb_r->da[5]);
+		seq_printf(s,"\tsa:%02x-%02x-%02x-%02x-%02x-%02x\n",hsb_r->sa[0],hsb_r->sa[1],hsb_r->sa[2],hsb_r->sa[3],hsb_r->sa[4],hsb_r->sa[5]);
+
+		addr = ntohl( hsb_r->sip);
+		inet_ntoa_r(addr, addr_s);
+		seq_printf(s,"\tsip:%s(hex:%08x)   ",addr_s,hsb_r->sip);
+		seq_printf(s,"\tsprt:%d (hex:%x)\n ",(int)hsb_r->sprt,hsb_r->sprt);
+		addr  = ntohl(hsb_r->dip);
+		inet_ntoa_r(addr, addr_s);
+		seq_printf(s,"\tdip:%s(hex:%08x) ",addr_s,hsb_r->dip);;
+		seq_printf(s,"\tdprt:%d(hex:%08x)\n",hsb_r->dprt,hsb_r->dprt);
+
+		seq_printf(s,"\tipptl:%d,",(int)hsb_r->ipptl);
+		seq_printf(s,"\tipflg:%d,",hsb_r->ipfg);
+		seq_printf(s,"\tiptos:%d,",hsb_r->iptos);
+		seq_printf(s,"\ttcpflg:%d\n",hsb_r->tcpfg);
+
+		seq_printf(s,"\tdirtx:%d,",hsb_r->dirtx);
+		seq_printf(s,"\tprtnmat:%d",hsb_r->patmatch);
+
+		seq_printf(s,"\tudp_nocs:%d",hsb_r->udpnocs);
+		seq_printf(s,"\tttlst:0x%x\n",hsb_r->ttlst);
+
+
+		seq_printf(s,"\thp:%d",hsb_r->hiprior);
+		seq_printf(s,"\tl3csok:%d\tl4csok:%d\tipfragif:%d\n",hsb_r->l3csok,hsb_r->l4csok,hsb_r->ipfo0_n);
+
+	 	seq_printf(s,"\textspa:%d",hsb_r->extspa);
+#if defined(CONFIG_RTL_8198C) 
+		seq_printf(s,"\turlmch:%d\n",hsb_r->urlmch);
+#else
+		seq_printf(s,"\turlmch:%d\n)\n",hsb_r->urlmch);
+#endif
+
+#if defined(CONFIG_RTL_8198C)
+   
+	seq_printf(s,"\tipv4_opt:%d",hsb_r->ipv4_opt);
+	seq_printf(s,"\tcputag_if:%d\n",hsb_r->cputag_if);
+
+	seq_printf(s,"\tipv6_ext:%d",hsb_r->ipv6_ext);
+	seq_printf(s,"\tipv6fo:%d\n",hsb_r->ipv6fo);
+
+	seq_printf(s,"\tipv6flag:%d",hsb_r->ipv6flag);
+	seq_printf(s,"\tqpri:%d\n",hsb_r->qpri);
+
+	seq_printf(s,"\tptp_pkt:%d",hsb_r->ptp_pkt);
+	seq_printf(s,"\tptp_ver:%d\n",hsb_r->ptp_ver);
+
+	seq_printf(s,"\tptp_typ:%d",hsb_r->ptp_typ);
+	seq_printf(s,"\tipver_1st:%d\n",hsb_r->ipver_1st);
+
+    seq_printf(s,"\tsip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsb_r->sipv6_127_96>>16,hsb_r->sipv6_127_96&0xFFFF
+            		,hsb_r->sipv6_95_64>>16,hsb_r->sipv6_95_64&0xFFFF
+            		,hsb_r->sipv6_63_32>>16,hsb_r->sipv6_63_32&0xFFFF
+            		,hsb_r->sipv6_31_0>>16,hsb_r->sipv6_31_0&0xFFFF);
+
+    seq_printf(s,"\tdip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsb_r->dipv6_127_96>>16,hsb_r->dipv6_127_96&0xFFFF
+            		,hsb_r->dipv6_95_64>>16,hsb_r->dipv6_95_64&0xFFFF
+            		,hsb_r->dipv6_63_32>>16,hsb_r->dipv6_63_32&0xFFFF
+            		,hsb_r->dipv6_31_0>>16,hsb_r->dipv6_31_0&0xFFFF);
+
+	seq_printf(s,"\thop_limit:0x%x",hsb_r->hop_limit);
+	seq_printf(s,"\ttra_cla:0x%x\n",hsb_r->tra_cla);
+
+	seq_printf(s,"\tflow_lab:0x%x",hsb_r->flow_lab);
+	seq_printf(s,"\tnxt_hdr:0x%x\n",hsb_r->nxt_hdr);
+
+	seq_printf(s,"\tipv4:0x%x",hsb_r->ipv4);
+	seq_printf(s,"\tipv6:0x%x\n",hsb_r->ipv6);
+
+	seq_printf(s,"\tip_len:0x%x",hsb_r->ip_len);
+	seq_printf(s,"\ttun_len:0x%x\n)\n",hsb_r->tun_len);
+#endif
+
+	}
+
+	virtualMacGetHsa( hsa_r );
+	{
+		seq_printf(s,("HSA("));
+		seq_printf(s,"\tmac:%02x-%02x-%02x-%02x-%02x-%02x\n",hsa_r->nhmac[0],hsa_r->nhmac[1],hsa_r->nhmac[2],hsa_r->nhmac[3],hsa_r->nhmac[4],hsa_r->nhmac[5]);
+
+		addr =ntohl( hsa_r->trip);
+		inet_ntoa_r(addr, addr_s);
+		seq_printf(s,"\ttrip:%s(hex:%08x)",addr_s,hsa_r->trip);
+		seq_printf(s,"\tprt:%d\tipmcast:%d\n",hsa_r->port,hsa_r->ipmcastr);
+		seq_printf(s,"\tl3cs:%d",hsa_r->l3csdt);
+		seq_printf(s,"\tl4cs:%d",hsa_r->l4csdt);
+		seq_printf(s,"\tInternal NETIF:%d",hsa_r->egif);
+		seq_printf(s,"\tl2tr:%d,\n ",hsa_r->l2tr);
+		seq_printf(s,"\tl34tr:%d",hsa_r->l34tr);
+		seq_printf(s,"\tdirtx:%d",hsa_r->dirtxo);
+		seq_printf(s,"\ttype:%d",hsa_r->typeo);
+		seq_printf(s,"\tsnapo:%d",hsa_r->snapo);
+		seq_printf(s,"\twhy2cpu 0x%x (%d)\n",hsa_r->why2cpu,hsa_r->why2cpu);
+		seq_printf(s,"\tpppif:%d",hsa_r->pppoeifo);
+		seq_printf(s,"\tpppid:%d",hsa_r->pppidx);
+		seq_printf(s,"\tttl_1:0x%x",hsa_r->ttl_1if);
+		seq_printf(s,"\tdpc:%d,",hsa_r->dpc);
+#if defined(CONFIG_RTL_8198C)
+		seq_printf(s,"\tleno:%d(0x%x) \tmirrort:%d\n",hsa_r->leno,hsa_r->leno,hsa_r->mirrort);
+#else   
+		seq_printf(s,"\tleno:%d(0x%x)\n",hsa_r->leno,hsa_r->leno);
+#endif
+		seq_printf(s,"\tl3CrcOk:%d",hsa_r->l3csoko);
+		seq_printf(s,"\tl4CrcOk:%d",hsa_r->l4csoko);
+		seq_printf(s,"\tfrag:%d",hsa_r->frag);
+		seq_printf(s,"\tlastFrag:%d\n",hsa_r->lastfrag);
+
+
+
+		seq_printf(s,"\tsvid:0x%x",hsa_r->svid);
+		seq_printf(s,"\tdvid:%d(0x%x)",hsa_r->dvid,hsa_r->dvid);
+		seq_printf(s,"\tdestination interface :%d\n",hsa_r->difid);
+		seq_printf(s,"\trxtag:%d",hsa_r->rxtag);
+		seq_printf(s,"\t\tdvtag:0x%x",hsa_r->dvtag);
+#if defined(CONFIG_RTL_8198C)
+		seq_printf(s,"\tspa:%d \tipv4_1st:%d",hsa_r->spao,hsa_r->ipv4_1st);
+#else        
+		seq_printf(s,"\tspa:%d",hsa_r->spao);
+#endif       
+		seq_printf(s,"\tdpext:0x%x\thwfwrd:%d\n",hsa_r->dpext,hsa_r->hwfwrd);
+		seq_printf(s,"\tspcp:%d",hsa_r->spcp);
+		seq_printf(s,"\t\tpriority:%d",hsa_r->priority);
+
+		seq_printf(s,"\tdp:0x%x\n",hsa_r->dp);
+#if !defined(CONFIG_RTL_8198C)
+		seq_printf(s,")\n");
+#endif
+
+#if defined(CONFIG_RTL_8198C)
+ 
+	seq_printf(s,"\tcputag:%d",hsa_r->cputag);
+	seq_printf(s,"\tptp_pkt:%d",hsa_r->ptp_pkt);
+	seq_printf(s,"\tptp_v2:%d",hsa_r->ptp_v2);
+	seq_printf(s,"\tptp_type:0x%x\n",hsa_r->ptp_type);
+
+	seq_printf(s,"\trmdp:0x%x",hsa_r->rmdp);
+	seq_printf(s,"\tdpri:0x%x",hsa_r->dpri);
+	seq_printf(s,"\tmdf:0x%x\n",hsa_r->mdf);
+/*
+	seq_printf(s,"\tsipv6_31_0:0x%x",hsa_r->sipv6_31_0);
+	seq_printf(s,"\tsipv6_63_32:0x%x",hsa_r->sipv6_63_32);
+	seq_printf(s,"\tsipv6_95_64:0x%x",hsa_r->sipv6_95_64);
+	seq_printf(s,"\tsipv6_127_96:0x%x\n",hsa_r->sipv6_127_96);
+
+	seq_printf(s,"\tdipv6_31_0:0x%x",hsa_r->dipv6_31_0);
+	seq_printf(s,"\tdipv6_63_32:0x%x",hsa_r->dipv6_63_32);
+	seq_printf(s,"\tdipv6_95_64:0x%x",hsa_r->dipv6_95_64);
+	seq_printf(s,"\tdipv6_127_96:0x%x\n",hsa_r->dipv6_127_96);
+*/
+
+    seq_printf(s,"\tsip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsa_r->sipv6_127_96>>16,hsa_r->sipv6_127_96&0xFFFF
+            		,hsa_r->sipv6_95_64>>16,hsa_r->sipv6_95_64&0xFFFF
+            		,hsa_r->sipv6_63_32>>16,hsa_r->sipv6_63_32&0xFFFF
+            		,hsa_r->sipv6_31_0>>16,hsa_r->sipv6_31_0&0xFFFF);
+
+
+    seq_printf(s,"\tdip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsa_r->dipv6_127_96>>16,hsa_r->dipv6_127_96&0xFFFF
+            		,hsa_r->dipv6_95_64>>16,hsa_r->dipv6_95_64&0xFFFF
+            		,hsa_r->dipv6_63_32>>16,hsa_r->dipv6_63_32&0xFFFF
+            		,hsa_r->dipv6_31_0>>16,hsa_r->dipv6_31_0&0xFFFF);
+
+
+
+
+
+	seq_printf(s,"\tip_len:0x%x",hsa_r->ip_len);
+	seq_printf(s,"\tipv4_id:0x%x\n",hsa_r->ipv4_id);
+
+	seq_printf(s,"\ttun_len:0x%x",hsa_r->tun_len);
+	seq_printf(s,"\tmltcst_v6:0x%x",hsa_r->mltcst_v6);
+	seq_printf(s,"\taddip_pri:0x%x\n",hsa_r->addip_pri);
+	seq_printf(s,")\n");
+#endif
+	}
+	return 0;
+}
+#else
 static int32 hs_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int	len;
@@ -2703,7 +3366,54 @@ static int32 hs_read( char *page, char **start, off_t off, int count, int *eof, 
 		len += sprintf(page+len,"\tl3csok:%d\tl4csok:%d\tipfragif:%d\n",hsb_r->l3csok,hsb_r->l4csok,hsb_r->ipfo0_n);
 
 	 	len += sprintf(page+len,"\textspa:%d",hsb_r->extspa);
+#if defined(CONFIG_RTL_8198C) 
+		len += sprintf(page+len,"\turlmch:%d\n",hsb_r->urlmch);
+#else
 		len += sprintf(page+len,"\turlmch:%d\n)\n",hsb_r->urlmch);
+#endif
+
+#if defined(CONFIG_RTL_8198C)
+   
+	len += sprintf(page+len,"\tipv4_opt:%d",hsb_r->ipv4_opt);
+	len += sprintf(page+len,"\tcputag_if:%d\n",hsb_r->cputag_if);
+
+	len += sprintf(page+len,"\tipv6_ext:%d",hsb_r->ipv6_ext);
+	len += sprintf(page+len,"\tipv6fo:%d\n",hsb_r->ipv6fo);
+
+	len += sprintf(page+len,"\tipv6flag:%d",hsb_r->ipv6flag);
+	len += sprintf(page+len,"\tqpri:%d\n",hsb_r->qpri);
+
+	len += sprintf(page+len,"\tptp_pkt:%d",hsb_r->ptp_pkt);
+	len += sprintf(page+len,"\tptp_ver:%d\n",hsb_r->ptp_ver);
+
+	len += sprintf(page+len,"\tptp_typ:%d",hsb_r->ptp_typ);
+	len += sprintf(page+len,"\tipver_1st:%d\n",hsb_r->ipver_1st);
+
+    len += sprintf(page+len,"\tsip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsb_r->sipv6_127_96>>16,hsb_r->sipv6_127_96&0xFFFF
+            		,hsb_r->sipv6_95_64>>16,hsb_r->sipv6_95_64&0xFFFF
+            		,hsb_r->sipv6_63_32>>16,hsb_r->sipv6_63_32&0xFFFF
+            		,hsb_r->sipv6_31_0>>16,hsb_r->sipv6_31_0&0xFFFF);
+
+    len += sprintf(page+len,"\tdip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsb_r->dipv6_127_96>>16,hsb_r->dipv6_127_96&0xFFFF
+            		,hsb_r->dipv6_95_64>>16,hsb_r->dipv6_95_64&0xFFFF
+            		,hsb_r->dipv6_63_32>>16,hsb_r->dipv6_63_32&0xFFFF
+            		,hsb_r->dipv6_31_0>>16,hsb_r->dipv6_31_0&0xFFFF);
+
+	len += sprintf(page+len,"\thop_limit:0x%x",hsb_r->hop_limit);
+	len += sprintf(page+len,"\ttra_cla:0x%x\n",hsb_r->tra_cla);
+
+	len += sprintf(page+len,"\tflow_lab:0x%x",hsb_r->flow_lab);
+	len += sprintf(page+len,"\tnxt_hdr:0x%x\n",hsb_r->nxt_hdr);
+
+	len += sprintf(page+len,"\tipv4:0x%x",hsb_r->ipv4);
+	len += sprintf(page+len,"\tipv6:0x%x\n",hsb_r->ipv6);
+
+	len += sprintf(page+len,"\tip_len:0x%x",hsb_r->ip_len);
+	len += sprintf(page+len,"\ttun_len:0x%x\n)\n",hsb_r->tun_len);
+#endif
+
 	}
 
 	virtualMacGetHsa( hsa_r );
@@ -2728,9 +3438,11 @@ static int32 hs_read( char *page, char **start, off_t off, int count, int *eof, 
 		len += sprintf(page+len,"\tpppid:%d",hsa_r->pppidx);
 		len += sprintf(page+len,"\tttl_1:0x%x",hsa_r->ttl_1if);
 		len += sprintf(page+len,"\tdpc:%d,",hsa_r->dpc);
-
+#if defined(CONFIG_RTL_8198C)
+		len += sprintf(page+len,"\tleno:%d(0x%x) \tmirrort:%d\n",hsa_r->leno,hsa_r->leno,hsa_r->mirrort);
+#else   
 		len += sprintf(page+len,"\tleno:%d(0x%x)\n",hsa_r->leno,hsa_r->leno);
-
+#endif
 		len += sprintf(page+len,"\tl3CrcOk:%d",hsa_r->l3csoko);
 		len += sprintf(page+len,"\tl4CrcOk:%d",hsa_r->l4csoko);
 		len += sprintf(page+len,"\tfrag:%d",hsa_r->frag);
@@ -2742,14 +3454,68 @@ static int32 hs_read( char *page, char **start, off_t off, int count, int *eof, 
 		len += sprintf(page+len,"\tdvid:%d(0x%x)",hsa_r->dvid,hsa_r->dvid);
 		len += sprintf(page+len,"\tdestination interface :%d\n",hsa_r->difid);
 		len += sprintf(page+len,"\trxtag:%d",hsa_r->rxtag);
-		len += sprintf(page+len,"\tdvtag:0x%x",hsa_r->dvtag);
+		len += sprintf(page+len,"\t\tdvtag:0x%x",hsa_r->dvtag);
+#if defined(CONFIG_RTL_8198C)
+		len += sprintf(page+len,"\tspa:%d \tipv4_1st:%d",hsa_r->spao,hsa_r->ipv4_1st);
+#else        
 		len += sprintf(page+len,"\tspa:%d",hsa_r->spao);
+#endif       
 		len += sprintf(page+len,"\tdpext:0x%x\thwfwrd:%d\n",hsa_r->dpext,hsa_r->hwfwrd);
 		len += sprintf(page+len,"\tspcp:%d",hsa_r->spcp);
-		len += sprintf(page+len,"\tpriority:%d",hsa_r->priority);
+		len += sprintf(page+len,"\t\tpriority:%d",hsa_r->priority);
 
 		len += sprintf(page+len,"\tdp:0x%x\n",hsa_r->dp);
+#if !defined(CONFIG_RTL_8198C)
 		len += sprintf(page+len,")\n");
+#endif
+
+#if defined(CONFIG_RTL_8198C)
+ 
+	len += sprintf(page+len,"\tcputag:%d",hsa_r->cputag);
+	len += sprintf(page+len,"\tptp_pkt:%d",hsa_r->ptp_pkt);
+	len += sprintf(page+len,"\tptp_v2:%d",hsa_r->ptp_v2);
+	len += sprintf(page+len,"\tptp_type:0x%x\n",hsa_r->ptp_type);
+
+	len += sprintf(page+len,"\trmdp:0x%x",hsa_r->rmdp);
+	len += sprintf(page+len,"\tdpri:0x%x",hsa_r->dpri);
+	len += sprintf(page+len,"\tmdf:0x%x\n",hsa_r->mdf);
+/*
+	len += sprintf(page+len,"\tsipv6_31_0:0x%x",hsa_r->sipv6_31_0);
+	len += sprintf(page+len,"\tsipv6_63_32:0x%x",hsa_r->sipv6_63_32);
+	len += sprintf(page+len,"\tsipv6_95_64:0x%x",hsa_r->sipv6_95_64);
+	len += sprintf(page+len,"\tsipv6_127_96:0x%x\n",hsa_r->sipv6_127_96);
+
+	len += sprintf(page+len,"\tdipv6_31_0:0x%x",hsa_r->dipv6_31_0);
+	len += sprintf(page+len,"\tdipv6_63_32:0x%x",hsa_r->dipv6_63_32);
+	len += sprintf(page+len,"\tdipv6_95_64:0x%x",hsa_r->dipv6_95_64);
+	len += sprintf(page+len,"\tdipv6_127_96:0x%x\n",hsa_r->dipv6_127_96);
+*/
+
+    len += sprintf(page+len,"\tsip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsa_r->sipv6_127_96>>16,hsa_r->sipv6_127_96&0xFFFF
+            		,hsa_r->sipv6_95_64>>16,hsa_r->sipv6_95_64&0xFFFF
+            		,hsa_r->sipv6_63_32>>16,hsa_r->sipv6_63_32&0xFFFF
+            		,hsa_r->sipv6_31_0>>16,hsa_r->sipv6_31_0&0xFFFF);
+
+
+    len += sprintf(page+len,"\tdip6:\t%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n"
+                    ,hsa_r->dipv6_127_96>>16,hsa_r->dipv6_127_96&0xFFFF
+            		,hsa_r->dipv6_95_64>>16,hsa_r->dipv6_95_64&0xFFFF
+            		,hsa_r->dipv6_63_32>>16,hsa_r->dipv6_63_32&0xFFFF
+            		,hsa_r->dipv6_31_0>>16,hsa_r->dipv6_31_0&0xFFFF);
+
+
+
+
+
+	len += sprintf(page+len,"\tip_len:0x%x",hsa_r->ip_len);
+	len += sprintf(page+len,"\tipv4_id:0x%x\n",hsa_r->ipv4_id);
+
+	len += sprintf(page+len,"\ttun_len:0x%x",hsa_r->tun_len);
+	len += sprintf(page+len,"\tmltcst_v6:0x%x",hsa_r->mltcst_v6);
+	len += sprintf(page+len,"\taddip_pri:0x%x\n",hsa_r->addip_pri);
+	len += sprintf(page+len,")\n");
+#endif
 	}
 
 	if (len <= off+count) *eof = 1;
@@ -2762,6 +3528,7 @@ static int32 hs_read( char *page, char **start, off_t off, int count, int *eof, 
 
 	return len;
 }
+#endif
 
 static int32 hs_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -2843,6 +3610,27 @@ struct file_operations mbuf_single_seq_file_operations = {
         .release        = single_release,
 };
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 pvid_read(struct seq_file *s, void *v)
+{
+	uint32 vidp[9];
+	int32  i;
+
+	for(i=0; i<RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum; i++)
+	{
+		if (rtl8651_getAsicPVlanId(i, &vidp[i]) != SUCCESS)
+		{
+			seq_printf(s,"ASIC PVID get failed.\n");
+		}
+	}
+	seq_printf(s,">> PVID Reg:\n");
+	for(i=0; i<RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum; i++)
+		seq_printf(s,"p%d: %d,", i, vidp[i]);
+	seq_printf(s,"\n");
+
+	return 0;
+}
+#else
 static int32 pvid_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	uint32 vidp[9];
@@ -2872,6 +3660,7 @@ static int32 pvid_read( char *page, char **start, off_t off, int count, int *eof
 
 	return len;
 }
+#endif
 
 static int32 pvid_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -2922,6 +3711,20 @@ static int32 pvid_write( struct file *filp, const char *buff,unsigned long len, 
 }
 
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 mirrorPort_read(struct seq_file *s, void *v)
+{
+	uint32 mirrorRx, mirrorTx, mirrorPort;
+
+	rtl8651_getAsicPortMirror(&mirrorRx, &mirrorTx, &mirrorPort);
+	seq_printf(s,">>Mirror Control Register:\n\n");
+	seq_printf(s,"  Mirror Rx: 0x%x\n", mirrorRx);
+	seq_printf(s,"  Mirror Tx: 0x%x\n", mirrorTx);
+	seq_printf(s,"  Mirror Port: 0x%x\n", mirrorPort);
+
+	return 0;
+}
+#else
 static int32 mirrorPort_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	uint32 mirrorRx, mirrorTx, mirrorPort;
@@ -2944,6 +3747,7 @@ static int32 mirrorPort_read( char *page, char **start, off_t off, int count, in
 
 	return len;
 }
+#endif
 
 static int32 mirrorPort_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -3008,6 +3812,63 @@ errout:
 }
 
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 l2_read(struct seq_file *s, void *v)
+{
+	rtl865x_tblAsicDrv_l2Param_t asic_l2;
+ 	uint32 row, col, port, m=0;
+
+	seq_printf(s, "%s\n", "ASIC L2 Table:");
+	for(row=0x0; row<RTL8651_L2TBL_ROW; row++)
+	{
+		for(col=0; col<RTL8651_L2TBL_COLUMN; col++)
+		{
+			memset((void*)&asic_l2, 0, sizeof(asic_l2));
+			if (rtl8651_getAsicL2Table(row, col, &asic_l2) == FAILED)
+			{
+				continue;
+			}
+
+			if (asic_l2.isStatic && asic_l2.ageSec==0 && asic_l2.cpu && asic_l2.memberPortMask == 0 &&asic_l2.auth==0)
+			{
+				continue;
+			}
+
+			seq_printf(s, "%4d.[%3d,%d] %02x:%02x:%02x:%02x:%02x:%02x FID:%x mbr(",m, row, col,
+					asic_l2.macAddr.octet[0], asic_l2.macAddr.octet[1], asic_l2.macAddr.octet[2],
+					asic_l2.macAddr.octet[3], asic_l2.macAddr.octet[4], asic_l2.macAddr.octet[5],asic_l2.fid
+			);
+
+			m++;
+
+			for (port = 0 ; port < RTL8651_PORT_NUMBER + rtl8651_totalExtPortNum ; port ++)
+			{
+				if (asic_l2.memberPortMask & (1<<port))
+				{
+					seq_printf(s,"%d ", port);
+				}
+			}
+
+			seq_printf(s,")");
+			seq_printf(s,"%s %s %s %s age:%d ",asic_l2.cpu?"CPU":"FWD", asic_l2.isStatic?"STA":"DYN",  asic_l2.srcBlk?"BLK":"", asic_l2.nhFlag?"NH":"", asic_l2.ageSec);
+
+			if (asic_l2.auth)
+			{
+				seq_printf(s,"AUTH:%d",asic_l2.auth);
+			}
+			else
+			{
+				seq_printf(s,"AUTH:0");
+			}
+
+			seq_printf(s,"\n");
+		}
+	}
+
+	return 0;
+
+}
+#else
 static int32 l2_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -3064,6 +3925,7 @@ static int32 l2_read( char *page, char **start, off_t off, int count, int *eof, 
 	return len;
 
 }
+#endif
 static int32 l2_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
@@ -3073,10 +3935,13 @@ extern uint32 _rtl865x_getAddMcastOpCnt(void);
 extern uint32 _rtl865x_getDelMcastOpCnt(void);
 extern uint32 _rtl865x_getForceAddMcastOpCnt(void);
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
-static int32 rtl865x_proc_hw_mcast_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 rtl865x_proc_hw_mcast_read(struct seq_file *s, void *v)
 {
-	int len=0;
 	rtl865x_tblAsicDrv_multiCastParam_t asic;
+#if defined(CONFIG_RTL_8198C)
+	rtl8198C_tblAsicDrv_multiCastv6Param_t asic6;
+#endif
 	uint32 entry;
 
 	#if 1
@@ -3105,6 +3970,132 @@ static int32 rtl865x_proc_hw_mcast_read( char *page, char **start, off_t off, in
 			}
 	}
 	rtlglue_printf("\n\t TotalOpCnt:AddMcastOpCnt:%d\tDelMcastOpCnt:%d\tForceAddMcastOpCnt:%d\t \n", _rtl865x_getAddMcastOpCnt(),_rtl865x_getDelMcastOpCnt(),_rtl865x_getForceAddMcastOpCnt());
+	#else
+	seq_printf(s, "%s\n", "ASIC Multicast Table:");
+
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+	{
+			if (rtl8651_getAsicIpMulticastTable(entry, &asic) != SUCCESS) {
+				seq_printf(s,"\t[%d]  (Invalid Entry)\n", entry);
+				continue;
+			}
+			seq_printf(s, "\t[%d]  dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(%x)\n", entry,
+				asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
+				asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
+				asic.mbr);
+			seq_printf(s,"\t       svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
+				asic.age, asic.cpu);
+	}
+	#endif
+#if defined(CONFIG_RTL_8198C)
+	rtlglue_printf("----------------------------------------------------\n");
+	rtlglue_printf("%s\n", "ASIC IPV6 Multicast Table:");
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+	{
+			if(rtl8198C_getAsicIpMulticastv6Table(entry,&asic6) != SUCCESS){
+			#if 0 
+				rtlglue_printf("\t[%d]  (INVALID)dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(0x%x)\n", entry,
+					asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
+					asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
+					asic.mbr);
+				rtlglue_printf("\t       svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
+					asic.age, asic.cpu);
+			#endif
+				continue;
+			}
+			else
+			{	
+				rtlglue_printf("\t[%d]  (OK)dip:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
+					entry,
+					asic6.dip.v6_addr16[0],asic6.dip.v6_addr16[1],
+					asic6.dip.v6_addr16[2],asic6.dip.v6_addr16[3],
+					asic6.dip.v6_addr16[4],asic6.dip.v6_addr16[5],
+					asic6.dip.v6_addr16[6],asic6.dip.v6_addr16[7]);
+				rtlglue_printf("\t          sip:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
+					asic6.sip.v6_addr16[0],asic6.sip.v6_addr16[1],
+					asic6.sip.v6_addr16[2],asic6.sip.v6_addr16[3],
+					asic6.sip.v6_addr16[4],asic6.sip.v6_addr16[5],
+					asic6.sip.v6_addr16[6],asic6.sip.v6_addr16[7]);
+				
+				rtlglue_printf("\t          spa:%d, age:%d, cpu:%d\n", asic6.port, asic6.age, asic6.cpu);
+			}
+	}
+	rtlglue_printf("\n\t TotalOpCntv6:AddMcastOpCntv6:%d\tDelMcastOpCntv6:%d\tForceAddMcastOpCntv6:%d\t \n", _rtl8198C_getAddMcastv6OpCnt(),_rtl8198C_getDelMcastv6OpCnt(),_rtl8198C_getForceAddMcastv6OpCnt());
+#endif
+	return 0;
+}
+#else
+static int32 rtl865x_proc_hw_mcast_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len=0;
+	rtl865x_tblAsicDrv_multiCastParam_t asic;
+#if defined(CONFIG_RTL_8198C)
+	rtl8198C_tblAsicDrv_multiCastv6Param_t asic6;
+#endif
+	uint32 entry;
+
+	#if 1
+	rtlglue_printf("%s\n", "ASIC Multicast Table:");
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+	{
+			if (rtl8651_getAsicIpMulticastTable(entry, &asic) != SUCCESS) {
+				#if 0 
+				rtlglue_printf("\t[%d]  (INVALID)dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(0x%x)\n", entry,
+					asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
+					asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
+					asic.mbr);
+				rtlglue_printf("\t       svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
+					asic.age, asic.cpu);
+				#endif
+				continue;
+			}
+			else
+			{
+				rtlglue_printf("\t[%d]  (OK)dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(0x%x)\n", entry,
+				asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
+				asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
+				asic.mbr);
+				rtlglue_printf("\t       svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
+				asic.age, asic.cpu);
+			}
+	}
+	rtlglue_printf("\n\t TotalOpCnt:AddMcastOpCnt:%d\tDelMcastOpCnt:%d\tForceAddMcastOpCnt:%d\t \n", _rtl865x_getAddMcastOpCnt(),_rtl865x_getDelMcastOpCnt(),_rtl865x_getForceAddMcastOpCnt());
+#if defined(CONFIG_RTL_8198C)
+		rtlglue_printf("----------------------------------------------------\n");
+		rtlglue_printf("%s\n", "ASIC IPV6 Multicast Table:");
+		for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+		{
+				if(rtl8198C_getAsicIpMulticastv6Table(entry,&asic6) != SUCCESS){
+			#if 0 
+					rtlglue_printf("\t[%d]	(INVALID)dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(0x%x)\n", entry,
+						asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
+						asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
+						asic.mbr);
+					rtlglue_printf("\t		 svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
+						asic.age, asic.cpu);
+			#endif
+					continue;
+				}
+				else
+				{	
+					rtlglue_printf("\t[%d]	(OK)dip:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
+						entry,
+						asic6.dip.v6_addr16[0],asic6.dip.v6_addr16[1],
+						asic6.dip.v6_addr16[2],asic6.dip.v6_addr16[3],
+						asic6.dip.v6_addr16[4],asic6.dip.v6_addr16[5],
+						asic6.dip.v6_addr16[6],asic6.dip.v6_addr16[7]);
+					rtlglue_printf("\t			sip:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
+						asic6.sip.v6_addr16[0],asic6.sip.v6_addr16[1],
+						asic6.sip.v6_addr16[2],asic6.sip.v6_addr16[3],
+						asic6.sip.v6_addr16[4],asic6.sip.v6_addr16[5],
+						asic6.sip.v6_addr16[6],asic6.sip.v6_addr16[7]);
+					
+					rtlglue_printf("\t			spa:%d, age:%d, cpu:%d\n", asic6.port, asic6.age, asic6.cpu);
+				}
+		}
+		rtlglue_printf("\n\t TotalOpCntv6:AddMcastOpCntv6:%d\tDelMcastOpCntv6:%d\tForceAddMcastOpCntv6:%d\t \n", _rtl8198C_getAddMcastv6OpCnt(),_rtl8198C_getDelMcastv6OpCnt(),_rtl8198C_getForceAddMcastv6OpCnt());
+#endif
+
 	#else
 	len = sprintf(page, "%s\n", "ASIC Multicast Table:");
 
@@ -3143,6 +4134,7 @@ static int32 rtl865x_proc_hw_mcast_read( char *page, char **start, off_t off, in
 
 	return len;
 }
+#endif
 
 static int32 rtl865x_proc_hw_mcast_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -3227,7 +4219,7 @@ static int32 rtl865x_proc_hw_mcast_write( struct file *filp, const char *buff,un
 		}
 		mbr= simple_strtol(tokptr, NULL, 0);
 		entry.portList 			= mbr & (RTL8651_PHYSICALPORTMASK);
-#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #else
 		entry.extPortList 		= mbr >> RTL8651_PORT_NUMBER;
 #endif
@@ -3239,7 +4231,7 @@ static int32 rtl865x_proc_hw_mcast_write( struct file *filp, const char *buff,un
 			goto errout;
 		}
 		svid= simple_strtol(tokptr, NULL, 0);
-#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #else
 		entry.srcVidH 			= ((svid)>>4) &0xff;
 		entry.srcVidL 			= (svid)&0xf;
@@ -3252,8 +4244,7 @@ static int32 rtl865x_proc_hw_mcast_write( struct file *filp, const char *buff,un
 			goto errout;
 		}
 		srcPort= simple_strtol(tokptr, NULL, 0);
-#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-		entry.srcPort 			= srcPort;
+#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #else
 
 		if (srcPort>= RTL8651_PORT_NUMBER)
@@ -3316,6 +4307,13 @@ errout:
 	return len;
 }
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 rtl865x_proc_sw_mcast_read(struct seq_file *s, void *v)
+{
+	rtl_dumpSwMulticastInfo();
+	return 0;
+}
+#else
 static int32 rtl865x_proc_sw_mcast_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len=0;
@@ -3324,6 +4322,7 @@ static int32 rtl865x_proc_sw_mcast_read( char *page, char **start, off_t off, in
 
 	return len;
 }
+#endif
 
 static int32 rtl865x_proc_sw_mcast_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -3333,6 +4332,59 @@ static int32 rtl865x_proc_sw_mcast_write( struct file *filp, const char *buff,un
 #endif
 
 #ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 arp_read(struct seq_file *s, void *v)
+{
+	rtl865x_tblAsicDrv_routingParam_t asic_l3;
+	rtl865x_tblAsicDrv_arpParam_t asic_arp;
+	rtl865x_tblAsicDrv_l2Param_t asic_l2;
+
+	uint32	i, j, port;
+	ipaddr_t ipAddr;
+	int8 ipBuf[sizeof"255.255.255.255"];
+
+
+	seq_printf(s, "%s\n", "ASIC Arp Table:\n");
+	for(i=0; i<RTL8651_ARPTBL_SIZE; i++)
+	{
+		if (rtl8651_getAsicArp(i,  &asic_arp) == FAILED)
+			continue;
+		for(j=0; j<RTL8651_ROUTINGTBL_SIZE; j++)
+		{
+			if (rtl8651_getAsicRouting(j, &asic_l3) == FAILED || asic_l3.process!= 0x02 /*RT_ARP*/)
+				continue;
+			if(asic_l3.arpStart <= (i>>3) &&  (i>>3) <= asic_l3.arpEnd)
+			{
+				ipAddr = (asic_l3.ipAddr & asic_l3.ipMask) + (i - (asic_l3.arpStart<<3));
+				if(rtl8651_getAsicL2Table_Patch(asic_arp.nextHopRow, asic_arp.nextHopColumn, &asic_l2) == FAILED)
+				{
+					inet_ntoa_r(ipAddr, ipBuf);
+					seq_printf(s,"%-16s [%3d,%d] ", ipBuf, asic_arp.nextHopRow, asic_arp.nextHopColumn);
+				}
+				else
+				{
+					inet_ntoa_r(ipAddr, ipBuf);
+					seq_printf(s,"%-16s %02x-%02x-%02x-%02x-%02x-%02x (", ipBuf, asic_l2.macAddr.octet[0], asic_l2.macAddr.octet[1], asic_l2.macAddr.octet[2], asic_l2.macAddr.octet[3], asic_l2.macAddr.octet[4], asic_l2.macAddr.octet[5]);
+					for(port=0; port< RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum; port++){
+						if(asic_l2.memberPortMask& (1<<port))
+							seq_printf(s,"%d ", port);
+						else
+							seq_printf(s,"  ");
+					}
+					seq_printf(s,") %us", asic_l2.ageSec);
+				}
+				continue;
+			}
+		}
+
+		seq_printf(s," ARP:%3d  L2:%3d,%d,aging:%d\n", i, asic_arp.nextHopRow, asic_arp.nextHopColumn,asic_arp.aging);
+
+	}
+
+	return 0;
+}
+#else
 static int32 arp_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -3384,12 +4436,34 @@ static int32 arp_read( char *page, char **start, off_t off, int count, int *eof,
 
 	return len;
 }
+#endif
 
 static int32 arp_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 nexthop_read(struct seq_file *s, void *v)
+{
+	rtl865x_tblAsicDrv_nextHopParam_t asic_nxthop;
+
+	uint32 idx, refcnt, rt_flag;
+
+	seq_printf(s, "%s\n", "ASIC Next Hop Table:\n");
+	for(idx=0; idx<RTL8651_NEXTHOPTBL_SIZE; idx++) {
+		refcnt = rt_flag = 0;
+		if (rtl8651_getAsicNextHopTable(idx, &asic_nxthop) == FAILED)
+			continue;
+		seq_printf(s,"  [%d]  type(%s) IPIdx(%d) dstVid(%d) pppoeIdx(%d) nextHop([%d:%d]%d) rf(%d) rt(%d)\n", idx,
+			(asic_nxthop.isPppoe==TRUE? "pppoe": "ethernet"), asic_nxthop.extIntIpIdx,
+			asic_nxthop.dvid, asic_nxthop.pppoeIdx,asic_nxthop.nextHopRow ,asic_nxthop.nextHopColumn,(asic_nxthop.nextHopRow<<2)+asic_nxthop.nextHopColumn, refcnt, rt_flag);
+	}
+
+	return 0;
+}
+#else
 static int32 nexthop_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -3409,12 +4483,85 @@ static int32 nexthop_read( char *page, char **start, off_t off, int count, int *
 
 	return len;
 }
+#endif
 
 static int32 nexthop_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 l3_read(struct seq_file *s, void *v)
+{
+	rtl865x_tblAsicDrv_routingParam_t asic_l3;
+	int8 *str[] = { "PPPoE", "L2", "ARP", " ", "CPU", "NxtHop", "DROP", " " };
+	int8 *strNetType[] = { "WAN", "DMZ", "LAN",  "RLAN"};
+	uint32 idx, mask;
+	int netIdx;
+
+	seq_printf(s, "%s\n", "ASIC L3 Routing Table:\n");
+	for(idx=0; idx<RTL8651_ROUTINGTBL_SIZE; idx++)
+	{
+		if (rtl8651_getAsicRouting(idx, &asic_l3) == FAILED)
+		{
+			seq_printf(s,"\t[%d]  (Invalid)\n", idx);
+			continue;
+		}
+		if (idx == RTL8651_ROUTINGTBL_SIZE-1)
+			mask = 0;
+		else for(mask=32; !(asic_l3.ipMask&0x01); asic_l3.ipMask=asic_l3.ipMask>>1)
+				mask--;
+		netIdx = asic_l3.internal<<1|asic_l3.DMZFlag;
+#if defined(CONFIG_RTL_8198C)
+		seq_printf(s,"\t[%d]  %d.%d.%d.%d/%d process(%s) %s DSLEG(%d),DSL_IDX(%d)\n", idx, (asic_l3.ipAddr>>24),
+			((asic_l3.ipAddr&0x00ff0000)>>16), ((asic_l3.ipAddr&0x0000ff00)>>8), (asic_l3.ipAddr&0xff),
+			mask, str[asic_l3.process],strNetType[netIdx],asic_l3.DSLEG,asic_l3.DSL_IDX);
+#else
+		seq_printf(s,"\t[%d]  %d.%d.%d.%d/%d process(%s) %s \n", idx, (asic_l3.ipAddr>>24),
+			((asic_l3.ipAddr&0x00ff0000)>>16), ((asic_l3.ipAddr&0x0000ff00)>>8), (asic_l3.ipAddr&0xff),
+			mask, str[asic_l3.process],strNetType[netIdx]);
+#endif
+		switch(asic_l3.process)
+		{
+		case 0x00:	/* PPPoE */
+			seq_printf(s,"\t           dvidx(%d)  pppidx(%d) nxthop(%d)\n", asic_l3.vidx, asic_l3.pppoeIdx, (asic_l3.nextHopRow<<2)+asic_l3.nextHopColumn);
+			break;
+
+		case 0x01:	/* L2 */
+			seq_printf(s,"              dvidx(%d) nexthop(%d)\n", asic_l3.vidx, (asic_l3.nextHopRow<<2)+asic_l3.nextHopColumn);
+			break;
+
+		case 0x02:	/* ARP */
+			seq_printf(s,"             dvidx(%d) ARPSTA(%d) ARPEND(%d) IPIDX(%d)\n", asic_l3.vidx, asic_l3.arpStart<<3, asic_l3.arpEnd<<3, asic_l3.arpIpIdx);
+			break;
+
+		case 0x03:	/* Reserved */
+			;
+
+		case 0x04:	/* CPU */
+			seq_printf(s,"             dvidx(%d)\n", asic_l3.vidx);
+			break;
+
+		case 0x05:	/* NAPT Next Hop */
+			seq_printf(s,"              NHSTA(%d) NHNUM(%d) NHNXT(%d) NHALGO(%d) IPDOMAIN(%d)\n", asic_l3.nhStart,
+				asic_l3.nhNum, asic_l3.nhNxt, asic_l3.nhAlgo, asic_l3.ipDomain);
+			break;
+
+		case 0x06:	/* DROP */
+			seq_printf(s,"             dvidx(%d)\n", asic_l3.vidx);
+			break;
+
+		case 0x07:	/* Reserved */
+			/* pass through */
+		default:
+		;
+		}
+	}
+
+	return 0;
+}
+#else
 static int32 l3_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -3480,12 +4627,41 @@ static int32 l3_read( char *page, char **start, off_t off, int count, int *eof, 
 
 	return len;
 }
+#endif
 
 static int32 l3_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 ip_read(struct seq_file *s, void *v)
+{
+	rtl865x_tblAsicDrv_extIntIpParam_t asic_ip;
+	int32	i;
+	int8 intIpBuf[sizeof"255.255.255.255"];
+	int8 extIpBuf[sizeof"255.255.255.255"];
+
+	seq_printf(s, "%s\n", "ASIC IP Table:\n");
+
+	for(i=0; i<RTL8651_IPTABLE_SIZE; i++)
+	{
+		if (rtl8651_getAsicExtIntIpTable(i,  &asic_ip) == FAILED)
+		{
+			seq_printf(s,"  [%d] (Invalid)\n", i);
+			continue;
+		}
+		inet_ntoa_r(asic_ip.intIpAddr, intIpBuf);
+		inet_ntoa_r(asic_ip.extIpAddr,extIpBuf);
+		seq_printf(s,"  [%d] intip(%-14s) extip(%-14s) type(%s) nhIdx(%d)\n",
+					i, intIpBuf,extIpBuf,
+					(asic_ip.localPublic==TRUE? "LP" : (asic_ip.nat==TRUE ? "NAT" : "NAPT")), asic_ip.nhIndex);
+	}
+
+	return 0;
+}
+#else
 static int32 ip_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -3513,12 +4689,30 @@ static int32 ip_read( char *page, char **start, off_t off, int count, int *eof, 
 
 	return len;
 }
+#endif
 
 static int32 ip_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 pppoe_read(struct seq_file *s, void *v)
+{
+	rtl865x_tblAsicDrv_pppoeParam_t asic_pppoe;
+	int32	i;
+
+	seq_printf(s, "%s\n", "ASIC PPPOE Table:\n");
+	for(i=0; i<RTL8651_PPPOETBL_SIZE; i++)
+	{
+		if (rtl8651_getAsicPppoe(i,  &asic_pppoe) == FAILED)
+			continue;
+		seq_printf(s,"\t[%d]  sessionID(%d)  ageSec(%d)\n", i, asic_pppoe.sessionId, asic_pppoe.age);
+	}
+	return 0;
+}
+#else
 static int32 pppoe_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -3534,6 +4728,7 @@ static int32 pppoe_read( char *page, char **start, off_t off, int count, int *eo
 	}
 	return len;
 }
+#endif
 
 static int32 pppoe_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -3612,6 +4807,62 @@ struct file_operations sw_napt_single_seq_file_operations = {
 };
 #endif
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 port_bandwidth_read(struct seq_file *s, void *v)
+{
+	uint32	regData;
+	uint32	data0, data1;
+	int		port;
+
+	seq_printf(s, "Dump Port Bandwidth Info:\n");
+
+	for(port=0;port<=CPU;port++)
+	{
+		regData = READ_MEM32(IBCR0+((port>>1)<<2));
+		if(port&1)
+		{
+			data0 = (regData&IBWC_ODDPORT_MASK)>>IBWC_ODDPORT_OFFSET;
+		}
+		else
+		{
+			data0 = (regData&IBWC_EVENPORT_MASK)>>IBWC_EVENPORT_OFFSET;
+		}
+
+		regData = READ_MEM32(WFQRCRP0+((port*3)<<2));
+		data1 = (regData&APR_MASK)>>APR_OFFSET;
+
+		data0++;
+
+		if (data0)
+		{
+			if (data0<64)
+				seq_printf(s, "Port%d Ingress:[%dKbps]	", port, (data0<<4)/1000);
+			else
+				seq_printf(s, "Port%d Ingress:[%d.%03dMbps]	", port, (data0<<14)/1000000, ((data0<<14)%1000000)/1000);
+		}
+		else
+		{
+			seq_printf(s, "Port%d Ingress:FullSpeed	", port);
+		}
+
+		if(data1!=(APR_MASK>>APR_OFFSET))
+		{
+			data1++;
+
+			if (data1<16)
+				seq_printf(s, "Engress:[%dKbps]\n", (data1<<16)/1000);
+			else
+				seq_printf(s, "Engress:[%d.%03dMbps]\n", (data1<<16)/1000000, ((data1<<16)%1000000)/1000);
+
+		}
+		else
+			seq_printf(s, "Egress:FullSpeed\n");
+	}
+
+	return 0;
+}
+#else
 static int32 port_bandwidth_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -3666,142 +4917,87 @@ static int32 port_bandwidth_read( char *page, char **start, off_t off, int count
 
 	return len;
 }
+#endif
 
 static int32 port_bandwidth_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 
-#ifdef CONFIG_RTK_VOIP_QOS
-static int32 port_priority_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 queue_bandwidth_read(struct seq_file *s, void *v)
 {
+	uint32	regData;
+	uint32	data0, data1;
+	int		port, queue;
 
-	extern int32 rtl8651_getAsicPortPriority( enum PORTID , enum PRIORITYVALUE*);
-
-
-	int		len;
-	int 		port;
-	int		priority;
-	len = sprintf(page, "Dump Port Priority Info:\n");
-        for(port=0;port<=CPU;port++)
-        {
-		rtl8651_getAsicPortPriority(port,(enum PRIORITYVALUE*)&priority);
-		len += sprintf(page+len, "Port %d Priority %d\n",port,priority);
+	if (queue_bandwidth_record_portmask==0)
+	{
+		seq_printf(s, "Please set the dump mask firstly.\n");
+		return 0;
 	}
-	return len;
-}
-static int32 port_priority_write( struct file *filp, const char *buff,unsigned long len, void *data )
-{
-	extern int32 rtl8651_setAsicPortPriority(enum PORTID, enum PRIORITYVALUE);
-        char tmpbuf[16], *tokptr, *strptr;
-        int     port;
-        int     priority;
-	int 	i;
-        memset(tmpbuf, 0, 16);
-	
-	if (buff && !copy_from_user(tmpbuf, buff, len)) {
+	seq_printf(s, "Dump Queue Bandwidth Info:\n");
 
-		tmpbuf[len] = '\0';
-		strptr = tmpbuf;
-		tokptr = strsep(&strptr," ");
-		if (tokptr==NULL || *tokptr=='\0')
-		{
-                        goto errout;
-		}
-		
-		port  = (uint32)simple_strtol(tokptr, NULL, 0);
-	
-		if(port == -1)
-		{
-			printk("Reset all port priority ro 0 \n");
-			for(i=0; i<= CPU; i++)
-				rtl8651_setAsicPortPriority( i,0);
-			return len;
-		}			
-	 
-		tokptr = strsep(&strptr," ");
-		if (tokptr==NULL || *tokptr=='\0')
-                {
-                        goto errout;
-                }
-		priority = (uint32)simple_strtol(tokptr, NULL, 0);
-		priority &=0x7;
-		
-		rtl8651_setAsicPortPriority( port,(enum PRIORITYVALUE)priority);
-		printk("set port %d priority %d\n",port,priority);
-		return len;
+	for(port=PHY0;port<=CPU;port++)
+	{
+		if ((queue_bandwidth_record_portmask&(1<<port))==0)
+			continue;
 
-	}
-
-errout:
-	printk("Input error: port(0-5) priority (0-7)\n");
-	printk("-1 to reset all port priority to 0\n");
-	return len;
-}
-
-static int32 dscp_priority_read( char *page, char **start, off_t off, int count, int *eof, void *data )
-{
-	int		len;
-	int 		dscp;
-	int 		priority;	
-	extern int32 rtl8651_getAsicDscpPriority( uint32 ,  enum PRIORITYVALUE*);
-	len = sprintf(page, "Dump DSCP Priority Info:\n");
-        for(dscp = 0;dscp < 64;dscp ++)
-        {
-		rtl8651_getAsicDscpPriority(dscp,(enum PRIORITYVALUE*)&priority);
-		if (priority)
-			len += sprintf(page+len, "DSCP %d Priority %d\n",dscp,priority);
-	}
-	return len;
-}
-static int32 dscp_priority_write( struct file *filp, const char *buff,unsigned long len, void *data )
-{
-
-	extern int32 rtl8651_setAsicDscpPriority( uint32 , enum PRIORITYVALUE);
-	extern int32 rtl8651_reset_dscp_priority(void);
-        char tmpbuf[16], *tokptr, *strptr;
-        int     dscp;
-        int     priority;
-        memset(tmpbuf, 0, 16);
-	
-	if (buff && !copy_from_user(tmpbuf, buff, len)) {
-
-		tmpbuf[len] = '\0';
-		strptr = tmpbuf;
-		tokptr = strsep(&strptr," ");
-		if (tokptr==NULL || *tokptr=='\0')
-		{
-                        goto errout;
-		}
-		dscp  = (uint32)simple_strtol(tokptr, NULL, 0);
-		if(dscp == -1)
-		{
-			rtl8651_reset_dscp_priority();
-			printk("Reset all dscp priority ro 0 \n");
-			return len;
-		}			
-	 
-		dscp &= 0x3f;
-		tokptr = strsep(&strptr," ");
-		if (tokptr==NULL || *tokptr=='\0')
-                {
-                        goto errout;
-                }
-		priority = (uint32)simple_strtol(tokptr, NULL, 0);
-		priority &=0x7;
-		
-		rtl8651_setAsicDscpPriority( dscp,(enum PRIORITYVALUE)priority);
-		printk("set dscp %d priority %d\n", dscp, priority);
-		return len;
-
-	}
-
-errout:
-	printk("Input error: dscp(0-63) priority (0-7)\n");	
-	printk("-1 to reset all dscp priority to 0\n");
-	return len;
-}
+		regData = READ_MEM32(QNUMCR);
+		data0 = (regData>>(port*3))&7;
+#ifdef CONFIG_RTL_8198C
+		seq_printf(s, "Port%d Queue number:	%d\n", port, data0+1);
+#else
+		seq_printf(s, "Port%d Queue number:	%d\n", port, data0);
 #endif
+		for(queue=QUEUE0;queue<=QUEUE5;queue++)
+		{
+			rtl8651_getAsicQueueFlowControlConfigureRegister(port, queue, &data0);
+			seq_printf(s, "	==>Queue%d FC %s | ", queue, data0?"Enabled":"Disabled");
+
+			rtl8651_getAsicQueueWeight(port, queue, &data0, &data1);
+			if (data0 == STR_PRIO)
+			{
+				seq_printf(s, "Type: STR\n");
+			}
+			else
+			{
+				seq_printf(s, "Type: WFQ [weight:%d]\n", data1+1);
+			}
+
+			regData = READ_MEM32(P0Q0RGCR+(queue<<2)+((port*6)<<2));
+			data1 = (regData&L1_MASK)>>L1_OFFSET;
+
+			if(data1==(L1_MASK>>L1_OFFSET))
+			{
+				seq_printf(s, "	    BurstSize UnLimit | ");
+			}
+			else
+			{
+				seq_printf(s, "	    BurstSize[%dKbps] | ", data1);
+			}
+
+			data0 = (regData&APR_MASK)>>APR_OFFSET;
+			data1 = (regData&PPR_MASK)>>PPR_OFFSET;
+			if(data0!=(APR_MASK>>APR_OFFSET))
+			{
+				data0++;
+				if (data0<16)
+					seq_printf(s, "Engress: avgRate[%dKbps], peakRate[%d]\n", data0<<6, 1<<data1);
+				else
+					seq_printf(s, "Engress: avgRate[%d.%3dMbps], peakRate[%d]\n", data0>>4, (data0&0xf)<<6, 1<<data1);
+
+			}
+			else
+				seq_printf(s, "Egress: avgRate & peakRateFullSpeed\n");
+
+		}
+	}
+
+	return 0;
+}
+#else
 static int32 queue_bandwidth_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -3823,7 +5019,11 @@ static int32 queue_bandwidth_read( char *page, char **start, off_t off, int coun
 
 		regData = READ_MEM32(QNUMCR);
 		data0 = (regData>>(port*3))&7;
+#ifdef CONFIG_RTL_8198C
+		len += sprintf(page+len, "Port%d Queue number:	%d\n", port, data0+1);
+#else
 		len += sprintf(page+len, "Port%d Queue number:	%d\n", port, data0);
+#endif
 		for(queue=QUEUE0;queue<=QUEUE5;queue++)
 		{
 			rtl8651_getAsicQueueFlowControlConfigureRegister(port, queue, &data0);
@@ -3870,6 +5070,7 @@ static int32 queue_bandwidth_read( char *page, char **start, off_t off, int coun
 
 	return len;
 }
+#endif
 
 static int32 queue_bandwidth_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -3911,6 +5112,36 @@ errout:
 
 
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 priority_decision_read(struct seq_file *s, void *v)
+{
+	uint32	regData;
+	int		queue;
+
+	seq_printf(s, "Dump Priority Infor:\n");
+
+	regData = READ_MEM32(QIDDPCR);
+
+	seq_printf(s, "NAPT[%d] ACL[%d] DSCP[%d] 8021Q[%d] PortBase[%d]\n",
+		(regData & NAPT_PRI_MASK) >> NAPT_PRI_OFFSET,
+		(regData & ACL_PRI_MASK) >> ACL_PRI_OFFSET,
+		(regData & DSCP_PRI_MASK) >> DSCP_PRI_OFFSET,
+		(regData & BP8021Q_PRI_MASK) >> BP8021Q_PRI_OFFSET,
+		(regData & PBP_PRI_MASK) >> PBP_PRI_OFFSET);
+
+	for(queue=0;queue<RTL8651_OUTPUTQUEUE_SIZE;queue++)
+	{
+		regData = READ_MEM32(UPTCMCR0+(queue<<2));
+		seq_printf(s, "Queue number %d:\n", (queue+1));
+		seq_printf(s, "Piority[0~7] Mapping to Queue[ %d %d %d %d %d %d %d %d ]\n",
+			regData&0x7, (regData>>3)&0x7, (regData>>6)&0x7, (regData>>9)&0x7,
+			(regData>>12)&0x7, (regData>>15)&0x7, (regData>>18)&0x7, (regData>>21)&0x7);
+	}
+
+	return 0;
+}
+#else
 static int32 priority_decision_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -3939,6 +5170,7 @@ static int32 priority_decision_read( char *page, char **start, off_t off, int co
 
 	return len;
 }
+#endif
 
 static int32 priority_decision_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -3946,6 +5178,25 @@ static int32 priority_decision_write( struct file *filp, const char *buff,unsign
 }
 
 #if defined (CONFIG_RTL_ENABLE_RATELIMIT_TABLE)
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 rate_limit_read(struct seq_file *s, void *v)
+{
+	rtl865x_tblAsicDrv_rateLimitParam_t asic_rl;
+	uint32 entry;
+
+	seq_printf(s, "Dump rate limit table:\n");
+	for(entry=0; entry<RTL8651_RATELIMITTBL_SIZE; entry++) {
+		if (rtl8651_getAsicRateLimitTable(entry, &asic_rl) == SUCCESS) {
+			seq_printf(s, " [%d]  Token(%u)  MaxToken(%u)  remainTime Unit(%u)  \n\trefillTimeUnit(%u)  refillToken(%u)\n",
+				entry, asic_rl.token, asic_rl.maxToken, asic_rl.t_remainUnit, asic_rl.t_intervalUnit, asic_rl.refill_number);
+		}
+		else seq_printf(s, " [%d]  Invalid entry\n", entry);
+	}
+	seq_printf(s, "\n");
+
+	return 0;
+}
+#else
 static int32 rate_limit_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -3964,6 +5215,7 @@ static int32 rate_limit_read( char *page, char **start, off_t off, int count, in
 
 	return len;
 }
+#endif
 
 static int32 rate_limit_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -3972,6 +5224,26 @@ static int32 rate_limit_write( struct file *filp, const char *buff,unsigned long
 #endif
 
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 storm_read(struct seq_file *s, void *v)
+{
+	uint32	regData;
+	uint32 port;
+	uint32 totalExtPortNum=3;
+	seq_printf(s, "Dump storm control info:\n");
+
+	regData = READ_MEM32(BSCR);
+	seq_printf(s, "rate(%d)\n",regData*100/30360);
+
+	for ( port = 0; port < RTL8651_PORT_NUMBER + totalExtPortNum; port++ )
+	{
+		regData = READ_MEM32(PCRP0+port*4);
+		seq_printf(s,"port%d, %s BCSC, %s BC, %s MC\n", port,regData&ENBCSC?"enable":"disable",regData&BCSC_ENBROADCAST?"enable":"disable",
+					regData&BCSC_ENMULTICAST?"enable":"disable");
+	}
+	return 0;
+}
+#else
 static int32 storm_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -4003,6 +5275,7 @@ static int32 storm_read( char *page, char **start, off_t off, int count, int *eo
 
 	return len;
 }
+#endif
 
 static int32 storm_write(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
@@ -4048,8 +5321,28 @@ errout:
 
 #endif
 
+#if defined(CONFIG_RTL_ETH_PRIV_SKB)
+extern int get_buf_in_poll(void);
+extern int get_buf_in_rx_skb_queue(void);
+#endif
+
 #if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
 //the following proc default established
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 stats_debug_entry_read(struct seq_file *s, void *v)
+{
+	seq_printf(s, "  Debug Statistics Info:\n");
+#if defined(CONFIG_RTL_ETH_PRIV_SKB)
+	seq_printf(s,"    eth_skb_free_num:	%d (pool %d, rtk_que %d)\n",
+		get_buf_in_poll() + get_buf_in_rx_skb_queue(),
+		get_buf_in_poll() , get_buf_in_rx_skb_queue());
+#endif
+	seq_printf(s,"    rx_noBuffer_cnt:	%d\n",rx_noBuffer_cnt);
+	seq_printf(s,"    tx_ringFull_cnt:	%d\n",tx_ringFull_cnt);
+	seq_printf(s,"    tx_drop_cnt:	%d\n",tx_drop_cnt);
+	return 0;
+}
+#else
 static int32 stats_debug_entry_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int 	len;
@@ -4106,16 +5399,21 @@ errout:
 
 
 #if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
-static int32 rtl819x_proc_privSkbInfo_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+extern int get_mbuf_pending_times(void);
+extern int get_nic_rxRing_buf(void);
+extern int get_nic_txRing_buf(void);
+extern int get_nic_buf_in_wireless_tx(const char *name);
+extern	int get_cpu_completion_queue_num(void);
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 rtl819x_proc_privSkbInfo_read(struct seq_file *s, void *v)
 {
-	int len;
 	int cpu_queue_cnt,rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, mbuf_pending_cnt;
 	int rx_skb_queue_cnt,poll_buf_cnt;
-	unsigned long flags;
+	unsigned long flags=0;
 
-	len = sprintf(page, "original eth private buf total(%d)\n",MAX_ETH_SKB_NUM);
+	seq_printf(s, "original eth private buf total(%d)\n",MAX_ETH_SKB_NUM);
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	mbuf_pending_cnt = get_mbuf_pending_times();
 	cpu_queue_cnt = get_cpu_completion_queue_num();
 	rxRing_cnt = get_nic_rxRing_buf();
@@ -4129,7 +5427,39 @@ static int32 rtl819x_proc_privSkbInfo_read( char *page, char **start, off_t off,
 #endif
 	rx_skb_queue_cnt = get_buf_in_rx_skb_queue();
 	poll_buf_cnt = get_buf_in_poll();
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
+
+	seq_printf(s,"cpu completion cnt(%d)\nnic rxring cnt(%d)\nnic txring cnt(%d)\nwlan0 txring cnt(%d)\nwlan1 txring cnt(%d)\nrx skb queue cnt(%d)\npool buf cnt(%d)\nmbuf pending times(%d)\nsum(%d)\n",
+	cpu_queue_cnt,rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, rx_skb_queue_cnt,poll_buf_cnt,mbuf_pending_cnt,
+	cpu_queue_cnt+rxRing_cnt+txRing_cnt+wlan_txRing_cnt+wlan_txRing_cnt1+rx_skb_queue_cnt+poll_buf_cnt);
+
+	return 0;
+}
+#else
+static int32 rtl819x_proc_privSkbInfo_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	int cpu_queue_cnt,rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, mbuf_pending_cnt;
+	int rx_skb_queue_cnt,poll_buf_cnt;
+	unsigned long flags=0;
+
+	len = sprintf(page, "original eth private buf total(%d)\n",MAX_ETH_SKB_NUM);
+
+	SMP_LOCK_ETH(flags);
+	mbuf_pending_cnt = get_mbuf_pending_times();
+	cpu_queue_cnt = get_cpu_completion_queue_num();
+	rxRing_cnt = get_nic_rxRing_buf();
+	txRing_cnt = get_nic_txRing_buf();
+#if defined(CONFIG_RTL8192CD)
+	wlan_txRing_cnt = get_nic_buf_in_wireless_tx("wlan0");
+	wlan_txRing_cnt1 = get_nic_buf_in_wireless_tx("wlan1");
+#else
+	wlan_txRing_cnt = 0;
+	wlan_txRing_cnt1 = 0;
+#endif
+	rx_skb_queue_cnt = get_buf_in_rx_skb_queue();
+	poll_buf_cnt = get_buf_in_poll();
+	SMP_UNLOCK_ETH(flags);
 
 	len+=sprintf(page + len,"cpu completion cnt(%d)\nnic rxring cnt(%d)\nnic txring cnt(%d)\nwlan0 txring cnt(%d)\nwlan1 txring cnt(%d)\nrx skb queue cnt(%d)\npool buf cnt(%d)\nmbuf pending times(%d)\nsum(%d)\n",
 	cpu_queue_cnt,rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, rx_skb_queue_cnt,poll_buf_cnt,mbuf_pending_cnt,
@@ -4137,6 +5467,7 @@ static int32 rtl819x_proc_privSkbInfo_read( char *page, char **start, off_t off,
 
 	return len;
 }
+#endif
 
 
 static int32 rtl819x_proc_privSkbInfo_write( struct file *filp, const char *buff,unsigned long len, void *data )
@@ -4144,10 +5475,17 @@ static int32 rtl819x_proc_privSkbInfo_write( struct file *filp, const char *buff
 	return len;
 }
 #else
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 rtl819x_proc_privSkbInfo_read(struct seq_file *s, void *v)
+{
+	return PROC_READ_RETURN_VALUE;
+}
+#else
 static int32 rtl819x_proc_privSkbInfo_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	return PROC_READ_RETURN_VALUE;
 }
+#endif
 
 static int32 rtl819x_proc_privSkbInfo_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -4173,6 +5511,77 @@ errout:
 }
 #endif
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 diagnostic_read(struct seq_file *s, void *v)
+{
+	uint32	regData, regData1;
+	int		port, regIdx;
+	uint32	mask, offset;
+
+	seq_printf(s, "Diagnostic Register Info:\n");
+
+	regData = READ_MEM32(GDSR0);
+	seq_printf(s, "MaxUsedDescriptor: %d CurUsed Descriptor: %d\n",
+		(regData&MaxUsedDsc_MASK)>>MaxUsedDsc_OFFSET,
+		(regData&USEDDSC_MASK)>>USEDDSC_OFFSET);
+	seq_printf(s, "DescRunOut: %s TotalDescFC: %s ShareBufFC: %s\n",
+		(regData&DSCRUNOUT)?"YES":"NO", (regData&TotalDscFctrl_Flag)?"YES":"NO", (regData&SharedBufFCON_Flag)?"YES":"NO");
+
+	for(regIdx = 0; regIdx<2; regIdx++)
+	{
+		regData = READ_MEM32(PCSR0+(regIdx<<2));
+
+		for(port=0; port<4; port++)
+		{
+			switch(port)
+			{
+				case 0:
+					mask = P0OQCgst_MASK;
+					offset = P0OQCgst_OFFSET;
+					break;
+				case 1:
+					mask = P1OQCgst_MASK;
+					offset = P1OQCgst_OFFSET;
+					break;
+				case 2:
+					mask = P2OQCgst_MASK;
+					offset = P2OQCgst_OFFSET;
+					break;
+				default:
+					mask = P3OQCgst_MASK;
+					offset = P3OQCgst_OFFSET;
+					break;
+			}
+			regData1 = (regData&mask)>>offset;
+			if (regData1==0)
+				seq_printf(s, "Port%d not congestion\n", port+(regIdx<<2));
+			else
+			{
+				seq_printf(s, "Port%d queue congestion mask 0x%x\n", port+(regIdx<<2), regData1);
+			}
+		}
+	}
+
+	for(port=0;port<=CPU;port++)
+	{
+		seq_printf(s, "Port%d each queue used descriptor: Queue[0~5]: [ ", port);
+		for(regIdx=0; regIdx<3; regIdx++)
+		{
+			regData = READ_MEM32(P0_DCR0+(port<<4)+(regIdx<<2));
+			seq_printf(s, "%d %d ",
+				((regData&Pn_EQDSCR_MASK)>>Pn_EVEN_OQDSCR_OFFSET),
+				((regData&Pn_OQDSCR_MASK)>>Pn_ODD_OQDSCR_OFFSET));
+		}
+
+		regData = READ_MEM32(P0_DCR3+(port<<4));
+		seq_printf(s, "]  Input queue [%d]\n",
+				((regData&Pn_EQDSCR_MASK)>>Pn_EVEN_OQDSCR_OFFSET));
+	}
+
+	return 0;
+}
+#else
 static int32 diagnostic_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -4242,6 +5651,7 @@ static int32 diagnostic_read( char *page, char **start, off_t off, int count, in
 
 	return len;
 }
+#endif
 
 static int32 diagnostic_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -4249,10 +5659,18 @@ static int32 diagnostic_write( struct file *filp, const char *buff,unsigned long
 }
 
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 proc_mem_read(struct seq_file *s, void *v)
+{
+	return PROC_READ_RETURN_VALUE;
+}
+#else
 static int32 proc_mem_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	return PROC_READ_RETURN_VALUE;
 }
+#endif
 
 static int32 proc_mem_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -4321,6 +5739,123 @@ errout:
 
 
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 port_status_read(struct seq_file *s, void *v)
+{
+	int		port;
+	
+#if defined(CONFIG_RTL_8367R_SUPPORT)
+	seq_printf(s, "Dump Port Status:\n");
+
+	for(port=PHY0;port<=PHY4;port++)
+	{
+		extern int  rtk_port_macStatus_get(int port, rtk_port_mac_ability_t *pPortstatus);
+		rtk_port_mac_ability_t sts;
+		if ((rtk_port_macStatus_get(port, &sts)) == 0) {
+			len += sprintf(page+len, "Port%d ", port);
+
+			if (sts.link == 0) {
+				len += sprintf(page+len, "LinkDown\n\n");
+				continue;
+			}
+			else {
+				len += sprintf(page+len, "LinkUp | ");
+			}
+			len += sprintf(page+len, "NWay Mode %s\n", (sts.nway) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "	RXPause %s | ", (sts.rxpause) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "TXPause %s\n", (sts.txpause) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "	Duplex %s | ", (sts.duplex) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "Speed %s\n\n", (sts.speed) ==PortStatusLinkSpeed100M?"100M":
+				((sts.speed) ==PortStatusLinkSpeed1000M?"1G":
+					((sts.speed) ==PortStatusLinkSpeed10M?"10M":"Unkown")));
+					
+		}
+	}
+#else
+	uint32	regData, data0, regData_PCR;
+
+	seq_printf(s, "Dump Port Status:\n");
+	for(port=PHY0;port<=CPU;port++)
+	{
+		regData = READ_MEM32(PSRP0+((port)<<2));
+		regData_PCR = READ_MEM32(PCRP0+((port)<<2));
+		
+		if (port==CPU)
+			seq_printf(s, "CPUPort ");
+		else
+			seq_printf(s, "Port%d ", port);
+		
+		data0 = regData_PCR & EnForceMode;
+		if(data0)
+		{
+			seq_printf(s, "Enforce Mode ");
+			data0 = regData_PCR & PollLinkStatus;
+			if (data0)
+				seq_printf(s, " | polling LinkUp");
+			else
+			{
+				seq_printf(s, " | disable Auto-Negotiation\n\n");
+			}
+		}
+		else
+		{
+			seq_printf(s, "Force Mode disable\n");
+		}
+		
+		regData = READ_MEM32(PSRP0+((port)<<2));
+		data0 = regData & PortStatusLinkUp;
+
+		if (data0)
+			seq_printf(s, "LinkUp | ");
+		else
+		{
+			seq_printf(s, "LinkDown\n\n");
+			continue;
+		}
+		data0 = regData & PortStatusNWayEnable;
+		seq_printf(s, "NWay Mode %s\n", data0?"Enabled":"Disabled");
+		data0 = regData & PortStatusRXPAUSE;
+		seq_printf(s, "	RXPause %s | ", data0?"Enabled":"Disabled");
+		data0 = regData & PortStatusTXPAUSE;
+		seq_printf(s, "TXPause %s\n", data0?"Enabled":"Disabled");
+		data0 = regData & PortStatusDuplex;
+		seq_printf(s, "	Duplex %s | ", data0?"Enabled":"Disabled");
+		data0 = (regData&PortStatusLinkSpeed_MASK)>>PortStatusLinkSpeed_OFFSET;
+
+#ifdef CONFIG_RTL_8198C
+		seq_printf(s, "Speed %s\n", data0==PortStatusLinkSpeed100M?"100M":
+			(data0==PortStatusLinkSpeed1000M?"1G":
+				(data0==PortStatusLinkSpeed10M?"10M":"500M")));
+#else
+		seq_printf(s, "Speed %s\n", data0==PortStatusLinkSpeed100M?"100M":
+			(data0==PortStatusLinkSpeed1000M?"1G":
+				(data0==PortStatusLinkSpeed10M?"10M":"Unkown")));
+#endif
+
+#ifdef CONFIG_RTL_8198C
+		if(port < 5) {
+			extern rtl8651_tblAsic_ethernet_t 	rtl8651AsicEthernetTable[];
+			int phyid;
+			uint32	data1;
+			phyid = rtl8651AsicEthernetTable[port].phyId;		
+		
+			rtl8651_setAsicEthernetPHYReg( phyid, 31, 0xa43);
+			rtl8651_getAsicEthernetPHYReg( phyid, 26, &data1);		
+			rtl8651_setAsicEthernetPHYReg( phyid, 31, 0);
+
+			seq_printf(s,"	EEE Status: %s.\n\n",(data1&0x100)?"enabled":"disabled");
+		}
+#else		
+		data0 = (regData & (PortEEEStatus_MASK))>>PortEEEStatus_OFFSET;
+		seq_printf(s,"	EEE Status %0x\n\n",data0);
+#endif
+						
+	}
+#endif
+
+	return 0;
+}
+#else
 static int32 port_status_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len, port;
@@ -4412,6 +5947,15 @@ static int32 port_status_read( char *page, char **start, off_t off, int count, i
 
 	return len;
 }
+#endif
+
+extern int32 rtl8651_setAsicEthernetPHYPowerDown( uint32 port, uint32 pwrDown );
+extern int32 rtl8651_setAsicEthernetPHYSpeed( uint32 port, uint32 speed );
+extern int32 rtl8651_setAsicEthernetPHYDuplex( uint32 port, uint32 duplex );
+extern int32 rtl8651_setAsicEthernetPHYAutoNeg( uint32 port, uint32 autoneg);
+extern int32 rtl8651_setAsicEthernetPHYAdvCapality(uint32 port, uint32 capality);
+extern int32 rtl865xC_setAsicEthernetForceModeRegs(uint32 port, uint32 enForceMode, uint32 forceLink, uint32 forceSpeed, uint32 forceDuplex);
+extern int32 rtl8651_restartAsicEthernetPHYNway(uint32 port);
 
 static int32 port_status_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -4554,6 +6098,15 @@ static int32 port_status_write( struct file *filp, const char *buff,unsigned lon
 				}
 			}
 
+#ifdef CONFIG_RTL_8198C
+			if ((type == HALF_DUPLEX_1000M) || (type == DUPLEX_1000M)) {
+				forceMode=FALSE;
+				forceLink=TRUE;
+				forceLinkSpeed=SPEED1000M;
+				/*all capality*/
+				advCapability=(1<<DUPLEX_1000M);
+			}
+#endif
 
 			for(port = 0; port < CPU; port++)
 			{
@@ -4598,6 +6151,13 @@ errout:
 
 
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 rtl865x_proc_mibCounter_read(struct seq_file *s, void *v)
+{
+	rtl865xC_dumpAsicDiagCounter();
+	return 0;
+}
+#else
 static int32 rtl865x_proc_mibCounter_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len=0;
@@ -4606,6 +6166,7 @@ static int32 rtl865x_proc_mibCounter_read( char *page, char **start, off_t off, 
 
 	return len;
 }
+#endif
 
 #ifdef CONFIG_RTL_8367R_SUPPORT
 extern uint32 r8367_cpu_port;
@@ -4812,63 +6373,33 @@ errout:
 	return len;
 }
 
-#if defined (CONFIG_RTL_INBAND_CTL_API)
-extern int rtl_get_portRate(unsigned int port,unsigned long* rxRate, unsigned long *txRate);
 
 #ifdef CONFIG_RTL_PROC_NEW
-static int32 rtl865x_proc_portRate_read(struct seq_file *s, void *v)
+static int32 proc_phyReg_read(struct seq_file *s, void *v)
 {
-	
-	unsigned int port;
-	unsigned long rxRate=0;
-	unsigned long txRate=0;
-	seq_printf(s, "Port Rate Info:\n");
-	for(port=0;port<4;port++)
-	{
-		rtl_get_portRate(port,&rxRate,&txRate);
-		seq_printf(s, "port%d rx:%ld tx:%ld(kbps)\n",port,rxRate,txRate);
-	}
-	
-	
-	return 0;
-
+	return PROC_READ_RETURN_VALUE;
 }
 #else
-static int32 rtl865x_proc_portRate_read( char *page, char **start, off_t off, int count, int *eof, void *data )
-{
-	int		len;
-	
-	int port;
-	unsigned long rxRate=0;
-	unsigned long txRate=0;
-	len = sprintf(page, "Port Rate Info:\n");
-	for(port=0;port<4;port++)
-	{
-		rtl_get_portRate(port,&rxRate,&txRate);
-		len += sprintf(page+len, "port%d rx:%ld tx:%ld(kbps)\n",port,rxRate,txRate);
-	}
-	
-	
-	return len;
-
-}
-#endif
-
-static int32 rtl865x_proc_portRate_write(struct file *filp, const char *buff,unsigned long len, void *data )
-{
-		return len;
-}
-
-#endif
 static int32 proc_phyReg_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	return PROC_READ_RETURN_VALUE;
 }
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 proc_mmd_read(struct seq_file *s, void *v)
+{
+	return PROC_READ_RETURN_VALUE;
+}
+#else
 static int32 proc_mmd_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	return PROC_READ_RETURN_VALUE;
 }
+#endif
+
+extern int32 mmd_read(uint32 phyId, uint32 devId, uint32 regId, uint32 *rData);
+extern int32 mmd_write(uint32 phyId, uint32 devId, uint32 regId, uint32 wData);
 
 /*
 	echo read phy_id device_id reg_addr  > /proc/rtl865x/mmd
@@ -4992,7 +6523,6 @@ void getPhyByPortPage(int port, int page)
 	int reg;
 
 	//change page num
-	//rtl8651_setAsicEthernetPHYReg(port, 31, page);
 	if (page>=31)
 	{
 		rtl8651_setAsicEthernetPHYReg( port, 31, 7  );
@@ -5021,6 +6551,29 @@ void getPhyByPortPage(int port, int page)
 static const int _8198_phy_page[] = {	0, 1, 2, 3,     		4, 5, 6, 32,
 								  	33, 34, 35, 36,	40, 44, 45, 46,
 								  	64, 65, 66, 69,	70, 80, 81, 161 };
+
+#elif defined(CONFIG_RTL_8198C)
+void getPhyByPortPage(int port, int page)
+{
+	uint32	regData, phyid;
+	int reg;
+
+	if (port == 0)
+		phyid = 8;
+	else 
+		phyid = port;
+
+	rtl8651_setAsicEthernetPHYReg( phyid, 31, page);
+
+	for(reg=0;reg<32;reg++)
+	{
+		rtl8651_getAsicEthernetPHYReg( phyid, reg, &regData);
+		rtlglue_printf("port:%d,page:0x%x,regId:%d,regData:0x%x\n",port,page,reg,regData);
+	}
+	rtlglue_printf("------------------------------------------\n");
+
+	rtl8651_setAsicEthernetPHYReg(phyid, 31, 0 );
+}
 #endif
 
 
@@ -5316,12 +6869,15 @@ static int32 proc_phyReg_write( struct file *filp, const char *buff,unsigned lon
 			regId=simple_strtol(tokptr, NULL, 0);
 
 			//switch page
+#ifndef CONFIG_RTL_8198C			
 			if (pageId>=31)
 			{
 				rtl8651_setAsicEthernetPHYReg( phyId, 31, 7  );
 				rtl8651_setAsicEthernetPHYReg( phyId, 30, pageId  );
 			}
-			else if (pageId>0)
+			else 
+#endif				
+			if (pageId>0)
 			{
 				rtl8651_setAsicEthernetPHYReg( phyId, 31, pageId  );
 			}
@@ -5372,12 +6928,15 @@ static int32 proc_phyReg_write( struct file *filp, const char *buff,unsigned lon
 			regData=simple_strtol(tokptr, NULL, 0);
 
 			//switch page
+#ifndef CONFIG_RTL_8198C			
 			if (pageId>=31)
 			{
 				rtl8651_setAsicEthernetPHYReg( phyId, 31, 7  );
 				rtl8651_setAsicEthernetPHYReg( phyId, 30, pageId  );
 			}
-			else if (pageId>0)
+			else 
+#endif				
+			if (pageId>0)
 			{
 				rtl8651_setAsicEthernetPHYReg( phyId, 31, pageId  );
 			}
@@ -5396,6 +6955,92 @@ static int32 proc_phyReg_write( struct file *filp, const char *buff,unsigned lon
 			//change back to page 0
 			rtl8651_setAsicEthernetPHYReg(phyId, 31, 0);
 		}
+#ifdef CONFIG_RTL_8198C
+		else if (!memcmp(cmd_addr, "sram98c", 7))
+		{
+			/* command: echo sram98c [phyid: 8/1/2/3/4/999] [oper: 0=read, 1=write] 
+						[reg] [sramdata:write only] > /proc/rtl865x/phyReg
+			*/
+			extern void Sram98C(uint32 phyid, uint32 oper, uint32 RegAddr, uint32 sramdata);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			pageId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 0);
+
+			if (pageId == 1) { //write
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					goto errout;
+				}
+				regData=simple_strtol(tokptr, NULL, 0);
+			}			
+			Sram98C(phyId, pageId, regId, regData);
+			rtlglue_printf("command done.\n");
+		}
+		else if (!memcmp(cmd_addr, "gigalite", 8))
+		{
+			extern void set_giga_lite(int mode);
+
+			/* command: echo gigalite [0(disable)/1(enable)] > /proc/rtl865x/phyReg */
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			if ((phyId == 0) || (phyId == 1)) {
+				set_giga_lite(phyId);
+				for (i=0;i<5;i++)
+					rtl8651_restartAsicEthernetPHYNway(i);
+				rtlglue_printf("giga lite is %sabled.\n", (phyId ? "en" : "dis"));
+			}			
+			else
+				goto errout;
+		}	
+		else if (!memcmp(cmd_addr, "ado", 3))
+		{
+			extern void ado_setting(int mode);
+
+			/* command: echo ado [0(default)/1(modified)] > /proc/rtl865x/phyReg */
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			if (phyId == 0) {
+				ado_setting(phyId);
+				rtlglue_printf("ado default\n");
+			}			
+			else if (phyId == 1) {
+				ado_setting(0);
+				ado_setting(phyId);
+				rtlglue_printf("ado default and modified\n");
+			}			
+			else
+				goto errout;
+		}		
+#endif
 		else if (!memcmp(cmd_addr, "snr", 3))
 		{
 			uint32 	sum;
@@ -5451,6 +7096,17 @@ static int32 proc_phyReg_write( struct file *filp, const char *buff,unsigned lon
 				//set pageNum {0 1 2 3 4 5 6 32 33 34 35 36 40 44 45 46 64 65 66 69 70 80 81 161}
 				for (i=0; i<24; i++)
 					getPhyByPortPage(port,  _8198_phy_page[i]);
+
+#elif defined(CONFIG_RTL_8198C)
+				//set pageNum: 0xa40 ~ 0xa72; 0xbc0 ~ 0xbc7; 0xc80 ~ 0xc81
+				for (i=0; i<51; i++) {
+					getPhyByPortPage(port, (0xa40 + i));
+				}
+				for (i=0; i<8; i++) {
+					getPhyByPortPage(port, (0xbc0 + i));
+				}
+				getPhyByPortPage(port, 0xc80);
+				getPhyByPortPage(port, 0xc81);
 #endif
 			}
 		}
@@ -5465,6 +7121,73 @@ errout:
 }
 
 //MACCR porc--------------------------------------------------------------------------------------------
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 mac_config_read(struct seq_file *s, void *v)
+{
+	uint32	regData;
+	uint32	data0;
+	
+	seq_printf(s, "MAC Configuration Register Info:\n");
+	regData = READ_MEM32(MACCR);
+	
+	data0 = regData & IPG_SEL;
+	seq_printf(s, "IfgSel:  ");
+	if (data0)
+		seq_printf(s, "internal counter =352\n");
+	else
+		seq_printf(s, "internal counter =480\n");
+	
+	data0 = regData & INFINITE_PAUSE_FRAMES  ;
+	seq_printf(s, "INFINITE_PAUSE_FRAMES:  ");
+	if (data0)
+		seq_printf(s, "Infinite pause frame count\n");
+	else
+		seq_printf(s, "Maximum of 128 consecutive pause frames\n");
+
+	data0= regData & LONG_TXE;
+	seq_printf(s, "LONG_TXE:  ");
+	if (data0)
+		seq_printf(s, "Carrier-based backpressure\n");
+	else
+		seq_printf(s, "Collision-based backpressure\n");
+
+	data0= regData & EN_48_DROP;
+	seq_printf(s, "EN_48_DROP:  ");
+	if (data0)
+		seq_printf(s, "Enabled\n");
+	else
+		seq_printf(s, "Disabled\n");
+	
+	data0= (regData & SELIPG_MASK)>>SELIPG_OFFSET;
+	seq_printf(s, "SELIPG:  ");
+	if(data0==0x00)
+		seq_printf(s, "7 byte-time\n");
+	else if(data0==0x01)
+		seq_printf(s, "8 byte-time\n");
+	else if(data0==0x10)
+		seq_printf(s, "10 byte-time\n");
+	else
+		seq_printf(s, "12 byte-time\n");
+	
+	data0= (regData & CF_SYSCLK_SEL_MASK)>>CF_SYSCLK_SEL_OFFSET;
+	seq_printf(s, "CF_SYSCLK_SEL:  ");
+	if(data0==0x00)
+		seq_printf(s, "50MHz\n");
+	else if(data0==0x01)
+		seq_printf(s, "100MHz\n");
+	else
+		seq_printf(s, "reserved status\n");
+
+	data0= (regData & CF_FCDSC_MASK)>>CF_FCDSC_OFFSET;
+	seq_printf(s, "CF_FCDSC:  %d pages\n",data0);
+
+	data0= (regData & CF_RXIPG_MASK);
+	seq_printf(s, "CF_RXIPG:  %d pkts\n",data0);
+	
+	return 0;
+
+}
+#else
 static int32 mac_config_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -5531,6 +7254,7 @@ static int32 mac_config_read( char *page, char **start, off_t off, int count, in
 	return len;
 
 }
+#endif
 
 static int32 mac_config_write(struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -5538,6 +7262,149 @@ static int32 mac_config_write(struct file *filp, const char *buff,unsigned long 
 }
 
 //FC threshold--------------------------------------------------------------------------
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 fc_threshold_read(struct seq_file *s, void *v)
+{
+	uint32	regData;
+	uint32	data0;
+	int port;	
+	int group=3;
+	seq_printf(s, "Dump FC threshold Information:\n");
+
+	//SBFCR0
+	regData = READ_MEM32(SBFCR0);
+	data0 = regData & S_DSC_RUNOUT_MASK;
+	seq_printf(s, "S_DSC_RUNOUT:%d\n",data0);
+	//SBFCR1
+	regData = READ_MEM32(SBFCR1);
+	data0 = (regData & SDC_FCOFF_MASK)>>SDC_FCOFF_OFFSET;
+	seq_printf(s, "SDC_FCOFF:%d, ",data0);
+	data0 = (regData & SDC_FCON_MASK)>>SDC_FCON_OFFSET;
+	seq_printf(s, "SDC_FCON:%d\n",data0);
+	//SBFCR2
+	regData = READ_MEM32(SBFCR2);
+	data0 = (regData & S_Max_SBuf_FCOFF_MASK)>>S_Max_SBuf_FCOFF_OFFSET;
+	seq_printf(s, "S_MaxSBuf_FCOFF:%d, ",data0);
+	data0 = (regData & S_Max_SBuf_FCON_MASK)>>S_Max_SBuf_FCON_OFFSET;
+	seq_printf(s, "S_MaxSBuf_FCON:%d\n",data0);
+	//FCCR0,FCCR1
+	regData = READ_MEM32(FCCR0);
+	data0 =(regData & Q_P0_EN_FC_MASK)>>(Q_P0_EN_FC_OFFSET);	
+	seq_printf(s, "Q_P0_EN_FC:%0x, ",data0);	
+	data0 =(regData & Q_P1_EN_FC_MASK)>>(Q_P1_EN_FC_OFFSET);	
+	seq_printf(s, "Q_P1_EN_FC:%0x, ",data0);	
+	data0 =(regData & Q_P2_EN_FC_MASK)>>(Q_P2_EN_FC_OFFSET);	
+	seq_printf(s, "Q_P2_EN_FC:%0x\n",data0);
+	data0 =(regData & Q_P3_EN_FC_MASK)>>(Q_P3_EN_FC_OFFSET);	
+	seq_printf(s, "Q_P3_EN_FC:%0x, ",data0);
+	regData = READ_MEM32(FCCR1);
+	data0 =(regData & Q_P4_EN_FC_MASK)>>(Q_P4_EN_FC_OFFSET);	
+	seq_printf(s, "Q_P4_EN_FC:%0x, ",data0);	
+	regData = READ_MEM32(FCCR0);
+	data0 =(regData & Q_P5_EN_FC_MASK)>>(Q_P5_EN_FC_OFFSET);	
+	seq_printf(s, "Q_P5_EN_FC:%0x\n",data0);	
+	//PQPLGR
+	regData = READ_MEM32(PQPLGR);
+	data0 =regData & QLEN_GAP_MASK;
+	seq_printf(s, "QLEN_GAP:%d\n",data0);
+	//QRR
+	regData = READ_MEM32(QRR);
+	data0 =regData & QRST;
+	seq_printf(s, "QRST:%d\n",data0);
+	//IQFCTCR
+	regData = READ_MEM32(IQFCTCR);
+	data0 =(regData & IQ_DSC_FCON_MASK)>>IQ_DSC_FCON_OFFSET;
+	seq_printf(s, "IQ_DSC_FCON:%d, ",data0);
+	data0 =(regData & IQ_DSC_FCOFF_MASK)>>IQ_DSC_FCOFF_OFFSET;
+	seq_printf(s, "IQ_DSC_FCOFF:%d\n",data0);
+	//QNUMCR
+	regData = READ_MEM32(QNUMCR);
+	seq_printf(s,"The number of output queue for port(0~6) :\n");
+
+#ifdef CONFIG_RTL_8198C
+	data0=(regData & P0QNum_MASK )>>(P0QNum_OFFSET);
+	seq_printf(s, "P0QNum%d, ",data0+1);
+	data0=(regData & P1QNum_MASK )>>(P1QNum_OFFSET);
+	seq_printf(s, "P1QNum%d, ",data0+1);
+	data0=(regData & P2QNum_MASK )>>(P2QNum_OFFSET);
+	seq_printf(s, "P2QNum%d, ",data0+1);
+	data0=(regData & P3QNum_MASK )>>(P3QNum_OFFSET);
+	seq_printf(s, "P3QNum%d, ",data0+1);
+	data0=(regData & P4QNum_MASK )>>(P4QNum_OFFSET);
+	seq_printf(s, "P4QNum%d, ",data0+1);
+	data0=(regData & P5QNum_MASK )>>(P5QNum_OFFSET);
+	seq_printf(s, "P5QNum%d, ",data0+1);
+	data0=(regData & P6QNum_MASK )>>(P6QNum_OFFSET);
+	seq_printf(s, "P6QNum%d\n",data0+1);
+#else
+	data0=(regData & P0QNum_MASK )>>(P0QNum_OFFSET);
+	seq_printf(s, "P0QNum%d, ",data0);
+	data0=(regData & P1QNum_MASK )>>(P1QNum_OFFSET);
+	seq_printf(s, "P1QNum%d, ",data0);
+	data0=(regData & P2QNum_MASK )>>(P2QNum_OFFSET);
+	seq_printf(s, "P2QNum%d, ",data0);
+	data0=(regData & P3QNum_MASK )>>(P3QNum_OFFSET);
+	seq_printf(s, "P3QNum%d, ",data0);
+	data0=(regData & P4QNum_MASK )>>(P4QNum_OFFSET);
+	seq_printf(s, "P4QNum%d, ",data0);
+	data0=(regData & P5QNum_MASK )>>(P5QNum_OFFSET);
+	seq_printf(s, "P5QNum%d, ",data0);
+	data0=(regData & P6QNum_MASK )>>(P6QNum_OFFSET);
+	seq_printf(s, "P6QNum%d\n",data0);
+#endif	
+	//per port   
+	for(port=PHY0;port<=CPU;port++)
+	{
+		if (port==CPU)
+		seq_printf(s, "\nCPUPort\n");
+		else
+		seq_printf(s, "\nPort%d\n", port);
+		
+		regData = READ_MEM32(PBFCR0+((port)<<2));
+		data0 = (regData & P_MaxDSC_FCOFF_MASK)>>P_MaxDSC_FCOFF_OFFSET;
+		seq_printf(s, "   P_MaxDSC_FCOFF:%d, ",data0);
+		data0 = (regData & P_MaxDSC_FCON_MASK)>>P_MaxDSC_FCON_OFFSET;
+		seq_printf(s, "P_MaxDSC_FCON:%d\n",data0);
+		//if(port<CPU)
+		{
+			for (group=GR0;group<=GR2;group++)
+			{
+				seq_printf(s, "   Port%dGroup%d\n",port,group);
+				/* QDBFCRP0G0,QDBFCRP0G1,QDBFCRP0G2
+				 * QDBFCRP1G0,QDBFCRP1G1,QDBFCRP1G2
+				 * QDBFCRP2G0,QDBFCRP2G1,QDBFCRP2G2
+				 * QDBFCRP3G0,QDBFCRP3G1,QDBFCRP3G2
+				 * QDBFCRP4G0,QDBFCRP4G1,QDBFCRP4G2
+				 * QDBFCRP5G0,QDBFCRP5G1,QDBFCRP5G2
+				 * - Queue-Descriptor=Based Flow Control Threshold for Port 0 Group 0 */
+				regData =READ_MEM32(QDBFCRP0G0+((port)*0xC)+((group)<<2));
+				//seq_printf(s,"address:%0x",(QDBFCRP0G0+((port)<<2)+((group)<<2)));
+				data0 = (regData & QG_DSC_FCOFF_MASK)>>QG_DSC_FCOFF_OFFSET;
+				seq_printf(s, "   QG_DSC_FCOFF:%d, ",data0);
+				data0 = (regData & QG_DSC_FCON_MASK)>>QG_DSC_FCON_OFFSET;
+				seq_printf(s, "QG_DSC_FCON:%d, ",data0);
+
+				/* QPKTFCRP0G0,QPKTFCRP0G1,QPKTFCRP0G2
+				 * QPKTFCRP1G0,QPKTFCRP1G1,QPKTFCRP1G2
+				 * QPKTFCRP2G0,QPKTFCRP2G1,QPKTFCRP2G2
+				 * QPKTFCRP3G0,QPKTFCRP3G1,QPKTFCRP3G2
+				 * QPKTFCRP4G0,QPKTFCRP4G1,QPKTFCRP4G2
+				 * QPKTFCRP5G0,QPKTFCRP5G1,QPKTFCRP5G2
+				   - Queue-Packet-Based Flow Control Register for Port 0 Group 0 */
+				regData =READ_MEM32(QPKTFCRP0G0+((port)*0xC)+((group)<<2));
+				//seq_printf(s,"address:%0x",(QPKTFCRP0G0+((port)<<2)+((group)<<2)));
+				data0 = (regData & QG_QLEN_FCOFF_MASK)>>QG_QLEN_FCOFF_OFFSET;
+				seq_printf(s, "QG_QLEN_FCOFF:%d, ",data0);
+				data0 = (regData & QG_QLEN_FCON_MASK)>>QG_QLEN_FCON_OFFSET;
+				seq_printf(s, "QG_QLEN_FCON:%d\n",data0);
+				
+			}	
+		}
+	}
+
+	return 0;
+}
+#else
 static int32 fc_threshold_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 
@@ -5561,9 +7428,9 @@ static int32 fc_threshold_read( char *page, char **start, off_t off, int count, 
 	//SBFCR2
 	regData = READ_MEM32(SBFCR2);
 	data0 = (regData & S_Max_SBuf_FCOFF_MASK)>>S_Max_SBuf_FCOFF_OFFSET;
-	len += sprintf(page+len, "S_MaxSBuf_FCON:%d, ",data0);
+	len += sprintf(page+len, "S_MaxSBuf_FCOFF:%d, ",data0);
 	data0 = (regData & S_Max_SBuf_FCON_MASK)>>S_Max_SBuf_FCON_OFFSET;
-	len += sprintf(page+len, "S_MaxSBuf_FCOFF:%d\n",data0);
+	len += sprintf(page+len, "S_MaxSBuf_FCON:%d\n",data0);
 	//FCCR0,FCCR1
 	regData = READ_MEM32(FCCR0);
 	data0 =(regData & Q_P0_EN_FC_MASK)>>(Q_P0_EN_FC_OFFSET);	
@@ -5597,6 +7464,23 @@ static int32 fc_threshold_read( char *page, char **start, off_t off, int count, 
 	//QNUMCR
 	regData = READ_MEM32(QNUMCR);
 	len += sprintf(page+len,"The number of output queue for port(0~6) :\n");
+
+#ifdef CONFIG_RTL_8198C
+	data0=(regData & P0QNum_MASK )>>(P0QNum_OFFSET);
+	len += sprintf(page+len, "P0QNum%d, ",data0+1);
+	data0=(regData & P1QNum_MASK )>>(P1QNum_OFFSET);
+	len += sprintf(page+len, "P1QNum%d, ",data0+1);
+	data0=(regData & P2QNum_MASK )>>(P2QNum_OFFSET);
+	len += sprintf(page+len, "P2QNum%d, ",data0+1);
+	data0=(regData & P3QNum_MASK )>>(P3QNum_OFFSET);
+	len += sprintf(page+len, "P3QNum%d, ",data0+1);
+	data0=(regData & P4QNum_MASK )>>(P4QNum_OFFSET);
+	len += sprintf(page+len, "P4QNum%d, ",data0+1);
+	data0=(regData & P5QNum_MASK )>>(P5QNum_OFFSET);
+	len += sprintf(page+len, "P5QNum%d, ",data0+1);
+	data0=(regData & P6QNum_MASK )>>(P6QNum_OFFSET);
+	len += sprintf(page+len, "P6QNum%d\n",data0+1);
+#else
 	data0=(regData & P0QNum_MASK )>>(P0QNum_OFFSET);
 	len += sprintf(page+len, "P0QNum%d, ",data0);
 	data0=(regData & P1QNum_MASK )>>(P1QNum_OFFSET);
@@ -5611,6 +7495,7 @@ static int32 fc_threshold_read( char *page, char **start, off_t off, int count, 
 	len += sprintf(page+len, "P5QNum%d, ",data0);
 	data0=(regData & P6QNum_MASK )>>(P6QNum_OFFSET);
 	len += sprintf(page+len, "P6QNum%d\n",data0);
+#endif	
 	//per port   
 	for(port=PHY0;port<=CPU;port++)
 	{
@@ -5663,27 +7548,1275 @@ static int32 fc_threshold_read( char *page, char **start, off_t off, int count, 
 
 	return len;
 }
+#endif
 
 static int32 fc_threshold_write(struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	return len;
 }
 
-#ifdef CONFIG_RTL_PROC_DEBUG
-#if defined (CONFIG_RTL_INBAND_CTL_API)
+#if defined (CONFIG_RTL_8198C) && defined (CONFIG_IPV6)
+//l3v6--------------------------------------------------------------------------
+
 #ifdef CONFIG_RTL_PROC_NEW
-int portRate_single_open(struct inode *inode, struct file *file)
+static int32 l3v6_read(struct seq_file *s, void *v)
 {
-    return(single_open(file, rtl865x_proc_portRate_read, NULL));
+	uint32 idx, mask;
+	rtl8198C_tblAsicDrv_routingv6Param_t asic_l3v6;
+	int8 *str[] = { "PPPoE", "L2", "ARP", " ", "CPU", "NxtHop", "DROP", " " };
+
+	seq_printf(s, "%s\n", "ASIC L3V6 Routing Table:\n");
+	for (idx=0; idx<RTL8198C_ROUTINGV6TBL_SIZE; idx++)
+	{
+		if (rtl8198C_getAsicRoutingv6(idx, &asic_l3v6) == FAILED) {
+			seq_printf(s,"\t[%d]  (Invalid)\n", idx);
+			continue;
+		}
+
+        mask = asic_l3v6.ipMask;
+
+		seq_printf(s,"\t[%d]  %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d process(%s) \n", idx,
+                    asic_l3v6.ipAddr.v6_addr16[0],asic_l3v6.ipAddr.v6_addr16[1],asic_l3v6.ipAddr.v6_addr16[2],asic_l3v6.ipAddr.v6_addr16[3],
+            		asic_l3v6.ipAddr.v6_addr16[4],asic_l3v6.ipAddr.v6_addr16[5],asic_l3v6.ipAddr.v6_addr16[6],asic_l3v6.ipAddr.v6_addr16[7],
+			        mask, str[asic_l3v6.process]);
+
+		switch(asic_l3v6.process)
+		{
+			case 0x00:	/* PPPoE */
+				seq_printf(s,"\t           dvidx(%d)  pppidx(%d) nxthop(%d)\n", asic_l3v6.vidx, asic_l3v6.pppoeIdx, (asic_l3v6.nextHopRow<<2)+asic_l3v6.nextHopColumn);
+				break;
+
+			case 0x01:	/* L2 */
+				seq_printf(s,"              dvidx(%d) nexthop(%d)\n", asic_l3v6.vidx, (asic_l3v6.nextHopRow<<2)+asic_l3v6.nextHopColumn);
+				break;
+
+			case 0x02:	/* ARP */
+				seq_printf(s,"             dvidx(%d) SUBNETIDX(%d)\n", asic_l3v6.vidx, asic_l3v6.subnet_idx);
+				break;
+
+			case 0x03:	/* Reserved */
+				;
+
+			case 0x04:	/* CPU */
+				seq_printf(s,"             dvidx(%d)\n", asic_l3v6.vidx);
+				break;
+
+			case 0x05:	/* NAPT Next Hop */
+				seq_printf(s,"              NHSTA(%d) NHNUM(%d) NHNXT(%d) NHALGO(%d)\n", asic_l3v6.nhStart,
+						asic_l3v6.nhNum, asic_l3v6.nhNxt, asic_l3v6.nhAlgo);
+				break;
+
+			case 0x06:	/* DROP */
+				seq_printf(s,"             dvidx(%d)\n", asic_l3v6.vidx);
+				break;
+
+			case 0x07:	/* Reserved */
+				/* pass through */
+			default:
+				;
+		}
+		
+        seq_printf(s,"\tsix_rd_eg :0x%x\tsix_rd_idx:0x%x\n", asic_l3v6.six_rd_eg, asic_l3v6.six_rd_idx);
+	}	
+
+	return 0;
 }
-static ssize_t portRate_single_write(struct file * file, const char __user * userbuf,
+#else
+static int32 l3v6_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	uint32 idx, mask;
+	rtl8198C_tblAsicDrv_routingv6Param_t asic_l3v6;
+	int8 *str[] = { "PPPoE", "L2", "ARP", " ", "CPU", "NxtHop", "DROP", " " };
+
+	len = sprintf(page, "%s\n", "ASIC L3V6 Routing Table:\n");
+	for (idx=0; idx<RTL8198C_ROUTINGV6TBL_SIZE; idx++)
+	{
+		if (rtl8198C_getAsicRoutingv6(idx, &asic_l3v6) == FAILED) {
+			len += sprintf(page + len,"\t[%d]  (Invalid)\n", idx);
+			continue;
+		}
+
+        mask = asic_l3v6.ipMask;
+
+		len += sprintf(page + len,"\t[%d]  %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d process(%s) \n", idx,
+                    asic_l3v6.ipAddr.v6_addr16[0],asic_l3v6.ipAddr.v6_addr16[1],asic_l3v6.ipAddr.v6_addr16[2],asic_l3v6.ipAddr.v6_addr16[3],
+            		asic_l3v6.ipAddr.v6_addr16[4],asic_l3v6.ipAddr.v6_addr16[5],asic_l3v6.ipAddr.v6_addr16[6],asic_l3v6.ipAddr.v6_addr16[7],
+			        mask, str[asic_l3v6.process]);
+
+		switch(asic_l3v6.process)
+		{
+			case 0x00:	/* PPPoE */
+				len += sprintf(page + len,"\t           dvidx(%d)  pppidx(%d) nxthop(%d)\n", asic_l3v6.vidx, asic_l3v6.pppoeIdx, (asic_l3v6.nextHopRow<<2)+asic_l3v6.nextHopColumn);
+				break;
+
+			case 0x01:	/* L2 */
+				len += sprintf(page + len,"              dvidx(%d) nexthop(%d)\n", asic_l3v6.vidx, (asic_l3v6.nextHopRow<<2)+asic_l3v6.nextHopColumn);
+				break;
+
+			case 0x02:	/* ARP */
+				len += sprintf(page + len,"             dvidx(%d) SUBNETIDX(%d)\n", asic_l3v6.vidx, asic_l3v6.subnet_idx);
+				break;
+
+			case 0x03:	/* Reserved */
+				;
+
+			case 0x04:	/* CPU */
+				len += sprintf(page + len,"             dvidx(%d)\n", asic_l3v6.vidx);
+				break;
+
+			case 0x05:	/* NAPT Next Hop */
+				len += sprintf(page + len,"              NHSTA(%d) NHNUM(%d) NHNXT(%d) NHALGO(%d)\n", asic_l3v6.nhStart,
+						asic_l3v6.nhNum, asic_l3v6.nhNxt, asic_l3v6.nhAlgo);
+				break;
+
+			case 0x06:	/* DROP */
+				len += sprintf(page + len,"             dvidx(%d)\n", asic_l3v6.vidx);
+				break;
+
+			case 0x07:	/* Reserved */
+				/* pass through */
+			default:
+				;
+		}
+		
+        len += sprintf(page + len,"\tsix_rd_eg :0x%x\tsix_rd_idx:0x%x\n", asic_l3v6.six_rd_eg, asic_l3v6.six_rd_idx);
+	}	
+
+	return len;
+}
+#endif
+
+static int32 l3v6_write(struct file *filp, const char *buff, unsigned long len, void *data )
+{
+	return len;
+}
+
+//arp6--------------------------------------------------------------------------
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 arp6_read(struct seq_file *s, void *v)
+{
+    int i = 0;
+    rtl8198C_tblAsicDrv_arpV6Param_t asic_arpv6;
+	seq_printf(s, "%s\n", "ASIC ArpV6 Table:\n");
+	for (i=0; i<RTL8198C_ARPV6TBL_SIZE; i++)
+	{
+		if (rtl8198C_getAsicArpV6(i,  &asic_arpv6) == FAILED)
+			continue;
+
+        	seq_printf(s, " ARPv6: idx:%3d  L2:(%3d,%d), subnet_idx:%d HOSTID==>(%x:%x:%x:%x) aging:%d\n", i, asic_arpv6.nextHopRow, 
+					asic_arpv6.nextHopColumn, asic_arpv6.subnet_id, 
+					asic_arpv6.hostid.v6_addr32[0], 
+					asic_arpv6.hostid.v6_addr32[1], 
+					asic_arpv6.hostid.v6_addr32[2],
+					asic_arpv6.hostid.v6_addr32[3],
+					asic_arpv6.aging);
+	}
+
+	return 0;
+}
+#else
+static int32 arp6_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int 	len=0,i;
+    rtl8198C_tblAsicDrv_arpV6Param_t asic_arpv6;
+	len = sprintf(page, "%s\n", "ASIC ArpV6 Table:\n");
+	for (i=0; i<RTL8198C_ARPV6TBL_SIZE; i++)
+	{
+		if (rtl8198C_getAsicArpV6(i,  &asic_arpv6) == FAILED)
+			continue;
+
+        	len += sprintf(page + len, " ARPv6: idx:%3d  L2:(%3d,%d), subnet_idx:%d HOSTID==>::%04x:%04x:%04x:%04x aging:%d\n", i, asic_arpv6.nextHopRow, 
+					asic_arpv6.nextHopColumn, asic_arpv6.subnet_id, asic_arpv6.hostid.v6_addr16[4], asic_arpv6.hostid.v6_addr16[5], asic_arpv6.hostid.v6_addr16[6],
+					asic_arpv6.hostid.v6_addr16[7], asic_arpv6.aging);
+	}
+
+	return len;
+}
+#endif
+
+static int32 arp6_write(struct file *filp, const char *buff, unsigned long len, void *data )
+{
+	return len;
+}
+
+
+
+//nexthop6--------------------------------------------------------------------------
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 nexthop6_read(struct seq_file *s, void *v)
+{
+	uint32 idx;
+	rtl8198C_tblAsicDrv_nextHopV6Param_t asic_nxthopv6;
+
+	seq_printf(s, "%s\n", "ASIC Next Hop V6 Table:\n");
+	for (idx=0; idx<RTL8198C_NEXTHOPV6TBL_SIZE; idx++) 
+	{
+		if (rtl8198C_getAsicNextHopTableV6(idx, &asic_nxthopv6) == FAILED)
+			continue;
+		
+		seq_printf(s,"  [%d]  type(%s) dstVid(%d) pppoeIdx(%d) nextHop(%d)(0x%x)\n", idx,
+			(asic_nxthopv6.isPppoe==TRUE? "pppoe": "ethernet"), asic_nxthopv6.dvid, asic_nxthopv6.pppoeIdx,
+			(asic_nxthopv6.nextHopRow<<2)+asic_nxthopv6.nextHopColumn, (asic_nxthopv6.nextHopRow<<2)+asic_nxthopv6.nextHopColumn);
+	}
+	
+	return 0;
+}
+#else
+static int32 nexthop6_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	uint32 idx;
+	rtl8198C_tblAsicDrv_nextHopV6Param_t asic_nxthopv6;
+
+	len = sprintf(page, "%s\n", "ASIC Next Hop V6 Table:\n");
+	for (idx=0; idx<RTL8198C_NEXTHOPV6TBL_SIZE; idx++) 
+	{
+		if (rtl8198C_getAsicNextHopTableV6(idx, &asic_nxthopv6) == FAILED)
+			continue;
+		
+		len += sprintf(page+len,"  [%d]  type(%s) dstVid(%d) pppoeIdx(%d) nextHop(%d)(0x%x)\n", idx,
+			(asic_nxthopv6.isPppoe==TRUE? "pppoe": "ethernet"), asic_nxthopv6.dvid, asic_nxthopv6.pppoeIdx,
+			(asic_nxthopv6.nextHopRow<<2)+asic_nxthopv6.nextHopColumn, (asic_nxthopv6.nextHopRow<<2)+asic_nxthopv6.nextHopColumn);
+	}
+	
+	return len;
+}
+#endif
+
+static int32 nexthop6_write(struct file *filp, const char *buff, unsigned long len, void *data )
+{
+	return len;
+}
+
+//mcast6--------------------------------------------------------------------------
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 mcast6_read(struct seq_file *s, void *v)
+{
+	uint32 entry;
+	rtl8198C_tblAsicDrv_multiCastv6Param_t asic;
+
+	#if 1
+	rtlglue_printf("%s\n", "ASIC Multicast V6 Table:");
+	for (entry=0; entry<RTL8198C_MULTICASTV6TBL_SIZE; entry++)
+	{
+	        if (rtl8198C_getAsicIpMulticastv6Table(entry, &asic) != SUCCESS) {
+			continue;
+	        } else {
+			rtlglue_printf("\t[%d]  (OK)dip(%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x) sip(%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x) mbr(0x%x)\n", entry,
+			asic.dip.v6_addr16[0], asic.dip.v6_addr16[1],asic.dip.v6_addr16[2], asic.dip.v6_addr16[3],
+			asic.dip.v6_addr16[4], asic.dip.v6_addr16[5],asic.dip.v6_addr16[6], asic.dip.v6_addr16[7],
+			asic.sip.v6_addr16[0], asic.sip.v6_addr16[1],asic.sip.v6_addr16[2], asic.sip.v6_addr16[3],
+			asic.sip.v6_addr16[4], asic.sip.v6_addr16[5],asic.sip.v6_addr16[6], asic.sip.v6_addr16[7],
+			asic.mbr);
+			rtlglue_printf("\t       spa:%d, age:%d, cpu:%d, 6rd_eg_en:%d, 6rd_eg_idx:%d\n", asic.port,
+			asic.age, asic.cpu, asic.six_rd_eg, asic.six_rd_idx);
+	        }
+	}
+
+	////rtlglue_printf("\n\t TotalOpCnt:AddMcastOpCnt:%d\tDelMcastOpCnt:%d\tForceAddMcastOpCnt:%d\t \n", _rtl865x_getAddMcastOpCnt(),_rtl865x_getDelMcastOpCnt(),_rtl865x_getForceAddMcastOpCnt());
+	#else
+	seq_printf(s, "%s\n", "ASIC Multicast Table:");
+
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+	{
+			if (rtl8651_getAsicIpMulticastTable(entry, &asic) != SUCCESS) {
+				seq_printf(s,"\t[%d]  (Invalid Entry)\n", entry);
+				continue;
+			}
+			seq_printf(s, "\t[%d]  dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(%x)\n", entry,
+				asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
+				asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
+				asic.mbr);
+			seq_printf(s,"\t       svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
+				asic.age, asic.cpu);
+	}
+	#endif
+
+	return 0;
+}
+#else
+static int32 mcast6_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len=0;
+	uint32 entry;
+	rtl8198C_tblAsicDrv_multiCastv6Param_t asic;
+
+	#if 1
+	rtlglue_printf("%s\n", "ASIC Multicast V6 Table:");
+	for (entry=0; entry<RTL8198C_MULTICASTV6TBL_SIZE; entry++)
+	{
+	        if (rtl8198C_getAsicIpMulticastv6Table(entry, &asic) != SUCCESS) {
+			continue;
+	        } else {
+			rtlglue_printf("\t[%d]  (OK)dip(%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x) sip(%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x) mbr(0x%x)\n", entry,
+			asic.dip.v6_addr16[0], asic.dip.v6_addr16[1],asic.dip.v6_addr16[2], asic.dip.v6_addr16[3],
+			asic.dip.v6_addr16[4], asic.dip.v6_addr16[5],asic.dip.v6_addr16[6], asic.dip.v6_addr16[7],
+			asic.sip.v6_addr16[0], asic.sip.v6_addr16[1],asic.sip.v6_addr16[2], asic.sip.v6_addr16[3],
+			asic.sip.v6_addr16[4], asic.sip.v6_addr16[5],asic.sip.v6_addr16[6], asic.sip.v6_addr16[7],
+			asic.mbr);
+			rtlglue_printf("\t       spa:%d, age:%d, cpu:%d, 6rd_eg_en:%d, 6rd_eg_idx:%d\n", asic.port,
+			asic.age, asic.cpu, asic.six_rd_eg, asic.six_rd_idx);
+	        }
+	}
+
+	////rtlglue_printf("\n\t TotalOpCnt:AddMcastOpCnt:%d\tDelMcastOpCnt:%d\tForceAddMcastOpCnt:%d\t \n", _rtl865x_getAddMcastOpCnt(),_rtl865x_getDelMcastOpCnt(),_rtl865x_getForceAddMcastOpCnt());
+	#else
+	len = sprintf(page, "%s\n", "ASIC Multicast Table:");
+
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+	{
+			if (rtl8651_getAsicIpMulticastTable(entry, &asic) != SUCCESS) {
+				len +=sprintf(page+len,"\t[%d]  (Invalid Entry)\n", entry);
+				continue;
+			}
+			len += sprintf(page+len, "\t[%d]  dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(%x)\n", entry,
+				asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
+				asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
+				asic.mbr);
+			len +=sprintf(page+len,"\t       svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
+				asic.age, asic.cpu);
+	}
+	#endif
+
+	if (len <= off+count) {
+		*eof = 1;
+	}
+
+	*start = page + off;
+	len -= off;
+
+	if (len > count) {
+		len = count;
+	}
+
+	if (len < 0) {
+	  	len = 0;
+	}
+
+	return len;
+}
+#endif
+
+static int32 mcast6_write(struct file *filp, const char *buff, unsigned long len, void *data )
+{
+	return len;
+}
+
+//6rd--------------------------------------------------------------------------
+
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 ip6rd_read(struct seq_file *s, void *v)
+{
+	uint32 idx;
+	rtl8198C_tblAsicDrv_6rdParam_t asic;
+
+	seq_printf(s, "%s\n", "ASIC 6RD Table:\n");
+	for (idx=0; idx<RTL8198C_6RDTBL_SIZE; idx++) 
+	{
+		if (rtl8198C_getAsic6rdTable(idx, &asic) == FAILED)
+			continue;
+		
+		seq_printf(s, "  [%d]  ceip(%d.%d.%d.%d)/ceipm:(%d) 6RD prefix=> ::%04x:%04x:%04x:%04x/%d\n", idx,
+               			(asic.ce_ip_addr>>24), ((asic.ce_ip_addr&0x00ff0000)>>16), ((asic.ce_ip_addr&0x0000ff00)>>8), (asic.ce_ip_addr&0xff),
+                			asic.ce_ip_mask_len,asic.six_rd_prefix.v6_addr16[0], asic.six_rd_prefix.v6_addr16[1], asic.six_rd_prefix.v6_addr16[2], asic.six_rd_prefix.v6_addr16[3],
+                 			asic.six_rd_prefix_len);
+		seq_printf(s, "        brip(%d.%d.%d.%d)/bripm:(%d) 6RD MTU:%d(0x%x) valid:%d\n",
+               			(asic.br_ip_addr>>24), ((asic.br_ip_addr&0x00ff0000)>>16), ((asic.br_ip_addr&0x0000ff00)>>8), (asic.br_ip_addr&0xff),
+                			asic.br_ip_mask_len, asic.mtu, asic.mtu, asic.valid);
+	}
+
+	return 0;
+}
+#else
+static int32 ip6rd_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	uint32 idx;
+	rtl8198C_tblAsicDrv_6rdParam_t asic;
+
+	len = sprintf(page, "%s\n", "ASIC 6RD Table:\n");
+	for (idx=0; idx<RTL8198C_6RDTBL_SIZE; idx++) 
+	{
+		if (rtl8198C_getAsic6rdTable(idx, &asic) == FAILED)
+			continue;
+		
+		len += sprintf(page+len, "  [%d]  ceip(%d.%d.%d.%d)/ceipm:(%d) 6RD prefix=> ::%04x:%04x:%04x:%04x/%d\n", idx,
+               			(asic.ce_ip_addr>>24), ((asic.ce_ip_addr&0x00ff0000)>>16), ((asic.ce_ip_addr&0x0000ff00)>>8), (asic.ce_ip_addr&0xff),
+                			asic.ce_ip_mask_len,asic.six_rd_prefix.v6_addr16[0], asic.six_rd_prefix.v6_addr16[1], asic.six_rd_prefix.v6_addr16[2], asic.six_rd_prefix.v6_addr16[3],
+                 			asic.six_rd_prefix_len);
+		len += sprintf(page+len, "        brip(%d.%d.%d.%d)/bripm:(%d) 6RD MTU:%d(0x%x) valid:%d\n",
+               			(asic.br_ip_addr>>24), ((asic.br_ip_addr&0x00ff0000)>>16), ((asic.br_ip_addr&0x0000ff00)>>8), (asic.br_ip_addr&0xff),
+                			asic.br_ip_mask_len, asic.mtu, asic.mtu, asic.valid);
+	}
+
+	return len;
+}
+#endif
+
+static int32 ip6rd_write(struct file *filp, const char *buff, unsigned long len, void *data )
+{
+	return len;
+}
+
+//dslite--------------------------------------------------------------------------
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 dslite_read(struct seq_file *s, void *v)
+{
+	uint32 idx;
+	rtl8198C_tblAsicDrv_dsliteParam_t asic;
+	
+	seq_printf(s, "%s\n", "ASIC DSLITE Table:\n");
+	for (idx=0; idx<RTL8198C_DSLITETBL_SIZE; idx++) 
+	{
+		if (rtl8198C_getAsicDsliteTable(idx, &asic) == FAILED)
+			continue;
+		seq_printf(s,"\t[%d]  HOSTIP/MASK:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d \n", idx,
+                    asic.host_ipv6_addr.v6_addr16[0],asic.host_ipv6_addr.v6_addr16[1],asic.host_ipv6_addr.v6_addr16[2],asic.host_ipv6_addr.v6_addr16[3],
+            		asic.host_ipv6_addr.v6_addr16[4],asic.host_ipv6_addr.v6_addr16[5],asic.host_ipv6_addr.v6_addr16[6],asic.host_ipv6_addr.v6_addr16[7],
+			        asic.host_ipv6_mask);
+		seq_printf(s,"\t      AFTRIP/MASK:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d MTU:%d(0x%x) valid:%d\n",
+                    asic.aftr_ipv6_addr.v6_addr16[0],asic.aftr_ipv6_addr.v6_addr16[1],asic.aftr_ipv6_addr.v6_addr16[2],asic.aftr_ipv6_addr.v6_addr16[3],
+            		asic.aftr_ipv6_addr.v6_addr16[4],asic.aftr_ipv6_addr.v6_addr16[5],asic.aftr_ipv6_addr.v6_addr16[6],asic.aftr_ipv6_addr.v6_addr16[7],
+			        asic.aftr_ipv6_mask,asic.mtu,asic.mtu,asic.valid);
+	}
+	return 0;
+}
+#else
+static int32 dslite_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	uint32 idx;
+	rtl8198C_tblAsicDrv_dsliteParam_t asic;
+	
+	len = sprintf(page, "%s\n", "ASIC DSLITE Table:\n");
+	for (idx=0; idx<RTL8198C_DSLITETBL_SIZE; idx++) 
+	{
+		if (rtl8198C_getAsicDsliteTable(idx, &asic) == FAILED)
+			continue;
+		len += sprintf(page + len,"\t[%d]  HOSTIP/MASK:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d \n", idx,
+                    asic.host_ipv6_addr.v6_addr16[0],asic.host_ipv6_addr.v6_addr16[1],asic.host_ipv6_addr.v6_addr16[2],asic.host_ipv6_addr.v6_addr16[3],
+            		asic.host_ipv6_addr.v6_addr16[4],asic.host_ipv6_addr.v6_addr16[5],asic.host_ipv6_addr.v6_addr16[6],asic.host_ipv6_addr.v6_addr16[7],
+			        asic.host_ipv6_mask);
+		len += sprintf(page + len,"\t      AFTRIP/MASK:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d MTU:%d(0x%x) valid:%d\n",
+                    asic.aftr_ipv6_addr.v6_addr16[0],asic.aftr_ipv6_addr.v6_addr16[1],asic.aftr_ipv6_addr.v6_addr16[2],asic.aftr_ipv6_addr.v6_addr16[3],
+            		asic.aftr_ipv6_addr.v6_addr16[4],asic.aftr_ipv6_addr.v6_addr16[5],asic.aftr_ipv6_addr.v6_addr16[6],asic.aftr_ipv6_addr.v6_addr16[7],
+			        asic.aftr_ipv6_mask,asic.mtu,asic.mtu,asic.valid);
+	}
+	return len;
+}
+#endif
+
+static int32 dslite_write(struct file *filp, const char *buff, unsigned long len, void *data )
+{
+	return len;
+}
+//sw_dslite--------------------------------------------------------------------------
+#if defined(CONFIG_RTL_PROC_NEW) && defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+static int32 sw_dslite_read(struct seq_file *s, void *v)
+{
+	uint32 idx;
+	rtl865x_dslite_s entry;
+	
+	seq_printf(s, "%s\n", "SW DSLITE Table:\n");
+	for (idx=0; idx<RTL8198C_DSLITETBL_SIZE; idx++) 
+	{
+		if (_rtl865x_getIpv6DsLiteEntrybyIndex(idx,&entry) == FAILED)
+			continue;
+		seq_printf(s,"\t[%d]  HOSTIP/MASK:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d \n", idx,
+                    entry.host_ipv6_addr.v6_addr16[0],entry.host_ipv6_addr.v6_addr16[1],entry.host_ipv6_addr.v6_addr16[2],entry.host_ipv6_addr.v6_addr16[3],
+            		entry.host_ipv6_addr.v6_addr16[4],entry.host_ipv6_addr.v6_addr16[5],entry.host_ipv6_addr.v6_addr16[6],entry.host_ipv6_addr.v6_addr16[7],
+			        entry.host_ipv6_mask);
+		seq_printf(s,"\t      AFTRIP/MASK:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d MTU:%d(0x%x) valid:%d\n",
+                    entry.aftr_ipv6_addr.v6_addr16[0],entry.aftr_ipv6_addr.v6_addr16[1],entry.aftr_ipv6_addr.v6_addr16[2],entry.aftr_ipv6_addr.v6_addr16[3],
+            		entry.aftr_ipv6_addr.v6_addr16[4],entry.aftr_ipv6_addr.v6_addr16[5],entry.aftr_ipv6_addr.v6_addr16[6],entry.aftr_ipv6_addr.v6_addr16[7],
+			        entry.aftr_ipv6_mask,entry.mtu,entry.mtu,entry.valid);
+	}
+	return 0;
+}
+#else
+static int32 sw_dslite_read(struct seq_file *s, void *v)
+{
+	return 0;
+}
+#endif
+
+static int32 sw_dslite_write(struct file *filp, const char *buff, unsigned long len, void *data )
+{
+	return len;
+}
+
+#endif////end of CONFIG_RTL_8198C
+#endif
+
+
+
+#ifdef CONFIG_RTL_PROC_NEW
+extern struct proc_dir_entry proc_root;
+/*stats*/
+int stats_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, stats_debug_entry_read, NULL));
+}
+static ssize_t stats_single_write(struct file * file, const char __user * userbuf,
 		     size_t count, loff_t * off)
 {
-	    return rtl865x_proc_portRate_write(file, userbuf,count, off);
+	    return stats_debug_entry_write(file, userbuf,count, off);
 }
-struct file_operations portRate_proc_fops= {
-        .open           = portRate_single_open,
-        .write		    = portRate_single_write,
+struct file_operations stats_proc_fops= {
+        .open           = stats_single_open,
+        .write		    = stats_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+
+#ifdef CONFIG_RTL_PROC_DEBUG
+/*netif*/
+int netif_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, netif_read, NULL));
+}
+static ssize_t netif_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return netif_write(file, userbuf,count, off);
+}
+struct file_operations netif_proc_fops= {
+        .open           = netif_single_open,
+        .write		    = netif_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*netif*/
+int sw_netif_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, sw_netif_read, NULL));
+}
+static ssize_t sw_netif_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return sw_netif_write(file, userbuf,count, off);
+}
+struct file_operations sw_netif_proc_fops= {
+        .open           = sw_netif_single_open,
+        .write		    = sw_netif_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*acl*/
+//int acl_single_open(struct inode *inode, struct file *file)
+//{
+//        return(single_open(file, acl_show, NULL));
+//}
+//static ssize_t acl_single_write(struct file * file, const char __user * userbuf,
+//		     size_t count, loff_t * off)
+//{
+//	    return acl_write(file, userbuf,count, off);
+//}
+struct file_operations acl_proc_fops= {
+        .open           = acl_single_open,
+//        .write		    = acl_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*advRt*/
+#if defined(CONFIG_RTL_MULTIPLE_WAN)
+int advRt_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, advRt_read, NULL));
+}
+static ssize_t advRt_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return advRt_write(file, userbuf,count, off);
+}
+struct file_operations advRt_proc_fops= {
+        .open           = advRt_single_open,
+        .write		    = advRt_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+/*storm_control*/
+int storm_control_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, storm_read, NULL));
+}
+static ssize_t storm_control_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return storm_write(file, userbuf,count, off);
+}
+struct file_operations storm_control_proc_fops= {
+        .open           = storm_control_single_open,
+        .write		    = storm_control_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*hs*/
+int hs_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, hs_read, NULL));
+}
+static ssize_t hs_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return hs_write(file, userbuf,count, off);
+}
+struct file_operations hs_proc_fops= {
+        .open           = hs_single_open,
+        .write		    = hs_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*pvid*/
+int pvid_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, pvid_read, NULL));
+}
+static ssize_t pvid_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return pvid_write(file, userbuf,count, off);
+}
+struct file_operations pvid_proc_fops= {
+        .open           = pvid_single_open,
+        .write		    = pvid_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*mirrorPort*/
+int mirrorPort_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, mirrorPort_read, NULL));
+}
+static ssize_t mirrorPort_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return mirrorPort_write(file, userbuf,count, off);
+}
+struct file_operations mirrorPort_proc_fops= {
+        .open           = mirrorPort_single_open,
+        .write		    = mirrorPort_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*l2*/
+int l2_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, l2_read, NULL));
+}
+static ssize_t l2_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return l2_write(file, userbuf,count, off);
+}
+struct file_operations l2_proc_fops= {
+        .open           = l2_single_open,
+        .write		    = l2_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*hwMCast*/
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+int hwMCast_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtl865x_proc_hw_mcast_read, NULL));
+}
+static ssize_t hwMCast_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl865x_proc_hw_mcast_write(file, userbuf,count, off);
+}
+struct file_operations hwMCast_proc_fops= {
+        .open           = hwMCast_single_open,
+        .write		    = hwMCast_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*swMCast*/
+int swMCast_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtl865x_proc_sw_mcast_read, NULL));
+}
+static ssize_t swMCast_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl865x_proc_sw_mcast_write(file, userbuf,count, off);
+}
+struct file_operations swMCast_proc_fops= {
+        .open           = swMCast_single_open,
+        .write		    = swMCast_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+/*arp*/
+int arp_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, arp_read, NULL));
+}
+static ssize_t arp_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return arp_write(file, userbuf,count, off);
+}
+struct file_operations arp_proc_fops= {
+        .open           = arp_single_open,
+        .write		    = arp_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*nexthop*/
+int nexthop_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, nexthop_read, NULL));
+}
+static ssize_t nexthop_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return nexthop_write(file, userbuf,count, off);
+}
+struct file_operations nexthop_proc_fops= {
+        .open           = nexthop_single_open,
+        .write		    = nexthop_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#ifdef CONFIG_RTL_PROC_NEW
+extern int32 sw_nexthop_read(struct seq_file *s, void *v);
+#else
+extern int32 sw_nexthop_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+#endif
+extern int32 sw_nexthop_write( struct file *filp, const char *buff,unsigned long len, void *data );
+
+int sw_nexthop_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, sw_nexthop_read, NULL));
+}
+static ssize_t sw_nexthop_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return sw_nexthop_write(file, userbuf,count, off);
+}
+struct file_operations sw_nexthop_proc_fops= {
+        .open           = sw_nexthop_single_open,
+        .write		    = sw_nexthop_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*l3*/
+int l3_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, l3_read, NULL));
+}
+static ssize_t l3_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return l3_write(file, userbuf,count, off);
+}
+struct file_operations l3_proc_fops= {
+        .open           = l3_single_open,
+        .write		    = l3_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*sw_l3*/
+#ifdef CONFIG_RTL_PROC_NEW
+extern int32 sw_l3_read(struct seq_file *s, void *v);
+#else
+extern int32 sw_l3_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+#endif
+extern int32 sw_l3_write( struct file *filp, const char *buff,unsigned long len, void *data );
+
+int sw_l3_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, sw_l3_read, NULL));
+}
+static ssize_t sw_l3_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return sw_l3_write(file, userbuf,count, off);
+}
+struct file_operations sw_l3_proc_fops= {
+        .open           = sw_l3_single_open,
+        .write		    = sw_l3_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*ip*/
+int ip_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, ip_read, NULL));
+}
+static ssize_t ip_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return ip_write(file, userbuf,count, off);
+}
+struct file_operations ip_proc_fops= {
+        .open           = ip_single_open,
+        .write		    = ip_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*pppoe*/
+int pppoe_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, pppoe_read, NULL));
+}
+static ssize_t pppoe_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return pppoe_write(file, userbuf,count, off);
+}
+struct file_operations pppoe_proc_fops= {
+        .open           = pppoe_single_open,
+        .write		    = pppoe_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+#ifdef CONFIG_RTL_LAYERED_DRIVER_L2
+/*sw_l2*/
+int sw_l2_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtl865x_sw_l2_proc_read, NULL));
+}
+static ssize_t sw_l2_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl865x_sw_l2_proc_write(file, userbuf,count, off);
+}
+struct file_operations sw_l2_proc_fops= {
+        .open           = sw_l2_single_open,
+        .write		    = sw_l2_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+#ifdef CONFIG_RTL865X_ROMEPERF
+/*perf_dump*/
+int perf_dump_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtl865x_perf_proc_read, NULL));
+}
+static ssize_t perf_dump_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl865x_perf_proc_write(file, userbuf,count, off);
+}
+struct file_operations perf_dump_proc_fops= {
+        .open           = perf_dump_single_open,
+        .write		    = perf_dump_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+/*port_bandwidth*/
+int port_bandwidth_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, port_bandwidth_read, NULL));
+}
+static ssize_t port_bandwidth_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return port_bandwidth_write(file, userbuf,count, off);
+}
+struct file_operations port_bandwidth_proc_fops= {
+        .open           = port_bandwidth_single_open,
+        .write		    = port_bandwidth_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*queue_bandwidth*/
+int queue_bandwidth_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, queue_bandwidth_read, NULL));
+}
+static ssize_t queue_bandwidth_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return queue_bandwidth_write(file, userbuf,count, off);
+}
+struct file_operations queue_bandwidth_proc_fops= {
+        .open           = queue_bandwidth_single_open,
+        .write		    = queue_bandwidth_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*priority_decision*/
+int priority_decision_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, priority_decision_read, NULL));
+}
+static ssize_t priority_decision_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return priority_decision_write(file, userbuf,count, off);
+}
+struct file_operations priority_decision_proc_fops= {
+        .open           = priority_decision_single_open,
+        .write		    = priority_decision_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#if defined (CONFIG_RTL_ENABLE_RATELIMIT_TABLE)
+/*rateLimit*/
+int rateLimit_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rate_limit_read, NULL));
+}
+static ssize_t rateLimit_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rate_limit_write(file, userbuf,count, off);
+}
+struct file_operations rateLimit_proc_fops= {
+        .open           = rateLimit_single_open,
+        .write		    = rateLimit_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+#if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL865X_EVENT_PROC_DEBUG)
+/*eventMgr*/
+int eventMgr_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtl865x_event_proc_read, NULL));
+}
+static ssize_t eventMgr_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl865x_event_proc_write(file, userbuf,count, off);
+}
+struct file_operations eventMgr_proc_fops= {
+        .open           = eventMgr_single_open,
+        .write		    = eventMgr_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+#endif
+
+#if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
+/*privSkbInfo*/
+int privSkbInfo_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtl819x_proc_privSkbInfo_read, NULL));
+}
+static ssize_t privSkbInfo_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl819x_proc_privSkbInfo_write(file, userbuf,count, off);
+}
+struct file_operations privSkbInfo_proc_fops= {
+        .open           = privSkbInfo_single_open,
+        .write		    = privSkbInfo_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*memory*/
+int memory_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, proc_mem_read, NULL));
+}
+static ssize_t memory_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return proc_mem_write(file, userbuf,count, off);
+}
+struct file_operations memory_proc_fops= {
+        .open           = memory_single_open,
+        .write		    = memory_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*diagnostic*/
+int diagnostic_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, diagnostic_read, NULL));
+}
+static ssize_t diagnostic_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return diagnostic_write(file, userbuf,count, off);
+}
+struct file_operations diagnostic_proc_fops= {
+        .open           = diagnostic_single_open,
+        .write		    = diagnostic_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*port_status*/
+int port_status_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, port_status_read, NULL));
+}
+static ssize_t port_status_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return port_status_write(file, userbuf,count, off);
+}
+struct file_operations port_status_proc_fops= {
+        .open           = port_status_single_open,
+        .write		    = port_status_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*phyReg*/
+int phyReg_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, proc_phyReg_read, NULL));
+}
+static ssize_t phyReg_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return proc_phyReg_write(file, userbuf,count, off);
+}
+struct file_operations phyReg_proc_fops= {
+        .open           = phyReg_single_open,
+        .write		    = phyReg_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*asicCounter*/
+int asicCounter_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtl865x_proc_mibCounter_read, NULL));
+}
+static ssize_t asicCounter_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl865x_proc_mibCounter_write(file, userbuf,count, off);
+}
+struct file_operations asicCounter_proc_fops= {
+        .open           = asicCounter_single_open,
+        .write		    = asicCounter_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*mmd*/
+int mmd_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, proc_mmd_read, NULL));
+}
+static ssize_t mmd_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return proc_mmd_write(file, userbuf,count, off);
+}
+struct file_operations mmd_proc_fops= {
+        .open           = mmd_single_open,
+        .write		    = mmd_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*mac*/
+int mac_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, mac_config_read, NULL));
+}
+static ssize_t mac_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return mac_config_write(file, userbuf,count, off);
+}
+struct file_operations mac_proc_fops= {
+        .open           = mac_single_open,
+        .write		    = mac_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*fc_threshold*/
+int fc_threshold_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, fc_threshold_read, NULL));
+}
+static ssize_t fc_threshold_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return fc_threshold_write(file, userbuf,count, off);
+}
+struct file_operations fc_threshold_proc_fops= {
+        .open           = fc_threshold_single_open,
+        .write		    = fc_threshold_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#if defined (CONFIG_RTL_8198C) && defined (CONFIG_IPV6)
+/*l3v6*/
+int l3v6_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, l3v6_read, NULL));
+}
+static ssize_t l3v6_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return l3v6_write(file, userbuf,count, off);
+}
+struct file_operations l3v6_proc_fops= {
+        .open           = l3v6_single_open,
+        .write		    = l3v6_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*arp6*/
+int arp6_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, arp6_read, NULL));
+}
+static ssize_t arp6_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return arp6_write(file, userbuf,count, off);
+}
+struct file_operations arp6_proc_fops= {
+        .open           = arp6_single_open,
+        .write		    = arp6_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*sw_arp6*/
+int sw_arp6_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, sw_arp6_read, NULL));
+}
+static ssize_t sw_arp6_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return sw_arp6_write(file, userbuf,count, off);
+}
+struct file_operations sw_arp6_proc_fops= {
+        .open           = sw_arp6_single_open,
+        .write		    = sw_arp6_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*nexthop6*/
+int nexthop6_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, nexthop6_read, NULL));
+}
+static ssize_t nexthop6_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return nexthop6_write(file, userbuf,count, off);
+}
+struct file_operations nexthop6_proc_fops= {
+        .open           = nexthop6_single_open,
+        .write		    = nexthop6_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*mcast6*/
+int mcast6_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, mcast6_read, NULL));
+}
+static ssize_t mcast6_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return mcast6_write(file, userbuf,count, off);
+}
+struct file_operations mcast6_proc_fops= {
+        .open           = mcast6_single_open,
+        .write		    = mcast6_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*6rd*/
+int sixrd_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, ip6rd_read, NULL));
+}
+static ssize_t sixrd_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return ip6rd_write(file, userbuf,count, off);
+}
+struct file_operations sixrd_proc_fops= {
+        .open           = sixrd_single_open,
+        .write		    = sixrd_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+/*dslite*/
+int dslite_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, dslite_read, NULL));
+}
+static ssize_t dslite_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return dslite_write(file, userbuf,count, off);
+}
+struct file_operations dslite_proc_fops= {
+        .open           = dslite_single_open,
+        .write		    = dslite_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+
+/*sw_dslite*/
+int sw_dslite_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, sw_dslite_read, NULL));
+}
+static ssize_t sw_dslite_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return sw_dslite_write(file, userbuf,count, off);
+}
+struct file_operations sw_dslite_proc_fops= {
+        .open           = sw_dslite_single_open,
+        .write		    = sw_dslite_single_write,
         .read           = seq_read,
         .llseek         = seq_lseek,
         .release        = single_release,
@@ -5701,13 +8834,43 @@ int32 rtl865x_proc_debug_init(void)
 	extern void log_print_proc_init(void);
 	log_print_proc_init();
 #endif
+#ifdef CONFIG_RTL_PROC_NEW
+	rtl865x_proc_dir = proc_mkdir(RTL865X_PROC_DIR_NAME,&proc_root);
+	retval = SUCCESS;
+#else
 	rtl865x_proc_dir = proc_mkdir(RTL865X_PROC_DIR_NAME,NULL);
+#endif
 	if(rtl865x_proc_dir)
 	{
 		#ifdef CONFIG_RTL_PROC_DEBUG
+#if 0//ndef CONFIG_RTL_8198C  /* "/proc/rtl865x/stats" is duplicated */
+		/*stats*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("stats",0,rtl865x_proc_dir,&stats_proc_fops,NULL);
+#else
+			stats_debug_entry = create_proc_entry("stats",0,rtl865x_proc_dir);
+			if(stats_debug_entry != NULL)
+			{
+				stats_debug_entry->read_proc = stats_debug_entry_read;
+				stats_debug_entry->write_proc= stats_debug_entry_write;
 		
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for stats");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+#endif
 		/*vlan*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("vlan",0,rtl865x_proc_dir,&vlan_single_seq_file_operations,NULL);
+#else
 			vlan_entry = create_proc_entry("vlan",0,rtl865x_proc_dir);
 			if(vlan_entry != NULL)
 			{
@@ -5723,10 +8886,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*netif*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("netif",0,rtl865x_proc_dir,&netif_proc_fops,NULL);
+#else
 			netif_entry = create_proc_entry("netif",0,rtl865x_proc_dir);
 			if(netif_entry != NULL)
 			{
@@ -5741,10 +8908,34 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
+		/*swnetif*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("sw_netif",0,rtl865x_proc_dir,&sw_netif_proc_fops,NULL);
+#else
+			sw_netif_entry = create_proc_entry("sw_netif",0,rtl865x_proc_dir);
+			if(sw_netif_entry != NULL)
+			{
+				sw_netif_entry->read_proc = sw_netif_read;
+				sw_netif_entry->write_proc= sw_netif_write;
 
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for sw netif");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
 		/*acl*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("acl",0,rtl865x_proc_dir,&acl_proc_fops,NULL);
+#else
 			acl_entry = create_proc_entry("acl",0,rtl865x_proc_dir);
 			if(acl_entry != NULL)
 			{
@@ -5762,9 +8953,13 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 		#if defined(CONFIG_RTL_MULTIPLE_WAN)
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("advRt",0,rtl865x_proc_dir,&advRt_proc_fops,NULL);
+#else
 			advRt_entry = create_proc_entry("advRt",0,rtl865x_proc_dir);
 			if(advRt_entry != NULL)
 			{
@@ -5779,11 +8974,15 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 		#endif
 
 		/*storm control*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("storm_control",0,rtl865x_proc_dir,&storm_control_proc_fops,NULL);
+#else
 			storm_control = create_proc_entry("storm_control",0,rtl865x_proc_dir);
 			if(storm_control != NULL)
 			{
@@ -5796,11 +8995,15 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 #ifdef CONFIG_RTL_LAYERED_DRIVER
 		/*soft acl chains*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("soft_aclChains",0,rtl865x_proc_dir,&aclChains_single_seq_file_operations,NULL);
+#else
 			acl_chains_entry = create_proc_entry("soft_aclChains",0,rtl865x_proc_dir);
 			if(acl_chains_entry != NULL)
 			{
@@ -5814,12 +9017,16 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #endif
 
 #if defined(CONFIG_RTL_HW_QOS_SUPPORT)
 		/*qos rules*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("soft_qosRules",0,rtl865x_proc_dir,&qosRule_single_seq_file_operations,NULL);
+#else
 			qos_rule_entry = create_proc_entry("soft_qosRules",0,rtl865x_proc_dir);
 			if(qos_rule_entry != NULL)
 			{
@@ -5837,10 +9044,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #endif
 		/*hs*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("hs",0,rtl865x_proc_dir,&hs_proc_fops,NULL);
+#else
 			hs_entry = create_proc_entry("hs",0,rtl865x_proc_dir);
 			if(hs_entry != NULL)
 			{
@@ -5855,10 +9066,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #if defined(RTL_DEBUG_NIC_SKB_BUFFER)
 		/*nic mbuf*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("nic_mbuf",0,rtl865x_proc_dir,&nic_mbuf_single_seq_file_operations,NULL);
+#else
 			nic_skb_buff = create_proc_entry("nic_mbuf",0,rtl865x_proc_dir);
 			if(nic_skb_buff != NULL)
 			{
@@ -5871,10 +9086,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #endif
 		/*rx ring*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("rxRing",0,rtl865x_proc_dir,&rxRing_single_seq_file_operations,NULL);
+#else
 			rxRing_entry = create_proc_entry("rxRing",0,rtl865x_proc_dir);
 			if(rxRing_entry != NULL)
 			{
@@ -5888,10 +9107,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*tx ring*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("txRing",0,rtl865x_proc_dir,&txRing_single_seq_file_operations,NULL);
+#else
 			txRing_entry = create_proc_entry("txRing",0,rtl865x_proc_dir);
 			if(txRing_entry != NULL)
 			{
@@ -5905,10 +9128,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
-		/*rx ring*/
+		/*mbufRing*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("mbufRing",0,rtl865x_proc_dir,&mbuf_single_seq_file_operations,NULL);
+#else
 			mbuf_entry = create_proc_entry("mbufRing",0,rtl865x_proc_dir);
 			if(mbuf_entry != NULL)
 			{
@@ -5922,10 +9149,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*pvid*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("pvid",0,rtl865x_proc_dir,&pvid_proc_fops,NULL);
+#else
 			pvid_entry = create_proc_entry("pvid",0,rtl865x_proc_dir);
 			if(pvid_entry != NULL)
 			{
@@ -5940,10 +9171,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
-			/*pvid*/
+			/*mirrorPort*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("mirrorPort",0,rtl865x_proc_dir,&mirrorPort_proc_fops,NULL);
+#else
 			mirrorPort_entry = create_proc_entry("mirrorPort",0,rtl865x_proc_dir);
 			if(mirrorPort_entry != NULL)
 			{
@@ -5958,10 +9193,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*l2*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("l2",0,rtl865x_proc_dir,&l2_proc_fops,NULL);
+#else
 			l2_entry = create_proc_entry("l2", 0, rtl865x_proc_dir);
 			if(l2_entry != NULL)
 			{
@@ -5976,30 +9215,46 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
-		hwMCast_entry=create_proc_entry("hwMCast", 0, rtl865x_proc_dir);
-		if(hwMCast_entry != NULL)
-		{
-			hwMCast_entry->read_proc = rtl865x_proc_hw_mcast_read;
-			hwMCast_entry->write_proc = rtl865x_proc_hw_mcast_write;
-			retval = SUCCESS;
-		}
+        {
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("hwMCast",0,rtl865x_proc_dir,&hwMCast_proc_fops,NULL);
+#else
+            hwMCast_entry=create_proc_entry("hwMCast", 0, rtl865x_proc_dir);
+            if(hwMCast_entry != NULL)
+            {
+                hwMCast_entry->read_proc = rtl865x_proc_hw_mcast_read;
+                hwMCast_entry->write_proc = rtl865x_proc_hw_mcast_write;
+                retval = SUCCESS;
+            }
+#endif
+        }
 
-		swMCast_entry=create_proc_entry("swMCast", 0, rtl865x_proc_dir);
-		if(swMCast_entry != NULL)
-		{
-			swMCast_entry->read_proc = rtl865x_proc_sw_mcast_read;
-			swMCast_entry->write_proc = rtl865x_proc_sw_mcast_write;
-			retval = SUCCESS;
-		}
+        {
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("swMCast",0,rtl865x_proc_dir,&swMCast_proc_fops,NULL);
+#else
+            swMCast_entry=create_proc_entry("swMCast", 0, rtl865x_proc_dir);
+            if(swMCast_entry != NULL)
+            {
+                swMCast_entry->read_proc = rtl865x_proc_sw_mcast_read;
+                swMCast_entry->write_proc = rtl865x_proc_sw_mcast_write;
+                retval = SUCCESS;
+            }
+#endif
+        }
 #endif
 
 
 #ifdef CONFIG_RTL_LAYERED_DRIVER_L3
 		/*arp*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("arp",0,rtl865x_proc_dir,&arp_proc_fops,NULL);
+#else
 			arp_entry = create_proc_entry("arp", 0, rtl865x_proc_dir);
 			if(arp_entry != NULL)
 			{
@@ -6014,10 +9269,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*nextHop*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("nexthop",0,rtl865x_proc_dir,&nexthop_proc_fops,NULL);
+#else
 			nexthop_entry= create_proc_entry("nexthop", 0, rtl865x_proc_dir);
 			if(nexthop_entry != NULL)
 			{
@@ -6032,10 +9291,34 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
+		/*sw nextHop*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("sw_nexthop",0,rtl865x_proc_dir,&sw_nexthop_proc_fops,NULL);
+#else
+			sw_nexthop_entry= create_proc_entry("sw_nexthop", 0, rtl865x_proc_dir);
+			if(nexthop_entry != NULL)
+			{
+				nexthop_entry->read_proc = sw_nexthop_read;
+				nexthop_entry->write_proc = sw_nexthop_write;
 
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for nexthop");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
 		/*l3*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("l3",0,rtl865x_proc_dir,&l3_proc_fops,NULL);
+#else
 			l3_entry= create_proc_entry("l3", 0, rtl865x_proc_dir);
 			if(l3_entry != NULL)
 			{
@@ -6050,10 +9333,35 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
+		}
+		/*sw l3*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+			proc_create_data("sw_l3",0,rtl865x_proc_dir,&sw_l3_proc_fops,NULL);
+#else
+			sw_l3_entry= create_proc_entry("l3", 0, rtl865x_proc_dir);
+			if(sw_l3_entry != NULL)
+			{
+				sw_l3_entry->read_proc = sw_l3_read;
+				sw_l3_entry->write_proc = sw_l3_write;
+
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for l3");
+				retval = FAILED;
+				goto out;
+			}
+#endif
 		}
 
 		/*ip*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("ip",0,rtl865x_proc_dir,&ip_proc_fops,NULL);
+#else
 			ip_entry= create_proc_entry("ip", 0, rtl865x_proc_dir);
 			if(ip_entry != NULL)
 			{
@@ -6068,10 +9376,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*pppoe*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("pppoe",0,rtl865x_proc_dir,&pppoe_proc_fops,NULL);
+#else
 			pppoe_entry= create_proc_entry("pppoe", 0, rtl865x_proc_dir);
 			if(pppoe_entry != NULL)
 			{
@@ -6086,12 +9398,16 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 #endif
 #if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 		/*napt*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("napt",0,rtl865x_proc_dir,&napt_single_seq_file_operations,NULL);
+#else
 			napt_entry= create_proc_entry("napt", 0, rtl865x_proc_dir);
 			if(napt_entry != NULL)
 			{
@@ -6110,10 +9426,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*software napt*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("sw_napt",0,rtl865x_proc_dir,&sw_napt_single_seq_file_operations,NULL);
+#else
 			sw_napt_entry= create_proc_entry("sw_napt", 0, rtl865x_proc_dir);
 			if(sw_napt_entry != NULL)
 			{
@@ -6131,12 +9451,16 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #endif
 
 #ifdef CONFIG_RTL_LAYERED_DRIVER_L2
 		/*software l2*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("sw_l2",0,rtl865x_proc_dir,&sw_l2_proc_fops,NULL);
+#else
 			sw_l2_entry= create_proc_entry("sw_l2", 0, rtl865x_proc_dir);
 			if(sw_l2_entry != NULL)
 			{
@@ -6150,6 +9474,7 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #endif
 
@@ -6157,6 +9482,9 @@ int32 rtl865x_proc_debug_init(void)
 		/*rome perf dump*/
 		{
 			rtl8651_romeperfInit();
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("perf_dump",0,rtl865x_proc_dir,&perf_dump_proc_fops,NULL);
+#else
 			perf_dump= create_proc_entry("perf_dump", 0, rtl865x_proc_dir);
 			if(perf_dump != NULL)
 			{
@@ -6170,10 +9498,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #endif
 		/*port_bandwidth*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("port_bandwidth",0,rtl865x_proc_dir,&port_bandwidth_proc_fops,NULL);
+#else
 			port_bandwidth_entry= create_proc_entry("port_bandwidth", 0, rtl865x_proc_dir);
 			if(port_bandwidth_entry != NULL)
 			{
@@ -6188,45 +9520,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
-		}
-#ifdef CONFIG_RTK_VOIP_QOS
-		/*port_priority*/
-		{
-			port_priority_entry= create_proc_entry("port_priority", 0, rtl865x_proc_dir);
-			if(port_priority_entry != NULL)
-			{
-				port_priority_entry->read_proc = port_priority_read;
-				port_priority_entry->write_proc = port_priority_write;
-
-				retval = SUCCESS;
-			}
-			else
-			{
-				rtlglue_printf("can't create proc entry for port_priority");
-				retval = FAILED;
-				goto out;
-			}
-		}
-		/*dscp_priority*/
-		{
-			dscp_priority_entry= create_proc_entry("dscp_priority", 0, rtl865x_proc_dir);
-			if(dscp_priority_entry != NULL)
-			{
-				dscp_priority_entry->read_proc = dscp_priority_read;
-				dscp_priority_entry->write_proc = dscp_priority_write;
-
-				retval = SUCCESS;
-			}
-			else
-			{
-				rtlglue_printf("can't create proc entry for dscp_priority");
-				retval = FAILED;
-				goto out;
-			}
-		}
 #endif
+		}
+
 		/*queue_bandwidth*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("queue_bandwidth",0,rtl865x_proc_dir,&queue_bandwidth_proc_fops,NULL);
+#else
 			queue_bandwidth_entry= create_proc_entry("queue_bandwidth", 0, rtl865x_proc_dir);
 			if(queue_bandwidth_entry != NULL)
 			{
@@ -6241,9 +9542,13 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 		/*priority_decision*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("priority_decision",0,rtl865x_proc_dir,&priority_decision_proc_fops,NULL);
+#else
 			priority_decision_entry= create_proc_entry("priority_decision", 0, rtl865x_proc_dir);
 			if(priority_decision_entry != NULL)
 			{
@@ -6258,10 +9563,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #if defined (CONFIG_RTL_ENABLE_RATELIMIT_TABLE)
 		/* rate limit table */
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("rateLimit",0,rtl865x_proc_dir,&rateLimit_proc_fops,NULL);
+#else
 			rateLimit_entry= create_proc_entry("rateLimit", 0, rtl865x_proc_dir);
 			if(rateLimit_entry != NULL)
 			{
@@ -6276,30 +9585,43 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 #endif
-		#if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL865X_EVENT_PROC_DEBUG)
-		eventMgr_entry=create_proc_entry("eventMgr", 0, rtl865x_proc_dir);
-		if(eventMgr_entry != NULL)
-		{
-			eventMgr_entry->read_proc = rtl865x_event_proc_read;
-			eventMgr_entry->write_proc = rtl865x_event_proc_write;
-			retval = SUCCESS;
-		}
-		#endif
+#if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL865X_EVENT_PROC_DEBUG)
+        {
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("eventMgr",0,rtl865x_proc_dir,&eventMgr_proc_fops,NULL);
+#else
+            eventMgr_entry=create_proc_entry("eventMgr", 0, rtl865x_proc_dir);
+            if(eventMgr_entry != NULL)
+            {
+                eventMgr_entry->read_proc = rtl865x_event_proc_read;
+                eventMgr_entry->write_proc = rtl865x_event_proc_write;
+                retval = SUCCESS;
+            }
+#endif
+        }
+#endif
 
 #if defined(CONFIG_RTL_IGMP_SNOOPING)
-		igmp_entry=create_proc_entry("igmp", 0, rtl865x_proc_dir);
-		if(igmp_entry != NULL)
-		{
-			/*
-			igmp_entry->read_proc = rtl865x_proc_igmpsnooping_read;
-			igmp_entry->write_proc = rtl865x_proc_igmpsnooping_write;
-			igmp_entry->owner = THIS_MODULE;
-			*/
-			igmp_entry->proc_fops = &igmp_single_seq_file_operations;
-			retval = SUCCESS;
-		}
+        {
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("igmp",0,rtl865x_proc_dir,&igmp_single_seq_file_operations,NULL);
+#else
+            igmp_entry=create_proc_entry("igmp", 0, rtl865x_proc_dir);
+            if(igmp_entry != NULL)
+            {
+                /*
+                   igmp_entry->read_proc = rtl865x_proc_igmpsnooping_read;
+                   igmp_entry->write_proc = rtl865x_proc_igmpsnooping_write;
+                   igmp_entry->owner = THIS_MODULE;
+                   */
+                igmp_entry->proc_fops = &igmp_single_seq_file_operations;
+                retval = SUCCESS;
+            }
+#endif
+        }
 #endif
 #endif
 
@@ -6308,6 +9630,9 @@ int32 rtl865x_proc_debug_init(void)
 		
 		/*stats*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("stats",0,rtl865x_proc_dir,&stats_proc_fops,NULL);
+#else
 			stats_debug_entry = create_proc_entry("stats",0,rtl865x_proc_dir);
 			if(stats_debug_entry != NULL)
 			{
@@ -6322,18 +9647,28 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
-		}
-		/*	#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)	*/
-		prive_skb_debug_entry = create_proc_entry("privSkbInfo", 0, rtl865x_proc_dir);
-		if(prive_skb_debug_entry != NULL)
-		{
-			prive_skb_debug_entry->read_proc = rtl819x_proc_privSkbInfo_read;
-			prive_skb_debug_entry->write_proc = rtl819x_proc_privSkbInfo_write;
-			retval = SUCCESS;
-		}
+#endif
+        }
+        /*	#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)	*/
+        {
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("privSkbInfo",0,rtl865x_proc_dir,&privSkbInfo_proc_fops,NULL);
+#else
+            prive_skb_debug_entry = create_proc_entry("privSkbInfo", 0, rtl865x_proc_dir);
+            if(prive_skb_debug_entry != NULL)
+            {
+                prive_skb_debug_entry->read_proc = rtl819x_proc_privSkbInfo_read;
+                prive_skb_debug_entry->write_proc = rtl819x_proc_privSkbInfo_write;
+                retval = SUCCESS;
+            }
+#endif
+        }
 
-		/*memory*/
+        /*memory*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("memory",0,rtl865x_proc_dir,&memory_proc_fops,NULL);
+#else
 			mem_entry = create_proc_entry("memory",0,rtl865x_proc_dir);
 			if(mem_entry != NULL)
 			{
@@ -6348,9 +9683,13 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 		/*diagnostic*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("diagnostic",0,rtl865x_proc_dir,&diagnostic_proc_fops,NULL);
+#else
 			diagnostic_entry= create_proc_entry("diagnostic", 0, rtl865x_proc_dir);
 			if(diagnostic_entry != NULL)
 			{
@@ -6365,9 +9704,13 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 		/*port_status*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("port_status",0,rtl865x_proc_dir,&port_status_proc_fops,NULL);
+#else
 			port_status_entry= create_proc_entry("port_status", 0, rtl865x_proc_dir);
 			if(port_status_entry != NULL)
 			{
@@ -6382,10 +9725,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*phy*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("phyReg",0,rtl865x_proc_dir,&phyReg_proc_fops,NULL);
+#else
 			phyReg_entry= create_proc_entry("phyReg", 0, rtl865x_proc_dir);
 			if(phyReg_entry != NULL)
 			{
@@ -6400,36 +9747,28 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 		/*asicCnt*/
 		{
-				asicCnt_entry=create_proc_entry("asicCounter", 0, rtl865x_proc_dir);
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("asicCounter",0,rtl865x_proc_dir,&asicCounter_proc_fops,NULL);
+#else
+            asicCnt_entry=create_proc_entry("asicCounter", 0, rtl865x_proc_dir);
 			if(asicCnt_entry != NULL)
 			{
 				asicCnt_entry->read_proc = rtl865x_proc_mibCounter_read;
 				asicCnt_entry->write_proc = rtl865x_proc_mibCounter_write;
 				retval = SUCCESS;
 			}
-		}
-		#if defined (CONFIG_RTL_INBAND_CTL_API)
-		/*trafficRate*/
-		{
-#ifdef CONFIG_RTL_PROC_NEW
-            proc_create_data("portRate",0,rtl865x_proc_dir,&portRate_proc_fops,NULL);
-#else
-            portRate_entry=create_proc_entry("portRate", 0, rtl865x_proc_dir);
-			if(portRate_entry != NULL)
-			{
-				portRate_entry->read_proc = rtl865x_proc_portRate_read;
-				portRate_entry->write_proc = rtl865x_proc_portRate_write;
-				retval = SUCCESS;
-			}
 #endif
 		}
 
-#endif
 		/* indirect access for special phy register */
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("mmd",0,rtl865x_proc_dir,&mmd_proc_fops,NULL);
+#else
 			mmd_entry= create_proc_entry("mmd", 0, rtl865x_proc_dir);
 			if(mmd_entry != NULL)
 			{
@@ -6444,10 +9783,14 @@ int32 rtl865x_proc_debug_init(void)
 				retval = FAILED;
 				goto out;
 			}
+#endif
 		}
 
 		/*maccr*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("mac",0,rtl865x_proc_dir,&mac_proc_fops,NULL);
+#else
 			mac_entry=create_proc_entry("mac", 0, rtl865x_proc_dir);
 			if(mac_entry != NULL)
 			{
@@ -6462,9 +9805,13 @@ int32 rtl865x_proc_debug_init(void)
 				goto out;
 			}
 
+#endif
 		}
 		/*FC threshold*/
 		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("fc_threshold",0,rtl865x_proc_dir,&fc_threshold_proc_fops,NULL);
+#else
 			fc_threshold_entry=create_proc_entry("fc_threshold", 0, rtl865x_proc_dir);
 			if(fc_threshold_entry != NULL)
 			{
@@ -6479,7 +9826,172 @@ int32 rtl865x_proc_debug_init(void)
 				goto out;
 			}
 
+#endif
 		}
+#if defined (CONFIG_RTL_8198C) && defined (CONFIG_IPV6)
+		/*l3v6*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("l3v6",0,rtl865x_proc_dir,&l3v6_proc_fops,NULL);
+#else
+			l3v6_entry = create_proc_entry("l3v6", 0, rtl865x_proc_dir);
+			if (l3v6_entry != NULL)
+			{
+				l3v6_entry->read_proc = l3v6_read;
+				l3v6_entry->write_proc = l3v6_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for l3v6");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+		/*arp6*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("arp6",0,rtl865x_proc_dir,&arp6_proc_fops,NULL);
+#else
+			arp6_entry = create_proc_entry("arp6", 0, rtl865x_proc_dir);
+			if (arp6_entry != NULL)
+			{
+				arp6_entry->read_proc = arp6_read;
+				arp6_entry->write_proc = arp6_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for arp6");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+/*sw-arp6*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("sw-arp6",0,rtl865x_proc_dir,&sw_arp6_proc_fops,NULL);
+#else
+			sw_arp6_entry = create_proc_entry("sw_arp6", 0, rtl865x_proc_dir);
+			if (sw_arp6_entry != NULL)
+			{
+				sw_arp6_entry->read_proc = sw_arp6_read;
+				sw_arp6_entry->write_proc = sw_arp6_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for arp6");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}		
+		/*nexthop6*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("nexthop6",0,rtl865x_proc_dir,&nexthop6_proc_fops,NULL);
+#else
+			nexthop6_entry = create_proc_entry("nexthop6", 0, rtl865x_proc_dir);
+			if (nexthop6_entry != NULL)
+			{
+				nexthop6_entry->read_proc = nexthop6_read;
+				nexthop6_entry->write_proc = nexthop6_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for nexthop6");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+
+		/*mcast6*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("mcast6",0,rtl865x_proc_dir,&mcast6_proc_fops,NULL);
+#else
+			mcast6_entry = create_proc_entry("mcast6", 0, rtl865x_proc_dir);
+			if (mcast6_entry != NULL)
+			{
+				mcast6_entry->read_proc = mcast6_read;
+				mcast6_entry->write_proc = mcast6_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for mcast6");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+		/*6rd*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("6rd",0,rtl865x_proc_dir,&sixrd_proc_fops,NULL);
+#else
+			ip6rd_entry = create_proc_entry("6rd", 0, rtl865x_proc_dir);
+			if (ip6rd_entry != NULL)
+			{
+				ip6rd_entry->read_proc = ip6rd_read;
+				ip6rd_entry->write_proc = ip6rd_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for 6rd");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+		/*dslite*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("dslite",0,rtl865x_proc_dir,&dslite_proc_fops,NULL);
+#else
+			dslite_entry = create_proc_entry("dslite", 0, rtl865x_proc_dir);
+			if (dslite_entry != NULL)
+			{
+				dslite_entry->read_proc = dslite_read;
+				dslite_entry->write_proc = dslite_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for dslite");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+
+		/*sw-dslite*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("sw_dslite",0,rtl865x_proc_dir,&sw_dslite_proc_fops,NULL);
+#else
+			sw_dslite_entry = create_proc_entry("sw_dslite", 0, rtl865x_proc_dir);
+			if (sw_dslite_entry != NULL)
+			{
+				sw_dslite_entry->read_proc = sw_dslite_read;
+				sw_dslite_entry->write_proc = sw_dslite_write;
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for dslite");
+				retval = FAILED;
+				goto out;
+			}
+#endif
+		}
+#endif	//end of #if defined (CONFIG_RTL_8198C)
 #endif	
 			
 	}
@@ -6487,7 +9999,9 @@ int32 rtl865x_proc_debug_init(void)
 	{
 		retval = FAILED;
 	}
+#ifndef CONFIG_RTL_PROC_NEW
 out:
+#endif
 	if(retval == FAILED)
 		rtl865x_proc_debug_cleanup();
 
@@ -6502,192 +10016,297 @@ int32 rtl865x_proc_debug_cleanup(void)
 #ifdef CONFIG_RTL_PROC_DEBUG
 		
 		
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("vlan",rtl865x_proc_dir);
+#else
 		if(vlan_entry)
 		{
 			remove_proc_entry("vlan",rtl865x_proc_dir);
 			vlan_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("netif",rtl865x_proc_dir);
+#else
 		if(netif_entry)
 		{
 			remove_proc_entry("netif", rtl865x_proc_dir);
 			netif_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("acl",rtl865x_proc_dir);
+#else
 		if(acl_entry)
 		{
 			remove_proc_entry("acl", rtl865x_proc_dir);
 			acl_entry = NULL;
 		}
+#endif
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("advRt",rtl865x_proc_dir);
+#else
 		if(advRt_entry)
 		{
 			remove_proc_entry("advRt", rtl865x_proc_dir);
 			advRt_entry = NULL;
 		}
 #endif
+#endif
 #ifdef CONFIG_RTL_LAYERED_DRIVER
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("soft_aclChains",rtl865x_proc_dir);
+#else
 		if(acl_chains_entry)
 		{
 			remove_proc_entry("soft_aclChains", rtl865x_proc_dir);
 			acl_chains_entry = NULL;
 		}
 #endif
+#endif
 
 #if defined(CONFIG_RTL_HW_QOS_SUPPORT)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("soft_qosRules",rtl865x_proc_dir);
+#else
 		if(qos_rule_entry)
 		{
 			remove_proc_entry("soft_qosRules", rtl865x_proc_dir);
 			qos_rule_entry = NULL;
 		}
 #endif
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("hs",rtl865x_proc_dir);
+#else
 		if(hs_entry)
 		{
 			remove_proc_entry("hs", rtl865x_proc_dir);
 			hs_entry = NULL;
 		}
+#endif
 #if defined(RTL_DEBUG_NIC_SKB_BUFFER)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("nic_mbuf",rtl865x_proc_dir);
+#else
 		if(nic_skb_buff)
 		{
 			remove_proc_entry("nic_mbuf", rtl865x_proc_dir);
 			nic_skb_buff = NULL;
 		}
 #endif
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("rxRing",rtl865x_proc_dir);
+#else
 		if(rxRing_entry)
 		{
 			remove_proc_entry("rxRing", rtl865x_proc_dir);
 			rxRing_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("txRing",rtl865x_proc_dir);
+#else
 		if(txRing_entry)
 		{
 			remove_proc_entry("txRing", rtl865x_proc_dir);
 			txRing_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("mbufRing",rtl865x_proc_dir);
+#else
 		if(mbuf_entry)
 		{
 			remove_proc_entry("mbufRing", rtl865x_proc_dir);
 			mbuf_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("l2",rtl865x_proc_dir);
+#else
 		if(l2_entry)
 		{
 			remove_proc_entry("l2", rtl865x_proc_dir);
 			l2_entry = NULL;
 		}
+#endif
 
 		
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("arp",rtl865x_proc_dir);
+#else
 		if(arp_entry)
 		{
 			remove_proc_entry("arp", rtl865x_proc_dir);
 			arp_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("nexthop",rtl865x_proc_dir);
+#else
 		if(nexthop_entry)
 		{
 			remove_proc_entry("nexthop", rtl865x_proc_dir);
 			nexthop_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("l3",rtl865x_proc_dir);
+#else
 		if(l3_entry)
 		{
 			remove_proc_entry("l3", rtl865x_proc_dir);
 			l3_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("ip",rtl865x_proc_dir);
+#else
 		if(ip_entry)
 		{
 			remove_proc_entry("ip", rtl865x_proc_dir);
 			ip_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("pppoe",rtl865x_proc_dir);
+#else
 		if(pppoe_entry)
 		{
 			remove_proc_entry("pppoe", rtl865x_proc_dir);
 			pppoe_entry = NULL;
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("napt",rtl865x_proc_dir);
+#else
 		if(napt_entry)
 		{
 			remove_proc_entry("napt", rtl865x_proc_dir);
 		}
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("port_bandwidth",rtl865x_proc_dir);
+#else
 		if (port_bandwidth_entry)
 		{
 			remove_proc_entry("port_bandwidth", rtl865x_proc_dir);
 		}
+#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("queue_bandwidth",rtl865x_proc_dir);
+#else
 		if (queue_bandwidth_entry)
 		{
 			remove_proc_entry("queue_bandwidth", rtl865x_proc_dir);
 		}
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("priority_decision",rtl865x_proc_dir);
+#else
 		if (priority_decision_entry)
 		{
 			remove_proc_entry("priority_decision", rtl865x_proc_dir);
 		}
-#ifdef CONFIG_RTK_VOIP_QOS
-		if (port_priority_entry)
-		{
-			remove_proc_entry("port_priority", rtl865x_proc_dir);
-		}
-		
-		if (dscp_priority_entry)
-		{
-			remove_proc_entry("dscp_priority", rtl865x_proc_dir);
-		}
 #endif
 #if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("sw_napt",rtl865x_proc_dir);
+#else
 		if(sw_napt_entry)
 		{
 			remove_proc_entry("sw_napt", rtl865x_proc_dir);
 		}
 #endif
+#endif
 
 #ifdef CONFIG_RTL_LAYERED_DRIVER_L2
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("sw_l2",rtl865x_proc_dir);
+#else
 		if(sw_l2_entry)
 		{
 			remove_proc_entry("sw_l2", rtl865x_proc_dir);
 		}
 #endif
+#endif
 
 #ifdef CONFIG_RTL865X_ROMEPERF
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("perf_dump",rtl865x_proc_dir);
+#else
 		if(perf_dump)
 		{
 			remove_proc_entry("perf_dump", rtl865x_proc_dir);
 		}
 #endif
+#endif
 
 		#if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL865X_EVENT_PROC_DEBUG)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("eventMgr",rtl865x_proc_dir);
+#else
 		if(eventMgr_entry != NULL)
 		{
 			remove_proc_entry("eventMgr", rtl865x_proc_dir);
 		}
+#endif
 		#endif
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("hwMCast",rtl865x_proc_dir);
+#else
 		if(hwMCast_entry != NULL)
 		{
 			remove_proc_entry("hwMCast", rtl865x_proc_dir);
 		}
+#endif
 
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("swMCast",rtl865x_proc_dir);
+#else
 		if(swMCast_entry != NULL)
 		{
 			remove_proc_entry("swMCast", rtl865x_proc_dir);
 		}
 #endif
+#endif
 		
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("igmp",rtl865x_proc_dir);
+#else
 		if(igmp_entry!=NULL)
 		{
 			remove_proc_entry("igmp", rtl865x_proc_dir);
 		}
 #endif
+#endif
 
 #if defined (CONFIG_RTL_ENABLE_RATELIMIT_TABLE)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("rateLimit",rtl865x_proc_dir);
+#else
 		if(rateLimit_entry != NULL)
 		{
 			remove_proc_entry("rateLimit", rtl865x_proc_dir);
 		}
+#endif
 #endif
 
 		
@@ -6695,61 +10314,160 @@ int32 rtl865x_proc_debug_cleanup(void)
 
 #if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("stats",rtl865x_proc_dir);
+#else
 		if(stats_debug_entry)
 		{
 			remove_proc_entry("stats",rtl865x_proc_dir);
 			stats_debug_entry = NULL;
 		}	
+#endif
 		
 		/*#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)*/
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("privSkbInfo",rtl865x_proc_dir);
+#else
 		if(prive_skb_debug_entry != NULL)
 		{
 			remove_proc_entry("privSkbInfo", rtl865x_proc_dir);
 		}
+#endif
 		/*#endif*/
 
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("memory",rtl865x_proc_dir);
+#else
 		if(mem_entry)
 		{
 			remove_proc_entry("memory", mem_entry);
 			mem_entry = NULL;
 		}
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("diagnostic",rtl865x_proc_dir);
+#else
 		if (diagnostic_entry)
 		{
 			remove_proc_entry("diagnostic", rtl865x_proc_dir);
 		}
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("port_status",rtl865x_proc_dir);
+#else
 		if (port_status_entry)
 		{
 			remove_proc_entry("port_status", rtl865x_proc_dir);
 		}
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("phyReg",rtl865x_proc_dir);
+#else
 		if (phyReg_entry)
 		{
 			remove_proc_entry("phyReg", rtl865x_proc_dir);
 		}
+#endif
 		
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("mmd",rtl865x_proc_dir);
+#else
 		if (mmd_entry)
 		{
 			remove_proc_entry("mmd", rtl865x_proc_dir);
 		}
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("asicCounter",rtl865x_proc_dir);
+#else
 		if(asicCnt_entry != NULL)
 		{
 			remove_proc_entry("asicCounter", rtl865x_proc_dir);
 		}
+#endif
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("mac",rtl865x_proc_dir);
+#else
 		if(mac_entry != NULL)
 		{
 			remove_proc_entry("mac",rtl865x_proc_dir);
 		}
+#endif
 	
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("fc_threshold",rtl865x_proc_dir);
+#else
 		if(fc_threshold_entry != NULL)
 		{
 			remove_proc_entry("fc_threshold", rtl865x_proc_dir);
 		}
+#endif
 
 #endif
 		
+#if defined(CONFIG_RTL_8198C)
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("l3v6",rtl865x_proc_dir);
+#else
+		if (l3v6_entry != NULL)
+		{
+			remove_proc_entry("l3v6", rtl865x_proc_dir);
+		}
+#endif
 		
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("arp6",rtl865x_proc_dir);
+#else
+		if (arp6_entry != NULL)
+		{
+			remove_proc_entry("arp6", rtl865x_proc_dir);
+		}
+#endif
+		
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("nexthop6",rtl865x_proc_dir);
+#else
+		if (nexthop6_entry != NULL)
+		{
+			remove_proc_entry("nexthop6", rtl865x_proc_dir);
+		}
+#endif
 
+
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("mcast6",rtl865x_proc_dir);
+#else
+		if (mcast6_entry != NULL)
+		{
+			remove_proc_entry("mcast6", rtl865x_proc_dir);
+		}
+#endif
+		
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("6rd",rtl865x_proc_dir);
+#else
+		if (ip6rd_entry != NULL)
+		{
+			remove_proc_entry("6rd", rtl865x_proc_dir);
+		}
+#endif
+		
+#ifdef CONFIG_RTL_PROC_NEW
+        remove_proc_entry("dslite",rtl865x_proc_dir);
+#else
+		if (dslite_entry != NULL)
+		{
+			remove_proc_entry("dslite", rtl865x_proc_dir);
+		}
+#endif
+#endif		
+
+#ifdef CONFIG_RTL_PROC_NEW
+		remove_proc_entry(RTL865X_PROC_DIR_NAME, &proc_root);
+#else
 		remove_proc_entry(RTL865X_PROC_DIR_NAME, NULL);
 		rtl865x_proc_dir = NULL;
+#endif
 
 	}
 

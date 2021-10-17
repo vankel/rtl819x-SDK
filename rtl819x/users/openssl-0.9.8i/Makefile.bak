@@ -69,7 +69,12 @@ EXE_EXT=
 ARFLAGS= 
 AR=ar $(ARFLAGS) r
 RANLIB= rsdk-linux-ranlib
-PERL= /usr/local/bin/perl
+
+PERL=/usr/local/bin/perl
+if [ ! -e /usr/local/bin/perl ]; then \
+PERL=/usr/bin/perl; \
+fi
+
 TAR= tar
 TARFLAGS= --no-recursion
 MAKEDEPPROG=makedepend
@@ -598,7 +603,7 @@ romfs:
 	@cp ./apps/openssl.cnf $(DIR_ROMFS)/usr/local/ssl/
 	@chmod 644 $(DIR_ROMFS)/usr/local/ssl/openssl.cnf
 	@cp -r ./apps/demoCA/* $(DIR_ROMFS)/usr/local/ssl/
-	@cp ./test/rsa_test $(DIR_ROMFS)/bin/
+
 	##Just for wapi certs related
 	##To use openssl ecdh (ecdh compute) and ecdsa(ecdsa signature and verify)
 #	@cp ./test/ecdhtest $(DIR_ROMFS)/bin/

@@ -24,6 +24,22 @@
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <sys/utsname.h>
+
+#if 1
+/* fix the error temporarily:
+	toolchain/msdk-4.4.7-mips-EB-3.10-0.9.33-m32t-131227/include/linux/if_bridge.h:183: error: field 'ip6' has incomplete type
+    Wen-jain, please help to patch it.
+ */
+#include <linux/types.h>
+struct in6_addr {
+        union {
+                __u8            u6_addr8[16];
+                __be16          u6_addr16[8];
+                __be32          u6_addr32[4];
+        } in6_u;
+};
+#endif
+
 #include "libbridge.h"
 #include "libbridge_private.h"
 

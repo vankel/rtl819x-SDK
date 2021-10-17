@@ -77,9 +77,13 @@ union PN48 {
 	} _byte_;
 };
 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+typedef enum {ETH_DOT1X_CLIENT_MODE=1,ETH_DOT1X_PROXY_MODE=2}ETH_DOT1X_MODE_T;
+typedef enum {ETH_DOT1X_PROXY_PORT_BASE=1,ETH_DOT1X_PROXY_MAC_BASE=2}ETH_DOT1X_PROXY_TYPE_T;
+#endif
+#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) || defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
+typedef enum { EAP_MD5=0, EAP_TLS=1, EAP_PEAP=2,EAP_TTLS=3 } EAP_TYPE_T;
 
-#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
-typedef enum { EAP_MD5=0, EAP_TLS=1, EAP_PEAP=2 } EAP_TYPE_T;
 typedef enum { INSIDE_MSCHAPV2=0 } INSIDE_TYPE_T;
 typedef enum { PHYBAND_OFF=0, PHYBAND_2G=1, PHYBAND_5G=2 } PHYBAND_TYPE_T;
 #define MAX_EAP_USER_ID_LEN 			64
@@ -92,12 +96,23 @@ typedef enum { PHYBAND_OFF=0, PHYBAND_2G=1, PHYBAND_5G=2 } PHYBAND_TYPE_T;
 //#define RS_ROOT_CERT 				"/var/1x/ca.pem"
 #define RS_ROOT_CERT_2G			"/var/1x/ca_2g.pem"
 #define RS_ROOT_CERT_5G			"/var/1x/ca_5g.pem"
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+#define RS_USER_CERT_ETH	"/var/1x/client_eth.pem"
+#define RS_ROOT_CERT_ETH	"/var/1x/ca_eth.pem"
+#endif
+#ifdef RTL_TTLS_CLIENT
+	typedef enum { TTLS_PHASE2_EAP=0,TTLS_PHASE2_PAP=1,TTLS_PHASE2_CHAP=2,TTLS_PHASE2_MSCHAP=3,TTLS_PHASE2_MSCHAPV2=4 } TTLS_PHASE2_TYPE_T;
+	typedef enum { TTLS_PHASE2_EAP_MD5=0 } TTLS_PHASE2_EAP_METHOD_T;
+#endif
 //#define XSUP_CONF_FILE 				"/var/1x/1x.conf"
 #define XSUP_CONF_FILE_NAME_FMT	"/var/1x/1x-%s.conf"
 //#define XSUP_CONF_MODULE_FILE 	"/var/1x/1x_module.conf"
 #define XSUP_MD5_CONF_MODULE_FILE 	"/var/1x/1x_module_md5.conf"
 #define XSUP_TLS_CONF_MODULE_FILE 	"/var/1x/1x_module_tls.conf"
 #define XSUP_PEAP_CONF_MODULE_FILE 	"/var/1x/1x_module_peap.conf"
+#ifdef RTL_TTLS_CLIENT
+#define XSUP_TTLS_CONF_MODULE_FILE 	"/var/1x/1x_module_ttls.conf"
+#endif
 #endif
 
 #define  IP_ADDRSIZE        50
@@ -347,6 +362,9 @@ typedef struct Global_Params_tag
 	BOOLEAN		reAuthenticate;
 	int		receivedId;
 	PORT_STATUS_TYPE 	suppStatus;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	int port_num;
+#endif
 
 	struct lib1x_ptsm     * timers;
 
@@ -420,7 +438,9 @@ typedef struct TxRx_Params_tag
 	u_char			* device_svr;
 
 	u_char			* device_wlan0;
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	u_char			* device_eth0;
+#endif
 	// Interface to three daemon (1)ethernet (2)wireless (3)driver
 	struct lib1x_nal_intfdesc	* network_svr;
 	struct lib1x_nal_intfdesc	* network_supp;
@@ -475,6 +495,53 @@ typedef struct  _Dot1x_Supplicant
 	u_long			rx_packets;
 	Global_Params	*global;
 } Dot1x_Supplicant;
+
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+#define DOT1X_MAX_DATA_LEN		1560
+#define DOT1X_MAX_EAP_PACKET_LEN 1550
+//#define MAXDATALEN      1560
+#define DOT1X_EVENT_EAP_PACKET	  0x01
+#define DOT1X_EVENT_PORT_DOWN	  0x02
+#define DOT1X_EVENT_PORT_UP		  0x03
+
+
+
+
+#define DOT1X_EAP_ID_INTERVAL	   17
+
+
+typedef struct __rtl802Dot1xAuthResult
+{
+		unsigned char   type; /* 1:port base result/2:mac base result */
+        unsigned char   port_num;
+        char      		auth_state;
+		unsigned char   mac_addr[ETHER_ADDRLEN];
+}rtl802Dot1xAuthResult;
+
+typedef struct __rtl802Dot1xPortStateInfo
+{
+		unsigned char	event_id;
+		char			flag; /* more packets flag */
+		unsigned int	port_mask;/* Bit0 = port0, Bit0=1 means down and so on */
+}rtl802Dot1xPortStateInfo;
+
+typedef struct __rtl802Dot1xEapPkt
+{
+		unsigned char   event_id;
+		char			flag; /* more packets flag */
+		unsigned char	rx_port_num;
+        short			item_size;
+        unsigned char	item[DOT1X_MAX_EAP_PACKET_LEN];
+}rtl802Dot1xEapPkt;
+
+typedef struct __rtl802Dot1xQueueNode
+{
+        short			item_size;
+        unsigned char	item[DOT1X_MAX_DATA_LEN];
+}rtl802Dot1xQueueNode;
+
+#endif
 
 
 #if 0
@@ -599,7 +666,7 @@ typedef struct  _Dot1x_Authenticator
 	struct pmksa_list_t		pmksa_list;
 #endif
 
-#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) || defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
 	char						eapType;
 	char						eapInsideType;
 	char						eapUserId[MAX_EAP_USER_ID_LEN+1];
@@ -607,6 +674,18 @@ typedef struct  _Dot1x_Authenticator
 	char						rsUserPasswd[MAX_RS_USER_PASS_LEN+1];
 	char						rsUserCertPasswd[MAX_RS_USER_CERT_PASS_LEN+1];
 	char						rsBandSel;
+#ifdef RTL_TTLS_CLIENT
+	char						ttlsPhase2Type;
+	char						ttlsPhase2EapMethod;
+#endif
+#endif
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	int							ethDot1xMode;
+	int							ethDot1xProxyType;
+	int							ethDot1xProxyModePortMask;
+	int							ethDot1xClientModePortMask;
+	int							ethDot1xEapolUnicastEnabled;
 #endif
 #ifdef CONFIG_RTL8196C_AP_HCM
 	unsigned char hostmac[13];
@@ -718,29 +797,28 @@ struct _WPA2_PMKSA_Node
 
 
 
-#define GDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
 
-#define AUTH_DEBUGMSG
-#ifdef PMF_DEBUGMSG
+
+//#define AUTH_DEBUGMSG
+#ifdef AUTH_DEBUGMSG
 #define AUTHDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
 #else
 #define AUTHDEBUG(fmt, args...) {}
 #endif
 
-#define PMF_DEBUGMSG
+//#define PMF_DEBUGMSG
 #ifdef PMF_DEBUGMSG
 #define PMFDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
 #else
 #define PMFDEBUG(fmt, args...) {}
 #endif
 
-#define HS2_DEBUGMSG
+//#define HS2_DEBUGMSG
 #ifdef HS2_DEBUGMSG
 #define HS2DEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
 #else
 #define HS2DEBUG(fmt, args...) {}
 #endif
-
 
 #endif /* RTL_WPA2 */
 

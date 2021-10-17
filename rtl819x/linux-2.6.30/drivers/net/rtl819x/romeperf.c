@@ -466,6 +466,18 @@ int32 rtl8651_romeperfDump( int start, int end )
 #endif
 }
 
+#ifdef CONFIG_RTL_PROC_NEW
+int rtl865x_perf_proc_read(struct seq_file *s, void *v)
+{
+	//unsigned long x;
+	//spin_lock_irq(x);
+
+	rtl8651_romeperfDump(79, 98);
+
+	//spin_unlock_irq(x);
+    return count;
+}
+#else
 int rtl865x_perf_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	//unsigned long x;
@@ -476,6 +488,7 @@ int rtl865x_perf_proc_read( char *page, char **start, off_t off, int count, int 
 	//spin_unlock_irq(x);
     return count;
 }
+#endif
 
 int rtl865x_perf_proc_write(struct file *file, const char *buffer,
               unsigned long count, void *data)

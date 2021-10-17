@@ -1476,6 +1476,10 @@ SYSCALL_DEFINE4(vmsplice, int, fd, const struct iovec __user *, iov,
 	return error;
 }
 
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+extern ssize_t find_fd_from_socket(int fd_in, loff_t *off_in, int fd_out, size_t len);
+#endif
+
 SYSCALL_DEFINE6(splice, int, fd_in, loff_t __user *, off_in,
 		int, fd_out, loff_t __user *, off_out,
 		size_t, len, unsigned int, flags)
@@ -1486,6 +1490,12 @@ SYSCALL_DEFINE6(splice, int, fd_in, loff_t __user *, off_in,
 
 	if (unlikely(!len))
 		return 0;
+
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+	error = find_fd_from_socket(fd_in, off_in, fd_out, len);
+	if(error != -EBADF)
+		return error;
+#endif /* CONFIG_RTL_SENDFILE_PATCH */
 
 	error = -EBADF;
 	in = fget_light(fd_in, &fput_in);

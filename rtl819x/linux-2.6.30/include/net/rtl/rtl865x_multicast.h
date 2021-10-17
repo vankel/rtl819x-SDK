@@ -22,8 +22,11 @@
 #define 	RTL865X_MULTICAST_UPLOADONLY				0x04
 
 #define 	MAX_MCAST_FWD_DESCRIPTOR_CNT			256
-#define	MAX_MCAST_TABLE_ENTRY_CNT				128
-
+#define	    MAX_MCAST_TABLE_ENTRY_CNT				128
+#if defined(CONFIG_RTL_8198C)
+#define 	MAX_MCASTV6_FWD_DESCRIPTOR_CNT			256
+#define     MAX_MCASTV6_TABLE_ENTRY_CNT				256
+#endif
 
 /*
  * List definitions.
@@ -197,6 +200,9 @@ typedef struct rtl865x_mcast_fwd_descriptor_s{
 	char toCpu;
 	unsigned int vid;
 	unsigned int fwdPortMask;
+#if defined(CONFIG_BRIDGE_IGMP_SNOOPING)
+	unsigned int dip;
+#endif
 	MC_LIST_ENTRY(rtl865x_mcast_fwd_descriptor_s)	next;
 	
 }rtl865x_mcast_fwd_descriptor_t;
@@ -362,6 +368,84 @@ int rtl865x_blockMulticastFlow(unsigned int srcVlanId, unsigned int srcPort,unsi
 int32 rtl865x_flushHWMulticastEntry(void);
 int rtl865x_getMCastHashMethod(unsigned int *hashMethod);
 int rtl865x_setMCastHashMethod(unsigned int hashMethod);
+
+#if defined(CONFIG_RTL_8198C)
+typedef MC_LIST_HEAD(mcast_fwd_descriptor_head6_s, rtl8198c_mcast_fwd_descriptor6_s)  mcast_fwd_descriptor_head6_t;
+typedef struct rtl8198c_mcast_fwd_descriptor6_s{
+	char netifName[16];
+	unsigned int descPortMask;
+	char toCpu;
+	unsigned int vid;
+	unsigned int fwdPortMask;
+#if defined(CONFIG_BRIDGE_IGMP_SNOOPING)
+	unsigned int swPortMask;
+	unsigned int dip;
+#endif
+	MC_LIST_ENTRY(rtl8198c_mcast_fwd_descriptor6_s)	next;
+	
+}rtl8198c_mcast_fwd_descriptor6_t;
+typedef struct rtl8198c_tblDrv_mCastv6_s {
+	inv6_addr_t sip;
+	inv6_addr_t dip;
+	uint16 	port;
+	uint32	mbr;
+	uint16  age;
+	uint16  cpu;
+	uint16	six_rd_eg;
+	uint16	six_rd_idx;
+	/*above field is for asic table usage*/
+	unsigned short	svid;
+	mcast_fwd_descriptor_head6_t fwdDescChain;
+	unsigned int	count;
+	unsigned char	cpuHold;
+	unsigned char	flag;
+	unsigned char	inAsic;	
+	unsigned char	unKnownMCast;
+#if  defined(CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	unsigned short liveTime;
+#endif 
+
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	unsigned int hashIndex;
+#endif
+	TAILQ_ENTRY(rtl8198c_tblDrv_mCastv6_s) nextMCast;	
+} rtl8198c_tblDrv_mCastv6_t;
+
+struct rtl8198c_multicastv6Table{
+	struct freeList6_s {
+		
+		TAILQ_HEAD( _FreeMultiCastEntry6, rtl8198c_tblDrv_mCastv6_s) freeMultiCast;
+	} freeList;
+
+	struct inuseList6_s {
+		TAILQ_HEAD( _InuseMCast6, rtl8198c_tblDrv_mCastv6_s) *mCastTbl;
+	}inuseList;
+};
+
+typedef struct rtl8198c_mCastv6Config_s{
+	unsigned int externalPortMask;	
+}rtl8198c_mCastv6Config_t;
+
+int rtl8198C_initMulticastv6(void);//rtl8198c_mCastv6Config_t * mCastConfig6);
+int rtl8198C_reinitMulticastv6(void);	
+int rtl8198C_addMulticastv6ExternalPort(unsigned int extPort);
+int rtl8198C_delMulticastv6ExternalPort(unsigned int extPort);
+int rtl8198C_setMulticastv6ExternalPortMask(unsigned int extPortMask);
+int rtl8198C_getMulticastv6ExternalPortMask(void);
+int rtl8198C_addMulticastv6ExternalPortMask(unsigned int extPortMask);
+int rtl8198C_delMulticastv6ExternalPortMask(unsigned int extPortMask);
+rtl8198c_tblDrv_mCastv6_t *rtl8198C_findMCastv6Entry(inv6_addr_t dip,inv6_addr_t sip, unsigned short svid, unsigned short sport);
+int rtl8198C_addMulticastv6Entry(inv6_addr_t dip,inv6_addr_t sip, unsigned short svid, unsigned short sport, 
+									rtl8198c_mcast_fwd_descriptor6_t * newFwdDescChain, 
+									int flushOldChain, unsigned int extIp, char cpuHold, unsigned char flag);
+
+int rtl8198C_delMulticastv6Entry(inv6_addr_t groupAddr);
+int rtl8198C_genVirtualMCastv6FwdDescriptor(unsigned int forceToCpu, unsigned int  fwdPortMask, rtl8198c_mcast_fwd_descriptor6_t *fwdDescriptor);
+int rtl8198C_blockMulticastv6Flow(unsigned int srcVlanId, unsigned int srcPort,inv6_addr_t srcIpAddr,inv6_addr_t destIpAddr);
+int32 rtl8198C_flushHWMulticastv6Entry(void);
+int rtl8198C_getMCastv6HashMethod(unsigned int *hashMethod);
+int rtl8198C_setMCastv6HashMethod(unsigned int hashMethod);
+#endif
 #if defined (CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
 #define MACCLONE_MODE_HW_REPLACE 1
 #define	MACCLONE_MODE_SW_REPLACE 2

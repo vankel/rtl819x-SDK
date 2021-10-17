@@ -18,7 +18,7 @@ obj-$(CONFIG_RTK_VOIP_RX) += voip_rx/
 obj-$(CONFIG_RTK_VOIP_TX) += voip_tx/
 obj-$(CONFIG_RTK_VOIP_SRTP) += srtp/
 #obj-ipchost-y-sdk-y += voip_dsp/cpu_setup.obj
-obj-ipchost-y-sdk-  += voip_dsp/cpu_setup.o voip_dsp/cp3/
+obj-ipchost-y-sdk-  += voip_dsp/cpu_setup.o
 
 obj-ipchost-y-sdk-y  += rtk_modules-ipchost.obj
 obj-ipchost--sdk-y  += rtk_modules.obj dsplib.obj

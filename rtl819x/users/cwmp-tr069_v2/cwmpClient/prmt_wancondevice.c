@@ -6,6 +6,10 @@
 #include "prmt_wancondevice.h"
 #include "prmt_wanatmf5loopback.h"
 
+//#include "../../boa/apmib/apmib.h" //bruce
+
+#undef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+
 #include "mibtbl.h" //keith add.
 #include "prmt_utility.h" //keith add.
 #include <sys/stat.h> //keith add.
@@ -172,7 +176,7 @@ struct CWMP_LEAF tWANCONSTATSLeaf[] =
 };
 
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
-#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+#if 0//def _PRMT_X_TELEFONICA_ES_DHCPOPTION_
 /*InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.DHCPClient.SentDHCPOption.{i}.*/
 struct CWMP_OP tDHCPClientSentENTITYLeafOP = { getDHCPClientOptENTITY, setDHCPClientOptENTITY };
 struct CWMP_PRMT tDHCPCLientSentENTITYLeafInfo[] =
@@ -314,7 +318,7 @@ struct CWMP_PRMT tWANPPPCONENTITYLeafInfo[] =
 /*(name,			type,		flag,			op)*/
 {"Enable",			eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 {"Reset",				eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
 #endif
 /*ping_zhang:20081217 END*/
@@ -322,7 +326,7 @@ struct CWMP_PRMT tWANPPPCONENTITYLeafInfo[] =
 {"PossibleConnectionTypes",	eCWMP_tSTRING,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
 {"ConnectionType",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 {"PPPoESessionID",		eCWMP_tUINT,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
 {"DefaultGateway",		eCWMP_tSTRING,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
 #endif
@@ -350,7 +354,8 @@ struct CWMP_PRMT tWANPPPCONENTITYLeafInfo[] =
 {"DNSServers",			eCWMP_tSTRING,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
 
 {"MACAddress",			eCWMP_tSTRING,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
-/*MACAddressOverride*/
+{"MACAddressOverride",			eCWMP_tBOOLEAN,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
+
 {"TransportType",		eCWMP_tSTRING,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
 {"PPPoEACName",			eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP}, 
 {"PPPoEServiceName",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
@@ -358,6 +363,9 @@ struct CWMP_PRMT tWANPPPCONENTITYLeafInfo[] =
 {"RouteProtocolRx",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
 {"PPPLCPEcho",			eCWMP_tUINT,	CWMP_READ,		&tWANPPPCONENTITYLeafOP}, 
 {"PPPLCPEchoRetry",		eCWMP_tUINT,	CWMP_READ,		&tWANPPPCONENTITYLeafOP}, 
+#ifdef _PRMT_X_REALTEK_VLANID_
+{"X_REALTEK_VlanID",	eCWMP_tUINT,	CWMP_READ|CWMP_WRITE,	&tWANPPPCONENTITYLeafOP}, 
+#endif
 #ifdef _PRMT_X_CT_COM_PPPOEv2_
 {"X_CT-COM_ProxyEnable",	eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
 {"X_CT-COM_MAXUser",		eCWMP_tUINT,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
@@ -372,13 +380,14 @@ struct CWMP_PRMT tWANPPPCONENTITYLeafInfo[] =
 #if defined(CONFIG_ETHWAN)
 {"X_CT-COM_MulticastVlan", eCWMP_tINT,	CWMP_WRITE|CWMP_READ,	&tWANPPPCONENTITYLeafOP},
 #endif
+{"ShapingBurstSize",	eCWMP_tUINT,	CWMP_READ,		&tWANPPPCONENTITYLeafOP},
 {"PortMappingNumberOfEntries",	eCWMP_tUINT,	CWMP_READ,		&tWANPPPCONENTITYLeafOP}
 };
 enum eWANPPPCONENTITYLeaf
 {
 	ePPP_Enable,
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	ePPP_Reset,
 #endif
 /*ping_zhang:20081217 END*/
@@ -386,7 +395,7 @@ enum eWANPPPCONENTITYLeaf
 	ePPP_PossibleConnectionTypes,
 	ePPP_ConnectionType,
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	ePPP_PPPoESessionID,
 	ePPP_DefaultGateway,
 #endif
@@ -412,7 +421,7 @@ enum eWANPPPCONENTITYLeaf
 	ePPP_DNSOverrideAllowed,
 	ePPP_DNSServers,
 	ePPP_MACAddress,
-	/*MACAddressOverride*/
+	ePPP_MACAddressOverride,
 	ePPP_TransportType,
 	ePPP_PPPoEACName, 
 	ePPP_PPPoEServiceName,
@@ -420,6 +429,9 @@ enum eWANPPPCONENTITYLeaf
 	ePPP_RouteProtocolRx,
 	ePPP_PPPLCPEcho, 
 	ePPP_PPPLCPEchoRetry, 
+#ifdef _PRMT_X_REALTEK_VLANID_
+	ePPP_X_REALTEK_VlanID,
+#endif
 #ifdef _PRMT_X_CT_COM_PPPOEv2_
 	ePPP_X_CTCOM_ProxyEnable,
 	ePPP_X_CTCOM_MAXUser,
@@ -434,14 +446,14 @@ enum eWANPPPCONENTITYLeaf
 #if defined(CONFIG_ETHWAN)
 	ePPP_X_CTCOM_MulticastVlan,
 #endif
-
+	ePPP_ShapingBurstSize,
 	ePPP_PortMappingNumberOfEntries
 };
 struct CWMP_LEAF tWANPPPCONENTITYLeaf[] =
 {
 { &tWANPPPCONENTITYLeafInfo[ePPP_Enable] },
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 { &tWANPPPCONENTITYLeafInfo[ePPP_Reset] },
 #endif
 /*ping_zhang:20081217 END*/
@@ -449,7 +461,7 @@ struct CWMP_LEAF tWANPPPCONENTITYLeaf[] =
 { &tWANPPPCONENTITYLeafInfo[ePPP_PossibleConnectionTypes] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_ConnectionType] },
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 { &tWANPPPCONENTITYLeafInfo[ePPP_PPPoESessionID] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_DefaultGateway] },
 #endif
@@ -475,7 +487,7 @@ struct CWMP_LEAF tWANPPPCONENTITYLeaf[] =
 { &tWANPPPCONENTITYLeafInfo[ePPP_DNSOverrideAllowed] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_DNSServers] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_MACAddress] },
-/*MACAddressOverride*/
+{ &tWANPPPCONENTITYLeafInfo[ePPP_MACAddressOverride] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_TransportType] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_PPPoEACName] }, 
 { &tWANPPPCONENTITYLeafInfo[ePPP_PPPoEServiceName] },
@@ -483,6 +495,9 @@ struct CWMP_LEAF tWANPPPCONENTITYLeaf[] =
 { &tWANPPPCONENTITYLeafInfo[ePPP_RouteProtocolRx] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_PPPLCPEcho] }, 
 { &tWANPPPCONENTITYLeafInfo[ePPP_PPPLCPEchoRetry] }, 
+#ifdef _PRMT_X_REALTEK_VLANID_
+{ &tWANPPPCONENTITYLeafInfo[ePPP_X_REALTEK_VlanID] }, 
+#endif
 #ifdef _PRMT_X_CT_COM_PPPOEv2_
 { &tWANPPPCONENTITYLeafInfo[ePPP_X_CTCOM_ProxyEnable] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_X_CTCOM_MAXUser] },
@@ -497,6 +512,7 @@ struct CWMP_LEAF tWANPPPCONENTITYLeaf[] =
 #if defined(CONFIG_ETHWAN)
 { &tWANPPPCONENTITYLeafInfo[ePPP_X_CTCOM_MulticastVlan] },
 #endif
+{ &tWANPPPCONENTITYLeafInfo[ePPP_ShapingBurstSize] },
 { &tWANPPPCONENTITYLeafInfo[ePPP_PortMappingNumberOfEntries] },
 { NULL }
 };
@@ -1099,15 +1115,43 @@ struct CWMP_NODE tWANDSLCNTMNGObject[] =
 
 
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
-#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
-
+#if 0//def _PRMT_X_TELEFONICA_ES_DHCPOPTION_
 int checkandmodify_reqoption_order(unsigned int order, int chainid)
 {
 	int ret=-1;
 	int num,i;
 	int maxorder;
-	MIB_CE_DHCP_OPTION_T *p,pentry;
+	MIB_CE_DHCP_OPTION_T *p,pentry[2];
+#if 1//bruce
+	p=&pentry[1];
+	maxorder=findMaxDHCPReqOptionOrder();
+	if(order>maxorder+1)
+		goto checkresult;
+	else{
+		//num = mib_chain_total( MIB_DHCP_CLIENT_OPTION_TBL );
+		apmib_get( MIB_DHCP_CLIENT_OPTION_TBL_NUM, (void *)&num );
+		for( i=1; i<=num;i++ )
+		{
+			memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+			*((char *)p) = (char)i;			
+			if(i==chainid)
+				continue;
+			if( !apmib_get( MIB_DHCP_CLIENT_OPTION_TBL, (void*)p ))
+				continue;
+			else
+				memcpy(&pentry[0], &pentry[1], sizeof(MIB_CE_DHCP_OPTION_T));
 
+			if(p->usedFor!=eUsedFor_DHCPClient_Req)
+				continue;
+			if(p->order>=order){
+				(p->order)++;
+				//mib_chain_update(MIB_DHCP_CLIENT_OPTION_TBL,(void*)p,i);
+				apmib_set(MIB_DHCP_CLIENT_OPTION_MOD,(void*)&pentry);
+			}
+		}
+		ret=0;
+	}
+#else
 	p=&pentry;
 	maxorder=findMaxDHCPReqOptionOrder();
 	if(order>maxorder+1)
@@ -1129,7 +1173,7 @@ int checkandmodify_reqoption_order(unsigned int order, int chainid)
 		}
 		ret=0;
 	}
-
+#endif
 checkresult:
 	return ret;
 }
@@ -1139,9 +1183,56 @@ void compact_reqoption_order( )
 	int ret=-1;
 	int num,i,j;
 	int maxorder;
-	MIB_CE_DHCP_OPTION_T *p,pentry;
+	MIB_CE_DHCP_OPTION_T *p,pentry[2];
 	char *orderflag;
+#if 1//bruce
+	while(1){
+		p=&pentry[1];
+		maxorder=findMaxDHCPReqOptionOrder();
+		orderflag=(char*)malloc(maxorder+1);
+		if(orderflag==NULL) return;
+		memset(orderflag,0,maxorder+1);
 
+		//num = mib_chain_total( MIB_DHCP_CLIENT_OPTION_TBL );
+		apmib_get( MIB_DHCP_CLIENT_OPTION_TBL_NUM, (void *)&num );
+		for( i=1; i<=num;i++ )
+		{
+			memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+			*((char *)p) = (char)i;
+			if( !apmib_get( MIB_DHCP_CLIENT_OPTION_TBL, (void*)p ))
+				continue;
+			if(p->usedFor!=eUsedFor_DHCPClient_Req)
+				continue;
+			orderflag[p->order]=1;
+		}
+		for(j=1;j<=maxorder;j++){
+			if(orderflag[j]==0)
+				break;
+		} //star: there only one 0 in orderflag array
+		if(j==(maxorder+1))
+			break;
+		for( i=1; i<=num;i++ )
+		{
+			memset(p, '\0', sizeof(MIB_CE_DHCP_OPTION_T));
+			*((char *)p) = (char)i;
+			if( !apmib_get( MIB_DHCP_CLIENT_OPTION_TBL, (void*)p ))
+				continue;
+			if(p->usedFor!=eUsedFor_DHCPClient_Req)
+				continue;
+			if(p->order>j){
+				(p->order)--;
+				//mib_chain_update(MIB_DHCP_CLIENT_OPTION_TBL,(void*)p,i);
+				apmib_set(MIB_DHCP_CLIENT_OPTION_MOD,(void *)&pentry);
+			}
+		}
+
+		if(orderflag)
+		{
+			free(orderflag);
+			orderflag=NULL;
+		}
+	}
+#else
 	while(1){
 		p=&pentry;
 		maxorder=findMaxDHCPReqOptionOrder();
@@ -1183,7 +1274,7 @@ void compact_reqoption_order( )
 			orderflag=NULL;
 		}
 	}
-
+#endif
 }
 
 unsigned int DHCPClientReservedOption[]={
@@ -1206,6 +1297,40 @@ int checkDHCPClientOptionTag(unsigned int tagvalue)
 	return 0;
 }
 
+#if 1//bruce
+int getWANIPConDHCPClientENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **data)
+{
+	char	*lastname = entity->info->name;
+	unsigned char usedFor;
+	MIB_CE_ATM_VC_T pvcentry;
+	unsigned int pvcchainidx;
+
+	if( (name==NULL) || (type==NULL) || (data==NULL) || (entity==NULL))
+		return -1;
+
+	*type = entity->info->type;
+	*data = NULL;
+
+//	if( getATMVCEntry(name, &pvcentry, &pvcchainidx) < 0 )
+//		return ERR_9002;
+
+	if( strcmp( lastname, "SentDHCPOptionNumberOfEntries" )==0 )
+	{
+		usedFor = eUsedFor_DHCPClient_Sent;
+		*data = uintdup(findDHCPOptionNum(usedFor, pvcentry.ifIndex));
+	}
+	else if( strcmp( lastname, "ReqDHCPOptionNumberOfEntries" )==0 )
+	{
+		usedFor = eUsedFor_DHCPClient_Req;
+		*data = uintdup(findDHCPOptionNum(usedFor,pvcentry.ifIndex));
+	}
+	else
+	{
+		return ERR_9005;
+	}
+	return 0;
+}
+#else
 int getWANIPConDHCPClientENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 {
 	char	*lastname = entity->info->name;
@@ -1213,7 +1338,33 @@ int getWANIPConDHCPClientENTITY(char *name, struct CWMP_LEAF *entity, int *type,
 	unsigned int devnum,ipnum;
 	MIB_CE_ATM_VC_T pvcentry;
 	unsigned int pvcchainid;
+#if 1//bruce
+	if( (name==NULL) || (type==NULL) || (data==NULL) || (entity==NULL))
+		return -1;
 
+	*type = entity->info->type;
+	*data = NULL;
+
+	ipnum = getWANIPConInstNum( name );
+	devnum = getWANConDevInstNum(name);
+	if(ipnum==0 || devnum==0)	return ERR_9005;
+	getATMVCEntryByIPInstNum(devnum,ipnum,&pvcentry,&pvcchainid);
+
+	if( strcmp( lastname, "SentDHCPOptionNumberOfEntries" )==0 )
+	{
+		usedFor = eUsedFor_DHCPClient_Sent;
+		*data = uintdup(findDHCPOptionNum(usedFor, pvcentry.ifIndex));
+	}
+	else if( strcmp( lastname, "ReqDHCPOptionNumberOfEntries" )==0 )
+	{
+		usedFor = eUsedFor_DHCPClient_Req;
+		*data = uintdup(findDHCPOptionNum(usedFor,pvcentry.ifIndex));
+	}
+	else
+	{
+		return ERR_9005;
+	}
+#else
 	if( (name==NULL) || (type==NULL) || (data==NULL) || (entity==NULL))
 		return -1;
 
@@ -1239,8 +1390,10 @@ int getWANIPConDHCPClientENTITY(char *name, struct CWMP_LEAF *entity, int *type,
 	{
 		return ERR_9005;
 	}
+#endif
 	return 0;
 }
+#endif
 
 int getDHCPClientOptENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 {
@@ -1253,7 +1406,63 @@ int getDHCPClientOptENTITY(char *name, struct CWMP_LEAF *entity, int *type, void
 
 	if( (name==NULL) || (type==NULL) || (data==NULL) || (entity==NULL))
 		return -1;
+#if 1//bruce
+	sentDhcpOptNum = getSentDHCPOptInstNum( name );
+	reqDhcpOptNum = getReqDHCPOptInstNum( name );
+	ipnum = getWANIPConInstNum( name );
+	devnum = getWANConDevInstNum(name);
 
+	if(ipnum==0 || devnum==0)	return ERR_9005;
+	if( sentDhcpOptNum==0 && reqDhcpOptNum ==0 ) return ERR_9005;
+
+	pDHCPOptEntry = &DhcpOptEntry;
+	getATMVCEntryByIPInstNum(devnum,ipnum,&pvcentry,&pvcchainid);
+	if(sentDhcpOptNum != 0) 	//for IGD.LANDevice.{i}.WANDevice.{i}.WANIPConnectionDevice.{i}.DHCPClient.SentDHCPOption.{i}.
+	{
+		usedFor = eUsedFor_DHCPClient_Sent;
+		if( getDHCPClientOptionByOptInstNum(sentDhcpOptNum, pvcentry.ifIndex,  usedFor, pDHCPOptEntry, &chainid) < 0)
+			return ERR_9002;
+	}
+	else if(reqDhcpOptNum !=0)	//for IGD.LANDevice.{i}.WANDevice.{i}.WANIPConnectionDevice.{i}.DHCPClient.ReqDHCPOption.{i}.
+	{
+		usedFor = eUsedFor_DHCPClient_Req;
+		if( getDHCPClientOptionByOptInstNum(reqDhcpOptNum, pvcentry.ifIndex, usedFor,pDHCPOptEntry, &chainid) < 0 )
+			return ERR_9002;
+	}
+
+	*type = entity->info->type;
+	*data = NULL;
+
+	if( strcmp( lastname, "Enable" )==0 )
+	{
+		if(pDHCPOptEntry->enable)
+			*data = booldup(1);
+		else
+			*data = booldup(0);
+	}
+	else if( strcmp( lastname, "Order")==0)
+	{
+		if(usedFor != eUsedFor_DHCPClient_Req)
+			return ERR_9005;
+		*data = uintdup(pDHCPOptEntry->order);
+	}
+	else if( strcmp( lastname, "Tag" )==0 )
+	{
+		*data = uintdup(pDHCPOptEntry->tag);
+	}
+	else if( strcmp( lastname, "Value" )==0 )
+	{
+		struct xsd__base64 tmp;
+		tmp.__ptr=pDHCPOptEntry->value;
+		tmp.__size=pDHCPOptEntry->len;
+		*data=base64dup( tmp );
+	}
+	else
+	{
+		return ERR_9005;
+	}
+
+#else
 	sentDhcpOptNum = getSentDHCPOptInstNum( name );
 	reqDhcpOptNum = getReqDHCPOptInstNum( name );
 	ipnum = getWANIPConInstNum( name );
@@ -1308,6 +1517,7 @@ int getDHCPClientOptENTITY(char *name, struct CWMP_LEAF *entity, int *type, void
 	{
 		return ERR_9005;
 	}
+#endif
 	return 0;
 }
 
@@ -1323,7 +1533,7 @@ int setDHCPClientOptENTITY(char *name, struct CWMP_LEAF *entity, int type, void 
 
 	if( (name==NULL) || (type==NULL) || (data==NULL) || (entity==NULL))
 		return -1;
-
+#if 0//bruce
 	sentDhcpOptNum = getSentDHCPOptInstNum( name );
 	reqDhcpOptNum = getReqDHCPOptInstNum( name );
 	ipnum = getWANIPConInstNum( name );
@@ -1413,6 +1623,7 @@ int setDHCPClientOptENTITY(char *name, struct CWMP_LEAF *entity, int type, void 
 	{
 		return ERR_9005;
 	}
+#endif
 	return 0;
 }
 
@@ -1427,7 +1638,7 @@ int objDHCPClientSentOpt(char *name, struct CWMP_LEAF *e, int type, void *data)
 	unsigned int ipnum,devnum;
 	MIB_CE_ATM_VC_T pvcentry;
 	unsigned int pvcchainid;
-
+#if 0//bruce
 	usedFor = eUsedFor_DHCPClient_Sent;
 
 	ipnum = getWANIPConInstNum( name );
@@ -1556,6 +1767,7 @@ int objDHCPClientSentOpt(char *name, struct CWMP_LEAF *e, int type, void *data)
 			return 0;
 		}
 	}
+#endif
 	return -1;
 }
 
@@ -1570,7 +1782,7 @@ int objDHCPClientReqOpt(char *name, struct CWMP_LEAF *e, int type, void *data)
 	unsigned int ipnum,devnum;
 	MIB_CE_ATM_VC_T pvcentry;
 	unsigned int pvcchainid;
-
+#if 0//bruce
 	usedFor = eUsedFor_DHCPClient_Req;
 
 	ipnum = getWANIPConInstNum( name );
@@ -1701,6 +1913,8 @@ int objDHCPClientReqOpt(char *name, struct CWMP_LEAF *e, int type, void *data)
 			return 0;
 		}
 	}
+
+#endif
 	return -1;
 }
 #endif
@@ -2235,6 +2449,8 @@ int getWANCONSTATS(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 	mib_get( MIB_OP_MODE, (void *)&opmode);
 	if(opmode == WISP_MODE)
 		iface = "wlan0";
+	else if(pppnum != 0)
+		iface = "ppp0";
 	else
 		iface = "eth1";
 	
@@ -2549,8 +2765,8 @@ int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **d
 			else			
 				*data = strdup( "Disconnected" );
 		}else
-#endif		
 				*data = strdup( "Disconnected" );
+#endif		
 	}	
 	else if( strcmp( lastname, "PossibleConnectionTypes" )==0 )
 	{	
@@ -2572,9 +2788,15 @@ int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **d
 			*data = strdup( "IP_Routed" );
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
 	}
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	else if( strcmp( lastname, "PPPoESessionID" )==0 )
 	{
+#if 1
+		unsigned int sessionId = 0;
+
+		mib_get(MIB_PPP_SESSION_NUM, (void *)&sessionId);
+		*data = intdup(sessionId);
+#else
 		unsigned char totalEntry;
 		MIB_CE_PPPOE_SESSION_T Entry;
 		unsigned int i,sessionID=0,found=0;
@@ -2595,6 +2817,7 @@ int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **d
 			*data = intdup(0);
 		else
 			*data = intdup(sessionID);
+#endif
 	}else if( strcmp( lastname, "DefaultGateway" )==0 )
 	{
 		char strWanIP[16];
@@ -2644,6 +2867,35 @@ int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **d
 //		else
 			*data = uintdup( 0 );
 #else //
+#if 1
+		FILE *fp;
+		unsigned int startTime = 0;
+		struct timeval nowTime;
+
+		fp = fopen( "/var/ppp/startTime", "r" );
+		
+		while (fp && fgets( buf,160,fp ))
+		{
+			char *p;
+			
+			p = strtok(buf, " \n\r");
+			if (p)
+			{
+				startTime = atol(p);
+			}
+		}
+		
+		if (fp) fclose(fp);
+
+		if (startTime == 0)
+			*data = uintdup(0);
+		else
+		{
+			gettimeofday(&nowTime, NULL);
+			*data = uintdup(nowTime.tv_sec - startTime);
+		}
+
+#else
 		struct sysinfo info;
 		DHCP_T dhcp;
 		mib_get(MIB_WAN_DHCP, (void *)&dhcp);
@@ -2668,6 +2920,7 @@ int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **d
 		}
 		else
 			*data = uintdup( 0 );
+#endif
 #endif //#if defined(MULTI_WAN_SUPPORT)
 	}
 	else if( strcmp( lastname, "LastConnectionError" )==0 )
@@ -2743,8 +2996,12 @@ int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **d
 		else
 		*data = strdup( "" ); /*return an empty string*/
 #else
+#if DEBUG
 		mib_get(MIB_PPP_PASSWORD, (void*)buf);
 		*data = strdup(buf);
+#else
+		*data = strdup( "" ); /*return an empty string*/
+#endif
 #endif //#if defined(MULTI_WAN_SUPPORT)
 	}
 	else if( strcmp( lastname, "PPPEncryptionProtocol" )==0 )	// Jenny
@@ -2803,8 +3060,14 @@ int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **d
 		char *temp=NULL;	
 		struct in_addr inAddr;
 
+#if defined(MULTI_WAN_SUPPORT)
 		if (getInAddr( ifname, DST_IP_ADDR, (void *)&inAddr) == 1)
 			temp = inet_ntoa(inAddr);
+#else
+		if (getInAddr( "ppp0", DST_IP_ADDR, (void *)&inAddr) == 1)
+			temp = inet_ntoa(inAddr);
+#endif
+		
 		if(temp)
 			*data=strdup(temp);
 		else
@@ -2920,6 +3183,10 @@ mib_get( MIB_PPTP_MTU_SIZE, (void *)&mtu_size);
 		}
 #endif //#if defined(MULTI_WAN_SUPPORT)
 	}
+	else if( strcmp( lastname, "MACAddressOverride" )==0 )
+	{
+		*data = booldup(0);
+	}
 	else if( strcmp( lastname, "TransportType" )==0 )
 	{
 #if defined(MULTI_WAN_SUPPORT)
@@ -3022,6 +3289,15 @@ mib_get( MIB_PPP_SERVICE_NAME,  (void *)ser_name);
 
 	}
 
+#ifdef _PRMT_X_REALTEK_VLANID_
+	else if( strcmp( lastname, "X_REALTEK_VlanID" )==0 )
+	{
+		mib_get(MIB_CWMP_PPPOE_WAN_VLANID, (void *)&vChar);
+
+		*data = uintdup(vChar);
+	}
+#endif
+
 #ifdef _PRMT_X_CT_COM_PPPOEv2_
 	else if( strcmp( lastname, "X_CT-COM_ProxyEnable" )==0 )
 	{
@@ -3091,6 +3367,10 @@ mib_get( MIB_PPP_SERVICE_NAME,  (void *)ser_name);
 			*data = intdup(pEntry->multicastVlan);
 	}
 #endif
+	else if( strcmp( lastname, "ShapingBurstSize" )==0 )
+	{
+		*data = uintdup( 0 );
+	}
 	else if( strcmp( lastname, "PortMappingNumberOfEntries" )==0 )
 	{	
 		int portEntityCount;
@@ -3107,7 +3387,7 @@ mib_get( MIB_PPP_SERVICE_NAME,  (void *)ser_name);
 }
 
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 int gStartReset=0;
 static int resetThread=0;
 static int resetChainID=-1;
@@ -3149,6 +3429,10 @@ static int cr2reg(int pcr)
 }
 
 static void *reset_thread(void *arg) {
+#if 1
+	va_cmd("/bin/ifconfig",2,1,"ppp0","down");
+	va_cmd("/bin/ifconfig",2,1,"ppp0","up");
+#else
 	MIB_CE_ATM_VC_T *pEntry,Entry;
 	char wanif[5], ifIdx[3], pppif[6],vpivci[6],qosParms[64],cmdbuf[256] ;
 	int pcreg,screg;
@@ -3267,7 +3551,7 @@ static void *reset_thread(void *arg) {
 			va_cmd(IFCONFIG,2,1,pppif,"up");
 		}
 	}
-
+#endif
 END:
 	resetThread=0;
 }
@@ -3336,11 +3620,15 @@ int setWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *dat
 		
 		if(i==NULL) return ERR_9007;
 
-		vInt = PPPOE;			
+		if(*i==1)
+			vInt = PPPOE;
+		else
+			vInt = DHCP_CLIENT;
+		
 		mib_set(MIB_WAN_DHCP, (void *)&vInt);
 		return 1;
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	}else if( strcmp( lastname, "Reset" )==0 )
 	{
 		int *i=data;
@@ -3534,6 +3822,30 @@ return 0;
 		return 0;
 	
 	}
+#ifdef _PRMT_X_REALTEK_VLANID_
+	else if( strcmp( lastname, "X_REALTEK_VlanID" )==0 )
+	{
+		int *i = data;
+		unsigned int vInt=0;
+		char setPppoeVid[50];
+		
+		if (i == NULL) return ERR_9007;
+
+		vInt = *i;			
+		mib_set(MIB_CWMP_PPPOE_WAN_VLANID, (void *)&vInt);
+
+		if (vInt == 0)
+			sprintf(setPppoeVid, "echo 0 0 0 0 0 > /proc/ppp/mib_vlan");
+		else
+			sprintf(setPppoeVid, "echo 1 1 %d 0 0 > /proc/ppp/mib_vlan", vInt);
+
+		tr098_printf("setPppoeVid [%s]", setPppoeVid);
+
+		system(setPppoeVid);
+
+		return 0;
+	}
+#endif
 	else{
 		return ERR_9005;
 	}
@@ -3615,8 +3927,7 @@ int objWANPPPConn(char *name, struct CWMP_LEAF *e, int type, void *data)
 				if( create_Object( ptable, tWANPPPCONObject, sizeof(tWANPPPCONObject), 1, cwmp_pppconn_instnum ) < 0 )
 					return -1;
 
-                mib_set( MIB_CWMP_PPPCON_INSTNUM, (void *)&cwmp_pppconn_instnum);
-                maxnum = 1; //only support 1 ppp connection
+				maxnum = 1; //only support 1 ppp connection
 			}
 			add_objectNum( name, maxnum );
 
@@ -4002,6 +4313,11 @@ int getWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **da
 	unsigned int devnum,ipnum;
 	int vChar=0;
 	int wan_dhcp;
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	int pppoeWithDhcpEnabled = 0;
+	
+	mib_get(MIB_PPPOE_DHCP_ENABLED, (void *)&pppoeWithDhcpEnabled);
+#endif
 	mib_get( MIB_WAN_DHCP, (void *)&wan_dhcp);
 
 
@@ -4029,7 +4345,11 @@ int getWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **da
 		else
 			*data = booldup(0);
 #else
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED || pppoeWithDhcpEnabled)
+#else
 		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED)
+#endif
 		*data = booldup(1);
 		else
 			*data = booldup(0);
@@ -4062,7 +4382,11 @@ int getWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **da
 #else
 		char *temp=NULL;		
 
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED || pppoeWithDhcpEnabled)
+#else
 		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED)
+#endif
 		{
 			struct in_addr inAddr;
 			if (getInAddr( "eth1", IP_ADDR, (void *)&inAddr) == 1)
@@ -4152,7 +4476,11 @@ int getWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **da
 		else
 			*data = strdup( "DHCP" );
 #else
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_dhcp == DHCP_CLIENT || pppoeWithDhcpEnabled)
+#else
 		if(wan_dhcp == DHCP_CLIENT)
+#endif
 			*data = strdup( "DHCP" );
 		else if(wan_dhcp == DHCP_DISABLED)
 			*data = strdup( "Static" );
@@ -4195,7 +4523,12 @@ int getWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **da
 			if (getInAddr( ifname, SUBNET_MASK, (void *)&inAddr) == 1)
 				temp = inet_ntoa(inAddr);
 #else
+
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED || pppoeWithDhcpEnabled)
+#else
 		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED)
+#endif
 		{
 			if (getInAddr( "eth1", SUBNET_MASK, (void *)&inAddr) == 1)
 				temp = inet_ntoa(inAddr);
@@ -4217,7 +4550,11 @@ int getWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **da
 			if(getDefaultRoute(ifname, &inAddr) )
 				temp = inet_ntoa(inAddr);
 #else
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED || pppoeWithDhcpEnabled)
+#else
 		if(wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED)
+#endif
 		{
 			if(getDefaultRoute("eth1", &inAddr) )
 				temp = inet_ntoa(inAddr);
@@ -4297,8 +4634,11 @@ int getWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **da
 			*data = uintdup(pEntry->staticIpMtu);
 #else
 		int mtu_size;
-		
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_dhcp == DHCP_CLIENT || pppoeWithDhcpEnabled)
+#else
 		if(wan_dhcp == DHCP_CLIENT)
+#endif
 			mib_get( MIB_DHCP_MTU_SIZE, (void *)&mtu_size);
 		else if(wan_dhcp == DHCP_DISABLED)
 			mib_get( MIB_FIXED_IP_MTU_SIZE, (void *)&mtu_size);
@@ -4482,6 +4822,9 @@ int setWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data
 #endif
 	if( strcmp( lastname, "Enable" )==0 )
 	{
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		return ERR_9001;
+#else
 		int *i = data;
 		unsigned int vChar=0;
 		
@@ -4490,6 +4833,7 @@ int setWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data
 
 		vChar = DHCP_CLIENT;
 		mib_set(MIB_WAN_DHCP, (void *)&vChar);
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 	
 		return 1;
 	}
@@ -4532,6 +4876,9 @@ int setWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data
 	}
 	else if( strcmp( lastname, "AddressingType" )==0 )
 	{
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		return ERR_9001;
+#else
 		unsigned int vChar=0;
 		
 		if( buf==NULL ) 
@@ -4545,10 +4892,15 @@ int setWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data
 		else
 			return ERR_9007;
 		mib_set(MIB_WAN_DHCP, (void*)&vChar);
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
+
 		return 1;		
 	}
 	else if( strcmp( lastname, "ExternalIPAddress" )==0 )
 	{
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		return ERR_9001;
+#else
 		unsigned int vChar=0;
 		struct in_addr in;
 		
@@ -4561,9 +4913,13 @@ int setWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data
 			return ERR_9007;
 		mib_set(MIB_WAN_IP_ADDR, (void *)&in);	
 		return 1;		
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 	}
 	else if( strcmp( lastname, "SubnetMask" )==0 )
 	{
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		return ERR_9001;
+#else
 		unsigned int vChar=0;
 		struct in_addr in;
 		
@@ -4576,9 +4932,13 @@ int setWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data
 		mib_set(MIB_WAN_SUBNET_MASK, (void *)&in);	
 
 		return 1;	
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 	}
 	else if( strcmp( lastname, "DefaultGateway" )==0 )
 	{
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		return ERR_9001;
+#else
 		unsigned int vChar=0;
 		struct in_addr in;
 		
@@ -4591,6 +4951,7 @@ int setWANIPCONENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data
 		mib_set(MIB_WAN_DEFAULT_GATEWAY, (void *)&in);	
 
 		return 1;
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 	}
 	else if( strcmp( lastname, "MaxMTUSize" )==0 )
 	{
@@ -4745,7 +5106,6 @@ int objWANIPConn(char *name, struct CWMP_LEAF *e, int type, void *data)
 				if( create_Object( ptable, tWANIPCONObject, sizeof(tWANIPCONObject), 1, cwmp_ipconn_instnum ) < 0 )
 					return -1;
 
-                mib_set( MIB_CWMP_IPCON_INSTNUM, (void *)&cwmp_ipconn_instnum );
 				maxnum = 1; //only support 1 ip connection
 			}
 			add_objectNum( name, maxnum );
@@ -5001,14 +5361,20 @@ int objWANIPConn(char *name, struct CWMP_LEAF *e, int type, void *data)
 			int wan_dhcp;
 			int num=0;
 			int cwmp_ipconn_created, cwmp_ipconn_instnum;
-
-
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+			int pppoeWithDhcpEnabled = 0;
+#endif
 
 
 			num = get_ParameterNameCount(name,1);
 			mib_get( MIB_WAN_DHCP, (void *)&wan_dhcp);
 			mib_get( MIB_CWMP_IPCON_CREATED, (void *)&cwmp_ipconn_created);
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+			mib_get(MIB_PPPOE_DHCP_ENABLED, (void *)&pppoeWithDhcpEnabled);
+			if( wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED || pppoeWithDhcpEnabled)
+#else
 			if( wan_dhcp == DHCP_CLIENT || wan_dhcp == DHCP_DISABLED)
+#endif
 			{
 				struct CWMP_LINKNODE *remove_entity=NULL;
 				int ret = 0;
@@ -7040,7 +7406,15 @@ int transfer2IfName( char *name, char *ifname )
 #endif //WLAN_MBSSID
 #endif //WLAN_SUPPORT
 	else //wan interface
-		strcpy( ifname, "eth1" );
+	{
+		int wan_dhcp;
+		mib_get( MIB_WAN_DHCP, (void *)&wan_dhcp);
+
+		if (wan_dhcp == PPPOE)
+			strcpy( ifname, "ppp0" );
+		else
+			strcpy( ifname, "eth1" );
+	}
 	return 0;	
 }
 
@@ -7076,7 +7450,7 @@ unsigned char transfer2IfIndxfromIfName( char *ifname )
 }
 #endif //#if 0 //keith remove
 
-#if 0 //keith remove
+//#if 0 //keith remove
 int transfer2PathNamefromItf( char *ifname, char *pathname )
 {
 	struct CWMP_LEAF *e=NULL;
@@ -7113,6 +7487,8 @@ int transfer2PathNamefromItf( char *ifname, char *pathname )
 	else if( strcmp( ifname, "eth0" )==0 )
 		strcpy( pathname, "InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.1" );
 #endif
+
+#if 0
 #ifdef WLAN_SUPPORT
 	else if( strcmp( ifname, wlan_name[0])==0 )
 		strcpy( pathname, "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1" );
@@ -7154,9 +7530,10 @@ int transfer2PathNamefromItf( char *ifname, char *pathname )
 		}
 		return transfer2PathName( ifindex, pathname );
 	}
+#endif
 	return 0;	
 }
-#endif //#if 0 //keith remove
+//#endif //#if 0 //keith remove
 
 unsigned int transfer2IfIndex( char *name )
 {

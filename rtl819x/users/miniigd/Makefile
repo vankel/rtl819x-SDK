@@ -4,11 +4,29 @@
 # for use with GNU Make
 #CFLAGS = -Wall -O2 -D_GNU_SOURCE -g
 #CFLAGS = -Wall
+
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+INCLUDEDIR = $(DIR_LINUX_KERNEL)/include
+CFLAGS += -DKERNEL_2_6_30
+else
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+ifeq ($(KERNEL_VER),linux-2.6.30)
+INCLUDEDIR = $(DIR_LINUX_KERNEL)/include
+CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+INCLUDEDIR = $(DIR_LINUX_KERNEL)/include/uapi
+CFLAGS += -DKERNEL_3_10
+endif
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
+
 CFLAGS := -Wall -D_GNU_SOURCE $(CFLAGS)
 #CFLAGS += $(EXTRA_CFLAGS)
 #reduce code
 CFLAGS += -Os
-INCLUDEDIR = ../../linux-2.6.30/include
+#INCLUDEDIR = $(DIR_LINUX_KERNEL)/include/uapi
 CFLAGS += -I$(INCLUDEDIR)
 
 #CC = mips-uclibc-gcc

@@ -1,0 +1,222 @@
+#!/bin/sh
+
+ifconfig lo 127.0.0.1
+
+if [ -f /etc/init.d/rcS.conf ]; then
+. /etc/init.d/rcS.conf
+fi
+CINIT=1
+
+hostname rlx-linux
+
+mount -t proc proc /proc
+mount -t ramfs ramfs /var
+if [ -d "/hw_setting" ];then
+    mount -t yaffs2 -o tags-ecc-off /dev/mtdblock1 /hw_setting
+fi
+
+mkdir /var/tmp
+mkdir /var/web
+mkdir /var/log
+mkdir /var/run
+mkdir /var/lock
+mkdir /var/system
+mkdir /var/dnrd
+mkdir /var/lib
+mkdir /var/lib/misc
+mkdir /var/home
+
+##For miniigd
+mkdir /var/linuxigd
+cp /etc/tmp/pics* /var/linuxigd 2>/dev/null
+
+##For pptp
+mkdir /var/ppp
+mkdir /var/ppp/peers
+
+#smbd
+mkdir /var/config
+mkdir /var/private
+mkdir /var/tmp/usb
+
+#snmpd
+mkdir /var/net-snmp
+
+cp /bin/pppoe.sh /var/ppp/true
+echo "#!/bin/sh" > /var/ppp/true
+#echo "PASS"     >> /var/ppp/true
+
+#for console login
+cp /etc/shadow.sample /var/shadow
+
+#extact web pages
+cd /web
+flash extr /web
+cd /
+ 
+mkdir -p /var/udhcpc
+mkdir -p /var/udhcpd
+cp /bin/init.sh /var/udhcpc/eth0.deconfig
+echo " " > /var/udhcpc/eth0.deconfig
+cp /bin/init.sh /var/udhcpc/eth1.deconfig
+echo " " > /var/udhcpc/eth1.deconfig
+cp /bin/init.sh /var/udhcpc/br0.deconfig
+echo " " > /var/udhcpc/br0.deconfig
+cp /bin/init.sh /var/udhcpc/wlan0.deconfig
+echo " " > /var/udhcpc/wlan0.deconfig
+
+if [ "$CINIT" = 1 ]; then
+VOIP_SUPPORT=$CONFIG_APP_RTK_VOIP startup.sh
+fi
+
+# for wapi certs related
+mkdir /var/myca
+# wapi cert(must done before init.sh)
+cp -rf /usr/local/ssl/* /var/myca/ 2>/dev/null
+# loadWapiFiles >/dev/null 2>&1
+ 
+# for wireless client mode 802.1x
+mkdir /var/1x
+cp -rf /usr/1x/* /var/1x/ 2>/dev/null
+ 
+# Start system script
+init.sh gw all
+ 
+# modify dst-cache setting
+echo "24576" > /proc/sys/net/ipv4/route/max_size
+echo "180" > /proc/sys/net/ipv4/route/gc_thresh
+echo 20 > /proc/sys/net/ipv4/route/gc_elasticity
+# echo 35 > /proc/sys/net/ipv4/route/gc_interval
+# echo 60 > /proc/sys/net/ipv4/route/secret_interval
+# echo 10 > /proc/sys/net/ipv4/route/gc_timeout
+ 
+# echo "4096" > /proc/sys/net/nf_conntrack_max
+echo "12288" > /proc/sys/net/netfilter/nf_conntrack_max
+echo "600" > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_established
+echo "20" > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_time_wait
+echo "20" > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_close
+echo "90" > /proc/sys/net/ipv4/netfilter/ip_conntrack_udp_timeout
+echo "120" > /proc/sys/net/ipv4/netfilter/ip_conntrack_udp_timeout_stream
+echo "90" > /proc/sys/net/ipv4/netfilter/ip_conntrack_generic_timeout
+# echo "1048576" > /proc/sys/net/ipv4/rt_cache_rebuild_count
+echo "32" > /proc/sys/net/netfilter/nf_conntrack_expect_max
+
+# modify IRQ Affinity setting
+echo "3" > /proc/irq/33/smp_affinity
+
+#echo 1 > /proc/sys/net/ipv4/ip_forward #don't enable ip_forward before set MASQUERADE
+#echo 2048 > /proc/sys/net/core/hot_list_length
+
+
+if [ "$CONFIG_APP_RTK_VOIP" != "" ]; then
+# support 8 simultaneous SIP calls 
+echo 64 > /proc/sys/net/netfilter/nf_conntrack_expect_max
+fi
+
+# voip init (flags defined in rcS.conf)
+voip_init_eth_dsp_host()
+{
+	# Reset all DSP
+	nfbi hwreset
+
+	# Upload bootcode to DSP
+	#nfbi bootdownload /usr/rtl89xxb_dsp/boot-32m.bin
+	nfbi bootdownload 1 /usr/boot-ddr2.bin
+	# Tftp upload DSP image
+	#tftp -l /usr/rtl89xxb_dsp/linux.bin -p 192.168.1.97
+	tftp -l /usr/linux.bin -p 192.168.1.97
+
+	if [ "0$CONFIG_RTK_VOIP_DSP_DEVICE_NR" -lt "2" ]; then
+		return 
+	fi
+
+	# force to clean arp table of host
+	ifconfig br0 down
+	sleep 2
+	ifconfig br0 up
+	# download bootcode for Phy ID = 16
+	nfbi phyaddr 16
+	nfbi bootdownload  1 /usr/boot-ddr2.bin
+	# Tftp upload DSP image
+	tftp -l /usr/linux.bin -p 192.168.1.97
+
+	if [ "0$CONFIG_RTK_VOIP_DSP_DEVICE_NR" -gt "2" ]; then
+		@echo "DSP device is grater then 2!!"
+	fi
+
+	# wait all dsp ready 
+	wait_dsp
+}
+
+voip_init_coprocessor_dsp()
+{
+    # boot dsp
+    /etc/rc_boot_dsp
+    echo 0 > /proc/aipc_dev/dsp/console/enable
+}
+
+voip_init_normal()
+{
+	#echo 0 > /proc/net/nat_sip
+
+	# ip phone 
+	if [ "$CONFIG_RTK_VOIP_IP_PHONE" != "" ]; then
+		ui&
+	fi
+
+	if [ "$CONFIG_APP_RTK_VOIP" != "" ]; then
+		cat /etc/solar.conf.in > /var/solar.conf
+		solar&
+		solar_monitor&
+		#autocfg.sh&
+		netlink&
+		fwupdate&
+	fi
+}
+
+voip_init_others()
+{
+	if [ "$RESOLV_SO_OV" != "" ]; then
+		LD_PRELOAD=resolv_ov.so dns_task&
+	else
+		if [ "$CONFIG_APP_RTK_VOIP" != "" ]; then
+			dns_task&
+		fi
+	fi
+	if [ "$CONFIG_RTK_VOIP_DECT_UART_SUPPORT" == "y" ]; then
+		telnetd&
+	fi
+}
+
+if [ "$CONFIG_RTK_VOIP_IPC_ARCH" == "y" ]; then
+if [ "$CONFIG_RTK_VOIP_COPROCESS_DSP" == "y" ]; then
+if [ "$CONFIG_RTK_VOIP_COPROCESS_DSP_IS_HOST" == "y" ]; then
+    # Host of coprocessor dsp
+    voip_init_coprocessor_dsp
+    voip_init_normal
+    voip_init_others
+
+fi
+else
+if [ "$CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST" == "y" ]; then
+	# Host of eth dsp
+	voip_init_eth_dsp_host 
+	voip_init_normal 
+	voip_init_others 
+fi
+fi
+fi
+
+if [ "$CONFIG_RTK_VOIP_IPC_ARCH" != "y" ]; then
+	# normal 
+	voip_init_normal 
+	voip_init_others 
+fi
+
+
+# start web server
+ls /bin/watchdog > /dev/null && watchdog 1000&
+if [ "$CONFIG_RTK_VOIP_ETHERNET_DSP_IS_DSP" != "y" ]; then
+webs&
+fi
+

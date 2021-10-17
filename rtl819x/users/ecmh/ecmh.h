@@ -49,7 +49,16 @@
 #define ECMH_SUBSCRIPTION_TIMEOUT (5*60)
 
 // XXX: Can this be optimized with a 128bit compare?
+#ifdef KERNEL_2_6_30
 #define COMPARE_IPV6_ADDRESS(a,b) (a.s6_addr32[0] == b.s6_addr32[0] && a.s6_addr32[1] == b.s6_addr32[1] && a.s6_addr32[2] == b.s6_addr32[2] && a.s6_addr32[3] == b.s6_addr32[3])
+#endif
+#ifdef KERNEL_3_10
+#define COMPARE_IPV6_ADDRESS(a,b) (a.s6_addr[0] == b.s6_addr[0] && a.s6_addr[1] == b.s6_addr[1] && a.s6_addr[2] == b.s6_addr[2] && a.s6_addr[3] == b.s6_addr[3] \
+									&&a.s6_addr[4] == b.s6_addr[4] && a.s6_addr[5] == b.s6_addr[5] && a.s6_addr[6] == b.s6_addr[6] && a.s6_addr[7] == b.s6_addr[7] \ 
+									&&a.s6_addr[8] == b.s6_addr[8] && a.s6_addr[9] == b.s6_addr[9] && a.s6_addr[10] == b.s6_addr[10] && a.s6_addr[11] == b.s6_addr[11] \
+									&&a.s6_addr[12] == b.s6_addr[12] && a.s6_addr[13] == b.s6_addr[13] && a.s6_addr[14] == b.s6_addr[14] && a.s6_addr[15] == b.s6_addr[15])
+#endif
+
 #define IS_MC_NODELOCAL(a) (a.s6_addr16[0] == htons(0xff01))
 #define IS_MC_SITELOCAL(a) (a.s6_addr16[0] == htons(0xff02))
 

@@ -504,28 +504,6 @@ exit:
 	disk_part_iter_exit(&piter);
 }
 
-#ifdef CONFIG_KERNEL_POLLING
-static int drop_partitions(struct gendisk *disk, struct block_device *bdev)
-{
-	struct disk_part_iter piter;
-	struct hd_struct *part;
-	int res;
-
-	if (bdev->bd_part_count)
-		return -EBUSY;
-	res = invalidate_partition(disk, 0);
-	if (res)
-		return res;
-
-	disk_part_iter_init(&piter, disk, DISK_PITER_INCL_EMPTY);
-	while ((part = disk_part_iter_next(&piter)))
-		delete_partition(disk, part->partno);
-	disk_part_iter_exit(&piter);
-
-	return 0;
-}
-#endif
-
 int rescan_partitions(struct gendisk *disk, struct block_device *bdev)
 {
 	struct disk_part_iter piter;
@@ -605,28 +583,6 @@ int rescan_partitions(struct gendisk *disk, struct block_device *bdev)
 	kfree(state);
 	return 0;
 }
-
-#ifdef CONFIG_KERNEL_POLLING
-int invalidate_partitions(struct gendisk *disk, struct block_device *bdev)
-{
-	int res;
-
-	if (!bdev->bd_invalidated)
-		return 0;
-
-	res = drop_partitions(disk, bdev);
-	if (res)
-		return res;
-
-	set_capacity(disk, 0);
-	check_disk_size_change(disk, bdev);
-	bdev->bd_invalidated = 0;
-	/* tell userspace that the media / partition table may have changed */
-	kobject_uevent(&disk_to_dev(disk)->kobj, KOBJ_CHANGE);
-
-	return 0;
-}
-#endif
 
 unsigned char *read_dev_sector(struct block_device *bdev, sector_t n, Sector *p)
 {

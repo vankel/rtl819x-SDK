@@ -362,7 +362,7 @@
 #endif
 
 #ifdef DTMF_REMOVAL_FORWARD
-#define DTMF_REMOVAL_FORWARD_SIZE 0	/* removal length is (3 + PCM_PERIOD) */
+#define DTMF_REMOVAL_FORWARD_SIZE 3	/* removal length is (3 + PCM_PERIOD) */
 					/*
 					 * Forward remove DTMF_REMOVAL_FORWARD_SIZE*10 ms.
 					 * The larger size, DTMF removal more clean, but longer delay.
@@ -596,17 +596,9 @@
 #define SUPPORT_SILAB_FXO_TUNE	1
 #endif
 
-#ifdef CONFIG_RTK_VOIP_AMR_NB
-#define AMR_NB_WENGO // compatible to Wengo phone
-#endif
-
 #ifdef CONFIG_RTK_VOIP_AMR_WB
 #define AMR_WB_WENGO // compatible to Wengo phone
 #endif
-
-#define DTMF_DIR_SIZE	3
-
-#define DTMF_ECHO_SUPPRESS			// To suppress DTMF echo (caused by RFC2833 or inband DTMF) to not to be detected.
 
 #endif //_RTK_VOIP_H
 

@@ -502,24 +502,6 @@ static const int npindex_to_ethertype[NUM_NP] = {
 #define ppp_unlock(ppp)		do { ppp_recv_unlock(ppp); \
 				     ppp_xmit_unlock(ppp); } while (0)
 
-void rtl_ppp_xmit_lock(struct ppp *ppp)
-{
-	ppp_xmit_lock(ppp);
-}
-void rtl_ppp_xmit_unlock(struct ppp *ppp)
-{
-	ppp_xmit_unlock(ppp);
-}
-
-void rtl_ppp_recv_lock(struct ppp *ppp)
-{
-	ppp_recv_lock(ppp);
-}
-
-void rtl_ppp_recv_unlock(struct ppp *ppp)
-{
-	ppp_recv_unlock(ppp);
-}
 /*
  * /dev/ppp device routines.
  * The /dev/ppp device is used by pppd to control the ppp unit.
@@ -617,6 +599,7 @@ static ssize_t ppp_read(struct file *file, char __user *buf,
 	if (copy_to_user(buf, skb->data, skb->len))
 		goto outf;
 	ret = skb->len;
+
  outf:
 	kfree_skb(skb);
  out:
@@ -875,7 +858,6 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 #if defined (CONFIG_RTL_PPPOE_DIRECT_REPLY)
 				clear_magicNum(); 
 #endif
-
 			}
 #endif
 

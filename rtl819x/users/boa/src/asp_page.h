@@ -35,6 +35,7 @@ typedef struct temp_mem_s
 int req_format_write(request *req, char *format, ...);
 char *req_get_cstream_var(request *req, char *var, char *defaultGetValue);
 int update_content_length(request *req);
+int getIncludeCss(request *wp);
 
 #endif
 #endif // __ASP_PAGE_H

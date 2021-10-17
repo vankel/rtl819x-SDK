@@ -14,7 +14,8 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 
-#include "libbb.h"
+//#include "libbb.h"
+#include "libbb_2.h"
 #include "libnetlink.h"
 
 void FAST_FUNC rtnl_close(struct rtnl_handle *rth)

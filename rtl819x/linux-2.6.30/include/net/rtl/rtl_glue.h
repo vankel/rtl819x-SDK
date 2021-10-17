@@ -188,6 +188,7 @@
 */
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
+#include <linux/slab.h>
 
 #define RTL_DECLARE_MUTEX(name) 		DECLARE_MUTEX(name)
 

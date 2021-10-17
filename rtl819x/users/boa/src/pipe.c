@@ -24,6 +24,9 @@
 /* $Id: pipe.c,v 1.39.2.16 2005/02/22 14:13:03 jnelson Exp $*/
 
 #include "boa.h"
+#ifdef SERVER_SSL
+#include <openssl/ssl.h>
+#endif
 
 /*
  * Name: read_from_pipe
@@ -138,6 +141,7 @@ int read_from_pipe(request * req)
 
 int write_from_pipe(request * req)
 {
+//	printf("%s\n",__FUNCTION__);
     int bytes_written;
     size_t bytes_to_write = req->header_end - req->header_line;
 
@@ -150,7 +154,18 @@ int write_from_pipe(request * req)
         return 1;
     }
 
+#ifdef SERVER_SSL
+    if(req->ssl == NULL)
+#endif
+    {
     bytes_written = write(req->fd, req->header_line, bytes_to_write);
+    }
+#ifdef SERVER_SSL
+    else{
+	printf("<%s:%d>SSL_write\n",__FUNCTION__, __LINE__);
+	bytes_written = SSL_write(req->ssl, req->header_line, bytes_to_write);
+    }
+#endif
 
     if (bytes_written == -1) {
         if (errno == EWOULDBLOCK || errno == EAGAIN)
@@ -327,7 +342,7 @@ int io_shuffle(request * req)
         if (temp < 0) {
             req->status = DEAD;
             log_error_doc(req);
-            perror("ioshuffle lseek");
+            //perror("ioshuffle lseek");
             return 0;
         }
 
@@ -347,7 +362,7 @@ int io_shuffle(request * req)
             } else {
                 req->status = DEAD;
                 log_error_doc(req);
-                perror("ioshuffle read");
+               // perror("ioshuffle read");
                 return 0;
             }
         } else if (bytes_read == 0) { /* eof, write rest of buffer */
@@ -384,7 +399,7 @@ int io_shuffle(request * req)
         else {
             req->status = DEAD;
             log_error_doc(req);
-            perror("ioshuffle write");
+            //perror("ioshuffle write");
             return 0;
         }
     } else if (bytes_written == 0) {

@@ -155,13 +155,14 @@ static irqreturn_t rlx_timer_interrupt(int irq, void *dev_id)
 		REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
 #else
   #ifdef CONFIG_RTK_VOIP
-#if 0//ndef CONFIG_RTL_WTDOG_SOFTIRQ_KICK
+#if 0
 		extern int bBspWatchdog;
+		
 		*(volatile unsigned long *)(0xB800311c) |= 
 					( bBspWatchdog ? ( 1 << 23 ) : ( ( 1 << 23 ) | ( 0xA5 << 24 ) ) );
 #endif
   #else
-#if 0// ndef CONFIG_RTL_WTDOG_SOFTIRQ_KICK
+#if 0
 		*(volatile unsigned long *)(0xB800311c) |=  1 << 23;
 #endif
   #endif

@@ -632,6 +632,7 @@ static int32 vlan_ctl_write( struct file *filp, const char *buff,unsigned long l
             rtk_init_11q_setting();
         }
 	}
+
 	return len;
 }
 

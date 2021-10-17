@@ -31,8 +31,6 @@ extern void SetOnHookTransmissionAndBackupRegister( uint32 cch ); // use for DTM
 extern void RestoreBackupRegisterWhenSetOnHookTransmission( uint32 cch ); // use for DTMF caller id
 extern void SLIC_Set_PCM_state( uint32 cch, int enable );
 extern unsigned char SLIC_Get_Hook_Status( uint32 cch, int directly );
-extern void SLIC_Set_Power_Save_Mode( uint32 cch);
-extern void SLIC_Set_FXS_Line_State( uint32 cch, int state);
 
 extern void SLIC_read_reg( uint32 cch, unsigned int num, unsigned char * len, unsigned char *val );
 extern void SLIC_write_reg( uint32 cch, unsigned int num, unsigned char * len, unsigned char *val );

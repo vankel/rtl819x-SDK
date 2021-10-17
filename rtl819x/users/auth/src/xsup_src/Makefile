@@ -83,6 +83,10 @@ LTLIBOBJS =
 MAKEINFO = ${SHELL} /root/work/rtl8181/AP/xsupplicant/missing --run makeinfo
 #kenny
 MOREDEFS = -DRTL_WPA_CLIENT
+ifeq ($(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT),y)
+MOREDEFS += -DRTL_ETH_CLIENT
+MOREDEFS += -DRTL_TTLS_MD5_CLIENT
+endif
 #MORELIBS =  -lfl  -lssl -lcrypto
 MORELIBS = 
 OBJEXT = o
@@ -153,7 +157,7 @@ xsupplicant_SOURCES = xsup_driver.c xsup_debug.c profile.c os_cardif.c \
 			eap_types/md5/eapmd5.c eap_types/sim/simd5.c \
 			eap_types/peap/eappeap.c eap_types/peap/peap_phase2.c \
 			eap_types/mschapv2/mschapv2.c \
-			eap_types/mschapv2/eapmschapv2.c
+			eap_types/mschapv2/eapmschapv2.c 
 else
 xsupplicant_SOURCES = xsup_driver.c xsup_debug.c profile.c os_cardif.c \
 			config.c eapol.c statemachine.c eap.c \
@@ -171,6 +175,10 @@ xsupplicant_SOURCES = xsup_driver.c xsup_debug.c profile.c os_cardif.c \
 			eap_types/otp/eapotp.c \
 			xsup_ipc.c config_grammar.y  config_lexicon.l \
 			ipc_callout.c cmd_handler.c
+endif
+ifeq ($(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT),y)
+xsupplicant_SOURCES += eap_types/ttls/eapttls.c \
+						eap_types/ttls/ttlsphase2.c
 endif			
 xsupplicant_LDADD = $(CORELIBS) $(MORELIBS)
 subdir = src

@@ -304,7 +304,7 @@ static void close_delayed_work(struct work_struct *work)
 	}
 	mutex_unlock(&pcm_mutex);
 }
-#if defined(CONFIG_SND_RTL819X_SOC) 
+#if defined(CONFIG_SND_RTL819XD_SOC_I2S) 
 static void close_work(struct snd_soc_device *socdev)
 {
 	struct snd_soc_card *card = socdev->card;
@@ -397,7 +397,7 @@ static int soc_codec_close(struct snd_pcm_substream *substream)
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		/* start delayed pop wq here for playback streams */
 		codec_dai->pop_wait = 1;
-#if defined(CONFIG_SND_RTL819X_SOC) 
+#if defined(CONFIG_SND_RTL819XD_SOC_I2S) 
 		close_work(socdev);
 #else	
 		schedule_delayed_work(&card->delayed_work,msecs_to_jiffies(pmdown_time)); 

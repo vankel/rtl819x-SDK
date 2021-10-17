@@ -34,7 +34,9 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 #endif
-
+#ifdef RTL_DEF_SETTING_IN_FW
+#include "def_setting_config.h"
+#endif
 // MAC address filtering
 typedef struct _filter {
 	struct _filter *prev, *next;
@@ -120,9 +122,6 @@ int wlan_idx=0;	// interface index
 int vwlan_idx=0;	// initially set interface index to root
 int wlan_idx_bak=0;
 int vwlan_idx_bak=0;
-#ifdef AP_CONTROLER_SUPPORT
-char *virtual_flash=NULL;
-#endif
 #ifdef HTTP_FILE_SERVER_HTM_UI
 char httpfile_dirpath[256]={0};
 char httpfile_type=0;
@@ -156,6 +155,13 @@ static LINKCHAIN_T dhcpRsvdIpChain;
 #if defined(VLAN_CONFIG_SUPPORTED)
 static LINKCHAIN_T vlanConfigChain;
 #endif
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+static LINKCHAIN_T dhcpServerOptionChain;
+static LINKCHAIN_T dhcpClientOptionChain;
+static LINKCHAIN_T dhcpsServingPoolChain;
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
+
 #endif
 
 #ifdef HOME_GATEWAY
@@ -167,6 +173,12 @@ static LINKCHAIN_T  ipsecTunnelChain;
 #ifdef TLS_CLIENT
 static LINKCHAIN_T  certRootChain;
 static LINKCHAIN_T  certUserChain;
+#endif
+
+#ifndef MIB_TLV
+#ifdef RTK_CAPWAP
+static LINKCHAIN_T  capwapWtpConfigChain;
+#endif
 #endif
 
 #if CONFIG_APMIB_SHARED_MEMORY == 1
@@ -342,6 +354,7 @@ char *apmib_hwconf(void)
 #endif
 
 	char hw_setting_start[6];
+	
 #if 1		
 	if ( flash_read(hw_setting_start, HW_SETTING_OFFSET, 6)==0 ) {
 			printf("Read hw setting header failed!\n");					
@@ -364,6 +377,7 @@ char *apmib_hwconf(void)
 		}
 	}
 #endif
+//fprintf(stderr,"\r\n compress_hw_setting = %u",compress_hw_setting);
 
 	
 #if defined(COMPRESS_MIB_SETTING) 		
@@ -455,13 +469,12 @@ char *apmib_hwconf(void)
 	else // not compress mib-data, get mib header from flash
 #endif //#ifdef COMPRESS_MIB_SETTING
 	// Read hw setting
-	{
-		if ( flash_read((char *)&hsHeader, HW_SETTING_OFFSET, sizeof(hsHeader))==0 ) {
-//			printf("Read hw setting header failed!\n");
-			return NULL;
-		}
+{
+	if ( flash_read((char *)&hsHeader, HW_SETTING_OFFSET, sizeof(hsHeader))==0 ) {
+//		printf("Read hw setting header failed!\n");
+		return NULL;
 	}
-
+}
 	if ( sscanf((char *)&hsHeader.signature[TAG_LEN], "%02d", &ver) != 1)
 		ver = -1;
 
@@ -483,10 +496,11 @@ char *apmib_hwconf(void)
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
 		return NULL;
 	}
+//	fprintf(stderr,"\r\n ver=%d len=%d size=%d__[%s-%u]",ver, hsHeader.len,sizeof(HW_SETTING_T),__FILE__,__LINE__);
 
 	if ( (ver != HW_SETTING_VER) || // version not equal to current
 		(hsHeader.len < (sizeof(HW_SETTING_T)+1)) ) { // length is less than current
-		printf("Invalid hw setting version number or data length[ver=%d, len=%d]!\n", ver, hsHeader.len);
+		printf("Invalid hw setting version number or data length[ver=%d, len=%d size=%d]!\n", ver, hsHeader.len,sizeof(HW_SETTING_T));
 #if defined(COMPRESS_MIB_SETTING)
 	if(compress_hw_setting)
 	{
@@ -562,7 +576,6 @@ char *apmib_hwconf(void)
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
 		return NULL;
 	}
-	
 	if ( !CHECKSUM_OK((unsigned char *)buff, hsHeader.len) ) {
 //		printf("Invalid checksum of hw setting!\n");
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
@@ -573,7 +586,6 @@ char *apmib_hwconf(void)
 #endif		
 		return NULL;
 	}
-	
 	return buff;
 }
 
@@ -596,14 +608,31 @@ char *apmib_dsconf(void)
 #ifdef COMPRESS_MIB_SETTING
 
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
+#ifndef RTL_DEF_SETTING_IN_FW
 	flash_read((char *)&compHeader, DEFAULT_SETTING_OFFSET, sizeof(COMPRESS_MIB_HEADER_T));
-//fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);	
-	if(memcmp(compHeader.signature, COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) == 0 ) //check whether compress mib data
+#else
+	if(sizeof(def_setting_data)<sizeof(COMPRESS_MIB_HEADER_T))
 	{
-		
+		fprintf(stderr,"\r\n ERR:def_setting_data error! __[%s-%u]",__FILE__,__LINE__);
+		return 0;
+	}
+	memcpy((char *)&compHeader,def_setting_data,sizeof(COMPRESS_MIB_HEADER_T));
+#endif
+//fprintf(stderr,"\r\n __[%s-%u] compHeader.signature=%s",__FILE__,__LINE__,compHeader.signature);	
+#ifndef RTL_DEF_SETTING_IN_FW
+	if(memcmp(compHeader.signature, COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) == 0 ) //check whether compress mib data
+#else
+	if(memcmp(compHeader.signature, COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN) == 0 ) //check whether compress mib data
+#endif
+	{
 		zipRate = compHeader.compRate;
 		compLen = compHeader.compLen;
-		if ( (compLen > 0) && (compLen <= DEFAULT_SETTING_SECTOR_LEN) ) {
+#ifndef RTL_DEF_SETTING_IN_FW
+		if ( (compLen > 0) && (compLen <= DEFAULT_SETTING_SECTOR_LEN) ) 
+#else
+		if ( (compLen > 0) && (compLen <= CURRENT_SETTING_SECTOR_LEN) ) 
+#endif
+		{
 			compFile=malloc(compLen+sizeof(COMPRESS_MIB_HEADER_T));
 			if(compFile==NULL)
 			{
@@ -617,8 +646,17 @@ char *apmib_dsconf(void)
 				free(compFile);
 				return 0;
 			}
+#ifndef RTL_DEF_SETTING_IN_FW
 
 			flash_read((char *)compFile, DEFAULT_SETTING_OFFSET, compLen+sizeof(COMPRESS_MIB_HEADER_T));
+#else
+				if(sizeof(def_setting_data)<compLen+sizeof(COMPRESS_MIB_HEADER_T))
+				{
+					fprintf(stderr,"\r\n ERR:def_setting_data error! __[%s-%u]",__FILE__,__LINE__);
+					return 0;
+				}
+				memcpy((char *)compFile,def_setting_data,compLen+sizeof(COMPRESS_MIB_HEADER_T));
+#endif
 
 			expandLen = Decode(compFile+sizeof(COMPRESS_MIB_HEADER_T), compLen, expFile);
 			//printf("expandLen read len: %d\n", expandLen);
@@ -626,7 +664,7 @@ char *apmib_dsconf(void)
 			// copy the mib header from expFile
 			memcpy((char *)&dsHeader, expFile, sizeof(dsHeader));
 
-
+#ifndef RTL_DEF_SETTING_IN_FW
 			//check mib ver and tag
 			if ( sscanf((char *)&dsHeader.signature[TAG_LEN], "%02d", &ver) != 1)
 				ver = -1;
@@ -643,6 +681,7 @@ char *apmib_dsconf(void)
 					free(expFile);
 				return NULL;
 			}
+#endif		
 		} 
 		else 
 		{
@@ -691,26 +730,44 @@ char *apmib_dsconf(void)
 			free(defMibData);
 		
 #endif // #ifdef MIB_TLV		
-
 	}
 	else // not compress mib-data, get mib header from flash
 #endif //#ifdef COMPRESS_MIB_SETTING
 	// Read default s/w mib
+#ifndef RTL_DEF_SETTING_IN_FW
 	if ( flash_read((char *)&dsHeader, DEFAULT_SETTING_OFFSET, sizeof(dsHeader))==0 ) {
 //		printf("Read default setting header failed!\n");
 		return NULL;
 	}
-
+#else
+	{
+		if(sizeof(def_setting_data)<sizeof(dsHeader))
+		{
+			fprintf(stderr,"\r\n ERR:def_setting_data error! __[%s-%u]",__FILE__,__LINE__);
+			return 0;
+		}	
+		memcpy((char *)&dsHeader,def_setting_data,sizeof(dsHeader));
+	}
+#endif
 	if ( sscanf((char *)&dsHeader.signature[TAG_LEN], "%02d", &ver) != 1)
 		ver = -1;
 
 //fprintf(stderr,"\r\n (sizeof(APMIB_T)=%u ",(sizeof(APMIB_T)));
 //printf("default setting signature or version number [sig=%c%c, ver=%d, len=%d]!\n",	dsHeader.signature[0], dsHeader.signature[1], ver, dsHeader.len);
+#ifndef RTL_DEF_SETTING_IN_FW
 	if ( memcmp(dsHeader.signature, DEFAULT_SETTING_HEADER_TAG, TAG_LEN) || // invalid signatur
 		(ver != DEFAULT_SETTING_VER) || // version not equal to current
+#else
+	if ( memcmp(dsHeader.signature, CURRENT_SETTING_HEADER_TAG, TAG_LEN) || // invalid signatur
+		(ver != CURRENT_SETTING_VER) || // version not equal to current
+#endif
 		(dsHeader.len < (sizeof(APMIB_T)+1)) ) { // length is less than current
 		printf("Invalid default setting signature or version number [sig=%c%c, ver=%d, len=%d]!\n",	dsHeader.signature[0], dsHeader.signature[1], ver, dsHeader.len);
+#ifndef RTL_DEF_SETTING_IN_FW
 		printf("Expect [sig=%s, ver=%d, len=%d]!\n", DEFAULT_SETTING_HEADER_TAG, DEFAULT_SETTING_VER, sizeof(APMIB_T)+1);
+#else
+		printf("Expect [sig=%s, ver=%d, len=%d]!\n", CURRENT_SETTING_HEADER_TAG, DEFAULT_SETTING_VER, sizeof(APMIB_T)+1);
+#endif
 #ifdef COMPRESS_MIB_SETTING
 		if(compFile != NULL)
 			free(compFile);
@@ -761,6 +818,9 @@ char *apmib_dsconf(void)
 	}
 	else // not compress mib data, copy mibdata from flash
 #endif
+//fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
+#ifndef RTL_DEF_SETTING_IN_FW
+
 	if ( flash_read(buff, DEFAULT_SETTING_OFFSET+sizeof(dsHeader), dsHeader.len)==0 ) {
 //		printf("Read default setting failed!\n");
 #if CONFIG_APMIB_SHARED_MEMORY == 1
@@ -770,7 +830,22 @@ char *apmib_dsconf(void)
 #endif		
 		return NULL;
 	}
-
+#else
+	{
+		if(sizeof(def_setting_data)<dsHeader.len+sizeof(dsHeader))
+		{
+			fprintf(stderr,"\r\n ERR:def_setting_data error! __[%s-%u]",__FILE__,__LINE__);
+			
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+			apmib_shm_free(buff, DSCONF_SHM_KEY);
+#else
+			free(buff);
+#endif		
+			return 0;
+		}
+		memcpy(buff,def_setting_data+sizeof(dsHeader),dsHeader.len);
+	}
+#endif
 	if ( !CHECKSUM_OK((unsigned char *)buff, dsHeader.len) ) {
 //		printf("Invalid checksum of current setting!\n");
 #if CONFIG_APMIB_SHARED_MEMORY == 1
@@ -780,7 +855,6 @@ char *apmib_dsconf(void)
 #endif		
 		return NULL;
 	}
-	
 	return buff;
 }
 
@@ -921,16 +995,15 @@ char *apmib_csconf(void)
 			return 0;
 		}
 #ifdef MIB_TLV
-
 		mib_table_entry_T *pmib_tl = NULL;
 		unsigned char *curMibData;
 		unsigned int tlv_content_len = csHeader.len - 1; // last one is checksum
-
+		
 		curMibData = malloc(sizeof(APMIB_T)+1); // 1: checksum
 
 		if(curMibData != NULL)
 			memset(curMibData, 0x00, sizeof(APMIB_T)+1);
-	
+
 		pmib_tl = mib_get_table(CURRENT_SETTING);
 		unsigned int tlv_checksum = 0;
 
@@ -951,15 +1024,19 @@ char *apmib_csconf(void)
 			expFile = malloc(sizeof(PARAM_HEADER_T)+csHeader.len);
 			memcpy(expFile, &csHeader, sizeof(PARAM_HEADER_T));
 			memcpy(expFile+sizeof(PARAM_HEADER_T), curMibData, csHeader.len);
-			
+
 //mib_display_data_content(CURRENT_SETTING, expFile+sizeof(PARAM_HEADER_T), csHeader.len-1);
-		}	
+		}else
+		{
+			printf("mib_tlv_init fail!!\n");
+			return NULL;
+		}
+		//printf("%d [sig=%c%c, ver=%d, len=%d]!\n",__LINE__,csHeader.signature[0], csHeader.signature[1], ver, csHeader.len);
 
 		if(curMibData != NULL)
 			free(curMibData);
 		
 #endif // #ifdef MIB_TLV		
-		
 	}
 	else // not compress mib-data, get mib header from flash
 #endif //#ifdef COMPRESS_MIB_SETTING
@@ -1063,68 +1140,6 @@ int apmib_init_HW(void)
 	pHwSetting = (HW_SETTING_Tp)buff;
 	return 1;
 }
-
-#ifdef AP_CONTROLER_SUPPORT
-int apmib_virtual_flash_read(char *buf, int offset, int len)
-{
-	if(virtual_flash==NULL && apmib_virtual_flash_malloc()<0)
-	{
-		fprintf(stderr,"\r\n virtual_flash is null__[%s-%u]",__FILE__,__LINE__);
-		return 0;
-	}
-	if(offset<HW_SETTING_OFFSET||offset>=WEB_PAGE_OFFSET || offset+len>WEB_PAGE_OFFSET)
-	{
-		fprintf(stderr,"\r\n apmib_virtual_flash_read fail! oversize __[%s-%u]",__FILE__,__LINE__);
-		return 0;
-	}
-	//apmib_sem_lock();
-	memcpy(buf,virtual_flash+(offset-HW_SETTING_OFFSET),len);
-	//fprintf(stderr,"\r\n virtual_flash=%p offset=0x%x len=%d__[%s-%u]",virtual_flash,offset,len,__FILE__,__LINE__);
-	//apmib_sem_unlock();
-	return 1;
-}
-int apmib_virtual_flash_write(char *buf, int offset, int len)
-{
-	if(virtual_flash==NULL && apmib_virtual_flash_malloc()<0)
-	{
-		fprintf(stderr,"\r\n virtual_flash is null__[%s-%u]",__FILE__,__LINE__);
-		return 0;
-	}
-	if(offset<HW_SETTING_OFFSET||offset>=WEB_PAGE_OFFSET || offset+len>WEB_PAGE_OFFSET)
-	{
-		fprintf(stderr,"\r\n apmib_virtual_flash_write fail! oversize __[%s-%u]",__FILE__,__LINE__);
-		return 0;
-	}
-//	fprintf(stderr,"\r\n virtual_flash=%p offset=0x%x len=%d__[%s-%u]",virtual_flash,offset,len,__FILE__,__LINE__);
-	//apmib_sem_lock();
-	memcpy(virtual_flash+(offset-HW_SETTING_OFFSET),buf,len);
-	//apmib_sem_unlock();
-	return 1;
-}
-
-int apmib_virtual_flash_malloc()
-{
-	int create=0;
-	//fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
-	
-	if(virtual_flash==NULL)	
-	{
-		//apmib_sem_lock();
-		virtual_flash=apmib_shm_calloc(1,WEB_PAGE_OFFSET-HW_SETTING_OFFSET,CONF_SHM_VFLASH_KEY,&create);		
-		//apmib_sem_unlock();
-		//fprintf(stderr,"\r\n virtual_flash=%p __[%s-%u]",virtual_flash,__FILE__,__LINE__);
-		if(virtual_flash==NULL)
-		{
-			fprintf(stderr,"\r\n apmib_virtual_flash_malloc fail! apmib_shm_calloc __[%s-%u]",__FILE__,__LINE__);
-			return -1;
-		}
-	}
-	
-	
-	//fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
-	return 0;
-}
-#endif
 ////////////////////////////////////////////////////////////////////////////////
 int apmib_init(void)
 {
@@ -1604,6 +1619,104 @@ linkchain:
 	}
 	staticRouteChain.compareLen = sizeof(STATICROUTE_T) -4 ; // not contain gateway
 #endif //ROUTE
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	// initialize dhcpServerOptionChain table
+	if ( !init_linkchain(&dhcpServerOptionChain, sizeof(MIB_CE_DHCP_OPTION_T), MAX_DHCP_SERVER_OPTION_NUM)) {
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_shm_free(pMib, CSCONF_SHM_KEY);
+		apmib_shm_free(pMibDef, DSCONF_SHM_KEY);
+		apmib_shm_free(pHwSetting, HWCONF_SHM_KEY);
+		apmib_sem_unlock();
+#else
+		free(pMib);
+		free(pMibDef);
+		free(pHwSetting);
+#endif
+		return 0;
+	}
+	for (i=0; i<pMib->dhcpServerOptionNum; i++) {
+		if ( !add_linkchain(&dhcpServerOptionChain, (char *)&pMib->dhcpServerOptionArray[i]) ) {
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+			apmib_shm_free(pMib, CSCONF_SHM_KEY);
+			apmib_shm_free(pMibDef, DSCONF_SHM_KEY);
+			apmib_shm_free(pHwSetting, HWCONF_SHM_KEY);
+			apmib_sem_unlock();
+#else
+			free(pMib);
+			free(pMibDef);
+			free(pHwSetting);
+#endif
+			return 0;
+		}
+	}
+	dhcpServerOptionChain.compareLen = sizeof(MIB_CE_DHCP_OPTION_T);
+
+
+	// initialize dhcpClientOptionChain table
+	if ( !init_linkchain(&dhcpClientOptionChain, sizeof(MIB_CE_DHCP_OPTION_T), MAX_DHCP_CLIENT_OPTION_NUM)) {
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_shm_free(pMib, CSCONF_SHM_KEY);
+		apmib_shm_free(pMibDef, DSCONF_SHM_KEY);
+		apmib_shm_free(pHwSetting, HWCONF_SHM_KEY);
+		apmib_sem_unlock();
+#else
+		free(pMib);
+		free(pMibDef);
+		free(pHwSetting);
+#endif
+		return 0;
+	}
+	for (i=0; i<pMib->dhcpClientOptionNum; i++) {
+		if ( !add_linkchain(&dhcpClientOptionChain, (char *)&pMib->dhcpClientOptionArray[i]) ) {
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+			apmib_shm_free(pMib, CSCONF_SHM_KEY);
+			apmib_shm_free(pMibDef, DSCONF_SHM_KEY);
+			apmib_shm_free(pHwSetting, HWCONF_SHM_KEY);
+			apmib_sem_unlock();
+#else
+			free(pMib);
+			free(pMibDef);
+			free(pHwSetting);
+#endif
+		return 0;
+		}
+	}
+	dhcpClientOptionChain.compareLen = sizeof(MIB_CE_DHCP_OPTION_T);
+
+
+	// initialize dhcpsServingPoolChain table
+	if ( !init_linkchain(&dhcpsServingPoolChain, sizeof(DHCPS_SERVING_POOL_T), MAX_DHCPS_SERVING_POOL_NUM)) {
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_shm_free(pMib, CSCONF_SHM_KEY);
+		apmib_shm_free(pMibDef, DSCONF_SHM_KEY);
+		apmib_shm_free(pHwSetting, HWCONF_SHM_KEY);
+		apmib_sem_unlock();
+#else
+		free(pMib);
+		free(pMibDef);
+		free(pHwSetting);
+#endif
+		return 0;
+	}
+	for (i=0; i<pMib->dhcpsServingPoolNum; i++) {
+		if ( !add_linkchain(&dhcpsServingPoolChain, (char *)&pMib->dhcpsServingPoolArray[i]) ) {
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+			apmib_shm_free(pMib, CSCONF_SHM_KEY);
+			apmib_shm_free(pMibDef, DSCONF_SHM_KEY);
+			apmib_shm_free(pHwSetting, HWCONF_SHM_KEY);
+			apmib_sem_unlock();
+#else
+			free(pMib);
+			free(pMibDef);
+			free(pHwSetting);
+#endif
+		return 0;
+		}
+	}
+	dhcpsServingPoolChain.compareLen = sizeof(DHCPS_SERVING_POOL_T);
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
+
 #ifdef VPN_SUPPORT
 	// initialize port forwarding table
 	if ( !init_linkchain(&ipsecTunnelChain, sizeof(IPSECTUNNEL_T), MAX_TUNNEL_NUM)) {
@@ -1710,6 +1823,15 @@ linkchain:
 
 #endif
 
+#ifdef RTK_CAPWAP
+	init_linkchain(&capwapWtpConfigChain, sizeof(CAPWAP_WTP_CONFIG_T), MAX_CAPWAP_WTP_NUM);
+	for (i=0; i<pMib->wtpConfigNum; i++)
+		add_linkchain(&capwapWtpConfigChain, (char *)&pMib->wtpConfigArray[i]);	
+	capwapWtpConfigChain.compareLen = sizeof(CAPWAP_WTP_CONFIG_T);
+
+#endif
+
+
 #endif /*no def MIB_TLV*/
 
 #if CONFIG_APMIB_SHARED_MEMORY == 1
@@ -1736,6 +1858,7 @@ char *apmib_load_hwconf(void)
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
+//	COMP_TRACE(stderr,"\r\n  __[%s-%u]", __FILE__,__LINE__);
 
 	flash_read((char *)&compHeader, HW_SETTING_OFFSET, sizeof(COMPRESS_MIB_HEADER_T));
 	if(memcmp(compHeader.signature, COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) == 0 ) //check whether compress mib data
@@ -1762,6 +1885,7 @@ char *apmib_load_hwconf(void)
 			expandLen = Decode(compFile+sizeof(COMPRESS_MIB_HEADER_T), compLen, expFile);
 			// copy the mib header from expFile
 			memcpy((char *)&hsHeader, expFile, sizeof(hsHeader));
+			COMP_TRACE(stderr,"\r\n hsHeader.len = %u __[%s-%u]",hsHeader.len, __FILE__,__LINE__);
 		} 
 		else 
 		{
@@ -1791,6 +1915,7 @@ char *apmib_load_hwconf(void)
 		{
 			sprintf((char *)&hsHeader.signature[TAG_LEN], "%02d", HW_SETTING_VER);
 			hsHeader.len = sizeof(HW_SETTING_T)+1;
+			COMP_TRACE(stderr,"\r\n hsHeader.len = %u __[%s-%u]",hsHeader.len, __FILE__,__LINE__);
 			hwMibData[hsHeader.len-1]  = CHECKSUM(hwMibData, hsHeader.len-1);
 
 			if(expFile!= NULL)
@@ -1889,6 +2014,7 @@ char *apmib_load_hwconf(void)
 ////////////////////////////////////////////////////////////////////////////////
 char *apmib_load_dsconf(void)
 {
+#ifndef RTL_DEF_SETTING_IN_FW
 	int ver;
 	char *buff;
 	int created;
@@ -2044,6 +2170,7 @@ char *apmib_load_dsconf(void)
 		return NULL;
 	}
 	return buff;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2251,6 +2378,11 @@ int apmib_reinit(void)
 #ifdef ROUTE_SUPPORT
 	free(staticRouteChain.buf);
 #endif //ROUTE
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	free(dhcpServerOptionChain.buf);
+	free(dhcpClientOptionChain.buf);
+	free(dhcpsServingPoolChain.buf);
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 #ifdef VPN_SUPPORT
 	free(ipsecTunnelChain.buf);
 #endif
@@ -2264,6 +2396,11 @@ int apmib_reinit(void)
 #if defined(VLAN_CONFIG_SUPPORTED)
 	free(vlanConfigChain.buf);
 #endif	
+
+#ifdef RTK_CAPWAP
+	free(capwapWtpConfigChain.buf);
+#endif	
+
 #endif
 
 #if CONFIG_APMIB_SHARED_MEMORY != 1
@@ -2578,7 +2715,8 @@ int apmib_get(int id, void *value)
 #endif /*VOIP_SUPPORT*/
 		if(id == MIB_L2TP_PAYLOAD)
 		{
-			memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), 38);
+//			apmib_get(MIB_L2TP_PAYLOAD_LENGTH, (void *)&payload_len);
+			memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), 70);
 		}
 		else
 		memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), pTbl[i].size);
@@ -2619,6 +2757,12 @@ int apmib_get(int id, void *value)
 	case VOIP_T:
 		memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), pTbl[i].size);
 		//printf("apimb: mib_get MIB_VOIP_CFG, do nothing here\n");
+		break;
+#endif
+#ifdef RTK_CAPWAP
+	case CAPWAP_ALL_WLANS_CONFIG_T:
+		memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), pTbl[i].size);
+		printf("all wlan config size = %d\n", pTbl[i].size);
 		break;
 #endif
 
@@ -2714,6 +2858,29 @@ int apmib_get(int id, void *value)
  		return get_linkchain(&staticRouteChain, (char *)value, index );
 #endif
 
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	case DHCP_SERVER_OPTION_ARRAY_T:
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_sem_unlock();
+#endif	
+                index = (int)( *((unsigned char *)value));
+ 		return get_linkchain(&dhcpServerOptionChain, (char *)value, index );
+
+	case DHCP_CLIENT_OPTION_ARRAY_T:
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_sem_unlock();
+#endif	
+                index = (int)( *((unsigned char *)value));
+ 		return get_linkchain(&dhcpClientOptionChain, (char *)value, index );
+
+	case DHCPS_SERVING_POOL_ARRAY_T:
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_sem_unlock();
+#endif	
+                index = (int)( *((unsigned char *)value));
+ 		return get_linkchain(&dhcpsServingPoolChain, (char *)value, index );
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
+
 #ifdef VPN_SUPPORT
 	case IPSECTUNNEL_ARRAY_T:
 #if CONFIG_APMIB_SHARED_MEMORY == 1
@@ -2753,6 +2920,16 @@ int apmib_get(int id, void *value)
 		index = (int)( *((unsigned char *)value));
  		return get_linkchain(&vlanConfigChain, (char *)value, index ); 		
 #endif 	
+
+#ifdef RTK_CAPWAP
+	case CAPWAP_WTP_CONFIG_ARRAY_T:	
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_sem_unlock();
+#endif
+		index = (int)( *((unsigned char *)value));
+ 		return get_linkchain(&capwapWtpConfigChain, (char *)value, index ); 		
+#endif
+
 #endif /*no def MIB_TLV*/
 	default:
 		break;
@@ -2788,6 +2965,12 @@ int apmib_set(int id, void *value)
 	unsigned long dwd;
 	unsigned char* tmp;
 	int max_chan_num=MAX_2G_CHANNEL_NUM_MIB;
+	
+#ifdef CONFIG_APP_TR069
+	int cwmp_msgid;
+	struct cwmp_msg cwmpmsg;
+#endif
+
 #ifdef MIB_TLV
 	//unsigned int offset=0;
 	unsigned int mib_num_id=0;
@@ -2810,7 +2993,7 @@ int apmib_set(int id, void *value)
 	if( id_orig & MIB_ADD_TBL_ENTRY)
 	{
 		id=((id_orig & MIB_ID_MASK)-1 )|(MIB_TABLE_LIST);
-		mib_num_id=(id_orig & MIB_ID_MASK)-2;
+		mib_num_id=(id_orig & MIB_ID_MASK)-2;		
 
 	}
 	else if(id_orig & MIB_DEL_TBL_ENTRY)
@@ -2989,6 +3172,37 @@ int apmib_set(int id, void *value)
 	}
 
 #endif
+
+
+#ifdef RTK_CAPWAP
+	if (id == MIB_CAPWAP_WTP_CONFIG_ADD) {
+		ret = add_linkchain(&capwapWtpConfigChain, (char *)value);
+		if ( ret ) {
+			pMib->wtpConfigNum++;
+		}
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_CAPWAP_WTP_CONFIG_DEL) {
+		ret = delete_linkchain(&capwapWtpConfigChain, (char *)value);
+		if ( ret )
+			pMib->wtpConfigNum--;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_CAPWAP_WTP_CONFIG_DELALL) {
+		delete_all_linkchain(&capwapWtpConfigChain);
+		pMib->wtpConfigNum = 0;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return 1;
+	}
+#endif	// RTK_CAPWAP
 
 #ifdef HOME_GATEWAY
 	if (id == MIB_PORTFW_ADD) {
@@ -3181,6 +3395,89 @@ int apmib_set(int id, void *value)
 		return 1;
 	}
 #endif
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	if (id == MIB_DHCP_SERVER_OPTION_ADD) {
+		ret = add_linkchain(&dhcpServerOptionChain, (char *)value);
+		if ( ret )
+			pMib->dhcpServerOptionNum++;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_DHCP_SERVER_OPTION_DEL) {
+		ret = delete_linkchain(&dhcpServerOptionChain, (char *)value);
+		if ( ret )
+			pMib->dhcpServerOptionNum--;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_DHCP_SERVER_OPTION_DELALL) {
+		delete_all_linkchain(&dhcpServerOptionChain);
+		pMib->dhcpServerOptionNum = 0;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return 1;
+	}
+
+
+	if (id == MIB_DHCP_CLIENT_OPTION_ADD) {
+		ret = add_linkchain(&dhcpClientOptionChain, (char *)value);
+		if ( ret )
+			pMib->dhcpClientOptionNum++;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_DHCP_CLIENT_OPTION_DEL) {
+		ret = delete_linkchain(&dhcpClientOptionChain, (char *)value);
+		if ( ret )
+			pMib->dhcpClientOptionNum--;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_DHCP_CLIENT_OPTION_DELALL) {
+		delete_all_linkchain(&dhcpClientOptionChain);
+		pMib->dhcpClientOptionNum = 0;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return 1;
+	}
+
+	if (id == MIB_DHCPS_SERVING_POOL_ADD) {
+		ret = add_linkchain(&dhcpsServingPoolChain, (char *)value);
+		if ( ret )
+			pMib->dhcpsServingPoolNum++;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_DHCPS_SERVING_POOL_DEL) {
+		ret = delete_linkchain(&dhcpsServingPoolChain, (char *)value);
+		if ( ret )
+			pMib->dhcpsServingPoolNum--;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return ret;
+	}
+	if (id == MIB_DHCPS_SERVING_POOL_DELALL) {
+		delete_all_linkchain(&dhcpsServingPoolChain);
+		pMib->dhcpsServingPoolNum = 0;
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	    apmib_sem_unlock();
+#endif
+		return 1;
+	}	
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 #ifdef ROUTE_SUPPORT
 	if (id == MIB_STATICROUTE_ADD) {
 		ret = add_linkchain(&staticRouteChain, (char *)value);
@@ -3374,7 +3671,7 @@ int apmib_set(int id, void *value)
 			ret= delete_tblentry((void *)pMibTbl,pTbl[i].offset,num,&pTbl[i],(void *)value);
 			if(ret)
 				num--;
-		}
+			}
 		}
 		else if(id_orig & MIB_DELALL_TBL_ENTRY)
 		{
@@ -3451,7 +3748,8 @@ int apmib_set(int id, void *value)
 #endif
 
 		if(id == MIB_L2TP_PAYLOAD){
-			  memcpy((unsigned char *)((( long)pMibTbl) + pTbl[i].offset), (unsigned char *)value, 38);
+//			  apmib_get(MIB_L2TP_PAYLOAD_LENGTH, (void *)&payload_len);
+			  memcpy((unsigned char *)((( long)pMibTbl) + pTbl[i].offset), (unsigned char *)value, 70);
 		}
 		else
 			
@@ -3472,7 +3770,7 @@ int apmib_set(int id, void *value)
 		{
 #if defined(CONFIG_RTL_8196B)
 			max_chan_num = (id == MIB_HW_TX_POWER_CCK)? MAX_CCK_CHAN_NUM: MAX_OFDM_CHAN_NUM ;
-#elif defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
                         if((id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM))
 				max_chan_num = MAX_2G_CHANNEL_NUM_MIB;
 			else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM))
@@ -3536,6 +3834,13 @@ int apmib_set(int id, void *value)
 		memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset), (unsigned char *)value, pTbl[i].size);
 		break;
 #endif
+	
+#ifdef RTK_CAPWAP
+	case CAPWAP_ALL_WLANS_CONFIG_T:
+printf("babylon test mib_set MIB_CAPWAP_ALL_WLANS_CFG: pTbl[i].size=%d\n", pTbl[i].size);
+		memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset), (unsigned char *)value, pTbl[i].size);
+		break;
+#endif
 
 	case WLAC_ARRAY_T:
 	
@@ -3559,6 +3864,11 @@ int apmib_set(int id, void *value)
 #ifdef ROUTE_SUPPORT
 	case STATICROUTE_ARRAY_T:
 #endif
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	case DHCP_SERVER_OPTION_ARRAY_T:
+	case DHCP_CLIENT_OPTION_ARRAY_T:
+	case DHCPS_SERVING_POOL_ARRAY_T:
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 #endif
 
 #ifdef HOME_GATEWAY
@@ -3583,6 +3893,10 @@ int apmib_set(int id, void *value)
 #ifdef WLAN_PROFILE
 	case PROFILE_ARRAY_T:		
 #endif
+#ifdef RTK_CAPWAP
+	case CAPWAP_WTP_CONFIG_ARRAY_T:
+#endif
+
 #if CONFIG_APMIB_SHARED_MEMORY == 1
 		apmib_sem_unlock();
 #endif
@@ -3593,6 +3907,15 @@ int apmib_set(int id, void *value)
 	
 #if CONFIG_APMIB_SHARED_MEMORY == 1
     apmib_sem_unlock();
+#endif
+
+#ifdef CONFIG_APP_TR069
+	if((cwmp_msgid = msgget((key_t)1234, 0)) > 0 )
+	{
+		cwmpmsg.msg_type = eMSG_USERDATA_CHANGE;
+		cwmpmsg.msg_datatype = id;
+		msgsnd(cwmp_msgid, (void *)&cwmpmsg, MSG_SIZE, 0);
+	}
 #endif
 
 	return 1;
@@ -3629,6 +3952,11 @@ int apmib_update(CONFIG_DATA_T type)
 	unsigned char *mib_tlv_data = NULL;
 	unsigned int tlv_content_len = 0;
 	unsigned int mib_tlv_max_len = 0;
+#endif
+
+#ifdef CONFIG_APP_TR069
+	int cwmp_msgid;
+	struct cwmp_msg cwmpmsg;
 #endif
 
 	int write_hw_tlv = 0;
@@ -3677,7 +4005,7 @@ int apmib_update(CONFIG_DATA_T type)
 			hsHeader.len = tlv_content_len+1;
 			data = mib_tlv_data;
 			data[tlv_content_len] = CHECKSUM(data, tlv_content_len);
-//mib_display_tlv_content(HW_SETTING, data, hsHeader.len);		
+//mib_display_tlv_content(HW_SETTING, data, hsHeader.len);
 		}
 
 #endif // #ifdef MIB_TLV		
@@ -3716,6 +4044,9 @@ int apmib_update(CONFIG_DATA_T type)
 		}
 	}
 
+	if(type & CURRENT_SETTING) type=CURRENT_SETTING;
+	else
+	if(type & DEFAULT_SETTING) type=DEFAULT_SETTING;	
 
 	if ((type & CURRENT_SETTING) || (type & DEFAULT_SETTING)) {
 		
@@ -3785,6 +4116,23 @@ int apmib_update(CONFIG_DATA_T type)
 		}
 #endif
 
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	memset( pMib->dhcpServerOptionArray, '\0', MAX_DHCP_SERVER_OPTION_NUM*sizeof(MIB_CE_DHCP_OPTION_T) );
+	for (i=0; i<pMib->dhcpServerOptionNum; i++) {
+		get_linkchain(&dhcpServerOptionChain, (void *)&pMib->dhcpServerOptionArray[i], i+1);
+	}
+
+	memset( pMib->dhcpClientOptionArray, '\0', MAX_DHCP_CLIENT_OPTION_NUM*sizeof(MIB_CE_DHCP_OPTION_T) );
+	for (i=0; i<pMib->dhcpClientOptionNum; i++) {
+		get_linkchain(&dhcpClientOptionChain, (void *)&pMib->dhcpClientOptionArray[i], i+1);
+	}
+
+	memset( pMib->dhcpsServingPoolArray, '\0', MAX_DHCPS_SERVING_POOL_NUM*sizeof(DHCPS_SERVING_POOL_T) );
+	for (i=0; i<pMib->dhcpsServingPoolNum; i++) {
+		get_linkchain(&dhcpsServingPoolChain, (void *)&pMib->dhcpsServingPoolArray[i], i+1);
+	}
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
+
 #ifdef ROUTE_SUPPORT
 		memset( pMib->staticRouteArray, '\0', MAX_ROUTE_NUM*sizeof(STATICROUTE_T) );
 		for (i=0; i<pMib->staticRouteNum; i++) {
@@ -3822,6 +4170,14 @@ int apmib_update(CONFIG_DATA_T type)
 			get_linkchain(&vlanConfigChain, (void *)&pMib->VlanConfigArray[i], i+1);
 		}
 #endif	
+
+#ifdef RTK_CAPWAP
+		memset( pMib->wtpConfigArray, '\0', MAX_CAPWAP_WTP_NUM*sizeof(CAPWAP_WTP_CONFIG_T) );
+		for (i=0; i<pMib->numWtpConfig; i++) {
+			get_linkchain(&capwapWtpConfigChain, (void *)&pMib->wtpConfigArray[i], i+1);
+		}
+#endif
+
 #endif /*not def MI B_TLV*/
 		if (type & CURRENT_SETTING) {
 			data = (unsigned char *)pMib;
@@ -3916,6 +4272,14 @@ int apmib_update(CONFIG_DATA_T type)
 	if(pfile)
 		free(pfile);
 #endif	
+
+#ifdef CONFIG_APP_TR069
+	if((cwmp_msgid = msgget((key_t)1234, 0)) > 0 )
+	{
+		cwmpmsg.msg_type = eMSG_ACTIVE_NOTIFY;
+		msgsnd(cwmp_msgid, (void *)&cwmpmsg, MSG_SIZE, 0);
+	}
+#endif
 
 	return 1;
 }
@@ -4224,25 +4588,16 @@ int apmib_updateFlash(CONFIG_DATA_T type, char *data, int len, int force, int ve
 	return 1;
 }
 #endif
-#ifdef AP_CONTROLER_SUPPORT
-static int flash_read(char *buf, int offset, int len)
-{
-	return apmib_virtual_flash_read(buf,offset,len);
-}
-static int flash_write(char *buf, int offset, int len)
-{
-	return apmib_virtual_flash_write(buf,offset,len);
-}
-
-
-#else
 /////////////////////////////////////////////////////////////////////////////////
 static int flash_read(char *buf, int offset, int len)
 {
 	int fh;
 	int ok=1;
-
+#ifdef CONFIG_MTD_NAND
+	fh = open(FLASH_DEVICE_SETTING, O_RDONLY | O_CREAT);
+#else
 	fh = open(FLASH_DEVICE_NAME, O_RDONLY);
+#endif
 	if ( fh == -1 )
 		return 0;
 
@@ -4263,7 +4618,11 @@ static int flash_write(char *buf, int offset, int len)
 	int fh;
 	int ok=1;
 
+#ifdef CONFIG_MTD_NAND
+	fh = open(FLASH_DEVICE_SETTING, O_RDWR | O_CREAT);
+#else
 	fh = open(FLASH_DEVICE_NAME, O_RDWR);
+#endif
 
 	if ( fh == -1 )
 		return 0;
@@ -4278,7 +4637,7 @@ static int flash_write(char *buf, int offset, int len)
 
 	return ok;
 }
-#endif
+
 #ifdef MIB_TLV
 int add_tblentry(void *pmib, unsigned offset, int num,const mib_table_entry_T *mib_tbl,void *val)
 {
@@ -4538,6 +4897,17 @@ int update_linkchain(int fmt, void *Entry_old, void *Entry_new, int type_size)
 		}else if(fmt==DHCPRSVDIP_ARRY_T){
 			pLinkChain = &dhcpRsvdIpChain;			
 		}
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+		else if(fmt==DHCP_SERVER_OPTION_ARRAY_T){
+			pLinkChain = &dhcpServerOptionChain;	 
+		}
+		else if(fmt==DHCP_CLIENT_OPTION_ARRAY_T){
+			pLinkChain = &dhcpClientOptionChain;	 
+		}
+		else if(fmt==DHCPS_SERVING_POOL_ARRAY_T){
+			pLinkChain = &dhcpsServingPoolChain;	 
+		}
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 #ifdef ROUTE_SUPPORT				
 		if(fmt==STATICROUTE_ARRAY_T){
 		 	pLinkChain = &staticRouteChain;
@@ -5004,11 +5374,11 @@ unsigned int mib_compress_write(CONFIG_DATA_T type, unsigned char *data)
 		}
 		else
 		{
-			COMP_TRACE(stderr,"\r\n Compress [%u] to [%u]. Compress rate=%u, __[%s-%u]",expLen,compLen,compHeader.compRate ,__FILE__,__LINE__);
+		//	COMP_TRACE(stderr,"\r\n Compress [%u] to [%u]. Compress rate=%u, __[%s-%u]",expLen,compLen,compHeader.compRate ,__FILE__,__LINE__);
 
-			COMP_TRACE(stderr,"\r\n Flash write to 0x%x len=%d\n",dst,compLen+sizeof(COMPRESS_MIB_HEADER_T));
+		//	COMP_TRACE(stderr,"\r\n Flash write to 0x%x len=%d\n",dst,compLen+sizeof(COMPRESS_MIB_HEADER_T));
 
-			COMP_TRACE(stderr,"\r\n");
+		//	COMP_TRACE(stderr,"\r\n");
 			if(expPtr)
 				free(expPtr);
 			if(compPtr)
@@ -5313,7 +5683,6 @@ int tlv_simple_mib_get(unsigned int mib_id,unsigned char *from_data,unsigned int
 	}
 	return ret;
 }
-
 int mib_search_by_id(const mib_table_entry_T *mib_tbl, unsigned short mib_id, unsigned char *pmib_num, const mib_table_entry_T **ppmib, unsigned int *offset)
 {
 	int i=0;
@@ -5443,6 +5812,13 @@ fprintf(stderr,"\r\n");
 			memcpy(data, ptlv_data_value, tlv_len);
 			break;
 #endif
+#endif
+#ifdef RTK_CAPWAP
+		case CAPWAP_ALL_WLANS_CONFIG_T:
+printf("CAPWAP_WLAN_CONFIGS_T: tlv_len=%u, mib_tbl->total_size=%u\n", tlv_len, mib_tbl->total_size);
+			pChar = (unsigned char *) data;
+			memcpy(data, ptlv_data_value, mib_tbl->total_size);
+			break;
 #endif
 		default :
 			fprintf(stderr,"\r\n ERR!no mib_name[%s] type[%u]. __[%s-%u]",mib_tbl->name, mib_tbl->type,__FILE__,__LINE__);			
@@ -5810,7 +6186,7 @@ fprintf(stderr,"\r\n Turn mib[i].mib_name=%s __[%s-%u]",mib[i].name,__FILE__,__L
 				}											
 				/* Now, we know the Table length, fill it! */
 				tlv_len = (*idx-ori_idx);				
-				memcpy(ptlv_len, &tlv_len, 2);							
+				memcpy(ptlv_len, &tlv_len, 2);
 			}								
 		} /* for(i) */		
 	}
@@ -5863,14 +6239,14 @@ fprintf(stderr,"\r\n Turn mib[i].mib_name=%s __[%s-%u]",mib[i].name,__FILE__,__L
 		/* Saving Tag */
 		tlv_tag = (mib_tbl->id);
 
-		memcpy(pfile+*idx, &tlv_tag, 2);		
+		memcpy(pfile+*idx, &tlv_tag, 2);
 		*idx+=2;				
 
 		/* Saving Length */
         tlv_len = (mib_tbl->total_size);
 		memcpy(pfile+*idx, &tlv_len, 2);
 
-		*idx+=2;	
+		*idx+=2;
 
 		/* Saving Value */
 		memcpy(pfile+*idx, pChar, tlv_len);				
@@ -5900,6 +6276,9 @@ if( (k+1)%10 == 0) fprintf(stderr,"\r\n");
 	return 1;
 }
 
+#if 0 
+
+// allow the same id in different mib table
 static int _mibtbl_check(const mib_table_entry_T *mib_tbl)
 {
 	int i, j;
@@ -5945,6 +6324,67 @@ int mibtbl_check(void)
 
 	return 0;
 }
+
+#else
+
+// NOT allow the same id in different mib table
+int mibtbl_check_add(mib_table_entry_T *root, mib_table_entry_T *mib_tbls[])
+{
+	int i, cnt;
+
+	cnt = 0;
+	for (i=0; root[i].id; i++)
+	{
+		if (root[i].type >= TABLE_LIST_T)
+			cnt += mibtbl_check_add(root[i].next_mib_table, &mib_tbls[cnt]);
+		else
+			mib_tbls[cnt++] = &root[i];
+	}
+
+	return cnt;
+}
+
+static int
+mibtbl_check_id(const void *p1, const void *p2)
+{
+	int res;
+	mib_table_entry_T *mib1 = * (mib_table_entry_T * const *) p1;
+	mib_table_entry_T *mib2 = * (mib_table_entry_T * const *) p2;
+
+//	if (mib1->id == mib2->id)
+	if (mib1->id == mib2->id && mib1->name != mib2->name)
+		fprintf(stderr, "MIB Error: %s detect duplicate id in %s\n",
+			mib1->name, mib2->name);
+
+	return mib1->id - mib2->id;
+}
+
+#define MAX_MIBTBL_CHECK 1024
+int mibtbl_check(void)
+{
+	int i;
+	int cnt;
+	static mib_table_entry_T *mib_tbls[MAX_MIBTBL_CHECK];
+	mib_table_entry_T *pmib_tl_hw;
+	mib_table_entry_T *pmib_tl;
+
+	pmib_tl_hw = mib_get_table(HW_SETTING);
+	pmib_tl = mib_get_table(CURRENT_SETTING);
+
+	cnt = mibtbl_check_add(pmib_tl_hw, mib_tbls);
+	cnt += mibtbl_check_add(pmib_tl, &mib_tbls[cnt]);
+
+	if (cnt >= MAX_MIBTBL_CHECK)
+	{
+		fprintf(stderr, "MAX_MIBTBL_CHECK is smaller than MIB TBL\n");
+		return -1;
+	}
+
+	qsort(mib_tbls, cnt, sizeof(mib_table_entry_T *), mibtbl_check_id);
+	return 0;	
+}
+
+#endif
 
 #define TZ_FILE "/var/TZ"
 unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned char symbol)

@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>WDS Security Setup</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <SCRIPT>
 var defPskLen=new Array()
 var defPskFormat=new Array();
@@ -172,7 +173,7 @@ function resetForm()
 
 <body onload="Load_Setting();">
 <blockquote>
-<h2><font color="#0000FF">
+<h2>
 <script type="text/javascript">
 var wlan_num =  <% getIndex("wlan_num"); %>;
 if (wlan_num > 1) {
@@ -182,7 +183,7 @@ if (wlan_num > 1) {
 else
 	document.write("WDS Security Setup</p>");
 </script>
-</font></h2>
+</h2>
 
 <form action=/boafrm/formWdsEncrypt method=POST name="formWdsEncrypt">
 <table border=0 width="500" cellspacing=4>
@@ -196,11 +197,11 @@ else
       <td width="70%"><font size=2><b>
       	<select size="1" name="encrypt<% getIndex("wlan_idx"); %>" onChange="updateEncryptState(document.formWdsEncrypt)">
 			<option value="0">None</option>
-	<!-- <% getInfo("onoff_tkip_comment_start");%>
+   <!-- <% getInfo("onoff_tkip_comment_start");%>
 			<option value="1">WEP 64bits</option>
 			<option value="2">WEP 128bits</option>
 			<option value="3">WPA (TKIP)</option>
-		<% getInfo("onoff_tkip_comment_end");%> -->        
+	<% getInfo("onoff_tkip_comment_end");%> -->         
 			<option value="4">WPA2 (AES)</option>
 
       </b></font></td>

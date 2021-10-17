@@ -133,23 +133,6 @@ static struct mtd_info *mymtd;
 
 /////////////////////////////////////////////////////////////////////////////
 
-#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
-#define RTL_802_1X_CLIENT_SIZE 0x10000
-#else
-#define RTL_802_1X_CLIENT_SIZE 0
-#endif
-
-#ifdef CONFIG_RTL_WAPI_SUPPORT
-#define RTL_WAPI_SIZE 0x10000
-#else
-#define RTL_WAPI_SIZE 0
-#endif
-
-#ifdef CONFIG_APPLE_HOMEKIT_BLOCK_SUPPORT
-#define RTL_HOMEKIT_SIZE 0x10000
-#else
-#define RTL_HOMEKIT_SIZE 0
-#endif
 #ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
 #if defined( CONFIG_ROOTFS_JFFS2 )
 static struct mtd_partition rtl8196_parts1[] = {
@@ -162,76 +145,15 @@ static struct mtd_partition rtl8196_parts1[] = {
                 name:           "jffs2(linux+root fs)",                
 #ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
 #ifdef CONFIG_MTD_CONCAT
-                size:        (CONFIG_RTL_SPI_FLASH1_SIZE + \
-                			  CONFIG_RTL_SPI_FLASH2_SIZE - \
-                			  CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-                			  RTL_802_1X_CLIENT - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+                size:        (CONFIG_RTL_SPI_FLASH1_SIZE+CONFIG_RTL_SPI_FLASH2_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #else
-                size:        (CONFIG_RTL_SPI_FLASH1_SIZE - \
-                			  CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-                			  RTL_802_1X_CLIENT - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+                size:        (CONFIG_RTL_SPI_FLASH1_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #endif
 #else
-                size:        (WINDOW_SIZE - CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-                			  RTL_802_1X_CLIENT - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+                size:        (WINDOW_SIZE - CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #endif
                 offset:      (CONFIG_RTL_ROOT_IMAGE_OFFSET),
         }
-
-		,
-		{
-			name:	"1x",
-			size:	(RTL_802_1X_CLIENT_SIZE-0),
-#ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
-#ifdef CONFIG_MTD_CONCAT
-			offset:	(CONFIG_RTL_SPI_FLASH1_SIZE + \
-                	 CONFIG_RTL_SPI_FLASH2_SIZE - \
-                	 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#else
-			offset:	(CONFIG_RTL_SPI_FLASH1_SIZE - \ 
-                	 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#endif
-#else
-			offset:	(WINDOW_SIZE - RTL_802_1X_CLIENT_SIZE - \
-					 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#endif		
-		}
-
-		,
-		{
-			name:	"wapi",
-			size:	(RTL_WAPI_SIZE-0),
-#ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
-#ifdef CONFIG_MTD_CONCAT
-			offset:	(CONFIG_RTL_SPI_FLASH1_SIZE + \
-                	 CONFIG_RTL_SPI_FLASH2_SIZE - \
-                	 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE ),
-#else
-			offset:	(CONFIG_RTL_SPI_FLASH1_SIZE - \ 
-                	 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE  ),
-#endif
-#else
-			offset:	(WINDOW_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE ),
-#endif		
-		}
-		,
-		{
-			name:	"homekit",
-			size:	(RTL_HOMEKIT_SIZE-0),
-#ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
-#ifdef CONFIG_MTD_CONCAT
-			offset:	(CONFIG_RTL_SPI_FLASH1_SIZE + \
-                	 CONFIG_RTL_SPI_FLASH2_SIZE - \
-                	 RTL_HOMEKIT_SIZE ),
-#else
-			offset:	(CONFIG_RTL_SPI_FLASH1_SIZE - \ 
-                	 RTL_HOMEKIT_SIZE ),
-#endif
-#else
-			offset:	(WINDOW_SIZE - RTL_HOMEKIT_SIZE),
-#endif		
-		}
-
 };
 #elif defined( CONFIG_ROOTFS_RAMFS )
 static struct mtd_partition rtl8196_parts1[] = {
@@ -254,98 +176,19 @@ static struct mtd_partition rtl8196_parts1[] = {
                 name:           "root fs",  
 #ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
 #ifdef CONFIG_MTD_CONCAT
-                size:        (CONFIG_RTL_SPI_FLASH1_SIZE + \
-                			  CONFIG_RTL_SPI_FLASH2_SIZE - \
-                			  CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-                			  RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+                size:        (CONFIG_RTL_SPI_FLASH1_SIZE+CONFIG_RTL_SPI_FLASH2_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #else
-		  		size:        (CONFIG_RTL_SPI_FLASH1_SIZE - \
-		  					  CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-		  					  RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+		  size:        (CONFIG_RTL_SPI_FLASH1_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #endif
 #else
 #if !defined(CONFIG_MTD_CHAR)
-                size:        (CONFIG_RTL_FLASH_SIZE - \
-                			  CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-                			  RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+                size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #else
-				size:        (CONFIG_RTL_FLATFS_IMAGE_OFFSET - \
-							  CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-							  RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+		size:        (CONFIG_RTL_FLATFS_IMAGE_OFFSET-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #endif                	
 #endif
                 offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
         }
-		,
-		{
-			name:	"1x",
-			size:	(RTL_802_1X_CLIENT_SIZE-0),
-#ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
-#ifdef CONFIG_MTD_CONCAT
-			offset: (CONFIG_RTL_SPI_FLASH1_SIZE + \
-					 CONFIG_RTL_SPI_FLASH2_SIZE - \
-					 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#else
-			offset: (CONFIG_RTL_SPI_FLASH1_SIZE - \ 
-					 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#endif
-#else
-#ifdef CONFIG_MTD_CHAR
-			offset: (CONFIG_RTL_FLATFS_IMAGE_OFFSET - \
-					 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#else
-			offset: (CONFIG_RTL_FLASH_SIZE - \
-					 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#endif
-#endif		
-		}
-		,
-		{
-			name:	"wapi",
-			size:	(RTL_WAPI_SIZE-0),
-#ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
-#ifdef CONFIG_MTD_CONCAT
-			offset: (CONFIG_RTL_SPI_FLASH1_SIZE + \
-					 CONFIG_RTL_SPI_FLASH2_SIZE - \
-					 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#else
-			offset: (CONFIG_RTL_SPI_FLASH1_SIZE - \ 
-					 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#endif
-#else
-#ifdef CONFIG_MTD_CHAR
-			offset: (CONFIG_RTL_FLATFS_IMAGE_OFFSET - \
-					 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#else
-			offset: (CONFIG_RTL_FLASH_SIZE - \
-					 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-#endif
-#endif		
-		}
-		,
-		{
-			name:	"homekit",
-			size:	(RTL_HOMEKIT_SIZE-0),
-#ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
-#ifdef CONFIG_MTD_CONCAT
-			offset: (CONFIG_RTL_SPI_FLASH1_SIZE + \
-					 CONFIG_RTL_SPI_FLASH2_SIZE - \
-					 RTL_HOMEKIT_SIZE),
-#else
-			offset: (CONFIG_RTL_SPI_FLASH1_SIZE - \ 
-					 RTL_HOMEKIT_SIZE),
-#endif
-#else
-#ifdef CONFIG_MTD_CHAR
-			offset: (CONFIG_RTL_FLATFS_IMAGE_OFFSET - \
-					 RTL_HOMEKIT_SIZE),
-#else
-			offset: (CONFIG_RTL_FLASH_SIZE - \
-					 RTL_HOMEKIT_SIZE),
-#endif
-#endif		
-		}
-
 #if defined(CONFIG_MTD_CHAR)   
 	,     
           {
@@ -354,8 +197,10 @@ static struct mtd_partition rtl8196_parts1[] = {
                 size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_FLATFS_IMAGE_OFFSET),
                 offset:         (CONFIG_RTL_FLATFS_IMAGE_OFFSET),
         }
-#endif   
-
+#endif        
+        
+        
+        
 };
 
 #else //!CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
@@ -367,32 +212,11 @@ static struct mtd_partition rtl8196_parts1[] = {
         },
         {
                 name:           "root fs(bank1)",                
-                size:        	(CONFIG_RTL_FLASH_SIZE - \
-                				 CONFIG_RTL_ROOT_IMAGE_OFFSET - \
-                				 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
+                size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
                 offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
         },
-		{
-			name:	"1x",
-			size:	(RTL_802_1X_CLIENT_SIZE - 0),
-			offset:	(CONFIG_RTL_FLASH_SIZE - \
-					 RTL_802_1X_CLIENT_SIZE - RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-		},
-		{
-			name:	"wapi",
-			size:	(RTL_WAPI_SIZE - 0),
-			offset: (CONFIG_RTL_FLASH_SIZE - \
-					 RTL_WAPI_SIZE - RTL_HOMEKIT_SIZE),
-		},
-		{
-			name:	"homekit",
-			size:	(RTL_WAPI_SIZE - 0),
-			offset: (CONFIG_RTL_FLASH_SIZE - \
-					 RTL_HOMEKIT_SIZE),
-		},
-
         {
-                name: "linux(bank2)",
+                name: "inux(bank2)",
                 size:           (CONFIG_RTL_ROOT_IMAGE_OFFSET-0),
                 offset:         CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET,
         },

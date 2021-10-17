@@ -614,6 +614,7 @@ fsm_rtermreq(f, id, p, len)
     u_char *p;
     int len;
 {
+	//output_log("fsm_rtermreq");
     switch (f->state) {
     case ACKRCVD:
     case ACKSENT:
@@ -627,12 +628,11 @@ fsm_rtermreq(f, id, p, len)
 	    info("%s terminated by peer", PROTO_NAME(f));
 
 	/*dzh add for fast clean kernel ppp info!!!!*/
-	clear_ppp_info();
+		clear_ppp_info();
 	f->retransmits = 0;
 	f->state = STOPPING;
 	if (f->callbacks->down)
 	    (*f->callbacks->down)(f);	/* Inform upper layers */
-	
 	TIMEOUT(fsm_timeout, f, f->timeouttime);
 	break;
     }

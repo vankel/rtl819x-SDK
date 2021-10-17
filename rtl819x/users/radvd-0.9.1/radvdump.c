@@ -281,6 +281,14 @@ print_ff(unsigned char *msg, int len, struct sockaddr_in6 *addr, int hoplimit, u
 			break;
 		case ND_OPT_ROUTE_INFORMATION:
 			break;
+#ifdef SUPPORT_RDNSS_OPTION
+		case ND_OPT_RDNSS_INFORMATION:
+			break;
+#endif
+#ifdef SUPPORT_DNSSL_OPTION
+		case ND_OPT_DNSSL_INFORMATION:
+			break;
+#endif
 		default:
 			dlog(LOG_DEBUG, 1, "unknown option %d in RA",
 				(int)*opt_str);
@@ -303,7 +311,17 @@ print_ff(unsigned char *msg, int len, struct sockaddr_in6 *addr, int hoplimit, u
 		int optlen;
 		struct nd_opt_prefix_info *pinfo;
 		struct nd_opt_route_info_local *rinfo;
+#ifdef SUPPORT_RDNSS_OPTION
+		struct nd_opt_rdnss_info_local *rdnss_info;
+#endif
+#ifdef SUPPORT_DNSSL_OPTION
+		struct nd_opt_dnssl_info_local *dnssl_info;
+#endif
 		char prefix_str[INET6_ADDRSTRLEN];
+#if defined(SUPPORT_RDNSS_OPTION) || defined(SUPPORT_DNSSL_OPTION)
+		char suffix[256];
+		int offset, label_len;
+#endif
 
 		if (orig_len < 2)
 		{
@@ -390,6 +408,82 @@ print_ff(unsigned char *msg, int len, struct sockaddr_in6 *addr, int hoplimit, u
 				printf("\t\tAdvRouteLifetime infinity; # (0xffffffff)\n");
 			else
 				printf("\t\tAdvRouteLifetime %u;\n", ntohl(rinfo->nd_opt_ri_lifetime));
+			printf("\t}; # End of route definition\n\n");
+			break;
+#ifdef SUPPORT_RDNSS_OPTION
+		case ND_OPT_RDNSS_INFORMATION:
+			rdnss_info = (struct nd_opt_rdnss_info_local *) opt_str;
+
+			printf("\n\tRDNSS");
+
+			print_addr(&rdnss_info->nd_opt_rdnssi_addr1, prefix_str);
+			printf(" %s", prefix_str);
+
+			if (rdnss_info->nd_opt_rdnssi_len >= 5) {
+				print_addr(&rdnss_info->nd_opt_rdnssi_addr2, prefix_str);
+				printf(" %s", prefix_str);
+			}
+			if (rdnss_info->nd_opt_rdnssi_len >= 7) {
+				print_addr(&rdnss_info->nd_opt_rdnssi_addr3, prefix_str);
+				printf(" %s", prefix_str);
+			}
+
+			printf("\n\t{\n");
+			/* as AdvRDNSSLifetime may depend on MaxRtrAdvInterval, it could change */
+			if (ntohl(rdnss_info->nd_opt_rdnssi_lifetime) == 0xffffffff)
+				printf("\t\tAdvRDNSSLifetime infinity; # (0xffffffff)\n");
+			else
+				printf("\t\tAdvRDNSSLifetime %u;\n", ntohl(rdnss_info->nd_opt_rdnssi_lifetime));
+
+			printf("\t}; # End of RDNSS definition\n\n");
+			break;
+#endif
+#ifdef SUPPORT_DNSSL_OPTION
+		case ND_OPT_DNSSL_INFORMATION:
+			dnssl_info = (struct nd_opt_dnssl_info_local *) opt_str;
+
+			printf("\n\tDNSSL");
+			suffix[0] = '\0';
+
+			for (offset = 0;offset < (dnssl_info->nd_opt_dnssli_len-1)*8;) {
+				label_len = dnssl_info->nd_opt_dnssli_suffixes[offset++];
+
+				if (label_len == 0) {
+					/*
+					 * Ignore empty suffixes. They're
+					 * probably just padding...
+					 */
+					if (suffix[0] == '\0')
+						continue;
+
+					printf(" %s", suffix);
+
+					suffix[0] = '\0';
+					continue;
+				}
+
+				if ((sizeof(suffix) - strlen(suffix)) < (label_len + 2)) {
+					flog(LOG_ERR, "oversized suffix in DNSSL option from %s",
+							addr_str);
+					break;
+				}
+
+				if (suffix[0] != '\0')
+					strcat(suffix, ".");
+				strncat(suffix, &dnssl_info->nd_opt_dnssli_suffixes[offset], label_len);
+				offset += label_len;
+			}
+
+			printf("\n\t{\n");
+			/* as AdvDNSSLLifetime may depend on MaxRtrAdvInterval, it could change */
+			if (ntohl(dnssl_info->nd_opt_dnssli_lifetime) == 0xffffffff)
+				printf("\t\tAdvDNSSLLifetime infinity; # (0xffffffff)\n");
+			else
+				printf("\t\tAdvDNSSLLifetime %u;\n", ntohl(dnssl_info->nd_opt_dnssli_lifetime));
+
+			printf("\t}; # End of DNSSL definition\n\n");
+			break;
+#endif
 		default:
 			break;
 		}

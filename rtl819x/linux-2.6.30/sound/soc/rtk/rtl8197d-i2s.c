@@ -710,49 +710,30 @@ static int __init rtl8197d_i2s_init(void)
 	rtlRegMask(0xb8000058, 0x00000001, 0x00000001);//enable 24p576mHz clock
 
 	/* Configure the I2S pins in correct mode */
-	// set the jtag as iis-audio
-#if defined(CONFIG_RTL_8881A)
-	// set the led-sig0 as iis-sd1_out
-	rtlRegMask(0xb8000044, 0x0000FFF9, 0x000000D9);
-#else
+#if 1 // set the jtag as iis-audio
 	rtlRegMask(0xb8000040, 0x00000007, 0x00000003);//change pin mux to iis-voice pin
 	// set the led-sig0 as iis-sd1_out
 	rtlRegMask(0xb8000044, 0x00000003, 0x00000001);//change pin mux to iis-voice pin
-#endif	
-#if defined(CONFIG_RTL_8881A)
-		printk("PABCD_CNR:\t%08X\nPABCD_DIR:\t%08X\nPABCD_DAT:\t%08X\n"
-				"PIN_MUX_SEL:\t%08X\nPIN_MUX_SEL_2:\t%08X\nPIN_MUX_SEL_3:\t%08X\n",
-					rtlRegRead(0xB8003500), rtlRegRead(0xB8003508),
-					rtlRegRead(0xB800350C), rtlRegRead(0xB8000040),
-					rtlRegRead(0xB8000044),rtlRegRead(0xB800004C));
-#else
+#if 1	
 		printk("PABCD_CNR:\t%08X\nPABCD_DIR:\t%08X\nPABCD_DAT:\t%08X\n"
 				"PIN_MUX_SEL:\t%08X\nPIN_MUX_SEL_2:\t%08X\n",
 					rtlRegRead(0xB8003500), rtlRegRead(0xB8003508),
 					rtlRegRead(0xB800350C), rtlRegRead(0xB8000040),
 					rtlRegRead(0xB8000044));
 #endif	
-
-#if defined(CONFIG_RTL_8881A)
-	rtlRegWrite(0xB800004C, ((rtlRegRead(0xB800004C) & ~0xFFFFFF) | 0x33333));
-	printk("PABCD_CNR:\t%08X\nPABCD_DIR:\t%08X\nPABCD_DAT:\t%08X\n"
-					"PIN_MUX_SEL:\t%08X\nPIN_MUX_SEL_2:\t%08X\nPIN_MUX_SEL_3:\t%08X\n",
-						rtlRegRead(0xB8003500), rtlRegRead(0xB8003508),
-						rtlRegRead(0xB800350C), rtlRegRead(0xB8000040),
-						rtlRegRead(0xB8000044),rtlRegRead(0xB800004C));
-#else
+				
 	rtlRegWrite(0xB8000044, ((rtlRegRead(0xB8000044) & ~0x3FFF9) | 0x100D9));
 	printk("PABCD_CNR:\t%08X\nPABCD_DIR:\t%08X\nPABCD_DAT:\t%08X\n"
 					"PIN_MUX_SEL:\t%08X\nPIN_MUX_SEL_2:\t%08X\n",
 						rtlRegRead(0xB8003500), rtlRegRead(0xB8003508),
 						rtlRegRead(0xB800350C), rtlRegRead(0xB8000040),
 						rtlRegRead(0xB8000044));
+	
+	
+	
+#else // set the led-phase or lec-sig as iis-audio
+	rtlRegMask(0xb8000044, 0x001F80DB, 0x00000049);//change pin mux to iis-voice pin
 #endif
-	
-	
-	
-	
-
 	rtlRegWrite(IISCR, 0x80000000);	// stop IIS
 for (j=0;j<5000;j++);
 	rtlRegWrite(IISCR, 0x0000);	// stop IIS

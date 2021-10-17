@@ -621,6 +621,283 @@ void eap_request_id(struct interface_data *thisint, char *outframe,
   *outsize = (strlen(thisint->userdata->identity)-1)+sizeof(struct eap_header)+
              sizeof(struct eapol_header);
 }
+#ifdef RTL_TTLS_MD5_CLIENT
+/************************************************
+ *
+ * Process an authentication request.  Based on the information in the packet,
+ * we call the correct EAP type.  We return an error if it is an EAP type
+ * that we don't know.
+ *
+ ************************************************/
+int eap_ttls_md5_request_auth(struct generic_eap_data *activemethod,
+		     struct config_eap_method *eapConfig,
+		     char *inframe, int insize, char *outframe, int *eapsize)
+
+{
+  struct eap_header *myouteap, *myineap;
+  int eapmethod, done, valideap, working_eap_type, eapinsize = 0;
+  struct config_eap_method *start=NULL, *cur=NULL, *newmethod = NULL;
+  char *tosendframe;
+  int retVal = XENONE, pwd_needed;
+
+
+	if(!outframe || !eapsize)
+		return XEMALLOC;
+  if (insize < 5)
+    {
+      // We got a runt EAP frame.  We don't know what to do with it.
+      debug_printf(DEBUG_NORMAL, "Can't process EAP request.  Packet must be"
+		   " > 5 bytes, but packet was only %d byte(s).\n", insize);
+      return XEMALLOC;
+    }
+
+  eapmethod = 0;
+  *eapsize = 0;
+  done = FALSE;
+  valideap = FALSE;
+
+  myineap = (struct eap_header *)inframe;
+  tosendframe = (char *)&inframe[sizeof(struct eap_header)-1];
+  working_eap_type = myineap->eap_type;
+  
+  myouteap = (struct eap_header *)outframe;
+
+  // Make sure we have valid method data.
+  if (eapConfig == NULL)
+    {
+      debug_printf(DEBUG_NORMAL, "No EAP methods available in "
+		   "eap_request_auth()!\n");
+      return XEMALLOC;
+    }
+
+  // Check to make sure that the type requested is in our list of valid
+  // types.
+  
+  start = eapConfig;
+  cur = start;
+
+  while ((cur != NULL) && (cur->method_num != working_eap_type))
+    {
+      cur = cur->next;
+    }
+
+  // If we have a type that matches, then go ahead...
+  if (cur != NULL)
+    {
+      valideap = TRUE;
+      newmethod = cur;
+      activemethod->eap_conf_data = newmethod->method_data;
+    } else {
+      valideap = FALSE;
+      activemethod->eap_conf_data = NULL;
+    }
+
+  // If the requested EAP type isn't valid, then send a NAK.
+  if ((valideap == FALSE) && (ntohs(myineap->eap_length)>4))
+    {
+      debug_printf(DEBUG_STATE, "Unsupported EAP type requested. (%d)  Sending NAK!\n",myineap->eap_type);
+      myouteap->eap_code = EAP_RESPONSE;
+      myouteap->eap_identifier = myineap->eap_identifier;
+      myouteap->eap_length = htons(6);
+      myouteap->eap_type = EAP_TYPE_NAK;
+
+      if (eapConfig == NULL)
+	{
+	  debug_printf(DEBUG_NORMAL, "There are no authentication methods "
+		       "defined for this interface!  Make sure you have at "
+		       "least one valid EAP type defined in your "
+		       "configuration.\n");
+	  return XEBADCONFIG;
+	}
+
+      outframe[sizeof(struct eap_header)-1] = eapConfig->method_num;
+      *eapsize = 6;
+      return *eapsize;
+    }
+
+  // Now, determine which authenticator in our array is the right one.
+  //eapmethod = eap_find_type(working_eap_type);
+    while ((eaphandlers[eapmethod].eap_auth_type != NO_EAP_AUTH) &&
+	 (eaphandlers[eapmethod].eap_auth_type != working_eap_type))
+    {
+      eapmethod++;
+    }
+
+  if (eaphandlers[eapmethod].eap_auth_type == NO_EAP_AUTH)
+    {
+      debug_printf(DEBUG_NORMAL, "No valid EAP type could be found in "
+		   "%s:%d!\n", __FUNCTION__, __LINE__);
+      // We got an error.
+      return -1;
+    }
+
+  // If we had an EAP type before, and we have changed this time through,
+  // make sure we call the cleanup methods.
+  if ((activemethod->eapNum > 0) && 
+      (activemethod->eapNum != eaphandlers[eapmethod].eap_auth_type))
+    {
+      debug_printf(DEBUG_AUTHTYPES, "EAP Type Changed!  Cleaning up old "
+		   "type!\n");
+      eap_clear_active_method(activemethod);
+    }
+
+  // If this is a new EAP type, call the setup method.
+  if (activemethod->eapNum == 0)
+    {
+      if (((*eaphandlers[eapmethod].eap_auth_setup)(activemethod)) != XENONE)
+	{
+	  debug_printf(DEBUG_NORMAL, "EAP method failed to set up properly! "
+		       "Calling cleanup routine.\n");
+	  eap_cleanup(&activemethod);
+	  
+	  return -1;
+	}
+	  
+      activemethod->eapNum = eaphandlers[eapmethod].eap_auth_type;
+
+      if (activemethod->eap_data == NULL)
+	{
+	  debug_printf(DEBUG_AUTHTYPES, "This EAP type didn't set up any "
+		       "state information!?\n");
+	}
+    } 
+
+  activemethod->eapid = myineap->eap_identifier;
+  eapinsize = ntohs(myineap->eap_length)-5;
+
+  pwd_needed = activemethod->need_password;
+
+ (*eaphandlers[eapmethod].eap_auth_handlers)(activemethod, 
+							  (uint8_t *) tosendframe, eapinsize, 
+							  (uint8_t *) &outframe[sizeof(struct eap_header)-1], 
+							  eapsize);
+	
+
+  // See if an EAP type requested a password.
+  #if 0
+  if ((activemethod->need_password == 1) && (pwd_needed == 0))
+    {
+      debug_printf(DEBUG_AUTHTYPES, "Requesting password from GUI!\n");
+
+      xsup_ipc_gui_prompt(activemethod->intName, activemethod->tempPwd, 
+			  activemethod->eaptype, activemethod->eapchallenge);
+
+      *eapsize = 0;
+      free(activemethod->eaptype);
+      activemethod->eaptype = NULL;
+      free(activemethod->eapchallenge);
+      activemethod->eapchallenge = NULL;
+
+      return XENONE;
+    };
+  #endif
+  if ((activemethod->need_password == 1) && (pwd_needed == 1) &&
+      (!activemethod->tempPwd)) *eapsize = 0;
+
+  // If we are using LEAP, we need to make some extra calls here.
+  if (eaphandlers[eapmethod].eap_auth_type == EAP_TYPE_LEAP)
+    {
+      if (eapleap_done(activemethod) == 1)
+	{
+	  retVal = 4;
+	}
+    }
+
+  if (*eapsize > 0)
+    {
+      *eapsize = *eapsize + (sizeof(struct eap_header)-1);
+      myouteap->eap_length = htons(*eapsize);
+      if (eaphandlers[eapmethod].eap_auth_type == EAP_TYPE_LEAP &&
+	  myineap->eap_code == EAP_SUCCESS) {
+	myouteap->eap_code = EAP_REQUEST;
+	myouteap->eap_identifier = myineap->eap_identifier;
+      } else {
+	myouteap->eap_code = EAP_RESPONSE;
+	if (myineap == NULL)
+	  {
+	    debug_printf(DEBUG_NORMAL, "Invalid packet! (%s:%d)\n",
+			 __FUNCTION__, __LINE__);
+	    return XENOFRAMES;
+	  }
+	myouteap->eap_identifier = myineap->eap_identifier;
+      }
+      myouteap->eap_type = activemethod->eapNum;
+    } 
+
+  return retVal;
+}
+
+void eap_ttls_md5_request_id(char *identity, int eapid, char *outframe, 
+		    int *eapsize)
+{
+  struct eap_header *myeap;
+  char *username_ofs;
+  
+
+	if(!identity || !outframe || !eapsize)
+		return;
+  myeap = (struct eap_header *)outframe;
+
+  myeap->eap_code = EAP_RESPONSE;
+  myeap->eap_identifier = eapid; 
+
+  *eapsize = (strlen(identity)+sizeof(struct eap_header) -1);
+  myeap->eap_length = htons(*eapsize);
+  myeap->eap_type = EAP_TYPE_IDENTITY;
+
+  username_ofs = (char *)&outframe[sizeof(struct eap_header)-1];
+  strncpy(username_ofs, identity, strlen(identity));
+}
+
+/************************************************
+ *
+ * Create/update the active method struct.
+ *
+ ************************************************/
+int eap_create_active_method(struct generic_eap_data **activemethod,
+			     char *identity, char *tempPwd, char *intname)
+{
+  struct generic_eap_data *mymethod;
+
+  if (!activemethod )
+    return XEMALLOC;
+
+  mymethod = *activemethod;
+
+  if (mymethod == NULL)
+    {
+      *activemethod = (struct generic_eap_data *)malloc(sizeof(struct generic_eap_data));
+      mymethod = *activemethod;
+
+      if (mymethod == NULL)
+	{
+	  debug_printf(DEBUG_NORMAL, "Couldn't allocate memory in %s:%d!\n",
+		       __FUNCTION__, __LINE__);
+	  return XEMALLOC;
+	}
+
+      memset(mymethod, 0, sizeof(struct generic_eap_data));
+
+      mymethod->eap_conf_data = NULL;
+      mymethod->eap_data = NULL;
+   
+      mymethod->identity = (char *)malloc(strlen(identity)+1);
+      
+      if (mymethod->identity == NULL)
+	{
+	  debug_printf(DEBUG_NORMAL, "Couldn't allocate memory to copy identity!\n");
+	} else {
+	  strcpy(mymethod->identity, identity);
+	}
+    }
+
+  mymethod->tempPwd = tempPwd;
+  mymethod->intName = intname;
+
+  return XENONE;
+}
+
+#endif
 
 /************************************************
  *

@@ -47,3 +47,38 @@ print_addr(struct in6_addr *addr, char *str)
 		strcpy(str, "[invalid address]");	
 	}
 }
+/* Check if an in6_addr exists in the rdnss list */
+#ifdef SUPPORT_RDNSS_OPTION
+int
+check_rdnss_presence(struct AdvRDNSS *rdnss, struct in6_addr *addr)
+{
+	while (rdnss) {
+		if (    !memcmp(&rdnss->AdvRDNSSAddr1, addr, sizeof(struct in6_addr))
+		     || !memcmp(&rdnss->AdvRDNSSAddr2, addr, sizeof(struct in6_addr))
+		     || !memcmp(&rdnss->AdvRDNSSAddr3, addr, sizeof(struct in6_addr)) )
+			break; /* rdnss address found in the list */
+		else
+			rdnss = rdnss->next; /* no match */
+	}
+	return (rdnss != NULL);
+}
+#endif
+/* Check if a suffix exists in the dnssl list */
+#ifdef SUPPORT_DNSSL_OPTION
+int
+check_dnssl_presence(struct AdvDNSSL *dnssl, const char *suffix)
+{
+	int i;
+	while (dnssl) {
+		for (i = 0; i < dnssl->AdvDNSSLNumber; i++) {
+			if (strcmp(dnssl->AdvDNSSLSuffixes[i], suffix) == 0)
+				break; /* suffix found in the list */
+		}
+		if (i != dnssl->AdvDNSSLNumber)
+			break;
+
+		dnssl = dnssl->next; /* no match */
+	}
+	return (dnssl != NULL);
+}
+#endif

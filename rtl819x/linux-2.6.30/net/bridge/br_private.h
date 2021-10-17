@@ -278,20 +278,7 @@ struct net_bridge
 	struct timer_list	mCastQuerytimer;
 #endif
 };
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-#if defined (CONFIG_RTL_IGMP_SNOOPING)
 
-struct igmg_register_info
-{
-	unsigned int valid;
-	unsigned int moduleIndex;
-	unsigned int swFwdPortMask;
-	struct net_bridge *br;
-	//char name[16];
-};
-
-#endif
-#endif
 extern struct notifier_block br_device_notifier;
 extern const u8 br_group_address[ETH_ALEN];
 

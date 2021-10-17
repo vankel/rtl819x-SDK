@@ -27,6 +27,13 @@ int main(int argc, char **argv)
 	int offset;
 	int ret;
 	int toRet;
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	char storeUserCert_eth,storeRootCert_eth,resetCert_eth;
+
+	storeUserCert_eth = 0;
+	storeRootCert_eth = 0;
+	resetCert_eth = 0;
+#endif
 
 //	DEBUG("%s(%d): FLASH_SIZE(0x%x),KERNEL_IMAGE_OFFSET(0x%x), ROOT_IMAGE_OFFSET(0x%x) \n", __FUNCTION__,__LINE__,FLASH_SIZE,KERNEL_IMAGE_OFFSET,ROOT_IMAGE_OFFSET);//Added for test
 
@@ -98,6 +105,20 @@ int main(int argc, char **argv)
 		{
 			loadCert=1;
 		}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		else if(strcmp(*argv,"-wrRoot_eth") == 0)
+		{
+			storeRootCert_eth=1;
+		}
+		else if(strcmp(*argv,"-wrUser_eth") == 0)
+		{
+			storeUserCert_eth=1;
+		}
+		else if(strcmp(*argv,"-rst_eth") == 0)
+		{
+			resetCert_eth=1;
+		}
+#endif
 		else
 		{
 bad:
@@ -134,6 +155,13 @@ bad:
 
 		sprintf(tmpFile, "rm -f %s 2>/dev/null", RS_ROOT_CERT_2G);
 		system(tmpFile);
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		sprintf(tmpFile, "rm -f %s 2>/dev/null", RS_USER_CERT_ETH);
+		system(tmpFile);
+
+		sprintf(tmpFile, "rm -f %s 2>/dev/null", RS_ROOT_CERT_ETH);
+		system(tmpFile);
+#endif
 	}
 	else if(resetCert_5g == 1)
 	{
@@ -153,8 +181,17 @@ bad:
 		sprintf(tmpFile, "rm -f %s 2>/dev/null", RS_ROOT_CERT_2G);
 		system(tmpFile);
 	}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	else if(resetCert_eth == 1)
+	{
+		sprintf(tmpFile, "rm -f %s 2>/dev/null", RS_USER_CERT_ETH);
+		system(tmpFile);
 
-#if 0
+		sprintf(tmpFile, "rm -f %s 2>/dev/null", RS_ROOT_CERT_ETH);
+		system(tmpFile);
+	}
+#endif
+
 	ret=kernelImageOverSize();
 	if((ret==FAILED)||(ret==1))
 	{
@@ -162,7 +199,6 @@ bad:
 		toRet=FAILED;
 		goto err;
 	}
-#endif
 
 	if(resetCert == 1)
 	{
@@ -216,6 +252,28 @@ bad:
 			toRet=FAILED;
 			goto err;
 		}
+		
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		//To initial eth user cert file header
+		offset=USER_CERT_BASE_ETH;
+		ret=storeFile(offset, RS_USER_CERT_ETH, 1);
+		if(ret==FAILED)
+		{
+			ERR_PRINT("%s(%d),init flash offset(0x%x) failed!\n",__FUNCTION__,__LINE__, offset);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+
+		//To initial eth root cert file header
+		offset=ROOT_CERT_BASE_ETH;
+		ret=storeFile(offset, RS_ROOT_CERT_ETH, 1);
+		if(ret==FAILED)
+		{
+			ERR_PRINT("%s(%d),init flash offset(0x%x) failed!\n",__FUNCTION__,__LINE__, offset);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+#endif
 	}
 	else if(resetCert_5g == 1)
 	{
@@ -283,6 +341,40 @@ bad:
 			goto err;
 		}
 	}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	else if(resetCert_eth == 1)
+	{
+		//reset eth cert related at flash
+		//Initial certAreaHeader
+		certFlagMask = (unsigned char)(~(FLAG_USER_CERT_ETH | FLAG_ROOT_CERT_ETH));
+		ret=updateCertAreaHeader2(certFlagMask);
+		if(ret==FAILED)
+		{
+			ERR_PRINT("%s(%d),updateCertAreaHeader failed!\n",__FUNCTION__,__LINE__);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+		//To initial eth user cert file header
+		offset=USER_CERT_BASE_ETH;
+		ret=storeFile(offset, RS_USER_CERT_ETH, 1);
+		if(ret==FAILED)
+		{
+			ERR_PRINT("%s(%d),init flash offset(0x%x) failed!\n",__FUNCTION__,__LINE__, offset);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+
+		//To initial eth root cert file header
+		offset=ROOT_CERT_BASE_ETH;
+		ret=storeFile(offset, RS_ROOT_CERT_ETH, 1);
+		if(ret==FAILED)
+		{
+			ERR_PRINT("%s(%d),init flash offset(0x%x) failed!\n",__FUNCTION__,__LINE__, offset);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+	}
+#endif
 	else if(storeAllCert == 1)
 	{		
 		//store 5g user cert
@@ -347,7 +439,6 @@ bad:
 			toRet=FAILED;
 			//goto err;
 		}
-
 		//store 2g root cert
 		offset=ROOT_CERT_BASE_2G;
 		if(isFileExist(RS_ROOT_CERT_2G))
@@ -368,6 +459,48 @@ bad:
 			toRet=FAILED;
 			//goto err;
 		}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		//store eth user cert
+		offset=USER_CERT_BASE_ETH;
+		if(isFileExist(RS_USER_CERT_ETH))
+		{
+			ret=storeFile(offset, RS_USER_CERT_ETH, 0);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), store %s to 0x%x failed.\n",__FUNCTION__,__LINE__, RS_USER_CERT_ETH, offset);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+
+			certFlag |= FLAG_USER_CERT_ETH;
+		}
+		else
+		{
+			ERR_PRINT("%s(%d),%s not exist.\n",__FUNCTION__,__LINE__, RS_USER_CERT_ETH);//Added for test
+			toRet=FAILED;
+			//goto err;
+		}
+		//store eth root cert
+		offset=ROOT_CERT_BASE_ETH;
+		if(isFileExist(RS_ROOT_CERT_ETH))
+		{
+			ret=storeFile(offset, RS_ROOT_CERT_ETH, 0);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), store %s to 0x%x failed.\n",__FUNCTION__,__LINE__, RS_ROOT_CERT_ETH, offset);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+
+			certFlag |= FLAG_ROOT_CERT_ETH;
+		}
+		else
+		{
+			ERR_PRINT("%s(%d),%s not exist.\n",__FUNCTION__,__LINE__, RS_ROOT_CERT_ETH);//Added for test
+			toRet=FAILED;
+			//goto err;
+		}		
+#endif
 
 		if(certFlag != FLAG_NO_CERT)
 		{
@@ -425,6 +558,28 @@ bad:
 			toRet=FAILED;
 			//goto err;
 		}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+				//store eth user cert
+		offset=USER_CERT_BASE_ETH;
+		if(isFileExist(RS_USER_CERT_ETH))
+		{
+			ret=storeFile(offset, RS_USER_CERT_ETH, 0);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), store %s to 0x%x failed.\n",__FUNCTION__,__LINE__, RS_USER_CERT_ETH, offset);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+
+			certFlag |= FLAG_USER_CERT_ETH;
+		}
+		else
+		{
+			ERR_PRINT("%s(%d),%s not exist.\n",__FUNCTION__,__LINE__, RS_USER_CERT_ETH);//Added for test
+			toRet=FAILED;
+			//goto err;
+		}
+#endif
 
 		if(certFlag != FLAG_NO_CERT)
 		{
@@ -511,6 +666,44 @@ bad:
 			}
 		}
 	}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	if(storeUserCert_eth == 1)
+	{
+					//store eth user cert
+		offset=USER_CERT_BASE_ETH;
+		if(isFileExist(RS_USER_CERT_ETH))
+		{
+			ret=storeFile(offset, RS_USER_CERT_ETH, 0);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), store %s to 0x%x failed.\n",__FUNCTION__,__LINE__, RS_USER_CERT_ETH, offset);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+
+			certFlag |= FLAG_USER_CERT_ETH;
+		}
+		else
+		{
+			ERR_PRINT("%s(%d),%s not exist.\n",__FUNCTION__,__LINE__, RS_USER_CERT_ETH);//Added for test
+			toRet=FAILED;
+			//goto err;
+		}
+		if(certFlag != FLAG_NO_CERT)
+		{
+			//store cert area header
+//			DEBUG("%s(%d): certFlag(0x%x) \n", __FUNCTION__,__LINE__,certFlag);//Added for test
+			ret=updateCertAreaHeader(certFlag);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), updateCertAreaHeader certFlag(0x%x) failed.\n",__FUNCTION__,__LINE__, certFlag);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+		}
+	}
+#endif
+
 	else if(storeRootCert == 1)
 	{		
 		//store 5g root cert
@@ -554,6 +747,28 @@ bad:
 			toRet=FAILED;
 			//goto err;
 		}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		//store eth root cert
+		offset=ROOT_CERT_BASE_ETH;
+		if(isFileExist(RS_ROOT_CERT_ETH))
+		{
+			ret=storeFile(offset, RS_ROOT_CERT_ETH, 0);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), store %s to 0x%x failed.\n",__FUNCTION__,__LINE__, RS_ROOT_CERT_ETH, offset);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+
+			certFlag |= FLAG_ROOT_CERT_ETH;
+		}
+		else
+		{
+			ERR_PRINT("%s(%d),%s not exist.\n",__FUNCTION__,__LINE__, RS_ROOT_CERT_ETH);//Added for test
+			toRet=FAILED;
+			//goto err;
+		}		
+#endif
 
 		if(certFlag != FLAG_NO_CERT)
 		{
@@ -640,6 +855,44 @@ bad:
 			}
 		}
 	}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	if(storeRootCert_eth == 1)
+	{
+		//store eth root cert
+		offset=ROOT_CERT_BASE_ETH;
+		if(isFileExist(RS_ROOT_CERT_ETH))
+		{
+			ret=storeFile(offset, RS_ROOT_CERT_ETH, 0);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), store %s to 0x%x failed.\n",__FUNCTION__,__LINE__, RS_ROOT_CERT_ETH, offset);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+
+			certFlag |= FLAG_ROOT_CERT_ETH;
+		}
+		else
+		{
+			ERR_PRINT("%s(%d),%s not exist.\n",__FUNCTION__,__LINE__, RS_ROOT_CERT_ETH);//Added for test
+			toRet=FAILED;
+			//goto err;
+		}
+		if(certFlag != FLAG_NO_CERT)
+		{
+			//store cert area header
+//			DEBUG("%s(%d): certFlag(0x%x) \n", __FUNCTION__,__LINE__,certFlag);//Added for test
+			ret=updateCertAreaHeader(certFlag);
+			if(ret==FAILED)
+			{
+				ERR_PRINT("%s(%d), updateCertAreaHeader certFlag(0x%x) failed.\n",__FUNCTION__,__LINE__, certFlag);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+		}
+	}
+#endif
+
 	else if(loadCert == 1)
 	{
 		//load 5g user cert
@@ -685,6 +938,29 @@ bad:
 			//goto err;
 			
 		}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		//load eth user cert
+		offset=USER_CERT_BASE_ETH;
+		ret=loadFile(RS_USER_CERT_ETH, offset);
+		if(ret==FAILED)
+		{
+			ERR_PRINT("Warning: %s(%d), load no eth user cert.\n",__FUNCTION__,__LINE__);//Added for test
+			toRet=FAILED;
+			//goto err;
+			
+		}
+
+		//load eth root cert
+		offset=ROOT_CERT_BASE_ETH;
+		ret=loadFile(RS_ROOT_CERT_ETH, offset);
+		if(ret==FAILED)
+		{
+			ERR_PRINT("Warning: %s(%d), load no eth root cert.\n",__FUNCTION__,__LINE__);//Added for test
+			toRet=FAILED;
+			//goto err;
+		}
+			
+#endif
 	}
 
 	toRet=SUCCESS;

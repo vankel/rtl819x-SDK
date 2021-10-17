@@ -725,8 +725,9 @@ int lib1x_authRSN_constructIE(Dot1x_Authenticator * auth,
 
 		free(pDot11RSNPairwiseSuite);
 		free(pDot11RSNAuthSuite);
-
-		wpa2_hexdump("lib1x_authRSN_constructIE: WPA2 RSN IE", pucBlob, ulIELength);
+        #if 0 /*for debug*/ 
+    	wpa2_hexdump("lib1x_authRSN_constructIE: WPA2 RSN IE", pucBlob, ulIELength);
+        #endif
 
     	}
     
@@ -960,7 +961,7 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
 	else
 		global->mgmt_frame_prot = 1;
 		
-	printf("mgmt_frame_prot=%d\n",global->mgmt_frame_prot);
+	HS2DEBUG("mgmt_frame_prot=%d\n",global->mgmt_frame_prot);
 
 #endif // CONFIG_IEEE80211W
 lib1x_authRSN_parseIE_success:
@@ -1100,7 +1101,7 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 #ifdef CONFIG_IEEE80211W
 	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)	{		
 		if (global->RSNVariable.MulticastCipher != auth->RSNVariable.MulticastCipher) {			
-			printf("Invalid WPA group cipher %d\n", global->RSNVariable.MulticastCipher);			
+			HS2DEBUG("Invalid WPA group cipher %d\n", global->RSNVariable.MulticastCipher);			
 			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;		
 		}	
 	}
@@ -1140,11 +1141,11 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 	global->RSNVariable.UnicastCipher = pDot11RSNIESuite->Type;							
 	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)	{		
 		if (global->RSNVariable.UnicastCipher == DOT11_ENC_TKIP) {			
-			printf("Management frame protection cannot use TKIP\n");			
+			HS2DEBUG("Management frame protection cannot use TKIP\n");			
 			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;		
 		}	
 	}
-#endif        			
+#endif  
 
 	ulIELength -= sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
 	pucIE += sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
@@ -1159,14 +1160,14 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 	pDot11RSNIESuite = pDot11RSNIECountSuite->dot11RSNIESuite;
 	lib1x_Little_N2S((u_char*)&pDot11RSNIECountSuite->SuiteCount, usSuitCount);
 #ifdef HS2_SUPPORT	
-	printf("lib1x_authWPA2_parseIE, bOSEN=%d\n", auth->RSNVariable.bOSEN);
+	HS2DEBUG("lib1x_authWPA2_parseIE, bOSEN=%d\n", auth->RSNVariable.bOSEN);
 	if(auth->RSNVariable.bOSEN == 1) {
 		if (usSuitCount != 1 ||
 			pDot11RSNIESuite->OUI[0] != 0x50 ||
 			pDot11RSNIESuite->OUI[1] != 0x6F ||
 			pDot11RSNIESuite->OUI[2] != 0x9A )
 		{
-			printf("ERROR_INVALID_RSNIE, OSEN\n");
+			HS2DEBUG("ERROR_INVALID_RSNIE, OSEN\n");
 			retVal = ERROR_INVALID_RSNIE;
 			goto lib1x_authWPA2_parseIE_error;
 		}	
@@ -1300,8 +1301,7 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 			ulIELength -= PMKID_LEN;
 			pmksa_node = find_pmksa(pucIE+(PMKID_LEN*i));
 
-			if ( pmksa_node != NULL 
-				&& pmksa_node->pmksa.SessionTimeout == 0) {
+			if ( pmksa_node != NULL && pmksa_node->pmksa.SessionTimeout == 0) {
 				wpa2_hexdump("\nCached PMKID: ", pmksa_node->pmksa.pmkid, PMKID_LEN);
 				global->RSNVariable.PMKCached = TRUE;
 				global->RSNVariable.cached_pmk_node = pmksa_node;

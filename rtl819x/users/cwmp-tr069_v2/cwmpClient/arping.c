@@ -103,9 +103,9 @@ int icmp_test(char *intf, char *host, unsigned int count, unsigned int timeout, 
 	struct timeval tv;
 
 	
-	unsigned char *buffer;
+	unsigned char *buffer, *recv_buf;
 	fd_set rset;	
-	int sock, bufsize, ret, pingid, cnt;
+	int sock, bufsize, ret, pingid, cnt, recv_buf_size;
 	//unsigned int attempt;
 	unsigned short uSequence = 0, uExpected;
 	unsigned int uOK = 0, uFail = 0;
@@ -160,7 +160,7 @@ int icmp_test(char *intf, char *host, unsigned int count, unsigned int timeout, 
        FD_SET(sock, &rset);
 
 	// build the packet
-	bufsize = sizeof(icmppkt) + datasize;
+	bufsize = 8/*sizeof(icmppkt)*/ + datasize;
        buffer = malloc ( bufsize );
        if (0==buffer) {
        	printf("no buffer available\n");
@@ -214,7 +214,11 @@ int icmp_test(char *intf, char *host, unsigned int count, unsigned int timeout, 
 			struct icmp *pkt;
 			unsigned int delta;
 			socklen_t fromlen = (socklen_t) sizeof(from);
-			c = recvfrom(sock, buffer, bufsize, 0,  (struct sockaddr *) &from, &fromlen);
+
+			recv_buf_size = sizeof(struct iphdr) + 8 + datasize;
+			recv_buf = malloc (recv_buf_size);
+			
+			c = recvfrom(sock, recv_buf, recv_buf_size, 0,  (struct sockaddr *) &from, &fromlen);
 			if (c < 0) { // recv error
 				uFail++;
 				printf("recv returns %d\n", c);
@@ -224,15 +228,15 @@ int icmp_test(char *intf, char *host, unsigned int count, unsigned int timeout, 
 			gettimeofday(&time2, 0);
 			
 			// size is wrong
-			if (c < bufsize) {
+			if (c < recv_buf_size) {
 				uFail++;
-				printf("size is wrong %d,%d\n", c, bufsize);
+				printf("size is wrong %d,%d\n", c, recv_buf_size);
 				continue;
 			}
 
-			ippkt = (struct iphdr *)buffer;
+			ippkt = (struct iphdr *)recv_buf;
 			hlen = ippkt->ihl << 2;
-			pkt = (struct icmp *) (buffer + hlen);	
+			pkt = (struct icmp *) (recv_buf + hlen);	
 			if (ntohs(pkt->icmp_id) != pingid) {
 				uFail++;
 				//printf("ping id mismatch %d,%d\n", pingid, ntohs(pkt->icmp_id));
@@ -283,6 +287,7 @@ int icmp_test(char *intf, char *host, unsigned int count, unsigned int timeout, 
 	}
 	
 	free(buffer);
+	free(recv_buf);
 	close(sock);
 	return 0;
 error_resource:

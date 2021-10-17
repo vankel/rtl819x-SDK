@@ -43,6 +43,12 @@ EXCLUDE_FILES += ! -name www_files
 EXCLUDE_FILES += ! -name www_files.tar.bz2
 EXCLUDE_FILES += ! -name webpages.bin
 
+#samba web support
+ifneq ($(CONFIG_APP_SAMBA_WEB),y)
+EXCLUDE_FILES += ! -name administration.htm ! -name disk.htm ! -name storage_creategroup.htm ! -name storage_createsharefolder.htm
+EXCLUDE_FILES += ! -name storage_createuser.htm ! -name storage_editgroup.htm ! -name storage_edituser.htm
+endif
+
 # routing support
 ifneq ($(CONFIG_APP_ROUTED),y)
 EXCLUDE_FILES += ! -name route.htm ! -name routetbl.htm
@@ -93,7 +99,7 @@ endif
 #endif
 
 ifneq ($(CONFIG_IPV6),y)
-EXCLUDE_FILES += ! -name dhcp6s.htm  ! -name ipv6_basic.htm ! -name ip6filter.htm ! -name dnsv6.htm ! -name ipv6_wan.htm ! -name radvd.htm ! -name tunnel6.htm ! -name ip6_qos.htm ! -name portfilter6.htm
+EXCLUDE_FILES += ! -name dhcp6s.htm  ! -name ipv6_basic.htm ! -name ip6filter.htm ! -name dnsv6.htm ! -name ipv6_wan.htm ! -name radvd.htm ! -name tunnel6.htm ! -name ip6_qos.htm ! -name portfilter6.htm ! -name sub_menu_ipv6.htm
 endif
 
 ifeq ($(CONFIG_IPV6),y)
@@ -102,6 +108,12 @@ endif
 
 ifneq ($(CONFIG_RTL_802_1X_CLIENT_SUPPORT),y)
 EXCLUDE_FILES += ! -name rsCertInstall.htm
+endif
+ifneq ($(CONFIG_RTL_ETH_802DOT1X_SUPPORT),y)
+EXCLUDE_FILES += ! -name eth_dot1x.htm
+endif
+ifneq ($(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT),y)
+EXCLUDE_FILES += ! -name ethdot1xCertInstall.htm
 endif
 ifneq ($(CONFIG_APP_SNMP),y)
 EXCLUDE_FILES += ! -name snmp.htm
@@ -133,15 +145,33 @@ ifneq ($(CONFIG_APP_TR069),y)
 EXCLUDE_FILES += ! -name share.js ! -name tr069config.htm
 endif
 
+ifeq ($(CONFIG_APP_RTK_VOIP),y)
+	EXCLUDE_FILES += ! -name vlan.htm
+	EXCLUDE_FILES += ! -name route.htm ! -name routetbl.htm
+	EXCLUDE_FILES += ! -name ip_qos.htm
+endif
 ifneq ($(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT),y)
 EXCLUDE_FILES += ! -name vlan_wan.htm
 endif
-ifneq ($(CONFIG_APP_CPU_UTILIZATION), y)
-EXCLUDE_FILES += ! -name cpuShow.htm ! -name right.gif ! -name left.gif
+
+ifeq ($(CONFIG_RTL_BT_CLIENT),y)
+EXCLUDE_FILES += ! -name btclient.htm ! -name bt.htm ! -name btnewtorrent.htm
+endif
+
+ifeq ($(CONFIG_APP_BOA_NEW_UI),y)
+EXCLUDE_FILES += ! -path './new/*'
+EXCLUDE_FILES += ! -path './graphics/topbar.gif'
+EXCLUDE_FILES += ! -path './menu-images/*'
+EXCLUDE_FILES += ! -name title.htm ! -name code.htm ! -name menu_empty.html
+EXCLUDE_FILES += ! -name home_old.htm  ! -name style_old.css ! -name mtmcode.js
+else
+EXCLUDE_FILES += ! -path './new/*'
+EXCLUDE_FILES += ! -name home_old.htm ! -name style_old.css
 endif
 #------------------------------------------------------------------------------
 all:
 	rm -f www_files www_files.tar.bz2 webpages.bin webpages.*
+	rm -f voip*.asp voip*.js
 ifeq ($(CONFIG_APP_RTK_VOIP),y)
 	rm -f voip*.asp voip*.js
 	cp $(VOIP_APP)/web/voip*.asp .
@@ -151,12 +181,24 @@ ifeq ($(CONFIG_APP_RTK_VOIP),y)
 else
 	rm -f voip*.asp voip*.js
 endif
+ifeq ($(CONFIG_APP_BOA_NEW_UI),y)
+	cp  home.htm home_old.htm
+	cp  style.css style_old.css
+	cp  -f ./new/* .
+endif
 	find ./ -type f $(EXCLUDE_FILES) -name "*.*" > www_files
 ifdef CONFIG_RTL_WEBPAGES_IN_ROOTFS
 	cat www_files | xargs tar jcvf www_files.tar.bz2
 else
 #	$(COMPWEB) signature www_files webpages.bin $(CV_SIGNATURE)
 	$(COMPWEB) $(SKUTAG) www_files webpages.bin
+endif
+
+ifeq ($(CONFIG_APP_BOA_NEW_UI),y)
+#recovery
+	ls -h ./new/ | xargs rm -f
+	cp  home_old.htm home.htm
+	cp  style_old.css style.css
 endif
 
 clean:

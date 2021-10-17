@@ -16,7 +16,11 @@
 
 # -*- Makefile -*-
 
-
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+else
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
 
 srcdir = .
 top_srcdir = .
@@ -317,8 +321,8 @@ htmldir = ${docdir}
 includedir = ${prefix}/include
 infodir = ${datarootdir}/info
 kbuilddir = 
-kinclude_CFLAGS =  -I ../../linux-2.6.30/include
-ksourcedir = ../../linux-2.6.30
+kinclude_CFLAGS =  -I $(DIR_LINUX_KERNEL)/include
+ksourcedir = $(DIR_LINUX_KERNEL)
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 libxtables_vage = 0

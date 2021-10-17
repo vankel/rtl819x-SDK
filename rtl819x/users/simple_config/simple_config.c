@@ -1,3 +1,4 @@
+
 #include "simple_config.h"
 
 static int parse_argument(int argc, char *argv[], RTK_SC_CTXp pCtx)
@@ -1723,6 +1724,7 @@ int main(int argc, char *argv[])
 					pCtx->sc_status = 0;
 					pCtx->sc_save_profile = 0;
 					configured = 0;
+					sleep(2);
 #if 0					
 					system("echo 1 > /proc/gpio");
 					sleep(1);
@@ -1756,6 +1758,7 @@ int main(int argc, char *argv[])
 						sleep(2);
 						sprintf(buf, "iwpriv %s set_mib sc_enabled=1", pCtx->sc_wlan_ifname);
 						system(buf);
+						sleep(2);
 					}
 				}
 	
@@ -1787,6 +1790,7 @@ int main(int argc, char *argv[])
 						system(buf);
 						pCtx->sc_wps_duration_time = 0;
 						pCtx->sc_pbc_duration_time = 1;
+						sleep(2);
 					}
 				}
 			}
@@ -1830,6 +1834,8 @@ int main(int argc, char *argv[])
 #endif
 	}
 	
+	close(sockfd_scan);
+	close(sockfd_control);
 }
 
 

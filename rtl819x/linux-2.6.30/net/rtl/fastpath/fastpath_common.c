@@ -1,6 +1,6 @@
-#if !defined(CONFIG_RTK_VLAN_SUPPORT)
+//#if !defined(CONFIG_RTK_VLAN_SUPPORT)
 #include <net/rtl/rtl_types.h>
-#endif
+//#endif
 
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_conntrack_core.h>
@@ -17,6 +17,8 @@
 #include <linux/netfilter_ipv4/ip_tables.h>
 extern int gQosEnabled;
 #endif
+#include <net/ip_fib.h>
+#include <net/ip_vs.h>
 #include <net/rtl/features/rtl_features.h>
 
 #include <net/rtl/fastpath/fastpath_core.h>
@@ -28,16 +30,25 @@ extern int gQosEnabled;
 
 #include <net/rtl/rtl_nic.h>
 
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+#include <linux/netfilter/nf_conntrack_tuple_common.h>
+#include <net/route.h>
+#include <net/arp.h>
+#endif
 #if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
 static int	rtl_fp_gc_rx_threshold;
 #endif
+#if 1//defined(CONFIG_RTL_ETH_DRIVER_REFINE)
+int fast_nat_fw = 1;
+#else
 static int fast_nat_fw = 1;
+#endif
 
-#define MAX_EXT_SERVICE_PORTS 30
-static int ext_service_ports[MAX_EXT_SERVICE_PORTS] = {0};
+#include <linux/version.h>
 
 #ifdef CONFIG_RTL_PPPOE_DIRECT_REPLY
 int magicNum=-1;
+//void (*tx_pppoe_request_hook)(struct sk_buff *skb) = NULL;
 void clear_magicNum(struct sk_buff *pskb)
 {
 	//panic_printk("%s:%d\n",__FUNCTION__,__LINE__);
@@ -69,6 +80,7 @@ int is_pppoe_lcp_echo_req(struct sk_buff *skb)
 	{		
 		return 0;
 	}
+	//panic_printk("%s:%d,rx pppoe lcp req\n",__FUNCTION__,__LINE__);	
 	return 1;
 
 }
@@ -184,7 +196,6 @@ int direct_send_reply(struct sk_buff *skb)
 		//panic_printk("%s:%d, direct_send_reply  tx\n",__FUNCTION__,__LINE__);		
 		return 1;
 	}
-	
 	return 0;
 }
 
@@ -219,62 +230,8 @@ int arp_req_get_ha(__be32 queryIP, struct net_device *dev, unsigned char * resHw
 //EXPORT_SYMBOL(arp_req_get_ha);
 #endif
 
-
-#if defined(FAST_PATH_SPI_ENABLED)
-int fast_spi =1;
-static struct proc_dir_entry *res_spi=NULL;
-static int spi_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-	int len = 0;
-
-	len = sprintf(page, "fast_spi %s\n", fast_spi==1?"Enabled":"Disabled");
-
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-
-}
-static int spi_write_proc(struct file *file, const char *buffer,
-		      unsigned long count, void *data)
-{
-	unsigned char tmpbuf[16];
-
-	memset(tmpbuf, 0, sizeof(tmpbuf));
-	if (buffer && !copy_from_user(tmpbuf, buffer, count))
-		sscanf(tmpbuf, "%d", &fast_spi);
-
-	return count;
-}
-
-#endif
-
-
 #if defined(CONFIG_PROC_FS)
 static struct proc_dir_entry *res1=NULL;
-static int read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-	int len = 0;
-
-	#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
-	len = sprintf(page, "fastpath %s, GC_RX_Count %d, Status: %d\n", fast_nat_fw!=0?"Enabled":"Disabled", rtl_fp_gc_rx_threshold, rtl_newGC_session_status_flags);
-	#else
-	len = sprintf(page, "fastpath: [%d]\n", fast_nat_fw+10);
-	#endif
-	len = fastpath_dump_napt_entry_num(page, len);
-
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-
-}
 static int write_proc(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
 {
@@ -289,7 +246,11 @@ static int write_proc(struct file *file, const char *buffer,
 		if (tmpbuf[0] == '2'&&count==2){
 			/* first byte == 2, second byte == "enter" */
 			for_each_net(net) {
+				#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+				nf_conntrack_flush_report(net, 0, 0);		//clean conntrack table
+				#else
 				nf_conntrack_flush(net, 0, 0);		//clean conntrack table
+				#endif
 			}
 			#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 			#if defined(CONFIG_RTL_8198) || defined (CONFIG_RTL_8196CT)
@@ -313,52 +274,120 @@ static int write_proc(struct file *file, const char *buffer,
 	return -EFAULT;
 }
 
-static struct proc_dir_entry *res2=NULL;
-static int ext_service_ports_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
+#if defined(CONFIG_RTL_PROC_NEW)
+static int read_proc(struct seq_file *s, void *v)
 {
-	int i;
-	int len = 0;
+	#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
+	seq_printf(s, "fastpath %s, GC_RX_Count %d, Status: %d\n", fast_nat_fw!=0?"Enabled":"Disabled", rtl_fp_gc_rx_threshold, rtl_newGC_session_status_flags);
+	#else
+	seq_printf(s, "fastpath: [%d]\n", fast_nat_fw+10);
+	#endif
 
-	for (i=0; i<MAX_EXT_SERVICE_PORTS; i++)
-	{
-		if (ext_service_ports[i])
-		{
-			len += sprintf(&page[len], "%u ", ext_service_ports[i]);
-		}
-	}
-
-	return len;
+	return 0;
 }
 
-static int ext_service_ports_write_proc(struct file *file, const char *buffer,
+int fastpath_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, read_proc, NULL));
+}
+
+static ssize_t fastpath_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	return write_proc(file, userbuf,count, off);
+}
+
+struct file_operations fastpath_proc_fops = {
+        .open           = fastpath_single_open,
+	 .write		= fastpath_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#else
+static int read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len = 0;
+	
+	#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
+	len = sprintf(page, "fastpath %s, GC_RX_Count %d, Status: %d\n", fast_nat_fw!=0?"Enabled":"Disabled", rtl_fp_gc_rx_threshold, rtl_newGC_session_status_flags);
+	#else
+	len = sprintf(page, "fastpath: [%d]\n", fast_nat_fw+10);
+	#endif
+	len = fastpath_dump_napt_entry_num(page, len);
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+}
+#endif
+
+#if defined(FAST_PATH_SPI_ENABLED)
+int fast_spi =1;
+static struct proc_dir_entry *res_spi=NULL;
+
+static int spi_write_proc(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
 {
-	unsigned char tmpbuf[1024];
-	
+	unsigned char tmpbuf[16];
+
 	memset(tmpbuf, 0, sizeof(tmpbuf));
-	if (count > sizeof(tmpbuf))
-		return -EFAULT;
-
 	if (buffer && !copy_from_user(tmpbuf, buffer, count))
-	{
-		int i = 0;
-		char *token;
-		char *str = (char *) tmpbuf;
-
-		memset(ext_service_ports, 0, sizeof(ext_service_ports));
-		while ((token = strsep(&str, " ")) != NULL && 
-			i < MAX_EXT_SERVICE_PORTS - 1)
-		{
-			if (!*token)
-				break;
-
-			ext_service_ports[i++] = simple_strtol(token, NULL, 0);
-		}	
-	}
+		sscanf(tmpbuf, "%d", &fast_spi);
 
 	return count;
 }
+
+#if defined(CONFIG_RTL_PROC_NEW)
+static int spi_read_proc(struct seq_file *s, void *v)
+{
+
+	seq_printf(s, "fast_spi %s\n", fast_spi==1?"Enabled":"Disabled");
+
+	return 0;
+}
+
+int fastspi_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, spi_read_proc, NULL));
+}
+
+static ssize_t fastspi_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	return spi_write_proc(file, userbuf,count, off);
+}
+
+struct file_operations fastspi_proc_fops = {
+        .open           = fastspi_single_open,
+	 .write		= fastspi_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#else
+static int spi_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len = 0;
+
+	len = sprintf(page, "fast_spi %s\n", fast_spi==1?"Enabled":"Disabled");
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+
+}
+#endif
+#endif
+
 #endif
 
 #if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
@@ -369,7 +398,7 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	u_int ori_saddr, ori_daddr;
 	u_short ori_sport, ori_dport;
 	struct net_device	*lanDev, *wanDev;
-	struct dst_entry *dst_tmp;
+	//struct dst_entry *dst_tmp;
 	unsigned char oriSrcMac[6],oriDstMac[6],resMac[14];
 	u_short proto;
 	unsigned char pppProto[2],ipProto[2];
@@ -415,9 +444,11 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	ori_dport=tcphupuh->dest;
 
 	/* for dst mac match, please refer to the xt_mac.c */
-	dst_tmp = pskb->dst;
-	pskb->dst = NULL;
-
+	
+	//dst_tmp = skb_dst(pskb);
+	//pskb->dst = NULL;
+	//skb_dst_set(pskb,NULL);
+	rtl_store_skb_dst(pskb);
 	//For uplink
 #if defined(CONFIG_NET_SCHED)
 	preMark = 0;
@@ -447,6 +478,7 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	}
 
 	pskb->mark=0;//initial
+
 	if(proto == ETH_P_IP){
 		(list_empty(&nf_hooks[PF_INET][NF_IP_PRE_ROUTING]))?: \
 			ipt_do_table(pskb, NF_IP_PRE_ROUTING, lanDev,wanDev,\
@@ -484,6 +516,7 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	}
 
 	pskb->mark=0;//initial
+
 	if(proto == ETH_P_IP){
 		(list_empty(&nf_hooks[PF_INET][NF_IP_POST_ROUTING]))?: \
 			ipt_do_table(pskb, NF_IP_POST_ROUTING, lanDev, wanDev,\
@@ -494,7 +527,7 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 					wanDev?wanDev->name:"NULL",
 					pskb->inDev?pskb->inDev->name:"NULL",
 					pskb->dev?pskb->dev->name:"NULL", pskb->mark);
-	postMark= pskb->mark;
+		postMark= pskb->mark;
 	}
 
 	qosMark->uplinkMark=(postMark?postMark:preMark);
@@ -574,6 +607,7 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 						pskb->dev?pskb->dev->name:"NULL", pskb->mark);
 		postMark= pskb->mark;
 	}
+
 	qosMark->downlinkMark=(postMark?postMark:preMark);
 #endif
 
@@ -591,8 +625,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	iph->daddr=ori_daddr;
 	tcphupuh->dest=ori_dport;
 
-	pskb->dst = dst_tmp;
-
+	//pskb->dst = dst_tmp;
+	//skb_dst_set(pskb,dst_tmp);
+	rtl_set_skb_dst(pskb);
 	if(lanDev)
 		dev_put(lanDev);
 
@@ -644,14 +679,6 @@ static inline int rtl_fp_gc_status_check_priority(uint32 sIp, uint32 dIp, uint16
 		(!(IS_BROADCAST_ADDR(dIp))) &&
 		(!(IS_ALLZERO_ADDR(sIp))))
 	{
-		int i;
-
-		for (i=0; ext_service_ports[i]; i++)
-		{
-			if (dPort == ext_service_ports[i])
-				return NET_RX_SUCCESS;
-		}
-
 		return NET_RX_DROP;
 	}
 	else
@@ -904,15 +931,75 @@ int rtl_ip_route_input(struct sk_buff  *skb, __be32 daddr, __be32 saddr, u8 tos)
 	return ip_route_input(skb, daddr, saddr, tos, skb->dev);
 }
 
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+static void rtl_neigh_probe(struct neighbour *neigh)
+	__releases(neigh->lock)
+{
+	struct sk_buff *skb = skb_peek(&neigh->arp_queue);
+	/* keep skb alive even if arp_queue overflows */
+	if (skb)
+		skb = skb_copy(skb, GFP_ATOMIC);
+	write_unlock(&neigh->lock);
+	neigh->ops->solicit(neigh, skb);
+	atomic_inc(&neigh->probes);
+	kfree_skb(skb);
+}
+extern void neigh_probe(struct neighbour *neigh);
+
+int rtl_skb_dst_check(struct sk_buff *skb, unsigned long dip)
+{
+	int ret = SUCCESS;
+	struct dst_entry *dst = skb_dst(skb);
+	struct rtable *rt = (struct rtable *)dst;
+	struct net_device *dev = dst->dev;
+	struct neighbour *neigh;
+	u32 nexthop;
+
+	if (rt == NULL)
+		return FAILED;
+
+    if(skb->len>dst_mtu(dst))
+        return FAILED;
+	
+    rcu_read_lock_bh();
+	nexthop = (__force u32) rt_nexthop(rt, dip);
+	neigh = __ipv4_neigh_lookup_noref(dev, nexthop);
+
+    if(neigh != NULL)
+        write_lock(&neigh->lock);
+
+	/*linux kernel 3.4 struct hh_cache is in struct neighbour*/
+	if ( (neigh==NULL) ||!(neigh->nud_state & NUD_CONNECTED))
+	{
+        if((neigh!=NULL)&&!(neigh->nud_state & NUD_CONNECTED))
+            rtl_neigh_probe(neigh);
+        else if(neigh != NULL)
+            write_unlock(&neigh->lock);
+
+		ret = FAILED;
+        rcu_read_unlock_bh();
+		return ret;
+	}
+
+	neigh->confirmed = jiffies;
+    write_unlock(&neigh->lock);
+    rcu_read_unlock_bh();
+	
+	return ret;
+}
+
+#else
 int rtl_skb_dst_check(struct sk_buff *skb)
 {
 	int ret = SUCCESS;
 
 	if( !(skb->dst->hh || skb->dst->neighbour)  ||skb->len > dst_mtu(skb->dst))
 		ret = FAILED;
-
+	
 	return ret;
 }
+
+#endif
 
 void rtl_set_skb_ip_summed(struct sk_buff *skb, int value)
 {
@@ -922,8 +1009,15 @@ void rtl_set_skb_ip_summed(struct sk_buff *skb, int value)
 
 void rtl_dst_release(struct sk_buff *skb)
 {
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	struct dst_entry *dst = skb_dst(skb);
+	
+	dst_release(dst);
+	skb->_skb_refdst = 0UL;
+#else
 	dst_release(skb->dst);
 	skb->dst = NULL;
+#endif
 
 	return;
 }
@@ -944,17 +1038,25 @@ void rtl_set_skb_mark(struct sk_buff *skb, unsigned int value)
 
 void rtl_store_skb_dst(struct sk_buff *skb)
 {
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	dst_tmp = rtl_skb_dst(skb);
+
+	skb->_skb_refdst = 0UL;
+#else
 	dst_tmp = skb->dst;
 
 	skb->dst = NULL;
-
+#endif
 	return;
 }
 
 void rtl_set_skb_dst(struct sk_buff *skb)
 {
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	skb_dst_set(skb, dst_tmp);
+#else
 	skb->dst = dst_tmp;
-
+#endif
 	return;
 }
 
@@ -962,7 +1064,11 @@ int rtl_tcp_get_timeouts(void *ptr)
 {
 	struct nf_conn *ct = (struct nf_conn *)ptr;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	return tcp_get_timeouts_by_state(ct->proto.tcp.state,(void *)ct,1);
+#else
 	return tcp_get_timeouts_by_state(ct->proto.tcp.state);
+#endif
 }
 
 int rtl_arp_req_get_ha(__be32 queryIP, void *device, unsigned char * resHwAddr)
@@ -1014,6 +1120,9 @@ __be32 rtl_get_ct_ip_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag)
 		else if(flag == 1)
 			return ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.ip;
 	}
+
+    printk("[%s:] %d get bad contrack direction\n",__func__,__LINE__);
+    return __cpu_to_be32(0xdead);
 }
 
 /*flag = 0 for src; flag = 1 for dst*/
@@ -1036,6 +1145,8 @@ __be16 rtl_get_ct_port_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag)
 		else if(flag == 1)
 			return ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u.all;
 	}
+    printk("[%s:] %d get bad contrack direction\n",__func__,__LINE__);
+    return __cpu_to_be32(0xdead);
 }
 
 void rtl_set_ct_timeout_expires(void *ct_ptr, unsigned long value)
@@ -1058,7 +1169,11 @@ void rtl_set_fdb_aging(void *fdb_ptr, unsigned long value)
 {
 	struct net_bridge_fdb_entry *fdb = (struct net_bridge_fdb_entry *)fdb_ptr;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	fdb->updated = value;
+#else
 	fdb->ageing_timer = value;
+#endif
 
 	return;
 }
@@ -1066,8 +1181,11 @@ void rtl_set_fdb_aging(void *fdb_ptr, unsigned long value)
 unsigned long rtl_get_fdb_aging(void *fdb_ptr)
 {
 	struct net_bridge_fdb_entry *fdb = (struct net_bridge_fdb_entry *)fdb_ptr;
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	return fdb->updated;
+#else
 	return fdb->ageing_timer;
+#endif
 }
 
 struct ethhdr *rtl_eth_hdr(struct sk_buff *skb)
@@ -1095,11 +1213,19 @@ struct net_device *rtl_get_skb_dev(struct sk_buff* skb)
 
 void rtl_set_skb_dev(struct sk_buff *skb, struct net_device *dev)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	if(dev == NULL) {
+		struct dst_entry *dst = skb_dst(skb);
+		skb->dev = dst->dev;
+	}
+	else
+		skb->dev = dev;
+#else
 	if(dev == NULL)
 		skb->dev = skb->dst->dev;
 	else
 		skb->dev = dev;
-
+#endif
 	return;
 }
 
@@ -1146,7 +1272,7 @@ struct net_device *rtl_get_skb_rx_dev(struct sk_buff* skb)
 void rtl_set_skb_rx_dev(struct sk_buff* skb,struct net_device *dev)
 {
 	#if defined (CONFIG_RTL_FAST_PPPOE)
-	return skb->rx_dev=dev;
+	skb->rx_dev=dev;
 	#endif
 
 	return;
@@ -1160,7 +1286,11 @@ char *rtl_get_ppp_dev_name(struct net_device *ppp_dev)
 
 void * rtl_get_ppp_dev_priv(struct net_device *ppp_dev)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	return netdev_priv(ppp_dev);
+#else
 	return ppp_dev->priv;
+#endif
 }
 
 int rtl_call_skb_ndo_start_xmit(struct sk_buff *skb)
@@ -1190,7 +1320,7 @@ void rtl_inc_ppp_stats(struct ppp *ppp, int act, int len)
 }
 
 
-void *rtl_set_skb_tail(struct sk_buff *skb, int offset, int action)
+void rtl_set_skb_tail(struct sk_buff *skb, int offset, int action)
 {
 	if(action == 1)
 		skb->tail -= offset;
@@ -1251,7 +1381,12 @@ struct neighbour *rtl_neigh_lookup(const void *pkey, struct net_device *dev)
 
 struct hh_cache *rtl_get_hh_from_neigh(struct neighbour *neigh)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+	/*linux-3.4, hh is struct in neigh;linux-2.6.30, hh is pointer in neigh*/
+	return &(neigh->hh);
+#else
 	return neigh->hh;
+#endif
 }
 
 seqlock_t rtl_get_lock_from_hh(struct hh_cache * hh)
@@ -1580,15 +1715,23 @@ int32 rtl_fp_dev_hard_start_xmit_check(struct sk_buff *skb, struct net_device *d
 	return SUCCESS;
 }
 
-
 int ip_finish_output3(struct sk_buff *skb)
 {
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	struct dst_entry *dst = skb_dst(skb);
+	struct hh_cache *hh=NULL;
+	struct neighbour *neigh = NULL;
+	struct rtable *rt = (struct rtable *)dst;
+	struct net_device *dev = dst->dev;
+	u32 nexthop;
+	u16 vid = 0;
+#else
 	struct dst_entry *dst;
 	struct hh_cache *hh;
 
 	dst = skb->dst;
 	hh = dst->hh;
-
+#endif
 #if !defined(IMPROVE_QOS)
 #if defined(CONFIG_NET_SCHED)
     if (gQosEnabled) {
@@ -1602,8 +1745,20 @@ int ip_finish_output3(struct sk_buff *skb)
 #endif
 #endif
 
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	if (rt) {
+		nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
+		neigh = __ipv4_neigh_lookup_noref(dev, nexthop);
+		if (neigh) {
+			hh = &(neigh->hh);
+		}
+	}
 
-	if (hh) {
+	if (neigh&&hh&&(neigh->nud_state & NUD_CONNECTED)&&hh->hh_len)
+#else
+	if (hh) 
+#endif
+	{
 // ------------------------------------------------
 #if 1
 		memcpy(skb->data - 16, hh->hh_data, 16);
@@ -1637,8 +1792,17 @@ int ip_finish_output3(struct sk_buff *skb)
 					struct net_bridge *br = netdev_priv(skb->dev);
 					const unsigned char *dest = skb->data;
 					struct net_bridge_fdb_entry *dst;
-
+					
+					#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+					#if defined(CONFIG_BRIDGE_VLAN_FILTERING)
+					/*Fix jwj: todo...*/
+					#else
+					vid = 0;
+					#endif
+					if ((dst = __br_fdb_get(br, dest, vid)) != NULL)
+					#else
 					if ((dst = __br_fdb_get(br, dest)) != NULL)
+					#endif
 					{
 						//skb->dev->stats.tx_packets++;
 						//skb->dev->stats.tx_bytes += skb->len;
@@ -1654,9 +1818,16 @@ int ip_finish_output3(struct sk_buff *skb)
 		}
 //------------------------------- david+2007-05-25
 
-	} else if (dst->neighbour) {
+	} 
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	else if (neigh) {
+		return neigh->output(neigh, skb);
+	}
+	#else
+	else if (dst->neighbour) {
 		return dst->neighbour->output(skb);
 	}
+	#endif
 
 #if 0
 	if (net_ratelimit())
@@ -1669,6 +1840,10 @@ int ip_finish_output3(struct sk_buff *skb)
 #if defined (CONFIG_RTL_FAST_PPPOE)
 int ip_finish_output4(struct sk_buff *skb)
 {
+
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	u16 vid = 0;
+#endif
 #if !defined(IMPROVE_QOS)
 #if defined(CONFIG_NET_SCHED)
 	if (gQosEnabled) {
@@ -1705,7 +1880,16 @@ int ip_finish_output4(struct sk_buff *skb)
 				const unsigned char *dest = skb->data;
 				struct net_bridge_fdb_entry *dst;
 
+				#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+				#if defined(CONFIG_BRIDGE_VLAN_FILTERING)
+					/*Fix jwj: todo...*/
+				#else
+				vid = 0;
+				#endif
+				if ((dst = __br_fdb_get(br, dest, vid)) != NULL)
+				#else
 				if ((dst = __br_fdb_get(br, dest)) != NULL)
+				#endif
 				{
 					//skb->dev->stats.tx_packets++;
 					//skb->dev->stats.tx_bytes += skb->len;
@@ -1720,8 +1904,8 @@ int ip_finish_output4(struct sk_buff *skb)
 #endif
 	
 			skb->dev->netdev_ops->ndo_start_xmit(skb,skb->dev);
-			skb->dev->stats.tx_packets++;
-			skb->dev->stats.tx_bytes += skb->len;
+			//skb->dev->stats.tx_packets++;
+			//skb->dev->stats.tx_bytes += skb->len;
 			return 0;
 		}
 
@@ -1752,6 +1936,7 @@ int FastPath_Enter(struct sk_buff **pskb)
 				return 1;							
 		}
 #endif
+	
 #if defined(CONFIG_RTL_FAST_PPPOE)
 	extern int fast_pppoe_fw;
 	check_and_pull_pppoe_hdr(*pskb);
@@ -1762,7 +1947,15 @@ int FastPath_Enter(struct sk_buff **pskb)
 			(strncmp(skb->dev->name,"ppp",3)==0))
 			return 0;
 	}
-
+#ifdef CONFIG_RTL_FAST_IPV6
+	if(fast_ipv6_fw){
+		ret = ipv6_fast_enter(*pskb);
+		if(ret == 1)
+		{
+			return 1;
+		}
+	}
+#endif
 #endif
 
 //hyking:
@@ -1811,6 +2004,13 @@ int FastPath_Enter(struct sk_buff **pskb)
 		goto out;
 	}
 
+	/* Fix jwj: echo 0 > /proc/fast_l2tp cause coredump */
+	if (skb_headroom(skb) < ETH_HLEN)
+	{
+		ret=0;
+		goto out;
+	}
+
 #ifdef FILTER_UPNP_BR
 	if (upnp_br_enabled && skb->dev && !memcmp(skb->dev->name, RTL_PS_WAN0_DEV_NAME, 4) && filter_upnp_and_fw(skb)){
 		return 1;
@@ -1831,7 +2031,7 @@ int FastPath_Enter(struct sk_buff **pskb)
 
 #ifdef FAST_L2TP
 	if (fast_l2tp_fw)
-#ifndef CONFIG_SUPPORT_RUSSIA_FEATURES
+#if !defined(CONFIG_SUPPORT_RUSSIA_FEATURES) && !defined(CONFIG_RTL_L2TP_DIRECT_PPP_REPLY)
 		fast_l2tp_rx((void*)skb);
 #else
 	{
@@ -1878,64 +2078,6 @@ out:
 	return ret;
 }
 
-#ifdef CONFIG_FP_BYPASS_PACKET
-static struct proc_dir_entry *proc_packet_bypassed=NULL;
-static struct proc_dir_entry *proc_packet_bypassed_tcpport=NULL;
-static struct proc_dir_entry *proc_packet_bypassed_udpport=NULL;
-extern unsigned int fastpath_packet_bypassed_num;
-static unsigned char *packet_bypassed_buffer = NULL;
-unsigned int entered_fast_path = 0;
-
-extern unsigned int (*rtl_init_bypass_packet_hook)(struct Path_List_Entry *entry_path);
-extern unsigned int (*rtl_check_bypass_packet_hook)(struct Path_List_Entry *entry_path);
-extern unsigned int rtl_init_bypass_packet(struct Path_List_Entry *entry_path);
-extern unsigned int rtl_check_bypass_packet(struct Path_List_Entry *entry_path);
-extern int proc_hwnat_packet_bypassed_tcpport_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data);
-extern int proc_hwnat_packet_bypassed_tcpport_write_proc(struct file *file, const char *buffer,
-		      unsigned long count, void *data);
-extern int proc_hwnat_packet_bypassed_udpport_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data);
-extern int proc_hwnat_packet_bypassed_udpport_write_proc(struct file *file, const char *buffer,
-		      unsigned long count, void *data);
-
-static int proc_packet_bypassed_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-	int len = 0;
-
-	len = sprintf(page, "%d \n", fastpath_packet_bypassed_num);
-	len += sprintf(page+len, "%d \n", entered_fast_path);
-
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-
-}
-static int proc_packet_bypassed_write_proc(struct file *file, const char *buffer,
-		      unsigned long count, void *data)
-{
-	if (count < 1)
-		return -EFAULT;
-
-	packet_bypassed_buffer = (unsigned char *)kmalloc(count,GFP_ATOMIC);
-	if(!packet_bypassed_buffer)
-	{
-		printk("not enough memory\n");
-		return -ENOMEM;
-	}
-	memset(packet_bypassed_buffer, 0, count);
-	if (buffer && !copy_from_user(packet_bypassed_buffer, buffer, count)) {
-			sscanf(packet_bypassed_buffer, "%d", &fastpath_packet_bypassed_num);
-	}
-	if(packet_bypassed_buffer)
-		kfree(packet_bypassed_buffer);
-	return count;
-}
-#endif
 //======================================
 static int __init fastpath_init(void)
 {
@@ -1960,34 +2102,6 @@ static int __init fastpath_init(void)
 	/* proc file for debug */
 	init_fastpath_debug_proc();
 	#endif	/* DEBUG_PROCFILE */
-
-#ifdef CONFIG_FP_BYPASS_PACKET
-    rtl_init_bypass_packet_hook = rtl_init_bypass_packet;
-	rtl_check_bypass_packet_hook = rtl_check_bypass_packet;
-
-	proc_packet_bypassed= create_proc_entry("fastpath_packet_bypassed_num", 0, NULL);
-	if (proc_packet_bypassed) {
-		proc_packet_bypassed->read_proc = proc_packet_bypassed_read_proc;
-		proc_packet_bypassed->write_proc = proc_packet_bypassed_write_proc;
-	}
-
-	proc_packet_bypassed_tcpport= create_proc_entry("hwnat_packet_bypassed_tcpport_set", 0, NULL);
-	if (proc_packet_bypassed_tcpport) {
-		proc_packet_bypassed_tcpport->read_proc = proc_hwnat_packet_bypassed_tcpport_read_proc;
-		proc_packet_bypassed_tcpport->write_proc = proc_hwnat_packet_bypassed_tcpport_write_proc;
-	}
-
-	proc_packet_bypassed_udpport= create_proc_entry("hwnat_packet_bypassed_udpport_set", 0, NULL);
-	if (proc_packet_bypassed_udpport) {
-		proc_packet_bypassed_udpport->read_proc = proc_hwnat_packet_bypassed_udpport_read_proc;
-		proc_packet_bypassed_udpport->write_proc = proc_hwnat_packet_bypassed_udpport_write_proc;
-	}
-#else
-	extern unsigned int (*rtl_init_bypass_packet_hook)(struct Path_List_Entry *entry_path);
-	extern unsigned int (*rtl_check_bypass_packet_hook)(struct Path_List_Entry *entry_path);
-	rtl_init_bypass_packet_hook  = NULL;
-	rtl_check_bypass_packet_hook = NULL;
-#endif
 
 	#ifndef NO_ARP_USED
 	/* Arp-Table Init */
@@ -2044,34 +2158,54 @@ static int __init fastpath_init(void)
 	fast_pppoe_init();
 	#endif
 
+	#ifdef CONFIG_RTL_FAST_IPV6
+	
+	ipv6_fast_forward_init();
+	
+	ret = init_V6_table_path(PATH_TABLE_LIST_MAX, PATH_TABLE_ENTRY_MAX);
+	//ret = init_V6_table_path(50,50);
+	if(ret!=0) {
+		printk("init_V6_table_path Failed!\n");
+	}
+	#define MAX_V6_UDP_FRAG_ENTRY 500
+	if(!V6_udp_fragCache_init(MAX_V6_UDP_FRAG_ENTRY))
+		return -1;
+		
+	#endif
 	#ifdef CONFIG_PROC_FS
-	res1=create_proc_entry("fast_nat",0,NULL);
+	
+	#if defined(CONFIG_RTL_PROC_NEW)
+	res1 = proc_create_data("fast_nat", 0, &proc_root,
+			 &fastpath_proc_fops, NULL);
+	#else
+	res1 = create_proc_entry("fast_nat",0,NULL);
 	if (res1) {
 	    res1->read_proc=read_proc;
 	    res1->write_proc=write_proc;
 	}
-	res2=create_proc_entry("ext_service_ports",0,NULL);
-	if (res2) {
-	    res2->read_proc=ext_service_ports_read_proc;
-	    res2->write_proc=ext_service_ports_write_proc;
-	}
 	#endif
 
-
 	#if defined(FAST_PATH_SPI_ENABLED)
+	#if defined(CONFIG_RTL_PROC_NEW)
+	res_spi = proc_create_data("fast_spi", 0, &proc_root,
+			 &fastspi_proc_fops, NULL);
+	#else
 	res_spi = create_proc_entry("fast_spi",0,NULL);
 	if(res_spi){
 		res_spi->read_proc = spi_read_proc;
 		res_spi->write_proc = spi_write_proc;
 	}
 	#endif
+	#endif
+	
+	#endif
 
 	#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
 	rtl_fp_gc_rx_threshold = RTL_FP_SESSION_LEVEL3_ALLOW_COUNT;
 	#endif
 	
-	get_fastpath_module_info(buf);
-	panic_printk("%s",buf);
+	get_fastpath_module_info((unsigned char *)buf);
+	printk("%s",(char *)buf);
 
 	return 0;
 }
@@ -2112,37 +2246,41 @@ static void __exit fastpath_exit(void)
 
 #ifdef CONFIG_PROC_FS
 	if (res1) {
+		#if defined(CONFIG_RTL_PROC_NEW)
+		remove_proc_entry("fast_nat", &proc_root);
+		#else
 		remove_proc_entry("fast_nat", res1);
+		#endif
 		res1 = NULL;
 	}
-	if (res2) {
-		remove_proc_entry("ext_service_ports", res2);
-		res2 = NULL;
+
+	#if defined(FAST_PATH_SPI_ENABLED)
+	if(res_spi){
+		#if defined(CONFIG_RTL_PROC_NEW)
+		remove_proc_entry("fast_spi", &proc_root);
+		#else
+		remove_proc_entry("fast_spi", res_spi);
+		#endif
+		res_spi = NULL;
 	}
+	#endif
 #endif
 
-#if defined(FAST_PATH_SPI_ENABLED)
-		if(res_spi){
-			remove_proc_entry("fast_spi", res_spi);
-			res_spi = NULL;
-		}
-#endif
 
 
 
 	//printk("%s %s removed!\n", MODULE_NAME, MODULE_VERSION);
 }
 
-
 // direct tx ppp reply ptk to l2tp server
-#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
+#if defined(CONFIG_SUPPORT_RUSSIA_FEATURES) || defined(CONFIG_RTL_L2TP_DIRECT_PPP_REPLY)
 extern unsigned int l2tp_ppp_imagic;
 extern struct l2tp_info l2tpInfo;
 #endif
 
 int Direct_Send_Reply(struct sk_buff * skb, int offset)
 {
-#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
+#if defined(CONFIG_SUPPORT_RUSSIA_FEATURES) || defined(CONFIG_RTL_L2TP_DIRECT_PPP_REPLY)
 	int header_len;
 	struct iphdr *iph,*iph_new, iph_newone;
 	struct Rus_l2tp_ext_hdr *l2tph, l2tphone;
@@ -2238,12 +2376,14 @@ int Direct_Send_Reply(struct sk_buff * skb, int offset)
 		//kfree_skb(skb);
 		return 1;		
 	}
+#else
+    return 0;
 #endif
 }
 
 int fast_l2tp_tx_lcp_echo_reply(unsigned char *data, int rightShift, void *skb)
 {	
-#ifndef CONFIG_SUPPORT_RUSSIA_FEATURES
+#if !defined(CONFIG_SUPPORT_RUSSIA_FEATURES) && !defined(CONFIG_RTL_L2TP_DIRECT_PPP_REPLY)
 	return 0;
 
 #else
@@ -2264,7 +2404,6 @@ int fast_l2tp_tx_lcp_echo_reply(unsigned char *data, int rightShift, void *skb)
 	return 0;
 #endif
 }
-
 module_init(fastpath_init);
 module_exit(fastpath_exit);
 MODULE_LICENSE("GPL");

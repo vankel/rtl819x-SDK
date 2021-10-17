@@ -117,13 +117,6 @@ int voip_mgr_set_rtp_1(TstVoipMgrRtpCfg stVoipMgrRtpCfg)
 	unsigned long flags;
 	TstVoipMgrSession stVoipMgrSession;
 
-#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
-	if (stVoipMgrRtpCfg.ipv6 == 1)
-		PRINT_R("%s, line%d, IPv6 is not supported !\n", __FUNCTION__, __LINE__);
-	else
-		stVoipMgrSession.ipv6 = 0;
-#endif
-
 	stVoipMgrSession.ch_id = stVoipMgrRtpCfg.ch_id;
 	stVoipMgrSession.m_id = stVoipMgrRtpCfg.m_id;
 	stVoipMgrSession.ip_src_addr = stVoipMgrRtpCfg.ip_src_addr;
@@ -2381,7 +2374,7 @@ int do_mgr_VOIP_MGR_UNSET_RTCP_SESSION( int cmd, void *user, unsigned int len, u
 #if 1
 	// Add delay time to let RTCP GoodBye packet can be sent.
 	timetick_t timestamp;
-	timestamp = timetick + 10;
+	timestamp = timetick + 200;
 	while(1)
 	{
 		if (timetick_after(timetick, timestamp) )

@@ -1,0 +1,423 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>Ethernet 802.1x Settings</title>
+<script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<script>
+	
+	var MAXPORTNUM = <% getInfo("ethdot1x_maxportnum");%>;
+	
+	var ethdot1x_mode = <% getInfo("ethdot1x_mode");%>;
+	var ethdot1x_type = <% getInfo("ethdot1x_type");%>;
+	var unicast_response_enable_show = 0;
+	var proxy_server_config = 0;
+
+	if(ethdot1x_mode == 1)//proxy mode
+	{
+		unicast_response_enable_show=1;
+		proxy_server_config = 1;
+		
+	}
+
+	function ethdot1x_unicast_onoff_select(value)
+	{
+		if(value == true || value == 1)
+		{
+			get_by_id("ethdot1x_unicastresp_onoff").value = 1;
+			get_by_id("unicastresp_onoff").checked = true;
+		}
+		else
+		{
+			get_by_id("ethdot1x_unicastresp_onoff").value = 0;
+			get_by_id("unicastresp_onoff").checked = false;
+		}
+		
+	}
+
+	function unicast_response_show()
+	{
+		if(unicast_response_enable_show==1) 
+		{
+			document.write("	<tr><td><font size=2><b>");
+		    document.write("<input type='hidden' id='ethdot1x_unicastresp_onoff' name='ethdot1x_unicastresp_onoff' value='<% getInfo(\"ethdot1x_unicastresp_onoff\"); %>'>");
+		   	document.write("<input id='unicastresp_onoff' type='checkbox' onclick='ethdot1x_unicast_onoff_select(this.checked);'>&nbsp;&nbsp;Enable authenticator response EAP packet's destination MAC address as unicast</b><br>");
+			document.write("</td>");
+		    document.write("</tr>");
+		}
+	}
+	
+	function get_by_id(id)
+	{
+		with(document)
+		{
+			return getElementById(id);
+		}
+	}
+
+	function init()
+	{
+		for(i=1;i<=MAXPORTNUM;i++)
+		{
+			if(get_by_id("port_enable_"+i) == null)
+				continue;
+			port_enable_select(i, get_by_id("port_enable_"+i).value);
+		}
+		if (ethdot1x_type == 1)//portbase
+		{
+			document.mainform.type.selectedIndex = 0;
+		}
+		else if (ethdot1x_type == 2)//mac base
+		{
+			document.mainform.type.selectedIndex = 1;
+		}
+		if (ethdot1x_mode == 0)//snooping mode
+		{
+			document.mainform.mode.selectedIndex = 0;
+		}
+		else if (ethdot1x_mode == 1)//proxy mode
+		{
+			document.mainform.mode.selectedIndex = 1;
+		}
+		
+		ethdot1x_onoff_select(get_by_id("ethdot1x_onoff").value);
+		ethdot1x_unicast_onoff_select(get_by_id("ethdot1x_unicastresp_onoff").value);
+		modeChange(document.mainform.mode);
+		
+	}
+	
+	function ethdot1x_table_disabled(index, value)
+	{
+		
+		if(value == 1)
+		{
+			//extand: enable other field
+			//get_by_id("vlan_id_"+index).disabled = false;
+		}
+		else
+		{
+			//extand: disable other field
+			//get_by_id("tag_"+index).disabled = true;
+		}
+	}
+
+	function ethdot1x_onoff_select(value)
+	{
+		if(value == true || value == 1)
+		{
+			get_by_id("ethdot1x_onoff").value = 1;
+			get_by_id("onoff").checked = true;
+		}
+		else
+		{
+			get_by_id("ethdot1x_onoff").value = 0;
+			get_by_id("onoff").checked = false;
+		}
+		
+		ethdot1x_onoff_disabled(get_by_id("ethdot1x_onoff").value);
+		
+	}
+	
+	function ethdot1x_onoff_disabled(value)
+	{
+		for(i=1;i<=MAXPORTNUM;i++)
+		{
+			if(get_by_id("port_enable_"+i) == null)
+				continue;
+				
+			var disable = 0;
+			if(value == 1)
+			{
+				get_by_id("enable_"+i).disabled = false;
+			}
+			else
+			{
+				get_by_id("enable_"+i).disabled = true;
+			}
+
+			if(value == 1 && get_by_id("port_enable_"+i).value == 1)
+			{
+				disable = 1;
+			}
+			else
+			{
+				disable = 0;
+			}
+			ethdot1x_table_disabled(i, (disable && get_by_id("port_enable_"+i).value));
+		}
+
+		if(value == 1)
+		{
+			document.mainform.mode.disabled = false; 
+			document.mainform.type.disabled = false;
+			document.mainform.ethdot1x_radius_ip.disabled = false;
+			document.mainform.ethdot1x_radius_port.disabled = false;
+			document.mainform.ethdot1x_radius_pass.disabled = false;
+			document.mainform.ethdot1x_server_port_number.disabled = false;
+			document.mainform.ethdot1x_unicastresp_onoff.disabled = false;
+			document.mainform.unicastresp_onoff.disabled = false;
+		}
+		else
+		{
+			document.mainform.mode.disabled = true; 
+			document.mainform.type.disabled = true;
+			document.mainform.ethdot1x_radius_ip.disabled = true;
+			document.mainform.ethdot1x_radius_port.disabled = true;
+			document.mainform.ethdot1x_radius_pass.disabled = true;
+			document.mainform.ethdot1x_server_port_number.disabled = true;
+			document.mainform.ethdot1x_unicastresp_onoff.disabled = true;
+			document.mainform.unicastresp_onoff.disabled = true;
+
+	}
+
+		
+	}
+	
+	function port_enable_select(index, value)
+	{
+		if(value == true || value == 1)
+		{
+			get_by_id("port_enable_"+index).value = 1;
+			get_by_id("enable_"+index).checked = true;
+		}
+		else
+		{
+			get_by_id("port_enable_"+index).value = 0;
+			get_by_id("enable_"+index).checked = false;
+		}
+		
+		ethdot1x_table_disabled(index, get_by_id("port_enable_"+index).value);
+	}
+
+	function modeChange(field)
+	{
+		var dF = document.mainform;
+		
+		if(!document.getElementById){
+			alert('Error! Your browser must have CSS support !');
+			return;
+		}
+
+		if(field.selectedIndex == 0){	//snooping mode
+		 	show_div(1,"snoopingmode_config_div");
+		 	show_div(0,"proxymode_config_div");
+		 	show_div(0,"unicast_config_div");
+		}
+		else if(field.selectedIndex == 1){ //proxy mode
+		 	show_div(0,"snoopingmode_config_div");
+		 	show_div(1,"proxymode_config_div");
+		 	show_div(1,"unicast_config_div");
+
+		}
+
+	}
+	
+	function page_submit()
+	{
+		if (document.mainform.onoff.checked)
+		{
+			if (document.mainform.mode.selectedIndex == 1)//proxy mode check
+			{
+				if (document.mainform.ethdot1x_radius_ip.value=="")
+				return false;
+
+				if ( checkIpAddr(document.mainform.ethdot1x_radius_ip, 'Invalid IP address value! ') == false )
+					return false;
+				
+				d1 = getDigit(document.mainform.ethdot1x_radius_port.value, 1);
+				if (d1 > 65535 || d1 < 1) {
+					alert("Invalid port number! You should set a value between 1-65535.");
+					document.mainform.ethdot1x_radius_port.focus();
+					return false;
+				}
+
+			}
+			if (document.mainform.mode.selectedIndex == 0)//snooping mode check
+			{
+				if (document.mainform.ethdot1x_server_port_number.value=="")
+					return false;
+				//if (!isIntVal(document.mainform.ethdot1x_server_port_number.value))
+					//return false;
+				
+				d1 = getDigit(document.mainform.ethdot1x_server_port_number.value, 1);
+				if (d1 > MAXPORTNUM || d1 < 1) {
+					var info = "Invalid port number! You should set a value between 1-"+MAXPORTNUM+".";
+					alert(info);
+					document.mainform.ethdot1x_server_port_number.focus();
+					return false;
+				}
+				
+			}
+		}
+		
+		mf = document.forms.mainform;
+		mf.submit();
+	}
+	
+	var token= new Array();
+	var DataArray = new Array();
+	
+	<% getEthDot1xList(); %>
+		
+	function webEthDot1xList(num)
+	{
+	
+		for (var i = 1; i <= num; i++)
+		{
+			/* enabled/portnum */
+			DataArray = token[i].split("|"); /* web domain/url */
+			document.write("<tr class=\"tbl_body\"><td align = center><input type='hidden' id='port_enable_"+i+"' name='port_enable_"+i+"' value='"+DataArray[0]+"'>");
+			document.write("<input type='checkbox' id='enable_"+i+"' onclick='port_enable_select("+i+",this.checked);'></td>");
+
+			
+			document.write("<td><input type='hidden' id='port_number_"+i+"' name='port_number_"+i+"' value='"+DataArray[1]+"'><font size='2'>");			
+			document.write("&nbsp;"+DataArray[1]+"</font></td>");
+			
+			document.write("</tr>");
+	  	}
+		
+	}
+	
+	function page_reset()
+	{
+		
+		for(i=1;i<=MAXPORTNUM;i++)
+		{
+			/* enabled/portnumber */
+			DataArray = token[i].split("|");
+			
+			if(get_by_id("port_enable_"+i) == null)
+				continue;
+			port_enable_select(i, DataArray[0]);
+		}
+		
+		ethdot1x_onoff_select("<% getInfo(\"ethdot1x_onoff\"); %>"*1);
+
+	}
+	
+	
+	
+</script>
+</head>
+  
+  <body onload="init();">
+  <blockquote>
+  <form action=/boafrm/formEthDot1x method=POST name="mainform">
+  	<input type="hidden" value="/eth_dot1x.htm" name="submit-url">
+  <h2>Ethernet 802.1x Settings</h2>
+	<table border=0 width="550" cellspacing=4 cellpadding=0>
+	<tr><td><font size=2>
+	 	Entries in below table are used to config ethernet 802.1x settings. 
+		802.1X authentication involves three parties: a supplicant, an authenticator, and an authentication server. 
+		The supplicant is a client device (such as a laptop) that wishes to attach to the LAN/WLAN; 
+		The authenticator is a network device, such as an Ethernet switch or wireless access point; 
+		and the authentication server is typically a host running software supporting the RADIUS and EAP protocols
+	</font></td></tr>
+
+    <tr><td><hr size="1" align="top" noshade="noshade"></td></tr>
+    
+    
+  	
+  	<tr><td><font size=2><b>
+    <input type='hidden' id='ethdot1x_onoff' name='ethdot1x_onoff' value='<% getInfo("ethdot1x_onoff"); %>'>
+		   	<input id="onoff" type="checkbox" onclick='ethdot1x_onoff_select(this.checked);'>&nbsp;&nbsp;Enable ethernet 802.1x</b><br>
+		    </td>
+    </tr>
+  </table>
+
+<table>
+   <tr>
+      <td width="30%"><font size=2><b>Type:</b></td>
+      <td width="70%"><font size=2>
+      <select size="1" name="type" >
+       <option  value="1">Port based</option>
+       <option  value="2">MAC based</option>
+	   </select>
+	   </td>
+   </tr>
+
+   <tr>
+      <td width="30%"><font size=2><b>Mode:</b></td>
+	  <td width="70%"><font size=2>
+      <select size="1" name="mode" onChange="modeChange(this)">
+       <option  value="0">Snooping Mode</option>
+       <option  value="1">Proxy Mode</option>
+	   </select>
+	   </td>
+    </tr>
+</table>
+
+<span id = "proxymode_config_div" class = "off" > 
+<table>
+	<tr>
+		 <td width="30%"><font size="2"><b>RADIUS&nbsp;Server&nbsp;IP&nbsp;Address:</b></font></td>
+		 <td width="70%"><input id="ethdot1x_radius_ip" name="ethdot1x_radius_ip" size="16" maxlength="15" value="<% getInfo("ethdot1x_radius_ip"); %>"></td>
+	 </tr>
+	 
+	<tr>
+		<td width="30%"><font size="2"><b>RADIUS&nbsp;Server&nbsp;Port:</b></font></td>
+		<td width="70%"><input type="text" id="ethdot1x_radius_port" name="ethdot1x_radius_port" size="5" maxlength="5" value="<% getInfo("ethdot1x_radius_port"); %>"></td>
+	 </tr>
+	 
+	<tr>
+		<td width="30%"><font size="2"><b>RADIUS&nbsp;Server&nbsp;Password:</b></font></td>
+		<td width="70%"><input type="password" id="ethdot1x_radius_pass" name="ethdot1x_radius_pass" size="32" maxlength="64" value="<% getInfo("ethdot1x_radius_pass"); %>"></td>
+	</tr>
+</table>
+</span>
+
+<span id = "unicast_config_div" class = "off" > 
+<table>
+	<tr>
+	<td><font size=2><b>
+	<input type='hidden' id='ethdot1x_unicastresp_onoff' name='ethdot1x_unicastresp_onoff' value='<% getInfo("ethdot1x_unicastresp_onoff"); %>'>
+   	<input id='unicastresp_onoff' type='checkbox' onclick='ethdot1x_unicast_onoff_select(this.checked);'>&nbsp;&nbsp;Enable authenticator response EAP packet's destination MAC address as unicast</b><br>
+	</td>
+    </tr>
+</table>
+</span>
+
+
+<span id = "snoopingmode_config_div" class = "off" > 
+<table> 
+	<tr>
+		<td width="30%"><font size="2"><b>Server&nbsp;In&nbsp;Port:</b></font></td>
+		<td width="70%"><input type="text" id="ethdot1x_server_port_number" name="ethdot1x_server_port_number" size="2" maxlength="2" value="<% getInfo("ethdot1x_server_port_number"); %>"></td>
+	 </tr>
+	 
+</table>
+</span>
+
+    
+<table border="0" width=550>
+  
+	<tr class="tbl_head">
+	  	<td height="30" align=center width="10%"><font size="2"><b>&nbsp;Enable&nbsp;</b></font></td>
+	  	<td align=center width="30%" ><font size="2"><b>Port</b></font></td>
+	</tr>
+	
+		<SCRIPT >webEthDot1xList(MAXPORTNUM);</SCRIPT>
+    
+		<br>
+		<tr><td>&nbsp;</td></tr>
+			
+	
+</table>
+  
+  <tr><td>
+    <input type=button name=apply value='Apply Changes' onclick="page_submit();">&nbsp;&nbsp;
+    <input type="button" value="Reset" onclick="page_reset();">
+  </td></tr>
+	</form>
+ 	<br>
+  <br>
+  <br>
+    
+	</blockquote>
+  </body></html>

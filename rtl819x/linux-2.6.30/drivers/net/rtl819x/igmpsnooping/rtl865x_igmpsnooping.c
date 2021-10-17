@@ -12,7 +12,13 @@
 */
 
 #ifdef __linux__
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#else
 #include <linux/config.h>
+#endif
 #include <linux/jiffies.h>
 #include <linux/timer.h>
 #include <linux/proc_fs.h>

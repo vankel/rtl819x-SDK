@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Operation Mode</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 var opmode = <% getIndex("opMode"); %> ;
 var wlanMode = <% getIndex("wlanMode"); %>*1;
@@ -23,6 +24,10 @@ function ulinkerAutoClick(selValue)
 		if(opmode == 0)//0:gateway
 		{
 			document.fmUlkOpMode.ulinker_manual_Sel.selectedIndex=0;
+		}
+		else if(opmode == 2)//0:WISP
+		{
+			document.fmUlkOpMode.ulinker_manual_Sel.selectedIndex=4;
 		}
 		else//1:bridge
 		{
@@ -51,7 +56,7 @@ function init()
 </head>
 <body onload="init();">
 <blockquote>
-<h2><font color="#0000FF">Operation Mode</font></h2>
+<h2>Operation Mode</h2>
 
 
 <table border=0 width="500" cellspacing=0 cellpadding=0>
@@ -84,6 +89,7 @@ function init()
 				<option value="0">AP</option>
 				<option value="1">Client</option>
 				<option value="3">Repeater</option>
+				<option value="4">WISP Repeater</option>
 			</select>
 		</td>
 	</tr>

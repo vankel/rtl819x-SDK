@@ -1555,9 +1555,6 @@ static void hci_cmd_task(unsigned long arg)
 {
 	struct hci_dev *hdev = (struct hci_dev *) arg;
 	struct sk_buff *skb;
-#ifdef CONFIG_RTL_819X
-	unsigned int  offset;
-#endif
 
 	BT_DBG("%s cmd %d", hdev->name, atomic_read(&hdev->cmd_cnt));
 
@@ -1568,21 +1565,6 @@ static void hci_cmd_task(unsigned long arg)
 
 	/* Send queued commands */
 	if (atomic_read(&hdev->cmd_cnt) && (skb = skb_dequeue(&hdev->cmd_q))) {
-#ifdef CONFIG_RTL_819X
-	// fix unalignment issue for OTG USB
-        offset = ((unsigned long)skb->data) % 4;
-        if (offset) {
-            if (skb_headroom(skb) >= offset) {
-                /*printk("Headroom %d, offset %d.\n", skb_headroom(skb), offset);*/
-                memmove(skb->data-offset, skb->data, skb->len);
-                skb->data -= offset;
-                skb->tail -=offset;
-            } else
-            {
-            		printk("unalignment and no head room\n");
-            }
-        }
-#endif
 		kfree_skb(hdev->sent_cmd);
 
 		if ((hdev->sent_cmd = skb_clone(skb, GFP_ATOMIC))) {

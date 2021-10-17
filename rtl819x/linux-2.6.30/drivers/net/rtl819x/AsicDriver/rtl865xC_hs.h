@@ -5,7 +5,12 @@ struct hsb_param_s
 {
 	uint32 spa:3;       /* [2:0] source port number 0~5: rx port0-5,  7: cpu & extension ports (includes extension ports, see also extspa ) */
 	uint32 trigpkt:1;   /* [3:3] This is a Triggered packet for Smartbit-like function. */
+#ifdef CONFIG_RTL_8198C
+    uint32 ipv4_opt:1;   /* 1=indicates IPv4 header with optional fields; 0=non-ipv4 frame or ipv4 frame without optional field.*/
+	uint32 len:14;      /* [14:0] BYTECOUNT FOR THE PACKET, included L2 CRC */
+#else
 	uint32 len:15;      /* [15:0] BYTECOUNT FOR THE PACKET, included L2 CRC */
+#endif
 	uint32 vid:12;      /* [11:0] VLANID for normal packets and CPU-DirecTX packets */
 	uint32 tagif:1;     /*        To indicate if the incoming packet is VLAN tagged */
 	uint32 pppoeif:1;   /*        To indicate if the incoming packet is a PPPoE packet */
@@ -36,6 +41,35 @@ struct hsb_param_s
 	uint32 extl2:1;     /*       S/W Directs ALE to do L2 lookup only for those packets from extension ports; it's valid if the incoming packets are from extension ports */
 	uint32 linkid:7;    /*       WLAN link ID; if is valid only if the packets are from extension ports */
 	uint32 pppoeid:16;  /*       PPPoE ID */
+
+#ifdef CONFIG_RTL_8198C
+    uint32 cputag_if:1; 
+    uint32 ipv6_ext:1; 
+    uint32 ipv6fo:1;    
+    uint32 ipv6flag:3;  
+    uint32 qpri:3;     
+	uint32 ptp_pkt:1;   
+	uint32 ptp_ver:2;   
+	uint32 ptp_typ:4;    
+	uint32 ipver_1st:4;  
+	uint32 sipv6_31_0:32; 
+	uint32 sipv6_63_32:32;
+	uint32 sipv6_95_64:32;
+	uint32 sipv6_127_96:32;
+    uint32 dipv6_31_0:32;    
+	uint32 dipv6_63_32:32;   
+	uint32 dipv6_95_64:32; 
+	uint32 dipv6_127_96:32;   
+    uint32 hop_limit:8;  
+	uint32 tra_cla:8;          
+	uint32 flow_lab:20;   
+	uint32 nxt_hdr:8;         
+	uint32 ipv4:1;               
+    uint32 ipv6:1;              
+    uint32 ip_len:16;
+    uint32 tun_len:16;
+#endif
+ 
 };
 typedef struct hsb_param_s hsb_param_t;
 
@@ -59,7 +93,12 @@ struct hsa_param_s
 	uint32 dvid:12;	    /*       The destination VLAN, for VLAN Tagging. */
 	uint32 pppoeifo:2;  /* [1:0] To indicate if PPPoE session stage header is needed to be tagged. 00: intact, 01: tagging, 10: remove, 11: modify */
 	uint32 pppidx:3;    /* [2:0] The PPPoE Session ID Index (to a 8-entry register table) for tagging in the translated packet header if needed. */
+#ifdef CONFIG_RTL_8198C
+    uint32 leno:14;     /* [13:0] Packet length */
+    uint32 mirrort:1 ;  /* Mirror tx pkt */
+#else
 	uint32 leno:15;     /* [14:0] Packet length */
+#endif
 	uint32 l3csoko:1;   /*        L3 CRC OK? */
 	uint32 l4csoko:1;   /*        L4 CRC OK? */
 	uint32 frag:1;      /*        If this packet is fragment packet? */
@@ -69,7 +108,12 @@ struct hsa_param_s
 	uint32 fragpkt:1;   /*        Enable output port to fragmentize this packet */
 	uint32 ttl_1if:9;   /* [8:0] Per MAC port TTL operation indication */
 	uint32 dpc:3;       /* [2:0] Destination ports count */
+#ifdef CONFIG_RTL_8198C
+	uint32 spao:3;      /* [2:0] Packet source Port ( refer HSB.SPA definitation ) */
+    uint32 ipv4_1st:1;  /* First layer IP is IPv4 */
+#else    
 	uint32 spao:4;      /* [3:0] Packet source Port ( refer HSB.SPA definitation ) */
+#endif
 	uint32 hwfwrd:1;    /* [0:0] Hardware forward flag. ( S/W use ) */
 	uint32 dpext:4;     /* [3:0] Packet destination indication : 0-2: ext port0-2 3: cpu */
 	uint32 spaext:2;    /* [1:0] ( refer HSB.EXTSPA definitation ) */
@@ -81,6 +125,28 @@ struct hsa_param_s
 	uint32 siptos:8;    /* [7:0] Source IPToS for those packets which were delivered to extension ports. */
 	uint32 dp:7;        /* [6:0] destinatio port mask, formally not included in HSA. */
 	uint32 priority:3;  /* [2:0] priority ID (valid: 0~7) */
+#ifdef CONFIG_RTL_8198C
+    uint32 cputag:1;     
+    uint32 ptp_pkt:1;    
+    uint32 ptp_v2:2; 
+    uint32 ptp_type:4;
+    uint32 rmdp:6;    
+    uint32 dpri:3;        
+    uint32 mdf:3;     
+    uint32 sipv6_31_0:32;        
+    uint32 sipv6_63_32:32; 
+    uint32 sipv6_95_64:32;
+    uint32 sipv6_127_96:32; 
+    uint32 dipv6_31_0:32;        
+    uint32 dipv6_63_32:32; 
+    uint32 dipv6_95_64:32;
+    uint32 dipv6_127_96:32; 
+    uint32 ip_len:16;
+    uint32 ipv4_id:16; 
+    uint32 tun_len:16;
+    uint32 mltcst_v6:1;
+    uint32 addip_pri:3;
+#endif
 };
 typedef struct hsa_param_s hsa_param_t;
 
@@ -91,13 +157,25 @@ struct hsb_s
 #ifdef _LITTLE_ENDIAN
 	uint32 spa:3;       /* W0[2:0] */
 	uint32 trigpkt:1;   /* W0[3:3] */
+    #if defined(CONFIG_RTL_8198C)
+    uint32 ipv4_opt:1;      /* W0[4:4] */
+    uint32 len:14;      /* W0[19:5] */
+	uint32 resv:1;      /* W0[4:4] */
+    #else
 	uint32 resv:1;      /* W0[4:4] */
 	uint32 len:15;      /* W0[19:5] */
+    #endif
 	uint32 vid:12;      /* W0[31:20] */
 #else
 	uint32 vid:12;      /* W0[31:20] */
+    #if defined(CONFIG_RTL_8198C)
+	uint32 resv:1;      /* W0[4:4] */
+    uint32 len:14;      /* W0[19:5] */
+    uint32 ipv4_opt:1;      /* W0[4:4] */
+    #else
 	uint32 len:15;      /* W0[19:5] */
 	uint32 resv:1;      /* W0[4:4] */
+    #endif	
 	uint32 trigpkt:1;   /* W0[3:3] */
 	uint32 spa:3;       /* W0[2:0] */
 #endif
@@ -198,13 +276,107 @@ struct hsb_s
 	uint32 extl2:1;     /* W9[0:0] */
 	uint32 linkid:7;    /* W9[7:1] */
 	uint32 pppoeid:16;  /* W9[23:8] */
+    #if defined(CONFIG_RTL_8198C)
+    uint32 cputag_if:1; /* W9[24] */
+    uint32 ipv6_ext:1;  /* W9[25] */
+    uint32 ipv6fo:1;    /* W9[26] */
+    uint32 ipv6flag:3;  /* W9[29:27] */
+    uint32 resv2:1;     /* W9[30] */
+    uint32 qpri0:1;     /* W9[31] */    
+    #else
 	uint32 res1:8;      /* W9[31:24] */
+    #endif
+#else
+    #if defined(CONFIG_RTL_8198C)
+    uint32 qpri0:1;     /* W9[31] */    
+    uint32 resv2:1;     /* W9[30] */
+    uint32 ipv6flag:3;  /* W9[29:27] */
+    uint32 ipv6fo:1;    /* W9[26] */
+    uint32 ipv6_ext:1;  /* W9[25] */
+    uint32 cputag_if:1; /* W9[24] */
 #else
 	uint32 res1:8;      /* W9[31:24] */
+    #endif
 	uint32 pppoeid:16;  /* W9[23:8] */
 	uint32 linkid:7;    /* W9[7:1] */
 	uint32 extl2:1;     /* W9[0:0] */
 #endif
+
+
+#if defined(CONFIG_RTL_8198C)
+#ifdef _LITTLE_ENDIAN
+	uint32 qpri2_1:2;     /* W10[1:0] */
+	uint32 ptp_pkt:1;     /* W10[2] */
+	uint32 ptp_ver:2;     /* W10[4:3] */
+	uint32 ptp_typ:4;     /* W10[8:5] */
+	uint32 ipver_1st:4;   /* W10[12:9] */
+	uint32 sipv6_18_0:19; /* W10[31:13] */
+#else
+	uint32 sipv6_18_0:19; /* W10[31:13] */
+	uint32 ipver_1st:4;   /* W10[12:9] */
+	uint32 ptp_typ:4;     /* W10[8:5] */
+	uint32 ptp_ver:2;     /* W10[4:3] */
+	uint32 ptp_pkt:1;     /* W10[2] */
+	uint32 qpri2_1:2;     /* W10[1:0] */
+#endif
+
+	uint32 sipv6_50_19;    /* W11[31:0] */
+	uint32 sipv6_82_51;    /* W12[31:0] */
+	uint32 sipv6_114_83;   /* W13[31:0] */
+
+#ifdef _LITTLE_ENDIAN
+	uint32 sipv6_127_115:13;   /* W14[12:0] */
+	uint32 dipv6_18_0:19;      /* W14[31:13] */
+#else
+	uint32 dipv6_18_0:19;      /* W14[31:13] */
+	uint32 sipv6_127_115:13;   /* W14[12:0] */
+#endif
+
+	uint32 dipv6_50_19;    /* W15[31:0] */
+	uint32 dipv6_82_51;    /* W16[31:0] */
+	uint32 dipv6_114_83;   /* W17[31:0] */
+    
+#ifdef _LITTLE_ENDIAN
+	uint32 dipv6_127_115:13;   /* W18[12:0] */
+	uint32 hop_limit:8;        /* W18[20:13] */
+	uint32 tra_cla:8;          /* W18[28:21] */
+	uint32 flow_lab_2_0:3;     /* W18[31:29] */
+#else
+	uint32 flow_lab_2_0:3;     /* W18[31:29] */
+	uint32 tra_cla:8;          /* W18[28:21] */
+	uint32 hop_limit:8;        /* W18[20:13] */
+	uint32 dipv6_127_115:13;   /* W18[12:0] */
+#endif
+
+#ifdef _LITTLE_ENDIAN
+	uint32 flow_lab_19_3:17;     /* W19[16:0] */
+	uint32 nxt_hdr:8;            /* W19[24:17] */
+	uint32 ipv4:1;               /* W19[25] */
+    uint32 ipv6:1;               /* W19[26] */
+    uint32 ip_len_4_0:5;         /* W19[31:27] */
+#else
+    uint32 ip_len_4_0:5;         /* W19[31:27] */
+    uint32 ipv6:1;               /* W19[26] */
+	uint32 ipv4:1;               /* W19[25] */
+	uint32 nxt_hdr:8;            /* W19[24:17] */
+	uint32 flow_lab_19_3:17;     /* W19[16:0] */
+#endif
+
+#ifdef _LITTLE_ENDIAN
+    uint32 ip_len_15_5:11;        /* W20[10:0] */
+    uint32 resv3:2;               /* W20[12:11] */
+    uint32 tun_len:16;            /* W20[28:13] */ 
+    uint32 resv4:3;               /* W20[31:29] */
+#else
+    uint32 resv4:3;               /* W20[31:29] */
+    uint32 tun_len:16;            /* W20[28:13] */
+    uint32 resv3:2;               /* W20[12:11] */
+    uint32 ip_len_15_5:11;        /* W20[10:0] */
+#endif
+
+#endif //end of #if defined(CONFIG_RTL_8198C)
+
+
 };
 typedef struct hsb_s hsb_t;
 
@@ -278,7 +450,12 @@ struct hsa_s
 #endif
 	
 #ifdef _LITTLE_ENDIAN
+#if defined(CONFIG_RTL_8198C)    
+	uint32 leno14_6:8;  /* W5[7:0] */
+	uint32 mirrort:1;  /* W5[8] */    
+#else
 	uint32 leno14_6:9;  /* W5[8:0] */
+#endif //end of #if defined(CONFIG_RTL_8198C)
 	uint32 l3csoko:1;   /* W5[9:9] */
 	uint32 l4csoko:1;   /* W5[10:10] */
 	uint32 frag:1;      /* W5[11:11] */
@@ -296,13 +473,24 @@ struct hsa_s
 	uint32 frag:1;      /* W5[11:11] */
 	uint32 l4csoko:1;   /* W5[10:10] */
 	uint32 l3csoko:1;   /* W5[9:9] */
+
+#if defined(CONFIG_RTL_8198C) 
+	uint32 mirrort:1;  /* W5[8] */   
+	uint32 leno14_6:8;  /* W5[7:0] */
+#else
 	uint32 leno14_6:9;  /* W5[8:0] */
+#endif //end of #if defined(CONFIG_RTL_8198C)
 #endif
 	
 #ifdef _LITTLE_ENDIAN
 	uint32 ttl_1if5_5:1;/* W6[0:0] */
 	uint32 dpc:3;       /* W6[3:1] */
+#if defined(CONFIG_RTL_8198C) 
+	uint32 spao:3;      /* W6[6:4] */
+	uint32 ipv4_1st:1;  /* W6[7] */
+#else
 	uint32 spao:4;      /* W6[7:4] */
+#endif
 	uint32 hwfwrd:1;    /* W6[8:8] */
 	uint32 ttl_1if8_6:3;/* W6[11:9] */
 	uint32 dpext:4;     /* W6[15:12] */
@@ -314,7 +502,12 @@ struct hsa_s
 	uint32 dpext:4;     /* W6[15:12] */
 	uint32 ttl_1if8_6:3;/* W6[11:9] */
 	uint32 hwfwrd:1;    /* W6[8:8] */
+#if defined(CONFIG_RTL_8198C) 
+	uint32 ipv4_1st:1;  /* W6[7] */
+	uint32 spao:3;      /* W6[6:4] */
+#else
 	uint32 spao:4;      /* W6[7:4] */
+#endif
 	uint32 dpc:3;       /* W6[3:1] */
 	uint32 ttl_1if5_5:1;/* W6[0:0] */
 #endif
@@ -351,7 +544,75 @@ struct hsa_s
         uint32 priority:3;/* W9[6:0] */
 #endif
 
+#if defined(CONFIG_RTL_8198C)
+#ifdef _LITTLE_ENDIAN
+        uint32 cputag:1;      /* W10[0] */
+        uint32 ptp_pkt:1;     /* W10[1] */
+        uint32 ptp_v2:2;      /* W10[3:2] */
+        uint32 ptp_type:4;    /* W10[7:4] */
+        uint32 rmdp:6;        /* W10[13:8] */
+        uint32 dpri:3;        /* W10[16:14] */
+        uint32 mdf:3;         /* W10[19:17] */
+        uint32 sipv6_11_0:12; /* W10[31:20] */
+#else
+        uint32 sipv6_11_0:12; /* W10[31:20] */
+        uint32 mdf:3;         /* W10[19:17] */
+        uint32 dpri:3;        /* W10[16:14] */
+        uint32 rmdp:6;        /* W10[13:8] */
+        uint32 ptp_type:4;    /* W10[7:4] */
+        uint32 ptp_v2:2;      /* W10[3:2] */
+        uint32 ptp_pkt:1;     /* W10[1] */
+        uint32 cputag:1;      /* W10[0] */
+#endif
 
+        uint32 sipv6_43_12;   /* W11[31:0] */
+        uint32 sipv6_75_44;   /* W12[31:0] */
+        uint32 sipv6_107_76;  /* W13[31:0] */
+
+#ifdef _LITTLE_ENDIAN      
+        uint32 sipv6_127_108:20; /* W14[19:0] */
+        uint32 dipv6_11_0:12;    /* W14[31:20] */
+#else
+        uint32 dipv6_11_0:12;    /* W14[31:20] */
+        uint32 sipv6_127_108:20; /* W14[19:0] */
+#endif
+
+        uint32 dipv6_43_12;   /* W15[31:0] */
+        uint32 dipv6_75_44;   /* W16[31:0] */
+        uint32 dipv6_107_76;  /* W17[31:0] */
+
+#ifdef _LITTLE_ENDIAN      
+        uint32 dipv6_127_108:20; /* W18[19:0] */
+        uint32 ip_len_11_0:12;   /* W18[31:20] */
+#else
+        uint32 ip_len_11_0:12;   /* W18[31:20] */
+        uint32 dipv6_127_108:20; /* W18[19:0] */
+#endif
+
+#ifdef _LITTLE_ENDIAN      
+        uint32 ip_len_15_12:4;   /* W19[3:0] */
+        uint32 ipv4_id:16;       /* W19[19:4] */
+        uint32 tun_len_11_0:12;  /* W19[31:20] */
+#else
+        uint32 tun_len_11_0:12;  /* W19[31:20] */
+        uint32 ipv4_id:16;       /* W19[19:4] */
+        uint32 ip_len_15_12:4;   /* W19[3:0] */
+#endif
+
+
+#ifdef _LITTLE_ENDIAN      
+        uint32 tun_len_15_12:4;  /* W20[3:0] */
+        uint32 mltcst_v6:1;      /* W20[4] */
+        uint32 addip_pri:3;      /* W20[7:5] */
+        uint32 resv4:24;         /* W20[31:8] */
+#else
+        uint32 resv4:24;         /* W20[31:8] */
+        uint32 addip_pri:3;      /* W20[7:5] */
+        uint32 mltcst_v6:1;      /* W20[4] */
+        uint32 tun_len_15_12:4;  /* W20[3:0] */
+#endif
+
+#endif //end of #if defined(CONFIG_RTL_8198C)
 
 };
 typedef struct hsa_s hsa_t;

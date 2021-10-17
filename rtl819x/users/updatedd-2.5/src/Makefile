@@ -34,8 +34,8 @@ builddir	= .
 top_builddir	= ../
 
 INSTALL		= /usr/bin/install -c
-CC		= rsdk-linux-gcc
-STRIP		= rsdk-linux-strip
+CC		= $(CROSS_COMPILE)gcc
+STRIP		= $(CROSS_COMPILE)strip
 #CFLAGS		= -I$(top_builddir) -I$(top_srcdir)/include -Wall -Wwrite-strings -Wstrict-prototypes -Wno-trigraphs -O2 --static -s -DLIBPATH=\"$(libdir)/updatedd\"
 CFLAGS		= -I$(top_builddir) -I$(top_srcdir)/include -Wall -Wwrite-strings -Wstrict-prototypes -Wno-trigraphs --static -s -DLIBPATH=\"$(libdir)/updatedd\" -Os
 LIBS		= -ldl  -lnsl -lresolv 

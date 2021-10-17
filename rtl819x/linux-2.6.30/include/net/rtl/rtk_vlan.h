@@ -6,7 +6,11 @@
 
 #ifndef _RTK_VLAN_H
 #define _RTK_VLAN_H
+
+// to_be_checked !!!
+#ifndef CONFIG_RTL_8198C
 #include "rtl_types.h"
+#endif
 
 struct vlan_info {
 	int global_vlan;	// 0/1 - global vlan disable/enable
@@ -50,7 +54,7 @@ struct vlan_info_item *rtl_get_vlan_info_item_by_dev(struct net_device *dev);
 
 
 #if defined(CONFIG_RTL_HW_STP)
-uint32 rtl865x_getVlanPortMask(uint32 vid);
+unsigned int rtl865x_getVlanPortMask(unsigned int vid);
 #endif
 
 #endif // _RTK_VLAN_H

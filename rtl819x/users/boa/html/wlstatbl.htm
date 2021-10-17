@@ -4,11 +4,12 @@
 <meta http-equiv="Content-Type" content="text/html">
 <% getIndex("no-cache"); %>
 <title>Active Wireless Client Table</title>
+<% getInfo("include_css"); %>
 </head>
 
 <body>
 <blockquote>
-<h2><font color="#0000FF">
+<h2>
 <script type="text/javascript">
 var wlan_num =  <% getIndex("wlan_num"); %>;
 if (wlan_num > 1) {
@@ -18,7 +19,7 @@ if (wlan_num > 1) {
 else
 	document.write("Active Wireless Client Table</p>");
 </script>
-</font></h2>
+</h2>
 
 
 <table border=0 width="800" cellspacing=0 cellpadding=0>
@@ -30,7 +31,7 @@ else
 </table>
 <form action=/boafrm/formWirelessTbl method=POST name="formWirelessTbl">
 <table border='1' width="580">
-<tr bgcolor=#7f7f7f><td width="80"><font size=2><b>MAC Address</b></td>
+<tr class="tbl_head"><td width="80"><font size=2><b>MAC Address</b></td>
 <!--
 <td width="250"><font size=2><b>SSID</b></td>
 -->

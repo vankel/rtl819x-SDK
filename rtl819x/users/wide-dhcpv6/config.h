@@ -78,6 +78,9 @@ struct dhcp6_if {
 	u_long allow_flags;
 #define DHCIFF_INFO_ONLY 0x1
 #define DHCIFF_RAPID_COMMIT 0x2
+//#ifdef CE_ROUTER_SUPPORT
+#define DHCIFF_RECONFIGURE_ACCEPT 0x4
+//#endif
 
 	int server_pref;	/* server preference (server only) */
 	struct dhcp6_poolspec pool;	/* address pool (server only) */
@@ -93,12 +96,23 @@ struct dhcp6_if {
 	int authrdm;		/* replay attack detection method */
 };
 
+#ifdef CE_ROUTER_SUPPORT
+struct reconfigAuthInfo {
+        int type;
+//      int offset;
+        char val[16];
+};
+#endif
+
 /* run-time authentication parameters */
 struct authparam {
 	int authproto;
 	int authalgorithm;
 	int authrdm;
 	struct keyinfo *key;
+#ifdef CE_ROUTER_SUPPORT
+	struct reconfigAuthInfo reconfigAuth;
+#endif
 	int flags;
 #define AUTHPARAM_FLAGS_NOPREVRD	0x1
 
@@ -246,6 +260,9 @@ struct authinfo {
 	int algorithm;		/* authentication algorithm */
 	int rdm;		/* random attack detection method */
 
+#ifdef CE_ROUTER_SUPPORT
+	void *key_val;
+#endif
 	/* keys specific to this info? */
 };
 
@@ -276,14 +293,15 @@ enum { DECL_SEND, DECL_ALLOW, DECL_INFO_ONLY, DECL_REQUEST, DECL_DUID,
 #ifdef SUGGESTED_T
        IASUGGEST_T, IAPARAM_T1, IAPARAM_T2,
 #endif
-       IFPARAM_SLA_ID, IFPARAM_SLA_LEN,
-       DHCPOPT_RAPID_COMMIT, DHCPOPT_AUTHINFO,
+       IFPARAM_SLA_ID, IFPARAM_SLA_LEN, IFPARAM_IFID,
+       DHCPOPT_RAPID_COMMIT, DHCPOPT_AUTHINFO, DHCPOPT_RECONFIGURE_ACCEPT,
        DHCPOPT_DNS, DHCPOPT_DNSNAME,
        DHCPOPT_IA_PD, DHCPOPT_IA_NA, DHCPOPT_NTP,
        DHCPOPT_REFRESHTIME,
        DHCPOPT_NIS, DHCPOPT_NISNAME, 
        DHCPOPT_NISP, DHCPOPT_NISPNAME, 
        DHCPOPT_BCMCS, DHCPOPT_BCMCSNAME, 
+       DHCPOPT_AFTR,
        CFLISTENT_GENERIC,
        IACONF_PIF, IACONF_PREFIX, IACONF_ADDR,
        DHCPOPT_SIP, DHCPOPT_SIPNAME,
@@ -294,6 +312,8 @@ typedef enum {DHCP6_MODE_SERVER, DHCP6_MODE_CLIENT, DHCP6_MODE_RELAY }
 dhcp6_mode_t;
 
 extern const dhcp6_mode_t dhcp6_mode;
+
+extern char *profile;
 
 extern struct dhcp6_if *dhcp6_if;
 extern struct dhcp6_ifconf *dhcp6_iflist;
@@ -314,6 +334,7 @@ extern long long optrefreshtime;
 extern struct dhcp6_if *ifinit __P((char *));
 extern int ifreset __P((struct dhcp6_if *));
 extern int configure_interface __P((struct cf_namelist *));
+extern int configure_profile __P((struct cf_namelist *));
 extern int configure_host __P((struct cf_namelist *));
 extern int configure_keys __P((struct cf_namelist *));
 extern int configure_authinfo __P((struct cf_namelist *));

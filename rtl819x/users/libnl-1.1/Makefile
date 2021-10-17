@@ -8,6 +8,12 @@
 #
 # Copyright (c) 2003-2006 Thomas Graf <tgraf@suug.ch>
 #
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+else
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
+
 
 CFLAGS += -Os
 export CFLAGS
@@ -48,7 +54,7 @@ gendoc:
 	$(MAKE) -C doc gendoc
 
 config:
-	[ -f "Makefile.opts" ] || ./configure --prefix=$(DIR_ROOT)/romfs --host=rsdk-linux --includedir=$(DIR_ROOT)/linux-2.6.30/include;
+	[ -f "Makefile.opts" ] || ./configure --prefix=$(DIR_ROOT)/romfs --host=rsdk-linux --includedir=$(DIR_LINUX_KERNEL)/include;
 
 show: Makefile.opts
 	@echo "CC:          $(CC)"

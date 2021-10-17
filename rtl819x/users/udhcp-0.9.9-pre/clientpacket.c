@@ -47,7 +47,10 @@
 #include "dhcpc.h"
 #include "debug.h"
 
-#ifdef TR069_ANNEX_F
+#if defined(TR069_ANNEX_F) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+#ifndef HOME_GATEWAY
+#define HOME_GATEWAY
+#endif
 #include "apmib.h"
 #include "mibtbl.h"
 #endif
@@ -78,17 +81,23 @@ unsigned long random_xid(void)
 /* initialize a packet with the proper defaults */
 static void init_packet(struct dhcpMessage *packet, char type)
 {
+#ifndef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
 	struct vendor  {
 		char vendor, length;
 		char str[sizeof("udhcp "VERSION)];
 	} vendor_id = { DHCP_VENDOR,  sizeof("udhcp "VERSION) - 1, "udhcp "VERSION};
-	
+#endif
+
 	init_header(packet, type);
 	memcpy(packet->chaddr, client_config.arp, 6);
 	add_option_string(packet->options, client_config.clientid);
 	if (client_config.hostname) add_option_string(packet->options, client_config.hostname);
+
+#ifndef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
 	if(type!=DHCPDECLINE && type!=DHCPRELEASE)
 	add_option_string(packet->options, (unsigned char *) &vendor_id);
+#endif
+
 #ifdef CONFIG_RTL865X_KLD
 	if (client_config.broadcast_flag) packet->flags |= BROADCAST_FLAG;
 #endif
@@ -180,10 +189,101 @@ static void add_option_125(unsigned char *optionptr)
 }
 #endif
 
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+void initialDhcpcOption60()
+{
+	int entrynum;
+	MIB_CE_DHCP_OPTION_T entry;
+	
+	unsigned char opt60_val[]={0x12, 0x34, 0x01, 0x07, 'R', 'e', 'a', 'l', 't', 'e', 'k', 0x02, 0x03, 'C', 'P', 'E', 0x03, 0x08, 'E', '8', 'R', 'O', 'U', 'T', 'E', 'R', 0x04, 0x03, '1', '.', '0', 0, 0};
+
+	if (!apmib_get(MIB_DHCP_CLIENT_OPTION_TBL_NUM, (void *)&entrynum))
+	{
+		printf("%s:%d apmib_get fails!####\n",__FUNCTION__,__LINE__);
+		return;
+	}
+	
+	if(entrynum>0)
+	{
+		printf("%s:%d####entrynum=%d!\n",__FUNCTION__,__LINE__,entrynum);
+		return;
+	}	
+
+	if(entrynum>=MAX_DHCP_CLIENT_OPTION_NUM)
+		return;
+	
+	entry.enable=1;
+	entry.usedFor=eUsedFor_DHCPClient_Sent;
+	entry.order=0;
+	entry.tag=60;
+	entry.len=0x1F;
+	strcpy(entry.value, opt60_val);
+	entry.ifIndex=client_config.ifindex;
+
+	apmib_set(MIB_DHCP_CLIENT_OPTION_DEL, (void *)&entry);
+	
+	if (!apmib_set(MIB_DHCP_CLIENT_OPTION_ADD, (void *)&entry))
+	{		
+		printf("%s:%d apmib_set MIB_DHCP_CLIENT_OPTION_ADD fails!####\n",__FUNCTION__,__LINE__);
+		return;		
+	}
+	else
+	{
+		//printf("%s:%d apmib_set MIB_DHCP_CLIENT_OPTION_ADD success!####\n",__FUNCTION__,__LINE__);
+		apmib_update(CURRENT_SETTING);
+	}
+}
+
+int addDhcpcOption(struct dhcpMessage *packet, int type)
+{
+	MIB_CE_DHCP_OPTION_T entry;
+	int i, entrynum;
+	unsigned char option[DHCP_OPT_VAL_LEN+2];
+	//printf("%s:%d  !####\n",__FUNCTION__,__LINE__);
+	if(!apmib_get(MIB_DHCP_CLIENT_OPTION_TBL_NUM, (void *)&entrynum))
+	{
+		printf("%s:%d apmib_get fails!####\n",__FUNCTION__,__LINE__);
+		return -1;
+	}
+	//printf("%s:%d entrynum=%d###\n",__FUNCTION__,__LINE__,entrynum);
+	for (i=1; i<=entrynum; i++) 
+	{
+		*((char *)&entry) = (char)i;
+		if(!apmib_get(MIB_DHCP_CLIENT_OPTION_TBL, (void *)&entry))
+			continue;		
+
+		if(entry.enable==0)
+			continue;
+		
+		//if (entry.ifIndex != client_config.ifindex)
+		//	continue;
+
+		if (entry.usedFor != eUsedFor_DHCPClient_Sent)
+			continue;
+
+		if(entry.tag == type)
+		{			
+			option[OPT_CODE] = (unsigned char)entry.tag;
+			option[OPT_LEN] = entry.len;
+			memcpy(option+OPT_DATA, entry.value, entry.len);
+
+			add_option_string(packet->options, option);
+
+			return 0;
+		}
+	}	
+	return -1;
+}
+#endif
+
 /* Broadcast a DHCP discover packet to the network, with an optionally requested IP */
 int send_discover(unsigned long xid, unsigned long requested)
 {
 	struct dhcpMessage packet;
+	
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	int ret_val;
+#endif
 
 	init_packet(&packet, DHCPDISCOVER);
 	packet.xid = xid;
@@ -211,6 +311,16 @@ int send_discover(unsigned long xid, unsigned long requested)
 #endif
 #endif
 
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	//printf("%s:%d Add DHCP option 60!\n",__FUNCTION__,__LINE__);
+	ret_val=addDhcpcOption(&packet, DHCP_VENDOR); //and option 60
+	if(ret_val<0)
+	{
+		initialDhcpcOption60();
+		addDhcpcOption(&packet, DHCP_VENDOR); //and option 60
+	}
+#endif
+
 	add_requests(&packet);
 // david, disable message. 2003-5-21	
 //	LOG(LOG_DEBUG, "Sending discover...");
@@ -234,7 +344,11 @@ int send_selecting(unsigned long xid, unsigned long server, unsigned long reques
 #ifdef TR069_ANNEX_F
 	add_option_125(packet.options);
 #endif
-	
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_		
+	addDhcpcOption(&packet, DHCP_VENDOR); //and option 60
+#endif
+
 	add_requests(&packet);
 	addr.s_addr = requested;
 	LOG(LOG_DEBUG, "Sending select for %s...", inet_ntoa(addr));
@@ -257,6 +371,10 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
 	
 #ifdef TR069_ANNEX_F
 	add_option_125(packet.options);
+#endif
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_		
+	addDhcpcOption(&packet, DHCP_VENDOR); //and option 60
 #endif
 
 	add_requests(&packet);

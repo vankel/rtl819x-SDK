@@ -314,6 +314,9 @@ void lib1x_bauthsm_txReq( Global_Params * global, int identifier )
 	u_char * packet;
 	struct pktbuf * bufpkt;
 	struct lib1x_packet printPkt;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	unsigned char dot1x_group_mac[ETHER_HDRLEN] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+#endif
 
 
 	// Note: Every time this authpae sends a packet the SAME send buffer is used.
@@ -355,6 +358,12 @@ void lib1x_bauthsm_txReq( Global_Params * global, int identifier )
 	bzero( auth_pae->sendBuffer, size );
 
 	eth_hdr = ( struct lib1x_ethernet * ) packet;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth_pae->global->auth->currentRole == role_eth && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled))
+		memcpy ( eth_hdr->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
+	else
+#endif
+
 	memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
 	memcpy ( eth_hdr->ether_shost , auth_pae->global->TxRx->oursupp_addr, ETHER_ADDRLEN );
 
@@ -379,6 +388,12 @@ void lib1x_bauthsm_txReq( Global_Params * global, int identifier )
 
 	eapol->packet_body_length = htons( LIB1X_EAP_HDRLEN + bufpkt->length );
 	memcpy( ( ( u_char *) eap ) + LIB1X_EAP_HDRLEN, bufpkt->pkt, bufpkt->length );
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	if((auth_pae->global->auth->currentRole == role_eth) && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled)&&(global->auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+	{
+		lib1x_add_portinfo_to_eap_pkt(auth_pae->sendBuffer, &size,LIB1X_AP_SENDBUFLEN, global->port_num);
+	}
+#endif
 
 	lib1x_message(MESS_DBG_AUTH, "Sending Request EAP packet to Supplicant");
 

@@ -322,6 +322,44 @@ static int parse_u8(int *argc_p, char ***argv_p, struct tc_u32_sel *sel,
 	*argv_p = argv;
 	return res;
 }
+static int parse_ether_addr(int *argc_p, char ***argv_p,
+			    struct tc_u32_sel *sel, int off)
+{
+	int res = -1;
+	int argc = *argc_p;
+	char **argv = *argv_p;
+	__u8 addr[6];
+	int offmask = 0;
+	int i;
+
+	if (argc < 1)
+		return -1;
+
+	if (sscanf(*argv, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+		   addr + 0, addr + 1, addr + 2,
+		   addr + 3, addr + 4, addr + 5) != 6) {
+		fprintf(stderr, "parse_ether_addr: improperly formed address '%s'\n",
+			*argv);
+		return -1;
+	}
+
+	argc--; argv++;
+	if (argc > 0 && strcmp(argv[0], "at") == 0) {
+		NEXT_ARG();
+		if (parse_at(&argc, &argv, &off, &offmask))
+			return -1;
+	}
+
+	for (i = 0; i < 6; i++) {
+		res = pack_key8(sel, addr[i], 0xFF, off + i, offmask);
+		if (res < 0)
+			return -1;
+	}
+
+	*argc_p = argc;
+	*argv_p = argv;
+	return res;
+}
 
 static int parse_ip_addr(int *argc_p, char ***argv_p, struct tc_u32_sel *sel,
 			 int off)
@@ -399,6 +437,30 @@ static int parse_ip6_addr(int *argc_p, char ***argv_p,
 		}
 	}
 	res = 0;
+
+	*argc_p = argc;
+	*argv_p = argv;
+	return res;
+}
+static int parse_ether(int *argc_p, char ***argv_p, struct tc_u32_sel *sel)
+{
+	int res = -1;
+	int argc = *argc_p;
+	char **argv = *argv_p;
+
+	if (argc < 2)
+		return -1;
+
+	if (strcmp(*argv, "src") == 0) {
+		NEXT_ARG();
+		res = parse_ether_addr(&argc, &argv, sel, -8);
+	} else if (strcmp(*argv, "dst") == 0) {
+		NEXT_ARG();
+		res = parse_ether_addr(&argc, &argv, sel, -14);
+	} else {
+		fprintf(stderr, "Unknown match: ether %s\n", *argv);
+		return -1;
+	}
 
 	*argc_p = argc;
 	*argv_p = argv;
@@ -701,6 +763,11 @@ static int parse_selector(int *argc_p, char ***argv_p,
 		res = parse_mark(&argc, &argv, n);
 		goto done;
 	}
+	if (matches(*argv, "ether") == 0) {
+		NEXT_ARG();
+		res = parse_ether(&argc, &argv, sel);
+		goto done;
+	} 
 
 	return -1;
 

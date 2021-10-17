@@ -325,9 +325,6 @@ do {									\
 #define read_c0_framemask()	__read_32bit_c0_register($21, 0)
 #define write_c0_framemask(val)	__write_32bit_c0_register($21, 0, val)
 
-#define read_lxc0_userlocal()		__read_32bit_lxc0_register($8, 0)
-#define write_lxc0_userlocal(val)	__write_32bit_lxc0_register($8, 0, val)
-
 #define mfhi0()								\
 ({									\
 	unsigned long __treg;						\

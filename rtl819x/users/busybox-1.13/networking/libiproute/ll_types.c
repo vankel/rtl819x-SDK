@@ -12,7 +12,7 @@
 #include <arpa/inet.h>
 #include <linux/if_arp.h>
 
-#include "libbb.h"
+#include "libbb_2.h"
 #include "rt_names.h"
 
 const char *ll_type_n2a(int type, char *buf, int len)

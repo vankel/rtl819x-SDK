@@ -68,6 +68,38 @@ static int32 convertHsbToSoftware( hsb_t* rawHsb, hsb_param_t* hsb )
 	hsb->extl2 = rawHsb->extl2;
 	hsb->linkid = rawHsb->linkid;
 	hsb->pppoeid = rawHsb->pppoeid;
+
+    #if defined(CONFIG_RTL_8198C)
+	hsb->cputag_if = rawHsb->cputag_if;
+    hsb->ipv6_ext  = rawHsb->ipv6_ext;
+    hsb->ipv6fo    = rawHsb->ipv6fo;
+    hsb->ipv6flag  = rawHsb->ipv6flag;
+    hsb->qpri      = (rawHsb->qpri2_1<<1)| rawHsb->qpri0; 
+	hsb->ptp_pkt   = rawHsb->ptp_pkt;
+	hsb->ptp_ver   = rawHsb->ptp_ver;
+	hsb->ptp_typ   = rawHsb->ptp_typ;
+	hsb->ipver_1st = rawHsb->ipver_1st;
+    
+    hsb->sipv6_31_0 =   ((rawHsb->sipv6_50_19&0x1FFF)<<19)  | rawHsb->sipv6_18_0;
+    hsb->sipv6_63_32 =  ((rawHsb->sipv6_82_51&0x1FFF)<<19)  | (rawHsb->sipv6_50_19>>13);
+    hsb->sipv6_95_64 =  ((rawHsb->sipv6_114_83&0x1FFF)<<19)  | (rawHsb->sipv6_82_51>>13);
+    hsb->sipv6_127_96 = ((rawHsb->sipv6_127_115&0x1FFF)<<19)  | (rawHsb->sipv6_114_83>>13);
+
+    hsb->dipv6_31_0 =   ((rawHsb->dipv6_50_19&0x1FFF)<<19)  | rawHsb->dipv6_18_0;
+    hsb->dipv6_63_32 =  ((rawHsb->dipv6_82_51&0x1FFF)<<19)  | (rawHsb->dipv6_50_19>>13);
+    hsb->dipv6_95_64 =  ((rawHsb->dipv6_114_83&0x1FFF)<<19)  | (rawHsb->dipv6_82_51>>13);
+    hsb->dipv6_127_96 = ((rawHsb->dipv6_127_115&0x1FFF)<<19)  | (rawHsb->dipv6_114_83>>13);
+
+	hsb->hop_limit    = rawHsb->hop_limit;
+	hsb->tra_cla      = rawHsb->tra_cla;
+    hsb->flow_lab     = (rawHsb->flow_lab_19_3<<3) | rawHsb->flow_lab_2_0;
+	hsb->nxt_hdr      = rawHsb->nxt_hdr;
+	hsb->ipv4         = rawHsb->ipv4;
+    hsb->ipv6         = rawHsb->ipv6; 
+    hsb->ip_len       = (rawHsb->ip_len_15_5<<5)| rawHsb->ip_len_4_0; 
+    hsb->tun_len      = rawHsb->tun_len;
+#endif  
+
 	return SUCCESS;
 }
 
@@ -131,6 +163,9 @@ int32 convertHsaToSoftware( hsa_t* rawHsa, hsa_param_t* hsa )
 	hsa->pppoeifo = rawHsa->pppoeifo;
 	hsa->pppidx = rawHsa->pppidx;
 	hsa->leno = rawHsa->leno5_0|(rawHsa->leno14_6<<6);
+#if defined(CONFIG_RTL_8198C)
+    hsa->mirrort = rawHsa->mirrort; 
+#endif
 	hsa->l3csoko = rawHsa->l3csoko;
 	hsa->l4csoko = rawHsa->l4csoko;
 	hsa->frag = rawHsa->frag;
@@ -141,6 +176,9 @@ int32 convertHsaToSoftware( hsa_t* rawHsa, hsa_param_t* hsa )
 	hsa->ttl_1if = rawHsa->ttl_1if4_0|(rawHsa->ttl_1if5_5<<5)|(rawHsa->ttl_1if8_6<<6);
 	hsa->dpc = rawHsa->dpc;
 	hsa->spao = rawHsa->spao;
+#if defined(CONFIG_RTL_8198C)
+    hsa->ipv4_1st = rawHsa->ipv4_1st;
+#endif
 	hsa->hwfwrd = rawHsa->hwfwrd;
 	hsa->dpext = rawHsa->dpext;
 	hsa->spaext = rawHsa->spaext;
@@ -152,6 +190,33 @@ int32 convertHsaToSoftware( hsa_t* rawHsa, hsa_param_t* hsa )
 	hsa->siptos = rawHsa->siptos;
 	hsa->dp = rawHsa->dp6_0;
 	hsa->priority = rawHsa->priority;
+
+
+#if defined(CONFIG_RTL_8198C)
+	hsa->cputag   = rawHsa->cputag;
+	hsa->ptp_pkt  = rawHsa->ptp_pkt;
+	hsa->ptp_v2   = rawHsa->ptp_v2;
+	hsa->ptp_type = rawHsa->ptp_type;
+	hsa->rmdp     = rawHsa->rmdp;
+	hsa->dpri     = rawHsa->dpri;
+	hsa->mdf      = rawHsa->mdf;
+  
+    hsa->sipv6_31_0   = ((rawHsa->sipv6_43_12  &0xFFFFF)<<12) | rawHsa->sipv6_11_0;
+    hsa->sipv6_63_32  = ((rawHsa->sipv6_75_44  &0xFFFFF)<<12) |(rawHsa->sipv6_43_12>>20);
+    hsa->sipv6_95_64  = ((rawHsa->sipv6_107_76 &0xFFFFF)<<12) |(rawHsa->sipv6_75_44>>20);
+    hsa->sipv6_127_96 = ((rawHsa->sipv6_127_108&0xFFFFF)<<12) |(rawHsa->sipv6_107_76>>20);
+
+    hsa->dipv6_31_0   = ((rawHsa->dipv6_43_12  &0xFFFFF)<<12) | rawHsa->dipv6_11_0;
+    hsa->dipv6_63_32  = ((rawHsa->dipv6_75_44  &0xFFFFF)<<12) |(rawHsa->dipv6_43_12>>20);
+    hsa->dipv6_95_64  = ((rawHsa->dipv6_107_76 &0xFFFFF)<<12) |(rawHsa->dipv6_75_44>>20);
+    hsa->dipv6_127_96 = ((rawHsa->dipv6_127_108&0xFFFFF)<<12) |(rawHsa->dipv6_107_76>>20);
+
+    hsa->ip_len    = (rawHsa->ip_len_15_12<<12)| rawHsa->ip_len_11_0;
+    hsa->ipv4_id   = rawHsa->ipv4_id; 
+    hsa->tun_len   = (rawHsa->tun_len_15_12<<12) | rawHsa->tun_len_11_0 ;
+    hsa->mltcst_v6 = rawHsa->mltcst_v6;
+    hsa->addip_pri = rawHsa->addip_pri;
+#endif    
 	return SUCCESS;
 }
 

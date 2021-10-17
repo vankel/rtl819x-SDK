@@ -63,11 +63,9 @@ struct TR098_TraceRouteDiag gTraceRouteDiag =
 int gStartTraceRouteDiag = 0;
 void checkPidforTraceRouteDiag( pid_t  pid )
 {
-    //CWMPDBG( 1, ( stderr, "[%s:%d]pid=%d\n", __FUNCTION__,__LINE__, pid ) );
-    if(pid!=-1)
+	if(pid!=-1)
 	{
-        //CWMPDBG( 1, ( stderr, "[%s:%d]gTraceRouteDiag.traceroute_pid=%d\n", __FUNCTION__,__LINE__, gTraceRouteDiag.traceroute_pid ) );
-        //if(pid==gTraceRouteDiag.traceroute_pid)
+		if(pid==gTraceRouteDiag.traceroute_pid)
 		{
 			FILE *fp;
 			char line[256];
@@ -99,8 +97,7 @@ void checkPidforTraceRouteDiag( pid_t  pid )
 				}
 
 				gTraceRouteDiag.RouteHopsNumberOfEntries = i;
-                //CWMPDBG( 1, ( stderr, "[%s:%d]RouteHopsNumberOfEntries=%d\n", __FUNCTION__,__LINE__, gTraceRouteDiag.RouteHopsNumberOfEntries ) );
-                fclose(fp);
+				fclose(fp);
 			}
 			else
 				fprintf(stderr, "Open file /var/traceroute.log failed!\n");
@@ -126,7 +123,6 @@ void ResetTraceRouteDiag(struct TR098_TraceRouteDiag *p)
 }
 void StartTraceRouteDiag(void)
 {
-    //CWMPDBG( 1, ( stderr, "[%s:%d]\n", __FUNCTION__,__LINE__) );
 	pid_t pid;
 	struct TR098_TraceRouteDiag *p=	&gTraceRouteDiag;
 	struct timeval time_start, time_end, time_intvl;
@@ -183,8 +179,7 @@ void StartTraceRouteDiag(void)
 		return;
 	}
 
-    //CWMPDBG( 1, ( stderr, "[%s:%d]p->traceroute_pid=%d\n", __FUNCTION__,__LINE__, pid) );
-    p->traceroute_pid=pid;
+	p->traceroute_pid=pid;
 }
 
 extern unsigned int getInstNum( char *name, char *objname );
@@ -222,8 +217,7 @@ int getRouteHopsEntityByIdx(unsigned int idx, unsigned int *hoperrorcode, char *
 	for( i = idx; i; i-- )
 		fgets(line, 256, fp);
 
-    //CWMPDBG( 1, ( stderr, "[%s:%d]line=%s\n", __FUNCTION__,__LINE__, line ) );
-    // Start retrieve info from traceroute log file.
+	// Start retrieve info from traceroute log file.
 	if(!(tok = strtok(line, del)))  // Expected for index of hops
 	{
 		fclose(fp);
@@ -235,8 +229,7 @@ int getRouteHopsEntityByIdx(unsigned int idx, unsigned int *hoperrorcode, char *
 		if(!(tok = strtok(NULL, del)))  // Expected for domain name or IP address (when DN cannot be resolved)
 			break;
 
-        //CWMPDBG( 1, ( stderr, "[%s:%d]tok=%s\n", __FUNCTION__,__LINE__, tok ) );
-        if( tok[0] == '!' )  // Got ICMP error code.
+		if( tok[0] == '!' )  // Got ICMP error code.
 		{
 			switch(tok[1])
 			{
@@ -277,35 +270,24 @@ int getRouteHopsEntityByIdx(unsigned int idx, unsigned int *hoperrorcode, char *
 		}
 
 		strncpy(hophost, tok, 256);
-        //CWMPDBG( 1, ( stderr, "[%s:%d]hophost=%s\n", __FUNCTION__,__LINE__, hophost ) );
 
 		if(!(tok = strtok(NULL, del)))  // Expected for IP address.
 			break;
 
-        //CWMPDBG( 1, ( stderr, "[%s:%d]tok=%s\n", __FUNCTION__,__LINE__, tok ) );
 		tok[strlen(tok)-1] = '\0';
 		strncpy(hophostaddr, ++tok, 16);
-        //CWMPDBG( 1, ( stderr, "[%s:%d]hostaddr=%s\n", __FUNCTION__,__LINE__, hophostaddr ) );
 
 		if(!(tok = strtok(NULL, del)))  // Expected for response time
 			break;
 
-        //CWMPDBG( 1, ( stderr, "[%s:%d]tok=%s\n", __FUNCTION__,__LINE__, tok ) );
 		if(!hoprttimes[0])
 			strncpy(hoprttimes, tok, 16);
 		else
 			snprintf(hoprttimes, 16, "%s,%s", hoprttimes, tok);
 
-        //CWMPDBG( 1, ( stderr, "[%s:%d]hoprttimes=%s\n", __FUNCTION__,__LINE__, hoprttimes ) );
 		if(!(tok = strtok(NULL, del)))  // Expected for "ms"
 			break;
-
-        if(!strcmp(tok, "ms"))
-            break;
-        else{
-            CWMPDBG( 1, ( stderr, "[%s:%d]tok=%s\n", __FUNCTION__,__LINE__, tok ) );
-        }
-    }
+	}
 
 	fclose(fp);
 
@@ -392,7 +374,7 @@ int objRouteHops(char *name, struct CWMP_LEAF *e, int type, void *data)
 {
 	struct CWMP_NODE *entity=(struct CWMP_NODE *)e;
 
-	fprintf( stderr, "%s:action:%d: %s\n", __FUNCTION__, type, name);
+	//fprintf( stderr, "%s:action:%d: %s\n", __FUNCTION__, type, name);
 	switch( type )
 	{
 		case eCWMP_tINITOBJ:
@@ -402,14 +384,12 @@ int objRouteHops(char *name, struct CWMP_LEAF *e, int type, void *data)
 
 			if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
-		#if 1
+		#if 0
 			count=getRouteHopsEntityNum();
-            //CWMPDBG( 1, ( stderr, "[%s:%d]count=%d\n", __FUNCTION__,__LINE__, count ) );
-            if(count)
+			if(count)
 			{
 				MaxInstNum=count;
-                //CWMPDBG( 1, ( stderr, "[%s:%d]maxinstnum=%d\n", __FUNCTION__,__LINE__, MaxInstNum ) );
-                if( create_Object( c, tRouteHopsObject, sizeof(tRouteHopsObject), count, 1 ) < 0 )
+				if( create_Object( c, tRouteHopsObject, sizeof(tRouteHopsObject), count, 1 ) < 0 )
 					break;
 			}
 			gTraceRouteDiag.RouteHopsNumberOfEntries=count;
@@ -428,7 +408,6 @@ int objRouteHops(char *name, struct CWMP_LEAF *e, int type, void *data)
 			entity->next = NULL;
 
 			count = getRouteHopsEntityNum();
-            //CWMPDBG( 1, ( stderr, "[%s:%d]count=%d\n", __FUNCTION__,__LINE__, count ) );
 
 			for(i=1;i<=count;i++)
 			{
@@ -443,8 +422,7 @@ int objRouteHops(char *name, struct CWMP_LEAF *e, int type, void *data)
 				{
 					unsigned int MaxInstNum;
 					MaxInstNum = i;
-                    //CWMPDBG( 1, ( stderr, "[%s:%d]maxinstnum=%d\n", __FUNCTION__,__LINE__, MaxInstNum) );
-                    add_Object( name, (struct CWMP_LINKNODE **)&entity->next, tRouteHopsObject, sizeof(tRouteHopsObject), &MaxInstNum );
+					add_Object( name, (struct CWMP_LINKNODE **)&entity->next, tRouteHopsObject, sizeof(tRouteHopsObject), &MaxInstNum );
 				}
 			}
 

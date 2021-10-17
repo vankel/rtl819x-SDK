@@ -1,0 +1,171 @@
+#
+# Realtek Semiconductor Corp.
+#
+# RLX Linux Kernel Configuration
+#
+# Tony Wu (tonywu@realtek.com)
+# Dec. 07, 2008
+#
+
+source "../target/selection/config.top"
+source "../target/selection/config.soc"
+
+#
+# BSP configuration
+#
+menu "BSP configuration"
+
+choice
+	prompt "Timer Clocksource"
+	default ARCH_CSRC_JIFFY
+	depends on ARCH_RLXARM
+
+config ARCH_CSRC_JIFFY
+	bool "Simple kernel jiffies"
+	help
+	  Use Designware DWC external timer module as monotonic
+	  clocksource.
+
+config ARCH_CSRC_DWC
+	bool "Designware DWC timer"
+	help
+	  Use Designware DWC external timer module as monotonic
+	  clocksource.
+
+config ARCH_CSRC_CA7
+	bool "ARM CA7/CA15 arch timer"
+	depends on ARCH_CPU_ARMA7 || ARCH_CPU_ARMA15
+	help
+	  arch timer module available in Cortex-A7 and Cortex-A15
+
+config ARCH_CSRC_CA9
+	bool "ARM CA5/CA9 global timer"
+	depends on ARCH_CPU_ARMA5 || ARCH_CPU_ARMA9
+	help
+	  arch timer module available in Cortex-A5 and Cortex-A9
+endchoice
+
+choice
+	prompt "Timer Clockevent"
+	default ARCH_CEVT_CA7 if ARCH_CPU_ARMA7 || ARCH_CPU_ARMA15
+	default ARCH_CEVT_CA9 if ARCH_CPU_ARMA5 || ARCH_CPU_ARMA9
+	depends on ARCH_RLXARM
+
+config ARCH_CEVT_DWC
+	bool "Designware DWC timer"
+	help
+	  Use Designware DWC external timer module as clockevent.
+
+config ARCH_CEVT_TWD
+	bool "ARM TWD timer"
+	depends on ARCH_CPU_ARMA5 || ARCH_CPU_ARMA9
+	help
+	  A9MP global timer, per-cpu private timer, and
+	  per-cpu watchdog timer support.
+
+config ARCH_CEVT_CA7
+	bool "ARM CA7/CA15 arch timer"
+	depends on ARCH_CPU_ARMA7 || ARCH_CPU_ARMA15
+	help
+	  Global timer module available in Cortex-A7 and Cortex-A15
+
+config ARCH_CEVT_CA9
+	bool "ARM CA5/CA9 global timer"
+	depends on ARCH_CPU_ARMA5 || ARCH_CPU_ARMA9
+	help
+	  Global timer module available in Cortex-A5 and Cortex-A9
+endchoice
+
+config BSP_ENABLE_PCI
+	bool "Enable PCI controller"
+	default n
+
+config BSP_ENABLE_USB
+	bool "Enable USB controller"
+	default n
+
+endmenu
+
+#
+# ARM
+#
+config RLXARM
+	bool
+	default y
+	select SYS_HAS_EARLY_PRINTK
+	select CPU_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select ARCH_SUPPORTS_LITTLE_ENDIAN if ARCH_CPU_EL
+	select ARCH_SUPPORTS_BIG_ENDIAN if ARCH_CPU_EB
+	select ARM_VIC if ARCH_IRQ_VIC
+	select ARM_GIC if ARCH_IRQ_GIC
+	select HW_HAS_PCI if (ARCH_BUS_PCI && BSP_ENABLE_PCI)
+	select HW_HAS_USB if (ARCH_BUS_USB && BSP_ENABLE_USB)
+	select ARCH_SUPPORTS_MSI if (ARCH_BUS_PCI_MSI && BSP_ENABLE_PCI)
+	select HAVE_ARM_TWD if ARCH_CEVT_TWD
+	select HAVE_ARM_GLOBAL_TIMER if ARCH_CEVT_CA9
+	select HAVE_ARM_ARCH_TIMER if ARCH_CEVT_CA7
+	select GENERIC_CLOCKEVENTS
+	select HAVE_SMP if ARCH_CPU_SMP
+	select HAVE_ARM_SCU if ARCH_CPU_SCU
+
+#
+# CPU
+#
+config CPU_ARMA5
+	bool
+	default y if ARCH_CPU_ARMA5
+	select CPU_V7
+
+config CPU_ARMA7
+	bool
+	default y if ARCH_CPU_ARMA7
+	select CPU_V7
+
+config CPU_ARMA9
+	bool
+	default y if ARCH_CPU_ARMA9
+	select CPU_V7
+
+config CPU_ARMA12
+	bool
+	default y if ARCH_CPU_ARMA12
+	select CPU_V7
+
+config CPU_ARMA15
+	bool
+	default y if ARCH_CPU_ARMA15
+	select CPU_V7
+
+config CPU_ARM926
+	bool
+	default y if ARCH_CPU_ARM926
+
+config CPU_ARM946
+	bool
+	default y if ARCH_CPU_ARM946
+
+#
+# CACHE
+#
+config CPU_HAS_L2C
+	bool
+	default y if ARCH_CACHE_L2C
+
+#
+# BUS
+#
+config HW_HAS_USB
+	bool
+
+config HW_HAS_PCI
+        bool
+
+#
+# MISC
+#
+config USE_UAPI
+	bool
+	default y
+	help
+	  Starting Linux 3.7, UAPI is enabled.

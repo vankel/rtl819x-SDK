@@ -115,8 +115,6 @@ void ring_det_cad_set( unsigned int ring_on_msec, unsigned int first_ringoff_mse
 void ring_times_set(unsigned int chid, unsigned int ringOn, unsigned int ringOff);
 void vir_daa_ring_det_set(unsigned int on_ths, unsigned int off_ths);
 unsigned char SLIC_Get_Hook_Status(int chid);
-void SLIC_Set_Power_Save_Mode(int chid);
-void SLIC_Set_FXS_Line_State(int chid, int state);
 void SLIC_read_ram(unsigned char chid, unsigned short num, unsigned int *val);
 void SLIC_dump_reg(unsigned char chid);
 void SLIC_dump_ram(unsigned char chid);

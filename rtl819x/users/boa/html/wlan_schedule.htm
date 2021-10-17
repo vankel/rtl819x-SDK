@@ -4,6 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html">
 <% getIndex("no-cache"); %>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <SCRIPT language="JavaScript">
 <!--
 var mf = document.schedule_form;
@@ -384,7 +385,7 @@ function updateConfig(from,isChecked)
 </HEAD>
 <BODY onload=init();>
 	<blockquote>
-<BR><h2><font color="#0000FF">Wireless Schedule</font></h2> 
+<BR><h2>Wireless Schedule</h2> 
 
 <FORM id="mainform" name=schedule_form action=/boafrm/formSchedule method=post> 
 <INPUT type=hidden value="/wlan_schedule.htm" name=webpage> 

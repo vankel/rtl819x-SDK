@@ -1101,6 +1101,16 @@ eap_ttls_param       : TK_USER_CERT '=' TK_FNAME {
 			set_current_ttls();
 			tmp_ttls->phase2_type = TTLS_PHASE2_MSCHAPV2;
         	      }
+				   |  TK_PHASE2_TYPE '=' TK_EAP_MD5 {
+                        parameter_debug("ttls phase2_type 'eap_md5'\n");
+                        if (tmp_ttls &&
+                            tmp_ttls->phase2_type != TTLS_PHASE2_UNDEFINED) {
+                          cleanup_parse();
+                          return XECONFIGPARSEFAIL;
+                        }
+                        set_current_ttls();
+                        tmp_ttls->phase2_type = TTLS_PHASE2_EAP_MD5;
+                     }
                     | eap_ttls_phase2_statement
                     ;
 
@@ -1108,6 +1118,7 @@ eap_ttls_phase2_statement  : phase2_pap_statement
                            | phase2_chap_statement
                            | phase2_mschap_statement
                            | phase2_mschapv2_statement
+							| eap_ttls_phase2_eap_statement
                            ;
 
 phase2_pap_statement   : TK_PAP '{' phase2_pap_params'}' {
@@ -1249,6 +1260,18 @@ phase2_mschapv2_param      : TK_USERNAME '=' TK_USERNAME_VAL {
 		       else
 			 free($3);
 		     }
+                   ;
+eap_ttls_phase2_eap_statement : eap_md5_statement {
+		       set_current_ttls();
+		       if (!config_ttls_phase2_contains_phase2(tmp_ttls->phase2,
+                                                                 TTLS_PHASE2_EAP_MD5))
+		         add_config_ttls_phase2(&(tmp_ttls->phase2),
+			  	  	        TTLS_PHASE2_EAP_MD5,
+					        tmp_md5);
+		       else
+		         delete_config_eap_md5(&tmp_md5);
+		       tmp_p2mschapv2 = NULL;
+                     }
                    ;
 
 eap_leap_statement   : TK_EAP_LEAP '{' eap_leap_params'}' 

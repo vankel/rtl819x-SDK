@@ -111,6 +111,7 @@ ecl		\}
 
 %s S_CNF
 %s S_IFACE
+%s S_PROFILE
 %s S_PREF
 %s S_HOST
 %s S_DUID
@@ -135,6 +136,15 @@ ecl		\}
 	yylval.str = strdup(yytext);
 	BEGIN S_CNF;
 	return (IFNAME);
+}
+
+	/* profile configuration */
+<S_CNF>profile { DECHO; BEGIN S_PROFILE; return (PROFILE); }
+<S_PROFILE>{string} {
+	DECHO;
+	yylval.str = strdup(yytext);
+	BEGIN S_CNF;
+	return (PROFILENAME);
 }
 
 	/* host configuration */
@@ -205,6 +215,8 @@ ecl		\}
 <S_CNF>bcmcs-server-address { DECHO; return (BCMCS_SERVERS); }
 <S_CNF>bcmcs-server-domain-name { DECHO; return (BCMCS_NAME); }
 <S_CNF>refreshtime { DECHO; return (REFRESHTIME); }
+<S_CNF>reconfigure-accept { DECHO; return (RECONFIGURE_ACCEPT); }
+<S_CNF>address-family-transition-router { DECHO; return (AFTR_SERVERS); }
 
 	/* provided for a backward compatibility to WIDE-DHCPv6 before Oct 1 2006 */
 <S_CNF>nis-server-domain-name { DECHO; return (NIS_NAME); }
@@ -234,6 +246,7 @@ ecl		\}
 <S_CNF>prefix-interface { DECHO; BEGIN S_IFACE; return (PREFIX_INTERFACE); }
 <S_CNF>sla-id { DECHO; return (SLA_ID); }
 <S_CNF>sla-len { DECHO; return (SLA_LEN); }
+<S_CNF>ifid { DECHO; return (IFID); }
 
 	/* duration */
 <S_CNF>infinity { DECHO; return (INFINITY); }
@@ -344,10 +357,10 @@ cfdebug_print(w, t, l)
 	int l;
 {
 	if (w) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "<%d>%s [%s] (%d)", yy_start, w, t, l);
 	} else {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "<%d>[%s] (%d)", yy_start, t, l);
 	}
 }
@@ -363,7 +376,7 @@ yyerror0(int level, char *s, va_list ap)
 	if (bp < ep)
 		bp += vsnprintf(bp, ep - bp, s, ap);
 
-	dprintf(level, FNAME, ebuf);
+	dprintf_rtk(level, FNAME, ebuf);
 }
 
 void
@@ -401,7 +414,7 @@ cfswitch_buffer(incl)
 	FILE *fp;
 
 	if (incstackp >= MAX_INCLUDE_DEPTH) {
-		dprintf(LOG_ERR, FNAME, "cfparse: includes nested too deeply");
+		dprintf_rtk(LOG_ERR, FNAME, "cfparse: includes nested too deeply");
 		return (-1);
 	}
 	incstack[incstackp].path = configfilename;
@@ -410,7 +423,7 @@ cfswitch_buffer(incl)
 
 	fp = fopen(path, "r");
 	if (fp == NULL) {
-		dprintf(LOG_ERR, FNAME, "cfparse: fopen(%s): %s",
+		dprintf_rtk(LOG_ERR, FNAME, "cfparse: fopen(%s): %s",
 			path, strerror(errno));
 		if (errno == ENOENT)
 			return (0);
@@ -432,7 +445,7 @@ cfparse(conf)
 {
 	configfilename = conf;
 	if ((yyin = fopen(configfilename, "r")) == NULL) {
-		dprintf(LOG_ERR, FNAME, "cfparse: fopen(%s): %s",
+		dprintf_rtk(LOG_ERR, FNAME, "cfparse: fopen(%s): %s",
 			configfilename, strerror(errno));
 		if (errno == ENOENT)
 			return (0);

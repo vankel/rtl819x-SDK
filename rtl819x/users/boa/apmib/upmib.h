@@ -20,22 +20,44 @@
 
  
 typedef struct upmib{
-        int id;				
-        unsigned char name[32]; 	
+	int id;
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+	unsigned char name[128];
+#else
+	unsigned char name[32];
+#endif
 	unsigned char value[128];	//the mib value
+	TYPE_T type;
 }UPMIB_T, *UPMIB_Tp;
 
 
  
 UPMIB_T update_mib[] = {
 //add mib info here
-        {MIB_MIB_VER,           "MIB_VER",              "1"},
-        {0}
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+	{MIB_MIB_VER,           "MIB_VER",              "2"},
+	{MIB_MIB_VER,           "DEF_MIB_VER",          "2"},
+	{MIB_OP_MODE,           "OP_MODE",              "1"},
+	{MIB_OP_MODE,           "DEF_OP_MODE",          "1"},
+	{MIB_WLAN_WSC_DISABLE,   "WLAN0_WSC_DISABLE",              "1"},
+	{MIB_WLAN_WSC_DISABLE,   "DEF_WLAN0_WSC_DISABLE",          "1"},
+	{MIB_WLAN_IAPP_DISABLED, "WLAN0_IAPP_DISABLED",            "1"},
+	{MIB_WLAN_IAPP_DISABLED, "DEF_WLAN0_IAPP_DISABLED",        "1"},
+#else
+	{MIB_MIB_VER,           "MIB_VER",              "1", BYTE_T},
+#endif
+	{0}
 };
  
 UPMIB_T new_mib[] = {
 //add mib info here
-        {0}
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+	{MIB_MFI_WAC_DEVICE_NAME,           "MFI_WAC_DEVICE_NAME",              "RTL8196E"},
+	{MIB_MFI_WAC_DEVICE_NAME,           "DEF_MFI_WAC_DEVICE_NAME",              "RTL8196E"},
+	{MIB_WLAN_MFIWAC_CONFIGURED,           "DEF_WLAN0_MFIWAC_CONFIGURED",              "0"},
+	{MIB_WLAN_MFIWAC_CONFIGURED,           "WLAN0_MFIWAC_CONFIGURED",              "0"},
+#endif
+	{0}
 };
 
 

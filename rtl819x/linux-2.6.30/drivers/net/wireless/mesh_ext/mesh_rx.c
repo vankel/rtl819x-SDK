@@ -323,7 +323,7 @@ int mesh_shortcut_update(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
     struct proxy_table_entry *pProxyEntry;
     struct MESH_HDR * mesh_header;
     DRV_PRIV * orig_priv = priv;
-    if (memcmp(GetAddr4Ptr(pframe), pstat->rx_wlanhdr[idx].wlanhdr.addr4, MACADDRLEN)){
+    if (memcmp(GetAddr4Ptr(pframe), pstat->rx_sc_ent[idx].rx_wlanhdr.addr4, MACADDRLEN)){
         return -1;
     }
 
@@ -344,8 +344,8 @@ int mesh_shortcut_update(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
         if(1 > mesh_header->TTL || mesh_header->mesh_flag != 0x01) 
             return -1;
 
-        if (memcmp(mesh_header->DestMACAddr, pstat->rx_wlanhdr[idx].wlanhdr.meshhdr.DestMACAddr, 6) ||
-            memcmp(mesh_header->SrcMACAddr, pstat->rx_wlanhdr[idx].wlanhdr.meshhdr.SrcMACAddr, 6)) {
+        if (memcmp(mesh_header->DestMACAddr, pstat->rx_sc_ent[idx].rx_wlanhdr.meshhdr.DestMACAddr, 6) ||
+            memcmp(mesh_header->SrcMACAddr, pstat->rx_sc_ent[idx].rx_wlanhdr.meshhdr.SrcMACAddr, 6)) {
             return -1;
         }
 

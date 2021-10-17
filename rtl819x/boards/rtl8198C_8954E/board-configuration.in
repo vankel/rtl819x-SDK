@@ -1,0 +1,35 @@
+
+comment "rtl8198c"
+choice
+prompt "Selected Board Configuration"
+default MODEL_RTL8198C_8812_92E_GW
+
+# config MODEL_RTL8198C_RAMFS_GW
+#        bool "8198c ramfs GW"
+
+# config MODEL_RTL8198C_RAMFS_ETH_GW
+#        bool "8198c ramfs + Ethernet"
+
+config MODEL_RTL8198CD_8812_92E_GW
+        bool "RTL8198CD/8954E+8812+92E GW"
+
+config MODEL_RTL8198C_8812_92E_GW
+        bool "RTL8198C/8954E+8812+92E GW"
+
+config MODEL_RTL8198CS_8812_92E_GW
+        bool "RTL8198CS/8954ES+8812+92E GW"
+
+config MODEL_RTL8198C_MP
+        bool "RTL8198CD/8954E MP"
+
+config MODEL_RTL8198C_NAND
+        bool "RTL8198C NAND"
+
+config MODEL_RTL8198C_NAND_MP
+		bool "RTL8198C NAND MP"
+
+# refer to RDC4_3.4/Kconfig
+#   this file "Kconfig" will do "source boards/sheipa2/model/m1074k/config.cpu"
+source "boards/rtl8198C_8954E/config.cpu"
+
+endchoice

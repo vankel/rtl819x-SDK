@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Setup Wizard</title>
 <script type="text/javascript" src="util_gw.js"></script>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -500,7 +501,9 @@ function saveClick_wlan2(next, wlan_id)
 {
 
 	form =  document.wizard;
-	if(form.elements["method"+wlan_id].selectedIndex == 2){
+	if(form.elements["method"+wlan_id].selectedIndex == 2
+	|| form.elements["method"+wlan_id].selectedIndex == 3
+	|| form.elements["method"+wlan_id].selectedIndex == 4){
 		if(saveChanges_wpa(form, wlan_id) == false)
 			return false ;
 	}else if(form.elements["method"+wlan_id].selectedIndex == 1){
@@ -624,7 +627,8 @@ function Load_Setting()
 		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].value = "tkip";
 	if (wpa2_cipher & 2)	
 		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].value = "aes";
-*/		
+*/
+	
 	/* pocket router load setting*/
 	var wlBandMode = <% getIndex("wlanBand2G5GSelect"); %> ;
 	var wizardForm=document.wizard;
@@ -642,9 +646,11 @@ function Load_Setting()
 			wlan2_phyband = "5GHz"
 		else
 			wlan2_phyband = "2.4GHz"
-			
-		get_by_id("wlan1_band_str1").innerHTML = wlan2_phyband;
-		get_by_id("wlan2_band_str1").innerHTML = wlan2_phyband;
+
+		if(get_by_id("wlan1_band_str1"))
+			get_by_id("wlan1_band_str1").innerHTML = wlan2_phyband;
+		if(get_by_id("wlan2_band_str1"))
+			get_by_id("wlan2_band_str1").innerHTML = wlan2_phyband;
 	}
 	get_by_id("click_wlan2_next"+0).value = "Finished";
 	
@@ -688,7 +694,6 @@ function Load_Setting()
 	
 	pocketForm.elements["pocket_ssid"].value = wizardForm.elements["ssid0"].value;
 	pocketForm.elements["pocketAP_ssid"].value = wizardForm.elements["ssid0"].value;	
-	pocketForm.elements["pocketAP_realssid"].value = wizardForm.elements["ssid0"].value;	
 
 
 	pocketForm.elements["method0"].selectedIndex = wizardForm.elements["method0"].selectedIndex;
@@ -723,10 +728,10 @@ function Load_Setting()
 		
 		pocketForm.elements["pskFormat1"].selectedIndex = wizardForm.elements["pskFormat1"].selectedIndex;
 		pocketForm.elements["pskValue1"].value = wizardForm.elements["pskValue1"].value;
-		
+
 		if (wizardForm.elements["pskFormat1"].selectedIndex ==0){
-			document.wizard.pskValue1.maxLength = "63";
-			dF.pskFormat1.selectedIndex=0;
+		document.wizard.pskValue1.maxLength = "63";
+		dF.pskFormat1.selectedIndex=0;
 		}
 		else{
 			document.wizard.pskValue1.maxLength = "64";
@@ -848,7 +853,7 @@ function Load_Setting()
 		document.wizard.l2tpSubnetMask.disabled = true;
 		document.wizard.l2tpDefGw.disabled = true;
 	}
-	
+
 }
 
 function wizardTopClick()
@@ -1007,8 +1012,9 @@ function wlanBandModeSelection(selValue)
 <INPUT type=hidden name=wlan_support_8812e value=<% getIndex("wlan_support_8812e"); %>>
 
 <span id = "top_div" class = "on" >
+<br>
 <table  border=0 width="500" cellspacing=4 cellpadding=0>
-<tr><td><h2><b><font color="#0000FF">Setup Wizard</font></b></h2></td> </tr>
+<tr><td><h2>Setup Wizard</font></b></h2></td> </tr>
 <tr><td><font size=2>
  The setup wizard will guide  you to configure access point for first time. Please 
  follow the setup wizard step by step.
@@ -1174,8 +1180,9 @@ Welcome to Setup Wizard.<br>
 </span>
 <!-- opmode page -->
 <span id = "opmode_div" class = "off" >
+<br>
 <table border=0 width="500" cellspacing=0 cellpadding=0>
-<tr><td><h2><b><font color="#0000FF">Operation Mode</font></b></h2></td> </tr>
+<tr><td><h2>Operation Mode</h2></td> </tr>
 
   <tr><td><font size=2>
   You can setup different modes to LAN and WLAN interface for NAT and bridging function. 
@@ -1253,8 +1260,9 @@ Welcome to Setup Wizard.<br>
 </span>
 <!-- ntp page -->
 <span id = "ntp_div" class = "off" >
+<br>
 <table  border=0 width="500" cellspacing=4 cellpadding=0>
-  <tr><td colspan="2"><h2><font color="#0000FF">2. Time Zone Setting</font></h2></td></tr>
+  <tr><td colspan="2"><h2>Time Zone Setting</h2></td></tr>
   <tr><td colspan="2"><font size=2>
 
   You can maintain the system time by synchronizing with a public time server over the Internet.
@@ -1351,8 +1359,9 @@ Welcome to Setup Wizard.<br>
 </span>
 <!-- lan page -->
 <span id = "lan_div" class = "off" >
+<br>
 <table  border=0 width="500" cellspacing=4 cellpadding=0>
-  <tr><td colspan="2"><h2><font color="#0000FF">LAN Interface Setup</font></h2></td></tr>
+  <tr><td colspan="2"><h2>LAN Interface Setup</h2></td></tr>
   <tr><td colspan="2"><font size=2>
     This page is used to configure the parameters for local area network which
     connects to the LAN port of your Access Point. Here you may change the setting
@@ -1385,7 +1394,8 @@ Welcome to Setup Wizard.<br>
 <!-- wan page -->
 <span id = "wan_div" class = "off" >
 <table  border=0 width="500" cellspacing=4 cellpadding=0>
-  <tr><td colspan="2"><h2><font color="#0000FF">WAN Interface Setup</font></h2></td></tr>
+<br>
+  <tr><td colspan="2"><h2>WAN Interface Setup</h2></td></tr>
   <tr><td colspan="2"><font size=2>
     This page is used to configure the parameters for Internet network which
     connects to the WAN port of your Access Point. Here you may change the access
@@ -1580,7 +1590,7 @@ Welcome to Setup Wizard.<br>
     
     </table>
     </span>
-<div id="wan_btn">  
+<span id="wan_btn">  
     <table border="0" width=500>
 	<tr> <td colspan="2" align=right>
 		  <input type="button" value="  Cancel  " name="cancel" onClick='cancelClick();'>
@@ -1597,7 +1607,7 @@ Welcome to Setup Wizard.<br>
 		  
   	</td> </tr>
     </table>
-</div>
+</span>
 <script>
 			wanTypeSelection(form.wanType);
 </script>   
@@ -1610,8 +1620,9 @@ Welcome to Setup Wizard.<br>
 </script>
 
 <span id = "wlan_band_mode_div" class = "off" >
+<br>
 <table border=0 width="500" cellspacing=0 cellpadding=0>
-<tr><td><h2><b><font color="#0000FF">Select Wireless Band</font></b></h2></td> </tr>
+<tr><td><h2>Select Wireless Band</h2></td> </tr>
 
   <tr>
   	<td><font size=2>You can select Wireless Band.</td>
@@ -1697,8 +1708,9 @@ for(i=0; i< <% getIndex("wlan_num")); %>; i++){
 /**********************************************************/
 document.write('\
 <span id = "wlan1_div'+i+'" class = "off" > \
+<br>\
 <table  border=0 width="500" cellspacing=4  cellpadding=0> \
-  <tr><td  colspan="2"> <h2><font color="#0000FF">Wireless&nbsp;<SPAN id=wlan1_band_str'+i+'></SPAN>&nbsp;Basic Settings</font></h2> </td></tr> \
+  <tr><td  colspan="2"> <h2>Wireless&nbsp;<SPAN id=wlan1_band_str'+i+'></SPAN>&nbsp;Basic Settings</h2> </td></tr> \
   <tr><td  colspan="2"> <font size=2> \
  This page is used to configure the parameters for wireless LAN clients which \
  may connect to your Access Point.  \
@@ -1957,8 +1969,9 @@ document.write('\
 /**********************************************************/
 document.write('\
 <span id = "wlan2_div'+i+'" class = "off" >\
+<br>\
 <table  border=0 width="500" cellspacing=4 cellpadding=0>\
-    <tr><td  colspan="2"> <h2><font color="#0000FF">Wireless&nbsp;<SPAN id=wlan2_band_str'+i+'></SPAN>&nbsp;Security Setup</font></h2> </td></tr> \
+    <tr><td  colspan="2"> <h2>Wireless&nbsp;<SPAN id=wlan2_band_str'+i+'></SPAN>&nbsp;Security Setup</h2> </td></tr> \
     <tr><td  colspan="2"><font size=2>\
     This page allows you setup the wireless security. Turn on WEP or WPA by using\
     Encryption Keys could prevent any unauthorized access to your wireless network.\
@@ -1973,8 +1986,8 @@ document.write('\
           <option  value="0">None</option>\
           <option value="1">WEP</option>');
 			if (APMode[i] != 1)
-			document.write('<option value=\"4\"> WPA2(AES)</option>');
-		  		document.write('<option value=\"6\">WPA Mixed</option>');	
+				document.write('<option value=\"4\"> WPA2(AES)</option>');
+		  	document.write('<option value=\"6\">WPA Mixed</option>');	
  	  document.write('<% getInfo("wapiOption");%>');
  	  
  	  document.write('</select></font></td>\
@@ -2079,7 +2092,7 @@ document.write('\
 	</tr>\
   </table>\
 </span>\
-<div id="wep_btn'+i+'" >  \
+<span id="wep_btn'+i+'" >  \
 	<table border=0 width="500" >  \
 	<tr> <td colspan="2" align=right>\
 		  <input type="button" value="  Cancel  " name="cancel" onClick="cancelClick();">\
@@ -2088,7 +2101,7 @@ document.write('\
   	</td> </tr>\
 	<input type="hidden" value="" name="ciphersuite'+i+'">\
 </table> \
-</div>\
+</span>\
 </span>');
 /********************wapi end*********************************/
 
@@ -2108,7 +2121,7 @@ document.write('\
 	else if(encrypt[i]==6 && APMode[i] == 1)
 		form.elements["method"+i].selectedIndex = 2;
 	else if(encrypt[i]==6 && APMode[i] != 1)
-		form.elements["method"+i].selectedIndex = 3;
+		form.elements["method"+i].selectedIndex = 3;	
 	else if(encrypt[i]==7){	
 		if(pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT){
 			form.elements["method"+i].selectedIndex = 5;
@@ -2308,8 +2321,7 @@ function saveClickPocket_ssid(next){
 		wizardHideDiv();
 		show_div(true, ("pocket_wlan_security_div"));
 
-			//if(pocketForm.elements["pocket_ssid"].value != pocketForm.elements["pocketAP_ssid"].value) //pocketAP_ssid is MAC
-			if(pocketForm.elements["pocket_ssid"].value != pocketForm.elements["pocketAP_realssid"].value)
+			if(pocketForm.elements["pocket_ssid"].value != pocketForm.elements["pocketAP_ssid"].value)
 			{
 				document.getElementById("pocket_encrypt").value = "no";
 				pocketForm.elements["ciphersuite0"].value = "aes";
@@ -2397,13 +2409,13 @@ function saveClickPocket_Security(next){
 		{
 			if(pocketForm.elements["method"+i].selectedIndex == 0)
 				pocketForm.elements["wepEnabled"+i].value =  "OFF" ;
-			else
+		else
 				pocketForm.elements["wepEnabled"+i].value =  "ON" ;
 		
-			if(pocketRouter_Mode == POCKETROUTER_BRIDGE_AP)
-			{
+		if(pocketRouter_Mode == POCKETROUTER_BRIDGE_AP)
+		{
 				if(pocketForm.elements["method"+i].selectedIndex == 4)
-				{
+			{
 					pocketForm.elements["ciphersuite"+i].value = "aes/tkip";
 					pocketForm.elements["wpa2ciphersuite"+i].value = "aes/tkip";
 				}
@@ -2707,7 +2719,6 @@ function pocketWanTypeSelection(selValue)
 <input type=hidden id="pocket_encrypt1" name="pocket_encrypt1" value="">
 <input type=hidden id="pocketAP_ssid" name="pocketAP_ssid" value="">	
 <input type=hidden id="pocketAP_ssid1" name="pocketAP_ssid1" value="">
-<input type=hidden id="pocketAP_realssid" name="pocketAP_realssid" value="">	
 
 <input type=hidden id="pocket_channel" name="pocket_channel" value="">
 <input type=hidden id="mode0" name="mode0" value="<% getIndex("wlanMode");%>"*1>
@@ -2740,8 +2751,9 @@ function pocketWanTypeSelection(selValue)
 
 <!-- pocketRouter wan -->
 <span id = "pocket_wan_setting_div" class = "off" >
+<br>
 <table  border=0 width="500" cellspacing=4 cellpadding=0>
-  <tr><td colspan="2"><h2><font color="#0000FF">1. WAN Interface Setup</font></h2></td></tr>
+  <tr><td colspan="2"><h2> WAN Interface Setup</h2></td></tr>
   <tr><td colspan="2"><font size=2>
     This page is used to configure the parameters for Internet network which
     connects to the WAN port of your Access Point.
@@ -2921,8 +2933,9 @@ function pocketWanTypeSelection(selValue)
 
 <!-- pocketRouter band mode -->
 <span id = "pocket_wlan_band_mode_div" class = "off" >
+<br>
 <table border=0 width="500" cellspacing=0 cellpadding=0>
-<tr><td><h2><b><font color="#0000FF">Select Wireless Band</font></b></h2></td> </tr>
+<tr><td><h2>Select Wireless Band</h2></td> </tr>
 
   <tr>
   	<td><font size=2>You can select Wireless Band.</td>
@@ -2994,8 +3007,9 @@ if(pocketRouter_Mode == POCKETROUTER_BRIDGE_AP)
 </span>
 <!-- pocketRouter ssid -->
 <span id = "pocket_wlan_name_div" class = "off" >
+<br>
 <table border=0 width="500" cellspacing=0 cellpadding=0>
-<tr><td><h2><b><font color="#0000FF">Set Wireless Network Name </font></b></h2></td> </tr>
+<tr><td><h2>Set Wireless Network Name </h2></td> </tr>
 
   <tr>
   	<td><font size=2>You can enter the Wireless Network Name of AP.</td>
@@ -3099,9 +3113,9 @@ document.write('<iframe id="SSIDSiteSurvey" name="SSIDSiteSurvey" onload="javasc
 
 <!-- pocketRouter Security -->
 <span id = "pocket_wlan_security_div" class = "off" >
-
+<br>
 <table border=0 width="500" cellspacing=0 cellpadding=0>
-	<tr><td><h2><b><font color="#0000FF">Select Wireless Security Mode </font></b></h2></td> </tr>
+	<tr><td><h2>Select Wireless Security Mode </h2></td> </tr>
 
   <tr>
   	<td><font size=2>This page allows you setup the wireless security. Turn on WEP or WPA by using Encryption Keys could prevent any unauthorized access to your wireless network.</td>
@@ -3116,7 +3130,7 @@ document.write('<iframe id="SSIDSiteSurvey" name="SSIDSiteSurvey" onload="javasc
 			<select size="1" name="method0" onChange="pocket_checkState(0)">
           <option  value="0">None</option>
           <option value="1">WEP</option>
-<script>	
+<script>
 //document.write('<option value="2">WPA</option>');
 if(pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT)
 	document.write('<option value="4">WPA2</option>');
@@ -3164,7 +3178,7 @@ document.write('<option value="6">WPA2 Mixed</option>');
     </tr>
     <tr>
       <td width="35%"><font size="2"><b>Pre-Shared Key:</b></font> </td>
-      <td width="65%"><font size="2"><input type="text" name="pskValue0" size="32" value=""></font></td>
+      <td width="65%"><font size="2"><input type="text" name="pskValue0" size="32"  value=""></font></td>
     </tr>
      <tr></tr><tr></tr><tr></tr>
   </table>
@@ -3227,7 +3241,7 @@ document.write('<option value="6">WPA2 Mixed</option>');
         <select size="1" name="method1" onChange="pocket_checkState(1)">
           <option  value="0">None</option>
           <option value="1">WEP</option>
-<script>	
+<script>
 	//document.write('<option value="2">WPA</option>');
 if(pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT)
 		document.write('<option value="4">WPA2</option>');
@@ -3268,14 +3282,14 @@ document.write('<option value="6">WPA2 Mixed</option>');
    <table border=0 width="500" cellspacing=4 cellpadding=0>
     <tr>
       <td width="35%"><font size="2"><b>Pre-Shared Key Format:</b></font> </td>
-      <td width="65%"><font size="2"><select size="1" name="pskFormat1" onChange="pskFormatChange(document.wizardPocketGW,1)">
+      <td width="65%"><font size="2"><select size="1" name="pskFormat1" onChange="pskFormatChange(wizardPocketGW,1)">
           <option value="0" >Passphrase</option>
           <option value="1" >Hex (64 characters)</option>
         </select></font></td>
     </tr>
     <tr>
       <td width="35%"><font size="2"><b>Pre-Shared Key:</b></font> </td>
-      <td width="65%"><font size="2"><input type="text" name="pskValue1" size="32" value=""></font></td>
+      <td width="65%"><font size="2"><input type="text" name="pskValue1" size="32"  value=""></font></td>
     </tr>
      <tr></tr><tr></tr><tr></tr>
   </table>

@@ -524,6 +524,10 @@ int ip6_forward(struct sk_buff *skb)
 				ICMPV6_NOT_NEIGHBOUR, 0, skb->dev);
 			goto error;
 		}
+		#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+		if(addrtype & (IPV6_ADDR_SITELOCAL | IPV6_ADDR_COMPATv4 | IPV6_ADDR_MAPPED))
+		    goto error;
+		#endif
 	}
 
 	if (skb->len > dst_mtu(dst)) {

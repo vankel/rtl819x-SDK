@@ -63,8 +63,8 @@ host_alias =
 host_triplet = i686-pc-linux-gnu
 target_alias = 
 target_triplet = i686-pc-linux-gnu
-CC = rsdk-linux-gcc
-STRIP = rsdk-linux-strip
+CC = $(CROSS_COMPILE)gcc
+STRIP = $(CROSS_COMPILE)strip
 MAKEINFO = makeinfo
 PACKAGE = dnrd
 THREAD_CFLAGS = 
@@ -97,7 +97,12 @@ dnrd_LDFLAGS =
 CFLAGS := -g $(CFLAGS) -Os
 CFLAGS += $(EXTRA_CFLAGS)
 
-include ../../../linux-2.6.30/.config
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+include $(DIR_ROOT)/linux-2.6.30/.config
+else
+include $(DIR_LINUX)/.config
+endif
+#include ../../../linux-2.6.30/.config
 
 
 ifeq ($(CONFIG_DOMAIN_NAME_QUERY_SUPPORT),y)
@@ -123,7 +128,6 @@ endif
 ifeq ($(CONFIG_SUPPORT_RUSSIA_FEATURES),y)
 CFLAGS+=-DSUPPORT_ZIONCOM_RUSSIA
 endif
-
 COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@

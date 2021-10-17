@@ -1348,7 +1348,7 @@ typedef struct _BssDscr {
 	unsigned char	p2pdevname[33];		
 	unsigned char	p2prole;	
 	unsigned short	p2pwscconfig;		
-	unsigned char	p2paddress[MACADDRLEN];	 
+	unsigned char	p2paddress[MACADDRLEN];	    	
     /* multi-stage 2.3.0 */
     unsigned char	stage;	    
     

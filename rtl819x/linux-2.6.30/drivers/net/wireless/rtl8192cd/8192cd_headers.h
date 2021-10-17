@@ -1207,6 +1207,10 @@ EXTERN void RTLWIFINIC_GPIO_init_priv(struct rtl8192cd_priv *priv);
 EXTERN void RTLWIFINIC_GPIO_config(unsigned int gpio_num, unsigned int direction);
 EXTERN void RTLWIFINIC_GPIO_write(unsigned int gpio_num, unsigned int value);
 EXTERN int RTLWIFINIC_GPIO_read(unsigned int gpio_num);
+EXTERN void RTLWIFINIC_GPIO_config_proc(struct rtl8192cd_priv *priv, unsigned int gpio_num, unsigned int direction);
+EXTERN void RTLWIFINIC_GPIO_write_proc(struct rtl8192cd_priv *priv, unsigned int gpio_num, unsigned int value);
+EXTERN int RTLWIFINIC_GPIO_read_proc(struct rtl8192cd_priv *priv, unsigned int gpio_num);
+
 #endif
 
 

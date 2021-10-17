@@ -78,14 +78,17 @@ ifeq ($(CONFIG_RTL_COMAPI_CFGFILE),y)
 SOURCES += comapi.c
 endif
 SOURCES += fwd.c
+
+SOURCES += fwupg.c ../src/utility.c
 #------------------------------------------------------------------------------
 # targets
 #------------------------------------------------------------------------------
-all: depend flash fwd
+all: depend flash fwd fwupg
 
-#ifeq ($(CONFIG_RTL_11W_SUPPORT),y)
-#CFLAGS += -DCONFIG_IEEE80211W
-#endif
+
+ifeq ($(CONFIG_APP_APPLE_HOMEKIT),y)
+CFLAGS += -DCONFIG_APPLE_HOMEKIT
+endif
 
 ifeq ($(CONFIG_RTL_COMAPI_CFGFILE),y)
 flash: Makefile flash.o comapi.o $(APMIB_DIR)/$(APMIB_LIB)
@@ -101,9 +104,17 @@ fwd: Makefile fwd.o
 	$(CC) --static -o $@ fwd.o
 	$(STRIP) $@
 	
+ifeq ($(CONFIG_APP_CAPWAP),y)	
+fwupg: Makefile fwupg.o ../src/utility.o $(APMIB_DIR)/$(APMIB_LIB)
+	$(CC) -o $@ fwupg.o ../src/utility.o $(LDFLAGS) -L$(APMIB_DIR) -lapmib
+else
+fwupg:
+
+endif
+	
 clean:
 	rm -f $(DEPEND)
-	rm -f *.o flash fwd
+	rm -f *.o flash fwd fwupg
 
 depend: $(SOURCES)
 	if [ ! -e $(DEPEND) ]; then \

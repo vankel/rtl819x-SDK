@@ -127,6 +127,7 @@ extern struct cpe_machine cpe_client;
 void cwmpEvent(struct cpe_machine *m, unsigned int event);
 void cwmpSendEvent(unsigned int event);
 void cwmpDiagnosticDone();
+void cwmpSendUdpConnReq();
 
 //hold the state machine
 void cwmpSetCpeHold(int holdit);

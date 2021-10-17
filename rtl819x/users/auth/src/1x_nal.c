@@ -39,7 +39,9 @@
 #include "1x_supp_pae.h"
 extern Dot1x_Client		RTLClient;
 #endif
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+extern Dot1x_Authenticator RTLAuthenticator;
+#endif
 #ifdef START_AUTH_IN_LIB
 extern int read_wlan_evt(	int skfd, char *ifname, char *out);
 #endif
@@ -154,7 +156,9 @@ int lib1x_nal_connect( struct lib1x_nal_intfdesc * desc,  /*u_short udp_ourport,
 {
 	int flags;
 	struct sockaddr_in myaddr;
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	static int counter;
+#endif
 
 	if ( desc->inttype != LIB1X_IT_UDPSOCK )
 		return -1;
@@ -186,6 +190,14 @@ int lib1x_nal_connect( struct lib1x_nal_intfdesc * desc,  /*u_short udp_ourport,
 			if (connect( desc->udpsock, (struct sockaddr *)svraddr, addrlen ) != 0 )
 			{
 				lib1x_message(MESS_DBG_NAL,"lib1x_nal_connect: Could not connect to Authentication Server . ");
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+				/*For ethernet proxy mode and client mode are together*/
+				if(RTLAuthenticator.currentRole == role_eth && (RTLAuthenticator.ethDot1xMode & ETH_DOT1X_CLIENT_MODE)){
+					if(counter > 10)
+						break;
+					counter++;
+				}
+#endif
 				sleep(1);
 			}
 			else
@@ -349,7 +361,6 @@ int lib1x_nal_receive(Dot1x_Authenticator * auth)
 	FD_SET( descSupp->pf_sock, &fsRead);
 	iFD_SETSIZE = descSupp->pf_sock;
 #endif
-
 	if(auth->RSNVariable.Dot1xEnabled || auth->RSNVariable.MacAuthEnabled)
 	{
 		FD_SET( descSvr->udpsock, &fsRead);
@@ -367,8 +378,13 @@ int lib1x_nal_receive(Dot1x_Authenticator * auth)
 		}
 #endif
 	}
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth->currentRole  != role_eth)
+#endif
+	{
 	FD_SET( auth->GlobalTxRx->readfifo, &fsRead);
 	iFD_SETSIZE = (iFD_SETSIZE > auth->GlobalTxRx->readfifo)?iFD_SETSIZE:auth->GlobalTxRx->readfifo;
+	}
 	iFD_SETSIZE += 1;
 
 // david
@@ -381,7 +397,6 @@ res = select( iFD_SETSIZE, &fsRead, NULL, NULL, NULL);
 	}
 	else
 	{
-
 #ifndef EAP_BY_QUEUE
 		if(FD_ISSET(descSupp->pf_sock, &fsRead))
 		{
@@ -471,6 +486,10 @@ res = select( iFD_SETSIZE, &fsRead, NULL, NULL, NULL);
 #endif
 #endif // !PSK_ONLY
 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+		if(auth->currentRole  != role_eth)
+#endif
+		{
 #ifndef START_AUTH_IN_LIB
 		if(FD_ISSET(auth->GlobalTxRx->readfifo, &fsRead))
 #else
@@ -560,7 +579,7 @@ res = select( iFD_SETSIZE, &fsRead, NULL, NULL, NULL);
 
 			}
 		}
-
+	}
 #ifdef PSK_ONLY
 		if (nRead <= 0)
 			return 0;

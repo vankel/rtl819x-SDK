@@ -14,7 +14,12 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #endif
+#include <fcntl.h>
+#include <sys/stat.h>
+
+#if !defined(CONFIG_RTL_8198C)
 #define RTL_L2TP_POWEROFF_PATCH 1
+#endif
 
 extern int setFirewallIptablesRules(int argc, char** argv);
 extern int Last_WAN_Mode;
@@ -473,6 +478,501 @@ OUT:
 }
 #endif
 
+#ifdef CONFIG_IPV6
+#ifdef CONFIG_SIXRD_SUPPORT
+/*
+  create 6rd prefix delegation
+  
+  If 6rd prefix is 2001:db8::/32
+  local ipv4 address is 10.2.2.2 and mask is 8
+  The 6rd delegated prefix is 2001:db8:0202:0200::/64
+  */
+void create_6rd_prefix_delegation(addr6CfgParam_t	*addr6, struct in_addr *addr4, int mask, addr6CfgParam_t *addr6_6rd_pd)
+{
+	uint8 pd[8]={0};
+	int i, j, k, len1, len2;
+	u_long s_addr;
+
+	len1 = addr6->prefix_len/8;
+	for(i=0; i<len1; i++)
+	{
+		j = i/2;
+		if(i%2 == 0)
+		{
+			pd[i] = addr6->addrIPv6[j] >> 8;
+		}
+		else
+		{
+			pd[i] = addr6->addrIPv6[j] & 0x00ff;
+		}
+	}
+
+	s_addr = (u_long)addr4->s_addr;
+	k = mask/8;
+	for(i=0; i<k; i++)
+		s_addr = s_addr << 8;
+	len2 = 4 - k;
+	len2 = len1 + len2;
+	for(i=len1; i<len2; i++)
+	{
+		pd[i] = (s_addr & 0xff000000) >> 24;
+		s_addr = s_addr << 8;
+	}
+
+	for(i=0; i<4; i++)
+	{
+		addr6_6rd_pd->addrIPv6[i] = (pd[2*i] << 8) + pd[2*i+1];
+	}
+	addr6_6rd_pd->prefix_len = 64;
+}
+
+/*
+  * create 6rd tunnel
+  *
+  * eg.
+  * 	Ip tunnel add tun6rd mode sit local 10.2.2.2 ttl 64
+  *	Ip tunnel 6rd dev tun6rd 6rd-prefix 2001:db8::/32
+  *	Ip link set tun6rd up
+  *	Ip -6 addr add 2001:db8:a02:202::/64 dev p20p1
+  *	Ip -6 addr add 2001:db8::/32 dev tun6rd 
+  *	Ip -6 route add ::/0 via ::10.2.2.1 dev tun6rd
+  */
+void create_6rd_tunnel(addr6CfgParam_t	*addr6, char *wanip, addr6CfgParam_t *addr6_6rd_pd, char *addr4_6rd_br)
+{
+	char tmpBuf[256];
+	
+	bzero(tmpBuf,sizeof(tmpBuf));
+	sprintf(tmpBuf,"ip tunnel add tun6rd mode sit local %s ttl 64", wanip);
+	system(tmpBuf);
+//	printf("%s\n", tmpBuf);
+
+	bzero(tmpBuf,sizeof(tmpBuf));
+	sprintf(tmpBuf,"ip tunnel 6rd dev tun6rd 6rd-prefix %04x:%04x:%04x:%04x::/%d",
+		addr6->addrIPv6[0], addr6->addrIPv6[1], addr6->addrIPv6[2], addr6->addrIPv6[3],
+		addr6->prefix_len);
+	system(tmpBuf);
+//	printf("%s\n", tmpBuf);
+
+	bzero(tmpBuf,sizeof(tmpBuf));
+	sprintf(tmpBuf,"ip link set tun6rd up");
+	system(tmpBuf);
+//	printf("%s\n", tmpBuf);
+
+	bzero(tmpBuf,sizeof(tmpBuf));
+	sprintf(tmpBuf,"ip -6 addr add %04x:%04x:%04x:%04x::1/%d dev br0",
+		addr6_6rd_pd->addrIPv6[0], addr6_6rd_pd->addrIPv6[1],
+		addr6_6rd_pd->addrIPv6[2], addr6_6rd_pd->addrIPv6[3],
+		addr6_6rd_pd->prefix_len);
+	system(tmpBuf);
+//	printf("%s\n", tmpBuf);
+
+	bzero(tmpBuf,sizeof(tmpBuf));
+	sprintf(tmpBuf,"ip -6 addr add %04x:%04x:%04x:%04x::1/%d dev tun6rd ",
+		addr6_6rd_pd->addrIPv6[0], addr6_6rd_pd->addrIPv6[1],
+		addr6_6rd_pd->addrIPv6[2], addr6_6rd_pd->addrIPv6[3],
+		addr6->prefix_len);
+	system(tmpBuf);
+//	printf("%s\n", tmpBuf);
+
+	bzero(tmpBuf,sizeof(tmpBuf));
+	sprintf(tmpBuf,"ip -6 route add ::/0 via ::%s dev tun6rd", addr4_6rd_br);
+	system(tmpBuf);
+//	printf("%s\n", tmpBuf);
+}
+
+void create_radvd_conf_use_6rd_pd(addr6CfgParam_t *addr6_6rd_pd)
+{
+	radvdCfgParam_t radvdCfgParam;
+	int fh;
+	char tmpStr[256];
+	char tmpBuf[256];
+	int dnsMode;
+	FILE *fp=NULL;
+	
+	if ( !apmib_get(MIB_IPV6_RADVD_PARAM,(void *)&radvdCfgParam)){
+		printf("get MIB_IPV6_RADVD_PARAM failed\n");
+		return;  
+	}
+
+	if(!radvdCfgParam.enabled)
+		return;
+
+	if(!isFileExist(RADVD_CONF_FILE)){
+		/*create config file*/
+//		printf("%s-%d: create configure file: %s.\n", __FUNCTION__, __LINE__, RADVD_CONF_FILE);
+		fh = open(RADVD_CONF_FILE, O_RDWR|O_CREAT|O_TRUNC, S_IRWXO|S_IRWXG);	
+		if (fh < 0) {
+			fprintf(stderr, "Create %s file error!\n", RADVD_CONF_FILE);
+			return;
+		}
+		printf("create radvd.conf\n");
+		sprintf(tmpStr, "interface %s\n", radvdCfgParam.interface.Name);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "{\n");
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "AdvSendAdvert on;\n");
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "MaxRtrAdvInterval %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "MinRtrAdvInterval %d;\n", radvdCfgParam.interface.MinRtrAdvInterval);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "MinDelayBetweenRAs %d;\n", radvdCfgParam.interface.MinDelayBetweenRAs);
+		write(fh, tmpStr, strlen(tmpStr));
+		if(radvdCfgParam.interface.AdvManagedFlag > 0) {
+			sprintf(tmpStr, "AdvManagedFlag on;\n");
+			write(fh, tmpStr, strlen(tmpStr));			
+		}
+		if(radvdCfgParam.interface.AdvOtherConfigFlag > 0){
+			sprintf(tmpStr, "AdvOtherConfigFlag on;\n");
+			write(fh, tmpStr, strlen(tmpStr));	
+		}
+		sprintf(tmpStr, "AdvLinkMTU %d;\n", radvdCfgParam.interface.AdvLinkMTU);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "AdvReachableTime %u;\n", radvdCfgParam.interface.AdvReachableTime);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "AdvRetransTimer %u;\n", radvdCfgParam.interface.AdvRetransTimer);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "AdvCurHopLimit %d;\n", radvdCfgParam.interface.AdvCurHopLimit);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "AdvDefaultLifetime %d;\n", radvdCfgParam.interface.AdvDefaultLifetime);
+		write(fh, tmpStr, strlen(tmpStr));
+		sprintf(tmpStr, "AdvDefaultPreference %s;\n", radvdCfgParam.interface.AdvDefaultPreference);
+		write(fh, tmpStr, strlen(tmpStr));
+		if(radvdCfgParam.interface.AdvSourceLLAddress > 0) {
+			sprintf(tmpStr, "AdvSourceLLAddress on;\n");
+			write(fh, tmpStr, strlen(tmpStr));			
+		}		
+		if(radvdCfgParam.interface.UnicastOnly > 0){
+			sprintf(tmpStr, "UnicastOnly on;\n");
+			write(fh, tmpStr, strlen(tmpStr));	
+		}
+
+		/*prefix 1*/
+		if(radvdCfgParam.interface.prefix[0].enabled > 0){
+			sprintf(tmpBuf, "%04x:%04x:%04x:%04x:0000:0000:0000:0000",
+				addr6_6rd_pd->addrIPv6[0], addr6_6rd_pd->addrIPv6[1], 
+				addr6_6rd_pd->addrIPv6[2], addr6_6rd_pd->addrIPv6[3]);
+			strcat(tmpBuf, "\0");
+			sprintf(tmpStr, "prefix %s/64\n", tmpBuf);			
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "{\n");
+			write(fh, tmpStr, strlen(tmpStr));
+			if(radvdCfgParam.interface.prefix[0].AdvOnLinkFlag > 0){
+				sprintf(tmpStr, "AdvOnLink on;\n");
+				write(fh, tmpStr, strlen(tmpStr));					
+			}
+			if(radvdCfgParam.interface.prefix[0].AdvAutonomousFlag > 0){
+				sprintf(tmpStr, "AdvAutonomous on;\n");
+				write(fh, tmpStr, strlen(tmpStr));					
+			}
+			sprintf(tmpStr, "AdvValidLifetime %u;\n", radvdCfgParam.interface.prefix[0].AdvValidLifetime);
+			write(fh, tmpStr, strlen(tmpStr));					
+			sprintf(tmpStr, "AdvPreferredLifetime %u;\n", radvdCfgParam.interface.prefix[0].AdvPreferredLifetime);
+			write(fh, tmpStr, strlen(tmpStr));	
+			if(radvdCfgParam.interface.prefix[0].AdvRouterAddr > 0){
+				sprintf(tmpStr, "AdvRouterAddr on;\n");
+				write(fh, tmpStr, strlen(tmpStr));						
+			}
+			sprintf(tmpStr, "};\n");
+			write(fh, tmpStr, strlen(tmpStr));
+		}
+
+		
+#ifdef SUPPORT_RDNSS_OPTION
+		//add RDNSS 
+		apmib_get(MIB_IPV6_DNS_AUTO, (void *)&dnsMode);		
+		if(dnsMode==0)  //Set DNS Manually 
+		{
+			addr6CfgParam_t addr6_dns;
+			
+			apmib_get(MIB_IPV6_ADDR_DNS_PARAM,  (void *)&addr6_dns);
+				
+			snprintf(tmpBuf, sizeof(tmpBuf), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", 
+			addr6_dns.addrIPv6[0], addr6_dns.addrIPv6[1], addr6_dns.addrIPv6[2], addr6_dns.addrIPv6[3], 
+			addr6_dns.addrIPv6[4], addr6_dns.addrIPv6[5], addr6_dns.addrIPv6[6], addr6_dns.addrIPv6[7]);
+
+			if(strstr(tmpBuf, "0000:0000:0000:0000:0000:0000:0000:0000")==NULL)	
+			{
+				//add RDNSS 
+				sprintf(tmpStr, "RDNSS %s\n",tmpBuf);
+				write(fh, tmpStr, strlen(tmpStr));
+				sprintf(tmpStr, "{\n");
+				write(fh, tmpStr, strlen(tmpStr));
+				sprintf(tmpStr, "AdvRDNSSLifetime %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+				write(fh, tmpStr, strlen(tmpStr));
+				sprintf(tmpStr, "};\n");
+				write(fh, tmpStr, strlen(tmpStr));
+			}			
+		}
+		else
+		{
+			if(isFileExist(DNSV6_ADDR_FILE))
+			{
+				if((fp=fopen("/var/dns6.conf","r"))!=NULL)
+				{				
+					memset(tmpStr, 0, sizeof(tmpStr));
+					while(fgets(tmpBuf, sizeof(tmpBuf), fp))
+					{
+						tmpBuf[strlen(tmpBuf)-1]=0;
+						strcat(tmpStr, tmpBuf+strlen("nameserver")+1);
+						strcat(tmpStr, " ");					
+					}
+					if(strlen(tmpStr>1)==0)
+					{
+						tmpStr[strlen(tmpStr)-1]=0;				
+						sprintf(tmpBuf, "RDNSS %s\n",tmpStr);
+						write(fh, tmpBuf, strlen(tmpBuf));
+						sprintf(tmpBuf, "{\n");
+						write(fh, tmpBuf, strlen(tmpStr));
+						sprintf(tmpBuf, "AdvRDNSSLifetime %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+						write(fh, tmpBuf, strlen(tmpBuf));
+						sprintf(tmpBuf, "};\n");
+						write(fh, tmpBuf, strlen(tmpBuf));	
+					}
+					fclose(fp);	
+				}
+			}
+		}
+#endif
+
+#ifdef SUPPORT_DNSSL_OPTION
+		//add DNSSL
+		memset(tmpBuf, 0, sizeof(tmpBuf));
+		apmib_get(MIB_DOMAIN_NAME, (void *)tmpBuf);	
+		if(strlen(tmpBuf)>0)
+		{
+			sprintf(tmpStr, "DNSSL %s.com %s.com.cn\n", tmpBuf, tmpBuf);
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "{\n");
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "AdvDNSSLLifetime %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "};\n");
+			write(fh, tmpStr, strlen(tmpStr));		
+		}
+#endif
+
+		sprintf(tmpStr, "};\n");
+		write(fh, tmpStr, strlen(tmpStr));		
+		close(fh);		
+	}
+
+	return;
+}
+
+
+void create_dhcp6s_conf_use_6rd_pd(addr6CfgParam_t *addr6_6rd_pd)
+{
+	char tmpStr[256];
+	FILE *fp;
+	int pid=-1;
+	addr6CfgParam_t addr6_dns;
+	dhcp6sCfgParam_t dhcp6sCfgParam;
+
+	if ( !apmib_get(MIB_IPV6_DHCPV6S_PARAM,(void *)&dhcp6sCfgParam)){
+		printf("get MIB_IPV6_DHCPV6S_PARAM failed\n");
+		return;  
+	}
+	
+	if(!dhcp6sCfgParam.enabled){
+		return;
+	}
+	
+	if ( !apmib_get(MIB_IPV6_ADDR_DNS_PARAM,(void *)&addr6_dns)){
+		printf("Get dns ip failed!\n");
+		return;        
+	}
+
+	fp=fopen(DHCP6S_CONF_FILE,"w+");
+	if(fp==NULL)
+	{
+		printf("Open %s file error!\n", DHCP6S_CONF_FILE);
+		return;
+	}
+	printf("create dhcp6s.conf\n");
+		
+	fprintf(fp, "option domain-name-servers %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x;\n",
+		addr6_dns.addrIPv6[0], addr6_dns.addrIPv6[1], addr6_dns.addrIPv6[2],
+		addr6_dns.addrIPv6[3], addr6_dns.addrIPv6[4], addr6_dns.addrIPv6[5],
+		addr6_dns.addrIPv6[6], addr6_dns.addrIPv6[7]);
+	fprintf(fp, "interface br0 {\n");
+	fprintf(fp, "  address-pool pool1 3600;\n");
+	fprintf(fp, "};\n");
+	fprintf(fp, "pool pool1 {\n");
+	fprintf(fp, "  range %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x to" \
+		" %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x ;\n",
+		addr6_6rd_pd->addrIPv6[0], addr6_6rd_pd->addrIPv6[1],
+		addr6_6rd_pd->addrIPv6[2], addr6_6rd_pd->addrIPv6[3],
+		addr6_6rd_pd->addrIPv6[4], addr6_6rd_pd->addrIPv6[5],
+		addr6_6rd_pd->addrIPv6[6], addr6_6rd_pd->addrIPv6[7]+2,
+		addr6_6rd_pd->addrIPv6[0], addr6_6rd_pd->addrIPv6[1],
+		addr6_6rd_pd->addrIPv6[2], addr6_6rd_pd->addrIPv6[3],
+		addr6_6rd_pd->addrIPv6[4], addr6_6rd_pd->addrIPv6[5],
+		addr6_6rd_pd->addrIPv6[6], addr6_6rd_pd->addrIPv6[7]+4096);
+	fprintf(fp, "};\n");
+
+	fclose(fp);
+		
+	return;
+}
+
+void set_6rd(char *wanip)
+{
+	addr6CfgParam_t	addr6, addr6_6rd_pd;
+	int mask;
+	struct in_addr wanaddr;
+	char addr4_6rd_br[32], tmpBuf[20];
+	int val;
+
+	if(!apmib_get(MIB_IPV6_ORIGIN_TYPE,&val)){
+		fprintf(stderr, "Read MIB_IPV6_ORIGIN_TYPE Error\n");
+		return -1;			
+	}
+	if(val != 2) //if not 6rd, return
+		return;
+
+	if(!apmib_get(MIB_IPV6_WAN_ENABLE,&val)){		
+		fprintf(stderr, "get mib %d error!\n", MIB_IPV6_WAN_ENABLE);
+		return ;			
+	}
+	if(val==0) // if unable ipv6, return
+		return;
+
+	//get 6rd prefix
+	if ( !apmib_get(MIB_IPV6_6RD_PREFIX_PARAM,(void *)&addr6)){
+		printf("Get MIB_IPV6_6RD_PREFIX_PARAM error!\n");
+		return;        
+	}
+
+	//get mask
+	if(!apmib_get(MIB_IPV4_6RD_MASK_LEN,(void *)&mask)){
+		printf("Read MIB_IPV4_6RD_MASK_LEN Error\n");
+		return;			
+	}
+
+	//get 6rd br
+	if(!apmib_get( MIB_IPV4_6RD_BR_ADDR,  (void *)&tmpBuf)){
+		printf("Read MIB_IPV4_6RD_BR_ADDR Error\n");
+		return;			
+	}
+	sprintf(addr4_6rd_br, "%s",inet_ntoa(*((struct in_addr *)tmpBuf)));
+
+	if ( !inet_aton(wanip, &wanaddr) ) {
+		printf("Invalid wanip value!\n");
+		return;
+	}
+
+	create_6rd_prefix_delegation(&addr6, &wanaddr, mask, &addr6_6rd_pd);
+	create_6rd_tunnel(&addr6, wanip, &addr6_6rd_pd, addr4_6rd_br);
+	create_radvd_conf_use_6rd_pd(&addr6_6rd_pd);
+	create_dhcp6s_conf_use_6rd_pd(&addr6_6rd_pd);
+}
+#endif
+#endif
+
+
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+
+ void dhcp_connect(char *interface, char *option)
+ {
+	char line[128], arg_buff[200];
+	char *cmd_opt[16];
+	int cmd_cnt = 0 ,x, index=0;
+	int dns_found=0; 
+	struct in_addr addr;
+	char dynip[32]={0}, mask[32]={0},remoteip[32]={0};
+	char serverId[32]={0};
+	char dns_server[5][32];
+	char *token=NULL, *savestr1=NULL;
+	unsigned char cmdBuffer[100], tmpBuff[64];
+	
+	 if(!strcmp(interface, "br0")){//do not care wan type, it is dhcp client only
+		for (x=0;x<5;x++){
+			memset(dns_server[x], '\0', 32);
+		}
+		token=NULL;
+		savestr1=NULL;	     
+		sprintf(arg_buff, "%s", option);
+	
+		token = strtok_r(arg_buff," ", &savestr1);
+		index=1;
+		do{
+			dns_found=0;
+			if (token == NULL){/*check if the first arg is NULL*/
+				break;
+			}else{   
+				if(index==3)
+					sprintf(dynip, "%s", token+2); /*wan ip address */
+				if(index==4)
+					sprintf(mask, "%s", token+2); /*subnet mask*/
+					
+				if(index==5){
+					if(token[0] =='r')
+						sprintf(remoteip, "%s", token+2); /*gateway ip*/	
+					if(token[0] == 's'){
+						sprintf(serverId, "%s", token+2); /*server ip*/	
+					}
+					if(token[0] == 'd'){ /*dns ip*/	
+						printf("Index ==4, but parse dns ipaddress token=%s\n",token);
+						token = token+2;
+						for(x=0;x<5;x++){
+							if(dns_server[x][0] != '\0'){
+								if(!strcmp(dns_server[x], token)){
+									dns_found = 1; 
+									break;
+								}
+							}
+						}
+						if(dns_found ==0){
+							for(x=0;x<5;x++){
+								if(dns_server[x][0] == '\0'){
+									sprintf(dns_server[x], "%s", token);
+									break;
+								}
+							}
+						}
+					}
+				}
+				
+				if(index > 6){
+					if(token[0] == 'd'){
+						token = token+2;
+					}
+					for(x=0;x<5;x++){
+						if(dns_server[x][0] != '\0'){
+							if(!strcmp(dns_server[x], token)){
+								dns_found = 1; 
+								break;
+							}
+						}
+					}
+					if(dns_found ==0){
+						for(x=0;x<5;x++){
+							if(dns_server[x][0] == '\0'){
+								sprintf(dns_server[x], "%s", token);
+								break;
+							}
+						}
+					}
+				}
+			}
+			index++;
+			token = strtok_r(NULL, " ", &savestr1);
+		}while(token !=NULL);  
+		
+		inet_aton(dynip, &addr);//save ipaddr we got
+		
+		RunSystemCmd(NULL_FILE, "ifconfig", interface, dynip, "netmask", mask, NULL_STR);	
+		RunSystemCmd(NULL_FILE, "route", "del", "default", "dev", interface, NULL_STR);
+		
+		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR);
+	}
+		
+}
+ 
+ #endif //#if defined(CONFIG_APP_APPLE_MFI_WAC)
+
+
 void wan_connect(char *interface, char *option)
 {
 	char line[128], arg_buff[200];
@@ -582,7 +1082,12 @@ void wan_connect(char *interface, char *option)
 #endif
 
 #if defined(CONFIG_DYNAMIC_WAN_IP)
+
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_type==PPTP || wan_type==L2TP || wan_type==PPPOE){
+#else
 		if(wan_type==PPTP || wan_type==L2TP){
+#endif
 			if(opmode==GATEWAY_MODE)
 				RunSystemCmd(NULL_FILE, "route", "del", "default", "dev", "eth1", NULL_STR);
 			if(opmode==WISP_MODE)
@@ -873,12 +1378,22 @@ void wan_connect(char *interface, char *option)
 #endif
 
 		RunSystemCmd(NULL_FILE, "ifconfig", interface, wanip, "netmask", mask, NULL_STR);	
-#ifdef SUPPORT_ZIONCOM_RUSSIA
-		if(strcmp(interface, "br0"))
+#if defined(SUPPORT_ZIONCOM_RUSSIA) || defined(_ALPHA_DUAL_WAN_SUPPORT_)
+		if(strcmp(interface, "br0") && (!getInAddr("ppp0", 0, (void *)&wanaddr)))
 			setFirewallIptablesRules(-1, NULL);
+		else if(strcmp(interface, "br0"))
+		{
+			setFirewallIptablesRules(0, NULL);
+			
+		}
+		addRouteForACS();
 #endif
 #if defined(CONFIG_DYNAMIC_WAN_IP)
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if(wan_type != PPTP && wan_type != L2TP && wan_type!=PPPOE) {
+#else
 		if(wan_type != PPTP && wan_type != L2TP) {
+#endif
 #endif
 		RunSystemCmd(NULL_FILE, "route", "del", "default", NULL_STR);
 		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR);
@@ -999,7 +1514,12 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 	}
 #endif
 #if defined(CONFIG_DYNAMIC_WAN_IP)
+
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	if(wan_type == PPTP || wan_type == L2TP || wan_type == PPPOE){
+#else
 	if(wan_type == PPTP || wan_type == L2TP){
+#endif
 
 #ifdef TR181_SUPPORT
 		if(dnsEnable==1)
@@ -1024,14 +1544,18 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 			}
 		}
 		}
-		
-		RunSystemCmd(NULL_FILE, "route", "del", "default", "dev", interface, NULL_STR);
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_		
+		if((wan_type != PPPOE) || (!getInAddr("ppp0", 0, (void *)&wanaddr)))
+#endif
+		{
+			RunSystemCmd(NULL_FILE, "route", "del", "default", "dev", interface, NULL_STR);
 #if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)	
 		//set tmp default gw for get ip from domain
 		sprintf(tmp_default_gw, "%s", remoteip);
 		sprintf(tmp_wan_if, "%s", interface);
 #endif
 		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR); //redundant, but safe
+		}
 		//printf("%s:%d route add -net default gw %s dev %s\n",__FUNCTION__,__LINE__,remoteip,interface);
 		if(isFileExist(TEMP_WAN_CHECK) && isFileExist(TEMP_WAN_DHCP_INFO)){
 			if(wan_type == PPTP){				
@@ -1136,7 +1660,7 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 			unlink(TEMP_WAN_DHCP_INFO);
 		}
 
-		if(isFileExist(PPP_CONNECT_FILE)){
+		if(wan_type != PPPOE && isFileExist(PPP_CONNECT_FILE)){
 			unlink(PPP_CONNECT_FILE);
 		}
 		//system("killall -9 udhcpc 2>/dev/null");	
@@ -1291,12 +1815,22 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 #if !defined(CONFIG_POCKET_ROUTER_SUPPORT)
 			//when op_mode== GATEWAY_MODE for pocket AP, there isn't interface eth0
 			system("ifconfig eth0 down");
+#if defined(CONFIG_RTL_MULTI_LAN_DEV)
+			system("ifconfig eth2 down");
+			system("ifconfig eth3 down");
+			system("ifconfig eth4 down");
+#endif
 #endif		
 			sleep(10);
 			
 #if !defined(CONFIG_POCKET_ROUTER_SUPPORT)
 			system("ifconfig eth0 up");
-#endif			
+#if defined(CONFIG_RTL_MULTI_LAN_DEV)
+			system("ifconfig eth2 up");
+			system("ifconfig eth3 up");
+			system("ifconfig eth4 up");
+#endif
+#endif
 			if(op_mode!=WISP_MODE)
 			{
 				system("ifconfig wlan0 up");
@@ -1499,6 +2033,9 @@ void wan_disconnect(char *option)
 //	apmib_get(MIB_WAN_DHCP,(void *)&wan_type);
 	
 	RunSystemCmd(NULL_FILE, "killall", "-15", "routed", NULL_STR); 
+#ifdef RIP6_SUPPORT
+	RunSystemCmd(NULL_FILE, "killall", "-15", "bird6", NULL_STR); 
+#endif
 	
 	RunSystemCmd(NULL_FILE, "killall", "-9", "ntp_inet", NULL_STR);
 	if(isFileExist("/var/ntp_run")){
@@ -1638,7 +2175,7 @@ void wan_disconnect(char *option)
 	}
 #endif
 	RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,1", NULL_STR);
-	//printf("Last_WAN_Mode==%d\n", Last_WAN_Mode);//Added for test
+//	printf("Last_WAN_Mode==%d\n", Last_WAN_Mode);//Added for test
 	if(!strcmp(option, "all"))
 		RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR); 
 	//if(Last_WAN_Mode==PPPOE)
@@ -1781,6 +2318,11 @@ void checkDnsv6()
 			return;  
 		}
 
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+		if(!(dhcp6sCfgParam.enabled && dhcp6sCfgParam.addr6PrefixMode == 1))
+			return;
+#endif
+
 		fp=fopen(DNSV6_ADDR_FILE,"r");
 		if(fp==NULL)
 			return;
@@ -1788,10 +2330,10 @@ void checkDnsv6()
 		fscanf(fp,"%s %s",serverName,dns_server);
 		fclose(fp);
 		
-		
 		fp=fopen(DHCP6S_CONF_FILE,"w+");
 		if(fp==NULL)
 			return;
+#ifndef CONFIG_IPV6_CE_ROUTER_SUPPORT
 		if(dhcp6sCfgParam.enabled){	
 			bzero(&dns_addr6,sizeof(dns_addr6));
 			strcpy(dns_addr6,dns_server);		
@@ -1808,7 +2350,7 @@ void checkDnsv6()
 			if(dhcp6_pd.flag){
 				strcpy(dns_addr6,dns_server);
 				fprintf(fp, "option domain-name-servers %s;\n", dns_server);
-				fprintf(fp, "interface br0 {\n");
+				fprintf(fp, "interface %s {\n", dhcp6sCfgParam.interfaceNameds);
 				fprintf(fp, "  address-pool pool1 3600;\n");
 				fprintf(fp, "};\n");
 				fprintf(fp, "pool pool1 {\n");
@@ -1827,6 +2369,30 @@ void checkDnsv6()
 				flag=1;
 			}
 		}
+#else
+		if(dhcp6_pd.flag){
+			strcpy(dns_addr6,dns_server);
+			fprintf(fp, "option domain-name-servers %s;\n", dns_server);
+			fprintf(fp, "interface %s {\n", dhcp6sCfgParam.interfaceNameds);
+			fprintf(fp, "  address-pool pool1 3600;\n");
+			fprintf(fp, "};\n");
+			fprintf(fp, "pool pool1 {\n");			
+			fprintf(fp, "  range %04x:%04x:%04x:%04x:%s "	\
+							"to %04x:%04x:%04x:%04x:%s ;\n",
+							dhcp6_pd.addr6[0],
+							dhcp6_pd.addr6[1],
+							dhcp6_pd.addr6[2],
+							dhcp6_pd.addr6[3],
+							dhcp6sCfgParam.addr6PoolS,
+							dhcp6_pd.addr6[0],
+							dhcp6_pd.addr6[1],
+							dhcp6_pd.addr6[2],
+							dhcp6_pd.addr6[3],
+							dhcp6sCfgParam.addr6PoolE);
+			fprintf(fp, "};\n");
+			flag=1;
+		}
+#endif
 		fclose(fp);
 		
 		/*start daemon*/
@@ -1847,8 +2413,285 @@ void checkDnsv6()
 		return;
 }
 
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+void check_ipv6_ce()
+{
+        char *ptr_sip = NULL;
+        char *ptr_dns = NULL;
+        char *ptr_dnsname = NULL;
+        ptr_sip = getenv("new_sip_servers");
+        ptr_dns = getenv("new_domain_name_servers");
+        ptr_dnsname = getenv("new_domain_name");
+
+        #define MAXDNAME 255
+		dhcp6sCfgParam_t dhcp6sCfgParam;
+        /* according to wide-dhcpv6 dhcp6s.conf
+         * file /var/dnsname6.conf format will be these,note no " and ; because the update compare
+         * option domain-name s
+         * option domain-name s
+         * option domain-name s
+         * ...
+         *
+         * file /var/sip6.conf format will be these
+         * option sip-server-address sip-server-address [sip-server-addresses...];
+         *
+         * file /var/dns6.conf format will be these
+         * option domain-name-servers dns-address [dns-addresses...];
+         * */
+		char sip_dns_server[64];
+		char sip_dns_server_else[64];
+		char dnsName_else[MAXDNAME + 1]; //for string s
+		char dnsName[MAXDNAME + 1]; //for string s
+		memset(sip_dns_server,0,64);
+		memset(sip_dns_server_else,0,64);
+		memset(dnsName,0,MAXDNAME + 1);
+		memset(dnsName_else,0,MAXDNAME + 1);
+		int pid=-1;
+		FILE *fp_src = NULL,*fp_dst = NULL,*fp_else = NULL,*fp_tmp = NULL;
+		char prefix[64];
+		int flag=1;
+
+        int need_update = 0;
+        
+        if(!ptr_sip&& !ptr_dns && !ptr_dnsname)
+            return;
+
+		if ( !apmib_get(MIB_IPV6_DHCPV6S_PARAM,(void *)&dhcp6sCfgParam)){
+			fprintf(stderr,"get MIB_IPV6_DHCPV6S_PARAM failed\n");
+			return;  
+		}
+
+		fp_dst = fopen(DHCP6S_CONF_FILE,"w+");
+		if(fp_dst == NULL)
+            return;
+
+        if(!ptr_sip){ /*check if get null*/
+            fp_src=fopen(SIPV6_ADDR_FILE_CE,"r");
+            if(fp_src){ /*if fp_src null, do nothing*/
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string option*/
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string sip-server-address*/
+                fprintf(fp_dst, "option sip-server-address "); /*add head string before add sip-server-address*/
+                while(!feof(fp_src)){
+                    fscanf(fp_src,"%s",sip_dns_server);
+                    if(!feof(fp_src)) /*check hit end*/
+                        fprintf(fp_dst, "%s ",sip_dns_server); /*split by blank,end with ";"*/
+                    else
+                        fprintf(fp_dst, ";\n"); /*end*/
+                }
+                fclose(fp_src);
+            }
+        } else{
+            /*compare if need update first*/
+            int str_len = 0;
+            fp_src = fopen(SIPV6_ADDR_FILE_CE,"r");
+            fp_tmp = fopen("/var/save_tmp","w+");
+            need_update = 1; 
+            if(fp_src&&fp_tmp){
+                fprintf(fp_tmp,"%s",ptr_sip);
+                fclose(fp_tmp);
+                need_update = 0;
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string option*/
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string sip-server-address*/
+                fp_tmp = fopen("/var/save_tmp","r");
+                while((!feof(fp_src) || !feof(fp_tmp)) && fp_tmp ){
+                    fscanf(fp_src,"%s",sip_dns_server);
+                    fscanf(fp_tmp,"%s",sip_dns_server_else);
+                    if(strcmp(sip_dns_server,sip_dns_server_else) && need_update == 0){
+                        need_update = 1;
+                        break;
+                    }
+                }
+                if(fp_tmp)
+                    fclose(fp_tmp);
+                else
+                    need_update = 1;
+                fclose(fp_src);
+            }
+            if(need_update){
+                /*write back to sip6_ce.conf*/
+                fp_src = fopen(SIPV6_ADDR_FILE_CE,"w+");
+                if(fp_src){
+                    fprintf(fp_src,"option sip-server-address "); /*add head string before add sip-server-address*/
+                    fprintf(fp_src,"%s",ptr_sip);
+                    fclose(fp_src);
+                }
+            }
+            /*write back to dhcp6s.conf*/
+            fprintf(fp_dst,"option sip-server-address "); /*add head string before add sip-server-address*/
+            fprintf(fp_dst,"%s;\n",ptr_sip);
+        }
+sip_over:;
+
+        if(!ptr_dns){ /*check if get null*/
+            fp_src=fopen(DNSV6_ADDR_FILE_CE,"r");
+            if(fp_src){ /*if fp_src null, do nothing*/
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string option*/
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string domain-name-servers*/
+                fprintf(fp_dst, "option domain-name-servers "); /*add head string before add domain-name-servers*/
+                while(!feof(fp_src)){
+                    fscanf(fp_src,"%s",sip_dns_server);
+                    if(!feof(fp_src)) /*check hit end*/
+                        fprintf(fp_dst, "%s ",sip_dns_server); /*split by blank,end with ";"*/
+                    else
+                        fprintf(fp_dst, ";\n"); /*end*/
+                }
+                fclose(fp_src);
+            }
+        } else{
+            /*compare if need update first*/
+            int str_len = 0;
+            fp_src = fopen(DNSV6_ADDR_FILE_CE,"r");
+            fp_tmp = fopen("/var/save_tmp","w+");
+            need_update = 1; 
+            if(fp_src&&fp_tmp){
+                fprintf(fp_tmp,"%s",ptr_dns);
+                fclose(fp_tmp);
+                need_update = 0;
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string option*/
+                fscanf(fp_src,"%s",sip_dns_server); /*discard string domain-name-servers*/
+                fp_tmp = fopen("/var/save_tmp","r");
+                while((!feof(fp_src) || !feof(fp_tmp)) && fp_tmp ){
+                    fscanf(fp_src,"%s",sip_dns_server);
+                    fscanf(fp_tmp,"%s",sip_dns_server_else);
+                    if(strcmp(sip_dns_server,sip_dns_server_else) && need_update == 0){
+                        need_update = 1;
+                        break;
+                    }
+                }
+                if(fp_tmp)
+                    fclose(fp_tmp);
+                else
+                    need_update = 1;
+                fclose(fp_src);
+            }
+            if(need_update){
+                /*write back to dns6_ce.conf*/
+                fp_src = fopen(DNSV6_ADDR_FILE_CE,"w+");
+                if(fp_src){
+                    fprintf(fp_src,"option domain-name-servers "); /*add head string before add domain-name-servers*/
+                    fprintf(fp_src,"%s",ptr_dns);
+                    fclose(fp_src);
+                }
+            }
+            /*write back to dhcp6s.conf*/
+            fprintf(fp_dst,"option domain-name-servers "); /*add head string before add domain-name-servers*/
+            fprintf(fp_dst,"%s;\n",ptr_dns);
+        }
+dns_over:;
+
+        if(!ptr_dnsname){ /*check if get null*/
+            fp_src=fopen(DNSNAMEV6_ADDR_FILE_CE,"r");
+            if(fp_src){ /*if fp_src null, do nothing*/
+                fprintf(fp_dst, "option domain-name "); /*add head string before add domain-name*/
+                while(!feof(fp_src)){
+                    fscanf(fp_src,"%s",dnsName); /*discard string option*/
+                    fscanf(fp_src,"%s",dnsName); /*discard string domain-name*/
+                    fscanf(fp_src,"%s",dnsName);
+                    if(!feof(fp_src)) /*check hit end*/
+                        fprintf(fp_dst, "option domain-name %s;\n",dnsName); /*split by blank,end with ";"*/
+                }
+                fclose(fp_src);
+            }
+        } else{
+            /*compare if need update first*/
+            int str_len = 0;
+            fp_src = fopen(DNSNAMEV6_ADDR_FILE_CE,"r");
+            fp_tmp = fopen("/var/save_tmp","w+");
+            if(fp_tmp){
+                fprintf(fp_tmp,"%s",ptr_dnsname);
+                fclose(fp_tmp);
+            }
+            need_update = 1; 
+            if(fp_src&&fp_tmp){
+                need_update = 0;
+                fp_tmp = fopen("/var/save_tmp","r");
+                while((!feof(fp_src) || !feof(fp_tmp)) && fp_tmp ){
+                    fscanf(fp_src,"%s",dnsName); /*discard string option*/
+                    fscanf(fp_src,"%s",dnsName); /*discard string domain-name*/
+                    fscanf(fp_src,"%s",dnsName);
+                    fscanf(fp_tmp,"%s",dnsName_else);
+                    if(strcmp(dnsName,dnsName_else) && need_update == 0){
+                        need_update = 1;
+                        break;
+                    }
+                }
+                if(fp_tmp)
+                    fclose(fp_tmp);
+                else
+                    need_update = 1;
+                fclose(fp_src);
+            }
+            /*write back to dns6_ce.conf*/
+            fp_src = fopen(DNSNAMEV6_ADDR_FILE_CE,"w+");
+            fp_tmp = fopen("/var/save_tmp","r");
+            if(fp_src && fp_tmp){
+                while(!feof(fp_tmp)){
+                    fscanf(fp_tmp,"%s",dnsName);
+                    if(!feof(fp_tmp)){
+                        fprintf(fp_src,"option domain-name %s\n",dnsName); /*add head string before add domain-name*/
+                        fprintf(fp_dst,"option domain-name \"%s\";\n",dnsName); /*add head string before add domain-name*/
+                    }
+                }
+                fclose(fp_tmp);
+                fclose(fp_src);
+            }
+        }
+dnsname_over:;
+
+		if(dhcp6sCfgParam.enabled){	
+			fprintf(fp_dst, "interface %s {\n", dhcp6sCfgParam.interfaceNameds);
+			fprintf(fp_dst, "  address-pool pool1 3600;\n");
+			fprintf(fp_dst, "};\n");
+			fprintf(fp_dst, "pool pool1 {\n");
+			fprintf(fp_dst, "  range %s to %s ;\n", dhcp6sCfgParam.addr6PoolS, dhcp6sCfgParam.addr6PoolE);
+			fprintf(fp_dst, "};\n");	
+			flag=1;
+		}
+		else{
+			if(dhcp6_pd.flag){
+				fprintf(fp_dst, "interface br0 {\n");
+				fprintf(fp_dst, "  address-pool pool1 3600;\n");
+				fprintf(fp_dst, "};\n");
+				fprintf(fp_dst, "pool pool1 {\n");
+				sprintf(dhcp6sCfgParam.addr6PoolS,"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+				dhcp6_pd.addr6[0],dhcp6_pd.addr6[1],
+				dhcp6_pd.addr6[2],dhcp6_pd.addr6[3],
+				dhcp6_pd.addr6[4],dhcp6_pd.addr6[5],
+				dhcp6_pd.addr6[6],dhcp6_pd.addr6[7]+1);
+				sprintf(dhcp6sCfgParam.addr6PoolE,"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+				dhcp6_pd.addr6[0],dhcp6_pd.addr6[1],
+				dhcp6_pd.addr6[2],dhcp6_pd.addr6[3],
+				dhcp6_pd.addr6[4],dhcp6_pd.addr6[5],
+				dhcp6_pd.addr6[6],dhcp6_pd.addr6[7]+254);			
+				fprintf(fp_dst, "  range %s to %s ;\n", dhcp6sCfgParam.addr6PoolS, dhcp6sCfgParam.addr6PoolE);
+				fprintf(fp_dst, "};\n");
+				flag=1;
+			}
+		}
+		fclose(fp_dst);
+
+		/*start daemon*/
+		if(flag && need_update){
+			if(isFileExist(DHCP6S_PID_FILE)) {
+				if ((fp_else = fopen(DHCP6S_PID_FILE, "r")) != NULL) {
+					fscanf(fp_else, "%d\n", &pid);
+					fclose(fp_else);
+					kill(pid,1);	/*sighup radvd to reload config file*/
+                    system("dhcp6s br0 2>/dev/null");
+				}					
+			}
+			else{
+				system("dhcp6s br0 2>/dev/null");
+			}
+		}
+        system("rm /var/save_tmp");
+		return;
+}
+#endif
+
 void radvd_reconfig()
 {
+	printf("start create radvd configure\n");
 		radvdCfgParam_t radvdCfgParam;
 		FILE *fp;
 		char tmpBuf[256];
@@ -1859,12 +2702,30 @@ void radvd_reconfig()
 			return;  
 		}
 
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+		if(!(  radvdCfgParam.enabled
+			&& radvdCfgParam.interface.prefix[0].enabled
+			&& radvdCfgParam.interface.prefix[0].prefix_mode == 1
+			))
+			return;
+#endif
+
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+		dhcp6sCfgParam_t dhcp6sCfgParam;
+		int dhcp6s_iana_support = 0;
+		if ( !apmib_get(MIB_IPV6_DHCPV6S_PARAM,(void *)&dhcp6sCfgParam)){
+			fprintf(stderr,"get MIB_IPV6_DHCPV6S_PARAM failed\n");
+			return;  
+		}
+        dhcp6s_iana_support= dhcp6sCfgParam.enabled;
+#endif
 		fp=fopen(RADVD_CONF_FILE,"w+");
 		if(fp==NULL){
 			fprintf(stderr, "Create %s file error!\n", RADVD_CONF_FILE);
 			return;
 		}
-		
+
+#ifndef CONFIG_IPV6_CE_ROUTER_SUPPORT
 		if(radvdCfgParam.enabled){
 			fprintf(fp, "interface %s\n", radvdCfgParam.interface.Name);
 			fprintf(fp, "{\n");
@@ -1873,7 +2734,14 @@ void radvd_reconfig()
 			fprintf(fp, "MinRtrAdvInterval %d;\n", radvdCfgParam.interface.MinRtrAdvInterval);
 			fprintf(fp, "MinDelayBetweenRAs %d;\n", radvdCfgParam.interface.MinDelayBetweenRAs);
 			if(radvdCfgParam.interface.AdvManagedFlag > 0) {
-				fprintf(fp, "AdvManagedFlag on;\n");					
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+                if(dhcp6s_iana_support)
+#endif
+				    fprintf(fp, "AdvManagedFlag on;\n");					
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+                else
+                    fprintf(fp, "AdvManagedFlag off;\n");					
+#endif
 			}
 			if(radvdCfgParam.interface.AdvOtherConfigFlag > 0){
 				fprintf(fp, "AdvOtherConfigFlag on;\n");				
@@ -1954,6 +2822,7 @@ void radvd_reconfig()
 			fprintf(fp, "AdvDefaultLifetime 1800;\n");			
 			fprintf(fp, "AdvDefaultPreference medium;\n");			
 		}
+		
 		/*add prefix information*/
 		sprintf(tmpBuf,"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d",
 				dhcp6_pd.addr6[0],dhcp6_pd.addr6[1],
@@ -1969,9 +2838,95 @@ void radvd_reconfig()
 		fprintf(fp, "	AdvPreferredLifetime %u;\n", dhcp6_pd.pltime);
 		fprintf(fp, "	AdvRouterAddr on;\n");
 		fprintf(fp, "};\n");
+
+		fprintf(fp, "route %s\n", tmpBuf);				
+		fprintf(fp, "{\n");	
+		fprintf(fp, "	AdvRoutePreference medium;\n");	
+		fprintf(fp, "	AdvRouteLifetime 1800;\n");	
+		fprintf(fp, "};\n");
 			
 		fprintf(fp, "};\n");
 		fclose(fp);
+#else
+		fprintf(fp, "interface %s\n", radvdCfgParam.interface.Name);
+		fprintf(fp, "{\n");
+		fprintf(fp, "AdvSendAdvert on;\n");			
+		fprintf(fp, "MaxRtrAdvInterval %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+		fprintf(fp, "MinRtrAdvInterval %d;\n", radvdCfgParam.interface.MinRtrAdvInterval);
+		fprintf(fp, "MinDelayBetweenRAs %d;\n", radvdCfgParam.interface.MinDelayBetweenRAs);
+		if(radvdCfgParam.interface.AdvManagedFlag > 0) {
+			fprintf(fp, "AdvManagedFlag on;\n");					
+		}
+		if(radvdCfgParam.interface.AdvOtherConfigFlag > 0){
+			fprintf(fp, "AdvOtherConfigFlag on;\n");				
+		}
+		fprintf(fp, "AdvLinkMTU %d;\n", radvdCfgParam.interface.AdvLinkMTU);
+		fprintf(fp, "AdvReachableTime %u;\n", radvdCfgParam.interface.AdvReachableTime);
+		fprintf(fp, "AdvRetransTimer %u;\n", radvdCfgParam.interface.AdvRetransTimer);
+		fprintf(fp, "AdvCurHopLimit %d;\n", radvdCfgParam.interface.AdvCurHopLimit);
+		fprintf(fp, "AdvDefaultLifetime %d;\n", radvdCfgParam.interface.AdvDefaultLifetime);			
+		fprintf(fp, "AdvDefaultPreference %s;\n", radvdCfgParam.interface.AdvDefaultPreference);		
+		if(radvdCfgParam.interface.AdvSourceLLAddress > 0) {
+			fprintf(fp, "AdvSourceLLAddress on;\n");				
+		}		
+		if(radvdCfgParam.interface.UnicastOnly > 0){
+			fprintf(fp, "UnicastOnly on;\n");			
+		}
+		//add prefix
+		sprintf(tmpBuf,"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d",
+				dhcp6_pd.addr6[0],dhcp6_pd.addr6[1],
+				dhcp6_pd.addr6[2],dhcp6_pd.addr6[3],
+				dhcp6_pd.addr6[4],dhcp6_pd.addr6[5],
+				dhcp6_pd.addr6[6],dhcp6_pd.addr6[7],
+				64);
+//		printf("%s %d: prefix is %s.\n", __FUNCTION__, __LINE__, tmpBuf);
+		fprintf(fp, "prefix %s\n", tmpBuf);
+		fprintf(fp, "{\n");				
+		if(radvdCfgParam.interface.prefix[0].AdvOnLinkFlag > 0){
+			fprintf(fp, "AdvOnLink on;\n");							
+		}
+		if(radvdCfgParam.interface.prefix[0].AdvAutonomousFlag > 0){
+			fprintf(fp, "AdvAutonomous on;\n");					
+		}
+		fprintf(fp, "AdvValidLifetime %u;\n", radvdCfgParam.interface.prefix[0].AdvValidLifetime);
+		fprintf(fp, "AdvPreferredLifetime %u;\n", radvdCfgParam.interface.prefix[0].AdvPreferredLifetime);
+		
+		if(radvdCfgParam.interface.prefix[0].AdvRouterAddr > 0){
+			fprintf(fp, "AdvRouterAddr on;\n");							
+		}
+		if(radvdCfgParam.interface.prefix[0].if6to4[0]){
+			fprintf(fp, "Base6to4Interface %s\n;", radvdCfgParam.interface.prefix[0].if6to4);									
+		}
+		fprintf(fp, "};\n");
+
+		if(radvdCfgParam.interface.prefix[1].enabled > 0){
+			memcpy(tmpNum,radvdCfgParam.interface.prefix[1].Prefix, sizeof(radvdCfgParam.interface.prefix[1].Prefix));
+			sprintf(tmpBuf, "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", tmpNum[0], tmpNum[1], 
+				tmpNum[2], tmpNum[3], tmpNum[4], tmpNum[5],tmpNum[6],tmpNum[7]);
+			strcat(tmpBuf, "\0");
+			fprintf(fp, "prefix %s/%d\n", tmpBuf, radvdCfgParam.interface.prefix[1].PrefixLen);				
+			fprintf(fp, "{\n");				
+			if(radvdCfgParam.interface.prefix[1].AdvOnLinkFlag > 0){
+				fprintf(fp, "AdvOnLink on;\n");							
+			}
+			if(radvdCfgParam.interface.prefix[1].AdvAutonomousFlag > 0){
+				fprintf(fp, "AdvAutonomous on;\n");					
+			}
+			fprintf(fp, "AdvValidLifetime %u;\n", radvdCfgParam.interface.prefix[1].AdvValidLifetime);
+			fprintf(fp, "AdvPreferredLifetime %u;\n", radvdCfgParam.interface.prefix[1].AdvPreferredLifetime);
+			
+			if(radvdCfgParam.interface.prefix[1].AdvRouterAddr > 0){
+				fprintf(fp, "AdvRouterAddr on;\n");							
+			}
+			if(radvdCfgParam.interface.prefix[1].if6to4[0]){
+				fprintf(fp, "Base6to4Interface %s\n;", radvdCfgParam.interface.prefix[1].if6to4);									
+			}
+			fprintf(fp, "};\n");									
+		}
+		
+		fprintf(fp, "};\n");
+		fclose(fp);
+#endif
 		
 		if(isFileExist(RADVD_PID_FILE)){
 			if ((fp = fopen(RADVD_PID_FILE, "r")) != NULL) {
@@ -2264,7 +3219,11 @@ void start_upnp_igd(int wantype, int sys_opmode, int wisp_id, char *lan_interfac
 			}
 			
 #else
+	#ifdef USE_MINIUPNPD_V1.8
+			system("miniupnpd -f /etc/miniupnpd.conf &");
+	#else
 			RunSystemCmd(NULL_FILE, "miniigd", "-e", tmp1, "-i", lan_interface,NULL_STR);
+	#endif
 #endif
 						
 		}
@@ -2316,8 +3275,8 @@ void start_ntp(void)
 	
 	apmib_get(MIB_NTP_ENABLED, (void *)&ntp_onoff);
 	RunSystemCmd(NULL_FILE, "rm", NTPTMP_FILE, NULL_STR);
-	RunSystemCmd(NULL_FILE, "killall", "-9", "ntp_inet", "2>/dev/null", NULL_STR);	
-
+	RunSystemCmd(NULL_FILE, "killall", "-9", "ntp_inet", "2>/dev/null", NULL_STR);
+	
 	if(ntp_onoff == 1)
 	{
 		RunSystemCmd(NULL_FILE, "echo", "Start NTP daemon", NULL_STR);
@@ -2326,8 +3285,16 @@ void start_ntp(void)
 
 		if(ntp_server_id == 0)
 			apmib_get( MIB_NTP_SERVER_IP1,  (void *)buffer);
-		else
+		else if(ntp_server_id == 1)
 			apmib_get( MIB_NTP_SERVER_IP2,  (void *)buffer);
+		else if(ntp_server_id == 2)
+			apmib_get( MIB_NTP_SERVER_IP3,  (void *)buffer);
+		else if(ntp_server_id == 3)
+			apmib_get( MIB_NTP_SERVER_IP4,  (void *)buffer);
+		else if(ntp_server_id == 4)
+			apmib_get( MIB_NTP_SERVER_IP5,  (void *)buffer);
+		else if(ntp_server_id == 5)
+			apmib_get( MIB_NTP_SERVER_IP6,  (void *)buffer);
 
 		sprintf(ntp_server, "%s", inet_ntoa(*((struct in_addr *)buffer)));
 		RunSystemCmd(NULL_FILE, "ntp_inet", "-x", ntp_server,NULL_STR);
@@ -2383,12 +3350,21 @@ void start_routing(char *interface)
 	int entry_Num=0;
 	STATICROUTE_T entry;
 	int nat_enabled=0, rip_enabled=0, rip_wan_tx=0;
+#ifdef RIP6_SUPPORT
+	int rip6_enabled=0;
+#endif
 	int rip_wan_rx=0, rip_lan_tx=0, rip_lan_rx=0;
 	int start_routed=1;
 	
-	RunSystemCmd(NULL_FILE, "killall", "-15", "routed", NULL_STR); 
+	RunSystemCmd(NULL_FILE, "killall", "-15", "routed", NULL_STR);
+#ifdef RIP6_SUPPORT
+	RunSystemCmd(NULL_FILE, "killall", "-15", "bird6", NULL_STR);
+#endif
 	apmib_get(MIB_NAT_ENABLED, (void *)&nat_enabled);
 	apmib_get(MIB_RIP_ENABLED, (void *)&rip_enabled);
+#ifdef RIP6_SUPPORT
+	apmib_get(MIB_RIP6_ENABLED, (void *)&rip6_enabled);
+#endif
 	apmib_get(MIB_RIP_LAN_TX, (void *)&rip_lan_tx);
 	apmib_get(MIB_RIP_LAN_RX, (void *)&rip_lan_rx);
 	apmib_get(MIB_RIP_WAN_TX, (void *)&rip_wan_tx);
@@ -2463,7 +3439,17 @@ void start_routing(char *interface)
 	
 	if(rip_enabled !=0 && start_routed==1)
 		RunSystemCmd(NULL_FILE, "routed", "-s",  NULL_STR);
-	
+
+#ifdef RIP6_SUPPORT
+	//printf("rip6_enabled: %d\n", rip6_enabled);
+	//printf("nat_enabled: %d\n", nat_enabled);
+	if(rip6_enabled !=0 && nat_enabled==0){
+		RunSystemCmd(NULL_FILE, "ifconfig", "eth0", "add", "2001:56::3/64", NULL_STR); //for test
+		RunSystemCmd(NULL_FILE, "ifconfig", "eth1", "add", "2001:23::3/64", NULL_STR);
+		RunSystemCmd(NULL_FILE, "bird6", "-d", "-c", "/etc/bird6.conf", "-s", "/var/run/bird6.ctl", NULL_STR);
+	}
+#endif
+
 	if(nat_enabled==0){
 		if(isFileExist(IGMPPROXY_PID_FILE)){
 			unlink(IGMPPROXY_PID_FILE);
@@ -2592,6 +3578,12 @@ void set_staticIP(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int
 #endif
 		start_dns_relay();
 
+#ifdef CONFIG_IPV6
+#ifdef CONFIG_SIXRD_SUPPORT
+		set_6rd(Ip);
+#endif
+#endif
+
 	if(wan_type==PPTP || wan_type==L2TP)
 		return ;
 	
@@ -2624,6 +3616,80 @@ void set_dhcp_client(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, 
 	start_wan_dhcp_client(wan_iface);
 	start_upnp_igd(DHCP_CLIENT, sys_op, wisp_id, lan_iface);
 }
+
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+void addRouteForACS()
+{
+	FILE *fp=NULL;
+	unsigned char acs_url[CWMP_ACS_URL_LEN]={0};
+	unsigned char acs_ip[16]={0};
+	char *pch=NULL, *psubch=NULL, *pstart=NULL, *pend=NULL;
+	char *pstr=NULL;
+	int count=0;	
+	apmib_get(MIB_CWMP_ACS_URL, (void *)acs_url);
+	//printf("%s:%d ###acs_url=%s\n",__FUNCTION__,__LINE__,acs_url);
+	
+	if(strlen(acs_url)<1)
+		return;
+		
+	pstr=acs_url;
+	while(count<4 && *pstr!='\0')
+	{			
+		pch=strchr(pstr, '.');
+		if(pch==NULL)
+			return; 
+		for(psubch=pch-1; psubch>=pstr && isdigit(*psubch); psubch--) ;
+
+		psubch++;
+		if(psubch<pch)
+		{
+			if(count==0)
+				pstart=psubch;			
+			count++;							
+		}
+		else
+		{
+			pstart=NULL;
+			count=0;
+		}				
+		if(count==3)
+		{
+			for(psubch=pch+1; psubch<acs_url+strlen(acs_url) && isdigit(*psubch); psubch++) ;
+			psubch--;
+			if(psubch>pch)
+			{
+				pend=psubch;
+				break;
+			}
+			else
+			{
+				pstart=NULL;
+				count=0;
+			}
+		}
+		pstr=pch+1;
+	}
+	if(pstart && pend && pend>pstart)
+		strncpy(acs_ip, pstart, pend-pstart+1);
+	else
+		return;		
+	
+	//printf("%s:%d ###acs_ip=%s\n",__FUNCTION__,__LINE__,acs_ip);
+
+	if((fp=fopen("/var/dhcpc_route.conf", "r+"))==NULL)
+		return;	
+	
+	unsigned char routebuf[16];
+	unsigned char cmdbuf[128];
+	
+	fscanf(fp, "%s", routebuf);
+	fclose(fp);
+	
+	sprintf(cmdbuf, "route add -host %s gw %s dev eth1", acs_ip, routebuf);
+	system(cmdbuf);
+}
+#endif
+
 void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act_source)
 {
 	int intValue=0, cmdRet=-1;
@@ -2698,7 +3764,9 @@ void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int ac
 	close(PSubNet);
 #endif
 
-	RunSystemCmd(NULL_FILE, "ifconfig", wan_iface, "0.0.0.0", NULL_STR);
+#ifndef _ALPHA_DUAL_WAN_SUPPORT_
+	RunSystemCmd(NULL_FILE, "ifconfig", wan_iface, "0.0.0.0", NULL_STR);	
+#endif
 //	RunSystemCmd(NULL_FILE, "route", "del", "default", "gw", "0.0.0.0", NULL_STR);
 //	cmdRet = RunSystemCmd(NULL_FILE, "flash", "gen-pppoe", PPP_OPTIONS_FILE, PPP_PAP_FILE, PPP_CHAP_FILE,NULL_STR);
 #ifdef MULTI_PPPOE
@@ -2799,6 +3867,8 @@ void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int ac
 	cmdRet = RunSystemCmd(NULL_FILE, "flash", "gen-pppoe", PPP_OPTIONS_FILE1, PPP_PAP_FILE1, PPP_CHAP_FILE1,NULL_STR);
 	if(cmdRet==0){
 		sprintf(line_buffer,"%s\n", "noauth");
+		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+		sprintf(line_buffer,"%s\n", "noccp");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 		sprintf(line_buffer,"%s\n", "nomppc");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
@@ -2981,14 +4051,6 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		
 		sprintf(line_buffer,"%s\n", "noauth");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-
-		/*align the pptp packet*/
-		sprintf(line_buffer,"%s\n", "nopcomp");
-		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-		
-		sprintf(line_buffer,"%s\n", "noaccomp");
-		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);		
-		/***************************************************/
 		
 		sprintf(line_buffer,"%s\n", "nobsdcomp");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
@@ -2997,7 +4059,7 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 		
 		sprintf(line_buffer,"%s\n", "usepeerdns");
-		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);		
+		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 #ifndef SUPPORT_ZIONCOM_RUSSIA
 		sprintf(line_buffer,"%s\n", "lcp-echo-interval 20");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
@@ -3133,15 +4195,13 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		if(isFileExist(PPP_FILE)){
 			unlink(PPP_FILE);
 		} 
-		RunSystemCmd(NULL_FILE, "killall", "pptp", NULL_STR);
-		RunSystemCmd(NULL_FILE, "killall", "ppp_inet", NULL_STR);		
-		sleep(2);
 		sprintf(tmp_args, "%s", "4");/*wan type*/
 		sprintf(tmp_args1, "%d", connect_type);/*connect type*/
-#if 0//def SUPPORT_ZIONCOM_RUSSIA
-		RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR);
+//#if defined(SUPPORT_ZIONCOM_RUSSIA) || defined(_ALPHA_DUAL_WAN_SUPPORT_)
+		RunSystemCmd(NULL_FILE, "killall", "-9", "pptp", NULL_STR);
+		RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR);		
 		sleep(2);
-#endif
+//#endif
 		RunSystemCmd(NULL_FILE, "ppp_inet", "-t", tmp_args,  "-c", tmp_args1, "-x", NULL_STR);
 	}
 	start_upnp_igd(PPTP, sys_op, wisp_id, lan_iface);
@@ -3275,13 +4335,8 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 	sprintf(line_buffer,"%s\n", "usepeerdns");
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-	
-    sprintf(line_buffer,"%s\n", "lcp-echo-interval 20");
-    write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
- 
-    sprintf(line_buffer,"%s\n", "lcp-echo-failure 3");
-    write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-
+	sprintf(line_buffer,"%s\n", "lcp-echo-interval 0");
+	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 	sprintf(line_buffer,"%s\n", "wantype 6");
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 	
@@ -3438,6 +4493,15 @@ void domain2ip(int wan_type)
 		}
 	}
 }
+void CREATE_WAN_INFO_FILE(char *wan_iface)
+{
+	FILE *fp;
+	if((fp=fopen("/var/wan_info","w+")) != NULL)
+	{
+		fprintf(fp,"%s",wan_iface);
+		fclose(fp);
+	}
+}
 int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act_source)
 {
 	int lan_type=0;
@@ -3447,6 +4511,7 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 	printf("Init WAN Interface...\n");
 	//RunSystemCmd(NULL_FILE, "ifconfig", NULL_STR);
 	//RunSystemCmd(NULL_FILE, "brctl","show",NULL_STR);
+	CREATE_WAN_INFO_FILE(wan_iface);	/*dzh add for current wan interface*/
 	
 	if(wan_mode == DHCP_DISABLED)
 		set_staticIP(sys_op, wan_iface, lan_iface, wisp_id, act_source);
@@ -3455,6 +4520,13 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 	else if(wan_mode == PPPOE){
 		int sessid = 0;
 		char cmdBuf[50],tmpBuff[30];
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		int pppoeWithDhcpEnabled = 0;
+		unsigned int vInt = 0;
+		char setPppoeVid[50];
+		apmib_get(MIB_PPPOE_DHCP_ENABLED, (void *)&pppoeWithDhcpEnabled);
+		apmib_get(MIB_CWMP_PPPOE_WAN_VLANID, (void *)&vInt);
+#endif
 		memset(tmpBuff,0, sizeof(tmpBuff));
 		apmib_get(MIB_PPP_SESSION_NUM, (void *)&sessid);
 		apmib_get(MIB_PPP_SERVER_MAC,  (void *)tmpBuff);
@@ -3473,8 +4545,21 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 		//system("echo 1 0 1 1 51 1 0 > /proc/eth5/mib_vlan_info");
 		//system("echo 1 1 1 0 51 1 0 > /proc/eth3/mib_vlan_info");
 		
-		//wan_iface = "eth1";		
+		//wan_iface = "eth1";	
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+		if (pppoeWithDhcpEnabled)
+			set_dhcp_client(sys_op, wan_iface, lan_iface, wisp_id, act_source);
 		set_pppoe(sys_op, wan_iface, lan_iface, wisp_id, act_source);
+		
+		if (vInt == 0)
+			sprintf(setPppoeVid, "echo 0 0 0 0 0 > /proc/ppp/mib_vlan");
+		else
+			sprintf(setPppoeVid, "echo 1 1 %d 0 0 > /proc/ppp/mib_vlan", vInt);
+
+		system(setPppoeVid);
+#else
+		set_pppoe(sys_op, wan_iface, lan_iface, wisp_id, act_source);
+#endif
 	}else if(wan_mode == PPTP){
 #if defined(CONFIG_DYNAMIC_WAN_IP)
 		apmib_get(MIB_PPTP_WAN_IP_DYNAMIC, (void *)&pptp_wanip_dynamic);

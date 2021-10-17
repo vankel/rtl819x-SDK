@@ -16,6 +16,12 @@
 
 # -*- Makefile -*-
 
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+else
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
+
 srcdir = .
 top_srcdir = ..
 
@@ -69,14 +75,14 @@ HEADERS = $(include_HEADERS) $(nobase_include_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-ACLOCAL = ${SHELL} /home/keith_huang/rlx/rlxlinux-v2.2/users/iptables-1.4.4/missing --run aclocal-1.9
+ACLOCAL = ${SHELL} /home/babylon/branch-rtl819x-sdk-v3.4/users/iptables-1.4.4/missing --run aclocal-1.9
 AMDEP_FALSE = #
 AMDEP_TRUE = 
-AMTAR = ${SHELL} /home/keith_huang/rlx/rlxlinux-v2.2/users/iptables-1.4.4/missing --run tar
+AMTAR = ${SHELL} /home/babylon/branch-rtl819x-sdk-v3.4/users/iptables-1.4.4/missing --run tar
 AR = rsdk-linux-ar
-AUTOCONF = ${SHELL} /home/keith_huang/rlx/rlxlinux-v2.2/users/iptables-1.4.4/missing --run autoconf
-AUTOHEADER = ${SHELL} /home/keith_huang/rlx/rlxlinux-v2.2/users/iptables-1.4.4/missing --run autoheader
-AUTOMAKE = ${SHELL} /home/keith_huang/rlx/rlxlinux-v2.2/users/iptables-1.4.4/missing --run automake-1.9
+AUTOCONF = ${SHELL} /home/babylon/branch-rtl819x-sdk-v3.4/users/iptables-1.4.4/missing --run autoconf
+AUTOHEADER = ${SHELL} /home/babylon/branch-rtl819x-sdk-v3.4/users/iptables-1.4.4/missing --run autoheader
+AUTOMAKE = ${SHELL} /home/babylon/branch-rtl819x-sdk-v3.4/users/iptables-1.4.4/missing --run automake-1.9
 AWK = gawk
 CC = rsdk-linux-gcc
 CCDEPMODE = depmode=gcc3
@@ -119,8 +125,8 @@ LIBTOOL = $(SHELL) $(top_builddir)/libtool
 LIPO = 
 LN_S = ln -s
 LTLIBOBJS = 
-MAKEINFO = ${SHELL} /home/keith_huang/rlx/rlxlinux-v2.2/users/iptables-1.4.4/missing --run makeinfo
-NM = /home/keith_huang/rlx/rlxlinux-v2.2/toolchain/rsdk-1.3.6-4181-EB-2.6.30-0.9.30/bin/mips-linux-nm -B
+MAKEINFO = ${SHELL} /home/babylon/branch-rtl819x-sdk-v3.4/users/iptables-1.4.4/missing --run makeinfo
+NM = /home/babylon/branch-rtl819x-sdk-v3.4/toolchain/rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714/bin/mips-linux-nm -B
 NMEDIT = 
 OBJDUMP = mips-linux-objdump
 OBJEXT = o
@@ -168,10 +174,10 @@ host_vendor = unknown
 htmldir = ${docdir}
 includedir = ${prefix}/include
 infodir = ${datarootdir}/info
-install_sh = /home/keith_huang/rlx/rlxlinux-v2.2/users/iptables-1.4.4/install-sh
+install_sh = /home/babylon/branch-rtl819x-sdk-v3.4/users/iptables-1.4.4/install-sh
 kbuilddir = 
-kinclude_CFLAGS =  -I ../../linux-2.6.30/include
-ksourcedir = ../../linux-2.6.30
+kinclude_CFLAGS =  -I $(DIR_LINUX_KERNEL)/include
+ksourcedir = $(DIR_LINUX_KERNEL)
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 libxtables_vage = 0

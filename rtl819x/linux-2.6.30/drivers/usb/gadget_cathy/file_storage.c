@@ -2118,7 +2118,7 @@ static int do_inquiry(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 {
 	u8	*buf = (u8 *) bh->buf;
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 	static char vendor_id[] = ULINKER_STORAGE_VID_STR;
 	static char product_disk_id[]  = ULINKER_STORAGE_PID_DISK_STR;
 	static char product_cdrom_id[] = ULINKER_STORAGE_PID_CDROM_STR;
@@ -2935,7 +2935,7 @@ static int do_scsi_command(struct fsg_dev *fsg)
 
 	dump_cdb(fsg);
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 {
 	extern int rtl_otg_gadget;
 
@@ -4410,7 +4410,7 @@ static void  fsg_cleanup(void)
 }
 //module_exit(fsg_cleanup);
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 unsigned long fsg_jiffies = 0;
 unsigned long rst_jiffies = 0;
 #endif
@@ -4433,7 +4433,7 @@ int eth_reg_again(void)
 	int		rc=0;
 	struct fsg_dev	*fsg;
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 	rst_jiffies = 0;
 	fsg_jiffies = jiffies;
 #endif

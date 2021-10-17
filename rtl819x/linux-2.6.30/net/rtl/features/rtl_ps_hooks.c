@@ -14,7 +14,14 @@
 #include <net/netfilter/nf_nat.h>
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_conntrack_core.h>
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <net/netfilter/nf_nat.h>
+#else
 #include <net/netfilter/nf_nat_protocol.h>
+#endif
+
 #include <net/ip_vs.h>
 #include <linux/ip_vs.h>
 
@@ -87,6 +94,10 @@ int32 rtl_nf_conntrack_in_hooks(rtl_nf_conntrack_inso_s *info)
 				rtl_fpAddConnCache(info->ct, info->skb);
 	#endif
 #endif
+#ifdef CONFIG_RTL_FAST_IPV6
+	if(fast_ipv6_fw)
+		rtl_AddV6ConnCache(info->ct,info->skb);
+#endif
 	return RTL_PS_HOOKS_CONTINUE;
 }
 
@@ -101,15 +112,31 @@ int32 rtl_nf_conntrack_death_by_timeout_hooks(rtl_nf_conntrack_inso_s *info)
 	}
 	#endif
 
+	#ifdef CONFIG_RTL_FAST_IPV6
+	if(fast_ipv6_fw && rtl_V6_connCache_timer_update(info->ct) ==SUCCESS)
+	{
+		ret = RTL_PS_HOOKS_RETURN;
+	}
+	#endif	
 	return ret;
 }
 
 int32 rtl_nf_conntrack_destroy_hooks(rtl_nf_conntrack_inso_s *info)
 {
 	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	spin_lock_bh(&nf_conntrack_lock);
+#endif
 	rtl_delConnCache(info->ct);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	spin_unlock_bh(&nf_conntrack_lock);
+#endif
 	#endif
 
+	#ifdef CONFIG_RTL_FAST_IPV6
+	if(fast_ipv6_fw)
+		rtl_DelV6ConnCache(info->ct); 
+	#endif
 	return RTL_PS_HOOKS_CONTINUE;
 }
 
@@ -275,6 +302,17 @@ int32 rtl_fn_flush_list_hooks(int	 fz_order, int idx, u32 tb_id, u32 fn_key)
 	return RTL_PS_HOOKS_CONTINUE;
 }
 
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+int32 rtl_fib_flush_list_hooks(u32 tb_id, u32 fn_key, u32 ip_mask)
+{
+	#if defined(CONFIG_RTL_HARDWARE_NAT)
+	rtl_fib_flush(tb_id, fn_key, ip_mask);
+	#endif
+
+	return RTL_PS_HOOKS_CONTINUE;
+}
+#endif
+
 int32 rtl_fn_hash_replace_hooks(struct fib_table *tb, struct fib_config *cfg, struct fib_info *fi)
 {
 #if defined( CONFIG_RTL_IPTABLES_FAST_PATH)
@@ -289,6 +327,23 @@ int32 rtl_fn_hash_replace_hooks(struct fib_table *tb, struct fib_config *cfg, st
 #endif
 	return RTL_PS_HOOKS_CONTINUE;
 }
+
+#if defined(CONFIG_IPV6) && defined(CONFIG_RTL_8198C)
+int32 rtl8198c_fib6_add_hooks(struct rt6_info *rt)
+{
+	rtl8198c_ipv6_router_add(rt);
+
+	return RTL_PS_HOOKS_CONTINUE;
+}
+
+int32 rtl8198c_fib6_del_hooks(struct rt6_info *rt)
+{
+	rtl8198c_ipv6_router_del(rt);
+
+	return RTL_PS_HOOKS_CONTINUE;
+}
+#endif
+
 
 int32 rtl_dev_queue_xmit_hooks(struct sk_buff *skb, struct net_device *dev)
 {
@@ -418,7 +473,7 @@ int32 rtl_br_dev_queue_push_xmit_before_xmit_hooks(struct sk_buff *skb)
 
 int32 rtl_neigh_forced_gc_hooks(struct neigh_table *tbl, struct neighbour *n)
 {
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+	#if (defined(CONFIG_RTL_HARDWARE_NAT)&&defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
 	syn_asic_arp(n,  0);
 	#endif
 	return RTL_PS_HOOKS_CONTINUE;
@@ -426,9 +481,9 @@ int32 rtl_neigh_forced_gc_hooks(struct neigh_table *tbl, struct neighbour *n)
 
 int32 rtl_neigh_flush_dev_hooks(struct neigh_table *tbl, struct net_device *dev, struct neighbour *n)
 {
-	#if (defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) || defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+	#if (defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) || defined(CONFIG_RTL_IPTABLES_FAST_PATH)  ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
 	if (n->nud_state & NUD_VALID) {
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+	#if (defined(CONFIG_RTL_HARDWARE_NAT)&&defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
 	syn_asic_arp(n,  0);
 	#endif
 
@@ -449,15 +504,15 @@ int32 rtl_neigh_flush_dev_hooks(struct neigh_table *tbl, struct net_device *dev,
 
 int32 rtl_neigh_destroy_hooks(struct neighbour *n)
 {
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
-	 syn_asic_arp(n,  0);
+	#if (defined(CONFIG_RTL_HARDWARE_NAT)&&defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
+	syn_asic_arp(n,  0);
 	#endif
 	return RTL_PS_HOOKS_CONTINUE;
 }
 
 int32 rtl_neigh_connect_hooks(struct neighbour *neigh)
 {
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+	#if (defined(CONFIG_RTL_HARDWARE_NAT)&&defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
 	if (neigh->nud_state & NUD_REACHABLE) {
 		syn_asic_arp(neigh,  1);
 	}
@@ -479,7 +534,7 @@ int32 rtl_neigh_update_hooks(struct neighbour *neigh, const u8 *lladdr, uint8 ol
 	}
 	#endif
 
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+	#if (defined(CONFIG_RTL_HARDWARE_NAT)&&defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
 	syn_asic_arp(neigh,  1);
 	#endif
 	return RTL_PS_HOOKS_CONTINUE;
@@ -531,44 +586,57 @@ int32  rtl_neigh_periodic_timer_hooks(struct neighbour *n,  unsigned int  refres
 		return RTL_PS_HOOKS_CONTINUE;
 
 	ret = RTL_PS_HOOKS_CONTINUE;
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
-    #if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
-	if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)n->primary_key)))== SUCCESS)
-		tval = rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), 1);
-	else
-		tval = rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), refresh);
-
-	if (tval > 0)
-    #else
-	if (rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), refresh)>0) 
-    #endif
+	#if defined(CONFIG_IPV6) && defined(ONFIG_RTL_8198C)
+	if (n->tbl && (n->tbl->family==AF_INET6) && (n->tbl->key_len==sizeof(inv6_addr_t))) 
 	{
-		n->used = jiffies;
-		n->dead=0;
-		ret = RTL_PS_HOOKS_BREAK;
-	}
-	else
-	#endif
-
-	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
-	{
-		#ifdef CONFIG_FAST_PATH_MODULE
-		if(FastPath_hook7!=NULL)
-		{
-			FastPath_hook7(*(u32*)n->primary_key);
+		if (rtl8198c_ipv6ArpSync(*((inv6_addr_t *)n->primary_key), refresh) >0) {
+			n->used = jiffies;
+			n->dead=0;
+			ret = RTL_PS_HOOKS_BREAK;
 		}
+	} 
+	else if (n->tbl && (n->tbl->family==AF_INET) && (n->tbl->key_len==4))
+	#endif
+	{
+		#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+		#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+		if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)n->primary_key)))== SUCCESS)
+			tval = rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), 1);
+		else
+			tval = rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), refresh);
+			
+		if (tval > 0)
 		#else
-		rtk_delArp(*(u32*)n->primary_key);
+		if (rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), refresh)>0) 
+		#endif
+		{
+			n->used = jiffies;
+			n->dead=0;
+			ret = RTL_PS_HOOKS_BREAK;
+		}
+		else
+		#endif
+
+		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+		{
+			#ifdef CONFIG_FAST_PATH_MODULE
+			if(FastPath_hook7!=NULL)
+			{
+				FastPath_hook7(*(u32*)n->primary_key);
+			}
+			#else
+			rtk_delArp(*(u32*)n->primary_key);
+			#endif
+		}
 		#endif
 	}
-	#endif
 
 	return ret;
 }
 
 int32 rtl_neigh_timer_handler_pre_update_hooks(struct neighbour *neigh, unsigned state)
 {
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+	#if (defined(CONFIG_RTL_HARDWARE_NAT)&&defined(CONFIG_RTL_LAYERED_DRIVER)&&defined(CONFIG_RTL_LAYERED_DRIVER_L3)) ||(defined(CONFIG_IPV6)&&defined(ONFIG_RTL_8198C))
 	int32	tval;
 	#endif
 
@@ -586,42 +654,62 @@ int32 rtl_neigh_timer_handler_pre_update_hooks(struct neighbour *neigh, unsigned
 		}
 		#endif
 
-		#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
-		#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
-		if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)neigh->primary_key)))== SUCCESS)
-    		tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 1);
-		else
-    	#endif
-		    tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
-		if (tval > 0)
+		#if defined(CONFIG_IPV6) && defined(ONFIG_RTL_8198C)
+		if (neigh->tbl && (neigh->tbl->family==AF_INET6) && (neigh->tbl->key_len==sizeof(inv6_addr_t))) 
 		{
-			neigh->confirmed = jiffies;
+			tval = rtl8198c_ipv6ArpSync(*((inv6_addr_t *)neigh->primary_key), 0);
+			if (tval > 0)
+				neigh->confirmed = jiffies;
+		} 
+		else if (neigh->tbl && (neigh->tbl->family==AF_INET) && (neigh->tbl->key_len==4))
+		#endif
+		{
+			#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+			#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+			if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)neigh->primary_key)))== SUCCESS)
+				tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 1);
+			else
+			#endif
+				tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
+			if (tval > 0)
+				neigh->confirmed = jiffies;
+			
+			#if 0
+			printk("%s:%d: ip:%u.%u.%u.%u, mac:%x:%x:%x:%x:%x:%x, tval is %d\n",
+			__FUNCTION__,__LINE__,NIPQUAD(htonl(*((u32 *)neigh->primary_key))), neigh->ha[0], neigh->ha[1],
+			neigh->ha[2], neigh->ha[3], neigh->ha[4], neigh->ha[5],tval);
+			#endif
+			#endif
 		}
-		#if 0
-		printk("%s:%d: ip:%u.%u.%u.%u, mac:%x:%x:%x:%x:%x:%x, tval is %d\n",
-		__FUNCTION__,__LINE__,NIPQUAD(htonl(*((u32 *)neigh->primary_key))), neigh->ha[0], neigh->ha[1],
-		neigh->ha[2], neigh->ha[3], neigh->ha[4], neigh->ha[5],tval);
-		#endif
-		#endif
 
 	} else if (state & NUD_DELAY) {
-		#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
-		#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
-		if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)neigh->primary_key)))== SUCCESS)
-		    tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 1);
-    	else
-		#endif
-		    tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
-		if (tval > 0)
+		#if defined(CONFIG_IPV6) && defined(ONFIG_RTL_8198C)
+		if (neigh->tbl && (neigh->tbl->family==AF_INET6) && (neigh->tbl->key_len==sizeof(inv6_addr_t))) 
 		{
-			neigh->confirmed = jiffies;
+			tval = rtl8198c_ipv6ArpSync(*((inv6_addr_t *)neigh->primary_key), 0);
+			if (tval > 0)
+				neigh->confirmed = jiffies;
+		} 
+		else if (neigh->tbl && (neigh->tbl->family==AF_INET) && (neigh->tbl->key_len==4))
+		#endif
+		{
+			#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+			#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+			if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)neigh->primary_key)))== SUCCESS)
+				tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 1);
+			else
+			#endif
+				tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
+			if (tval > 0)
+				neigh->confirmed = jiffies;
+			
+			#if 0
+			printk("%s:%d: ip:%u.%u.%u.%u, mac:%x:%x:%x:%x:%x:%x, tval is %d",
+			__FUNCTION__,__LINE__,NIPQUAD(htonl(*((u32 *)neigh->primary_key))), neigh->ha[0], neigh->ha[1],
+			neigh->ha[2], neigh->ha[3], neigh->ha[4], neigh->ha[5],tval);
+			#endif
+			#endif
 		}
-		#if 0
-		printk("%s:%d: ip:%u.%u.%u.%u, mac:%x:%x:%x:%x:%x:%x, tval is %d",
-		__FUNCTION__,__LINE__,NIPQUAD(htonl(*((u32 *)neigh->primary_key))), neigh->ha[0], neigh->ha[1],
-		neigh->ha[2], neigh->ha[3], neigh->ha[4], neigh->ha[5],tval);
-		#endif
-		#endif
 	}
 
 	return RTL_PS_HOOKS_CONTINUE;
@@ -629,7 +717,7 @@ int32 rtl_neigh_timer_handler_pre_update_hooks(struct neighbour *neigh, unsigned
 
 int32 rtl_neigh_timer_handler_during_update_hooks(struct neighbour *neigh, unsigned state)
 {
-	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
+	#if (defined(CONFIG_RTL_HARDWARE_NAT)&&defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L3)) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
 	if ((neigh->nud_state & (NUD_INCOMPLETE | NUD_PROBE)) &&
 	    atomic_read(&neigh->probes) >= neigh_max_probes(neigh)) {
 		if (neigh->nud_state & NUD_VALID) {
@@ -886,6 +974,10 @@ int32 clean_from_lists_hooks(struct nf_conn *ct, struct net *net)
 	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT)
 		rtl_delConnCache(ct);
 	#endif
+	#ifdef CONFIG_RTL_FAST_IPV6
+	if(fast_ipv6_fw)
+		rtl_DelV6ConnCache(ct); 
+	#endif
 
 	return RTL_PS_HOOKS_CONTINUE;
 }
@@ -918,7 +1010,11 @@ int32 __drop_one_conntrack_process_hooks1(struct nf_conn* ct, int dropPrioIdx, i
 	if (checkFlags==TRUE && drop_priority[dropPrioIdx].state==tcpUdpState) {
 		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 		if (FAILED==rtl_fpTimer_update((void*)ct)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+			spin_unlock_bh(&nf_conntrack_lock);
+#else
 			read_unlock_bh(&nf_conntrack_lock);
+#endif
 			rtl_death_action((void*)ct);
 			return RTL_PS_HOOKS_RETURN;
 		}
@@ -926,7 +1022,11 @@ int32 __drop_one_conntrack_process_hooks1(struct nf_conn* ct, int dropPrioIdx, i
 
 		#if defined(CONFIG_RTL_HARDWARE_NAT)
 		if (FAILED==rtl_hwnat_timer_update(ct)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+			spin_unlock_bh(&nf_conntrack_lock);
+#else
 			read_unlock_bh(&nf_conntrack_lock);
+#endif
 			rtl_death_action((void*)ct);
 			return RTL_PS_HOOKS_RETURN;
 		}
@@ -941,7 +1041,11 @@ int32 __drop_one_conntrack_process_hooks1(struct nf_conn* ct, int dropPrioIdx, i
 	#error "Please Check the HZ defination."
 #endif
 	{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		spin_unlock_bh(&nf_conntrack_lock);
+#else
 		read_unlock_bh(&nf_conntrack_lock);
+#endif
 		rtl_death_action((void*)ct);
 		return RTL_PS_HOOKS_RETURN;
 	}
@@ -1018,17 +1122,30 @@ int32 rtl_br_fdb_cleanup_hooks(struct net_bridge *br, struct net_bridge_fdb_entr
 	#endif
 	#if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L2) && defined(CONFIG_RTL865X_SYNC_L2)
 	int32 port_num;
-	unsigned long hw_aging;
+	unsigned long hw_aging= 0;
 	#endif
 	int ret;
 
 	/*printk("timelist as follow:(s)jiffies:%ld,f->ageing_timer:%ld,delay:%ld",jiffies/HZ,f->ageing_timer/HZ,delay/HZ);*/
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	if (time_after(f->updated, jiffies))
+	{
+		printk("\nf->ageing_timer AFTER jiffies:addr is :%x,%x,%x,%x,%x,%x\n",f->addr.addr[0],f->addr.addr[1],f->addr.addr[2],f->addr.addr[3],f->addr.addr[4],f->addr.addr[5]);
+#if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L2) && defined(CONFIG_RTL865X_SYNC_L2)
+		printk("time list:jiffies:%ld,hw_aging:%ld,f->ageing_timer:%ld\n",jiffies/HZ,hw_aging/HZ,f->updated/HZ );
+#else
+		printk("time list:jiffies:%ld,f->ageing_timer:%ld\n",jiffies/HZ,f->updated/HZ );
+#endif
+		return RTL_PS_HOOKS_BREAK;
+	}
+	#else
 	if (time_after(f->ageing_timer, jiffies))
 	{
 		DEBUG_PRINT("\nf->ageing_timer AFTER jiffies:addr is :%x,%x,%x,%x,%x,%x\n",f->addr.addr[0],f->addr.addr[1],f->addr.addr[2],f->addr.addr[3],f->addr.addr[4],f->addr.addr[5]);
 		DEBUG_PRINT("time list:jiffies:%ld,hw_aging:%ld,f->ageing_timer:%ld\n",jiffies/HZ,hw_aging/HZ,f->ageing_timer/HZ );
 		return RTL_PS_HOOKS_BREAK;
 	}
+	#endif
 
 	#if defined(CONFIG_RTL_LAYERED_DRIVER) && defined(CONFIG_RTL_LAYERED_DRIVER_L2) && defined(CONFIG_RTL865X_SYNC_L2)
 		port_num= -100;
@@ -1052,19 +1169,34 @@ int32 rtl_br_fdb_cleanup_hooks(struct net_bridge *br, struct net_bridge_fdb_entr
 		}
 
 		ret = 0;
+		#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		if(time_before_eq(f->updated,  hw_aging))
+		{
+			/*fresh f->ageing_timer*/
+			f->updated= hw_aging;
+		}
+		#else
 		if(time_before_eq(f->ageing_timer,  hw_aging))
 		{
 			/*fresh f->ageing_timer*/
 			f->ageing_timer = hw_aging;
 		}
+		#endif
 	#endif
 
 	#if defined(CONFIG_RTL_FASTBRIDGE)
 		fb_aging = rtl_fb_get_entry_lastused(f->addr.addr);
+		#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		if(time_before_eq(f->updated,  fb_aging))
+		{
+			f->updated = fb_aging;
+		}
+		#else
 		if(time_before_eq(f->ageing_timer,  fb_aging))
 		{
 			f->ageing_timer = fb_aging;
 		}
+		#endif
 	#endif
 
 	if (ret==0) {

@@ -121,6 +121,8 @@
 #include "atcp.h"
 #endif
 
+unsigned int exit_from_sig = 0;
+
 static const char rcsid[] = RCSID;
 
 /* interface vars */
@@ -315,7 +317,7 @@ void NCP_CLOSE()
 }
 
 #ifdef INET6
-void check_v4_v6(char* optionfile);
+void check_v4_v6(char* optionfile)
 {
 	FILE *pf = NULL;
 	char buf[100];
@@ -442,7 +444,6 @@ main(argc, argv)
 #if 1 //def MULTI_PPPOE,shoud add forever
 	char *optionfile;
 #endif
-	system("rm -r /var/ppp_error 2> /dev/null");
     link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);
 
@@ -813,6 +814,7 @@ handle_events()
 	persist = 0;
 	status = EXIT_USER_REQUEST;
 	got_sigterm = 0;
+	exit_from_sig =1;
     }
     if (got_sigchld) {
 	got_sigchld = 0;
@@ -1413,9 +1415,14 @@ void
 reset_link_stats(u)
     int u;
 {
+	char cmdBuf[60];
+	
     if (!get_ppp_stats(u, &old_link_stats))
 	return;
     gettimeofday(&start_time, NULL);
+
+	sprintf(cmdBuf, "echo %u > /var/ppp/startTime", start_time.tv_sec);
+	system(cmdBuf);
 }
 
 /*
@@ -1427,6 +1434,7 @@ update_link_stats(u)
 {
     struct timeval now;
     char numbuf[32];
+	char cmdBuf[60];
 
     if (!get_ppp_stats(u, &link_stats)
 	|| gettimeofday(&now, NULL) < 0)
@@ -1445,6 +1453,9 @@ update_link_stats(u)
     script_setenv("BYTES_SENT", numbuf, 0);
     slprintf(numbuf, sizeof(numbuf), "%u", link_stats.bytes_in);
     script_setenv("BYTES_RCVD", numbuf, 0);
+
+	sprintf(cmdBuf, "echo 0 > /var/ppp/startTime");
+	system(cmdBuf);
 }
 
 #define RTL_PPP_TIME_FIXED 1//mark_test, sync from rtl865x

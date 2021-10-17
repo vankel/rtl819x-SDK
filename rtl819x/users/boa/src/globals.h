@@ -264,6 +264,9 @@ struct request {                /* pending requests */
 
     struct request *next;       /* next */
     struct request *prev;       /* previous */
+#ifdef SERVER_SSL
+    void *ssl;
+#endif
 };
 
 typedef struct request request;

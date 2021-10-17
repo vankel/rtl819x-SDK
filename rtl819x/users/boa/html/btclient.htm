@@ -1,0 +1,152 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<title>BT Controller</title>
+<SCRIPT>
+//var myData = [['2222','222','3333','3333','1'],['1111','222','3333','3333','0']]; 
+var myData = <%getInfo("btfiles");%>; 
+var btclientindex=<%getInfo("btclientindex");%>;
+var DataArray = new Array();
+var TRStyle="<tr bgcolor=#7f7f7f><td width=\"4%\"><font size=2><b>Download</b></font></td><td width=\"12%\"><font size=2><b>Filename</b></font></td><td width=\"12%\"><font size=2><b>File No.</b></font></td><td width=\"12%\"><font size=2><b>Downloaded</b></font></td><td width=\"12%\"><font size=2><b>size</b></font></td>";
+var TDCheckBoxHeader="<td width=\"4%\"><input type=\"checkbox\" name=\"CHECKBOX\" value=";
+var TDFilenameHeader="<td width=\"12%\">";
+var TDFilenoHeader="<td width=\"12%\">";
+var TDDownloadedHeader="<td width=\"12%\">";
+var TDSizeHeader="<td width=\"12%\">";
+var TDCheckBoxTail="></td>";
+var TDCheckBoxCheckedTail=" checked></td>";
+var TDTail="</td>";
+var TRHeader="<tr>";
+var TRTail="</tr>";
+
+function Data(filename,fileno,downloaded,size,priority) 
+{
+	this.filename=filename;
+	this.fileno=fileno;
+	this.downloaded=downloaded;
+	this.size=size;
+	this.priority=priority;
+}
+
+function initData()
+{
+        var i=0;
+	var tf=document.formBTfiles;
+	tf.clientindex.value=btclientindex;
+        for(i=0; i<myData.length; i++ )
+		DataArray[DataArray.length++] = new Data(myData[i][0], myData[i][1], myData[i][2], myData[i][3],myData[i][4]);
+
+        DataShow();
+}
+
+function layerWrite(id,nestref,text)
+{
+        document.getElementById(id).innerHTML = text;
+}
+
+function DataShow()
+{	
+	var i;
+	var v="";
+	v+="<table border=\"1\" width=\"98%\">";
+	v+=TRStyle;
+	for(i=0; i<DataArray.length; i++) 
+        {
+		v +=TRHeader;
+                v +=TDCheckBoxHeader+DataArray[i].fileno;
+		if(DataArray[i].priority == '0')
+			v +=TDCheckBoxTail;
+		else
+			v +=TDCheckBoxCheckedTail;
+                v +=TDFilenameHeader+DataArray[i].filename+TDTail;
+                v +=TDFilenoHeader+DataArray[i].fileno+TDTail;
+                v +=TDDownloadedHeader+DataArray[i].downloaded+TDTail;
+                v +=TDSizeHeader+DataArray[i].size+TDTail;
+		v +=TRTail;
+        }
+	v +="</table>";
+	layerWrite("myDiv", null, v);
+}
+function getselectedindex()
+{
+        var fm=document.formBTfiles;
+        var i;
+        var count=0;
+        var selected="";
+        if(DataArray.length == 1)
+        {
+                if(fm.CHECKBOX.checked)
+                {       
+                      selected="/"+fm.CHECKBOX.value;  
+                      count++;
+                }
+        }else if(DataArray.length > 1)
+        {
+                for(i=0;i<DataArray.length;i++)
+                {
+                        if(fm.CHECKBOX[i].checked)
+                        {       
+                                selected+="/"+fm.CHECKBOX[i].value; 
+                                count++;
+                        }       
+                }
+        }
+        if(selected != "")
+        {
+                fm.selectedfiles.value=selected;
+                fm.selectednum.value=count;
+        }
+        return count;
+}
+
+function selectall()
+{
+        var fm=document.formBTfiles;
+        if(DataArray.length <= 1)
+        {
+		fm.CHECKBOX.checked=true;
+        }else
+        {
+                for(i=0;i<DataArray.length;i++)
+                {
+                	fm.CHECKBOX[i].checked=true;
+                }
+        }
+	return;
+}
+
+function savefiles()
+{
+        var fm=document.formBTfiles;
+	var count;
+	count=getselectedindex();
+	if(count == 0)
+	{		
+		alert("please select at least one file to download!!");
+		return false;
+	}
+	fm.submit();
+}
+</SCRIPT>
+</head>
+<body onload="initData();">
+<blockquote>
+<h2><font color="#0000FF">BT Controller</font></h2>
+<table border=0 width="98%" cellspacing=0 cellpadding=0>
+  <tr><font size=2>
+  status for BT client.
+  </tr>
+  <tr><hr size=1 noshade align=top></tr>
+</table>
+<form action=/boafrm/formBTFileSetting method=POST name="formBTfiles">
+<DIV id="myDiv"></DIV>
+<input type="hidden" value="" name="clientindex">
+<input type="hidden" value="" name="selectedfiles">
+<input type="hidden" value="" name="selectednum">
+<input type=hidden name=nextwebpage value="/btclient.htm">
+<input type="button" value="Select all" name="select all" onclick="selectall();">
+<input type="button" value="Save" name="save" onclick="savefiles();">
+</form>
+</blockquote>
+</body>
+</html>

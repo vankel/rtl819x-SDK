@@ -152,12 +152,12 @@ static int acNum;
 static int meshAclNum;
 //#endif Keith remove
 static int scheduleRuleNum;
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
-static int macRedirectNum;
-#endif
+
 #ifdef HOME_GATEWAY
 static int macFilterNum, portFilterNum, ipFilterNum, portFwNum, triggerPortNum;
-
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+static int dhcpdOptNum, dhcpcOptNum, servingPoolNum;
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 #if defined(GW_QOS_ENGINE) || defined(QOS_BY_BANDWIDTH)
 static int qosRuleNum;
 #endif
@@ -212,6 +212,14 @@ static void getVal7(char *value, char **p1, char **p2, char **p3, char **p4, cha
 void getVal8(char *value, char **p1, char **p2, char **p3, char **p4, \
 	char **p5, char **p6, char **p7, char **p8);
 #endif
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+static void getVal29(char *value, char **p1, char **p2, char **p3, char **p4, char **p5, char **p6, char **p7,\
+	char **p8, char **p9, char **p10, char **p11, char **p12, char **p13, char **p14, char **p15, char **p16,\
+	char **p17, char **p18, char **p19, char **p20, char **p21, char **p22, char **p23, char **p24, char **p25,\
+	char **p26, char **p27, char **p28, char **p29);
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
+
 #ifdef HOME_GATEWAY
 #ifdef VPN_SUPPORT
 static void getVal24(char *value, char **p1, char **p2, char **p3, char **p4, char **p5, char **p6, char **p7,\
@@ -221,7 +229,7 @@ static void getVal24(char *value, char **p1, char **p2, char **p3, char **p4, ch
 #define IPSECTUNNEL_FORMAT ("%d, %d, %s, %d, %s, %d, %d, %s , %d, %s, %d, %d,  %d, %d,  %s, %d, %d, %d, %lu, %lu, %d, %s, %s, %s")
 #endif
 
-#ifdef CONFIG_IPV6
+#if defined(CONFIG_IPV6) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 static void getVal33(char *value, char **p1, char **p2, char **p3, char **p4, char **p5, char **p6, \
  		 char **p7,  char **p8,  char **p9,  char **p10, char **p11, char **p12, char **p13,\
 		 char **p14, char **p15, char **p16, char **p17, char **p18, char **p19, char **p20,\
@@ -513,7 +521,7 @@ static int checkFileType(const char *filename)
 	len = 0;
 	pHeader = (COMPRESS_MIB_HEADER_Tp)&buf[len];
 	//printf("###status.st_size=%d,pHeaderllen=%x,sizeof(COMPRESS_MIB_HEADER_T)=%d,<%s>%d\n",status.st_size,pHeader->compLen,sizeof(COMPRESS_MIB_HEADER_T),__FUNCTION__,__LINE__);
-	if ( (int)(pHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T)) > status.st_size )
+	if ( (int)(DWORD_SWAP(pHeader->compLen)+sizeof(COMPRESS_MIB_HEADER_T)) > status.st_size )
 		goto check_target;
 	//printf("###flag=%d,<%s>%d\n",flag,__FUNCTION__,__LINE__);
 
@@ -638,7 +646,7 @@ static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//outpu
 			printf("Read hw mib failed!\n");
 			return -1;
 		}
-		
+		fprintf(stderr,"\r\n __[%s-%u] zipRate=%d compLen=%d",__FILE__,__LINE__,compHeader.compRate,compHeader.compLen); 
 //do decode
 	outLen = Decode(pdata,compHeader.compLen,pOutData);	
 	//printf("indata=%s,outdata=%s,%s,%d\n",pdata,pOutData,__FUNCTION__,__LINE__);
@@ -895,9 +903,10 @@ static int parseBinConfig(int type, const char *filename, struct all_config *pMi
 ////////////////////////////////////////////////////////////////////////////////
 static int parseTxtConfig(const char *filename, struct all_config *pMib)
 {
-	char line[700], value[700];
-	FILE *fp;
-	int id, def_flag, hw_tbl, wlan_inx, vwlan_inx;
+	char line[700]={0}, value[700]={0};
+	FILE *fp=NULL;
+	int id=0, def_flag=0, hw_tbl=0, wlan_inx=0, vwlan_inx=0;
+
 
 	fp = fopen(filename, "r");
 	if ( fp == NULL )
@@ -908,9 +917,6 @@ static int parseTxtConfig(const char *filename, struct all_config *pMib)
 //#if defined(CONFIG_RTK_MESH) && defined(_MESH_ACL_ENABLE_) Keith remove
 	meshAclNum = 0;
 //#endif Keith remove
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
-	macRedirectNum = 0;
-#endif
 
 #ifdef HOME_GATEWAY
 	portFilterNum = ipFilterNum = macFilterNum = portFwNum = triggerPortNum = 0;
@@ -956,7 +962,12 @@ static int parseTxtConfig(const char *filename, struct all_config *pMib)
 		id = getToken(line, value, &def_flag, &hw_tbl, &wlan_inx, &vwlan_inx);
 		if ( id == 0 )
 			continue;
-
+#ifdef RTL_DEF_SETTING_IN_FW
+		if(def_flag)
+		{
+			def_flag=0;
+		}
+#endif
 		if ( set_mib(&config, id, value, def_flag, hw_tbl, wlan_inx, vwlan_inx) < 0) {
 			printf("Parse MIB [%d] error!\n", id );
 			fclose(fp);
@@ -981,11 +992,12 @@ static int getToken(char *line, char *value, int *def_flag, int *hw_tbl, int *wl
 	*wlan_inx = -1;
 	*vwlan_inx = 0;
 
-	if ( *ptr == ';' )	// comments
+	if ( *ptr == '#' || *ptr==EOL ||*ptr == ';')	// comments
 		return 0;
 
+	line=ptr;
 	// get token
-	while (*ptr && *ptr!=EOL && *ptr!=';') {
+	while (*ptr && *ptr!=EOL && *ptr!=';'&& *ptr!='#') {
 		if ( *ptr == '=' ) {
 			memcpy(token, line, len);
 
@@ -1011,7 +1023,7 @@ static int getToken(char *line, char *value, int *def_flag, int *hw_tbl, int *wl
 	while (*ptr == SPACE ) ptr++; // delete space
 
 	p1 = ptr;
-	while ( *ptr && *ptr!=EOL && *ptr!=';' && *ptr!='\r') {
+	while ( *ptr && *ptr!=EOL && *ptr!='#'&& *ptr!=';' && *ptr!='\r') {
 		ptr++;
 		len++;
 	}
@@ -1129,6 +1141,14 @@ static int getToken(char *line, char *value, int *def_flag, int *hw_tbl, int *wl
 static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib, int hw_tbl, int idx, int v_idx)
 {
 	unsigned char key[180];
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	char *p1, *p2, *p3, *p4, *p5, *p6, *p7, *p8, *p9, *p10;
+	char *p11, *p12, *p13, *p14, *p15, *p16, *p17, *p18, *p19, *p20;
+	char *p21, *p22, *p23, *p24, *p25, *p26, *p27, *p28, *p29;
+#ifdef CONFIG_IPV6	
+	char **p30,*p31,*p32,*p33,*p34;
+#endif
+#else
 	char *p1, *p2, *p3, *p4,*p5,*p6, *p7,*p8;
 #ifdef HOME_GATEWAY
 #if defined(GW_QOS_ENGINE) || defined(VPN_SUPPORT) || defined(CONFIG_IPV6)
@@ -1142,14 +1162,13 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 	char *p25,*p26,*p27,*p28,*p29,*p30,*p31,*p32,*p33,*p34;
 #endif
 #endif
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 	struct in_addr inAddr;
 	int i, j, k, int_val, max_chan;
 	MACFILTER_Tp pWlAc;
 	SCHEDULE_Tp pscheduleRule;
 	WDS_Tp pWds;
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
-	MACREDIRECT_Tp pMacRedirect;
-#endif
+
 #if defined(VLAN_CONFIG_SUPPORTED)
 	VLAN_CONFIG_Tp pVlan;
 #endif
@@ -1169,6 +1188,12 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 #ifdef QOS_BY_BANDWIDTH
 	IPQOS_Tp pQos;
 #endif
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	MIB_CE_DHCP_OPTION_Tp pDhcpdOpt;
+	MIB_CE_DHCP_OPTION_Tp pDhcpcOpt;
+	DHCPS_SERVING_POOL_Tp pServingPool;
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 
 #ifdef VPN_SUPPORT
 	IPSECTUNNEL_Tp pIpsecTunnel;
@@ -1391,20 +1416,7 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 			strcpy(pWds->comment, p2);
 		wdsNum++;
 		break;
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT	
-	case MAC_REDIRECT_ARRAY_T:
-		getVal((char *)value, &p1);
-		if (p1 == NULL) {
-			printf("Invalid MACREDIRECT entry in argument!\n");
-			break;
-		}
-		if (strlen(p1)!=12 || !string_to_hex(p1, key, 12))
-			return -1;
-		pMacRedirect = (MACREDIRECT_Tp)(((long)pMib)+pTbl[i].offset+macRedirectNum*sizeof(MACREDIRECT_T));
-		memcpy(pMacRedirect->macAddr, key, 6);
-		macRedirectNum++;
-		break;
-#endif
+
 
 #ifdef HOME_GATEWAY
 	case MACFILTER_ARRAY_T:
@@ -1566,6 +1578,97 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 		break;
 #endif
 
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	case DHCP_SERVER_OPTION_ARRAY_T:
+		getVal9((char *)value, &p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8, &p9);
+		if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL 
+			|| p5 == NULL || p6 == NULL || p7 == NULL || p8 == NULL || p9 == NULL) {
+			printf("Invalid DHCP_SERVER_OPTION arguments!\n");
+			break;
+		}
+		pDhcpdOpt = (MIB_CE_DHCP_OPTION_Tp)(((long)pMib)+pTbl[i].offset+dhcpdOptNum*sizeof(MIB_CE_DHCP_OPTION_T));
+		pDhcpdOpt->enable  = (unsigned short)atoi(p1);
+		pDhcpdOpt->usedFor = (unsigned short)atoi(p2);
+		pDhcpdOpt->order   = (unsigned short)atoi(p3);
+		pDhcpdOpt->tag     = (unsigned short)atoi(p4);
+		pDhcpdOpt->len     = (unsigned short)atoi(p5);
+		memcpy(pDhcpdOpt->value, p6, DHCP_OPT_VAL_LEN);
+		pDhcpdOpt->ifIndex = (unsigned short)atoi(p7);
+		pDhcpdOpt->dhcpOptInstNum   = (unsigned short)atoi(p8);
+		pDhcpdOpt->dhcpConSPInstNum = (unsigned short)atoi(p9);
+		dhcpdOptNum++;
+		break;
+
+	case DHCP_CLIENT_OPTION_ARRAY_T:
+		getVal9((char *)value, &p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8, &p9);
+		if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL 
+			|| p5 == NULL || p6 == NULL || p7 == NULL || p8 == NULL || p9 == NULL) {
+			printf("Invalid DHCP_CLIENT_OPTION arguments!\n");
+			break;
+		}
+		pDhcpcOpt->enable  = (unsigned short)atoi(p1);
+		pDhcpcOpt->usedFor = (unsigned short)atoi(p2);
+		pDhcpcOpt->order   = (unsigned short)atoi(p3);
+		pDhcpcOpt->tag     = (unsigned short)atoi(p4);
+		pDhcpcOpt->len     = (unsigned short)atoi(p5);
+		memcpy(pDhcpcOpt->value, p6, DHCP_OPT_VAL_LEN);
+		pDhcpcOpt->ifIndex = (unsigned short)atoi(p7);
+		pDhcpcOpt->dhcpOptInstNum   = (unsigned short)atoi(p8);
+		pDhcpcOpt->dhcpConSPInstNum = (unsigned short)atoi(p9);
+		dhcpcOptNum++;
+		break;
+
+	case DHCPS_SERVING_POOL_ARRAY_T:
+		getVal29((char *)value, 
+			&p1, &p2, &p3, &p4, &p5,
+			&p6, &p7, &p8, &p9, &p10,
+			&p11, &p12, &p13, &p14, &p15,
+			&p16, &p17, &p18, &p19, &p20,
+			&p21, &p22, &p23, &p24, &p25,
+			&p26, &p27, &p28, &p29);
+		if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL  || p5 == NULL || 
+			p6 == NULL || p7 == NULL || p8 == NULL || p9 == NULL  || p10 == NULL || 
+			p11 == NULL || p12 == NULL || p13 == NULL || p14 == NULL  || p15 == NULL || 
+			p16 == NULL || p17 == NULL || p18 == NULL || p19 == NULL  || p20 == NULL || 
+			p21 == NULL || p22 == NULL || p23 == NULL || p24 == NULL  || p25 == NULL || 
+			p26 == NULL || p27 == NULL || p28 == NULL || p29 == NULL) {
+			printf("Invalid DHCPS_SERVING_POOL arguments!\n");
+			break;
+		}
+		pServingPool = (DHCPS_SERVING_POOL_Tp)(((long)pMib)+pTbl[i].offset+servingPoolNum*sizeof(DHCPS_SERVING_POOL_T));
+		pServingPool->enable	 = (unsigned short)atoi(p1);
+		pServingPool->poolorder  = (unsigned int)atoi(p2);
+		memcpy(pServingPool->poolname, p3, MAX_NAME_LEN);
+		pServingPool->deviceType = (unsigned short)atoi(p4);
+		pServingPool->rsvOptCode = (unsigned short)atoi(p5);
+		pServingPool->sourceinterface = (unsigned short)atoi(p6);
+		memcpy(pServingPool->vendorclass, p7, OPTION_60_LEN+1);
+		pServingPool->vendorclassflag = (unsigned short)atoi(p8);
+		memcpy(pServingPool->vendorclassmode, p9, MODE_LEN);
+		memcpy(pServingPool->clientid, p10, OPTION_LEN);
+		pServingPool->clientidflag= (unsigned short)atoi(p11);
+		memcpy(pServingPool->userclass, p12, OPTION_LEN);
+		pServingPool->userclassflag = (unsigned short)atoi(p13);
+		memcpy(pServingPool->chaddr, p14, MAC_ADDR_LEN);
+		memcpy(pServingPool->chaddrmask, p15, MAC_ADDR_LEN);
+		pServingPool->chaddrflag  = (unsigned short)atoi(p16);
+		pServingPool->localserved = (unsigned short)atoi(p17);
+		memcpy(pServingPool->startaddr, p18, IP_ADDR_LEN);
+		memcpy(pServingPool->endaddr, p19, IP_ADDR_LEN);
+		memcpy(pServingPool->subnetmask, p20, IP_ADDR_LEN);
+		memcpy(pServingPool->iprouter, p21, IP_ADDR_LEN);
+		memcpy(pServingPool->dnsserver1, p22, IP_ADDR_LEN);
+		memcpy(pServingPool->dnsserver2, p23, IP_ADDR_LEN);
+		memcpy(pServingPool->dnsserver3, p24, IP_ADDR_LEN);
+		memcpy(pServingPool->domainname, p25, GENERAL_LEN);
+		pServingPool->leasetime 	= (unsigned int)atoi(p26);
+		memcpy(pServingPool->dhcprelayip, p27, IP_ADDR_LEN);
+		pServingPool->dnsservermode = (unsigned short)atoi(p28);
+		pServingPool->InstanceNum	= (unsigned int)atoi(p29);
+		servingPoolNum++;
+		break;
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
+
 #ifdef VPN_SUPPORT
 	case IPSECTUNNEL_ARRAY_T:
 		getVal24((char *)value, &p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8, &p9, &p10, &p11, &p12, &p13
@@ -1646,16 +1749,24 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 
 		strcpy(pradvdCfgParam->interface.Name, p2);
 		pradvdCfgParam->interface.MaxRtrAdvInterval = atoi(p3);
+		pradvdCfgParam->interface.MaxRtrAdvInterval = DWORD_SWAP(pradvdCfgParam->interface.MaxRtrAdvInterval);
 		pradvdCfgParam->interface.MinRtrAdvInterval = atoi(p4);
+		pradvdCfgParam->interface.MinRtrAdvInterval = DWORD_SWAP(pradvdCfgParam->interface.MinRtrAdvInterval);
 		pradvdCfgParam->interface.MinDelayBetweenRAs = atoi(p5);
+		pradvdCfgParam->interface.MinDelayBetweenRAs = DWORD_SWAP(pradvdCfgParam->interface.MinDelayBetweenRAs);
 		pradvdCfgParam->interface.AdvManagedFlag =atoi(p6);
 		pradvdCfgParam->interface.AdvOtherConfigFlag = atoi(p7);
 		pradvdCfgParam->interface.AdvLinkMTU = atoi(p8);
+		pradvdCfgParam->interface.AdvLinkMTU = DWORD_SWAP(pradvdCfgParam->interface.AdvLinkMTU);
+		
 		/*replace atoi by strtoul to support max value test of ipv6 phase 2 test*/
 		pradvdCfgParam->interface.AdvReachableTime = strtoul(p9,NULL,10);
+		pradvdCfgParam->interface.AdvReachableTime = DWORD_SWAP(pradvdCfgParam->interface.AdvReachableTime);
 		pradvdCfgParam->interface.AdvRetransTimer = strtoul(p10,NULL,10);
+		pradvdCfgParam->interface.AdvRetransTimer = DWORD_SWAP(pradvdCfgParam->interface.AdvRetransTimer);
 		pradvdCfgParam->interface.AdvCurHopLimit = atoi(p11);
 		pradvdCfgParam->interface.AdvDefaultLifetime = atoi(p12);
+		pradvdCfgParam->interface.AdvDefaultLifetime = WORD_SWAP(pradvdCfgParam->interface.AdvDefaultLifetime);
 		strcpy(pradvdCfgParam->interface.AdvDefaultPreference, p13);
 		pradvdCfgParam->interface.AdvSourceLLAddress = atoi(p14);
 		pradvdCfgParam->interface.UnicastOnly = atoi(p15);
@@ -1676,13 +1787,16 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 			memcpy(tmp,pstart,size);
 			pstart=pend;
 			pradvdCfgParam->interface.prefix[0].Prefix[i]=strtol(tmp,NULL,16);
+			pradvdCfgParam->interface.prefix[0].Prefix[i] = WORD_SWAP(pradvdCfgParam->interface.prefix[0].Prefix[i]);
 		}
 		pradvdCfgParam->interface.prefix[0].PrefixLen=atoi(p17);
 		pradvdCfgParam->interface.prefix[0].AdvOnLinkFlag=atoi(p18);
 		pradvdCfgParam->interface.prefix[0].AdvAutonomousFlag=atoi(p19);
 		/*replace atoi by strtoul to support max value test of ipv6 phase 2 test*/
 		pradvdCfgParam->interface.prefix[0].AdvValidLifetime=strtoul(p20,NULL,10);
+		pradvdCfgParam->interface.prefix[0].AdvValidLifetime = DWORD_SWAP(pradvdCfgParam->interface.prefix[0].AdvValidLifetime);
 		pradvdCfgParam->interface.prefix[0].AdvPreferredLifetime=strtoul(p21,NULL,10);
+		pradvdCfgParam->interface.prefix[0].AdvPreferredLifetime = DWORD_SWAP(pradvdCfgParam->interface.prefix[0].AdvPreferredLifetime);
 		pradvdCfgParam->interface.prefix[0].AdvRouterAddr=atoi(p22);
 		strcpy(pradvdCfgParam->interface.prefix[0].if6to4,p23);
 		pradvdCfgParam->interface.prefix[0].enabled=atoi(p24);
@@ -1704,13 +1818,16 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 			memcpy(tmp,pstart,size);
 			pstart=pend;
 			pradvdCfgParam->interface.prefix[1].Prefix[i]=strtol(tmp,NULL,16);
+			pradvdCfgParam->interface.prefix[1].Prefix[i] = WORD_SWAP(pradvdCfgParam->interface.prefix[1].Prefix[i]);
 		}
 		pradvdCfgParam->interface.prefix[1].PrefixLen=atoi(p26);
 		pradvdCfgParam->interface.prefix[1].AdvOnLinkFlag=atoi(p27);
 		pradvdCfgParam->interface.prefix[1].AdvAutonomousFlag=atoi(p28);
 		/*replace atoi by strtoul to support max value test of ipv6 phase 2 test*/
 		pradvdCfgParam->interface.prefix[1].AdvValidLifetime=strtoul(p29,NULL,10);
+		pradvdCfgParam->interface.prefix[1].AdvValidLifetime = DWORD_SWAP(pradvdCfgParam->interface.prefix[1].AdvValidLifetime);
 		pradvdCfgParam->interface.prefix[1].AdvPreferredLifetime=strtoul(p30,NULL,10);
+		pradvdCfgParam->interface.prefix[1].AdvPreferredLifetime = DWORD_SWAP(pradvdCfgParam->interface.prefix[1].AdvPreferredLifetime);
 		pradvdCfgParam->interface.prefix[1].AdvRouterAddr=atoi(p31);
 		strcpy(pradvdCfgParam->interface.prefix[1].if6to4,p32);
 		pradvdCfgParam->interface.prefix[1].enabled=atoi(p33);
@@ -2273,9 +2390,7 @@ static int generateTxtFile(const char *filename)
 #if defined(VLAN_CONFIG_SUPPORTED)
 	VLAN_CONFIG_Tp pVlanConfig;
 #endif
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT	
-	MACREDIRECT_Tp pMacRedirect;
-#endif
+
 #ifdef HOME_GATEWAY
 	PORTFW_Tp pPortFw;
 	PORTFILTER_Tp pPortFilter;
@@ -2294,6 +2409,12 @@ static int generateTxtFile(const char *filename)
 	IPQOS_Tp pQos;
 	char LipS[20], LipE[20];
 #endif
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	MIB_CE_DHCP_OPTION_Tp pDhcpdOpt;
+	MIB_CE_DHCP_OPTION_Tp pDhcpcOpt;
+	DHCPS_SERVING_POOL_Tp pServingPool;
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 
 #ifdef VPN_SUPPORT
 	IPSECTUNNEL_Tp pIpsecTunnel;
@@ -2550,16 +2671,6 @@ next_wlan:
 				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 			}
 			break;
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT	
-		case MAC_REDIRECT_ARRAY_T:
-			for (j=0; j<pApMib->macRedirectNum; j++) {
-				pMacRedirect = (MACREDIRECT_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(MACREDIRECT_T));
-				sprintf(buf, "%02x%02x%02x%02x%02x%02x", pMacRedirect->macAddr[0], pMacRedirect->macAddr[1],
-					pMacRedirect->macAddr[2], pMacRedirect->macAddr[3], pMacRedirect->macAddr[4], pMacRedirect->macAddr[5]);
-				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
-			}
-			break;
-#endif
 
 #ifdef HOME_GATEWAY
 		case PORTFW_ARRAY_T:
@@ -2671,6 +2782,48 @@ next_wlan:
 			}
 			break;
 #endif
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+		case DHCP_SERVER_OPTION_ARRAY_T:
+			for (j=0; j<pApMib->dhcpServerOptionNum; j++) {
+				pDhcpdOpt = (MIB_CE_DHCP_OPTION_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(MIB_CE_DHCP_OPTION_T));
+				sprintf(buf, "%d, %d, %d, %d, %d, %s, %d, %d, %d", 
+					pDhcpdOpt->enable, pDhcpdOpt->usedFor, pDhcpdOpt->order,
+					pDhcpdOpt->tag, pDhcpdOpt->len, pDhcpdOpt->value, 
+					pDhcpdOpt->ifIndex, pDhcpdOpt->dhcpOptInstNum, pDhcpdOpt->dhcpConSPInstNum);
+				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
+			}
+			break;
+
+		case DHCP_CLIENT_OPTION_ARRAY_T:
+			for (j=0; j<pApMib->dhcpClientOptionNum; j++) {
+				pDhcpcOpt = (MIB_CE_DHCP_OPTION_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(MIB_CE_DHCP_OPTION_T));
+				sprintf(buf, "%d, %d, %d, %d, %d, %s, %d, %d, %d", 
+					pDhcpdOpt->enable, pDhcpdOpt->usedFor, pDhcpdOpt->order,
+					pDhcpdOpt->tag, pDhcpdOpt->len, pDhcpdOpt->value, 
+					pDhcpdOpt->ifIndex, pDhcpdOpt->dhcpOptInstNum, pDhcpdOpt->dhcpConSPInstNum);
+				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
+			}
+			break;
+
+		case DHCPS_SERVING_POOL_ARRAY_T:
+			for (j=0; j<pApMib->dhcpsServingPoolNum; j++) {
+				pServingPool = (DHCPS_SERVING_POOL_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(DHCPS_SERVING_POOL_T));
+				sprintf((char *)buf, "%d, %d, %s, %d, %d, %d, %s, %d, %s, %s, %d, %s, %d, %s, %s, %d, %d, %s, %s, %s, %s, %s, %s, %s, %s, %d, %s, %d, %d",
+					pServingPool->enable, pServingPool->poolorder, pServingPool->poolname,
+					pServingPool->deviceType, pServingPool->rsvOptCode, pServingPool->sourceinterface, 
+					pServingPool->vendorclass, pServingPool->vendorclassflag, pServingPool->vendorclassmode, 
+					pServingPool->clientid, pServingPool->clientidflag, pServingPool->userclass, 
+					pServingPool->userclassflag, pServingPool->chaddr, pServingPool->chaddrmask, 
+					pServingPool->chaddrflag, pServingPool->localserved, pServingPool->startaddr, 
+					pServingPool->endaddr, pServingPool->subnetmask, pServingPool->iprouter, 
+					pServingPool->dnsserver1, pServingPool->dnsserver2, pServingPool->dnsserver3, 
+					pServingPool->domainname, pServingPool->leasetime, pServingPool->dhcprelayip, 
+					pServingPool->dnsservermode, pServingPool->InstanceNum);
+				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
+			}
+			break;
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 
 #ifdef VPN_SUPPORT
 		case IPSECTUNNEL_ARRAY_T:
@@ -3124,7 +3277,7 @@ static void getVal5(char *value, char **p1, char **p2, char **p3, char **p4, cha
 		return;
 	getVal(value, p5);
 }
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 void getVal8(char *value, char **p1, char **p2, char **p3, char **p4, \
 	char **p5, char **p6, char **p7, char **p8)
 {
@@ -3241,7 +3394,7 @@ void getVal6(char *value, char **p1, char **p2, char **p3, char **p4, char **p5,
 #endif
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef CONFIG_IPV6
+#if defined(CONFIG_IPV6) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 static void getVal9(char *value, char **p1, char **p2, char **p3, char **p4, 
 	char **p5, char **p6, char **p7,char **p8,char **p9)
 {
@@ -3317,6 +3470,106 @@ void getVal12(char *value, char **p1, char **p2, char **p3, char **p4, char **p5
 	value = getVal(value, p12);
 }
 #endif
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+static void getVal29(char *value, char **p1, char **p2, char **p3, char **p4, char **p5, char **p6, char **p7,\
+	char **p8, char **p9, char **p10, char **p11, char **p12, char **p13, char **p14, char **p15, char **p16,\
+	char **p17, char **p18, char **p19, char **p20, char **p21, char **p22, char **p23, char **p24, char **p25,\
+	char **p26, char **p27, char **p28, char **p29)
+{
+	*p1 = *p2 = *p3 = *p4 = *p5 = *p6 = *p7 = *p8 = *p9 = *p10 = *p11 = *p12\
+	= *p13 = *p14 = *p15 = *p16 = *p17 = *p18 = *p19 = *p20 = *p21 = *p22 = *p23 = *p24  = *p25\
+	=*p26=*p27=*p28=*p29=NULL;
+
+	value = getVal(value, p1);
+	if ( !value )
+		return;
+	value = getVal(value, p2);
+	if ( !value )
+		return;
+	value = getVal(value, p3);
+	if ( !value )
+		return;
+	value = getVal(value, p4);
+	if ( !value )
+		return;
+	value = getVal(value, p5);
+	if ( !value )
+		return;
+	value = getVal(value, p6);
+	if ( !value )
+		return;
+	value = getVal(value, p7);
+	if ( !value )
+		return;
+	value = getVal(value, p8);
+	if ( !value )
+		return;
+	value = getVal(value, p9);
+	if ( !value )
+		return;
+	value = getVal(value, p10);
+	if ( !value )
+		return;
+	value = getVal(value, p11);
+	if ( !value )
+		return;
+	value = getVal(value, p12);
+	if ( !value )
+		return;
+	value = getVal(value, p13);
+	if ( !value )
+		return;
+	value = getVal(value, p14);
+	if ( !value )
+		return;
+	value = getVal(value, p15);
+	if ( !value )
+		return;
+	value = getVal(value, p16);
+	if ( !value )
+		return;
+	value = getVal(value, p17);
+	if ( !value )
+		return;
+	value = getVal(value, p18);
+	if ( !value )
+		return;
+	value = getVal(value, p19);
+	if ( !value )
+		return;
+	value = getVal(value, p20);
+	if ( !value )
+		return;
+	value = getVal(value, p21);
+	if ( !value )
+		return;
+	value = getVal(value, p22);
+	if ( !value )
+		return;
+	value = getVal(value, p23);
+	if ( !value )
+		return;
+	value = getVal(value, p24);
+	if ( !value )
+		return;
+	value = getVal(value, p25);
+	if ( !value )
+		return;
+	value = getVal(value, p26);
+	if ( !value )
+		return;
+	value = getVal(value, p27);
+	if ( !value )
+		return;
+	value = getVal(value, p28);
+	if ( !value )
+		return;
+	value = getVal(value, p29);
+	if ( !value )
+		return;
+}
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
 
 #ifdef VPN_SUPPORT
 ////////////////////////////////////////////////////////////////////////////////
@@ -4328,6 +4581,12 @@ printf("\r\n");
 			memcpy(data, ptlv_data_value, mib_tbl->total_size);
 			break;
 #endif
+#endif
+#ifdef RTK_CAPWAP
+		case CAPWAP_WLAN_CONFIG_ARRAY_T:
+			pChar = (unsigned char *) data;
+			memcpy(data, ptlv_data_value, mib_tbl->total_size);
+			break;
 #endif
 		default :
 			printf("\r\n ERR!no mib_name[%s] type[%u]. __[%s-%u]",mib_tbl->name, mib_tbl->type,__FILE__,__LINE__);			

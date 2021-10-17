@@ -235,14 +235,7 @@ BOOL zarlinkInitDevice( RTKDevObj *pDev )
 	for (ch=0; ch < pDev->max_line; ch++) {
 
 		if (pDev->pLine[ch]->line_type == LINE_FXS ) 
-#ifdef SLIC_V890_FXS_LOW_POWER_MODE
-		{
-			 term_type = VP_TERM_FXS_LOW_PWR;
-			 PRINT_G("V890 FXS in LOW power mode");
-		}
-#else
 			 term_type = VP_TERM_FXS_GENERIC;
-#endif
 		else term_type = VP_TERM_FXO_GENERIC;
 
 		/* Create line objects */
@@ -423,7 +416,7 @@ static BOOL RtkInitFxsLine(RTKLineObj *pLine)
    	}
    
    	/* Thlin add for talk */
-   	//status = VpSetLineState( pLine->pLineCtx, VP_LINE_OHT );
+   	status = VpSetLineState( pLine->pLineCtx, VP_LINE_OHT );
    
 	if ( status != VP_STATUS_SUCCESS ) {
     	PRINT_R("VpSetLineState failed (%d) \n", status);

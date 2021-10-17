@@ -7,12 +7,26 @@
 <SCRIPT>
 function onclick_func()
 {
-	if(Dhcpv6form.enable_dhcpv6s.checked == false)	{		
-		Dhcpv6form.interfacenameds.disabled=true;
+	if(Dhcpv6form.enable_dhcpv6s.checked == false)	{
+		Dhcpv6form.dnsaddr.disabled = true;
+		Dhcpv6form.interfacenameds.disabled = true;
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			Dhcpv6form.dhcpv6_prefix_mode.disabled = true;
+		}
+		Dhcpv6form.addrPoolStart.disabled = true;
+		Dhcpv6form.addrPoolEnd.disabled = true;
 	}
 	else
 	{
-		Dhcpv6form.interfacenameds.disabled=false;	
+		Dhcpv6form.dnsaddr.disabled = false;
+		Dhcpv6form.interfacenameds.disabled = false;
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			Dhcpv6form.dhcpv6_prefix_mode.disabled = false;
+		}
+		Dhcpv6form.addrPoolStart.disabled = false;
+		Dhcpv6form.addrPoolEnd.disabled = false;
 	}
 }
 
@@ -24,30 +38,167 @@ function Save_LANv6()
 			lan_ip_5,lan_ip_6,lan_ip_7,prefix_len_lan,"LAN address invalid!"))
 			return false;
 
-		if(!checkIPv6(dnsaddr.value)){
-			alert(" dns address invalid!");
-			dnsaddr.focus();
-			return false;
+		if(<% getIPv6Info("ipv6_ce_router"); %> && ula_mode.value == "ulaManual")
+		{
+			if(!checkIpv6Addr(ula_ip_0,nla_ip_1,ula_ip_2,ula_ip_3,ula_ip_4,
+				ula_ip_5,ula_ip_6,ula_ip_7,ula_prefix_len,"ULA address invalid!"))
+				return false;
 		}
 
-		if(!checkIPv6(addrPoolStart.value)){
-			alert(" start address invalid!");
-			addrPoolStart.focus();
-			return false;
-		}
+		if(Dhcpv6form.enable_dhcpv6s.checked == true)
+		{
+			if(!checkIPv6(dnsaddr.value)){
+				alert(" dns address invalid!");
+				dnsaddr.focus();
+				return false;
+			}
 
-		if(!checkIPv6(addrPoolEnd.value)){
-			alert(" end address invalid!");
-			addrPoolEnd.focus();
-			return false;
+			if(!checkIPv6(addrPoolStart.value)){
+				alert(" start address invalid!");
+				addrPoolStart.focus();
+				return false;
+			}
+
+			if(!checkIPv6(addrPoolEnd.value)){
+				alert(" end address invalid!");
+				addrPoolEnd.focus();
+				return false;
+			}
 		}
 	}	
 	return true;	
 }
+
+function set_ula_ip(n)
+{
+	if(n==0)
+	{
+		Dhcpv6form.ula_ip_0.disabled = true;
+		Dhcpv6form.ula_ip_1.disabled = true;
+		Dhcpv6form.ula_ip_2.disabled = true;
+		Dhcpv6form.ula_ip_3.disabled = true;
+		Dhcpv6form.ula_ip_4.disabled = true;
+		Dhcpv6form.ula_ip_5.disabled = true;
+		Dhcpv6form.ula_ip_6.disabled = true;
+		Dhcpv6form.ula_ip_7.disabled = true;
+		Dhcpv6form.ula_prefix_len.disabled = true;
+	}
+	else
+	{
+		Dhcpv6form.ula_ip_0.disabled = false;
+		Dhcpv6form.ula_ip_1.disabled = false;
+		Dhcpv6form.ula_ip_2.disabled = false;
+		Dhcpv6form.ula_ip_3.disabled = false;
+		Dhcpv6form.ula_ip_4.disabled = false;
+		Dhcpv6form.ula_ip_5.disabled = false;
+		Dhcpv6form.ula_ip_6.disabled = false;
+		Dhcpv6form.ula_ip_7.disabled = false;
+		Dhcpv6form.ula_prefix_len.disabled = false;
+	}
+}
+
+function onclick_enable_ula()
+{
+	if(Dhcpv6form.enable_ula.checked == false)
+	{		
+		Dhcpv6form.elements["ula_mode"][0].disabled=true;
+		Dhcpv6form.elements["ula_mode"][1].disabled=true;
+		Dhcpv6form.dhcpv6_prefix_mode.options[2].disabled = true;
+		set_ula_ip(0);
+	}
+	else
+	{
+		Dhcpv6form.elements["ula_mode"][0].disabled=false;
+		Dhcpv6form.elements["ula_mode"][1].disabled=false;
+		Dhcpv6form.dhcpv6_prefix_mode.options[2].disabled = false;
+		if(Dhcpv6form.elements["ula_mode"][0].checked == true)
+			set_ula_ip(1);
+		else
+			set_ula_ip(0);
+	}
+}
+
+function ula_manually()
+{
+	set_ula_ip(1);
+}
+
+function ula_automatically()
+{
+	set_ula_ip(0);
+}
+
+function dhcpv6_prefix_mode_select()
+{
+}
+
+function init()
+{
+	var enable_dhcp6s = <% getIPv6Info("enable_dhcpv6s"); %>;
+	if(enable_dhcp6s)
+	{
+		Dhcpv6form.enable_dhcpv6s.checked = true;
+		Dhcpv6form.dnsaddr.disabled = false;
+		Dhcpv6form.interfacenameds.disabled = false;
+		Dhcpv6form.addrPoolStart.disabled = false;
+		Dhcpv6form.addrPoolEnd.disabled = false;
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			Dhcpv6form.dhcpv6_prefix_mode.disabled = false;
+		}
+	}
+	else
+	{
+		Dhcpv6form.enable_dhcpv6s.checked = false;
+		Dhcpv6form.dnsaddr.disabled = true;
+		Dhcpv6form.interfacenameds.disabled = true;
+		Dhcpv6form.addrPoolStart.disabled = true;
+		Dhcpv6form.addrPoolEnd.disabled = true;
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			Dhcpv6form.dhcpv6_prefix_mode.disabled = true;
+		}
+	}
+	
+	if(!<% getIPv6Info("ipv6_ce_router"); %>)
+		return;
+	
+	var enable_ula = <% getIPv6Info("enable_ula"); %> + 0;
+	var ula_mode = <% getIPv6Info("ula_mode"); %> + 0;
+	var pd_enable = <%getIPv6WanInfo("enable_dhcpv6pd")%> + 0;
+
+	if(enable_ula == 0)
+	{
+		Dhcpv6form.enable_ula.checked = false;
+		Dhcpv6form.dhcpv6_prefix_mode.options[2].disabled = true;
+	}
+	else
+	{
+		Dhcpv6form.enable_ula.checked = true;
+		Dhcpv6form.dhcpv6_prefix_mode.options[2].disabled = false;
+	}
+
+	if(pd_enable == 0)
+		Dhcpv6form.dhcpv6_prefix_mode.options[1].disabled = true;
+
+	if(ula_mode == 0)
+	{
+		Dhcpv6form.elements["ula_mode"][0].checked = true;
+	}
+	else
+	{
+		Dhcpv6form.elements["ula_mode"][1].checked = true;
+	}
+
+	onclick_enable_ula();
+
+	var dhcpv6_prefix_mode = <% getIPv6Info("dhcpv6ProfixMode"); %> + 0;
+	document.Dhcpv6form.dhcpv6_prefix_mode.selectedIndex = dhcpv6_prefix_mode;
+}
 </SCRIPT>
 </head>
 
-<body bgcolor="#ffffff" text="#000000">
+<body bgcolor="#ffffff" text="#000000" onload="init();">
 <form method="POST" action="/boafrm/formDhcpv6s" name=Dhcpv6form>
 
 <b>Configuring LAN setting</b><BR>  <BR>
@@ -73,12 +224,77 @@ function Save_LANv6()
 </tr>
 </table>
 <BR>
+
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write('<b>Configuring ULA setting</b> <BR>  <BR>');
+	document.write('<table cellSpacing=1 cellPadding=2 border=0>');
+	document.write('<tr>');
+	document.write('	<td bgColor=#aaddff>Enable ULA</td>');
+	document.write('	<td bgColor=#ddeeff><input type=checkbox name=enable_ula value =1 onclick="onclick_enable_ula()"></td>');
+	document.write('</tr>');
+	document.write('<tr>');
+	document.write('	<td colspan="2"><font size=2>');
+	document.write('		<b><input type="radio" value="ulaManual" name="ula_mode" onClick="ula_manually()">Set ULA Manually</b>');
+	document.write('	</font></td>&nbsp;&nbsp;');
+	document.write('	<td colspan="2"><font size=2>');
+	document.write('		<b><input type="radio" value="ulaAuto" name="ula_mode" onClick="ula_automatically()">Set ULA Automatically</b>');
+	document.write('	</font></td>');
+	document.write('</tr>');
+	document.write('</table>');
+	document.write('<table cellSpacing=1 cellPadding=2 border=0>');
+	document.write('<tr>');
+	document.write('	<td bgColor=#aaddff><font size=2><b>IP Address:</b></td>');
+	document.write('	<td bgColor=#aaddff>Prefix Length</td>');
+	document.write('</tr>');
+	document.write('<tr>');
+	document.write('	<td bgColor=#ddeeff>');
+	document.write('		<input type="text" name="ula_ip_0" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_0"); %>">:');
+	document.write('		<input type="text" name="ula_ip_1" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_1"); %>">:');
+	document.write('		<input type="text" name="ula_ip_2" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_2"); %>">:');
+	document.write('		<input type="text" name="ula_ip_3" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_3"); %>">:');
+	document.write('		<input type="text" name="ula_ip_4" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_4"); %>">:');
+	document.write('		<input type="text" name="ula_ip_5" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_5"); %>">:');
+	document.write('		<input type="text" name="ula_ip_6" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_6"); %>">:');
+	document.write('		<input type="text" name="ula_ip_7" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_7"); %>">');
+	document.write('	</td>');
+	document.write('	<td bgColor=#ddeeff>');
+	document.write('		<input type=text name=ula_prefix_len size=4 maxlength=4 enable value=<% getIPv6WanInfo("ula_ipv6Addr_prefixLen"); %>>');
+	document.write('	</td>');
+	document.write('</tr>');
+	document.write('</table>');
+	document.write('<BR>');
+	document.close();
+}
+</script>
+
 <b>Configuring DHCPv6 Server</b><BR>  <BR>
 <table cellSpacing=1 cellPadding=2 border=0>
-<td bgColor=#aaddff>Enable</td><td bgColor=#ddeeff><input type=checkbox name=enable_dhcpv6s value =1 <% getIPv6Info("enable_dhcpv6s"); %> onclick="onclick_func()"></td>
+<td bgColor=#aaddff>Enable</td><td bgColor=#ddeeff><input type=checkbox name=enable_dhcpv6s value =1 onclick="onclick_func()"></td>
 <tr><td bgColor=#aaddff>DNS Addr:</td><td bgColor=#ddeeff><input type=text name=dnsaddr size=48 maxlength=48 value="<% getIPv6Info("dnsaddr"); %>"></td></tr>
 <tr><td bgColor=#aaddff>Interface Name:</td><td bgColor=#ddeeff><input type=text name=interfacenameds size=48 maxlength=48 value="<% getIPv6Info("interfacenameds"); %>"></td></tr>
-<td bgColor=#aaddff>Addrs Pool:</td>
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write('<tr><td bgColor=#aaddff>Addrs Pool:</td></tr>');
+	document.write('<tr>');
+	document.write('	<td bgColor=#aaddff>Addrs Prefix:</td>');
+	document.write('	<td bgColor=#aaddff>');
+	document.write('		<select size="1" name="dhcpv6_prefix_mode" onChange="dhcpv6_prefix_mode_select(this)">');
+	document.write('		<option value="0">Manually</option>');
+	document.write('		<option value="1">Prefix Delegation</option>');
+	document.write('		<option value="2">ULA Prefix</option>');
+	document.write('		</select>');
+	document.write('	</td>');
+	document.write('</tr>');
+}
+else
+{
+	document.write('<td bgColor=#aaddff>Addrs Pool:</td>');
+}
+</script>
+
 <tr><td bgColor=#aaddff>	From:</td><td bgColor=#ddeeff><input type=text name=addrPoolStart size=48 maxlength=48 value="<% getIPv6Info("addrPoolStart"); %>"></td></tr>
 <tr><td bgColor=#aaddff>	To:</td><td bgColor=#ddeeff><input type=text name=addrPoolEnd size=48 maxlength=48 value="<% getIPv6Info("addrPoolEnd"); %>"></td></tr>
 </table>

@@ -475,7 +475,11 @@ static int ulinker_domain_name_query_br(void)
 				stop_dhcpd();
 				stop_dhcpc();
 				set_lan_dhcpd("br0", 2);
+			#if 0 // disable always host
 				ulinker_start_dnrd(1);
+			#else
+				ulinker_start_dnrd(0);
+			#endif
 				sleep(1);
 				usb0_up();
 				set_domain_name_query_ready(1);
@@ -551,7 +555,7 @@ static int ulinker_domain_name_query(void)
 
 	if (op_mode == BRIDGE_MODE)
 		return ulinker_domain_name_query_br();
-	else if (op_mode == GATEWAY_MODE)
+	else if (op_mode == GATEWAY_MODE || op_mode == WISP_MODE)
 		return ulinker_domain_name_query_gw();
 	else
 		fprintf(stderr, "[%s:%d] unknow mode!!\n", __FUNC__, __LINE__);
@@ -752,10 +756,9 @@ int reload_in_progress(void)
 
 
 int firmware_upgrading = 0;
-int wait_reinit = 0;
 int ulinker_process()
 {
-	//static int wait_reinit = 0;
+	static int wait_reinit = 0;
 	//static int switching = 0;
 
 	static int pre_status = -1;
@@ -768,6 +771,7 @@ int ulinker_process()
 
 	if (reload_in_progress() > 0)
 		return 0;
+
 	if(wait_reinit == 0 && firmware_upgrading == 0)
 	{
 		ulinker_domain_name_query();

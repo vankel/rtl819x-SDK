@@ -5,6 +5,7 @@
 #define CONFIG_PARSE_TAG 80
 #define CONFIG_PARSE_VALUE 80
 
+
 typedef enum {  ERROR_FILE_NOTEXIST = -1, ERROR_UNDEFINE_PARAMETER = -2,
 	ERROR_UNDEFINE_TAG = -3 } CONFIG_ERROR_ID;
 
@@ -42,7 +43,7 @@ u_char ConfigTag[][32] =
 	"rs2Password",
 	"rs2enableMacAuth",
 #endif
-#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) || defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
 	"eapType",
 	"eapInsideType",
 	"eapUserId",
@@ -50,6 +51,10 @@ u_char ConfigTag[][32] =
 	"rsUserPasswd",
 	"rsUserCertPasswd",
 	"rsBandSel",
+#endif
+#ifdef RTL_TTLS_CLIENT
+	"eapPhase2Type",
+	"phase2EapMethod",
 #endif
 	"rsMaxReq",
 	"rsAWhile",
@@ -68,6 +73,14 @@ u_char ConfigTag[][32] =
 	"accountRsAWhile",
 	"accountRsUpdateEnabled",
 	"accountRsUpdateTime",
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	"ethDot1xMode",
+	"ethDot1xProxyType",
+	"ethDot1xProxyModePortMask",
+	"ethDot1xClientModePortMask",
+	"ethDot1xEapolUnicastEnabled",
+#endif
+
 #ifdef CONFIG_RTL8196C_AP_HCM
 	"hostmac",
 #endif

@@ -8,6 +8,13 @@ INCS	= ecmh.h linklist.h common.h interfaces.h groups.h grpint.h subscr.h mld.h
 OBJS	= ecmh.o linklist.o common.o interfaces.o groups.o grpint.o subscr.o
 FLAGS	= -W -Wall -Wno-unused -D_GNU_SOURCE -O9
 
+ifeq ($(KERNEL_VER),linux-2.6.30)
+CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+CFLAGS += -DKERNEL_3_10
+endif
+
 all:	$(BINS)
 
 ecmh:	$(OBJS) ${INCS}

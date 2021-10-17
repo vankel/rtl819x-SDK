@@ -5355,7 +5355,7 @@ static int rtl8192cd_proc_gpio_ctrl_read(char *buf, char **start, off_t offset,
 
 	for (i=0; i<12; i++) {
 		if (priv->pshare->phw->GPIO_dir[i] == 0x01) {
-			sprintf(tmp, "GPIO%d %d", i, RTLWIFINIC_GPIO_read(i));
+			sprintf(tmp, "GPIO%d %d", i, RTLWIFINIC_GPIO_read_proc(priv, i));
 			PRINT_ONE(tmp, "%s", 1);
 		}
 	}
@@ -5372,6 +5372,7 @@ static int rtl8192cd_proc_gpio_ctrl_write(struct file *file, const char *buffer,
 {
 	struct net_device *dev = (struct net_device *)data;
 	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+	int gpio_num_upper=11;
 #ifdef __ECOS
 	int direction, value, count=0;
 #else
@@ -5407,7 +5408,7 @@ static int rtl8192cd_proc_gpio_ctrl_write(struct file *file, const char *buffer,
 			return count;
 		}
 
-		if ((gpio_num >= 0) && (gpio_num <= 11))
+		if ((gpio_num >= 0) && (gpio_num <= gpio_num_upper))
 			priv->pshare->phw->GPIO_dir[gpio_num] = direction;
 		else {
 #ifdef __ECOS
@@ -5418,7 +5419,7 @@ static int rtl8192cd_proc_gpio_ctrl_write(struct file *file, const char *buffer,
 			return count;
 		}
 
-		RTLWIFINIC_GPIO_config(gpio_num, direction);
+		RTLWIFINIC_GPIO_config_proc(priv, gpio_num, direction);
 	}
 	else if (!memcmp(command, "set", 3)) {
 		if (!memcmp(action, "0", 1))
@@ -5434,8 +5435,8 @@ static int rtl8192cd_proc_gpio_ctrl_write(struct file *file, const char *buffer,
 			return count;
 		}
 
-		if (((gpio_num >= 0) && (gpio_num <= 11)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10))
-			RTLWIFINIC_GPIO_write(gpio_num, value);	
+		if (((gpio_num >= 0) && (gpio_num <= gpio_num_upper)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10))
+			RTLWIFINIC_GPIO_write_proc(priv, gpio_num, value);	
 		else {
 #ifdef __ECOS
 			ecos_pr_fun("GPIO pin not supported!\n");
@@ -5922,7 +5923,7 @@ void MDL_DEVINIT rtl8192cd_proc_init(struct net_device *dev)
 		#ifdef CONFIG_ARCH_LUNA_SLAVE
 		p->size = 0x10;
 		#endif
-		RTLWIFINIC_GPIO_init_priv(priv);
+		
 #endif
 	}
 

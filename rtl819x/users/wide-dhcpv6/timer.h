@@ -45,7 +45,10 @@ struct dhcp6_timer {
 	LIST_ENTRY(dhcp6_timer) link;
 
 	struct timeval tm;
-
+#ifdef CE_ROUTER_SUPPORT
+	int is_ia_timer;
+	char ifname[32];
+#endif
 	struct dhcp6_timer *(*expire) __P((void *));
 	void *expire_data;
 };
@@ -60,3 +63,7 @@ struct timeval * dhcp6_timer_rest __P((struct dhcp6_timer *));
 
 void timeval_sub __P((struct timeval *, struct timeval *,
 			     struct timeval *));
+
+#ifdef CE_ROUTER_SUPPORT
+void set_all_ia_timer_out(char *iface);
+#endif

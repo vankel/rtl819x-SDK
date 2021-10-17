@@ -5,6 +5,11 @@
 #include <net/rtl/rtk_stp.h>
 #endif
 
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/interrupt.h>
+#endif
 #include "rtl865x_netif.h"
 /************************************
 *	feature enable/disable
@@ -16,16 +21,19 @@
 #define CONFIG_RTL_PHY_PATCH		1
 #define RTK_QUE			1
 #if defined(CONFIG_NET_WIRELESS_AGN) || defined (CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192CD_MODULE)
-#if !defined(CONFIG_RTL_FASTBRIDGE)
+
+#if !defined(CONFIG_RTL_NO_BR_SHORTCUT)
+#if !defined(CONFIG_RTL_FASTBRIDGE)//&&!defined(CONFIG_RPS)
 #define BR_SHORTCUT         1
-#define BR_SHORTCUT_C2      1
-#define BR_SHORTCUT_C3      1
-#define BR_SHORTCUT_C4      1
 #endif
+#endif
+
 #endif
 /*
 *#define	CONFIG_RTL_MULTI_LAN_DEV	1
 */
+
+//#define CONFIG_RTL_ETH_NAPI_SUPPORT 1
 
 #if defined(CONFIG_POCKET_AP_SUPPORT)
 #define	CONFIG_POCKET_ROUTER_SUPPORT
@@ -51,7 +59,13 @@
 			+ NUM_RX_PKTHDR_DESC5 \
 			+ MAX_PRE_ALLOC_RX_SKB + 256)
 	#endif
+
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#define ETH_SKB_BUF_SIZE	(SKB_DATA_ALIGN(CROSS_LAN_MBUF_LEN+sizeof(struct skb_shared_info)+160+RTL_NET_SKB_PAD))
+#else	
 #define ETH_SKB_BUF_SIZE	(SKB_DATA_ALIGN(CROSS_LAN_MBUF_LEN+sizeof(struct skb_shared_info)+160+NET_SKB_PAD))
+#endif
 #define ETH_MAGIC_CODE		"819X"
 #define ETH_MAGIC_LEN		4
 #endif
@@ -68,7 +82,7 @@ struct re865x_priv
 #else
 	struct	net_device	*dev[ETH_INTF_NUM];
 #endif
-#ifdef CONFIG_RTL_STP
+#if 0//def CONFIG_RTL_STP
 	struct	net_device	*stp_port[MAX_RE865X_STP_PORT];
 #endif
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
@@ -92,6 +106,9 @@ struct dev_priv {
 #ifdef RX_TASKLET
 	struct tasklet_struct   rx_dsr_tasklet;
 #endif
+#if defined(CONFIG_RTL_ETH_NAPI_SUPPORT)
+	struct napi_struct napi;
+#endif
 
 #ifdef TX_TASKLET
 	struct tasklet_struct   tx_dsr_tasklet;
@@ -111,7 +128,7 @@ struct dev_priv {
 	u32 			opened;
 	u32			irq_owner; //record which dev request IRQ
 	struct net_device_stats net_stats;
-#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(BR_SHORTCUT) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(BR_SHORTCUT) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) ||defined(CONFIG_RTL_8198C)
     struct timer_list expire_timer; 
 #endif
 
@@ -174,17 +191,7 @@ struct port_statistics  {
        unsigned int  tx_error;			   
 };
 #endif
-#if defined (CONFIG_RTL_INBAND_CTL_API)
-struct port_stats
-{
-	unsigned long rx_bytes_last;
-	unsigned long tx_bytes_last;
-	unsigned long rx_bytes_current;
-	unsigned long tx_bytes_current;
-	unsigned long rx_rate;
-	unsigned long tx_rate;
-};
-#endif
+
 #if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
 #define	RTL_LANVLANID_1		9
 #define	RTL_LANVLANID_2		10

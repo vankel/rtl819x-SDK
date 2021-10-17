@@ -141,6 +141,17 @@ int isFileExist(char *file_name)
 
 	return 1;
 }
+int setPid_toFile(char* file_name)
+{
+	FILE *pidfp;
+	int pid = getpid();
+	if ((pidfp = fopen(file_name, "w")) != NULL) {
+		fprintf(pidfp, "%d\n", pid);
+		fclose(pidfp);
+		return 1;
+	}
+	return -1;
+}
 int getPid_fromFile(char *file_name)
 {
 	FILE *fp;
@@ -367,7 +378,15 @@ void Create_script(char *script_path, char *iface, int network, char *ipaddr, ch
 		return;
 	}
 	if(network==LAN_NETWORK){
+#ifdef CONFIG_AVAHI
+		sprintf(tmpbuf, "%s", "#!/bin/sh\n");
+		write(fh, tmpbuf, strlen(tmpbuf));
+		sprintf(tmpbuf, "echo \"Enter Deconfig Script From BOA Since DONOT Get IP address for  %s\"\n",iface);
+		write(fh, tmpbuf, strlen((char *)tmpbuf));
+#else
 		sprintf((char *)tmpbuf, "%s", "#!/bin/sh\n");
+		write(fh, tmpbuf, strlen((char *)tmpbuf));
+		sprintf((char *)tmpbuf, "ifconfig %s %s\n", iface, ipaddr);
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
 		sprintf((char *)tmpbuf, "ifconfig %s %s netmask %s\n", iface, ipaddr, mask);
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
@@ -381,7 +400,9 @@ void Create_script(char *script_path, char *iface, int network, char *ipaddr, ch
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
 		sprintf((char *)tmpbuf, "%s\n", "init.sh ap wlan_app");
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
+#endif
 	}
+#ifndef CONFIG_AVAHI
 	if(network==WAN_NETWORK){
 		sprintf((char *)tmpbuf, "%s", "#!/bin/sh\n");
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
@@ -395,6 +416,7 @@ void Create_script(char *script_path, char *iface, int network, char *ipaddr, ch
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
 		
 	}
+#endif
 	close(fh);
 }
 #if 0
@@ -614,4 +636,49 @@ int killDaemonByPidFile(char *pidFile)
 		//printf("%s : %s file is not exist!\n",__FUNCTION__,pidFile);
 		return -1;
 	}
+}
+
+int charInString(char c,const char*str)
+{
+	int i=0,len=strlen(str);
+	for(i=0;i<len;i++)
+		if(c==str[i])
+		{			
+			return 1;
+		}
+	return 0;
+}
+int changeDividerToESC(char *src,unsigned int size,const char*dividerChars)
+{
+	int srclen=0,i=0,j=0;
+	if(!src||!dividerChars)
+	{
+		printf("%s : input value is null!\n",__FUNCTION__);
+		return -1;
+	}
+	srclen=strlen(src);
+	if(srclen>=size)
+	{
+		printf("%s : invalid input value!\n",__FUNCTION__);
+		return -1;
+	}
+	for(i=srclen-1;i>=0;i--)
+	{
+		if(charInString(src[i],dividerChars))
+		{
+			srclen++;
+			if(srclen>=size)
+			{
+				printf("%s : over size!\n",__FUNCTION__);
+				return -1;
+			}
+			for(j=srclen-1;j>i;j--)
+			{
+				src[j]=src[j-1];
+			}
+			//assert(j==i);
+			src[j]='\\';			
+		}
+	}
+	return 0;
 }

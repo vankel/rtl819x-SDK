@@ -4,15 +4,13 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include "apmib.h"
 #include "mibtbl.h"
 #include "upmib.h"
 #include "sysconf.h"
 #include "sys_utility.h"
 #include "syswan.h"
-#ifdef 	CONFIG_RTL_ULINKER
-#include <signal.h>
-#endif
 //extern int wlan_idx;	// interface index 
 //extern int vwlan_idx;	// initially set interface index to root   
 extern int set_QoS(int operation, int wan_type, int wisp_wan_id);
@@ -81,6 +79,97 @@ int num_wlan_mesh_interface=0;
 char acsURLStr[CWMP_ACS_URL_LEN+1];
 #endif //#ifdef CONFIG_APP_TR069
 
+//#define UPGRADE_BOOT_FROM_ROOT
+#ifdef SAMBA_WEB_SUPPORT
+void storage_UpdateSambaConf()
+{
+	char 				tmpBuff[1024];
+	int					number,i;
+	STORAGE_GROUP_T		group_info;
+	int					anonAccess,anonSambaAccess;
+	FILE				*fp;
+	memset(tmpBuff,'\0',1024);
+	fp = fopen("/etc/samba/smb.conf","w+");
+
+	apmib_get(MIB_STORAGE_ANON_ENABLE,(void*)&anonAccess);
+	apmib_get(MIB_STORAGE_ANON_DISK_ENABLE,(void*)&anonSambaAccess);
+	
+	strcpy(tmpBuff,"[global]\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tserver string\t= RTCN 8190 Samba Server\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tlog level\t= 0\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tmax xmit\t= 65536\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\taio write size\t= 65536\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\taio read size\t= 65536\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tlarge readwrite =\tyes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tgetwd cache =\tyes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tread raw\t= yes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\twrite raw\t= yes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tlpq cache\t= 30\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\toplocks =\tyes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\twinbind nested groups\t= no\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tdomain master\t= no\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tlocal master\t= yes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tpublic\t= yes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tinterfaces\t= br0\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tload printers\t= no\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tprinting\t= bsd\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tprintcap name\t= /dev/null\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tdisable spoolss\t= yes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tlog file\t= /var/log/log.%m\n");
+	if(anonAccess == 1 && anonSambaAccess == 1)
+		strcpy(tmpBuff+strlen(tmpBuff),"\tsecurity\t= share\n");
+	else
+		strcpy(tmpBuff+strlen(tmpBuff),"\tsecurity\t= user\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tsocket options\t= IPTOS_LOWDELAY IPTOS_THROUGHPUT TCP_NODELAY SO_KEEPALIVE TCP_FASTACK SO_RCVBUF=65536 SO_SNDBUF=65536\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tgetwd cache\t= yes\n");
+	strcpy(tmpBuff+strlen(tmpBuff),"\tdns proxy\t= no\n");
+
+	//anonymous shared folder informatio
+	if(anonAccess == 1 && anonSambaAccess == 1){
+		strcpy(tmpBuff+strlen(tmpBuff),"[share]\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tpath\t=/tmp/usb\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tcomment\t= anonymous user's share folder\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tread only\t= no\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\twritable\t= yes\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tpublic\t= yes\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\toplocks\t= no\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tkernel oplocks\t= no\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tcreate mask\t= 0777\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tbrowseable\t= yes\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tguest ok\t= yes\n");
+		strcpy(tmpBuff+strlen(tmpBuff),"\tdirectory mask\t= 0777\n");
+		goto setOk_SambaConfUpdate;
+	}
+
+	//shared folder information
+	apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+	for(i = 0;i < number;i++)
+	{
+		*((char*)&group_info) = (char)(i+1);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&group_info);
+
+		if(group_info.storage_group_sharefolder_flag == 1){
+			snprintf(tmpBuff+strlen(tmpBuff),1024-strlen(tmpBuff),"[%s]\n",group_info.storage_group_displayname);
+			snprintf(tmpBuff+strlen(tmpBuff),1024-strlen(tmpBuff),"\tpath\t=%s\n",group_info.storage_group_sharefolder);
+			strcpy(tmpBuff+strlen(tmpBuff),"\tcomment\t= smbuser's share folder\n");
+			snprintf(tmpBuff+strlen(tmpBuff),1024-strlen(tmpBuff),"\tvalid users\t=@%s\n",group_info.storage_group_name);			
+			
+			if(!strcmp(group_info.storage_group_access,"r-w"))
+				snprintf(tmpBuff+strlen(tmpBuff),1024-strlen(tmpBuff),"\twrite list\t=@%s\n",group_info.storage_group_name);
+			else if(!strcmp(group_info.storage_group_access,"r"))
+				snprintf(tmpBuff+strlen(tmpBuff),1024-strlen(tmpBuff),"\tread list\t=@%s\n",group_info.storage_group_name);
+		}
+	}
+	
+setOk_SambaConfUpdate:
+
+	fwrite(tmpBuff,strlen(tmpBuff),1,fp);
+	fclose(fp);
+
+	system("killall smbd");
+	system("smbd -D");
+}
+#endif
 #ifdef TR181_SUPPORT
 static int init_dns_client_server_table = 0;
 #endif
@@ -143,7 +232,18 @@ void set_br_interface(unsigned char *brif)
 		strcat(tmpBuff, " ");
 		strcat(tmpBuff, br_lan2_interface);
 	}
-#endif		
+#endif
+	#if !defined(CONFIG_RTL_MULTI_LAN_DEV) && !defined(CONFIG_RTL_IVL_SUPPORT)
+	/* rtk vlan enable and in bridge&wisp mode and disable ivl and disable multi lan, add eth1 to br0 */
+	if (vlan_interface[0])
+	{
+		if(opmode == BRIDGE_MODE || opmode == WISP_MODE) 
+		{
+			strcat(tmpBuff, " ");
+			strcat(tmpBuff, br_lan2_interface);
+		}
+	}
+	#endif
 #endif
 
 #if defined(CONFIG_RTL_ULINKER)
@@ -154,7 +254,101 @@ void set_br_interface(unsigned char *brif)
 	return;
 
 }
+int _is_hex(char c)
+{
+    return (((c >= '0') && (c <= '9')) ||
+            ((c >= 'A') && (c <= 'F')) ||
+            ((c >= 'a') && (c <= 'f')));
+}
+int _string_to_hex(char *string, unsigned char *key, int len)
+{
+	char tmpBuf[4];
+	int idx, ii=0;
+	for (idx=0; idx<len; idx+=2) {
+		tmpBuf[0] = string[idx];
+		tmpBuf[1] = string[idx+1];
+		tmpBuf[2] = 0;
+		if ( !_is_hex(tmpBuf[0]) || !_is_hex(tmpBuf[1]))
+		{
+			return 0;
+		}
 
+		key[ii++] = (unsigned char) strtol(tmpBuf, (char**)NULL, 16);
+	}
+	return 1;
+}
+
+char * strToValue(char *str,TYPE_T type)
+{
+	switch(type)
+	{
+		case BYTE_T:
+		case WORD_T:
+		case DWORD_T:
+		{
+			int i=atoi(str);
+			*((int*)str)=i;
+			return str;
+		}
+		case STRING_T:
+			return str;
+		case IA_T:
+		{
+			struct in_addr addr;
+			inet_aton(str,&addr);
+			*((struct in_addr*)str)=addr;
+			return str;
+		}
+		case DHCPRSVDIP_ARRY_T:
+		{
+			DHCPRSVDIP_T staticIPEntry={0};
+			char ipAddr[32]={0};
+			char macAddr[32]={0};
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+			char portId[8]={0};
+			sscanf(str,"%s\t%s\t%s\t%s",ipAddr,portId,macAddr,staticIPEntry.hostName);
+			staticIPEntry.portId=atoi(portId);
+#else
+			sscanf(str,"%s\t%s\t%s",ipAddr,macAddr,staticIPEntry.hostName);
+#endif
+			inet_aton(ipAddr,(struct in_addr *)staticIPEntry.ipAddr);
+			_string_to_hex(macAddr,staticIPEntry.macAddr,12);
+			*((DHCPRSVDIP_T*)str)=staticIPEntry;
+			return str;
+		}
+		default:
+			return str;
+	}
+}
+#if defined(UPGRADE_BOOT_FROM_ROOT)
+void upgrade_boot()
+{
+	int filelen;
+	char *msg;
+	FILE *src, *dst;
+	struct stat buf;
+
+	stat("/etc/boot.bin", &buf);
+	filelen=buf.st_size;
+
+	src = fopen("/etc/boot.bin", "rb");
+	dst = fopen("/dev/mtdblock0", "wb");
+
+	if(src && dst) 
+	{
+		msg = (char *)malloc(filelen*sizeof(char));
+		fread(msg, filelen, 1, src);
+		if(!memcmp(msg, "boot", 4))
+		{
+			fwrite(&msg[sizeof(IMG_HEADER_T)], filelen, 1, dst);
+		}
+		free(msg);
+		fclose(src);
+		fclose(dst);
+	}
+
+}
+#endif
 
 int up_mib_value()
 {
@@ -163,28 +357,47 @@ int up_mib_value()
         int i=0;
  
         apmib_get(MIB_MIB_VER, (void *)&old_ver);
+#ifdef RTL_DEF_SETTING_IN_FW
+		apmib_getDef(MIB_MIB_VER,(void *)&new_ver);
+#else
         new_ver = atoi(update_mib[0].value);
+#endif
+
         if(old_ver == new_ver)
         {
                 return -1;
         }
         else
-                printf("MIB Version update\n");
+                printf("MIB Version update!\n");
+		
+		
  
+#if defined(UPGRADE_BOOT_FROM_ROOT)
+	 upgrade_boot();
+#endif
+#ifdef RTL_DEF_SETTING_IN_FW
+		if(new_mib[0].id==0&&update_mib[1].id==0)
+		{
+			system("flash reset");
+			return 0;
+		}
+#endif		
         i=0;
         while(new_mib[i].id != 0)
         {
-                RunSystemCmd(NULL_FILE, "flash", "set", new_mib[i].name, new_mib[i].value, NULL_STR);
+        		apmib_set(new_mib[i].id,strToValue(new_mib[i].value,new_mib[i].type)); 
+                //RunSystemCmd(NULL_FILE, "flash", "set", new_mib[i].name, new_mib[i].value, NULL_STR);
                 i++;
         }
  
         i=0;
         while(update_mib[i].id != 0)
         {
-                RunSystemCmd(NULL_FILE, "flash", "set", update_mib[i].name, update_mib[i].value, NULL_STR);
+        	apmib_set(update_mib[i].id,strToValue(update_mib[i].value,update_mib[i].type));        	
+              //  RunSystemCmd(NULL_FILE, "flash", "set", update_mib[i].name, update_mib[i].value, NULL_STR);
                 i++;
         }
- 
+ 		apmib_update(CURRENT_SETTING);
         return 0;
  
 }
@@ -289,7 +502,7 @@ void start_wlanapp(int action)
 	if(tmpBuff[0])
 		setWlan_Applications("start", tmpBuff);
 
-	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
+	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_APP_APPLE_MFI_WAC)
 		system("rm -f  /var/system/start_init 2> /dev/null");
 	#endif
 
@@ -448,6 +661,7 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			RunSystemCmd(HW_NAT_FILE, "echo", "5", NULL_STR); /*wisp mode with multiple vlan*/
 		
 	}else{/*software nat supported*/ 
+	if(isFileExist(SOFTWARE_NAT_FILE)){	
 		if(sys_opmode==0)
 		{
 #ifdef RTK_USB3G
@@ -465,6 +679,7 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "3", NULL_STR);
 		if(sys_opmode==4)
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "4", NULL_STR);
+	}
 		
 	}
 #endif	//CONFIG_POCKET_AP_SUPPORT
@@ -477,21 +692,26 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 		RunSystemCmd(NULL_FILE, "killall", "-15", "routed", NULL_STR);
 		if(isFileExist(RIP_PID_FILE)){
 			unlink(RIP_PID_FILE);
-		}
-
-#if 0 //defined(CONFIG_APP_TR069) // Move to webpage form handler when user modify setting
+		}	
+#ifdef RIP6_SUPPORT
+		RunSystemCmd(NULL_FILE, "killall", "-15", "bird6", NULL_STR);
+#endif
+		
+#if defined(CONFIG_APP_TR069) // Move to webpage form handler when user modify setting
 		/* Keep Tr069 alive unless 1.ACSURL changed 2.Turn off tr069 */
-		if(isFileExist(TR069_PID_FILE))
+		if ((pid=find_pid_by_name("cwmpClient")) > 0)
+		//if(isFileExist(TR069_PID_FILE))
 		{									
 			unsigned char acsUrltmp[CWMP_ACS_URL_LEN+1];
 			int tr069Flag;
 			
-			apmib_get( MIB_CWMP_ACS_URL, (void *)acsUrltmp);
+			apmib_get( MIB_CWMP_ACS_URL_OLD, (void *)acsUrltmp);
+			apmib_get( MIB_CWMP_ACS_URL, (void *)acsURLStr);
 			apmib_get( MIB_CWMP_FLAG, (void *)&tr069Flag);
 			
 			if(strcmp(acsUrltmp, acsURLStr) != 0 || ((tr069Flag & CWMP_FLAG_AUTORUN) == 0))
 			{
-			pid=getPid_fromFile(TR069_PID_FILE);
+			//pid=getPid_fromFile(TR069_PID_FILE);
 			if(pid != -1){
 				sprintf(strPID, "%d", pid);
 				RunSystemCmd(NULL_FILE, "kill", "-15", strPID, NULL_STR);
@@ -513,9 +733,7 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 		#ifdef CONFIG_AUTO_DHCP_CHECK
 		RunSystemCmd(NULL_FILE, "killall", "-9", "Auto_DHCP_Check", NULL_STR);
 		#endif
-#if 0//def APP_WATCHDOG
-		RunSystemCmd(NULL_FILE, "killall", "-9", "watchdog", NULL_STR); //LZQ
-#endif
+
 
 #if defined(CONFIG_APP_FWD)
 		RunSystemCmd(NULL_FILE, "killall", "-9", "fwd", NULL_STR); //LZQ
@@ -547,6 +765,10 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 	}
 	/* kill dhcp client */
 	killDhcpcDaemons();
+	sprintf(tmpBuff, "/etc/udhcpc/udhcpc-%s.pid", "br0");
+	if(isFileExist(tmpBuff)){
+		unlink(tmpBuff);
+	}
 #if 0
 /*kill dhcp client if br interface is dhcp client*/	
 	sprintf(tmpBuff, "/etc/udhcpc/udhcpc-%s.pid", lanInterface);
@@ -691,6 +913,15 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			}
 			unlink(MLDPROXY_PID_FILE);			
 	}
+
+	/* add for rm the configure file */
+	RunSystemCmd(NULL_FILE, "rm", "-f", DHCP6S_CONF_FILE, NULL_STR);
+	RunSystemCmd(NULL_FILE, "rm", "-f", DHCP6C_CONF_FILE, NULL_STR);
+	RunSystemCmd(NULL_FILE, "rm", "-f", DNSV6_CONF_FILE, NULL_STR);
+	RunSystemCmd(NULL_FILE, "rm", "-f", RADVD_CONF_FILE, NULL_STR);
+	RunSystemCmd(NULL_FILE, "rm", "-f", DHCP6PD_CONF_FILE, NULL_STR);
+	RunSystemCmd(NULL_FILE, "rm", "-f", DNSV6_ADDR_FILE, NULL_STR);
+	/* end add */
 #endif
 /*end of clean the process before take new setting*/		
 	
@@ -710,7 +941,13 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 #if defined(CONFIG_APP_SIMPLE_CONFIG)
 	system("killall simple_config");
 #endif
-	
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+	system("killall wfaudio");
+	system("killall WACServer");
+#if defined(CONFIG_APPLE_HOMEKIT)
+	system("killall hapserver");
+#endif
+#endif
 }
 #if defined(CONFIG_APP_USBMOUNT)
 #define	PARTITION_FILE "/proc/partitions"
@@ -863,7 +1100,7 @@ void autoMountOnBootUp(void)
 void start_mount()
 {
 #if defined(HTTP_FILE_SERVER_SUPPORTED) || defined(RTL_USB_IP_HOST_SPEEDUP)
-	RunSystemCmd("/proc/sys/vm/min_free_kbytes", "echo", "384", NULL_STR);
+	RunSystemCmd("/proc/sys/vm/min_free_kbytes", "echo", "2048", NULL_STR);
 	RunSystemCmd("/proc/sys/net/core/rmem_max", "echo", "1048576", NULL_STR);
 	RunSystemCmd("/proc/sys/net/core/wmem_max", "echo", "1048576", NULL_STR);
 	RunSystemCmd("/proc/sys/net/ipv4/tcp_rmem", "echo", "4096 108544 4194304", NULL_STR);
@@ -894,9 +1131,19 @@ void start_mount()
 	/*automatically mount partions listed in /proc/partitions*/
 	autoMountOnBootUp();
 
+	system("killall usbStorageAppController 2>/dev/null");
+	system("usbStorageAppController&");
 //	RunSystemCmd("/var/group",  "echo", " ",  NULL_STR);
 //	RunSystemCmd(NULL_FILE,  "cp", "/etc/group", "/var/group",  NULL_STR);
 
+}
+#endif
+
+#if defined(CONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM)
+void load_rtl_fs_module(void)
+{
+	RunSystemCmd(NULL_FILE, "insmod", "/lib/modules/jnl.ko", NULL_STR);
+	RunSystemCmd(NULL_FILE, "insmod", "/lib/modules/ufsd.ko", NULL_STR);
 }
 #endif
 
@@ -904,13 +1151,13 @@ void start_mount()
 void start_samba()
 {
 	/*start samba*/
-	RunSystemCmd(NULL_FILE,  "echo", "start samba", NULL_STR);
+	//RunSystemCmd(NULL_FILE,  "echo", "start samba", NULL_STR);
 	RunSystemCmd(NULL_FILE,  "mkdir", "/var/samba", NULL_STR);
 	RunSystemCmd(NULL_FILE,  "cp", "/etc/samba/smb.conf", "/var/samba/smb.conf",  NULL_STR);
 	RunSystemCmd("/var/group",  "echo", " ",  NULL_STR);
         RunSystemCmd(NULL_FILE,  "cp", "/etc/group", "/var/group",  NULL_STR);
-	RunSystemCmd(NULL_FILE,  "smbd", "-D", NULL_STR);
-	RunSystemCmd(NULL_FILE,  "nmbd", "-D", NULL_STR);
+	//RunSystemCmd(NULL_FILE,  "smbd", "-D", NULL_STR);
+	//RunSystemCmd(NULL_FILE,  "nmbd", "-D", NULL_STR);
 }
 #endif
 
@@ -949,6 +1196,282 @@ void setInitMultiPPPoE()
 	}		
 	*/
 }
+
+#endif
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT) 
+int init_EthDot1x(int wan_mode, int sys_op, char *wan_iface, char *lan_iface)
+{
+	int val, dot1xenable, dot1xmode, proxy_port_mask = 0 , client_port_mask = 0, maxport = 0, i = 0;
+	int type, unicast_enable, server_port;
+	ETHDOT1X_T entry;
+	unsigned char cmdBuffer[100];
+	
+	RunSystemCmd(NULL_FILE, "killall", "-9", "auth_eth", NULL_STR);	
+	
+	apmib_get( MIB_ELAN_ENABLE_1X, (void *)&dot1xenable);
+	apmib_get( MIB_ELAN_DOT1X_MODE, (void *)&dot1xmode);
+	apmib_get( MIB_ELAN_DOT1X_PROXY_TYPE, (void *)&type);
+	apmib_get( MIB_ELAN_EAPOL_UNICAST_ENABLED, (void *)&unicast_enable);
+	apmib_get( MIB_ELAN_DOT1X_SERVER_PORT, (void *)&server_port);
+	if (dot1xenable)
+	{
+		//client mode enable check in flash.c
+		//if (dot1xenable & ETH_DOT1X_PROXY_SNOOPING_MODE_ENABLE_BIT)
+		{
+			maxport =  MAX_ELAN_DOT1X_PORTNUM - 1;
+			if (sys_op ==BRIDGE_MODE || sys_op == WISP_MODE)
+			{
+				#if !defined(CONFIG_RTL_IVL_SUPPORT)
+				maxport =  MAX_ELAN_DOT1X_PORTNUM;
+				#endif
+			}
+			if ((dot1xenable & ETH_DOT1X_PROXY_SNOOPING_MODE_ENABLE_BIT)&&
+				(dot1xmode & ETH_DOT1X_SNOOPING_MODE_BIT))//snooping mode enable
+			{
+				sprintf(cmdBuffer,"echo \"1 1\" > /proc/802dot1x/enable");
+				system(cmdBuffer);
+				sprintf(cmdBuffer,"echo \"%d\" > /proc/802dot1x/server_port", server_port);
+				system(cmdBuffer);
+			}
+			else if ((dot1xenable & ETH_DOT1X_PROXY_SNOOPING_MODE_ENABLE_BIT)&&
+				(dot1xmode & ETH_DOT1X_PROXY_MODE_BIT))//proxy mode enable
+			{
+				
+				sprintf(cmdBuffer,"echo \"1 %d\" > /proc/802dot1x/enable", unicast_enable);
+				system(cmdBuffer);
+			}			
+			else if ((dot1xenable & ETH_DOT1X_CLIENT_MODE_ENABLE_BIT)&&
+				(dot1xmode & ETH_DOT1X_CLIENT_MODE_BIT))//client mode enable
+			{
+				sprintf(cmdBuffer,"echo \"1 1\" > /proc/802dot1x/enable");
+				system(cmdBuffer);
+			}
+			
+			sprintf(cmdBuffer,"echo \"%d\" > /proc/802dot1x/type", type);
+			system(cmdBuffer);
+			
+			for(i=1; i<=maxport ; i++)
+			{
+				memset(&entry, '\0', sizeof(entry));
+				//	printf("--%s(%d)--i is %d\n", __FUNCTION__, __LINE__, i);
+
+				*((char *)&entry) = (char)i;
+				apmib_get(MIB_ELAN_DOT1X_TBL, (void *)&entry);
+				if (!entry.enabled)
+					continue;
+				
+				printf("%s %d entry.enabled=%d entry.portnum=%d\n", __FUNCTION__, __LINE__, entry.enabled, entry.portnum);
+				proxy_port_mask |= (1<<entry.portnum);
+				if (dot1xmode & ETH_DOT1X_SNOOPING_MODE_BIT)
+				{
+					sprintf(cmdBuffer,"echo \"1 %d 1 1\" > /proc/802dot1x/mode", entry.portnum);
+				}
+				else if (dot1xmode & ETH_DOT1X_PROXY_MODE_BIT)
+				{
+					if (unicast_enable)
+						sprintf(cmdBuffer,"echo \"1 %d 2 1\" > /proc/802dot1x/mode", entry.portnum);
+					else
+						sprintf(cmdBuffer,"echo \"1 %d 2 0\" > /proc/802dot1x/mode", entry.portnum);
+				}
+				system(cmdBuffer);
+				
+			}
+			if (((dot1xenable & ETH_DOT1X_PROXY_SNOOPING_MODE_ENABLE_BIT)&&
+				(dot1xmode & ETH_DOT1X_PROXY_MODE_BIT))||
+				((dot1xenable & ETH_DOT1X_CLIENT_MODE_ENABLE_BIT)&&
+				(dot1xmode & ETH_DOT1X_CLIENT_MODE_BIT)))
+				{
+					val = 1;
+					apmib_set( MIB_ELAN_MAC_AUTH_ENABLED, (void *)&val);
+					val = 3;
+					apmib_set( MIB_ELAN_ACCOUNT_RS_MAXRETRY, (void *)&val);
+					val = 0;
+					apmib_set( MIB_ELAN_RS_REAUTH_TO, (void *)&val);
+					val = 3;
+					apmib_set( MIB_ELAN_RS_MAXRETRY, (void *)&val);
+					val = 3;
+					apmib_set( MIB_ELAN_RS_INTERVAL_TIME, (void *)&val);
+					val = 3;
+					apmib_set( MIB_ELAN_ACCOUNT_RS_MAXRETRY, (void *)&val);
+
+					if ((dot1xenable & ETH_DOT1X_PROXY_SNOOPING_MODE_ENABLE_BIT)&&
+						(dot1xmode & ETH_DOT1X_PROXY_MODE_BIT))
+					{
+						apmib_set( MIB_ELAN_DOT1X_PROXY_MODE_PORT_MASK, (void *)&proxy_port_mask);
+					}
+					
+					if ((dot1xenable & ETH_DOT1X_CLIENT_MODE_ENABLE_BIT)&&
+						(dot1xmode & ETH_DOT1X_CLIENT_MODE_BIT))
+					{
+						client_port_mask = 1<<ETH_DOT1X_CLIENT_PORT;//default .....
+						apmib_set( MIB_ELAN_DOT1X_CLIENT_MODE_PORT_MASK, (void *)&client_port_mask);
+						sprintf(cmdBuffer,"echo \"1 %d 3 0\" > /proc/802dot1x/mode", ETH_DOT1X_CLIENT_PORT);
+						system(cmdBuffer);
+						sprintf(cmdBuffer,"rsCert -rd");
+						system(cmdBuffer);
+					}
+					sprintf(cmdBuffer,"flash ethdot1x /var/1x/eth_1x.conf");
+					system(cmdBuffer);
+					sprintf(cmdBuffer,"auth_eth eth0 br0 eth /var/1x/eth_1x.conf");
+					system(cmdBuffer);
+				}
+			
+		}
+		
+	}
+
+	return 0;
+	
+}
+#endif
+
+#ifdef RTK_CAPWAP
+#define CAPWAP_APP_VAR_DIR "/var/capwap"
+#define CAPWAP_APP_ETC_DIR "/etc/capwap"
+static int capwap_config_changed(const char *var_str, const char *var_original_filename)
+{
+	char *old_var_str = NULL;
+	FILE *fp = NULL;
+	size_t bufsize, bufread;
+	char filepath[64];
+
+	if(!isFileExist(CAPWAP_APP_VAR_DIR)) return 1;
+	
+	sprintf(filepath, "%s/%s", CAPWAP_APP_VAR_DIR, var_original_filename);
+	fp = fopen(filepath, "r");
+	if (fp == NULL) return 1;
+	if (fseek(fp, 0L, SEEK_END) != 0) {
+		fclose(fp);
+		return 1;
+	}
+	bufsize = ftell(fp);
+	if (bufsize <= 0) {
+		fclose(fp);
+		return 1;
+	}
+	if (fseek(fp, 0L, SEEK_SET) != 0) {
+		fclose(fp);
+		return 1;
+	}
+
+	old_var_str = malloc(sizeof(char) * (bufsize + 1));
+	old_var_str[0] = '\0';
+
+	bufread = fread(old_var_str, sizeof(char), bufsize, fp);
+	if (bufread < bufsize) {
+		printf("bufread < bufsize, %u, %u, %s\n", bufread, bufsize, old_var_str);
+	}
+	old_var_str[bufread] = '\0';
+	fclose(fp);
+
+	if(strcmp(old_var_str, var_str)!=0) {
+		free(old_var_str);
+		return 1;
+	} else {
+		free(old_var_str);
+		return 0;
+	}
+
+}
+
+static void capwap_set_config_to_file(const char *var_str, const char *var_original_filename)
+{
+	char cmd[128];
+	
+	if(!isFileExist(CAPWAP_APP_VAR_DIR)) {		
+		system("mkdir "CAPWAP_APP_VAR_DIR);
+	}
+		
+	sprintf(cmd, "echo \"%s\" > %s/%s", var_str, CAPWAP_APP_VAR_DIR, var_original_filename);
+	system(cmd);	
+}
+
+void capwap_app()
+{	
+	int capwapMode;
+	apmib_get(MIB_CAPWAP_MODE, &capwapMode);
+
+	// for wtp
+	printf("babylon test MIB_CAPWAP_MODE=%d, CAPWAP_WTP_ENABLE=%d, CAPWAP_AC_ENABLE=%d\n", capwapMode, CAPWAP_WTP_ENABLE, CAPWAP_AC_ENABLE);
+	if (capwapMode & CAPWAP_WTP_ENABLE) {
+		char ac_ip_str[16], wtp_id_str[8];		
+		int restart_flag;
+		unsigned char tmp_ip[4];
+		int tmp_int_val;
+		
+		// get config from flash
+		apmib_get(MIB_CAPWAP_AC_IP, tmp_ip);
+		sprintf(ac_ip_str, "%d.%d.%d.%d", tmp_ip[0], tmp_ip[1], tmp_ip[2], tmp_ip[3]);
+		apmib_get(MIB_CAPWAP_WTP_ID, &tmp_int_val);
+		sprintf(wtp_id_str, "%d.%d.%d.%d", tmp_ip[0], tmp_ip[1], tmp_ip[2], tmp_ip[3]);
+
+		// get original config & compare
+		restart_flag = 0;
+		if (capwap_config_changed("wtp_started", "wtp_status")) {			
+			restart_flag = 1;
+		}
+		
+		if (capwap_config_changed(ac_ip_str, "ac_ip")) {			
+			restart_flag = 1;
+		}
+
+		if (capwap_config_changed(wtp_id_str, "wtp_id")) {			
+			restart_flag = 1;
+		}
+
+		// restart wtp
+		if (restart_flag) {
+			system("killall -9 WTP");
+			capwap_set_config_to_file("wtp_started", "wtp_status");
+			capwap_set_config_to_file(ac_ip_str, "ac_ip");
+			capwap_set_config_to_file(wtp_id_str, "wtp_id");
+			sleep(2);
+			system("WTP "CAPWAP_APP_ETC_DIR);
+		}
+		
+	} else {
+		system("killall -9 WTP");
+		capwap_set_config_to_file("wtp_disabled", "wtp_status");
+	}
+
+	// for AC
+	if (capwapMode & CAPWAP_AC_ENABLE) {		
+		int restart_flag = 0;		
+		if (capwap_config_changed("ac_started", "ac_status")) {			
+			restart_flag = 1;
+		}
+		if (restart_flag) {
+			system("killall -9 AC");			
+			capwap_set_config_to_file("ac_started", "ac_status");
+			sleep(2);
+			system("AC "CAPWAP_APP_ETC_DIR);
+		}
+	} else {
+		system("killall -9 AC");
+		capwap_set_config_to_file("ac_disabled", "ac_status");
+	}
+	
+}
+#endif
+
+#if defined(CONFIG_RPS)
+static void rtl_configRps(void)
+{
+	system("mount -t sysfs sysfs /sys");
+	system("echo 2 > /sys/class/net/eth0/queues/rx-0/rps_cpus");
+	system("echo 2 > /sys/class/net/eth1/queues/rx-0/rps_cpus");
+	system("echo 2 > /sys/class/net/eth2/queues/rx-0/rps_cpus");
+	system("echo 2 > /sys/class/net/eth3/queues/rx-0/rps_cpus");
+	system("echo 2 > /sys/class/net/eth4/queues/rx-0/rps_cpus");
+	system("echo 2 > /sys/class/net/wlan0/queues/rx-0/rps_cpus");
+	system("echo 2 > /sys/class/net/wlan1/queues/rx-0/rps_cpus");
+	system("echo 4096 > /sys/class/net/eth0/queues/rx-0/rps_flow_cnt");
+	system("echo 4096 > /sys/class/net/eth1/queues/rx-0/rps_flow_cnt");
+	system("echo 4096 > /sys/class/net/eth2/queues/rx-0/rps_flow_cnt");
+	system("echo 4096 > /sys/class/net/eth3/queues/rx-0/rps_flow_cnt");
+	system("echo 4096 > /sys/class/net/eth4/queues/rx-0/rps_flow_cnt");
+	system("echo 4096 > /proc/sys/net/core/rps_sock_flow_entries");
+}
 #endif
 
 int setinit(int argc, char** argv)
@@ -980,13 +1503,41 @@ int setinit(int argc, char** argv)
 #endif
 	int reinit=1;
 
+#ifdef SAMBA_WEB_SUPPORT
+	STORAGE_USER_T 	user_info;
+	STORAGE_GROUP_T	group_info;
+	int 			number;
+#endif
 #if defined(CONFIG_RTL_ULINKER_WLAN_DELAY_INIT)
 	int ulinker_auto = 0;
+#endif
+
+//for 2.4g-wlan0 5g-wlan1, not normal 5g-wlan0 2.4g-wlan1
+#if defined(CONFIG_BAND_2G_ON_WLAN0) || defined(CONFIG_BAND_5G_ON_WLAN0)
+	int wlanBand2G5GSelect;
+	int phyBandSelect;
+	apmib_get(MIB_WLAN_BAND2G5G_SELECT,(void *)&wlanBand2G5GSelect);
+	if(wlanBand2G5GSelect == BANDMODEBOTH)//dual band
+	{
+		old_wlan_idx = wlan_idx;
+		wlan_idx = 0;
+		apmib_get(MIB_WLAN_PHY_BAND_SELECT, (void *)&phyBandSelect);	
+#if defined(CONFIG_BAND_2G_ON_WLAN0)
+		if(phyBandSelect != PHYBAND_2G)
+			swapWlanMibSetting(0,1);
+#else
+		if(phyBandSelect != PHYBAND_5G)
+			swapWlanMibSetting(0,1);
+#endif
+		wlan_idx = old_wlan_idx;
+	}
 #endif
 
 	if(strcmp(argv[2], "ap")||strcmp(argv[3], "wlan_app")){
 		//it will take about 7s for LAN PC to send DHCP request packet, down eth0 early
 		RunSystemCmd(NULL_FILE, "ifconfig", "eth0", "down", NULL_STR);
+		RunSystemCmd(NULL_FILE, "ifconfig", "br0", "down", NULL_STR);
+		RunSystemCmd(NULL_FILE, "ifconfig", "br0", "up", NULL_STR);
 	}
 	
 #ifdef MULTI_PPPOE
@@ -1054,7 +1605,7 @@ int setinit(int argc, char** argv)
 	}
 #endif
 #endif	
-	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
+	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_APP_APPLE_MFI_WAC)
 		system("echo 1 > /var/system/start_init");
 	#endif 	
 	
@@ -1087,7 +1638,7 @@ int setinit(int argc, char** argv)
 
 	printf("Init Start...\n");
 
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
+/*#if defined(CONFIG_APP_APPLE_MFI_WAC)
 	{
         char wac_nameBuf[64]={0};
         char hostname_cmd[80]={0};
@@ -1098,7 +1649,7 @@ int setinit(int argc, char** argv)
 		system(hostname_cmd);
 	}
 	}		
-#endif
+#endif*/
 	apmib_get(MIB_OP_MODE,(void *)&opmode);
 	apmib_get(MIB_WISP_WAN_ID,(void *)&wisp_wan_id);
 	apmib_get(MIB_DHCP,(void *)&lan_dhcp_mode);
@@ -1329,6 +1880,7 @@ int setinit(int argc, char** argv)
 			RunSystemCmd(HW_NAT_FILE, "echo", "5", NULL_STR); /*wisp mode with multiple vlan*/
 		
 	}else{/*software nat supported*/ 
+		if(isFileExist(SOFTWARE_NAT_FILE)){
 		if(opmode==GATEWAY_MODE)
 		{
 #ifdef RTK_USB3G
@@ -1346,6 +1898,7 @@ int setinit(int argc, char** argv)
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "3", NULL_STR);
 		else if(opmode==4)
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "4", NULL_STR);
+	}
 		
 	}
 #endif	//CONFIG_POCKET_AP_SUPPORT
@@ -1596,14 +2149,7 @@ int setinit(int argc, char** argv)
 		}
 #endif
 	}	
-#ifdef 	CONFIG_RTL_ULINKER
-	if(reinit == 1){
-		int pid_boa = find_pid_by_name("boa");
-		if(pid_boa>0){
-			kill(pid_boa,SIGUSR2);
-		}
-	}
-#endif
+	
 	if(gateway==1){
 		if(enable_br==1){
 			/*init bridge interface*/
@@ -1674,6 +2220,9 @@ int setinit(int argc, char** argv)
 					RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", Gateway, "dev", br_interface, NULL_STR);
 				}	
 				start_wlanapp(v_wlan_app_enabled);
+#if defined(CONFIG_APP_SIMPLE_CONFIG)
+				system("echo 1 > /var/sc_ip_status");
+#endif
 			}else
 				if(lan_dhcp_mode==DHCP_LAN_SERVER //dhcp disabled or server mode or auto
 #ifdef CONFIG_DOMAIN_NAME_QUERY_SUPPORT		
@@ -1757,8 +2306,15 @@ int setinit(int argc, char** argv)
 			}else{
 				RunSystemCmd(PROC_FASTL2TP_FILE, "echo", "0", NULL_STR);
 			}
+
+			if(wan_dhcp_mode == PPPOE) {
+				RunSystemCmd(PROC_FASTPPPOE_FILE, "echo", "1", NULL_STR);
+			} else {
+				RunSystemCmd(PROC_FASTPPPOE_FILE, "echo", "0", NULL_STR);
+			}
+			
 	#ifdef HOME_GATEWAY		
-			if((wan_dhcp_mode !=DHCP_SERVER && wan_dhcp_mode < 7) || (wan_dhcp_mode == USB3G) || (wan_dhcp_mode == DHCP_NONE)){ /* */
+			if((wan_dhcp_mode !=DHCP_SERVER && wan_dhcp_mode < 7) || (wan_dhcp_mode == USB3G) || (wan_dhcp_mode == AFTR) || (wan_dhcp_mode == DHCP_NONE)){ /* */
 				start_wan(wan_dhcp_mode, opmode, wan_interface, br_interface, wisp_wan_id, 1);
 			}else
 				printf("Invalid wan type:wan_dhcp_mode=%d\n", wan_dhcp_mode);
@@ -1806,8 +2362,11 @@ int setinit(int argc, char** argv)
 			start_wlanapp(v_wlan_app_enabled);
 		}	
 #if defined(CONFIG_APP_APPLE_MFI_WAC)		
+		// IOT dhcp client device need to give up br0 ip here , since br0 ip will be decide in IOT networking framework (dhcpc+avahi)
+		// it is implement in wfaudio package 
 		if(lan_dhcp_mode==DHCP_LAN_NONE || lan_dhcp_mode==DHCP_LAN_CLIENT)
 		{
+			//printf("give up br0 ip !!!\n");
 			system("ifconfig br0 0.0.0.0");		
 		}		
 #endif	
@@ -1941,11 +2500,26 @@ int setinit(int argc, char** argv)
 	RunSystemCmd(PROC_BR_MLDQUERY, "echo", "1", NULL_STR);
 #endif
 
+	intValue =0;
+	apmib_get(MIB_IGMP_FAST_LEAVE_DISABLED, (void *)&intValue);
+	if(intValue)
+	{
+		RunSystemCmd(PROC_BR_IGMPSNOOP, "echo", "fastleave","0","2", NULL_STR);
+	}
+	else
+	{	
+		RunSystemCmd(PROC_BR_IGMPSNOOP, "echo", "fastleave","1","0", NULL_STR);
+	}
+	
 #ifdef SUPPORT_ZIONCOM_RUSSIA
 	RunSystemCmd("/proc/sys/net/ipv4/conf/eth1/force_igmp_version", "echo", "2", NULL_STR);
 #endif
 	//RunSystemCmd("/proc/sys/net/ipv4/ip_conntrack_max", "echo", "2048", NULL_STR);
 
+#ifdef CONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM
+	load_rtl_fs_module();
+#endif
+	
 #if defined(CONFIG_APP_USBMOUNT)
 	start_mount();
 #if defined (CONFIG_APP_SAMBA)
@@ -1980,17 +2554,10 @@ int setinit(int argc, char** argv)
 		RunSystemCmd("/proc/http_file/getLanIp", "echo", "1", NULL_STR);
 #endif
 
-	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
+	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_APP_APPLE_MFI_WAC)
 		system("rm -f  /var/system/start_init 2> /dev/null");
 	#endif
-
-#if defined(CONFIG_APP_FWD)
-	//##For fwd
-		//system("mount -t tmpfs none /sbin"); //put fwd to ram
-		//system("cp /bin/fwd /sbin"); //put fwd to ram
-		system("fwd &");
-#endif
-
+	
 #ifdef CONFIG_APP_APPLE_MFI_WAC
 	if(isFileExist("/var/system/mdnsd_started")==0){
 		system("mdnsd");
@@ -2000,6 +2567,18 @@ int setinit(int argc, char** argv)
 #if defined(CONFIG_APPLE_HOMEKIT)
 	system("hapserver 1 0 0 &");
 #endif
+#endif
+
+#if defined(CONFIG_APP_FWD)
+	//##For fwd
+		//system("mount -t tmpfs none /sbin"); //put fwd to ram
+		//system("cp /bin/fwd /sbin"); //put fwd to ram
+		system("fwd &");
+#endif
+#if 0 //defined(CONFIG_APPLE_HOMEKIT)
+	//simply init homekit server , 3 options with default value 
+	// thet are  "useMfi" , "reset Paired list" , "reset Device Json data"	
+	system("hapserver 1 0 0 &");
 #endif
 	//reply only if the target IP address is local address configured on the incoming interface
 	RunSystemCmd("/proc/sys/net/ipv4/conf/eth1/arp_ignore", "echo", "1", NULL_STR);
@@ -2012,13 +2591,50 @@ int setinit(int argc, char** argv)
 		system("Auto_DHCP_Check &");
 	}
 #endif
+#ifdef SAMBA_WEB_SUPPORT
+	system("cp /etc/passwd_orig /var/passwd");
+	system("cp /etc/group_orig /var/group");
+	system("cp /etc/samba/smbpasswd_orig /var/samba/smbpasswd");
+	//system("cp /etc/samba/smb_orig.conf /var/samba/smb.conf");
+	
+	apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+	for(i = 0;i < number;i++)
+	{
+		memset(&group_info,'\0',sizeof(STORAGE_GROUP_T));
+		*((char*)&group_info) = (char)(i+1);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&group_info);
 
-#if 0//def APP_WATCHDOG
-	system("watchdog 1000&");
+		memset(cmdBuffer,'\0',100);
+		snprintf(cmdBuffer,100,"addgroup %s",group_info.storage_group_name);
+		system(cmdBuffer);
+	}
+	
+	apmib_get(MIB_STORAGE_USER_TBL_NUM,(void*)&number);
+	for(i = 0;i < number;i++)
+	{
+		memset(&user_info,'\0',sizeof(STORAGE_USER_T));
+		*((char*)&user_info) = (char)(i+1);
+		apmib_get(MIB_STORAGE_USER_TBL,(void*)&user_info);
+
+		memset(cmdBuffer,'\0',100);
+		if(!strcmp(user_info.storage_user_group,"--")){
+			snprintf(cmdBuffer,100,"adduser %s",user_info.storage_user_name);
+			system(cmdBuffer);
+		}else{
+			snprintf(cmdBuffer,100,"adduser -G %s %s",user_info.storage_user_group,user_info.storage_user_name);
+			system(cmdBuffer);
+		}
+
+		memset(cmdBuffer,'\0',100);
+		snprintf(cmdBuffer,100,"smbpasswd %s %s",user_info.storage_user_name,user_info.storage_user_password);
+		system(cmdBuffer);
+	}
+	storage_UpdateSambaConf();
 #endif
 
 #if defined(CONFIG_APP_TR069)
-	start_tr069();
+	if (find_pid_by_name("cwmpClient") == 0)
+		start_tr069();
 #endif
 
 #if defined(CONFIG_APP_RTK_INBAND_CTL)
@@ -2026,35 +2642,18 @@ int setinit(int argc, char** argv)
 	system("hcd -daemon &");
 #endif
 
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
-	MACREDIRECT_T entry;
-	int num;
-	char macAddr[20] = {0};
-	char redirect_url[] = "www.realsil.com.cn";/*set the redirect page for first visit*/
-	char cmd_str[256] = {0};
-
-	if(reinit)
-	{
-		sprintf(cmd_str,"echo flush dynamic > /proc/http_redirect/mac_list");
-		system(cmd_str);
-		sprintf(cmd_str,"echo flush fixed > /proc/http_redirect/mac_list");
-		system(cmd_str);
-	}
-	
-	memset(cmd_str,0,sizeof(cmd_str));
-	sprintf(cmd_str,"echo %s > /proc/http_redirect/url",redirect_url);
-	system(cmd_str);
-	apmib_get(MIB_MAC_REDIRECT_TBL_NUM, (void *)&num);
-	
-	for (index=1; index<=num; index++) {
-		memset(&entry, '\0', sizeof(entry));
-		*((char *)&entry) = (char)index;
-		apmib_get(MIB_MAC_REDIRECT_TBL, (void *)&entry);
-		sprintf(macAddr,"%02x%02x%02x%02x%02x%02x", entry.macAddr[0], entry.macAddr[1], entry.macAddr[2], entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
-		sprintf(cmdBuffer,"echo add_fixed %s > /proc/http_redirect/mac_list",macAddr);
-		system(cmdBuffer);
-	}
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	init_EthDot1x(wan_dhcp_mode, wan_dhcp_mode, wan_interface, br_interface);
 #endif
+
+#ifdef RTK_CAPWAP
+	capwap_app();
+#endif
+
+#if defined(CONFIG_RPS)
+	rtl_configRps();
+#endif
+
 	return 0;
 }
 

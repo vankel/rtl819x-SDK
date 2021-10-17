@@ -9,7 +9,7 @@
 
 VERSION = RTL8196E v1.0
 #DIRS = bin dev etc home lib mnt proc usr var sys tmp
-DIRS = bin dev dev/voip etc home lib mnt proc usr var sys 
+DIRS = bin dev dev/voip etc home lib mnt proc usr var sys sbin
 
 .PHONY: romfs image
 
@@ -106,6 +106,7 @@ romfs:
 	for i in $(DIRS); do \
 		[ -d $(DIR_ROMFS)/$$i ] || mkdir -p $(DIR_ROMFS)/$$i; \
 	done
+	mkdir $(DIR_ROMFS)/usr/bin
 	mkdir $(DIR_ROMFS)/dev/misc
 	mkdir $(DIR_ROMFS)/dev/pts
 	#chmod 777 $(DIR_ROMFS)/tmp

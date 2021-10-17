@@ -352,7 +352,11 @@ if [ "$PASS" != "final" ]; then
 			read dummy
 			cp "$DEFATDIR/config.$LINUXDIR" $LINUXDIR/.config
 		fi
-		make -C $LINUXDIR oldconfig
+		if egrep "^CONFIG_ARCH_CPU_MIPS=y" $LINUXDIR/.config > /dev/null; then
+			make -C $LINUXDIR oldconfig VAR_ARCH=mips
+		else
+			make -C $LINUXDIR oldconfig
+		fi
 	fi
 
 	if [ ! -f $USERSDIR/.config ] || var_isset CONFIG_MCONF_LOAD; then

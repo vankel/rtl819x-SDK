@@ -449,9 +449,6 @@ void pptp_conn_destroy(PPTP_CONN * conn)
     /* deallocate */
     vector_destroy(conn->call);
     free(conn);
-	
-	memset(conn,0,sizeof(struct PPTP_CONN));
-	conn->inet_sock = -1;	
 }
 
 /*** Deal with messages, in a non-blocking manner 
@@ -462,10 +459,6 @@ void pptp_fd_set(PPTP_CONN * conn, fd_set * read_set, fd_set * write_set,
 {
     int sig_fd;
     assert(conn && conn->call);
-	if(!conn || !(conn->call))
-		return ;
-	if(conn->inet_sock < 0)
-		return ;
     /* Add fd to write_set if there are outstanding writes. */
     if (conn->write_size > 0)
         FD_SET(conn->inet_sock, write_set);

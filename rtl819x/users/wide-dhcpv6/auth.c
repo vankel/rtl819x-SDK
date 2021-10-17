@@ -188,6 +188,44 @@ dhcp6_verify_mac(buf, len, proto, alg, off, key)
 	return (result);
 }
 
+int
+dhcp6_check_auth(buf, len, proto, alg, off,key)
+	char *buf;
+	ssize_t len;
+	int proto, alg;
+	size_t off;
+	char *key;
+{
+	hmacmd5_t ctx;
+	unsigned char digest[MD5_DIGESTLENGTH];
+	int result;
+
+	/* right now, we don't care about the protocol */
+
+	if (alg != DHCP6_AUTHALG_HMACMD5)
+		return (-1);
+
+	if (off + MD5_DIGESTLENGTH > len)
+		return (-1);
+
+	/*
+	 * Copy the MAC value and clear the field.
+	 * XXX: should we make a local working copy?
+	 */
+	memcpy(digest, buf + off, sizeof(digest));
+	memset(buf + off, 0, sizeof(digest));
+
+	hmacmd5_init(&ctx, key, 16);
+	hmacmd5_update(&ctx, buf, len);
+	result = hmacmd5_verify(&ctx, digest);
+
+	/* copy back the digest value (XXX) */
+	memcpy(buf + off, digest, sizeof(digest));
+
+	return (result);
+}
+
+
 /*
  * This code implements the HMAC-MD5 keyed hash algorithm
  * described in RFC 2104.

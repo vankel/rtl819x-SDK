@@ -1,1 +1,0 @@
-../../libc/sysdeps/linux/common/bits/uClibc_clk_tck.h

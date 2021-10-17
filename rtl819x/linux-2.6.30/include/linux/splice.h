@@ -83,4 +83,7 @@ extern ssize_t splice_to_pipe(struct pipe_inode_info *,
 extern ssize_t splice_direct_to_actor(struct file *, struct splice_desc *,
 				      splice_direct_actor *);
 
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+extern ssize_t find_fd_from_socket(int fd_in, loff_t *off_in, int fd_out, size_t len);
+#endif
 #endif

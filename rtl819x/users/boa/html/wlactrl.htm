@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Wireless Access Control</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 function addClick()
 {
@@ -123,7 +124,7 @@ function resetForm()
 </head>
 <body>
 <blockquote>
-<h2><font color="#0000FF">
+<h2>
 <script type="text/javascript">
 var wlan_num =  <% getIndex("wlan_num"); %>;
 if (wlan_num > 1) {
@@ -133,7 +134,7 @@ if (wlan_num > 1) {
 else
 	document.write("Wireless Access Control</p>");
 </script>
-</font></h2>
+</h2>
 
 <table border=0 width="500" cellspacing=4 cellpadding=0>
 <tr><font size=2>

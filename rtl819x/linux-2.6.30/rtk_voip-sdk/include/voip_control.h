@@ -377,12 +377,6 @@ typedef struct
 	uint8	state;				///< RTP session state 
 	int32 result;				///< The result 
 	//int32	ret_val;
-
-#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
-	struct in6_addr ip6_src_addr;		///< Source IPv6 address 
-	struct in6_addr ip6_dst_addr;		///< Destination IPv6 address
-	uint32 ipv6;				///< IPv6 flag, 1: IPv6, 0: IPv4
-#endif
 }
 TstVoipMgrRtpCfg;
 

@@ -43,8 +43,8 @@
 //#define ALLOW_DBG_FIFO
 //#define ALLOW_DBG_SUPP
 
-
 #ifndef DEBUG_DISABLE
+
 // Message printing routine.
 //--------------------------------------------------
 void lib1x_message( int type, char * msg, ... )

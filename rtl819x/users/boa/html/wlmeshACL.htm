@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Mesh Access Control List</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 // _MESH_ACL_ENABLE_ Below for Access Control List
 function addClick()
@@ -111,7 +112,7 @@ function Load_Setting()
 </script>
 </head>
 <blockquote>
-<h2><font color="#0000FF">Access Control List for Mesh Network</font></h2>
+<h2>Access Control List for Mesh Network</h2>
 <body onload="Load_Setting();">
 	<form action=/boafrm/formMeshACLSetup method=POST name="formMeshACLSetup">
 	<!-- _MESH_ACL_ENABLE_ Below for Access Control List -->

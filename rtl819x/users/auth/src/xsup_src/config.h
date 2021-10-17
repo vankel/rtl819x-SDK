@@ -108,7 +108,11 @@ typedef enum {TTLS_PHASE2_UNDEFINED,
 	TTLS_PHASE2_PAP,
 	TTLS_PHASE2_CHAP,
 	TTLS_PHASE2_MSCHAP,
-	TTLS_PHASE2_MSCHAPV2 } ttls_phase2_type;
+	TTLS_PHASE2_MSCHAPV2
+//#ifdef RTL_TTLS_MD5_CLIENT
+	,TTLS_PHASE2_EAP_MD5
+//#endif
+} ttls_phase2_type;
 
 struct config_ttls_phase2  
 { 
@@ -162,6 +166,9 @@ struct config_eap_ttls
 
   ttls_phase2_type phase2_type; //the type to actually do
   struct config_ttls_phase2 *phase2; // all types with info defined
+#ifdef RTL_TTLS_MD5_CLIENT
+  struct generic_eap_data *phase2_eap_data;
+#endif
   
 };
 

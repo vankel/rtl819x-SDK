@@ -78,8 +78,6 @@ int g_force_ptime = -1;
 int g_force_PcmMode = -1;
 int g_force_g7111mode = -1;
 
-extern int g_disable_1st_no_sig_packet;
-extern void dump_codec_state();
 void do_voip_debug_translation( void )
 {
 	// set 'g_voip_debug' before calling this function 
@@ -174,24 +172,8 @@ void do_voip_debug_translation( void )
 		g_force_codec = rtpPayload_AMR_WB_RATE23P05;
 	else if (g_voip_debug == 85)	// force codec to AMR-WB m8
 		g_force_codec = rtpPayload_AMR_WB_RATE23P85;
-
-	else if (g_voip_debug == 86)	// force codec to AMR-NB m0
-		g_force_codec = rtpPayload_AMR_NB_RATE4P75;
-	else if (g_voip_debug == 87)	// force codec to AMR-NB m1
-		g_force_codec = rtpPayload_AMR_NB_RATE5P15;
-	else if (g_voip_debug == 88)	// force codec to AMR-NB m2
-		g_force_codec = rtpPayload_AMR_NB_RATE5P90;
-	else if (g_voip_debug == 89)	// force codec to AMR-NB m3
-		g_force_codec = rtpPayload_AMR_NB_RATE6P70;
-	else if (g_voip_debug == 90)	// force codec to AMR-NB m4
-		g_force_codec = rtpPayload_AMR_NB_RATE7P40;
-	else if (g_voip_debug == 91)	// force codec to AMR-NB m5
-		g_force_codec = rtpPayload_AMR_NB_RATE7P95;
-	else if (g_voip_debug == 92)	// force codec to AMR-NB m6
-		g_force_codec = rtpPayload_AMR_NB_RATE10P2;
-	else if (g_voip_debug == 93)	// force codec to AMR-NB m7
-		g_force_codec = rtpPayload_AMR_NB_RATE12P2;
-
+	else if (g_voip_debug == 123)	// force codec to AMR-NB
+		g_force_codec = rtpPayload_AMR_NB;
 #ifdef CONFIG_RTK_VOIP_PCM_LINEAR_8K
 	else if (g_voip_debug == 8)	//PCM_Linear_8K
 		g_force_codec = rtpPayload_PCM_Linear_8K;
@@ -247,7 +229,7 @@ void do_voip_debug_translation( void )
 		g_force_ptime = 6;	// force frame per packet to 6
 	else if (g_voip_debug == 70)
 		g_force_ptime = 20;	// force frame per packet to 20
-
+	extern int g_disable_1st_no_sig_packet;
 	if ( g_voip_debug == 90 /* 0x5A */) { // jwsyu debug control
 #ifdef CONFIG_RTK_VOIP_T38
 		if ( g_voip_debug5 == 800)
@@ -302,17 +284,6 @@ void do_voip_debug_translation( void )
 		g722_appendix_II_test();
 #endif
 #if 0
-		//AMR-NB
-		extern int amr_enc_main ();
-		extern int amr_dec_main ();
-		amr_enc_main();
-		amr_dec_main();
-#endif
-#if 0		//AMR-NB 3GPP TS 26.074 
-		extern int AMRNB_3gppTest (void);
-		AMRNB_3gppTest();
-#endif
-#if 0
 		//AMR-WB Annex C
 		extern void test_g7222_itu_main( void );
 		test_g7222_itu_main();
@@ -339,7 +310,7 @@ void do_voip_debug_translation( void )
 		g_force_PcmMode = -1;
 		g_force_g7111mode = -1;
 	
-
+		extern void dump_codec_state();
 		dump_codec_state();
 	}
 
@@ -1002,16 +973,15 @@ int do_mgr_VOIP_MGR_PRINT( int cmd, void *user, unsigned int len, unsigned short
 int do_mgr_VOIP_MGR_COP3_CONIFG( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifdef CONFIG_VOIP_COP3_PROFILE
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward 
+#else
 	int ret;
 
 	COPY_FROM_USER(&cp3_voip_param, user, len);
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
-
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	// Send Control Packet and wait Response Packet (global setting for every DSP)
-	ret = ipcSentControlPacketNoChannel(cmd, &cp3_voip_param, sizeof(st_CP3_VoIP_param), MF_NONE);
-#endif
 
 #ifdef CONFIG_ARCH_CPU_RLX5281
 	gCp3Params = /* Counter0 */((cp3_voip_param.cp3_counter1)<< 0) |
@@ -1030,6 +1000,8 @@ int do_mgr_VOIP_MGR_COP3_CONIFG( int cmd, void *user, unsigned int len, unsigned
 	PRINT_MSG(" - counter3: %d\n", cp3_voip_param.cp3_counter3);
 	PRINT_MSG(" - counter4: %d\n", cp3_voip_param.cp3_counter4);
 	PRINT_MSG(" - dump period: %d\n", cp3_voip_param.cp3_dump_period);
+
+#endif
 
 #endif
 	return 0;

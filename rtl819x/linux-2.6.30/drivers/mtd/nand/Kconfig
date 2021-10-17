@@ -469,6 +469,11 @@ config RTK_REMAP_BBT
 	help
 	  It would create remapping bad block table and replace bad block with another good block from RBA.
 endchoice
+
+config NORMAL_BBT_POSITION
+	depends on RTK_NORMAL_BBT
+        hex "bad block table position in nand flash"
+        default 0x2000000
 endmenu
 
 config IMAGE_HEADER_CHECK

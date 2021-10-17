@@ -194,7 +194,8 @@ struct CWMP_PRMT tAscDeviceEntityLeafInfo[] =
 {"AssociatedDeviceAuthenticationState",	eCWMP_tBOOLEAN,	CWMP_READ|CWMP_DENY_ACT,	&tAscDeviceEntityLeafOP},
 {"LastRequestedUnicastCipher",		eCWMP_tSTRING,	CWMP_READ|CWMP_DENY_ACT,	&tAscDeviceEntityLeafOP},
 {"LastRequestedMulticastCipher",	eCWMP_tSTRING,	CWMP_READ|CWMP_DENY_ACT,	&tAscDeviceEntityLeafOP},
-{"LastPMKId",				eCWMP_tSTRING,	CWMP_READ|CWMP_DENY_ACT,	&tAscDeviceEntityLeafOP}
+{"LastPMKId",				eCWMP_tSTRING,	CWMP_READ|CWMP_DENY_ACT,	&tAscDeviceEntityLeafOP},
+{"LastDataTransmitRate",	eCWMP_tSTRING,	CWMP_READ|CWMP_DENY_ACT,	&tAscDeviceEntityLeafOP}
 };
 enum eAscDeviceEntityLeaf
 {
@@ -203,7 +204,8 @@ enum eAscDeviceEntityLeaf
 	eAssociatedDeviceAuthenticationState,
 	eLastRequestedUnicastCipher,
 	eLastRequestedMulticastCipher,
-	eLastPMKId
+	eLastPMKId,
+	eLastDataTransmitRate
 };
 struct CWMP_LEAF tAscDeviceEntityLeaf[] =
 {
@@ -213,6 +215,7 @@ struct CWMP_LEAF tAscDeviceEntityLeaf[] =
 { &tAscDeviceEntityLeafInfo[eLastRequestedUnicastCipher] },
 { &tAscDeviceEntityLeafInfo[eLastRequestedMulticastCipher] },
 { &tAscDeviceEntityLeafInfo[eLastPMKId] },
+{ &tAscDeviceEntityLeafInfo[eLastDataTransmitRate] },
 { NULL }
 };
 
@@ -240,9 +243,11 @@ struct CWMP_PRMT tWLANConfEntityLeafInfo[] =
 /*(name,				type,		flag,			op)*/
 {"Enable",				eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tWLANConfEntityLeafOP},
 {"Status",				eCWMP_tSTRING,	CWMP_READ,		&tWLANConfEntityLeafOP},
+{"Name",				eCWMP_tSTRING,	CWMP_READ,		&tWLANConfEntityLeafOP},
 {"BSSID",				eCWMP_tSTRING,	CWMP_READ,		&tWLANConfEntityLeafOP},
 {"MaxBitRate",				eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tWLANConfEntityLeafOP},
 {"Channel",				eCWMP_tUINT,	CWMP_WRITE|CWMP_READ,	&tWLANConfEntityLeafOP},
+{"AutoChannelEnable",	eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tWLANConfEntityLeafOP},
 {"SSID",				eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tWLANConfEntityLeafOP},
 {"BeaconType",				eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tWLANConfEntityLeafOP},
 #ifdef MAC_FILTER
@@ -305,9 +310,11 @@ enum eWLANConfEntityLeafInfo
 {
 	eWL_Enable,
 	eWL_Status,
+	eWL_Name,
 	eWL_BSSID,
 	eWL_MaxBitRate,
 	eWL_Channel,
+	eWL_AutoChannelEnable,
 	eWL_SSID,
 	eWL_BeaconType,
 #ifdef MAC_FILTER
@@ -362,9 +369,11 @@ struct CWMP_LEAF tWLANConfEntityLeaf[] =
 {
 { &tWLANConfEntityLeafInfo[eWL_Enable] },
 { &tWLANConfEntityLeafInfo[eWL_Status] },
+{ &tWLANConfEntityLeafInfo[eWL_Name] },
 { &tWLANConfEntityLeafInfo[eWL_BSSID] },
 { &tWLANConfEntityLeafInfo[eWL_MaxBitRate] },
 { &tWLANConfEntityLeafInfo[eWL_Channel] },
+{ &tWLANConfEntityLeafInfo[eWL_AutoChannelEnable] },
 { &tWLANConfEntityLeafInfo[eWL_SSID] },
 { &tWLANConfEntityLeafInfo[eWL_BeaconType] },
 #ifdef MAC_FILTER
@@ -931,6 +940,179 @@ int setWEPKeyEntity(char *name, struct CWMP_LEAF *entity, int type, void *data)
 	return 0;
 }
 
+//changes in following table should be synced to VHT_MCS_DATA_RATE[] in 8812_vht_gen.c
+const unsigned short VHT_MCS_DATA_RATE[3][2][20] = 
+	{	{	{13, 26, 39, 52, 78, 104, 117, 130, 156, 156,
+			 26, 52, 78, 104, 156, 208, 234, 260, 312, 312},			// Long GI, 20MHz
+			{14, 29, 43, 58, 87, 116, 130, 144, 173, 173,
+			29, 58, 87, 116, 173, 231, 260, 289, 347, 347}	},		// Short GI, 20MHz
+		{	{27, 54, 81, 108, 162, 216, 243, 270, 324, 360, 
+			54, 108, 162, 216, 324, 432, 486, 540, 648, 720}, 		// Long GI, 40MHz
+			{30, 60, 90, 120, 180, 240, 270, 300,360, 400, 
+			60, 120, 180, 240, 360, 480, 540, 600, 720, 800}},		// Short GI, 40MHz
+		{	{59, 117,  176, 234, 351, 468, 527, 585, 702, 780,
+			117, 234, 351, 468, 702, 936, 1053, 1170, 1404, 1560}, 	// Long GI, 80MHz
+			{65, 130, 195, 260, 390, 520, 585, 650, 780, 867, 
+			130, 260, 390, 520, 780, 1040, 1170, 1300, 1560,1733}	}	// Short GI, 80MHz
+	};
+
+//changes in following table should be synced to MCS_DATA_RATEStr[] in 8190n_proc.c
+WLAN_RATE_T rate_11n_table_20M_LONG[]={
+	{MCS0, 	"6.5"},
+	{MCS1, 	"13"},
+	{MCS2, 	"19.5"},
+	{MCS3, 	"26"},
+	{MCS4, 	"39"},
+	{MCS5, 	"52"},
+	{MCS6, 	"58.5"},
+	{MCS7, 	"65"},
+	{MCS8, 	"13"},
+	{MCS9, 	"26"},
+	{MCS10, 	"39"},
+	{MCS11, 	"52"},
+	{MCS12, 	"78"},
+	{MCS13, 	"104"},
+	{MCS14, 	"117"},
+	{MCS15, 	"130"},
+	{0}
+};
+WLAN_RATE_T rate_11n_table_20M_SHORT[]={
+	{MCS0, 	"7.2"},
+	{MCS1, 	"14.4"},
+	{MCS2, 	"21.7"},
+	{MCS3, 	"28.9"},
+	{MCS4, 	"43.3"},
+	{MCS5, 	"57.8"},
+	{MCS6, 	"65"},
+	{MCS7, 	"72.2"},
+	{MCS8, 	"14.4"},
+	{MCS9, 	"28.9"},
+	{MCS10, 	"43.3"},
+	{MCS11, 	"57.8"},
+	{MCS12, 	"86.7"},
+	{MCS13, 	"115.6"},
+	{MCS14, 	"130"},
+	{MCS15, 	"144.5"},
+	{0}
+};
+WLAN_RATE_T rate_11n_table_40M_LONG[]={
+	{MCS0, 	"13.5"},
+	{MCS1, 	"27"},
+	{MCS2, 	"40.5"},
+	{MCS3, 	"54"},
+	{MCS4, 	"81"},
+	{MCS5, 	"108"},
+	{MCS6, 	"121.5"},
+	{MCS7, 	"135"},
+	{MCS8, 	"27"},
+	{MCS9, 	"54"},
+	{MCS10, 	"81"},
+	{MCS11, 	"108"},
+	{MCS12, 	"162"},
+	{MCS13, 	"216"},
+	{MCS14, 	"243"},
+	{MCS15, 	"270"},
+	{0}
+};
+WLAN_RATE_T rate_11n_table_40M_SHORT[]={
+	{MCS0, 	"15"},
+	{MCS1, 	"30"},
+	{MCS2, 	"45"},
+	{MCS3, 	"60"},
+	{MCS4, 	"90"},
+	{MCS5, 	"120"},
+	{MCS6, 	"135"},
+	{MCS7, 	"150"},
+	{MCS8, 	"30"},
+	{MCS9, 	"60"},
+	{MCS10, 	"90"},
+	{MCS11, 	"120"},
+	{MCS12, 	"180"},
+	{MCS13, 	"240"},
+	{MCS14, 	"270"},
+	{MCS15, 	"300"},
+	{0}
+};
+
+void set_11ac_txrate(WLAN_STA_INFO_Tp pInfo,char* txrate)
+{
+	char channelWidth=0;//20M 0,40M 1,80M 2
+	char shortGi=0;
+	char rate_idx=pInfo->txOperaRates-0x90;
+	if(!txrate)return;
+/*
+	TX_USE_40M_MODE		= BIT(0),
+	TX_USE_SHORT_GI		= BIT(1),
+	TX_USE_80M_MODE		= BIT(2)
+*/
+	if(pInfo->ht_info & 0x4)
+		channelWidth=2;
+	else if(pInfo->ht_info & 0x1)
+		channelWidth=1;
+	else
+		channelWidth=0;
+	if(pInfo->ht_info & 0x2)
+		shortGi=1;
+
+	sprintf(txrate, "%d", VHT_MCS_DATA_RATE[channelWidth][shortGi][rate_idx]>>1);
+}
+
+int tranRate(WLAN_STA_INFO_T *pInfo, unsigned char rate)
+{
+	char txrate[20];
+	int rateid=0;
+	
+	if(rate >= 0x90) {
+		//sprintf(txrate, "%d", pInfo->acTxOperaRate); 
+		set_11ac_txrate(pInfo, txrate);
+	} else if((rate & 0x80) != 0x80){	
+		if(rate%2){
+			sprintf(txrate, "%d%s",rate/2, ".5"); 
+		}else{
+			sprintf(txrate, "%d",rate/2); 
+		}
+	}else{
+		if((pInfo->ht_info & 0x1)==0){ //20M
+			if((pInfo->ht_info & 0x2)==0){//long
+				for(rateid=0; rateid<16;rateid++){
+					if(rate_11n_table_20M_LONG[rateid].id == rate){
+						sprintf(txrate, "%s", rate_11n_table_20M_LONG[rateid].rate);
+						break;
+					}
+				}
+			}else if((pInfo->ht_info & 0x2)==0x2){//short
+				for(rateid=0; rateid<16;rateid++){
+					if(rate_11n_table_20M_SHORT[rateid].id == rate){
+						sprintf(txrate, "%s", rate_11n_table_20M_SHORT[rateid].rate);
+						break;
+					}
+				}
+			}
+		}else if((pInfo->ht_info & 0x1)==0x1){//40M
+			if((pInfo->ht_info & 0x2)==0){//long
+				
+				for(rateid=0; rateid<16;rateid++){
+					if(rate_11n_table_40M_LONG[rateid].id == rate){
+						sprintf(txrate, "%s", rate_11n_table_40M_LONG[rateid].rate);
+						break;
+					}
+				}
+			}else if((pInfo->ht_info & 0x2)==0x2){//short
+				for(rateid=0; rateid<16;rateid++){
+					if(rate_11n_table_40M_SHORT[rateid].id == rate){
+						sprintf(txrate, "%s", rate_11n_table_40M_SHORT[rateid].rate);
+						break;
+					}
+				}
+			}
+		}
+		
+	}
+
+	//tr181_printf("txrate %s", txrate);
+	return atoi(txrate);
+}
+
 int getAscDeviceEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 {
 	char		*lastname = entity->info->name;
@@ -995,6 +1177,13 @@ int getAscDeviceEntity(char *name, struct CWMP_LEAF *entity, int *type, void **d
 	else if( strcmp( lastname, "LastPMKId" )==0 )
 	{
 		*data = strdup( "" );
+	}
+	else if( strcmp( lastname, "LastDataTransmitRate" )==0 )
+	{
+		char sTranRate[5];
+		
+		sprintf(sTranRate, "%d", tranRate(&info, info.RxOperaRate) );
+		*data = strdup(sTranRate);
 	}
 	else{
 		return ERR_9005;
@@ -1126,7 +1315,7 @@ int objWLANConfiguration(char *name, struct CWMP_LEAF *e, int type, void *data)
 	{
 	case eCWMP_tINITOBJ:
 	     {
-		int MaxInstNum;
+		unsigned int MaxInstNum = 0;
 		struct CWMP_LINKNODE **c = (struct CWMP_LINKNODE **)data;
 		if( (name==NULL) || (entity==NULL) || (data==NULL) ) return -1;
 
@@ -1438,6 +1627,10 @@ int getWLANConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 		}else
 			*data = strdup( "Error" );
 		}
+	else if( strcmp( lastname, "Name" )==0 )
+	{
+		*data = strdup(wlan_ifname);
+	}
 	else if( strcmp( lastname, "BSSID" )==0 )
 	{
 		getWlanMib(rootIdx, 0,MIB_WLAN_WLAN_DISABLED,(void *)&vUint);
@@ -1472,12 +1665,37 @@ int getWLANConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 			}
 		}
 	else if( strcmp( lastname, "Channel" )==0 )
-		{
-
-		
+	{
 		getWlanMib(rootIdx, 0, MIB_WLAN_CHANNEL, (void *)&vChar);
-		*data = uintdup( (unsigned int)vChar );
+
+		if (vChar == 0) // AutoChannelEnable == 1
+		{
+			char WlanIf[32];
+
+			sprintf(WlanIf, "wlan%d", rootIdx);
+			if (getWlBssInfo(WlanIf, &bss) < 0)
+			{
+				return -1;
+			}
+
+			vChar = bss.channel;
 		}
+		
+		*data = uintdup( (unsigned int)vChar );
+	}
+	else if( strcmp( lastname, "AutoChannelEnable" )==0 )
+	{
+		getWlanMib(rootIdx, 0, MIB_WLAN_CHANNEL, (void *)&vChar);
+		
+		if ((unsigned int)vChar == 0)
+		{
+			*data = booldup( 1 );
+		}
+		else
+		{
+			*data = booldup( 0 );
+		}
+	}
 	else if( strcmp( lastname, "SSID" )==0 )
 	{
 		
@@ -1532,8 +1750,13 @@ int getWLANConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 #ifdef _CWMP_MAC_FILTER_	
 	else if( strcmp( lastname, "MACAddressControlEnabled" )==0 )
 	{
+#if 1
+		getWlanMib(rootIdx, 0, MIB_WLAN_MACAC_ENABLED, (void *)&vUint);
+		*data = booldup( vUint!=0 );
+#else
 		mib_get(MIB_CWMP_MACFILTER_WLAN_MAC_CTRL, (void *)&vChar);
 		*data = booldup( vChar!=0 );
+#endif
 	}
 #endif /*_CWMP_MAC_FILTER_*/	
 	else if( strcmp( lastname, "Standard" )==0 )
@@ -1555,6 +1778,14 @@ int getWLANConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 			*data = strdup( "b,g,n" );
 		else if( vChar==BAND_5G_11AN)
 			*data = strdup( "a,n" );
+		else if( vChar==BAND_5G_11AC)
+			*data = strdup( "ac" );
+		else if( vChar==BAND_5G_11AAC)
+			*data = strdup( "a,ac" );
+		else if( vChar==BAND_5G_11NAC)
+			*data = strdup( "n,ac" );
+		else if( vChar==BAND_5G_11ANAC)
+			*data = strdup( "a,n,ac" );
 		else 
 			*data = strdup( "" ); 
 	}
@@ -1676,11 +1907,11 @@ int getWLANConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 	else if( strcmp( lastname, "PossibleChannels" )==0 )
 	{
 		getWlanMib(rootIdx, 0, MIB_WLAN_BAND, (void *)&vChar);
-		
-		if( vChar & (BAND_11B|BAND_11G|BAND_11N))
+
+		if( vChar >= BAND_5G_11AN)
+			*data = strdup("34-165");
+		else if( vChar & (BAND_11B|BAND_11G|BAND_11N))
 			*data = strdup("1-14");
-		else if( vChar & (BAND_5G_11AN))
-			*data = strdup("34 -165");
 		else
 			*data = strdup( "" ); 
 		}
@@ -1879,6 +2110,7 @@ int setWLANConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		if( i==NULL ) return ERR_9007;
 		vChar = (*i==0)?1:0;
 		//pcwmpWlan->func_off=vChar;
+		setWlanMib(rootIdx, vwlanIdx, MIB_WLAN_WLAN_DISABLED, (void *)&vChar);
 		setWlanMib(rootIdx, vwlanIdx, MIB_WLAN_FUNC_OFF, (void *)&vChar);
 		isWLANMIBUpdated=1;
 	}
@@ -1902,7 +2134,7 @@ int setWLANConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 			
 			int valid = 0;
 
-#if defined(CONFIG_RTL_92D_SUPPORT)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL8881A_RTL8192E)
 			int wlanChannel = *i;
 
 			if(vwlanIdx == 0) // root wlan can not modify RFband
@@ -2120,6 +2352,31 @@ int setWLANConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		setWlanMib(rootIdx, vwlanIdx, MIB_WLAN_CHANNEL, (void *)&vChar);
 		isWLANMIBUpdated=1;
 	}
+	else if( strcmp( lastname, "AutoChannelEnable" )==0 )
+	{
+		int *i = data;
+
+		if (i == NULL) return ERR_9007;
+
+		if (*i == 1) {
+			vChar = 0;
+			setWlanMib(rootIdx, vwlanIdx, MIB_WLAN_CHANNEL, (void *)&vChar);
+			isWLANMIBUpdated = 1;
+		}
+		else {
+			bss_info bss;
+			char WlanIf[32];
+
+			sprintf(WlanIf, "wlan%d", rootIdx);
+			if ( getWlBssInfo(WlanIf, &bss) < 0)
+				return -1;
+
+			vChar = bss.channel;
+			setWlanMib(rootIdx, vwlanIdx, MIB_WLAN_CHANNEL, (void *)&vChar);
+			isWLANMIBUpdated = 1;
+
+		}
+	}
 	else if( strcmp( lastname, "SSID" )==0 )
 	{						
 		//MIB_WLAN_SSID
@@ -2230,7 +2487,14 @@ int setWLANConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 	else if( strcmp( lastname, "MACAddressControlEnabled" )==0 )
 	{
 		int *i = data;
+		unsigned int uInt;
+		
 		if( i==NULL ) return ERR_9007;
+#if 1
+		/* 0: disable, 1: allow list, 2: deny list */
+		uInt = (*i==1)?2:0;
+		setWlanMib(rootIdx, 0, MIB_WLAN_MACAC_ENABLED, (void *)&uInt);
+#else
 		vChar = (*i==1)?1:0;
 		mib_set( MIB_CWMP_MACFILTER_WLAN_MAC_CTRL, (void *)&vChar);
 		{
@@ -2240,6 +2504,7 @@ int setWLANConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 				mac_out_dft=0;//0:deny, 1:allow
 			mib_set(MIB_CWMP_MACFILTER_OUT_ACTION, (void *)&mac_out_dft);
 		}
+#endif
 		isWLANMIBUpdated=1;
 	}
 #endif /*_CWMP_MAC_FILTER_*/
@@ -2991,7 +3256,7 @@ int loadWLANAssInfoByInstNum( unsigned int instnum )
 	int  found=0;
 	CWMP_WLANCONF_T  wlanConf;
 	int rootIdx, vwlanIdx;
-	char wlan_ifname[10]={0};
+	char wlan_ifname[100]={0};
 	
 	if( instnum==0 || instnum>WLAN_IF_NUM ) return -1;
 

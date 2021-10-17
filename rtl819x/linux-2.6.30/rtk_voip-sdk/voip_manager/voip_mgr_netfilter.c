@@ -234,7 +234,7 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	//! @addtogroup VOIP_DSP_TONE
 	//! @ingroup VOIP_CONTROL
 	{ M_NORMAL_MGR( VOIP_MGR_SETPLAYTONE, TstVoipPlayToneConfig, ch_id ), }, 
-	{ M_NOCHANNEL_SND_MGR( VOIP_MGR_SET_COUNTRY ), },
+	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_COUNTRY ), },
 	{ M_NOCHANNEL_SND_MGR( VOIP_MGR_SET_COUNTRY_IMPEDANCE ), },
 	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_COUNTRY_TONE ), },
 	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_TONE_OF_CUSTOMIZE ), },  
@@ -380,7 +380,7 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	{ M_STANDALONE_MGR( VOIP_MGR_SET_GETDATA_MODE ), },
 	{ M_STANDALONE_MGR( VOIP_MGR_IPHONE_TEST ), },
 	{ M_NOCHANNEL_MGR( VOIP_MGR_PRINT ), },
-	{ M_BODY_NOCHANNEL_MGR( VOIP_MGR_COP3_CONIFG, st_CP3_VoIP_param, cp3_dump_period), },
+	{ M_NOCHANNEL_MGR( VOIP_MGR_COP3_CONIFG ), },
 	
 	// Ethernet DSP
 	//! @addtogroup VOIP_ETHERNET_DSP

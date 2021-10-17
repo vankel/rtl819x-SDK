@@ -12,10 +12,10 @@ ARCH	=
 NAME	= dlisten
 
 ###################
-CC	= rsdk-linux-gcc
-STRIP	= rsdk-linux-strip
-LD	= rsdk-linux-ld
-AR	= rsdk-linux-ar
+CC	= $(CROSS_COMPILE)gcc
+STRIP	= $(CROSS_COMPILE)strip
+LD	= $(CROSS_COMPILE)ld
+AR	= $(CROSS_COMPILE)ar
 ###################
 
 dlisten_SRCS = iwcontrol.c iwconfig.c iwcommon.c iwreq.c

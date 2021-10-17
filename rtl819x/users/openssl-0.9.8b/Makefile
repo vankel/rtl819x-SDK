@@ -3,6 +3,7 @@
 ##
 ## Makefile for OpenSSL
 ##
+include $(DIR_LINUX)/.config
 
 VERSION=0.9.8b
 MAJOR=0
@@ -12,9 +13,9 @@ SHLIB_VERSION_HISTORY=
 SHLIB_MAJOR=0
 SHLIB_MINOR=9.8
 SHLIB_EXT=.so.$(SHLIB_MAJOR).$(SHLIB_MINOR)
-PLATFORM=mips-linux
-OPTIONS= no-des no-dh no-dsa no-gmp no-hw no-idea no-krb5 no-md2 no-md4 no-mdc2 no-rc5 no-rsa no-shared no-ssl2 no-ssl3 no-threads no-tls1 no-zlib no-zlib-dynamic
-CONFIGURE_ARGS=no-des no-dh no-dsa no-idea no-md2 no-md4 no-rsa no-threads no-hw no-shared mips-linux
+PLATFORM=rsdk-linux
+OPTIONS=enable-shared no-gmp no-krb5 no-mdc2 no-rc5 no-zlib no-zlib-dynamic
+# CONFIGURE_ARGS=shared rsdk-linux
 SHLIB_TARGET=linux-shared
 
 # HERE indicates where this Makefile lives.  This can be used to indicate
@@ -59,15 +60,15 @@ OPENSSLDIR=/usr/local/ssl
 # equal 4.
 # PKCS1_CHECK - pkcs1 tests.
 
-CC= mips-linux-gcc
-CFLAG= -DDSO_DLFCN -DHAVE_DLFCN_H -DTERMIO -O3 -fomit-frame-pointer -Wall
-DEPFLAG= -DOPENSSL_NO_DES -DOPENSSL_NO_DH -DOPENSSL_NO_DSA -DOPENSSL_NO_GMP -DOPENSSL_NO_IDEA -DOPENSSL_NO_MD2 -DOPENSSL_NO_MD4 -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RSA -DOPENSSL_NO_SSL2 -DOPENSSL_NO_SSL3 -DOPENSSL_NO_TLS1 
+# CC= rsdk-linux-gcc
+CFLAG= -fPIC -DOPENSSL_PIC -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -DTERMIO -Os -fomit-frame-pointer -Wall
+DEPFLAG= -DOPENSSL_NO_GMP -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 
 PEX_LIBS= 
 EX_LIBS= -ldl
 EXE_EXT= 
 ARFLAGS= 
 AR=ar $(ARFLAGS) r
-RANLIB= mips-linux-ranlib
+# RANLIB= rsdk-linux-ranlib
 PERL= /usr/bin/perl
 TAR= tar
 TARFLAGS= --no-recursion
@@ -112,9 +113,9 @@ SHLIBDIRS= crypto ssl
 # dirs in crypto to build
 SDIRS=  \
 	objects \
-	md5 sha hmac ripemd \
-	aes rc2 rc4 bf cast \
-	bn ec ecdsa ecdh dso engine \
+	md2 md4 md5 sha hmac ripemd \
+	des aes rc2 rc4 idea bf cast \
+	bn ec rsa dsa ecdsa dh ecdh dso engine \
 	buffer bio stack lhash rand err \
 	evp asn1 pem x509 x509v3 conf txt_db pkcs7 pkcs12 comp ocsp ui krb5 \
 	store pqueue
@@ -140,7 +141,7 @@ WDIRS=  windows
 LIBS=   libcrypto.a libssl.a
 SHARED_CRYPTO=libcrypto$(SHLIB_EXT)
 SHARED_SSL=libssl$(SHLIB_EXT)
-SHARED_LIBS=
+SHARED_LIBS=$(SHARED_CRYPTO) $(SHARED_SSL)
 SHARED_LIBS_LINK_EXTS=.so.$(SHLIB_MAJOR) .so
 SHARED_LDFLAGS=
 
@@ -225,7 +226,7 @@ reflect:
 	@[ -n "$(THIS)" ] && $(CLEARENV) && $(MAKE) $(THIS) -e $(BUILDENV)
 
 sub_all: build_all
-build_all: build_libs build_tests
+build_all: build_libs build_tests build_apps build_tools
 
 build_libs: build_crypto build_ssl
 
@@ -589,5 +590,20 @@ install_docs:
 
 .PHONY: romfs
 romfs:
+	@cp ./libcrypto.so.0.9.8 $(DIR_ROMFS)/lib/
+	@cp ./libssl.so.0.9.8 $(DIR_ROMFS)/lib/
+	@cp ./apps/openssl $(DIR_ROMFS)/bin/
+	@mkdir -p $(DIR_ROMFS)/usr/local
+	@mkdir -p $(DIR_ROMFS)/usr/local/ssl
+	@cp ./apps/openssl.cnf $(DIR_ROMFS)/usr/local/ssl/
+	@chmod 644 $(DIR_ROMFS)/usr/local/ssl/openssl.cnf
+	@cp -r ./apps/demoCA/* $(DIR_ROMFS)/usr/local/ssl/
+
+	##Just for wapi certs related
+	##To use openssl ecdh (ecdh compute) and ecdsa(ecdsa signature and verify)
+#	@cp ./test/ecdhtest $(DIR_ROMFS)/bin/
+ifeq ($(CONFIG_RTL_WAPI_SUPPORT),y)
+	@cp ./test/ecdsatest $(DIR_ROMFS)/bin/
+endif
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.

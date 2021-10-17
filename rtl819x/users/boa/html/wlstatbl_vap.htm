@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Active Wireless Client Table</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}	
@@ -41,7 +42,7 @@ function init()
 <form action=/boafrm/formWirelessTbl method=POST name="formWirelessTbl">
 <input type="hidden" value="" id="submit-url" name="submit-url">
 <blockquote>
-<h2><font color="#0000FF">Active Wireless Client Table
+<h2>Active Wireless Client Table
 	<script>
 		init();
 		//if (window.opener.aclist_index == 1) 
@@ -76,7 +77,7 @@ function init()
 			window.close();
 		}
 	</script>
-	</font></h2>
+	</h2>
 
 <table border=0 width="600" cellspacing=0 cellpadding=0>
   <tr><font size=2>
@@ -88,7 +89,7 @@ function init()
 
 <script> if (vap_num != 1) document.write("</table><span class = \"off\" ><table>"); </script>
 <table border='1' width="600">
-<tr bgcolor=#7f7f7f><td width="100"><font size=2><b>MAC Address</b></td>
+<tr class="tbl_head"><td width="100"><font size=2><b>MAC Address</b></td>
 <td width="60"><font size=2><b>Mode</b></td>
 <td width="60"><font size=2><b>Tx Packet</b></td>
 <td width="60"><font size=2><b>Rx Packet</b></td>
@@ -99,7 +100,7 @@ function init()
 <script> if (vap_num != 1) document.write("</table></span><table border='1' width=\"600\">"); </script>
 
 <script> if (vap_num != 2) document.write("</table><span class = \"off\" ><table>"); </script>
-<tr bgcolor=#7f7f7f><td width="100"><font size=2><b>MAC Address</b></td>
+<tr class="tbl_head"><td width="100"><font size=2><b>MAC Address</b></td>
 <td width="60"><font size=2><b>Mode</b></td>
 <td width="60"><font size=2><b>Tx Packet</b></td>
 <td width="60"><font size=2><b>Rx Packet</b></td>
@@ -110,7 +111,7 @@ function init()
 <script> if (vap_num != 2) document.write("</table></span><table border='1' width=\"600\">"); </script>
 
 <script> if (vap_num != 3) document.write("</table><span class = \"off\" ><table>"); </script>
-<tr bgcolor=#7f7f7f><td width="100"><font size=2><b>MAC Address</b></td>
+<tr class="tbl_head"><td width="100"><font size=2><b>MAC Address</b></td>
 <td width="60"><font size=2><b>Mode</b></td>
 <td width="60"><font size=2><b>Tx Packet</b></td>
 <td width="60"><font size=2><b>Rx Packet</b></td>
@@ -121,7 +122,7 @@ function init()
 <script> if (vap_num != 3) document.write("</table></span><table border='1' width=\"600\">"); </script>
 
 <script> if (vap_num != 4) document.write("</table><span class = \"off\" ><table>"); </script>
-<tr bgcolor=#7f7f7f><td width="100"><font size=2><b>MAC Address</b></td>
+<tr class="tbl_head"><td width="100"><font size=2><b>MAC Address</b></td>
 <td width="60"><font size=2><b>Mode</b></td>
 <td width="60"><font size=2><b>Tx Packet</b></td>
 <td width="60"><font size=2><b>Rx Packet</b></td>

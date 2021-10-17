@@ -110,8 +110,8 @@ mib_table_entry_T mib_vlanconfig_tbl[]={
 };
 #endif
 
-#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
-mib_table_entry_T mib_macredirect_tbl[]={
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+mib_table_entry_T mib_ethdot1xconfig_tbl[]={
 #ifdef MIB_TLV
 #define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
 		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
@@ -120,32 +120,15 @@ mib_table_entry_T mib_macredirect_tbl[]={
 			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
 #endif
 
-#define MIB_MACREDIRECT_IMPORT
+#define MIB_ETH_DOT1X_IMPORT
 #include "mibdef.h"
-#undef MIB_MACREDIRECT_IMPORT
+#undef MIB_ETH_DOT1X_IMPORT
+
 #undef MIBDEF
 {0}
 };
 #endif
 
-#if defined(CONFIG_APP_CLOUD)
-mib_table_entry_T mib_app_login_mac_time_tbl[]={
-#ifdef MIB_TLV
-#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
-		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
-#else
-#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
-			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
-#endif
-
-#define MIB_APP_LOGIN_MAC_TIME_IMPORT
-#include "mibdef.h"
-#undef MIB_APP_LOGIN_MAC_TIME_IMPORT
-
-#undef MIBDEF
-{0}
-};	
-#endif/****CONFIG_RTL_MAC_BASED_HTTP_REDIRECT*****/
 
 #ifdef HOME_GATEWAY
 mib_table_entry_T mib_portfw_tbl[]={
@@ -202,6 +185,43 @@ mib_table_entry_T mib_ipfilter_tbl[]={
 #undef MIBDEF
 {0}
 };
+
+
+#ifdef SAMBA_WEB_SUPPORT
+mib_table_entry_T mib_storage_user_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_STORAGE_USER_IMPORT
+#include "mibdef.h"
+#undef MIB_STORAGE_USER_IMPORT
+
+#undef MIBDEF
+{0}
+};
+
+mib_table_entry_T mib_storage_group_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_STORAGE_GROUP_IMPORT
+#include "mibdef.h"
+#undef MIB_STORAGE_GROUP_IMPORT
+
+#undef MIBDEF
+{0}
+};
+#endif
 	
 mib_table_entry_T mib_portfilter_tbl[]={
 #ifdef MIB_TLV
@@ -236,23 +256,7 @@ mib_table_entry_T mib_macfilter_tbl[]={
 #undef MIBDEF
 {0}
 };
-
-mib_table_entry_T mib_nasfilter_tbl[]={
-#ifdef MIB_TLV
-#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
-		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
-#else
-#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
-			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
-#endif
-
-#define MIB_NASFILTER_IMPORT
-#include "mibdef.h"
-#undef MIB_NASFILTER_IMPORT
-
-#undef MIBDEF
-{0}
-};	
+	
 mib_table_entry_T mib_triggerport_tbl[]={
 #ifdef MIB_TLV
 #define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
@@ -307,6 +311,63 @@ mib_table_entry_T mib_staticroute_tbl[]={
 };	
 #endif
 
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+mib_table_entry_T mib_dhcpServerOption_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+
+#define MIB_DHCPDOPTION_IMPORT
+#include "mibdef.h"
+#undef MIB_DHCPDOPTION_IMPORT
+
+#undef MIBDEF
+{0}
+};
+
+mib_table_entry_T mib_dhcpClientOption_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+
+#define MIB_DHCPCOPTION_IMPORT
+#include "mibdef.h"
+#undef MIB_DHCPCOPTION_IMPORT
+
+#undef MIBDEF
+{0}
+};
+
+mib_table_entry_T mib_dhcpsServingPool_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+
+#define MIB_DHCPS_SERVING_POOL_IMPORT
+#include "mibdef.h"
+#undef MIB_DHCPS_SERVING_POOL_IMPORT
+
+#undef MIBDEF
+{0}
+};
+#endif /* #if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) */
+
+
 
 #ifdef VPN_SUPPORT
 mib_table_entry_T mib_ipsectunnel_tbl[]={
@@ -328,6 +389,46 @@ mib_table_entry_T mib_ipsectunnel_tbl[]={
 #endif
 
 #endif // #ifdef HOME_GATEWAY
+
+#ifdef RTK_CAPWAP
+/*
+mib_table_entry_T mib_capwap_wlan_config_tbl [] = {
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+				{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+	
+#define MIB_CAPWAP_WLAN_CONFIG_IMPORT
+#include "mibdef.h"
+#undef MIB_CAPWAP_WLAN_CONFIG_IMPORT
+	
+#undef MIBDEF
+{0}
+};
+*/
+
+mib_table_entry_T mib_capwap_wtp_config_tbl[]={
+
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_CAPWAP_WTP_CONFIG_IMPORT
+#include "mibdef.h"
+#undef MIB_CAPWAP_WTP_CONFIG_IMPORT
+
+#undef MIBDEF
+{0}
+};
+#endif
+
 
 #ifdef TLS_CLIENT
 mib_table_entry_T mib_certroot_tbl[]={

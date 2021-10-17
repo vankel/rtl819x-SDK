@@ -22,61 +22,6 @@ typedef void (*work_func_t)(struct work_struct *work);
  */
 #define work_data_bits(work) ((unsigned long *)(&(work)->data))
 
-#ifdef CONFIG_KERNEL_POLLING
-enum {
-	WORK_STRUCT_PENDING_BIT	= 0,	/* work item is pending execution */
-	WORK_STRUCT_DELAYED_BIT	= 1,	/* work item is delayed */
-	WORK_STRUCT_CWQ_BIT	= 2,	/* data points to cwq */
-	WORK_STRUCT_LINKED_BIT	= 3,	/* next work is linked to this one */
-#ifdef CONFIG_DEBUG_OBJECTS_WORK
-	WORK_STRUCT_STATIC_BIT	= 4,	/* static initializer (debugobjects) */
-	WORK_STRUCT_COLOR_SHIFT	= 5,	/* color for workqueue flushing */
-#else
-	WORK_STRUCT_COLOR_SHIFT	= 4,	/* color for workqueue flushing */
-#endif
-
-	WORK_STRUCT_COLOR_BITS	= 4,
-
-	WORK_STRUCT_PENDING	= 1 << WORK_STRUCT_PENDING_BIT,
-	WORK_STRUCT_DELAYED	= 1 << WORK_STRUCT_DELAYED_BIT,
-	WORK_STRUCT_CWQ		= 1 << WORK_STRUCT_CWQ_BIT,
-	WORK_STRUCT_LINKED	= 1 << WORK_STRUCT_LINKED_BIT,
-#ifdef CONFIG_DEBUG_OBJECTS_WORK
-	WORK_STRUCT_STATIC	= 1 << WORK_STRUCT_STATIC_BIT,
-#else
-	WORK_STRUCT_STATIC	= 0,
-#endif
-
-	/*
-	 * The last color is no color used for works which don't
-	 * participate in workqueue flushing.
-	 */
-	WORK_NR_COLORS		= (1 << WORK_STRUCT_COLOR_BITS) - 1,
-	WORK_NO_COLOR		= WORK_NR_COLORS,
-
-	/* special cpu IDs */
-	WORK_CPU_UNBOUND	= NR_CPUS,
-	WORK_CPU_NONE		= NR_CPUS + 1,
-	WORK_CPU_LAST		= WORK_CPU_NONE,
-
-	/*
-	 * Reserve 7 bits off of cwq pointer w/ debugobjects turned
-	 * off.  This makes cwqs aligned to 256 bytes and allows 15
-	 * workqueue flush colors.
-	 */
-	WORK_STRUCT_FLAG_BITS	= WORK_STRUCT_COLOR_SHIFT +
-				  WORK_STRUCT_COLOR_BITS,
-
-	WORK_STRUCT_FLAG_MASK	= (1UL << WORK_STRUCT_FLAG_BITS) - 1,
-	WORK_STRUCT_WQ_DATA_MASK = ~WORK_STRUCT_FLAG_MASK,
-	WORK_STRUCT_NO_CPU	= WORK_CPU_NONE << WORK_STRUCT_FLAG_BITS,
-
-	/* bit mask for work_busy() return values */
-	WORK_BUSY_PENDING	= 1 << 0,
-	WORK_BUSY_RUNNING	= 1 << 1,
-};
-#endif
-
 struct work_struct {
 	atomic_long_t data;
 #define WORK_STRUCT_PENDING 0		/* T if work item pending execution */
@@ -218,9 +163,6 @@ struct execute_work {
 #define work_clear_pending(work) \
 	clear_bit(WORK_STRUCT_PENDING, work_data_bits(work))
 
-#ifdef CONFIG_KERNEL_POLLING
-extern struct workqueue_struct *system_nrt_wq __read_mostly;
-#endif
 
 extern struct workqueue_struct *
 __create_workqueue_key(const char *name, int singlethread,
@@ -268,9 +210,6 @@ extern void flush_scheduled_work(void);
 
 extern int schedule_work(struct work_struct *work);
 extern int schedule_work_on(int cpu, struct work_struct *work);
-#ifdef CONFIG_KERNEL_POLLING
-extern void flush_delayed_work(struct delayed_work *dwork);
-#endif
 extern int schedule_delayed_work(struct delayed_work *work, unsigned long delay);
 extern int schedule_delayed_work_on(int cpu, struct delayed_work *work,
 					unsigned long delay);

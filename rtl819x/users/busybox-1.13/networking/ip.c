@@ -13,7 +13,8 @@
  * Bernhard Reutner-Fischer rewrote to use index_in_substr_array
  */
 
-#include "libbb.h"
+//#include "libbb.h"
+#include "libbb_2.h"
 
 #include "libiproute/utils.h"
 #include "libiproute/ip_common.h"

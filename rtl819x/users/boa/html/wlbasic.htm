@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>WLAN Basic Settings</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -203,8 +204,17 @@ function updateRepeaterState(form, wlan_id)
 				form.elements["repeaterEnabled"+wlan_id].checked = true;
 				enableTextField(form.elements["repeaterSSID"+wlan_id]);
 			}
-		}	
-	}
+		}
+  	
+  	
+  }
+// mesh check
+if(form.elements["mode"+wlan_id].selectedIndex>3)
+{
+  disableCheckBox(form.elements["repeaterEnabled"+wlan_id]);
+  disableTextField(form.elements["repeaterSSID"+wlan_id]);
+}
+
 }
 
 function updateMode_basic(form, wlan_id)
@@ -287,19 +297,19 @@ function updateMode_basic(form, wlan_id)
 		
 		if(mode_selected != 2) //2:WDS
 		{
-			disableButton(document.wlanSetup.elements["addWlProfile"]);
-			if (form.elements["repeaterEnabled"+wlan_id].checked)
-			{
-				get_by_id("wlProfileDiv").style.display = ""; 
-				enableButton(document.wlanSetup.elements["addRptProfile"]);
-			}
-			else
-			{
-				get_by_id("wlProfileDiv").style.display = "none";
-				disableButton(document.wlanSetup.elements["addRptProfile"]);
-			}
+		disableButton(document.wlanSetup.elements["addWlProfile"]);
+		if (form.elements["repeaterEnabled"+wlan_id].checked)
+		{
+			get_by_id("wlProfileDiv").style.display = ""; 
+			enableButton(document.wlanSetup.elements["addRptProfile"]);
 		}
-	}
+		else
+		{
+			get_by_id("wlProfileDiv").style.display = "none";
+			disableButton(document.wlanSetup.elements["addRptProfile"]);
+		}
+}
+}
 	
 	if( mode_selected == 5 )	//6 should be MESH mode
 		disableTextField(document.wlanSetup.elements["ssid"+<% getIndex("wlan_idx"); %>]);
@@ -309,7 +319,7 @@ function updateMode_basic(form, wlan_id)
 	var selectText=form.elements["band"+wlan_id].options[index].text.substr(0,1);
 	var bandOption = form.elements["band"+wlan_id].options.value;
 	
-	if(wlan_support_8812e==1 && (bandOption == 3 || (bandOption == 7 && selectText=='5') || bandOption == 11 || bandOption == 63 || bandOption == 71 || bandOption == 75))
+	if(wlan_support_8812e==1 && (bandOption == 3 || (bandOption == 7 && selectText=='5') || bandOption == 11 || bandOption == 63 || bandOption == 71 || bandOption == 75 || bandOption == 74))
 		disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
 
 }
@@ -392,7 +402,7 @@ function Set_onChangeBand(form, wlan_id, band, index){
 	else
 		document.wlanSetup.elements["wlanwmm"+<% getIndex("wlan_idx"); %>].selectedIndex=1;	
 	value =band.options[index].value;
-	if(value ==9 || value ==10 || value ==7 || value ==11 || value ==14 || value ==63 || value ==71 || value ==75 ){
+	if(value ==9 || value ==10 || value ==7 || value ==11 || value ==14 || value ==63 || value ==71 || value ==75 ||value==74){
 		checkid_bound.style.display = "";
 		checkid_sideband.style.display = "";
 		document.wlanSetup.elements["wlanwmm"+<% getIndex("wlan_idx"); %>].selectedIndex = 1;
@@ -482,7 +492,7 @@ function Set_onChangeBand(form, wlan_id, band, index){
 			enableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);		
 	}
 
-	if(wlan_support_8812e==1 && ((value==11 || value ==63|| value ==71|| value==75 ) || (value==7 && index==1)))
+	if(wlan_support_8812e==1 && ((value==11 || value ==63|| value ==71|| value==75 ||value==74) || (value==7 && index==1)))
 		disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
 }
 
@@ -800,7 +810,7 @@ function resetForm()
 
 <body onload="LoadSetting();initData()">
 <blockquote>
-<h2><font color="#0000FF">
+<h2>
 <script type="text/javascript">
 var wlan_num =  <% getIndex("wlan_num"); %>;
 if (wlan_num > 1) {
@@ -810,7 +820,7 @@ if (wlan_num > 1) {
 else
 	document.write("Wireless Basic Settings</p>");
 </script>
-</font></h2>
+</h2>
 
 <form action=/boafrm/formWlanSetup method=POST name="wlanSetup">
 <!-- for WPS -->

@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Save/Reload Setting</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 var isIE = (document.all)? true:false;
 var max_cert_period = 628321220;
@@ -159,7 +160,7 @@ function saveClick(url)
 </head>
 <body>
 <blockquote>
-<h2><font color="#0000FF">Save/Reload Settings</font></h2>
+<h2>Save/Reload Settings</h2>
   <table border="0" cellspacing="4" width="650">
   <tr><font size=2>
  This page allows you save current settings to a file or reload the settings

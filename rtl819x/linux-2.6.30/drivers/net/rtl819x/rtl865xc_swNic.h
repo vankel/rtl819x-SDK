@@ -51,13 +51,13 @@
 //#define	RTL_MULTIPLE_RX_TX_RING		1	/*enable multiple input queue(multiple rx ring)*/
 #endif
 
-#if defined(DELAY_REFILL_ETH_RX_BUF)
+#if defined(DELAY_REFILL_ETH_RX_BUF) && !defined(CONFIG_RTL_8198C)
 #define SKIP_ALLOC_RX_BUFF 1
 #endif
 
 #define RTL865X_SWNIC_RXRING_HW_PKTDESC	6
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #define RTL865X_SWNIC_TXRING_HW_PKTDESC	4
 #else
 #define RTL865X_SWNIC_TXRING_HW_PKTDESC	2
@@ -69,8 +69,6 @@
 	#define NUM_RX_PKTHDR_DESC		8
 	#define NUM_TX_PKTHDR_DESC		64
 	#define	ETH_REFILL_THRESHOLD		4	// must < NUM_RX_PKTHDR_DESC
-
-
 #elif defined(CONFIG_RTL_8198) && !defined(CONFIG_RTL_8198_AP_ROOT)
 	#if defined(SKIP_ALLOC_RX_BUFF)
 	#define MAX_PRE_ALLOC_RX_SKB		0
@@ -99,6 +97,40 @@
 	#endif
 	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC	
 	#define NUM_TX_PKTHDR_DESC			768	
+#elif defined(CONFIG_RTL_819XD)
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB		0 
+	#define NUM_RX_PKTHDR_DESC			1024	//512+512
+	#else
+	#define MAX_PRE_ALLOC_RX_SKB		512 
+	#define NUM_RX_PKTHDR_DESC			512
+	#endif
+	#define ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
+	#define NUM_TX_PKTHDR_DESC			512 
+#elif defined(CONFIG_RTL_8198C)
+
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	/*
+		Note: Rx=448, Tx=448: Chariot LAN<->WAN 3D3U test for 1 minute (throughput is about 588Mbps for software NAT), 
+			  the result is no Rx_drop, Tx_retry, Tx_drop.
+			  for LAN<->WLAN or LAN<->Samba application, please enlarge them if need.
+	 */
+	#define MAX_PRE_ALLOC_RX_SKB			0
+	#define NUM_RX_PKTHDR_DESC			448
+	#define NUM_TX_PKTHDR_DESC			448
+	#else
+
+	#if defined(DELAY_REFILL_ETH_RX_BUF)
+	#define MAX_PRE_ALLOC_RX_SKB			512
+	#else
+	#define MAX_PRE_ALLOC_RX_SKB			1024
+	#endif
+	
+	#define NUM_RX_PKTHDR_DESC			512
+	#define NUM_TX_PKTHDR_DESC			1024
+	#endif
+	#define	ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
+
 #elif defined(CONFIG_RTL_8881A)
 	#define ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
 	#if defined(CONFIG_USE_PCIE_SLOT_0)
@@ -209,7 +241,7 @@
 #define	QUEUEID5_RXRING_MAPPING		0
 #endif
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #define	NUM_TX_PKTHDR_DESC2		2
 #define	NUM_TX_PKTHDR_DESC3		2
 #endif
@@ -231,12 +263,16 @@ typedef struct {
 	void* 			input;
 	struct dev_priv*	priv;
 	uint32			isPdev;
-#if defined(CONFIG_RTL_STP)
+#if 0//defined(CONFIG_RTL_STP)
 	int8				isStpVirtualDev;
 #endif
 
 #ifdef CONFIG_RTL_VLAN_8021Q
 	uint16			srcvid;
+#endif
+
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)&&defined(CONFIG_IPV6)
+	struct dev_priv*	oriPriv;
 #endif
 
 }	rtl_nicRx_info;
@@ -346,7 +382,12 @@ int32 swNic_setVlanPortTag(int portmask);
 #define	RTL8651_IOCTL_SETWANLINKSTATUS			2200
 
 #define	RTL8651_IOCTL_CLEARBRSHORTCUTENTRY		2210
-#define	RTL8651_IOCTL_GETPORTIDBYCLIENTMAC		2013
+
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+#define	RTL8651_IOCTL_DOT1X_SETPID		           2300
+#define RTL8651_IOCTL_DOT1X_GET_INFO              2301
+#define RTL8651_IOCTL_DOT1X_SET_AUTH_RESULT   	   2302
+#endif
 
 #define	RTL_NICRX_OK	0
 #define	RTL_NICRX_REPEAT	-2

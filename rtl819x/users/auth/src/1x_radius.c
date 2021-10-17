@@ -36,6 +36,7 @@
 //--------------------------------------------------
 // return values from the radius packet.
 //--------------------------------------------------
+
 void lib1x_parse_radiuspkt( u_char * packet , struct lib1x_radiuspkt * rpkt)
 {
 	struct lib1x_ethernet   * eth;
@@ -94,6 +95,11 @@ void lib1x_rad_eapresp_supp( Auth_Pae * auth_pae, struct lib1x_packet * pkt)
 	char	*src;
 
 	nas_port = 0;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth_pae->global->auth->currentRole == role_eth) /*IEEE802.3*/
+		nas_port_type = LIB1X_802DOT3_NAS_PORTTYPE;
+	else
+#endif
 	nas_port_type = LIB1X_80211_NAS_PORTTYPE;	/* IEEE 802.11 */
 	eap = (struct lib1x_eap * ) ( pkt->data + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN );
         eaprr = ( struct lib1x_eap_rr *) ( pkt->data + ETHER_HDRLEN +  LIB1X_EAPOL_HDRLEN + LIB1X_EAP_HDRLEN ) ;
@@ -284,6 +290,9 @@ void lib1x_rad_eapresp_svr( Auth_Pae * auth_pae, struct lib1x_packet * srcpkt, i
 	struct lib1x_ethernet * eth;
 	struct lib1x_eapol * eapol;
 	struct lib1x_eap   * eap;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	unsigned char dot1x_group_mac[ETHER_HDRLEN] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+#endif
 
 	switch(msgtype)
 	{
@@ -291,6 +300,11 @@ void lib1x_rad_eapresp_svr( Auth_Pae * auth_pae, struct lib1x_packet * srcpkt, i
 
 		// Set the from / to ethernet addresses.
 		eth = ( struct lib1x_ethernet * ) auth_pae->sendBuffer;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+		if(auth_pae->global->auth->currentRole == role_eth && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled))
+			memcpy ( eth->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
+		else
+#endif
 		memcpy ( eth->ether_dhost, auth_pae->supp_addr, ETHER_HDRLEN);
 		memcpy ( eth->ether_shost, auth_pae->global->TxRx->oursupp_addr, ETHER_HDRLEN);
 #ifdef RTL_WPA2_PREAUTH
@@ -322,6 +336,12 @@ void lib1x_rad_eapresp_svr( Auth_Pae * auth_pae, struct lib1x_packet * srcpkt, i
 		auth_pae->sendbuflen = ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + auth_pae->rinfo->eap_messlen_frmserver ;
 		eap->length = htons(  auth_pae->rinfo->eap_messlen_frmserver);
 		auth_pae->sendreplyready = TRUE;
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+		if((auth_pae->global->auth->currentRole == role_eth) && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled)&&(auth_pae->global->auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+		{
+			lib1x_add_portinfo_to_eap_pkt(auth_pae->sendBuffer, &auth_pae->sendbuflen,LIB1X_AP_SENDBUFLEN, auth_pae->global->port_num);
+		}
+#endif
 		break;
 	case LIB1X_RAD_ACCACT:
 		//---- Send EAPOL-KEY to client in Non-RSN802dot1x ---- //

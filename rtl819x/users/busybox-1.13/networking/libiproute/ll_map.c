@@ -13,7 +13,7 @@
 
 #include <net/if.h>	/* struct ifreq and co. */
 
-#include "libbb.h"
+#include "libbb_2.h"
 #include "libnetlink.h"
 #include "ll_map.h"
 

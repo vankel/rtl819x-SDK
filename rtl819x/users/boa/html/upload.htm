@@ -9,6 +9,7 @@
 .off {display:none}
 </style>
 <script type="text/javascript" src="util_gw.js"></script>
+<% getInfo("include_css"); %>
 <script>
 var MWJ_progBar = 0;
 var time=0;
@@ -64,25 +65,12 @@ function progress()
   myProgBar.setBar(time); 
 }
 
-function getFileType(str)
-{
-	if(str.value == "")
-		return;
-	var name = str.split(".");
-	var type = name[name.length-1];
-	return type;
-}
+
 function sendClicked(F)
 {
   if(document.upload.binary.value == ""){
       	document.upload.binary.focus();
   	alert('File name can not be empty !');
-  	return false;
-  }
-  var fileType = getFileType(document.upload.binary.value);
-  if(fileType != "bin"){      	
-  	document.upload.binary.focus();
-  	alert('Invalid file format !');
   	return false;
   }
   F.submit();
@@ -95,7 +83,7 @@ function sendClicked(F)
 </head>
 <BODY onload="show_usb_update_img()">
 <blockquote>
-<h2><font color="#0000FF">Upgrade Firmware</font></h2>
+<h2>Upgrade Firmware</h2>
 
 <form method="post" action="boafrm/formUpload" enctype="multipart/form-data" name="upload">
 <table border="0" cellspacing="4" width="500">

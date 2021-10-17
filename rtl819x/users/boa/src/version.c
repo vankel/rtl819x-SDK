@@ -12,10 +12,10 @@
 #else
  unsigned char *fwVersion="v1.4";
 #endif
-#elif defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#elif defined(CONFIG_RTL_8198C) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 //unsigned char *fwVersion="v3.0";
-unsigned char *fwVersion="v3.4.6.6";
+unsigned char *fwVersion="v3.4.7.3";
 #else
  unsigned char *fwVersion="v1.2f";
 #endif
-#define SDK_VERSION "Realtek SDK v3.4.6.6"
+#define SDK_VERSION "Realtek SDK v3.4.7.3"

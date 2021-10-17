@@ -85,7 +85,7 @@ struct CWMP_PRMT tLANEthConfEntityLeafInfo[] =
 {"Enable",			eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tLANEthConfEntityLeafOP},
 {"Status",			eCWMP_tSTRING,	CWMP_READ,		&tLANEthConfEntityLeafOP},
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 {"Name",			eCWMP_tSTRING,	CWMP_READ,		&tLANEthConfEntityLeafOP},
 #endif
 /*ping_zhang:20081217 END*/
@@ -101,7 +101,7 @@ enum tLANEthConfEntityLeaf
 	eLANEth_Enable,
 	eLANEth_Status,
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	eLANEth_Name,
 #endif
 /*ping_zhang:20081217 END*/
@@ -117,7 +117,7 @@ struct CWMP_LEAF tLANEthConfEntityLeaf[] =
 { &tLANEthConfEntityLeafInfo[eLANEth_Enable] },
 { &tLANEthConfEntityLeafInfo[eLANEth_Status] },
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 { &tLANEthConfEntityLeafInfo[eLANEth_Name] },
 #endif
 /*ping_zhang:20081217 END*/
@@ -323,7 +323,7 @@ int getLANEthConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 			*data = strdup( "Error" );
 	}
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	 else if (strcmp(lastname, "Name") == 0) {
 		*data = strdup(ifname);	
 	 }
@@ -341,7 +341,7 @@ int getLANEthConf(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 #ifdef _CWMP_MAC_FILTER_
 	else if( strcmp( lastname, "MACAddressControlEnabled" )==0 )
 	{
-		mib_get(MIB_CWMP_MACFILTER_ETH_MAC_CTRL, &vInt);
+		mib_get(MIB_MACFILTER_ENABLED, &vInt);
 		*data = booldup( vInt!=0 );
 	}
 #endif /*_CWMP_MAC_FILTER_*/
@@ -460,7 +460,8 @@ int setLANEthConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 #endif
 		if( i==NULL ) return ERR_9007;
 		vInt = (*i == 0) ? 0 : 1;
-		mib_set(MIB_CWMP_MACFILTER_ETH_MAC_CTRL, &vInt);
+		mib_set(MIB_MACFILTER_ENABLED, &vInt);
+#if 0
 		{
 			unsigned int wlan_mac_ctrl=0,mac_out_dft=1;
 
@@ -469,6 +470,7 @@ int setLANEthConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 				mac_out_dft=0;//0:deny, 1:allow			
 			mib_set(MIB_CWMP_MACFILTER_OUT_ACTION, &mac_out_dft);
 		}
+#endif
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_MACFILTER, CWMP_RESTART, 0, NULL, 0 );
 
@@ -477,7 +479,7 @@ int setLANEthConf(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		return 1;
 #endif
 	}
-#endif /*MAC_FILTER*/
+#endif /*_CWMP_MAC_FILTER_*/
 	 else if( strcmp( lastname, "MaxBitRate" )==0 ) {
 #if defined(CONFIG_EXT_SWITCH) && defined(ELAN_LINK_MODE)
 		MIB_CE_SW_PORT_T Entry;

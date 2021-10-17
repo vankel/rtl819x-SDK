@@ -27,10 +27,10 @@
 
 /////////////////////////////////////////////////////////////////////////////
 /* Input file type */
-typedef enum { BOOT_CODE=0, CONFIG, WEB_PAGES, SYS, ROOT, ALL, INVALID_FILE=-1 } TYPE_T;
+typedef enum { BOOT_CODE=0, CONFIG, WEB_PAGES, SYS, ROOT, ALL, INVALID_FILE=-1 } SECTOR_TYPE_T;
 
 typedef struct _sector {
-	TYPE_T type;
+	SECTOR_TYPE_T type;
 #ifdef COMPACT_FILENAME_BUFFER
 	const char *filename;
 #else
@@ -51,7 +51,7 @@ static int no_hw_config=0;
 #define BYTE_SWAP(word) (((word >> 8) &0xff) | ((((unsigned char)word)<<8)&0xff00) )
 
 /////////////////////////////////////////////////////////////////////////////
-static TYPE_T checkInputFile(char *filename, int *pWith_header)
+static SECTOR_TYPE_T checkInputFile(char *filename, int *pWith_header)
 {
 	int fh;
 	char signature[6];
@@ -154,7 +154,7 @@ int main(int argc, char** argv)
 #else
 	char outFile[80]={0};
 #endif
-	TYPE_T type;
+	SECTOR_TYPE_T type;
 	int mask=0, fh_out, fh_in, len, i, total=0;
 	unsigned char *buf, *buf1;
 	struct stat sbuf;

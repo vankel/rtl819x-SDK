@@ -386,7 +386,6 @@ struct l2tpCtrlPacket
 #define L2TP_PORT  1701
 #define IP_ADDR_T 0x02
 #endif
-////////////////////////////////////////////////
 /* Function Prototypes */
 UINT16_t etherType(PPPoEPacket *packet);
 int openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr);

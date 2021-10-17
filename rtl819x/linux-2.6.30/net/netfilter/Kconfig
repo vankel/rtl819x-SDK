@@ -622,14 +622,6 @@ config NETFILTER_XT_MATCH_CONNLIMIT
 	  This match allows you to match against the number of parallel
 	  connections to a server per client IP address (or address block).
 
-config RTL_NETFILTER_XT_MATCH_CONNLIMIT_PATCH
-	tristate '"rtl patch for connlimit" match support"'
-	bool
-	default y
-        depends on NF_CONNTRACK
-        depends on NETFILTER_ADVANCED
-	depends on NETFILTER_XT_MATCH_CONNLIMIT
-
 config NETFILTER_XT_MATCH_CONNMARK
 	tristate  '"connmark" connection mark match support'
 	depends on NF_CONNTRACK

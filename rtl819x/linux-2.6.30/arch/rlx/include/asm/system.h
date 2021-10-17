@@ -36,26 +36,6 @@ do {									\
 	(last) = resume(prev, next, task_thread_info(next));		\
 } while (0)
 
-#ifdef CONFIG_CPU_HAS_TLS
-# define __save_userlocal(x)	write_lxc0_userlocal((x))
-#else
-# define __save_userlocal(x)	do { } while (0)
-#endif
-
-#if defined(CONFIG_CPU_HAS_WATCH) || defined(CONFIG_CPU_HAS_TLS)
-#ifdef CONFIG_CPU_HAS_WATCH
-#define finish_arch_switch(prev)				\
-do {								\
-	__save_userlocal(current_thread_info()->tp_value);	\
- 	__restore_watch();					\
-} while (0)
-#else
-#define finish_arch_switch(prev)				\
-do {								\
-	__save_userlocal(current_thread_info()->tp_value);	\
-} while (0)
-#endif
-#endif
 
 static inline unsigned long __xchg_u32(volatile int * m, unsigned int val)
 {

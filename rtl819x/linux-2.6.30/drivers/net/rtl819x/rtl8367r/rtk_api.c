@@ -54,14 +54,21 @@
 
 #include <linux/string.h>
 
+#define ENHANCE_ETH_COMPATILITY		1
+#define REG1301_8367R_VB				0x1010
+#define REG1301_8367RB					0x1000
+
+#define CONFIG_LAN_WAN_ISOLATION 1
+#define CONFIG_RTK_REFINE_PORT_DUPLEX_MODE 1
+
+//#define RTL8367RB_USE_ONE_LED_PER_PORT		1
+
 #define DELAY_800MS_FOR_CHIP_STATABLE() {  }
 
 rtk_uint16      (*init_para)[2];
 rtk_uint16      init_size;
 
-#define EEE_OCP_PHY_ADDR    (0xA5D0)
-
-#if defined(CHIP_RTL8363SB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT) || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8363SB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData00[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x0301, 0x0026}, {0x1722, 0x0E14},
@@ -323,7 +330,7 @@ rtk_uint16 ChipData01[][2]= {
 /*End of ChipData01[][2]*/
 #endif
 
-#if defined(CHIP_RTL8365MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT) || defined(CHIP_AUTO_DETECT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8365MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData10[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x0301, 0x0026}, {0x1722, 0x0E14},
@@ -582,14 +589,9 @@ rtk_uint16 ChipData11[][2]= {
 };
 /*End of ChipData11[][2]*/
 
-rtk_uint16 ChipData12[][2]= {
-{0x1d32, 0x0002}, {0x0018, 0x0F00}, {0x0038, 0x0F00}, {0x0058, 0x0F00},
-{0x0078, 0x0F00}, {0x0098, 0x0F00}, {0x1200, 0x7FCB}
-};/*End of ChipData12[][2]*/
-
 #endif
 
-#if defined(CHIP_RTL8367_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8367_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData20[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x205F, 0x0002}, {0x2059, 0x1A00}, {0x205F, 0x0000},
@@ -851,7 +853,7 @@ rtk_uint16 ChipData21[][2]= {
 
 #endif
 
-#if defined(CHIP_RTL8367RB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8367RB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData30[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x0301, 0x0026}, {0x1722, 0x0E14},
@@ -1068,7 +1070,7 @@ rtk_uint16 ChipData30[][2]= {
 /*End of ChipData30[][2]*/
 #endif
 
-#if defined(CHIP_RTL8367RB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST) || defined(CONFIG_RTL_8367R_SUPPORT)
+#ifdef ENHANCE_ETH_COMPATILITY
 rtk_uint16 ChipData31[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x1305, 0xC000}, {0x121E, 0x03CA},
@@ -1111,14 +1113,9 @@ rtk_uint16 ChipData31[][2]= {
 {0x133E, 0x000E}, {0x133F, 0x0010}, };
 /*End of ChipData21[][2]*/
 
-rtk_uint16 ChipData32[][2]= {
-/*Code of Func*/
-{0x1d32, 0x0002}, {0x0018, 0x0F00}, {0x0038, 0x0F00}, {0x0058, 0x0F00},
-{0x0078, 0x0F00}, {0x0098, 0x0F00}, {0x1200, 0x7FCB}
-};/*End of ChipData32[][2]*/
 #endif
 
-#if defined(CHIP_RTL8367R_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT) || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8367R_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData40[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x0301, 0x0026}, {0x1722, 0x0E14},
@@ -1335,7 +1332,7 @@ rtk_uint16 ChipData40[][2]= {
 /*End of ChipData40[][2]*/
 #endif
 
-#if defined(CHIP_RTL8367R_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT) || defined(CONFIG_RTL8367B_ASICDRV_TEST) || defined(CONFIG_RTL_8367R_SUPPORT)
+#ifdef ENHANCE_ETH_COMPATILITY
 rtk_uint16 ChipData41[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x1305, 0xC000}, {0x121E, 0x03CA},
@@ -1380,7 +1377,7 @@ rtk_uint16 ChipData41[][2]= {
 
 #endif
 
-#if defined(CHIP_RTL8367MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8367MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData50[][2]= { };
 
 rtk_uint16 ChipData51[][2]= {
@@ -1428,7 +1425,7 @@ rtk_uint16 ChipData51[][2]= {
 /*End of ChipData51[][2]*/
 #endif
 
-#if defined(CHIP_RTL8367M_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8367M_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData60[][2]= {
 /*Code of Func*/
 {0x1B00, 0x14F1}, {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x0301, 0x0026},
@@ -1688,7 +1685,7 @@ rtk_uint16 ChipData61[][2]= {
 
 #endif
 
-#if defined(CHIP_RTL8368MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8368MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData70[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x0301, 0x0026}, {0x1722, 0x0E14},
@@ -1948,7 +1945,7 @@ rtk_uint16 ChipData71[][2]= {
 
 #endif
 
-#if defined(CHIP_RTL8305MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT) || defined(CHIP_AUTO_DETECT) || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8305MB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData80[][2]= {
 /*Code of Func*/
 {0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x0301, 0x0026}, {0x1722, 0x0E14},
@@ -2210,7 +2207,7 @@ rtk_uint16 ChipData81[][2]= {
 /*End of ChipData81[][2]*/
 #endif
 
-#if defined(CHIP_RTL8307M_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
+#if defined(CHIP_RTL8307M_VB) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)
 rtk_uint16 ChipData90[][2]= {
 /*Code of Func*/
 };
@@ -2261,252 +2258,6 @@ rtk_uint16 ChipData91[][2]= {
 {0x2073, 0x1D22}, {0x207F, 0x0000}, {0x133F, 0x0030}, {0x133E, 0x000E},
 {0x2200, 0x1340}, {0x133E, 0x000E}, {0x133F, 0x0010}, };
 /*End of ChipData91[][2]*/
-
-#endif
-
-#if defined(CHIP_RTL8367N) || defined(RTK_X86_ASICDRV) || defined(RTK_ASICDRV_INIT)  || defined(CONFIG_RTL8367B_ASICDRV_TEST)
-rtk_uint16 ChipData100[][2]= {
-/*Code of Func*/
-};
-/*End of ChipData100[][2]*/
-
-rtk_uint16 ChipData101[][2]= {
-/*Code of Func*/
-{0x1B03, 0x0876}, {0x1200, 0x7FC4}, {0x1305, 0xC000}, {0x121E, 0x03CA},
-{0x1233, 0x0352}, {0x1234, 0x0064}, {0x1237, 0x0096}, {0x1238, 0x0078},
-{0x1239, 0x0084}, {0x123A, 0x0030}, {0x205F, 0x0002}, {0x2059, 0x1A00},
-{0x205F, 0x0000}, {0x207F, 0x0002}, {0x2077, 0x0000}, {0x2078, 0x0000},
-{0x2079, 0x0000}, {0x207A, 0x0000}, {0x207B, 0x0000}, {0x207F, 0x0000},
-{0x205F, 0x0002}, {0x2053, 0x0000}, {0x2054, 0x0000}, {0x2055, 0x0000},
-{0x2056, 0x0000}, {0x2057, 0x0000}, {0x205F, 0x0000}, {0x12A3, 0x2200},
-{0x6107, 0xE58B}, {0x6103, 0xA970}, {0x133F, 0x0030}, {0x133E, 0x000E},
-{0x221F, 0x0007}, {0x221E, 0x002C}, {0x2219, 0x0504}, {0x221F, 0x0000},
-{0x133F, 0x0010}, {0x0018, 0x0F00}, {0x0038, 0x0F00}, {0x0058, 0x0F00},
-{0x0078, 0x0F00}, {0x0098, 0x0F00}, {0x13EB, 0x11BB}, {0x207F, 0x0002},
-{0x2073, 0x1D22}, {0x207F, 0x0000}, {0x133F, 0x0030}, {0x133E, 0x000E},
-{0x2200, 0x1940}, {0x221F, 0x0005}, {0x2205, 0x8B6E}, {0x2206, 0x0000},
-{0x220F, 0x0100}, {0x2205, 0xFFF6}, {0x2206, 0x0080}, {0x221F, 0x0007},
-{0x221E, 0x002D}, {0x2218, 0xF030}, {0x221F, 0x0007}, {0x221E, 0x0023},
-{0x2216, 0x0005}, {0x2215, 0x0095}, {0x2219, 0x001A}, {0x2215, 0x009A},
-{0x2219, 0x0017}, {0x2215, 0x009D}, {0x2219, 0x000E}, {0x2215, 0x009F},
-{0x2219, 0x0003}, {0x2215, 0x00A2}, {0x2219, 0x0050}, {0x2215, 0x00A3},
-{0x2219, 0x0081}, {0x2215, 0x00A4}, {0x2219, 0x00BC}, {0x2215, 0x00A5},
-{0x2219, 0x001B}, {0x2215, 0x00A6}, {0x2219, 0x00EE}, {0x2215, 0x00A7},
-{0x2219, 0x00A4}, {0x2215, 0x00A8}, {0x2219, 0x002B}, {0x2215, 0x00A9},
-{0x2219, 0x00EB}, {0x2215, 0x00AA}, {0x2219, 0x00C7}, {0x2215, 0x00AB},
-{0x2219, 0x0050}, {0x2215, 0x00AC}, {0x2219, 0x0080}, {0x2215, 0x00AD},
-{0x2219, 0x00E0}, {0x2215, 0x00AE}, {0x2219, 0x0094}, {0x2215, 0x00AF},
-{0x2219, 0x00E0}, {0x2215, 0x00B0}, {0x2219, 0x0000}, {0x2215, 0x00B1},
-{0x2219, 0x0044}, {0x2215, 0x00B2}, {0x2219, 0x0021}, {0x2215, 0x00B3},
-{0x2219, 0x0044}, {0x2215, 0x00B4}, {0x2219, 0x0020}, {0x2215, 0x00B5},
-{0x2219, 0x0094}, {0x2215, 0x00B6}, {0x2219, 0x00FF}, {0x2215, 0x00B7},
-{0x2219, 0x004A}, {0x2215, 0x00B8}, {0x2219, 0x0001}, {0x2215, 0x00B9},
-{0x2219, 0x002A}, {0x2215, 0x00BA}, {0x2219, 0x0094}, {0x2215, 0x00BB},
-{0x2219, 0x007F}, {0x2215, 0x0171}, {0x2219, 0x004B}, {0x2215, 0x0172},
-{0x2219, 0x0019}, {0x2215, 0x0174}, {0x2219, 0x0041}, {0x2215, 0x0175},
-{0x2219, 0x0039}, {0x2215, 0x0178}, {0x2219, 0x0079}, {0x2215, 0x017E},
-{0x2219, 0x009C}, {0x2215, 0x018F}, {0x2219, 0x0071}, {0x2215, 0x0192},
-{0x2219, 0x0079}, {0x2215, 0x0197}, {0x2219, 0x0079}, {0x2215, 0x01AD},
-{0x2219, 0x009D}, {0x2215, 0x01B4}, {0x2219, 0x009C}, {0x2215, 0x01C0},
-{0x2219, 0x0042}, {0x2215, 0x01C1}, {0x2219, 0x0037}, {0x2215, 0x01C2},
-{0x2219, 0x00E1}, {0x2215, 0x01C3}, {0x2219, 0x00D7}, {0x2215, 0x01C4},
-{0x2219, 0x00E1}, {0x2215, 0x01C5}, {0x2219, 0x00D7}, {0x2215, 0x01C6},
-{0x2219, 0x00E1}, {0x2215, 0x01C7}, {0x2219, 0x00D7}, {0x2215, 0x01C8},
-{0x2219, 0x00E1}, {0x2215, 0x01C9}, {0x2219, 0x00D7}, {0x2215, 0x01CA},
-{0x2219, 0x00E1}, {0x2215, 0x01CB}, {0x2219, 0x00D7}, {0x2215, 0x01CC},
-{0x2219, 0x00E1}, {0x2215, 0x01CD}, {0x2219, 0x00D7}, {0x2215, 0x01CE},
-{0x2219, 0x00E1}, {0x2215, 0x01CF}, {0x2219, 0x00D7}, {0x2215, 0x01D0},
-{0x2219, 0x00E1}, {0x2215, 0x01D1}, {0x2219, 0x00D7}, {0x2215, 0x01D2},
-{0x2219, 0x00E1}, {0x2215, 0x01D3}, {0x2219, 0x00D7}, {0x2215, 0x01D4},
-{0x2219, 0x00E1}, {0x2215, 0x01D5}, {0x2219, 0x00D7}, {0x2215, 0x01D6},
-{0x2219, 0x00C1}, {0x2215, 0x01D7}, {0x2219, 0x009D}, {0x2215, 0x01D8},
-{0x2219, 0x0095}, {0x2215, 0x01D9}, {0x2219, 0x009E}, {0x2215, 0x01DA},
-{0x2219, 0x009A}, {0x2215, 0x01DB}, {0x2219, 0x0089}, {0x2215, 0x01DC},
-{0x2219, 0x007B}, {0x2215, 0x01DD}, {0x2219, 0x00A4}, {0x2215, 0x01DE},
-{0x2219, 0x002B}, {0x2215, 0x01DF}, {0x2219, 0x00F8}, {0x2215, 0x01E0},
-{0x2219, 0x00A2}, {0x2215, 0x01E1}, {0x2219, 0x001C}, {0x2215, 0x01E2},
-{0x2219, 0x0009}, {0x2215, 0x01E3}, {0x2219, 0x00E0}, {0x2215, 0x01E4},
-{0x2219, 0x0081}, {0x2215, 0x01E5}, {0x2219, 0x00E0}, {0x2215, 0x01E6},
-{0x2219, 0x0081}, {0x2215, 0x01E7}, {0x2219, 0x00E0}, {0x2215, 0x01E8},
-{0x2219, 0x0081}, {0x2215, 0x01E9}, {0x2219, 0x00E0}, {0x2215, 0x01EA},
-{0x2219, 0x0081}, {0x2215, 0x01F3}, {0x2219, 0x00D7}, {0x2216, 0x0000},
-{0x221F, 0x0007}, {0x221E, 0x0040}, {0x2218, 0x0004}, {0x221F, 0x0000},
-{0x2217, 0x2160}, {0x221F, 0x0007}, {0x221E, 0x0040}, {0x2218, 0x0874},
-{0x2219, 0x8C00}, {0x2218, 0x08A4}, {0x2219, 0x4000}, {0x2218, 0x08B4},
-{0x2219, 0x0400}, {0x2218, 0x08C4}, {0x2219, 0xFF00}, {0x2218, 0x08D4},
-{0x2219, 0x0500}, {0x2218, 0x08E4}, {0x2219, 0x8500}, {0x2218, 0x08F4},
-{0x2219, 0x8C00}, {0x2218, 0x0904}, {0x2219, 0xFA00}, {0x2218, 0x0914},
-{0x2219, 0xE000}, {0x2218, 0x0924}, {0x2219, 0x0000}, {0x2218, 0x0934},
-{0x2219, 0x4000}, {0x2218, 0x0944}, {0x2219, 0x4400}, {0x2218, 0x0954},
-{0x2219, 0x5400}, {0x2218, 0x0964}, {0x2219, 0xFF00}, {0x2218, 0x0994},
-{0x2219, 0x1400}, {0x2218, 0x0A84}, {0x2219, 0x1400}, {0x2218, 0x0B84},
-{0x2219, 0x1400}, {0x2218, 0x1944}, {0x2219, 0x8C00}, {0x2218, 0x1974},
-{0x2219, 0x4000}, {0x2218, 0x1984}, {0x2219, 0x0400}, {0x2218, 0x1994},
-{0x2219, 0xFF00}, {0x2218, 0x19A4}, {0x2219, 0x0500}, {0x2218, 0x19B4},
-{0x2219, 0x8500}, {0x2218, 0x19C4}, {0x2219, 0x8C00}, {0x2218, 0x19D4},
-{0x2219, 0xFA00}, {0x2218, 0x19E4}, {0x2219, 0xE000}, {0x2218, 0x19F4},
-{0x2219, 0x0000}, {0x2218, 0x1A04}, {0x2219, 0x4000}, {0x2218, 0x1A14},
-{0x2219, 0x4400}, {0x2218, 0x1A24}, {0x2219, 0x5400}, {0x2218, 0x1A34},
-{0x2219, 0xFF00}, {0x2218, 0x1A64}, {0x2219, 0x1400}, {0x2218, 0x1B54},
-{0x2219, 0x1400}, {0x2218, 0x1C54}, {0x2219, 0x1400}, {0x221F, 0x0000},
-{0x2217, 0x2100}, {0x221F, 0x0007}, {0x221E, 0x0040}, {0x2218, 0x0000},
-{0x221F, 0x0007}, {0x221E, 0x0042}, {0x2215, 0x0F00}, {0x221F, 0x0000},
-{0x2217, 0x2160}, {0x221F, 0x0001}, {0x2210, 0xF25E}, {0x221F, 0x0007},
-{0x221E, 0x0042}, {0x2215, 0x0F02}, {0x2216, 0x9406}, {0x2215, 0x0E02},
-{0x2215, 0x0F02}, {0x2215, 0x0F06}, {0x2216, 0x950A}, {0x2215, 0x0E06},
-{0x2215, 0x0F06}, {0x2215, 0x0F07}, {0x2216, 0x7408}, {0x2215, 0x0E07},
-{0x2215, 0x0F07}, {0x2215, 0x0F08}, {0x2216, 0x5808}, {0x2215, 0x0E08},
-{0x2215, 0x0F08}, {0x2215, 0x0F09}, {0x2216, 0x080C}, {0x2215, 0x0E09},
-{0x2215, 0x0F09}, {0x2215, 0x0F0A}, {0x2216, 0x7408}, {0x2215, 0x0E0A},
-{0x2215, 0x0F0A}, {0x2215, 0x0F0B}, {0x2216, 0x5800}, {0x2215, 0x0E0B},
-{0x2215, 0x0F0B}, {0x2215, 0x0F0C}, {0x2216, 0x9400}, {0x2215, 0x0E0C},
-{0x2215, 0x0F0C}, {0x2215, 0x0F0D}, {0x2216, 0x0803}, {0x2215, 0x0E0D},
-{0x2215, 0x0F0D}, {0x221F, 0x0001}, {0x2210, 0xF05E}, {0x221F, 0x0007},
-{0x221E, 0x0042}, {0x2215, 0x0D00}, {0x2215, 0x0100}, {0x221F, 0x0000},
-{0x2217, 0x2100}, {0x221F, 0x0007}, {0x221E, 0x002D}, {0x2218, 0xF010},
-{0x221F, 0x0005}, {0x2205, 0x8000}, {0x2206, 0x0280}, {0x2206, 0x28F7},
-{0x2206, 0x00E0}, {0x2206, 0xFFF7}, {0x2206, 0xA080}, {0x2206, 0x02AE},
-{0x2206, 0xF602}, {0x2206, 0x0153}, {0x2206, 0x0201}, {0x2206, 0x6602},
-{0x2206, 0x8074}, {0x2206, 0xE08B}, {0x2206, 0x8CE1}, {0x2206, 0x8B8D},
-{0x2206, 0x1E01}, {0x2206, 0xE18B}, {0x2206, 0x8E1E}, {0x2206, 0x01A0},
-{0x2206, 0x00E7}, {0x2206, 0xAEDB}, {0x2206, 0xEE85}, {0x2206, 0xDE00},
-{0x2206, 0xEE85}, {0x2206, 0xDF00}, {0x2206, 0xEE8A}, {0x2206, 0xFC07},
-{0x2206, 0xEE8A}, {0x2206, 0xFD73}, {0x2206, 0xD483}, {0x2206, 0x83E4},
-{0x2206, 0x8B92}, {0x2206, 0xE58B}, {0x2206, 0x93D4}, {0x2206, 0x837A},
-{0x2206, 0xE48B}, {0x2206, 0x94E5}, {0x2206, 0x8B95}, {0x2206, 0xD483},
-{0x2206, 0x71E4}, {0x2206, 0x8B96}, {0x2206, 0xE58B}, {0x2206, 0x97EE},
-{0x2206, 0xE144}, {0x2206, 0x77EE}, {0x2206, 0xE145}, {0x2206, 0x85EE},
-{0x2206, 0xE150}, {0x2206, 0xFFEE}, {0x2206, 0xE151}, {0x2206, 0xFEEE},
-{0x2206, 0x8B82}, {0x2206, 0x85EE}, {0x2206, 0x8B87}, {0x2206, 0x80EE},
-{0x2206, 0xFFF6}, {0x2206, 0x00EE}, {0x2206, 0xFFF7}, {0x2206, 0xFE04},
-{0x2206, 0xF8E0}, {0x2206, 0x8B8E}, {0x2206, 0xAD20}, {0x2206, 0x26F6},
-{0x2206, 0x20E4}, {0x2206, 0x8B8E}, {0x2206, 0x0229}, {0x2206, 0x2102},
-{0x2206, 0x2671}, {0x2206, 0x0227}, {0x2206, 0x4B02}, {0x2206, 0x8155},
-{0x2206, 0x0282}, {0x2206, 0x3302}, {0x2206, 0x02B0}, {0x2206, 0x0228},
-{0x2206, 0x9B02}, {0x2206, 0x8102}, {0x2206, 0x0229}, {0x2206, 0xFB02},
-{0x2206, 0x2BA2}, {0x2206, 0x0229}, {0x2206, 0x91E0}, {0x2206, 0x8B8E},
-{0x2206, 0xAD21}, {0x2206, 0x08F6}, {0x2206, 0x21E4}, {0x2206, 0x8B8E},
-{0x2206, 0x0202}, {0x2206, 0x8FE0}, {0x2206, 0x8B8E}, {0x2206, 0xAD22},
-{0x2206, 0x05F6}, {0x2206, 0x22E4}, {0x2206, 0x8B8E}, {0x2206, 0xE08B},
-{0x2206, 0x8EAD}, {0x2206, 0x2305}, {0x2206, 0xF623}, {0x2206, 0xE48B},
-{0x2206, 0x8EE0}, {0x2206, 0x8B8E}, {0x2206, 0xAD24}, {0x2206, 0x08F6},
-{0x2206, 0x24E4}, {0x2206, 0x8B8E}, {0x2206, 0x0228}, {0x2206, 0x14E0},
-{0x2206, 0x8B8E}, {0x2206, 0xAD25}, {0x2206, 0x05F6}, {0x2206, 0x25E4},
-{0x2206, 0x8B8E}, {0x2206, 0xE08B}, {0x2206, 0x8EAD}, {0x2206, 0x260B},
-{0x2206, 0xF626}, {0x2206, 0xE48B}, {0x2206, 0x8E02}, {0x2206, 0x069E},
-{0x2206, 0x021E}, {0x2206, 0x15E0}, {0x2206, 0x8B8E}, {0x2206, 0xAD27},
-{0x2206, 0x05F6}, {0x2206, 0x27E4}, {0x2206, 0x8B8E}, {0x2206, 0x0204},
-{0x2206, 0x1902}, {0x2206, 0x0488}, {0x2206, 0xFC04}, {0x2206, 0xF8F9},
-{0x2206, 0xE08B}, {0x2206, 0x85AD}, {0x2206, 0x2548}, {0x2206, 0xE08A},
-{0x2206, 0xE4E1}, {0x2206, 0x8AE5}, {0x2206, 0x7C00}, {0x2206, 0x009E},
-{0x2206, 0x35EE}, {0x2206, 0x8AE4}, {0x2206, 0x00EE}, {0x2206, 0x8AE5},
-{0x2206, 0x00E0}, {0x2206, 0x8AFC}, {0x2206, 0xE18A}, {0x2206, 0xFDE2},
-{0x2206, 0x85DE}, {0x2206, 0xE385}, {0x2206, 0xDF02}, {0x2206, 0x2DAC},
-{0x2206, 0xAD20}, {0x2206, 0x12EE}, {0x2206, 0x8AE4}, {0x2206, 0x03EE},
-{0x2206, 0x8AE5}, {0x2206, 0xB7EE}, {0x2206, 0x85DE}, {0x2206, 0x00EE},
-{0x2206, 0x85DF}, {0x2206, 0x00AE}, {0x2206, 0x1115}, {0x2206, 0xE685},
-{0x2206, 0xDEE7}, {0x2206, 0x85DF}, {0x2206, 0xAE08}, {0x2206, 0xEE85},
-{0x2206, 0xDE00}, {0x2206, 0xEE85}, {0x2206, 0xDF00}, {0x2206, 0xFDFC},
-{0x2206, 0x04F8}, {0x2206, 0xFAEF}, {0x2206, 0x69E0}, {0x2206, 0x8B85},
-{0x2206, 0xAD21}, {0x2206, 0x3FE0}, {0x2206, 0xE022}, {0x2206, 0xE1E0},
-{0x2206, 0x2358}, {0x2206, 0xC059}, {0x2206, 0x021E}, {0x2206, 0x01E1},
-{0x2206, 0x8B72}, {0x2206, 0x1F10}, {0x2206, 0x9E2C}, {0x2206, 0xE48B},
-{0x2206, 0x72AD}, {0x2206, 0x2120}, {0x2206, 0xE18B}, {0x2206, 0x70F7},
-{0x2206, 0x29E5}, {0x2206, 0x8B70}, {0x2206, 0xAC27}, {0x2206, 0x0DAC},
-{0x2206, 0x2605}, {0x2206, 0x0205}, {0x2206, 0x58AE}, {0x2206, 0x1302},
-{0x2206, 0x056A}, {0x2206, 0xAE0E}, {0x2206, 0x0281}, {0x2206, 0xA302},
-{0x2206, 0x8300}, {0x2206, 0xAE06}, {0x2206, 0x0205}, {0x2206, 0x0E02},
-{0x2206, 0x8346}, {0x2206, 0xEF96}, {0x2206, 0xFEFC}, {0x2206, 0x04D1},
-{0x2206, 0x02BF}, {0x2206, 0x351E}, {0x2206, 0x022E}, {0x2206, 0x88BF},
-{0x2206, 0x2A58}, {0x2206, 0x022E}, {0x2206, 0xC6AC}, {0x2206, 0x280B},
-{0x2206, 0x0281}, {0x2206, 0xEED1}, {0x2206, 0x01BF}, {0x2206, 0x3533},
-{0x2206, 0x022E}, {0x2206, 0x88D0}, {0x2206, 0x1102}, {0x2206, 0x2D33},
-{0x2206, 0x5903}, {0x2206, 0xEF01}, {0x2206, 0xD100}, {0x2206, 0xA000},
-{0x2206, 0x02D1}, {0x2206, 0x01BF}, {0x2206, 0x3521}, {0x2206, 0x022E},
-{0x2206, 0x88D1}, {0x2206, 0x11AD}, {0x2206, 0x2002}, {0x2206, 0x0C11},
-{0x2206, 0xAD21}, {0x2206, 0x020C}, {0x2206, 0x12BF}, {0x2206, 0x3524},
-{0x2206, 0x022E}, {0x2206, 0x8802}, {0x2206, 0x2AB0}, {0x2206, 0x0206},
-{0x2206, 0x5B04}, {0x2206, 0xF8E0}, {0x2206, 0x8B80}, {0x2206, 0xAD27},
-{0x2206, 0x3CEE}, {0x2206, 0xE232}, {0x2206, 0x00EE}, {0x2206, 0xE233},
-{0x2206, 0x07EE}, {0x2206, 0xE230}, {0x2206, 0x00EE}, {0x2206, 0xE231},
-{0x2206, 0xBDE0}, {0x2206, 0xEACA}, {0x2206, 0xE1EA}, {0x2206, 0xCBAD},
-{0x2206, 0x2A13}, {0x2206, 0xE0EA}, {0x2206, 0xCCE1}, {0x2206, 0xEACD},
-{0x2206, 0xAD2A}, {0x2206, 0x0AEE}, {0x2206, 0xE238}, {0x2206, 0x00EE},
-{0x2206, 0xE239}, {0x2206, 0x3BAE}, {0x2206, 0x08EE}, {0x2206, 0xE238},
-{0x2206, 0x00EE}, {0x2206, 0xE239}, {0x2206, 0x0CEE}, {0x2206, 0xE232},
-{0x2206, 0x00EE}, {0x2206, 0xE233}, {0x2206, 0x00FC}, {0x2206, 0x04F8},
-{0x2206, 0xE08B}, {0x2206, 0x85AD}, {0x2206, 0x2730}, {0x2206, 0xE0E0},
-{0x2206, 0x36E1}, {0x2206, 0xE037}, {0x2206, 0xE18B}, {0x2206, 0x731F},
-{0x2206, 0x109E}, {0x2206, 0x23E4}, {0x2206, 0x8B73}, {0x2206, 0xAC20},
-{0x2206, 0x0BAC}, {0x2206, 0x210D}, {0x2206, 0xAC25}, {0x2206, 0x0FAC},
-{0x2206, 0x2711}, {0x2206, 0xAE12}, {0x2206, 0x022C}, {0x2206, 0x88AE},
-{0x2206, 0x0D02}, {0x2206, 0x826C}, {0x2206, 0xAE08}, {0x2206, 0x0282},
-{0x2206, 0x73AE}, {0x2206, 0x0302}, {0x2206, 0x2CA7}, {0x2206, 0xFC04},
-{0x2206, 0x0282}, {0x2206, 0xBD02}, {0x2206, 0x2CF7}, {0x2206, 0x04F8},
-{0x2206, 0xF901}, {0x2206, 0x11E0}, {0x2206, 0x8B87}, {0x2206, 0xAD26},
-{0x2206, 0x08D1}, {0x2206, 0x01BF}, {0x2206, 0x2D30}, {0x2206, 0x022E},
-{0x2206, 0x88FD}, {0x2206, 0xFC04}, {0x2206, 0xF8FA}, {0x2206, 0xEF69},
-{0x2206, 0xE08B}, {0x2206, 0x87AD}, {0x2206, 0x2726}, {0x2206, 0xD00B},
-{0x2206, 0x022D}, {0x2206, 0x33AC}, {0x2206, 0x2A05}, {0x2206, 0xBF83},
-{0x2206, 0xF2AE}, {0x2206, 0x03BF}, {0x2206, 0x83F5}, {0x2206, 0x022E},
-{0x2206, 0xC6AC}, {0x2206, 0x2810}, {0x2206, 0xD101}, {0x2206, 0xBF83},
-{0x2206, 0xF802}, {0x2206, 0x2E88}, {0x2206, 0xD100}, {0x2206, 0xBF83},
-{0x2206, 0xF802}, {0x2206, 0x2E88}, {0x2206, 0xEF96}, {0x2206, 0xFEFC},
-{0x2206, 0x04F8}, {0x2206, 0xF9E0}, {0x2206, 0x8B85}, {0x2206, 0xAD26},
-{0x2206, 0x38D0}, {0x2206, 0x0B02}, {0x2206, 0x2D33}, {0x2206, 0x5882},
-{0x2206, 0x7882}, {0x2206, 0x9F2D}, {0x2206, 0xE08B}, {0x2206, 0x68E1},
-{0x2206, 0x8B69}, {0x2206, 0x1F10}, {0x2206, 0x9E23}, {0x2206, 0x10E4},
-{0x2206, 0x8B68}, {0x2206, 0xE0E0}, {0x2206, 0x00E1}, {0x2206, 0xE001},
-{0x2206, 0xF727}, {0x2206, 0xE4E0}, {0x2206, 0x00E5}, {0x2206, 0xE001},
-{0x2206, 0xE2E0}, {0x2206, 0x20E3}, {0x2206, 0xE021}, {0x2206, 0xAD30},
-{0x2206, 0xF7F6}, {0x2206, 0x27E4}, {0x2206, 0xE000}, {0x2206, 0xE5E0},
-{0x2206, 0x01FD}, {0x2206, 0xFC04}, {0x2206, 0xF8FA}, {0x2206, 0xEF69},
-{0x2206, 0xE08B}, {0x2206, 0x82AD}, {0x2206, 0x2737}, {0x2206, 0xBF83},
-{0x2206, 0xEC02}, {0x2206, 0x2EC6}, {0x2206, 0xAC28}, {0x2206, 0x2ED1},
-{0x2206, 0x01BF}, {0x2206, 0x83EF}, {0x2206, 0x022E}, {0x2206, 0x88BF},
-{0x2206, 0x83E9}, {0x2206, 0x022E}, {0x2206, 0xC6E5}, {0x2206, 0x85DD},
-{0x2206, 0xE0E0}, {0x2206, 0x22E1}, {0x2206, 0xE023}, {0x2206, 0xAC2E},
-{0x2206, 0x04D1}, {0x2206, 0x01AE}, {0x2206, 0x02D1}, {0x2206, 0x00BF},
-{0x2206, 0x83E9}, {0x2206, 0x022E}, {0x2206, 0x88D1}, {0x2206, 0x01BF},
-{0x2206, 0x83EC}, {0x2206, 0x022E}, {0x2206, 0x88EF}, {0x2206, 0x96FE},
-{0x2206, 0xFC04}, {0x2206, 0xF8FA}, {0x2206, 0xEF69}, {0x2206, 0xBF83},
-{0x2206, 0xEF02}, {0x2206, 0x2EC6}, {0x2206, 0xAD28}, {0x2206, 0x19D1},
-{0x2206, 0x00BF}, {0x2206, 0x83EC}, {0x2206, 0x022E}, {0x2206, 0x88E1},
-{0x2206, 0x85DD}, {0x2206, 0xBF83}, {0x2206, 0xE902}, {0x2206, 0x2E88},
-{0x2206, 0xD100}, {0x2206, 0xBF83}, {0x2206, 0xEF02}, {0x2206, 0x2E88},
-{0x2206, 0xEF96}, {0x2206, 0xFEFC}, {0x2206, 0x04EE}, {0x2206, 0xE08E},
-{0x2206, 0x32EE}, {0x2206, 0xE08F}, {0x2206, 0x2105}, {0x2206, 0xEEE0},
-{0x2206, 0x8E32}, {0x2206, 0xEEE0}, {0x2206, 0x8F20}, {0x2206, 0x05F8},
-{0x2206, 0xE0E0}, {0x2206, 0x38E1}, {0x2206, 0xE039}, {0x2206, 0xAD2F},
-{0x2206, 0x10E0}, {0x2206, 0xE034}, {0x2206, 0xE1E0}, {0x2206, 0x35F7},
-{0x2206, 0x26E4}, {0x2206, 0xE034}, {0x2206, 0xE5E0}, {0x2206, 0x35AE},
-{0x2206, 0x0EE0}, {0x2206, 0xE2D6}, {0x2206, 0xE1E2}, {0x2206, 0xD7F7},
-{0x2206, 0x28E4}, {0x2206, 0xE2D6}, {0x2206, 0xE5E2}, {0x2206, 0xD7E0},
-{0x2206, 0xE232}, {0x2206, 0xE1E2}, {0x2206, 0x33F7}, {0x2206, 0x2DE4},
-{0x2206, 0xE232}, {0x2206, 0xE5E2}, {0x2206, 0x33D0}, {0x2206, 0x7DB0},
-{0x2206, 0xFEE0}, {0x2206, 0xE232}, {0x2206, 0xE1E2}, {0x2206, 0x33F6},
-{0x2206, 0x2DE4}, {0x2206, 0xE232}, {0x2206, 0xE5E2}, {0x2206, 0x33E0},
-{0x2206, 0xE034}, {0x2206, 0xE1E0}, {0x2206, 0x35F6}, {0x2206, 0x26E4},
-{0x2206, 0xE034}, {0x2206, 0xE5E0}, {0x2206, 0x35E0}, {0x2206, 0xE2D6},
-{0x2206, 0xE1E2}, {0x2206, 0xD7F6}, {0x2206, 0x28E4}, {0x2206, 0xE2D6},
-{0x2206, 0xE5E2}, {0x2206, 0xD7FC}, {0x2206, 0x0555}, {0x2206, 0xE020},
-{0x2206, 0x55E2}, {0x2206, 0xD600}, {0x2206, 0xE24A}, {0x2206, 0x65E0},
-{0x2206, 0x0887}, {0x2206, 0xE008}, {0x2206, 0x44E0}, {0x2206, 0x2800},
-{0x2205, 0xE142}, {0x2206, 0x0701}, {0x2205, 0xE140}, {0x2206, 0x0405},
-{0x220F, 0x0000}, {0x221F, 0x0007}, {0x221E, 0x0041}, {0x2216, 0x1345},
-{0x221F, 0x0000}, {0x133E, 0x000E}, {0x133F, 0x0010}, {0x133F, 0x0030},
-{0x133E, 0x000E}, {0x221F, 0x0005}, {0x2205, 0x8B86}, {0x2206, 0x808E},
-{0x221F, 0x0003}, {0x2218, 0x8001}, {0x2205, 0x8B80}, {0x2206, 0x4890},
-{0x221F, 0x0000}, {0x133F, 0x0010}, {0x2000, 0x1340}, {0x2020, 0x1340},
-{0x2040, 0x1340}, {0x2060, 0x1340}, {0x2080, 0x1340}
-};
-/*End of ChipData101[][2]*/
-
-rtk_uint16 ChipData102[][2]= {
-{0x1d32, 0x0002}, {0x0018, 0x0F00}, {0x0038, 0x0F00}, {0x0058, 0x0F00},
-{0x0078, 0x0F00}, {0x0098, 0x0F00}, {0x1200, 0x7FCB}
-};
-/*End of ChipData102[][2]*/
 
 #endif
 
@@ -3096,7 +2847,7 @@ rtk_api_ret_t rtk_qos_init(rtk_queue_num_t queueNum)
             {0, 0,0,0,1,1,7,7},
             {0, 0,1,1,2,2,7,7},
             {0, 0,1,1,2,3,7,7},
-            {0, 0,1,2,3,4,7,7},
+            {0, 0,1,1,2,3,4,7},
             {0, 0,1,2,3,4,5,7},
             {0,1,2,3,4,5,6,7}
     };
@@ -3127,9 +2878,9 @@ rtk_api_ret_t rtk_qos_init(rtk_queue_num_t queueNum)
     }
 
     /*Set Priority to Qid*/
-    for (priority = 0; priority <= RTL8367B_PRIMAX; priority++)
+    for (priority = 0; priority < RTL8367B_PRIMAX; priority++)
     {
-        if ((retVal = rtl8367b_setAsicPriorityToQIDMappingTable((queueNum - 1), priority, g_prioritytToQid[queueNum - 1][priority])) != RT_ERR_OK)
+        if ((retVal = rtl8367b_setAsicPriorityToQIDMappingTable(qmapidx, priority, g_prioritytToQid[qmapidx][priority])) != RT_ERR_OK)
             return retVal;
     }
 
@@ -3164,7 +2915,7 @@ rtk_api_ret_t rtk_qos_init(rtk_queue_num_t queueNum)
         return retVal;
 
     /*Set 1p & DSCP  Priority Remapping & Remarking*/
-    for (priority = 0; priority <= RTL8367B_PRIMAX; priority++)
+    for (priority = 0; priority < RTL8367B_PRIMAX; priority++)
     {
         if ((retVal = rtl8367b_setAsicPriorityDot1qRemapping(priority, g_prioritytRemap[priority])) != RT_ERR_OK)
             return retVal;
@@ -3177,7 +2928,7 @@ rtk_api_ret_t rtk_qos_init(rtk_queue_num_t queueNum)
     }
 
     /*Set DSCP Priority*/
-    for (dscp = 0; dscp <= 63; dscp++)
+    for (dscp = 0; dscp < 63; dscp++)
     {
         if ((retVal = rtl8367b_setAsicPriorityDscpBased(dscp, 0)) != RT_ERR_OK)
             return retVal;
@@ -5244,76 +4995,33 @@ rtk_api_ret_t rtk_storm_bypass_get(rtk_storm_bypass_t type, rtk_enable_t *pEnabl
 static rtk_api_ret_t _rtk_port_FiberModeAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
 {
     rtk_api_ret_t   retVal;
-    rtk_uint32 data;
 
     if (port != RTK_PORT_COMBO_ID)
         return RT_ERR_PORT_ID;
 
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
-        return retVal;
-
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
-        return retVal;
-
-    if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
+    if( (pAbility->Full_1000 == 1) && (pAbility->Full_100 == 1) && (pAbility->AutoNegotiation == 1) )
     {
-        if( (pAbility->Full_1000 == 1) && (pAbility->Full_100 == 1) && (pAbility->AutoNegotiation == 1) )
-        {
-            if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_FRC_MODE_OFFSET, 0)) != RT_ERR_OK)
-                return retVal;
+        if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_MASK, RTK_FIBER_FORCE_100M1000M)) != RT_ERR_OK)
+            return retVal;
 
-            if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_MODE_MASK, 0)) != RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicRegBit(0x6200, 12, 1)) != RT_ERR_OK)
-                return retVal;
-        }
-        else if(pAbility->Full_1000 == 1)
-        {
-            if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_FRC_MODE_OFFSET, 1)) != RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_MODE_MASK, 4)) != RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicRegBit(0x6200, 12, 1)) != RT_ERR_OK)
-                return retVal;
-        }
-        else if(pAbility->Full_100 == 1)
-        {
-            if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_FRC_MODE_OFFSET, 1)) != RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_MODE_MASK, 5)) != RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicRegBit(0x6200, 12, 0)) != RT_ERR_OK)
-                return retVal;
-        }
+        if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_EN_MASK, 1)) != RT_ERR_OK)
+            return retVal;
     }
-    else
+    else if(pAbility->Full_1000 == 1)
     {
-        if( (pAbility->Full_1000 == 1) && (pAbility->Full_100 == 1) && (pAbility->AutoNegotiation == 1) )
-        {
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIBER_CFG_1, 0x000F)) != RT_ERR_OK)
-                return retVal;
-        }
-        else if(pAbility->Full_1000 == 1)
-        {
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIBER_CFG_1, 0x000C)) != RT_ERR_OK)
-                return retVal;
+        if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_MASK, RTK_FIBER_FORCE_1000M)) != RT_ERR_OK)
+            return retVal;
 
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIB_CFG00, 0x1140)) != RT_ERR_OK)
-                return retVal;
-        }
-        else if(pAbility->Full_100 == 1)
-        {
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIBER_CFG_1, 0x000D)) != RT_ERR_OK)
-                return retVal;
+        if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_EN_MASK, 1)) != RT_ERR_OK)
+            return retVal;
+    }
+    else if(pAbility->Full_100 == 1)
+    {
+        if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_MASK, RTK_FIBER_FORCE_100M)) != RT_ERR_OK)
+            return retVal;
 
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIB_CFG00, 0x2100)) != RT_ERR_OK)
-                return retVal;
-        }
+        if ((retVal = rtl8367b_setAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_EN_MASK, 0)) != RT_ERR_OK)
+            return retVal;
     }
 
     return RT_ERR_OK;
@@ -5322,59 +5030,33 @@ static rtk_api_ret_t _rtk_port_FiberModeAbility_set(rtk_port_t port, rtk_port_ph
 static rtk_api_ret_t _rtk_port_FiberModeAbility_get(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
 {
     rtk_api_ret_t   retVal;
-    rtk_uint32      data, speed;
+    rtk_uint32      speed, auto_detect;
 
     if (port != RTK_PORT_COMBO_ID)
         return RT_ERR_PORT_ID;
 
     memset(pAbility, 0x00, sizeof(rtk_port_phy_ability_t));
 
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
+    if ((retVal = rtl8367b_getAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_MASK, &speed)) != RT_ERR_OK)
         return retVal;
 
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
-        return retVal;
-
-    if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
+    if(speed == RTK_FIBER_FORCE_100M1000M)
     {
-        if ((retVal = rtl8367b_getAsicRegBit(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_FRC_MODE_OFFSET, &data)) != RT_ERR_OK)
-            return retVal;
-
-        if(data == 0)
-        {
-            pAbility->AutoNegotiation = 1;
-            pAbility->Full_1000 = 1;
-            pAbility->Full_100 = 1;
-        }
-        else
-        {
-            if ((retVal = rtl8367b_getAsicRegBits(RTL8367B_REG_FIBER_CFG_1, RTL8367B_SDS_MODE_MASK, &data)) != RT_ERR_OK)
-                return retVal;
-
-            if(data == 4)
-                pAbility->Full_1000 = 1;
-            else if(data == 5)
-                pAbility->Full_100 = 1;
-            else
-                return RT_ERR_FAILED;
-        }
+        pAbility->Full_1000 = 1;
+        pAbility->Full_100 = 1;
     }
+    else if(speed == RTK_FIBER_FORCE_1000M)
+        pAbility->Full_1000 = 1;
+    else if(speed == RTK_FIBER_FORCE_100M)
+        pAbility->Full_100 = 1;
+
+    if ((retVal = rtl8367b_getAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_EN_MASK, &auto_detect)) != RT_ERR_OK)
+        return retVal;
+
+    if(auto_detect == 1)
+        pAbility->AutoNegotiation = 1;
     else
-    {
-        if ((retVal = rtl8367b_getAsicRegBits(RTL8367B_REG_SDS_CFG4, RTL8367B_CFG_FRC_SDS_MODE_MASK, &speed)) != RT_ERR_OK)
-            return retVal;
-
-        if(speed == 0x000F)
-        {
-            pAbility->Full_1000 = 1;
-            pAbility->Full_100 = 1;
-            pAbility->AutoNegotiation = 1;
-        }
-        else if(speed == 0x000C)
-            pAbility->Full_1000 = 1;
-        else if(speed == 0x000D)
-            pAbility->Full_100 = 1;
-    }
+        pAbility->AutoNegotiation = 0;
 
     return RT_ERR_OK;
 }
@@ -5510,7 +5192,7 @@ rtk_api_ret_t rtk_port_phyAutoNegoAbility_set(rtk_port_t port, rtk_port_phy_abil
         /* 00= 10Mpbs*/
         phyEnMsk0 = phyEnMsk0 | (1 << 6);
         phyEnMsk0 = phyEnMsk0 & (~(1 << 13));
-        phyEnMsk0 = phyEnMsk0 | (1 << 8);
+
 
         /*Auto-Negotiation setting in reg 0.12*/
         phyEnMsk0 = phyEnMsk0 | (1 << 12);
@@ -5796,6 +5478,26 @@ rtk_api_ret_t rtk_port_phyForceModeAbility_set(rtk_port_t port, rtk_port_phy_abi
          phyEnMsk0 = phyEnMsk0 | (1 << 8);
      }
 
+
+     if (1 == pAbility->Full_1000)
+     {
+         /*1000 BASE-T FULL duplex capable setting in reg 9.9*/
+         phyEnMsk9 = phyEnMsk9 | (1 << 9);
+
+         /*Speed selection [1:0] */
+         /* 11=Reserved*/
+         /* 10= 1000Mpbs*/
+         /* 01= 100Mpbs*/
+         /* 00= 10Mpbs*/
+         phyEnMsk0 = phyEnMsk0 | (1 << 6);
+         phyEnMsk0 = phyEnMsk0 & (~(1 << 13));
+
+
+         /*Auto-Negotiation setting in reg 0.12*/
+         phyEnMsk0 = phyEnMsk0 | (1 << 12);
+
+     }
+
      if (1 == pAbility->AsyFC)
      {
          /*Asymetric flow control in reg 4.11*/
@@ -5966,16 +5668,9 @@ rtk_api_ret_t rtk_port_phyStatus_get(rtk_port_t port, rtk_port_linkStatus_t *pLi
 {
     rtk_api_ret_t retVal;
     rtk_uint32 phyData;
-    rtk_uint32 data;
 
     if (port > RTK_PORT_ID_MAX)
         return RT_ERR_PORT_ID;
-
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
-        return retVal;
-
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
-        return retVal;
 
     if ((retVal = rtl8367b_setAsicPHYReg(port, RTL8367B_PHY_PAGE_ADDRESS, 0)) != RT_ERR_OK)
         return retVal;
@@ -5992,34 +5687,19 @@ rtk_api_ret_t rtk_port_phyStatus_get(rtk_port_t port, rtk_port_linkStatus_t *pLi
     {
         *pLinkStatus = 1;
 
-        if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
-        {
-            /*Get PHY resolved register*/
-            if ((retVal = rtl8367b_getAsicPHYReg(port, 26, &phyData)) != RT_ERR_OK)
-                return retVal;
+        /*Get PHY resolved register*/
+        if ((retVal = rtl8367b_getAsicPHYReg(port, PHY_RESOLVED_REG, &phyData)) != RT_ERR_OK)
+            return retVal;
 
-            /*check link speed*/
-            *pSpeed = (phyData&0x0030) >> 4;
+        /*check resolution is complete or not*/
+        if (!(phyData&(1 << 11)))
+            return RT_ERR_BUSYWAIT_TIMEOUT;
 
-            /*check link duplex*/
-            *pDuplex = (phyData&0x0008) >> 3;
-        }
-        else
-        {
-            /*Get PHY resolved register*/
-            if ((retVal = rtl8367b_getAsicPHYReg(port, PHY_RESOLVED_REG, &phyData)) != RT_ERR_OK)
-                return retVal;
+        /*check link speed*/
+        *pSpeed = (phyData&0xC000) >> 14;
 
-            /*check resolution is complete or not*/
-            if (!(phyData&(1 << 11)))
-                return RT_ERR_BUSYWAIT_TIMEOUT;
-
-            /*check link speed*/
-            *pSpeed = (phyData&0xC000) >> 14;
-
-            /*check link duplex*/
-            *pDuplex = (phyData&0x2000) >> 13;
-        }
+        /*check link duplex*/
+        *pDuplex = (phyData&0x2000) >> 13;
     }
     else
     {
@@ -6027,6 +5707,122 @@ rtk_api_ret_t rtk_port_phyStatus_get(rtk_port_t port, rtk_port_linkStatus_t *pLi
         *pSpeed = 0;
         *pDuplex = 0;
     }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtk_port_phyTestMode_set
+ * Description:
+ *      Set PHY in test mode.
+ * Input:
+ *      port - port id.
+ *      mode - PHY test mode 0:normal 1:test mode 1 2:test mode 2 3: test mode 3 4:test mode 4 5~7:reserved
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK              	- OK
+ *      RT_ERR_FAILED          	- Failed
+ *      RT_ERR_SMI             	- SMI access error
+ *      RT_ERR_PORT_ID 			- Invalid port number.
+ *      RT_ERR_BUSYWAIT_TIMEOUT - PHY access busy
+ *      RT_ERR_NOT_ALLOWED      - The Setting is not allowed, caused by set more than 1 port in Test mode.
+ * Note:
+ *      Set PHY in test mode and only one PHY can be in test mode at the same time.
+ *      It means API will return FAILED if other PHY is in test mode.
+ *      This API only provide test mode 1 & 4 setup, and if users want other test modes,
+ *      please contact realtek FAE.
+ */
+rtk_api_ret_t rtk_port_phyTestMode_set(rtk_port_t port, rtk_port_phy_test_mode_t mode)
+{
+    rtk_uint32          data, i, index, phy, reg;
+    rtk_api_ret_t       retVal;
+    CONST_T rtk_uint16 ParaTM_1[][2] = { {0x205F,0x0002}, {0x2053,0xAA00}, {0x2054,0xAA00}, {0x2055,0xAA00},
+                                         {0x2056,0xAA00}, {0x2057,0xAA00}, {0x205F,0x0002} };
+
+    if (port > RTK_PHY_ID_MAX)
+        return RT_ERR_PORT_ID;
+
+    if ( (mode == PHY_TEST_MODE_2) || (mode == PHY_TEST_MODE_3) )
+        return RT_ERR_FAILED;
+
+    if (PHY_TEST_MODE_NORMAL != mode)
+    {
+        /* Other port should be Normal mode */
+        for(i = 0; i <= RTK_PHY_ID_MAX; i++)
+        {
+            if(i != port)
+            {
+                if ((retVal = rtl8367b_setAsicPHYReg(i, 31, 0)) != RT_ERR_OK)
+                    return retVal;
+
+                if ((retVal = rtl8367b_getAsicPHYReg(i, 9, &data)) != RT_ERR_OK)
+                    return retVal;
+
+                if((data & 0xE000) != 0)
+                    return RT_ERR_NOT_ALLOWED;
+            }
+        }
+    }
+
+    if (PHY_TEST_MODE_1 == mode)
+    {
+        for (index = 0; index < (sizeof(ParaTM_1) / ((sizeof(rtk_uint16))*2)); index++)
+        {
+            phy = (ParaTM_1[index][0] - 0x2000) / 0x0020;
+            reg = (ParaTM_1[index][0] - 0x2000) % 0x0020;
+            if ((retVal = rtl8367b_setAsicPHYReg(phy, reg, ParaTM_1[index][1])) != RT_ERR_OK)
+                return retVal;
+        }
+    }
+
+    if ((retVal = rtl8367b_setAsicPHYReg(port, 31, 0)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367b_getAsicPHYReg(port, 9, &data)) != RT_ERR_OK)
+        return retVal;
+
+    data &= ~0xE000;
+    data |= (mode << 13);
+    if ((retVal = rtl8367b_setAsicPHYReg(port, 9, data)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtk_port_phyTestMode_get
+ * Description:
+ *      Get PHY in which test mode.
+ * Input:
+ *      port - Port id.
+ * Output:
+ *      mode - PHY test mode 0:normal 1:test mode 1 2:test mode 2 3: test mode 3 4:test mode 4 5~7:reserved
+ * Return:
+ *      RT_ERR_OK              	- OK
+ *      RT_ERR_FAILED          	- Failed
+ *      RT_ERR_SMI             	- SMI access error
+ *      RT_ERR_PORT_ID 			- Invalid port number.
+ *      RT_ERR_INPUT 			- Invalid input parameters.
+ *      RT_ERR_BUSYWAIT_TIMEOUT - PHY access busy
+ * Note:
+ *      Get test mode of PHY from register setting 9.15 to 9.13.
+ */
+rtk_api_ret_t rtk_port_phyTestMode_get(rtk_port_t port, rtk_port_phy_test_mode_t *pMode)
+{
+    rtk_uint32      data;
+    rtk_api_ret_t   retVal;
+
+    if (port > RTK_PHY_ID_MAX)
+        return RT_ERR_PORT_ID;
+
+    if ((retVal = rtl8367b_setAsicPHYReg(port, 31, 0)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367b_getAsicPHYReg(port, 9, &data)) != RT_ERR_OK)
+        return retVal;
+
+    *pMode = (data & 0xE000) >> 13;
 
     return RT_ERR_OK;
 }
@@ -6196,6 +5992,7 @@ rtk_api_ret_t rtk_port_macForceLink_get(rtk_port_t port, rtk_port_mac_ability_t 
  *      - MODE_EXT_TMII_PHY,
  *      - MODE_EXT_GMII,
  *      - MODE_EXT_RMII_MAC,
+ *      - MODE_EXT_RMII_PHY,
  */
 rtk_api_ret_t rtk_port_macForceLinkExt0_set(rtk_mode_ext_t mode, rtk_port_mac_ability_t *pPortability)
 {
@@ -6250,6 +6047,7 @@ rtk_api_ret_t rtk_port_macForceLinkExt0_get(rtk_mode_ext_t *pMode, rtk_port_mac_
  *      - MODE_EXT_TMII_PHY,
  *      - MODE_EXT_GMII,
  *      - MODE_EXT_RMII_MAC,
+ *      - MODE_EXT_RMII_PHY,
  */
 rtk_api_ret_t rtk_port_macForceLinkExt1_set(rtk_mode_ext_t mode, rtk_port_mac_ability_t *pPortability)
 {
@@ -6304,6 +6102,7 @@ rtk_api_ret_t rtk_port_macForceLinkExt1_get(rtk_mode_ext_t *pMode, rtk_port_mac_
  *      - MODE_EXT_TMII_PHY,
  *      - MODE_EXT_GMII,
  *      - MODE_EXT_RMII_MAC,
+ *      - MODE_EXT_RMII_PHY,
  */
 rtk_api_ret_t rtk_port_macForceLinkExt_set(rtk_ext_port_t port, rtk_mode_ext_t mode, rtk_port_mac_ability_t *pPortability)
 {
@@ -6317,7 +6116,7 @@ rtk_api_ret_t rtk_port_macForceLinkExt_set(rtk_ext_port_t port, rtk_mode_ext_t m
     if (mode >=MODE_EXT_END)
         return RT_ERR_INPUT;
 
-    if ((mode == MODE_EXT_RGMII_33V) || (mode == MODE_EXT_RMII_PHY))
+    if (mode == MODE_EXT_RGMII_33V)
         return RT_ERR_INPUT;
 
     if (pPortability->forcemode > 1 || pPortability->speed > 2 || pPortability->duplex > 1 ||
@@ -6342,34 +6141,22 @@ rtk_api_ret_t rtk_port_macForceLinkExt_set(rtk_ext_port_t port, rtk_mode_ext_t m
     else
         return RT_ERR_INPUT;
 
-    if(mode == MODE_EXT_DISABLE)
-    {
-        memset(&ability, 0x00, sizeof(rtl8367b_port_ability_t));
-        if ((retVal = rtl8367b_setAsicPortForceLinkExt( (rtk_uint32)port, &ability)) != RT_ERR_OK)
-            return retVal;
+    if ((retVal = rtl8367b_setAsicPortExtMode(port, mode)) != RT_ERR_OK)
+        return retVal;
 
-        if ((retVal = rtl8367b_setAsicPortExtMode(port, mode)) != RT_ERR_OK)
-            return retVal;
-    }
-    else
-    {
-        if ((retVal = rtl8367b_setAsicPortExtMode(port, mode)) != RT_ERR_OK)
-            return retVal;
+    if ((retVal = rtl8367b_getAsicPortForceLinkExt( (rtk_uint32)port, &ability)) != RT_ERR_OK)
+        return retVal;
 
-        if ((retVal = rtl8367b_getAsicPortForceLinkExt( (rtk_uint32)port, &ability)) != RT_ERR_OK)
-            return retVal;
+    ability.forcemode = pPortability->forcemode;
+    ability.speed     = pPortability->speed;
+    ability.duplex    = pPortability->duplex;
+    ability.link      = pPortability->link;
+    ability.nway      = pPortability->nway;
+    ability.txpause   = pPortability->txpause;
+    ability.rxpause   = pPortability->rxpause;
 
-        ability.forcemode = pPortability->forcemode;
-        ability.speed     = pPortability->speed;
-        ability.duplex    = pPortability->duplex;
-        ability.link      = pPortability->link;
-        ability.nway      = pPortability->nway;
-        ability.txpause   = pPortability->txpause;
-        ability.rxpause   = pPortability->rxpause;
-
-        if ((retVal = rtl8367b_setAsicPortForceLinkExt( (rtk_uint32)port, &ability)) != RT_ERR_OK)
-            return retVal;
-    }
+    if ((retVal = rtl8367b_setAsicPortForceLinkExt( (rtk_uint32)port, &ability)) != RT_ERR_OK)
+        return retVal;
 
     return RT_ERR_OK;
 }
@@ -6953,7 +6740,6 @@ rtk_api_ret_t rtk_port_rgmiiDelayExt1_get(rtk_data_t *pTxDelay, rtk_data_t *pRxD
  * Description:
  *      Set RGMII interface delay value for TX and RX.
  * Input:
- *      port    - EXT port
  *      txDelay - TX delay value, 1 for delay 2ns and 0 for no-delay
  *      rxDelay - RX delay value, 0~7 for delay setup.
  * Output:
@@ -7006,7 +6792,6 @@ rtk_api_ret_t rtk_port_rgmiiDelayExt_set(rtk_ext_port_t port, rtk_data_t txDelay
  * Input:
  *      None
  * Output:
- *      port     - EXT port
  *      pTxDelay - TX delay value
  *      pRxDelay - RX delay value
  * Return:
@@ -7067,42 +6852,12 @@ rtk_api_ret_t rtk_port_rgmiiDelayExt_get(rtk_ext_port_t port, rtk_data_t *pTxDel
 rtk_api_ret_t rtk_port_phyEnableAll_set(rtk_enable_t enable)
 {
     rtk_api_ret_t retVal;
-    rtk_uint32 data;
-    rtk_uint32 port;
 
     if (enable >= RTK_ENABLE_END)
         return RT_ERR_ENABLE;
 
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
-        return retVal;
-
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
-        return retVal;
-
     if ((retVal = rtl8367b_setAsicPortEnableAll(enable)) != RT_ERR_OK)
         return retVal;
-
-    if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
-    {
-        for(port = 0; port <= RTK_PHY_ID_MAX; port++)
-        {
-            if ((retVal = rtk_port_phyReg_get(port, PHY_CONTROL_REG, &data)) != RT_ERR_OK)
-                return retVal;
-
-            if (ENABLED == enable)
-            {
-                data &= 0xF7FF;
-                data |= 0x0200;
-            }
-            else
-            {
-                data |= 0x0800;
-            }
-
-            if ((retVal = rtk_port_phyReg_set(port, PHY_CONTROL_REG, data)) != RT_ERR_OK)
-                return retVal;
-        }
-    }
 
     return RT_ERR_OK;
 
@@ -7223,7 +6978,6 @@ rtk_api_ret_t rtk_port_efid_get(rtk_port_t port, rtk_data_t *pEfid)
 rtk_api_ret_t rtk_port_phyComboPortMedia_set(rtk_port_t port, rtk_port_media_t media)
 {
     rtk_api_ret_t retVal;
-    rtk_uint32 data;
 
     if (port != RTK_PORT_COMBO_ID)
         return RT_ERR_PORT_ID;
@@ -7231,55 +6985,21 @@ rtk_api_ret_t rtk_port_phyComboPortMedia_set(rtk_port_t port, rtk_port_media_t m
     if (media >= PORT_MEDIA_END)
         return RT_ERR_INPUT;
 
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
-        return retVal;
-
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
-        return retVal;
-
-    if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
+    if(media == PORT_MEDIA_FIBER)
     {
-        if(media == PORT_MEDIA_FIBER)
-        {
-            if ((retVal = rtl8367b_setAsicReg(0x6602, 0x8CD3))!=RT_ERR_OK)
+        if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIBER_CFG_2, 0x3945))!=RT_ERR_OK)
             return retVal;
 
-            if ((retVal = rtl8367b_setAsicReg(0x6601, 0x0426))!=RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicReg(0x6600, 0x00C0))!=RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_REG_UTP_FIB_DET, RTL8367B_UTP_FIRST_OFFSET, 0))!=RT_ERR_OK)
-                return retVal;
-        }
-        else
-        {
-            if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_REG_UTP_FIB_DET, RTL8367B_UTP_FIRST_OFFSET, 1))!=RT_ERR_OK)
-                return retVal;
-        }
+        if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_UTP_FIB_DET, 0xd5b9))!=RT_ERR_OK)
+            return retVal;
     }
     else
     {
-        if(media == PORT_MEDIA_FIBER)
-        {
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIBER_CFG_2, 0x3f55))!=RT_ERR_OK)
-                return retVal;
+        if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIBER_CFG_2, 0x3000))!=RT_ERR_OK)
+            return retVal;
 
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_UTP_FIB_DET, 0xd1b9))!=RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_REG_SDS_EXT_CFG15, 14, 1))!=RT_ERR_OK)
-                return retVal;
-        }
-        else
-        {
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_FIBER_CFG_2, 0x35ff))!=RT_ERR_OK)
-                return retVal;
-
-            if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_UTP_FIB_DET, 0x11bb))!=RT_ERR_OK)
-                return retVal;
-        }
+        if ((retVal = rtl8367b_setAsicReg(RTL8367B_REG_UTP_FIB_DET, 0x11bb))!=RT_ERR_OK)
+            return retVal;
     }
 
     return RT_ERR_OK;
@@ -7305,40 +7025,21 @@ rtk_api_ret_t rtk_port_phyComboPortMedia_set(rtk_port_t port, rtk_port_media_t m
 rtk_api_ret_t rtk_port_phyComboPortMedia_get(rtk_port_t port, rtk_port_media_t *pMedia)
 {
     rtk_api_ret_t   retVal;
-    rtk_uint32      data, data1, data2;
+    rtk_uint32      data1, data2;
 
     if (port != RTK_PORT_COMBO_ID)
         return RT_ERR_PORT_ID;
 
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
+    if ((retVal = rtl8367b_getAsicReg(RTL8367B_REG_FIBER_CFG_2, &data1))!=RT_ERR_OK)
         return retVal;
 
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
+    if ((retVal = rtl8367b_getAsicReg(RTL8367B_REG_UTP_FIB_DET, &data2))!=RT_ERR_OK)
         return retVal;
 
-    if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
-    {
-        if ((retVal = rtl8367b_getAsicRegBit(RTL8367B_REG_UTP_FIB_DET, RTL8367B_UTP_FIRST_OFFSET, &data))!=RT_ERR_OK)
-            return retVal;
-
-        if(data == 1)
-            *pMedia = PORT_MEDIA_COPPER;
-        else
-            *pMedia = PORT_MEDIA_FIBER;
-    }
+    if ((data1 == 0x3945) && (data2 == 0xd5b9))
+        *pMedia = PORT_MEDIA_FIBER;
     else
-    {
-        if ((retVal = rtl8367b_getAsicReg(RTL8367B_REG_FIBER_CFG_2, &data1))!=RT_ERR_OK)
-            return retVal;
-
-        if ((retVal = rtl8367b_getAsicReg(RTL8367B_REG_UTP_FIB_DET, &data2))!=RT_ERR_OK)
-            return retVal;
-
-        if ((data1 == 0x3f55) && (data2 == 0xd1b9))
-            *pMedia = PORT_MEDIA_FIBER;
-        else
-            *pMedia = PORT_MEDIA_COPPER;
-    }
+        *pMedia = PORT_MEDIA_COPPER;
 
     return RT_ERR_OK;
 }
@@ -8964,6 +8665,41 @@ rtk_api_ret_t rtk_vlan_protoAndPortBasedVlan_delAll(rtk_port_t port)
     return RT_ERR_OK;
 }
 
+#if defined CONFIG_RTL_CUSTOM_PASSTHRU
+
+int rtl8367_setProtocolBasedVLAN(rtk_vlan_proto_type_t proto_type,rtk_vlan_t cvid, int cmdFlag)
+{
+	rtk_port_t port;
+	int ret;
+	rtk_vlan_protoAndPortInfo_t info;
+	info.proto_type=proto_type;
+   	info.frame_type=FRAME_TYPE_ETHERNET;
+    info.cvid=cvid;
+    info.cpri=0;
+	
+	if(cmdFlag==TRUE)
+	{
+		//printk("ADD[%s]:[%d].\n",__FUNCTION__,__LINE__);
+		/*add */
+		for(port=0;port<5;port++){
+			
+			ret=rtk_vlan_protoAndPortBasedVlan_add(port, info);
+			
+		}
+	}
+	else
+	{
+		//printk("DEL[%s]:[%d].\n",__FUNCTION__,__LINE__);
+		/*delete */
+		for(port=0;port<5;port++){
+			
+			ret=rtk_vlan_protoAndPortBasedVlan_del(port,  proto_type, FRAME_TYPE_ETHERNET);
+		}
+	}
+	return ret;
+}
+#endif
+
 /* Function Name:
  *      rtk_vlan_tagMode_set
  * Description:
@@ -9469,15 +9205,6 @@ rtk_api_ret_t rtk_l2_addr_add(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
     if (pL2_data->efid> RTL8367B_EFIDMAX)
         return RT_ERR_INPUT;
 
-    if (pL2_data->priority > RTL8367B_PRIMAX)
-        return RT_ERR_INPUT;
-
-    if (pL2_data->sa_pri_en >= RTK_ENABLE_END)
-        return RT_ERR_INPUT;
-
-    if (pL2_data->fwd_pri_en >= RTK_ENABLE_END)
-        return RT_ERR_INPUT;
-
     memset(&l2Table, 0, sizeof(rtl8367b_luttb));
 
     /* fill key (MAC,FID) to get L2 entry */
@@ -9502,9 +9229,6 @@ rtk_api_ret_t rtk_l2_addr_add(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
         l2Table.l3lookup    = 0;
         l2Table.auth        = pL2_data->auth;
         l2Table.age         = 6;
-        l2Table.lut_pri     = pL2_data->priority;
-        l2Table.sa_en       = pL2_data->sa_pri_en;
-        l2Table.fwd_en      = pL2_data->fwd_pri_en;
         retVal = rtl8367b_setAsicL2LookupTb(&l2Table);
 
         return retVal;
@@ -9524,9 +9248,6 @@ rtk_api_ret_t rtk_l2_addr_add(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
         l2Table.l3lookup    = 0;
         l2Table.auth        = pL2_data->auth;
         l2Table.age         = 6;
-        l2Table.lut_pri     = pL2_data->priority;
-        l2Table.sa_en       = pL2_data->sa_pri_en;
-        l2Table.fwd_en      = pL2_data->fwd_pri_en;
 
         if ((retVal = rtl8367b_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
             return retVal;
@@ -9599,9 +9320,6 @@ rtk_api_ret_t rtk_l2_addr_get(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
     pL2_data->auth      = l2Table.auth;
     pL2_data->sa_block  = l2Table.sa_block;
     pL2_data->da_block  = l2Table.da_block;
-    pL2_data->priority  = l2Table.lut_pri;
-    pL2_data->sa_pri_en = l2Table.sa_en;
-    pL2_data->fwd_pri_en= l2Table.fwd_en;
 
     return RT_ERR_OK;
 }
@@ -9675,9 +9393,6 @@ rtk_api_ret_t rtk_l2_addr_next_get(rtk_l2_read_method_t read_method, rtk_port_t 
     pL2_data->auth      = l2Table.auth;
     pL2_data->sa_block  = l2Table.sa_block;
     pL2_data->da_block  = l2Table.da_block;
-    pL2_data->priority  = l2Table.lut_pri;
-    pL2_data->sa_pri_en = l2Table.sa_en;
-    pL2_data->fwd_pri_en= l2Table.fwd_en;
 
     *pAddress = l2Table.address;
 
@@ -9742,9 +9457,6 @@ rtk_api_ret_t rtk_l2_addr_del(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
         l2Table.da_block = 0;
         l2Table.auth = 0;
         l2Table.age = 0;
-        l2Table.lut_pri = 0;
-        l2Table.sa_en = 0;
-        l2Table.fwd_en = 0;
         retVal = rtl8367b_setAsicL2LookupTb(&l2Table);
         return retVal;
     }
@@ -11927,7 +11639,6 @@ rtk_api_ret_t rtk_svlan_c2s_add(rtk_vlan_t vid, rtk_port_t src_port, rtk_vlan_t 
     rtk_uint32 empty_idx;
     rtk_uint32 evid, pmsk, svidx, c2s_svidx;
     rtl8367b_svlan_memconf_t svlanMemConf;
-    rtk_uint16 doneFlag;
 
     if (vid > RTL8367B_VIDMAX)
         return RT_ERR_VLAN_VID;
@@ -11940,7 +11651,6 @@ rtk_api_ret_t rtk_svlan_c2s_add(rtk_vlan_t vid, rtk_port_t src_port, rtk_vlan_t 
 
     empty_idx = 0xFFFF;
     svidx = 0xFFFF;
-    doneFlag = FALSE;
 
     for (i = 0; i<= RTL8367B_SVIDXMAX; i++)
     {
@@ -11977,44 +11687,38 @@ rtk_api_ret_t rtk_svlan_c2s_add(rtk_vlan_t vid, rtk_port_t src_port, rtk_vlan_t 
                 {
                     /* New svidx, remove src_port and find a new slot to add a new enrty */
                     pmsk = pmsk & ~(1 << src_port);
-                    if(pmsk == 0)
-                        c2s_svidx = 0;
-
-                    if ((retVal = rtl8367b_setAsicSvlanC2SConf(i, vid, pmsk, c2s_svidx)) != RT_ERR_OK)
+                    if ((retVal = rtl8367b_setAsicSvlanC2SConf(i, vid, pmsk, svidx)) != RT_ERR_OK)
                         return retVal;
                 }
             }
             else
             {
-                if(c2s_svidx == svidx && doneFlag == FALSE)
+                if(c2s_svidx == svidx)
                 {
                     pmsk = pmsk | (1 << src_port);
                     if ((retVal = rtl8367b_setAsicSvlanC2SConf(i, vid, pmsk, svidx)) != RT_ERR_OK)
                         return retVal;
 
-                    doneFlag = TRUE;
+                    return RT_ERR_OK;
                 }
             }
         }
-        else if (evid==0&&pmsk==0)
+        else if (evid==0&&pmsk==0&&c2s_svidx==0)
         {
             empty_idx = i;
         }
     }
 
-    if (0xFFFF != empty_idx && doneFlag ==FALSE)
+    if (0xFFFF != empty_idx)
     {
        if ((retVal = rtl8367b_setAsicSvlanC2SConf(empty_idx, vid, (1<<src_port), svidx)) != RT_ERR_OK)
            return retVal;
        return RT_ERR_OK;
     }
-    else if(doneFlag == TRUE)
-    {
-       return RT_ERR_OK;
-    }
 
     return RT_ERR_OUT_OF_RANGE;
 }
+
 /* Function Name:
  *      rtk_svlan_c2s_del
  * Description:
@@ -14183,13 +13887,9 @@ rtk_uint32 r8367_cpu_port = RTL8367B_PORT6_ENABLE_OFFSET;
 rtk_api_ret_t rtk_switch_init(void)
 {
     rtk_uint16      i;
-    rtk_uint32      data, data2, regData;
+    rtk_uint32      data;
     rtk_api_ret_t   retVal;
     rtk_uint32      phy;
-#if defined(CHIP_AUTO_DETECT)
-    rtk_uint32      polling_time;
-    rtk_uint32      chip_idx = 0;
-#endif
 
     if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
         return retVal;
@@ -14197,97 +13897,7 @@ rtk_api_ret_t rtk_switch_init(void)
     if((retVal = rtl8367b_getAsicReg(0x1301, &data)) != RT_ERR_OK)
         return retVal;
 
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data2)) != RT_ERR_OK)
-        return retVal;
-
-#if defined(CHIP_AUTO_DETECT)
-    if((retVal = rtl8367b_setAsicReg(0x1371, 0x000F)) != RT_ERR_OK)
-        return retVal;
-
-    if((retVal = rtl8367b_setAsicReg(0x1370, 0x0002)) != RT_ERR_OK)
-        return retVal;
-
-    polling_time = 0;
-    while(polling_time < 10000)
-    {
-        if((retVal = rtl8367b_getAsicReg(0x1370, &data)) != RT_ERR_OK)
-            return retVal;
-
-        if((data & 0x0004) == 0)
-            break;
-
-        polling_time++;
-    }
-
-    if(polling_time >= 10000)
-        return RT_ERR_BUSYWAIT_TIMEOUT;
-
-    if((retVal = rtl8367b_getAsicReg(0x1373, &data)) != RT_ERR_OK)
-        return retVal;
-
-    chip_idx |= ((data & 0x000F) << 4);
-
-    if((retVal = rtl8367b_setAsicReg(0x1371, 0x000D)) != RT_ERR_OK)
-        return retVal;
-
-    if((retVal = rtl8367b_setAsicReg(0x1370, 0x0002)) != RT_ERR_OK)
-        return retVal;
-
-    polling_time = 0;
-    while(polling_time < 10000)
-    {
-        if((retVal = rtl8367b_getAsicReg(0x1370, &data)) != RT_ERR_OK)
-            return retVal;
-
-        if((data & 0x0004) == 0)
-            break;
-
-        polling_time++;
-    }
-
-    if(polling_time >= 10000)
-        return RT_ERR_BUSYWAIT_TIMEOUT;
-
-    if((retVal = rtl8367b_getAsicReg(0x1373, &data)) != RT_ERR_OK)
-        return retVal;
-
-    chip_idx |= (data & 0x000F);
-
-
-    if((chip_idx & 0x00F0) == 0x0000)
-    {
-        /* RTL8365MB & RTL8305MB */
-        if((chip_idx & 0x000F) >> 3)
-        {
-            /* RTL8305MB */
-            init_para = ChipData81;
-            init_size = (sizeof(ChipData81) / ((sizeof(rtk_uint16))*2));
-        }
-        else if((chip_idx & 0x000F) >> 2)
-        {
-            /* RTL8365MB */
-            init_para = ChipData11;
-            init_size = (sizeof(ChipData11) / ((sizeof(rtk_uint16))*2));
-        }
-        else if((chip_idx & 0x000F) >> 1)
-        {
-            /* RTL8305MB */
-            init_para = ChipData81;
-            init_size = (sizeof(ChipData81) / ((sizeof(rtk_uint16))*2));
-        }
-        else if(chip_idx & 0x000F)
-        {
-            /* RTL8365MB */
-            init_para = ChipData11;
-            init_size = (sizeof(ChipData11) / ((sizeof(rtk_uint16))*2));
-        }
-        else
-            return RT_ERR_CHIP_NOT_SUPPORTED;
-    }
-    else
-        return RT_ERR_CHIP_NOT_SUPPORTED;
-
-#elif defined(RTK_X86_ASICDRV)
+#if defined(RTK_X86_ASICDRV)
     if(init_para == ChipData00)
     {
         if(data & 0xF000)
@@ -14300,21 +13910,13 @@ rtk_api_ret_t rtk_switch_init(void)
     }
     else if(init_para == ChipData10)
     {
-        if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367))
+        if(data & 0xF000)
         {
-            init_para = ChipData12;
-            init_size = (sizeof(ChipData12) / ((sizeof(rtk_uint16))*2));
+            init_para = ChipData11;
+            init_size = (sizeof(ChipData11) / ((sizeof(rtk_uint16))*2));
         }
         else
-        {
-            if(data & 0xF000)
-            {
-                init_para = ChipData11;
-                init_size = (sizeof(ChipData11) / ((sizeof(rtk_uint16))*2));
-            }
-            else
-                init_size = (sizeof(ChipData10) / ((sizeof(rtk_uint16))*2));
-        }
+            init_size = (sizeof(ChipData10) / ((sizeof(rtk_uint16))*2));
     }
     else if(init_para == ChipData20)
     {
@@ -14328,21 +13930,13 @@ rtk_api_ret_t rtk_switch_init(void)
     }
     else if(init_para == ChipData30)
     {
-        if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367))
+        if(data & 0xF000)
         {
-            init_para = ChipData32;
-            init_size = (sizeof(ChipData32) / ((sizeof(rtk_uint16))*2));
+            init_para = ChipData31;
+            init_size = (sizeof(ChipData31) / ((sizeof(rtk_uint16))*2));
         }
         else
-        {
-            if(data & 0xF000)
-            {
-                init_para = ChipData31;
-                init_size = (sizeof(ChipData31) / ((sizeof(rtk_uint16))*2));
-            }
-            else
-                init_size = (sizeof(ChipData30) / ((sizeof(rtk_uint16))*2));
-        }
+            init_size = (sizeof(ChipData30) / ((sizeof(rtk_uint16))*2));
     }
     else if(init_para == ChipData40)
     {
@@ -14404,24 +13998,6 @@ rtk_api_ret_t rtk_switch_init(void)
         else
             init_size = (sizeof(ChipData90) / ((sizeof(rtk_uint16))*2));
     }
-    else if(init_para == ChipData100)
-    {
-        if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367))
-        {
-            init_para = ChipData102;
-            init_size = (sizeof(ChipData102) / ((sizeof(rtk_uint16))*2));
-        }
-        else
-        {
-            if(data & 0xF000)
-            {
-                init_para = ChipData101;
-                init_size = (sizeof(ChipData101) / ((sizeof(rtk_uint16))*2));
-            }
-            else
-                init_size = (sizeof(ChipData100) / ((sizeof(rtk_uint16))*2));
-        }
-    }
 
 #elif defined(CHIP_RTL8363SB)
     if(data & 0xF000)
@@ -14436,23 +14012,15 @@ rtk_api_ret_t rtk_switch_init(void)
     }
 
 #elif defined(CHIP_RTL8365MB)
-    if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367))
+    if(data & 0xF000)
     {
-        init_para = ChipData12;
-        init_size = (sizeof(ChipData12) / ((sizeof(rtk_uint16))*2));
+        init_para = ChipData11;
+        init_size = (sizeof(ChipData11) / ((sizeof(rtk_uint16))*2));
     }
     else
     {
-        if(data & 0xF000)
-        {
-            init_para = ChipData11;
-            init_size = (sizeof(ChipData11) / ((sizeof(rtk_uint16))*2));
-        }
-        else
-        {
-            init_para = ChipData10;
-            init_size = (sizeof(ChipData10) / ((sizeof(rtk_uint16))*2));
-        }
+        init_para = ChipData10;
+        init_size = (sizeof(ChipData10) / ((sizeof(rtk_uint16))*2));
     }
 
 #elif defined(CHIP_RTL8367_VB)
@@ -14468,23 +14036,15 @@ rtk_api_ret_t rtk_switch_init(void)
     }
 
 #elif defined(CHIP_RTL8367RB)
-    if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367))
+    if(data & 0xF000)
     {
-        init_para = ChipData32;
-        init_size = (sizeof(ChipData32) / ((sizeof(rtk_uint16))*2));
+        init_para = ChipData31;
+        init_size = (sizeof(ChipData31) / ((sizeof(rtk_uint16))*2));
     }
     else
     {
-        if(data & 0xF000)
-        {
-            init_para = ChipData31;
-            init_size = (sizeof(ChipData31) / ((sizeof(rtk_uint16))*2));
-        }
-        else
-        {
-            init_para = ChipData30;
-            init_size = (sizeof(ChipData30) / ((sizeof(rtk_uint16))*2));
-        }
+        init_para = ChipData30;
+        init_size = (sizeof(ChipData30) / ((sizeof(rtk_uint16))*2));
     }
 
 #elif defined(CHIP_RTL8367R_VB)
@@ -14557,49 +14117,24 @@ rtk_api_ret_t rtk_switch_init(void)
         init_para = ChipData90;
         init_size = (sizeof(ChipData90) / ((sizeof(rtk_uint16))*2));
     }
-#elif defined(CHIP_RTL8367N)
-    if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367))
-    {
-        init_para = ChipData102;
-        init_size = (sizeof(ChipData102) / ((sizeof(rtk_uint16))*2));
-    }
-    else
-    {
-        if(data & 0xF000)
-        {
-            init_para = ChipData101;
-            init_size = (sizeof(ChipData101) / ((sizeof(rtk_uint16))*2));
-        }
-        else
-        {
-            init_para = ChipData100;
-            init_size = (sizeof(ChipData100) / ((sizeof(rtk_uint16))*2));
-        }
-    }
+
 #else
     /* Not define CHIP, Error */
     init_para = NULL;
 #endif
 
-#ifdef CONFIG_RTL_8367R_SUPPORT
+#ifdef ENHANCE_ETH_COMPATILITY
 	if ((data & 0x00F0) == 0x0010) {  // RTL8367R_VB
 		r8367_cpu_port = RTL8367B_PORT5_ENABLE_OFFSET;
 
 		init_para = ChipData41;
 		init_size = (sizeof(ChipData41) / ((sizeof(rtk_uint16))*2));
 	}	
-	else  {	// RTL8367RB or RTL8367RB-VB
-		if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367))	// RTL8367RB-VB
-		{
-			init_para = ChipData32;
-			init_size = (sizeof(ChipData32) / ((sizeof(rtk_uint16))*2));
-		}
-		else	// RTL8367RB
-		{
-			init_para = ChipData31;
-			init_size = (sizeof(ChipData31) / ((sizeof(rtk_uint16))*2));
-		}	
+	else  {	// RTL8367RB
 		r8367_cpu_port = RTL8367B_PORT6_ENABLE_OFFSET;
+
+		init_para = ChipData31;
+		init_size = (sizeof(ChipData31) / ((sizeof(rtk_uint16))*2));
 	}
 #else
 	if ((data & 0x00F0) == 0x0010) {  // RTL8367R_VB
@@ -14613,39 +14148,20 @@ rtk_api_ret_t rtk_switch_init(void)
         return RT_ERR_CHIP_NOT_SUPPORTED;
 #endif
 
-    if( (data2 == 0x0276) || (data2 == 0x0597) || (data2 == 0x6367) )
+    /* Analog parameter update. ID:0001 */
+    for(phy = 0; phy <= RTK_PHY_ID_MAX; phy++)
     {
-        for(phy = 0; phy <= RTK_PHY_ID_MAX; phy++)
-        {
-            if((retVal = rtl8367b_getAsicPHYOCPReg(phy, 0xA428, &regData)) != RT_ERR_OK)
-                return retVal;
-
-            regData &= ~(0x0200);
-            if((retVal = rtl8367b_setAsicPHYOCPReg(phy, 0xA428, regData)) != RT_ERR_OK)
-                return retVal;
-        }
-
-        if((retVal = rtl8367b_setAsicReg(RTL8367B_REG_UTP_FIB_DET, 0x15BB)) != RT_ERR_OK)
+        if((retVal = rtl8367b_setAsicPHYReg(phy, 31, 0x7)) != RT_ERR_OK)
             return retVal;
-    }
 
-    if( (data2 != 0x0276) && (data2 != 0x0597) && (data2 != 0x6367) )
-    {
-        /* Analog parameter update. ID:0001 */
-        for(phy = 0; phy <= RTK_PHY_ID_MAX; phy++)
-        {
-            if((retVal = rtl8367b_setAsicPHYReg(phy, 31, 0x7)) != RT_ERR_OK)
-                return retVal;
+        if((retVal = rtl8367b_setAsicPHYReg(phy, 30, 0x2c)) != RT_ERR_OK)
+            return retVal;
 
-            if((retVal = rtl8367b_setAsicPHYReg(phy, 30, 0x2c)) != RT_ERR_OK)
-                return retVal;
+        if((retVal = rtl8367b_setAsicPHYReg(phy, 25, 0x0504)) != RT_ERR_OK)
+            return retVal;
 
-            if((retVal = rtl8367b_setAsicPHYReg(phy, 25, 0x0504)) != RT_ERR_OK)
-                return retVal;
-
-            if((retVal = rtl8367b_setAsicPHYReg(phy, 31, 0x0)) != RT_ERR_OK)
-                return retVal;
-        }
+        if((retVal = rtl8367b_setAsicPHYReg(phy, 31, 0x0)) != RT_ERR_OK)
+            return retVal;
     }
 
     for(i = 0; i < init_size; i++)
@@ -14654,82 +14170,534 @@ rtk_api_ret_t rtk_switch_init(void)
             return retVal;
     }
 
-    if( (data2 != 0x0276) && (data2 != 0x0597) && (data2 != 0x6367) )
-    {
-        /* Analog parameter update. ID:0002 */
-        if((retVal = rtl8367b_setAsicPHYReg(1, 31, 0x2)) != RT_ERR_OK)
-            return retVal;
+    /* Analog parameter update. ID:0002 */
+    if((retVal = rtl8367b_setAsicPHYReg(1, 31, 0x2)) != RT_ERR_OK)
+        return retVal;
 
-        if((retVal = rtl8367b_getAsicPHYReg(1, 17, &data)) != RT_ERR_OK)
-            return retVal;
+    if((retVal = rtl8367b_getAsicPHYReg(1, 17, &data)) != RT_ERR_OK)
+        return retVal;
 
-        data |= 0x01E0;
+    data |= 0x01E0;
 
-        if((retVal = rtl8367b_setAsicPHYReg(1, 17, data)) != RT_ERR_OK)
-            return retVal;
+    if((retVal = rtl8367b_setAsicPHYReg(1, 17, data)) != RT_ERR_OK)
+        return retVal;
 
-        if((retVal = rtl8367b_setAsicPHYReg(1, 31, 0x0)) != RT_ERR_OK)
-            return retVal;
+    if((retVal = rtl8367b_setAsicPHYReg(1, 31, 0x0)) != RT_ERR_OK)
+        return retVal;
 
-        /* Analog parameter update. ID:0003 */
-        for(phy = 0; phy <= 4; phy++)
-        {
-            if ((retVal = rtl8367b_setAsicPHYReg(phy, 0x1F, 0x0007)) != RT_ERR_OK)
-                return retVal;
-            if ((retVal = rtl8367b_setAsicPHYReg(phy, 0x1E, 0x002C)) != RT_ERR_OK)
-                return retVal;
-            if ((retVal = rtl8367b_setAsicPHYReg(phy, 0x18, 0x008B)) != RT_ERR_OK)
-                return retVal;
-            if ((retVal = rtl8367b_setAsicPHYReg(phy, 0x19, 0x0504)) != RT_ERR_OK)
-                return retVal;
-            if ((retVal = rtl8367b_setAsicPHYReg(phy, 0x1F, 0)) != RT_ERR_OK)
-                return retVal;
-        }
-
-    }
 
     if((retVal = rtl8367b_setAsicRegBit(0x18e0, 0, 0)) != RT_ERR_OK)
         return retVal;
 
-    if( (data2 != 0x0276) && (data2 != 0x0597) && (data2 != 0x6367) )
-    {
-        if((retVal = rtl8367b_setAsicReg(0x1303, 0x0778)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x1304, 0x7777)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x13E2, 0x01FE)) != RT_ERR_OK)
-            return retVal;
-    }
-    else
-    {
-        if((retVal = rtl8367b_setAsicReg(0x1303, 0x06D6)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x1304, 0x0700)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x13E2, 0x003F)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x13F9, 0x0090)) != RT_ERR_OK)
-            return retVal;
-
-        if((retVal = rtl8367b_setAsicReg(0x121e, 0x03CA)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x1233, 0x0352)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x1237, 0x00a0)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x123a, 0x0030)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x1239, 0x0084)) != RT_ERR_OK)
-            return retVal;
-        if((retVal = rtl8367b_setAsicReg(0x0301, 0x1000)) != RT_ERR_OK)
-            return retVal;
-
-        if((retVal = rtl8367b_setAsicReg(0x09DA, 0x0017)) != RT_ERR_OK)
-            return retVal;
-
-    }
+    if((retVal = rtl8367b_setAsicReg(0x1303, 0x0778)) != RT_ERR_OK)
+        return retVal;
+    if((retVal = rtl8367b_setAsicReg(0x1304, 0x7777)) != RT_ERR_OK)
+        return retVal;
+    if((retVal = rtl8367b_setAsicReg(0x13E2, 0x01FE)) != RT_ERR_OK)
+        return retVal;
 
     return RT_ERR_OK;
+}
+
+#define ENABLE_8367RB_RGMII2	1
+
+#ifdef ENABLE_8367RB_RGMII2
+// for tr181
+int rtk_rgmii_set(int enable)
+{
+    rtk_port_mac_ability_t mac_cfg;
+
+    mac_cfg.forcemode = MAC_FORCE;
+    mac_cfg.speed = SPD_1000M;
+    mac_cfg.duplex = FULL_DUPLEX;
+    if (enable == TRUE)
+        mac_cfg.link = PORT_LINKUP;
+    else		
+        mac_cfg.link = PORT_LINKDOWN;
+    mac_cfg.nway = DISABLED;
+    mac_cfg.txpause = ENABLED;
+    mac_cfg.rxpause = ENABLED;
+    rtk_port_macForceLinkExt_set(EXT_PORT_2, MODE_EXT_RGMII, &mac_cfg);
+
+    return 0;
+}
+#endif
+
+int RTL8367R_init(void)
+{
+    rtk_portmask_t portmask;
+    unsigned int ret;
+    //unsigned int regData;
+
+    /* Set external interface 0 to RGMII with Force mode, 1000M, Full-duple, enable TX&RX pause*/
+    rtk_port_mac_ability_t mac_cfg;
+    rtk_mode_ext_t mode ;
+ 
+    /* Initial Chip */
+    ret = rtk_switch_init();
+ 
+    /* Enable LED Group 0&1 from P0 to P4 */
+    portmask.bits[0]=0x1F;
+    rtk_led_enable_set(LED_GROUP_0, portmask);
+    rtk_led_enable_set(LED_GROUP_1, portmask);
+ 
+    mode = MODE_EXT_RGMII ;
+    mac_cfg.forcemode = MAC_FORCE;
+    mac_cfg.speed = SPD_1000M;
+    mac_cfg.duplex = FULL_DUPLEX;
+    mac_cfg.link = PORT_LINKUP;
+    mac_cfg.nway = DISABLED;
+    mac_cfg.txpause = ENABLED;
+    mac_cfg.rxpause = ENABLED;
+    rtk_port_macForceLinkExt_set(EXT_PORT_1,mode,&mac_cfg);
+ 
+#ifdef ENABLE_8367RB_RGMII2
+    mode = MODE_EXT_RGMII ;
+    mac_cfg.forcemode = MAC_FORCE;
+    mac_cfg.speed = SPD_1000M;
+    mac_cfg.duplex = FULL_DUPLEX;
+    mac_cfg.link = PORT_LINKUP;
+    mac_cfg.nway = DISABLED;
+    mac_cfg.txpause = ENABLED;
+    mac_cfg.rxpause = ENABLED;
+    rtk_port_macForceLinkExt_set(EXT_PORT_2,mode,&mac_cfg);
+#endif
+
+    /* Set RGMII Interface 0 TX delay to 2ns and RX to step 4 */
+    // set the tx/rx delay in 8197D site
+    //rtk_port_rgmiiDelayExt_set(EXT_PORT_1, 1, 4);
+    //rtk_port_rgmiiDelayExt_set(EXT_PORT_1, 0, 0);
+    rtk_port_rgmiiDelayExt_set(EXT_PORT_1, 0, 2); // change rxDelay to 2 to enhance the compatibility of 8197D and 8367RB
+ 
+    /* set port 5 as CPU port */
+    rtk_cpu_enable_set(ENABLE);
+    rtk_cpu_tagPort_set(RTK_EXT_1_MAC, CPU_INSERT_TO_NONE);
+ 
+    // for LED on Realtek 8197D+8367RB
+    if (r8367_cpu_port == RTL8367B_PORT6_ENABLE_OFFSET) {    // 8367RB
+#ifdef RTL8367RB_USE_ONE_LED_PER_PORT
+        rtl8367b_setAsicReg(0x1B03, 0x0222);
+#else
+        /* demo board use 2 LEDs for each port */	
+        rtl8367b_setAsicReg(0x1B03, 0x0936);
+#endif
+    }
+
+#if 1
+    // for 802.11ac logo 4.2.40 test (udp test item)
+    rtl8367b_setAsicReg(0x121f, 0x01D6);
+    rtl8367b_setAsicReg(0x1220, 0x01B8);
+    rtl8367b_setAsicReg(0x1221, 0x01CC);
+    rtl8367b_setAsicReg(0x1222, 0x01AE);
+    rtl8367b_setAsicReg(0x1223, 0x0302);
+    rtl8367b_setAsicReg(0x1224, 0x02E4);
+    rtl8367b_setAsicReg(0x1225, 0x02D0);
+    rtl8367b_setAsicReg(0x1226, 0x02A8);	
+#endif
+
+#if defined(CONFIG_RTK_REFINE_PORT_DUPLEX_MODE)
+	rtk_forceFull_init();
+#endif
+
+#if defined(CONFIG_LAN_WAN_ISOLATION)
+	{
+	rtk_portmask_t pm;
+	
+	pm.bits[0] = 0xff;
+	rtk_port_isolation_set(0, pm);
+	rtk_port_isolation_set(1, pm);
+	rtk_port_isolation_set(2, pm);
+	rtk_port_isolation_set(3, pm);
+	rtk_port_isolation_set(4, pm);
+	}
+#endif
+
+    return ret; 
+}
+
+#define BIT(nr)			(1UL << (nr))
+#define WAN_VID			8
+#define LAN_VID			9
+#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
+#define	RTL8367R_WAN			0		// WAN port is set to 8367R port 0
+#else
+#define	RTL8367R_WAN			4		// WAN port is set to 8367R port 4
+#endif
+
+#define	RTL_WANPORT_MASK		(0x1 << RTL8367R_WAN)
+#define	RTL_LANPORT_MASK		(0x1f & (~RTL_WANPORT_MASK))
+
+#define GATEWAY_MODE				0
+#define BRIDGE_MODE				1
+
+static  int rtl8197d_op_mode = 0;
+extern rtk_uint32 r8367_cpu_port;
+
+int RTL8367R_vlan_init(void)
+{
+	int i, retval;
+	rtk_portmask_t mbrmsk, untagmsk;
+
+	/* for lan */
+	mbrmsk.bits[0] = RTL_LANPORT_MASK|BIT(r8367_cpu_port);
+	untagmsk.bits[0] = RTL_LANPORT_MASK;
+	retval = rtk_vlan_set(LAN_VID, mbrmsk, untagmsk, 0);
+
+	for(i=0;i<5;i++) {
+		if  ((1<<i)&RTL_LANPORT_MASK)
+		{
+			retval = rtk_vlan_portPvid_set(i, LAN_VID, 0);			
+		}
+	}
+		
+	/* for wan */
+	mbrmsk.bits[0] = RTL_WANPORT_MASK|BIT(r8367_cpu_port);
+	untagmsk.bits[0] = RTL_WANPORT_MASK;
+	retval = rtk_vlan_set(WAN_VID, mbrmsk, untagmsk, 1);
+
+	for(i=0;i<5;i++) {
+		if  ((1<<i)&RTL_WANPORT_MASK)
+		{
+			retval = rtk_vlan_portPvid_set(i, WAN_VID, 0);
+		}
+	}
+
+	rtl8197d_op_mode = GATEWAY_MODE;
+	return 0;
+}
+
+int RTL8367R_vlan_reinit(int mode)
+{
+	int i, retval;
+	rtk_portmask_t mbrmsk, untagmsk;
+
+	if (mode==rtl8197d_op_mode) // no need tio do the re-initialization
+		return 0;
+
+	rtk_vlan_init();
+	
+	if (mode==GATEWAY_MODE)
+	{
+		/* for lan */
+		mbrmsk.bits[0] = RTL_LANPORT_MASK|BIT(r8367_cpu_port);
+		untagmsk.bits[0] = RTL_LANPORT_MASK;
+		retval = rtk_vlan_set(LAN_VID, mbrmsk, untagmsk, 0);
+
+		for(i=0;i<5;i++) {
+			if  ((1<<i)&RTL_LANPORT_MASK)
+			{
+				retval = rtk_vlan_portPvid_set(i, LAN_VID, 0);			
+			}
+		}
+	
+		/* for wan */
+		mbrmsk.bits[0] = RTL_WANPORT_MASK|BIT(r8367_cpu_port);
+		untagmsk.bits[0] = RTL_WANPORT_MASK;
+		retval = rtk_vlan_set(WAN_VID, mbrmsk, untagmsk, 1);
+
+		for(i=0;i<5;i++) {
+			if  ((1<<i)&RTL_WANPORT_MASK)
+			{
+				retval = rtk_vlan_portPvid_set(i, WAN_VID, 0);
+			}
+		}		
+	} 
+	else {
+		/* for lan */
+		mbrmsk.bits[0] = (RTL_LANPORT_MASK | RTL_WANPORT_MASK) |BIT(r8367_cpu_port);
+		untagmsk.bits[0] = (RTL_LANPORT_MASK | RTL_WANPORT_MASK);
+		retval = rtk_vlan_set(LAN_VID, mbrmsk, untagmsk, 0);
+
+		for(i=0;i<5;i++) {
+			if  ((1<<i)&(RTL_LANPORT_MASK | RTL_WANPORT_MASK))
+			{
+				retval = rtk_vlan_portPvid_set(i, LAN_VID, 0);			
+			}
+		}		
+	}
+	rtl8197d_op_mode = mode;
+	
+	return 0;
+}
+
+#define RTL8367R_WAN_PORT_BITMAP 		(1<<RTL8367R_WAN)
+#define RTL8367R_LAN_PORT_BITMAP 		(0x1f - RTL8367R_WAN_PORT_BITMAP)
+#define RTL8367R_LAN_EFID				2
+extern int rtl865x_curOpMode;
+
+#if defined(CONFIG_RTL_VLAN_8021Q) && defined(CONFIG_RTL_8367R_SUPPORT)
+#if 0
+int rtl_vlan_RTL8367R_set(unsigned short vid, unsigned int tagmask, unsigned int mask)
+{
+	rtk_portmask_t mbrmsk, untag;
+	rtk_api_ret_t retVal;
+	int i;
+    unsigned untagmask;
+
+    if(vid==WAN_VID || vid == LAN_VID)
+        return 0;
+
+    untagmask = mask&(~tagmask);
+    
+    mbrmsk.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
+
+    //panic_printk("untagmsk is 0x%x\n", (untagmask&RTL8367R_LAN_PORT_BITMAP));
+    
+    if(tagmask&RTL8367R_WAN_PORT_BITMAP)
+        untag.bits[0] = 0;
+    else
+        untag.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|(untagmask&RTL8367R_LAN_PORT_BITMAP));
+
+    retVal=rtk_vlan_set(vid, mbrmsk, untag, 0); 
+    
+	return 0;
+}
+#else
+int rtl_vlan_RTL8367R_set(unsigned short vid, unsigned int tagmask, unsigned int mask, unsigned int fid)
+{
+	int retval;
+	rtk_portmask_t mbrmsk, untagmsk;
+    
+    unsigned untagmask;
+    untagmask = mask&(~tagmask);
+    if (mask == 0 && tagmask == 0)//clear
+    {
+		mbrmsk.bits[0] = mask;
+		untagmsk.bits[0] = untagmask;
+    }
+    else
+	{
+		mbrmsk.bits[0] = (mask) |BIT(r8367_cpu_port);
+		//mbrmsk.bits[0] = (mask);
+		untagmsk.bits[0] = untagmask;
+        //panic_printk("%s %d vid = %u mbrmsk.bits[0]=%u untagmsk.bits[0]=%u\n", __FUNCTION__, __LINE__, vid, mbrmsk.bits[0], untagmsk.bits[0]);
+	}
+    
+    retval = rtk_vlan_set(vid, mbrmsk, untagmsk, fid);        
+    
+	return 0;
+}
+
+#endif
+
+int rtl_8367r_vlan_get(unsigned int i, unsigned int *mbrmsk, unsigned int *untagmsk, unsigned int *fid)
+{
+	rtk_portmask_t Mbrmsk = {0}, Untagmsk = {0};
+	rtk_fid_t Fid = 0;
+	rtk_api_ret_t ret = 0;
+	
+	if (!mbrmsk || !untagmsk || !fid)
+		return -1;
+	
+	ret = rtk_vlan_get(i, &Mbrmsk, &Untagmsk, &Fid);
+	if (ret == RT_ERR_OK)
+	{
+		*mbrmsk = Mbrmsk.bits[0];
+		*untagmsk = Untagmsk.bits[0];
+		*fid = Fid;
+		return 0;
+	}
+
+	return -1;
+}
+#endif
+
+int RTL8367R_vlan_set(void)
+{
+	rtk_portmask_t mbrmsk, untag;
+	rtk_api_ret_t retVal;
+	int i;
+	
+ 	for(i=0;i<4096;i++)
+ 	{ 	
+ 		//if (i==WAN_VID ||i==LAN_VID)
+ 		#if CONFIG_RTL_VLAN_8021Q
+ 		if (i==WAN_VID || i==LAN_VID
+		#if defined CONFIG_RTL_CUSTOM_PASSTHRU	
+			||i==PASSTHRU_VLAN_ID
+		#endif	
+			)
+        #else
+ 		if (i==WAN_VID ||i==LAN_VID || (i==10) || (i==11) || (i==12)	
+		#if defined CONFIG_RTL_CUSTOM_PASSTHRU	
+			||i==PASSTHRU_VLAN_ID
+		#endif	
+		) /* RTK VLAN */
+        #endif
+ 		{
+ 			mbrmsk.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
+ 			untag.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
+ 		}
+ 		else
+ 		{
+ 			mbrmsk.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
+ 			untag.bits[0] = 0;
+ 		} 	
+ 		retVal=rtk_vlan_set(i, mbrmsk, untag, 0); //all vlan's fid is 0 
+ 	}
+
+	/* set pvid :  wan:8   lan:9  */	
+	for(i=0;i<5;i++)
+	{
+		#if defined (CONFIG_RTL_IVL_SUPPORT)
+		if (i == RTL8367R_WAN)
+			retVal=rtk_vlan_portPvid_set(i, WAN_VID,0);
+		else
+			retVal=rtk_vlan_portPvid_set(i, LAN_VID,0);
+		#else
+		if(rtl865x_curOpMode==GATEWAY_MODE){
+			if (i == RTL8367R_WAN)
+				retVal=rtk_vlan_portPvid_set(i, WAN_VID,0);
+			else
+				retVal=rtk_vlan_portPvid_set(i, LAN_VID,0);
+		}else{
+			retVal=rtk_vlan_portPvid_set(i, LAN_VID,0);
+		}
+		#endif
+	}       
+	
+	/* set wan port efid=1, other ports efid=2 */
+	for(i=0;i<5;i++)
+	{
+		#if defined (CONFIG_RTL_IVL_SUPPORT)
+		if (i == RTL8367R_WAN)
+			retVal = rtk_port_efid_set(i,1);
+		else
+			retVal = rtk_port_efid_set(i,RTL8367R_LAN_EFID);
+		#else
+		if(rtl865x_curOpMode==GATEWAY_MODE){
+			if (i == RTL8367R_WAN)
+				retVal = rtk_port_efid_set(i,1);
+			else
+				retVal = rtk_port_efid_set(i,RTL8367R_LAN_EFID);
+		}else{
+			retVal = rtk_port_efid_set(i,RTL8367R_LAN_EFID);
+		}
+		#endif
+	}
+
+#if defined (CONFIG_RTL_IVL_SUPPORT)
+	if (rtl865x_curOpMode != GATEWAY_MODE) {
+		rtk_l2_limitLearningCnt_set(RTL8367R_WAN, 0);
+		rtk_l2_flushType_set(FLUSH_TYPE_BY_PORT, WAN_VID, RTL8367R_WAN);		
+	}
+#endif
+
+	/* disable cpu port's mac addr learning ability */
+	rtl8367b_setAsicLutLearnLimitNo(r8367_cpu_port,0);
+	
+	/* disable unknown unicast/mcast/bcast flooding between LAN ports */
+	smi_write(RTL8367B_REG_UNDA_FLOODING_PMSK, BIT(r8367_cpu_port));
+	smi_write(RTL8367B_REG_UNMCAST_FLOADING_PMSK, BIT(r8367_cpu_port));
+	smi_write(RTL8367B_REG_BCAST_FLOADING_PMSK, BIT(r8367_cpu_port));
+	
+	return 0;
+}
+
+void RTL8367R_cpu_tag(int enable)
+{
+	if(enable){
+		rtl8367b_setAsicReg(RTL8367B_REG_CPU_PORT_MASK,1<<r8367_cpu_port); //set CPU port
+		rtl8367b_setAsicReg(RTL8367B_REG_CPU_CTRL,0x281|(r8367_cpu_port)<<RTL8367B_CPU_TRAP_PORT_OFFSET);
+	}
+	else{
+		rtl8367b_setAsicReg(RTL8367B_REG_CPU_CTRL,0x280|(r8367_cpu_port)<<RTL8367B_CPU_TRAP_PORT_OFFSET);
+	}
+}
+
+void del_8367r_L2(rtk_mac_t *pMac)
+{
+	rtk_l2_ucastAddr_t L2_data;
+
+	memset(&L2_data, 0, sizeof(rtk_l2_ucastAddr_t));
+	L2_data.fid = 0;
+	L2_data.efid = RTL8367R_LAN_EFID;
+	
+	if (rtk_l2_addr_get(pMac, &L2_data) == RT_ERR_OK)
+		rtk_l2_addr_del(pMac, &L2_data);
+
+	return;
+}
+
+#if 0
+void get_all_L2(void)
+{
+	int i, ret;
+	rtk_l2_addr_table_t p;
+		
+	for (i=1; i<=RTK_MAX_NUM_OF_LEARN_LIMIT;i++)
+	{
+		p.index = i;
+		ret = rtk_l2_entry_get(&p);
+		if (ret == RT_ERR_OK)
+		{
+			printk(" [%d] mac: %02x:%02x:%02x:%02x:%02x:%02x, portmask: 0x%x, age: %d, fid: %d\n", i,
+				p.mac.octet[0],p.mac.octet[1],p.mac.octet[2],p.mac.octet[3],p.mac.octet[4],p.mac.octet[5],
+				p.portmask, p.age, p.fid);			
+		}
+	}
+	return;
+}
+#endif
+
+enum 
+{
+	PORT_DOWN=0,
+	HALF_DUPLEX_10M,
+	HALF_DUPLEX_100M,
+	HALF_DUPLEX_1000M,
+	DUPLEX_10M,
+	DUPLEX_100M,
+	DUPLEX_1000M,
+	PORT_AUTO
+};
+
+rtk_api_ret_t set_8367r_speed_mode(int port, int mode)
+{
+	rtk_port_phy_ability_t phyAbility;
+
+	memset(&phyAbility, 0, sizeof(rtk_port_phy_ability_t));
+
+	phyAbility.FC = 1;
+	phyAbility.AsyFC = 1;
+	phyAbility.AutoNegotiation = 1;
+
+	if (mode == HALF_DUPLEX_10M) //10M half
+	{
+		phyAbility.Half_10 = 1;
+	}
+	else if (mode == DUPLEX_10M)	//10M full
+	{
+		phyAbility.Full_10 = 1;
+	}
+	else if (mode == HALF_DUPLEX_100M) // 100M half
+	{
+		phyAbility.Half_100 = 1;
+	}
+	else if (mode == DUPLEX_100M) // 100M full
+	{
+		phyAbility.Full_100 = 1;
+	}
+	else if (mode == DUPLEX_1000M) // 1000M
+	{
+		phyAbility.Full_1000 = 1;
+	}
+	else
+	{
+		phyAbility.Half_10 = 1;
+		phyAbility.Full_10 = 1;
+		phyAbility.Half_100 = 1;
+		phyAbility.Full_100 = 1;
+		phyAbility.Full_1000 = 1;
+	}
+
+	return (rtk_port_phyAutoNegoAbility_set(port, &phyAbility));
+}
+
+void rtl8367rb_reset(void)
+{
+	rtl8367b_setAsicReg(RTL8367B_REG_CHIP_RESET, (1<<RTL8367B_CHIP_RST_OFFSET));	
+	return;
 }
 
 /* Function Name:
@@ -17428,8 +17396,6 @@ rtk_api_ret_t rtk_filter_igrAcl_cfg_del(rtk_filter_id_t filter_id)
         return ret;
     if((ret = rtl8367b_setAsicAclAct(filter_id, &initAct)) != RT_ERR_OK)
         return ret;
-    if((ret = rtl8367b_setAsicAclNot(filter_id, DISABLED)) != RT_ERR_OK )
-        return ret;
 
     return RT_ERR_OK;
 }
@@ -17466,8 +17432,6 @@ rtk_api_ret_t rtk_filter_igrAcl_cfg_delAll(void)
         if((ret = rtl8367b_setAsicAclActCtrl(i, FILTER_ENACT_INIT_MASK))!= RT_ERR_OK)
             return ret;
          if ((ret = rtl8367b_setAsicAclAct(i, &initAct)) != RT_ERR_OK)
-            return ret;
-        if((ret = rtl8367b_setAsicAclNot(i, DISABLED)) != RT_ERR_OK )
             return ret;
     }
 
@@ -17868,6 +17832,16 @@ rtk_api_ret_t rtk_filter_igrAcl_template_set(rtk_filter_template_t *aclTemplate)
 
     for(idxField = 0; idxField < RTK_MAX_NUM_OF_FILTER_FIELD; idxField ++)
     {
+        if( (aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_DMAC_15_0      || aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_CTAG) &&
+            (aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_IPV4_SIP_15_0  || aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_IPV4_DIP_31_16) &&
+            (aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_IPV6_SIP_15_0  || aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_IPV6_DIP_31_16) &&
+            (aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_VIDRANGE       || aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_PORTRANGE) &&
+            (aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_FIELD_SELECT00 || aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_FIELD_SELECT15) )
+            return RT_ERR_INPUT;
+    }
+
+    for(idxField = 0; idxField < RTK_MAX_NUM_OF_FILTER_FIELD; idxField ++)
+    {
         aclType.field[idxField] = aclTemplate->fieldType[idxField];
     }
 
@@ -18252,7 +18226,6 @@ rtk_api_ret_t rtk_eee_portEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
     rtk_api_ret_t   retVal;
     rtk_uint32      regData;
-    rtk_uint32      data;
 
     if (port > RTK_PORT_ID_MAX)
         return RT_ERR_PORT_ID;
@@ -18260,54 +18233,22 @@ rtk_api_ret_t rtk_eee_portEnable_set(rtk_port_t port, rtk_enable_t enable)
     if (enable>=RTK_ENABLE_END)
         return RT_ERR_INPUT;
 
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
+    if ((retVal = rtl8367b_setAsicEee100M(port,enable))!=RT_ERR_OK)
+        return retVal;
+    if ((retVal = rtl8367b_setAsicEeeGiga(port,enable))!=RT_ERR_OK)
         return retVal;
 
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
+    if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_PORT_EEE_CFG_REG(port), RTL8367B_PORT0_EEECFG_EEE_TX_OFFSET, (enable == ENABLED) ? 1 : 0)) != RT_ERR_OK)
+        return retVal;
+    if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_PORT_EEE_CFG_REG(port), RTL8367B_PORT0_EEECFG_EEE_RX_OFFSET, (enable == ENABLED) ? 1 : 0)) != RT_ERR_OK)
         return retVal;
 
-    if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
-    {
-        if((retVal = rtl8367b_getAsicPHYOCPReg(port, EEE_OCP_PHY_ADDR, &regData)) != RT_ERR_OK)
-            return retVal;
-
-        if(enable)
-        {
-            regData |= (0x0001 << 1);
-            regData |= (0x0001 << 2);
-        }
-        else
-        {
-            regData &= ~(0x0001 << 1);
-            regData &= ~(0x0001 << 2);
-        }
-
-        if((retVal = rtl8367b_setAsicPHYOCPReg(port, EEE_OCP_PHY_ADDR, regData)) != RT_ERR_OK)
-            return retVal;
-    }
-    else
-    {
-        if ((retVal = rtl8367b_setAsicEee100M(port,enable))!=RT_ERR_OK)
-            return retVal;
-        if ((retVal = rtl8367b_setAsicEeeGiga(port,enable))!=RT_ERR_OK)
-            return retVal;
-
-        if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_PORT_EEE_CFG_REG(port), RTL8367B_PORT0_EEECFG_EEE_TX_OFFSET, (enable == ENABLED) ? 1 : 0)) != RT_ERR_OK)
-            return retVal;
-        if ((retVal = rtl8367b_setAsicRegBit(RTL8367B_PORT_EEE_CFG_REG(port), RTL8367B_PORT0_EEECFG_EEE_RX_OFFSET, (enable == ENABLED) ? 1 : 0)) != RT_ERR_OK)
-            return retVal;
-
-        if ((retVal = rtl8367b_setAsicPHYReg(port, RTL8367B_PHY_PAGE_ADDRESS, 0))!=RT_ERR_OK)
-            return retVal;
-        if ((retVal = rtl8367b_setAsicPHYReg(port, 13, 7))!=RT_ERR_OK)
-            return retVal;
-        if ((retVal = rtl8367b_setAsicPHYReg(port, 14, 60))!=RT_ERR_OK)
-            return retVal;
-        if ((retVal = rtl8367b_setAsicPHYReg(port, 13, 0x4007))!=RT_ERR_OK)
-            return retVal;
-        if ((retVal = rtl8367b_setAsicPHYReg(port, 14, (enable == ENABLED) ? 0x0006 : 0x0000))!=RT_ERR_OK)
-            return retVal;
-    }
+    if ((retVal = rtl8367b_setAsicPHYReg(port, RTL8367B_PHY_PAGE_ADDRESS, 7))!=RT_ERR_OK)
+        return retVal;
+    if ((retVal = rtl8367b_setAsicPHYReg(port, 30, 32))!=RT_ERR_OK)
+        return retVal;
+    if ((retVal = rtl8367b_setAsicPHYReg(port, 21, (enable == ENABLED) ? 0x0100 : 0x0000))!=RT_ERR_OK)
+        return retVal;
 
     if ((retVal = rtl8367b_setAsicPHYReg(port, RTL8367B_PHY_PAGE_ADDRESS, 0))!=RT_ERR_OK)
         return retVal;
@@ -18343,37 +18284,20 @@ rtk_api_ret_t rtk_eee_portEnable_set(rtk_port_t port, rtk_enable_t enable)
 rtk_api_ret_t rtk_eee_portEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
     rtk_api_ret_t retVal;
-    rtk_uint32      regData, regData1, regData2;
-    rtk_uint32      data;
+    rtk_uint32 regData1, regData2;
 
     if (port > RTK_PORT_ID_MAX)
         return RT_ERR_PORT_ID;
 
-    if((retVal = rtl8367b_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
+    if ((retVal = rtl8367b_getAsicEee100M(port,&regData1))!=RT_ERR_OK)
+        return retVal;
+    if ((retVal = rtl8367b_getAsicEeeGiga(port,&regData2))!=RT_ERR_OK)
         return retVal;
 
-    if((retVal = rtl8367b_getAsicReg(0x1300, &data)) != RT_ERR_OK)
-        return retVal;
-
-    if( (data == 0x0276) || (data == 0x0597) || (data == 0x6367) )
-    {
-        if((retVal = rtl8367b_getAsicPHYOCPReg(port, EEE_OCP_PHY_ADDR, &regData)) != RT_ERR_OK)
-            return retVal;
-
-        *pEnable = ((regData & 0x0006) == 0x0006) ? ENABLED : DISABLED;
-    }
+    if (regData1==1&&regData2==1)
+        *pEnable = ENABLED;
     else
-    {
-        if ((retVal = rtl8367b_getAsicEee100M(port,&regData1))!=RT_ERR_OK)
-            return retVal;
-        if ((retVal = rtl8367b_getAsicEeeGiga(port,&regData2))!=RT_ERR_OK)
-            return retVal;
-
-        if (regData1==1&&regData2==1)
-            *pEnable = ENABLED;
-        else
-            *pEnable = DISABLED;
-    }
+        *pEnable = DISABLED;
 
     return RT_ERR_OK;
 }
@@ -18868,718 +18792,6 @@ rtk_api_ret_t rtk_igmp_currentGroup_get(rtk_port_t port, rtk_uint32 *pGroup)
     return RT_ERR_OK;
 }
 
-/* Function Name:
- *      rtk_port_phyTestMode_set
- * Description:
- *      Set PHY in test mode.
- * Input:
- *      port - port id.
- *      mode - PHY test mode 0:normal 1:test mode 1 2:test mode 2 3: test mode 3 4:test mode 4 5~7:reserved
- * Output:
- *      None
- * Return:
- *      RT_ERR_OK              	- OK
- *      RT_ERR_FAILED          	- Failed
- *      RT_ERR_SMI             	- SMI access error
- *      RT_ERR_PORT_ID 			- Invalid port number.
- *      RT_ERR_BUSYWAIT_TIMEOUT - PHY access busy
- *      RT_ERR_NOT_ALLOWED      - The Setting is not allowed, caused by set more than 1 port in Test mode.
- * Note:
- *      Set PHY in test mode and only one PHY can be in test mode at the same time.
- *      It means API will return FAILED if other PHY is in test mode.
- *      This API only provide test mode 1 & 4 setup, and if users want other test modes,
- *      please contact realtek FAE.
- */
-rtk_api_ret_t rtk_port_phyTestMode_set(rtk_port_t port, rtk_port_phy_test_mode_t mode)
-{
-    rtk_uint32          data, i, index, phy, reg;
-    rtk_api_ret_t       retVal;
-    CONST_T rtk_uint16 ParaTM_1[][2] = { {0x205F,0x0002}, {0x2053,0xAA00}, {0x2054,0xAA00}, {0x2055,0xAA00},
-                                         {0x2056,0xAA00}, {0x2057,0xAA00}, {0x205F,0x0002} };
-
-    if (port > RTK_PHY_ID_MAX)
-        return RT_ERR_PORT_ID;
-
-    if ( (mode == PHY_TEST_MODE_2) || (mode == PHY_TEST_MODE_3) )
-        return RT_ERR_FAILED;
-
-    if (PHY_TEST_MODE_NORMAL != mode)
-    {
-        /* Other port should be Normal mode */
-        for(i = 0; i <= RTK_PHY_ID_MAX; i++)
-        {
-            if(i != port)
-            {
-                if ((retVal = rtl8367b_setAsicPHYReg(i, 31, 0)) != RT_ERR_OK)
-                    return retVal;
-
-                if ((retVal = rtl8367b_getAsicPHYReg(i, 9, &data)) != RT_ERR_OK)
-                    return retVal;
-
-                if((data & 0xE000) != 0)
-                    return RT_ERR_NOT_ALLOWED;
-            }
-        }
-    }
-
-    if (PHY_TEST_MODE_1 == mode)
-    {
-        for (index = 0; index < (sizeof(ParaTM_1) / ((sizeof(rtk_uint16))*2)); index++)
-        {
-            phy = (ParaTM_1[index][0] - 0x2000) / 0x0020;
-            reg = (ParaTM_1[index][0] - 0x2000) % 0x0020;
-            if ((retVal = rtl8367b_setAsicPHYReg(phy, reg, ParaTM_1[index][1])) != RT_ERR_OK)
-                return retVal;
-        }
-    }
-
-    if ((retVal = rtl8367b_setAsicPHYReg(port, 31, 0)) != RT_ERR_OK)
-        return retVal;
-
-    if ((retVal = rtl8367b_getAsicPHYReg(port, 9, &data)) != RT_ERR_OK)
-        return retVal;
-
-    data &= ~0xE000;
-    data |= (mode << 13);
-    if ((retVal = rtl8367b_setAsicPHYReg(port, 9, data)) != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
-}
-
-/* Function Name:
- *      rtk_port_phyTestMode_get
- * Description:
- *      Get PHY in which test mode.
- * Input:
- *      port - Port id.
- * Output:
- *      mode - PHY test mode 0:normal 1:test mode 1 2:test mode 2 3: test mode 3 4:test mode 4 5~7:reserved
- * Return:
- *      RT_ERR_OK              	- OK
- *      RT_ERR_FAILED          	- Failed
- *      RT_ERR_SMI             	- SMI access error
- *      RT_ERR_PORT_ID 			- Invalid port number.
- *      RT_ERR_INPUT 			- Invalid input parameters.
- *      RT_ERR_BUSYWAIT_TIMEOUT - PHY access busy
- * Note:
- *      Get test mode of PHY from register setting 9.15 to 9.13.
- */
-rtk_api_ret_t rtk_port_phyTestMode_get(rtk_port_t port, rtk_port_phy_test_mode_t *pMode)
-{
-    rtk_uint32      data;
-    rtk_api_ret_t   retVal;
-
-    if (port > RTK_PHY_ID_MAX)
-        return RT_ERR_PORT_ID;
-
-    if ((retVal = rtl8367b_setAsicPHYReg(port, 31, 0)) != RT_ERR_OK)
-        return retVal;
-
-    if ((retVal = rtl8367b_getAsicPHYReg(port, 9, &data)) != RT_ERR_OK)
-        return retVal;
-
-    *pMode = (data & 0xE000) >> 13;
-
-    return RT_ERR_OK;
-}
-
-#define REG1301_8367R_VB				0x1010
-#define REG1301_8367RB					0x1000
-
-#define CONFIG_LAN_WAN_ISOLATION 1
-#define CONFIG_RTK_REFINE_PORT_DUPLEX_MODE 1
-
-//#define RTL8367RB_USE_ONE_LED_PER_PORT		1
-
-#define ENABLE_8367RB_RGMII2	1
-
-#ifdef ENABLE_8367RB_RGMII2
-// for tr181
-int rtk_rgmii_set(int enable)
-{
-    rtk_port_mac_ability_t mac_cfg;
-
-    mac_cfg.forcemode = MAC_FORCE;
-    mac_cfg.speed = SPD_1000M;
-    mac_cfg.duplex = FULL_DUPLEX;
-    if (enable == TRUE)
-        mac_cfg.link = PORT_LINKUP;
-    else		
-        mac_cfg.link = PORT_LINKDOWN;
-    mac_cfg.nway = DISABLED;
-    mac_cfg.txpause = ENABLED;
-    mac_cfg.rxpause = ENABLED;
-    rtk_port_macForceLinkExt_set(EXT_PORT_2, MODE_EXT_RGMII, &mac_cfg);
-
-    return 0;
-}
-#endif
-
-int RTL8367R_init(void)
-{
-    rtk_portmask_t portmask;
-    unsigned int ret;
-    //unsigned int regData;
-
-    /* Set external interface 0 to RGMII with Force mode, 1000M, Full-duple, enable TX&RX pause*/
-    rtk_port_mac_ability_t mac_cfg;
-    rtk_mode_ext_t mode ;
- 
-    /* Initial Chip */
-    ret = rtk_switch_init();
- 
-    /* Enable LED Group 0&1 from P0 to P4 */
-    portmask.bits[0]=0x1F;
-    rtk_led_enable_set(LED_GROUP_0, portmask);
-    rtk_led_enable_set(LED_GROUP_1, portmask);
- 
-    mode = MODE_EXT_RGMII ;
-    mac_cfg.forcemode = MAC_FORCE;
-    mac_cfg.speed = SPD_1000M;
-    mac_cfg.duplex = FULL_DUPLEX;
-    mac_cfg.link = PORT_LINKUP;
-    mac_cfg.nway = DISABLED;
-    mac_cfg.txpause = ENABLED;
-    mac_cfg.rxpause = ENABLED;
-    rtk_port_macForceLinkExt_set(EXT_PORT_1,mode,&mac_cfg);
- 
-#ifdef ENABLE_8367RB_RGMII2
-    mode = MODE_EXT_RGMII ;
-    mac_cfg.forcemode = MAC_FORCE;
-    mac_cfg.speed = SPD_1000M;
-    mac_cfg.duplex = FULL_DUPLEX;
-    mac_cfg.link = PORT_LINKUP;
-    mac_cfg.nway = DISABLED;
-    mac_cfg.txpause = ENABLED;
-    mac_cfg.rxpause = ENABLED;
-    rtk_port_macForceLinkExt_set(EXT_PORT_2,mode,&mac_cfg);
-#endif
-
-    /* Set RGMII Interface 0 TX delay to 2ns and RX to step 4 */
-    // set the tx/rx delay in 8197D site
-    //rtk_port_rgmiiDelayExt_set(EXT_PORT_1, 1, 4);
-    //rtk_port_rgmiiDelayExt_set(EXT_PORT_1, 0, 0);
-    rtk_port_rgmiiDelayExt_set(EXT_PORT_1, 0, 2); // change rxDelay to 2 to enhance the compatibility of 8197D and 8367RB
- 
-    /* set port 5 as CPU port */
-    rtk_cpu_enable_set(ENABLE);
-    rtk_cpu_tagPort_set(RTK_EXT_1_MAC, CPU_INSERT_TO_NONE);
- 
-    // for LED on Realtek 8197D+8367RB
-    if (r8367_cpu_port == RTL8367B_PORT6_ENABLE_OFFSET) {    // 8367RB
-#ifdef RTL8367RB_USE_ONE_LED_PER_PORT
-        rtl8367b_setAsicReg(0x1B03, 0x0222);
-#else
-        /* demo board use 2 LEDs for each port */	
-        rtl8367b_setAsicReg(0x1B03, 0x0936);
-#endif
-    }
-
-#if 1
-    // for 802.11ac logo 4.2.40 test (udp test item)
-    rtl8367b_setAsicReg(0x121f, 0x01D6);
-    rtl8367b_setAsicReg(0x1220, 0x01B8);
-    rtl8367b_setAsicReg(0x1221, 0x01CC);
-    rtl8367b_setAsicReg(0x1222, 0x01AE);
-    rtl8367b_setAsicReg(0x1223, 0x0302);
-    rtl8367b_setAsicReg(0x1224, 0x02E4);
-    rtl8367b_setAsicReg(0x1225, 0x02D0);
-    rtl8367b_setAsicReg(0x1226, 0x02A8);	
-#endif
-
-#if defined(CONFIG_RTK_REFINE_PORT_DUPLEX_MODE)
-	rtk_forceFull_init();
-#endif
-
-#if defined(CONFIG_LAN_WAN_ISOLATION)
-	{
-	rtk_portmask_t pm;
-	
-	pm.bits[0] = 0xff;
-	rtk_port_isolation_set(0, pm);
-	rtk_port_isolation_set(1, pm);
-	rtk_port_isolation_set(2, pm);
-	rtk_port_isolation_set(3, pm);
-	rtk_port_isolation_set(4, pm);
-	}
-#endif
-
-    return ret; 
-}
-
-#define BIT(nr)			(1UL << (nr))
-#define WAN_VID			8
-#define LAN_VID			9
-#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
-#define	RTL8367R_WAN			0		// WAN port is set to 8367R port 0
-#else
-#define	RTL8367R_WAN			4		// WAN port is set to 8367R port 4
-#endif
-
-#define	RTL_WANPORT_MASK		(0x1 << RTL8367R_WAN)
-#define	RTL_LANPORT_MASK		(0x1f & (~RTL_WANPORT_MASK))
-
-#define GATEWAY_MODE				0
-#define BRIDGE_MODE				1
-
-static  int rtl8197d_op_mode = 0;
-extern rtk_uint32 r8367_cpu_port;
-
-int RTL8367R_vlan_init(void)
-{
-	int i, retval;
-	rtk_portmask_t mbrmsk, untagmsk;
-
-	/* for lan */
-	mbrmsk.bits[0] = RTL_LANPORT_MASK|BIT(r8367_cpu_port);
-	untagmsk.bits[0] = RTL_LANPORT_MASK;
-	retval = rtk_vlan_set(LAN_VID, mbrmsk, untagmsk, 0);
-
-	for(i=0;i<5;i++) {
-		if  ((1<<i)&RTL_LANPORT_MASK)
-		{
-			retval = rtk_vlan_portPvid_set(i, LAN_VID, 0);			
-		}
-	}
-		
-	/* for wan */
-	mbrmsk.bits[0] = RTL_WANPORT_MASK|BIT(r8367_cpu_port);
-	untagmsk.bits[0] = RTL_WANPORT_MASK;
-	retval = rtk_vlan_set(WAN_VID, mbrmsk, untagmsk, 1);
-
-	for(i=0;i<5;i++) {
-		if  ((1<<i)&RTL_WANPORT_MASK)
-		{
-			retval = rtk_vlan_portPvid_set(i, WAN_VID, 0);
-		}
-	}
-
-	rtl8197d_op_mode = GATEWAY_MODE;
-	return 0;
-}
-
-int RTL8367R_vlan_reinit(int mode)
-{
-	int i, retval;
-	rtk_portmask_t mbrmsk, untagmsk;
-
-	if (mode==rtl8197d_op_mode) // no need tio do the re-initialization
-		return 0;
-
-	rtk_vlan_init();
-	
-	if (mode==GATEWAY_MODE)
-	{
-		/* for lan */
-		mbrmsk.bits[0] = RTL_LANPORT_MASK|BIT(r8367_cpu_port);
-		untagmsk.bits[0] = RTL_LANPORT_MASK;
-		retval = rtk_vlan_set(LAN_VID, mbrmsk, untagmsk, 0);
-
-		for(i=0;i<5;i++) {
-			if  ((1<<i)&RTL_LANPORT_MASK)
-			{
-				retval = rtk_vlan_portPvid_set(i, LAN_VID, 0);			
-			}
-		}
-	
-		/* for wan */
-		mbrmsk.bits[0] = RTL_WANPORT_MASK|BIT(r8367_cpu_port);
-		untagmsk.bits[0] = RTL_WANPORT_MASK;
-		retval = rtk_vlan_set(WAN_VID, mbrmsk, untagmsk, 1);
-
-		for(i=0;i<5;i++) {
-			if  ((1<<i)&RTL_WANPORT_MASK)
-			{
-				retval = rtk_vlan_portPvid_set(i, WAN_VID, 0);
-			}
-		}		
-	} 
-	else {
-		/* for lan */
-		mbrmsk.bits[0] = (RTL_LANPORT_MASK | RTL_WANPORT_MASK) |BIT(r8367_cpu_port);
-		untagmsk.bits[0] = (RTL_LANPORT_MASK | RTL_WANPORT_MASK);
-		retval = rtk_vlan_set(LAN_VID, mbrmsk, untagmsk, 0);
-
-		for(i=0;i<5;i++) {
-			if  ((1<<i)&(RTL_LANPORT_MASK | RTL_WANPORT_MASK))
-			{
-				retval = rtk_vlan_portPvid_set(i, LAN_VID, 0);			
-			}
-		}		
-	}
-	rtl8197d_op_mode = mode;
-	
-	return 0;
-}
-
-#define RTL8367R_WAN_PORT_BITMAP 		(1<<RTL8367R_WAN)
-#define RTL8367R_LAN_PORT_BITMAP 		(0x1f - RTL8367R_WAN_PORT_BITMAP)
-#define RTL8367R_LAN_EFID				2
-extern int rtl865x_curOpMode;
-
-#if defined(CONFIG_RTL_VLAN_8021Q) && defined(CONFIG_RTL_8367R_SUPPORT)
-#if 0
-int rtl_vlan_RTL8367R_set(unsigned short vid, unsigned int tagmask, unsigned int mask)
-{
-	rtk_portmask_t mbrmsk, untag;
-	rtk_api_ret_t retVal;
-	int i;
-    unsigned untagmask;
-
-    if(vid==WAN_VID || vid == LAN_VID)
-        return 0;
-
-    untagmask = mask&(~tagmask);
-    
-    mbrmsk.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
-
-    //panic_printk("untagmsk is 0x%x\n", (untagmask&RTL8367R_LAN_PORT_BITMAP));
-    
-    if(tagmask&RTL8367R_WAN_PORT_BITMAP)
-        untag.bits[0] = 0;
-    else
-        untag.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|(untagmask&RTL8367R_LAN_PORT_BITMAP));
-
-    retVal=rtk_vlan_set(vid, mbrmsk, untag, 0); 
-    
-	return 0;
-}
-#else
-int rtl_vlan_RTL8367R_set(unsigned short vid, unsigned int tagmask, unsigned int mask, unsigned int fid)
-{
-	int retval;
-	rtk_portmask_t mbrmsk, untagmsk;
-    
-    unsigned untagmask;
-    untagmask = mask&(~tagmask);
-    if (mask == 0 && tagmask == 0)//clear
-    {
-		mbrmsk.bits[0] = mask;
-		untagmsk.bits[0] = untagmask;
-    }
-    else
-	{
-		mbrmsk.bits[0] = (mask) |BIT(r8367_cpu_port);
-		//mbrmsk.bits[0] = (mask);
-		untagmsk.bits[0] = untagmask;
-        //panic_printk("%s %d vid = %u mbrmsk.bits[0]=%u untagmsk.bits[0]=%u\n", __FUNCTION__, __LINE__, vid, mbrmsk.bits[0], untagmsk.bits[0]);
-	}
-    
-    retval = rtk_vlan_set(vid, mbrmsk, untagmsk, fid);        
-    
-	return 0;
-}
-
-#endif
-
-int rtl_8367r_vlan_get(unsigned int i, unsigned int *mbrmsk, unsigned int *untagmsk, unsigned int *fid)
-{
-	rtk_portmask_t Mbrmsk = {0}, Untagmsk = {0};
-	rtk_fid_t Fid = 0;
-	rtk_api_ret_t ret = 0;
-	
-	if (!mbrmsk || !untagmsk || !fid)
-		return -1;
-	
-	ret = rtk_vlan_get(i, &Mbrmsk, &Untagmsk, &Fid);
-	if (ret == RT_ERR_OK)
-	{
-		*mbrmsk = Mbrmsk.bits[0];
-		*untagmsk = Untagmsk.bits[0];
-		*fid = Fid;
-		return 0;
-	}
-
-	return -1;
-}
-#endif
-
-int RTL8367R_vlan_set(void)
-{
-	rtk_portmask_t mbrmsk, untag;
-	rtk_api_ret_t retVal;
-	int i;
-	
- 	for(i=0;i<4096;i++)
- 	{ 	
- 		//if (i==WAN_VID ||i==LAN_VID)
- 		#ifdef CONFIG_RTL_VLAN_8021Q
- 		if (i==WAN_VID || i==LAN_VID
-		#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
-			||i==PASSTHRU_VLAN_ID
-		#endif	
-			)
-        #else
- 		if (i==WAN_VID ||i==LAN_VID || (i==10) || (i==11) || (i==12)	
-		#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
-			||i==PASSTHRU_VLAN_ID
-		#endif	
-		) /* RTK VLAN */
-        #endif
- 		{
- 			mbrmsk.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
- 			untag.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
- 		}
- 		else
- 		{
- 			mbrmsk.bits[0] = (BIT(r8367_cpu_port)|RTL8367R_WAN_PORT_BITMAP|RTL8367R_LAN_PORT_BITMAP);
- 			untag.bits[0] = 0;
- 		} 	
- 		retVal=rtk_vlan_set(i, mbrmsk, untag, 0); //all vlan's fid is 0 
- 	}
-
-	/* set pvid :  wan:8   lan:9  */	
-	for(i=0;i<5;i++)
-	{
-		#if defined (CONFIG_RTL_IVL_SUPPORT)
-		if (i == RTL8367R_WAN)
-			retVal=rtk_vlan_portPvid_set(i, WAN_VID,0);
-		else
-			retVal=rtk_vlan_portPvid_set(i, LAN_VID,0);
-		#else
-		if(rtl865x_curOpMode==GATEWAY_MODE){
-			if (i == RTL8367R_WAN)
-				retVal=rtk_vlan_portPvid_set(i, WAN_VID,0);
-			else
-				retVal=rtk_vlan_portPvid_set(i, LAN_VID,0);
-		}else{
-			retVal=rtk_vlan_portPvid_set(i, LAN_VID,0);
-		}
-		#endif
-	}       
-	
-	/* set wan port efid=1, other ports efid=2 */
-	for(i=0;i<5;i++)
-	{
-		#if defined (CONFIG_RTL_IVL_SUPPORT)
-		if (i == RTL8367R_WAN)
-			retVal = rtk_port_efid_set(i,1);
-		else
-			retVal = rtk_port_efid_set(i,RTL8367R_LAN_EFID);
-		#else
-		if(rtl865x_curOpMode==GATEWAY_MODE){
-			if (i == RTL8367R_WAN)
-				retVal = rtk_port_efid_set(i,1);
-			else
-				retVal = rtk_port_efid_set(i,RTL8367R_LAN_EFID);
-		}else{
-			retVal = rtk_port_efid_set(i,RTL8367R_LAN_EFID);
-		}
-		#endif
-	}
-
-	// suggested by HM-Chung
-#if defined (CONFIG_RTL_IVL_SUPPORT)	
-	for (i=0; i<5; i++)
-	{
-		if (i == RTL8367R_WAN) 
-			mbrmsk.bits[0] = BIT(r8367_cpu_port);    
-		else
-			mbrmsk.bits[0] = 0xff & ~BIT(RTL8367R_WAN); 
-		rtk_port_isolation_set(i, mbrmsk);
-	}    
-#else	
-	for (i=0; i<5; i++)
-	{
-		if (rtl865x_curOpMode == GATEWAY_MODE) {
-			if (i == RTL8367R_WAN) 
-				mbrmsk.bits[0] = BIT(r8367_cpu_port);    
-			else
-				mbrmsk.bits[0] = 0xff & ~BIT(RTL8367R_WAN); 
-		}
-		else
-			mbrmsk.bits[0] = 0xff; 
-			
-		rtk_port_isolation_set(i, mbrmsk);
-	}    
-#endif
-
-#if defined (CONFIG_RTL_IVL_SUPPORT)
-	//if (rtl865x_curOpMode != GATEWAY_MODE) 
-	{	// no matter Gateway or Bridge mode, always disable wan port L2 learning
-		rtk_l2_limitLearningCnt_set(RTL8367R_WAN, 0);
-		rtk_l2_flushType_set(FLUSH_TYPE_BY_PORT, WAN_VID, RTL8367R_WAN);		
-	}
-#else
-	if (rtl865x_curOpMode == GATEWAY_MODE) {
-		rtk_l2_limitLearningCnt_set(RTL8367R_WAN, 0);
-		rtk_l2_flushType_set(FLUSH_TYPE_BY_PORT, WAN_VID, RTL8367R_WAN);		
-		rtk_l2_flushType_set(FLUSH_TYPE_BY_PORT, LAN_VID, RTL8367R_WAN);		
-	}
-	else {
-		rtk_l2_limitLearningCnt_set(RTL8367R_WAN, 2112);
-		rtk_l2_flushType_set(FLUSH_TYPE_BY_PORT, WAN_VID, RTL8367R_WAN);		
-		rtk_l2_flushType_set(FLUSH_TYPE_BY_PORT, LAN_VID, RTL8367R_WAN);		
-	}
-#endif
-
-	/* disable cpu port's mac addr learning ability */
-	rtl8367b_setAsicLutLearnLimitNo(r8367_cpu_port,0);
-	
-	/* disable unknown unicast/mcast/bcast flooding between LAN ports */
-	smi_write(RTL8367B_REG_UNDA_FLOODING_PMSK, BIT(r8367_cpu_port));
-	smi_write(RTL8367B_REG_UNMCAST_FLOADING_PMSK, BIT(r8367_cpu_port));
-	smi_write(RTL8367B_REG_BCAST_FLOADING_PMSK, BIT(r8367_cpu_port));
-	
-	return 0;
-}
-
-void RTL8367R_cpu_tag(int enable)
-{
-	if(enable){
-		rtl8367b_setAsicReg(RTL8367B_REG_CPU_PORT_MASK,1<<r8367_cpu_port); //set CPU port
-		rtl8367b_setAsicReg(RTL8367B_REG_CPU_CTRL,0x281|(r8367_cpu_port)<<RTL8367B_CPU_TRAP_PORT_OFFSET);
-	}
-	else{
-		rtl8367b_setAsicReg(RTL8367B_REG_CPU_CTRL,0x280|(r8367_cpu_port)<<RTL8367B_CPU_TRAP_PORT_OFFSET);
-	}
-}
-
-void set_8367r_L2(unsigned int *mac, int intf_wan, int is_static)
-{
-	rtk_mac_t Mac;
-	rtk_l2_ucastAddr_t L2_data;
-		
-	memset(&L2_data, 0, sizeof(rtk_l2_ucastAddr_t));
-	
-	L2_data.efid= (intf_wan)? 1 : 2;
-	L2_data.port=r8367_cpu_port;
-	L2_data.is_static=is_static;
-
-	memcpy(&Mac.octet[0], mac, 6);
-	rtk_l2_addr_add(&Mac,  &L2_data);
-}
-
-void del_8367r_L2(rtk_mac_t *pMac)
-{
-	rtk_l2_ucastAddr_t L2_data;
-
-	memset(&L2_data, 0, sizeof(rtk_l2_ucastAddr_t));
-	L2_data.fid = 0;
-	L2_data.efid = RTL8367R_LAN_EFID;
-	
-	if (rtk_l2_addr_get(pMac, &L2_data) == RT_ERR_OK)
-		rtk_l2_addr_del(pMac, &L2_data);
-
-	return;
-}
-
-#if 0
-void get_all_L2(void)
-{
-	int i, ret;
-	rtk_l2_addr_table_t p;
-		
-	for (i=1; i<=RTK_MAX_NUM_OF_LEARN_LIMIT;i++)
-	{
-		p.index = i;
-		ret = rtk_l2_entry_get(&p);
-		if (ret == RT_ERR_OK)
-		{
-			printk(" [%d] mac: %02x:%02x:%02x:%02x:%02x:%02x, portmask: 0x%x, age: %d, fid: %d\n", i,
-				p.mac.octet[0],p.mac.octet[1],p.mac.octet[2],p.mac.octet[3],p.mac.octet[4],p.mac.octet[5],
-				p.portmask, p.age, p.fid);			
-		}
-	}
-	return;
-}
-#endif
-
-enum 
-{
-	PORT_DOWN=0,
-	HALF_DUPLEX_10M,
-	HALF_DUPLEX_100M,
-	HALF_DUPLEX_1000M,
-	DUPLEX_10M,
-	DUPLEX_100M,
-	DUPLEX_1000M,
-	PORT_AUTO
-};
-
-rtk_api_ret_t set_8367r_speed_mode(int port, int mode)
-{
-	rtk_port_phy_ability_t phyAbility;
-
-	memset(&phyAbility, 0, sizeof(rtk_port_phy_ability_t));
-
-	phyAbility.FC = 1;
-	phyAbility.AsyFC = 1;
-	phyAbility.AutoNegotiation = 1;
-
-	if (mode == HALF_DUPLEX_10M) //10M half
-	{
-		phyAbility.Half_10 = 1;
-	}
-	else if (mode == DUPLEX_10M)	//10M full
-	{
-		phyAbility.Full_10 = 1;
-	}
-	else if (mode == HALF_DUPLEX_100M) // 100M half
-	{
-		phyAbility.Half_100 = 1;
-	}
-	else if (mode == DUPLEX_100M) // 100M full
-	{
-		phyAbility.Full_100 = 1;
-	}
-	else if (mode == DUPLEX_1000M) // 1000M
-	{
-		phyAbility.Full_1000 = 1;
-	}
-	else
-	{
-		phyAbility.Half_10 = 1;
-		phyAbility.Full_10 = 1;
-		phyAbility.Half_100 = 1;
-		phyAbility.Full_100 = 1;
-		phyAbility.Full_1000 = 1;
-	}
-
-	return (rtk_port_phyAutoNegoAbility_set(port, &phyAbility));
-}
-
-void rtl8367rb_reset(void)
-{
-	rtl8367b_setAsicReg(RTL8367B_REG_CHIP_RESET, (1<<RTL8367B_CHIP_RST_OFFSET));	
-	return;
-}
-
-#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
-int rtl8367_setProtocolBasedVLAN(rtk_vlan_proto_type_t proto_type,rtk_vlan_t cvid, int cmdFlag)
-{
-	rtk_port_t port;
-	int ret;
-	rtk_vlan_protoAndPortInfo_t info;
-	info.proto_type=proto_type;
-   	info.frame_type=FRAME_TYPE_ETHERNET;
-    info.cvid=cvid;
-    info.cpri=0;
-	
-	if(cmdFlag==TRUE)
-	{
-		//printk("ADD[%s]:[%d].\n",__FUNCTION__,__LINE__);
-		/*add */
-		for(port=0;port<5;port++){
-			
-			ret=rtk_vlan_protoAndPortBasedVlan_add(port, info);
-			
-		}
-	}
-	else
-	{
-		//printk("DEL[%s]:[%d].\n",__FUNCTION__,__LINE__);
-		/*delete */
-		for(port=0;port<5;port++){
-			
-			ret=rtk_vlan_protoAndPortBasedVlan_del(port,  proto_type, FRAME_TYPE_ETHERNET);
-		}
-	}
-	return ret;
-}
-#endif
-
 #if defined(CONFIG_RTK_VLAN_SUPPORT) || defined(CONFIG_RTL_VLAN_8021Q)
 int rtl865x_enableRtl8367ToCpuAcl(void)
 {
@@ -19636,9 +18848,9 @@ int rtk_refinePortDuplexMode(void)
 rtk_api_ret_t rtk_forceFull_init(void)
 {
     rtk_api_ret_t retVal;
-//    rtk_uint32 busyFlag;    
+    rtk_uint32 busyFlag;    
     rtk_uint16 i,length;
-    static rtk_uint8 iromCode[] = {
+    rtk_uint8 iromCode[] = {
     0x02,0x05,0xFE,0x02,0x04,0x23,0x7D,0x06,
     0x7C,0x11,0x7F,0xC2,0x7E,0x12,0x12,0x05,
     0xE2,0x7D,0x05,0x7C,0x20,0x7F,0xC3,0x7E,

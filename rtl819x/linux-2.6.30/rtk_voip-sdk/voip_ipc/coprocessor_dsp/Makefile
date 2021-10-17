@@ -1,12 +1,8 @@
-obj-y = script/ coprocessor_dsp_tx.o coprocessor_dsp_rx.o
-ifeq ($(CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP),y)
-obj-y += aipc_hook.o
-endif
+obj-y = script/ coprocessor_dsp_tx.o coprocessor_dsp_rx.o 
 
 EXTRA_CFLAGS += -I$(DIR_VOIP)/include
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_ipc/
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_ipc/coprocessor_dsp/include/
-#EXTRA_CFLAGS += -I$(ROOTDIR)/$(LINUXDIR)/drivers/char/aipc/include
 EXTRA_CFLAGS += -D_AIPC_DSP_
 
 ifeq ($(CONFIG_RTK_VOIP),m)

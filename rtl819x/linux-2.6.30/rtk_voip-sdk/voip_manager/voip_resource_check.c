@@ -18,21 +18,19 @@ int GetCurrentVoipResourceStatus(int pkt_fmt)
 
 	pt = pkt_fmt;
 
-	if ((pt == rtpPayloadPCMU) || (pt == rtpPayloadPCMA))
+	if ((pt == 0) || (pt == 8))							// G.711
 		weight = G711_WEIGHT;
-	else if ((pt == rtpPayloadGSM) ||(pt == rtpPayloadG723) || (pt == rtpPayloadG729) )
+	else if ((pt == 3) ||(pt == 4) || (pt == 18) || (pt == rtpPayload_AMR_NB))	// G.729, G.723, GSM-FR, AMR-NB
 		weight = G729_WEIGHT;
-	else if ((pt == rtpPayloadG726_16) || (pt == rtpPayloadG726_24) || (pt == rtpPayloadG726_32) || (pt == rtpPayloadG726_40))
+	else if ((pt == rtpPayloadG726_16) || (pt == rtpPayloadG726_24) || (pt == rtpPayloadG726_32) || (pt == rtpPayloadG726_40))			// G.726
 		weight = G726_WEIGHT;
-	else if ((pt == rtpPayload_iLBC) || (pt == rtpPayload_iLBC_20ms))
+	else if ((pt == rtpPayload_iLBC) || (pt == rtpPayload_iLBC_20ms))		// iLBC
 		weight = ILBC_WEIGHT;
 	else if ((pt == rtpPayload_SPEEX_NB_RATE2P15) || (pt == rtpPayload_SPEEX_NB_RATE5P95) || (pt == rtpPayload_SPEEX_NB_RATE8) || (pt == rtpPayload_SPEEX_NB_RATE11)
 	      || (pt == rtpPayload_SPEEX_NB_RATE15) || (pt == rtpPayload_SPEEX_NB_RATE18P2) || (pt == rtpPayload_SPEEX_NB_RATE24P6) || (pt == rtpPayload_SPEEX_NB_RATE3P95))
 		weight = SPEEXNB_WEIGHT;
-	else if (pt == rtpPayloadT38_Virtual)
+	else if (pt == rtpPayloadT38_Virtual)								// T.38
 		weight = T38_WEIGHT;
-	else if ((pt >= rtpPayload_AMR_NB_RATE4P75) && (pt <= rtpPayload_AMR_NB_RATE12P2))
-		weight = AMRNB_WEIGHT;
 	else if ((pt >= rtpPayload_AMR_WB_RATE6P6) && (pt <= rtpPayload_AMR_WB_RATE23P85))
 		weight = AMRWB_WEIGHT;
 	else
@@ -56,17 +54,17 @@ int GetCurrentVoipResourceStatus(int pkt_fmt)
 
 int SetVoipResourceWeight(uint32 s_id, int pltype)
 {
-	if ((pltype == rtpPayloadPCMU) || (pltype == rtpPayloadPCMA))
+	if ((pltype == 0) || (pltype == 8))//G.711
 		resource_weight[s_id] = G711_WEIGHT;
-	else if ((pltype == rtpPayloadGSM) ||(pltype == rtpPayloadG723) || (pltype == rtpPayloadG729))
+	else if ((pltype == 3) ||(pltype == 4) || (pltype == 18) || (pltype == rtpPayload_AMR_NB))// G.729, G.723, GSM-FR, AMR-NB
 		resource_weight[s_id] = G729_WEIGHT;
-	else if ((pltype == rtpPayloadG726_16) || (pltype == rtpPayloadG726_24)|| (pltype == rtpPayloadG726_32) || (pltype == rtpPayloadG726_40))
+	else if ((pltype == rtpPayloadG726_16) || (pltype == rtpPayloadG726_24)|| (pltype == rtpPayloadG726_32) || (pltype == rtpPayloadG726_40))//G.726
 		resource_weight[s_id] = G726_WEIGHT;
-	else if ((pltype == rtpPayload_iLBC) || (pltype == rtpPayload_iLBC_20ms))
+	else if ((pltype == rtpPayload_iLBC) || (pltype == rtpPayload_iLBC_20ms))// iLBC
 		resource_weight[s_id] = ILBC_WEIGHT;
-	else if (pltype == rtpPayloadT38_Virtual)
+	else if (pltype == rtpPayloadT38_Virtual)// T.38
 		resource_weight[s_id] = T38_WEIGHT;
-	else if (pltype == rtpPayloadG722)
+	else if (pltype == rtpPayloadG722)// G.722
 		resource_weight[s_id] = G722_WEIGHT;
 	else if ((pltype == rtpPayload_SPEEX_NB_RATE2P15) || 
 		(pltype == rtpPayload_SPEEX_NB_RATE5P95) || 
@@ -77,10 +75,8 @@ int SetVoipResourceWeight(uint32 s_id, int pltype)
 		(pltype == rtpPayload_SPEEX_NB_RATE24P6) || 
 		(pltype == rtpPayload_SPEEX_NB_RATE3P95))
 		resource_weight[s_id] = SPEEXNB_WEIGHT;
-	else if ((pltype == rtpPayloadPCMU_WB) || (pltype == rtpPayloadPCMA_WB))
+	else if ((pltype == rtpPayloadPCMU_WB) || (pltype == rtpPayloadPCMA_WB)) // G.711.1
 		resource_weight[s_id] = G711_WB_WEIGHT;
-	else if ((pltype >= rtpPayload_AMR_NB_RATE4P75) && (pltype <= rtpPayload_AMR_NB_RATE12P2))
-		resource_weight[s_id] = AMRNB_WEIGHT;
 	else if ((pltype >= rtpPayload_AMR_WB_RATE6P6) && (pltype <= rtpPayload_AMR_WB_RATE23P85))
 		resource_weight[s_id] = AMRWB_WEIGHT;
 	else

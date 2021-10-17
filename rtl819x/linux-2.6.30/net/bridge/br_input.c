@@ -30,9 +30,7 @@
 #include <net/rtl/rtl865x_igmpsnooping.h>
 #include <net/rtl/rtl865x_netif.h>
 #include <net/rtl/rtl_nic.h>
-#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
-#include <net/rtl/rtl865x_multicast.h>
-#endif
+
 #if defined (CONFIG_RTL_IGMP_SNOOPING) && defined (CONFIG_NETFILTER)
 #include <linux/netfilter_ipv4/ip_tables.h>
 #endif
@@ -69,10 +67,6 @@ static char ICMPv6_check(struct sk_buff *skb , unsigned char *gmac);
 static char igmp_type_check(struct sk_buff *skb, unsigned char *gmac,unsigned int *gIndex,unsigned int *moreFlag);
 static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, struct net_bridge_port *p, unsigned char *gmac
 									,struct sk_buff *skb);
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-extern int rtl_get_brIgmpModueIndx(struct net_bridge *br);
-extern unsigned int rtl_get_brSwFwdPortMask(struct net_bridge *br);
-#endif
 #endif	//end of CONFIG_RTL_IGMP_SNOOPING
 
 #if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_RTL_ULINKER)
@@ -780,16 +774,7 @@ ap_hcm_out:
 		
 		struct rtl_multicastDataInfo multicastDataInfo;
 		struct rtl_multicastFwdInfo multicastFwdInfo;
-		#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-		unsigned igmpModuleIndex=0xFFFFFFFF;
-		unsigned int swFwdPortMask =0xFFFFFFFF;
-		igmpModuleIndex =rtl_get_brIgmpModueIndx(br);
-		swFwdPortMask = rtl_get_brSwFwdPortMask(br);
-		#endif
-		
-		#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-		rtl865x_tblDrv_mCast_t * existMulticastEntry;
-		#endif	
+
 		if ( !(br->dev->flags & IFF_PROMISC) 
 		 &&MULTICAST_MAC(dest) 
 		&& (eth_hdr(skb)->h_proto == ETH_P_IP))
@@ -864,11 +849,6 @@ ap_hcm_out:
 					}
 				}
 				#endif
-				
-				//panic_printk("br:%s,dev:%s,port:%x[%s]:[%d].\n",br->dev->name,skb->dev->name,p->port_no,__FUNCTION__,__LINE__);
-				#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-				rtl_igmpMldProcess(igmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);
-				#else
                 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 				if(!strcmp(br->dev->name,RTL_PS_BR1_DEV_NAME))
 				{
@@ -879,8 +859,6 @@ ap_hcm_out:
 				else
 				#endif
 				rtl_igmpMldProcess(brIgmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);
-				
-				#endif
 				br_multicast_forward(br, fwdPortMask, skb, 0);
 			}
 			else if(((proto ==IPPROTO_UDP) ||(proto ==IPPROTO_TCP)) && (reserved ==0))
@@ -891,9 +869,6 @@ ap_hcm_out:
 				multicastDataInfo.sourceIp[0]=  (uint32)(iph->saddr);
 				multicastDataInfo.groupAddr[0]=  (uint32)(iph->daddr);
 				
-				#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-				ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-				#else
                 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 				if(!strcmp(br->dev->name,RTL_PS_BR1_DEV_NAME))
 				{
@@ -902,31 +877,8 @@ ap_hcm_out:
 				else
 				#endif
 				ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-				#endif
-				
-				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-				existMulticastEntry=rtl865x_findMCastEntry((uint32)(iph->daddr), (uint32)(iph->saddr), (unsigned short)srcVlanId, (unsigned short)srcPort);
-				if(existMulticastEntry!=NULL)
-				{
-					/*it's already in cache, only forward to wlan */
-					#if defined (CONFIG_RTL_MACCLONE_SWMCAST)
-					
-					#else
-					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-					multicastFwdInfo.fwdPortMask &= swFwdPortMask;
-					#else
-					multicastFwdInfo.fwdPortMask &= br0SwFwdPortMask;	
-					#endif
-					#endif
-				}
-				#endif
-				
 				br_multicast_forward(br, multicastFwdInfo.fwdPortMask, skb, 0);
-				if((ret==SUCCESS)
-				#if !(defined (CONFIG_RTL_HW_MCAST_WIFI))
-					&& (multicastFwdInfo.cpuFlag==0)
-				#endif	
-				)
+				if((ret==SUCCESS) && (multicastFwdInfo.cpuFlag==0))
 				{
 
 					#if defined  (CONFIG_RTL_HARDWARE_MULTICAST)
@@ -992,13 +944,7 @@ ap_hcm_out:
 
 					}
 					#endif
-					
-					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-					rtl_igmpMldProcess(igmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);
-					#else
 					rtl_igmpMldProcess(brIgmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);	
-					#endif
-					
 					br_multicast_forward(br, fwdPortMask, skb, 0);
 				}
 				else if ((proto ==IPPROTO_UDP) ||(proto ==IPPROTO_TCP))
@@ -1006,13 +952,7 @@ ap_hcm_out:
 					multicastDataInfo.ipVersion=6;
 					memcpy(&multicastDataInfo.sourceIp, &ipv6h->saddr, sizeof(struct in6_addr));
 					memcpy(&multicastDataInfo.groupAddr, &ipv6h->daddr, sizeof(struct in6_addr));	
-
-					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-					ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-					#else
 					ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-					#endif
-					
 					br_multicast_forward(br, multicastFwdInfo.fwdPortMask, skb, 0);
 				
 				}
@@ -1605,6 +1545,7 @@ static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, st
 		/*process wlan client leave --- end*/
 
 		/*process entry del , portlist update*/
+		if(dst->portlist != 0){
 		del_igmp_ext_entry(dst , src ,port_comein,0);
 		
 		if (dst->portlist == 0)  // all joined sta are gone
@@ -1612,7 +1553,7 @@ static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, st
 			DEBUG_PRINT("----all joined sta are gone,make it expired after 10 seconds----\n");
 			dst->ageing_timer = jiffies -(300*HZ-M2U_DELAY_DELETE_TIME); // make it expired in 10s		
 		}
-		
+		}
 
 	}
 }

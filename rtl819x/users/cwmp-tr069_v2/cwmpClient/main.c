@@ -2,6 +2,7 @@
 #include "prmt_igd.h"
 #ifdef CONFIG_USER_CWMP_WITH_TR181
 #include "tr181_device.h"
+#include "tr181_mgmtServer.h"
 #endif
 #ifdef CONFIG_MIDDLEWARE
 #include <rtk/midwaredefs.h>
@@ -277,6 +278,22 @@ int main(int argc, char **argv)
 
 		}		
 	}
+
+#ifdef CONFIG_USER_CWMP_WITH_TR181
+#ifdef TR069_ANNEX_G
+	{
+		unsigned int stunEn = 0;
+		
+		if (mib_get(MIB_CWMP_STUN_EN, (void *)&stunEn) != 0)
+		{
+			if (stunEn)
+				cwmpStartStun();
+			else
+				cwmpStopStun();
+		}
+	}
+#endif
+#endif
 
 #ifdef TELEFONICA_DEFAULT_CFG
 //#ifdef WLAN_SUPPORT

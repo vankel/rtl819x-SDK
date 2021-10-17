@@ -310,15 +310,6 @@ void show_registers(const struct pt_regs *regs)
 	       current->comm, current->pid, current_thread_info(), current,
 	      field, current_thread_info()->tp_value);
 
-#ifdef CONFIG_CPU_HAS_TLS
-	{
-		unsigned long tls;
-
-		tls = read_lxc0_userlocal();
-		if (tls != current_thread_info()->tp_value)
-			printk("*HwTLS: %0*lx\n", field, tls);
-	}
-#endif
 	show_stacktrace(current, regs);
 	show_code((unsigned int __user *) regs->cp0_epc);
 	printk("\n");

@@ -1,1 +1,0 @@
-.././libpthread/linuxthreads.old/sysdeps/pthread/pthread.h

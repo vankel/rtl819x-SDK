@@ -1545,7 +1545,6 @@ int rtk_nlsendmsg (int _pid,struct sock *_nl_sk,int _len,void *_send_info)
         return 0;
 }
 EXPORT_SYMBOL(rtk_nlsendmsg);
-
 #ifdef CONFIG_AUTO_DHCP_CHECK
 static int rtk_eventd_pid=0;
 static struct sock *nl_eventd_sk=NULL;
@@ -1640,7 +1639,6 @@ struct sock *rtk_eventd_netlink_init(void)
 EXPORT_SYMBOL(rtk_eventd_netlink_init);
 #endif
 #endif
-
 void
 netlink_kernel_release(struct sock *sk)
 {

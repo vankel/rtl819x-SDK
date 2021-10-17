@@ -25,9 +25,10 @@ struct dhcp_option options[] = {
 #ifdef UDHCPC_STATIC_ROUTE
 	{"fixroute",OPTION_IP | OPTION_REQ,			0x21},
 #endif
+
 /* Aded 20080508 for option 121 */
-#ifdef RFC3442
-#ifdef UDHCPC_RFC_CLASSLESS_STATIC_ROUTE
+#if defined(RFC3442) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) 
+#if defined(UDHCPC_RFC_CLASSLESS_STATIC_ROUTE) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 	{"rfc3442",OPTION_IP | OPTION_REQ,			0x79},
 #endif
 /* ----------------------------------- */
@@ -53,6 +54,9 @@ struct dhcp_option options[] = {
 	{"mtu",		OPTION_U16,				0x1a},
 	{"broadcast",	OPTION_IP | OPTION_REQ,			0x1c},
 	{"ntpsrv",	OPTION_IP | OPTION_LIST,		0x2a},
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+	{"vspecinfo",	OPTION_STRING | OPTION_REQ,		0x2b},
+#endif
 	
 	{"wins",	OPTION_IP | OPTION_LIST|OPTION_REQ,		0x2c},
 	{"nbntype",	OPTION_U8 | OPTION_LIST|OPTION_REQ,		0x2e},

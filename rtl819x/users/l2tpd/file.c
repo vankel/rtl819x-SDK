@@ -31,7 +31,7 @@ struct lns *deflns;
 struct lac *deflac;
 struct global gconfig;
 char filerr[STRLEN];
-
+char wan_iface[32];
 int parse_config (FILE *);
 struct keyword words[];
 
@@ -79,6 +79,16 @@ int init_config ()
     }
     returnedValue = parse_config (f);
     fclose (f);
+
+	/*dzh add to get current wan interface*/
+	{
+		FILE *wP;
+		if((wP = fopen("/var/wan_info","r+")) != NULL)
+		{
+			fscanf(wP,"%s",wan_iface);
+			fclose(wP);
+		}
+	}
     return (returnedValue);
     filerr[0] = 0;
 }

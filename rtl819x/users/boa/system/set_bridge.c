@@ -8,6 +8,8 @@
 #include <memory.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sys/stat.h>
+
 
 #include "apmib.h"
 #include "sysconf.h"
@@ -156,6 +158,293 @@ int SetWlan_idx(char * wlan_iface_name)
 return 1;
 }
 
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+int create_dhcpd_configfile(char *interface)
+{	
+	DHCPS_SERVING_POOL_T entry;
+	int entrynum, i;
+	int k=1, count=0;
+	char line_buffer[512]={0};
+
+	int j, entry_Num, enabled;
+	DHCPRSVDIP_T sdhcp_entry;
+	
+	if(!apmib_get(MIB_DHCPS_SERVING_POOL_TBL_NUM, (void *)&entrynum))
+	{
+		printf("%s:%d apmib_get MIB_DHCPS_SERVING_POOL_TBL_NUM fails!####\n",__FUNCTION__,__LINE__);
+		return 0;
+	}
+	for (i=1; i<=entrynum; i++) 
+	{
+		*((char *)&entry) = (char)i;
+		if(!apmib_get(MIB_DHCPS_SERVING_POOL_TBL, (void *)&entry))
+			continue;		
+
+		if(entry.enable==0)
+			continue;
+
+		if(!(entry.startaddr>0 && entry.endaddr>0 && entry.endaddr>entry.startaddr))
+			continue;
+
+		count++;
+		
+		if(strlen(entry.poolname)>0)
+			sprintf(line_buffer,"poolname %s\n", entry.poolname);
+		else
+			sprintf(line_buffer,"poolname pool%d\n", count);
+		write_line_to_file(DHCPD_CONF_FILE, k, line_buffer);
+
+		if(entry.poolorder>0)
+		{
+			sprintf(line_buffer,"poolorder %d\n", entry.poolorder);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.sourceinterface>0)
+		{
+			sprintf(line_buffer,"sourceinterface %d\n", entry.sourceinterface);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(strlen(entry.vendorclass)>0)
+		{
+			sprintf(line_buffer,"vendorclass %s\n", entry.vendorclass);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.vendorclassflag>0)
+		{
+			sprintf(line_buffer,"vendorclassflag %d\n", entry.vendorclassflag);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}		
+		if(strlen(entry.vendorclassmode)>0)
+		{
+			sprintf(line_buffer,"vendorclassmode %s\n", entry.vendorclassmode);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(strlen(entry.clientid)>0)
+		{
+			sprintf(line_buffer,"clientid %s\n", entry.clientid);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.clientidflag>0)
+		{
+			sprintf(line_buffer,"clientidflag %d\n", entry.clientidflag);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(strlen(entry.userclass)>0)
+		{
+			sprintf(line_buffer,"userclass %s\n", entry.userclass);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.userclassflag>0)
+		{
+			sprintf(line_buffer,"userclassflag %d\n", entry.userclassflag);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(strlen(entry.chaddr)>0)
+		{
+			sprintf(line_buffer,"chaddr %s\n", entry.chaddr);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(strlen(entry.chaddrmask)>0)
+		{
+			sprintf(line_buffer,"chaddrmask %s\n", entry.chaddrmask);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.chaddrflag>0)
+		{
+			sprintf(line_buffer,"chaddrflag %d\n", entry.chaddrflag);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+
+		sprintf(line_buffer,"interface %s\n", interface);
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		
+		sprintf(line_buffer,"start %s\n", inet_ntoa(*((struct in_addr *)&entry.startaddr)));
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		
+		sprintf(line_buffer,"end %s\n", inet_ntoa(*((struct in_addr *)&entry.endaddr)));
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		if(entry.subnetmask>0)
+		{
+			sprintf(line_buffer,"opt subnet %s\n", inet_ntoa(*((struct in_addr *)&entry.subnetmask)));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.iprouter>0)
+		{
+			sprintf(line_buffer,"opt router %s\n", inet_ntoa(*((struct in_addr *)&entry.iprouter)));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.dnsserver1>0)
+		{
+			sprintf(line_buffer,"opt dns %s\n", inet_ntoa(*((struct in_addr *)&entry.dnsserver1)));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.dnsserver2>0)
+		{
+			sprintf(line_buffer,"opt dns %s\n", inet_ntoa(*((struct in_addr *)&entry.dnsserver2)));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.dnsserver3>0)
+		{
+			sprintf(line_buffer,"opt dns %s\n", inet_ntoa(*((struct in_addr *)&entry.dnsserver3)));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(strlen(entry.domainname)>0)
+		{
+			sprintf(line_buffer,"opt domain %s\n", entry.domainname);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		if(entry.leasetime>0)
+		{
+			sprintf(line_buffer,"opt lease %u\n", entry.leasetime*60);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}	
+
+		/*static dhcp entry static_lease 000102030405 192.168.1.199*/
+		apmib_get(MIB_DHCPRSVDIP_ENABLED, (void *)&enabled);
+		if(enabled==1)
+		{
+			apmib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&entry_Num);
+			if(entry_Num>0){
+				for (j=1; j<=entry_Num; j++) 
+				{
+					*((char *)&sdhcp_entry) = (char)j;
+					apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&sdhcp_entry);
+					if(sdhcp_entry.dhcpRsvdIpEntryEnabled==0)
+						continue;
+					sprintf(line_buffer, "static_lease %02x%02x%02x%02x%02x%02x %s\n", sdhcp_entry.macAddr[0], sdhcp_entry.macAddr[1], sdhcp_entry.macAddr[2],
+					sdhcp_entry.macAddr[3], sdhcp_entry.macAddr[4], sdhcp_entry.macAddr[5], inet_ntoa(*((struct in_addr*)sdhcp_entry.ipAddr)));
+					write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+				}
+			}
+		}
+		/*end static dhcp entry*/
+		
+		sprintf(line_buffer,"poolend \n");
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);	
+		k=2;		
+	}
+	return count;
+}
+
+void create_dhcpd_default_configfile(char *interface, int mode)
+{	
+	unsigned int intValue;
+	char line_buffer[128]={0};	
+	struct in_addr addr;
+	int dns_mode=0;
+	char tmp_buff[64]={0};
+	
+	int i, entry_Num;
+	DHCPRSVDIP_T entry;
+	
+	sprintf(line_buffer,"poolname pool1\n");
+	write_line_to_file(DHCPD_CONF_FILE, 1, line_buffer);
+
+	sprintf(line_buffer,"poolorder 1\n");
+	write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);		
+
+	sprintf(line_buffer,"interface %s\n", interface);
+	write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+	
+	apmib_get(MIB_DHCP_CLIENT_START,  (void *)&addr);	
+	sprintf(line_buffer,"start %s\n", inet_ntoa(addr));
+	write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+
+	apmib_get(MIB_DHCP_CLIENT_END,  (void *)&addr);
+	sprintf(line_buffer,"end %s\n", inet_ntoa(addr));
+	write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+
+	apmib_get(MIB_SUBNET_MASK,  (void *)&addr);
+	sprintf(line_buffer,"opt subnet %s\n", inet_ntoa(addr));
+	write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+	
+	apmib_get(MIB_DHCP_LEASE_TIME, (void *)&intValue);
+    	if((intValue==0) || (intValue<0) || (intValue>10080))
+		intValue = 480; //8 hours
+	intValue *= 60;
+    	sprintf(line_buffer,"opt lease %ld\n",intValue);
+    	write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+
+	if(mode==1)
+	{//ap
+		apmib_get(MIB_DEFAULT_GATEWAY,  (void *)&addr);
+		if (addr.s_addr>0)
+		{			
+			sprintf(line_buffer,"opt router %s\n", inet_ntoa(addr));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		else
+		{
+			apmib_get(MIB_IP_ADDR, (void *)&addr);			
+			sprintf(line_buffer,"opt router %s\n", inet_ntoa(addr));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+	}
+	else
+	{
+		apmib_get(MIB_IP_ADDR, (void *)&addr);			
+		sprintf(line_buffer,"opt router %s\n", inet_ntoa(addr));
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+	}
+
+	apmib_get( MIB_DNS_MODE, (void *)&dns_mode);
+	if(dns_mode==0)
+	{		
+		sprintf(line_buffer,"opt dns %s\n", inet_ntoa(addr));
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+	}
+	else
+	{
+		apmib_get(MIB_DNS1, (void *)&addr);
+		if(addr.s_addr>0)
+		{
+			sprintf(line_buffer,"opt dns %s\n", inet_ntoa(addr));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		apmib_get(MIB_DNS2, (void *)&addr);
+		if(addr.s_addr>0)
+		{
+			sprintf(line_buffer,"opt dns %s\n", inet_ntoa(addr));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+		apmib_get(MIB_DNS3, (void *)&addr);
+		if(addr.s_addr>0)
+		{
+			sprintf(line_buffer,"opt dns %s\n", inet_ntoa(addr));
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}
+	}
+	
+	apmib_get( MIB_DOMAIN_NAME, (void *)tmp_buff);
+	if(tmp_buff[0])
+	{
+		sprintf(line_buffer,"opt domain %s\n",tmp_buff);
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+	}	
+
+	/*static dhcp entry static_lease 000102030405 192.168.1.199*/
+	apmib_get(MIB_DHCPRSVDIP_ENABLED, (void *)&intValue);
+	if(intValue==1){
+		apmib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&entry_Num);
+		if(entry_Num>0){
+			for (i=1; i<=entry_Num; i++) {
+				*((char *)&entry) = (char)i;
+				apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&entry);
+				if(entry.dhcpRsvdIpEntryEnabled==0)
+					continue;
+				sprintf(line_buffer, "static_lease %02x%02x%02x%02x%02x%02x %s\n", entry.macAddr[0], entry.macAddr[1], entry.macAddr[2],
+				entry.macAddr[3], entry.macAddr[4], entry.macAddr[5], inet_ntoa(*((struct in_addr*)entry.ipAddr)));
+				write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+			}
+		}
+	}
+	/*end static dhcp entry*/
+	
+	sprintf(line_buffer,"poolend \n");
+	write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);	
+}
+#endif
+
 void set_lan_dhcpd(char *interface, int mode)
 {
 	char tmpBuff1[32]={0}, tmpBuff2[32]={0};
@@ -165,7 +454,7 @@ void set_lan_dhcpd(char *interface, int mode)
 	char tmp2[64]={0};
 	char *strtmp=NULL, *strtmp1=NULL;
 	DHCPRSVDIP_T entry;
-	int i, entry_Num=0;
+	int i, entry_Num=0, ret_val=0;
 #ifdef   HOME_GATEWAY
 	char tmpBuff3[32]={0};
 #endif
@@ -174,10 +463,10 @@ void set_lan_dhcpd(char *interface, int mode)
 	int opmode;
 	int auto_wan;
 	apmib_get(MIB_OP_MODE,(void *)&opmode);
-	if (opmode==GATEWAY_MODE) {
-		apmib_get(MIB_ULINKER_AUTO,(void *)&auto_wan);
+	if (opmode==GATEWAY_MODE || opmode==WISP_MODE) {
 		system("brctl addif br0 usb0 > /dev/null 2>&1");
 	#if 0
+		apmib_get(MIB_ULINKER_AUTO,(void *)&auto_wan);
 		if (auto_wan == 0)
 			system("ifconfig usb0 0.0.0.0 > /dev/null 2>&1");
 	#endif
@@ -190,6 +479,12 @@ void set_lan_dhcpd(char *interface, int mode)
 	system("brctl addif br0 usb0");
 #endif
 
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	ret_val=create_dhcpd_configfile(interface);
+	if(ret_val<1)
+		create_dhcpd_default_configfile(interface, mode);
+#else	
+	
 	sprintf(line_buffer,"interface %s\n",interface);
 	write_line_to_file(DHCPD_CONF_FILE, 1, line_buffer);
 
@@ -251,12 +546,13 @@ void set_lan_dhcpd(char *interface, int mode)
 		}
 #endif
 	}
+	intValue=0;
 	if((mode==1) 
 #if 1
 	||(mode==2 && dns_mode==1)
 #endif
 	){
-#if defined(HOME_GATEWAY) && !defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
+#if defined(HOME_GATEWAY) && !(defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_RTL_ULINKER))
 		apmib_get( MIB_DNS1,  (void *)tmpBuff1);
 		apmib_get( MIB_DNS2,  (void *)tmpBuff2);
 		apmib_get( MIB_DNS3,  (void *)tmpBuff3);
@@ -281,7 +577,7 @@ void set_lan_dhcpd(char *interface, int mode)
 		}
 #endif
 
-#ifdef CONFIG_DOMAIN_NAME_QUERY_SUPPORT
+#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_RTL_ULINKER)
 		apmib_get(MIB_IP_ADDR,  (void *)tmp1);
 		strtmp= inet_ntoa(*((struct in_addr *)tmp1));
 		sprintf(line_buffer,"opt dns %s\n",strtmp); /*now strtmp is ip address value */
@@ -296,6 +592,13 @@ void set_lan_dhcpd(char *interface, int mode)
 					strtmp= inet_ntoa(*((struct in_addr *)tmp2));
 					sprintf(line_buffer,"opt dns %s\n",strtmp);
 					write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+				}else{
+					apmib_get( MIB_IP_ADDR,  (void *)tmp2);
+					if (memcmp(tmp2, "\x0\x0\x0\x0", 4)){
+						strtmp= inet_ntoa(*((struct in_addr *)tmp2));
+						sprintf(line_buffer,"opt dns %s\n",strtmp);
+						write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+					}
 				}
 			}else {
 				apmib_get( MIB_IP_ADDR,  (void *)tmp2);
@@ -328,6 +631,8 @@ void set_lan_dhcpd(char *interface, int mode)
 			}
 		}
 	}
+#endif
+
 	/* may not need to set ip again*/
 	apmib_get(MIB_IP_ADDR,  (void *)tmp1);
 	strtmp= inet_ntoa(*((struct in_addr *)tmp1));
@@ -388,7 +693,6 @@ void set_lan_dhcpc(char *iface)
 	//sprintf(cmdBuff, "udhcpc -i %s -p %s -s %s -n &", iface, pid_file, script_file);
 	sprintf(cmdBuff, "udhcpc -i %s -p %s -s %s &", iface, pid_file, script_file);
 	system(cmdBuff);
-
 #if defined(CONFIG_APP_SIMPLE_CONFIG)
 	system("echo 0 > /var/sc_ip_status");
 #endif
@@ -593,7 +897,7 @@ int setbridge(char *argv)
 
 	}
 #endif
-#if defined(VLAN_CONFIG_SUPPORTED) && defined(CONFIG_RTL_MULTI_LAN_DEV)
+#if defined(VLAN_CONFIG_SUPPORTED) || defined(CONFIG_RTL_MULTI_LAN_DEV)
 	RunSystemCmd(NULL_FILE, "ifconfig", "eth2", "down", NULL_STR);
 	RunSystemCmd(NULL_FILE, "ifconfig", "eth3", "down", NULL_STR);
 	RunSystemCmd(NULL_FILE, "ifconfig", "eth4", "down", NULL_STR);
@@ -692,6 +996,7 @@ int setbridge(char *argv)
 					system(cmdBuffer);
 					
 #if !defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+//for pass thru
 					if(vlan_enabled==1){			
 						if(opmode == GATEWAY_MODE){
 							sprintf(cmdBuffer,"echo \"1 %d %d %d %d %d %d %d\" > /proc/peth0/mib_vlan", VlanisLan,vlan_entry.enabled, vlan_entry.tagged, vlan_entry.vlanId, vlan_entry.priority, vlan_entry.cfi,vlan_entry.forwarding_rule);
@@ -715,6 +1020,7 @@ int setbridge(char *argv)
 						}
 					}
 #endif
+			
 
 				}
 				else
@@ -1293,7 +1599,6 @@ void lan_connect(char *interface, char *option)
 		system("echo 2 > /var/sc_ip_status");
 #endif
 }
-
 #ifdef SUPPORT_ZIONCOM_RUSSIA
 
 void check_l2tp_status()

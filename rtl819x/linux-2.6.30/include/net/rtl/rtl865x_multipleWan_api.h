@@ -130,7 +130,7 @@ typedef struct _rtl_advRoute_entry
 			uint32 _ignoreL4:1, //L3 rule
 				   _ignoreL3L4:1; //L2 rule
 		} DSTFILTER;
-#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
+#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT) ||defined(CONFIG_RTL_MULTIPLE_WAN)
 		struct {
 			uint8	vlanTagPri;
 		} VLANTAG;

@@ -1,15 +1,22 @@
 #
 # Automatically generated make config: don't edit
 # RLX Linux builder
-# Tue Nov 20 14:36:10 2012
+# Tue Apr  7 14:36:03 2015
 #
 
 #
 # Applications
 #
+# CONFIG_SIXRD_SUPPORT is not set
 # CONFIG_APP_AUTH is not set
+# CONFIG_APP_ADAPTER_API is not set
+# CONFIG_APP_WAN_CHECKD is not set
+# CONFIG_APP_AVAHI is not set
 CONFIG_APP_BRCTL=y
+# CONFIG_APP_BLUEZ is not set
 CONFIG_APP_BUSYBOX=y
+# CONFIG_APP_CPU_UTILIZATION is not set
+# CONFIG_DSLITE_SUPPORT is not set
 # CONFIG_APP_LOGIN_CONSOLE is not set
 # CONFIG_APP_CTORRENT is not set
 # CONFIG_APP_DCTS is not set
@@ -18,22 +25,27 @@ CONFIG_APP_BUSYBOX=y
 # CONFIG_APP_DNRD is not set
 # CONFIG_APP_DNSMASQ is not set
 # CONFIG_APP_DOSFSCK is not set
+# CONFIG_APP_EXFAT_FUSE is not set
 # CONFIG_APP_GDBSERVER is not set
-CONFIG_APP_BOA=y
-# CONFIG_APP_BOA_IPV6_SUPPORT is not set
+# CONFIG_APP_GOAHEAD is not set
+# CONFIG_APP_BOA is not set
 # CONFIG_APP_UWIFI is not set
 # CONFIG_APP_ALSA_AUDIO is not set
+# CONFIG_APP_APPLE_MFI_WAC is not set
 # CONFIG_APP_GPROXY is not set
 # CONFIG_APP_MULTIPPPOE is not set
+# CONFIG_APP_MLDPROXY is not set
+# CONFIG_APP_NDP_PROXY is not set
+# CONFIG_APP_NETATALK is not set
 # CONFIG_APP_IAPP is not set
 # CONFIG_APP_IGMPPROXY is not set
-# CONFIG_APP_MLDPROXY is not set
 # CONFIG_APP_IPROUTE is not set
 # CONFIG_APP_IPTABLES is not set
 CONFIG_APP_IWCONTROL=y
 # CONFIG_APP_L2TPD is not set
 # CONFIG_APP_LLTDD is not set
-# CONFIG_APP_MINI_UPNP is not set
+# CONFIG_APP_UPIMAGE is not set
+CONFIG_APP_MINI_UPNP=y
 # CONFIG_APP_MINIIGD is not set
 # CONFIG_APP_MKDOSFS is not set
 CONFIG_APP_MP=y
@@ -68,8 +80,9 @@ CONFIG_APP_WIRELESSTOOLS=y
 # CONFIG_APP_WSC is not set
 # CONFIG_APP_HOSTAPD is not set
 # CONFIG_APP_RTK_VOIP is not set
+# CONFIG_APP_RTL8686_IPC_UTIL is not set
+# CONFIG_APP_TCP2DEV is not set
 # CONFIG_APP_PMC_UTILS is not set
-# CONFIG_APP_HOSTAPD_SLAVE is not set
 # CONFIG_APP_RTK_INBAND_CTL is not set
 # CONFIG_APP_RTK_INBAND_HOST is not set
 # CONFIG_APP_NFBI is not set
@@ -77,6 +90,7 @@ CONFIG_APP_WIRELESSTOOLS=y
 # CONFIG_APP_IOH is not set
 # CONFIG_APP_NMBS is not set
 # CONFIG_APP_AUTORUNIMG is not set
+# CONFIG_APP_SIMPLE_CONFIG is not set
 
 #
 # USB3G support
@@ -94,9 +108,12 @@ CONFIG_APP_WIRELESSTOOLS=y
 #
 # Libraries
 #
+# CONFIG_LIB_CURL is not set
+# CONFIG_LIB_LIBDAEMON is not set
 # CONFIG_LIB_PNG is not set
 # CONFIG_LIB_Z is not set
 # CONFIG_APP_FLEX is not set
+# CONFIG_LIB_FUSE is not set
 
 #
 # Debug & Test
@@ -112,3 +129,4 @@ CONFIG_APP_WIRELESSTOOLS=y
 # CONFIG_APP_MINIDLNA is not set
 # CONFIG_APP_MT_DAAPD is not set
 # CONFIG_APP_SIGMA_UTILS is not set
+# CONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM is not set

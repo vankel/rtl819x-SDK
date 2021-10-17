@@ -96,12 +96,14 @@ static bool tos_mt(const struct sk_buff *skb, const struct xt_match_param *par)
 {
 	const struct xt_tos_match_info *info = par->matchinfo;
 
-	if (par->match->family == NFPROTO_IPV4)
+	if (par->match->family == NFPROTO_IPV4){
 		return ((ip_hdr(skb)->tos & info->tos_mask) ==
 		       info->tos_value) ^ !!info->invert;
-	else
+	}
+	else {
 		return ((ipv6_get_dsfield(ipv6_hdr(skb)) & info->tos_mask) ==
 		       info->tos_value) ^ !!info->invert;
+	}
 }
 
 static struct xt_match dscp_mt_reg[] __read_mostly = {

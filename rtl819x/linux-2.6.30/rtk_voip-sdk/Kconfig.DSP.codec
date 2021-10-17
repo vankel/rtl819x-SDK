@@ -10,11 +10,11 @@ config	RTK_VOIP_G7231
 	def_bool y
 
 config	RTK_VOIP_AMR_NB
-	def_bool y
+	def_bool n
 	depends on REALTEK_VOIP
 
 config	RTK_VOIP_AMR_WB
-	def_bool y
+	bool "G.722.2(AMR-WB)"
 	depends on REALTEK_VOIP
 
 config	RTK_VOIP_RTK_VOIP_SPEEX_NB

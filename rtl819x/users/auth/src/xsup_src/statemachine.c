@@ -182,8 +182,9 @@ int statemachine_init(struct interface_data *newint)
     }
 
   newint->statemachine = (struct dot1x_state *)malloc(sizeof(struct dot1x_state));
+  
   if (newint->statemachine == NULL) return XEMALLOC;
-
+	memset((unsigned char *)newint->statemachine,0,sizeof(struct dot1x_state));
   // Make sure our state machine is in initalize mode.
   newint->statemachine->initialize = 1;
 
@@ -739,7 +740,7 @@ int txRspAuth(struct interface_data *thisint, char *inframe, int insize,
 
       *outsize = (payloadsize + OFFSET_PAST_MAC);
     } else {
-      printf("%s:%d ERROR!\n",__FUNCTION__, __LINE__);
+     debug_printf(DEBUG_STATE,"%s:%d ERROR!\n",__FUNCTION__, __LINE__);
       *outsize = 0;
     }
   return *outsize;

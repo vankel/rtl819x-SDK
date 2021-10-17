@@ -1,0 +1,17 @@
+
+comment "rtl8954e"
+choice
+prompt "Selected Board Configuration"
+default MODEL_RTL8954E_8812_92E_VOIP_GW
+
+config MODEL_RTL8954E_8812_92E_VOIP_GW
+        bool "RTL8954E+8812+92E+VoIP GW"
+
+config MODEL_RTL8198C_MP
+        bool "RTL8198CD/8954E MP"
+	
+# refer to RDC4_3.4/Kconfig
+#   this file "Kconfig" will do "source boards/sheipa2/model/m1074k/config.cpu"
+source "boards/rtl89xxE/config.cpu"
+
+endchoice

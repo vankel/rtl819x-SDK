@@ -1,0 +1,23 @@
+# Makefile for uClibc NPTL
+#
+# Copyright (C) 2006 Steven J. Hill <sjhill@uclibc.org>
+#
+# Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
+#
+
+libpthread_linux_arch_SSRC = pt-vfork.S clone.S
+libpthread_linux_arch_CSRC = pthread_once.c pt-__syscall_rt_sigaction.c
+
+libc_linux_arch_CSRC = fork.c
+libc_linux_arch_SSRC = clone.S vfork.S
+ifneq ($(CONFIG_MIPS_O32_ABI),y)
+libc_linux_arch_SSRC-OMIT = waitpid.S
+endif
+ASFLAGS += -DUSE___THREAD
+
+CFLAGS-OMITx-pthread_once.c = -mips16
+CFLAGS-OMITx-pt-raise.c = -mips16
+CFLAGS-OMITx-pt-__syscall_rt_sigaction.c = -mips16
+CFLAGS-OMITx-pt-vfork.S = -mips16
+CFLAGS-OMITx-clone.S = -mips16
+CFLAGS-OMITx-vfork.S = -mips16

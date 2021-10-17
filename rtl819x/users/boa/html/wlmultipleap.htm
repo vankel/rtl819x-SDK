@@ -4,6 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html">
 <% getIndex("no-cache"); %>
 <title>Multiple AP</title>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -119,10 +120,10 @@ var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
 
 function DisplayTxRate(v_index, band, auto, txrate, rf_num,bound)
 {
-	var mask, defidx, i, rate;
+	var mask=0, defidx=0, i, rate;
 	var vht_num;
-	band = document.MultipleAP.elements["wl_band"+v_index].value;
-	band ++;
+	var option_num = 0;
+	
 	mask=0;
 	if (auto)
 		txrate=0;
@@ -136,17 +137,18 @@ function DisplayTxRate(v_index, band, auto, txrate, rf_num,bound)
 		else
 			mask |= 4;
 	}	
-	defidx=0;
-	for (idx=0, i=0; i<=28; i++) {
+	document.write('<option value="' + 0 + '">' + rate_name[0] + '\n');
+	option_num++;
+	for (idx=1, i=1; i<=28; i++) {
 		if (rate_mask[i] & mask) {
-			if (i == 0)
-				rate = 0;
-			else
-				rate = (1 << (i-1));
-			if (txrate == rate)
+			rate = (1 << (i-1));
+		 	if(txrate == 0)
+            	defidx = 0;
+			 else if (txrate == rate)
 				defidx = idx;
 			document.write('<option value="' + i + '">' + rate_name[i] + '\n');
 			idx++;
+			option_num++;
 		}
 	}
 	if(band & 64){
@@ -154,22 +156,14 @@ function DisplayTxRate(v_index, band, auto, txrate, rf_num,bound)
 			vht_num=9;
 		else
 			vht_num=19; 
-		for (idx=30, i=0; i<=vht_num; i++) {
-		
-				rate = ((1 << 31) + i);
-				
-				if (txrate == rate)
-				{		
-					if(vht_num == 19)
-					defidx = idx-5;
-					else
-						defidx = idx-5-8;
-				}
-				if(bound!=0 || (i!=9 && i!=19))//no MCS9 when 20M
-					document.write('<option value="' + (i+30) + '">' + vht_rate_name[i] + '\n');
-				if(bound==0 && i==9  )
-					idx--;
-				idx++;
+		for (idx=30, i=0; i<=vht_num; i++) {		
+			rate = ((1 << 31) + i);
+			if (txrate == rate){
+				defidx = option_num;
+			}
+			document.write('<option value="' + idx + '">' + vht_rate_name[i] + '\n');
+			idx++;
+			option_num++;
 		}
 	}
 	document.MultipleAP.elements["TxRate"+v_index].selectedIndex=defidx;
@@ -209,9 +203,13 @@ function saveChanges(form, wlan_id)
 				tx_restrict.focus();
 				return false;
 			}
+			else if (validateNum(tx_restrict.value)==0)
+	        {
+	         	tx_restrict.focus();
+	        	return false;
+	        }
 			else if(tx_restrict.value >= 0 && tx_restrict.value <= 1000)
-			{
-				
+			{				
 			}
 			else
 			{
@@ -220,6 +218,7 @@ function saveChanges(form, wlan_id)
 				return false;
 			}
 			
+			
 			rx_restrict = form.elements["rx_restrict"+idx];		
 			if (rx_restrict.value == "") 
 			{
@@ -227,9 +226,14 @@ function saveChanges(form, wlan_id)
 				rx_restrict.focus();
 				return false;
 			}
+			else if (validateNum(rx_restrict.value)==0)
+	        {
+	         	rx_restrict.focus();
+	        	return false;
+	        }
 			else if(rx_restrict.value >= 0 && rx_restrict.value <= 1000)
 			{
-			}
+			}		
 			else
 			{
 				alert('rx_restrict value between 0 to 1000!');
@@ -247,7 +251,6 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
   	var txrate_str;
 	var band, current_value, txrate_idx;
 	var rf_num= <% getIndex("rf_used"); %> ;
-	var bound = <% getIndex("ChannelBonding"); %>;
 
 	txrate_idx = form.elements["TxRate"+wlan_id].selectedIndex;
 	current_value = form.elements["TxRate"+wlan_id].options[txrate_idx].value;
@@ -304,8 +307,7 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS6", "36", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS7", "37", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS8", "38", false, false);
-				 if(bound)//not 20M
-				 	form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS9", "39", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS9", "39", false, false);
 				 if(rf_num == 2){ //8812_1t1r
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS0", "40", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS1", "41", false, false);
@@ -316,8 +318,7 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS6", "46", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS7", "47", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS8", "48", false, false);
-				 if(bound)//not 20M
-				 	form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS9", "49", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS9", "49", false, false);
 				 }
 			}
 
@@ -373,11 +374,17 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
 
   if(band_root ==0){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
-  }else if(band_root ==1 || band_root ==2){
+  }else if(band_root ==1){
+	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);
+  }else if(band_root ==2){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
-  }else if(band_root ==9 || band_root ==10){
+  }else if(band_root ==9){
+	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
+  }else if(band_root ==10){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
@@ -387,29 +394,30 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
   }else if(band_root ==3){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
   }else if(band_root ==7){
-  	var Band2G5GSupport=<% getIndex("Band2G5GSupport"); %>;
-  	if(Band2G5GSupport==1)//2g
-  	{
-  		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
-		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
-		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
-		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
-		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
-		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G+N)", "10", false, false);
-  	}
-  	else if(Band2G5GSupport==2)//5g
-  	{
-  		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
+  var Band2G5GSupport=<% getIndex("Band2G5GSupport"); %>;
+  if(Band2G5GSupport==1)//2g
+  		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
+  else if(Band2G5GSupport==2)//5g
 		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
-		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
-  	}
-  }
-  else if(band_root ==11 ){
+  }else if(band_root ==11){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
   }
-  else if(band_root ==75 || band_root ==63 || band_root ==71 || band_root ==67){
+  else if(band_root ==63){
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+  }
+   else if(band_root ==67){
+  	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
+  	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+AC)", "67", false, false);
+  }
+  else if(band_root ==71){
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N+AC)", "71", false, false);
+  }
+  else if(band_root ==75){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
@@ -426,11 +434,7 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
 			form.elements["wl_band"+index_id].selectedIndex = i;
 			break;
 		}				
-	}
-  	if(i==idx)
-  	{
-  		form.elements["wl_band"+index_id].selectedIndex = idx-1;
-  	}
+	}	
 }
 
 function enableVirtualWLAN(form, virtual_id)
@@ -522,7 +526,7 @@ function updateMultiRepeaterState(form, wlan_id)
 	form.elements["vap1_wlan_mode"].value="AP";      	// vap1 mode str as AP
 	form.elements["vap2_wlan_mode"].value="AP";      	// vap2 mode str as STA
 	form.elements["vap3_wlan_mode"].value="AP";      	// vap3 mode str as STA     	  
-	form.elements["vap4_wlan_mode"].value="AP";      	// vap3 mode str as STA     	  
+	form.elements["vap4_wlan_mode"].value="AP";      	// vap4 default disabled
   }
 }
 
@@ -531,7 +535,7 @@ function updateMultiRepeaterState(form, wlan_id)
 
 <body>
 <blockquote>
-<h2><font color="#0000FF">Multiple APs</font></h2>
+<h2>Multiple APs</h2>
 
 
 <table border=0 width="700" cellspacing=0 cellpadding=0>
@@ -543,7 +547,7 @@ function updateMultiRepeaterState(form, wlan_id)
 <form action=/boafrm/formWlanMultipleAP method=POST name="MultipleAP">
 <input type="hidden" value="<% getIndex("wlan_idx"); %>" name="wlanIdx">		
 <table border='1' width="700"> 
-<tr bgcolor=#7f7f7f>
+<tr class="tbl_head">
    <td align="center"><font size=2><b>No.</b></td>
    <td align="center"><font size=2><b>Enable</b></td>
    <td align="center"><font size=2><b>Band</b></td>
@@ -559,8 +563,8 @@ function updateMultiRepeaterState(form, wlan_id)
 </tr>
 
 <tr>
-	<td height="25" bgcolor="#FFFFFF" align="center" class="MainTd">AP1</td>
-	<td height="25" align="center" bgcolor="#FFFFFF">
+	<td height="25"  align="center" class="MainTd">AP1</td>
+	<td height="25" align="center" >
 		<script type="text/javascript">
 			var wlanDisabled = <% getVirtualIndex("wlanDisabled", "1"); %>;
 			if (wlanDisabled == "0") {
@@ -571,17 +575,17 @@ function updateMultiRepeaterState(form, wlan_id)
 			}
 		</script>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_band1 onChange="showtxrate_updated_virtual(document.MultipleAP, 1, virtual_wmm_enable[1])">
 			<script>
 				showBand_MultipleAP(document.MultipleAP, wlan_idx, bandIdx[wlan_idx], 1);
      			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="wl_ssid1" size="10" maxlength="32" value="<% getVirtualInfo("ssid", "1"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name="TxRate1">
 			<script>
 	    				band = <% getVirtualIndex("band", "1"); %>;
@@ -594,7 +598,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_hide_ssid1>
 			<option value="1">Disabled</option>
 			<option value="0">Enabled</option>
@@ -608,7 +612,7 @@ function updateMultiRepeaterState(form, wlan_id)
 		</select>
 	</td>
 	
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_wmm_capable1>
 			<option value="0">Disabled</option>
 			<option value="1">Enabled</option>
@@ -621,7 +625,7 @@ function updateMultiRepeaterState(form, wlan_id)
 		</select>
 	</td>
 
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_access1>
 			<option value="0">LAN+WAN</option>
 			<option value="1">WAN</option>
@@ -633,17 +637,17 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
-		<input type="text" name="tx_restrict1" size="4" maxlength="3" value="<% getVirtualInfo("tx_restrict", "1"); %>">
+	<td height="25" align="center"  class="MainTd">
+		<input type="text" name="tx_restrict1" size="4" maxlength="4" value="<% getVirtualInfo("tx_restrict", "1"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
-		<input type="text" name="rx_restrict1" size="4" maxlength="3" value="<% getVirtualInfo("rx_restrict", "1"); %>">
+	<td height="25" align="center"  class="MainTd">
+		<input type="text" name="rx_restrict1" size="4" maxlength="4" value="<% getVirtualInfo("rx_restrict", "1"); %>">
 	</td>
-	  <td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	  <td height="25" align="center"  class="MainTd">
 		<input type="hidden" value="1" name="vap">	
 		<input type="button" value="Show" name="aclient1" onClick="open_client_table(1);">
       </td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="vap1_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "1"); %>">
 	</td>
 
@@ -657,8 +661,8 @@ function updateMultiRepeaterState(form, wlan_id)
   }
 </script>
 <tr>
-	<td height="25" bgcolor="#FFFFFF" align="center" class="MainTd">AP2</td>
-	<td height="25" align="center" bgcolor="#FFFFFF">
+	<td height="25"  align="center" class="MainTd">AP2</td>
+	<td height="25" align="center" >
 		<script type="text/javascript">
 			var wlanDisabled = <% getVirtualIndex("wlanDisabled", "2"); %>;
 			if (wlanDisabled == "0") {
@@ -669,17 +673,17 @@ function updateMultiRepeaterState(form, wlan_id)
 			}
 		</script>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_band2 onChange="showtxrate_updated_virtual(document.MultipleAP, 2, virtual_wmm_enable[2])">
 			<script>
 				showBand_MultipleAP(document.MultipleAP, wlan_idx, bandIdx[wlan_idx], 2);
      			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="wl_ssid2" size="10" maxlength="32" value="<% getVirtualInfo("ssid", "2"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name="TxRate2">
 			<script>
 				band = <% getVirtualIndex("band", "2"); %>;
@@ -692,7 +696,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_hide_ssid2>
 			<option value="1">Disabled</option>
 			<option value="0">Enabled</option>
@@ -705,7 +709,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_wmm_capable2>
 			<option value="0">Disabled</option>
 			<option value="1">Enabled</option>
@@ -717,7 +721,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_access2>
 			<option value="0">LAN+WAN</option>
 			<option value="1">WAN</option>
@@ -729,24 +733,24 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>	
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
-		<input type="text" name="tx_restrict2" size="4" maxlength="3" value="<% getVirtualInfo("tx_restrict", "2"); %>">
+	<td height="25" align="center"  class="MainTd">
+		<input type="text" name="tx_restrict2" size="4" maxlength="4" value="<% getVirtualInfo("tx_restrict", "2"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
-		<input type="text" name="rx_restrict2" size="4" maxlength="3" value="<% getVirtualInfo("rx_restrict", "2"); %>">
+	<td height="25" align="center"  class="MainTd">
+		<input type="text" name="rx_restrict2" size="4" maxlength="4" value="<% getVirtualInfo("rx_restrict", "2"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="button" value="Show" name="aclient2" onClick="open_client_table(2);">
       </td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="vap2_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "2"); %>">
 	</td>
 	
 
 </tr>
 <tr>
-	<td height="25" bgcolor="#FFFFFF" align="center" class="MainTd">AP3</td>
-	<td height="25" align="center" bgcolor="#FFFFFF">
+	<td height="25"  align="center" class="MainTd">AP3</td>
+	<td height="25" align="center" >
 		<script type="text/javascript">
 			var wlanDisabled = <% getVirtualIndex("wlanDisabled", "3"); %>;
 			if (wlanDisabled == "0") {
@@ -757,17 +761,17 @@ function updateMultiRepeaterState(form, wlan_id)
 			}
 		</script>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_band3 onChange="showtxrate_updated_virtual(document.MultipleAP, 3, virtual_wmm_enable[3])">
 			<script>
 				showBand_MultipleAP(document.MultipleAP, wlan_idx, bandIdx[wlan_idx], 3);
      			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="wl_ssid3" size="10" maxlength="32" value="<% getVirtualInfo("ssid", "3"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name="TxRate3">
 			<script>
 				band = <% getVirtualIndex("band", "3"); %>;
@@ -780,7 +784,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_hide_ssid3>
 			<option value="1">Disabled</option>
 			<option value="0">Enabled</option>
@@ -793,7 +797,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_wmm_capable3>
 			<option value="0">Disabled</option>
 			<option value="1">Enabled</option>
@@ -805,7 +809,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_access3>
 			<option value="0">LAN+WAN</option>
 			<option value="1">WAN</option>
@@ -817,16 +821,16 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>	
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="tx_restrict3" size="4" maxlength="3" value="<% getVirtualInfo("tx_restrict", "3"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="rx_restrict3" size="4" maxlength="3" value="<% getVirtualInfo("rx_restrict", "3"); %>">
 	</td>	
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="button" value="Show" name="aclient3" onClick="open_client_table(3);">
       </td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="vap3_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "3"); %>">
 	</td>
 	
@@ -834,8 +838,8 @@ function updateMultiRepeaterState(form, wlan_id)
 </tr>
 
 <tr>
-	<td height="25" bgcolor="#FFFFFF" align="center" class="MainTd">AP4</td>
-	<td height="25" align="center" bgcolor="#FFFFFF">
+	<td height="25"  align="center" class="MainTd">AP4</td>
+	<td height="25" align="center" >
 		<script type="text/javascript">
 			var wlanDisabled = <% getVirtualIndex("wlanDisabled", "4"); %>;
 			if (wlanDisabled == "0") {
@@ -846,17 +850,17 @@ function updateMultiRepeaterState(form, wlan_id)
 			}
 		</script>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_band4 onChange="showtxrate_updated_virtual(document.MultipleAP, 4, virtual_wmm_enable[4])">
 			<script>
 				showBand_MultipleAP(document.MultipleAP, wlan_idx, bandIdx[wlan_idx], 4);
      			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="wl_ssid4" size="10" maxlength="32" value="<% getVirtualInfo("ssid", "4"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name="TxRate4">
 			<script>
 				band = <% getVirtualIndex("band", "4"); %>;
@@ -869,7 +873,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_hide_ssid4>
 			<option value="1">Disabled</option>
 			<option value="0">Enabled</option>
@@ -882,7 +886,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_wmm_capable4>
 			<option value="0">Disabled</option>
 			<option value="1">Enabled</option>
@@ -894,7 +898,7 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<select name=wl_access4>
 			<option value="0">LAN+WAN</option>
 			<option value="1">WAN</option>
@@ -906,16 +910,16 @@ function updateMultiRepeaterState(form, wlan_id)
 			</script>
 		</select>
 	</td>	
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="tx_restrict4" size="4" maxlength="3" value="<% getVirtualInfo("tx_restrict", "4"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="rx_restrict4" size="4" maxlength="3" value="<% getVirtualInfo("rx_restrict", "4"); %>">
 	</td>	
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="button" value="Show" name="aclient4" onClick="open_client_table(4);">
       </td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	<td height="25" align="center"  class="MainTd">
 		<input type="text" name="vap4_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "4"); %>">
 	</td>
 	
@@ -952,6 +956,7 @@ function updateMultiRepeaterState(form, wlan_id)
 	<br>	  
   <input type="submit" value="Apply Changes" name="save" onClick="return saveChanges(document.MultipleAP, wlan_idx)">&nbsp;&nbsp;
   <input type="button" value="Reset" name="reset1" onClick="click_reset();">&nbsp;&nbsp;  
+
   <!-- <input type="button" value=" Close " name="close" onClick="javascript: window.close();"> -->
 </form>
 </blockquote>

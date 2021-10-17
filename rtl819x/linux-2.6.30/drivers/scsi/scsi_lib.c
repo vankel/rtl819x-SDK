@@ -2025,7 +2025,6 @@ scsi_test_unit_ready(struct scsi_device *sdev, int timeout, int retries,
 	} while (scsi_sense_valid(sshdr) &&
 		 sshdr->sense_key == UNIT_ATTENTION && --retries);
 
-#ifndef CONFIG_KERNEL_POLLING
 	if (!sshdr)
 		/* could not allocate sense buffer, so can't process it */
 		return result;
@@ -2036,7 +2035,6 @@ scsi_test_unit_ready(struct scsi_device *sdev, int timeout, int retries,
 		sdev->changed = 1;
 		result = 0;
 	}
-#endif
 	if (!sshdr_external)
 		kfree(sshdr);
 	return result;

@@ -1,0 +1,2 @@
+#define VOIP_VERSION "VoIP-1.6.6-R12621"
+#define SYS_VERSION "v3.4"

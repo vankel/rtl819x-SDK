@@ -45,6 +45,18 @@
 #endif
 #include "l2Driver/rtl865x_fdb.h"
 #include <net/rtl/rtl865x_fdb_api.h>
+#include <linux/version.h>
+#if defined(CONFIG_RTL_8198C)
+#include "rtl8198c_arpIpv6.h"
+#include "rtl8198c_nexthopIpv6.h"
+#endif
+
+#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+#ifdef CONFIG_RTL_HW_DSLITE_SUPPORT
+#include "l3Driver/rtl865x_dslite.h"
+extern inv6_addr_t gw_ipv6_addr;
+#endif
+#endif
 
 static rtl865x_nextHopEntry_t *rtl865x_nxtHopTable;
 
@@ -53,7 +65,14 @@ static int32 _rtl865x_nextHop_register_event(void);
 static int32 _rtl865x_nextHop_unRegister_event(void);
 static int32 _rtl865x_delNxtHop(uint32 attr, uint32 entryIdx);
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 static RTL_DECLARE_MUTEX(nxthop_sem);
+#endif
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3,4,0)
+extern int32 _rtl865x_referPpp(uint32 sessionId);
+extern int32 _rtl865x_deReferPpp(uint32 sessionId);
+#endif
 
 #if 0
 static void _print_softNxtHop(void)
@@ -152,10 +171,32 @@ static int32 _rtl865x_synNxtHopToAsic(rtl865x_nextHopEntry_t *entry_t)
 		
 		asic.nextHopRow = rtl8651_filterDbIndex( (ret_arpFound == SUCCESS)? &arp_t.mac : &reservedMac, fid );
 		asic.nextHopColumn = (retval == SUCCESS)? columIdx: 0;
-
 		asic.isPppoe = FALSE;
 		asic.pppoeIdx = 0;
+		
 	}
+#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+
+	else if (entry_t->nextHopType == IF_DSLT)
+	{
+		rtl8198c_ipv6_arpMapping_entry_t arp_t;
+		int32 ret_arpFound = FAILED;
+		/*if the arp info of nexthop is not found, reserved to cpu Mac is used for trap packet to CPU*/
+
+		ret_arpFound = rtl8198c_dslite_Ipv6ArpMapping(gw_ipv6_addr, &arp_t);
+		rtl865x_getVlanFilterDatabaseId(entry_t->dstNetif->vid,&fid);
+		retval = rtl865x_Lookup_fdb_entry(fid, (ret_arpFound == SUCCESS)? &arp_t.mac : &reservedMac, FDB_DYNAMIC, &columIdx,&asic_l2);
+
+		asic.nextHopRow = rtl8651_filterDbIndex( (ret_arpFound == SUCCESS)? &arp_t.mac : &reservedMac, fid );
+		asic.nextHopColumn = (retval == SUCCESS)? columIdx: 0;
+		asic.isPppoe = FALSE;
+		asic.pppoeIdx = 0;
+		
+		//printk("%d,%d,[%s]:[%d].\n",asic.nextHopRow,asic.nextHopColumn,__FUNCTION__,__LINE__);
+	}
+#endif
+#endif
 	else
 	{	
 		/*session based interface type*/
@@ -304,6 +345,11 @@ found:
 	switch(netif->if_type)
 	{
 		case IF_ETHER:
+	#if defined(CONFIG_RTL_8198C)
+	#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+		case IF_DSLT:
+	#endif
+	#endif
 			entry->nexthop = nexthop;
 			break;
 		case IF_PPPOE:
@@ -329,8 +375,13 @@ found:
 		if((entry1->nextHopType == IF_PPPOE)
 			|| (entry1->nextHopType == IF_PPTP)
 			|| (entry1->nextHopType == IF_L2TP)
-			)
+			){
+			#if LINUX_VERSION_CODE > KERNEL_VERSION(3,4,0)
+			_rtl865x_referPpp(nexthop);
+			#else
 			rtl865x_referPpp(nexthop);
+			#endif
+		}
 		
 		/*FIXME_hyking:lazy, update the route information right here....*/
 		rt_t = (rtl865x_route_t *)ref_ptr;
@@ -345,8 +396,13 @@ found:
 	if((entry->nextHopType == IF_PPPOE)
 			|| (entry->nextHopType == IF_PPTP)
 			|| (entry->nextHopType == IF_L2TP)
-			)
-		rtl865x_referPpp(nexthop);
+			){
+			#if LINUX_VERSION_CODE > KERNEL_VERSION(3,4,0)
+			_rtl865x_referPpp(nexthop);
+			#else
+			rtl865x_referPpp(nexthop);
+			#endif
+	}
 	
 	return SUCCESS;
 	
@@ -380,7 +436,12 @@ static int32 _rtl865x_delNxtHop(uint32 attr, uint32 entryIdx)
 			|| (entry->nextHopType == IF_L2TP)
 			)
 	{
+		
+		#if LINUX_VERSION_CODE > KERNEL_VERSION(3,4,0)
+		_rtl865x_deReferPpp(entry->nexthop);
+		#else
 		rtl865x_deReferPpp(entry->nexthop);
+		#endif
 		
 	}
 
@@ -575,7 +636,7 @@ static int32 _rtl865x_eventHandle_delArp(void *param)
 	entry = rtl865x_nxtHopTable;
 	for(i = 0; i < NXTHOP_ENTRY_NUM; i++,entry++)
 	{
-		if(entry->valid && entry->nextHopType == IF_ETHER)
+		if((entry->valid && entry->nextHopType == IF_ETHER))
 		{
 			/*update nexthop*/
 			if(entry->nexthop == arp->ip)
@@ -686,12 +747,12 @@ static int32 _rtl865x_nextHop_unRegister_event(void)
 int32 rtl865x_addNxtHop(uint32 attr, void *ref_ptr, rtl865x_netif_local_t *netif, uint32 nexthop,uint32 srcIp)
 {
 	int32 ret = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//rtl_down_interruptible(&nxthop_sem);	
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	ret = _rtl865x_addNxtHop(attr,ref_ptr,netif,nexthop,srcIp);	
 	//rtl_up(&nxthop_sem);	
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return ret;
 }
 
@@ -706,12 +767,12 @@ int32 rtl865x_addNxtHop(uint32 attr, void *ref_ptr, rtl865x_netif_local_t *netif
 int32 rtl865x_delNxtHop(uint32 attr, uint32 entryIdx)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//rtl_down_interruptible(&nxthop_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_delNxtHop(attr,entryIdx);
 	//rtl_up(&nxthop_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return retval;	
 }
 
@@ -737,3 +798,139 @@ int32 rtl865x_getNxtHopIdx(uint32 attr, rtl865x_netif_local_t *netif, uint32 nex
 
 #endif
 
+#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+int32 _rtl865x_eventHandle_addIpv6Arp(rtl8198c_ipv6_arpMapping_entry_t * arp)
+{
+	rtl865x_nextHopEntry_t *entry;
+	int32 i;
+	int32 dsltIndex=FAILED;
+	rtl865x_dslite_s * dsltEntry=NULL;
+	if(arp == NULL)
+		return EVENT_CONTINUE_EXECUTE;
+	
+	entry = rtl865x_nxtHopTable;
+	for(i = 0; i < NXTHOP_ENTRY_NUM; i++,entry++)
+	{	
+		if(entry->valid && entry->nextHopType == IF_DSLT)
+		{
+			/*update nexthop*/
+			if(entry->nexthop )
+			{
+				dsltIndex=_rtl865x_getIpv6DsLiteEntryByName(entry->dstNetif->name);
+				if(dsltIndex!=FAILED)
+					dsltEntry=_rtl865x_getIpv6DsLiteEntryByIndex(dsltIndex);
+		
+				if(dsltEntry)
+				{						
+					if(memcmp(&gw_ipv6_addr, &arp->ip, sizeof(inv6_addr_t))==0)
+				    {						
+						_rtl865x_synNxtHopToAsic(entry);
+					}	
+				}
+			}
+		}		
+	}
+	return EVENT_CONTINUE_EXECUTE;
+}
+
+int32 _rtl865x_eventHandle_delIpv6Arp(rtl8198c_ipv6_arpMapping_entry_t * arp)
+{
+	rtl865x_nextHopEntry_t *entry;
+	int32 i;
+	int32 dsltIndex=FAILED;
+	rtl865x_dslite_s * dsltEntry=NULL;
+	
+	if(arp == NULL)
+		return EVENT_CONTINUE_EXECUTE;
+	
+	entry = rtl865x_nxtHopTable;
+	for(i = 0; i < NXTHOP_ENTRY_NUM; i++,entry++)
+	{
+		if(entry->valid && entry->nextHopType == IF_DSLT)
+		{
+			/*update nexthop*/
+			dsltIndex=_rtl865x_getIpv6DsLiteEntryByName(entry->dstNetif->name);
+			if(dsltIndex!=FAILED)
+				dsltEntry=_rtl865x_getIpv6DsLiteEntryByIndex(dsltIndex);
+			
+			if(dsltEntry)
+			{
+				if(memcmp(&gw_ipv6_addr, &arp->ip, sizeof(inv6_addr_t))==0)
+				{
+					/*reset the gw ipv6 address to reset the default gw L3 nexthop info*/
+					memset(&gw_ipv6_addr,0,sizeof(inv6_addr_t));
+					_rtl865x_synNxtHopToAsic(entry);
+				}
+			}
+		}		
+	}
+	return EVENT_CONTINUE_EXECUTE;
+}
+#endif
+#endif
+
+#ifdef CONFIG_RTL_PROC_NEW
+int32 sw_nexthop_read(struct seq_file *s, void *v)
+{
+
+
+	uint32 idx;
+	rtl865x_nextHopEntry_t *sw_nxthop = NULL;
+
+	seq_printf(s, "%s\n", "SW Next Hop Table:\n");
+	for(idx = 0; idx < NXTHOP_ENTRY_NUM; idx++)
+	{
+		if(rtl865x_nxtHopTable[idx].valid == 0)
+			continue;
+		#if 0
+		{
+	rtl865x_netif_local_t *dstNetif;	/* dst network interface*/
+	uint32	nexthop;			/* ethernet: nexthop ip address, pppoe: session Id */
+	//rtl865x_ip_entry_t *srcIp_t;		/* for nexthop source ip table index, it's invalid  now*/
+	uint32 srcIp;		/* for nexthop source ip table index*/
+
+	uint16 valid:1,		/* 0: Invalid, 1: Invalid */	
+		nextHopType:3,			/* IF_ETHER, IF_PPPOE */
+		flag:3;			/* bit0:referenced by l3, bit2:referenced by acl */
+
+	uint16	refCnt;			/* Reference Count */
+	uint32	entryIndex;			/* Entry Index */
+
+}
+#endif		
+		sw_nxthop =&rtl865x_nxtHopTable[idx];
+		seq_printf(s,"  [%d]  entryIndex(%d)  type(%d) netif(%s) srcIp(%x)  nextHop(%x) \n", idx,
+			sw_nxthop->nextHopType,sw_nxthop->entryIndex,sw_nxthop->dstNetif->name,
+			sw_nxthop->srcIp, sw_nxthop->nexthop);
+	}
+
+	return 0;
+}
+#else
+int32 sw_nexthop_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	rtl865x_nextHopEntry_t *sw_nxthop=NULL;
+
+	uint32 idx;
+
+	len = sprintf(page, "%s\n", "SW Next Hop Table:\n");
+	for(idx = 0; idx < NXTHOP_ENTRY_NUM; idx++)
+	{
+		if(rtl865x_nxtHopTable[idx].valid == 0)
+			continue;
+		sw_nxthop =&rtl865x_nxtHopTable[idx];
+		len += sprintf(page + len,"  [%d]  entryIndex(%d)  type(%d) netif(%s) srcIp(%d)  nextHop(%d) n", idx,
+			sw_nxthop->nextHopType,sw_nxthop->entryIndex,sw_nxthop->dstNetif->name,
+			sw_nxthop->srcIp, sw_nxthop->nexthop);
+	}
+
+	return len;
+}
+#endif
+
+int32 sw_nexthop_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	return len;
+}

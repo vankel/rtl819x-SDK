@@ -9,6 +9,13 @@ MAN = man
 
 CFLAGS := -Os $(CFLAGS)
 
+ifeq ($(KERNEL_VER),linux-2.6.30)
+CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+CFLAGS += -DKERNEL_3_10
+endif
+
 all :   dnsmasq
 
 dnsmasq :

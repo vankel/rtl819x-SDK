@@ -12,6 +12,13 @@
 
 #include "dnsmasq.h"
 
+#ifdef KERNEL_3_10
+struct in6_pktinfo {
+	struct in6_addr	ipi6_addr;
+	int		ipi6_ifindex;
+};
+#endif
+
 static struct frec *frec_list = NULL;
 
 static struct frec *get_new_frec(struct daemon *daemon, time_t now);

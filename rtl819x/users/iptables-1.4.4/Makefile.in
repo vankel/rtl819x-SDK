@@ -15,8 +15,13 @@
 @SET_MAKE@
 
 # -*- Makefile -*-
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+KERNEL_VER=linux-2.6.30
+else
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+endif
 
-
+export KERNEL_VER
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -324,7 +329,12 @@ includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
 kbuilddir = @kbuilddir@
+ifeq ($(KERNEL_VER),linux-2.6.30)
 kinclude_CFLAGS = @kinclude_CFLAGS@
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+kinclude_CFLAGS = @kinclude_CFLAGS@/uapi
+endif
 ksourcedir = @ksourcedir@
 libdir = @libdir@
 libexecdir = @libexecdir@
@@ -416,6 +426,8 @@ CLEANFILES = iptables.8 ip6tables.8
 pkgconfig_DATA = libiptc.pc xtables.pc
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
+romfs:
+	$(ROMFSINST) iptables-static /bin/iptables
 
 .SUFFIXES:
 .SUFFIXES: .c .lo .o .obj
@@ -1407,6 +1419,8 @@ maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-recursive
+	-rm -f iptables_config_done
+	-rm -f ip6tables_config_done
 
 clean-am: clean-binPROGRAMS clean-generic clean-libLTLIBRARIES \
 	clean-libtool clean-noinstPROGRAMS clean-sbinPROGRAMS \

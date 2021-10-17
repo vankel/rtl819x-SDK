@@ -235,7 +235,7 @@ main(int argc, char *argv[])
 	if (get_debuglevel() == 0) {
 
 		/* Detach from controlling terminal */
-		if (daemon(0, 0) < 0)
+		if (daemon(0, 0) < 0)  
 			perror("daemon");
 
 		/*
@@ -370,6 +370,10 @@ stop_adverts(void)
 			if (iface->AdvSendAdvert) {
 				/* send a final advertisement with zero Router Lifetime */
 				iface->AdvDefaultLifetime = 0;
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+				/* add for RFC6092 L-13 */
+				iface->cease_adv = 1;
+#endif
 				send_ra(sock, iface, NULL);
 			}
 		}
@@ -403,6 +407,12 @@ void reload_config(void)
 		struct Interface *next_iface = iface->next;
 		struct AdvPrefix *prefix;
 		struct AdvRoute *route;
+#ifdef SUPPORT_RDNSS_OPTION
+		struct AdvRDNSS *rdnss;
+#endif
+#ifdef SUPPORT_DNSSL_OPTION
+		struct AdvDNSSL *dnssl;
+#endif
 
 		dlog(LOG_DEBUG, 4, "freeing interface %s", iface->Name);
 		
@@ -423,7 +433,31 @@ void reload_config(void)
 			free(route);
 			route = next_route;
 		}  
+#ifdef SUPPORT_RDNSS_OPTION
+		rdnss = iface->AdvRDNSSList;
+		while (rdnss)
+		{
+			struct AdvRDNSS *next_rdnss = rdnss->next;
 
+			free(rdnss);
+			rdnss = next_rdnss;
+		}
+#endif
+#ifdef SUPPORT_DNSSL_OPTION
+		dnssl = iface->AdvDNSSLList;
+		while (dnssl)
+		{
+			struct AdvDNSSL *next_dnssl = dnssl->next;
+			int i;
+
+			for (i = 0; i < dnssl->AdvDNSSLNumber; i++)
+				free(dnssl->AdvDNSSLSuffixes[i]);
+			free(dnssl->AdvDNSSLSuffixes);
+			free(dnssl);
+
+			dnssl = next_dnssl;
+		}
+#endif
 		free(iface);
 		iface = next_iface;
 	}
@@ -572,6 +606,68 @@ check_ip6_forwarding(void)
 		
 	return(0);
 }
+
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+int
+check_wan_addr()
+{
+	int value = 0;
+	char buf[512];
+	char fe80[] = "fe80";
+	char wan_if[] = "eth1";
+	FILE *fp = NULL;
+
+	fp = fopen(PROC_NET_WAN_ADDR, "r");
+	if (fp) {
+		while(!feof(fp))
+		{
+			fgets(buf, sizeof buf, fp);	/* get line */
+
+			if((strncmp(buf, fe80, strlen(fe80)) != 0)
+				&& (strstr(buf, wan_if)))
+			{
+				value = 1;
+				break;
+			}
+		}
+		fclose(fp);
+	}
+	else
+		flog(LOG_DEBUG, "Open %s fail!", PROC_NET_WAN_ADDR);
+
+	return value;
+}
+
+int
+check_default_router()
+{
+	int value = 0;
+	char buf[512];
+	char zero[] = "00000000000000000000000000000000";
+	char wan_if[] = "eth1";
+	FILE *fp = NULL;
+
+	fp = fopen(PROC_NET_DEF_ROUTER, "r");
+	if (fp) {
+		while(!feof(fp))
+		{
+			fgets(buf, sizeof buf, fp); /* get line */
+
+			if((strncmp(buf, zero, strlen(zero)) == 0)
+				&& (strstr(buf, wan_if)))
+			{
+				value = 1;
+				break;
+			}
+		}
+		fclose(fp);
+	}
+	else
+		flog(LOG_DEBUG, "Open %s fail!", PROC_NET_DEF_ROUTER);
+
+	return value;
+}
+#endif
 
 int
 readin_config(char *fname)

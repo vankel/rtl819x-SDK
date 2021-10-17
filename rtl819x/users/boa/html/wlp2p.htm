@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Wifi Direct</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 
 function init()
@@ -74,7 +75,7 @@ function init()
 						continue;
 					}
 					if(get_by_id("operationChannel_select"))
-			get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+						get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 				}
 			}
 			else
@@ -386,7 +387,7 @@ function __update_page()
 
 <body onload="init(); loadSetting();">
 <blockquote>
-<h2><font color="#0000FF">Wifi Direct</font></h2>
+<h2>Wifi Direct</h2>
 
 <form action=/boafrm/formWiFiDirect method=POST name="formWiFiDirect">	
 <input type="hidden" value="/wlp2p.htm" name="submit-url">

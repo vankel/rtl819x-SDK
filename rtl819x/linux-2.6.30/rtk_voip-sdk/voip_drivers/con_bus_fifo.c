@@ -60,14 +60,6 @@ label_tx_done:
 		rx_fifo_cnt_w[cch]=3; 
 	else
 		rx_fifo_cnt_w[cch]=0; 
-#elif DTMF_REMOVAL_FORWARD_SIZE == 1
-	/* If odd removal length, one is given as initial value. */
-	extern unsigned char dtmf_removal_flag[];
-	
-	if (dtmf_removal_flag[cch] == 1)
-		rx_fifo_cnt_w[cch]=1; 
-	else
-		rx_fifo_cnt_w[cch]=0; 
 #elif PCM_PERIOD == 1
 	rx_fifo_cnt_w[cch]=0; 
 #else

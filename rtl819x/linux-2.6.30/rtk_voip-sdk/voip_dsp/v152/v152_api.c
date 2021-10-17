@@ -290,7 +290,7 @@ static inline void V152_SwitchCodecNow( int s_id, int stAudio )
 	if( stAudio ) {	// Audio need do more (check do_mgr_VOIP_MGR_ON_HOOK_RE_INIT())
 		extern uint32 chanInfo_GetChannelbySession(uint32 sid);
 		extern void Init_CED_Det(unsigned char CH);	//thlin+ 2006-02-08
-		extern EcObj_t RtkEcObj[];
+		extern LecObj_t RtkLecObj[];
 		extern void NR_re_init(unsigned int chid);
 		extern int reinit_answer_tone_det(unsigned int chid);
 		
@@ -301,10 +301,10 @@ static inline void V152_SwitchCodecNow( int s_id, int stAudio )
 		
 #ifdef SUPPORT_LEC_G168_ISR
 		//LEC_re_init( chid );
-		RtkEcObj[chid].EC_G168ReInit( chid );
+		RtkLecObj[chid].EC_G168ReInit( chid );
 #endif
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-		RtkEcObj[chid].EC_G168NlpInit( chid, nDspChCfgBak[chid].ecBak.Attack_Stepsize_bak, 
+		RtkLecObj[chid].EC_G168NlpInit( chid, nDspChCfgBak[chid].ecBak.Attack_Stepsize_bak, 
 									nDspChCfgBak[chid].ecBak.Release_Stepsize_bak,
 									nDspChCfgBak[chid].ecBak.lec_g168_cng_flag_bak );
 #endif

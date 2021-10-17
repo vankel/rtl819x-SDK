@@ -100,6 +100,9 @@ asp_name_t root_asp[] = {
 #ifdef ROUTE_SUPPORT
 	{"staticRouteList", staticRouteList},
 	{"kernelRouteList", kernelRouteList},
+#ifdef RIP6_SUPPORT
+	{"kernelRoute6List", kernelRoute6List},
+#endif
 #endif
 #if defined(GW_QOS_ENGINE)
 	{"qosList", qosList},
@@ -146,6 +149,21 @@ asp_name_t root_asp[] = {
 	{"voip_TLSGetCertInfo", asp_voip_TLSGetCertInfo},
 #endif
 #endif
+#ifdef SAMBA_WEB_SUPPORT
+	{"DiskList",DiskList},
+	{"Storage_DispalyUser",Storage_DispalyUser},
+	{"Storage_DispalyGroup",Storage_DispalyGroup},
+	{"Storage_GetGroupMember",Storage_GetGroupMember},
+	//{"Storage_CreateFolder",Storage_CreateFolder},
+	{"FolderList",FolderList},
+	{"ShareFolderList",ShareFolderList},
+	{"Storage_GeDirRoot",Storage_GeDirRoot},
+	{"UserEditName",UserEditName},
+	{"GroupEditName",GroupEditName},
+#endif
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	{"getEthDot1xList", getEthDot1xList},
+#endif
 	{NULL, NULL}
 };
 
@@ -182,9 +200,6 @@ form_name_t root_form[] = {
 #if defined(CONFIG_USBDISK_UPDATE_IMAGE)
 	{"formUploadFromUsb", formUploadFromUsb},
 #endif
-#if defined(CONFIG_RTL_HTTP_REDIRECT)
-	{"formWelcomePage", formWelcomePage},
-#endif
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 	{"formWapiReKey", formWapiReKey},
 	{"formUploadWapiCert", formUploadWapiCert},
@@ -195,6 +210,12 @@ form_name_t root_form[] = {
 #endif
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 	{"formUpload8021xUserCert", formUpload8021xUserCert},
+#endif
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	{"formUploadEth8021xUserCert",formUploadEth8021xUserCert},
+#endif
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	{"formEthDot1x", formEthDot1x},
 #endif
 #ifdef TLS_CLIENT	
 	{"formCertUpload", formCertUpload},
@@ -268,6 +289,9 @@ form_name_t root_form[] = {
 #endif	
 	{"formSysCmd", formSysCmd},
 	{"formSysLog", formSysLog},
+#ifdef CONFIG_APP_SMTP_CLIENT
+	{"formSmtpClient", formSmtpClient},
+#endif
 #if defined(CONFIG_SNMP)
 	{"formSetSNMP", formSetSNMP},
 #endif
@@ -322,6 +346,23 @@ form_name_t root_form[] = {
 	{voip_TLSCertUpload, asp_voip_TLSCertUpload},
 #endif
 #endif
+
+#ifdef SAMBA_WEB_SUPPORT
+	{"formDiskCfg",formDiskCfg},
+	
+	{"formDiskManagementAnon",formDiskManagementAnon},
+	{"formDiskManagementUser",formDiskManagementUser},
+	{"formDiskManagementGroup",formDiskManagementGroup},
+	
+	{"formDiskCreateUser",formDiskCreateUser},
+	{"formDiskCreateGroup",formDiskCreateGroup},
+	{"formDiskEditUser",formDiskEditUser},
+	{"formDiskEditGroup",formDiskEditGroup},
+
+	{"formDiskCreateShare",formDiskCreateShare},
+	{"formDiskCreateFolder",formDiskCreateFolder},
+#endif
+
 #ifdef CONFIG_CPU_UTILIZATION
 	{"formCpuUtilization",formCpuUtilization},
 #endif
@@ -551,9 +592,7 @@ char *memstr(char *membuf, char *param, int memsize)
 int rtl_mime_get_boundry(char *query_string, int query_string_len)
 {
 	char *substr_start,*ptr;
-	//char *substr="----------------------------";
-	//for chrome to install wapi cert
-	char *substr="------";
+	char *substr="----------------------------";
 	substr_start=memstr(query_string,substr,query_string_len);
 	if(substr_start==NULL)
 	{
@@ -775,8 +814,8 @@ void asp_init(int argc,char **argv)
 #if defined(VOIP_SUPPORT) && defined(ATA867x)
 	// no wlan interface in ATA867x
 #else
-	if (wlan_num==0)
-		wlan_num = 1;	// set 1 as default
+	//	if (wlan_num==0)
+	//	wlan_num = 1;	// set 1 as default
 #endif
 
 #ifdef MBSSID
@@ -1077,13 +1116,13 @@ void handleScript(request *req,char *left1,char *right1)
 #endif
 
 extern request inner_req;
-extern char inner_req_buff[8*1064];
+extern char inner_req_buff[1064];
 extern int middle_segment; //Brad add for update content length
 int req_format_write(request *req, char *format, ...)
 {
 	int bob;
 	va_list args;
-	char temp[8*1064];
+	char temp[1064];
 
 	if (!req || !format)
 		return 0;
@@ -1116,3 +1155,24 @@ int req_format_write(request *req, char *format, ...)
 	}
 	return bob;
 }
+int getIncludeCss(request *wp)
+{
+#ifdef CONFIG_APP_BOA_NEW_UI
+		return req_format_write(wp,  "<link href=\"/style.css\" rel=\"stylesheet\" type=\"text/css\">");
+#else
+		return req_format_write(wp,  "<style>h2{font-weight:bold;color:rgb(0,0,255);}\
+		tr.tbl_head {\
+		background-color: #7f7f7f;\
+		}\
+		tr.tbl_body {\
+		background-color: #b7b7b7;\
+		}\
+		td.tbl_title {\
+		background-color: #008000;\
+		color: #FFFFFF;\
+		font-weight: bold;\
+		}\
+		</style>");
+#endif
+}
+

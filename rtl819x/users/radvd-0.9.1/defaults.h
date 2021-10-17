@@ -62,6 +62,13 @@
 
 #define DFLT_AdvRoutePreference		0 /* medium*/
 
+/* RDNSS */
+#define DFLT_AdvRDNSSLifetime(iface)			(iface)->MaxRtrAdvInterval
+#define DFLT_FlushRDNSSFlag		1
+
+/* DNSSL */
+#define DFLT_AdvDNSSLLifetime(iface)			(iface)->MaxRtrAdvInterval
+#define DFLT_FlushDNSSLFlag		1
 /* Protocol (RFC2461) constants: */
 
 /* Router constants: */
@@ -148,6 +155,39 @@ struct nd_opt_route_info_local     /* route information */
 #define ND_OPT_RI_PRF_SHIFT	3
 #define ND_OPT_RI_PRF_MASK	(3 << ND_OPT_RI_PRF_SHIFT) /* 00011000 = 0x18 */
 
+#undef ND_OPT_RDNSS_INFORMATION
+#define  ND_OPT_RDNSS_INFORMATION	25
+/* */
+struct nd_opt_rdnss_info_local
+{
+	uint8_t   			nd_opt_rdnssi_type;
+	uint8_t   			nd_opt_rdnssi_len;
+	uint16_t   			nd_opt_rdnssi_pref_flag_reserved;
+	uint32_t			nd_opt_rdnssi_lifetime;
+	struct in6_addr		nd_opt_rdnssi_addr1;
+	struct in6_addr		nd_opt_rdnssi_addr2;
+	struct in6_addr		nd_opt_rdnssi_addr3;
+};
+/* pref/flag/reserved field : yyyyx00000000000 (big endian) - 00000000yyyyx000 (little indian); where yyyy = pref, x = flag */
+#if BYTE_ORDER == BIG_ENDIAN
+#define ND_OPT_RDNSSI_PREF_SHIFT	12
+#else
+#define ND_OPT_RDNSSI_PREF_SHIFT	4
+#endif
+#define ND_OPT_RDNSSI_PREF_MASK		(0xf << ND_OPT_RDNSSI_PREF_SHIFT)
+
+#undef ND_OPT_DNSSL_INFORMATION
+#define  ND_OPT_DNSSL_INFORMATION	31
+
+/* */
+struct nd_opt_dnssl_info_local
+{
+	uint8_t   			nd_opt_dnssli_type;
+	uint8_t   			nd_opt_dnssli_len;
+	uint16_t   			nd_opt_dnssli_reserved;
+	uint32_t			nd_opt_dnssli_lifetime;
+	char				nd_opt_dnssli_suffixes[];
+};
 /* Flags */
 
 #ifndef ND_RA_FLAG_HOME_AGENT
@@ -155,6 +195,13 @@ struct nd_opt_route_info_local     /* route information */
 #endif
 #ifndef ND_OPT_PI_FLAG_RADDR
 #define ND_OPT_PI_FLAG_RADDR		0x20
+#endif
+#ifndef ND_OPT_RDNSSI_FLAG_S
+#if BYTE_ORDER == BIG_ENDIAN
+#define ND_OPT_RDNSSI_FLAG_S         0x0800
+#else
+#define ND_OPT_RDNSSI_FLAG_S         0x0008
+#endif
 #endif
 
 /* Configurable values */

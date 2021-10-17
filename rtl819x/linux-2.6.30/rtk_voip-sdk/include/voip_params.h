@@ -61,16 +61,6 @@ typedef enum
     rtpPayload_AMR_WB_RATE19P85	= 83,
     rtpPayload_AMR_WB_RATE23P05	= 84,
     rtpPayload_AMR_WB_RATE23P85	= 85,
-	
-	rtpPayload_AMR_NB_RATE4P75	= 86,
-	rtpPayload_AMR_NB_RATE5P15	= 87,
-	rtpPayload_AMR_NB_RATE5P90	= 88,
-	rtpPayload_AMR_NB_RATE6P70	= 89,
-	rtpPayload_AMR_NB_RATE7P40	= 90,
-	rtpPayload_AMR_NB_RATE7P95	= 91,
-	rtpPayload_AMR_NB_RATE10P2	= 92,
-	rtpPayload_AMR_NB_RATE12P2	= 93,
-
 	// > 96: dynamic payload type
     rtpPayloadDTMF_RFC2833		= 96,
 	rtpPayload_iLBC				= 97,
@@ -96,6 +86,7 @@ typedef enum
     rtpPayloadCiscoRtp			= 120,
     rtpPayloadRtpRedundant		= 121,
     rtpPayloadL16_8k_mono		= 122,
+    rtpPayload_AMR_NB			= 123,
 	rtpPayloadPCMU_WB			= 124,
     rtpPayloadPCMA_WB			= 125
 } RtpPayloadType;
@@ -639,23 +630,6 @@ typedef enum {
 	VEID_FAXMDM_SILENCE_TDM		= VET_FAXMDM | 100,	///< Silence in TDM side 
 	VEID_FAXMDM_SILENCE_IP		= VET_FAXMDM | 101,	///< Silence in IP side 
 	VEID_FAXMDM_SILENCE_TDM_IP	= VET_FAXMDM | 102,	///< Silence in both sides 
-	// ECM Mode Events
-	VEID_FAXMDM_ECM_DCN_LOCAL	= VET_FAXMDM | 110,	///< FAX ECM Mode real DCN event in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_ECM_DCN_REMOTE	= VET_FAXMDM | 111,	///< FAX ECM Mode real DCN event in transmit path(IP/RTP/Remote)
-	VEID_FAXMDM_PPS_MPS_LOCAL	= VET_FAXMDM | 112,	///< FAX PPS MPS event in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_PPS_MPS_REMOTE	= VET_FAXMDM | 113,     ///< FAX PPS MPS event in transmit path(IP/RTP/Remote)
-	VEID_FAXMDM_PPS_EOP_LOCAL	= VET_FAXMDM | 114,     ///< FAX PPS EOP event in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_PPS_EOP_REMOTE	= VET_FAXMDM | 115,     ///< FAX PPS EOP event in transmit path(IP/RTP/Remote)
-	VEID_FAXMDM_PPS_PRI_MPS_LOCAL	= VET_FAXMDM | 116,     ///< FAX PPS PRI-MPS event in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_PPS_PRI_MPS_REMOTE	= VET_FAXMDM | 117,     ///< FAX PPS PRI-MPS event in transmit path(IP/RTP/Remote)
-	VEID_FAXMDM_PPS_PRI_EOP_LOCAL	= VET_FAXMDM | 118,	///< FAX PPS PRI-EOP event in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_PPS_PRI_EOP_REMOTE	= VET_FAXMDM | 119,	///< FAX PPS PRI-EOP event in transmit path(IP/RTP/Remote)
-	VEID_FAXMDM_ECM_FAILURE_LOCAL	= VET_FAXMDM | 120,	///< FAX ECM mode failure in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_ECM_FAILURE_REMOTE	= VET_FAXMDM | 121,	///< FAX ECM mode failure in transmit path(IP/RTP/Remote)
-	VEID_FAXMDM_ECM_RNR_LOCAL	= VET_FAXMDM | 122,	///< FAX ECM mode RNR in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_ECM_RNR_REMOTE	= VET_FAXMDM | 123,	///< FAX ECM mode RNR in transmit path(IP/RTP/Remote)
-	VEID_FAXMDM_ECM_RR_LOCAL	= VET_FAXMDM | 124,	///< FAX ECM mode RR in receive path(TDM/PCM/Local)
-	VEID_FAXMDM_ECM_RR_REMOTE	= VET_FAXMDM | 125,	///< FAX ECM mode RR in transmit path(IP/RTP/Remote)
 	
 	// RFC2833 RTP RX (Receive RFC2833 from RTP packet) (0x00200000)
 	VEID_RFC2833_RX_WILDCARD	= VET_RFC2833,		///< To combine with 8 bits evnet encoding 

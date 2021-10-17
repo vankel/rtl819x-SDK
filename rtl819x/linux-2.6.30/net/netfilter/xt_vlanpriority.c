@@ -29,7 +29,7 @@ static bool
 match(const struct sk_buff *skb, const struct xt_match_param *par)
 {
 	const struct xt_vlanpriority_info *info = par->matchinfo;
-
+	
 	return (skb->srcVlanPriority== info->priority) ^ info->invert;
 }
 

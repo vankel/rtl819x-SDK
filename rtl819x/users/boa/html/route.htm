@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Route Setup</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 var wan_type=<% getIndex("wanDhcp"); %>;	
 var system_opmode =<% getIndex("opMode"); %>;
@@ -178,6 +179,7 @@ function updateStateRip()
  	enableRadioGroup(document.formRouteRip.nat_enabled);
 	enableRadioGroup(document.formRouteRip.rip_tx);
 	enableRadioGroup(document.formRouteRip.rip_rx);
+	enableRadioGroup(document.formRouteRip.rip_v6);
 	//ppp wan type will force NAT is enabled
 	  if ((wan_type != 0) && (wan_type != 1)){
    			dF.nat_enabled[0].disabled = true;
@@ -185,17 +187,19 @@ function updateStateRip()
    			dF.nat_enabled[0].checked=true;
 	}
 	nat_setting_ripTx();
+	nat_drp_setting_rip6();
   }
   else {
   	disableRadioGroup(document.formRouteRip.nat_enabled);
 	disableRadioGroup(document.formRouteRip.rip_tx);
 	disableRadioGroup(document.formRouteRip.rip_rx);
+	disableRadioGroup(document.formRouteRip.rip_v6);
   }
   
 }
 
 function StaticRouteTblClick(url) {
-		openWindow(url, 'RouteTbl',600, 400 );
+		openWindow(url, 'RouteTbl',800, 600 );
 }
 
 function nat_setting_ripTx(){
@@ -215,6 +219,31 @@ function nat_setting_ripTx(){
 	}
 }
 
+function nat_drp_setting_rip6(){
+	var dF=document.forms[0];
+	var nat = get_by_name("nat_enabled");
+	var rip6 = get_by_name("rip_v6");
+	var dynamic_route=document.formRouteRip.enabled.checked;
+	var rip6_support = <%getIndex("rip6Support");%>;
+	for (var i = 0; i < 2; i++){
+		if(rip6_support!=1)
+			rip6[i].disabled = 1;
+		else if(dynamic_route==true)
+			rip6[i].disabled = nat[0].checked;
+		else
+			rip6[i].disabled=true;
+	}
+	
+	if (nat[0].checked){
+		rip6[0].checked = true;
+	}
+}
+
+function nat_setting_rip(){
+	nat_setting_ripTx();
+	nat_drp_setting_rip6();
+}
+
 function RIP_LoadSetting()
 {
 	var dF=document.formRouteRip;
@@ -222,6 +251,7 @@ function RIP_LoadSetting()
 	var rip_tx_setting=<% getIndex("ripLanTx"); %>;
 	var rip_rx_setting=<% getIndex("ripLanRx"); %>;
 	var rip_enabled = <%getIndex("ripEnabled");%>;
+	var rip6_setting = <%getIndex("rip6Enabled");%>;
 	if(rip_enabled==1){
 		dF.enabled.checked=true;
 	}else
@@ -242,7 +272,9 @@ function RIP_LoadSetting()
 	}
 	dF.rip_tx[rip_tx_setting].checked=true;
 	dF.rip_rx[rip_rx_setting].checked=true;
+	dF.rip_v6[rip6_setting].checked=true;
 	nat_setting_ripTx();
+	nat_drp_setting_rip6();
 }	
 function Route_LoadSetting()
 {
@@ -296,6 +328,8 @@ function Set_Opmode()
 		dF.rip_rx[0].disabled=true;
 		dF.rip_rx[1].disabled=true;
 		dF.rip_rx[2].disabled=true;
+		dF.rip_v6[0].disabled=true;
+		dF.rip_v6[1].disabled=true;
 		dF.ripSetup.disabled=true;
 		dF.reset.disabled=true;
 		dF=document.formRouteAdd;
@@ -324,7 +358,7 @@ function Set_Opmode()
 
 <body onload="RIP_LoadSetting();Route_LoadSetting();Set_Opmode();">
 <blockquote>
-<h2><font color="#0000FF">Routing Setup</font></h2>
+<h2>Routing Setup</h2>
 
 <table border=0 width="500" cellspacing=4 cellpadding=0>
 <tr><td colspan= 2><font size=2>
@@ -341,22 +375,28 @@ function Set_Opmode()
  <tr>
       <td width="30%"><font size=2><b>NAT:</b></td>
       <td width="70%"><font size=2>
-      <input type="radio" name="nat_enabled" value="0" onClick="nat_setting_ripTx()">Enabled&nbsp;&nbsp;
-      <input type="radio" name="nat_enabled" value="1" onClick="nat_setting_ripTx()">Disabled</td>
+      <input type="radio" name="nat_enabled" value="0" onClick="nat_setting_rip()">Enabled&nbsp;&nbsp;
+      <input type="radio" name="nat_enabled" value="1" onClick="nat_setting_rip()">Disabled</td>
     </tr>
 	<tr>
-      <td width="30%"><font size=2><b>Transmit:</b></td>
+      <td width="30%"><font size=2><b>RIP Send:</b></td>
       <td width="70%"><font size=2>
       <input type="radio" name="rip_tx" value="0">Disabled&nbsp;&nbsp;
       <input type="radio" name="rip_tx" value="1">RIP 1
       <input type="radio" name="rip_tx" value="2">RIP 2</td>
     </tr>
-<tr>
-      <td width="30%"><font size=2><b>Receive:</b></td>
+	<tr>
+      <td width="30%"><font size=2><b>RIP Recv:</b></td>
       <td width="70%"><font size=2>
       <input type="radio" name="rip_rx" value="0">Disabled&nbsp;&nbsp;
       <input type="radio" name="rip_rx" value="1">RIP 1
       <input type="radio" name="rip_rx" value="2">RIP 2</td>
+    </tr>
+	<tr>
+      <td width="30%"><font size=2><b>RIPng:</b></td>
+      <td width="70%"><font size=2>
+      <input type="radio" name="rip_v6" value="0">Disabled&nbsp;&nbsp;
+      <input type="radio" name="rip_v6" value="1">Enabled</td>
     </tr>
 
    <tr><td colspan=2><p><input type="submit" value="Apply Changes" name="ripSetup" onClick="return SetRIPClick()" >&nbsp;&nbsp; 

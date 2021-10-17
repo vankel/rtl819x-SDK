@@ -254,7 +254,7 @@ int main(void) {
 	static char buf[BUFLEN], buf_tmp[BUFLEN], pre_result[BUFLEN];				// buffer that stores message
 	static char cmdWrap[BUFFLEN_MAX];
 	static int rwHW=0;
-	static int ret_value=0;
+	static int ret_value=0, isflashread=0;
 	// create a socket
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
 		perror("socket");
@@ -382,6 +382,7 @@ int main(void) {
 					fprintf(stderr, "opening MP.txt failed !\n");
 	
 				if (fp) {
+                                isflashread=1;
 				fgets(buf, BUFLEN, fp);
 					buf[BUFLEN-1] = '\0';
 					{	//fix read_reg bug
@@ -537,8 +538,12 @@ int main(void) {
 				if(rwHW == 1){
 					system(cmdWrap);
 				}else{
-					if (memcmp(buf, "wlan0     read_reg", 18) && memcmp(buf, "wlan0     read_rf", 17) && memcmp(buf, "wlan1     read_reg", 18) && memcmp(buf, "wlan1     read_rf", 17))
+
+					//if (memcmp(buf, "wlan0     read_reg", 18) && memcmp(buf, "wlan0     read_rf", 17) && memcmp(buf, "wlan1     read_reg", 18) && memcmp(buf, "wlan1     read_rf", 17))
+                    if (isflashread==0)
 					    system(buf);
+                    else
+						isflashread=0;
 				}
 				
 				//delay

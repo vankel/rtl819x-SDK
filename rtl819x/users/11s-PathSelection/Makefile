@@ -1,8 +1,19 @@
-CC	=	rsdk-linux-gcc
-CXX 	=	rsdk-linux-g++
-LD 	=	rsdk-linux-gcc
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+else
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
+CC	=	$(CROSS_COMPILE)gcc
+CXX 	=	$(CROSS_COMPILE)g++
+LD 	=	$(CROSS_COMPILE)gcc
 LDFLAGS =	-s -Wall
-CFLAGS	:=	-s -Wall -c -Os -DIPC_BASED_PATHSEL -D_RTL865X_ -I../../linux-2.6.30/include -Os -D__BIG_ENDIAN_BITFIELD -DCONFIG_CPU_BIG_ENDIAN $(CFLAGS)
+#CFLAGS	:=	-s -Wall -c -Os -DIPC_BASED_PATHSEL -D_RTL865X_ -I../../linux-2.6.30/include -Os -D__BIG_ENDIAN_BITFIELD -DCONFIG_CPU_BIG_ENDIAN $(CFLAGS)
+ifeq ($(KERNEL_VER),linux-2.6.30)
+CFLAGS	:=	-s -Wall -c -Os -DIPC_BASED_PATHSEL -D_RTL865X_ -I$(DIR_LINUX_KERNEL)/include -Os -D__BIG_ENDIAN_BITFIELD -DCONFIG_CPU_BIG_ENDIAN $(CFLAGS)
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+CFLAGS	:=	-s -Wall -c -Os -DIPC_BASED_PATHSEL -D_RTL865X_ -I$(DIR_LINUX_KERNEL)/include/uapi -Os -D__BIG_ENDIAN_BITFIELD -DCONFIG_CPU_BIG_ENDIAN $(CFLAGS)
+endif
 
 all:		pathsel
 

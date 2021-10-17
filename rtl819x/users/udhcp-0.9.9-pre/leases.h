@@ -21,7 +21,14 @@ int lease_expired(struct dhcpOfferedAddr *lease);
 struct dhcpOfferedAddr *oldest_expired_lease(void);
 struct dhcpOfferedAddr *find_lease_by_chaddr(u_int8_t *chaddr);
 struct dhcpOfferedAddr *find_lease_by_yiaddr(u_int32_t yiaddr);
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+extern struct client_category_t;
+u_int32_t find_address(int check_expired, struct client_category_t *deviceCategory);
+#else
 u_int32_t find_address(int check_expired);
+#endif
+
 int check_ip(u_int32_t addr);
 #ifdef GUEST_ZONE
  int is_guest_mac(char *iface, unsigned char *addr);

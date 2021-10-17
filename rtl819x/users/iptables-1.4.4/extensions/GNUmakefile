@@ -4,20 +4,34 @@ top_builddir := ..
 builddir     := .
 top_srcdir  := ..
 srcdir      := .
-ksourcedir  := ../../linux-2.6.30
+ksourcedir  := /home/erqing_fang/branch/branch-rtl819x-sdk-v3.4.7/linux-3.10
 prefix      := /usr/local
 exec_prefix := ${prefix}
 libdir      := ${exec_prefix}/lib
 libexecdir  := ${exec_prefix}/libexec
 xtlibdir    := ${exec_prefix}/libexec/xtables
 
-#CC             := mips-linux-gcc
-#CCLD           := ${CC}
-#CFLAGS         := -Os
-#LDFLAGS        := 
+CC             := rsdk-linux-gcc
+CCLD           := ${CC}
+CFLAGS         := -Os
+ifeq ($(KERNEL_VER),linux-2.6.30)
+CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+CFLAGS += -DKERNEL_3_10
+include $(DIR_LINUX)/.config
+ifeq ($(CONFIG_RLX),y)
+CFLAGS += -DCONFIG_RLX
+endif
+endif
+LDFLAGS        := 
 regular_CFLAGS := -D_LARGEFILE_SOURCE=1 -D_LARGE_FILES -D_FILE_OFFSET_BITS=64 	-D_REENTRANT -Wall -Waggregate-return -Wmissing-declarations 	-Wmissing-prototypes -Wredundant-decls -Wshadow -Wstrict-prototypes 	-Winline -pipe 	-DXTABLES_LIBDIR=\"${xtlibdir}\" -DXTABLES_INTERNAL
-kinclude_CFLAGS :=  -I ../../linux-2.6.30/include
-
+ifeq ($(KERNEL_VER),linux-2.6.30)
+kinclude_CFLAGS :=  -I /home/erqing_fang/branch/branch-rtl819x-sdk-v3.4.7/linux-3.10/include
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+kinclude_CFLAGS :=  -I /home/erqing_fang/branch/branch-rtl819x-sdk-v3.4.7/linux-3.10/include/uapi
+endif
 AM_CFLAGS      := ${regular_CFLAGS} -I${top_builddir}/include -I${top_srcdir}/include ${kinclude_CFLAGS}
 AM_DEPFLAGS     = -Wp,-MMD,$(@D)/.$(@F).d,-MT,$@
 

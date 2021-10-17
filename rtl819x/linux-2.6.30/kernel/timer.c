@@ -329,26 +329,6 @@ unsigned long round_jiffies_up_relative(unsigned long j)
 }
 EXPORT_SYMBOL_GPL(round_jiffies_up_relative);
 
-#ifdef CONFIG_KERNEL_POLLING
-/**
- * set_timer_slack - set the allowed slack for a timer
- * @timer: the timer to be modified
- * @slack_hz: the amount of time (in jiffies) allowed for rounding
- *
- * Set the amount of time, in jiffies, that a certain timer has
- * in terms of slack. By setting this value, the timer subsystem
- * will schedule the actual timer somewhere between
- * the time mod_timer() asks for, and that time plus the slack.
- *
- * By setting the slack to -1, a percentage of the delay is used
- * instead.
- */
-void set_timer_slack(struct timer_list *timer, int slack_hz)
-{
-	timer->slack = slack_hz;
-}
-EXPORT_SYMBOL_GPL(set_timer_slack);
-#endif
 
 static inline void set_running_timer(struct tvec_base *base,
 					struct timer_list *timer)
@@ -559,9 +539,6 @@ static void __init_timer(struct timer_list *timer,
 {
 	timer->entry.next = NULL;
 	timer->base = __raw_get_cpu_var(tvec_bases);
-#ifdef CONFIG_KERNEL_POLLING
-	timer->slack = -1;
-#endif
 #ifdef CONFIG_TIMER_STATS
 	timer->start_site = NULL;
 	timer->start_pid = -1;
@@ -712,48 +689,6 @@ int mod_timer_pending(struct timer_list *timer, unsigned long expires)
 }
 EXPORT_SYMBOL(mod_timer_pending);
 
-#ifdef CONFIG_KERNEL_POLLING
-/*
- * Decide where to put the timer while taking the slack into account
- *
- * Algorithm:
- *   1) calculate the maximum (absolute) time
- *   2) calculate the highest bit where the expires and new max are different
- *   3) use this bit to make a mask
- *   4) use the bitmask to round down the maximum time, so that all last
- *      bits are zeros
- */
-static inline
-unsigned long apply_slack(struct timer_list *timer, unsigned long expires)
-{
-	unsigned long expires_limit, mask;
-	int bit;
-
-	expires_limit = expires;
-
-	if (timer->slack >= 0) {
-		expires_limit = expires + timer->slack;
-	} else {
-		unsigned long now = jiffies;
-
-		/* No slack, if already expired else auto slack 0.4% */
-		if (time_after(expires, now))
-			expires_limit = expires + (expires - now)/256;
-	}
-	mask = expires ^ expires_limit;
-	if (mask == 0)
-		return expires;
-
-	bit = find_last_bit(&mask, BITS_PER_LONG);
-
-	mask = (1 << bit) - 1;
-
-	expires_limit = expires_limit & ~(mask);
-
-	return expires_limit;
-}
-#endif
-
 /**
  * mod_timer - modify a timer's timeout
  * @timer: the timer to be modified
@@ -783,10 +718,6 @@ int mod_timer(struct timer_list *timer, unsigned long expires)
 	 */
 	if (timer->expires == expires && timer_pending(timer))
 		return 1;
-
-#ifdef CONFIG_KERNEL_POLLING
-	expires = apply_slack(timer, expires);
-#endif
 
 	return __mod_timer(timer, expires, false);
 }

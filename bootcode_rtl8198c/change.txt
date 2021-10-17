@@ -1,0 +1,13 @@
+** DATE/WHOM/TYPE:
+- 2015/01/13, jason, add auto-recognization CPU feature and modify the t
+  verson to 1.5d.
+* DIGEST:
+- add auto-recognization CPU feature.
+* TEST METHOD:
+	Downaload image and test the linux image.
+* ROOT CAUSE:
+	CPU feature.
+* MODIFIED FILES:
+		1. boot/init/ver.h
+		2. btcode/start.S
+======================================================================

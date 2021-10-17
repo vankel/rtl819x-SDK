@@ -108,7 +108,7 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 
 		ptr += 1 ;
 
-       if( *ptr == '"' ){
+		if( *ptr == '"' ){
 		    int idx=0;
 		  	ptr++;
 			for (lenVal=0; ;lenVal++) {
@@ -138,11 +138,13 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 		//printf("\n(b) lenVal = %d, tmpVal = <%s>", lenVal,  tmpVal);
 
 		if (strcmp(confTag, tmpTag) == 0 && strlen(tmpVal) < CONFIG_PARSE_VALUE) {
-            //printf("\nconfTag = <%s>, tmpVal = <%s>\n", confTag,tmpVal);
+                        //printf("\nconfTag = <%s>, tmpVal = <%s>\n", confTag,tmpVal);
 			//lib1x_message(MESS_DBG_CONFIG, "confTag = <%s>, tmpVal = <%s>", confTag,tmpVal);
+
+
 			strncpy(confVal, tmpVal, CONFIG_PARSE_VALUE);
-            fclose(confFile);
-            return 0;
+                        fclose(confFile);
+                        return 0;
 		}
 
 	}
@@ -316,6 +318,7 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 
 		}else
 		{
+			
 			lib1x_message(MESS_DBG_CONFIG, "%s->%s", lib1x_config_err(retResult), authTag);
 			continue;
 		}
@@ -371,6 +374,7 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 			auth->RSNVariable.ieee80211w = atoi(authVal);
 			if(MGMT_FRAME_PROTECTION_REQUIRED == auth->RSNVariable.ieee80211w)
 				pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled = FALSE;
+			
 			PMFDEBUG("11w=[%d]\n",auth->RSNVariable.ieee80211w);
 		}
 
@@ -536,7 +540,7 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 				auth->RSNVariable.rs2MacAuthEnabled = FALSE;
 		}
 #endif
-#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) || defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
 		else if(!strcmp(ConfigTag[tagIndex], "eapType")){
 			auth->eapType = atoi(authVal);
 		}
@@ -563,6 +567,15 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 			auth->rsBandSel = atoi(authVal);
 		}
 #endif
+#ifdef RTL_TTLS_CLIENT
+		else if(!strcmp(ConfigTag[tagIndex], "eapPhase2Type")){
+			auth->ttlsPhase2Type = atoi(authVal);
+		}
+		else if(!strcmp(ConfigTag[tagIndex], "phase2EapMethod")){
+			auth->ttlsPhase2EapMethod = atoi(authVal);
+		}
+#endif
+
 		else if(!strcmp(ConfigTag[tagIndex], "rsMaxReq"))
 		{
 			auth->rsMaxReq = atoi(authVal);
@@ -634,6 +647,34 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 			auth->rsReAuthTO = atoi(authVal);
 			lib1x_message(MESS_DBG_CONFIG, "rsReAuthTO = %d\n", auth->rsReAuthTO);
 		}
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+		else if(!strcmp(ConfigTag[tagIndex], "ethDot1xMode"))
+		{
+			auth->ethDot1xMode = atoi(authVal);
+			lib1x_message(MESS_DBG_CONFIG, "ethDot1xMode = %d\n", auth->ethDot1xMode);
+		}
+		else if(!strcmp(ConfigTag[tagIndex], "ethDot1xProxyType"))
+		{
+			auth->ethDot1xProxyType = atoi(authVal);
+			lib1x_message(MESS_DBG_CONFIG, "ethDot1xProxyType = %d\n", auth->ethDot1xProxyType);
+		}
+		else if(!strcmp(ConfigTag[tagIndex], "ethDot1xProxyModePortMask"))
+		{
+			auth->ethDot1xProxyModePortMask = atoi(authVal);
+			lib1x_message(MESS_DBG_CONFIG, "ethDot1xProxyModePortMask = %d\n", auth->ethDot1xProxyModePortMask);
+		}
+		else if(!strcmp(ConfigTag[tagIndex], "ethDot1xClientModePortMask"))
+		{
+			auth->ethDot1xClientModePortMask = atoi(authVal);
+			lib1x_message(MESS_DBG_CONFIG, "ethDot1xClientModePortMask = %d\n", auth->ethDot1xClientModePortMask);
+		}
+		else if(!strcmp(ConfigTag[tagIndex], "ethDot1xEapolUnicastEnabled"))
+		{
+			auth->ethDot1xEapolUnicastEnabled = atoi(authVal);
+			lib1x_message(MESS_DBG_CONFIG, "ethDot1xEapolUnicastEnabled = %d\n", auth->ethDot1xEapolUnicastEnabled);
+		}
+#endif
+
 
 	}
 

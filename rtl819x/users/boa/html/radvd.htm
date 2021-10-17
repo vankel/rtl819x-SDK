@@ -6,26 +6,75 @@
 <title>Configuring Router Advertisement</title>
 <script type="text/javascript" src="util_gw.js"> </script>
 <SCRIPT>
-function onclick_func()
+function disable_all()
 {
 	var fm = document.Radvdform;
-	if(fm.enable_radvd.checked == false)
+
+	fm.interfacename.disabled=true;
+	fm.MaxRtrAdvInterval.disabled=true;
+	fm.MinRtrAdvInterval.disabled=true;
+	fm.MinDelayBetweenRAs.disabled=true;
+	fm.AdvManagedFlag.disabled=true;
+	fm.AdvOtherConfigFlag.disabled=true;
+	fm.AdvLinkMTU.disabled=true;
+	fm.AdvReachableTime.disabled=true;
+	fm.AdvRetransTimer.disabled=true;
+	fm.AdvCurHopLimit.disabled=true;
+	fm.AdvDefaultLifetime.disabled=true;
+	fm.AdvDefaultPreference.disabled=true;
+	fm.AdvSourceLLAddress.disabled=true;
+	fm.UnicastOnly.disabled=true;
+
+	fm.Enabled_0.disabled = true;
+	fm.Enabled_1.disabled = true;
+
+	disable_prefix(0);
+	disable_prefix(1);
+}
+
+function enable_all()
+{
+	var fm = document.Radvdform;
+
+	fm.interfacename.disabled=false;
+	fm.MaxRtrAdvInterval.disabled=false;
+	fm.MinRtrAdvInterval.disabled=false;
+	fm.MinDelayBetweenRAs.disabled=false;
+	fm.AdvManagedFlag.disabled=false;
+	fm.AdvOtherConfigFlag.disabled=false;
+	fm.AdvLinkMTU.disabled=false;
+	fm.AdvReachableTime.disabled=false;
+	fm.AdvRetransTimer.disabled=false;
+	fm.AdvCurHopLimit.disabled=false;
+	fm.AdvDefaultLifetime.disabled=false;
+	fm.AdvDefaultPreference.disabled=false;
+	fm.AdvSourceLLAddress.disabled=false;
+	fm.UnicastOnly.disabled=false;
+
+	fm.Enabled_0.disabled = false;
+	fm.Enabled_1.disabled = false;
+	
+	if(fm.Enabled_0.checked == true)
+		enable_prefix(0);
+	else
+		disable_prefix(0);
+
+	if(fm.Enabled_1.checked == true)
+		enable_prefix(1);
+	else
+		disable_prefix(1);
+}
+
+function disable_prefix(index)
+{
+	var fm = document.Radvdform;
+	
+	if(index == 0)
 	{
-		fm.interfacename.disabled=true;
-		fm.MaxRtrAdvInterval.disabled=true;
-		fm.MinRtrAdvInterval.disabled=true;
-		fm.MinDelayBetweenRAs.disabled=true;
-		fm.AdvManagedFlag.disabled=true;
-		fm.AdvOtherConfigFlag.disabled=true;
-		fm.AdvLinkMTU.disabled=true;
-		fm.AdvReachableTime.disabled=true;
-		fm.AdvRetransTimer.disabled=true;
-		fm.AdvCurHopLimit.disabled=true;
-		fm.AdvDefaultLifetime.disabled=true;
-		fm.AdvDefaultPreference.disabled=true;
-		fm.AdvSourceLLAddress.disabled=true;
-		fm.UnicastOnly.disabled=true;
-		
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix0_mode.disabled=true;
+		}
 		fm.radvdprefix0_1.disabled=true;
 		fm.radvdprefix0_2.disabled=true;
 		fm.radvdprefix0_3.disabled=true;
@@ -41,7 +90,13 @@ function onclick_func()
 		fm.AdvPreferredLifetime_0.disabled=true;
 		fm.AdvRouterAddr_0.disabled=true;
 		fm.if6to4_0.disabled=true;
-		
+	}
+	else if(index == 1)
+	{
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix1_mode.disabled=true;
+		}
 		fm.radvdprefix1_1.disabled=true;
 		fm.radvdprefix1_2.disabled=true;
 		fm.radvdprefix1_3.disabled=true;
@@ -58,55 +113,76 @@ function onclick_func()
 		fm.AdvRouterAddr_1.disabled=true;
 		fm.if6to4_1.disabled=true;
 	}
-	else
+}
+
+function enable_prefix(index)
+{
+	var fm = document.Radvdform;
+	
+	if(index == 0)
 	{
-		fm.interfacename.disabled=false;
-		fm.MaxRtrAdvInterval.disabled=false;
-		fm.MinRtrAdvInterval.disabled=false;
-		fm.MinDelayBetweenRAs.disabled=false;
-		fm.AdvManagedFlag.disabled=false;
-		fm.AdvOtherConfigFlag.disabled=false;
-		fm.AdvLinkMTU.disabled=false;
-		fm.AdvReachableTime.disabled=false;
-		fm.AdvRetransTimer.disabled=false;
-		fm.AdvCurHopLimit.disabled=false;
-		fm.AdvDefaultLifetime.disabled=false;
-		fm.AdvDefaultPreference.disabled=false;
-		fm.AdvSourceLLAddress.disabled=false;
-		fm.UnicastOnly.disabled=false;
-		
-		fm.radvdprefix0_1.disabled=false;
-		fm.radvdprefix0_2.disabled=false;
-		fm.radvdprefix0_3.disabled=false;
-		fm.radvdprefix0_4.disabled=false;
-		fm.radvdprefix0_5.disabled=false;
-		fm.radvdprefix0_6.disabled=false;
-		fm.radvdprefix0_7.disabled=false;
-		fm.radvdprefix0_8.disabled=false;
-		fm.radvdprefix0_len.disabled=false;
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix0_mode.disabled=false;
+			radvd_prefix_mode_change(0);
+		}
+		else
+		{
+			fm.radvdprefix0_1.disabled=false;
+			fm.radvdprefix0_2.disabled=false;
+			fm.radvdprefix0_3.disabled=false;
+			fm.radvdprefix0_4.disabled=false;
+			fm.radvdprefix0_5.disabled=false;
+			fm.radvdprefix0_6.disabled=false;
+			fm.radvdprefix0_7.disabled=false;
+			fm.radvdprefix0_8.disabled=false;
+			fm.radvdprefix0_len.disabled=false;
+		}
 		fm.AdvOnLinkFlag_0.disabled=false;
 		fm.AdvAutonomousFlag_0.disabled=false;
 		fm.AdvValidLifetime_0.disabled=false;
 		fm.AdvPreferredLifetime_0.disabled=false;
 		fm.AdvRouterAddr_0.disabled=false;
 		fm.if6to4_0.disabled=false;
-		
-		fm.radvdprefix1_1.disabled=false;
-		fm.radvdprefix1_2.disabled=false;
-		fm.radvdprefix1_3.disabled=false;
-		fm.radvdprefix1_4.disabled=false;
-		fm.radvdprefix1_5.disabled=false;
-		fm.radvdprefix1_6.disabled=false;
-		fm.radvdprefix1_7.disabled=false;
-		fm.radvdprefix1_8.disabled=false;
-		fm.radvdprefix1_len.disabled=false;
+	}
+	else if(index == 1)
+	{
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix1_mode.disabled=false;
+			radvd_prefix_mode_change(1);
+		}
+		else
+		{
+			fm.radvdprefix1_1.disabled=false;
+			fm.radvdprefix1_2.disabled=false;
+			fm.radvdprefix1_3.disabled=false;
+			fm.radvdprefix1_4.disabled=false;
+			fm.radvdprefix1_5.disabled=false;
+			fm.radvdprefix1_6.disabled=false;
+			fm.radvdprefix1_7.disabled=false;
+			fm.radvdprefix1_8.disabled=false;
+			fm.radvdprefix1_len.disabled=false;
+		}
 		fm.AdvOnLinkFlag_1.disabled=false;
 		fm.AdvAutonomousFlag_1.disabled=false;
 		fm.AdvValidLifetime_1.disabled=false;
 		fm.AdvPreferredLifetime_1.disabled=false;
 		fm.AdvRouterAddr_1.disabled=false;
 		fm.if6to4_1.disabled=false;
-	
+	}
+}
+
+function onclick_func()
+{
+	var fm = document.Radvdform;
+	if(fm.enable_radvd.checked == false)
+	{
+		disable_all();
+	}
+	else
+	{
+		enable_all();
 	}
 }
 function radvd_save()
@@ -125,14 +201,238 @@ function radvd_save()
 	return true;
 	
 }
+
+function default_setting()
+{
+	Radvdform.interfacename.value="br0";
+	Radvdform.MaxRtrAdvInterval.value=600;
+	Radvdform.MinRtrAdvInterval.value=198;
+	Radvdform.MinDelayBetweenRAs.value=3;
+	Radvdform.AdvManagedFlag.checked=false;
+	Radvdform.AdvOtherConfigFlag.checked=false;
+	Radvdform.AdvLinkMTU.value=0;
+	Radvdform.AdvReachableTime.value=0;
+	Radvdform.AdvRetransTimer.value=0;
+	Radvdform.AdvCurHopLimit.value=64;
+	Radvdform.AdvDefaultLifetime.value=1800;
+	Radvdform.AdvDefaultPreference.selectedIndex=1;
+	Radvdform.AdvSourceLLAddress.checked=false;
+	Radvdform.UnicastOnly.checked=false;
+	
+	Radvdform.Enabled_0.checked=true;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		Radvdform.radvdprefix0_mode.selectedIndex=0;
+	}
+	Radvdform.radvdprefix0_1.value="3ffe";
+	Radvdform.radvdprefix0_2.value="0501";
+	Radvdform.radvdprefix0_3.value="ffff";
+	Radvdform.radvdprefix0_4.value="0100";
+	Radvdform.radvdprefix0_5.value="0000";
+	Radvdform.radvdprefix0_6.value="0000";
+	Radvdform.radvdprefix0_7.value="0000";
+	Radvdform.radvdprefix0_8.value="0000";
+	Radvdform.radvdprefix0_len.value=64;
+	Radvdform.AdvOnLinkFlag_0.checked=true;
+	Radvdform.AdvAutonomousFlag_0.checked=true;
+	Radvdform.AdvValidLifetime_0.value=2592000 ;
+	Radvdform.AdvPreferredLifetime_0.value=604800 ;
+	Radvdform.AdvRouterAddr_0.checked=false;
+	Radvdform.if6to4_0.value="";
+	
+	Radvdform.Enabled_1.checked=false;
+}
+
+function reset_setting()
+{
+	Radvdform.interfacename.value="";
+	Radvdform.MaxRtrAdvInterval.value=0;
+	Radvdform.MinRtrAdvInterval.value=0;
+	Radvdform.MinDelayBetweenRAs.value=0;
+	Radvdform.AdvManagedFlag.checked=false;
+	Radvdform.AdvOtherConfigFlag.checked=false;
+	Radvdform.AdvLinkMTU.value=0;
+	Radvdform.AdvReachableTime.value=0;
+	Radvdform.AdvRetransTimer.value=0;
+	Radvdform.AdvCurHopLimit.value=0;
+	Radvdform.AdvDefaultLifetime.value=0;
+	Radvdform.AdvDefaultPreference.selectedIndex=1;
+	Radvdform.AdvSourceLLAddress.checked=false;
+	Radvdform.UnicastOnly.checked=false;
+	
+	Radvdform.Enabled_0.checked=false;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		Radvdform.radvdprefix0_mode.selectedIndex=0;
+	}
+	Radvdform.radvdprefix0_1.value="0000";
+	Radvdform.radvdprefix0_2.value="0000";
+	Radvdform.radvdprefix0_3.value="0000";
+	Radvdform.radvdprefix0_4.value="0000";
+	Radvdform.radvdprefix0_5.value="0000";
+	Radvdform.radvdprefix0_6.value="0000";
+	Radvdform.radvdprefix0_7.value="0000";
+	Radvdform.radvdprefix0_8.value="0000";
+	Radvdform.radvdprefix0_len.value=0;
+	Radvdform.AdvOnLinkFlag_0.checked=false;
+	Radvdform.AdvAutonomousFlag_0.checked=false;
+	Radvdform.AdvValidLifetime_0.value=0 ;
+	Radvdform.AdvPreferredLifetime_0.value=0 ;
+	Radvdform.AdvRouterAddr_0.checked=false;
+	Radvdform.if6to4_0.value="";
+	
+	Radvdform.Enabled_1.checked=false;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		Radvdform.radvdprefix1_mode.selectedIndex=0;
+	}
+	Radvdform.radvdprefix1_1.value="0000";
+	Radvdform.radvdprefix1_2.value="0000";
+	Radvdform.radvdprefix1_3.value="0000";
+	Radvdform.radvdprefix1_4.value="0000";
+	Radvdform.radvdprefix1_5.value="0000";
+	Radvdform.radvdprefix1_6.value="0000";
+	Radvdform.radvdprefix1_7.value="0000";
+	Radvdform.radvdprefix1_8.value="0000";
+	Radvdform.radvdprefix1_len.value=0;
+	Radvdform.AdvOnLinkFlag_1.checked=false;
+	Radvdform.AdvAutonomousFlag_1.checked=false;
+	Radvdform.AdvValidLifetime_1.value=0 ;
+	Radvdform.AdvPreferredLifetime_1.value=0 ;
+	Radvdform.AdvRouterAddr_1.checked=false;
+	Radvdform.if6to4_1.value="";
+}
+
+function onclick_prefix(index)
+{
+	if(index == 0)
+	{
+		if(document.Radvdform.Enabled_0.checked == true)
+		{
+			enable_prefix(0);
+		}
+		else
+		{
+			disable_prefix(0);
+		}
+	}
+	else if(index == 1)
+	{
+		if(document.Radvdform.Enabled_1.checked == true)
+		{
+			enable_prefix(1);
+		}
+		else
+		{
+			disable_prefix(1);
+		}
+	}
+}
+
+function radvd_prefix_mode_change(index)
+{
+	var fm = document.Radvdform;
+	
+	if(index == 0)
+	{
+		if(fm.radvdprefix0_mode.selectedIndex == 0)
+		{
+			fm.radvdprefix0_1.disabled=false;
+			fm.radvdprefix0_2.disabled=false;
+			fm.radvdprefix0_3.disabled=false;
+			fm.radvdprefix0_4.disabled=false;
+			fm.radvdprefix0_5.disabled=false;
+			fm.radvdprefix0_6.disabled=false;
+			fm.radvdprefix0_7.disabled=false;
+			fm.radvdprefix0_8.disabled=false;
+			fm.radvdprefix0_len.disabled=false;
+		}
+		else
+		{
+			fm.radvdprefix0_1.disabled=true;
+			fm.radvdprefix0_2.disabled=true;
+			fm.radvdprefix0_3.disabled=true;
+			fm.radvdprefix0_4.disabled=true;
+			fm.radvdprefix0_5.disabled=true;
+			fm.radvdprefix0_6.disabled=true;
+			fm.radvdprefix0_7.disabled=true;
+			fm.radvdprefix0_8.disabled=true;
+			fm.radvdprefix0_len.disabled=true;
+		}
+	}
+	else if(index == 1)
+	{
+		if(fm.radvdprefix1_mode.selectedIndex == 0)
+		{
+			fm.radvdprefix1_1.disabled=false;
+			fm.radvdprefix1_2.disabled=false;
+			fm.radvdprefix1_3.disabled=false;
+			fm.radvdprefix1_4.disabled=false;
+			fm.radvdprefix1_5.disabled=false;
+			fm.radvdprefix1_6.disabled=false;
+			fm.radvdprefix1_7.disabled=false;
+			fm.radvdprefix1_8.disabled=false;
+			fm.radvdprefix1_len.disabled=false;
+		}
+		else
+		{
+			fm.radvdprefix1_1.disabled=true;
+			fm.radvdprefix1_2.disabled=true;
+			fm.radvdprefix1_3.disabled=true;
+			fm.radvdprefix1_4.disabled=true;
+			fm.radvdprefix1_5.disabled=true;
+			fm.radvdprefix1_6.disabled=true;
+			fm.radvdprefix1_7.disabled=true;
+			fm.radvdprefix1_8.disabled=true;
+			fm.radvdprefix1_len.disabled=true;
+		}
+	}
+}
+
+function init()
+{
+	var enable = <% getIPv6Info("enable_radvd"); %>;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		var radvdprefix0_mode = <% getIPv6Info("radvdprefix0_mode"); %> + 0;
+		var radvdprefix1_mode = <% getIPv6Info("radvdprefix1_mode"); %> + 0;
+		var pd_enable = <%getIPv6WanInfo("enable_dhcpv6pd")%> + 0;
+		var ula_enbale = <% getIPv6Info("enable_ula"); %> + 0;
+		
+		document.Radvdform.radvdprefix0_mode.selectedIndex = radvdprefix0_mode;
+		document.Radvdform.radvdprefix1_mode.selectedIndex = radvdprefix1_mode;
+
+		if(pd_enable == 0)
+		{
+			document.Radvdform.radvdprefix0_mode.options[1].disabled = true;
+			document.Radvdform.radvdprefix1_mode.options[1].disabled = true;
+		}
+		if(ula_enbale == 0)
+		{
+			document.Radvdform.radvdprefix0_mode.options[2].disabled = true;
+			document.Radvdform.radvdprefix1_mode.options[2].disabled = true;
+		}
+	}
+
+	if(enable == 1)
+	{
+		document.Radvdform.enable_radvd.checked = true;
+		enable_all();
+	}
+	else
+	{
+		document.Radvdform.enable_radvd.checked = false;
+		disable_all();
+	}
+}
 </SCRIPT>
 </head>
 
-<body bgcolor="#ffffff" text="#000000">
+<body bgcolor="#ffffff" text="#000000" onload="init();">
 <form method="POST" action="/boafrm/formRadvd" name=Radvdform>
 <b>Configuring Router Advertisement</b>
 <BR>  <BR>
-<td bgColor=#aaddff>Enable</td><td bgColor=#ddeeff><input type=checkbox name=enable_radvd value =1 <% getIPv6Info("enable_radvd"); %> onclick="onclick_func()"></td>
+<td bgColor=#aaddff>Enable</td><td bgColor=#ddeeff><input type=checkbox name=enable_radvd value =1 onclick="onclick_func()"></td>
 <table cellSpacing=1 cellPadding=2 border=0>
 <tr><td bgColor=#aaddff>radvdinterfacename</td><td bgColor=#ddeeff><input type=text name=interfacename size=15 maxlength=15 value="<% getIPv6Info("radvdinterfacename"); %>"></td></tr>
 <tr><td bgColor=#aaddff>MaxRtrAdvInterval</td><td bgColor=#ddeeff><input type=text name=MaxRtrAdvInterval size=15 maxlength=15 value="<% getIPv6Info("MaxRtrAdvInterval"); %>"></td></tr>
@@ -151,7 +451,26 @@ function radvd_save()
 </table>
 <b>prefix1</b><BR><BR>
 <table cellSpacing=1 cellPadding=2 border=0>
-<tr><td bgColor=#aaddff>Enabled</td><td bgColor=#ddeeff><input type=checkbox name=Enabled_0 value=1 <% getIPv6Info("Enabled_0"); %>></td></tr>
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write('<tr><td bgColor=#aaddff>Enabled</td><td bgColor=#ddeeff><input type=checkbox name=Enabled_0 value=1 <% getIPv6Info("Enabled_0"); %> onclick="onclick_prefix(0)"></td></tr>');
+	document.write('<tr>');
+	document.write('	<td bgColor=#aaddff>prefix mode:</td>');
+	document.write('	<td bgColor=#aaddff>');
+	document.write('		<select size="1" name="radvdprefix0_mode" onChange="radvd_prefix_mode_change(0)">');
+	document.write('		<option value="0">Manually</option>');
+	document.write('		<option value="1">Prefix Delegation</option>');
+	document.write('		<option value="2">ULA Prefix</option>');
+	document.write('		</select>');
+	document.write('	</td>');
+	document.write('</tr>');
+}
+else
+{
+	document.write('<tr><td bgColor=#aaddff>Enabled</td><td bgColor=#ddeeff><input type=checkbox name=Enabled_0 value=1 <% getIPv6Info("Enabled_0"); %> onclick="onclick_prefix(0)"></td></tr>');
+}
+</script>
 <tr><td bgColor=#aaddff>prefix</td><td bgColor=#ddeeff>
 	<input type=text name=radvdprefix0_1 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_1"); %>">:
 	<input type=text name=radvdprefix0_2 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_2"); %>">:
@@ -172,7 +491,26 @@ function radvd_save()
 </table>
 <b>prefix2</b><BR><BR>
 <table cellSpacing=1 cellPadding=2 border=0>
-<tr><td bgColor=#aaddff>Enabled</td><td bgColor=#ddeeff><input type=checkbox name=Enabled_1 value=1 <% getIPv6Info("Enabled_1"); %>></td></tr>
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write('<tr><td bgColor=#aaddff>Enabled</td><td bgColor=#ddeeff><input type=checkbox name=Enabled_1 value=1 <% getIPv6Info("Enabled_1"); %> onclick="onclick_prefix(1)"></td></tr>');
+	document.write('<tr>');
+	document.write('	<td bgColor=#aaddff>prefix mode:</td>');
+	document.write('	<td bgColor=#aaddff>');
+	document.write('		<select size="1" name="radvdprefix1_mode" onChange="radvd_prefix_mode_change(1)">');
+	document.write('		<option value="0">Manually</option>');
+	document.write('		<option value="1">Prefix Delegation</option>');
+	document.write('		<option value="2">ULA Prefix</option>');
+	document.write('		</select>');
+	document.write('	</td>');
+	document.write('</tr>');
+}
+else
+{
+	document.write('<tr><td bgColor=#aaddff>Enabled</td><td bgColor=#ddeeff><input type=checkbox name=Enabled_1 value=1 <% getIPv6Info("Enabled_1"); %> onclick="onclick_prefix(1)"></td></tr>');
+}
+</script>
 <tr><td bgColor=#aaddff>prefix</td><td bgColor=#ddeeff>
 	<input type=text name=radvdprefix1_1 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_1"); %>">:
 	<input type=text name=radvdprefix1_2 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_2"); %>">:
@@ -192,7 +530,13 @@ function radvd_save()
 	<tr><td bgColor=#aaddff>if6to4</td><td bgColor=#ddeeff><input type=text name=if6to4_1 size=15 maxlength=15 value="<% getIPv6Info("if6to4_1"); %>"></td></tr>
 </table>
 <input type="hidden" value="/radvd.htm" name="submit-url">
-<tr><td colspan=2><input type=submit name="submit" value="Save" onclick="return radvd_save()"></td></tr>
+<tr>
+	<td colspan=2><input type=submit name="submit" value="Save" onclick="return radvd_save()"></td>
+	&nbsp;&nbsp;
+	<td colspan=2><input type="button" value="default" onclick="default_setting()"></td>
+	&nbsp;&nbsp;
+	<td colspan=2><input type="button" value="reset" onclick="reset_setting()"></td>
+</tr>
 </form>
 </body>
 </html>

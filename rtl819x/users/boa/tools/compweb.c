@@ -21,6 +21,15 @@
 #define WEB_PAGE_OFFSET 0x10000
 #endif
 
+#ifdef CONFIG_MTD_NAND
+#undef CODE_IMAGE_OFFSET
+#undef WEB_PAGE_OFFSET
+
+#define RTK_NAND_REVERSE_SIZE	0x800000
+#define WEB_PAGE_OFFSET 	(CONFIG_RTL_WEB_PAGES_OFFSET + RTK_NAND_REVERSE_SIZE)
+#define CODE_IMAGE_OFFSET 	(CONFIG_RTL_CODE_IMAGE_OFFSET+ RTK_NAND_REVERSE_SIZE)
+#endif
+
 #define DWORD_SWAP(v) ( (((v&0xff)<<24)&0xff000000) | ((((v>>8)&0xff)<<16)&0xff0000) | \
 				((((v>>16)&0xff)<<8)&0xff00) | (((v>>24)&0xff)&0xff) )
 #define WORD_SWAP(v) ((unsigned short)(((v>>8)&0xff) | ((v<<8)&0xff00)))

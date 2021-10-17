@@ -1,5 +1,7 @@
 SHELL = /bin/sh
 
+#include ../../../../linux-2.6.30/.config
+
 srcdir = .
 top_srcdir = ..
 top_builddir = $(top_srcdir)
@@ -76,7 +78,12 @@ LDFLAGS =  -L$(uClinux_root)/lib/librtk
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(CFLAGS) $(LDFLAGS) -o $@
-CFLAGS = -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -I$(uClinux_root)/include -I$(uClinux_root)/lib/libmd5 -Dlinux -D__linux__ -Dunix -DEMBED -D_USE_RSDK_WRAPPER_ -D_LINUX_2_6_ -D_LINUX_2_6_30_ -I$(uClinux_root)
+CFLAGS = -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -I$(uClinux_root)/include -I$(uClinux_root)/lib/libmd5 -Dlinux -D__linux__ -Dunix -DEMBED -D_USE_RSDK_WRAPPER_ -I$(uClinux_root)
+
+ifeq ($(CONFIG_IPV6), y)
+CFLAGS += -DWITH_IPV6
+endif
+
 DIST_SOURCES = $(libgsoap_a_SOURCES) $(libgsoapck_a_SOURCES) $(libgsoapmssl_a_SOURCES) $(libgsoapssl_a_SOURCES)
 HEADERS = $(include_HEADERS)
 

@@ -28,6 +28,19 @@ include .config
 DIR_ROOT = $(shell pwd)
 DIR_RSDK = $(DIR_ROOT)/$(CONFIG_RSDKDIR)
 
+ifeq ($(CONFIG_ARCH_CPU_MIPS),y)
+VAR_ARCH:= mips
+CROSS_TARGET := mips-linux
+CROSS_COMPILE:= msdk-linux-
+export VAR_ARCH CROSS_COMPILE CROSS_TARGET
+endif
+
+ifeq ($(CONFIG_ARCH_CPU_EL),y)
+VAR_ENDIAN := EL
+else
+VAR_ENDIAN := EB
+endif
+
 DIR_BOARD = $(DIR_ROOT)/target
 DIR_ROMFS = $(DIR_ROOT)/target/romfs
 DIR_TMPFS = $(DIR_ROOT)/target/tmpfs
@@ -44,6 +57,11 @@ RCSCONFIG = $(DIR_ROMFS)/etc/init.d/rcS.conf
 MAKE = PATH=$(DIR_RSDK)/bin:$(PATH); make
 LSTRIP = PATH=$(DIR_RSDK)/bin:$(PATH); rsdk-linux-lstrip
 SSTRIP = PATH=$(DIR_RSDK)/bin:$(PATH); rsdk-linux-sstrip
+
+ifeq ($(CONFIG_ARCH_CPU_MIPS),y)
+LSTRIP = PATH=$(DIR_RSDK)/bin:$(PATH); msdk-linux-lstrip
+SSTRIP = PATH=$(DIR_RSDK)/bin:$(PATH); msdk-linux-sstrip
+endif
 
 export DIR_ROOT DIR_RSDK DIR_ROMFS DIR_IMAGE DIR_BOARD DIR_TMPFS
 export DIR_LINUX DIR_BZBOX ROMFSINST DIR_TOOLS DIR_USERS 
@@ -64,39 +82,23 @@ endif
 
 ifeq ($(ERROR),)
 # for ramfs or MP build, rootfs must be ready before kernel
-TARGET := bins romfs modules linux image
+TARGET := bins romfs modules external_modules linux image
 #TARGET := modules linux bins romfs image
 else
 TARGET := error
 endif
 
 endif
-
-#add for 8198 and 8196c use the different toolchain
+#add for 96e and 98cd use the different toolchain
 TOOLCHAIN =
-ifeq ($(CONFIG_BOARD_rtl819xD),y)
-TOOLCHAIN = 1.5.5-5281
-endif
-ifeq ($(CONFIG_BOARD_rtl8881a),y)
-TOOLCHAIN = 1.5.5-5281
-endif
 ifeq ($(CONFIG_BOARD_rtl8196e),y)
-TOOLCHAIN = 1.5.5-4181
+TOOLCHAIN = 4.6.4-4181
 endif
-ifeq ($(CONFIG_BOARD_rtl8196eu),y)
-TOOLCHAIN = 1.5.5-4181
+ifeq ($(CONFIG_BOARD_rtl8198C_8954E),y)
+TOOLCHAIN = msdk-4.4.7
 endif
-ifeq ($(CONFIG_BOARD_rtl8198),y)
-TOOLCHAIN = 1.3.6-5281
-endif
-ifeq ($(CONFIG_BOARD_rtl8196c),y)
-TOOLCHAIN = 1.3.6-4181
-endif
-ifeq ($(CONFIG_BOARD_rtl89xxC),y)
-TOOLCHAIN = 1.3.6-5281
-endif
-ifeq ($(CONFIG_BOARD_rtl89xxD),y)
-TOOLCHAIN = 1.5.5-5281
+ifeq ($(CONFIG_BOARD_rtl89xxE),y)
+TOOLCHAIN = msdk-4.4.7
 endif
 all: $(TARGET)
 
@@ -120,11 +122,21 @@ config menuconfig:
 	@chmod u+x config/setconfig
 	@config/genconfig > Kconfig
 	@config/mconf Kconfig
-	@if egrep "^CONFIG_BOARD_rtl8196eu=y" .config > /dev/null; then \
-        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
-    else \
-        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
-	fi	
+#	@if egrep "^CONFIG_BOARD_rtl8196eu=y" .config > /dev/null; then \
+#		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+#	else \
+#		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+#	fi	
+	@if egrep "^CONFIG_MODEL_RTL8871_ONLY=y" .config > /dev/null; then \
+		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+	else \
+		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+	fi
+	@if egrep "^CONFIG_ARCH_CPU_MIPS=y" .config > /dev/null; then \
+		export VAR_ARCH=mips; \
+		export CROSS_COMPILE=mips-linux-; \
+		export CROSS_TARGET=mips-linux; \
+	fi
 	@config/setconfig defaults
 	@if egrep "^CONFIG_MCONF_LINUX=y" .config > /dev/null; then \
 		$(MAKE) -C $(DIR_LINUX) menuconfig; \
@@ -199,12 +211,19 @@ linux:
 #4.2 kernel menuconfig
 #
 linux_menuconfig:
-	@if egrep "^CONFIG_BOARD_rtl8196eu=y" .config > /dev/null; then \
-        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
-    else \
-        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
-	fi
+#	@if egrep "^CONFIG_BOARD_rtl8196eu=y" .config > /dev/null; then \
+#        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+#    else \
+#        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+#	fi
 	$(MAKE) -C $(DIR_LINUX) menuconfig;
+#
+#4.3 external modules
+#
+.PHONY: external_modules
+external_modules:
+	$(MAKE) -C $(DIR_LINUX) dep > /dev/null
+	$(MAKE) -C $(DIR_USERS) ex_mod || exit $$?
 
 #
 # 5. image

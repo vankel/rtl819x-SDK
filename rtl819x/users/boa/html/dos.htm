@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>DoS Setup </title>
 <script language="javascript" type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 function dosEnabledClick(){
 	if(document.formDosCfg.dosEnabled.checked){
@@ -253,7 +254,7 @@ function init()
 </head>
 
 <blockquote>
-<h2><font color="#0000FF">Denial of Service</font></h2>
+<h2>Denial of Service</h2>
 
 <body onload="init();">
 <table border=0 width="550" cellspacing=0 cellpadding=0>

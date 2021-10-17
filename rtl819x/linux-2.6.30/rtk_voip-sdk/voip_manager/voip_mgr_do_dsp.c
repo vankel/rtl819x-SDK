@@ -297,6 +297,7 @@ int SaveCustomTone(TstVoipToneCfg *pToneCfg)
 int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 	extern void Init_CED_Det(unsigned char CH);	//thlin+ 2006-02-08
+	extern LecObj_t RtkLecObj[];
 	extern void NR_re_init(unsigned int chid);
 	extern int reinit_answer_tone_det(unsigned int chid);
 
@@ -327,9 +328,9 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	reinit_answer_tone_det(stVoipCfg.ch_id);
 
 #ifdef SUPPORT_LEC_G168_ISR
-	RtkEcObj[stVoipCfg.ch_id].EC_G168ReInit(stVoipCfg.ch_id);
+	RtkLecObj[stVoipCfg.ch_id].EC_G168ReInit(stVoipCfg.ch_id);
 #if ( defined (CONFIG_RTK_VOIP_DRIVERS_IP_PHONE) && defined  (T_TYPE_ECHO_CAN) )
-	RtkEcObj[3].EC_G168ReInit(3);
+	RtkLecObj[3].EC_G168ReInit(3);
 #endif
 #endif
 
@@ -347,8 +348,8 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	frequency_echo_state_reset(stVoipCfg.ch_id);
 #endif
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-	RtkEcObj[stVoipCfg.ch_id].EC_G168ReInit(stVoipCfg.ch_id);
-	RtkEcObj[stVoipCfg.ch_id].EC_G168NlpInit( stVoipCfg.ch_id, nDspChCfgBak[stVoipCfg.ch_id].ecBak.Attack_Stepsize_bak,
+	RtkLecObj[stVoipCfg.ch_id].EC_G168ReInit(stVoipCfg.ch_id);
+	RtkLecObj[stVoipCfg.ch_id].EC_G168NlpInit( stVoipCfg.ch_id, nDspChCfgBak[stVoipCfg.ch_id].ecBak.Attack_Stepsize_bak,
 								nDspChCfgBak[stVoipCfg.ch_id].ecBak.Release_Stepsize_bak,
 								nDspChCfgBak[stVoipCfg.ch_id].ecBak.lec_g168_cng_flag_bak );
 	NR_re_init(stVoipCfg.ch_id);
@@ -374,8 +375,8 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	fax_end_flag[stVoipCfg.ch_id]=0;
 
 	// restore LEC setting
-	EC168_RestoreFlag(stVoipCfg.ch_id, nDspChCfgBak[stVoipCfg.ch_id].ecBak.support_lec_g168_bak);
-
+	extern unsigned char support_lec_g168[];
+	support_lec_g168[stVoipCfg.ch_id] = nDspChCfgBak[stVoipCfg.ch_id].ecBak.support_lec_g168_bak;
 #ifdef FXO_CALLER_ID_DET
 	dmtf_cid_det_init(stVoipCfg.ch_id);
 	init_cid_det_si3500(stVoipCfg.ch_id);
@@ -429,7 +430,8 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	//add reset t.38 detect fax end flag when oh-hook
 	fax_end_flag[stVoipCfg.ch_id]=0;
 	// restore LEC setting
-	EC168_RestoreFlag(stVoipCfg.ch_id, nDspChCfgBak[stVoipCfg.ch_id].ecBak.support_lec_g168_bak);
+	extern unsigned char support_lec_g168[];
+	support_lec_g168[stVoipCfg.ch_id] = nDspChCfgBak[stVoipCfg.ch_id].ecBak.support_lec_g168_bak;
 
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	voip_event_flush_fax_modem_fifo(stVoipCfg.ch_id, 0);
@@ -1276,11 +1278,10 @@ int do_mgr_VOIP_MGR_SET_ANSWERTONE_DET( int cmd, void *user, unsigned int len, u
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
-	extern int set_answer_tone_det(unsigned int chid, unsigned int config1, unsigned int config2);
+	extern int set_answer_tone_det(unsigned int chid, unsigned int config);
+	set_answer_tone_det(stVoipCfg.ch_id, stVoipCfg.cfg);
 	extern int set_answer_tone_threshold(unsigned int chid, int threshold);
-	
-	set_answer_tone_det(stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2);	
-	set_answer_tone_threshold(stVoipCfg.ch_id, stVoipCfg.cfg3);
+	set_answer_tone_threshold(stVoipCfg.ch_id, stVoipCfg.cfg2);
 #endif
 	PRINT_MSG("VOIP_MGR_SET_ANSWERTONE_DET = %x\n", stVoipCfg.cfg);
 	return 0;
@@ -1633,14 +1634,14 @@ int do_mgr_VOIP_MGR_FAX_DCN_RX_DETECT( int cmd, void *user, unsigned int len, un
 int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	extern const EcObj_t LecFreqDomainObj;
-	extern const EcObj_t LecTimeDomainObj;
+	extern LecObj_t RtkLecObj[];
+	extern const LecObj_t LecFreqDomainObj;
+	extern const LecObj_t LecTimeDomainObj;
 #endif
 
 	TstVoipValue stVoipValue;
 	unsigned char nlp = 0, nlp_mode = 0;
 	unsigned long flags;
-	unsigned char no_tail_len_update = 0;
 	int ret;
 
 	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
@@ -1656,12 +1657,12 @@ int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len,
 	switch (stVoipValue.value6)
 	{
 		case 1:	// EC-32
-			RtkEcObj[stVoipValue.ch_id].ec_select = 0;
-			RtkEcObj[stVoipValue.ch_id] = LecTimeDomainObj;
+			RtkLecObj[stVoipValue.ch_id].ec_select = 0;
+			RtkLecObj[stVoipValue.ch_id] = LecTimeDomainObj;
 			break;
 		case 2: // EC-128
-			RtkEcObj[stVoipValue.ch_id].ec_select = 1;
-			RtkEcObj[stVoipValue.ch_id] = LecFreqDomainObj;
+			RtkLecObj[stVoipValue.ch_id].ec_select = 1;
+			RtkLecObj[stVoipValue.ch_id] = LecFreqDomainObj;
 			break;
 		case 0:
 		default:
@@ -1701,61 +1702,38 @@ int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len,
 		stVoipValue.value3 = 5;	
 		
 	//stVoipValue.value5 : unit is ms
-	if ( stVoipValue.value5 <= 0 )
-	{
-		// If tail length is NULL, just update NLP setting 
-		no_tail_len_update = 1;
-	}
 //#ifdef EXPER_AEC
-	if ( (stVoipValue.value5 < 32) && (RtkEcObj[stVoipValue.ch_id].ec_select) )	{	// tail length of 128ms lec min. value is 32
+	if ( (stVoipValue.value5 < 32) && (RtkLecObj[stVoipValue.ch_id].ec_select) )	{	// tail length of 128ms lec min. value is 32
 		PRINT_Y("Warning: ec128 tail length support min. 32ms tail length, ch%d\n", stVoipValue.ch_id);
-		RtkEcObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, 32);
+		RtkLecObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, 32);
 	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-		RtkEcObj[3].EC_G168SetTailLength(3, 32);// for handset.
+		RtkLecObj[3].EC_G168SetTailLength(3, 32);// for handset.
 	#endif
 	} else {
 		if ( stVoipValue.value5 <= 0 )
 			stVoipValue.value5 = 2;
-		RtkEcObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, stVoipValue.value5);
+		RtkLecObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, stVoipValue.value5);
 	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-		RtkEcObj[3].EC_G168SetTailLength(3, stVoipValue.value5);// for handset.
+		RtkLecObj[3].EC_G168SetTailLength(3, stVoipValue.value5);// for handset.
 	#endif
 	}
-	RtkEcObj[stVoipValue.ch_id].EC_G168NlpInit(stVoipValue.ch_id, stVoipValue.value2, stVoipValue.value3, stVoipValue.value4);
+	RtkLecObj[stVoipValue.ch_id].EC_G168NlpInit(stVoipValue.ch_id, stVoipValue.value2, stVoipValue.value3, stVoipValue.value4);
 	
 //#endif
 
 #ifdef SUPPORT_LEC_G168_ISR
 	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-	RtkEcObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, 16);
-
+	RtkLecObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, 16);
 		#ifdef T_TYPE_ECHO_CAN
-	if (no_tail_len_update == 1)
-		RtkEcObj[stVoipValue.ch_id].EC_G168SetNlp(stVoipValue.ch_id, LEC|nlp|nlp_mode);	// for handfree channel
-	else
-		RtkEcObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|nlp_mode);	// for handfree channel
-
-	RtkEcObj[3].EC_G168SetTailLength(3, 16);	// for handset's echo path channel
-
-	if (no_tail_len_update == 1)
-		RtkEcObj[3].EC_G168SetNlp(3, LEC|nlp|nlp_mode);	// for handset
-	else
-		RtkEcObj[3].EC_G168Init(3, LEC|nlp|nlp_mode);	// for handset
-
-#else //!T_TYPE_ECHO_CAN	
-	if (no_tail_len_update == 1)
-		RtkEcObj[stVoipValue.ch_id].EC_G168SetNlp(stVoipValue.ch_id, LEC|nlp|LEC_NLP_CNG);
-	else
-		RtkEcObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|LEC_NLP_CNG);
-#endif //T_TYPE_ECHO_CAN
-
-#else  //!CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-	if (no_tail_len_update == 1)
-		RtkEcObj[stVoipValue.ch_id].EC_G168SetNlp(stVoipValue.ch_id, LEC|nlp|nlp_mode);
-	else
-		RtkEcObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|nlp_mode);
-#endif //CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-
+	RtkLecObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|nlp_mode);	// for handfree channel
+	RtkLecObj[3].EC_G168SetTailLength(3, 16);	// for handset's echo path channel
+	RtkLecObj[3].EC_G168Init(3, LEC|nlp|nlp_mode);	// for handset
+		#else
+	RtkLecObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|LEC_NLP_CNG);
+		#endif
+	#else
+	RtkLecObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|nlp_mode);
+	#endif
 	nDspChCfgBak[ stVoipValue.ch_id ].ecBak.lec_g168_nlp_bak = LEC|nlp|nlp_mode;
 	nDspChCfgBak[ stVoipValue.ch_id ].ecBak.Attack_Stepsize_bak = stVoipValue.value2;
 	nDspChCfgBak[ stVoipValue.ch_id ].ecBak.Release_Stepsize_bak = stVoipValue.value3;
@@ -1806,10 +1784,11 @@ int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len,
 
 /**
  * @ingroup VOIP_DSP_LEC
- * @brief Turn on or off EC 
+ * @brief Turn on or off LEC 
  * @param TstVoipCfg.ch_id Channel ID 
- * @param TstVoipCfg.enable 0: Turn off LEC, 1: Turn on LEC, 4: CNG and NLP smoothing gain threshold config
- * @param TstVoipCfg.cfg EC is on when 0: TDM active , 1: Media active
+ * @param TstVoipCfg.enable Turn on (1) or off (0) LEC 
+ * @param TstVoipCfg.cfg Turn on (1) or off (0) VBD Auto LEC Change, (255) is no action
+ * @param TstVoipCfg.cfg2 LEC restore value for VBD Auto LEC mode is enable
  * @see VOIP_MGR_SET_G168_LEC_CFG TstVoipCfg 
  */
 #if ! defined (AUDIOCODES_VOIP)
@@ -1817,6 +1796,7 @@ int do_mgr_VOIP_MGR_SET_G168_LEC_CFG( int cmd, void *user, unsigned int len, uns
 {
 	TstVoipCfg stVoipCfg;
 	int ret;
+	extern LecObj_t RtkLecObj[];
 
 	COPY_FROM_USER(&stVoipCfg, (TstVoipCfg *)user, sizeof(TstVoipCfg));
 
@@ -1831,45 +1811,22 @@ int do_mgr_VOIP_MGR_SET_G168_LEC_CFG( int cmd, void *user, unsigned int len, uns
 	if (stVoipCfg.enable == 1)
 #ifdef SUPPORT_LEC_G168_ISR
 	{
-		RtkEcObj[stVoipCfg.ch_id].EC_G168Enable(stVoipCfg.ch_id);
+		RtkLecObj[stVoipCfg.ch_id].EC_G168Enable(stVoipCfg.ch_id);
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 		#ifdef T_TYPE_ECHO_CAN
-		RtkEcObj[3].EC_G168Enable(3);// for handset.
+		RtkLecObj[3].EC_G168Enable(3);// for handset.
 		#endif
 #endif
 	}
 	else if (stVoipCfg.enable == 0)
 	{
-		RtkEcObj[stVoipCfg.ch_id].EC_G168Disable(stVoipCfg.ch_id);
+		RtkLecObj[stVoipCfg.ch_id].EC_G168Disable(stVoipCfg.ch_id);
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 		#ifdef T_TYPE_ECHO_CAN
-		RtkEcObj[3].EC_G168Disable(3);// for handset.
+		RtkLecObj[3].EC_G168Disable(3);// for handset.
 		#endif
 #endif
-	} else if (stVoipCfg.enable == 4) {	// set the CNG noise level and smoothing gain threshold
-		/*
-		* Frequency domain 
-		* AEC Comfort noise level and NLP smoothing gain threshold configuration
-		* [ cfg ]
-		* cng_level: 0(softer) ~ 15 (louder), if over the range will be set to 0, default=2
-		* [ cfg2 ]
-		* smooth_gain_threshold: When NLP active and work, smoothing ramp down touch this threshold 
-		*			 ( residual < threshold ), the gain facor will set to this threshold
-		*			 Finally, residual echo*gain factor
-		*			 Avaiable range: 0~0x7FFF, but NOT recommended it set to large value
-		*			 Setting Criteria: More high more echo, but full duplex more
-		*			 Recommended value: 0x50
-		*/
-		
-		/* Time-domain
-		*  [ cfg ]
-		*	cng_level: 0(softer) ~ 17 (louder), if over the range will be set to 0, default=1
-		*  [ cfg2 ]
-		* 	smoothing gain threshold, recommended value=0x50
-		*/
-		RtkEcObj[stVoipCfg.ch_id].EC_G168NlpCngSmoothConfig( stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2 );
 	}
-	EC168_SetOnState(stVoipCfg.ch_id, stVoipCfg.cfg);
 	
 #endif
 #endif
@@ -1926,7 +1883,8 @@ int do_mgr_VOIP_MGR_SET_VBD_EC( int cmd, void *user, unsigned int len, unsigned 
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward 
 #else
-	RtkEcObj[stVoipCfg.ch_id].EC_G168VbdAuto(stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2, stVoipCfg.cfg3);
+	extern LecObj_t RtkLecObj[];
+	RtkLecObj[stVoipCfg.ch_id].EC_G168VbdAuto(stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2, stVoipCfg.cfg3);
 #endif
 	return 0;
 }
@@ -1970,6 +1928,7 @@ int do_mgr_VOIP_MGR_GET_EC_DEBUG( int cmd, void *user, unsigned int len, unsigne
 	unsigned long flags;
 	unsigned short input[80] __attribute__((aligned (8)));
 	//unsigned short est_echo[80] __attribute__((aligned (8)));
+	extern LecObj_t RtkLecObj[];
 
 	COPY_FROM_USER(&stVoipEcDebug, (TstVoipEcDebug*)user, sizeof(TstVoipEcDebug));
 
@@ -1980,19 +1939,19 @@ int do_mgr_VOIP_MGR_GET_EC_DEBUG( int cmd, void *user, unsigned int len, unsigne
 		if (ec_test_mode==2) {
 #ifdef AEC_TEST
 			ProfileEnterPoint(PROFILE_INDEX_LEC);
-			RtkEcObj[3].EC_G168Process( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1)
+			RtkLecObj[3].EC_G168Process( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1)
 			ProfileExitPoint(PROFILE_INDEX_LEC);
 			ProfilePerDump(PROFILE_INDEX_LEC, 1024);;
 #endif
 			//aec_process_block_10ms(3, stVoipEcDebug.buf1, est_echo, input, stVoipEcDebug.buf2);
 		} else {
-			if( RtkEcObj[3].EC_G168Process == NULL )
+			if( RtkLecObj[3].EC_G168Process == NULL )
 			{
-				PRINT_R("Error !!! %s not supported !!!\n", RtkEcObj[3].EC_G168Process);
+				PRINT_R("Error !!! %s not supported !!!\n", RtkLecObj[3].EC_G168Process);
 				ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
 			}
 			else
-				RtkEcObj[3]. EC_G168Process( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1 );			
+				RtkLecObj[3]. EC_G168Process( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1 );			
 		//
 		}
 		restore_flags(flags);
@@ -2004,16 +1963,16 @@ int do_mgr_VOIP_MGR_GET_EC_DEBUG( int cmd, void *user, unsigned int len, unsigne
 		else if (stVoipEcDebug.mode&INIT_MODE_ADAPT_CONFIG) {
 			ec128_set_adaption_mode(3, (stVoipEcDebug.mode>>4)&7);
 		} else {
-			RtkEcObj[3].EC_G168SetTailLength(3, 128);
-			RtkEcObj[3].EC_G168Init(3, 1);
-			RtkEcObj[3].EC_G168ReInit(3);
+			RtkLecObj[3].EC_G168SetTailLength(3, 128);
+			RtkLecObj[3].EC_G168Init(3, 1);
+			RtkLecObj[3].EC_G168ReInit(3);
 		}
     #endif
 		ec_test_mode = 2;
 	} else {//stVoipEcDebug.mode = 0, do ec init
-		RtkEcObj[3].EC_G168SetTailLength(3, 16);
-		RtkEcObj[3].EC_G168Init( 3, LEC|LEC_NLP|LEC_NLP_MUTE);
-		RtkEcObj[3].EC_G168Init = 0;
+		RtkLecObj[3].EC_G168SetTailLength(3, 16);
+		RtkLecObj[3].EC_G168Init( 3, LEC|LEC_NLP|LEC_NLP_MUTE);
+		RtkLecObj[3].EC_G168Init = 0;
 	}
 #endif
 	return ret;
@@ -3916,9 +3875,9 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 	TstVoipValue stVoipValue;
 	int ret;
 
-	uint32 chid;
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	uint32 sid;
+	uint32 sid, chid;
+	extern LecObj_t RtkLecObj[];
 #endif
 
 #ifdef FXO_BUSY_TONE_DET
@@ -3934,15 +3893,11 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
 
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
-
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	for(sid=0; sid<DSP_RTK_SS_NUM; sid++)	//Set the same country for each session.
 		DspcodecSetCountry( sid, /*country*/stVoipValue.value);
-#endif
-
 	//for (chid=0; chid<SLIC_CH_NUM; chid++)
 	for (chid=0; chid<CON_CH_NUM; chid++) {
 		if( get_snd_type_cch( chid ) == SND_TYPE_FXS )
@@ -3954,7 +3909,6 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 	}
 
 #ifdef FXO_BUSY_TONE_DET
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	switch (stVoipValue.value)
 	{
 		case DSPCODEC_COUNTRY_USA://USA
@@ -4042,8 +3996,6 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
     //  __FUNCTION__,__LINE__,stVoipValue.value,stVoiptonedet_parm.frequency1, stVoiptonedet_parm.frequency2);
 
 #endif
-#endif
-
 	switch (stVoipValue.value)
 	{
 		case DSPCODEC_COUNTRY_USA://USA
@@ -4112,16 +4064,15 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 			break;
 	}
 
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	if (stVoipValue.value == DSPCODEC_COUNTRY_JP) // Japan
 	{
 		for (chid=0; chid<CON_CH_NUM; chid++) {
 			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
 				continue;
 #if defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3210 ) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3215 )
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 5);
 #elif defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x ) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 5);
 #elif defined CONFIG_RTK_VOIP_DRIVERS_SLIC_W682388
 		#error "Need to do NTT echo test for SLIC W682388"
 #endif
@@ -4133,13 +4084,12 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
 				continue;
 #if defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x ) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 18);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 18);
 #else
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 21);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 21);
 #endif
 		}
 	}
-#endif
 #endif
 	return 0;
 }
@@ -4260,6 +4210,7 @@ int do_mgr_VOIP_MGR_SET_COUNTRY_TONE( int cmd, void *user, unsigned int len, uns
 {
 	TstVoipValue stVoipValue;
 	int ret;
+	extern LecObj_t RtkLecObj[];
 
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	uint32 sid, chid;
@@ -4447,9 +4398,9 @@ int do_mgr_VOIP_MGR_SET_COUNTRY_TONE( int cmd, void *user, unsigned int len, uns
 			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
 				continue;
 #if defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3210 ) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3215 )
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 5);
 #elif defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 5);
 #elif defined CONFIG_RTK_VOIP_DRIVERS_SLIC_W682388
 		#error "Need to do NTT echo test for SLIC W682388"
 #endif
@@ -4461,9 +4412,9 @@ int do_mgr_VOIP_MGR_SET_COUNTRY_TONE( int cmd, void *user, unsigned int len, uns
 			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
 				continue;
 #if defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 18);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 18);
 #else
-			RtkEcObj[chid].EC_G168NlpConfig(chid, 21);
+			RtkLecObj[chid].EC_G168NlpConfig(chid, 21);
 #endif
 		}
 	}

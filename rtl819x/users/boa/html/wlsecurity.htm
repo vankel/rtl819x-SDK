@@ -5,12 +5,10 @@
 <% getIndex("no-cache"); %>
 <title>Wireless Security Setup</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}	
-.bggrey {
-	BACKGROUND: #FFFFFF
-}
 </style>
 <script>
 SecurityTypePage = new Array("wlsecurity_all.htm");
@@ -212,7 +210,7 @@ function SSIDSelected(index)
 
 <body onload="SSIDSelected();">
 <blockquote>
-<h2><font color="#0000FF">
+<h2>
 	<script type="text/javascript">
 		var wlan_num = <% getIndex("wlan_num"); %>;
 		if (wlan_num > "1") {
@@ -222,7 +220,7 @@ function SSIDSelected(index)
 		else
 			document.write("Wireless Security Setup</p>");
 	</script>
-</font></h2>
+</h2>
 
 <form action=/boafrm/formWlEncrypt method=POST name="formEncrypt">
 <table border=0 width="540" cellspacing=4 cellpadding=0>
@@ -233,7 +231,7 @@ function SSIDSelected(index)
     <tr><hr size=1 noshade align=top></tr>
 <table width="540" height="25" border="0" cellpadding="0" cellspacing="0">
 <tr> 
-<td bgcolor="#FFFFFF" height="20" class="MainTD"><font size="2"><b>Select SSID:&nbsp;&nbsp;</b>
+<td  height="20" class="MainTD"><font size="2"><b>Select SSID:&nbsp;&nbsp;</b>
 <select name="SSID_Setting" onChange="SSIDSelected( this.selectedIndex )">
 <script>SetSSIDSettingOption()</script>
 </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
@@ -246,14 +244,14 @@ function SSIDSelected(index)
 </table>
 <table width="540" height="25" border="0" cellpadding="0" cellspacing="0">
 <tr> 
-<td bgcolor="#FFFFFF" colspan="2" height="20"> 
+<td  colspan="2" height="20"> 
 <hr color="#B5B5E6" size="1">
 </td>
 </tr>
 </table>
 <table width="540" border="0" cellpadding="0" cellspacing="0">
 <tr> 
-<td bgcolor="#FFFFFF" rowspan="12" width="540">
+<td  rowspan="12" width="540">
 <iframe width="540" height="400" id="SSIDAuthMode" name="SSIDAuthMode" frameborder="0" marginheight="0" scrolling="no"> 
 </iframe> </td>
 </tr>

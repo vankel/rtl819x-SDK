@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Wireless Site Survey</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -356,7 +357,6 @@ function saveClickSSID()
 	/*else if(document.getElementById("pocket_encrypt").value.indexOf("WPA-PSK") != -1){
 		get_by_id("method"+wlan_idx).selectedIndex = 3;
 
-
 		if((client_mode_support_1x==1)&&(document.getElementById("pocket_encrypt").value.indexOf("-1X") !=-1)){
 			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;
 			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=false;
@@ -413,6 +413,7 @@ function saveClickSSID()
 	}*/
 	else if(document.getElementById("pocket_encrypt").value.indexOf("WPA") != -1){//wpa/wpa2/mixed
 		get_by_id("method"+wlan_idx).selectedIndex = 2;
+
 		if((client_mode_support_1x==1)&&(document.getElementById("pocket_encrypt").value.indexOf("-1X") !=-1)){
 			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;
 			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=false;
@@ -499,7 +500,7 @@ function wpa_suite_select(wpa,suite)
 </head>
 <body onload="init();">
 <blockquote>
-<h2><font color="#0000FF">
+<h2>
 	<script type="text/javascript">
 	var wlan_num =  <% getIndex("wlan_num"); %>;
 	if (wlan_num > 1) {
@@ -509,7 +510,7 @@ function wpa_suite_select(wpa,suite)
 	else
 		document.write("Wireless Site Survey</p>");
 	</script>
-</font></h2>
+</h2>
 
 <table border=0 width="500" cellspacing=0 cellpadding=0>
 <tr><font size=2>
@@ -519,8 +520,7 @@ function wpa_suite_select(wpa,suite)
 <tr><hr size=1 noshade align=top></tr>
 </table>
 <form action=/boafrm/formWlSiteSurvey method=POST name="wizardPocket">
-<input type=hidden id="pocketAP_ssid" name="pocketAP_ssid" value="">
-<input type=hidden id="pocketAP_realssid" name="pocketAP_realssid" value="">
+<input type=hidden id="pocketAP_ssid" name="pocketAP_ssid" value=""> 
 <input type=hidden id="pocket_channel" name="pocket_channel" value="">
 <input type=hidden id="pocket_encrypt" name="pocket_encrypt" value="">
 <input type=hidden id="pocket_wpa_tkip_aes" name="pocket_wpa_tkip_aes" value="">
@@ -580,6 +580,7 @@ function wpa_suite_select(wpa,suite)
         <select size="1" id=method<% getIndex("wlan_idx"); %> name=method<% getIndex("wlan_idx"); %> onChange=pocket_checkState(<% getIndex("wlan_idx"); %>)>
           <option  value="0">None</option>
           <option value="1">WEP</option>
+          <!--<option value="2">WPA</option>-->
 	  	  <!--<option value="4">WPA2</option>-->
 	      <option value="6">WPA-MIXED</option>
         </select></font></td>
@@ -764,7 +765,7 @@ function wpa_suite_select(wpa,suite)
 
 <br>
 
-<table width="550" border="0" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF">
+<table width="550" border="0" cellpadding="0" cellspacing="0">
   <tr>
   <td width="35%"><font size="2"><b>Encryption:&nbsp;</b></td>
   <td width="65%"><font size="2"><select size="1" id="mesh_method<% getIndex("wlan_idx"); %>" name="mesh_method<% getIndex("wlan_idx"); %>" onChange="checkMeshState(wlan_idx)" >

@@ -30,6 +30,17 @@ int getPORMAPTENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **dat
 int setPORMAPTENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data);
 int objWANPORTMAPPING(char *name, struct CWMP_LEAF *entity, int type, void *data);
 
+/*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+int getWANIPConDHCPClientENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **data);
+
+int getDHCPClientOptENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **data);
+int setDHCPClientOptENTITY(char *name, struct CWMP_LEAF *entity, int type, void *data);
+int objDHCPClientSentOpt(char *name, struct CWMP_LEAF *e, int type, void *data);
+int objDHCPClientReqOpt(char *name, struct CWMP_LEAF *e, int type, void *data);
+#endif
+/*ping_zhang:20080919 END*/
+
 int getWANCONSTATS(char *name, struct CWMP_LEAF *entity, int *type, void **data);
 
 int getWANPPPCONENTITY(char *name, struct CWMP_LEAF *entity, int *type, void **data);
@@ -59,7 +70,7 @@ int transfer2PathName( unsigned int ifindex, char *name );
 int transfer2PathNamefromItf( char *ifname, char *pathname );
 
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 extern int gStartReset;
 void cwmpStartReset();
 #endif

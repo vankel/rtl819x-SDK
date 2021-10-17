@@ -78,7 +78,7 @@ host_triplet = @host@
 target_alias = @target_alias@
 target_triplet = @target@
 #CC = @CC@
-CC = rsdk-linux-gcc
+CC = $(CROSS_COMPILE)gcc
 GZIP = @GZIP@
 LEX = @LEX@
 LN = @LN@
@@ -122,6 +122,12 @@ YFLAGS = -d
 CFLAGS = -Os --static -s -Wall -Wpointer-arith  -Wcast-qual -Wcast-align -Wconversion \
 	-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
 
+ifeq ($(KERNEL_VER),linux-2.6.30)
+CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+CFLAGS += -DKERNEL_3_10
+endif
 
 radvdump_SOURCES = $(COMMON_SRC) radvdump.c
 

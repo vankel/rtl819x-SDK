@@ -149,10 +149,8 @@ static int voip_debug5_read(char *page, char **start, off_t off,
         int count, int *eof, void *data)
 {
 	extern int g_voip_debug5;
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 #ifdef CONFIG_RTK_VOIP_T38
 	extern int g_disable_1st_no_sig_packet;
-#endif
 #endif
 	int chid, sid;
 	int n;
@@ -164,10 +162,8 @@ static int voip_debug5_read(char *page, char **start, off_t off,
 
 	n = sprintf(page, "VoIP Debug5 Information:\n");
 	n += sprintf(page+n, "  - last cmd: %d\n", g_voip_debug5);
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 #ifdef CONFIG_RTK_VOIP_T38
 	n += sprintf(page+n, "  - disable firt t.38 no-signal packet : %d\n", g_disable_1st_no_sig_packet);
-#endif
 #endif
 	*eof = 1;
 	return n;

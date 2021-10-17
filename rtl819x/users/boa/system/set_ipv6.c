@@ -81,6 +81,22 @@ void set_dhcp6s()
 		return;
 	}
 	
+#ifdef CONFIG_SIXRD_SUPPORT
+	int val;
+
+	if(!apmib_get(MIB_IPV6_ORIGIN_TYPE,&val)){
+		fprintf(stderr, "Read MIB_IPV6_ORIGIN_TYPE Error\n");
+		return -1;			
+	}
+	if(val == 2) //if 6rd, dhcp6s start with 6rd prefix delegation
+		goto start_dhcp6s;
+#endif
+
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+		if(dhcp6sCfgParam.addr6PrefixMode== 1)
+			return;
+#endif
+	
 	if(isFileExist(DHCP6S_CONF_FILE) == 0) {
 		/*create config file*/
 		fh = open(DHCP6S_CONF_FILE, O_RDWR|O_CREAT|O_TRUNC, S_IRWXO|S_IRWXG);	
@@ -100,7 +116,35 @@ void set_dhcp6s()
 		write(fh, tmpStr, strlen(tmpStr));
 		sprintf(tmpStr, "pool pool1 {\n");
 		write(fh, tmpStr, strlen(tmpStr));
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+		if(dhcp6sCfgParam.addr6PrefixMode == 2)
+		{
+			addr6CfgParam_t ula_prefix;
+
+			if ( !apmib_get(MIB_IPV6_ADDR_ULA_PARAM,(void *)&ula_prefix))
+			{
+				fprintf(stderr, "get mib %d error!\n", MIB_IPV6_ADDR_ULA_PARAM);
+				return;
+			}
+
+			sprintf(tmpStr, "  range %04x:%04x:%04x:%04x:%s "	\
+							"to %04x:%04x:%04x:%04x:%s ;\n",
+							ula_prefix.addrIPv6[0],
+							ula_prefix.addrIPv6[1],
+							ula_prefix.addrIPv6[2],
+							ula_prefix.addrIPv6[3],
+							dhcp6sCfgParam.addr6PoolS,
+							ula_prefix.addrIPv6[0],
+							ula_prefix.addrIPv6[1],
+							ula_prefix.addrIPv6[2],
+							ula_prefix.addrIPv6[3],
+							dhcp6sCfgParam.addr6PoolE);
+		}
+		else if(dhcp6sCfgParam.addr6PrefixMode == 0)
+#endif
+		{
 		sprintf(tmpStr, "  range %s to %s ;\n", dhcp6sCfgParam.addr6PoolS, dhcp6sCfgParam.addr6PoolE);
+		}
 		write(fh, tmpStr, strlen(tmpStr));
 		sprintf(tmpStr, "};\n");
 		write(fh, tmpStr, strlen(tmpStr));
@@ -109,6 +153,7 @@ void set_dhcp6s()
 	}
 
 	/*start daemon*/
+start_dhcp6s:
 	if(isFileExist(DHCP6S_PID_FILE)) {
 		pid=getPid_fromFile(DHCP6S_PID_FILE);
 		if(dhcp6sCfgParam.enabled == 1){
@@ -397,12 +442,45 @@ void set_radvd()
 	char tmpStr[256];
 	char tmpBuf[256];
 	unsigned short tmpNum[8];
-
+	int dnsMode;
+	FILE *fp=NULL;
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+	addr6CfgParam_t ula_prefix;
+#endif
+	
 	if ( !apmib_get(MIB_IPV6_RADVD_PARAM,(void *)&radvdCfgParam)){
 		printf("get MIB_IPV6_RADVD_PARAM failed\n");
 		return;  
 	}
 
+	if(!radvdCfgParam.enabled)
+		return;
+
+#ifdef CONFIG_SIXRD_SUPPORT
+	int val;
+
+	if(!apmib_get(MIB_IPV6_ORIGIN_TYPE,&val)){
+		fprintf(stderr, "Read MIB_IPV6_ORIGIN_TYPE Error\n");
+		return -1;			
+	}
+	if(val == 2) //if 6rd, radvd start with 6rd prefix delegation
+		goto start_radvd;
+#endif
+
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+	if(radvdCfgParam.interface.prefix[0].prefix_mode == 1)
+		return;
+#endif
+
+#if defined(CONFIG_IPV6_CE_ROUTER_SUPPORT)
+    dhcp6sCfgParam_t  dhcp6sCfgParam;
+    int dhcp6s_iana_support = 0;
+		if ( !apmib_get(MIB_IPV6_DHCPV6S_PARAM,(void *)&dhcp6sCfgParam)){
+			fprintf(stderr,"get MIB_IPV6_DHCPV6S_PARAM failed\n");
+			return;  
+		}
+        dhcp6s_iana_support= dhcp6sCfgParam.enabled;
+#endif
 	if(!isFileExist(RADVD_CONF_FILE)){
 		/*create config file*/
 		fh = open(RADVD_CONF_FILE, O_RDWR|O_CREAT|O_TRUNC, S_IRWXO|S_IRWXG);	
@@ -424,8 +502,18 @@ void set_radvd()
 		sprintf(tmpStr, "MinDelayBetweenRAs %d;\n", radvdCfgParam.interface.MinDelayBetweenRAs);
 		write(fh, tmpStr, strlen(tmpStr));
 		if(radvdCfgParam.interface.AdvManagedFlag > 0) {
+#if defined(CONFIG_IPV6_CE_ROUTER_SUPPORT)
+            if(dhcp6s_iana_support)
+			{
+#endif
 			sprintf(tmpStr, "AdvManagedFlag on;\n");
 			write(fh, tmpStr, strlen(tmpStr));			
+#if defined(CONFIG_IPV6_CE_ROUTER_SUPPORT)
+			}else{
+				sprintf(tmpStr, "AdvManagedFlag off;\n");
+				write(fh, tmpStr, strlen(tmpStr));			
+			}
+#endif
 		}
 		if(radvdCfgParam.interface.AdvOtherConfigFlag > 0){
 			sprintf(tmpStr, "AdvOtherConfigFlag on;\n");
@@ -455,12 +543,36 @@ void set_radvd()
 
 		/*prefix 1*/
 		if(radvdCfgParam.interface.prefix[0].enabled > 0){
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+			if(radvdCfgParam.interface.prefix[0].prefix_mode == 2)
+			{
+				if ( !apmib_get(MIB_IPV6_ADDR_ULA_PARAM,(void *)&ula_prefix))
+				{
+					fprintf(stderr, "get mib %d error!\n", MIB_IPV6_ADDR_ULA_PARAM);
+					return;
+				}
+
+				sprintf(tmpStr, "prefix %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/64\n",
+						ula_prefix.addrIPv6[0],
+						ula_prefix.addrIPv6[1],
+						ula_prefix.addrIPv6[2],
+						ula_prefix.addrIPv6[3],
+						0,
+						0,
+						0,
+						0);
+				write(fh, tmpStr, strlen(tmpStr));
+			}
+			else if(radvdCfgParam.interface.prefix[0].prefix_mode == 0)
+#endif
+			{
 			memcpy(tmpNum,radvdCfgParam.interface.prefix[0].Prefix, sizeof(radvdCfgParam.interface.prefix[0].Prefix));
 			sprintf(tmpBuf, "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", tmpNum[0], tmpNum[1], 
 				tmpNum[2], tmpNum[3], tmpNum[4], tmpNum[5],tmpNum[6],tmpNum[7]);
 			strcat(tmpBuf, "\0");
 			sprintf(tmpStr, "prefix %s/%d\n", tmpBuf, radvdCfgParam.interface.prefix[0].PrefixLen);			
 			write(fh, tmpStr, strlen(tmpStr));
+			}
 			sprintf(tmpStr, "{\n");
 			write(fh, tmpStr, strlen(tmpStr));
 			if(radvdCfgParam.interface.prefix[0].AdvOnLinkFlag > 0){
@@ -521,7 +633,6 @@ void set_radvd()
 			write(fh, tmpStr, strlen(tmpStr));						
 		}
 
-#if 1
 		if(radvdCfgParam.interface.prefix[0].if6to4[0] ||
 		   radvdCfgParam.interface.prefix[1].if6to4[0])
 		{
@@ -536,14 +647,113 @@ void set_radvd()
 			sprintf(tmpStr, "};\n");
 			write(fh, tmpStr, strlen(tmpStr));
 		}
+
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+		if(radvdCfgParam.interface.prefix[0].prefix_mode == 2)
+		{
+			sprintf(tmpStr, "route %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/64\n",
+					ula_prefix.addrIPv6[0],
+					ula_prefix.addrIPv6[1],
+					ula_prefix.addrIPv6[2],
+					ula_prefix.addrIPv6[3],
+					0,
+					0,
+					0,
+					0);
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "{\n");
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "AdvRoutePreference medium;\n");
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "AdvRouteLifetime 1800;\n");
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "};\n");
+			write(fh, tmpStr, strlen(tmpStr));
+		}
+#endif
+
+		
+#ifdef SUPPORT_RDNSS_OPTION
+		//add RDNSS 
+		apmib_get(MIB_IPV6_DNS_AUTO, (void *)&dnsMode);		
+		if(dnsMode==0)  //Set DNS Manually 
+		{
+			addr6CfgParam_t addr6_dns;
+			
+			apmib_get(MIB_IPV6_ADDR_DNS_PARAM,  (void *)&addr6_dns);
+				
+			snprintf(tmpBuf, sizeof(tmpBuf), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", 
+			addr6_dns.addrIPv6[0], addr6_dns.addrIPv6[1], addr6_dns.addrIPv6[2], addr6_dns.addrIPv6[3], 
+			addr6_dns.addrIPv6[4], addr6_dns.addrIPv6[5], addr6_dns.addrIPv6[6], addr6_dns.addrIPv6[7]);
+
+			if(strstr(tmpBuf, "0000:0000:0000:0000:0000:0000:0000:0000")==NULL)	
+			{
+				//add RDNSS 
+				sprintf(tmpStr, "RDNSS %s\n",tmpBuf);
+				write(fh, tmpStr, strlen(tmpStr));
+				sprintf(tmpStr, "{\n");
+				write(fh, tmpStr, strlen(tmpStr));
+				sprintf(tmpStr, "AdvRDNSSLifetime %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+				write(fh, tmpStr, strlen(tmpStr));
+				sprintf(tmpStr, "};\n");
+				write(fh, tmpStr, strlen(tmpStr));
+			}			
+		}
+		else
+		{
+			if(isFileExist(DNSV6_ADDR_FILE))
+			{
+				if((fp=fopen("/var/dns6.conf","r"))!=NULL)
+				{				
+					memset(tmpStr, 0, sizeof(tmpStr));
+					while(fgets(tmpBuf, sizeof(tmpBuf), fp))
+					{
+						tmpBuf[strlen(tmpBuf)-1]=0;
+						strcat(tmpStr, tmpBuf+strlen("nameserver")+1);
+						strcat(tmpStr, " ");					
+					}
+					if(strlen(tmpStr>1)==0)
+					{
+						tmpStr[strlen(tmpStr)-1]=0;				
+						sprintf(tmpBuf, "RDNSS %s\n",tmpStr);
+						write(fh, tmpBuf, strlen(tmpBuf));
+						sprintf(tmpBuf, "{\n");
+						write(fh, tmpBuf, strlen(tmpStr));
+						sprintf(tmpBuf, "AdvRDNSSLifetime %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+						write(fh, tmpBuf, strlen(tmpBuf));
+						sprintf(tmpBuf, "};\n");
+						write(fh, tmpBuf, strlen(tmpBuf));	
+					}
+					fclose(fp);	
+				}
+			}
+		}
+#endif
+
+#ifdef SUPPORT_DNSSL_OPTION
+		//add DNSSL
+		memset(tmpBuf, 0, sizeof(tmpBuf));
+		apmib_get(MIB_DOMAIN_NAME, (void *)tmpBuf);	
+		if(strlen(tmpBuf)>0)
+		{
+			sprintf(tmpStr, "DNSSL %s.com %s.com.cn\n", tmpBuf, tmpBuf);
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "{\n");
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "AdvDNSSLLifetime %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+			write(fh, tmpStr, strlen(tmpStr));
+			sprintf(tmpStr, "};\n");
+			write(fh, tmpStr, strlen(tmpStr));		
+		}
 #endif
 
 		sprintf(tmpStr, "};\n");
-		write(fh, tmpStr, strlen(tmpStr));	
-		
+		write(fh, tmpStr, strlen(tmpStr));		
 		close(fh);		
 	}
-	
+
+start_radvd:
+	printf("%s %d: start radvd...\n", __FUNCTION__, __LINE__);
 	if(isFileExist(RADVD_PID_FILE)){
 		if(radvdCfgParam.enabled == 1) {
 			system("killall radvd 2> /dev/null");			
@@ -643,6 +853,9 @@ void set_dhcp6c()
 		char tmpStr[256];
 		int fh;
 		int val;
+#ifdef CONFIG_DSLITE_SUPPORT
+		int enable_dslite;
+#endif
 		FILE *fp = NULL;
 		int pid=-1;
 		struct duid_t dhcp6c_duid;
@@ -815,9 +1028,34 @@ void set_dhcp6c()
 			}
 		}
 #endif
-		sprintf(tmpStr, "	script \"/var/dhcp6cRcv.sh\";\n");
+
+#ifdef CONFIG_DSLITE_SUPPORT
+		if(!apmib_get(MIB_WAN_DHCP,&enable_dslite)){	
+			fprintf(stderr, "get mib %d error!\n", MIB_WAN_DHCP);
+			close(fh);
+			return;
+		}
+
+		if(enable_dslite == 17)
+		{
+			if(!apmib_get(MIB_DSLITE_MODE,&val)){	
+				fprintf(stderr, "get mib %d error!\n", MIB_DSLITE_MODE);
+				close(fh);
+				return;
+			}
+			if(val == 0)
+			{
+				sprintf(tmpStr, "	request address-family-transition-router;\n");
+				write(fh, tmpStr, strlen(tmpStr));
+			}
+//			sprintf(tmpStr, "	script \"%s\";\n", DSLITE_SCRIPT);
+//			write(fh, tmpStr, strlen(tmpStr));
+		}
+#endif
+
+		sprintf(tmpStr, "	script \"%s\";\n", DHCP6C_SCRIPT);
 		write(fh, tmpStr, strlen(tmpStr));
-		system("cp /bin/dhcp6cRcv.sh /var/dhcp6cRcv.sh");
+//		system("cp /bin/dhcp6cRcv.sh /var/dhcp6cRcv.sh");
 		sprintf(tmpStr, "};\n\n");
 		write(fh, tmpStr, strlen(tmpStr));
 
@@ -863,7 +1101,7 @@ void set_dhcp6c()
 		/*ia-na*/
 		sprintf(tmpStr, "id-assoc na %d {\n",101);
 		write(fh, tmpStr, strlen(tmpStr));
-		#ifdef TR181_SUPPORT
+#ifdef TR181_SUPPORT
 		sprintf(tmpStr, "	suggest-t {\n");
 		write(fh, tmpStr, strlen(tmpStr));
 
@@ -892,8 +1130,16 @@ void set_dhcp6c()
 		write(fh, tmpStr, strlen(tmpStr));	
 
 		close(fh);
-	
 
+		/* create script dhcp6c.sh */
+		sprintf(tmpStr, "cp /bin/dhcp6cRcv.sh %s", DHCP6C_SCRIPT);
+		system(tmpStr);
+		if(isFileExist(DSLITE_SCRIPT)==1)
+		{
+			sprintf(tmpStr, "echo \"%s\" >> %s", DSLITE_SCRIPT, DHCP6C_SCRIPT);
+			system(tmpStr);
+		}
+		
 		sprintf(pidname,DHCP6C_PID_FILE);
 		if(isFileExist(pidname)){
 			pid=getPid_fromFile(pidname);
@@ -940,7 +1186,12 @@ void set_wanv6()
 		switch(val){
 	
 			case IPV6_ORIGIN_DHCP:
-				set_dhcp6c();									
+				system("echo 2 > /proc/sys/net/ipv6/conf/eth1/accept_ra");
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+				system("ipv6_manage_inet start&");
+#else
+				set_dhcp6c();	
+#endif
 				break;
 	
 			case IPV6_ORIGIN_STATIC:
@@ -980,6 +1231,17 @@ void set_wanv6()
 	
 }
 
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+void create_eui64(char *mac, char *eui)
+{
+	memcpy(eui, mac, 3);
+	memcpy(eui+5, mac+3, 3);
+	eui[3] = 0xFF;
+	eui[4] = 0xFE;
+	eui[0] ^= 2;
+}
+#endif
+
 void set_lanv6()
 {
 	addr6CfgParam_t addr6;
@@ -994,6 +1256,41 @@ void set_lanv6()
 					addr6.addrIPv6[3],addr6.addrIPv6[4],addr6.addrIPv6[5],
 					addr6.addrIPv6[6],addr6.addrIPv6[7],addr6.prefix_len);
 	system(tmpBuf);
+
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+	int enable_ula;
+	addr6CfgParam_t ula_prefix;
+	unsigned char mac[6];
+	unsigned char eui[8];
+
+	if(!apmib_get(MIB_IPV6_ULA_ENABLE,(void *)&enable_ula))
+	{
+		fprintf(stderr, "get mib %d error!\n", MIB_IPV6_ULA_ENABLE);
+		return;
+	}
+
+	if(enable_ula)
+	{
+		if ( !apmib_get(MIB_IPV6_ADDR_ULA_PARAM,(void *)&ula_prefix))
+		{
+			fprintf(stderr, "get mib %d error!\n", MIB_IPV6_ADDR_ULA_PARAM);
+			return;
+		}
+		if ( !apmib_get(MIB_HW_NIC0_ADDR,  (void *)mac) )
+		{
+			fprintf(stderr, "get mib %d error!\n", MIB_HW_NIC0_ADDR);
+			return;
+		}
+		create_eui64(mac, eui);
+
+		sprintf(tmpBuf,"ifconfig br0 add %04x:%04x:%04x:%04x:%02x%02x:%02x%02x:%02x%02x:%02x%02x/64 2> /dev/null",
+					ula_prefix.addrIPv6[0],ula_prefix.addrIPv6[1],
+					ula_prefix.addrIPv6[2],ula_prefix.addrIPv6[3],
+					eui[0],eui[1],eui[2],eui[3],
+					eui[4],eui[5],eui[6],eui[7]);
+		system(tmpBuf);
+	}
+#endif
 	return;
 }
 
@@ -1224,7 +1521,7 @@ void set_dslite()
 	
 	sprintf(tmpStr, "#!/bin/sh\n\n");
 	write(fh, tmpStr, strlen(tmpStr));
-	sprintf(tmpStr, "ip tunnel del ds-lite 2> /dev/null\n");
+	sprintf(tmpStr, "ip -6 tunnel del ds-lite 2> /dev/null\n");
 	write(fh, tmpStr, strlen(tmpStr));
 	sprintf(tmpStr, "ip -6 tunnel add ds-lite mode ipip6 remote %s local %s dev eth1\n",
 		remote_addr6, local_addr6);
@@ -1256,6 +1553,7 @@ void set_dslite()
 
 void set_ipv6()
 {
+    printf("+++%s+++%d\n",__FUNCTION__,__LINE__);
 	int val;
 	
 #if defined(CONFIG_IPV6)
@@ -1267,6 +1565,14 @@ void set_ipv6()
 	}
 	else if(val==0)
 		return;
+
+#ifdef CONFIG_DSLITE_SUPPORT
+	if(!apmib_get(MIB_WAN_DHCP,&val)){	
+		fprintf(stderr, "get mib %d error!\n", MIB_WAN_DHCP);
+	}
+	if(val == 17) //DS-Lite mode
+		RunSystemCmd("proc/dslite_hw_fw", "echo", "1", NULL_STR);
+#endif
 	
 	RunSystemCmd("/proc/sys/net/ipv6/conf/all/forwarding", "echo", "1", NULL_STR);
 	
@@ -1323,6 +1629,14 @@ void set_ipv6()
 	set_ecmh();
 	//printf("Start mldproxy[IPv6]\n");
 	start_mldproxy("eth1","br0");
+
+#ifdef CONFIG_DSLITE_SUPPORT
+	//printf("Start ds-lite[IPv6]\n");
+	set_dslite();
+#endif
+#ifdef CONFIG_APP_NDP_PROXY
+	system("ndppd&");
+#endif
 #endif
 
 	return;

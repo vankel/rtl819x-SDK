@@ -63,29 +63,11 @@ static int __init coprocessor_dsp_rx_init( void )
 	voip_dsp_L2_pkt_rx_trap = coprocessor_dsp_rx;
 	voip_dsp_L2_pkt_event_trap = coprocessor_dsp_rx;
 #elif defined( CONFIG_RTK_VOIP_COPROCESS_DSP_IS_DSP )
-	extern int probe_dsp_int_notify_cpu2dsp;
-	if( probe_dsp_int_notify_cpu2dsp == 1 )
-	{
-		extern void ( *voip_dsp_L2_pkt_rx_trap )(unsigned char* eth_pkt, unsigned long size);
-		extern void ( *voip_dsp_L2_pkt_event_trap )(unsigned char* eth_pkt, unsigned long size);
-		
-		voip_dsp_L2_pkt_rx_trap = coprocessor_dsp_rx;
-		voip_dsp_L2_pkt_event_trap = coprocessor_dsp_rx;	
-	}
-		
-	printk("%s(%d) probe_dsp_int_notify_cpu2dsp=%d\n" , __FUNCTION__ , __LINE__ , 
-			probe_dsp_int_notify_cpu2dsp);
-		
 #else
 	???
 #endif
 	
-#ifdef CONFIG_RTK_VOIP_COPROCESS_DSP_IS_HOST
 	register_timer_10ms( ( fn_timer_t )coprocessor_rx_timer_timer, NULL );
-#elif defined( CONFIG_RTK_VOIP_COPROCESS_DSP_IS_DSP )
-	if( probe_dsp_int_notify_cpu2dsp == 0 )
-		register_timer_10ms( ( fn_timer_t )coprocessor_rx_timer_timer, NULL );
-#endif	
 	
 	return 0;
 }

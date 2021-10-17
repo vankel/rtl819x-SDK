@@ -195,14 +195,14 @@ void sk_stream_kill_queues(struct sock *sk)
 	WARN_ON(!skb_queue_empty(&sk->sk_write_queue));
 
 #ifdef CONFIG_RTL_819X
-	if((sk->sk_forward_alloc>0)&&(sk->sk_forward_alloc<SK_MEM_QUANTUM)&&(atomic_read(sk->sk_prot->memory_allocated)>0) && (sk->sk_protocol == IPPROTO_TCP))
+	if((sk->sk_forward_alloc>0)&&(sk->sk_forward_alloc<SK_MEM_QUANTUM)&&(atomic_read(sk->sk_prot->memory_allocated)>0))
 	{
 		sk->sk_forward_alloc = SK_MEM_QUANTUM;
 		sk_mem_reclaim(sk);
 
-    }
-	else
+    	}
 #endif
+
 
 	/* Account for returned memory. */
 	sk_mem_reclaim(sk);

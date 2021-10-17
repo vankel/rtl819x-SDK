@@ -55,6 +55,10 @@ typedef struct rtl865x_route_s
 		} nxthop;
 		
 	} un;
+#if defined(CONFIG_RTL_8198C)
+	uint32			DSLEG;
+	uint32			DSL_IDX;
+#endif	
 
 } rtl865x_route_t;
 

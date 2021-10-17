@@ -53,6 +53,7 @@ typedef uint64_t u_int64_t;
 #endif
 #endif
 
+#define CE_ROUTER_SUPPORT
 /* Error Values */
 #define DH6ERR_FAILURE		16
 #define DH6ERR_AUTHFAIL		17
@@ -107,6 +108,7 @@ typedef uint64_t u_int64_t;
 
 #define DHCP6_IRT_DEFAULT 86400	/* 1 day */
 #define DHCP6_IRT_MINIMUM 600
+
 
 /* DUID: DHCP unique Identifier */
 struct duid {
@@ -176,6 +178,9 @@ struct dhcp6_optinfo {
 	struct duid clientID;	/* DUID */
 	struct duid serverID;	/* DUID */
 
+#ifdef CE_ROUTER_SUPPORT
+	int reconfigure_accept; /*  bool */
+#endif
 	int rapidcommit;	/* bool */
 	int pref;		/* server preference */
 	int32_t elapsed_time;	/* elapsed time (from client to server only) */
@@ -197,6 +202,9 @@ struct dhcp6_optinfo {
 	struct dhcp6_list nispname_list; /* NIS+ domain list */
 	struct dhcp6_list bcmcs_list; /* BCMC server list */
 	struct dhcp6_list bcmcsname_list; /* BCMC domain list */
+#ifdef CONFIG_DSLITE_SUPPORT
+	struct dhcp6_list aftr_list; /* AFTR server list */
+#endif
 
 	struct dhcp6_vbuf relay_msg; /* relay message */
 #define relaymsg_len relay_msg.dv_len
@@ -289,6 +297,7 @@ struct dhcp6_relay {
 #define DH6OPT_VENDOR_OPTS 17
 #define DH6OPT_INTERFACE_ID 18
 #define DH6OPT_RECONF_MSG 19
+#define DH6OPT_RECONFIGURE_ACCEPT 20
 
 #define DH6OPT_SIP_SERVER_D 21
 #define DH6OPT_SIP_SERVER_A 22
@@ -309,6 +318,9 @@ struct dhcp6_relay {
 #define DH6OPT_REMOTE_ID 37
 #define DH6OPT_SUBSCRIBER_ID 38
 #define DH6OPT_CLIENT_FQDN 39
+#ifdef CONFIG_DSLITE_SUPPORT
+#define DH6OPT_AFTR 64
+#endif
 
 /* The followings are KAME specific. */
 

@@ -19,10 +19,6 @@ extern Dot1x_Client		RTLClient;
 static u_long global_pmksa_aging = 0;
 //#define FOURWAY_DEBUG
 
-#define FOURWAY_DEBUG
-
-
-
 #define SOLVE_DUP_4_2
 //-------------------------------------------------------------
 // Execution of state machine in 802.11i/D3.0 p.113
@@ -309,8 +305,8 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 			}
 #else
 			Message_setDescType(global->EapolKeyMsgSend, global->DescriptorType);
-#endif
-			Message_setKeyDescVer(global->EapolKeyMsgSend, global->KeyDescriptorVer);
+#endif            
+    		Message_setKeyDescVer(global->EapolKeyMsgSend, global->KeyDescriptorVer);
 			Message_setKeyType(global->EapolKeyMsgSend, type_Pairwise);
 			Message_setKeyIndex(global->EapolKeyMsgSend, 0);
 			Message_setInstall(global->EapolKeyMsgSend, 0);
@@ -489,6 +485,7 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 				}		
 #endif						
 				memcpy(key_data_pos, gkm_sm->GTK[gkm_sm->GN], (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
+
 
 				EncGTK(global, global->akm_sm->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
 					key_data,
@@ -809,9 +806,10 @@ Return Value:
 
 
 								// FIX GROUPKEY ALL ZERO
-								global->auth->gk_sm->GInitAKeys = TRUE;								
+								global->auth->gk_sm->GInitAKeys = TRUE;
 								lib1x_akmsm_UpdateGK_proc(global->auth);
 								memcpy(key_data_pos, gkm_sm->GTK[gkm_sm->GN], (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
+
 								key_data_pos += (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16;
 
 								//=================================================
@@ -1735,8 +1733,8 @@ void lib1x_akmsm_EAPOLStart_Timer_proc(Dot1x_Authenticator * auth)
 					}
 				}
 
-//				printf("%s: global->authSuccess = %d\n", __FUNCTION__, global->authSuccess);
-//				printf("%s: IgnoreEAPOLStartCounter = %d\n", __FUNCTION__, akm_sm->IgnoreEAPOLStartCounter);
+				//printf("%s: global->authSuccess = %d\n", __FUNCTION__, global->authSuccess);
+				//printf("%s: IgnoreEAPOLStartCounter = %d\n", __FUNCTION__, akm_sm->IgnoreEAPOLStartCounter);
 			}
 			else{
 			}
@@ -1781,7 +1779,6 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 
 	Global_Params *		global;
 	APKeyManage_SM  *       akm_sm;
-
 	//Get All Station Info if there is any station in session
 
 	if(auth->IdleTimeoutEnabled)
@@ -1789,7 +1786,6 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 
 	if(auth->AccountingEnabled)
 		lib1x_acctsm(auth->authGlobal->global);
-
 
 	//sc_yang
 	for(i = 0 ; i < auth->MaxSupplicant ; i++)
@@ -2811,6 +2807,9 @@ void lib1x_akmsm_execute( Global_Params * global)
         struct lib1x_ethernet 	* eth_hdr;
 
 	BOOLEAN	bFlag = FALSE;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	unsigned char dot1x_group_mac[ETHER_HDRLEN] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+#endif
 
 	auth_pae = global->theAuthenticator;
 
@@ -2861,9 +2860,16 @@ void lib1x_akmsm_execute( Global_Params * global)
 		lib1x_PrintAddr(global->theAuthenticator->supp_addr);
                 //ethernet and eapol header initialization
                 eth_hdr = ( struct lib1x_ethernet * )global->EAPOLMsgSend.Octet;
-                memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+			if(auth_pae->global->auth->currentRole == role_eth && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled))
+				memcpy ( eth_hdr->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
+			else
+#endif
+			{
+  	          memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
+  	        }
 	        memcpy ( eth_hdr->ether_shost , auth_pae->global->TxRx->oursupp_addr, ETHER_ADDRLEN );
-		eth_hdr->ether_type = htons(LIB1X_ETHER_EAPOL_TYPE);
+			eth_hdr->ether_type = htons(LIB1X_ETHER_EAPOL_TYPE);
 
                 eapol = ( struct lib1x_eapol * )  ( global->EAPOLMsgSend.Octet +  ETHER_HDRLEN )  ;
                 eapol->protocol_version = LIB1X_EAPOL_VER;

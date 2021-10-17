@@ -1,0 +1,374 @@
+#
+# Realtek Semiconductor Corp.
+#
+# Tony Wu (tonywu@realtek.com)
+# Dec. 7, 2009
+#
+
+#
+# System Config
+#
+config ARCH_PLATFORM
+	string
+	default "Sheipa2"
+
+menu "System Configuration"
+choice
+	prompt "System Type"
+	default RTL_8198C_GW
+
+config RTL_8198C_GW
+        bool "8198C/8954E GW"
+        select RTL_8198C
+        select SYS_HAS_EARLY_PRINTK
+        help
+          This enables support for Realtek RTL8198C demo board
+
+#config RTL_8198C_AP
+#        bool "8198C AP"
+#        select RTL_8198C
+#        select SYS_HAS_EARLY_PRINTK
+#        help
+#          This enables support for Realtek RTL8198C demo board running AP mode
+
+endchoice
+
+config RTL_8198C_GW
+	bool
+
+config RTL_NO_BR_SHORTCUT
+        bool
+        default y
+
+config RTL_AP_PACKAGE
+    bool
+    default y if RTL_8198C_AP
+
+config RTL_PCIE_SIMPLE_INIT
+	bool "Disable PCIe Bios"
+	default y if RTL8192SE
+	default y if RTL8192CD
+
+config RTL_WTDOG
+	bool "Enable watchdog timer support"
+
+config RTL_USERSPACE_WTDOG
+	bool "Enable watchdog timer support in userspace"
+	depends on RTL_WTDOG
+	default y
+
+config RTL_TIMER_ADJUSTMENT
+	bool "Enable timer adjustment support"
+
+config RTL_WEBPAGES_IN_ROOTFS
+	bool "Webpages in rootfs support"
+
+config RTL_DEF_SETTING_IN_FW
+        bool "default setting in firmware support"
+        default y
+
+config RTL819X_SPI_FLASH
+	bool "SPI flash support"
+config SPI_3to4BYTES_ADDRESS_SUPPORT
+        bool "  SPI 32MB support from 3Byte to 4byte mapping"
+
+config PHY_EAT_40MHZ
+	bool "819xD clock source at 40Mhz"
+	default y
+
+config RTL8198C_OVER_256MB
+	bool "Supoort System Memory bigger than > 256MB"
+	select HIGHMEM
+	select SYS_SUPPORTS_HIGHMEM
+        select CPU_SUPPORTS_HIGHMEM
+	default n
+
+
+config RTL_FLASH_DUAL_IMAGE_ENABLE
+	bool "Enable Flash Dual Bank support"
+
+config RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE
+	bool "Enable Flash Dual Bank Webpage Backup Support"
+	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
+
+comment "Second Bank Offset"
+	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
+config RTL_FLASH_DUAL_IMAGE_OFFSET
+	hex "offset of Flash"
+	depends on RTL_819X && RTL_FLASH_DUAL_IMAGE_ENABLE
+	default "0x200000"
+	help
+          offset of second bank, Normally should be 2M or 4M.
+
+config USB3G_SUPPORT
+	bool "USB3G support"
+	select HOTPLUG
+	#select UEVENT_HELPER_PATH
+	select FW_LOADER
+	select FIRMWARE_IN_KERNEL
+	#select EXTRA_FIRMWARE=""
+	select SCSI
+	select SCSI_DMA
+	select BLK_DEV_SD
+	select BLK_DEV_SR
+	select SCSI_MULTI_LUN
+	select PPP
+	select PPP_MULTILINK
+	select PPP_FILTER
+	select PPP_DEFLATE
+	select PPP_BSDCOMP
+	select DEFAULTS_KERNEL_2_6
+	select USB_SUPPORT
+	select USB_ARCH_HAS_HCD
+	select USB_ARCH_HAS_OHCI
+	select USB_ARCH_HAS_EHCI
+	select USB
+	select USB_ANNOUNCE_NEW_DEVICES
+	select USB_DEVICEFS
+	select USB_DEVICE_CLASS
+	select USB_MON
+	select USB_EHCI_HCD
+	select USB_EHCI_ROOT_HUB_TT
+	select USB_EHCI_TT_NEWSCHED
+	select USB_OHCI_HCD
+	select USB_OHCI_LITTLE_ENDIAN
+	select USB_STORAGE
+	select USB_SERIAL
+	select USB_SERIAL_CONSOLE
+	select USB_SERIAL_GENERIC
+	select USB_SERIAL_OPTION
+	select CONFIGFS_FS
+	select ZLIB_DEFLATE
+	default n
+
+config RTL_USB_IP_HOST_SPEEDUP
+	bool "Seedup usb samba performance"
+
+config RTL_SENDFILE_PATCH
+	bool "Speed up samba write performance"
+	select PAGE_SIZE_16KB	
+	default y
+
+config APPLE_MFI_SUPPORT
+        bool "Apple MFi program support"	
+
+config APPLE_HOMEKIT_BLOCK_SUPPORT
+        depends on APPLE_MFI_SUPPORT
+        bool "Apple Homekit mtd block support"
+
+config HTTP_FILE_SERVER_SUPPORT
+	bool "Http File server support"
+
+comment "Support two spi flash"
+config RTL_TWO_SPI_FLASH_ENABLE
+	bool "two spi flash support"
+	default n
+	
+config  RTL_SPI_FLASH1_SIZE
+	hex "Config 1st flash size"
+	depends on RTL_819X && RTL_TWO_SPI_FLASH_ENABLE
+	default "0x400000"
+	help
+	  Normally should be 0x400000 or 0x800000.
+
+config  RTL_SPI_FLASH2_SIZE
+        hex "Config 2nd flash size"
+        depends on RTL_819X && RTL_TWO_SPI_FLASH_ENABLE
+        default "0x400000"
+        help
+          Normally should be 0x400000 or 0x800000.  
+
+config RTL_FLASH_MAPPING_ENABLE
+	bool "Enable Flash Mapping"
+
+comment "Flash size 4M or 8M, default 4M"
+	depends on RTL_FLASH_MAPPING_ENABLE
+comment "USB3G is enable, please set to 0x400000"
+	depends on RTL_FLASH_MAPPING_ENABLE && USB3G_SUPPORT
+config RTL_FLASH_SIZE
+	hex "Size of Flash"
+	depends on RTL_819X && RTL_FLASH_MAPPING_ENABLE
+	default "0x400000"
+	help
+          Size of Flash, Normally should be 4M or 8M.
+
+comment "Hardware setting offset,should be 4K alignment"
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_HW_SETTING_OFFSET
+        hex "Hardware setting offset in flash."
+        depends on RTL_819X && RTL_FLASH_MAPPING_ENABLE
+        default "0x20000"
+        help
+	  Hardware Setting store in flash from the offset.
+	  it should be 4k alignment.
+
+comment "Default setting offset,should be 4K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+comment "size of default and current setting should be same."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_DEFAULT_SETTING_OFFSET
+        hex "Default setting offset in flash."
+        depends on RTL_819X && RTL_FLASH_MAPPING_ENABLE
+        default "0x24000"
+        help
+	  Default Setting store in flash from the offset.
+	  normally the default setting shoud save before current settting.
+	  NOTE: make sure it's size is enough for default setting,
+		default size is 16K.
+
+comment "Current setting offset,should be 4K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_CURRENT_SETTING_OFFSET
+        hex "Current setting offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x2a000"
+        help
+	  Current Setting store in flash from the offset.
+	  normally the current setting saved after default setting.
+	  NOTE: make sure it's size is enough for current setting,
+		default size is 16K.
+
+comment "Webpage image offset,should be 4K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+comment "size of web page is normally about 100K."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_WEB_PAGES_OFFSET
+	hex "webpages image offset in flash."
+	depends on RTL_819X && RTL_FLASH_MAPPING_ENABLE
+	default "0x30000"
+	help
+	  Webpages image store in flash from the offset.
+	  NOTE: default size is 128K.
+
+comment "Linux image offset,should be 4K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+comment "this offset MUST between 0x10000~0x80000."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_LINUX_IMAGE_OFFSET
+        hex "linux image offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x60000"
+        help
+	  linux image store in flash from the offset.
+
+comment "Root image offset,should be 64K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+comment "USB3G is enable, please set to 0x230000."
+	depends on RTL_FLASH_MAPPING_ENABLE && USB3G_SUPPORT
+config RTL_ROOT_IMAGE_OFFSET
+        hex "root image offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x1a0000"
+        help
+	  root image store in flash from the offset.
+	  
+comment "Hap config table offset,should be 4K alignment."
+        depends on RTL_FLASH_MAPPING_ENABLE && APPLE_HOMEKIT_BLOCK_SUPPORT
+config HAP_CONFIG_TABLE_OFFSET
+        hex "hap config table offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE && APPLE_HOMEKIT_BLOCK_SUPPORT
+        default "0x3D0000"
+        help
+          hap config table store in flash from the offset.
+
+comment "Flatfs image offset,should be 128K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_FLATFS_IMAGE_OFFSET
+        hex "FLATFS image offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x3E0000"
+        help
+	  flatfs image store in flash from the offset.
+
+# KERNE_STACK_SIZE = PAGE_SIZE<<KERNEL_STACK_SIZE_ORDER
+config KERNEL_STACK_SIZE_ORDER
+	int "Kenel Stack Size Order Configuration"
+	default "3"
+	help
+	  With Page Size 4K
+	  1 for 8K kenel stack size
+	  2 for 16K kernel stack size
+	  3 for 32K kernel stack size
+	  etc...
+
+config RTL_NFBI_MDIO
+	bool
+
+config RTL_EAP_RELAY
+	bool
+	
+config RTL_HOSTAPD_SUPPORT
+	bool
+
+config RTK_INBAND_HOST_HACK
+	bool
+
+config RTL_NFJROM_MP
+	bool "build nfjrom image for MP"
+	default n
+
+comment "Build rootfs options"
+
+choice
+	prompt "File system to mount root"
+	help
+		This option is mainly to assist to decide how to build rootfs, because
+		echo kind of file system for rootfs will uses different flow in our design. 
+
+config ROOTFS_RAMFS
+	bool "linux built-in ramfs"
+	depends on INITRAMFS_SOURCE != ""
+
+#config ROOTFS_RAMDISK
+#	bool "ramdisk"
+#	depends on BLK_DEV_RAM
+
+config ROOTFS_SQUASH
+	bool "squash fs"
+	depends on SQUASHFS
+
+config ROOTFS_JFFS2
+	bool "JFFS2 (work on u-boot only)"
+	depends on JFFS2_FS
+
+endchoice
+
+config JFFS2_ERASE_SIZE
+	hex "Erase size for JFFS2 tool"
+	depends on ROOTFS_JFFS2
+	default 0x10000
+	help 
+		This value is for mkfs.jffs2 tool, so bad value may cause kernel
+		boot failure. 
+		Given 0x1000 and 0x10000 for 4k and 64k flash respectively. 
+	
+endmenu
+
+#------------------------------------------------------------------------
+
+menu "BSP configuration"
+
+choice 
+	prompt "Timer Source"
+
+config ARCH_CEVT_R4K
+	bool "Use MIPS internal counter"
+
+config ARCH_CEVT_EXT
+	bool "Use DWAPB external timer"
+
+endchoice
+
+config BSP_ENABLE_PCI
+	bool "Enable PCI controller"
+	default n
+	select PCI
+	select HW_HAS_PCI
+	
+
+config BSP_ENABLE_USB
+	bool "Enable USB controller"
+	default n
+
+endmenu
+

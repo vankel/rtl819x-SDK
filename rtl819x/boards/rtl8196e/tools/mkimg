@@ -33,14 +33,19 @@ if [ "$CONFIG_RTL_FLASH_MAPPING_ENABLE" = "y" ]; then
 if [ -n $CONFIG_RTL_ROOT_IMAGE_OFFSET ]; then
 	ROOTFS_OFFSET=$CONFIG_RTL_ROOT_IMAGE_OFFSET
 	FLASH_SIZE=$CONFIG_RTL_FLASH_SIZE
+	WAPI_SIZE=0
+	HAP_SIZE=0
 if [ "$CONFIG_RTL_WAPI_SUPPORT" = "y" ]; then
-	# last WAPI_SIZE to store wapi certs
-	# should be sync with users/wapi_utils/rwWapiFiles/wapiFiles.h
-	WAPI_SIZE=0x10000
-	MAX_ROOTFS_SIZE=$(($(($FLASH_SIZE))-$(($ROOTFS_OFFSET))-$(($WAPI_SIZE))))
-else
-	MAX_ROOTFS_SIZE=$(($(($FLASH_SIZE))-$(($ROOTFS_OFFSET))))
+	WAPI_SIZE=$CONFIG_RTL_FLASH_SIZE-$CONFIG_RTL_FLATFS_IMAGE_OFFSET
+if [ "$CONFIG_APPLE_MFI_SUPPORT" = "y" ];then
+	HAP_SIZE=$CONFIG_RTL_FLATFS_IMAGE_OFFSET-$CONFIG_HAP_CONFIG_TABLE_OFFSET
 fi
+else
+if [ "$CONFIG_APPLE_MFI_SUPPORT" = "y" ];then
+        HAP_SIZE=$CONFIG_RTL_FLASH_SIZE-$CONFIG_HAP_CONFIG_TABLE_OFFSET
+fi
+fi
+	MAX_ROOTFS_SIZE=$(($(($FLASH_SIZE))-$(($ROOTFS_OFFSET))-$(($WAPI_SIZE))-$(($HAP_SIZE))))
 else
 	ROOTFS_OFFSET=0xF0000	
 fi
@@ -64,6 +69,13 @@ echo "/dev/ttyS0     c 666 root root   4 64" > squashfs-pf-list.txt
 echo "/dev/console   c 666 root root   4 $CMN" >> squashfs-pf-list.txt
 echo "/dev/null      c 666 root root   1  3" >> squashfs-pf-list.txt
 echo "/dev/mtdblock0 b 666 root root  31  0" >> squashfs-pf-list.txt
+
+###for tr069
+echo "/dev/mtd0 c 666 root root  90  0" >> squashfs-pf-list.txt
+echo "/dev/mtd1 c 666 root root  90  1" >> squashfs-pf-list.txt
+echo "/dev/mtd2 c 666 root root  90  2" >> squashfs-pf-list.txt
+echo "/dev/mtd3 c 666 root root  90  3" >> squashfs-pf-list.txt
+echo "/dev/mtd4 c 666 root root  90  4" >> squashfs-pf-list.txt
 
 
 #DEVICES="$DEVICES  ttyS1,c,4,65   ppp,c,108,0 	ptyp0,c,2,0
@@ -368,21 +380,14 @@ echo "/dev/sdp15     b 666 root root   8 255" >> squashfs-pf-list.txt
 
 fi
 
-if [ "$CONFIG_APP_APPLE_MFI_WAC" = "y" ]; then
+if [ "$CONFIG_APPLE_MFI_SUPPORT" = "y" ]; then
 echo "/dev/mfi_cp c 666 root root 254 0" >> squashfs-pf-list.txt
 fi
+
 #DEVICES="$DEVICES  mtdblock1,b,31,1"
 echo "/dev/mtdblock1 b 666 root root  31  1" >> squashfs-pf-list.txt
 echo "/dev/mtdblock2 b 666 root root  31  2" >> squashfs-pf-list.txt
 echo "/dev/mtdblock3 b 666 root root  31  3" >> squashfs-pf-list.txt
-echo "/dev/mtdblock4 b 666 root root  31  3" >> squashfs-pf-list.txt
-
-###for tr069
-echo "/dev/mtd0 c 666 root root  90  0" >> squashfs-pf-list.txt
-echo "/dev/mtd1 c 666 root root  90  1" >> squashfs-pf-list.txt
-echo "/dev/mtd2 c 666 root root  90  2" >> squashfs-pf-list.txt
-echo "/dev/mtd3 c 666 root root  90  3" >> squashfs-pf-list.txt
-echo "/dev/mtd4 c 666 root root  90  4" >> squashfs-pf-list.txt
 
 if [ "$GW_VPN" = 1  ];then
 #DEVICES="$DEVICES  random,c,1,8"
@@ -431,9 +436,6 @@ fi
 
 echo "/dev/voip/pcmtx0 c 666 root root 243 64" >> squashfs-pf-list.txt
 echo "/dev/voip/pcmrx0 c 666 root root 243 65" >> squashfs-pf-list.txt
-#if [ "$CONFIG_RTL_USERSPACE_WTDOG" = "y" ]; then
-#echo "/dev/chr_watchdog c 666 root root 254 0" >> squashfs-pf-list.txt
-#fi
 
 ln -s /tmp/log $RAMFSDIR/dev/log
 

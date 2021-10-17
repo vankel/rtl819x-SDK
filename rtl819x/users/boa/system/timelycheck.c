@@ -1,8 +1,23 @@
 #include "apmib.h"
 #include "mibtbl.h"
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static unsigned int time_count;
+
+#if defined(APP_WATCHDOG)
+static int is_watchdog_alive(void)
+{
+	int is_alive = 0;
+	int pid = -1;
+	pid = find_pid_by_name("watchdog");
+	if(pid > 0)
+		is_alive = 1;
+	return is_alive;
+}
+
+#endif
 
 void timeout_handler() 
 {
@@ -10,6 +25,13 @@ void timeout_handler()
 	time_count++;
 	if(!(time_count%1))
 	{
+#if defined(APP_WATCHDOG)
+		if(is_watchdog_alive() == 0)
+		{
+			//printf("watchdog is not alive\n");
+			system("watchdog 1000&");
+		}
+#endif
 
 	}	
 

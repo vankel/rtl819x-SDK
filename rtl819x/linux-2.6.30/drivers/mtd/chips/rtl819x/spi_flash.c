@@ -23,13 +23,21 @@
 
 struct spi_chip_mtd spi_probe_mtd;
 extern struct spi_flash_type spi_flash_info[2];
-
+#define REG32(reg)   (*(volatile unsigned int *)((unsigned int)reg))
 // uiAddr = from; pucBuffer = to; uiLen = size
 static unsigned int do_spi_read(unsigned int from, unsigned int to, unsigned int size, unsigned int uiChip)
 {
 	unsigned int uiRet;
+ 	#ifdef CONFIG_RTL_8881A
+        REG32(0xb8001000)=REG32(0xb8001000)|(1<<28);
+        #endif
+
 	uiRet = spi_flash_info[uiChip].pfRead(uiChip, from, size, (unsigned char*)to);
 	KDEBUG("do_spi_read: from=%x; to=%x; size=%x; uiRet=%x\n", from, to, size, uiRet);
+	 #ifdef CONFIG_RTL_8881A
+	 
+	REG32(0xb8001000)= REG32(0xb8001000)&~(1<<28);
+	#endif
 	return 0;
 }
 /*
@@ -47,6 +55,10 @@ static unsigned int do_spi_write(unsigned int from, unsigned int to, unsigned in
 {
 	unsigned int uiStartAddr, uiStartLen, uiPageAddr, uiPageCount, uiEndAddr, uiEndLen, i, uiRet;
 	unsigned char* puc = (unsigned char*)from;
+ #ifdef CONFIG_RTL_8881A
+        REG32(0xb8001000)=REG32(0xb8001000)|(1<<28);
+        #endif
+	
 	KDEBUG("do_spi_write:from=%x; to=%x; size=%x;\n", from, to, size);
 	calAddr(to, size, spi_flash_info[uiChip].page_size, &uiStartAddr, &uiStartLen, &uiPageAddr, &uiPageCount, &uiEndAddr, &uiEndLen);
 	if((uiPageCount == 0x00) && (uiEndLen == 0x00))	// all data in the same page
@@ -72,6 +84,10 @@ static unsigned int do_spi_write(unsigned int from, unsigned int to, unsigned in
 		}
 	}
 	//ComSrlCmd_WRDI(0);
+	  #ifdef CONFIG_RTL_8881A
+        REG32(0xb8001000)=REG32(0xb8001000)&~(1<<28);
+         #endif
+
 	return 0;
 }
 // uiAddr = addr

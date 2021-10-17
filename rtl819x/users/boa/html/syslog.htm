@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>System Command</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 var isMeshDefined = <% getIndex("isMeshDefined"); %> 
 function saveClick(){
@@ -117,7 +118,7 @@ function clear_log_buffer()
 </script>
 </head>
 <blockquote>
-<h2><font color="#0000FF">System Log</font></h2>
+<h2>System Log</h2>
 
 <body onload="init();">
   <table border=0 width="550" cellspacing=0 cellpadding=0>

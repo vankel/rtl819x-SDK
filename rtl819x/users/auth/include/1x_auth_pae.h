@@ -37,8 +37,12 @@
 
 
 #define LIB1X_AP_QUIET_PERIOD		 	60  	// seconds
+//#define LIB1X_AP_QUIET_PERIOD		 	1  	// seconds
 //#define LIB1X_AP_REAUTHMAX			20	// attempts
 #define LIB1X_AP_REAUTHMAX                      3
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+#define LIB1X_AP_ETH_REAUTHMAX			20	// attempts
+#endif
 #define LIB1X_AP_NAKMAX				4	// received times
 //#define LIB1X_AP_TXPERIOD			30	// seconds
 #define LIB1X_AP_TXPERIOD                       5    // seconds

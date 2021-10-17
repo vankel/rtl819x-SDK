@@ -240,7 +240,10 @@
 #ifdef __linux__
 #ifdef __KERNEL__
 #include <linux/version.h>
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0))
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0))
 #include <linux/config.h>
 #endif
 //#include <linux/ctype.h>
@@ -277,7 +280,7 @@
 #undef __IRAM_TX
 #undef __IRAM
 
-#if defined(__linux__)&&defined(__KERNEL__)&&defined(CONFIG_RTL_819X)
+#if defined(__linux__)&&defined(__KERNEL__)&& defined(CONFIG_RTL_819X) && !defined(CONFIG_RTL_8198C)
 	#define __DRAM_GEN			__attribute__  ((section(".dram-gen")))
 	#define __DRAM_FWD			__attribute__  ((section(".dram-fwd")))
 	#define __DRAM_L2_FWD		__attribute__  ((section(".dram-l2-fwd")))
@@ -350,7 +353,7 @@
 #undef __NOMIPS16
 #undef __MIPS16
 
-#if defined(__linux__)&&defined(__KERNEL__)&&defined(CONFIG_RTL_819X) && !defined(CONFIG_RTL_8196C)
+#if defined(__linux__)&&defined(__KERNEL__)&&defined(CONFIG_RTL_819X) && !defined(CONFIG_RTL_8196C) && !defined(CONFIG_RTL_8198C)
 	#define __NOMIPS16			__attribute__((nomips16))	/* Inidcate to prevent from MIPS16 */
 	#define __MIPS16			__attribute__((mips16))		/* Inidcate to use MIPS16 */
 #else
@@ -362,8 +365,15 @@
 		print macro
     =============================================================================== */
 #if	defined(__linux__)&&defined(__KERNEL__)
-	
+
+// to_be_checked !!!, since kernel does not has panic_printk
+//#ifdef CONFIG_RTL_8198C // modified by lynn_pu, 2014-10-21
+#if defined(CONFIG_RTL_8198C) || ((defined(CONFIG_RTL_8881A)||defined(CONFIG_RTL_8196E)||defined(CONFIG_RTL_819XD))&&(LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)))
+	#define  rtlglue_printf		printk
+	#define  panic_printk		printk
+#else
 	#define rtlglue_printf	panic_printk
+#endif
 
 #else	/* defined(__linux__)&&defined(__KERNEL__) */
 
@@ -383,10 +393,10 @@ typedef unsigned long long	uint64;
 typedef long long		int64;
 typedef unsigned int	uint32;
 
-#ifdef int32
-#undef int32
-#endif
+#ifndef int32
+//#undef int32
 typedef int			int32;
+#endif
 
 typedef unsigned short	uint16;
 typedef short			int16;
@@ -408,6 +418,24 @@ typedef __s8			int8;
 
 typedef uint32		memaddr;	
 typedef uint32          ipaddr_t;
+
+
+#if defined(CONFIG_RTL_8198C)
+/*copy from in6.h*/
+typedef struct inv6_addr_s
+{
+	union 
+	{
+		__u8		u6_addr8[16];
+		__be16		u6_addr16[8];
+		__be32		u6_addr32[4];
+	} inv6_u;
+#define v6_addr			inv6_u.u6_addr8
+#define v6_addr16		inv6_u.u6_addr16
+#define v6_addr32		inv6_u.u6_addr32
+}inv6_addr_t;
+#endif
+
 typedef struct {
     uint16      mac47_32;
     uint16      mac31_16;
@@ -428,12 +456,15 @@ typedef struct ether_addr_s {
 #define CROSS_LAN_MBUF_LEN		(MBUF_LEN+RX_OFFSET+10)
 
 #if defined(CONFIG_RTL_819X)
+	#if defined(CONFIG_RTL_ETH_PRIV_SKB) && !defined(CONFIG_RTL_8198C)
+	#define DELAY_REFILL_ETH_RX_BUF	1
+	#endif
+
 	#if defined(CONFIG_RTL_ETH_PRIV_SKB)
-	#define DELAY_REFILL_ETH_RX_BUF			1
 	#define PRIV_BUF_CAN_USE_KERNEL_BUF		1
 	#define INIT_RX_RING_ERR_HANDLE			1
 	//#define ALLOW_RX_RING_PARTIAL_EMPTY		1
-	#endif
+	#endif	
 #endif
 
 /* 
@@ -556,10 +587,22 @@ typedef struct ether_addr_s {
 #endif
 
 /*	asic configuration	*/
+#if defined (CONFIG_RTL_8198C)
+#define RTL8651_OUTPUTQUEUE_SIZE		8
+#else
 #define RTL8651_OUTPUTQUEUE_SIZE		6
+#endif
 #define TOTAL_VLAN_PRIORITY_NUM	8
 #define RTL8651_RATELIMITTBL_SIZE			32
 
+#define VLAN_ETH_ALEN	6		/* Octets in one ethernet addr	 */
+
+#define NIPQUAD(addr) \
+	((unsigned char *)&addr)[0], \
+	((unsigned char *)&addr)[1], \
+	((unsigned char *)&addr)[2], \
+	((unsigned char *)&addr)[3]
+	
 #if defined(CONFIG_RTL_8196C)
 #define CONFIG_RTL8196C_ETH_IOT         1
 #ifdef CONFIG_MP_PSD_SUPPORT
@@ -671,6 +714,155 @@ extern struct RTL_LOG_MODULE_MASK
 
 #endif 
 
+#ifdef CONFIG_SMP
+#include <linux/spinlock.h>
+
+extern int lock_owner;
+extern int lock_owner_rx;
+extern int lock_owner_tx;
+extern int lock_owner_buf;
+extern int lock_owner_hw;
+extern spinlock_t lock_eth_other;
+extern spinlock_t lock_eth_rx;
+extern spinlock_t lock_eth_tx;
+extern spinlock_t lock_eth_buf;
+extern spinlock_t lock_eth_hw;
+
+#if 0
+/* ============ release version ============ */
+#define SMP_LOCK_ETH(__x__)				spin_lock_irqsave(&lock_eth_other, (__x__))	
+#define SMP_UNLOCK_ETH(__x__) 			spin_unlock_irqrestore(&lock_eth_other, (__x__))
+
+#define SMP_LOCK_ETH_XMIT(__x__)			spin_lock_irqsave(&lock_eth_tx, (__x__))
+#define SMP_UNLOCK_ETH_XMIT(__x__) 		spin_unlock_irqrestore(&lock_eth_tx, (__x__))
+
+#define SMP_LOCK_ETH_RECV(__x__)		spin_lock_irqsave(&lock_eth_rx, (__x__))
+#define SMP_UNLOCK_ETH_RECV(__x__) 		spin_unlock_irqrestore(&lock_eth_rx, (__x__))
+
+#define SMP_LOCK_ETH_BUF(__x__)			spin_lock_irqsave(&lock_eth_buf, (__x__))	
+#define SMP_UNLOCK_ETH_BUF(__x__) 		spin_unlock_irqrestore(&lock_eth_buf, (__x__))
+
+#define SMP_LOCK_ETH_HW(__x__)			spin_lock_irqsave(&lock_eth_hw, (__x__))
+#define SMP_UNLOCK_ETH_HW(__x__) 		spin_unlock_irqrestore(&lock_eth_hw, (__x__))
+#else
+
+/* ============ debug version ============ */
+#define SMP_LOCK_ETH(__x__)	\
+	do { \
+		if(lock_owner!=smp_processor_id()) \
+			spin_lock_irqsave(&lock_eth_other, (__x__)); \
+		else \
+			rtlglue_printf("[%s %s %d] recursion detection in ETH\n",__FILE__, __FUNCTION__,__LINE__); \
+		lock_owner=smp_processor_id();\
+	} while(0)
+	
+#define SMP_UNLOCK_ETH(__x__) \
+	do { \
+		lock_owner=-1; \
+		spin_unlock_irqrestore(&lock_eth_other, (__x__)); \
+	} while(0)
+
+#define SMP_LOCK_ETH_XMIT(__x__)	\
+	do { \
+		if(lock_owner_tx!=smp_processor_id()) \
+			spin_lock_irqsave(&lock_eth_tx, (__x__)); \
+		else \
+			rtlglue_printf("[%s %d] recursion detection in XMIT\n",__FUNCTION__,__LINE__); \
+		lock_owner_tx=smp_processor_id();\
+	} while(0)
+	
+#define SMP_UNLOCK_ETH_XMIT(__x__) \
+	do { \
+		lock_owner_tx=-1; \
+		spin_unlock_irqrestore(&lock_eth_tx, (__x__)); \
+	} while(0)
+
+#define SMP_LOCK_ETH_RECV(__x__)	\
+	do { \
+		if(lock_owner_rx!=smp_processor_id()) \
+			spin_lock_irqsave(&lock_eth_rx, (__x__)); \
+		else \
+			rtlglue_printf("[%s %d] recursion detection in RECV\n",__FUNCTION__,__LINE__); \
+		lock_owner_rx=smp_processor_id();\
+	} while(0)
+	
+#define SMP_UNLOCK_ETH_RECV(__x__) \
+	do { \
+		lock_owner_rx=-1; \
+		spin_unlock_irqrestore(&lock_eth_rx, (__x__)); \
+	} while(0)
+
+#define SMP_LOCK_ETH_BUF(__x__)	\
+	do { \
+		if(lock_owner_buf!=smp_processor_id()) {\
+			spin_lock_irqsave(&lock_eth_buf, (__x__)); \
+		} else \
+			rtlglue_printf("[%s %d] recursion detection in BUF\n",__FUNCTION__,__LINE__); \
+		lock_owner_buf=smp_processor_id();\
+	} while(0)
+	
+#define SMP_UNLOCK_ETH_BUF(__x__) \
+	do { \
+		lock_owner_buf=-1; \
+		spin_unlock_irqrestore(&lock_eth_buf, (__x__)); \
+	} while(0)
+
+#define SMP_LOCK_ETH_HW(__x__)	\
+	do { \
+		if(lock_owner_hw!=smp_processor_id()) \
+			spin_lock_irqsave(&lock_eth_hw, (__x__)); \
+		else \
+			rtlglue_printf("[%s %d] recursion detection in HW\n",__FUNCTION__,__LINE__); \
+		lock_owner_hw=smp_processor_id();\
+	} while(0)
+	
+#define SMP_UNLOCK_ETH_HW(__x__) \
+	do { \
+		lock_owner_hw=-1; \
+		spin_unlock_irqrestore(&lock_eth_hw, (__x__)); \
+	} while(0)
+#endif
+
+#if defined(CONFIG_RTL819X_SPI_FLASH)
+extern spinlock_t lock_spi;
+
+#define SMP_LOCK_ETH_CACHE(__x__)		(__x__++) //	spin_lock_irqsave(&lock_spi, (__x__))
+#define SMP_UNLOCK_ETH_CACHE(__x__) 		(__x__++) //spin_unlock_irqrestore(&lock_spi, (__x__))
+#else
+#define SMP_LOCK_ETH_CACHE(x)			(x++)
+#define SMP_UNLOCK_ETH_CACHE(x) 		(x++)
+#endif
+
+#define SMP_LOCK_ETH2(x)		(x++)
+#define SMP_UNLOCK_ETH2(x)		(x++)
+
+#else
+#define SMP_LOCK_ETH(x)				local_irq_save(x)
+#define SMP_UNLOCK_ETH(x)			local_irq_restore(x)
+
+#define SMP_LOCK_ETH_XMIT(x)		local_irq_save(x)
+#define SMP_UNLOCK_ETH_XMIT(x)		local_irq_restore(x)
+
+#define SMP_LOCK_ETH_RECV(x)		local_irq_save(x)
+#define SMP_UNLOCK_ETH_RECV(x)		local_irq_restore(x)
+
+#define SMP_LOCK_ETH_BUF(x)		local_irq_save(x)
+#define SMP_UNLOCK_ETH_BUF(x)		local_irq_restore(x)
+
+#define SMP_LOCK_ETH_HW(x)			local_irq_save(x)
+#define SMP_UNLOCK_ETH_HW(x)		local_irq_restore(x)
+
+#define SMP_LOCK_ETH2(x)			local_irq_save(x)
+#define SMP_UNLOCK_ETH2(x)			local_irq_restore(x)
+
 #endif 
+
+#ifdef __KERNEL__
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#define CONFIG_RTL_PROC_NEW		1
+#endif
+#endif
+#endif
+ 
 
 

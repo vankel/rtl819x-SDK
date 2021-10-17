@@ -2,7 +2,7 @@
 DLNA_DMS_INSTALL_PREFIX=$(shell pwd)/tmp
 #DLNA_DMS_INSTALL_PREFIX=$(DIR_USERS)/libupnp-1.6.5/tmp
 DLNA_DMS_ARCH=mips
-DLNA_DMS_CROSS_COMPILER=rsdk-linux-
+DLNA_DMS_CROSS_COMPILER=$(CROSS_COMPILE)
 
 UPNP_FLAGS=--prefix=$(DLNA_DMS_INSTALL_PREFIX) CC=$(DLNA_DMS_CROSS_COMPILER)gcc --host=$(DLNA_DMS_ARCH)-linux --enable-static --enable-shared
 #FFMPEG_FLAGS=--cross-prefix=$(DLNA_DMS_CROSS_COMPILER) --arch=$(DLNA_DMS_ARCH) --prefix=$(DLNA_DMS_INSTALL_PREFIX) --enable-cross-compile  --enable-gpl  --disable-ffplay --disable-ffserver --enable-static --enable-shared --disable-debug

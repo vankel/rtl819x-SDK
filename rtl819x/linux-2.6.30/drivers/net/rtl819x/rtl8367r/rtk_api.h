@@ -104,6 +104,10 @@
 #define RTK_MAX_NUM_OF_FILTER_TYPE                  5
 #define RTK_MAX_NUM_OF_FILTER_FIELD                 8
 
+#define RTK_FIBER_FORCE_1000M                       3
+#define RTK_FIBER_FORCE_100M                        5
+#define RTK_FIBER_FORCE_100M1000M                   7
+
 #define RTK_MAX_NUM_OF_METER                        32
 
 #define RTK_FLOWCTRL_PAUSE_ALL                      1980
@@ -172,7 +176,7 @@
 #define CONFIG_RTL_CUSTOM_PASSTHRU 1
 #endif
 
-#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+#if defined CONFIG_RTL_CUSTOM_PASSTHRU
 #define PASSTHRU_VLAN_ID 100
 #endif
 
@@ -605,13 +609,12 @@ typedef enum rtk_filter_field_type_raw_e
 
     FILTER_FIELD_RAW_IPV6_SIP_15_0 = 0x20,
     FILTER_FIELD_RAW_IPV6_SIP_31_16,
-    FILTER_FIELD_RAW_IPV6_DIP_15_0 = 0x28,
+    FILTER_FIELD_RAW_IPV6_DIP_15_0,
     FILTER_FIELD_RAW_IPV6_DIP_31_16,
 
 	FILTER_FIELD_RAW_VIDRANGE = 0x30,
 	FILTER_FIELD_RAW_IPRANGE,
 	FILTER_FIELD_RAW_PORTRANGE,
-	FILTER_FIELD_RAW_FIELD_VALID,
 
 	FILTER_FIELD_RAW_FIELD_SELECT00 = 0x40,
 	FILTER_FIELD_RAW_FIELD_SELECT01,
@@ -883,9 +886,6 @@ typedef struct rtk_l2_ucastAddr_s
     rtk_uint32      da_block;
     rtk_uint32      auth;
     rtk_uint32      is_static;
-    rtk_uint32      priority;
-    rtk_uint32      sa_pri_en;
-    rtk_uint32      fwd_pri_en;
 }rtk_l2_ucastAddr_t;
 
 

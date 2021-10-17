@@ -43,7 +43,9 @@ extern int setWlan_Applications(char *action, char *argv);
 #if defined(CONFIG_APP_TR069)
 extern void start_tr069(void);
 #endif
-
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+extern void dhcp_connect(char *interface, char *option);
+#endif
 #ifdef MULTI_PPPOE
 extern void wan_disconnect(char *option , char *conncetOrder);
 #else
@@ -753,10 +755,19 @@ int main(int argc, char** argv)
 			wan_disconnect(line,argv[3]);
 		else 
 			wan_disconnect(line,"NOMULPPPOE");
-#else
-		wan_disconnect(line);
+#else		
+		if(argv[2] && !strcmp(argv[2], "option"))
+		{
+			wan_disconnect(line);
+		}
+		if(argv[2] && !strcmp(argv[2], "all"))
+		{	
+			wan_disconnect(line);
+		}
+		else if((argv[2] && !strcmp(argv[2], "option_l2tp")) && !isFileExist(TEMP_WAN_PPPOE_L2TP_CHECK))
+			wan_disconnect(line);
 #endif
-	}else if(argv[1] && (argc>=3 && strcmp(argv[3],"br0")!=0) &&
+	}else if(argv[1] && (argc>=3 && strcmp(argv[3],"br0")!=0) &&  
 		((strcmp(argv[1], "conn")==0)||((strcmp(argv[1], "renew")==0) && (wan_type == DHCP_CLIENT)))){
 		
 		sysconf_lock(fd,lock);
@@ -794,7 +805,14 @@ int main(int argc, char** argv)
 		else
 		wan_connect(action, line);
 #else
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+		if(!strcmp(argv[2], "dhcp") && !strcmp(action, "br0") && !strcmp(argv[4], "wac")){
+			dhcp_connect(action, line);
+		}else
+			wan_connect(action, line);
+#else
 		wan_connect(action, line);
+#endif
 #endif
 		sysconf_unlock(fd,lock);
 
@@ -885,7 +903,6 @@ int main(int argc, char** argv)
 	else if(argv[1] && 
 		((strcmp(argv[1], "conn")==0)||((strcmp(argv[1], "renew")==0) && (lan_type == DHCP_CLIENT))))
 	{//conn/renew dhcp br0 [IP] [mask] [GW]
-	
 		sysconf_lock(fd,lock);
 		if(argc < 4 || strcmp(argv[3],"br0")!=0){
 			printf("sysconf conn Invalid agrments!\n");
@@ -904,11 +921,6 @@ int main(int argc, char** argv)
 #endif
 		if(lan_type==DHCP_CLIENT && (!strcmp(argv[2], "dhcp")))
 			RunSystemCmd(PREVIOUS_LAN_DHCP_INFO, "echo", line, NULL_STR);
-		
-#if defined(CONFIG_RTL_ULINKER)
-		/* notice ulinker_process to reset domain name query */
-		system("echo 1 > /var/ulinker_reset_domain");
-#endif
 		lan_connect(action, line);
 		sysconf_unlock(fd,lock);
 	}
@@ -916,7 +928,11 @@ int main(int argc, char** argv)
 	else if(argv[1] && (strcmp(argv[1],"dhcp6c_get")==0))
 	{
 		checkDhcp6pd();
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+        check_ipv6_ce();
+#else
 		checkDnsv6();
+#endif
 	}
 #endif
 //#ifdef CONFIG_POCKET_ROUTER_SUPPORT

@@ -46,13 +46,16 @@ __DRAM_FWD static uint32   rxPkthdrRefillThreshold[RTL865X_SWNIC_RXRING_HW_PKTDE
 /* TX Ring */
 static uint32*  txPkthdrRing[RTL865X_SWNIC_TXRING_HW_PKTDESC];             /* Point to the starting address of TX pkt Hdr Ring */
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8881A)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8881A) || defined(CONFIG_RTL_8198C)
 #define CONFIG_RTL_ENHANCE_RELIABILITY		1
 #endif
 
 #ifdef CONFIG_RTL_ENHANCE_RELIABILITY
 __DRAM_FWD static uint32 txPkthdrRing_base[RTL865X_SWNIC_TXRING_HW_PKTDESC];
 __DRAM_FWD static uint32 rxPkthdrRing_base[RTL865X_SWNIC_RXRING_HW_PKTDESC];
+#ifdef CONFIG_RTL_8198C
+__DRAM_FWD uint32 rxMbufRing_base;
+#endif
 #endif
 
 #if defined(CONFIG_RTL8196C_REVISION_B)
@@ -141,6 +144,9 @@ inline int32 rtl8651_rxPktPreprocess(void *pkt, unsigned int *vid)
 	uint32 srcPortNum;
 	
 	srcPortNum = m_pkthdr->ph_portlist;
+#if defined(CONFIG_RTL_8198C)
+	srcPortNum &=0x7;
+#endif
 	*vid = m_pkthdr->ph_vlanId;
 
 	#if 0
@@ -216,7 +222,7 @@ inline int32 rtl8651_rxPktPreprocess(void *pkt, unsigned int *vid)
 inline int return_to_rxing_check(int ringIdx)
 {
 	int ret;
-	//unsigned long flags;
+	//unsigned long flags=0;
 	//local_irq_save(flags);
 	ret = ((rxDescReadyForHwIndex[ringIdx]!=currRxPkthdrDescIndex[ringIdx]) && (rxPkthdrRingCnt[ringIdx]!=0))? 1:0;
 	//local_irq_restore(flags);
@@ -225,20 +231,26 @@ inline int return_to_rxing_check(int ringIdx)
 static inline int buffer_reuse(int ringIdx)
 {
 	int index1,index2,gap;
-	unsigned long flags;
-	local_irq_save(flags);
+	#if !defined(CONFIG_SMP)
+	unsigned long flags=0;
+	SMP_LOCK_ETH_RECV(flags);
+	#endif
 	index1 = rxDescReadyForHwIndex[ringIdx];
 	index2 = currRxPkthdrDescIndex[ringIdx]+1;
 	gap = (index2 > index1) ? (index2 - index1) : (index2 + rxPkthdrRingCnt[ringIdx] - index1);
 
 	if ((rxPkthdrRingCnt[ringIdx] - gap) < (rxPkthdrRefillThreshold[ringIdx]))
 	{
-		local_irq_restore(flags);
+		#if !defined(CONFIG_SMP)
+		SMP_UNLOCK_ETH_RECV(flags);
+		#endif
 		return 1;
 	}
 	else
 	{
-		local_irq_restore(flags);
+		#if !defined(CONFIG_SMP)
+		SMP_UNLOCK_ETH_RECV(flags);
+		#endif
 		return 0;
 	}
 }
@@ -261,9 +273,21 @@ static void release_pkthdr(struct sk_buff  *skb, int idx)
 {
 	struct rtl_pktHdr *pReadyForHw;
 	uint32 mbufIndex;
-	//unsigned long flags;
+	//unsigned long flags=0;
+#if defined(CONFIG_SMP)
+	unsigned long flags = 0;
+	SMP_LOCK_ETH_CACHE(flags);
+#endif
 
+#if 0 //defined(CONFIG_RTL_8198C)
+	_dma_cache_inv((unsigned long)skb->head, skb->truesize);
+#else
 	_dma_cache_wback_inv((unsigned long)skb->head, skb->truesize);
+#endif
+#if defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_CACHE(flags); 
+#endif
+
 	//local_irq_save(flags);
 	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][rxDescReadyForHwIndex[idx]] &
 						~(DESC_OWNED_BIT | DESC_WRAP));
@@ -278,8 +302,21 @@ static void release_pkthdr(struct sk_buff  *skb, int idx)
 	set_RxPkthdrRing_OwnBit(idx);
 	//local_irq_restore(flags);
 #ifdef _PKTHDR_CACHEABLE
+	#if defined(CONFIG_SMP)
+	SMP_LOCK_ETH_CACHE(flags);
+	#endif
+
+	#if 0 //defined(CONFIG_RTL_8198C)
+	_dma_cache_inv((unsigned long)pReadyForHw, sizeof(struct rtl_pktHdr));
+	_dma_cache_inv((unsigned long)(pReadyForHw->ph_mbuf), sizeof(struct rtl_mBuf));
+	#else
 	_dma_cache_wback_inv((unsigned long)pReadyForHw, sizeof(struct rtl_pktHdr));
 	_dma_cache_wback_inv((unsigned long)(pReadyForHw->ph_mbuf), sizeof(struct rtl_mBuf));
+	#endif
+
+	#if defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_CACHE(flags); 
+	#endif
 #endif
 }
 
@@ -287,34 +324,34 @@ __IRAM_FWD
 int check_rx_pkthdr_ring(int idx, int *return_idx)
 {
 	int i;
-	unsigned long flags;
+	unsigned long flags=0;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH_RECV(flags);
 	for(i = idx; i >= 0; i--) {
 		if (return_to_rxing_check(i)) {
 			*return_idx = i;
-			local_irq_restore(flags);
+			SMP_UNLOCK_ETH_RECV(flags);
 			return SUCCESS;
 		}
 	}
 
 	*return_idx = -1;
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_RECV(flags);
 	return FAILED;
 }
 
 __IRAM_FWD
 int check_and_return_to_rx_pkthdr_ring(void *skb, int idx)
 {
-	unsigned long flags;
+	unsigned long flags=0;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH_RECV(flags);
 	if (return_to_rxing_check(idx)) {
 		release_pkthdr(skb, idx);
-		local_irq_restore(flags);
+		SMP_UNLOCK_ETH_RECV(flags);
 		return SUCCESS;
 	} else {
-		local_irq_restore(flags);
+		SMP_UNLOCK_ETH_RECV(flags);
 		return FAILED;
 	}
 }
@@ -330,10 +367,10 @@ int return_to_rx_pkthdr_ring(unsigned char *head)
 {
 	struct sk_buff *skb;
 	int ret, i;
-	unsigned long flags;
+	unsigned long flags=0;
 
 	ret=FAILED;
-	local_irq_save(flags);
+	SMP_LOCK_ETH_RECV(flags);
 	for(i = RTL865X_SWNIC_RXRING_MAX_PKTDESC -1; i >= 0; i--)
 	{
 		if (return_to_rxing_check(i)) {
@@ -351,7 +388,7 @@ int return_to_rx_pkthdr_ring(unsigned char *head)
 	}
 
 _ret1:
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_RECV(flags);
 	return ret;
 }
 #endif //DELAY_REFILL_ETH_RX_BUF
@@ -361,30 +398,48 @@ static void increase_rx_idx_release_pkthdr(struct sk_buff  *skb, int idx)
 {
 	struct rtl_pktHdr *pReadyForHw;
 	uint32 mbufIndex;
-	unsigned long flags;
+	unsigned long flags=0;
 
-	local_irq_save(flags);
-	_dma_cache_wback_inv((unsigned long)skb->head, skb->truesize);
+#if defined(CONFIG_SMP)
+	SMP_LOCK_ETH_CACHE(flags);
+#endif
+	
+#if 0 //defined(CONFIG_RTL_8198C)
+	_dma_cache_inv((unsigned long)skb->head, skb->truesize);
+#else
+	//_dma_cache_wback_inv((unsigned long)skb->head, skb->truesize);
+#endif
+
+#if defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_CACHE(flags); 
+#endif
+
+
+#if !defined(CONFIG_SMP)
+	SMP_LOCK_ETH_RECV(flags);
+#endif
 
 #if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
 	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][rxDescReadyForHwIndex[idx]] &
 						~(DESC_OWNED_BIT | DESC_WRAP));
 #else
+
+	#if defined(CONFIG_RTL_ENHANCE_RELIABILITY) && defined(CONFIG_RTL_8198C)
+	pReadyForHw = (struct rtl_pktHdr *) (rxPkthdrRing_base[idx] + (sizeof(struct rtl_pktHdr) * currRxPkthdrDescIndex[idx]));								
+	#else		
 	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][currRxPkthdrDescIndex[idx]] &
 						~(DESC_OWNED_BIT | DESC_WRAP));
+	#endif
 
 #endif
 
 
-	if ( ++currRxPkthdrDescIndex[idx] == rxPkthdrRingCnt[idx] ) {
-		currRxPkthdrDescIndex[idx] = 0;
-		#if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
-		rxDescCrossBoundFlag[idx]++;
-		#endif
-	}
-
+#if defined(CONFIG_RTL_ENHANCE_RELIABILITY) && defined(CONFIG_RTL_8198C)
+	mbufIndex = ((uint32)(pReadyForHw->ph_mbuf) - rxMbufRing_base) /(sizeof(struct rtl_mBuf));
+#else
 	mbufIndex = ((uint32)(pReadyForHw->ph_mbuf) - (rxMbufRing[0] & ~(DESC_OWNED_BIT | DESC_WRAP))) /
 					(sizeof(struct rtl_mBuf));
+#endif
 
 	pReadyForHw->ph_mbuf->m_data = skb->data;
 	pReadyForHw->ph_mbuf->m_extbuf = skb->data;
@@ -392,31 +447,57 @@ static void increase_rx_idx_release_pkthdr(struct sk_buff  *skb, int idx)
 
 	rxMbufRing[mbufIndex] |= DESC_SWCORE_OWNED;
 
-#if !defined(DELAY_REFILL_ETH_RX_BUF)	
+#if !defined(DELAY_REFILL_ETH_RX_BUF) && !defined(ALLOW_RX_RING_PARTIAL_EMPTY)
+	//set own bit to siwtch in the final step
 	rxPkthdrRing[idx][currRxPkthdrDescIndex[idx]] |= DESC_SWCORE_OWNED; 
 #endif	
+	if ( ++currRxPkthdrDescIndex[idx] == rxPkthdrRingCnt[idx] ) {
+		currRxPkthdrDescIndex[idx] = 0;
+		#if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
+		rxDescCrossBoundFlag[idx]++;
+		#endif
+	}
+
 #if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
 	set_RxPkthdrRing_OwnBit(idx);
 #endif
-
+#if !defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_RECV(flags);
+#endif
 #ifdef _PKTHDR_CACHEABLE
+	#if defined(CONFIG_SMP)
+	SMP_LOCK_ETH_CACHE(flags);
+	#endif
+
+	#if 0 //defined(CONFIG_RTL_8198C)
+	_dma_cache_inv((unsigned long)pReadyForHw, sizeof(struct rtl_pktHdr));
+	_dma_cache_inv((unsigned long)(pReadyForHw->ph_mbuf), sizeof(struct rtl_mBuf));
+	#else
 	_dma_cache_wback_inv((unsigned long)pReadyForHw, sizeof(struct rtl_pktHdr));
 	_dma_cache_wback_inv((unsigned long)(pReadyForHw->ph_mbuf), sizeof(struct rtl_mBuf));
-#endif
+	#endif
 
-	local_irq_restore(flags);
+	#if defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_CACHE(flags); 
+	#endif
+#endif
+	_dma_cache_wback_inv((unsigned long)skb, sizeof(struct sk_buff));
 }
 
 __IRAM_FWD
 static int __swNic_geRxRingIdx(uint32 rxRingIdx, uint32 *currRxPktDescIdx)
 {
-	unsigned long flags;
+	#if !defined(CONFIG_SMP)
+	unsigned long flags=0;
+	#endif
 
 	if(rxPkthdrRingCnt[rxRingIdx] == 0) {
 		return FAILED;
 	}
 
-	local_irq_save(flags);
+	#if !defined(CONFIG_SMP)
+	SMP_LOCK_ETH_RECV(flags);
+	#endif
 	#if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
 	if ( (rxDescCrossBoundFlag[rxRingIdx]==0&&(currRxPkthdrDescIndex[rxRingIdx]>=rxDescReadyForHwIndex[rxRingIdx]))
 		|| (rxDescCrossBoundFlag[rxRingIdx]==1&&(currRxPkthdrDescIndex[rxRingIdx]<rxDescReadyForHwIndex[rxRingIdx])) )
@@ -424,13 +505,18 @@ static int __swNic_geRxRingIdx(uint32 rxRingIdx, uint32 *currRxPktDescIdx)
 	{
 		if((rxPkthdrRing[rxRingIdx][currRxPkthdrDescIndex[rxRingIdx]] & DESC_OWNED_BIT) == DESC_RISC_OWNED)
 		{
-			local_irq_restore(flags);
+			//SMP_UNLOCK_ETH_RECV(flags);
 			*currRxPktDescIdx = currRxPkthdrDescIndex[rxRingIdx];
+			#if !defined(CONFIG_SMP)
+			SMP_UNLOCK_ETH_RECV(flags);
+			#endif
 			return SUCCESS;
 		}
 	}
 
-	local_irq_restore(flags);
+	#if !defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_RECV(flags);
+	#endif
 	return FAILED;
 }
 
@@ -466,23 +552,28 @@ static inline int32 swNic_getRxringIdx(uint32 *rxRingIdx, uint32 *currRxPktDescI
 __IRAM_FWD
 int swNic_increaseRxIdx(int rxRingIdx)
 {
-	unsigned long	flags;
+#if !defined(CONFIG_SMP)
+	unsigned long	flags=0;
 	//int32		nextIdx;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH_RECV(flags);
+#endif
 	if ( ++currRxPkthdrDescIndex[rxRingIdx] == rxPkthdrRingCnt[rxRingIdx] ) {
 		currRxPkthdrDescIndex[rxRingIdx] = 0;
 		#if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
 		rxDescCrossBoundFlag[rxRingIdx]++;
 		#endif
 	}
-	local_irq_restore(flags);
+#if !defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_RECV(flags);
+#endif
 
 	return SUCCESS;
 }
 
 #if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
 int mbuf_pending_times = 0;
+extern int is_rtl865x_eth_priv_buf(unsigned char *head);
 int get_mbuf_pending_times(void)
 {
 	return mbuf_pending_times;
@@ -545,12 +636,12 @@ int32 swNic_flushRxRingByPriority(int priority)
 	int32	i;
 	struct rtl_pktHdr * pPkthdr;
 	void *skb;
-	unsigned long flags;
+	unsigned long flags=0;
 
 	#if defined(CONFIG_RTL865X_WTDOG)
 	REG32(WDTCNR) |=  WDTCLR; /* reset watchdog timer */
 	#endif
-	local_irq_save(flags);
+	SMP_LOCK_ETH_RECV(flags);
 	for(i = priority -1; i >= 0; i--)
 	{
 		if(rxPkthdrRingCnt[i] == 0)
@@ -563,7 +654,7 @@ int32 swNic_flushRxRingByPriority(int priority)
 			increase_rx_idx_release_pkthdr((void*)skb, i);
 		}
 	}
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_RECV(flags);
 	REG32(CPUIISR) = (MBUF_DESC_RUNOUT_IP_ALL|PKTHDR_DESC_RUNOUT_IP_ALL);
 	return SUCCESS;
 }
@@ -602,16 +693,30 @@ __IRAM_FWD
 int32 swNic_receive(rtl_nicRx_info *info, int retryCount)
 {
 	struct rtl_pktHdr * pPkthdr;
-	#if !defined(SKIP_ALLOC_RX_BUFF)
 	unsigned char *buf;
 	void *skb;
-	#endif
 	uint32 rxRingIdx;
 	uint32 currRxPktDescIdx;
 	#if defined(CONFIG_RTL_HARDWARE_NAT)
 	uint32	vid;
 	#endif
-
+#ifdef CONFIG_RTL_JUMBO_FRAME
+	struct sk_buff	*pskb=NULL;
+	struct rtl_mBuf *m_next=NULL;
+	uint32 mbufIndex_tmp = 0;
+	unsigned char *buf_tmp=NULL;
+	unsigned int offset;
+	struct rtl_mBuf *mbuf=NULL;
+	void *skb_tmp=NULL;
+#endif
+	#if defined(CONFIG_SMP)
+	//unsigned long flags = 0;
+	#if defined(_PKTHDR_CACHEABLE)
+	unsigned long flags2 = 0;
+	#endif
+	//SMP_LOCK_ETH_RECV(flags);
+	#endif
+	
 get_next:
 	 /* Check OWN bit of descriptors */
 	#if defined(RTL_MULTIPLE_RX_TX_RING)
@@ -629,24 +734,100 @@ get_next:
 #endif
 		/* Increment counter */
 		//rxPktCounter++;
+
 #if defined(_PKTHDR_CACHEABLE)
+		#if defined(CONFIG_SMP)
+		SMP_LOCK_ETH_CACHE(flags2); 
+		#endif
 		_dma_cache_inv((unsigned long)pPkthdr, sizeof(struct rtl_pktHdr));
 		_dma_cache_inv((unsigned long)(pPkthdr->ph_mbuf), sizeof(struct rtl_mBuf));
+		#if defined(CONFIG_SMP)
+		SMP_UNLOCK_ETH_CACHE(flags2); 
+		#endif
 #endif
-
+		_dma_cache_inv((unsigned long)(((struct sk_buff *)pPkthdr->ph_mbuf->skb)->data), pPkthdr->ph_len-4);
 		/*	checksum error drop it	*/
 		if ((pPkthdr->ph_flags & (CSUM_TCPUDP_OK | CSUM_IP_OK)) != (CSUM_TCPUDP_OK | CSUM_IP_OK))
 		{
-			RTL_ETH_NIC_DROP_RX_PKT_RESTART;
-			goto get_next;
+#ifdef CONFIG_RTL_IPV6READYLOGO
+             		if (!(((pPkthdr->ph_flags&(CSUM_TCPUDP_OK))!=CSUM_TCPUDP_OK) && 
+             			((pPkthdr->ph_portlist&0x38)==0x10) && (pPkthdr->ph_reason==0x0060)))
+#endif	
+			{
+				RTL_ETH_NIC_DROP_RX_PKT_RESTART;
+				goto get_next;
+			}
 		}
+#ifdef CONFIG_RTL_JUMBO_FRAME	
+		mbuf=pPkthdr->ph_mbuf;
+		if(mbuf && mbuf->m_next)	/*we will process jumbo frame here*/
+		{
+			//allocate a big space to hold jumbo frame	
+			m_next = mbuf->m_next;
+
+			buf_tmp = alloc_rx_buf(&skb_tmp, pPkthdr->ph_len - 4);			
+			offset=0;
+			/*cp data from frag mbuf to continious big space*/
+			while(buf_tmp!=NULL && mbuf!=NULL){
+				memcpy(buf_tmp+offset,mbuf->m_data,mbuf->m_len);
+				offset +=mbuf->m_len;				
+				mbuf = mbuf->m_next;
+			}			
+			/*release frag mbuf and pkt header*/
+			increase_rx_idx_release_pkthdr(pPkthdr->ph_mbuf->skb, rxRingIdx);
+		
+			while(m_next)
+			{
+				pskb = (struct sk_buff *)m_next->skb;		
+				mbufIndex_tmp = ((uint32)(m_next) - (rxMbufRing[0] & ~(DESC_OWNED_BIT | DESC_WRAP))) /
+							(sizeof(struct rtl_mBuf));
+				/*m_data must be the same as skb->data*/
+				m_next->m_data = pskb->data;
+				m_next->m_extbuf = pskb->data;
+				rxMbufRing[mbufIndex_tmp] |= DESC_SWCORE_OWNED;
+				//panic_printk("mbufIndex_tmp:%d\n",mbufIndex_tmp);
+				m_next = m_next->m_next;
+			}
+
+			REG32(CPUIISR) = (MBUF_DESC_RUNOUT_IP_ALL|PKTHDR_DESC_RUNOUT_IP_ALL);
+			if(buf_tmp == NULL)
+				goto get_next;
+			
+#if defined(CONFIG_RTL_HARDWARE_NAT)
+			if (rtl8651_rxPktPreprocess(pPkthdr, &vid) != 0) {
+				RTL_ETH_NIC_DROP_RX_PKT_RESTART;
+				goto get_next;
+			} 
+			info->vid = vid;
+#else
+			/*
+			 * vid is assigned in rtl8651_rxPktPreprocess()
+			 * do not update it when CONFIG_RTL_HARDWARE_NAT is defined
+			 */
+			info->vid=pPkthdr->ph_vlanId;			
+#endif
+			info->pid=pPkthdr->ph_portlist;
+			info->input = skb_tmp;
+			info->len = pPkthdr->ph_len - 4;
+		#if defined(RTL_MULTIPLE_RX_TX_RING)
+			info->priority = rxRingIdx;
+		#endif
+			#if defined(CONFIG_SMP)
+			//SMP_UNLOCK_ETH_RECV(flags);
+			#endif
+			return RTL_NICRX_OK;
+		}
+#endif	
+
 
 #if defined(CONFIG_RTL_HARDWARE_NAT)
 		if (rtl8651_rxPktPreprocess(pPkthdr, &vid) != 0) {
 			RTL_ETH_NIC_DROP_RX_PKT_RESTART;
 			goto get_next;
 		} else {
-			#if !defined(SKIP_ALLOC_RX_BUFF)
+			#if defined(SKIP_ALLOC_RX_BUFF)
+			buf = NULL;
+			#else
 			buf = alloc_rx_buf(&skb, size_of_cluster);
 			#endif
 		}
@@ -657,37 +838,34 @@ get_next:
 		 * do not update it when CONFIG_RTL_HARDWARE_NAT is defined
 		 */
 		info->vid=pPkthdr->ph_vlanId;
-#if !defined(SKIP_ALLOC_RX_BUFF)
+		#if defined(SKIP_ALLOC_RX_BUFF)
+		buf = NULL;
+		#else
 		buf = alloc_rx_buf(&skb, size_of_cluster);
-#endif
+		#endif
 #endif
 #ifdef CONFIG_RTL_VLAN_8021Q
         //info->srcvid=pPkthdr->ph_svlanId;
         info->srcvid=pPkthdr->ph_vlanId;
 #endif
 
+#if defined(CONFIG_RTL_8198C)
+		info->pid=(pPkthdr->ph_portlist&0x7);
+#else
 		info->pid=pPkthdr->ph_portlist;
-#if !defined(SKIP_ALLOC_RX_BUFF)
+#endif
 		if (buf)
 		{
 			info->input = pPkthdr->ph_mbuf->skb;
 			info->len = pPkthdr->ph_len - 4;
-//			#if	defined(DELAY_REFILL_ETH_RX_BUF)
 			/* Increment index */
+//			memDump((void*)(((struct sk_buff *)(info->input))->data), 64, "RX");			
 			increase_rx_idx_release_pkthdr(skb, rxRingIdx);
-//			#else
-//			pPkthdr->ph_mbuf->m_data = pPkthdr->ph_mbuf->m_extbuf = buf;
-//			pPkthdr->ph_mbuf->skb = skb;
-//			#endif
+
 			REG32(CPUIISR) = (MBUF_DESC_RUNOUT_IP_ALL|PKTHDR_DESC_RUNOUT_IP_ALL);
 		}
-#endif
 #if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
-	#if !defined(SKIP_ALLOC_RX_BUFF)
 		else if (!buffer_reuse(rxRingIdx)) 
-	#else
-		if (!buffer_reuse(rxRingIdx)) 
-	#endif
 		{
 			info->input = pPkthdr->ph_mbuf->skb;
 			info->len = pPkthdr->ph_len - 4;
@@ -700,7 +878,7 @@ get_next:
 
 			/* Increment index */
 			swNic_increaseRxIdx(rxRingIdx);
-		} 
+		}
 #endif
 		else {
 			#if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
@@ -711,8 +889,14 @@ get_next:
 				/* drop pkt */
 				increase_rx_idx_release_pkthdr((void*)pPkthdr->ph_mbuf->skb, rxRingIdx);
 			}
+			#if defined(CONFIG_SMP)
+			SMP_UNLOCK_ETH_RECV(flags);
+			#endif
 			return RTL_NICRX_REPEAT;
 			#else
+			#if defined(CONFIG_SMP)
+			//SMP_UNLOCK_ETH_RECV(flags);
+			#endif
 			return RTL_NICRX_NULL;
 			#endif
 		}
@@ -720,8 +904,17 @@ get_next:
 		#if defined(RTL_MULTIPLE_RX_TX_RING)
 		info->priority = rxRingIdx;
 		#endif
+		
+		#if defined(CONFIG_SMP)
+		//SMP_UNLOCK_ETH_RECV(flags);
+		#endif
+
 		return RTL_NICRX_OK;
 	} else {
+		#if defined(CONFIG_SMP)
+		//SMP_UNLOCK_ETH_RECV(flags);
+		#endif
+
 		return RTL_NICRX_NULL;
 	}
 }
@@ -747,6 +940,9 @@ __IRAM_FWD  inline int32 _swNic_send(void *skb, void * output, uint32 len,rtl_ni
 {
 	struct rtl_pktHdr * pPkthdr;
 	int next_index, ret;
+	#if defined(CONFIG_SMP) && defined(_PKTHDR_CACHEABLE)
+	unsigned long flags = 0;
+	#endif
 
 	if ((currTxPkthdrDescIndex[nicTx->txIdx]+1)==txPkthdrRingCnt[nicTx->txIdx])
 		next_index = 0;
@@ -758,9 +954,16 @@ __IRAM_FWD  inline int32 _swNic_send(void *skb, void * output, uint32 len,rtl_ni
 			return -1;
 	}
 
+#if defined(CONFIG_RTL_ENHANCE_RELIABILITY) && defined(CONFIG_RTL_8198C)
+	pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing_base[nicTx->txIdx] + 
+		(sizeof(struct rtl_pktHdr) * currTxPkthdrDescIndex[nicTx->txIdx]));
+
+#else
 	/* Fetch packet header from Tx ring */
 	pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[nicTx->txIdx][currTxPkthdrDescIndex[nicTx->txIdx]]
                                                 & ~(DESC_OWNED_BIT | DESC_WRAP));
+
+#endif
 
 	/* Pad small packets and add CRC */
 	if ( len < 60 )
@@ -814,13 +1017,26 @@ else
 	pPkthdr->ph_mbuf->m_data    = (output);
 	pPkthdr->ph_mbuf->m_extbuf = (output);
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 	pPkthdr->ph_ptpPkt = 0;
 #endif
 
 #ifdef _PKTHDR_CACHEABLE
+	#if defined(CONFIG_SMP)
+	SMP_LOCK_ETH_CACHE(flags); 
+	#endif
+
+	#if defined(CONFIG_RTL_8198C)
+	_dma_cache_wback((unsigned long)pPkthdr, sizeof(struct rtl_pktHdr));
+	_dma_cache_wback((unsigned long)(pPkthdr->ph_mbuf), sizeof(struct rtl_mBuf));
+	#else
 	_dma_cache_wback_inv((unsigned long)pPkthdr, sizeof(struct rtl_pktHdr));
 	_dma_cache_wback_inv((unsigned long)(pPkthdr->ph_mbuf), sizeof(struct rtl_mBuf));
+	#endif
+	
+	#if defined(CONFIG_SMP)
+	SMP_UNLOCK_ETH_CACHE(flags); 
+	#endif
 #endif
 
 	ret = currTxPkthdrDescIndex[nicTx->txIdx];
@@ -828,7 +1044,7 @@ else
 	/* Give descriptor to switch core */
 	txPkthdrRing[nicTx->txIdx][ret] |= DESC_SWCORE_OWNED;
 
-#ifdef CONFIG_RTL_ENHANCE_RELIABILITY
+#if defined(CONFIG_RTL_ENHANCE_RELIABILITY) && !defined(CONFIG_RTL_8198C)
 	{
 	uint32 pkthdr2 = (uint32)txPkthdrRing[nicTx->txIdx][ret];
 	if ((pkthdr2 & DESC_OWNED_BIT) == 0)
@@ -854,11 +1070,11 @@ __IRAM_FWD
 int32 swNic_send(void *skb, void * output, uint32 len,rtl_nicTx_info *nicTx)
 {
 	int	ret;
-	unsigned long flags;
+	unsigned long flags=0;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH_XMIT(flags);
 	ret = _swNic_send(skb, output, len, nicTx);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_XMIT(flags);
 	return ret;
 }
 
@@ -867,9 +1083,9 @@ int32 swNic_txDone(int idx)
 {
 	struct rtl_pktHdr	*pPkthdr;
 	//int				free_num;
-	unsigned long flags;
+	unsigned long flags=0;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH_XMIT(flags);
 	//free_num = 0;
 	{
 		while (txPktDoneDescIndex[idx] != currTxPkthdrDescIndex[idx]) {
@@ -890,13 +1106,17 @@ int32 swNic_txDone(int idx)
 
 			if (pPkthdr->ph_mbuf->skb)
 			{
-				local_irq_restore(flags);
+                #if !defined(CONFIG_RTL_8198C) || !defined(CONFIG_RPS)
+				SMP_UNLOCK_ETH_XMIT(flags);
+                #endif
 				#if defined(CONFIG_RTL_FAST_BRIDGE)
 				tx_done_callback(pPkthdr->ph_mbuf->skb);
 				#else
 				dev_kfree_skb_any((struct sk_buff *)pPkthdr->ph_mbuf->skb);
 				#endif
-				local_irq_save(flags);
+                #if !defined(CONFIG_RTL_8198C) || !defined(CONFIG_RPS)
+				SMP_LOCK_ETH_XMIT(flags);
+                #endif
 				pPkthdr->ph_mbuf->skb = NULL;
 			}
 
@@ -911,7 +1131,7 @@ int32 swNic_txDone(int idx)
 		}
 	}
 
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_XMIT(flags);
 	return 0; //free_num;
 }
 
@@ -973,6 +1193,9 @@ void swNic_freeRxBuf(void)
 	int i;
 	//int idx;
 	//struct rtl_pktHdr * pPkthdr;
+	#if defined(CONFIG_SMP)
+	unsigned long flags = 0;
+	#endif
 
 	/* Initialize index of Tx pkthdr descriptor */
 	for (i=0;i<RTL865X_SWNIC_TXRING_HW_PKTDESC;i++)
@@ -1018,13 +1241,26 @@ void swNic_freeRxBuf(void)
 
 		for (i=0;i<rxMbufRingCnt;i++)
 		{
+			#if defined(CONFIG_SMP)
+			SMP_LOCK_ETH_RECV(flags);
+			#endif
 			pMbuf = (struct rtl_mBuf *)(rxMbufRing[i] & ~(DESC_OWNED_BIT | DESC_WRAP));
 
 			if (pMbuf->skb)
 			{
+				#if defined(CONFIG_SMP)
+				SMP_UNLOCK_ETH_RECV(flags);
+				#endif
 				free_rx_buf(pMbuf->skb);
+				#if defined(CONFIG_SMP)
+				SMP_LOCK_ETH_RECV(flags);
+				#endif
 				pMbuf->skb = NULL;
 			}
+			#if defined(CONFIG_SMP)
+			SMP_UNLOCK_ETH_RECV(flags);
+			#endif
+
 #ifdef INIT_RX_RING_ERR_HANDLE
 			if ((rxMbufRing[i] & DESC_WRAP) != 0)
 				break;
@@ -1038,12 +1274,12 @@ void swNic_freeRxBuf(void)
 #if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
 int swNic_refillRxRing(void)
 {
-	unsigned long flags;
+	unsigned long flags=0;
 	unsigned int i;
 	void *skb;
 	unsigned char *buf;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH_RECV(flags);
 	for(i =  0; i <RTL865X_SWNIC_RXRING_MAX_PKTDESC; i++)
 	{
 		while (return_to_rxing_check(i)) {
@@ -1051,7 +1287,7 @@ int swNic_refillRxRing(void)
 			buf = alloc_rx_buf(&skb, size_of_cluster);
 
 			if ((buf == NULL) ||(skb==NULL) ) {
-				local_irq_restore(flags);
+				SMP_UNLOCK_ETH_RECV(flags);
 				return -1;
 			}
 
@@ -1060,7 +1296,7 @@ int swNic_refillRxRing(void)
 		REG32(CPUIISR) = (MBUF_DESC_RUNOUT_IP_ALL|PKTHDR_DESC_RUNOUT_IP_ALL);
 	}
 
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_RECV(flags);
 	return 0;
 }
 #endif
@@ -1069,9 +1305,9 @@ void swNic_freeTxRing(void)
 {
 	struct rtl_pktHdr	*pPkthdr;
 	uint32 idx;
-	unsigned long flags;
+	unsigned long flags=0;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH_XMIT(flags);
 	//free_num = 0;
 
 	/* Initialize index of Tx pkthdr descriptor */
@@ -1083,13 +1319,13 @@ void swNic_freeTxRing(void)
 			if (rtl_chip_version == RTL8196C_REVISION_A)
 				txPkthdrRing[idx][txPktDoneDescIndex[idx]] =txPkthdrRing_backup[idx][txPktDoneDescIndex[idx]] ;
 			#endif
-
 #ifdef CONFIG_RTL_ENHANCE_RELIABILITY
 			pPkthdr = (struct rtl_pktHdr *) (txPkthdrRing_base[idx] + (sizeof(struct rtl_pktHdr) * txPktDoneDescIndex[idx]));								
 #else
 			pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[idx][txPktDoneDescIndex[idx]]
 				& ~(DESC_OWNED_BIT | DESC_WRAP));
 #endif
+
 			if (pPkthdr->ph_mbuf->skb)
 			{
 
@@ -1113,7 +1349,7 @@ void swNic_freeTxRing(void)
 	}
 
 
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_XMIT(flags);
 	return ; //free_num;
 }
 
@@ -1121,9 +1357,9 @@ int32 swNic_reConfigRxTxRing(void)
 {
 	uint32 i,j,k;
 	//struct rtl_pktHdr	*pPkthdr;
-	unsigned long flags;
+	unsigned long flags=0;
 
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 
 	k = 0;
 
@@ -1166,7 +1402,7 @@ int32 swNic_reConfigRxTxRing(void)
 	REG32(CPUTPDCR0) = (uint32) txPkthdrRing[0];
 	REG32(CPUTPDCR1) = (uint32) txPkthdrRing[1];
 	
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 	REG32(CPUTPDCR2) = (uint32) txPkthdrRing[2];
 	REG32(CPUTPDCR3) = (uint32) txPkthdrRing[3];
 #endif
@@ -1182,7 +1418,7 @@ int32 swNic_reConfigRxTxRing(void)
 
 	REG32(CPURMDCR0) = (uint32) rxMbufRing;
 
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 
 	return 0;
 }
@@ -1219,6 +1455,10 @@ int32 swNic_reInit(void)
 *       Status.
 *************************************************************************/
 
+#if defined(CONFIG_RTL_8198C) && defined(_PKTHDR_CACHEABLE)
+#include <asm/cpu-features.h>
+#endif
+
 int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC],
                  uint32 userNeedRxMbufRingCnt,
                  uint32 userNeedTxPkthdrRingCnt[RTL865X_SWNIC_TXRING_HW_PKTDESC],
@@ -1232,10 +1472,14 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	struct rtl_mBuf *pMbufList;
 	struct rtl_pktHdr * pPkthdr;
 	struct rtl_mBuf * pMbuf;
-	//unsigned long flags;
+	unsigned long flags=0;
 	int	ret;
 #ifdef ALLOW_RX_RING_PARTIAL_EMPTY
 	int	mem_not_enough, ready_for_hw_idx;
+#endif
+
+#if defined(CONFIG_RTL_8198C) && defined(_PKTHDR_CACHEABLE)
+	int cpu_dcache_line = cpu_dcache_line_size(); // in \arch\mips\include\asm\cpu-features.h
 #endif
 
 	/* init const array for rx pre-process	*/
@@ -1267,7 +1511,7 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	//rtlglue_printf("#######################################################\n");
 
 	ret = SUCCESS;
-	//local_irq_save(flags);
+	SMP_LOCK_ETH_RECV(flags);
 	if (rxMbufRing == NULL)
 	{
 		size_of_cluster = clusterSize;
@@ -1331,6 +1575,18 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 
 		/* Allocate pkthdr */
 #ifdef _PKTHDR_CACHEABLE
+
+#if 0 //defined(CONFIG_RTL_8198C)
+		pPkthdrList_start = (struct rtl_pktHdr *) kmalloc(
+		(totalRxPkthdrRingCnt + totalTxPkthdrRingCnt) * sizeof(struct rtl_pktHdr), GFP_ATOMIC);
+		ASSERT_CSP( (uint32) pPkthdrList_start & 0x0fffffff );
+
+		/* Allocate mbufs */
+		pMbufList_start = (struct rtl_mBuf *) kmalloc(
+		(rxMbufRingCnt+RESERVERD_MBUF_RING_NUM+ totalTxPkthdrRingCnt) * sizeof(struct rtl_mBuf), GFP_ATOMIC);
+		ASSERT_CSP( (uint32) pMbufList_start & 0x0fffffff );
+
+#else
 		pPkthdrList_start = (struct rtl_pktHdr *) kmalloc(
 		(totalRxPkthdrRingCnt+totalTxPkthdrRingCnt+1) * sizeof(struct rtl_pktHdr), GFP_ATOMIC);
 		ASSERT_CSP( (uint32) pPkthdrList_start & 0x0fffffff );
@@ -1343,6 +1599,8 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 		ASSERT_CSP( (uint32) pMbufList_start & 0x0fffffff );
 		
 		pMbufList_start = (struct rtl_mBuf *)(((uint32) pMbufList_start + (cpu_dcache_line - 1))& ~(cpu_dcache_line - 1));
+#endif
+
 #else
 		pPkthdrList_start = (struct rtl_pktHdr *) UNCACHED_MALLOC(
 		(totalRxPkthdrRingCnt + totalTxPkthdrRingCnt) * sizeof(struct rtl_pktHdr));
@@ -1352,6 +1610,11 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 		pMbufList_start = (struct rtl_mBuf *) UNCACHED_MALLOC(
 		(rxMbufRingCnt+RESERVERD_MBUF_RING_NUM+ totalTxPkthdrRingCnt) * sizeof(struct rtl_mBuf));
 		ASSERT_CSP( (uint32) pMbufList_start & 0x0fffffff );
+#endif
+
+#ifdef CONFIG_RTL_8198C
+		SMP_UNLOCK_ETH_RECV(flags);
+		return ret;
 #endif
 	}
 
@@ -1420,7 +1683,7 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	REG32(CPUTPDCR0) = (uint32) txPkthdrRing[0];
 	REG32(CPUTPDCR1) = (uint32) txPkthdrRing[1];
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 	REG32(CPUTPDCR2) = (uint32) txPkthdrRing[2];
 	REG32(CPUTPDCR3) = (uint32) txPkthdrRing[3];
 #endif
@@ -1537,6 +1800,10 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 #endif
 	}
 
+#if defined(CONFIG_RTL_ENHANCE_RELIABILITY) && defined(CONFIG_RTL_8198C)
+	rxMbufRing_base = rxMbufRing[0] & ~DESC_OWNED_BIT;
+#endif
+
 	rxMbufRing[rxMbufRingCnt - 1] |= DESC_WRAP;
 
 	/* Fill Rx packet header FDP */
@@ -1556,7 +1823,7 @@ out:
 	_dma_cache_wback_inv((unsigned long)pMbufList_start, (rxMbufRingCnt+RESERVERD_MBUF_RING_NUM+ totalTxPkthdrRingCnt) * sizeof(struct rtl_mBuf));
 #endif
 
-	//local_irq_restore(flags);
+	SMP_UNLOCK_ETH_RECV(flags);
 	return ret;
 }
 

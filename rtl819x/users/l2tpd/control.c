@@ -25,7 +25,9 @@
 #include <sys/ioctl.h>
 #endif
 
+#if !defined(CONFIG_RTL_8198C)
 #define RTL_L2TP_POWEROFF_PATCH 1
+#endif
 
 #define PKTNUM_THRESHOLD_PERMIN 3000 //60*50 
 

@@ -25,11 +25,6 @@
 #include <net/rtl/rtk_stp.h>
 #endif
 
-#if defined (CONFIG_RTL_IGMP_SNOOPING)
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-extern int br_register_igmpsnoopingmodule_process(struct net_bridge *br,int enable,int fldEnable);
-#endif
-#endif
 /* called with RTNL */
 static int get_bridge_ifindices(struct net *net, int *indices, int num)
 {
@@ -484,15 +479,6 @@ static int old_dev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		return 0;
 	}
 #endif	// CONFIG_RTK_GUEST_ZONE
-#if defined (CONFIG_RTL_IGMP_SNOOPING)
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	case BRCTL_REGISTER_IGMPSNOOPING_MODULE:
-	{
-		br_register_igmpsnoopingmodule_process(br,args[1],args[2]);
-		return 0;
-	}
-#endif	
-#endif
 	}
 
 	return -EOPNOTSUPP;

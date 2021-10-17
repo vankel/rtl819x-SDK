@@ -8,7 +8,13 @@
 #endif
 
 #ifndef NO_MM
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#else
 #include <linux/config.h>
+#endif
 #include <linux/module.h>
 #include <linux/mm.h>
 

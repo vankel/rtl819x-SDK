@@ -1521,7 +1521,7 @@ static void htb_unbind_filter(struct Qdisc *sch, unsigned long arg)
 #if defined(CONFIG_RTL_HW_QOS_SUPPORT)
 
 #define	BANDWIDTH_GAP_FOR_PORT		10000
-#if defined(CONFIG_RTL_8196C) ||defined(CONFIG_RTL_819XD)
+#if defined(CONFIG_RTL_8196C) ||defined(CONFIG_RTL_819XD) ||defined(CONFIG_RTL_8196E)
 #define	FULL_SPEED	100000000
 #elif defined(CONFIG_RTL_8198)
 #define	FULL_SPEED	1000000000
@@ -1567,6 +1567,10 @@ static int htb_syncHwQueue(struct net_device *dev)
 					return -EINVAL;
 				}
 				{
+					
+					#if defined (CONFIG_RTL_HW_QOS_SP_PRIO) 
+					queueInfo[queueNum].prio= cl->prio;	
+					#endif
 					queueInfo[queueNum].bandwidth = cl->rate->rate.rate<<3;
 					queueInfo[queueNum].ceil = cl->ceil->rate.rate<<3;
 					queueInfo[queueNum].handle = queueInfo[queueNum].queueId = cl->common.classid;

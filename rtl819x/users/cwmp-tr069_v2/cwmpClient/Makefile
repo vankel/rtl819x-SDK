@@ -1,7 +1,16 @@
 ifeq ($(wildcard $(DIR_LINUX)/.config),)
-include ../../../linux-2.6.30/.config
+include $(DIR_ROOT)/linux-2.6.30/.config
 else
 include $(DIR_LINUX)/.config
+endif
+
+COMMON_CFLAGS =
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+ifeq ($(KERNEL_VER),linux-2.6.30)
+COMMON_CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+COMMON_CFLAGS += -DKERNEL_3_10
 endif
 
 ifeq ($(wildcard $(DIR_USERS)/.config),)
@@ -13,13 +22,12 @@ endif
 ifndef DIR_RSDK
 include ../../.config
 export PATH := $(shell pwd)/../../$(CONFIG_RSDKDIR)/bin:$(PATH)
-export CC = rsdk-linux-gcc
-export CPP = rsdk-linux-gcc -E
-export AR = rsdk-linux-ar
+export CC = $(CROSS_COMPILE)gcc
+export CPP = $(CROSS_COMPILE)gcc -E
+export AR =$(CROSS_COMPILE)ar
 endif
 
 MAKE=make
-COMMON_CFLAGS =
 
 # Gateway flag
 GATEWAY = -DHOME_GATEWAY -DDOS_SUPPORT
@@ -155,8 +163,20 @@ ifeq ($(CONFIG_RTL_8196C_GW),y)
 	COMMON_CFLAGS += -DCONFIG_RTL_8196C
 endif
 
+ifeq ($(CONFIG_RTL_8196E),y)
+	COMMON_CFLAGS += -DCONFIG_RTL_8196E
+endif
+
 ifeq ($(CONFIG_RTL_8198_GW),y)
 	COMMON_CFLAGS += -DCONFIG_RTL_8198
+endif
+
+ifeq ($(CONFIG_RTL_8198B),y)
+	COMMON_CFLAGS += -DCONFIG_RTL_8198B
+endif
+
+ifeq ($(CONFIG_RTL_8198C),y)
+	COMMON_CFLAGS += -DCONFIG_RTL_8198C
 endif
 
 ifeq ($(CONFIG_RTL_8198_AP_ROOT),y)
@@ -341,8 +361,18 @@ ifeq ($(CONFIG_USER_CWMP_WITH_TR181_V6), y)
 COMMON_CFLAGS += -DTR181_SUPPORT
 endif
 
+ifeq ($(CONFIG_USER_CWMP_WITH_TR069_ANNEX_G), y)
+COMMON_CFLAGS += -DTR069_ANNEX_G
+endif
+
 ifneq ($(CONFIG_MTD_CHAR), y)
+ifeq ($(KERNEL_VER),linux-2.6.30)
 $(error You have to turn on the kernel option "CONFIG_MTD_CHAR" for TR069)
+endif
+endif
+
+ifeq ($(KERNEL_VER),linux-2.6.30)
+COMMON_CFLAGS += -DKERNEL_2630
 endif
 
 #ifneq ($(CONFIG_MULTIPLE_WAN_SUPPORT), y)
@@ -350,7 +380,7 @@ endif
 #endif
 
 ifeq ($(CONFIG_USER_CWMP_WITH_TR143),y)
-COMMON_CFLAGS += -DCONFIG_USER_CWMP_WITH_TR143
+COMMON_CFLAGS += -DCONFIG_USER_CWMP_WITH_TR143 -D_PRMT_TR143_
 endif
 
 endif
@@ -463,6 +493,14 @@ DEPH = tr181_device.h tr181_deviceInfo.h tr181_gatewayInfo.h tr181_userInterface
 	prmt_deviceinfo.h prmt_mngmtserver.h tr181_dns.h tr181_dnsClient.h tr181_lanConfigSecurity.h \
 	tr181_deviceInfoVendorLogFile.h
 
+ifeq ($(CONFIG_USER_CWMP_WITH_TR069_ANNEX_G), y)
+OBJS += $(CWMPCLIENT_ROOT)/stun.o $(CWMPCLIENT_ROOT)/udp.o
+
+SOURCES += $(CWMPCLIENT_ROOT)/stun.c $(CWMPCLIENT_ROOT)/udp.c
+
+DEPH += $(CWMPCLIENT_ROOT)/stun.h $(CWMPCLIENT_ROOT)/udp.h
+endif
+
 CFLAGS += -DCONFIG_RTL_92D_SUPPORT -DCONFIG_RTL_DUAL_PCIESLOT_BIWLAN
 endif
 
@@ -490,6 +528,7 @@ ifeq ($(CONFIG_USER_CWMP_WITH_TR181), y)
 ifeq ($(CONFIG_USER_CWMP_WITH_OPENSSL),y)
 LIBCWMP = ../lib/TR181_libcwmpssl.a ../lib/libgsoapssl.a
 LIBCWMPFLAG = -L$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/ -lssl -lcrypto -ldl
+CFLAGS += -I$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/include -DHAS_MESSAGE_INTEGRITY
 endif
 ifeq ($(CONFIG_USER_CWMP_WITH_MATRIXSSL),y)
 LIBCWMP = ../lib/TR181_libcwmpmssl.a ../lib/libgsoapmssl.a ../lib/libmatrixsslstatic.a
@@ -505,6 +544,7 @@ else
 ifeq ($(CONFIG_USER_CWMP_WITH_OPENSSL),y)
 LIBCWMP = ../lib/libcwmpssl.a ../lib/libgsoapssl.a
 LIBCWMPFLAG = -L$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/ -lssl -lcrypto -ldl
+CFLAGS += -I$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/include -DHAS_MESSAGE_INTEGRITY
 endif
 ifeq ($(CONFIG_USER_CWMP_WITH_MATRIXSSL),y)
 LIBCWMP = ../lib/libcwmpmssl.a ../lib/libgsoapmssl.a ../lib/libmatrixsslstatic.a
@@ -537,15 +577,11 @@ CFLAGS += -DSUPER_NAME_SUPPORT
 
 #add by bruce
 include ../../.config
-include ../../../linux-2.6.30/.config
+#include ../../../linux-2.6.30/.config
 #CFLAGS += -D_PRMT_USERINTERFACE_ -DUNIVERSAL_REPEATER
 ifeq ($(CONFIG_APP_ROUTED), y)
 # routing support
 CFLAGS += -DROUTE_SUPPORT
-endif
-ifeq ($(CONFIG_APP_TRACEROUTE), y)
-# traceroute support
-CFLAGS += -D_SUPPORT_TRACEROUTE_PROFILE_
 endif
 ifeq ($(CONFIG_RTL_92D_SUPPORT),y)
 CFLAGS  += -DCONFIG_RTL_92D_SUPPORT 
@@ -554,6 +590,13 @@ ifeq ($(CONFIG_RTK_VLAN_SUPPORT),y)
 CFLAGS += -DVLAN_CONFIG_SUPPORTED
 endif
 
+ifeq ($(CONFIG_RTL_8881A),y)
+ifeq ($(CONFIG_SLOT_0_8192EE),y)
+COMMON_CFLAGS += -DCONFIG_RTL8881A_RTL8192E -DCONFIG_RTL_DUAL_PCIESLOT_BIWLAN
+endif
+endif
+CFLAGS += -D_CWMP_MAC_FILTER_
+#CFLAGS += -D_ALPHA_DUAL_WAN_SUPPORT_
 
 # To Support TR104
 ifeq ($(CONFIG_APP_TR104),y)

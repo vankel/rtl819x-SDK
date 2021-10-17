@@ -13,8 +13,8 @@ OBJS = $(SRCS:.c $(CFLAGS) =.o)
 
 EXEC = inband
 
-CC = rsdk-linux-gcc
-LD = rsdk-linux-gcc
+CC = $(CROSS_COMPILE)gcc
+LD = $(CROSS_COMPILE)gcc
 
 all: inband.a $(EXEC)
 

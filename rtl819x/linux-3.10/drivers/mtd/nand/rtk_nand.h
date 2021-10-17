@@ -1,0 +1,1 @@
+../../../../linux-2.6.30/drivers/mtd/nand/rtk_nand.h

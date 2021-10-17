@@ -211,6 +211,7 @@ unsigned long * piis_TxBuf[MAX_IIS_CH_NUM];
 //#endif
 
 
+//extern unsigned char support_lec_g168[] ;	// 0: LEC disable  1: LEC enable
 //#ifdef LEC_G168_ISR_SYNC_P
 //static short vpat[16]={32767,30272,23170,12539,0,-12539,-23170,-30272,-32767,-30272,-23170,-12539, 0,12539,23170,30272 };
 //static char sync = 0;

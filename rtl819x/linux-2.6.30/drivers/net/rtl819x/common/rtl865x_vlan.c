@@ -22,8 +22,10 @@
 
 static rtl865x_vlan_entry_t *vlanTbl = NULL;
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 static RTL_DECLARE_MUTEX(vlan_sem);
-
+#endif
 static int32 _rtl865x_delVlan(uint16 vid);
 
 static int32 _rtl865x_setAsicVlan(uint16 vid,rtl865x_vlan_entry_t *vlanEntry)
@@ -371,12 +373,12 @@ if a vlan entry is referenced, please call this API.
 int32 rtl865x_referVlan(uint16 vid)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&vlan_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_referVlan(vid);
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return retval;
 }
 
@@ -392,12 +394,12 @@ NOTE: rtl865x_deReferVlan should be called after rtl865x_referVlan.
 int32 rtl865x_deReferVlan(uint16 vid)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//rtl_down_interruptible(&vlan_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_deReferVlan(vid);
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return retval;
 }
 
@@ -411,16 +413,16 @@ int32 rtl865x_deReferVlan(uint16 vid)
 int32 rtl865x_addVlan(uint16 vid)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	/* vid should be legal vlan ID */
 	if(vid < 1 || vid > VLAN_NUMBER-1)
 		return RTL_EINVALIDVLANID;
 
 	//rtl_down_interruptible(&vlan_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_addVlan(vid);
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 		
 }
@@ -435,16 +437,16 @@ int32 rtl865x_addVlan(uint16 vid)
 int32 rtl865x_delVlan(uint16 vid)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	/* vid should be legal vlan ID */
 	if(vid < 1 || vid > VLAN_NUMBER -1)
 		return RTL_EINVALIDVLANID;
 	
 	//rtl_down_interruptible(&vlan_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delVlan(vid);	
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 
@@ -460,16 +462,16 @@ the parm portMask is the MASK of port. bit0 mapping to physical port 0,bit1 mapp
 int32 rtl865x_addVlanPortMember(uint16 vid, uint32 portMask)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	/* vid should be legal vlan ID */
 	if(vid < 1 || vid > VLAN_NUMBER -1)
 		return RTL_EINVALIDVLANID;
 
 	//rtl_down_interruptible(&vlan_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_addVlanPortMember(vid,portMask);	
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 
@@ -485,16 +487,16 @@ the parm portMask is the MASK of port. bit0 mapping to physical port 0,bit1 mapp
 int32 rtl865x_delVlanPortMember(uint16 vid,uint32 portMask)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	/* vid should be legal vlan ID */
 	if(vid < 1 || vid > VLAN_NUMBER -1)
 		return RTL_EINVALIDVLANID;
 	
 	//rtl_down_interruptible(&vlan_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delVlanPortMember(vid,portMask);	
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 
 	return retval;
 	
@@ -543,16 +545,16 @@ parm tag is used to indicated physical port is vlantag or untag. value 1 means v
 int32 rtl865x_setVlanPortTag(uint16 vid,uint32 portMask,uint8 tag)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	/* vid should be legal vlan ID */
 	if(vid < 1 || vid > VLAN_NUMBER -1)
 		return RTL_EINVALIDVLANID;
 	
 	//rtl_down_interruptible(&vlan_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_setVlanPortTag(vid,portMask,tag);	
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 
@@ -571,16 +573,16 @@ default configure is SVL.
 int32 rtl865x_setVlanFilterDatabase(uint16 vid, uint32 fid)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	/* vid should be legal vlan ID */
 	if(vid < 1 || vid > VLAN_NUMBER -1)
 		return RTL_EINVALIDVLANID;
 	
 	//rtl_down_interruptible(&vlan_sem);//Lock resource
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_setVlanFID(vid,fid);	
 	//rtl_up(&vlan_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 
 	return retval;	
 }

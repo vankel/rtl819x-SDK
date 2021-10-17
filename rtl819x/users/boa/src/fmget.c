@@ -345,6 +345,74 @@ int getInfo(request *wp, int argc, char **argv)
 #endif
 #endif
 
+#ifdef CONFIG_IPV6
+	addr6CfgParam_t ipaddr6;
+#ifdef CONFIG_DSLITE_SUPPORT
+	if(!strcmp(argv[0],("ipv6_comment_start")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_comment_end")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_jscomment_start")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_jscomment_end")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+#else
+	if(!strcmp(argv[0],("ipv6_comment_start")))
+	{
+		req_format_write(wp, "<!--");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_comment_end")))
+	{
+		req_format_write(wp, "-->");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_jscomment_start")))
+	{
+		req_format_write(wp, "/*");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_jscomment_end")))
+	{
+		req_format_write(wp, "*/");
+		return 0;
+	}
+
+#endif
+#else
+	if(!strcmp(argv[0],("ipv6_comment_start")))
+	{
+		req_format_write(wp, "<!--");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_comment_end")))
+	{
+		req_format_write(wp, "-->");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_jscomment_start")))
+	{
+		req_format_write(wp, "/*");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("ipv6_jscomment_end")))
+	{
+		req_format_write(wp, "*/");
+		return 0;
+	}
+#endif
 	int wlan_idx_keep = wlan_idx;
 	char tmpStr[20];
 	
@@ -469,6 +537,12 @@ int getInfo(request *wp, int argc, char **argv)
 		return req_format_write(wp, "%dday:%dh:%dm:%ds",
 							day, hr, mn, sec);
 	}
+	else if( !strcmp(name, "smtpclient_enable")) {
+		#ifdef  CONFIG_APP_SMTP_CLIENT
+			return req_format_write(wp, "%s", "1");
+		#endif
+			return req_format_write(wp, "%s", "0");
+	}
 	else if ( !strcmp(name, "year")) {
 
 		time(&current_secs);
@@ -518,8 +592,8 @@ int getInfo(request *wp, int argc, char **argv)
 	}
    	else if ( !strcmp(name, "clientnum")) {
 		apmib_get( MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
-		
-		if (intVal == 1)	// disable
+
+		if (intVal == 1 || wlan_num<=0)	// disable
 			intVal = 0;
 		else if(!check_wlan_downup(wlan_idx))//if wlanx down
 			intVal = 0;
@@ -627,11 +701,11 @@ int getInfo(request *wp, int argc, char **argv)
 				else if (entry.encryption == 3)
 					strcpy( buffer, "WPA");
 				else if (entry.encryption == 4)
-		                      strcpy( buffer, "WPA2");
+		            strcpy( buffer, "WPA2");
 				else if (entry.encryption == 6)
 		            strcpy( buffer, "WPA-Mixed");
 				else 
-		                      strcpy( buffer, "Disabled");
+		            strcpy( buffer, "Disabled");
 
 //printf("\r\n buffer[%s],__[%s-%u]\r\n",buffer,__FILE__,__LINE__);			
 
@@ -864,8 +938,32 @@ int getInfo(request *wp, int argc, char **argv)
                 return req_format_write(wp, "%s", inet_ntoa(*((struct in_addr *)buffer)) );
         }
 	else if ( !strcmp(name, "ntpServerIp2")) { // sc_yang
-                if ( !apmib_get( MIB_NTP_SERVER_IP2,  (void *)buffer) )
-                        return -1;
+				if ( !apmib_get( MIB_NTP_SERVER_ID, (void *)&intVal) )
+						return -1;
+				if ( intVal == 1) {
+	                if ( !apmib_get( MIB_NTP_SERVER_IP2,  (void *)buffer) )
+	                        return -1;
+				}
+				else if ( intVal == 2) {
+	                if ( !apmib_get( MIB_NTP_SERVER_IP3,  (void *)buffer) )
+	                        return -1;
+				}
+				else if ( intVal == 3) {
+	                if ( !apmib_get( MIB_NTP_SERVER_IP4,  (void *)buffer) )
+	                        return -1;
+				}
+				else if ( intVal == 4) {
+	                if ( !apmib_get( MIB_NTP_SERVER_IP5,  (void *)buffer) )
+	                        return -1;
+				}
+				else if ( intVal == 5) {
+	                if ( !apmib_get( MIB_NTP_SERVER_IP6,  (void *)buffer) )
+	                        return -1;
+				}
+				else {
+					memset(buffer, 0, sizeof(buffer));
+				}
+				
                 if (!memcmp(buffer, "\x0\x0\x0\x0", 4))
                         return req_format_write(wp, "");
 
@@ -1548,6 +1646,8 @@ int getInfo(request *wp, int argc, char **argv)
 		sprintf(buffer, "%d", intVal );
    		return req_format_write(wp, buffer);
 	}
+	
+
   	else if ( !strcmp(name, "l2tpUserName")) {
 		memset(buffer,0x00,sizeof(buffer));
 		apmib_get( MIB_L2TP_USER_NAME,  (void *)buffer);
@@ -1614,6 +1714,13 @@ int getInfo(request *wp, int argc, char **argv)
 		sprintf(buffer, "%d", intVal );
    		return req_format_write(wp, buffer);
 	}
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	else if ( !strcmp(name, "pppVlanId")) {
+		apmib_get( MIB_CWMP_PPPOE_WAN_VLANID, (void *)&intVal);
+		sprintf(buffer, "%d", intVal );
+   		return req_format_write(wp, buffer);
+	}
+#endif
 	else if(!strcmp(name, "wizard_menu_onoff")) {
 #if defined(CONFIG_POCKET_AP_SUPPORT)
 		return req_format_write(wp,"");
@@ -1638,9 +1745,9 @@ int getInfo(request *wp, int argc, char **argv)
 	}
 	else if(!strcmp(name, "qos_root_menu")) {
 
-#if defined(GW_QOS_ENGINE)
+#if defined(GW_QOS_ENGINE) && !defined(VOIP_SUPPORT)
 		return req_format_write(wp, "menu.addItem('QoS', 'qos.htm', '', 'Setup QoS');" );
-#elif defined(QOS_BY_BANDWIDTH)
+#elif defined(QOS_BY_BANDWIDTH) && !defined(VOIP_SUPPORT)
 	#ifdef CONFIG_IPV6
 		return req_format_write(wp, "menu.addItem('QoS', 'ip6_qos.htm', '', 'Setup QoS');" );
 	#else
@@ -1654,6 +1761,14 @@ int getInfo(request *wp, int argc, char **argv)
 	{
 #if defined(ROUTE_SUPPORT)
 		return req_format_write(wp, "menu.addItem(\"Route Setup\", \"route.htm\", \"\", \"Route Setup\");");
+#else
+		return req_format_write(wp,"");
+#endif
+	}
+	else if(!strcmp(name, "ethdot1x_menu_onoff"))
+	{
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+		return req_format_write(wp, "menu.addItem(\"Ethernet 802.1x Setup\", \"eth_dot1x.htm\", \"\", \"Ethernet 802.1x Setup\");");
 #else
 		return req_format_write(wp,"");
 #endif
@@ -1692,6 +1807,11 @@ int getInfo(request *wp, int argc, char **argv)
 			return -1;
  		if ( !apmib_get( MIB_WAN_DHCP, (void *)&dhcp) )
 			return -1;
+		
+		if(opmode == BRIDGE_MODE){
+			return req_format_write(wp, "Disconnected");
+		}
+		
 		if(opmode != WISP_MODE){
  			isWanPhy_Link=getWanLink("eth1");
  		}		
@@ -1720,13 +1840,65 @@ int getInfo(request *wp, int argc, char **argv)
 
 		}
 		else if ( dhcp == DHCP_DISABLED ){
-			if(isWanPhy_Link < 0)
-				return req_format_write(wp, "Fixed IP Disconnected");
+			if (opmode == WISP_MODE)
+			{
+				char wan_intf[MAX_NAME_LEN] = {0};
+				char lan_intf[MAX_NAME_LEN] = {0};
+				
+				getInterfaces(lan_intf,wan_intf);
+				//printf("%s %d wan_intf=%s \n", __FUNCTION__, __LINE__, wan_intf);
+				memset(&bss, 0x00, sizeof(bss));
+				getWlBssInfo(wan_intf, &bss);
+				//printf("%s %d wan_intf=%s bss.state=%d\n", __FUNCTION__, __LINE__, wan_intf, bss.state);
+				if (bss.state == STATE_CONNECTED){
+					return req_format_write(wp, "Fixed IP Connected");
+				}
+				else
+				{
+					return req_format_write(wp, "Fixed IP Disconnected");
+				}				
+			}
 			else
-				return req_format_write(wp, "Fixed IP Connected");
+			{
+				if(isWanPhy_Link < 0)
+					return req_format_write(wp, "Fixed IP Disconnected");
+				else
+					return req_format_write(wp, "Fixed IP Connected");
+			}
 		}
 		else if ( dhcp ==  PPPOE ) {
-			
+
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+			int pppoeWithDhcpEnabled = 0;
+
+			apmib_get(MIB_PPPOE_DHCP_ENABLED, (void *)&pppoeWithDhcpEnabled);
+
+			if (pppoeWithDhcpEnabled) {
+				
+				if ( isConnectPPP()){
+#ifdef MULTI_PPPOE
+					req_format_write(wp, "PPPoE Connected");
+#endif
+					if(isWanPhy_Link < 0)
+						req_format_write(wp, "PPPoE Disconnected");
+					else
+						req_format_write(wp, "PPPoE Connected");
+				}else
+					req_format_write(wp, "PPPoE Disconnected");
+			}
+			else {
+				if ( isConnectPPP()){
+#ifdef MULTI_PPPOE
+					return req_format_write(wp, "PPPoE Connected");
+#endif
+					if(isWanPhy_Link < 0)
+						return req_format_write(wp, "PPPoE Disconnected");
+					else
+						return req_format_write(wp, "PPPoE Connected");
+				}else
+					return req_format_write(wp, "PPPoE Disconnected");
+			}
+#else // _ALPHA_DUAL_WAN_SUPPORT_
 			if ( isConnectPPP()){
 #ifdef MULTI_PPPOE
 				return req_format_write(wp, "PPPoE Connected");
@@ -1737,6 +1909,24 @@ int getInfo(request *wp, int argc, char **argv)
 					return req_format_write(wp, "PPPoE Connected");
 			}else
 				return req_format_write(wp, "PPPoE Disconnected");
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
+			
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+			{
+				if (pppoeWithDhcpEnabled) {
+					iface = WAN_IF;
+					
+				 	if (!isDhcpClientExist(iface))
+						return req_format_write(wp, " and Getting IP from DHCP server...");
+					else{
+						if(isWanPhy_Link < 0)
+							return req_format_write(wp, " and Getting IP from DHCP server...");
+						else
+							return req_format_write(wp, " and DHCP");
+					}
+				}
+			}
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 		}
 		else if ( dhcp ==  PPTP ) {
 			if ( isConnectPPP()){
@@ -1801,10 +1991,17 @@ int getInfo(request *wp, int argc, char **argv)
 #if defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL_8197D_AP)
 		return req_format_write(wp, "%s", "0.0.0.0");
 #else
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	char strWanIP[40];
+		char strWanMask[40];
+		char strWanDefIP[40];
+		char strWanHWAddr[40];
+#else
   	char strWanIP[16];
 		char strWanMask[16];
 		char strWanDefIP[16];
 		char strWanHWAddr[18];
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 #ifdef MULTI_PPPOE
 		if(argc >=2 && argv[1])
 			checkwan(argv[1]);
@@ -1818,10 +2015,17 @@ int getInfo(request *wp, int argc, char **argv)
 #if defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL_8197D_AP)
 		return req_format_write(wp, "%s", "0.0.0.0");
 #else
-			char strWanIP[16];
-			char strWanMask[16];
-			char strWanDefIP[16];
-			char strWanHWAddr[18];
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	char strWanIP[40];
+		char strWanMask[40];
+		char strWanDefIP[40];
+		char strWanHWAddr[40];
+#else
+  	char strWanIP[16];
+		char strWanMask[16];
+		char strWanDefIP[16];
+		char strWanHWAddr[18];
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 #ifdef MULTI_PPPOE
 		if(argc >=2 && argv[1])
 			checkwan(argv[1]);
@@ -1835,10 +2039,17 @@ int getInfo(request *wp, int argc, char **argv)
 #if defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL_8197D_AP)
 		return req_format_write(wp, "%s", "0.0.0.0");
 #else
-			char strWanIP[16];
-			char strWanMask[16];
-			char strWanDefIP[16];
-			char strWanHWAddr[18];
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	char strWanIP[40];
+		char strWanMask[40];
+		char strWanDefIP[40];
+		char strWanHWAddr[40];
+#else
+  	char strWanIP[16];
+		char strWanMask[16];
+		char strWanDefIP[16];
+		char strWanHWAddr[18];
+#endif // _ALPHA_DUAL_WAN_SUPPORT_
 #ifdef MULTI_PPPOE
 		if(argc >=2 && argv[1])
 			checkwan(argv[1]);
@@ -2037,12 +2248,64 @@ int getInfo(request *wp, int argc, char **argv)
 		return 0;
 	}
 #endif /* #ifdef RTK_USB3G */
+#ifndef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	else if(!strcmp(argv[0],("eth1xclient_jscomment_start")))
+	{
+		req_format_write(wp, "/*");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("eth1xclient_jscomment_end")))
+	{
+		req_format_write(wp, "*/");
+		return 0;
+	}
+	else if(!strcmp(argv[0],"eth1xclient_comment_start"))
+	{
+		req_format_write(wp, "<!--");
+		return 0;
+	}
+	else if(!strcmp(argv[0],"eth1xclient_comment_end"))
+	{
+		req_format_write(wp, "-->");
+		return 0;
+	}
+#else
+	else if(!strcmp(argv[0],("eth1xclient_jscomment_start")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("eth1xclient_jscomment_end")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],"eth1xclient_comment_start"))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],"eth1xclient_comment_end"))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+#endif
 	else if(!strcmp(argv[0],"rsCertInstall"))
 	{
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 		req_format_write(wp,"wlan0.addItem(\"802.1x Cert Install\", get_form(\"rsCertInstall.htm\",i), \"\", \"Install 802.1x certificates\");");
 #endif
 		return 0;
+	}
+	else if(!strcmp(argv[0],"is8021xClient"))
+	{
+		intVal=0;
+#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+		intVal=1;
+#endif
+		sprintf(buffer, "%d", intVal );
+		return req_format_write(wp, buffer);	
 	}
 	else if ( !strcmp(name, "eapUserId")) {
 		buffer[0]='\0';
@@ -2271,7 +2534,7 @@ int getInfo(request *wp, int argc, char **argv)
 		//SetWlan_idx("wlan0");
 
 #else
-	bzero(buffer,sizeof(buffer));	
+
 #endif //#if defined(UNIVERSAL_REPEATER) && defined(CONFIG_REPEATER_WPS_SUPPORT)
    		return req_format_write(wp, buffer);
 	}
@@ -2554,6 +2817,14 @@ int getInfo(request *wp, int argc, char **argv)
 		return req_format_write(wp,"");
 #endif
 	}
+	else if(!strcmp(name, "ethernet802dot1xCert_menu"))
+	{
+#if defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
+		return req_format_write(wp,"manage.addItem(\"Ethernet 802.1x Cert Install\", get_form(\"ethdot1xCertInstall.htm\",i), \"\", \"Install Ethernet 802.1x certificates\");");
+#else
+		return req_format_write(wp,"");
+#endif
+	}
 	else if(!strcmp(name, "ip_filter"))
 	{
 #ifdef CONFIG_IPV6
@@ -2587,6 +2858,20 @@ int getInfo(request *wp, int argc, char **argv)
 		else
 			sprintf(buffer, "%s", "1");
 		return req_format_write(wp, buffer);
+	}
+	else if(!strcmp(name, "use_boa_new_ui"))
+	{
+#ifdef CONFIG_APP_BOA_NEW_UI
+		sprintf(buffer, "%s", "1");
+#else
+		sprintf(buffer, "%s", "0");
+#endif
+		return req_format_write(wp, buffer);
+	}
+	else if(!strcmp(name, "include_css"))
+	{
+	//printf("%s:%d\n",__FUNCTION__,__LINE__);
+	 	return getIncludeCss(wp);
 	}
 	else if(!strcmp(name, "isPocketRouter"))
         {
@@ -2724,7 +3009,17 @@ int getInfo(request *wp, int argc, char **argv)
 		sprintf(buffer, "%d", 0 );
 		return req_format_write(wp, buffer);
 #endif
-	}
+	}	
+	else if(!strcmp(name, "rtlMultiLanDev"))
+	{
+#if defined(CONFIG_RTL_MULTI_LAN_DEV)		
+		sprintf(buffer, "%d", 1 );
+		return req_format_write(wp, buffer);
+#else
+		sprintf(buffer, "%d", 0 );
+		return req_format_write(wp, buffer);
+#endif
+	}	
 	else if(!strcmp(name, "vlan_menu_onoff"))
 	{
 #if defined(VLAN_CONFIG_SUPPORTED)
@@ -2736,7 +3031,7 @@ int getInfo(request *wp, int argc, char **argv)
     else if(!strcmp(name, "vlan_wan_menu_onoff"))
     {
 #if defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
-        return req_format_write(wp, "firewall.addItem('VLAN_WAN', 'vlan_wan.asp', '', 'Setup VLAN WAN TAG');" );
+        return req_format_write(wp, "firewall.addItem('VLAN_WAN', 'vlan_wan.htm', '', 'Setup VLAN WAN TAG');" );
 #else
         return req_format_write(wp,"");
 #endif
@@ -3393,7 +3688,7 @@ int getInfo(request *wp, int argc, char **argv)
 		else
 			strcpy(buffer, "wlan1-vxd");
 		getWlBssInfo(buffer, &bss);
-		sprintf(buffer,"%s",bss.ssid);
+		memcpy(buffer, bss.ssid, SSID_LEN+1);
 		translate_control_code(buffer);
 		return req_format_write(wp, "%s", buffer);
 #endif
@@ -3660,7 +3955,7 @@ int getInfo(request *wp, int argc, char **argv)
 	}
 	else if(!strcmp(argv[0],"wapiMenu"))
 	{
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_POCKET_ROUTER_SUPPORT) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_8198C) || defined(CONFIG_RTL_8198) || defined(CONFIG_POCKET_ROUTER_SUPPORT) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 		req_format_write(wp,"menu.addItem(\"WAPI\");");
 		req_format_write(wp,"wlan_wapi = new MTMenu();");
 //#if !defined(CONFIG_RTL_8196C)
@@ -3698,7 +3993,7 @@ int getInfo(request *wp, int argc, char **argv)
 // 8198 and POCKET ROUTER support both wapi psk and wapi cert
 // 8196c (not include POCKET ROUTER) only support wapi psk
 //#if defined(CONFIG_RTL_8198) || defined(CONFIG_POCKET_ROUTER_SUPPORT)
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_POCKET_ROUTER_SUPPORT) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
+#if defined(CONFIG_RTL_8198C) ||defined(CONFIG_RTL_8198) || defined(CONFIG_POCKET_ROUTER_SUPPORT) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
 
 #else
 		req_format_write(wp,"disabled");
@@ -3975,188 +4270,189 @@ else if(!strcmp(argv[0],"caCertExist"))
 #endif
 
 #ifdef CONFIG_RTL_BT_CLIENT
-	 else if(!strcmp(argv[0],"bt_enabled"))
-	 {
-	         if(!apmib_get(MIB_BT_ENABLED,&intVal))
-                        return -1;
-                req_format_write(wp,"%d",intVal);
-                return 0;
-	 }
-        else if(!strcmp(argv[0],"torrents"))
-        {
-                /*Output torrents*/
-                struct torrent_t torrent[20];
-                struct ctorrent_t ctorrent[10];
-		   char tmpbuf[64];
-		   char tmpbuf1[64];
-                int tcounts;
-                int ctcounts;
-                int i;
-                int cindex;
-                extern int bt_getTorrents(struct torrent_t *torrentp, int max);
-                extern int bt_getClientsInfo(struct ctorrent_t  *ctorrentp, int max);
-                
+	else if(!strcmp(argv[0],"bt_enabled"))
+	{
+	     if(!apmib_get(MIB_BT_ENABLED,&intVal))
+	                return -1;
+	        req_format_write(wp,"%d",intVal);
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"torrents"))
+	{
+		/*Output torrents*/
+		struct torrent_t torrent[20];
+		struct ctorrent_t ctorrent[10];
+		char tmpbuf[64];
+		char tmpbuf1[64];
+		int tcounts;
+		int ctcounts;
+		int i;
+		int cindex;
+		extern int bt_getTorrents(struct torrent_t *torrentp, int max);
+		extern int bt_getClientsInfo(struct ctorrent_t  *ctorrentp, int max);
+
 		memset(torrent,0x0,sizeof(struct torrent_t)*20);
 		memset(ctorrent,0x0,sizeof(struct ctorrent_t )*10);
 
-                tcounts=bt_getTorrents(torrent,20);
-                ctcounts=bt_getClientsInfo(ctorrent,10);
-                /*webWrite format: torrentname,btstatus,size,updownsize,seeder,etaratio,uprate,downrate,index*/
-                if(tcounts == 0)
-                {
-                        req_format_write(wp,"%s","[]");
-                        return 0;
-                }
-                req_format_write(wp,"%s","[");
-                for(i=0;i<tcounts;i++)
-                {
-                        if(0==i)
-                                req_format_write(wp,"%s","[");
-                        else
-                                req_format_write(wp,"%s",",[");
-                        /*0 not running 1 running 2 start_paused*/
-                        if(0==torrent[i].status)
-                        {
-                                /*not running. no ctorrent.*/
-                                /*name*/
-                                req_format_write(wp,"'%s'",torrent[i].name);
-                                /*status*/
-                                req_format_write(wp,",'%s'","Not Running");
-                                /*size*/
-                                req_format_write(wp,",'%s'","N/A");
-                                /*up/down size*/
-                                req_format_write(wp,",'%s'","N/A");
-                                /*seeder/leecher*/
-                                req_format_write(wp,",'%s'","N/A");
-                                /*ETA/RATIO*/
-                                req_format_write(wp,",'%s'","N/A");
-                                /*uprate*/
-                                req_format_write(wp,",'%s'","N/A");
-                                /*downrate*/
-                                req_format_write(wp,",'%s'","N/A");
-				      /*torrent index*/
-				     req_format_write(wp,",'%d'",torrent[i].index);
-                                /*ctorrent index*/
-                                req_format_write(wp,",'%d'",torrent[i].ctorrent);
-                        }
-                        else if(1==torrent[i].status)
-                        {
-                                req_format_write(wp,"'%s'",torrent[i].name);
-				      if(ctcounts !=0 && torrent[i].ctorrent != (-1))
-				      {
-					      if(ctorrent[torrent[i].ctorrent].paused)
-					      {
-					      		req_format_write(wp,",'%s'","Paused");
-					      }
-					      else
-					      {
-	                                		req_format_write(wp,",'%s'","Running");
-						}
-				      }
-                                cindex=torrent[i].ctorrent;
-                                /*get ctorrent to print others*/
-                                /*size*/
-				     sprintf(tmpbuf,"%llu",ctorrent[cindex].size);
-                                req_format_write(wp,",'%s'",tmpbuf);
-                                /*down/up size*/
-				     sprintf(tmpbuf,"%llu",ctorrent[cindex].dl_total);
-				     sprintf(tmpbuf1,"%llu",ctorrent[cindex].ul_total);
-                                req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
-                                /*seeder/leecher*/
-				     sprintf(tmpbuf,"%u",ctorrent[cindex].seeders);
-				     sprintf(tmpbuf1,"%u",ctorrent[cindex].leechers);
-                                req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
-                                /*ETA/RATIO*/
-				     sprintf(tmpbuf,"%llu",ctorrent[cindex].seed_ratio);
-                                req_format_write(wp,",'%s'",tmpbuf);
-                                /*uprate*/
-                                req_format_write(wp,",'%d'",ctorrent[cindex].ul_rate);
-                                /*downrate*/
-                                req_format_write(wp,",'%d'",ctorrent[cindex].dl_rate);
-                               /*torrent index*/
-				     req_format_write(wp,",'%d'",torrent[i].index);
-				      /*ctorrent index*/
-                                req_format_write(wp,",'%d'",cindex);
+		tcounts=bt_getTorrents(torrent,20);
+		ctcounts=bt_getClientsInfo(ctorrent,10);
+		/*webWrite format: torrentname,btstatus,size,updownsize,seeder,etaratio,uprate,downrate,index*/
+		if(tcounts == 0)
+		{
+			req_format_write(wp,"%s","[]");
+			return 0;
+		}
+		req_format_write(wp,"%s","[");
+		for(i=0;i<tcounts;i++)
+		{
+			if(0==i)
+				req_format_write(wp,"%s","[");
+			else
+				req_format_write(wp,"%s",",[");
+			/*0 not running 1 running 2 start_paused*/
+			if(0==torrent[i].status)
+			{
+				/*not running. no ctorrent.*/
+				/*name*/
+				req_format_write(wp,"'%s'",torrent[i].name);
+				/*status*/
+				req_format_write(wp,",'%s'","Not Running");
+				/*size*/
+				req_format_write(wp,",'%s'","N/A");
+				/*up/down size*/
+				req_format_write(wp,",'%s'","N/A");
+				/*seeder/leecher*/
+				req_format_write(wp,",'%s'","N/A");
+				/*ETA/RATIO*/
+				req_format_write(wp,",'%s'","N/A");
+				/*uprate*/
+				req_format_write(wp,",'%s'","N/A");
+				/*downrate*/
+				req_format_write(wp,",'%s'","N/A");
+				/*torrent index*/
+				req_format_write(wp,",'%d'",torrent[i].index);
+				/*ctorrent index*/
+				req_format_write(wp,",'%d'",torrent[i].ctorrent);
+			}
+			else if(1==torrent[i].status)
+			{
+				req_format_write(wp,"'%s'",torrent[i].name);
+				if(ctcounts !=0 && torrent[i].ctorrent != (-1))
+				{
+					if(ctorrent[torrent[i].ctorrent].paused)
+					{
+						req_format_write(wp,",'%s'","Paused");
+					}
+					else
+					{
+						req_format_write(wp,",'%s'","Running");
+					}
+				}
+				cindex=torrent[i].ctorrent;
+				/*get ctorrent to print others*/
+				/*size*/
+				sprintf(tmpbuf,"%llu",ctorrent[cindex].size);
+				req_format_write(wp,",'%s'",tmpbuf);
+				/*down/up size*/
+				sprintf(tmpbuf,"%llu",ctorrent[cindex].dl_total);
+				sprintf(tmpbuf1,"%llu",ctorrent[cindex].ul_total);
+				req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
+				/*seeder/leecher*/
+				sprintf(tmpbuf,"%u",ctorrent[cindex].seeders);
+				sprintf(tmpbuf1,"%u",ctorrent[cindex].leechers);
+				req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
+				/*ETA/RATIO*/
+				sprintf(tmpbuf,"%llu",ctorrent[cindex].seed_ratio);
+				req_format_write(wp,",'%s'",tmpbuf);
+				/*uprate*/
+				req_format_write(wp,",'%d'",ctorrent[cindex].ul_rate);
+				/*downrate*/
+				req_format_write(wp,",'%d'",ctorrent[cindex].dl_rate);
+				/*torrent index*/
+				req_format_write(wp,",'%d'",torrent[i].index);
+				/*ctorrent index*/
+				req_format_write(wp,",'%d'",cindex);
 
-                        }else if(2==torrent[i].status)
-                        {
-                                req_format_write(wp,"'%s'",torrent[i].name);
-                                req_format_write(wp,",'%s'","Paused");
-                                cindex=torrent[i].ctorrent;
-                                /*get ctorrent to print others*/
-                                /*size*/
-				     sprintf(tmpbuf,"%llu",ctorrent[cindex].size);
-                                req_format_write(wp,",'%s",tmpbuf);
-                                /*down/up size*/
-				     sprintf(tmpbuf,"%llu",ctorrent[cindex].dl_total);
-				     sprintf(tmpbuf1,"%llu",ctorrent[cindex].ul_total);
-                                req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
-                                /*seeder/leecher*/
-				     sprintf(tmpbuf,"%u",ctorrent[cindex].seeders);
-				     sprintf(tmpbuf1,"%u",ctorrent[cindex].leechers);
-                                req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
-                                /*ETA/RATIO*/
-				     sprintf(tmpbuf,"%llu",ctorrent[cindex].seed_ratio);
-                                req_format_write(wp,",'%s'",tmpbuf);
-                                /*uprate*/
-                                req_format_write(wp,",'%d'",ctorrent[cindex].ul_rate);
-                                /*downrate*/
-                                req_format_write(wp,",'%d'",ctorrent[cindex].dl_rate);
-				     /*torrent index*/
-				     req_format_write(wp,",'%d'",torrent[i].index);
-                                /*ctorrent index*/
-                                req_format_write(wp,",'%d'",cindex);
-                        }
-                        req_format_write(wp,"%s","]");
-                }
-                req_format_write(wp,"%s","]");
+			}
+			else if(2==torrent[i].status)
+			{
+				req_format_write(wp,"'%s'",torrent[i].name);
+				req_format_write(wp,",'%s'","Paused");
+				cindex=torrent[i].ctorrent;
+				/*get ctorrent to print others*/
+				/*size*/
+				sprintf(tmpbuf,"%llu",ctorrent[cindex].size);
+				req_format_write(wp,",'%s",tmpbuf);
+				/*down/up size*/
+				sprintf(tmpbuf,"%llu",ctorrent[cindex].dl_total);
+				sprintf(tmpbuf1,"%llu",ctorrent[cindex].ul_total);
+				req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
+				/*seeder/leecher*/
+				sprintf(tmpbuf,"%u",ctorrent[cindex].seeders);
+				sprintf(tmpbuf1,"%u",ctorrent[cindex].leechers);
+				req_format_write(wp,",'%s/%s'",tmpbuf,tmpbuf1);
+				/*ETA/RATIO*/
+				sprintf(tmpbuf,"%llu",ctorrent[cindex].seed_ratio);
+				req_format_write(wp,",'%s'",tmpbuf);
+				/*uprate*/
+				req_format_write(wp,",'%d'",ctorrent[cindex].ul_rate);
+				/*downrate*/
+				req_format_write(wp,",'%d'",ctorrent[cindex].dl_rate);
+				/*torrent index*/
+				req_format_write(wp,",'%d'",torrent[i].index);
+				/*ctorrent index*/
+				req_format_write(wp,",'%d'",cindex);
+			}
+			req_format_write(wp,"%s","]");
+		}
+		req_format_write(wp,"%s","]");
 
-		  for(i=0;i<tcounts;i++)
-		  {
-		  	if(torrent[i].name)
+		for(i=0;i<tcounts;i++)
+		{
+			if(torrent[i].name)
 				free(torrent[i].name);
-		  }
+		}
 
-		  for(i=0;i<ctcounts;i++)
-		  {
-		  	if(ctorrent[i].valid)
-		  	{
+		for(i=0;i<ctcounts;i++)
+		{
+			if(ctorrent[i].valid)
+			{
 				if(ctorrent[i].fname)
 					free(ctorrent[i].fname);
 				if(ctorrent[i].msg)
 					free(ctorrent[i].msg);
-		  	}
-		  }
-                return 0;
-        }
-        else if(!strcmp(argv[0],"btfiles"))
-        {
-                char *ptr;
-                int index;
+			}
+		}
+		return 0;
+	}
+	else if(!strcmp(argv[0],"btfiles"))
+	{
+		char *ptr;
+		int index;
 		int filecount;
 		char tmpbuf[64];
 		struct ctfile_t file[30];
 		extern int  bt_getDetails(int index, struct ctfile_t *file, int max);
-		
+
 		memset(file,0x0,sizeof(struct ctfile_t)*30);
-                ptr=req_get_cstream_var(wp,"ctorrent", "");
-                if(ptr)
-                        index=atoi(ptr);
-                else
-                        return -1;
-                /*get index torrent files....*/
-		  filecount=bt_getDetails(index, file, 30);
-		  if(0== filecount)
-		  {
-		  	req_format_write(wp,"%s","[]");
+		ptr=req_get_cstream_var(wp,"ctorrent", "");
+		if(ptr)
+			index=atoi(ptr);
+		else
+			return -1;
+		/*get index torrent files....*/
+		filecount=bt_getDetails(index, file, 30);
+		if(0== filecount)
+		{
+			req_format_write(wp,"%s","[]");
 			return 0;
-		  }
-		  /*format filename fileno download_percent filesize priority*/
-		  /*priority is used for indicate if need to download it*/
-		  req_format_write(wp,"%s","[");
-	         for(i=0;i<filecount;i++)
-	         {
-	         	if(0==i)
+		}
+		/*format filename fileno download_percent filesize priority*/
+		/*priority is used for indicate if need to download it*/
+		req_format_write(wp,"%s","[");
+		for(i=0;i<filecount;i++)
+		{
+			if(0==i)
 				req_format_write(wp,"%s","[");
 			else
 				req_format_write(wp,"%s",",[");
@@ -4234,10 +4530,20 @@ else if(!strcmp(argv[0],"caCertExist"))
 	 	req_format_write(wp, "%s","manage.addItem(\"BT Client\", \"bt.htm\", \"\", \"BT Client\");");
 		return 0;
 	 }
+	 else if(!strcmp(argv[0],"is_enabled_bt"))
+	 {
+	 	req_format_write(wp,"1");
+		return 0;
+	 }
 #else
 	 else if(!strcmp(argv[0],"rtl_bt_menu"))
 	 {
 	 	return 0;
+	 }
+	 else if(!strcmp(argv[0],"is_enabled_bt"))
+	 {
+	 	req_format_write(wp,"0");
+		return 0;
 	 }
 #endif
 
@@ -4667,29 +4973,7 @@ else if(!strcmp(argv[0],"caCertExist"))
 		return 0;
 	}
 	else if (!strcmp(argv[0],"homepage")) {
-#if defined(CONFIG_RTL_HTTP_REDIRECT)
-	unsigned int first_login = 0;
-	char welcomePage[128] = {0};
-	apmib_get(MIB_USER_FIRST_LOGIN_FLAG,(void *)&first_login);
-	if(first_login == 0){
-		FILE *fp;
-		fp = fopen("/proc/http_redirect/default_webpage", "r");
-		if (!fp) {
-			fprintf(stderr, "Read /proc/http_redirect/default_webpage failed!\n");
-			req_format_write(wp, "home.htm");
-	   	}
-		else
-		{
-			fgets(welcomePage, sizeof(welcomePage), fp);
-			fclose(fp);
-			req_format_write(wp, welcomePage);
-		}
-		system("echo 0 > /proc/http_redirect/enable");
-	}
-	else{
-		req_format_write(wp, "home.htm");
-	}
-#elif defined(HTTP_FILE_SERVER_SUPPORTED)
+#if defined(HTTP_FILE_SERVER_SUPPORTED)
 		req_format_write(wp, "http_files.htm");
 #else
 		req_format_write(wp, "home.htm");
@@ -4807,6 +5091,100 @@ else if(!strcmp(argv[0],"caCertExist"))
    	return req_format_write(wp, buffer);
 	}	
 #endif
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	else if(!strcmp(name, "ethdot1x_maxportnum"))
+	{
+		int opmode = 0;
+		
+		intVal = MAX_ELAN_DOT1X_PORTNUM - 1;
+		
+		if ( !apmib_get( MIB_OP_MODE,	(void *)&opmode) )
+			return -1;
+
+		if (opmode ==BRIDGE_MODE || opmode == WISP_MODE)
+		{
+			#if !defined(CONFIG_RTL_IVL_SUPPORT)
+			intVal =  MAX_ELAN_DOT1X_PORTNUM;
+			#endif
+		}
+
+		sprintf(buffer, "%d", intVal );
+		return req_format_write(wp, buffer);
+	}
+	else if(!strcmp(name, "ethdot1x_mode"))
+	{
+		if ( !apmib_get( MIB_ELAN_DOT1X_MODE,	(void *)&intVal) )
+			return -1;
+
+		if (intVal & ETH_DOT1X_PROXY_MODE_BIT)
+			sprintf(buffer, "%d", 1 );
+		else
+			sprintf(buffer, "%d", 0 );
+		
+		return req_format_write(wp, buffer);
+	}
+	else if(!strcmp(name, "ethdot1x_type"))
+	{
+		if ( !apmib_get( MIB_ELAN_DOT1X_PROXY_TYPE,	(void *)&intVal) )
+			return -1;
+
+		sprintf(buffer, "%d", intVal );
+		return req_format_write(wp, buffer);
+	}
+	else if(!strcmp(name, "ethdot1x_unicastresp_onoff"))
+	{
+		if ( !apmib_get( MIB_ELAN_EAPOL_UNICAST_ENABLED,	(void *)&intVal) )
+			return -1;
+
+		sprintf(buffer, "%d", intVal );
+		return req_format_write(wp, buffer);
+	}
+	else if ( !strcmp(name, "ethdot1x_radius_ip")) {
+		memset(buffer,0x00,sizeof(buffer));
+		apmib_get( MIB_ELAN_RS_IP,  (void *)buffer);
+   	return req_format_write(wp, "%s", inet_ntoa(*((struct in_addr *)buffer)) );
+	}
+  	else if ( !strcmp(name, "ethdot1x_radius_pass")) {
+		buffer[0]='\0';
+		apmib_get( MIB_ELAN_RS_PASSWORD,  (void *)buffer);
+		translate_control_code(buffer);
+		return req_format_write(wp, "%s", buffer);
+	}
+	else if(!strcmp(name, "ethdot1x_radius_port"))
+	{
+		if ( !apmib_get( MIB_ELAN_RS_PORT,	(void *)&intVal) )
+			return -1;
+
+		sprintf(buffer, "%d", intVal );
+		return req_format_write(wp, buffer);
+	}
+	else if(!strcmp(name, "ethdot1x_server_port_number"))
+	{
+		if ( !apmib_get( MIB_ELAN_DOT1X_SERVER_PORT,	(void *)&intVal) )
+			return -1;
+
+		sprintf(buffer, "%d", intVal+1 );
+		return req_format_write(wp, buffer);
+	}
+#endif
+	else if(!strcmp(name, "ethdot1x_onoff"))
+	{
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+		apmib_get( MIB_ELAN_ENABLE_1X, (void *)&intVal);
+		/* MIB_ELAN_ENABLE_1X bit0-->proxy/snooping enable/disable
+		 * MIB_ELAN_ENABLE_1X bit1-->client mode enable/disable
+		 */
+		 if (intVal & ETH_DOT1X_PROXY_SNOOPING_MODE_ENABLE_BIT)
+			sprintf(buffer, "%d", 1 );
+		 else
+			 sprintf(buffer, "%d", 0 );
+		return req_format_write(wp, buffer);
+#else
+		sprintf(buffer, "%d", 0 );
+		return req_format_write(wp, buffer);
+#endif
+	}
+
 	else if(!strcmp(name, "tx_restrict"))
 	{
 		if ( !apmib_get( MIB_WLAN_TX_RESTRICT,  (void *)&intVal) )
@@ -4822,16 +5200,56 @@ else if(!strcmp(argv[0],"caCertExist"))
 		sprintf(buffer, "%d", intVal );
    		return req_format_write(wp, buffer);
 	}
-	else if(!strcmp(name,"isSupportDhcpPortAndIpBind"))
+// add for ds-lite
+#ifdef CONFIG_IPV6
+#ifdef CONFIG_DSLITE_SUPPORT
+	else if(!strcmp(name, "dsliteAftr"))
 	{
-#if 0 //def SUPPORT_DHCP_PORT_IP_BIND
-		intVal=1;
-#else	
-		intVal=0;
-#endif
-		sprintf(buffer, "%d", intVal );
-		return req_format_write(wp, buffer);
+		if ( !apmib_get(MIB_IPV6_ADDR_AFTR_PARAM,(void *)&ipaddr6))
+			return -1 ; 
+		sprintf(buffer, "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+			ipaddr6.addrIPv6[0], ipaddr6.addrIPv6[1], ipaddr6.addrIPv6[2],
+			ipaddr6.addrIPv6[3], ipaddr6.addrIPv6[4], ipaddr6.addrIPv6[5],
+			ipaddr6.addrIPv6[6], ipaddr6.addrIPv6[7]);
+		req_format_write(wp, "%s", buffer);
+		return 0;
 	}
+	else if(!strcmp(name, "ipv6WanIp"))
+	{
+		if ( !apmib_get(MIB_IPV6_ADDR_WAN_PARAM,(void *)&ipaddr6))
+			return -1 ; 
+		sprintf(buffer, "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+			ipaddr6.addrIPv6[0], ipaddr6.addrIPv6[1], ipaddr6.addrIPv6[2],
+			ipaddr6.addrIPv6[3], ipaddr6.addrIPv6[4], ipaddr6.addrIPv6[5],
+			ipaddr6.addrIPv6[6], ipaddr6.addrIPv6[7]);
+		req_format_write(wp, "%s", buffer);
+		return 0;
+	}
+	else if(!strcmp(name, "ipv6DefGW"))
+	{
+		if ( !apmib_get(MIB_IPV6_ADDR_GW_PARAM,(void *)&ipaddr6))
+			return -1 ; 
+		sprintf(buffer, "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+			ipaddr6.addrIPv6[0], ipaddr6.addrIPv6[1], ipaddr6.addrIPv6[2],
+			ipaddr6.addrIPv6[3], ipaddr6.addrIPv6[4], ipaddr6.addrIPv6[5],
+			ipaddr6.addrIPv6[6], ipaddr6.addrIPv6[7]);
+		req_format_write(wp, "%s", buffer);
+		return 0;
+	}
+#else
+	else if(!strcmp(name, "dsliteAftr") || !strcmp(name, "ipv6WanIp") || !strcmp(name, "ipv6DefGW"))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+#endif
+#else
+	else if(!strcmp(name, "dsliteAftr") || !strcmp(name, "ipv6WanIp") || !strcmp(name, "ipv6DefGW"))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+#endif
 #ifdef CONFIG_CPU_UTILIZATION
 	else if(!strcmp(name, "isCPUdisplayStart") || !strcmp(name, "isCPUdisplayEnd"))
 	{
@@ -4850,6 +5268,7 @@ else if(!strcmp(argv[0],"caCertExist"))
 		return 0;
 	}
 #endif
+
 	for(i=0 ;i < wlan_num ; i++){
 		sprintf(buffer, "wlan%d-status", i);
 		if ( !strcmp(name, buffer )) {
@@ -4878,7 +5297,7 @@ else if(!strcmp(argv[0],"caCertExist"))
 #endif //#if defined(CONFIG_RTL_819X) && !defined(CONFIG_WLAN_VAP_SUPPORT)
 
 request inner_req;
-char inner_req_buff[8*1064];
+char inner_req_buff[1064];
 int inner_getIndex(char *name)
 {
 	char *inner_argv[1] = {name};
@@ -4944,6 +5363,26 @@ int getIndex(request *wp, int argc, char **argv)
 		req_format_write(wp, buffer);
 		return 0;
 	}
+
+	if(!strcmp(name, "route_setup_onoff")){
+#ifdef ROUTE_SUPPORT
+		sprintf(buffer, "1");		
+#else
+		sprintf(buffer, "0");
+#endif	
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	
+	if(!strcmp(name, "usb3g")){
+#ifdef RTK_USB3G
+		sprintf(buffer, "1");	
+#else
+		sprintf(buffer, "0");
+#endif
+		req_format_write(wp, buffer);
+		return 0;
+	}
 	
    	if ( !strcmp(name, "dhcp")) {
  		if ( !apmib_get( MIB_DHCP, (void *)&dhcp) )
@@ -4976,6 +5415,15 @@ int getIndex(request *wp, int argc, char **argv)
   	}
 	
 #endif 
+	else if (!strcmp(name, "isDisplayTR069")) {
+#ifdef CONFIG_APP_TR069
+		sprintf(buffer, "1");
+#else
+		sprintf(buffer, "0");
+#endif
+		req_format_write(wp, buffer);
+		return 0;
+	}
   	else if ( !strcmp(name, "dhcp-current")) {
    		if ( !apmib_get( MIB_DHCP, (void *)&dhcp) )
 			return -1;
@@ -5032,6 +5480,7 @@ int getIndex(request *wp, int argc, char **argv)
 	else if ( !strcmp(name, "ntpServerId")) {
    		if ( !apmib_get( MIB_NTP_SERVER_ID, (void *)&val) )
 			return -1;
+		val = val ? 1 : 0;
 		sprintf(buffer, "%d", val);
 		req_format_write(wp, buffer);
 		return 0;
@@ -5433,6 +5882,15 @@ int getIndex(request *wp, int argc, char **argv)
 		req_format_write(wp, buffer);
 		return 0;
 	}
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	else if ( !strcmp(name, "pppoeWithDhcpEnabled")) {
+		if ( !apmib_get( MIB_PPPOE_DHCP_ENABLED, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", (int)val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+#endif
 	else if ( !strcmp(name, "upnpEnabled")) {
 		if ( !apmib_get( MIB_UPNP_ENABLED, (void *)&val) )
 			return -1;
@@ -5469,6 +5927,25 @@ int getIndex(request *wp, int argc, char **argv)
                 req_format_write(wp, buffer);
                 return 0;
         }
+	else if ( !strcmp(name, "rip6Support")) {
+#ifdef RIP6_SUPPORT
+                sprintf(buffer, "%d", 1);
+#else
+                sprintf(buffer, "%d", 0);
+#endif
+                req_format_write(wp, buffer);
+                return 0;
+        }
+#ifdef RIP6_SUPPORT
+	else if ( !strcmp(name, "rip6Enabled")) {
+                if ( !apmib_get( MIB_RIP6_ENABLED, (void *)&val) )
+                        return -1;
+                sprintf(buffer, "%d", (int)val);
+				//printf("rip6Enabled: %d\n", val);
+                req_format_write(wp, buffer);
+                return 0;
+        }
+#endif
 #if 0 //unused
 	else if ( !strcmp(name, "ripWanTx")) {
                 if ( !apmib_get( MIB_RIP_WAN_TX, (void *)&val) )
@@ -5647,6 +6124,30 @@ int getIndex(request *wp, int argc, char **argv)
 		req_format_write(wp, buffer);
 		return 0;
 	}
+	else if ( !strcmp(name, "urlFilterUserModeSupport")) {
+#ifdef URL_FILTER_USER_MODE_SUPPORT
+			val = 1;
+#else
+			val = 0;
+#endif
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+		}
+	else if ( !strcmp(name, "usrSpecificUrlCommand_start")) {
+#ifndef URL_FILTER_USER_MODE_SUPPORT
+		req_format_write(wp, "<!--");
+#else
+		req_format_write(wp, "");
+#endif
+		}
+	else if( !strcmp(name,"usrSpecificUrlCommand_end")){
+#ifndef URL_FILTER_USER_MODE_SUPPORT
+		req_format_write(wp, "-->");
+#else
+		req_format_write(wp, "");
+#endif
+		}
 	else if ( !strcmp(name, "wep")) {
 		if ( !apmib_get( MIB_WLAN_WEP, (void *)&wep) )
 			return -1;
@@ -5822,8 +6323,12 @@ int getIndex(request *wp, int argc, char **argv)
 		return 0;
 	}/* WPS2DOTX support*/
 	else if ( !strcmp(name, "iappDisabled")) {
+#ifndef CONFIG_IAPP_SUPPORT
+		val = -2;
+#else
 		if ( !apmib_get( MIB_WLAN_IAPP_DISABLED, (void *)&val) )
 			return -1;
+#endif
 		sprintf(buffer, "%d", val);
 		req_format_write(wp, buffer);
 		return 0;
@@ -6362,10 +6867,15 @@ int getIndex(request *wp, int argc, char **argv)
 			apmib_get( MIB_REPEATER_ENABLED1, (void *)&rpt_enabled);						
 		else
 			apmib_get( MIB_REPEATER_ENABLED2, (void *)&rpt_enabled);
-			
-		if(opMode == 0)
+
+		//0:AP; 1:Client; 2:Router; 3:RPT; 4:WISP-RPT
+		if(opMode == GATEWAY_MODE)
 		{
 			sprintf(buffer, "%d", 2) ;
+		}
+		else if(opMode == WISP_MODE)
+		{
+			sprintf(buffer, "%d", 4) ;
 		}
 		else
 		{
@@ -6866,6 +7376,20 @@ int getIndex(request *wp, int argc, char **argv)
 	}//### end
 	else if ( !strcmp(name, "mc2u_disable")) {
 		if ( !apmib_get( MIB_WLAN_MC2U_DISABLED, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if ( !strcmp(name, "tdls_prohibited")) {
+		if ( !apmib_get( MIB_WLAN_TDLS_PROHIBITED, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if ( !strcmp(name, "tdls_cs_prohibited")) {
+		if ( !apmib_get( MIB_WLAN_TDLS_CS_PROHIBITED, (void *)&val) )
 			return -1;
 		sprintf(buffer, "%d", val);
 		req_format_write(wp, buffer);
@@ -7458,76 +7982,198 @@ else if ( !strcmp(name, "wps_either_ap_or_vxd")) {
 		req_format_write(wp, buffer);
 		return 0;
 	}
-#ifdef CONFIG_CPU_UTILIZATION
-	else if (!strcmp(name, "isDisplayCPU")) {
-		sprintf(buffer, "1");
-		req_format_write(wp, buffer);
-		return 0;
-	}
-	else if (!strcmp(name, "CPUnumber")) {
-		FILE *fh;
-	  	char buf[64], tmp[3];
-		char *p, *q;
-		int cpu_num=-1;
-
-		fh = fopen("/proc/cpuinfo", "r");
-		if (!fh) {
-//			printf("Warning: cannot open /proc/cpuinfo\n");
-			return req_format_write(wp, "Warning: cannot open /proc/cpuinfo");
-		}
-		
-		while(!feof(fh))
+#if defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
+	else if(!strcmp(name,"wan_eth_dot1x_enabled"))
+	{
+		#if 0
+		int eth_1x_mode;
+		apmib_get(MIB_ELAN_ENABLE_1X,(void *)&val);
+		apmib_get(MIB_ELAN_DOT1X_MODE,(void *)&eth_1x_mode);
+		if(val && (eth_1x_mode & ETH_DOT1X_CLIENT_MODE))
+			sprintf(buffer, "%d", 1) ;
+		else
+			sprintf(buffer, "%d", 0) ;
+		#else
+		/* MIB_ELAN_ENABLE_1X bit0-->proxy/snooping enable/disable
+		 * MIB_ELAN_ENABLE_1X bit1-->client mode enable/disable
+		 */
+		apmib_get(MIB_ELAN_ENABLE_1X,(void *)&val);
+		if (val & ETH_DOT1X_CLIENT_MODE_ENABLE_BIT)
 		{
-			fgets(buf, sizeof buf, fh);
-
-			if(strncmp(buf, "processor", strlen("processor")) == 0)
-			{
-				p = buf + 9;
-				q = tmp;
-				while(*p)
-				{
-					if(*p >= '0' && *p <= '9')
-					{
-						*q = *p;
-						q++;
-					}
-					p++;
-				}
-				*q='\0';
-				cpu_num = atoi(tmp);
-			}
+			sprintf(buffer, "%d", 1) ;
 		}
-
-		fclose(fh);
-
-		cpu_num++;
-		sprintf(buffer, "%d", cpu_num);
+		else
+		{
+			sprintf(buffer, "%d", 0) ;
+		}
+		#endif
 		req_format_write(wp, buffer);
 		return 0;
 	}
-	else if(!strcmp(name, "CPUsample"))
+	else if(!strcmp(name,"wan_eth_dot1x_eap_type"))
 	{
-		if ( !apmib_get( MIB_CPU_UTILIZATION_INTERVAL, (void *)&val) )
-			return -1;
-		sprintf(buffer, "%d", val);
+		apmib_get(MIB_ELAN_EAP_TYPE,(void *)&val);
+		sprintf(buffer, "%d", val) ;
 		req_format_write(wp, buffer);
 		return 0;
 	}
-	else if(!strcmp(name, "CPUenable"))
+	else if(!strcmp(name,"eth_eap_inside_type"))
 	{
-		if ( !apmib_get( MIB_ENABLE_CPU_UTILIZATION, (void *)&val) )
-			return -1;
-		sprintf(buffer, "%d", val);
+		apmib_get(MIB_ELAN_EAP_INSIDE_TYPE,(void *)&val);
+		sprintf(buffer, "%d", val) ;
 		req_format_write(wp, buffer);
 		return 0;
 	}
-#else
-	else if (!strcmp(name, "isDisplayCPU")) {
-		sprintf(buffer, "0");
+	else if(!strcmp(name,"eth_eap_phase2_type"))
+	{
+		apmib_get(MIB_ELAN_EAP_PHASE2_TYPE,(void *)&val);
+		sprintf(buffer, "%d", val) ;
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if(!strcmp(name,"eth_eap_user_id"))
+	{
+		apmib_get(MIB_ELAN_EAP_USER_ID,(void *)buffer);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if(!strcmp(name,"eth_eap_user_name"))
+	{
+		apmib_get(MIB_ELAN_RS_USER_NAME,(void *)buffer);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if(!strcmp(name,"eth_eap_user_password"))
+	{
+		apmib_get(MIB_ELAN_RS_USER_PASSWD,(void *)buffer);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if(!strcmp(name,"eth_eap_user_key"))
+	{
+		apmib_get(MIB_ELAN_RS_USER_CERT_PASSWD,(void *)buffer);
 		req_format_write(wp, buffer);
 		return 0;
 	}
 #endif
+#ifdef SAMBA_WEB_SUPPORT
+	else if ( !strcmp(name, "StorageAnonAccessEnable")) {
+		if ( !apmib_get( MIB_STORAGE_ANON_ENABLE, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+/*	else if ( !strcmp(name, "StorageAnonAccessFtpEnable")) {
+		if ( !apmib_get( MIB_STORAGE_ANON_FTP_ENABLE, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}*/
+	else if ( !strcmp(name, "StorageAnonAccessDiskEnable")) {
+		if ( !apmib_get( MIB_STORAGE_ANON_DISK_ENABLE, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+#endif
+#ifdef CONFIG_IPV6
+#ifdef CONFIG_DSLITE_SUPPORT
+		else if ( !strcmp(name, "dsliteMode")) {
+			if ( !apmib_get( MIB_DSLITE_MODE, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			req_format_write(wp, buffer);
+			return 0;
+		}
+#else
+		else if ( !strcmp(name, "dsliteMode")) {
+			sprintf(buffer, "0");
+			req_format_write(wp, buffer);
+			return 0;
+		}
+#endif
+#else
+		else if ( !strcmp(name, "dsliteMode")) {
+			sprintf(buffer, "0");
+			req_format_write(wp, buffer);
+			return 0;
+		}
+#endif
+#ifdef CONFIG_CPU_UTILIZATION
+		else if (!strcmp(name, "isDisplayCPU")) {
+			sprintf(buffer, "1");
+			req_format_write(wp, buffer);
+			return 0;
+		}
+		else if (!strcmp(name, "CPUnumber")) {
+			FILE *fh;
+			char buf[64], tmp[3];
+			char *p, *q;
+			int cpu_num=-1;
+	
+			fh = fopen("/proc/cpuinfo", "r");
+			if (!fh) {
+	//			printf("Warning: cannot open /proc/cpuinfo\n");
+				return req_format_write(wp, "Warning: cannot open /proc/cpuinfo");
+			}
+			
+			while(!feof(fh))
+			{
+				fgets(buf, sizeof buf, fh);
+	
+				if(strncmp(buf, "processor", strlen("processor")) == 0)
+				{
+					p = buf + 9;
+					q = tmp;
+					while(*p)
+					{
+						if(*p >= '0' && *p <= '9')
+						{
+							*q = *p;
+							q++;
+						}
+						p++;
+					}
+					*q='\0';
+					cpu_num = atoi(tmp);
+				}
+			}
+	
+			fclose(fh);
+	
+			cpu_num++;
+			sprintf(buffer, "%d", cpu_num);
+			req_format_write(wp, buffer);
+			return 0;
+		}
+		else if(!strcmp(name, "CPUsample"))
+		{
+			if ( !apmib_get( MIB_CPU_UTILIZATION_INTERVAL, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			req_format_write(wp, buffer);
+			return 0;
+		}
+		else if(!strcmp(name, "CPUenable"))
+		{
+			if ( !apmib_get( MIB_ENABLE_CPU_UTILIZATION, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			req_format_write(wp, buffer);
+			return 0;
+		}
+#else
+		else if (!strcmp(name, "isDisplayCPU")) {
+			sprintf(buffer, "0");
+			req_format_write(wp, buffer);
+			return 0;
+		}
+#endif
+
+
 	else
 	{
 FMGET_FAIL:
@@ -7700,7 +8346,7 @@ int getDHCPModeCombobox(request *wp, int argc, char **argv)
 	      	  }
     	}
 #elif defined(CONFIG_RTL_ULINKER)
-		if((operation_mode==1 && (val==0 ||val==1)) || (operation_mode==0)){
+		if((operation_mode==1 && (val==0 ||val==1)) || (operation_mode==0) || (operation_mode==2)){
 		   if(lan_dhcp_mode == 0){
 			return req_format_write(wp,"<option selected value=\"0\">Disabled</option>"
 								"<option value=\"1\">Client</option>"

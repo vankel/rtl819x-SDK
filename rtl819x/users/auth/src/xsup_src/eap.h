@@ -94,6 +94,7 @@ struct generic_eap_data {
   int staleSize;             // The size of the saved stale frame.
 
   int eapid;                 // The EAP ID of the packet we are working with.
+  
 
   int need_password;         // The EAP method should set this to 1 when it
                              // requires a password, or other challenge data
@@ -107,6 +108,11 @@ struct generic_eap_data {
   char *eapchallenge;        // When an EAP method requires some sort of 
                              // challenge be displayed to the user in order 
                              // for them to generate the proper password data.
+#ifdef RTL_TTLS_MD5_CLIENT
+   int eapNum;                // The EAP type we are working with.
+   char *intName;             // A pointer to the interface name that we are
+                             // working with. (Mostly for IPC purposes.)
+#endif
 };
 
 void eap_init(struct interface_data *);
@@ -117,6 +123,10 @@ int eap_request_auth(struct interface_data *, char *, int, char *, int *, int *)
 int eap_clear_active_method(struct interface_data *);
 int eap_get_keying_material(struct interface_data *);
 int eap_do_fail(struct interface_data *);
-
+#ifdef RTL_TTLS_MD5_CLIENT
+int eap_create_active_method(struct generic_eap_data **, char *, char *, char *);
+void eap_ttls_md5_request_id(char *identity, int eapid, char *outframe, 
+		    int *eapsize);
+#endif
 #endif
 

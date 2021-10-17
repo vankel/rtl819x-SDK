@@ -16,6 +16,13 @@
 #include <net/rtl/rtl865x_nat.h>
 #endif
 
+#include <linux/version.h>
+
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+#include <linux/seq_file.h>
+extern struct proc_dir_entry proc_root;
+#endif
+
 //#include <net/netfilter/nf_conntrack.h>
 //#include <net/route.h>
 
@@ -136,6 +143,23 @@ int fast_pppoe_xmit(struct sk_buff *skb);
 
 #endif
 
+#ifdef CONFIG_RTL_FAST_IPV6
+#define CONFIG_V6_UDP_FRAG_CACHE 1	
+struct V6_Tuple
+{
+	/* hash 5 tuple */
+    struct  in6_addr	saddr;
+    struct  in6_addr	daddr;	
+	uint32	protocol;
+	uint32	sport;
+	uint32	dport;	
+};
+int ipv6_fast_enter(struct sk_buff *pskb);
+int rtk_addV6Connection(struct V6_Tuple *PathEntry, struct sk_buff *pskb ,void *ct);
+int rtk_delV6Connection(struct V6_Tuple *PathEntry);
+int rtl_V6_Cache_Timer_update(void *ct);
+
+#endif
 #ifdef URL_CONTENT_AUTHENTICATION
 #define RTL_UNAUTH_BUFFER_SIZE 8
 #define RTL_URL_CONTENT_READED 0x1
@@ -194,7 +218,6 @@ struct l2tp_ext_hdr
 	__u16 protocol;
 };
 
-#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
 struct Rus_l2tp_ext_hdr
 {
 	//udp header
@@ -219,7 +242,6 @@ struct Rus_l2tp_ext_hdr
 	unsigned int imagicNumber;
 	unsigned int message;
 };
-#endif
 
 struct avp_info
 {
@@ -362,7 +384,7 @@ struct ppp {
 	struct net	*ppp_net;	/* the net we belong to */
 };
 
-extern void (*sync_tx_pptp_gre_seqno_hook)(struct sk_buff *skb);
+extern void (*sync_tx_pptp_gre_seqno_hook)(void *skb);
 #endif
 #if defined(CUSTOM_RSP_PACKET)
 void register_customRspHook(int *_cusRsp401_func,int *_cusRspTCPFinAck_func,int *_cusRspTCPEndAck_func);
@@ -394,17 +416,19 @@ void unregister_customRspStr(void);
 	extern int __init fast_l2tp_init(void);
 	extern void __exit fast_l2tp_exit(void);
 	extern int fast_l2tp_to_wan(void *skb);
-	
-//#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
 	extern int fast_l2tp_rx(void *skb);
-//#else
-//	extern void fast_l2tp_rx(void *skb);
-//#endif
 	extern void l2tp_tx_id(void *skb);
 	extern int fast_l2tp_fw;
 #endif
 
 
+#ifdef CONFIG_RTL_FAST_IPV6
+	extern int __init ipv6_fast_forward_init(void);
+	extern void __exit ipv6_fast_forward_exit(void);
+	extern int init_V6_table_path(int v6_path_tbl_list_max, int v6_path_tbl_entry_max);
+	extern int V6_udp_fragCache_init(int V6_udp_frag_entry_max);
+	extern int fast_ipv6_fw;
+#endif
 
 /* ---------------------------------------------------------------------------------------------------- */
 
@@ -419,7 +443,7 @@ void unregister_customRspStr(void);
 #define	ROUTE_TABLE_ENTRY_MAX	64
 
 #if !defined(CONFIG_RTL8186_KB_N)
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_92D_SUPPORT) ||defined(CONFIG_RTL_819XD) ||(defined(CONFIG_RTL_8196E)&&defined(CONFIG_RTL_SDRAM_GE_32M))
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_92D_SUPPORT) ||defined(CONFIG_RTL_819XD) ||(defined(CONFIG_RTL_8196E)&&defined(CONFIG_RTL_SDRAM_GE_32M)) ||defined(CONFIG_RTL_8198C)
 #define	NAPT_TABLE_LIST_MAX	4096
 #define	NAPT_TABLE_ENTRY_MAX	4096
 #define	PATH_TABLE_LIST_MAX	4096
@@ -868,6 +892,11 @@ typedef struct _filter_item_entry
 						//bit9: NULL flag, 1:NULL, 0: not NULL
 	uint32 index;
 	uint32 flag;
+#ifdef CONFIG_URL_FILTER_USER_MODE_SUPPORT
+	char userMode;
+	char macAddr[2*ETHER_ADDR_LEN+1];
+	uint32 ipAddr;
+#endif
 	char data[RTL_FILTER_CONTENT_MAXNUM];
 }filter_item_entry;
 
@@ -936,7 +965,11 @@ unsigned char *rtl_skb_push(struct sk_buff *skb, unsigned int len);
 int rtl_ppp_proto_check(struct sk_buff *skb, unsigned char* ppp_proto);
 unsigned int rtl_ipt_do_table(struct sk_buff * skb, unsigned int hook, void *in, void *out);
 int rtl_ip_route_input(struct sk_buff  *skb, __be32 daddr, __be32 saddr, u8 tos);
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+int rtl_skb_dst_check(struct sk_buff *skb, unsigned long dip);
+#else
 int rtl_skb_dst_check(struct sk_buff *skb);
+#endif
 void rtl_set_skb_ip_summed(struct sk_buff *skb, int value);
 void rtl_dst_release(struct sk_buff *skb);
 
@@ -986,7 +1019,7 @@ int rtl_call_skb_ndo_start_xmit(struct sk_buff *skb);
 
 void rtl_inc_ppp_stats(struct ppp *ppp, int act, int len);
 
-void *rtl_set_skb_tail(struct sk_buff *skb, int offset, int action);
+void rtl_set_skb_tail(struct sk_buff *skb, int offset, int action);
 struct sk_buff *rtl_ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb, int is_fast_fw);
 int rtl_ppp_start_xmit(struct sk_buff *skb, struct net_device *dev);
 void rtl_set_skb_cb(struct sk_buff *skb, char *value, int len);

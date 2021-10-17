@@ -50,14 +50,16 @@ typedef enum	{ krcsm_No_Key_Receive, krcsm_Key_Receive }	KRC_SM;
 
 // david
 //typedef	enum 	{ role_Authenticator, role_Supplicant } ROLE;
-typedef	enum 	{ role_Authenticator, role_Supplicant_infra, role_Supplicant_adhoc,  role_wds} ROLE;
+
+
+
+typedef	enum 	{ role_Authenticator, role_Supplicant_infra, role_Supplicant_adhoc,  role_wds, role_eth } ROLE;
 
 typedef enum    { acctsm_Acct_No_Action, acctsm_Acct_Start, acctsm_Acct_Stop, acctsm_Acct_On, acctsm_Interim_On, acctsm_Terminate_Cause } ACCT_SM;
 
 typedef enum	{ acctsm_Start, acctsm_Stop } ACCT_SM_STATE;
 
 typedef enum    { akmsm_status_NotInDriverTable, akmsm_status_Idle , akmsm_status_NotIdle } AKM_SM_STATUS;
-
 
 #if defined( CONFIG_IEEE80211W) || defined(HS2_SUPPORT)
 enum mfp_options {

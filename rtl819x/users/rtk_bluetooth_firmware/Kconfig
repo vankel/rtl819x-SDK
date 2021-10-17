@@ -24,8 +24,8 @@ endchoice
 config USB_BLUETOOTH
 	depends on APP_RTK_BLUETOOTH_FM
 	bool "USB bluetooth"
-
-	prompt "USB Bluetooth chip"
+#
+#	prompt "USB Bluetooth chip"
 #config RTK_BLUETOOTH_HW_RTL8723A_U
 #	depends on USB_BLUETOOTH 
 #	bool "rtl8723a"

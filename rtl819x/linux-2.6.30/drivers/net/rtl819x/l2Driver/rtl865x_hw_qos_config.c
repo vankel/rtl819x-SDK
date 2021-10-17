@@ -46,6 +46,9 @@
 #include <AsicDriver/asicRegs.h>
 #include <AsicDriver/rtl8651_tblAsicDrv.h>
 #endif
+#ifdef __KERNEL__
+#include <linux/version.h>
+#endif
 
 
 struct sock *hw_qos_sk = NULL;
@@ -94,6 +97,10 @@ struct qos_cmd_info_s{
 			unsigned int portmask;
 			unsigned short apr[8];
 		}port_rate;
+		struct{
+			unsigned int portmask;
+			unsigned short pri[8];
+		}port_pri;
 	} qos_data;
 };
 
@@ -124,7 +131,15 @@ struct qos_cmd_info_s{
 #define FLOW_CONTROL_CONFIGURATION_SHOW 25
 #define PORT_RATE 26
 #define PORT_RATE_SHOW 27
-
+#define PORT_DEFAULT_8021P 28
+#define PORT_DEFAULT_8021P_SHOW 29
+#if defined (CONFIG_RTL_8198C)
+#define MAX_QUEUE_NUM		8
+#else
+#define MAX_QUEUE_NUM		6
+#endif
+int32 rtl8651_setAsicPortDefPri(uint32 port, uint32 pri);
+int32 rtl8651_getAsicPortDefPri(uint32 port, uint32 *pri) ;
 
 static inline void port_based_priority_show(void)
 {
@@ -193,7 +208,7 @@ static inline void queue_type_strict_show(void)
 
 	printk("QUEUE_TYPE_STRICT: \n");
 	for(i=0; i<8; i++){
-		for(j=0; j<5; j++){
+		for(j=0; j < MAX_QUEUE_NUM; j++){
 			ret = rtl8651_getAsicQueueStrict(i, j, &queueType);
 			if((ret == SUCCESS) && (queueType == 0))
 				printk("    Port[%d]'s  Queue[%d] type is STRICT\n", i, j);
@@ -210,7 +225,7 @@ static inline void queue_type_weighted_show(void)
 
 	printk("QUEUE_TYPE_WEIGHTED: \n");
 	for(i=0; i<8; i++){
-		for(j=0; j<5; j++){
+		for(j=0; j < MAX_QUEUE_NUM; j++){
 			ret = rtl8651_getAsicQueueWeight(i, j, &queueType, &weight);
 			if((ret == SUCCESS) && (queueType == 1))
 				printk("    Port[%d]'s  Queue[%d] type is WEIGHTED, and weight is %u\n", i, j, weight);
@@ -226,7 +241,7 @@ static inline void priority_to_qid_show(void)
 	enum QUEUEID qid;
 
 	printk("PRIORITY_TO_QID: \n");
-	for(i=1; i<7; i++){
+	for(i=1; i < (MAX_QUEUE_NUM+1); i++){
 		for(j=0; j<8; j++){
 			ret = rtl8651_getAsicPriorityToQIDMappingTable(i, j, &qid);
 			if(ret == SUCCESS)
@@ -297,12 +312,27 @@ static inline void queue_rate_show(void)
 
 	printk("QUEUE_RATE: \n");
 	for(i=0; i<8; i++){
-		for(j=0; j<6; j++){
+		for(j=0; j < MAX_QUEUE_NUM; j++){
 			ret = rtl8651_getAsicQueueRate(i, j, &ppr, &burst, &apr);
 			if(ret == SUCCESS)
-				printk("    Port[%d] queue[%d]'s  ppr is %d, burst is %d, apr is %d\n", i, j, ppr, burst, apr);
+				printk("    Port[%d] queue[%d]'s  ppr is %d, burst is %d, apr is %dMbps\n", i, j, ppr, burst, (apr+1)*1024);
 		}
 
+	}
+
+	return;
+}
+
+static inline void port_default_8021p_show(void)
+{
+	int i, ret;
+	unsigned int pri;
+
+	printk("PORT_DEFAULT_8021P: \n");
+	for(i=0; i<8; i++){
+		ret = rtl8651_getAsicPortDefPri(i, &pri);
+		if(ret == SUCCESS)
+			printk("    Port[%d]'s default 8021p is %d\n", i, pri);
 	}
 
 	return;
@@ -317,7 +347,7 @@ static inline void port_rate_show(void)
 	for(i=0; i<8; i++){
 		ret = rtl8651_getAsicPortEgressBandwidth(i, &apr);
 		if(ret == SUCCESS)
-			printk("    Port[%d]'s apr is %d\n", i, apr);
+			printk("    Port[%d]'s apr is %dMbps\n", i, (apr+1)*1024);
 	}
 
 	return;
@@ -338,19 +368,59 @@ static inline void flow_control_config_show(void)
 	}
 }
 
+int32 rtl8651_setAsicPortDefPri(uint32 port, uint32 pri)
+{
+	uint32 regValue,offset;
+	
+	if(port>=RTL8651_AGGREGATOR_NUMBER || pri>=8)
+		return FAILED;
+
+	offset=(port*2)&(~0x3);
+	regValue=READ_MEM32(PVCR0+offset);
+	if((port&0x1))
+	{
+		regValue=  ((pri &0x7) <<(16+12)) | (regValue&~0x70000000);
+	}
+	else
+	{	
+		regValue =  ((pri &0x7)<<12) | (regValue &~0x7000);
+	}
+	WRITE_MEM32(PVCR0+offset,regValue);
+	return SUCCESS;
+}
+
+int32 rtl8651_getAsicPortDefPri(uint32 port, uint32 *pri) 
+{
+	uint16 offset;
+	offset=(port*2)&(~0x3);
+	if(port>=RTL8651_AGGREGATOR_NUMBER || pri == NULL)
+		return FAILED;
+	if((port&0x1))
+	{
+		*pri=(((READ_MEM32(PVCR0+offset)>>(16+12))&0x7));		
+	}
+	else
+	{
+		*pri=(((READ_MEM32(PVCR0+offset)>>12)&0x7));
+	}
+	return SUCCESS;
+}
 
 void hw_qos_netlink_receive (struct sk_buff *__skb)
 {
+// to_be_checked !!!
+#if 1//ndef CONFIG_RTL_8198C
 	unsigned int i, j;
 	enum QUEUENUM queue_num;
 	int ret;
 	int pid = 0;
 	struct qos_cmd_info_s send_data,recv_data;
-
+	
 	pid=rtk_nlrecvmsg(__skb, sizeof(struct qos_cmd_info_s), &recv_data);
+	
 	if(pid<0)
 		return;
-
+	
 	switch(recv_data.action)
 	{
 		case PORT_BASED_PRIORITY_ASSIGN:
@@ -402,7 +472,7 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 		case QUEUE_TYPE_STRICT:
 			for(i=0; i<8; i++){
 				if((1<<i) & recv_data.qos_data.queue_type.portmask){
-					for(j=0; j<6; j++){
+					for(j=0; j < MAX_QUEUE_NUM; j++){
 						if((1<<j) & recv_data.qos_data.queue_type.queuemask){
 							if(recv_data.qos_data.queue_type.queue[i][j] == 255){
 									ret = rtl8651_setAsicQueueStrict(i, j, STR_PRIO);
@@ -419,7 +489,7 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 		case QUEUE_TYPE_WEIGHTED:
 			for(i=0; i<8; i++){
 				if((1<<i) & recv_data.qos_data.queue_type.portmask){
-					for(j=0; j<6; j++){
+					for(j=0; j < MAX_QUEUE_NUM; j++){
 						if((1<<j) & recv_data.qos_data.queue_type.queuemask){
 							if((recv_data.qos_data.queue_type.queue[i][j] > 0) &&
 					    		    (recv_data.qos_data.queue_type.queue[i][j] != 255)){
@@ -493,7 +563,7 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 		case QUEUE_RATE:
 			for(i=0; i<8; i++){
 				if((1<<i) & recv_data.qos_data.queue_rate.portmask){
-					for(j=0; j<6; j++){
+					for(j=0; j < MAX_QUEUE_NUM; j++){
 						if((1<<j) & recv_data.qos_data.queue_rate.queuemask){
 							ret = rtl8651_setAsicQueueRate(i, j, recv_data.qos_data.queue_rate.ppr[i][j],
 								                                      recv_data.qos_data.queue_rate.burst[i][j],
@@ -518,9 +588,20 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 			}
 			send_data.action = PORT_RATE;
 			break;
+		case PORT_DEFAULT_8021P:
+			for(i=0; i<8; i++){
+				if((1<<i) & recv_data.qos_data.port_pri.portmask){
+					ret = rtl8651_setAsicPortDefPri(i, recv_data.qos_data.port_pri.pri[i]);
+					if(ret == FAILED){
+						printk("Port default 8021p set to PVCRx register failed\n ");
+					}
+				}
+			}
+			send_data.action = PORT_DEFAULT_8021P;
+			break;
 		case FLOW_CONTROL_ENABLE:
 			for(i=0; i<7; i++){
-				for(j=0; j<6; j++){
+				for(j=0; j < MAX_QUEUE_NUM; j++){
 					ret = rtl8651_setAsicQueueFlowControlConfigureRegister(i, j, 1);
 					if(ret == FAILED){
 						printk("Set Flow Control Enable failed\n ");
@@ -530,7 +611,7 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 			break;
 		case FLOW_CONTROL_DISABLE:
 			for(i=0; i<7; i++){
-				for(j=0; j<6; j++){
+				for(j=0; j < MAX_QUEUE_NUM; j++){
 					ret = rtl8651_setAsicQueueFlowControlConfigureRegister(i, j, 0);
 					if(ret == FAILED){
 						printk("Set Flow Control Disable failed\n ");
@@ -574,6 +655,9 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 		case PORT_RATE_SHOW:
 			port_rate_show();
 			break;
+		case PORT_DEFAULT_8021P_SHOW:
+			port_default_8021p_show();
+			break;
 		case FLOW_CONTROL_CONFIGURATION_SHOW:
 			flow_control_config_show();
 			break;
@@ -582,6 +666,7 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 	}
 
 	rtk_nlsendmsg(pid, hw_qos_sk, sizeof(struct qos_cmd_info_s), &send_data);
+#endif	
 	return;
 
 }
@@ -589,13 +674,23 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 
 int hw_qos_init_netlink(void)
 {
+// to_be_checked !!!
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
   	hw_qos_sk = netlink_kernel_create(&init_net, NETLINK_RTK_HW_QOS, 0, hw_qos_netlink_receive, NULL, THIS_MODULE);
-
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+	struct netlink_kernel_cfg cfg;
+	memset(&cfg,0,sizeof(cfg));
+	cfg.cb_mutex =NULL;
+	cfg.groups =0;
+	cfg.input = hw_qos_netlink_receive;
+	hw_qos_sk = netlink_kernel_create(&init_net, NETLINK_RTK_HW_QOS,&cfg);
+#endif
   	if (!hw_qos_sk) {
     		printk(KERN_ERR "Netlink[Kernel] Cannot create netlink socket for hw qos config.\n");
     		return -EIO;
   	}
   	printk("Netlink[Kernel] create socket for hw qos config ok.\n");
+	
   	return 0;
 }
 

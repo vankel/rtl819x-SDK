@@ -1,6 +1,15 @@
 #ifndef	RTL_FEATURES_H
 #define	RTL_FEATURES_H		1
 
+#include <linux/version.h>
+
+
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+#include <linux/seq_file.h>
+#include <linux/inetdevice.h>
+extern struct proc_dir_entry proc_root;
+#endif
+
 extern char __conntrack_drop_check(void* tmp);
 extern int	rtl_nf_conntrack_threshold;
 extern int	drop_priority_max_idx;
@@ -62,6 +71,11 @@ int rtl_fpTimer_update(void *ct);
 #endif
 
 void rtl_fpAddConnCache(struct nf_conn *ct, struct sk_buff *skb);
+#ifdef CONFIG_RTL_FAST_IPV6
+int rtl_AddV6ConnCache(struct nf_conn *ct, struct sk_buff *skb);
+int rtl_DelV6ConnCache(struct nf_conn *ct);
+int rtl_V6_connCache_timer_update(struct nf_conn *ct);
+#endif
 
 #if defined(CONFIG_RTL_LOCAL_PUBLIC) || defined(CONFIG_RTL_MULTIPLE_WAN) || (defined(CONFIG_NET_SCHED)&&defined(CONFIG_RTL_IPTABLES_FAST_PATH)) || defined(CONFIG_RTL_HW_QOS_SUPPORT)
 extern struct net_device *rtl865x_getWanDev(void );
@@ -74,9 +88,21 @@ extern int rtl865x_attainDevType(unsigned char *devName, unsigned int *isLanDev,
 
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT)
 /*2007-12-19*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+extern int	tcp_get_timeouts_by_state(u_int8_t state,void *ct_or_cp,int is_ct);
+#else
 extern int 	tcp_get_timeouts_by_state(u_int8_t state);
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+extern unsigned int	udp_get_timeouts_by_state(enum udp_conntrack state,void *ct_or_cp,int is_ct);
+#else
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+extern unsigned int	udp_get_timeouts_by_state(enum udp_conntrack state);
+#else
 extern unsigned int nf_ct_udp_timeout;
 extern unsigned int nf_ct_udp_timeout_stream;
+#endif
+#endif
 void rtl_check_for_acc(struct nf_conn *ct, unsigned long expires);
 void rtl_delConnCache(struct nf_conn *ct);
 int32 rtl_connCache_timer_update(struct nf_conn *ct);
@@ -122,10 +148,11 @@ typedef struct _rtl_masq_if_struct
 rtl_masq_if *rtl_get_masq_info_by_devName(const char* name);
 #endif
 
-#if	defined(CONFIG_RTL_HARDWARE_NAT )
-/*2007-12-19*/
+#if defined(CONFIG_RTL_HARDWARE_NAT) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
 int32 syn_asic_arp(struct neighbour *n, int add);
+#endif
 
+#if defined(CONFIG_RTL_HARDWARE_NAT)
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
 int32 rtl_get_ps_arp_mapping(u32 ip,void *arp_entry);
 #endif
@@ -152,11 +179,19 @@ int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb);
 int32 rtl_update_ip_tables(char *name,  unsigned long event, struct in_ifaddr *ina);
 int32 rtl_fn_insert(struct fib_table *tb, struct fib_config *cfg, struct fib_info *fi);
 int32 rtl_fn_delete(struct fib_table *tb, struct fib_config *cfg);
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+int32 rtl_fib_flush(u32 tb_id, u32 fn_key, u32 ip_mask);
+#endif
 int32 rtl_fn_flush(int	 fz_order, int idx, u32 tb_id, u32 fn_key);
 int32 rtl_ip_vs_conn_expire_check(struct ip_vs_conn *cp);
 int32 rtl_ip_vs_conn_expire_check_delete(struct ip_vs_conn *cp);
-int32 rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
-int32 rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
+void rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
+void rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
+#endif
+
+#if defined(CONFIG_IPV6) && defined(CONFIG_RTL_8198C)
+int32 rtl8198c_ipv6_router_add(struct rt6_info *rt);
+int32 rtl8198c_ipv6_router_del(struct rt6_info *rt);
 #endif
 
 #if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)

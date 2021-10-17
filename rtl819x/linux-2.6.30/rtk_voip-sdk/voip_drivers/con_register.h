@@ -136,8 +136,6 @@ typedef struct {		// FXS - ops
 	unsigned int  ( *FXS_Line_Check )( struct voip_snd_s *this );	// Note: this API may cause watch dog timeout. Should it disable WTD?
 	void          ( *SLIC_Set_PCM_state )( struct voip_snd_s *this, int enable );
 	unsigned char ( *SLIC_Get_Hook_Status )( struct voip_snd_s *this, int directly );
-	void          ( *SLIC_Set_Power_Save_Mode )( struct voip_snd_s *this);
-	void          ( *SLIC_Set_FXS_Line_State )( struct voip_snd_s *this, int state );
 	
 	void ( *Set_SLIC_Tx_Gain )( struct voip_snd_s *this, int tx_gain );
 	void ( *Set_SLIC_Rx_Gain )( struct voip_snd_s *this, int rx_gain );

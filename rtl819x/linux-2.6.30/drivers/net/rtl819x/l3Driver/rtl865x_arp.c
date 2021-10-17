@@ -452,12 +452,12 @@ int32 rtl865x_addArp(ipaddr_t ip, ether_addr_t * mac)
 	uint32 column;
 	rtl865x_tblAsicDrv_l2Param_t	fdbEntry;
 	rtl865x_filterDbTableEntry_t		l2temp_entry;
-		
+
 	if((ip==0) ||(mac==NULL))
 	{
 		return RTL_EINVALIDINPUT;
 	}
-	
+		
 	#if defined(CONFIG_RTL_MULTIPLE_WAN)
 	if(rtl_get_advRt_entry_by_nexthop(ip))
 	{
@@ -549,7 +549,7 @@ int32 rtl865x_addArp(ipaddr_t ip, ether_addr_t * mac)
 		rtl865x_raiseEvent(EVENT_ADD_ARP,(void*)(&newArpMapping));	
 		return SUCCESS;
 		
-	}	
+	}
 	
 	return FAILED;
 }
@@ -562,13 +562,12 @@ int32 rtl865x_delArp(ipaddr_t ip)
 	uint16 fid = 0;
 	
 	rtl865x_arpMapping_entry_t arpMapping;	
-
+	
 	if(ip==0)
 	{
 		return FAILED;
 	}
 
-	
 	#if defined(CONFIG_RTL_MULTIPLE_WAN)
 	if(rtl_get_advRt_entry_by_nexthop(ip))
 	{
@@ -605,7 +604,6 @@ int32 rtl865x_delArp(ipaddr_t ip)
 //	rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEI|RTL865x_L2_TYPEII, fid, &arpMapping.mac);
 #endif
 	rtl865x_raiseEvent(EVENT_DEL_ARP,(void *)(&arpMapping));
-	
 	
 	return SUCCESS;
 }

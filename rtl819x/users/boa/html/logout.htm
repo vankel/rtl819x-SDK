@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Logout</title>
 <% language=javascript %>
+<% getInfo("include_css"); %>
 </head>
 
 <script>
@@ -50,7 +51,7 @@ function clearAuthData()
 </script>
 <BODY >
 <blockquote>
-<h2><font color="#0000FF">Logout</font></h2>
+<h2>Logout</h2>
 <form action=/boafrm/formLogout method=POST name="logout">
 <table border=0 width="500" cellspacing=4 cellpadding=0>
   <tr><font size=2>

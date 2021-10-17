@@ -9,21 +9,12 @@
 #Add mips16 Support
 
 #DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
-
-ifeq ($(CONFIG_RTL_819XD),y)
-TARGET = 9xD
-endif
+include $(DIR_LINUX)/.config
 ifeq ($(CONFIG_RTL_8196E),y)
 TARGET = 96E
 endif
-ifeq ($(CONFIG_RTL_8196C),y)
-TARGET = 96C
-endif
-ifeq ($(CONFIG_RTL_8198),y)
-TARGET = 98
-endif
-ifeq ($(CONFIG_RTL_8881A),y)
-TARGET = 8881A
+ifeq ($(CONFIG_RTL_8198C_GW),y)
+TARGET = 98C
 endif
 
 ifeq ($(CONFIG_RTK_IPTABLES_FAST_PATH),m)
@@ -51,7 +42,7 @@ obj-y := \
 
 	ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER_L4
 		obj-y += rtl865x_asicL4.o 
-endif
+	endif
 
 #obj-$(CONFIG_RTL865X_CLE) += rtl8651_tblAsicDrv_cmd.o
 

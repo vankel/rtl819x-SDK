@@ -717,7 +717,7 @@ int ulinker_bootup(void)
 
 		apmib_get(MIB_OP_MODE, (void *)&val);
 
-		if (val == GATEWAY_MODE)
+		if (val == GATEWAY_MODE || val == WISP_MODE)
 			val = DHCP_SERVER;
 		else if (val == BRIDGE_MODE)
 			val = DHCP_AUTO_WAN;

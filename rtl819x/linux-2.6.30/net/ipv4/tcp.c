@@ -1590,7 +1590,29 @@ do_prequeue:
 					copied_early = 1;
 
 			} else
+#elif defined (CONFIG_RTL_SENDFILE_PATCH)
+			/* Change from '&' to '==' to fix DLNA/upnp problem on DvdPlayer. */
+				if(msg->msg_flags == MSG_KERNSPACE){
+		extern int skb_copy_datagram_iovec1(const struct sk_buff *skb, int offset, struct iovec *to, int len);
+
+#ifdef CONFIG_REALTEK_AKMD
+					tp->ucopy.pinned_list =
+						dma_pin_iovec_pages(msg->msg_iov, len);
 #endif
+					err = skb_copy_datagram_iovec1(skb, offset, msg->msg_iov, used);
+					if (err) {
+						/* Exception. Bailout! */
+						if (!copied)
+							copied = -EFAULT;
+						break;
+					}
+#ifdef CONFIG_REALTEK_AKMD
+					copied_early = 1;
+					MD_used = 1;
+#endif
+				}
+				else
+#endif /* CONFIG_RTL_SENDFILE_PATCH */
 			{
 				err = skb_copy_datagram_iovec(skb, offset,
 						msg->msg_iov, used);
@@ -1680,6 +1702,8 @@ skip_copy:
 		dma_unpin_iovec_pages(tp->ucopy.pinned_list);
 		tp->ucopy.pinned_list = NULL;
 	}
+#elif defined (CONFIG_RTL_SENDFILE_PATCH) && defined (CONFIG_REALTEK_AKMD)
+    	free_early_copied_skbs(sk, tp, MD_used);
 #endif
 
 	/* According to UNIX98, msg_name/msg_namelen are ignored

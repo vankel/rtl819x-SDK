@@ -23,5 +23,9 @@ arecord -x 1 -f S16_LE -r 48000 -c 2 -D format_convert48 -d 30 /var/test.wav
 aplay -x 1 -f S16_LE -c 2 -r 48000  -D format_convert48 /var/test.wav
 
  
+//8KHz-mono
+aplay -x 1 -f S16_BE -c 2 -r 8000 -D default audio_src_8k_be_mono.pcm
 
+//8Khz-stereo
+aplay -x 1 -f S16_BE -c 2 -r 8000 -D default audio_src_8k_be_stereo.pcm
 

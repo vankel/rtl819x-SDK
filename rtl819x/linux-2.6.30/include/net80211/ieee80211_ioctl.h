@@ -218,7 +218,7 @@ struct ieee80211req_key {
 	u_int8_t ik_keydata[IEEE80211_KEYBUF_SIZE+IEEE80211_MICBUF_SIZE];
 };
 
-#pragma pack
+#pragma pack()
 
 
 /*

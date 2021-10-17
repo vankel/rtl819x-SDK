@@ -982,56 +982,6 @@ static unsigned char SLIC_Get_Hook_Status_proslic(voip_snd_t *this, int directly
 	return status;
 }
 
-static void SLIC_Set_Power_Save_Mode_proslic(voip_snd_t *this)
-{
-	PRINT_R("%s, line%d, this SLIC api is not implement for this SLIC.\n", __FUNCTION__, __LINE__);
-}
-
-/* state: 
-	0: line in-active state
-	1: line active state
-	2: power save state
-	3: OHT
-	4: OHT polrev
-	5: Ring
-*/
-static void SLIC_Set_FXS_Line_State_proslic(voip_snd_t *this, int state)
-{
-	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
-	proslicChanType * const pSlic = container ->ProObj;
-	//pSlic = ports[chid].ProObj;
-
-	switch (state)
-	{
-		case 0:
-			state = LF_OPEN;
-			break;
-		case 1:
-			state = LF_FWD_ACTIVE;
-			break;
-		case 2:
-			printk("Warnning! Not support power save mode, set to OHT. In %s, line%d\n", __FUNCTION__, __LINE__);
-			state = LF_FWD_OHT;
-			break;
-		case 3:
-			state = LF_FWD_OHT;
-			break;
-		case 4:
-			state = LF_REV_OHT;
-			break;
-		case 5:
-			state = LF_RINGING;
-			break;
-		default:
-			printk("Warnning! Error case, set to OHT state. In %s, line%d\n", __FUNCTION__, __LINE__);
-			state = LF_FWD_OHT;
-			break;
-	}
-
-	ProSLIC_SetLinefeedStatus(pSlic, state);
-
-}
-
 static void SLIC_read_reg_proslic(voip_snd_t *this, unsigned int num, unsigned char *len, unsigned char *val)
 {
 	extern unsigned char R_reg_dev(rtl_spi_dev_t *pdev,unsigned char chid, unsigned char regaddr);
@@ -1179,8 +1129,6 @@ const snd_ops_fxs_t snd_proslic_fxs_ops = {
 	.FXS_Line_Check = FXS_Line_Check_proslic,	// Note: this API may cause watch dog timeout. Should it disable WTD?
 	.SLIC_Set_PCM_state = SLIC_Set_PCM_state_proslic,
 	.SLIC_Get_Hook_Status = SLIC_Get_Hook_Status_proslic,
-	.SLIC_Set_Power_Save_Mode = SLIC_Set_Power_Save_Mode_proslic,
-	.SLIC_Set_FXS_Line_State = SLIC_Set_FXS_Line_State_proslic,
 	
 	.Set_SLIC_Tx_Gain = Set_SLIC_Tx_Gain_proslic,
 	.Set_SLIC_Rx_Gain = Set_SLIC_Rx_Gain_proslic,

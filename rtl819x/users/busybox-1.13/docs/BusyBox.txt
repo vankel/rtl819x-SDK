@@ -156,8 +156,7 @@ COMMAND DESCRIPTIONS
                 -t tick         Microseconds per tick, usually 10000
                 -p timeconstant
 
-    ar
-        ar [-o] [-v] [-p] [-t] [-x] ARCHIVE FILES
+    ar  ar [-o] [-v] [-p] [-t] [-x] ARCHIVE FILES
 
         Extract or list FILES from an ar archive
 
@@ -169,8 +168,7 @@ COMMAND DESCRIPTIONS
                 -x      Extract
                 -v      Verbose
 
-    arp
-        arp [-vn] [-H type] [-i if] -a [hostname] [-v] [-i if] -d hostname
+    arp arp [-vn] [-H type] [-i if] -a [hostname] [-v] [-i if] -d hostname
         [pub] [-v] [-H type] [-i if] -s hostname hw_addr [temp] [-v] [-H
         type] [-i if] -s hostname hw_addr [netmask nm] pub [-v] [-H type]
         [-i if] -Ds hostname ifa [netmask nm] pub
@@ -208,11 +206,9 @@ COMMAND DESCRIPTIONS
                 -s sender       Sender IP address
                 target          Target IP address
 
-    ash
-        ash #define ash_full_usage
+    ash ash #define ash_full_usage
 
-    awk
-        awk [OPTION]... [program-text] [FILE...]
+    awk awk [OPTION]... [program-text] [FILE...]
 
         Options:
 
@@ -304,8 +300,7 @@ COMMAND DESCRIPTIONS
                 -f      Force
                 -1..-9  Compression level
 
-    cal
-        cal [-jy] [[month] year]
+    cal cal [-jy] [[month] year]
 
         Display a calendar
 
@@ -314,8 +309,7 @@ COMMAND DESCRIPTIONS
                 -j      Use julian dates
                 -y      Display the entire year
 
-    cat
-        cat [-u] [FILE]...
+    cat cat [-u] [FILE]...
 
         Concatenate FILE(s) and print them to stdout
 
@@ -391,7 +385,7 @@ COMMAND DESCRIPTIONS
                 -r,--role=ROLE          security context
                 -t,--type=TYPE
                 -l,--range=RANGE
-                -R,--recursive          Recurse subdirectories  
+                -R,--recursive          Recurse subdirectories
 
     chgrp
         chgrp [-RhLHPcvf]... GROUP FILE...
@@ -477,7 +471,7 @@ COMMAND DESCRIPTIONS
         Options:
 
                 -e,--encrypted  Supplied passwords are in encrypted form
-                -m,--md5        Use MD5 encryption instead of DES       
+                -m,--md5        Use MD5 encryption instead of DES
 
     chpst
         chpst [-vP012] [-u USER[:GRP]] [-U USER[:GRP]] [-e DIR] [-/ DIR] [-n
@@ -554,8 +548,7 @@ COMMAND DESCRIPTIONS
 
         Clear screen
 
-    cmp
-        cmp [-l] [-s] FILE1 [FILE2 [SKIP1 [SKIP2]]]
+    cmp cmp [-l] [-s] FILE1 [FILE2 [SKIP1 [SKIP2]]]
 
         Compares FILE1 vs stdin if FILE2 is not specified
 
@@ -576,8 +569,7 @@ COMMAND DESCRIPTIONS
                 -2      Suppress lines unique to FILE2
                 -3      Suppress lines common to both files
 
-    cp
-        cp [OPTION]... SOURCE DEST
+    cp  cp [OPTION]... SOURCE DEST
 
         Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY
 
@@ -643,8 +635,7 @@ COMMAND DESCRIPTIONS
     cttyhack
         cttyhack #define cttyhack_full_usage
 
-    cut
-        cut [OPTION]... [FILE]...
+    cut cut [OPTION]... [FILE]...
 
         Print selected fields from each input FILE to standard output
 
@@ -694,8 +685,7 @@ COMMAND DESCRIPTIONS
                 $ date
                 Wed Apr 12 18:52:41 MDT 2000
 
-    dc
-        dc expression...
+    dc  dc expression...
 
         Tiny RPN calculator. Operations: +, add, -, sub, *, mul, /, div, %,
         mod, **, exp, and, or, not, eor, p - print top of the stack (without
@@ -716,8 +706,7 @@ COMMAND DESCRIPTIONS
                 $ echo 72 9 div 8 mul p | dc
                 64
 
-    dd
-        dd [if=FILE] [of=FILE] [ibs=N] [obs=N] [bs=N] [count=N] [skip=N]
+    dd  dd [if=FILE] [of=FILE] [ibs=N] [obs=N] [bs=N] [count=N] [skip=N]
         [seek=N] [conv=notrunc|noerror|sync|fsync]
 
         Copy a file with converting and formatting
@@ -789,8 +778,7 @@ COMMAND DESCRIPTIONS
                 WIDTH   Width (8/16/...)
                 VALUE   Data to be written
 
-    df
-        df [-Pkmhai] [-B SIZE] [FILESYSTEM...]
+    df  df [-Pkmhai] [-B SIZE] [FILESYSTEM...]
 
         Print filesystem usage statistics
 
@@ -928,8 +916,7 @@ COMMAND DESCRIPTIONS
 
                 $ dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp
 
-    du
-        du [-aHLdclsxhmk] [FILE]...
+    du  du [-aHLdclsxhmk] [FILE]...
 
         Summarize disk space used for each FILE and/or directory. Disk space
         is printed in units of 1024 bytes.
@@ -980,7 +967,7 @@ COMMAND DESCRIPTIONS
 
                 -f,--file=FILE  Leases file to load
                 -r,--remaining  Interpret lease times as time remaining
-                -a,--absolute   Interpret lease times as expire time    
+                -a,--absolute   Interpret lease times as expire time
 
     e2fsck
         e2fsck [-panyrcdfvstDFSV] [-b superblock] [-B blocksize] [-I
@@ -1025,8 +1012,7 @@ COMMAND DESCRIPTIONS
                 $ echo "Erik\nis\ncool"
                 Erik\nis\ncool
 
-    ed
-        ed #define ed_full_usage
+    ed  ed #define ed_full_usage
 
     egrep
         egrep #define egrep_full_usage
@@ -1042,8 +1028,7 @@ COMMAND DESCRIPTIONS
                 -t      Close tray
                 -T      Open/close tray (toggle)
 
-    env
-        env [-iu] [-] [name=value]... [command]
+    env env [-iu] [-] [name=value]... [command]
 
         Print the current environment or run a program after setting up the
         specified environment
@@ -1085,7 +1070,7 @@ COMMAND DESCRIPTIONS
         Options:
 
                 -i,--initial    Do not convert tabs after non blanks
-                -t,--tabs=N     Tabstops every N chars  
+                -t,--tabs=N     Tabstops every N chars
 
     expr
         expr EXPRESSION
@@ -1340,7 +1325,7 @@ COMMAND DESCRIPTIONS
                 -v,--verbose    Verbose
                 -u,--username   Username
                 -p,--password   Password
-                -P,--port       Port number     
+                -P,--port       Port number
 
     ftpput
         ftpput [options] remote-host remote-file local-file
@@ -1352,7 +1337,7 @@ COMMAND DESCRIPTIONS
                 -v,--verbose    Verbose
                 -u,--username   Username
                 -p,--password   Password
-                -P,--port       Port number     
+                -P,--port       Port number
 
     fuser
         fuser [options] FILE or PORT/PROTO
@@ -1384,7 +1369,7 @@ COMMAND DESCRIPTIONS
                 -Q,--quiet-output               No normal output
                 -s,--shell=shell                Set shell quoting conventions
                 -T,--test                       Test for getopt(1) version
-                -u,--unquoted                   Don't quote the output  
+                -u,--unquoted                   Don't quote the output
 
         Example:
 
@@ -1518,8 +1503,7 @@ COMMAND DESCRIPTIONS
                 -f      Force halt (don't go through init)
                 -w      Only write a wtmp record
 
-    hd
-        hd FILE...
+    hd  hd FILE...
 
         hd is an alias for hexdump -C
 
@@ -1669,8 +1653,7 @@ COMMAND DESCRIPTIONS
                 -l      Hardware clock is in local time
                 -f FILE Use specified device (e.g. /dev/rtc2)
 
-    id
-        id [OPTIONS]... [USER]
+    id  id [OPTIONS]... [USER]
 
         Print information about USER or the current user
 
@@ -1894,6 +1877,7 @@ COMMAND DESCRIPTIONS
                 tty4::respawn:/sbin/getty 38400 tty4
                 tty5::respawn:/sbin/getty 38400 tty5
         
+        
                 # Example of how to put a getty on a serial line (for a terminal)
                 #
                 #::respawn:/sbin/getty -L ttyS0 9600 vt100
@@ -1966,8 +1950,7 @@ COMMAND DESCRIPTIONS
                 -m MODE Set permissions
                 -Z      Set security context
 
-    ip
-        ip [OPTIONS] {address | route | link | tunnel | rule} {COMMAND}
+    ip  ip [OPTIONS] {address | route | link | tunnel | rule} {COMMAND}
 
         ip [OPTIONS] OBJECT {COMMAND} where OBJECT := {address | route |
         link | tunnel | rule} OPTIONS := { -f[amily] { inet | inet6 | link }
@@ -2096,7 +2079,7 @@ COMMAND DESCRIPTIONS
         Options:
 
                 -l      List all signal names and numbers/*   "
-                -s SIG  Yet another way of specifying SIG" */ 
+                -s SIG  Yet another way of specifying SIG" */
 
         Example:
 
@@ -2133,7 +2116,7 @@ COMMAND DESCRIPTIONS
         Options:
 
                 -l      List all signal names and numbers/*   "
-                -s SIG  Yet another way of specifying SIG" */ 
+                -s SIG  Yet another way of specifying SIG" */
 
     klogd
         klogd [-c N] [-n]
@@ -2195,8 +2178,7 @@ COMMAND DESCRIPTIONS
     linuxrc
         linuxrc #define linuxrc_full_usage
 
-    ln
-        ln [OPTION] TARGET... LINK_NAME|DIRECTORY
+    ln  ln [OPTION] TARGET... LINK_NAME|DIRECTORY
 
         Create a link named LINK_NAME or DIRECTORY to the specified TARGET.
         Use '--' to indicate that all following arguments are non-options.
@@ -2223,7 +2205,7 @@ COMMAND DESCRIPTIONS
 
         Load a console font from standard input/* "
 
-                -C TTY  Affect TTY instead of /dev/tty" */ 
+                -C TTY  Affect TTY instead of /dev/tty" */
 
         Example:
 
@@ -2234,7 +2216,7 @@ COMMAND DESCRIPTIONS
 
         Load a binary keyboard translation table from standard input /* "
 
-                -C TTY  Affect TTY instead of /dev/tty" */ 
+                -C TTY  Affect TTY instead of /dev/tty" */
 
         Example:
 
@@ -2303,8 +2285,7 @@ COMMAND DESCRIPTIONS
         association, with an optional offset (-o 12345). Encryption is not
         yet supported. losetup -f will show the first loop free loop device
 
-    lpd
-        lpd SPOOLDIR [HELPER [ARGS...]]
+    lpd lpd SPOOLDIR [HELPER [ARGS...]]
 
         SPOOLDIR must contain (symlinks to) device nodes or directories with
         names matching print queue names. In the first case, jobs are sent
@@ -2314,8 +2295,7 @@ COMMAND DESCRIPTIONS
 
                 tcpsvd -E 0 515 softlimit -m 999999 lpd /var/spool ./print
 
-    lpq
-        lpq [-P queue[@host[:port]]] [-U USERNAME] [-d JOBID...] [-fs]
+    lpq lpq [-P queue[@host[:port]]] [-U USERNAME] [-d JOBID...] [-fs]
 
         Options:
 
@@ -2324,8 +2304,7 @@ COMMAND DESCRIPTIONS
                 -f      Force any waiting job to be printed
                 -s      Short display
 
-    lpr
-        lpr -P queue[@host[:port]] -U USERNAME -J TITLE -Vmh [FILE...]
+    lpr lpr -P queue[@host[:port]] -U USERNAME -J TITLE -Vmh [FILE...]
 
         Options:
 
@@ -2334,8 +2313,7 @@ COMMAND DESCRIPTIONS
                 -h      Print banner page too
                 -V      Verbose
 
-    ls
-        ls [-1AacCdeFilnpLRrSsTtuvwxXhkK] [filenames...]
+    ls  ls [-1AacCdeFilnpLRrSsTtuvwxXhkK] [filenames...]
 
         List directory contents
 
@@ -2442,8 +2420,7 @@ COMMAND DESCRIPTIONS
 
         Other options are silently ignored.
 
-    man
-        man [OPTION]... [MANPAGE]...
+    man man [OPTION]... [MANPAGE]...
 
         Format and display manual page
 
@@ -2815,11 +2792,9 @@ COMMAND DESCRIPTIONS
                 $ mountpoint /sys
                 /sys is a mountpoint
 
-    msh
-        msh #define msh_full_usage
+    msh msh #define msh_full_usage
 
-    mt
-        mt [-f device] opcode value
+    mt  mt [-f device] opcode value
 
         Control magnetic tape drive operation
 
@@ -2830,8 +2805,7 @@ COMMAND DESCRIPTIONS
         rewind rewoffline seek setblk setdensity setpart tell unload unlock
         weof wset
 
-    mv
-        mv [OPTION]... SOURCE DEST or: mv [OPTION]... SOURCE... DIRECTORY
+    mv  mv [OPTION]... SOURCE DEST or: mv [OPTION]... SOURCE... DIRECTORY
 
         Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY
 
@@ -2861,8 +2835,7 @@ COMMAND DESCRIPTIONS
                  or
                 $ nameif -c /etc/my_mactab_file
 
-    nc
-        nc [-options] hostname port - connect nc [-options] -l -p port
+    nc  nc [-options] hostname port - connect nc [-options] -l -p port
         [hostname] [port] - listen
 
         Options:
@@ -2976,8 +2949,7 @@ COMMAND DESCRIPTIONS
                 Name:       debian
                 Address:    127.0.0.1
 
-    od
-        od [-aBbcDdeFfHhIiLlOovXx] [-t TYPE] [FILE]
+    od  od [-aBbcDdeFfHhIiLlOovXx] [-t TYPE] [FILE]
 
         Write an unambiguous representation, octal bytes by default, of FILE
         to standard output. With no FILE or when FILE is -, read standard
@@ -3192,8 +3164,7 @@ COMMAND DESCRIPTIONS
                 $ printf "Val=%d\n" 5
                 Val=5
 
-    ps
-        ps
+    ps  ps
 
         Report process status
 
@@ -3230,8 +3201,7 @@ COMMAND DESCRIPTIONS
                 -t      Timeout (default 5000 ms)
                 -T      Minimum rtt (default 5 ms, increase for congested hosts)
 
-    pwd
-        pwd
+    pwd pwd
 
         Print the full filename of the current working directory
 
@@ -3369,8 +3339,7 @@ COMMAND DESCRIPTIONS
                                 for customizable files, or the user section,
                                 if it has changed
 
-    rm
-        rm [OPTION]... FILE...
+    rm  rm [OPTION]... FILE...
 
         Remove (unlink) the FILE(s). Use '--' to indicate that all following
         arguments are non-options.
@@ -3393,7 +3362,7 @@ COMMAND DESCRIPTIONS
         Options:
 
                 -p|--parents    Include parents
-                -ignore-fail-on-non-empty     
+                -ignore-fail-on-non-empty
 
         Example:
 
@@ -3425,8 +3394,7 @@ COMMAND DESCRIPTIONS
                 -e      Display other/more information
                 -A inet{6}      Select address family
 
-    rpm
-        rpm -i -q[ildc]p package.rpm
+    rpm rpm -i -q[ildc]p package.rpm
 
         Manipulate RPM packages
 
@@ -3456,7 +3424,7 @@ COMMAND DESCRIPTIONS
                 -d,--device=DEV  Specify the RTC device
                 -m,--mode=MODE   Set the sleep state (default: standby)
                 -s,--seconds=SEC Set the timeout in SEC seconds from now
-                -t,--time=TIME   Set the timeout to TIME seconds from epoch     
+                -t,--time=TIME   Set the timeout to TIME seconds from epoch
 
     run-parts
         run-parts [-t] [-l] [-a ARG] [-u MASK] DIRECTORY
@@ -3499,7 +3467,7 @@ COMMAND DESCRIPTIONS
                 -t,--type=TYPE  Type (for same role as parent)
                 -u,--user=USER  User identity
                 -r,--role=ROLE  Role
-                -l,--range=RNG  Levelrange      
+                -l,--range=RNG  Levelrange
 
     runlevel
         runlevel [utmp]
@@ -3523,8 +3491,7 @@ COMMAND DESCRIPTIONS
                 -P              Put each runsv in a new session
                 -s SCRIPT       Run SCRIPT <signo> after signal is processed
 
-    rx
-        rx FILE
+    rx  rx FILE
 
         Receive a file using the xmodem protocol
 
@@ -3542,8 +3509,7 @@ COMMAND DESCRIPTIONS
                 -f      Flush output after each write
                 -q      Quiet
 
-    sed
-        sed [-efinr] pattern [files...]
+    sed sed [-efinr] pattern [files...]
 
         Options:
 
@@ -3589,8 +3555,7 @@ COMMAND DESCRIPTIONS
                 -c rcpt         Cc: recipient. May be multiple
                 -e rcpt         Errors-To: recipient
 
-    seq
-        seq [first [increment]] last
+    seq seq [first [increment]] last
 
         Print numbers from FIRST to LAST, in steps of INCREMENT. FIRST,
         INCREMENT default to 1
@@ -3697,8 +3662,7 @@ COMMAND DESCRIPTIONS
         Set uid and gid to account's uid and gid, removing all supplementary
         groups and run PROG
 
-    sh
-        sh #define sh_full_usage
+    sh  sh #define sh_full_usage
 
     sha1sum
         sha1sum [OPTION] [FILEs...] or: sha1sum [OPTION] -c [FILE]
@@ -3872,7 +3836,7 @@ COMMAND DESCRIPTIONS
 
                 -o              Exit with status 0 if nothing is done
                 -v              Verbose
-                -q              Quiet   ) 
+                -q              Quiet   )
 
     stat
         stat [OPTION] FILE...
@@ -3957,8 +3921,7 @@ COMMAND DESCRIPTIONS
                 -g              Print in stty-readable form
                 [SETTING]       See manpage
 
-    su
-        su [OPTION]... [-] [username]
+    su  su [OPTION]... [-] [username]
 
         Change user id or become root
 
@@ -3977,8 +3940,7 @@ COMMAND DESCRIPTIONS
 
                 -t      Timeout
 
-    sum
-        sum [rs] [files...]
+    sum sum [rs] [files...]
 
         Checksum and count the blocks in a file
 
@@ -3987,8 +3949,7 @@ COMMAND DESCRIPTIONS
                 -r      Use BSD sum algorithm (1K blocks)
                 -s      Use System V sum algorithm (512byte blocks)
 
-    sv
-        sv [-v] [-w sec] command service...
+    sv  sv [-v] [-w sec] command service...
 
         Control services monitored by runsv supervisor. Commands (only first
         character is enough):
@@ -4092,8 +4053,7 @@ COMMAND DESCRIPTIONS
                 $ syslogd -R masterlog:514
                 $ syslogd -R 192.168.1.1:601
 
-    tac
-        tac [FILE]...
+    tac tac [FILE]...
 
         Concatenate FILE(s) and print them in reverse
 
@@ -4123,8 +4083,7 @@ COMMAND DESCRIPTIONS
                 $ tail -n 1 /etc/resolv.conf
                 nameserver 10.0.0.1
 
-    tar
-        tar -[czjaZxtvO] [-X FILE] [-f TARFILE] [-C DIR] [FILE(s)]...
+    tar tar -[czjaZxtvO] [-X FILE] [-f TARFILE] [-C DIR] [FILE(s)]...
 
         Create, extract, or list files from a tar file
 
@@ -4174,8 +4133,7 @@ COMMAND DESCRIPTIONS
                 $ taskset -p 1
                 pid 1's current affinity mask: 3
 
-    tc
-        tc /*"[OPTIONS] "*/"OBJECT CMD [dev STRING]
+    tc  tc /*"[OPTIONS] "*/"OBJECT CMD [dev STRING]
 
         OBJECT: {qdisc|class|filter} CMD: {add|del|change|replace|show}
 
@@ -4218,8 +4176,7 @@ COMMAND DESCRIPTIONS
         B<-E>           Do not set up environment variables
         B<-v>           Verbose
 
-    tee
-        tee [OPTION]... [FILE]...
+    tee tee [OPTION]... [FILE]...
 
         Copy standard input to each FILE, and also to standard output
 
@@ -4318,8 +4275,7 @@ COMMAND DESCRIPTIONS
 
                 -v      Verbose
 
-    top
-        top [-b] [-nCOUNT] [-dSECONDS]
+    top top [-b] [-nCOUNT] [-dSECONDS]
 
         Provide a view of process activity in real time. Read the status of
         all processes from /proc each SECONDS and show the status for
@@ -4342,8 +4298,7 @@ COMMAND DESCRIPTIONS
                 $ ls -l /tmp/foo
                 -rw-rw-r--    1 andersen andersen        0 Apr 15 01:11 /tmp/foo
 
-    tr
-        tr [-cds] STRING1 [STRING2]
+    tr  tr [-cds] STRING1 [STRING2]
 
         Translate, squeeze, and/or delete characters from standard input,
         writing to standard output
@@ -4396,8 +4351,7 @@ COMMAND DESCRIPTIONS
                 $ echo $?
                 0
 
-    tty
-        tty
+    tty tty
 
         Print file name of standard input's terminal
 
@@ -4544,7 +4498,7 @@ COMMAND DESCRIPTIONS
 
                 -a,--all        Convert all blanks
                 -f,--first-only Convert only leading blanks
-                -t,--tabs=N     Tabstops every N chars  
+                -t,--tabs=N     Tabstops every N chars
 
     uniq
         uniq [-fscduw]... [INPUT [OUTPUT]]
@@ -4666,8 +4620,7 @@ COMMAND DESCRIPTIONS
                 set_ingress_map [vlan-name] [skb_priority] [vlan_qos]
                 set_name_type   [name-type]
 
-    vi
-        vi [OPTION] [FILE]...
+    vi  vi [OPTION] [FILE]...
 
         Edit FILE
 
@@ -4716,8 +4669,7 @@ COMMAND DESCRIPTIONS
 
         Use 500ms to specify period in milliseconds
 
-    wc
-        wc [OPTION]... [FILE]...
+    wc  wc [OPTION]... [FILE]...
 
         Print line, word, and byte counts for each FILE, and a total line if
         more than one FILE is specified. With no FILE, read standard input.
@@ -4761,8 +4713,7 @@ COMMAND DESCRIPTIONS
                 $ which login
                 /bin/login
 
-    who
-        who [-a]
+    who who [-a]
 
         Show who is logged on
 
@@ -4796,8 +4747,7 @@ COMMAND DESCRIPTIONS
                 $ ls | xargs gzip
                 $ find . -name '*.c' -print | xargs rm
 
-    yes
-        yes [OPTION]... [STRING]...
+    yes yes [OPTION]... [STRING]...
 
         Repeatedly output a line with all specified STRING(s), or 'y'
 

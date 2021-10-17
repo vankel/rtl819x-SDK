@@ -242,7 +242,6 @@ static int check_config_valid(unsigned char *data, int total_len)
 	unsigned int expandLen=0;
 	int complen=0;
 #endif
-	
 	unsigned char isValidfw = 0;
 	char *ptr;
 	do {
@@ -266,7 +265,6 @@ static int check_config_valid(unsigned char *data, int total_len)
 			if(isValidfw)			
 				break;
 		}
-
 	if(
 	#ifdef COMPRESS_MIB_SETTING
 		memcmp(&data[complen], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN)==0
@@ -283,7 +281,6 @@ static int check_config_valid(unsigned char *data, int total_len)
 	{
 		isHdware=0;
 	}
-
 #ifdef COMPRESS_MIB_SETTING
 		pCompHeader =(COMPRESS_MIB_HEADER_Tp)&data[complen];
 #ifdef _LITTLE_ENDIAN_
@@ -358,7 +355,7 @@ static int check_config_valid(unsigned char *data, int total_len)
 				break;
 			}
 #ifdef COMPRESS_MIB_SETTING
-			if(isHdware == 0) 
+			if(isHdware == 0)
 			{
 				status=check_config_tag(ptr,pHeader->len);
 				if(0 == status) {					
@@ -380,7 +377,6 @@ static int check_config_valid(unsigned char *data, int total_len)
 #endif
 			len += pHeader->len;
 #endif
-			/*Found a valid config area*/
 			isValidfw=1;
 			continue;
 	}while (
@@ -408,6 +404,7 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #endif
 	char *ptr;
 	unsigned char isValidfw = 0;
+
 	#if 0
 	if(0 == check_config_valid(data,total_len))
 	{
@@ -459,7 +456,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 		pCompHeader->compLen = DWORD_SWAP(pCompHeader->compLen);
 #endif
 		/*decompress and get the tag*/
+#ifdef RTK_MIB_TAG_CHECK
+		expFile=malloc(pCompHeader->compLen*pCompHeader->realcompRate);
+#else
 		expFile=malloc(pCompHeader->compLen*pCompHeader->compRate);
+#endif
 		if (NULL==expFile) {
 			printf("malloc for expFile error!!\n");
 			return 0;
@@ -1001,19 +1002,22 @@ void formSaveConfig(request *wp, char *path, char *query)
 	if (strRequest[0])
 		type |= HW_SETTING | DEFAULT_SETTING | CURRENT_SETTING;
 	if (type) {
-		printf("%s:%d\n",__FUNCTION__,__LINE__);
 		send_redirect_perm(wp, "/config.dat");
 		return;
 	}
 
 	strRequest = req_get_cstream_var(wp, ("reset"), "");
 	if (strRequest[0] && strcmp(strRequest,"Reset") == 0) {
+#ifdef RTL_DEF_SETTING_IN_FW
+		system("flash reset");
+#else
 		if ( !apmib_updateDef() ) {
 			free(ptr);
 			strcpy(tmpBuf, "Write default to current setting failed!\n");
 			free(buf);
 			goto back;
 		}
+#endif
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 		//To clear 802.1x certs
 		//RunSystemCmd(NULL_FILE, "rsCert","-rst", NULL_STR);
@@ -1045,7 +1049,7 @@ void formSaveConfig(request *wp, char *path, char *query)
 		}
 		/* Reboot DUT. Keith */
 		isUpgrade_OK=1;
-		system("reboot");
+		REBOOT_WAIT_COMMAND(2);		
 		return;
 	}
 
@@ -1063,6 +1067,11 @@ void formUploadConfig(request *wp, char *path, char *query)
 	char lan_ip_buf[30], lan_ip[30];
 	int head_offset=0;
 
+#ifdef RTK_MIB_TAG_CHECK
+	int cpuType;
+	int valid_config=1;
+#endif
+
 #if defined(CONFIG_APP_FWD)
 #define FWD_CONF "/var/fwd.conf"
 	int newfile = 1;
@@ -1077,13 +1086,34 @@ void formUploadConfig(request *wp, char *path, char *query)
 		strcpy(tmpBuf, "Invalid file format!");
 		goto back;
 	}
-	if(
+#ifdef RTK_MIB_TAG_CHECK
+	cpuType=getRTKCpuType();
+	if(cpuType >= RTK_CPU_MAX){
+		printf("get cpu type error\n");
+	}
 #ifdef COMPRESS_MIB_SETTING
-		!memcmp(&wp->upload_data[head_offset], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) ||
+	if(!memcmp(&wp->upload_data[head_offset], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) ||
-		!memcmp(&wp->upload_data[head_offset], COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN)
+		!memcmp(&wp->upload_data[head_offset], COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN))
+	{
+		
+		COMPRESS_MIB_HEADER_Tp pCompHeader;
+		pCompHeader =(COMPRESS_MIB_HEADER_Tp)(&wp->upload_data[head_offset]);
+		if(cpuType != ((pCompHeader->mibTag & RTK_CPU_TYPE_MASK) >> RTK_CPU_TYPE_OFFSET))
+			valid_config=0;
+	}
+#endif
+#endif	
+	if(
+#ifdef 	RTK_MIB_TAG_CHECK
+		valid_config &&
+#endif
+#ifdef COMPRESS_MIB_SETTING
+		(!memcmp(&wp->upload_data[head_offset], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) ||
+		!memcmp(&wp->upload_data[head_offset], COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) ||
+		!memcmp(&wp->upload_data[head_offset], COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN))
 #else
-		!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_TAG, TAG_LEN) ||
+		(!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_FORCE_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], DEFAULT_SETTING_HEADER_TAG, TAG_LEN) ||
@@ -1091,7 +1121,7 @@ void formUploadConfig(request *wp, char *path, char *query)
 		!memcmp(&wp->upload_data[head_offset], DEFAULT_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_FORCE_TAG, TAG_LEN) ||
-		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) 
+		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN))
 #endif
 	) {
 		updateConfigIntoFlash((unsigned char *)&wp->upload_data[head_offset], (wp->upload_len-head_offset), (int *)&type, &status);
@@ -1137,7 +1167,7 @@ void formUploadConfig(request *wp, char *path, char *query)
 		
 		/* Reboot DUT. Keith */
 		isUpgrade_OK=1;
-		system("reboot");
+		REBOOT_WAIT_COMMAND(2);		
 #endif		
 		return;
 	}
@@ -1195,6 +1225,7 @@ void kill_processes(void)
 #define BASIC_BANK_MARK 0x80000002           
 #define FORCEBOOT_BANK_MARK 0xFFFFFFF0  //means always boot/upgrade in this bank
 
+#ifndef CONFIG_MTD_NAND
 char *Kernel_dev_name[2]=
  {
    "/dev/mtdblock0", "/dev/mtdblock2"
@@ -1211,6 +1242,27 @@ char *Web_dev_name[2]=
 	"/dev/mtdblock0", "/dev/mtdblock2"
 };
 #endif
+#endif
+#else
+char *Kernel_dev_name[2]=
+ {
+   "/dev/mtdblock2", "/dev/mtdblock5"
+ };
+char *Rootfs_dev_name[2]=
+ {
+   "/dev/mtdblock3", "/dev/mtdblock6"
+ };
+
+#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE)
+#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
+char *Web_dev_name[2]=
+{
+	"/dev/mtdblock2", "/dev/mtdblock5"
+};
+#endif
+#endif
+
+
 #endif
 
 static int get_actvie_bank()
@@ -1403,6 +1455,7 @@ int write_header_bankmark(char *kernel_dev, unsigned long bankmark)
 	return 0;	//success
 }
 
+
 // return,  0: not found, 1: linux found, 2:linux with root found
 
 unsigned long get_next_bankmark(char *kernel_dev,int dual_enable)
@@ -1427,8 +1480,8 @@ unsigned long get_next_bankmark(char *kernel_dev,int dual_enable)
 	if( bankmark < BASIC_BANK_MARK)
 		return BASIC_BANK_MARK;
 	else if( (bankmark ==  FORCEBOOT_BANK_MARK) || (dual_enable == 0)) //dual_enable = 0 ....
-	{
-		return FORCEBOOT_BANK_MARK;
+	{		
+		return FORCEBOOT_BANK_MARK;//it means dual bank disable
 	}
 	else
 		return bankmark+1;
@@ -1571,6 +1624,7 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 	int active_bank,backup_bank;
 	int dual_enable =0;
 #endif
+
 	unsigned char isValidfw = 0;
 
 
@@ -1600,7 +1654,7 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 	get_bank_info(dual_enable,&active_bank,&backup_bank);        
 #endif
 	head_offset = find_head_offset(upload_data);
-	//fprintf(stderr,"####%s:%d %d upload_data=%p###\n",  __FILE__, __LINE__ , head_offset, upload_data);
+//	fprintf(stderr,"####%s:%d head_offset=%d upload_data=%p###\n",  __FILE__, __LINE__ , head_offset, upload_data);
 	if (head_offset == -1) {
 		strcpy(buffer, "Invalid file format!");
 		goto ret_upload;
@@ -1749,11 +1803,16 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 
 		if ( fh == -1 ) {
 			strcpy(buffer, ("File open failed!"));
+			goto ret_upload;
 		} else {
 			if (flag == 1) {
 				if (startAddr == -1) {
 					//startAddr = CODE_IMAGE_OFFSET;
+#ifndef CONFIG_MTD_NAND
 					startAddr = pHeader->burnAddr ;
+#else
+					startAddr = CODE_IMAGE_OFFSET;
+#endif
 #ifdef _LITTLE_ENDIAN_
 					startAddr = DWORD_SWAP(startAddr);
 #endif
@@ -1767,7 +1826,11 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 			else {
 				if (startAddrWeb == -1) {
 					//startAddr = WEB_PAGE_OFFSET;
+#ifndef CONFIG_MTD_NAND
 					startAddr = pHeader->burnAddr ;
+#else
+					startAddr = WEB_PAGE_OFFSET;		
+#endif
 #ifdef _LITTLE_ENDIAN_
 					startAddr = DWORD_SWAP(startAddr);
 #endif
@@ -1837,6 +1900,7 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 #if defined(CONFIG_APP_FWD)
 			{
 				char tmpStr[20]={0};
+				
 				sprintf(tmpStr,"\n%d",numLeft);
 				write_line_to_file(FWD_CONF, (newfile==1?1:2), tmpStr);
 				sprintf(tmpStr,"\n%d\n",locWrite+head_offset);
@@ -1880,7 +1944,7 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 			exit(0);
 	}
 #else	//#if defined(CONFIG_APP_FWD)
-	system("reboot");
+	REBOOT_WAIT_COMMAND(2);		
 	for(;;);
 #endif //#if defined(CONFIG_APP_FWD)
 
@@ -1965,39 +2029,11 @@ setErr:
 
 setReboot:
 	ERR_MSG(tmpBuf);
-	system("reboot");	
+	REBOOT_WAIT_COMMAND(2);		
 }
 #endif
-#if defined(CONFIG_RTL_HTTP_REDIRECT)
-void formWelcomePage(request *wp, char * path, char * query)
-{
-	char cmdBuf[200] = {'\0'};
-	unsigned int mib_flag = 1;
-	unsigned int enable = 0;
-	char *submitUrl;
-	if(!apmib_set(MIB_USER_FIRST_LOGIN_FLAG,(void*)&mib_flag))
-		return;
-	sprintf(cmdBuf,"echo %d > /proc/http_redirect/enable",enable);
-	system(cmdBuf);
-	if(enable)
-	{
-		memset(cmdBuf,0,sizeof(cmdBuf));
-		sprintf(cmdBuf,"echo %d > /proc/rtl_dnstrap/enable",enable);
-		system(cmdBuf);
-	}
-	memset(cmdBuf,0,sizeof(cmdBuf));
-	sprintf(cmdBuf,"echo %d > /proc/rtl_dnstrap/first",enable);
-	system(cmdBuf);
-	submitUrl = req_get_cstream_var(wp, "submit-url", "");	 // hidden page
-	if (submitUrl[0])
-		send_redirect_perm(wp, submitUrl);
-	
-	apmib_update_web(CURRENT_SETTING);
-}
-#endif
+
 #if defined(CONFIG_USBDISK_UPDATE_IMAGE)
-extern int firmware_len;
-extern char *firmware_data;
 void formUploadFromUsb(request *wp, char * path, char * query)
 {
 	int oneReadMax = 4096;
@@ -2008,18 +2044,13 @@ void formUploadFromUsb(request *wp, char * path, char * query)
 	char *submitUrl;
 	char lan_ip[30];	
 	char lan_ip_buf[30];
-    FILE *       fd;
-	
-	struct stat fileStat={0};
-	int readLen=0,i=0;
+    	FILE *       fd;
+		
 	 if(!isFileExist(USB_UPLOAD_FORM_PATH))
 	 {
       		strcpy(tmpBuf, ("Error!form ware is not exist in usb storage!\n"));
 	 	goto ret_err;
 	 }
-	 stat(USB_UPLOAD_FORM_PATH,&fileStat);
-	 fileLen=fileStat.st_size;
-	 
 	fd = open(USB_UPLOAD_FORM_PATH, O_RDONLY);
 	if (!fd){
       		strcpy(tmpBuf, ("Open image file  failed!\n"));
@@ -2027,32 +2058,9 @@ void formUploadFromUsb(request *wp, char * path, char * query)
 	}
 	lseek(fd, 0L, SEEK_SET);
 	printf("		<read image from usb storage device>\n");
-
-	buff=malloc(fileLen+17);
-	if(buff == NULL)
-	{
-      	sprintf(tmpBuf, ("malloc %d failed !\n"),fileLen+17);
-	 		goto ret_err;
-	}
-	bzero(buff,fileLen+17);
-	
-	strcpy(buff,WINIE6_STR);
-	buff[13]=0x0d;
-	buff[14]=0x0a;
-	buff[15]=0x0d;
-	buff[16]=0x0a;
-	
-//	 printf("\n buff=%s len=%d\n",buff,17);
-	readLen=read(fd,buff+17,fileLen);
-	if(readLen!=fileLen)
-	{
-		sprintf(tmpBuf, ("read %d but file len is %d, read fail!\n"),readLen,fileLen);
-	 		goto ret_err;
-	}
-#if 0
 	/* read image from file to buff */
 	 do{
-		 buff = brealloc(B_L, buff, fileLen + oneReadMax);
+		 buff = realloc(buff, fileLen + oneReadMax);
 		 if(buff == NULL)
 		 {
       			strcpy(tmpBuf, ("my god breallco failed !\n"));
@@ -2072,54 +2080,750 @@ void formUploadFromUsb(request *wp, char * path, char * query)
 	free(wp->post_data);
 	wp->post_data = buff;
 	wp->post_data_len = fileLen;
-#endif
-	wp->upload_data=buff;
-		
-	wp->upload_len=fileLen+17;
-		
-#if defined(CONFIG_APP_FWD)
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
-	
-	extern int get_shm_id();
-	extern set_shm_id(int id);
-	extern int clear_fwupload_shm();
-	extern char *shm_memory;
-	int shm_id = get_shm_id();	
-	clear_fwupload_shm(shm_id);
-	//if(shm_id == 0)
-	{
-		/* Generate a System V IPC key */ 
-		key_t key;
-		key = ftok("/bin/fwd", 0xE04);
-			
-		/* Allocate a shared memory segment */
-		shm_id = shmget(key, wp->upload_len, IPC_CREAT | IPC_EXCL | 0666);	
-				 
-		if (shm_id == -1) {
-				
-			return -2;
-		}
-		set_shm_id(shm_id);
-		/* Attach the shared memory segment */
-		shm_memory = (char *)shmat(shm_id, NULL, 0);
-		//printf("%s:%d get_shm_id()=%d shm_memory=%p\n",__FUNCTION__,__LINE__,get_shm_id(),shm_memory);
-		memcpy(shm_memory,wp->upload_data,wp->upload_len);
-		free(wp->upload_data);
-		wp->upload_data=shm_memory;
-	}
-#endif
-	firmware_data=wp->upload_data;
-	firmware_len=wp->upload_len;
-
 	formUpload(wp, NULL, NULL);/*further check and upload */
 	return;
 ret_err:
 	ERR_MSG(tmpBuf);
 	return;
 	 
+}
+#endif
+
+#ifdef SAMBA_WEB_SUPPORT
+void formDiskCreateFolder(request *wp, char * path, char * query)
+{
+	char *submitUrl,*strLocation,*strFolder;
+	char cmdBuffer[40];
+	
+	strLocation = req_get_cstream_var(wp,("Location"),"");
+	strFolder = req_get_cstream_var(wp,("newfolder"),"");
+
+	memset(cmdBuffer,'\0',40);
+	snprintf(cmdBuffer,40,"mkdir %s/%s",strLocation,strFolder);
+	system(cmdBuffer);
+
+setOk_DiskCreateFolder:
+	apmib_update_web(CURRENT_SETTING);
+	
+	submitUrl = req_get_cstream_var(wp, "submit-url", "");	
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;
+}
+
+void formDiskCreateShare(request *wp, char * path, char * query)
+{
+	char *submitUrl,*strDisplayName,*strShareAll,*strDelete,*strSelect,*strGroup;
+	char *strDirNum,*strLocation;
+	char cmdBuffer[50];;
+	char tmpBuff[100];
+	FILE	*fp;
+	STORAGE_USER_T		s_user;
+	STORAGE_GROUP_T		s_group;
+	STORAGE_GROUP_T		s_groups[2] = {0};
+	int					number,i,j;
+
+	strDisplayName = req_get_cstream_var(wp,("displayname"),""); 
+	strShareAll = req_get_cstream_var(wp,("shareall"),""); 
+	strGroup = req_get_cstream_var(wp,("Group"),"");
+	strDirNum = req_get_cstream_var(wp,("DirNum"),"");
+	strLocation = req_get_cstream_var(wp,("Location"),"");
+
+	if(strShareAll[0]){
+		//printf("in strShareAll\n");
+		memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+		*((char*)&s_group) = (char)atoi(strGroup);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+		s_group.storage_group_sharefolder_flag = 1;
+		strcpy(s_group.storage_group_sharefolder,strLocation);
+		strcpy(s_group.storage_group_displayname,strDisplayName);
+		
+		*((char*)&s_groups) = (char)atoi(strGroup);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)(s_groups));
+		memcpy(&(s_groups[1]),&s_group,sizeof(STORAGE_GROUP_T));
+		apmib_set(MIB_STORAGE_GROUP_MOD,(void*)s_groups);
+
+		/*memset(cmdBuffer,'\0',50);
+		snprintf(cmdBuffer,50,"chgrp %s %s",s_group.storage_group_name,strLocation);
+		system(cmdBuffer);*/
+		
+		storage_UpdateSambaConf();
+		goto setOk_DiskCreateShare;
+	}
+
+	for(i = 0;i < atoi(strDirNum);i++)
+	{
+		//delete Dir
+		memset(cmdBuffer,'\0',50);
+		snprintf(cmdBuffer,50,"delete%d",i);
+		strDelete =  req_get_cstream_var(wp,(cmdBuffer),""); 
+		memset(cmdBuffer,'\0',50);
+		if(strDelete[0]){
+			snprintf(cmdBuffer,50,"rm -rf %s",strDelete);
+			system(cmdBuffer);
+		}
+		apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+		for(j = 0;j < number;j++)
+		{
+			memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+			*((char*)&s_group) = (char)(j+1);
+			apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+			if(s_group.storage_group_sharefolder_flag == 1){
+				if(!strcmp(s_group.storage_group_sharefolder,strDelete)){
+					s_group.storage_group_sharefolder_flag = 0;
+					memset(s_group.storage_group_sharefolder,'\0',MAX_FOLDER_NAME_LEN);
+					memset(s_group.storage_group_displayname,'\0',MAX_DISPLAY_NAME_LEN);
+
+					*((char*)&s_groups) = (char)(j+1);
+					apmib_get(MIB_STORAGE_GROUP_TBL,(void*)(s_groups));
+					memcpy(&(s_groups[1]),&s_group,sizeof(STORAGE_GROUP_T));
+					apmib_set(MIB_STORAGE_GROUP_MOD,(void*)s_groups);
+					break;
+				}
+			}
+		}
+
+		snprintf(cmdBuffer,50,"select%d",i);
+		strSelect =  req_get_cstream_var(wp,(cmdBuffer),""); 
+		if(!strSelect[0])
+			continue;
+
+		apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+		for(j = 0;j < number;j++)
+		{
+			memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+			*((char*)&s_group) = (char)(j+1);
+			apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+			//printf("flag2:%d.\n",s_group.storage_group_sharefolder_flag);
+			if(atoi(strGroup) == (j+1)){
+				if(s_group.storage_group_sharefolder_flag == 1){
+					memset(tmpBuff,'\0',100);
+					strcpy(tmpBuff,"group is already have share folder");
+					goto setErr_DiskCreateShare;
+				}
+				strcpy(s_group.storage_group_sharefolder,strSelect);
+				strcpy(s_group.storage_group_displayname,strDisplayName);
+				s_group.storage_group_sharefolder_flag = 1;
+
+				*((char*)&s_groups) = (char)atoi(strGroup);
+				apmib_get(MIB_STORAGE_GROUP_TBL,(void*)(s_groups));
+				memcpy(&(s_groups[1]),&s_group,sizeof(STORAGE_GROUP_T));
+				apmib_set(MIB_STORAGE_GROUP_MOD,(void*)s_groups);
+
+				/*memset(cmdBuffer,'\0',50);
+				snprintf(cmdBuffer,50,"chgrp %s %s",s_group.storage_group_name,strSelect);
+				system(cmdBuffer);*/
+				
+				storage_UpdateSambaConf();
+				goto setOk_DiskCreateShare;
+			}
+		}
+	}
+
+setOk_DiskCreateShare:
+	apmib_update_web(CURRENT_SETTING);
+	
+	submitUrl = req_get_cstream_var(wp, "submit-url", "");	
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;
+	
+setErr_DiskCreateShare:
+	ERR_MSG(tmpBuff);
+
+}
+
+void formDiskCfg(request *wp, char * path, char * query)
+{
+	char *submitUrl,*strLocation,*strDeleteAll,*strDeleteSelect,*strDeleteVal;
+	int number,i,shareNum = 0;
+	char tmpBuff[20];
+	
+	STORAGE_GROUP_T	s_group;
+	STORAGE_GROUP_T s_groups[2];
+		
+	submitUrl = req_get_cstream_var(wp, "submit_url", "");	
+	
+	if(strcmp(submitUrl,"/storage_createsharefolder.htm")){
+		strDeleteAll =  req_get_cstream_var(wp, "Delete_All", "");
+		if(strDeleteAll[0]){
+			apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+			for(i = 0;i < number;i++)
+			{
+				memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+				*((char*)&s_group) = (char)(i+1);
+				apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+				if(s_group.storage_group_sharefolder_flag == 1){
+					s_group.storage_group_sharefolder_flag = 0;
+					memset(s_group.storage_group_sharefolder,'\0',MAX_FOLDER_NAME_LEN);
+					memset(s_group.storage_group_displayname,'\0',MAX_DISPLAY_NAME_LEN);
+					
+					memset(s_groups,'\0',2*sizeof(STORAGE_GROUP_T));
+					*((char*)s_groups) = (char)(i+1);
+					apmib_get(MIB_STORAGE_GROUP_TBL,(void*)s_groups);
+					memcpy(&(s_groups[1]),&s_group,sizeof(STORAGE_GROUP_T));
+					apmib_set(MIB_STORAGE_GROUP_MOD,(void*)s_groups);
+				}
+			}
+			goto setOk_DiskCfg;
+		}
+				
+		strDeleteSelect =  req_get_cstream_var(wp, "Delete_Selected", "");
+		apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+		for(i = 0;i < number;i++)
+		{
+			memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+			*((char*)&s_group) = (char)(i+1);
+			apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+			if(s_group.storage_group_sharefolder_flag == 1){
+				memset(tmpBuff,'\0',20);
+				snprintf(tmpBuff,20,"delete%d",i);
+				strDeleteVal = req_get_cstream_var(wp, tmpBuff, "");
+
+				if(!strcmp(strDeleteVal,s_group.storage_group_name)){
+					s_group.storage_group_sharefolder_flag = 0;
+					memset(s_group.storage_group_sharefolder,'\0',MAX_FOLDER_NAME_LEN);
+					memset(s_group.storage_group_displayname,'\0',MAX_DISPLAY_NAME_LEN);
+
+					memset(s_groups,'\0',2*sizeof(STORAGE_GROUP_T));
+					*((char*)s_groups) = (char)(i+1);
+					apmib_get(MIB_STORAGE_GROUP_TBL,(void*)s_groups);
+					memcpy(&(s_groups[1]),&s_group,sizeof(STORAGE_GROUP_T));
+					apmib_set(MIB_STORAGE_GROUP_MOD,(void*)s_groups);
+				}
+			}
+		}
+		storage_UpdateSambaConf();
+	}else{
+		strLocation =  req_get_cstream_var(wp, "Create_Share", "");
+		apmib_set(MIB_STORAGE_FOLDER_LOCAL,(void*)strLocation);
+		goto setOk_DiskCfg;
+	}				
+setOk_DiskCfg:
+	apmib_update_web(CURRENT_SETTING);
+	if(submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;
+
+}
+
+void formDiskManagementAnon(request *wp, char * path, char * query)
+{
+	char *submitUrl,*strAnonDiskEnable,*strAnonEnable;
+	char *strAnonFtpEnable;
+	int mib_val = 0;
+
+	strAnonEnable = req_get_cstream_var(wp,("AnonEnabled"),"");
+
+	if(!strcmp(strAnonEnable,"ON")){
+		mib_val = 1;
+		apmib_set(MIB_STORAGE_ANON_ENABLE,(void*)&mib_val);
+
+		//strAnonFtpEnable = req_get_cstream_var(wp,("anonymous_ftp_enable"),""); 
+		strAnonDiskEnable = req_get_cstream_var(wp,("anonymous_disk_enable"),"");		
+		/*if(!strcmp(strAnonFtpEnable,"enabled")){
+			mib_val = 1;
+			apmib_set(MIB_STORAGE_ANON_FTP_ENABLE,(void*)&mib_val);
+		}else{
+			mib_val = 0;
+			apmib_set(MIB_STORAGE_ANON_FTP_ENABLE,(void*)&mib_val);
+		}*/
+
+		if(!strcmp(strAnonDiskEnable,"enabled")){
+			mib_val = 1;
+			apmib_set(MIB_STORAGE_ANON_DISK_ENABLE,(void*)&mib_val);
+		}else{
+			mib_val = 0;
+			apmib_set(MIB_STORAGE_ANON_DISK_ENABLE,(void*)&mib_val);
+		}
+	}else{
+		mib_val = 0;
+		apmib_set(MIB_STORAGE_ANON_ENABLE,(void*)&mib_val);
+		
+		apmib_set(MIB_STORAGE_ANON_DISK_ENABLE,(void*)&mib_val);
+		//apmib_set(MIB_STORAGE_ANON_FTP_ENABLE,(void*)&mib_val);
+	}
+
+setOk_AnonAccessCfg:
+	apmib_update_web(CURRENT_SETTING);
+	storage_UpdateSambaConf();
+	
+	submitUrl = req_get_cstream_var(wp, "submit-url", "");	
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;
+
+}
+
+void formDiskManagementUser(request *wp, char * path, char * query)
+{
+	char *submitUrl, *strDeleAll,*strVal,*strUserIndex;
+	char tmpBuff[20];
+	char cmdBuffer[30];
+	int number,i;
+	STORAGE_USER_T	s_user;
+	int	index;
+	
+	submitUrl = req_get_cstream_var(wp, "submit_url", "");
+	if(strcmp(submitUrl,"/storage_edituser.htm")){
+		apmib_get(MIB_STORAGE_USER_TBL_NUM,(void*)&number);
+		strDeleAll = req_get_cstream_var(wp,("Delete_All"),"");
+		if(strDeleAll[0]){
+		
+			for(i = 0; i < number;i++)
+			{
+				memset(&s_user,'\0',sizeof(STORAGE_USER_T));
+				*((char*)&s_user) = (char)(i+1);
+				apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+			
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"deluser %s",s_user.storage_user_name);
+				system(cmdBuffer);
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"smbpasswd -del %s",s_user.storage_user_name);
+				system(cmdBuffer);
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"rm -rf /home/%s",s_user.storage_user_name);
+				system(cmdBuffer);
+			}
+
+			apmib_set(MIB_STORAGE_USER_DELALL,(void*)&s_user);
+			goto setOk_deleteUser;
+		}
+
+
+		for(i = number;i > 0;i--)
+		{
+			memset(tmpBuff,'\0',20);
+			snprintf(tmpBuff, 20, "select%d", i);
+			strVal =  req_get_cstream_var(wp,tmpBuff,"");
+
+			if(!strcmp(strVal,"ON")){
+				*((char*)&s_user) = (char)i;
+				apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+	
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"deluser %s",s_user.storage_user_name);
+				system(cmdBuffer);
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"smppasswd -del %s",s_user.storage_user_name);
+				system(cmdBuffer);
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"rm -rf /home/%s",s_user.storage_user_name);
+				system(cmdBuffer);
+			
+				apmib_set(MIB_STORAGE_USER_DEL,(void*)&s_user);
+			}	
+		}
+	}else{
+		strUserIndex = req_get_cstream_var(wp, "userindex", "");
+		index = atoi(strUserIndex);
+		if(strUserIndex[0])
+			apmib_set(MIB_STORAGE_USER_EDIT_INDEX,(void*)&index);
+		goto setOk_deleteUser;
+	}
+	
+setOk_deleteUser:
+	apmib_update_web(CURRENT_SETTING);
+	
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;
+}
+
+void formDiskManagementGroup(request *wp, char * path, char * query)
+{
+	char *submitUrl, *strDeleAll,*strVal,*strGroupIndex;
+	char tmpBuff[20];
+	char cmdBuffer[30];
+	int number,i,user_num,j;
+	STORAGE_GROUP_T	s_group;
+	STORAGE_USER_T	s_user;
+	STORAGE_USER_T	s_users[2] = {0};
+	int			 index;
+	submitUrl = req_get_cstream_var(wp, "submit_url", "");
+		
+	if(strcmp(submitUrl,"/storage_editgroup.htm")){
+		apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+		apmib_get(MIB_STORAGE_USER_TBL_NUM,(void*)&user_num);
+
+		/*Delete All Group Process*/
+		strDeleAll = req_get_cstream_var(wp,("Delete_All"),"");
+		if(strDeleAll[0]){
+			for(i = 0;i < user_num;i++)
+			{
+				memset(&s_user,'\0',sizeof(STORAGE_USER_T));
+				*((char*)&s_user) = (char)(i+1);
+				apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+				
+				strcpy(s_user.storage_user_group,"--");
+				*((char*)s_users) = (char)(i+1);
+				apmib_get(MIB_STORAGE_USER_TBL,(void*)(s_users));
+				memcpy(&(s_users[1]),&s_user,sizeof(STORAGE_USER_T));
+				apmib_set(MIB_STORAGE_USER_MOD,(void*)s_users);
+
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"deluser %s",s_user.storage_user_name);
+				system(cmdBuffer);
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"rm -rf  /home/%s",s_user.storage_user_name);
+				system(cmdBuffer);
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"adduser %s",s_user.storage_user_name);
+				system(cmdBuffer);
+				//may be need modify
+
+			}
+
+			for(i = 0;i < number;i++)
+			{
+				memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+				*((char*)&s_group) = (char)(i+1);
+				apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+					
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"delgroup %s",s_group.storage_group_name);
+				system(cmdBuffer);
+
+			}
+			
+			apmib_set(MIB_STORAGE_GROUP_DELALL,(void*)&s_group);
+			storage_UpdateSambaConf();
+			goto setOk_deleteGroup;
+		}
+	
+
+		/*Delete Selected Group Process*/
+		for(i = number;i > 0;i--)
+		{
+			memset(tmpBuff,'\0',20);
+			snprintf(tmpBuff, 20, "select%d", i);
+			strVal =  req_get_cstream_var(wp,tmpBuff,"");
+
+			if(!strcmp(strVal,"ON")){
+				*((char*)&s_group) = (char)i;
+				apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+				apmib_set(MIB_STORAGE_GROUP_DEL,(void*)&s_group);
+
+				
+				memset(cmdBuffer,'\0',30);
+				snprintf(cmdBuffer,30,"delgroup %s",s_group.storage_group_name);
+				system(cmdBuffer);
+
+				//apmib_get(MIB_STORAGE_USER_TBL_NUM,(void*)&user_num);
+				for(j = 0;j < user_num;j++)
+				{
+					*((char*)&s_user) = (char)(j+1);
+					apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+					
+					if(!strcmp(s_user.storage_user_group,s_group.storage_group_name)){
+						memset(s_user.storage_user_group,'\0',10);
+						strcpy(s_user.storage_user_group,"--");
+						*((char*)s_users) = (char)(j+1);
+						apmib_get(MIB_STORAGE_USER_TBL,(void*)(s_users));
+						memcpy(&(s_users[1]),&s_user,sizeof(STORAGE_USER_T));
+						apmib_set(MIB_STORAGE_USER_MOD,(void*)s_users);
+
+						memset(cmdBuffer,'\0',30);
+						snprintf(cmdBuffer,30,"deluser %s",s_user.storage_user_name);
+						system(cmdBuffer);
+						memset(cmdBuffer,'\0',30);
+						snprintf(cmdBuffer,30,"rm -rf  /home/%s",s_user.storage_user_name);
+						system(cmdBuffer);
+						memset(cmdBuffer,'\0',30);
+						snprintf(cmdBuffer,30,"adduser %s",s_user.storage_user_name);
+						system(cmdBuffer);
+						//may be need modify
+					}
+				}
+						
+			}
+		}
+		storage_UpdateSambaConf();
+		goto setOk_deleteGroup;
+	}else{
+		strGroupIndex = req_get_cstream_var(wp, "groupindex", "");
+		index = atoi(strGroupIndex);
+		if(strGroupIndex[0]){
+			apmib_set(MIB_STORAGE_GROUP_EDIT_INDEX,(void*)&index);
+		}
+		goto setOk_deleteGroup;
+	}
+		
+setOk_deleteGroup:
+	apmib_update_web(CURRENT_SETTING);
+			
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;
+}
+
+void formDiskCreateUser(request *wp, char * path, char * query)
+{
+		char *submitUrl, *strName, *strPasswd, *strConfPasswd,*strGroup;
+		char tmpBuff[100];
+		char cmdBuffer[100];
+		STORAGE_USER_T	s_user;
+		STORAGE_GROUP_T	s_group;
+		
+		unsigned char number,i;
+
+		strName = req_get_cstream_var(wp,("username"),"");
+		strPasswd = req_get_cstream_var(wp,("newpass"),"");
+		strConfPasswd = req_get_cstream_var(wp,("confpass"),"");
+		strGroup = req_get_cstream_var(wp,("Group"),"");
+
+		if(!strName[0]){
+			strcpy(tmpBuff, ("userName should not be NULL!"));
+			goto setErr_createUser;
+		}
+
+		if(!strPasswd[0] || !strConfPasswd[0]){
+			strcpy(tmpBuff, ("passwd or confpasswd should not be NULL!"));
+			goto setErr_createUser;
+		}
+
+		if(strcmp(strPasswd,strConfPasswd)){
+			strcpy(tmpBuff, ("passwd should be equal to confpasswd"));
+			goto setErr_createUser;
+		}
+
+		if(!strcmp(strName,"root") || !strcmp(strName,"nobody")){
+			strcpy(tmpBuff,"user Name should not be nobody or root");
+			goto setErr_createUser;
+		}
+		
+		apmib_get(MIB_STORAGE_USER_TBL_NUM,(void*)&number);
+		if(number >= MAX_USER_NUM){
+			snprintf(tmpBuff,100,"user num shoule not be more than %d",MAX_USER_NUM);
+			goto setErr_createUser;
+		}
+		
+		for(i = 0;i <number;i++)
+		{
+			memset(&s_user,'\0',sizeof(STORAGE_USER_T));
+			*((char*)&s_user) = (char)(i+1);
+			apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+
+			if(strlen(s_user.storage_user_name) == strlen(strName)
+				&& strncmp(s_user.storage_user_name,strName,strlen(strName))){
+				strcpy(tmpBuff, ("user name is already exist,Please choose another user name"));
+				goto setErr_createUser;
+			}
+		}
+
+		*((char*)&s_group) = (char)(atoi(strGroup));
+		if(atoi(strGroup) == 0){
+			memset(&s_user,'\0',sizeof(STORAGE_USER_T));
+			strcpy(s_user.storage_user_group,"--");	
+		}else{
+			*((char*)&s_group) = (char)(atoi(strGroup));
+			apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+			memset(&s_user,'\0',sizeof(STORAGE_USER_T));
+			strcpy(s_user.storage_user_group,s_group.storage_group_name);
+		}	
+		
+		number++;
+		apmib_set(MIB_STORAGE_USER_TBL_NUM,(void*)&number);
+		
+		strcpy(s_user.storage_user_name,strName);
+		strcpy(s_user.storage_user_password,strPasswd);
+		apmib_set(MIB_STORAGE_USER_ADD,(void*)&s_user);
+
+		memset(cmdBuffer,'\0',100);
+		if(atoi(strGroup) == 0){
+			snprintf(cmdBuffer,100,"adduser %s",strName);
+		}else{
+			snprintf(cmdBuffer,100,"adduser -G %s %s",s_group.storage_group_name,strName);
+		}
+
+		system(cmdBuffer);
+		memset(cmdBuffer,'\0',100);
+		snprintf(cmdBuffer,100,"smbpasswd %s %s",strName,strPasswd);
+		system(cmdBuffer);
+	
+	setOk_createUser:
+		apmib_update_web(CURRENT_SETTING);
+	
+		submitUrl = req_get_cstream_var(wp, "submit-url", "");	
+		if (submitUrl[0])
+			send_redirect_perm(wp, submitUrl);
+		return;
+	
+	setErr_createUser:
+		ERR_MSG(tmpBuff);
+}
+
+
+void formDiskEditUser(request *wp, char * path, char * query)
+{
+	char 	*submitUrl, *strOrigPasswd,*strNewPasswd,*strConfPasswd,*strGroup;
+	int	    index;
+	char	tmpBuff[100];
+	char	cmdBuffer[50];
+	
+	STORAGE_USER_T 	s_user;
+	STORAGE_GROUP_T	s_group;
+	STORAGE_USER_T	s_users[2] = {0};
+
+	memset(tmpBuff,'\0',100);
+	memset(cmdBuffer,'\0',50);
+	strOrigPasswd = req_get_cstream_var(wp,("origpass"),"");
+	strNewPasswd = req_get_cstream_var(wp,("newpass"),"");
+	strConfPasswd = req_get_cstream_var(wp,("confpass"),"");
+	strGroup = req_get_cstream_var(wp,("Group"),"");
+
+	apmib_get(MIB_STORAGE_USER_EDIT_INDEX,(void*)&index);
+	memset(&s_user,'\0',sizeof(STORAGE_USER_T));
+	*((char*)&s_user) = (char)index;
+	apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+	
+	if(strcmp(strOrigPasswd,s_user.storage_user_password)){
+		strcpy(tmpBuff,"Orig Password is wrong,Please Enter the password again");
+		goto setError_EditUser;
+	}
+	if(!strNewPasswd[0] || !strConfPasswd[0]){
+		strcpy(tmpBuff,"newpassword or confpassword should not be empty");
+		goto setError_EditUser;
+	}
+	if(strcmp(strNewPasswd,strConfPasswd)){
+		strcpy(tmpBuff,"newpassword is not equal confpassword");
+		goto setError_EditUser;
+	}
+
+	strcpy(s_user.storage_user_password,strNewPasswd);	
+	if(atoi(strGroup) == 0)
+		strcpy(s_user.storage_user_group,"--");
+	else{
+		memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+		*((char*)&s_group) = (char)atoi(strGroup);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+		strcpy(s_user.storage_user_group,s_group.storage_group_name);
+	}
+
+	*((char*)s_users) = (char)index;
+	apmib_get(MIB_STORAGE_USER_TBL,(void*)s_users);
+	memcpy(&(s_users[1]),&s_user,sizeof(STORAGE_USER_T));
+	apmib_set(MIB_STORAGE_USER_MOD,(void*)s_users);
+
+	snprintf(cmdBuffer,50,"smbpasswd -del %s",s_user.storage_user_name);
+	system(cmdBuffer);
+	memset(cmdBuffer,'\0',50);
+	snprintf(cmdBuffer,50,"smbpasswd %s %s",s_user.storage_user_name,s_user.storage_user_password);
+	system(cmdBuffer);
+	
+setOk_EditUser:
+	apmib_update_web(CURRENT_SETTING);
+	storage_UpdateSambaConf();
+		
+	submitUrl = req_get_cstream_var(wp, "submit-url", "");	
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;	
+
+setError_EditUser:
+	ERR_MSG(tmpBuff);
+}
+
+void formDiskEditGroup(request *wp, char * path, char * query)
+{
+	char 	*submitUrl, *strAccess;
+	int		 index;
+	
+	STORAGE_GROUP_T s_group;
+	STORAGE_GROUP_T	s_groups[2] = {0};
+	strAccess = req_get_cstream_var(wp,("Access"),"");
+
+	apmib_get(MIB_STORAGE_GROUP_EDIT_INDEX,(void*)&index);
+	memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+	*((char*)&s_group) = (char)index;
+	apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+	strcpy(s_group.storage_group_access,strAccess);
+
+	*((char*)s_groups) = (char)index;
+	apmib_get(MIB_STORAGE_GROUP_TBL,(void*)s_groups);
+	memcpy(&(s_groups[1]),&s_group,sizeof(STORAGE_GROUP_T));
+	apmib_set(MIB_STORAGE_GROUP_MOD,(void*)s_groups);
+
+setOk_EditGroup:
+	apmib_update_web(CURRENT_SETTING);
+	storage_UpdateSambaConf();
+		
+	submitUrl = req_get_cstream_var(wp, "submit-url", "");	
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	return;	
+}
+
+
+void formDiskCreateGroup(request *wp, char * path, char * query)
+{
+		char *submitUrl, *strName,*strAccess;
+		char tmpBuff[100];
+		char cmdBuffer[100];
+		STORAGE_GROUP_T	s_group;
+		unsigned char	 number,i;
+	
+		strName = req_get_cstream_var(wp,("groupname"),"");
+		strAccess = req_get_cstream_var(wp,("Access"),"");
+
+		if(!strcmp(strName,"root") || !strcmp(strName,"nobody")){
+			strcpy(tmpBuff,"group name should not be root or nobody");
+			goto setErr_createGroup;
+		}
+			
+		apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+		
+		if(number >= MAX_GROUP_NUM){
+			snprintf(tmpBuff,100,"group num shoule not be more than %d",MAX_GROUP_NUM);
+			goto setErr_createGroup;
+		}
+
+		for(i = 0;i <number;i++)
+		{
+			memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+			*((char*)&s_group) = (char)(i+1);
+			apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+			if(!strcmp(strName,s_group.storage_group_name)){
+				strcpy(tmpBuff,("group name repeat"));
+				goto setErr_createGroup;
+			}
+
+			if(strlen(s_group.storage_group_name) == strlen(strName)
+				&& strncmp(s_group.storage_group_name,strName,strlen(strName))){
+				strcpy(tmpBuff, ("group name is already exist,Please choose another group name"));
+				goto setErr_createGroup;
+			}
+		}
+	
+		number++;
+		apmib_set(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+	
+		memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+		strcpy(s_group.storage_group_name,strName);
+		strcpy(s_group.storage_group_access,strAccess);
+		s_group.storage_group_sharefolder_flag = 0;
+		apmib_set(MIB_STORAGE_GROUP_ADD,(void*)&s_group);
+
+		memset(cmdBuffer,'\0',100);
+		snprintf(cmdBuffer,100,"addgroup %s",strName);
+		system(cmdBuffer);
+		
+	setOk_createGroup:
+		apmib_update_web(CURRENT_SETTING);
+		
+		submitUrl = req_get_cstream_var(wp, "submit-url", "");	
+		if (submitUrl[0])
+			send_redirect_perm(wp, submitUrl);
+		return;
+		
+	setErr_createGroup:
+		ERR_MSG(tmpBuff);
 }
 #endif
 
@@ -2220,6 +2924,10 @@ void formUpload(request *wp, char * path, char * query)
 				!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) 
 #endif
 			) {
+#if 1
+			strcpy(tmpBuf, ("<b>Invalid file format! Should upload fireware but not config dat!"));
+			goto ret_upload;
+#else
 #ifdef COMPRESS_MIB_SETTING
 				COMPRESS_MIB_HEADER_Tp pHeader_cfg;
 				pHeader_cfg = (COMPRESS_MIB_HEADER_Tp)&wp->upload_data[head_offset];
@@ -2251,6 +2959,7 @@ void formUpload(request *wp, char * path, char * query)
 				isValidfw = 1;
 				update_cfg = 1;
 				continue;
+#endif
 		}
 		else {
 			if (isValidfw == 1)
@@ -2309,6 +3018,9 @@ void formUpload(request *wp, char * path, char * query)
 #ifdef RTL_8367R_DUAL_BAND
 	Reboot_Wait = (wp->upload_len/69633)+57+5+15;
 #elif defined(RTL_8367R_8881a_DUAL_BAND)
+	Reboot_Wait = (wp->upload_len/69633)+57+5+25;
+#elif defined(CONFIG_RTL_8198C)
+	//Reboot_Wait = (wp->upload_len/19710)+50+5;
 	Reboot_Wait = (wp->upload_len/69633)+57+5+25;
 #else
 	Reboot_Wait = (wp->upload_len/69633)+57+5;
@@ -2658,6 +3370,7 @@ void formPocketWizard(request *wp, char *path, char *query)
 	int wlBandMode;
 	int band2G5GSelect;
 	int dns_changed=0;
+    char ssidbuf[33];
 #if defined(CONFIG_RTL_ULINKER)
 	int ulinker_auto_changed;	
 #endif
@@ -2777,9 +3490,16 @@ void formPocketWizard(request *wp, char *path, char *query)
 #endif //#if defined(CONFIG_RTL_92D_SUPPORT)
 				
 	wlan_idx = 0 ;
-	tmpStr = req_get_cstream_var(wp, "pocket_ssid", "");
-	if(tmpStr[0] != 0)
-		apmib_set(MIB_WLAN_SSID, (void *)tmpStr);
+	tmpStr = req_get_cstream_var(wp, "pocket_ssid", "");	
+            //strSSID is BSSID, below transfer it to SSID. This fix the issue of AP ssid contains "
+           
+       
+	if(tmpStr[0] != 0){
+		if( bssid_to_ssid(tmpStr,ssidbuf) < 0)
+			apmib_set(MIB_WLAN_SSID, (void *)tmpStr);
+		else
+			apmib_set(MIB_WLAN_SSID, (void *)ssidbuf);
+	}
 		
 	for(i = 0 ; i<NUM_WLAN_INTERFACE ; i++)
 	{
@@ -2792,8 +3512,12 @@ void formPocketWizard(request *wp, char *path, char *query)
 				continue;
 				
 			tmpStr = req_get_cstream_var(wp, "pocket_ssid1", "");
-			if(tmpStr[0] != 0)
-				apmib_set(MIB_WLAN_SSID, (void *)tmpStr);			
+			if(tmpStr[0] != 0){
+				if( bssid_to_ssid(tmpStr,ssidbuf) < 0)
+					apmib_set(MIB_WLAN_SSID, (void *)tmpStr);
+				else
+					apmib_set(MIB_WLAN_SSID, (void *)ssidbuf);
+			}
 		}
 		sprintf(varName, "mode%d", i);
 		tmpStr = req_get_cstream_var(wp, varName, "");
@@ -2872,8 +3596,8 @@ void formPocketWizard(request *wp, char *path, char *query)
 			apmib_get(MIB_WLAN_WSC_UPNP_ENABLED, (void *)&isUpnpEnabled);
 			apmib_get(MIB_WLAN_MODE, (void *)&wlanvxd_mode);
 			
-			if(!ulinker_auto_changed)						
-				ulinker_wlan_mib_copy(&pMib->wlan[wlan_idx][NUM_VWLAN_INTERFACE], &pMib->wlan[wlan_idx][0]);
+									
+			ulinker_wlan_mib_copy(&pMib->wlan[wlan_idx][NUM_VWLAN_INTERFACE], &pMib->wlan[wlan_idx][0]);
 			
 			/* restore original setting in vxd interface and repeater ssid*/			
 			apmib_set(MIB_WLAN_WSC_UPNP_ENABLED, (void *)&isUpnpEnabled);
@@ -2884,18 +3608,17 @@ void formPocketWizard(request *wp, char *path, char *query)
 			/* add "-ext" at last of wlan ssid */
 			apmib_get( MIB_WLAN_SSID,  (void *)ssidBuf);
 
-			if(!ulinker_auto_changed)
+			if(wlan_idx == 0)
+				apmib_set(MIB_REPEATER_SSID1, (void *)&ssidBuf);
+			else
+				apmib_set(MIB_REPEATER_SSID2, (void *)&ssidBuf);
+
+			
+			if(strlen(ssidBuf)<sizeof(ssidBuf)+4)
 			{
-				if(wlan_idx == 0)
-					apmib_set(MIB_REPEATER_SSID1, (void *)&ssidBuf);
-				else
-					apmib_set(MIB_REPEATER_SSID2, (void *)&ssidBuf);
-				if(strlen(ssidBuf)<sizeof(ssidBuf)+4&&!ulinker_auto_changed)
-				{
-					strcat(ssidBuf,"-ext");
-					apmib_set( MIB_WLAN_SSID,  (void *)ssidBuf);
-					apmib_set( MIB_WLAN_WSC_SSID, (void *)ssidBuf);
-				}
+				strcat(ssidBuf,"-ext");
+				apmib_set( MIB_WLAN_SSID,  (void *)ssidBuf);
+				apmib_set( MIB_WLAN_WSC_SSID, (void *)ssidBuf);
 			}
 		}
 #endif	
@@ -3309,6 +4032,12 @@ ulinker_wlan_mib_copy(&pMib->wlan[0][0], &pMib->wlan[0][ULINKER_RPT_MIB]);
 						wlanMode = AP_MODE;
 						rpt_enabled = 1; 
 						break;
+					case 4:
+ulinker_wlan_mib_copy(&pMib->wlan[0][0], &pMib->wlan[0][ULINKER_RPT_MIB]);
+						opmode = WISP_MODE;
+						wlanMode = AP_MODE;
+						rpt_enabled = 1; 
+						break;
 				}
 				apmib_set( MIB_OP_MODE, (void *)&opmode);
 				apmib_set( MIB_WLAN_MODE, (void *)&wlanMode);
@@ -3384,7 +4113,7 @@ int  opModeHandler(request *wp, char *tmpBuf)
 {
 	char *tmpStr;
 	int opmode, wanId;
-	
+	char repeaterSSID[40];
 	tmpStr = req_get_cstream_var(wp, ("opMode"), "");  
 	if(tmpStr[0]){
 		opmode = tmpStr[0] - '0' ;
@@ -3413,14 +4142,14 @@ int  opModeHandler(request *wp, char *tmpBuf)
 			if(wanId == 0)
 			{
 				apmib_set( MIB_REPEATER_ENABLED1, (void *)&rpt_enabled);
-
+				apmib_get( MIB_REPEATER_SSID1, (void *)repeaterSSID);
 				rpt_enabled=0;
 				apmib_set(MIB_REPEATER_ENABLED2,(void *)&rpt_enabled);
 			}
 			else
 			{
 				apmib_set( MIB_REPEATER_ENABLED2, (void *)&rpt_enabled);
-
+				apmib_get( MIB_REPEATER_SSID2, (void *)repeaterSSID);
 				rpt_enabled=0;
 				apmib_set(MIB_REPEATER_ENABLED1,(void *)&rpt_enabled);
 			}
@@ -3429,11 +4158,12 @@ int  opModeHandler(request *wp, char *tmpBuf)
 			SetWlan_idx(wlanifStr);
 			wlanMode = AP_MODE;
 			apmib_set( MIB_WLAN_MODE, (void *)&wlanMode);
-
+			
 			sprintf(wlanifStr, "wlan%d-vxd", wanId); 
 			SetWlan_idx(wlanifStr);
 			wlanMode = CLIENT_MODE;
 			apmib_set( MIB_WLAN_MODE, (void *)&wlanMode);
+			apmib_set(MIB_WLAN_SSID,(void *)repeaterSSID);
 			rpt_enabled = 0;
 			apmib_set( MIB_WLAN_WLAN_DISABLED, (void *)&rpt_enabled);
 			apmib_recov_wlanIdx();
@@ -3449,7 +4179,7 @@ int  opModeHandler(request *wp, char *tmpBuf)
 			wanId=0;
 			apmib_save_wlanIdx();
 			apmib_set( MIB_REPEATER_ENABLED1, (void *)&rpt_enabled);
-			
+			apmib_get( MIB_REPEATER_SSID1, (void *)repeaterSSID);
 			sprintf(wlanifStr, "wlan%d", wanId); 
 			SetWlan_idx(wlanifStr);
 			wlanMode = AP_MODE;
@@ -3459,6 +4189,7 @@ int  opModeHandler(request *wp, char *tmpBuf)
 			SetWlan_idx(wlanifStr);
 			wlanMode = CLIENT_MODE;
 			apmib_set( MIB_WLAN_MODE, (void *)&wlanMode);
+			apmib_set(MIB_WLAN_SSID,(void *)repeaterSSID);
 			rpt_enabled = 0;
 			apmib_set( MIB_WLAN_WLAN_DISABLED, (void *)&rpt_enabled);
 			apmib_recov_wlanIdx();
@@ -3648,7 +4379,7 @@ void formSiteSurveyProfile(request *wp, char *path, char *query)
 				
 				sprintf(iwprivCmd,"iwpriv %s set_mib ap_profile_add=\"%s\",%d,%s,",ifname,entry.ssid,entry.encryption, tmp1);
 			}
-			else if(entry.encryption == 3 || entry.encryption == 4) //wpa or wpa2
+			else if(entry.encryption == 2 || entry.encryption == 4 || entry.encryption == 6) //wpa or wpa2
 			{
 				char tmp1[400];
 				sprintf(tmp1, "%d,%s", entry.wpa_cipher, entry.wpaPSK);
@@ -3930,6 +4661,89 @@ next_log:
 err1:
 	return nBytesSent;
 }
+
+#ifdef  CONFIG_APP_SMTP_CLIENT
+void formSmtpClient(request *wp, char *path, char *query)
+{
+	extern char* p_email_infor;
+	char *send_form, *password,*send_to,*theme,*body, *attachment;
+	char *timing,*year,*month,*day,*hour,*minute,*syslog_check,*usbstoragemsg,*now_time;
+	char *tmpStr;
+	int  enable,i,status;
+	char tmpEmpty[] = "OFF";
+	char tmpBuf[500];
+
+	
+	tmpStr= req_get_cstream_var(wp, ("smtpClientEnabled"), "");  
+	if(!strcmp(tmpStr, "ON"))
+		enable = 1;
+	else
+		enable = 0;
+	/*if ( apmib_set(MIB_SMTP_CLIENT_ENABLED, (void *)&rt_enabled) == 0) {
+			strcpy(tmpBuf, ("Set smtp client enable error!"));
+			ERR_MSG(tmpBuf);
+			return;
+	}*/
+	
+	if(enable){
+		syslog_check= req_get_cstream_var(wp, ("syslogmsg"), ""); 
+		if(!strcmp(syslog_check, ""))
+			syslog_check = tmpEmpty;
+		send_form= req_get_cstream_var(wp, ("sendFrom"), "");
+		if(!strcmp(send_form, ""))
+			goto ipput_error;
+		password= req_get_cstream_var(wp, ("password"), "");
+		if(!strcmp(password, ""))
+			goto ipput_error;
+		send_to= req_get_cstream_var(wp, ("sendTo"), "");
+		if(!strcmp(send_to, ""))
+			goto ipput_error;
+		theme= req_get_cstream_var(wp, ("theme"), "");
+		if(!strcmp(theme, ""))
+			theme = tmpEmpty;
+		body = req_get_cstream_var(wp, ("msg"), "");
+		if(!strcmp(body, ""))
+			body = tmpEmpty;
+		attachment = req_get_cstream_var(wp, ("attachment"), "");
+		if(!strcmp(attachment, ""))
+			attachment = tmpEmpty;
+		usbstoragemsg = req_get_cstream_var(wp, ("usbstoragemsg"), "");
+		if(!strcmp(usbstoragemsg, ""))
+			usbstoragemsg = tmpEmpty;
+		timing = req_get_cstream_var(wp, ("timing"), "");
+		if(!strcmp(timing, "")){
+			timing = tmpEmpty;
+			year = tmpEmpty;
+			month = tmpEmpty;
+			day = tmpEmpty;
+			hour = tmpEmpty;
+			minute = tmpEmpty;
+			now_time = tmpEmpty;
+		}
+		else{
+			year = req_get_cstream_var(wp, ("year"), "");
+			month = req_get_cstream_var(wp, ("month"), "");
+			day = req_get_cstream_var(wp, ("day"), "");
+			hour = req_get_cstream_var(wp, ("hour"), "");
+			minute = req_get_cstream_var(wp, ("minute"), "");
+			now_time  = req_get_cstream_var(wp, ("now_time"), "");
+		}
+		
+		sprintf(tmpBuf,"%s \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" ","smtpclient",send_form,password,send_to,syslog_check,timing,year,month,day,hour,minute,now_time,theme,body,attachment,usbstoragemsg);
+		status = system( tmpBuf);
+	}
+	strcpy(tmpBuf, ("Send Email End!"));
+	//OK_MSG(tmpBuf);
+	ERR_MSG(tmpBuf);
+	return;
+	
+	ipput_error:
+		strcpy(tmpBuf, ("Send Email Error!"));
+		//OK_MSG(tmpBuf);
+		ERR_MSG(tmpBuf);
+}
+#endif
+
 
 #ifdef HOME_GATEWAY
 #ifdef DOS_SUPPORT
@@ -4850,3 +5664,235 @@ int getPowerConsumption(request *wp, int argc, char **argv)
 	
 }
 #endif // #if defined(POWER_CONSUMPTION_SUPPORT)
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+#define RS_CERT_START "-----BEGIN CERTIFICATE-----"
+#define RS_CERT_END "-----END CERTIFICATE-----"
+
+#define RS_RSA_PRIV_KEY_START "-----BEGIN RSA PRIVATE KEY-----"
+#define RS_RSA_PRIV_KEY_END "-----END RSA PRIVATE KEY-----"
+#define RS_PRIV_KEY_TIP "PRIVATE KEY-----"
+
+
+
+void formUploadEth8021xUserCert(request *wp, char * path, char * query)
+{
+	char *submitUrl,*strVal, *deleteAllCerts, *user_certstart,*ca_certstart;
+	char tmpBuf[MAX_MSG_BUFFER_SIZE]={0};
+	int user_cert_len,ca_cert_len;
+	char cmd[256];
+	FILE *fp;
+	char tryFormChange;
+	char line[256];
+	unsigned char userKeyPass[MAX_RS_USER_CERT_PASS_LEN+1];
+	char certOk, userKeyOk;
+	int wlanIdx_5G,wlanIdx_2G,rsBandSel;
+
+	//printf("---%s:%d---sizeof(upload_data)=%d	upload_len=%d\n",__FUNCTION__,__LINE__,wp->upload_data,wp->upload_len);
+	
+	strVal = req_get_cstream_var_in_mime(wp, ("uploadCertType"), "",NULL);
+	submitUrl = req_get_cstream_var_in_mime(wp, ("submit-url"), "",NULL);   // hidden page
+	deleteAllCerts = req_get_cstream_var_in_mime(wp, ("delAllCerts"), "",NULL);   // hidden page
+
+	if(deleteAllCerts[0]=='1')
+	{
+		//To delete all 802.1x certs
+		system("rsCert -rst_eth");
+		strcpy(tmpBuf,"Delete all 802.1x cerificates of ethernet success!");
+		
+	}
+	else
+	{
+		//Initial
+		tryFormChange=0;
+		certOk=0;
+		userKeyOk=0;	
+	
+		if(NULL == strstr(wp->upload_data,RS_CERT_START)|| NULL ==strstr(wp->upload_data,RS_CERT_END))
+		{
+			//printf("---%s:%d---No 802.1x cert inclued in upload file!\n",__FUNCTION__,__LINE__);
+			strcpy(tmpBuf,"No 802.1x cert inclued in upload file!");
+			tryFormChange=1;
+		}
+
+		if((tryFormChange==0)&&(!strcmp(strVal,"user")))
+		{
+			//if(NULL == strstr(wp->upload_data,RS_PRIV_KEY_TIP))				
+			if((NULL ==strstr(wp->upload_data,RS_RSA_PRIV_KEY_START)) || (NULL ==strstr(wp->upload_data,RS_RSA_PRIV_KEY_END)))
+			{			
+				//printf("---%s:%d---No 802.1x private key inclued in upload file!\n",__FUNCTION__,__LINE__);
+				strcpy(tmpBuf,"No 802.1x private key inclued in upload file!");
+				tryFormChange=1;
+			}
+		}	
+		if(!strcmp(strVal,"user"))
+		{		
+			user_certstart= req_get_cstream_var_in_mime(wp, ("radiusUserCert"), "",&user_cert_len);			
+			
+			if(tryFormChange==0)
+			{
+				
+				fp=fopen(RS_USER_CERT_ETH,"w");
+				if(NULL == fp)
+				{
+					sprintf(tmpBuf,"Can not open tmp RS cert(%s)!", RS_USER_CERT_5G);
+					goto upload_ERR;
+				}
+				
+						 
+				fwrite(user_certstart,user_cert_len,0x1,fp);
+				
+				fclose(fp);
+			}
+			else
+			{
+				//To store user cert in tmp file: RS_USER_CERT_TMP
+				fp=fopen(RS_USER_CERT_TMP,"w");
+				if(NULL == fp)
+				{
+					sprintf(tmpBuf,"[2] Can not open tmp user cert(%s)!", RS_USER_CERT_TMP);
+					goto upload_ERR;
+				}
+				fwrite(user_certstart,user_cert_len,0x1,fp);	
+				fclose(fp);
+
+				// try change user cert form from pfx to pem
+				memset(userKeyPass, 0, sizeof(userKeyPass));
+				apmib_get( MIB_ELAN_RS_USER_CERT_PASSWD, (void *)userKeyPass);
+				
+				sprintf(cmd, "openssl pkcs12 -in %s -nodes -out %s -passin pass:%s", RS_USER_CERT_TMP, RS_USER_CERT_ETH, userKeyPass);
+				
+				system(cmd);
+				
+				sleep(3); // wait for system(cmd) and avoid to open file failure;
+				fp=fopen(RS_USER_CERT_ETH,"r");
+				if(NULL == fp)
+				{
+					sprintf(tmpBuf,"[2] Can not open tmp user cert(%s)!Maybe you should upload your user certificate once again", RS_USER_CERT_ETH);
+					goto upload_ERR;
+				}
+				
+				while (fgets(line, sizeof(line), fp))
+				{
+					if((NULL != strstr(line,RS_CERT_START) ) || (NULL != strstr(line,RS_CERT_END) ))
+						certOk=1;					
+					//if(NULL != strstr(line,RS_PRIV_KEY_TIP))					
+					if((NULL !=strstr(line,RS_RSA_PRIV_KEY_START)) || (NULL !=strstr(line,RS_RSA_PRIV_KEY_END)))
+						userKeyOk=1;
+
+					if((certOk == 1) && (userKeyOk == 1))
+						break;
+				}
+
+				if((certOk != 1) || (userKeyOk != 1))
+				{
+					
+					sprintf(cmd, "rm -rf %s", RS_USER_CERT_ETH);
+					
+					system(cmd);
+					
+					sprintf(tmpBuf,"Upload user cert failed. Please make sure: 1) uploaded file in pem or pfx form, 2) uploaded file contain user cert and user key.");
+					goto upload_ERR;
+				}
+
+				fclose(fp);
+			}
+
+			//To store 802.1x user cert
+			
+			system("rsCert -wrUser_eth");
+			
+			strcpy(tmpBuf,"802.1x user cerificate and user key upload success!");
+		}
+		else if(!strcmp(strVal,"root"))
+		{		
+			ca_certstart= req_get_cstream_var_in_mime(wp, ("radiusRootCert"), "",&ca_cert_len);
+
+			if(tryFormChange == 0)
+			{
+				fp=fopen(RS_ROOT_CERT_ETH,"w");
+				if(NULL == fp)
+				{
+					sprintf(tmpBuf,"Can not open tmp RS cert(%s)!", RS_ROOT_CERT_ETH);
+					goto upload_ERR;
+				}
+				
+				fwrite(ca_certstart,ca_cert_len,0x1,fp);				
+				fclose(fp);
+			}
+			else
+			{
+				// To store ca cert in tmp file: RS_ROOT_CERT_TMP
+				fp=fopen(RS_ROOT_CERT_TMP,"w");
+				if(NULL == fp)
+				{
+					sprintf(tmpBuf,"Can not open tmp RS cert(%s)!", RS_ROOT_CERT_TMP);
+					goto upload_ERR;
+				}
+				fwrite(ca_certstart,ca_cert_len,0x1,fp);				
+				fclose(fp);
+				
+				// try change ca cert form from der to pem
+				
+				sprintf(cmd, "openssl x509 -inform DER -in %s -outform PEM -out %s",RS_ROOT_CERT_TMP,RS_ROOT_CERT_ETH);
+				
+				
+				system(cmd);
+				
+				sleep(3);	// wait for system(cmd) and avoid to open file failure;
+
+				
+				fp=fopen(RS_ROOT_CERT_ETH,"r");
+				if(NULL == fp)
+				{
+					sprintf(tmpBuf,"[2] Can not open tmp RS cert(%s)!\nMaybe you should upload your root certificate once again!", RS_ROOT_CERT_ETH);
+					goto upload_ERR;
+				}
+			
+				while (fgets(line, sizeof(line), fp))
+				{
+					if((NULL != strstr(line,RS_CERT_START) ) || (NULL != strstr(line,RS_CERT_END) ))
+					{
+						certOk=1;
+						break;
+					}
+				}
+
+				if(certOk != 1)
+				{
+					
+					sprintf(cmd, "rm -rf %s", RS_ROOT_CERT_ETH);
+					
+					system(cmd);
+					
+					strcpy(tmpBuf,"[2] No 802.1x cert inclued in upload file!");
+					goto upload_ERR;
+				}
+				
+				fclose(fp);
+			}
+
+			//To store 802.1x root cert
+			
+			system("rsCert -wrRoot_eth");
+		
+			strcpy(tmpBuf,"802.1x root cerificate upload success!");
+		}
+		else
+		{
+			sprintf(tmpBuf,"Upload cert type(%s) is not supported!", strVal);
+			goto upload_ERR;
+		}
+	}
+	
+	OK_MSG1(tmpBuf, submitUrl);
+	return;
+	
+upload_ERR:
+	if(fp != NULL)
+		fclose(fp);
+	
+	ERR_MSG(tmpBuf);
+}
+#endif
+

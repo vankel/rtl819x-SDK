@@ -124,7 +124,7 @@ int dnsquery_find(char* reply, struct sockaddr_in* client)
     unsigned short qid;
     dnsquery *     ptr;
     dnsquery *     last = 0;
-	
+
 #ifdef SUPPORT_ZIONCOM_RUSSIA
     unsigned short rcode;
 #endif
@@ -137,7 +137,6 @@ int dnsquery_find(char* reply, struct sockaddr_in* client)
     if(rcode!=0)
 		return 0;
 #endif
-
     for (ptr = head; ptr != 0; ptr = ptr->next) {
 	if (qid == ptr->local_qid) {
 	    memcpy(client, &(ptr->client), sizeof(struct sockaddr_in));

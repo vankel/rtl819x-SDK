@@ -30,7 +30,7 @@
 /*****************************************************************/
 /* Do not modify below here unless you know what you are doing!! */
 /*****************************************************************/
-#if defined(CONFIG_RTL8186_TR) || defined(SUPPORT_OPTION_33_121_249)
+#if defined(CONFIG_RTL8186_TR) || defined(SUPPORT_OPTION_33_121_249)  ||  defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 #define RFC3442
 #define UDHCPC_STATIC_ROUTE
 #define UDHCPC_PASS_DOMAINNAME2DHCPSERVER
@@ -78,6 +78,9 @@
 #define DHCP_STATIC_ROUTE	0x21 
 #endif
 #define DHCP_NTP_SERVER		0x2a
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+#define DHCP_VENDOR_SPEC	0x2b
+#endif
 #define DHCP_WINS_SERVER	0x2c
 #define DHCP_REQUESTED_IP	0x32
 #define DHCP_LEASE_TIME		0x33
@@ -91,6 +94,9 @@
 #define DHCP_T2			0x3b
 #define DHCP_VENDOR		0x3c
 #define DHCP_CLIENT_ID		0x3d
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+#define DHCP_USER_ID           0x4d
+#endif
 #define DHCP_NETBIOS_NODETYPE 0x2e
 #define DHCP_NETBIOS_SCOPE 0x2F
 #ifdef UDHCPC_PASS_DOMAINNAME2DHCPSERVER
@@ -109,6 +115,11 @@
 #ifdef UDHCPC_MS_CLASSLESS_STATIC_ROUTE
 #define MS_CLASSLESS_STATIC_ROUTE 0xF9
 #endif
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+#define DHCP_SRC_INTF		0xfe
+#endif
+
 #define DHCP_END		0xFF
 
 
@@ -147,9 +158,6 @@ struct option_set {
 #ifdef STATIC_LEASE
 struct static_lease {
 	unsigned char *mac;
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-	int port_id;
-#endif
 	u_int32_t *ip;
 	unsigned char *host;
 	struct static_lease *next;
@@ -161,6 +169,79 @@ struct guest_mac_entry {
 	int valid;
 	unsigned char addr[6];	
 };
+
+#if defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+enum DeviceType
+{
+	CTC_Computer=0,
+	CTC_Camera,
+	CTC_HGW,
+	CTC_STB,
+	CTC_PHONE,
+	CTC_UNKNOWN=100
+};
+
+
+#define MAX_DHCP_OPT_60_LEN 100 
+#define MAX_DHCP_OPT_RSV_LEN 100
+struct client_category_t {	
+	u_int32_t ipstart;
+	u_int32_t ipend;
+	unsigned char option60[MAX_DHCP_OPT_60_LEN+1];
+	unsigned int device_type;
+	unsigned int optionCode;
+	unsigned char optionStr[MAX_DHCP_OPT_RSV_LEN+1];
+	unsigned int index;
+	struct client_category_t *next;
+};
+#define CLIENT_TYPE_NUM		8
+
+
+#define CTC_DHCP_OPTION43
+#define CTC_DHCP_OPTION60
+
+enum Option60_FieldType
+{
+	Vendor=1,
+	Category,
+	Model,
+	Version,
+	ProtocolType,
+	Reserved0,Reserved1,
+	ShangHaiSTB0=31,ShangHaiSTB1
+};
+
+enum Option60_PortForwarding_ProtocolType
+{
+	PF_UDP,
+	PF_TCP,
+	PF_TCP_UDP,
+};
+
+struct dhcp_ctc_port_forwaring
+{
+	unsigned short usProtocol; /* enum Option60_PortForwarding_ProtocolType */
+	unsigned short usPort;     /* 1-65535 */
+	int iSet;                  /* Set to iptables */
+};
+
+#define DHCP_CTC_MIN_FIELD_LEN 1
+#define DHCP_CTC_MAX_FIELD_LEN 32
+#define DHCP_CTC_FIELD_LEN 36
+
+struct dhcp_ctc_client_info
+{
+	char szVendor[DHCP_CTC_FIELD_LEN];
+	char szModel[DHCP_CTC_FIELD_LEN];
+	char szVersion[DHCP_CTC_FIELD_LEN];
+	int category;
+	struct client_category_t *iCategory;
+	struct dhcp_ctc_port_forwaring stPortForwarding;
+};
+
+#define DEBUG_CHN_TEL(format, ...) printf
+#endif
+
 
 struct server_config_t {
 	u_int32_t server;		/* Our IP, in network order */
@@ -189,13 +270,16 @@ struct server_config_t {
 	u_int32_t siaddr;		/* next server bootp option */
 	char *sname;			/* bootp server name */
 	char *boot_file;		/* bootp boot file option */
+	
 #ifdef GUEST_ZONE
 	unsigned long guestmac_check;	// check if dhcp client is a guest
 	struct guest_mac_entry *guestmac_tbl;	// guest mac list
 #endif
+
 #ifdef STATIC_LEASE
 	struct static_lease *static_leases; /* List of ip/mac pairs to assign static leases */
 #endif
+
 #if defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8186_TR)	
 unsigned int upateConfig_isp; /* update config from isp*/
 unsigned int response_broadcast; /* */
@@ -205,6 +289,25 @@ unsigned int upateConfig_isp_dns; /* */
 #ifdef SUPPORT_T1_T2_OPTION
 	unsigned char t1_time[6];
 	unsigned char t2_time[6];
+#endif
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	char *poolname;
+	u_int32_t cwmpinstnum;
+	u_int32_t poolorder;
+	u_int32_t sourceinterface;
+	char *vendorclass;
+	u_int32_t vendorclassflag;
+	char *vendorclassmode;
+	char *clientid;
+	u_int32_t clientidflag;
+	char *userclass;
+	u_int32_t userclassflag;
+	char *chaddr;
+	char *chaddrmask;
+	u_int32_t chaddrflag;	
+	struct client_category_t* clientRange;
+	struct server_config_t *next;
 #endif
 };	
 
@@ -223,8 +326,4 @@ struct device_id_t {
 
 extern struct server_config_t server_config;
 extern struct dhcpOfferedAddr *leases;
-#ifdef SUPPORT_DHCP_PORT_IP_BIND	
-#define	RTL8651_IOCTL_GETPORTIDBYCLIENTMAC	2013		
-#define LAN_IFNAME "eth0"
-#endif
 #endif

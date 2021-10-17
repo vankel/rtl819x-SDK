@@ -1,0 +1,233 @@
+#
+# Realtek Semiconductor Corp.
+#
+# RLX Linux Kernel Configuration
+#
+# Tony Wu (tonywu@realtek.com)
+# Dec. 07, 2008
+#
+
+# source "../target/selection/config.top"
+# source "../target/selection/config.soc"
+source "../target/config.cpu"
+source "../target/config.in"
+
+#
+# BSP configuration
+#
+#menu "BSP configuration"
+#
+#choice
+#	prompt "Timer Source"
+#
+#config ARCH_CEVT_R4K
+#	bool "MIPS internal counter"
+#
+#config ARCH_CEVT_EXT
+#	bool "DWAPB external timer"
+#
+#endchoice
+#
+#config BSP_ENABLE_PCI
+#	bool "Enable PCI controller"
+#	default n
+#
+#config BSP_ENABLE_USB
+#	bool "Enable USB controller"
+#	default n
+#
+#endmenu
+#
+#
+# CPU configuration
+#
+menu "CPU configuration"
+
+comment "Select CPU features"
+
+config CPU_ENABLE_DSP
+        bool "Enable DSP hardware"
+        default n
+        depends on ARCH_CPU_DSP
+
+config CPU_ENABLE_FPU
+        bool "Enable FPU hardware"
+        default n
+        depends on ARCH_CPU_FPU
+	help
+	  This option enables FPU hardware support if ARCH_CPU_FPU is set.
+
+	  If unsure, say N here.
+
+config MIPS_FPU_EMU
+        bool "Enable FPU emulation"
+        default n
+	help
+	  This option allows building a kernel with or without the Algorithmics
+	  FPU emulator enabled. Turning off this option results in a kernel which
+	  does not catch floating operations exceptions. Make sure that your toolchain
+	  is configured to enable software floating point emulation in that case.
+
+	  If unsure say N here.
+
+config CPU_ENABLE_MIPSMT
+        bool "Enable MIPS MT"
+        default n
+	depends on SYS_SUPPORTS_MULTITHREADING
+
+config CPU_ENABLE_TLS
+        bool "Enable TLS support"
+        default y
+
+config CPU_ENABLE_WATCH
+        bool "Enable hardware watchpoint support"
+        default n
+
+endmenu
+
+#
+# MIPS
+#
+config MACH_MIPS
+	bool
+	default y
+	select SYS_HAS_CPU_MIPS32_R2
+	select SYS_HAS_EARLY_PRINTK
+	select CPU_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_LITTLE_ENDIAN if ARCH_CPU_EL
+	select SYS_SUPPORTS_BIG_ENDIAN if ARCH_CPU_EB
+	select IRQ_CPU if ARCH_IRQ_CPU
+	select IRQ_GIC if ARCH_IRQ_GIC
+	select CPU_MIPSR2_IRQ_VI if ARCH_IRQ_VI
+	select CPU_MIPSR2_IRQ_EI if ARCH_IRQ_EI
+	select HW_HAS_PCI if (ARCH_BUS_PCI && BSP_ENABLE_PCI)
+	select HW_HAS_USB if (ARCH_BUS_USB && BSP_ENABLE_USB)
+	select ARCH_SUPPORTS_MSI if (ARCH_BUS_PCI_MSI && BSP_ENABLE_PCI)
+	select DMA_COHERENT if (ARCH_CACHE_IOCU)
+	select DMA_NONCOHERENT if (!ARCH_CACHE_IOCU)
+	select CEVT_R4K if ARCH_CEVT_R4K
+	select CSRC_R4K if ARCH_CEVT_R4K
+	select CEVT_EXT if ARCH_CEVT_EXT
+
+#
+# CPU
+#
+config CPU_MIPS4K
+	bool
+	default y if ARCH_CPU_MIPS4K
+
+config CPU_MIPS24K
+	bool
+	default y if ARCH_CPU_MIPS24K
+
+config CPU_MIPS34K
+	bool
+	default y if ARCH_CPU_MIPS34K
+	select SYS_SUPPORTS_MULTITHREADING
+
+config CPU_MIPS74K
+	bool
+	default y if ARCH_CPU_MIPS74K
+
+config CPU_MIPS1004K
+	bool
+	default y if ARCH_CPU_MIPS1004K
+	select SYS_SUPPORTS_SMP
+	select SYS_SUPPORTS_MULTITHREADING
+	select SYS_SUPPORTS_MIPS_CMP
+
+config CPU_MIPS1074K
+        bool
+	default y if ARCH_CPU_MIPS1074K
+	select CPU_MIPS74K
+	select SYS_SUPPORTS_SMP
+	select SYS_SUPPORTS_MIPS_CMP
+	select IRQ_GIC
+
+#
+# CPU features
+#
+config CPU_HAS_DIVEC
+	bool
+	default y
+
+config CPU_HAS_DSP
+	bool
+	default y if CPU_ENABLE_DSP
+
+config CPU_HAS_FPU
+	bool
+	default y if CPU_ENABLE_FPU || MIPS_FPU_EMU
+
+config CPU_HAS_MIPSMT
+	bool
+	default y if CPU_ENABLE_MIPSMT && !MIPS_MT_DISABLED
+
+config CPU_HAS_MIPS16
+	bool
+	default y
+
+config CPU_HAS_MDMX
+	bool
+	default n
+
+config CPU_HAS_TLS
+	bool
+	default y if CPU_ENABLE_TLS
+
+config CPU_HAS_RDHWR
+	bool
+	default y
+
+config CPU_HAS_WAITOFF
+	bool
+	default n if CPU_MIPS4K
+	default y
+
+config CPU_HAS_WATCH
+	bool
+	default y if CPU_ENABLE_WATCH
+#
+# Timer
+#
+config CEVT_EXT
+	bool
+
+#
+# CACHE
+#
+config CPU_HAS_SPRAM
+	bool
+	default y if ARCH_CACHE_SPRAM
+
+config CPU_HAS_IOCU
+	bool
+	default y if ARCH_CACHE_IOCU
+
+config CPU_HAS_WBC
+	bool
+	default y if ARCH_CACHE_WBC
+
+config CPU_HAS_L2C
+	bool
+	default y if ARCH_CACHE_L2C
+
+config CPU_HAS_AR7
+	bool
+	default y if ARCH_CACHE_AR7
+
+#
+# BUS
+#
+config HW_HAS_USB
+	bool
+
+#
+# MISC
+#
+config USE_UAPI
+	bool
+	default y
+	help
+	  Starting Linux 3.7, UAPI is enabled.

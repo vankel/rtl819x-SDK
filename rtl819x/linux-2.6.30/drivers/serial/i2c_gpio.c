@@ -107,15 +107,6 @@ void i2c_stop_condition(i2c_dev_t* pI2C_Dev);
 #define	GPABIMR		0xB8003514
 #define	GPCDIMR		0xB8003518
 
-#define	GPEFGHCNR	0xB800351C
-#define	GPEFDIR		0xB8003524
-#define	GPEFDATA	0xB8003528
-#define	GPEFISR		0xB800352C
-#define	GPEFIMR		0xB8003530
-#define	GPGHIMR		0xB8003534
-
-
-
 /* Register access macro (REG*()).*/
 
 #define REG32(reg) 			(*((volatile uint32 *)(reg)))
@@ -145,12 +136,11 @@ static uint32 bitStartGpioDirectionRead[] =
 {
 	0, 			/* Port A */
 	8, 			/* Port B */
-	16,  		/* Port C */
-	24, 		/* Port D */
+	16,  			/* Port C */
+	24, 			/* Port D */
 	0, 			/* Port E */
-	8, 			/* Port F */	// according to modified Spec. 
-	16, 		/* Port G */
-	24			/* Port H */
+	0, 			/* Port F */	// according to modified Spec. 
+	0, 			/* Port G */
 };
 
 enum GPIO_PORT
@@ -169,24 +159,17 @@ static uint32 bitStartGpioDataRead[] =
 {
 	0, 			/* Port A */
 	8, 			/* Port B */
-	16,  		/* Port C */
-	24, 		/* Port D */
+	16,  			/* Port C */
+	24, 			/* Port D */
 	0, 			/* Port E */
-	8, 			/* Port F */
-	16, 		/* Port G */
-	24			/* Port H */
+	16, 			/* Port F */
+	0, 			/* Port G */
 };
 
 static uint32 regGpioInterruptStatusRead[] =
 {
 	GPABISR, 	/* Port A */
 	GPABISR, 	/* Port B */
-	GPABISR, 	/* Port A */
-	GPABISR, 	/* Port B */
-	GPEFISR,
-	GPEFISR,
-	GPEFISR,
-	GPEFISR
 };
 
 enum GPIO_FUNC	
@@ -215,12 +198,6 @@ static uint32 regGpioDirectionRead[] =
 {
 	GPABDIR, 	/* Port A */
 	GPABDIR, 	/* Port B */
-	GPABDIR, 	/* Port C */
-	GPABDIR, 	/* Port D */
-	GPEFDIR,	/* Port E */
-	GPEFDIR,	/* Port F */
-	GPEFDIR,	/* Port G */
-	GPEFDIR		/* Port H */
 };
 
 static uint32 bitStartGpioInterruptStatusRead[] =
@@ -232,7 +209,6 @@ static uint32 bitStartGpioInterruptStatusRead[] =
 	0, 			/* Port E */
 	16, 			/* Port F */
 	0, 			/* Port G */
-	16, 			/* Port H */
 };
 
 
@@ -240,24 +216,12 @@ static uint32 regGpioDirectionWrite[] =
 {
 	GPABDIR, 	/* Port A */
 	GPABDIR, 	/* Port B */
-	GPABDIR, 	/* Port C */
-	GPABDIR, 	/* Port D */
-	GPEFDIR,	/* Port E */
-	GPEFDIR,	/* Port F */
-	GPEFDIR,	/* Port G */
-	GPEFDIR		/* Port H */
 };
 
 static uint32 regGpioDataRead[] =
 {
 	GPABDATA, 	/* Port A */
 	GPABDATA, 	/* Port B */
-	GPABDATA, 	/* Port C */
-	GPABDATA, 	/* Port D */
-	GPEFDATA, 	/* Port E */
-	GPEFDATA, 	/* Port F */
-	GPEFDATA, 	/* Port G */
-	GPEFDATA, 	/* Port H */
 };
 
 
@@ -266,36 +230,25 @@ static uint32 bitStartGpioDirectionWrite[] =
 	0, 			/* Port A */
 	8, 			/* Port B */
 	16,  		/* Port C */
-	24, 		/* Port D */
-	0, 			/* Port E*/
-	8, 			/* Port F */
-	16,  		/* Port G */
-	24, 		/* Port H */    
+	24, 		/* Port D */  
 };
 
 static uint32 regGpioDataWrite[] =
 {
 	GPABDATA, 	/* Port A */
 	GPABDATA, 	/* Port B */
-	GPABDATA, 	/* Port C */
-	GPABDATA, 	/* Port D */
-	GPEFDATA, 	/* Port E */
-	GPEFDATA, 	/* Port F */
-	GPEFDATA, 	/* Port G */
-	GPEFDATA, 	/* Port H */
+
 };
 
-/* need check */
 static uint32 bitStartGpioInterruptEnableRead[] =
 {
 	0, 			/* Port A */
-	16,  			/* Port B */
-	0,			/* Port C */
-	16, 			/* Port D */
+	8,  			/* Port B */
+	16,			/* Port C */
+	24, 			/* Port D */
 	0,  			/* Port E */
 	16, 			/* Port F */
 	0,  			/* Port G */
-	16
 };
 
 static uint32 regGpioInterruptEnableRead[] =
@@ -304,10 +257,6 @@ static uint32 regGpioInterruptEnableRead[] =
 	GPABIMR,	/* Port B */
 	GPCDIMR, 	/* Port C */
 	GPCDIMR,	/* Port D */
-	GPEFIMR,
-	GPEFIMR,
-	GPGHIMR,
-	GPGHIMR
 
 };
 
@@ -315,12 +264,8 @@ static uint32 bitStartGpioDataWrite[] =
 {
 	0, 			/* Port A */
 	8, 			/* Port B */
-	16,  		/* Port C */
-	24, 		/* Port D */
-	0, 			/* Port E */
-	8, 			/* Port F */
-	16,  		/* Port G */
-	24, 		/* Port H */
+	16,  			/* Port C */
+	24, 			/* Port D */
 };
 
 static uint32 regGpioInterruptEnableWrite[] =
@@ -329,10 +274,6 @@ static uint32 regGpioInterruptEnableWrite[] =
 	GPABIMR,	/* Port B */
 	GPCDIMR, 	/* Port C */
 	GPCDIMR,	/* Port D */
-	GPEFIMR,
-	GPEFIMR,
-	GPGHIMR,
-	GPGHIMR
 
 };
 
@@ -343,21 +284,14 @@ static uint32 bitStartGpioInterruptEnableWrite[] =
 	0,			/* Port C */
 	16, 			/* Port D */
 	0,  			/* Port E */
-	16, 			/* Port F */
+	0, 			/* Port F */
 	0,  			/* Port G */
-	16				/* Port H */
 };
 
 static uint32 regGpioInterruptStatusWrite[] =
 {
 	GPABISR, 	/* Port A */
 	GPABISR, 	/* Port B */
-	GPABISR, 	/* Port C */
-	GPABISR, 	/* Port D */
-	GPEFISR,/* Port E */
-	GPEFISR,/* Port F*/
-	GPEFISR,/* Port G*/
-	GPEFISR	/* Port H*/
 
 };
 
@@ -427,7 +361,7 @@ static size_t mfi_read(struct file * file,  char __user * buffer, size_t count, 
 { 
  
 		
-        //panic_printk( "kernel driver mfi read count 0x%x cur_opt_address 0x%2x\n", count ,cur_opt_address); 
+//panic_printk( "kernel driver mfi read count 0x%x cur_opt_address 0x%2x\n", count ,cur_opt_address); 
 	 	if( (cur_opt_address == kMFiAuthReg_AuthControlStatus) || cur_opt_address == kMFiAuthReg_ErrorCode ){
 			if(serial_in_i2c(cur_opt_address,1) == 0)
 				return -1;
@@ -529,11 +463,10 @@ static int __init mfi_ioctl_init(void)
     int ret;
     struct device *dev_ret;
  
-    printk("mfi_ioctl_init start\n");
     rtl8196e_init_procfs();
+ 
     if ((ret = alloc_chrdev_region(&dev, FIRST_MINOR, MINOR_CNT, "mfi_cp")) < 0)
     {
-        printk("mfi_ioctl_init error!, ret=%d\n",ret);
         return ret;
     }
  
@@ -558,7 +491,6 @@ static int __init mfi_ioctl_init(void)
         return PTR_ERR(dev_ret);
     }
 	wifi_audio_nl_init();
-    printk("mfi_ioctl_init succeed\n");
     return 0;
 }
 
@@ -1291,11 +1223,6 @@ static void rtl8196e_init_reg_gpio( void )
 		MFi3959_i2c_dev.sclk = I2C_GPIO_ID( 'B', 5 );
 		
 	}
-#elif defined(CONFIG_RTL_8881A_ULINKER) || defined(CONFIG_RTL_8881A_SELECTIVE)
-		//RTL_W32(PIN_MUX_SEL_2, (REG32(PIN_MUX_SEL_2) | 0x603));//SET SHARED PIN
-		RTL_W32(GPEFGHCNR, (REG32(GPEFGHCNR) & (~(0x1800))));//SET GPIO FUNCTION
-		MFi3959_i2c_dev.sdio = I2C_GPIO_ID( 'F', 4 );
-		MFi3959_i2c_dev.sclk = I2C_GPIO_ID( 'F', 3 );
 #endif	
 	i2c_init_SCL_SDA( &MFi3959_i2c_dev );
 }

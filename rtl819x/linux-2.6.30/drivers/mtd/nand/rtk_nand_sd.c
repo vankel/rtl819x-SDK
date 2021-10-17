@@ -101,72 +101,23 @@ static const struct file_operations rtk_nand_flash_ops = {
 
 
 #ifdef CONFIG_WRT_BARRIER_BREAKER
-unsigned int HW_SETTING_OFFSET = 0x0;
+
+unsigned int HW_SETTING_OFFSET = 0x100000;
+EXPORT_SYMBOL(HW_SETTING_OFFSET);
 
 static struct mtd_partition rtl8196_parts1[] = {
-      {name: "boot", offset: 0, size:0x500000,},
-      {name: "setting", offset: 0x500000, size:0x300000,},
+      {name: "boot", offset: 0, size:0x300000,},
       //{name: "ubifs", offset: 0x100000,	   size:0x200000,},
-      {name: "linux", offset: 0x800000,    size:0x600000,}, //0x130000+ rootfs
-      {name: "rootfs", offset: 0xe00000, size:0x2800000,},
-      {name: "rootfs2", offset: 0x3600000,	   size:0x2800000,},
+      {name: "linux", offset: 0x300000,    size:0x600000,}, //0x130000+ rootfs
+      {name: "rootfs", offset: 0x900000, size:0x2800000,},
+      {name: "ubifs", offset: 0x3100000,	   size:0x2800000,},
 #ifdef CONFIG_RTK_BOOTINFO_DUALIMAGE
       //{name: "boot_backup", offset: 0x400000, size:0x30000,},
       {name: "linux_backup", offset: (0x400000+0x30000),    size:0x130000,}, //0x130000+ rootfs
+      //{name: "roots_backup", offset: (0x400000+0x130000), size:0x2d0000,},
 #endif
 };
 
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-
-static struct proc_dir_entry *flash_proc_dir;
-static struct proc_dir_entry *hwpart_proc_entry;
-
-#define FLASH_PROC_DIR_NAME "flash"
-#define HWPART_NAME "hwpart"
-
-#define RTK_ADD_PROC(name, show_fct) \
-	static int name##_open(struct inode *inode, struct file *file) \
-	{ return single_open(file, show_fct, inode->i_private); }      \
-	static const struct file_operations name##_fops = { \
-		.owner = THIS_MODULE, \
-		.open = name##_open, \
-		.llseek = seq_lseek, \
-		.read = seq_read, \
-		.write = name##_write, \
-		.release = single_release \
-	};
-
-static int hwpart_show(struct seq_file *s, void *p)
-{	
-	int pos = 0;	
-
-	pos += seq_printf(s, "%x", HW_SETTING_OFFSET);
-	return pos;
-}
-
-static ssize_t hwpart_write(struct file * file, const char __user * userbuf,
-                     size_t count, loff_t * off)
-{
-        return 0;
-}
-
-RTK_ADD_PROC(hwpart,hwpart_show);
-
-static void  rtk_init_flash_proc(void) 
-{
-	flash_proc_dir = proc_mkdir(FLASH_PROC_DIR_NAME,NULL);
-
-	if(!flash_proc_dir)
-		return;
-
-	//init hwpart proc
-	hwpart_proc_entry = proc_create(HWPART_NAME,0,flash_proc_dir,&hwpart_fops);
-	
-#ifdef CONFIG_RTK_BOOTINFO_SUPPORT
-	rtk_init_bootinfo_proc(flash_proc_dir);
-#endif	
-}
 
 #define RTK_USERDEFINE_FLASH_BANK_SIZE 0 
 static unsigned int  RTK_LINUX_PART_OFFSET=0x100000;
@@ -175,7 +126,8 @@ static unsigned int  RTK_FLASH_BANK_SIZE=RTK_USERDEFINE_FLASH_BANK_SIZE;
 
 void detect_nand_flash_map(struct mtd_info *mtd, struct mtd_partition *rtl819x_parts)
 {
-   int offset =RTK_LINUX_PART_OFFSET;
+	printk("%s(%d):\n",__FUNCTION__,__LINE__);
+   int offset =0x300000;
    struct squashfs_super_block *sb;
    uint32_t mtd_size;   
    uint32_t active_bank_offset=0;   
@@ -218,31 +170,76 @@ void detect_nand_flash_map(struct mtd_info *mtd, struct mtd_partition *rtl819x_p
    	unsigned char buf[oob_size] __attribute__((__aligned__(64)));
 	unsigned char data_buf[page_size]; //fixme!
 
-	rtk_init_flash_proc();
-   	while ((offset + page_size) < mtd_size) {
+	#if 0
+    rtl819x_parts[0].offset = 0; //boot+hw always from 0.
+    rtl819x_parts[0].size =  RTK_LINUX_PART_OFFSET;
+	#endif
+
+ 	if(RTK_LINUX_PART_OFFSET != 0x300000){
+		printk("RTK_LINUX_PART_OFFSET != 0x300000");
+		RTK_LINUX_PART_OFFSET = 0x300000;
+ 	}
+
+ 	printk("mtd_size:%x\n",mtd_size);
+ 	printk("this->page_shift:%x,ppb:%x,page_size:%x,oob_size:%x,mtd->erasesize\n",this->page_shift,ppb,page_size,oob_size,mtd->erasesize);
+
+   // find active rootfs and linux 
+   while ((offset + page_size) < mtd_size) {
 		page = ((int) offset) >> this->page_shift;
 		block = page/ppb;
+   #if 0
+		if ( isLastPage ){
+			page = block*ppb + (ppb-1);
+		}
+	#endif
+	//	printk("%s(%d):\n",__FUNCTION__,__LINE__);
 
 		if ( this->read_ecc_page (mtd, 0, page, data_buf, buf) ){
 			printk ("%s: read_oob page=%d failed\n", __FUNCTION__, page);
 			return 1;
 		}
+
+	//	printk("%s(%d):\n",__FUNCTION__,__LINE__);
    		
 		if (*((__u32 *)data_buf) == SQUASHFS_MAGIC_LE) {	
+			printk("mtd_size=%8x found squashfs at %8x\n",mtd_size ,offset);
 				
-			sb = (struct squashfs_super_block *)data_buf;	
-			rtl819x_parts[3].size =  rtl819x_parts[3].size + rtl819x_parts[3].offset - offset;
-		    rtl819x_parts[3].offset = offset;
-			break;			
-		}
-		offset += page_size;					
+			sb = (struct squashfs_super_block *)data_buf;				
+			    //rtl819x_parts[2].offset = offset+ active_bank_offset;
+			    rtl819x_parts[2].offset = offset+ active_bank_offset;
+			    #if 0
+			    if(offset <0x300000){
+			    	printk("offset is < 0x300000\n");
+			    	rtl819x_parts[2].offset = 0x900000;
+			    }
+			    #endif
+
+			    //rtl819x_parts[2].size = offset -  rtl819x_parts[2].offset;
+			    
+			    //rtl819x_parts[2].size =  (mtd_size+active_bank_offset) - rtl819x_parts[2].offset;
+				//rtl819x_parts[2].size =  (mtd_size+active_bank_offset) - rtl819x_parts[2].offset;
+				rtl819x_parts[2].size =  (rtl819x_parts[2].size+active_bank_offset) - rtl819x_parts[2].offset;
+
+				//rtl819x_parts[1].offset = rtl819x_parts[0].offset +rtl819x_parts[0].size;
+				//rtl819x_parts[1].offset = active_bank_offset + RTK_LINUX_PART_OFFSET;
+				#if 0
+				if(RTK_LINUX_PART_OFFSET < 0x300000){
+					rtl819x_parts[1].offset  = 0x300000;
+				}
+				#endif
+				
+				//rtl819x_parts[1].size =  (mtd_size+active_bank_offset) - rtl819x_parts[1].offset;
+				break;			
+			}
+		offset += page_size;
+		//offset += 4096;					
 	}	
 #ifdef CONFIG_RTK_BOOTINFO_DUALIMAGE
 	//linux partioin
 	rtl819x_parts[3].offset = back_bank_offset + RTK_LINUX_PART_OFFSET;
     rtl819x_parts[3].size =  (mtd_size+back_bank_offset) - rtl819x_parts[3].offset;
 	
-#endif  
+ #endif  
 }
 
 //read the kerenl command to get the linux part info 
@@ -256,18 +253,6 @@ static int __init get_linux_part(char *str)
 }
 __setup("linuxpart=", get_linux_part);
 
-static int __init get_hw_part(char *str)
-{
-	unsigned int  hw_part=0;
-	
-	sscanf(str, "0x%x", &hw_part);
-	HW_SETTING_OFFSET = hw_part;
-	//printk("get_hw_part = %x \n",HW_SETTING_OFFSET);
-	return 1;
-}
-__setup("hwpart=", get_hw_part);
-
-EXPORT_SYMBOL(HW_SETTING_OFFSET);
 #endif
 
 /*
@@ -407,13 +392,9 @@ static void rtk_nand_read_id(struct mtd_info *mtd, u_char id[5], int chip_sel)
 		spin_unlock_irqrestore(&lock_nand, flags_nand);
 		return;
 	}
-#ifdef CONFIG_RTL_8325D_SUPPORT
+#ifndef CONFIG_RTL_8198C
 	#define PINMUX_REG_8196D_97D   0xb8000040
-	REG32(PINMUX_REG_8196D_97D) = (REG32(PINMUX_REG_8196D_97D) & ~((7<<0) | (3<<3) | (3<<8) | (3<<12)))
-			| ((0<<0) | (1<<3) | (1<<8) | (1<<12));
-#elif !defined(CONFIG_RTL_8198C)
-	#define PINMUX_REG_8196D_97D   0xb8000040
-	REG32 (PINMUX_REG_8196D_97D) &= 0xFFFFCCE9;
+    REG32 (PINMUX_REG_8196D_97D) &= 0xFFFFCCE9;
   	REG32 (PINMUX_REG_8196D_97D) = 0x1508;
 #endif
 	check_ready();
@@ -699,7 +680,7 @@ int rtk_check_allone(int page, int offset)
 	/* rlen is equal to (512 + 16) */
 	rlen = 528; 
 	
-	rtk_writel(0xc00fffff, NACR);
+	rtk_writel(0xc0077777, NACR);
 
 	/* Command cycle 1*/
 	rtk_writel((CECS0|CMD_PG_READ_C1), NACMR);
@@ -1490,7 +1471,7 @@ int rtk_read_ecc_page(struct mtd_info *mtd, u16 chipnr, unsigned int page,
 	#ifdef SWAP_2K_DATA
 	unsigned int read_bbi;
 	unsigned char switch_bbi = 0;
-	if(block >= BOOT_BLOCK){
+	if(block > 0){
 		if(isLastPage){
 			read_bbi = page & (ppb-1);
 			if((read_bbi == (ppb-2)) || (read_bbi ==(ppb-1))){
@@ -1985,7 +1966,7 @@ int rtk_write_ecc_page (struct mtd_info *mtd, u16 chipnr, unsigned int page,
   	#endif
 
 	#ifdef SWAP_2K_DATA
-	if(block>=BOOT_BLOCK){
+	if(block>0){
 		//unsigned int write_bbi;
 		//unsigned char switch_bbi;
 		
@@ -2108,56 +2089,6 @@ int rtk_write_ecc_page (struct mtd_info *mtd, u16 chipnr, unsigned int page,
 		{
 		    spin_unlock_irqrestore(&lock_nand, flags_nand);
 			printk("rtk_check_pageData return fail...\n");
-			/* winfred_wang; write fail should swap back */
-#ifdef SWAP_2K_DATA
-			//swap back
-
-			if(block>=BOOT_BLOCK){
-
-				
-			  	if(isLastPage){
-					/*bad block indicator is located in page (ppb-2) and page (ppb-1)*/
-					write_bbi = page & (ppb-1);
-					if((write_bbi == (ppb-2)) || (write_bbi ==(ppb-1))){
-						switch_bbi = 1;
-					}
-				}else{
-					/*bad block indicator is located in page 0 and page 1*/
-					write_bbi = page & (ppb-1);
-					if((write_bbi == 0) || (write_bbi ==1)){
-						switch_bbi = 1;
-					}
-				}
-
-				/*test code*/
-				/*because image convert app cannot decise which is the first page of block,so need do switch in every page*/
-				switch_bbi = 1;
-				
-				if(!NAND_ADDR_CYCLE)
-				{
-					unsigned char temp_val;
-					if(switch_bbi){
-						//memcpy(this->g_databuf,data_buf,page_size);
-						temp_val = data_buf[DATA_BBI_OFF];
-						data_ptr = data_buf;
-						oob_ptr = oob_buf;
-						#if 0
-						if(oob_buf){
-							this->g_databuf[DATA_BBI_OFF] = oob_buf[OOB_BBI_OFF];
-							oob_ptr = oob_buf;
-							oob_ptr[OOB_BBI_OFF] = temp_val;
-						}
-						else
-						#endif
-						{
-							data_ptr[DATA_BBI_OFF] = oob_buf[OOB_BBI_OFF];
-							oob_ptr[OOB_BBI_OFF] = temp_val;
-						}
-					}
-				}
-			}
-#endif
-
 			return -1;
 		}
 		
@@ -2185,7 +2116,7 @@ int rtk_write_ecc_page (struct mtd_info *mtd, u16 chipnr, unsigned int page,
 	#ifdef SWAP_2K_DATA
 	//swap back
 	
-	if(block>=BOOT_BLOCK){
+	if(block>0){
 
 		
 	  	if(isLastPage){

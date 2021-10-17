@@ -127,10 +127,6 @@ IMPLEMENT_TYPE0_void( RestoreBackupRegisterWhenSetOnHookTransmission );
 IMPLEMENT_TYPE1_void( SLIC_Set_PCM_state, int );
 //unsigned char SLIC_Get_Hook_Status( uint32 cch )
 IMPLEMENT_TYPE1( SLIC_Get_Hook_Status, unsigned char, int );
-//void SLIC_Set_Power_Save_Mode(int chid);
-IMPLEMENT_TYPE0_void( SLIC_Set_Power_Save_Mode );
-//void SLIC_Set_FXS_Line_State(int chid, int state);
-IMPLEMENT_TYPE1_void( SLIC_Set_FXS_Line_State, int );
 
 //void SLIC_read_reg( uint32 cch, unsigned int num, unsigned char len, unsigned char *val )
 IMPLEMENT_TYPE3_void( SLIC_read_reg, unsigned int, unsigned char *, unsigned char * );

@@ -161,6 +161,8 @@ config SERIAL_SC16IS7X0_CONSOLE
 			If you want to make user space's stdout to this port, 
 			device (major,minor) of /dev/console has to be ttyS1 (4,65) 
 			instead of ttyS0 (4,64). 
+
 config I2C_GPIO_MFI_COPROCESSOR_DRIVER 
         bool "Support I2C-GPIO Driver for MFi Coprocessor"
+
 endmenu

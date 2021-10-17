@@ -17,9 +17,9 @@ typedef enum {false = 0, true = 1} bool;
 #endif
 
 #include "apmib.h"
-//#ifndef CSRF_SECURITY_PATCH
-	//#define CSRF_SECURITY_PATCH
-//#endif
+#ifndef CSRF_SECURITY_PATCH
+	#define CSRF_SECURITY_PATCH
+#endif
 #ifdef __i386__
   #define _CONFIG_SCRIPT_PATH	"."
   #define _LITTLE_ENDIAN_
@@ -76,6 +76,9 @@ typedef enum {false = 0, true = 1} bool;
 #define FORMTR069CPECERT "formTR069CACert"
 #endif
 
+#ifdef CONFIG_RTL_BT_CLIENT
+#define FORM_BT_NEW_TORRENT	"formBTNewTorrent"
+#endif
 
 
 #define MACIE5_CFGSTR	"/plain\x0d\x0a\0x0d\0x0a"
@@ -292,10 +295,17 @@ static __inline__ void update_form_hander_name(request *wp)
 
 #define ERR_MSG(msg) { \
 	update_form_hander_name(wp); \
-   	req_format_write(wp, "<html><body><blockquote><h4>%s</h4>\n", msg); \
+   	req_format_write(wp, "<html><head>"); \
+   	getIncludeCss(wp);\
+   	req_format_write(wp, "</head><body><blockquote><h4>%s</h4>\n", msg); \
 	req_format_write(wp, "<form><input type=\"button\" onclick=\"history.go (-1)\" value=\"&nbsp;&nbsp;OK&nbsp;&nbsp\" name=\"OK\"></form></blockquote></body></html>"); \
 }
-
+#define REBOOT_WAIT_COMMAND(time) {\
+	if(fork()==0) {\
+		sleep(time);\
+		system("reboot");\
+		}\
+}
 
 #ifdef REBOOT_CHECK
 #define REBOOT_WAIT(url) { \
@@ -311,7 +321,9 @@ static __inline__ void update_form_hander_name(request *wp)
 	needReboot = 1; \
 	if(strlen(url) == 0) \
 		strcpy(url,"/wizard.htm"); \
- 	req_format_write(wp, "<html><body><blockquote><h4>Change setting successfully!</h4>Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
+	req_format_write(wp, "<html><head>"); \
+	getIncludeCss(wp);\
+ 	req_format_write(wp, "</head><body><blockquote><h4>Change setting successfully!</h4>Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
 	req_format_write(wp, "<form action=/boafrm/formRebootCheck method=POST name='rebootForm'>"); \
 	req_format_write(wp, "<input type='hidden' value='%s' name='submit-url'>",url); \
 	req_format_write(wp, "<input id='restartNow' type='submit' value='Reboot Now' onclick=\"return true\" />&nbsp;&nbsp;"); \
@@ -325,7 +337,9 @@ static __inline__ void update_form_hander_name(request *wp)
 	needReboot = 1; \
 	if(strlen(url) == 0) \
 		strcpy(url,"/wizard.htm"); \
- 	req_format_write(wp, "<html><body><blockquote><h4>%s</h4>", pMsg); \
+ 	req_format_write(wp, "<html><head>"); \
+	getIncludeCss(wp);\
+	req_format_write(wp, "</head><body><blockquote><h4>%s</h4>", pMsg); \
  	if(isWizard) req_format_write(wp, "Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
 	req_format_write(wp, "<form action=/boafrm/formSiteSurveyProfile method=POST name='rebootSiteSurveyProfileForm'>"); \
 	req_format_write(wp, "<input type='hidden' value='%s' name='submit-url'>",url); \
@@ -342,7 +356,9 @@ static __inline__ void update_form_hander_name(request *wp)
 	needReboot = 1; \
 	if(strlen(url) == 0) \
 		strcpy(url,"/wizard.htm"); \
- 	req_format_write(wp, "<html><body><blockquote><h4>Change setting successfully!</h4>Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
+ 	req_format_write(wp, "<html><head>"); \
+	getIncludeCss(wp);\
+	req_format_write(wp, "</head><body><blockquote><h4>Change setting successfully!</h4>Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
 	req_format_write(wp, "<form action=/boafrm/formRebootCheck method=POST name='rebootForm'>"); \
 	req_format_write(wp, "<input type='hidden' value='%s' name='submit-url'>",url); \
 	req_format_write(wp, "<input id='restartNow' type='submit' value='Reboot Now' onclick=\"return true\" />&nbsp;&nbsp;"); \
@@ -354,7 +370,9 @@ static __inline__ void update_form_hander_name(request *wp)
 	needReboot = 1; \
 	if(strlen(url) == 0) \
 		strcpy(url,"/wizard.htm"); \
- 	req_format_write(wp, "<html><body><blockquote><h4>%s</h4>", pMsg); \
+	req_format_write(wp, "<html><head>"); \
+	getIncludeCss(wp);\
+	req_format_write(wp, "</head><body><blockquote><h4>%s</h4>", pMsg); \
  	if(isWizard) req_format_write(wp, "Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
 	req_format_write(wp, "<form action=/boafrm/formSiteSurveyProfile method=POST name='rebootSiteSurveyProfileForm'>"); \
 	req_format_write(wp, "<input type='hidden' value='%s' name='submit-url'>",url); \
@@ -368,20 +386,26 @@ static __inline__ void update_form_hander_name(request *wp)
 
 #else
 #define OK_MSG(url) { \
-   	req_format_write(wp, "<html><body><blockquote><h4>Change setting successfully!</h4>\n"); \
+   	req_format_write(wp, "<html><head>"); \
+	getIncludeCss(wp);\
+   	req_format_write(wp, "</head><body><blockquote><h4>Change setting successfully!</h4>\n"); \
 	if (url[0]) req_format_write(wp, "<form><input type=button value=\"  OK  \" OnClick=window.location.replace(\"%s\")></form></blockquote></body></html>", url);\
 	else req_format_write(wp, "<form><input type=button value=\"  OK  \" OnClick=window.close()></form></blockquote></body></html>");\
 }
 #endif
 
 #define OK_MSG1(msg, url) { \
-   	req_format_write(wp, "<html><body><blockquote><h4>%s</h4>\n", msg); \
+   	req_format_write(wp, "<html><head>"); \
+	getIncludeCss(wp);\
+   	req_format_write(wp, "</head><body><blockquote><h4>%s</h4>\n", msg); \
 	if (url) req_format_write(wp, "<form><input type=button value=\"  OK  \" OnClick=window.location.replace(\"%s\")></form></blockquote></body></html>", url);\
 	else req_format_write(wp, "<form><input type=button value=\"  OK  \" OnClick=window.close()></form></blockquote></body></html>");\
 }
 //Brad for firmware upgrade
 #define OK_MSG_FW(msg, url, c, ip) { \
-	req_format_write(wp, "<html><head><script language=JavaScript><!--\n");\
+	req_format_write(wp, "<html><head>");\
+	getIncludeCss(wp);\
+	req_format_write(wp, "<script language=JavaScript><!--\n");\
 	req_format_write(wp, "var count = %d;function get_by_id(id){with(document){return getElementById(id);}}\n", c);\
    	req_format_write(wp, "function do_count_down(){get_by_id(\"show_sec\").innerHTML = count\n");\
 	req_format_write(wp, "if(count == 0) {parent.location.href='http://%s/home.htm?t='+new Date().getTime(); return false;}\n", ip);\
@@ -440,9 +464,6 @@ extern void formPasswordSetup(request *wp, char *path, char *query);
 #if defined(CONFIG_USBDISK_UPDATE_IMAGE)
 extern void formUploadFromUsb(request *wp, char * path, char * query);
 #endif
-#if defined(CONFIG_RTL_HTTP_REDIRECT)
-extern void formWelcomePage(request *wp, char * path, char * query);
-#endif
 extern void formUpload(request *wp, char * path, char * query);
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 extern void formWapiReKey(request *wp, char * path, char * query);
@@ -455,6 +476,13 @@ extern void formWapiCertDistribute(request *wp, char * path, char * query);
 
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 extern void formUpload8021xUserCert(request *wp, char * path, char * query);
+#endif
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+extern void formUploadEth8021xUserCert(request *wp, char * path, char * query);
+#endif
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+extern void formEthDot1x(request *wp, char *path, char *query);
+extern int getEthDot1xList(request *wp, int argc, char **argv);
 #endif
 
 #ifdef TLS_CLIENT
@@ -470,10 +498,9 @@ extern int wlSchList(request *wp, int argc, char **argv);
 
 #if defined(CONFIG_RTL_P2P_SUPPORT)
 extern void formWiFiDirect(request *wp, char *path, char *query);
-extern int getWifiP2PState(request *wp, int argc, char **argv);
+int getWifiP2PState(request *wp, int argc, char **argv);
 extern void formWlP2PScan(request *wp, char *path, char *query);
-extern int wlP2PScanTbl(request *wp, int argc, char **argv);
-
+int wlP2PScanTbl(request *wp, int argc, char **argv);
 #endif // #if defined(CONFIG_RTL_P2P_SUPPORT)
 
 extern int getScheduleInfo(request *wp, int argc, char **argv);
@@ -489,6 +516,11 @@ extern void formLogout(request *wp, char *path, char *query);
 extern void formSysCmd(request *wp, char *path, char *query);
 extern int sysCmdLog(request *wp, int argc, char **argv);
 extern void formSysLog(request *wp, char *path, char *query);
+
+#ifdef CONFIG_APP_SMTP_CLIENT
+extern void formSmtpClient(request *wp, char *path, char *query);
+#endif
+
 #ifdef HOME_GATEWAY
 #ifdef DOS_SUPPORT
 extern void formDosCfg(request *wp, char *path, char *query);
@@ -653,6 +685,36 @@ extern void formWanTcpipSetup(request *wp, char *path, char *query);
 extern void formPortFw(request *wp, char *path, char *query);
 extern void formFilter(request *wp, char *path, char *query);
 extern int portFwList(request *wp, int argc, char **argv);
+
+#ifdef SAMBA_WEB_SUPPORT
+extern void formDiskCfg(request *wp, char *path, char *query);
+extern int DiskList(request *wp, int argc, char **argv);
+extern void formDiskManagementAnon(request *wp, char *path, char *query);
+extern void formDiskManagementUser(request *wp, char *path, char *query);
+extern void formDiskManagementGroup(request *wp, char *path, char *query);
+
+extern int Storage_DispalyUser(request *wp, int argc, char **argv);
+extern int Storage_DispalyGroup(request *wp, int argc, char **argv);
+extern int Storage_GetGroupMember(request *wp, int argc, char **argv);
+
+extern void formDiskCreateUser(request *wp, char *path, char *query);
+extern void formDiskCreateGroup(request *wp, char *path, char *query);
+
+extern void formDiskEditUser(request *wp, char *path, char *query);
+extern void formDiskEditGroup(request *wp, char *path, char *query);
+
+//extern int Storage_CreateFolder(request *wp, int argc, char **argv);
+extern int FolderList(request *wp, int argc, char **argv);
+extern int ShareFolderList(request *wp, int argc, char **argv);
+
+extern void formDiskCreateShare(request *wp, char *path, char *query);
+extern void formDiskCreateFolder(request *wp, char *path, char *query);
+extern int Storage_GeDirRoot(request *wp, int argc, char **argv);
+
+extern int GroupEditName(request *wp, int argc, char **argv);
+extern int UserEditName(request *wp, int argc, char **argv);
+#endif
+
 extern int portFilterList(request *wp, int argc, char **argv);
 extern int ipFilterList(request *wp, int argc, char **argv);
 extern int macFilterList(request *wp, int argc, char **argv);
@@ -669,6 +731,9 @@ extern int tcpipWanHandler(request *wp, char * tmpBuf, int *dns_changed);
 extern void formRoute(request *wp, char *path, char *query);
 extern int staticRouteList(request *wp, int argc, char **argv);
 extern int kernelRouteList(request *wp, int argc, char **argv);
+#ifdef RIP6_SUPPORT
+extern int kernelRoute6List(request *wp, int argc, char **argv);
+#endif
 #endif
 
 #ifdef GW_QOS_ENGINE

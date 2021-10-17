@@ -532,11 +532,13 @@ struct pid *wscd_pid_Ptr=NULL;
 			#define EU_VE3 4
 			#define E_VE3 7
 			#define RTL96E_BONDING 0xB800000C
+			
 			#define RTL_GPIO_MUX_POCKETAP_DATA	(RTL_GPIO_MUX_GPIOA2_6)
 			#define RTL_GPIO_CNR_POCKETAP_DATA	(RTL_GPIO_CNR_GPIOA2 | \
 											 	RTL_GPIO_CNR_GPIOA4 | \
 											 	RTL_GPIO_CNR_GPIOA5 | \
 											 	RTL_GPIO_CNR_GPIOA6)
+	
 			#define AUTOCFG_LED_PIN 			6
 			#define AUTOCFG_BTN_PIN         	2
 			#define RESET_LED_PIN           	6
@@ -545,6 +547,7 @@ struct pid *wscd_pid_Ptr=NULL;
 	#else		
 			#define RESET_BTN_PIN           	5
 	#endif		
+		
 		#else
 		#define RTL_GPIO_MUX_POCKETAP_DATA	(RTL_GPIO_MUX_GPIOA2_6)
 		#define RTL_GPIO_CNR_POCKETAP_DATA	(RTL_GPIO_CNR_GPIOA2 | \
@@ -559,7 +562,7 @@ struct pid *wscd_pid_Ptr=NULL;
 #if defined(CONFIG_RTL_96E_GPIOB5_RESET)
 		#define RESET_BTN_PIN           	13		
 #else
-		#define RESET_BTN_PIN           	5			
+		#define RESET_BTN_PIN           	5		
 #endif
 		#endif
 	
@@ -599,10 +602,21 @@ struct pid *wscd_pid_Ptr=NULL;
 #else
 #  define DPRINTK(fmt, args...)
 #endif
-
+#if defined(CONFIG_RTL_8196E)
+unsigned int RTL96E_BOND=EU_VE3;
+#endif
 static struct timer_list probe_timer;
 static unsigned int    probe_counter;
 static unsigned int    probe_state;
+
+static struct timer_list haier_led_timer;
+static int haier_led_blink_counter;
+static int haier_led_blink_interval; // unit=100ms
+static int haier_led_blink_duty_cycle=50;
+static int haier_led_expect_mode; //-1: keep blink, 0: on, 1:off, 2: blink N times
+static int haier_led_ison;
+static int haier_led_mask;
+#define HAIER_INTERVAL_TO_JIFFIES(interval, percentage) ((interval)*(percentage)*HZ/1000)
 
 static char default_flag='0';
 //Brad add for update flash check 20080711
@@ -877,6 +891,19 @@ void autoconfig_gpio_slow_blink(void)
 	AutoCfg_LED_Slow_Toggle = 1;
 
 }
+
+#define HAIER_LED_ON(led_mask) 	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~(1 << AUTOCFG_LED_PIN))))
+#define HAIER_LED_OFF(led_mask) RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) | (1 << AUTOCFG_LED_PIN)))
+
+void autoconfig_gpio_haier_led(int led_mask, int action, int interval, int blink_times, int duty_cycle)
+{
+	haier_led_mask = led_mask;
+	haier_led_expect_mode = action;
+	haier_led_blink_interval = interval;
+	haier_led_blink_counter = blink_times;
+	haier_led_blink_duty_cycle = duty_cycle;
+}
+
 #endif
 #endif // AUTO_CONFIG
 
@@ -1098,6 +1125,50 @@ static void rtl_gpio_timer(unsigned long data)
 
 	mod_timer(&probe_timer, jiffies + HZ);
 
+}
+
+static void haier_gpio_timer(unsigned long data)
+{
+	switch(haier_led_expect_mode){
+	case -1:
+		if(haier_led_ison){
+			HAIER_LED_OFF(haier_led_mask);
+			haier_led_ison = 0;
+			mod_timer(&haier_led_timer, jiffies + HAIER_INTERVAL_TO_JIFFIES(haier_led_blink_interval, 100-haier_led_blink_duty_cycle));
+		}else{
+			HAIER_LED_ON(haier_led_mask);
+			haier_led_ison = 1;
+			mod_timer(&haier_led_timer, jiffies + HAIER_INTERVAL_TO_JIFFIES(haier_led_blink_interval, haier_led_blink_duty_cycle));
+		}
+		break;
+	case 0:
+		HAIER_LED_ON(haier_led_mask);
+		haier_led_ison = 1;
+		break;
+	case 1:
+		HAIER_LED_OFF(haier_led_mask);
+		haier_led_ison = 0;
+		break;
+	case 2:
+		if(haier_led_ison){
+			HAIER_LED_OFF(haier_led_mask);
+			haier_led_ison = 0;
+			haier_led_blink_counter--;
+		}else{
+			HAIER_LED_ON(haier_led_mask);
+			haier_led_ison = 1;
+		}
+		if(haier_led_blink_counter>0){
+			if(haier_led_ison){
+				mod_timer(&haier_led_timer, jiffies + HAIER_INTERVAL_TO_JIFFIES(haier_led_blink_interval, haier_led_blink_duty_cycle));
+			}else{
+				mod_timer(&haier_led_timer, jiffies + HAIER_INTERVAL_TO_JIFFIES(haier_led_blink_interval, 100-haier_led_blink_duty_cycle));
+			}
+		}
+		break;
+	default:
+		break;
+	}
 }
 
 #ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
@@ -1334,6 +1405,38 @@ static int write_proc(struct file *file, const char *buffer,
 		}
 
 
+		else if (flag[0] == 'H' && count>12){ //for haier
+			unsigned char para[32]; // %02x %1c %4d %6d
+			int led_mask;
+			int led_action;
+			int blink_interval;
+			int blink_times;
+			int blink_duty_cycle;
+			copy_from_user(para, buffer+1, count-1);
+			if( sscanf(para, "%02x%d%d%d%d", &led_mask, &led_action, &blink_interval, &blink_times, &blink_duty_cycle)==5
+				&& (led_mask>=0 && led_mask<=2)
+				&& (led_action>=0 && led_action<=2)
+				&& blink_interval>=0
+				&& blink_times>=-1
+				&& (blink_duty_cycle>=0 && blink_duty_cycle<=100)){
+				if(led_action==2 && blink_times==-1)
+					led_action = -1;
+				autoconfig_gpio_haier_led(led_mask, led_action, blink_interval, blink_times, blink_duty_cycle);
+				if(haier_led_expect_mode==0){
+					HAIER_LED_ON(haier_led_mask);
+					haier_led_ison = 1;
+				}else if(haier_led_expect_mode==1){
+					HAIER_LED_OFF(haier_led_mask);
+					haier_led_ison = 0;
+				}else{
+					HAIER_LED_ON(haier_led_mask);
+					haier_led_ison = 1;
+					mod_timer(&haier_led_timer, jiffies + HAIER_INTERVAL_TO_JIFFIES(haier_led_blink_interval, haier_led_blink_duty_cycle));
+				}
+			}else{
+				// panic_printk("%s(%d) in %s, parameter error: %02x %d %d %d\n", __FUNCTION__, __LINE__, __FILE__, led_mask, led_action, blink_interval, blink_times);
+			}
+		}
 		else
 			{}
 
@@ -1712,7 +1815,7 @@ static void pocket_ap_timer_func(unsigned long data)
 
 
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 static int pre_status = -1;
 static int nxt_status = -1;
 static int cur_status = -1;
@@ -1802,6 +1905,7 @@ int wlan_init_proc_write(struct file *file, const char *buf, unsigned long count
 }
 #endif
 
+#if defined(CONFIG_RTL_ULINKER) 
 static void ulinker_timer_func(unsigned long data)
 {
 	//panic_printk("rtl_gpio: cur_status[%d], ulinker_ap_cl_flag[%c]\n", cur_status, ulinker_ap_cl_flag);
@@ -1852,6 +1956,7 @@ static void ulinker_timer_func(unsigned long data)
 
 	mod_timer(&ulinker_timer, jiffies + HZ/2);
 }
+#endif
 
 enum {
 	RTL_GADGET_FSG,
@@ -1976,6 +2081,7 @@ static int write_ulinker_rndis_mac(struct file *file, const char *buffer,
 	return -EFAULT;
 }
 
+#if defined(CONFIG_RTL_ULINKER) 
 //extern int PCIE_reset_procedure(int portnum, int Use_External_PCIE_CLK, int mdio_reset);
 extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_External_PCIE_CLK, int mdio_reset,unsigned long conf_addr);
 int PCIE_Host_Init(int argc, char* argv[])
@@ -2201,6 +2307,7 @@ static int write_ulinker_led(struct file *file, const char *buffer,
 	return -EFAULT;
 }
 #endif /* #if defined(CONFIG_RTL_ULINKER) */
+#endif /* #if defined(CONFIG_RTL_ULINKER) */
 
 static int write_watchdog_reboot(struct file *file, const char *buffer,
 				unsigned long count, void *data)
@@ -2318,9 +2425,17 @@ int __init rtl_gpio_init(void)
 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA5))));
 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA2))));
 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA6))));
-	#elif defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E)
+	#elif defined(CONFIG_RTL_8196D)
 		//reg_iocfg_jtag config as gpio mode,gpioA[2~6]
 		#ifndef CONFIG_USING_JTAG
+		#if defined(CONFIG_I2C_GPIO_MFI_COPROCESSOR_DRIVER)
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(PIN_MUX_SEL) & (~(0x1C))));//SET GPIO FUNCTION
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | 0xC));
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(PIN_MUX_SEL) & (~(0x380))));//SET GPIO FUNCTION
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | 0x180));
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(PIN_MUX_SEL) & (~(0xc00))));//SET GPIO FUNCTION
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | 0xc00));
+		#endif
 		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_POCKETAP_DATA));
 		#ifdef CONFIG_SERIAL_RTL_UART1
 		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) & (~0x7) | (0x2)));
@@ -2354,10 +2469,14 @@ int __init rtl_gpio_init(void)
 		RTL_W32(PABCD_CNR, (RTL_R32(PABCD_CNR) & ~(1<<RESET_BTN_PIN))); //for reset button
 
 		#else
+		
+		//reg_iocfg_jtag config as gpio mode,gpioA[2~6]
 		#ifndef CONFIG_USING_JTAG
 		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_POCKETAP_DATA));
 		#endif
+		//set gpioA[2,4,5,6]as GPIO PIN
 		RTL_W32(PABCD_CNR, (RTL_R32(PABCD_CNR) & ~(RTL_GPIO_CNR_POCKETAP_DATA)));	
+		//set direction, GPIOA[2,4,5] INPUT, GPIOA[6] OUTPUT
 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA2))));
 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA4))));
 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA5))));
@@ -2366,8 +2485,10 @@ int __init rtl_gpio_init(void)
 		#else
 			RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA6))));
 		#endif
+		
 		#endif
 	#endif
+
 	res = create_proc_entry("gpio", 0, NULL);
 	if (res) {
 		res->read_proc = read_proc;
@@ -2376,7 +2497,17 @@ int __init rtl_gpio_init(void)
 	else {
 		printk("Realtek GPIO Driver, create proc failed!\n");
 	}
-
+#ifdef  CONFIG_APPLE_MFI_SUPPORT //mark_hap
+	res = create_proc_entry("bsp_gpio", 0, NULL);
+	if (res) {
+	extern int write_bsp_gpio_proc(struct file *file, const char *buffer,unsigned long count, void *data);
+		//res->read_proc = read_proc;
+		res->write_proc = write_bsp_gpio_proc;
+	}
+	else {
+		printk("Realtek BSP GPIO Driver, create proc failed!\n");
+	}
+#endif
 	res = create_proc_entry("usb_mode_detect", 0, NULL);
 	if (res) {
 		res->read_proc = usb_mode_detect_read_proc;
@@ -2595,7 +2726,7 @@ extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_Externa
 	mod_timer(&pocket_ap_timer, jiffies + HZ);
 #endif
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 	res = create_proc_entry("ulinker_ap_cl", 0, NULL);
 	if (res)
 	{
@@ -2723,6 +2854,13 @@ extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_Externa
 #ifdef CONFIG_RTL865X_CMO
 	extra_led_gpio_init();
 #endif
+
+	init_timer(&haier_led_timer);
+	haier_led_blink_counter = 0;
+	haier_led_expect_mode = -2;
+	haier_led_timer.expires = jiffies + HZ;
+	haier_led_timer.data = (unsigned long)NULL;
+	haier_led_timer.function = &haier_gpio_timer;
 	return 0;
 }
 
@@ -2731,6 +2869,7 @@ static void __exit rtl_gpio_exit(void)
 {
 	printk("Unload Realtek GPIO Driver \n");
 	del_timer_sync(&probe_timer);
+	del_timer_sync(&haier_led_timer);
 }
 
 

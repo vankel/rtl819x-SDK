@@ -155,7 +155,10 @@
 #include <ctype.h>
 #include <netinet/in.h>
 #include <openssl/ssl.h>
-
+#ifdef RTL_TTLS_MD5_CLIENT
+#include "xsup_err.h"
+#include "../md5/eapmd5.h"
+#endif
 #include "config.h"
 #include "profile.h"
 #include "eap.h"
@@ -165,11 +168,16 @@
 #include "../mschapv2/mschapv2.h"
 #include "ttlsphase2.h"
 
+
 // A few numbers from the radius dictionary. 8-)
 #define USER_NAME_AVP        1
 #define USER_PASSWORD_AVP    2
 #define CHAP_PASSWORD_AVP    3
 #define CHAP_CHALLENGE_AVP   60
+#ifdef RTL_TTLS_MD5_CLIENT
+#define EAP_MESSAGE          79
+#endif
+
 
 // Defines for MS-CHAP values also from the dictionary.
 #define MS_VENDOR_ATTR       311
@@ -189,7 +197,11 @@ uint32_t bitmask_avp_len;
 
 struct phase2_handler {
   char *phase2name;
+#ifdef RTL_TTLS_MD5_CLIENT
+  void (*phase2handler)(struct generic_eap_data *, char *, int , char *, int *);
+#else
   void (*phase2handler)(struct generic_eap_data *, char *, int *);
+#endif
   ttls_phase2_type phase2type;
 };
 
@@ -199,6 +211,9 @@ struct phase2_handler phase2types[] = {
   {"CHAP", ttls_do_chap, TTLS_PHASE2_CHAP},
   {"MSCHAP", ttls_do_mschap, TTLS_PHASE2_MSCHAP},
   {"MSCHAPV2", ttls_do_mschapv2, TTLS_PHASE2_MSCHAPV2},
+#ifdef RTL_TTLS_MD5_CLIENT
+  {"EAP_MD5", ttls_do_eap_md5, TTLS_PHASE2_EAP_MD5},
+#endif
   {NULL, ttls_do_bogus, -1}
 };
 
@@ -249,7 +264,11 @@ void build_avp(uint32_t avp_value, uint32_t avp_vendor, uint64_t avp_flags, uint
     }
 }
 
+#ifdef RTL_TTLS_MD5_CLIENT
+void ttls_do_mschapv2(struct generic_eap_data *thisint,  char *indata, int insize,char *out_data, int *out_size)
+#else
 void ttls_do_mschapv2(struct generic_eap_data *thisint, char *out_data, int *out_size)
+#endif
 {
   u_char mschap_challenge[16], mschap_answer[50];
   u_char mschap_result[24];
@@ -355,7 +374,11 @@ void ttls_do_mschapv2(struct generic_eap_data *thisint, char *out_data, int *out
 
 
 // For phase 2 MS-CHAP, we get 8 bytes implicit challenge, and 1 byte for ID.
+#ifdef RTL_TTLS_MD5_CLIENT
+void ttls_do_mschap(struct generic_eap_data *thisint,  char *indata, int insize,char *out_data, int *out_size)
+#else
 void ttls_do_mschap(struct generic_eap_data *thisint, char *out_data, int *out_size)
+#endif
 {
   u_char mschap_challenge[8], mschap_answer[49];
   u_char mschap_result[24];
@@ -455,8 +478,12 @@ void ttls_do_mschap(struct generic_eap_data *thisint, char *out_data, int *out_s
 // Then, to find the CHAP password hash, we find MD5(id + password + 
 // challenge).  Then, we need to send 3 AVPs back to the authenticator.
 // The username, challenge, and password AVPs.  Where the challenge is the
-// 16 bytes from the implicit challenge.  
+// 16 bytes from the implicit challenge. 
+#ifdef RTL_TTLS_MD5_CLIENT
+void ttls_do_chap(struct generic_eap_data *thisint, char *indata, int insize, char *out_data, int *out_size)
+#else
 void ttls_do_chap(struct generic_eap_data *thisint, char *out_data, int *out_size)
+#endif
 {
   u_char *challenge = NULL, *tohash = NULL;
   u_char *user_passwd = NULL;
@@ -584,23 +611,28 @@ void ttls_do_chap(struct generic_eap_data *thisint, char *out_data, int *out_siz
 
   *out_size = avp_offset+avp_out_size;
 }
-
+#ifdef RTL_TTLS_MD5_CLIENT
+void ttls_do_bogus(struct generic_eap_data *thisint, char *indata, int insize, char *out_data, int *out_size)
+#else
 void ttls_do_bogus(struct generic_eap_data *thisint, char *out_data, int *out_size)
+#endif
 {
   debug_printf(DEBUG_NORMAL, "Attempting to call an undefined Phase 2!\n");
 
   // We probably really don't want to die here.  We need to reconsider.
   exit(255);
 }
-
+#ifdef RTL_TTLS_MD5_CLIENT
+void ttls_do_pap(struct generic_eap_data *thisint,  char *indata, int insize,char *out_data, int *out_size)
+#else
 void ttls_do_pap(struct generic_eap_data *thisint, char *out_data, int *out_size)
+#endif
 {
   char *tempbuf, *username;
   int passwd_size, avp_out_size, avp_offset;
   struct config_ttls_phase2 *userdata;
   struct config_eap_ttls *outerdata;
   struct config_pap *phase2data;
-
   if ((!thisint) || (!thisint->eap_conf_data))
     {
       debug_printf(DEBUG_NORMAL, "Invalid structure passed in to ttls_do_pap()!\n");
@@ -692,7 +724,10 @@ void ttls_do_phase2(struct generic_eap_data *thisint, char *in, int in_size, cha
   char *toencout;
   struct config_eap_ttls *userdata;
   struct config_ttls_phase2 *phase2data;
-
+ #ifdef RTL_TTLS_MD5_CLIENT
+  int decrsize = 0;
+  char decr_data[1550];
+ #endif
   if ((!thisint) || (!thisint->eap_conf_data) || (!out))
     {
       debug_printf(DEBUG_NORMAL, "Invalid data pased in to ttls_do_phase2()!\n");
@@ -709,13 +744,33 @@ void ttls_do_phase2(struct generic_eap_data *thisint, char *in, int in_size, cha
 
   phase2data = (struct config_ttls_phase2 *)userdata->phase2;
 
-  toencout = (char *)malloc(1550);
-  if (toencout == NULL)
+#ifdef RTL_TTLS_MD5_CLIENT
+   if ((in_size > 0) && (in[0] != 0x14))
     {
+      // We have something to decrypt!
+      tls_crypt_decrypt(thisint, (uint8_t *) in, in_size, (uint8_t *) decr_data, &decrsize);
+
+      debug_printf(DEBUG_AUTHTYPES, "Decrypted Inner (%d) : \n", in_size);
+      //debug_hex_dump(DEBUG_AUTHTYPES, (uint8_t *) decr_data, decrsize);
+
+
+
+      if ((decr_data[0] == 0x00) && (userdata->phase2_type != TTLS_PHASE2_EAP_MD5))
+	{
+	  debug_printf(DEBUG_AUTHTYPES, "(Hack) Acking for second inner phase "
+		       "packet!\n");
+	  out[0] = 0x00;  // ACK
+	  *out_size = 1;
+	  return XENONE;
+	}
+    }
+#endif
+	toencout = (char *)malloc(1550);
+  if (toencout == NULL)
+  {
       debug_printf(DEBUG_NORMAL, "Couldn't allocate memory needed for encryption!\n");
       return;
-    }
-
+  }
   toencsize = 1550;
 
   // We need to see what phase 2 method we should use.
@@ -726,16 +781,20 @@ void ttls_do_phase2(struct generic_eap_data *thisint, char *in, int in_size, cha
     {
       i++;
     }
-
+	 //printf("phase 2 type = %d\n", phase2data->phase2_type);
   if (phase2types[i].phase2type > 0)
     {
       debug_printf(DEBUG_AUTHTYPES, "Doing Phase 2 %s!\n", phase2types[i].phase2name);
-      (*phase2types[i].phase2handler)(thisint, toencout, &toencsize);
+#ifdef RTL_TTLS_MD5_CLIENT
+      (*phase2types[i].phase2handler)(thisint, decr_data, decrsize,toencout, &toencsize);
+#else
+	  (*phase2types[i].phase2handler)(thisint, toencout, &toencsize);
+#endif
     } else {
       debug_printf(DEBUG_NORMAL, "ERROR!  : No phase 2 TTLS method was defined!\n");
       toencsize = 0;
     }
-
+	
   if (toencsize == 0)
     {
       *out_size = 0;
@@ -843,5 +902,123 @@ void ttls_phase2_failed(struct generic_eap_data *thisint)
     }
   */
 }
+#ifdef RTL_TTLS_MD5_CLIENT 
+/**************************************************************
+ *
+ * Do an EAP-MD5 authentication.  This could easily be converted to a 
+ * generic EAP authentication handler, with little effort.  (There would
+ * be more effort involved in the configuration parse code. ;)
+ *
+ **************************************************************/
+void ttls_do_eap_md5(struct generic_eap_data *thisint, char *indata, 
+		     int insize, char *out_data, int *out_size)
+{
+  int eapid = 1;
+  char eapdata[1500];  // Temporary buffer to store EAP response.
+  int eapsize = 0;
+  char *identity;
+  struct config_eap_md5 *md5data;
+  struct config_eap_ttls *ttlsdata;
+  struct config_ttls_phase2 *phase2data;
+  struct config_eap_method eapmethod;
+
+  ttlsdata = (struct config_eap_ttls *)thisint->eap_conf_data;
+  if (!ttlsdata)
+    {
+      debug_printf(DEBUG_NORMAL, "Error gathering TTLS data.\n");
+      return;
+    }
+
+  phase2data = (struct config_ttls_phase2 *)ttlsdata->phase2;
+  if (phase2data == NULL)
+    {
+      debug_printf(DEBUG_NORMAL, "No phase 2 data available!\n");
+      return;
+    }
+
+  while ((phase2data != NULL) && 
+	 (phase2data->phase2_type != TTLS_PHASE2_EAP_MD5))
+    {
+      phase2data = phase2data->next;
+    }
+
+  if (!phase2data->phase2_data)
+    {
+      debug_printf(DEBUG_NORMAL, "Invalid phase 2 config in MS-CHAPv2!\n");
+      return;
+    }
+
+  md5data = (struct config_eap_md5 *)phase2data->phase2_data;
+  if (!md5data)
+    {
+      debug_printf(DEBUG_NORMAL, "Error gathering MD5 data.\n");
+      return;
+    }
+
+  // DO NOT free *identity!  It points to memory that will be freed
+  // later.
+  if (md5data->username)
+    {
+      identity = md5data->username;
+    }
+  else
+    {
+      identity = thisint->identity;
+    }
+
+  if (insize == 0)
+    {
+    
+      eap_ttls_md5_request_id(identity, eapid, (char *) &eapdata, &eapsize);
+
+      debug_printf(DEBUG_INT, "EAP Identity dump (%d) : \n", eapsize);
+     // debug_hex_dump(DEBUG_INT, eapdata, eapsize);
+
+      build_avp(EAP_MESSAGE, 0, MANDITORY_FLAG, (uint8_t *) eapdata, eapsize, 
+		(uint8_t *) out_data, out_size);
+
+      debug_printf(DEBUG_INT, "EAP Identity AVP dump (%d) : \n", (*out_size));
+     // debug_hex_dump(DEBUG_INT, out_data, (*out_size));
+      return;
+    }
+
+  // Then process it.
+  debug_printf(DEBUG_NORMAL, "(TTLS phase 2 EAP) In data (%d) : \n", insize);
+ // debug_hex_dump(DEBUG_NORMAL, indata, insize);
+
+  // Skip past the AVP data.
+  // XXX Clean this up, we should verify that it is really the EAP AVP!
+  indata+=8;
+  insize -= 8;
+
+  debug_printf(DEBUG_NORMAL, "(TTLS phase 2 EAP) sans AVP (%d) : \n", insize);
+  //debug_hex_dump(DEBUG_NORMAL, indata, insize);
+
+  if (eap_create_active_method(&ttlsdata->phase2_eap_data,
+			       identity,
+			       thisint->tempPwd,
+			       thisint->intName) != 0)
+    {
+      debug_printf(DEBUG_NORMAL, "Couldn't build active method!  Phase 2 "
+		   "authentication will not happen!\n");
+      return;
+    }
+
+  // We need to create a config_eap_method struct to pass in.
+  eapmethod.method_num = EAP_TYPE_MD5; 
+  eapmethod.method_data = (void *)md5data;
+  eapmethod.next = NULL;
+
+  eap_ttls_md5_request_auth(ttlsdata->phase2_eap_data, &eapmethod, (char *) indata, 
+		   insize, (char *) eapdata, &eapsize);
+  debug_printf(DEBUG_INT, "Response data (%d) :\n", eapsize);
+  //debug_hex_dump(DEBUG_INT, eapdata, eapsize);
+
+  build_avp(EAP_MESSAGE, 0, MANDITORY_FLAG, (uint8_t *) eapdata, eapsize,
+	    (uint8_t *) out_data, out_size);
+  debug_printf(DEBUG_INT, "TTLS Phase 2 EAP dump (%d) : \n", (*out_size));
+  //debug_hex_dump(DEBUG_INT, out_data, (*out_size));
+}
+#endif
 
 

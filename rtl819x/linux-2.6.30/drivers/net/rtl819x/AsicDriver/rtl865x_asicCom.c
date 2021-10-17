@@ -36,7 +36,7 @@ int32		rtl8651_totalExtPortNum=0; //this replaces all RTL8651_EXTPORT_NUMBER def
 int32		rtl8651_allExtPortMask=0; //this replaces all RTL8651_EXTPORTMASK defines
 rtl8651_tblAsic_InitPara_t rtl8651_tblAsicDrvPara;
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E))  && !defined(CONFIG_RTL_8198C)
 int rtl8651_findAsicVlanIndexByVid(uint16 *vid)
 {
 	int i;
@@ -96,7 +96,7 @@ static int rtl8651_getAsicVlanIndex(rtl865xc_tblAsic_vlanTable_t *entry, uint16 
 int32 rtl8651_setAsicVlan(uint16 vid, rtl865x_tblAsicDrv_vlanParam_t *vlanp)
 {
 	rtl865xc_tblAsic_vlanTable_t entry;
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E))  && !defined(CONFIG_RTL_8198C)
 	int flag = FAILED;
 #endif
 
@@ -113,7 +113,7 @@ int32 rtl8651_setAsicVlan(uint16 vid, rtl865x_tblAsicDrv_vlanParam_t *vlanp)
 	entry.egressUntag = vlanp->untagPortMask & RTL8651_PHYSICALPORTMASK;
 	entry.fid=vlanp->fid;
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E))  && !defined(CONFIG_RTL_8198C)
 	entry.vid=vid;
 	flag = rtl8651_getAsicVlanIndex(&entry, &vid);
 	if(flag == FAILED)
@@ -127,7 +127,7 @@ int32 rtl8651_setAsicVlan(uint16 vid, rtl865x_tblAsicDrv_vlanParam_t *vlanp)
 
 int32 rtl8651_delAsicVlan(uint16 vid) {
 	rtl8651_tblAsic_vlanTable_t entry;
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E))  && !defined(CONFIG_RTL_8198C)
 	int flag = FAILED;
 	flag = rtl8651_findAsicVlanIndexByVid(&vid);
 	if(flag == FAILED)
@@ -153,7 +153,7 @@ int32 rtl8651_getAsicVlan(uint16 vid, rtl865x_tblAsicDrv_vlanParam_t *vlanp) {
 	vlanp->untagPortMask = (entry.extEgressUntag<<RTL8651_PORT_NUMBER) |entry.egressUntag;
 	vlanp->fid=entry.fid;
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E))  && !defined(CONFIG_RTL_8198C)
 	vlanp->vid=entry.vid;
 #endif	
 	return SUCCESS;
@@ -176,6 +176,11 @@ int32 rtl8651_setAsicPvid(uint32 port, uint32 pvid)
 	{	
 		regValue =  (pvid &0xfff) | (regValue &~0xFFF);
 	}
+	
+#if defined(CONFIG_RTL_8198C)
+	rtl819x_setSwEthPvid(port, pvid);
+#endif
+
 	WRITE_MEM32(PVCR0+offset,regValue);
 	return SUCCESS;
 }
@@ -348,8 +353,11 @@ int32 rtl865x_setDefACLForNetDecisionMiss(uint8 start_ingressAclIdx, uint8 end_i
 	if(start_ingressAclIdx >= RTL8651_ACLHWTBL_SIZE || end_ingressAclIdx >= RTL8651_ACLHWTBL_SIZE ||
 		start_egressAclIdx >= RTL8651_ACLHWTBL_SIZE ||end_egressAclIdx >= RTL8651_ACLHWTBL_SIZE )
 		return FAILED;
-	
+	#if 0
 	WRITE_MEM32(DACLRCR,start_ingressAclIdx|end_ingressAclIdx<<7|start_egressAclIdx<<14|end_egressAclIdx<<21);
+	#else
+	WRITE_MEM32(DACLRCR,start_ingressAclIdx|end_ingressAclIdx<<ACLI_EDA_OFFSET|start_egressAclIdx<<ACLO_STA_OFFSET|end_egressAclIdx<<ACLO_EDA_OFFSET);
+	#endif
 	return SUCCESS;
 }
 
@@ -380,10 +388,17 @@ int32 rtl865x_getDefACLForNetDecisionMiss(uint8 *start_ingressAclIdx, uint8 *end
 	int defAclRule=0;
 	
 	defAclRule=READ_MEM32(DACLRCR);
+	#if 0
 	*start_ingressAclIdx = defAclRule & 0x7f;
 	*end_ingressAclIdx = (defAclRule>>7) & 0x7f;
 	*start_egressAclIdx = (defAclRule>>14) & 0x7f;
 	*end_egressAclIdx =	 (defAclRule>>21) & 0x7f;
+	#else
+	*start_ingressAclIdx = (defAclRule & ACLI_STA_MASK);
+	*end_ingressAclIdx = ((defAclRule & ACLI_EDA_MASK) >> ACLI_EDA_OFFSET);
+	*start_egressAclIdx = ((defAclRule & ACLO_STA_MASK) >> ACLO_STA_OFFSET);
+	*end_egressAclIdx =	 ((defAclRule & ACLO_EDA_MASK) >> ACLO_EDA_OFFSET);
+	#endif
 
 	return SUCCESS;
 }
@@ -439,9 +454,7 @@ To read an interface entry, we provide two ways:
 1. given the index which we want to force set
 2. leave the index with RTL865XC_NETIFTBL_SIZE, we will search the whole table to find out existed entry or empty entry.
  */
- #ifdef RTL865X_TEST
- #define FULL_CAP
- #endif
+
 int32 rtl8651_setAsicNetInterface( uint32 idx, rtl865x_tblAsicDrv_intfParam_t *intfp )
 {
 	rtl865xc_tblAsic_netifTable_t entry;
@@ -522,6 +535,46 @@ exist:
 					 (intfp->macAddr.octet[3]>>3);
 	entry.mac18_0 = (intfp->macAddr.octet[3]<<16) | (intfp->macAddr.octet[4]<<8) | (intfp->macAddr.octet[5]);
 
+
+#if defined(CONFIG_RTL_8198C)
+	entry.inACLStartH = (intfp->inAclStart >>1)&0x7f;
+	entry.inACLStartL = intfp->inAclStart&0x1;
+	entry.inACLEnd    = intfp->inAclEnd;
+	entry.outACLStart = intfp->outAclStart;
+	entry.outACLEnd   = intfp->outAclEnd;
+
+#ifdef CONFIG_RTL_8198C_FPGA_TEST
+	entry.enHWRouteV6 = intfp->enableRouteV6;
+#else
+	entry.enHWRouteV6 = (rtl8651_getAsicOperationLayer()>2)?	(intfp->enableRouteV6==TRUE? 1: 0):0;
+#endif
+
+	entry.enHWRoute   = (rtl8651_getAsicOperationLayer()>2)?	(intfp->enableRoute==TRUE? 1: 0):0;
+	switch(intfp->macAddrNumber) {
+		case 0:
+		case 1:
+		    entry.macMaskL = 1;
+		    entry.macMaskH = 3;
+		break;
+		case 2:
+		    entry.macMaskL = 0;
+		    entry.macMaskH = 3;
+		break;
+		case 4:
+		    entry.macMaskL = 0;
+		    entry.macMaskH = 2;
+		break;
+		case 8:
+		    entry.macMaskL = 0;
+		    entry.macMaskH = 0;
+			break;
+		default:
+		    return FAILED;//Not permitted macNumber value
+	}
+	entry.mtu   = intfp->mtu;
+	entry.mtuV6 = intfp->mtuV6;
+#else
+
 	entry.inACLStartH = (intfp->inAclStart >>2)&0x1f;
 	entry.inACLStartL = intfp->inAclStart&0x3;
 	entry.inACLEnd = intfp->inAclEnd;
@@ -550,7 +603,7 @@ exist:
 	}
 	entry.mtuH = intfp->mtu >>3;
 	entry.mtuL = intfp->mtu & 0x7;
-
+#endif
 	return _rtl8651_forceAddAsicEntry(TYPE_NETINTERFACE_TABLE, idx, &entry);
 }
 
@@ -571,6 +624,9 @@ int32 rtl8651_getAsicNetInterface( uint32 idx, rtl865x_tblAsicDrv_intfParam_t *i
 	rtl865xc_tblAsic_netifTable_t entry;
 	uint32 i;
 
+#if defined(CONFIG_RTL_8198C)
+     uint32   macMask;
+#endif
 	if(intfp == NULL)
 		return FAILED;
 
@@ -611,6 +667,34 @@ found:
 	intfp->macAddr.octet[3] = ((entry.mac47_19 &0x3f) <<3) | (entry.mac18_0 >>16);
 	intfp->macAddr.octet[4] = (entry.mac18_0 >> 8)&0xff;
 	intfp->macAddr.octet[5] = entry.mac18_0 & 0xff;
+
+#if defined(CONFIG_RTL_8198C)
+	intfp->inAclEnd     = entry.inACLEnd;
+	intfp->inAclStart   = (entry.inACLStartH<<1)|entry.inACLStartL;  
+	intfp->outAclStart  = entry.outACLStart;
+	intfp->outAclEnd    = entry.outACLEnd;
+	intfp->enableRoute  = entry.enHWRoute==1? TRUE: FALSE;
+	intfp->enableRouteV6= entry.enHWRouteV6==1? TRUE: FALSE;
+
+    macMask = (entry.macMaskH<<1)|entry.macMaskL;
+	switch(macMask)
+	{
+		case 0:
+			intfp->macAddrNumber =8;
+			break;
+		case 6:
+			intfp->macAddrNumber =2;
+			break;
+		case 4:
+			intfp->macAddrNumber =4;
+			break;
+		case 7:
+			intfp->macAddrNumber =1;
+			break;			
+	}  
+	intfp->mtu = entry.mtu;
+	intfp->mtuV6 = entry.mtuV6;
+#else
 	intfp->inAclEnd = entry.inACLEnd;
 	intfp->inAclStart= (entry.inACLStartH<<2)|entry.inACLStartL;
 	intfp->outAclStart = entry.outACLStart;
@@ -635,7 +719,7 @@ found:
 			
 	}
 	intfp->mtu = (entry.mtuH <<3)|entry.mtuL;
-
+#endif
 	return SUCCESS;
 }
 
@@ -710,8 +794,6 @@ int32 rtl8651_getAsicAclRule(uint32 index, rtl865xc_tblAsic_aclTable_t *rule)
  */
 int32 rtl865xC_lockSWCore(void)
 {
-#if defined(RTL865X_TEST) || defined(RTL865X_MODEL_USER) || defined(RTL865X_MODEL_KERNEL)
-#else
 	if (_rtl865xC_lockTLUCounter == 0)
 	{
 	#if 1
@@ -723,9 +805,6 @@ int32 rtl865xC_lockSWCore(void)
 		_rtl865xC_lockTLUPHYREG[4] = READ_MEM32(PCRP4);
 		if (rtl8651_tblAsicDrvPara.externalPHYProperty & RTL8651_TBLASIC_EXTPHYPROPERTY_PORT5_RTL8211B)
 			_rtl865xC_lockTLUPHYREG[5] = READ_MEM32(PCRP5);
-
-		if(RTL865X_PHY6_DSP_BUG)
-			_rtl865xC_lockTLUPHYREG[6] = READ_MEM32(PCRP6);
 
 		/*	disable phy */
 		WRITE_MEM32(PCRP0, ((READ_MEM32(PCRP0))&(~PauseFlowControlNway)) ); /* Jumbo Frame */
@@ -743,9 +822,6 @@ int32 rtl865xC_lockSWCore(void)
 		{
 			WRITE_MEM32(PCRP5, ((READ_MEM32(PCRP5))&(~PauseFlowControlNway)) ); /* Jumbo Frame */
 		}
-
-		if(RTL865X_PHY6_DSP_BUG)
-			WRITE_MEM32(PCRP6, ((READ_MEM32(PCRP6))&(~PauseFlowControlNway)) );
 
 		//_rtl_inputThrehold = REG32(IQFCTCR);
 		_rtl_FCRegister = REG32(FCREN);
@@ -768,10 +844,6 @@ int32 rtl865xC_lockSWCore(void)
 		if (rtl8651_tblAsicDrvPara.externalPHYProperty & RTL8651_TBLASIC_EXTPHYPROPERTY_PORT5_RTL8211B)
 			_rtl865xC_lockTLUPHYREG[5] = READ_MEM32(PCRP5);
 
-		if(RTL865X_PHY6_DSP_BUG)
-			_rtl865xC_lockTLUPHYREG[6] = READ_MEM32(PCRP6);
-
-		
 		/*	disable phy */
 		WRITE_MEM32(PCRP0, ((READ_MEM32(PCRP0))&(~EnablePHYIf)) ); /* Jumbo Frame */
 		TOGGLE_BIT_IN_REG_TWICE(PCRP0,EnForceMode);
@@ -788,12 +860,9 @@ int32 rtl865xC_lockSWCore(void)
 		{
 			WRITE_MEM32(PCRP5, ((READ_MEM32(PCRP5))&(~EnablePHYIf)) ); /* Jumbo Frame */
 		}
-
-		if(RTL865X_PHY6_DSP_BUG)
-			WRITE_MEM32(PCRP6, ((READ_MEM32(PCRP6))&(~EnablePHYIf)) );
 	#endif
 	}
-#endif
+
 	_rtl865xC_lockTLUCounter++;
 	return SUCCESS;
 }
@@ -806,8 +875,6 @@ int32 rtl865xC_lockSWCore(void)
  */
  int32 rtl865xC_unLockSWCore(void)
  {
- #if defined(RTL865X_TEST) || defined(RTL865X_MODEL_USER) || defined(RTL865X_MODEL_KERNEL)
- #else
  	if (_rtl865xC_lockTLUCounter == 1)
  	{
 	#if 1
@@ -834,8 +901,6 @@ int32 rtl865xC_lockSWCore(void)
 			WRITE_MEM32(PCRP5, _rtl865xC_lockTLUPHYREG[5] ); /* Jumbo Frame */
 		}
 
-		if(RTL865X_PHY6_DSP_BUG)
-			WRITE_MEM32(PCRP6, _rtl865xC_lockTLUPHYREG[6] );
 	#else
 		/*	restore phy */
 #if 0
@@ -850,8 +915,6 @@ int32 rtl865xC_lockSWCore(void)
 			WRITE_MEM32(PCRP5, ((READ_MEM32(PCRP5))|(EnablePHYIf)) ); /* Jumbo Frame */
 		}
 
-		if(RTL865X_PHY6_DSP_BUG)
-			WRITE_MEM32(PCRP6, ((READ_MEM32(PCRP6))|(EnablePHYIf)) );
 #else
 		WRITE_MEM32(PCRP0, _rtl865xC_lockTLUPHYREG[0]); /* Jumbo Frame */
 		TOGGLE_BIT_IN_REG_TWICE(PCRP0,EnForceMode);
@@ -868,14 +931,10 @@ int32 rtl865xC_lockSWCore(void)
 		{
 			WRITE_MEM32(PCRP5, _rtl865xC_lockTLUPHYREG[5] ); /* Jumbo Frame */
 		}
-
-		if(RTL865X_PHY6_DSP_BUG)
-			WRITE_MEM32(PCRP6, _rtl865xC_lockTLUPHYREG[6] );
-
 #endif
 	#endif
  	}
-#endif	
+
 	_rtl865xC_lockTLUCounter--;
 	return SUCCESS;
  }
@@ -920,7 +979,7 @@ int32 rtl8651_getChipVersion(int8 *name,uint32 size, int32 *rev)
 int32 rtl8651_getChipNameID(int32 *id)
 {
 
-#if defined(CONFIG_RTL_8196C) || defined (CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_8196C) || defined (CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 	*id = RTL865X_CHIP_VER_RTL8196C;
 #elif defined(CONFIG_RTL8196B)
 	*id = RTL865X_CHIP_VER_RTL8196B;
@@ -946,7 +1005,6 @@ int32 rtl8651_getChipNameID(int32 *id)
 
 void rtl8651_clearRegister(void)
 {
-#if defined(CONFIG_RTL_819X)
 	int i = 0;
 
 	WRITE_MEM32(MACCR,LONG_TXE);	
@@ -1110,9 +1168,6 @@ void rtl8651_clearRegister(void)
 	WRITE_MEM32(CPUIIMR,0); 
 #endif
 
-#else
-	//rtlglue_printf("Driver of current CHIP version does not support [%s]\n", __FUNCTION__);
-#endif
 }
 
 void rtl8651_clearSpecifiedAsicTable(uint32 type, uint32 count) 
@@ -1128,26 +1183,20 @@ void rtl8651_clearSpecifiedAsicTable(uint32 type, uint32 count)
 
 int32 rtl8651_clearAsicCommTable(void)
 {
-#if defined(VSV)||defined(MIILIKE)
-	/* In VERA mode, we need to speed up table clean. */
-	{
-		enum IC_TYPE ictype;
-
-		model_getTestTarget( &ictype );
-
-		if ( ictype==IC_TYPE_REAL )
-		{	
-			vsv_clearAllTable(conn_client);
-			return SUCCESS;
-		}
-	}
-#endif
-
 	//rtl8651_clearSpecifiedAsicTable(TYPE_L2_SWITCH_TABLE, RTL8651_L2TBL_ROW*RTL8651_L2TBL_COLUMN);
 	//rtl8651_clearSpecifiedAsicTable(TYPE_RATE_LIMIT_TABLE, RTL8651_RATELIMITTBL_SIZE);
 	rtl8651_clearSpecifiedAsicTable(TYPE_NETINTERFACE_TABLE, RTL865XC_NETINTERFACE_NUMBER);
+#if defined(CONFIG_RTL_8198C)
+	REG32(MEMCR) = 0;
+	REG32(MEMCR) = ((1<<2) | (1<<5)); // VLAN and ACL
+
+	// wait for ACL table clear done due to the code below will set ACL table.
+	//while ( (REG32(MEMCR) & (1<< (5+8))) == 0 ) {} ;
+	while ( (REG32(MEMCR) & ((1<<10) | (1<<13))) != ((1<<10) | (1<<13)) ) {} ;
+#else
 	rtl8651_clearSpecifiedAsicTable(TYPE_VLAN_TABLE, RTL865XC_VLANTBL_SIZE);
 	rtl8651_clearSpecifiedAsicTable(TYPE_ACL_RULE_TABLE, RTL8651_ACLTBL_SIZE);
+#endif
 
 	/*
 	_rtl8651_clearSpecifiedAsicTable(TYPE_EXT_INT_IP_TABLE, RTL8651_IPTABLE_SIZE);
@@ -1255,7 +1304,9 @@ int32 rtl8651_setAsicOperationLayer(uint32 layer)
 		 * Egress acl check should never enable, becuase of some hardware bug 
 		 * reported by alpha    2007/12/05
 		 */
+		#ifndef CONFIG_RTL_NFJROM_MP 
 		WRITE_MEM32(MSCR,READ_MEM32(MSCR)|(EN_IN_ACL));
+		#endif
 		/*WRITE_MEM32(MSCR,READ_MEM32(MSCR)|(EN_OUT_ACL));*/
 
 		if(layer == 2) {
@@ -1350,7 +1401,17 @@ int32 rtl8651_getAsicAgingFunction(int8 * l2Enable, int8 * l4Enable) {
    #define BSP_SW_IE           (1 << 15)
 void rtl865x_start(void)
 {
+#if defined(CONFIG_RTL_8198C)
+	/* set "Lexra Bus Burst Size" to 128
+		Prevents DMA occupying the Lexra bus for too long.
+		00: 32 Bytes,  01: 64 (alignment issue must be fixed) 10:128
+	*/
+	REG32(CPUICR) = TXCMD | RXCMD | BUSBURST_128WORDS | MBUF_2048BYTES;
+	REG32(0xbb0c0000) = REG32(0xbb0c0000); // read entry 0 of ACL table to fix driver can't receive packet when lan un-plug
+#else
 	REG32(CPUICR) = TXCMD | RXCMD | BUSBURST_32WORDS | MBUF_2048BYTES;
+#endif
+
 	REG32(CPUIISR) = REG32(CPUIISR);
 #if 1
 	REG32(CPUIIMR) = RX_DONE_IE_ALL | TX_ALL_DONE_IE_ALL | LINK_CHANGE_IE | PKTHDR_DESC_RUNOUT_IE_ALL;
@@ -1371,29 +1432,6 @@ void rtl865x_down(void)
 	REG32(GIMR) &= ~(BSP_SW_IE);
 	REG32(CPUICR) = 0; 
 	REG32(SIRR) = 0;
-}
-
-unsigned int read_gpio_hw_setting(void)
-{
-#if 0
-    unsigned int tmp;
-    int b1,b2,b3,b4;
-    /* set(GP4 GP3 GP2 GP1)=(H1 H0 F3 F6)= gpio */
-    REG32(PEFGHCNR_REG) = REG32(PEFGHCNR_REG)&(~(0x03<<24))&(~(0x48<<8));
-    /* change to GPIO mode */
-    REG32(PEFGHPTYPE_REG)=REG32(PEFGHPTYPE_REG)&(~(0x03<<24)) & (~(0x48<<8) ); 
-    /* 0 input, 1 output, set  inpur */
-    REG32(PEFGHDIR_REG) = REG32(PEFGHDIR_REG)&(~(0x03<<24))&(~(0x48<<8));
-    tmp=REG32(PEFGHDAT_REG);
-    b4 = (tmp&(0x02<<24))>>25;
-    b3 = (tmp&(0x01<<24))>>24;
-    b2 = (tmp&(0x08<<8))>>11;
-    b1 = (tmp&(0x40<<8))>>14;
-    tmp = (b1&0x1) | ((b2<<1)&0x2) |  ((b3<<2)&0x4) | ((b4<<2)&0x8);	
-    // printk("GPIO val=%08x\r\n",tmp); // for debug
-    return tmp;	
-#endif
-	return 0;
 }
 
 unsigned int rtl865x_probeSdramSize(void)
@@ -1503,7 +1541,7 @@ uint64 rtl865xC_returnAsicCounter64(uint32 offset)
 	if ( offset & 0x3 )
 		return 0;
 
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8196C)
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198C)
 	return ( READ_MEM32( MIB_COUNTER_BASE + offset ) + ( ( uint64 ) READ_MEM32( MIB_COUNTER_BASE + offset + 4 ) << 22 ) );
 #else
 	return ( READ_MEM32( MIB_COUNTER_BASE + offset ) + ( ( uint64 ) READ_MEM32( MIB_COUNTER_BASE + offset + 4 ) << 32 ) );
@@ -2003,7 +2041,18 @@ int32 rtl8651_getAsicCounter(uint32 counterIdx, rtl865x_tblAsicDrv_basicCounterP
 //sync from rtl865x kernel 2.4
 void FullAndSemiReset( void )
 {
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+
+#if defined(CONFIG_RTL_8198C)
+	REG32(SIRR) |= FULL_RST;
+	mdelay(300);
+
+	REG32(SYS_CLK_MAG) &= ~CM_ACTIVE_SWCORE;
+	mdelay(300);
+	
+	REG32(SYS_CLK_MAG) |= CM_ACTIVE_SWCORE;
+	mdelay(50);
+
+#elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(SIRR) |= FULL_RST;
 	mdelay(300);
 

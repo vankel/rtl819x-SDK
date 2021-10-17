@@ -174,10 +174,6 @@ extern int8						*pVirtualSWTable;
 #define HSA_BASE			REAL_HSA_BASE
 #endif
 
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-#define PIN_MUX_SEL_2                           (SYSTEM_BASE + 0x0044)
-#endif
-
 #define RTL8197D_RGMII_PORT	0
 #if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
 #define RTL8367R_WAN			0		// WAN port is set to 8367R port 0
@@ -211,6 +207,11 @@ extern int8						*pVirtualSWTable;
 #define TCR5                        		(0x034 + TACI_BASE)     /* Table Access Control 5 */
 #define TCR6                        		(0x038 + TACI_BASE)     /* Table Access Control 6 */
 #define TCR7					(0x03C + TACI_BASE)     /* Table Access Control 7 */
+#if defined(CONFIG_RTL_8198C)
+#define TCR8                                (0x040 + TACI_BASE)     /* Table Access Control 5 */
+#define TCR9                                (0x044 + TACI_BASE)     /* Table Access Control 6 */
+#define TCR10                               (0x048 + TACI_BASE)     /* Table Access Control 7 */
+#endif
 /* Table access control register field definitions
 */
 #define ACTION_MASK                 	1
@@ -511,7 +512,7 @@ link partner ability registers field definitions
 #define CPUTPDCR1					(0x024 + CPU_IFACE_BASE)		/* Tx pkthdr descriptor control High */
 #define CPUTPDCR(idx)				(CPUTPDCR0 + (idx << 2))		/* Tx pkthdr descriptor control with index */
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #define CPUTPDCR2					(0x060 + CPU_IFACE_BASE)    /* Tx Pkthdr Descriptor 2 Control Register */
 #define CPUTPDCR3					(0x064 + CPU_IFACE_BASE)    /* Tx Pkthdr Descriptor 3 Control Register */
 #endif
@@ -525,6 +526,7 @@ link partner ability registers field definitions
 #define CPUQDM4						(0x038 + CPU_IFACE_BASE)		/* Queue ID 4 and Descriptor Ring Mapping Register */
 #define CPUQDM5						(0x03a + CPU_IFACE_BASE)		/* Queue ID 5 and Descriptor Ring Mapping Register */
 
+#define DMA_CR0						(0x03c + CPU_IFACE_BASE)		/* DMA Control Register 0 */
 #define DMA_CR1						(0x040 + CPU_IFACE_BASE)		/* DMA Control Register 1 */
 #define DMA_CR2						(0x044 + CPU_IFACE_BASE)		/* DMA Control Register 2 */
 
@@ -673,8 +675,11 @@ link partner ability registers field definitions
 #define EXT2_RX_DESC_SHIFT				4
 #define EXT3_RX_DESC_SHIFT				0
 
-
-
+/* DMA_CR0 - DMA Control Register 0 */
+/* HSB of Lexra bus address marking for mapping the SW virtual address to physical address.
+	addr[31:28] is replace by 'HsbAddrMark & addr[31:28]' */
+#define HsbAddrMark_OFFSET                16
+#define HsbAddrMark_MASK                  (0xf<<16)
 
 /* Switch Core Control Registers 
 */
@@ -1125,9 +1130,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 /* CSCR, CCR - Checksum Control Register */
 #define EnL4ChkCal                          (1<<5)                   /* Enable L4 Checksum Re-calculation */
 #define EnL3ChkCal                          (1<<4)                   /* Enable L3 Checksum Re-calculation */
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define AcceptL2Err                          (1<<3)                   /* CPU port L2 CRC Error Allow; 0: Not Allowed, 1: Allowed (default) */
-#endif
 #define L4ChkSErrAllow                      (1<<2)                   /* L4 Checksum Error Allow */
 #define L3ChkSErrAllow                      (1<<1)                   /* L3 Checksum Error Allow */
 #define L2CRCErrAllow                       (1<<0)                   /* L2 CRC Error Allow */
@@ -1172,7 +1175,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define Port0_TypeCfg_UTP                   (0<< 0)
 #define Port0_TypeCfg_GMII_MII_RGMII        (1<< 0)
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 
 #define GIGA_P5_PHYID	0x16
 /* 0xBB804104 ~ 0xBB804124 */
@@ -1370,6 +1373,8 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define RGMII_TCOMP_7NS						(7<<2)					/* Tcomp 7.0 ns */
 
 #define EEECR                               (0x60+PCRAM_BASE)     /* EEE ability Control Register ( 0xBB80_4160 ) */
+#define EEEABICR1                           (0x64+PCRAM_BASE)     /* EEE ability Control Register 1 */
+
 /* EEE ability Control Register ( 0xBB80_4160 ) */
 #define EN_P5_FRC_EEE			(1 << 29)	/* Enable Port 5 EEE force mode */
 #define FRC_P5_EEE_Giga			(1 << 28)	/* Force Port 5 EEE ability for 1000BASE-T. */
@@ -1408,7 +1413,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define CVIDR                               (0x00+SWMISC_BASE)     /* Chip Version ID Register */
 #define SSIR						        (0x04+SWMISC_BASE)     /* System Initial and Reset Registe*/
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #define CRMR                                (0x08+SWMISC_BASE)     /* Chip Revision Management Register */
 #define BISTCR                              (0x0C+SWMISC_BASE)     /* BIST control */
 #define BISTTSDR0                           (0x38+SWMISC_BASE)     /* BIST Test Status Diagnostic Register 0 */
@@ -1441,7 +1446,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #endif
 #define SIRR						        (SSIR)                 /* Alias Name */
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #define MEMCR                              (0x34+SWMISC_BASE)     /* MEM CTRL Register */
 #endif
 
@@ -1512,12 +1517,24 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define IPMCMCR0					(0x5C+ALE_BASE)			/*IPM Clone Mac Configuration register 0 */
 #define IPMCMCR1					(0x60+ALE_BASE)			/*IPM Clone Mac Configuration register 1 */
 #endif
+#define V4VLDSCPCR0				(0x64+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 0 */
+#define V4VLDSCPCR1				(0x68+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 1 */
+#define V4VLDSCPCR2				(0x6C+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 2 */
+#define V4VLDSCPCR3				(0x70+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 3 */
+#define V4VLDSCPCR4				(0x74+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 4 */
+#define V4VLDSCPCR5				(0x78+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 5 */
+#define V4VLDSCPCR6				(0x7C+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 6 */
+#define V4VLDSCPCR7				(0x80+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 7 */
+#define V4VLDSCPCR8				(0x84+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 8 */
 
 /* TEACR - Table Entry Aging Control Register */
 #define EnRateLimitTbAging                  (1<<6)                /* Enable Rate Limit table hardware aging function. */
 #define EnL2FastAging                       (1<<5)                /* Enable L2 Fast Aging Out */
 #define EnL2HashColOW                       (1<<4)                /* Enable L2 Tablsh Hash Collision Over Write */
 #define IPMcastAgingDisable                 (1<<3)                /* 0=Enable IP Multicast table aging. 1=disable */
+#if defined(CONFIG_RTL_8198C)
+#define IPv6McastAgingDisable               (1<<9)                /* 0=Enable IPv6 Multicast table aging. 1=disable */
+#endif
 #define PPPoEAgingDisable                   (1<<2)                /* 0=Enable PPPoE Table Aging. 1=disable */
 #define L4AgingDisable                      (1<<1)                /* 0=Enable L4 Aging. 1=disable */
 #define L2AgingDisable                      (1<<0)                /* 0=Enable L2 Aging. 1=disable */
@@ -1657,6 +1674,15 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define INTExtP2_MASK                       (7<<24)     /* Index for Ext2, pointing to Interface table */
 
 /* DACLRCR - Default ACL Rule Control Register */
+#if defined(CONFIG_RTL_8198C)
+#define ACLI_STA_MASK				(0xff)
+#define ACLI_EDA_OFFSET			8
+#define ACLI_EDA_MASK				(0xff<<ACLI_EDA_OFFSET)
+#define ACLO_STA_OFFSET			16
+#define ACLO_STA_MASK				(0xff<<ACLO_STA_OFFSET)
+#define ACLO_EDA_OFFSET			24
+#define ACLO_EDA_MASK				(0xff<<ACLO_EDA_OFFSET)
+#else
 #define ACLI_STA_MASK				(0x7f)
 #define ACLI_EDA_OFFSET			7
 #define ACLI_EDA_MASK				(0x7f<<ACLI_EDA_OFFSET)
@@ -1664,22 +1690,59 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define ACLO_STA_MASK				(0x7f<<ACLO_STA_OFFSET)
 #define ACLO_EDA_OFFSET			21
 #define ACLO_EDA_MASK				(0x7f<<ACLO_EDA_OFFSET)
+#endif
 
 /* FFCR - Frame Forwarding Configuration Register */
+#define CF_IPM_SPA_UNMCH_OFFSET     (10)         /* SIP & DIP match but SPA unmatch */
+#define CF_IPM_SPA_UNMCH_MASK        (3<<10)         /* SIP & DIP match but SPA unmatch */
+#define CF_IPM_SPA_UNMCH_FLOODING	(2)
+#define CF_IPM_SPA_UNMCH_DROP		(1)
+#define CF_IPM_SPA_UNMCH_CPU		(0)
+
+#define CF_IPM_IP_UNMCH_OFFSET        (8)         /* IPM table unmatch flow */
+#define CF_IPM_IP_UNMCH_MASK           (3<<8)         /* IPM table unmatch flow */
+#define CF_IPM_IP_UNMCH_FLOODING	(2)
+#define CF_IPM_IP_UNMCH_DROP		(1)
+#define CF_IPM_IP_UNMCH_TO_CPU		(0)
+
 #define CF_IPMMAC_CLONE_EN                (1<<7)      /* Configure to clone the IP multicast mac from register */
 #define CF_IPMMAC_CLONE_EN_OFFSET         (7)      /* Configure to clone the IP multicast mac from register */
+
+#define IPMltHash_OFFSET                 	(5)         /* The hash algorithm selection for IP Multicast routing */
+#define IPMltHash_MASK                 	(3<<5)         /* The hash algorithm selection for IP Multicast routing */
 #define IPMltCstCtrl_OFFSET                 (3)         /* IP Multicast Forwarding Control */
 #define IPMltCstCtrl_MASK                   (3<<3)      /* IP Multicast Forwarding Control */
 #define IPMltCstCtrl_Disable                (0<<3)      /* Disable IP Multicast table lookup (just follow L2 Multicast packet procedure) */
 #define IPMltCstCtrl_Enable                 (1<<3)      /* Enable IP Multicast table lookup */
 #define IPMltCstCtrl_TrapToCpu              (2<<3)      /* Tral all IP Multicast packet to CPU port */
+
+#if defined(CONFIG_RTL_8198C)
+#define IPMltCstv6Ctrl_Disable                (0<<20)      /* Disable IPV6 Multicast table lookup (just follow L2 Multicast packet procedure) */
+#define IPMltCstv6Ctrl_Enable                 (1<<20)      /* Enable IPV6 Multicast table lookup */
+#define IPMltCstv6Ctrl_TrapToCpu              (2<<20)      /* Tral all IPV6 Multicast packet to CPU port */
+#endif
 #define EN_MCAST                            IPMltCstCtrl_Enable    /* Alias Name for Enable Multicast Table */
+#if defined(CONFIG_RTL_8198C)
+#define EN_MCASTv6                            IPMltCstv6Ctrl_Enable    /* Alias Name for Enable Multicast Table */
+#endif
 #define EnFlood2NonCgtPrt                   (1<<2)      /* Enable Flooding to non-Congested Port Only */
 #define EnUnkUC2CPU                         (1<<1)      /* Enable Unknown Unicast Packet Trap to CPU port */
 #define EnUnkMC2CPU                         (1<<0)      /* Enable Unknown Multicast Packet Trap to CPU port */
 #define EN_UNUNICAST_TOCPU                  EnUnkUC2CPU /* Alias Name */
 #define EN_UNMCAST_TOCPU                    EnUnkMC2CPU /* Alias Name */
 
+/* V4VLDSCPCR0 ~ V4VLDSCPCR8 - V4 VLAN and DSCP remarking control register */
+#define CF_IPM4DSCP_ACT_OFFSET        (28)         	/* CF_IPM4DSCP_ACT */
+#define CF_IPM4DSCP_ACT_MASK           (3<<28)
+#define CF_IPM4DSCP_ACT_REMARK	 (2)		       /* Remark DSCP value by DSCP Remarking table seeting */
+#define CF_IPM4DSCP_ACT_DIRECT	 (1)    		/* Direct Remark DSCP value by cf_ipm4dscp in IPMv4 packet */
+#define CF_IPM4DSCP_ACT_BYPASS	 (0)		  	/* Bypass DSCP value */
+
+#define CF_IPM4PRI_ACT_OFFSET          (17)         	/* CF_IPM4PRI_ACT */
+#define CF_IPM4PRI_ACT_MASK             (3<<17)
+#define CF_IPM4PRI_ACT_ORIG		 (2)		       /* follow original priority flow, like unicast packet */
+#define CF_IPM4PRI_ACT_REMARK		 (1)    		/* Remark VLAN priority value by cf_ipm4pri */
+#define CF_IPM4PRI_ACT_BYPASS		 (0)		  	/* Bypass VLAN priority value */
 
 
 #define SBFCTR                              (0x4500+SWCORE_BASE)  /* System Based Flow Control Threshold Register */
@@ -1736,6 +1799,40 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define QPKTFCRP6G1							(0x0C8+SBFCTR)		  /* Queue-Packet-Based Flow Control Register for Port 6 Group 1 */
 #define QPKTFCRP6G2							(0x0CC+SBFCTR)		  /* Queue-Packet-Based Flow Control Register for Port 6 Group 2 */
 
+#if defined (CONFIG_RTL_8198C)
+#define SBFCTR_98C                          (0x5000+SWCORE_BASE)  /* System Based Flow Control Threshold Register */
+
+#define QDBFCRP0G3                          (0x01C+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 0 Group 3*/
+#define QDBFCRP0G4                          (0x020+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 0 Group 4 */
+#define QDBFCRP1G3                          (0x024+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 1 Group 3*/
+#define QDBFCRP1G4                          (0x028+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 1 Group 4 */
+#define QDBFCRP2G3                          (0x02C+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 2 Group 3*/
+#define QDBFCRP2G4                          (0x030+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 2 Group 4 */
+#define QDBFCRP3G3                          (0x034+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 3 Group 3*/
+#define QDBFCRP3G4                          (0x038+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 3 Group 4 */
+#define QDBFCRP4G3                          (0x03C+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 4 Group 3*/
+#define QDBFCRP4G4                          (0x040+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 4 Group 4 */
+#define QDBFCRP5G3                          (0x044+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 5 Group 3*/
+#define QDBFCRP5G4                          (0x048+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 5 Group 4 */
+#define QDBFCRP6G3                          (0x04C+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 6 Group 3*/
+#define QDBFCRP6G4                          (0x050+SBFCTR_98C)    /* Queue-Descriptor=Based Flow Control Threshold for Port 6 Group 4 */
+
+#define QPKTFCRP0G3                         (0x054+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 0 Group 3 */
+#define QPKTFCRP0G4                         (0x058+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 0 Group 4 */
+#define QPKTFCRP1G3                         (0x05C+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 1 Group 3 */
+#define QPKTFCRP1G4                         (0x060+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 1 Group 4 */
+#define QPKTFCRP2G3                         (0x064+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 2 Group 3 */
+#define QPKTFCRP2G4                         (0x068+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 2 Group 4 */
+#define QPKTFCRP3G3                         (0x06C+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 3 Group 3 */
+#define QPKTFCRP3G4                         (0x070+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 3 Group 4 */
+#define QPKTFCRP4G3                         (0x074+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 4 Group 3 */
+#define QPKTFCRP4G4                         (0x078+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 4 Group 4 */
+#define QPKTFCRP5G3                         (0x07C+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 5 Group 3 */
+#define QPKTFCRP5G4                         (0x080+SBFCTR_98C)        /* Queue-Packet-Based Flow Control Register for Port 5 Group 4 */
+#define QPKTFCRP6G3							(0x084+SBFCTR_98C)		  /* Queue-Packet-Based Flow Control Register for Port 6 Group 3 */
+#define QPKTFCRP6G4							(0x088+SBFCTR_98C)		  /* Queue-Packet-Based Flow Control Register for Port 6 Group 4 */
+
+#endif
 #define FCCR0                               (0x0d0+SBFCTR)        /* Flow Control Configuration Register 0 */
 #define FCCR1                               (0x0d4+SBFCTR)        /* Flow Control Configuration Register 1 */
 #define PQPLGR                              (0x0d8+SBFCTR)        /* Per Queue Physical Length Gap Register */
@@ -1766,11 +1863,17 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define S_Max_SBuf_FCON_MASK                (0x1FF<<0)            /* System max shared buffer flow control turn on threshold */
 
 /* PBFCR0~PBFCR6 - Port Based Flow Control Threshold Register */
+#if defined (CONFIG_RTL_8198C)
+#define P_MaxDSC_FCOFF_OFFSET               (16)                  /* Per-Port Max Used Descriptor Flow Control Turn Off Threshold */
+#define P_MaxDSC_FCOFF_MASK                 (0x3ff<<16)           /* Per-Port Max Used Descriptor Flow Control Turn Off Threshold */
+#define P_MaxDSC_FCON_OFFSET                (0)                   /* Per-Port Max Used Descriptor Flow Control Turn On Threshold */
+#define P_MaxDSC_FCON_MASK                  (0x3ff<<0)            /* Per-Port Max Used Descriptor Flow Control Turn On Threshold */
+#else
 #define P_MaxDSC_FCOFF_OFFSET               (16)                  /* Per-Port Max Used Descriptor Flow Control Turn Off Threshold */
 #define P_MaxDSC_FCOFF_MASK                 (0x1ff<<16)           /* Per-Port Max Used Descriptor Flow Control Turn Off Threshold */
 #define P_MaxDSC_FCON_OFFSET                (0)                   /* Per-Port Max Used Descriptor Flow Control Turn On Threshold */
 #define P_MaxDSC_FCON_MASK                  (0x1ff<<0)            /* Per-Port Max Used Descriptor Flow Control Turn On Threshold */
-
+#endif
 /* QDBFCRP0G0,QDBFCRP0G1,QDBFCRP0G2
  * QDBFCRP1G0,QDBFCRP1G1,QDBFCRP1G2
  * QDBFCRP2G0,QDBFCRP2G1,QDBFCRP2G2
@@ -1778,11 +1881,17 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
  * QDBFCRP4G0,QDBFCRP4G1,QDBFCRP4G2
  * QDBFCRP5G0,QDBFCRP5G1,QDBFCRP5G2
  * - Queue-Descriptor=Based Flow Control Threshold for Port 0 Group 0 */
+#if defined (CONFIG_RTL_8198C)
+#define QG_DSC_FCOFF_OFFSET                 (16)                  /* Queue Descriptor Based Flow Control Turn Off Threshold */
+#define QG_DSC_FCOFF_MASK                   (0xff<<16)            /* Queue Descriptor Based Flow Control Turn Off Threshold */
+#define QG_DSC_FCON_OFFSET                  (0)                   /* Queue Descriptor Based Flow Control Turn Off Threshold */
+#define QG_DSC_FCON_MASK                    (0xff<<0)             /* Queue Descriptor Based Flow Control Turn Off Threshold */
+#else
 #define QG_DSC_FCOFF_OFFSET                 (16)                  /* Queue Descriptor Based Flow Control Turn Off Threshold */
 #define QG_DSC_FCOFF_MASK                   (0x1f<<16)            /* Queue Descriptor Based Flow Control Turn Off Threshold */
 #define QG_DSC_FCON_OFFSET                  (0)                   /* Queue Descriptor Based Flow Control Turn Off Threshold */
 #define QG_DSC_FCON_MASK                    (0x7f<<0)             /* Queue Descriptor Based Flow Control Turn Off Threshold */
-
+#endif
 /* QPKTFCRP0G0,QPKTFCRP0G1,QPKTFCRP0G2
  * QPKTFCRP1G0,QPKTFCRP1G1,QPKTFCRP1G2
  * QPKTFCRP2G0,QPKTFCRP2G1,QPKTFCRP2G2
@@ -1790,15 +1899,38 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
  * QPKTFCRP4G0,QPKTFCRP4G1,QPKTFCRP4G2
  * QPKTFCRP5G0,QPKTFCRP5G1,QPKTFCRP5G2
    - Queue-Packet-Based Flow Control Register for Port 0 Group 0 */
+#if defined (CONFIG_RTL_8198C)
+#define QG_QLEN_FCOFF_OFFSET                (16)                  /* Queue Packet Based Flow Control Turn Off Threshold */
+#define QG_QLEN_FCOFF_MASK                  (0x1ff<<16)            /* Queue Packet Based Flow Control Turn Off Threshold */
+#define QG_QLEN_FCON_OFFSET                 (0)                   /* Queue Packet Based Flow Control Turn Off Threshold */
+#define QG_QLEN_FCON_MASK                   (0x1ff<<0)             /* Queue Packet Based Flow Control Turn Off Threshold */
+
+#else
 #define QG_QLEN_FCOFF_OFFSET                (16)                  /* Queue Packet Based Flow Control Turn Off Threshold */
 #define QG_QLEN_FCOFF_MASK                  (0x1f<<16)            /* Queue Packet Based Flow Control Turn Off Threshold */
 #define QG_QLEN_FCON_OFFSET                 (0)                   /* Queue Packet Based Flow Control Turn Off Threshold */
 #define QG_QLEN_FCON_MASK                   (0x7f<<0)             /* Queue Packet Based Flow Control Turn Off Threshold */
-
+#endif
 
 
 /* FCCR0 - Flow Control enable/disable for port3~port0 */
 /* FCCR1 - Flow Control enable/disable for port6~port4 */
+#if defined (CONFIG_RTL_8198C)
+#define Q_P0_EN_FC_OFFSET					(0)
+#define Q_P0_EN_FC_MASK						(0xff<<0)
+#define Q_P1_EN_FC_OFFSET					(8)
+#define Q_P1_EN_FC_MASK						(0xff<<8)
+#define Q_P2_EN_FC_OFFSET					(16)
+#define Q_P2_EN_FC_MASK						(0xff<<16)
+#define Q_P3_EN_FC_OFFSET					(24)
+#define Q_P3_EN_FC_MASK						(0xff<<24)
+#define Q_P4_EN_FC_OFFSET					(0)
+#define Q_P4_EN_FC_MASK						(0xff<<0)
+#define Q_P5_EN_FC_OFFSET					(8)
+#define Q_P5_EN_FC_MASK						(0xff<<8)
+#define Q_P6_EN_FC_OFFSET					(16)
+#define Q_P6_EN_FC_MASK						(0xff<<16)
+#else
 #define Q_P0_EN_FC_OFFSET					(0)
 #define Q_P0_EN_FC_MASK						(0x3f<<0)
 #define Q_P1_EN_FC_OFFSET					(8)
@@ -1813,7 +1945,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define Q_P5_EN_FC_MASK						(0x3f<<8)
 #define Q_P6_EN_FC_OFFSET					(16)
 #define Q_P6_EN_FC_MASK						(0x3f<<16)
-
+#endif
 
 
 
@@ -1870,6 +2002,13 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define DSCPRM1                             (0x74 + OQNCR_BASE)   /*DSCP Remarking Control Register 1*/
 #define RLRC                                (0x78 + OQNCR_BASE)   /*Remarking Layer Rule Control*/
 
+#if defined (CONFIG_RTL_8198C)
+#define OQNCR_BASE_98C                      (SWCORE_BASE+0x5000)  /* Output Queue Number Control Registers for 98C*/
+#define PQGCR8								(0x00 + OQNCR_BASE_98C)/*8 Priority Queue Global Control Register*/
+#define UPTCMCR6			        		(0x10 + OQNCR_BASE_98C)	  /* User Priority to Traffic Class Mapping for 7 output queue */	
+#define UPTCMCR7			        		(0x14 + OQNCR_BASE_98C)	  /* User Priority to Traffic Class Mapping for 8 output queue */	
+#define EN_8PRI_Q_MASK						(1<<0)	/*Enable 8 Priority Q*/				
+#endif
 
 /* QOSFCR - QoS Function Control Register */
 #define BC_withPIFG_OFFSET                  (0)		              /* Bandwidth Conrol Include/Exclude Preamble&IFG. 0:exclude; 1:include */
@@ -1966,6 +2105,78 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 
 
 /* QNUMCR - Queue Number Control Register*/
+#ifdef CONFIG_RTL_8198C
+#define P0QNum_OFFSET                       (0)                   
+#define P0QNum_MASK                         (7<<0)                /* Valid for 1~6 output queues */
+#define P0QNum_1                            (0<<0)                /* 1 Output Queue */
+#define P0QNum_2                            (1<<0)                /* 2 Output Queues */
+#define P0QNum_3                            (2<<0)                /* 3 Output Queues */
+#define P0QNum_4                            (3<<0)                /* 4 Output Queues */
+#define P0QNum_5                            (4<<0)                /* 5 Output Queues */
+#define P0QNum_6                            (5<<0)                /* 6 Output Queues */
+#define P0QNum_7                            (6<<0)                /* 7 Output Queues */
+#define P0QNum_8                            (7<<0)                /* 8 Output Queues */
+#define P1QNum_OFFSET                       (3)                   
+#define P1QNum_MASK                         (7<<3)                /* Valid for 1~6 output queues */
+#define P1QNum_1                            (0<<3)                /* 1 Output Queue */
+#define P1QNum_2                            (1<<3)                /* 2 Output Queues */
+#define P1QNum_3                            (2<<3)                /* 3 Output Queues */
+#define P1QNum_4                            (3<<3)                /* 4 Output Queues */
+#define P1QNum_5                            (4<<3)                /* 5 Output Queues */
+#define P1QNum_6                            (5<<3)                /* 6 Output Queues */
+#define P1QNum_7                            (6<<3)                /* 7 Output Queues */
+#define P1QNum_8                            (7<<3)                /* 8 Output Queues */
+#define P2QNum_OFFSET                       (6)                   
+#define P2QNum_MASK                         (7<<6)                /* Valid for 1~6 output queues */
+#define P2QNum_1                            (0<<6)                /* 1 Output Queue */
+#define P2QNum_2                            (1<<6)                /* 2 Output Queues */
+#define P2QNum_3                            (2<<6)                /* 3 Output Queues */
+#define P2QNum_4                            (3<<6)                /* 4 Output Queues */
+#define P2QNum_5                            (4<<6)                /* 5 Output Queues */
+#define P2QNum_6                            (5<<6)                /* 6 Output Queues */
+#define P2QNum_7                            (6<<6)                /* 7 Output Queues */
+#define P2QNum_8                            (7<<6)                /* 8 Output Queues */
+#define P3QNum_OFFSET                       (9)                   
+#define P3QNum_MASK                         (7<<9)                /* Valid for 1~6 output queues */
+#define P3QNum_1                            (0<<9)                /* 1 Output Queue */
+#define P3QNum_2                            (1<<9)                /* 2 Output Queues */
+#define P3QNum_3                            (2<<9)                /* 3 Output Queues */
+#define P3QNum_4                            (3<<9)                /* 4 Output Queues */
+#define P3QNum_5                            (4<<9)                /* 5 Output Queues */
+#define P3QNum_6                            (5<<9)                /* 6 Output Queues */
+#define P3QNum_7                            (6<<9)                /* 7 Output Queues */
+#define P3QNum_8                            (7<<9)                /* 8 Output Queues */
+#define P4QNum_OFFSET                       (12)                  
+#define P4QNum_MASK                         (7<<12)               /* Valid for 1~6 output queues */
+#define P4QNum_1                            (0<<12)               /* 1 Output Queue */
+#define P4QNum_2                            (1<<12)               /* 2 Output Queues */
+#define P4QNum_3                            (2<<12)               /* 3 Output Queues */
+#define P4QNum_4                            (3<<12)               /* 4 Output Queues */
+#define P4QNum_5                            (4<<12)               /* 5 Output Queues */
+#define P4QNum_6                            (5<<12)               /* 6 Output Queues */
+#define P4QNum_7                            (6<<12)               /* 7 Output Queues */
+#define P4QNum_8                            (7<<12)               /* 8 Output Queues */
+#define P5QNum_OFFSET                       (15)                  
+#define P5QNum_MASK                         (7<<15)               /* Valid for 1~6 output queues */
+#define P5QNum_1                            (0<<15)               /* 1 Output Queue */
+#define P5QNum_2                            (1<<15)               /* 2 Output Queues */
+#define P5QNum_3                            (2<<15)               /* 3 Output Queues */
+#define P5QNum_4                            (3<<15)               /* 4 Output Queues */
+#define P5QNum_5                            (4<<15)               /* 5 Output Queues */
+#define P5QNum_6                            (5<<15)               /* 6 Output Queues */
+#define P5QNum_7                            (6<<15)               /* 7 Output Queues */
+#define P5QNum_8                            (7<<15)               /* 8 Output Queues */
+#define P6QNum_OFFSET                       (18)                  /* CPU port */
+#define P6QNum_MASK                         (7<<18)               /* Valid for 1~6 output queues */
+#define P6QNum_1                            (0<<18)               /* 1 Output Queue */
+#define P6QNum_2                            (1<<18)               /* 2 Output Queues */
+#define P6QNum_3                            (2<<18)               /* 3 Output Queues */
+#define P6QNum_4                            (3<<18)               /* 4 Output Queues */
+#define P6QNum_5                            (4<<18)               /* 5 Output Queues */
+#define P6QNum_6                            (5<<18)               /* 6 Output Queues */
+#define P6QNum_7                            (6<<18)               /* 7 Output Queues */
+#define P6QNum_8                            (7<<18)               /* 8 Output Queues */
+#else
 #define P0QNum_OFFSET                       (0)                   
 #define P0QNum_MASK                         (7<<0)                /* Valid for 1~6 output queues */
 #define P0QNum_1                            (1<<0)                /* 1 Output Queue */
@@ -2022,6 +2233,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define P6QNum_4                            (4<<18)               /* 4 Output Queues */
 #define P6QNum_5                            (5<<18)               /* 5 Output Queues */
 #define P6QNum_6                            (6<<18)               /* 6 Output Queues */
+#endif
 
 /* CPUQIDMCR0 - CPU port QID Mapping Control Register (DP=include CPU) */
 #define CPUPri7QIDM_OFFSET                  28                    /* DP=include CPU, priority=7 */
@@ -2237,6 +2449,32 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define ILBPCR1                             (0x10C + PSCR)          /* Ingress Leaky Bucket Parameter Control Register1 */
 #define ILBPCR2                             (0x110 + PSCR)          /* Ingress Leaky Bucket Parameter Control Register2 */
 #define ILB_CURRENT_TOKEN                   (0x114 + PSCR)          /* The current token of the Leaky bucket 2Bytes per port(Port 0~Port5) */
+#if defined (CONFIG_RTL_8198C)
+#define PSCR98C                                (SWCORE_BASE + 0x5000)
+#define P0Q6RGCR                            (0x0A8 + PSCR98C)          /* Rate Guarantee Control Register of Port 0 Queue 6 */
+#define P0Q7RGCR                            (0x0AC + PSCR98C)          /* Rate Guarantee Control Register of Port 0 Queue 7 */
+#define P1Q6RGCR                            (0x0B0 + PSCR98C)          /* Rate Guarantee Control Register of Port 1 Queue 6 */
+#define P1Q7RGCR                            (0x0B4 + PSCR98C)          /* Rate Guarantee Control Register of Port 1 Queue 7 */
+#define P2Q6RGCR                            (0x0B8 + PSCR98C)          /* Rate Guarantee Control Register of Port 2 Queue 6 */
+#define P2Q7RGCR                            (0x0BC + PSCR98C)          /* Rate Guarantee Control Register of Port 2 Queue 7 */
+#define P3Q6RGCR                            (0x0C0 + PSCR98C)          /* Rate Guarantee Control Register of Port 3 Queue 6 */
+#define P3Q7RGCR                            (0x0C4 + PSCR98C)          /* Rate Guarantee Control Register of Port 3 Queue 7 */
+#define P4Q6RGCR                            (0x0C8 + PSCR98C)          /* Rate Guarantee Control Register of Port 4 Queue 6 */
+#define P4Q7RGCR                            (0x0CC + PSCR98C)          /* Rate Guarantee Control Register of Port 4 Queue 7 */
+#define P5Q6RGCR                            (0x0D0 + PSCR98C)          /* Rate Guarantee Control Register of Port 5 Queue 6 */
+#define P5Q7RGCR                            (0x0D4 + PSCR98C)          /* Rate Guarantee Control Register of Port 5 Queue 7 */
+#define P6Q6RGCR                            (0x0D8 + PSCR98C)          /* Rate Guarantee Control Register of Port 6 Queue 6 */
+#define P6Q7RGCR                            (0x0DC + PSCR98C)          /* Rate Guarantee Control Register of Port 6 Queue 7 */
+
+#define WFQWCR1P0_98C                           (0x08C + PSCR98C)          /* Weighted Fair Queue Weighting Control Register 1 of Port 0 Queue6/7*/
+#define WFQWCR1P1_98C                           (0x090 + PSCR98C)          /* Weighted Fair Queue Weighting Control Register 1 of Port 1 Queue6/7*/
+#define WFQWCR1P2_98C                           (0x094 + PSCR98C)          /* Weighted Fair Queue Weighting Control Register 1 of Port 2 Queue6/7*/
+#define WFQWCR1P3_98C                           (0x098 + PSCR98C)          /* Weighted Fair Queue Weighting Control Register 1 of Port 3 Queue6/7*/
+#define WFQWCR1P4_98C                           (0x09C + PSCR98C)          /* Weighted Fair Queue Weighting Control Register 1 of Port 4 Queue6/7*/
+#define WFQWCR1P5_98C                           (0x0A0 + PSCR98C)          /* Weighted Fair Queue Weighting Control Register 1 of Port 5 Queue6/7*/
+#define WFQWCR1P6_98C                           (0x0A4 + PSCR98C)          /* Weighted Fair Queue Weighting Control Register 1 of Port 6 Queue6/7*/
+
+#endif
 
 /* P0Q0RGCG - Per-Queue Rate Guarantee Control Register */
 #define PPR_OFFSET                          (24)                    /* Peak Packet Rate, in times of APR        CNT2 */
@@ -2572,11 +2810,103 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define LAGHPMR0							(0x00 + LAGCR_BASE)	/* Link Aggregation Hashed Index to Port Mapping Register 0 */
 #define LAGCR0								(0x08 + LAGCR_BASE)	/* Link Aggregation Control Register 0 */
 #define LAGCR1								(0x0C + LAGCR_BASE)	/* Link Aggregation Control Register 1 */
+#if defined(CONFIG_RTL_8198C)
+#define LAGCR2								(0x10+ LAGCR_BASE)	/* Link Aggregation Control Register 2 */
+#endif
+/* Extend MAC Control Register */
+#define EXTMAC_BASE				(SWCORE_BASE + 0x5100)
+#define MACCTRL1					(0x00+EXTMAC_BASE)       	/* MAC Configuration Register 1 */
+#define EXTPCR0					(0x08+EXTMAC_BASE)       	/* Extend Port Configuration Register for Port 0 */
+
+
+/* MACCTRL1 - MAC Configuration Register 1 */
+#define CF_CMAC_CLK_SEL                             (1<<0)         /* Cport MAC clock selection with NIC interface,  1: lx_clk, 0: lx_clk/2 ( default ) */
+													/* Note: Before cf_cmac_clk_sel = 1'b1, 0xbb80_4000 n13-n12 must be set to 2'b01 first. (sys_clk_sel = 2'b01) */
+/* EXTPCR0 - Extend Port Configuration Register for Port 0 */
+#define FRC_Pn_EEE_GELITE                      (1<<12)        /* MAC EEE ability for 500M port, or Advertise 500M EEE capable */
+#define CF_HW_500M_AN                          (1<<1)         /* Configure each Ethernet port whether HW auto check Giga lite status */
+#define CF_500M_EN                             (1<<0)         /* Configure whether port has the ability to support Giga Lite */
+
+
+#if defined(CONFIG_RTL_8198C)
+/* IPv6 Control Register */
+#define IPV6_BASE					(SWCORE_BASE + 0x5200)
+#define IPV6CR0						(0x00+IPV6_BASE)       	/* ALE IPv6 Control Register 0 */
+#define IPV6CR1						(0x04+IPV6_BASE)       	/* ALE IPv6 Control Register 1 */
+#define MultiCastv6MTU_OFFSET			(0)
+#define MultiCastv6MTU_MASK			(0x7fff)
+#define DSLITECTR0					(0x010+IPV6_BASE)
+#define DSLITECTR1					(0x038+IPV6_BASE)
+#define V6DSLITECTR0				(0x010+IPV6_BASE)
+#define V6DSLITECTR1				(0x038+IPV6_BASE)
+#define V6RDCTR0					(0x008+IPV6_BASE)
+#define V6RDCTR1					(0x00C+IPV6_BASE)
+
+/*V6DSLITECTR0*/
+#define CF_DSLITE_NAT_OFFSET		(31)
+#define CF_DSLITE_NAT_MASK			(1<<31)
+#define CF_DSLITE_DPRI_OFFSET		(28)
+#define CF_DSLITE_DPRI_MASK			(3<<28)
+#define CF_DSL_MTU_OFFSET			(13)
+#define CF_DSL_MTU_MASK				(0X8FFF<<13)
+#define CF_STA_DSLMTU_OFFSET		(12)	
+#define CF_STA_DSLMTU_MASK			(1<<12)
+#define CF_DSLTC_OFFSET				(4)
+#define CF_DSLTC_MASK				(0xFF<<4)
+#define CF_UKN_DSLDIP_CPU_OFFSET	(2)
+#define CF_UKN_DSLDIP_CPU_MASK		(1<<2)
+#define CF_DSLTC_EN_OFFSET			(1)
+#define CF_DSLTC_EN_MASK			(1<<1)
+#define CF_DSLITE_EN_OFFSET			(0)
+#define CF_DSLITE_EN_MASK			(1)
+#define CF_HOP_LIMIT				(64)
+
+
+/*V6DSLITECTR1*/
+#define CF_DSL_HOPLIMIT_OFFSET		(19)
+#define CF_DSL_HOPLIMIT_MASK		(0xFF<<19)
+#define CF_DSL_FWLABEL_OFFSET		(0)
+#define CF_DSL_FWLABEL_MASK			(0xFFFFF)
+
+/*V6RDCTR0*/
+#define CF_DELPREFIX_CHK_OFFSET		(27)
+#define CF_DELPREFIX_CHK_MASK		(1<<27)		
+#define CF_6RD_DPRI_OFFSET			(24)
+#define CF_6RD_DPRI_MASK			(3<<24)
+#define CF_6RD_IPV4_TTL_OFFSET		(16)
+#define CF_6RD_IPV4_TTL_MASK		(0xFF<<16)
+#define CF_6RDTOS_OFFSET			(8)
+#define CF_6RDTOS_MASK				(0xff<<8)
+#define CF_UKN_6RDDIP_CPU_OFFSET	(6)
+#define CF_UKN_6RDDIP_CPU_MASK		(1<<6)
+#define CF_6RDTOS_EN_OFFSET			(5)
+#define CF_6RDTOS_EN_MASK			(1<<5)
+#define CF_STA_6RDMTU_OFFSET		(4)
+#define CF_STA_6RDMTU_MASK			(1<<4)
+#define CF_6RDIN_SIPCHK_OFFSET		(3)
+#define CF_6RDIN_SIPCHK_MASK		(1<<3)
+#define CF_SIP46_MCH_OFFSET			(2)
+#define CF_SIP46_MCH_MASK			(1<<2)
+#define CF_ACPT_BR_ONLY_OFFSET		(1)
+#define CF_ACPT_BR_ONLY_MASK		(1<<1)
+#define CF_6RD_EN_OFFSET			(0)
+#define CF_6RD_EN_MASK				(1)
+
+/*V6RDCTR1*/
+#define CF_6RDID_END_OFFSET			(16)
+#define CF_6RDID_END_MASK			(0xFFFF<<16)
+#define CF_6RDID_ST_OFFSET			(0)
+#define CF_6RDID_ST_MASK			(0xFFFF)
+#endif
 
 /* output queue stats mask */
 #define OUTPUTQUEUE_STAT_MASK_CR0			0xfc000000
+#if defined(CONFIG_RTL_8198C)
+#define OUTPUTQUEUE_STAT_MASK_CR1			0xffffffff
+#define OUTPUTQUEUE_STAT_MASK_CR2			0xffffff
+#else
 #define OUTPUTQUEUE_STAT_MASK_CR1			0x3fffffff
-
+#endif
 /* LAGHPMR0 - Link Aggregation Hashed Index to Port Mapping Register 0 */
 #define LAG_HASHIDX_BITNUM					4
 
@@ -2637,8 +2967,23 @@ enum FDB_FLAGS
 /* Miscellaneous control registers 
 */
 #define LEDCREG					(SWCORE_BASE + 0x4300)     /* LED control */
+#define LEDCR0					(LEDCREG+0x00)
 #define LEDCR1					(LEDCREG+0x04)
 #define LEDBCR					(LEDCREG+0x0C)
+#define DIRECTLCR				(LEDCREG+0x14)
+
+/* LEDCR0 - LED Control Register 0 */
+#define LEDTOPOLOGY_OFFSET                20
+#define LEDTOPOLOGY_MASK                  (3<<20) /* LED topology selection: To select the Scan mode or Matrix mode of LED topology. */
+											/* 00: Scan mode Topology, 01: Matrix mode Topology, 10 : Direct mode Topology, 11 : Combine mode Topology */
+#define LEDMODE_SCAN                		(0<<20)
+#define LEDMODE_MATRIX                	(1<<20)
+#define LEDMODE_DIRECT                	(2<<20)
+#define LEDMODE_COMBINE                	(3<<20)
+
+/* DIRECTLCR - DIRECT mode LED Configuration Register */
+#define LEDONSCALEP0_OFFSET                16
+#define LEDONSCALEP0_MASK                 (7<<16) /* Select the LED turn on scale for port0. */
 
 #define MISC_BASE                           (SWCORE_BASE + 0x00007000)
 //#define LEDCR                               (0x000 + MISC_BASE)     /* LED control */
@@ -2937,15 +3282,19 @@ enum FDB_FLAGS
 #define CMFULL				(1<<26)
 #endif
 
+/* Efuse_ctrl Registers */
+#define EFUSE_CMD                 (SYSTEM_BASE+0x0700)       /* cmd register */
+#define EFUSE_CONFIG              (SYSTEM_BASE+0x0704)       /* Config register */
+#define EFUSE_RW_DATA             (SYSTEM_BASE+0x0708)       /* Read or write data port register */
+#define EFUSE_TIMING_CONTROL      (SYSTEM_BASE+0x070C)       /* Timing control register */
 
+/* Config register */
+#define EFUSE_CFG_INT_STS         (1 << 8)       /* Interrupt_status */
 
 /* UART registers 
 */
 #define UART0_BASE                (SYSTEM_BASE+0x2000) /* 0xB8002000 */
 #define UART1_BASE                (SYSTEM_BASE+0x2100)
-
-
-
 
 /* System Control Registers */
 
@@ -3128,10 +3477,12 @@ enum FDB_FLAGS
 #if defined(CONFIG_RTL_819X)
 /*Shared Pin Register Set */
 #ifdef CONFIG_RTL_8196B
-	#define PIN_MUX_SEL     (SYSTEM_BASE+0x30)      /* 0xB8000030 - 0xB8000033 */
+	#define PIN_MUX_SEL     		(SYSTEM_BASE+0x30)      /* 0xB8000030 - 0xB8000033 */
 #else
-	#define PIN_MUX_SEL 0xb8000040
-	#define PIN_MUX_SEL2 	0xb8000044
+	#define PIN_MUX_SEL			(SYSTEM_BASE + 0x0040)
+	#define PIN_MUX_SEL2		(SYSTEM_BASE + 0x0044)
+	#define PIN_MUX_SEL_2		(PIN_MUX_SEL2)
+	#define PIN_MUX_SEL3		(SYSTEM_BASE + 0x0108)
 #endif
 
 /* Shared Pin Register field definitions */

@@ -3976,7 +3976,6 @@ soap_bind(struct soap *soap, const char *host, int port, int backlog)
     return SOAP_INVALID_SOCKET;
   }
 #ifdef WITH_IPV6
-#ERRRRRRRRRRRRRRRRRRRRRRRROR
   memset((void*)&hints, 0, sizeof(hints));
   hints.ai_family = PF_UNSPEC;
 #ifdef WITH_UDP

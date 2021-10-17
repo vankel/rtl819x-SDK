@@ -6,7 +6,12 @@
 #include <sys/types.h>
 #include <string.h>
 #include <asm/types.h>
+#ifdef KERNEL_2_6_30
 #include <linux/config.h>
+#endif
+#ifdef KERNEL_3_10
+#include "../../linux-3.10/include/generated/autoconf.h"
+#endif
 #include <linux/netlink.h>
 #include <net/rtl/rtl_types.h>
 #include <linux/netdevice.h>
@@ -442,57 +447,7 @@ QOS_ERROR:
 	return 0;
 }
 
-/*
-rtk_cmd qos Port_Rate port0 apr 1566
-queue rate = (1566+1)*64kbps
-0xbb8048b0: WFQRCRP0
-*/
-static inline int rtk_port_rate(int _num, char* _param[], struct qos_cmd_info_s* send_data)
-{
-	int i, j, k, temp_port, temp_queue;
-	int temp_apr = 0;
-	int coefficient[5] = {10000, 1000, 100, 10, 1};
-	int ret = 0;
-
-	send_data->action = PORT_RATE;
-	for(i=3; i<_num; i++)
-	{
-		if((_param[i] != NULL) && (strlen(_param[i]) == 5) && (!(memcmp(_param[i],"port",(strlen(_param[i])-1))))){
-			temp_port = _param[i][4] - '0';
-			for(j=i+1; j<_num; j++)
-			{
-				if((_param[j] != NULL) && (strlen(_param[j]) == 3) && (!(memcmp(_param[j],"apr",(strlen(_param[j])))))){
-					if((_param[j+1] != NULL) && (strlen(_param[j+1]) > 0) &&((strlen(_param[j+1]) < 6))){
-						for(k=strlen(_param[j+1]); k>0; k--)
-						{
-							temp_apr += (_param[j+1][k-1] - '0')*coefficient[(k-1)+(5- strlen(_param[j+1]))];
-						}
-
-						if(temp_apr > 0x3fff){
-							goto QOS_ERROR;
-						}
-
-						send_data->qos_data.port_rate.apr[temp_port] = temp_apr;
-						send_data->qos_data.port_rate.portmask |= 1<<temp_port;
-						ret += 1;
-					}else{
-						goto QOS_ERROR;
-					}
-				}
-			}
-		}
-	}
-
-	return ret;
-QOS_ERROR:
-	return 0;
-}
-
-/*
-rtk_cmd qos Rate port0 q0 ppr 0 burst 255 apr 1525
-queue rate = (1525+1)*64kbps
-0xbb804800: P0Q0RGCR
-*/
+/*rtk_cmd qos Rate port0 q0 ppr 1 burst 2 apr 11111*/
 static inline int rtk_queue_rate(int _num, char* _param[], struct qos_cmd_info_s* send_data)
 {
 	int i, j, k, temp_port, temp_queue;
@@ -511,7 +466,7 @@ static inline int rtk_queue_rate(int _num, char* _param[], struct qos_cmd_info_s
 				if((_param[j] != NULL) && (strlen(_param[j]) == 2) && (!(memcmp(_param[j],"q",(strlen(_param[j])-1))))){
 						temp_queue = _param[j][1] - '0';
 						if((_param[j+1] != NULL) && (strlen(_param[j+1]) == 3) && (!(memcmp(_param[j+1],"ppr",(strlen(_param[j+1])))))){
-								if((_param[j+2] != NULL) && (strlen(_param[j+2]) == 1) && (*(_param[j+2]) >= '0')&& (*(_param[j+2]) <'8')){
+								if((_param[j+2] != NULL) && (strlen(_param[j+2]) == 1) && (*(_param[j+2]) > '0')&& (*(_param[j+2]) <'8')){
 										send_data->qos_data.queue_rate.ppr[temp_port][temp_queue] = *(_param[j+2]) - '0';
 
 								}else{
@@ -688,15 +643,6 @@ int rtk_hw_qos_parse(int _num, char* _param[])
 			return FAILED;
 		}
 	}
-	else if((_param[2] != NULL) && (!(memcmp(_param[2],"Port_Rate",strlen(_param[2])))))
-	{
-		if(rtk_port_rate(_num, _param, &send_data) > 0){
-			RTK_QOS_PRINTF("Port rate configure ok!\n");
-		}else{
-			RTK_QOS_PRINTF("Port rate configure failed!\n");
-			return FAILED;
-		}
-	}
 	else if((_param[2] != NULL) && (!(memcmp(_param[2],"Flow_Control",strlen(_param[2])))))
 	{
 		if(rtk_flow_control_config(_num, _param, &send_data) > 0){
@@ -730,8 +676,6 @@ int rtk_hw_qos_parse(int _num, char* _param[])
 			send_data.action = DSCP_REMARK_SHOW;
 		}else if((_param[3] != NULL) && (!(memcmp(_param[3],"QUEUE_RATE",strlen(_param[3]))))){
 			send_data.action = QUEUE_RATE_SHOW;
-		}else if((_param[3] != NULL) && (!(memcmp(_param[3],"PORT_RATE",strlen(_param[3]))))){
-			send_data.action = PORT_RATE_SHOW;
 		}else if((_param[3] != NULL) && (!(memcmp(_param[3],"FLOW_CONTROL_CONFIG",strlen(_param[3]))))){
 			send_data.action = FLOW_CONTROL_CONFIGURATION_SHOW;
 		}

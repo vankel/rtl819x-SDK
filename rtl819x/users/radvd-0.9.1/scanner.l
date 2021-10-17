@@ -34,7 +34,7 @@ addr2		{hexdigit}{1,4}(":"{hexdigit}{1,4})*"::"
 addr3		({hexdigit}{1,4}":"){7}{hexdigit}{1,4}
 addr		({addr1}|{addr2}|{addr3}|"::")
 whitespace	([ \t])+
-string		[a-z]([a-z]|{digit}|_)*([:.]{digit}+)?
+string		[a-zA-Z0-9`~!@#$%\^&*()_\-+=:\[\]<>,\.?\\]+
 %%
 
 #.*$			{/* ignore comments */}
@@ -44,6 +44,8 @@ string		[a-z]([a-z]|{digit}|_)*([:.]{digit}+)?
 interface		{ return T_INTERFACE; }
 prefix			{ return T_PREFIX; }
 route			{ return T_ROUTE; }
+RDNSS			{ return T_RDNSS; }
+DNSSL			{ return T_DNSSL; }
 
 IgnoreIfMissing		{ return T_IgnoreIfMissing; }
 AdvSendAdvert		{ return T_AdvSendAdvert; }
@@ -78,24 +80,20 @@ HomeAgentLifetime	{ return T_HomeAgentLifetime; }
 AdvRoutePreference	{ return T_AdvRoutePreference; }
 AdvRouteLifetime	{ return T_AdvRouteLifetime; }
 
+AdvRDNSSPreference 	{ return T_AdvRDNSSPreference; }
+AdvRDNSSOpen		{ return T_AdvRDNSSOpenFlag; }
+AdvRDNSSLifetime	{ return T_AdvRDNSSLifetime; }
+FlushRDNSS		{ return T_FlushRDNSS; }
+
+AdvDNSSLLifetime	{ return T_AdvDNSSLLifetime; }
+FlushDNSSL		{ return T_FlushDNSSL; }
 MinDelayBetweenRAs      { return T_MinDelayBetweenRAs; }
 
 AdvMobRtrSupportFlag	{ return T_AdvMobRtrSupportFlag; }
 
 {addr}		{
 			static struct in6_addr addr;
-			int i;
-				
-			i = inet_pton(AF_INET6, yytext, &addr);
-
-			dlog(LOG_DEBUG, 4, "inet_pton returned %d", i);
-
-			/* BSD API draft and NRL's code don't aggree on
-			 * this. the draft specifies a return value of 1 on 
-			 * success, NRL's code returns the address length in 
-			 * bytes on success (16 for an IPv6 address)
-			 */
-			if (i < 1) {
+			if (inet_pton(AF_INET6, yytext, &addr) < 1) {
 				flog(LOG_ERR, "invalid address in %s, line %d", conf_file,
 					num_lines);
 				return T_BAD_TOKEN;
@@ -105,7 +103,17 @@ AdvMobRtrSupportFlag	{ return T_AdvMobRtrSupportFlag; }
 			return IPV6ADDR;
 		}
 
-{number}	{ yylval.num = atoi(yytext); return NUMBER; }
+{number}	{
+			unsigned long lnum;
+			char *endp;
+			lnum = strtoul(yytext, &endp, 10);
+			if (*yytext == '\0' || *endp != '\0')
+				return T_BAD_TOKEN;
+			if (lnum > 0xFFFFFFFFUL)
+				return T_BAD_TOKEN;	/* XXX */
+			yylval.num = lnum;
+			return NUMBER;
+		}
 
 {snum}		{ yylval.snum = atoi(yytext); return SIGNEDNUMBER; }
 
@@ -113,9 +121,9 @@ AdvMobRtrSupportFlag	{ return T_AdvMobRtrSupportFlag; }
 
 infinity	{ return INFINITY; }
 
-on			{ yylval.bool = 1; return SWITCH; }
+on			{ yylval.num = 1; return SWITCH; }
 
-off			{ yylval.bool = 0; return SWITCH; }
+off			{ yylval.num = 0; return SWITCH; }
 
 low		{ yylval.snum = -1; return SIGNEDNUMBER; }
 
@@ -124,11 +132,11 @@ medium		{ yylval.snum = 0; return SIGNEDNUMBER; }
 high		{ yylval.snum = 1; return SIGNEDNUMBER; }
 
 {string}	{
-			static char name[IFNAMSIZ];
-				
-			strncpy(name, yytext, IFNAMSIZ-1);
-			name[IFNAMSIZ-1] = '\0';
-			yylval.str = name;
+			static char string[256];
+
+			strncpy(string, yytext, sizeof(string));
+			string[sizeof(string)-1] = '\0';
+			yylval.str = string;
 			return STRING;
 		}
 

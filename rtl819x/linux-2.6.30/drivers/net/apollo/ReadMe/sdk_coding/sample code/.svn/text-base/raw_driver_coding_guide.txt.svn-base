@@ -1,0 +1,409 @@
+===========================
+coding please reference:
+===========================
+apollo\sdk\include\hal\chipdef\apollo\APOLLO_RegisterFile.pdf
+(½Ð½T«O coding reference ªºpdf file ¬°server ¤W³Ì·sªº)
+
+coding ½Ð°Ñ¦Ò ¨Ãfollow SD6 CodingConvention.pdf 
+\\rtdomain\fs\CN_Switch\Project\·s¤âÃi¤H¥]\V0.0.7\02_CodingConvention.pdf
+
+±`¥Ç¿ù»~
+(1)
+int32 apollo_raw_trap_rmaAction_get(rtk_mac_t *pFrame, rtk_action_t* pAction)
+                                                         ^^^^^^^^^^^
+                                                          rtk_action_t *pAction
+
+(2)
+One declaration per line is recommended since it encourages commenting.
+Example:
+    int level; /* indentation level */
+    int size;  /* size of table */
+Avoid:
+    int foo, fooarray[];
+
+
+(3)
+Use one space on each side of most binary and ternary operators.
+    Such as any of these: = + - < > * / % | & ^ <= >= == != ? :
+Ex:
+a += c + d;
+a = (a + b) / (c * d);
+      ^ ^  ^ ^  ^ ^   -->space
+      
+(4)      
+No space after unary operators such as unary minus¡K, etc.
+Such as any of these:
+    & * ++ -- ~ !
+    sizeof typeof alignof __attribute__ defined
+
+Ex:
+if(!expr) --> NO SPACE BEFORE expr
+
+
+(5)
+Put one enum maximum symbol, and its suffix is ¡¥_END¡¦
+
+    typedef enum rtk_enable_e
+    {
+        DISABLED = 0,
+        ENABLED,
+        RTK_ENABLE_END
+    } rtk_enable_t;
+
+
+(6)
+    typedef struct rtk_vlan_vlanInfo_s    
+    {
+        unsigned int tableSize; 
+        vlan_entry_t *entry;
+    } rtk_vlan_vlanInfo_t;
+
+typedef union ski_svlan_data_u    
+    {
+        unsigned int tableSize; 
+        ski_svlan_port_t svlanPort;
+        ski_svlan_entry_t svlanEn
+    } ski_svlan_data_t;
+
+(7)
+Put constant in the left if ¡§==¡¨ appears in your statement
+¡E Constant symbol in left side when compare ¡¥==¡¦ between constant and one statement
+¡E This is always safe to put constant value in the left side of ¡¥==¡¦ sign; Prevent miss one ¡¥=¡¦ problem and hard to debug.
+    example: if (RT_ERR_OK == ret)
+
+The ¡¥>¡¦, ¡¥>=¡¦, ¡¥<¡¦, ¡¥<=¡¦ is not the above concern.
+
+
+(8)
+Our coding style for comments is the C89 "/* ... */" style. 
+Don't use C99-style "// ..." comments.
+(open compiler option disable C99)
+
+
+===========================
+OSAL access Utility:
+===========================
+osal_alloc
+osal_free
+osal_printf
+
+osal_strlen 
+osal_strcmp 
+osal_strcpy 
+osal_strncpy
+osal_strcat 
+osal_strchr 
+osal_memset 
+osal_memcpy 
+osal_memcmp 
+
+
+
+===========================
+Register access Utility:
+===========================
+
+(normal API)
+int32 reg_field_read(uint32  reg,uint32  field,uint32  *pValue)
+int32 reg_field_write(uint32  reg,uint32  field,uint32  *pValue)
+
+
+(array)
+int32 reg_array_field_read(uint32  reg,
+                           int32   index_1,
+                           int32   index_2,
+                           uint32  field,
+                           uint32  *pValue)
+
+int32 reg_array_field_write(uint32  reg,
+                            int32   index_1,
+                            int32   index_2,
+                            uint32  field,
+                            uint32  *pValue)
+
+¤@ºûarray  ¨ä¤¤¤@­Óindex ½Ð¶ñ, REG_ARRAY_INDEX_NONE
+·í°ß¤@ºû®É
+PORT INDEX : index_1 --> port_idx
+             index_2 --> REG_ARRAY_INDEX_NONE
+
+ARRAY INDEX: index_1 --> REG_ARRAY_INDEX_NONE
+             index_2 --> index               
+
+
+reg »P field ½Ð°Ñ¦Ò pdf file
+reg  : „³  [REGISTER_NAME]r
+field:  „³ [FILED_NAME]f
+
+
+(******note!!******)
+register access ¥þ³¡¥Î
+reg_field_read/reg_array_field_read
+reg_field_write/reg_array_field_write
+
+
+
+
+======================================================
+Register array access Utility for multiple word register array:
+======================================================
+(array)
+int32 reg_array_read(uint32 reg, 
+                     int32 index_1, 
+                     int32 index_2, 
+                     uint32 *pValue)
+
+int32 reg_array_write(uint32 reg, 
+                      int32 index_1, 
+                      int32 index_2, 
+                      uint32 *pValue)
+
+
+int32 reg_array_field_read(uint32  reg,
+                           int32   index_1,
+                           int32   index_2,
+                           uint32  field,
+                           uint32  *pValue)
+
+int32 reg_array_field_write(uint32  reg,
+                            int32   index_1,
+                            int32   index_2,
+                            uint32  field,
+                            uint32  *pValue)
+
+
+(«ØÄ³¨Ï¥Îªk -- ³æ¿Wfield access)
+reg_array_field_read/reg_array_field_write
+
+
+
+(«ØÄ³¨Ï¥Îªk -- ¦h­Ófield access /write multiple field)
+uint32 pValue[APOLLO_REGSIZE_WORDLEN];
+/*direcr IO access*/
+reg_array_read(reg,index_1,index_2,pValue);
+
+/*set field value to RAM buffer pValue*/
+reg_field_set(reg,field1,&field_data,pValue);
+reg_field_set(reg,field2,&field_data,pValue);
+reg_field_set(reg,field3,&field_data,pValue);
+...
+
+/*direcr IO access write to ASIC*/
+reg_array_write(reg,index_1,index_2,pValue);
+
+
+
+(«ØÄ³¨Ï¥Îªk -- ¦h­Ófield access /read multiple field)
+
+
+uint32 pValue[APOLLO_REGSIZE_WORDLEN_MAX];
+/*direcr IO access*/
+reg_array_read(reg,index_1,index_2,pValue);
+
+/*get field value from RAM buffer pValue*/
+reg_field_get(reg,field1,&field_data,pValue);
+reg_field_get(reg,field2,&field_data,pValue);
+reg_field_get(reg,field3,&field_data,pValue);
+...
+
+
+
+
+
+===========================
+Table Access Utility
+===========================
+[Direct ASIC Access]
+int32 table_read(uint32 table,uint32 addr,uint32 *pData)
+int32 table_write(uint32 table,uint32 addr,uint32 *pData)
+
+[RAM Buffer Access]
+int32 table_field_get(uint32  table,uint32 field,uint32 *pValue,uint32  *pData)
+int32 table_field_set(uint32  table,uint32 field,uint32 *pValue,uint32  *pData)
+
+int32 table_field_byte_get(uint32 table,uint32 field,uint8 *pValue,uint32 *pData)
+int32 table_field_byte_set(uint32  table,uint32 field,uint8 *pValue,uint32 *pData)
+
+int32 table_field_mac_get(uint32 table,uint32 field,uint8 *pValue,uint32 *pData)
+int32 table_field_mac_set(uint32 table,uint32 field,uint8 *pValue,uint32 *pData)
+
+API ªº¶ñªk
+table   „³ [TABLE_NAME]t
+field  „³  [TABLE_NAME]_[FILED_NAME]tf
+
+
+(for table access)
+Add table entry define in
+apollo\sdk\include\hal\chipdef\allmem.h
+Ex:
+MEM_ENTRY_DECLARE(vlan_entry_t, 2);
+                                ^ 2 x 32 bits
+
+
+
+===========================
+Error code define
+===========================
+Common error
+apollo\sdk\system\include\common\error.h
+
+Module error
+apollo\sdk\include\common\rt_error.h
+Module ¯S¦³ªº error code
+
+¼W¥[error code ®É¤]­n¼W¥[error string
+apollo\sdk\src\common\rt_error.c function "rt_error_numToStr"
+
+
+RT_ERR_CHIP_NOT_SUPPORTED   --input data type enum ¦³©w¸q¦ý ¤£support
+RT_ERR_INPUT                --input value ¤£¦b enum ªºrange ¤§¤º  
+RT_ERR_OUT_OF_RANGE         --input value ¤£¦b¦X²zªºrange ¤§¤º ex: port number, index ... 
+RT_ERR_NULL_POINTER         --input value ¬°NULL pointer 
+
+
+===========================
+Data type 
+===========================
+check
+1.apollo\sdk\system\include\common\type.h
+2.apollo\sdk\include\common\rt_type.h
+3.apollo\sdk\include\dal\apollo\raw\apollo_raw.h
+
+­YµL¾A·ítype, ¦A¼W¥[·stype,
+
+[·s¥[type rule]
+ if(module ¯S¦³) 
+    --> if(RTK API ¥i¥H¨Ï¥Î)
+            ---> ©w¦bRTK layer  [module].h
+        else
+            --->  ©w¦b apollo_raw_[module].h    
+ else
+    --> if(«D±`common)
+         ---> ©w¦b type.h
+        else
+         ---> rt_type.h  
+
+
+
+              
+
+===========================
+Add Data type in apollo_raw_[module].h 
+===========================
+1.Naming ½Ð¥Î apollo_raw_XXX  ¶}ÀY
+2.enum ¤º®e½Ð¥[  RAW_  prefix
+3.Data structure ¤ºªº member ½Ð¥þ³¡¥Î unit32, ¤è«Kcoding  
+4.RAW driver index ³¡¤À½Ð©ñ¦b data structure¸Ì­±
+
+
+===========================
+Data type coding in raw driver 
+===========================
+1.­Y°Ñ¼Æ¨Ï¥Î RAW driver define ªºtype, 
+  RAW driver coding ¥i¥H¦Û¤vdefine ¦¨¸òdriver ¬Û¦P©Ò¥H¬O§_°µÂà´«¦Û¨M©w
+  ¦ý¼gRTK API ®É¥²¶·ª`·N
+
+2.­Y°Ñ¼Æ¨Ï¥Î RTK layer define ªºtype,  
+  RAW driver ¦Û¤v»Ý°µ¦n RTK parameter »P ASIC define ªºÂà´«
+  
+
+===========================
+Coding style
+===========================
+Please follow sample code
+-reg_access.c
+-table_access.c
+
+
+===========================
+How to Make your Driver Code
+===========================
+Add file in apollo\sdk\src\dal\apollo\raw\apollo_raw_[your_module].c
+
+Edit apollo\internal\apollo\diagShellCygwin\build\Makefile.rtk
+Add apollo_raw_[your_module].o
+¼W¥[¨ì¬Û¹ï¦ì¸m
+
+Make your code via Cygwin
+Set path to ¡§apollo\internal\apollo\diagShellCygwin\¡¨
+make all
+
+(·sget code ®É½Ð¥ý make shell_tree)
+
+
+
+
+
+
+
+
+===============================
+update 2011/09/15
+===============================
+1. register access ­Yregister ¶W¹L 1­Ó word 
+   reg_array_field_read / reg_array_field_write  
+    
+   ®ö¶OIO issue ¥Ñ ©³¼h reg_array_field_read / reg_array_field_write ¸Ñ¨M
+   
+   ©Ò¥Hregister access ÁÙ¬Oºû«ù­ì¼Ë, ½Ð¨Ï¥Î
+   reg_array_field_read / reg_array_field_write
+   
+   
+2. raw driver °Ñ¼Æ½ÐºÉ¶q¼g¦¨ structure
+   ex:
+   dal_raw_XXX_miscCounter_get(uint32 *miscCnt1,uint32 *miscCnt2,uint32 *miscCnt3) 
+ 
+   -->
+   dal_raw_XXX_miscCounter_get(XXX_MISC_CNT_T *cnts) 
+   
+3. diag string display
+
+   ¦b§Aªº diag_xxx.c file ¤¤¦A¥h extern ¦¹array 
+    ¦Óstring array ªº«Å§i½Ðfollow ¥H¤U©R¦W¤è¦¡
+    ½Ð¥Î  diagStr_  °µ¬°prefix
+ 
+    const char *diagStr_enable[RTK_ENABLE_END] = {
+        DIAG_STR_DISABLE,
+        DIAG_STR_ENABLE
+    };
+   
+
+  extern ¦¹array 
+  ½Ð²Î¤@©ñ¦b  
+  apollo\sdk\src\app\diag\include\diag_str.h
+
+  extern const char *diagStr_enable[];
+
+
+4. Function Header ½Ð°È¥²¥¿½T¶ñ¼g. 
+   Tools ·|¬Ýheader ²£¥ÍAPI document(RTK API only?)
+   
+    raw driver ªº.h ¤£»Ýheader
+
+5. error check
+    HAL_IS_PORT_EXIST(port)  
+    
+    apollo\sdk\include\hal\common\halctrl.h
+    
+    §Ú­Ì¥²¶·¥¿½T¶ñ¼g
+    static rt_register_capacity_t apollo_capacityInfo  
+    
+    apollo\sdk\src\hal\chipdef\chip.c 
+    
+    structure define in 
+    apollo\sdk\include\hal\chipdef\chip.h
+    
+    (a)­Y¦³·sªºfeature ½Ð¼W¥[structure ªº¤º®e
+    (b)¨Ã¦b halctrl.h ¼W¥[error check macro
+    
+    
+    ¤ñ¸û:
+    diag_shell
+        ¿é¤J all  ¤£¥]§tCPU port (all ¥u¥]§tethernet port)
+        ­n¿é¤J¥]§tCPU port ½Ð¥Î 0-6
+        
+    sdk driver utilty
+
+    #define HAL_IS_PORT_EXIST(port)           RTK_PORTMASK_IS_PORT_SET(hal_ctrl.pDev_info->pPortinfo->all.portmask, port)
+      -->¥]§tCPU port  
+    #define HAL_IS_ETHER_PORT(port)           RTK_PORTMASK_IS_PORT_SET(hal_ctrl.pDev_info->pPortinfo->ether.portmask, port)                                                         
+      -->¥u§t ethernet port                                                                                                                                                                                                        

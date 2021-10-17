@@ -10,7 +10,7 @@
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
 
-#include "libbb.h"
+#include "libbb_2.h"
 #include "rt_names.h"
 #include "utils.h"
 

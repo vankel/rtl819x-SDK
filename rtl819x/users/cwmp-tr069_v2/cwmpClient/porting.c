@@ -578,9 +578,14 @@ void port_save_reboot( struct cwmp_userdata *user, int reboot_flag )
 
 	if(reboot_flag)
 	{
+#ifdef _SET_PARA_VALUE_REBOOT_
 		CWMPDBG( 0, ( stderr, "<%s:%d>The system is restarting ...\n", __FUNCTION__, __LINE__ ) );
 		cmd_reboot();
 		exit(0);
+#else
+		CWMPDBG( 0, ( stderr, "<%s:%d>The system is reiniting ...\n", __FUNCTION__, __LINE__ ) );
+		system("sysconf init gw all");
+#endif
 	}
 
 }
@@ -834,7 +839,7 @@ int port_session_closed(struct cwmp_userdata *data)
   }
 #endif //_SUPPORT_TRACEROUTE_PROFILE_
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_  
+#if 1 //def _PRMT_WT107_  
   else if(gStartReset)
 	{
 	#ifdef __CLOSE_INTERFACE_BEFORE_WRITE_

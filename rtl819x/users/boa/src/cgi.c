@@ -579,10 +579,13 @@ int init_cgi(request * req)
         if (req->method == M_POST) { /* tie stdin to file */
 // davidhsu ----------------------
 #ifndef NEW_POST
+		if (req->cgi_type == CGI || req->cgi_type == NPH) 
+#endif
+		{
             lseek(req->post_data_fd, SEEK_SET, 0);
             dup2(req->post_data_fd, STDIN_FILENO);
             close(req->post_data_fd);
-#endif
+		}
 //-------------------------------	
 			
         }
@@ -699,13 +702,19 @@ int init_cgi(request * req)
 #ifndef NEW_POST
              close(req->post_data_fd); /* child closed it too */
              req->post_data_fd = 0;
-#else			 
+#else	
+	 if (req->cgi_type == CGI || req->cgi_type == NPH) {
+             close(req->post_data_fd); /* child closed it too */
+             req->post_data_fd = 0;
+	 }
+	 else {
 		if (req->post_data) {
 			free(req->post_data);
 			req->post_data = NULL;
 		}
 		req->post_data_len = 0;
 		req->post_data_idx = 0;
+	 }
 #endif		
 //------------------------
 

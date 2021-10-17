@@ -1,0 +1,10 @@
+#!/bin/sh
+
+echo "start minidlna"
+
+/bin/kill_usbStorage_apps 2>/dev/null
+
+minidlna -R -f /etc/minidlna.conf
+#smbd -D
+#nmbd -D
+#vsftpd /var/config/vsftpd.conf &

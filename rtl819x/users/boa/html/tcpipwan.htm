@@ -4,6 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html">
 <% getIndex("no-cache"); %>
 <title>WAN Interface Setup </title>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -466,6 +467,11 @@ function wanTypeSelection(field)
   	alert('Error! Your browser must have CSS support !');
   	return;
   }
+
+  /* add for ds-lite */
+  show_div(1, "always_div");
+  show_div(0, "dslite_div");
+  /* end add for ds-lite*/
   
   /* # keith: add l2tp support. 20080515 */
   if(field.selectedIndex == 0){	//static ip
@@ -589,9 +595,25 @@ function wanTypeSelection(field)
 		document.tcpip.elements["dnsMode"][0].disabled = false;
 	*/
   }else if(field.selectedIndex == 5){ //USB3G
-  	wanShowDiv(0, 1, 1, 0, 0, 0, 1);
-	if(document.tcpip.dnsMode[0].checked)
-		disableDNSinput();	
+  	var usb3g_enable = <% getIndex("usb3g");%>;
+  	if(usb3g_enable == 0)
+  	{
+  		wanShowDiv(0, 0, 0, 0, 0, 0, 0); 
+  		show_div(0, "always_div");
+		show_div(1, "dslite_div");
+  	}
+	else
+	{
+	  	wanShowDiv(0, 1, 1, 0, 0, 0, 1);
+		if(document.tcpip.dnsMode[0].checked)
+			disableDNSinput();	
+	}
+  }
+  else if(field.selectedIndex == 6)
+  {
+  	wanShowDiv(0, 0, 0, 0, 0, 0, 0); 
+  	show_div(0, "always_div");
+	show_div(1, "dslite_div");
   }
   wan_connection_type=document.tcpip.wanType.selectedIndex;
    if(wan_connection_type == 2)
@@ -601,7 +623,11 @@ function wanTypeSelection(field)
    	else if(wan_connection_type == 4)
    		pppTypeSelection(2);
    	else if(wan_connection_type == 5) //USB3G
- 		pppTypeSelection(3);
+	{
+		var usb3g_enable = <% getIndex("usb3g");%>;
+		if(usb3g_enable == 1)
+ 			pppTypeSelection(3);
+	}
    	else
    		pppConnection_Init();
 }
@@ -662,7 +688,74 @@ function checkDynamicDfGw(form , MultiPppoeFlag)
 		}	
 	}
 }
+<% getInfo("eth1xclient_jscomment_start");%>
+function change_1x_eap_type_settings()
+{
+	var index;
+	var insideIndex;
 
+	index=document.tcpip.elements["eapType"].selectedIndex;
+	if(index ==0){//eap-md5
+		disableTextField(document.tcpip.elements["eapInsideType"]);	
+		enableTextField(document.tcpip.elements["eapUserId"]);
+		enableTextField(document.tcpip.elements["radiusUserName"]);
+		enableTextField(document.tcpip.elements["radiusUserPass"]);
+		disableTextField(document.tcpip.elements["radiusUserCertPass"]);
+		get_by_id("show_wan_8021x_phase2_type").style.display = "none";
+		get_by_id("show_wan_8021x_inside_type").style.display = "none";
+	}
+	else if(index ==1){//eap-tls
+		disableTextField(document.tcpip.elements["eapInsideType"]);	
+		enableTextField(document.tcpip.elements["eapUserId"]);
+		disableTextField(document.tcpip.elements["radiusUserName"]);
+		disableTextField(document.tcpip.elements["radiusUserPass"]);
+		enableTextField(document.tcpip.elements["radiusUserCertPass"]);
+		get_by_id("show_wan_8021x_phase2_type").style.display = "none";
+		get_by_id("show_wan_8021x_inside_type").style.display = "none";
+	}
+	else if(index ==2){//eap-peap
+		enableTextField(document.tcpip.elements["eapInsideType"]);
+		enableTextField(document.tcpip.elements["eapUserId"]);
+		get_by_id("show_wan_8021x_phase2_type").style.display = "none";
+		get_by_id("show_wan_8021x_inside_type").style.display = "";
+		insideIndex=document.tcpip.elements["eapInsideType"].selectedIndex;
+		if(insideIndex==0){//eap-peap-mschapv2
+			enableTextField(document.tcpip.elements["radiusUserName"]);
+			enableTextField(document.tcpip.elements["radiusUserPass"]);
+			enableTextField(document.tcpip.elements["radiusUserCertPass"]);
+		}
+		else{//to add more.
+			alert("This inside type is not supported.");
+		}
+	}
+	else if(index ==3){//eap-ttls
+		enableTextField(document.tcpip.elements["eapPhase2Type"]);
+		enableTextField(document.tcpip.elements["eapUserId"]);
+		get_by_id("show_wan_8021x_phase2_type").style.display = "";
+		get_by_id("show_wan_8021x_inside_type").style.display = "none";
+		insideIndex=document.tcpip.elements["eapPhase2Type"].selectedIndex;
+		if(insideIndex==0){//eap-ttls-eap-md5
+			enableTextField(document.tcpip.elements["radiusUserName"]);
+			enableTextField(document.tcpip.elements["radiusUserPass"]);
+		}
+		else{//to add more.
+			alert("This phase2 type is not supported.");
+		}
+	}
+	else{//to add more.
+		alert("This EAP type is not supported.");
+	}
+}
+function check_wan_dot1x_enabled()
+{
+	if(document.tcpip.WANDot1xEnabled.checked == true){
+		show_div(1,"show_wan_8021x_eap");
+	}else{
+		show_div(0,"show_wan_8021x_eap");
+	}
+	change_1x_eap_type_settings();
+}
+<% getInfo("eth1xclient_jscomment_end");%>
 function Load_Setting()
 {
 	var wanDhcp_ = <% getIndex("wanDhcp"); %>;
@@ -683,6 +776,20 @@ function Load_Setting()
 	else if ( wanDhcp_ == 16 )
 		wanDhcp_selidx = 5;
 <% getInfo("usb3g_jscomment_end");%>
+<% getInfo("ipv6_jscomment_start");%>
+	else if (wanDhcp_ == 17)
+	{
+		var usb3g_enable = <% getIndex("usb3g");%>;
+		if(usb3g_enable == 0)
+		{
+			wanDhcp_selidx = 5;
+		}
+		else
+		{
+			wanDhcp_selidx = 6;
+		}
+	}
+<% getInfo("ipv6_jscomment_end");%>
 	document.tcpip.wanType.selectedIndex = wanDhcp_selidx;
 //	wanTypeSelection(document.tcpip.wanType);
 
@@ -725,7 +832,19 @@ function Load_Setting()
 
 	if (<% getIndex("pptpCompress"); %>)
 		document.tcpip.pptpCompress.checked = true;
-
+<% getInfo("eth1xclient_jscomment_start");%>
+	var op_mode = <% getIndex("opMode"); %>;
+		if(op_mode == 0){
+			if (<% getIndex("wan_eth_dot1x_enabled"); %>){
+				
+				document.tcpip.eapType.selectedIndex = <% getIndex("wan_eth_dot1x_eap_type"); %>;;
+				document.tcpip.WANDot1xEnabled.checked = true;
+				change_1x_eap_type_settings();
+				check_wan_dot1x_enabled();
+			}
+		}else
+			document.tcpip.WANDot1xEnabled.disabled = true;
+<% getInfo("eth1xclient_jscomment_end");%>
 	//for dynamic wan IP
 	if(<% getIndex("pptp_wan_ip_mode"); %>)
 	{//static ip
@@ -775,6 +894,18 @@ function Load_Setting()
 		manualDNSclicked();
 	}
 	//end
+	
+// add for ds-lite
+	if ( <% getIndex("dsliteMode"); %> == 0) {
+		document.tcpip.elements["dsliteMode"][0].checked = true;
+		autoDsliteclicked();
+	}
+	
+	if ( <% getIndex("dsliteMode"); %> == 1) {
+		document.tcpip.elements["dsliteMode"][1].checked = true;
+		manualDsliteclicked();
+	}
+// end ds-lite
 
 	wanTypeSelection(document.tcpip.wanType);
 	
@@ -926,13 +1057,22 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
 		}
 	}
 }
+function autoDsliteclicked()
+{
+	document.tcpip.dsliteAftrIpAddr6.disabled = true;
+}
+
+function manualDsliteclicked()
+{
+	document.tcpip.dsliteAftrIpAddr6.disabled = false;
+}
 //end
 </SCRIPT>
 </head>
 
 <body onload="Load_Setting();">
 <blockquote>
-<h2><font color="#0000FF">WAN Interface Setup</font></h2>
+<h2>WAN Interface Setup</h2>
 <form action=/boafrm/formWanTcpipSetup method=POST name="tcpip">
 
 <table border=0 width="550" cellspacing=0 cellpadding=0>
@@ -965,6 +1105,9 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
 <% getInfo("usb3g_comment_start");%>
 	<option value="USB3G">USB3G</option>
 <% getInfo("usb3g_comment_end");%>
+<% getInfo("ipv6_comment_start");%>
+	<option value="dslite">DS-Lite</option>
+<% getInfo("ipv6_comment_end");%>
 	</select></td>
     <tr>
   </table>
@@ -1612,6 +1755,42 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
     </tr>
     </table>
     </span>
+
+<!-- start ds-lite -->
+    <span id = "dslite_div" class = "off">
+    <table border="0" width=480>
+    <!--
+    <tr height="35" valign="bottom">
+    -->
+    <tr>
+      <td width="100%" colspan="2"><font size=2>
+		<b><input type="radio" value="dsliteAuto" name="dsliteMode" onClick="autoDsliteclicked();">Attain AFTR Automatically</b>
+      </td>
+    </tr>
+    <tr>
+      <td width="100%" colspan="2"><font size=2>
+        <b><input type="radio" value="dsliteManual" name="dsliteMode" onClick="manualDsliteclicked();">Set AFTR Manually</b>
+      </td>
+    </tr>
+    <tr>
+    </table>
+
+    <table border="0" width=480>
+    <tr>
+      <td width="30%"><font size=2><b>AFTR IPv6 Address:</b></td>
+      <td width="70%"><font size=2><input type="text" name="dsliteAftrIpAddr6" size="40" maxlength="40" value="<% getInfo("dsliteAftr"); %>"></td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>WAN IPv6 Address:</b></td>
+      <td width="70%"><font size=2><input type="text" name="dsliteWanIpAddr6" size="40" maxlength="40" disabled="disabled" value="<% getInfo("ipv6WanIp"); %>"></td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>Default Gateway:</b></td>
+      <td width="70%"><font size=2><input type="text" name="dsliteDefGw" size="40" maxlength="40" disabled="disabled" value="<% getInfo("ipv6DefGW"); %>"></td>
+    </tr>
+    </table>
+    </span>
+ <!-- end ds-lite -->
     
     <span id = "always_div" class = "off" >
     <table border="0" width=480>
@@ -1651,11 +1830,64 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
     <td width="100%" colspan="2"><font size=2>
         <b><input type="checkbox" name="ipv6_passthru_enabled" value="ON">&nbsp;&nbsp;Enable IPv6 pass through on VPN connection</b></td>
     </tr>
-
+ <% getInfo("eth1xclient_comment_start");%>
+	<tr>
+      <td width="100%" colspan="2"><font size=2>
+        <b><input type="checkbox" id="WANDot1xEnabled" name="WANDot1xEnabled"  onclick="check_wan_dot1x_enabled()">&nbsp;&nbsp;Enable ethernet 802.1x on WAN</b></td>
+    </tr>
+ <% getInfo("eth1xclient_comment_end");%>
    </table>
     </span>
+ <% getInfo("eth1xclient_comment_start");%>
+    <div id = "show_wan_8021x_eap" class="off">
+    <table border="0" width=480>
+			<tr>
+			 <td width="40%"><font size="2"><b>&nbsp;&nbsp;&nbsp;EAP Type:</b></font></td>					 
+			 <td width="60%"><font size="2">
+			 <select size="1"  id="eap_type" name="eapType" onChange="change_1x_eap_type_settings()">	 
+				<option value="0"> MD5 </option>
+	 			<option value="1"> TLS </option>
+				<option value="2"> PEAP </option>
+				<option value="3"> TTLS </option>
+			</select> </font></td>
+		</tr>
 
-
+		<tr id = "show_wan_8021x_inside_type" style="display:">
+			 <td width="40%"><font size="2"><b>&nbsp;&nbsp;&nbsp;Inside Tunnel Type:</b></font></td>					 
+			 <td width="60%"><font size="2">
+			 <select size="1"  id="eap_inside_type" name="eapInsideType" value=<% getIndex("eth_eap_inside_type"); %> onChange="change_1x_eap_type_settings()">	 
+	 			<option value="0"> MSCHAPV2 </option>
+			 </select> </font></td>
+		</tr>
+		
+		
+		<tr id = "show_wan_8021x_phase2_type" style="display:">
+			 <td width="40%"><font size="2"><b>&nbsp;&nbsp;&nbsp;EAP TTLS Phase2 Type:</b></font></td>					 
+			 <td width="60%"><font size="2">
+			 <select size="1"  id="eap_phase2_type" name="eapPhase2Type" value=<% getIndex("eth_eap_phase2_type"); %> onChange="change_1x_eap_type_settings()">	 
+	 			<option value="0"> EAP/MD5 </option>
+			 </select> </font></td>
+		</tr>
+		
+		<tr>
+			 <td width="40%"><font size="2"><b>&nbsp;&nbsp;&nbsp;EAP User ID:</b></font></td>
+			 <td width="60%"><input id="eap_user_id" name="eapUserId" size="24" maxlength="64" value=<% getIndex("eth_eap_user_id"); %>></td>
+		</tr>
+		<tr>
+			 <td width="40%"><font size="2"><b>&nbsp;&nbsp;&nbsp;RADIUS User Name:</b></font></td>
+			 <td width="60%"><input id="radius_user_name" name="radiusUserName" size="24" maxlength="64" value=<% getIndex("eth_eap_user_name"); %>></td>
+		</tr>
+		<tr>
+			<td width="40%"><font size="2"><b>&nbsp;&nbsp;&nbsp;RADIUS User Password:</b></font></td>
+			<td width="60%"><input type="password" id="radius_user_pass" name="radiusUserPass" size="24" maxlength="64" value=<% getIndex("eth_eap_user_password"); %>></td>
+		</tr>
+		<tr>
+			<td width="40%"><font size="2"><b>&nbsp;&nbsp;&nbsp;User Key Password (if any):</b></font></td>
+			<td width="60%"><input type="password" id="radius_user_cert_pass" name="radiusUserCertPass" size="24" maxlength="64" value=<% getIndex("eth_eap_user_key"); %>></td>
+		</tr>
+	</table>								
+</div>
+ <% getInfo("eth1xclient_comment_end");%>
    <SCRIPT>
 /*
    if(document.tcpip.wanType.selectedIndex != 0){ // static ip

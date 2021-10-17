@@ -18,6 +18,7 @@
 #if defined(CONFIG_RTL_FASTBRIDGE)
 #include <net/rtl/features/fast_bridge.h>
 #endif
+#include "../../../net/bridge/br_private.h"
 
 #define	RTL_PS_HOOKS_CONTINUE	0		/*	keep the process flow	*/
 #define	RTL_PS_HOOKS_BREAK		1		/*	should break from caller's loops	*/
@@ -52,7 +53,15 @@ int32 rtl_nat_cleanup_hooks(void);
 int32 rtl_fn_hash_insert_hooks(struct fib_table *tb, struct fib_config *cfg, struct fib_info *fi);
 int32 rtl_fn_hash_delete_hooks(struct fib_table *tb, struct fib_config *cfg);
 int32 rtl_fn_flush_list_hooks(int	 fz_order, int idx, u32 tb_id, u32 fn_key);
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+int32 rtl_fib_flush_list_hooks(u32 tb_id, u32 fn_key, u32 ip_mask);
+#endif
 int32 rtl_fn_hash_replace_hooks(struct fib_table *tb, struct fib_config *cfg, struct fib_info *fi);
+
+#if defined(CONFIG_IPV6) && defined(CONFIG_RTL_8198C)
+int32 rtl8198c_fib6_add_hooks(struct rt6_info *rt);
+int32 rtl8198c_fib6_del_hooks(struct rt6_info *rt);
+#endif
 
 int32 rtl_dev_queue_xmit_hooks(struct sk_buff *skb, struct net_device *dev);
 int32 rtl_dev_hard_start_xmit_hooks(struct sk_buff *skb, struct net_device *dev, struct netdev_queue *txq);

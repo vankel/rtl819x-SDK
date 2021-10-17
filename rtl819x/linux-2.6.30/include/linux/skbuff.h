@@ -454,7 +454,7 @@ struct sk_buff {
 #if defined(CONFIG_RTL_DSCP_IPTABLE_CHECK)			
 	__u8 original_dscp;
  #endif
- 
+
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 /* #if defined(IMPROVE_QOS) && defined(CONFIG_NET_SCHED) */
 	/* This member is only used at fastpath when both IMPROVE_QOS and CONFIG_NET_SCHED are defined. */

@@ -4,6 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html">
 <% getIndex("no-cache"); %>
 <title>WAN Interface Setup </title>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -193,6 +194,7 @@ function originTypeSelection(field)
 		}
 		show_div(1,"dns_div");
 		show_div(1,"other_div");
+		show_div(0,"6rd_div");
 		
 		
 	}else if(field.selectedIndex == 1){//static
@@ -203,6 +205,18 @@ function originTypeSelection(field)
 		show_div(1,"dns_div");
 		show_div(1,"other_div");
 		enableDNSinput();
+		show_div(0,"6rd_div");
+	}
+	else if(field.selectedIndex == 2) //6rd
+	{
+		show_div(0,"static_div");
+		show_div(0,"dhcp_div");
+		show_div(1,"dns_head_div");
+		show_div(0,"dns_mode_div");
+		show_div(1,"dns_div");
+		show_div(1,"other_div");
+		enableDNSinput();
+		show_div(1,"6rd_div");
 	}
 }
  
@@ -267,6 +281,7 @@ function ipv6_disable_wan_all()
 	show_div(0,"dns_mode_div");
 	show_div(0,"dns_div");
 	show_div(0,"other_div");
+	show_div(0,"6rd_div");
 
 	document.tcpip.linkType.disabled=true;
 	document.tcpip.OriginType.disabled=true;
@@ -334,7 +349,38 @@ function multiWanIpv6_saveChanges(form)
 		}
 	}
 
-	
+	if(document.getElementById("other_div").className  == "on")
+	{
+		with(document.tcpip)
+		{
+			if(!checkMacAddr(wan_macAddr,"mac address invalid!"))
+				return false;
+		}
+	}
+
+	if(document.getElementById("6rd_div").className  == "on")
+	{
+		with(document.tcpip)
+		{
+			if(!checkIpv6Addr(IPv6_6rd_ip_0,IPv6_6rd_ip_1,IPv6_6rd_ip_2,IPv6_6rd_ip_3,IPv6_6rd_ip_4,
+				IPv6_6rd_ip_5,IPv6_6rd_ip_6,IPv6_6rd_ip_7,prefix_len_6rd,"6RD prefix address invalid!"))
+				return false;
+			var len = prefix_len_6rd.value;
+			if((len%8) != 0 || len<0 || len>64)
+			{
+				alert('6RD prefix len must be a multiple of 8 between 0 and 64!');
+				return false;
+			}
+			len = wanMask.value;
+			if((len%8) != 0 || len<0 || len>32)
+			{
+				alert('6RD prefix len must be a multiple of 8 between 0 and 32!');
+				return false;
+			}
+			if(!checkIpAddr(IPv6_6rd_BR_IP, "6RD BR address invalid!"))
+				return false;
+		}
+	}
 	return true;
 }
 
@@ -406,7 +452,7 @@ function Load_Setting()
 
 <body onload="Load_Setting();">
 <blockquote>
-<h2><font color="#0000FF">WAN Interface Setup</font></h2>
+<h2>WAN Interface Setup</h2>
 <form action=/boafrm/formIpv6Setup method=POST name="tcpip">
 
 <table border=0 width="550" cellspacing=0 cellpadding=0>
@@ -428,6 +474,9 @@ function Load_Setting()
 		<td width="70%"><font size=2><select size="1" name="OriginType" onChange="originTypeSelection(this)">
 	<option value="0">DHCPv6</option>
 	<option value="1">STATIC</option>
+	<% getIPv6WanInfo("6rd_comment_start"); %>
+	<option value="2">6RD</option>
+	<% getIPv6WanInfo("6rd_comment_end"); %>
 	</select></td>
 	</tr>
     <tr>
@@ -571,6 +620,67 @@ function Load_Setting()
 
 	</table> 
   </span>
+
+	<span id = "6rd_div" class = "off" >
+	<table cellSpacing=1 cellPadding=2 border=0>
+	<h3><font color="#0000FF">6RD</font></h3>
+	<!-- need to add
+	<tr>
+		<td width="100%" colspan="2"><font size=2>
+		<b><input type="radio" value="6rdAuto" name="6rdMode" onClick="6rdAutoClicked()">Set 6RD Automatically</b>
+		</font></td>
+	</tr>
+	<tr>
+		<td width="100%" colspan="2"><font size=2>
+		<b><input type="radio" value="6rdManual" name="6rdMode" onClick="6rdManualClicked()">Set 6RD Manually</b>
+		</font></td>
+	</tr>
+	-->
+
+	<tr>
+		<td bgColor=#aaddff><font size=2><b>6RD IPv6 Prefix:</b></td>
+		<td bgColor=#aaddff>Prefix Length</td>
+	</tr>
+	<tr>
+		<td bgColor=#ddeeff>
+		<input type="text" name="IPv6_6rd_ip_0" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_0"); %>">:
+		<input type="text" name="IPv6_6rd_ip_1" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_1"); %>">:
+		<input type="text" name="IPv6_6rd_ip_2" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_2"); %>">:
+		<input type="text" name="IPv6_6rd_ip_3" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_3"); %>">:
+		<input type="text" name="IPv6_6rd_ip_4" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_4"); %>">:
+		<input type="text" name="IPv6_6rd_ip_5" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_5"); %>">:
+		<input type="text" name="IPv6_6rd_ip_6" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_6"); %>">:
+		<input type="text" name="IPv6_6rd_ip_7" size="4" maxlength="4" value="<% getIPv6WanInfo("6rd_ipv6Addr_7"); %>">		
+		</td>
+		<td bgColor=#ddeeff>
+		<input type=text name=prefix_len_6rd size=4 maxlength=4 enable value=<% getIPv6WanInfo("6rd_ipv6Addr_prefixLen"); %>>
+		</td>
+	</tr>
+	
+	<tr>
+		<td bgColor=#aaddff><font size=2><b>IPv4 Address:</b></td>
+		<td bgColor=#aaddff>Mask Length</td>
+	</tr>
+	<tr>
+		<td bgColor=#ddeeff>
+		<input type="text" name="wanIP" size="18" maxlength="15" disabled="disabled" value="<% getIPv6WanInfo("6rd_wan_ip"); %>">
+		</td>
+		<td bgColor=#ddeeff>
+		<input type=text name="wanMask" size=4 maxlength=4 enable value="<% getIPv6WanInfo("6rd_ipv4Addr_netMask"); %>">
+		</td>
+	</tr>
+
+	<tr>
+		<td bgColor=#aaddff><font size=2><b>6RD Border Relay IPv4 Address:</b></td>
+	</tr>
+	<tr>
+		<td bgColor=#ddeeff>
+		<input type="text" name="IPv6_6rd_BR_IP" size="18" maxlength="15" value=<% getIPv6WanInfo("6rd_BR_IP"); %>>
+		</td>
+	</tr>
+	
+	</table> 
+	</span>
   
 <span id="dns_head_div" class="off">
 	<h3><font color="#0000FF">Dns Setting</font></h3>

@@ -47,7 +47,10 @@
 static rtl865x_ppp_t *rtl865x_pppTable;
 
 #define PPP_TABLE_INDEX(entry)	(entry - rtl865x_pppTable)
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 static RTL_DECLARE_MUTEX(ppp_sem);
+#endif
 
 static int32 _rtl865x_ppp_register_event(void);
 static int32 _rtl865x_ppp_unRegister_event(void);
@@ -338,7 +341,10 @@ static int32 _rtl865x_ppp_unRegister_event(void)
 	return SUCCESS;
 }
 
-static int32 _rtl865x_referPpp(uint32 sessionId)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
+static 
+#endif
+int32 _rtl865x_referPpp(uint32 sessionId)
 {
 	int i;
 	rtl865x_ppp_t *entry = NULL;
@@ -353,7 +359,10 @@ static int32 _rtl865x_referPpp(uint32 sessionId)
 	return FAILED;
 }
 
-static int32 _rtl865x_deReferPpp(uint32 sessionId)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
+static 
+#endif 
+int32 _rtl865x_deReferPpp(uint32 sessionId)
 {
 	int i;
 	rtl865x_ppp_t *entry = NULL;
@@ -378,12 +387,12 @@ static int32 _rtl865x_deReferPpp(uint32 sessionId)
 int32 rtl865x_referPpp(uint32 sessionId)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//rtl_down_interruptible(&ppp_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_referPpp(sessionId);
 	//rtl_up(&ppp_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return retval;
 }
 /*
@@ -396,12 +405,12 @@ int32 rtl865x_referPpp(uint32 sessionId)
 int32 rtl865x_deReferPpp(uint32 sessionId)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//rtl_down_interruptible(&ppp_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_deReferPpp(sessionId);
 	//rtl_up(&ppp_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return retval;
 }
 	
@@ -421,13 +430,13 @@ int32 rtl865x_deReferPpp(uint32 sessionId)
 int32 rtl865x_addPpp(uint8 *ifname, ether_addr_t *mac, uint32 sessionId, int32 type)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//printk("====================%s(%d): sessionId(%d) ifname(%s) retval(%d)\n",__FUNCTION__,__LINE__,sessionId,ifname,retval);
 	//rtl_down_interruptible(&ppp_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_addPpp(ifname, mac, sessionId, type);
 	//rtl_up(&ppp_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	//printk("====================%s(%d): sessionId(%d) retval(%d)\n",__FUNCTION__,__LINE__,sessionId,retval);
 	return retval;
 
@@ -444,12 +453,12 @@ int32 rtl865x_addPpp(uint8 *ifname, ether_addr_t *mac, uint32 sessionId, int32 t
 int32 rtl865x_delPpp(uint32 sessionId)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//rtl_down_interruptible(&ppp_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delPpp(sessionId);
 	//rtl_up(&ppp_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	//printk("====================%s(%d): sessionId(%d) retval(%d)\n",__FUNCTION__,__LINE__,sessionId,retval);
 	return retval;
 	
@@ -468,9 +477,9 @@ int32 rtl865x_delPppbyIfName(char *name)
 	int i;
 	rtl865x_ppp_t *entry = NULL;
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&ppp_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	for(i = 0; i < PPP_NUMBER; i++)
 		if(rtl865x_pppTable[i].valid && (memcmp(rtl865x_pppTable[i].netif->name,name,sizeof(name)) == 0))
 		{
@@ -481,7 +490,7 @@ int32 rtl865x_delPppbyIfName(char *name)
 	if(entry)
 		retval = _rtl865x_delPpp(entry->sessionId);
 	//rtl_up(&ppp_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 

@@ -659,9 +659,6 @@ extern int nand_do_read_ecc (struct mtd_info *mtd, loff_t from, size_t len,
 #define DATA_BBI_OFF 0
 #endif
 
-#define BOOT_BLOCK	2
-#define REMAP_BBT_POS			0x100000	/*1M*/
-#define NORMAL_BBT_POSITION     0x200000 	/*2M*/
 
 
 #endif  /* __RTK_NAND_H */

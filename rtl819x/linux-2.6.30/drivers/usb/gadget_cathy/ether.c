@@ -56,6 +56,8 @@
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
 
+/* for 8871am compile error. need check */
+#include  <linux/proc_fs.h>
 #include "gadget_chips.h"
 //cathy
 #include <asm-mips/rtl865x/platform.h>	
@@ -1436,7 +1438,7 @@ static void rndis_command_complete (struct usb_ep *ep, struct usb_request *req)
 
 #endif	/* RNDIS */
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 int wall_mount = 1;
 enum {
 	RTL_ETHER_STATE_INIT,
@@ -1479,7 +1481,7 @@ eth_setup (struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		case USB_DT_DEVICE:
 			value = min (wLength, (u16) sizeof device_desc);
 			memcpy (req->buf, &device_desc, value);
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 				/*
 					if wall_mount=1 means usb driver doesn't get any control urb
 					ie, when ulinker is plugged into a usb adapter, not pc, we need to change ulinker into
@@ -1534,7 +1536,7 @@ eth_setup (struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		spin_lock (&dev->lock);
 		value = eth_set_config (dev, wValue, GFP_ATOMIC);
 		spin_unlock (&dev->lock);
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 		if ((value == 0) && (ether_state == RTL_ETHER_STATE_GET_DEV_DESC))
 		{
 			BDBG_GADGET_MODE_SWITCH("[%s:%d] set conf\n", __FUNCTION__, __LINE__);
@@ -2958,7 +2960,7 @@ static int eth_stop (struct net_device *net)
 {
 	struct eth_dev		*dev = netdev_priv(net);
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 	 // for link down rndis on winows
 	(void) rndis_signal_disconnect (dev->rndis_config);
 #else
@@ -3117,6 +3119,45 @@ static int eth_set_host_mac_addr(struct net_device *net, void *addr)
 }
 
 #if defined(CONFIG_RTL_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS)
+static void eth_set_rx_mode (struct net_device *dev)
+{
+	/*	Not yet implemented.	*/
+}
+
+static void eth_tx_timeout (struct net_device *dev)
+{
+	printk("Tx Timeout!!! Can't send packet\n");
+}
+
+static const struct net_device_ops rtl819x_netdev_ops_usb = {
+	.ndo_open		= eth_open,
+	.ndo_stop		= eth_stop,
+	.ndo_validate_addr	= eth_validate_addr,
+	.ndo_set_mac_address 	= eth_set_host_mac_addr,
+	.ndo_set_multicast_list	= eth_set_rx_mode,
+	.ndo_get_stats		= eth_get_stats,
+	.ndo_do_ioctl		= eth_ioctl,
+#ifdef TEST_MODE
+	.ndo_start_xmit		= eth_start_xmit2,
+#else
+	.ndo_start_xmit		= eth_start_xmit,
+#endif
+	.ndo_tx_timeout		= eth_tx_timeout,
+#if defined(CP_VLAN_TAG_USED)
+	.ndo_vlan_rx_register	= cp_vlan_rx_register,
+#endif
+	.ndo_change_mtu		= geth_change_mtu,
+};
+
+#if 0
+//cathy, for update host mac (eth mac + 1)
+	my_eth_mac_addr = net->set_mac_address;
+	net->set_mac_address = eth_set_host_mac_addr;
+#endif
+
+#endif /* defined(CONFIG_RTL_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS) */
+
+#if defined(CONFIG_RTL_8881A_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS)
 static void eth_set_rx_mode (struct net_device *dev)
 {
 	/*	Not yet implemented.	*/
@@ -3383,7 +3424,7 @@ autoconf_fail:
 	 * ends up in a persistent config database.
 	 */
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 {
 	extern char ulinker_rndis_mac[];
 	if (strlen(ulinker_rndis_mac)==12)
@@ -3433,6 +3474,9 @@ autoconf_fail:
 	}
 
 #if defined(CONFIG_RTL_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS) /* bruce, for support newer net_device */
+	net->netdev_ops = &rtl819x_netdev_ops_usb;
+	SET_ETHTOOL_OPS(net, &ops);
+#elif defined(CONFIG_RTL_8881A_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS) /* bruce, for support newer net_device */
 	net->netdev_ops = &rtl819x_netdev_ops_usb;
 	SET_ETHTOOL_OPS(net, &ops);
 #else //--- !defined(CONFIG_RTL_ULINKER)
@@ -3703,7 +3747,7 @@ int eth_reg_again(void)
 	memset(&brsc_counter, 0, sizeof(struct brsc_counter_s));
 #endif
 
-#if defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
 	wall_mount = 1;
 	ether_state = RTL_ETHER_STATE_INIT;
 

@@ -8,7 +8,13 @@
  */
 
 #ifdef __linux__
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#else
 #include <linux/config.h>
+#endif
 #include <linux/jiffies.h>
 #include <linux/timer.h>
 #include <linux/proc_fs.h>
@@ -46,6 +52,12 @@
 
 #include <net/rtl/rtl865x_multicast.h>
 #include <net/rtl/rtl865x_igmpsnooping.h>
+
+#if defined(CONFIG_RTL_8198C)
+int32 rtl8198C_initMulticastv6(void);
+int32 rtl8198C_reinitMulticastv6(void);
+#endif
+
 /********************************************************/
 /*			Multicast Related Global Variable			*/
 /********************************************************/
@@ -54,8 +66,17 @@ static rtl865x_mcast_fwd_descriptor_t *rtl865x_mcastFwdDescPool=NULL;
 static mcast_fwd_descriptor_head_t  free_mcast_fwd_descriptor_head;
 static struct rtl865x_multicastTable mCastTbl;
 static uint32 rtl865x_externalMulticastPortMask = 0;
+#if defined(CONFIG_RTL_8198C)
+static rtl8198c_mcast_fwd_descriptor6_t *rtl8198c_mcastFwdDescPool6=NULL;
+static mcast_fwd_descriptor_head6_t free_mcast_fwd_descriptor_head6;
+static struct rtl8198c_multicastv6Table mCastTbl6;
+static uint32 rtl8198c_externalMulticastPortMask6 = 0;
+#endif
 #if defined(__linux__) && defined(__KERNEL__)
 static struct timer_list rtl865x_mCastSysTimer;	/*igmp timer*/
+#if defined(CONFIG_RTL_8198C)
+static struct timer_list rtl8198c_mCast6SysTimer;/*MLD timer*/
+#endif
 #endif
 
 static int32 _rtl865x_initMCastFwdDescPool(void)
@@ -341,9 +362,6 @@ static uint32 rtl865x_genMCastEntryAsicFwdMask(rtl865x_tblDrv_mCast_t *mCastEntr
 		}
 		else
 		{
-		#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-			if(curDesc->fwdPortMask!=0)
-		#endif
 			asicFwdPortMask|=( 0x01<<RTL8651_MAC_NUMBER);
 		}
 	}
@@ -367,12 +385,7 @@ static uint16 rtl865x_genMCastEntryCpuFlag(rtl865x_tblDrv_mCast_t *mCastEntry)
 	
 	MC_LIST_FOREACH(curDesc, &(mCastEntry->fwdDescChain), next)
 	{
-		if(	((curDesc->toCpu==TRUE)
-			#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-			&&(curDesc->fwdPortMask)
-			#endif
-			)
-			||
+		if(	(curDesc->toCpu==TRUE)	||
 			(memcmp(curDesc->netifName, RTL_WLAN_NAME,4)==0)	)
 		{
 			cpuFlag=TRUE;
@@ -384,6 +397,7 @@ static uint16 rtl865x_genMCastEntryCpuFlag(rtl865x_tblDrv_mCast_t *mCastEntry)
 
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
 /*for linux bridge level igmp snooping usage*/
+#if !defined(CONFIG_RTL_MULTI_LAN_DEV)
 static uint32 rtl865x_getMCastEntryDescPortMask(rtl865x_tblDrv_mCast_t *mCastEntry)
 {
 	uint32 descPortMask=0;
@@ -400,7 +414,7 @@ static uint32 rtl865x_getMCastEntryDescPortMask(rtl865x_tblDrv_mCast_t *mCastEnt
 	
 	return descPortMask;
 }
-
+#endif
 #endif
 /*=======================================
   * Multicast Table APIs
@@ -581,16 +595,35 @@ static int _rtl865x_checkMulticastEntryEqual(rtl865x_tblDrv_mCast_t * mCastEntry
 #endif
 #ifdef CONFIG_PROC_FS
 static unsigned int mcastAddOpCnt=0;
+#if defined(CONFIG_RTL_8198C)
+static unsigned int mcastAddOpCnt6=0;
+#endif
 unsigned int _rtl865x_getAddMcastOpCnt(void)
 {
 	return mcastAddOpCnt;
 }
+#if defined(CONFIG_RTL_8198C)
+unsigned int _rtl8198C_getAddMcastv6OpCnt(void)
+{
+	return mcastAddOpCnt6;
+}
+#endif
 
 static unsigned int mcastDelOpCnt=0;
+#if defined(CONFIG_RTL_8198C)
+static unsigned int mcastDelOpCnt6=0;
+#endif
 unsigned int _rtl865x_getDelMcastOpCnt(void)
 {
 	return mcastDelOpCnt;
 }
+#if defined(CONFIG_RTL_8198C)
+unsigned int _rtl8198C_getDelMcastv6OpCnt(void)
+{
+	return mcastDelOpCnt6;
+}
+
+#endif
 #endif
 /* re-select Multicast entry to ASIC for the index ""entryIndex */
 static void _rtl865x_arrangeMulticast(uint32 entryIndex)
@@ -603,11 +636,7 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 	
 	TAILQ_FOREACH(mCast_t, &mCastTbl.inuseList.mCastTbl[entryIndex], nextMCast) 
 	{
-		if (	
-		#ifndef CONFIG_RTL_HW_MCAST_WIFI
-			(mCast_t->cpu == 0) && 
-		#endif 
-		!(mCast_t->flag & RTL865X_MULTICAST_PPPOEPATCH_CPUBIT)) 
+		if ((mCast_t->cpu == 0) && !(mCast_t->flag & RTL865X_MULTICAST_PPPOEPATCH_CPUBIT)) 
 		{ /* Ignore cpu=1 */
 
 			if(mCast_t->inAsic==TRUE)
@@ -1352,17 +1381,117 @@ static int32 _rtl865x_mCastFwdDescDequeue(mcast_fwd_descriptor_head_t * queueHea
 }
 
 #endif
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-extern int rtl_get_brIgmpModuleIndexbyId(int idx,char *name);
+
+#if defined(CONFIG_BRIDGE_IGMP_SNOOPING)
+int32 rtl865x_multicastUpdate(rtl865x_mcast_fwd_descriptor_t* desc)
+{
+	uint32 index;
+	//uint32 oldDescPortMask,newDescPortMask;/*for device decriptor forwarding usage*/
+	uint32 oldAsicFwdPortMask,newAsicFwdPortMask;/*for physical port forwarding usage*/
+	uint32 oldCpuFlag,newCpuFlag;
+	
+	rtl865x_mcast_fwd_descriptor_t newFwdDesc;
+	rtl865x_tblDrv_mCast_t	*mCastEntry,*nextMCastEntry;
+	//printk("[%s:%d]\n",__FUNCTION__,__LINE__);
+	if(desc==NULL)
+	{
+		//printk("[%s:%d]failed\n",__FUNCTION__,__LINE__);
+		return FAILED;
+	}
+	/*check device name's validity*/
+	if(strlen(desc->netifName)==0)
+	{
+		//printk("[%s:%d]failed\n",__FUNCTION__,__LINE__);
+		return FAILED;
+	}
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	if(memcmp(desc->netifName,RTL_BR_NAME,3)==0 || memcmp(desc->devName,RTL_BR1_NAME,3)==0)
+#else
+	if(memcmp(desc->netifName,RTL_BR_NAME,3)==0)
+#endif
+	{
+		for (index=0; index< RTL8651_MULTICASTTBL_SIZE; index++)
+		{
+			for (mCastEntry = TAILQ_FIRST(&mCastTbl.inuseList.mCastTbl[index]); mCastEntry; mCastEntry = nextMCastEntry)
+			{
+				nextMCastEntry=TAILQ_NEXT(mCastEntry, nextMCast);
+				//printk("[%s:%d]hw dip is:0x%x,cur dip is 0x%x\n",__FUNCTION__,__LINE__,mCastEntry->dip,desc->dip);	
+				if (mCastEntry->dip != desc->dip)
+				{
+					continue;
+				}
+				memset(&newFwdDesc, 0 ,sizeof(rtl865x_mcast_fwd_descriptor_t));
+				strcpy(newFwdDesc.netifName,desc->netifName);
+	
+				/*save old multicast entry forward port mask*/
+				oldAsicFwdPortMask=mCastEntry->mbr;
+				oldCpuFlag=mCastEntry->cpu;
+	
+				/*sync with control plane*/
+				newFwdDesc.fwdPortMask=desc->fwdPortMask & (~(1<<mCastEntry->port));
+				newFwdDesc.toCpu=desc->toCpu;
+				
+				/*update/replace old forward descriptor*/
+					
+				_rtl865x_mergeMCastFwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
+				mCastEntry->mbr 	= rtl865x_genMCastEntryAsicFwdMask(mCastEntry);
+				mCastEntry->cpu 	= rtl865x_genMCastEntryCpuFlag(mCastEntry);
+					
+				newAsicFwdPortMask	= mCastEntry->mbr ;
+				newCpuFlag			=mCastEntry->cpu;
+				/*printk("[%s:%d]old fwPortMask is %d,newfwPortMask is %d\n",
+					   __FUNCTION__,
+					   __LINE__,
+					   oldAsicFwdPortMask,
+					   newAsicFwdPortMask);*/	
+#ifndef RTL8651_MCAST_ALWAYS2UPSTREAM
+				if (mCastEntry->flag & RTL865X_MULTICAST_UPLOADONLY)
+				{	/* remove upload term*/
+					if((newAsicFwdPortMask!=0) && (newAsicFwdPortMask!=oldAsicFwdPortMask))
+					{
+						mCastEntry->flag &= ~RTL865X_MULTICAST_UPLOADONLY;
+						/* we assume multicast member will NEVER in External interface, so we remove
+								 external ip now */
+						mCastEntry->flag &= ~RTL865X_MULTICAST_EXTIP_SET;
+						mCastEntry->extIp= 0;
+					}
+				}
+#endif /* RTL8651_MCAST_ALWAYS2UPSTREAM */
+	
+				mCastEntry->unKnownMCast=FALSE;
+					
+				if((oldCpuFlag != newCpuFlag)||(newAsicFwdPortMask!=oldAsicFwdPortMask)) 
+				{
+					_rtl865x_patchPppoeWeak(mCastEntry);
+						
+					/*reset inAsic flag to re-select or re-write this hardware asic entry*/
+					if(newAsicFwdPortMask==0)
+					{
+						_rtl865x_freeMCastEntry(mCastEntry, index);
+					}
+						
+					_rtl865x_arrangeMulticast(index);
+				}
+			}
+				
+		}
+	}
+	return SUCCESS;
+}
+#endif
+#if defined(CONFIG_RTL_MULTI_LAN_DEV)
+extern struct net_bridge* bridge0;
+extern unsigned int rtl865x_getPhyFwdPortMask(struct net_bridge *br,unsigned int brFwdPortMask);
 #endif
 static int32 rtl865x_multicastCallbackFn(void *param)
 {
-	#if defined (CONFIG_RTL_IGMP_SNOOPING)
+#if defined (CONFIG_RTL_IGMP_SNOOPING)
 	uint32 index;
-	uint32 oldDescPortMask=0,newDescPortMask=0;/*for device decriptor forwarding usage*/
-	
-	uint32 oldAsicFwdPortMask=0,newAsicFwdPortMask=0;/*for physical port forwarding usage*/
-	uint32 oldCpuFlag=0,newCpuFlag=0;
+#if !defined(CONFIG_RTL_MULTI_LAN_DEV)
+	uint32 oldDescPortMask,newDescPortMask;/*for device decriptor forwarding usage*/
+#endif	
+	uint32 oldAsicFwdPortMask,newAsicFwdPortMask;/*for physical port forwarding usage*/
+	uint32 oldCpuFlag,newCpuFlag;
 	
 	rtl_multicastEventContext_t mcastEventContext;
 
@@ -1370,21 +1499,12 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 	struct rtl_multicastDataInfo multicastDataInfo;
 	struct rtl_multicastFwdInfo multicastFwdInfo;
 	rtl865x_tblDrv_mCast_t  *mCastEntry,*nextMCastEntry;
+#if !defined(CONFIG_RTL_MULTI_LAN_DEV)
 	struct rtl_multicastDeviceInfo_s bridgeMCastDev;
-
+#endif
 	struct rtl_groupInfo groupInfo;
 	int32 retVal=FAILED;
-#if defined (CONFIG_RTL_HW_MCAST_WIFI) ||defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	uint32 oldAsicPortMask=0;
-	uint32 newAsicPortMask=0;
-#endif
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	int i;
-	uint32 igmpModueIndex=0xFFFFFFFF;
-	char devName[16]={0};
-	int flag1=0,flag2=0;
-	uint32 newDescPortMask2=0;
-#endif
+
 	if(param==NULL)
 	{
 		return EVENT_CONTINUE_EXECUTE;
@@ -1396,19 +1516,16 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 		return EVENT_CONTINUE_EXECUTE;
 	}
 	#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
-	printk("%s:%d,mcastEventContext.devName is %s,moduleindex:%x, mcastEventContext.groupAddr is 0x%x,mcastEventContext.sourceAdd is 0x%x,mcastEventContext.portMask is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName, mcastEventContext.moduleIndex,mcastEventContext.groupAddr[0], mcastEventContext.sourceAddr[0], mcastEventContext.portMask);
+	printk("%s:%d,mcastEventContext.devName is %s, mcastEventContext.groupAddr is 0x%x,mcastEventContext.sourceAdd is 0x%x,mcastEventContext.portMask is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName, mcastEventContext.groupAddr[0], mcastEventContext.sourceAddr[0], mcastEventContext.portMask);
 	#endif
 	/*case 1:this is multicast event from bridge(br0) */
 	/*sync wlan and ethernet*/
 	//hyking:[Fix me] the RTL_BR_NAME...
+#if !defined(CONFIG_RTL_MULTI_LAN_DEV)
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
     if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0 || memcmp(mcastEventContext.devName,RTL_BR1_NAME,3)==0)
 #else
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,2)==0)
-#else
 	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0)
-#endif		
 #endif
 	{
 
@@ -1433,91 +1550,8 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 					mCastEntry->unKnownMCast=FALSE;
 				}
 
-				oldDescPortMask=rtl865x_getMCastEntryDescPortMask( mCastEntry);	
-				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-				oldAsicPortMask=mCastEntry->mbr;
-				#endif	
-				#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-				//oldAsicPortMask=mCastEntry->mbr;
-				oldCpuFlag = mCastEntry->cpu;
-				flag1=flag2=0;
-				for(i=0;i<RTL_IMGP_MAX_BRMODULE;i++)
-				{	
-					igmpModueIndex=rtl_get_brIgmpModuleIndexbyId(i,devName);
-					if(igmpModueIndex==0xFFFFFFFF)
-						continue;
-					/*sync with control plane*/
-					memset(&newFwdDesc, 0 ,sizeof(rtl865x_mcast_fwd_descriptor_t));
-					newDescPortMask2=0;
-					strcpy(newFwdDesc.netifName,devName);
-					
-					multicastDataInfo.ipVersion=4;
-					multicastDataInfo.sourceIp[0]=  mCastEntry->sip;
-					multicastDataInfo.groupAddr[0]= mCastEntry->dip;
-					
-					
-					retVal= rtl_getMulticastDataFwdInfo(igmpModueIndex, &multicastDataInfo, &multicastFwdInfo);
-					if(retVal!=SUCCESS)
-					{
-						continue;
-					}
-					flag1++;
-					newDescPortMask=multicastFwdInfo.fwdPortMask;
-					newCpuFlag =multicastFwdInfo.cpuFlag;
-					
-					
-					retVal= rtl_getIgmpSnoopingModuleDevInfo(igmpModueIndex, &bridgeMCastDev);
-					if(retVal!=SUCCESS)
-					{
-						continue;
-					}
-					flag2++;
-					newCpuFlag |=multicastFwdInfo.cpuFlag;
-					#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-					if(newCpuFlag)
-						newDescPortMask2 = (1<<RTL8651_MAC_NUMBER);	//cpu port
-					else
-						newDescPortMask = 0;
-					newFwdDesc.fwdPortMask = newDescPortMask2;
-					newFwdDesc.toCpu = newCpuFlag;
-					
-					_rtl865x_mergeMCastFwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
-					#endif
-				}
-				if(flag2==0){
-					continue;
-				}
-				mCastEntry->mbr 		= rtl865x_genMCastEntryAsicFwdMask(mCastEntry);
-				mCastEntry->cpu		= rtl865x_genMCastEntryCpuFlag(mCastEntry);
-				newAsicPortMask =mCastEntry->mbr;
-				newCpuFlag=mCastEntry->cpu;
+				oldDescPortMask=rtl865x_getMCastEntryDescPortMask( mCastEntry);			
 				
-				//printk("br:%s :oldAsicPortMask:%x,newAsicPortMask:%x,oldCpuFlag:%d,newCpuFlag:%d,[%s]:[%d].\n",devName,oldAsicPortMask,newAsicPortMask,oldCpuFlag,newCpuFlag,__FUNCTION__,__LINE__);
-
-				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-			
-				if((oldCpuFlag != newCpuFlag)||(newAsicPortMask!=oldAsicPortMask))
-				{
-					if(newAsicPortMask == 0){
-						//printk("[%s]:[%d].\n",__FUNCTION__,__LINE__);
-						_rtl865x_freeMCastEntry(mCastEntry, index);
-					}	
-					
-					_rtl865x_arrangeMulticast(index);
-				}	
-				#else
-				if(oldCpuFlag != newCpuFlag)
-				{
-				
-					_rtl865x_freeMCastEntry(mCastEntry, index);
-					_rtl865x_arrangeMulticast(index);
-				}
-				#endif
-				#else
-				
-				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-				oldCpuFlag = mCastEntry->cpu;
-				#endif
 				/*sync with control plane*/
 				memset(&newFwdDesc, 0 ,sizeof(rtl865x_mcast_fwd_descriptor_t));
 				strcpy(newFwdDesc.netifName,mcastEventContext.devName);
@@ -1525,67 +1559,45 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 				multicastDataInfo.sourceIp[0]=  mCastEntry->sip;
 				multicastDataInfo.groupAddr[0]= mCastEntry->dip;
 				retVal= rtl_getMulticastDataFwdInfo(mcastEventContext.moduleIndex, &multicastDataInfo, &multicastFwdInfo);
-				//printk("dev:%s,retVal:%d,cpu:%d[%s]:[%d].\n",mcastEventContext.devName,retVal,newCpuFlag,__FUNCTION__,__LINE__);
+				
+
 				if(retVal!=SUCCESS)
 				{
 					continue;
 				}
+				
 				retVal= rtl_getIgmpSnoopingModuleDevInfo(mcastEventContext.moduleIndex, &bridgeMCastDev);
 				if(retVal!=SUCCESS)
 				{
 					continue;
 				}
 				newDescPortMask=multicastFwdInfo.fwdPortMask;
-				newCpuFlag =multicastFwdInfo.cpuFlag;
-				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-				if(newCpuFlag)
-					newAsicPortMask = (1<<RTL8651_MAC_NUMBER);	//cpu port
-				else
-					newAsicPortMask = 0;
-				newFwdDesc.fwdPortMask = newAsicPortMask;
-				newFwdDesc.toCpu = newCpuFlag;
-				
-				//printk("br:%s :oldAsicPortMask:%x,newAsicPortMask:%x,oldCpuFlag:%d,newCpuFlag:%d,[%s]:[%d].\n",mcastEventContext.devName,oldAsicPortMask,newAsicPortMask,oldCpuFlag,newCpuFlag,__FUNCTION__,__LINE__);
-				_rtl865x_mergeMCastFwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
-				
-				mCastEntry->mbr 		= rtl865x_genMCastEntryAsicFwdMask(mCastEntry);
-				mCastEntry->cpu		= rtl865x_genMCastEntryCpuFlag(mCastEntry);
-				newAsicPortMask =mCastEntry->mbr;
-				newCpuFlag=mCastEntry->cpu;
-				if((oldCpuFlag != newCpuFlag)||(newAsicPortMask!=oldAsicPortMask))
-				{
-					if(newAsicPortMask == 0)
-						_rtl865x_freeMCastEntry(mCastEntry, index);
-					
-					_rtl865x_arrangeMulticast(index);
-				}	
-				#else
 				if(	(oldDescPortMask != newDescPortMask) &&
 					(	((newDescPortMask & bridgeMCastDev.swPortMask)!=0) ||
 						(((oldDescPortMask & bridgeMCastDev.swPortMask) !=0) && ((newDescPortMask & bridgeMCastDev.swPortMask)==0)))	)
-			
 				{
-					//printk("%s:%x,new:%x,old:%x[%s]:[%d].\n",bridgeMCastDev.devName,bridgeMCastDev.swPortMask,oldDescPortMask,newDescPortMask,__FUNCTION__,__LINE__);
 					/*this multicast entry should be re-generated at linux protocol stack bridge level*/
 					_rtl865x_freeMCastEntry(mCastEntry, index);
 					_rtl865x_arrangeMulticast(index);
 				}
-				#endif
-
-				#endif
+				
 			}
 		}
 		
 		return EVENT_CONTINUE_EXECUTE;
 	}
-			
+#endif			
 	/*case 2:this is multicast event from ethernet (eth0)*/
 	/*update ethernet forwarding port mask*/
-#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
-       if(memcmp(mcastEventContext.devName,"eth*",4)==0 || memcmp(mcastEventContext.devName,RTL_PS_ETH_NAME_ETH2,4)==0)
+#if defined(CONFIG_RTL_MULTI_LAN_DEV)
+	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0)
 #else
+	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+       if(memcmp(mcastEventContext.devName,"eth*",4)==0 || memcmp(mcastEventContext.devName,RTL_PS_ETH_NAME_ETH2,4)==0)
+	#else
 	if(memcmp(mcastEventContext.devName,"eth*",4)==0)
-#endif
+	#endif
+#endif/*CONFIG_RTL_MULTI_LAN_DEV*/
 	{
 		#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
 		printk("%s:%d,multicast event from ethernet (%s),mcastEventContext.groupAddr[0] is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName,mcastEventContext.groupAddr[0]);
@@ -1614,18 +1626,18 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 				multicastDataInfo.sourceIp[0]=  mCastEntry->sip;
 				multicastDataInfo.groupAddr[0]= mCastEntry->dip;
 				retVal= rtl_getMulticastDataFwdInfo(mcastEventContext.moduleIndex, &multicastDataInfo, &multicastFwdInfo);
-				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-				if(retVal!=SUCCESS)
-				{
-					newFwdDesc.fwdPortMask=0;
-					newFwdDesc.toCpu =1;
-				}else
-				#endif
-				{
+
+				/*fix jwj*/
+				if (multicastFwdInfo.unknownMCast == TRUE)
+					multicastFwdInfo.cpuFlag = TRUE;
+
+				#if defined(CONFIG_RTL_MULTI_LAN_DEV)
+				newFwdDesc.fwdPortMask=rtl865x_getPhyFwdPortMask(bridge0,multicastFwdInfo.fwdPortMask) & (~(1<<mCastEntry->port));
+				#else
 				newFwdDesc.fwdPortMask=multicastFwdInfo.fwdPortMask & (~(1<<mCastEntry->port));
+				#endif
 				newFwdDesc.toCpu=multicastFwdInfo.cpuFlag;
 			
-				}
 				/*update/replace old forward descriptor*/
 				
 				_rtl865x_mergeMCastFwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
@@ -1634,13 +1646,9 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 				
 				newAsicFwdPortMask	= mCastEntry->mbr ;
 				newCpuFlag			=mCastEntry->cpu;
-				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-				if((newAsicFwdPortMask&(~(1<<6)))==0)
-					newAsicFwdPortMask =0;
-				#endif
+				
 				#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
-				printk("%s:%d,oldAsicFwdPortMask is %d,newAsicFwdPortMask is %d,cpuflag:%d->%d\n",
-				__FUNCTION__,__LINE__,oldAsicFwdPortMask,newAsicFwdPortMask,oldCpuFlag,newCpuFlag);
+				printk("%s:%d,oldAsicFwdPortMask is %d,newAsicFwdPortMask is %d\n",__FUNCTION__,__LINE__,oldAsicFwdPortMask,newAsicFwdPortMask);
 				#endif
 				
 #ifndef RTL8651_MCAST_ALWAYS2UPSTREAM
@@ -1834,6 +1842,9 @@ static void _rtl865x_destroyMCastSysTimer(void)
 @rvalue SUCCESS	|Initialize successfully.
 @rvalue FAILED	|Initialize failed.
 */
+#if defined(CONFIG_RTL_8198C)
+static void _rtl8198C_initMCastv6SysTimer(void);
+#endif
 int32 rtl865x_initMulticast(rtl865x_mCastConfig_t * mCastConfigPtr)
 {
 	_rtl865x_multicastUnRegisterEvent();
@@ -1847,10 +1858,16 @@ int32 rtl865x_initMulticast(rtl865x_mCastConfig_t * mCastConfigPtr)
 	#if defined(__linux__) && defined(__KERNEL__)
 	_rtl865x_initMCastSysTimer();
 	#endif
+
+	rtl8651_setAsicOperationLayer(3);
 	rtl8651_setAsicMulticastMTU(1522); 
 	rtl8651_setAsicMulticastEnable(TRUE);
 	rtl865x_setAsicMulticastAging(TRUE);
 	_rtl865x_multicastRegisterEvent();
+
+#if defined(CONFIG_RTL_8198C)
+	rtl8198C_initMulticastv6();
+#endif
 	return SUCCESS;
 }
 
@@ -1877,6 +1894,9 @@ int32 rtl865x_reinitMulticast(void)
 	rtl8651_setAsicMulticastEnable(TRUE);
 	rtl865x_setAsicMulticastAging(TRUE);
 	_rtl865x_multicastRegisterEvent();
+#if defined(CONFIG_RTL_8198C)
+	rtl8198C_reinitMulticastv6();
+#endif
 	return SUCCESS;
 }	
 
@@ -1897,6 +1917,10 @@ int32 rtl_dumpSwMulticastInfo(void)
 	
 	rtl865x_tblDrv_mCast_t *mCast_t, *nextMCast_t;
 	rtl865x_mcast_fwd_descriptor_t *curDesc,*nextDesc;
+#if defined(CONFIG_RTL_8198C)
+    rtl8198c_tblDrv_mCastv6_t *mCastv6_t, *nextMCastv6_t;
+    rtl8198c_mcast_fwd_descriptor6_t *curDescv6, *nextDescv6;
+#endif
 	uint32 entry;
 	uint32 cnt;
 	printk("----------------------------------------------------\n");
@@ -1911,7 +1935,6 @@ int32 rtl_dumpSwMulticastInfo(void)
 	{
 		printk("Read Asic Multicast Table Enable Bit Error\n");
 	}
-	
 	ret=rtl8651_getAsicMulticastMTU(&mCastMtu); 
 	if(ret==SUCCESS)
 	{
@@ -1921,7 +1944,26 @@ int32 rtl_dumpSwMulticastInfo(void)
 	{
 		printk("Read Asic Multicast MTU Error\n");
 	}
-	
+#if defined(CONFIG_RTL_8198C)
+	ret=rtl8198C_getAsicMulticastv6Enable(&mCastEnable);
+	if(ret==SUCCESS)
+	{
+		printk("Asic IPV6 Multicast Table:%s\n", (mCastEnable==TRUE)?"Enable":"Disable");
+	}
+	else
+	{
+		printk("Read Asic IPV6 Multicast Table Enable Bit Error\n");
+	}
+	ret=rtl8198C_getAsicMulticastv6MTU(&mCastMtu); 
+	if(ret==SUCCESS)
+	{
+		printk("Asic IPV6 Multicast MTU:%d\n", mCastMtu);
+	}
+	else
+	{
+		printk("Read Asic IPV6 Multicast MTU Error\n");
+	}
+#endif
 	for (index=0; index<RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum; index++)
 	{
 		ret=rtl8651_getAsicMulticastPortInternal(index, &isInternal);
@@ -1996,6 +2038,44 @@ int32 rtl_dumpSwMulticastInfo(void)
 		}
 		
 	}
+#if defined(CONFIG_RTL_8198C)
+	printk("----------------------------------------------------\n");
+	printk("IPV6 Software Multicast Table:\n");
+	for (entry=0; entry< RTL8651_MULTICASTTBL_SIZE; entry++) {
+		mCastv6_t = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[entry]);
+		while (mCastv6_t) {
+			/*save the next entry first*/
+			nextMCastv6_t=TAILQ_NEXT(mCastv6_t, nextMCast); 		
+			printk("\t[%2d]  dip:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n\t      sip:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n\t      mbr:0x%x, svid:%d, spa:%d, ",
+				entry,
+				mCastv6_t->dip.v6_addr16[0],mCastv6_t->dip.v6_addr16[1],
+				mCastv6_t->dip.v6_addr16[2],mCastv6_t->dip.v6_addr16[3],
+				mCastv6_t->dip.v6_addr16[4],mCastv6_t->dip.v6_addr16[5],
+				mCastv6_t->dip.v6_addr16[6],mCastv6_t->dip.v6_addr16[7],
+				mCastv6_t->sip.v6_addr16[0],mCastv6_t->sip.v6_addr16[1],
+				mCastv6_t->sip.v6_addr16[2],mCastv6_t->sip.v6_addr16[3],
+				mCastv6_t->sip.v6_addr16[4],mCastv6_t->sip.v6_addr16[5],
+				mCastv6_t->sip.v6_addr16[6],mCastv6_t->sip.v6_addr16[7],
+				mCastv6_t->mbr,
+				mCastv6_t->svid,
+				mCastv6_t->port);
+			printk("age:%d, cpu:%d, count:%d, inAsic:%d, (%s)\n", 
+				mCastv6_t->age, mCastv6_t->cpu,mCastv6_t->count,mCastv6_t->inAsic,mCastv6_t->unKnownMCast?"UnknownMCast":"KnownMCast");
+			cnt=0;
+			curDescv6=MC_LIST_FIRST(&mCastv6_t->fwdDescChain);
+			while(curDescv6)
+			{
+				nextDescv6=MC_LIST_NEXT(curDescv6, next );
+				printk("\t      netif(%s),descPortMask(0x%x),toCpu(%d),fwdPortMask(0x%x)\n",curDescv6->netifName,curDescv6->descPortMask,curDescv6->toCpu,curDescv6->fwdPortMask);
+				curDescv6 = nextDescv6;
+			}
+				
+			printk("\n");
+			mCastv6_t = nextMCastv6_t;
+		}
+			
+	}
+#endif
 
 	return SUCCESS;
 }
@@ -2074,50 +2154,1334 @@ int32 rtl865x_flushHWMulticastEntry(void)
 
 int rtl865x_getMCastHashMethod(unsigned int *hashMethod)
 {
-	if(hashMethod==NULL)
-	{
-		return -1;
-	}
-
-	#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
-	*hashMethod = (REG32(FFCR) & 0x60)>>5;
-	#else
-	*hashMethod=0;
-	#endif
-	return 0;
+	return rtl865x_getAsicMCastHashMethod(hashMethod);
 }
 
 int rtl865x_setMCastHashMethod(unsigned int hashMethod)
 {
-    #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD)  || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
-    uint32 	  oldHashMethod = 0;
-	uint32 	  currHashMethod = 0;
- 	oldHashMethod = (REG32(FFCR) & 0x60)>>5;
-    currHashMethod = hashMethod; 
-	if(currHashMethod >3)
+	uint32 oldHashMethod = 0;
+	rtl865x_getAsicMCastHashMethod(&oldHashMethod);
+	hashMethod&=0x3;
+	if(hashMethod > 3)
 	{
 		return -1;
 	}
-				
-	currHashMethod=currHashMethod&0x3;
-				
-    if (oldHashMethod != currHashMethod) /* set FFCR Register bit 5~6 and flush multicast table */
-    {
-        REG32(FFCR) = (REG32(FFCR) & 0xFFFFFF9F)|(currHashMethod << 5);
+	if(oldHashMethod != hashMethod)
+	{
+		rtl865x_setAsicMCastHashMethod(hashMethod);		
         /* exclude 0->1 and 1->0 */
-        if(!((currHashMethod == HASH_METHOD_SIP_DIP0 && oldHashMethod == HASH_METHOD_SIP_DIP1) || 
-            (currHashMethod == HASH_METHOD_SIP_DIP1 && oldHashMethod == HASH_METHOD_SIP_DIP0)))
+        if(!((hashMethod == HASH_METHOD_SIP_DIP0 && oldHashMethod == HASH_METHOD_SIP_DIP1) || 
+            (hashMethod == HASH_METHOD_SIP_DIP1 && oldHashMethod == HASH_METHOD_SIP_DIP0)))
         {
 
-            rtl865x_flushHWMulticastEntry();   
-                   
-
+            rtl865x_flushHWMulticastEntry();                 
         }
-            
-    }
-    return 0;
-#else
+	}
 	return 0;
-#endif	
 }
+
+#if defined(CONFIG_RTL_8198C)
+static int is_ip6_addr_equal(inv6_addr_t addr1,inv6_addr_t addr2)
+{
+	if(addr1.v6_addr32[0]==addr2.v6_addr32[0]&&
+	   addr1.v6_addr32[1]==addr2.v6_addr32[1]&&
+	   addr1.v6_addr32[2]==addr2.v6_addr32[2]&&
+	   addr1.v6_addr32[3]==addr2.v6_addr32[3])
+	   return 1;
+	else
+	   return 0;
+}
+static int32 _rtl8198C_initMCastv6EntryPool(void)
+{
+	int32 index;
+	rtl8198c_tblDrv_mCastv6_t *multiCast_t;
+	
+	TBL_MEM_ALLOC(multiCast_t, rtl8198c_tblDrv_mCastv6_t ,MAX_MCASTV6_TABLE_ENTRY_CNT);
+	TAILQ_INIT(&mCastTbl6.freeList.freeMultiCast);
+	for(index=0; index<MAX_MCASTV6_TABLE_ENTRY_CNT; index++)
+	{
+		memset( &multiCast_t[index], 0, sizeof(rtl8198c_tblDrv_mCastv6_t));
+		TAILQ_INSERT_HEAD(&mCastTbl6.freeList.freeMultiCast, &multiCast_t[index], nextMCast);
+	}
+
+	TBL_MEM_ALLOC(multiCast_t, rtl8198c_tblDrv_mCastv6_t, RTL8651_MULTICASTTBL_SIZE);
+	memset(multiCast_t, 0,RTL8651_MULTICASTTBL_SIZE* sizeof(rtl8198c_tblDrv_mCastv6_t));
+	mCastTbl6.inuseList.mCastTbl = (void *)multiCast_t;
+
+	for(index=0; index<RTL8651_MULTICASTTBL_SIZE; index++)
+	{
+		TAILQ_INIT(&mCastTbl6.inuseList.mCastTbl[index]);
+	}
+	return SUCCESS;
+}
+
+static int32 _rtl8198C_freeMCastv6FwdDesc(rtl8198c_mcast_fwd_descriptor6_t *descPtr)
+{
+	if(descPtr==NULL)
+	{
+		return SUCCESS;
+	}
+	memset(descPtr,0,sizeof(rtl8198c_mcast_fwd_descriptor6_t));
+	MC_LIST_INSERT_HEAD(&free_mcast_fwd_descriptor_head6, descPtr, next);
+	
+	return SUCCESS;
+}
+
+
+static rtl8198c_mcast_fwd_descriptor6_t *_rtl8198C_allocMCastv6FwdDesc(void)
+{
+	rtl8198c_mcast_fwd_descriptor6_t *retDesc=NULL;
+	retDesc = MC_LIST_FIRST(&free_mcast_fwd_descriptor_head6);
+	if(retDesc!=NULL)
+	{
+		MC_LIST_REMOVE(retDesc, next);
+		memset(retDesc,0,sizeof(rtl8198c_mcast_fwd_descriptor6_t));
+	}
+	return retDesc;
+}
+
+static int32 _rtl8198C_mCastv6FwdDescEnqueue(mcast_fwd_descriptor_head6_t * queueHead,
+												rtl8198c_mcast_fwd_descriptor6_t * enqueueDesc)
+{
+	rtl8198c_mcast_fwd_descriptor6_t *newDesc;
+	rtl8198c_mcast_fwd_descriptor6_t *curDesc,*nextDesc;
+	if(queueHead==NULL)
+	{
+		return FAILED;
+	}
+	
+	if(enqueueDesc==NULL)
+	{
+		return SUCCESS;
+	}
+	
+	/*multicast forward descriptor is internal maintained,always alloc new one*/
+	newDesc=_rtl8198C_allocMCastv6FwdDesc();
+	
+	if(newDesc!=NULL)
+	{
+		memcpy(newDesc, enqueueDesc,sizeof(rtl8198c_mcast_fwd_descriptor6_t));
+		memset(&(newDesc->next), 0, sizeof(MC_LIST_ENTRY(rtl8198c_mcast_fwd_descriptor6_t)));
+		newDesc->next.le_next=NULL;
+		newDesc->next.le_prev=NULL;
+	}
+	else
+	{
+		/*no enough memory*/
+		return FAILED;
+	}
+	
+
+	for(curDesc=MC_LIST_FIRST(queueHead);curDesc!=NULL;curDesc=nextDesc)
+	{
+
+		nextDesc=MC_LIST_NEXT(curDesc, next);
+		
+		/*merge two descriptor*/
+		if((strcmp(curDesc->netifName,newDesc->netifName)==0) && (curDesc->vid==newDesc->vid))
+		if(strcmp(curDesc->netifName,newDesc->netifName)==0)
+		{	
+			if(newDesc->descPortMask==0)
+			{
+				newDesc->descPortMask=curDesc->descPortMask;
+			}
+			MC_LIST_REMOVE(curDesc, next);
+			_rtl8198C_freeMCastv6FwdDesc(curDesc);
+			
+		}
+	}
+
+	/*not matched descriptor is found*/
+	MC_LIST_INSERT_HEAD(queueHead, newDesc, next);
+
+	return SUCCESS;
+	
+}
+
+static int32 _rtl8198C_flushMCastv6FwdDescChain(mcast_fwd_descriptor_head6_t * descChainHead)
+{
+	rtl8198c_mcast_fwd_descriptor6_t * curDesc,*nextDesc;
+	
+	if(descChainHead==NULL)
+	{
+		return SUCCESS;
+	}
+	
+	curDesc=MC_LIST_FIRST(descChainHead);
+	while(curDesc)
+	{
+		nextDesc=MC_LIST_NEXT(curDesc, next );
+		/*remove from the old descriptor chain*/
+		MC_LIST_REMOVE(curDesc, next);
+		/*return to the free descriptor chain*/
+		_rtl8198C_freeMCastv6FwdDesc(curDesc);
+		curDesc = nextDesc;
+	}
+
+	return SUCCESS;
+}
+
+
+static int32 _rtl8198C_flushMCastv6Entry(rtl8198c_tblDrv_mCastv6_t *mCastEntry)
+{
+	if(mCastEntry==NULL)
+	{
+		return SUCCESS;
+	}
+	
+	_rtl8198C_flushMCastv6FwdDescChain(&mCastEntry->fwdDescChain);
+	
+	memset(mCastEntry, 0, sizeof(rtl865x_tblDrv_mCast_t));
+	return SUCCESS;
+}
+
+
+static int32 _rtl8198C_freeMCastv6Entry(rtl8198c_tblDrv_mCastv6_t * mCastEntry, uint32 hashIndex)
+{
+	if(mCastEntry==NULL)
+	{
+		return SUCCESS;
+	}
+	
+	TAILQ_REMOVE(&mCastTbl6.inuseList.mCastTbl[hashIndex], mCastEntry, nextMCast);
+	_rtl8198C_flushMCastv6Entry(mCastEntry);
+	TAILQ_INSERT_HEAD(&mCastTbl6.freeList.freeMultiCast, mCastEntry, nextMCast);
+	return SUCCESS;
+}
+
+
+static void _rtl8198C_arrangeMulticastv6(uint32 entryIndex)
+{
+	rtl8198C_tblAsicDrv_multiCastv6Param_t asic_mcast;
+	rtl8198c_tblDrv_mCastv6_t *mCast_t=NULL;
+	rtl8198c_tblDrv_mCastv6_t *select_t=NULL;
+	rtl8198c_tblDrv_mCastv6_t *swapOutEntry=NULL;
+	int32 retval;
+	int32 hashMethod=0;
+	rtl8198C_getMCastv6HashMethod(&hashMethod);
+	TAILQ_FOREACH(mCast_t, &mCastTbl6.inuseList.mCastTbl[entryIndex], nextMCast) 
+	{
+		if ((mCast_t->cpu == 0) && !(mCast_t->flag & RTL865X_MULTICAST_PPPOEPATCH_CPUBIT)) 
+		{ /* Ignore cpu=1 */
+
+			if(mCast_t->inAsic==TRUE)
+			{
+				if(swapOutEntry==NULL)
+				{
+					swapOutEntry=mCast_t;
+				}
+				else
+				{
+					/*impossible, two flow in one asic entry*/
+					swapOutEntry->inAsic=FALSE;
+					mCast_t->inAsic = FALSE;
+				}
+			}
+		
+			if (select_t) 
+			{
+				if ((mCast_t->unKnownMCast==FALSE) && (select_t->unKnownMCast==TRUE))
+				{
+					/*replace unknown multicast*/
+					select_t = mCast_t;
+				}
+				else
+				{
+					/*select the heavy load*/
+					if ((mCast_t->count) > (select_t->count))
+					{
+						select_t = mCast_t;
+					}
+				}
+				
+			}
+			else 
+			{
+				select_t = mCast_t;
+			}
+			
+			
+		}
+		else
+		{
+			mCast_t->inAsic = FALSE;	/* reset "inAsic" bit */
+		} 
+	}
+	
+	if(select_t && swapOutEntry)
+	{
+		if ((swapOutEntry->unKnownMCast==FALSE) && (select_t->unKnownMCast==TRUE))
+		{
+			/*replace unknown multicast*/
+			select_t = swapOutEntry;
+		}
+		else
+		{
+			if((select_t->count <= (swapOutEntry->count+RTL865X_HW_MCAST_SWAP_GAP)))
+				select_t = swapOutEntry;
+		}
+	}	
+	
+	if (select_t) 
+	{
+		if((swapOutEntry==NULL) ||(select_t==swapOutEntry))
+		{
+			select_t->age = RTL865X_MULTICAST_TABLE_ASIC_AGE;
+			bzero(&asic_mcast, sizeof(rtl8198C_tblAsicDrv_multiCastv6Param_t));
+//			memcpy(&asic_mcast, select_t, (uint32)&(((rtl8198c_tblDrv_mCastv6_t *)0)->six_rd_idx));
+			memcpy(&asic_mcast, select_t, sizeof(rtl8198C_tblAsicDrv_multiCastv6Param_t));
+			
+			retval = rtl8198C_setAsicIpMulticastv6Table(hashMethod,&asic_mcast);
+			
+#ifdef CONFIG_PROC_FS
+			mcastAddOpCnt6++;
+#endif
+			assert(retval == SUCCESS);
+			if(retval==SUCCESS)
+			{
+				select_t->inAsic = TRUE;
+			}
+			else
+			{
+				select_t->inAsic = FALSE;
+				rtl8198C_delAsicIpMulticastv6Table(entryIndex);
+#ifdef CONFIG_PROC_FS
+				mcastDelOpCnt6++;
+#endif
+			}
+				
+			assert(retval == SUCCESS);
+			TAILQ_REMOVE(&mCastTbl6.inuseList.mCastTbl[entryIndex], select_t, nextMCast);
+			TAILQ_INSERT_HEAD(&mCastTbl6.inuseList.mCastTbl[entryIndex], select_t, nextMCast);
+		}
+		else/*(swapOutEntry!=NULL) && (select_t!=swapOutEntry)*/
+		{
+			
+			/*disable swap and only explicit joined mulicast flow can replace unknown multicast flow*/
+			if(1)
+			{
+				/*don't forget to set swapOutEntry's inAsic flag*/
+				swapOutEntry->inAsic=FALSE;
+				
+				select_t->age = RTL865X_MULTICAST_TABLE_ASIC_AGE;
+				bzero(&asic_mcast, sizeof(rtl8198C_tblAsicDrv_multiCastv6Param_t));
+				memcpy(&asic_mcast, select_t, (uint32)&(((rtl8198C_tblAsicDrv_multiCastv6Param_t *)0)->six_rd_idx));
+				retval = rtl8198C_setAsicIpMulticastv6Table(hashMethod,&asic_mcast);
+				//printk("asic_mcast:dip:%x,[%s]:[%d].\n",asic_mcast.dip,__FUNCTION__,__LINE__);
+#ifdef CONFIG_PROC_FS
+				mcastAddOpCnt6++;
+				
+#endif
+				assert(retval == SUCCESS);
+				if(retval==SUCCESS)
+				{
+					select_t->inAsic = TRUE;
+				}
+				else
+				{
+					select_t->inAsic = FALSE;
+					rtl8198C_delAsicIpMulticastv6Table(entryIndex);
+#ifdef CONFIG_PROC_FS
+					mcastDelOpCnt6++;
+#endif
+				}
+				
+				TAILQ_REMOVE(&mCastTbl6.inuseList.mCastTbl[entryIndex], select_t, nextMCast);
+				TAILQ_INSERT_HEAD(&mCastTbl6.inuseList.mCastTbl[entryIndex], select_t, nextMCast);
+
+			}
+			#if 0
+			else
+			{	
+				//printk("swapOutEntry:%d,select:%d,[%s]:[%d].\n",swapOutEntry->unKnownMCast,select_t->unKnownMCast,__FUNCTION__,__LINE__);
+				if(swapOutEntry->inAsic == FALSE)
+				{
+					/*maybe something is wrong, we remove the asic entry*/
+					rtl8651_delAsicIpMulticastTable(entryIndex);
+#ifdef CONFIG_PROC_FS
+					mcastDelOpCnt6++;
+#endif
+				}
+				
+			}	
+			#endif
+			
+		}
+		
+	}
+	else 	
+	{
+		if(swapOutEntry!=NULL)
+		{
+			swapOutEntry->inAsic=FALSE;
+		}
+		rtl8198C_delAsicIpMulticastv6Table(entryIndex);
+#ifdef CONFIG_PROC_FS
+		mcastDelOpCnt6++;
+#endif
+	}
+}
+
+void _rtl8198C_timeUpdateMulticastv6(uint32 secPassed)
+{
+	rtl8198c_tblDrv_mCastv6_t *mCast_t, *nextMCast_t;
+	uint32 entry;
+	uint32 needReArrange=FALSE;
+	uint32 hashLineCnt=0;
+	//printk("[%s:%d]\n",__FUNCTION__,__LINE__);
+	/* check to Aging and HW swapping */
+	for (entry=0; entry< RTL8651_MULTICASTTBL_SIZE; entry++) {
+		hashLineCnt=0;
+		needReArrange=FALSE;
+		mCast_t = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[entry]);
+		while (mCast_t) {
+			/*save the next entry first*/
+			nextMCast_t=TAILQ_NEXT(mCast_t, nextMCast);
+			
+			if (mCast_t->inAsic == TRUE)
+			{
+				/* Entry is in the ASIC */
+				if (mCast_t->age <= secPassed) 
+				{
+					if(mCast_t->mbr==0)
+					{
+						_rtl8198C_freeMCastv6Entry(mCast_t,entry);
+						needReArrange=TRUE;
+					}
+					else
+					{
+						mCast_t->age = RTL865X_MULTICAST_TABLE_AGE;
+					}
+				}
+				else
+				{
+					mCast_t->age -= secPassed;
+				}
+			}
+			else 
+			{
+				//printk("------------mCast_t->count:%d,[%s]:[%d].\n",mCast_t->count,__FUNCTION__,__LINE__);
+			
+				//mCast_t->count=0;
+			
+				/* Entry is not in the ASIC */
+				if (mCast_t->age <= secPassed)
+				{ /* aging out */
+					_rtl8198C_freeMCastv6Entry(mCast_t, entry);
+				}
+				else 
+				{
+					mCast_t->age -= secPassed;
+				}
+			}
+			
+			/*won't count multicast entry forwarded by cpu*/
+			if(mCast_t->cpu==0)
+			{
+				
+				hashLineCnt++;
+				//printk("------------hashLineCnt:%d,[%s]:[%d].\n",hashLineCnt,__FUNCTION__,__LINE__);
+				if(hashLineCnt>=2)
+				{
+					needReArrange=TRUE;
+				}
+			}
+		
+			//mCast_t->count = 0;
+			mCast_t = nextMCast_t;
+		}
+		
+		if(needReArrange==TRUE)
+		{
+			//printk("------------entry:%d,hashLineCnt:%d,[%s]:[%d].\n",entry,hashLineCnt,__FUNCTION__,__LINE__);
+			_rtl8198C_arrangeMulticastv6(entry);
+		}
+		mCast_t = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[entry]);
+		
+		while (mCast_t) {
+			/*save the next entry first*/
+			nextMCast_t=TAILQ_NEXT(mCast_t, nextMCast);
+			
+			if (mCast_t->inAsic == FALSE)
+				mCast_t->count=0;
+			
+			mCast_t = nextMCast_t;
+		}
+		
+	}
+}
+
+#if defined(__linux__) && defined(__KERNEL__)
+static void _rtl8198C_mCastv6SysTimerExpired(uint32 expireDada)
+{
+
+	_rtl8198C_timeUpdateMulticastv6(1);
+	mod_timer(&rtl8198c_mCast6SysTimer, jiffies+HZ);
+	
+}
+
+static void _rtl8198C_initMCastv6SysTimer(void)
+{
+	init_timer(&rtl8198c_mCast6SysTimer);
+	rtl8198c_mCast6SysTimer.data=rtl8198c_mCast6SysTimer.expires;
+	rtl8198c_mCast6SysTimer.expires=jiffies+HZ;
+	rtl8198c_mCast6SysTimer.function=(void*)_rtl8198C_mCastv6SysTimerExpired;
+	add_timer(&rtl8198c_mCast6SysTimer);
+}
+static void _rtl8198C_destroyMCastv6SysTimer(void)
+{
+	del_timer(&rtl8198c_mCast6SysTimer);
+}
+#endif
+
+
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+
+int rtl8198C_findEmptyCamEntryv6(void)
+{
+	int index=-1;
+
+	for(index=RTL8651_IPMULTICASTTBL_SIZE; index<RTL8651_MULTICASTTBL_SIZE; index++)
+	{
+
+		if(TAILQ_EMPTY(&mCastTbl6.inuseList.mCastTbl[index]))
+		{
+			return index;
+		}
+	}
+	
+	return -1;
+}
+#endif
+
+
+static int32 _rtl8198C_initMCastv6FwdDescPool(void)
+{
+	int32 i;
+	MC_LIST_INIT(&free_mcast_fwd_descriptor_head6);
+	TBL_MEM_ALLOC(rtl8198c_mcastFwdDescPool6, rtl8198c_mcast_fwd_descriptor6_t,MAX_MCASTV6_FWD_DESCRIPTOR_CNT);
+	
+	if(rtl8198c_mcastFwdDescPool6!=NULL)
+	{
+		memset( rtl8198c_mcastFwdDescPool6, 0, MAX_MCASTV6_FWD_DESCRIPTOR_CNT * sizeof(rtl8198c_mcast_fwd_descriptor6_t));	
+	}
+	else
+	{
+		return FAILED;
+	}
+	
+	for(i = 0; i<MAX_MCASTV6_FWD_DESCRIPTOR_CNT;i++)
+	{
+		MC_LIST_INSERT_HEAD(&free_mcast_fwd_descriptor_head6, &rtl8198c_mcastFwdDescPool6[i], next);
+	}
+	
+	return SUCCESS;
+}
+
+static rtl8198c_tblDrv_mCastv6_t * _rtl8198C_allocMCastv6Entry(uint32 hashIndex)
+{
+	rtl8198c_tblDrv_mCastv6_t *newEntry;
+	newEntry=TAILQ_FIRST(&mCastTbl6.freeList.freeMultiCast);
+	if (newEntry == NULL)
+	{
+		return NULL;
+	}		
+	
+	TAILQ_REMOVE(&mCastTbl6.freeList.freeMultiCast, newEntry, nextMCast);
+
+	
+	/*initialize it*/
+	if(MC_LIST_FIRST(&newEntry->fwdDescChain)!=NULL)
+	{
+		_rtl8198C_flushMCastv6FwdDescChain(&newEntry->fwdDescChain);
+	}
+	MC_LIST_INIT(&newEntry->fwdDescChain);
+	
+	memset(newEntry, 0, sizeof(rtl8198c_tblDrv_mCastv6_t));
+
+	TAILQ_INSERT_TAIL(&mCastTbl6.inuseList.mCastTbl[hashIndex], newEntry, nextMCast);
+	
+	return newEntry;
+}
+
+static int32 _rtl8198C_mergeMCastv6FwdDescChain(mcast_fwd_descriptor_head6_t * targetChainHead ,
+													rtl8198c_mcast_fwd_descriptor6_t *srcChain)
+{
+	rtl8198c_mcast_fwd_descriptor6_t *curDesc;
+
+	if(targetChainHead==NULL)
+	{
+		return FAILED;
+	}
+	
+	for(curDesc=srcChain; curDesc!=NULL; curDesc=MC_LIST_NEXT(curDesc,next))
+	{
+		
+		_rtl8198C_mCastv6FwdDescEnqueue(targetChainHead, curDesc);
+		
+	}
+	
+	return SUCCESS;
+}
+
+static uint32 _rtl8198C_doMCastv6EntrySrcVlanPortFilter(rtl8198c_tblDrv_mCastv6_t *mCastEntry)
+{
+	rtl8198c_mcast_fwd_descriptor6_t * curDesc,*nextDesc;
+	if(mCastEntry==NULL)
+	{
+		return SUCCESS;
+	}
+	
+	for(curDesc=MC_LIST_FIRST(&mCastEntry->fwdDescChain);curDesc!=NULL;curDesc=nextDesc)
+	{
+		nextDesc=MC_LIST_NEXT(curDesc, next);
+		{
+			curDesc->fwdPortMask=curDesc->fwdPortMask & (~(1<<mCastEntry->port));
+			if(curDesc->fwdPortMask==0)
+			{
+				/*remove from the old chain*/
+				MC_LIST_REMOVE(curDesc, next);
+				/*return to the free descriptor chain*/
+				_rtl8198C_freeMCastv6FwdDesc(curDesc);
+
+			}
+		}
+		
+	}
+
+	return SUCCESS;
+}
+
+
+static uint32 rtl8198C_genMCastv6EntryAsicFwdMask(rtl8198c_tblDrv_mCastv6_t *mCastEntry)
+{
+	uint32 asicFwdPortMask=0;
+	rtl8198c_mcast_fwd_descriptor6_t * curDesc;
+	if(mCastEntry==NULL)
+	{
+		return 0;
+	}
+	
+	MC_LIST_FOREACH(curDesc, &(mCastEntry->fwdDescChain), next)
+	{
+		if(curDesc->toCpu==0)
+		{
+			asicFwdPortMask|=(curDesc->fwdPortMask & ((1<<RTL8651_MAC_NUMBER)-1));
+		}
+		else
+		{
+			asicFwdPortMask|=( 0x01<<RTL8651_MAC_NUMBER);
+		}
+	}
+	asicFwdPortMask = asicFwdPortMask & (~(1<<mCastEntry->port)); 
+	return asicFwdPortMask;
+}
+
+static uint16 rtl8198C_genMCastv6EntryCpuFlag(rtl8198c_tblDrv_mCastv6_t *mCastEntry)
+{
+	uint16 cpuFlag=FALSE;
+	rtl8198c_mcast_fwd_descriptor6_t * curDesc;
+	if(mCastEntry==NULL)
+	{
+		return 0;
+	}
+
+	if(mCastEntry->cpuHold==TRUE)
+	{
+		cpuFlag=TRUE;
+	}
+	
+	MC_LIST_FOREACH(curDesc, &(mCastEntry->fwdDescChain), next)
+	{
+		if(	(curDesc->toCpu==TRUE)	||
+			(memcmp(curDesc->netifName, RTL_WLAN_NAME,4)==0)	)
+		{
+			cpuFlag=TRUE;
+		}
+	}
+	
+	return cpuFlag;
+}
+
+static void  _rtl8198C_setASICMulticastv6PortStatus(void) {
+	uint32 index;
+	for (index=0; index<RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum; index++) {
+		rtl8651_setAsicMulticastPortInternal(index, (rtl865x_externalMulticastPortMask&(1<<index))?FALSE:TRUE);
+	}
+}
+
+
+static void _rtl8198C_mCastv6EntryReclaim(void)
+{
+	uint32 index;
+	uint32 freeCnt=0;
+	uint32 asicFwdPortMask=0;
+	uint32 needReArrange=FALSE;
+	rtl8198c_tblDrv_mCastv6_t *curMCastEntry, *nextMCastEntry;
+
+	/*free unused software forward entry*/
+	for(index=0; index<RTL8651_MULTICASTTBL_SIZE; index++) 
+	{
+		curMCastEntry = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[index]);
+		while (curMCastEntry)
+		{
+			nextMCastEntry = TAILQ_NEXT(curMCastEntry, nextMCast);
+			if((curMCastEntry->inAsic==FALSE)  && (curMCastEntry->count==0))
+			{
+				_rtl8198C_freeMCastv6Entry(curMCastEntry, index);
+				freeCnt++;
+			}
+			curMCastEntry = nextMCastEntry;
+		}
+		
+	}
+
+	if(freeCnt>0)
+	{
+		return;
+	}
+	
+	for(index=0; index<RTL8651_MULTICASTTBL_SIZE; index++) 
+	{
+		curMCastEntry = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[index]);
+		needReArrange=FALSE;
+		while (curMCastEntry)
+		{
+			nextMCastEntry = TAILQ_NEXT(curMCastEntry, nextMCast);
+			if(curMCastEntry->inAsic)
+			{
+				asicFwdPortMask=rtl8198C_genMCastv6EntryAsicFwdMask(curMCastEntry);
+				if(asicFwdPortMask==0) 
+				{
+					_rtl8198C_freeMCastv6Entry(curMCastEntry,index);
+					needReArrange=TRUE;
+				}
+			}
+			curMCastEntry = nextMCastEntry;
+		}
+		
+		if(needReArrange==TRUE)
+		{
+			_rtl8198C_arrangeMulticastv6(index);
+		}
+	}
+
+	return;
+}
+
+static inline void _rtl8198C_patchPppoeWeakv6(rtl8198c_tblDrv_mCastv6_t *mCast_t)
+{
+	rtl8198c_mcast_fwd_descriptor6_t * curDesc;
+	uint32 netifType;
+	/* patch: keep cache in software if one vlan's interface is pppoe */
+	MC_LIST_FOREACH(curDesc, &(mCast_t->fwdDescChain), next)
+	{
+		if(rtl865x_getNetifType(curDesc->netifName, &netifType)==SUCCESS)
+		{
+			/*how about pptp,l2tp?*/
+			if(netifType==IF_PPPOE)
+			{
+				mCast_t->flag |= RTL865X_MULTICAST_PPPOEPATCH_CPUBIT;
+				return;
+			}
+		}
+		
+	}
+
+	mCast_t->flag &= ~RTL865X_MULTICAST_PPPOEPATCH_CPUBIT;
+}
+//static 
+uint32 rtl8198C_getMCastv6EntryDescPortMask(rtl8198c_tblDrv_mCastv6_t *mCastEntry)
+{
+	uint32 descPortMask=0;
+	rtl8198c_mcast_fwd_descriptor6_t * curDesc;
+	if(mCastEntry==NULL)
+	{
+		return 0;
+	}
+	
+	MC_LIST_FOREACH(curDesc, &(mCastEntry->fwdDescChain), next)
+	{
+		descPortMask=descPortMask | curDesc->descPortMask;
+	}
+	
+	return descPortMask;
+}
+
+static int32 rtl8198C_multicastv6CallbackFn(void *param)
+{
+	inv6_addr_t groupAddr;
+#if defined (CONFIG_RTL_IGMP_SNOOPING)
+	uint32 index;
+#if !defined(CONFIG_RTL_MULTI_LAN_DEV)
+	uint32 oldDescPortMask,newDescPortMask;/*for device decriptor forwarding usage*/
+#endif	
+	uint32 oldAsicFwdPortMask,newAsicFwdPortMask;/*for physical port forwarding usage*/
+	uint32 oldCpuFlag,newCpuFlag;
+		
+	rtl_multicastEventContext_t mcastEventContext;
+	
+	rtl8198c_mcast_fwd_descriptor6_t newFwdDesc;
+	struct rtl_multicastDataInfo multicastDataInfo;
+	struct rtl_multicastFwdInfo multicastFwdInfo;
+	rtl8198c_tblDrv_mCastv6_t *mCastEntry,*nextMCastEntry;
+#if !defined(CONFIG_RTL_MULTI_LAN_DEV)
+	struct rtl_multicastDeviceInfo_s bridgeMCastDev;
+#endif
+#ifdef CONFIG_RTL_MLD_SNOOPING
+	struct rtl_groupInfo groupInfo;
+#endif
+	int32 retVal=FAILED;
+	
+	if(param==NULL)
+	{
+		return EVENT_CONTINUE_EXECUTE;
+	}
+	memcpy(&mcastEventContext,param,sizeof(rtl_multicastEventContext_t));
+	/*check device name's validity*/
+	if(strlen(mcastEventContext.devName)==0)
+	{
+		return EVENT_CONTINUE_EXECUTE;
+	}
+	#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
+	printk("%s:%d,mcastEventContext.devName is %s, mcastEventContext.groupAddr is 0x%x,mcastEventContext.sourceIP is 0x%x,mcastEventContext.portMask is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName, mcastEventContext.groupAddr[0], mcastEventContext.sourceAddr[0], mcastEventContext.portMask);
+	#endif
+	bzero(&groupAddr,sizeof(inv6_addr_t));
+	memcpy(&groupAddr,mcastEventContext.groupAddr,sizeof(inv6_addr_t));
+	/*case 1:this is multicast event from bridge(br0) */
+	/*sync wlan and ethernet*/
+	//hyking:[Fix me] the RTL_BR_NAME...
+#if !defined(CONFIG_RTL_MULTI_LAN_DEV)
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0 || memcmp(mcastEventContext.devName,RTL_BR1_NAME,3)==0)
+#else
+	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0)
+#endif
+	{
+		for (index=0; index< RTL8651_MULTICASTTBL_SIZE; index++)
+		{
+			for (mCastEntry = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[index]); mCastEntry; mCastEntry = nextMCastEntry)
+			{
+				nextMCastEntry=TAILQ_NEXT(mCastEntry, nextMCast);
+				if (!is_ip6_addr_equal(mCastEntry->dip,groupAddr))
+				{
+					continue;
+				}
+	
+				rtl_getGroupInfov6((uint32*)&mCastEntry->dip, &groupInfo);
+				if(groupInfo.ownerMask==0)
+				{
+					mCastEntry->unKnownMCast=TRUE;
+				}
+				else
+				{
+					mCastEntry->unKnownMCast=FALSE;
+				}
+	
+				oldDescPortMask=rtl8198C_getMCastv6EntryDescPortMask( mCastEntry); 		
+					
+				/*sync with control plane*/
+				memset(&newFwdDesc, 0 ,sizeof(rtl8198c_mcast_fwd_descriptor6_t));
+				strcpy(newFwdDesc.netifName,mcastEventContext.devName);
+				multicastDataInfo.ipVersion=6;
+				memcpy(multicastDataInfo.sourceIp,&mCastEntry->sip,sizeof(inv6_addr_t));
+				memcpy(multicastDataInfo.groupAddr,&mCastEntry->dip,sizeof(inv6_addr_t));
+				retVal= rtl_getMulticastDataFwdInfo(mcastEventContext.moduleIndex, &multicastDataInfo, &multicastFwdInfo);
+					
+	
+				if(retVal!=SUCCESS)
+				{
+					continue;
+				}
+					
+				retVal= rtl_getIgmpSnoopingModuleDevInfo(mcastEventContext.moduleIndex, &bridgeMCastDev);
+				if(retVal!=SUCCESS)
+				{
+					continue;
+				}
+				newDescPortMask=multicastFwdInfo.fwdPortMask;
+				if( (oldDescPortMask != newDescPortMask) &&
+					(	((newDescPortMask & bridgeMCastDev.swPortMask)!=0) ||
+						(((oldDescPortMask & bridgeMCastDev.swPortMask) !=0) && ((newDescPortMask & bridgeMCastDev.swPortMask)==0)))	)
+				{
+					/*this multicast entry should be re-generated at linux protocol stack bridge level*/
+					_rtl8198C_freeMCastv6Entry(mCastEntry,index);
+					_rtl8198C_arrangeMulticastv6(index);
+				}
+					
+			}
+		}
+			
+		return EVENT_CONTINUE_EXECUTE;
+	}
+#endif			
+	/*case 2:this is multicast event from ethernet (eth0)*/
+	/*update ethernet forwarding port mask*/
+#if defined(CONFIG_RTL_MULTI_LAN_DEV)
+	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0)
+#else
+	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	   if(memcmp(mcastEventContext.devName,"eth*",4)==0 || memcmp(mcastEventContext.devName,RTL_PS_ETH_NAME_ETH2,4)==0)
+	#else
+		if(memcmp(mcastEventContext.devName,"eth*",4)==0)
+	#endif
+#endif/*CONFIG_RTL_MULTI_LAN_DEV*/
+		{
+		#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
+			printk("%s:%d,multicast event from ethernet (%s),mcastEventContext.groupAddr[0] is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName,mcastEventContext.groupAddr[0]);
+		#endif
+			
+			for (index=0; index< RTL8651_MULTICASTTBL_SIZE; index++)
+			{
+				for (mCastEntry = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[index]); mCastEntry; mCastEntry = nextMCastEntry)
+				{
+					nextMCastEntry=TAILQ_NEXT(mCastEntry, nextMCast);
+#if	0				
+					printk("mCastEntry->dip:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
+						mCastEntry->dip.v6_addr16[0],mCastEntry->dip.v6_addr16[1],
+						mCastEntry->dip.v6_addr16[2],mCastEntry->dip.v6_addr16[3],
+						mCastEntry->dip.v6_addr16[4],mCastEntry->dip.v6_addr16[5],
+						mCastEntry->dip.v6_addr16[6],mCastEntry->dip.v6_addr16[7]);
+					printk("groupAddr:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
+						groupAddr.v6_addr16[0],groupAddr.v6_addr16[1],
+						groupAddr.v6_addr16[2],groupAddr.v6_addr16[3],
+						groupAddr.v6_addr16[4],groupAddr.v6_addr16[5],
+						groupAddr.v6_addr16[6],groupAddr.v6_addr16[7]);
+#endif
+					if (!is_ip6_addr_equal(mCastEntry->dip,groupAddr))
+					{
+						continue;
+					}
+					
+					memset(&newFwdDesc, 0 ,sizeof(rtl8198c_mcast_fwd_descriptor6_t));
+					strcpy(newFwdDesc.netifName,mcastEventContext.devName);
+	
+					/*save old multicast entry forward port mask*/
+					oldAsicFwdPortMask=mCastEntry->mbr;
+					oldCpuFlag=mCastEntry->cpu;
+	
+					/*sync with control plane*/
+					multicastDataInfo.ipVersion=6;
+					memcpy(multicastDataInfo.sourceIp,&mCastEntry->sip,sizeof(inv6_addr_t));
+					memcpy(multicastDataInfo.groupAddr,&mCastEntry->dip,sizeof(inv6_addr_t));
+					retVal= rtl_getMulticastDataFwdInfo(mcastEventContext.moduleIndex, &multicastDataInfo, &multicastFwdInfo);
+				#if defined(CONFIG_RTL_MULTI_LAN_DEV)
+					newFwdDesc.fwdPortMask=rtl865x_getPhyFwdPortMask(bridge0,multicastFwdInfo.fwdPortMask) & (~(1<<mCastEntry->port));
+				#else
+					newFwdDesc.fwdPortMask=multicastFwdInfo.fwdPortMask & (~(1<<mCastEntry->port));
+				#endif
+					newFwdDesc.toCpu=multicastFwdInfo.cpuFlag;
+				
+					/*update/replace old forward descriptor*/
+
+					_rtl8198C_mergeMCastv6FwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
+					mCastEntry->mbr 		= rtl8198C_genMCastv6EntryAsicFwdMask(mCastEntry);
+					mCastEntry->cpu 	= rtl8198C_genMCastv6EntryCpuFlag(mCastEntry);
+					
+					newAsicFwdPortMask	= mCastEntry->mbr ;
+					newCpuFlag			=mCastEntry->cpu;
+					
+				#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
+					printk("%s:%d,oldAsicFwdPortMask is %d,newAsicFwdPortMask is %d\n",__FUNCTION__,__LINE__,oldAsicFwdPortMask,newAsicFwdPortMask);
+				#endif
+					
+#ifndef RTL8651_MCAST_ALWAYS2UPSTREAM
+					if (mCastEntry->flag & RTL865X_MULTICAST_UPLOADONLY)
+					{	/* remove upload term*/
+						if((newAsicFwdPortMask!=0) && (newAsicFwdPortMask!=oldAsicFwdPortMask))
+						{
+							mCastEntry->flag &= ~RTL865X_MULTICAST_UPLOADONLY;
+							/* we assume multicast member will NEVER in External interface, so we remove
+								 external ip now */
+							mCastEntry->flag &= ~RTL865X_MULTICAST_EXTIP_SET;
+						}
+					}
+#endif /* RTL8651_MCAST_ALWAYS2UPSTREAM */
+#ifdef CONFIG_RTL_MLD_SNOOPING	
+					rtl_getGroupInfov6((uint32*)&mCastEntry->dip, &groupInfo);
+					if(groupInfo.ownerMask==0)
+					{
+						mCastEntry->unKnownMCast=TRUE;
+					}
+					else
+					{
+						mCastEntry->unKnownMCast=FALSE;
+					}
+#endif		
+					if((oldCpuFlag != newCpuFlag)||(newAsicFwdPortMask!=oldAsicFwdPortMask)) 
+					{
+						_rtl8198C_patchPppoeWeakv6(mCastEntry);
+						
+						/*reset inAsic flag to re-select or re-write this hardware asic entry*/
+						if(newAsicFwdPortMask==0)
+						{
+							_rtl8198C_freeMCastv6Entry(mCastEntry,index);
+						}
+						_rtl8198C_arrangeMulticastv6(index);
+					}
+				}	
+				
+			}
+		}
+#endif
+	return EVENT_CONTINUE_EXECUTE;
+}
+
+static int32 _rtl8198C_multicastv6UnRegisterEvent(void)
+{
+	rtl865x_event_Param_t eventParam;
+	eventParam.eventLayerId=DEFAULT_LAYER3_EVENT_LIST_ID;
+	eventParam.eventId=EVENT_UPDATE_MCAST6;
+	eventParam.eventPriority=0;
+	eventParam.event_action_fn=rtl8198C_multicastv6CallbackFn;
+	rtl865x_unRegisterEvent(&eventParam);
+	return SUCCESS;
+}
+static int32 _rtl8198C_multicastv6RegisterEvent(void)
+{
+	rtl865x_event_Param_t eventParam;
+	eventParam.eventLayerId=DEFAULT_LAYER3_EVENT_LIST_ID;
+	eventParam.eventId=EVENT_UPDATE_MCAST6;
+	eventParam.eventPriority=0;
+	eventParam.event_action_fn=rtl8198C_multicastv6CallbackFn;
+	rtl865x_registerEvent(&eventParam);
+	return SUCCESS;
+}
+
+
+int32 rtl8198C_initMulticastv6(void)
+{
+	_rtl8198C_multicastv6UnRegisterEvent();
+	_rtl8198C_initMCastv6EntryPool();
+	_rtl8198C_initMCastv6FwdDescPool();
+	#if defined(__linux__) && defined(__KERNEL__)
+	_rtl8198C_initMCastv6SysTimer();
+	#endif
+	_rtl8198C_multicastv6RegisterEvent();
+	rtl8198C_setAsicMulticastv6MTU(1522);
+	rtl8198C_setAsicMulticastv6Enable(TRUE);
+	rtl8198C_setAsicMulticastv6Aging(TRUE);
+	return SUCCESS;
+}
+
+int32 rtl8198C_reinitMulticastv6(void)
+{
+	inv6_addr_t ip6addr0;
+	_rtl8198C_multicastv6UnRegisterEvent();
+	/*delete all multicast entry*/
+	rtl8198C_setAsicMulticastv6Enable(FALSE);
+	memset(&ip6addr0,0,sizeof(inv6_addr_t));
+	rtl8198C_delMulticastv6Entry(ip6addr0);
+	#if defined(__linux__) && defined(__KERNEL__)
+	_rtl8198C_destroyMCastv6SysTimer();
+	_rtl8198C_initMCastv6SysTimer();
+	#endif
+	
+	/*regfster twice won't cause any side-effect, 
+	because event management module will handle duplicate event issue*/
+
+	rtl8198C_setAsicMulticastv6Enable(TRUE);
+	rtl8198C_setAsicMulticastv6Aging(TRUE);
+
+	_rtl8198C_multicastv6RegisterEvent();
+	return SUCCESS;
+}	
+
+int32 rtl8198C_addMulticastv6ExternalPort(uint32 extPort)
+{
+	rtl8198c_externalMulticastPortMask6 |= (1<<extPort);
+	_rtl8198C_setASICMulticastv6PortStatus();
+	return SUCCESS;
+}
+
+int32 rtl8198C_delMulticastv6ExternalPort(uint32 extPort)
+{
+	rtl8198c_externalMulticastPortMask6 &= ~(1<<extPort);
+	_rtl8198C_setASICMulticastv6PortStatus();
+	return SUCCESS;
+}
+
+int32 rtl8198C_setMulticastv6ExternalPortMask(uint32 extPortMask)
+{
+	rtl8198c_externalMulticastPortMask6 =extPortMask;
+	_rtl8198C_setASICMulticastv6PortStatus();
+	return SUCCESS;
+}
+
+int32 rtl8198C_addMulticastv6ExternalPortMask(uint32 extPortMask)
+{
+	rtl8198c_externalMulticastPortMask6|= extPortMask;
+	_rtl8198C_setASICMulticastv6PortStatus();
+	return SUCCESS;
+}
+
+int32 rtl8198C_delMulticastv6ExternalPortMask(uint32 extPortMask)
+{
+	rtl8198c_externalMulticastPortMask6 &= ~extPortMask;
+	_rtl8198C_setASICMulticastv6PortStatus();
+	return SUCCESS;
+}
+
+int32 rtl8198C_getMulticastv6ExternalPortMask(void)
+{
+	return rtl8198c_externalMulticastPortMask6 ;
+}
+
+rtl8198c_tblDrv_mCastv6_t *rtl8198C_findMCastv6Entry(inv6_addr_t dip,inv6_addr_t sip, uint16 svid, uint16 sport)
+{
+	rtl8198c_tblDrv_mCastv6_t *mCast_t;
+	uint32 entry=0;
+	uint32 hashMethod=0;
+	rtl8198C_getMCastv6HashMethod(&hashMethod);
+	entry = rtl8198C_ipMulticastv6TableIndex(hashMethod,sip,dip);
+	TAILQ_FOREACH(mCast_t, &mCastTbl6.inuseList.mCastTbl[entry], nextMCast) {
+		if (is_ip6_addr_equal(mCast_t->dip,dip) && is_ip6_addr_equal(mCast_t->sip,sip) && mCast_t->port==sport)
+		{
+			if (mCast_t->inAsic == FALSE) 
+			{
+				mCast_t->age = RTL865X_MULTICAST_TABLE_AGE;
+				mCast_t->count ++;
+			}
+			return mCast_t;
+		}
+	}
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	for(entry=RTL8651_IPMULTICASTTBL_SIZE; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+	{
+		TAILQ_FOREACH(mCast_t, &mCastTbl6.inuseList.mCastTbl[entry], nextMCast) {
+			if (is_ip6_addr_equal(mCast_t->dip,dip) && is_ip6_addr_equal(mCast_t->sip,sip) && mCast_t->port==sport)
+			{
+				if (mCast_t->inAsic == FALSE) 
+				{
+					mCast_t->age = RTL865X_MULTICAST_TABLE_AGE;
+					mCast_t->count ++;
+				}
+				return mCast_t;
+			}
+					
+		}
+	}
+#endif	
+	return (rtl8198c_tblDrv_mCastv6_t *)NULL;	
+}
+
+int rtl8198C_addMulticastv6Entry(inv6_addr_t dip,inv6_addr_t sip, unsigned short svid, unsigned short sport, 
+									rtl8198c_mcast_fwd_descriptor6_t * newFwdDescChain, 
+									int flushOldChain, unsigned int extIp, char cpuHold, unsigned char flag)
+								
+{
+	rtl8198c_tblDrv_mCastv6_t *mCast_t;
+	uint32 hashIndex;
+#ifdef CONFIG_RTL_MLD_SNOOPING
+	uint32 groupIpAddr[4];
+#endif
+	#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	uint32 emptyCamIndex=-1; 
+	#endif
+	uint32 hashMethod=0;
+	#if defined (CONFIG_RTL_MLD_SNOOPING)
+	struct rtl_groupInfo groupInfo;
+	#endif
+	rtl8198C_getMCastv6HashMethod(&hashMethod);
+	hashIndex = rtl8198C_ipMulticastv6TableIndex(hashMethod,sip,dip);
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	mCast_t=rtl8198C_findMCastv6Entry(dip, sip, svid, sport);
+	if(mCast_t==NULL)
+	{
+		/*table entry collided*/
+		if(!TAILQ_EMPTY(&mCastTbl6.inuseList.mCastTbl[hashIndex]))
+		{
+			emptyCamIndex=rtl8198C_findEmptyCamEntryv6();
+			if(emptyCamIndex!=-1)
+			{
+				hashIndex=emptyCamIndex;
+			}
+		}
+	}
+	else
+	{
+		hashIndex=mCast_t->hashIndex;
+	}
+#else
+	/*try to match hash line*/
+	TAILQ_FOREACH(mCast_t, &mCastTbl6.inuseList.mCastTbl[hashIndex], nextMCast) 
+	{
+		if (is_ip6_addr_equal(mCast_t->sip,sip) && is_ip6_addr_equal(mCast_t->dip,dip) && mCast_t->port==sport)
+			break;
+	}
+#endif	
+	
+	if (mCast_t == NULL) 
+	{
+		mCast_t=_rtl8198C_allocMCastv6Entry(hashIndex);
+		if (mCast_t == NULL)
+		{
+			_rtl8198C_mCastv6EntryReclaim();
+			mCast_t=_rtl8198C_allocMCastv6Entry(hashIndex);
+			if(mCast_t == NULL)
+			{
+				return FAILED;
+			}
+		}
+		mCast_t->sip		= sip;
+		mCast_t->dip		= dip;
+		mCast_t->port		= sport;
+		mCast_t->mbr		= 0;
+		mCast_t->count		= 0;
+		mCast_t->inAsic		= FALSE;
+		mCast_t->six_rd_eg  = 0;
+		mCast_t->six_rd_idx = 0;
+		mCast_t->svid		= svid;
+	}
+	
+	if(flushOldChain)
+	{
+		_rtl8198C_flushMCastv6FwdDescChain(&mCast_t->fwdDescChain);
+		
+	}
+	
+	_rtl8198C_mergeMCastv6FwdDescChain(&mCast_t->fwdDescChain,newFwdDescChain);
+	_rtl8198C_doMCastv6EntrySrcVlanPortFilter(mCast_t);
+	
+	mCast_t->mbr			= rtl8198C_genMCastv6EntryAsicFwdMask(mCast_t);
+
+	mCast_t->age			= RTL865X_MULTICAST_TABLE_AGE;
+#if 0
+	mCast_t->cpu			= (toCpu==TRUE? 1: 0);
+#else
+	mCast_t->cpuHold			= cpuHold;
+	mCast_t->cpu 			= rtl8198C_genMCastv6EntryCpuFlag(mCast_t);
+#endif	
+	mCast_t->flag			= flag;
+	
+	if (extIp)
+		mCast_t->flag |= RTL865X_MULTICAST_EXTIP_SET;
+	else
+		mCast_t->flag &= ~RTL865X_MULTICAST_EXTIP_SET;
+	#if defined (CONFIG_RTL_MLD_SNOOPING)
+	memcpy(groupIpAddr,&dip,sizeof(inv6_addr_t));
+	rtl_getGroupInfov6(groupIpAddr, &groupInfo);
+	if(groupInfo.ownerMask==0)
+	{
+		mCast_t->unKnownMCast=TRUE;
+	}
+	else
+	{
+		mCast_t->unKnownMCast=FALSE;
+	}
+	#endif
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	mCast_t->hashIndex=hashIndex;
+#endif
+	_rtl8198C_patchPppoeWeakv6(mCast_t);
+	_rtl8198C_arrangeMulticastv6(hashIndex);
+	return SUCCESS;	
+}
+int rtl8198C_delMulticastv6Entry(inv6_addr_t groupAddr)
+{
+	rtl8198c_tblDrv_mCastv6_t *mCastEntry, *nextMCastEntry;
+	uint32 entry;
+	uint32 deleteFlag=FALSE;
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++) 
+	{
+		deleteFlag=FALSE;
+		mCastEntry = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[entry]);
+		while (mCastEntry)
+		{
+			nextMCastEntry = TAILQ_NEXT(mCastEntry, nextMCast);
+			if (is_ip6_addr_equal(groupAddr,mCastEntry->dip)) 
+			{
+				deleteFlag=TRUE;
+				_rtl8198C_freeMCastv6Entry(mCastEntry, entry);
+			}
+			
+			mCastEntry = nextMCastEntry;
+		}
+		
+		if(deleteFlag==TRUE)
+		{
+			_rtl8198C_arrangeMulticastv6(entry);
+		}
+	}
+	return SUCCESS;
+}
+int rtl8198C_genVirtualMCastv6FwdDescriptor(unsigned int forceToCpu, unsigned int  fwdPortMask, rtl8198c_mcast_fwd_descriptor6_t *fwdDescriptor)
+{
+	if(fwdDescriptor==NULL)
+	{
+		return FAILED;
+	}
+	memset(fwdDescriptor, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
+	fwdDescriptor->toCpu=forceToCpu;
+	fwdDescriptor->fwdPortMask=fwdPortMask;
+	return SUCCESS;
+}
+int rtl8198C_blockMulticastv6Flow(unsigned int srcVlanId,unsigned int srcPort,inv6_addr_t srcIpAddr,inv6_addr_t destIpAddr)
+{
+	rtl8198c_mcast_fwd_descriptor6_t fwdDescriptor;
+	rtl8198c_tblDrv_mCastv6_t * existMCastEntry=NULL;
+	existMCastEntry=rtl8198C_findMCastv6Entry(destIpAddr, srcIpAddr, (uint16)srcVlanId, (uint16)srcPort);
+	if(existMCastEntry!=NULL)
+	{
+		if(existMCastEntry->mbr==0)
+		{
+			return SUCCESS;
+		}
+	}
+	memset(&fwdDescriptor, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
+	rtl8198C_addMulticastv6Entry(destIpAddr,srcIpAddr,(unsigned short)srcVlanId,(unsigned short)srcPort,&fwdDescriptor,TRUE,0,0,0);
+	return SUCCESS;
+}
+
+int32 rtl8198C_flushHWMulticastv6Entry(void)
+{
+	rtl8198c_tblDrv_mCastv6_t *mCastEntry, *nextMCastEntry;
+	uint32 entry;
+	inv6_addr_t ip0;
+	memset(&ip0,0,sizeof(inv6_addr_t));
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++) 
+	{
+		mCastEntry = TAILQ_FIRST(&mCastTbl6.inuseList.mCastTbl[entry]);
+		while (mCastEntry)
+		{
+			nextMCastEntry = TAILQ_NEXT(mCastEntry, nextMCast);
+			if(!is_ip6_addr_equal(ip0,mCastEntry->dip))
+			{
+				_rtl8198C_freeMCastv6Entry(mCastEntry, entry);
+				_rtl8198C_arrangeMulticastv6(entry);
+			}
+			mCastEntry = nextMCastEntry;
+		}	
+	}
+	return SUCCESS;
+}
+int rtl8198C_getMCastv6HashMethod(unsigned int *hashMethod)
+{
+	return rtl8198C_getAsicMCastv6HashMethod(hashMethod);
+}
+int rtl8198C_setMCastv6HashMethod(unsigned int hashMethod)
+{
+	uint32	  oldHashMethod = 0;
+	rtl8198C_getAsicMCastv6HashMethod(&oldHashMethod);
+	if(hashMethod >3)
+	{
+		return -1;
+	}
+	hashMethod &= 3;
+					
+	if (oldHashMethod != hashMethod) /* set IPV6CR Register bit 17~18 and flush multicastv6 table */
+	{
+		rtl8198C_setAsicMCastv6HashMethod(hashMethod);
+		/* exclude 0->1 and 1->0 */
+		if(!((hashMethod == HASH_METHOD_SIP_DIP0 && oldHashMethod == HASH_METHOD_SIP_DIP1) || 
+			(hashMethod == HASH_METHOD_SIP_DIP1 && oldHashMethod == HASH_METHOD_SIP_DIP0)))
+		{
+			rtl8198C_flushHWMulticastv6Entry();   	
+		}
+				
+	}
+	return 0;
+}
+
+#endif
 

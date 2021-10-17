@@ -1,5 +1,12 @@
 # include $(DIR_LINUX)/.config
-include ../../../../linux-2.6.30/.config
+
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+include $(DIR_ROOT)/linux-2.6.30/.config
+else
+include $(DIR_LINUX)/.config
+endif
+
+#include ../../../../linux-2.6.30/.config
  
 ifeq ($(CONFIG_RTL_FLASH_MAPPING_ENABLE),y)
 	CFLAGS += -DCONFIG_RTL_FLASH_MAPPING_ENABLE
@@ -11,6 +18,9 @@ ifdef CONFIG_RTL_LINUX_IMAGE_OFFSET
 endif
 ifdef CONFIG_RTL_ROOT_IMAGE_OFFSET
 	CFLAGS += -DCONFIG_RTL_ROOT_IMAGE_OFFSET=$(CONFIG_RTL_ROOT_IMAGE_OFFSET)
+endif
+ifeq ($(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT),y)
+	CFLAGS += -DCONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
 endif
 endif
 

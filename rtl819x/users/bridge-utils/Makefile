@@ -1,18 +1,3 @@
-
-ifeq ($(wildcard $(DIR_LINUX)/.config),)
-include ../../linux-2.6.30/.config
-DIR_LINUX_KERNEL = ../../linux-2.6.30
-else
-include $(DIR_LINUX)/.config
-DIR_LINUX_KERNEL = $(DIR_LINUX)
-endif
-
-ifeq ($(wildcard $(DIR_USERS)/.config),)
-include ../.config
-else
-include $(DIR_USERS)/.config
-endif
-
 ifeq ($(SLINK),1)
 S_LINK="SLINK=1"
 else
@@ -21,7 +6,10 @@ endif
 
 ifeq ($(MD),615-96b)
 GUEST_ZONE="GUEST_ZONE=1"
+else
+GUEST_ZONE=
 endif
+
 
 #export HARD_FLOAT=-mhard-float
 

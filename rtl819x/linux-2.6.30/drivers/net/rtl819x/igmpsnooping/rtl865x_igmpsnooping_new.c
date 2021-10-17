@@ -12,7 +12,13 @@
 */
 
 #ifdef __linux__
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#else
 #include <linux/config.h>
+#endif
 #include <linux/jiffies.h>
 #include <linux/timer.h>
 #include <linux/proc_fs.h>
@@ -69,8 +75,18 @@ static rtl_multicastEventContext_t timerEventContext;
 static rtl_multicastEventContext_t linkEventContext;
 #endif
 
+#if 0
+#ifndef CONFIG_RTL_IGMPSNOOPING_MAC_BASED
+#define CONFIG_RTL_IGMPSNOOPING_MAC_BASED 1
+#endif
+#endif
+
+
 extern unsigned int brIgmpModuleIndex;
 extern unsigned int brIgmpModuleIndex_2;
+
+
+
 struct rtl865x_ReservedMCastRecord reservedMCastRecord[MAX_RESERVED_MULTICAST_NUM];
 
 /*******************************internal function declaration*****************************/
@@ -103,8 +119,11 @@ static void rtl_linkGroupEntry(struct rtl_groupEntry* entryNode ,  struct rtl_gr
 static void rtl_unlinkGroupEntry(struct rtl_groupEntry* entryNode,  struct rtl_groupEntry ** hashTable);
 static void rtl_clearGroupEntry(struct rtl_groupEntry* groupEntryPtr);
 
-
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)	
+static struct rtl_clientEntry* rtl_searchClientEntry(uint32 ipVersion,struct rtl_groupEntry* groupEntry, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr);
+#else
 static struct rtl_clientEntry* rtl_searchClientEntry(uint32 ipVersion,struct rtl_groupEntry* groupEntry, uint32 portNum, uint32 *clientAddr);
+#endif
 static void rtl_linkClientEntry(struct rtl_groupEntry *groupEntry, struct rtl_clientEntry* clientEntry);
 static void rtl_unlinkClientEntry(struct rtl_groupEntry *groupEntry, struct rtl_clientEntry* clientEntry);
 static void rtl_clearClientEntry(struct rtl_clientEntry* clientEntryPtr);
@@ -153,7 +172,7 @@ static void  rtl_parseMacFrame(uint32 moduleIndex, uint8* MacFrame, uint32 verif
 static void rtl_snoopQuerier(uint32 moduleIndex, uint32 ipVersion, uint32 portNum);
 static uint32 rtl_processQueries(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint8* pktBuf, uint32 pktLen);
 /*Process Report Packet*/
-#if defined (M2U_DELETE_CHECK)
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)	|| defined (M2U_DELETE_CHECK)
 static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf);
 static	uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *clientmacAddr,uint8 *pktBuf); //process leave/done report packet
 static	int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf); //process MODE_IS_INCLUDE report packet 
@@ -177,7 +196,7 @@ static  int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion,uint32 portN
 static  uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8 *pktBuf);
 #endif
 /*******************different protocol process function**********************************/
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr,uint8 *clientMacAddr, uint8* pktBuf, uint32 pktLen);
 #else
 static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8* pktBuf, uint32 pktLen);
@@ -385,6 +404,29 @@ int32 rtl_initMulticastSnooping(struct rtl_mCastSnoopingGlobalConfig mCastSnoopi
 	return SUCCESS;
 
 }
+
+
+int32 rtl_configMulticastSnoopingFastLeave(int enableFastLeave, int ageTime)
+{
+	int i;
+	
+	for(i=0; i<MAX_MCAST_MODULE_NUM; i++)
+	{	
+		if(rtl_mCastModuleArray[i].enableSnooping==TRUE)
+			rtl_mCastModuleArray[i].enableFastLeave= enableFastLeave;
+
+	}
+	
+	  if(ageTime)
+	  	  rtl_mCastTimerParas.lastMemberAgingTime= ageTime;
+	  else	
+	      rtl_mCastTimerParas.lastMemberAgingTime= DEFAULT_LAST_MEMBER_AGINTGTIME;
+	  
+
+	return SUCCESS;
+
+}
+
 int32 rtl_flushAllIgmpRecord(void)
 {
 	/* maintain current time */
@@ -457,6 +499,12 @@ int32 rtl_flushAllIgmpRecord(void)
 						#ifdef CONFIG_RECORD_MCAST_FLOW
 						rtl_invalidateMCastFlow(reportEventContext.moduleIndex, reportEventContext.ipVersion, reportEventContext.groupAddr);
 						#endif
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+#if defined(CONFIG_RTL_8198C)
+						strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+						rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+#endif
+#endif
 
 						groupEntryPtr=nextGroupEntry;
 					}
@@ -640,6 +688,12 @@ int32 rtl_delIgmpRecordByMacAddr(uint8 *macAddr)
 							#ifdef CONFIG_RECORD_MCAST_FLOW
 							rtl_invalidateMCastFlow(reportEventContext.moduleIndex, reportEventContext.ipVersion, reportEventContext.groupAddr);
 							#endif
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+#if defined (CONFIG_RTL_8198C)
+							strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+							rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+#endif
+#endif
 						}
 
 						groupEntryPtr=nextGroupEntry;
@@ -1315,7 +1369,11 @@ static void rtl_clearGroupEntry(struct rtl_groupEntry* groupEntry)
 /*********************************************
 			Client list operation
  *********************************************/
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)
+static struct rtl_clientEntry* rtl_searchClientEntry(uint32 ipVersion, struct rtl_groupEntry* groupEntry, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr)	
+#else
 static struct rtl_clientEntry* rtl_searchClientEntry(uint32 ipVersion, struct rtl_groupEntry* groupEntry, uint32 portNum, uint32 *clientAddr)
+#endif
 {
 	struct rtl_clientEntry* clientPtr = groupEntry->clientList;
 
@@ -1327,7 +1385,17 @@ static struct rtl_clientEntry* rtl_searchClientEntry(uint32 ipVersion, struct rt
 	{	
 		if(ipVersion==IP_VERSION4)
 		{
-			if((clientPtr->clientAddr[0]==clientAddr[0]))
+			if((clientPtr->clientAddr[0]==clientAddr[0])
+			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)
+			||((clientmacAddr[0]==clientPtr->clientMacAddr[0])
+			&&(clientmacAddr[1]==clientPtr->clientMacAddr[1])
+			&&(clientmacAddr[2]==clientPtr->clientMacAddr[2])
+			&&(clientmacAddr[3]==clientPtr->clientMacAddr[3])
+			&&(clientmacAddr[4]==clientPtr->clientMacAddr[4])
+			&&(clientmacAddr[5]==clientPtr->clientMacAddr[5])
+			)
+			#endif
+			)
 			{
 				if(portNum<MAX_SUPPORT_PORT_NUMBER) 
 				{
@@ -1344,7 +1412,17 @@ static struct rtl_clientEntry* rtl_searchClientEntry(uint32 ipVersion, struct rt
 			if(	((clientPtr->clientAddr[0]==clientAddr[0])
 				&&(clientPtr->clientAddr[1]==clientAddr[1])
 				&&(clientPtr->clientAddr[2]==clientAddr[2])
-				&&(clientPtr->clientAddr[3]==clientAddr[3])))
+				&&(clientPtr->clientAddr[3]==clientAddr[3]))		
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)
+			||((clientmacAddr[0]==clientPtr->clientMacAddr[0])
+			&&(clientmacAddr[1]==clientPtr->clientMacAddr[1])
+			&&(clientmacAddr[2]==clientPtr->clientMacAddr[2])
+			&&(clientmacAddr[3]==clientPtr->clientMacAddr[3])
+			&&(clientmacAddr[4]==clientPtr->clientMacAddr[4])
+			&&(clientmacAddr[5]==clientPtr->clientMacAddr[5])
+			)
+#endif
+			)
 			{
 		
 				if(portNum<MAX_SUPPORT_PORT_NUMBER) 
@@ -1863,7 +1941,7 @@ static void rtl_deleteClientEntry(struct rtl_groupEntry* groupEntry,struct rtl_c
 	{
 		return;
 	}
-
+	
 	rtl_deleteSourceList(clientEntry);
 	rtl_unlinkClientEntry(groupEntry,clientEntry);
 	rtl_clearClientEntry(clientEntry);
@@ -1890,6 +1968,7 @@ static void rtl_deleteClientList(struct rtl_groupEntry* groupEntry)
 		rtl_deleteClientEntry(groupEntry,clientEntry);
 		clientEntry=nextClientEntry;
 	}
+
 }
 
 
@@ -1897,7 +1976,7 @@ static void rtl_deleteGroupEntry( struct rtl_groupEntry* groupEntry,struct rtl_g
 {	
 	if(groupEntry!=NULL)
 	{
-	
+
 		rtl_deleteClientList(groupEntry);
 		rtl_unlinkGroupEntry(groupEntry, hashTable);
 		rtl_clearGroupEntry(groupEntry);
@@ -2265,6 +2344,15 @@ static void rtl_checkClientEntryTimer(struct rtl_groupEntry * groupEntry, struct
 #endif
 			rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &timerEventContext);
 		}
+		#if defined(CONFIG_RTL_8198C)
+		if(timerEventContext.ipVersion==IP_VERSION6)
+		{
+#ifdef CONFIG_PROC_FS
+			rtl_mCastModuleArray[timerEventContext.moduleIndex].expireEventCnt++;
+#endif
+			rtl865x_raiseEvent(EVENT_UPDATE_MCAST6,&timerEventContext);
+		}
+		#endif
 		#endif
 		
 	}
@@ -2313,6 +2401,15 @@ static void rtl_checkGroupEntryTimer(struct rtl_groupEntry * groupEntry, struct 
 #endif
 			rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &timerEventContext);
 		}
+		#if defined(CONFIG_RTL_8198C)
+		if(timerEventContext.ipVersion==IP_VERSION6)
+		{
+#ifdef CONFIG_PROC_FS		
+			rtl_mCastModuleArray[timerEventContext.moduleIndex].expireEventCnt++;
+#endif
+			rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &timerEventContext);
+		}
+		#endif
 		#endif
 		
 	}
@@ -3038,6 +3135,13 @@ static uint32 rtl_processQueries(uint32 moduleIndex,uint32 ipVersion, uint32 por
 		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
 		rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &reportEventContext);
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+	}
+	#endif
 	#endif
 
 out:	
@@ -3106,7 +3210,7 @@ int rtl_is_reserve_multicastAddr(uint32 *groupAddress,uint32 ipVersion)
 
 
 /*Process Report Packet*/
-#if defined (M2U_DELETE_CHECK)
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)	|| defined (M2U_DELETE_CHECK)
 static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
@@ -3187,8 +3291,11 @@ static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 port
 		groupEntry=newGroupEntry;
 		
 	}
-
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+#else	
 	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
+#endif
 	if(clientEntry==NULL)
 	{
 		newClientEntry=rtl_allocateClientEntry();
@@ -3217,7 +3324,7 @@ static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 port
 
 		}
 		#endif
-	#if defined (M2U_DELETE_CHECK)	
+	#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
 		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
 		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
@@ -3264,14 +3371,22 @@ static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 port
 		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
 		rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &reportEventContext);
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+	}
+	#endif
 	#endif
 
 out:
+		
 	return (((~allClientPortMask)| multicastRouterPortMask) & (~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 	//return (multicastRouterPortMask&(~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 }
 
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
@@ -3300,6 +3415,7 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 		groupAddress[3]=ntohl(((struct mldv1Pkt *)pktBuf)->mCastAddr[3]);
 	}
 #endif	
+
 	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
 		goto out;
 	
@@ -3309,12 +3425,17 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 	
 	if(groupEntry!=NULL)
 	{   
+	#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+		clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+	#else
 		clientEntry=rtl_searchClientEntry( ipVersion, groupEntry, portNum, clientAddr);
+	#endif
 		if(clientEntry!=NULL) 
 		{
 
 			if(rtl_mCastModuleArray[moduleIndex].enableFastLeave==TRUE)
 			{
+				
 				rtl_deleteClientEntry(groupEntry, clientEntry);
 			}
 			else
@@ -3361,8 +3482,13 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 #endif
 	
 	if((groupEntry!=NULL) && (groupEntry->clientList==NULL))
-	{
-		rtl_deleteGroupEntry(groupEntry,rtl_mCastModuleArray[moduleIndex].rtl_ipv4HashTable);	
+	{	
+		if(ipVersion==IP_VERSION4)
+			rtl_deleteGroupEntry(groupEntry,rtl_mCastModuleArray[moduleIndex].rtl_ipv4HashTable);	
+		#ifdef CONFIG_RTL_MLD_SNOOPING
+		else if(ipVersion==IP_VERSION6)	
+			rtl_deleteGroupEntry(groupEntry,rtl_mCastModuleArray[moduleIndex].rtl_ipv6HashTable);	
+		#endif
 	}
 	
 	#ifdef CONFIG_RECORD_MCAST_FLOW
@@ -3380,8 +3506,19 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 		}
 
 	}
-	#endif
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		if(rtl_mCastModuleArray[moduleIndex].enableFastLeave==TRUE)
+		{
+			rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+		}
 
+	}
+	#endif
+	#endif
+	
 #if defined (CONFIG_STATIC_RESERVED_MULTICAST)
 out:	
 #endif
@@ -3400,7 +3537,7 @@ out:
     return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 }
 
-#if defined (M2U_DELETE_CHECK)
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)	|| defined (M2U_DELETE_CHECK)
 static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
@@ -3482,8 +3619,11 @@ static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 
 	}
 	
 	/*from here groupEntry is the same as newGroupEntry*/
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+#else
 	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
-	
+#endif
 	if(clientEntry==NULL)
 	{
 		newClientEntry=rtl_allocateClientEntry();
@@ -3513,7 +3653,7 @@ static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 
 		}
 		#endif
 		
-#if defined (M2U_DELETE_CHECK)  
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)  
 		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
 		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
 		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
@@ -3592,6 +3732,14 @@ static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 
 		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
 		rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &reportEventContext);
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+	}
+
+	#endif
 	#endif
 	
 
@@ -3599,7 +3747,7 @@ static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 
 	return SUCCESS;
 }
 
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
@@ -3683,7 +3831,11 @@ static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 	}
 	
 	/*from here groupEntry is the same as  newGroupEntry*/
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+#else	
 	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
+#endif
 	if(clientEntry==NULL)
 	{
 		newClientEntry=rtl_allocateClientEntry();
@@ -3713,7 +3865,7 @@ static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 
 		}
 		#endif	
-#if defined (M2U_DELETE_CHECK) 
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
 		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
 		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
@@ -3798,13 +3950,22 @@ static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 		rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &reportEventContext);
 		
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+		
+	}
+
+	#endif
 	#endif
 	
 	return SUCCESS;
 
 }
 
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static  int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
@@ -3886,8 +4047,11 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 	}
 
 	/*from here groupEntry is the same as newGroupEntry*/
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+#else	
 	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
-	
+#endif	
 	if(clientEntry==NULL)
 	{
 		
@@ -3919,7 +4083,7 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 		}
 		#endif
 		
-#if defined (M2U_DELETE_CHECK) 
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
 		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
 		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
@@ -4074,11 +4238,22 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 		}
 		
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		if(rtl_mCastModuleArray[moduleIndex].enableFastLeave==TRUE)
+		{
+			rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+		}
+		
+	}
+	#endif
 	#endif
 	
 OUT:	
-    #if 0
 	/*no client exist, send leave*/
+    #if 0
 	if (ClientNum == 0){
 		//printk("no client exist.\n");
 		return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
@@ -4086,14 +4261,14 @@ OUT:
 	else{
 		//printk("exist clinetNum :%d\n",ClientNum);
 		return 0;
-	}
+	}	
 	//return SUCCESS;
     #endif
         return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 	
 }
 
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 portNum , uint32 *clientAddr, uint8 *pktBuf)
@@ -4175,8 +4350,13 @@ static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 #endif
 		groupEntry=newGroupEntry;
 	}
-	
+
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+#else	
 	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
+#endif
+
 	if(clientEntry==NULL)
 	{
 		newClientEntry=rtl_allocateClientEntry();
@@ -4206,7 +4386,7 @@ static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 		}
 		#endif	
 		
-#if defined (M2U_DELETE_CHECK) 
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
 		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
 		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
@@ -4286,11 +4466,21 @@ static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 		rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &reportEventContext);
 		
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+	}
+	
 	#endif
-
+	#endif
+	
+	
+		
 	return SUCCESS;
 }
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 
@@ -4371,9 +4561,13 @@ static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 port
 
 		groupEntry=newGroupEntry;
 	}
-
-	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
 	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+#else
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
+#endif
+
 	if(clientEntry==NULL)
 	{
 		newClientEntry=rtl_allocateClientEntry();
@@ -4404,7 +4598,7 @@ static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 port
 		}
 		#endif
 	
-#if defined (M2U_DELETE_CHECK) 
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
 		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
 		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
@@ -4498,12 +4692,19 @@ static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 port
 		rtl865x_raiseEvent(EVENT_UPDATE_MCAST, &reportEventContext);
 		
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+	}
+	#endif
 	#endif
 
 	return SUCCESS;
 }
 
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static  int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
 #else
 
@@ -4556,7 +4757,12 @@ static int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion,uint32 portNu
 		goto out;
 	}
 
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED)		
+	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr,clientmacAddr);
+#else
 	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);	
+#endif
+
 	if(clientEntry==NULL)
 	{
 		goto out;
@@ -4699,6 +4905,16 @@ out:
 		}
 		
 	}
+	#if defined(CONFIG_RTL_8198C)
+	if(ipVersion==IP_VERSION6)
+	{
+		strcpy(reportEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+		if(rtl_mCastModuleArray[moduleIndex].enableFastLeave==TRUE)
+		{
+			rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &reportEventContext);
+		}
+	}
+	#endif
 	#endif
 	
 	return SUCCESS;
@@ -4706,9 +4922,11 @@ out:
 }
 
 
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+
 #else
+
 static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8 *pktBuf)
 #endif
 {
@@ -4755,7 +4973,7 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 		switch(recordType)
 		{
 			case MODE_IS_INCLUDE:
-			#if defined (M2U_DELETE_CHECK)	
+			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 				returnVal=rtl_processIsInclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
 			#else	
 				returnVal=rtl_processIsInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
@@ -4763,7 +4981,7 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 			break;
 			
 			case MODE_IS_EXCLUDE:
-			#if defined (M2U_DELETE_CHECK) 
+			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 				returnVal=rtl_processIsExclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
 			#else	
 				returnVal=rtl_processIsExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
@@ -4771,7 +4989,7 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 			break;
 			
 			case CHANGE_TO_INCLUDE_MODE:
-			#if defined (M2U_DELETE_CHECK) 
+			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 				returnVal=rtl_processToInclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
 			#else	
 				returnVal=rtl_processToInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
@@ -4779,7 +4997,7 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 			break;
 			
 			case CHANGE_TO_EXCLUDE_MODE:
-			#if defined (M2U_DELETE_CHECK) 
+			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 				returnVal=rtl_processToExclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
 			#else	
 				returnVal=rtl_processToExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
@@ -4787,7 +5005,7 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 			break;
 			
 			case ALLOW_NEW_SOURCES:
-			#if defined (M2U_DELETE_CHECK) 
+			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 				returnVal=rtl_processAllow(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
 			#else	
 				returnVal=rtl_processAllow(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
@@ -4795,7 +5013,7 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 			break;
 			
 			case BLOCK_OLD_SOURCES:
-			#if defined (M2U_DELETE_CHECK) 
+			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 				returnVal=rtl_processBlock(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
 			#else	
 				returnVal=rtl_processBlock(moduleIndex, ipVersion, portNum, clientAddr ,groupRecords);
@@ -4823,9 +5041,9 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 	}
 	
 	if((numOfRecords==1) && (recordType==CHANGE_TO_INCLUDE_MODE))
-	{
-		return returnVal;
-	}	
+  	{
+  		return returnVal;
+  	}	
 	else
 	{
 		/*no report supress, due to multiple group record in igmpv3 report*/
@@ -4834,7 +5052,7 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 	//return (multicastRouterPortMask&(~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 	
 }
-#if defined (M2U_DELETE_CHECK)	
+#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr,uint8 *clientMacAddr, uint8* pktBuf, uint32 pktLen)
 #else
 static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8* pktBuf, uint32 pktLen)
@@ -4851,7 +5069,7 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case IGMPV1_REPORT:
-		#if defined (M2U_DELETE_CHECK)	
+		#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)	
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
 		#else
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,pktBuf);
@@ -4859,7 +5077,7 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case IGMPV2_REPORT:	
-		#if defined (M2U_DELETE_CHECK) 
+		#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
 		#else
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr, pktBuf);
@@ -4867,7 +5085,7 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case IGMPV2_LEAVE:
-		#if defined (M2U_DELETE_CHECK) 
+		#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 			 fwdPortMask=rtl_processLeave(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
 		#else	
 			 fwdPortMask=rtl_processLeave(moduleIndex, ipVersion, portNum, clientAddr,pktBuf);
@@ -4875,7 +5093,7 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 
 		case IGMPV3_REPORT:
-		#if defined (M2U_DELETE_CHECK)
+		#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)
 			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
 		#else
 			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum, clientAddr,pktBuf);
@@ -4887,7 +5105,7 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case MLDV1_REPORT:
-		#if defined (M2U_DELETE_CHECK) 
+		#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
 		#else		
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum, clientAddr, pktBuf);
@@ -4895,7 +5113,7 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case MLDV1_DONE:	
-		#if defined (M2U_DELETE_CHECK) 
+		#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK) 
 			
 			 fwdPortMask=rtl_processLeave(moduleIndex, ipVersion, portNum, clientAddr,clientMacAddr, pktBuf);
 		#else
@@ -4904,7 +5122,7 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case MLDV2_REPORT:
-		#if defined (M2U_DELETE_CHECK)
+		#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)
 			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
 		#else
 			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum, clientAddr, pktBuf);
@@ -5134,7 +5352,9 @@ int32 rtl_registerIgmpSnoopingModule(uint32 *moduleIndex)
 		rtl_mCastModuleArray[index].enableFastLeave=FALSE;
 		rtl_mCastModuleArray[index].enableSnooping=TRUE;
 		rtl_mCastModuleArray[index].ipv4UnknownMCastFloodMap=DEFAULT_IPV4_UNKNOWN_MCAST_FLOOD_MAP;
+#ifdef CONFIG_RTL_MLD_SNOOPING
 		rtl_mCastModuleArray[index].ipv6UnknownMCastFloodMap=DEFAULT_IPV6_UNKNOWN_MCAST_FLOOD_MAP;
+#endif
 		rtl_mCastModuleArray[index].staticRouterPortMask=0;
 #ifdef CONFIG_PROC_FS
 		rtl_mCastModuleArray[index].expireEventCnt=0;
@@ -5234,7 +5454,9 @@ int32 rtl_unregisterIgmpSnoopingModule(uint32 moduleIndex)
 		rtl_mCastModuleArray[moduleIndex].enableSnooping=FALSE;
 		rtl_mCastModuleArray[moduleIndex].enableFastLeave=FALSE;
 		rtl_mCastModuleArray[moduleIndex].ipv4UnknownMCastFloodMap=0;
+#ifdef CONFIG_RTL_MLD_SNOOPING
 		rtl_mCastModuleArray[moduleIndex].ipv6UnknownMCastFloodMap=0;
+#endif
 		rtl_mCastModuleArray[moduleIndex].staticRouterPortMask=0;
 
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
@@ -5343,7 +5565,9 @@ int32 rtl_configIgmpSnoopingModule(uint32 moduleIndex, struct rtl_mCastSnoopingL
 	
 	rtl_mCastModuleArray[moduleIndex].enableFastLeave=mCastSnoopingLocalConfig->enableFastLeave;
 	rtl_mCastModuleArray[moduleIndex].ipv4UnknownMCastFloodMap=mCastSnoopingLocalConfig->ipv4UnknownMcastFloodMap;
+#ifdef CONFIG_RTL_MLD_SNOOPING
 	rtl_mCastModuleArray[moduleIndex].ipv6UnknownMCastFloodMap=mCastSnoopingLocalConfig->ipv6UnknownMcastFloodMap;
+#endif
 	rtl_mCastModuleArray[moduleIndex].staticRouterPortMask=mCastSnoopingLocalConfig->staticRouterPortMask;
 		
 	rtl_mCastModuleArray[moduleIndex].rtl_gatewayMac[0]=mCastSnoopingLocalConfig->gatewayMac[0];
@@ -5526,7 +5750,7 @@ int32 rtl_igmpMldProcess(uint32 moduleIndex, uint8 * macFrame,  uint32 portNum, 
 
 			case IGMP_PROTOCOL:
 			//	printk("%x-%x-%x-%x-%x-%x[%s]:[%d].\n",macFrameInfo.srcMacAddr[0],macFrameInfo.srcMacAddr[1],macFrameInfo.srcMacAddr[2],macFrameInfo.srcMacAddr[3],macFrameInfo.srcMacAddr[4],macFrameInfo.srcMacAddr[5],__FUNCTION__,__LINE__);
-    			#if defined (M2U_DELETE_CHECK)
+    			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)
 				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion), portNum, macFrameInfo.srcIpAddr,macFrameInfo.srcMacAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
 			    #else
 				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion), portNum, macFrameInfo.srcIpAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
@@ -5534,7 +5758,7 @@ int32 rtl_igmpMldProcess(uint32 moduleIndex, uint8 * macFrame,  uint32 portNum, 
 			break;
 
 			case ICMP_PROTOCOL:
-    			#if defined (M2U_DELETE_CHECK)
+    			#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)
 				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion),portNum, macFrameInfo.srcIpAddr,macFrameInfo.srcMacAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
 			    #else
 				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion),portNum, macFrameInfo.srcIpAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
@@ -5882,7 +6106,9 @@ int32 rtl_getMulticastDataFwdInfo(uint32 moduleIndex, struct rtl_multicastDataIn
 		}
 		else if (multicastDataInfo->ipVersion==IP_VERSION6)
 		{
+#ifdef CONFIG_RTL_MLD_SNOOPING
 			multicastFwdInfo->fwdPortMask= rtl_mCastModuleArray[moduleIndex].ipv6UnknownMCastFloodMap;
+#endif
 		}
 		else
 		{
@@ -6295,6 +6521,7 @@ static int32 rtl_addStaticGroupEntry(uint32 moduleIndex, struct rtl_groupEntry* 
 	}
 	else if(groupEntry->ipVersion==IP_VERSION6)
 	{
+#ifdef CONFIG_RTL_MLD_SNOOPING
 		if(	(groupEntry->groupAddr[0]==0) &&
 			(groupEntry->groupAddr[0]==0) &&
 			(groupEntry->groupAddr[0]==0) &&
@@ -6303,6 +6530,9 @@ static int32 rtl_addStaticGroupEntry(uint32 moduleIndex, struct rtl_groupEntry* 
 			rtl_setIpv6UnknownMCastFloodMap(moduleIndex,groupEntry->staticFwdPortMask);
 			return SUCCESS;
 		}
+#else
+			return FAILED;
+#endif
 	}
 		
 	
@@ -6427,7 +6657,9 @@ static int32 rtl_delStaticGroupEntry(uint32 moduleIndex,struct rtl_groupEntry* g
 			(groupEntry->groupAddr[0]==0) &&
 			(groupEntry->groupAddr[0]==0)	)
 		{
+#ifdef CONFIG_RTL_MLD_SNOOPING
 			rtl_mCastModuleArray[moduleIndex].ipv6UnknownMCastFloodMap=DEFAULT_IPV6_UNKNOWN_MCAST_FLOOD_MAP;
+#endif
 			return SUCCESS;
 		}
 	}
@@ -6625,7 +6857,7 @@ int igmp_show(struct seq_file *s, void *v)
 			seq_printf(s, "-------------------------------------------------------------------------\n");
 			seq_printf(s, "module index:%d, ",moduleIndex);
 			#ifdef CONFIG_RTL_HARDWARE_MULTICAST
-			seq_printf(s, "device:%s, portMask:0x%x,swPortMask:0x%x ",rtl_mCastModuleArray[moduleIndex].deviceInfo.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.portMask,rtl_mCastModuleArray[moduleIndex].deviceInfo.swPortMask);
+			seq_printf(s, "device:%s, portMask:0x%x,",rtl_mCastModuleArray[moduleIndex].deviceInfo.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.portMask);
 			#endif
 			seq_printf(s, "fastleave:%d ipv4[0x%x]",rtl_mCastModuleArray[moduleIndex].enableFastLeave,rtl_mCastModuleArray[moduleIndex].ipv4UnknownMCastFloodMap);
 			#if defined (CONFIG_RTL_MLD_SNOOPING)	
@@ -6661,7 +6893,7 @@ int igmp_show(struct seq_file *s, void *v)
 						clientCnt++;
 						seq_printf(s, "        <%d>%d.%d.%d.%d",clientCnt,clientEntry->clientAddr[0]>>24, (clientEntry->clientAddr[0]&0x00ff0000)>>16,
 							(clientEntry->clientAddr[0]&0x0000ff00)>>8, clientEntry->clientAddr[0]&0xff);
-						#if defined (M2U_DELETE_CHECK)
+						#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)
 						seq_printf(s, "(%02X-%02X-%02X-%02X-%02X-%02X)",clientEntry->clientMacAddr[0],clientEntry->clientMacAddr[1],clientEntry->clientMacAddr[2],
 							clientEntry->clientMacAddr[3],clientEntry->clientMacAddr[4],clientEntry->clientMacAddr[5]);
 						#endif
@@ -6771,7 +7003,7 @@ int igmp_show(struct seq_file *s, void *v)
 							(clientEntry->clientAddr[2]<<16)>>28,(clientEntry->clientAddr[2]<<20)>>28,(clientEntry->clientAddr[2]<<24)>>28, (clientEntry->clientAddr[2]<<28)>>28, 
 							(clientEntry->clientAddr[3])>>28,(clientEntry->clientAddr[3]<<4)>>28, (clientEntry->clientAddr[3]<<8)>>28,(clientEntry->clientAddr[3]<<12)>>28, 
 							(clientEntry->clientAddr[3]<<16)>>28,(clientEntry->clientAddr[3]<<20)>>28,(clientEntry->clientAddr[3]<<24)>>28, (clientEntry->clientAddr[3]<<28)>>28);
-					#if defined (M2U_DELETE_CHECK)
+					#if defined (CONFIG_RTL_IGMPSNOOPING_MAC_BASED) || defined (M2U_DELETE_CHECK)
 						seq_printf(s, "(%02X-%02X-%02X-%02X-%02X-%02X)",clientEntry->clientMacAddr[0],clientEntry->clientMacAddr[1],clientEntry->clientMacAddr[2],
 								clientEntry->clientMacAddr[3],clientEntry->clientMacAddr[4],clientEntry->clientMacAddr[5]);
 					#endif
@@ -7270,7 +7502,7 @@ void rtl865x_igmpLinkStatusChangeCallback(uint32 moduleIndex, rtl_igmpPortInfo_t
 		
 #if defined (CONFIG_RTL_MLD_SNOOPING)
 		for(hashIndex=0;hashIndex<rtl_hashTableSize;hashIndex++)
-	     	{
+     	{
 			groupEntryPtr=rtl_mCastModuleArray[moduleIndex].rtl_ipv6HashTable[hashIndex];
 			while(groupEntryPtr!=NULL)
 			{
@@ -7282,14 +7514,38 @@ void rtl865x_igmpLinkStatusChangeCallback(uint32 moduleIndex, rtl_igmpPortInfo_t
 					if(((1<<clientEntry->portNum) & portInfo->linkPortMask)==0)
 					{
 						rtl_deleteClientEntry(groupEntryPtr,clientEntry);
+						#if defined(CONFIG_RTL_8198C)
+						clearFlag = TRUE;
+						#endif
 					}
 					
 					clientEntry = nextClientEntry;
 				}
-				groupEntryPtr=groupEntryPtr->next;	
+				
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+#if defined (CONFIG_RTL_8198C)
+				if(clearFlag==TRUE)
+				{
+					strcpy(linkEventContext.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.devName);
+					linkEventContext.moduleIndex=moduleIndex;
+					
+					linkEventContext.groupAddr[0]=groupEntryPtr->groupAddr[0];
+					linkEventContext.groupAddr[1]=groupEntryPtr->groupAddr[1];
+					linkEventContext.groupAddr[2]=groupEntryPtr->groupAddr[2];
+					linkEventContext.groupAddr[3]=groupEntryPtr->groupAddr[3];
+								
+					linkEventContext.sourceAddr[0]=0;
+					linkEventContext.sourceAddr[1]=0;
+					linkEventContext.sourceAddr[2]=0;
+					linkEventContext.sourceAddr[3]=0;
+								
+					rtl865x_raiseEvent(EVENT_UPDATE_MCAST6, &linkEventContext);
+				}
+#endif
+#endif
+			groupEntryPtr=groupEntryPtr->next;	
 			}
-			
-	       }
+       }
 #endif		
 
 	}
@@ -7335,6 +7591,47 @@ int32 rtl_getGroupInfo(uint32 groupAddr, struct rtl_groupInfo * groupInfo)
 
 	return SUCCESS;
 }
+#if defined(CONFIG_RTL_MLD_SNOOPING)
+int32 rtl_getGroupInfov6(uint32 * groupAddr,struct rtl_groupInfo * groupInfo)
+{
+	int32 moduleIndex;
+	int32 hashIndex;
+	struct rtl_groupEntry *groupEntryPtr;
+	
+	if(groupAddr==NULL||groupInfo==NULL)
+	{
+		return FAILED;
+	}
+
+	memset(groupInfo, 0 , sizeof(struct rtl_groupInfo));
+	
+	for(moduleIndex=0; moduleIndex<MAX_MCAST_MODULE_NUM ;moduleIndex++)
+	{
+		if(rtl_mCastModuleArray[moduleIndex].enableSnooping==TRUE)
+		{
+			hashIndex=rtl_hashMask&groupAddr[3];
+			groupEntryPtr=rtl_mCastModuleArray[moduleIndex].rtl_ipv6HashTable[hashIndex];
+				
+			while(groupEntryPtr!=NULL)
+			{
+				if(groupEntryPtr->groupAddr[0]==groupAddr[0]&&
+				   groupEntryPtr->groupAddr[1]==groupAddr[1]&&
+				   groupEntryPtr->groupAddr[2]==groupAddr[2]&&
+				   groupEntryPtr->groupAddr[3]==groupAddr[3])
+				{
+					groupInfo->ownerMask |= (1<<moduleIndex);
+					break;
+				}
+				groupEntryPtr=groupEntryPtr->next;
+			}
+		      
+		}
+	}
+
+	return SUCCESS;
+}
+
+#endif
 
 #ifdef M2U_DELETE_CHECK
 int FindClientforM2U(unsigned int moduleindex, unsigned char *dMac, unsigned char *sMac)
@@ -7463,3 +7760,4 @@ int rtl_M2UDeletecheck(unsigned char *dMac, unsigned char *sMac)
 }
 
 #endif
+

@@ -1,7 +1,13 @@
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+else
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
+
 CC=gcc
 DEBUG = -g
 CFLAGS += -Os -Wall
-CFLAGS += $(EXTRA_CFLAGS) -I ../../linux-2.6.30/include
+CFLAGS += $(EXTRA_CFLAGS) -I $(DIR_LINUX_KERNEL)/include
 LDFLAGS += -s
 
 EXEC = gen_autorun_img
@@ -11,8 +17,8 @@ all:  $(EXEC)
 $(EXEC): $(OBJS)
 
 $(OBJS): gen_autorun_img.c \
-	../../linux-2.6.30/drivers/usb/gadget_cathy/usb_ulinker.h \
-	../../linux-2.6.30/include/linux/autoconf.h	
+	$(DIR_LINUX_KERNEL)/drivers/usb/gadget_cathy/usb_ulinker.h \
+	$(DIR_LINUX_KERNEL)/include/linux/autoconf.h	
 
 romfs:
 	-./gen_autorun_img

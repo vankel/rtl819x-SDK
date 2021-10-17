@@ -46,11 +46,23 @@
 #include "l2Driver/rtl865x_fdb.h"
 #include "AsicDriver/rtl865xc_asicregs.h"
 #include <net/rtl/rtl865x_fdb_api.h>
+#if defined(CONFIG_RTL_8198C)
+#include "rtl8198c_arpIpv6.h"
+#include "rtl8198c_nexthopIpv6.h"
+#endif
 
 static rtl865x_route_t *rtl865x_route_freeHead;
 static rtl865x_route_t *rtl865x_route_inusedHead;
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 static RTL_DECLARE_MUTEX(route_sem);
-
+#endif
+#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+extern int32  _rtl865x_getIpv6DsLiteEntryByName(char * devName);
+extern int32 _rtl865x_delIpv6DsLiteEntry(uint32 entryIdx);
+#endif
+#endif
 #if 0
 void _rtl865x_route_print(void)
 {
@@ -211,7 +223,14 @@ static int32 _rtl865x_synRouteToAsic(rtl865x_route_t *rt_t)
 	default:
 		printk("Process_Type(%d) is not support!\n",rt_t->process);
 	}
+#if defined(CONFIG_RTL_8198C)	
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
 
+	/*for dislite */
+	asic_t.DSLEG =rt_t->DSLEG;
+	asic_t.DSL_IDX =rt_t->DSL_IDX;
+#endif
+#endif	
 	if(rt_t->asicIdx > RT_ASIC_ENTRY_NUM-1)
 	{
 		printk("BUG!! %s(%d)....", __FUNCTION__,__LINE__);
@@ -451,7 +470,11 @@ static int32 _rtl865x_addRoute(ipaddr_t ipAddr, ipaddr_t ipMask, ipaddr_t nextHo
 	int32 idx;
 	int32 netSize = 0, usedArpCnt = 0;
 	int32 retval = FAILED;
-	
+#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+	int32 dsltIndex = FAILED;
+#endif
+#endif
 	/*para check*/
 	if(ifName == NULL)
 		netif = _rtl865x_getDefaultWanNetif();
@@ -520,6 +543,28 @@ static int32 _rtl865x_addRoute(ipaddr_t ipAddr, ipaddr_t ipMask, ipaddr_t nextHo
 	rt->nextHop	= nextHop;
 	rt->srcIp		= srcIp;
 	rt->dstNetif 	= netif;	
+#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+	if(netif->if_type == IF_DSLT)
+	{
+		dsltIndex=_rtl865x_getIpv6DsLiteEntryByName(netif->name);
+
+		/*hook default gw for dslist interface */
+		if(ipAddr ==0 && ipMask ==0 && nextHop!=0 && srcIp!=0)
+		{		
+			if(dsltIndex == FAILED){
+				rt->DSLEG	= 0;
+				rt->DSL_IDX = 0;			
+			}
+			else
+			{
+				rt->DSLEG	= 1;
+				rt->DSL_IDX = dsltIndex;
+			}
+		}
+	}
+#endif
+#endif	
 	
 	/*don't specify the nexthop ip address, it's means that:
 	* all packet match this route entry should be forward by network interface with arp
@@ -598,7 +643,27 @@ static int32 _rtl865x_addRoute(ipaddr_t ipAddr, ipaddr_t ipMask, ipaddr_t nextHo
 					rt->un.direct.macInfo = &ppp->server_mac;
 				}
 				break;
+#if defined(CONFIG_RTL_8198C)	
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+			case IF_DSLT:
+				if(dsltIndex!=FAILED)
+				{
+					/*
+						set L3 table
+						All packet dip equal to tunnel local ip,trap to cpu.
+					*/
+					extern int  get_P2P_local_ip(unsigned char *ifname, unsigned int *ipAddr);
 
+					/*get p2p device local ip *******************/
+					if(!get_P2P_local_ip(netif->name,&(rt->ipAddr)))
+					{
+						printk("%s,%d.get local ip fail\n",__FUNCTION__,__LINE__);
+					}
+					rt->process = RT_CPU;	
+				}
+				break;
+#endif
+#endif			
 			default:
 				printk("lltype(%d) is not support now....\n",netif->if_type);
 				goto addFailed;
@@ -642,6 +707,16 @@ static int32 _rtl865x_addRoute(ipaddr_t ipAddr, ipaddr_t ipMask, ipaddr_t nextHo
 						retval = rtl865x_addNxtHop(NEXTHOP_L3, (void*)rt, netif, 0,srcIp);
 				}
 				break;
+#if defined(CONFIG_RTL_8198C)	
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+
+			case IF_DSLT:	
+				{
+					retval = rtl865x_addNxtHop(NEXTHOP_L3, (void*)rt, netif, nextHop,srcIp);					
+				}
+				break;
+#endif
+#endif		
 
 			default:
 				retval = FAILED;
@@ -701,12 +776,26 @@ static int32 _rtl865x_delRoute( ipaddr_t ipAddr, ipaddr_t ipMask )
 	rtl865x_route_t *entry;
 	int32 i;
 	int32 retval = 0;
+#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+	int32 dsltIndex = FAILED;
+#endif
+#endif
 
 	entry = _rtl865x_getRouteEntry(ipAddr, ipMask);
 
 	if(entry == NULL)
 		return RTL_EENTRYNOTFOUND;
 
+#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
+	dsltIndex=_rtl865x_getIpv6DsLiteEntryByName(entry->dstNetif->name);
+	if(dsltIndex !=FAILED)
+	{
+		_rtl865x_delIpv6DsLiteEntry(dsltIndex);
+	}
+#endif	
+#endif
 	if(entry->asicIdx == RT_ASIC_ENTRY_NUM-1)
 	{
 		/*if default route
@@ -833,13 +922,13 @@ rtl865x_route_t* _rtl85x_getRouteEntry(ipaddr_t dst)
 int32 rtl865x_addRoute(ipaddr_t ipAddr, ipaddr_t ipMask, ipaddr_t nextHop,int8 * ifName,ipaddr_t srcIp)
 {
 	int32 retval = 0;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//printk("========%s(%d), ip(0x%x),mask(0x%x),ifname(%s),nxthop(0x%x)\n",__FUNCTION__,__LINE__,ipAddr,ipMask,ifName,nextHop);
 	//rtl_down_interruptible(&route_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_addRoute(ipAddr,ipMask,nextHop,ifName,srcIp);		
 	//rtl_up(&route_sem);
-	local_irq_restore(flags);	
+	SMP_UNLOCK_ETH(flags);	
 	//printk("========%s(%d), ip(0x%x),mask(0x%x),ifname(%s),nxthop(0x%x),retval(%d)\n",__FUNCTION__,__LINE__,ipAddr,ipMask,ifName,nextHop,retval);
 	//_rtl865x_route_print();
 	return retval;
@@ -857,13 +946,13 @@ int32 rtl865x_delRoute(ipaddr_t ipAddr, ipaddr_t ipMask)
 {
 
 	int32 retval = 0;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//printk("========%s(%d), ip(0x%x),mask(0x%x)\n",__FUNCTION__,__LINE__,ipAddr,ipMask);
 	//rtl_down_interruptible(&route_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delRoute(ipAddr,ipMask);
 	//rtl_up(&route_sem);	
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	//printk("==================================retval(%d)\n",retval);
 	return retval;
 
@@ -971,4 +1060,59 @@ int rtl865x_getLanRoute(rtl865x_route_t routeTbl[], int tblSize )
 	return cnt;
 }
 #endif
+#ifdef CONFIG_RTL_PROC_NEW
+int32 sw_l3_read(struct seq_file *s, void *v)
+{
+	rtl865x_route_t * entry=NULL;
+	
+	uint32 idx=0;
 
+	seq_printf(s, "%s\n", "SW L3 Routing Table:\n");
+
+	entry = rtl865x_route_inusedHead;
+	while(entry)
+	{
+		if(entry->valid == 0)
+		
+			continue;
+		
+		seq_printf(s,"\t[%d]  ip:%x,%x,	%x,nexthop:%x  process(%d)  asicIdx:%d, netif%s \n", 
+			idx, entry->ipAddr,entry->ipMask,entry->srcIp,
+			entry->nextHop,entry->process,entry->asicIdx,entry->dstNetif->name);
+		idx++;
+		entry=entry->next;
+	}
+
+	return 0;
+}
+#else
+int32 sw_l3_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	rtl865x_route_t * entry=NULL;
+	uint32 idx = 0;
+	
+	len = sprintf(page, "%s\n", "SW L3 Routing Table:\n");
+	entry = rtl865x_route_inusedHead;
+	while(entry)
+	{
+		if(entry->valid == 0)
+		
+			continue;
+		
+		len += sprintf(page + len,"\t[%d]  ip:%x,%x,	%x,nexthop:%x  process(%d)  asicIdx:%d, netif:%s \n", 
+			idx, entry->ipAddr,entry->ipMask,entry->srcIp,
+			entry->nextHop,entry->process,entry->asicIdx,entry->dstNetif->name);
+		idx++;
+		entry=entry->next;
+	}
+	
+
+	return len;
+}
+#endif
+
+int32 sw_l3_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	return len;
+}

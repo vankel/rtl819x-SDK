@@ -75,8 +75,8 @@
 
 #ifdef CONFIG_RTK_VOIP_AMR_NB
 #define NUM_AMR_NB_CODEC_TYPE		1
-#define NUM_AMR_NB_CODEC_ALGO		8
-#define NUM_AMR_NB_CODEC_PAYLOAD	8
+#define NUM_AMR_NB_CODEC_ALGO		1
+#define NUM_AMR_NB_CODEC_PAYLOAD	1
 #else
 #define NUM_AMR_NB_CODEC_TYPE		0
 #define NUM_AMR_NB_CODEC_ALGO		0
@@ -346,21 +346,13 @@ extern const enum START_CODEC_TYPE nCodecTypeID_PcmLinear16k;
 extern const enum START_CODEC_TYPE nCodecTypeID_Silence;
 
 /* ---------------- codec algorithm ID declare ---------------- */
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G711U;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G711A;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7231A53;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7231A63;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72264;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72256;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72248;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72616;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72624;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72632;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72640;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G729;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_GSMFR;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_ILBC30MS;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_ILBC20MS;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7111R1U;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7111R2aU;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7111R2bU;
@@ -387,7 +379,6 @@ extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_18P25;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_19P85;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_23P05;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_23P85;
-extern const DSPCODEC_ALGORITHM nCodecAlgorithm_T38;
 
 /* Get descriptor functions */
 extern const codec_payload_desc_t *GetCodecPayloadDesc( RtpPayloadType payloadType );

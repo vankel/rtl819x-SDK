@@ -10,8 +10,8 @@ SRCS = hcd.c mib.c
 EXEC = hcd
 OBJS = $(SRCS:.c=.o)
 
-CC = rsdk-linux-gcc
-LD = rsdk-linux-gcc
+CC = $(CROSS_COMPILE)gcc
+LD = $(CROSS_COMPILE)gcc
 
 all: $(EXEC)
 

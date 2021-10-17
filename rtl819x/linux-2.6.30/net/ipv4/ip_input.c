@@ -178,18 +178,12 @@ int isUsbIp_Reserved(struct sk_buff *skb, unsigned int hooknum, int direction)
 	if(iph->protocol ==IPPROTO_TCP){
 		th=(void *) iph + iph->ihl*4;
 		if(hooknum==	_POST_ROUTING){
-		#if 0
 			//Outdev = skb_dst(skb)->dev;///skb->dst->dev;
 			//if(strcmp(Indev->name , Outdev->name))
 			if (iph->saddr != _br0_ip)		//fix jwj
 			{
 				return 0;
 			}
-		#else
-			if ((iph->daddr & _br0_mask) != (_br0_ip & _br0_mask)) {
-				return 0;
-			}
-		#endif
 		}
 		if(hooknum==	_PRE_ROUTING){
 			if(iph->daddr != _br0_ip){

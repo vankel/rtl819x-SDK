@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Wireless Schedule Settings</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 	
 	var MAXNUM_SCHEDULE = "<% getInfo("maxWebWlSchNum"); %>"*1;
@@ -147,17 +148,17 @@
 			/* eco/day/fTime/tTime/week */
 			DataArray = token[i].split("|");
 			
-			document.write("<tr><td align = middle bgcolor='#C0C0C0'><font size='2'>");
+			document.write("<tr class=\"tbl_body\"><td align = middle ><font size='2'>");
       document.write("		<input type='hidden' id='wlsch_enable_"+i+"' name='wlsch_enable_"+i+"' value='"+DataArray[0]+"'*1>");
 			document.write("		<input type='checkbox' id='enable_"+i+"' onclick='wlsch_day_select("+i+",this.checked);'></td>");
 				      	
-      document.write("<td bgcolor='#C0C0C0'><font size='2'>");				      	
+      document.write("<td ><font size='2'>");				      	
       document.write("		<input type='hidden' id='wlsch_day_"+i+"' name='wlsch_day_"+i+"' value='"+DataArray[1]+"'*1>");
       document.write("		&nbsp;<select id='day_"+i+"' size='1' onchange='wlsch_weekday_select("+i+", this.value);'>");
 						dispalyWeekDayOption();
 			document.write("		</select> </font></td>");
 			
-      document.write("<td bgcolor='#C0C0C0'><font size='2'>");
+      document.write("<td ><font size='2'>");
       document.write("		<input type='hidden' id='wlsch_from_"+i+"' name='wlsch_from_"+i+"' value='"+DataArray[2]+"'*1>");
       document.write("		&nbsp;<select id='from_hour_"+i+"' size='1' onchange='wlsch_from_select("+i+");'>");
           	dispalyFromHourOption();
@@ -166,7 +167,7 @@
           	dispalyFromMinOption();
       document.write("		</select>	(min)	</font></td>");
 			
-			document.write("<td bgcolor='#C0C0C0'><font size=2'>");
+			document.write("<td ><font size=2'>");
       document.write("		<input type='hidden' id='wlsch_to_"+i+"' name='wlsch_to_"+i+"' value='"+DataArray[3]+"'*1>");
       document.write("		&nbsp;<select id='to_hour_"+i+"' size='1' onchange='wlsch_to_select("+i+");'>");
           	dispalyFromHourOption();
@@ -246,7 +247,7 @@ function dispalyFromMinOption()
   <blockquote>
   <form action=/boafrm/formNewSchedule method=POST name="mainform">
   	<input type="hidden" value="/wlsch.htm" name="submit-url">
-  <h2><font color="#0000FF">Wireless Schedule</font></h2>
+  <h2>Wireless Schedule</h2>
 	<table border=0 width="660" cellspacing=4 cellpadding=0>
 	<tr><td><font size=2>
 	 	This page allows you setup the wireless schedule rule. Please do not forget to configure 
@@ -267,11 +268,11 @@ function dispalyFromMinOption()
     
     <table border="0" width=660>
   
-  <tr>
-  	<td height="30" align=center width="%" bgcolor="#808080"><font size="2"><b>&nbsp;Enable&nbsp;</b></font></td>
-  	<td height="30" align=center width="20%" bgcolor="#808080"><font size="2"><b>&nbsp;Day&nbsp;</b></font></td>
-  	<td align=center width="40%" bgcolor="#808080"><font size="2"><b>From</b></font></td>
-  	<td align=center width="40%" bgcolor="#808080"><font size="2"><b>&nbsp;To&nbsp;</b></font></td>		
+  <tr class="tbl_head">
+  	<td height="30" align=center width="%" ><font size="2"><b>&nbsp;Enable&nbsp;</b></font></td>
+  	<td height="30" align=center width="20%" ><font size="2"><b>&nbsp;Day&nbsp;</b></font></td>
+  	<td align=center width="40%" ><font size="2"><b>From</b></font></td>
+  	<td align=center width="40%" ><font size="2"><b>&nbsp;To&nbsp;</b></font></td>		
 	</tr>
 	
     <!--

@@ -111,42 +111,6 @@ static unsigned char SLIC_Get_Hook_Status_mirror_slic( voip_snd_t *this, int dir
 	
 	return ( unsigned char )priv ->hook_status;
 }
-
-static void SLIC_Set_Power_Save_Mode_mirror_slic(voip_snd_t *this)
-{
-#if MIRROR_SLIC_TYPE == 1
-	DECLARE_SLIC_RPC_VARS( SLIC_Set_Power_Save_Mode, 0 );
-	
-	*( ( int * )p_data ) = *( ( int * )p_data );	// avoid compiler warning
-	
-	p_con ->con_ops ->ipc_rpc_request( p_con, IPC_RPC_SLIC, content, sizeof( content ) );
-
-#else
-	PRINT_Y_LV1( "SLIC_Set_Power_Save_Mode_mirror_slic\n" );
-#endif
-}
-
-/* state: 
-	0: line in-active state
-	1: line active state
-	2: power save state
-	3: OHT
-	4: OHT polrev
-	5: Ring
-*/
-static void SLIC_Set_FXS_Line_State_mirror_slic(voip_snd_t *this, int state)
-{
-#if MIRROR_SLIC_TYPE == 1
-	DECLARE_SLIC_RPC_VARS( SLIC_Set_FXS_Line_State, sizeof(state) );
-	
-	*( ( unsigned char * )p_data ) = state;
-	
-	p_con ->con_ops ->ipc_rpc_request( p_con, IPC_RPC_SLIC, content, sizeof( content ) );
-
-#else
-	PRINT_Y_LV1( "SLIC_Set_FXS_Line_State_mirror_slic\n" );
-#endif
-}
 	
 static void Set_SLIC_Tx_Gain_mirror_slic( voip_snd_t *this, int tx_gain )
 {
@@ -409,8 +373,6 @@ static snd_ops_fxs_t snd_mirror_slic_ops = {
 	.FXS_Line_Check = FXS_Line_Check_mirror_slic,	// Note: this API may cause watch dog timeout. Should it disable WTD?
 	.SLIC_Set_PCM_state = SLIC_Set_PCM_state_mirror_slic,
 	.SLIC_Get_Hook_Status = SLIC_Get_Hook_Status_mirror_slic,
-	.SLIC_Set_Power_Save_Mode = SLIC_Set_Power_Save_Mode_mirror_slic,
-	.SLIC_Set_FXS_Line_State = SLIC_Set_FXS_Line_State_mirror_slic,
 	
 	.Set_SLIC_Tx_Gain = Set_SLIC_Tx_Gain_mirror_slic,
 	.Set_SLIC_Rx_Gain = Set_SLIC_Rx_Gain_mirror_slic,

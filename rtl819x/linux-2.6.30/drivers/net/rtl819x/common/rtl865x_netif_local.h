@@ -56,6 +56,11 @@ typedef struct rtl865x_netif_local_s
 	rtl865x_acl_chain_t  *chainListHead[2]; /*0: ingress acl chain, 1: egress acl chain*/
 #endif //CONFIG_RTL_LAYERED_DRIVER_ACL
 	struct rtl865x_netif_local_s *master; /*point master interface when this interface is slave interface*/
+
+#if defined(CONFIG_RTL_8198C)    
+	uint16 	enableRouteV6; /*enable ipv6 route*/
+	uint16 	mtuV6;         /*netif's ipv6 MTU*/
+#endif
 }rtl865x_netif_local_t;
 
 #define	RTL_ACL_INGRESS	0
@@ -72,6 +77,12 @@ typedef struct rtl865x_aclBuf_s
 
 int32 rtl865x_enableNetifRouting(rtl865x_netif_local_t *netif);
 int32 rtl865x_disableNetifRouting(rtl865x_netif_local_t *netif);
+
+#if defined(CONFIG_RTL_8198C)
+int32 rtl865x_enableNetifRoutingV6(rtl865x_netif_local_t *netif);
+int32 rtl865x_disableNetifRoutingV6(rtl865x_netif_local_t *netif);
+#endif
+
 rtl865x_netif_local_t *_rtl865x_getNetifByName(char *name);
 rtl865x_netif_local_t *_rtl865x_getSWNetifByName(char * name);
 rtl865x_netif_local_t *_rtl865x_getDefaultWanNetif(void);

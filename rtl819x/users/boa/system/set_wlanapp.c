@@ -26,7 +26,9 @@ extern int apmib_initialized;
 #define PATHSEL_PID_FILE1 "/var/run/pathsel-wlan0.pid"
 #define PATHSEL_PID_FILE2 "/var/run/pathsel-wlan1.pid"
 #define PATHSEL_PID_FILE3 "/var/run/pathsel-wlan-msh.pid"
+#ifdef CONFIG_IAPP_SUPPORT
 #define IAPP_PID_FILE "/var/run/iapp.pid"
+#endif
 #define MESH_PATHSEL "/bin/pathsel" 
 #define MAX_CHECK_PID_NUM 10
 #ifdef CONFIG_RTL_WAPI_SUPPORT
@@ -217,33 +219,33 @@ int setWlan_Applications(char *action, char *argv)
 	int pid=-1;
 	char strPID[10];
 	char iface_name[16];
-	char tmpBuff[100], tmpBuff1[100], arg_buff[200],wlan_wapi_asipaddr[100],iapp_interface[200]= {0};
+	char tmpBuff[100], tmpBuff1[100], arg_buff[200],wlan_wapi_asipaddr[100];
 	int wlan_wapi_cert_sel;
 	int _enable_1x=0, _use_rs=0;
-	int wlan_mode_root=0,wlan_disabled_root=0, wlan_wpa_auth_root=0,wlan1_wpa_auth_root=0;
-	int wlan0_mode=1, wlan1_mode=1;
-	int wlan_iapp_disabled_root=0,wlan_wsc_disabled_root=0, wlan_network_type_root=0, wlan0_wsc_disabled_vxd=1, wlan1_wsc_disabled_vxd=1;
+	int wlan_mode_root=0,wlan_disabled_root=0, wlan_wpa_auth_root=0, wlan1_wpa_auth_root=0;
+	int wlan0_mode=1, wlan1_mode=1, both_band_ap=0;
+	int wlan_wsc_disabled_root=0, wlan_network_type_root=0, wlan0_wsc_disabled_vxd=1, wlan1_wsc_disabled_vxd=1;
 	int wlan_1x_enabled_root=0, wlan_encrypt_root=0, wlan_mac_auth_enabled_root=0,wlan_wapi_auth=0;
 	int wlan_disabled=0, wlan_mode=0, wlan_wds_enabled=0, wlan_wds_num=0;
 	int wlan_encrypt=0, wlan_wds_encrypt=0;
 	int wlan_wpa_auth=0;
 	int wlan_1x_enabled=0,wlan_mac_auth_enabled=0;
 	int wlan_root_auth_enable=0, wlan_vap_auth_enable=0;
-	int wlan_network_type=0, wlan_wsc_disabled=0, wlan_iapp_disabled=0, wlan_hidden_ssid_enabled=0;
+	int wlan_network_type=0, wlan_wsc_disabled=0, wlan_hidden_ssid_enabled=0,wlan0_hidden_ssid_enabled=0,wlan1_hidden_ssid_enabled=0;
 	char tmp_iface[30]={0}, wlan_role[30]={0}, wlan_vap[30]={0}, wlan_vxd[30]={0};
 	char valid_wlan_interface[200]={0}, all_wlan_interface[200]={0};
 	int vap_not_in_pure_ap_mode=0, deamon_created=0;
-	int isWLANEnabled=0, isAP=0, isIAPPEnabled=0, intValue=0;
+	int isWLANEnabled=0, isAP=0, intValue=0;
 	char bridge_iface[30]={0};
 	char *token=NULL, *savestr1=NULL;	
 	int WSC=1, WSC_UPNP_Enabled=0;
 	
+	char *cmd_opt[16]={0};
+	int cmd_cnt = 0;
 	int check_cnt = 0;
 	//Added for virtual wlan interface
 	int i=0, wlan_encrypt_virtual=0;
 	char wlan_vname[16];
-	char *cmd_opt[16]={0};
-	int cmd_cnt = 0;
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 	/*assume MAX 10 configuration*/
 	char wlan_name[10];
@@ -255,7 +257,7 @@ int setWlan_Applications(char *action, char *argv)
 	int wlan_wapi_auth_root;
 #endif
 
-#if defined(CONFIG_RTL_92D_SUPPORT)
+#if defined(FOR_DUAL_BAND)
 	int wlan_wsc1_disabled = 1 ;
 	int wlan1_disabled_root = 1;
 #endif	
@@ -272,6 +274,10 @@ int setWlan_Applications(char *action, char *argv)
 	int wlan1_hs2_conf_enable = 0;//, wlan1_va0_hs2_conf_enable = 0, wlan1_va1_hs2_conf_enable = 0, wlan1_va2_hs2_conf_enable = 0, wlan1_va3_hs2_conf_enable = 0;	
 	
 #endif
+#ifdef CONFIG_IAPP_SUPPORT
+	char iapp_interface[200]= {0};
+	int wlan_iapp_disabled=0,wlan_iapp_disabled_root=0, isIAPPEnabled=0;
+#endif
 
 #if defined(UNIVERSAL_REPEATER) && defined(CONFIG_REPEATER_WPS_SUPPORT)
 	int isRptEnabled1=0;
@@ -281,7 +287,7 @@ int setWlan_Applications(char *action, char *argv)
 	apmib_get(MIB_REPEATER_ENABLED1, (void *)&isRptEnabled1);
 	apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan0_wsc_disabled_vxd);
 				
-#if defined(CONFIG_RTL_92D_SUPPORT)		
+#if defined(FOR_DUAL_BAND)		
 	SetWlan_idx("wlan1-vxd");
 	apmib_get(MIB_REPEATER_ENABLED2, (void *)&isRptEnabled2);
 	apmib_get( MIB_WLAN_WSC_DISABLE, (void *)&wlan1_wsc_disabled_vxd);
@@ -299,23 +305,36 @@ int setWlan_Applications(char *action, char *argv)
 
 
 #if defined(FOR_DUAL_BAND)
-    SetWlan_idx("wlan0");
-    apmib_get(MIB_WLAN_MODE, (void *)&wlan0_mode);
-    apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disabled_root);
-    apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc_disabled);
-    apmib_get(MIB_WLAN_ENABLE_1X,(void *)&wlan_1x_enabled);
-    apmib_get(MIB_WLAN_WPA_AUTH, (void *)&wlan_wpa_auth_root);
+	SetWlan_idx("wlan0");
+	apmib_get(MIB_WLAN_MODE, (void *)&wlan0_mode);
+	apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disabled_root);
+	apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc_disabled);
+	apmib_get(MIB_WLAN_HIDDEN_SSID, (void *)&wlan0_hidden_ssid_enabled);
+	apmib_get(MIB_WLAN_WPA_AUTH, (void *)&wlan_wpa_auth_root);
+	SetWlan_idx("wlan1");
+	apmib_get( MIB_WLAN_MODE, (void *)&wlan1_mode);
+	apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan1_disabled_root);
+	apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc1_disabled);
+	apmib_get(MIB_WLAN_HIDDEN_SSID, (void *)&wlan1_hidden_ssid_enabled);
+	apmib_get(MIB_WLAN_WPA_AUTH, (void *)&wlan1_wpa_auth_root);
+	if( ((wlan0_mode == AP_MODE) || (wlan0_mode == AP_WDS_MODE) || (wlan0_mode == AP_MESH_MODE)) && ((wlan1_mode == 0) || (wlan1_mode == AP_WDS_MODE) || (wlan1_mode == AP_MESH_MODE))
+		&& (wlan_disabled_root == 0) && (wlan1_disabled_root == 0) && (wlan_wsc_disabled == 0) && (wlan_wsc1_disabled == 0) && (wlan0_hidden_ssid_enabled ==0) && (wlan1_hidden_ssid_enabled ==0)
+		&&(wlan_wpa_auth_root != WPA_AUTH_AUTO)&&(wlan1_wpa_auth_root != WPA_AUTH_AUTO) )
+	{
+#if defined(CONFIG_WPS_EITHER_AP_OR_VXD)
+		if ( (isRptEnabled1 == 1 && wlan_disabled_root == 0 && wlan_wsc_disabled == 0) 
+			|| (isRptEnabled2 == 1 && wlan1_disabled_root == 0 && wlan_wsc1_disabled == 0))
+			both_band_ap = 0;
+		else
+			both_band_ap = 1;
+#else
+		both_band_ap = 1;	
+#endif
+	}
 
-    SetWlan_idx("wlan1");
-    apmib_get( MIB_WLAN_MODE, (void *)&wlan1_mode);
-    apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan1_disabled_root);
-    apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc1_disabled);
-    apmib_get(MIB_WLAN_WPA_AUTH, (void *)&wlan1_wpa_auth_root);
-    	
-    SetWlan_idx("wlan0");
+	SetWlan_idx("wlan0");
 #endif
 
-	
 #ifdef CONFIG_RTL_P2P_SUPPORT							
 	int p2p_mode=0;
 #endif
@@ -504,7 +523,8 @@ int setWlan_Applications(char *action, char *argv)
             break;
     }while(find_pid_by_name("wscd") > 0);
 
-	
+    
+#ifdef CONFIG_IAPP_SUPPORT	
 	if(isFileExist(IAPP_PID_FILE)){
 		pid=getPid_fromFile(IAPP_PID_FILE);
 		if(pid != -1){
@@ -513,7 +533,7 @@ int setWlan_Applications(char *action, char *argv)
 		}
 		unlink(IAPP_PID_FILE);
 	}
-
+#endif
 #ifdef WLAN_HS2_CONFIG
     if(isFileExist("/tmp/hs2_pidname")){
         FILE *fp;
@@ -538,42 +558,50 @@ int setWlan_Applications(char *action, char *argv)
 #endif
 	//RunSystemCmd(NULL_FILE, "rm", "-f", "/var/*.fifo", NULL_STR);
 	system("rm -f /var/*.fifo");
-
 #ifdef CONFIG_APP_SIMPLE_CONFIG 
 	system("killall simple_config >/dev/null 2>&1");
 #endif
-
 	if(!strcmp(action, "kill"))
 		return 0;
 	printf("Init Wlan application...\n");	
 	//get root setting first//no this operate in script
-	if(SetWlan_idx("wlan0")){
-		apmib_get( MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disabled_root);
-		apmib_get( MIB_WLAN_MODE, (void *)&wlan_mode_root); 
-		apmib_get( MIB_WLAN_IAPP_DISABLED, (void *)&wlan_iapp_disabled_root);
-		apmib_get( MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc_disabled_root);
-		apmib_get( MIB_WLAN_ENABLE_1X, (void *)&wlan_1x_enabled_root);
-		apmib_get( MIB_WLAN_ENCRYPT, (void *)&wlan_encrypt_root);
-		
+
+#if defined(FOR_DUAL_BAND)
+    SetWlan_idx("wlan1");
+    apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan1_disabled_root);
+    apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc1_disabled);
+#endif
+
+    
+    if(SetWlan_idx("wlan0")){
+        apmib_get( MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disabled_root);
+        apmib_get( MIB_WLAN_MODE, (void *)&wlan_mode_root);
+#ifdef CONFIG_IAPP_SUPPORT
+        apmib_get( MIB_WLAN_IAPP_DISABLED, (void *)&wlan_iapp_disabled_root);
+#endif
+
+        apmib_get( MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc_disabled_root);
+        apmib_get( MIB_WLAN_ENABLE_1X, (void *)&wlan_1x_enabled_root);
+        apmib_get( MIB_WLAN_ENCRYPT, (void *)&wlan_encrypt_root);
 
 #ifdef CONFIG_RTL_WAPI_SUPPORT
-		apmib_get(MIB_WLAN_WAPI_AUTH, (void *)&wlan_wapi_auth_root);
+        apmib_get(MIB_WLAN_WAPI_AUTH, (void *)&wlan_wapi_auth_root);
 #endif
-		
-		apmib_get( MIB_WLAN_MAC_AUTH_ENABLED, (void *)&wlan_mac_auth_enabled_root);
-		apmib_get( MIB_WLAN_NETWORK_TYPE, (void *)&wlan_network_type_root);
-		apmib_get( MIB_WLAN_WPA_AUTH, (void *)&wlan_wpa_auth_root);
-		apmib_get( MIB_WLAN_WSC_UPNP_ENABLED, (void *)&WSC_UPNP_Enabled);
 
-						
+        apmib_get( MIB_WLAN_MAC_AUTH_ENABLED, (void *)&wlan_mac_auth_enabled_root);
+        apmib_get( MIB_WLAN_NETWORK_TYPE, (void *)&wlan_network_type_root);
+        apmib_get( MIB_WLAN_WPA_AUTH, (void *)&wlan_wpa_auth_root);
+        apmib_get( MIB_WLAN_WSC_UPNP_ENABLED, (void *)&WSC_UPNP_Enabled);
 
 
-		// For WAPI.now not support  VAP
-//		apmib_get(MIB_WLAN_WAPI_AUTH, (void *)&wlan_wapi_auth);
-//		memset(wlan_wapi_asipaddr,0x00,sizeof(wlan_wapi_asipaddr));
-//		apmib_get(MIB_WLAN_WAPI_ASIPADDR,  (void*)wlan_wapi_asipaddr);
-		
-	}
+
+
+        // For WAPI.now not support  VAP
+        //		apmib_get(MIB_WLAN_WAPI_AUTH, (void *)&wlan_wapi_auth);
+        //		memset(wlan_wapi_asipaddr,0x00,sizeof(wlan_wapi_asipaddr));
+        //		apmib_get(MIB_WLAN_WAPI_ASIPADDR,  (void*)wlan_wapi_asipaddr);
+
+    }
 
 	token=NULL;
 	savestr1=NULL;
@@ -757,7 +785,11 @@ int setWlan_Applications(char *action, char *argv)
 					
 					if(wlan_vap[0]=='v' && wlan_vap[1]=='a'){
 						if(wlan_disabled==0){
-							if(wlan_iapp_disabled_root==0 || wlan_vap_auth_enable==1){
+							if(wlan_vap_auth_enable==1
+#ifdef CONFIG_IAPP_SUPPORT
+								|| wlan_iapp_disabled_root==0 
+#endif
+							){
 								if(valid_wlan_interface[0]==0){
 									sprintf(valid_wlan_interface, "%s",iface_name); 
 								}else{
@@ -768,9 +800,15 @@ int setWlan_Applications(char *action, char *argv)
 						}
 					}else{
 						if(wlan_vap[0] !='v' && wlan_vap[1] !='x'){
+#ifdef CONFIG_IAPP_SUPPORT
 							apmib_get( MIB_WLAN_IAPP_DISABLED, (void *)&wlan_iapp_disabled);
+#endif
 							apmib_get( MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc_disabled); 
-							if(wlan_root_auth_enable==1 || wlan_iapp_disabled==0 || wlan_wsc_disabled==0){
+							if(wlan_disabled==0 && (wlan_root_auth_enable==1  || wlan_wsc_disabled==0
+#ifdef CONFIG_IAPP_SUPPORT
+								|| wlan_iapp_disabled==0
+#endif
+								)){
 								if(valid_wlan_interface[0]==0){
 									sprintf(valid_wlan_interface, "%s",iface_name); 
 								}else{
@@ -786,16 +824,18 @@ int setWlan_Applications(char *action, char *argv)
 							 	isWLANEnabled=1;
 							 if(wlan_mode ==0 || wlan_mode ==3 || wlan_mode ==4 || wlan_mode ==6)
 							 	isAP=1;
+#ifdef CONFIG_IAPP_SUPPORT
 							 if(wlan_iapp_disabled==0)
 							 	isIAPPEnabled=1;
+#endif
 						}
 				}	
 			}
 		}
 		token = strtok_r(NULL, " ", &savestr1);
 	}while(token !=NULL);
-		
-	if(isWLANEnabled==1 && isAP==1 && isIAPPEnabled==1){
+#ifdef CONFIG_IAPP_SUPPORT		
+	if(isWLANEnabled==1 && isAP==1&& isIAPPEnabled==1){
 #if defined(CONFIG_RTL_ULINKER)
 		//fixme: disable iapp temporary
 #else
@@ -841,6 +881,7 @@ int setWlan_Applications(char *action, char *argv)
         RunSystemCmd(RESTART_IAPP, "echo", tmpBuff, NULL_STR);
 #endif
 	}
+#endif
 	
 //for mesh========================================================
 #if defined(CONFIG_RTK_MESH)
@@ -882,86 +923,83 @@ int setWlan_Applications(char *action, char *argv)
 	printf("hs2_wlan0_enable= %d,%d,%d,%d,%d\n", wlan0_hs2_enable, wlan0_va0_hs2_enable, wlan0_va1_hs2_enable, wlan0_va2_hs2_enable, wlan0_va3_hs2_enable);
 	printf("hs2_wlan1_enable= %d,%d,%d,%d,%d\n", wlan1_hs2_enable, wlan1_va0_hs2_enable, wlan1_va1_hs2_enable, wlan1_va2_hs2_enable, wlan1_va3_hs2_enable);
 
-	int isEnableHS2 = (wlan0_hs2_enable || wlan1_hs2_enable)?1:0;
-	if(isEnableHS2) {
-		if (isFileExist("/bin/hs2")) {		
-			//memset(tmpBuff, 0x00, 100);
-			memset(cmd_opt, 0x00, 16);
-	        cmd_cnt=0;
-	        cmd_opt[cmd_cnt++] = "hs2";
+	if (isFileExist("/bin/hs2")) {		
+		//memset(tmpBuff, 0x00, 100);
+		memset(cmd_opt, 0x00, 16);
+        cmd_cnt=0;
+        cmd_opt[cmd_cnt++] = "hs2";
 
-			strcat(tmpBuff, "hs2 ");
-			if (isFileExist("/etc/hs2_wlan0.conf") && (wlan0_hs2_enable == 1)) {			
-				//strcat(tmpBuff, "-c /tmp/hs2_wlan0.conf ");			
-				cmd_opt[cmd_cnt++] = "-c";
-				cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0.conf";
-				//cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0.conf";
-			}	
-			if (isFileExist("/etc/hs2_wlan0_va0.conf") && (wlan0_va0_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va0.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va0.conf";
-	        }   
-			if (isFileExist("/etc/hs2_wlan0_va1.conf") && (wlan0_va1_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va1.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va1.conf";
-	        }   
-			if (isFileExist("/etc/hs2_wlan0_va2.conf") && (wlan0_va2_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va2.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va2.conf";
-	        }   
-			if (isFileExist("/etc/hs2_wlan0_va3.conf") && (wlan0_va3_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va3.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va3.conf";
-	        }   
-			if (isFileExist("/etc/hs2_wlan1.conf") && (wlan1_hs2_enable == 1)) {
-				//strcat(tmpBuff, "-c /tmp/hs2_wlan0.conf ");			
-				cmd_opt[cmd_cnt++] = "-c";
-				cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1.conf";
-			}	
-			if (isFileExist("/etc/hs2_wlan1_va0.conf") && (wlan1_va0_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va0.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va0.conf";
-	        }   
-			if (isFileExist("/etc/hs2_wlan1_va1.conf") && (wlan1_va1_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va1.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va1.conf";
-	        }   
-			if (isFileExist("/etc/hs2_wlan1_va2.conf") && (wlan1_va2_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va2.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va2.conf";
-	        }   
-			if (isFileExist("/etc/hs2_wlan1_va3.conf") && (wlan1_va3_hs2_enable == 1)) {
-	            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va3.conf ");         
-	            cmd_opt[cmd_cnt++] = "-c";
-	            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va3.conf";
-	        }   
-			//printf("hs2 cmd==> %s\n", tmpBuff);
-			//system(tmpBuff);
-			cmd_opt[cmd_cnt++] = 0;		
-	        DoCmd(cmd_opt, NULL_FILE);                                                    	
-			wait_fifo=3;
-			do{
-				if(isFileExist("/tmp/hs2_pidname")){//check pid file is exist or not
-					break;
-	            } 
-				else {
-					wait_fifo--;
-					sleep(1);
-	            }
-	        }while(wait_fifo != 0);
-		}
-		else 
-			printf("/bin/hs2 do not exist\n");
-		
-		system("telnetd"); // for sigma
+		strcat(tmpBuff, "hs2 ");
+		if (isFileExist("/etc/hs2_wlan0.conf") && (wlan0_hs2_enable == 1)) {			
+			//strcat(tmpBuff, "-c /tmp/hs2_wlan0.conf ");			
+			cmd_opt[cmd_cnt++] = "-c";
+			cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0.conf";
+			//cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0.conf";
+		}	
+		if (isFileExist("/etc/hs2_wlan0_va0.conf") && (wlan0_va0_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va0.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va0.conf";
+        }   
+		if (isFileExist("/etc/hs2_wlan0_va1.conf") && (wlan0_va1_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va1.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va1.conf";
+        }   
+		if (isFileExist("/etc/hs2_wlan0_va2.conf") && (wlan0_va2_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va2.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va2.conf";
+        }   
+		if (isFileExist("/etc/hs2_wlan0_va3.conf") && (wlan0_va3_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va3.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan0_va3.conf";
+        }   
+		if (isFileExist("/etc/hs2_wlan1.conf") && (wlan1_hs2_enable == 1)) {
+			//strcat(tmpBuff, "-c /tmp/hs2_wlan0.conf ");			
+			cmd_opt[cmd_cnt++] = "-c";
+			cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1.conf";
+		}	
+		if (isFileExist("/etc/hs2_wlan1_va0.conf") && (wlan1_va0_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va0.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va0.conf";
+        }   
+		if (isFileExist("/etc/hs2_wlan1_va1.conf") && (wlan1_va1_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va1.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va1.conf";
+        }   
+		if (isFileExist("/etc/hs2_wlan1_va2.conf") && (wlan1_va2_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va2.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va2.conf";
+        }   
+		if (isFileExist("/etc/hs2_wlan1_va3.conf") && (wlan1_va3_hs2_enable == 1)) {
+            //strcat(tmpBuff, "-c /tmp/hs2_wlan0_va3.conf ");         
+            cmd_opt[cmd_cnt++] = "-c";
+            cmd_opt[cmd_cnt++] = "/etc/hs2_wlan1_va3.conf";
+        }   
+		//printf("hs2 cmd==> %s\n", tmpBuff);
+		//system(tmpBuff);
+		cmd_opt[cmd_cnt++] = 0;		
+        DoCmd(cmd_opt, NULL_FILE);                                                    	
+		wait_fifo=3;
+		do{
+			if(isFileExist("/tmp/hs2_pidname")){//check pid file is exist or not
+				break;
+            } 
+			else {
+				wait_fifo--;
+				sleep(1);
+            }
+        }while(wait_fifo != 0);
 	}
+	else 
+		printf("/bin/hs2 do not exist\n");
+//	RunSystemCmd(NULL_FILE, "killall", "telnetd", NULL_STR);
+	system("telnetd");
 #endif
 
 //========================================================
@@ -1002,7 +1040,7 @@ int setWlan_Applications(char *action, char *argv)
             sprintf(wlan_vxd, "%s", "wlan0-vxd");
         }
 
-#if defined(CONFIG_RTL_92D_SUPPORT)
+#if defined(FOR_DUAL_BAND)
         if(isRptEnabled2 == 1 && wlan_wsc1_disabled == 0
 #if defined(CONFIG_RTL_ULINKER)
             && wlan_mode_root != CLIENT_MODE
@@ -1066,7 +1104,7 @@ int setWlan_Applications(char *action, char *argv)
                         WSC=0;
                     }
 
-#if defined(CONFIG_RTL_92D_SUPPORT)		
+#if defined(FOR_DUAL_BAND)		
                     else if(!strcmp(token, "wlan1") && ((wlan_wsc1_disabled != 0) || (wlan1_disabled_root != 0) || (wlan_mode_root == WDS_MODE) || (wlan_mode_root == MESH_MODE))){
                         WSC=0;
                     }
@@ -1077,7 +1115,7 @@ int setWlan_Applications(char *action, char *argv)
                     {
                         WSC=0;
                     }
-#if defined(CONFIG_RTL_92D_SUPPORT)					
+#if defined(FOR_DUAL_BAND)					
                     else if(!strcmp(token, "wlan1-vxd") && (wlan1_wsc_disabled_vxd != 0 || wlan1_disabled_root != 0))
                     {
                         WSC=0;
@@ -1092,7 +1130,7 @@ int setWlan_Applications(char *action, char *argv)
                             WSC=0;
                         }
                         else
-#if defined(CONFIG_RTL_92D_SUPPORT)												
+#if defined(FOR_DUAL_BAND)												
                         if(strlen(token) == 5 && !strcmp(token, "wlan1") && isRptEnabled2 == 1)
                         {
                             WSC=0;
@@ -1383,7 +1421,6 @@ int setWlan_Applications(char *action, char *argv)
 	}
 #endif
 #endif
-
 return 0;	
 	
 		

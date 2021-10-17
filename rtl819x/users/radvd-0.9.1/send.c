@@ -18,6 +18,18 @@
 #include <includes.h>
 #include <radvd.h>
 
+#if defined(SUPPORT_RDNSS_OPTION) || defined(SUPPORT_DNSSL_OPTION)
+static void
+send_ra_inc_len(size_t *len, int add)
+{
+	*len += add;
+	if(*len >= MSG_SIZE)
+	{
+		flog(LOG_ERR, "Too many prefixes or routes. Exiting.");
+		exit(1);
+	}
+}
+#endif
 void
 send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 {
@@ -31,6 +43,12 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 	struct nd_router_advert *radvert;
 	struct AdvPrefix *prefix;
 	struct AdvRoute *route;
+#ifdef SUPPORT_RDNSS_OPTION
+	struct AdvRDNSS *rdnss;
+#endif
+#ifdef SUPPORT_DNSSL_OPTION
+	struct AdvDNSSL *dnssl;
+#endif
 	unsigned char buff[MSG_SIZE];
 	int len = 0;
 	int err;
@@ -73,7 +91,15 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 		(iface->AdvHomeAgentFlag)?ND_RA_FLAG_HOME_AGENT:0;
 
 	/* if forwarding is disabled, send zero router lifetime */
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+	/* RFC6204 G-4 */
+	if(!check_ip6_forwarding() && check_default_router())
+		radvert->nd_ra_router_lifetime = htons(iface->AdvDefaultLifetime);
+	else
+		radvert->nd_ra_router_lifetime = 0;
+#else
 	radvert->nd_ra_router_lifetime	 =  !check_ip6_forwarding() ? htons(iface->AdvDefaultLifetime) : 0;
+#endif
 	radvert->nd_ra_flags_reserved   |=
 		(iface->AdvDefaultPreference << ND_OPT_RI_PRF_SHIFT) & ND_OPT_RI_PRF_MASK;
 
@@ -87,6 +113,12 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 	/*
 	 *	add prefix options
 	 */
+	 
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+	/* RFC6204 L-4 */
+	if(!prefix)
+		radvert->nd_ra_router_lifetime = 0;
+#endif
 
 	while(prefix)
 	{
@@ -108,8 +140,19 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 			pinfo->nd_opt_pi_flags_reserved |=
 				(prefix->AdvRouterAddr)?ND_OPT_PI_FLAG_RADDR:0;
 
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+			/* add for RFC6092 L-13 */
+			if (iface->cease_adv) {
+				/* RFC4862, 5.5.3, step e) */
+				pinfo->nd_opt_pi_valid_time = htonl(7200); // 2 hours
+				pinfo->nd_opt_pi_preferred_time = 0;
+			}
+			else
+#endif
+			{
 			pinfo->nd_opt_pi_valid_time	= htonl(prefix->AdvValidLifetime);
 			pinfo->nd_opt_pi_preferred_time = htonl(prefix->AdvPreferredLifetime);
+			}
 			pinfo->nd_opt_pi_reserved2	= 0;
 			
 			memcpy(&pinfo->nd_opt_pi_prefix, &prefix->Prefix,
@@ -148,12 +191,109 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 
 		route = route->next;
 	}
-	
+#ifdef SUPPORT_RDNSS_OPTION
+	rdnss = iface->AdvRDNSSList;
+
+	/*
+	 *	add rdnss options
+	 */
+	//printf("%s:%d ##add rdnss options!len=%d\n",__FUNCTION__,__LINE__,len);
+	while(rdnss)
+	{
+		struct nd_opt_rdnss_info_local *rdnssinfo;
+
+		rdnssinfo = (struct nd_opt_rdnss_info_local *) (buff + len);
+
+		rdnssinfo->nd_opt_rdnssi_type	     = ND_OPT_RDNSS_INFORMATION;
+		rdnssinfo->nd_opt_rdnssi_len	     = 1 + 2*rdnss->AdvRDNSSNumber;
+		rdnssinfo->nd_opt_rdnssi_pref_flag_reserved = 0;
+
+		if (iface->cease_adv && rdnss->FlushRDNSSFlag) {
+			rdnssinfo->nd_opt_rdnssi_lifetime	= 0;
+		} else {
+			rdnssinfo->nd_opt_rdnssi_lifetime	= htonl(rdnss->AdvRDNSSLifetime);
+		}
+
+		memcpy(&rdnssinfo->nd_opt_rdnssi_addr1, &rdnss->AdvRDNSSAddr1,
+		       sizeof(struct in6_addr));
+		memcpy(&rdnssinfo->nd_opt_rdnssi_addr2, &rdnss->AdvRDNSSAddr2,
+		       sizeof(struct in6_addr));
+		memcpy(&rdnssinfo->nd_opt_rdnssi_addr3, &rdnss->AdvRDNSSAddr3,
+		       sizeof(struct in6_addr));
+		send_ra_inc_len(&len, sizeof(*rdnssinfo) - (3-rdnss->AdvRDNSSNumber)*sizeof(struct in6_addr));
+		//printf("%s:%d ##add rdnss options!len=%d\n",__FUNCTION__,__LINE__,len);
+		rdnss = rdnss->next;
+	}
+#endif
+
+#ifdef SUPPORT_DNSSL_OPTION
+	dnssl = iface->AdvDNSSLList;
+	//printf("%s:%d ##add dnssl options!len=%d\n",__FUNCTION__,__LINE__,len);
+
+	/*
+	 *	add dnssl options
+	 */
+
+	while(dnssl)
+	{
+		struct nd_opt_dnssl_info_local *dnsslinfo;
+		int i;
+		char *buff_ptr;
+
+		dnsslinfo = (struct nd_opt_dnssl_info_local *) (buff + len);
+
+		dnsslinfo->nd_opt_dnssli_type		= ND_OPT_DNSSL_INFORMATION;
+		dnsslinfo->nd_opt_dnssli_len 		= 1; /* more further down */
+		dnsslinfo->nd_opt_dnssli_reserved	= 0;
+
+		if (iface->cease_adv && dnssl->FlushDNSSLFlag) {
+			dnsslinfo->nd_opt_dnssli_lifetime	= 0;
+		} else {
+			dnsslinfo->nd_opt_dnssli_lifetime	= htonl(dnssl->AdvDNSSLLifetime);
+		}
+
+		buff_ptr = dnsslinfo->nd_opt_dnssli_suffixes;
+		for (i = 0; i < dnssl->AdvDNSSLNumber; i++) {
+			char *label;
+			int label_len;
+
+			label = dnssl->AdvDNSSLSuffixes[i];
+
+			while (label[0] != '\0') {
+				if (strchr(label, '.') == NULL)
+					label_len = strlen(label);
+				else
+					label_len = strchr(label, '.') - label;
+
+				*buff_ptr++ = label_len;
+
+				memcpy(buff_ptr, label, label_len);
+				buff_ptr += label_len;
+
+				label += label_len;
+
+				if (label[0] == '.')
+					label++;
+				else
+					*buff_ptr++ = 0;
+			}
+		}
+
+		dnsslinfo->nd_opt_dnssli_len		+= ((buff_ptr-dnsslinfo->nd_opt_dnssli_suffixes)+7)/8;
+
+		send_ra_inc_len(&len, dnsslinfo->nd_opt_dnssli_len * 8);
+		//printf("%s:%d ##add dnssl options!len=%d\n",__FUNCTION__,__LINE__,len);
+		dnssl = dnssl->next;
+	}
+#endif
 	/*
 	 *	add MTU option
 	 */
 
+	
 	if (iface->AdvLinkMTU != 0) {
+
+		//printf("%s:%d ##ADD MTU OPTION len=%d!\n",__FUNCTION__,__LINE__, len);
 		struct nd_opt_mtu *mtu;
 		
 		mtu = (struct nd_opt_mtu *) (buff + len);
@@ -164,6 +304,8 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 		mtu->nd_opt_mtu_mtu      = htonl(iface->AdvLinkMTU);
 
 		len += sizeof(*mtu);
+		
+		//printf("%s:%d ##ADD MTU OPTION len=%d!\n",__FUNCTION__,__LINE__,len);
 	}
 
 	/*
@@ -172,6 +314,8 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 
 	if (iface->AdvSourceLLAddress && iface->if_hwaddr_len != -1)
 	{
+		//printf("%s:%d ##add Source Link-layer Address option! len=%d\n",__FUNCTION__,__LINE__,len);
+		
 		uint8_t *ucp;
 		unsigned int i;
 
@@ -185,6 +329,8 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 		i = (iface->if_hwaddr_len + 7) >> 3;
 		memcpy(buff + len, iface->if_hwaddr, i);
 		len += i;
+		
+		//printf("%s:%d ##add Source Link-layer Address option!len=%d\n",__FUNCTION__,__LINE__,len);
 	}
 
 	/*
@@ -236,6 +382,7 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 	}
 	
 	iov.iov_len  = len;
+	//printf("%s:%d ##len=%d\n",__FUNCTION__,__LINE__,len);
 	iov.iov_base = (caddr_t) buff;
 	
 	memset(chdr, 0, sizeof(chdr));

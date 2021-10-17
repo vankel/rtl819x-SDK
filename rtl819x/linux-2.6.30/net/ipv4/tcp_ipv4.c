@@ -1597,7 +1597,6 @@ int dumpTcpSockInfo(char *buf)
 	
 }
 #endif
-
 /*
  *	From tcp_input.c
  */

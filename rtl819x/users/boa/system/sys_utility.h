@@ -31,6 +31,7 @@ int getInAddr( char *interface, int type, void *pAddr );
 int DoCmd(char *const argv[], char *file);
 int RunSystemCmd(char *filepath, ...);
 int isFileExist(char *file_name);
+int setPid_toFile(char *file_name);
 int getPid_fromFile(char *file_name);
 int if_readlist_proc(char *target, char *key, char *exclude);
 char *get_name(char *name, char *p);
@@ -43,6 +44,7 @@ void reinit_webs();
 int getDefaultRoute(char *interface, struct in_addr *route);
 int getDataFormFile(char* fileName,char* dataName,char* data,char number);
 int killDaemonByPidFile(char *pidFile);
+int changeDividerToESC(char *src,unsigned int size,const char*dividerChars);
 #endif
 
 

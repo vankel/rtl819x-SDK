@@ -167,3 +167,36 @@ int tnl_del_ioctl(const char *basedev, const char *name, void *p)
 	close(fd);
 	return err;
 }
+
+static int tnl_gen_ioctl(int cmd, const char *name, 
+			 void *p, int skiperr)
+{
+	struct ifreq ifr;
+	int fd;
+	int err;
+
+	strncpy(ifr.ifr_name, name, IFNAMSIZ);
+	ifr.ifr_ifru.ifru_data = p;
+	fd = socket(preferred_family, SOCK_DGRAM, 0);
+	err = ioctl(fd, cmd, &ifr);
+	if (err)
+		perror("ioctl");
+	close(fd);
+	return err;
+}
+
+int tnl_prl_ioctl(int cmd, const char *name, void *p)
+{
+	return tnl_gen_ioctl(cmd, name, p, -1);
+}
+
+int tnl_6rd_ioctl(int cmd, const char *name, void *p)
+{
+	return tnl_gen_ioctl(cmd, name, p, -1);
+}
+
+int tnl_ioctl_get_6rd(const char *name, void *p)
+{
+	return tnl_gen_ioctl(SIOCGET6RD, name, p, -1);
+}
+

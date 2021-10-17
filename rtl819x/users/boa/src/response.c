@@ -82,11 +82,10 @@ void print_content_type(request * req)
 		}
 	}
 #endif
-		if(strcmp(req->request_uri,"/config.dat")==0)
-		{
+	if(strcmp(req->request_uri,"/config.dat")==0)
+	{
 			req_write(req, "Content-Disposition: attachment\r\n");
-		}
-
+	}
     }
 }
 

@@ -45,8 +45,7 @@ int isFileExist(char *file_name)
 	return 1;
 }
 
-/* don't need to check kernel image oversize anymore */
-#if 0
+
 /*
 *  check kernel image is oversize or not
 *  return 1: kernel image is oversize
@@ -102,7 +101,6 @@ err:
 	
 	return toRet;
 }
-#endif
 
 /*
 *  function description: update cert area header at flash
@@ -313,6 +311,30 @@ int storeFile(const unsigned long dstAddr, const char * srcFile, const char init
 
 		certFileHeader.fileType=TYPE_ROOT_CERT_2G;
 	}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	else if(strcmp(srcFile, RS_USER_CERT_ETH)==0)
+	{
+		if(offset!= USER_CERT_BASE_ETH)
+		{
+			ERR_PRINT("Error: %s should store at 0x%x\n",RS_USER_CERT_ETH, USER_CERT_BASE_ETH);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+		
+		certFileHeader.fileType=TYPE_USER_CERT_ETH;
+	}
+	else if(strcmp(srcFile, RS_ROOT_CERT_ETH)==0)
+	{
+		if(offset!= ROOT_CERT_BASE_ETH)
+		{
+			ERR_PRINT("Error: %s should store at 0x%x\n",RS_ROOT_CERT_ETH, ROOT_CERT_BASE_ETH);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+
+		certFileHeader.fileType=TYPE_ROOT_CERT_ETH;
+	}
+#endif
 	else
 	{
 		ERR_PRINT("Error: %s stored at 0x%x is not supported!\n",srcFile, offset);//Added for test
@@ -364,7 +386,26 @@ int storeFile(const unsigned long dstAddr, const char * srcFile, const char init
 				goto err;
 			}
 		}
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+		else if(offset == USER_CERT_BASE_ETH )
+		{
+			if(storeSize>=USER_CERT_MAX_SIZE)
+			{
+				ERR_PRINT("Error: storeSize(0x%x) >= USER_CERT_MAX_SIZE(0x%x)\n", storeSize, USER_CERT_MAX_SIZE);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+		}
+		else if(offset == ROOT_CERT_BASE_ETH)
+		{
+			if(storeSize>=ROOT_CERT_MAX_SIZE)
+			{
+				ERR_PRINT("Error: storeSize(0x%x) >= ROOT_CERT_MAX_SIZE(0x%x)\n", storeSize, ROOT_CERT_MAX_SIZE);//Added for test
+				toRet=FAILED;
+				goto err;
+			}
+		}
+#endif
 		//To store srcfile into flash at dstAddr
 		rwFlag=0;
 		lenLeft=(int)certFileHeader.fileLen;
@@ -517,7 +558,11 @@ int loadFile(const char * dstFile, const unsigned long srcAddr)
 		goto err;
 	}
 
-	if((certFileHeader.fileType!=TYPE_USER_CERT_5G)&&(certFileHeader.fileType!=TYPE_ROOT_CERT_5G)&&(certFileHeader.fileType!=TYPE_USER_CERT_2G)&&(certFileHeader.fileType!=TYPE_ROOT_CERT_2G))
+	if((certFileHeader.fileType!=TYPE_USER_CERT_5G)&&(certFileHeader.fileType!=TYPE_ROOT_CERT_5G)&&(certFileHeader.fileType!=TYPE_USER_CERT_2G)&&(certFileHeader.fileType!=TYPE_ROOT_CERT_2G)
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	&&(certFileHeader.fileType!=TYPE_USER_CERT_ETH) &&(certFileHeader.fileType!=TYPE_ROOT_CERT_ETH)
+#endif
+	)
 	{
 		ERR_PRINT("%s(%d),unknow file type (0x%x).\n",__FUNCTION__,__LINE__,certFileHeader.fileType);//Added for test
 		toRet=FAILED;
@@ -562,6 +607,26 @@ int loadFile(const char * dstFile, const unsigned long srcAddr)
 			goto err;
 		}
 	}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	else if(strcmp(dstFile, RS_USER_CERT_ETH)==0)
+	{
+		if(certFileHeader.fileType!=TYPE_USER_CERT_ETH)
+		{
+			ERR_PRINT("Error: dstFile(%s), but fileType(0x%x) not match.\n",dstFile, certFileHeader.fileType);//Added for test
+			toRet=FAILED;
+			goto err;
+		}	
+	}
+	else if(strcmp(dstFile, RS_ROOT_CERT_ETH)==0)
+	{
+		if(certFileHeader.fileType!=TYPE_ROOT_CERT_ETH)
+		{
+			ERR_PRINT("Error: dstFile(%s), but fileType(0x%x) not match.\n",dstFile, certFileHeader.fileType);//Added for test
+			toRet=FAILED;
+			goto err;
+		}
+	}
+#endif
 	else
 	{
 		ERR_PRINT("Error: %s read from 0x%x is not supported!\n",dstFile, offset);//Added for test

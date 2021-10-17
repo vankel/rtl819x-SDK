@@ -47,7 +47,7 @@
 #include "pidfile.h"
 #include <sys/sysinfo.h>  //brad add 20090314
 
-#if defined(UDHCPC_STATIC_FLASH) || defined(UDHCPC_UPDATE_FLASH_ISP)
+#if defined(UDHCPC_STATIC_FLASH) || defined(UDHCPC_UPDATE_FLASH_ISP) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_) || defined(SET_TELE_CONN_REQ_URL)
 #include "apmib.h"
 #include "mibtbl.h"
 #endif
@@ -125,7 +125,7 @@ void create_config_file(void)
 		fprintf(stderr, "Create /var/isp_dhcp.conf file error!\n");
 		return;
 	}
-#if defined(UDHCPC_PASS_DOMAINNAME2DHCPSERVER) && !defined(SUPPORT_OPTION_33_121_249) 	
+#if defined(UDHCPC_PASS_DOMAINNAME2DHCPSERVER) && !defined(SUPPORT_OPTION_33_121_249) && !defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 	sprintf(tmpbuf, "domain %s %d", isp_domain_name, client_config.wan_type);
 	write(fh, tmpbuf, strlen(tmpbuf));
 #endif	
@@ -425,9 +425,9 @@ int OptionStaticRoute(struct dhcpMessage *packet)
 	return 1;
 	}
 #endif
-#ifdef RFC3442
 
-#ifdef UDHCPC_RFC_CLASSLESS_STATIC_ROUTE
+#if defined(RFC3442) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
+#if defined(UDHCPC_RFC_CLASSLESS_STATIC_ROUTE) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 /* option 121 */
 int OptionClasslessStaticRoute(struct dhcpMessage *packet)
 {
@@ -444,6 +444,7 @@ Note:
 			i will take it as the condition to recognize the records added by me 
 			to remove/add to nvram
 	 */
+
 #ifdef UDHCPC_RFC_CLASSLESS_STATIC_ROUTE
 
 #ifndef CONFIG_STATIC_ROUTE_NUMBER
@@ -584,7 +585,8 @@ Note:
 	return 1;
 	}
 #endif
-#ifdef UDHCPC_MS_CLASSLESS_STATIC_ROUTE
+
+#ifdef UDHCPC_MS_CLASSLESS_STATIC_ROUTE 
 int OptionMicroSoftClasslessStaticRoute(struct dhcpMessage *packet)
 {
 	/*
@@ -730,6 +732,42 @@ Note:
     return 1;
 }
 #endif
+#endif
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+void OptionVendorSpecInfo(struct dhcpMessage *packet)
+{
+	unsigned char *pOpt43 = NULL;
+	unsigned char len, field_type, field_len;
+	unsigned char vendorSpecStr[256] = {0};
+	int idx=0;
+	pOpt43 = get_option(packet, DHCP_VENDOR_SPEC);	
+
+	if(pOpt43)
+	{
+		strcpy(vendorSpecStr, pOpt43);
+		apmib_set(MIB_CWMP_ACS_URL, (void *)vendorSpecStr);
+	}
+#if 0
+	if(pOpt43)
+	{
+		len=*(unsigned char*)(pOpt43-OPT_LEN);		
+
+		while(len>0)
+		{
+			field_type=pOpt43[idx];
+			field_len=pOpt43[idx+1];
+			strcpy(vendorSpecStr, pOpt43+idx+2);
+
+			printf("%s:%d ##field_type=%d field_len=%d vendorSpecStr=%s\n", __FUNCTION__,__LINE__,field_type,field_len,vendorSpecStr);
+			len-=(field_len+2);
+			idx+=(field_len+2);
+		}
+
+		
+	}
+#endif
+}
 #endif
 
 #ifdef TR069_ANNEX_F
@@ -1440,7 +1478,7 @@ static void background(void)
 
 	pid_fd = pidfile_acquire(client_config.pidfile); /* hold lock during fork. */
 	while (pid_fd >= 0 && pid_fd < 3) pid_fd = dup(pid_fd); /* don't let daemon close it */
-	if (daemon(0, 0) == -1) {
+	if (daemon(0, 1) == -1) {
 		perror("fork");
 		exit_client(1);
 	}
@@ -1524,6 +1562,10 @@ int main(int argc, char *argv[])
 		system("echo \"0\" > /var/ulinker_dhcps_discover_flag");
 	else
 		system("echo \"0\" > /var/ulinker_auto_dhcp");
+#endif
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	apmib_init();
 #endif
 
 	/* get options */
@@ -1679,6 +1721,7 @@ int main(int argc, char *argv[])
 	memcpy(&(client_config.max_msg_size[OPT_DATA]), &max_msg_size, 2);
 	
 #endif
+
 	/* setup signal handlers */
 	socketpair(AF_UNIX, SOCK_STREAM, 0, signal_pipe);
 	signal(SIGUSR1, signal_handler);
@@ -1730,7 +1773,11 @@ int main(int argc, char *argv[])
 			/* timeout dropped to zero */
 			switch (state) {
 			case INIT_SELECTING:
+#ifdef CONFIG_APP_SIMPLE_CONFIG
+				if (packet_num < 30) {
+#else
 				if (packet_num < 3) {
+#endif
 					if (packet_num == 0)
 						xid = random_xid();
 #ifdef SUPPORT_ZIONCOM_RUSSIA
@@ -1738,13 +1785,22 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 #endif
 					/* send discover packet */
 					send_discover(xid, requested_ip); /* broadcast */
+	#if defined(CONFIG_APP_APPLE_MFI_WAC)
+					if(strcmp(client_config.interface, "br0")==0){ 					
+						send_discover(xid, requested_ip); /* broadcast */
+					}	
+	#endif	
 #ifdef SUPPORT_ZIONCOM_RUSSIA
 	first_flag=0;
 #endif
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
 				system("exlog /tmp/log_web.lck /tmp/log_web \"tag:SYSACT;log_num:13;msg:DHCP Discover;\"");
 #endif
+#ifdef CONFIG_APP_SIMPLE_CONFIG
+					timeout = now + 1;
+#else
 					timeout = now + ((packet_num == 2) ? 4 : 2);
+#endif
 
 				#if defined(CONFIG_RTL_ULINKER)
 					if (detect)      timeout = now + 1;
@@ -1764,7 +1820,11 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					packet_num = 0;
 
 					/* make more constructive to send dhcp discover */
+#ifdef CONFIG_APP_SIMPLE_CONFIG
+					timeout = now + 5;
+#else
 					timeout = now + 10;
+#endif
 
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
 				system("exlog /tmp/log_web.lck /tmp/log_web \"tag:SYSACT;log_num:13;msg:DHCP Discover no response;\"");
@@ -1792,8 +1852,14 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					/* send request packet */
 					if (state == RENEW_REQUESTED)
 						send_renew(xid, server_addr, requested_ip); /* unicast */
-					else send_selecting(xid, server_addr, requested_ip); /* broadcast */
-					
+					else {
+						send_selecting(xid, server_addr, requested_ip); /* broadcast */
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+					if(strcmp(client_config.interface, "br0")==0){ 					
+						send_selecting(xid, server_addr, requested_ip); /* broadcast */
+					}
+#endif
+				}
 					timeout = now + ((packet_num == 2) ? 10 : 2);
 					packet_num++;
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
@@ -1921,7 +1987,27 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 							exit(0);
 						}
 				#endif
-					
+#ifdef SET_TELE_CONN_REQ_URL // format http://wanip:51005/lanmacaddress
+						{
+							int connReqPort = 51005;
+							char hwAddr[CONN_REQ_PATH_LEN];
+							char connReqPath[CONN_REQ_PATH_LEN];
+
+							if (apmib_init())
+							{
+								apmib_get(MIB_HW_NIC0_ADDR, (void *)hwAddr); // lan mac addr.
+								
+								sprintf(connReqPath, "/%02x%02x%02x%02x%02x%02x",
+									(unsigned char)hwAddr[0], (unsigned char)hwAddr[1], (unsigned char)hwAddr[2],
+									(unsigned char)hwAddr[3], (unsigned char)hwAddr[4], (unsigned char)hwAddr[5]);
+								
+								apmib_set(MIB_CWMP_CONREQ_PATH, (void *)connReqPath);
+								apmib_set(MIB_CWMP_CONREQ_PORT, (void *)&connReqPort);
+
+								apmib_update(CURRENT_SETTING);
+							}
+						}
+#endif
 					} else {
 						DEBUG(LOG_ERR, "No server ID in message");
 					}
@@ -1929,7 +2015,7 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					/* handle option 125 */
 					Option_VendorSpecInfo(&packet);
 #endif
-#ifdef SUPPORT_ZIONCOM_RUSSIA
+#if defined(SUPPORT_ZIONCOM_RUSSIA) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 				if(strcmp(client_config.interface, "eth1")==0 &&
 					(temp = get_option(&packet, DHCP_ROUTER)))
 				{
@@ -1947,7 +2033,7 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 				if (*message == DHCPACK) {
 					//update server_addr to avoid server ip change and client does not known
 					if ((temp = get_option(&packet, DHCP_SERVER_ID)))
-  						memcpy(&server_addr, temp, 4);
+						memcpy(&server_addr, temp, 4);
 
 					if(!(state == RENEWING || state == REBINDING))
 					{
@@ -1999,6 +2085,11 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					start = now;
 					timeout = t1 + start;
 					requested_ip = packet.yiaddr;
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+					//handle option 43
+					OptionVendorSpecInfo(&packet);
+#endif
 #ifdef TR069_ANNEX_F
 					/* handle option 125 */
 					Option_VendorSpecInfo(&packet);
@@ -2013,7 +2104,7 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					run_script(&packet,((state == RENEWING || state == REBINDING) ? "renew" : "bound"));
 #if defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC)					   	
 				if((client_config.wan_type == 7) || (client_config.wan_type == 8) || (client_config.wan_type == 9))
-#else if defined(SUPPORT_OPTION_33_121_249)
+#elif defined(SUPPORT_OPTION_33_121_249) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 				{
 #ifdef RFC3442			
 					sleep(10);	
@@ -2025,7 +2116,7 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					/* 20080508 handle option 249 if needed */
 					retval=OptionClasslessStaticRoute(&packet);
 #endif
-#ifdef UDHCPC_MS_CLASSLESS_STATIC_ROUTE
+#if defined(UDHCPC_MS_CLASSLESS_STATIC_ROUTE) || defined(_PRMT_X_TELEFONICA_ES_DHCPOPTION_)
 					/* handle option 121 if needed */
 						retval=OptionMicroSoftClasslessStaticRoute(&packet);
 #endif
@@ -2035,8 +2126,8 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 						retval=OptionStaticRoute(&packet);
 #endif
 				}//for tr ru wan type
-				
 #endif	
+
 #if defined(CONFIG_RTL865X_KLD)
 					netbios_nodtype=0;
 					memset(netbios_scope, '\0', 32);

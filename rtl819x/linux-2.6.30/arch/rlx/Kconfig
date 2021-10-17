@@ -88,10 +88,6 @@ config CPU_HAS_ULS
   bool
   default y if ARCH_CPU_ULS
 
-config CPU_HAS_TLS
-  bool
-  default y if ARCH_CPU_TLS
-
 config CPU_HAS_LLSC
   bool
   default y if ARCH_CPU_LLSC
@@ -105,6 +101,10 @@ config MMU
     default y
 
 config PAGE_SIZE_4KB
+  bool
+  default y
+
+config URL_FILTER_USER_MODE_SUPPORT
   bool
   default y
 
@@ -479,6 +479,7 @@ config PCI_DOMAINS
 	bool
 
 source "drivers/pci/Kconfig"
+source "drivers/pci/pcie/Kconfig"
 source "drivers/pci/hotplug/Kconfig"
 source "drivers/pcmcia/Kconfig"
 

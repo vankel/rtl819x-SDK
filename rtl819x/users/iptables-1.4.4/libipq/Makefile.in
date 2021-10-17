@@ -184,7 +184,12 @@ includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
 kbuilddir = @kbuilddir@
+ifeq ($(KERNEL_VER),linux-2.6.30)
 kinclude_CFLAGS = @kinclude_CFLAGS@
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+kinclude_CFLAGS = @kinclude_CFLAGS@/uapi
+endif
 ksourcedir = @ksourcedir@
 libdir = @libdir@
 libexecdir = @libexecdir@

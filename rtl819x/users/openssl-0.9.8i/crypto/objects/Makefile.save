@@ -26,7 +26,8 @@ SRC= $(LIBSRC)
 EXHEADER= objects.h obj_mac.h
 HEADER=	$(EXHEADER) obj_dat.h
 
-ALL=    $(GENERAL) $(SRC) $(HEADER)
+#ALL=    $(GENERAL) $(SRC) $(HEADER)
+ALL=    $(SRC)
 
 top:
 	(cd ../..; $(MAKE) DIRS=crypto SDIRS=$(DIR) sub_all)

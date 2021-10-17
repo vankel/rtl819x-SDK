@@ -1,9 +1,19 @@
 # $Id: Makefile.in,v 1.1.2.6 2002/12/12 21:29:04 jnelson Exp $
 
+COMMON_CFLAGS =
+
 ifeq ($(wildcard $(DIR_LINUX)/.config),)
+COMMON_CFLAGS += -DKERNEL_2_6_30
 include ../../linux-2.6.30/.config
 DIR_LINUX_KERNEL = ../../linux-2.6.30
 else
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+ifeq ($(KERNEL_VER),linux-2.6.30)
+COMMON_CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+COMMON_CFLAGS += -DKERNEL_3_10
+endif
 include $(DIR_LINUX)/.config
 DIR_LINUX_KERNEL = $(DIR_LINUX)
 endif
@@ -13,6 +23,7 @@ include ../.config
 else
 include $(DIR_USERS)/.config
 endif
+
 
 ifndef DIR_RSDK
 include ../../.config
@@ -45,10 +56,11 @@ export DIR_USERS := $(shell pwd)/../
 export DIR_LINUX := $(shell pwd)/../../linux-2.6.30
 else
 export PATH := $(shell pwd)/../../$(CONFIG_RSDKDIR)/bin:$(PATH)
-export CC = rsdk-linux-gcc
-export CPP = rsdk-linux-gcc -E
-export AR = rsdk-linux-ar
-export STRIP = rsdk-linux-strip
+CROSS_COMPILE ?= rsdk-linux-
+export CC = $(CROSS_COMPILE)gcc
+export CPP = $(CROSS_COMPILE)gcc -E
+export AR = $(CROSS_COMPILE)ar
+export STRIP = $(CROSS_COMPILE)strip
 endif
 export x86 = 1
 endif
@@ -81,7 +93,7 @@ MAKE=make
 APMIB_SHARED = 1
 DYNAMIC_WAN_IP = 1
 GET_SERVER_IP_BY_DOMAIN = 1
-COMMON_CFLAGS =
+#COMMON_CFLAGS =
 ifeq ($(x86),1)
 COMMON_CFLAGS += -DNO_ACTION
 endif
@@ -109,21 +121,18 @@ ifeq ($(CONFIG_RTL_11W_SUPPORT), y)
 WLANSUPP += -DCONFIG_IEEE80211W
 endif
 
+ifeq ($(CONFIG_APP_SIMPLE_CONFIG), y)
+WLANSUPP += -DCONFIG_APP_SIMPLE_CONFIG
+COMMON_CFLAGS += -DSET_MIB_FROM_FILE
+ifeq ($(CONFIG_SIMPLE_CONFIG_SYNC_VXD_PROFILE), y)
+COMMON_CFLAGS += -DSYNC_VXD_PROFILE
+endif
+endif
+
 ifeq ($(CONFIG_RTL_HS2_SUPPORT), y)
 WLANSUPP += -DWLAN_HS2_CONFIG
 endif
 
-ifeq ($(CONFIG_APP_SIMPLE_CONFIG), y)
-WLANSUPP += -DCONFIG_APP_SIMPLE_CONFIG
-COMMON_CFLAGS += -DSET_MIB_FROM_FILE
-endif
-
-ifeq ($(CONFIG_APP_APPLE_MFI_WAC),y)
-COMMON_CFLAGS += -DCONFIG_APP_APPLE_MFI_WAC
-endif
-ifeq ($(CONFIG_APP_APPLE_HOMEKIT),y)
-COMMON_CFLAGS += -DCONFIG_APPLE_HOMEKIT
-endif
 # Digest Access switch
 DASW	= -DDIGEST_ACCESS_SUPPORT
 
@@ -133,17 +142,22 @@ ifeq ($(GW),1)
 GATEWAY += -DROOT_FS
 endif
 
-#ifeq ($(CONFIG_RTL_USERSPACE_WTDOG),y)
-#COMMON_CFLAGS += -DAPP_WATCHDOG
-#endif
+# samba web support
+ifeq ($(CONFIG_APP_SAMBA_WEB), y)
+COMMON_CFLAGS += -DSAMBA_WEB_SUPPORT
+endif
+ifeq ($(CONFIG_URL_FILTER_USER_MODE_SUPPORT),y)
+COMMON_CFLAGS += -DURL_FILTER_USER_MODE_SUPPORT
+endif
+
 # routing support
 ifeq ($(CONFIG_APP_ROUTED), y)
 COMMON_CFLAGS += -DROUTE_SUPPORT
 endif
-
-ifeq ($(CONFIG_APP_AP_CONTROLER), y)
-COMMON_CFLAGS += -DAP_CONTROLER_SUPPORT
+ifeq ($(CONFIG_APP_BIRD), y)
+COMMON_CFLAGS += -DRIP6_SUPPORT
 endif
+
 ifeq ($(CONFIG_APP_UPDATEDD), y)
 COMMON_CFLAGS += -DDDNS_SUPPORT
 endif
@@ -154,6 +168,10 @@ endif
 
 ifeq ($(CONFIG_APP_L2TPD), y)
 COMMON_CFLAGS += -DL2TP_SUPPORT
+endif
+
+ifeq ($(CONFIG_RTL_DEF_SETTING_IN_FW),y)
+COMMON_CFLAGS += -DRTL_DEF_SETTING_IN_FW
 endif
 
 # boa cgi support
@@ -174,8 +192,16 @@ ifeq ($(CONFIG_MTD_NAND),y)
 COMMON_CFLAGS += -DCONFIG_MTD_NAND
 endif
 
+ifeq ($(CONFIG_RPS),y)
+COMMON_CFLAGS += -DCONFIG_RPS
+endif
+
 ifeq ($(CONFIG_RTK_VLAN_SUPPORT),y)
 COMMON_CFLAGS += -DVLAN_CONFIG_SUPPORTED
+endif
+
+ifeq ($(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN),y)
+COMMON_CFLAGS += -DCONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN
 endif
 
 ifeq ($(CONFIG_RTL_ULINKER),y)
@@ -227,12 +253,8 @@ ifeq ($(CONFIG_APP_USBMOUNT),y)
 COMMON_CFLAGS += -DCONFIG_APP_USBMOUNT
 endif
 
-ifeq ($(CONFIG_RTL_HTTP_REDIRECT),y)
-COMMON_CFLAGS += -DCONFIG_RTL_HTTP_REDIRECT
-endif
-
-ifeq ($(CONFIG_RTL_MAC_BASED_HTTP_REDIRECT),y)
-COMMON_CFLAGS += -DCONFIG_RTL_MAC_BASED_HTTP_REDIRECT
+ifeq ($(CONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM),y)
+COMMON_CFLAGS += -DCONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM
 endif
 
 ifeq ($(CONFIG_USBDISK_UPDATE_IMAGE),y)
@@ -270,7 +292,6 @@ endif
 ifeq ($(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE),y)
 COMMON_CFLAGS += -DCONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE
 endif
-
 
 ifeq ($(CONFIG_RTL_MULTI_REPEATER_MODE_SUPPORT),y)
 COMMON_CFLAGS += -DRTL_MULTI_REPEATER_MODE_SUPPORT
@@ -337,10 +358,6 @@ endif
 endif
 endif
 
-ifeq ($(CONFIG_RTL_8367R_SUPPORT),y)
-COMMON_CFLAGS += -DCONFIG_RTL_8367R_SUPPORT
-endif
-
 ifeq ($(CONFIG_USE_PCIE_SLOT_0),y)
 ifeq ($(CONFIG_RTL_8881A),y)
 ifeq ($(CONFIG_RTL_8367R_SUPPORT),y)
@@ -376,8 +393,18 @@ ifeq ($(CONFIG_BASEON_SCHEDULE_FILTER),y)
 COMMON_CFLAGS += -DCONFIG_SCH_FILTER
 endif
 
+ifneq ($(CONFIG_APP_APPLE_MFI_WAC),y)
 ifeq ($(CONFIG_IPV6),y)
 COMMON_CFLAGS += -DCONFIG_IPV6
+
+ifeq ($(CONFIG_APP_NDP_PROXY),y)
+COMMON_CFLAGS += -DCONFIG_APP_NDP_PROXY
+endif
+endif
+endif
+
+ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
+COMMON_CFLAGS += -DCONFIG_IPV6_CE_ROUTER_SUPPORT
 endif
 
 ifeq ($(CONFIG_RTL_819X),y)
@@ -393,6 +420,18 @@ endif
 
 ifeq ($(CONFIG_RTL_8196C_GW),y)
 	COMMON_CFLAGS += -DCONFIG_RTL_8196C
+endif
+
+ifeq ($(CONFIG_RTL_8198C),y)
+     COMMON_CFLAGS += -DCONFIG_RTL_8198C
+endif
+
+ifeq ($(CONFIG_DSLITE_SUPPORT),y)
+COMMON_CFLAGS += -DCONFIG_DSLITE_SUPPORT
+endif
+
+ifeq ($(CONFIG_SIXRD_SUPPORT),y)
+COMMON_CFLAGS += -DCONFIG_SIXRD_SUPPORT
 endif
 
 ifeq ($(CONFIG_RTL_8198_GW),y)
@@ -420,6 +459,10 @@ endif
 
 ifeq ($(CONFIG_RTL_8196E),y)
 	COMMON_CFLAGS += -DCONFIG_RTL_8196E
+endif
+
+ifeq ($(CONFIG_RTL_8871AM),y)
+        COMMON_CFLAGS += -DCONFIG_RTL_8871AM
 endif
 
 ifeq ($(CONFIG_RTL_8198B),y)
@@ -477,10 +520,16 @@ ifeq ($(CONFIG_APP_RTK_INBAND_CTL), y)
 COMMON_CFLAGS += -DSET_MIB_FROM_FILE
 COMMON_CFLAGS += -DCONFIG_APP_RTK_INBAND_CTL
 endif
+
 ifeq ($(CONFIG_RTL_802_1X_CLIENT_SUPPORT),y)
 	COMMON_CFLAGS += -DCONFIG_RTL_802_1X_CLIENT_SUPPORT
 endif
-
+ifeq ($(CONFIG_RTL_ETH_802DOT1X_SUPPORT),y)
+	COMMON_CFLAGS += -DCONFIG_RTL_ETH_802DOT1X_SUPPORT
+endif
+ifeq ($(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT),y)
+    COMMON_CFLAGS += -DCONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+endif
 #add mld snooping support
 ifeq ($(CONFIG_IGMPV3_SUPPORT),y)
 	COMMON_CFLAGS += -DCONFIG_IGMPV3_SUPPORT
@@ -600,6 +649,14 @@ ifeq ($(CONFIG_RTL_FAST_FILTER), y)
 COMMON_CFLAGS += -DCONFIG_RTL_FAST_FILTER 
 endif
 
+ifeq ($(CONFIG_BAND_2G_ON_WLAN0), y)
+COMMON_CFLAGS += -DCONFIG_BAND_2G_ON_WLAN0
+endif
+
+ifeq ($(CONFIG_BAND_5G_ON_WLAN0), y)
+COMMON_CFLAGS += -DCONFIG_BAND_5G_ON_WLAN0
+endif
+
 #ifeq ($(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN),y)
 ifeq ($(CONFIG_USE_PCIE_SLOT_0),y)
 ifeq ($(CONFIG_USE_PCIE_SLOT_1),y)
@@ -614,6 +671,11 @@ endif
 ifeq ($(CONFIG_RTL_WLAN_DOS_FILTER),y)
 COMMON_CFLAGS += -DCONFIG_RTL_WLAN_DOS_FILTER
 endif
+
+#ifeq ($(CONFIG_APP_APPLE_MFI_WAC),y)
+#COMMON_CFLAGS += -DWAC_CONFIGURING_REPEATER
+#endif
+
 
 #zj: add for QoS
 ifeq ($(GW),1)
@@ -633,15 +695,23 @@ ifeq ($(CONFIG_APP_FWD),y)
 COMMON_CFLAGS += -DCONFIG_APP_FWD
 endif
 
-ifdef CONFIG_APP_TR069
+ifeq ($(CONFIG_APP_BOA_NEW_UI),y)
+COMMON_CFLAGS += -DCONFIG_APP_BOA_NEW_UI
+endif
+
+ifeq ($(CONFIG_APP_TR069),y)
 COMMON_CFLAGS += -DCONFIG_APP_TR069
+COMMON_CFLAGS += -D_PRMT_X_TELEFONICA_ES_DHCPOPTION_
+#COMMON_CFLAGS += -D_ALPHA_DUAL_WAN_SUPPORT_
 
 ifeq ($(CONFIG_USER_CWMP_WITH_SSL),y)
 COMMON_CFLAGS += -D_CWMP_WITH_SSL_
 endif
 
 ifneq ($(CONFIG_MTD_CHAR), y)
+ifeq ($(KERNEL_VER),linux-2.6.30)
 $(error You have to turn on the kernel option "CONFIG_MTD_CHAR" for TR069)
+endif
 endif
 
 #ifneq ($(CONFIG_MTD_CHAR), y)
@@ -674,12 +744,28 @@ ifeq ($(CONFIG_RTL_SUPPORT_MULTI_PROFILE),y)
 COMMON_CFLAGS += -DWLAN_PROFILE
 endif
 
+ifeq ($(CONFIG_APP_MINIIGD-1.8),y)
+COMMON_CFLAGS += -DUSE_MINIUPNPD_V1.8
+endif
+
+ifeq ($(CONFIG_APP_EBTABLES),y)
+COMMON_CFLAGS += -DCONFIG_APP_EBTABLES
+endif
+
+ifeq ($(CONFIG_APP_SMTP_CLIENT),y)
+COMMON_CFLAGS += -DCONFIG_APP_SMTP_CLIENT
+endif
+
 ifeq ($(CONFIG_APP_RTK_VOIP),y)
 PWD := $(shell pwd)
 ifeq ($(CONFIG_APP_RTK_VOIP_E8C),y)
 export VOIP_APP = $(PWD)/../rtk_voip-e8c
 else
+ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxE
+export VOIP_APP = $(PWD)/../rtk_voip-89xxE
+else
 export VOIP_APP = $(PWD)/../rtk_voip
+endif
 endif
 COMMON_CFLAGS += -DVOIP_SUPPORT -I$(VOIP_APP)/includes -I$(VOIP_APP)/web -I$(PWD) -I$(PWD)/..
 ifdef CONFIG_RTK_VOIP_PACKAGE_867X
@@ -690,6 +776,10 @@ COMMON_CFLAGS += -I$(VOIP_APP)/ui/include
 endif
 endif
 
+ifdef CONFIG_EBTABLES_KERNEL_SUPPORT
+COMMON_CFLAGS += -DCONFIG_EBTABLES_KERNEL_SUPPORT
+endif
+
 ifndef CONFIG_RTL_AP
 COMMON_CFLAGS += -DSEND_GRATUITOUS_ARP
 endif
@@ -698,6 +788,28 @@ COMMON_CFLAGS += -DCONFIG_CPU_UTILIZATION
 endif
 ifeq ($(CONFIG_SUPPORT_RUSSIA_FEATURES),y)
 COMMON_CFLAGS += -DSUPPORT_ZIONCOM_RUSSIA
+endif
+
+ifeq ($(CONFIG_APP_APPLE_MFI_WAC),y)
+COMMON_CFLAGS += -DCONFIG_APP_APPLE_MFI_WAC
+endif
+
+ifeq ($(CONFIG_APP_RADVD),y)
+ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
+COMMON_CFLAGS += -DSUPPORT_RDNSS_OPTION -DSUPPORT_DNSSL_OPTION
+endif
+endif
+
+ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
+COMMON_CFLAGS += -DSUPPORT_DEFEAT_IP_SPOOL_DOS 
+endif
+
+ifeq ($(CONFIG_APP_CAPWAP),y)
+COMMON_CFLAGS += -DRTK_CAPWAP
+endif
+
+ifeq ($(CONFIG_RTL_USERSPACE_WTDOG),y)
+COMMON_CFLAGS += -DAPP_WATCHDOG
 endif
 #------------------------------------------------------------------------------
 # Export variables
@@ -716,11 +828,11 @@ else
 ifeq ($(CONFIG_RTL_8198_INBAND_AP),y)
 TARGET = tools
 else
-TARGET = tools apmib utils system boa html defconfig
+TARGET = tools defconfig apmib utils system boa html 
 endif
 endif
 
-all: configcheck $(TARGET)
+all: configcheck generate_mk $(TARGET)
 ifeq ($(x86),1)
 	rm -rf x86
 	mkdir x86
@@ -733,6 +845,10 @@ ifeq ($(APMIB_SHARED),1)
 	cp apmib/libapmib.so x86/
 endif
 endif
+
+generate_mk:
+	@echo "SYS_COMMON_CFLAGS=$(COMMON_CFLAGS)" > ./wfaudio.include.mk
+	@echo "export SYS_COMMON_CFLAGS" >> ./wfaudio.include.mk
 
 configcheck:
 	@echo "" > ./.diff_config;
@@ -840,6 +956,9 @@ ifneq ($(CONFIG_RTL_8197D_AP),y)
 	$(ROMFSINST) system/ppp_inet /bin/ppp_inet
 	$(ROMFSINST) system/ntp_inet /bin/ntp_inet
 	$(ROMFSINST) system/ddns_inet /bin/ddns_inet
+ifeq  ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
+	$(ROMFSINST) system/ipv6_manage_inet /bin/ipv6_manage_inet
+endif
 endif  #CONFIG_RTL_8197D_AP
 endif	#CONFIG_RTL_8198_AP_ROOT
 	$(ROMFSINST) src/boa /bin/boa
@@ -859,6 +978,10 @@ endif	#CONFIG_RTL_NFJROM_MP
 ifeq ($(CONFIG_APP_FWD),y)	
 	$(ROMFSINST) utils/fwd /bin/fwd
 endif
+ifeq ($(CONFIG_APP_CAPWAP),y)	
+	$(ROMFSINST) utils/fwupg /bin/fwupg
+endif
+
 ifneq ($(CONFIG_RTL_NFJROM_MP),y)
 	$(ROMFSINST) system/sysconf /bin/sysconf
 endif
@@ -868,3 +991,11 @@ ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
 endif
 endif	#CONFIG_RTL_8198_INBAND_AP
 endif	#CONFIG_RTL_8196C_iNIC
+ifeq ($(CONFIG_RTL_COMAPI_CFGFILE),y)
+	rm -rf Wireless
+	mkdir Wireless
+	mv Wireless $(DIR_ROMFS)/etc
+	$(ROMFSINST) -s /var/RTL8192CD.dat  /etc/Wireless/RTL8192CD.dat
+endif
+	cp ./src/certificate.crt ./../../romfs/etc
+	cp ./src/privateKey.key ./../../romfs/etc

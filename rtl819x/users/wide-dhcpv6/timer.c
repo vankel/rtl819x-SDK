@@ -71,14 +71,14 @@ dhcp6_add_timer(timeout, timeodata)
 	struct dhcp6_timer *newtimer;
 
 	if ((newtimer = malloc(sizeof(*newtimer))) == NULL) {
-		dprintf(LOG_ERR, FNAME, "can't allocate memory");
+		dprintf_rtk(LOG_ERR, FNAME, "can't allocate memory");
 		return (NULL);
 	}
 
 	memset(newtimer, 0, sizeof(*newtimer));
 
 	if (timeout == NULL) {
-		dprintf(LOG_ERR, FNAME, "timeout function unspecified");
+		dprintf_rtk(LOG_ERR, FNAME, "timeout function unspecified");
 		exit(1);
 	}
 	newtimer->expire = timeout;
@@ -165,7 +165,7 @@ dhcp6_timer_rest(timer)
 
 	gettimeofday(&now, NULL);
 	if (TIMEVAL_LEQ(timer->tm, now)) {
-		dprintf(LOG_DEBUG, FNAME,
+		dprintf_rtk(LOG_DEBUG, FNAME,
 		    "a timer must be expired, but not yet");
 		returnval.tv_sec = returnval.tv_usec = 0;
 	} else
@@ -210,3 +210,20 @@ timeval_sub(a, b, result)
 		result->tv_sec = a->tv_sec - b->tv_sec - 1;
 	}
 }
+#ifdef CE_ROUTER_SUPPORT
+void set_all_ia_timer_out(char *ifname)
+{
+	static struct timeval tmVal={0};
+        struct dhcp6_timer *tm, *tm_next;
+
+        for (tm = LIST_FIRST(&timer_head); tm; tm = tm_next) {
+                tm_next = LIST_NEXT(tm, link);
+		if(tm->is_ia_timer && strcmp(ifname,tm->ifname)==0)
+		{
+			dhcp6_set_timer(&tmVal,tm);	
+		}	
+       }
+
+}
+#endif
+

@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>System Command</title>
 <script type="text/javascript" src="util_gw.js"></script>
+<% getInfo("include_css"); %>
 <script>
 function showProxiedMAC()
 {
@@ -13,7 +14,7 @@ function showProxiedMAC()
 </script>
 </head>
 <blockquote>
-<h2><font color="#0000FF">Wireless Mesh Network Information</font></h2>
+<h2>Wireless Mesh Network Information</h2>
 
 <body>
 
@@ -47,7 +48,7 @@ function showProxiedMAC()
 
 	<table border="1" width=540>
 	<tr><font size=4><b>Wireless Station List</b></font></tr>
-	<tr bgcolor=#7f7f7f><td width="20%"><font size=2><b>MAC Address</b></td>
+	<tr class="tbl_head"><td width="20%"><font size=2><b>MAC Address</b></td>
 	<td width="10%"><font size=2><b>Mode</b></td>
 	<td width="15%"><font size=2><b>Tx Packet</b></td>
 	<td width="15%"><font size=2><b>Rx Packet</b></td>

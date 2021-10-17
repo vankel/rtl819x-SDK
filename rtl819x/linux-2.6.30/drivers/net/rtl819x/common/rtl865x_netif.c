@@ -43,7 +43,10 @@
 #endif
 
 static rtl865x_netif_local_t *netifTbl;
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 static RTL_DECLARE_MUTEX(netif_sem);
+#endif
 #if defined (CONFIG_RTL_LOCAL_PUBLIC)
 static rtl865x_netif_local_t virtualNetIf;
 #endif
@@ -417,7 +420,15 @@ int32 rtl865x_show_allAclChains(void)
 	int8 *actionT[] = { "permit", "redirect to ether", "drop", "to cpu", "legacy drop",
 					"drop for log", "mirror", "redirect to pppoe", "default redirect", "mirror keep match",
 					"drop rate exceed pps", "log rate exceed pps", "drop rate exceed bps", "log rate exceed bps","priority "
+#if defined(CONFIG_RTL_8198C)
+                    , "change vid"
+#endif
 					};
+    
+#if defined(CONFIG_RTL_8198C)
+    rtl865x_AclRule_t *rule2 = NULL;
+    int8 ipv6_flag = 0;    
+#endif
 
 	for(i = 0; i < NETIF_NUMBER; i++)
 	{
@@ -728,6 +739,145 @@ int32 rtl865x_show_allAclChains(void)
 									);
 								break;
 
+#if defined(CONFIG_RTL_8198C)
+                            case RTL865X_ACL_IPV6: /* IP Rule Type: 0x0010 */
+                            case RTL865X_ACL_IPV6_RANGE:
+                                /* a ipv6 rule occupied  two entry, rule point to the first entry  
+                                                    * and rule2 point to the second entry.
+                                                    */
+                                rule2 = rule->next;
+                                ipv6_flag = 0;
+                                
+                                if (rule2 != NULL)//the second entry 
+                                {
+                                    if ((!rule2->ipv6EntryType_) && rule->ipv6EntryType_)
+                                    {
+                                        rule->dstIpV6Addr_.v6_addr32[3] = rule2->dstIpV6Addr_.v6_addr32[3];
+                                        rule->dstIpV6Addr_.v6_addr32[2] = rule2->dstIpV6Addr_.v6_addr32[2];
+                                        rule->dstIpV6Addr_.v6_addr32[1] = rule2->dstIpV6Addr_.v6_addr32[1];
+                                        rule->dstIpV6Addr_.v6_addr32[0] = rule2->dstIpV6Addr_.v6_addr32[0];
+                                        
+                                        rule->dstIpV6AddrMask_.v6_addr32[3] = rule2->dstIpV6AddrMask_.v6_addr32[3];
+                                        rule->dstIpV6AddrMask_.v6_addr32[2] = rule2->dstIpV6AddrMask_.v6_addr32[2];
+                                        rule->dstIpV6AddrMask_.v6_addr32[1] = rule2->dstIpV6AddrMask_.v6_addr32[1];
+                                        rule->dstIpV6AddrMask_.v6_addr32[0] = rule2->dstIpV6AddrMask_.v6_addr32[0];
+            
+                                        rule->ipv6TrafficClass_ = rule2->ipv6TrafficClass_;
+                                        rule->ipv6TrafficClassM_ = rule2->ipv6TrafficClassM_; 
+                                        rule->ipv6NextHeader_    = rule2->ipv6NextHeader_; 
+                                        rule->ipv6NextHeaderM_   = rule2->ipv6NextHeaderM_; 
+                                        rule->ipv6HttpFilter_    = rule2->ipv6HttpFilter_;
+                                        rule->ipv6HttpFilterM_ = rule2->ipv6HttpFilterM_;
+                                        rule->ipv6IdentSrcDstIp_ = rule2->ipv6IdentSrcDstIp_;
+                                        rule->ipv6IdentSrcDstIpM_ = rule2->ipv6IdentSrcDstIpM_;
+                                        /* ActionType and ActionField useless in entry0 */
+                                        rule->actionType_ = rule2->actionType_;
+                                        switch(rule->actionType_) {
+                                    
+                                        case RTL865X_ACL_PERMIT:
+                                        case RTL865X_ACL_REDIRECT_ETHER:
+                                        case RTL865X_ACL_DROP:
+                                        case RTL865X_ACL_TOCPU:
+                                        case RTL865X_ACL_LEGACY_DROP:
+                                        case RTL865X_ACL_DROPCPU_LOG:
+                                        case RTL865X_ACL_MIRROR:
+                                        case RTL865X_ACL_REDIRECT_PPPOE:
+                                        case RTL865X_ACL_MIRROR_KEEP_MATCH:
+                                            rule->L2Idx_ = rule2->L2Idx_ ;
+                                            rule->netifIdx_ =  rule2->netifIdx_;
+                                            rule->pppoeIdx_ = rule2->pppoeIdx_;
+                                             break;
+                                    
+                                        case RTL865X_ACL_DEFAULT_REDIRECT:
+                                            rule->nexthopIdx_ = rule2->nexthopIdx_;
+                                            break;
+                                    
+                                        case RTL865X_ACL_DROP_RATE_EXCEED_PPS:
+                                        case RTL865X_ACL_LOG_RATE_EXCEED_PPS:
+                                        case RTL865X_ACL_DROP_RATE_EXCEED_BPS:
+                                        case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
+                                            rule->ratelimtIdx_ = rule2->ratelimtIdx_;
+                                            break;
+                                        case RTL865X_ACL_PRIORITY:
+                                            rule->priority_ = rule2->priority_;
+                                            break;
+                                        case RTL865X_ACL_VID:
+                                            rule->aclvid_ = rule2->aclvid_;
+                                            break;                      
+                                        }
+                                        /* INV useless in entry 0 */
+                                        rule->ipv6Invert_    = rule2->ipv6Invert_;
+                                        //rule->ipv6Combine_  = rule2->ipv6Combine_;
+                                        //rule->ipv6IPtunnel_ = rule2->ipv6IPtunnel_;
+                                        printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IPv6", actionT[rule->actionType_]);
+                                        if (RTL865X_ACL_IPV6 == rule->ruleType_)
+                                        {
+                                            printk("\tsip: %x:%x:%x:%x:%x:%x:%x:%x  sipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->srcIpV6Addr_.v6_addr16[0], rule->srcIpV6Addr_.v6_addr16[1], 
+                                                    rule->srcIpV6Addr_.v6_addr16[2],rule->srcIpV6Addr_.v6_addr16[3],
+                                                    rule->srcIpV6Addr_.v6_addr16[4],rule->srcIpV6Addr_.v6_addr16[5],
+                                                    rule->srcIpV6Addr_.v6_addr16[6],rule->srcIpV6Addr_.v6_addr16[7],
+                                                    rule->srcIpV6AddrMask_.v6_addr16[0], rule->srcIpV6AddrMask_.v6_addr16[1], 
+                                                    rule->srcIpV6AddrMask_.v6_addr16[2],rule->srcIpV6AddrMask_.v6_addr16[3],
+                                                    rule->srcIpV6AddrMask_.v6_addr16[4],rule->srcIpV6AddrMask_.v6_addr16[5],
+                                                    rule->srcIpV6AddrMask_.v6_addr16[6],rule->srcIpV6AddrMask_.v6_addr16[7]
+                                                    );
+                                            printk("\tdip: %x:%x:%x:%x:%x:%x:%x:%x  dipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->dstIpV6Addr_.v6_addr16[0], rule->dstIpV6Addr_.v6_addr16[1], 
+                                                    rule->dstIpV6Addr_.v6_addr16[2],rule->dstIpV6Addr_.v6_addr16[3],
+                                                    rule->dstIpV6Addr_.v6_addr16[4],rule->dstIpV6Addr_.v6_addr16[5],
+                                                    rule->dstIpV6Addr_.v6_addr16[6],rule->dstIpV6Addr_.v6_addr16[7],
+                                                    rule->dstIpV6AddrMask_.v6_addr16[0], rule->dstIpV6AddrMask_.v6_addr16[1], 
+                                                    rule->dstIpV6AddrMask_.v6_addr16[2],rule->dstIpV6AddrMask_.v6_addr16[3],
+                                                    rule->dstIpV6AddrMask_.v6_addr16[4],rule->dstIpV6AddrMask_.v6_addr16[5],
+                                                    rule->dstIpV6AddrMask_.v6_addr16[6],rule->dstIpV6AddrMask_.v6_addr16[7]
+                                                    );
+            
+            
+                                        }
+                                        else if (RTL865X_ACL_IPV6_RANGE == rule->ruleType_)
+                                        {
+                                            printk("\tsipLB: %x:%x:%x:%x:%x:%x:%x:%x  sipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->srcIpV6AddrLB_.v6_addr16[0], rule->srcIpV6AddrLB_.v6_addr16[1], 
+                                                    rule->srcIpV6AddrLB_.v6_addr16[2],rule->srcIpV6AddrLB_.v6_addr16[3],
+                                                    rule->srcIpV6AddrLB_.v6_addr16[4],rule->srcIpV6AddrLB_.v6_addr16[5],
+                                                    rule->srcIpV6AddrLB_.v6_addr16[6],rule->srcIpV6AddrLB_.v6_addr16[7],
+                                                    rule->srcIpV6AddrUB_.v6_addr16[0], rule->srcIpV6AddrUB_.v6_addr16[1], 
+                                                    rule->srcIpV6AddrUB_.v6_addr16[2],rule->srcIpV6AddrUB_.v6_addr16[3],
+                                                    rule->srcIpV6AddrUB_.v6_addr16[4],rule->srcIpV6AddrUB_.v6_addr16[5],
+                                                    rule->srcIpV6AddrUB_.v6_addr16[6],rule->srcIpV6AddrUB_.v6_addr16[7]
+                                                    );
+                                            printk("\tdipLB: %x:%x:%x:%x:%x:%x:%x:%x  dipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->dstIpV6AddrLB_.v6_addr16[0], rule->dstIpV6AddrLB_.v6_addr16[1], 
+                                                    rule->dstIpV6AddrLB_.v6_addr16[2],rule->dstIpV6AddrLB_.v6_addr16[3],
+                                                    rule->dstIpV6AddrLB_.v6_addr16[4],rule->dstIpV6AddrLB_.v6_addr16[5],
+                                                    rule->dstIpV6AddrLB_.v6_addr16[6],rule->dstIpV6AddrLB_.v6_addr16[7],
+                                                    rule->dstIpV6AddrUB_.v6_addr16[0], rule->dstIpV6AddrUB_.v6_addr16[1], 
+                                                    rule->dstIpV6AddrUB_.v6_addr16[2],rule->dstIpV6AddrUB_.v6_addr16[3],
+                                                    rule->dstIpV6AddrUB_.v6_addr16[4],rule->dstIpV6AddrUB_.v6_addr16[5],
+                                                    rule->dstIpV6AddrUB_.v6_addr16[6],rule->dstIpV6AddrUB_.v6_addr16[7]
+                                                    );
+                                        }
+                                        printk("\tFlowLabel: 0x%x   FlowLabelM: 0x%x\n",
+                                                rule->ipv6FlowLabel_, rule->ipv6FlowLabelM_
+                                                );
+                                        printk("\tInvert: %d   Combine: %d   IPtunnel: %d\n",
+                                                rule->ipv6Invert_, rule->ipv6Combine_,rule->ipv6IPtunnel_
+                                                );
+                                        printk("\tTrafficClassP: %d   TrafficClassM: %d   NextHeaderP: %d   NextHeaderM: %d\n",
+                                                rule->ipv6TrafficClass_, rule->ipv6TrafficClassM_,rule->ipv6NextHeader_,rule->ipv6NextHeaderM_ 
+                                                );
+                                        printk("\tHTTPP: %d   HTTPM: %d   IdentSDIPP: %d   IdentSDIPM: %d\n",
+                                                rule->ipv6HttpFilter_, rule->ipv6HttpFilterM_,rule->ipv6IdentSrcDstIp_,rule->ipv6IdentSrcDstIpM_ 
+                                                );
+                                        /* update  */
+                                        ipv6_flag = 1;//handle the ipv6 second rule successful 
+                                    }
+                                    
+                                }
+                            break;
+#endif
+
 								default:
 									printk("rule->ruleType_(0x%x)\n", rule->ruleType_);
 
@@ -761,6 +911,12 @@ int32 rtl865x_show_allAclChains(void)
 							case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
 								printk("\tratelimitIdx: %d  ",  rule->ratelimtIdx_);
 								break;
+
+#if defined(CONFIG_RTL_8198C)
+                            case RTL865X_ACL_VID:
+                                printk("\taclvid: %d  ", rule->aclvid_);
+                                break;
+#endif
 							default:
 								;
 
@@ -768,6 +924,13 @@ int32 rtl865x_show_allAclChains(void)
 						printk("pktOpApp: %d\n",  rule->pktOpApp_);
 
 						rule = rule->next;
+#if defined(CONFIG_RTL_8198C)
+                        if (ipv6_flag == 1)
+                        {
+                            rule = rule->next;
+                            ipv6_flag= 0;
+                        }
+#endif
 					}
 					printk("===========================\n");
 					chain = chain->nextChain;
@@ -1087,6 +1250,145 @@ int32 rtl865x_show_allAclChains(void)
 									);
 								break;
 
+#if defined(CONFIG_RTL_8198C)
+                            case RTL865X_ACL_IPV6: /* IP Rule Type: 0x0010 */
+                            case RTL865X_ACL_IPV6_RANGE:
+                                /* a ipv6 rule occupied  two entry, rule point to the first entry  
+                                                    * and rule2 point to the second entry.
+                                                    */
+                                rule2 = rule->next;
+                                ipv6_flag = 0;
+                                
+                                if (rule2 != NULL)//the second entry 
+                                {
+                                    if ((!rule2->ipv6EntryType_) && rule->ipv6EntryType_)
+                                    {
+                                        rule->dstIpV6Addr_.v6_addr32[3] = rule2->dstIpV6Addr_.v6_addr32[3];
+                                        rule->dstIpV6Addr_.v6_addr32[2] = rule2->dstIpV6Addr_.v6_addr32[2];
+                                        rule->dstIpV6Addr_.v6_addr32[1] = rule2->dstIpV6Addr_.v6_addr32[1];
+                                        rule->dstIpV6Addr_.v6_addr32[0] = rule2->dstIpV6Addr_.v6_addr32[0];
+                                        
+                                        rule->dstIpV6AddrMask_.v6_addr32[3] = rule2->dstIpV6AddrMask_.v6_addr32[3];
+                                        rule->dstIpV6AddrMask_.v6_addr32[2] = rule2->dstIpV6AddrMask_.v6_addr32[2];
+                                        rule->dstIpV6AddrMask_.v6_addr32[1] = rule2->dstIpV6AddrMask_.v6_addr32[1];
+                                        rule->dstIpV6AddrMask_.v6_addr32[0] = rule2->dstIpV6AddrMask_.v6_addr32[0];
+            
+                                        rule->ipv6TrafficClass_ = rule2->ipv6TrafficClass_;
+                                        rule->ipv6TrafficClassM_ = rule2->ipv6TrafficClassM_; 
+                                        rule->ipv6NextHeader_    = rule2->ipv6NextHeader_; 
+                                        rule->ipv6NextHeaderM_   = rule2->ipv6NextHeaderM_; 
+                                        rule->ipv6HttpFilter_    = rule2->ipv6HttpFilter_;
+                                        rule->ipv6HttpFilterM_ = rule2->ipv6HttpFilterM_;
+                                        rule->ipv6IdentSrcDstIp_ = rule2->ipv6IdentSrcDstIp_;
+                                        rule->ipv6IdentSrcDstIpM_ = rule2->ipv6IdentSrcDstIpM_;
+                                        /* ActionType and ActionField useless in entry0 */
+                                        rule->actionType_ = rule2->actionType_;
+                                        switch(rule->actionType_) {
+                                    
+                                        case RTL865X_ACL_PERMIT:
+                                        case RTL865X_ACL_REDIRECT_ETHER:
+                                        case RTL865X_ACL_DROP:
+                                        case RTL865X_ACL_TOCPU:
+                                        case RTL865X_ACL_LEGACY_DROP:
+                                        case RTL865X_ACL_DROPCPU_LOG:
+                                        case RTL865X_ACL_MIRROR:
+                                        case RTL865X_ACL_REDIRECT_PPPOE:
+                                        case RTL865X_ACL_MIRROR_KEEP_MATCH:
+                                            rule->L2Idx_ = rule2->L2Idx_ ;
+                                            rule->netifIdx_ =  rule2->netifIdx_;
+                                            rule->pppoeIdx_ = rule2->pppoeIdx_;
+                                             break;
+                                    
+                                        case RTL865X_ACL_DEFAULT_REDIRECT:
+                                            rule->nexthopIdx_ = rule2->nexthopIdx_;
+                                            break;
+                                    
+                                        case RTL865X_ACL_DROP_RATE_EXCEED_PPS:
+                                        case RTL865X_ACL_LOG_RATE_EXCEED_PPS:
+                                        case RTL865X_ACL_DROP_RATE_EXCEED_BPS:
+                                        case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
+                                            rule->ratelimtIdx_ = rule2->ratelimtIdx_;
+                                            break;
+                                        case RTL865X_ACL_PRIORITY:
+                                            rule->priority_ = rule2->priority_;
+                                            break;
+                                        case RTL865X_ACL_VID:
+                                            rule->aclvid_ = rule2->aclvid_;
+                                            break;                      
+                                        }
+                                        /* INV useless in entry 0 */
+                                        rule->ipv6Invert_    = rule2->ipv6Invert_;
+                                        //rule->ipv6Combine_  = rule2->ipv6Combine_;
+                                        //rule->ipv6IPtunnel_ = rule2->ipv6IPtunnel_;
+                                        printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IPv6", actionT[rule->actionType_]);
+                                        if (RTL865X_ACL_IPV6 == rule->ruleType_)
+                                        {
+                                            printk("\tsip: %x:%x:%x:%x:%x:%x:%x:%x  sipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->srcIpV6Addr_.v6_addr16[0], rule->srcIpV6Addr_.v6_addr16[1], 
+                                                    rule->srcIpV6Addr_.v6_addr16[2],rule->srcIpV6Addr_.v6_addr16[3],
+                                                    rule->srcIpV6Addr_.v6_addr16[4],rule->srcIpV6Addr_.v6_addr16[5],
+                                                    rule->srcIpV6Addr_.v6_addr16[6],rule->srcIpV6Addr_.v6_addr16[7],
+                                                    rule->srcIpV6AddrMask_.v6_addr16[0], rule->srcIpV6AddrMask_.v6_addr16[1], 
+                                                    rule->srcIpV6AddrMask_.v6_addr16[2],rule->srcIpV6AddrMask_.v6_addr16[3],
+                                                    rule->srcIpV6AddrMask_.v6_addr16[4],rule->srcIpV6AddrMask_.v6_addr16[5],
+                                                    rule->srcIpV6AddrMask_.v6_addr16[6],rule->srcIpV6AddrMask_.v6_addr16[7]
+                                                    );
+                                            printk("\tdip: %x:%x:%x:%x:%x:%x:%x:%x  dipM: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->dstIpV6Addr_.v6_addr16[0], rule->dstIpV6Addr_.v6_addr16[1], 
+                                                    rule->dstIpV6Addr_.v6_addr16[2],rule->dstIpV6Addr_.v6_addr16[3],
+                                                    rule->dstIpV6Addr_.v6_addr16[4],rule->dstIpV6Addr_.v6_addr16[5],
+                                                    rule->dstIpV6Addr_.v6_addr16[6],rule->dstIpV6Addr_.v6_addr16[7],
+                                                    rule->dstIpV6AddrMask_.v6_addr16[0], rule->dstIpV6AddrMask_.v6_addr16[1], 
+                                                    rule->dstIpV6AddrMask_.v6_addr16[2],rule->dstIpV6AddrMask_.v6_addr16[3],
+                                                    rule->dstIpV6AddrMask_.v6_addr16[4],rule->dstIpV6AddrMask_.v6_addr16[5],
+                                                    rule->dstIpV6AddrMask_.v6_addr16[6],rule->dstIpV6AddrMask_.v6_addr16[7]
+                                                    );
+            
+            
+                                        }
+                                        else if (RTL865X_ACL_IPV6_RANGE == rule->ruleType_)
+                                        {
+                                            printk("\tsipLB: %x:%x:%x:%x:%x:%x:%x:%x  sipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->srcIpV6AddrLB_.v6_addr16[0], rule->srcIpV6AddrLB_.v6_addr16[1], 
+                                                    rule->srcIpV6AddrLB_.v6_addr16[2],rule->srcIpV6AddrLB_.v6_addr16[3],
+                                                    rule->rcIpV6AddrLB_.v6_addr16[4],rule->srcIpV6AddrLB_.v6_addr16[5],
+                                                    rule->srcIpV6AddrLB_.v6_addr16[6],rule->srcIpV6AddrLB_.v6_addr16[7],
+                                                    rule->srcIpV6AddrUB_.v6_addr16[0], rule->srcIpV6AddrUB_.v6_addr16[1], 
+                                                    rule->srcIpV6AddrUB_.v6_addr16[2],rule->srcIpV6AddrUB_.v6_addr16[3],
+                                                    rule->srcIpV6AddrUB_.v6_addr16[4],rule->srcIpV6AddrUB_.v6_addr16[5],
+                                                    rule->srcIpV6AddrUB_.v6_addr16[6],rule->srcIpV6AddrUB_.v6_addr16[7]
+                                                    );
+                                            printk("\tdipLB: %x:%x:%x:%x:%x:%x:%x:%x  dipUB: %x:%x:%x:%x:%x:%x:%x:%x\n",
+                                                    rule->dstIpV6AddrLB_.v6_addr16[0], rule->dstIpV6AddrLB_.v6_addr16[1], 
+                                                    rule->dstIpV6AddrLB_.v6_addr16[2],rule->dstIpV6AddrLB_.v6_addr16[3],
+                                                    rule->dstIpV6AddrLB_.v6_addr16[4],rule->dstIpV6AddrLB_.v6_addr16[5],
+                                                    rule->dstIpV6AddrLB_.v6_addr16[6],rule->dstIpV6AddrLB_.v6_addr16[7],
+                                                    rule->dstIpV6AddrUB_.v6_addr16[0], rule->dstIpV6AddrUB_.v6_addr16[1], 
+                                                    rule->dstIpV6AddrUB_.v6_addr16[2],rule->dstIpV6AddrUB_.v6_addr16[3],
+                                                    rule->dstIpV6AddrUB_.v6_addr16[4],rule->dstIpV6AddrUB_.v6_addr16[5],
+                                                    rule->dstIpV6AddrUB_.v6_addr16[6],rule->dstIpV6AddrUB_.v6_addr16[7]
+                                                    );
+                                        }
+                                        printk("\tFlowLabel: 0x%x   FlowLabelM: 0x%x\n",
+                                                rule->ipv6FlowLabel_, rule->ipv6FlowLabelM_
+                                                );
+                                        printk("\tInvert: %d   Combine: %d   IPtunnel: %d\n",
+                                                rule->ipv6Invert_, rule->ipv6Combine_,rule->ipv6IPtunnel_
+                                                );
+                                        printk("\tTrafficClassP: %d   TrafficClassM: %d   NextHeaderP: %d   NextHeaderM: %d\n",
+                                                rule->ipv6TrafficClass_, rule->ipv6TrafficClassM_,rule->ipv6NextHeader_,rule->ipv6NextHeaderM_ 
+                                                );
+                                        printk("\tHTTPP: %d   HTTPM: %d   IdentSDIPP: %d   IdentSDIPM: %d\n",
+                                                rule->ipv6HttpFilter_, rule->ipv6HttpFilterM_,rule->ipv6IdentSrcDstIp_,rule->ipv6IdentSrcDstIpM_ 
+                                                );
+                                        /* update  */
+                                        ipv6_flag = 1;//handle the ipv6 second rule successful 
+                                    }
+                                    
+                                }
+                            break;
+#endif
+
 								default:
 									printk("rule->ruleType_(0x%x)\n", rule->ruleType_);
 
@@ -1120,6 +1422,12 @@ int32 rtl865x_show_allAclChains(void)
 							case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
 								printk("\tratelimitIdx: %d  ",  rule->ratelimtIdx_);
 								break;
+                                
+#if defined(CONFIG_RTL_8198C)
+                            case RTL865X_ACL_VID:
+                                printk("\taclvid: %d  ", rule->aclvid_);
+                                break;
+#endif
 							default:
 								;
 
@@ -1127,6 +1435,13 @@ int32 rtl865x_show_allAclChains(void)
 						printk("pktOpApp: %d\n",  rule->pktOpApp_);
 
 						rule = rule->next;
+#if defined(CONFIG_RTL_8198C)
+                        if (ipv6_flag == 1)
+                        {
+                            rule = rule->next;
+                            ipv6_flag= 0;
+                        }
+#endif
 					}
 					printk("===========================\n");
 					chain = chain->nextChain;
@@ -1228,20 +1543,10 @@ static int32 _rtl865x_setAsicNetif(rtl865x_netif_local_t *entry)
 	asicEntry.vid = entry->vid;
 	asicEntry.valid = entry->valid;
 
-#ifdef CONFIG_RTL_8367R_SUPPORT
-	{
-	/*
-	  Prevent port blocked.
-	  When 8367RB got attacked packet which source mac address
-	  is equal to DUT LAN/WAN MAC address, the 8367RB will learn 
-	  the SA to L2 table. Later, the incoming packet which DA =
-	  DUT LAN/WAN MAC will be dropped until this L2 entry timeout.
-	 */
-	extern void set_8367r_L2(uint8 *mac, int intf_wan, int is_static);
-	set_8367r_L2(&entry->macAddr.octet[0], entry->is_wan, 1);
-	}
-#endif
-
+    #if defined (CONFIG_RTL_8198C)
+	asicEntry.mtuV6         = entry->mtuV6;
+	asicEntry.enableRouteV6 = entry->enableRouteV6;
+    #endif
 	retval = rtl8651_setAsicNetInterface( entry->asicIdx, &asicEntry);
 	return retval;
 
@@ -1307,6 +1612,49 @@ rtl865x_netif_local_t *_rtl865x_getNetifByName(char *name)
 	#endif
 	return netif;
 }
+
+
+#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+#ifdef CONFIG_RTL_HW_DSLITE_SUPPORT
+rtl865x_netif_local_t *_rtl865x_getNetifByType(int iftype)
+{
+	int32 i;
+	rtl865x_netif_local_t *netif = NULL;
+
+	if(iftype <IF_6RD||iftype >IF_DSLT)
+		return NULL;
+
+	for(i = 0; i < NETIF_NUMBER; i++)
+	{
+		//printk("i(%d),ifname(%s),netifTbl(0x%p),netifTblName(%s)\n",i,name,&netifTbl[i],netifTbl[i].name);
+		if(netifTbl[i].valid == 1 && netifTbl[i].if_type== iftype )
+		{			
+			netif = &netifTbl[i];			
+			break;
+		}
+	}
+	return netif;
+}
+int32 rtl865x_updatev6SwNetif(char *netifName,int iftype)
+{
+	int32 retval = FAILED;
+	rtl865x_netif_local_t *netifold = NULL;
+	netifold=_rtl865x_getNetifByType(iftype);
+	if(netifold == NULL)
+	{
+		printk("retval:%d,%s,%d,[%s]:[%d].\n",retval,netifName,iftype,__FUNCTION__,__LINE__);
+		return retval;
+	}
+	
+	strcpy(netifold->name, netifName);
+	netifold->if_type = iftype;
+	retval = SUCCESS;
+	_rtl865x_setDefaultWanNetif(netifName);
+	return retval;
+}
+#endif
+#endif
+
 
 rtl865x_netif_local_t *_rtl865x_getDefaultWanNetif(void)
 {
@@ -1463,6 +1811,12 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
 	entry->is_wan = netif->is_wan;
 	entry->dmz = netif->dmz;
 	entry->is_slave = netif->is_slave;
+
+    #if defined (CONFIG_RTL_8198C)
+    entry->enableRouteV6 = netif->enableRouteV6;
+    entry->mtuV6         = netif->mtuV6;
+    #endif
+
 	memcpy(entry->name,netif->name,MAX_IFNAMESIZE);
 	
 	/*private number...*/
@@ -1680,13 +2034,33 @@ int32 _rtl865x_setNetifMtu(rtl865x_netif_t *netif)
 		return RTL_EENTRYNOTFOUND;
 
 	entry->mtu = netif->mtu;
-
+	#if defined(CONFIG_RTL_8198C)
+	entry->mtuV6 = netif->mtuV6;
+	#endif
 	/*update asic table*/
 	retval = _rtl865x_setAsicNetif(entry);
 
 	return retval;
 
 }
+
+#if defined(CONFIG_RTL_8198C)
+int32 _rtl865x_setNetifMtuV6(rtl865x_netif_t *netif)
+{
+	int32 retval = FAILED;
+	rtl865x_netif_local_t *entry;
+	entry = _rtl865x_getNetifByName(netif->name);
+
+	if(entry == NULL)
+		return RTL_EENTRYNOTFOUND;
+
+	entry->mtuV6 = netif->mtuV6;
+
+	/*update asic table*/
+	retval = _rtl865x_setAsicNetif(entry);
+	return retval;
+}
+#endif
 
 int32 _rtl865x_getNetifIdxByVid(uint16 vid)
 {
@@ -1749,8 +2123,13 @@ int32 _rtl865x_getAclFromAsic(int32 index, rtl865x_AclRule_t *rule)
 	_rtl8651_readAsicEntry(TYPE_ACL_RULE_TABLE, index, &entry);
 	bzero(rule, sizeof(rtl865x_AclRule_t));
 
+#if defined(CONFIG_RTL_8198C)
+    rule->ruleType_  = entry.ruleType  ;
+    rule->ruleType_ |= entry.ruleType1<<4;
+	switch(rule->ruleType_) {
+#else    
 	switch(entry.ruleType) {
-
+#endif
 	case RTL865X_ACL_MAC: /* Ethernet rule type */
 		 rule->dstMac_.octet[0]     = entry.is.ETHERNET.dMacP47_32 >> 8;
 		 rule->dstMac_.octet[1]     = entry.is.ETHERNET.dMacP47_32 & 0xff;
@@ -1923,6 +2302,60 @@ l3l4_shared:
 		 rule->dstFilterPortLowerBound_ = entry.is.DST_FILTER.DPORTLB;
  	 	 rule->ruleType_ = entry.ruleType;
 		 break;
+
+#if defined(CONFIG_RTL_8198C)
+	case RTL865X_ACL_IPV6: /* IP Rule Type: 0x0010 */
+	case RTL865X_ACL_IPV6_RANGE:
+
+        if(entry.ipv6ETY0)//first entry
+        {
+            rule->srcIpV6Addr_.v6_addr32[3] = entry.is.L3V6.is.entry0.sip_addr31_0;
+            rule->srcIpV6Addr_.v6_addr32[2] = entry.is.L3V6.is.entry0.sip_addr63_32;
+            rule->srcIpV6Addr_.v6_addr32[1] = entry.is.L3V6.is.entry0.sip_addr95_64;
+            rule->srcIpV6Addr_.v6_addr32[0] = entry.is.L3V6.is.entry0.sip_addr127_96;
+            
+            rule->srcIpV6AddrMask_.v6_addr32[3] = entry.is.L3V6.is.entry0.sip_mask31_0;
+            rule->srcIpV6AddrMask_.v6_addr32[2] = entry.is.L3V6.is.entry0.sip_mask63_32;
+            rule->srcIpV6AddrMask_.v6_addr32[1] = entry.is.L3V6.is.entry0.sip_mask95_64;
+
+            rule->srcIpV6AddrMask_.v6_addr32[0] =  entry.ipv6.is.entry0.sip_mask119_96;
+            rule->srcIpV6AddrMask_.v6_addr32[0] |= entry.ipv6.is.entry0.sip_mask127_120 <<24;
+            rule->ipv6FlowLabel_  =  entry.ipv6.is.entry0.flowLabel;
+            rule->ipv6FlowLabelM_ =  entry.ipv6.is.entry0.flowLabelM3_0;
+            rule->ipv6FlowLabelM_ |= entry.ipv6.is.entry0.flowLabelM19_4<<4;
+        }
+        else
+        {
+            rule->dstIpV6Addr_.v6_addr32[3] = entry.is.L3V6.is.entry1.dip_addr31_0;
+            rule->dstIpV6Addr_.v6_addr32[2] = entry.is.L3V6.is.entry1.dip_addr63_32;
+            rule->dstIpV6Addr_.v6_addr32[1] = entry.is.L3V6.is.entry1.dip_addr95_64;
+            rule->dstIpV6Addr_.v6_addr32[0] = entry.is.L3V6.is.entry1.dip_addr127_96;
+      
+            rule->dstIpV6AddrMask_.v6_addr32[3] = entry.is.L3V6.is.entry1.dip_mask31_0;
+            //entry.is.L3V6.is.entry1.dip_mask63_32  = rule->dstIpV6AddrMask_.v6_addr32[2];
+            //entry.is.L3V6.is.entry1.dip_mask95_64  = rule->dstIpV6AddrMask_.v6_addr32[1];
+            rule->dstIpV6AddrMask_.v6_addr32[2] = entry.is.L3V6.is.entry1.dip_mask63_32;
+            rule->dstIpV6AddrMask_.v6_addr32[1] = entry.is.L3V6.is.entry1.dip_mask95_64;
+            
+            rule->dstIpV6AddrMask_.v6_addr32[0] = entry.ipv6.is.entry1.dip_mask119_96;
+            rule->dstIpV6AddrMask_.v6_addr32[0] |= entry.ipv6.is.entry1.dip_mask127_120<<24;
+            rule->ipv6TrafficClass_  = entry.ipv6.is.entry1.trafficClass; 
+            rule->ipv6TrafficClassM_ = entry.ipv6.is.entry1.trafficClassM; 
+            rule->ipv6NextHeader_    = entry.ipv6.is.entry1.nextHeader; 
+            rule->ipv6NextHeaderM_   = entry.ipv6.is.entry1.nextHeaderM; 
+            rule->ipv6HttpFilter_    = entry.ipv6.is.entry1.HTTPP;
+            rule->ipv6HttpFilterM_    = entry.ipv6.is.entry1.HTTPM;
+            rule->ipv6IdentSrcDstIp_ = entry.ipv6.is.entry1.identSDIPP;
+            rule->ipv6IdentSrcDstIpM_ = entry.ipv6.is.entry1.identSDIPM;
+        }
+
+        rule->ipv6Invert_    = entry.inv;
+        rule->ipv6EntryType_ = entry.ipv6ETY0;
+        rule->ipv6Combine_  = entry.comb ;
+        rule->ipv6IPtunnel_ = entry.ip_tunnel;
+		 break;
+#endif
+        
 	default: return FAILED; /* Unknown rule type */
 
 	}
@@ -1964,6 +2397,11 @@ l3l4_shared:
 	case RTL865X_ACL_PRIORITY:
 		rule->priority_ = entry.nextHop;
 		break;
+#if defined(CONFIG_RTL_8198C)
+    case RTL865X_ACL_VID:
+        rule->aclvid_ = (entry.nextHop | (entry.vid <<10)) & 0xfff;
+        break;
+#endif
 
 	}
 
@@ -2123,10 +2561,70 @@ l3l4_shared:
     		 entry.ruleType = rule->ruleType_;
 		 break;
 
+
+#if defined(CONFIG_RTL_8198C)
+	case RTL865X_ACL_IPV6: /* IP Rule Type: 0x0010 */
+	case RTL865X_ACL_IPV6_RANGE:
+        entry.ruleType = rule->ruleType_;
+        entry.ruleType1 = rule->ruleType_>>4;
+        if(rule->ipv6EntryType_==1)//first entry
+        {
+            entry.is.L3V6.is.entry0.sip_addr31_0   = rule->srcIpV6Addr_.v6_addr32[3];
+            entry.is.L3V6.is.entry0.sip_addr63_32  = rule->srcIpV6Addr_.v6_addr32[2];
+            entry.is.L3V6.is.entry0.sip_addr95_64  = rule->srcIpV6Addr_.v6_addr32[1];
+            entry.is.L3V6.is.entry0.sip_addr127_96 = rule->srcIpV6Addr_.v6_addr32[0];
+            
+            entry.is.L3V6.is.entry0.sip_mask31_0   = rule->srcIpV6AddrMask_.v6_addr32[3];
+            entry.is.L3V6.is.entry0.sip_mask63_32  = rule->srcIpV6AddrMask_.v6_addr32[2];
+            entry.is.L3V6.is.entry0.sip_mask95_64  = rule->srcIpV6AddrMask_.v6_addr32[1];
+
+            entry.ipv6.is.entry0.sip_mask119_96    = rule->srcIpV6AddrMask_.v6_addr32[0]&0xFFFFFF;
+            entry.ipv6.is.entry0.sip_mask127_120   = rule->srcIpV6AddrMask_.v6_addr32[0]>>24;
+            entry.ipv6.is.entry0.flowLabel         = rule->ipv6FlowLabel_;
+            entry.ipv6.is.entry0.flowLabelM3_0     = rule->ipv6FlowLabelM_&0xF;
+            entry.ipv6.is.entry0.flowLabelM19_4    = rule->ipv6FlowLabelM_>>4;      
+        }
+        else
+        {
+            entry.is.L3V6.is.entry1.dip_addr31_0   = rule->dstIpV6Addr_.v6_addr32[3];
+            entry.is.L3V6.is.entry1.dip_addr63_32  = rule->dstIpV6Addr_.v6_addr32[2];
+            entry.is.L3V6.is.entry1.dip_addr95_64  = rule->dstIpV6Addr_.v6_addr32[1];
+            entry.is.L3V6.is.entry1.dip_addr127_96 = rule->dstIpV6Addr_.v6_addr32[0];
+            
+            entry.is.L3V6.is.entry1.dip_mask31_0   = rule->dstIpV6AddrMask_.v6_addr32[3];
+            entry.is.L3V6.is.entry1.dip_mask63_32  = rule->dstIpV6AddrMask_.v6_addr32[2];
+            entry.is.L3V6.is.entry1.dip_mask95_64  = rule->dstIpV6AddrMask_.v6_addr32[1];
+            
+            entry.ipv6.is.entry1.dip_mask119_96    = rule->dstIpV6AddrMask_.v6_addr32[0]&0xFFFFFF;
+            entry.ipv6.is.entry1.dip_mask127_120   = rule->dstIpV6AddrMask_.v6_addr32[0]>>24;
+            entry.ipv6.is.entry1.trafficClass      = rule->ipv6TrafficClass_; 
+            entry.ipv6.is.entry1.trafficClassM     = rule->ipv6TrafficClassM_; 
+            entry.ipv6.is.entry1.nextHeader        = rule->ipv6NextHeader_; 
+
+            entry.ipv6.is.entry1.nextHeaderM       = rule->ipv6NextHeaderM_; 
+            entry.ipv6.is.entry1.HTTPP       = entry.ipv6.is.entry1.HTTPM = rule->ipv6HttpFilter_;
+            entry.ipv6.is.entry1.identSDIPP  = entry.ipv6.is.entry1.identSDIPM  = rule->ipv6IdentSrcDstIp_; 
+        }
+
+        entry.inv       = rule->ipv6Invert_;
+        entry.ipv6ETY0  = rule->ipv6EntryType_;
+        entry.comb      = rule->ipv6Combine_;
+        entry.ip_tunnel = rule->ipv6IPtunnel_;
+		 break;
+#endif
 	default: return FAILED; /* Unknown rule type */
 
 	}
 
+	#if defined(CONFIG_RTL_8198C)
+	/*   when comb = 1, will continue to check down next ACL rule, 
+		the last one of the rule set must set comb = 0, 
+		all ACL rule match will do the last one's action 
+		currently, only 98c support this function, ipv6 packets donot support this function
+	*/
+	entry.comb		= rule->ipv6Combine_;
+	#endif
+	
 	switch(rule->actionType_)
 	{
 	case RTL865X_ACL_PERMIT:
@@ -2162,6 +2660,12 @@ l3l4_shared:
 	case RTL865X_ACL_PRIORITY:
 		entry.nextHop = rule->priority_;
 		break;
+    #if defined(CONFIG_RTL_8198C)
+	case RTL865X_ACL_VID:
+		entry.nextHop = (rule->aclvid_ & 0x3ff);
+        entry.vid = (rule->aclvid_ & 0xc00)>>10;
+		break;
+    #endif
 
 	}
 
@@ -2735,7 +3239,9 @@ static int32 _rtl865x_synAclwithAsicTbl(void)
 			else
 				netif->outAclEnd = netif->outAclStart = RTL865X_ACLTBL_PERMIT_ALL; /*default permit...*/
 
-			
+			#if defined(CONFIG_RTL_MULTIPLE_WAN)
+				netif->enableRoute = (rtl8651_getAsicOperationLayer()>2)? 1:0;
+			#endif
 
 			_rtl865x_setAsicNetif(netif);
 
@@ -3631,20 +4137,20 @@ static int32 _rtl865x_add_sw_acl(rtl865x_AclRule_t *rule, char *netifName,int32 
 int32 rtl865x_add_sw_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//printk("********%s(%d)*********,netif(%s),priority(%d)\n",__FUNCTION__,__LINE__,netifName,priority);
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
 	if(rtl865x_acl_enable == 0)
 		return retval;
 #endif
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_add_sw_acl(rule,netifName,priority);
 	if(retval == RTL_ENOFREEBUFFER){	// acl entries is full.
 		_rtl865x_setDefACLForAllNetif(RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL);
 	}
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	//printk("********%s(%d)*********retval(%d)\n",__FUNCTION__,__LINE__,retval);
 	return retval;
 }
@@ -3756,20 +4262,20 @@ int32 rtl865x_init_acl(void)
 int32 rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//printk("********%s(%d)*********,netif(%s),priority(%d)\n",__FUNCTION__,__LINE__,netifName,priority);
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
 	if(rtl865x_acl_enable == 0)
 		return retval;
 #endif
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_add_acl(rule,netifName,priority);
 	if(retval == RTL_ENOFREEBUFFER){	// acl entries is full.
 		_rtl865x_setDefACLForAllNetif(RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL);
 	}
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	//printk("********%s(%d)*********retval(%d)\n",__FUNCTION__,__LINE__,retval);
 	return retval;
 }
@@ -3789,12 +4295,12 @@ int32 rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
 int32 rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_del_acl(rule,netifName,priority);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 
@@ -3926,12 +4432,12 @@ int32 rtl865x_detachMasterNetif(char *slave)
 int32 rtl865x_addNetif(rtl865x_netif_t *netif)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_addNetif(netif);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 
@@ -3947,12 +4453,12 @@ int32 rtl865x_addNetif(rtl865x_netif_t *netif)
 int32 rtl865x_delNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delNetif(ifName);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 #if defined (CONFIG_RTL_LOCAL_PUBLIC)
@@ -3999,12 +4505,12 @@ int32 rtl865x_addVirtualNetif(rtl865x_netif_t *netif)
 int32 rtl865x_delVirtualNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delNetif(ifName);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	_rtl865x_confReservedAcl();
 	return retval;
 }
@@ -4021,12 +4527,12 @@ when other table entry refer network interface table entry, please call this API
 int32 rtl865x_referNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH2(flags);
 	retval = _rtl865x_referNetif(ifName);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH2(flags);
 	return retval;
 }
 
@@ -4042,12 +4548,12 @@ this API should be called after rtl865x_referNetif.
 int32 rtl865x_deReferNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH2(flags);
 	retval = _rtl865x_deReferNetif(ifName);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH2(flags);
 	return retval;
 }
 
@@ -4063,12 +4569,12 @@ int32 rtl865x_deReferNetif(char *ifName)
 int32 rtl865x_setNetifVid(char *name, uint16 vid)
 {
 	int32 ret;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	ret = _rtl865x_setNetifVid(name,vid);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return ret;
 }
 
@@ -4097,12 +4603,12 @@ int32 rtl865x_setPortToNetif(char *name,uint32 port)
 int32 rtl865x_setNetifType(char *name, uint32 ifType)
 {
 	int32 ret;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	ret = _rtl865x_setNetifType(name,ifType);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return ret;
 }
 
@@ -4117,12 +4623,12 @@ int32 rtl865x_setNetifType(char *name, uint32 ifType)
 int32 rtl865x_setNetifMac(rtl865x_netif_t *netif)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_setNetifMac(netif);
 	//rtl_up(&netif_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH_HW(flags);
 	return retval;
 }
 
@@ -4137,12 +4643,14 @@ int32 rtl865x_setNetifMac(rtl865x_netif_t *netif)
 int32 rtl865x_setNetifMtu(rtl865x_netif_t *netif)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
+	//SMP_LOCK_ETH(flags);
 	local_irq_save(flags);
 	retval = _rtl865x_setNetifMtu(netif);
 	//rtl_up(&netif_sem);
 	local_irq_restore(flags);
+	//SMP_UNLOCK_ETH(flags);
 	return retval;
 }
 
@@ -4236,6 +4744,38 @@ int32 rtl865x_disableNetifRouting(rtl865x_netif_local_t *netif)
 	return retval;
 }
 
+#if defined(CONFIG_RTL_8198C)
+int32 rtl865x_enableNetifRoutingV6(rtl865x_netif_local_t *netif)
+{
+	int32 retval = FAILED;
+
+	if(netif == NULL)
+		return RTL_EINVALIDINPUT;
+	if(netif ->enableRouteV6 == 1)
+		return SUCCESS;
+
+	netif->enableRouteV6 = 1;
+	retval = _rtl865x_setAsicNetif(netif);
+	return retval;
+}
+
+int32 rtl865x_disableNetifRoutingV6(rtl865x_netif_local_t *netif)
+{
+	int32 retval = FAILED;
+
+	if(netif == NULL)
+		return RTL_EINVALIDINPUT;
+
+	if(netif ->enableRouteV6 == 0)
+		return SUCCESS;
+
+	netif->enableRouteV6 = 0;
+	retval = _rtl865x_setAsicNetif(netif);
+	return retval;
+}
+
+
+#endif
 /*
 @func int32 | rtl865x_disableNetifRouting |config network interface operation layer.
 @parm rtl865x_netif_local_t* | netif | netif & enableRoute
@@ -4247,8 +4787,10 @@ int32 rtl865x_disableNetifRouting(rtl865x_netif_local_t *netif)
 int32 rtl865x_reinitNetifTable(void)
 {
 	int32 i;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&netif_sem);
+	/*Fix jwj: If here use SMP_LOCK_ETH(flags), rtl865x_reChangeOpMode will cause dead-lock.*/
+	//SMP_LOCK_ETH(flags);
 	local_irq_save(flags);
 	for(i = 0; i < NETIF_NUMBER; i++)
 	{
@@ -4267,6 +4809,7 @@ int32 rtl865x_reinitNetifTable(void)
 #endif
 
 	//rtl_up(&netif_sem);
+	//SMP_UNLOCK_ETH(flags);
 	local_irq_restore(flags);
 	return SUCCESS;
 }
@@ -4649,8 +5192,8 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 	rtl865x_AclRule_t	rule;
 	int ret=FAILED;
 
-	unsigned long flags;
-	local_irq_save(flags);
+	unsigned long flags=0;
+	SMP_LOCK_ETH(flags);
 
 #if defined (CONFIG_RTK_VLAN_SUPPORT)
 		if(rtk_vlan_support_enable==0)
@@ -4702,8 +5245,156 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
 		}
 #endif
-		local_irq_restore(flags);
+		SMP_UNLOCK_ETH(flags);
 
 		return SUCCESS;
 }
+
+#ifdef CONFIG_RTL_PROC_NEW
+int32 sw_netif_read(struct seq_file *s, void *v)
+{
+	uint8 *mac;
+	int32 i;
+
+	seq_printf(s, "%s\n", "SW Network Interface Table:");
+	for ( i = 0; i < NETIF_NUMBER; i++ )
+	{
+		
+		rtl865x_netif_local_t *intf;
+		
+		intf = & netifTbl[i];
+		
+		if ( intf->valid )
+		{
+			mac = (uint8 *)&intf->macAddr.octet[0];
+			seq_printf(s,"[%d]netif:%s	VID[%d] %x:%x:%x:%x:%x:%x",
+				i, intf->name,intf->vid, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+			seq_printf(s,"	Routing %s	\n",
+				intf->enableRoute==TRUE? "enabled": "disabled" );
+			seq_printf(s,"is slave %d	",intf->is_slave);
+			if(intf->is_slave){
+				seq_printf(s,"master netif:%s",(intf->master->name));
+			}	
+			seq_printf(s,"\n");
+			#if 0
+			seq_printf(s,"      ingress ");
+
+			if ( RTL8651_ACLTBL_DROP_ALL <= intf.inAclStart )
+			{
+				if ( intf.inAclStart == RTL8651_ACLTBL_PERMIT_ALL )
+					seq_printf(s,"permit all,");
+				if ( intf.inAclStart == RTL8651_ACLTBL_ALL_TO_CPU )
+					seq_printf(s,"all to cpu,");
+				if ( intf.inAclStart == RTL8651_ACLTBL_DROP_ALL )
+					seq_printf(s,"drop all,");
+			}
+			else
+				seq_printf(s,"ACL %d-%d, ", intf.inAclStart, intf.inAclEnd);
+
+			seq_printf(s,"  egress ");
+
+			if ( RTL8651_ACLTBL_DROP_ALL <= intf.outAclStart )
+			{
+				if ( intf.outAclStart == RTL8651_ACLTBL_PERMIT_ALL )
+					seq_printf(s,"permit all,");
+				if ( intf.outAclStart==RTL8651_ACLTBL_ALL_TO_CPU )
+					seq_printf(s,"all to cpu,");
+				if ( intf.outAclStart==RTL8651_ACLTBL_DROP_ALL )
+					seq_printf(s,"drop all,");
+			}
+			else
+				seq_printf(s,"ACL %d-%d, ", intf.outAclStart, intf.outAclEnd);
+			#endif
+			seq_printf(s, "\n   VID:%d,MTU %d Bytes\n",  intf->vid,intf->mtu);
+#ifdef CONFIG_RTL_8198C 
+			seq_printf(s, "      enableRouteV6:%d,    mtuv6:%d\n", intf->enableRouteV6, intf->mtuV6);
+#endif
+
+			
+			seq_printf(s, ")\n\n");
+		}
+
+	}
+	return 0;
+}
+#else
+int32 sw_netif_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	uint8 *mac;
+	int32 i;
+
+	len = sprintf(page, "%s\n", "sw Network Interface Table:");
+	for ( i = 0; i < RTL865XC_NETIFTBL_SIZE; i++ )
+	{
+		rtl865x_netif_local_t *intf;
+		
+		intf = & netifTbl[i];
+
+		if (intf->valid)
+		{
+			
+			mac = (uint8 *)&intf->macAddr.octet[0];
+			len += sprintf(page+len,"[%d]  %s	VID[%d] %x:%x:%x:%x:%x:%x",
+				i, intf->name,intf->vid, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+			len += sprintf(page+len,"  Routing %s \n",
+				intf->enableRoute==TRUE? "enabled": "disabled" );
+			
+			len += sprintf(page+len,"is slave %d		",intf->is_slave);
+			if(intf->is_slave){
+				len += sprintf(page+len,"master netif:%s",intf->master->name);
+			}	
+			len += sprintf(page+len," \n");
+			#if 0
+			len += sprintf(page+len,"      ingress ");
+
+			if ( RTL8651_ACLTBL_DROP_ALL <= intf.inAclStart )
+			{
+				if ( intf.inAclStart == RTL8651_ACLTBL_PERMIT_ALL )
+					len += sprintf(page+len,"permit all,");
+				if ( intf.inAclStart == RTL8651_ACLTBL_ALL_TO_CPU )
+					len += sprintf(page+len,"all to cpu,");
+				if ( intf.inAclStart == RTL8651_ACLTBL_DROP_ALL )
+					len += sprintf(page+len,"drop all,");
+			}
+			else
+				len += sprintf(page+len,"ACL %d-%d, ", intf.inAclStart, intf.inAclEnd);
+
+			len += sprintf(page+len,"  egress ");
+
+			if ( RTL8651_ACLTBL_DROP_ALL <= intf.outAclStart )
+			{
+				if ( intf.outAclStart == RTL8651_ACLTBL_PERMIT_ALL )
+					len += sprintf(page+len,"permit all,");
+				if ( intf.outAclStart==RTL8651_ACLTBL_ALL_TO_CPU )
+					len += sprintf(page+len,"all to cpu,");
+				if ( intf.outAclStart==RTL8651_ACLTBL_DROP_ALL )
+					len += sprintf(page+len,"drop all,");
+			}
+			else
+				len += sprintf(page+len,"ACL %d-%d, ", intf.outAclStart, intf.outAclEnd);
+			#endif
+			len += sprintf(page+len, "\n      %d MAC Addresses, MTU %d Bytes\n", intf->macAddrNumber, intf->mtu);
+#ifdef CONFIG_RTL_8198C 
+			len += sprintf(page+len, "      enableRouteV6:%d,    mtuv6:%d\n", intf->enableRouteV6, intf->mtuV6);
+#endif
+
+			
+			len += sprintf(page+len, ")\n\n");
+		}
+
+	}
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count)
+		len = count;
+	if (len<0)
+	  	len = 0;
+
+	return len;
+}
+#endif
+
 

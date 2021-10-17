@@ -28,6 +28,14 @@ SUBDIRS=lib ip tc misc netem genl
 
 LIBNETLINK=../lib/libnetlink.a ../lib/libutil.a
 
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+ifeq ($(KERNEL_VER),linux-2.6.30)
+CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+CFLAGS += -DKERNEL_3_10
+endif
+
 all: Config
 	@set -e; \
 	for i in $(SUBDIRS); \

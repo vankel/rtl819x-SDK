@@ -48,6 +48,14 @@ typedef struct elf32_hdr{
 #define DEFAULT_START_ADDR	0x80500000
 #define DEFAULT_BASE_ADDR	0x80000000
 
+#ifdef CONFIG_MTD_NAND
+#undef CODE_IMAGE_OFFSET
+
+#define RTK_NAND_REVERSE_SIZE	0x800000
+#define CODE_IMAGE_OFFSET	(CONFIG_RTL_CODE_IMAGE_OFFSET + RTK_NAND_REVERSE_SIZE)
+#endif
+
+
 static unsigned short calculateChecksum(char *buf, int len);
 
 /////////////////////////////////////////////////////////
@@ -166,11 +174,11 @@ int main(int argc, char** argv)
 		printf("Image flash start  addr          :0x%x\n", (unsigned int)CODE_IMAGE_OFFSET);
 		printf("Image flash end addr             :0x%x\n", (unsigned int)CODE_IMAGE_OFFSET+(unsigned int)status.st_size);
 
-//#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
-//		total_size = ROOT_IMAGE_OFFSET - CODE_IMAGE_OFFSET - CERT_SIZE;	// To reserve CERT_SIZE for 802.1x wlan client mode to store 802.1x certs
-//#else
+#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+		total_size = ROOT_IMAGE_OFFSET - CODE_IMAGE_OFFSET - CERT_SIZE;	// To reserve CERT_SIZE for 802.1x wlan client mode to store 802.1x certs
+#else
 		total_size = ROOT_IMAGE_OFFSET - CODE_IMAGE_OFFSET;
-//#endif
+#endif
 
 		if (status.st_size > (int)total_size)
 		{
@@ -278,7 +286,11 @@ int main(int argc, char** argv)
 
 	if (is_vmlinuxhdr) {
 		*((unsigned int *)pHeader) = DWORD_SWAP(padding_len);
+		#ifdef CONFIG_RTL_8198C
+		*((unsigned int *)((char *)pHeader+4)) = start_addr | 0x0020;
+		#else
 		*((unsigned int *)((char *)pHeader+4)) = start_addr;
+		#endif
 		lchecksum = DWORD_SWAP(calculate_long_checksum((unsigned int *)buf, size-12));
 		memcpy(&buf[size-12], &lchecksum, 4);		
 	}
@@ -299,7 +311,14 @@ int main(int argc, char** argv)
 		}
 		pHeader->len = DWORD_SWAP((size-sizeof(IMG_HEADER_T)));
 		pHeader->startAddr = DWORD_SWAP(startAddr);
+#ifndef CONFIG_MTD_NAND
 		pHeader->burnAddr = DWORD_SWAP(burnAddr);
+#else
+		if(!strcmp("linux",argv[1]) || !strcmp("linux-ro",argv[1]))
+			pHeader->burnAddr = DWORD_SWAP(burnAddr+RTK_NAND_REVERSE_SIZE);				
+		else
+			pHeader->burnAddr = DWORD_SWAP(burnAddr);	
+#endif
 
 		if( !strcmp("root", argv[1])) {
 			#define SIZE_OF_SQFS_SUPER_BLOCK 640		

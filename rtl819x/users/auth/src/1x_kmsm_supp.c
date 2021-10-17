@@ -94,6 +94,8 @@ Supp_Global * lib1x_init_supp(Dot1x_Authenticator * pAuth, Dot1x_Client *pClient
 #ifdef CLIENT_TLS
 	else if(pAuth->RSNVariable.AuthenticationSuit.AlgoTable[DOT11_AuthKeyType_RSN].Enabled){
 		pGlobal->AuthKeyMethod = DOT11_AuthKeyType_RSN;
+	}else if(pAuth->RSNVariable.AuthenticationSuit.AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled){//CONFIG_IEEE80211W_CLI
+		pGlobal->AuthKeyMethod = DOT11_AuthKeyType_802_1X_SHA256;	
 	}
 #endif
 
@@ -296,7 +298,21 @@ void lib1x_supp_timer_proc(Dot1x_Client *pClient)
 	}
 
 }
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+void lib1x_eth_1sec_timer()
+{
+	struct interface_data *intcur;
+	char respframe[1518];
+	int  respsize;
+  	intcur = int_list;
+	if (intcur != NULL && intcur->statemachine != NULL)
+	{
+	     if(statemachine_run(intcur, NULL, 0, respframe, &respsize) == XDATA){
+			sendframe(intcur, (char *)&respframe, respsize);
+		}
+	}
+}
+#endif
 //--------------------------------------------------
 // Process event indicated from driver
 //--------------------------------------------------
@@ -511,7 +527,9 @@ void lib1x_suppsm_capture_auth( Supp_Global * pGlobal, lib1x_nal_intfdesc_tag * 
 
 	if ( eth->ether_type != htons(LIB1X_ETHER_EAPOL_TYPE) )
 		return;
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	if(pGlobal->auth->currentRole != role_eth)
+#endif
 	if(lib1x_control_STA_QUERY_BSSID(pGlobal) != 0 )
 		return;
 
@@ -554,7 +572,6 @@ void lib1x_suppsm_capture_auth( Supp_Global * pGlobal, lib1x_nal_intfdesc_tag * 
 //				struct eap_header *myeap;
 
 				eap_process_header(workint, (char *)newframe, framesize);
-
 				// Process our state machine.
 				if (statemachine_run(workint, newframe, framesize,
 					(char *)&respframe, &respsize) == XDATA)

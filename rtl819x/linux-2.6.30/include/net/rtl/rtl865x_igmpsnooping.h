@@ -108,9 +108,8 @@ typedef struct rtl_igmpPortInfo_s
 #define DEL_RESERVED_MULTICAST_FLAG	0
 #define ADD_RESERVED_MULTICAST_FLAG	1
 #define MAX_RESERVED_MULTICAST_NUM 16
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-#define RTL_IMGP_MAX_BRMODULE	8
-#endif
+
+
 struct rtl865x_ReservedMCastRecord
 {
 	unsigned int groupAddr;
@@ -144,6 +143,7 @@ int32 rtl_igmpMldProcess(uint32 moduleIndex, uint8 * macFrame,  uint32 portNum, 
 int32 rtl_getMulticastDataFwdInfo(uint32 moduleIndex, struct rtl_multicastDataInfo * multicastDataInfo, struct rtl_multicastFwdInfo *multicastFwdInfo);
 
 int32 rtl_maintainMulticastSnoopingTimerList(uint32 currentSystemTime);
+int32 rtl_getGroupNum(uint32 ipVersion);
 
 
 #ifdef CONFIG_PROC_FS
@@ -152,6 +152,9 @@ int igmp_write(struct file *file, const char __user *buffer, size_t count, loff_
 #endif
 
 int32 rtl_getGroupInfo(uint32 groupAddr, struct rtl_groupInfo *groupInfo);
+#if defined(CONFIG_RTL_MLD_SNOOPING)
+int32 rtl_getGroupInfov6(uint32* groupAddr, struct rtl_groupInfo *groupInfo);
+#endif
 int32 rtl_flushAllIgmpRecord(void);
 int32 rtl_delIgmpRecordByMacAddr(uint8 *macAddr);
 

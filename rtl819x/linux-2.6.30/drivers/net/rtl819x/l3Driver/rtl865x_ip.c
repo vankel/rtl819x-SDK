@@ -42,8 +42,10 @@
 static rtl865x_ip_entry_t *rtl865x_ipTable;
 
 #define IP_TABLE_INDEX(entry)	(entry - rtl865x_ipTable)
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 static RTL_DECLARE_MUTEX(ip_sem);
-
+#endif
 static int32 _rtl865x_delIp(ipaddr_t extIp);
 
 /*
@@ -256,12 +258,12 @@ the extIp is the primary key of the ip table.
 int32 rtl865x_addIp(ipaddr_t intIp, ipaddr_t extIp, uint32 ip_type)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags=0;	
 	//rtl_down_interruptible(&ip_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_addIp(intIp, extIp, ip_type);
 	//rtl_up(&ip_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 
 }
@@ -279,12 +281,12 @@ the extIp is the primary key of the ip table.
 int32 rtl865x_delIp(ipaddr_t extIp)
 {
 	int32 retval = FAILED;
-	unsigned long flags;
+	unsigned long flags=0;
 	//rtl_down_interruptible(&ip_sem);
-	local_irq_save(flags);
+	SMP_LOCK_ETH(flags);
 	retval = _rtl865x_delIp(extIp);
 	//rtl_up(&ip_sem);
-	local_irq_restore(flags);
+	SMP_UNLOCK_ETH(flags);
 	return retval;
 	
 }

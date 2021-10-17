@@ -18,8 +18,12 @@
 #ifdef CONFIG_RTK_VOIP
 #include "voip_manager.h"
 #endif
+#define CONFIG_REFINE_BR_FW_RULE 1	//for smartbit performance
 int setFirewallIptablesRules(int argc, char** argv);
 char Iptables[]="iptables";
+#if defined(CONFIG_APP_EBTABLES)&&defined(CONFIG_EBTABLES_KERNEL_SUPPORT)
+char Ebtables[]="ebtables";
+#endif
 char Ip6tables[]="ip6tables";
 char INPUT[]= "INPUT";
 char OUTPUT[]= "OUTPUT";
@@ -397,23 +401,21 @@ int set_voip_parameter(char* pInterface){
 #endif
 	char rtp_port[20]={0};
 	char sip_port[10]={0};
-	int index, len, i;
+	int index;
 	#ifdef CONFIG_RTL_HARDWARE_NAT
 	int ivalue = 0;	
 	#endif
 	voipCfgParam_t  voipCfgParam;
-	char voip_service_ports[1024];
 
 
 	//printf("int set_voip_parameter....\n");
 	apmib_get(MIB_VOIP_CFG, (void*)&voipCfgParam);
 
-	len = 0;
+
 	for(index = 0; index < total_voip_ports; index++){
 		//iptables -A INPUT -i eth1 -p udp --dport 5060 -j ACCEPT
 		sprintf(sip_port,"%d", voipCfgParam.ports[index].sip_port);
 		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, in, pInterface, _protocol, _udp, dport,sip_port ,jump,ACCEPT, NULL_STR);
-		len += sprintf(&voip_service_ports[len], "%d ", voipCfgParam.ports[index].sip_port);
 
 		// iptables -I PREROUTING -t nat -i eth1 -p udp --dport 5060 -j ACCEPT
 		RunSystemCmd(NULL_FILE, Iptables, INSERT, PREROUTING, _table, nat_table , in, pInterface, _protocol, _udp, dport,sip_port ,jump,ACCEPT, NULL_STR);
@@ -421,12 +423,8 @@ int set_voip_parameter(char* pInterface){
 		sprintf(rtp_port,"%d:%d",voipCfgParam.ports[index].media_port,voipCfgParam.ports[index].media_port+3);
 		//iptables -I PREROUTING -t nat -i eth1 -p udp --dport 9000:9003 -j ACCEPT
 		RunSystemCmd(NULL_FILE, Iptables, INSERT, PREROUTING, _table, nat_table , in, pInterface, _protocol, _udp, dport, rtp_port ,jump,ACCEPT, NULL_STR);
-
-		for (i=0; i<4; i++)
-			len += sprintf(&voip_service_ports[len], "%d ", voipCfgParam.ports[index].media_port + i);
 	}
 
-	RunSystemCmd("/proc/ext_service_ports", "echo", voip_service_ports, NULL_STR);
 
 	#if 0
 	def CONFIG_RTL_HW_NAPT
@@ -474,7 +472,11 @@ int set_QoS(int operation, int wan_type, int wisp_wan_id)
 	unsigned char str_l7_filter[128]={0};
 
 	int needSetOnce = 1;
-#ifdef CONFIG_RTL_8198
+//#define QOS_MAC_U32_FILTER 1	
+#ifdef QOS_MAC_U32_FILTER	
+	unsigned char macAddr[64]={0};
+#endif	
+#if defined (CONFIG_RTL_8198)|| defined (CONFIG_RTL_8198C)
 	uplink_speed=1024000;
 	downlink_speed=1024000;
 #endif
@@ -774,11 +776,15 @@ int set_QoS(int operation, int wan_type, int wisp_wan_id)
 							system(command);
 						}
 						else if(entry.mode & QOS_RESTRICT_MAC){
+						#ifndef QOS_MAC_U32_FILTER	
 							sprintf(tmp_args3, "%02x:%02x:%02x:%02x:%02x:%02x",entry.mac[0], entry.mac[1], entry.mac[2], entry.mac[3], entry.mac[4], entry.mac[5]);
 							//RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, mangle_table , match, _mac, mac_dst, tmp_args3, jump, MARK, set_mark, tmp_args, NULL_STR);
 							sprintf(command,"%s %s %s %s %s %s %s %s %s %s %s %s %s %s", Iptables, ADD, POSTROUTING, _table, mangle_table , match, _mac, mac_dst, tmp_args3, str_l7_filter, jump, MARK, set_mark, tmp_args, NULL_STR);
 //printf("\r\n command=[%s],__[%s-%u]\r\n",command,__FILE__,__LINE__);	
 							system(command);
+						#else
+							sprintf(macAddr, "%02x:%02x:%02x:%02x:%02x:%02x",entry.mac[0], entry.mac[1], entry.mac[2], entry.mac[3], entry.mac[4], entry.mac[5]);
+						#endif
 		#ifdef CONFIG_IPV6
 							sprintf(command,"%s %s %s %s %s %s %s %s %s %s %s %s %s", Ip6tables, ADD, POSTROUTING, _table, mangle_table , match, _mac, mac_dst, tmp_args3, jump, MARK, set_mark, tmp_args, NULL_STR);
 							system(command);
@@ -814,8 +820,16 @@ int set_QoS(int operation, int wan_type, int wisp_wan_id)
 						}
 						RunSystemCmd(NULL_FILE, _tc, _qdisc, _add, _dev, br_interface, _parent, tmp_args1, _handle, tmp_args4, _sfq, _perturb, "10", NULL_STR);
 						//TC_CMD="tc qdisc add dev $BRIDGE parent 5:$lan_pkt_mark handle 5$lan_pkt_mark: sfq perturb 10"
+						#ifndef QOS_MAC_U32_FILTER
 						RunSystemCmd(NULL_FILE, _tc, _filter, _add, _dev, br_interface, _parent, "5:0", _prio, "100", _handle, tmp_args, _fw, _classid, tmp_args1, NULL_STR);
 						//TC_CMD="tc filter add dev $BRIDGE parent 5:0 protocol ip prio 100 handle $lan_pkt_mark fw classid 5:$lan_pkt_mark"
+						#else
+						if(entry.mode & QOS_RESTRICT_MAC)
+							RunSystemCmd(NULL_FILE, _tc, _filter, _add, _dev, br_interface, _parent, "5:0", _protocol2, _ip, _prio, "100", "u32","match", "ether", "dst", macAddr,_classid, tmp_args1, NULL_STR);
+						else	
+							RunSystemCmd(NULL_FILE, _tc, _filter, _add, _dev, br_interface, _parent, "5:0", _protocol2, _ip, _prio, "100", _handle, tmp_args, _fw, _classid, tmp_args1, NULL_STR);
+						//TC_CMD="tc filter add dev $WAN2 parent 3:0 protocol ip prio 100 handle $wan_pkt_mark fw classid 3:$wan_pkt_mark"
+						#endif	
 						lan_pkt_mark = lan_pkt_mark+1;
 					}
 #ifdef MULTI_PPPOE
@@ -834,26 +848,51 @@ int setURLFilter(void)
 {
 	char keywords[500];
 	char cmdBuffer[500];
-	char tmp1[40];
+	char macAddr[30];
+	char tmp1[64]={0};
 	URLFILTER_T entry;
 	int entryNum=0, index;
-	int mode;
+	int mode,i=0;
 	char c = 22;	//unseen char to distinguish
 	//printf("set urlfilter\n");
 	/*add URL filter Mode 0:Black list 1:White list*/
 	apmib_get(MIB_URLFILTER_MODE,  (void *)&mode);
 	apmib_get(MIB_URLFILTER_TBL_NUM, (void *)&entryNum);
-	sprintf(keywords, "%d ", entryNum);
+	//sprintf(keywords, "%d ", entryNum);
+	bzero(keywords,sizeof(keywords));
 	for (index=1; index<=entryNum; index++) {
 		memset(&entry, '\0', sizeof(entry));
+		bzero(tmp1,sizeof(tmp1));
 		*((char *)&entry) = (char)index;
 		apmib_get(MIB_URLFILTER_TBL, (void *)&entry);
 		if(mode!=entry.ruleMode)
 			continue;
-		if(!strncmp(entry.urlAddr,"http://",7))
-			sprintf(tmp1, "%s ", entry.urlAddr+7);
-		else
-			sprintf(tmp1, "%s ", entry.urlAddr);
+		strcpy(tmp1,entry.urlAddr);
+		if(!strncmp(tmp1,"http://",7))
+			for(i=7;i<sizeof(tmp1);i++)
+				tmp1[i-7]=tmp1[i];
+	//printf("%s:%d tmp1=%s\n",__FUNCTION__,__LINE__,tmp1);
+		if(!strncmp(tmp1,"www.",4))
+			for(i=4;i<sizeof(tmp1);i++)
+				tmp1[i-4]=tmp1[i];
+	
+	//printf("%s:%d entryNum=%d\n",__FUNCTION__,__LINE__,entryNum);
+		if(changeDividerToESC(tmp1,sizeof(tmp1)," #:\\")<0)
+			return -1;
+		//printf("%s:%d tmp1=%s\n",__FUNCTION__,__LINE__,tmp1);
+#ifdef URL_FILTER_USER_MODE_SUPPORT
+		if(entry.usrMode==0)
+			sprintf(tmp1,"%s 0;",tmp1);
+		else if(entry.usrMode==1)
+			sprintf(tmp1, "%s I%x;", tmp1,*((struct in_addr *)entry.ipAddr));
+		else if(entry.usrMode==2){
+			sprintf(macAddr,"%02X%02X%02X%02X%02X%02X", entry.macAddr[0], entry.macAddr[1], entry.macAddr[2], entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
+			sprintf(tmp1, "%s M%s;", tmp1,macAddr);
+		}
+#else
+		sprintf(tmp1, "%s ;", tmp1);
+#endif
+		//printf("%s:%d tmp1=%s\n",__FUNCTION__,__LINE__,tmp1);
 #if defined(CONFIG_RTL_FAST_FILTER)
 		memset(cmdBuffer, 0, sizeof(cmdBuffer));
 		sprintf(cmdBuffer, "rtk_cmd filter add --url-key %s", tmp1);
@@ -862,7 +901,7 @@ int setURLFilter(void)
 		strcat(keywords, tmp1);
 #endif
 	}
-
+		
 	if(mode)
 		RunSystemCmd("/proc/filter_table", "echo", "white", NULL_STR);
 	else
@@ -871,10 +910,14 @@ int setURLFilter(void)
 	//RunSystemCmd("/proc/url_filter", "echo", cmdBuffer, NULL_STR);//disable h/w nat when url filter enabled
 #if defined(CONFIG_RTL_FAST_FILTER)
 #else
-	//if(strstr(keywords,"#") != NULL) return 0;	//# is reserved char
-	sprintf(cmdBuffer, "add:0%c3 3 %s",c, keywords);	
+
+	sprintf(cmdBuffer, "add:0#3 3 %s",keywords);
+	//printf("%s:%d cmdBuffer=%s\n",__FUNCTION__,__LINE__,cmdBuffer);
+	//sleep(1);
+
 	RunSystemCmd("/proc/filter_table", "echo", cmdBuffer, NULL_STR);
 #endif
+
 	return 0;
 }
 
@@ -1016,10 +1059,14 @@ int setMACFilter(void)
 		sprintf(cmdBuffer, "rtk_cmd filter add --mac-src %s", macEntry);
 		system(cmdBuffer);
 #else
+#if defined(CONFIG_APP_EBTABLES)&&defined(CONFIG_EBTABLES_KERNEL_SUPPORT)
+		RunSystemCmd(NULL_FILE, Ebtables, ADD, INPUT,_src, macEntry, jump, DROP,NULL_STR);	
+		RunSystemCmd(NULL_FILE, Ebtables, ADD, OUTPUT,_dest, macEntry, jump, DROP,NULL_STR);	
+#else
 		RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, match, "mac" ,mac_src, macEntry, jump, DROP, NULL_STR);
 		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, match, "mac" ,mac_src, macEntry, jump, DROP, NULL_STR);
+#endif		
 #endif
-
 		memset(cmdBuffer, 0, sizeof(cmdBuffer));
 		sprintf(cmdBuffer, "rtk_cmd igmp_delete %02X:%02X:%02X:%02X:%02X:%02X", entry.macAddr[0], entry.macAddr[1], entry.macAddr[2], entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
 		system(cmdBuffer);
@@ -1106,6 +1153,44 @@ int setPortFilter(void)
 	return 0;
 }
 
+#if defined(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN)
+int getlansubnet(char *lansubnet)
+{
+    
+	char *bInterface = "br0";
+	int get_br0ip =0;
+	int get_br0mask =0;
+	//char Br0NetSectAddr[30];
+	char * strbr0Ip ,* strbr0Mask ;
+	struct in_addr br0addr,br0mask;
+	unsigned int numofone ;	
+	char NumStr[10]; 
+
+    if (lansubnet == NULL)
+        return -1;
+    
+    get_br0ip = getInAddr(bInterface, IP_ADDR_T,(void *)&br0addr);
+    if(get_br0ip ==0 ){
+        printf("No ip currently!\n");
+        return -1;
+    }
+    get_br0mask = getInAddr(bInterface, NET_MASK_T,(void *)&br0mask);
+    if( get_br0mask ==0 ){
+        printf("No MASK currently!\n");
+        return -1;
+    }
+    br0addr.s_addr &= br0mask.s_addr ;
+    for(numofone =0;br0mask.s_addr;++numofone)
+        br0mask.s_addr &= br0mask.s_addr-1;
+    sprintf (NumStr, "%d", numofone);
+    strcpy(lansubnet,inet_ntoa(br0addr));
+    strcat(lansubnet,"/");
+    strcat(lansubnet,NumStr);
+
+    return 0;
+}
+#endif
+
 int setPortForward(char *pIfaceWan, char *pIpaddrWan)
 {
 	char PortRange[60];
@@ -1119,6 +1204,11 @@ int setPortForward(char *pIfaceWan, char *pIpaddrWan)
 #if defined(CONFIG_RTL_FAST_FILTER)
 	char protocol[10];
 	char cmdBuffer[120];
+#endif
+#if defined(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN)
+    char Br0NetSectAddr[30]={0};
+    getlansubnet(Br0NetSectAddr);
+    //printf("%s %d Br0NetSectAddr=%s\n", __FUNCTION__, __LINE__, Br0NetSectAddr);
 #endif
 
 	apmib_get(MIB_PORTFW_TBL_NUM, (void *)&entryNum);
@@ -1151,16 +1241,30 @@ int setPortForward(char *pIfaceWan, char *pIpaddrWan)
 			RunSystemCmd(NULL_FILE, Iptables, DEL, INPUT, _protocol, _tcp, dport, "80:80", in, pIfaceWan, _dest, pIpaddrWan, jump, DROP, NULL_STR);
 
 		if(entry.protoType ==PROTO_TCP){
+            #if defined(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN)
+            //RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _tcp, _src, Br0NetSectAddr, _dest, pIpaddrWan, dport, PortRange, jump, DNAT, "--to-destination", ip, NULL_STR);
+            RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, nat_table, _protocol, _tcp, _src, Br0NetSectAddr, _dest, ip, dport, PortRange, jump, "SNAT", "--to", pIpaddrWan, NULL_STR);
+            #endif
 			RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _tcp, dport, PortRange,_dest, pIpaddrWan, jump, DNAT, "--to", ip, NULL_STR);
 			RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, pIfaceWan, _dest, ip, _protocol, _tcp, dport, PortRange, jump , ACCEPT, NULL_STR);
 		}
 		if(entry.protoType ==PROTO_UDP){
+            #if defined(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN)
+            //RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _udp, _src, Br0NetSectAddr, _dest, pIpaddrWan, dport, PortRange, jump, DNAT, "--to-destination", ip, NULL_STR);
+            RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, nat_table, _protocol, _udp, _src, Br0NetSectAddr, _dest, ip, dport, PortRange, jump, "SNAT", "--to", pIpaddrWan, NULL_STR);
+            #endif
 			RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _udp, dport, PortRange,_dest, pIpaddrWan, jump, DNAT, "--to", ip, NULL_STR);
 			RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, pIfaceWan, _dest, ip, _protocol, _udp, dport, PortRange, jump , ACCEPT, NULL_STR);
 
 
 		}
 		if(entry.protoType ==PROTO_BOTH){
+            #if defined(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN)
+            //RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _tcp, _src, Br0NetSectAddr, _dest, pIpaddrWan, dport, PortRange, jump, DNAT, "--to-destination", ip, NULL_STR);
+            RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, nat_table, _protocol, _tcp, _src, Br0NetSectAddr, _dest, ip, dport, PortRange, jump, "SNAT", "--to", pIpaddrWan, NULL_STR);
+            //RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _udp, _src, Br0NetSectAddr, _dest, pIpaddrWan, dport, PortRange, jump, DNAT, "--to-destination", ip, NULL_STR);
+            RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, nat_table, _protocol, _udp, _src, Br0NetSectAddr, _dest, ip, dport, PortRange, jump, "SNAT", "--to", pIpaddrWan, NULL_STR);
+            #endif
 			RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _tcp, dport, PortRange,_dest, pIpaddrWan, jump, DNAT, "--to", ip, NULL_STR);
 			RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, pIfaceWan, _dest, ip, _protocol, _tcp, dport, PortRange, jump , ACCEPT, NULL_STR);
 			RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _udp, dport, PortRange,_dest, pIpaddrWan, jump, DNAT, "--to", ip, NULL_STR);
@@ -1171,6 +1275,9 @@ int setPortForward(char *pIfaceWan, char *pIpaddrWan)
 		if(pptp_vpn==0){
 			if(entry.fromPort<= 1723 &&  entry.toPort >= 1723){
 				if(entry.protoType==PROTO_BOTH || (entry.protoType==PROTO_TCP)){
+                    #if defined(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN)
+                    RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, nat_table, _protocol, "47", _src, Br0NetSectAddr, _dest, ip, jump, "SNAT", "--to", pIpaddrWan, NULL_STR);
+                    #endif
 					RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, in, pIfaceWan, _protocol, "gre", _dest, pIpaddrWan , jump, DNAT, "--to", ip, NULL_STR);
 					RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, _protocol, "gre", in, pIfaceWan, jump, ACCEPT, NULL_STR);
 				}
@@ -1190,6 +1297,10 @@ int setPortForward(char *pIfaceWan, char *pIpaddrWan)
 		if(ipsec_vpn==0){
 			if(entry.fromPort<= 500 &&  entry.toPort >= 500){
 				if(entry.protoType==PROTO_BOTH || (entry.protoType==PROTO_UDP)){
+                    #if defined(CONFIG_RTL_SUPPORT_ACCESS_PORT_FORWARD_FROM_LAN)
+                    RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, nat_table, _protocol, "esp", _src, Br0NetSectAddr, _dest, ip, jump, "SNAT", "--to", pIpaddrWan, NULL_STR);
+                    RunSystemCmd(NULL_FILE, Iptables, ADD, POSTROUTING, _table, nat_table, _protocol, _udp, _src, Br0NetSectAddr, _dest, ip, dport, "4500", jump, "SNAT", "--to", pIpaddrWan, NULL_STR);
+                    #endif
 					RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, "esp", _dest, pIpaddrWan, jump, DNAT, "--to", ip, NULL_STR);
 					RunSystemCmd(NULL_FILE, Iptables, ADD, PREROUTING, _table, nat_table, _protocol, _udp, dport,"4500", _dest, pIpaddrWan, jump, DNAT, "--to", ip, NULL_STR);
 					RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, _protocol, _udp, dport,"4500", jump, ACCEPT, NULL_STR);
@@ -1726,6 +1837,15 @@ void setRulesWithOutDevice(int opmode, int wan_dhcp , char* pInterface_wanPhy,ch
 #ifdef CONFIG_RTL_HW_NAPT
 	int ivalue = 0; 
 #endif		
+#if defined(CONFIG_REFINE_BR_FW_RULE) 
+	int br_rule_refine = 1;
+#endif
+
+#if defined(CONFIG_APP_EBTABLES)&&defined(CONFIG_EBTABLES_KERNEL_SUPPORT)
+	RunSystemCmd(NULL_FILE,Ebtables,FLUSH,NULL_STR);
+	RunSystemCmd(NULL_FILE,Ebtables,X,NULL_STR);
+	RunSystemCmd(NULL_FILE,Ebtables,Z,NULL_STR);
+#endif
 	RunSystemCmd("/proc/sys/net/ipv4/ip_forward", "echo", "0", NULL_STR);//don't enable ip_forward before set MASQUERADE
 	RunSystemCmd("/proc/fast_nat", "echo", "2", NULL_STR);//clean conntrack table before set new rules
 	RunSystemCmd(NULL_FILE, Iptables, FLUSH, NULL_STR);
@@ -1766,7 +1886,7 @@ void setRulesWithOutDevice(int opmode, int wan_dhcp , char* pInterface_wanPhy,ch
 		if(natEnabled==0){
 			RunSystemCmd(NULL_FILE, Iptables, POLICY, INPUT, ACCEPT, NULL_STR);
 			RunSystemCmd(NULL_FILE, Iptables, POLICY, FORWARD, ACCEPT, NULL_STR);
-			//RunSystemCmd("/proc/fast_nat", "echo", "0", NULL_STR);//disable fastpath when nat is disabled
+		//	RunSystemCmd("/proc/fast_nat", "echo", "0", NULL_STR);//disable fastpath when nat is disabled
 			return 0;
 		}
 	}
@@ -1833,6 +1953,9 @@ defined(CONFIG_RTL_HW_NAPT)
 	if(intVal ==1 && intVal_num>0){
 			//set ip filter
 			setIpFilter();
+			#if defined(CONFIG_REFINE_BR_FW_RULE) 
+			br_rule_refine = 0;
+			#endif
 	}
 
 	intVal = 0;
@@ -1841,6 +1964,9 @@ defined(CONFIG_RTL_HW_NAPT)
 	if(intVal==1 && intVal_num>0){
 		//set mac filter
 		setMACFilter();
+		#if defined(CONFIG_REFINE_BR_FW_RULE) 
+		br_rule_refine = 0;
+		#endif
 	}
 
 	intVal=0;
@@ -1848,6 +1974,9 @@ defined(CONFIG_RTL_HW_NAPT)
 	apmib_get(MIB_PORTFILTER_TBL_NUM, (void *)&intVal_num);
 	if(intVal==1 && intVal_num>0){
 		setPortFilter();
+		#if defined(CONFIG_REFINE_BR_FW_RULE) 
+		br_rule_refine = 0;
+		#endif
 	}	
 	///////////////////////////////////////////////////////////
 	apmib_get(MIB_VPN_PASSTHRU_L2TP_ENABLED, (void *)&intVal);
@@ -1879,11 +2008,22 @@ defined(CONFIG_RTL_HW_NAPT)
 	///////////////////////////////////////////////////////////
 	RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, match, mstate, state, RELATED_ESTABLISHED, jump, ACCEPT, NULL_STR);
 	//iptables -I FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
-	RunSystemCmd(NULL_FILE, Iptables, INSERT, FORWARD, _protocol, _tcp, tcp_flags, MSS_FLAG1, MSS_FLAG2, jump, TCPMSS, clamp, NULL_STR);	
-	///////////////////////////////////////////////////////////
-	RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, match, mstate, state, INVALID, jump, DROP, NULL_STR);	
+#if defined(CONFIG_REFINE_BR_FW_RULE) 
+	if (br_rule_refine) 
+	{
+		RunSystemCmd(NULL_FILE, Iptables, INSERT, FORWARD, in, "br0", jump, ACCEPT, NULL_STR);	
+		RunSystemCmd(NULL_FILE, Iptables, INSERT, FORWARD, _protocol, _tcp, tcp_flags, MSS_FLAG1, MSS_FLAG2, jump, TCPMSS, clamp, NULL_STR);	
+		///////////////////////////////////////////////////////////
+		RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, match, mstate, state, INVALID, jump, DROP, NULL_STR);	
+	} else
+#endif
+	{
+		RunSystemCmd(NULL_FILE, Iptables, INSERT, FORWARD, _protocol, _tcp, tcp_flags, MSS_FLAG1, MSS_FLAG2, jump, TCPMSS, clamp, NULL_STR);	
+		///////////////////////////////////////////////////////////
+		RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, match, mstate, state, INVALID, jump, DROP, NULL_STR);	
 
-	RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, "br0", jump, ACCEPT, NULL_STR);	
+		RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, "br0", jump, ACCEPT, NULL_STR);	
+	}
 	///////////////////////////////////////////////////////////
 	if(wan_dhcp==4){			
 		RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, pInterface_wanPhy, match, mstate, state, RELATED_ESTABLISHED, jump, ACCEPT, NULL_STR);
@@ -1951,6 +2091,10 @@ int setFirewallIptablesRules(int argc, char** argv)
 #ifdef CONFIG_RTL_HW_NAPT
 	int ivalue = 0; 
 #endif
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	struct in_addr ipaddr;
+	char ipaddr_str[16];
+#endif
 
 	printf("Init Firewall Rules....\n");
 #ifdef MULTI_PPPOE	
@@ -2006,7 +2150,7 @@ int setFirewallIptablesRules(int argc, char** argv)
 			else 
 				pInterface="ppp0";
 #else
-#ifdef SUPPORT_ZIONCOM_RUSSIA
+#if defined(SUPPORT_ZIONCOM_RUSSIA) || defined(_ALPHA_DUAL_WAN_SUPPORT_)
 			if(argc!=-1) 
 #endif
 			pInterface="ppp0";
@@ -2022,6 +2166,16 @@ int setFirewallIptablesRules(int argc, char** argv)
 		strcpy(WanIpAddr, strWanIp);
 	}
 
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_
+	memset(&ipaddr, 0, sizeof(ipaddr));
+	if(wan_dhcp == PPPOE)
+	{
+		getInAddr(Interface_wanPhy,IP_ADDR_T,(void *)&ipaddr);
+		if(ipaddr.s_addr>0)
+			strcpy(ipaddr_str, inet_ntoa(ipaddr));
+	}
+#endif
+
 	//flush fast natp table
 	//RunSystemCmd("/proc/net/flush_conntrack", "echo", "1", NULL_STR);
 #ifdef MULTI_PPPOE
@@ -2035,11 +2189,24 @@ int setFirewallIptablesRules(int argc, char** argv)
 	apmib_get( MIB_WEB_WAN_ACCESS_ENABLED, (void *)&intVal);
 	if(intVal==1){
 		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _tcp,  dport, "80:80", in, pInterface, _dest, WanIpAddr, jump, ACCEPT, NULL_STR);
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_	
+		if(ipaddr.s_addr>0)
+			RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _tcp,	dport, "80:80", in, Interface_wanPhy, _dest, ipaddr_str, jump, ACCEPT, NULL_STR);
+#endif
 	}else{
 		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _tcp,  dport, "80:80", in, pInterface, _dest, WanIpAddr, jump, DROP, NULL_STR);
 	}
 
 RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _udp,  dport, "1900:1900", in, pInterface, _dest, WanIpAddr, jump,DROP, NULL_STR);
+
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_	
+	if(ipaddr.s_addr>0)
+	{		
+		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _tcp,	dport, "!", "80:80", in, Interface_wanPhy, _dest, ipaddr_str, jump, ACCEPT, NULL_STR);
+		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _udp,	dport, "!", "1900:1900", in, Interface_wanPhy, _dest, ipaddr_str, jump, ACCEPT, NULL_STR);
+	}
+#endif
+
 	// SNMP setting
 #ifdef CONFIG_SNMP
 	intVal = 0;
@@ -2136,6 +2303,10 @@ RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _udp,  dport, "1900:190
 	apmib_get( MIB_PING_WAN_ACCESS_ENABLED, (void *)&intVal);
 	if(intVal==1){
 		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _icmp, icmp_type, echo_request,  in, pInterface, _dest, WanIpAddr, jump, ACCEPT, NULL_STR);
+#ifdef _ALPHA_DUAL_WAN_SUPPORT_		
+		if(ipaddr.s_addr>0)
+			RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _icmp, icmp_type, echo_request,  in, Interface_wanPhy, _dest, ipaddr_str, jump, ACCEPT, NULL_STR);
+#endif
 	}else{
 		RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _icmp, icmp_type, echo_request,  in, pInterface, _dest, WanIpAddr, jump, DROP, NULL_STR);
 	}
@@ -2168,6 +2339,13 @@ RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _udp,  dport, "1900:190
 	RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, in, "lo", jump, ACCEPT, NULL_STR);
 //	RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, in, NOT, pInterface, jump, ACCEPT, NULL_STR);
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+ 	apmib_get( MIB_VLAN_WAN_BRIDGE_TAG, (void *)&intVal);
+	if(intVal!=0)
+	{
+    	RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, in, "br1", jump, ACCEPT, NULL_STR);
+	}
+#endif
 
 	RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, _protocol, "50", in, pInterface, out, "br0", jump, ACCEPT, NULL_STR);
 	RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, pInterface, match, mstate, state, RELATED_ESTABLISHED, jump, ACCEPT, NULL_STR);
@@ -2219,6 +2397,49 @@ RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _udp,  dport, "1900:190
 		system(cmdbuf);
 	}
 
+#ifdef CONFIG_IPV6
+	//add rule to avoid DOS attack
+#ifdef SUPPORT_DEFEAT_IP_SPOOL_DOS
+	RunSystemCmd(NULL_FILE, Ip6tables, POLICY, INPUT, DROP, NULL_STR);
+	RunSystemCmd(NULL_FILE, Ip6tables, INSERT, INPUT, in, bInterface, _src, "fe80::/64", jump, ACCEPT, NULL_STR);
+
+	char prefix_buf[256];
+	if(isFileExist("/var/radvd.conf"))
+	{
+		FILE *fp=NULL;
+		char line_buf[128];
+		char *pline=NULL;
+		
+		if((fp=fopen("/var/radvd.conf", "r"))!=NULL)
+		{
+			while(fgets(line_buf, sizeof(line_buf), fp))
+			{
+				line_buf[strlen(line_buf)-1]=0;
+				if((pline=strstr(line_buf, "prefix"))!=NULL)
+				{
+					strcpy(prefix_buf, line_buf+7);					
+					RunSystemCmd(NULL_FILE, Ip6tables, ADD, INPUT, in, bInterface, _src, prefix_buf, jump, ACCEPT, NULL_STR);
+				}
+			}
+			fclose(fp);
+		}		
+	}	
+
+	dhcp6sCfgParam_t dhcp6sCfgParam;
+	memset(&dhcp6sCfgParam, 0, sizeof(dhcp6sCfgParam));
+	apmib_get(MIB_IPV6_DHCPV6S_PARAM,(void *)&dhcp6sCfgParam);
+	
+	if(dhcp6sCfgParam.enabled)
+	{
+		if(dhcp6sCfgParam.addr6PoolS && dhcp6sCfgParam.addr6PoolE)
+		{
+			sprintf(prefix_buf, "%s-%s", dhcp6sCfgParam.addr6PoolS, dhcp6sCfgParam.addr6PoolE);			
+			RunSystemCmd(NULL_FILE, Ip6tables, ADD, INPUT, in, bInterface, match, ip_range, src_rnage, prefix_buf, jump, ACCEPT, NULL_STR);
+		}
+	}	
+	RunSystemCmd(NULL_FILE, Ip6tables, ADD, INPUT, in, bInterface, jump, DROP, NULL_STR);	
+#endif
+#endif
 /*
 	RunSystemCmd("/proc/sys/net/ipv4/ip_conntrack_max", "echo", "1280", NULL_STR);
 	RunSystemCmd("/proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_established", "echo", "600", NULL_STR);
@@ -2261,7 +2482,13 @@ RunSystemCmd(NULL_FILE, Iptables, ADD, INPUT, _protocol, _udp,  dport, "1900:190
 	SetRuleFortr069(pInterface, WanIpAddr);
 	#endif //#if defined(CONFIG_APP_TR069)
 	system("echo 1 > /etc/ppp/firewall_lock");
-	
+
+#ifdef USE_MINIUPNPD_V1.8 
+	apmib_get(MIB_UPNP_ENABLED, (void *)&intVal);
+	if(intVal==1)
+		system("/bin/iptables_init.sh > /dev/null 2>&1");	
+#endif
+
 EXIT_setFirewallIptablesRules:
 	RunSystemCmd("/proc/sys/net/ipv4/ip_forward", "echo", "1", NULL_STR);
 	return 0;
@@ -2276,6 +2503,19 @@ int update_hwnat_setting()
 	//fprintf(stderr,"--------------%s:%d -------------------------\n",__FUNCTION__,__LINE__);
 	if(!apmib_get(MIB_OP_MODE, (void *)&opmode))
 		goto error;
+//for wisp and bridge(?) mode
+	{
+		if(opmode==BRIDGE_MODE)
+		{
+			RunSystemCmd("/proc/hw_nat", "echo", "2", NULL_STR);
+			return 0;
+		}
+		else if(opmode==WISP_MODE)
+		{
+			RunSystemCmd("/proc/hw_nat", "echo", "3", NULL_STR);
+			return 0;
+		}
+	}
 //for subMask
 	{
 		int ivalue=0;
@@ -2327,6 +2567,16 @@ int update_hwnat_setting()
 		}
 	}
 
+//for l2tp,pptp
+	{
+    	int wan_dhcp;
+
+        apmib_get(MIB_WAN_DHCP, (void *)&wan_dhcp);
+        if ((wan_dhcp==L2TP) || (wan_dhcp==PPTP)) {
+			RunSystemCmd("/proc/hw_nat", "echo", "0", NULL_STR);
+        	return 0;
+		}
+    }
 	//printf("%s:%d\n",__FUNCTION__,__LINE__);
 	RunSystemCmd(HW_NAT_FILE, "echo", "1", NULL_STR);
 	return 0;

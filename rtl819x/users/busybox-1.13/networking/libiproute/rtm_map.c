@@ -11,7 +11,7 @@
  *
  */
 
-#include "libbb.h"
+#include "libbb_2.h"
 #include "rt_names.h"
 #include "utils.h"
 

@@ -1152,12 +1152,14 @@ int dev_close(struct net_device *dev)
 #if defined(CONFIG_RTL_FAST_PPPOE)
 		clear_pppoe_info(dev->name,dev->name,0,0,0,NULL,NULL);
 #endif
+
 #if defined (CONFIG_RTL_PPPOE_DIRECT_REPLY)
-		if(strncmp(dev->name, "ppp", 3) ==0)
+		if(dev->name && strncmp(dev->name, "ppp", 3) ==0)
 		{
 			clear_magicNum(); 
 		}
 #endif
+
 	/*
 	 *	Tell people we are going down, so that they can
 	 *	prepare to death, when device is still operating.

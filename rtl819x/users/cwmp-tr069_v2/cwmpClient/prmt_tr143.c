@@ -591,8 +591,8 @@ int setUploadDiagnostics(char *name, struct CWMP_LEAF *entity, int type, void *d
 int getUDPEchoConfig(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 {
 	char	*lastname = entity->info->name;
-	unsigned char vChar=0;
-	unsigned short vShort=0;
+	unsigned int vChar=0;
+	unsigned int vShort=0;
 	unsigned char buff[256]={0};
 	struct ECHORESULT *result;
 	struct timeval t={0,0};
@@ -708,7 +708,7 @@ int setUDPEchoConfig(char *name, struct CWMP_LEAF *entity, int type, void *data)
 	char		*buf=data;
 	int		*vInt=data;
 	unsigned int	*vUInt=data;
-	unsigned char	vChar;
+	unsigned int	vChar;
 	struct TR143_UDPEchoConfig olddata;
 	
 	if( (name==NULL) || (data==NULL) || (entity==NULL)) return -1;
@@ -726,7 +726,9 @@ int setUDPEchoConfig(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		apply_add( CWMP_PRI_N, apply_UDPEchoConfig, CWMP_RESTART, 0, &olddata, sizeof(struct TR143_UDPEchoConfig ) );
 		return 0;
 #else
-		return 1;		
+		//return 1;	
+		apply_UDPEchoConfig( CWMP_RESTART, 0, &olddata );
+		return 0;	
 #endif
 	}else if( strcmp( lastname, "Interface" )==0 )
 	{
@@ -761,7 +763,9 @@ int setUDPEchoConfig(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		apply_add( CWMP_PRI_N, apply_UDPEchoConfig, CWMP_RESTART, 0, &olddata, sizeof(struct TR143_UDPEchoConfig ) );
 		return 0;
 #else
-		return 1;		
+		//return 1;		
+		apply_UDPEchoConfig( CWMP_RESTART, 0, &olddata );
+		return 0;
 #endif
 	}else if( strcmp( lastname, "SourceIPAddress" )==0 )
 	{
@@ -776,11 +780,13 @@ int setUDPEchoConfig(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		apply_add( CWMP_PRI_N, apply_UDPEchoConfig, CWMP_RESTART, 0, &olddata, sizeof(struct TR143_UDPEchoConfig ) );
 		return 0;
 #else
-		return 1;		
+		//return 1;		
+		apply_UDPEchoConfig( CWMP_RESTART, 0, &olddata );
+		return 0;
 #endif		
 	}else if( strcmp( lastname, "UDPPort" )==0 )
 	{
-		unsigned short vShort=0;
+		unsigned int vShort=0;
 		
 		if( vUInt==NULL ) return ERR_9007;
 		if( *vUInt==0 || *vUInt>65535 ) return ERR_9007;
@@ -790,7 +796,9 @@ int setUDPEchoConfig(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		apply_add( CWMP_PRI_N, apply_UDPEchoConfig, CWMP_RESTART, 0, &olddata, sizeof(struct TR143_UDPEchoConfig ) );
 		return 0;
 #else
-		return 1;		
+		//return 1;		
+		apply_UDPEchoConfig( CWMP_RESTART, 0, &olddata );
+		return 0;
 #endif
 	}else if( strcmp( lastname, "EchoPlusEnabled" )==0 )
 	{
@@ -803,7 +811,9 @@ int setUDPEchoConfig(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		apply_add( CWMP_PRI_N, apply_UDPEchoConfig, CWMP_RESTART, 0, &olddata, sizeof(struct TR143_UDPEchoConfig ) );
 		return 0;
 #else
-		return 1;		
+		//return 1;		
+		apply_UDPEchoConfig( CWMP_RESTART, 0, &olddata );
+		return 0;
 #endif
 	}else{
 		return ERR_9005;

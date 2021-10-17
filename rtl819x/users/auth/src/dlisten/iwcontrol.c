@@ -98,7 +98,7 @@ void iw_init_fifo(Dot1x_RTLDListener *listen, char *fifo_name)
 			//exit(0);
 		}
 		else{
-			printf("open fifo %s OK\n", fifo_name);
+			AUTHDEBUG("open fifo %s OK\n", fifo_name);
 			break;
           }
 	}

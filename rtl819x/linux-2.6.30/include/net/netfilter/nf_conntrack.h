@@ -22,6 +22,7 @@
 #define CONFIG_RTL_HW_NAT_BYPASS_PKT 1
 #define RTL_HW_NAT_BYPASS_PKT_NUM	15
 #endif
+
 #endif
 
 #include <linux/netfilter/nf_conntrack_common.h>
@@ -166,6 +167,7 @@ struct nf_conn {
 	#if defined(CONFIG_RTL_HW_NAT_BYPASS_PKT)
 	unsigned long count;
 	#endif
+
 };
 
 

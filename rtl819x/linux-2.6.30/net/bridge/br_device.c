@@ -41,10 +41,6 @@ extern int mldSnoopEnabled;
 extern unsigned int br0SwFwdPortMask;
 extern unsigned int brIgmpModuleIndex;
 extern unsigned int nicIgmpModuleIndex;
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-extern int rtl_get_brIgmpModueIndx(struct net_bridge *br);
-extern unsigned int rtl_get_brSwFwdPortMask(struct net_bridge *br);
-#endif
 #endif
 
 #if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
@@ -92,12 +88,9 @@ int br_dev_xmit(struct sk_buff *skb, struct net_device *dev)
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
 	unsigned int srcPort=skb->srcPort;
 	unsigned int srcVlanId=skb->srcVlanId;
-#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-	rtl865x_tblDrv_mCast_t * existMulticastEntry;
-#endif	
 #endif
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH) 
-	extern unsigned int	rtl_br0_ip;	
+	extern unsigned int	_br0_ip;	
 #endif
 #endif	
 
@@ -134,13 +127,6 @@ ap_hcm_out:
 #if defined (CONFIG_RTL_IGMP_SNOOPING)	
 		if(igmpsnoopenabled) 
 		{	
-			#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-			unsigned igmpModuleIndex=0xFFFFFFFF;
-			extern int rtl_get_brIgmpModueIndx(struct net_bridge *br);
-			igmpModuleIndex =rtl_get_brIgmpModueIndx(br);
-			unsigned int swFwdPortMask =0xFFFFFFFF;
-			swFwdPortMask = rtl_get_brSwFwdPortMask(br);
-			#endif
 			if(MULTICAST_MAC(dest))
 			{
 			
@@ -168,40 +154,17 @@ ap_hcm_out:
 					multicastDataInfo.ipVersion=4;
 					multicastDataInfo.sourceIp[0]=  (uint32)(iph->saddr);
 					multicastDataInfo.groupAddr[0]=  (uint32)(iph->daddr);
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-					ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-#else
 					ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-#endif
-					//multiple bridge ip need to add?
+
 					#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) 
-					if((ret!=SUCCESS)&&((unsigned int)(iph->saddr)!=rtl_br0_ip))
+					if((ret!=SUCCESS)&&((unsigned int)(iph->saddr)!=_br0_ip))
 					{
 						multicastFwdInfo.fwdPortMask =0;
 					}
 					#endif	
-					#if defined (CONFIG_RTL_MACCLONE_SWMCAST)
-						
-					#else
-					#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-					existMulticastEntry=rtl865x_findMCastEntry((uint32)(iph->daddr), (uint32)(iph->saddr), (unsigned short)srcVlanId, (unsigned short)srcPort);
-					if(existMulticastEntry!=NULL)
-					{
-						/*it's already in cache, only forward to wlan */
-						#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-						multicastFwdInfo.fwdPortMask &= swFwdPortMask;
-						#else
-						multicastFwdInfo.fwdPortMask &= br0SwFwdPortMask;	
-						#endif
-					}
-					#endif
-					#endif
+					
 					br_multicast_deliver(br, multicastFwdInfo.fwdPortMask, skb, 0);
-					if((ret==SUCCESS) 
-					#ifndef CONFIG_RTL_HW_MCAST_WIFI
-						&& (multicastFwdInfo.cpuFlag==0)
-					#endif
-					)
+					if((ret==SUCCESS) && (multicastFwdInfo.cpuFlag==0))
 					{
 						#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
 						if((srcVlanId!=0) && (srcPort!=0xFFFF))
@@ -236,11 +199,7 @@ ap_hcm_out:
 					multicastDataInfo.ipVersion=6;
 					memcpy(&multicastDataInfo.sourceIp, &ipv6h->saddr, sizeof(struct in6_addr));
 					memcpy(&multicastDataInfo.groupAddr, &ipv6h->daddr, sizeof(struct in6_addr));
-					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-					ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-					#else
 					ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-					#endif	
 					br_multicast_deliver(br, multicastFwdInfo.fwdPortMask, skb, 0);
 				}
 				else
@@ -426,10 +385,7 @@ void br_dev_setup(struct net_device *dev)
 }
 
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
 
-extern int rtl_get_brIgmpModuleIndexbyId(int idx,char *name);
-#endif
 int rtl865x_ipMulticastHardwareAccelerate(struct net_bridge *br, unsigned int brFwdPortMask,
 												unsigned int srcPort,unsigned int srcVlanId, 
 												unsigned int srcIpAddr, unsigned int destIpAddr)
@@ -446,41 +402,10 @@ int rtl865x_ipMulticastHardwareAccelerate(struct net_bridge *br, unsigned int br
 	
 	rtl865x_tblDrv_mCast_t * existMulticastEntry;
 	rtl865x_mcast_fwd_descriptor_t  fwdDescriptor;
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	unsigned igmpModuleIndex=0xFFFFFFFF;
-	unsigned int swFwdPortMask =0xFFFFFFFF;
-#endif	
-#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-	rtl865x_mcast_fwd_descriptor_t  fwdDescriptor2;
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	int i=0;
-	unsigned char brName[16]={0};
-#endif
-#endif
-	//printk("%s:%d,srcPort is %d,srcVlanId is %d,srcIpAddr is 0x%x,destIpAddr is 0x%x\n",__FUNCTION__,__LINE__,srcPort,srcVlanId,srcIpAddr,destIpAddr);
 
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	if(br == NULL)
-		return -1;
-	
-	igmpModuleIndex = rtl_get_brIgmpModueIndx(br);
-	swFwdPortMask = rtl_get_brSwFwdPortMask(br);
-	
-	if(igmpModuleIndex >=RTL_IMGP_MAX_BRMODULE)
-		return -1;
-	
-#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-	if((srcIpAddr==0)||((destIpAddr&0xF0)!=0xE0))
-	{
-		return -1;
-	}
-#else
-	if(brFwdPortMask & swFwdPortMask)
-	{
-		return -1;
-	}
-#endif
-#else
+	#if 0
+	printk("%s:%d,srcPort is %d,srcVlanId is %d,srcIpAddr is 0x%x,destIpAddr is 0x%x\n",__FUNCTION__,__LINE__,srcPort,srcVlanId,srcIpAddr,destIpAddr);
+	#endif
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 	
 	if(strcmp(br->dev->name,RTL_PS_BR0_DEV_NAME)!=0 &&strcmp(br->dev->name,RTL_PS_BR1_DEV_NAME)!=0 )
@@ -501,14 +426,11 @@ int rtl865x_ipMulticastHardwareAccelerate(struct net_bridge *br, unsigned int br
 	{
 		return -1;
 	}
-	
-#ifndef CONFIG_RTL_HW_MCAST_WIFI
+
 	if(brFwdPortMask & br0SwFwdPortMask)
 	{
 		return -1;
 	}
-#endif
-#endif
 #endif
 	//printk("%s:%d,destIpAddr is 0x%x, srcIpAddr is 0x%x, srcVlanId is %d, srcPort is %d\n",__FUNCTION__,__LINE__,destIpAddr, srcIpAddr, srcVlanId, srcPort);
 	existMulticastEntry=rtl865x_findMCastEntry(destIpAddr, srcIpAddr, (unsigned short)srcVlanId, (unsigned short)srcPort);
@@ -565,9 +487,6 @@ int rtl865x_ipMulticastHardwareAccelerate(struct net_bridge *br, unsigned int br
 		}
 		fwdDescriptor.fwdPortMask=multicastFwdInfo.fwdPortMask & (~(1<<srcPort));
 	}
-	//only server join the multicast group not add hw mcast entry
-	if(multicastFwdInfo.fwdPortMask &&(fwdDescriptor.fwdPortMask==0))
-		return -1;
 
 #if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
 	if(rtl_hw_vlan_ignore_tagged_mc == 1)
@@ -579,64 +498,6 @@ int rtl865x_ipMulticastHardwareAccelerate(struct net_bridge *br, unsigned int br
 		ret=rtl865x_addMulticastEntry(destIpAddr, srcIpAddr, (unsigned short)srcVlanId, (unsigned short)srcPort,
 							&fwdDescriptor, 1, 0, 0, 0);
 	}
-#if defined (CONFIG_RTL_HW_MCAST_WIFI)
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	for (i=0;i<RTL_IMGP_MAX_BRMODULE;i++)
-	{
-		igmpModuleIndex=rtl_get_brIgmpModuleIndexbyId(i,brName);
-		if(igmpModuleIndex==0xFFFFFFFF)
-			continue;
-			
-		memset(&fwdDescriptor2, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
-		memset(&multicastFwdInfo, 0, sizeof(struct rtl_multicastFwdInfo ));
-		strcpy(fwdDescriptor2.netifName,brName);
-		ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-		if(ret!=0)
-		{
-			continue;
-		}
-		else
-		{
-			if(multicastFwdInfo.cpuFlag)
-			{
-				fwdDescriptor2.toCpu=1;
-			}
-		}
-		if(fwdDescriptor2.toCpu)
-			fwdDescriptor2.fwdPortMask |= BIT(6);	
-		if((fwdDescriptor2.fwdPortMask & tagged_portmask) == 0)
-		{
-			printk("%s:%d,br:%s,brFwdPortMask:%x,asicfwdPortmask:%x,srcPort is %d,srcVlanId is %d,srcIpAddr is 0x%x,destIpAddr is 0x%x\n",__FUNCTION__,__LINE__,brName,multicastFwdInfo.fwdPortMask,fwdDescriptor2.fwdPortMask,srcPort,srcVlanId,srcIpAddr,destIpAddr);
-			ret=rtl865x_addMulticastEntry(destIpAddr, srcIpAddr, (unsigned short)srcVlanId, (unsigned short)srcPort,
-								&fwdDescriptor2, 0, 0, 0, 0);
-		}
-	}
-
-#else	
-
-	memset(&fwdDescriptor2, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
-	strcpy(fwdDescriptor2.netifName,br->dev->name);
-#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
-	if(brFwdPortMask & swFwdPortMask)
-#else
-	if(brFwdPortMask & br0SwFwdPortMask)
-#endif		
-	{
-		fwdDescriptor2.toCpu=1;
-	}
-		
-	if(fwdDescriptor2.toCpu)
-		fwdDescriptor2.fwdPortMask |= BIT(6);
-	
-	if((fwdDescriptor2.fwdPortMask & tagged_portmask) == 0)
-	{
-		
-		//printk("%s:%d,br:%s,brFwdPortMask:%x,swFwdPortMask:%x,asicfwdPortmask:%x,srcPort is %d,srcVlanId is %d,srcIpAddr is 0x%x,destIpAddr is 0x%x\n",__FUNCTION__,__LINE__,br->dev->name,brFwdPortMask,swFwdPortMask,fwdDescriptor2.fwdPortMask,srcPort,srcVlanId,srcIpAddr,destIpAddr);
-		ret=rtl865x_addMulticastEntry(destIpAddr, srcIpAddr, (unsigned short)srcVlanId, (unsigned short)srcPort,
-							&fwdDescriptor2, 0, 0, 0, 0);
-	}
-#endif	
-#endif
 
 	return 0;
 }

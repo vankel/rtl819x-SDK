@@ -9,7 +9,6 @@ USRSHAREDIR=${prefix}/share
 # Uncomment this to get a shared binary. Call as udhcpd for the server,
 # and udhcpc for the client
 COMBINED_BINARY=1
-
 # Uncomment this for extra output and to compile with debugging symbols
 #DEBUG=1
 
@@ -30,11 +29,29 @@ OBJS_SHARED = options.o socket.o packet.o pidfile.o
 DHCPD_OBJS = dhcpd.o arpping.o files.o leases.o serverpacket.o
 DHCPC_OBJS = dhcpc.o clientpacket.o script.o
 
-include ../../linux-2.6.30/.config
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+include $(DIR_ROOT)/linux-2.6.30/.config
+else
+include $(DIR_LINUX)/.config
+endif
+
+#include ../../linux-2.6.30/.config
+
+include ../../users/.config
+
+ifeq ($(CONFIG_APP_SIMPLE_CONFIG),y)
+CFLAGS += -DCONFIG_APP_SIMPLE_CONFIG
+endif
 
 ifeq ($(CONFIG_RTL_ULINKER),y)
 CFLAGS += -DCONFIG_RTL_ULINKER
 endif
+USE_BOUND_TEMPLETE=0
+ifeq ($(CONFIG_APP_APPLE_MFI_WAC),y)
+USE_BOUND_TEMPLETE=1
+CFLAGS += -DCONFIG_APP_APPLE_MFI_WAC
+endif
+
 
 ifdef COMBINED_BINARY
 EXEC1 = udhcpd
@@ -78,13 +95,16 @@ STATIC_LEASE=1
 RTL865x_TR_PKG=1
 endif
 
-ifeq ($(CONFIG_USER_CWMP_WITH_TR181), y)
-MIBLIBDIR	= $(PWD)/./boa/apmib
-MIBLIBINC	= $(MIBLIBDIR)
-MIBLIB		= $(MIBLIBDIR)/libapmib.so
+ifeq ($(CONFIG_APP_TR069), y)
+CFLAGS += -DCONFIG_APP_TR069 -D_PRMT_X_TELEFONICA_ES_DHCPOPTION_
+CFLAGS += -DTR069_ANNEX_F
+#CFLAGS += -DSET_TELE_CONN_REQ_URL
+MIBLIBDIR       = ../boa/apmib
+MIBLIBINC       = $(MIBLIBDIR)
+MIBLIB          = $(MIBLIBDIR)/libapmib.so
 INCS = -I$(MIBLIBINC)
 LIBS += $(MIBLIB)
-CFLAGS += $(INCS) -DTR069_ANNEX_F
+CFLAGS += $(INCS)
 endif
 
 ifeq ($(RTL865X_AC),1)
@@ -138,12 +158,8 @@ LDFLAGS += --static -Wl,--gc-sections
 endif
 
 CFLAGS += -DSUPPORT_T1_T2_OPTION
-
 ifeq ($(CONFIG_SUPPORT_RUSSIA_FEATURES),y)
 CFLAGS += -DSUPPORT_OPTION_33_121_249 -DSUPPORT_ZIONCOM_RUSSIA
-endif
-ifeq ($(CONFIG_RTK_SUPPORT_DHCP_PORT_IP_BIDN),y)
-CFLAGS += -DSUPPORT_DHCP_PORT_IP_BIND
 endif
 all: $(EXEC1) $(EXEC2) $(EXEC3)
 	$(STRIP) --remove-section=.note --remove-section=.comment $(EXEC1) $(EXEC2) $(EXEC3)

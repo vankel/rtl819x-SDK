@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>VLAN Settings</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 	
 	var MAXNUM_VLAN = "<% getInfo("maxWebVlanNum"); %>"*1;
@@ -17,7 +18,7 @@
 	var vlan_tag_disable = <%getIndex("hw_vlan_support");%>;
 	var vlan_bridge_feature=<% getIndex("vlan_bridge_feature");%>;
 	var vlan_forwording_rule_show = 0;
-
+	vlan_tag_disable =0 ;
 	if(vlan_tag_disable==1||vlan_bridge_feature==1)
 		vlan_forwording_rule_show=1;
 
@@ -117,6 +118,7 @@
 				{
 					get_by_id("vlan_forward_sel"+index).disabled = true;
 					get_by_id("vlan_tag_"+index).value = 0;
+					get_by_id("tag_"+index).checked = false;
 					get_by_id("tag_"+index).disabled = true;
 				}
 			}
@@ -219,7 +221,7 @@
 		if(get_by_id("wanlan_"+index).value == "WAN")
 		{
 			get_by_id("vlan_forward_sel"+index).disabled = true;
-			get_by_id("vlan_tag_"+index).value = 0;
+			//get_by_id("vlan_tag_"+index).value = 0;
 			get_by_id("tag_"+index).disabled = true;
 		}
 	}
@@ -297,19 +299,19 @@
 				else if(wlBandMode != 2) // no dual band no need wlan1 settings
 					continue;					
 
-			document.write("<tr><td align = center bgcolor='#C0C0C0'><input type='hidden' id='vlan_enable_"+i+"' name='vlan_enable_"+i+"' value='"+DataArray[0]+"'>");
+			document.write("<tr class=\"tbl_body\"><td align = center><input type='hidden' id='vlan_enable_"+i+"' name='vlan_enable_"+i+"' value='"+DataArray[0]+"'>");
 			document.write("<input type='checkbox' id='enable_"+i+"' onclick='vlan_enable_select("+i+",this.checked);'></td>");
-			document.write("<td bgcolor='#C0C0C0'><input type='hidden' id='vlan_iface_"+i+"' name='vlan_iface_"+i+"' value='"+DataArray[1]+"'><font size='2'>");
+			document.write("<td><input type='hidden' id='vlan_iface_"+i+"' name='vlan_iface_"+i+"' value='"+DataArray[1]+"'><font size='2'>");
 			
 			if((i>=6 && i<=9) || (i>=11 && i<=14))
 				document.write("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;");
 			
 			document.write("&nbsp;"+DataArray[1]+"</font></td>");
 			
-			document.write("<td align = center bgcolor='#C0C0C0'><input id='wanlan_"+i+"' name='wanlan_"+i+"' type='hidden' value='"+DataArray[8]+"'><font size='2'>"+DataArray[8]+"</font></td>");
+			document.write("<td align = center><input id='wanlan_"+i+"' name='wanlan_"+i+"' type='hidden' value='"+DataArray[8]+"'><font size='2'>"+DataArray[8]+"</font></td>");
 			if(vlan_forwording_rule_show==1)
 			{
-				document.write("<td align = center bgcolor='#C0C0C0'><input type='hidden' id='vlan_forward_"+i+"' name='vlan_forward_"+i+"' value='"+DataArray[9]+"'>");
+				document.write("<td align = center><input type='hidden' id='vlan_forward_"+i+"' name='vlan_forward_"+i+"' value='"+DataArray[9]+"'>");
 				document.write("<select id='vlan_forward_sel"+i+"' size='1' onchange='vlan_forward_select("+i+",this.value);'>");
 				if(get_by_id("wanlan_"+i).value == "WAN")
 					document.write("<option value='2'>NAT</option>");
@@ -318,15 +320,15 @@
      			document.write("</select></td>");
     		}
 
-			document.write("<td align = center bgcolor='#C0C0C0'><input type='hidden' id='vlan_tag_"+i+"' name='vlan_tag_"+i+"' value='"+DataArray[2]+"'>");
+			document.write("<td align = center><input type='hidden' id='vlan_tag_"+i+"' name='vlan_tag_"+i+"' value='"+DataArray[2]+"'>");
       document.write("<input id='tag_"+i+"' type='checkbox' onclick='vlan_tag_select("+i+",this.checked);'></td>");
-      document.write("<td align = center bgcolor='#C0C0C0'><input id='vlan_id_"+i+"' name='vlan_id_"+i+"' size='4' maxlength='4' type='text' value='"+DataArray[7]+"'></td>");
-      document.write("<td align = center bgcolor='#C0C0C0'><input type='hidden' id='vlan_priority_"+i+"' name='vlan_priority_"+i+"' value='"+DataArray[4]+"'>");
+      document.write("<td align = center><input id='vlan_id_"+i+"' name='vlan_id_"+i+"' size='4' maxlength='4' type='text' value='"+DataArray[7]+"'></td>");
+      document.write("<td align = center><input type='hidden' id='vlan_priority_"+i+"' name='vlan_priority_"+i+"' value='"+DataArray[4]+"'>");
       		document.write("<select id='priority_"+i+"' size='1' onchange='vlan_priority_select("+i+",this.value);'>");
           	document.write("<option value='0'>0</option><option value='1'>1</option><option value='2'>2</option><option value='3'>3</option>");
           	document.write("<option value='4'>4</option><option value='5'>5</option><option value='6'>6</option><option value='7'>7</option>");
       document.write("</select></td>");
-      document.write("<td align = center bgcolor='#C0C0C0'><input type='hidden' id='vlan_cfg_"+i+"' name='vlan_cfg_"+i+"' value='"+DataArray[5]+"'>");
+      document.write("<td align = center ><input type='hidden' id='vlan_cfg_"+i+"' name='vlan_cfg_"+i+"' value='"+DataArray[5]+"'>");
       document.write("<input id='cfg_"+i+"' type='checkbox' onclick='vlan_cfg_select("+i+",this.checked);'></td></tr>");
   	}
 		
@@ -364,7 +366,7 @@
   <blockquote>
   <form action=/boafrm/formVlan method=POST name="mainform">
   	<input type="hidden" value="/vlan.htm" name="submit-url">
-  <h2><font color="#0000FF">VLAN Settings</font></h2>
+  <h2>VLAN Settings</h2>
 	<table border=0 width="550" cellspacing=4 cellpadding=0>
 	<tr><td><font size=2>
 	 	Entries in below table are used to config vlan settings. 
@@ -386,20 +388,20 @@
     
     <table border="0" width=550>
   
-  <tr>
-  	<td height="30" align=center width="10%" bgcolor="#808080"><font size="2"><b>&nbsp;Enable&nbsp;</b></font></td>
-  	<td align=center width="30%" bgcolor="#808080"><font size="2"><b>Ethernet/Wireless</b></font></td>
-  	<td align=center width="15%" bgcolor="#808080"><font size="2"><b>&nbsp;WAN/LAN&nbsp;</b></font></td>
+  <tr class="tbl_head">
+  	<td height="30" align=center width="10%"><font size="2"><b>&nbsp;Enable&nbsp;</b></font></td>
+  	<td align=center width="30%" ><font size="2"><b>Ethernet/Wireless</b></font></td>
+  	<td align=center width="15%" ><font size="2"><b>&nbsp;WAN/LAN&nbsp;</b></font></td>
 
 	<SCRIPT> 
 	if(vlan_forwording_rule_show==1) 
-		document.write("<td align=center width=\"%\" bgcolor=\"#808080\"><font size=\"2\"><b>&nbsp;Forwarding<br>Rule</b></font></td>");
+		document.write("<td align=center width=\"%\"><font size=\"2\"><b>&nbsp;Forwarding<br>Rule</b></font></td>");
 	</SCRIPT>
   		
-		<td align=center width="%" bgcolor="#808080"><font size="2"><b>&nbsp;Tag&nbsp;</b></font></td>
-		<td align=center width="%" bgcolor="#808080"><font size="2"><b>&nbsp;VID</b></font><font size="1">(1~4090)</font>&nbsp;</td>
-		<td align=center width="%" bgcolor="#808080"><font size="2"><b>&nbsp;Priority&nbsp;</b></font></td>
-		<td align=center width="%" bgcolor="#808080"><font size="2"><b>&nbsp;CFI&nbsp;</b></font></td>
+		<td align=center width="%" ><font size="2"><b>&nbsp;Tag&nbsp;</b></font></td>
+		<td align=center width="%" ><font size="2"><b>&nbsp;VID</b></font><font size="1">(1~4090)</font>&nbsp;</td>
+		<td align=center width="%" ><font size="2"><b>&nbsp;Priority&nbsp;</b></font></td>
+		<td align=center width="%" ><font size="2"><b>&nbsp;CFI&nbsp;</b></font></td>
 	</tr>
 	
     <!--

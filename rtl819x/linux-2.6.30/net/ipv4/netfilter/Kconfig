@@ -423,17 +423,5 @@ config IP_NF_ARP_MANGLE
 
 endif # IP_NF_ARPTABLES
 
-config RTL_HTTP_REDIRECT
-        bool "RTL http Redirect"
-	default n
-	help
-	   This option enables http redirection of wan access
-
-config RTL_MAC_BASED_HTTP_REDIRECT
-        bool "mac based http Redirect"
-	depends on RTL_HTTP_REDIRECT
-	default n
-	help
-	   This option enables http redirection of wan access according to the source mac address
 endmenu
 

@@ -9,7 +9,12 @@ CFLAGS 		+= -mips16
 endif
 LDFLAGS		= 
 #STRIP		= mips-uclibc-strip
-include ../../linux-2.6.30/.config
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+include $(DIR_ROOT)/linux-2.6.30/.config
+else
+include $(DIR_LINUX)/.config
+endif
+#include ../../linux-2.6.30/.config
 ifeq ($(RTL8186_TR),1)
 CFLAGS+=-DCONFIG_RTL8186_TR 
 endif
@@ -46,14 +51,12 @@ ifeq ($(CONFIG_RTL_8198B),y)
 CFLAGS+=-DCONFIG_RTL_8198B
 endif
 
+ifeq ($(CONFIG_RTL_8198C),y)
+CFLAGS+=-DCONFIG_RTL_8198C
+endif
+
 ifeq ($(CONFIG_RTL_92D_DMDP),y)
 CFLAGS  += -DCONFIG_RTL_92D_DMDP
-endif
-ifeq ($(CONFIG_APP_ADAPTER_API),y)
-CFLAGS  += -DTRAFFIC_METER_SUPPORT
-endif
-ifeq ($(CONFIG_APP_ADAPTER_API),y)
-CFLAGS  += -DCONFIG_APP_ADAPTER_API
 endif
 
 CFLAGS += $(EXTRA_CFLAGS)

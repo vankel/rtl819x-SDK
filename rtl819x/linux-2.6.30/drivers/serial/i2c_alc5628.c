@@ -132,7 +132,7 @@ unsigned int serial_out_i2c(unsigned int addr, int offset, int value)
 
 	if( addr != ALC5628_I2C_ADDR )
 		return 0;
-	printk("serial_out_i2c offset=0x%02x value=0x%04x\n",offset,value); //bard 6-19
+	//printk("serial_out_i2c offset=0x%02x value=0x%04x\n",offset,value); //bard 6-19
 	//printk("(%d)", __LINE__);
 	// start 
 	i2c_start_condition( &alc5628_i2c_dev );
@@ -331,19 +331,20 @@ static int __init alc5628_init(void)
 #else // set the led-phase or lec-sig as iis-audio
 	rtlRegMask(0xb8000044, 0x001F80DB, 0x00000049);//change pin mux to iis-voice pin
 #endif
-
+#if 0 //for debug
 	printk("PABCD_CNR: %08X, PABCD_DIR: %08X, PABCD_DAT:%08X\n",
 			rtlRegRead(0xB8003500), rtlRegRead(0xB8003508), rtlRegRead(0xB800350C));
 	printk("PIN_MUX_SEL: %08X PIN_MUX_SEL_2: %08X\n",
 			rtlRegRead(0xB8000040), rtlRegRead(0xB8000044));
+#endif			
 	alc5628_init_i2c();
-
+#if 0 //for debug
 	printk("PABCD_CNR:\t%08X\nPABCD_DIR:\t%08X\nPABCD_DAT:\t%08X\n"
 			"PIN_MUX_SEL:\t%08X\nPIN_MUX_SEL_2:\t%08X\n",
 				rtlRegRead(0xB8003500), rtlRegRead(0xB8003508),
 				rtlRegRead(0xB800350C), rtlRegRead(0xB8000040),
 				rtlRegRead(0xB8000044));
-
+#endif
 	return 0;
 }
 

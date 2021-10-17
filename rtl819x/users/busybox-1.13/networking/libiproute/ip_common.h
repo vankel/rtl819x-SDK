@@ -2,7 +2,8 @@
 #ifndef _IP_COMMON_H
 #define _IP_COMMON_H 1
 
-#include "libbb.h"
+//#include "libbb.h"
+#include "libbb_2.h"
 #include <asm/types.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>

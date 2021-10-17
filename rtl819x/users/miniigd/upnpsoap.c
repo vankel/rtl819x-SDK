@@ -39,6 +39,7 @@
 extern int pppCutEnabled;
 #endif
 
+
 #define IS_DIGIT(c) ((c) >= '0' && (c) <= '9') 
 #define IS_BLANK(c)((c)==' ')
 #define IS_ALPHA(c) ( ((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z') ) 

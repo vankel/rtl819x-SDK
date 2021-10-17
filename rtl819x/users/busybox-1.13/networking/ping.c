@@ -38,7 +38,7 @@
 #define IPV6_HOPLIMIT IPV6_2292HOPLIMIT
 #endif
 
-#define IPV6_SRC_ADDR	73
+#define IPV6_SRC_ADDR	80
 
 #endif
 

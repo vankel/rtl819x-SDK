@@ -1,7 +1,9 @@
 #include <stdint.h>
 #include <linux/atm.h>
 #include <linux/atmdev.h>
+#ifdef KERNEL_2630
 #include <sys/sysinfo.h>
+#endif
 
 #include "prmt_wandevice.h"
 #include "prmt_wandsldiagnostics.h"

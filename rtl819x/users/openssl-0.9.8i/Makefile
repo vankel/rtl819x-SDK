@@ -5,6 +5,9 @@
 ##
 include $(DIR_LINUX)/.config
 
+CROSS_COMPILE ?= rsdk-linux-
+CROSS_TARGET ?= rsdk-linux
+
 VERSION=0.9.8i
 MAJOR=0
 MINOR=9.8
@@ -13,9 +16,9 @@ SHLIB_VERSION_HISTORY=
 SHLIB_MAJOR=0
 SHLIB_MINOR=9.8
 SHLIB_EXT=.so.$(SHLIB_MAJOR).$(SHLIB_MINOR)
-PLATFORM=rsdk-linux
+PLATFORM=$(CROSS_TARGET)
 OPTIONS=enable-shared no-camellia no-capieng no-cms no-gmp no-krb5 no-mdc2 no-montasm no-rc5 no-rfc3779 no-seed no-tlsext no-zlib no-zlib-dynamic
-CONFIGURE_ARGS=shared rsdk-linux
+CONFIGURE_ARGS=shared $(CROSS_TARGET)
 SHLIB_TARGET=linux-shared
 
 # HERE indicates where this Makefile lives.  This can be used to indicate
@@ -60,7 +63,7 @@ OPENSSLDIR=/usr/local/ssl
 # equal 4.
 # PKCS1_CHECK - pkcs1 tests.
 
-CC= rsdk-linux-gcc
+CC= $(CROSS_COMPILE)gcc
 CFLAG= -fPIC -DOPENSSL_PIC -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -DTERMIO -Os -fomit-frame-pointer -Wall
 DEPFLAG= -DOPENSSL_NO_CAMELLIA -DOPENSSL_NO_CAPIENG -DOPENSSL_NO_CMS -DOPENSSL_NO_GMP -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SEED -DOPENSSL_NO_TLSEXT 
 PEX_LIBS= 
@@ -68,12 +71,12 @@ EX_LIBS= -ldl
 EXE_EXT= 
 ARFLAGS= 
 AR=ar $(ARFLAGS) r
-RANLIB= rsdk-linux-ranlib
+RANLIB= $(CROSS_COMPILE)ranlib
 
 PERL=/usr/local/bin/perl
-if [ ! -e /usr/local/bin/perl ]; then \
+$(shell if [ ! -e /usr/local/bin/perl ]; then \
 PERL=/usr/bin/perl; \
-fi
+fi)
 
 TAR= tar
 TARFLAGS= --no-recursion
@@ -364,7 +367,8 @@ clean:	libclean
 	do \
 	rm -fr $$i/*; \
 	done
-
+	rm -r dlib_config_done
+	rm -r slib_config_done
 makefile.one: files
 	$(PERL) util/mk1mf.pl >makefile.one; \
 	sh util/do_ms.sh
@@ -603,7 +607,7 @@ romfs:
 	@cp ./apps/openssl.cnf $(DIR_ROMFS)/usr/local/ssl/
 	@chmod 644 $(DIR_ROMFS)/usr/local/ssl/openssl.cnf
 	@cp -r ./apps/demoCA/* $(DIR_ROMFS)/usr/local/ssl/
-	@cp ./test/rsa_test $(DIR_ROMFS)/bin/
+
 	##Just for wapi certs related
 	##To use openssl ecdh (ecdh compute) and ecdsa(ecdsa signature and verify)
 #	@cp ./test/ecdhtest $(DIR_ROMFS)/bin/

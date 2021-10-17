@@ -1061,4 +1061,3 @@ int rtl_delFdbByMac(const unsigned char *macAddr, const char* devName)
 }		
 #endif
 
-

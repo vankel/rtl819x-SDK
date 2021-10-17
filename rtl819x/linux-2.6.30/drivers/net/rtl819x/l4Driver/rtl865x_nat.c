@@ -1290,8 +1290,11 @@ static int32 _rtl865x_naptSync(rtl865x_napt_entry *naptEntry, uint32 refresh)
 int32 rtl865x_addNaptConnection(rtl865x_napt_entry *naptEntry, rtl865x_priority *prio)
 {
 	int32 retval = FAILED;
+	unsigned long flags = 0;
 
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_addNaptConnection(naptEntry, prio);
+	SMP_UNLOCK_ETH_HW(flags);
 
 	return retval;
 }
@@ -1314,8 +1317,11 @@ int32 rtl865x_addNaptConnection(rtl865x_napt_entry *naptEntry, rtl865x_priority 
 int32 rtl865x_delNaptConnection(rtl865x_napt_entry *naptEntry)
 {
 	int32 retval = FAILED;
+	unsigned long flags = 0;
 
+	SMP_LOCK_ETH_HW(flags);
 	retval = _rtl865x_delNaptConnection(naptEntry);
+	SMP_UNLOCK_ETH_HW(flags);
 
 	return retval;
 }

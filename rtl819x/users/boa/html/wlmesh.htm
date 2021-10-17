@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>System Command</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 
 var defPskLen=new Array();
@@ -155,7 +156,7 @@ function LoadSetting()
 </head>
 <body onload="LoadSetting()">
 <blockquote>
-<h2><font color="#0000FF">Wireless Mesh Network Setting</font></h2>
+<h2>Wireless Mesh Network Setting</h2>
 <table border=0 width="550" cellspacing=4 cellpadding=0>
 <tr><font size=2>
 	  Mesh network uses wireless media to communicate with other APs, like the Ethernet does.
@@ -175,7 +176,7 @@ function LoadSetting()
 		document.write('<input type="checkbox" name="wlanMeshEnable" value="ON" onClick="updateState2()">&nbsp;&nbsp;Enable Mesh</b></tr>');
 	}
 </script>
-<table width="550" border="0" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF">
+<table width="550" border="0" cellpadding="0" cellspacing="0">
   <tr>
  	<td width="35%"><font size=2><b>Mesh ID:</b></td>
  	<td width="65%"><input type="text" name="meshID" size="33" maxlength="32" value="<% getInfo("meshID"); %>"></td>

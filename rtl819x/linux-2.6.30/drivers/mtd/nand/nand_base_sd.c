@@ -3666,21 +3666,6 @@ SKIP_BBT_CHECK:
 		                	}
 		                	#endif
 
-							/* first page */
-		                	rc = this->write_ecc_page (mtd, this->active_chip, page, buf ,oob_area,0);
-		                	if(rc){
-								if(blocktmp){
-									kfree(blocktmp);
-									blocktmp = NULL;
-								}
-								if(oobtmp){
-									kfree(oobtmp);
-									oobtmp = NULL;
-								}
-								printk("write ecc page error\n");
-								return rc;
-							}
-
 		                	#if 1
 							for(i = 1;i < ppb;i++){
 								//only check page,oobtmp must 0xff 
@@ -4395,8 +4380,7 @@ int rtk_update_bbt (struct mtd_info *mtd, BB_t *bbt)
 
 	u8 *temp_BBT = 0;
 
-	//bbt_page = ((BOOT_SIZE >> this->phys_erase_shift)-BACKUP_BBT)*ppb;
-	bbt_page = ((REMAP_BBT_POS >> this->phys_erase_shift)+BACKUP_BBT)*ppb;
+	bbt_page = ((BOOT_SIZE >> this->phys_erase_shift)-BACKUP_BBT)*ppb;
 	mem_page_num = (sizeof(BB_t)*this->RBA + page_size-1 )/page_size;
 	printk("[%s] mem_page_num %d bbt_page %d\n\r", __FUNCTION__, mem_page_num, bbt_page);
 
@@ -4613,7 +4597,7 @@ static int create_v2r_remapping(struct mtd_info *mtd, unsigned int page, unsigne
 	count = 0;
 	search_region = (block_v2r_num << this->phys_erase_shift);
 	//just create [bootloader+user+rootfs+rootfs2] region remapping
-    while(offs_real < search_region){
+    while(offs < search_region){
 		if ( rtk_block_isbad(mtd,numchips-1,offs_real) ){
 			offs_real += this->erase_block;
 		}else{
@@ -4723,12 +4707,10 @@ int rtk_scan_v2r_bbt(struct mtd_info *mtd)
 	unsigned char load_bbt_error = 0, is_first_boot=1;
 	int numchips = this->numchips;
 
-    //bbt_v2r_page = ((BOOT_SIZE/block_size)-(2*BACKUP_BBT))*this->ppb;
+    bbt_v2r_page = ((BOOT_SIZE/block_size)-(2*BACKUP_BBT))*this->ppb;
 
 	//block_v2r_num = ((BOOT_SIZE + USER_SPACE_SIZE + VIMG_SPACE_SIZE + VIMG_SPACE_SIZE) >> this->phys_erase_shift);
-	//block_v2r_num = (this->chipsize)>> this->phys_erase_shift;
-	bbt_v2r_page = (REMAP_BBT_POS/block_size)*this->ppb;
-	block_v2r_num = ((this->chipsize)>> this->phys_erase_shift) - RBA;
+	block_v2r_num = (this->chipsize)>> this->phys_erase_shift;
 	
 	printk("[%s, line %d] block_v2r_num %d bbt_v2r_page %x this->phys_erase_shift:%x\n\r",__FUNCTION__,__LINE__, block_v2r_num, bbt_v2r_page,this->phys_erase_shift);
 
@@ -5009,8 +4991,8 @@ static int rtk_nand_scan_bbt(struct mtd_info *mtd)
 	
 	//__u8 check0, check1, check2, check3;
 	dma_cache_wback((unsigned long) this->bbt,sizeof(BB_t)*RBA);   //czyao
-	bbt_page = ((REMAP_BBT_POS/this->block_size)+BACKUP_BBT)*ppb;
-	//bbt_page = ((BOOT_SIZE/this->block_size)-BACKUP_BBT)*ppb;
+
+	bbt_page = ((BOOT_SIZE/this->block_size)-BACKUP_BBT)*ppb;
 
 	mem_page_num = (sizeof(BB_t)*RBA + page_size-1 )/page_size;
 	printk("[%s, line %d] mem_page_num=%d bbt_page %d\n",__FUNCTION__,__LINE__,mem_page_num, bbt_page);
@@ -5394,8 +5376,7 @@ int rtk_update_normal_bbt (struct mtd_info *mtd, BBT_normal *bbt_nor)
 	unsigned char mem_page_num, page_counter=0, mem_page_num_tmp=0;
 	int numchips = this->numchips;
 	u8 *temp_BBT = 0;
-	//bbt_page = ((NORMAL_BBT_POSITION >> this->phys_erase_shift)-BACKUP_BBT)*ppb;
-	bbt_page = (NORMAL_BBT_POSITION >> this->phys_erase_shift)*ppb;
+	bbt_page = ((NORMAL_BBT_POSITION >> this->phys_erase_shift)-BACKUP_BBT)*ppb;
 	mem_page_num = (sizeof(BBT_normal)*this->bbt_num + page_size-1 )/page_size;
 	printk("[%s] mem_page_num %d bbt_page %d\n\r", __FUNCTION__, mem_page_num, bbt_page);
 	temp_BBT = kmalloc( mem_page_num*page_size, GFP_KERNEL );
@@ -5497,8 +5478,7 @@ static int nand_scan_normal_bbt(struct mtd_info *mtd)
 	int numchips = this->numchips;
 	unsigned int bbt_page;
 	dma_cache_wback((unsigned long) this->bbt_nor,sizeof(BBT_normal)*bbt_num);   //czyao
-	//bbt_page = ((NORMAL_BBT_POSITION/this->block_size)-BACKUP_BBT)*ppb;
-	bbt_page = (NORMAL_BBT_POSITION/mtd->erasesize)*ppb;
+	bbt_page = ((NORMAL_BBT_POSITION/this->block_size)-BACKUP_BBT)*ppb;
 	mem_page_num = (sizeof(BBT_normal)*bbt_num + page_size-1 )/page_size;
 	printk("[%s, line %d] mem_page_num=%d bbt_page %d\n",__FUNCTION__,__LINE__,mem_page_num, bbt_page);
 	temp_BBT = kmalloc( mem_page_num*page_size, GFP_KERNEL );

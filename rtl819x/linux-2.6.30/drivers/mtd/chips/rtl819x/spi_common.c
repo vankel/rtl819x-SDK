@@ -1017,13 +1017,14 @@ unsigned int ComSrlCmd_ComRead(unsigned char ucChip, unsigned int uiAddr, unsign
 	return uiLen;
 	
 }
+#define REG32(reg)   (*(volatile unsigned int *)((unsigned int)reg))
 
 // write template
 unsigned int ComSrlCmd_ComWrite(unsigned char ucChip, unsigned int uiAddr, unsigned int uiLen, unsigned char* pucBuffer, unsigned int uiCmd, unsigned char ucIsFast, unsigned char ucIOWidth, unsigned char ucDummyCount)
 {
 	unsigned int ui, uiCount, i;
 	unsigned char* puc = pucBuffer;
-	LDEBUG("ComSrlCmd_ComWrite: ucChip=%x; uiAddr=%x; uiLen=%x; pucBuffer=%x; uiCmd=%x; uiIsfast=%x; ucIOWidth=%x; ucDummyCount=%x\n", ucChip, uiAddr, uiLen, (unsigned int)pucBuffer, uiCmd, ucIsFast, ucIOWidth, ucDummyCount);
+		LDEBUG("ComSrlCmd_ComWrite: ucChip=%x; uiAddr=%x; uiLen=%x; pucBuffer=%x; uiCmd=%x; uiIsfast=%x; ucIOWidth=%x; ucDummyCount=%x\n", ucChip, uiAddr, uiLen, (unsigned int)pucBuffer, uiCmd, ucIsFast, ucIOWidth, ucDummyCount);
 	SeqCmd_Order(ucChip,  IOWIDTH_SINGLE, SPICMD_WREN);
 
 	ComSrlCmd_InputCommand(ucChip, uiAddr, uiCmd, ucIsFast, ucIOWidth, ucDummyCount);
@@ -1046,7 +1047,7 @@ unsigned int ComSrlCmd_ComWrite(unsigned char ucChip, unsigned int uiAddr, unsig
 	}
 	SFCSR_CS_H(ucChip, 0, IOWIDTH_SINGLE);
 	ui = spiFlashReady(ucChip);
-	return uiLen;
+		return uiLen;
 }
 
 // write a whole sector once
@@ -1083,7 +1084,6 @@ unsigned int ComSrlCmd_BufWriteSector(unsigned char ucChip, unsigned int uiAddr,
 	ui = ComSrlCmd_ComWriteSector(ucChip, uiStartAddr, pucSector);
 	return ui;
 }
-
 // write data, any address any lenth
 unsigned int ComSrlCmd_ComWriteData(unsigned char ucChip, unsigned int uiAddr, unsigned int uiLen, unsigned char* pucBuffer)
 {

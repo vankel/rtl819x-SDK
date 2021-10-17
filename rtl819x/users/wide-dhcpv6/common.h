@@ -100,6 +100,13 @@
 #define SO_REUSEPORT SO_REUSEADDR
 #endif
 
+#ifdef KERNEL_3_10
+struct in6_pktinfo {
+        struct in6_addr ipi6_addr;
+        unsigned int    ipi6_ifindex;
+};
+#endif
+
 /* s*_len stuff */
 static __inline u_int8_t
 sysdep_sa_len (const struct sockaddr *sa)
@@ -156,7 +163,7 @@ extern char *in6addr2str __P((struct in6_addr *, int));
 extern int in6_addrscopebyif __P((struct in6_addr *, char *));
 extern int in6_scope __P((struct in6_addr *));
 extern void setloglevel __P((int));
-extern void dprintf __P((int, const char *, const char *, ...));
+extern void dprintf_rtk __P((int, const char *, const char *, ...));
 extern int get_duid __P((char *, struct duid *));
 extern void dhcp6_init_options __P((struct dhcp6_optinfo *));
 extern void dhcp6_clear_options __P((struct dhcp6_optinfo *));

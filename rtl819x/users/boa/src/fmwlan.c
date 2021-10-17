@@ -255,20 +255,34 @@ WLAN_RATE_T tx_fixed_rate[]={
 	{0}
 };
 //changes in following table should be synced to VHT_MCS_DATA_RATE[] in 8812_vht_gen.c
-const unsigned short VHT_MCS_DATA_RATE[3][2][20] = 
+// 				20/40/80,	ShortGI,	MCS Rate 
+const unsigned short VHT_MCS_DATA_RATE[3][2][30] = 
 	{	{	{13, 26, 39, 52, 78, 104, 117, 130, 156, 156,
-			 26, 52, 78, 104, 156, 208, 234, 260, 312, 312},			// Long GI, 20MHz
+			 26, 52, 78, 104, 156, 208, 234, 260, 312, 312, 
+			 39, 78, 117, 156, 234, 312, 351, 390, 468, 520},					// Long GI, 20MHz
+			 
 			{14, 29, 43, 58, 87, 116, 130, 144, 173, 173,
-			29, 58, 87, 116, 173, 231, 260, 289, 347, 347}	},		// Short GI, 20MHz
+			 29, 58, 87, 116, 173, 231, 260, 289, 347, 347,
+			 43, 86, 130, 173, 260, 347, 390, 433, 520, 578}			},		// Short GI, 20MHz
+			 
 		{	{27, 54, 81, 108, 162, 216, 243, 270, 324, 360, 
-			54, 108, 162, 216, 324, 432, 486, 540, 648, 720}, 		// Long GI, 40MHz
+			 54, 108, 162, 216, 324, 432, 486, 540, 648, 720, 
+			 81, 162, 243, 342, 486, 648, 729, 810, 972, 1080}, 				// Long GI, 40MHz
+			 
 			{30, 60, 90, 120, 180, 240, 270, 300,360, 400, 
-			60, 120, 180, 240, 360, 480, 540, 600, 720, 800}},		// Short GI, 40MHz
+			 60, 120, 180, 240, 360, 480, 540, 600, 720, 800,
+			 90, 180, 270, 360, 540, 720, 810, 900, 1080, 1200}			},		// Short GI, 40MHz
+			 
 		{	{59, 117,  176, 234, 351, 468, 527, 585, 702, 780,
-			117, 234, 351, 468, 702, 936, 1053, 1170, 1404, 1560}, 	// Long GI, 80MHz
+			 117, 234, 351, 468, 702, 936, 1053, 1170, 1404, 1560, 
+			 176, 351, 527, 702, 1053, 1408, 1408, 1745, 2106, 2340}, 			// Long GI, 80MHz
+			 
 			{65, 130, 195, 260, 390, 520, 585, 650, 780, 867, 
-			130, 260, 390, 520, 780, 1040, 1170, 1300, 1560,1733}	}	// Short GI, 80MHz
+			 130, 260, 390, 520, 780, 1040, 1170, 1300, 1560, 1733, 
+			 195, 390, 585, 780, 1170, 1560, 1560, 1950, 2340, 2600}	}		// Short GI, 80MHz
+			 
 	};
+
 
 /////////////////////////////////////////////////////////////////////////////
 #ifndef NO_ACTION
@@ -379,6 +393,16 @@ void run_init_script(char *arg)
 	killSomeDaemon();
 	
 	system("killsh.sh");	// kill all running script	
+#ifdef CONFIG_IPV6
+	system("ip tunnel del tun 2> /dev/null");
+#ifdef CONFIG_DSLITE_SUPPORT
+	system("ip -6 tunnel del ds-lite 2> /dev/null"); //delete ds-lite tunnel
+	system("rm -f /var/ds-lite.script 2> /dev/null");
+#endif
+#ifdef CONFIG_SIXRD_SUPPORT
+	system("ip tunnel del tun6rd 2> /dev/null");
+#endif
+#endif
 
 #ifdef REBOOT_CHECK
 	run_init_script_flag = 0;
@@ -840,7 +864,6 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 {
 	char *tmpStr;
 	char varName[20];
-	int auth;
 
 	int add_to_profile = 0;
 	
@@ -864,6 +887,7 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 		char strSSID[64]={0};
 		int encryptVal;
 		int entryNum;
+		int auth;
 
 		if(wlan_id == 0)
 		{
@@ -969,26 +993,33 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 				entry.encryption = 3;
 				apmib_get( MIB_WLAN_WPA_CIPHER_SUITE, (void *)&cipherSuite);
 			}
-			else
+			else// if(encryptVal== ENCRYPT_WPA2)
 			{
 				entry.encryption = 4;
 				apmib_get( MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&cipherSuite);
 			}
+			/*else
+			{
+				entry.encryption = 6;
+				apmib_get( MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&cipherSuite);	
+			}*/
 
 			
 			if(cipherSuite == WPA_CIPHER_TKIP)
 				entry.wpa_cipher = 2;
-			else
+			else //if (cipherSuite == WPA_CIPHER_AES)
 				entry.wpa_cipher = 8;
+			//else
+				//entry.wpa_cipher =10;
 
 			apmib_get( MIB_WLAN_WPA_AUTH, (void *)&auth);
-            if(auth == WPA_AUTH_AUTO){//==1 radius
-                    entry.auth = 1;
-            }
-            else{//==2  psk
-                    entry.auth = 2;
-            }
-						
+			if(auth == WPA_AUTH_AUTO){//==1 radius
+				entry.auth = 1;
+			}
+			else{//==2  psk
+				entry.auth = 2;
+			}
+
 			apmib_get( MIB_WLAN_PSK_FORMAT, (void *)&pskFormat);
 			entry.wpaPSKFormat = pskFormat;
 
@@ -1441,7 +1472,7 @@ void generate_GO_PSK(void)
 #endif
 int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 {
-    char *strSSID, *strChan, *strDisabled, *strVal, strtmp[80];
+  char *strSSID, *strChan, *strDisabled, *strVal, strtmp[80];
 	int chan, disabled ;
 	NETWORK_TYPE_T net;
 	char *strRate;
@@ -1712,7 +1743,7 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 		int old_vwlan_idx = vwlan_idx;
 
 		for (vap_idx=1; vap_idx<=4; vap_idx++) {
-            vwlan_idx = vap_idx; 
+			vwlan_idx = vap_idx; 
 			apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&vap_val);
 			if(!vap_val)//ON
 			{
@@ -2035,7 +2066,7 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
     		if (val == CLIENT_MODE) {
     			// if client mode, check if Radius or mixed mode encryption is used
     			apmib_get(MIB_WLAN_ENCRYPT, (void *)&val);
-
+				
     			if (val <= ENCRYPT_WEP) {				
     				apmib_get( MIB_WLAN_ENABLE_1X, (void *)&val);
     				if (val != 0) {
@@ -2043,12 +2074,13 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
     					apmib_set( MIB_WLAN_ENABLE_1X, (void *)&val);				
     				}
     			}	
-    			else if (val == ENCRYPT_WPA2_MIXED) {				
-    				apmib_get(MIB_WLAN_WPA_AUTH, (void *)&val);
+    			else if (val == ENCRYPT_WPA2_MIXED) {
+					apmib_get(MIB_WLAN_WPA_AUTH, (void *)&val);
     				if ((val == 0) || (val & 1)) { // if no or radius, force to psk
     					val = 2;
     					apmib_set(MIB_WLAN_WPA_AUTH, (void *)&val);
     				}
+					//when mixed mode set both tkip and aes
 					val = WPA_CIPHER_MIXED;
 					apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&val);	
 					apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&val);	
@@ -2435,10 +2467,10 @@ int wlMeshAcList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"45%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
-      	"<td align=center width=\"35%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"45%%\" ><font size=\"2\"><b>MAC Address</b></font></td>\n"
+      	"<td align=center width=\"35%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
@@ -2449,10 +2481,10 @@ int wlMeshAcList(request *wp, int argc, char **argv)
 			entry.macAddr[0], entry.macAddr[1], entry.macAddr[2],
 			entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"45%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"35%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-       			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"45%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"35%%\" ><font size=\"2\">%s</td>\n"
+       			"<td align=center width=\"20%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				tmpBuf, entry.comment, i);
 	}
 	return nBytesSent;
@@ -2656,7 +2688,7 @@ void formMeshProxy(request *wp, char *path, char *query)
 		//req_format_write(wp, ("<tr><font size=4><b>Proxy Table </b></font></tr>\n"));
 		
 				
-		req_format_write(wp, ("<tr bgcolor=\"#7F7F7F\">"
+		req_format_write(wp, ("<tr class=\"tbl_head\">"
 		//"<td align=center width=\"50%%\"><font size=\"2\"><b>MP MAC Address</b></font></td>\n"
 		"<td align=center><font size=\"2\"><b>Client MAC Address</b></font></td></tr>\n"));
 		
@@ -2676,7 +2708,7 @@ void formMeshProxy(request *wp, char *path, char *query)
 				_get_token( fh,"OWNER_MAC: ",owner );
 				strtolower(owner, 12);
 				if (!strncmp(strPrxyOwnr,owner,12)){
-					req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+					req_format_write(wp,("<tr class=\"tbl_body\">"
 							"<td align=center width=\"50%%\"><font size=\"2\">%s</td>\n"),sta);
 					nRecordCount++;
 				}
@@ -2687,7 +2719,7 @@ void formMeshProxy(request *wp, char *path, char *query)
 		
 		if(nRecordCount == 0)
 		{
-			req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+			req_format_write(wp,("<tr class=\"tbl_body\">"
 					"<td align=center width=\"17%%\"><font size=\"2\">None</td>\n"));
 		}
 				
@@ -3157,24 +3189,24 @@ void formWlanSetup(request *wp, char *path, char *query)
 #if defined(WLAN_PROFILE)
 	if(wlProfileHandler(wp, tmpBuf, wlan_idx) < 0)
 	{
-        //printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);	
+//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);	
 		goto setErr_wlan;
 	}
 	
 #endif //#if defined(WLAN_PROFILE)	
 
 	if (mode == 1) { // not AP mode
-		//set cipher suit to AES and encryption to wpa2 only if wpa2 mixed mode is set
+		//set cipher suit to AES + tkip if wpa2 mixed mode is set
 		ENCRYPT_T encrypt;
 		int intVal;
 		apmib_get( MIB_WLAN_ENCRYPT, (void *)&encrypt);
 		if(encrypt == ENCRYPT_WPA2_MIXED){
 			intVal =   WPA_CIPHER_MIXED ;
+			
 			if ( apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&intVal) == 0) {
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA2_UNICIPHER failed!"));
 				goto setErr_wlan;
 			}
-
 			intVal =   WPA_CIPHER_MIXED;
 			if ( apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&intVal) == 0) {
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA_CIPHER_SUITE failed!"));
@@ -3202,6 +3234,7 @@ void formWlanSetup(request *wp, char *path, char *query)
 			warn = 1;
 		}
 	}
+	
 	apmib_update_web(CURRENT_SETTING);
 
 #ifndef NO_ACTION
@@ -3637,7 +3670,7 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
   		strcpy(tmpBuf, ("Set MIB_WLAN_ENCRYPT mib error!"));
 		goto setErr_encrypt;
 	}
-
+	
 	if (encrypt == ENCRYPT_DISABLED || encrypt == ENCRYPT_WEP) {
 		sprintf(varName, "use1x%d", wlan_id);
 		strVal = req_get_cstream_var(wp, varName, "");
@@ -3866,7 +3899,6 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 #endif
 	else {
 		// support nonWPA client
-
 		sprintf(varName, "nonWpaSupp%d", wlan_id);
  		strVal = req_get_cstream_var(wp, varName, "");
 		apmib_get( MIB_WLAN_ENABLE_SUPP_NONWPA, (void *)&intVal);
@@ -3993,7 +4025,7 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 					goto setErr_encrypt;							
 				}
 			}*/	// david+2006-1-11
-					
+			
 			if ( apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&intVal) == 0) {
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA_CIPHER_SUITE failed!"));
 				goto setErr_encrypt;							
@@ -4084,7 +4116,7 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 					goto setErr_encrypt;							
 				}
 			}*/	// david+2006-1-11
-				
+			
 			if ( apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&intVal) == 0) {
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA2_CIPHER_SUITE failed!"));
 				goto setErr_encrypt;							
@@ -4847,7 +4879,7 @@ int wlanProfileEncryptHandler(request *wp, char *tmpBuf)
 		{
 			if ( !strcmp(strWpaAuth, ("eap"))) {
 				strcpy(tmpBuf, ("Invalid wpaAuth value!"));
-				goto setErr_wlan;
+				//goto setErr_wlan;
 			}
 			else if ( !strcmp(strWpaAuth, ("psk"))) {
 				getPSK = 1;
@@ -5101,7 +5133,7 @@ int wlMeshNeighborTable(request *wp, int argc, char **argv)
         char hwaddr[100],state[100],channel[100],link_rate[100],tx_pkts[10],rx_pkts[10];
         char rssi[100],establish_exp_time[100],bootseq_exp_time[100],dummy[100];
 
-        nBytesSent += req_format_write(wp, ("<tr bgcolor=\"#7F7F7F\">"
+        nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
         "<td align=center width=\"17%%\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
         //"<td align=center width=\"17%%\"><font size=\"2\"><b>State</b></font></td>\n"
         "<td align=center width=\"17%%\"><font size=\"2\"><b>Mode</b></font></td>\n"
@@ -5166,7 +5198,7 @@ int wlMeshNeighborTable(request *wp, int argc, char **argv)
                                         break;
                         }
 
-                        nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                        nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                                 "<td align=center width=\"17%%\"><font size=\"2\">%s</td>\n"
                                 "<td align=center width=\"17%%\"><font size=\"2\">%s</td>\n"
                                 "<td align=center width=\"17%%\"><font size=\"2\">%s</td>\n"
@@ -5194,7 +5226,7 @@ int wlMeshNeighborTable(request *wp, int argc, char **argv)
 
         if(nRecordCount == 0)
         {
-                nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                         "<td align=center><font size=\"2\">None</td>"
                         "<td align=center width=\"17%%\"><font size=\"2\">---</td>\n"
                         "<td align=center width=\"17%%\"><font size=\"2\">---</td>\n"                        
@@ -5236,7 +5268,7 @@ int wlMeshRoutingTable(request *wp, int argc, char **argv)
         
 		
 
-        nBytesSent += req_format_write(wp, ("<tr bgcolor=\"#7F7F7F\">"
+        nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
         "<td align=center width=\"15%%\"><font size=\"2\"><b>Destination Mesh Point</b></font></td>\n"
         "<td align=center width=\"15%%\"><font size=\"2\"><b>Next-hop Mesh Point</b></font></td>\n"
 	"<td align=center width=\"10%%\"><font size=\"2\"><b>Portal Enable</b></font></td>\n"
@@ -5328,7 +5360,7 @@ int wlMeshRoutingTable(request *wp, int argc, char **argv)
 		
         if(nRecordCount == 0)
         {
-                nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                         "<td><font size=\"2\">None</td>"
                         "<td align=center width=\"15%%\"><font size=\"2\">---</td>\n"
                         "<td align=center width=\"15%%\"><font size=\"2\">---</td>\n"
@@ -5355,7 +5387,7 @@ int wlMeshRoutingTable(request *wp, int argc, char **argv)
 					strcpy(putstr, p->destMac);
 				}
 					
-        		nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+        		nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
 								"<td align=center width=\"15%%\"><font size=\"2\">%s</td>\n"
 					"<td align=center width=\"15%%\"><font size=\"2\">%s</td>\n"
 								"<td align=center width=\"15%%\"><font size=\"2\">%s</td>\n"
@@ -5388,7 +5420,7 @@ int wlMeshPortalTable(request *wp, int argc, char **argv)
         char buf[512];
         char mac[100],timeout[100],seq[100];
 
-        nBytesSent += req_format_write(wp, ("<tr bgcolor=\"#7F7F7F\">"
+        nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
         "<td align=center width=\"16%%\"><font size=\"2\"><b>PortalMAC</b></font></td>\n"
 #if defined(_11s_TEST_MODE_)
         "<td align=center width=\"16%%\"><font size=\"2\"><b>timeout</b></font></td>\n"
@@ -5412,7 +5444,7 @@ int wlMeshPortalTable(request *wp, int argc, char **argv)
                         _get_token( fh,"timeout: ",timeout );
                         _get_token( fh,"seqNum: ",seq );
 
-                        nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                        nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                         "<td align=center width=\"16%%\"><font size=\"2\">%s</td>\n"
 #if defined(_11s_TEST_MODE_)
                         "<td align=center width=\"16%%\"><font size=\"2\">%s</td>\n"
@@ -5431,7 +5463,7 @@ int wlMeshPortalTable(request *wp, int argc, char **argv)
 
         if(nRecordCount == 0)
         {
-                nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                         "<td><font size=\"2\">None</td>"
 #if defined(_11s_TEST_MODE_)
                         "<td align=center width=\"17%%\"><font size=\"2\">---</td>\n"
@@ -5454,7 +5486,7 @@ int wlMeshProxyTable(request *wp, int argc, char **argv)
         char buf[512];
         char sta[100],owner[100];
 
-        nBytesSent += req_format_write(wp, ("<tr bgcolor=\"#7F7F7F\">"
+        nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
         "<td align=center width=\"50%%\"><font size=\"2\"><b>Owner</b></font></td>\n"
         "<td align=center width=\"50%%\"><font size=\"2\"><b>Client</b></font></td></tr>\n"));
 
@@ -5474,7 +5506,7 @@ int wlMeshProxyTable(request *wp, int argc, char **argv)
                         _get_token( fh,"OWNER_MAC: ",owner );
        
 
-                        nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                        nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                                 "<td align=center width=\"50%%\"><font size=\"2\">%s</td>\n"
                                 "<td align=center width=\"50%%\"><font size=\"2\">%s</td>\n"),
                                 owner,sta);
@@ -5486,7 +5518,7 @@ int wlMeshProxyTable(request *wp, int argc, char **argv)
 
         if(nRecordCount == 0)
         {
-                nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                         "<td><font size=\"2\">None</td>"
                         "<td align=center width=\"17%%\"><font size=\"2\">---</td>\n"));
         }
@@ -5502,7 +5534,7 @@ int wlRxStatics(request *wp, int argc, char **argv)
         char buf[512];
         char buf2[15][50];
 
-        nBytesSent += req_format_write(wp, ("<tr bgcolor=\"#7F7F7F\">"
+        nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
         "<td align=center width=\"10%%\"><font size=\"2\"><b>jiffies</b></font></td>\n"
         "<td align=center width=\"10%%\"><font size=\"2\"><b>tx_packets</b></font></td>\n"
         "<td align=center width=\"10%%\"><font size=\"2\"><b>tx_retrys</b></font></td>\n"
@@ -5537,7 +5569,7 @@ int wlRxStatics(request *wp, int argc, char **argv)
 				_get_token( fh,"rx_errors: ",buf2[7] );				
                 _get_token( fh,"rx_crc_errors: ",buf2[8] );
 
-                nBytesSent += req_format_write(wp,("<tr bgcolor=\"#b7b7b7\">"
+                nBytesSent += req_format_write(wp,("<tr class=\"tbl_body\">"
                         "<td align=center width=\"50%%\"><font size=\"2\">%s</td>\n"
                         "<td align=center width=\"50%%\"><font size=\"2\">%s</td>\n"
                         "<td align=center width=\"50%%\"><font size=\"2\">%s</td>\n"
@@ -5595,10 +5627,10 @@ int wlAcList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"45%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
-      	"<td align=center width=\"35%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"45%%\" ><font size=\"2\"><b>MAC Address</b></font></td>\n"
+      	"<td align=center width=\"35%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
@@ -5609,10 +5641,10 @@ int wlAcList(request *wp, int argc, char **argv)
 			entry.macAddr[0], entry.macAddr[1], entry.macAddr[2],
 			entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"45%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"35%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-       			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"45%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"35%%\" ><font size=\"2\">%s</td>\n"
+       			"<td align=center width=\"20%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				tmpBuf, entry.comment, i);
 	}
 	return nBytesSent;
@@ -5624,8 +5656,9 @@ void formWlAc(request *wp, char *path, char *query)
 	char *strAddMac, *strDelMac, *strDelAllMac, *strVal, *submitUrl, *strEnabled;
 	char tmpBuf[MAX_MSG_BUFFER_SIZE]={0};
 	int entryNum, i, enabled;
-	MACFILTER_T macEntry;
-
+	MACFILTER_T macEntry, macEntrytmp;
+	int j = 0;
+	
 	strAddMac = req_get_cstream_var(wp, ("addFilterMac"), "");
 	strDelMac = req_get_cstream_var(wp, ("deleteSelFilterMac"), "");
 	strDelAllMac = req_get_cstream_var(wp, ("deleteAllFilterMac"), "");
@@ -5670,6 +5703,22 @@ void formWlAc(request *wp, char *path, char *query)
 		if ( (entryNum + 1) > MAX_WLAN_AC_NUM) {
 			strcpy(tmpBuf, ("Cannot add new entry because table is full!"));
 			goto setErr_ac;
+		}
+		
+		//add same rule check
+		for(j=1;j<=entryNum;j++)
+		{
+			memset(&macEntrytmp, 0x00, sizeof(macEntrytmp));
+			*((char *)&macEntrytmp) = (char)j;
+			if ( apmib_get(MIB_WLAN_MACAC_ADDR, (void *)&macEntrytmp))
+			{
+				if (!memcmp(macEntrytmp.macAddr, macEntry.macAddr, 6))
+				{
+					strcpy(tmpBuf, ("rule already exist!"));
+					goto setErr_ac;
+				}
+					
+			}
 		}
 
 		// set to MIB. try to delete it first to avoid duplicate case
@@ -6210,6 +6259,22 @@ skip_rate_setting:
 				val = 0;	
 			apmib_set(MIB_WLAN_COEXIST_ENABLED, (void *)&val);	
 		}
+	strValue = req_get_cstream_var(wp, ("tdls_prohibited_"), "");
+		if (strValue[0]) {
+			if (!strcmp(strValue, ("enable")))
+				val = 1;
+			else
+				val = 0;	
+			apmib_set(MIB_WLAN_TDLS_PROHIBITED, (void *)&val);	
+		}
+	strValue = req_get_cstream_var(wp, ("tdls_cs_prohibited_"), "");
+		if (strValue[0]) {
+			if (!strcmp(strValue, ("enable")))
+				val = 1;
+			else
+				val = 0;	
+			apmib_set(MIB_WLAN_TDLS_CS_PROHIBITED, (void *)&val);	
+		}
 
 		//### add by sen_liu 2011.3.29 TX Beamforming update to mib in 92D 
 		strValue = req_get_cstream_var(wp, ("beamforming_"), "");
@@ -6282,7 +6347,7 @@ void set_11ac_txrate(WLAN_STA_INFO_Tp pInfo,char* txrate)
 {
 	char channelWidth=0;//20M 0,40M 1,80M 2
 	char shortGi=0;
-	char rate_idx=pInfo->txOperaRates-0x90;
+	char rate_idx=pInfo->txOperaRates-0xA0;
 	if(!txrate)return;
 /*
 	TX_USE_40M_MODE		= BIT(0),
@@ -6368,7 +6433,7 @@ int wirelessClientList(request *wp, int argc, char **argv)
 			sprintf(mode_buf, "%s", (" ---"));	
 		
 	
-		if(pInfo->txOperaRates >= 0x90) {
+		if(pInfo->txOperaRates >= 0xA0) {
 			//sprintf(txrate, "%d", pInfo->acTxOperaRate); 
 			set_11ac_txrate(pInfo, txrate);
 		} else if((pInfo->txOperaRates & 0x80) != 0x80){	
@@ -6415,7 +6480,7 @@ int wirelessClientList(request *wp, int argc, char **argv)
 			
 		}	
 			nBytesSent += req_format_write(wp,	
-	   		("<tr bgcolor=#b7b7b7><td><font size=2>%02x:%02x:%02x:%02x:%02x:%02x</td>"
+	   		("<tr class=\"tbl_body\"><td><font size=2>%02x:%02x:%02x:%02x:%02x:%02x</td>"
 			"<td><font size=2>%s</td>"
 			"<td><font size=2>%d</td>"
 	     		"<td><font size=2>%d</td>"
@@ -6435,7 +6500,7 @@ int wirelessClientList(request *wp, int argc, char **argv)
 	}
 	if (found == 0) {
 		nBytesSent += req_format_write(wp,
-	   		("<tr bgcolor=#b7b7b7><td><font size=2>None</td>"
+	   		("<tr class=\"tbl_body\"><td><font size=2>None</td>"
 			"<td><font size=2>---</td>"
 	     		"<td><font size=2>---</td>"
 			"<td><font size=2>---</td>"
@@ -6569,36 +6634,47 @@ void formWlanMultipleAP(request *wp, char *path, char *query)
 		sprintf(varName, "wl_band%d", idx);
 		strVal = req_get_cstream_var(wp, varName, "");
 		if (strVal[0]) {
+			int wlan_onoff_tkip;
 			band_no = strtol( strVal, (char **)NULL, 10);
 			val = (band_no + 1);
-			apmib_set(MIB_WLAN_BAND, (void *)&val);
-			//change vap cipher value when vap band changed
-			if(val&8) {//11N, no TKIP
+			apmib_get( MIB_WLAN_11N_ONOFF_TKIP, (void *)&wlan_onoff_tkip);
+				
+			if(wlan_onoff_tkip == 0) //Wifi request
+			{
 				int wpaCipher;
 				int wpa2Cipher;
-				int wlan_encrypt;
-				apmib_get(MIB_WLAN_ENCRYPT, (void *)&wlan_encrypt);
+				int wlan_encrypt=0;
+				
+				apmib_get( MIB_WLAN_ENCRYPT, (void *)&wlan_encrypt);
 				apmib_get(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
 				apmib_get(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
-				if(wlan_encrypt ==ENCRYPT_WPA || wlan_encrypt ==ENCRYPT_WPA2 || wlan_encrypt == ENCRYPT_WPA2_MIXED){
-					wpaCipher &= ~WPA_CIPHER_TKIP;
-					if(wpaCipher== 0)
-						wpaCipher =  WPA_CIPHER_AES;
-					apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
+				
+				if( band_no == 7 || band_no == 9 || band_no == 10 || band_no == 11|| band_no == 63 || band_no == 71 || band_no == 75) //7:n; 9:gn; 10:bgn 11:5g_an
+				{
 					
-					wpa2Cipher &= ~WPA_CIPHER_TKIP;
-					if(wpa2Cipher== 0)
-						wpa2Cipher =  WPA_CIPHER_AES;
-					apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
-				}
+					if(wlan_encrypt ==ENCRYPT_WPA || wlan_encrypt ==ENCRYPT_WPA2){
+						wpaCipher &= ~WPA_CIPHER_TKIP;
+							if(wpaCipher== 0)
+								wpaCipher =  WPA_CIPHER_AES;
+						apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
+						
+						wpa2Cipher &= ~WPA_CIPHER_TKIP;
+							if(wpa2Cipher== 0)
+								wpa2Cipher =  WPA_CIPHER_AES;
+						apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
+					}
+					
+				}		
 			}
+		
+	
+			apmib_set(MIB_WLAN_BAND, (void *)&val);
 		}
 
 		sprintf(varName, "wl_ssid%d", idx);
 		strVal = req_get_cstream_var(wp, varName, "");
-		if (strVal[0]) {
-			apmib_set( MIB_WLAN_SSID, (void *)strVal);		
-		}	
+		if (strVal[0]) 
+			apmib_set( MIB_WLAN_SSID, (void *)strVal);			
 	
 		sprintf(varName, "TxRate%d", idx);
 		strVal = req_get_cstream_var(wp, varName, "");
@@ -6747,6 +6823,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 //displayPostDate(wp->post_data);
 
 
+
 	submitUrl = req_get_cstream_var(wp, ("submit-url"), "");
 
 	refresh = req_get_cstream_var(wp, ("refresh"), "");
@@ -6769,7 +6846,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 					//goto ss_err; 
 					break; 
 				case -1: 
-					printf("Site-survey request failed!\n"); 
+					printf("Site-survey request failed\n"); 
 					strcpy(tmpBuf, ("Site-survey request failed!")); 
 					//goto ss_err; 
 					break; 
@@ -6785,7 +6862,6 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 */
 			if (status != 0) {	// not ready
 				if (wait_time++ > 15) {
-					//enlarge wait time for root can't scan when vxd is do site survey. wait until vxd finish scan
 					strcpy(tmpBuf, ("scan request timeout!"));
 					goto ss_err;
 				}
@@ -7318,16 +7394,12 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
     					strcpy(tmpBuf, ("Set channel number error!"));
     					goto ss_err;
     				}
-					int sideband;
-					if (pStatus->bssdb[idx].bdTstamp[1] & 0x00000004)
-						sideband = 0;/*HT_2NDCH_OFFSET_BELOW*/
-					else
-						sideband = 1;/*HT_2NDCH_OFFSET_ABOVE*/
-					apmib_set( MIB_WLAN_CONTROL_SIDEBAND, (void *)&sideband);
-					if ((chan<=4 && sideband==0) || (chan>=10 && sideband==1)){
-						sideband = ((sideband + 1) & 0x1);
-						apmib_set( MIB_WLAN_CONTROL_SIDEBAND, (void *)&sideband);
-					}
+				int sideband;
+				apmib_get( MIB_WLAN_CONTROL_SIDEBAND, (void *)&sideband);
+				if ((chan<=4 && sideband==0) || (chan>=10 && sideband==1)){
+					sideband = ((sideband + 1) & 0x1);
+                                     	apmib_set( MIB_WLAN_CONTROL_SIDEBAND, (void *)&sideband);
+				 }
     				//switch back to flash of vxd interface
     				SetWlan_idx(wlanifp);
                 }
@@ -7498,11 +7570,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 #else
 			{
 				wait_time = 0;
-			#if defined(CONFIG_RTL_ULINKER)
-				max_wait_time = 80;
-			#else
 				max_wait_time = 30;
-			#endif
 				while (1) 
 					{
 
@@ -7544,11 +7612,8 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 						bss_info bss;
 						wait_time = 0;
 						
-				#if defined(CONFIG_RTL_ULINKER)
-						max_wait_time = 80;
-				#else
-						max_wait_time = 15;	//Need more test, especially for 802.1x client mode
-				#endif
+						max_wait_time=15;	//Need more test, especially for 802.1x client mode
+						
 						while (wait_time++ < max_wait_time) {
 							getWlBssInfo(WLAN_IF, &bss);
 							if (bss.state == STATE_CONNECTED){
@@ -7600,7 +7665,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 				sleep(2);
 				system("reboot");
 			} 
-#elif defined(CONFIG_POCKET_ROUTER_SUPPORT) || defined(CONFIG_RTL_ULINKER)
+#elif defined(CONFIG_POCKET_ROUTER_SUPPORT)// || defined(CONFIG_RTL_ULINKER)
 			{
 #ifndef NO_ACTION
 				run_init_script("all");
@@ -7672,7 +7737,7 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
     char meshidbuf[40];
 #endif 
 	BssDscr *pBss;
-	char tmpBuf[MAX_MSG_BUFFER_SIZE], ssidbuf[40], tmp1Buf[10], tmp2Buf[20], wpa_tkip_aes[20],wpa2_tkip_aes[20], ssidHtmlBuf[128]={0};
+	char tmpBuf[MAX_MSG_BUFFER_SIZE], ssidbuf[40], tmp1Buf[10], tmp2Buf[20], wpa_tkip_aes[20],wpa2_tkip_aes[20];
 	WLAN_MODE_T mode;
 	bss_info bss;
 
@@ -7760,13 +7825,13 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 		else
 			apmib_get(MIB_REPEATER_ENABLED2, (void *)&rptEnabled);
 		
-	nBytesSent += req_format_write(wp, ("<tr>"
-	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>SSID</b></font></td>\n"
-	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>BSSID</b></font></td>\n"
-	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Channel</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Type</b></font></td>\n"
-      	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Encrypt</b></font></td>\n"
-	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Signal</b></font></td>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+	"<td align=center width=\"30%%\" ><font size=\"2\"><b>SSID</b></font></td>\n"
+	"<td align=center width=\"20%%\" ><font size=\"2\"><b>BSSID</b></font></td>\n"
+	"<td align=center width=\"10%%\" ><font size=\"2\"><b>Channel</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Type</b></font></td>\n"
+      	"<td align=center width=\"10%%\" ><font size=\"2\"><b>Encrypt</b></font></td>\n"
+	"<td align=center width=\"10%%\" ><font size=\"2\"><b>Signal</b></font></td>\n"));
 	if( (mode == CLIENT_MODE )
 #if defined(CONFIG_RTL_ULINKER)
 		|| ((mode == AP_MODE || mode == AP_WDS_MODE) && rptEnabled == 1)
@@ -7778,7 +7843,7 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 #endif
 	)
 	{
-		nBytesSent += req_format_write(wp, ("<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+		nBytesSent += req_format_write(wp, ("<td align=center width=\"10%%\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 	}
 	else
 		nBytesSent += req_format_write(wp, ("</tr>\n"));
@@ -7791,7 +7856,6 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 
 		memcpy(ssidbuf, pBss->bdSsIdBuf, pBss->bdSsId.Length);
 		ssidbuf[pBss->bdSsId.Length] = '\0';
-		htmlSpecialCharReplace(ssidbuf,ssidHtmlBuf,sizeof(ssidHtmlBuf));
 
 #if defined(CONFIG_RTK_MESH)
         if(mesh_enable) {
@@ -7890,14 +7954,14 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 		else
 #endif
 		{
-			nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><pre><font size=\"2\">%s</td>\n"
-			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%d%s</td>\n"     
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%d</td>\n"),
-			ssidHtmlBuf, tmpBuf, pBss->ChannelNumber, tmp1Buf,
+			nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\">%d%s</td>\n"     
+      			"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\">%d</td>\n"),
+			ssidbuf, tmpBuf, pBss->ChannelNumber, tmp1Buf,
 			((pBss->bdCap & cIBSS) ? "Ad hoc" : "AP"), tmp2Buf, pBss->rssi);
 		}
 
@@ -7916,10 +7980,9 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 			//use bssid, not ssid, and we will transfer bssid to ssid in formWlSiteSurvey()
 			//because if ssid contains ", getElementById() will cut off the string after "
 			nBytesSent += req_format_write(wp,
-			("<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"> <input type=\"hidden\" id=\"realSSID_%d\" value=\"%s\" > <input type=\"hidden\" id=\"selSSID_%d\" value=\"%s\" > <input type=\"hidden\" id=\"selChannel_%d\" value=\"%d\" > <input type=\"hidden\" id=\"selEncrypt_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa_tkip_aes_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa2_tkip_aes_%d\" value=\"%s\" > <input type=\"radio\" name="
+			("<td align=center width=\"10%%\" > <input type=\"hidden\" id=\"selSSID_%d\" value=\"%s\" > <input type=\"hidden\" id=\"selChannel_%d\" value=\"%d\" > <input type=\"hidden\" id=\"selEncrypt_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa_tkip_aes_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa2_tkip_aes_%d\" value=\"%s\" > <input type=\"radio\" name="
 //			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 0)\"></td></tr>\n"), i,ssidbuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);			
-//			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 0)\"></td></tr>\n"), i,tmpBuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);
-			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 0)\"></td></tr>\n"), i,ssidHtmlBuf, i,tmpBuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);
+			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 0)\"></td></tr>\n"), i,tmpBuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);
 		}
 		else
 			nBytesSent += req_format_write(wp, ("</tr>\n"));
@@ -7938,25 +8001,25 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 #endif
 		)
 		{
-			nBytesSent += req_format_write(wp, ("<tr>"
-	                "<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><pre><font size=\"2\">None</td>\n"
-	                "<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-	                "<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-	                "<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-	                "<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-	                "<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-	                "<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
+			nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+	                "<td align=center width=\"20%%\" ><font size=\"2\">None</td>\n"
+	                "<td align=center width=\"20%%\" ><font size=\"2\"></td>\n"
+	                "<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"
+	                "<td align=center width=\"20%%\" ><font size=\"2\"></td>\n"
+	                "<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"
+	                "<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"
+	                "<td align=center width=\"20%%\" ><font size=\"2\"></td>\n"
 	                "</tr>\n"));
 		}
 		else
 		{
-			nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><pre><font size=\"2\">None</td>\n"
-			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
+			nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"20%%\" ><font size=\"2\">None</td>\n"
+			"<td align=center width=\"20%%\" ><font size=\"2\"></td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"
+			"<td align=center width=\"20%%\" ><font size=\"2\"></td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"
 			"</tr>\n"));
 		}
 	}
@@ -7968,11 +8031,11 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 		int mesh_count = 0;
 
 		nBytesSent += req_format_write(wp, ("<table border=\"1\" width=\"500\">"
-		"<tr><h4><font><br><br>List of Mesh Points</font></tr><tr>"
-		"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Mesh ID</b></font></td>\n" 
-		"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Adddress</b></font></td>\n" 
-		"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Channel</b></font></td>\n")); 
-		nBytesSent += req_format_write(wp, ("<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+		"<tr class=\"tbl_head\"><h4><font><br><br>List of Mesh Points</font></tr><tr>"
+		"<td align=center width=\"30%%\" ><font size=\"2\"><b>Mesh ID</b></font></td>\n" 
+		"<td align=center width=\"20%%\" ><font size=\"2\"><b>MAC Adddress</b></font></td>\n" 
+		"<td align=center width=\"10%%\" ><font size=\"2\"><b>Channel</b></font></td>\n")); 
+		nBytesSent += req_format_write(wp, ("<td align=center width=\"10%%\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 		for (i=0; i<pStatus->number && pStatus->number!=0xff; i++) 
 		{
@@ -7989,14 +8052,14 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 			memcpy(ssidbuf, pBss->bdSsIdBuf, pBss->bdSsId.Length); 
 			ssidbuf[pBss->bdSsId.Length] = '\0'; 
 			
-			nBytesSent += req_format_write(wp, ("<tr>" 
-				"<td align=left width=\"30%%\" bgcolor=\"#C0C0C0\"><pre><font size=\"2\">%s</td>\n" 
-				"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n" 
-				"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%d</td>\n"), 
+			nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">" 
+				"<td align=left width=\"30%%\" ><font size=\"2\">%s</td>\n" 
+				"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n" 
+				"<td align=center width=\"10%%\" ><font size=\"2\">%d</td>\n"), 
 				meshidbuf, tmpBuf, pBss->ChannelNumber); 
             
 			nBytesSent += req_format_write(wp, 
-			("<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\">"
+			("<td align=center width=\"10%%\" >"
              "<input type=\"hidden\" id=\"selSSID_%d\" value=\"%s\" >"
              "<input type=\"hidden\" id=\"selEncrypt_%d\" value=\"%s\" >"
              "<input type=\"hidden\" id=\"selChannel_%d\" value=\"%d\" >"
@@ -8006,10 +8069,10 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 		if( mesh_count == 0 )
 		{
 			nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><pre><font size=\"2\">None</td>\n"
-			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"));
+			"<td align=center width=\"30%%\"><font size=\"2\">None</td>\n"
+			"<td align=center width=\"20%%\" ><font size=\"2\"></td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"
+			"<td align=center width=\"10%%\" ><font size=\"2\"></td>\n"));
 		}
 		nBytesSent += req_format_write(wp, ("</table>")); 
 	}
@@ -8136,8 +8199,8 @@ void formWlWds(request *wp, char *path, char *query)
 {
 	char *strRate, *strAddMac, *strDelMac, *strDelAllMac, *strVal, *submitUrl, *strEnabled;
 	char tmpBuf[MAX_MSG_BUFFER_SIZE]={0};
-	int entryNum, i, enabled, val;
-	WDS_T macEntry;
+	int entryNum, i, enabled, val, j;
+	WDS_T macEntry, macEntrytmp;
 
 	int maxWDSNum;
 	
@@ -8212,7 +8275,23 @@ void formWlWds(request *wp, char *path, char *query)
 			strcpy(tmpBuf, ("Cannot add new entry because table is full!"));
 			goto setErr_wds;
 		}
-
+		
+		//add same rule check
+		for(j=1;j<=entryNum;j++)
+		{
+			memset(&macEntrytmp, 0x00, sizeof(macEntrytmp));
+			*((char *)&macEntrytmp) = (char)j;
+			if ( apmib_get(MIB_WLAN_WDS, (void *)&macEntrytmp))
+			{
+				if (!memcmp(macEntrytmp.macAddr, macEntry.macAddr, 6))
+				{
+					strcpy(tmpBuf, ("rule already exist!"));
+					goto setErr_wds;
+				}
+					
+			}
+		}
+		
 		// set to MIB. try to delete it first to avoid duplicate case
 		apmib_set(MIB_WLAN_WDS_DEL, (void *)&macEntry);
 		if ( apmib_set(MIB_WLAN_WDS_ADD, (void *)&macEntry) == 0) {
@@ -8290,10 +8369,10 @@ int wlProfileTblList(request *wp, int argc, char **argv)
 	
 	apmib_get(profile_num_id, (void *)&entryNum);
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>SSID</b></font></td>\n"
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Encrypt</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"\" ><font size=\"2\"><b>SSID</b></font></td>\n"
+      	"<td align=center width=\"\" ><font size=\"2\"><b>Encrypt</b></font></td>\n"
+      	"<td align=center width=\"20%%\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		unsigned char wlSecurityBuf[43]={0};
@@ -8326,10 +8405,10 @@ int wlProfileTblList(request *wp, int argc, char **argv)
 			sprintf(wlSecurityBuf, "%s", "OPEN");
 
 		
-		nBytesSent += req_format_write(wp, ("<tr>"
-      			"<td align=center width=\"35%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-       			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+      			"<td align=center width=\"35%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n"
+       			"<td align=center width=\"10%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				entry.ssid,wlSecurityBuf, i);
 	}
 	return nBytesSent;
@@ -8424,11 +8503,11 @@ int wlWdsList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"35%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
-      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Tx Rate (Mbps)</b></font></td>\n"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"35%%\" ><font size=\"2\"><b>MAC Address</b></font></td>\n"
+      	"<td align=center width=\"25%%\" ><font size=\"2\"><b>Tx Rate (Mbps)</b></font></td>\n"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"10%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
@@ -8449,11 +8528,11 @@ int wlWdsList(request *wp, int argc, char **argv)
 				}
 			}
 		}	
-		nBytesSent += req_format_write(wp, ("<tr>"
-      			"<td align=center width=\"35%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-       			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+      			"<td align=center width=\"35%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+       			"<td align=center width=\"10%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				tmpBuf, txrate, entry.comment,i);
 	}
 	return nBytesSent;
@@ -8616,22 +8695,26 @@ int wdsList(request *wp, int argc, char **argv)
 		printf("Read wlan sta info failed!\n");
 		return 0;
 	}
-
+	apmib_get(MIB_WLAN_CHANNEL_BONDING, (void *)&channel_bandwidth);
+	apmib_get(MIB_WLAN_SHORT_GI, (void *)&short_gi);
 	for (i=0; i<MAX_WDS_NUM; i++) {
 		pInfo = (WDS_INFO_Tp)&buff[i*sizeof(WDS_INFO_T)];
 
 		if (pInfo->state == STATE_WDS_EMPTY)
 			break;
-
-		if((pInfo->txOperaRate & 0x80) != 0x80){	
+		if(pInfo->txOperaRate >= 0xA0) {
+			rateid = pInfo->txOperaRate - 0xA0;
+			sprintf(txrate, "%d", VHT_MCS_DATA_RATE[channel_bandwidth][0][rateid]>>1);
+			
+		}
+		else if((pInfo->txOperaRate & 0x80) != 0x80){	
 			if(pInfo->txOperaRate%2){
 				sprintf(txrate, "%d%s",pInfo->txOperaRate/2, ".5"); 
 			}else{
 				sprintf(txrate, "%d",pInfo->txOperaRate/2); 
 			}
 		}else{
-			apmib_get(MIB_WLAN_CHANNEL_BONDING, (void *)&channel_bandwidth);
-			apmib_get(MIB_WLAN_SHORT_GI, (void *)&short_gi);
+			
 			if(channel_bandwidth ==0){ //20M
 				if(short_gi==0){//long
 					for(rateid=0; rateid<16;rateid++){
@@ -8667,7 +8750,7 @@ int wdsList(request *wp, int argc, char **argv)
 			}
 		}	
 		nBytesSent += req_format_write(wp,
-	   		"<tr bgcolor=#b7b7b7><td><font size=2>%02x:%02x:%02x:%02x:%02x:%02x</td>"
+	   		"<tr class=\"tbl_body\"><td><font size=2>%02x:%02x:%02x:%02x:%02x:%02x</td>"
 			"<td><font size=2>%d</td>"
 	     		"<td><font size=2>%d</td>"
 			"<td><font size=2>%d</td>"
@@ -9986,7 +10069,8 @@ setErr_rekey:
 #define TMP_SIG_OUT				"/var/tmp/sig_out.txt"				//signature(output)
 #define TMP_SIG_VERIFY_RES		"/var/tmp/sigVerifyRes.txt"		//signature verify result: if this file exist, verify OK; else verify wrong.
 //Add for verify CA signature
-#if 1  //for debug
+
+#if 0  //for debug
 static void outPut(unsigned char *buf, int len)
 {
 	if(buf==NULL || len<1)
@@ -11004,6 +11088,10 @@ void formUpload8021xUserCert(request *wp, char * path, char * query)
 					system(cmd);
 					
 					sprintf(tmpBuf,"Upload user cert failed. Please make sure: 1) uploaded file in pem or pfx form, 2) uploaded file contain user cert and user key, 3) if any [User Key Password], please set it firstly at [Security] webpage for wlan client mode wpa/wpa2 enterprise.");
+					
+					if(userKeyOk!=1)
+						strcat(tmpBuf, "\n\nPlease check the [User Key Password] is right!\n");
+						
 					goto upload_ERR;
 				}
 
@@ -11659,18 +11747,18 @@ int certRootList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Name</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Name</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
 		if ( !apmib_get(MIB_CERTROOT_TBL, (void *)&entry))
 			return -1;
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"radio\" name=\"selectcert\" value=\"%d\" onClick=\"selectcaClick(this)\">"
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><input type=\"radio\" name=\"selectcert\" value=\"%d\" onClick=\"selectcaClick(this)\">"
       			"</td></tr>\n"), entry.comment, i);
 	}
 	return nBytesSent;
@@ -11686,18 +11774,18 @@ int certUserList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Name</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Name</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
 		if ( !apmib_get(MIB_CERTUSER_TBL, (void *)&entry))
 			return -1;
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"radio\" name=\"selectcert\" value=\"%d\" onClick=\"selectprClick(this)\"></td></tr>\n"), entry.comment, i);
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><input type=\"radio\" name=\"selectcert\" value=\"%d\" onClick=\"selectprClick(this)\"></td></tr>\n"), entry.comment, i);
 	}
 	return nBytesSent;
 }
@@ -12175,13 +12263,13 @@ int wlP2PScanTbl(request *wp, int argc, char **argv)
 		return 0;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Device Name</b></font></td>\n"
-	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Channel</b></font></td>\n"
-	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Device address</b></font></td>\n"
-  "<td align=center width=\"15%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Role</b></font></td>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Device Name</b></font></td>\n"
+	"<td align=center width=\"10%%\" ><font size=\"2\"><b>Channel</b></font></td>\n"
+	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Device address</b></font></td>\n"
+  "<td align=center width=\"15%%\" ><font size=\"2\"><b>Role</b></font></td>\n"));
 	
-	nBytesSent += req_format_write(wp, ("<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<td align=center width=\"10%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 
 	
@@ -12217,15 +12305,15 @@ int wlP2PScanTbl(request *wp, int argc, char **argv)
 
 
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-		"<td align=center bgcolor=\"#C0C0C0\"><pre><font size=\"2\">%s</td>\n"
-		"<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\">%d</td>\n"
-		"<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"     
-    "<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+		"<td align=center ><font size=\"2\">%s</td>\n"
+		"<td align=center ><font size=\"2\">%d</td>\n"
+		"<td align=center ><font size=\"2\">%s</td>\n"     
+    "<td align=center ><font size=\"2\">%s</td>\n"),
 		pBss->p2pdevname, pBss->ChannelNumber, tmpBuf, p2pTypeStr);
 
 		nBytesSent += req_format_write(wp,("\
-		<td align=center bgcolor=\"#C0C0C0\"> \
+		<td align=center > \
 		<input type=\"radio\" name=""\"select\" value=\"sel%d\" onClick=\"p2pSelect(%d)\"> \
 		</td></tr>\n\
 		<input type=\"hidden\" id=\"selDeviceName_%d\" value=\"%s\" > \
@@ -12241,11 +12329,11 @@ int wlP2PScanTbl(request *wp, int argc, char **argv)
 	if( pStatus->number == 0 )
 	{
 		nBytesSent += req_format_write(wp, "<tr>"
-    "<td align=center bgcolor=\"#C0C0C0\"><pre><font size=\"2\">None</td>\n"
-    "<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-    "<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-    "<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
-    "<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\"></td>\n"
+    "<td align=center ><font size=\"2\">None</td>\n"
+    "<td align=center ><font size=\"2\"></td>\n"
+    "<td align=center ><font size=\"2\"></td>\n"
+    "<td align=center ><font size=\"2\"></td>\n"
+    "<td align=center ><font size=\"2\"></td>\n"
     "</tr>\n");
 	}
 	return nBytesSent;
@@ -12295,7 +12383,7 @@ void p2p_dhcp_process(void)
     }
     /*after wlan mode be changed execue once , check which interface we should check; expect just run once */
 
-    
+
     
     if(p2p_query_which_interface==1){           
         //SDEBUG("query[wlan%d]\n",p2p_query_which_interface-1);                
@@ -12306,7 +12394,7 @@ void p2p_dhcp_process(void)
     }else{
         return;
     }
-   
+
     
 	if(Ret == P2P_S_CLIENT_CONNECTED_DHCPC)
 	{	
@@ -12351,7 +12439,7 @@ void p2p_dhcp_process(void)
 
 
 
-		sprintf(syscmd,"iwpriv wlan%d p2pcmd bakdev",wlan_idx);  
+		sprintf(syscmd,"iwpriv wlan%d p2pcmd bakdev",wlan_idx);            
 
         wlan_idx = tmpint ;		
 		vwlan_idx = tmpint2 ;
@@ -12433,5 +12521,26 @@ void getWlProfileInfo(request *wp, int argc, char **argv)
 #endif //#if defined(WLAN_PROFILE)
 	
 	return 0;
+}
+int bssid_to_ssid(char *bssid,char *ssidbuf)
+{
+	 BssDscr *pBss=NULL;
+    char tmpBuf[200];
+    int k;
+	for (k=0; k<pStatus->number && pStatus->number!=0xff; k++) 
+    {
+        pBss = &pStatus->bssdb[k];
+        snprintf(tmpBuf, 200, ("%02x:%02x:%02x:%02x:%02x:%02x"),
+            pBss->bdBssId[0], pBss->bdBssId[1], pBss->bdBssId[2],
+            pBss->bdBssId[3], pBss->bdBssId[4], pBss->bdBssId[5]);
+
+        if(strcmp(bssid, tmpBuf)==0)
+        {
+            memcpy(ssidbuf, pBss->bdSsIdBuf, pBss->bdSsId.Length);
+            ssidbuf[pBss->bdSsId.Length] = '\0';	
+            return 0;
+        }		
+    }
+	return -1;
 }
 

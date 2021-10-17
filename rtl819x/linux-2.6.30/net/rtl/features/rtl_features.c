@@ -26,6 +26,12 @@
 #include <net/netfilter/nf_nat.h>
 #include <net/netfilter/nf_nat_core.h>
 #endif
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/interrupt.h>
+#include <linux/netfilter.h>
+#endif
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_nic.h>
 #if defined(CONFIG_RTL_HARDWARE_NAT)
@@ -38,12 +44,31 @@
 #include <net/rtl/rtl865x_arp_api.h>
 #endif
 
+#if defined(CONFIG_IPV6) && defined(CONFIG_RTL_8198C)
+#include <net/rtl/rtl8198c_route_ipv6_api.h>
+#include <net/rtl/rtl8198c_arp_ipv6_api.h>
+#include <net/ip6_fib.h>
+#endif
+
 #include <net/rtl/features/rtl_features.h>
 
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT)
 #include <linux/netfilter/nf_conntrack_tcp.h>
 #endif
 
+#if defined(CONFIG_RTL_FAST_IPV6)
+#include <linux/in6.h>
+#include <linux/icmpv6.h>
+#include <linux/mroute6.h>
+
+#include <net/ipv6.h>
+#include <net/transp_v6.h>
+#include <net/rawv6.h>
+#include <net/ndisc.h>
+#include <net/ip6_route.h>
+#include <net/addrconf.h>
+#include <net/xfrm.h>
+#endif
 //#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 #include <net/rtl/fastpath/fastpath_core.h>
 //#endif
@@ -83,6 +108,15 @@ __DRAM_GEN int gQosEnabled;
 #include <linux/netfilter_ipv4.h>
 #include <linux/netfilter_ipv4/ip_tables.h>
 
+#if defined(FAST_PATH_SPI_ENABLED)&&defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+#include <net/netfilter/nf_conntrack_zones.h>
+#endif
+
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+#include <linux/seq_file.h>
+extern struct proc_dir_entry proc_root;
+#endif
+
 #if defined(CONFIG_FAST_PATH_MODULE) && defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 #include <fast_l2tp_core.h>
 enum LR_RESULT (*FastPath_hook4)( rtl_fp_napt_entry *fpNaptEntry)=NULL;
@@ -91,6 +125,7 @@ enum LR_RESULT (*FastPath_hook6)( rtl_fp_napt_entry *fpNaptEntry,
 									struct sk_buff *pskb, struct nf_conn *ct,
 #endif
                                                                enum NP_FLAGS flags)=NULL;
+#include <linux/version.h>
 enum LR_RESULT (*FastPath_hook11)(rtl_fp_napt_entry *fpNaptEntry, uint32 interval)=NULL;
 int (*fast_path_hook)(struct sk_buff **pskb) = NULL;
 EXPORT_SYMBOL(FastPath_hook4);
@@ -100,10 +135,15 @@ EXPORT_SYMBOL(fast_path_hook);
 #endif
 
 #ifdef FAST_PPTP
-	void (*sync_tx_pptp_gre_seqno_hook)(struct sk_buff *skb) = NULL;
+	//void (*sync_tx_pptp_gre_seqno_hook)(struct sk_buff *skb) = NULL;
+	void (*sync_tx_pptp_gre_seqno_hook)(void *skb) = NULL;
 #ifdef CONFIG_FAST_PATH_MODULE
 EXPORT_SYMBOL(sync_tx_pptp_gre_seqno_hook);
 #endif
+#endif
+
+#if !defined(CONFIG_RTK_VLAN_SUPPORT)
+extern int32 rtl8651_setAsicOperationLayer(uint32 layer); 
 #endif
 
 int routerTypeFlag = 0;
@@ -209,7 +249,7 @@ int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb)
 			rtl865xNaptEntry.extPort=gp;
 			rtl865xNaptEntry.remIp=dip;
 			rtl865xNaptEntry.remPort=dp;
-
+	
 			rtl865xQosMark.downlinkMark=0;	//Initial
 			rtl865xQosMark.uplinkMark=0;	//Initial
 			ret=rtl_qosGetSkbMarkByNaptEntry(&rtl865xNaptEntry, &rtl865xQosMark, skb);
@@ -297,13 +337,33 @@ int rtl_hwnat_timer_update(struct nf_conn *ct)
 	//read_lock_bh(&nf_conntrack_lock);
 	if (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum == IPPROTO_UDP)	{
 		if(ct->status & IPS_SEEN_REPLY) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+			expires = udp_get_timeouts_by_state(UDP_CT_REPLIED,(void *)ct,1);
+#else
+			#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+			expires = udp_get_timeouts_by_state(UDP_CT_REPLIED);
+			#else
 			expires = nf_ct_udp_timeout_stream;
+			#endif
+#endif
 		} else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+			expires = udp_get_timeouts_by_state(UDP_CT_UNREPLIED,(void *)ct,1);
+#else
+			#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+			expires = udp_get_timeouts_by_state(UDP_CT_UNREPLIED);
+			#else
 			expires = nf_ct_udp_timeout;
+			#endif
+#endif
 		}
 	} else if (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum == IPPROTO_TCP &&
 		ct->proto.tcp.state < TCP_CONNTRACK_LAST_ACK) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		expires = tcp_get_timeouts_by_state(ct->proto.tcp.state,(void *)ct,1);
+#else
 		expires = tcp_get_timeouts_by_state(ct->proto.tcp.state);
+#endif
 	} else {
 		//read_unlock_bh(&nf_conntrack_lock);
 		return FAILED;
@@ -365,7 +425,6 @@ static void get_br0_ip_mask(void)
 void get_br0_ip_mask(void)
 #endif
 {
-
 	get_dev_ip_mask(RTL_PS_BR0_DEV_NAME, &_br0_ip, &_br0_mask);
 }
 #endif
@@ -403,7 +462,10 @@ void rtl_delConnCache(struct nf_conn *ct)
 		return;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#else
 	spin_lock_bh(&nf_conntrack_lock);
+#endif
 	#if defined(CONFIG_RTL_HARDWARE_NAT)
 	nat = nfct_nat(ct);
 	if ((nat!=NULL) && (nat->hw_acc==1)) {
@@ -458,7 +520,10 @@ void rtl_delConnCache(struct nf_conn *ct)
 #if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
 	ct->removed = 1; // set this ct has delete fastpath entry
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#else
 	spin_unlock_bh(&nf_conntrack_lock);
+#endif
 }
 
 void rtl_check_for_acc(struct nf_conn *ct, unsigned long expires)
@@ -467,7 +532,10 @@ void rtl_check_for_acc(struct nf_conn *ct, unsigned long expires)
 	int	newstate;
 	struct list_head* state_hash;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#else
 	write_lock_bh(&nf_conntrack_lock);
+#endif
 	if (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum == IPPROTO_TCP) {
 		newstate = ct->proto.tcp.state;
 		state_hash = Tcp_State_Hash_Head[newstate].state_hash;
@@ -478,12 +546,18 @@ void rtl_check_for_acc(struct nf_conn *ct, unsigned long expires)
 			newstate = 0;
 		state_hash = Udp_State_Hash_Head[newstate].state_hash;
 	} else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#else
 		write_unlock_bh(&nf_conntrack_lock);
+#endif
 		return;
 	}
 
 	list_move_tail(&ct->state_tuple, state_hash);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#else
 	write_unlock_bh(&nf_conntrack_lock);
+#endif
 	#endif
 }
 
@@ -511,6 +585,27 @@ int32 rtl_connCache_timer_update(struct nf_conn *ct)
 	return FAILED;
 }
 
+#ifdef CONFIG_RTL_FAST_IPV6
+int rtl_V6_connCache_timer_update(struct nf_conn *ct)
+{
+	spin_lock_bh(&nf_conntrack_lock);
+	if (time_after_eq(jiffies, ct->timeout.expires)) 
+	{
+		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+			if (SUCCESS== rtl_V6_Cache_Timer_update((void*)ct))
+			{
+				add_timer(&ct->timeout);
+				spin_unlock_bh(&nf_conntrack_lock);
+				return SUCCESS;
+			}
+		#endif
+	}
+	spin_unlock_bh(&nf_conntrack_lock);
+	return FAILED;
+
+}
+
+#endif
 #if defined(IMPROVE_QOS)
 /*
  * ### for iperf application test ###
@@ -619,11 +714,15 @@ static inline int32 rtl_addConnCheck(struct nf_conn *ct, struct iphdr *iph, stru
 	return create_conn;
 }
 
-#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+//#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+#if 0
 static int rtl_isWlanPkt(struct nf_conn *ct)
 {
 	int ret = FALSE;
-
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	u16 vid = 0;
+	#endif
+	
 #if defined(CONFIG_BRIDGE)
 	struct net_device *lan_dev = __dev_get_by_name(&init_net, RTL_PS_BR0_DEV_NAME);
 	struct net_bridge *br = netdev_priv(lan_dev);
@@ -639,7 +738,17 @@ static int rtl_isWlanPkt(struct nf_conn *ct)
 
 	if((intIp & _br0_mask) == (_br0_ip & _br0_mask)){
 		if(arp_req_get_ha(intIp, lan_dev, Mac)==0){
-			if((dst = __br_fdb_get(br, Mac))!=NULL){
+			#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+			#if defined(CONFIG_BRIDGE_VLAN_FILTERING)
+				/*Fix jwj: todo...*/
+			#else
+			vid = 0;
+			#endif
+			if((dst = __br_fdb_get(br, Mac, vid))!=NULL)
+			#else
+			if((dst = __br_fdb_get(br, Mac))!=NULL)
+			#endif
+			{
 				if(!memcmp(dst->dst->dev->name, "wlan", strlen("wlan")))
 							return TRUE;
 			}
@@ -650,8 +759,10 @@ static int rtl_isWlanPkt(struct nf_conn *ct)
 
 	return ret;
 }
+#endif
 
 
+#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
 static int rtl_checkLanIp(struct nf_conn *ct)
 {
 
@@ -684,265 +795,6 @@ static int rtl_checkLanIp(struct nf_conn *ct)
 #endif
 
 
-#ifdef CONFIG_FP_BYPASS_PACKET
-#define BYPASS_FAILED -1
-#define BYPASS_OK 0
-struct port_range{
-    unsigned int startport;
-	char separator;
-	unsigned int endport;
-};
-static unsigned int hw_nat_add = 1;
-static unsigned int tcp_bypass_port_num = 0;
-static unsigned int udp_bypass_port_num = 0;
-static struct port_range *packet_bypassed_tcpport_set=NULL;
-static unsigned char *packet_bypassed_tcpport_set_buffer=NULL;
-static struct port_range *packet_bypassed_udpport_set=NULL;
-static unsigned char *packet_bypassed_udpport_set_buffer=NULL;
-
-int proc_hwnat_packet_bypassed_tcpport_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-	int len = 0;
-	int i = 0;
-	len += sprintf(page+len,"hwnat bypassed tcp port,tcp_bypass_port_num %d:\n",tcp_bypass_port_num);
-
-	/*
-	if(!packet_bypassed_tcpport_set)
-		return -EFAULT;
-    */
-
-	for( ; i < tcp_bypass_port_num;i++)
-		len += sprintf(page+len, "%d%c%d ",packet_bypassed_tcpport_set[i].startport,packet_bypassed_tcpport_set[i].separator,packet_bypassed_tcpport_set[i].endport);
-
-	len += sprintf(page+len,"\n");
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-}
-static unsigned int countArg_num(char *buffer,unsigned long count)
-{
-    int i = 0;
-	unsigned first = 1;
-	int arg_count = 0;
-
-	if(!buffer)
-		return 0;
-
-	/*
-	printk("[%s:] %d\n",__func__,__LINE__);
-	int j_p = 0;
-	for(; j_p < count;j_p++)
-	{
-      printk("%c",buffer[j_p]);
-	}
-	*/
-
-	while(i < count)
-	{
-		/*input rest arg*/
-        if(!first &&i>0 &&*(buffer+i)!=' ' &&*(buffer+i-1)==' '&&*(buffer+i)!='\n'&&*(buffer+i)!='\r')
-		{
-			arg_count++;
-		}
-
-		/*input first arg*/
-		if(*(buffer+i) != ' '&& first)
-		{
-		    first = 0;
-			arg_count++;
-		}
-		i++;
-	}
-	return arg_count;
-
-}
-static unsigned int fill_bypass_port_single_num(char *buffer,unsigned long count,unsigned int *udportcp_buffer)
-{
-    int i = 0;
-	unsigned first = 1;
-	int arg_count = 0;
-
-	if(!udportcp_buffer||!buffer)
-		return 0;
-
-	while(i < count)
-	{
-		/*input rest arg*/
-        if(!first &&i>0 &&*(buffer+i)!=' ' &&*(buffer+i-1)==' ' &&*(buffer+i)!='\n'&&*(buffer+i)!='\r')
-		{
-			sscanf((buffer + i), "%d", &(udportcp_buffer[arg_count]));
-			arg_count++;
-		}
-
-		/*input first arg*/
-		if(*(buffer+i) != ' '&& first)
-		{
-		    first = 0;
-			sscanf((buffer + i), "%d", &(udportcp_buffer[arg_count]));
-			arg_count++;
-		}
-		i++;
-	}
-	return arg_count;
-}
-
-static unsigned int fill_bypass_port(char *buffer,unsigned long count,struct port_range *udportcp_buffer)
-{
-    int i = 0;
-	unsigned first = 1;
-	int arg_count = 0;
-
-	if(!udportcp_buffer||!buffer)
-		return 0;
-
-	while(i < count)
-	{
-		/*input rest arg*/
-        if(!first &&i>0 &&*(buffer+i)!=' ' &&*(buffer+i-1)==' ' &&*(buffer+i)!='\n'&&*(buffer+i)!='\r')
-		{
-			sscanf((buffer + i), "%d%c%d", &((udportcp_buffer[arg_count]).startport),&((udportcp_buffer[arg_count]).separator),&((udportcp_buffer[arg_count]).endport));
-			if((udportcp_buffer[arg_count]).separator != ',')
-			{
-				printk("write failed : wrong separator should use ',' to separator port range \"startport,endport\"\n");
-				return BYPASS_FAILED;
-			}else if((udportcp_buffer[arg_count]).startport > (udportcp_buffer[arg_count]).endport)
-			{
-				printk("write failed : wrong port range the %d count portrange set error, should be startport < endport\n",arg_count);
-				return BYPASS_FAILED;
-			}
-			arg_count++;
-		}
-
-		/*input first arg*/
-		if(*(buffer+i) != ' '&& first)
-		{
-		    first = 0;
-			sscanf((buffer + i), "%d%c%d", &((udportcp_buffer[arg_count]).startport),&((udportcp_buffer[arg_count]).separator),&((udportcp_buffer[arg_count]).endport));
-			if((udportcp_buffer[arg_count]).separator != ',')
-			{
-				printk("write failed : wrong separator should use ',' to separator port range \"startport,endport\"\n");
-				return BYPASS_FAILED;
-			}else if((udportcp_buffer[arg_count]).startport > (udportcp_buffer[arg_count]).endport)
-			{
-				printk("write failed : wrong port range the %d count portrange set error, should be startport < endport\n",arg_count);
-				return BYPASS_FAILED;
-			}
-			arg_count++;
-		}
-		i++;
-	}
-	return arg_count;
-}
-
-int proc_hwnat_packet_bypassed_tcpport_write_proc(struct file *file, const char *buffer,
-		      unsigned long count, void *data)
-{
-    unsigned int arg_count = 0;
-	if (count < 1)
-		return -EFAULT;
-	packet_bypassed_tcpport_set_buffer = (unsigned char *)kmalloc(count,GFP_ATOMIC);
-	if(!packet_bypassed_tcpport_set_buffer )
-	{
-		printk("not enough memory\n");
-		return -ENOMEM;
-	}
-	memset(packet_bypassed_tcpport_set_buffer , 0, count);
-	if (buffer && !copy_from_user(packet_bypassed_tcpport_set_buffer , buffer, count)) {
-		tcp_bypass_port_num = countArg_num(packet_bypassed_tcpport_set_buffer ,count);
-		if(packet_bypassed_tcpport_set)
-		    kfree(packet_bypassed_tcpport_set);
-		packet_bypassed_tcpport_set = kmalloc(tcp_bypass_port_num * sizeof(struct port_range),GFP_ATOMIC);
-		if(!packet_bypassed_tcpport_set)
-		{
-		    printk("not enough memory\n");
-			return -ENOMEM;
-		}
-		memset(packet_bypassed_tcpport_set ,0,tcp_bypass_port_num * sizeof(struct port_range));
-		arg_count = fill_bypass_port(packet_bypassed_tcpport_set_buffer,count,packet_bypassed_tcpport_set);
-		if((arg_count == BYPASS_FAILED)|| (arg_count == 1 && packet_bypassed_tcpport_set[0].startport == 0&&packet_bypassed_tcpport_set[0].endport == 0))
-		{
-		    tcp_bypass_port_num = 0;
-			kfree(packet_bypassed_tcpport_set);
-			packet_bypassed_tcpport_set = NULL;
-		}
-		/*
-		if(arg_count != tcp_bypass_port_num )
-		{
-		    printk("arg_count != tcp_bypass_port_num error\n");
-			printk("arg_count = %d \n",arg_count);
-			printk("tcp_bypass_port_num = %d \n",tcp_bypass_port_num);
-		}
-		*/
-	}
-
-	/*
-	int i = 0;
-	for( ; i < tcp_bypass_port_num;i++)
-		printk("packet_bypassed_tcpport_set[%d] = %d\n",i,packet_bypassed_tcpport_set[i]);
-    */
-	kfree(packet_bypassed_tcpport_set_buffer);
-	return count;
-}
-
-int proc_hwnat_packet_bypassed_udpport_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-	int len = 0;
-	int i = 0;
-	len += sprintf(page+len,"hwnat bypassed udp port,udp_bypass_port_num %d:\n",udp_bypass_port_num);
-
-	for( ; i < udp_bypass_port_num;i++)
-		len += sprintf(page+len, "%d%c%d ",packet_bypassed_udpport_set[i].startport,packet_bypassed_udpport_set[i].separator,packet_bypassed_udpport_set[i].endport);
-
-	len += sprintf(page+len, "\n");
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-}
-
-int proc_hwnat_packet_bypassed_udpport_write_proc(struct file *file, const char *buffer,
-		      unsigned long count, void *data)
-{
-    unsigned int arg_count = 0;
-	if (count < 1)
-		return -EFAULT;
-	packet_bypassed_udpport_set_buffer = (unsigned char *)kmalloc(count,GFP_ATOMIC);
-	if(!packet_bypassed_udpport_set_buffer )
-	{
-		printk("not enough memory\n");
-		return -ENOMEM;
-	}
-	memset(packet_bypassed_udpport_set_buffer , 0, count);
-	if (buffer && !copy_from_user(packet_bypassed_udpport_set_buffer , buffer, count)) {
-		udp_bypass_port_num = countArg_num(packet_bypassed_udpport_set_buffer ,count);
-		if(packet_bypassed_udpport_set)
-		    kfree(packet_bypassed_udpport_set);
-		packet_bypassed_udpport_set = kmalloc(udp_bypass_port_num * sizeof(struct port_range),GFP_ATOMIC);
-		if(!packet_bypassed_udpport_set)
-		{
-		    printk("not enough memory\n");
-			return -ENOMEM;
-		}
-		memset(packet_bypassed_udpport_set,0,udp_bypass_port_num * sizeof(struct port_range));
-		arg_count = fill_bypass_port(packet_bypassed_udpport_set_buffer,count,packet_bypassed_udpport_set);
-		if((arg_count == BYPASS_FAILED)|| (arg_count == 1 && packet_bypassed_udpport_set[0].startport == 0&&packet_bypassed_udpport_set[0].endport == 0))
-		{
-		    udp_bypass_port_num = 0;
-			kfree(packet_bypassed_udpport_set);
-			packet_bypassed_udpport_set = NULL;
-		}
-	}
-	kfree(packet_bypassed_udpport_set_buffer);
-	return count;
-}
-#endif
 void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 {
 	int assured;
@@ -983,36 +835,7 @@ void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 	if((protocol == NP_TCP)&&(ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) == URL_PROTO_PORT)&&assured)
 		assured = 0;
 #endif
-#ifdef CONFIG_FP_BYPASS_PACKET
-	unsigned int count = 0;
-	hw_nat_add = 1; /*ensure hw_nat_add = 1*/
-	if(protocol == NP_TCP)
-	{
-		count = 0;
-		for( ;count < tcp_bypass_port_num; count++)
-		{
-		    if(ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) <= packet_bypassed_tcpport_set[count].endport&&
-		    (ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) >= packet_bypassed_tcpport_set[count].startport))
-			{
-				hw_nat_add = 0;
-				break;
-			}else
-				hw_nat_add = 1;
-		}
-	}else if(protocol == NP_UDP){
-		count = 0;
-		for( ;count < udp_bypass_port_num; count++)
-		{
-		    if(ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) <= packet_bypassed_tcpport_set[count].endport&&
-		    (ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) >= packet_bypassed_tcpport_set[count].startport))
-			{
-				hw_nat_add = 0;
-				break;
-			}else
-				hw_nat_add = 1;
-		}
-	}
-#endif
+
 	if (!assured) {
 	        create_conn = rtl_addConnCheck(ct, iph, skb);
 	} else
@@ -1091,10 +914,6 @@ void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 	if (assured || create_conn)
 	#endif
 	{
-		#ifdef CONFIG_FP_BYPASS_PACKET
-		if(hw_nat_add)
-		{
-		#endif
 		#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
 		//if(rtl_isWlanPkt(ct) == TRUE)
 		//	return;
@@ -1104,9 +923,6 @@ void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 		}
 		#else
 		rtl865x_handle_nat(ct, 1, skb);
-		#endif
-		#ifdef CONFIG_FP_BYPASS_PACKET
-		}
 		#endif
 
 	}
@@ -1158,7 +974,15 @@ static int32 rtl_fpAddConnCheck(struct nf_conn *ct, struct iphdr *iph, struct sk
 			/* copied from last 2 line of this function **/
 			set_bit(IPS_SEEN_REPLY_BIT, &ct->status);
 			/* next 3 lines are copied from udp_packet() in ip_conntrack_proto_udp.c */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+			nf_ct_refresh(ct,skb, udp_get_timeouts_by_state(UDP_CT_REPLIED,(void *)ct,1));
+#else
+			#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+			nf_ct_refresh(ct,skb, udp_get_timeouts_by_state(UDP_CT_REPLIED));
+			#else
 			nf_ct_refresh(ct,skb, nf_ct_udp_timeout_stream);
+			#endif
+#endif
 			/* Also, more likely to be important, and not a probe */
 			set_bit(IPS_ASSURED_BIT, &ct->status);
 		} else if (iph->protocol == IPPROTO_TCP) {
@@ -1307,25 +1131,109 @@ void rtl_fpAddConnCache(struct nf_conn *ct, struct sk_buff *skb)
 #endif
 
 
+#ifdef CONFIG_RTL_FAST_IPV6
+static inline int32 rtl_addV6ConnCheck
+	(struct nf_conn *ct, struct ipv6hdr *iph, struct tcphdr *tcph,struct sk_buff *skb)
+{
+	if(iph->nexthdr == IPPROTO_TCP)
+	{
+		if(!tcph->fin && !tcph->syn && !tcph->rst && tcph->ack ==1)
+		{
+			enum ip_conntrack_info ctinfo;
+			ctinfo = (enum ip_conntrack_info)(skb->nfctinfo);	
+			return 1;
+		}
+	}
+	else if(iph->nexthdr == IPPROTO_UDP)
+	{
+		enum ip_conntrack_info ctinfo;
+		ctinfo = (enum ip_conntrack_info)(skb->nfctinfo);
+		if (CTINFO2DIR(ctinfo) == IP_CT_DIR_REPLY)
+		{
+			// receive reply udp ptk!			
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int rtl_AddV6ConnCache(struct nf_conn *ct, struct sk_buff *skb)
+{
+	int assured = 0;
+	int create_conn = 0;
+	struct ipv6hdr *iph =ipv6_hdr(skb);
+	struct tcphdr *tcph = (struct tcphdr *)(((unsigned char *)iph) + sizeof(struct ipv6hdr));
+
+	if(iph->version !=6)	
+		return 0;
+	if ((iph->nexthdr != IPPROTO_TCP)&& (iph->nexthdr != IPPROTO_UDP))
+		return 0;
+	
+	create_conn = rtl_addV6ConnCheck(ct,iph,tcph,skb);
+
+	if(create_conn)
+	{
+		struct V6_Tuple V6PathEntry;		
+		enum ip_conntrack_info ctinfo;
+		ctinfo = (enum ip_conntrack_info)(skb->nfctinfo);		
+		memset(&V6PathEntry,0,sizeof(struct V6_Tuple));
+		if (CTINFO2DIR(ctinfo) == IP_CT_DIR_ORIGINAL)
+		{
+			V6PathEntry.saddr = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.in6;
+			V6PathEntry.daddr = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.in6;	
+			V6PathEntry.protocol = iph->nexthdr;		
+			V6PathEntry.sport = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all;
+			V6PathEntry.dport = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all;	
+		}
+		else if(CTINFO2DIR(ctinfo) == IP_CT_DIR_REPLY)
+		{
+			V6PathEntry.saddr = ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.in6;
+			V6PathEntry.daddr = ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.in6;	
+			V6PathEntry.protocol = iph->nexthdr;		
+			V6PathEntry.sport = ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u.all;
+			V6PathEntry.dport = ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u.all;				
+		}
+		else
+			return 0;
+		
+		rtk_addV6Connection(&V6PathEntry,skb,ct);
+	}
+}
+
+int rtl_DelV6ConnCache(struct nf_conn *ct)
+{	
+	struct V6_Tuple V6PathEntry;
+	
+	if (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum != IPPROTO_TCP && 
+		ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum != IPPROTO_UDP)
+	{
+		return 0;
+	}
+
+	//delete original dir		
+	memset(&V6PathEntry,0,sizeof(struct V6_Tuple));
+	V6PathEntry.saddr = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.in6;
+	V6PathEntry.daddr = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.in6;		
+	V6PathEntry.protocol = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum;
+	V6PathEntry.sport = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all;
+	V6PathEntry.dport = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all;		
+	rtk_delV6Connection(&V6PathEntry);
+
+	//delelte reply dir
+	memset(&V6PathEntry,0,sizeof(struct V6_Tuple));
+	V6PathEntry.saddr = ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.in6;
+	V6PathEntry.daddr = ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.in6;	
+	V6PathEntry.protocol = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum;
+	V6PathEntry.sport = ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u.all;
+	V6PathEntry.dport = ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u.all;			
+	rtk_delV6Connection(&V6PathEntry);		
+	return 1;
+}
+#endif
 #if defined(CONFIG_PROC_FS) && defined(CONFIG_RTL_HARDWARE_NAT)
 static struct proc_dir_entry *proc_hw_nat=NULL;
 static char gHwNatSetting[16];
 //extern unsigned int ldst, lmask, wdst, wmask;
-
-static int hw_nat_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-	int len;
-
-	len = sprintf(page, "%s\n", gHwNatSetting);
-
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-}
 
 static int hw_nat_write_proc(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
@@ -1344,12 +1252,16 @@ static int hw_nat_write_proc(struct file *file, const char *buffer,
 			gHwNatEnabled = 0;
 			rtl865x_nat_reinit();
 			rtl865x_changeOpMode(GATEWAY_MODE);
-			//rtl8651_setAsicOperationLayer(4);
+			#if !defined(CONFIG_RTK_VLAN_SUPPORT)
+			rtl8651_setAsicOperationLayer(4);
+			#endif
 		}
 		else if (gHwNatSetting[0] == '1') { /* hardware NAT enabled, operation mode = gateway */
 
 			rtl865x_changeOpMode(GATEWAY_MODE);
-			//rtl8651_setAsicOperationLayer(4);
+			#if !defined(CONFIG_RTK_VLAN_SUPPORT)
+			rtl8651_setAsicOperationLayer(4);
+			#endif
 			gHwNatEnabled = 1;
 		}
 		else if (gHwNatSetting[0] == '2') { /* hardware NAT enabled, operation mode = bridge mode*/
@@ -1370,7 +1282,7 @@ static int hw_nat_write_proc(struct file *file, const char *buffer,
 		{
 			gHwNatEnabled = 0;
 		}
-		#if defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+		#if defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_IPTABLES_FAST_PATH) ||defined(CONFIG_RTL_BATTLENET_ALG)
 		else if (gHwNatSetting[0] == '9') {
 			get_br0_ip_mask();
 		}
@@ -1387,18 +1299,41 @@ static int hw_nat_write_proc(struct file *file, const char *buffer,
 	}
 	return -EFAULT;
 }
-#endif
 
-#if defined(CONFIG_RTL_819X_SWCORE) && (defined(CONFIG_PROC_FS) && !defined(CONFIG_RTL_HARDWARE_NAT))
-static struct proc_dir_entry *proc_sw_nat=NULL;
-static char gSwNatSetting[16];
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+static int hw_nat_read_proc(struct seq_file *s, void *v)
+{
+	seq_printf(s, "%s\n", gHwNatSetting);
 
-static int sw_nat_read_proc(char *page, char **start, off_t off,
+	return 0;
+}
+
+int hw_nat_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, hw_nat_read_proc, NULL));
+}
+
+static ssize_t hw_nat_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	return hw_nat_write_proc(file, userbuf,count, off);
+}
+
+
+struct file_operations hw_nat_proc_fops = {
+        .open           = hw_nat_single_open,
+	 .write		= hw_nat_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#else
+static int hw_nat_read_proc(char *page, char **start, off_t off,
 		     int count, int *eof, void *data)
 {
 	int len;
 
-	len = sprintf(page, "%s\n", gSwNatSetting);
+	len = sprintf(page, "%s\n", gHwNatSetting);
 
 	if (len <= off+count) *eof = 1;
 	*start = page + off;
@@ -1407,6 +1342,14 @@ static int sw_nat_read_proc(char *page, char **start, off_t off,
 	if (len<0) len = 0;
 	return len;
 }
+#endif
+
+#endif
+
+#if defined(CONFIG_RTL_819X_SWCORE) && (defined(CONFIG_PROC_FS) && !defined(CONFIG_RTL_HARDWARE_NAT))
+static struct proc_dir_entry *proc_sw_nat=NULL;
+static char gSwNatSetting[16];
+
 
 static int sw_nat_write_proc(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
@@ -1429,7 +1372,7 @@ static int sw_nat_write_proc(struct file *file, const char *buffer,
 			rtl865x_changeOpMode(WISP_MODE);
 			//rtl8651_setAsicOperationLayer(2);
 		}
-#if defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_WLAN_DOS_FILTER)
+#if defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_WLAN_DOS_FILTER) ||defined(CONFIG_RTL_BATTLENET_ALG)
 		else if(gSwNatSetting[0] == '9'){
 			get_br0_ip_mask();
 		}
@@ -1453,24 +1396,79 @@ static int sw_nat_write_proc(struct file *file, const char *buffer,
 	}
 	return -EFAULT;
 }
+
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+static int sw_nat_read_proc(struct seq_file *s, void *v)
+{
+	seq_printf(s, "%s\n", gSwNatSetting);
+
+	return 0;
+}
+
+int sw_nat_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, sw_nat_read_proc, NULL));
+}
+
+static ssize_t sw_nat_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	return sw_nat_write_proc(file, userbuf,count, off);
+}
+
+
+struct file_operations sw_nat_proc_fops = {
+        .open           = sw_nat_single_open,
+	 .write		= sw_nat_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#else
+static int sw_nat_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len;
+
+	len = sprintf(page, "%s\n", gSwNatSetting);
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+}
+#endif
+
 #endif /* defined(CONFIG_RTL_819X) && (defined(CONFIG_PROC_FS) && !defined(CONFIG_RTL_HARDWARE_NAT))	*/
 
 #if defined(CONFIG_RTL_819X_SWCORE)
 int32 rtl_nat_init(void)
 {
 	#if defined(CONFIG_PROC_FS) && defined(CONFIG_RTL_HARDWARE_NAT)
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	proc_hw_nat = proc_create_data("hw_nat", 0, &proc_root,
+			 &hw_nat_proc_fops, NULL);
+	#else
 	proc_hw_nat = create_proc_entry("hw_nat", 0, NULL);
 	if (proc_hw_nat) {
 		proc_hw_nat->read_proc = hw_nat_read_proc;
 		proc_hw_nat->write_proc = hw_nat_write_proc;
 	}
 	#endif
+	#endif
 	#if defined(CONFIG_PROC_FS) && !defined(CONFIG_RTL_HARDWARE_NAT)
+	#if defined(CONFIG_RTL_PROC_NEW)
+	proc_sw_nat = proc_create_data("sw_nat", 0, &proc_root,
+			 &sw_nat_proc_fops, NULL);
+	#else
 	proc_sw_nat = create_proc_entry("sw_nat", 0, NULL);
 	if (proc_sw_nat) {
 		proc_sw_nat->read_proc = sw_nat_read_proc;
 		proc_sw_nat->write_proc = sw_nat_write_proc;
 	}
+	#endif
 	#endif
 
 	#if	defined(CONFIG_RTL_HARDWARE_NAT)
@@ -1765,21 +1763,6 @@ static char *gQosSetting = NULL;
 EXPORT_SYMBOL(gQosEnabled);
 #endif
 
-static int qos_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-      int len;
-
-      len = sprintf(page, "%s\n", gQosSetting);
-
-      if (len <= off+count) *eof = 1;
-      *start = page + off;
-      len -= off;
-      if (len>count) len = count;
-      if (len<0) len = 0;
-      return len;
-}
-
 static int qos_write_proc(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
 {
@@ -1806,6 +1789,49 @@ static int qos_write_proc(struct file *file, const char *buffer,
       }
       return -EFAULT;
 }
+#if defined(CONFIG_RTL_PROC_NEW)
+static int qos_read_proc(struct seq_file *s, void *v)
+{
+     seq_printf(s, "%s\n", gQosSetting);
+
+      return 0;
+}
+
+static int qos_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, qos_read_proc, NULL));
+}
+
+static ssize_t qos_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	return qos_write_proc(file, userbuf,count, off);
+}
+
+struct file_operations qos_proc_fops = {
+        .open           = qos_single_open,
+	 .write		= qos_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#else
+static int qos_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+      int len;
+
+      len = sprintf(page, "%s\n", gQosSetting);
+
+      if (len <= off+count) *eof = 1;
+      *start = page + off;
+      len -= off;
+      if (len>count) len = count;
+      if (len<0) len = 0;
+      return len;
+}
+#endif
+
 #endif
 
 #if defined(CONFIG_NET_SCHED)
@@ -1813,11 +1839,16 @@ static int qos_write_proc(struct file *file, const char *buffer,
 int32 rtl_qos_init(void)
 {
 	#if defined(CONFIG_PROC_FS)
+	#if defined(CONFIG_RTL_PROC_NEW)
+	proc_qos = proc_create_data("qos", 0, &proc_root,
+			 &qos_proc_fops, NULL);
+	#else
 	proc_qos = create_proc_entry("qos", 0, NULL);
 	if (proc_qos) {
 		proc_qos->read_proc = qos_read_proc;
 		proc_qos->write_proc = qos_write_proc;
 	}
+	#endif
 	#endif
 	gQosSetting = kmalloc(RTL_QOS_PROC_MAX_LEN, GFP_ATOMIC);
 	memset(gQosSetting, 0, RTL_QOS_PROC_MAX_LEN);
@@ -1840,9 +1871,22 @@ int32 rtl_fb_add_br_entry(skb)
 {
 	struct net_bridge_fdb_entry *dst;
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	u16 vid = 0;
+	#endif
 	if (!is_multicast_ether_addr(dest))
 	{
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+		#if defined(CONFIG_BRIDGE_VLAN_FILTERING)
+			/*Fix jwj: todo...*/
+		#else
+		vid = 0;
+		#endif
+		
+		dst = __br_fdb_get(skb->dev->br_port->br, dest, vid);
+		#else
 		dst = __br_fdb_get(skb->dev->br_port->br, dest);
+		#endif
 		if(dst != NULL && dst->dst->dev == skb->dev)
 		{
 			fast_br_cache_entry entry;
@@ -1909,7 +1953,11 @@ rtl_resolve_normal_ct(struct net *net,
 	}
 
 	/* look for tuple match */
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	h = nf_conntrack_find_get(net, NF_CT_DEFAULT_ZONE, &tuple);
+	#else
 	h = nf_conntrack_find_get(net, &tuple);
+	#endif
 
 	if (!h) {
 		//h = init_conntrack(net, &tuple, l3proto, l4proto, skb, dataoff);
@@ -2026,19 +2074,37 @@ int get_hookNum(struct ipt_entry *e, unsigned char *base, const unsigned int val
 }
 #endif
 
-#if	defined(CONFIG_RTL_HARDWARE_NAT)
-/*2007-12-19*/
- int syn_asic_arp(struct neighbour *n, int add)
+#if defined(CONFIG_RTL_HARDWARE_NAT) ||(defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C))
+int syn_asic_arp(struct neighbour *n, int add)
 {
 #ifdef CONFIG_RTL_LAYERED_DRIVER_L3
-	u32 arp_ip = htonl(*((u32 *)n->primary_key));
-	int rc;
+	{
+		int rc;
+		u32 arp_ip = htonl(*((u32 *)n->primary_key));
+		
+		#if defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C)
+		/*ipv4 lookup in arp_tbl*/
+		if (n->tbl && (n->tbl->family==AF_INET) && (n->tbl->key_len==4))
+		#endif
+			rc = add? rtl865x_addArp(arp_ip, (void *)n->ha): rtl865x_delArp(arp_ip);
+	}
+#endif
+#if defined(CONFIG_IPV6)&&defined(CONFIG_RTL_8198C)
+	{
+		int rc_ipv6;
+		inv6_addr_t nd_ip = *((inv6_addr_t *)n->primary_key);
 
-	rc = add? rtl865x_addArp(arp_ip, (void *)n->ha): rtl865x_delArp(arp_ip);
+		/*ipv6 lookup in nd_tbl*/
+		if (n->tbl && (n->tbl->family==AF_INET6) && (n->tbl->key_len==sizeof(inv6_addr_t)))
+			rc_ipv6 = add? rtl8198c_addIpv6Arp(nd_ip, (void *)n->ha): rtl8198c_delIpv6Arp(nd_ip);
+	}
+		
 #endif
 	return 0;
 }
+#endif
 
+#if	defined(CONFIG_RTL_HARDWARE_NAT)
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
 int rtl_get_ps_arp_mapping(u32 ip, void *arp_entry_tmp)
 {
@@ -2137,7 +2203,11 @@ static int rtl_get_masquerade_netif(struct xt_table_info *private,struct ipt_ent
 {
 	void *table_base;
 	struct ipt_entry *e, *back;
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	struct xt_entry_target *t;
+	#else
 	struct ipt_entry_target *t;
+	#endif
 	struct net_device *dev;
 	char masq_name[IFNAMSIZ]={'\0'};
 
@@ -2180,11 +2250,19 @@ static int rtl_get_masquerade_netif(struct xt_table_info *private,struct ipt_ent
 			if (!t->u.kernel.target->target)
 			{
 				int v;
+				#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+				v = ((struct xt_standard_target *)t)->verdict;
+				#else
 				v = ((struct ipt_standard_target *)t)->verdict;
+				#endif
 
 				if (v < 0 )
 				{
+					#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+					if(v == XT_RETURN)
+					#else
 					if(v == IPT_RETURN)
+					#endif
 					{
 						e = back;
 						back = get_entry(table_base, back->comefrom);
@@ -2245,7 +2323,11 @@ static int rtl_check_for_masquerade_entry(struct ipt_entry *e,
 	const unsigned int *hook_entries,
 	struct xt_table_info *private)
 {
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	struct xt_entry_target *t;
+	#else
 	struct ipt_entry_target *t;
+	#endif
 	unsigned int hook;
 	int ret = 0;
 
@@ -2275,8 +2357,16 @@ int rtl_check_for_extern_ip(const char *name,
 		const unsigned int *underflows)
 {
 	int i;
-	IPT_ENTRY_ITERATE(entry0, size,rtl_check_for_masquerade_entry, entry0,name,size,valid_hooks,hook_entries,newinfo);
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	int ret;
+	struct ipt_entry *iter;
 
+	xt_entry_foreach(iter, entry0, size) {
+		ret = rtl_check_for_masquerade_entry(iter, entry0, name, size, valid_hooks, hook_entries, newinfo);
+	}
+#else
+	IPT_ENTRY_ITERATE(entry0, size,rtl_check_for_masquerade_entry, entry0,name,size,valid_hooks,hook_entries,newinfo);
+#endif
 	//found masq entry
 	for(i = 0; i < RTL_MULTIPLE_WAN_NUM;i++)
 	{
@@ -2358,7 +2448,11 @@ int32 rtl_fn_insert(struct fib_table *tb, struct fib_config *cfg, struct fib_inf
 		ipMask = inet_make_mask(cfg->fc_dst_len);
 		ipGw = cfg->fc_gw;
 		rtl865x_getDevIpAndNetmask(netif,&srcIp,&srcMask);
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+		if (!ipDst || (!ipv4_is_multicast(ipDst) && !ipv4_is_loopback(ipDst) && (ipDst != 0xffffffff)))
+		#else
 		if (!ipDst || (!MULTICAST(ipDst) && !LOOPBACK(ipDst) && (ipDst != 0xffffffff)))
+		#endif
 		{
 			#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
 			//printk("-------------------%s(%d)\n",__FUNCTION__,__LINE__);
@@ -2388,7 +2482,12 @@ int32 rtl_fn_delete(struct fib_table *tb, struct fib_config *cfg)
 		ipDst = cfg->fc_dst;
 		ipMask =  inet_make_mask(cfg->fc_dst_len);
 
-		if (!ipDst || (!MULTICAST(ipDst) && !LOOPBACK(ipDst) && (ipDst != 0xffffffff))) {
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+		if (!ipDst || (!ipv4_is_multicast(ipDst) && !ipv4_is_loopback(ipDst) && (ipDst != 0xffffffff)))
+		#else
+		if (!ipDst || (!MULTICAST(ipDst) && !LOOPBACK(ipDst) && (ipDst != 0xffffffff))) 
+		#endif	
+		{
 			rc = 0;
 			#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
 			rc = rtl865x_delRoute(ipDst, ipMask);
@@ -2399,8 +2498,31 @@ int32 rtl_fn_delete(struct fib_table *tb, struct fib_config *cfg)
 	return SUCCESS;
 }
 
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+int32 rtl_fib_flush(u32 tb_id, u32 fn_key, u32 ip_mask)
+{
+	int rc;
+	unsigned int ipDst, ipMask;
+	/*2007-12-19*/
+	if (tb_id==RT_TABLE_MAIN) {
+		ipDst =fn_key;
+		ipMask = ip_mask;
+
+		if (!ipDst || (!ipv4_is_multicast(ipDst) && !ipv4_is_loopback(ipDst) && (ipDst != 0xffffffff))) {
+			rc = 0;
+			#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+			rc = rtl865x_delRoute(ipDst, ipMask);
+			#endif
+		}
+	}
+
+	return SUCCESS;
+}
+#endif
+
 int32 rtl_fn_flush(int	 fz_order, int idx, u32 tb_id, u32 fn_key)
 {
+#if !defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	int rc;
 	unsigned int ipDst, ipMask;
 	/*2007-12-19*/
@@ -2415,7 +2537,7 @@ int32 rtl_fn_flush(int	 fz_order, int idx, u32 tb_id, u32 fn_key)
 			#endif
 		}
 	}
-
+#endif
 	return SUCCESS;
 }
 
@@ -2426,9 +2548,21 @@ int32 rtl_ip_vs_conn_expire_check(struct ip_vs_conn *cp)
 	rtl865x_napt_entry rtl865xNaptEntry;
 
 	if (cp->protocol==IPPROTO_UDP)	{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		expires = udp_get_timeouts_by_state(UDP_CT_UNREPLIED,(void *)cp,0);
+#else
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+		expires = udp_get_timeouts_by_state(UDP_CT_UNREPLIED);
+		#else
 		expires = nf_ct_udp_timeout;
+		#endif
+#endif
 	} else if (cp->protocol==IPPROTO_TCP) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		expires = tcp_get_timeouts_by_state(cp->state,(void *)cp,0);	/* does cp->state right here? */
+#else
 		expires = tcp_get_timeouts_by_state(cp->state);	/* does cp->state right here? */
+#endif
 	} else {
 		return FAILED;
 	}
@@ -2500,17 +2634,17 @@ int32 rtl_ip_vs_conn_expire_check_delete(struct ip_vs_conn *cp)
 	return SUCCESS;
 }
 
-int32 rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
+void rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
 {
 	#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
 	uint32			ret;
 	struct net_device	*lanDev, *wanDev;
+	rtl865x_qos_mark rtl865xQosMark;
 	#endif
 
 	#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 	rtl865x_napt_entry rtl865xNaptEntry;
 	rtl865x_priority rtl865xPrio;
-	rtl865x_qos_mark rtl865xQosMark;
 	#endif
 
 	/*2007-12-19*/
@@ -2549,7 +2683,6 @@ int32 rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const
 			wanDev=rtl865x_getWanDev();
 			rtl865xPrio.downlinkPrio=rtl_qosGetPriorityByMark(lanDev->name, rtl865xQosMark.downlinkMark);
 			rtl865xPrio.uplinkPrio=rtl_qosGetPriorityByMark(wanDev->name, rtl865xQosMark.uplinkMark);
-
 			if(lanDev)
 				dev_put(lanDev);
 
@@ -2584,16 +2717,16 @@ int32 rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const
 	}
 }
 
-int32 rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
+void rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
 {
 	#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
 	uint32 ret;
 	struct net_device	*lanDev, *wanDev;
+	rtl865x_qos_mark rtl865xQosMark;
 	#endif
 	#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 	rtl865x_napt_entry rtl865xNaptEntry;
 	rtl865x_priority rtl865xPrio;
-	rtl865x_qos_mark rtl865xQosMark;
 	#endif
 
 	/*2007-12-19*/
@@ -2658,22 +2791,79 @@ int32 rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const
 
 #endif
 
+#if defined(CONFIG_IPV6) && defined(CONFIG_RTL_8198C)
+int32 rtl8198c_ipv6_router_add(struct rt6_info *rt)
+{
+	char *dev_t;
+	int rc, fc_dst_len, addr_type;
+	inv6_addr_t ipDst, ipGw;
+	struct net_device *netif;
+	uint32 tb6_id = 0;
+	
+	if (rt && rt->rt6i_table) {
+		//read_lock_bh(&rt->rt6i_table->tb6_lock);
+		tb6_id = rt->rt6i_table->tb6_id;
+		//read_unlock_bh(&rt->rt6i_table->tb6_lock);
+	};
+
+	if (tb6_id == RT6_TABLE_MAIN) {
+		if (rt->dst.dev) {
+			netif = rt->dst.dev;
+		} else {
+			netif = NULL;
+		}
+
+		dev_t	= (netif)? netif->name: NULL;
+		memcpy(&ipDst, &rt->rt6i_dst.addr, sizeof(inv6_addr_t));
+		fc_dst_len = rt->rt6i_dst.plen;
+		memcpy(&ipGw, &rt->rt6i_gateway, sizeof(inv6_addr_t));
+		
+		addr_type = ipv6_addr_type(&ipDst);
+		if ((((ipDst.v6_addr32[0]==0)&&(ipDst.v6_addr32[1]==0)&&(ipDst.v6_addr32[2]==0)&&(ipDst.v6_addr32[3]==0)) ||
+		     ((!(addr_type&IPV6_ADDR_MULTICAST))&&(!(addr_type&IPV6_ADDR_LOOPBACK)))) && (fc_dst_len != 128)){
+			rc = rtl8198c_addIpv6Route(ipDst, fc_dst_len, ipGw, dev_t);
+			#if 0
+			printk("%s:%d:(%s): dst: 0x%4x%4x%4x%4x%4x%4x%4x%4x, fc_dst_len is %d, gw:  0x%4x%4x%4x%4x%4x%4x%4x%4x, dev: %s, errno=%d\n",
+					__FUNCTION__, __LINE__,"add_ipv6_rt",  ipDst.v6_addr16[0], ipDst.v6_addr16[1] ,ipDst.v6_addr16[2], ipDst.v6_addr16[3],
+					ipDst.v6_addr16[4], ipDst.v6_addr16[5] ,ipDst.v6_addr16[6], ipDst.v6_addr16[7],
+					fc_dst_len, ipGw.v6_addr16[0], ipGw.v6_addr16[1] ,ipGw.v6_addr16[2], ipGw.v6_addr16[3], 
+					ipGw.v6_addr16[4], ipGw.v6_addr16[5] ,ipGw.v6_addr16[6], ipGw.v6_addr16[7], dev_t? dev_t: "null", rc);
+			#endif
+		}
+	}
+	
+	return SUCCESS;
+}
+
+int32 rtl8198c_ipv6_router_del(struct rt6_info *rt)
+{
+	int rc, fc_dst_len, addr_type;
+	inv6_addr_t ipDst;
+	uint32 tb6_id = 0;	
+	
+	if (rt && rt->rt6i_table) {
+		//read_lock_bh(&rt->rt6i_table->tb6_lock);
+		tb6_id = rt->rt6i_table->tb6_id;
+		//read_unlock_bh(&rt->rt6i_table->tb6_lock);
+	};
+
+	if (tb6_id == RT6_TABLE_MAIN) {
+		memcpy(&ipDst, &rt->rt6i_dst.addr, sizeof(inv6_addr_t));
+		fc_dst_len = rt->rt6i_dst.plen;
+		
+		addr_type = ipv6_addr_type(&ipDst);
+		if (((ipDst.v6_addr32[0]==0)&&(ipDst.v6_addr32[1]==0)&&(ipDst.v6_addr32[2]==0)&&(ipDst.v6_addr32[3]==0)) ||
+		     ((!(addr_type&IPV6_ADDR_MULTICAST))&&(!(addr_type&IPV6_ADDR_LOOPBACK)))) {
+			rc = rtl8198c_delIpv6Route(ipDst, fc_dst_len);
+		}
+	}
+	
+	return SUCCESS;
+}
+#endif
+
 #if defined(CONFIG_PROC_FS) && defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
 static struct proc_dir_entry *proc_gc_overflow_timout=NULL;
-static int gc_overflow_timout_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-      int len;
-
-      len = sprintf(page, "rtl_gc_overflow_timout(%d), HZ(%d)\n", rtl_gc_overflow_timout, HZ);
-
-      if (len <= off+count) *eof = 1;
-      *start = page + off;
-      len -= off;
-      if (len>count) len = count;
-      if (len<0) len = 0;
-      return len;
-}
 
 static int gc_overflow_timout_write_proc(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
@@ -2692,13 +2882,61 @@ static int gc_overflow_timout_write_proc(struct file *file, const char *buffer,
       return -EFAULT;
 }
 
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+static int gc_overflow_timout_read_proc(struct seq_file *s, void *v)
+{
+      seq_printf(s, "rtl_gc_overflow_timout(%d), HZ(%d)\n", rtl_gc_overflow_timout, HZ);
+
+      return 0;
+}
+
+int gc_overflow_timout_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, gc_overflow_timout_read_proc, NULL));
+}
+
+static ssize_t gc_overflow_timout_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	return gc_overflow_timout_write_proc(file, userbuf,count, off);
+}
+
+struct file_operations gc_overflow_timout_proc_fops = {
+        .open           = gc_overflow_timout_single_open,
+	 .write		= gc_overflow_timout_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#else
+static int gc_overflow_timout_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+      int len;
+
+      len = sprintf(page, "rtl_gc_overflow_timout(%d), HZ(%d)\n", rtl_gc_overflow_timout, HZ);
+
+      if (len <= off+count) *eof = 1;
+      *start = page + off;
+      len -= off;
+      if (len>count) len = count;
+      if (len<0) len = 0;
+      return len;
+}
+#endif
+
 void gc_overflow_timout_proc_init(void)
 {
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
+	proc_gc_overflow_timout = proc_create_data("gc_overflow_timout", 0, &proc_root,
+			 &gc_overflow_timout_proc_fops, NULL);
+	#else
 	proc_gc_overflow_timout = create_proc_entry("gc_overflow_timout", 0, NULL);
 	if (proc_gc_overflow_timout) {
 		proc_gc_overflow_timout->read_proc = gc_overflow_timout_read_proc;
 		proc_gc_overflow_timout->write_proc = gc_overflow_timout_write_proc;
 	}
+	#endif
 }
 #endif
 
@@ -2731,39 +2969,6 @@ const char *print_Mask_ID="typeMask";
 const char *print_errMask_ID="errMask";
 const char *print_rateLimit_ID="rateLimit_enable";
 const char *print_module_ID="module_mask";
-
-static int print_log_read_proc(char *page, char **start, off_t off,
-		     int count, int *eof, void *data)
-{
-	int len;
-
-	if(0==strcmp(data, print_Mask_ID))
-	{
-		len = sprintf(page, "RTL_LogTypeMask(0x%x)\n\tbit means:\n\t ERROR %d\n\t WARN %d \n\t INFO %d \n", \
-						*(uint32 *)&RTL_LogTypeMask, RTL_LogTypeMask.ERROR, RTL_LogTypeMask.WARN, RTL_LogTypeMask.INFO);
-	}
-	else if(0==strcmp(data, print_errMask_ID))
-	{
-		len = sprintf(page, "RTL_LogErrorMask(0x%x)\n\tbit means:\n\t MEM %d\n\t SKB %d \n", \
-						*(uint32 *)&RTL_LogErrorMask, RTL_LogErrorMask.MEM, RTL_LogErrorMask.SKB);
-	}
-	else if(0==strcmp(data, print_rateLimit_ID))
-	{
-		len = sprintf(page, "rate_limit %d \n", RTL_LogRatelimit);
-	}
-	else if(0==strcmp(data, print_module_ID))
-	{
-		len = sprintf(page, "RTL_LogModuleMask(0x%x)\n\tbit means:\n\t NIC %d\n\t WIRELESS %d \n\t PROSTACK %d \n", \
-			  *(uint32 *)&RTL_LogModuleMask, RTL_LogModuleMask.NIC, RTL_LogModuleMask.WIRELESS, RTL_LogModuleMask.PROSTACK);
-	}
-
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-}
 
 static int print_log_write_proc(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
@@ -2800,6 +3005,88 @@ static int print_log_write_proc(struct file *file, const char *buffer,
 
 	return count;
 }
+
+#if defined(CONFIG_RTL_PROC_NEW)
+static int print_log_read_proc(struct seq_file *s, void *v)
+{
+	char * data = (char *)s->private;
+	
+	if(0==strcmp(data, print_Mask_ID))
+	{
+		seq_printf(s, "RTL_LogTypeMask(0x%x)\n\tbit means:\n\t ERROR %d\n\t WARN %d \n\t INFO %d \n", \
+						*(uint32 *)&RTL_LogTypeMask, RTL_LogTypeMask.ERROR, RTL_LogTypeMask.WARN, RTL_LogTypeMask.INFO);
+	}
+	else if(0==strcmp(data, print_errMask_ID))
+	{
+		seq_printf(s, "RTL_LogErrorMask(0x%x)\n\tbit means:\n\t MEM %d\n\t SKB %d \n", \
+						*(uint32 *)&RTL_LogErrorMask, RTL_LogErrorMask.MEM, RTL_LogErrorMask.SKB);
+	}
+	else if(0==strcmp(data, print_rateLimit_ID))
+	{
+		seq_printf(s, "rate_limit %d \n", RTL_LogRatelimit);
+	}
+	else if(0==strcmp(data, print_module_ID))
+	{
+		seq_printf(s, "RTL_LogModuleMask(0x%x)\n\tbit means:\n\t NIC %d\n\t WIRELESS %d \n\t PROSTACK %d \n", \
+			  *(uint32 *)&RTL_LogModuleMask, RTL_LogModuleMask.NIC, RTL_LogModuleMask.WIRELESS, RTL_LogModuleMask.PROSTACK);
+	}
+
+	return 0;
+}
+
+int print_log_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, print_log_read_proc, PDE_DATA(inode)));
+}
+
+static ssize_t print_log_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	return print_log_write_proc(file, userbuf,count, off);
+}
+
+struct file_operations print_log_proc_fops = {
+        .open           = print_log_single_open,
+	 .write		= print_log_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#else
+static int print_log_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len;
+
+	if(0==strcmp(data, print_Mask_ID))
+	{
+		len = sprintf(page, "RTL_LogTypeMask(0x%x)\n\tbit means:\n\t ERROR %d\n\t WARN %d \n\t INFO %d \n", \
+						*(uint32 *)&RTL_LogTypeMask, RTL_LogTypeMask.ERROR, RTL_LogTypeMask.WARN, RTL_LogTypeMask.INFO);
+	}
+	else if(0==strcmp(data, print_errMask_ID))
+	{
+		len = sprintf(page, "RTL_LogErrorMask(0x%x)\n\tbit means:\n\t MEM %d\n\t SKB %d \n", \
+						*(uint32 *)&RTL_LogErrorMask, RTL_LogErrorMask.MEM, RTL_LogErrorMask.SKB);
+	}
+	else if(0==strcmp(data, print_rateLimit_ID))
+	{
+		len = sprintf(page, "rate_limit %d \n", RTL_LogRatelimit);
+	}
+	else if(0==strcmp(data, print_module_ID))
+	{
+		len = sprintf(page, "RTL_LogModuleMask(0x%x)\n\tbit means:\n\t NIC %d\n\t WIRELESS %d \n\t PROSTACK %d \n", \
+			  *(uint32 *)&RTL_LogModuleMask, RTL_LogModuleMask.NIC, RTL_LogModuleMask.WIRELESS, RTL_LogModuleMask.PROSTACK);
+	}
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+}
+#endif
+
 void log_print_proc_init(void)
 {
 	RTL_LogTypeMask.ERROR=1;
@@ -2818,7 +3105,19 @@ void log_print_proc_init(void)
 	proc_log_print_control= proc_mkdir("log_print_control",NULL);
 	if(proc_log_print_control)
 	{
+		#if defined(CONFIG_RTL_PROC_NEW)
+		proc_printMask = proc_create_data(print_Mask_ID, 0, proc_log_print_control,
+			 &print_log_proc_fops, print_Mask_ID);
 
+		proc_printMask = proc_create_data(print_errMask_ID, 0, proc_log_print_control,
+			 &print_log_proc_fops, print_errMask_ID);
+
+		proc_printMask = proc_create_data(print_rateLimit_ID, 0, proc_log_print_control,
+			 &print_log_proc_fops, print_rateLimit_ID);
+
+		proc_printMask = proc_create_data(print_module_ID, 0, proc_log_print_control,
+			 &print_log_proc_fops, print_module_ID);
+		#else
 		proc_printMask = create_proc_entry(print_Mask_ID, 0, proc_log_print_control);
 		if (proc_printMask) {
 			proc_printMask->read_proc = print_log_read_proc;
@@ -2846,6 +3145,7 @@ void log_print_proc_init(void)
 			proc_printModule->write_proc = print_log_write_proc;
 			proc_printModule->data = (void *)print_module_ID;
 		}
+		#endif
 	}
 }
 #endif

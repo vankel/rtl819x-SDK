@@ -21,6 +21,9 @@
 #define SPECVERSION_STR		"1.0"
 #define HWVERSION_STR		"81xx"
 
+#define ADDITIONAL_HW_VER_STR	"AdditionalHardwareVersion"
+#define ADDITIONAL_SW_VER_STR	"AdditionalSoftwareVersion"
+
 extern char *fwVersion;	// defined in version.c
 int gCTStartPing=0;
 
@@ -564,8 +567,8 @@ struct CWMP_PRMT tDeviceInfoLeafInfo[] =
 {"ModemFirmwareVersion",	eCWMP_tSTRING,	CWMP_READ,		&tDeviceInfoLeafOP},
 #endif
 {"EnabledOptions",		eCWMP_tSTRING,	CWMP_READ,		&tDeviceInfoLeafOP},
-/*AdditionalHardwareVersion*/
-/*AdditionalSoftwareVersion*/
+{"AdditionalHardwareVersion",		eCWMP_tSTRING,	CWMP_READ,		&tDeviceInfoLeafOP},
+{"AdditionalSoftwareVersion",		eCWMP_tSTRING,	CWMP_READ,		&tDeviceInfoLeafOP},
 {"SpecVersion",			eCWMP_tSTRING,	CWMP_READ,		&tDeviceInfoLeafOP},
 {"ProvisioningCode",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ|CWMP_FORCE_ACT,	&tDeviceInfoLeafOP},
 {"UpTime",			eCWMP_tUINT,	CWMP_READ|CWMP_DENY_ACT,&tDeviceInfoLeafOP},
@@ -587,6 +590,8 @@ enum eDeviceInfoLeaf
 	eDIModemFirmwareVersion,
 #endif
 	eDIEnabledOptions,
+	eDIAdditionalHardwareVersion,
+	eDIAdditionalSoftwareVersion,
 	eDISpecVersion,
 	eDIProvisioningCode,
 	eDIUpTime,
@@ -608,6 +613,8 @@ struct CWMP_LEAF tDeviceInfoLeaf[] =
 { &tDeviceInfoLeafInfo[eDIModemFirmwareVersion] },
 #endif
 { &tDeviceInfoLeafInfo[eDIEnabledOptions] },
+{ &tDeviceInfoLeafInfo[eDIAdditionalHardwareVersion] },
+{ &tDeviceInfoLeafInfo[eDIAdditionalSoftwareVersion] },
 { &tDeviceInfoLeafInfo[eDISpecVersion] },
 { &tDeviceInfoLeafInfo[eDIProvisioningCode] },
 { &tDeviceInfoLeafInfo[eDIUpTime] },
@@ -863,6 +870,12 @@ int getDeviceInfo(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 	else if( strcmp( lastname, "EnabledOptions" )==0 )
 	{
 		*data = strdup( "" );
+	}else if( strcmp( lastname, "AdditionalHardwareVersion" )==0 )
+	{
+		*data = strdup( ADDITIONAL_HW_VER_STR );
+	}else if( strcmp( lastname, "AdditionalSoftwareVersion" )==0 )
+	{
+		*data = strdup( ADDITIONAL_SW_VER_STR );
 	}else if( strcmp( lastname, "SpecVersion" )==0 )
 	{
 		*data = strdup( SPECVERSION_STR );

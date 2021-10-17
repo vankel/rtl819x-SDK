@@ -1879,7 +1879,7 @@ mld_accept(recvlen)
 		log(LOG_WARNING, 0,
 		    "received packet too short (%u bytes) for MLD header",
 		    recvlen);
-		printf("received packet too short!recvlen:%d,sizelimit:%d",recvlen,sizeof(struct mld_hdr));
+		//printf("received packet too short!recvlen:%d,sizelimit:%d",recvlen,sizeof(struct mld_hdr));
 		return -1;
 	}
 	mldh = (struct mld_hdr *) rcvmh.msg_iov[0].iov_base;

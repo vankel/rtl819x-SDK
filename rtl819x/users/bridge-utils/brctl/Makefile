@@ -1,6 +1,6 @@
 CFLAGS := -Wall -c -g -Os $(HARD_FLOAT) $(CFLAGS)
 LDFLAGS = -s -Wall -g 
-CC = rsdk-linux-gcc
+CC = $(CROSS_COMPILE)gcc
 
 ifeq ($(SLINK),1)
 CFLAGS  += -ffunction-sections -fdata-sections

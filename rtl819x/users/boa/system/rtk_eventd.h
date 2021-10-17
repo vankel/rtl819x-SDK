@@ -1,5 +1,5 @@
 
-#ifndef RTK_API360 //for WiFi driver to include this file
+//#ifndef RTK_API360 //for WiFi driver to include this file
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +15,7 @@
 #include <linux/genetlink.h>
 #include <sys/socket.h>
 
-#endif
+//#endif
 
 #define MAX_PAYLOAD 1024 /* maximum payload size*/
 
@@ -30,6 +30,8 @@ typedef struct __rtkEventHdr
 }rtkEventHdr;
 
 #define RTK_EVENTD_HDR_LEN sizeof(rtkEventHdr)
+#define IP_ADDR 0
+#define LAN_NETWORK 0
 
 enum RTK_EVENT_ID
 {
@@ -42,7 +44,9 @@ enum RTK_EVENT_ID
 	START_WAN_SUCCESS,
 	PPPOE_DIAL_SUCCESS,
 	START_DHCP_SERVICE,
-	RESTORE_AP_INIT_STATE	
+	RESTORE_AP_INIT_STATE	,
+	WIFI_CONNECT_SUCCESS,
+	WIFI_DISCONNECT
 };
 
 

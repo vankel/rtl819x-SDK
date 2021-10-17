@@ -1138,6 +1138,12 @@ int retval = 0;
 
 	local_irq_save(flags);
 
+	if (_ep == NULL) {
+		printk("%s: _ep is NULL !\n", __func__);
+		retval = -1;
+		goto done;
+	}
+
 	dwc_otg_hcd = hcd_to_dwc_otg_hcd(_hcd);
 	urb_qtd = (dwc_otg_qtd_t *)_urb->hcpriv;
 	qh = (dwc_otg_qh_t *)_ep->hcpriv;
@@ -2287,18 +2293,24 @@ static void assign_and_init_hc(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh)
 	dwc_hc_t	*hc;
 	dwc_otg_qtd_t	*qtd;
 	struct urb	*urb;
+    if ((_hcd == NULL )||(_qh == NULL))
+		printk( "%s(%p,%p)\n", __func__, _hcd, _qh);
 
-	DWC_DEBUGPL(DBG_HCDV, "%s(%p,%p)\n", __func__, _hcd, _qh);
+	if (_hcd->free_hc_list.next != NULL)
+		hc = list_entry(_hcd->free_hc_list.next, dwc_hc_t, hc_list_entry);
 
-	hc = list_entry(_hcd->free_hc_list.next, dwc_hc_t, hc_list_entry);
+	if (hc==NULL)
+		printk("\r\nhc NUL\r");
 
 	/* Remove the host channel from the free list. */
+	if (!(&hc->hc_list_entry)) {
 	list_del_init(&hc->hc_list_entry);
-
+	}
 	qtd = list_entry(_qh->qtd_list.next, dwc_otg_qtd_t, qtd_list_entry);
 	urb = qtd->urb;
 	_qh->channel = hc;
-	_qh->qtd_in_process = qtd;
+	if (qtd!=NULL)
+		_qh->qtd_in_process = qtd;
 
 	/*
 	 * Use usb_pipedevice to determine device address. This address is
@@ -2306,6 +2318,11 @@ static void assign_and_init_hc(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh)
 	 */
 	hc->dev_addr = usb_pipedevice(urb->pipe);
 	hc->ep_num = usb_pipeendpoint(urb->pipe);
+
+	if (urb == NULL)
+		printk("urb is NULL\n");
+	if (urb->dev == NULL)
+		printk("urb->dev is NULL\n");
 
 #ifndef NON_PERIODIC_ONLY	//take care high speed only
 	if (urb->dev->speed == USB_SPEED_LOW) {
@@ -2499,7 +2516,9 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t *_hcd)
 	       !list_empty(&_hcd->free_hc_list)) {
 
 		qh = list_entry(qh_ptr, dwc_otg_qh_t, qh_list_entry);
-		assign_and_init_hc(_hcd, qh);
+		if (qh!=NULL) {
+			assign_and_init_hc(_hcd, qh);
+		}
 
 		/*
 		 * Move the QH from the periodic ready schedule to the
@@ -2523,7 +2542,9 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t *_hcd)
 		num_channels - _hcd->periodic_channels) &&
 	       !list_empty(&_hcd->free_hc_list)) {
 		qh = list_entry(qh_ptr, dwc_otg_qh_t, qh_list_entry);
-		assign_and_init_hc(_hcd, qh);
+		if (qh!=NULL) {
+			assign_and_init_hc(_hcd, qh);
+		}
 
 		/*
 		 * Move the QH from the non-periodic inactive schedule to the

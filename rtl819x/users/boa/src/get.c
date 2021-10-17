@@ -25,6 +25,10 @@
 #include "boa.h"
 #include "access.h"
 
+#ifdef SERVER_SSL
+#include <openssl/ssl.h>
+#endif
+
 #ifdef SUPPORT_ASP
 	#include "asp_page.h"
 #endif
@@ -806,6 +810,7 @@ int init_get(request * req)
 
 int process_get(request * req)
 {
+//	printf("%s\n",__FUNCTION__);
     int bytes_written;
     volatile unsigned int bytes_to_write;
 
@@ -820,8 +825,19 @@ int process_get(request * req)
 
     if (setjmp(env) == 0) {
         handle_sigbus = 1;
-        bytes_written = write(req->fd, req->data_mem + req->ranges->start,
-                              bytes_to_write);
+#ifdef SERVER_SSL
+	if(req->ssl==NULL)
+#endif
+	{
+        	bytes_written = write(req->fd, req->data_mem + req->ranges->start,
+                	              bytes_to_write);
+	}
+#ifdef SERVER_SSL
+	else{
+		//printf("<%s:%d>SSL_write\n",__FUNCTION__,__LINE__);
+		bytes_written = SSL_write(req->ssl, req->data_mem + req->ranges->start, bytes_to_write);
+	}
+#endif
         handle_sigbus = 0;
         /* OK, SIGBUS **after** this point is very bad! */
     } else {

@@ -28,7 +28,9 @@
 
 #define 	MBUFTYPE_DATA		0x01	//not in use now. Keep for backward compatablity.
 
+#if 1 //!defined(CONFIG_RTL_8198C)
 #define _PKTHDR_CACHEABLE		1
+#endif
 /*@struct m_buf | The mbuf header associated with each cluster */
 
 struct rtl_mBuf
@@ -178,7 +180,7 @@ struct rtl_pktHdr
 												(PKTHDR_VLAN_P3_AUTOADD)|	\
 												(PKTHDR_VLAN_P4_AUTOADD)|	\
 												(PKTHDR_VLAN_P5_AUTOADD)	)
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 	uint8	ph_ptpResv:1;
 	uint8	ph_ptpMsgType:4;	/* message type */
 	uint8	ph_ptpVer:2;		/* PTP version, 0: 1588v1; 1: 1588v2 or 802.1as; others: reserved */
@@ -187,14 +189,8 @@ struct rtl_pktHdr
 #endif
 
 #if defined(_PKTHDR_CACHEABLE)
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	uint32 	pending0;	//for cache line alianment
 	uint32	pending1;
-#else
-	uint32 	pending0;	//for cache line alianment
-	uint32	pending1;
-	uint32	pending2;
-#endif
 #endif
 };
 

@@ -4,6 +4,7 @@
 <% getIndex("no-cache"); %>
 <SCRIPT language=Javascript src="language.js"></SCRIPT>
 <title>Cerfitication Information</title>
+<% getInfo("include_css"); %>
 <style>
 .on {display:on}
 .off {display:none}
@@ -431,7 +432,7 @@ function checkAsCer()
 </head>
 <body id="bodyid" topMargin="0" onload="initData();"> 
 <blockquote>
-<h2><font color="#0000FF">Certification Management</font></h2>
+<h2>Certification Management</h2>
 
   <form action=/boafrm/formWapiCertManagement method=POST name="fm1">
     <TABLE WIDTH="644" CELLSPACING=1 CELLPADDING=4 BORDER=1 height="145"> 

@@ -53,6 +53,8 @@ struct test_struct
 {
 	char data[30];
 };
+// to_be_checked !!!
+#ifndef CONFIG_RTL_8198C
 static int try_mac(const char *data, char array[],
 		      int array_size, char sep)
 {
@@ -86,10 +88,13 @@ static int try_mac(const char *data, char array[],
 	}
 	return 0;
 }
+#endif
 
 extern int32 rtl_delIgmpRecordByMacAddr(uint8 *macAddr);
 void igmp_delete (struct sk_buff *__skb)
 {
+// to_be_checked !!!
+#ifndef CONFIG_RTL_8198C
   	int pid;
 	struct test_struct send_data,recv_data;
 	uint8 mac[6];
@@ -110,11 +115,15 @@ void igmp_delete (struct sk_buff *__skb)
     		sprintf(send_data.data,"please input like 00:23:e8:79:99:32\n");
 	}
       	rtk_nlsendmsg(pid, igmp_delete_sk, sizeof(struct test_struct), &send_data);
+#endif		
   	return;
 }
 
 int igmp_delete_init_netlink(void) 
 {
+// to_be_checked !!!
+//#ifndef CONFIG_RTL_8198C // modified by lynn_pu, 2014-10-22
+#if !defined(CONFIG_RTL_8198C) && ((!defined(CONFIG_RTL_8881A)||!defined(CONFIG_RTL_8196E)||!defined(CONFIG_RTL_819XD))&&(LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)))
   	igmp_delete_sk = netlink_kernel_create(&init_net, NETLINK_MULTICAST_DELETE, 0, igmp_delete, NULL, THIS_MODULE);
 
   	if (!igmp_delete_sk) {
@@ -122,6 +131,7 @@ int igmp_delete_init_netlink(void)
     		return -EIO;
   	}	
   	printk("Netlink[Kernel] create socket for igmp ok.\n");
+#endif	
   	return 0;
 }
 

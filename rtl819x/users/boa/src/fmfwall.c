@@ -482,24 +482,26 @@ void formPortFw(request *wp, char *path, char *query)
 		}
 
 		// Check if there is any port overlapped
-		for (i=1; i<=entryNum; i++) {
-			PORTFW_T checkEntry;
-			*((char *)&checkEntry) = (char)i;
-			if ( !apmib_get(MIB_PORTFW_TBL, (void *)&checkEntry)) {
-				strcpy(tmpBuf, ("Get table entry error!"));
-				goto setErr_portfw;
-			}
-			if ( ( (entry.fromPort <= checkEntry.fromPort &&
-					entry.toPort >= checkEntry.fromPort) ||
-			       (entry.fromPort >= checkEntry.fromPort &&
-				entry.fromPort <= checkEntry.toPort)
-			     )&&
-			       (entry.protoType & checkEntry.protoType) ) {
-				strcpy(tmpBuf, ("Setting port range has overlapped with used port numbers!"));
-				goto setErr_portfw;
+		if (strAddPort[0])
+		{
+			for (i=1; i<=entryNum; i++) {
+				PORTFW_T checkEntry;
+				*((char *)&checkEntry) = (char)i;
+				if ( !apmib_get(MIB_PORTFW_TBL, (void *)&checkEntry)) {
+					strcpy(tmpBuf, ("Get table entry error!"));
+					goto setErr_portfw;
+				}
+				if ( ( (entry.fromPort <= checkEntry.fromPort &&
+						entry.toPort >= checkEntry.fromPort) ||
+				       (entry.fromPort >= checkEntry.fromPort &&
+					entry.fromPort <= checkEntry.toPort)
+				     )&&
+				       (entry.protoType & checkEntry.protoType) ) {
+					strcpy(tmpBuf, ("Setting port range has overlapped with used port numbers!"));
+					goto setErr_portfw;
+				}
 			}
 		}
-
 		// set to MIB. try to delete it first to avoid duplicate case
 		apmib_set(MIB_PORTFW_DEL, (void *)&entry);
 		if ( apmib_set(MIB_PORTFW_ADD, (void *)&entry) == 0) {
@@ -586,18 +588,19 @@ void formFilter(request *wp, char *path, char *query)
 	char *ipVer;
 #endif
 	char tmpBuf[100];
-	int entryNum, intVal, i;
-	IPFILTER_T ipEntry;
-	PORTFILTER_T portEntry;
-	MACFILTER_T macEntry;
+	int entryNum, intVal, i, j;
+	IPFILTER_T ipEntry, ipentrytmp;
+	PORTFILTER_T portEntry, entrytmp;
+	MACFILTER_T macEntry, macEntrytmp;
 	struct in_addr curIpAddr, curSubnet;
 	void *pEntry;
 	unsigned long v1, v2, v3;
 	int num_id, get_id, add_id, del_id, delall_id, enable_id;
 	char *strAddUrl, *strDelUrl;
-	char *strDelAllUrl,*strUrlMode;
+	char *strDelAllUrl,*strUrlMode,*strUsrMode;
 	int mode;/*url mode:white list or black list*/
-	URLFILTER_T urlEntry;
+	int usrMode;/*user mode:for all,specific ip or specific mac*/
+	URLFILTER_T urlEntry, urlEntrytmp;
 #ifndef NO_ACTION
 	int pid;
 #endif
@@ -807,6 +810,23 @@ void formFilter(request *wp, char *path, char *query)
 			strcpy(tmpBuf, ("Error! Invalid MAC address."));
 			goto setErr_filter;
 		}
+		
+		//add same mac address check
+		apmib_get(MIB_MACFILTER_TBL_NUM, (void *)&entryNum);
+		for(j=1;j<=entryNum;j++)
+		{
+			memset(&macEntrytmp, 0x00, sizeof(macEntrytmp));
+			*((char *)&macEntrytmp) = (char)j;
+			if ( apmib_get(MIB_MACFILTER_TBL, (void *)&macEntrytmp))
+			{
+				if (!memcmp(macEntrytmp.macAddr, macEntry.macAddr, 6))
+				{
+					strcpy(tmpBuf, ("rule already exist!"));
+					goto setErr_filter;
+				}
+					
+			}
+		}
 	}
 
 	if (strAddUrl[0]) {
@@ -830,6 +850,179 @@ void formFilter(request *wp, char *path, char *query)
 		{
 			strcpy((char *)urlEntry.urlAddr, strVal);
 			urlEntry.ruleMode=mode;
+		}
+		
+		//add same url rule check
+		apmib_get(MIB_URLFILTER_TBL_NUM, (void *)&entryNum);
+		for(j=1;j<=entryNum;j++)
+		{
+			memset(&urlEntrytmp, 0x00, sizeof(urlEntrytmp));
+			*((char *)&urlEntrytmp) = (char)j;
+			if ( apmib_get(MIB_URLFILTER_TBL, (void *)&urlEntrytmp))
+			{
+				if (strlen(urlEntry.urlAddr) == strlen(urlEntrytmp.urlAddr))
+				{
+					if (!memcmp(urlEntrytmp.urlAddr, urlEntry.urlAddr, strlen(urlEntry.urlAddr)))
+					{
+						strcpy(tmpBuf, ("rule already exist!"));
+						goto setErr_filter;
+					}
+				}
+			}
+		}
+#ifdef URL_FILTER_USER_MODE_SUPPORT
+		strUsrMode = req_get_cstream_var(wp,"urlFilterUserMode", "");
+		if(strUsrMode){
+			usrMode=atoi(strUsrMode);
+		}
+		urlEntry.usrMode=(unsigned char)usrMode;
+		if(usrMode==1){//ip mode
+			strVal = req_get_cstream_var(wp, "ip", "");
+			if (strVal[0])
+			{
+				inet_aton(strVal, (struct in_addr *)&urlEntry.ipAddr);
+			}
+		}
+		else if(usrMode==2)//mac mode
+		{
+			strVal = req_get_cstream_var(wp, "mac","");
+			if(strVal[0])
+			{
+				if (strlen(strVal)!=12 || !string_to_hex(strVal, urlEntry.macAddr, 12)) {
+					strcpy(tmpBuf, ("Error! Invalid MAC address."));
+					goto setErr_filter;
+				}
+			}
+		}
+#endif
+	}
+	if (strAddPort[0]) {
+		apmib_get(MIB_PORTFILTER_TBL_NUM, (void *)&entryNum);
+		for(j=1;j<=entryNum;j++)
+		{
+			memset(&entrytmp, 0x00, sizeof(entrytmp));
+			*((char *)&entrytmp) = (char)j;
+			if ( apmib_get(MIB_PORTFILTER_TBL, (void *)&entrytmp))
+			{
+				if ((entrytmp.fromPort == portEntry.fromPort) &&
+					(entrytmp.toPort == portEntry.toPort)&&
+					((entrytmp.protoType == portEntry.protoType)||
+					((entrytmp.protoType==PROTO_BOTH)&&portEntry.protoType==PROTO_UDP)||
+					((entrytmp.protoType==PROTO_BOTH)&&portEntry.protoType==PROTO_TCP)||
+					((entrytmp.protoType==PROTO_TCP)&&portEntry.protoType==PROTO_BOTH)||
+					((entrytmp.protoType==PROTO_UDP)&&portEntry.protoType==PROTO_BOTH)))
+					{
+						strcpy(tmpBuf, ("rule already exist!"));
+						goto setErr_filter;
+					}
+					if ((((entrytmp.fromPort <= portEntry.fromPort) &&
+					(entrytmp.toPort >= portEntry.fromPort))||
+					((entrytmp.fromPort <= portEntry.toPort) &&
+					(entrytmp.toPort >= portEntry.toPort)))&&
+					((entrytmp.protoType == portEntry.protoType)||
+					((entrytmp.protoType==PROTO_BOTH)&&portEntry.protoType==PROTO_UDP)||
+					((entrytmp.protoType==PROTO_BOTH)&&portEntry.protoType==PROTO_TCP)||
+					((entrytmp.protoType==PROTO_TCP)&&portEntry.protoType==PROTO_BOTH)||
+					((entrytmp.protoType==PROTO_UDP)&&portEntry.protoType==PROTO_BOTH)))
+					{
+						strcpy(tmpBuf, ("port overlap!"));
+						goto setErr_filter;
+					}
+					if ((((entrytmp.fromPort >= portEntry.fromPort) &&
+					(entrytmp.fromPort <= portEntry.toPort))||
+					((entrytmp.toPort >= portEntry.fromPort) &&
+					(entrytmp.toPort <= portEntry.toPort)))&&
+					((entrytmp.protoType == portEntry.protoType)||
+					((entrytmp.protoType==PROTO_BOTH)&&portEntry.protoType==PROTO_UDP)||
+					((entrytmp.protoType==PROTO_BOTH)&&portEntry.protoType==PROTO_TCP)||
+					((entrytmp.protoType==PROTO_TCP)&&portEntry.protoType==PROTO_BOTH)||
+					((entrytmp.protoType==PROTO_UDP)&&portEntry.protoType==PROTO_BOTH)))
+					{
+						strcpy(tmpBuf, ("port overlap!"));
+						goto setErr_filter;
+					}
+			}
+		}
+	}
+	
+	if (strAddIp[0]) {
+		apmib_get(MIB_IPFILTER_TBL_NUM, (void *)&entryNum);
+		for(j=1;j<=entryNum;j++)
+		{
+			memset(&ipentrytmp, 0x00, sizeof(ipentrytmp));
+			*((char *)&ipentrytmp) = (char)j;
+			if ( apmib_get(MIB_IPFILTER_TBL, (void *)&ipentrytmp))
+			{
+			#ifdef RTL_IPFILTER_SUPPORT_IP_RANGE
+				if (strEndIpAddr[0])
+				{
+					if (((*((unsigned int*)ipentrytmp.ipAddr)) == (*((unsigned int*)ipEntry.ipAddr)))&&
+						((*((unsigned int*)ipentrytmp.ipAddrEnd))==(*((unsigned int*)ipEntry.ipAddrEnd)))&&
+						((ipentrytmp.protoType==ipEntry.protoType)||
+						(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_TCP)||
+						(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_UDP)||
+						(ipentrytmp.protoType==PROTO_TCP&&ipEntry.protoType==PROTO_BOTH)||
+						(ipentrytmp.protoType==PROTO_UDP&&ipEntry.protoType==PROTO_BOTH)))
+					{
+						strcpy(tmpBuf, ("rule already exist!"));
+						goto setErr_filter;
+					}
+					if (((((*((unsigned int*)ipentrytmp.ipAddrEnd))>=(*((unsigned int*)ipEntry.ipAddrEnd)))&&
+						((*((unsigned int*)ipentrytmp.ipAddr))<=(*((unsigned int*)ipEntry.ipAddrEnd))))||
+						(((*((unsigned int*)ipentrytmp.ipAddrEnd))>=(*((unsigned int*)ipEntry.ipAddr)))&&
+						((*((unsigned int*)ipentrytmp.ipAddr))<=(*((unsigned int*)ipEntry.ipAddr)))))&&
+						((ipentrytmp.protoType==ipEntry.protoType)||
+						(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_TCP)||
+						(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_UDP)||
+						(ipentrytmp.protoType==PROTO_TCP&&ipEntry.protoType==PROTO_BOTH)||
+						(ipentrytmp.protoType==PROTO_UDP&&ipEntry.protoType==PROTO_BOTH)))
+					{
+						strcpy(tmpBuf, ("ip address overlap!"));
+						goto setErr_filter;
+					}
+					if (((((*((unsigned int*)ipEntry.ipAddrEnd))>=(*((unsigned int*)ipentrytmp.ipAddrEnd)))&&
+					((*((unsigned int*)ipEntry.ipAddr))<=(*((unsigned int*)ipentrytmp.ipAddrEnd))))||
+					(((*((unsigned int*)ipEntry.ipAddrEnd))>=(*((unsigned int*)ipentrytmp.ipAddr)))&&
+					((*((unsigned int*)ipEntry.ipAddr))<=(*((unsigned int*)ipentrytmp.ipAddr)))))&&
+					((ipentrytmp.protoType==ipEntry.protoType)||
+					(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_TCP)||
+					(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_UDP)||
+					(ipentrytmp.protoType==PROTO_TCP&&ipEntry.protoType==PROTO_BOTH)||
+					(ipentrytmp.protoType==PROTO_UDP&&ipEntry.protoType==PROTO_BOTH)))
+					{
+						strcpy(tmpBuf, ("ip address overlap!"));
+						goto setErr_filter;
+					}
+				}
+				else
+				{
+					if ((((*((unsigned int*)ipentrytmp.ipAddrEnd))>=(*((unsigned int*)ipEntry.ipAddr)))&&
+						((*((unsigned int*)ipentrytmp.ipAddr))<=(*((unsigned int*)ipEntry.ipAddr))))||
+						(((*((unsigned int*)ipentrytmp.ipAddrEnd))==(*((unsigned int*)ipEntry.ipAddr)))||
+						((*((unsigned int*)ipentrytmp.ipAddr))==(*((unsigned int*)ipEntry.ipAddr))))&&
+						((ipentrytmp.protoType==ipEntry.protoType)||
+						(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_TCP)||
+						(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_UDP)||
+						(ipentrytmp.protoType==PROTO_TCP&&ipEntry.protoType==PROTO_BOTH)||
+						(ipentrytmp.protoType==PROTO_UDP&&ipEntry.protoType==PROTO_BOTH)))
+					{
+						strcpy(tmpBuf, ("ip address overlap!"));
+						goto setErr_filter;
+					}
+				}
+			#else
+				if (((*((unsigned int*)ipentrytmp.ipAddr)) == (*((unsigned int*)ipEntry.ipAddr)))&&
+					((ipentrytmp.protoType==ipEntry.protoType)||
+					(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_TCP)||
+					(ipentrytmp.protoType==PROTO_BOTH&&ipEntry.protoType==PROTO_UDP)||
+					(ipentrytmp.protoType==PROTO_TCP&&ipEntry.protoType==PROTO_BOTH)||
+					(ipentrytmp.protoType==PROTO_UDP&&ipEntry.protoType==PROTO_BOTH)))
+				{
+					strcpy(tmpBuf, ("rule already exist!"));
+					goto setErr_filter;
+				}
+			#endif
+			}
 		}
 	}
 
@@ -1199,6 +1392,9 @@ void formVlanWAN(request *wp, char *path, char *query)
 		goto setErr;
 	}
 	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_tag"), ("0")));
+	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_enable"), ("")), "on"))
+		value = 0;
+
 	if (!apmib_set(MIB_VLAN_WAN_TAG, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_TAG error!"));
@@ -1218,6 +1414,8 @@ void formVlanWAN(request *wp, char *path, char *query)
 		goto setErr;
 	}
 	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_host_pri"), ("0")));
+	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_enable"), ("")), "on"))
+		value = 0;
 	if (!apmib_set(MIB_VLAN_WAN_HOST_PRI, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_HOST_PRI error!"));
@@ -1327,6 +1525,9 @@ void formVlanWAN(request *wp, char *path, char *query)
 		goto setErr;
 	}
 	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_bridge_tag"), ("0")));
+	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_enable"), ("")), "on"))
+		value = 0;
+
 	if (!apmib_set(MIB_VLAN_WAN_BRIDGE_TAG, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_BRIDGE_TAG error!"));
@@ -1340,6 +1541,9 @@ void formVlanWAN(request *wp, char *path, char *query)
 		goto setErr;
 	}
 	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_bridge_multicast_tag"), ("0")));
+	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_multicast_enable"), ("")), "on"))
+		value = 0;
+
 	if (!apmib_set(MIB_VLAN_WAN_BRIDGE_MULTICAST_TAG, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_BRIDGE_MULTICAST_TAG error!"));
@@ -1434,7 +1638,7 @@ setOk_dmz:
 #ifndef NO_ACTION
 	pid = fork();
         if (pid) {
-	      	//waitpid(pid, NULL, 0); 
+	      	waitpid(pid, NULL, 0);
 	}
         else if (pid == 0) {
 		snprintf(tmpBuf, 100, "%s/%s", _CONFIG_SCRIPT_PATH, _FIREWALL_SCRIPT_PROG);
@@ -1474,23 +1678,18 @@ int portFwList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Local IP Address</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Protocol</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Port Range</b></font></td>\n"
-	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"15%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"25%%\" ><font size=\"2\"><b>Local IP Address</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Protocol</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Port Range</b></font></td>\n"
+	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"15%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
 		if ( !apmib_get(MIB_PORTFW_TBL, (void *)&entry))
 			return -1;
-		#if defined(CONFIG_RTL_BIND_IP_FOR_PORTFWD)
-		#define BIND_IP_FOR_PORTFWD_KEYWORDS	"1195"
-		//do not display 1195's rule
-		if ((entry.comment[0] != '\0') && !strncmp(entry.comment, BIND_IP_FOR_PORTFWD_KEYWORDS, strlen(BIND_IP_FOR_PORTFWD_KEYWORDS)))
-			continue;
-		#endif
+
 		ip = inet_ntoa(*((struct in_addr *)entry.ipAddr));
 		if ( !strcmp(ip, "0.0.0.0"))
 			ip = "----";
@@ -1509,12 +1708,12 @@ int portFwList(request *wp, int argc, char **argv)
 		else
 			snprintf(portRange, 20, "%d-%d", entry.fromPort, entry.toPort);
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-     			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"15%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n"
+     			"<td align=center width=\"20%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"15%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				ip, type, portRange, entry.comment, i);
 	}
 	return nBytesSent;
@@ -1533,14 +1732,14 @@ int portFilterList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Port Range</b></font></td>\n"
-      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Protocol</b></font></td>\n"
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"30%%\"><font size=\"2\"><b>Port Range</b></font></td>\n"
+      	"<td align=center width=\"25%%\"><font size=\"2\"><b>Protocol</b></font></td>\n"
 #ifdef CONFIG_IPV6
-      	"<td align=center bgcolor=\"#808080\"><font size=\"2\"><b>IP Version</b></font></td>\n"
+      	"<td align=center ><font size=\"2\"><b>IP Version</b></font></td>\n"
 #endif
-	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"15%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"15%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
@@ -1561,14 +1760,14 @@ int portFilterList(request *wp, int argc, char **argv)
 		else
 			snprintf(portRange, 20, "%d-%d", entry.fromPort, entry.toPort);
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-   			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+   			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
  #ifdef	CONFIG_IPV6
- 			"<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\">IPv%d</td>\n"
+ 			"<td align=center ><font size=\"2\">IPv%d</td>\n"
  #endif
-     			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"15%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+     			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"15%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				portRange, type, 
 #ifdef	CONFIG_IPV6
 				entry.ipVer,
@@ -1591,11 +1790,11 @@ int ipFilterList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Local IP Address</b></font></td>\n"
-      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Protocol</b></font></td>\n"
-      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Local IP Address</b></font></td>\n"
+      	"<td align=center width=\"25%%\" ><font size=\"2\"><b>Protocol</b></font></td>\n"
+      	"<td align=center width=\"25%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
@@ -1614,25 +1813,25 @@ int ipFilterList(request *wp, int argc, char **argv)
 			type = "UDP";
 #ifdef CONFIG_IPV6
 		if(entry.ipVer==IPv4)
-			nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+			nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				ip, type, entry.comment, i);
 		else
-			nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+			nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				entry.ip6Addr, type, entry.comment, i);
 #else
 		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				ip, type, entry.comment, i);
 #endif
 	}
@@ -1652,10 +1851,10 @@ int macFilterList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"50%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"50%%\" ><font size=\"2\"><b>MAC Address</b></font></td>\n"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
@@ -1666,10 +1865,10 @@ int macFilterList(request *wp, int argc, char **argv)
 			entry.macAddr[0], entry.macAddr[1], entry.macAddr[2],
 			entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"50%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-       			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"50%%\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+       			"<td align=center width=\"20%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				tmpBuf, entry.comment, i);
 	}
 	return nBytesSent;
@@ -1680,7 +1879,11 @@ int urlFilterList(request *wp, int argc, char **argv)
 {
 	int nBytesSent=0, entryNum, i;
 	URLFILTER_T entry;
-	int mode;
+	int mode,usrMode;
+#ifdef URL_FILTER_USER_MODE_SUPPORT
+	char tmpBuf[20],tmpBuf2[20];
+	int defaultRulefound=0;
+#endif
 	if ( !apmib_get(MIB_URLFILTER_TBL_NUM, (void *)&entryNum)) {
   		fprintf(stderr, "Get table entry error!\n");
 		return -1;
@@ -1690,24 +1893,90 @@ int urlFilterList(request *wp, int argc, char **argv)
   		fprintf(stderr, "Get URL Filter mode error!\n");
 		return -1;
 	}
-	
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"70%%\" bgcolor=\"#808080\"><font size=\"2\"><b>URL Address</b></font></td>\n"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
-
+#ifdef URL_FILTER_USER_MODE_SUPPORT	
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\>"
+			"<td align=center width=\"30%%\" ><font size=\"2\"><b>URL Address</b></font></td>\n"
+			"<td align=center width=\"25%%\" ><font size=\"2\"><b>IP Address</b></font></td>\n"
+			"<td align=center width=\"25%%\" ><font size=\"2\"><b>Mac Address</b></font></td>\n"
+			"<td align=center width=\"20%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+#else
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"70%%\" ><font size=\"2\"><b>URL Address</b></font></td>\n"
+      	"<td align=center width=\"30%%\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+#endif
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
 		if ( !apmib_get(MIB_URLFILTER_TBL, (void *)&entry))
 			return -1;
 		if(mode!=entry.ruleMode)
 			continue;
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"70%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+#ifdef URL_FILTER_USER_MODE_SUPPORT
+		usrMode=(int)entry.usrMode;
+		if(usrMode==0)//default rule
+		{
+			defaultRulefound=1;
+			continue;
+		}
+		switch(usrMode)
+		{
+			case 1://for specific ip
+			{
+				strcpy(tmpBuf,inet_ntoa(*((struct in_addr *)entry.ipAddr)));
+				snprintf(tmpBuf2,20,"-");
+				break;
+			}
+			case 2://for specific mac
+			{
+				snprintf(tmpBuf,20,"-");
+				snprintf(tmpBuf2, 20, ("%02x:%02x:%02x:%02x:%02x:%02x"),
+						 entry.macAddr[0], entry.macAddr[1], entry.macAddr[2],
+					     entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
+				break;
+			}
+			default:
+			{
+				snprintf(tmpBuf,20,"-");
+				snprintf(tmpBuf2,20,"-");
+				break;
+			}
+		}
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"30%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"25%%\" ><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"20%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+			entry.urlAddr,tmpBuf, tmpBuf2, i); 
+#else
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"70%%\" ><font size=\"2\">%s</td>\n"
       			//"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-       			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+       			"<td align=center width=\"30%%\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 			entry.urlAddr, i); //tmpBuf
 			//entry.urlAddr, entry.comment, i); //tmpBuf
+#endif
 	}
+#ifdef URL_FILTER_USER_MODE_SUPPORT //display default rules
+	if(defaultRulefound==1)
+	{
+		for (i=1; i<=entryNum; i++) {
+			*((char *)&entry) = (char)i;
+			if ( !apmib_get(MIB_URLFILTER_TBL, (void *)&entry))
+				return -1;
+			if(mode!=entry.ruleMode)
+				continue;
+			if(0!=entry.usrMode)
+				continue;
+			snprintf(tmpBuf,20,"For all users");
+			snprintf(tmpBuf2,20,"For all users");
+			nBytesSent += req_format_write(wp, ("<tr>"
+				"<td align=center width=\"30%%\" bgcolor=\"#FFBF00\"><font size=\"2\">%s</td>\n"
+				"<td align=center width=\"25%%\" bgcolor=\"#FFBF00\"><font size=\"2\">%s</td>\n"
+				"<td align=center width=\"25%%\" bgcolor=\"#FFBF00\"><font size=\"2\">%s</td>\n"
+				"<td align=center width=\"20%%\" bgcolor=\"#FFBF00\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+				entry.urlAddr,tmpBuf, tmpBuf2, i); 
+		}	
+	}
+#endif
 	return nBytesSent;
 
 }
@@ -2129,21 +2398,21 @@ int ipQosList(request *wp, int argc, char **argv)
 		return -1;
 	}
 
-	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Local IP Address</b></font></td>\n"
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
+	nBytesSent += req_format_write(wp, ("<tr class=\"tbl_head\">"
+      	"<td align=center width=\"\" ><font size=\"2\"><b>Local IP Address</b></font></td>\n"
+      	"<td align=center width=\"\" ><font size=\"2\"><b>MAC Address</b></font></td>\n"
 #if defined(CONFIG_IPV6)
-	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Local IPv6 addr</b></font></td>\n"
+	"<td align=center width=\"20%%\" ><font size=\"2\"><b>Local IPv6 addr</b></font></td>\n"
 #endif
 
 #if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)
-				"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Layer 7 Rule</b></font></td>\n"
+				"<td align=center width=\"20%%\" ><font size=\"2\"><b>Layer 7 Rule</b></font></td>\n"
 #endif
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Mode</b></font></td>\n"
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Uplink Bandwidth</b></font></td>\n"
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Downlink Bandwidth</b></font></td>\n"
-	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
-      	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
+      	"<td align=center width=\"\" ><font size=\"2\"><b>Mode</b></font></td>\n"
+      	"<td align=center width=\"\" ><font size=\"2\"><b>Uplink Bandwidth</b></font></td>\n"
+      	"<td align=center width=\"\" ><font size=\"2\"><b>Downlink Bandwidth</b></font></td>\n"
+	"<td align=center width=\"\" ><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"\" ><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
@@ -2201,20 +2470,20 @@ int ipQosList(request *wp, int argc, char **argv)
 		else
 			snprintf(bandwidth_downlink, 10, "%ld", entry.bandwidth_downlink);
 
-		nBytesSent += req_format_write(wp, ("<tr>"
-			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+		nBytesSent += req_format_write(wp, ("<tr class=\"tbl_body\">"
+			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
 #ifdef CONFIG_IPV6
-			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
 #endif
 #if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)
-      			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
 #endif      			
-      			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-     			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
-      			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+      			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
+     			"<td align=center width=\"\" ><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"\" ><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				ip, mac, 
 #ifdef CONFIG_IPV6
 				ip6,
@@ -2282,7 +2551,7 @@ int l7QosList(request *wp, int argc, char **argv)
 			nBytesSent += req_format_write(wp, ("<option value=\"%s\">%s</option>"),str,str);
 		
 		}
-		closedir(dir);
+		closedir(dir);		
 	}
 	
 #endif //#if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)
@@ -2308,7 +2577,7 @@ void formIpQoS(request *wp, char *path, char *query)
 	int ret;
 	int j=0;
 	unsigned int ip1,ip2;
-	char mac[6];
+	unsigned char mac[6];
 	struct in_addr ips,ipe;
 //displayPostDate(wp->post_data);
 
@@ -2400,10 +2669,15 @@ void formIpQoS(request *wp, char *path, char *query)
 		strComment = req_get_cstream_var(wp, ("comment"), "");
 		strL7Protocol = req_get_cstream_var(wp, ("l7_protocol"), "");
 		
-#ifndef CONFIG_IPV6
-		if (!strIpStart[0] && !strIpEnd[0] && !strMac[0] && !strBandwidth[0] && !strBandwidth_downlink[0] && !strComment[0])
-			goto setOk;
+
+		if (!strIpStart[0] && !strIpEnd[0] && !strMac[0] && !strBandwidth[0] && !strBandwidth_downlink[0] && !strComment[0]
+#ifdef CONFIG_IPV6
+		&&(!ip6_src[0])
 #endif
+
+		)
+			goto setOk;
+
 
 		if ( strL7Protocol[0] ) {
 			strcpy((char *)entry.l7_protocol, strL7Protocol);
@@ -2608,5 +2882,368 @@ setErr:
 
 }
 #endif
+
+#ifdef SAMBA_WEB_SUPPORT
+int UserEditName(request *wp, int argc, char **argv)
+{
+	int 			nBytesSent = 0;
+	int				index;
+	STORAGE_USER_T	s_user;
+
+	apmib_get(MIB_STORAGE_USER_EDIT_INDEX,(void*)&index);
+	*((char*)&s_user) = (char)index;
+	apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+	
+	nBytesSent += req_format_write(wp, ("<tr>"
+		"<td width=\"20%%\"><font size=2><b>Name:</b></td>\n"
+		"<td width=\"50%%\"><font size=2>%s</td></tr>\n"),
+		s_user.storage_user_name);
+	
+	return nBytesSent;
+}
+
+int GroupEditName(request *wp, int argc, char **argv)
+{
+	int 			nBytesSent = 0;
+	int				index;
+	STORAGE_GROUP_T	s_group;
+	
+	apmib_get(MIB_STORAGE_GROUP_EDIT_INDEX,(void*)&index);
+	*((char*)&s_group) = (char)index;
+	apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+	
+	nBytesSent += req_format_write(wp, ("<tr>"
+		"<td width=\"20%%\"><font size=2><b>Group Name</b></td>\n"
+		"<td width=\"50%%\"><font size=2>%s</td></tr>\n"),
+		s_group.storage_group_name);
+
+	return nBytesSent;
+}
+
+int ShareFolderList(request *wp, int argc, char **argv)
+{
+	int 			nBytesSent = 0,len = 0;
+	int				number,i;
+	STORAGE_GROUP_T	s_group;
+	
+	nBytesSent += req_format_write(wp, ("<tr>"
+      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Diaplay Name</b></font></td>\n"
+      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Shared Folder</b></font></td>\n"
+      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Group</b></font></td>\n"
+      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Access</b></font></td>\n"
+      	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Delete</b></font></td></tr>\n"));
+
+	apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+	for(i = 0;i < number;i++)
+	{
+		memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+		*((char*)&s_group) = (char)(i+1);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+		if(s_group.storage_group_sharefolder_flag == 1){
+			nBytesSent += req_format_write(wp, ("<tr>"
+      			"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+      			"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+      			"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+      			"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+      			"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b><input type=\"checkbox\" value=\"%s\" name=\"delete%d\"></b></font></td></tr>\n"),
+      			s_group.storage_group_displayname,s_group.storage_group_sharefolder,s_group.storage_group_name,s_group.storage_group_access,
+      			s_group.storage_group_name,i);
+		}
+	}
+
+	return nBytesSent;
+}
+
+int Storage_GeDirRoot(request *wp, int argc, char **argv)
+{
+	int 			nBytesSent = 0;
+	char*			dir_name;
+	char			tmpBuff[30];
+	char			tmpBuff2[30];
+
+	memset(tmpBuff,'\0',30);
+	memset(tmpBuff2,'\0',30);
+	apmib_get(MIB_STORAGE_FOLDER_LOCAL,(void*)tmpBuff);
+
+	dir_name = strstr(tmpBuff,"sd");
+	strcpy(tmpBuff2,"/tmp/usb/");
+	strcat(tmpBuff2,dir_name);
+	
+	nBytesSent += req_format_write(wp, ("<tr>"
+		"<td width=\"20%%\"><font size=2><b>Location</b></td>\n"
+		"<td width=\"50%%\"><font size=2>%s</td></tr>\n"
+		"<input type=\"hidden\" name=\"Location\" value=\"%s\">\n"),
+		tmpBuff2,tmpBuff2);
+	
+	return nBytesSent;
+}
+
+int FolderList(request *wp, int argc, char **argv)
+{
+	int 			nBytesSent = 0,len;
+	FILE 			*fp,*fp2;
+	char			tmpBuff[100],tmpBuff2[100];
+	char			strLocal[30],Location[30];
+	char*			strRootDir;
+	int				i = 0,index = 0,flag = 0,number;
+	char			*p,*p2;
+	STORAGE_GROUP_T	s_group;
+
+
+	memset(tmpBuff,'\0',100);
+	memset(tmpBuff2,'\0',100);
+	memset(strLocal,'\0',30);
+	
+	apmib_get(MIB_STORAGE_FOLDER_LOCAL,(void*)strLocal);
+	strRootDir = strstr(strLocal,"sd");
+	snprintf(tmpBuff2,100,"ls /tmp/usb/%s >/tmp/tmp.txt",strRootDir);
+	system(tmpBuff2);
+
+	nBytesSent += req_format_write(wp, ("<tr>"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Folder</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Group</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Delete</b></font></td></tr>\n"));
+
+	memset(tmpBuff,'\0',100);
+	fp = fopen("/tmp/tmp.txt","r");
+	if(fp == NULL)
+	{
+		return nBytesSent;
+	}
+
+	while(fgets(tmpBuff, 100, fp)){
+		len = strlen(tmpBuff);
+		tmpBuff[len-1] = '\0';
+		snprintf(tmpBuff2,100,"ls -ld /tmp/usb/%s/%s >/tmp/tmp2.txt",strRootDir,tmpBuff);
+		system(tmpBuff2);
+
+		memset(tmpBuff2,'\0',100);
+		fp2 = fopen("/tmp/tmp2.txt","r");
+		if(fp2 == NULL){
+			return nBytesSent;
+		}
+		
+		if(fgets(tmpBuff2,100,fp2)){
+			if(tmpBuff2[0] != 'd'){
+				memset(tmpBuff,'\0',100);
+				memset(tmpBuff2,'\0',100);
+				fclose(fp2);
+				continue;
+			}
+			p = tmpBuff2;
+
+			while(i < 3){
+				while(*p == ' '){
+					p++;
+				}
+				p = strstr(p," ");
+				i++;
+			}
+
+			while(*p == ' ')
+				p++;
+
+			p2 = strstr(p," ");
+			*p2 = '\0';
+			i  = 0;
+		}
+
+		apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+		for(i = 0;i < number;i++)
+		{
+			memset(&s_group,'\0',sizeof(STORAGE_GROUP_T));
+			*((char*)&s_group) = (char)(i+1);
+			apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+			if(s_group.storage_group_sharefolder_flag == 1){
+				memset(Location,'\0',30);
+				snprintf(Location,30,"/tmp/usb/%s/%s",strRootDir,tmpBuff);
+				if(!strcmp(Location,s_group.storage_group_sharefolder)){
+					flag = 1;
+					break;
+				}
+			}
+		}			
+		
+		if(flag == 0){
+			nBytesSent += req_format_write(wp, ("<tr>"
+				"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">/tmp/usb/%s/%s</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">--</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\"><input type=\"checkbox\" value=\"/tmp/usb/%s/%s\" name=\"select%d\" onClick=\"SelectClick(%d)\"></td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" value=\"/tmp/usb/%s/%s\" name=\"delete%d\" onClick=\"DeleteClick(%d)\"></td></tr>\n"),
+				strRootDir,tmpBuff,strRootDir,tmpBuff,index,index,strRootDir,tmpBuff,index,index);
+			index++;
+		}
+		
+		fclose(fp2);
+		memset(tmpBuff,'\0',100);
+		memset(tmpBuff2,'\0',100);
+		flag = 0;
+	}
+	fclose(fp);
+
+	nBytesSent += req_format_write(wp,(
+		"<input type=\"hidden\"  name=\"DirNum\" value=\"%d\">\n"),
+		index);
+	return nBytesSent;
+		
+}
+
+int DiskList(request *wp, int argc, char **argv)
+{
+	int 			nBytesSent = 0,len = 0;
+	int				i,j = 0;
+	char			capability[20],freeSize[20];
+	int				num1,num2;
+	char			*ptr;
+	FILE 			*fp;
+	int				total_size,free_size;
+	char			tmpBuff[100];
+	unsigned char	local[10]; 
+	
+	nBytesSent += req_format_write(wp, ("<tr>"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Partition</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Capacity</b></font></td>\n"
+		"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Free Space</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Create Share</b></font></td></tr>\n"));
+
+	memset(tmpBuff,0,100);
+	system("df >/tmp/tmp.txt");
+	fp = fopen("/tmp/tmp.txt","r");
+	if(fp == NULL)
+		return nBytesSent;
+	
+	while (fgets(tmpBuff, 100, fp)) {
+		ptr = strstr(tmpBuff, "/dev/sd");
+		if (ptr) {
+			local[j] =  ptr - tmpBuff;
+			while(j++ < 4)
+			{
+				ptr = strstr(ptr," ");
+				while(*ptr == ' '){
+					*ptr++ = '\0';
+				}
+				local[j] = ptr - tmpBuff;
+			}
+			local[j] = ptr - tmpBuff;
+
+			memset(capability,'\0',20);
+			memset(freeSize,'\0',20);
+			num1 = atoi(tmpBuff+local[1])/(1000*1000);
+			num2 = (atoi(tmpBuff+local[1])/1000)%1000;
+			snprintf(capability,20,"%d.%d(G)",num1,num2);
+			num1 = atoi(tmpBuff+local[3])/(1000*1000);
+			num2 = (atoi(tmpBuff+local[3])/1000)%1000;
+			snprintf(freeSize,20,"%d.%d(G)",num1,num2);
+			
+			nBytesSent += req_format_write(wp, ("<tr>"
+				"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+     			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><input type=\"submit\" name=\"create_share\" value=\"Create Share\" onClick=\"CreateShare('%s')\"></td></tr>\n"),
+				tmpBuff+local[0], capability, freeSize,tmpBuff+local[0]);
+
+			memset(tmpBuff,0,100);
+		}
+		j = 0;
+	}
+	fclose(fp);
+
+	return nBytesSent;
+}
+
+int Storage_DispalyUser(request *wp, int argc, char **argv)
+{
+	int nBytesSent = 0;
+	STORAGE_USER_T s_user;
+	int i;
+	int number;
+	
+	nBytesSent += req_format_write(wp, ("<tr>"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>User Name</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Group</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Edit</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Delete</b></font></td></tr>\n"));
+
+	apmib_get(MIB_STORAGE_USER_TBL_NUM,(void*)&number);
+	
+	for(i = 0;i < number;i++)
+	{
+		*((char*)&s_user) = (char)(i+1);
+		apmib_get(MIB_STORAGE_USER_TBL,(void*)&s_user);
+		
+		nBytesSent += req_format_write(wp, ("<tr>"
+			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      		"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      		"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><input type=\"submit\" value=\"Edit\" onclick=\"UserEditClick('%d')\"></td>\n"
+      		"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+			s_user.storage_user_name, s_user.storage_user_group,(i+1),(i+1));
+	}
+	return nBytesSent;
+}
+
+int Storage_DispalyGroup(request *wp, int argc, char **argv)
+{
+	int nBytesSent = 0;
+	STORAGE_GROUP_T s_group;
+	int i;
+	int number;
+	
+	nBytesSent += req_format_write(wp, ("<tr>"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Group Name</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Access</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Edit</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Delete</b></font></td></tr>\n"));
+
+	apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+
+	for(i = 0;i < number;i++)
+	{
+		*((char*)&s_group) = (char)(i+1);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+		
+		nBytesSent += req_format_write(wp, ("<tr>"
+			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      		"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      		"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><input type=\"submit\" value=\"Edit\" onClick=\"GroupEditClick('%d')\"></td>\n"
+      		"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td>\n"),
+			s_group.storage_group_name, s_group.storage_group_access,(i+1),(i+1));
+		
+	}
+	return nBytesSent;
+}
+
+int Storage_GetGroupMember(request *wp, int argc, char **argv)
+{
+	int nBytesSent = 0;
+	STORAGE_GROUP_T s_group;
+	int i;
+	int number;
+
+	nBytesSent += req_format_write(wp,
+		("<select name=\"Group\">\n"));
+	
+	apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
+
+	for(i = 0;i < number;i++)
+	{
+		*((char*)&s_group) = (char)(i+1);
+		apmib_get(MIB_STORAGE_GROUP_TBL,(void*)&s_group);
+
+		nBytesSent += req_format_write(wp,
+			("<option value=\"%d\">%s</option>\n"),
+			(i+1),s_group.storage_group_name);
+
+	}
+
+	nBytesSent += req_format_write(wp,
+		("</select>\n"));
+
+	return nBytesSent;
+}
+#endif
+
 #endif // HOME_GATEWAY
 

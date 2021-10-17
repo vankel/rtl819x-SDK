@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Static DHCP Setup</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 lan_ip="<% getInfo("ip-rom"); %>"
 function addClick()
@@ -127,7 +128,7 @@ function static_dhcp_tbl_onoff_disabled(value)
 </head>
 <body onload="init();">
 <blockquote>
-<h2><font color="#0000FF">Static DHCP Setup</font></h2>
+<h2>Static DHCP Setup</h2>
 
 <table border=0 width="700" cellspacing=4 cellpadding=0>
 <tr><font size=2>
@@ -148,7 +149,7 @@ hosting applications such as Web and FTP. Servers on your network should either 
 <form action=/boafrm/formStaticDHCP method=POST name="formStaticDHCPAdd">
 <tr><hr size=1 noshade align=top><br></tr>
 
-<table width="100%" border="0" cellpadding="1" cellspacing="0" bgcolor="#FFFFFF">
+<table width="100%" border="0" cellpadding="1" cellspacing="0">
  <tr>
  	<td align="left" width="20%" class=""><font size=2><b>
     <input type='hidden' id='static_dhcp' name='static_dhcp' value='<% getInfo("static_dhcp_onoff"); %>'>

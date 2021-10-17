@@ -53,7 +53,6 @@ obj-y += pcm_handler.o
 obj-y += codec_descriptor.o
 obj-y += dsp_init_var.o
 obj-y += cpu_setup.o 
-obj-y += ec_common.o
 #obj-y += agc.o
 obj-y += dtmf_dec/
 obj-y += fax_v21/
@@ -69,11 +68,11 @@ else
 subdir-y += resampler/
 endif
 
-#ifeq ($(CONFIG_RTK_VOIP_DRIVERS_IP_PHONE),y)
+ifeq ($(CONFIG_RTK_VOIP_DRIVERS_IP_PHONE),y)
 obj-y += nr/
-#else
-#subdir-y += nr/
-#endif
+else
+subdir-y += nr/
+endif
 
 obj-y += voice_gain/
 

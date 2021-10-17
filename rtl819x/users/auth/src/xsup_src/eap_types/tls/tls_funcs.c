@@ -295,8 +295,8 @@ int tls_funcs_init(struct generic_eap_data *thisint)
 int tls_funcs_start(struct tls_vars *mytls_vars)
 {
   SSL_SESSION *sess = NULL;
-  unsigned long err;
-
+  unsigned long err = 0;
+  int counter = 0;
   if (mytls_vars == NULL) return XETLSSTARTFAIL;
 
   mytls_vars->resuming = 0;
@@ -339,6 +339,31 @@ int tls_funcs_start(struct tls_vars *mytls_vars)
 
       // Now, close off our old session.
       SSL_shutdown(mytls_vars->ssl);
+	      while ((err == 0) && (counter < 10))
+		{
+		  err = SSL_shutdown(mytls_vars->ssl);
+		  if (err == 0)
+		    {
+		      sleep(1);
+		      counter++;
+		    }
+		}
+	  SSL_free(mytls_vars->ssl);
+      mytls_vars->ssl = NULL;
+	   mytls_vars->ssl = SSL_new(mytls_vars->ctx);
+      if (!mytls_vars->ssl)
+	{
+	  debug_printf(DEBUG_NORMAL, "Couldn't create SSL object!\n");
+	  // First, make sure we don't have any errors.
+	  err = ERR_get_error();
+	  if (err != 0)
+	    {
+	      debug_printf(DEBUG_NORMAL, "OpenSSL Error -- %s\n", 
+			   ERR_error_string(err, NULL));
+	    }
+
+	  return XETLSSTARTFAIL;
+	}
     }
 
   mytls_vars->ssl_in = BIO_new(BIO_s_mem());
@@ -1052,11 +1077,8 @@ int tls_funcs_cleanup(struct generic_eap_data *thisint)
       mytls_vars->ssl = NULL;
   }
   if(mytls_vars->ssl_in) {
-
 	if(mytls_vars->ssl_in->references>0)
-      		BIO_free(mytls_vars->ssl_in);
-	//else
-	//	printf("%s:%d ssl_in->references=%d\n",__FUNCTION__,__LINE__,mytls_vars->ssl_in->references);
+      BIO_free(mytls_vars->ssl_in);
       mytls_vars->ssl_in = NULL;
   }
 

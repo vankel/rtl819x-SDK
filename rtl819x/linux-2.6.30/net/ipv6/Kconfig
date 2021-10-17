@@ -219,4 +219,8 @@ config IPV6_PIMSM_V2
 	  Support for IPv6 PIM multicast routing protocol PIM-SMv2.
 	  If unsure, say N.
 
+config IPV6_CE_ROUTER_SUPPORT
+    bool "IPV6 CE ROUTER SUPPORT"
+    default n
+
 endif # IPV6

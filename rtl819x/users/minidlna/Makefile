@@ -27,7 +27,13 @@ export CFLAGS
 #export LDFLAGS+=-L$(ROOTDIR)/lib/zlib
 export LDFLAGS+=-L$(DLNA_INSTALL_PREFIX)/lib
 
--include $(ROOTDIR)/linux-2.6.30/include/linux/config.h
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+else
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
+
+-include $(DIR_LINUX_KERNEL)/include/linux/config.h
 
 #ifeq ($(CONFIG_APP_MINI_UPNP),y)
 #export USE_MINI_UPNPD = 1
@@ -53,47 +59,66 @@ romfs:
 	$(ROMFSINST) ./tmp/sbin/minidlna /bin/minidlna
 
 zlib:
-	cd $(ZLIB_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(LIBZ_FLAG)
+	if [ ! -e ./$(ZLIB_DIR)/.generatedMakefile ]; then \
+		cd ./$(ZLIB_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(LIBZ_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(ZLIB_DIR)
 	$(MAKE) -C $(ZLIB_DIR) install
 
 jpeg:
-	cd $(JPEG_DIR) && ./configure $(LIBJPEG_FLAG)
+	if [ ! -e ./$(JPEG_DIR)/.generatedMakefile ]; then \
+		cd ./$(JPEG_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(LIBJPEG_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(JPEG_DIR)
 	$(MAKE) -C $(JPEG_DIR) install 
 
 exif:
-	cd $(EXIF_DIR) && ./configure $(LIBEXIF_FLAG)
+	if [ ! -e ./$(EXIF_DIR)/.generatedMakefile ]; then \
+		cd ./$(EXIF_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(LIBEXIF_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(EXIF_DIR)
 	$(MAKE) -C $(EXIF_DIR) install
 
 id3tag:
-	cd $(ID3TAG_DIR) && ./configure $(ID3TAG_FLAG)
+	if [ ! -e ./$(ID3TAG_DIR)/.generatedMakefile ]; then \
+		cd ./$(ID3TAG_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(ID3TAG_FLAG) > .generatedMakefile;\
+	fi
+	-rm $(ID3TAG_DIR)/frametype.c $(ID3TAG_DIR)/compat.c $(ID3TAG_DIR)/genre.dat
 	$(MAKE) -C $(ID3TAG_DIR)
 	$(MAKE) -C $(ID3TAG_DIR) install
 	
 ogg:
-	cd $(OGG_DIR) && ./configure $(OGG_FLAG)
+	if [ ! -e ./$(OGG_DIR)/.generatedMakefile ]; then \
+		cd ./$(OGG_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(OGG_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(OGG_DIR)
 	$(MAKE) -C $(OGG_DIR) install
 
 flac:
-	cd $(FFMPEG_DIR) && ./configure $(FLAC_FLAG)
+	if [ ! -e ./$(FFMPEG_DIR)/.generatedMakefile ]; then \
+		cd ./$(FFMPEG_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(FLAC_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(FFMPEG_DIR)
 	$(MAKE) -C $(FFMPEG_DIR) install
 
 vorbis:
-	cd $(VORBIS_DIR) && ./configure $(VORBIS_FLAG)
+	if [ ! -e ./$(VORBIS_DIR)/.generatedMakefile ]; then \
+		cd ./$(VORBIS_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(VORBIS_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(VORBIS_DIR)
 	$(MAKE) -C $(VORBIS_DIR) install
 
 sqlite:
-	cd $(SQLITE_DIR) && ./configure $(SQLITE_FLAG)
+	if [ ! -e ./$(SQLITE_DIR)/.generatedMakefile ]; then \
+		cd ./$(SQLITE_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(SQLITE_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(SQLITE_DIR)
 	$(MAKE) -C $(SQLITE_DIR) install
 
 ffmpeg:
-	cd $(FFMPEG_DIR) && ./configure $(FFMPEG_FLAG)
+	if [ ! -e ./$(FFMPEG_DIR)/.generatedMakefile ]; then \
+		cd ./$(FFMPEG_DIR) && CC=$(DLNA_CROSS_COMPILER)gcc ./configure $(FFMPEG_FLAG) > .generatedMakefile;\
+	fi
 	$(MAKE) -C $(FFMPEG_DIR)
 	$(MAKE) -C $(FFMPEG_DIR) install
 
@@ -117,13 +142,22 @@ clean:
 
 distclean:
 	-$(MAKE) -C $(ZLIB_DIR) distclean
+	-rm $(ZLIB_DIR)/.generatedMakefile
 	-$(MAKE) -C $(JPEG_DIR) distclean
+	-rm $(JPEG_DIR)/.generatedMakefile
 	-$(MAKE) -C $(EXIF_DIR) distclean
+	-rm $(EXIF_DIR)/.generatedMakefile
 	-$(MAKE) -C $(ID3TAG_DIR) distclean
+	-rm $(ID3TAG_DIR)/.generatedMakefile
 	-$(MAKE) -C $(OGG_DIR) distclean
+	-rm $(OGG_DIR)/.generatedMakefile
 	-$(MAKE) -C $(FFMPEG_DIR) distclean
+	-rm $(FFMPEG_DIR)/.generatedMakefile
 	-$(MAKE) -C $(VORBIS_DIR) distclean
+	-rm $(VORBIS_DIR)/.generatedMakefile
 	-$(MAKE) -C $(SQLITE_DIR) distclean
+	-rm $(SQLITE_DIR)/.generatedMakefile
 	-$(MAKE) -C $(FFMPEG_DIR) distclean
+	-rm $(FFMPEG_DIR)/.generatedMakefile
 	-$(MAKE) -C $(MINIDLNA_DIR) distclean
 	$(RM) -r $(DLNA_INSTALL_PREFIX)/*

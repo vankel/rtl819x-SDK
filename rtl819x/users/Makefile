@@ -60,33 +60,11 @@ endif
 
 endif
 
-ifdef CONFIG_RTL_8196C
 ifdef CONFIG_RTL_WAPI_SUPPORT
 CONFIG_APP_OPENSSL=y
 CONFIG_APP_WAPI=y
 ifdef CONFIG_RTL_WAPI_LOCAL_AS_SUPPORT
 CONFIG_RTL_WAPI_LOCAL_AS=1
-endif
-endif
-endif
-
-ifdef CONFIG_RTL_8196E
-ifdef CONFIG_RTL_WAPI_SUPPORT
-CONFIG_APP_OPENSSL=y
-CONFIG_APP_WAPI=y
-ifdef CONFIG_RTL_WAPI_LOCAL_AS_SUPPORT
-CONFIG_RTL_WAPI_LOCAL_AS=1
-endif
-endif
-endif
-
-ifdef CONFIG_RTL_819XD
-ifdef CONFIG_RTL_WAPI_SUPPORT
-CONFIG_APP_OPENSSL=y
-CONFIG_APP_WAPI=y
-ifdef CONFIG_RTL_WAPI_LOCAL_AS_SUPPORT
-CONFIG_RTL_WAPI_LOCAL_AS=1
-endif
 endif
 endif
 
@@ -104,20 +82,44 @@ ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 CONFIG_APP_OPENSSL=y
 CONFIG_RTL_WAPI_LOCAL_AS=1
 endif
+ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+CONFIG_APP_OPENSSL=y
+CONFIG_RTL_WAPI_LOCAL_AS=1
+endif
 
 ifdef CONFIG_APP_IP6TABLES
 CONFIG_APP_IP6TABLES_SUPPORT=1
+else
+CONFIG_APP_IP6TABLES_SUPPORT=0
 endif
 
-ifeq ($(CONFIG_RTL_WAPI_SUPPORT),y)
-ifeq ($(CONFIG_RSDK_rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714),y) 
-CONFIG_APP_OPENSSL-0.9.8I=y
-endif
-ifeq ($(CONFIG_RSDK_rsdk-1.5.5-4181-EB-2.6.30-0.9.30.3-110225),y)
-CONFIG_APP_OPENSSL-0.9.8I=y
-endif
+ifdef CONFIG_RTL_WAPI_SUPPORT
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8B),y)
 ifneq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
-CONFIG_APP_OPENSSL-0.9.8B=y
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8Y),y)
+CONFIG_APP_OPENSSL-0.9.8Y=y
+endif
+endif
+endif
+endif
+
+ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8B),y)
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8Y),y)
+CONFIG_APP_OPENSSL-0.9.8Y=y
+endif
+endif
+endif
+endif
+
+ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8B),y)
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8Y),y)
+CONFIG_APP_OPENSSL-0.9.8Y=y
+endif
+endif
 endif
 endif
 
@@ -131,7 +133,7 @@ ifdef CONFIG_RTL_HS2_SUPPORT
 CONFIG_APP_HS2=y
 endif
 
-
+CROSS_TARGET ?= rsdk-linux
 CROSS_COMPILE ?= rsdk-linux-
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
@@ -159,7 +161,20 @@ lib_  =
 
 export CFLAGS
 
+ifeq ($(wildcard $(DIR_LINUX)/.config),)
+DIR_LINUX_KERNEL = $(DIR_ROOT)/linux-2.6.30
+KERNEL_VER=linux-2.6.30
+else
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+DIR_LINUX_KERNEL = $(DIR_LINUX)
+endif
+
+export KERNEL_VER
+
 # application
+app_$(CONFIG_APP_OPENSSL-0.9.8Y)	+= openssl-0.9.8y
+app_$(CONFIG_APP_OPENSSL-0.9.8I)	+= openssl-0.9.8i
+app_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
 app_$(CONFIG_APP_BUSYBOX)		+= busybox
 app_$(CONFIG_APP_GOAHEAD)		+= goahead-2.1.1
 app_$(CONFIG_APP_BOA)			+= boa
@@ -184,7 +199,7 @@ app_$(CONFIG_APP_DOSFSCK)		+= dosfstools-2.11/dosfsck
 app_$(CONFIG_APP_MKDOSFS)		+= dosfstools-2.11/mkdosfs
 app_$(CONFIG_APP_NTFS3G)		+= ntfs-3g-2010.10.2
 app_$(CONFIG_APP_MP)			+= mp-daemon
-app_$(CONFIG_APP_CLOUD)			+= cloud
+app_$(CONFIG_LIB_CURL)			+= curl-7.34.0
 app_$(CONFIG_LIB_LIBDAEMON)		+= libdaemon-0.14
 #CONFIG_APP_SAMBA-3.0.37 OR CONFIG_APP_SAMBA-3.0.24 at most one will be chose
 #app_$(CONFIG_APP_SAMBA-3.0.37)		+= samba-3.0.37/source
@@ -204,6 +219,7 @@ app_$(CONFIG_APP_PATHSEL)		+= 11s-PathSelection
 app_$(CONFIG_APP_WIRELESSTOOLS)		+= $(WLTOOLS)
 app_$(CONFIG_APP_DNRD)			+= dnrd-2.12.1/src
 app_$(CONFIG_APP_ROUTED)		+= routed
+app_$(CONFIG_APP_BIRD)			+= bird-1.4.0
 app_$(CONFIG_APP_RTK_CMD)		+= rtk_cmd 
 app_$(CONFIG_APP_PPPD)			+= ppp-2.4.4/pppd
 app_$(CONFIG_APP_PPTP)			+= pptp-1.7.2
@@ -225,6 +241,10 @@ app_$(CONFIG_APP_UPDATEDD)			+=  updatedd-2.5
 app_$(CONFIG_APP_DISCOVER)			+=  discover
 app_$(CONFIG_APP_IAPP)			+= IAPP 
 ifeq ($(CONFIG_APP_RTK_VOIP),y)
+ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxE
+lib_$(CONFIG_APP_RTK_VOIP)		+= rtk_voip-89xxE
+app_$(CONFIG_APP_RTK_VOIP)		+= rtk_voip-89xxE
+else
 ifeq ($(CONFIG_APP_RTK_VOIP_E8C),y)
 lib_$(CONFIG_APP_RTK_VOIP)		+= rtk_voip-e8c		# pkshih: build this before tr069
 app_$(CONFIG_APP_RTK_VOIP)		+= rtk_voip-e8c		# pkshih: build this before tr069
@@ -233,6 +253,9 @@ lib_$(CONFIG_APP_RTK_VOIP)		+= rtk_voip		# pkshih: build this before tr069
 app_$(CONFIG_APP_RTK_VOIP)		+= rtk_voip		# pkshih: build this before tr069
 endif
 endif
+endif
+app_$(CONFIG_APP_RTL8686_IPC_UTIL)		+= aipc_util
+app_$(CONFIG_APP_TCP2DEV)		+= tcp2dev
 app_$(CONFIG_APP_PMC_UTILS)		+= pmc_utils
 app_$(CONFIG_APP_NFBI)			+= nfbi
 app_$(CONFIG_APP_HOSTAPD_SLAVE)			+= hostapd_slave
@@ -275,9 +298,11 @@ app_$(CONFIG_APP_LTP)			+= ltp
 # wapi related
 #app_$(CONFIG_APP_OPENSSL)		+= openssl-0.9.8b 
 app_$(CONFIG_APP_OPENSSL)		+= 	
+app_$(CONFIG_APP_NDP_PROXY)			+= ndppd
 
-app_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
-app_$(CONFIG_APP_OPENSSL-0.9.8I)	+= openssl-0.9.8i
+#app_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
+#app_$(CONFIG_APP_OPENSSL-0.9.8I)	+= openssl-0.9.8i
+#app_$(CONFIG_APP_OPENSSL-0.9.8Y)	+= openssl-0.9.8y
 
 app_$(CONFIG_APP_WAPI)			+= wapi_utils/udp_sock wapi_utils/rwWapiFiles \
 					  wapi_utils/other_tools wapi_utils/wapi_scripts
@@ -286,7 +311,6 @@ app_$(CONFIG_APP_DLNA_DMS)		+= dlna_dms
 
 app_$(CONFIG_APP_MT_DAAPD)		+= mt-daapd-0.2.4.2
 
-app_$(CONFIG_APP_SPEEDTEST)		+= speedtest
 app_$(CONFIG_APP_FLATFSD) +=flatfsd
 app_$(CONFIG_APP_SIGMA_UTILS)		+=  sigma_utils
 # libraries
@@ -313,20 +337,34 @@ ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 #lib_$(CONFIG_APP_OPENSSL)		+= openssl-0.9.8b
 lib_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
 lib_$(CONFIG_APP_OPENSSL-0.9.8I)	+= openssl-0.9.8i
+lib_$(CONFIG_APP_OPENSSL-0.9.8Y)	+= openssl-0.9.8y
+endif
+ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+#lib_$(CONFIG_APP_OPENSSL)      += openssl-0.9.8b
+lib_$(CONFIG_APP_OPENSSL-0.9.8B)    += openssl-0.9.8b
+lib_$(CONFIG_APP_OPENSSL-0.9.8I)    += openssl-0.9.8i
+lib_$(CONFIG_APP_OPENSSL-0.9.8Y)    += openssl-0.9.8y
 endif
 app_$(CONFIG_LIB_FUSE)			+= fuse-2.9.0
 app_$(CONFIG_APP_MINIDLNA)  +=minidlna
-app_$(CONFIG_APP_CAPWAP)  += capwap-0.93.3
-#app_$(CONFIG_RTL_USERSPACE_WTDOG)       += watchdog
-app_$(CONFIG_APP_BLUEZ)  +=bluez-4.96
+
+ifeq ($(CONFIG_APP_BLUEZ_522),y)
+BLUEZ_DIR = bluez-5.22
+else
+ifeq ($(CONFIG_APP_BLUEZ_496),y)
+BLUEZ_DIR = bluez-4.96
+endif
+endif
+
+app_$(CONFIG_APP_BLUEZ)  +=$(BLUEZ_DIR)
 app_$(CONFIG_APP_RTK_BLUETOOTH_FM)  +=rtk_bluetooth_firmware
 app_$(CONFIG_APP_UPIMAGE) += upImage/lrzsz/lrzsz-0.12.20/
 app_$(CONFIG_APP_UPIMAGE) += upImage/flash_writer
 
 app_$(CONFIG_APP_CPU_UTILIZATION)       += cpu
 app_$(CONFIG_APP_EXFAT_FUSE)		+= fuse-exfat-1.1.0
-app_$(CONFIG_APP_TRACEROUTE)		+= traceroute-2.0.21
-app_$(CONFIG_APP_UBUS)		+= ubus-2014-09-17
+app_$(CONFIG_RTL_USERSPACE_WTDOG)       += watchdog
+ex_mod_$(CONFIG_RTL_HIGH_PERFORMANCE_FILESYSTEM)	+= rtl_fs
 lib:
 ifneq ($(lib_y),)
 	$(MAKE) $(lib_y) || exit $$?
@@ -335,11 +373,21 @@ else
 endif
 app:
 	$(MAKE) $(app_y) || exit $$?
+ex_mod:
+ifneq ($(ex_mod_y),)
+	$(MAKE) -C $(ex_mod_y) || exit $$?
+	[ -e $(DIR_ROMFS)/lib/modules ] || mkdir -p $(DIR_ROMFS)/lib/modules
+	for i in $(ex_mod_y) ; do \
+		[ ! -d $$i ] || $(MAKE) -C $$i install || exit $$? ; \
+	done
+else
+	@echo "No external modules specified"
+endif
 endif
 #
 # add directory dependancies here
 #
-.PHONY: ulibs romfs $(lib_y) $(app_y)
+.PHONY: ulibs romfs $(lib_y) $(app_y) $(ex_mod_y)
 
 # We create the target directory of the symlink if it does
 # not exist so the test in check-symlink works and we have a
@@ -411,6 +459,7 @@ ifeq ($(CONFIG_LIB_LIBDAEMON), y)
 	make; \
 	cd ..
 endif
+
 ifeq ($(CONFIG_APP_RTK_API_TEST_CASE),y)
 	@if [ ! -e ./CUnit-2.1-2/Makefile ]; then \
                 cd ./CUnit-2.1-2; \
@@ -457,6 +506,7 @@ ifeq ($(CONFIG_APP_BLUEZ),y)
 		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib"; \
 		make; \
 		make install; \
+		cp dbus-1.pc "$(DIR_ROOT)/users/lib/lib/pkgconfig"; \
 		cd -; \
 	fi
 
@@ -500,6 +550,7 @@ ifeq ($(CONFIG_APP_BLUEZ),y)
 		make install; \
 		cd -; \
 	fi
+
 	@echo "build zlib"
 	@if ! grep "libz.a" -q ./zlib-1.2.8/Makefile; then \
 		cd ./zlib-1.2.8; \
@@ -518,13 +569,14 @@ ifeq ($(CONFIG_APP_BLUEZ),y)
 		echo c_cv_func_posix_getpwuid_r=yes>>mips-linux.cache; \
 		echo ac_cv_func_posix_getpwuid_r=yes>>mips-linux.cache; \
 		echo ac_cv_func_posix_getgrgid_r=yes>>mips-linux.cache; \
-		PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" CFLAGS="-fPIC" ./configure --host=mips-linux --prefix="$(DIR_ROOT)/users/lib" \
+		PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" CFLAGS="-fPIC" ./configure --with-libiconv=gnu --host=mips-linux --prefix="$(DIR_ROOT)/users/lib" \
 		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib" \
 		--cache-file=mips-linux.cache; \
 		make; \
 		make install; \
 		cd -; \
 	fi
+
 	@echo "build alsa-1.0.25"
 	@if [ ! -e ./alsa-lib-1.0.25/Makefile ]; then \
 		cd ./alsa-lib-1.0.25; \
@@ -547,60 +599,26 @@ ifeq ($(CONFIG_APP_BLUEZ),y)
 	fi
 
 	@echo "build bluez";
-	@if [ ! -e ./bluez-4.96/Makefile ]; then \
-		cd ./bluez-4.96; \
+	@echo "bluez dir: $(BLUEZ_DIR)";
+ifeq ($(CONFIG_APP_BLUEZ_522),y)
+	@if [ ! -e ./$(BLUEZ_DIR)/Makefile ]; then \
+		cd ./$(BLUEZ_DIR); \
+		echo "bluez first"; \
+		CFLAGS="-fPIC" ac_cv_lib_glib_2_0_g_slist_free_full=yes PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" ./configure --enable-static=yes --host=mips-linux --disable-udev --disable-obex --disable-systemd --disable-client\
+		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include -I$(DIR_ROOT)/users/lib/include/glib-2.0 -I$(DIR_ROOT)/users/lib/include/libusb-1.0 -I$(DIR_ROOT)/users/lib/include/sys -I$(DIR_ROOT)/users/lib/include/alsa -I$(DIR_ROOT)/users/lib/include/dbus-1.0" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib -lglib-2.0"; \
+		cd -; \
+	fi
+else
+	@if [ ! -e ./$(BLUEZ_DIR)/Makefile ]; then \
+		cd ./$(BLUEZ_DIR); \
 		CFLAGS="-fPIC" ac_cv_lib_glib_2_0_g_slist_free_full=yes PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" ./configure --enable-static=yes --host=mips-linux \
-		--disable-audio \
+		--disable-audio --disable-usb \
 		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include -I$(DIR_ROOT)/users/lib/include/glib-2.0 -I$(DIR_ROOT)/users/lib/include/libusb-1.0 -I$(DIR_ROOT)/users/lib/include/sys -I$(DIR_ROOT)/users/lib/include/alsa -I$(DIR_ROOT)/users/lib/include/dbus-1.0" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib"; \
 		cd -; \
 	fi
 endif
-
-ifeq ($(CONFIG_APP_UBUS),y)
-	@echo "Generate lib";
-	mkdir -p lib;
-	#json-c
-	@echo "build json-c"
-	@if [ ! -e ./json-c-0.12/Makefile ]; then \
-		tar -xvzf json-c-0.12.tar.gz; \
-		cd ./json-c-0.12; \
-		CFLAGS="-fPIC -DPIC" ac_cv_func_malloc_0_nonnull=yes ac_cv_func_realloc_0_nonnull=yes ac_cv_have_decl_isnan=yes ac_cv_have_decl_isinf=yes ./configure --prefix="$(DIR_ROOT)/users/lib" --host=mips-linux; \
-		make V=s; \
-		make install; \
-		cd -; \
-	fi
-	@echo "build libubox"
-	@if [ ! -e ./libubox-2014-08-04/Makefile ]; then \
-		tar -xvzf  libubox-2014-08-04-dffbc09baf71b294185a36048166d00066d433b5.tar.gz; \
-		cd ./libubox-2014-08-04; \
-		sed 's/OPTION(BUILD_LUA \"build Lua plugin\" ON)/OPTION(BUILD_LUA \"build Lua plugin\" OFF)/g' -i CMakeLists.txt; \
-		sed 's/PKG_CHECK_MODULES(JSONC json-c json)/PKG_CHECK_MODULES(JSONC json-c)/g' -i CMakeLists.txt; \
-		LDFLAGS="-lm" PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" cmake -DCMAKE_INSTALL_PREFIX="$(DIR_ROOT)/users/lib/" -DCMAKE_FIND_ROOT_PATH="$(DIR_ROOT)/users/lib/" .; \
-		make; \
-		make install; \
-		cd -; \
-	fi
-	@echo "build ubus"
-	@if [ ! -e ./ubus-2014-09-17/Makefile ]; then \
-		tar -xvzf ubus-2014-09-17-4c4f35cf2230d70b9ddd87638ca911e8a563f2f3.tar.gz; \
-		cd ./ubus-2014-09-17; \
-		sed 's/OPTION(BUILD_LUA \"build Lua plugin\" ON)/OPTION(BUILD_LUA \"build Lua plugin\" OFF)/g' -i CMakeLists.txt; \
-		sed 's/OPTION(ENABLE_SYSTEMD \"systemd support\" ON)/OPTION(ENABLE_SYSTEMD \"systemd support\" OFF)/g' -i CMakeLists.txt; \
-		sed '16a'"INCLUDE_DIRECTORIES($(DIR_ROOT)/users/lib/include)" -i CMakeLists.txt; \
-		sed '16a'"INCLUDE_DIRECTORIES($(DIR_ROOT)/users/lib/include/json-c)" -i CMakeLists.txt; \
-		sed '16a'"LINK_DIRECTORIES($(DIR_ROOT)/users/lib/lib)" -i CMakeLists.txt; \
-		sed '16a'"ADD_DEFINITIONS(-DJSONC)" -i CMakeLists.txt; \
-		PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" cmake -DCMAKE_INSTALL_PREFIX="$(DIR_ROOT)/users/lib/" -DCMAKE_FIND_ROOT_PATH="$(DIR_ROOT)/users/lib" .; \
-		sed '526a'"romfs:" -i Makefile; \
-		sed '527a\\t$(ROMFSINST) ubusd /bin' -i Makefile; \
-		sed '528a\\t$(ROMFSINST) ubus /bin' -i Makefile; \
-		sed '529a\\t$(ROMFSINST) examples/client /bin' -i Makefile; \
-		sed '530a\\t$(ROMFSINST) examples/server /bin' -i Makefile; \
-		sed '531a\\t$(ROMFSINST) \"*.so\" /lib' -i Makefile; \
-		sed '532a\\t$(ROMFSINST) ../libubox-2014-08-04/\"*.so\" /lib' -i Makefile; \
-		cd -; \
-	fi
 endif
+
 #ifeq ($(CONFIG_APP_OPENSSL),y)
 ifeq ($(CONFIG_APP_OPENSSL-0.9.8B),y)
 	@cd ./openssl-0.9.8b; \
@@ -627,7 +645,7 @@ ifeq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
 	@cd ./openssl-0.9.8i; \
 	if [ $(CONFIG_RTL_WAPI_LOCAL_AS) = 1 -o $(CONFIG_USER_CWMP_OPENSSL) = y ]; then \
 		if [ ! -f dlib_config_done ]; then \
-			./Configure shared rsdk-linux; make depend; \
+			./Configure shared $(CROSS_TARGET); make depend; \
 			rm -f slib_config_done; touch dlib_config_done; \
 			make clean; \
 			cp Makefile.DLibForWapi Makefile; \
@@ -635,7 +653,7 @@ ifeq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
 		fi;\
 	else\
 		if [ ! -f slib_config_done ]; then \
-			./Configure no-threads no-hw no-shared rsdk-linux; make depend; \
+			./Configure no-threads no-hw no-shared $(CROSS_TARGET); make depend; \
 			rm -f dlib_config_done; touch slib_config_done;\
 			make clean; \
 			cp Makefile.SLibForWapi Makefile; \
@@ -645,13 +663,39 @@ ifeq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
 	cd -;
 endif
 
+ifeq ($(CONFIG_APP_OPENSSL-0.9.8Y),y)
+	@cd ./openssl-0.9.8y; \
+	if [ $(CONFIG_RTL_WAPI_LOCAL_AS) = 1 -o $(CONFIG_USER_CWMP_OPENSSL) = y ]; then \
+		if [ ! -f dlib_config_done ]; then \
+			./Configure shared $(CROSS_TARGET); make depend; \
+			rm -f slib_config_done; touch dlib_config_done; \
+			make clean; \
+			cp Makefile.DLibForWapi Makefile; \
+			cp test/Makefile.wapi test/Makefile; \
+		fi;\
+	else\
+		if [ ! -f slib_config_done ]; then \
+			./Configure no-threads no-hw no-shared $(CROSS_TARGET); make depend; \
+			rm -f dlib_config_done; touch slib_config_done;\
+			make clean; \
+			cp Makefile.SLibForWapi Makefile; \
+			cp test/Makefile.wapi test/Makefile; \
+		fi;\
+	fi;\
+	cd -;
+endif
 ifeq ($(CONFIG_APP_RTK_VOIP),y)
 ifeq ($(CONFIG_APP_RTK_VOIP_E8C),y)
 	ln -fs $(DIR_LINUX)/.config rtk_voip-e8c/.linux_config
 	make -C rtk_voip-e8c prepare
 else
+ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxE
+	ln -fs $(DIR_LINUX)/.config rtk_voip-89xxE/.linux_config
+	make -C rtk_voip-89xxE prepare
+else
 	ln -fs $(DIR_LINUX)/.config rtk_voip/.linux_config
 	make -C rtk_voip prepare
+endif
 endif
 endif
 
@@ -659,21 +703,17 @@ ifeq ($(CONFIG_APP_IPTABLES),y)
 	@cd ./iptables-1.4.4; \
 	if [ $(CONFIG_APP_IP6TABLES_SUPPORT) = 1 ]; then \
 		if [ ! -f ip6tables_config_done ]; then \
-			./configure --host=mips-linux --with-ksource=../../linux-2.6.30 --enable-static --disable-shared CFLAGS=-Os; \
+			./configure --host=mips-linux --with-ksource=$(DIR_LINUX_KERNEL) --enable-static --disable-shared CFLAGS=-Os; \
 			make depend; \
-			rm -f iptables_config_done; touch ip6tables_config_done; \
 			make clean; \
-			cp Makefile.ip6 Makefile; \
-			cp ./extensions/GNUmakefile.ip6 ./extensions/GNUmakefile; \
+			rm -f iptables_config_done; touch ip6tables_config_done; \
 		fi; \
 	else\
 		if [ ! -f iptables_config_done ]; then \
-			./configure --host=mips-linux --with-ksource=../../linux-2.6.30 --enable-static --disable-shared --disable-ipv6 CFLAGS=-Os; \
+			./configure --host=mips-linux --with-ksource=$(DIR_LINUX_KERNEL) --enable-static --disable-shared --disable-ipv6 CFLAGS=-Os; \
 			make depend; \
-			rm -f ip6tables_config_done; touch iptables_config_done; \
 			make clean; \
-			cp Makefile.RSDK Makefile; \
-			cp ./extensions/GNUmakefile.RSDK ./extensions/GNUmakefile; \
+			rm -f ip6tables_config_done; touch iptables_config_done; \
 		fi; \
 	fi; \
 	cd -
@@ -695,7 +735,7 @@ endif
 ifeq ($(CONFIG_LIB_Z),y)
 	@if ! grep "libz.a" -q ./zlib-1.2.5/Makefile; then \
 		cd ./zlib-1.2.5/; \
-		CC=rsdk-linux-gcc ./configure --prefix=$(DIR_USERS)/zlib-1.2.5/install; \
+		CC=$(CROSS_COMPILE)gcc ./configure --prefix=$(DIR_USERS)/zlib-1.2.5/install; \
 	fi
 endif
 
@@ -780,6 +820,16 @@ ifeq ($(CONFIG_APP_UPIMAGE),y)
 	cd -;
 endif
 
+ifeq ($(CONFIG_LIB_CURL),y)
+	@if [ ! -e ./curl-7.34.0/Makefile ]; then \
+		cd ./curl-7.34.0; \
+		./configure --host=mips-linux --disable-shared --enable-static --without-libidn \
+		--without-ssl --without-librtmp --without-gnutls --without-nss \
+		--without-libssh2 --without-zlib --without-winidn --disable-rtsp \
+		--disable-ldap --disable-ldaps --disable-ipv6; \
+		touch Makefile.in; \
+	fi
+endif
 ifeq ($(CONFIG_APP_EXFAT_FUSE),y)
 ifneq ($(CONFIG_LIB_FUSE), y)
 	$(error fuse library should selected by exfat fuse)
@@ -794,7 +844,6 @@ ifeq ($(CONFIG_LIB_FUSE), y)
 		cd -; \
 	fi
 endif
-
 prepare_lib:
 ifeq ($(CONFIG_APP_LIBICONV),y)
 	cd ./libiconv-1.14; \
@@ -843,7 +892,7 @@ romfs:
 	done
 
 clean:
-	-for i in $(app_y) $(app_n) $(app_) $(lib_y) $(lib_n) $(lib_) ; do \
+	-for i in $(app_y) $(app_n) $(app_) $(lib_y) $(lib_n) $(lib_) $(ex_mod_y) $(ex_mod_) ; do \
 		$(MAKE) -C $$i clean ; \
 	done
 
@@ -866,17 +915,14 @@ distclean:
 	if [ -e glib-2.36.0/Makefile ]; then \
 		make -C glib-2.36.0 distclean; \
 	fi
-	if [ -e bluez-4.96/Makefile ]; then \
-		make -C bluez-4.96 distclean; \
+	if [ -e $(BLUEZ_DIR)/Makefile ]; then \
+		make -C $(BLUEZ_DIR) distclean; \
 	fi
 	if [ -e libiconv-1.14/Makefile ]; then \
 		make -C libiconv-1.14 distclean; \
 	fi
 	if [ -e alsa-lib-1.0.25/Makefile ]; then \
 		make -C alsa-lib-1.0.25 distclean; \
-	fi
-	if [ -e zlib-1.2.8/Makefile ]; then \
-		make -C zlib-1.2.8 distclean; \
 	fi
 
 prune:

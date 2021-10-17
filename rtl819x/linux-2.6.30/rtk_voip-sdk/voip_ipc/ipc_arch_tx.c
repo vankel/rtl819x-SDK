@@ -235,7 +235,7 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 	ipc_pkt = __ipc_pkt_tx_allocate( &pkt_len, &ipc_priv, protocol );
 
 	if( ipc_pkt == NULL ) {
-		PRINT_R("ipc_pkt_tx_final :allocate return NULL. protocol %x\n", protocol);
+		PRINT_R("ipc_pkt_tx_final :allocate return NULL.\n");
 		return -1;
 	}
 	

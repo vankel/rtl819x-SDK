@@ -12,7 +12,7 @@ SUBDIR_NTFS_3G := ntfs-3g-2010.10.2
 all:
 	if [ ! -e ./$(SUBDIR_NTFS_3G)/Makefile ]; then \
 		cd ./$(SUBDIR_NTFS_3G); \
-		LD="mips-linux-ld" CC="rsdk-linux-gcc -fpic -O3" ./configure --build=i686-pc-linux-gnu --host=mips-linux; \
+		LD=$(CROSS_COMPILE)ld CC="$(CROSS_COMPILE)gcc -fpic -O3" ./configure --build=i686-pc-linux-gnu --host=mips-linux; \
 	fi
 	make -C $(SUBDIR_NTFS_3G)
 	rm -f $(RSDK_LIB_DIR)/../lib/libntfs-3g.so

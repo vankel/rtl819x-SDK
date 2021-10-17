@@ -25,8 +25,8 @@ srcdir		= .
 top_srcdir	= ..
 builddir	= .
 
-CC		= rsdk-linux-gcc
-AR		= rsdk-linux-ar
+CC		= $(CROSS_COMPILE)gcc
+AR		= $(CROSS_COMPILE)ar
 
 CFLAGS		= $(WCFLAGS) -pedantic -I$(top_srcdir)/include -fPIC -Wall -Wwrite-strings -Wstrict-prototypes -Wno-trigraphs -g --static -s -Os
 

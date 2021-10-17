@@ -16,7 +16,7 @@
 # To install in $HOME instead of /usr/local, use:
 #    make install prefix=$HOME
 
-CC=rsdk-linux-gcc
+CC=$(CROSS_COMPILE)gcc
 
 CFLAGS=-I/svn/VoIP2/trunk/VoIP-jungle-2.4/rlxlinux-v2.2/target/tmpfs/include -I/svn/VoIP2/trunk/VoIP-jungle-2.4/rlxlinux-v2.2/target/tmpfs/include -D_LARGEFILE64_SOURCE=1
 #CFLAGS=-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7
@@ -27,8 +27,8 @@ CFLAGS=-I/svn/VoIP2/trunk/VoIP-jungle-2.4/rlxlinux-v2.2/target/tmpfs/include -I/
 SFLAGS=-I/svn/VoIP2/trunk/VoIP-jungle-2.4/rlxlinux-v2.2/target/tmpfs/include -I/svn/VoIP2/trunk/VoIP-jungle-2.4/rlxlinux-v2.2/target/tmpfs/include -fPIC -D_LARGEFILE64_SOURCE=1
 LDFLAGS= -L. libz.a
 TEST_LDFLAGS=-L. libz.a
-LDSHARED=rsdk-linux-gcc -shared -Wl,-soname,libz.so.1,--version-script,zlib.map
-CPP=rsdk-linux-gcc -E
+LDSHARED=$(CROSS_COMPILE)gcc -shared -Wl,-soname,libz.so.1,--version-script,zlib.map
+CPP=$(CROSS_COMPILE)gcc -E
 
 STATICLIB=libz.a
 SHAREDLIB=libz.so
@@ -36,8 +36,8 @@ SHAREDLIBV=libz.so.1.2.5
 SHAREDLIBM=libz.so.1
 LIBS=$(STATICLIB) $(SHAREDLIBV)
 
-AR=rsdk-linux-ar rc
-RANLIB=rsdk-linux-ranlib
+AR=$(CROSS_COMPILE)ar rc
+RANLIB=$(CROSS_COMPILE)ranlib
 LDCONFIG=ldconfig
 LDSHAREDLIBC=-lc
 TAR=tar

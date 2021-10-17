@@ -1826,13 +1826,6 @@ config SCSI_SRP
 
 endif # SCSI_LOWLEVEL
 
-config KERNEL_POLLING
-	tristate "kernel polling support"
-	depends on SCSI
-	help
-	  Polling removable drives on the off chance that somebody might have
-	  removed or inserted a disk.
-
 source "drivers/scsi/pcmcia/Kconfig"
 
 source "drivers/scsi/device_handler/Kconfig"

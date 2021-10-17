@@ -35,6 +35,12 @@
 #include <linux/wireless.h>
 #endif
 // modified by chilong
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+#define	RTL8651_IOCTL_DOT1X_SETPID		           2300
+#define RTL8651_IOCTL_DOT1X_GET_INFO                2301
+#define RTL8651_IOCTL_DOT1X_SET_AUTH_RESULT   	   2302
+#endif
+
 
 
 
@@ -42,6 +48,9 @@
 struct lib1xx_nal_intfdesc;
 struct lib1x_packet;
 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+int lib1x_control_eth_SetPORT(Global_Params * global, u_char status);
+#endif
 
 
 /*------------------------------------------------------------------*/
@@ -86,15 +95,15 @@ int lib1x_control_init()
 {
 	int skfd = -1;                /* generic raw socket desc.     */
 
-        /* Create a channel to the NET kernel. */
+    /* Create a channel to the NET kernel. */
 
-        if((skfd = sockets_open()) < 0)
-        {
-                perror("socket");
-                exit(-1);
-        }
+    if((skfd = sockets_open()) < 0)
+    {
+        perror("socket");
+        exit(-1);
+    }
 
-        return skfd;
+    return skfd;
 
 }
 
@@ -119,38 +128,33 @@ int lib1x_control_RequestIndication(
         char *                 ifname)
 {
 
-        struct iwreq          wrq;
-        DOT11_REQUEST         * req;
+    struct iwreq          wrq;
+    DOT11_REQUEST         * req;
 
+    /* Get wireless name */
+    strncpy(wrq.ifr_name, ifname, IFNAMSIZ);
 
-
-        /* Get wireless name */
-        strncpy(wrq.ifr_name, ifname, IFNAMSIZ);
-
-        req = (DOT11_REQUEST *)malloc(sizeof(DOT11_REQUEST));
-        wrq.u.data.pointer = (caddr_t)req;
-        req->EventId = DOT11_EVENT_REQUEST;
-        wrq.u.data.length = sizeof(DOT11_EVENT_REQUEST);
-
-        //iw_message(MESS_DBG_CONTROL, "[RequestIndication] : Start\n");
-        //printf("\n[RequestIndication] : Start\n");
-        if(ioctl(skfd, SIOCGIWIND, &wrq) < 0)
+    req = (DOT11_REQUEST *)malloc(sizeof(DOT11_REQUEST));
+    wrq.u.data.pointer = (caddr_t)req;
+    req->EventId = DOT11_EVENT_REQUEST;
+    wrq.u.data.length = sizeof(DOT11_EVENT_REQUEST);
+    
+    if(ioctl(skfd, SIOCGIWIND, &wrq) < 0)
 	{
-        // If no wireless name : no wireless extensions
-		free(req);
-                return(-1);
+    	free(req);
+        return(-1);
 	}
-        else{
-                lib1x_message(MESS_DBG_CONTROL, "[RequestIndication]"," : Return\n");
-#ifdef ALLOW_DBG_CONTROL
-                lib1x_hexdump2(MESS_DBG_CONTROL, "RequestIndication", wrq.u.data.pointer, wrq.u.data.length, "receive message from driver");
-#endif
-		lib1x_control_process(wrq.u.data.pointer, wrq.u.data.length);
+    else{
+        
+        lib1x_message(MESS_DBG_CONTROL, "[RequestIndication]"," : Return\n");
+        #ifdef ALLOW_DBG_CONTROL
+        lib1x_hexdump2(MESS_DBG_CONTROL, "RequestIndication", wrq.u.data.pointer, wrq.u.data.length, "receive message from driver");
+        #endif
+    	lib1x_control_process(wrq.u.data.pointer, wrq.u.data.length);
 		free(req);
+    }
 
-        }
-
-        return 1;
+    return 1;
 }
 
 #ifdef HS2_SUPPORT
@@ -257,6 +261,11 @@ int     lib1x_control_STADisconnect(Global_Params * global, u_short reason)
 	struct iwreq          	wrq;
 	DOT11_DISCONNECT_REQ	Disconnect_Req;
 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(global->auth->currentRole == role_eth){
+		return retVal;
+	}
+#endif
 	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_STADisconnect(1) %02x:%02x:%02x:%02x:%02x:%02x:\n",
 		global->theAuthenticator->supp_addr[0],global->theAuthenticator->supp_addr[1],global->theAuthenticator->supp_addr[2],
 		global->theAuthenticator->supp_addr[3],global->theAuthenticator->supp_addr[4],global->theAuthenticator->supp_addr[5]);
@@ -272,7 +281,6 @@ int     lib1x_control_STADisconnect(Global_Params * global, u_short reason)
 	memcpy(Disconnect_Req.MACAddr,  global->theAuthenticator->supp_addr, MacAddrLen);
 
 	if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-		// If no wireless name : no wireless extensions
 		retVal = -1;
 	else
 		retVal = 0;
@@ -304,25 +312,29 @@ int     lib1x_control_AssociationRsp(Global_Params * global, int result)
 	wrq.u.data.pointer = (caddr_t)&Association_Rsp;
 	wrq.u.data.length = sizeof(DOT11_ASSOCIATION_RSP);
 
-#ifdef RTL_WPA2
+    #ifdef RTL_WPA2
+
 	if (event_id == DOT11_EVENT_ASSOCIATION_IND)
-	Association_Rsp.EventId = DOT11_EVENT_ASSOCIATION_RSP;
+    	Association_Rsp.EventId = DOT11_EVENT_ASSOCIATION_RSP;
 	else
 		Association_Rsp.EventId = DOT11_EVENT_REASSOCIATION_RSP;
-#else
+    
+    #else
+    
 	Association_Rsp.EventId = DOT11_EVENT_ASSOCIATION_RSP;
-#endif
+    
+    #endif
+    
 	Association_Rsp.IsMoreEvent = FALSE;
 	Association_Rsp.Status = result;
 	memcpy(&Association_Rsp.MACAddr, global->theAuthenticator->supp_addr, MacAddrLen);
 
 	if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
-                retVal = 0;
+        retVal = -1;
+    else
+        retVal = 0;
 
-        return retVal;
+    return retVal;
 }
 
 int     lib1x_control_RemovePTK(Global_Params * global, int keytype)
@@ -331,6 +343,11 @@ int     lib1x_control_RemovePTK(Global_Params * global, int keytype)
 	struct iwreq wrq;
 	DOT11_DELETE_KEY Delete_Key;
 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(global->auth->currentRole == role_eth){
+		return retVal;
+	}
+#endif
 	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_RemovePTK(1)\n");
 
 	strncpy(wrq.ifr_name, global->auth->GlobalTxRx->device_wlan0, IFNAMSIZ);
@@ -342,11 +359,10 @@ int     lib1x_control_RemovePTK(Global_Params * global, int keytype)
 	Delete_Key.KeyType = keytype;
 	memcpy(&Delete_Key.MACAddr, global->theAuthenticator->supp_addr, MacAddrLen);
 
-        if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
-                retVal = 0;
+    if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
+        retVal = -1;
+    else
+        retVal = 0;
 
 	return retVal;
 }
@@ -370,9 +386,8 @@ int lib1x_control_QueryRSC(Global_Params * global, OCTET_STRING * gRSC)
 	Gkey_Tsc.IsMoreEvent = FALSE;
 
 	if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
+        retVal = -1;
+    else
 	{
 		lib1x_message(MESS_DBG_CONTROL, "lib1x_control_QueryRSC", wrq.u.data.pointer, 64);
 		pGkey_Tsc = (DOT11_GKEY_TSC *)wrq.u.data.pointer;
@@ -394,7 +409,7 @@ int lib1x_control_STA_QUERY_BSSID(Supp_Global * pGlobal)
 	struct iwreq wrq;
 	DOT11_STA_QUERY_BSSID Query, * pQueryRet;
 
-//	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_STA_QUERY_BSSID(1)\n");
+    //lib1x_message(MESS_DBG_CONTROL, "lib1x_control_STA_QUERY_BSSID(1)\n");
 
 	strncpy(wrq.ifr_name, pGlobal->auth->GlobalTxRx->device_wlan0, IFNAMSIZ);
 	wrq.u.data.pointer = (caddr_t)&Query;
@@ -404,10 +419,9 @@ int lib1x_control_STA_QUERY_BSSID(Supp_Global * pGlobal)
 	Query.IsMoreEvent = FALSE;
 
 	if(ioctl(pGlobal->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0){
-        // If no wireless name : no wireless extensions
-                retVal = -1;
+        retVal = -1;
 	}
-        else
+    else
 	{
 		pQueryRet = (DOT11_STA_QUERY_BSSID *)wrq.u.data.pointer;
 		if(pQueryRet->IsValid)
@@ -416,11 +430,11 @@ int lib1x_control_STA_QUERY_BSSID(Supp_Global * pGlobal)
 			return 0;
 		}
 		else{
-                	retVal = -1;
+            retVal = -1;
 		}
 	}
 
-        return retVal;
+    return retVal;
 
 }
 
@@ -441,9 +455,8 @@ int lib1x_control_STA_QUERY_SSID(Supp_Global * pGlobal, unsigned char *pSSID)
 	Query.IsMoreEvent = FALSE;
 
 	if(ioctl(pGlobal->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
+        retVal = -1;
+    else
 	{
 		pQueryRet = (DOT11_STA_QUERY_SSID *)wrq.u.data.pointer;
 		if(pQueryRet->IsValid)
@@ -505,11 +518,11 @@ int lib1x_control_STA_SetPTK(Supp_Global * pGlobal)
 		lib1x_message(MESS_DBG_CONTROL, "STA Set RSN key\n");
 
 	}
-#ifdef CLIENT_TLS
+    #ifdef CLIENT_TLS
 	else {
 		printf("pGlobal->AuthKeyMethod (%d) not supported !!\n", pGlobal->AuthKeyMethod);
 	}
-#endif
+    #endif
 
 	memset(Set_Key.KeyMaterial,0, 64);
 	memcpy(Set_Key.KeyMaterial, pucKeyMaterial, ulKeyLength);
@@ -519,17 +532,16 @@ int lib1x_control_STA_SetPTK(Supp_Global * pGlobal)
 
 	wrq.u.data.length = sizeof(DOT11_SET_KEY) - 1 + ulKeyLength;
 		
-#ifdef ALLOW_DBG_CONTROL
+    #ifdef ALLOW_DBG_CONTROL
 	lib1x_hexdump2(MESS_DBG_SUPP, "lib1x_control_STA_SetPTK", wrq.u.data.pointer, wrq.u.data.length, "Set Pairwise Key");
-#endif
+    #endif
+    
 	if(ioctl(pGlobal->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-                retVal = -1;
-        else
-                retVal = 0;
-
-
-        return retVal;
-
+        retVal = -1;
+    else
+        retVal = 0;
+    
+    return retVal;
 
 }
 
@@ -580,7 +592,7 @@ int lib1x_control_STA_SetGTK(Supp_Global * pGlobal, u_char * pucKey, int iKeyId)
 				ulKeyLength);
 			break;
 
-// david, add wep multicast cipher support in WPA -----
+        // david, add wep multicast cipher support in WPA -----
 		case DOT11_ENC_WEP40:
 			ulKeyLength = 5;
 			memcpy(Set_Key.KeyMaterial ,
@@ -594,7 +606,7 @@ int lib1x_control_STA_SetGTK(Supp_Global * pGlobal, u_char * pucKey, int iKeyId)
 				pucKey,
 				ulKeyLength);
 			break;
-// ------------------------------------------------
+        // ------------------------------------------------
 
 	}
 
@@ -603,16 +615,16 @@ int lib1x_control_STA_SetGTK(Supp_Global * pGlobal, u_char * pucKey, int iKeyId)
 
 	wrq.u.data.length = sizeof(DOT11_SET_KEY) - 1 + ulKeyLength;
 
-#ifdef ALLOW_DBG_CONTROL
+    #ifdef ALLOW_DBG_CONTROL
 	lib1x_hexdump2(MESS_DBG_SUPP, "lib1x_control_STA_SetGTK", wrq.u.data.pointer, wrq.u.data.length, "Set Group Key");
-#endif
+    #endif
 
-        if(ioctl(pGlobal->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-                retVal = -1;
-        else
-                retVal = 0;
+    if(ioctl(pGlobal->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
+        retVal = -1;
+    else
+        retVal = 0;
 
-        return retVal;
+    return retVal;
 }
 
 
@@ -647,17 +659,17 @@ int lib1x_control_STA_SetPORT(Supp_Global * pGlobal, u_char status)
 		lib1x_message(MESS_DBG_CONTROL, "Set Port Unathorized for STA =>\n");
 	}
 
-#ifdef ALLOW_DBG_CONTROL
+    #ifdef ALLOW_DBG_CONTROL
 	lib1x_hexdump2(MESS_DBG_SUPP, "lib1x_control_STA_SetPORT", wrq.u.data.pointer, wrq.u.data.length, "Set PORT");
-#endif
+    #endif
 
 	if(ioctl(pGlobal->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-                retVal = -1;
-        else
-                retVal = 0;
+        retVal = -1;
+    else
+        retVal = 0;
 
 
-        return retVal;
+    return retVal;
 
 
 }
@@ -683,12 +695,11 @@ int lib1x_control_AuthDisconnect(Dot1x_Authenticator * auth, u_char *pucMacAddr,
 	memcpy(Disconnect_Req.MACAddr,  pucMacAddr, MacAddrLen);
 
 	if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
+        retVal = -1;
 	else
 		retVal = 0;
 
-        return retVal;
+    return retVal;
 
 }
 #endif
@@ -714,11 +725,10 @@ int lib1x_control_QuerySTA(Global_Params * global)
 
 	if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
 	{
-        // If no wireless name : no wireless extensions
-                retVal = -1;
+        retVal = -1;
 		lib1x_message(MESS_DBG_CONTROL, "lib1x_control_QuerySTA(1) retun -1\n");
 	}
-        else
+    else
 	{
 		pQuery_Stat = (DOT11_QUERY_STATS * )wrq.u.data.pointer;
 		if(pQuery_Stat->IsSuccess)
@@ -733,9 +743,9 @@ int lib1x_control_QuerySTA(Global_Params * global)
 		}
 
 		retVal = 0;
-	}
+   	}
 
-        return retVal;
+    return retVal;
 
 }
 
@@ -757,21 +767,20 @@ int lib1x_control_Query_All_Sta_Info(Dot1x_Authenticator * auth)
 	*((unsigned char *)wrq.u.data.pointer) = MAX_SUPPLICANT; //david, only copy MAX_SUPPLICANT entry up
 
 	if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWRTLSTAINFO, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
+        retVal = -1;
+    else
 	{
-                retVal = 0;
+        retVal = 0;
 	}
 
-        return retVal;
+    return retVal;
 
 }
 
 int lib1x_control_RSNIE(Dot1x_Authenticator * auth, u_char flag)
 {
 	int retVal = 0;
-//	u_char * ptr;
+    //	u_char * ptr;
 	struct iwreq wrq;
 	DOT11_SET_RSNIE Set_Rsnie;
 
@@ -794,9 +803,10 @@ int lib1x_control_RSNIE(Dot1x_Authenticator * auth, u_char flag)
 
 	if(flag == DOT11_Ioctl_Set)
 	{
-// marked by david	
-//		ptr = (u_char*)&Set_Rsnie.RSNIELen;
-//		short2net(auth->RSNVariable.AuthInfoElement.Length, ptr);
+
+    // marked by david	
+    //		ptr = (u_char*)&Set_Rsnie.RSNIELen;
+    //		short2net(auth->RSNVariable.AuthInfoElement.Length, ptr);
 	Set_Rsnie.RSNIELen = auth->RSNVariable.AuthInfoElement.Length;
 		memcpy(&Set_Rsnie.RSNIE,
 			auth->RSNVariable.AuthInfoElement.Octet,
@@ -807,15 +817,14 @@ int lib1x_control_RSNIE(Dot1x_Authenticator * auth, u_char flag)
 	}
 
 	//lib1x_hexdump2(MESS_DBG_SUPP, "lib1x_control_set_RSNIE",
-		//(u_char*)wrq.u.data.pointer, wrq.u.data.length, "RSNIE Content");
+	//(u_char*)wrq.u.data.pointer, wrq.u.data.length, "RSNIE Content");
 
-        if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
-                retVal = 0;
+    if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0) // If no wireless name : no wireless extensions        
+        retVal = -1;
+    else
+        retVal = 0;
 
-        return retVal;
+    return retVal;
 
 }
 
@@ -856,15 +865,14 @@ int lib1x_control_SetPMF(Global_Params * global)
 	struct iwreq wrq;
 	DOT11_SET_11W_Flags flags;
 	
-	flags.EventId = DOT11_EVENT_SET_PMF;	
-	flags.isPMF = global->mgmt_frame_prot;
+	flags.EventId = DOT11_EVENT_SET_PMF;	     
+    flags.isPMF = global->mgmt_frame_prot;
 	flags.IsMoreEvent = FALSE;
-	memcpy(flags.macAddr, global->theAuthenticator->supp_addr,6);
+    memcpy(flags.macAddr, global->theAuthenticator->supp_addr,6);
 	strncpy(wrq.ifr_name, global->auth->GlobalTxRx->device_wlan0, IFNAMSIZ);	
 	wrq.u.data.pointer = (caddr_t)&flags;
 	wrq.u.data.length = sizeof(flags);
-    if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-    // If no wireless name : no wireless extensions
+    if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0) // If no wireless name : no wireless extensions    
         retVal = -1;
     else
         retVal = 0;
@@ -943,17 +951,15 @@ int lib1x_control_AssocInfo(Global_Params * global, int Set, OCTET_STRING * RSNI
 	}
 
 
-       if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
+   if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
+       retVal = -1;
+    else
 	{
 		//Check returned data length
 		RAssoc_Info = (DOT11_ASSOCIATION_INFORMATION*)wrq.u.data.pointer;
 		memcpy(RSNInfo->Octet, wrq.u.data.pointer + RAssoc_Info->OffsetResponseIEs, RAssoc_Info->ResponseIELength);
 		RSNInfo->Length = RAssoc_Info->ResponseIELength;
-
-                retVal = 0;
+        retVal = 0;
 	}
 
 
@@ -1331,7 +1337,11 @@ int lib1x_control_SetPORT(Global_Params * global, u_char status)
 
 
 	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_SetPORT(1)\n");
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(global->auth->currentRole == role_eth){
+		return lib1x_control_eth_SetPORT(global,status);
+	}
+#endif
 
 	strncpy(wrq.ifr_name, global->auth->GlobalTxRx->device_wlan0, IFNAMSIZ);
 	wrq.u.data.pointer = (caddr_t)&Set_Port;
@@ -1420,13 +1430,12 @@ int lib1x_control_Set802dot1x(Global_Params * global, u_char var_type, u_char va
 	memcpy(&Set_802dot1x.MACAddr, global->theAuthenticator->supp_addr, MacAddrLen);
 
 
-        if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
-                retVal = 0;
+    if(ioctl(global->auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
+       retVal = -1;
+    else
+       retVal = 0;
 
-        return retVal;
+    return retVal;
 }
 
 int lib1x_control_InitQueue(Dot1x_Authenticator * auth)
@@ -1444,22 +1453,20 @@ int lib1x_control_InitQueue(Dot1x_Authenticator * auth)
 	Init_Queue.EventId = DOT11_EVENT_INIT_QUEUE;
 
 	if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
-                retVal = 0;
+        retVal = -1;
+    else
+        retVal = 0;
 
-
-        return retVal;
+    return retVal;
 
 }
 
-//-----------------------------------------------------------------------
-//char2str:
-// change character to string ex: 0x0a->'A' 0x08->'8'
-// uzOut : the output string buffer
-// ulOutStart : the start address of where the converted string is put in
-//-----------------------------------------------------------------------
+/*-----------------------------------------------------------------------
+ char2str:
+ change character to string ex: 0x0a->'A' 0x08->'8'
+ uzOut : the output string buffer
+ ulOutStart : the start address of where the converted string is put in
+-----------------------------------------------------------------------*/
 void char2str(u_char * uzIn, u_long ulLen, u_char * uzOut, u_long ulOutStart)
 {
         u_long i, j=ulOutStart;
@@ -1470,12 +1477,12 @@ void char2str(u_char * uzIn, u_long ulLen, u_char * uzOut, u_long ulOutStart)
 
         for(i=0 ; i<ulLen ; i++)
         {
-                cHigh = (uzIn[i]>>4) & 0x0f;
-                cLow  = (uzIn[i]) & 0x0f;
+            cHigh = (uzIn[i]>>4) & 0x0f;
+            cLow  = (uzIn[i]) & 0x0f;
 
-                //0x0~0x9 or 0xa~0xf
-                uzOut[j++] = (cHigh>=0 && cHigh<=9) ? (cHigh + iIntDist) : (cHigh + iCharDist);
-                uzOut[j++] = (cLow >=0 && cLow <=9) ? (cLow  + iIntDist) : (cLow  + iCharDist);
+            //0x0~0x9 or 0xa~0xf
+            uzOut[j++] = (cHigh>=0 && cHigh<=9) ? (cHigh + iIntDist) : (cHigh + iCharDist);
+            uzOut[j++] = (cLow >=0 && cLow <=9) ? (cLow  + iIntDist) : (cLow  + iCharDist);
 
         }
         uzOut[j] = 0;
@@ -1574,21 +1581,227 @@ int lib1x_control_Poll(Dot1x_Authenticator * auth)
 	wrq.u.data.length = sizeof(DOT11_EVENT_REQUEST);
 
 	auth->IoctlBufLen = 0;
-	//lib1x_hexdump2(MESS_DBG_CONTROL, "RequestIndication", wrq.u.data.pointer, wrq.u.data.length, "before ioctl");
-        if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
+
+    if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
+	{
+		free(req);
+        return(-1);
+	}
+    else{
+       	memset(auth->IoctlBuf, 0, sizeof auth->IoctlBuf);
+    	memcpy(auth->IoctlBuf,wrq.u.data.pointer, wrq.u.data.length);
+    	memset(szEvent, 0, sizeof szEvent);
+    	switch(auth->IoctlBuf[0])
+    	{
+        	case	DOT11_EVENT_NO_EVENT:
+        		sprintf(szEvent, (char*)"Receive Event %s", "NO_EVENT");
+        		break;
+        	case	DOT11_EVENT_ASSOCIATION_IND:
+        		sprintf(szEvent, (char*)"Receive Event %s", "ASSOCIATION_IND");
+        		auth->IoctlBufLen = wrq.u.data.length;
+        		break;
+        	case	DOT11_EVENT_REASSOCIATION_IND:
+        		sprintf(szEvent, (char*)"Receive Event %s", "REASSOCIATION_IND");
+        		auth->IoctlBufLen = wrq.u.data.length;
+        		break;
+        	case 	DOT11_EVENT_AUTHENTICATION_IND:
+        		sprintf(szEvent, (char*)"Receive Event %s", "AUTHENTICATION_IND");
+        		//auth->IoctlBufLen = wrq.u.data.length;
+        		break;
+        	case	DOT11_EVENT_REAUTHENTICATION_IND:
+        		sprintf(szEvent, (char*)"Receive Event %s", "REAUTHENTICATION_IND");
+        		auth->IoctlBufLen = wrq.u.data.length;
+        		break;
+        	case	DOT11_EVENT_DEAUTHENTICATION_IND:
+        		sprintf(szEvent, (char*)"Receive Event %s", "DEAUTHENTICATION_IND");
+        		auth->IoctlBufLen = wrq.u.data.length;
+        		break;
+        	case	DOT11_EVENT_DISASSOCIATION_IND:
+        		sprintf(szEvent, (char*)"Receive Event %s", "DISASSOCIATION_IND");
+        		auth->IoctlBufLen = wrq.u.data.length;
+        		break;
+        	case 	DOT11_EVENT_MIC_FAILURE:
+        		sprintf(szEvent, (char*)"Receive Event %s", "MIC_FAILURE");
+        		auth->IoctlBufLen = wrq.u.data.length;
+        		break;
+        	default:
+        		sprintf(szEvent, (char*)"Receive %s Event id %d ", "Invalid", auth->IoctlBuf[0]);
+        		break;
+
+    	}
+
+
+    	if(auth->IoctlBufLen)
+    	{
+    		lib1x_message(MESS_DBG_CONTROL, szEvent);
+    		//lib1x_nal_receiveioctl(auth);
+    		//lib1x_capture_control_x(auth->Supp[0]->global);
+    		//write(1, "end of lib1x_capture_control_x\n", sizeof("lib1x_capture_control_x\n"));
+    	}
+    	free(req);
+    	retVal = 0;
+
+    }
+
+        return retVal;
+}
+
+
+
+int lib1x_control_IndicateMICFail(Dot1x_Authenticator * auth, u_char *mac)
+{
+	int retVal = 0;
+	struct iwreq wrq;
+	DOT11_MIC_FAILURE MIC_Failure;
+
+	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_IndicateMICFail\n");
+
+	strncpy(wrq.ifr_name, auth->GlobalTxRx->device_wlan0, IFNAMSIZ);
+	wrq.u.data.pointer = (caddr_t)&MIC_Failure;
+	wrq.u.data.length = sizeof(DOT11_INIT_QUEUE);
+
+	MIC_Failure.EventId = DOT11_EVENT_MIC_FAILURE;
+	//sc_yang
+	memcpy(MIC_Failure.MACAddr, mac, MacAddrLen);
+	lib1x_PrintAddr(MIC_Failure.MACAddr);
+
+	if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
+        retVal = -1;
+    else
+        retVal = 0;
+
+
+        return retVal;
+}
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+/*      IOCTL system call */
+int re865xIoctl(char *name, unsigned int arg0, unsigned int arg1, unsigned int arg2, unsigned int arg3)
+{
+	unsigned int args[4];
+	struct ifreq ifr;
+	int sockfd;
+
+	args[0] = arg0;
+	args[1] = arg1;
+	args[2] = arg2;
+	args[3] = arg3;
+	//printf("%s-->%d,%s\n",__FUNCTION__,__LINE__,name);
+	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	{
+		perror("fatal error socket\n");
+		return -3;
+	}
+  
+	strcpy((char*)&ifr.ifr_name, name);
+	((unsigned int *)(&ifr.ifr_data))[0] = (unsigned int)args;
+
+	if (ioctl(sockfd, SIOCDEVPRIVATE, &ifr)<0)
+	{
+	  perror("device ioctl:");
+	  close(sockfd);
+	  return -1;
+	}
+	close(sockfd);
+	return 0;
+	
+}
+//static rtl802Dot1xAuthResult result;
+int lib1x_control_eth_SetPORT(Global_Params * global, u_char status)
+{
+	//unsigned int arg[0];
+	unsigned int ret;
+	rtl802Dot1xAuthResult result;
+	
+	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_eth_SetPORT\n");
+	//arg[0] = (unsigned int)&result;
+	memset(&result, 0x00, sizeof(rtl802Dot1xAuthResult));
+	result.type = global->auth->ethDot1xProxyType;
+	result.port_num = global->port_num;
+	lib1x_message(MESS_DBG_CONTROL, "Set auth result type=%d portnumber %d (unsigned int)&result=0x%x\n", result.type, result.port_num, (unsigned int)&result);
+	
+	if (result.type == ETH_DOT1X_PROXY_PORT_BASE)
+	{
+		lib1x_message(MESS_DBG_CONTROL, "Set auth result port base\n");
+	}
+	else if (result.type == ETH_DOT1X_PROXY_MAC_BASE)
+	{
+		lib1x_message(MESS_DBG_CONTROL, "Set auth result mac base\n");
+	}
+	memcpy(&result.mac_addr, global->theAuthenticator->supp_addr, MacAddrLen);
+	result.auth_state = status;
+	
+	lib1x_message(MESS_DBG_CONTROL, "Set auth result.auth_state=%d\n", result.auth_state);
+	if(result.auth_state == DOT11_PortStatus_Authorized)
+	{
+		lib1x_message(MESS_DBG_CONTROL, "Set auth result Authorized\n");
+	}
+	else if(result.auth_state == DOT11_PortStatus_Unauthorized)
+	{
+		lib1x_message(MESS_DBG_CONTROL, "Set auth result Unathorized\n");
+	}
+	lib1x_PrintAddr(global->theAuthenticator->supp_addr);
+		
+	return re865xIoctl(global->auth->GlobalTxRx->device_eth0, RTL8651_IOCTL_DOT1X_SET_AUTH_RESULT, (unsigned int)&result, 0, (unsigned int)&ret) ;
+
+	return 0;
+}
+
+
+int lib1x_control_eth_register_pid(Dot1x_Authenticator * auth)
+{
+	int arg[0];
+	int pid,ret;
+	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_eth_register_pid\n");
+	pid = getpid();
+	arg[0] = pid;
+	
+	return re865xIoctl(auth->GlobalTxRx->device_eth0, RTL8651_IOCTL_DOT1X_SETPID, (unsigned int )arg, 0, (unsigned int)&ret) ;
+
+}
+/* return more flag */
+int lib1x_control_Eth_Poll(Dot1x_Authenticator * auth)
+{
+	int 		retVal = 0;
+	int arg[0];
+	//rtl802Dot1xQueueNode *eap;
+	unsigned char *event_id = NULL;
+	rtl802Dot1xEapPkt *eap;
+	rtl802Dot1xPortStateInfo *port_state;
+	
+	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_Eth_Poll\n");
+	memset(auth->GlobalTxRx->RecvBuf, 0, sizeof(auth->GlobalTxRx->RecvBuf));
+	if(re865xIoctl(auth->GlobalTxRx->device_eth0, RTL8651_IOCTL_DOT1X_GET_INFO, (unsigned int )arg, 0, (unsigned int)auth->GlobalTxRx->RecvBuf) < 0)
 	{
         // If no wireless name : no wireless extensions
-		free(req);
-                return(-1);
+        return(-1);
 	}
-        else{
-
-                //lib1x_hexdump2(MESS_DBG_CONTROL, "RequestIndication", wrq.u.data.pointer, wrq.u.data.length, "receive message from driver");
-
-		memset(auth->IoctlBuf, 0, sizeof auth->IoctlBuf);
-		memcpy(auth->IoctlBuf,wrq.u.data.pointer, wrq.u.data.length);
-
-
+    else{
+		event_id = (unsigned char *)auth->GlobalTxRx->RecvBuf;
+		if (*event_id == DOT1X_EVENT_PORT_DOWN)
+		{
+			port_state = (rtl802Dot1xPortStateInfo *) auth->GlobalTxRx->RecvBuf;
+			retVal = port_state->flag;
+			//portdown handler
+			lib1x_process_eth_port_down_event(auth);
+		}
+		else if (*event_id == DOT1X_EVENT_EAP_PACKET)
+		{
+			eap = (rtl802Dot1xEapPkt *) auth->GlobalTxRx->RecvBuf;
+		
+			lib1x_message(MESS_DBG_CONTROL, "Receive ethernet eap packet!!\n");
+			lib1x_message(MESS_DBG_CONTROL,"Rx port number = %d\n",eap->rx_port_num);
+			retVal = eap->flag;
+			lib1x_process_eth_eap_event(auth);
+		}
+		else if (*event_id == DOT1X_EVENT_PORT_UP)
+		{
+			port_state = (rtl802Dot1xPortStateInfo *) auth->GlobalTxRx->RecvBuf;
+			retVal = port_state->flag;
+			//portup handler
+			lib1x_process_eth_port_up_event(auth);
+		}
+#if 0
 		memset(szEvent, 0, sizeof szEvent);
 		switch(auth->IoctlBuf[0])
 		{
@@ -1628,53 +1841,13 @@ int lib1x_control_Poll(Dot1x_Authenticator * auth)
 			break;
 
 		}
-
-
-		if(auth->IoctlBufLen)
-		{
-			lib1x_message(MESS_DBG_CONTROL, szEvent);
-
-			//lib1x_nal_receiveioctl(auth);
-
-			//lib1x_capture_control_x(auth->Supp[0]->global);
-			//write(1, "end of lib1x_capture_control_x\n", sizeof("lib1x_capture_control_x\n"));
-
-		}
-
-
-		free(req);
-		retVal = 0;
+#endif
+		//free(req);
+		//retVal = 0;
 
         }
 
         return retVal;
 }
+#endif
 
-
-
-int lib1x_control_IndicateMICFail(Dot1x_Authenticator * auth, u_char *mac)
-{
-	int retVal = 0;
-	struct iwreq wrq;
-	DOT11_MIC_FAILURE MIC_Failure;
-
-	lib1x_message(MESS_DBG_CONTROL, "lib1x_control_IndicateMICFail\n");
-
-	strncpy(wrq.ifr_name, auth->GlobalTxRx->device_wlan0, IFNAMSIZ);
-	wrq.u.data.pointer = (caddr_t)&MIC_Failure;
-	wrq.u.data.length = sizeof(DOT11_INIT_QUEUE);
-
-	MIC_Failure.EventId = DOT11_EVENT_MIC_FAILURE;
-	//sc_yang
-	memcpy(MIC_Failure.MACAddr, mac, MacAddrLen);
-	lib1x_PrintAddr(MIC_Failure.MACAddr);
-
-	if(ioctl(auth->GlobalTxRx->fd_control, SIOCGIWIND, &wrq) < 0)
-        // If no wireless name : no wireless extensions
-                retVal = -1;
-        else
-                retVal = 0;
-
-
-        return retVal;
-}

@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>WDS Settings</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <script>
 function addClick()
 {
@@ -129,7 +130,7 @@ function Load_Setting()
 </head>
 <body onload="Load_Setting();">
 <blockquote>
-<h2><font color="#0000FF">
+<h2>
 	<script type="text/javascript">
 	var wlan_num =  <% getIndex("wlan_num"); %>;
 	if (wlan_num > 1) {
@@ -139,7 +140,7 @@ function Load_Setting()
 	else
 		document.write("WDS Settings</p>");
 	</script>
-</font></h2>
+</h2>
 <table border=0 width="500" cellspacing=4 cellpadding=0>
 <tr><font size=2>
  Wireless Distribution System uses wireless media to communicate with other
@@ -157,7 +158,7 @@ function Load_Setting()
    <!--
 <tr><font size=2><b>Add WDS AP:&nbsp;&nbsp;&nbsp;&nbsp</b></tr>  
 -->
-<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF">
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
  <tr>
  <td align="left" width="13%" class=""><font size=2><b>MAC Address:</td>
  <td width="87%">

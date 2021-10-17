@@ -2,18 +2,34 @@
 
 #ifdef TIME_ZONE
 
+/*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
+#if 1 //def _PRMT_WT107_
+enum eTStatus
+{
+	eTStatusDisabled,
+	eTStatusUnsynchronized,
+	eTStatusSynchronized,
+	eTStatusErrorFailed,/*Error_FailedToSynchronize*/
+	eTStatusError
+};
+#endif
+/*ping_zhang:20081217 END*/
+
 struct CWMP_OP tTimeLeafOP = { getTime,	setTime };
 struct CWMP_PRMT tTimeLeafInfo[] =
 {
 /*(name,			type,		flag,			op)*/
 {"Enable",			eCWMP_tBOOLEAN,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP}, /*_PRMT_WT107_*/
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 {"Status",			eCWMP_tSTRING,	CWMP_READ,	&tTimeLeafOP},
 #endif
 /*ping_zhang:20081217 END*/
 {"NTPServer1",			eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP},
 {"NTPServer2",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP},
+{"NTPServer3",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP},
+{"NTPServer4",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP},
+{"NTPServer5",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP},
 {"CurrentLocalTime",		eCWMP_tDATETIME,CWMP_READ|CWMP_DENY_ACT,&tTimeLeafOP},
 {"LocalTimeZone",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP},
 {"LocalTimeZoneName",		eCWMP_tSTRING,	CWMP_WRITE|CWMP_READ,	&tTimeLeafOP},
@@ -27,12 +43,15 @@ enum eTimeLeaf
 {
 	eEnable, /*_PRMT_WT107_*/
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	eTStatus,
 #endif
 /*ping_zhang:20081217 END*/
 	eTNTPServer1,
 	eTNTPServer2,
+	eTNTPServer3,
+	eTNTPServer4,
+	eTNTPServer5,
 	eTCurrentLocalTime,
 	eTLocalTimeZone,
 	eTLocalTimeZoneName,
@@ -46,12 +65,15 @@ struct CWMP_LEAF tTimeLeaf[] =
 {
 { &tTimeLeafInfo[eEnable] }, /*_PRMT_WT107_*/
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 { &tTimeLeafInfo[eTStatus] },
 #endif
 /*ping_zhang:20081217 END*/
 { &tTimeLeafInfo[eTNTPServer1] },
 { &tTimeLeafInfo[eTNTPServer2] },
+{ &tTimeLeafInfo[eTNTPServer3] },
+{ &tTimeLeafInfo[eTNTPServer4] },
+{ &tTimeLeafInfo[eTNTPServer5] },
 { &tTimeLeafInfo[eTCurrentLocalTime] },
 { &tTimeLeafInfo[eTLocalTimeZone] },
 { &tTimeLeafInfo[eTLocalTimeZoneName] },
@@ -143,6 +165,7 @@ int getTime(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 {
 	char	*lastname = entity->info->name;
 	unsigned char vChar=0;
+	unsigned int vInt=0;
 	struct in_addr ipAddr;
 	char buff[256]={0};
 	
@@ -158,7 +181,7 @@ int getTime(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 		mib_get( MIB_NTP_ENABLED, (void *)&vChar);
 		*data = booldup( vChar!=0 );
 /*ping_zhang:20081217 START:patch from telefonica branch to support WT-107*/
-#ifdef _PRMT_WT107_
+#if 1 //def _PRMT_WT107_
 	}else if( strcmp( lastname, "Status" )==0 )
 	{
 		unsigned int timeStatus;
@@ -198,14 +221,42 @@ int getTime(char *name, struct CWMP_LEAF *entity, int *type, void **data)
 /*ping_zhang:20081217 END*/
 	}else if( strcmp( lastname, "NTPServer1" )==0 )
 	{
-		mib_get(MIB_NTP_SERVER_IP1, (void *)&ipAddr);
+		mib_get( MIB_NTP_SERVER_ID, (void *)&vInt);
+
+
+		if (vInt == 0)
+			mib_get(MIB_NTP_SERVER_IP1, (void *)&ipAddr);
+		else
+			mib_get(MIB_NTP_SERVER_IP2, (void *)&ipAddr);
+		
 		strcpy( buff, inet_ntoa(ipAddr) );
 
                 *data=strdup( buff );
 	}
 	else if( strcmp( lastname, "NTPServer2" )==0 )
 	{
-		mib_get(MIB_NTP_SERVER_IP2, (void *)&ipAddr);
+		mib_get(MIB_NTP_SERVER_IP3, (void *)&ipAddr);
+		strcpy( buff, inet_ntoa(ipAddr) );
+
+                *data=strdup( buff );
+	}
+	else if( strcmp( lastname, "NTPServer3" )==0 )
+	{
+		mib_get(MIB_NTP_SERVER_IP4, (void *)&ipAddr);
+		strcpy( buff, inet_ntoa(ipAddr) );
+
+                *data=strdup( buff );
+	}
+	else if( strcmp( lastname, "NTPServer4" )==0 )
+	{
+		mib_get(MIB_NTP_SERVER_IP5, (void *)&ipAddr);
+		strcpy( buff, inet_ntoa(ipAddr) );
+
+                *data=strdup( buff );
+	}
+	else if( strcmp( lastname, "NTPServer5" )==0 )
+	{
+		mib_get(MIB_NTP_SERVER_IP6, (void *)&ipAddr);
 		strcpy( buff, inet_ntoa(ipAddr) );
 
                 *data=strdup( buff );
@@ -279,6 +330,7 @@ int setTime(char *name, struct CWMP_LEAF *entity, int type, void *data)
 	char	*lastname = entity->info->name;
 	char	*buf=data;
 	unsigned char vChar=0;
+	unsigned int vInt=0;
 	
 	if( (name==NULL) || (data==NULL) || (entity==NULL)) return -1;
 #ifdef _PRMT_X_CT_COM_DATATYPE
@@ -320,13 +372,13 @@ int setTime(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		if(inet_aton( buf, &in )==0) return ERR_9007;
 		
 		//always set to "Manual IP Setting"
-		vChar=1;
-		mib_set( MIB_NTP_SERVER_ID, (void *)&vChar);
+		vInt=1;
+		mib_set( MIB_NTP_SERVER_ID, (void *)&vInt);
 		mib_set(MIB_NTP_SERVER_IP2, (void *)&in);
 #else
 		//always set to "Manual IP Setting"
-		vChar=1;
-		mib_set( MIB_NTP_SERVER_ID, (void *)&vChar);
+		vInt=1;
+		mib_set( MIB_NTP_SERVER_ID, (void *)&vInt);
 		mib_set(MIB_NTP_SERVER_HOST2, (void *)buf);
 #endif
 /*ping_zhang:20081017 END*/
@@ -346,8 +398,8 @@ int setTime(char *name, struct CWMP_LEAF *entity, int type, void *data)
 		if(strlen(buf)==0) return ERR_9007;
 		
 		//always set to "Manual IP Setting"
-		vChar=1;
-		mib_set( MIB_NTP_SERVER_ID, (void *)&vChar);
+		vInt=1;
+		mib_set( MIB_NTP_SERVER_ID, (void *)&vInt);
 		mib_set(MIB_NTP_SERVER_HOST1, (void *)buf);
 #ifdef _CWMP_APPLY_
 		apply_add( CWMP_PRI_N, apply_NTP, CWMP_RESTART, 0, NULL, 0 );
@@ -355,7 +407,56 @@ int setTime(char *name, struct CWMP_LEAF *entity, int type, void *data)
 #else
 		return 1;
 #endif //_CWMP_APPLY_
-#endif
+#else
+	}else if( strcmp( lastname, "NTPServer2" )==0 )
+	{
+		struct in_addr in;
+		
+		if(buf==NULL) return ERR_9007;
+		if(strlen(buf)==0) return ERR_9007;
+		if(inet_aton( buf, &in )==0) return ERR_9007;
+		
+		//always set to "Manual IP Setting"
+		vInt=2;
+		mib_set( MIB_NTP_SERVER_ID, (void *)&vInt);
+		mib_set(MIB_NTP_SERVER_IP3, (void *)&in);
+	}else if( strcmp( lastname, "NTPServer3" )==0 )
+	{
+		struct in_addr in;
+		
+		if(buf==NULL) return ERR_9007;
+		if(strlen(buf)==0) return ERR_9007;
+		if(inet_aton( buf, &in )==0) return ERR_9007;
+		
+		//always set to "Manual IP Setting"
+		vInt=3;
+		mib_set( MIB_NTP_SERVER_ID, (void *)&vInt);
+		mib_set(MIB_NTP_SERVER_IP4, (void *)&in);
+	}else if( strcmp( lastname, "NTPServer4" )==0 )
+	{
+		struct in_addr in;
+		
+		if(buf==NULL) return ERR_9007;
+		if(strlen(buf)==0) return ERR_9007;
+		if(inet_aton( buf, &in )==0) return ERR_9007;
+		
+		//always set to "Manual IP Setting"
+		vInt=4;
+		mib_set( MIB_NTP_SERVER_ID, (void *)&vInt);
+		mib_set(MIB_NTP_SERVER_IP5, (void *)&in);
+	}else if( strcmp( lastname, "NTPServer5" )==0 )
+	{
+		struct in_addr in;
+		
+		if(buf==NULL) return ERR_9007;
+		if(strlen(buf)==0) return ERR_9007;
+		if(inet_aton( buf, &in )==0) return ERR_9007;
+		
+		//always set to "Manual IP Setting"
+		vInt=5;
+		mib_set( MIB_NTP_SERVER_ID, (void *)&vInt);
+		mib_set(MIB_NTP_SERVER_IP6, (void *)&in);
+#endif // _PRMT_WT107_
 /*ping_zhang:20081217 END*/
 /*ping_zhang:20081217 START:telefonica tr069 new request: new parameter of WT-107*/
 #ifndef _PRMT_WT107_

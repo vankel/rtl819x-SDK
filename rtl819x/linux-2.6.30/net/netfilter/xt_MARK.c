@@ -58,7 +58,7 @@ mark_tg_v1(struct sk_buff *skb, const struct xt_target_param *par)
 		mark = skb->mark | markinfo->mark;
 		break;
 	}
-
+	
 	skb->mark = mark;
 	return XT_CONTINUE;
 }

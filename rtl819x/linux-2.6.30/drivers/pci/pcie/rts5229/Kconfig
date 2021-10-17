@@ -1,0 +1,8 @@
+
+
+config PCIE_RTS5229
+	boolean "RTS5229 PCIe CardReader support"
+	depends on PCIEPORTBUS
+	default y
+	help
+	  This enables PCI Express RTS5229 support.

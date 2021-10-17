@@ -55,6 +55,7 @@ extern void ACMWLEC_g168(char chid, short *pRin, short *pSin, short *pEx);
 
 __pcmIsr02 static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 {
+	extern unsigned char support_lec_g168[];
 	int /*i,*/ ii, j, SessNum;
 	uint32 rx_rp, ssid;
 	unsigned int stmp;
@@ -106,7 +107,7 @@ __pcmIsr02 static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref
 		 * 	Line Echo Canceller	      *
 		 *                                    *
 		 ****************************************************/
-		if (EC168_GetFlag(chid) == 1)
+		if (support_lec_g168[chid] == 1)
 		{
 			if( 0 ) {//rx_mute[chid] == 1)	// bus_fifo do it 
 #ifdef USE_MEM64_OP

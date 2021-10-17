@@ -37,6 +37,12 @@
 #ifdef CONFIG_AUTO_DHCP_CHECK
 #define NETLINK_RTK_EVENTD 26
 #endif
+#define NETLINK_RTK_CAPWAP 26
+
+
+#if defined(CONFIG_IPV6_CE_ROUTER_SUPPORT)
+#define NETLINK_RTK_IPV6_RA 27
+#endif
 #define MAX_LINKS 32
 
 struct net;

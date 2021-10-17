@@ -9,6 +9,7 @@
 .off {display:none}
 </style>
 <script type="text/javascript" src="util_gw.js"></script>
+<% getInfo("include_css"); %>
 <script>
 var MWJ_progBar = 0;
 var time=0;
@@ -55,7 +56,7 @@ function sendClicked(F, flag)
 </head>
 <BODY>
 <blockquote>
-<h2><font color="#0000FF">802.1x Certificates Installation</font></h2>
+<h2>802.1x Certificates Installation</h2>
 
 <form method="post" action="/boafrm/formUpload8021xUserCert" enctype="multipart/form-data" name="upload8021xUserCert">
 <table border="0" cellspacing="4" width="500">

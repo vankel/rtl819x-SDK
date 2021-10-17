@@ -25,6 +25,9 @@
 #include "boa.h"
 #include "escape.h"
 
+#ifdef SERVER_SSL
+#include <openssl/ssl.h>
+#endif
 /*
  * Name: req_write
  *
@@ -205,6 +208,7 @@ int req_write_escape_html(request * req, const char *msg)
 
 int req_flush(request * req)
 {
+    //printf("%s\n", __FUNCTION__);
     unsigned bytes_to_write;
 
     bytes_to_write = req->buffer_end - req->buffer_start;
@@ -214,8 +218,19 @@ int req_flush(request * req)
     if (bytes_to_write) {
         int bytes_written;
 
+#ifdef SERVER_SSL
+	if(req->ssl == NULL)
+#endif
+	{
         bytes_written = write(req->fd, req->buffer + req->buffer_start,
                               bytes_to_write);
+	}
+#ifdef SERVER_SSL
+	else{
+		//printf("<%s:%d>SSL_Write\n", __FUNCTION__, __LINE__);
+		bytes_written = SSL_write(req->ssl, req->buffer + req->buffer_start, bytes_to_write);
+	}
+#endif
 
         if (bytes_written < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)

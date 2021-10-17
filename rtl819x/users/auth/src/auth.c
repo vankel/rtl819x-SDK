@@ -95,11 +95,14 @@ u_char svraddr[ ETHER_ADDRLEN];
 u_char ourip[IP_ADDRSIZE+1];
 
 #ifdef RTL_WPA_CLIENT
-#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT)
+#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) || defined(CLIENT_TLS)
 	char xsup_conf[50];				
 #endif
 #endif
 
+#if defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
+	char ethsup_conf[50];				
+#endif
 
 /*
 * Determine IP and ETH addresses
@@ -161,7 +164,6 @@ int lib1x_init_fifo(Dot1x_Authenticator *auth, char *wlan_name)
 	struct stat status;
 	char 	fifo_name[80];
 
-
                 /* create server's well-known FIFO; OK if already exists */
 	/*
         if((mkfifo(DAEMON_FIFO, FILE_MODE) < 0) )
@@ -182,6 +184,7 @@ int lib1x_init_fifo(Dot1x_Authenticator *auth, char *wlan_name)
 	auth->GlobalTxRx->readfifo = open(fifo_name, O_RDONLY, 0);
 
 	if( (flags = fcntl(auth->GlobalTxRx->readfifo, F_GETFL, 0)) < 0)
+
 	{
 		printf("F_GETF: error\n");
 		retVal = -1;
@@ -190,12 +193,11 @@ int lib1x_init_fifo(Dot1x_Authenticator *auth, char *wlan_name)
 		flags |= O_NONBLOCK;
 		if( (flags = fcntl(auth->GlobalTxRx->readfifo, F_SETFL, flags)) < 0)
 		{
-        		printf("F_GETF: error\n");
+        	printf("F_GETF: error\n");
 			retVal = -1;
 		}
 	}
         auth->GlobalTxRx->dummyfd = open(fifo_name, O_WRONLY, 0);
-
 
 	auth->GlobalTxRx->RListenFIFO.Octet = (u_char*)malloc(100);
 
@@ -241,7 +243,7 @@ void TestPassPhrases();
 void TestPRF();
 void TestRC4();
 
-#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) || defined(CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT)
 #define FAILED -1
 #define SUCCESS 0
 
@@ -446,6 +448,42 @@ int prepareClientMode1xConf(Dot1x_Authenticator * auth, const char *outFile)
 					continue;
 				}
 			}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+			else if(auth->ethDot1xMode & ETH_DOT1X_CLIENT_MODE){
+				ptr=strstr(buffer, "#eap_tls_user_cert_eth#");
+				if(ptr != NULL){
+					//To rm "#eap_tls_user_cert_eth#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_tls_user_cert_eth#");
+					strcpy(tmpBuf, ptr);
+					
+					fputs(tmpBuf, outFp);
+					continue;
+				}
+
+				ptr=strstr(buffer, "#eap_tls_user_key_eth#");
+				if(ptr != NULL){
+					//To rm "#eap_tls_user_key_eth#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_tls_user_key_eth#");
+					strcpy(tmpBuf, ptr);
+					
+					fputs(tmpBuf, outFp);
+					continue;
+				}
+
+				ptr=strstr(buffer, "#eap_tls_root_cert_eth#");
+				if(ptr != NULL){
+					//To rm "#eap_tls_root_cert_eth#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_tls_root_cert_eth#");
+					strcpy(tmpBuf, ptr);
+					
+					fputs(tmpBuf, outFp);
+					continue;
+				}
+			}
+#endif
 			else{
 				printf("%s(%d): [Warning] wrong auth->rsBandSel=%d.\n",__FUNCTION__,__LINE__,auth->rsBandSel);//Added for test
 				ret=FAILED;
@@ -736,6 +774,63 @@ int prepareClientMode1xConf(Dot1x_Authenticator * auth, const char *outFile)
 					}
 				}
 			}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+			else if((auth->ethDot1xMode & ETH_DOT1X_CLIENT_MODE) && (isFileExist(RS_USER_CERT_ETH) == 1)){
+				ptr=strstr(buffer, "#eap_peap_user_cert_eth#");
+				if(ptr != NULL){
+					//To rm "#eap_peap_user_cert_eth#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_peap_user_cert_eth#");
+					strcpy(tmpBuf, ptr);
+					
+					fputs(tmpBuf, outFp);
+					continue;
+				}
+
+				ptr=strstr(buffer, "#eap_peap_user_key_eth#");
+				if(ptr != NULL){
+					//To rm "#eap_peap_user_key_2g#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_peap_user_key_eth#");
+					strcpy(tmpBuf, ptr);
+					
+					fputs(tmpBuf, outFp);
+					continue;
+				}
+				if((auth->rsUserCertPasswd != NULL) && (strlen(auth->rsUserCertPasswd)!=0)){
+					ptr=strstr(buffer, "#eap_peap_user_key_pass#");
+					if(ptr != NULL){
+						//To rm "#eap_peap_user_key_pass#"
+						memset(tmpBuf, 0, sizeof(tmpBuf));
+						ptr += strlen("#eap_peap_user_key_pass#");
+
+						//To replace "@eap_peap_user_cert_passwd@"
+						p1=ptr;
+						ptr=strstr(p1, "@eap_peap_user_cert_passwd@");
+						if(ptr != NULL){
+							p2=ptr;
+							
+							len=0;
+							strncpy(tmpBuf, p1, p2-p1);
+							len=p2-p1;
+							strncpy(tmpBuf+len, auth->rsUserCertPasswd, strlen(auth->rsUserCertPasswd));
+							len+=strlen(auth->rsUserCertPasswd);
+							ptr+=strlen("@eap_peap_user_cert_passwd@");
+							strcpy(tmpBuf+len, ptr);
+
+							fputs(tmpBuf, outFp);
+							continue;
+							
+						}
+						else{
+							printf("%s(%d): [Warning] \"@eap_peap_user_cert_passwd@\" not found.\n",__FUNCTION__,__LINE__);//Added for test
+							ret=FAILED;
+							goto err;
+						}					
+					}
+				}
+			}
+#endif
 
 			if((auth->rsBandSel==PHYBAND_5G)&&(isFileExist(RS_ROOT_CERT_5G) == 1)){
 				ptr=strstr(buffer, "#eap_peap_root_cert_5g#");
@@ -761,6 +856,20 @@ int prepareClientMode1xConf(Dot1x_Authenticator * auth, const char *outFile)
 					continue;
 				}
 			}
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+			else if((auth->ethDot1xMode & ETH_DOT1X_CLIENT_MODE) && (isFileExist(RS_ROOT_CERT_ETH) == 1)){
+				ptr=strstr(buffer, "#eap_peap_root_cert_eth#");
+				if(ptr != NULL){
+					//To rm "#eap_peap_root_cert_2g#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_peap_root_cert_eth#");
+					strcpy(tmpBuf, ptr);
+					
+					fputs(tmpBuf, outFp);
+					continue;
+				}
+			}
+#endif
 			else{
 				ptr=strstr(buffer, "#eap_peap_root_cert_none#");
 				if(ptr != NULL){
@@ -777,6 +886,151 @@ int prepareClientMode1xConf(Dot1x_Authenticator * auth, const char *outFile)
 			fputs(buffer, outFp);
 		}
 	}
+#ifdef RTL_TTLS_CLIENT
+	else if(auth->eapType == EAP_TTLS)
+	{
+		inFp = fopen(XSUP_TTLS_CONF_MODULE_FILE, "r");
+		if (!inFp) {
+			printf("%s(%d): fopen %s failed.\n",__FUNCTION__,__LINE__, XSUP_PEAP_CONF_MODULE_FILE);//Added for test
+			ret=FAILED;
+			goto err;
+		}
+
+		while(fgets(buffer, sizeof(buffer), inFp) != NULL){
+			ptr=strstr(buffer, "@eap_user_id@");
+			if(ptr != NULL){
+				//To replace "@eap_user_id@"
+				memset(tmpBuf, 0, sizeof(tmpBuf));
+				p1=buffer;
+				p2=ptr;
+				
+				len=0;
+				strncpy(tmpBuf, p1, p2-p1);
+				len=p2-p1;
+				strncpy(tmpBuf+len, auth->eapUserId, strlen(auth->eapUserId));
+				len+=strlen(auth->eapUserId);
+				ptr+=strlen("@eap_user_id@");
+				strcpy(tmpBuf+len, ptr);
+
+				fputs(tmpBuf, outFp);
+				continue;
+			}
+
+			ptr=strstr(buffer, "@eap_ttls_phase2_type@");
+			if(ptr != NULL){
+				//To replace "@eap_peap_inside_type@"
+				memset(tmpBuf, 0, sizeof(tmpBuf));
+				p1=buffer;
+				p2=ptr;
+				
+				len=0;
+				strncpy(tmpBuf, p1, p2-p1);
+				len=p2-p1;
+
+				if(auth->ttlsPhase2Type == TTLS_PHASE2_EAP){
+					if(auth->ttlsPhase2EapMethod == TTLS_PHASE2_EAP_MD5){
+					strncpy(tmpBuf+len, "eap_md5", strlen("eap_md5"));
+					len+=strlen("eap_md5");
+					}
+					else{
+						printf("%s(%d): [err] auth->ttlsPhase2EapMethod(%d) not supported here.\n",__FUNCTION__,__LINE__,auth->ttlsPhase2EapMethod);
+						ret=FAILED;
+						goto err;
+					}
+				}
+				else{
+					printf("%s(%d): [err] auth->ttlsPhase2Type(%d) not supported here.\n",__FUNCTION__,__LINE__,auth->ttlsPhase2Type);
+					ret=FAILED;
+					goto err;
+				}
+				
+				ptr+=strlen("@eap_ttls_phase2_type@");
+				strcpy(tmpBuf+len, ptr);
+
+				fputs(tmpBuf, outFp);
+				continue;
+			}
+
+			if(auth->ttlsPhase2Type == TTLS_PHASE2_EAP && auth->ttlsPhase2EapMethod == TTLS_PHASE2_EAP_MD5){
+				ptr=strstr(buffer, "#eap_ttls_eap_md5_comment#");
+				if(ptr != NULL){
+					//To rm "#eap_peap_mschapv2_comment#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_ttls_eap_md5_comment#");
+					strcpy(tmpBuf, ptr);
+					
+					fputs(tmpBuf, outFp);
+					continue;
+				}
+
+				ptr=strstr(buffer, "#eap_ttls_eap_md5_username#");
+				if(ptr != NULL){
+					//To rm "#eap_peap_mschapv2_username#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_ttls_eap_md5_username#");
+
+					//To replace "@eap_peap_mschapv2_username@"
+					p1=ptr;
+					ptr=strstr(p1, "@eap_ttls_eap_md5_username@");
+					if(ptr != NULL){
+						p2=ptr;
+						
+						len=0;
+						strncpy(tmpBuf, p1, p2-p1);
+						len=p2-p1;
+						strncpy(tmpBuf+len, auth->rsUserName, strlen(auth->rsUserName));
+						len+=strlen(auth->rsUserName);
+						ptr+=strlen("@eap_ttls_eap_md5_username@");
+						strcpy(tmpBuf+len, ptr);
+
+						fputs(tmpBuf, outFp);
+						continue;
+						
+					}
+					else{
+						printf("%s(%d): [Warning] \"@eap_ttls_eap_md5_username@\" not found.\n",__FUNCTION__,__LINE__);//Added for test
+						ret=FAILED;
+						goto err;
+					}					
+				}
+
+				ptr=strstr(buffer, "#eap_ttls_eap_md5_password#");
+				if(ptr != NULL){
+					//To rm "#eap_peap_mschapv2_password#"
+					memset(tmpBuf, 0, sizeof(tmpBuf));
+					ptr += strlen("#eap_ttls_eap_md5_password#");
+
+					//To replace "@eap_peap_mschapv2_passwd@"
+					p1=ptr;
+					ptr=strstr(p1, "@eap_ttls_eap_md5_password@");
+					if(ptr != NULL){
+						p2=ptr;
+						
+						len=0;
+						strncpy(tmpBuf, p1, p2-p1);
+						len=p2-p1;
+						strncpy(tmpBuf+len, auth->rsUserPasswd, strlen(auth->rsUserPasswd));
+						len+=strlen(auth->rsUserPasswd);
+						ptr+=strlen("@eap_ttls_eap_md5_password@");
+						strcpy(tmpBuf+len, ptr);
+
+						fputs(tmpBuf, outFp);
+						continue;
+						
+					}
+					else{
+						printf("%s(%d): [Warning] \"@eap_ttls_eap_md5_password@\" not found.\n",__FUNCTION__,__LINE__);//Added for test
+						ret=FAILED;
+						goto err;
+					}					
+				}
+			}
+			
+						
+			fputs(buffer, outFp);
+		}
+	}
+#endif
 	else{
 		printf("%s(%d): [err] auth->eapType(%d) not supported here.\n",__FUNCTION__,__LINE__,auth->eapType);//Added for test
 		ret=FAILED;
@@ -794,6 +1048,195 @@ err:
 	
 	return ret;
 }
+#endif
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+void ProcEthSignalEvent(int sig)
+{
+	Dot1x_Authenticator     * auth = &RTLAuthenticator;
+	int isMore =0;
+	do{
+		isMore = lib1x_control_Eth_Poll(auth);
+	}while(isMore);
+}
+int lib1x_process_eth_eap_event(Dot1x_Authenticator *auth)
+{
+	struct lib1x_nal_intfdesc * descSupp = auth->GlobalTxRx->network_supp;
+	rtl802Dot1xEapPkt *eth_eap;
+	int isMore,port_num;
+	int suppid;
+	
+	eth_eap = (rtl802Dot1xEapPkt *)auth->GlobalTxRx->RecvBuf;	
+	auth->GlobalTxRx->network_supp->packet.data = eth_eap->item;
+	auth->GlobalTxRx->network_supp->packet.caplen = eth_eap->item_size;
+	isMore = eth_eap->flag;
+	port_num = eth_eap->rx_port_num;
+	descSupp->packet.caplen = eth_eap->item_size;
+	
+	memcpy(descSupp->packet_buffer,eth_eap->item, descSupp->packet.caplen);
+	descSupp->packet.data = descSupp->packet_buffer;
+	if(auth->currentRole == role_eth && (auth->ethDot1xMode & ETH_DOT1X_CLIENT_MODE) && ((1 << eth_eap->rx_port_num) & auth->ethDot1xClientModePortMask))
+	{
+		lib1x_suppsm_capture_auth( auth->client->global, descSupp, & descSupp->packet );
+	}else if (auth->currentRole == role_eth && (auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE) && ((1 << eth_eap->rx_port_num) & auth->ethDot1xProxyModePortMask))
+	{
+
+		suppid = lib1x_eth_search_supp(auth, &descSupp->packet, port_num);
+		if(suppid != -1 &&( !memcmp(descSupp->packet.data, auth->GlobalTxRx->oursupp_addr, ETHER_ADDRLEN )|| auth->currentRole == role_eth))
+		{
+		
+			lib1x_authsm_capture_supp(auth->Supp[suppid]->global, descSupp, & descSupp->packet);
+			lib1x_auth_process(auth);
+		}
+	}
+	return isMore;	
+}
+
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+int ethdot1x_client_mode_init(Dot1x_Authenticator *auth)
+{
+	void global_deinit(int);
+	static const int xsup_argc = 7;
+
+	struct sigaction action;
+
+	sprintf(ethsup_conf, XSUP_CONF_FILE_NAME_FMT, "eth1");
+	if(prepareClientMode1xConf(&RTLAuthenticator, ethsup_conf) == -1){
+		printf("%s(%d): prepareClientMode1xConf() failed.\n",__FUNCTION__,__LINE__);//Added for test
+	}
+	lib1x_init_supp(&RTLAuthenticator, &RTLClient);
+	static char *xsup_argv[]= { "xsuplicant", "-i", "eth1", "-c", ethsup_conf, "-d", "-1" };	//Modified for test
+	lib1x_reset_supp(RTLClient.global);
+	lib1x_message(MESS_DBG_SUPP, "Wait for packet Timeout, Resent");
+	{
+	xsup_main(xsup_argc, xsup_argv);
+
+	// When we quit, cleanup.
+	action.sa_handler = (void (*)())global_deinit;
+	action.sa_flags = 0;
+
+	if (sigaction(SIGTERM,&action,0)==-1)
+	{
+		perror( "sigaction");
+		printf("sigaction %d\n", __LINE__);
+		return 1;
+	}
+	if (sigaction(SIGINT,&action,0)==-1)
+	{
+		perror( "sigaction");
+		printf("sigaction %d\n", __LINE__);
+		return 1;
+	}
+	if (sigaction(SIGQUIT,&action,0)==-1)
+	{
+		perror( "sigaction");
+		printf("sigaction %d\n", __LINE__);
+		return 1;
+	}
+	eapol_init(int_list);
+	}
+}
+void ethdot1x_client_port_down()
+{
+	struct interface_data *incur;
+	incur = int_list;
+	if(incur != NULL)
+		eapol_cleanup(int_list);	
+}
+void ethdot1x_client_port_up()
+{
+	struct interface_data *incur;
+	incur = int_list;
+	if(incur != NULL){
+		eapol_init(int_list);
+		lib1x_reset_supp(RTLClient.global);
+	}
+}
+
+#endif
+
+	
+//extern u_char	EMPTY_ADDR;
+static u_char	EMPTY_ADDR[] = {0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE};
+int lib1x_process_eth_port_down_event(Dot1x_Authenticator *auth)
+{
+	rtl802Dot1xPortStateInfo *portinfo;
+	Global_Params *global;
+	Auth_Pae * auth_pae;
+	int isMore;
+	int i, j;
+	unsigned int portmask;
+	
+	portinfo = (rtl802Dot1xPortStateInfo *)auth->GlobalTxRx->RecvBuf;
+	portmask = portinfo->port_mask;
+	isMore = portinfo->flag;
+	
+	lib1x_message(MESS_DBG_CONTROL, "Receive port down event portmask=0x%x\n", portmask);
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	if(auth->currentRole == role_eth && (auth->ethDot1xMode & ETH_DOT1X_CLIENT_MODE) && (portmask & auth->ethDot1xClientModePortMask))
+	{
+		ethdot1x_client_port_down();
+	}
+#endif
+	for (j = 0; j < sizeof(unsigned int); j++)
+	{
+		if ((1<<j) & portmask)
+		{
+			for( i = 0; i < auth->MaxSupplicant ; i++)
+			{
+				// reduce pre-alloc memory size, david+2006-02-06			
+				//				if( auth->Supp[i]->isEnable )
+				
+				if(auth->Supp[i] && auth->Supp[i]->isEnable)
+				{
+					global = auth->Supp[i]->global;
+					auth_pae = auth->Supp[i]->global->theAuthenticator;
+					if(auth->Supp[i]->global->port_num == j)
+					{
+						
+						lib1x_control_eth_SetPORT(auth->Supp[i]->global, DOT11_PortStatus_Unauthorized);
+						
+						global->auth->Supp[global->index]->isEnable = FALSE;
+						
+						memcpy(auth_pae->supp_addr, EMPTY_ADDR, ETHER_ADDRLEN);
+						
+						//global->akm_sm->CurrentReplayCounter.field.HighPart = 0;
+						//global->akm_sm->CurrentReplayCounter.field.LowPart = 0;
+						
+						auth->Supp[i]->isEnable = FALSE;
+						global->auth->NumOfSupplicant--;
+						lib1x_message(MESS_DBG_CONTROL, "disable supplicant client portnum=%d NumOfSupplicant=%d\n", j, global->auth->NumOfSupplicant);
+						
+					}
+				}
+			}
+		}
+	}
+	
+	return isMore;	
+}
+int lib1x_process_eth_port_up_event(Dot1x_Authenticator *auth)
+{
+	rtl802Dot1xPortStateInfo *portinfo;
+	int isMore;
+	int i, j;
+	unsigned int portmask;
+	
+	portinfo = (rtl802Dot1xPortStateInfo *)auth->GlobalTxRx->RecvBuf;
+	portmask = portinfo->port_mask;
+	isMore = portinfo->flag;
+	
+	lib1x_message(MESS_DBG_CONTROL, "Receive port up event portmask=0x%x\n", portmask);
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	if(auth->currentRole == role_eth && (auth->ethDot1xMode & ETH_DOT1X_CLIENT_MODE) && (portmask & auth->ethDot1xClientModePortMask))
+	{
+		ethdot1x_client_port_up();
+	}
+#endif
+	return isMore; 
+}
+
 #endif
 
 #ifdef START_AUTH_IN_LIB
@@ -827,6 +1270,10 @@ int  main( int numArgs, char ** theArgs )
 			RTLAuthenticator.currentRole = role_Authenticator;
 		else if(!strcmp(theArgs[3], "wds"))
 			RTLAuthenticator.currentRole = role_wds;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+		else if(!strcmp(theArgs[3],"eth"))
+			RTLAuthenticator.currentRole = role_eth;
+#endif
 		else {
 			printf("\nArgument 4 is invalid. Valid value are: auth, client-infra or client-adhoc\n");
 			exit(1);
@@ -952,7 +1399,7 @@ int  main( int numArgs, char ** theArgs )
 	}
 //-------------------------------
 
-	
+
 	lib1x_print_etheraddr( eth, oursvr_addr );
 	lib1x_print_etheraddr( eth, oursupp_addr );
 
@@ -966,6 +1413,7 @@ int  main( int numArgs, char ** theArgs )
 #else
 	printf("IEEE 802.1x (WPA) daemon, version 1.8f \n");
 #endif	/* CONFIG_RTL865X */
+
 
 	RTLAuthenticator.GlobalTxRx = (TxRx_Params *)lib1x_init_txrx(
 			&RTLAuthenticator,  oursvr_addr, svraddr, oursupp_addr, ourip,
@@ -994,6 +1442,9 @@ int  main( int numArgs, char ** theArgs )
 					(RTLAuthenticator.currentRole != role_wds)) {
 
 #if 0 //ndef START_AUTH_IN_LIB
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+		if(RTLAuthenticator.currentRole != role_eth)
+#endif
 		if(lib1x_init_fifo(&RTLAuthenticator, dev_supp)) {
 			printf("auth-%s:create fifo error \n", dev_supp);
 			return -1;
@@ -1016,7 +1467,7 @@ int  main( int numArgs, char ** theArgs )
 	}
 	
 #ifdef RTL_WPA_CLIENT
-#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT)
+#if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) 
 	sprintf(xsup_conf, XSUP_CONF_FILE_NAME_FMT, theArgs[1]);
 #endif
 #endif
@@ -1026,12 +1477,15 @@ int  main( int numArgs, char ** theArgs )
 	//lib1x_control_InitPMF(auth);
 #endif
 /*HS2 SUPPORT*/
-
 #ifdef RTL_WPA_CLIENT
-	if ( auth->currentRole !=  role_Authenticator){
+	if ( auth->currentRole !=  role_Authenticator
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+		||(RTLAuthenticator.currentRole != role_eth)
+#endif
+		){
 		lib1x_init_supp(&RTLAuthenticator, &RTLClient);
 	}
-// david ----------------------
+    // david ----------------------
 	if ( (auth->currentRole == role_Supplicant_adhoc) || (auth->currentRole == role_wds)) {
         lib1x_control_STA_SetGTK(auth->client->global, auth->RSNVariable.PassPhraseKey, 0);
 		if (auth->currentRole == role_Supplicant_adhoc) {
@@ -1039,6 +1493,22 @@ int  main( int numArgs, char ** theArgs )
 			lib1x_control_InitQueue(auth);
 		}
 	}
+	
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+				if((RTLAuthenticator.currentRole == role_eth)){
+					
+					lib1x_control_eth_register_pid(auth);
+					
+					signal(SIGIO, ProcEthSignalEvent);
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+					if(RTLAuthenticator.currentRole == role_eth && (RTLAuthenticator.ethDot1xMode & ETH_DOT1X_CLIENT_MODE)){
+						
+						ethdot1x_client_mode_init(&RTLAuthenticator);
+					}
+				
+#endif
+				}
+#endif
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 	if(auth->currentRole ==  role_Supplicant_infra){
 		// To parse wlan client mode related to 802.1x 
@@ -1052,15 +1522,15 @@ int  main( int numArgs, char ** theArgs )
     //----------------------------
 #endif
 
-// david
-// kenny
+    // david
+    // kenny
 	lib1x_init_authTimer( &RTLAuthenticator);
 
-//	printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
-//				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
-
-//	printf("%s(%d): auth->RSNVariable.Dot1xEnabled(%d), auth->RSNVariable.RSNEnabled(%d), auth->RSNVariable.MacAuthEnabled(%d)=============== \n",__FUNCTION__,__LINE__,
-//				auth->RSNVariable.Dot1xEnabled,auth->RSNVariable.RSNEnabled,auth->RSNVariable.MacAuthEnabled);//Added for test
+    //	printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
+    //				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
+    //	printf("%s(%d): auth->RSNVariable.Dot1xEnabled(%d), auth->RSNVariable.RSNEnabled(%d), auth->RSNVariable.MacAuthEnabled(%d)=============== \n",__FUNCTION__,__LINE__,
+    //				auth->RSNVariable.Dot1xEnabled,auth->RSNVariable.RSNEnabled,auth->RSNVariable.MacAuthEnabled);//Added for test
+    
 	while(1)
 	{
 		//----if 0802
@@ -1091,28 +1561,22 @@ int  main( int numArgs, char ** theArgs )
 #ifdef RTL_WPA_CLIENT
 
 #ifdef CLIENT_TLS
-//			printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
-//				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
+
 			if(auth->currentRole == role_Supplicant_infra
-			    && RTLClient.global->AuthKeyMethod == DOT11_AuthKeyType_RSN)
+			    &&( RTLClient.global->AuthKeyMethod == DOT11_AuthKeyType_RSN 			    
+			    	|| RTLClient.global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)
+			   )	
 			{
 				static int xsup_inited = 0;
 				static int not_associated = 1;
 				static int reset_xsup = 0;
 				not_associated = lib1x_control_STA_QUERY_BSSID(RTLClient.global);
 
-//			printf("%s(%d): not_associated(%d), xsup_inited(%d)=============== \n",__FUNCTION__,__LINE__,
-//				not_associated,xsup_inited);//Added for test
-
 				if ( not_associated != 0) {
-					//printf("%s role_Supplicant_infra not associated!\n", __FUNCTION__);//Added for test
-					//printf(".");
+
 					if ((xsup_inited == 1) && (reset_xsup==0)) {
-						//statemachine_reset(int_list);
 						eapol_cleanup(int_list);
 						reset_xsup = 1;
-
-						//printf("set xsup_inited = %d\n", xsup_inited);
 					}
 
 					continue;
@@ -1181,8 +1645,18 @@ int  main( int numArgs, char ** theArgs )
 			else if ( (auth->currentRole == role_Supplicant_adhoc) ||
 						(auth->currentRole == role_wds))
 				break;
-
+			#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+			else if( auth ->currentRole == role_eth && (auth ->ethDot1xMode & ETH_DOT1X_PROXY_MODE)){
+				lib1x_do_authenticator( &RTLAuthenticator );
+			}
+			#endif
+			#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+			else if(auth ->currentRole == role_eth && (auth ->ethDot1xMode & ETH_DOT1X_CLIENT_MODE)){
+				sleep(2);
+			}
+			#endif
 			else
+
 #endif
             {
     			lib1x_do_authenticator( &RTLAuthenticator );
@@ -1194,9 +1668,9 @@ int  main( int numArgs, char ** theArgs )
             			if (!(cnt++%10))
             				lib1x_timer_authenticator(SIGALRM);
 
-			usleep(10000);
-*/
-//----------------
+            			usleep(10000);
+                    */
+            //----------------
 
 		}
 		else

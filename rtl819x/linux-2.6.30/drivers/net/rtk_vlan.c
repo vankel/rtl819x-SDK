@@ -3,8 +3,13 @@
  *
  *      $Id: rtk_vlan.c,v 1.5 2009/06/09 12:58:30 davidhsu Exp $
  */
-
+#include <linux/version.h>
+	 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include <linux/kconfig.h>
+#else
 #include <linux/config.h>
+#endif
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/compiler.h>
@@ -52,7 +57,7 @@ static unsigned char wan_macaddr[6] = {0};
 unsigned char lan_macaddr[6] = {0};
 
 unsigned char BRCST_MAC[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
-static unsigned short eth_arp = 0x0806;
+//static unsigned short eth_arp = 0x0806;
 
 int is_management_packets(struct sk_buff *skb)
 {
@@ -196,6 +201,7 @@ int rtl_add_vlan_info(struct vlan_info *info, struct net_device *dev)
 		DEBUG_ERR("VLAN info. list is FULL\n");
 		return -1;
 	}
+    return -1;
 }
 
 int rtl_delete_vlan_info(struct net_device *dev)
@@ -390,7 +396,7 @@ int  rx_vlan_process(struct net_device *dev, struct vlan_info *info, struct sk_b
 			}
 
 	}
-	
+
 	return 0;
 }
 

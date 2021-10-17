@@ -1,0 +1,30 @@
+include ../.linux_config
+
+OBJS = voip_flash_client.o
+LIBS = libvoip_flash_client.a
+
+#CFLAGS = -g -Wall -I../includes -I../ui/include -I../../goahead-2.1.1/LINUX -fPIC
+#CFLAGS = -g -Wall -I../includes -I../ui/include -I../../boa/apmib/ -fPIC
+ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxE
+CFLAGS = -g -Wall -I$(DIR_USERS)/rtk_voip-89xxE/includes -I$(DIR_USERS)/rtk_voip-89xxE/ui/include -I$(DIR_USERS)/boa/apmib/ -fPIC
+else
+CFLAGS = -g -Wall -I$(DIR_USERS)/rtk_voip/includes -I$(DIR_USERS)/rtk_voip/ui/include -I$(DIR_USERS)/boa/apmib/ -fPIC
+endif
+
+LDFLAGS = --static
+
+DEPENDENCY	= $(OBJS:.o=.d)
+
+all: $(LIBS) 
+
+$(LIBS): $(OBJS)
+	$(AR) rcs $@ $<
+
+%.o: %.c
+	$(CC) -c -o $@ $(CFLAGS) $<
+	$(CC) -M $(CFLAGS) $< | sed -e "s#^$(*F).o[ :]*#$(@D)\/$(*F).o : #" > $(@:.o=.d)
+
+clean:
+	rm -f $(LIBS) $(OBJS) *.d
+
+-include $(DEPENDENCY)

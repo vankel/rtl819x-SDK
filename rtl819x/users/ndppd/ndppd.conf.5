@@ -1,0 +1,103 @@
+.\" Process this file with
+.\" groff -man -Tascii ndppd.conf.5
+.\"
+.TH NDPPD\&.CONF 5 "9/18/2011" "NDP Proxy Daemon Manual" "NDP Proxy Daemon Manual"
+.SH NAME
+ndppd.conf \- configuration file for ndppd
+.SH DESCRIPTION
+The syntax is as follows:
+.PP
+.EX
+proxy eth0 {
+   rule 1234:5678::/96 {
+   }
+}
+.EE
+.PP
+The configuration file must contain one or more
+.B proxy
+sections, and each of these section must contain one or more
+.B rule
+sections.
+.PP
+The
+.B ndppd
+daemon listens on the interface specified as an argument to the
+.B proxy
+section. Once a
+.B Neighbor Solicitation
+message arrives, it will try to match the target address against
+the address specified as the argument of the
+.B rule
+section. 
+.SH OPTIONS
+.IP "proxy <interface>"
+Adds a proxy and binds it to the specified
+.IR interface .
+See below for information about
+.BR "proxy options" .
+.SH PROXY OPTIONS
+.IP "rule <address>"
+Adds a rule with the specified
+.I address
+to the proxy. It may be a an IP such as 1234::1 or a subnet such
+as 1111::/96. See below for information about
+.BR "rule options" .
+.IP "ttl <value>"
+Controls how long
+.B ndppd
+will cache an entry. This is in milliseconds, and the default value 
+is 30000 (30 seconds).
+.IP "timeout <value>"
+Controls how long
+.B ndppd
+will wait for a Neighbor Advertisement message after forwarding
+a Neighbor Solicitation message according to the rule. This is
+in milliseconds, and the default value is 500 (.5 second).
+.IP "router <yes|no>"
+Controls if
+.B ndppd
+should send the
+.I router
+bit when sending Neighbor Advertisement messages. The default
+value here is
+.BR yes .
+.SH RULE OPTIONS
+Specify a method here. See below.
+.SH METHOD
+One of the following options must be specified in the
+.B rule
+section. All of these are mutually exclusive options, and cannot
+be combined.
+.IP "iface <interface>"
+Specify which
+.I interface
+the Neighbor Solicitation message will be sent out through.
+.IP "auto"
+.B (NEW)
+If this option is specified
+.B ndppd
+will attempt to detect which interface to use in order to forward
+Neighbor Solicitation Messages, by reading the routing table
+.BR /proc/net/ipv6_route .
+.IP "static"
+.B (NEW)
+This option tells
+.B ndppd
+that it should immediately respond to a Neighbor Solicitation Message
+without querying an internal interface.
+Note that it's recommended that you use this option sparingly, and with
+as high prefix length as possible. This is to make sure upstream routers
+are not polluted with spurious neighbor entries.
+
+If no rule option has been specified, it will default to
+.B static
+in order to be compatible with
+.BR 0.2.1 .
+This will, however, produce a warning, and most likely not work in
+future versions of
+.BR ndppd .
+.SH AUTHOR
+Daniel Adolfsson <daniel@priv.nu>
+.SH "SEE ALSO"
+.BR ndppd(1)

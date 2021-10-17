@@ -98,10 +98,6 @@ endif
 ifeq ($(CONFIG_RTL_8196D_GW),y)
 CONFIG_FILE = config-gw-96d-92d.txt
 CONFIG_DAT  = config-gw-96d-92d.dat
-ifeq ($(CONFIG_SLOT_0_8192EE),y)
-CONFIG_FILE = config-gw-96d-88e.txt
-CONFIG_DAT  = config-gw-96d-92e.dat
-endif
 endif
 
 ifeq ($(CONFIG_RTL_8197D_GW),y)
@@ -168,6 +164,13 @@ CONFIG_FILE = config-gw-8881A-selective.txt
 CONFIG_DAT  = config-gw-8881A-selective.dat
 endif
 endif
+
+ifeq ($(CONFIG_RTL_DEF_SETTING_IN_FW),y)
+#ifneq ($(CONFIG_RTL_8198C),y)
+CONFIG_FILE = config-example.txt
+CONFIG_DAT=config.dat
+#endif
+endif
 #------------------------------------------------------------------------------
 # all
 #------------------------------------------------------------------------------	
@@ -187,6 +190,9 @@ endif   #CONFIG_RTL_8197D_AP_ROOT
 endif	#CONFIG_RTL_8198_AP_ROOT
 endif	#CONFIG_RTL_8198_INBAND_AP
 endif	#CONFIG_RTL_8196C_iNIC
+endif
+ifeq ($(CONFIG_RTL_DEF_SETTING_IN_FW),y)
+	./bin2c.pl def_setting_data < $(CONFIG_DAT) > ../apmib/def_setting_config.h
 endif
 #------------------------------------------------------------------------------
 # clean

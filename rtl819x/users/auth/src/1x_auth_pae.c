@@ -72,9 +72,8 @@ void lib1x_authsm_execute_authsm( Global_Params * global );
 
 BOOLEAN lib1x_trans_authsm( Global_Params * global );
 
+void lib1x_process_radiusdisconreq( Global_Params * global, struct lib1x_packet * spkt);
 
-
-//----if 0706
 void lib1x_handle_eapol_start(Global_Params * global);
 void lib1x_handle_eapsupp( Global_Params * global,  struct lib1x_packet * pkthdr);
 void lib1x_handle_eapsvr( Global_Params * global, u_char * packet , struct lib1x_packet * pkthdr);
@@ -93,6 +92,11 @@ int lib1x_acct_request_on( Auth_Pae * auth_pae);
 void lib1x_handle_eapsupp_key( Global_Params * global,  struct lib1x_packet * pkthdr);
 #endif
 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+unsigned int lib1x_get_eap_identifier(unsigned int portnum, unsigned char *macaddr);
+void lib1x_add_portinfo_to_eap_pkt(unsigned char *sendbuff, int *size, int buffsize, unsigned int portnum);
+//void lib1x_period_send_EAPRequestID_Timer_proc(Dot1x_Authenticator *auth);
+#endif
 extern Dot1x_Authenticator     RTLAuthenticator;
 u_char lib1x_nas_id[MAX_NAS_ID_LEN]="Realtek Access Point. 8186";
 
@@ -206,8 +210,12 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 		dev_txrx->radsvraddr.sin_addr.s_addr = inet_addr( svrip_addr );
 		if ((auth->currentRole != role_Supplicant_adhoc) &&
 						(auth->currentRole != role_wds)) {
+
 #ifndef START_AUTH_IN_LIB
 			auth->GlobalTxRx = dev_txrx;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+			if(auth->currentRole != role_eth)
+#endif
 			if(lib1x_init_fifo(auth, dev_supp)) {
 				printf("auth-%s:create fifo error \n", dev_supp);
 				return -1;
@@ -215,38 +223,38 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 #endif
 		}
 
-		
 		//---------------------------------
 		// wireless device initialization
 		//---------------------------------
 		dev_txrx->device_supp = (u_char*)malloc(IFNAMSIZ + 10);
 		memset( dev_txrx->device_supp, 0, sizeof(dev_txrx->device_supp));
-			strcpy( dev_txrx->device_supp, dev_supp );
-			dev_txrx->network_supp =  lib1x_nal_initialize( dev_txrx->device_supp, oursupp_addr, LIB1X_IT_PKTSOCK);
-		
-			//---------------------------------
+		strcpy( dev_txrx->device_supp, dev_supp );
+		dev_txrx->network_supp =  lib1x_nal_initialize( dev_txrx->device_supp, oursupp_addr, LIB1X_IT_PKTSOCK);
+
+		//---------------------------------
 		// wireless device initialization
 		//---------------------------------
-			dev_txrx->device_wlan0 = (u_char*)malloc(IFNAMSIZ + 10);
-			memset( dev_txrx->device_wlan0, 0, sizeof(dev_txrx->device_wlan0));
+		dev_txrx->device_wlan0 = (u_char*)malloc(IFNAMSIZ + 10);
+		memset( dev_txrx->device_wlan0, 0, sizeof(dev_txrx->device_wlan0));
 		//sc_yang
 		//strncpy( dev_txrx->device_wlan0, "wlan0", sizeof("wlan0") );
 		strcpy( dev_txrx->device_wlan0, dev_txrx->device_supp);
-		
-		
+
+
 		//---------------------------------
 		// driver interface initialization
 		//---------------------------------
 		dev_txrx->fd_control = lib1x_control_init();
 
 
-		
+
 #ifdef _RTL_WPA_UNIX
 		lib1x_init_authRSNConfig(auth);
 #endif
 #ifdef CONFIG_IEEE80211W
 		lib1x_control_InitPMF(auth);
 #endif
+
 
 		if(lib1x_nal_connect( dev_txrx->network_svr,  & dev_txrx->radsvraddr, sizeof(struct sockaddr_in ), LIB1X_IT_UDPSOCK_AUTH) < 0)
 		{
@@ -333,7 +341,6 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 	}
 
 #endif // !PSK_ONLY        
-
 #if 0
 	//---------------------------------
 	// wireless device initialization
@@ -351,8 +358,18 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 	//sc_yang
 	//strncpy( dev_txrx->device_wlan0, "wlan0", sizeof("wlan0") );
 	strcpy( dev_txrx->device_wlan0, dev_txrx->device_supp);
+#endif
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth->currentRole == role_eth){
+		dev_txrx->device_eth0 = (u_char*)malloc(IFNAMSIZ + 10);
+	    memset( dev_txrx->device_eth0, 0, sizeof(dev_txrx->device_eth0));
+		//sc_yang
+		//strncpy( dev_txrx->device_wlan0, "wlan0", sizeof("wlan0") );
+		strcpy( dev_txrx->device_eth0, dev_txrx->device_supp);
+	}
+#endif
 
-
+#if 0
 	//---------------------------------
 	// driver interface initialization
 	//---------------------------------
@@ -507,7 +524,7 @@ int lib1x_init_authRSNConfig(Dot1x_Authenticator * auth)
 #endif
 
 #ifdef RTL_WPA_CLIENT
-	if ( auth->currentRole != role_Supplicant_adhoc && auth->currentRole != role_wds)
+	if ( auth->currentRole != role_Supplicant_adhoc && auth->currentRole != role_wds && auth->currentRole != role_eth )
 #endif
 	{
 		//Set RSNIE and
@@ -611,6 +628,11 @@ Global_Params *  lib1x_init_authenticator(Dot1x_Authenticator *auth, TxRx_Params
 	lib1x_acctsm_init( acct_sm, auth->accountRsMaxReq, auth->accountRsAWhile);
 
 	// 8. Initialize Authenticator Port Access Entity .. state machine also !
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth->currentRole == role_eth){
+		auth_pae->state = apsm_Initialize;
+	}else
+#endif
 	auth_pae->state = apsm_Connecting;
 	auth_pae->eapLogoff = FALSE;
 	auth_pae->eapStart = FALSE;
@@ -621,6 +643,11 @@ Global_Params *  lib1x_init_authenticator(Dot1x_Authenticator *auth, TxRx_Params
 
  	// the constants
 	auth_pae->quietPeriod = LIB1X_AP_QUIET_PERIOD;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth->currentRole == role_eth){
+		auth_pae->reAuthMax = LIB1X_AP_ETH_REAUTHMAX;
+	}else
+#endif
 	auth_pae->reAuthMax = LIB1X_AP_REAUTHMAX;
 	auth_pae->txPeriod = LIB1X_AP_TXPERIOD;
 	//auth_pae->reAuthMax = global->auth->rsReAuthMax;
@@ -860,6 +887,11 @@ void lib1x_reset_authenticator(Global_Params * global)
 	lib1x_acctsm_init( auth_pae->acct_sm, auth->accountRsMaxReq, auth->accountRsAWhile);
 
 	// 8. Initialize Authenticator Port Access Entity .. state machine also !
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth->currentRole == role_eth){
+		auth_pae->state = apsm_Initialize;
+	}else
+#endif
 #ifdef RTL_WPA2
 	if (global->RSNVariable.PMKCached) {
 		auth_pae->state = apsm_Authenticated;
@@ -877,6 +909,11 @@ void lib1x_reset_authenticator(Global_Params * global)
 
  // the constants
 	auth_pae->quietPeriod = LIB1X_AP_QUIET_PERIOD;
+ #ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	 if(auth->currentRole == role_eth){
+		 auth_pae->reAuthMax = LIB1X_AP_ETH_REAUTHMAX;
+	 }else
+#endif
 	auth_pae->reAuthMax = LIB1X_AP_REAUTHMAX;
 	auth_pae->txPeriod = LIB1X_AP_TXPERIOD;
 	//auth_pae->reAuthMax = global->auth->rsReAuthMax;
@@ -1164,7 +1201,57 @@ int lib1x_timer_authenticator(int signum)
 	}
 #endif
 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	else if(auth->currentRole == role_eth && (auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+	{
 
+
+		//----Ignore EAPOL_SATRT within 3 seconds after receiving association request
+		if((Counter % (auth->IgnoreEAPOLStartCounter)) == 0)
+		{
+			lib1x_akmsm_EAPOLStart_Timer_proc(auth);
+		}
+
+		//----Re-sent request id
+		#if 0
+		if((Counter % (auth->PeriodSendEAPRequestIDCounter))==0){
+			lib1x_period_send_EAPRequestID_Timer_proc(auth);
+		}
+		#endif
+	
+
+
+
+
+		//ToDo  : Implement re-send packet mechanism!!!
+		if( (Counter % (auth->AuthTimerCount)) == 0)
+		{
+			//----if 0802
+			//lib1x_period_send_EAPRequestID_Timer_proc(auth);
+			if(auth->RSNVariable.Dot1xEnabled || auth->RSNVariable.MacAuthEnabled)
+			//else
+			//if(auth->RSNVariable.Dot1xEnabled)
+			//endif
+				lib1x_ptsm_timer(auth);
+
+		}
+	}
+	
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+	if(auth->currentRole == role_eth && (auth->ethDot1xMode & ETH_DOT1X_CLIENT_MODE))
+	{
+	
+				if( (Counter % (client->global->ConstTimerCount)) == 0)
+					lib1x_supp_timer_proc(client);
+				static int XsuppTimerCount = SECONDS_TO_TIMERCOUNT(1);
+				if( (Counter % (XsuppTimerCount)) == 0){
+					alrmclock();
+					lib1x_eth_1sec_timer();
+				}
+	}
+#endif
+
+#endif
 
 /*
 	if (setitimer( ITIMER_REAL, &val, 0 ) == -1)
@@ -1202,7 +1289,7 @@ void lib1x_auth_process(Dot1x_Authenticator * auth )
 	Auth_Pae 	* auth_pae;
 	BOOLEAN		transitionResult;
 	int		i;
-
+	
 	for(i = 0; i < auth->MaxSupplicant ; i++)
 	{
 // reduce pre-alloc memory size, david+2006-02-06
@@ -1295,7 +1382,13 @@ int lib1x_do_authenticator( Dot1x_Authenticator * auth )
 		lib1x_message(MESS_ERROR_FATAL, " Null argument received.");
 		exit(1);
 	}
-	if ( auth->currentRole != role_Authenticator)
+
+	if ( auth->currentRole != role_Authenticator 
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	&& (auth->currentRole != role_eth )
+#endif
+	)
+
 	{
 		lib1x_message(MESS_ERROR_FATAL, " lib1x_do_authenticator: Called with Supplicant Role.");
 		return TRUE;
@@ -1526,11 +1619,20 @@ void lib1x_authsm_capture_supp( Global_Params * global, struct lib1x_nal_intfdes
 				lib1x_acctsm_request(global, acctsm_Acct_Stop, LIB1X_ACCT_REASON_USER_REQUEST);
 				//
 			}
+			#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+			if ((global->auth->currentRole == role_eth) && (global->auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+			{
+				lib1x_control_eth_SetPORT(global, DOT11_PortStatus_Unauthorized);
+			}
+			#endif
 			lib1x_message( MESS_DBG_AUTHNET, " EAPOL LOGOFF");
 			break;
 		case	LIB1X_EAPOL_START  :
-
-			/*
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+			if(global->auth->currentRole == role_eth)
+#endif
+			{
+			
 			if(!global->akm_sm->IgnoreEAPOLStartCounter)
 			{
 				lib1x_message(MESS_DBG_SPECIAL, "*************************Receive EAPOL_START********************************\n");
@@ -1541,7 +1643,11 @@ void lib1x_authsm_capture_supp( Global_Params * global, struct lib1x_nal_intfdes
 				lib1x_message(MESS_DBG_SPECIAL, "*************************Dircard EAPOL_START\n");
 
 			}
-
+			/*
+			lib1x_message(MESS_DBG_SPECIAL, "*************************Receive EAPOL_START********************************\n");
+			auth_pae->eapStart = TRUE;
+			global->akm_sm->eapStart = TRUE;
+			*/
 			// make sure the state m/c is enabled !
 			auth_pae->isSuppPresent = TRUE;
 
@@ -1555,10 +1661,14 @@ void lib1x_authsm_capture_supp( Global_Params * global, struct lib1x_nal_intfdes
 			}
 			lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATOR> EAPOL START");
 			//---- If 0706
+			#ifdef _RTL_WPA_UNIX
+			#ifndef COMPACK_SIZE
 			lib1x_handle_eapol_start(global);
+			#endif
+			#endif
 			//----Else
 			//----Endif
-			*/
+			}
 			break;
 
 		case	LIB1X_EAPOL_EAPPKT:
@@ -1800,7 +1910,6 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 					lib1x_message(MESS_DBG_RSNINFO, "lib1x_authRSN_parseIE return Fail");
 					lib1x_message(MESS_DBG_RSNINFO, lib1x_authRSN_err(retResult));
 #ifdef RTL_WPA2
-
 					lib1x_control_AssociationRsp(global, -retResult, event);
 #else
 					lib1x_control_AssociationRsp(global, -retResult);
@@ -1819,13 +1928,11 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 #else
 				retResult = lib1x_authRSN_match(global->auth, global);
 #endif
-
 				if(retResult)
 				{
 					lib1x_message(MESS_DBG_RSNINFO, "lib1x_authRSN_match return Fail\n");
 					lib1x_message(MESS_DBG_RSNINFO, "Error Reason:%s\n", lib1x_authRSN_err(retResult));
-#ifdef RTL_WPA2              
-
+#ifdef RTL_WPA2
 					lib1x_control_AssociationRsp(global, -retResult, event);
 #else
 					lib1x_control_AssociationRsp(global, -retResult);
@@ -2117,13 +2224,40 @@ void hex_dump(void *data, int size)
     }
 }
 
+
+unsigned char *rtl_fetch_attri(void *data,int type, int *len) {
+	unsigned char *ptr = (unsigned char *)data+sizeof(struct lib1x_radiushdr);
+	int scaned_bytes=0;
+	struct lib1x_radiushdr * rhdr = (struct lib1x_radiushdr *)data;
+	
+	while(scaned_bytes < rhdr->length) {
+		int att_type = *(unsigned char *)ptr;
+		int att_length = *(unsigned char *)ptr+1;
+
+		scaned_bytes += 2;
+		/* for debug
+		printf("[Attribute] %d\n[Length] %d\n[Value]",att_type,att_length);
+		hex_dump(ptr+scaned_bytes,att_length);
+		printf("\n");
+		*/
+
+		if(att_type == type) {
+			*len = att_length;
+			break;
+		}
+		scaned_bytes += att_length;
+		ptr+=scaned_bytes;
+	}
+
+	if( scaned_bytes < rhdr->length )
+		return ptr+scaned_bytes;
+	else return NULL;
+}
+
 //--------------------------------------------------
 // Callback handler for libpcap for packets from
 // authentication server BIG TODO HERE !!!!!!!
 //--------------------------------------------------
-/* compile error for 96c and 98 */
-void lib1x_process_radiusdisconreq( Global_Params * global, struct lib1x_packet * spkt);
-
 void lib1x_authsm_capture_svr( Global_Params * global, struct lib1x_nal_intfdesc * nal, struct lib1x_packet * pkt )
 {
 	struct lib1x_radiushdr * rhdr;
@@ -2667,6 +2801,7 @@ void lib1x_handle_eapsupp( Global_Params * global,  struct lib1x_packet * pkthdr
 #ifdef _RTL_WPA_UNIX
 #ifndef COMPACK_SIZE
 //----if 0706
+
 void lib1x_handle_eapol_start(Global_Params * global)
 {
 	//---- Delete pairwise key if eapol-start is received
@@ -3072,6 +3207,13 @@ BOOLEAN lib1x_trans_authsm( Global_Params * global )
 	switch( auth_pae->state )
 	{
 		case 	apsm_Initialize:
+			#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+			if ((global->auth->currentRole == role_eth) && (global->auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+			{
+				auth_pae->state = apsm_Connecting;
+			}
+			else
+			#endif
 			auth_pae->state = apsm_Disconnected;	// Unconditional transfer
 			transitionDone = TRUE;
 			break;
@@ -3238,6 +3380,9 @@ void lib1x_auth_txCannedSuccess( Auth_Pae * auth_pae, int identifier )
 	struct lib1x_ethernet * eth_hdr;
 	Global_Params * global;
 	int size;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	unsigned char dot1x_group_mac[ETHER_HDRLEN] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+#endif
 
 	// Note: Every time this authpae sends a packet the SAME send buffer is used.
 	//
@@ -3249,6 +3394,11 @@ void lib1x_auth_txCannedSuccess( Auth_Pae * auth_pae, int identifier )
 	bzero( auth_pae->sendBuffer, size );
 
 	eth_hdr = ( struct lib1x_ethernet * ) packet;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth_pae->global->auth->currentRole == role_eth && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled))
+		memcpy ( eth_hdr->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
+	else
+#endif
 	memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
 	memcpy ( eth_hdr->ether_shost , auth_pae->global->TxRx->oursupp_addr, ETHER_ADDRLEN );
 
@@ -3272,6 +3422,12 @@ void lib1x_auth_txCannedSuccess( Auth_Pae * auth_pae, int identifier )
 	eap->length = htons(LIB1X_EAP_HDRLEN);
 
 	eapol->packet_body_length = htons(LIB1X_EAP_HDRLEN);
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	if((auth_pae->global->auth->currentRole == role_eth) && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled)&&(global->auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+	{
+		lib1x_add_portinfo_to_eap_pkt(auth_pae->sendBuffer, &size,LIB1X_AP_SENDBUFLEN, global->port_num);
+	}
+#endif
 
 	lib1x_message(MESS_DBG_AUTHNET, "Sending SUCCESS EAP packet to Supplicant");
 
@@ -3309,7 +3465,9 @@ void lib1x_auth_txReqId( Auth_Pae * auth_pae, int identifier )
 	struct lib1x_eap_rr * eaprr;
 	Global_Params * global;
 	int size;
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	unsigned char dot1x_group_mac[ETHER_HDRLEN] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+#endif
 	// Note: Every time this authpae sends a packet the SAME send buffer is used.
 	//
 
@@ -3322,7 +3480,11 @@ void lib1x_auth_txReqId( Auth_Pae * auth_pae, int identifier )
 
 
 	eth_hdr = ( struct lib1x_ethernet * ) packet;
-
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth_pae->global->auth->currentRole == role_eth && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled))
+		memcpy ( eth_hdr->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
+	else
+#endif
 	memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
 	memcpy ( eth_hdr->ether_shost , auth_pae->global->TxRx->oursupp_addr, ETHER_ADDRLEN );
 
@@ -3357,7 +3519,12 @@ void lib1x_auth_txReqId( Auth_Pae * auth_pae, int identifier )
 	eapol->packet_body_length = htons(LIB1X_EAP_HDRLEN  + 1);	// for RR field
 	eaprr = (struct lib1x_eap_rr * ) ( ( ( u_char *)eapol) + LIB1X_EAPOL_HDRLEN  + LIB1X_EAP_HDRLEN);
 	eaprr->type =  LIB1X_EAP_RRIDENTITY;
-
+	#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	if((auth_pae->global->auth->currentRole == role_eth) && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled)&&(global->auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+	{
+		lib1x_add_portinfo_to_eap_pkt(auth_pae->sendBuffer, &size,LIB1X_AP_SENDBUFLEN, global->port_num);
+	}
+	#endif
 	lib1x_message(MESS_DBG_AUTHNET, "Sending REQUEST / Identity EAP packet to Supplicant");
 	lib1x_message(MESS_DBG_AUTHNET,"<<<<<<<<<<<<<<<<<< TO supplicant ");
 #ifdef RTL_WPA2_PREAUTH
@@ -3389,6 +3556,9 @@ void lib1x_auth_txCannedFail( Auth_Pae * auth_pae, int identifier )
 	struct lib1x_ethernet * eth_hdr;
 	Global_Params * global;
 	int size;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	unsigned char dot1x_group_mac[ETHER_HDRLEN] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+#endif
 
 	// Note: Every time this authpae sends a packet the SAME send buffer is used.
 
@@ -3399,6 +3569,11 @@ void lib1x_auth_txCannedFail( Auth_Pae * auth_pae, int identifier )
 	bzero( auth_pae->sendBuffer, size );
 
 	eth_hdr = ( struct lib1x_ethernet * ) packet;
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+	if(auth_pae->global->auth->currentRole == role_eth && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled))
+		memcpy ( eth_hdr->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
+	else
+#endif
 	memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
 	memcpy ( eth_hdr->ether_shost , auth_pae->global->TxRx->oursupp_addr, ETHER_ADDRLEN );
 
@@ -3427,6 +3602,12 @@ void lib1x_auth_txCannedFail( Auth_Pae * auth_pae, int identifier )
 	LOG_MSG_NOTICE("EAP-Failure;note:%02x-%02x-%02x-%02x-%02x-%02x;",
 		auth_pae->supp_addr[0],auth_pae->supp_addr[1],auth_pae->supp_addr[2],
 		auth_pae->supp_addr[3],auth_pae->supp_addr[4],auth_pae->supp_addr[5]);
+#endif
+#if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
+	if((auth_pae->global->auth->currentRole == role_eth) && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled)&&(global->auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE))
+	{
+		lib1x_add_portinfo_to_eap_pkt(auth_pae->sendBuffer, &size,LIB1X_AP_SENDBUFLEN, global->port_num);
+	}
 #endif
 
 	syslog(LOG_AUTH|LOG_INFO, "%s: Authentication failled from radius server!\n", dev_supp); // david+2006-03-31, add event to syslog
@@ -3572,7 +3753,7 @@ int	lib1x_search_supp(Dot1x_Authenticator * auth , struct lib1x_packet * spkt, u
 			break;
 
 		case    LIB1X_EAPOL_START  :
-			/*
+		/*
 			{
 			u_char src_addr[ETHER_ADDRLEN];
 			//memcpy( src_addr, eth->ether_shost, ETHER_ADDRLEN );                		                              //lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATOR> EAPOL START");
@@ -3597,8 +3778,8 @@ int	lib1x_search_supp(Dot1x_Authenticator * auth , struct lib1x_packet * spkt, u
 
 			break;
 			}
+			*/
 
-    			*/
 		case    LIB1X_EAPOL_EAPPKT:
 		case 	LIB1X_EAPOL_KEY:
 
@@ -3778,6 +3959,13 @@ int	lib1x_insert_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 			auth->Supp[i]->isEnable = TRUE;
 			memcpy(auth_pae->supp_addr, supp_addr, ETHER_ADDRLEN);
 			lib1x_reset_authenticator(global);
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+			if(auth->currentRole == role_eth)
+			{
+				lib1x_reset_authenticator(global);
+				global->currentId = lib1x_get_eap_identifier(global->port_num, supp_addr);
+			}
+#endif
 //			lib1x_control_RemovePTK(global, DOT11_KeyType_Pairwise);
 //   		lib1x_control_SetPORT(global, DOT11_PortStatus_Unauthorized);
 //			global->theAuthenticator->eapStart = TRUE;
@@ -3792,6 +3980,16 @@ int	lib1x_insert_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 			if( !auth->Supp[i]->isEnable)
 			{
 				auth->Supp[i]->isEnable = TRUE;
+
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+				if(auth->currentRole == role_eth)
+				{
+					lib1x_reset_authenticator(global);
+					global->currentId = lib1x_get_eap_identifier(global->port_num, supp_addr);
+				}
+				//if ((auth->currentRole == role_eth) && (!auth_pae->global->auth->ethDot1xEapolUnicastEnabled))
+#endif
+
 				auth_pae = auth->Supp[i]->global->theAuthenticator;
 				memcpy(auth_pae->supp_addr, supp_addr, ETHER_ADDRLEN);
 				memcpy(&auth->Supp[i]->addr, supp_addr, ETHER_ADDRLEN);
@@ -3871,4 +4069,212 @@ int lib1x_del_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 
 	return -1;
 }
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+unsigned int lib1x_get_eap_identifier(unsigned int portnum, unsigned char *macaddr)
+{
+	unsigned int index = 0;
+	unsigned int id = 0;
+
+	if (macaddr)
+	{
+		index = (macaddr[0]^macaddr[1]^macaddr[2]^macaddr[3]^macaddr[4]^macaddr[5])&0xff;
+	}
+	index += portnum;
+
+	id = (index * DOT1X_EAP_ID_INTERVAL)%255;
+
+	return id;
+		
+}
+
+void lib1x_add_portinfo_to_eap_pkt(unsigned char *sendbuff, int *size, int buffsize, unsigned int portnum)
+{
+	int orgsize = 0;
+	unsigned int pad = 0;
+	#define DOT1X_SPECIAL_IDENTITY 0xaabb
+	
+	if (sendbuff == NULL || size == NULL)
+		return;
+	orgsize = *size;
+	/* there is not enough space to store tx port info */
+	if ((orgsize + sizeof (unsigned int)) > buffsize)
+		return;
+	pad = (DOT1X_SPECIAL_IDENTITY<<16) | portnum;
+	
+	memcpy(&sendbuff[orgsize], (void *)&pad, sizeof (unsigned int));
+	*size = (orgsize + sizeof (unsigned int));
+	
+	//printf("add portinfo portnum=%d buffsize=%d orgsize=%d newsize=%d pad=0x%x\n", portnum, buffsize, orgsize, *size, pad);
+	lib1x_message(MESS_DBG_AUTHNET, "add portinfo portnum=%d buffsize=%d orgsize=%d newsize=%d pad=0x%x\n", portnum, buffsize, orgsize, *size, pad);
+
+	return;
+}
+#if 0
+void lib1x_period_send_EAPRequestID_Timer_proc(Dot1x_Authenticator *auth)
+{
+	struct lib1x_eapol * eapol;
+	struct lib1x_eap * eap;
+	u_char * packet;
+	struct lib1x_ethernet * eth_hdr;
+	struct lib1x_eap_rr * eaprr;
+	struct TxRx_Params_tag * TxRx;
+	int size;
+	unsigned char *sendBuffer;
+	unsigned char dot1x_group_mac[ETHER_HDRLEN] = {0x01,0x80,0xC2,0x00,0x00,0x03};
+	// Note: Every time this authpae sends a packet the SAME send buffer is used.
+	//
+	TxRx = auth->GlobalTxRx;
+	
+
+	size = 2+ ETHER_HDRLEN + sizeof( struct lib1x_eapol ) + sizeof( struct lib1x_eap ) + 1;
+	sendBuffer = malloc(size+1);
+	if(sendBuffer == NULL)
+		return;
+	bzero( sendBuffer, size );
+	packet = sendBuffer;
+
+	eth_hdr = ( struct lib1x_ethernet * ) packet;
+	memcpy ( eth_hdr->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
+	memcpy ( eth_hdr->ether_shost , TxRx->oursupp_addr, ETHER_ADDRLEN );
+
+
+	eapol = ( struct lib1x_eapol * )  ( packet +  ETHER_HDRLEN )  ;
+	// We subtract 2 because of the common type field
+	eth_hdr->ether_type = htons(LIB1X_ETHER_EAPOL_TYPE);
+
+	eapol->protocol_version = LIB1X_EAPOL_VER;
+
+	eapol->packet_type = LIB1X_EAPOL_EAPPKT;
+
+	eap = (struct lib1x_eap * ) ( ( (u_char *) eapol) + LIB1X_EAPOL_HDRLEN );
+	eap->code =  LIB1X_EAP_REQUEST;
+	eap->identifier = 0;
+	eap->length = htons(LIB1X_EAP_HDRLEN + 1) ; // add 1 for the type "identity" in EAP message
+
+	eapol->packet_body_length = htons(LIB1X_EAP_HDRLEN  + 1);	// for RR field
+	eaprr = (struct lib1x_eap_rr * ) ( ( ( u_char *)eapol) + LIB1X_EAPOL_HDRLEN  + LIB1X_EAP_HDRLEN);
+	eaprr->type =  LIB1X_EAP_RRIDENTITY;
+
+	lib1x_message(MESS_DBG_AUTHNET, "Sending REQUEST / Identity EAP packet to Supplicant");
+	lib1x_message(MESS_DBG_AUTHNET,"<<<<<<<<<<<<<<<<<< TO supplicant ");
+
+	lib1x_nal_send( TxRx->network_supp, sendBuffer,  size );
+	free(sendBuffer);
+
+#if defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
+	LOG_MSG_NOTICE("EAP-Request/Identity;");
+#endif
+
+
+}
+#endif
+int lib1x_eth_search_supp(Dot1x_Authenticator * auth , struct lib1x_packet * spkt, int port_num)
+{
+
+	int i = 0, suppid;
+	Auth_Pae * auth_pae;
+
+	u_char buf[100], *packet;
+	struct lib1x_ethernet * eth;
+	struct lib1x_eapol	   * eapol;
+
+	//----------------------------------------------------------------------------------------
+	// Process EAPOL packet from ethernet interface
+	//----------------------------------------------------------------------------------------
+	
+	{
+		packet = (u_char *)spkt->data;
+		bzero(buf, sizeof buf);
+
+
+		if ( spkt == NULL )
+		{
+			lib1x_message( MESS_DBG_NAL, "parser: spkt null ");
+			return -1;
+		}
+		eth = ( struct lib1x_ethernet * ) spkt->data;
+		eapol = ( struct lib1x_eapol * ) ( packet + ETHER_HDRLEN );
+		if ( htons(eth->ether_type) != LIB1X_ETHER_EAPOL_TYPE ){
+
+			return -1;
+		}
+
+		switch( eapol->packet_type )
+		{
+		case	LIB1X_EAPOL_START  :
+		case	LIB1X_EAPOL_EAPPKT:
+			{
+			u_char src_addr[ETHER_ADDRLEN];
+			//memcpy( src_addr, eth->ether_shost, ETHER_ADDRLEN );													  //lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATOR> EAPOL START");
+			for( i = 0; i < auth->MaxSupplicant ; i++)
+			{
+				if( auth->Supp[i] && auth->Supp[i]->isEnable )
+				{
+					auth_pae = auth->Supp[i]->global->theAuthenticator;
+					if(auth->currentRole == role_eth &&
+						(auth->ethDot1xMode & ETH_DOT1X_PROXY_MODE) && 
+						(auth->ethDot1xProxyType & ETH_DOT1X_PROXY_PORT_BASE)){
+
+						if(port_num == auth->Supp[i]->global->port_num){
+							if(!memcmp( auth_pae->supp_addr, eth->ether_shost,	ETHER_ADDRLEN))
+								return i;
+							else
+								return -1;
+						}
+						if(!memcmp( auth_pae->supp_addr, eth->ether_shost,	ETHER_ADDRLEN)
+							&& (port_num != auth->Supp[i]->global->port_num))
+							return -1;
+					}
+					else{
+						if(!memcmp( auth_pae->supp_addr, eth->ether_shost,	ETHER_ADDRLEN))
+							return i;
+					}
+					
+				}
+			}
+			if((suppid = lib1x_insert_supp(auth, eth->ether_shost)) != -1);
+			{
+				//auth->Supp[suppid]->isEnable = 1;
+				lib1x_message(MESS_DBG_SPECIAL, "\n[Insert suppid=%d port_num=%d into table] mac:0x%x:%x:%x:%x:%x:%x\n", suppid, port_num,
+				eth->ether_shost[0],eth->ether_shost[1], eth->ether_shost[2], eth->ether_shost[3], eth->ether_shost[4], eth->ether_shost[5]);
+				auth->Supp[suppid]->global->port_num = port_num;
+				return suppid;
+			}
+			return -1;
+
+			break;
+			}
+
+		case	LIB1X_EAPOL_LOGOFF :
+		case	LIB1X_EAPOL_KEY:
+
+			//memcpy( src_addr, eth->ether_shost, ETHER_ADDRLEN );
+			for( i = 0; i < auth->MaxSupplicant ; i++)
+			{
+// reduce pre-alloc memory size, david+2006-02-06			
+//				if( auth->Supp[i]->isEnable )
+				if( auth->Supp[i] && auth->Supp[i]->isEnable )
+				{
+					auth_pae = auth->Supp[i]->global->theAuthenticator;
+					if(!memcmp( auth_pae->supp_addr , eth->ether_shost,  ETHER_ADDRLEN))
+					{
+						return	i;
+					}
+				}
+			}
+
+			return -1;
+
+			break;
+
+		}// end switch( eapol->packet_type )
+
+	}//end if( inttype == LIB1X_IT_PKTSOCK)
+	
+
+	return -1;
+
+}
+#endif
+
 

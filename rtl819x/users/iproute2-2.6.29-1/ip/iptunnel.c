@@ -469,6 +469,103 @@ static int do_show(int argc, char **argv)
 	return 0;
 }
 
+static int do_prl(int argc, char **argv)
+{
+	struct ip_tunnel_prl p;
+	int count = 0;
+	int devname = 0;
+	int cmd = 0;
+	char medium[IFNAMSIZ];
+
+	memset(&p, 0, sizeof(p));
+	memset(&medium, 0, sizeof(medium));
+
+	while (argc > 0) {
+		if (strcmp(*argv, "prl-default") == 0) {
+			NEXT_ARG();
+			cmd = SIOCADDPRL;
+			p.addr = get_addr32(*argv);
+			p.flags |= PRL_DEFAULT;
+			count++;
+		} else if (strcmp(*argv, "prl-nodefault") == 0) {
+			NEXT_ARG();
+			cmd = SIOCADDPRL;
+			p.addr = get_addr32(*argv);
+			count++;
+		} else if (strcmp(*argv, "prl-delete") == 0) {
+			NEXT_ARG();
+			cmd = SIOCDELPRL;
+			p.addr = get_addr32(*argv);
+			count++;
+		} else if (strcmp(*argv, "dev") == 0) {
+			NEXT_ARG();
+			strncpy(medium, *argv, IFNAMSIZ-1);
+			devname++;
+		} else {
+			fprintf(stderr,"%s: Invalid PRL parameter.\n", *argv);
+			exit(-1);
+		}
+		if (count > 1) {
+			fprintf(stderr,"One PRL entry at a time.\n");
+			exit(-1);
+		}
+		argc--; argv++;
+	}
+	if (devname == 0) {
+		fprintf(stderr, "Must specify dev.\n");
+		exit(-1);
+	}
+
+	return tnl_prl_ioctl(cmd, medium, &p);
+}
+
+static int do_6rd(int argc, char **argv)
+{
+	struct ip_tunnel_6rd ip6rd;
+	int devname = 0;
+	int cmd = 0;
+	char medium[IFNAMSIZ];
+	inet_prefix prefix;
+
+	memset(&ip6rd, 0, sizeof(ip6rd));
+	memset(&medium, 0, sizeof(medium));
+
+	while (argc > 0) {
+		if (strcmp(*argv, "6rd-prefix") == 0) {
+			NEXT_ARG();
+			if (get_prefix(&prefix, *argv, AF_INET6))
+				invarg("invalid 6rd_prefix\n", *argv);
+			cmd = SIOCADD6RD;
+			memcpy(&ip6rd.prefix, prefix.data, 16);
+			ip6rd.prefixlen = prefix.bitlen;
+		} else if (strcmp(*argv, "6rd-relay_prefix") == 0) {
+			NEXT_ARG();
+			if (get_prefix(&prefix, *argv, AF_INET))
+				invarg("invalid 6rd-relay_prefix\n", *argv);
+			cmd = SIOCADD6RD;
+			memcpy(&ip6rd.relay_prefix, prefix.data, 4);
+			ip6rd.relay_prefixlen = prefix.bitlen;
+		} else if (strcmp(*argv, "6rd-reset") == 0) {
+			cmd = SIOCDEL6RD;
+		} else if (strcmp(*argv, "dev") == 0) {
+			NEXT_ARG();
+			strncpy(medium, *argv, IFNAMSIZ-1);
+			devname++;
+		} else {
+			fprintf(stderr,"%s: Invalid 6RD parameter.\n", *argv);
+			exit(-1);
+		}
+		argc--; argv++;
+	}
+	if (devname == 0) {
+		fprintf(stderr, "Must specify dev.\n");
+		exit(-1);
+	}
+
+	return tnl_6rd_ioctl(cmd, medium, &ip6rd);
+}
+
+
 int do_iptunnel(int argc, char **argv)
 {
 	switch (preferred_family) {
@@ -500,6 +597,12 @@ int do_iptunnel(int argc, char **argv)
 		    matches(*argv, "lst") == 0 ||
 		    matches(*argv, "list") == 0)
 			return do_show(argc-1, argv+1);
+		//add for 6rd
+		if (matches(*argv, "prl") == 0)
+			return do_prl(argc-1, argv+1);
+		if (matches(*argv, "6rd") == 0)
+			return do_6rd(argc-1, argv+1);
+		
 		if (matches(*argv, "help") == 0)
 			usage();
 	} else

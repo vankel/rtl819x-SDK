@@ -16,7 +16,7 @@ var POCKETROUTER_BRIDGE_AP = 2;
 var POCKETROUTER_BRIDGE_CLIENT = 1;
 
 var is_ulinker="<% getInfo("is_ulinker"); %>"*1;
-var ulinker_opMode="<% getIndex("ulinker_opMode"); %>"*1; //0:AP; 1:Client; 2:Router; 3:RPT
+var ulinker_opMode="<% getIndex("ulinker_opMode"); %>"*1; //0:AP; 1:Client; 2:Router; 3:RPT; 4:WISP-RPT
 
 if(is_ulinker == 1)
 {
@@ -24,7 +24,7 @@ if(is_ulinker == 1)
 		pocketRouter_Mode = POCKETROUTER_BRIDGE_AP;
 	else if(ulinker_opMode == 1) 
 		pocketRouter_Mode = POCKETROUTER_BRIDGE_CLIENT;
-	else if(ulinker_opMode == 2) 
+	else if(ulinker_opMode == 2 || ulinker_opMode == 4)
 		pocketRouter_Mode = POCKETROUTER_GATEWAY;
 }
 	
@@ -97,6 +97,7 @@ var wlan2_phyband= "<% getIndex("wlan2_phyband"); %>" ;
 
 //add for CPU utilization
 var isDisplayCPU = "<% getIndex("isDisplayCPU"); %>";
+
 <% getInfo("wizard_menu_onoff"); %>
 
 function get_form(page, wlan_id){
@@ -131,6 +132,8 @@ if(parent.isOtg_Auto == 1)
 	menu.addItem("Log", "syslog.htm", "", "System Log");
 	menu.addItem("Upgrade Firmware", "upload.htm", "", "Update firmware image");
 	menu.addItem("Save/Reload Settings", "saveconf.htm", "", "Save/reload current settings");
+	if(<% getInfo("smtpclient_enable"); %>)
+		menu.addItem("Email", "smtpclient.htm", "", "Smtp Client");
 	
 
 }
@@ -257,6 +260,8 @@ if( (pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT && pocketRouter_Mode != POC
 <% getInfo("route_menu_onoff"); %>
 }
 
+<% getInfo("ethdot1x_menu_onoff"); %>
+
 <% getInfo("voip_tree_menu"); %>
 
 <% getInfo("snmp_menu"); %>
@@ -269,6 +274,7 @@ if( (pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT && pocketRouter_Mode != POC
 	&& isAP == 0){
 <% getInfo("ddns_menu"); %>
 }
+<% getInfo("ethernet802dot1xCert_menu"); %>
 if(isDisplayCPU == 1)
 {
 	manage.addItem("CPU utilization", "cpuShow.htm", "", "Display CPU utilization");
@@ -285,7 +291,17 @@ manage.addItem("Upgrade Firmware", "upload.htm", "", "Update firmware image");
 manage.addItem("Save/Load Setting", "saveconf.htm", "", "Save/reload current settings");
 <% getInfo("cwmp_tr069_menu"); %>
 manage.addItem("Password", "password.htm", "", "Setup access password");
+if(<% getInfo("smtpclient_enable"); %>)
+	manage.addItem("Email", "smtpclient.htm", "", "Smtp Client");
+
 menu.makeLastSubmenu(manage);
+
+menu.addItem("Storage");
+storage = new MTMenu();
+storage.addItem("Disk","disk.htm","","create share folder for samba user");
+storage.addItem("Samba Administration","administration.htm","","set up users and group for samba");
+menu.makeLastSubmenu(storage);
+
 userName= '<% getInfo("userName"); %>' ;
 if(userName != "")
         menu.addItem("Logout", "logout.htm", "", "Logout");

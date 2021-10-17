@@ -1,1 +1,0 @@
-.././libpthread/linuxthreads.old/semaphore.h

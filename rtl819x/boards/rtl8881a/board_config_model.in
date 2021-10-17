@@ -1,3 +1,0 @@
-config BOARD_CONFIG_MODEL
-string
-default 'RTL881A_92E'

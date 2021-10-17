@@ -8,7 +8,7 @@ PREFIX = /usr/local
 
 ## Compiler to use
 #CC = gcc
-CROSS_COMPILE=rsdk-linux-
+#CROSS_COMPILE=$(CROSS_COMPILE)
 CC = $(CROSS_COMPILE)gcc
 
 ## Uncomment this to build against this kernel

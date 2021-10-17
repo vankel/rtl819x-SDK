@@ -87,10 +87,6 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
-#if defined(CONFIG_RTL_IPV6READYLOGO)&&defined(CONFIG_RTL_8367R_SUPPORT)
-#include <linux/delay.h>
-#endif
-
 /* Set to 3 to get tracing... */
 #define ACONF_DEBUG 2
 
@@ -159,11 +155,7 @@ static int ipv6_chk_same_addr(struct net *net, const struct in6_addr *addr,
 static ATOMIC_NOTIFIER_HEAD(inet6addr_chain);
 
 static struct ipv6_devconf ipv6_devconf __read_mostly = {
-#if defined(CONFIG_RTL_IPV6READYLOGO)&&defined(CONFIG_RTL_8367R_SUPPORT)
-	.forwarding		= 1,
-#else
 	.forwarding		= 0,
-#endif
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
 	.accept_ra		= 1,
@@ -206,11 +198,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 };
 
 static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
-#if defined(CONFIG_RTL_IPV6READYLOGO)&&defined(CONFIG_RTL_8367R_SUPPORT)
-	.forwarding 	= 1,
-#else
-	.forwarding 	= 0,
-#endif
+	.forwarding		= 0,
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
 	.accept_ra		= 1,
@@ -1771,7 +1759,7 @@ static struct inet6_dev *addrconf_add_dev(struct net_device *dev)
 	return idev;
 }
 
-void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
+int addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 {
 	struct prefix_info *pinfo;
 	__u32 valid_lft;
@@ -1783,7 +1771,7 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 
 	if (len < sizeof(struct prefix_info)) {
 		ADBG(("addrconf: prefix option too short\n"));
-		return;
+		return -EINVAL;
 	}
 
 	/*
@@ -1793,7 +1781,7 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 	addr_type = ipv6_addr_type(&pinfo->prefix);
 
 	if (addr_type & (IPV6_ADDR_MULTICAST|IPV6_ADDR_LINKLOCAL))
-		return;
+		return -EINVAL;
 
 	valid_lft = ntohl(pinfo->valid);
 	prefered_lft = ntohl(pinfo->prefered);
@@ -1801,7 +1789,7 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 	if (prefered_lft > valid_lft) {
 		if (net_ratelimit())
 			printk(KERN_WARNING "addrconf: prefix option has invalid lifetime\n");
-		return;
+		return -EINVAL;
 	}
 
 	in6_dev = in6_dev_get(dev);
@@ -1809,7 +1797,7 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 	if (in6_dev == NULL) {
 		if (net_ratelimit())
 			printk(KERN_DEBUG "addrconf: device %s not configured\n", dev->name);
-		return;
+		return -EINVAL;
 	}
 
 	/*
@@ -1867,6 +1855,9 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 	}
 
 	/* Try to figure out our local address for this prefix */
+	//if (net_ratelimit())
+	printk(KERN_WARNING "################### IPv6 addrconf: prefix with length %d prefix=%x %x %x %x###################\n", pinfo->prefix_len,
+	pinfo->prefix.s6_addr32[0],pinfo->prefix.s6_addr32[1],pinfo->prefix.s6_addr32[2],pinfo->prefix.s6_addr32[3]);
 
 	if (pinfo->autoconf && in6_dev->cnf.autoconf) {
 		struct inet6_ifaddr * ifp;
@@ -1879,7 +1870,7 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 			if (ipv6_generate_eui64(addr.s6_addr + 8, dev) &&
 			    ipv6_inherit_eui64(addr.s6_addr + 8, in6_dev)) {
 				in6_dev_put(in6_dev);
-				return;
+				return -EINVAL;
 			}
 			goto ok;
 		}
@@ -1887,7 +1878,7 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len)
 			printk(KERN_DEBUG "IPv6 addrconf: prefix with wrong length %d\n",
 			       pinfo->prefix_len);
 		in6_dev_put(in6_dev);
-		return;
+		return -EINVAL;
 
 ok:
 
@@ -1914,7 +1905,7 @@ ok:
 
 			if (!ifp || IS_ERR(ifp)) {
 				in6_dev_put(in6_dev);
-				return;
+				return -EINVAL;
 			}
 
 			update_lft = create = 1;
@@ -2010,6 +2001,7 @@ ok:
 	}
 	inet6_prefix_notify(RTM_NEWPREFIX, in6_dev, pinfo);
 	in6_dev_put(in6_dev);
+	return 0;
 }
 
 /*
@@ -2332,11 +2324,6 @@ static void addrconf_add_linklocal(struct inet6_dev *idev, struct in6_addr *addr
 	ifp = ipv6_add_addr(idev, addr, 64, IFA_LINK, addr_flags);
 	if (!IS_ERR(ifp)) {
 		addrconf_prefix_route(&ifp->addr, ifp->prefix_len, idev->dev, 0, 0);
-#if defined(CONFIG_RTL_8367R_SUPPORT) && defined(CONFIG_RTL_IPV6READYLOGO)
-	if(!strcmp(idev->dev->name, "br0"))
-		mdelay(3000);
-#endif
-
 		addrconf_dad_start(ifp, 0);
 		in6_ifa_put(ifp);
 	}
@@ -2872,7 +2859,7 @@ static void addrconf_dad_timer(unsigned long data)
 		goto out;
 	}
 	spin_lock_bh(&ifp->lock);
-
+	
 	if(check_lan_port_state(idev->dev) != BR_STATE_FORWARDING)
 	{
 		if(!ifp->probes) ifp->probes=1;
@@ -2900,6 +2887,7 @@ static void addrconf_dad_timer(unsigned long data)
 	}
 	else
 	{
+		
 		/* send a neighbour solicitation for our addr */		
 		if(delay_flag)
 		{

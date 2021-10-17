@@ -337,7 +337,7 @@ static int RtcpTx_addXR_VoIPMetrics(uint32 sid, RtcpPacket* p, int npadSize)
 	extern void rtcp_logger_unit_new_data( RtcpStatisticsUnit *pUnit,
 								unsigned long data );
 	extern int32 get_energy_det_max( int chid );
-	extern EcObj_t RtkEcObj[];
+	extern LecObj_t RtkLecObj[];
 	
 	RtcpXRReportVoIPMetrics *pMetrics = ( RtcpXRReportVoIPMetrics * )(RtcpPkt_freeData(p));
 	RtpReceiver * const rtpReceiver = RtpRx_getInfo( sid );
@@ -420,7 +420,7 @@ static int RtcpTx_addXR_VoIPMetrics(uint32 sid, RtcpPacket* p, int npadSize)
 #if 0//def CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
 	pMetrics ->RERL = 127; // TODO not support yet
 #else
-	pMetrics ->RERL = RtkEcObj[chid].EC_G168GetErle( chid ) + 12;
+	pMetrics ->RERL = RtkLecObj[chid].EC_G168GetErle( chid ) + 12;
 #endif
 	
 	// call quality or transmission quality metrics (not implement)

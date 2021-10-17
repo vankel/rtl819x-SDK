@@ -9,6 +9,7 @@
 #define PROC_FASTNAT_FILE "/proc/fast_nat"
 #define PROC_FASTPPTP_FILE "/proc/fast_pptp"
 #define PROC_FASTL2TP_FILE "/proc/fast_l2tp"
+#define PROC_FASTPPPOE_FILE "/proc/fast_pppoe"
 #define PROC_PPTP_CONN_FILE "/proc/pptp_conn_ck"
 #define PROC_BR_IGMPPROXY "/proc/br_igmpProxy"
 #define PROC_BR_IGMPSNOOP "/proc/br_igmpsnoop"
@@ -83,6 +84,9 @@
 #define DNRD_PID_FILE "/var/run/dnrd.pid"
 #define DNSV6_CONF_FILE "/var/dnsmasq.conf"
 
+#define DSLITE_SCRIPT "/var/ds-lite.script"
+#define DHCP6C_SCRIPT "/var/dhcp6c.sh"
+
 #define DNSV6_RESOLV_FILE "/var/dnsmasq_resolv.conf"
 
 #define RESOLV_CONF_FILE "/etc/resolv.conf"
@@ -95,6 +99,11 @@
 #define IPV6_GATEWAY_FILE	"/var/gateway_ipv6"
 #define DHCP6PD_CONF_FILE "/var/dhcp6pd.conf"
 #define DNSV6_ADDR_FILE	"/var/dns6.conf"
+#ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
+#define SIPV6_ADDR_FILE_CE	"/var/sip6_ce.conf"
+#define DNSV6_ADDR_FILE_CE	"/var/dns6_ce.conf"
+#define DNSNAMEV6_ADDR_FILE_CE	"/var/dnsname6_ce.conf"
+#endif
 //mldproxy
 #define PROC_BR_MLDPROXY "/proc/br_mldProxy"
 #define PROC_BR_MLDSNOOP "/proc/br_mldsnoop"
@@ -132,6 +141,7 @@
 #define TEMP_WAN_CHECK "/var/tmp_wan_check"
 #define TEMP_WAN_DHCP_INFO "/var/tmp_wan_dhcp_info"
 #define MANUAL_CONNECT_NOW "/var/ppp/manual_connect_now"
+#define TEMP_WAN_PPPOE_L2TP_CHECK "/var/tmp_wan_pppoe_l2tp_check"
 #endif
 #define RESTART_IAPP "/var/restart_iapp"
 #define PREVIOUS_WAN_DHCP_INFO "/var/previous_wan_dhcp_info"
@@ -141,3 +151,4 @@
 #ifdef CONFIG_CPU_UTILIZATION
 #define CPU_LOAD_FILE "/web/cpu_data0.cpudat"
 #endif
+

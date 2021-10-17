@@ -67,6 +67,15 @@ struct dhcpOfferedAddr *leases;
 struct server_config_t server_config;
 static int signal_pipe[2];
 
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+struct server_config_t* p_serverpool_config;
+
+//ql
+unsigned int serverpool;
+char g_dhcp_mode=0; // Mason Yu
+char g_server_ip[16]="1.1.1.1";
+#endif
+
 /* Exit and cleanup */
 static void exit_server(int retval)
 {
@@ -188,6 +197,13 @@ int main(int argc, char *argv[])
 		char token[60], value[60], *ptr, optdata[60];
 
 	unsigned long t1_time, t2_time;
+	
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	struct server_config_t* p_servingpool_tmp;	
+	unsigned char *classVendor;
+	unsigned char classVendorStr[256] = {0};
+#endif
+
 #if defined(CONFIG_RTL8186_KB) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196C_EC)
 	char *hostname;
 #endif
@@ -197,20 +213,56 @@ int main(int argc, char *argv[])
 	OPEN_LOG("udhcpd");
 	LOG(LOG_INFO, "udhcp server (v%s) started", VERSION);
 
-	memset(&server_config, 0, sizeof(struct server_config_t));
+	memset(&server_config, 0, sizeof(struct server_config_t));	
 	
 	if (argc < 2)
 		read_config(DHCPD_CONF_FILE);
 	else read_config(argv[1]);
+	
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+	p_servingpool_tmp=p_serverpool_config;
+	while(p_servingpool_tmp!=NULL){
+		//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
+		unsigned int serverip;
+		if ((option = find_option(p_servingpool_tmp->options, DHCP_LEASE_TIME))) {
+			//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
+			memcpy(&(p_servingpool_tmp->lease), option->data + 2, 4);
+			p_servingpool_tmp->lease = ntohl(p_servingpool_tmp->lease);
+		}
+		else p_servingpool_tmp->lease = LEASE_TIME;
+		p_servingpool_tmp->max_leases = 254; /*every pool shares the same lease num/structure*/
+		
+		while (read_interface(p_servingpool_tmp->interface, &p_servingpool_tmp->ifindex,
+			   &serverip, p_servingpool_tmp->arp) < 0) {				
+			printf("DHCPv4 Server: Interface %s is not ready\n", p_servingpool_tmp->interface);				
+			sleep(1);
+		}
+		//ql add
+		if (0 == p_servingpool_tmp->server) {
+			p_servingpool_tmp->server = serverip;
+		}
+		p_servingpool_tmp=p_servingpool_tmp->next;
+	}
+	memcpy(&server_config,p_serverpool_config,sizeof(struct server_config_t));
+	/*every pool shares the same lease num/structure*/
+	leases = xmalloc(sizeof(struct dhcpOfferedAddr) * server_config.max_leases);
+	memset(leases, 0, sizeof(struct dhcpOfferedAddr) * server_config.max_leases);
+	read_leases(server_config.lease_file);
 
 	pid_fd = pidfile_acquire(server_config.pidfile);
 	pidfile_write_release(pid_fd);
+	
+#else
 
+	pid_fd = pidfile_acquire(server_config.pidfile);
+	pidfile_write_release(pid_fd);
 	if ((option = find_option(server_config.options, DHCP_LEASE_TIME))) {
 		memcpy(&server_config.lease, option->data + 2, 4);
 		server_config.lease = ntohl(server_config.lease);
 	}
 	else server_config.lease = LEASE_TIME;
+	
 #if defined(CONFIG_RTL865X_KLD)	
 	if(server_config.upateConfig_isp==1){
 			update_lease_time = 1;
@@ -251,7 +303,6 @@ int main(int argc, char *argv[])
 			update_lease_time1 =0;
 		}
 		
-		
 #endif			
 	/* Sanity check */
 	// 2007.12.24, Forrest Lin.
@@ -275,14 +326,14 @@ int main(int argc, char *argv[])
 	memset(leases, 0, sizeof(struct dhcpOfferedAddr) * server_config.max_leases);
 	read_leases(server_config.lease_file);
 
+#endif
+
 #ifdef GUEST_ZONE
 	if (server_config.guestmac_check) {
 		server_config.guestmac_tbl = xmalloc(sizeof(struct guest_mac_entry) * server_config.max_leases);
 		memset(server_config.guestmac_tbl , 0, sizeof(struct guest_mac_entry) * server_config.max_leases);	
 	}
 #endif
-
-
 
 #ifndef DEBUGGING
 	pid_fd = pidfile_acquire(server_config.pidfile); /* hold lock during fork. */
@@ -469,18 +520,19 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
+		
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+		find_match_serving_pool(&packet);
+#endif
+
 		if ((state = get_option(&packet, DHCP_MESSAGE_TYPE)) == NULL) {
 			DEBUG(LOG_ERR, "couldn't get option from packet, ignoring");
 			continue;
-		}
-		
+		}		
 #ifdef STATIC_LEASE
 		/* Look for a static lease */
-#ifdef SUPPORT_DHCP_PORT_IP_BIND
-		static_lease_ip = getIpByPort(server_config.static_leases, packet.chaddr, &host);		
-		if(!static_lease_ip)
-#endif
 		static_lease_ip = getIpByMac(server_config.static_leases, packet.chaddr, &host);
+		//printf("%s:%d####static_lease_ip=%u\n",__FUNCTION__,__LINE__,static_lease_ip);
 		sname = get_option(&packet, DHCP_HOST_NAME);
 		if (sname)
 			len = (int)sname[-1];
@@ -489,7 +541,7 @@ int main(int argc, char *argv[])
 
 		if (!static_lease_ip && len) {
 			static_lease_ip = getIpByHost(server_config.static_leases, sname, len, &host);
-		}
+		}		
 		if(static_lease_ip && 
 			((host == NULL) || (host && (len==(int)strlen(host)) && !memcmp(sname, host, len))))
 		{
@@ -514,23 +566,63 @@ int main(int argc, char *argv[])
 		}
 		else
 #endif
-		{
+		{		
 		lease = find_lease_by_chaddr(packet.chaddr);
 		}
-
 		switch (state[0]) {
 		case DHCPDISCOVER:
 			DEBUG(LOG_INFO,"received DISCOVER");
-			
+			//printf("%s:%d ####received DISCOVER!\n",__FUNCTION__,__LINE__);
 			if (sendOffer(&packet) < 0) {
 				LOG(LOG_ERR, "send OFFER failed");
 			}
 			break;			
  		case DHCPREQUEST:
+			
 			DEBUG(LOG_INFO, "received REQUEST");
-
+			
+			//printf("%s:%d ####received REQUEST!\n",__FUNCTION__,__LINE__);
 			requested = get_option(&packet, DHCP_REQUESTED_IP);
 			server_id = get_option(&packet, DHCP_SERVER_ID);
+
+
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+			enum DeviceType devicetype;
+			struct client_category_t *deviceCategory;
+			struct dhcp_ctc_client_info stClientInfo;
+
+			if(!(classVendor=get_option(&packet, DHCP_VENDOR))) {
+				struct server_config_t *pDhcp;
+				//default : PC clients....
+				devicetype = CTC_Computer;
+				deviceCategory=NULL;
+				// Magicia: Every device other than default type is set to Computer.
+				for (pDhcp=&server_config; pDhcp; pDhcp=pDhcp->next)
+				{
+					if(pDhcp->vendorclass && !strcmp(pDhcp->vendorclass, "Computer"))
+					{
+						deviceCategory = pDhcp->clientRange;
+						break;
+					}
+				}
+			}
+			else
+			{
+/*ping_zhang:20090316 START:Fix the DHCP_VENDOR string bugs*/
+				len=*(unsigned char*)(classVendor-OPT_LEN);
+				memcpy(classVendorStr,classVendor,len);
+				classVendorStr[len]=0;
+/*ping_zhang:20090316 END*/
+				memset(&stClientInfo, 0, sizeof(struct dhcp_ctc_client_info));
+/*ping_zhang:20090316 START:Fix the DHCP_VENDOR string bugs*/
+				parse_CTC_Vendor_Class(&packet, classVendor, &stClientInfo);
+//				parse_CTC_Vendor_Class(&packet, classVendorStr, &stClientInfo);
+/*ping_zhang:20090316 END*/
+				devicetype = (enum DeviceType)(stClientInfo.category);
+				deviceCategory = stClientInfo.iCategory;
+			}
+#endif
+
 #if defined(CONFIG_RTL8186_KB) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196C_EC)
 			hostname = get_option(&packet, DHCP_HOST_NAME);
 #endif
@@ -547,7 +639,11 @@ int main(int argc, char *argv[])
 			}			
 		
 			if (lease) { /*ADDME: or static lease */
+				
+				//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
 				if (server_id) {
+					
+					//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
 					/* SELECTING State */
 					DEBUG(LOG_INFO, "server_id = %08x", ntohl(server_id_align));
 					if (server_id_align == server_config.server && requested && 
@@ -579,10 +675,16 @@ int main(int argc, char *argv[])
 							break;
 						}
 						/* INIT-REBOOT State */
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+						if(check_type(requested_align, deviceCategory))
+#else
 						if (requested_align < server_config.start || 
 							   requested_align > server_config.end ||
 							   requested_align == server_config.server) 
+#endif
 						{
+							
+							//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
 							sendNAK(&packet);
 						}
 #if 0	// do we need to check lease table or just ask????
@@ -707,11 +809,12 @@ int main(int argc, char *argv[])
 		system(logbuf);
 #endif
 			/* what to do if we have no record of the client */
-			} else if (server_id) {
+			} else if (server_id) {			
 				/* SELECTING State */
 			} 
 			else
-			{
+			{				
+				//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
 				if (requested)
 				{
 					memcpy(&requested_align, requested, 4);
@@ -726,9 +829,13 @@ int main(int argc, char *argv[])
 					break;
 				}
 				/* INIT-REBOOT State */
+#ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+				if(check_type(requested_align, deviceCategory))
+#else				
 				if (requested_align < server_config.start || 
 					   requested_align > server_config.end ||
 					   requested_align == server_config.server) 
+#endif
 				{
 					sendNAK(&packet);
 				}
@@ -749,7 +856,7 @@ int main(int argc, char *argv[])
 #endif				
 				else
 				{ /* else remain silent */
-
+					//printf("%s:%d ####\n",__FUNCTION__,__LINE__);
 					int arpping_time = 0;
 					int ret_arpping = 0;
 					int retNAK = 1;
@@ -812,10 +919,7 @@ int main(int argc, char *argv[])
 								sendACK(&packet, packet.yiaddr);
 							}
 						}
-					}				
-
-					
-					
+					}	
 				}
 
 			}

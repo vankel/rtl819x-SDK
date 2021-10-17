@@ -1,0 +1,122 @@
+#
+# Realtek Semiconductor Corp.
+#
+# Tony Wu (tonywu@realtek.com)
+# Dec. 7, 2009
+#
+
+#
+# System Config
+#
+config ARCH_CPU_TYPE
+	string
+	default "mips"
+
+config ARCH_32BIT
+	bool
+	default y
+
+#
+# CPU
+#
+config ARCH_CPU_MIPS
+	bool
+	default y
+
+config ARCH_CPU_MIPS1074K
+	bool
+	default y
+	select SYS_SUPPORTS_SMP
+	select SYS_SUPPORTS_MIPS_CMP
+
+config ARCH_CPU_FPU
+	bool
+	default n
+
+config ARCH_CPU_DSP
+	bool
+	default n
+
+config ARCH_CPU_EB
+	bool
+	default y
+
+#config ARCH_CPU_EL
+#	bool
+#	default y #wei del
+#	default n	
+
+config ARCH_IRQ_CPU
+	bool
+	default y
+
+config ARCH_IRQ_GIC
+	bool
+	default y
+
+config ARCH_IRQ_VI
+	bool
+	default n
+
+config ARCH_IRQ_EI
+	bool
+	default n
+
+config ARCH_CPU_SLEEP
+	bool
+	default n
+
+#
+# CACHE 
+#
+config ARCH_CACHE_SPRAM
+	bool
+	default n
+
+config ARCH_CACHE_L2C
+	bool
+	default y
+
+config ARCH_CACHE_WBC
+	bool
+	default y
+
+config ARCH_CACHE_IOCU
+	bool
+#	default y  #wei add
+	default n  
+
+config ARCH_CACHE_AR7
+	bool
+	default y
+
+#
+# BUS
+#
+config ARCH_BUS_USB
+	bool
+	default y
+
+#config ARCH_BUS_PCI
+#	bool
+#	default y
+
+#config ARCH_BUS_PCI_MSI
+#	bool
+#	default y
+
+# common flag for Realtek 819X SoC 
+config RTL_819X
+	bool
+	default y
+
+# specific flag for this SoC
+config RTL_8198C
+	bool
+	default y
+
+# todo when 8198c IC back
+config RTL_8198C_FPGA
+	bool
+	default n
+

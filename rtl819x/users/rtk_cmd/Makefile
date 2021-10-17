@@ -7,9 +7,18 @@ all: check_modify	rtk_cmd
 #STRIP	= mips-uclibc-strip
 include $(DIR_LINUX)/.config
 
+ifeq ($(KERNEL_VER),linux-2.6.30)
 CFLAGS	= -Wall -Os -I$(DIR_LINUX)/include/
-IFLAGS	=
 LDFLAGS = -Wall -Os -I$(DIR_LINUX)/include/
+CFLAGS += -DKERNEL_2_6_30
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+CFLAGS	= -Wall -Os -I$(DIR_LINUX)/include/uapi
+LDFLAGS = -Wall -Os -I$(DIR_LINUX)/include/uapi
+CFLAGS += -DKERNEL_3_10
+endif
+IFLAGS	=
+#LDFLAGS = -Wall -Os -I$(DIR_LINUX)/include/
 SOURCES = rtk_cmd.c rtk_filter.c rtk_igmp_delete.c rtk_fastbridge.c rtk_hw_qos.c
 
 ifdef CONFIG_RTL_FAST_FILTER

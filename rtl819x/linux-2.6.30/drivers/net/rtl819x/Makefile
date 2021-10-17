@@ -27,10 +27,12 @@ endif
 #
 obj-y += rtl865xc_swNic.o
 obj-y += rtl_nic.o
+
 obj-$(CONFIG_RTL_DEBUG_TOOL) += rtl865x_proc_debug.o
 obj-$(CONFIG_RTL_PROC_DEBUG) += rtl865x_proc_debug.o
-obj-$(CONFIG_RTL865X_ROMEPERF) += romeperf.o
 
+obj-$(CONFIG_RTL865X_ROMEPERF) += romeperf.o
+obj-$(CONFIG_RTL_ETH_802DOT1X_SUPPORT) += rtl_dot1x.o
 #===>Attention: the following line define subdir with type ":=",not "+=", so to be
 #	    sure that the other addition to subdir should not be placed before this line,or 
 #	    the addition would be layed over!!

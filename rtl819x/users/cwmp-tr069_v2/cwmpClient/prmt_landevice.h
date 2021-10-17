@@ -45,6 +45,9 @@ int setIPItfEntity(char *name, struct CWMP_LEAF *entity, int type, void *data);
 
 /*ping_zhang:20080919 START:add for new telefonica tr069 request: dhcp option*/
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
+int getDHCPStaticAddrEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data);
+int setDHCPStaticAddrEntity(char *name, struct CWMP_LEAF *entity, int type, void *data);
+int objDHCPStaticAddr(char *name, struct CWMP_LEAF *e, int type, void *data);
 int getDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int *type, void **data);
 int setDHCPOptionEntity(char *name, struct CWMP_LEAF *entity, int type, void *data);
 int objDHCPOption(char *name, struct CWMP_LEAF *e, int type, void *data);

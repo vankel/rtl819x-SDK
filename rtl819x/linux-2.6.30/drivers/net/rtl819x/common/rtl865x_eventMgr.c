@@ -477,6 +477,32 @@ void rtl865x_dumpAllEventLayerListInfo(void)
 
 
 #ifdef CONFIG_RTL865X_EVENT_PROC_DEBUG
+#ifdef CONFIG_RTL_PROC_NEW
+int32 rtl865x_event_proc_read(struct seq_file *s, void *v)
+{
+	rtl865x_eventLayerList_t *eventLayerList;
+	rtl865x_event_t *event;
+	int eventListCnt=0;
+	int eventCnt=0;
+	
+	seq_printf(s, "%s\n", "realtek event management Table:");
+
+	CTAILQ_FOREACH(eventLayerList, &eventsTables.inuseList.eventLayerListHead, next)
+	{
+		eventListCnt++;
+		eventCnt=0;
+		seq_printf(s, " No.%d eventLayerList:eventLayerId:0x%x \n",eventListCnt,eventLayerList->eventLayerId);
+		CTAILQ_FOREACH(event, &eventLayerList->eventHead, next)
+		{
+			eventCnt++;
+			seq_printf(s, " \tNo.%d event:eventId:0x%x,priority:%d,action_fn is 0x%x\n",eventCnt,event->eventId, event->eventPriority,(unsigned int)(event->event_action_fn));
+		}
+	
+	}
+	
+	return 0;
+}
+#else
 int32 rtl865x_event_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len=0;
@@ -520,6 +546,7 @@ int32 rtl865x_event_proc_read( char *page, char **start, off_t off, int count, i
 
 	return len;
 }
+#endif
 
 int32  rtl865x_event_proc_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {

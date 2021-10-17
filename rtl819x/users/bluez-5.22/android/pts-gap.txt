@@ -1,0 +1,410 @@
+PTS test results for GAP
+
+PTS version: 5.2
+Tested: 01-August-2014
+Android version: 4.4.4
+Kernel version: 3.17
+
+Results:
+PASS	test passed
+FAIL	test failed
+INC	test is inconclusive
+N/A	test is disabled due to PICS setup
+
+-------------------------------------------------------------------------------
+Test Name		Result	Notes
+-------------------------------------------------------------------------------
+TC_MOD_NDIS_BV_01_C	PASS	IUT must be non-discoverable
+TC_MOD_LDIS_BV_01_C	PASS	btmgmt discov limited 30
+TC_MOD_LDIS_BV_02_C	PASS	btmgmt discov limited 30
+TC_MOD_LDIS_BV_03_C	PASS	btmgmt discov limited 30
+TC_MOD_GDIS_BV_01_C	PASS	IUT must be discoverable
+TC_MOD_GDIS_BV_02_C	PASS	IUT must be discoverable
+TC_MOD_NCON_BV_01_C	PASS	btmgmt connectable off
+TC_MOD_CON_BV_01_C	PASS	btmgmt connectable on
+TC_BROB_BCST_BV_01_C	N/A
+TC_BROB_BCST_BV_02_C	N/A
+TC_BROB_BCST_BV_03_C	N/A
+TC_BROB_OBSV_BV_01_C	N/A
+TC_BROB_OBSV_BV_02_C	N/A
+TC_BROB_OBSV_BV_03_C	N/A
+TC_BROB_OBSV_BV_04_C	N/A
+TC_BROB_OBSV_BV_05_C	N/A
+TC_DISC_NONM_BV_01_C	PASS	btmgmt connectable off
+				btmgmt advertising on
+TC_DISC_NONM_BV_02_C	PASS	btmgmt connectable on
+				btmgmt discov off
+				btmgmt advertising on
+TC_DISC_LIMM_BV_01_C	PASS	btmgmt connectable on
+				btmgmt discov off
+				<answer NO to non-connectable adv question>
+				btmgmt discov limited 30
+TC_DISC_LIMM_BV_02_C	PASS	btmgmt connectable on
+				btmgmt advertising on
+				btmgmt discov limited 30
+TC_DISC_LIMM_BV_03_C	PASS	btmgmt connectable on
+				btmgmt discov off
+				<answer NO to non-connectable adv question>
+				btmgmt discov limited 30
+TC_DISC_LIMM_BV_04_C	PASS	btmgmt connectable on
+				btmgmt discov off
+				btmgmt power off
+				btmgmt bredr off
+				btmgmt power on
+				btmgmt discov limited 30
+TC_DISC_GENM_BV_01_C	PASS	btmgmt connectable on
+				btmgmt discov on
+				<answer NO to non-connectable adv question>
+TC_DISC_GENM_BV_02_C	PASS	btmgmt connectable on
+				btmgmt advertising on
+				btmgmt discov on
+TC_DISC_GENM_BV_03_C	PASS	btmgmt connectable on
+				btmgmt discov on
+				<answer NO to non-connectable adv question>
+TC_DISC_GENM_BV_04_C	PASS	btmgmt connectable on
+				btmgmt power off
+				btmgmt le on
+				btmgmt bredr off
+				btmgmt power on
+				btmgmt discov on
+				btmgmt advertising on
+TC_DISC_LIMP_BV_01_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 unset and bit 0 set
+TC_DISC_LIMP_BV_02_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 set and bit 0 unset
+TC_DISC_LIMP_BV_03_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 and bit 0 unset
+TC_DISC_LIMP_BV_04_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 and bit 0 unset
+TC_DISC_LIMP_BV_05_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 and bit 0 unset
+TC_DISC_GENP_BV_01_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 set and bit 0 unset
+TC_DISC_GENP_BV_02_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 unset and bit 0 set
+TC_DISC_GENP_BV_03_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 and bit 0 unset
+TC_DISC_GENP_BV_04_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 and bit 0 unset
+TC_DISC_GENP_BV_05_C	PASS	btmgmt find -l
+				PTS AD flags must have bit 1 and bit 0 unset
+TC_IDLE_GIN_BV_01_C	PASS	Start discovery from IUT
+TC_IDLE_LIN_BV_01_C	PASS	hcitool scan --iac=liac
+TC_IDLE_NAMP_BV_01_C	PASS	possible to PASS using haltest following steps:
+				gattc - register client, connect to PTS, search
+				all services, get characteristic and then read
+				characteristic (name)
+TC_IDLE_NAMP_BV_02_C	PASS	haltest: gatts connect
+TC_CONN_NCON_BV_01_C	PASS	btmgmt connectable off
+				btmgmt advertising on
+				<answer NO to non-connectable adv question>
+TC_CONN_NCON_BV_02_C	PASS	<answer NO to non-connectable adv question>
+				Note: non-connectable and discoverable ?
+TC_CONN_NCON_BV_03_C	PASS	<answer NO to non-connectable adv question>
+				Note: non-connectable and discoverable ?
+TC_CONN_DCON_BV_01_C	PASS	btmgmt connectable on
+				btmgmt advertising on
+TC_CONN_DCON_BV_02_C	N/A
+TC_CONN_DCON_BV_03_C	N/A
+TC_CONN_UCON_BV_01_C	PASS	btmgmt connectable on
+				btmgmt advertising on
+TC_CONN_UCON_BV_02_C	PASS	btmgmt connectable on
+				btmgmt discov on
+				btmgmt advertising on
+TC_CONN_UCON_BV_03_C	PASS	btmgmt connectable on
+				btmgmt advertising on
+				btmgmt discov limited 30
+TC_CONN_UCON_BV_04_C	N/A
+TC_CONN_UCON_BV_05_C	N/A
+TC_CONN_ACEP_BV_01_C	PASS	debugfs:
+				echo -n "add <PTS addr> 0 1" > /sys/kernel/
+					debug/bluetooth/hciX/le_auto_conn
+				btmgmt le on
+				btmgmt power on
+				btmgmt disconnect -t 1 <PTS addr>
+				debugfs:
+				echo -n "clr" > /sys/kernel/debug/bluetooth/
+					hciX/le_auto_conn
+TC_CONN_ACEP_BV_02_C	INC	Privacy feature - PTS issue #12308
+				Note: PTS issue was closed. Test Spec Errata
+				was filled instead.
+				TSE issue #5825
+TC_CONN_GCEP_BV_01_C	PASS	'gattc connect' prior to pressing OK on PTS
+TC_CONN_GCEP_BV_02_C	PASS	'gattc connect' prior to pressing OK on PTS
+TC_CONN_GCEP_BV_03_C	PASS	gattc connect
+				bluetooth create_bond
+				gattc connect
+				gattc disconnect
+TC_CONN_GCEP_BV_04_C	INC	Privacy feature - PTS issue #12308
+TC_CONN_SCEP_BV_01_C	PASS	'gattc connect' prior to pressing OK on PTS
+				Note: test is not always passing. JIRA: BA-55
+TC_CONN_SCEP_BV_02_C	INC	Privacy feature - PTS issue #12308
+TC_CONN_DCEP_BV_01_C	PASS	'gattc connect' prior to pressing OK on PTS
+TC_CONN_DCEP_BV_02_C	INC	Privacy feature - PTS issue #12308
+TC_CONN_DCEP_BV_03_C	PASS	gattc connect
+TC_CONN_DCEP_BV_04_C	PASS	gattc connect
+				gattc create_bond
+				gattc connect
+				gattc disconnect
+TC_CONN_CPUP_BV_01_C	N/A
+TC_CONN_CPUP_BV_02_C	N/A
+TC_CONN_CPUP_BV_03_C	N/A
+TC_CONN_CPUP_BV_04_C	PASS	gattc register_client
+				gattc connect
+				gattc disconnect
+TC_CONN_CPUP_BV_05_C	PASS	gattc register_client
+				gattc connect
+				gattc disconnect
+TC_CONN_CPUP_BV_06_C	PASS	gattc register_client
+				gattc connect 1 <pts_bdaddr>
+				hcitool lecup <handle> 0x0008 0x0C7B 0x0010
+					0x0014
+				gattc disconnect <client_if> <pts_bdaddr>
+					<conn_id>
+TC_CONN_TERM_BV_01_C	PASS
+TC_CONN_PRDA_BV_01_C	INC	PTS issue #12207
+TC_CONN_PRDA_BV_02_C	INC	PTS issue #12310
+				Note: PTS issues #12207 & #12310 are claimed
+				to be resolved by the ETS provided in PTS issue
+				#12312 however it does not solve the problem
+TC_BOND_NBON_BV_01_C	PASS
+TC_BOND_NBON_BV_02_C	PASS	haltest: gattc register_client
+				gattc connect <client_id> <address>
+				bluetooth create_bond <address>
+				bluetooth remove_bond <address>
+TC_BOND_NBON_BV_03_C	PASS	haltest: gattc listen
+TC_BOND_BON_BV_01_C	INC	gattc register_client
+				gattc listen 1
+				bluetooth create_bond <pts_bdaddr>
+				JIRA #BA-68
+TC_BOND_BON_BV_02_C	PASS
+TC_BOND_BON_BV_03_C	PASS	gattc register_client
+				gattc listen 1
+TC_BOND_BON_BV_04_C	FAIL	haltest: gattc_register_client
+				gattc connect <client_id> <address>
+				bluetooth remove_bond <address>
+				gattc connect <client_id> <address>
+				JIRA #BA-70
+TC_SEC_AUT_BV_11_C	PASS	haltest: gattc register_client
+				gatts register_server
+				gatts add_service 2 <uuid> 3
+				gatts add_characteristic 2 1b <uuid> 10 68
+				gatts start_service 2 1b 1
+				gattc listen
+				PTS asks for handle with Insufficient auth
+				bluetooth ssp_reply <addr> <passkey>
+				gatts send_response
+TC_SEC_AUT_BV_12_C	PASS	haltest: gatts register_server
+				gatts add_service 2 <uuid> 3
+				gatts add_characteristic 2 <service_handle>
+								<uuid> 10 68
+				gatts start_service 2 <service_handle> 1
+				gatts connect <server_if> <addr>
+				PTS asks for handle with Insufficient auth
+				bluetooth ssp_reply <addr> <passkey>
+				gatts send_response
+TC_SEC_AUT_BV_13_C	PASS	haltest: gatts register_server
+				gatts add_service 2 <uuid> 3
+				gatts add_characteristic 2 <service_handle>
+								<uuid> 10 68
+				gatts start_service 2 <service_handle> 1
+				gatts connect <server_if> <addr>
+				PTS asks for handle with Insufficient auth
+				bluetooth ssp_reply <addr> <passkey>
+				gatts send_response
+TC_SEC_AUT_BV_14_C	PASS	haltest:gattc register_client
+				gatts register_server
+				gatts add_service 2 <uuid> 3
+				gatts add_characteristic 2 1b <uuid> 10 68
+				gatts start_service 2 1b 1
+				gattc listen
+				PTS asks for handle with Insufficient auth
+				bluetooth ssp_reply <addr> <passkey>
+				gatts send_response
+TC_SEC_AUT_BV_15_C	N/A
+TC_SEC_AUT_BV_16_C	PASS	haltest: gatts register_server
+				gatts add_service 2 <uuid> 3
+				gatts add_characteristic 2 <service_handle>
+								<uuid> 10 34
+				gatts start_service 2 <service_handle> 1
+				gatts connect <server_if> <addr>
+				gatts disconnect <server_if> <addr>
+				gatts connect <server_if> <addr>
+				PTS asks for handle with Insufficient encrypt
+				bluetooth ssp_reply <addr> <passkey>
+				gatts send_response
+TC_SEC_AUT_BV_17_C	PASS
+TC_SEC_AUT_BV_18_C	PASS	haltest: gattc register_client
+				gattc listen
+				gattc search_service
+				gattc get_characteristic
+				gattc read_characteristic
+				bluetooth create_bond
+				gattc read_characteristic
+TC_SEC_AUT_BV_19_C	PASS
+TC_SEC_AUT_BV_20_C	INC	PTS issue #12284
+TC_SEC_AUT_BV_21_C	PASS	haltest: gattc register_client
+				gattc connect
+				bluetooth create_bond
+				gattc connect
+TC_SEC_AUT_BV_22_C	PASS	btmgmt io-cap 3
+				haltest: gattc register_client
+				gattc listen
+				gattc test_command 226 <addr> <u1> 1
+TC_SEC_AUT_BV_23_C	PASS	haltest: gatts register_server
+				gatts add_service 2 <uuid> 3
+				gatts add_characteristic 2 <service_handle>
+								<uuid> 10 34
+				gatts start_service 2 <service_handle> 1
+				gattc register_client
+				gattc listen
+				bluetooth ssp_reply
+				gatts send_response
+TC_SEC_AUT_BV_24_C	PASS	haltest: gatts register_server
+				gatts add_service 2 <uuid> 3
+				gatts add_characteristic 2 <service_handle>
+								<uuid> 10 34
+				gatts start_service 2 <service_handle> 1
+				gatts connect <PTS addr>
+				bluetooth ssp_reply
+				gatts disconnect
+				gatts connect
+				PTS asks for handle with insufficient encryption
+				gatts send_response
+TC_SEC_CSIGN_BV_01_C	PASS	haltest:
+				gattc connect
+				bluetooth create_bond
+				gattc connect
+				gattc write_characteristic: <write_type> 4
+				gattc disconnect
+TC_SEC_CSIGN_BV_02_C	PASS	haltest:
+				gatts add_service
+				gatts add_chaaracteristic:
+						<properties> 66
+						<permissions> 129
+				gatts start_service
+				gatts disconnect
+				gattc disconnect
+TC_SEC_CSIGN_BI_01_C	PASS	haltest:
+				gatts add_service
+				gatts add_chaaracteristic:
+						<properties> 66
+						<permissions> 129
+				gatts start_service
+				gatts disconnect
+				gattc disconnect
+TC_SEC_CSIGN_BI_02_C	PASS	haltest:
+				gatts add_service
+				gatts add_chaaracteristic:
+						<properties> 66
+						<permissions> 129
+				gatts start_service
+				gatts disconnect
+				gattc disconnect
+TC_SEC_CSIGN_BI_03_C	PASS	haltest:
+				gatts add_service
+				gatts add_characteristic:
+						<properties> 64
+						<permissions> 128
+				gatts start_service
+				gattc listen
+				bluetooth ssp_reply
+				gatts disconnect
+				bluetooth remove_bond
+TC_SEC_CSIGN_BI_04_C	PASS	haltest:
+				gatts add_service
+				gatts add_characteristic:
+						<properties> 64
+						<permissions> 256
+				gatts start_service
+				gattc listen
+				bluetooth ssp_reply
+				gatts disconnect
+TC_PRIV_CONN_BV_01_C	PASS	gattc connect
+				gattc create_bond
+				gattc search service
+				gattc get_characteristic
+				gattc write_characteristic (privacy flag)
+				gattc write_characteristic (reconnection addr.)
+				gattc disconnect
+TC_PRIV_CONN_BV_02_C	PASS	gattc connect
+				gattc search service
+				gattc get_characteristic
+				gattc write_characteristic (reconnection addr.)
+				gattc disconnect
+TC_PRIV_CONN_BV_03_C	INC	Privacy feature - PTS issue #12308
+TC_PRIV_CONN_BV_04_C	PASS	gattc connect
+				gattc create_bond
+				gattc search service
+				gattc get_characteristic
+				gattc write_characteristic (privacy flag)
+				gattc write_characteristic (reconnection addr.)
+				gattc disconnect
+				gattc connect
+				gattc disconnect
+TC_PRIV_CONN_BV_05_C	N/A
+TC_PRIV_CONN_BV_06_C	N/A
+TC_PRIV_CONN_BV_07_C	N/A
+TC_PRIV_CONN_BV_08_C	N/A
+TC_PRIV_CONN_BV_09_C	N/A
+TC_PRIV_CONN_BV_10_C	INC	PTS issue #12312
+TC_PRIV_CONN_BV_11_C	INC	PTS issue #12310
+TC_ADV_BV_01_C		N/A
+TC_ADV_BV_02_C		FAIL	PTS issue #12254
+TC_ADV_BV_03_C		PASS	gattc register_client
+				gattc listen 1 1
+TC_ADV_BV_04_C		N/A
+TC_ADV_BV_05_C		PASS	gattc register_client
+				gattc listen 1 1
+TC_ADV_BV_06_C		N/A
+TC_ADV_BV_07_C		N/A
+TC_ADV_BV_08_C		N/A
+TC_ADV_BV_09_C		N/A
+TC_ADV_BV_10_C		N/A
+TC_ADV_BV_11_C		N/A
+TC_ADV_BV_12_C		N/A
+TC_ADV_BV_13_C		N/A
+TC_ADV_BV_14_C		N/A
+TC_ADV_BV_15_C		N/A
+TC_ADV_BV_16_C		N/A
+TC_GAT_BV_01_C		PASS	haltest:
+				gattc register_client
+				gattc listen
+TC_GAT_BV_02_C		N/A
+TC_GAT_BV_03_C		N/A
+TC_GAT_BV_04_C		N/A
+TC_GAT_BV_05_C		N/A
+TC_GAT_BV_06_C		N/A
+TC_GAT_BV_07_C		N/A
+TC_GAT_BV_08_C		N/A
+TC_DM_NCON_BV_01_C	PASS	btmgmt connectable off
+TC_DM_CON_BV_01_C	PASS	btmgmt connectable on
+TC_DM_NBON_BV_01_C	PASS
+TC_DM_BON_BV_01_C	PASS	haltest:
+				create_bond and remove_bond when requested
+TC_DM_GIN_BV_01_C	PASS
+TC_DM_LIN_BV_01_C	PASS
+TC_DM_NAD_BV_01_C	PASS	Start discovery from IUT
+TC_DM_NAD_BV_02_C	PASS
+TC_DM_LEP_BV_01_C	PASS	gattc register_client
+				gattc listen 1 1
+TC_DM_LEP_BV_02_C	PASS	Use basic rate PTS dongle
+				haltest:
+				bluetooth set_adapter_property
+TC_DM_LEP_BV_04_C	PASS	l2test -n <PTS bdaddr>
+TC_DM_LEP_BV_05_C	PASS	btmgmt find -b
+				l2test -n 00:1B:DC:06:06:22
+TC_DM_LEP_BV_06_C	PASS
+TC_DM_LEP_BV_07_C	PASS
+TC_DM_LEP_BV_08_C	PASS
+TC_DM_LEP_BV_09_C	INC	JIRA #BA-64
+TC_DM_LEP_BV_10_C	INC	haltest:
+				gattc listen 1
+				gattc listen 1 0
+				bluetooth start_discovery
+				bluetooth cancel_discovery
+				gattc listen 1
+				gattc listen 1 0
+				bluetooth create_bond
+TC_DM_LEP_BV_11_C	INC
+-------------------------------------------------------------------------------

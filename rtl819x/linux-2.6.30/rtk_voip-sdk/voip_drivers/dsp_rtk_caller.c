@@ -888,37 +888,24 @@ void fsk_cid_onhook_process( unsigned int chid)
 			case 0 :	/* init state */
 				ntt_skip_dc_loop[chid]=1;
 				OnHookLineReversal(cch, 1);
-				cid_info[chid].time_out = timetick + 800 ;/*time out value = 6sec (6000ms), */
-				cid_info[chid].cid_states ++;
-				break;
-			case 1 :	/* init state */
-				if (timetick_after(timetick,cid_info[chid].time_out))
-				{
 				SendNTTCAR(cch);
 				//cid_info[chid].time_out = jiffies + HZ*6 ;/*time out value = 6sec, */
 				cid_info[chid].time_out = timetick + 6000 ;/*time out value = 6sec (6000ms), */
 				cid_info[chid].cid_states ++;
 				PRINT_MSG("RR0,%lx]", timetick);
-				}
 				break;
-			case 2 :	/* wait NTT CAR , phone off-hook, or time out */
+			case 1 :	/* wait NTT CAR , phone off-hook, or time out */
 				if(SendNTTCAR_check(cch, cid_info[chid].time_out))
-				{
 					cid_info[chid].cid_states ++;
-					cid_info[chid].time_out = timetick + 1000 ;
-				}
 				break;
-			case 3 :
-				if (timetick_after(timetick,cid_info[chid].time_out))
-				{
+			case 2 :
 				genSoftFskCID(chid);// generate Caller ID
 				PRINT_MSG("RR2,%lx]", timetick);
 				cid_info[chid].cid_states ++;
 				//cid_info[chid].time_out = jiffies + HZ*7 ;/*time out value = 7sec, */
 				cid_info[chid].time_out = timetick + 7000 ;/*time out value = 7sec (7000ms), */
-				}
 				break;
-			case 4 :
+			case 3 :
 				if( SLIC_Get_Hook_Status(cch, 0) ) /* wait 7 sec to on-hook */ /* 1:off-hook  0:on-hook */
 				{
 					if (timetick_after(timetick,cid_info[chid].time_out) ) //time_after(a,b): returns true if the time a is after time b.

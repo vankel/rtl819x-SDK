@@ -20921,6 +20921,145 @@ int RTLWIFINIC_GPIO_read(unsigned int gpio_num)
 	panic_printk("GPIO %d get value not support!\n", gpio_num);
 	return -1;
 }
+
+void RTLWIFINIC_GPIO_config_proc(struct rtl8192cd_priv *priv, unsigned int gpio_num, unsigned int direction)
+{
+
+#ifdef PCIE_POWER_SAVING
+	PCIeWakeUp(priv, POWER_DOWN_T0);
+#endif
+
+	if ((gpio_num >= 0) && (gpio_num <= 7)) {
+		priv->pshare->phw->GPIO_dir[gpio_num] = direction;
+
+		if (direction == 0x01) {
+			RTL_W32(GPIO_PIN_CTRL, RTL_R32(GPIO_PIN_CTRL) & ~(BIT(gpio_num + 24) | BIT(gpio_num + 16)));
+			return;
+		} else if (direction == 0x10) {
+			RTL_W32(GPIO_PIN_CTRL, (RTL_R32(GPIO_PIN_CTRL) & ~BIT(gpio_num + 24)) | (BIT(gpio_num + 16) | BIT(gpio_num + 8)));
+			return;
+		}
+	}
+
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+		if ((gpio_num >= 8) && (gpio_num <= 15)) {
+			priv->pshare->phw->GPIO_dir[gpio_num] = direction;
+
+			if (direction == 0x01) {
+				RTL_W32(0x060, RTL_R32(0x060) & ~(BIT(gpio_num + 16) | BIT(gpio_num + 8)));
+				return;
+			} else if (direction == 0x10) {
+				RTL_W32(0x060, (RTL_R32(0x060) & ~BIT(gpio_num + 16)) | (BIT(gpio_num + 8) | BIT(gpio_num)));
+				return;
+			}
+		}
+	}
+	else {
+		if ((gpio_num >= 8) && (gpio_num <= 11)) {
+			priv->pshare->phw->GPIO_dir[gpio_num] = direction;
+
+			if (direction == 0x01) {
+				RTL_W32(GPIO_MUXCFG, RTL_R32(GPIO_MUXCFG) & ~(BIT(gpio_num + 20) | BIT(gpio_num + 16)));
+				return;
+			} else if (direction == 0x10) {
+				RTL_W32(GPIO_MUXCFG, (RTL_R32(GPIO_MUXCFG) & ~BIT(gpio_num + 20)) | (BIT(gpio_num + 16) | BIT(gpio_num + 12)));
+				return;
+			}
+		}
+	}
+
+	panic_printk("GPIO %d action %d not support!\n", gpio_num, direction);
+	return;
+}
+
+void RTLWIFINIC_GPIO_write_proc(struct rtl8192cd_priv *priv, unsigned int gpio_num, unsigned int value)
+{
+#ifdef PCIE_POWER_SAVING
+	PCIeWakeUp(priv, POWER_DOWN_T0);
+#endif
+
+	if (priv->pshare->phw->GPIO_dir[gpio_num] != 0x10)
+		RTLWIFINIC_GPIO_config(gpio_num, 0x10);
+
+	if (((gpio_num >= 0) && (gpio_num <= 7)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10)) {
+		if (value)
+			RTL_W32(GPIO_PIN_CTRL, RTL_R32(GPIO_PIN_CTRL) & ~BIT(gpio_num + 8));
+		else
+			RTL_W32(GPIO_PIN_CTRL, RTL_R32(GPIO_PIN_CTRL) | BIT(gpio_num + 8));
+		return;
+	}
+
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+		if (((gpio_num >= 8) && (gpio_num <= 15)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10)) {
+			if (value)
+				RTL_W32(0x060, RTL_R32(0x060) & ~BIT(gpio_num));
+			else
+				RTL_W32(0x060, RTL_R32(0x060) | BIT(gpio_num));
+			return;
+		}
+	}
+	else {
+		if (((gpio_num >= 8) && (gpio_num <= 11)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10)) {
+			if (value)
+				RTL_W32(GPIO_MUXCFG, RTL_R32(GPIO_MUXCFG) & ~BIT(gpio_num + 12));
+			else
+				RTL_W32(GPIO_MUXCFG, RTL_R32(GPIO_MUXCFG) | BIT(gpio_num + 12));
+			return;
+		}
+	}
+
+	panic_printk("GPIO %d set value %d not support!\n", gpio_num, value);
+	return;
+}
+
+
+int RTLWIFINIC_GPIO_read_proc(struct rtl8192cd_priv *priv, unsigned int gpio_num)
+{
+	unsigned int val32;
+
+	if (priv->pshare->phw->GPIO_dir[gpio_num] != 0x01)
+		RTLWIFINIC_GPIO_config(gpio_num, 0x01);
+
+	if (((gpio_num >= 0) && (gpio_num <= 7)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x01)) {
+#ifdef PCIE_POWER_SAVING
+		if ((priv->pwr_state == L2) || (priv->pwr_state == L1))
+			val32 = priv->pshare->phw->GPIO_cache[0];
+		else
+#endif
+			val32 = RTL_R32(GPIO_PIN_CTRL);
+		if (val32 & BIT(gpio_num))
+			return 0;
+		else
+			return 1;
+	}
+
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+		if (((gpio_num >= 8) && (gpio_num <= 15)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x01)) {
+			val32 = RTL_R32(0x060);
+			if (val32 & BIT(gpio_num - 8))
+				return 0;
+			else
+				return 1;
+		}
+	}
+	else {
+		if (((gpio_num >= 8) && (gpio_num <= 11)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x01)) {
+#ifdef PCIE_POWER_SAVING
+			if ((priv->pwr_state == L2) || (priv->pwr_state == L1))
+				val32 = priv->pshare->phw->GPIO_cache[1];
+			else
+#endif
+				val32 = RTL_R32(GPIO_MUXCFG);
+			if (val32 & BIT(gpio_num + 8))
+				return 0;
+			else
+				return 1;
+		}
+	}
+
+	panic_printk("GPIO %d get value not support!\n", gpio_num);
+	return -1;
+}
 #endif
 
 #ifdef CONFIG_RTL8672

@@ -5,6 +5,7 @@
 <% getIndex("no-cache"); %>
 <title>Wireless Advanced Setting</title>
 <script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
 <% language=javascript %>
 
 <SCRIPT>
@@ -15,7 +16,16 @@ var mode2x2=<% getIndex("wlan_mode_2x2");%>;
 var enabled1X=<% getIndex("enable1X");%>;
 
 var wlan_mode = <% getIndex("wlanMode");%>;
-
+function validateNum(str)
+{
+  for (var i=0; i<str.length; i++) {
+   	if ( !(str.charAt(i) >='0' && str.charAt(i) <= '9')) {
+		alert("Invalid value. It should be in decimal number (0-9).");
+		return false;
+  	}
+  }
+  return true;
+}
 
 function saveChanges()
 {
@@ -112,7 +122,7 @@ function wlan_adv_switch()
  		document.getElementById("stbctransmit").style.display = "none";
  		document.getElementById("coexist").style.display = "none"; 		
  	}
-
+ 	
 	if(band2G5GSupport == 2) //2:5g
  	{
  		document.getElementById("preambleType").style.display = "none"; 		
@@ -148,6 +158,10 @@ function wlan_adv_switch()
 		document.advanceSetup.elements["preamble"][0].checked = true;
 	else
 		document.advanceSetup.elements["preamble"][1].checked = true;
+	if(<% getIndex("iappDisabled"); %> == -2) 
+		document.getElementById("showIAPP").style.display = "none";
+	else
+		document.getElementById("showIAPP").style.display = "";
 
 	if (<% getIndex("iappDisabled"); %> == 0)
 		document.advanceSetup.elements["iapp"][0].checked = true;
@@ -214,6 +228,23 @@ function wlan_adv_switch()
 		document.advanceSetup.elements["mc2u_"][1].checked = true;
 	onclick_mc2u();
 	document.advanceSetup.elements["RFPower"][<% getIndex("RFPower"); %>].checked = true;
+
+	if (<% getIndex("tdls_prohibited"); %> == 1){
+		document.advanceSetup.elements["tdls_prohibited_"][0].checked = true;
+		document.advanceSetup.elements["tdls_cs_prohibited_"][0].disabled = true;
+		document.advanceSetup.elements["tdls_cs_prohibited_"][1].checked = true;
+		document.advanceSetup.elements["tdls_cs_prohibited_"][1].disabled = true;	
+	}
+	else{
+		document.advanceSetup.elements["tdls_prohibited_"][1].checked = true;
+		
+		if (<% getIndex("tdls_cs_prohibited"); %> == 1)
+			document.advanceSetup.elements["tdls_cs_prohibited_"][0].checked = true;
+		else
+			document.advanceSetup.elements["tdls_cs_prohibited_"][1].checked = true;
+	}
+
+	
 }
 
 function onClick_func(enable)
@@ -238,7 +269,7 @@ function resetForm()
 </SCRIPT>
 <blockquote>
 <body onload="wlan_adv_switch()">
-<h2><font color="#0000FF">
+<h2>
 <script type="text/javascript">
 var wlan_num =  <% getIndex("wlan_num"); %>;
 if (wlan_num > 1) {
@@ -248,7 +279,7 @@ if (wlan_num > 1) {
 else
 	document.write("Wireless Advanced Settings</p>");
 </script>
-</font></h2>
+</h2>
 
 <form action=/boafrm/formAdvanceSetup method=POST name="advanceSetup">
 <table border=0 width="500" cellspacing=4 cellpadding=0>
@@ -280,7 +311,7 @@ else
       <input type="radio" name="preamble" value="short">Short Preamble</td>
     </tr>
     
-    <tr>
+    <tr id="showIAPP" style="display:">
       <td width="30%"><font size=2><b>IAPP:</b></td>
       <td width="70%"><font size=2>
       <input type="radio" name="iapp" value="yes">Enabled&nbsp;&nbsp;
@@ -352,6 +383,23 @@ else
       <input type="radio" name="mc2u_" value="enable" onclick="onclick_mc2u()" >Enabled&nbsp;&nbsp;
       <input type="radio" name="mc2u_" value="disable" onclick="onclick_mc2u()" >Disabled</td>
     </tr>
+    <SCRIPT>
+    	if(wlan_mode == 0)
+    	{
+    		document.write("<tr id=\"tdls_prohibited\" style=\"display:\">\
+				<td width=\"30%\"><font size=2><b>TDLS Prohibited:</b></td>\
+				<td width=\"70%\"><font size=2>\
+					<input type=\"radio\" name=\"tdls_prohibited_\" value=\"enable\">Enabled&nbsp;&nbsp;\
+					<input type=\"radio\" name=\"tdls_prohibited_\" value=\"disable\">Disabled</td>\
+				</tr>");
+			document.write("<tr id=\"tdls_cs_prohibited\" style=\"display:\">\
+				<td width=\"30%\"><font size=2><b>TDLS Channel Switch Prohibited</b></td>\
+				<td width=\"70%\"><font size=2>\
+					<input type=\"radio\" name=\"tdls_cs_prohibited_\" value=\"enable\">Enabled&nbsp;&nbsp;\
+					<input type=\"radio\" name=\"tdls_cs_prohibited_\" value=\"disable\">Disabled</td>\
+				</tr>");
+    	}
+    </SCRIPT>
     <tr id="mlcsttxrate" style="display:">
       <td width="26%"><font size=2><b>Mutilcast Rate:</b></td>
       <td width="74%"><font size=2><select size="1" name="mlcstrate" onChange=""> 

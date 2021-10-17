@@ -125,7 +125,11 @@ int write_body(request * req);
 
 /* request */
 request *new_request(void);
+#ifdef SERVER_SSL
+request *get_request(int);
+#else
 void get_request(int);
+#endif
 void process_requests(int server_s);
 int process_header_end(request * req);
 int process_header_line(request * req);

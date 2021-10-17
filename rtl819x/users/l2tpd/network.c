@@ -385,11 +385,28 @@ int build_fdset (fd_set *readfds)
 	return max;
 }
 
-#ifdef SUPPORT_ZIONCOM_RUSSIA
+#if 1//def SUPPORT_ZIONCOM_RUSSIA
 static int check_wan_status()
 {
+	extern char wan_iface[32];
 	FILE *fp=NULL;
-	if((fp=fopen("/proc/eth1/link_status", "r"))==NULL)
+	char path[64];	
+
+	if(!(strncmp(wan_iface, "wlan",4)))
+	{
+		//sprintf(path,"/proc/%s/up_event",wan_iface);		
+		return 1;
+	}
+	
+	if(!(strncmp(wan_iface, "eth",3)))
+	{
+		sprintf(path,"/proc/%s/link_status",wan_iface);
+	}
+	else 
+		return -1;
+	
+	//fprintf(stderr, "path=%s\n", path);
+	if((fp=fopen(path, "r"))==NULL)
 		return -1;	
 
 	int wan_status;
@@ -421,9 +438,9 @@ void network_thread ()
 //    gconfig.debug_tunnel = 1;
     for (;;)
     {
-#ifdef SUPPORT_ZIONCOM_RUSSIA
+#if 1 //def SUPPORT_ZIONCOM_RUSSIA
     	 wan_status=check_wan_status();
-//		 fprintf(stderr, "wan_status=%d  ########call close!\n", wan_status);
+		// fprintf(stderr, "wan_status=%d  ########call close!\n", wan_status);
 	 if(wan_status!=1 )
 	 {
 	 	if(c!=NULL)
@@ -439,7 +456,7 @@ void network_thread ()
         tv.tv_sec = 3;
         tv.tv_usec = 0;
         schedule_unlock ();
-#ifdef SUPPORT_ZIONCOM_RUSSIA
+#if 1//def SUPPORT_ZIONCOM_RUSSIA
         select (max + 1, &readfds, NULL, NULL, &tv);
 #else
 	 select (max + 1, &readfds, NULL, NULL, NULL);

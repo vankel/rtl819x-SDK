@@ -894,15 +894,15 @@ int vpnConnList(request *wp, int argc, char **argv)
 
 		}
 		nBytesSent += req_format_write(wp,
-		("\n<tr bgcolor=#808080 >\n\
+		("\n<tr class=\"tbl_body\">\n\
 		<td width=19><font size=2><input type=radio name=vpnTblIdx value=%d %s>\n\
-		</td><td width=19 bgcolor=#C0C0C0><font size=2><center>%d</center></td>\n\
-		<td width=60 bgcolor=#C0C0C0><font size=2>%s<font></td>\n\
-		<td width=19 bgcolor=#C0C0C0><font size=2>%s<font></td>\n\
-		<td width=88 bgcolor=#C0C0C0><font size=2>%s</font></td>\n\
-		<td width=100 bgcolor=#C0C0C0><font size=2>%s</font></td>\n\
-		<td width=100 bgcolor=#C0C0C0><font size=2>%s</font></td>\n\
-		<td width=70 bgcolor=#C0C0C0><font size=2 color=red>%s</font></td></tr>\n")
+		</td><td width=19 ><font size=2><center>%d</center></td>\n\
+		<td width=60 ><font size=2>%s<font></td>\n\
+		<td width=19 ><font size=2>%s<font></td>\n\
+		<td width=88 ><font size=2>%s</font></td>\n\
+		<td width=100 ><font size=2>%s</font></td>\n\
+		<td width=100 ><font size=2>%s</font></td>\n\
+		<td width=70 ><font size=2 color=red>%s</font></td></tr>\n")
 		, element, strCheck,  element, strConName, strActive,
 		strLocalIp, strRemoteIp, strRemoteGw, strStatus);
 	}

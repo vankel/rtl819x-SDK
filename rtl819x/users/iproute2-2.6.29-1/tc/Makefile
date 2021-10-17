@@ -66,6 +66,10 @@ TCLIB += tc_stab.o
 
 CFLAGS += -DCONFIG_GACT -DCONFIG_GACT_PROB
 
+ifdef CONFIG_RPS
+CFLAGS += -DQOS_IMPROVEMENT
+endif
+
 TCSO :=
 ifeq ($(TC_CONFIG_ATM),y)
   TCSO += q_atm.so

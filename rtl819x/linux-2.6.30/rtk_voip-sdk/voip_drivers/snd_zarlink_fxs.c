@@ -88,8 +88,6 @@ static void OnHookLineReversal_zarlink(voip_snd_t *this, unsigned char bReversal
 	RTKLineObj * const pLine = (RTKLineObj * )this ->priv;
 	
 	ZarlinkSetOHT(pLine, bReversal);
-	
-	//printk("--> OnHookLineReversal_zarlink.\n");
 }
 
 static void SLIC_Set_LineVoltageZero_zarlink(voip_snd_t *this)
@@ -253,56 +251,6 @@ static unsigned char SLIC_Get_Hook_Status_zarlink(voip_snd_t *this, int directly
 	return status;
 }
 
-static void SLIC_Set_Power_Save_Mode_zarlink(voip_snd_t *this)
-{
-	RTKLineObj * const pLine = (RTKLineObj * )this ->priv;
-	
-	ZarlinkSetLineState(pLine, VP_LINE_STANDBY);
-	
-	//printk("--> SLIC_Set_Power_Save_Mode_zarlink.\n");
-}
-
-/* state: 
-	0: line in-active state
-	1: line active state
-	2: power save state
-	3: OHT
-	4: OHT polrev
-	5: Ring
-*/
-static void SLIC_Set_FXS_Line_State_zarlink(voip_snd_t *this, int state)
-{
-	RTKLineObj * const pLine = (RTKLineObj * )this ->priv;
-	
-	switch (state)
-	{
-		case 0:
-			state = VP_LINE_TIP_OPEN;
-			break;
-		case 1:
-			state = VP_LINE_ACTIVE;
-			break;
-		case 2:
-			state = VP_LINE_STANDBY;
-			break;
-		case 3:
-			state = VP_LINE_OHT;
-			break;
-		case 4:
-			state = VP_LINE_OHT_POLREV;
-			break;
-		case 5:
-			state = VP_LINE_RINGING;
-			break;
-		default:
-			printk("Warnning! Error case, set to OHT state. in %s, line%d\n", __FUNCTION__, __LINE__);
-			state = VP_LINE_OHT;
-			break;
-	}
-	
-	ZarlinkSetLineState(pLine, state);
-}
-
 static void SLIC_read_reg_zarlink(voip_snd_t *this, unsigned int num, unsigned char *len, unsigned char *val)
 {
 	RTKLineObj * pLine = (RTKLineObj * )this ->priv;
@@ -399,8 +347,6 @@ const snd_ops_fxs_t snd_zarlink_fxs_ops = {
 	.FXS_Line_Check = FXS_Line_Check_zarlink,	// Note: this API may cause watch dog timeout. Should it disable WTD?
 	.SLIC_Set_PCM_state = SLIC_Set_PCM_state_zarlink,
 	.SLIC_Get_Hook_Status = SLIC_Get_Hook_Status_zarlink,
-	.SLIC_Set_Power_Save_Mode = SLIC_Set_Power_Save_Mode_zarlink,
-	.SLIC_Set_FXS_Line_State = SLIC_Set_FXS_Line_State_zarlink,
 	
 	.Set_SLIC_Tx_Gain = Adjust_SLIC_Tx_Gain_zarlink,
 	.Set_SLIC_Rx_Gain = Adjust_SLIC_Rx_Gain_zarlink,

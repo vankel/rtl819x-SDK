@@ -2,7 +2,6 @@ all:
 	@echo "builded"
 clean:
 	@echo "It's cleaned"
-
 romfs:
 	$(ROMFSINST) lld2d_$(TOOLCHAIN) /bin/lld2d
 	$(ROMFSINST) ../src/realsil_gw.ico /etc/realsil_gw.ico

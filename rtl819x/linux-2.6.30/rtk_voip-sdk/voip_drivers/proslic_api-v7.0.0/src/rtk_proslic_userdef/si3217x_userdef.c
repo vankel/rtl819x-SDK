@@ -311,30 +311,10 @@ void Si3217x_SendNTTCAR(proslicChanType *pProslic)
 	Si3217x_RingStart(pProslic);
 }
 
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-#define SUPPORT_CH_NUM	16
-static int NTTCar1stCheckFlag[SUPPORT_CH_NUM] = {[0 ... SUPPORT_CH_NUM-1] = 0};
-static unsigned long time_out_modify[SUPPORT_CH_NUM];
-#endif
-
 unsigned int Si3217x_SendNTTCAR_check(unsigned int chid, proslicChanType *pProslic, unsigned long time_out)
 {
 	//int protect_cnt = 0;
 	int i;
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	unsigned int chid;
-	chid = pProslic->channel;
-
-	if (chid > (SUPPORT_CH_NUM-1))
-		printk("%s, line%d, chid %d is over range(%d).\n", __FUNCTION__, __LINE__, chid, SUPPORT_CH_NUM);
-
-	if (NTTCar1stCheckFlag[chid] == 0)
-	{
-		NTTCar1stCheckFlag[chid] = 1;
-		//printk("=1\n");
-		time_out_modify[chid] = timetick + 6000;
-	}
-#endif
 	/*********** Check Phone Hook State ***************/
 
 	if ( !(ReadReg(pProHW,pProslic->channel,SI3217X_COM_REG_LCRRTP) & 2) ) // if phone on-hook
@@ -350,11 +330,7 @@ unsigned int Si3217x_SendNTTCAR_check(unsigned int chid, proslicChanType *pProsl
 			protect_cnt ++;
 		}	
 */
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-		if (timetick_after(timetick,time_out_modify[chid]) ) 		{
-#else
 		if (timetick_after(timetick,time_out) ) //time_after(a,b) returns true if the time a is after time b.
-#endif
 		{
 			/* don't return 0, return 1, report time out don't wait */
 
@@ -370,10 +346,6 @@ unsigned int Si3217x_SendNTTCAR_check(unsigned int chid, proslicChanType *pProsl
 	/************** restore the register ***************/
 	Si3217x_Restore_Ring_Cadence(pProslic);
 
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	NTTCar1stCheckFlag[chid] = 0;
-	//PRINT_Y("=0\n");
-#endif
 
 	return 1;
 }

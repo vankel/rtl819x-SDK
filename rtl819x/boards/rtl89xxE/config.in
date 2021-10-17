@@ -1,0 +1,13 @@
+
+
+config RTL_89xxE
+	def_bool y
+
+config ARCH_CPU_RADIAX
+    def_bool n
+
+source "../boards/rtl8198C_8954E/config.in"
+#source "../boards/rtl89xxE/board_config_model.in"
+
+config ARCH_CPU_RADIAX
+    def_bool n
