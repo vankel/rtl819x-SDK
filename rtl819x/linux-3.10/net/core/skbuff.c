@@ -320,6 +320,10 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 #endif
 #endif
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	skb->decision_bitmap = 0;
+	memset(skb->mark_ext, 0, sizeof(skb->mark_ext));
+#endif
 	/* make sure we initialize shinfo sequentially */
 	shinfo = skb_shinfo(skb);
 	memset(shinfo, 0, offsetof(struct skb_shared_info, dataref));
@@ -414,6 +418,10 @@ struct sk_buff *dev_alloc_8190_skb(unsigned char *data, int size)
 	skb->toLocalPublic=0;
 #endif
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	skb->decision_bitmap = 0;
+	memset(skb->mark_ext, 0, sizeof(skb->mark_ext));
+#endif
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 	skb->inDev=NULL;
 #endif
@@ -892,6 +900,10 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 	new->dstPhyPort=old->dstPhyPort;
 #endif
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	new->decision_bitmap = old->decision_bitmap;
+	memcpy(new->mark_ext, old->mark_ext, sizeof(old->mark_ext));
+#endif
 #ifdef CONFIG_NET_SCHED
 	new->tc_index		= old->tc_index;
 #ifdef CONFIG_NET_CLS_ACT

@@ -652,6 +652,7 @@ static int  ehci_rtl8652_init(void)
 	REG32(0xb80000dc) = val; // restore value.
 	}
 
+	REG32(0xb8001000)= REG32(0xb8001000)|(1<<28);
 
 
 

@@ -70,6 +70,9 @@ else
 SAMBA_FLG = 0 
 endif
 
+ifeq ($(CONFIG_MODEL_RTL8198C_8814_8194_MP), y)
+MP_NFJROM = 98c_8814_8194_nfjrom
+else
 ifeq ($(CONFIG_MODEL_RTL819xD_MP), y)
 ifeq ($(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D), y)
 MP_NFJROM = 9xD_92c_92d_nfjrom
@@ -86,6 +89,7 @@ endif
 endif
 else
 MP_NFJROM = nfjrom
+endif
 endif
 
 romfs:

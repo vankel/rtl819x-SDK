@@ -540,7 +540,7 @@ main(argc, argv)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 
     //sync from rtl865x
-    if(wan_type_curr==3){
+    if(wan_type_curr==3 || wan_type_curr==6){
 		echo_lcp_interval_setting = lcp_echo_interval;
 	}
 

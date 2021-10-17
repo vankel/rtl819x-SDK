@@ -16,9 +16,7 @@
 #include "./8192cd.h"
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
-#ifdef RTK_NL80211
-#include "8192cd_cfg80211.h" 
-#endif
+
 
 #ifdef DFS
 
@@ -173,6 +171,7 @@ void rtl8192cd_DFS_timer(unsigned long task_priv)
 	if ((priv->pwr_state == L2) || (priv->pwr_state == L1))
 		goto exit_timer;
 #endif
+
 	throughput = priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage;
 
 #ifdef MBSSID
@@ -204,7 +203,7 @@ void rtl8192cd_DFS_timer(unsigned long task_priv)
 				priv->pmib->dot11DFSEntry.DFS_detected = 1;
 			}
 		}
-		else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+		else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 			if (priv->pshare->rf_ft_var.dfs_det_off == 1) {
 				if (PHY_QueryBBReg(priv, 0xf98, BIT(19))) {
 					radar_type++;
@@ -219,13 +218,12 @@ void rtl8192cd_DFS_timer(unsigned long task_priv)
 		if (PHY_QueryBBReg(priv, 0xcf8, BIT(23)))
 			priv->pmib->dot11DFSEntry.DFS_detected = 1;
 	}
-	else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if (priv->pshare->rf_ft_var.dfs_det_off == 1) {
 			if (PHY_QueryBBReg(priv, 0xf98, BIT(17)))
 				priv->pmib->dot11DFSEntry.DFS_detected = 1;
 		}
 	}
-
 	
 	/*
 	 *	DFS debug mode for logo test
@@ -241,7 +239,7 @@ void rtl8192cd_DFS_timer(unsigned long task_priv)
 				panic_printk("[%d] DFS dbg mode, Radar is detected as %x %08x (%d)!\n", priv->pshare->rf_ft_var.dfsdbgcnt,
 					radar_type, PHY_QueryBBReg(priv, 0xcf4, bMaskDWord), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
 		}
-		else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+		else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 			if (priv->pshare->rf_ft_var.dfs_det_print1)
 				panic_printk("[%d] DFS dbg mode, Radar is detected as %x %08x (%d)!\n", priv->pshare->rf_ft_var.dfsdbgcnt,
 					radar_type, PHY_QueryBBReg(priv, 0xf98, 0xffffffff), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
@@ -259,141 +257,132 @@ void rtl8192cd_DFS_timer(unsigned long task_priv)
 
 
 	if (!priv->pmib->dot11DFSEntry.disable_DFS && priv->pmib->dot11DFSEntry.DFS_detected) {
-			if (GET_CHIP_VER(priv) == VERSION_8192D) {
-				PRINT_INFO("Radar is detected as %x %08x (%d)!\n",
-					radar_type, PHY_QueryBBReg(priv, 0xcf4, bMaskDWord), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
-			}
-			else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
-				PRINT_INFO("Radar is detected as %x %08x (%d)!\n",
-					radar_type, PHY_QueryBBReg(priv, 0xf98, 0xffffffff), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
-			}
-			
-			if (timer_pending(&priv->dfs_chk_timer)) {
-				del_timer(&priv->dfs_chk_timer);
-				if (GET_CHIP_VER(priv) == VERSION_8192D)
-					PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
-				PRINT_INFO("DFS CP2. Switch channel!\n");
-			} else {
-				if (dfs_chk){
-					// reset dfs flag and counter
-					priv->pmib->dot11DFSEntry.DFS_detected = 0;
-					if (GET_CHIP_VER(priv) == VERSION_8192D) {
-						PHY_SetBBReg(priv, 0xc84, BIT(25), 0);
-						PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
-					}
-					
-					PRINT_INFO("DFS CP1.\n");
 
-					init_timer(&priv->dfs_chk_timer);
-					priv->dfs_chk_timer.data = (unsigned long) priv;
-					priv->dfs_chk_timer.function = rtl8192cd_dfs_chk_timer;
-
-					mod_timer(&priv->dfs_chk_timer, jiffies + RTL_SECONDS_TO_JIFFIES(300));
-
-					goto exit_timer;
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			PRINT_INFO("Radar is detected as %x %08x (%d)!\n",
+				radar_type, PHY_QueryBBReg(priv, 0xcf4, bMaskDWord), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
+		}
+		else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
+			PRINT_INFO("Radar is detected as %x %08x (%d)!\n",
+				radar_type, PHY_QueryBBReg(priv, 0xf98, 0xffffffff), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
+		}
+		
+		if (timer_pending(&priv->dfs_chk_timer)) {
+			del_timer(&priv->dfs_chk_timer);
+			if (GET_CHIP_VER(priv) == VERSION_8192D)
+				PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
+			PRINT_INFO("DFS CP2. Switch channel!\n");
+		} else {
+			if (dfs_chk){
+				// reset dfs flag and counter
+				priv->pmib->dot11DFSEntry.DFS_detected = 0;
+				if (GET_CHIP_VER(priv) == VERSION_8192D) {
+					PHY_SetBBReg(priv, 0xc84, BIT(25), 0);
+					PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
 				}
+				
+				PRINT_INFO("DFS CP1.\n");
+
+				init_timer(&priv->dfs_chk_timer);
+				priv->dfs_chk_timer.data = (unsigned long) priv;
+				priv->dfs_chk_timer.function = rtl8192cd_dfs_chk_timer;
+
+				mod_timer(&priv->dfs_chk_timer, jiffies + RTL_SECONDS_TO_JIFFIES(300));
+
+				goto exit_timer;
 			}
-			
-			priv->pmib->dot11DFSEntry.disable_tx = 1;
+		}
+		
+		priv->pmib->dot11DFSEntry.disable_tx = 1;
 
-			if (timer_pending(&priv->ch_avail_chk_timer)) {
-				del_timer(&priv->ch_avail_chk_timer);
-				RTL_W8(TXPAUSE, 0xff);
+		if (timer_pending(&priv->ch_avail_chk_timer)) {
+			del_timer(&priv->ch_avail_chk_timer);
+			RTL_W8(TXPAUSE, 0xff);
+		}
+		else
+			RTL_W8(TXPAUSE, 0xf);	/* disable transmitter */
+
+		if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80 && 
+			priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
+			int i, channel;
+			channel = priv->pmib->dot11RFEntry.dot11channel;
+
+			if ((channel >= 104) && (channel <= 112))
+				channel = 100;
+			else if ((channel >= 120) && (channel <= 128))
+				channel = 116;
+			else if ((channel >= 136) && (channel <= 144))
+				channel = 132;
+
+			for(i=0;i<4;i++) {
+				set_CHXX_timer(priv, channel+i*4);
 			}
-			else
-				RTL_W8(TXPAUSE, 0xf);	/* disable transmitter */
-#if !defined(RTK_NL80211)
-			//For OpwenWRT SDK, do not consider block channel list
-			if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80 && 
-				priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
-				int i, channel;
-				channel = priv->pmib->dot11RFEntry.dot11channel;
+		}
+		else {
+			set_CHXX_timer(priv,priv->pmib->dot11RFEntry.dot11channel);
+		}
 
-				if ((channel >= 104) && (channel <= 112))
-					channel = 100;
-				else if ((channel >= 120) && (channel <= 128))
-					channel = 116;
-				else if ((channel >= 136) && (channel <= 144))
-					channel = 132;
+		/* add the channel in the blocked-channel list */
+		if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80 && 
+			priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
+			int i, channel;
+			channel = priv->pmib->dot11RFEntry.dot11channel;
 
-				for(i=0;i<4;i++) {
-					set_CHXX_timer(priv, channel+i*4);
-				}
-			}
-			else {
-				set_CHXX_timer(priv,priv->pmib->dot11RFEntry.dot11channel);
-			}
+			if ((channel >= 104) && (channel <= 112))
+				channel = 100;
+			else if ((channel >= 120) && (channel <= 128))
+				channel = 116;
+			else if ((channel >= 136) && (channel <= 144))
+				channel = 132;
 
-			/* add the channel in the blocked-channel list */
-			if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80 && 
-				priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
-				int i, channel;
-				channel = priv->pmib->dot11RFEntry.dot11channel;
-
-				if ((channel >= 104) && (channel <= 112))
-					channel = 100;
-				else if ((channel >= 120) && (channel <= 128))
-					channel = 116;
-				else if ((channel >= 136) && (channel <= 144))
-					channel = 132;
-
-				for (i=0;i<4;i++) {
-					if (RemoveChannel(priv, priv->available_chnl, &priv->available_chnl_num, channel+i*4))
-						InsertChannel(priv->NOP_chnl, &priv->NOP_chnl_num, channel+i*4);									
+			for (i=0;i<4;i++) {
+				if (RemoveChannel(priv, priv->available_chnl, &priv->available_chnl_num, channel+i*4))
+					InsertChannel(priv->NOP_chnl, &priv->NOP_chnl_num, channel+i*4);									
 #ifdef UNIVERSAL_REPEATER
 				if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && (RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, channel+i*4)) )
 					InsertChannel(priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, channel+i*4);
 #endif
-				}			
-			}
-			else {
-				int j;
-				InsertChannel(priv->NOP_chnl, &priv->NOP_chnl_num, priv->pmib->dot11RFEntry.dot11channel);			
-				RemoveChannel(priv, priv->available_chnl, &priv->available_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
+			}			
+		}
+		else {
+			int j;
+			InsertChannel(priv->NOP_chnl, &priv->NOP_chnl_num, priv->pmib->dot11RFEntry.dot11channel);			
+			RemoveChannel(priv, priv->available_chnl, &priv->available_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
 #ifdef UNIVERSAL_REPEATER
 				if (IS_DRV_OPEN(GET_VXD_PRIV(priv))){
 					RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
 					InsertChannel(priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
-				}			
+		}
 #endif
-			}
-#endif
-			if (timer_pending(&priv->DFS_timer))
-				del_timer_sync(&priv->DFS_timer);
-#if !defined(RTK_NL80211)
-			//For OpenWRT, do not select another channel automatically
-			/* select a channel */
-			priv->pshare->dfsSwitchChannel = DFS_SelectChannel(priv);
-			if(priv->pshare->dfsSwitchChannel == 0)
-#else
-			//Clear disable_tx here becoz turnkey do it at DFS_SelectChannel()
-			priv->pmib->dot11DFSEntry.disable_tx = 0;
-#endif
-			{
-				priv->pmib->dot11DFSEntry.DFS_detected = 0;		
+	}
+	if (timer_pending(&priv->DFS_timer))
+			del_timer(&priv->DFS_timer);
 
-				if (priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
-					// when band 2 is selected, AP does not come back to band2 
-					// even when NOP (NONE_OCCUPANCY_PERIOD) timer is expired.	
-					RTL_W8(TXPAUSE, 0xff);// after cac, still has to pause if channel is run out
-					mod_timer(&priv->DFS_TXPAUSE_timer, jiffies + DFS_TXPAUSE_TO);
-					
-				}
+
+		/* select a channel */
+		priv->pshare->dfsSwitchChannel = DFS_SelectChannel(priv);
+		if(priv->pshare->dfsSwitchChannel == 0) {
+			priv->pmib->dot11DFSEntry.DFS_detected = 0;		
+
+			if (priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
+				// when band 2 is selected, AP does not come back to band2 
+				// even when NOP (NONE_OCCUPANCY_PERIOD) timer is expired.	
+				RTL_W8(TXPAUSE, 0xff);// after cac, still has to pause if channel is run out
+				mod_timer(&priv->DFS_TXPAUSE_timer, jiffies + DFS_TXPAUSE_TO);
+				
 			}
+		}
 
 #ifdef MBSSID
-			if (priv->pmib->miscEntry.vap_enable)
-				priv->pshare->dfsSwitchChCountDown = 6;
-			else
+		if (priv->pmib->miscEntry.vap_enable)
+			priv->pshare->dfsSwitchChCountDown = 6;
+		else
 #endif
-				priv->pshare->dfsSwitchChCountDown = 5;
+			priv->pshare->dfsSwitchChCountDown = 5;
+
 
 		if (priv->pmib->dot11StationConfigEntry.dot11DTIMPeriod >= priv->pshare->dfsSwitchChCountDown)
 			priv->pshare->dfsSwitchChCountDown = priv->pmib->dot11StationConfigEntry.dot11DTIMPeriod+1;						
-
-#if defined(RTK_NL80211)
-		event_indicate_cfg80211(priv, NULL, CFG80211_RADAR_DETECTED, NULL);
-#endif
 
 		SMP_UNLOCK(flags);
 		return;
@@ -441,7 +430,7 @@ void rtl8192cd_ch_avail_chk_timer(unsigned long task_priv)
 
 	priv->pmib->dot11DFSEntry.disable_tx = 0;
 
-if (GET_CHIP_VER(priv) == VERSION_8192D || GET_CHIP_VER(priv) == VERSION_8881A || GET_CHIP_VER(priv) == VERSION_8812E) {
+if (GET_CHIP_VER(priv) == VERSION_8192D || GET_CHIP_VER(priv) == VERSION_8881A || GET_CHIP_VER(priv) == VERSION_8812E || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if (GET_CHIP_VER(priv) == VERSION_8881A){
 			PHY_SetBBReg(priv, 0xcb0, 0x000000f0, 4);
 		}
@@ -468,18 +457,21 @@ if (GET_CHIP_VER(priv) == VERSION_8192D || GET_CHIP_VER(priv) == VERSION_8881A |
 	if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI){
 		if((priv->pmib->dot11RFEntry.dot11channel >= 120) &&
 		(priv->pmib->dot11RFEntry.dot11channel <= 132)){
-			PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);			
-			PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
-			PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
+			if (GET_CHIP_VER(priv) == VERSION_8814A){
+				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+				PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+			}
+			else{
+				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);
+				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+			}
+			PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);			
 			PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f69204);
 			priv->ch_120_132_CAC_end = 1;
 		}
 	}
 	priv->pmib->dot11DFSEntry.CAC_ss_counter = 3;
 	panic_printk("Transmitter is enabled!\n");
-#if defined(RTK_NL80211)
-	event_indicate_cfg80211(priv, NULL, CFG80211_RADAR_CAC_FINISHED, NULL);
-#endif
 }
 
 
@@ -822,80 +814,79 @@ void rtl8192cd_ch144_timer(unsigned long task_priv)
 #endif
 }
 
-
 unsigned int DFS_SelectChannel(struct rtl8192cd_priv *priv)
 {
-	unsigned int random;
-	unsigned int num, random_base, which_channel = -1;
-	int reg = priv->pmib->dot11StationConfigEntry.dot11RegDomain;	
+    unsigned int random;
+    unsigned int num, random_base, which_channel = -1;
+    int reg = priv->pmib->dot11StationConfigEntry.dot11RegDomain;	
 
-	if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80){ 
-		// When user select band 3 with 80M channel bandwidth 
-		which_channel = find80MChannel(priv->available_chnl,priv->available_chnl_num);
+    if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80){ 
+        // When user select band 3 with 80M channel bandwidth 
+        which_channel = find80MChannel(priv->available_chnl,priv->available_chnl_num);
 
-		if(which_channel == -1) // select non-DFS band 80M (ch 36 or 149) or down to 40/20M
-		{
+        if(which_channel == -1) // select non-DFS band 80M (ch 36 or 149) or down to 40/20M
+        {
 #ifdef __ECOS
-			// generate random number
-			{
-				unsigned int random_buf[4];
-				get_random_bytes(random_buf, 4);
-				random = random_buf[3];
-			}
+            // generate random number
+            {
+            unsigned int random_buf[4];
+            get_random_bytes(random_buf, 4);
+            random = random_buf[3];
+            }
 #else
-			get_random_bytes(&random, 4);
+            get_random_bytes(&random, 4);
 #endif
-			if(random % 2 == 0){ // try ch155 if not available choose ch36
-				if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 149)){
-					which_channel = 149;
-				}
-				else{
-					if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 36)){
-						which_channel = 36;
-					}
-				}
-			}
-			else{
-				if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 36)){
-					which_channel = 36;
-				}
-				else{
-					if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 149)){
-						which_channel = 149;
-					}
-				}
-			}
-		}
-	}
+            if(random % 2 == 0){ // try ch155 if not available choose ch36
+                if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 149)){
+                    which_channel = 149;
+                }
+                else{
+                    if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 36)){
+                        which_channel = 36;
+                    }
+                }
+            }
+            else{
+                if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 36)){
+                    which_channel = 36;
+                }
+                else{
+                    if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 149)){
+                        which_channel = 149;
+                    }
+                }
+            }
+        }
+    }
 
 
-	if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80 || 
-		priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20_40) {
-		if(which_channel == -1){ // down to 40M
-			priv->pmib->dot11nConfigEntry.dot11nUse40M = HT_CHANNEL_WIDTH_20_40;	
-			which_channel = find40MChannel(priv->available_chnl,priv->available_chnl_num);
-		}
-	}
+    if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80 || 
+        priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20_40) {
+        if(which_channel == -1){ // down to 40M
+            priv->pmib->dot11nConfigEntry.dot11nUse40M = HT_CHANNEL_WIDTH_20_40;    
+            which_channel = find40MChannel(priv->available_chnl,priv->available_chnl_num);
+        }
+    }
 
 
-	if(which_channel == -1){ // down to 20M
-		priv->pmib->dot11nConfigEntry.dot11nUse40M = HT_CHANNEL_WIDTH_20;		 
+    if(which_channel == -1){ // down to 20M
+        priv->pmib->dot11nConfigEntry.dot11nUse40M = HT_CHANNEL_WIDTH_20;        
 #ifdef __ECOS
-		unsigned int random_buf[4];
-		get_random_bytes(random_buf, 4);
-		random = random_buf[3];
+        unsigned int random_buf[4];
+        get_random_bytes(random_buf, 4);
+        random = random_buf[3];
 #else
-		get_random_bytes(&random, 4);
+        get_random_bytes(&random, 4);
 #endif
-		if(priv->available_chnl_num){
-			num = random % priv->available_chnl_num;
-			which_channel = priv->available_chnl[num];
-		}else{
-			which_channel = 0;
-		}
-	}
+        if(priv->available_chnl_num){
+            num = random % priv->available_chnl_num;
+            which_channel = priv->available_chnl[num];
+        }else{
+            which_channel = 0;
+        }
+    }
 
-	return which_channel;
+    return which_channel;
 }
 
 
@@ -1054,9 +1045,16 @@ void rtl8192cd_dfs_det_chk_timer(unsigned long task_priv)
 
 #if !defined(CONFIG_RTL_92D_SUPPORT)
 	// dfs_det.c
-	if((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A))
+	if((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A))
 	{
 		if (priv->pshare->rf_ft_var.dfs_det_off == 0) {
+            #if defined(CONFIG_WLAN_HAL_8814AE)
+			if(GET_CHIP_VER(priv) == VERSION_8814A){
+				if(priv->pshare->rf_ft_var.dfs_radar_diff_on){
+					rtl8192cd_radar_type_differentiation(priv);
+				}
+			}            
+            #endif
 			rtl8192cd_dfs_det_chk(priv);
 			rtl8192cd_dfs_dynamic_setting(priv);
 		}
@@ -1091,7 +1089,7 @@ void DFS_SetReg(struct rtl8192cd_priv *priv)
 		PHY_SetBBReg(priv, 0xc38, BIT(23) | BIT(22), 2);
 		PHY_SetBBReg(priv, 0x814, bMaskDWord, 0x04cc4d10);
 	}
-	else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		PHY_SetBBReg(priv, 0x814, 0x3fffffff, 0x04cc4d10);
 		PHY_SetBBReg(priv, 0x834, bMaskByte0, 0x06);
 		
@@ -1103,43 +1101,92 @@ void DFS_SetReg(struct rtl8192cd_priv *priv)
 				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68741a20);
 			}
 			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
-				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
-				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				if (GET_CHIP_VER(priv) == VERSION_8814A){
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c166cdf);
+					PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+				}
+				else{
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				}				
 				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67231);
 			}
 			else{
-				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
-				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				if (GET_CHIP_VER(priv) == VERSION_8814A){
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c176cdf);
+					PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+				}
+				else{
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				}				
 				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d6d231);
 			}
 		}
 		else if (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI) {
 			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
-				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);				
-				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
-				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+				if (GET_CHIP_VER(priv) == VERSION_8814A){
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+					PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+				}
+				else{
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+				}
+				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);				
 				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f57204);
 			}
 			else{
 				if((priv->pmib->dot11RFEntry.dot11channel >= 120) &&
 					(priv->pmib->dot11RFEntry.dot11channel <= 132)){
-						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);						
-						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
-						PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+					if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80 || priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20){
+						if (GET_CHIP_VER(priv) == VERSION_8814A){
+							PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+							PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+						}
+						else{
+							PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);
+							PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+						}
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);						
 						PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f87204);
+					}
+					else{
+						if (GET_CHIP_VER(priv) == VERSION_8814A){
+							PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+							PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+						}
+						else{
+							PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);
+							PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x01528480);
+						}
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);						
+						PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f77204);
+					}
 					priv->ch_120_132_CAC_end = 0;
 				}
 				else{
-					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);					
-					PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
-					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+					if (GET_CHIP_VER(priv) == VERSION_8814A){
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+						PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+					}
+					else{
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);
+						PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+					}
+					PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);					
 					PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f79204);
 				}
 			}
 		}
 		else if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK){
 			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
-				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				if (GET_CHIP_VER(priv) == VERSION_8814A){
+					PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+				}
+				else{
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				}				
 				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67234);
 				if((priv->pmib->dot11RFEntry.dot11channel >= 52) &&
 					(priv->pmib->dot11RFEntry.dot11channel <= 64)){
@@ -1153,7 +1200,12 @@ void DFS_SetReg(struct rtl8192cd_priv *priv)
 					else{
 						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68721a20);
 					}
-					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+					if (GET_CHIP_VER(priv) == VERSION_8814A){
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c166cdf);
+					}
+					else{
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);					
+					}
 				}
 			}
 			else{
@@ -1162,18 +1214,29 @@ void DFS_SetReg(struct rtl8192cd_priv *priv)
 					PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0fe7234);
 					PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0f141a20);					
 					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);
-					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+					if (GET_CHIP_VER(priv) == VERSION_8814A){
+						PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+					}
+					else{
+						PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+					}
 				}
 				else{
-					PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67234);
-					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
-					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x01528480);
+					PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67234);					
+					if (GET_CHIP_VER(priv) == VERSION_8814A){						
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c176cdf);
+						PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+					}
+					else{						
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+						PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x01528480);
+					}
 					if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20){
 						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x64721a20);
 					}
 					else{
 						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68721a20);
-					}
+					}							
 				}
 			}
 		}
@@ -1185,13 +1248,25 @@ void DFS_SetReg(struct rtl8192cd_priv *priv)
 				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68741a20);
 			}
 			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
-				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
-				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				if (GET_CHIP_VER(priv) == VERSION_8814A){
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c166cdf);
+					PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+				}
+				else{
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				}				
 				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67231);
 			}
 			else{
-				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
-				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				if (GET_CHIP_VER(priv) == VERSION_8814A){
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c176cdf);
+					PHY_SetBBReg(priv, 0x924, 0xfffffff, 0x095aa480);
+				}
+				else{
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				}				
 				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d6d231);
 			}
 		}
@@ -1208,6 +1283,51 @@ void DFS_SetReg(struct rtl8192cd_priv *priv)
 
 		if (GET_CHIP_VER(priv) == VERSION_8881A)
 			PHY_SetBBReg(priv, 0xb00, 0xc0000000, 3);
+
+		if (GET_CHIP_VER(priv) == VERSION_8814A){        // for 8814 new dfs mechanism setting
+			PHY_SetBBReg(priv, 0x19e4, 0x1fff, 0x1600);       // DFS backoff factor=0.375
+			PHY_SetBBReg(priv, 0x19e4, 0x30000, 1);     //NonDC peak_th = 2times DC peak_th
+			PHY_SetBBReg(priv, 0x9f8, 0xc0000000, 3);  // power for debug and auto test flow latch after ST 
+			PHY_SetBBReg(priv, 0x9f4, 0x80000000, 1);  // enable peak index should the same during the same short pulse (new mechanism)
+			PHY_SetBBReg(priv, 0x924, 0x20000000, 0);  // disable peak index should the same during the same short pulse (old mechanism)
+			PHY_SetBBReg(priv, 0x19e4, 0xe000, 2);      // if peak index diff >=2, then drop the result
+			if (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK) {
+				if((priv->pmib->dot11RFEntry.dot11channel >= 52) && (priv->pmib->dot11RFEntry.dot11channel <= 64)){
+					// pulse width hist th setting
+					PHY_SetBBReg(priv, 0x19e4, 0xff000000, 2);  // th1=2*04us
+					PHY_SetBBReg(priv, 0x19e8, bMaskDWord, 0xff080604); // set th2 = 4*0.4us, th3 = 6*0.4us, th4 = 8*0.4, th5 to max		
+					// pulse repetition interval hist th setting
+					PHY_SetBBReg(priv, 0x19b8, 0x00007f80, 86);  // th1=86*32us
+					PHY_SetBBReg(priv, 0x19ec, bMaskDWord, 0xffffffff); // set th2, th3, th4, th5 to max	
+				}
+				else{
+					// pulse width hist th setting
+					PHY_SetBBReg(priv, 0x19e4, 0xff000000, 2);  // th1=2*04us
+					PHY_SetBBReg(priv, 0x19e8, bMaskDWord, 0x1a0e0604); // set th2 = 4*0.4us, th3 = 6*0.4us, th4 = 14*0.4us, th5 = 26*0.4us					
+					// pulse repetition interval hist th setting
+					PHY_SetBBReg(priv, 0x19b8, 0x00007f80, 27);  // th1=27*32us
+					PHY_SetBBReg(priv, 0x19ec, bMaskDWord, 0xffffffff); // set th2, th3, th4, th5 to max
+				}
+			}
+			else if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI){
+				// pulse width hist th setting
+				PHY_SetBBReg(priv, 0x19e4, 0xff000000, 9);  // th1=9*04us
+				PHY_SetBBReg(priv, 0x19e8, bMaskDWord, 0xffff2c19); // // set th2 = 25*0.4us, th3 = 44*0.4us, th4, th5 = max
+				// pulse repetition interval hist th setting
+				//PHY_SetBBReg(priv, 0x19b8, 0x00007f80, 86);  // th1=86*32us
+				//PHY_SetBBReg(priv, 0x19ec, bMaskDWord, 0xffffffff); // set th2, th3, th4, th5 to max	
+			}
+			else if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_FCC){
+				// pulse width hist th setting
+				PHY_SetBBReg(priv, 0x19e4, 0xff000000, 2);  // th1=2*04us
+				PHY_SetBBReg(priv, 0x19e8, bMaskDWord, 0x331a0e03); // // set th2 = 3*0.4us, th3 = 14*0.4us, th4 = 26*0.4us, th5 = 51*0.4us
+				// pulse repetition interval hist th setting
+				//PHY_SetBBReg(priv, 0x19b8, 0x00007f80, 86);  // th1=86*32us
+				//PHY_SetBBReg(priv, 0x19ec, bMaskDWord, 0xffffffff); // set th2, th3, th4, th5 to max	
+			}
+			else{
+			}			
+		}
 
 		RTL_W8(TXPAUSE, 0xff);
 	}

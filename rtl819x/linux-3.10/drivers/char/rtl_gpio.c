@@ -64,7 +64,7 @@ void RTL_BSP_GPIO_write(unsigned int gpio_num, unsigned int value)
     printk("this is dummy api , when api in bsp ready : use new api\n");
 }
 #endif
-#if  defined(CONFIG_RTL_8198CD)
+#if  1//defined(CONFIG_RTL_8198CD)
 
 	// GPIO H5
 	#define RESET_PIN_IOBASE    PEFGH_CNR 	
@@ -165,11 +165,7 @@ void RTL_BSP_GPIO_write(unsigned int gpio_num, unsigned int value)
         #define RTL_GPIO_WPS_BTN_MUX    (3<<0)
         #define RTL_GPIO_MUX5_DATA              (RTL_GPIO_WPS_BTN_MUX | RTL_GPIO_SYS_LED_MUX)
 
-	#ifdef CONFIG_APPLE_MFI_SUPPORT
-	#define RTL_GPIO_D0_MUX		(3<<0)
-	#define RTL_GPIO_D1_MUX		(3<<3)
-	#define RTL_GPIO_MUX_DATA		(RTL_GPIO_D0_MUX | RTL_GPIO_D1_MUX)
-	#endif
+
 
 #endif	
 	
@@ -298,14 +294,6 @@ static ssize_t watchdog_kick_single_write(struct file * file, const char __user 
 
 	if (count < 2)
 		return -EFAULT;
-#ifdef CONFIG_RTL_WTDOG
-	{ 
-		/*If kernel fault. reboot whole system so softwatch dog can not kick even*/
-		extern int is_fault;
-		if(is_fault)
-			return count;
-	}
-#endif
 	if (userbuf && !copy_from_user(&flag, userbuf, 1)) {
 		if(flag[0] == '1'){
 			watchdog_kick_state = RTL_WATCHDOG_KICK;
@@ -905,9 +893,6 @@ static int write_watchdog_reboot(struct file *file, const char *buffer,
 
 	if (buffer && !copy_from_user(tmp, buffer, 8)) {	
 		if (tmp[0] == '1') {
-#ifdef CONFIG_SMP
-            smp_send_stop();
-#endif
 			local_irq_disable();	
 			printk("reboot...\n");
 			*(volatile unsigned long *)(0xB800311c)=0; /*this is to enable 865xc watch dog reset*/
@@ -931,7 +916,6 @@ struct file_operations watchdog_reboot_proc_fops = {
         .release        = single_release,
 };
 
-
 int __init rtl_gpio_init(void)
 {
 //	struct proc_dir_entry *res=NULL;
@@ -948,11 +932,7 @@ int __init rtl_gpio_init(void)
 		////leroy todo////RTL_W32(RTL_GPIO_MUX, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_POCKETAP_DATA));
 		RTL_W32(RTL_GPIO_MUX4, (RTL_R32(RTL_GPIO_MUX4) | (RTL_GPIO_MUX4_DATA))); 
 		RTL_W32(RTL_GPIO_MUX5, (RTL_R32(RTL_GPIO_MUX5) | (RTL_GPIO_MUX5_DATA))); 
-		#ifdef CONFIG_APPLE_MFI_SUPPORT
-		RTL_W32(RTL_GPIO_MUX, (RTL_R32(RTL_GPIO_MUX) | (RTL_GPIO_MUX_DATA))); 
-		#endif
 	#endif
-
 #endif // #if defined(CONFIG_RTL_8198C)
        
     ////todo : logical function (+): reset pin & reset led : RTL_BSP_Set_Reset_PIN
@@ -1043,12 +1023,10 @@ int __init rtl_gpio_init(void)
 	probe_timer.function = &rtl_gpio_timer;
 	mod_timer(&probe_timer, jiffies + HZ);
 	autoconfig_gpio_init(); //always init wps gpio
-#if defined(CONFIG_RTL_8198C) && (defined(CONFIG_SERIAL_RTL_UART1)||defined(CONFIG_SERIAL_RTL_UART2))
+
+#if defined(CONFIG_RTL_8198C) && defined(CONFIG_SERIAL_RTL_UART1)
 	{
 		int portnum=0x1;
-#ifdef CONFIG_SERIAL_RTL_UART1
-		portnum = 0x1;
-#endif
 		//System register Table
 #define SYS_BASE 0xb8000000
 #define SYS_INT_STATUS (SYS_BASE +0x04)
@@ -1111,9 +1089,7 @@ int __init rtl_gpio_init(void)
 		  printk("value 0x%x\n",(2)|(2<<8)|(2<<12)|(2<<16));;
 		  printk("value reg 0x%x\n",REG32(SYS_PIN_MUX_SEL4));
 		 }
-#ifdef CONFIG_SERIAL_RTL_UART2	
-		portnum = 2;
-#endif
+		 
 		 if(portnum==2)
 		 {
 		  //UART2

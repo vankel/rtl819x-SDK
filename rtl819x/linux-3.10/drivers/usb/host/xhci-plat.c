@@ -826,8 +826,8 @@ void set_u3_phy_parameter(void) //just for rle0371
 	set_u3_phy(0x0A, 0x9240);
 	set_u3_phy(0x0B, (phy40M==1) ? 0x8B15 : 0x8B1D);  //0108
 	set_u3_phy(0x0C, 0xDC6A);
-	set_u3_phy(0x0D, (phy40M==1) ? 0x148A : 0x158a);  //0508
-	set_u3_phy(0x0E, (phy40M==1) ? 0x98E1 : 0xA8c9);  //0508
+	set_u3_phy(0x0D, (phy40M==1) ? 0x148A : 0x158a);  //0108
+	set_u3_phy(0x0E, (phy40M==1) ? 0x98E1 : 0xA8c9);  //0108
 	set_u3_phy(0x0F, 0x8000);
 	
 	set_u3_phy(0x10, 0x000C);

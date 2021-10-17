@@ -45,11 +45,16 @@ void lib1x_kxsm_init( Auth_KeyxmitSM * key_sm )
 void lib1x_trans_kxsm( Auth_Pae * auth_pae, Global_Params * global, Auth_KeyxmitSM * key_sm )
 {
 
-
+#ifdef CONFIG_IEEE80211R
+	if(global->AuthKeyMethod == DOT11_AuthKeyType_RSN ||
+		global->AuthKeyMethod == DOT11_AuthKeyType_RSNPSK ||
+		global->AuthKeyMethod == DOT11_AuthKeyType_FT)
+		return;
+#else
 	if(global->AuthKeyMethod != DOT11_AuthKeyType_NonRSN802dot1x ||
 		(global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x && global->RSNVariable.UnicastCipher == DOT11_ENC_NONE && global->RSNVariable.MulticastCipher == DOT11_ENC_NONE) )
 		return;
-
+#endif
 	if(key_sm->keyAvailable)
 		lib1x_message(MESS_DBG_KXSM, "key_sm->keyAvailable=%d\n", key_sm->keyAvailable);
 

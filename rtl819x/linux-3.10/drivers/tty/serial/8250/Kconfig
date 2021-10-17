@@ -304,14 +304,7 @@ config SERIAL_8250_RT288X
 	  
 config SERIAL_RTL_UART1
 	bool "819x RTL UART1 support"
-	depends on SERIAL_8250 #&& SERIAL_8250_NR_UARTS >= 2 && SERIAL_8250_RUNTIME_UARTS >= 2
+	depends on SERIAL_8250 && SERIAL_8250_NR_UARTS >= 2 && SERIAL_8250_RUNTIME_UARTS >= 2
 	help
 		Enable RTL819x UART1 support, and this MAY add an uart device to ttyS1. 
-		NOTE: We don't provide option for this port to be console. 
-
-config SERIAL_RTL_UART2
-	bool "819x RTL UART2 support"
-	depends on SERIAL_8250 #&& SERIAL_8250_NR_UARTS >= 2 && SERIAL_8250_RUNTIME_UARTS >= 2
-	help
-		Enable RTL819x UART2 support, and this MAY add an uart device to ttyS2. 
 		NOTE: We don't provide option for this port to be console. 

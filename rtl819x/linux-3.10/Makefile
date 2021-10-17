@@ -193,7 +193,6 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
 VAR_ARCH	?= rlx
-#VAR_ARCH	?= mips
 ARCH		?= $(VAR_ARCH)
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
@@ -828,15 +827,7 @@ ifneq ($(KBUILD_SRC),)
 	fi;
 endif
 ifeq ($(CONFIG_RTL_SIMPLE_CONFIG), y)
-	rm -f .toolchain_*;
-	egrep "^CONFIG_RSDKDIR=toolchain/rsdk-4.6.4-4181-EB-3.10-u0.9.33-m32-150324" ../.config > .toolchain_4.6.4-4181;\
-	if [ -s .toolchain_4.6.4-4181 ];  then \
-		cp ../linux-2.6.30/drivers/net/wireless/rtl8192cd_sc/4.6.4-4181 ./drivers/net/wireless/rtl8192cd/8192cd_profile.S; \
-	fi;
-	egrep "^CONFIG_RSDKDIR=toolchain/msdk-4.4.7-mips-EB-3.10-0.9.33-m32t-131227b" ../.config > .toolchain_msdk-4.4.7;\
-	if [ -s .toolchain_msdk-4.4.7 ]; then \
-		cp ../linux-2.6.30/drivers/net/wireless/rtl8192cd_sc/msdk-4.4.7 ./drivers/net/wireless/rtl8192cd/8192cd_profile.S; \
-	fi;
+	cp ./drivers/net/wireless/rtl8192cd_sc/msdk-4.4.7 ./drivers/net/wireless/rtl8192cd/8192cd_profile.S
 endif
 # prepare2 creates a makefile if using a separate output directory
 prepare2: prepare3 outputmakefile asm-generic

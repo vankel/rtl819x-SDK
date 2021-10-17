@@ -1044,63 +1044,57 @@ int process_header_end(request * req)
 		}
 	}
 
-// davidhsu ----------------
+	// davidhsu ----------------
 #ifdef USE_AUTH
-{
+	{
+		char admin_name[MAX_NAME_LEN], admin_password[MAX_NAME_LEN];
+		char user_name[MAX_NAME_LEN], user_password[MAX_NAME_LEN];
 #ifdef SUPER_NAME_SUPPORT
-	char admin_name[MAX_NAME_LEN], admin_password[MAX_NAME_LEN];
+		apmib_get(MIB_SUPER_NAME, admin_name);
+		apmib_get(MIB_SUPER_PASSWORD, admin_password);
 #endif
-	char user_name[MAX_NAME_LEN], user_password[MAX_NAME_LEN];
-	char hostName[MAX_NAME_LEN]={0};
-#ifdef SUPER_NAME_SUPPORT
-	apmib_get(MIB_SUPER_NAME, admin_name);
-	apmib_get(MIB_SUPER_PASSWORD, admin_password);
-#endif
-	apmib_get(MIB_USER_NAME, user_name);
-	apmib_get(MIB_USER_PASSWORD, user_password);
-	if (strcmp(user_name, "") || strcmp(user_password, "")) {
-		if (req->auth_flag == 0) {
-			if (req->userName) {
-#ifdef SUPER_NAME_SUPPORT
-				if (!strcmp(req->userName, admin_name)) {
-					if (req->password==NULL || req->password[0]==0) {
-						if (admin_password[0]==0)
-							req->auth_flag = 2;
+		apmib_get(MIB_USER_NAME, user_name);
+		apmib_get(MIB_USER_PASSWORD, user_password);
+		if (strcmp(user_name, "") || strcmp(user_password, "")) {
+			if (req->auth_flag == 0) {
+				if (req->userName) {
+					if (!strcmp(req->userName, admin_name)) {
+						if (req->password==NULL || req->password[0]==0) {
+							if (admin_password[0]==0)
+								req->auth_flag = 2;
 							check_auth_flag = 2;
-					}
-					else  {
-						if (!strcmp(req->password, admin_password))
-							req->auth_flag = 2;
+						}
+						else  {
+							if (!strcmp(req->password, admin_password))
+								req->auth_flag = 2;
 							check_auth_flag = 2;
+						}
 					}
-				}
-				else
-#endif
-					if (!strcmp(req->userName, user_name)) {
-					if (req->password==NULL || req->password[0]==0) {
-						if (user_password[0]==0)
-							req->auth_flag = 1;
+					else if (!strcmp(req->userName, user_name)) {
+						if (req->password==NULL || req->password[0]==0) {
+							if (user_password[0]==0)
+								req->auth_flag = 1;
 							check_auth_flag = 1;
-					}
-					else  {
-						if (!strcmp(req->password, user_password))
-							req->auth_flag = 1;
+						}
+						else  {
+							if (!strcmp(req->password, user_password))
+								req->auth_flag = 1;
 							check_auth_flag = 1;
+						}
 					}
 				}
 			}
-		}
-		if (req->auth_flag == 0) {
+			if (req->auth_flag == 0) {
 #ifdef HOME_GATEWAY
-			apmib_get(MIB_HOST_NAME, hostName);
+				apmib_get(MIB_HOST_NAME, admin_name);
 #else
-			strcpy(hostName, "");
+				strcpy(admin_name, "");
 #endif
-			send_r_unauthorized(req, hostName);
-			return 0;
+				send_r_unauthorized(req, admin_name);
+				return 0;
+			}
 		}
 	}
-}
 #endif
 	//-------------------------
 

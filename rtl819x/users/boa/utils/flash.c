@@ -21,9 +21,11 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <regex.h>
+
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/wireless.h>
+
 #define noPARSE_TXT_FILE
 
 #define WLAN_FAST_INIT
@@ -123,7 +125,7 @@ extern unsigned int mib_get_flash_offset(CONFIG_DATA_T type);
 static char wlan_1x_ifname[16];
 #endif
 
-#ifndef CONFIG_MTD_NAND
+
 #if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE)
 #if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
 static char *Web_dev_name[2]=
@@ -131,17 +133,6 @@ static char *Web_dev_name[2]=
 	"/dev/mtdblock0", "/dev/mtdblock2"
 };
 #endif
-#endif
-#else
-#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE)
-#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
-static char *Web_dev_name[2]=
-{
-	"/dev/mtdblock2", "/dev/mtdblock5"
-};
-#endif
-#endif
-
 #endif
 
 #define SPACE	(' ')
@@ -156,6 +147,11 @@ static int set_mib_from_file=0;
 unsigned char sc_default_pin[]="57289961";
 #endif
 
+
+#if defined(FAST_BSS_TRANSITION) && defined(DOT11K) 
+#define NEIGHBOR_REPORT_FILE "/proc/%s/rm_neighbor_report"
+#endif
+
 typedef enum { 
 	HW_MIB_AREA=1, 
 	HW_MIB_WLAN_AREA,
@@ -168,7 +164,7 @@ typedef enum {
 static CONFIG_AREA_T config_area;
 static int send_ppp_msg(int sessid, unsigned char *peerMacStr);
 static int send_l2tp_msg(unsigned short l2tp_ns, int buf_length, unsigned char *l2tp_buff, unsigned char *lanIp, unsigned char *serverIp);
-#if !defined(CONFIG_RTL_8198C)
+#if 1//!defined(CONFIG_RTL_8198C)
 #define RTL_L2TP_POWEROFF_PATCH 1
 #endif
 
@@ -250,6 +246,7 @@ static int write_line_to_file(char *filename, int mode, char *line_data)
 	return 1;
 }
 #endif
+
 /* Local declarations routines */
 static int flash_read(char *buf, int offset, int len);
 static int writeDefault(int isAll);
@@ -399,6 +396,22 @@ static int ipv6DhcpcSendOptNum;
 #endif
 static int dnsClientServerNum;
 #endif
+
+#if defined(RTK_INBAND_NEW_FEATURE)
+
+/*
+	ret value:
+	0 : fail
+	1 : success
+*/
+int get_ap_status()
+{
+	
+	return 0;
+}
+
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////////
 static char __inline__ *getVal(char *value, char **p)
 {
@@ -700,13 +713,18 @@ static void readFileSetParam(char *file)
 static void readFileSetMib(char *file)
 {
 	FILE *fp;
-	char line[200], token[40], value[100], *ptr;
+	char line[200], token[50], value[100], *ptr;
 	int idx, hw_setting_found=0, ds_setting_found=0, cs_setting_found=0;
 	char *arrayval[100];
 	char temp[100][50];
 	int para_num=0;
 	mib_table_entry_T *pTbl;
 	int wlan_idx_bak, vwlan_idx_bak;
+	char cmd[100];
+	int tbl_idx=1;
+	int tbl_num = 0;
+	char tbl_name[50];
+	strcpy(tbl_name,"NONE");
 	
 	wlan_idx_bak = wlan_idx;
 	vwlan_idx_bak = vwlan_idx;
@@ -723,6 +741,21 @@ static void readFileSetMib(char *file)
 	}
 	set_mib_from_file = 1;
 	while ( fgets(line, 200, fp) ) {
+		if(line[0] == ';' || line[0] == '#')
+			continue;
+		if(ptr=strchr(line, ';'))
+		{
+			int i;
+			for(i=1;i<ptr-line-1;i++)
+			{
+				if(*(ptr-i) != '\ ' && *(ptr-i) != '\t')
+					break;
+			}
+			if(i != ptr-line-1)
+				*(ptr-i+1) = '\0';
+			else
+				continue;
+		}
 		ptr = get_token(line, token);
 		if (ptr == NULL)
 			continue;
@@ -746,6 +779,17 @@ static void readFileSetMib(char *file)
 			arrayval[para_num] = temp[para_num];
 			para_num++;
 		}
+		else if(strstr(token,"L2TP_PAYLOAD") && !strstr(token,"L2TP_PAYLOAD_NUM"))
+		{//change L2TP_PAYLOAD from hex to string			
+			sprintf(temp[para_num],"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+					value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7],
+					value[8], value[9], value[10], value[11], value[12], value[13], value[14], value[15],
+					value[16], value[17], value[18], value[19], value[20], value[21], value[22], value[23],
+					value[24], value[25], value[26], value[27], value[28], value[29], value[30], value[31],
+					value[32], value[33], value[34], value[35], value[36], value[37]);
+			arrayval[para_num] = temp[para_num];
+			para_num++;
+		}
 		else
 		{
 			char *p; 
@@ -761,12 +805,92 @@ static void readFileSetMib(char *file)
 			
 		}
 		arrayval[para_num] = NULL;
+
+		//analysis TBL mib
+		if(strstr(token,"_TBL_NUM")) 
+		{
+			if(!strstr(line,"_TBL_NUM=0"))
+			{
+				tbl_num = 0;
+				strcpy(tbl_name,token);
+				char *ptmp;
+				ptmp = strstr(tbl_name,"TBL");
+				*(ptmp+3) = '\0';
+			}
+		}
+		else if(strstr(token,"_TBL"))
+		{
+			if(strstr(token,tbl_name))
+			{
+				char *p; 
+				char tmp_ch[10];
+
+				//delete the x of TBLx, flash set xxx delall
+				strcpy(token,tbl_name);
+				if(0 == tbl_num)
+				{
+					if(!strstr(token,"SCHEDULE_TBL"))
+					{
+						sprintf(cmd,"flash set %s delall",tbl_name);
+						system(cmd);
+					}
+				}
+				tbl_num++;
+				
+				//delete','
+				para_num = 0;
+				p = strtok(value, ",");
+				while(p)
+				{
+					sscanf(p, "%s", temp[para_num]);
+					arrayval[para_num] = temp[para_num];
+					para_num++;
+					p = strtok(NULL, ","); 
+				}
+				
+				//add "add"
+				int i;
+				for(i=para_num;i>0;i--)
+					strcpy(temp[i],temp[i-1]);
+				strcpy(temp[0],"add");
+				arrayval[para_num] = temp[para_num];
+				para_num++;
+				arrayval[para_num] = NULL;
+
+				//special MIB
+				if(strstr(token,"VLANCONFIG_TBL")) 
+				{
+					strcpy(tmp_ch,temp[1]);
+					strcpy(temp[1],temp[2]);
+					strcpy(temp[2],tmp_ch);
+					strcpy(temp[7],temp[8]);
+					para_num--;
+					arrayval[para_num] = NULL;
+				}
+				else if(strstr(token,"SCHEDULE_TBL")) 
+				{
+					for(i=para_num;i>0;i--)
+						strcpy(temp[i],temp[i-1]);
+					strcpy(temp[0],"mod");
+					sprintf(temp[1],"%d",tbl_num);
+					arrayval[para_num] = temp[para_num];
+					para_num++;
+					arrayval[para_num] = NULL;
+				}
+			}
+			else
+			{
+				para_num = 0;
+				continue;
+			}
+			//printf("****%s %d: para_num=%d %s %s %s %s %s %s %s %s %s %s\n",__FUNCTION__,__LINE__,para_num,token,arrayval[0],arrayval[1],arrayval[2],arrayval[3],arrayval[4],arrayval[5],arrayval[6],arrayval[7],arrayval[8]);
+		}
+		
 		idx = searchMIB(token);
 		if ( idx == -1 ) {
-			printf("invalid param [%s]!\n", token);
-			fclose(fp);
-			set_mib_from_file = 0;
-			return;
+			//printf("invalid param [%s]!\n", token);
+			para_num = 0;
+			continue;
 		}
 		if (config_area == HW_MIB_AREA || config_area == HW_MIB_WLAN_AREA) {
 			hw_setting_found = 1;
@@ -813,6 +937,7 @@ static void readFileSetMib(char *file)
 		setMIB(token, pTbl[idx].id, pTbl[idx].type, pTbl[idx].size, para_num, arrayval);
 		para_num = 0;
 	}
+	printf("setMIB end...\n");
 	fclose(fp);
 	
 	if (hw_setting_found)
@@ -862,7 +987,7 @@ static int resetDefault(void)
 #endif
 
 #ifdef CONFIG_MTD_NAND
-	fh = open(FLASH_DEVICE_SETTING, O_RDWR|O_CREAT);
+	fh = open(FLASH_DEVICE_NAME, O_RDWR|O_CREAT);
 #else
 	fh = open(FLASH_DEVICE_NAME, O_RDWR);
 #endif
@@ -1379,7 +1504,7 @@ if(0)
 					value[valNum]= NULL;
 				}
 				else
-#endif
+#endif					
 				{
 					sprintf(line_buffer,"%s=%s\n", argv[2], argv[3]);
 					write_line_to_file(SYSTEM_CONF_FILE, 2, line_buffer);
@@ -1431,20 +1556,12 @@ if(0)
 			return writeDefault(1);
 		}
 		else if ( !strcmp(argv[argNum], "default-sw") ) {
-#if defined(CONFIG_APPLE_HOMEKIT)	
-            printf("hapserver hap_reset\n");	
-            system("hapserver hap_reset");
-#endif
 			return writeDefault(0);
 		}
 		else if ( !strcmp(argv[argNum], "default-hw") ) {
 			return writeDefault(2);
 		}
 		else if ( !strcmp(argv[argNum], "reset") ) {
-#if defined(CONFIG_APPLE_HOMEKIT)
-            printf("hapserver hap_reset\n");
-            system("hapserver hap_reset");
-#endif
 #ifdef RTL_DEF_SETTING_IN_FW
 			return writeDefault(0);
 #else
@@ -2703,17 +2820,12 @@ void Init_WlanConf(APMIB_Tp AP_Mib)
 }
 #endif
 
-/* flash_write only used to write mib for nand */
 static int flash_write(char *buf, int offset, int len)
 {
 	int fh;
 	int ok=1;
 
-#ifdef CONFIG_MTD_NAND
-	fh = open(FLASH_DEVICE_SETTING, O_RDWR | O_CREAT);	
-#else
 	fh = open(FLASH_DEVICE_NAME, O_RDWR);
-#endif
 
 	if ( fh == -1 )
 		return 0;
@@ -2737,11 +2849,6 @@ PHYBAND_TYPE_T wlanPhyBandDef[] = {PHYBAND_5G, PHYBAND_2G}; /* phybandcheck */
 #else
 PHYBAND_TYPE_T wlanPhyBandDef[] = {PHYBAND_2G, PHYBAND_2G}; /* phybandcheck */
 #endif
-
-/* read hw nic0 addr */
-#define HW_NIC0_ADDR_OFFSET		7	
-#define HW_WLAN_SETTING_OFFSET  	19
-
 #ifdef RTL_DEF_SETTING_IN_FW
 
 static int writeDefault(int isAll)
@@ -2773,7 +2880,7 @@ static int writeDefault(int isAll)
 	}
 	ret=apmib_reinit();
 
-	//printf("write default success!\n");	
+	//printf("write default success!\n");
 	return ret;
 	
 
@@ -2822,10 +2929,6 @@ static int writeDefault(int isAll)
 	char hw_setting_start[6];	
 	int comp_hw_setting = 0;
 	int vlanIdx = 0;
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-	unsigned char tmp1[16];	
-	//apmib_init();
-#endif	
 
 	//buff=calloc(1, 0x6000);
 	buff=calloc(1, HW_SETTING_SECTOR_LEN + DEFAULT_SETTING_SECTOR_LEN + 
@@ -2837,7 +2940,7 @@ static int writeDefault(int isAll)
 
 #ifdef __mips__
 #ifdef CONFIG_MTD_NAND
-	fh = open(FLASH_DEVICE_SETTING, O_RDWR|O_CREAT);
+	fh = open(FLASH_DEVICE_NAME, O_RDWR|O_CREAT);
 #else
 	fh = open(FLASH_DEVICE_NAME, O_RDWR);
 #endif
@@ -2947,9 +3050,6 @@ static int writeDefault(int isAll)
 			hwmib.wlan[idx].rfType = 10;
 			hwmib.wlan[idx].xCap = 0;
 			hwmib.wlan[idx].Ther = 0;
-			#if defined(CONFIG_APP_APPLE_MFI_WAC)
-			hwmib.wlan[idx].ledType = 7;
-			#endif
 /*
 #if defined(CONFIG_RTL_8196C)
                         hwmib.wlan[idx].trswitch = 0;
@@ -3250,7 +3350,7 @@ static int writeDefault(int isAll)
 
 		}
 #ifdef CONFIG_MTD_NAND
-		fh = open(FLASH_DEVICE_SETTING, O_RDWR|O_CREAT);
+		fh = open(FLASH_DEVICE_NAME, O_RDWR|O_CREAT);
 #else		
 		fh = open(FLASH_DEVICE_NAME, O_RDWR);
 #endif
@@ -3322,21 +3422,10 @@ static int writeDefault(int isAll)
 					else
 						sprintf(pMib->wlan[idx][i].ssid, "RTK 11n AP %d",idx);
 #else
-                    if(0 == idx){
-                    	strcpy((char *)pMib->wlan[idx][i].ssid, "RTK 11n AP" );
-                    }else
+					if(0 == idx)
+                               	strcpy((char *)pMib->wlan[idx][i].ssid, "RTK 11n AP" );
+				    else
 					sprintf((char *)pMib->wlan[idx][i].ssid, "RTK 11n AP %d",idx);
-#endif
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-					if(isAll){
-						sprintf(((char *)pMib->wlan[idx][i].ssid), "WAC_%02X%02X%02X", hwmib.wlan[idx].macAddr[3], hwmib.wlan[idx].macAddr[4], hwmib.wlan[idx].macAddr[5]);
-					}else{
-						if(flash_read(tmp1,HW_WLAN_SETTING_OFFSET + sizeof(struct hw_wlan_setting) * idx+HW_SETTING_OFFSET,6) != 0)
-							sprintf((char *)pMib->wlan[idx][i].ssid, "WAC_%02X%02X%02X", tmp1[3], tmp1[4], tmp1[5]);
-                        else{
-							printf("[%s]:%d, get hw_nic0_addr error\n",__func__,__LINE__);
-						}
-					}
 #endif
 			  }				   
 
@@ -3425,27 +3514,10 @@ static int writeDefault(int isAll)
 			pMib->wlan[idx][i].rsIntervalTime = 5;
 			pMib->wlan[idx][i].accountRsMaxRetry = 0;
 			pMib->wlan[idx][i].accountRsIntervalTime = 0;
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-		#ifdef UNIVERSAL_REPEATER
-			if(i == NUM_VWLAN_INTERFACE) //rpt interface
-			{
-				#if defined(WAC_CONFIGURING_REPETER)
-				pMib->wlan[idx][i].wlanDisabled = 0;
-				#else
-				pMib->wlan[idx][i].wlanDisabled = 1;
-				#endif
-			}else{
+		
 			if (i > 0)
 				pMib->wlan[idx][i].wlanDisabled = 1;		
-			}					
-		#else
-			if (i > 0)
-				pMib->wlan[idx][i].wlanDisabled = 1;
-		#endif	
-#else		
-			if (i > 0)
-				pMib->wlan[idx][i].wlanDisabled = 1;		
-#endif
+
 #ifdef WLAN_EASY_CONFIG
 			pMib->wlan[idx][i].acfMode = MODE_BUTTON;
 			pMib->wlan[idx][i].acfAlgReq = ACF_ALGORITHM_WPA2_AES;
@@ -3456,16 +3528,7 @@ static int writeDefault(int isAll)
 #ifdef WIFI_SIMPLE_CONFIG
 	
 			//strcpy(pMib->wlan[idx][i].wscSsid, pMib->wlan[idx][i].ssid ); //must be the same as pMib->wlan[idx].ssid
-#if !defined(CONFIG_APP_APPLE_MFI_WAC)
 			pMib->wlan[idx][i].wscDisable = 0;
-#else
-			pMib->wlan[idx][i].wscDisable = 1;
-#endif			
-#endif
-#if !defined(CONFIG_APP_APPLE_MFI_WAC)
-			pMib->wlan[idx][i].iappDisabled = 0;
-#else
-			pMib->wlan[idx][i].iappDisabled = 1;
 #endif
 			// for 11n			
 			if (i == 0)
@@ -3870,19 +3933,6 @@ static int writeDefault(int isAll)
 #endif
 	strcpy(pMib->wlan[idx][0].meshID, "RTK-mesh");
 	
-#ifdef 	_11s_TEST_MODE_	
-	pMib->wlan[idx][0].meshTestParam6 = 43627 ;
-	pMib->wlan[idx][0].meshTestParam7 = 48636 ;
-	pMib->wlan[idx][0].meshTestParam8 = 42090 ;
-	pMib->wlan[idx][0].meshTestParam9 = 43627 ;
-	pMib->wlan[idx][0].meshTestParama = 42606 ;
-	pMib->wlan[idx][0].meshTestParamb = 47016 ;
-	pMib->wlan[idx][0].meshTestParamc = 57710 ;
-	pMib->wlan[idx][0].meshTestParamd = 46323 ;
-	pMib->wlan[idx][0].meshTestParame = 47016 ;
-	pMib->wlan[idx][0].meshTestParamf = 47811 ;
-#endif
-
 #endif // CONFIG_RTK_MESH
 #if defined(HOME_GATEWAY) && defined(ROUTE_SUPPORT)
 	pMib->natEnabled = 1;
@@ -4027,31 +4077,6 @@ pMib->cwmp_ipconn_created = 1; //default wan type is dhcp
 	
 #endif
 
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-pMib->mibVer = 2;
-pMib->opMode = BRIDGE_MODE;
-#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8871AM) || defined(CONFIG_RTL_8198C)
-		// only support single band
-		if(isAll)
-			sprintf((char *)pMib->WACdeviceName, "Realtek_WAC_%02X%02X%02X",hwmib.wlan[0].macAddr[3], hwmib.wlan[0].macAddr[4], hwmib.wlan[0].macAddr[5]);
-		else{
-        	//apmib_get(MIB_HW_NIC0_ADDR, (void *)&tmp1);
-        	if(flash_read(tmp1,HW_WLAN_SETTING_OFFSET + HW_SETTING_OFFSET,6) != 0)
-				sprintf((char *)pMib->WACdeviceName, "Realtek_WAC_%02X%02X%02X",tmp1[3], tmp1[4], tmp1[5]);
-            else{
-				printf("[%s]:%d, get hw_nic0_addr error\n",__func__,__LINE__);
-			}
-        }       
-#else
-		sprintf((char *)pMib->WACdeviceName, "%s", "Realtek");
-#endif
-#if defined(WAC_CONFIGURING_REPETER)
-pMib-> repeaterEnabled1 =1;
-#else
-pMib-> repeaterEnabled1 =0;
-#endif
-#endif
-
 	data = (char *)pMib;
 
 	// write default setting
@@ -4142,7 +4167,7 @@ pMib-> repeaterEnabled1 =0;
     apmib_sem_unlock();
 #endif
 #ifdef CONFIG_MTD_NAND
-	fh = open(FLASH_DEVICE_SETTING, O_RDWR|O_CREAT);
+	fh = open(FLASH_DEVICE_NAME, O_RDWR|O_CREAT);
 #else
 	fh = open(FLASH_DEVICE_NAME, O_RDWR);
 #endif
@@ -4329,46 +4354,13 @@ pMib-> repeaterEnabled1 =0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/* flash_read only used to read mib
-/* flash_read_web used to read web|linux|cert for nand flash*/
-static int flash_read_web(char *buf, int offset, int len)
-{
-	int fh;
-	int ok=1;
-
-#ifdef __mips__
-	fh = open(FLASH_DEVICE_NAME, O_RDWR);
-#endif
-
-#ifdef __i386__
-	fh = open(FLASH_DEVICE_NAME, O_RDONLY);
-#endif
-	if ( fh == -1 )
-		return 0;
-
-	lseek(fh, offset, SEEK_SET);
-
-	if ( read(fh, buf, len) != len)
-		ok = 0;
-
-	close(fh);
-
-	return ok;
-}
-
-
-
 static int flash_read(char *buf, int offset, int len)
 {
 	int fh;
 	int ok=1;
 
 #ifdef __mips__
-#ifdef CONFIG_MTD_NAND
-	fh = open(FLASH_DEVICE_SETTING, O_RDWR | O_CREAT);
-#else
 	fh = open(FLASH_DEVICE_NAME, O_RDWR);
-#endif
 #endif
 
 #ifdef __i386__
@@ -4819,9 +4811,18 @@ getval:
 			sprintf(buf, "%d", *(((unsigned char *)value)+chan-1) );
 		}
 #else
-		if((id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM))
+		if((id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM)			
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			||(id >= MIB_HW_TX_POWER_CCK_C &&  id <=MIB_HW_TX_POWER_CCK_D)
+			||(id >= MIB_HW_TX_POWER_HT40_1S_C &&  id <=MIB_HW_TX_POWER_HT40_1S_D)
+#endif
+			)
 			max_chan_num = MAX_2G_CHANNEL_NUM_MIB;
-		else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM))
+		else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM)
+#if defined(CONFIG_WLAN_HAL_8814AE)
+				||(id >= MIB_HW_TX_POWER_5G_HT40_1S_C &&  id <=MIB_HW_TX_POWER_5G_HT40_1S_D)
+#endif
+			)
 			max_chan_num = MAX_5G_CHANNEL_NUM_MIB;
 		else if(id == MIB_L2TP_PAYLOAD)
 			max_chan_num = MAX_L2TP_BUFF_LEN;
@@ -5548,20 +5549,32 @@ static void setMIB(char *name, int id, TYPE_T type, int len, int valNum, char **
 				key[2] = 0xff ;
 			}
 #elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
-	if(!(id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM) &&
+		if(!(id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM) &&
 			!(id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM)
 #if defined(CONFIG_RTL_8812_SUPPORT)
 			&& !(id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_B)
 #endif
+#if defined(CONFIG_WLAN_HAL_8814AE)
+        && !(id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_C &&  id <=MIB_HW_TX_POWER_5G_HT40_1S_D)
+#endif
 			&& (id != MIB_L2TP_PAYLOAD)){
 				printf("invalid mib!\n");
 				return;
-			}
-		if((id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM))
+		}
+		if((id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM)
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			||(id >= MIB_HW_TX_POWER_CCK_C &&  id <=MIB_HW_TX_POWER_CCK_D)
+			||(id >= MIB_HW_TX_POWER_HT40_1S_C &&  id <=MIB_HW_TX_POWER_HT40_1S_D)
+#endif
+			)
 			max_chan_num = MAX_2G_CHANNEL_NUM_MIB;
-		else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM))
+		else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM)
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			||(id >= MIB_HW_TX_POWER_5G_HT40_1S_C &&  id <=MIB_HW_TX_POWER_5G_HT40_1S_D)
+#endif
+			)
 			max_chan_num = MAX_5G_CHANNEL_NUM_MIB;
-		
+
 #if defined(CONFIG_RTL_8812_SUPPORT)
 		if(((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_A) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_A)) 
 			|| ((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_B) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_B)) )
@@ -5572,7 +5585,15 @@ static void setMIB(char *name, int id, TYPE_T type, int len, int valNum, char **
 			max_chan_num = MAX_5G_DIFF_NUM;
 #endif
 
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		if(((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_C) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_C)) 
+			|| ((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_D) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_D)) )
+			max_chan_num = MAX_2G_CHANNEL_NUM_MIB;
 
+		if(((id >= MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_C) && (id <= MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_C)) 
+			|| ((id >= MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_D) && (id <= MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_D)) )
+			max_chan_num = MAX_5G_DIFF_NUM;
+#endif
 		
 #if defined(RTL_L2TP_POWEROFF_PATCH)
 	if(id == MIB_L2TP_PAYLOAD)
@@ -6283,7 +6304,7 @@ static void setMIB(char *name, int id, TYPE_T type, int len, int valNum, char **
 #endif
 
 	case SCHEDULE_ARRAY_T:
-		#ifdef NEW_SCHEDULE_SUPPORT
+	#ifdef NEW_SCHEDULE_SUPPORT
 
 		if ( !strcmp(val[0], "mod")) {
 
@@ -6332,7 +6353,6 @@ static void setMIB(char *name, int id, TYPE_T type, int len, int valNum, char **
 
 		
 #endif
-
 		break;
 #ifdef TR181_SUPPORT
 #ifdef CONFIG_IPV6
@@ -6740,43 +6760,39 @@ static void setMIB(char *name, int id, TYPE_T type, int len, int valNum, char **
 
 #ifdef CONFIG_IPV6
 	case RADVDPREFIX_T:
-		if(valNum != 24 || valNum != 33)
-			printf("input argumentis not enough");
+		if(valNum != 24 && valNum != 33)
+		{
+			printf("valNum=%d input argumentis not enough should be like \
+				1 br0 600 200 3 0 0 1500 0 0 64 1800 medium 1 0 2001:0:0:0:0:0:0:0 64 1 1 2592000 604800 0 eth1 1\
+				or\
+				1 br0 600 200 3 0 0 1500 0 0 64 1800 medium 1 0 2001:0:0:0:0:0:0:0 64 1 1 2592000 604800 0 eth1 1 2002:0:0:0:0:0:0:0 64 1 1 2592000 604800 0 eth1 1",valNum);			
+			return;
+		}
+		
 		radvdCfgParam.enabled=atoi(val[0]);
 		strcpy(radvdCfgParam.interface.Name,val[1]);
-		radvdCfgParam.interface.MaxRtrAdvInterval=atoi(val[3]);
-		radvdCfgParam.interface.MinRtrAdvInterval=atoi(val[4]);
-		radvdCfgParam.interface.MinDelayBetweenRAs=atoi(val[5]);
-		radvdCfgParam.interface.AdvManagedFlag=atoi(val[6]);
-		radvdCfgParam.interface.AdvOtherConfigFlag=atoi(val[7]);
-		radvdCfgParam.interface.AdvLinkMTU=atoi(val[8]);
+		radvdCfgParam.interface.MaxRtrAdvInterval=atoi(val[2]);
+		radvdCfgParam.interface.MinRtrAdvInterval=atoi(val[3]);
+		radvdCfgParam.interface.MinDelayBetweenRAs=atoi(val[4]);
+		radvdCfgParam.interface.AdvManagedFlag=atoi(val[5]);
+		radvdCfgParam.interface.AdvOtherConfigFlag=atoi(val[6]);
+		radvdCfgParam.interface.AdvLinkMTU=atoi(val[7]);
 		/*replace atoi by strtoul to support max value test of ipv6 phase 2 test*/
-		radvdCfgParam.interface.AdvReachableTime=strtoul(val[9],NULL,10);
-		radvdCfgParam.interface.AdvRetransTimer=strtoul(val[10],NULL,10);
-		radvdCfgParam.interface.AdvCurHopLimit=atoi(val[11]);
+		radvdCfgParam.interface.AdvReachableTime=strtoul(val[8],NULL,10);
+		radvdCfgParam.interface.AdvRetransTimer=strtoul(val[9],NULL,10);
+		radvdCfgParam.interface.AdvCurHopLimit=atoi(val[10]);
+		radvdCfgParam.interface.AdvDefaultLifetime=atoi(val[11]);
 		strcpy(radvdCfgParam.interface.AdvDefaultPreference,val[12]);
 		radvdCfgParam.interface.AdvSourceLLAddress=atoi(val[13]);
 		radvdCfgParam.interface.UnicastOnly=atoi(val[14]);
 
 		/*prefix1*/
-		memset(tmp,0,5);
-		pstart=val[15];
-		pend=pstart;
-		for(i=0;i<8;i++)
+		if(inet_pton(AF_INET6,val[15],(void*)(radvdCfgParam.interface.prefix[0].Prefix))!=1)
 		{
-			size=0;
-			while(*pend !=':')
-			{
-				pend++;
-				size++;
-			}
-			pend++;
-			if(*pend == ':')
-				pend++;
-			memcpy(tmp,pstart,size);
-			pstart=pend;
-			radvdCfgParam.interface.prefix[0].Prefix[i]=strtol(tmp,NULL,16);
+			printf("invalid ipv6 address!\n");
+			return;
 		}
+		
 		radvdCfgParam.interface.prefix[0].PrefixLen=atoi(val[16]);
 		radvdCfgParam.interface.prefix[0].AdvOnLinkFlag=atoi(val[17]);
 		radvdCfgParam.interface.prefix[0].AdvAutonomousFlag=atoi(val[18]);
@@ -6786,35 +6802,24 @@ static void setMIB(char *name, int id, TYPE_T type, int len, int valNum, char **
 		radvdCfgParam.interface.prefix[0].AdvRouterAddr=atoi(val[21]);
 		strcpy(radvdCfgParam.interface.prefix[0].if6to4,val[22]);
 		radvdCfgParam.interface.prefix[0].enabled=atoi(val[23]);
-
-		/*prefix2*/
-		memset(tmp,0,5);
-		pstart=val[24];
-		pend=pstart;
-		for(i=0;i<8;i++)
+		if(valNum==33)
 		{
-			size=0;
-			while(*pend !=':')
+			/*prefix2*/
+			if(inet_pton(AF_INET6,val[24],(void*)(radvdCfgParam.interface.prefix[1].Prefix))!=1)
 			{
-				pend++;
-				size++;
+				printf("invalid ipv6 address!\n");
+				return;
 			}
-			pend++;
-			if(*pend == ':')
-				pend++;
-			memcpy(tmp,pstart,size);
-			pstart=pend;
-			radvdCfgParam.interface.prefix[1].Prefix[i]=strtol(tmp,NULL,16);
+			radvdCfgParam.interface.prefix[1].PrefixLen=atoi(val[25]);
+			radvdCfgParam.interface.prefix[1].AdvOnLinkFlag=atoi(val[26]);
+			radvdCfgParam.interface.prefix[1].AdvAutonomousFlag=atoi(val[26]);
+			/*replace atoi by strtoul to support max value test of ipv6 phase 2 test*/
+			radvdCfgParam.interface.prefix[1].AdvValidLifetime=strtoul(val[28],NULL,10);
+			radvdCfgParam.interface.prefix[1].AdvPreferredLifetime=strtoul(val[29],NULL,10);
+			radvdCfgParam.interface.prefix[1].AdvRouterAddr=atoi(val[30]);
+			strcpy(radvdCfgParam.interface.prefix[1].if6to4,val[31]);
+			radvdCfgParam.interface.prefix[1].enabled=atoi(val[32]);
 		}
-		radvdCfgParam.interface.prefix[1].PrefixLen=atoi(val[25]);
-		radvdCfgParam.interface.prefix[1].AdvOnLinkFlag=atoi(val[26]);
-		radvdCfgParam.interface.prefix[1].AdvAutonomousFlag=atoi(val[26]);
-		/*replace atoi by strtoul to support max value test of ipv6 phase 2 test*/
-		radvdCfgParam.interface.prefix[1].AdvValidLifetime=strtoul(val[28],NULL,10);
-		radvdCfgParam.interface.prefix[1].AdvPreferredLifetime=strtoul(val[29],NULL,10);
-		radvdCfgParam.interface.prefix[1].AdvRouterAddr=atoi(val[30]);
-		strcpy(radvdCfgParam.interface.prefix[1].if6to4,val[31]);
-		radvdCfgParam.interface.prefix[1].enabled=atoi(val[32]);
 		value=(void *)&radvdCfgParam;
 		break;
 	case DNSV6_T:
@@ -7155,7 +7160,7 @@ printf("###line=%d###", __LINE__);
 
 	if ( !APMIB_SET(id, value))
 		printf("set MIB failed!\n");
-	printf("setMIB end...\n");
+	//printf("setMIB end...\n");
 	if(config_area
 #if defined(SET_MIB_FROM_FILE)
 	&& (set_mib_from_file==0)
@@ -8637,10 +8642,10 @@ static int read_flash_webpage(char *prefix, char *webfile)
 #if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
 		if ( flash_read_webpage((char *)&header, WEB_PAGE_OFFSET, sizeof(header)) == 0) {
 #else
-		if ( flash_read_web((char *)&header, WEB_PAGE_OFFSET, sizeof(header)) == 0) {
+		if ( flash_read((char *)&header, WEB_PAGE_OFFSET, sizeof(header)) == 0) {
 #endif
 #else
-		if ( flash_read_web((char *)&header, WEB_PAGE_OFFSET, sizeof(header)) == 0) {
+		if ( flash_read((char *)&header, WEB_PAGE_OFFSET, sizeof(header)) == 0) {
 #endif
 			printf("Read web header failed!\n");
 			return -1;
@@ -8681,10 +8686,10 @@ static int read_flash_webpage(char *prefix, char *webfile)
 #if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
 		if ( flash_read_webpage(buf, WEB_PAGE_OFFSET+sizeof(header), header.len) == 0) {
 #else
-		if ( flash_read_web(buf, WEB_PAGE_OFFSET+sizeof(header), header.len) == 0) {
+		if ( flash_read(buf, WEB_PAGE_OFFSET+sizeof(header), header.len) == 0) {
 #endif
 #else
-		if ( flash_read_web(buf, WEB_PAGE_OFFSET+sizeof(header), header.len) == 0) {
+		if ( flash_read(buf, WEB_PAGE_OFFSET+sizeof(header), header.len) == 0) {
 #endif
 			printf("Read web image failed!\n");
 			free(buf);
@@ -8864,7 +8869,7 @@ static int read_flash_cert(char *prefix, char *certfile)
 		file = NULL;
 
 	if (!file) {
-		if ( flash_read_web((char *)&header, CERT_PAGE_OFFSET, sizeof(header)) == 0) {
+		if ( flash_read((char *)&header, CERT_PAGE_OFFSET, sizeof(header)) == 0) {
 			printf("Read web header failed!\n");
 			return -1;
 		}
@@ -8900,7 +8905,7 @@ static int read_flash_cert(char *prefix, char *certfile)
 	}
 
 	if (!file) {
-		if ( flash_read_web(buf, CERT_PAGE_OFFSET+sizeof(header), header.len) == 0) {
+		if ( flash_read(buf, CERT_PAGE_OFFSET+sizeof(header), header.len) == 0) {
 			printf("Read web image failed!\n");
 			return -1;
 		}
@@ -9184,7 +9189,7 @@ static void generateEthDot1xConf(char *outputFile)
 }
 #endif
 
-
+////////////////////////////////////////////////////////////////////////////////
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 
 typedef struct _OCTET_STRING {
@@ -9515,7 +9520,6 @@ ss_err:
 	return -1;
 }
 #endif
-////////////////////////////////////////////////////////////////////////////////
 static void generateWpaConf(char *outputFile, int isWds)
 {
 	int fh, intVal, encrypt, enable1x, wep;
@@ -10506,6 +10510,11 @@ static int initWlan(char *ifname)
 	int vap_enable=0, intVal4=0;
 #endif
 #endif
+
+#if defined(FAST_BSS_TRANSITION) && defined(DOT11K)
+    FTKH_T ftkh_entry={0};
+#endif
+
 	
 	skfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (skfd < 0) {
@@ -10990,6 +10999,22 @@ static int initWlan(char *ifname)
 			}
 		}
 #elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
+#ifdef CONFIG_WLAN_HAL_8814AE
+	apmib_get(MIB_HW_BOARD_VER, (void *)&intVal);
+        if (intVal == 1)
+                pmib->dot11RFEntry.MIMO_TR_mode = 5; // 3T3R
+        else if(intVal == 2)
+                pmib->dot11RFEntry.MIMO_TR_mode = 3; // 2T2R
+        else if(intVal == 3)
+                pmib->dot11RFEntry.MIMO_TR_mode = 2; // 2T4R
+        else
+                pmib->dot11RFEntry.MIMO_TR_mode = 5; // 3T3R
+
+#ifdef CONFIG_RTL_8814_8194_2T2R_SUPPORT
+	printf("Force 2T2R for 8814/8194 !!!\n");
+	pmib->dot11RFEntry.MIMO_TR_mode = 3; // 2T2R
+#endif
+#else
 	apmib_get(MIB_HW_BOARD_VER, (void *)&intVal);
 	if (intVal == 1)
 		pmib->dot11RFEntry.MIMO_TR_mode = 3;	// 2T2R
@@ -11005,7 +11030,7 @@ static int initWlan(char *ifname)
 		pmib->dot11RFEntry.MIMO_TR_mode = 4; // 1T1R
 	}	
 #endif
-
+#endif
 
 	apmib_get(MIB_HW_TX_POWER_CCK_A, (void *)buf1);
 	memcpy(pmib->dot11RFEntry.pwrlevelCCK_A, buf1, MAX_2G_CHANNEL_NUM_MIB);	
@@ -11077,14 +11102,102 @@ static int initWlan(char *ifname)
 	apmib_get(MIB_HW_TX_POWER_DIFF_40BW2S_20BW2S_B, (void *)buf1);
 	memcpy(pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_B, buf1, MAX_2G_CHANNEL_NUM_MIB);
 #endif
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+        //3 5G
+
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_A, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_A, (unsigned char*)buf1);
+
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_A, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_A, (unsigned char*)buf1);
+
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_B, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_B, (unsigned char*)buf1);
+
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_B, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_B, (unsigned char*)buf1);
+
+
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_C, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_C, (unsigned char*) buf1);   
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_C, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_C, (unsigned char*)buf1);
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_C, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_C, (unsigned char*)buf1);
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_C, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_C, (unsigned char*)buf1);
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_C, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_C, (unsigned char*)buf1);
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_C, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_C, (unsigned char*)buf1);
 	
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_D, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_D, (unsigned char*)buf1);    
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_D, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_D, (unsigned char*)buf1);
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_D, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_D, (unsigned char*)buf1);
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_D, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_D, (unsigned char*)buf1);
+        apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_D, (void *)buf1);
+        assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_D, (unsigned char*)buf1);
+		apmib_get(MIB_HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_D, (void *)buf1);
+		assign_diff_AC(pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_D, (unsigned char*)buf1);
+
+	
+        //3 2G
+
+		apmib_get(MIB_HW_TX_POWER_HT40_1S_C, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrlevelHT40_1S_C, buf1, MAX_2G_CHANNEL_NUM_MIB);
+		apmib_get(MIB_HW_TX_POWER_HT40_1S_D, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrlevelHT40_1S_D, buf1, MAX_2G_CHANNEL_NUM_MIB);
+
+		apmib_get(MIB_HW_TX_POWER_CCK_C, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrlevelCCK_C, buf1, MAX_2G_CHANNEL_NUM_MIB);	
+		apmib_get(MIB_HW_TX_POWER_CCK_D, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrlevelCCK_D, buf1, MAX_2G_CHANNEL_NUM_MIB);
+
+		apmib_get(MIB_HW_TX_POWER_DIFF_40BW3S_20BW3S_A, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_A, buf1, MAX_2G_CHANNEL_NUM_MIB);
+		apmib_get(MIB_HW_TX_POWER_DIFF_40BW3S_20BW3S_B, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_B, buf1, MAX_2G_CHANNEL_NUM_MIB);
+
+        apmib_get(MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_C, (void *)buf1);
+        memcpy(pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_C, buf1, MAX_2G_CHANNEL_NUM_MIB);   
+        apmib_get(MIB_HW_TX_POWER_DIFF_40BW2S_20BW2S_C, (void *)buf1);
+        memcpy(pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_C, buf1, MAX_2G_CHANNEL_NUM_MIB);
+    	apmib_get(MIB_HW_TX_POWER_DIFF_40BW3S_20BW3S_C, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_C, buf1, MAX_2G_CHANNEL_NUM_MIB);
+
+        apmib_get(MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_D, (void *)buf1);
+        memcpy(pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_D, buf1, MAX_2G_CHANNEL_NUM_MIB);
+        apmib_get(MIB_HW_TX_POWER_DIFF_40BW2S_20BW2S_D, (void *)buf1);
+        memcpy(pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_D, buf1, MAX_2G_CHANNEL_NUM_MIB);
+		apmib_get(MIB_HW_TX_POWER_DIFF_40BW3S_20BW3S_D, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_D, buf1, MAX_2G_CHANNEL_NUM_MIB);
+
+		apmib_get(MIB_HW_TX_POWER_5G_HT40_1S_C, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrlevel5GHT40_1S_C, buf1, MAX_5G_CHANNEL_NUM_MIB);
+		//printf("BUF pwrlevel5GHT40_1S_C=%s\n",buf1);
+		
+		apmib_get(MIB_HW_TX_POWER_5G_HT40_1S_D, (void *)buf1);
+		memcpy(pmib->dot11RFEntry.pwrlevel5GHT40_1S_D, buf1, MAX_5G_CHANNEL_NUM_MIB);
+		//printf("BUF pwrlevel5GHT40_1S_D=%s\n",buf1);
+		
+		//printf("pmib->dot11RFEntry.pwrlevel5GHT40_1S_A=%s\n",pmib->dot11RFEntry.pwrlevel5GHT40_1S_A);
+		//printf("pmib->dot11RFEntry.pwrlevel5GHT40_1S_B=%s\n",pmib->dot11RFEntry.pwrlevel5GHT40_1S_B);
+		//printf("pmib->dot11RFEntry.pwrlevel5GHT40_1S_C=%s\n",pmib->dot11RFEntry.pwrlevel5GHT40_1S_C);
+		//printf("pmib->dot11RFEntry.pwrlevel5GHT40_1S_D=%s\n",pmib->dot11RFEntry.pwrlevel5GHT40_1S_D);
+#endif
+
 	apmib_get(MIB_HW_11N_TSSI1, (void *)&intVal);
 	pmib->dot11RFEntry.tssi1 = intVal;
 
 	apmib_get(MIB_HW_11N_TSSI2, (void *)&intVal);
 	pmib->dot11RFEntry.tssi2 = intVal;
 
-#if defined(CONFIG_RTL_8881A_SELECTIVE)
+#if defined(CONFIG_RTL_8881A_SELECTIVE) && !defined(CONFIG_WLAN_HAL_8814AE)
 	apmib_get(MIB_WLAN_PHY_BAND_SELECT, (void *)&intVal);	
 
 	if (intVal == PHYBAND_5G) {
@@ -11147,6 +11260,20 @@ static int initWlan(char *ifname)
 					else
 						pmib->dot11RFEntry.pwrlevelCCK_B[i] = 1;
 				}
+#ifdef CONFIG_WLAN_HAL_8814AE
+				if(pmib->dot11RFEntry.pwrlevelCCK_C[i] != 0){ 
+					if ((pmib->dot11RFEntry.pwrlevelCCK_C[i] - intVal) >= 1)
+						pmib->dot11RFEntry.pwrlevelCCK_C[i] -= intVal;
+					else
+						pmib->dot11RFEntry.pwrlevelCCK_C[i] = 1;
+				}
+				if(pmib->dot11RFEntry.pwrlevelCCK_D[i] != 0){ 
+					if ((pmib->dot11RFEntry.pwrlevelCCK_D[i] - intVal) >= 1)
+						pmib->dot11RFEntry.pwrlevelCCK_D[i] -= intVal;
+					else
+						pmib->dot11RFEntry.pwrlevelCCK_D[i] = 1;
+				}
+#endif
 				if(pmib->dot11RFEntry.pwrlevelHT40_1S_A[i] != 0){ 
 					if ((pmib->dot11RFEntry.pwrlevelHT40_1S_A[i] - intVal) >= 1)
 						pmib->dot11RFEntry.pwrlevelHT40_1S_A[i] -= intVal;
@@ -11159,6 +11286,20 @@ static int initWlan(char *ifname)
 					else
 						pmib->dot11RFEntry.pwrlevelHT40_1S_B[i] = 1;
 				}
+#ifdef CONFIG_WLAN_HAL_8814AE
+				if(pmib->dot11RFEntry.pwrlevelHT40_1S_C[i] != 0){ 
+					if ((pmib->dot11RFEntry.pwrlevelHT40_1S_C[i] - intVal) >= 1)
+						pmib->dot11RFEntry.pwrlevelHT40_1S_C[i] -= intVal;
+					else
+						pmib->dot11RFEntry.pwrlevelHT40_1S_C[i] = 1;
+				}
+				if(pmib->dot11RFEntry.pwrlevelHT40_1S_D[i] != 0){ 
+					if ((pmib->dot11RFEntry.pwrlevelHT40_1S_D[i] - intVal) >= 1)
+						pmib->dot11RFEntry.pwrlevelHT40_1S_D[i] -= intVal;
+					else
+						pmib->dot11RFEntry.pwrlevelHT40_1S_D[i] = 1;
+				}
+#endif
 			}	
 			
 #if defined(CONFIG_RTL_92D_SUPPORT)			
@@ -11175,6 +11316,20 @@ static int initWlan(char *ifname)
 					else
 						pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[i] = 1;
 				}
+#ifdef CONFIG_WLAN_HAL_8814AE
+				if(pmib->dot11RFEntry.pwrlevel5GHT40_1S_C[i] != 0){ 
+					if ((pmib->dot11RFEntry.pwrlevel5GHT40_1S_C[i] - intVal) >= 1)
+						pmib->dot11RFEntry.pwrlevel5GHT40_1S_C[i] -= intVal;
+					else
+						pmib->dot11RFEntry.pwrlevel5GHT40_1S_C[i] = 1;					
+				}
+				if(pmib->dot11RFEntry.pwrlevel5GHT40_1S_D[i] != 0){ 
+					if ((pmib->dot11RFEntry.pwrlevel5GHT40_1S_D[i] - intVal) >= 1)
+						pmib->dot11RFEntry.pwrlevel5GHT40_1S_D[i] -= intVal;
+					else
+						pmib->dot11RFEntry.pwrlevel5GHT40_1S_D[i] = 1;
+				}
+#endif
 			}
 #endif //#if defined(CONFIG_RTL_92D_SUPPORT)						
 		}	
@@ -11284,6 +11439,7 @@ static int initWlan(char *ifname)
 		apmib_get(MIB_WLAN_TDLS_CS_PROHIBITED, (void *)&intVal);
 		pmib->dot11OperationEntry.tdls_cs_prohibited = intVal;
 		
+
 		apmib_get(MIB_WLAN_ACK_TIMEOUT,(void *)&intVal);
 		pmib->miscEntry.ack_timeout = intVal;
 
@@ -11489,7 +11645,7 @@ static int initWlan(char *ifname)
 		}
 		else if(aggregation ==3){
 			pmib->dot11nConfigEntry.dot11nAMPDU = 1;
-			pmib->dot11nConfigEntry.dot11nAMSDU = 1;
+			pmib->dot11nConfigEntry.dot11nAMSDU = 2;
 		}
 
 #if defined(CONFIG_RTL_819X) && defined(MBSSID)
@@ -11752,6 +11908,99 @@ static int initWlan(char *ifname)
 		pmib->gbwcEntry.GBWCThrd_rx = rx_bandwidth*1024;		
 	}
 
+#ifdef STA_CONTROL
+    pmib->staControl.stactrl_enable = 0;
+    if ((mode == AP_MODE || mode == AP_MESH_MODE || mode == AP_WDS_MODE)) {                 
+        apmib_get(MIB_WLAN_STACTRL_ENABLE,(void *)&intVal);
+        if(intVal) {
+            apmib_get(MIB_WLAN_SSID, (void *)buf1);
+            apmib_save_wlanIdx();
+            /*get the other band's mib*/
+            wlan_idx = wlan_idx?0:1;     
+            apmib_get(MIB_WLAN_SSID, (void *)buf2);
+            apmib_recov_wlanIdx();
+
+            if(strcmp(buf1, buf2) == 0) {     
+                pmib->staControl.stactrl_enable = 1;
+                pmib->staControl.stactrl_groupID = vwlan_idx;
+                apmib_get(MIB_WLAN_STACTRL_PREFER,(void *)&intVal);
+                pmib->staControl.stactrl_prefer_band = intVal;
+            }
+        }
+    }
+#endif
+
+#ifdef FAST_BSS_TRANSITION
+#define MDID_LEN 	2
+#define R0KHID_LEN 	49
+	if(mode == AP_MODE  || mode == AP_MESH_MODE || mode == AP_WDS_MODE)
+	{
+		apmib_get(MIB_WLAN_FT_ENABLE, (void *)&intVal);
+		pmib->dot11FTEntry.dot11FastBSSTransitionEnabled = intVal;
+
+		apmib_get(MIB_WLAN_FT_MDID, (void *)buf1);	
+		memcpy(pmib->dot11FTEntry.dot11FTMobilityDomainID, buf1, MDID_LEN);	
+		
+		apmib_get(MIB_WLAN_FT_OVER_DS, (void *)&intVal);
+		pmib->dot11FTEntry.dot11FTOverDSEnabled = intVal;
+
+		apmib_get(MIB_WLAN_FT_REASOC_TO, (void *)&intVal);
+		pmib->dot11FTEntry.dot11FTReassociationDeadline = intVal;
+
+		apmib_get(MIB_WLAN_FT_R0KEY_TO, (void *)&intVal);
+		pmib->dot11FTEntry.dot11FTR0KeyLifetime = intVal;
+		
+		apmib_get(MIB_WLAN_FT_R0KH_ID, (void *)buf1);
+		memcpy(pmib->dot11FTEntry.dot11FTR0KeyHolderID, buf1, R0KHID_LEN);	
+		intVal2 = strlen((char *)buf1);
+		pmib->dot11FTEntry.dot11FTR0KeyHolderIDLen = intVal2;
+				
+		apmib_get(MIB_WLAN_FT_PUSH, (void *)&intVal);
+		pmib->dot11FTEntry.dot11FTR1KeyPushEnable = intVal;
+
+		apmib_get(MIB_WLAN_FT_RES_REQUEST, (void *)&intVal);
+		pmib->dot11FTEntry.dot11FTResourceRequestSupported = intVal;
+
+	}
+#endif
+
+#if defined(FAST_BSS_TRANSITION) && defined(DOT11K)
+    pmib->dot11StationConfigEntry.dot11RadioMeasurementActivated = 0;
+    /*if Fast BSS Transition is enabled,  activate 11k and set 11K neighbor report*/
+    apmib_get(MIB_WLAN_FT_ENABLE,(void*)&intVal);
+    if(intVal && (mode == AP_MODE || mode == AP_MESH_MODE || mode == AP_WDS_MODE)) {        
+        /*delete all neightbor report first*/
+        sprintf(buf2, "echo delall > "NEIGHBOR_REPORT_FILE, ifname); 
+        system(buf2);
+
+        /*bss info*/
+        intVal2 = 0xCAF;
+        apmib_get(MIB_WLAN_PHY_BAND_SELECT, (void *)&intVal);
+        if(intVal == 2) { /*5G*/
+            intVal2 |= 0x10;  /*specture management*/
+        }        
+        
+        /*set new neightbor report*/
+        apmib_get(MIB_WLAN_FTKH_NUM,(void*)&intVal);
+        if(intVal) {            
+            apmib_get(MIB_WLAN_SSID,(void*)&buf1);        
+            for(i=1;i<=intVal;i++)
+            {            
+                *((char*)(&ftkh_entry))=(char)i;
+                apmib_get(MIB_WLAN_FTKH,(void*)&ftkh_entry);                        
+                sprintf(buf2, "echo add %02x%02x%02x%02x%02x%02x 0x%04X %d %d 0 %s >"NEIGHBOR_REPORT_FILE,
+                    ftkh_entry.macAddr[0], ftkh_entry.macAddr[1], ftkh_entry.macAddr[2],
+                    ftkh_entry.macAddr[3],ftkh_entry.macAddr[4], ftkh_entry.macAddr[5], 
+                    intVal2, ftkh_entry.opclass, ftkh_entry.channel, buf1, ifname);
+                system(buf2);
+            }
+        }
+
+        /*activate 11k*/
+        pmib->dot11StationConfigEntry.dot11RadioMeasurementActivated = 1; 
+    }
+#endif
+
 #ifdef CONFIG_RTK_MESH
 
 #ifdef CONFIG_NEW_MESH_UI
@@ -11850,60 +12099,6 @@ static int initWlan(char *ifname)
     }
 	else
 		pmib->dot11sKeysTable.dot11Privacy  = 0;
-	
-#ifdef 	_11s_TEST_MODE_	
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM1, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved1 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM2, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved2 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM3, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved3 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM4, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved4 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM5, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved5 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM6, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved6 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM7, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved7 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM8, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved8 = intVal;
-	
-	apmib_get(MIB_WLAN_MESH_TEST_PARAM9, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved9 = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAMA, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserveda = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAMB, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedb = intVal;
-	
-	apmib_get(MIB_WLAN_MESH_TEST_PARAMC, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedc = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAMD, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedd = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAME, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservede = intVal;
-
-	apmib_get(MIB_WLAN_MESH_TEST_PARAMF, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedf = intVal;
-	
-	apmib_get(MIB_WLAN_MESH_TEST_PARAMSTR1, (void *)buf1);
-	intVal2 = strlen(buf1)<15 ? strlen(buf1) : 15;
-	memset(pmib->dot1180211sInfo.mesh_reservedstr1, 0, 16);
-	memcpy(pmib->dot1180211sInfo.mesh_reservedstr1, buf1, intVal2);
-	
-#endif
 	
 #endif // CONFIG_RTK_MESH
 
@@ -12005,9 +12200,10 @@ if (intVal3 != 0 && encrypt >= 2
 		}
 	}
 #endif
+
 #ifdef CONFIG_APP_SIMPLE_CONFIG
 	apmib_get(MIB_WLAN_MODE, (void *)&intVal);
-	//if(intVal != CLIENT_MODE)
+	if(intVal != CLIENT_MODE)
 		pmib->dot11StationConfigEntry.sc_enabled = 0;
 	apmib_get(MIB_SC_DEVICE_TYPE, (void *)&intVal);
 	pmib->dot11StationConfigEntry.sc_device_type = intVal;
@@ -12020,15 +12216,7 @@ if (intVal3 != 0 && encrypt >= 2
 	apmib_get(MIB_WLAN_SC_PASSWD, (void *)buf1);
 	strcpy((char *)pmib->dot11StationConfigEntry.sc_passwd, (char *)buf1);
 	apmib_get(MIB_WLAN_SC_SYNC_PROFILE, (void *)&intVal);
-#ifdef SYNC_VXD_PROFILE
-	intVal = 1;
-#endif
-	//if(intVal !=0 )
-	//	intVal++;
 	pmib->dot11StationConfigEntry.sc_sync_vxd_to_root = intVal;
-	
-	apmib_get(MIB_WLAN_SC_PIN_ENABLED, (void *)&intVal);
-	pmib->dot11StationConfigEntry.sc_pin_enabled = intVal;
 #endif
 
 	apmib_get(MIB_WLAN_COUNTRY_STRING, (void *)&buf1);

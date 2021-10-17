@@ -22,10 +22,7 @@
 
 void __init bsp_serial_init(void)
 {
-#ifdef CONFIG_SERIAL_SC16IS7X0
-	extern void __init sc16is7x0_get_port( struct uart_port *port );
-#endif
-#if defined( CONFIG_SERIAL_SC16IS7X0 ) || defined( CONFIG_SERIAL_RTL8198_UART1 )
+#if defined( CONFIG_SERIAL_SC16IS7X0 ) || defined( CONFIG_SERIAL_RTL8198_UART1 ) || defined (CONFIG_SERIAL_RTL_UART1)
 	unsigned int line = 0; 
 #else
 	const unsigned int line = 0; 
@@ -39,7 +36,7 @@ void __init bsp_serial_init(void)
     /*
      * UART0
      */
-	s.line = line;
+	s.line = 0;
     s.type = PORT_16550A;
     s.irq = BSP_UART0_IRQ;
     s.iotype = UPIO_MEM;
@@ -47,8 +44,7 @@ void __init bsp_serial_init(void)
 #if 1
 	s.uartclk = BSP_SYS_CLK_RATE;
     s.fifosize = 16;
-	//s.flags = UPF_SKIP_TEST | UPF_LOW_LATENCY;
-	s.flags = UPF_SKIP_TEST;
+	s.flags = UPF_SKIP_TEST | UPF_LOW_LATENCY;
 	s.mapbase = BSP_UART0_MAP_BASE;
 	//s.membase = ioremap_nocache(s.mapbase, BSP_UART0_MAPSIZE);
 	s.membase = ioremap_nocache(s.mapbase, 0x20);
@@ -64,14 +60,13 @@ void __init bsp_serial_init(void)
 		panic("RTL819xD: bsp_serial_init failed!");
 	}
 
-#ifdef CONFIG_SERIAL_RTL8198_UART1
+#ifdef CONFIG_SERIAL_RTL_UART1
 	// UART1 
-#define UART_BASE         0xB8000100  //0xb8002100 uart 1 
-#define REG32(reg)       (*(volatile unsigned int *)(reg))
- REG32(0xb8000040)= (REG32(0xb8000040) & ~(0x3<<3)) | (0x01<<3);   //pin mux to UART1 
+ 	REG32(0xb800004C)= (REG32(0xb800004C) & ~(0xFFFFF)) | (0x22222);   //pin mux to UART1 
  REG32(0xb8002110) |= (1<<29);   //enable flow control
 	s.line = ++ line;
     s.irq = BSP_UART1_IRQ;
+	s.flags = UPF_SKIP_TEST | UPF_LOW_LATENCY | UPF_SPD_CUST;
 	s.mapbase = BSP_UART1_MAP_BASE;
 	s.membase = ioremap_nocache(s.mapbase, 0x20);
 	
@@ -80,13 +75,6 @@ void __init bsp_serial_init(void)
 	}	
 #endif
 
-#ifdef CONFIG_SERIAL_SC16IS7X0
-	sc16is7x0_get_port( &s );
-	s.line = ++ line;
 
-	if (early_serial_setup(&s) != 0) {
-		panic("RTL819xD: bsp_serial_init i2c uart failed!");
-	}
-#endif
 
 }

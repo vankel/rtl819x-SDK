@@ -1724,7 +1724,7 @@ void __init trap_init(void)
 	if (board_be_init)
 		board_be_init();
 
-#if 1//def CONFIG_CPU_HAS_WAITOFF
+#ifndef CONFIG_CPU_HAS_WAITOFF
 	set_except_vector(0, rollback_handle_int);
 #else
 	set_except_vector(0, handle_int);

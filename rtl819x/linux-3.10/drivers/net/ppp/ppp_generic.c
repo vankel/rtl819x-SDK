@@ -99,7 +99,6 @@
 #if defined(NAT_SPEEDUP)||defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 	#define FAST_PPTP
 	#define FAST_L2TP
-extern int is_l2tp_device(char *ppp_device);	// sync from voip customer for multiple ppp
 #endif
 
 #ifdef CONFIG_RTL_LAYERED_DRIVER
@@ -736,7 +735,7 @@ extern void clear_magicNum(void);
 static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct ppp_file *pf = file->private_data;
-	struct ppp *ppp = NULL;
+	struct ppp *ppp;
 	int err = -EFAULT, val, val2, i;
 	struct ppp_idle idle;
 	struct npioctl npi;
@@ -1332,6 +1331,7 @@ ppp_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	else {
 #ifdef FAST_L2TP
 			skb_pull(skb,2);
+			extern int is_l2tp_device(char *ppp_device);	// sync from voip customer for multiple ppp
 			if (is_l2tp_device(ppp->dev->name) && (check_for_fast_l2tp_to_wan((void*)skb)==1) && (fast_l2tp_to_wan((void*)skb) == 1)) // sync from voip customer for multiple ppp
 			{
 				/* Note: if pkt go here, l2tp dial-on-demand will not be triggered,

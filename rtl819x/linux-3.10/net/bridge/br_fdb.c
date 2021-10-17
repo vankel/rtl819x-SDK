@@ -257,7 +257,10 @@ void br_fdb_change_mac_address(struct net_bridge *br, const u8 *newaddr)
 					}
 				}
 					
-				#if defined(CONFIG_RTL_92D_SUPPORT)|| defined(CONFIG_RTL_8812_SUPPORT)||defined (CONFIG_RTL_8881A)
+				//#if defined(CONFIG_RTL_92D_SUPPORT)|| defined(CONFIG_RTL_8812_SUPPORT)||defined (CONFIG_RTL_8881A)
+				//dual band
+				#if (defined (CONFIG_USE_PCIE_SLOT_0) )&&(defined (CONFIG_USE_PCIE_SLOT_1)||defined (CONFIG_RTL_8881A))
+				
 				dev = __dev_get_by_name(&init_net, RTL_PS_WLAN1_DEV_NAME);	
 	
 				if (dev) {		
@@ -597,12 +600,12 @@ static struct net_bridge_fdb_entry *fdb_create(struct hlist_head *head,
 					       __u16 vid)
 {
 	struct net_bridge_fdb_entry *fdb;
-#if defined(CONFIG_RTL_IGMP_SNOOPING)
-		int i3;
-#endif
 #if defined(CONFIG_RTL_819X)
 	if(fdb_entry_num >= fdb_entry_max)
 		return NULL;
+#endif
+#if defined(CONFIG_RTL_IGMP_SNOOPING)
+		int i3;
 #endif
 	fdb = kmem_cache_alloc(br_fdb_cache, GFP_ATOMIC);
 	if (fdb) {

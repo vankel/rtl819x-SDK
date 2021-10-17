@@ -172,7 +172,11 @@ EXPORT_SYMBOL(inet_sock_destruct);
  *	Automatically bind an unbound socket.
  */
 
+#ifndef CONFIG_RTL_SENDFILE_PATCH
 static int inet_autobind(struct sock *sk)
+#else
+int inet_autobind(struct sock *sk)
+#endif
 {
 	struct inet_sock *inet;
 	/* We may need to bind the socket. */

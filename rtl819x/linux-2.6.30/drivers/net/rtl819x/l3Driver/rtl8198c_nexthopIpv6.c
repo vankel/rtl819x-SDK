@@ -393,7 +393,6 @@ static int32 _rtl8198c_eventHandle_addIpv6Arp(void *param)
 		return EVENT_CONTINUE_EXECUTE;
 
 	arp = (rtl8198c_ipv6_arpMapping_entry_t *)param;
-
 	entry = rtl865x_ipv6_nxtHopTable;
 	for (i = 0; i < IPV6_NXTHOP_ENTRY_NUM; i++, entry++)
 	{
@@ -407,7 +406,8 @@ static int32 _rtl8198c_eventHandle_addIpv6Arp(void *param)
 			/*update nexthop*/
 			if (memcmp(&entry->un.nexthop, &arp->ip, sizeof(inv6_addr_t))==0)
 				_rtl8198c_synIpv6NxtHopToAsic(entry);
-		}		
+		}	
+		
 	}
 #if defined(CONFIG_RTL_8198C)
 #if defined(CONFIG_RTL_HW_DSLITE_SUPPORT)
@@ -573,5 +573,3 @@ int32 rtl8198c_delIpv6NxtHop(uint32 attr, uint32 entryIdx)
 	
 	return retval;	
 }
-
-

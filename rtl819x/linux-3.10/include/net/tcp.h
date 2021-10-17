@@ -1586,5 +1586,8 @@ struct tcp_request_sock_ops {
 
 extern void tcp_v4_init(void);
 extern void tcp_init(void);
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+extern void rtl_tcp_ctl_init(void);
+#endif
 
 #endif	/* _TCP_H */

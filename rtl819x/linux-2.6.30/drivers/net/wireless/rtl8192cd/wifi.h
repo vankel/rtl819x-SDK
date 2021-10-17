@@ -189,6 +189,16 @@ __PACK struct obss_scan_para_elmt
 } __WLAN_ATTRIB_PACK__;
 #endif
 
+#ifdef CONFIG_IEEE80211R
+__PACK struct ft_ie_elmt_hdr
+{
+	UINT16	mic_control				__WLAN_ATTRIB_PACK__;
+	UINT8	mic[16]					__WLAN_ATTRIB_PACK__;
+	UINT8	ANonce[32]				__WLAN_ATTRIB_PACK__;
+	UINT8	SNonce[32]				__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+#endif
+
 #if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack()
 #endif
@@ -280,6 +290,14 @@ enum WIFI_FRAME_SUBTYPE {
 /* cfg p2p*/
 #define MAX_IE_SZ 255 // no allow fragment now
 
+#ifdef CONFIG_IEEE80211R
+enum WIFI_AUTH_ALGM {
+	_AUTH_ALGM_OPEN_					= 0,
+	_AUTH_ALGM_SHARED_					= 1,
+	_AUTH_ALGM_FT_						= 2
+};
+#endif 
+
 /**
  *	@brief	REASON CODE
  *	16 bit field, See textbook Table.4-5.
@@ -338,6 +356,11 @@ enum WIFI_STATUS_CODE {
 	_STATS_AUTH_TIMEOUT_			= 16,	// Denial authenticate, timeout.
 	_STATS_UNABLE_HANDLE_STA_		= 17,	// Denial authenticate, BS resoruce insufficient.
 	_STATS_RATE_FAIL_				= 18,	// Denial authenticate, STA not support BSS request datarate.
+#ifdef CONFIG_IEEE80211R
+	_STATS_INVALID_PAIRWISE_CIPHER_ = 19,
+	_STATUS_R0KH_UNREACHABLE_		= 28,	
+#endif
+
 	_STATS_ASSOC_REJ_TEMP_			= 30,	// Association request rejected temporarily; try again later
 	_STATS_REQ_DECLINED_		= 37,
 /*#if defined(CONFIG_RTL_WAPI_SUPPORT)*/
@@ -349,6 +372,13 @@ enum WIFI_STATUS_CODE {
 	__STATS_INVALID_WAPI_VERSION_ = 49,
 	__STATS_INVALID_WAPI_CAPABILITY_ = 50,
 /*#endif*/
+
+#ifdef CONFIG_IEEE80211R
+	_STATS_INVALID_FT_ACTION_FRAME_COUNT_	= 52,
+	_STATS_INVALID_PMKID_					= 53,
+	_STATS_INVALID_MDIE_					= 54,
+	_STATS_INVALID_FTIE_					= 55,
+#endif
 
 #ifdef CONFIG_RTK_MESH	// CATUTION: below undefine !! (Refer: Draft 1.06, Page 17, 7.3.1.9, Table 7-23, 2007/08/13 by popen)
 	_STATS_MESH_LINK_ESTABLISHED_	= 55,	//The mesh peer link has been successfully
@@ -376,8 +406,29 @@ enum WIFI_REG_DOMAIN {
 	DOMAIN_WORLD_WIDE = 15,
 	DOMAIN_TEST		= 16,
 	DOMAIN_5M10M	= 17,
+	DOMAIN_SG		= 18,
+	DOMAIN_KR		= 19,
 	DOMAIN_MAX
 };
+
+#ifdef DOT11K
+enum MEASUREMENT_TYPE {
+    MEASUREMENT_TYPE_BASIC = 0,
+    MEASUREMENT_TYPE_CCA = 1,
+    MEASUREMENT_TYPE_RPI = 2,
+    MEASUREMENT_TYPE_CHANNEL_LOAD = 3,
+    MEASUREMENT_TYPE_NOISE = 4,
+    MEASUREMENT_TYPE_BEACON = 5,
+    MEASUREMENT_TYPE_FRAME = 6,
+    MEASUREMENT_TYPE_STA_STATISTIC = 7,
+    MEASUREMENT_TYPE_LCI = 8, 
+    MEASUREMENT_TYPE_XMIT_CATEGORY = 9,       
+    MEASUREMENT_TYPE_MCAST_DIAGNOSTICS = 10,    
+    MEASUREMENT_TYPE_LOC_CIVIC = 11,       
+    MEASUREMENT_TYPE_LOC_IDENTIFIER = 12,
+    MEASUREMENT_TYPE_PAUSE = 255,                           
+};
+#endif
 
 #define _TO_DS_		BIT(8)
 #define _FROM_DS_	BIT(9)
@@ -550,6 +601,13 @@ enum WIFI_REG_DOMAIN {
 	} while(0)
 
 #endif // CONFIG_RTK_MESH
+
+#ifdef CONFIG_IEEE80211R
+#define GetFTMDID(pbuf)		((unsigned char *)pbuf + 2)
+#define GetFTOverDS(pbuf)	(((*(unsigned char *)((unsigned long)pbuf + 4)) & BIT(0)) != 0)
+#define GetFTResReq(pbuf)	(((*(unsigned char *)((unsigned long)pbuf + 4)) & BIT(1)) != 0)
+#define SetFTMICCtrl(pbuf, v)	(*(unsigned char *)((unsigned long)pbuf + 1)) = v
+#endif
 /*-----------------------------------------------------------------------------
 			Below is for the security related definition
 ------------------------------------------------------------------------------*/
@@ -590,24 +648,32 @@ enum WIFI_REG_DOMAIN {
 #define _TIM_IE_				5
 #define _IBSS_PARA_IE_			6
 #define _COUNTRY_IE_			7	// for 802.11d
+#define _REQUEST_IE_		    10
+#define _BSS_LOAD_IE_           11
 #define _CHLGETXT_IE_			16
 
-#define	_PWR_CONSTRAINT_IE_		32
-#define	_PWR_CAPABILITY_IE_		33
-#define	_TPC_REQUEST_IE_	    34
-#define	_TPC_REPORT_IE_	    	35
-#define	_SUPPORTED_CHANNEL_IE_	36
-#define _CSA_IE_					37
+#define	_PWR_CONSTRAINT_IE_	        32
+#define	_PWR_CAPABILITY_IE_	        33
+#define	_TPC_REQUEST_IE_            34
+#define	_TPC_REPORT_IE_	            35
+#define	_SUPPORTED_CHANNEL_IE_      36
+#define _CSA_IE_                    37
+#define _MEASUREMENT_REQUEST_IE_    38
+#define _MEASUREMENT_REPORT_IE_     39
 #define _SECONDARY_CHANNEL_OFFSET_IE_					62
 
-#define _RSN_IE_2_				48
-#define _RSN_IE_1_				221	// Error, Shall be Wi-Fi protected access (802.11b)
-#define _ERPINFO_IE_			42	// [802.11g 7.3.2] ERP Information
-#define _EXT_SUPPORTEDRATES_IE_	50	// [802.11g 7.3.2] Extended supported rates
+#define _RSN_IE_2_                  48
+#define _RSN_IE_1_                  221	// Error, Shall be Wi-Fi protected access (802.11b)
+#define _ERPINFO_IE_                42	// [802.11g 7.3.2] ERP Information
+#define _EXT_SUPPORTEDRATES_IE_     50	// [802.11g 7.3.2] Extended supported rates
+#define _AP_CHANNEL_REPORT_IE_      51
+#define _NEIGHBOR_REPORT_IE_        52
 #if defined(CONFIG_RTL_WAPI_SUPPORT)
-#define	_EID_WAPI_				68
+#define	_EID_WAPI_                  68
 #endif
-#define _WPS_IE_				221
+#define _RM_ENABLE_CAP_IE_          70
+#define _WPS_IE_                    221
+#define _VENDOR_SPEC_IE_            221
 #ifdef CONFIG_IEEE80211W_CLI
 #define _MMIC_IE_				0x4c
 #define _MMIC_LEN_				16
@@ -678,7 +744,7 @@ enum WIFI_REG_DOMAIN {
 #define WLAN_ETHCONV_ENCAP		1
 #define WLAN_ETHCONV_RFC1042	2
 #define WLAN_ETHCONV_8021h		3
-#define BEACON_MACHDR_LEN		24
+
 
 /*-----------------------------------------------------------------------------
 				Below is the definition for 802.11i / 802.1x
@@ -720,6 +786,28 @@ enum WIFI_REG_DOMAIN {
 #define _SA_QUERY_RSP_ACTION_ID_	1
 #define EID_TIMEOUT_INTERVAL		56
 #define ASSOC_COMEBACK_TIME			3
+
+
+/*-----------------------------------------------------------------------------
+				Below is for Fast BSS Transition related definition
+------------------------------------------------------------------------------*/
+#ifdef CONFIG_IEEE80211R
+#define _MOBILITY_DOMAIN_IE_		54
+#define _FAST_BSS_TRANSITION_IE_	55
+#define _TIMEOUT_INTERVAL_IE_		56
+#define _RIC_DATA_IE_				57
+#define _RIC_DESCRIPTOR_IE_			75
+#define _FT_R1KH_ID_SUB_IE_			1
+#define _FT_GTK_SUB_IE_				2
+#define _FT_R0KH_ID_SUB_IE_			3
+#define TIE_TYPE_REASSOC_DEADLINE	1
+#define TIE_TYPE_KEY_LIFETIME		2
+#define _FAST_BSS_TRANSITION_CATEGORY_ID_	6
+#define _FT_REQUEST_ACTION_ID_		1
+#define _FT_RESPONSE_ACTION_ID_		2
+#define _FT_CONFIRM_ACTION_ID_		3
+#define _FT_ACK_ACTION_ID_			4
+#endif
 
 
 /*-----------------------------------------------------------------------------
@@ -846,40 +934,20 @@ enum WIFI_REG_DOMAIN {
 #define _GAS_INIT_RSP_ACTION_ID_	11
 #define _GAS_COMBACK_REQ_ACTION_ID_	12
 #define _GAS_COMBACK_RSP_ACTION_ID_	13
-#define _BSS_LOAD_IE_				11
 #define _MUL_BSSID_IE_				71
 #define	_TIMEADVT_IE_				69
 #define	_TIMEZONE_IE_				98
 #define _INTERWORKING_IE_			107
 #define _ADVT_PROTO_IE_				108
-// HS2_SUPPORT
-#define _QOS_MAP_SET_IE_			110
 #define _ROAM_IE_					111
 #define _HS2_IE_					221
-/*20141204 modify */
-//#define _PROXY_ARP_				BIT(12)
-//#define _BSS_TRANSITION_            	BIT(19)
-//#define _UTC_TSF_OFFSET_			BIT(27)
-//#define _INTERWORKING_SUPPORT_	BIT(31)
-#define _INTERWORKING_SUPPORT_BY_DW_	BIT(31)
-
-
-
-#define _PROXY_ARP_					BIT(4)  /*byte1*/
-#define _BSS_TRANSITION_            BIT(3)	/*byte2*/
-#define _UTC_TSF_OFFSET_			BIT(3)  /*byte3*/
-#define _INTERWORKING_SUPPORT_		BIT(7)	/*byte3*/
-#define _QOS_MAP_ 					BIT(0)	/*byte4*/
-#define _WNM_NOTIFY_ 				BIT(6)	/*byte5*/
-
-
-// HS2_SUPPORT
-#define _QOS_CATEGORY_ID_			1
+#define _PROXY_ARP_					BIT(12)
+#define _BSS_TRANSITION_            BIT(19)
+#define _UTC_TSF_OFFSET_			BIT(27)
+#define _INTERWORKING_SUPPORT_		BIT(31)
 #define _WNM_CATEGORY_ID_			10
 #define _WNM_TSMQUERY_ACTION_ID_	6
 #define _WNM_NOTIFICATION_ID_		26
-// HS2_SUPPORT
-#define _QOS_MAP_CONFIGURE_ID_		4
 #define _BSS_TSMREQ_ACTION_ID_		7
 #define _BSS_TSMRSP_ACTION_ID_		8
 #define _VENDOR_SPECIFIC_IE_	221
@@ -901,7 +969,20 @@ enum mgmt_type {
 #define _TPC_REQEST_ACTION_ID_          2
 #define _TPC_REPORT_ACTION_ID_	        3
 
+/*-----------------------------------------------------------------------------
+            Below is for Radio Measurement (802.11K)  related definition
+ ------------------------------------------------------------------------------*/
+#define _RADIO_MEASUREMENT_CATEGORY_ID_			    5
+#define _RADIO_MEASUREMENT_REQEST_ACTION_ID_	    0
+#define _RADIO_MEASUREMENT_REPORT_ACTION_ID_	    1
+#define _LINK_MEASUREMENT_REQEST_ACTION_ID_	        2
+#define _LINK_MEASUREMENT_REPORT_ACTION_ID_	        3
+#define _NEIGHBOR_REPORT_REQEST_ACTION_ID_	    4
+#define _NEIGHBOR_REPORT_RESPONSE_ACTION_ID_	5
 
+#define _FRAME_BODY_SUBIE_		    1 
+#define _REPORT_DETAIL_SUBIE_		2 
+#define MAX_BEACON_SUBLEMENT_LEN    226
 
 
 #endif // _WIFI_H_

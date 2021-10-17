@@ -4,9 +4,11 @@
  * 2010-05-01
  *
  */
-#include <asm/rtl8196.h>   
-#ifdef CONFIG_RTL8198
-#include <asm/rtl8198.h>   
+   
+#if defined(CONFIG_RTL8198)
+#include <asm/rtl8198.h> 
+#else
+#include <asm/rtl8196.h>
 #endif
 #include <linux/autoconf2.h>
 

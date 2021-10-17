@@ -302,14 +302,37 @@ static int br_wlanblockwrite_proc(struct file *file, const char *buffer,
 struct proc_dir_entry *procIgmpSnoop=NULL;
 int igmpsnoopenabled=0;	// Should be 0(default), set 1 when igmpproxy up!
 extern struct net_bridge *bridge0;
+extern unsigned int maxUnknownMcastPPS;
+extern unsigned int chkUnknownMcastEnable;
+
+extern struct rtl865x_ReservedMCastRecord reservedMCastRecord[MAX_RESERVED_MULTICAST_NUM];
+
 static int br_igmpSnoopRead_proc(char *page, char **start, off_t off, 
 		int count, int *eof, void *data)
 {
 
-      int len;
-      int i,j,k;
-      unsigned int currHashMethod; 
+	int len;
+	int i,j,k;
+	unsigned int currHashMethod; 
+	int cnt =0;
     len = sprintf(page, "igmpsnoopenabled:%c\n\n", igmpsnoopenabled + '0');
+	len += sprintf(page+len, "Block Info :%d,%d\n",chkUnknownMcastEnable,maxUnknownMcastPPS); 
+	len += sprintf(page+len, "Reserved multicast address:\n");	
+	
+	for(i=0; i<MAX_RESERVED_MULTICAST_NUM; i++)
+	{
+		if(reservedMCastRecord[i].valid==1)
+		{		
+			
+			cnt++;
+			len += sprintf(page+len, "    [%d] Group address:%d.%d.%d.%d\n",cnt,
+			reservedMCastRecord[i].groupAddr>>24, (reservedMCastRecord[i].groupAddr&0x00ff0000)>>16,
+			(reservedMCastRecord[i].groupAddr&0x0000ff00)>>8, (reservedMCastRecord[i].groupAddr&0xff));
+		}
+	}
+	if(cnt==0)
+		len += sprintf(page+len, "NULL\n");
+	len += sprintf(page+len, "\n");
     #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)   
     #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
     rtl865x_getMCastHashMethod(&currHashMethod);
@@ -377,34 +400,83 @@ static int br_igmpSnoopWrite_proc(struct file *file, const char *buffer,
       char        *tokptr = NULL;
       #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)         
       unsigned int newHashMethod=0;
-      #endif
-      
+      #endif     
+	  uint32  ipAddr[4];
+	  int cnt;	  
+	  uint32 groupAddr;
+	  int flag;
       if (count < 2) 
-	    return -EFAULT;
+		  return -EFAULT;
       
       if (buffer && !copy_from_user(&tmpbuf, buffer, count)) {
           tmpbuf[count] = '\0';
           strptr = tmpbuf;
           
-          tokptr = strsep(&strptr,",");
+          tokptr = strsep(&strptr," ");
           
           if (tokptr != NULL) 
           {
+			if(!memcmp(tokptr,"enable",6))
+			{
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					return -EFAULT;
+				}
               igmpsnoopenabled = simple_strtol(tokptr, NULL, 0);
-              if(igmpsnoopenabled)
-              {
-                  igmpsnoopenabled=1;
-              }
-              else
-              {
-#if defined (CONFIG_RTL_HARDWARE_MULTICAST)		
-                  rtl865x_reinitMulticast();
-#endif
-                  rtl_flushAllIgmpRecord();
-              }
+			}
+			if(!memcmp(tokptr,"block",6))
+			{
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					return -EFAULT;
+				}
+              	chkUnknownMcastEnable = simple_strtol(tokptr, NULL, 0);
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					return -EFAULT;
+				}
+              	maxUnknownMcastPPS = simple_strtol(tokptr, NULL, 0);
+			}
+			else if(!memcmp(tokptr, "reserve", 7)) 
+			{
+				
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					return -EFAULT;
+				}
+				if(	(!memcmp(tokptr, "add", 3)) 
+				|| (!memcmp(tokptr, "Add", 3))
+				||(!memcmp(tokptr, "ADD", 3)))	
+				{
+					flag = 1;
+				}
+				else if((!memcmp(tokptr, "del", 3)) 
+				|| (!memcmp(tokptr, "Del", 3))
+				||(!memcmp(tokptr, "DEL", 3)))	
+				{
+					flag = 0;
+				}
+				
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					return -EFAULT;
+				}
+				cnt = sscanf(tokptr, "%d.%d.%d.%d", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
+		
+				groupAddr=(ipAddr[0]<<24)|(ipAddr[1]<<16)|(ipAddr[2]<<8)|(ipAddr[3]);
+				//printk("resMcast:%x, %d\n",groupAddr,flag);			
+				rtl_add_ReservedMCastAddr(groupAddr,flag);
+			}
 #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)       
-              tokptr = strsep(&strptr,",");
+			else if(!memcmp(tokptr, "hash", 4)) 
+		  	{ 
+			  	tokptr = strsep(&strptr," ");
               if (tokptr!=NULL )
               {
                   newHashMethod = simple_strtol(tokptr, NULL, 0);
@@ -416,8 +488,27 @@ static int br_igmpSnoopWrite_proc(struct file *file, const char *buffer,
                   rtl865x_setMCastHashMethod(newHashMethod);
 
               }
+		  	}
 #endif           
-#endif		  
+#endif	
+			else
+			{
+				 igmpsnoopenabled = simple_strtol(tokptr, NULL, 0);
+	             
+			
+			}
+              if(igmpsnoopenabled)
+              {
+                  igmpsnoopenabled=1;
+              }
+              else
+              {
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST)		
+                  rtl865x_reinitMulticast();
+#endif
+                  rtl_flushAllIgmpRecord();
+              }
+ 
           }
 	    return count;
       }

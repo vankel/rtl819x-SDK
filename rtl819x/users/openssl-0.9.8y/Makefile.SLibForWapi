@@ -6,7 +6,6 @@
 
 CROSS_COMPILE ?= rsdk-linux-
 CROSS_TARGET ?= rsdk-linux
-
 VERSION=0.9.8y
 MAJOR=0
 MINOR=9.8
@@ -76,12 +75,10 @@ ARFLAGS=
 AR=ar $(ARFLAGS) r
 ARD=ar $(ARFLAGS) d
 RANLIB= $(CROSS_COMPILE)ranlib
-
 PERL=/usr/local/bin/perl
 $(shell if [ ! -e /usr/local/bin/perl ]; then \
 PERL=/usr/bin/perl; \
 fi)
-
 TAR= tar
 TARFLAGS= --no-recursion
 MAKEDEPPROG=makedepend

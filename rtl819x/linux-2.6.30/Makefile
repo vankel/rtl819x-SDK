@@ -963,7 +963,6 @@ endif
 ifeq ($(CONFIG_RTL_SIMPLE_CONFIG), y)
 	cp ./drivers/net/wireless/rtl8192cd_sc ./drivers/net/wireless/rtl8192cd/8192cd_profile.c
 endif
-
 # prepare2 creates a makefile if using a separate output directory
 prepare2: prepare3 outputmakefile
 

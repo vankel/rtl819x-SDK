@@ -29,6 +29,25 @@
  *  - flush_icache_all() flush the entire instruction cache
  *  - flush_data_cache_page() flushes a page from the data cache
  */
+
+/*
+ * This flag is used to indicate that the page pointed to by a pte
+ * is dirty and requires cleaning before returning it to the user.
+ */
+#define PG_dcache_dirty                        PG_arch_1
+
+#define Page_dcache_dirty(page)                \
+       test_bit(PG_dcache_dirty, &(page)->flags)
+#define SetPageDcacheDirty(page)       \
+       set_bit(PG_dcache_dirty, &(page)->flags)
+#define ClearPageDcacheDirty(page)     \
+       clear_bit(PG_dcache_dirty, &(page)->flags)
+
+
+
+
+
+
 extern void (*flush_cache_all)(void);
 extern void (*__flush_cache_all)(void);
 extern void (*flush_cache_mm)(struct mm_struct *mm);
@@ -38,6 +57,10 @@ extern void (*flush_cache_range)(struct vm_area_struct *vma,
 extern void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page, unsigned long pfn);
 extern void __flush_dcache_page(struct page *page);
 
+extern void __flush_icache_page(struct vm_area_struct *vma, struct page *page);
+
+
+
 extern void (*mips_flush_data_cache_range)(struct vm_area_struct *vma,
 	unsigned long vaddr, struct page *page, unsigned long addr,
 	unsigned long size);
@@ -45,8 +68,15 @@ extern void (*mips_flush_data_cache_range)(struct vm_area_struct *vma,
 #define ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE 1
 static inline void flush_dcache_page(struct page *page)
 {
+#if 0
 	if (cpu_has_dc_aliases || !cpu_has_ic_fills_f_dc)
 		__flush_dcache_page(page);
+#endif
+	if (cpu_has_dc_aliases)
+                __flush_dcache_page(page);
+	 else if (!cpu_has_ic_fills_f_dc)
+               SetPageDcacheDirty(page);
+
 
 }
 
@@ -65,6 +95,12 @@ static inline void flush_anon_page(struct vm_area_struct *vma,
 static inline void flush_icache_page(struct vm_area_struct *vma,
 	struct page *page)
 {
+	  if (!cpu_has_ic_fills_f_dc && (vma->vm_flags & VM_EXEC) &&
+           Page_dcache_dirty(page)) {
+               __flush_icache_page(vma, page);
+               ClearPageDcacheDirty(page);
+       }
+
 }
 
 extern void (*flush_icache_range)(unsigned long start, unsigned long end);
@@ -98,7 +134,7 @@ extern void (*flush_cache_sigtramp)(unsigned long addr);
 extern void (*flush_icache_all)(void);
 extern void (*local_flush_data_cache_page)(void * addr);
 extern void (*flush_data_cache_page)(unsigned long addr);
-
+#if 0
 /*
  * This flag is used to indicate that the page pointed to by a pte
  * is dirty and requires cleaning before returning it to the user.
@@ -111,7 +147,7 @@ extern void (*flush_data_cache_page)(unsigned long addr);
 	set_bit(PG_dcache_dirty, &(page)->flags)
 #define ClearPageDcacheDirty(page)	\
 	clear_bit(PG_dcache_dirty, &(page)->flags)
-
+#endif
 /* Run kernel code uncached, useful for cache probing functions. */
 unsigned long run_uncached(void *func);
 

@@ -348,8 +348,6 @@ int br_add_bridge(struct net *net, const char *name)
 	if (res)
 		free_netdev(dev);
 #if defined(CONFIG_BRIDGE_IGMP_SNOOPING)
-	if (res)
-        return res;
 	bridge0=netdev_priv(dev);
 #endif
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
@@ -370,7 +368,7 @@ int br_add_bridge(struct net *net, const char *name)
 		if(bridge0!=NULL)
 		{
 			init_timer(&bridge0->mCastQuerytimer);
-			bridge0->mCastQuerytimer.data=(unsigned long)bridge0;
+			bridge0->mCastQuerytimer.data=bridge0;
 			bridge0->mCastQuerytimer.expires=jiffies+MCAST_QUERY_INTERVAL*HZ;
 			bridge0->mCastQuerytimer.function=(void*)br_mCastQueryTimerExpired;
 			add_timer(&bridge0->mCastQuerytimer);
@@ -435,8 +433,6 @@ int br_del_bridge(struct net *net, const char *name)
 	bridge0=NULL;
 #endif
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
-    if(ret)
-        goto outfree;
 	if(strcmp(name,RTL_PS_BR0_DEV_NAME)==0)
 	{
 		rtl_unregisterIgmpSnoopingModule(brIgmpModuleIndex);
@@ -461,7 +457,6 @@ int br_del_bridge(struct net *net, const char *name)
 		bridge1=NULL;
 	}
 #endif
-outfree:
 #endif
 	rtnl_unlock();
 	return ret;

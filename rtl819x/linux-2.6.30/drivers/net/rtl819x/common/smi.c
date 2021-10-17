@@ -42,8 +42,51 @@ typedef int int32;
 #define SPI_REG_LEN                 16
 #define SPI_DATA_LEN                16
 
+#ifdef CONFIG_RTL_8370_SUPPORT
+
+__inline__ void __delay__(unsigned long loops)
+{
+	__asm__ __volatile__ (
+		".set\tnoreorder\n"
+		"1:\tbnez\t%0,1b\n\t"
+		"subu\t%0,1\n\t"
+		".set\treorder"
+		:"=r" (loops)
+		:"0" (loops));
+}
+
+__inline__ void __udelay__(unsigned long usecs, unsigned long lps)
+{
+	unsigned long lo;
+
+	lo = ((usecs * 0x000010c6) >> 12) * (lps >> 20);
+	__delay__(lo);
+}
+
+// __loops_per_jiffy=0x00324000 is calculated for 8197D 660MHz
+#define __loops_per_jiffy 0x00324000
+
+__inline__ void __nano_delay__(unsigned long nsecs)
+{
+	unsigned long lo;
+
+	lo = (((nsecs * 0x000010c6) >> 12) * ((__loops_per_jiffy * 100) >> 20)) / 1000;
+	__delay__(lo);
+}
+
+//#define __mdelay__(x) { int i=x; while(i--) __udelay__(1000, __loops_per_jiffy * 100); }
+
+#define __udelay2__(x) { __udelay__(x, __loops_per_jiffy * 100); }
+
+//#define CLK_DURATION(clk)            { __udelay2__(1); }
+#define CLK_DURATION(clk)            { __nano_delay__(50); }
+
+#else
+
 #define DELAY                        10000
 #define CLK_DURATION(clk)            { int i; for(i=0; i<clk; i++); }
+#endif
+
 #define _SMI_ACK_RESPONSE(ok)        { /*if (!(ok)) return RT_ERR_FAILED; */}
 
 

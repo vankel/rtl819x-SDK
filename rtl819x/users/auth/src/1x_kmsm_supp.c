@@ -94,8 +94,6 @@ Supp_Global * lib1x_init_supp(Dot1x_Authenticator * pAuth, Dot1x_Client *pClient
 #ifdef CLIENT_TLS
 	else if(pAuth->RSNVariable.AuthenticationSuit.AlgoTable[DOT11_AuthKeyType_RSN].Enabled){
 		pGlobal->AuthKeyMethod = DOT11_AuthKeyType_RSN;
-	}else if(pAuth->RSNVariable.AuthenticationSuit.AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled){//CONFIG_IEEE80211W_CLI
-		pGlobal->AuthKeyMethod = DOT11_AuthKeyType_802_1X_SHA256;	
 	}
 #endif
 
@@ -572,6 +570,7 @@ void lib1x_suppsm_capture_auth( Supp_Global * pGlobal, lib1x_nal_intfdesc_tag * 
 //				struct eap_header *myeap;
 
 				eap_process_header(workint, (char *)newframe, framesize);
+
 				// Process our state machine.
 				if (statemachine_run(workint, newframe, framesize,
 					(char *)&respframe, &respsize) == XDATA)

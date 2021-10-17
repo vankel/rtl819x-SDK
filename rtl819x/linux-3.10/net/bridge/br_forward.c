@@ -60,7 +60,6 @@ extern unsigned int brIgmpModuleIndex_2;
 extern unsigned int br1SwFwdPortMask;
 extern struct net_bridge *bridge1;
 #endif
-
 #if	defined(CONFIG_RTL_819X)
 #include <net/rtl/features/rtl_ps_hooks.h>
 #include <net/rtl/features/rtl_ps_log.h>
@@ -76,12 +75,10 @@ extern struct net_bridge *bridge1;
 #if defined(CONFIG_RTL_MULTI_LAN_DEV)
 extern int rtl_is_lan_dev(struct net_device *dev);
 #endif
-#if !defined(CONFIG_RTL_IGMP_SNOOPING)
 static int deliver_clone(const struct net_bridge_port *prev,
 			 struct sk_buff *skb,
 			 void (*__packet_hook)(const struct net_bridge_port *p,
 					       struct sk_buff *skb));
-#endif
 
 /* Don't forward packets to originating port or forwarding diasabled */
 static inline int should_deliver(const struct net_bridge_port *p,
@@ -151,7 +148,7 @@ static inline int should_deliver(const struct net_bridge_port *p,
 			}
 		}
 	}
-#endif
+#endif // CONFIG_RTK_GUEST_ZONE
 
 	return 1;
 #else
@@ -270,6 +267,7 @@ void br_forward(const struct net_bridge_port *to, struct sk_buff *skb, struct sk
 	if (!skb0)
 		kfree_skb(skb);
 }
+#endif
 static int deliver_clone(const struct net_bridge_port *prev,
 			 struct sk_buff *skb,
 			 void (*__packet_hook)(const struct net_bridge_port *p,
@@ -286,9 +284,7 @@ static int deliver_clone(const struct net_bridge_port *prev,
 	__packet_hook(prev, skb);
 	return 0;
 }
-#endif
 
-#ifndef CONFIG_RTL_IGMP_SNOOPING
 static struct net_bridge_port *maybe_deliver(
 	struct net_bridge_port *prev, struct net_bridge_port *p,
 	struct sk_buff *skb,
@@ -310,7 +306,6 @@ static struct net_bridge_port *maybe_deliver(
 out:
 	return p;
 }
-#endif
 
 /* called under bridge lock */
 #if defined(CONFIG_RTL_IGMP_SNOOPING)
@@ -336,17 +331,14 @@ static void br_flood(struct net_bridge *br, struct sk_buff *skb,
 				 if((strncmp(p->dev->name,"eth",3)==0))
 				 {
 					continue;
-				 }				
+				 }
 			}
-			
+
 #ifndef CONFIG_RTL_8198C
 
 			/*patch for lan->wan duplicat packet(dmac=33:33:ff:xx:xx:xx) when pppoe/ipv6 passthrough enable*/
-			if(((strcmp(skb->dev->name,"eth0")==0)
-			#if defined (CONFIG_RTL_MULTI_LAN_DEV)
-			||(strcmp(skb->dev->name,"eth2")==0)||(strcmp(skb->dev->name,"eth3")==0)||(strcmp(skb->dev->name,"eth4")==0)
-			#endif
-			)&&(
+			if((strcmp(skb->dev->name,"eth0")==0)&&(
+			
 			#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
 				(rtk_vlan_support_enable==0)&&
 			#endif
@@ -591,14 +583,14 @@ int rtl865x_ipv6MulticastHardwareAccelerate(struct net_bridge *br,
 	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 	if(strcmp(br->dev->name,RTL_PS_BR0_DEV_NAME)==0)
 	{
-		memset(&fwdDesc, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
-		strcpy(fwdDesc.netifName,"eth*");
-		ret=rtl865x_getFwdDescriptor(br, &fwdDesc,ip)
+		memset(&fwdDescriptor, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
+		strcpy(fwdDescriptor.netifName,"eth*");
+		ret=rtl865x_getFwdDescriptor(br, &fwdDescriptor,ip)
 	}
 	else if(strcmp(br->dev->name,RTL_PS_BR1_DEV_NAME)==0)
 	{
-		memset(&fwdDesc, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
-		ret=rtl865x_getFwdDescriptor(br,&fwdDesc,ip);
+		memset(&fwdDescriptor, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
+		ret=rtl865x_getFwdDescriptor(br,&fwdDescriptor,ip);
 	}
 	#else
 	//ret=rtl865x_getFwdDescriptor(br,&fwdDescriptor,ip);
@@ -1254,8 +1246,10 @@ extern int rtl865x_blockMulticastFlow(unsigned int srcVlanId, unsigned int srcPo
 extern int rtl865x_curOpMode;
 
 #define MAX_UNKNOWN_MULTICAST_NUM 16
-#define MAX_UNKNOWN_MULTICAST_PPS 1500
+//#define MAX_UNKNOWN_MULTICAST_PPS 1500
 #define BLOCK_UNKNOWN_MULTICAST 1
+unsigned int maxUnknownMcastPPS=1500;
+unsigned int chkUnknownMcastEnable=1;
 
 struct rtl865x_unKnownMCastRecord
 {
@@ -1269,6 +1263,10 @@ struct rtl865x_unKnownMCastRecord unKnownMCastRecord[MAX_UNKNOWN_MULTICAST_NUM];
 int rtl865x_checkUnknownMCastLoading(struct rtl_multicastDataInfo *mCastInfo)
 {
 	int i;
+	
+	if (chkUnknownMcastEnable==0)
+		return 0;
+	
 	if(mCastInfo==NULL)
 	{
 		return 0;
@@ -1331,7 +1329,7 @@ int rtl865x_checkUnknownMCastLoading(struct rtl_multicastDataInfo *mCastInfo)
 		unKnownMCastRecord[i].pktCnt=0;
 	}
 
-	if(unKnownMCastRecord[i].pktCnt>MAX_UNKNOWN_MULTICAST_PPS)
+	if(unKnownMCastRecord[i].pktCnt>maxUnknownMcastPPS)
 	{
 		return BLOCK_UNKNOWN_MULTICAST;
 	}
@@ -1355,7 +1353,7 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 
 	unsigned short port_bitmask=0;
 	#if defined (CONFIG_RTL_MLD_SNOOPING)
-	//struct ipv6hdr * ipv6h=NULL;
+	struct ipv6hdr * ipv6h=NULL;
 	#endif
 	unsigned int fwdCnt;
 #if	defined (CONFIG_RTL_IGMP_PROXY)

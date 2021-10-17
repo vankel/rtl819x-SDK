@@ -101,9 +101,11 @@ void init_rxdesc_88XX(
     // Remove it because pci_map_single() in get_physical_addr() already performed memory sync.
     //rtl_cache_sync_wback(priv, bus_to_virt(phw->rx_infoL[i].paddr), RX_BUF_LEN - sizeof(struct rx_frinfo) - offset, PCI_DMA_FROMDEVICE);     
 #else
-	rtl_cache_sync_wback(priv, (unsigned long)(bus_to_virt(phw->rx_infoL[i].paddr)-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), 
-		RX_BUF_LEN - sizeof(struct rx_frinfo) - offset, PCI_DMA_FROMDEVICE);
-#endif
+
+    rtl_cache_sync_wback(priv, (unsigned long)(bus_to_virt(phw->rx_infoL[i].paddr)-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), 
+        RX_BUF_LEN - sizeof(struct rx_frinfo) - offset, PCI_DMA_FROMDEVICE);
+
+#endif 
 }
 #endif  //CONFIG_WLAN_HAL
 
@@ -147,6 +149,17 @@ static __inline__ void init_rxdesc(struct sk_buff *pskb, int i, struct rtl8192cd
 }
 #endif // CONFIG_PCI_HCI
 
+static __inline__ unsigned char cal_rssi_avg_mp(struct rtl8192cd_priv *priv, unsigned int agv, unsigned int pkt_rssi)
+{
+	unsigned int rssi;
+
+	rssi = ((agv * (100 - priv->pshare->mp_rssi_weight)) + (pkt_rssi*priv->pshare->mp_rssi_weight)) / 100;
+	if (pkt_rssi > agv)
+		rssi++;
+
+	return (unsigned char)rssi;
+}
+
 static __inline__ unsigned char cal_rssi_avg(unsigned int agv, unsigned int pkt_rssi)
 {
 	unsigned int rssi;
@@ -158,16 +171,6 @@ static __inline__ unsigned char cal_rssi_avg(unsigned int agv, unsigned int pkt_
 	return (unsigned char)rssi;
 }
 
-static __inline__ unsigned char cal_rssi_avg_mp(struct rtl8192cd_priv *priv, unsigned int agv, unsigned int pkt_rssi)
-{
-	unsigned int rssi;
-
-	rssi = ((agv * (100 - priv->pshare->mp_rssi_weight)) + (pkt_rssi*priv->pshare->mp_rssi_weight)) / 100;
-	if (pkt_rssi > agv)
-		rssi++;
-
-	return (unsigned char)rssi;
-}
 
 static __inline__ void update_sta_rssi(struct rtl8192cd_priv *priv,
 				struct stat_info *pstat, struct rx_frinfo *pfrinfo)
@@ -191,7 +194,7 @@ static __inline__ void update_sta_rssi(struct rtl8192cd_priv *priv,
 			if(IS_OUTSRC_CHIP(priv))
 #endif
 			{
-				for (i=0; i<2; i++)
+				for (i=0; i<4; i++)
 					priv->pshare->mp_rf_info.mimorssi[i] = cal_rssi_avg_mp(priv, priv->pshare->mp_rf_info.mimorssi[i], pfrinfo->rf_info.mimorssi[i]);
 				memcpy(&priv->pshare->mp_rf_info.mimosq[0], &pfrinfo->rf_info.mimosq[0], 2);
 			}
@@ -201,7 +204,7 @@ static __inline__ void update_sta_rssi(struct rtl8192cd_priv *priv,
 			if(!IS_OUTSRC_CHIP(priv))
 #endif
 			{
-			for (i=0; i<2; i++)
+			for (i=0; i<4; i++)
 				priv->pshare->mp_rf_info.mimorssi[i] = cal_rssi_avg_mp(priv, priv->pshare->mp_rf_info.mimorssi[i], pfrinfo->rf_info.mimorssi[i]);
 			memcpy(&priv->pshare->mp_rf_info.mimosq[0], &pfrinfo->rf_info.mimosq[0], sizeof(struct rf_misc_info) - 2);
 		}
@@ -242,20 +245,6 @@ static __inline__ void update_sta_rssi(struct rtl8192cd_priv *priv,
 			pstat->rx_bw            = pfrinfo->rx_bw;
 			pstat->rx_splcp         = pfrinfo->rx_splcp;
 
-#ifdef RSSI_MONITOR_NCR
-			if(priv->pshare->rf_ft_var.rssi_monitor_enable ) {
-				unsigned char rssi = pstat->rssi;
-#ifdef USE_OUT_SRC
-#ifdef _OUTSRC_COEXIST
-				if(IS_OUTSRC_CHIP(priv))
-#endif
-				{
-					rssi = pstat->rssi_stat.UndecoratedSmoothedPWDB;
-				}
-#endif
-				rssi_monitor(priv, pstat, rssi);
-			}
-#endif
 
 #ifdef USE_OUT_SRC
 #ifdef _OUTSRC_COEXIST
@@ -263,7 +252,7 @@ static __inline__ void update_sta_rssi(struct rtl8192cd_priv *priv,
 #endif
 			{
 				if (pfrinfo->rf_info.mimorssi[0] != 0)
-					for (i=0; i<2; i++)
+					for (i=0; i<4; i++)
 						pstat->rf_info.mimorssi[i] = cal_rssi_avg(pstat->rf_info.mimorssi[i], pfrinfo->rf_info.mimorssi[i]);
 
 				if (priv->pshare->rf_ft_var.rssi_dump)
@@ -277,7 +266,7 @@ static __inline__ void update_sta_rssi(struct rtl8192cd_priv *priv,
 #endif
 			{
 			if (pfrinfo->rf_info.mimorssi[0] != 0)
-				for (i=0; i<2; i++)
+				for (i=0; i<4; i++)
 					pstat->rf_info.mimorssi[i] = cal_rssi_avg(pstat->rf_info.mimorssi[i], pfrinfo->rf_info.mimorssi[i]);
 
 			if (priv->pshare->rf_ft_var.rssi_dump)

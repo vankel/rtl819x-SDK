@@ -39,6 +39,14 @@
 #endif
 
 #define MBSSID
+//#define FAST_BSS_TRANSITION
+
+#ifdef FAST_BSS_TRANSITION
+#define MAX_VWLAN_FTKH_NUM			8
+#define MAX_WLAN_FTKH_NUM			(8*(NUM_VWLAN_INTERFACE+1))
+#define MAX_FTKH_NUM 8
+#endif
+
 
 //hf
 //#define CONFIG_RTL_BT_CLIENT
@@ -60,7 +68,7 @@
 		#define GW_QOS_ENGINE
 	#endif
 #endif
-#if defined(VOIP_SUPPORT) || defined(CONFIG_APP_TR069)
+#if defined(VOIP_SUPPORT) || defined(CONFIG_APP_TR069) || defined(FAST_BSS_TRANSITION) || defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT)
 #ifndef HEADER_LEN_INT
 #define HEADER_LEN_INT
 #endif
@@ -744,6 +752,7 @@ typedef enum IPV6_DHCP_MODE_T_
 #define MAX_SNMP_CONTACT_LEN		64
 #define MAX_SNMP_COMMUNITY_LEN          64
 #endif
+
 #ifdef CONFIG_APP_SIMPLE_CONFIG
 #define MAX_SC_DEVICE_NAME	64
 #endif
@@ -769,7 +778,6 @@ typedef enum IPV6_DHCP_MODE_T_
 #define MIB_WLAN_MESH_ACL_ADDR_DELALL	((MIB_WLAN_MESH_ACL_NUM+4)|MIB_DELALL_TBL_ENTRY)
 //#endif Keith remove
 
-//#ifdef 	_11s_TEST_MODE_	 Keith remove
 #define MIB_WLAN_MESH_TEST_PARAM1		600
 #define MIB_WLAN_MESH_TEST_PARAM2		601
 #define MIB_WLAN_MESH_TEST_PARAM3		602
@@ -786,7 +794,6 @@ typedef enum IPV6_DHCP_MODE_T_
 #define MIB_WLAN_MESH_TEST_PARAME		613
 #define MIB_WLAN_MESH_TEST_PARAMF		614
 #define MIB_WLAN_MESH_TEST_PARAMSTR1		615
-//#endif Keith remove
 //#endif // CONFIG_RTK_MESH Keith remove
 //=========add for MESH=========
 
@@ -831,6 +838,11 @@ typedef enum IPV6_DHCP_MODE_T_
 #define MIB_WLAN_TDLS_PROHIBITED 	665
 #define MIB_WLAN_TDLS_CS_PROHIBITED 666
 
+
+//=========add for STA Control=========
+#define MIB_WLAN_STACTRL_ENABLE    670
+#define MIB_WLAN_STACTRL_PREFER    671
+
 //#ifdef CONFIG_RTL_WAPI_SUPPORT Keith remove
 #define CERTS_DATABASE  "/var/myca/index.txt"
 #define ONE_DAY_SECONDS 86400
@@ -874,9 +886,6 @@ typedef struct _CertsDbEntry_ {
 
 #endif
 
-#define MIB_WLAN_MFIWAC_CONFIGURED	    690
-#define MIB_MFI_WAC_DEVICE_NAME			691
-#define MIB_MFI_AIRPLAY_PASSWD			692
 
 #define BRIDGE_ETHERNET		0
 #define BRIDGE_PPPOE		1
@@ -1024,7 +1033,6 @@ typedef enum { PPP_AUTH_AUTO=0, PPP_AUTH_PAP, PPP_AUTH_CHAP, PPP_AUTH_NONE } PPP
 #define ALIASNAME_NAS0  RTL_DEV_NAME_NUM(ALIASNAME_NAS,0)//nas0
 #define ALIASNAME_DSL0  RTL_DEV_NAME_NUM(ALIASNAME_DSL,0)//dsl0
 #define ALIASNAME_ETH0  RTL_DEV_NAME_NUM(ALIASNAME_ETH,0)//eth0
-#define ALIASNAME_ETH1  RTL_DEV_NAME_NUM(ALIASNAME_ETH,1)//eth1
 #define ALIASNAME_PPP0  RTL_DEV_NAME_NUM(ALIASNAME_PPP,0)//ppp0
 
 #define ALIASNAME_VAP   "-vap" //must include '-' at fast
@@ -1378,7 +1386,27 @@ extern char *strItf[];
 #define MIB_WLAN_WDS_FIXEDTXRATE 1222
 #define MIB_WLAN_WDS_COMMENT 1223
 
+#ifdef FAST_BSS_TRANSITION
+#define MIB_WLAN_FTKH_MACADDR 1224
+#define MIB_WLAN_FTKH_NAS_ID 1225
+#define MIB_WLAN_FTKH_KEY 1226
+#define MIB_WLAN_FTKH_OPCLASS 1227 /*for 11k neighbor report*/
+#define MIB_WLAN_FTKH_CHANNEL 1228 /*for 11k neighbor report*/
+#define MIB_WLAN_FT_ENABLE 1229
+#define MIB_WLAN_FT_MDID 1230
+#define MIB_WLAN_FT_OVER_DS 1231
+#define MIB_WLAN_FT_RES_REQUEST 1232
+#define MIB_WLAN_FT_R0KEY_TO 1233
+#define MIB_WLAN_FT_REASOC_TO 1234
+#define MIB_WLAN_FT_R0KH_ID 1235
+#define MIB_WLAN_FT_PUSH 1236
+#define MIB_WLAN_FTKH_NUM 1237
+#define MIB_WLAN_FTKH			((MIB_WLAN_FTKH_NUM+1)|MIB_TABLE_LIST)
+#define MIB_WLAN_FTKH_ADD		((MIB_WLAN_FTKH_NUM+2)|MIB_ADD_TBL_ENTRY)
+#define MIB_WLAN_FTKH_DEL		((MIB_WLAN_FTKH_NUM+3)|MIB_DEL_TBL_ENTRY)
+#define MIB_WLAN_FTKH_DELALL		((MIB_WLAN_FTKH_NUM+4)|MIB_DELALL_TBL_ENTRY)
 
+#endif
 //#ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
 #define MIB_DUALBANK_ENABLED			1300
 #define MIB_WLAN_PHY_BAND_SELECT			1301
@@ -1406,6 +1434,8 @@ extern char *strItf[];
 #define MIB_USB3G_CONN_TYPE         1405
 #define MIB_USB3G_IDLE_TIME         1406
 #define MIB_USB3G_MTU_SIZE          1407
+#define MIB_LTE4G			        1408
+
 /*for P2P_SUPPORT*/
 #define MIB_WLAN_P2P_TYPE          			1450
 #define MIB_WLAN_P2P_INTENT         		1451
@@ -1444,7 +1474,6 @@ extern char *strItf[];
 #define MIB_WLAN_SC_PASSWD				1485
 #define MIB_SC_DEVICE_NAME					1486
 #define MIB_SC_DEVICE_TYPE					1487
-#define MIB_WLAN_SC_PIN_ENABLED				1488
 #endif
 
 /*multi pppoe*/
@@ -1743,7 +1772,16 @@ extern char *strItf[];
 /*new add end*/
 #endif
 
-#if defined(CONFIG_RTL_8812_SUPPORT)
+#if defined(CONFIG_WLAN_HAL_8814AE)
+#define MIB_HW_TX_POWER_CCK_C 2336
+#define MIB_HW_TX_POWER_CCK_D 2337
+#define MIB_HW_TX_POWER_HT40_1S_C 2338
+#define MIB_HW_TX_POWER_HT40_1S_D 2339
+#define MIB_HW_TX_POWER_5G_HT40_1S_C 2340
+#define MIB_HW_TX_POWER_5G_HT40_1S_D 2341
+#endif
+
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8814AE) || defined(CONFIG_WLAN_HAL_8881A)
 #define MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_A		2200		
 #define MIB_HW_TX_POWER_DIFF_40BW2S_20BW2S_A		2201
 #define MIB_HW_TX_POWER_DIFF_OFDM2T_CCK2T_A			2202
@@ -1782,8 +1820,43 @@ extern char *strItf[];
 #define MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_B	2235
 #endif
 
+#if defined(CONFIG_WLAN_HAL_8814AE)
+#define MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_C		2300
+#define MIB_HW_TX_POWER_DIFF_40BW2S_20BW2S_C		2301
+#define MIB_HW_TX_POWER_DIFF_OFDM2T_CCK2T_C			2302
+#define MIB_HW_TX_POWER_DIFF_40BW3S_20BW3S_C		2303
+#define MIB_HW_TX_POWER_DIFF_OFDM3T_CCK3T_C			2304
+#define MIB_HW_TX_POWER_DIFF_40BW4S_20BW4S_C		2305
+#define MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_C			2306
 
+#define MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_C		2307
+#define MIB_HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_C		2308
+#define MIB_HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_C		2309
+#define MIB_HW_TX_POWER_DIFF_5G_40BW4S_20BW4S_C		2310
+#define MIB_HW_TX_POWER_DIFF_5G_RSVD_OFDM4T_C		2311
+#define MIB_HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_C	2312
+#define MIB_HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_C	2313
+#define MIB_HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_C	2314
+#define MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_C	2315
 
+#define MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_D		2320
+#define MIB_HW_TX_POWER_DIFF_40BW2S_20BW2S_D		2321
+#define MIB_HW_TX_POWER_DIFF_OFDM2T_CCK2T_D			2322
+#define MIB_HW_TX_POWER_DIFF_40BW3S_20BW3S_D		2323
+#define MIB_HW_TX_POWER_DIFF_OFDM3T_CCK3T_D			2324
+#define MIB_HW_TX_POWER_DIFF_40BW4S_20BW4S_D		2325
+#define MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_D			2326
+
+#define MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_D		2327
+#define MIB_HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_D		2328
+#define MIB_HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_D		2329
+#define MIB_HW_TX_POWER_DIFF_5G_40BW4S_20BW4S_D		2330
+#define MIB_HW_TX_POWER_DIFF_5G_RSVD_OFDM4T_D		2331
+#define MIB_HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_D	2332
+#define MIB_HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_D	2333
+#define MIB_HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_D	2334
+#define MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_D	2335
+#endif
 #define MIB_WLAN_RETRY_LIMIT	2252
 #define MIB_WLAN_UAPSD_ENABLED	2253
 #define MIB_WLAN_REGULATORY_DOMAIN	2254
@@ -1886,7 +1959,8 @@ typedef enum {ETH_DOT1X_CLIENT_MODE=1,ETH_DOT1X_PROXY_MODE=2}ETH_DOT1X_MODE_T;
 #define MIB_WLAN_REGULATORY_DOMAIN	2254
 #define MIB_PPPOE_DHCP_ENABLED	2259
 
-#define MAX_L2TP_BUFF_LEN		50
+//#define MAX_L2TP_BUFF_LEN		50
+#define MAX_L2TP_BUFF_LEN		70
 
 #define MIB_PPP_SESSION_NUM	940
 #define MIB_PPP_SERVER_MAC	941
@@ -1894,9 +1968,7 @@ typedef enum {ETH_DOT1X_CLIENT_MODE=1,ETH_DOT1X_PROXY_MODE=2}ETH_DOT1X_MODE_T;
 #define MIB_L2TP_PAYLOAD_LENGTH	943
 #define MIB_L2TP_NS 944
 #define MIB_DHCP_LEASE_TIME     945
-
 #define MIB_CONFIG_TAG 7621
-#define MIB_HAP_ACCESSORY_SETUPCODE  3000 //mark_kit
 
 /* ==== CAPWAP start =======*/
 #ifdef RTK_CAPWAP // currently use 2300~2329
@@ -1982,7 +2054,7 @@ typedef enum {ETH_DOT1X_CLIENT_MODE=1,ETH_DOT1X_PROXY_MODE=2}ETH_DOT1X_MODE_T;
 #define MAX_2G_CHANNEL_NUM_MIB		14
 #define MAX_5G_CHANNEL_NUM_MIB		196
 
-#if defined(CONFIG_RTL_8812_SUPPORT)
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8814AE) || defined(CONFIG_WLAN_HAL_8881A)
 #define MAX_5G_DIFF_NUM		14
 #endif
 #define MIN_PSK_LEN			8
@@ -2092,10 +2164,8 @@ typedef enum {ETH_DOT1X_CLIENT_MODE=1,ETH_DOT1X_PROXY_MODE=2}ETH_DOT1X_MODE_T;
 
 #ifdef __mips__
 #ifdef CONFIG_MTD_NAND
-#define FLASH_DEVICE_SETTING	("/hw_setting/hw.bin")		//mtdblock1 
-//#define FLASH_DEVICE_NAME		("/dev/mtdblock0")			//boot
-#define FLASH_DEVICE_NAME		("/dev/mtdblock2")			//linux+webpage
-#define FLASH_DEVICE_NAME1		("/dev/mtdblock3")			// rootfs
+#define FLASH_DEVICE_NAME		("/hw_setting/hw.bin")
+#define FLASH_DEVICE_NAME1		("/hw_setting/hw1.bin")
 #else
 #define FLASH_DEVICE_NAME		("/dev/mtdblock0")
 #define FLASH_DEVICE_NAME1		("/dev/mtdblock1")
@@ -3156,6 +3226,17 @@ typedef struct wlanwds_entry {
 #undef MIB_WDS_IMPORT
 }__PACK__ WDS_T, *WDS_Tp;
 
+
+#ifdef FAST_BSS_TRANSITION
+typedef struct wlanftkh_entry {
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+	_ctype _cname _crepeat;
+
+#define MIB_FTKH_IMPORT
+#include "mibdef.h"
+#undef MIB_FTKH_IMPORT
+}__PACK__ FTKH_T, *FTKH_Tp;
+#endif
 #ifdef WLAN_PROFILE
 typedef struct wlan_profile_entry {
 #define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
@@ -3384,6 +3465,9 @@ typedef enum {
 #endif
 #endif // #ifdef HOME_GATEWAY		
 		WDS_ARRAY_T,
+#ifdef FAST_BSS_TRANSITION
+		FTKH_ARRAY_T,
+#endif
 #ifdef TLS_CLIENT		
 		CERTROOT_ARRAY_T,
 		CERTUSER_ARRAY_T,

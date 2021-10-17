@@ -73,23 +73,8 @@ static int hs2_check_dgaf_disable(unsigned char *ifname)
 	else if (!strcmp(ifname, "wlan0-va3"))   {
         sprintf(pfile, "tmp/dgaf_%s", ifname);
     }
-	else if (!strcmp(ifname, "wlan1"))   {
-        sprintf(pfile, "tmp/dgaf_%s", ifname);
-    }
-	else if (!strcmp(ifname, "wlan1-va0"))   {
-        sprintf(pfile, "tmp/dgaf_%s", ifname);
-    }
-	else if (!strcmp(ifname, "wlan1-va1"))   {
-        sprintf(pfile, "tmp/dgaf_%s", ifname);
-    }
-	else if (!strcmp(ifname, "wlan1-va2"))   {
-        sprintf(pfile, "tmp/dgaf_%s", ifname);
-    }
-	else if (!strcmp(ifname, "wlan1-va3"))   {
-        sprintf(pfile, "tmp/dgaf_%s", ifname);
-    }    
 	else	{
-		printf("!!!unknown interface:[%s], check!!\n", ifname);
+		printf("unknown interface:%s\n", ifname);
 		return 0;
 	}
 
@@ -275,24 +260,14 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 #endif
 
 			if ( global->RSNVariable.WPA2Enabled ) {
-#ifdef HS2_SUPPORT				
-				if(global->auth->RSNVariable.bOSEN && global->AuthKeyMethod == WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256) 
-					global->KeyDescriptorVer = 0; 
-				else 
-#endif
 #ifdef CONFIG_IEEE80211W			
-				if (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256 )
+				if (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)
 					global->KeyDescriptorVer = key_desc_ver3; 
 				else 
 #endif				
 				if ( global->RSNVariable.UnicastCipher == DOT11_ENC_CCMP )
-					global->KeyDescriptorVer = key_desc_ver2; 
-#ifdef HS2_SUPPORT
-				if(global->auth->RSNVariable.bOSEN)
-					Message_setDescType(global->EapolKeyMsgSend, 2); // for OSEN	
-				else	
-#endif					
-				    Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
+					global->KeyDescriptorVer = key_desc_ver2;
+				Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
 			} else {
 #ifdef CONFIG_IEEE80211W			
 				if (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)
@@ -305,8 +280,8 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 			}
 #else
 			Message_setDescType(global->EapolKeyMsgSend, global->DescriptorType);
-#endif            
-    		Message_setKeyDescVer(global->EapolKeyMsgSend, global->KeyDescriptorVer);
+#endif
+			Message_setKeyDescVer(global->EapolKeyMsgSend, global->KeyDescriptorVer);
 			Message_setKeyType(global->EapolKeyMsgSend, type_Pairwise);
 			Message_setKeyIndex(global->EapolKeyMsgSend, 0);
 			Message_setInstall(global->EapolKeyMsgSend, 0);
@@ -381,7 +356,7 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 #endif
 			global->EapolKeyMsgSend.Length = EAPOLMSG_HDRLEN ;
 
-			global->EAPOLMsgSend.Length = ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + global->EapolKeyMsgSend.Length;			
+			global->EAPOLMsgSend.Length = ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + global->EapolKeyMsgSend.Length;
 			break;
 
 		case akmsm_PTKINITNEGOTIATING:
@@ -558,6 +533,232 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 	return TRUE;
 }
 
+#ifdef CONFIG_IEEE80211R
+#define _MOBILITY_DOMAIN_IE_		54
+#define _FAST_BSS_TRANSITION_IE_	55
+#define _TIMEOUT_INTERVAL_IE_		56
+#define _RIC_DATA_IE_				57
+#define _RIC_DESCRIPTOR_IE_			75
+#define _FT_R1KH_ID_SUB_IE_			1
+#define _FT_GTK_SUB_IE_				2
+#define _FT_R0KH_ID_SUB_IE_			3
+#define TIE_TYPE_REASSOC_DEADLINE	1
+#define TIE_TYPE_KEY_LIFETIME		2
+#define _FAST_BSS_TRANSITION_CATEGORY_ID_	6
+#define _FT_REQUEST_ACTION_ID_		1
+#define _FT_RESPONSE_ACTION_ID_		2
+#define _FT_CONFIRM_ACTION_ID_		3
+#define _FT_ACK_ACTION_ID_			4
+
+#define _RSN_IE_2_				48
+
+enum { PSK_WPA=1, PSK_WPA2=2};
+
+#define BIT(x)	(1 << (x))
+
+#define GetFTMDID(pbuf)		((unsigned char *)pbuf + 2)
+#define GetFTOverDS(pbuf)	(((*(unsigned char *)((unsigned long)pbuf + 4)) & BIT(0)) != 0)
+#define GetFTResReq(pbuf)	(((*(unsigned char *)((unsigned long)pbuf + 4)) & BIT(1)) != 0)
+#define SetFTMICCtrl(pbuf, v)	(*(unsigned char *)((unsigned long)pbuf + 1)) = v	
+
+
+unsigned char *get_ie(unsigned char *pbuf, int index, int *len, int limit)
+{
+	unsigned int tmp,i;
+	unsigned char *p;
+ 
+	if (limit < 1)
+		return NULL;
+ 
+	p = pbuf;
+	i = 0;
+	*len = 0;
+	while(1)
+	{
+		if (*p == index)
+		{
+			*len = *(p + 1);
+			return (p);
+		}
+		else
+		{
+			tmp = *(p + 1);
+			p += (tmp + 2);
+			i += (tmp + 2);
+		}
+		if (i >= limit)
+			break;
+	}
+	return NULL;
+}
+
+ unsigned char *set_ie(unsigned char *pbuf, int index, unsigned int len, unsigned char *source,
+				unsigned int *frlen)
+{
+	*pbuf = index;
+	*(pbuf + 1) = len;
+	if (len > 0)
+		memcpy((void *)(pbuf + 2), (void *)source, len);
+	*frlen = *frlen + (len + 2);
+	return (pbuf + len + 2);
+}
+
+unsigned char *construct_mobility_domain_ie(Global_Params * global, unsigned char *pbuf, unsigned int *frlen)
+{
+	unsigned char temp[3];
+
+	memset(temp, 0, sizeof(temp));
+	memcpy(temp, global->akm_sm->mdid, 2);
+	if (global->akm_sm->over_ds_enabled)
+		temp[2] |= BIT(0);
+	if (global->akm_sm->resource_request_support)
+		temp[2] |= BIT(1);
+
+	pbuf = set_ie(pbuf, _MOBILITY_DOMAIN_IE_, 3, temp, frlen);
+	return pbuf;
+}
+
+unsigned char *construct_fast_bss_transition_ie(Global_Params * global, unsigned char *pbuf, unsigned int *frlen) 
+{
+	unsigned char temp[512];
+	unsigned char gkout[128], *pos;
+	unsigned short gkout_len;
+	
+	memset(temp, 0, sizeof(temp));
+	pos = temp;
+
+	pos += 18;
+
+	// ANonce, SNonce
+		pos += (2 * KEY_NONCE_LEN);
+
+	// R1KH-ID
+	*pos++ = _FT_R1KH_ID_SUB_IE_;
+	*pos++ = MacAddrLen;
+	memcpy(pos, global->akm_sm->bssid, MacAddrLen);
+	pos += MacAddrLen;
+
+
+	// R0KH-ID
+		*pos++ = _FT_R0KH_ID_SUB_IE_;
+		*pos++ = global->akm_sm->r0kh_id_len;
+		memcpy(pos, global->akm_sm->r0kh_id, global->akm_sm->r0kh_id_len);
+		pos += global->akm_sm->r0kh_id_len;
+
+	pbuf = set_ie(pbuf, _FAST_BSS_TRANSITION_IE_, pos - temp, temp, frlen);
+	return pbuf;
+}
+
+unsigned char *construct_timeout_interval_ie(unsigned char *pbuf, unsigned int *frlen, int type, int value)
+{
+	unsigned char temp[5];
+
+	if (type < TIE_TYPE_REASSOC_DEADLINE || type > TIE_TYPE_KEY_LIFETIME)
+		return pbuf;
+
+	temp[0] = type;
+	temp[1] = value & 0xff;
+	temp[2] = (value & 0xff00) >> 8;
+	temp[3] = (value & 0xff0000) >> 16;
+	temp[4] = (value & 0xff000000) >> 24;
+
+	pbuf = set_ie(pbuf, _TIMEOUT_INTERVAL_IE_, 5, temp, frlen);
+	return pbuf;
+}
+
+static int validateMDIE(Global_Params * global, unsigned char *pbuf)
+{
+	if ( (memcmp(GetFTMDID(pbuf), global->akm_sm->mdid, 2) == 0) &&
+			(GetFTOverDS(pbuf) == global->akm_sm->over_ds_enabled) &&
+			(GetFTResReq(pbuf) == global->akm_sm->resource_request_support) )
+		return 1;
+	else
+		return 0;
+}
+
+static unsigned char *getPMKID(unsigned int index, unsigned char *rsnie, unsigned int rsnie_len)
+{
+	unsigned char *pos;
+	unsigned int pmk_cnt;
+	unsigned short count;
+
+	pos = rsnie + 8; 
+	lib1x_Little_N2S(pos, count);
+	pos += 2 + 4 * count;
+	lib1x_Little_N2S(pos, count);
+	pos += 2 + 4 * count;
+	pos += 2;
+	lib1x_Little_N2S(pos, count);
+	pmk_cnt = count;
+	pos += 2;
+	if (index < pmk_cnt && (pos + index * 16) < (rsnie + rsnie_len))
+		return (pos + index * 16);
+	return NULL;
+}
+
+static int isFTAuth(Global_Params * global, unsigned char *rsnie, unsigned int rsnie_len, int psk)
+{
+	unsigned int akm_cnt, i;
+	unsigned char akm_ft[4] = {0x00, 0x0f, 0xac, 0x03};
+	unsigned char akm_ft_psk[4] = {0x00, 0x0f, 0xac, 0x04};
+	unsigned char *pos = rsnie;
+	unsigned short count;
+
+	pos += 8;
+	lib1x_Little_N2S(pos, count);
+	pos += 2 + 4 * count;
+	lib1x_Little_N2S(pos, count);
+	akm_cnt = count;
+	pos += 2;
+
+	for (i = 0; i< akm_cnt; i++) {
+		if ( (!psk && !memcmp(pos + (i * 4), akm_ft, 4)) ||
+			 ((psk & PSK_WPA2) && !memcmp(pos + (i * 4), akm_ft_psk, 4)) )
+			return 1;
+	}
+
+	return 0;
+}
+
+
+int ft_check_imd_4way(Global_Params * global, unsigned char *pbuf, unsigned int limit, unsigned int *status)
+{
+	unsigned char *p;
+	unsigned int len;
+
+	printf("==> %s\n", __FUNCTION__);
+
+	// Check MDIE
+	p = get_ie(pbuf, _MOBILITY_DOMAIN_IE_, &len, limit);
+	if (!p || !validateMDIE(global, p)) {
+		*status = _STATS_INVALID_MDIE_;
+		return -1;
+	}
+
+	// Check RSNIE
+	p = get_ie(pbuf, _RSN_IE_2_, &len, limit);
+	if (p == NULL) {
+		*status = __STATS_INVALID_IE_;
+		return -1;
+	}
+
+	// Check AKM
+	if (!isFTAuth(global, p, len + 2, FALSE)) {
+		*status = __STATS_INVALID_AKMP_;
+		return -1;
+	}
+
+	// Check PMK-R1-Name
+	if (memcmp(global->akm_sm->pmk_r1_name, getPMKID(0, p, len + 2), PMKID_LEN)) {
+		*status = _STATS_INVALID_PMKID_;
+		return -1;
+	}
+
+	return 0;
+
+}
+
+#endif
 
 int lib1x_akmsm_ProcessEAPOL_proc(Global_Params * global)
 /*++
@@ -579,6 +780,11 @@ Return Value:
 	u_short tmpKeyData_Length;
 	AGKeyManage_SM	*   	gkm_sm = global->auth->gk_sm;
 	OCTET_STRING	 KeyData;
+#ifdef CONFIG_IEEE80211R
+	OCTET_STRING tmpKeyData;
+	unsigned int status = 0;
+#endif
+
 	KeyData.Octet = (u_char*)malloc(INFO_ELEMENT_SIZE);
 	KeyData.Length = 0;
 #endif
@@ -638,23 +844,13 @@ Return Value:
 #endif
 					global->akm_sm->SNonce = Message_KeyNonce(global->EapolKeyMsgRecvd);
 
-                    int ISSHA256 = 0;
-
-                    #ifdef CONFIG_IEEE80211W
-                    ISSHA256 = (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256
-                      #ifdef HS2_SUPPORT                        
-					  || global->auth->RSNVariable.bOSEN
-                      #endif					  
-					  );
-                    #endif
-
 					CalcPTK(global->EAPOLMsgRecvd.Octet, global->EAPOLMsgRecvd.Octet + 6,
 					global->akm_sm->ANonce.Octet, global->akm_sm->SNonce.Octet,
-					global->akm_sm->PMK, PMK_LEN, global->akm_sm->PTK, (ISSHA256?48:PTK_LEN_TKIP)
-                    #ifdef CONFIG_IEEE80211W
-					, ISSHA256
-                    #endif				
-                     );
+					global->akm_sm->PMK, PMK_LEN, global->akm_sm->PTK, (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)?48:PTK_LEN_TKIP
+#ifdef CONFIG_IEEE80211W
+					, (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)
+#endif				
+					);
 
 #ifdef DBG_WPA_CLIENT
 					{
@@ -693,8 +889,7 @@ Return Value:
 						}
 #endif
 						retVal = ERROR_MIC_FAIL;
-					}
-                    else
+					}else
 					{
 						//lib1x_control_AssocInfo(global, 0, &global->akm_sm->SuppInfoElement);
 						//if(!Message_EqualRSNIE(	Message_KeyData(global->EapolKeyMsgRecvd, Message_ReturnKeyDataLength(global->EapolKeyMsgRecvd)),
@@ -714,13 +909,7 @@ Return Value:
 							memset(global->EapolKeyMsgSend.Octet, 0, MAX_EAPOLKEYMSG_LEN);
 #ifdef RTL_WPA2
 							if ( global->RSNVariable.WPA2Enabled ) {
-								
-#ifdef HS2_SUPPORT
-								if(global->auth->RSNVariable.bOSEN)
-									Message_setDescType(global->EapolKeyMsgSend, 2); // for OSEN	
-								else	
-#endif					
-								    Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
+								Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
 							} else
 								Message_setDescType(global->EapolKeyMsgSend, desc_type_RSN);
 #else
@@ -750,17 +939,25 @@ Return Value:
 
 #ifdef RTL_WPA2
 							if ( global->RSNVariable.WPA2Enabled ) {
+#ifdef CONFIG_IEEE80211R
+								unsigned char key_data[384];
+#else
 								unsigned char key_data[128];
+#endif
 								unsigned char * key_data_pos = key_data;
 								int i;
 								unsigned char GTK_KDE_TYPE[] = {0xDD, 0x16, 0x00, 0x0F, 0xAC, 0x01, 0x01, 0x00 };
 #ifdef CONFIG_IEEE80211W
 								unsigned char IGTK_KDE_TYPE[] = {0xDD, 0x1C, 0x00, 0x0F, 0xAC, 0x09};
 #endif
+#ifdef CONFIG_IEEE80211R
+								unsigned int frlen = 0;
+#endif
+
 								global->EapolKeyMsgSend.Octet[1] = 0x13;
 
 								if(global->KeyDescriptorVer == key_desc_ver2 
-#ifdef CONFIG_IEEE80211W								
+#if defined(CONFIG_IEEE80211W) || defined(CONFIG_IEEE80211R)								
 									|| global->KeyDescriptorVer == key_desc_ver3
 #endif									
 								) { 
@@ -771,17 +968,7 @@ Return Value:
 								}
 
 								// RSN IE
-								//HS2DEBUG("RSN IE[0]=[%02X]\n", global->auth->RSNVariable.AuthInfoElement.Octet[0]);
-#ifdef HS2_SUPPORT
-								if (global->auth->RSNVariable.bOSEN && global->auth->RSNVariable.AuthInfoElement.Octet[0] == 0xdd) {						
-									
-									int len = (unsigned char)global->auth->RSNVariable.AuthInfoElement.Octet[1] + 2;
-									printf("4.3 EAPOL-KEY, copy OSEN IE to key data, len=%d\n",len);
-									memcpy(key_data_pos, global->auth->RSNVariable.AuthInfoElement.Octet, len);
-									key_data_pos += len;
-								}
-								else
-#endif
+								//printf("%s: global->auth->RSNVariable.AuthInfoElement.Octet[0] = %02X\n", __FUNCTION__, global->auth->RSNVariable.AuthInfoElement.Octet[0]);
 								if (global->auth->RSNVariable.AuthInfoElement.Octet[0] == WPA2_ELEMENT_ID) {
 									int len = (unsigned char)global->auth->RSNVariable.AuthInfoElement.Octet[1] + 2;
 									memcpy(key_data_pos, global->auth->RSNVariable.AuthInfoElement.Octet, len);
@@ -799,6 +986,31 @@ Return Value:
 									}
 								}
 
+#ifdef CONFIG_IEEE80211R
+								if (akm_sm->isFT) {
+#ifdef CONFIG_IEEE80211W
+									if (global->auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) {
+										memcpy(key_data_pos - 4, key_data_pos - 4 + PMKID_LEN, 4);
+										lib1x_Little_S2N(1, key_data_pos - 6);
+										memcpy(key_data_pos - 4, akm_sm->pmk_r1_name, PMKID_LEN);
+										key_data_pos += PMKID_LEN;
+										key_data[1] += PMKID_LEN;
+									} else
+#endif
+									{
+										lib1x_Little_S2N(1, key_data_pos);
+									memcpy(key_data_pos, akm_sm->pmk_r1_name, PMKID_LEN);
+										key_data_pos += PMKID_LEN;
+										key_data[1] += (2 + PMKID_LEN);
+									}
+								}
+#endif
+
+#ifdef CONFIG_IEEE80211R
+								if (akm_sm->isFT) {
+									key_data_pos = construct_mobility_domain_ie(global, key_data_pos , &frlen);
+								}
+#endif
 
 								memcpy(key_data_pos, GTK_KDE_TYPE, sizeof(GTK_KDE_TYPE));
 								key_data_pos[1] = (unsigned char) 6 + ((global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
@@ -809,7 +1021,6 @@ Return Value:
 								global->auth->gk_sm->GInitAKeys = TRUE;
 								lib1x_akmsm_UpdateGK_proc(global->auth);
 								memcpy(key_data_pos, gkm_sm->GTK[gkm_sm->GN], (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
-
 								key_data_pos += (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16;
 
 								//=================================================
@@ -842,6 +1053,16 @@ Return Value:
 									key_data_pos += 16;
 								}
 #endif
+#ifdef CONFIG_IEEE80211R
+								if (akm_sm->isFT) {
+									key_data_pos = construct_fast_bss_transition_ie(global, key_data_pos, &frlen);
+									key_data_pos = construct_timeout_interval_ie(key_data_pos, &frlen,
+											TIE_TYPE_REASSOC_DEADLINE, 0);
+									key_data_pos = construct_timeout_interval_ie(key_data_pos, &frlen,
+											TIE_TYPE_KEY_LIFETIME, 0);
+								}
+#endif
+
 								// Padding
 								i = (key_data_pos - key_data) % 8;
 								if ( i != 0 ) {
@@ -963,7 +1184,11 @@ Return Value:
 #endif
 					global->akm_sm->SNonce = Message_KeyNonce(global->EapolKeyMsgRecvd);
                     int ISSHA256 = 0;
-
+#ifdef CONFIG_IEEE80211R
+					if (global->akm_sm->isFT)
+						CalcFTPTK(global, global->akm_sm->PTK, 48);
+					else
+#endif
                     #ifdef CONFIG_IEEE80211W
                     ISSHA256 = (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256
                     #ifdef HS2_SUPPORT                        
@@ -987,6 +1212,51 @@ Return Value:
 					}
 #endif
 
+#ifdef CONFIG_IEEE80211R
+					if (global->akm_sm->isFT) {
+						OCTET_STRING eapol_content;
+						eapol_content.Octet = global->EAPOLMsgRecvd.Octet+ + 14 + 4; // eth hdr + eapol header
+						eapol_content.Length = global->EAPOLMsgRecvd.Length - 14 - 4;
+						tmpKeyData = Message_KeyData(eapol_content, Message_KeyDataLength(eapol_content));
+
+						if (ft_check_imd_4way(global, tmpKeyData.Octet, tmpKeyData.Length, &status)) {
+							switch (status)
+							{
+							case __STATS_INVALID_IE_:
+#ifdef FOURWAY_DEBUG
+								printf("4-2: RSNIE not present in FT Message 2\n");
+#endif
+								global->akm_sm->ErrorRsn = RSN_invalid_info_element;
+								break;
+							case _STATS_INVALID_MDIE_:
+#ifdef FOURWAY_DEBUG
+								printf("4-2: Invalid MDIE in FT Message 2\n");
+#endif
+								global->akm_sm->ErrorRsn = RSN_invalid_info_element;
+								break;
+							case __STATS_INVALID_AKMP_:
+#ifdef FOURWAY_DEBUG
+								printf("4-2: Invalid AKM Suite\n");
+#endif
+								global->akm_sm->ErrorRsn = RSN_AKMP_not_valid;
+								break;
+							case _STATS_INVALID_PMKID_:
+#ifdef FOURWAY_DEBUG
+								printf("4-2: PMKR1-Name not match\n");
+#endif
+								global->akm_sm->ErrorRsn = RSN_invalid_info_element;
+								break;
+							default:
+								break;
+							}
+							global->akm_sm->Disconnect = TRUE;
+						}
+					}
+
+					if (global->akm_sm->Disconnect) {
+						retVal = ERROR_NONEQUAL_RSNIE;
+					} else
+#endif
 					if(!CheckMIC(global->EAPOLMsgRecvd, global->akm_sm->PTK, PTK_LEN_EAPOLMIC))
 					{
 						global->akm_sm->Disconnect = TRUE;
@@ -1779,6 +2049,7 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 
 	Global_Params *		global;
 	APKeyManage_SM  *       akm_sm;
+
 	//Get All Station Info if there is any station in session
 
 	if(auth->IdleTimeoutEnabled)
@@ -1786,6 +2057,7 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 
 	if(auth->AccountingEnabled)
 		lib1x_acctsm(auth->authGlobal->global);
+
 
 	//sc_yang
 	for(i = 0 ; i < auth->MaxSupplicant ; i++)
@@ -1926,8 +2198,13 @@ int lib1x_akmsm_AuthenticationRequest( Global_Params * global)
 		lib1x_message(MESS_DBG_KEY_MANAGE, "*************************CALL lib1x_control_RemovePTK\n");
 		lib1x_control_RemovePTK(global, DOT11_KeyType_Pairwise);
 		if(global->AuthKeyMethod == DOT11_AuthKeyType_RSN ||
-			global->AuthKeyMethod == DOT11_AuthKeyType_RSNPSK ||
-			global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x)
+			global->AuthKeyMethod == DOT11_AuthKeyType_RSNPSK 
+#ifdef CONFIG_IEEE80211R
+			|| global->AuthKeyMethod == DOT11_AuthKeyType_FT
+#else
+			|| global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x
+#endif
+		)
 		{
 			lib1x_control_SetPORT(global, DOT11_PortStatus_Unauthorized);
 		}
@@ -1976,14 +2253,10 @@ int lib1x_akmsm_AuthenticationRequest( Global_Params * global)
 			lib1x_akmsm_SendEAPOL_proc(global);
 		}
 	}
-#ifdef HS2_SUPPORT	
-	else if(global->auth->RSNVariable.bOSEN && global->AuthKeyMethod == WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256)
-	{
-		// no PMKcache function in WFA client anonymous TLS
-		akm_sm->state = akmsm_AUTHENTICATION2;
-	}
-#endif	
 	else if(global->AuthKeyMethod == DOT11_AuthKeyType_RSN 
+#ifdef CONFIG_IEEE80211R
+		|| global->AuthKeyMethod == DOT11_AuthKeyType_FT
+#endif
 #ifdef CONFIG_IEEE80211W			
 		|| global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256
 #endif
@@ -2029,7 +2302,11 @@ int lib1x_akmsm_AuthenticationSuccess( Global_Params * global)
 	lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_AuthenticationSuccess");
 
 	if((global->AuthKeyMethod == DOT11_AuthKeyType_RSN 
+#ifdef CONFIG_IEEE80211R
+		|| global->AuthKeyMethod == DOT11_AuthKeyType_FT
+#else
 		|| global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x
+#endif
 #ifdef CONFIG_IEEE80211W		
 		|| global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256 
 #endif
@@ -2046,16 +2323,15 @@ int lib1x_akmsm_AuthenticationSuccess( Global_Params * global)
 #endif
 			lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_AuthenticationSuccess:Radius Key is Avaliable");
 			memcpy(akm_sm->PMK, global->RadiusKey.RecvKey.Octet, global->RadiusKey.RecvKey.Length);
+#ifdef CONFIG_IEEE80211R
+			if (akm_sm->isFT) {
+				memcpy(akm_sm->xxkey, global->RadiusKey.SendKey.Octet, PMK_LEN);
+			}
+#endif
 			//lib1x_control_AssociationRsp(global, DOT11_Association_Success);
 #ifdef RTL_WPA2
 			if(global->auth->RSNVariable.max_pmksa) {
 				//printf("\n802.1x authentication done\n");
-#ifdef HS2_SUPPORT
-			if(global->auth->RSNVariable.bOSEN && global->AuthKeyMethod == WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256) {
-				memset(akm_sm->PMKID, 0, PMKID_LEN);
-			}
-			else
-#endif
 #ifdef CONFIG_IEEE80211W
 			if(global->auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) {
 				CalcPMKID(	akm_sm->PMKID,
@@ -2084,10 +2360,12 @@ int lib1x_akmsm_AuthenticationSuccess( Global_Params * global)
 					memcpy(pmksa_node->pmksa.pmk, akm_sm->PMK, PMK_LEN);
 					memcpy(pmksa_node->pmksa.spa, global->theAuthenticator->supp_addr, ETHER_ADDRLEN);
 					pmksa_node->pmksa.akmp = global->AuthKeyMethod;
+                                        
 					if(global_pmksa_aging == 0xffffffff)
-	                    global_pmksa_aging = 0;
-	                global_pmksa_aging++;
-	                pmksa_node->pmksa.aging = global_pmksa_aging;
+                                                global_pmksa_aging = 0;
+                                        global_pmksa_aging++;
+                                        pmksa_node->pmksa.aging = global_pmksa_aging;
+                                        
 					if(global->akm_sm->SessionTimeout > 0)
 						pmksa_node->pmksa.SessionTimeout = global->akm_sm->SessionTimeout;
 					if(global->auth->Supp[global->index]->IdleTimeout > 0)
@@ -2237,8 +2515,13 @@ int lib1x_akmsm_Disconnect( Global_Params * global)
 	//---- Initialize 802.1x related variable ----
 
 	if(global->AuthKeyMethod == DOT11_AuthKeyType_RSN ||
-		global->AuthKeyMethod == DOT11_AuthKeyType_RSNPSK ||
-		global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x)
+		global->AuthKeyMethod == DOT11_AuthKeyType_RSNPSK 
+#ifdef CONFIG_IEEE80211R
+		|| global->AuthKeyMethod == DOT11_AuthKeyType_FT
+#else
+		|| global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x
+#endif
+		)
 		if(global->EventId != akmsm_EVENT_Disassociate)	//sc_yang
 			lib1x_control_SetPORT(global, DOT11_PortStatus_Unauthorized);
 
@@ -2375,6 +2658,7 @@ int lib1x_akmsm_EAPOLKeyRecvd( Global_Params * global)
 						}					
 					#endif
 					}
+
 					if (global->RSNVariable.PMKCached) {
 						global->portStatus = pst_Authorized;
 						global->RSNVariable.PMKCached = FALSE;  // reset
@@ -2382,22 +2666,9 @@ int lib1x_akmsm_EAPOLKeyRecvd( Global_Params * global)
 #ifdef CONFIG_IEEE80211W
 					lib1x_control_SetPMF(global);
 #endif					
-#ifdef HS2_SUPPORT
-					if(global->isTriggerWNM) {
-						lib1x_control_WNM_NOTIFY(global,global->remed_URL, global->serverMethod);
-						global->isTriggerWNM = 0;
-					}
-					if(global->isTriggerWNM_DEAUTH) {
-						lib1x_control_WNM_DEAUTH_REQ(global, global->WNMDEAUTH_reason, global->WNMDEAUTH_reAuthDelay, global->WNMDEAUTH_URL);			
-						global->isTriggerWNM_DEAUTH = 0;
-					}
-					
-					if(global->isTriggerSessionInfo_URL) {
-						HS2DEBUG("\n");
-						lib1x_control_SessionInfo_URL(global, global->SWT, global->SessionInfo_URL);
-						global->isTriggerSessionInfo_URL = 0;
-					}
-					
+#ifdef CONFIG_IEEE80211R
+					if (akm_sm->isFT)
+						lib1x_control_ft_trigger_event(global->auth, global->theAuthenticator->supp_addr, DOT11_EVENT_FT_IMD_ASSOC_IND);
 #endif
 					printf("WPA2: 4-way handshake done\n");
 					//printf("-----------------------------------------------------------------------------\n\n\n\n\n\n\n");
@@ -2563,6 +2834,9 @@ int lib1x_akmsm_trans(Global_Params * global)
 
 	if(global->AuthKeyMethod != DOT11_AuthKeyType_RSN &&
 	   global->AuthKeyMethod != DOT11_AuthKeyType_RSNPSK 
+#ifdef CONFIG_IEEE80211R
+	   && global->AuthKeyMethod != DOT11_AuthKeyType_FT
+#endif
 #ifdef CONFIG_IEEE80211W	   
 	   && global->AuthKeyMethod != DOT11_AuthKeyType_802_1X_SHA256
 #endif
@@ -2590,8 +2864,17 @@ int lib1x_akmsm_trans(Global_Params * global)
 					global->EventId = akmsm_EVENT_AuthenticationSuccess;
 					retVal = TRUE;
 					break;
+#ifdef CONFIG_IEEE80211R
+				case DOT11_AuthKeyType_FT:	
+					if(global->authSuccess && global->theAuthenticator->rxRespId ){		
+						global->EventId = akmsm_EVENT_AuthenticationSuccess;			
+						retVal = TRUE;		
+					}
+					break;
+#else
 				case DOT11_AuthKeyType_NonRSN802dot1x:
 					break;
+#endif
 				default:
 					printf("%s: Unknown AuthKeyMethod\n", __FUNCTION__);
 					break;
@@ -2604,6 +2887,9 @@ int lib1x_akmsm_trans(Global_Params * global)
 			{
 				case DOT11_AuthKeyType_RSN:
 				case DOT11_AuthKeyType_RSNPSK:
+#ifdef CONFIG_IEEE80211R		
+				case DOT11_AuthKeyType_FT:
+#endif
 					if(global->akm_sm->TimeoutEvt)
 					{
 
@@ -2611,8 +2897,10 @@ int lib1x_akmsm_trans(Global_Params * global)
 						retVal = TRUE;
 					}
 					break;
+#ifndef CONFIG_IEEE80211R
 				case DOT11_AuthKeyType_NonRSN802dot1x:
 					break;
+#endif
 			}
 		default:
 			break;
@@ -2632,14 +2920,19 @@ int lib1x_akmsm_trans(Global_Params * global)
 			{
 				case DOT11_AuthKeyType_RSN:
 				case DOT11_AuthKeyType_RSNPSK:
+#ifdef CONFIG_IEEE80211R		
+				case DOT11_AuthKeyType_FT:
+#endif
 					if(global->akm_sm->TimeoutEvt)
 					{
 						global->EventId = akmsm_EVENT_TimeOut;
 						retVal = TRUE;
 					}
 					break;
+#ifndef CONFIG_IEEE80211R
 				case DOT11_AuthKeyType_NonRSN802dot1x:
 					break;
+#endif
 			}//switch(global->AuthKeyMethod)
 			break;
 	}
@@ -2765,16 +3058,22 @@ void lib1x_akmsm_dump(Global_Params * global)
 
 	switch(global->AuthKeyMethod)
 	{
-	case 	DOT11_AuthKeyType_RSN:
+		case 	DOT11_AuthKeyType_RSN:
 		lib1x_message(MESS_DBG_KEY_MANAGE, "AuthKeyMethod :RSN");
 		break;
         case 	DOT11_AuthKeyType_RSNPSK:
 		lib1x_message(MESS_DBG_KEY_MANAGE, "AuthKeyMethod :RSNPSK");
 		break;
-        case 	DOT11_AuthKeyType_NonRSN802dot1x:
+#ifdef CONFIG_IEEE80211R
+		case	DOT11_AuthKeyType_FT:
+		lib1x_message(MESS_DBG_KEY_MANAGE, "AuthKeyMethod :FT");
+		break;
+#else
+		case	DOT11_AuthKeyType_NonRSN802dot1x:
 		lib1x_message(MESS_DBG_KEY_MANAGE, "AuthKeyMethod :NonRSN802dot1x");
 		break;
-	case    DOT11_AuthKeyType_PRERSN:
+#endif
+		case    DOT11_AuthKeyType_PRERSN:
 		lib1x_message(MESS_DBG_KEY_MANAGE, "AuthKeyMethod :PRERSN");
 		break;
 
@@ -2865,9 +3164,7 @@ void lib1x_akmsm_execute( Global_Params * global)
 				memcpy ( eth_hdr->ether_dhost, dot1x_group_mac, ETHER_HDRLEN);
 			else
 #endif
-			{
-  	          memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
-  	        }
+            memcpy ( eth_hdr->ether_dhost , auth_pae->supp_addr, ETHER_ADDRLEN );
 	        memcpy ( eth_hdr->ether_shost , auth_pae->global->TxRx->oursupp_addr, ETHER_ADDRLEN );
 			eth_hdr->ether_type = htons(LIB1X_ETHER_EAPOL_TYPE);
 

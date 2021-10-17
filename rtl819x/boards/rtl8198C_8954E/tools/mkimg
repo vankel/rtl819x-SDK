@@ -19,7 +19,11 @@ fi
 #fi
 
 RAMFSDIR=$PWD/romfs
+if [ "$CONFIG_SQUASHFS_XZ" = "y" ]; then
+MKSQUASHFS=$USERS_DIR/squashfs4.2/squashfs-tools/mksquashfs
+else
 MKSQUASHFS=$USERS_DIR/squashfs4.0/squashfs-tools/mksquashfs
+fi
 #MKSQUASHFS_LZMA=$USERS_DIR/squashfs4.0/squashfs-tools/mksquashfs-lzma
 
 if [ "$CONFIG_APP_BOA" = "y" ]; then
@@ -37,19 +41,14 @@ if [ "$CONFIG_RTL_FLASH_MAPPING_ENABLE" = "y" ]; then
 if [ -n $CONFIG_RTL_ROOT_IMAGE_OFFSET ]; then
 	ROOTFS_OFFSET=$CONFIG_RTL_ROOT_IMAGE_OFFSET
 	FLASH_SIZE=$CONFIG_RTL_FLASH_SIZE
-	WAPI_SIZE=0
-	HAP_SIZE=0
 if [ "$CONFIG_RTL_WAPI_SUPPORT" = "y" ]; then
-	WAPI_SIZE=$CONFIG_RTL_FLASH_SIZE-$CONFIG_RTL_FLATFS_IMAGE_OFFSET
-if [ "$CONFIG_APPLE_MFI_SUPPORT" = "y" ];then
-	HAP_SIZE=$CONFIG_RTL_FLATFS_IMAGE_OFFSET-$CONFIG_HAP_CONFIG_TABLE_OFFSET
-fi
+	# last WAPI_SIZE to store wapi certs
+	# should be sync with users/wapi_utils/rwWapiFiles/wapiFiles.h
+	WAPI_SIZE=0x10000
+	MAX_ROOTFS_SIZE=$(($(($FLASH_SIZE))-$(($ROOTFS_OFFSET))-$(($WAPI_SIZE))))
 else
-if [ "$CONFIG_APPLE_MFI_SUPPORT" = "y" ];then
-        HAP_SIZE=$CONFIG_RTL_FLASH_SIZE-$CONFIG_HAP_CONFIG_TABLE_OFFSET
+	MAX_ROOTFS_SIZE=$(($(($FLASH_SIZE))-$(($ROOTFS_OFFSET))))
 fi
-fi
-	MAX_ROOTFS_SIZE=$(($(($FLASH_SIZE))-$(($ROOTFS_OFFSET))-$(($WAPI_SIZE))-$(($HAP_SIZE))))
 else
 	ROOTFS_OFFSET=0xF0000	
 fi
@@ -74,11 +73,14 @@ echo "/dev/console   c 666 root root   4 $CMN" >> squashfs-pf-list.txt
 echo "/dev/null      c 666 root root   1  3" >> squashfs-pf-list.txt
 echo "/dev/mtdblock0 b 666 root root  31  0" >> squashfs-pf-list.txt
 
+# for raid
+echo "/dev/md0     b 666 root root   9 0" >> squashfs-pf-list.txt
+echo "/dev/md1     b 666 root root   9 1" >> squashfs-pf-list.txt
+echo "/dev/md2     b 666 root root   9 2" >> squashfs-pf-list.txt
 
 #DEVICES="$DEVICES  ttyS1,c,4,65   ppp,c,108,0 	ptyp0,c,2,0
 #	ptyp1,c,2,1	ttyp0,c,3,0	ttyp1,c,3,1	urandom,c,1,9"
 echo "/dev/ttyS1     c 666 root root   4 65" >> squashfs-pf-list.txt
-echo "/dev/ttyS2     c 666 root root   4 66" >> squashfs-pf-list.txt
 echo "/dev/ppp       c 666 root root 108  0" >> squashfs-pf-list.txt
 echo "/dev/ptyp0     c 666 root root   2  0" >> squashfs-pf-list.txt
 echo "/dev/ptyp1     c 666 root root   2  1" >> squashfs-pf-list.txt
@@ -397,11 +399,6 @@ echo "/dev/aloadC5 c 666 root root 116 160" >> squashfs-pf-list.txt
 echo "/dev/aloadC6 c 666 root root 116 192" >> squashfs-pf-list.txt
 echo "/dev/aloadC7 c 666 root root 116 224" >> squashfs-pf-list.txt
 fi
-
-if [ "$CONFIG_APPLE_MFI_SUPPORT" = "y" ]; then
-echo "/dev/mfi_cp c 666 root root 253 0" >> squashfs-pf-list.txt
-fi
-
 #DEVICES="$DEVICES  mtdblock1,b,31,1"
 echo "/dev/mtdblock1 b 666 root root  31  1" >> squashfs-pf-list.txt
 echo "/dev/mtdblock2 b 666 root root  31  2" >> squashfs-pf-list.txt
@@ -539,11 +536,11 @@ else
 fi
 
 # run squash fs here 
-if [ "$CONFIG_SQUASHFS_LZMA" = "y" ]; then
+if [ "$CONFIG_SQUASHFS_XZ" = "y" ]; then
 	rm -f squashfs-lzma.o
         #$MKSQUASHFS_LZMA $RAMFSDIR squashfs-lzma.o -be -always-use-fragments 
         #$MKSQUASHFS $RAMFSDIR squashfs-lzma.o -comp lzma -always-use-fragments 
-        $MKSQUASHFS $RAMFSDIR squashfs-lzma.o -comp lzma -always-use-fragments -pf squashfs-pf-list.txt
+        $MKSQUASHFS $RAMFSDIR squashfs-lzma.o -comp xz -always-use-fragments -pf squashfs-pf-list.txt
         if [ "$USE_SAMBA" = 1 -o "$USE_4M" = 1 ]; then
 		$CVIMG root squashfs-lzma.o root.bin 2D0000 $ROOTFS_OFFSET
 	else

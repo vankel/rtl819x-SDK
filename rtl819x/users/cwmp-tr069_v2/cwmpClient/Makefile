@@ -4,15 +4,6 @@ else
 include $(DIR_LINUX)/.config
 endif
 
-COMMON_CFLAGS =
-KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
-ifeq ($(KERNEL_VER),linux-2.6.30)
-COMMON_CFLAGS += -DKERNEL_2_6_30
-endif
-ifeq ($(KERNEL_VER),linux-3.10)
-COMMON_CFLAGS += -DKERNEL_3_10
-endif
-
 ifeq ($(wildcard $(DIR_USERS)/.config),)
 include ../../.config
 else
@@ -28,6 +19,7 @@ export AR =$(CROSS_COMPILE)ar
 endif
 
 MAKE=make
+COMMON_CFLAGS =
 
 # Gateway flag
 GATEWAY = -DHOME_GATEWAY -DDOS_SUPPORT
@@ -173,10 +165,6 @@ endif
 
 ifeq ($(CONFIG_RTL_8198B),y)
 	COMMON_CFLAGS += -DCONFIG_RTL_8198B
-endif
-
-ifeq ($(CONFIG_RTL_8198C),y)
-	COMMON_CFLAGS += -DCONFIG_RTL_8198C
 endif
 
 ifeq ($(CONFIG_RTL_8198_AP_ROOT),y)
@@ -380,7 +368,7 @@ endif
 #endif
 
 ifeq ($(CONFIG_USER_CWMP_WITH_TR143),y)
-COMMON_CFLAGS += -DCONFIG_USER_CWMP_WITH_TR143 -D_PRMT_TR143_
+COMMON_CFLAGS += -DCONFIG_USER_CWMP_WITH_TR143
 endif
 
 endif
@@ -527,8 +515,17 @@ ifeq ($(CONFIG_USER_CWMP_WITH_TR181), y)
 #set the ssl libraries
 ifeq ($(CONFIG_USER_CWMP_WITH_OPENSSL),y)
 LIBCWMP = ../lib/TR181_libcwmpssl.a ../lib/libgsoapssl.a
+
+ifeq ($(CONFIG_APP_OPENSSL-0.9.8B),y)
+LIBCWMPFLAG = -L$(CWMPCLIENT_ROOT)/../../openssl-0.9.8b/ -lssl -lcrypto -ldl
+CFLAGS += -I$(CWMPCLIENT_ROOT)/../../openssl-0.9.8b/include -DHAS_MESSAGE_INTEGRITY
+endif
+
+ifeq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
 LIBCWMPFLAG = -L$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/ -lssl -lcrypto -ldl
 CFLAGS += -I$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/include -DHAS_MESSAGE_INTEGRITY
+endif
+
 endif
 ifeq ($(CONFIG_USER_CWMP_WITH_MATRIXSSL),y)
 LIBCWMP = ../lib/TR181_libcwmpmssl.a ../lib/libgsoapmssl.a ../lib/libmatrixsslstatic.a
@@ -543,8 +540,17 @@ else
 #set the ssl libraries
 ifeq ($(CONFIG_USER_CWMP_WITH_OPENSSL),y)
 LIBCWMP = ../lib/libcwmpssl.a ../lib/libgsoapssl.a
+
+ifeq ($(CONFIG_APP_OPENSSL-0.9.8B),y)
+LIBCWMPFLAG = -L$(CWMPCLIENT_ROOT)/../../openssl-0.9.8b/ -lssl -lcrypto -ldl
+CFLAGS += -I$(CWMPCLIENT_ROOT)/../../openssl-0.9.8b/include -DHAS_MESSAGE_INTEGRITY
+endif
+
+ifeq ($(CONFIG_APP_OPENSSL-0.9.8I),y)
 LIBCWMPFLAG = -L$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/ -lssl -lcrypto -ldl
 CFLAGS += -I$(CWMPCLIENT_ROOT)/../../openssl-0.9.8i/include -DHAS_MESSAGE_INTEGRITY
+endif
+
 endif
 ifeq ($(CONFIG_USER_CWMP_WITH_MATRIXSSL),y)
 LIBCWMP = ../lib/libcwmpmssl.a ../lib/libgsoapmssl.a ../lib/libmatrixsslstatic.a
@@ -552,7 +558,7 @@ LIBCWMP = ../lib/libcwmpmssl.a ../lib/libgsoapmssl.a ../lib/libmatrixsslstatic.a
 LIBCWMPFLAG =
 endif
 ifneq ($(CONFIG_USER_CWMP_WITH_SSL),y)
-LIBCWMP = ../lib/libcwmp_$(TOOLCHAIN).a ../lib/libgsoapck.a
+LIBCWMP = ../lib/libcwmp.a ../lib/libgsoapck.a
 LIBCWMPFLAG =
 endif
 endif

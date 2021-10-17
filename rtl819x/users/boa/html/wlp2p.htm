@@ -532,6 +532,7 @@ function scanClick()
 {
 	get_by_id("p2p_status").innerHTML = "Status: Scanning";	
 }
+
 function bindButton()
 {
     if (document.getElementById){
@@ -551,6 +552,7 @@ function bindButton()
         p2pScanList.window.p2pscan(<% getIndex("wlan_idx"); %>);
     };
 }
+
 </script>
 
 <form action=/boafrm/formWiFiDirect method=POST name="formWiFiDirectConnect">	

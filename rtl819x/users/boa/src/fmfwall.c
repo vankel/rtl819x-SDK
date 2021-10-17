@@ -2551,7 +2551,7 @@ int l7QosList(request *wp, int argc, char **argv)
 			nBytesSent += req_format_write(wp, ("<option value=\"%s\">%s</option>"),str,str);
 		
 		}
-		closedir(dir);		
+		closedir(dir);
 	}
 	
 #endif //#if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)

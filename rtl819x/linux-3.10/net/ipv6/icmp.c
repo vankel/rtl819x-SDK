@@ -713,7 +713,7 @@ static int icmpv6_rcv(struct sk_buff *skb)
 	ICMP6MSGIN_INC_STATS_BH(dev_net(dev), idev, type);
 
 	switch (type) {
-	case ICMPV6_ECHO_REQUEST:		
+	case ICMPV6_ECHO_REQUEST:
 		icmpv6_echo_reply(skb);
 		break;
 
@@ -781,7 +781,7 @@ static int icmpv6_rcv(struct sk_buff *skb)
 
 		icmpv6_notify(skb, type, hdr->icmp6_code, hdr->icmp6_mtu);
 	}
-	
+
 	kfree_skb(skb);
 	return 0;
 

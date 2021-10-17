@@ -17,25 +17,17 @@ endif
 include $(DIR_LINUX)/.config
 DIR_LINUX_KERNEL = $(DIR_LINUX)
 endif
-ifeq ($(wildcard $(DIR_USERS)/.config),)
-include ../.config
-else
-include $(DIR_USERS)/.config
-endif
 SRCS = hcd.c mib.c cmd.c wlan_if.c site_survey.c sys_init.c
 
-ifeq ($(CONFIG_FIRMWARE_UPGRADE_LEB_BLINK),y)
-SRCS += RgbLedBlink.c
-endif
 EXEC = hcd
 OBJS = $(SRCS:.c=.o)
 
 WLANSUPP= -DUNIVERSAL_REPEATER -DWLAN_WPA -DWLAN_WDS -DWLAN_8185AG -DWLAN_WPA2 $(TLS)
 #WLANSUPP += -DWIFI_SIMPLE_CONFIG -DCONFIG_RTL8196C_AP_ROOT
 WLANSUPP += -DWIFI_SIMPLE_CONFIG
-#ifdef CONFIG_RTL_LITE_CLNT
+ifdef CONFIG_RTL_LITE_CLNT
 WLANSUPP += -DCONFIG_RTL_LITE_CLNT
-#endif
+endif
 
 CFLAGS += $(WLANSUPP)
 ifdef CONFIG_RTL_8198_AP_ROOT
@@ -45,6 +37,7 @@ endif
 ifdef CONFIG_RTL_8197D_AP
 CONFIG_RTL_AP = CONFIG_RTL_8197D_AP
 endif
+
 ifdef CONFIG_RTL_AP
 AP=1
 else
@@ -53,12 +46,14 @@ endif
 ifeq ($(CONFIG_RTL_819X),y)
     CFLAGS += -DCONFIG_RTL_819X
 endif
+
 ifeq ($(CONFIG_RTL_819XD),y)
     CFLAGS += -DCONFIG_RTL_819XD
 endif
 ifeq ($(CONFIG_RTL_8196B_GW),y)
     CFLAGS += -DCONFIG_RTL_8196B
 endif
+
 ifeq ($(CONFIG_RTL_8196C_GW),y)
     CFLAGS += -DCONFIG_RTL_8196C
 endif
@@ -105,34 +100,16 @@ ifeq ($(CONFIG_RTL_92D_SUPPORT),y)
 CFLAGS += -DCONFIG_RTL_92D_SUPPORT
 endif
 
-ifeq ($(CONFIG_FIRMWARE_UPGRADE_LEB_BLINK),y)
-CFLAGS += -DCONFIG_FIRMWARE_UPGRADE_LEB_BLINK
-endif
-
 CC = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 #mark_issue
-#LDFLAGS                =  -static
+LDFLAGS                =  -static
 #LDLIBS += ../../inband_lib/inband.a
 LDLIBS += ../../rtk_inbandLib/inband.a
 
-ifeq ($(CONFIG_APP_ADAPTER_API), y)
-LDLIBS += ../../boa/apmib/libapmib.so
-LDLIBS += ../../adapter-api/rtk_api/librtk_adapter.so
-CFLAGS += -DCONFIG_APP_ADAPTER_API
-CFLAGS += -DQOS_BY_BANDWIDTH
-ifeq ($(CONFIG_APP_QOS_MNP),y)
-CFLAGS += -DCONFIG_RTL_QOS_MONOPOLY_SUPPORT
-endif
-endif
-
-ifeq ($(CONFIG_APP_RTK_INBAND_CTL_REPORT_ERROR), y)
-CFLAGS += -DCONFIG_REPORT_ERROR
-endif
-
 all: $(EXEC)
 
-$(EXEC): $(OBJS) $(LDLIBS)
+$(EXEC): $(OBJS) ../../rtk_inbandLib/inband.a 
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(CFLAGS) $(LDLIBS)
 
 #ioh.a: ioh.o

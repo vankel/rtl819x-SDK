@@ -1061,7 +1061,7 @@ static int ip6_tnl_xmit2(struct sk_buff *skb,
 	ipv6h->hop_limit = t->parms.hop_limit;
 	ipv6h->nexthdr = proto;
 	ipv6h->saddr = fl6->saddr;
-	ipv6h->daddr = fl6->daddr;
+	ipv6h->daddr = fl6->daddr;	
 	ip6tunnel_xmit(skb, dev);
 	if (ndst)
 		ip6_tnl_dst_store(t, ndst);

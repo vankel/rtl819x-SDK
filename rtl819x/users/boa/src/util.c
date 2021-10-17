@@ -551,9 +551,9 @@ int boa_atoi(const char *s)
     int retval=0;
     char *reconv;
 #endif    
-
-	if(!s)
-		return -1;
+    
+    if(!s)
+	return -1;
 
     if (!isdigit(*s)){
         return -1;

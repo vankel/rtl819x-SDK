@@ -200,7 +200,6 @@ static void del_xfer_timers(dwc_otg_hcd_t *_hcd)
 static void del_timers(dwc_otg_hcd_t *_hcd)
 {
   del_xfer_timers(_hcd);
-if (timer_pending(&_hcd->conn_timer))
   del_timer(&_hcd->conn_timer);
 }
 
@@ -1013,7 +1012,7 @@ void dwc_otg_hcd_free(struct usb_hcd *_hcd)
           kfree(hc);
         }
     }
-	if(dwc_otg_hcd->core_if != NULL){
+
 	if (dwc_otg_hcd->core_if->dma_enable) {
 		if (dwc_otg_hcd->status_buf_dma) {
           dma_free_coherent(_hcd->self.controller,
@@ -1021,7 +1020,6 @@ void dwc_otg_hcd_free(struct usb_hcd *_hcd)
                             dwc_otg_hcd->status_buf,
                             dwc_otg_hcd->status_buf_dma);
         }
-	} 
 	} else if (dwc_otg_hcd->status_buf != NULL) {
     kfree(dwc_otg_hcd->status_buf);
 	}
@@ -1192,6 +1190,12 @@ int retval = 0;
 #else
 	local_irq_save(flags);
 #endif
+
+	if (_ep == NULL) {
+		printk("%s: _ep is NULL !\n", __func__);
+		retval = -1;
+		goto done;
+	}
 
 	dwc_otg_hcd = hcd_to_dwc_otg_hcd(_hcd);
 	urb_qtd = (dwc_otg_qtd_t *)_urb->hcpriv;
@@ -1894,10 +1898,7 @@ static void do_in_ack(void)
 	//fprintf(stderr, "GINTSTS: %08x\n", gintsts.d32);
 }
 #endif /* DWC_HS_ELECT_TST */
-//#define REG32(reg)   (*(volatile unsigned int *)((unsigned int)reg))
-#ifndef CONFIG_RTL_8198C
-extern Enable_OTG_Suspend(int sel, int en); //sel=0 src from sys, then see en, sel=1, src from otg mac,                    
-#endif
+
 /** Handles hub class-specific requests.*/
 int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd, 
 			    u16 _typeReq, 
@@ -1906,11 +1907,9 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
 			    char *_buf, 
 			    u16 _wLength)
 {
-//	printk("%s %d\n", __FUNCTION__,__LINE__);
+	//printk("%s \n", __FUNCTION__);
   int retval = 0;
-  #ifdef CONFIG_USB3G_SUPPORT
-  static int retry_one=0;
-  #endif
+
   dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd (_hcd);
   dwc_otg_core_if_t *core_if = hcd_to_dwc_otg_hcd (_hcd)->core_if;
   struct usb_hub_descriptor *desc;
@@ -2017,11 +2016,16 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
       desc->wHubCharacteristics = 0x08;
       desc->bPwrOn2PwrGood = 1;
       desc->bHubContrCurrent = 0;
-#if 1//CONFIG_RTL_8198C
-		/* two bitmaps:  ports removable, and usb 1.0 legacy PortPwrCtrlMask */
-	  memset(&desc->u.hs.DeviceRemovable[0], 0, 1);
-	  memset(&desc->u.hs.DeviceRemovable[1], 0xff, 1);
-#endif
+  
+
+        /* two bitmaps:  ports removable, and usb 1.0 legacy PortPwrCtrlMask */
+        memset(&desc->u.hs.DeviceRemovable[0], 0, 1);
+        memset(&desc->u.hs.DeviceRemovable[1], 0xff, 1);
+
+      /* two bitmaps:  ports removable, and usb 1.0 legacy PortPwrCtrlMask */
+
+//	desc->bitmap[0] = 0;
+  //    desc->bitmap[1] = 0xff;
       break;
 	case GetHubStatus:
       DWC_DEBUGPL (DBG_HCD, "DWC OTG HCD HUB CONTROL - " "GetHubStatus\n");
@@ -2066,11 +2070,11 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
 
 		hprt0.d32 = dwc_read_reg32(core_if->host_if->hprt0);
 		DWC_DEBUGPL(DBG_HCDV, "  HPRT0: 0x%08x\n", hprt0.d32);
-#define DWC_HPRT0_PRTSPD_HIGH_SPEED 0
-#define USB_PORT_FEAT_HIGHSPEED		10
+
 		if (hprt0.b.prtconnsts) {
 			port_status |= (1 << USB_PORT_FEAT_CONNECTION);
 #if 1  //cathy have
+#define USB_PORT_FEAT_HIGHSPEED             10
 			if (hprt0.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED)
 				port_status |= (1 << USB_PORT_FEAT_HIGHSPEED);
 			else if (hprt0.b.prtspd == DWC_HPRT0_PRTSPD_LOW_SPEED)
@@ -2196,36 +2200,13 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
              * the reset is started within 1ms of the HNP
              * success interrupt. */
             if (!_hcd->self.is_b_host) {
-                	MDELAY (1);
                 hprt0.b.prtrst = 1;
-			  #ifdef CONFIG_USB3G_SUPPORT
-				if(retry_one)
-				 {
-                    hprt0.b.prtena=1;
-                }
-
-			#endif
-			//	hprt0.b.prtena=1;
                 dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
-				MDELAY (500);
               }
 			/* Clear reset bit in 10ms (FS/LS) or 50ms (HS) */
 			MDELAY (60);
-
-#ifndef CONFIG_RTL_8198C
-			Enable_OTG_Suspend(0,0);
-#endif
-
 			hprt0.b.prtrst = 0;
- #ifdef CONFIG_USB3G_SUPPORT
-            if(retry_one)
-            {
-                 hprt0.b.prtena=0;
-				retry_one=!retry_one;
-            }
-#endif
 			dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
-			MDELAY (500);
 			break;
 
 #ifdef DWC_HS_ELECT_TST
@@ -2374,18 +2355,24 @@ static void assign_and_init_hc(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh)
 	dwc_hc_t	*hc;
 	dwc_otg_qtd_t	*qtd;
 	struct urb	*urb;
+    if ((_hcd == NULL )||(_qh == NULL))
+		printk( "%s(%p,%p)\n", __func__, _hcd, _qh);
 
-	DWC_DEBUGPL(DBG_HCDV, "%s(%p,%p)\n", __func__, _hcd, _qh);
+	if (_hcd->free_hc_list.next != NULL)
+		hc = list_entry(_hcd->free_hc_list.next, dwc_hc_t, hc_list_entry);
 
-	hc = list_entry(_hcd->free_hc_list.next, dwc_hc_t, hc_list_entry);
+	if (hc==NULL)
+		printk("\r\nhc NUL\r");
 
 	/* Remove the host channel from the free list. */
+	if (!(&hc->hc_list_entry)) {
 	list_del_init(&hc->hc_list_entry);
-
+	}
 	qtd = list_entry(_qh->qtd_list.next, dwc_otg_qtd_t, qtd_list_entry);
 	urb = qtd->urb;
 	_qh->channel = hc;
-	_qh->qtd_in_process = qtd;
+	if (qtd!=NULL)
+		_qh->qtd_in_process = qtd;
 
 	/*
 	 * Use usb_pipedevice to determine device address. This address is
@@ -2393,6 +2380,11 @@ static void assign_and_init_hc(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh)
 	 */
 	hc->dev_addr = usb_pipedevice(urb->pipe);
 	hc->ep_num = usb_pipeendpoint(urb->pipe);
+
+	if (urb == NULL)
+		printk("urb is NULL\n");
+	if (urb->dev == NULL)
+		printk("urb->dev is NULL\n");
 
 #ifndef NON_PERIODIC_ONLY	//take care high speed only
 	if (urb->dev->speed == USB_SPEED_LOW) {
@@ -2586,7 +2578,9 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t *_hcd)
 	       !list_empty(&_hcd->free_hc_list)) {
 
 		qh = list_entry(qh_ptr, dwc_otg_qh_t, qh_list_entry);
-		assign_and_init_hc(_hcd, qh);
+		if (qh!=NULL) {
+			assign_and_init_hc(_hcd, qh);
+		}
 
 		/*
 		 * Move the QH from the periodic ready schedule to the
@@ -2610,7 +2604,9 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t *_hcd)
 		num_channels - _hcd->periodic_channels) &&
 	       !list_empty(&_hcd->free_hc_list)) {
 		qh = list_entry(qh_ptr, dwc_otg_qh_t, qh_list_entry);
-		assign_and_init_hc(_hcd, qh);
+		if (qh!=NULL) {
+			assign_and_init_hc(_hcd, qh);
+		}
 
 		/*
 		 * Move the QH from the non-periodic inactive schedule to the

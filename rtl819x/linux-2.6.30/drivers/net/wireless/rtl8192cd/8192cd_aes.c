@@ -325,7 +325,7 @@ void aes128k128d(unsigned char *key, unsigned char *data, unsigned char *ciphert
 
 }
 
-#ifdef CONFIG_IEEE80211W
+#if defined(CONFIG_IEEE80211W) || defined(CONFIG_IEEE80211R)
 extern void AES_Encrypt(const unsigned long *in_blk, unsigned long *out_blk);
 extern unsigned long *AES_SetKey(const unsigned long *in_key, const unsigned long key_len);
 #define AES_BLOCK_SIZE 16
@@ -1014,7 +1014,11 @@ int aesccmp_checkmic(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo, uns
 	unsigned char data[1460];
 	sa = get_sa(pframe);
 	
-	if (OPMODE & WIFI_AP_STATE)
+	if (OPMODE & WIFI_AP_STATE 
+#ifdef CONFIG_IEEE80211W_CLI
+	   || (OPMODE & WIFI_STATION_STATE)		
+#endif 
+	)
 	{
 		if (!IS_MCAST(sa))
 		{

@@ -66,26 +66,18 @@ INCLUDE_SYSCONF = 1
 ifeq ($(INCLUDE_SYSCONF),1)
 SYSCONFIG = sysconf
 TIMELYCHECK = timelycheck
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-AUTO_DHCP_CHECK = Auto_DHCP_Check
-endif
 INTERNET_PPP=ppp_inet
 INTERNET_NTP=ntp_inet
 INTERNET_DDNS=ddns_inet
-RTK_EVENTD=rtk_eventd
 ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
 INTERNET_IPV6_MANAGE=ipv6_manage_inet
 endif
 else
 SYSCONFIG =
 TIMELYCHECK = 
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-AUTO_DHCP_CHECK =
-endif
 INTERNET_PPP = 
 INTERNET_NTP= 
 INTERNET_DDNS=
-RTK_EVENTD=
 ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
 INTERNET_IPV6_MANAGE=
 endif
@@ -95,10 +87,8 @@ ifeq ($(INCLUDE_SYSCONF),1)
 REALTEK_SYS_FILES = sysconf.c set_init.c set_bridge.c set_wlanapp.c sys_utility.c
 ifeq ($(GW),1)
 REALTEK_SYS_FILES += set_firewall.c set_wan.c
-ifneq ($(CONFIG_APP_APPLE_MFI_WAC),y)
 ifeq ($(CONFIG_IPV6), y)
 REALTEK_SYS_FILES += set_ipv6.c
-endif
 endif
 endif
 REALTEK_INTERNET_PPP_FILES = ppp_inet.c sys_utility.c
@@ -109,19 +99,11 @@ REALTEK_INTERNET_IPV6_MANAGE_FILES= ipv6_manage_inet.c sys_utility.c
 endif
 REALTEK_TIMELY_CHECK_FILES = timelycheck.c
 REALTEK_TIMELY_CHECK_FILES += sys_utility.c set_init.c set_bridge.c set_wlanapp.c
-RTK_EVENTD_FILES += rtk_eventd.c sys_utility.c
-
 ifeq ($(GW),1)
 REALTEK_TIMELY_CHECK_FILES += set_firewall.c set_wan.c
-ifneq ($(CONFIG_APP_APPLE_MFI_WAC),y)
 ifeq ($(CONFIG_IPV6), y)
 REALTEK_TIMELY_CHECK_FILES += set_ipv6.c
 endif
-endif
-endif
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-REALTEK_AUTO_DHCP_CHECK_FILES = Auto_DHCP_Check.c
-REALTEK_AUTO_DHCP_CHECK_FILES += sys_utility.c discovery.c if.c
 endif
 else
 REALTEK_SYS_FILES =
@@ -129,9 +111,6 @@ REALTEK_INTERNET_PPP_FILES =
 REALTEK_INTERNET_NTP_FILES =
 REALTEK_INTERNET_DDNS_FILES =
 REALTEK_TIMELY_CHECK_FILES =
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-REALTEK_AUTO_DHCP_CHECK_FILES =
-endif
 ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
 REALTEK_INTERNET_IPV6_MANAGE_FILES=
 endif 
@@ -160,18 +139,6 @@ ifeq ($(CONFIG_RTL_MESH_SUPPORT),y)
 CFLAGS += -DCONFIG_RTK_MESH
 endif
 
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-COMMON_CFLAGS += -DCONFIG_AUTO_DHCP_CHECK
-endif
-
-ifeq ($(CONFIG_APP_AVAHI),y)
-CFLAGS += -DCONFIG_AVAHI
-endif
-
-ifeq ($(CONFIG_APP_APPLE_HOMEKIT),y)
-CFLAGS += -DCONFIG_APPLE_HOMEKIT
-endif
-
 #------------------------------------------------------------------------------
 # CFLAGS
 #------------------------------------------------------------------------------
@@ -185,7 +152,7 @@ ifdef CONFIG_APP_MULTIPPPOE
 endif
 SOURCES = $(REALTEK_SYS_FILES) $(REALTEK_INTERNET_PPP_FILES) \
 		$(REALTEK_INTERNET_NTP_FILES) $(REALTEK_INTERNET_DDNS_FILES)\
-		$(REALTEK_TIMELY_CHECK_FILES) $(REALTEK_AUTO_DHCP_CHECK_FILES)
+		$(REALTEK_TIMELY_CHECK_FILES)
 ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
 SOURCES += $(REALTEK_INTERNET_IPV6_MANAGE_FILES)
 endif
@@ -197,10 +164,7 @@ ifeq ($(CONFIG_IPV6_CE_ROUTER_SUPPORT),y)
 REALTEK_INTERNET_IPV6_MANAGE_OBJS = $(REALTEK_INTERNET_IPV6_MANAGE_FILES)
 endif
 REALTEK_TIMELY_CHECK_OBJS = $(REALTEK_TIMELY_CHECK_FILES:.c=.o)
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-REALTEK_AUTO_DHCP_CHECK_OBJS = $(REALTEK_AUTO_DHCP_CHECK_FILES:.c=.o)
-endif
-RTK_EVENTD_OBJS = $(RTK_EVENTD_FILES:.c=.o)
+
 ifeq ($(CONFIG_APP_RTK_VOIP),y)
 LDFLAGS += -lpthread
 endif
@@ -208,10 +172,7 @@ endif
 #------------------------------------------------------------------------------
 # targets
 #------------------------------------------------------------------------------
-TARGET = $(SYSCONFIG) $(TIMELYCHECK) $(RTK_EVENTD)
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-TARGET += $(AUTO_DHCP_CHECK)
-endif
+TARGET = $(SYSCONFIG) $(TIMELYCHECK)
 ifeq ($(GW),1)
 TARGET += $(INTERNET_PPP) $(INTERNET_NTP) $(INTERNET_DDNS)
 endif
@@ -245,22 +206,10 @@ $(TIMELYCHECK): Makefile $(REALTEK_TIMELY_CHECK_OBJS) $(APMIB_DIR)/$(APMIB_LIB)
 	$(CC) -o $@ $(REALTEK_TIMELY_CHECK_OBJS) $(LDFLAGS) -L$(APMIB_DIR) -lapmib
 	$(STRIP) $@
 
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-$(AUTO_DHCP_CHECK): Makefile $(REALTEK_AUTO_DHCP_CHECK_OBJS) $(APMIB_DIR)/$(APMIB_LIB)
-	$(CC) -o $@ $(REALTEK_AUTO_DHCP_CHECK_OBJS) $(LDFLAGS) -L$(APMIB_DIR) -lapmib
-	$(STRIP) $@
-endif
-
-$(RTK_EVENTD): Makefile $(RTK_EVENTD_OBJS) $(APMIB_DIR)/$(APMIB_LIB)
-	$(CC) -o $@ $(RTK_EVENTD_OBJS) $(LDFLAGS) -L$(APMIB_DIR) -lapmib
-	$(STRIP) $@
-
 clean:
 	rm -f $(DEPEND)
-	rm -f *.o $(SYSCONFIG) $(INTERNET_PPP) $(INTERNET_NTP) $(INTERNET_DDNS) $(INTERNET_IPV6_MANAGE) $(TIMELYCHECK) $(RTK_EVENTD)
-ifeq ($(CONFIG_AUTO_DHCP_CHECK),y)
-	rm -f $(AUTO_DHCP_CHECK)
-endif
+	rm -f *.o $(SYSCONFIG) $(INTERNET_PPP) $(INTERNET_NTP) $(INTERNET_DDNS) $(INTERNET_IPV6_MANAGE) $(TIMELYCHECK)
+
 depend: $(SOURCES)
 	if [ ! -e $(DEPEND) ]; then \
 		$(CPP) $(DEBUG) $(CFLAGS) $(IFLAGS) -MM $^ > $(DEPEND); \

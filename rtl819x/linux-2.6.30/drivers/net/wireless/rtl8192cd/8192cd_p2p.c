@@ -323,7 +323,7 @@ void generate_GO_ssid(struct rtl8192cd_priv *priv)
     memcpy(priv->p2pPtr->my_GO_ssid,P2P_WILDCARD_SSID,P2P_WILDCARD_SSID_LEN);
     memcpy(&priv->p2pPtr->my_GO_ssid[P2P_WILDCARD_SSID_LEN] ,tmpstr,RANDOM_TWO_BYTE);
 
-#if 1	// add MACADDR to string as  postfix of ssid after -
+#if !defined(__ECOS)	// add MACADDR to string as  postfix of ssid after -
     priv->p2pPtr->my_GO_ssid[P2P_WILDCARD_SSID_LEN + RANDOM_TWO_BYTE]='-';
     convert_bin_to_str(GET_MY_HWADDR, 6, tmpstr);
     memcpy(&priv->p2pPtr->my_GO_ssid[ P2P_WILDCARD_SSID_LEN + RANDOM_TWO_BYTE + DASH_LEN] ,tmpstr,MACADDR_AS_STR);
@@ -1774,7 +1774,12 @@ unsigned char* add_Attr_device_info(
     attrlen+=6 ;
 
     /*config method*/
+#ifdef _LITTLE_ENDIAN_
+    lentmp = htons(pmib->p2p_mib.p2p_wsc_config_method);
+    memcpy(thisAttrPrt , (void *)&lentmp, 2);
+#else
     memcpy(thisAttrPrt , (void *)&pmib->p2p_mib.p2p_wsc_config_method , 2);
+#endif
     thisAttrPrt+=2 ;
     attrlen+=2 ;
 
@@ -2032,12 +2037,21 @@ int wsc_build_probe_rsp_ie(struct rtl8192cd_priv *priv ,
 
     /*config state*/
     //fixed to AP mode
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+    byteVal = 1; //unconfigured
+#else
     byteVal = 2; //configured
+#endif
+
 
     pMsg = wsc_add_tlv(pMsg, TAG_SIMPLE_CONFIG_STATE, 1, (void *)&byteVal);
 
     // fixed to AP mode
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+    byteVal = RSP_TYPE_ENR;
+#else
     byteVal = RSP_TYPE_AP;
+#endif
     pMsg = wsc_add_tlv(pMsg, TAG_RESPONSE_TYPE2, 1, (void *)&byteVal);
 
     /*UUID-E*/
@@ -2070,9 +2084,17 @@ int wsc_build_probe_rsp_ie(struct rtl8192cd_priv *priv ,
                        strlen(priv->pmib->p2p_mib.p2p_device_name), priv->pmib->p2p_mib.p2p_device_name);
 
     /*config method*/
+#ifdef _LITTLE_ENDIAN_
+    shortVal = htons(priv->pmib->p2p_mib.p2p_wsc_config_method);
+    pMsg = wsc_add_tlv(pMsg, TAG_CONFIG_METHODS, 2, (void *)&shortVal);
+#else
     pMsg = wsc_add_tlv(pMsg, TAG_CONFIG_METHODS, 2, (void *)&priv->pmib->p2p_mib.p2p_wsc_config_method);
+#endif
 
     shortVal = DEVICE_PASSWORD_ID;
+#ifdef _LITTLE_ENDIAN_
+    shortVal = htons(shortVal);
+#endif
     pMsg = wsc_add_tlv(pMsg, TAG_DEVICE_PASSWORD_ID, 2, &shortVal);
 
     /*Element Length*/
@@ -3080,6 +3102,10 @@ void P2P_1sec_timer(struct rtl8192cd_priv *priv)
             {
                 P2P_DEBUG("Formation timeout [%d] secs;bak dev...\n",WSC_MODE_WAIT_TIME);
                 rtk_p2p_set_state(priv,P2P_S_back2dev)	;
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+                if (priv->p2p_event_indicate_cb_func)
+                    priv->p2p_event_indicate_cb_func("wlan0", WIFI_P2P_EVENT_BACK2DEV);
+#endif
                 //p2pcmd_backtoDev(priv,NULL); will bring some error
             }
         }
@@ -3093,6 +3119,10 @@ void P2P_1sec_timer(struct rtl8192cd_priv *priv)
             {
                 P2P_DEBUG(" WPS process exceed %d seconds,back to device mode\n",WSC_MODE_WAIT_TIME);
                 rtk_p2p_set_state(priv,P2P_S_back2dev)	;
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+                if (priv->p2p_event_indicate_cb_func)
+                    priv->p2p_event_indicate_cb_func("wlan0", WIFI_P2P_EVENT_BACK2DEV);
+#endif
                 //p2pcmd_backtoDev(priv,NULL);
             }
         }
@@ -3108,11 +3138,28 @@ void P2P_1sec_timer(struct rtl8192cd_priv *priv)
             priv->p2pPtr->clientmode_try_connect ++;
             P2P_DEBUG("P2P_CLIENT try to connect[%d],[%d]\n", priv->p2pPtr->clientmode_try_connect,CLIENT_MODE_WAIT_TIME);
 
-            if( priv->p2pPtr->clientmode_try_connect >= CLIENT_MODE_WAIT_TIME)
+            if( priv->p2pPtr->clientmode_try_connect >= CLIENT_MODE_WAIT_TIME
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI) // do not try to connect and immediately back to p2p device mode if p2p is connected before
+                    || (priv->p2pPtr->clientmode_connected)
+#endif
+              )
             {
-                P2P_DEBUG("\n\n\nP2P GC exceed [%d] secs can't connect, backto p2p dev!\n\n\n",CLIENT_MODE_WAIT_TIME);
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+                if (priv->p2pPtr->clientmode_connected)
+                {
+                    P2P_DEBUG("P2P is disconnected,backto p2p dev!\n");
+                }
+                else
+#endif
+                {
+                    P2P_DEBUG("\n\n\nP2P GC exceed [%d] secs can't connect, backto p2p dev!\n\n\n",CLIENT_MODE_WAIT_TIME);
+                }
                 priv->p2pPtr->clientmode_try_connect = 0;
                 rtk_p2p_set_state(priv,P2P_S_back2dev);
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+                if (priv->p2p_event_indicate_cb_func)
+                    priv->p2p_event_indicate_cb_func("wlan0", WIFI_P2P_EVENT_BACK2DEV);
+#endif
                 // stop ss_timer
                 if (timer_pending(&priv->ss_timer))
                     del_timer(&priv->ss_timer);
@@ -3280,7 +3327,16 @@ int p2p_issue_provision_req(struct rtl8192cd_priv *priv )
     memcpy(&pbuf[2],WFA_OUI_PLUS_TYPE,4);
     pbuf[6] = P2P_PROV_DISC_REQ;
 
+#ifdef __ECOS
+    {
+        unsigned char random_buf[4];
+        get_random_bytes(random_buf, 4);
+        randomX = random_buf[3];
+    }
+#else
     get_random_bytes(&randomX , 1);
+#endif
+
 
     priv->p2pPtr->provision_tx_dialog_token = randomX;
 
@@ -3308,6 +3364,9 @@ int p2p_issue_provision_req(struct rtl8192cd_priv *priv )
     thisAttrPrt = wsc_add_tlv(thisAttrPrt, TAG_VERSION, 1, (void *)&byteVal);
 
     shortVal = priv->p2pPtr->wsc_method_to_target_dev ;
+#ifdef _LITTLE_ENDIAN_
+    shortVal = htons(shortVal);
+#endif
     thisAttrPrt = wsc_add_tlv(thisAttrPrt, TAG_CONFIG_METHODS, 2, (void *)&shortVal);
     /*Element Length*/
     IEStart[1] = (int)(((unsigned long)thisAttrPrt)-((unsigned long)IEStart)) - 2;
@@ -3435,7 +3494,9 @@ void p2p_on_provision_rsp(struct rtl8192cd_priv *priv ,struct rx_frinfo *pfrinfo
 #else
             wscMethod = *(unsigned short*)tmpPtr;
 #endif
-
+#ifdef _LITTLE_ENDIAN_
+            wscMethod = ntohs(wscMethod);
+#endif
             if(wscMethod == priv->p2pPtr->wsc_method_to_target_dev)
             {
                 priv->p2pPtr->wsc_method_match = 1;
@@ -3461,6 +3522,16 @@ void p2p_on_provision_rsp(struct rtl8192cd_priv *priv ,struct rx_frinfo *pfrinfo
     P2P_DEBUG("->\n");
     P2P_listen(priv,NULL);
 
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+    if (priv->p2pPtr->wsc_method_match)
+    {
+        struct __p2p_wsc_confirm wsc_confirm;
+        memset(&wsc_confirm, 0x00, sizeof(struct __p2p_wsc_confirm));
+        wsc_confirm.wsc_config_method = priv->p2pPtr->wsc_method_to_target_dev;
+        memcpy(wsc_confirm.dev_address, priv->p2pPtr->target_device_addr, 6);
+        req_p2p_wsc_confirm(priv, (unsigned char *)(&wsc_confirm));
+    }
+#endif
 
 }
 
@@ -3824,6 +3895,9 @@ int p2p_issue_provision_rsp(struct rtl8192cd_priv *priv, unsigned char *da)
 
     /*config method*/
     shortVal = priv->p2pPtr->wsc_method_from_target_dev;
+#ifdef _LITTLE_ENDIAN_
+    shortVal = htons(shortVal);
+#endif
     wscPtr = wsc_add_tlv(wscPtr, TAG_CONFIG_METHODS, 2, (void *)&shortVal);
     //P2P_DEBUG("wsc method=%02x\n",priv->p2pPtr->wsc_method_from_target_dev);
 
@@ -4068,7 +4142,15 @@ int p2p_issue_GO_nego_req(struct rtl8192cd_priv *priv)
     memcpy(&pbuf[2],WFA_OUI_PLUS_TYPE,4);
     pbuf[6] = P2P_GO_NEG_REQ;
 
+#ifdef __ECOS
+    {
+        unsigned char random_buf[4];
+        get_random_bytes(random_buf, 4);
+        randomX = random_buf[3];
+    }
+#else
     get_random_bytes(&randomX , 1);
+#endif
     priv->p2pPtr->go_nego_tx_dialog_token = randomX;
     pbuf[7] = randomX;
 
@@ -4117,8 +4199,15 @@ int p2p_issue_GO_nego_req(struct rtl8192cd_priv *priv)
     /*id2*/
     thisAttrPrt = add_Attr_capability( priv, thisAttrPrt, &p2pIELen,NULL);
 
-
+#ifdef __ECOS
+    {
+        unsigned char random_buf[4];
+        get_random_bytes(random_buf, 4);
+        My_tie_break = random_buf[3];
+    }
+#else
     get_random_bytes(&My_tie_break , 1);
+#endif
     My_tie_break %= 2;
     P2P_DEBUG("(Nego req)Method type:%s,tie_break=%d\n",StrTmp2,My_tie_break);
     /* id4*/
@@ -5715,6 +5804,7 @@ void rtk_p2p_init(struct rtl8192cd_priv *priv )
         /*the parameter need reset when interface do open and close*/
         P2P_DEBUG("reset clientmode_try_connect\n");
         priv->p2pPtr->clientmode_try_connect=0;
+        priv->p2pPtr->clientmode_connected=0;
     }
 
     //P2P_DEBUG("P2P_MODE=[%d]\n",P2PMODE);
@@ -6536,7 +6626,7 @@ void p2p_as_GC(struct rtl8192cd_priv *priv , char* SSIDin, char* PSKin )
 }
 int p2p_as_preClient(struct rtl8192cd_priv *priv , int peers_opchannel)
 {
-
+    priv->p2pPtr->change_role_is_ongoing = 1;
     //	unsigned long flags;
     //	P2P_DEBUG("\n");
     //SAVE_INT_AND_CLI(flags);
@@ -6583,7 +6673,7 @@ int p2p_as_preClient(struct rtl8192cd_priv *priv , int peers_opchannel)
 
     //RESTORE_INT(flags);
     //SMP_UNLOCK(flags);
-
+    priv->p2pPtr->change_role_is_ongoing = 0;
     return 0;
 }
 
@@ -6593,6 +6683,7 @@ int p2p_as_GO(struct rtl8192cd_priv *priv, int GOtype)
     //unsigned long flags;
     //SAVE_INT_AND_CLI(flags);
     //SMP_LOCK(flags);
+    priv->p2pPtr->change_role_is_ongoing = 1;
     P2P_DEBUG("==>rtl8192cd_close\n");
     rtl8192cd_close(priv->dev);
     OPMODE_VAL(WIFI_AP_STATE);
@@ -6659,7 +6750,7 @@ int p2p_as_GO(struct rtl8192cd_priv *priv, int GOtype)
 #endif
 
     }
-
+    priv->p2pPtr->change_role_is_ongoing = 0;
     //RESTORE_INT(flags);
     //SMP_UNLOCK(flags);
     return 0;
@@ -6675,7 +6766,7 @@ int p2pcmd_force_GO(struct rtl8192cd_priv *priv, unsigned char *data)
 
 int p2pcmd_backtoDev(struct rtl8192cd_priv *priv, unsigned char *data)
 {
-
+    priv->p2pPtr->change_role_is_ongoing = 1;
     unsigned long gk_rekey_bakup;
     P2P_DEBUG("\nReset to p2p device \n\n\n");
 #if 0
@@ -6759,6 +6850,7 @@ int p2pcmd_backtoDev(struct rtl8192cd_priv *priv, unsigned char *data)
     //P2P_listen(priv, NULL); //p2p 1sec timer will auto enter listen mode
 
     //==============
+    priv->p2pPtr->change_role_is_ongoing = 0;
     return 0;
 
 }
@@ -6799,6 +6891,14 @@ int p2pcmd_set_intent_value(struct rtl8192cd_priv *priv, unsigned char *data)
     return 0;
 }
 
+int p2pcmd_set_wsc_method(struct rtl8192cd_priv *priv, unsigned char *data)
+{
+    int val = _atoi(data , 16);
+    priv->pmib->p2p_mib.p2p_wsc_config_method = val ;
+    P2P_DEBUG("set wsc_config_method[0x%04X] OK!!\n",priv->pmib->p2p_mib.p2p_wsc_config_method);
+
+    return 0;
+}
 
 int p2pcmd_set_op_channel(struct rtl8192cd_priv *priv, unsigned char *data)
 {
@@ -6860,6 +6960,15 @@ int rtk_switch_p2p_role(struct rtl8192cd_priv *priv, unsigned char *data)
     rtk_p2p_enable(priv,mode, CFG80211_P2P);
     return 0;
 }
+
+int p2pcmd_set_p2pMode(struct rtl8192cd_priv *priv, unsigned char *data)
+{
+    int mode = _atoi(data , 10);
+    rtk_p2p_set_role(priv, mode);
+    //P2P_DEBUG("set p2p_mode to[%d] OK!!\n",mode);
+    return 0;
+}
+
 
 int p2pcmd_set_p2pstatus(struct rtl8192cd_priv *priv, unsigned char *data)
 {
@@ -7041,7 +7150,9 @@ struct p2p_cmd_list p2p_cmd_tbl_lev1[] =
     {"intent",p2pcmd_set_intent_value},     // setting intent value
     {"opch",p2pcmd_set_op_channel},         // setting operation channel
     {"devname",p2pcmd_set_devicename},	    // setting device name
+    {"setwscmethod",p2pcmd_set_wsc_method},         // setting wsc config method
     {"setp2pstatus",p2pcmd_set_p2pstatus},	// setting P2P_STATE
+    {"setp2pmode",p2pcmd_set_p2pMode},	    // setting P2P MODE
     {"asgo",p2pcmd_force_GO},	            // force to GO role
     {"asprec",p2p_as_preClient},	        // as pre client
     {"bakdev",p2pcmd_backtoDev},	        // force to device mode

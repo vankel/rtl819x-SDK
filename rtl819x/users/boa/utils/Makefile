@@ -85,10 +85,9 @@ SOURCES += fwupg.c ../src/utility.c
 #------------------------------------------------------------------------------
 all: depend flash fwd fwupg
 
-
-ifeq ($(CONFIG_APP_APPLE_HOMEKIT),y)
-CFLAGS += -DCONFIG_APPLE_HOMEKIT
-endif
+#ifeq ($(CONFIG_RTL_11W_SUPPORT),y)
+#CFLAGS += -DCONFIG_IEEE80211W
+#endif
 
 ifeq ($(CONFIG_RTL_COMAPI_CFGFILE),y)
 flash: Makefile flash.o comapi.o $(APMIB_DIR)/$(APMIB_LIB)

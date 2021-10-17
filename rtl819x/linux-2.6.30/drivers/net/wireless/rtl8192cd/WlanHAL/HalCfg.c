@@ -21,7 +21,7 @@ MappingVariable88XX(
     IN  HAL_PADAPTER    Adapter
 )
 {
-    PHAL_DATA_TYPE      pHalData = _GET_HAL_DATA(Adapter);
+    //PHAL_DATA_TYPE      pHalData = _GET_HAL_DATA(Adapter);
 
     //pHalData->
     

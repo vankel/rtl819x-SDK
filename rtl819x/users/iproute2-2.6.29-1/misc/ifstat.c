@@ -48,7 +48,8 @@ int npatterns;
 char info_source[128];
 int source_mismatch;
 
-#ifdef KERNEL_3_10
+//#ifdef KERNEL_3_10 //modified by lynn_pu, 2014-10-29
+#if defined(KERNEL_3_10) && !defined(CONFIG_RLX)
 struct net_device_stats
 {
         unsigned long   rx_packets;             /* total packets received       */

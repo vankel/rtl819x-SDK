@@ -7450,7 +7450,7 @@ unsigned char transfer2IfIndxfromIfName( char *ifname )
 }
 #endif //#if 0 //keith remove
 
-//#if 0 //keith remove
+#if 0 //keith remove
 int transfer2PathNamefromItf( char *ifname, char *pathname )
 {
 	struct CWMP_LEAF *e=NULL;
@@ -7487,8 +7487,6 @@ int transfer2PathNamefromItf( char *ifname, char *pathname )
 	else if( strcmp( ifname, "eth0" )==0 )
 		strcpy( pathname, "InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.1" );
 #endif
-
-#if 0
 #ifdef WLAN_SUPPORT
 	else if( strcmp( ifname, wlan_name[0])==0 )
 		strcpy( pathname, "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1" );
@@ -7530,10 +7528,9 @@ int transfer2PathNamefromItf( char *ifname, char *pathname )
 		}
 		return transfer2PathName( ifindex, pathname );
 	}
-#endif
 	return 0;	
 }
-//#endif //#if 0 //keith remove
+#endif //#if 0 //keith remove
 
 unsigned int transfer2IfIndex( char *name )
 {

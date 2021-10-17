@@ -81,7 +81,7 @@ static char *get_name(char *name, char *p);
 char *strItf[]=
 {
 	"",		//ITF_ALL
-	ALIASNAME_ETH1,		//ITF_WAN
+	"",		//ITF_WAN
     ALIASNAME_BR0,		//ITF_LAN
 
 	ALIASNAME_ETH0,		//ITF_ETH0
@@ -920,7 +920,7 @@ extern pid_t find_pid_by_name( char* pidName)
 	
 	if ( strcmp(pidName, "init")==0)
 		return 1;
-
+	
 	dir = opendir("/proc");
 	if (!dir) {
 		printf("Cannot open /proc");
@@ -959,7 +959,7 @@ extern pid_t find_pid_by_name( char* pidName)
 			closedir(dir);
 			return pid;
 		}
-	}	
+	}
 	closedir(dir);
 	return 0;
 }
@@ -2980,12 +2980,6 @@ while(head_offset <   upload_len) {
 	locWrite += numWrite;
  	numLeft -= numWrite;
 	sync();
-#ifdef KERNEL_3_10
-#define BLKFLSBUF  _IO(0x12,97) /* flush buffer cache */
-    if(ioctl(fh,BLKFLSBUF,NULL) < 0){ 
-        printf("flush mtd system cache error\n");
-    }   
-#endif
 #ifdef __mips__
 	//if(flag != 3)
 		close(fh);
@@ -3779,15 +3773,11 @@ void UDPEchoConfigSave(struct TR143_UDPEchoConfig *p)
 {
 	if(p)
 	{
-		unsigned int vChar;
-		unsigned int itftype;
-		mib_get( MIB_TR143_UDPECHO_ENABLE, (void *)&vChar );
-		p->Enable = vChar;
+		unsigned char itftype;
+		mib_get( MIB_TR143_UDPECHO_ENABLE, (void *)&p->Enable );
 		mib_get( MIB_TR143_UDPECHO_SRCIP, (void *)p->SourceIPAddress );
-		mib_get( MIB_TR143_UDPECHO_PORT, (void *)&vChar );
-		p->UDPPort = vChar;
-		mib_get( MIB_TR143_UDPECHO_PLUS, (void *)&vChar );
-		p->EchoPlusEnabled = vChar;
+		mib_get( MIB_TR143_UDPECHO_PORT, (void *)&p->UDPPort );
+		mib_get( MIB_TR143_UDPECHO_PLUS, (void *)&p->EchoPlusEnabled );
 
 		mib_get( MIB_TR143_UDPECHO_ITFTYPE, (void *)&itftype );
 		if(itftype==ITF_WAN)

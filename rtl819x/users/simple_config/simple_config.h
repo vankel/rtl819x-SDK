@@ -85,38 +85,34 @@ enum { WSC_ENCRYPT_NONE=1, WSC_ENCRYPT_WEP=2, WSC_ENCRYPT_TKIP=4, WSC_ENCRYPT_AE
 #if defined(CONFIG_RTL_SIMPLE_CONFIG_USE_WPS_BUTTON)
 #define WPS_BUTTON_HOLD_TIME 3
 #endif
-
 typedef struct rtk_sc_ctx{
 	unsigned char sc_wlan_ifname[16];
 	unsigned char	sc_mib_prefix[16];
 	unsigned char	sc_mib_sync_prefix[16];
-	unsigned char	sc_wlan_status;
-	unsigned char	sc_pin_enabled;
-	unsigned char	sc_pin[65];
-	unsigned char	sc_default_pin[65];
-	unsigned char	sc_ssid[64];
-	unsigned char	sc_passwd[65];
-	unsigned char	sc_config_file[256];
+	unsigned char sc_wlan_status;
+	unsigned char sc_pin[65];
+	unsigned char sc_default_pin[65];
+	unsigned char sc_ssid[64];
+	unsigned char sc_passwd[65];
+	unsigned char sc_config_file[256];
 	unsigned char	sc_device_name[64];
-	unsigned short	sc_device_type;
+	unsigned short sc_device_type;
 	unsigned int 	sc_run_time;
 	unsigned int 	sc_linked_time;
 	unsigned int 	sc_control_ip;
 	unsigned int	sc_send_ack;
 	unsigned int 	sc_config_success;
-	int		sc_pbc_duration_time;
-	int		sc_pbc_pressed_time;
-	int		sc_wps_support;
-	int		sc_wps_duration_time;
-	int		sc_max_wps_run_time;
-	int		sc_send_ack_num;
-	int		sc_save_profile;
-	int		sc_status;
-	int		sc_sync_profile;
-	int		sc_debug;
-	int		sc_ip_status;
-	int 	sc_led_enabled;
-	int		sc_led_status;
+	int 	sc_pbc_duration_time;
+	int 	sc_pbc_pressed_time;
+	int	sc_wps_support;
+	int	sc_wps_duration_time;
+	int	sc_max_wps_run_time;
+	int	sc_send_ack_num;
+	int 	sc_save_profile;
+	int 	sc_status;
+	int 	sc_sync_profile;
+	int	sc_debug;
+	int 	sc_ip_status;
 }RTK_SC_CTX, *RTK_SC_CTXp; 
 
 RTK_SC_CTX g_sc_ctx;
@@ -127,9 +123,8 @@ struct ack_msg{
 	unsigned char 	smac[6];
 	unsigned char 	status;
 	unsigned short 	device_type;
-	unsigned int	device_ip;
+	unsigned int		device_ip;
 	unsigned char 	device_name[SC_MAX_NAME_LEN];
-	unsigned char	pin_enabled;
 	
 }__attribute__((packed));
 

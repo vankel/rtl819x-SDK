@@ -52,8 +52,9 @@ obj-$(CONFIG_TELCLOCK)		+= tlclk.o
 ifeq ($(CONFIG_RTL_8198C),y)
 obj-$(CONFIG_RTL_8198C)          += rtl_gpio.o
 else
-obj-$(CONFIG_RTL_819X)          += rtl_gpio_819x.o
+obj-$(CONFIG_RTL_819X)          += rtl_gpio_9xD.o
 endif
+
 obj-$(CONFIG_MWAVE)		+= mwave/
 obj-$(CONFIG_AGP)		+= agp/
 obj-$(CONFIG_PCMCIA)		+= pcmcia/

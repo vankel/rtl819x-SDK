@@ -125,7 +125,15 @@ struct hsa_param_s
 	uint32 siptos:8;    /* [7:0] Source IPToS for those packets which were delivered to extension ports. */
 	uint32 dp:7;        /* [6:0] destinatio port mask, formally not included in HSA. */
 	uint32 priority:3;  /* [2:0] priority ID (valid: 0~7) */
-#ifdef CONFIG_RTL_8198C
+
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8881A)
+    uint32 cputag:1;     
+    uint32 ptp_pkt:1;    
+    uint32 ptp_v2:2; 
+    uint32 ptp_type:4;
+    uint32 rmdp:6;    
+    uint32 dpri:3;        
+#elif defined(CONFIG_RTL_8198C)
     uint32 cputag:1;     
     uint32 ptp_pkt:1;    
     uint32 ptp_v2:2; 
@@ -544,7 +552,26 @@ struct hsa_s
         uint32 priority:3;/* W9[6:0] */
 #endif
 
-#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8881A)
+#ifdef _LITTLE_ENDIAN
+        uint32 cputag:1;      /* W10[0] */
+        uint32 ptp_pkt:1;     /* W10[1] */
+        uint32 ptp_v2:2;      /* W10[3:2] */
+        uint32 ptp_type:4;    /* W10[7:4] */
+        uint32 rmdp:6;        /* W10[13:8] */
+        uint32 dpri:3;        /* W10[16:14] */
+        uint32 resv4:15;      /* W10[31:17] */
+#else
+        uint32 resv4:15;      /* W10[31:17] */
+        uint32 dpri:3;        /* W10[16:14] */
+        uint32 rmdp:6;        /* W10[13:8] */
+        uint32 ptp_type:4;    /* W10[7:4] */
+        uint32 ptp_v2:2;      /* W10[3:2] */
+        uint32 ptp_pkt:1;     /* W10[1] */
+        uint32 cputag:1;      /* W10[0] */
+#endif
+
+#elif defined(CONFIG_RTL_8198C)
 #ifdef _LITTLE_ENDIAN
         uint32 cputag:1;      /* W10[0] */
         uint32 ptp_pkt:1;     /* W10[1] */

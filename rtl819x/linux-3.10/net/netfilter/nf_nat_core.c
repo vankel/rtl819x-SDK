@@ -609,7 +609,6 @@ unsigned int nf_nat_packet(struct nf_conn *ct,
 		}
 		#endif
 
-
 	}
 	return NF_ACCEPT;
 }

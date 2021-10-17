@@ -35,61 +35,6 @@ const unsigned char a4_oui[] = {0x00, 0x0d, 0x02};
 #endif
 
 //#define A4_STA_DEBUG
-#ifdef __ECOS
-typedef void pr_fun(char *fmt, ...);
-extern pr_fun *ecos_pr_fun;
-
-#define PRINT_ONE(val, format, line_end) { \
-	ecos_pr_fun(format, val); \
-	if (line_end) 	\
-		ecos_pr_fun("\n"); \
-}
-
-#define PRINT_ARRAY(val, format, len, line_end) { \
-	int index; 	\
-	for (index=0; index<len; index++) \
-		ecos_pr_fun(format, val[index]); \
-	if (line_end) 	\
-		ecos_pr_fun("\n"); \
-}
-#else
-#ifdef CONFIG_RTL_PROC_NEW
-#define PRINT_ONE(val, format, line_end) { 		\
-	seq_printf(s, format, val); \
-	if (line_end) \
-		seq_printf(s, "\n");		\
-}
-
-#define PRINT_ARRAY(val, format, len, line_end) { 	\
-	int index;					\
-	for (index=0; index<len; index++)		\
-		seq_printf(s, format, val[index]); \
-	if (line_end)					\
-		seq_printf(s, "\n");		\
-							\
-}
-#else
-#define PRINT_ONE(val, format, line_end) { 		\
-	pos += sprintf(&buf[pos], format, val);		\
-	if (line_end)					\
-		strcat(&buf[pos++], "\n");		\
-}
-
-#define PRINT_ARRAY(val, format, len, line_end) { 	\
-	int index;					\
-	for (index=0; index<len; index++)		\
-		pos += sprintf(&buf[pos], format, val[index]); \
-	if (line_end)					\
-		strcat(&buf[pos++], "\n");		\
-							\
-}
-#endif //LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-#endif
-
-#define PRINT_ARRAY_ARG(name, para, format, len) { \
-	PRINT_ONE(name, "%s", 0); \
-	PRINT_ARRAY(para, format, len, 1); \
-}
 
 static struct a4_sta_db_entry *alloc_entry(struct rtl8192cd_priv *priv)
 {
@@ -164,7 +109,7 @@ static  int  has_expired(struct rtl8192cd_priv *priv, struct a4_sta_db_entry *fd
     return 0;
 }
 
-void a4_sta_del(struct rtl8192cd_priv *priv,  unsigned char *mac)
+static void a4_sta_del(struct rtl8192cd_priv *priv,  unsigned char *mac)
 {
     struct a4_sta_db_entry *db;
     int hash;
@@ -178,9 +123,6 @@ void a4_sta_del(struct rtl8192cd_priv *priv,  unsigned char *mac)
     {
         if (!memcmp(db->mac, mac, ETH_ALEN))
         {
-            #if defined(BR_SHORTCUT) && defined(RTL_CACHED_BR_STA)
-            release_brsc_cache(db->mac);
-            #endif           
             mac_hash_unlink(db);
             free_entry(priv, db);
 #ifdef A4_STA_DEBUG
@@ -245,7 +187,7 @@ void a4_sta_update(struct rtl8192cd_priv *root_priv, struct rtl8192cd_priv *priv
 
 }
 
-void a4_sta_cleanup_all(struct rtl8192cd_priv *priv)
+void a4_sta_cleanup(struct rtl8192cd_priv *priv)
 {
     int i;
 
@@ -268,30 +210,6 @@ void a4_sta_cleanup_all(struct rtl8192cd_priv *priv)
         }
     }
 }
-
-void a4_sta_cleanup(struct rtl8192cd_priv *priv, struct stat_info * pstat)
-{
-    int i;
-    struct a4_sta_db_entry *f;
-    struct a4_sta_db_entry *g;
-    for (i=0; i<A4_STA_HASH_SIZE; i++)
-    {
-        f = priv->machash[i];
-        while (f != NULL)
-        {
-            g = f->next_hash;
-            if(f->stat == pstat) {
-                #if defined(BR_SHORTCUT) && defined(RTL_CACHED_BR_STA)
-                release_brsc_cache(f->mac);
-                #endif                
-                mac_hash_unlink(f);
-                free_entry(priv, f);
-            }
-            f = g;
-        }
-    }
-}
-
 
 void a4_sta_expire(struct rtl8192cd_priv *priv)
 {
@@ -328,10 +246,6 @@ void a4_sta_expire(struct rtl8192cd_priv *priv)
                                  f->stat->hwaddr[4],
                                  f->stat->hwaddr[5]);
 #endif
-
-                    #if defined(BR_SHORTCUT) && defined(RTL_CACHED_BR_STA)
-                    release_brsc_cache(f->mac);
-                    #endif    
                     mac_hash_unlink(f);
                     free_entry(priv, f);
                 }
@@ -345,7 +259,6 @@ void a4_sta_add(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned c
 {
     struct a4_sta_db_entry *db;
     int hash;
-    unsigned char tmpbuf[15];
 
     ASSERT(mac);
 
@@ -361,11 +274,6 @@ void a4_sta_add(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned c
             return;
         }
         db = db->next_hash;
-    }
-
-    if(memcmp(pstat->hwaddr, mac, MACADDRLEN)) {
-        sprintf((char *)tmpbuf, "%02x%02x%02x%02x%02x%02xno", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        del_sta(priv, tmpbuf); 
     }
 
     db = alloc_entry(priv);
@@ -644,6 +552,10 @@ int a4_rx_dispatch(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo
     }
 
     rx_sum_up(priv, NULL, pfrinfo->pktlen, GetRetry(pframe));
+#ifdef RX_CRC_EXPTIMER		
+	rx_crc_sum_up(priv, pfrinfo->rx_rate);
+#endif
+
     return reuse;
 }
 
@@ -693,8 +605,6 @@ unsigned char a4_rx_check_reuse(struct rtl8192cd_priv *priv, struct rx_frinfo *p
             if(pfrinfo->to_fr_ds == 3 && !memcmp(GetAddr1Ptr(pframe), myhwaddr, MACADDRLEN))
             {
                 a4_sta_add(priv, pstat, pfrinfo->sa);
-                if(!IS_MCAST(pfrinfo->da))
-                    a4_sta_del(priv, pfrinfo->da);
                 reuse = 0;
             }
         }

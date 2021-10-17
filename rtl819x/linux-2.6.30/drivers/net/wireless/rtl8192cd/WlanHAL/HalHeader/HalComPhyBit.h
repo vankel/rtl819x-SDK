@@ -54,6 +54,8 @@
 #define    BIT_MASK_BB_BHSSIREAD_ADDR_AC                       0xff
 
 /**** page 9 ****/
+//REG_BB_AGC_TABLE_AC_V2                        0x958
+#define     BIT_MASK_BB_BAGC_TABLE_AC_V2                        0x0000001f
 
 
 /**** page a ****/

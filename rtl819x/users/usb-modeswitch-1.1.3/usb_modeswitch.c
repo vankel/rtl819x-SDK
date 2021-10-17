@@ -120,6 +120,7 @@ static int ttyUSB_found = 0;
 static int findtty = 0;
 
 char CustomMode[LINE_DIM];
+char CustomTTY[LINE_DIM];
 int  CustomModeFlag = 0;
 int  CustomModeIndex = 0;
 void (*CustomModeFunc)(void) = NULL;
@@ -237,7 +238,19 @@ void tty_num()
 	char buf[32];
     ttyUSB = -1;
     ttyUSB_found = 0;
+	if ( CustomTTY && strlen(CustomTTY)) {
+		ttyUSB_found=1;
+		ttyUSB = CustomTTY[6]-'0';
+	}
+	else {
     tty_dumpdev(dev);
+	}
+
+	if (ttyUSB_found == 0) {
+		printf("\n\n Error: Can't detect ttyUSB, please specify it manually!\n\n");
+		exit(1);
+	}
+
 	sprintf(buf, "echo \"%d\" > /var/usb3g.tty", ttyUSB);
 	system(buf);
 }
@@ -342,6 +355,14 @@ static struct option long_options[] = {
 
 void readConfigFile(const char *configFilename)
 {
+#if RTK_USBMODE
+	FILE *file=fopen(configFilename, "r");
+	if (findtty == 1 && file==NULL) {
+		if (verbose) fprintf(stderr, "%s is not existed\n\n", configFilename);
+		return;
+	}
+#endif
+
 	if (verbose) printf("Reading config file: %s\n", configFilename);
 	ParseParamHex(configFilename, TargetVendor);
 	ParseParamHex(configFilename, TargetProduct);
@@ -370,6 +391,7 @@ void readConfigFile(const char *configFilename)
 	ParseParamHex(configFilename, AltSetting);
 #if RTK_USBMODE
     ParseParamString(configFilename, CustomMode);//bruce
+    ParseParamString(configFilename, CustomTTY);
 #endif
 
 	// TargetProductList has priority over TargetProduct
@@ -413,6 +435,11 @@ void printConfig()
 		printf ("CustomMode=%s\n",	CustomMode);
 	else
 		printf ("CustomMode=  not set\n");
+
+	if ( CustomTTY )
+		printf ("CustomTTY=%s\n",	CustomTTY);
+	else
+		printf ("CustomTTY=  not set\n");
 #endif
 	if ( MessageEndpoint )
 		printf ("MessageEndpoint=0x%02x\n",	MessageEndpoint);
@@ -557,6 +584,7 @@ int main(int argc, char **argv)
 	MessageContent3[0] = '\0';
 #if RTK_USBMODE
 	CustomMode[0] = '\0';
+	CustomTTY[0] = '\0';
 #endif
 
 	signal(SIGTERM, release_usb_device);

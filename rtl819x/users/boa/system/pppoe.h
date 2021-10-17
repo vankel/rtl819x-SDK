@@ -25,10 +25,7 @@
 
 #include <stdio.h>		/* For FILE */
 #include <sys/types.h>		/* For pid_t */
-#ifdef CONFIG_AUTO_DHCP_CHECK
-#include <netinet/udp.h>
-#include <netinet/ip.h>
-#endif
+
 /* How do we access raw Ethernet devices? */
 #undef USE_LINUX_PACKET
 #undef USE_BPF
@@ -281,111 +278,7 @@ struct PacketCriteria {
     int seenACName;
     int seenServiceName;
 };
-#ifdef CONFIG_AUTO_DHCP_CHECK
-struct dhcpMessage {
-	u_int8_t op;
-	u_int8_t htype;
-	u_int8_t hlen;
-	u_int8_t hops;
-	u_int32_t xid;
-	u_int16_t secs;
-	u_int16_t flags;
-	u_int32_t ciaddr;
-	u_int32_t yiaddr;
-	u_int32_t siaddr;
-	u_int32_t giaddr;
-	u_int8_t chaddr[16];
-	u_int8_t sname[64];
-	u_int8_t file[128];
-	u_int32_t cookie;
-	u_int8_t options[308]; /* 312 - cookie */ 
-};
-struct dhcpPacket {
-	//struct ethhdr ethHdr;
-	struct iphdr ip;
-	struct udphdr udp;
-	struct dhcpMessage data;
-};
-#define DHCP_END		0xFF
-#define BOOTREQUEST		1
-#define BOOTREPLY		2
 
-#define ETH_10MB		1
-#define ETH_10MB_LEN		6
-#define DHCPDISCOVER		1
-#define DHCPOFFER		2
-#define SERVER_PORT		67
-#define CLIENT_PORT		68
-#define DHCP_MAGIC		0x63825363
-#define DHCP_MESSAGE_TYPE	0x35
-#define BROADCAST_FLAG		0x8000
-#define MAC_BCAST_ADDR		(unsigned char *) "\xff\xff\xff\xff\xff\xff"
-//////////////////////////////////////////////////
-struct avp_hdr
-{
-	u_int16_t length;
-	u_int16_t vendorid;
-	u_int16_t attrtype;
-}__attribute__((packed));
-
-struct msg_type_avp
-{
-	struct avp_hdr avphdr;
-	u_int16_t msgtype;
-}__attribute__((packed));
-
-struct protocol_type_avp
-{
-	struct avp_hdr avphdr;
-	u_int8_t ver;
-	u_int8_t rev;
-}__attribute__((packed));
-
-struct host_name_avp
-{
-	struct avp_hdr avphdr;
-	char hname[8];
-}__attribute__((packed));
-
-struct frame_cap_avp
-{
-	struct avp_hdr avphdr;
-	u_int32_t cap;
-}__attribute__((packed));
-
-struct assign_tid_avp
-{
-	struct avp_hdr avphdr;
-	u_int16_t tunnelid;
-}__attribute__((packed));
-
-struct l2tp_ctrl_hdr
-{
-	u_int16_t ver;
-	u_int16_t length;
-	u_int16_t tid;
-	u_int16_t cid;
-	u_int16_t Ns;
-	u_int16_t Nr;
-}__attribute__((packed));
-
-struct l2tpCtrlPacket 
-{
-	struct iphdr ip;
-	struct udphdr udp;
-	struct l2tp_ctrl_hdr l2tphdr;
-	
-	struct msg_type_avp msgType;	
-	struct protocol_type_avp proType;	
-	struct frame_cap_avp frameCap;
-	struct assign_tid_avp assignTid;
-	struct host_name_avp hostName; 
-};
-
-#define L2TP_PKT_LEN (sizeof(struct l2tp_ctrl_hdr)+sizeof(struct msg_type_avp)+sizeof(struct protocol_type_avp)+sizeof(struct frame_cap_avp)+sizeof(struct assign_tid_avp)+sizeof(struct host_name_avp))
-#define L2TP_PORT  1701
-#define IP_ADDR_T 0x02
-#endif
 /* Function Prototypes */
 UINT16_t etherType(PPPoEPacket *packet);
 int openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr);

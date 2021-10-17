@@ -31,6 +31,7 @@ extern u1Byte *data_RadioA_8192E_start,     *data_RadioA_8192E_end;
 extern u1Byte *data_RadioB_8192E_start,     *data_RadioB_8192E_end;
 
 //High Power
+
 #if CFG_HAL_HIGH_POWER_EXT_PA
 #ifdef PWR_BY_RATE_92E_HP			
 extern u1Byte *data_PHY_REG_PG_8192Emp_hp_start, *data_PHY_REG_PG_8192Emp_hp_end;
@@ -48,32 +49,45 @@ extern u1Byte *data_RadioB_8192E_extpa_start,     *data_RadioB_8192E_extpa_end;
 #endif
 
 #if CFG_HAL_HIGH_POWER_EXT_LNA
-extern u1Byte *data_AGC_TAB_8192E_extlna_start,			*data_AGC_TAB_8192E_extlna_end;
-extern u1Byte *data_AGC_TAB_8192E_extlna_type1_start,   *data_AGC_TAB_8192E_extlna_type1_end;
-extern u1Byte *data_AGC_TAB_8192E_extlna_type2_start,   *data_AGC_TAB_8192E_extlna_type2_end;
-extern u1Byte *data_AGC_TAB_8192E_extlna_type3_start,   *data_AGC_TAB_8192E_extlna_type3_end;	
-extern u1Byte *data_PHY_REG_8192E_extlna_start,   		*data_PHY_REG_8192E_extlna_end;
-extern u1Byte *data_RadioA_8192E_extlna_start,    		*data_RadioA_8192E_extlna_end;
-extern u1Byte *data_RadioB_8192E_extlna_start,    		*data_RadioB_8192E_extlna_end;
+#if IS_EXIST_PCI
+extern u1Byte *data_AGC_TAB_8192E_extlna_start,    *data_AGC_TAB_8192E_extlna_end;
+extern u1Byte *data_PHY_REG_8192E_extlna_start,    *data_PHY_REG_8192E_extlna_end;
+extern u1Byte *data_RadioA_8192E_extlna_start,     *data_RadioA_8192E_extlna_end;
+extern u1Byte *data_RadioB_8192E_extlna_start,     *data_RadioB_8192E_extlna_end;
+#endif
+#if IS_EXIST_SDIO
+extern u1Byte *data_AGC_TAB_8192ES_extlna_start,    *data_AGC_TAB_8192ES_extlna_end;
+extern u1Byte *data_PHY_REG_8192ES_extlna_start,    *data_PHY_REG_8192ES_extlna_end;
+extern u1Byte *data_RadioA_8192ES_extlna_start,     *data_RadioA_8192ES_extlna_end;
+extern u1Byte *data_RadioB_8192ES_extlna_start,     *data_RadioB_8192ES_extlna_end;
+#endif
 #endif
 
 // B-cut support
 extern u1Byte *data_MAC_REG_8192Eb_start,    *data_MAC_REG_8192Eb_end;
 extern u1Byte *data_PHY_REG_8192Eb_start,    *data_PHY_REG_8192Eb_end;
+#if IS_EXIST_PCI
 extern u1Byte *data_RadioA_8192Eb_start,     *data_RadioA_8192Eb_end;
 extern u1Byte *data_RadioB_8192Eb_start,     *data_RadioB_8192Eb_end;
-//
+#endif
 
 // MP chip 
+#if IS_EXIST_PCI
 extern u1Byte *data_AGC_TAB_8192Emp_start,    *data_AGC_TAB_8192Emp_end;
-extern u1Byte *data_PHY_REG_MP_8192Emp_start, *data_PHY_REG_MP_8192Emp_end;
-extern u1Byte *data_PHY_REG_PG_8192Emp_start, *data_PHY_REG_PG_8192Emp_end;
-extern u1Byte *data_MAC_REG_8192Emp_start,    *data_MAC_REG_8192Emp_end;
-extern u1Byte *data_PHY_REG_8192Emp_start,    *data_PHY_REG_8192Emp_end;
 extern u1Byte *data_RadioA_8192Emp_start,     *data_RadioA_8192Emp_end;
 extern u1Byte *data_RadioB_8192Emp_start,     *data_RadioB_8192Emp_end;
 extern u1Byte *data_RadioA_8192EmpA_start,     *data_RadioA_8192EmpA_end;
 extern u1Byte *data_RadioB_8192EmpA_start,     *data_RadioB_8192EmpA_end;
+#endif
+#if IS_EXIST_SDIO
+extern u1Byte *data_AGC_TAB_8192ES_start,    *data_AGC_TAB_8192ES_end;
+extern u1Byte *data_RadioA_8192ES_start,     *data_RadioA_8192ES_end;
+extern u1Byte *data_RadioB_8192ES_start,     *data_RadioB_8192ES_end;
+#endif
+extern u1Byte *data_PHY_REG_MP_8192Emp_start, *data_PHY_REG_MP_8192Emp_end;
+extern u1Byte *data_PHY_REG_PG_8192Emp_start, *data_PHY_REG_PG_8192Emp_end;
+extern u1Byte *data_MAC_REG_8192Emp_start,    *data_MAC_REG_8192Emp_end;
+extern u1Byte *data_PHY_REG_8192Emp_start,    *data_PHY_REG_8192Emp_end;
 
 // FW
 extern u1Byte *data_rtl8192Efw_start,         *data_rtl8192Efw_end;

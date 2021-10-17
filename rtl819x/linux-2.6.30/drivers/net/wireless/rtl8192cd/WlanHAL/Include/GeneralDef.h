@@ -125,26 +125,26 @@
 #define RTL8192EE       BIT1
 #define RTL8192EU       BIT2
 #define RTL8192ES	BIT3
-#define RTL8813AE       BIT4
-#define RTL8813AU       BIT5
+#define RTL8814AE       BIT4
+#define RTL8814AU       BIT5
 
 
 //Chip Collection
 #define RTL8881A        (RTL8881AEM)
 #define RTL8192E        (RTL8192EE | RTL8192EU | RTL8192ES)
-#define RTL8813A        (RTL8813AE | RTL8813AU)
+#define RTL8814A        (RTL8814AE | RTL8814AU)
 
 //HAL Common Layer
-#define RTL88XX         (RTL8881A | RTL8192E | RTL8813A)
+#define RTL88XX         (RTL8881A | RTL8192E | RTL8814A)
 #define RTL88XX_N       (RTL8192E)
-#define RTL88XX_AC      (RTL8881A | RTL8813A)
+#define RTL88XX_AC      (RTL8881A | RTL8814A)
 
 //Marco Utility
 #define IS_ONLY_RTL8881AEM              ((HAL_CODE_BASE == RTL8881AEM) ? _TRUE : _FALSE)
 #define IS_ONLY_RTL8192EE               ((HAL_CODE_BASE == RTL8192EE) ? _TRUE : _FALSE)
 #define IS_ONLY_RTL8192EU               ((HAL_CODE_BASE == RTL8192EU) ? _TRUE : _FALSE)
-#define IS_ONLY_RTL8813AE               ((HAL_CODE_BASE == RTL8813AE) ? _TRUE : _FALSE)
-#define IS_ONLY_RTL8813AU               ((HAL_CODE_BASE == RTL8813AU) ? _TRUE : _FALSE)
+#define IS_ONLY_RTL8814AE               ((HAL_CODE_BASE == RTL8814AE) ? _TRUE : _FALSE)
+#define IS_ONLY_RTL8814AU               ((HAL_CODE_BASE == RTL8814AU) ? _TRUE : _FALSE)
 #define IS_ONLY_RTL8881AEM_RTL8192EE    ((HAL_CODE_BASE == (RTL8881AEM|RTL8192EE)) ? _TRUE : _FALSE)
 
 //Chip Existence
@@ -152,14 +152,14 @@
 #define IS_EXIST_RTL8192EE                          ((HAL_CODE_BASE & RTL8192EE) ? _TRUE : _FALSE)
 #define IS_EXIST_RTL8192EU                          ((HAL_CODE_BASE & RTL8192EU) ? _TRUE : _FALSE)
 #define IS_EXIST_RTL8192ES                          ((HAL_CODE_BASE & RTL8192ES) ? _TRUE : _FALSE)
-#define IS_EXIST_RTL8813AE                          ((HAL_CODE_BASE & RTL8813AE) ? _TRUE : _FALSE)
-#define IS_EXIST_RTL8813AU                          ((HAL_CODE_BASE & RTL8813AU) ? _TRUE : _FALSE)
+#define IS_EXIST_RTL8814AE                          ((HAL_CODE_BASE & RTL8814AE) ? _TRUE : _FALSE)
+#define IS_EXIST_RTL8814AU                          ((HAL_CODE_BASE & RTL8814AU) ? _TRUE : _FALSE)
 #define IS_EXIST_RTL8881AEM_RTL8192EE               (IS_EXIST_RTL8881AEM && IS_EXIST_RTL8192EE)
 
 //Chip Series
 #define IS_RTL8192E_SERIES              ((HAL_CODE_BASE & RTL8192E) ? _TRUE : _FALSE)
 #define IS_RTL8881A_SERIES              ((HAL_CODE_BASE & RTL8881A) ? _TRUE : _FALSE)
-#define IS_RTL8813A_SERIES              ((HAL_CODE_BASE & RTL8813A) ? _TRUE : _FALSE)
+#define IS_RTL8814A_SERIES              ((HAL_CODE_BASE & RTL8814A) ? _TRUE : _FALSE)
 
 //Chip Network Type
 #define IS_RTL88XX_N                    ((HAL_CODE_BASE & RTL88XX_N) ? _TRUE : _FALSE)

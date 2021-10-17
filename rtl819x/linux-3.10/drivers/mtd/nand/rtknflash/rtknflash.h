@@ -204,7 +204,7 @@ int rtk_scan_read_oob(struct mtd_info *mtd, uint8_t *buf, int  page,
 #define CMD_RANDOM_DATA_OUTPUT_C2 	0xe0 
 
 /* temp; may need modify:CACHELINE_SIZE */
-#define CACHELINE_SIZE		36
+#define CACHELINE_SIZE		32
 #define M_mask				0xe0000000
 
 /* cycle */
@@ -233,6 +233,8 @@ int rtk_scan_read_oob(struct mtd_info *mtd, uint8_t *buf, int  page,
 #define printk(fmt,args...)	printf(fmt ,##args)
 
 #endif
+
+#define REG32(reg)   (*(volatile unsigned int *)((unsigned int)reg))
 
 #ifdef NAND_PRINTF
 #define nand_printf(fmt,args...)	printk(fmt ,##args)

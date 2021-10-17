@@ -18,8 +18,8 @@
  *
  ******************************************************************************/
 
-#include "../Mp_Precomp.h"
-#include "../odm_precomp.h"
+#include "Mp_Precomp.h"
+#include "../phydm_precomp.h"
 
 
 

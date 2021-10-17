@@ -56,8 +56,6 @@ config MIPS
 	select MODULES_USE_ELF_RELA if MODULES && 64BIT
 	select CLONE_BACKWARDS
 
-menu "Machine selection"
-
 choice
         prompt "System type"
         default SOC_RTL8196C
@@ -84,20 +82,6 @@ config ARCH_PLATFORM
         default ""
 
 source "arch/rlx/config.in"
-
-#if SOC_RTL8196E
-#source "arch/rlx/soc-rtl8196e/config.in"
-#endif
-
-#if SOC_RTL819XD
-#source "arch/rlx/soc-rtl819xd/config.in.819xd"
-#endif
-
-#if SOC_RTL8881A
-#source "arch/rlx/soc-rtl8881a/config.in"
-#endif
-
-endmenu
 
 config ZONE_DMA
 	bool

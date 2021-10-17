@@ -39,7 +39,6 @@ static unsigned int *udp_get_timeouts(struct net *net);
 unsigned int	udp_get_timeouts_by_state(enum udp_conntrack state,void *ct_or_cp,int is_ct)
 {
     struct net *net = NULL;
-    unsigned int *udp_timeouts_run = NULL;
     if(is_ct){
         struct nf_conn *ct = (struct nf_conn *)ct_or_cp;
         net = nf_ct_net(ct);
@@ -48,7 +47,7 @@ unsigned int	udp_get_timeouts_by_state(enum udp_conntrack state,void *ct_or_cp,i
         struct ip_vs_conn *cp = (struct ip_vs_conn *)ct_or_cp;
 		net = ip_vs_conn_net(cp);
     }
-	udp_timeouts_run = udp_get_timeouts(net);
+	unsigned int *udp_timeouts_run = udp_get_timeouts(net);
     //net_warn_ratelimited("--%s--%d-- udp_timeouts_run[%d] = %d\n",__FUNCTION__,__LINE__,state,udp_timeouts_run[state]);
 	return udp_timeouts_run[state];
 }

@@ -202,6 +202,14 @@ static int mtd_blktrans_thread(void *arg)
                 "nop\n\t"               \
                 "nop\n\t"               \
                 "nop\n\t"               \
+                "nop\n\t"               \
+                "nop\n\t"               \
+                "nop\n\t"               \
+                "nop\n\t"               \
+                "nop\n\t"               \
+                "nop\n\t"               \
+                "nop\n\t"               \
+                "nop\n\t"               \
                 ".set   pop\n\t");
                 #endif
 

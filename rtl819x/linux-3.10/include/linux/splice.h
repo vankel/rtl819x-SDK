@@ -94,6 +94,12 @@ extern void spd_release_page(struct splice_pipe_desc *, unsigned int);
 extern const struct pipe_buf_operations page_cache_pipe_buf_ops;
 
 #ifdef CONFIG_RTL_SENDFILE_PATCH
-extern ssize_t find_fd_from_socket(int fd_in, loff_t *off_in, int fd_out, size_t len);
+extern unsigned int rtl_use_sendfile;
+extern ssize_t rtl_splice(int fd_in, loff_t *off_in, int fd_out, 
+					size_t len, int *run_normal);
+extern int rtl_splice_from_pipe_feed(struct pipe_inode_info *pipe, struct splice_desc *sd,
+					splice_actor *actor);
+extern int pipe_to_sendpages(struct pipe_inode_info *pipe,
+					struct pipe_buffer *buf, struct splice_desc *sd);
 #endif
 #endif

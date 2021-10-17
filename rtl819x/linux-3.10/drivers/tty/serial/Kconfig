@@ -1249,9 +1249,6 @@ config SERIAL_TIMBERDALE
 	---help---
 	Add support for UART controller on timberdale.
 
-config I2C_GPIO_MFI_COPROCESSOR_DRIVER 
-        bool "Support I2C-GPIO Driver for MFi Coprocessor"
-
 config SERIAL_BCM63XX
 	tristate "bcm63xx serial port support"
 	select SERIAL_CORE

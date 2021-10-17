@@ -190,15 +190,15 @@ function show_wpa_settings()
 			if(wep_type.selectedIndex==2)
 				get_by_id("show_80211w").style.display = ""
 
-			if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[0].checked)
-				dF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[0].checked=true;			
-			
+	if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[0].checked)
+		dF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[0].checked=true;			
+	
 
-			get_by_id("show_sha256").style.display = "none"
-			if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[1].checked)
-			{
-				get_by_id("show_sha256").style.display = ""
-			}
+	get_by_id("show_sha256").style.display = "none"
+	if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[1].checked)
+	{
+		get_by_id("show_sha256").style.display = ""
+	}
 
 			if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[2].checked)
 			{
@@ -459,7 +459,7 @@ function show_authentication()
         get_by_id("show_wapi_psk1").style.display = "none";
         get_by_id("show_wapi_psk2").style.display = "none";
         get_by_id("show_8021x_wapi").style.display = "none";
-
+	
 	if (wep_type.selectedIndex == 1){
 		get_by_id("show_wep_auth").style.display = "";		
 		if (ap_mode == 1) 
@@ -882,7 +882,7 @@ function Load_Setting()
 	else
 		dF.format<% getIndex("wlan_idx"); %>.selectedIndex=1;
 		
-	updateWepFormat(document.formEncrypt, <% getIndex("wlan_idx"); %>);	
+	updateWepFormat(document.formEncrypt, <% getIndex("wlan_idx"); %>);		
 	
 	//if (wpa_auth & 1)
 	if(wpa_auth == 1)
@@ -898,8 +898,9 @@ function Load_Setting()
 		dF.pskValue<% getIndex("wlan_idx"); %>.maxLength = "64";
 		dF.pskFormat<% getIndex("wlan_idx"); %>.selectedIndex=1;
 	}
-	
-	dF.wpa11w<% getIndex("wlan_idx"); %>[wpa11w].checked=true;	
+
+	dF.wpa11w<% getIndex("wlan_idx"); %>[wpa11w].checked=true;
+		
 	dF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[wpa2EnableSHA256].checked=true;
 	
 	if (wpa_cipher & 1)
@@ -1277,7 +1278,7 @@ function ValidateForm(passForm)
 							  document.write('<option value=\"6\"> WPA-Mixed </option>');
 							if (ap_mode != 1 && <% getInfo("isWapiSupport");%>)
 							  document.write('<option value=\"7\"> WAPI </option>');
-						</script>					
+						</script>						
 					</select> </font>
 				</td> </tr>
 			</table>
@@ -1370,7 +1371,6 @@ function ValidateForm(passForm)
 						<input name="wpa11w<% getIndex("wlan_idx"); %>" type="radio" value="required" onClick="show_wpa_settings()">required
 							</font>
 				</td></tr>
-				
 				<tr id="show_sha256" style="display:none">
 					<td width="30%"class="bgblue"><font size="2"><b>SHA256:</b></font></td>
 					<td width="70%" class="bggrey"><font size="2">

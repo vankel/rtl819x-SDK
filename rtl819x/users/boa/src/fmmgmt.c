@@ -404,7 +404,6 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #endif
 	char *ptr;
 	unsigned char isValidfw = 0;
-
 	#if 0
 	if(0 == check_config_valid(data,total_len))
 	{
@@ -413,7 +412,6 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 		return 0;
 	}
 	#endif
-
 	do {
 		if (
 #ifdef COMPRESS_MIB_SETTING
@@ -456,11 +454,7 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 		pCompHeader->compLen = DWORD_SWAP(pCompHeader->compLen);
 #endif
 		/*decompress and get the tag*/
-#ifdef RTK_MIB_TAG_CHECK
-		expFile=malloc(pCompHeader->compLen*pCompHeader->realcompRate);
-#else
 		expFile=malloc(pCompHeader->compLen*pCompHeader->compRate);
-#endif
 		if (NULL==expFile) {
 			printf("malloc for expFile error!!\n");
 			return 0;
@@ -495,29 +489,6 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 		else
 #endif
 		len += sizeof(PARAM_HEADER_T);
-
-        /*in case use wrong version config.dat*/
-        #define MAX_CONFIG_LEN 1024*1024
-        #define MIN_CONFIG_LEN 8*1024
-#ifdef HEADER_LEN_INT
-		if(isHdware)
-        {
-            if((phwHeader->len > MAX_CONFIG_LEN)||(phwHeader->len < MIN_CONFIG_LEN))
-            {
-                printf("INVALID config.data FILE\n");
-                status = 0;
-                break;
-            }
-        }else
-#endif
-        {
-            if((pHeader->len > MAX_CONFIG_LEN)||(pHeader->len < MIN_CONFIG_LEN))
-            {
-                printf("INVALID config.data FILE\n");
-                status = 0;
-                break;
-            }
-        }
 
 		if ( sscanf((char *)&pHeader->signature[TAG_LEN], "%02d", &ver) != 1)
 			ver = -1;
@@ -1067,11 +1038,6 @@ void formUploadConfig(request *wp, char *path, char *query)
 	char lan_ip_buf[30], lan_ip[30];
 	int head_offset=0;
 
-#ifdef RTK_MIB_TAG_CHECK
-	int cpuType;
-	int valid_config=1;
-#endif
-
 #if defined(CONFIG_APP_FWD)
 #define FWD_CONF "/var/fwd.conf"
 	int newfile = 1;
@@ -1086,34 +1052,13 @@ void formUploadConfig(request *wp, char *path, char *query)
 		strcpy(tmpBuf, "Invalid file format!");
 		goto back;
 	}
-#ifdef RTK_MIB_TAG_CHECK
-	cpuType=getRTKCpuType();
-	if(cpuType >= RTK_CPU_MAX){
-		printf("get cpu type error\n");
-	}
-#ifdef COMPRESS_MIB_SETTING
-	if(!memcmp(&wp->upload_data[head_offset], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) ||
-		!memcmp(&wp->upload_data[head_offset], COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) ||
-		!memcmp(&wp->upload_data[head_offset], COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN))
-	{
-		
-		COMPRESS_MIB_HEADER_Tp pCompHeader;
-		pCompHeader =(COMPRESS_MIB_HEADER_Tp)(&wp->upload_data[head_offset]);
-		if(cpuType != ((pCompHeader->mibTag & RTK_CPU_TYPE_MASK) >> RTK_CPU_TYPE_OFFSET))
-			valid_config=0;
-	}
-#endif
-#endif	
 	if(
-#ifdef 	RTK_MIB_TAG_CHECK
-		valid_config &&
-#endif
 #ifdef COMPRESS_MIB_SETTING
-		(!memcmp(&wp->upload_data[head_offset], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) ||
+		!memcmp(&wp->upload_data[head_offset], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) ||
-		!memcmp(&wp->upload_data[head_offset], COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN))
+		!memcmp(&wp->upload_data[head_offset], COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN)
 #else
-		(!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_TAG, TAG_LEN) ||
+		!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_FORCE_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], CURRENT_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], DEFAULT_SETTING_HEADER_TAG, TAG_LEN) ||
@@ -1121,7 +1066,7 @@ void formUploadConfig(request *wp, char *path, char *query)
 		!memcmp(&wp->upload_data[head_offset], DEFAULT_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_TAG, TAG_LEN) ||
 		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_FORCE_TAG, TAG_LEN) ||
-		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN))
+		!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) 
 #endif
 	) {
 		updateConfigIntoFlash((unsigned char *)&wp->upload_data[head_offset], (wp->upload_len-head_offset), (int *)&type, &status);
@@ -1225,7 +1170,6 @@ void kill_processes(void)
 #define BASIC_BANK_MARK 0x80000002           
 #define FORCEBOOT_BANK_MARK 0xFFFFFFF0  //means always boot/upgrade in this bank
 
-#ifndef CONFIG_MTD_NAND
 char *Kernel_dev_name[2]=
  {
    "/dev/mtdblock0", "/dev/mtdblock2"
@@ -1242,27 +1186,6 @@ char *Web_dev_name[2]=
 	"/dev/mtdblock0", "/dev/mtdblock2"
 };
 #endif
-#endif
-#else
-char *Kernel_dev_name[2]=
- {
-   "/dev/mtdblock2", "/dev/mtdblock5"
- };
-char *Rootfs_dev_name[2]=
- {
-   "/dev/mtdblock3", "/dev/mtdblock6"
- };
-
-#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE)
-#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
-char *Web_dev_name[2]=
-{
-	"/dev/mtdblock2", "/dev/mtdblock5"
-};
-#endif
-#endif
-
-
 #endif
 
 static int get_actvie_bank()
@@ -1480,7 +1403,7 @@ unsigned long get_next_bankmark(char *kernel_dev,int dual_enable)
 	if( bankmark < BASIC_BANK_MARK)
 		return BASIC_BANK_MARK;
 	else if( (bankmark ==  FORCEBOOT_BANK_MARK) || (dual_enable == 0)) //dual_enable = 0 ....
-	{		
+	{
 		return FORCEBOOT_BANK_MARK;//it means dual bank disable
 	}
 	else
@@ -1803,16 +1726,11 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 
 		if ( fh == -1 ) {
 			strcpy(buffer, ("File open failed!"));
-			goto ret_upload;
 		} else {
 			if (flag == 1) {
 				if (startAddr == -1) {
 					//startAddr = CODE_IMAGE_OFFSET;
-#ifndef CONFIG_MTD_NAND
 					startAddr = pHeader->burnAddr ;
-#else
-					startAddr = CODE_IMAGE_OFFSET;
-#endif
 #ifdef _LITTLE_ENDIAN_
 					startAddr = DWORD_SWAP(startAddr);
 #endif
@@ -1826,11 +1744,7 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 			else {
 				if (startAddrWeb == -1) {
 					//startAddr = WEB_PAGE_OFFSET;
-#ifndef CONFIG_MTD_NAND
 					startAddr = pHeader->burnAddr ;
-#else
-					startAddr = WEB_PAGE_OFFSET;		
-#endif
 #ifdef _LITTLE_ENDIAN_
 					startAddr = DWORD_SWAP(startAddr);
 #endif
@@ -3020,8 +2934,7 @@ void formUpload(request *wp, char * path, char * query)
 #elif defined(RTL_8367R_8881a_DUAL_BAND)
 	Reboot_Wait = (wp->upload_len/69633)+57+5+25;
 #elif defined(CONFIG_RTL_8198C)
-	//Reboot_Wait = (wp->upload_len/19710)+50+5;
-	Reboot_Wait = (wp->upload_len/69633)+57+5+25;
+	Reboot_Wait = (wp->upload_len/19710)+50+5;
 #else
 	Reboot_Wait = (wp->upload_len/69633)+57+5;
 #endif
@@ -5893,6 +5806,112 @@ upload_ERR:
 		fclose(fp);
 	
 	ERR_MSG(tmpBuf);
+}
+#endif
+
+#ifdef CONFIG_RTL_TRANSMISSION
+void formTransmissionBT(request *wp, char * path, char * query)
+{
+	char *downdir;
+	char *updir;
+	char *strptr;
+	char *nextwebpage;
+	char tmp[128];
+	char cmd[128];
+	int enabled;
+
+	nextwebpage=req_get_cstream_var(wp, ("nextwebpage"),"");
+	downdir=req_get_cstream_var(wp, ("btdownloaddir"),"");
+//	updir=req_get_cstream_var(wp, ("btuploaddir"),"");
+	strptr=req_get_cstream_var(wp, ("bt_enabled"),"");
+
+	if(access(downdir, 0) != 0)
+	{
+		ERR_MSG("Directory Not Exists!!!");
+		return;
+	}
+
+	if(strptr)
+		enabled=atoi(strptr);
+
+//	apmib_set(MIB_BT_UPLOAD_DIR,updir);
+	apmib_set(MIB_BT_DOWNLOAD_DIR,downdir);
+	apmib_set(MIB_BT_ENABLED,&enabled);
+	apmib_update(CURRENT_SETTING);
+
+	if(enabled)
+	{
+		if(access("/var/run/transmission.pid", 0) == 0)
+		{
+			ERR_MSG("There is transmission-daemon already running!");
+			return;
+		}
+		sprintf(tmp, "%s/transmission-daemon", downdir);
+		if(access(tmp, 0) != 0)
+		{
+			sprintf(cmd, "mkdir %s/transmission-daemon/", downdir);
+			system(cmd);
+		}
+		sprintf(tmp, "%s/transmission-daemon/torrents", downdir);
+		if(access(tmp, 0) != 0)
+		{
+			sprintf(cmd, "mkdir %s/transmission-daemon/torrents/", downdir);
+			system(cmd);
+		}
+		sprintf(tmp, "%s/transmission-daemon/resume", downdir);
+		if(access(tmp, 0) != 0)
+		{
+			sprintf(cmd, "mkdir %s/transmission-daemon/resume/", downdir);
+			system(cmd);
+		}
+		sprintf(tmp, "%s/transmission-daemon/blocklists", downdir);
+		if(access(tmp, 0) != 0)
+		{
+			sprintf(cmd, "mkdir %s/transmission-daemon/blocklists/", downdir);
+			system(cmd);
+		}
+		sprintf(tmp, "/var/transmission");
+		if(access(tmp, 0) != 0)
+		{
+			system("mkdir /var/transmission/");
+		}
+
+		sprintf(cmd, "ln -s %s/transmission-daemon/torrents/ /var/transmission/", downdir);
+		system(cmd);
+		sprintf(cmd, "ln -s %s/transmission-daemon/resume/ /var/transmission/", downdir);
+		system(cmd);
+		sprintf(cmd, "ln -s %s/transmission-daemon/blocklists/ /var/transmission/", downdir);
+		system(cmd);
+		sprintf(cmd, "transmission-daemon --log-error -w %s", downdir);
+//		sprintf(cmd, "transmission-daemon --log-debug -w %s -e %s/log", downdir, downdir);
+		system(cmd);
+	}
+	else
+	{
+		FILE *fp;
+		char buf[16];
+		int pid;
+		
+		fp=fopen("/var/run/transmission.pid","r");
+		if(NULL == fp)
+		{
+			ERR_MSG("Can't open /var/run/transmission.pid!");
+			return;
+		}
+		fgets(buf, sizeof(buf), fp);
+		sscanf(buf, "%d", &pid);
+		fclose(fp);
+
+		sprintf(cmd,"kill -9 %d 2>/dev/null", pid);
+		system(cmd);
+		system("rm /var/transmission/torrents 2>/dev/null");
+		system("rm /var/transmission/resume 2>/dev/null");
+		system("rm /var/transmission/blocklists 2>/dev/null");
+		system("rm /var/run/transmission.pid 2>/dev/null");
+	}
+
+	send_redirect_perm(wp,nextwebpage);
+	return;
 }
 #endif
 

@@ -39,6 +39,12 @@ typedef enum _RTL8812_C2H_EVT
 	MAX_8812_C2HEVENT
 }RTL8812_C2H_EVT;
 
+typedef enum _RTL8812_EXTEND_C2H_EVT
+{
+	EXTEND_C2H_8812_DBG_PRINT = 0
+
+}RTL8812_EXTEND_C2H_EVT;
+
 void UpdateBBRFVal8812(struct rtl8192cd_priv *priv, unsigned char channel)
 {
 	unsigned char current_is_5g = 0, switch_bw = 0;
@@ -437,10 +443,16 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 	unsigned int  writeVal = 0;
 	unsigned char ch_idx_vht80 = get_center_channel(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pmib->dot11nConfigEntry.dot11n2ndChOffset, 1) -1;
-	unsigned char ch_idx_ht40 = ((priv->pmib->dot11nConfigEntry.dot11n2ndChOffset==HT_2NDCH_OFFSET_BELOW) ? (priv->pmib->dot11RFEntry.dot11channel-2) : (priv->pmib->dot11RFEntry.dot11channel+2)) - 1; 
+	unsigned char ch_idx_ht40 = ((priv->pmib->dot11nConfigEntry.dot11n2ndChOffset==HT_2NDCH_OFFSET_BELOW) ? (priv->pmib->dot11RFEntry.dot11channel-2) : (priv->pmib->dot11RFEntry.dot11channel+2)) - 1; 	
+#ifdef POWER_PERCENT_ADJUSTMENT
+	char pwrdiff_percent = PwrPercent2PwrLevel(priv->pmib->dot11RFEntry.power_percent);
+#endif
 
 	// PATH A, OFDM
 	pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+	pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 	diff_ofdm_1t = (priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_A[ch_idx] & 0x0f);
 	diff_ofdm_1t = convert_diff(diff_ofdm_1t);
 	tmp_TPI = pwr_40_1s + diff_ofdm_1t;
@@ -452,6 +464,9 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 	// PATH B, OFDM
 	pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+	pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 	diff_ofdm_1t = (priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_B[ch_idx] & 0x0f);
 	diff_ofdm_1t = convert_diff(diff_ofdm_1t);
 	tmp_TPI = pwr_40_1s + diff_ofdm_1t;
@@ -464,6 +479,9 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 	if (priv->pshare->CurrentChannelBW == 0) {
 		//PATH A, BW20-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		diff_bw20_1s = ((priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_A[ch_idx] & 0xf0) >> 4);
 		diff_bw20_1s = convert_diff(diff_bw20_1s);
 		tmp_TPI = pwr_40_1s + diff_bw20_1s;
@@ -486,6 +504,9 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 		//PATH B, BW20-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		diff_bw20_1s = ((priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_B[ch_idx] & 0xf0) >> 4);
 		diff_bw20_1s = convert_diff(diff_bw20_1s);
 		tmp_TPI = pwr_40_1s + diff_bw20_1s;
@@ -503,10 +524,12 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 		//printk("Write_2S_B %d = %d + %d + %d\n", tmp_TPI, pwr_40_1s , diff_bw20_1s, diff_bw20_2s);
 
-	}
-	else if (priv->pshare->CurrentChannelBW == 1) {
+	} else if (priv->pshare->CurrentChannelBW == 1) {
 		//PATH A, BW40-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[ch_idx_ht40];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		tmp_TPI = pwr_40_1s ;
 		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
 		Write_1S_A(priv, writeVal);
@@ -527,6 +550,9 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 		//PATH B, BW40-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[ch_idx_ht40];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		tmp_TPI = pwr_40_1s ;
 		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
 		Write_1S_B(priv, writeVal);
@@ -543,8 +569,7 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 		//printk("Write_2S_B %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw40_2s);
 
-	}
-	else if (priv->pshare->CurrentChannelBW == 2) {		
+	} else if (priv->pshare->CurrentChannelBW == 2) {
 
 		//PATH A, BW40-1S
 		//printk("ch_idx_ht40 %d >>> [0x%x  0x%x]\n", ch_idx_ht40, priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[ch_idx_ht40], priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[ch_idx_ht40]);
@@ -587,6 +612,9 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 		//PATH A, BW80-1S
 		pwr_80_1s = (priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[ch_idx_vht80 - 4] +
 					 priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[ch_idx_vht80 + 4]) / 2  ;
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		diff_bw80_1s = ((priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_A[ch_idx_vht80] & 0xf0) >> 4);
 		diff_bw80_1s = convert_diff(diff_bw80_1s);
 		tmp_TPI = pwr_80_1s + diff_bw80_1s;
@@ -609,6 +637,9 @@ void Cal_OFDMTxPower_5G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 		//PATH B, BW80-1S
 		pwr_40_1s = (priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[ch_idx_vht80 - 4] +
 					 priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[ch_idx_vht80 + 4]) / 2  ;
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		diff_bw80_1s = ((priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_B[ch_idx_vht80] & 0xf0) >> 4);
 		diff_bw80_1s = convert_diff(diff_bw80_1s);
 		tmp_TPI = pwr_40_1s + diff_bw80_1s;
@@ -641,9 +672,16 @@ void Cal_OFDMTxPower_2G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 	unsigned int  writeVal = 0;
 	unsigned char ch_idx_ht20 = priv->pmib->dot11RFEntry.dot11channel -1;
+	
+#ifdef POWER_PERCENT_ADJUSTMENT
+	char pwrdiff_percent = PwrPercent2PwrLevel(priv->pmib->dot11RFEntry.power_percent);
+#endif
 
 	// PATH A, OFDM
 	pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_A[ch_idx_ht20];
+#ifdef POWER_PERCENT_ADJUSTMENT
+	pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 	diff_ofdm_1t = (priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_A[ch_idx_ht20] & 0x0f);
 	diff_ofdm_1t = convert_diff(diff_ofdm_1t);
 	tmp_TPI = pwr_40_1s + diff_ofdm_1t;
@@ -653,6 +691,9 @@ void Cal_OFDMTxPower_2G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 	// PATH B, OFDM
 	pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_B[ch_idx_ht20];
+#ifdef POWER_PERCENT_ADJUSTMENT
+	pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 	diff_ofdm_1t = (priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_B[ch_idx_ht20] & 0x0f);
 	diff_ofdm_1t = convert_diff(diff_ofdm_1t);
 	tmp_TPI = pwr_40_1s + diff_ofdm_1t;
@@ -662,6 +703,9 @@ void Cal_OFDMTxPower_2G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 	if (priv->pshare->CurrentChannelBW == 0) {
 		//PATH A, BW20-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_A[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		diff_bw20_1s = ((priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_A[ch_idx] & 0xf0) >> 4);
 		diff_bw20_1s = convert_diff(diff_bw20_1s);
 		tmp_TPI = pwr_40_1s + diff_bw20_1s;
@@ -680,6 +724,9 @@ void Cal_OFDMTxPower_2G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 		//PATH B, BW20-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_B[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		diff_bw20_1s = ((priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_B[ch_idx] & 0xf0) >> 4);
 		diff_bw20_1s = convert_diff(diff_bw20_1s);
 		tmp_TPI = pwr_40_1s + diff_bw20_1s;
@@ -696,6 +743,9 @@ void Cal_OFDMTxPower_2G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 	} else if (priv->pshare->CurrentChannelBW == 1) {
 		//PATH A, BW40-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_A[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		tmp_TPI = pwr_40_1s ;
 		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
 		Write_HT1S_A(priv, writeVal);
@@ -712,6 +762,9 @@ void Cal_OFDMTxPower_2G(struct rtl8192cd_priv *priv, unsigned char ch_idx)
 
 		//PATH B, BW40-1S
 		pwr_40_1s = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_B[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		pwr_40_1s = pwr_40_1s + pwrdiff_percent;
+#endif
 		tmp_TPI = pwr_40_1s ;
 		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
 		Write_HT1S_B(priv, writeVal);
@@ -1042,7 +1095,6 @@ unsigned int assign_lmt_reg_value(struct rtl8192cd_priv *priv, unsigned int reg_
 
 }
 
-
 unsigned char check_lmt_valid(struct rtl8192cd_priv *priv, unsigned char phy_band)
 {
 	unsigned char lmt_valid = 1;
@@ -1083,6 +1135,7 @@ unsigned char check_lmt_valid(struct rtl8192cd_priv *priv, unsigned char phy_ban
 
 }
 
+
 void TxLMT_CCK_8812_A(struct rtl8192cd_priv *priv)
 {
 
@@ -1119,25 +1172,28 @@ void TxLMT_CCK_8812_B(struct rtl8192cd_priv *priv)
 	assign_lmt_reg_value(priv, rTxAGC_B_CCK11_CCK1_JAguar, max_lmt_idx_cck, 0);
 }
 
+
 void TxLMT_OFDM_8812_A(struct rtl8192cd_priv *priv)
 {
 
 	unsigned int  tmp_dw = 0;
 
+	unsigned char	idx_cck_11m = 0;
 	unsigned char	idx_odfm_54m = 0;
 	unsigned char	idx_ht_mcs7 = 0;
 	unsigned char	idx_ht_mcs15 = 0;
 	unsigned char	idx_vht_1ss_mcs7 =0;
 	unsigned char	idx_vht_2ss_mcs7 =0;
 
-	char	lmt_pg_idx_ofdm = 0;
+	char	lmt_pg_idx_cck, lmt_pg_idx_ofdm = 0;
 	char	lmt_pg_idx_ht1s, lmt_pg_idx_ht2s = 0;
 	char	lmt_pg_idx_vht1s, lmt_pg_idx_vht2s = 0;
 
-	unsigned char	max_lmt_idx_ofdm = 0;
+	unsigned char	max_lmt_idx_cck, max_lmt_idx_ofdm = 0;
 	unsigned char	max_lmt_idx_ht1s, max_lmt_idx_ht2s = 0;
 	unsigned char	max_lmt_idx_vht1s, max_lmt_idx_vht2s = 0;
 
+	lmt_pg_idx_cck = priv->pshare->txpwr_lmt_CCK - priv->pshare->tgpwr_CCK_new[0];
 	lmt_pg_idx_ofdm = priv->pshare->txpwr_lmt_OFDM - priv->pshare->tgpwr_OFDM_new[0];
 	lmt_pg_idx_ht1s = priv->pshare->txpwr_lmt_HT1S - priv->pshare->tgpwr_HT1S_new[0];
 	lmt_pg_idx_ht2s = priv->pshare->txpwr_lmt_HT2S - priv->pshare->tgpwr_HT2S_new[0];
@@ -1146,6 +1202,12 @@ void TxLMT_OFDM_8812_A(struct rtl8192cd_priv *priv)
 
 	//printk("%d %d %d %d %d %d\n", lmt_pg_idx_cck, lmt_pg_idx_ofdm,
 		//lmt_pg_idx_ht1s, lmt_pg_idx_ht2s, lmt_pg_idx_vht1s, lmt_pg_idx_vht2s);
+
+
+	//Cal Max tx pwr idx for CCK
+	tmp_dw = RTL_R32(rTxAGC_A_CCK11_CCK1_JAguar);
+	idx_cck_11m = get_byte_from_dw(tmp_dw, 3);
+	max_lmt_idx_cck = idx_cck_11m + lmt_pg_idx_cck;
 
 	//Cal Max tx pwr idx for OFDM
 	tmp_dw = RTL_R32(rTxAGC_A_Ofdm54_Ofdm24_JAguar);
@@ -1171,6 +1233,8 @@ void TxLMT_OFDM_8812_A(struct rtl8192cd_priv *priv)
 	tmp_dw = RTL_R32(rTxAGC_A_Nss2Index9_Nss2Index6_JAguar);
 	idx_vht_2ss_mcs7 = get_byte_from_dw(tmp_dw, 1);
 	max_lmt_idx_vht2s = idx_vht_2ss_mcs7 + lmt_pg_idx_vht2s;
+
+	assign_lmt_reg_value(priv, rTxAGC_A_CCK11_CCK1_JAguar, max_lmt_idx_cck, 0);
 	
 	assign_lmt_reg_value(priv, rTxAGC_A_Ofdm18_Ofdm6_JAguar, max_lmt_idx_ofdm, 0);
 	assign_lmt_reg_value(priv, rTxAGC_A_Ofdm54_Ofdm24_JAguar, max_lmt_idx_ofdm, 0);
@@ -1194,20 +1258,22 @@ void TxLMT_OFDM_8812_B(struct rtl8192cd_priv *priv)
 
 	unsigned int  tmp_dw = 0;
 
+	unsigned char	idx_cck_11m = 0;
 	unsigned char	idx_odfm_54m = 0;
 	unsigned char	idx_ht_mcs7 = 0;
 	unsigned char	idx_ht_mcs15 = 0;
 	unsigned char	idx_vht_1ss_mcs7 =0;
 	unsigned char	idx_vht_2ss_mcs7 =0;
 
-	char	lmt_pg_idx_ofdm = 0;
+	char	lmt_pg_idx_cck, lmt_pg_idx_ofdm = 0;
 	char	lmt_pg_idx_ht1s, lmt_pg_idx_ht2s = 0;
 	char	lmt_pg_idx_vht1s, lmt_pg_idx_vht2s = 0;
 
-	unsigned char	max_lmt_idx_ofdm = 0;
+	unsigned char	max_lmt_idx_cck, max_lmt_idx_ofdm = 0;
 	unsigned char	max_lmt_idx_ht1s, max_lmt_idx_ht2s = 0;
 	unsigned char	max_lmt_idx_vht1s, max_lmt_idx_vht2s = 0;
 
+	lmt_pg_idx_cck = priv->pshare->txpwr_lmt_CCK - priv->pshare->tgpwr_CCK_new[1];
 	lmt_pg_idx_ofdm = priv->pshare->txpwr_lmt_OFDM - priv->pshare->tgpwr_OFDM_new[1];
 	lmt_pg_idx_ht1s = priv->pshare->txpwr_lmt_HT1S - priv->pshare->tgpwr_HT1S_new[1];
 	lmt_pg_idx_ht2s = priv->pshare->txpwr_lmt_HT2S - priv->pshare->tgpwr_HT2S_new[1];
@@ -1216,6 +1282,11 @@ void TxLMT_OFDM_8812_B(struct rtl8192cd_priv *priv)
 
 	//printk("%d %d %d %d %d %d\n", lmt_pg_idx_cck, lmt_pg_idx_ofdm,
 		//lmt_pg_idx_ht1s, lmt_pg_idx_ht2s, lmt_pg_idx_vht1s, lmt_pg_idx_vht2s);
+
+	//Cal Max tx pwr idx for CCK
+	tmp_dw = RTL_R32(rTxAGC_B_CCK11_CCK1_JAguar);
+	idx_cck_11m = get_byte_from_dw(tmp_dw, 3);
+	max_lmt_idx_cck = idx_cck_11m + lmt_pg_idx_cck;
 
 	//Cal Max tx pwr idx for OFDM
 	tmp_dw = RTL_R32(rTxAGC_B_Ofdm54_Ofdm24_JAguar);
@@ -1241,6 +1312,8 @@ void TxLMT_OFDM_8812_B(struct rtl8192cd_priv *priv)
 	tmp_dw = RTL_R32(rTxAGC_B_Nss2Index9_Nss2Index6_JAguar);
 	idx_vht_2ss_mcs7 = get_byte_from_dw(tmp_dw, 1);
 	max_lmt_idx_vht2s = idx_vht_2ss_mcs7 + lmt_pg_idx_vht2s;
+
+	assign_lmt_reg_value(priv, rTxAGC_B_CCK11_CCK1_JAguar, max_lmt_idx_cck, 0);
 	
 	assign_lmt_reg_value(priv, rTxAGC_B_Ofdm18_Ofdm6_JAguar, max_lmt_idx_ofdm, 0);
 	assign_lmt_reg_value(priv, rTxAGC_B_Ofdm54_Ofdm24_JAguar, max_lmt_idx_ofdm, 0);
@@ -1321,7 +1394,7 @@ void PHY_SetOFDMTxPower_8812(struct rtl8192cd_priv *priv, unsigned char channel)
 
 #ifdef TXPWR_LMT_8812
 	if (!priv->pshare->rf_ft_var.disable_txpwrlmt)
-	{		
+	{
 		if (check_lmt_valid(priv, phy_band))
 		{
 			TxLMT_OFDM_8812_A(priv);
@@ -1341,6 +1414,9 @@ void PHY_SetCCKTxPower_8812(struct rtl8192cd_priv *priv, unsigned char channel)
 	unsigned char phy_band = 0;
 	unsigned int  writeVal = 0;
 	u4Byte pwrdiff = 0x06060606;
+#ifdef POWER_PERCENT_ADJUSTMENT
+	char pwrdiff_percent = PwrPercent2PwrLevel(priv->pmib->dot11RFEntry.power_percent);
+#endif
 
 	if (channel > 0)
 		ch_idx = (priv->pmib->dot11RFEntry.dot11channel - 1);
@@ -1355,7 +1431,7 @@ void PHY_SetCCKTxPower_8812(struct rtl8192cd_priv *priv, unsigned char channel)
 		phy_band = PHY_BAND_2G;
 
 	if ((priv->pmib->dot11RFEntry.pwrlevelCCK_A[ch_idx] == 0)
-			|| (priv->pmib->dot11RFEntry.pwrlevelCCK_B[ch_idx] == 0)) {
+			&& (priv->pmib->dot11RFEntry.pwrlevelCCK_B[ch_idx] == 0)) {
 		//printk("NO Calibration data, use default CCK power = 0x%x\n", def_power);
 		RTL_W32(rTxAGC_A_CCK11_CCK1_JAguar, def_power);
 		RTL_W32(rTxAGC_B_CCK11_CCK1_JAguar, def_power);
@@ -1368,11 +1444,17 @@ void PHY_SetCCKTxPower_8812(struct rtl8192cd_priv *priv, unsigned char channel)
 
 		//PATH A
 		tmp_TPI = priv->pmib->dot11RFEntry.pwrlevelCCK_A[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		tmp_TPI = tmp_TPI + pwrdiff_percent;
+#endif
 		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
 		RTL_W32(rTxAGC_A_CCK11_CCK1_JAguar, writeVal);
 
 		//PATH B
 		tmp_TPI = priv->pmib->dot11RFEntry.pwrlevelCCK_B[ch_idx];
+#ifdef POWER_PERCENT_ADJUSTMENT
+		tmp_TPI = tmp_TPI + pwrdiff_percent;
+#endif
 		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
 		RTL_W32(rTxAGC_B_CCK11_CCK1_JAguar, writeVal);
 	}
@@ -1593,7 +1675,7 @@ _FWFreeToGo8812(
 		value32 = RTL_R32( REG_MCUFWDL_8812);
 	} while ((counter ++ < 6000) && (!(value32 & FWDL_ChkSum_rpt  )));
 
-	if (counter >= 6000) {
+	if (counter >= 24000) {
 		//		RT_TRACE(COMP_INIT, DBG_SERIOUS, ("_FWFreeToGo8812:: chksum report faill ! REG_MCUFWDL:0x%08x .\n",value32));
 		return RT_STATUS_FAILURE;
 	}
@@ -1615,7 +1697,7 @@ _FWFreeToGo8812(
 		}
 		//		PlatformStallExecution(5);
 		delay_us(5);
-	} while (counter++ < 6000);
+	} while (counter++ < 24000);
 
 	panic_printk("Polling FW ready fail!! REG_MCUFWDL:0x%08x .\n", RTL_R32( REG_MCUFWDL_8812) );
 	return RT_STATUS_FAILURE;
@@ -2676,8 +2758,6 @@ void requestTxRetry_8812(struct rtl8192cd_priv *priv)
 	if ( priv->pshare->sta_query_retry_idx == -1)
 		return;
 
-	//panic_printk("%s +++ \n", __FUNCTION__);
-
 	while (is_h2c_buf_occupy(priv)) {
 		delay_ms(2);
 		if (--counter == 0)
@@ -2721,7 +2801,6 @@ AP Req Txrpt
 
 |ID=0x04|SEQ|STA1 MACID(1B)|Tx_ok1(2B)|Tx_fail1(2B)|initial rate1(1B)|STA2 MACID(1B)|Tx_ok2(2B)|Tx_fail2(2B)|Initial rate2(1B)|Len=12(1B)|FF(1B)|
 */
-#if 0
 void C2H_isr_8812(struct rtl8192cd_priv *priv)
 {
 	struct tx_rpt rpt1;
@@ -2776,8 +2855,6 @@ void C2H_isr_8812(struct rtl8192cd_priv *priv)
 	requestTxReport_8812(priv);
 	RESTORE_INT(flags);
 }
-#endif
-
 VOID
 C2HRaReportHandler_8812(
 	struct rtl8192cd_priv *priv,
@@ -2826,6 +2903,8 @@ _C2HContentParsing8812(
 		pu1Byte 			tmpBuf
 )
 {
+	u1Byte	Extend_c2hSubID = 0;
+	
 	switch(c2hCmdId)
 	{
 		case C2H_8812_TXBF:
@@ -2849,9 +2928,24 @@ _C2HContentParsing8812(
 #ifdef TXRETRY_CNT
 		case C2H_8812_TXRETRY:
 			C2HTxTxRetryHandler(priv, tmpBuf);
-			requestTxReport_8812(priv);			
+			requestTxReport_8812(priv);
 			break;  
-#endif		
+#endif
+		case C2H_8812_RA_PARA_RPT:
+			ODM_C2HRaParaReportHandler(ODMPTR, tmpBuf, c2hCmdLen);
+			break;
+			
+		case C2H_8812_RA_RPT:
+			phydm_c2h_ra_report_handler(ODMPTR, tmpBuf, c2hCmdLen);
+			break;
+			
+		case C2H_8812_EXTEND_IND:	
+			Extend_c2hSubID= tmpBuf[0];
+			if(Extend_c2hSubID == EXTEND_C2H_8812_DBG_PRINT)
+			{
+				phydm_fw_trace_handler_8051(ODMPTR, tmpBuf, c2hCmdLen);
+			}
+			break;
 
 		default:
 			break;
@@ -2869,9 +2963,23 @@ C2HPacketHandler_8812(
 	pu1Byte tmpBuf=NULL;
 	c2hCmdId = Buffer[0];
 	c2hCmdSeq = Buffer[1];
-	c2hCmdLen = Length -2;
-	tmpBuf = Buffer+2;
-	_C2HContentParsing8812(priv, c2hCmdId, c2hCmdLen, tmpBuf);
+/*
+#ifdef CONFIG_WLAN_HAL
+	if(c2hCmdId==C2H_88XX_EXTEND_IND)
+	{
+		c2hCmdLen = Length;
+		tmpBuf = Buffer;
+		C2HExtEventHandler88XX(NULL, c2hCmdId, c2hCmdLen, tmpBuf);
+	}
+	else
+#endif		
+*/
+	{
+		c2hCmdLen = Length -2;
+		tmpBuf = Buffer+2;
+		
+		_C2HContentParsing8812(priv, c2hCmdId, c2hCmdLen, tmpBuf);		
+	}
 }
 
 #ifdef BEAMFORMING_SUPPORT
@@ -2886,25 +2994,9 @@ SetBeamformRfMode8812(
 	BOOLEAN					bSelfBeamformee = FALSE;
 	RT_BEAMFORMING_ENTRY	BeamformEntry;
 	BEAMFORMING_CAP		BeamformCap = BEAMFORMING_CAP_NONE;
-	for(i = 0; i < BEAMFORMING_ENTRY_NUM; i++)
-	{
-		BeamformEntry = pBeamformingInfo->BeamformingEntry[i];
-		if(BeamformEntry.bUsed)
-		{
-			if(	(BeamformEntry.BeamformEntryCap & BEAMFORMEE_CAP_VHT_SU) ||
-				(BeamformEntry.BeamformEntryCap & BEAMFORMEE_CAP_HT_EXPLICIT))
-				bSelfBeamformee = TRUE;
-			if(	(BeamformEntry.BeamformEntryCap & BEAMFORMER_CAP_VHT_SU) ||
-				(BeamformEntry.BeamformEntryCap & BEAMFORMER_CAP_HT_EXPLICIT))
-				bSelfBeamformer = TRUE;
-		}
-		if(bSelfBeamformer && bSelfBeamformee)
-			i = BEAMFORMING_ENTRY_NUM;
-	}
-	if(bSelfBeamformer)
-		BeamformCap |= BEAMFORMER_CAP;
-	if(bSelfBeamformee)
-		BeamformCap |= BEAMFORMEE_CAP;
+	
+	BeamformCap = Beamforming_GetBeamCap(pBeamformingInfo);
+	
 	if(BeamformCap == pBeamformingInfo->BeamformCap)
 		return;
 	else 
@@ -2913,6 +3005,10 @@ SetBeamformRfMode8812(
 		return;
 	PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_WeLut_Jaguar, 0x80000,0x1); // RF Mode table write enable
 	PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_WeLut_Jaguar, 0x80000,0x1); // RF Mode table write enable
+
+	bSelfBeamformer = BeamformCap & BEAMFORMER_CAP;
+	bSelfBeamformee = BeamformCap & BEAMFORMEE_CAP;
+	
 	if(bSelfBeamformer)
 	{	
 		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_ModeTableAddr, 0x78000,0x3); // Select RX mode
@@ -2952,96 +3048,112 @@ SetBeamformRfMode8812(
 VOID
 SetBeamformEnter8812(
 	struct rtl8192cd_priv *priv,
-	u1Byte				Idx
+	u1Byte				BFerBFeeIdx
 	)
 {
 	u1Byte					i = 0;
+	u1Byte					BFerIdx = (BFerBFeeIdx & 0xF0)>>4;
+	u1Byte					BFeeIdx = (BFerBFeeIdx & 0xF);
 	u4Byte					CSI_Param;	
 	PRT_BEAMFORMING_INFO 	pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	RT_BEAMFORMING_ENTRY	BeamformEntry = pBeamformingInfo->BeamformingEntry[Idx];
+	RT_BEAMFORMING_ENTRY	BeamformeeEntry;
+	RT_BEAMFORMER_ENTRY	BeamformerEntry;
 	u2Byte					STAid = 0;
 
 	SetBeamformRfMode8812(priv, pBeamformingInfo);
-	if(OPMODE & WIFI_ADHOC_STATE)
-		STAid = BeamformEntry.AID;
-	else 
-		STAid = BeamformEntry.P_AID;
 
-	if (!IS_TEST_CHIP(priv))		{
-		if (IS_C_CUT_8812(priv))
-			RTL_W16( REG_SND_PTCL_CTRL_8812, 0x2CB); 		// Disable SIG-B CRC8 check
-		else
-			RTL_W16( REG_SND_PTCL_CTRL_8812, 0x0B); 
-	}
-	else
-		RTL_W16( REG_SND_PTCL_CTRL_8812, 0x1B);	
-	
-	// MAC addresss/Partial AID of Beamformer
-	if(Idx == 0)
-	{
-		for(i = 0; i < 6 ; i++)
-			RTL_W8( (REG_BFMER0_INFO_8812+i), BeamformEntry.MacAddr[i]);
-		
-		RTL_W16( REG_BFMER0_INFO_8812+6, BeamformEntry.P_AID);
-	}
-	else
-	{
-		for(i = 0; i < 6 ; i++)
-			RTL_W8( (REG_BFMER1_INFO_8812+i), BeamformEntry.MacAddr[i]);
-
-		RTL_W16( REG_BFMER1_INFO_8812+6, BeamformEntry.P_AID);
-	}
-
-	// CSI report parameters of Beamformer
-	if(	(BeamformEntry.BeamformEntryCap & BEAMFORMEE_CAP_VHT_SU) ||
-		(BeamformEntry.BeamformEntryCap & BEAMFORMER_CAP_VHT_SU) )
-		CSI_Param = 0x01080108;
-	else 
-		CSI_Param = 0x03080308;
 	if(get_rf_mimo_mode(priv) == MIMO_2T2R)
 		RTL_W32(0x9B4, 0x01081008);
-	RTL_W32( REG_CSI_RPT_PARAM_BW20_8812, CSI_Param);
-	RTL_W32( REG_CSI_RPT_PARAM_BW40_8812, CSI_Param);
-	RTL_W32( REG_CSI_RPT_PARAM_BW80_8812, CSI_Param);
 
-	// P_AID of Beamformee & enable NDPA transmission
-	if(Idx == 0)
-	{	
-		RTL_W16( REG_TXBF_CTRL_8812, STAid);	
-		RTL_W8( REG_TXBF_CTRL_8812+3, RTL_R8( REG_TXBF_CTRL_8812+3)|BIT6|BIT7|BIT4);
-	}	
-	else
+	if((pBeamformingInfo->BeamformCap & BEAMFORMEE_CAP) && (BFerIdx < BEAMFORMER_ENTRY_NUM))
 	{
-		RTL_W16( REG_TXBF_CTRL_8812+2, STAid |BIT14| BIT15|BIT12);
-	}	
+		BeamformerEntry = pBeamformingInfo->BeamformerEntry[BFerIdx];
+		
+		if (!IS_TEST_CHIP(priv))		{
+			if (IS_C_CUT_8812(priv))
+				RTL_W16( REG_SND_PTCL_CTRL_8812, 0x2CB); 		// Disable SIG-B CRC8 check
+			else
+				RTL_W16( REG_SND_PTCL_CTRL_8812, 0x0B); 
+		}
+		else
+			RTL_W16( REG_SND_PTCL_CTRL_8812, 0x1B);	
 
-	// CSI report parameters of Beamformee
-	if(Idx == 0)	
-	{
-		// Get BIT24 & BIT25
-		u1Byte	tmp = RTL_R8( REG_BFMEE_SEL_8812+3) & 0x3;	
-		RTL_W8( REG_BFMEE_SEL_8812+3, tmp | 0x60);
-		RTL_W16( REG_BFMEE_SEL_8812, STAid | BIT9);
-	}	
-	else
-	{
-		// Set BIT25
-		RTL_W16( REG_BFMEE_SEL_8812+2, STAid | 0xE2);
+		// MAC addresss/Partial AID of Beamformer
+		if(BFerIdx == 0)
+		{
+			for(i = 0; i < 6 ; i++)
+				RTL_W8( (REG_BFMER0_INFO_8812+i), BeamformerEntry.MacAddr[i]);
+			
+			//RTL_W16( REG_BFMER0_INFO_8812+6, BeamformerEntry.P_AID);
+		}
+		else
+		{
+			for(i = 0; i < 6 ; i++)
+				RTL_W8( (REG_BFMER1_INFO_8812+i), BeamformerEntry.MacAddr[i]);
+
+			//RTL_W16( REG_BFMER1_INFO_8812+6, BeamformerEntry.P_AID);
+		}
+
+		// CSI report parameters of Beamformer
+		if((BeamformerEntry.BeamformEntryCap & BEAMFORMEE_CAP_VHT_SU) ||(BeamformerEntry.BeamformEntryCap & BEAMFORMER_CAP_VHT_SU) )
+			CSI_Param = 0x01080108;
+		else 
+			CSI_Param = 0x03080308;
+
+		RTL_W32( REG_CSI_RPT_PARAM_BW20_8812, CSI_Param);
+		RTL_W32( REG_CSI_RPT_PARAM_BW40_8812, CSI_Param);
+		RTL_W32( REG_CSI_RPT_PARAM_BW80_8812, CSI_Param);
+
+		// Timeout value for MAC to leave NDP_RX_standby_state 60 us
+		//	RTL_W8( REG_SND_PTCL_CTRL_8812+3, 0x3C);
+		RTL_W8( REG_SND_PTCL_CTRL_8812+3, 0x50);				// // ndp_rx_standby_timer
 	}
 
-	// Timeout value for MAC to leave NDP_RX_standby_state 60 us
-//	RTL_W8( REG_SND_PTCL_CTRL_8812+3, 0x3C);
-	RTL_W8( REG_SND_PTCL_CTRL_8812+3, 0x50);				// // ndp_rx_standby_timer
-
-
-//	if(pHalData->bIsMPChip == FALSE) 
-	if (IS_TEST_CHIP(priv))		
+	if((pBeamformingInfo->BeamformCap & BEAMFORMER_CAP) && (BFeeIdx < BEAMFORMEE_ENTRY_NUM))
 	{
-		// VHT category value 
-		RTL_W8( REG_SND_PTCL_CTRL_8812+1, ACT_CAT_VHT);
-		// NDPA subtype
-		RTL_W8( REG_SND_PTCL_CTRL_8812+2, Type_NDPA >> 4);
-	}	
+		BeamformeeEntry = pBeamformingInfo->BeamformeeEntry[BFeeIdx];
+
+		if(OPMODE & WIFI_ADHOC_STATE)
+			STAid = BeamformeeEntry.AID;
+		else 
+			STAid = BeamformeeEntry.P_AID;
+
+		// P_AID of Beamformee & enable NDPA transmission
+		if(BFeeIdx == 0)
+		{	
+			RTL_W16( REG_TXBF_CTRL_8812, STAid);	
+			RTL_W8( REG_TXBF_CTRL_8812+3, RTL_R8( REG_TXBF_CTRL_8812+3)|BIT6|BIT7|BIT4);
+		}	
+		else
+		{
+			RTL_W16( REG_TXBF_CTRL_8812+2, STAid |BIT14| BIT15|BIT12);
+		}	
+
+		// CSI report parameters of Beamformee
+		if(BFeeIdx == 0)	
+		{
+			// Get BIT24 & BIT25
+			u1Byte	tmp = RTL_R8( REG_BFMEE_SEL_8812+3) & 0x3;	
+			RTL_W8( REG_BFMEE_SEL_8812+3, tmp | 0x60);
+			RTL_W16( REG_BFMEE_SEL_8812, STAid | BIT9);
+		}	
+		else
+		{
+			// Set BIT25
+			RTL_W16( REG_BFMEE_SEL_8812+2, STAid | 0xE200);
+		}
+
+	//	if(pHalData->bIsMPChip == FALSE) 
+		if (IS_TEST_CHIP(priv))		
+		{
+			// VHT category value 
+			RTL_W8( REG_SND_PTCL_CTRL_8812+1, ACT_CAT_VHT);
+			// NDPA subtype
+			RTL_W8( REG_SND_PTCL_CTRL_8812+2, Type_NDPA >> 4);
+		}	
+
+		Beamforming_Notify(priv);
+	}
 }
 
 
@@ -3087,7 +3199,7 @@ SetBeamformStatus8812(
 	u2Byte					BeamCtrlVal;
 	u4Byte					BeamCtrlReg;
 	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	RT_BEAMFORMING_ENTRY	BeamformEntry = pBeamformingInfo->BeamformingEntry[Idx];
+	RT_BEAMFORMING_ENTRY	BeamformEntry = pBeamformingInfo->BeamformeeEntry[Idx];
 	if(OPMODE & WIFI_ADHOC_STATE)
 		BeamCtrlVal = BeamformEntry.MacId;
 	else 
@@ -3104,9 +3216,9 @@ SetBeamformStatus8812(
 		if(BeamformEntry.BW == HT_CHANNEL_WIDTH_20)
 			BeamCtrlVal |= BIT9;
 		else if(BeamformEntry.BW == HT_CHANNEL_WIDTH_20_40)
-			BeamCtrlVal |= BIT10;
+			BeamCtrlVal |= (BIT9 | BIT10);
 		else if(BeamformEntry.BW == HT_CHANNEL_WIDTH_80)
-			BeamCtrlVal |= BIT11;
+			BeamCtrlVal |= (BIT9 | BIT10 | BIT11);
 	} else	{
 		BeamCtrlVal &= ~(BIT9|BIT10|BIT11);
 	}
@@ -3269,20 +3381,20 @@ VOID RTL8812_MACID_PAUSE(
 	if (priv->pshare->rf_ft_var.enable_macid_sleep) {
 		if (bSleep) {
 			if (aid > MACID_REGION3_LIMIT)
-				RTL_W32(REG_MACID_PKT_SLEEP_3, RTL_R32(REG_MACID_PKT_SLEEP_3) | BIT(aid-MACID_REGION3_LIMIT));                
+				RTL_W32(REG_MACID_PKT_SLEEP_3, RTL_R32(REG_MACID_PKT_SLEEP_3) | BIT(aid-MACID_REGION3_LIMIT-1));                
             else if(aid > MACID_REGION2_LIMIT)                
-				RTL_W32(REG_MACID_PKT_SLEEP_2, RTL_R32(REG_MACID_PKT_SLEEP_2) | BIT(aid-MACID_REGION2_LIMIT));
+				RTL_W32(REG_MACID_PKT_SLEEP_2, RTL_R32(REG_MACID_PKT_SLEEP_2) | BIT(aid-MACID_REGION2_LIMIT-1));
 			else if(aid > MACID_REGION1_LIMIT)
-                RTL_W32(REG_MACID_PKT_SLEEP_1, RTL_R32(REG_MACID_PKT_SLEEP_1) | BIT(aid-MACID_REGION1_LIMIT));
+                RTL_W32(REG_MACID_PKT_SLEEP_1, RTL_R32(REG_MACID_PKT_SLEEP_1) | BIT(aid-MACID_REGION1_LIMIT-1));
             else                
 				RTL_W32(REG_MACID_PKT_SLEEP_0, RTL_R32(REG_MACID_PKT_SLEEP_0) | BIT(aid));
 		} else {
 		    if (aid > MACID_REGION3_LIMIT)
-				RTL_W32(REG_MACID_PKT_SLEEP_3, RTL_R32(REG_MACID_PKT_SLEEP_3) & ~BIT(aid-MACID_REGION3_LIMIT));                
+				RTL_W32(REG_MACID_PKT_SLEEP_3, RTL_R32(REG_MACID_PKT_SLEEP_3) & ~BIT(aid-MACID_REGION3_LIMIT-1));                
             else if(aid > MACID_REGION2_LIMIT)                
-				RTL_W32(REG_MACID_PKT_SLEEP_2, RTL_R32(REG_MACID_PKT_SLEEP_2) & ~BIT(aid-MACID_REGION2_LIMIT));
+				RTL_W32(REG_MACID_PKT_SLEEP_2, RTL_R32(REG_MACID_PKT_SLEEP_2) & ~BIT(aid-MACID_REGION2_LIMIT-1));
 			else if(aid > MACID_REGION1_LIMIT)
-                RTL_W32(REG_MACID_PKT_SLEEP_1, RTL_R32(REG_MACID_PKT_SLEEP_1) & ~BIT(aid-MACID_REGION1_LIMIT));
+                RTL_W32(REG_MACID_PKT_SLEEP_1, RTL_R32(REG_MACID_PKT_SLEEP_1) & ~BIT(aid-MACID_REGION1_LIMIT-1));
             else                
 				RTL_W32(REG_MACID_PKT_SLEEP_0, RTL_R32(REG_MACID_PKT_SLEEP_0) & ~BIT(aid));	
 		}

@@ -313,13 +313,14 @@ function selectMeshSecurity()
 }
 function saveMeshSecurity(next)
 {
+	var dF=document.forms[0];
 	var ret = 1;
 	if(next)
 	{
-		get_by_id("method"+wlan_idx).value = get_by_id("mesh_method"+wlan_idx).value;
-		get_by_id("pskFormat"+wlan_idx).value = get_by_id("mesh_pskFormat"+wlan_idx).value;
-		get_by_id("pskValue"+wlan_idx).value = get_by_id("mesh_pskValue"+wlan_idx).value;
-		
+		dF.method<% getIndex("wlan_idx"); %>.value = get_by_id("mesh_method"+wlan_idx).value;
+		dF.pskFormat<% getIndex("wlan_idx"); %>.value = get_by_id("mesh_pskFormat"+wlan_idx).value;
+		dF.pskValue<% getIndex("wlan_idx"); %>.value = get_by_id("mesh_pskValue"+wlan_idx).value;
+
 		if(get_by_id("mesh_method"+wlan_idx).selectedIndex == 1) {
 			ret = check_wpa_psk(document.wizardPocket, wlan_idx);
 		}	
@@ -334,7 +335,7 @@ function saveMeshSecurity(next)
 	{
 		wizardHideDiv();
 		show_div(true, ("top_div"));
-		
+
 	}
 }
 
@@ -356,6 +357,7 @@ function saveClickSSID()
 		get_by_id("method"+wlan_idx).selectedIndex = 1;
 	/*else if(document.getElementById("pocket_encrypt").value.indexOf("WPA-PSK") != -1){
 		get_by_id("method"+wlan_idx).selectedIndex = 3;
+
 
 		if((client_mode_support_1x==1)&&(document.getElementById("pocket_encrypt").value.indexOf("-1X") !=-1)){
 			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;

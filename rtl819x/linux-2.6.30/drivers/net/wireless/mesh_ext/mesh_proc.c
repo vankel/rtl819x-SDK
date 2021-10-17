@@ -22,7 +22,7 @@
 #endif
 #endif
 
-#if defined(DBG_NCTU_MESH) || defined(_MESH_DEBUG_)
+#if defined(_MESH_DEBUG_)
 #ifdef __KERNEL__
 #include <linux/init.h>
 #include <asm/uaccess.h>
@@ -33,142 +33,6 @@
 #ifdef CONFIG_RTK_MESH
 
 /*
- *	Note : These define copy from 8190n_proc.c !!
-*/
-#define PRINT_ONE(val, format, line_end) { 		\
-	pos += sprintf(&buf[pos], format, val);		\
-	if (line_end)					\
-		strcat(&buf[pos++], "\n");		\
-}
-
-#define PRINT_ARRAY(val, format, len, line_end) { 	\
-	int index;					\
-	for (index=0; index<len; index++)		\
-		pos += sprintf(&buf[pos], format, val[index]); \
-	if (line_end)					\
-		strcat(&buf[pos++], "\n");		\
-							\
-}
-
-#define PRINT_SINGL_ARG(name, para, format) { \
-	PRINT_ONE(name, "%s", 0); \
-	PRINT_ONE(para, format, 1); \
-}
-
-#define PRINT_ARRAY_ARG(name, para, format, len) { \
-	PRINT_ONE(name, "%s", 0); \
-	PRINT_ARRAY(para, format, len, 1); \
-}
-
-#define CHECK_LEN { \
-	len += size; \
-	pos = begin + len; \
-	if (pos < offset) { \
-		len = 0; \
-		begin = pos; \
-	} \
-	if (pos > offset + length) \
-		goto _ret; \
-}
-
-#if (MESH_DBG_LV & MESH_DBG_COMPLEX)
-
-#define MESH_PROC_SME_TEST_FILENAME  "mesh_dst_mac"
-
-int mesh_test_sme_proc_read(char *buffer, char **buffer_location, off_t offset, int buffer_length, int *eof, void *data)
-{
-	int ret;
-
-	if (offset > 0) {
-		/* we have finished to read, return 0 */
-		ret  = 0;
-	} else {
-		char str[20];
-		
-		sprintf(str, "%02X:%02X:%02X:%02X:%02X:%02X\r\n", 
-				mesh_test_dst_mac[0]&0xff, mesh_test_dst_mac[1]&0xff, mesh_test_dst_mac[2]&0xff,
-				mesh_test_dst_mac[3]&0xff, mesh_test_dst_mac[4]&0xff, mesh_test_dst_mac[5]&0xff);
-			
-		/* fill the buffer, return the buffer size */
-		memcpy(buffer, str, 19); // 6*2 + 5 + 2
-		ret = 19;
-	}
-	return ret;
-}
-
-int mesh_test_sme_proc_write(struct file *file, const char *buffer, unsigned long count, void *data)
-{
-	char local_buf[19];
-	char *ptr;
-	
-	int idx = 0;
-	unsigned char mac[6];
-
-	/* get buffer size */
-	unsigned long local_buf_size = count;
-	
-	memset(local_buf, 0, sizeof(local_buf));
-			
-	if (count < 11 ) { // a:b:c:d:e:f
-		return -EFAULT;
-	}
-	
-	if (count > 18 ) {
-		local_buf_size = 18;
-	}
-	
-	/* write data to the buffer */
-	if ( copy_from_user((void *)local_buf, (const void *)buffer, local_buf_size) ) {
-		printk("*** mesh_test_sme_proc_write: copy from user error\r\n");
-		return -EFAULT;
-	}
-	
-	memset(mac, 0, sizeof(mac));
-	ptr = local_buf;
-	while(*ptr)
-	{
-		unsigned char val = 0;
-		
-		if(idx>5)
-			break;
-			
-		if(*ptr == ':')
-		{
-			ptr++;
-			idx++;
-			continue;
-		}
-		if( (*ptr>='0') && (*ptr<='9') )
-		{
-			val = *ptr - '0';
-		}
-		else if( (*ptr>='A') && (*ptr<='F') )
-		{
-			val = *ptr - 'A' + 10;
-		}
-		else if( (*ptr>='a') && (*ptr<='f') )
-		{
-			val = *ptr - 'a' + 10;
-		}
-		else
-		{
-			ptr++;
-			continue;
-		}
-		mac[idx] = mac[idx]*16+val;
-
-		ptr++;
-	}
-	memcpy(mesh_test_dst_mac, mac, 6);
-	
-	return local_buf_size;
-
-}
-
-#endif // (MESH_DBG_LV & MESH_DBG_COMPLEX)
-
-
-/*
  *	@brief	Printout assigned mesh MP neighbor table
  *		PS: Modify from dump__one_stainfo
  *
@@ -176,14 +40,20 @@ int mesh_test_sme_proc_write(struct file *file, const char *buffer, unsigned lon
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, struct seq_file *s, void *data)
+#else
 static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
 	int pos = 0,i = 0;
 	signed long tmp;
 
 	unsigned char network;
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+
+	struct net_device *dev = PROC_GET_DEV();
+	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+
 
 	tmp = (signed long)(pstat->mesh_neighbor_TBL.BSexpire_LLSAperiod - jiffies);
 	if (0 > tmp)
@@ -206,34 +76,63 @@ static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, char *buf, cha
 	}
 	else // 11B only
 		network = WIRELESS_11B;
+    
 	if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11N) {
 		if (pstat->ht_cap_len)
 			network |= WIRELESS_11N;
 	}
-	
+
+    #ifdef RTK_AC_SUPPORT
+    if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11AC)
+    {        	
+        if(pstat->vht_cap_len) {
+            network |= WIRELESS_11AC;
+        }
+    }
+    #endif
+
+    
 	PRINT_ONE(num,  " %d: Mesh MP_info...", 1);
 	PRINT_SINGL_ARG("    state: ", pstat->mesh_neighbor_TBL.State, "%x");
 	PRINT_ARRAY_ARG("    hwaddr: ",	pstat->hwaddr, "%02x", MACADDRLEN);
-	if( !(network&(~WIRELESS_11B)) )
-	{
-		PRINT_ONE("    mode: B","%s",1);
-	}
-	else if( !(network&(~(WIRELESS_11G|WIRELESS_11B))) )
-	{
-		PRINT_ONE("    mode: B+G","%s",1);
-	}
-	else if( !(network&(~(WIRELESS_11N|WIRELESS_11G|WIRELESS_11B))) )
-	{
-		PRINT_ONE("    mode: B+G+N","%s",1);
-	}
-	else if( !(network&(~(WIRELESS_11N|WIRELESS_11A))) )
-	{
-		PRINT_ONE("    mode: A+N","%s",1);
-	}
-	else
-	{
-		PRINT_ONE("    mode: A","%s",1);
-	}
+
+    if (network == WIRELESS_11B) {
+        PRINT_ONE("    mode: B","%s",1);
+    }
+    else if (network == WIRELESS_11G) {
+        PRINT_ONE("    mode: G","%s",1);
+    }
+    else if (network ==(WIRELESS_11G|WIRELESS_11B)) {
+        PRINT_ONE("    mode: B+G","%s",1);
+    }
+    else if (network ==(WIRELESS_11N)) {
+        PRINT_ONE("    mode: N","%s",1);
+    }
+    else if (network ==(WIRELESS_11G|WIRELESS_11N)) {
+        PRINT_ONE("    mode: G+N","%s",1);
+    }
+    else if (network ==(WIRELESS_11G|WIRELESS_11B | WIRELESS_11N)) {
+        PRINT_ONE("    mode: B+G+N","%s",1);
+    }
+    else if(network == WIRELESS_11A) {
+        PRINT_ONE("    mode: A","%s",1);
+    }
+    else if(network == WIRELESS_11AC) {
+        PRINT_ONE("    mode: AC","%s",1);
+    }
+    else if(network == (WIRELESS_11A|WIRELESS_11N)) {        
+        PRINT_ONE("    mode: A+N","%s",1);
+    }
+    else if(network == (WIRELESS_11AC|WIRELESS_11N)) {
+        PRINT_ONE("    mode: N+AC","%s",1);
+    }
+    else if(network == (WIRELESS_11A|WIRELESS_11AC|WIRELESS_11N)) {
+        PRINT_ONE("    mode: A+N+AC","%s",1);   
+    } 
+    else {
+        PRINT_ONE("    mode: --","%s",1); 
+    }
+
 
 	PRINT_SINGL_ARG("    Tx Packets: ", pstat->tx_pkts, "%u");
 	PRINT_SINGL_ARG("    Rx Packets: ", pstat->rx_pkts, "%u");
@@ -244,14 +143,23 @@ static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, char *buf, cha
 	PRINT_SINGL_ARG("    operating_CH: ", pstat->mesh_neighbor_TBL.Co, "%u");
 	PRINT_SINGL_ARG("    CH_precedence: ", pstat->mesh_neighbor_TBL.Pl, "%lu");		// %lu=unsigned long
 	//PRINT_SINGL_ARG("    R: ", pstat->mesh_neighbor_TBL.r, "%u");
+
+#ifdef RTK_AC_SUPPORT  //vht rate , todo, dump vht rates in Mbps
+	if(pstat->current_tx_rate >= VHT_RATE_ID){
+		int rate = query_vht_rate(pstat);
+		PRINT_SINGL_ARG("    R: ", rate, "%d");
+	}
+	else
+#endif    
 	if( is_MCS_rate(pstat->current_tx_rate) )
 	{
-		PRINT_SINGL_ARG("    R: ", MCS_DATA_RATEStr[(pstat->ht_current_tx_info&BIT(0))?1:0][(pstat->ht_current_tx_info&BIT(1))?1:0][pstat->mesh_neighbor_TBL.r], "%s");
+		PRINT_SINGL_ARG("    R: ", MCS_DATA_RATEStr[(pstat->ht_current_tx_info&BIT(0))?1:0][(pstat->ht_current_tx_info&BIT(1))?1:0][(pstat->current_tx_rate - HT_RATE_ID)], "%s");
 	}
 	else
 	{
-		PRINT_SINGL_ARG("    R: ", pstat->mesh_neighbor_TBL.r, "%u");
+		PRINT_SINGL_ARG("    R: ", pstat->current_tx_rate/2, "%u");
 	}
+    
 	PRINT_SINGL_ARG("    Ept: ", pstat->mesh_neighbor_TBL.ept, "%u");
 	PRINT_SINGL_ARG("    rssi: ", pstat->mesh_neighbor_TBL.Q, "%u");
 #if defined(RTK_MESH_MANUALMETRIC)
@@ -262,14 +170,11 @@ static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, char *buf, cha
 	{
 		PRINT_SINGL_ARG("    matric: ", pstat->mesh_neighbor_TBL.metric, "%lu");
 	}
-	PRINT_SINGL_ARG("    expire_Establish(jiffies): ", (pstat->mesh_neighbor_TBL.expire - jiffies), "%ld");		// %lu=unsigned long
-	//PRINT_SINGL_ARG("                    (mSec): ", ((pstat->mesh_neighbor_TBL.expire - jiffies)*(1000/HZ)), "%ld");
-	PRINT_SINGL_ARG("                    (Sec): ", ((pstat->mesh_neighbor_TBL.expire - jiffies)/1000), "%ld");
-	PRINT_SINGL_ARG("    expire_BootSeq & LLSA(jiffies): ", tmp, "%ld");		// %lu=unsigned long
-	PRINT_SINGL_ARG("                         (mSec): ", ((tmp)*(1000/HZ)), "%ld");
+	PRINT_SINGL_ARG("    expire_Establish(jiffies): ", (pstat->mesh_neighbor_TBL.expire - jiffies), "%lu");		// %lu=unsigned long
+	PRINT_SINGL_ARG("                    (Sec): ", RTL_JIFFIES_TO_SECOND(pstat->mesh_neighbor_TBL.expire - jiffies), "%lu");
+	PRINT_SINGL_ARG("    expire_BootSeq & LLSA(jiffies): ", tmp, "%lu");		// %lu=unsigned long
+	PRINT_SINGL_ARG("                         (mSec): ", RTL_JIFFIES_TO_MILISECONDS(tmp), "%lu");
 	PRINT_SINGL_ARG("    retry: ", pstat->mesh_neighbor_TBL.retry, "%d");
-
-//	PRINT_ONE("", "%s", 1);		// Closed, Because Throughput statistics (sounder)
 
 	return pos;
 }
@@ -283,49 +188,73 @@ static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, char *buf, cha
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_auth_mpinfo(struct seq_file *s, void *data)
+#else
 int mesh_auth_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
-	int len = 0;
-	off_t begin = 0;
-	off_t pos = 0;
-	int size, num=1;
-	struct list_head *phead, *plist;
-	struct stat_info *pstat;
+    struct net_device *dev = PROC_GET_DEV();
+    struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+
+    int len = 0;
+
+#if !defined(CONFIG_RTL_PROC_NEW)    
+    off_t begin = 0;
+    off_t pos = 0;
+    int size;
+#endif
+    int num=1;
+    struct list_head *phead, *plist;
+    struct stat_info *pstat;
 
 	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-		sprintf(buf, "-- Mesh MP Auth Peer info table -- \n");
-		size = strlen(buf);
-		CHECK_LEN;
+        
+        #ifdef CONFIG_RTL_PROC_NEW
+        PRINT_ONE("-- Mesh MP Auth Peer info table -- ", "%s", 1);	        
+        #else
+        size = sprintf(buf, "-- Mesh MP Auth Peer info table -- \n");
+        CHECK_LEN;
+        #endif
+        
+        phead = &priv->mesh_auth_hdr;
+        if (!netif_running(dev) || list_empty(phead))
+            goto _ret;
 
-		phead = &priv->mesh_auth_hdr;
-		if (!netif_running(dev) || list_empty(phead))
-			goto _ret;
+        plist = phead->next;
+        while (plist != phead) {
+            pstat = list_entry(plist, struct stat_info, mesh_mp_ptr);
 
-		plist = phead->next;
-		while (plist != phead) {
-			pstat = list_entry(plist, struct stat_info, mesh_mp_ptr);
-			size = dump_mesh_one_mpinfo(num++, pstat, buf+len, start, offset, length,
-						eof, data);
-			CHECK_LEN;
+            #ifdef CONFIG_RTL_PROC_NEW
+            dump_mesh_one_mpinfo(num++, pstat, s, data);        
+            #else
+            size = dump_mesh_one_mpinfo(num++, pstat, buf+len, start, offset, length,
+            eof, data);
+            CHECK_LEN;
+            #endif
+            
+            plist = plist->next;
+        }
+    }
+    else {
+        #ifdef CONFIG_RTL_PROC_NEW
+        PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+        #else
+		size = sprintf(buf, "  Mesh mode DISABLE !!\n");
+		CHECK_LEN;        
+        #endif
+    }	
 
-			plist = plist->next;
-		}
-	}
-	else {
-		PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
-		return	pos;
-	}		
-	*eof = 1;
+_ret:    
+#if !defined(CONFIG_RTL_PROC_NEW)    
+    *eof = 1;
+    *start = buf + (offset - begin);	/* Start of wanted data */
+    len -= (offset - begin);	/* Start slop */
+    if (len > length)
+        len = length;	/* Ending slop */
+#endif
 
-_ret:
-	*start = buf + (offset - begin);	/* Start of wanted data */
-	len -= (offset - begin);	/* Start slop */
-	if (len > length)
-		len = length;	/* Ending slop */
-
-	return len;
+    return len;
 }	
 #endif
 
@@ -337,49 +266,76 @@ _ret:
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_unEstablish_mpinfo(struct seq_file *s, void *data)
+#else
 int mesh_unEstablish_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
-	int len = 0;
-	off_t begin = 0;
-	off_t pos = 0;
-	int size, num=1;
-	struct list_head *phead, *plist;
-	struct stat_info *pstat;
+    struct net_device *dev = PROC_GET_DEV();
+    struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
 
-	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-		sprintf(buf, "-- Mesh MP unEstablish Peer info table -- \n");
-		size = strlen(buf);
-		CHECK_LEN;
+    int len = 0;
 
-		phead = &priv->mesh_unEstablish_hdr;
-		if (!netif_running(dev) || list_empty(phead))
-			goto _ret;
+#if !defined(CONFIG_RTL_PROC_NEW)
+    off_t begin = 0;
+    off_t pos = 0;
+    int size;
+#endif   
 
-		plist = phead->next;
-		while (plist != phead) {
-			pstat = list_entry(plist, struct stat_info, mesh_mp_ptr);
-			size = dump_mesh_one_mpinfo(num++, pstat, buf+len, start, offset, length,
-						eof, data);
-			CHECK_LEN;
+    int num=1;
+    struct list_head *phead, *plist;
+    struct stat_info *pstat;
 
-			plist = plist->next;
-		}
-	}
-	else {
-		PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
-		return	pos;
-	}		
-	*eof = 1;
+    if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
+        #ifdef CONFIG_RTL_PROC_NEW
+        PRINT_ONE("-- Mesh MP unEstablish Peer info table -- ", "%s", 1);	
+        #else
+        size = sprintf(buf, "-- Mesh MP unEstablish Peer info table -- \n");
+        CHECK_LEN;
+        #endif
+
+
+        phead = &priv->mesh_unEstablish_hdr;
+        if (!netif_running(dev) || list_empty(phead))
+            goto _ret;
+
+        plist = phead->next;
+        while (plist != phead) {
+            pstat = list_entry(plist, struct stat_info, mesh_mp_ptr);
+            
+            #ifdef CONFIG_RTL_PROC_NEW
+            dump_mesh_one_mpinfo(num++, pstat, s, data);            
+            #else
+            size = dump_mesh_one_mpinfo(num++, pstat, buf+len, start, offset, length,
+            eof, data);
+            CHECK_LEN;
+            #endif
+
+            plist = plist->next;
+        }
+    }
+    else {
+
+        #ifdef CONFIG_RTL_PROC_NEW
+        PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+        #else
+        size = sprintf(buf, "  Mesh mode DISABLE !!\n");
+        CHECK_LEN;
+        #endif
+    }	
 
 _ret:
-	*start = buf + (offset - begin);	/* Start of wanted data */
-	len -= (offset - begin);	/* Start slop */
-	if (len > length)
-		len = length;	/* Ending slop */
 
-	return len;
+#if !defined(CONFIG_RTL_PROC_NEW)
+    *eof = 1;
+    *start = buf + (offset - begin);	/* Start of wanted data */
+    len -= (offset - begin);	/* Start slop */
+    if (len > length)
+        len = length;	/* Ending slop */
+#endif
+
+    return len;
 }	
 
 
@@ -391,10 +347,14 @@ _ret:
  *
  *	@retval	int: pos:unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+static int dump_mesh_one_mpflow_neighbor(int num, struct stat_info *pstat, struct seq_file *s, void *data)
+#else
 static int dump_mesh_one_mpflow_neighbor(int num, struct stat_info *pstat, char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+	struct net_device *dev = PROC_GET_DEV();
+	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
 
 	int pos = 0;
 
@@ -428,10 +388,14 @@ static int dump_mesh_one_mpflow_neighbor(int num, struct stat_info *pstat, char 
  *
  *	@retval	int: pos:unknow
  */
-int dump_mesh_one_mpflow_sta(int num, struct stat_info *pstat, char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#ifdef CONFIG_RTL_PROC_NEW
+int dump_mesh_one_mpflow_sta(struct seq_file *s, struct stat_info *pstat)
+#else
+int dump_mesh_one_mpflow_sta(struct stat_info *pstat, char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+	struct net_device *dev = PROC_GET_DEV();
+	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
 
 	struct list_head *phead, *plist;
 	struct stat_info *pstat1;
@@ -486,53 +450,82 @@ int dump_mesh_one_mpflow_sta(int num, struct stat_info *pstat, char *buf, char *
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_assoc_mpinfo(struct seq_file *s, void *data)
+#else
 int mesh_assoc_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+	struct net_device *dev = PROC_GET_DEV();
+	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+
 	int len = 0;
-	off_t begin = 0;
-	off_t pos = 0;
-	int size, num=1;
-	struct list_head *phead, *plist;
-	struct stat_info *pstat;
-	
-	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-		sprintf(buf, "-- Mesh MP Association peer info table -- \n");
-		size = strlen(buf);
-		CHECK_LEN;
+#if defined(__KERNEL__) && !defined(CONFIG_RTL_PROC_NEW)
+    off_t begin = 0;
+    off_t pos = 0;
+    int size;
+#endif    
 
-		phead = &priv->mesh_mp_hdr;
-		if (!netif_running(dev) || list_empty(phead))
-			goto _ret;
+    int  num=1;
+    struct list_head *phead, *plist;
+    struct stat_info *pstat;
 
-		plist = phead->next;
-		while (plist != phead) {
-			pstat = list_entry(plist, struct stat_info, mesh_mp_ptr);
-			size = dump_mesh_one_mpinfo(num++, pstat, buf+len, start, offset, length,
-						eof, data);
-			CHECK_LEN;
+    if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
 
-			// 3 line for Throughput statistics (sounder)	
-			size = dump_mesh_one_mpflow_neighbor(num, pstat, buf+len, start, offset, length,
-						eof, data);
-			CHECK_LEN;
+        #ifdef CONFIG_RTL_PROC_NEW
+        PRINT_ONE("-- Mesh MP Association peer info table --", "%s", 1);
+        #else
+        size = sprintf(buf, "-- Mesh MP Association peer info table -- \n");
+        CHECK_LEN;
+        #endif
 
-			plist = plist->next;
-		}
-	} else {
-		PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
-		return	pos;
-	}
-	*eof = 1;
+        phead = &priv->mesh_mp_hdr;
+        if (!netif_running(dev) || list_empty(phead))
+            goto _ret;
+
+        plist = phead->next;
+        while (plist != phead) {
+            pstat = list_entry(plist, struct stat_info, mesh_mp_ptr);
+
+            #ifdef CONFIG_RTL_PROC_NEW
+            dump_mesh_one_mpinfo(num++, pstat, s, data); 
+            dump_mesh_one_mpflow_neighbor(num, pstat, s, data);
+            #else
+            size = dump_mesh_one_mpinfo(num++, pstat, buf+len, start, offset, length,
+            eof, data);
+            CHECK_LEN;
+
+            // 3 line for Throughput statistics (sounder)	
+            size = dump_mesh_one_mpflow_neighbor(num, pstat, buf+len, start, offset, length,
+            eof, data);
+            CHECK_LEN;
+            #endif
+
+            plist = plist->next;
+        }
+    }
+    else {
+    
+        #ifdef CONFIG_RTL_PROC_NEW
+        PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+        #else
+        size = sprintf(buf, "  Mesh mode DISABLE !!\n");
+        CHECK_LEN
+        #endif
+    }
 
 _ret:
+
+#if !defined(CONFIG_RTL_PROC_NEW)   
+	*eof = 1;
 	*start = buf + (offset - begin);	/* Start of wanted data */
 	len -= (offset - begin);	/* Start slop */
 	if (len > length)
 		len = length;	/* Ending slop */
-
+#endif
+    
 	return len;
+
 }
 
 /*
@@ -544,44 +537,45 @@ _ret:
  */
 int mesh_proc_flow_stats_write(struct file *file, const char *buffer, unsigned long count, void *data)
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
 
-	struct list_head *phead, *plist;
-	struct stat_info *pstat;
+    struct net_device *dev = (struct net_device *)data;
+    struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
 
-	//if( priv->mesh_log )
-        if(*buffer == '0') 
-	{		
-		// turn off log function
-		priv->mesh_log = 0;
-		priv->log_time = 0;
-	}
-	else
-	{
-		// reset all log variable
-		phead = &priv->asoc_list;
-		if (!netif_running(dev) || list_empty(phead))
-			goto _ret;
+    struct list_head *phead, *plist;
+    struct stat_info *pstat;
 
-		plist = phead->next;
-		
-		while (plist != phead) 
-		{
-			pstat = list_entry(plist, struct stat_info, asoc_list);
+    //if( priv->mesh_log )
+    if(*buffer == '0') 
+    {		
+        // turn off log function
+        priv->mesh_log = 0;
+        priv->log_time = 0;
+    }
+    else
+    {
+        // reset all log variable
+        phead = &priv->asoc_list;
+        if (!netif_running(dev) || list_empty(phead))
+            goto _ret;
 
-			pstat->rx_pkts  = 0;
-			pstat->rx_bytes = 0;
-			pstat->tx_pkts  = 0; 
-			pstat->tx_bytes = 0;
-			
-			plist = plist->next;
-		}
-		priv->mesh_log = 1;
-	}
+        plist = phead->next;
+
+        while (plist != phead) 
+        {
+            pstat = list_entry(plist, struct stat_info, asoc_list);
+
+            pstat->rx_pkts  = 0;
+            pstat->rx_bytes = 0;
+            pstat->tx_pkts  = 0; 
+            pstat->tx_bytes = 0;
+
+            plist = plist->next;
+        }
+        priv->mesh_log = 1;
+    }
 _ret:
 
-	return count;
+    return count;
 }
 
 /*
@@ -591,10 +585,15 @@ _ret:
  *
  *	@retval	int: pos:unknow
  */
-int mesh_proc_flow_stats(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_proc_flow_stats_read(struct seq_file *s, void *data)
+#else 
+int mesh_proc_flow_stats_read(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+	struct net_device *dev = PROC_GET_DEV();
+	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
 
 	off_t pos = 0;
 
@@ -618,10 +617,15 @@ int mesh_proc_flow_stats(char *buf, char **start, off_t offset, int length, int 
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_stats(struct seq_file *s, void *data)
+#else 
 int mesh_stats(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+	struct net_device *dev = PROC_GET_DEV();
+	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+
 	int pos = 0;
 	
 	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
@@ -662,33 +666,38 @@ int mesh_stats(char *buf, char **start, off_t offset, int length, int *eof, void
 	return pos;
 }
 
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_pathsel_routetable_info(struct seq_file *s, void *data)
+#else
 int mesh_pathsel_routetable_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
-    struct net_device *dev = (struct net_device *)data;
-    DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+    struct net_device *dev = PROC_GET_DEV();
+    struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+
     int len = 0;
+    int tbl_sz;
+
+#if !defined(CONFIG_RTL_PROC_NEW)
     off_t begin = 0;
     off_t pos = 0;
+    int size;
+#endif
+
+    int isPortal;
     struct path_sel_entry * ptable;
     int i=0, j=0;
 
     struct pann_mpp_tb_entry * mpptable;
-#ifdef __LINUX_2_6__
-    struct timespec now = xtime;
-#else
-    struct timeval now = xtime;
-#endif	
-    //chuangch 2007.09.14
-    //ptable = get_g_pathtable();
+    unsigned long now =  jiffies;
     int num = 1;
+    unsigned long flags;
+
 
     if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-        // sprintf(buf, "-- Mesh Pathselection Route info table -- \n");
-        buf[0] = 0;
         if (!netif_running(dev) )
-        goto _ret;
+            goto _ret;
 
-        //by brian, show the mp itself
         PRINT_ONE(num,  " %d: Mesh route table info...", num++);
         PRINT_ONE("    destMAC: My-self", "%s", 1);
         PRINT_ONE("    nexthopMAC: ---", "%s", 1);
@@ -701,7 +710,7 @@ int mesh_pathsel_routetable_info(char *buf, char **start, off_t offset, int leng
         {
             PRINT_ONE("    portal enable: no", "%s", 1);
         }
-	
+
         PRINT_ONE("    dsn: ---", "%s", 1);
         PRINT_ONE("    metric: ---", "%s", 1);
         PRINT_ONE("    hopcount: ---", "%s", 1);
@@ -710,21 +719,30 @@ int mesh_pathsel_routetable_info(char *buf, char **start, off_t offset, int leng
         PRINT_ONE("    end: ---", "%s", 1);
         PRINT_ONE("    diff: ---", "%s", 1);
         PRINT_ONE("    flag: ---", "%s", 1);
-        	
+
         PRINT_ONE("", "%s", 1);
-       
-        priv = (DRV_PRIV *)priv->mesh_priv_first;             
+
+        
+        #if !defined(CONFIG_RTL_PROC_NEW)
+        size = pos;
+        CHECK_LEN; 
+        pos = len;
+        #endif        
+        
+        priv = (DRV_PRIV *)priv->mesh_priv_first;
+        
+        SAVE_INT_AND_CLI(flags);
+        SMP_LOCK_MESH_PATH(flags);        
         mpptable = (struct pann_mpp_tb_entry *) &(priv->pann_mpp_tb->pann_mpp_pool);        
 
-        ptable = (struct path_sel_entry*)priv->pathsel_table->entry_array[i].data;
-        for(i=0;i<(1 << priv->pathsel_table->table_size_power);i++)
-        {
-            int isPortal=0;
+        tbl_sz = (1 << priv->pathsel_table->table_size_power);
+        for(i=0;i<tbl_sz;i++)
+        {        
+            isPortal=0;                        
             if(priv->pathsel_table->entry_array[i].dirty != 0)
             {			
                 ptable = (struct path_sel_entry*)priv->pathsel_table->entry_array[i].data;
                 PRINT_ONE(num,  " %d: Mesh route table info...", num++);
-                //				PRINT_SINGL_ARG("    isvalid: ", ptable->isvalid, "%x");
                 PRINT_ARRAY_ARG("    destMAC: ",	ptable->destMAC, "%02x", MACADDRLEN);
                 PRINT_ARRAY_ARG("    nexthopMAC: ",	ptable->nexthopMAC, "%02x", MACADDRLEN);
 
@@ -748,41 +766,50 @@ int mesh_pathsel_routetable_info(char *buf, char **start, off_t offset, int leng
                 PRINT_SINGL_ARG("    dsn: ", ptable->dsn, "%u");	// %lu=unsigned long
                 PRINT_SINGL_ARG("    metric: ", ptable->metric, "%u");
                 PRINT_SINGL_ARG("    hopcount: ", ptable->hopcount, "%u");		// %lu=unsigned long
-                //				PRINT_SINGL_ARG("    modify_time: ", ptable->modify_time, "%u");
-
                 PRINT_SINGL_ARG("    start: ", ptable->start, "%u");
                 PRINT_SINGL_ARG("    end: ", ptable->end, "%u");
                 PRINT_SINGL_ARG("    diff: ", ptable->end-ptable->start, "%u");
-                PRINT_SINGL_ARG("    flag: ", ptable->flag, "%d");
-                PRINT_SINGL_ARG("    update_time: ", (int)(now.tv_sec - ptable->update_time.tv_sec), "%d");
+                PRINT_SINGL_ARG("    aging(Sec): ", RTL_JIFFIES_TO_SECOND(now - ptable->update_time), "%ld");
 #ifdef MESH_ROUTE_MAINTENANCE
-                PRINT_SINGL_ARG("    routeMaintain: ", (int)(now.tv_sec - ptable->routeMaintain.tv_sec), "%d");
+                PRINT_SINGL_ARG("    routeMaintain: ", RTL_JIFFIES_TO_SECOND(now - ptable->routeMaintain), "%ld");
 #endif
                 PRINT_SINGL_ARG("    interface: ", ptable->priv->dev->name, "%s");
 			
                 PRINT_ONE("", "%s", 1);
-#if 0 // stanley
-				{
-					unsigned char *p = ptable->destMAC;
-					printk("path to: %02X%02X%02X%02X%02X%02X\n", *(p), *(p+1), *(p+2), *(p+3), *(p+4), *(p+5));
-				}
-#endif
-            }	
-        }	
-    } else
-    PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
 
-    *eof = 1;
+                #if !defined(CONFIG_RTL_PROC_NEW)
+                size = pos - len;
+                CHECK_LEN;
+                pos = len;
+                #endif
+
+            }	
+
+           
+            
+        }	
+
+        RESTORE_INT(flags);
+        SMP_UNLOCK_MESH_PATH(flags);
+    }
+    else {
+        PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+        
+        #if !defined(CONFIG_RTL_PROC_NEW)
+        size = pos;
+        CHECK_LEN;       
+        #endif          
+    }
 
 _ret:
 
+#if !defined(CONFIG_RTL_PROC_NEW)
+    *eof = 1;
     *start = buf + (offset - begin);	/* Start of wanted data */
-
-    len = strlen(buf);
-
     len -= (offset - begin);	/* Start slop */
     if (len > length)
         len = length;	/* Ending slop */
+#endif
 
     return len;
 }
@@ -794,54 +821,74 @@ _ret:
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_proxy_table_info(struct seq_file *s, void *data)
+#else
 int mesh_proxy_table_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
+#ifdef SMP_SYNC
+    unsigned long flags;
+#endif
 
-    struct net_device *dev = (struct net_device *)data;
-    DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+    struct net_device *dev = PROC_GET_DEV();
+    struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+
     int len = 0;
+#if !defined(CONFIG_RTL_PROC_NEW)    
     off_t begin = 0;
     off_t pos = 0;
+    int size;
+#endif
+
     struct proxy_table_entry * ptable_entry;
     int i=0;
     int num;
 
     if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-        // sprintf(buf, "-- Mesh Proxy info -- \n");
-        buf[0] = 0;
         if (!netif_running(dev) )
             goto _ret;
 
-        //ptable = get_g_pathtable();
         num = 1;
         priv = (DRV_PRIV *)priv->mesh_priv_first;
+        SMP_LOCK_MESH_PROXY(flags);    
         for(i = 0; i < (1 << priv->proxy_table->table_size_power); i++)
         {
             if(priv->proxy_table->entry_array[i].dirty != 0)
-            {
+            {               
                 ptable_entry = (struct proxy_table_entry*)priv->proxy_table->entry_array[i].data;
                 PRINT_ONE(num,  " %d: Mesh proxy table info...", num++);
 
                 PRINT_ARRAY_ARG("    STA_MAC: ",	ptable_entry->sta, "%02x", MACADDRLEN);
                 PRINT_ARRAY_ARG("    OWNER_MAC: ",	ptable_entry->owner, "%02x", MACADDRLEN);
                 PRINT_ONE(ptable_entry->aging_time,  "    Aging time: %d", 1);
+
+                #if !defined(CONFIG_RTL_PROC_NEW)
+                size = pos - len;
+                CHECK_LEN;
+                pos = len;
+                #endif
             }
         }	
-    } else
+        SMP_UNLOCK_MESH_PROXY(flags);    
+    } 
+    else {
         PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
-
-    *eof = 1;
+        #if !defined(CONFIG_RTL_PROC_NEW)
+        size = pos;
+        CHECK_LEN;       
+        #endif         
+    }
 
 _ret:
 
-    *start = buf + (offset - begin);	// Start of wanted data
-
-    len = strlen(buf);
-
-    len -= (offset - begin);	// Start slop 
+#if !defined(CONFIG_RTL_PROC_NEW)
+    *eof = 1;
+    *start = buf + (offset - begin);	/* Start of wanted data */
+    len -= (offset - begin);	/* Start slop */
     if (len > length)
-        len = length;	// Ending slop
-
+        len = length;	/* Ending slop */
+#endif
     return len;
 }
 
@@ -853,48 +900,57 @@ _ret:
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_root_info(struct seq_file *s, void *data)
+#else
 int mesh_root_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+#endif
 {
 
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
-	int len = 0;
-	off_t begin = 0;
-	off_t pos = 0;
+    struct net_device *dev = PROC_GET_DEV();
+    struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
 
-	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-		// sprintf(buf, "-- Mesh Root Info -- \n");
-		buf[0] = 0;
-		if (!netif_running(dev) )
-			goto _ret;
-		
-		PRINT_ARRAY_ARG("    ROOT_MAC: ",	priv->root_mac, "%02x", MACADDRLEN);
-	} else
-		PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+    int len = 0;
+#if !defined(CONFIG_RTL_PROC_NEW)      
+    off_t begin = 0;
+    off_t pos = 0;
+    int size;
+#endif
+    if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
+        if (!netif_running(dev) )
+            goto _ret;		
+        PRINT_ARRAY_ARG("    ROOT_MAC: ",	priv->root_mac, "%02x", MACADDRLEN);
+    } else {
+        PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);  
+    }
 
-	*eof = 1;
+    #if !defined(CONFIG_RTL_PROC_NEW)      
+    size = pos;
+    CHECK_LEN;
+    #endif
 
 _ret:
-	
-	*start = buf + (offset - begin);	// Start of wanted data
 
-	len = strlen(buf);
+#if !defined(CONFIG_RTL_PROC_NEW)	
+    *eof = 1;
+    *start = buf + (offset - begin);	/* Start of wanted data */
+    len -= (offset - begin);	/* Start slop */
+    if (len > length)
+        len = length;	/* Ending slop */
+#endif
 
-	len -= (offset - begin);	// Start slop 
-	if (len > length)
-		len = length;	// Ending slop
-
-	return len;
+    return len;
 }
 
-int mesh_vlan_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
-{
-	struct net_device *dev = (struct net_device *)data;
-#ifdef NETDEV_NO_PRIV
-	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_vlan_info(struct seq_file *s, void *data)
 #else
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+int mesh_vlan_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
 #endif
+{
+	struct net_device *dev = PROC_GET_DEV();
+	struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
+
 	int pos = 0;
 
 	PRINT_ONE("  vlan setting...", "%s", 1);
@@ -919,74 +975,94 @@ int mesh_vlan_info(char *buf, char **start, off_t offset, int length, int *eof, 
  *
  *	@retval	int: pos:Unknow
  */
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_portal_table_info(struct seq_file *s, void *data)
+#else
 int mesh_portal_table_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
-{
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
-	int len = 0;
-	off_t begin = 0;
-	off_t pos = 0;
-	struct pann_mpp_tb_entry * ptable;
-	int i=0;
-	int num;
-    
-	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-		// sprintf(buf, "-- Mesh Portal info table -- \n");
-		buf[0] = 0;
-		if (!netif_running(dev) )
-			goto _ret;
-        
-        priv = (DRV_PRIV *)priv->mesh_priv_first;        	
-		ptable = (struct pann_mpp_tb_entry *) &(priv->pann_mpp_tb->pann_mpp_pool);
-		num = 1;
-
-		PRINT_SINGL_ARG("Portal enable: ", priv->pmib->dot1180211sInfo.mesh_portal_enable, "%u");
-
-		if(priv->pmib->dot1180211sInfo.mesh_portal_enable)
-		{			
-			PRINT_ONE(num,  " %d: Mesh portal table info...", num++);
-			if( priv->pmib->dot1180211sInfo.mesh_portal_enable )
-			{
-				PRINT_ARRAY_ARG("    PortalMAC: ",	priv->pmib->dot11OperationEntry.hwaddr, "%02x", MACADDRLEN);		
-				PRINT_SINGL_ARG("    timeout: ", 99, "%u");
-				PRINT_SINGL_ARG("    seqNum: ", 99, "%u");			
-				PRINT_ONE("", "%s", 1);
-			}
-		}
-		
-		for(i=0;i<MAX_MPP_NUM;i++)
-		{
-			if(ptable[i].flag)
-			{			
-				PRINT_ONE(num,  " %d: Mesh portal table info...", num++);				
-				PRINT_ARRAY_ARG("    PortalMAC: ",	ptable[i].mac, "%02x", MACADDRLEN);		
-				PRINT_SINGL_ARG("    timeout: ", ptable[i].timeout, "%u");	// %lu=unsigned long
-				PRINT_SINGL_ARG("    seqNum: ", ptable[i].seqNum, "%u");
-//				PRINT_SINGL_ARG("    flag: ", ptable[i].flag, "%u");		// %lu=unsigned long
-//				PRINT_SINGL_ARG("    modify_time: ", ptable[i].modify_time, "%u");
-			
-				PRINT_ONE("", "%s", 1);
-#if 0 // stanley
-				printk("portal: %02X%02X%02X%02X%02X%02X\n", *(ptable[i].mac), *(ptable[i].mac+1), *(ptable[i].mac+2), *(ptable[i].mac+3), *(ptable[i].mac+4), *(ptable[i].mac+5));
 #endif
-			}	
-		}	
-	} else
-		PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+{
+    struct net_device *dev = PROC_GET_DEV();
+    struct rtl8192cd_priv *priv = GET_DEV_PRIV(dev);
 
-	*eof = 1;
+    int len = 0;
+#if !defined(CONFIG_RTL_PROC_NEW)          
+    off_t begin = 0;
+    off_t pos = 0;
+    int size;
+#endif    
+    struct pann_mpp_tb_entry * ptable;
+    int i=0;
+    int num;
+    
+    if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
+        if (!netif_running(dev) )
+            goto _ret;
+
+        priv = (DRV_PRIV *)priv->mesh_priv_first;        	
+        ptable = (struct pann_mpp_tb_entry *) &(priv->pann_mpp_tb->pann_mpp_pool);
+        num = 1;
+
+        PRINT_SINGL_ARG("Portal enable: ", priv->pmib->dot1180211sInfo.mesh_portal_enable, "%u");
+
+        if(priv->pmib->dot1180211sInfo.mesh_portal_enable)
+        {			
+            PRINT_ONE(num,  " %d: Mesh portal table info...", num++);
+            if( priv->pmib->dot1180211sInfo.mesh_portal_enable )
+            {
+                PRINT_ARRAY_ARG("    PortalMAC: ",	priv->pmib->dot11OperationEntry.hwaddr, "%02x", MACADDRLEN);		
+                PRINT_SINGL_ARG("    timeout: ", 99, "%u");
+                PRINT_SINGL_ARG("    seqNum: ", 99, "%u");			
+                PRINT_ONE("", "%s", 1);
+            }
+        }
+        
+        #if !defined(CONFIG_RTL_PROC_NEW)      
+        size = pos;
+        CHECK_LEN;
+        pos = len;
+        #endif
+        
+        for(i=0;i<MAX_MPP_NUM;i++)
+        {
+            if(ptable[i].flag)
+            {			
+                PRINT_ONE(num,  " %d: Mesh portal table info...", num++);				
+                PRINT_ARRAY_ARG("    PortalMAC: ",	ptable[i].mac, "%02x", MACADDRLEN);		
+                PRINT_SINGL_ARG("    timeout: ", ptable[i].timeout, "%u");	// %lu=unsigned long
+                PRINT_SINGL_ARG("    seqNum: ", ptable[i].seqNum, "%u");
+                PRINT_ONE("", "%s", 1);
+            
+                #if !defined(CONFIG_RTL_PROC_NEW)      
+                size = pos - len;
+                CHECK_LEN;
+                pos = len;
+                #endif
+
+
+            }	
+        }	
+    }
+    else {
+        PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+        
+        #if !defined(CONFIG_RTL_PROC_NEW)      
+        size = pos;
+        CHECK_LEN;
+        #endif
+    }
+
 
 _ret:
-	
-	*start = buf + (offset - begin);	// Start of wanted data
 
-	len = strlen(buf);
+#if !defined(CONFIG_RTL_PROC_NEW)	
+    *eof = 1;
+    *start = buf + (offset - begin);	/* Start of wanted data */
+    len -= (offset - begin);	/* Start slop */
+    if (len > length)
+        len = length;	/* Ending slop */
+#endif
 
-	len -= (offset - begin);	// Start slop 
-	if (len > length)
-		len = length;	// Ending slop
-
-	return len;
+    return len;
 }
 
 #ifdef MESH_USE_METRICOP
@@ -1009,151 +1085,32 @@ int mesh_metric_w (struct file *file, const char *buffer, unsigned long count, v
 
 	return count;
 }
-int mesh_metric_r(char *buffer, char **buffer_location, off_t offset, int buffer_length, int *eof, void *data)
-{
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
 
-	int ret;
-	if (offset > 0) {
-		/* we have finished to read, return 0 */
-		ret  = 0;
-	} else {
-		sprintf(buffer, "metric method=%d\n", priv->mesh_fake_mib.metricID);
-		ret = strlen(buffer);
-	}
-	return ret;
+#ifdef CONFIG_RTL_PROC_NEW
+int mesh_metric_r(struct seq_file *s, void *data)
+#else
+int mesh_metric_r(char *buffer, char **buffer_location, off_t offset, int buffer_length, int *eof, void *data)
+#endif
+{
+    struct net_device *dev = (struct net_device *)data;
+    DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+
+    int ret = 0;
+    if (offset > 0) {
+        /* we have finished to read, return 0 */
+        ret  = 0;
+    } else {
+        #if defined(CONFIG_RTL_PROC_NEW)
+        seq_printf(s, "metric method=%d\n", priv->mesh_fake_mib.metricID);
+        #else
+        sprintf(buffer, "metric method=%d\n", priv->mesh_fake_mib.metricID);
+        ret = strlen(buffer);
+        #endif
+    }
+    return ret;
 }
 #endif // MESH_USE_METRICOP
 
-#if DBG_NCTU_MESH
-int g_nctu_mesh_dbg = 0;
-int mesh_setDebugLevel (struct file *file, const char *buffer, unsigned long count, void *data)
-{
-    unsigned char x[10];
-    unsigned char local_buf[19];
-    if ( copy_from_user((void *)local_buf, (const void *)buffer, count) ) {
-        return count;
-    }
-
-    if(count>0)
-    {
-        int len,i;
-        memset(x, 0, sizeof(x));
-        memcpy(x, local_buf, (count>(sizeof(x)-1))?sizeof(x)-1:count);
-
-        len = strlen(x);
-
-        g_nctu_mesh_dbg = 0;
-        for(i=0;i<len;i++)
-        {
-            if((*(x+i)>'9') || (*(x+i)<'0'))
-                continue;
-            g_nctu_mesh_dbg = g_nctu_mesh_dbg*10 + (*(x+i)-'0');
-        }
-    }
-    printk("@@@ debug level: %d\n", g_nctu_mesh_dbg);
-
-    return count;
-}
-
-/*
-	0: br_input: all packets
-	1: icmp module
-	2: arp module
-	3: eth0 - icmp, arp
-	4: tx: icmp, arp
-	5: rx: icmp, arp
-	8: fake hangup (by using beacon_hangup)
-	9: tx trace
-	10: tx misc error
-*/
-
-int mesh_hasDebugLevel (int lv) {
-	return (g_nctu_mesh_dbg & (1<<lv));
-}
-int mesh_clearDebugLevel (int lv) {
-	g_nctu_mesh_dbg ^= (1<<lv);
-	return g_nctu_mesh_dbg;
-}
-EXPORT_SYMBOL(hasMeshDebugLevel);
-
-
-static atomic_t allskbs[20];
-static unsigned char tagmag[2] = {0xA5, 0x5A};
-static unsigned char tagmag2[2] = {0x46, 0x6d};
-
-int mesh_incMySkb(UINT8 type)
-{
-	if(type>=(sizeof(allskbs)/sizeof(atomic_t)))
-		return 0;
-	atomic_inc(&allskbs[type]);
-	return atomic_read(&allskbs[type]);
-}
-int mesh_isMySkb(struct sk_buff *skb)
-{
-	UINT8 type;
-	if(memcmp(&(skb->cb[15]), tagmag, sizeof(tagmag)))
-		return -1;
-	if(memcmp(&(skb->cb[15+sizeof(tagmag)+sizeof(UINT8)]), tagmag2, sizeof(tagmag2)))
-		return -1;
-	type = skb->cb[15+sizeof(tagmag)];
-	if(type>=(sizeof(allskbs)/sizeof(atomic_t)))
-		return -1;
-	return (int)type;
-}
-
-int mesh_decMySkb(struct sk_buff *skb)
-{
-	UINT8 type;
-	if(memcmp(&(skb->cb[15]), tagmag, sizeof(tagmag)))
-		return 0;
-	if(memcmp(&(skb->cb[15+sizeof(tagmag)+sizeof(UINT8)]), tagmag2, sizeof(tagmag2)))
-		return 0;
-
-	memset(&(skb->cb[15]), 0, sizeof(tagmag));
-	memset(&(skb->cb[15+sizeof(tagmag)+sizeof(UINT8)]), 0, sizeof(tagmag2));
-
-	type = skb->cb[15+sizeof(tagmag)];
-	if(type>=(sizeof(allskbs)/sizeof(atomic_t)))
-		return 0;
-	atomic_dec(&allskbs[type]);
-	return atomic_read(&allskbs[type]);
-}
-
-int mesh_tagMySkb(struct sk_buff *skb, UINT8 type)
-{
-	// if(isMySkb(skb))
-		mesh_decMySkb(skb);
-	memcpy(&(skb->cb[15]), tagmag, sizeof(tagmag));
-	memcpy(&(skb->cb[15+sizeof(tagmag)+sizeof(UINT8)]), tagmag2, sizeof(tagmag2));
-
-	skb->cb[15+sizeof(tagmag)] = type;
-	return mesh_incMySkb(type);
-}
-
-int mesh_showSpecificSkbs(UINT8 type)
-{
-	return atomic_read(&allskbs[type]);
-}
-
-// EXPORT_SYMBOL(tagMySkb);
-EXPORT_SYMBOL(mesh_incMySkb);
-EXPORT_SYMBOL(mesh_decMySkb);
-EXPORT_SYMBOL(mesh_isMySkb);
-int mesh_showAllSkbs(char *buf, char **start, off_t offset, int length, int *eof, void *data)
-{
-	int i;
-	for (i=0;i<(sizeof(allskbs)/sizeof(int));i++)
-	{
-		printk("Type %d: count=%d   ", i, atomic_read(&allskbs[i]));
-		if(i && ((i%3) == 0)) printk("\n");
-	}
-
-	return 0;
-}
-
-#endif // DBG_NCTU_MESH
 
 #ifdef _MESH_DEBUG_
 /*

@@ -31,12 +31,7 @@ extern u1Byte *data_PHY_REG_8881AMP_start,    *data_PHY_REG_8881AMP_end;
 
 extern u1Byte *data_AGC_TAB_8881Am_start,    *data_AGC_TAB_8881Am_end;
 extern u1Byte *data_AGC_TAB_8881ABP_start,    *data_AGC_TAB_8881ABP_end;
-#ifdef CONFIG_8881A_2LAYER
-extern u1Byte *data_AGC_TAB_8881AMP_2layer_start,    *data_AGC_TAB_8881AMP_2layer_end;
-#endif
 extern u1Byte *data_AGC_TAB_8881AMP_start,    *data_AGC_TAB_8881AMP_end;
-
-
 extern u1Byte *data_AGC_TAB_8881AN_start, *data_AGC_TAB_8881AN_end;
 extern u1Byte *data_AGC_TAB_8881ABP_intpa_start,    *data_AGC_TAB_8881ABP_intpa_end;
 extern u1Byte *data_AGC_TAB_8881AMP_intpa_start,    *data_AGC_TAB_8881AMP_intpa_end;
@@ -45,9 +40,6 @@ extern u1Byte *data_AGC_TAB_8881AN_extpa_start, *data_AGC_TAB_8881AN_extpa_end;
 extern u1Byte *data_RadioA_8881Am_start,     *data_RadioA_8881Am_end;
 extern u1Byte *data_RadioA_8881ABP_start,     *data_RadioA_8881ABP_end;
 extern u1Byte *data_RadioA_8881AMP_start,     *data_RadioA_8881AMP_end;
-#ifdef CONFIG_8881A_2LAYER
-extern u1Byte *data_RadioA_8881AMP_2layer_start,    *data_RadioA_8881AMP_2layer_end;
-#endif
 extern u1Byte *data_RadioA_8881AN_start,     *data_RadioA_8881AN_end;
 extern u1Byte *data_RadioA_8881ABP_intpa_start,     *data_RadioA_8881ABP_intpa_end;
 extern u1Byte *data_RadioA_8881AMP_intpa_start,     *data_RadioA_8881AMP_intpa_end;
@@ -69,7 +61,6 @@ extern u1Byte *data_PHY_REG_PG_8881AN_start, *data_PHY_REG_PG_8881AN_end;
 extern u1Byte *data_PHY_REG_PG_8881AMP_intpa_start, *data_PHY_REG_PG_8881AMP_intpa_end;
 extern u1Byte *data_PHY_REG_PG_8881ABP_intpa_start, *data_PHY_REG_PG_8881ABP_intpa_end;
 extern u1Byte *data_PHY_REG_PG_8881AN_extpa_start, *data_PHY_REG_PG_8881AN_extpa_end;
-
 #ifdef TXPWR_LMT_8881A
 extern unsigned char *data_TXPWR_LMT_8881A_new_start, *data_TXPWR_LMT_8881A_new_end;
 extern unsigned char *data_TXPWR_LMT_8881AMP_start, *data_TXPWR_LMT_8881AMP_end;

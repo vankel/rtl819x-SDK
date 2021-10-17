@@ -490,6 +490,13 @@ typedef struct rtk_stat_port_cntr_s
     uint32 ifInBroadcastPkts;
 }rtk_stat_port_cntr_t;
 
+extern int rtk_stat_global_reset(void);
+extern int rtk_stat_port_getAll(uint32 port, rtk_stat_port_cntr_t *pPort_cntrs);
+extern int RTL8367R_vlan_set(void);
+extern void RTL8367R_cpu_tag(int enable);
+#endif
+
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 typedef struct  rtk_port_mac_ability_s
 {
     uint32 forcemode;
@@ -502,11 +509,52 @@ typedef struct  rtk_port_mac_ability_s
     uint32 lpi100;
     uint32 lpi1000;   
 }rtk_port_mac_ability_t;
+#endif
+
+#ifdef CONFIG_RTL_8370_SUPPORT
+/* port statistic counter structure */
+typedef struct rtk_stat_port_cntr_s
+{
+    uint64 ifInOctets;
+    uint32 dot3StatsFCSErrors;
+    uint32 dot3StatsSymbolErrors;
+    uint32 dot3InPauseFrames;
+    uint32 dot3ControlInUnknownOpcodes;
+    uint32 etherStatsFragments;
+    uint32 etherStatsJabbers;
+    uint32 ifInUcastPkts;
+    uint32 etherStatsDropEvents;
+    uint64 etherStatsOctets;
+    uint32 etherStatsUndersizePkts;
+    uint32 etherStatsOversizePkts;
+    uint32 etherStatsPkts64Octets;
+    uint32 etherStatsPkts65to127Octets;
+    uint32 etherStatsPkts128to255Octets;
+    uint32 etherStatsPkts256to511Octets;
+    uint32 etherStatsPkts512to1023Octets;
+    uint32 etherStatsPkts1024toMaxOctets;
+    uint32 etherStatsMcastPkts;
+    uint32 etherStatsBcastPkts;	
+    uint64 ifOutOctets;
+    uint32 dot3StatsSingleCollisionFrames;
+    uint32 dot3StatsMultipleCollisionFrames;
+    uint32 dot3StatsDeferredTransmissions;
+    uint32 dot3StatsLateCollisions;
+    uint32 etherStatsCollisions;
+    uint32 dot3StatsExcessiveCollisions;
+    uint32 dot3OutPauseFrames;
+    uint32 dot1dBasePortDelayExceededDiscards;
+    uint32 dot1dTpPortInDiscards;
+    uint32 ifOutUcastPkts;
+    uint32 ifOutMulticastPkts;
+    uint32 ifOutBrocastPkts;
+    uint32 outOampduPkts;
+    uint32 inOampduPkts;
+    uint32 pktgenPkts;
+}rtk_stat_port_cntr_t;
 
 extern int rtk_stat_global_reset(void);
 extern int rtk_stat_port_getAll(uint32 port, rtk_stat_port_cntr_t *pPort_cntrs);
-extern int RTL8367R_vlan_set(void);
-extern void RTL8367R_cpu_tag(int enable);
 #endif
 
 #endif

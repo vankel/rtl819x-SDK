@@ -18,10 +18,8 @@ clean:
 			rm -f libbridge.a
 
 libbridge.a:		libbridge_compat.o libbridge_devif.o libbridge_if.o libbridge_init.o libbridge_misc.o
-			#ar rcs libbridge.a libbridge_compat.o libbridge_devif.o libbridge_if.o libbridge_init.o libbridge_misc.o
-			#ranlib libbridge.a
-			$(CROSS_COMPILE)ar rcs libbridge.a libbridge_compat.o libbridge_devif.o libbridge_if.o libbridge_init.o libbridge_misc.o
-			$(CROSS_COMPILE)ranlib libbridge.a
+			ar rcs libbridge.a libbridge_compat.o libbridge_devif.o libbridge_if.o libbridge_init.o libbridge_misc.o
+			ranlib libbridge.a
 
 libbridge_compat.o:	libbridge_compat.c if_index.c
 			$(CC) $(CFLAGS) -c libbridge_compat.c

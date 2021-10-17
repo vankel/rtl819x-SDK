@@ -255,8 +255,8 @@ struct ucred {
 
 #define MSG_FASTOPEN	0x20000000	/* Send data in TCP SYN */
 #ifdef CONFIG_RTL_SENDFILE_PATCH
-#define MSG_KERNSPACE   0x20000
-#define MSG_NOCATCHSIG  0x40000
+#define MSG_KERNSPACE                   0x10000
+#define MSG_NOCATCHSIGNAL               0x20000
 #endif /* CONFIG_RTL_SENDFILE_PATCH */
 #define MSG_CMSG_CLOEXEC 0x40000000	/* Set close_on_exit for file
 					   descriptor received through

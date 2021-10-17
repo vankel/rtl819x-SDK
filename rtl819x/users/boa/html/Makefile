@@ -49,6 +49,10 @@ EXCLUDE_FILES += ! -name administration.htm ! -name disk.htm ! -name storage_cre
 EXCLUDE_FILES += ! -name storage_createuser.htm ! -name storage_editgroup.htm ! -name storage_edituser.htm
 endif
 
+ifneq ($(CONFIG_RTL_11R_SUPPORT),y)
+EXCLUDE_FILES += ! -name wlft.htm
+endif
+
 # routing support
 ifneq ($(CONFIG_APP_ROUTED),y)
 EXCLUDE_FILES += ! -name route.htm ! -name routetbl.htm
@@ -92,6 +96,10 @@ endif
 
 ifneq ($(CONFIG_APP_CTORRENT), y)
 EXCLUDE_FILES += ! -name bt.htm ! -name btnewtorrent.htm ! -name btclient.htm
+endif
+
+ifneq ($(CONFIG_APP_TRANSMISSION), y)
+EXCLUDE_FILES += ! -name transmission.htm
 endif
 
 #ifneq ($(CONFIG_RTL_P2P_SUPPORT),y)
@@ -142,7 +150,7 @@ endif
 endif
 
 ifneq ($(CONFIG_APP_TR069),y)
-EXCLUDE_FILES += ! -name share.js ! -name tr069config.htm
+EXCLUDE_FILES +=  ! -name tr069config.htm
 endif
 
 ifeq ($(CONFIG_APP_RTK_VOIP),y)
@@ -152,6 +160,9 @@ ifeq ($(CONFIG_APP_RTK_VOIP),y)
 endif
 ifneq ($(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT),y)
 EXCLUDE_FILES += ! -name vlan_wan.htm
+endif
+ifneq ($(CONFIG_APP_CPU_UTILIZATION), y)
+EXCLUDE_FILES += ! -name cpuShow.htm ! -name right.gif ! -name left.gif
 endif
 
 ifeq ($(CONFIG_RTL_BT_CLIENT),y)

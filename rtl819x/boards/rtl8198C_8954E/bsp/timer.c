@@ -108,7 +108,6 @@ void __init bsp_timer_init(void)
 	write_c0_count(0);
 	mips_clockevent_init(cp0_compare_irq);
 	mips_clocksource_init();
-
 #if CONFIG_RTL_WTDOG	
 	REG32(BSP_CDBR)=(BSP_DIVISOR) << BSP_DIVF_OFFSET;
 #ifndef CONFIG_RTL_USERSPACE_WTDOG 
@@ -117,7 +116,6 @@ void __init bsp_timer_init(void)
 	bsp_enable_watchdog0();
 #endif
 #endif
-
 }
 #endif /* CONFIG_CEVT_R4K */
 
@@ -132,5 +130,21 @@ void timer1_disable(void)
 {
 	printk( "timer1_disable not implement!!\n" );
 }
+
+#ifdef CONFIG_RTL_WTDOG
+int bBspWatchdog = 0;
+
+void bsp_enable_watchdog( void )
+{
+	bBspWatchdog = 1;
+	*(volatile unsigned long *)(0xb800311C)=0x00600000;
+}
+
+void bsp_disable_watchdog( void )
+{
+	*(volatile unsigned long *)(0xb800311C)=0xA5600000;
+	bBspWatchdog = 0;
+}
+#endif // CONFIG_RTL_WTDOG
 
 #endif  // CONFIG_RTK_VOIP

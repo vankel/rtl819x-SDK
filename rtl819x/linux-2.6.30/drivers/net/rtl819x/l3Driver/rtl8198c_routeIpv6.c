@@ -103,7 +103,7 @@ static int32 _rtl8198c_synIpv6RouteToAsic(rtl8198c_ipv6_route_t *rt_t)
 
 	memcpy(&asic_t.ipAddr, &rt_t->ipAddr, sizeof(inv6_addr_t));
 	asic_t.ipMask = rt_t->fc_dst_len;
-	
+
 	/*if the dstNetif is attach on another interface, the netifIdx should the master interface's index*/
 	if (rt_t->dstNetif->is_slave == 1) {
 		//printk("========%s(%d), ip(0x%x),mask(0x%x),netif(%s)\n",__FUNCTION__,__LINE__,rt_t->ipAddr,rt_t->ipMask,rt_t->dstNetif->name);
@@ -432,7 +432,16 @@ static int32 _rtl8198c_addIpv6Route(inv6_addr_t ipAddr, int fc_dst_len, inv6_add
 	
 	if (netif->if_type == IF_NONE)
 		return RTL_ENOLLTYPESPECIFY;
-	
+#if 0
+	printk("%s.%d.ipAddr(0x%4x%4x%4x%4x%4x%4x%4x%4x),fc_dst_len(%d)nextHop(0x%4x%4x%4x%4x%4x%4x%4x%4x),ifName(%s)\n",
+		__FUNCTION__,__LINE__,
+		ipAddr.v6_addr16[0],ipAddr.v6_addr16[1],ipAddr.v6_addr16[2],ipAddr.v6_addr16[3],
+		ipAddr.v6_addr16[4],ipAddr.v6_addr16[5],ipAddr.v6_addr16[6],ipAddr.v6_addr16[7],
+		fc_dst_len,
+		nextHop.v6_addr16[0],nextHop.v6_addr16[1],nextHop.v6_addr16[2],nextHop.v6_addr16[3],
+		nextHop.v6_addr16[4],nextHop.v6_addr16[5],nextHop.v6_addr16[6],nextHop.v6_addr16[7],
+		ifName);
+#endif
 	/*
 	*duplicate entry check:
 	*	in Driver system, default route is always exist.
@@ -495,12 +504,13 @@ static int32 _rtl8198c_addIpv6Route(inv6_addr_t ipAddr, int fc_dst_len, inv6_add
 	/*don't specify the nexthop ip address, it's means that:
 	* all packet match this route entry should be forward by network interface with arp
 	*/
-
+	
 	if (((nextHop.v6_addr32[0]==0)&&(nextHop.v6_addr32[1]==0)&&(nextHop.v6_addr32[2]==0)&&(nextHop.v6_addr32[3]==0)) && (fc_dst_len != 0)) {
 		
 		switch(netif->if_type)
 		{
 			case IF_ETHER:
+				//printk("%s,%d.add arp info to asic ...........\n",__FUNCTION__,__LINE__);
 				rt->process = IPV6_RT_ARP;
 				/*rt->arp.subnetIdx will be updated as rt->asicIdx later in _rtl865x_arrangeRoute*/ 
 				break;
@@ -540,7 +550,6 @@ static int32 _rtl8198c_addIpv6Route(inv6_addr_t ipAddr, int fc_dst_len, inv6_add
 					rt->un.direct.macInfo = &ppp->server_mac;
 				}
 				break;
-
 			default:
 				printk("Ipv6 lltype(%d) is not support now....\n", netif->if_type);
 				goto addFailed;
@@ -569,7 +578,7 @@ static int32 _rtl8198c_addIpv6Route(inv6_addr_t ipAddr, int fc_dst_len, inv6_add
 		{
 		
 		/*use nexthop type*/
-		rt->process = IPV6_RT_NEXTHOP;			
+		rt->process = IPV6_RT_NEXTHOP;
 		switch(netif->if_type)
 		{
 			case IF_ETHER:
@@ -598,8 +607,7 @@ static int32 _rtl8198c_addIpv6Route(inv6_addr_t ipAddr, int fc_dst_len, inv6_add
 
 			default:
 				retval = FAILED;
-				break;
-				
+				break;				
 		}
 		
 		if (retval != SUCCESS) {
@@ -624,7 +632,7 @@ static int32 _rtl8198c_addIpv6Route(inv6_addr_t ipAddr, int fc_dst_len, inv6_add
 		retval = _rtl8198c_synIpv6RouteToAsic(rt);
 	}
 	else {		
-		/*insert the adding route to inused list*/
+		/*insert the adding route to inused list*/	
 		retval = _rtl8198c_addIpv6RouteToInusedList(rt);		
 	}
 
@@ -646,7 +654,6 @@ addFailed:
 		rt->next = rtl8198c_ipv6_route_freeHead;
 		rtl8198c_ipv6_route_freeHead = rt;
 	}
-	
 	return retval;
 }
 
@@ -780,15 +787,13 @@ int32 rtl8198c_addIpv6Route(inv6_addr_t ipAddr, int fc_dst_len, inv6_addr_t next
 {
 	int32 retval = 0;
 	unsigned long flags=0;	
-//	printk("========%s(%d), ip(%08x:%08x:%08x:%08x),fc_dst_len(%d),ifname(%s),nxthop(%08x:%08x:%08x:%08x)\n",__FUNCTION__,__LINE__,
-//		ipAddr.v6_addr32[0], ipAddr.v6_addr32[1],ipAddr.v6_addr32[2],ipAddr.v6_addr32[3],fc_dst_len,ifName,nextHop.v6_addr32[0],
-//		nextHop.v6_addr32[1], nextHop.v6_addr32[2], nextHop.v6_addr32[3]);
+	//printk("========%s(%d), ip(0x%x%x%x%x),fc_dst_len(%d),ifname(%s),nxthop(0x%x)\n",__FUNCTION__,__LINE__,
+		//ipAddr.s6_addr32[0], ipAddr.s6_addr32[1],ipAddr.s6_addr32[2],ipAddr.s6_addr32[3],fc_dst_len,ifName,nextHop);
 	SMP_LOCK_ETH(flags);
 	retval = _rtl8198c_addIpv6Route(ipAddr,fc_dst_len,nextHop,ifName);		
 	SMP_UNLOCK_ETH(flags);	
-//	printk("========%s(%d), ip(%08x:%08x:%08x:%08x),fc_dst_len(%d),ifname(%s),nxthop(%08x:%08x:%08x:%08x),retval(%d)\n",__FUNCTION__,__LINE__,
-//		ipAddr.v6_addr32[0], ipAddr.v6_addr32[1],ipAddr.v6_addr32[2],ipAddr.v6_addr32[3],fc_dst_len,ifName,nextHop.v6_addr32[0],
-//		nextHop.v6_addr32[1], nextHop.v6_addr32[2], nextHop.v6_addr32[3], retval);
+	//printk("========%s(%d), ip(0x%x%x%x%x),fc_dst_len(%d),ifname(%s),nxthop(0x%x),retval(%d)\n",__FUNCTION__,__LINE__,
+		//ipAddr.s6_addr32[0], ipAddr.s6_addr32[1],ipAddr.s6_addr32[2],ipAddr.s6_addr32[3],,fc_dst_len,ifName,nextHop,retval);
 	return retval;
 }
 /*

@@ -331,19 +331,11 @@ void realtek_cfg80211_inform_bss(struct rtl8192cd_priv *priv)
 
 	if(bss)
 		cfg80211_put_bss(wiphy, bss);
-	else {
-		//printk("%s bss = null\n",__func__);
-	}
+	else
+		printk("bss = null\n");
+
 }
 
-
-#if !defined(SIGNAL_TYPE_UNSPEC)
-int translate_ss_result_rssi(int rssi)
-{
-	//reference libiwinfo/iwinfo_nl80211.c - scan_cb
-	return ((rssi-100+0x100)*100);
-}
-#endif
 
 void realtek_cfg80211_inform_ss_result(struct rtl8192cd_priv *priv)
 {
@@ -367,11 +359,11 @@ void realtek_cfg80211_inform_ss_result(struct rtl8192cd_priv *priv)
 		UINT8 *mac = priv->site_survey->bss[i].bssid;
 		unsigned long timestamp = 0;
 		unsigned char report_ie[MAX_IE_LEN];
-		unsigned int report_ie_len = 0;
+		unsigned char report_ie_len = 0;
 		unsigned char wpa_ie_len = priv->site_survey->bss[i].wpa_ie_len;
 		unsigned char rsn_ie_len = priv->site_survey->bss[i].rsn_ie_len;
-		unsigned char wps_ie_len = priv->site_survey->wscie[i].wps_ie_len; //wrt-wps-clnt        
-		unsigned char rtk_p2p_ie_len = priv->site_survey->rtk_p2p_ie[i].p2p_ie_len; //wrt-wps-clnt       
+		unsigned char wps_ie_len = (priv->site_survey->bss[i].wscie_len); //wrt-wps-clnt        
+		unsigned char rtk_p2p_ie_len = (priv->site_survey->bss[i].p2p_ie_len); //wrt-wps-clnt        
 		unsigned int  freq = 0;
 
 		channel = rtk_get_iee80211_channel(wiphy, priv->site_survey->bss[i].channel);
@@ -410,26 +402,27 @@ void realtek_cfg80211_inform_ss_result(struct rtl8192cd_priv *priv)
 
             if(wps_ie_len)
             {
-                memcpy(report_ie+report_ie_len, priv->site_survey->wscie[i].data, wps_ie_len);
+            
+                memcpy(report_ie+report_ie_len, priv->site_survey->bss[i].wscie, wps_ie_len);
                 report_ie_len += wps_ie_len;
-                //NDEBUG("bss include wps ie[%d]\n",wps_ie_len);
+                NDEBUG2("bss include wps ie[%d]\n",wps_ie_len);
             }
 
 			if(rtk_p2p_ie_len)
 			{
-				memcpy(report_ie+report_ie_len, priv->site_survey->rtk_p2p_ie[i].data, rtk_p2p_ie_len);
+				memcpy(report_ie+report_ie_len, priv->site_survey->bss[i].p2p_ie, rtk_p2p_ie_len);
 				report_ie_len += rtk_p2p_ie_len;
-                //NDEBUG("scan include p2p ie[%d]\n",rtk_p2p_ie_len);
+                NDEBUG2("scan include p2p ie[%d]\n",rtk_p2p_ie_len);
 			}
 
             
 		}
 		else{
-			printk("report_ie_len too long !!!\n");
+			NDEBUG("report_ie_len too long !!!\n");
         }
 
 		#if 0
-		printk("[%d=%s] %03d 0x%08x 0x%02x %d ie_len=%d rssi=%d\n", i, priv->site_survey->bss[i].ssid, 
+		printk("[%d=%s] %03d 0x%08x 0x%02x %d %d %d\n", i, priv->site_survey->bss[i].ssid, 
 			channel->hw_value, timestamp, 
 			priv->site_survey->bss[i].capability, 
 			priv->site_survey->bss[i].beacon_prd, report_ie_len, 
@@ -438,20 +431,18 @@ void realtek_cfg80211_inform_ss_result(struct rtl8192cd_priv *priv)
 
 		bss = cfg80211_inform_bss(wiphy, channel, mac, timestamp, 
 				priv->site_survey->bss[i].capability, 
-				priv->site_survey->bss[i].beacon_prd,
-#if defined(SIGNAL_TYPE_UNSPEC)
+				priv->site_survey->bss[i].beacon_prd, 
 				report_ie, report_ie_len, priv->site_survey->bss[i].rssi, GFP_ATOMIC);
-#else
-				report_ie, report_ie_len, translate_ss_result_rssi(priv->site_survey->bss[i].rssi), GFP_ATOMIC);
-#endif
 
 		if(bss)
 			cfg80211_put_bss(wiphy, bss);
-		else {
-			//printk("%s bss = null\n",__func__);
-		}
+		else
+			printk("bss = null\n");
+
 	}
 }
+
+
 
 // static void realtek_cfg80211_sscan_disable(struct rtl8192cd_priv *priv) rename to easy understand name rtk_abort_scan
 static void rtk_abort_scan(struct rtl8192cd_priv *priv, enum scan_abort_case abort_case) 
@@ -466,14 +457,7 @@ static void rtk_abort_scan(struct rtl8192cd_priv *priv, enum scan_abort_case abo
 		priv_root->ss_req_ongoing = 0;
 		priv_root->scan_req = NULL;
 	}
-	
-	if(priv->scan_req) //VXD can also do scan
-	{	
-		priv->ss_req_ongoing = 0;
-		priv->scan_req = NULL;
-	}
 
-	//event_indicate_cfg80211(priv, NULL, CFG80211_SCAN_ABORDED, NULL);
 	//cfg80211_sched_scan_stopped(wiphy);
 }
 
@@ -503,9 +487,6 @@ void event_to_name(int event, char *event_name)
 	case CFG80211_DEL_STA:
 		strcpy(event_name, "CFG80211_DEL_STA");
 		break;
-	case CFG80211_RADAR_CAC_FINISHED:
-		strcpy(event_name, "CFG80211_RADAR_CAC_FINISHED");
-		break;
 	default:
 		strcpy(event_name, "UNKNOWN EVENT");
 		break;
@@ -522,204 +503,171 @@ int event_indicate_cfg80211(struct rtl8192cd_priv *priv, unsigned char *mac, int
 
     u8 assoc_req_ies_buf[256*3];        
     u8* ie_pos=assoc_req_ies_buf;                   
-
-	int flags;
-	
 	//NLENTER;
 
 
-	{
-		char event_name[32];
-		event_to_name(event, event_name);
-		NLMSG("EVENT [%s][%s=%d]\n", priv->dev->name, event_name, event);
-	}
+{
+	char event_name[32];
+	event_to_name(event, event_name);
+	NLMSG("EVENT [%s][%s=%d]\n", priv->dev->name, event_name, event);
+}
 
     /*cfg p2p 2014-0330 , report CFG80211_NEW_STA , ASAP*/ 
-	if( (event != CFG80211_SCAN_DONE)  && (event != CFG80211_NEW_STA) && (event != CFG80211_DEL_STA) && (event != CFG80211_RADAR_CAC_FINISHED) ){ //eric-bb
+	if( (event != CFG80211_SCAN_DONE)  && (event != CFG80211_NEW_STA) &&  (event != CFG80211_DEL_STA) ){ //eric-bb    	
     	if( (OPMODE & WIFI_AP_STATE) && (priv->up_time <= HAPD_READY_RX_EVENT) ) 
     	{
     		NLMSG("ignore cfg event,up_time[%d],event[%d]\n", priv->up_time,event);
     		return; 
     	}
     }
-
 	if(mac)
 		pstat = get_stainfo(priv, mac);
 
-#ifdef SMP_SYNC
-	SMP_LOCK_CFG80211(flags); 
-#endif
+	if(event == CFG80211_CONNECT_RESULT)
+	{
+		NDEBUG3("cfg80211_event [CFG80211_CONNECT_RESULT][%d]\n", event);		
+		struct cfg80211_bss *bss = NULL;
 
-	switch(event) {
-		case CFG80211_CONNECT_RESULT:
-			{
-				NDEBUG3("cfg80211_event [CFG80211_CONNECT_RESULT][%d]\n", event);
-				struct cfg80211_bss *bss = NULL;
+		if(priv->receive_connect_cmd == 0)
+		{
+			NDEBUG3("Not received connect cmd yet !! No report CFG80211_CONNECT_RESULT\n");
+			return 0;
+		}
 
-				if(priv->receive_connect_cmd == 0)
-				{
-					NDEBUG3("Not received connect cmd yet !! No report CFG80211_CONNECT_RESULT\n");
-					break;
-				}
+		bss = cfg80211_get_bss(wiphy, 
+				priv->pmib->dot11Bss.channel, priv->pmib->dot11Bss.bssid,
+				priv->pmib->dot11Bss.ssid, priv->pmib->dot11Bss.ssidlen, 
+				WLAN_CAPABILITY_ESS, WLAN_CAPABILITY_ESS);
 
-#if 0
-				bss = cfg80211_get_bss(wiphy, 
-						priv->pmib->dot11Bss.channel, priv->pmib->dot11Bss.bssid,
-						priv->pmib->dot11Bss.ssid, priv->pmib->dot11Bss.ssidlen, 
-						WLAN_CAPABILITY_ESS, WLAN_CAPABILITY_ESS);
+		if(bss==NULL)
+		{
+			NDEBUG2("report this bss\n");
+			realtek_cfg80211_inform_bss(priv);
+		}
 
-				if(bss==NULL)
-				{
-					NDEBUG2("report this bss\n");
-					realtek_cfg80211_inform_bss(priv);
-				}
-#endif
+		cfg80211_connect_result(priv->dev, BSSID,
+				priv->rtk->clnt_info.assoc_req, priv->rtk->clnt_info.assoc_req_len,
+				priv->rtk->clnt_info.assoc_rsp, priv->rtk->clnt_info.assoc_rsp_len,
+				WLAN_STATUS_SUCCESS, GFP_KERNEL);
+		
+		return 0;
+	}
+	else if(event == CFG80211_ROAMED)
+	{
+		NDEBUG3("cfg80211_event [CFG80211_ROAMED][%d]\n", event);						
+		return 0;
+	}
+	else if(event == CFG80211_DISCONNECTED)
+	{
+		//_eric_nl ?? disconnect event no mac, for station mode only ??
+		NDEBUG3("cfg80211_event [CFG80211_DISCONNECTED][%d]\n", event);
+		cfg80211_disconnected(priv->dev, 0, NULL, 0, GFP_KERNEL);
+		return 0;
+	}
+	else if(event == CFG80211_IBSS_JOINED)
+	{
+		NDEBUG3("cfg80211_event [CFG80211_IBSS_JOINED][%d]\n", event);		
+		/*
+			brian, fix compile error whilen migrate compatible wireless from 2013-11-05 to 2014-01-23.1
+			cfg80211_ibss_joined(priv->dev, BSSID, GFP_KERNEL);
+		*/
+		cfg80211_ibss_joined(priv->dev, BSSID, NULL, GFP_KERNEL);
+		return 0;
+	}
+	else if(event == CFG80211_NEW_STA)
+	{	
+		NDEBUG3("cfg80211_event [CFG80211_NEW_STA][%d]\n", event);				
+		/* send event to application */
+		memset(&sinfo, 0, sizeof(struct station_info));
+		memset(assoc_req_ies_buf, 0, sizeof(256*3));
+        sinfo.assoc_req_ies = assoc_req_ies_buf;            
 
-				cfg80211_connect_result(priv->dev, BSSID,
-						priv->rtk->clnt_info.assoc_req, priv->rtk->clnt_info.assoc_req_len,
-						priv->rtk->clnt_info.assoc_rsp, priv->rtk->clnt_info.assoc_rsp_len,
-						WLAN_STATUS_SUCCESS, GFP_KERNEL);
-			}
-			break;
-		case CFG80211_ROAMED:
-			{
-				NDEBUG3("cfg80211_event [CFG80211_ROAMED][%d]\n", event);						
-				break;
-			}
-			break;
-		case CFG80211_DISCONNECTED:
-			{
-				//_eric_nl ?? disconnect event no mac, for station mode only ??
-				NDEBUG3("cfg80211_event [CFG80211_DISCONNECTED][%d]\n", event);
-				cfg80211_disconnected(priv->dev, 0, NULL, 0, GFP_KERNEL);
-				break;
-			}
-			break;
-		case CFG80211_IBSS_JOINED:
-			{
-				NDEBUG3("cfg80211_event [CFG80211_IBSS_JOINED][%d]\n", event);		
-				/*
-					brian, fix compile error whilen migrate compatible wireless from 2013-11-05 to 2014-01-23.1
-					cfg80211_ibss_joined(priv->dev, BSSID, GFP_KERNEL);
-				*/
-				cfg80211_ibss_joined(priv->dev, BSSID, NULL, GFP_KERNEL);
-			}
-			break;
-		case CFG80211_NEW_STA:
-			{	
-				NDEBUG3("cfg80211_event [CFG80211_NEW_STA][%d]\n", event);				
-				/* send event to application */
-				memset(&sinfo, 0, sizeof(struct station_info));
-				memset(assoc_req_ies_buf, 0, sizeof(256*3));
-		        sinfo.assoc_req_ies = assoc_req_ies_buf;            
+		if(pstat == NULL)
+		{
+			NDEBUG3("!!PSTA = NULL, MAC = %02x:%02x:%02x:%02x:%02x:%02x\n",mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-				if(pstat == NULL)
-				{
-					NDEBUG3("!!PSTA = NULL, MAC = %02x:%02x:%02x:%02x:%02x:%02x\n",mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-					if(extra == NULL){
-						NDEBUG3("NO PSTA for CFG80211_NEW_STA\n");
-						break;
-					} else 
-						pstat = extra;
-				}
-				
-				/* TODO: sinfo.generation ???*/		        
-				if(pstat->wpa_ie[1] > 0){
-					sinfo.assoc_req_ies_len += pstat->wpa_ie[1]+2;
-		            memcpy(ie_pos,pstat->wpa_ie, pstat->wpa_ie[1]+2);
-		            ie_pos+=pstat->wpa_ie[1]+2;
-		        }
-				
-
-				if(pstat->wps_ie[1] > 0)    // for wrt-wps
-				{				
-					sinfo.assoc_req_ies_len += pstat->wps_ie[1]+2;
-		            memcpy(ie_pos,pstat->wps_ie, pstat->wps_ie[1]+2);
-		            ie_pos+=pstat->wps_ie[1]+2;                
-				}
+			if(extra == NULL){
+				NDEBUG3("NO PSTA for CFG80211_NEW_STA\n");
+				return -1;
+			} else 
+				pstat = extra;
+		}
+		
+		/* TODO: sinfo.generation ???*/
 
 
-		        /*p2p support , cfg p2p , 2014 0330 , report p2p_ie included in assoc_req*/
-				if(pstat->p2p_ie[1] > 0)
-				{
-					sinfo.assoc_req_ies_len += pstat->p2p_ie[1]+2;
-		            memcpy(ie_pos,pstat->p2p_ie, pstat->p2p_ie[1]+2);
-		            ie_pos += (pstat->p2p_ie[1]+2); 
-				}
-		        /*p2p support , cfg p2p , 2014 0330 , report p2p_ie included in assoc_req*/
+        
+		if(pstat->wpa_ie[1] > 0){
+			sinfo.assoc_req_ies_len += pstat->wpa_ie[1]+2;
+            memcpy(ie_pos,pstat->wpa_ie, pstat->wpa_ie[1]+2);
+            ie_pos+=pstat->wpa_ie[1]+2;
+        }
+		
+
+		if(pstat->wps_ie[1] > 0)    // for wrt-wps
+		{				
+			sinfo.assoc_req_ies_len += pstat->wps_ie[1]+2;
+            memcpy(ie_pos,pstat->wps_ie, pstat->wps_ie[1]+2);
+            ie_pos+=pstat->wps_ie[1]+2;                
+		}
 
 
-		        
-				if(sinfo.assoc_req_ies_len)
-					sinfo.filled |= STATION_INFO_ASSOC_REQ_IES;
-				
-				NDEBUG2("cfg80211_new_sta assoc req,[idx=%d] Rx assoc_req_ies_len = %d\n", priv->dev->ifindex, sinfo.assoc_req_ies_len);			
-				cfg80211_new_sta(priv->dev, mac, &sinfo, GFP_KERNEL);
-				NDEBUG3("cfg80211_new_sta ,STA[%02x%02x%02x:%02x%02x%02x]\n",mac[0], mac[1], mac[2], mac[3], mac[4], mac[5] );
+        /*p2p support , cfg p2p , 2014 0330 , report p2p_ie included in assoc_req*/
+		if(pstat->p2p_ie[1] > 0)
+		{
+			sinfo.assoc_req_ies_len += pstat->p2p_ie[1]+2;
+            memcpy(ie_pos,pstat->p2p_ie, pstat->p2p_ie[1]+2);
+            ie_pos += (pstat->p2p_ie[1]+2); 
+		}
+        /*p2p support , cfg p2p , 2014 0330 , report p2p_ie included in assoc_req*/
 
-				
-				netif_wake_queue(priv->dev); //wrt-vap
-			}
-			break;
-		case CFG80211_SCAN_ABORDED:
-			{
-				//NDEBUG2("cfg80211_event [CFG80211_SCAN_DONE][%d]\n", event);		
-				priv->ss_req_ongoing = 0;
-		        
-				if (priv->scan_req) 
-				{
-					struct cfg80211_scan_request *scan_req = priv->scan_req;
-					
-					priv->scan_req = NULL;
-					
-					cfg80211_scan_done(scan_req, true);		
-				}
-			}
-			break;
-		case CFG80211_SCAN_DONE:
-			{
-				//NDEBUG2("cfg80211_event [CFG80211_SCAN_DONE][%d]\n", event);		
-				priv->ss_req_ongoing = 0;
-				priv->site_survey->count_backup = priv->site_survey->count;
-				memcpy(priv->site_survey->bss_backup, priv->site_survey->bss, sizeof(struct bss_desc)*priv->site_survey->count);
 
-		        if(rtk_p2p_is_enabled(priv)==CFG80211_P2P){
-		            rtk_p2p_set_role(priv,priv->p2pPtr->pre_p2p_role);            
-		            rtk_p2p_set_state(priv,priv->p2pPtr->pre_p2p_state);
+        
+		if(sinfo.assoc_req_ies_len)
+			sinfo.filled |= STATION_INFO_ASSOC_REQ_IES;
+		
+		NDEBUG2("cfg80211_new_sta assoc req,[idx=%d] Rx assoc_req_ies_len = %d\n", priv->dev->ifindex, sinfo.assoc_req_ies_len);			
+		cfg80211_new_sta(priv->dev, mac, &sinfo, GFP_KERNEL);
+		NDEBUG3("cfg80211_new_sta ,STA[%02x%02x%02x:%02x%02x%02x]\n",mac[0], mac[1], mac[2], mac[3], mac[4], mac[5] );
 
-		            NDEBUG2("role[%d]\n",rtk_p2p_get_role(priv));
-		            NDEBUG2("state[%d]\n",rtk_p2p_get_state(priv));                
-		        }
+		
+		netif_wake_queue(priv->dev); //wrt-vap
+		return 0;
+	}
+	else if(event == CFG80211_SCAN_DONE)
+	{
+		//NDEBUG2("cfg80211_event [CFG80211_SCAN_DONE][%d]\n", event);		
+		priv->ss_req_ongoing = 0;
+		priv->site_survey->count_backup = priv->site_survey->count;
+		memcpy(priv->site_survey->bss_backup, priv->site_survey->bss, sizeof(struct bss_desc)*priv->site_survey->count);
 
-		        
-				if (priv->scan_req)
-				{
-					struct cfg80211_scan_request *scan_req = priv->scan_req;
-					priv->scan_req = NULL;				
-					cfg80211_scan_done(scan_req, false);
-				}
-			}
-			break;
-		case CFG80211_DEL_STA:
-			NDEBUG("cfg80211_event [CFG80211_DEL_STA][%d]\n", event);
-			cfg80211_del_sta(priv->dev, mac, GFP_KERNEL);
-			break;
-		case CFG80211_RADAR_CAC_FINISHED:
-			NDEBUG("cfg80211_event [CFG80211_RADAR_CAC_FINISHED][%d]\n", event);
-			cfg80211_cac_event(priv->dev, priv->pshare->dfs_chan_def, NL80211_RADAR_CAC_FINISHED, GFP_KERNEL);
-			break;
-		case CFG80211_RADAR_DETECTED:
-			NDEBUG("cfg80211_event [CFG80211_RADAR_DETECTED][%d]\n", event);
-			cfg80211_radar_event(wiphy, priv->pshare->dfs_chan_def, GFP_KERNEL);
-			break;
-		default:
-			NDEBUG("cfg80211_event [Unknown Event !!][%d]\n", event);            
+        if(rtk_p2p_is_enabled(priv)==CFG80211_P2P){
+            rtk_p2p_set_role(priv,priv->p2pPtr->pre_p2p_role);            
+            rtk_p2p_set_state(priv,priv->p2pPtr->pre_p2p_state);
+
+            NDEBUG2("role[%d]\n",rtk_p2p_get_role(priv));
+            NDEBUG2("state[%d]\n",rtk_p2p_get_state(priv));                
+        }
+
+        
+		if (priv->scan_req) 
+		{
+			struct cfg80211_scan_request *scan_req = priv->scan_req;
+			
+			priv->scan_req = NULL;
+			
+			cfg80211_scan_done(scan_req, false);		
+		}
+	}
+	else if(event == CFG80211_DEL_STA)
+	{
+		NDEBUG("cfg80211_event [CFG80211_DEL_STA][%d]\n", event);		
+		cfg80211_del_sta(priv->dev, mac, GFP_KERNEL);
+	}
+	else{ 
+		NDEBUG("cfg80211_event [Unknown Event !!][%d]\n", event);            
     }
 
-#ifdef SMP_SYNC
-	SMP_UNLOCK_CFG80211(flags);
-#endif
 
 	return -1;
 }
@@ -821,7 +769,7 @@ static void rtk_set_phy_channel(struct rtl8192cd_priv *priv,unsigned int channel
 
 
 
-static void rtk_get_band_capa(struct rtl8192cd_priv *priv,BOOLEAN *band_2gig ,BOOLEAN *band_5gig)
+static void rtk_get_band_capa(struct rtl8192cd_priv *priv,bool *band_2gig ,bool *band_5gig)
 {
 	*band_2gig = true;				
 	*band_5gig = false;
@@ -857,7 +805,7 @@ void realtek_ap_default_config(struct rtl8192cd_priv *priv)
 {
 
 #if 0  //move to set_channel
-	BOOLEAN band_2gig = false, band_5gig = false;
+	bool band_2gig = false, band_5gig = false;
 
 	rtk_get_band_capa(priv,&band_2gig,&band_5gig);
 
@@ -1020,6 +968,7 @@ static void rtk_set_band_mode(struct rtl8192cd_priv *priv,enum ieee80211_band ba
     if(channel_width != NL80211_CHAN_WIDTH_20_NOHT)
 		priv->pmib->dot11BssType.net_work_type |= WIRELESS_11N;
 
+	//printk("rtk_set_band_mode , ac_enable =%d \n", (channel_width = NL80211_CHAN_WIDTH_80)? 1:0);
 	if(channel_width == NL80211_CHAN_WIDTH_80)
 		priv->pmib->dot11BssType.net_work_type |= WIRELESS_11AC;
 
@@ -1083,24 +1032,19 @@ void realtek_ap_config_apply(struct rtl8192cd_priv	*priv)
     #endif
 
 	NLENTER;
-
-	if(under_apmode_repeater(priv) && (GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode & WIFI_ASOC_STATE)) {
-		NLINFO("Repeater! STA is alive, skip down-up\n");
-	} else {
-		NLINFO("[%s][down up]\n",priv->dev->name);
-
-		rtl8192cd_close(priv->dev);
-		#if 0 //def P2P_SUPPORT    
-		if(keep_go_state){
-			NDEBUG3("[P2P GO mode]\n");        
-			priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;  
-		}
-		#endif
-		rtl8192cd_open(priv->dev);
-	}
+    NLINFO("[%s][down up]\n",priv->dev->name);
+    
+	rtl8192cd_close(priv->dev);
+    #if 0 //def P2P_SUPPORT    
+    if(keep_go_state){
+        NDEBUG3("[P2P GO mode]\n");        
+        priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;  
+    }
+    #endif
+	rtl8192cd_open(priv->dev);
 
 #ifdef UNIVERSAL_REPEATER
-	if(IS_ROOT_INTERFACE(priv) && priv->pvxd_priv && netif_running(priv->pvxd_priv->dev) && !(priv->pvxd_priv->pmib->dot11OperationEntry.opmode & WIFI_ASOC_STATE))
+	if(IS_ROOT_INTERFACE(priv) && priv->pvxd_priv && netif_running(priv->pvxd_priv->dev))
 	{
         printk("[%s][%s][vxd][down up]\n",__FUNCTION__,priv->dev->name);        
 		rtl8192cd_close(priv->pvxd_priv->dev);
@@ -1120,8 +1064,9 @@ int realtek_cfg80211_ready(struct rtl8192cd_priv	*priv)
 }
 
 
-void realtek_reset_security(struct rtl8192cd_priv *priv)
+void realtek_auth_none(struct rtl8192cd_priv *priv)
 {
+
 	NLENTER; 
 	priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm = 0;
 	priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm = 0;
@@ -1129,18 +1074,21 @@ void realtek_reset_security(struct rtl8192cd_priv *priv)
 	priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm = 0;
 	priv->pmib->dot1180211AuthEntry.dot11WPACipher = 0;
 	priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher = 0;
+	
+
 }
 
 void realtek_auth_wep(struct rtl8192cd_priv *priv, int cipher)
 {
 	//_eric_nl ?? wep auto/shared/open ??
 	NLENTER;
+	priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm = 2;
 	priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm = cipher;
 	priv->pmib->dot1180211AuthEntry.dot11EnablePSK = 0;
 	priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm = 0;
 	priv->pmib->dot1180211AuthEntry.dot11WPACipher = 0;
 	priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher = 0;
-	NLEXIT;
+
 }
 
 void realtek_auth_wpa(struct rtl8192cd_priv *priv, int wpa, int psk, int cipher)
@@ -1154,7 +1102,7 @@ void realtek_auth_wpa(struct rtl8192cd_priv *priv, int wpa, int psk, int cipher)
 		wpa_cipher |= BIT(3);
 	
 	NLENTER;
-	NDEBUG3("%s wpa[%d] psk[%d] cipher[0x%x] wpa_cipher[0x%x]\n",priv->dev->name ,wpa ,psk ,cipher ,wpa_cipher);
+	NDEBUG3("wpa[%d] psk[%d] wpa_cipher[0x%x]\n", wpa, psk, wpa_cipher);
 	priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm = 2;
 	priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm = 2;
 
@@ -1167,7 +1115,7 @@ void realtek_auth_wpa(struct rtl8192cd_priv *priv, int wpa, int psk, int cipher)
     	priv->pmib->dot1180211AuthEntry.dot11WPACipher = wpa_cipher;
 	if(wpa& BIT(1))
     	priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher = wpa_cipher;
-	NLEXIT;
+
 }
 
 
@@ -1178,6 +1126,7 @@ void realtek_set_security(struct rtl8192cd_priv *priv, struct rtknl *rtk, struct
 	int cipher = 0;
 	int i = 0;
 
+ 	realtek_auth_none(priv);
 	NDEBUG2("n_akm_suites=[%d], n_ciphers_pairwise=[%d]\n", crypto.n_akm_suites, crypto.n_ciphers_pairwise);
 	for (i = 0; i < crypto.n_akm_suites; i++) {
 		switch (crypto.akm_suites[i]) {
@@ -1426,7 +1375,7 @@ void realtek_set_ies_apmode(struct rtl8192cd_priv *priv, struct cfg80211_beacon_
 	}
 }
 
-static int realtek_set_bss(struct rtl8192cd_priv *priv, struct cfg80211_ap_settings *info)
+static int realtek_set_ssid(struct rtl8192cd_priv *priv, struct cfg80211_ap_settings *info)
 {
 	NDEBUG3("SSID[%s]\n", info->ssid);
 	memcpy(SSID, info->ssid, info->ssid_len);	
@@ -1440,15 +1389,11 @@ static int realtek_set_bss(struct rtl8192cd_priv *priv, struct cfg80211_ap_setti
 		case NL80211_HIDDEN_SSID_ZERO_CONTENTS:
 			HIDDEN_AP=1;
 			break;
-		case NL80211_HIDDEN_SSID_ZERO_LEN:
-			HIDDEN_AP=2;
-            break;
+		case NL80211_HIDDEN_SSID_ZERO_LEN:/*firmware doesn't support this type of hidden ssid*/
 		default:
-            NDEBUG("fail, unknown hidden SSID option[%s]\n", info->hidden_ssid);
+            NDEBUG("fail[%s]\n", info->ssid);            
 			return -EOPNOTSUPP;  
 	}
-
-	priv->pmib->dot11StationConfigEntry.dot11BeaconPeriod = info->beacon_interval;
 
 	return 0;
 }
@@ -1456,21 +1401,19 @@ static int realtek_set_bss(struct rtl8192cd_priv *priv, struct cfg80211_ap_setti
 static int realtek_set_auth_type(struct rtl8192cd_priv *priv, enum nl80211_auth_type auth_type)
 {
 	//NDEBUG3("auth_type[0x%02X]\n", auth_type);
-
+	
 	switch (auth_type) {
 	case NL80211_AUTHTYPE_OPEN_SYSTEM:
     	NDEBUG3("NL80211_AUTHTYPE_OPEN_SYSTEM\n");
 		break;
 	case NL80211_AUTHTYPE_SHARED_KEY:
     	NDEBUG3("NL80211_AUTHTYPE_SHARED_KEY\n");
-		priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm = 1;
 		break;
 	case NL80211_AUTHTYPE_NETWORK_EAP:
     	NDEBUG3("NL80211_AUTHTYPE_NETWORK_EAP\n");
 		break;
 	case NL80211_AUTHTYPE_AUTOMATIC:
     	NDEBUG3("NL80211_AUTHTYPE_AUTOMATIC\n");
-		priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm = 2;
 		break;
 
 	default:
@@ -1520,6 +1463,9 @@ static int realtek_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *d
 	if (OPMODE & WIFI_AP_STATE == 0)
 		return -EOPNOTSUPP;
 
+	if (priv->assoc_num == 0)
+		return -ENOTCONN;
+
 	rtl8192cd_close(priv->dev);
 
 	NLEXIT;
@@ -1535,11 +1481,7 @@ static int realtek_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 
 	NLENTER;
 
-	if(under_apmode_repeater(priv)) {
-		NLINFO("Repeater! Do nothing\n");
-	} else {
-		ret = realtek_cfg80211_del_beacon(wiphy, dev);
-	}
+	ret = realtek_cfg80211_del_beacon(wiphy, dev);
 
 	NLEXIT;
 	return ret;
@@ -1620,7 +1562,6 @@ static int realtek_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *
 //	realtek_ap_default_config(priv);
 //	realtek_ap_config_apply(priv);
 
-	NLEXIT;
 	return 0;
 }
 
@@ -1645,7 +1586,7 @@ if (params->use_cts_prot >= 0) {
 #endif
 
 	priv->pmib->dot11RFEntry.shortpreamble = params->use_short_preamble;
-	changePreamble(priv, params->use_short_preamble);
+
 #if 0
 if (params->use_short_slot_time >= 0) {
 	sdata->vif.bss_conf.use_short_slot =
@@ -1676,7 +1617,6 @@ if (params->use_short_slot_time >= 0) {
 		priv->pmib->dot11StationConfigEntry.dot11BasicRates = rates;
 	}
 
-	NLEXIT;
 	return 0;
 }
 
@@ -1749,7 +1689,7 @@ void set_pairwise_key_for_ibss(struct rtl8192cd_priv *priv, union iwreq_data *wr
 #define TOTAL_CAM_ENTRY 32
 #ifdef CPTCFG_CFG80211_MODULE
 static int realtek_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
-				   u8 key_index, BOOLEAN pairwise,
+				   u8 key_index, bool pairwise,
 				   const u8 *mac_addr,
 				   struct key_params *params)			   
 {
@@ -1763,12 +1703,12 @@ static int realtek_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	if (!realtek_cfg80211_ready(priv))
 		return -EIO;
 
-#if 0
 	if (key_index > TOTAL_CAM_ENTRY) {
 		NDEBUG("key index [%d] out of bounds\n", key_index);
 		return -ENOENT;
 	}
 
+#if 0
 	if(mac_addr == NULL) {
 		printk("NO MAC Address !!\n");
 		return -ENOENT;;
@@ -1867,36 +1807,33 @@ static int realtek_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 }
 
 static int realtek_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
-				   u8 key_index, BOOLEAN pairwise,
+				   u8 key_index, bool pairwise,
 				   const u8 *mac_addr)			   
 {
 	struct rtknl *rtk = wiphy_priv(wiphy);
 	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, dev);
 	union iwreq_data wrqu;
 	struct ieee80211req_del_key wk;
-	int ret=0;
 
 	NLENTER;
 
 	if(!pairwise)
 	{
 		NDEBUG2("No need to delete Groupe key !!\n");
-		goto realtek_cfg80211_del_key_end;
+		return 0;	
 	}
 
 
 	if (!realtek_cfg80211_ready(priv)){
 		NDEBUG("No realtek_cfg80211_ready !!\n");        
-		ret = -EIO;
-		goto realtek_cfg80211_del_key_end;
+		return -EIO;
     }
 
-#if 0
 	if (key_index > TOTAL_CAM_ENTRY) {
 		NDEBUG("key index %d out of bounds\n" ,key_index);
 		return -ENOENT;
 	}
-#endif
+
 	
  	memset(&wk, 0, sizeof(struct ieee80211req_del_key));
 
@@ -1927,16 +1864,16 @@ static int realtek_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 	
 	rtl_net80211_delkey(priv->dev, NULL, &wrqu, NULL);
 
-realtek_cfg80211_del_key_end:
+
 	NLEXIT;
-	return ret;
+	return 0;
 
 }
 
 
 
 static int realtek_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
-				   u8 key_index, BOOLEAN pairwise,
+				   u8 key_index, bool pairwise,
 				   const u8 *mac_addr, void *cookie,
 				   void (*callback) (void *cookie,
 						     struct key_params *))						     
@@ -1958,12 +1895,10 @@ static int realtek_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 	if (!realtek_cfg80211_ready(priv))
 		return -EIO;
 
-#if 0
 	if (key_index > TOTAL_CAM_ENTRY) {
 		NDEBUG("key index [%d] out of bounds\n" ,  key_index);
 		return -ENOENT;
 	}
-#endif
 
     #if 0
 	if(pairwise)
@@ -1994,15 +1929,14 @@ static int realtek_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 
 static int realtek_cfg80211_set_default_key(struct wiphy *wiphy,
 					   struct net_device *dev,
-					   u8 key_index, BOOLEAN unicast,
-					   BOOLEAN multicast)						
+					   u8 key_index, bool unicast,
+					   bool multicast)						
 {
 	struct rtknl *rtk = wiphy_priv(wiphy);
 	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, dev);
 
 	NLENTER;
 	NDEBUG2("defaukt key_index[%d] unicast[%d] multicast[%d] \n", key_index, unicast, multicast);
-	NLEXIT;
 	return 0;
 }
 
@@ -2107,25 +2041,24 @@ static int realtek_cfg80211_del_station(struct wiphy *wiphy, struct net_device *
 {
 	struct rtknl *rtk = wiphy_priv(wiphy);
 	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, dev);
+
 	struct stat_info	*pstat;
-	int ret=0;
 
 	NLENTER;
 	
 	pstat = get_stainfo(priv, mac);
 
 	if (pstat == NULL){
-		goto realtek_cfg80211_del_station_end;
+		return 0;
     }
 		
 	NDEBUG("try disassoc sta[%02X%02X%02X%02X%02X%02X]\n",
 		mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 
 	realtek_del_station(priv, pstat);
-
-realtek_cfg80211_del_station_end:
+	
 	NLEXIT;
-	return ret;
+	return 0;
 }
 
 static int realtek_cfg80211_change_station(struct wiphy *wiphy,
@@ -2149,7 +2082,7 @@ static int realtek_cfg80211_change_station(struct wiphy *wiphy,
 	}
 
 	if(pstat == NULL)
-		goto realtek_cfg80211_change_station_end;
+		return 0;
 		
 #if 0
 	if ((OPMODE & WIFI_AP_STATE) == 0)
@@ -2167,7 +2100,7 @@ static int realtek_cfg80211_change_station(struct wiphy *wiphy,
 	if (err)
 	{
 		NDEBUG("cfg80211_check_station_change error !! \n");
-		goto realtek_cfg80211_change_station_end;
+		return err;
 	}
 #else
 	/* Use this only for authorizing/unauthorizing a station */
@@ -2193,12 +2126,12 @@ static int realtek_cfg80211_change_station(struct wiphy *wiphy,
 	}
 	
 	if(priv->pmib->dot1180211AuthEntry.dot11EnablePSK || priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm)//OPENWRT_RADIUS 
-		rtl_net80211_setmlme(priv->dev, NULL, &wrqu, NULL);
+	rtl_net80211_setmlme(priv->dev, NULL, &wrqu, NULL);
 #endif
 
-realtek_cfg80211_change_station_end:
+
 	NLEXIT;
-	return err;
+	return 0;
 }
 
 
@@ -2210,7 +2143,7 @@ static int realtek_cfg80211_get_station(struct wiphy *wiphy, struct net_device *
 	struct stat_info *pstat = NULL;
 
 	long left;
-	BOOLEAN sgi;
+	bool sgi;
 	int ret;
 	u8 mcs;
 
@@ -2246,15 +2179,10 @@ static int realtek_cfg80211_get_station(struct wiphy *wiphy, struct net_device *
 		sinfo->tx_packets = pstat->tx_pkts;
 		sinfo->filled |= STATION_INFO_TX_PACKETS;
 	}
-#if defined(SIGNAL_TYPE_UNSPEC)
+
 	sinfo->signal = pstat->rssi;
-#else
-	if(pstat->rssi > 100)
-		sinfo->signal = -20;
-	else
-		sinfo->signal = pstat->rssi-100;
-#endif
 	sinfo->filled |= STATION_INFO_SIGNAL;
+
 	//_eric_nl ?? VHT rates ??
 	if (is_MCS_rate(pstat->current_tx_rate)) {
 		sinfo->txrate.mcs = pstat->current_tx_rate&0xf;
@@ -2265,12 +2193,14 @@ static int realtek_cfg80211_get_station(struct wiphy *wiphy, struct net_device *
 
 		if(pstat->ht_current_tx_info&BIT(1))
 			sinfo->txrate.flags |= RATE_INFO_FLAGS_SHORT_GI;
+			
 	}
 	else
 	{
 		//sinfo->txrate.legacy = rate / 100;
 		sinfo->txrate.legacy = (pstat->current_tx_rate&0x7f)/2;
 	}
+
 	sinfo->filled |= STATION_INFO_TX_BITRATE;
 
 
@@ -2284,11 +2214,13 @@ static int realtek_cfg80211_get_station(struct wiphy *wiphy, struct net_device *
 
 		if(pstat->rx_splcp)
 			sinfo->rxrate.flags |= RATE_INFO_FLAGS_SHORT_GI;
+
 	}
 	else
 	{
-		sinfo->rxrate.legacy = (pstat->rx_rate&0x7f)/2;
+		sinfo->txrate.legacy = (pstat->rx_rate&0x7f)/2;
 	}
+
 	sinfo->filled |= STATION_INFO_RX_BITRATE;
 	
 
@@ -2375,8 +2307,6 @@ static int realtek_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 
 	NLENTER;
 
-	if (changed & WIPHY_PARAM_FRAG_THRESHOLD)
-		priv->pmib->dot11OperationEntry.dot11FragmentationThreshold = wiphy->frag_threshold;
 	if (changed & WIPHY_PARAM_RTS_THRESHOLD)
 		priv->pmib->dot11OperationEntry.dot11RTSThreshold = wiphy->rts_threshold;
 	if (changed & WIPHY_PARAM_RETRY_SHORT)
@@ -2387,30 +2317,6 @@ static int realtek_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 	NLEXIT;
 	return 0;
 }
-
-
-static int realtek_cfg80211_set_ap_chanwidth(struct wiphy *wiphy,
-				      struct net_device *dev,
-				      struct cfg80211_chan_def *chandef)
-{
-	struct rtknl *rtk = wiphy_priv(wiphy);
-	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, NULL);
-
-	NLENTER;
-	return realtek_cfg80211_set_channel(wiphy, dev, chandef);
-}
-
-
-static int realtek_cfg80211_set_monitor_channel(struct wiphy *wiphy,
-					 struct cfg80211_chan_def *chandef)
-{
-	struct rtknl *rtk = wiphy_priv(wiphy);
-	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, NULL);
-	
-	NLENTER;
-	return realtek_cfg80211_set_channel(wiphy, priv->dev, chandef);
-}
-
 
 static int realtek_cfg80211_set_tx_power(struct wiphy *wiphy,
 				  enum nl80211_tx_power_setting type, int mbm) 			  
@@ -2523,6 +2429,7 @@ static int realtek_cfg80211_scan(struct wiphy *wiphy,
 {
 	struct rtknl *rtk = wiphy_priv(wiphy);
 	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, NULL);/*eric refine 23390*/ 
+
 	struct cfg80211_ssid *ssids = request->ssids;
 
 	NLENTER;
@@ -2530,13 +2437,13 @@ static int realtek_cfg80211_scan(struct wiphy *wiphy,
 
 	priv = get_priv_from_wdev(rtk, request->wdev);
 
-    if(is_WRT_scan_iface(priv->dev->name))
+	if(!IS_ROOT_INTERFACE(priv))
 		priv = GET_ROOT(priv);
-
+	
 	if (!netif_running(priv->dev)){
-		NLMSG("scan disable (!netif_running %s)\n", priv->dev->name);
-		return -1;
-	}
+        NLMSG("scan disable (!netif_running %s)\n", priv->dev->name);
+        return -1;
+    }
 	
 	if (priv->ss_req_ongoing ){
         NLMSG("scan disable (ss_req_ongoing %s)\n", priv->dev->name);
@@ -2547,13 +2454,7 @@ static int realtek_cfg80211_scan(struct wiphy *wiphy,
         NLMSG("scan disable (scan_req %s)\n", priv->dev->name);
         return -1;
     }
-
-#if defined(DFS)
-	if (timer_pending(&priv->ch_avail_chk_timer)){
-		NLMSG("%s ch_avail_chk_timer pending\n", priv->dev->name);
-		return -1;
-	}
-#endif
+    
     #if 0
     {
       	unsigned char idx;
@@ -2606,10 +2507,11 @@ static int realtek_cfg80211_scan(struct wiphy *wiphy,
         rtk_p2p_set_role(priv,P2P_DEVICE);
         rtk_p2p_set_state(priv, P2P_S_SEARCH);        
         //GET_ROOT(priv)->site_survey_times = SS_COUNT-2;   // pre-channel just scan twice
-	}else if(ssids->ssid != NULL){
-		NDEBUG3("Ssid=[%s],len[%d]...\n",ssids->ssid,ssids->ssid_len);
-		priv->ss_ssidlen = ssids->ssid_len;
-		memcpy(priv->ss_ssid,ssids->ssid,ssids->ssid_len);
+        
+    }else if(ssids->ssid != NULL){
+        NDEBUG3("Ssid=[%s],len[%d]...\n",ssids->ssid,ssids->ssid_len);
+        priv->ss_ssidlen = ssids->ssid_len;
+        memcpy(priv->ss_ssid,ssids->ssid,ssids->ssid_len);
     }
 
     /*set WPS P2P IE to probe_req*/
@@ -2618,28 +2520,30 @@ static int realtek_cfg80211_scan(struct wiphy *wiphy,
 		rtk_cfg80211_set_wps_p2p_ie(priv, (u8 *)request->ie, request->ie_len ,MGMT_PROBEREQ );
 	}
 
+
     #if 0//def WIFI_SIMPLE_CONFIG
 	if (len == 2)
 		priv->ss_req_ongoing = 2;	// WiFi-Simple-Config scan-req
 	else
     #endif
+	priv->ss_req_ongoing = 1;
 
-	if(IS_VXD_INTERFACE(priv))
-		priv->ss_req_ongoing = SSFROM_REPEATER_VXD;
-	else
-		priv->ss_req_ongoing = SSFROM_WEB;
 
 	priv->scan_req = request;
-	if(request->n_channels > 0){
-		/*use channels from cfg80211 parameter*/
-		realtek_cfg80211_fill_available_channel(priv,request);
-	}else{
-		/*use rtk default available channels*/
-		get_available_channel(priv);
-	}
+    if((request->n_channels > 0)){
+
+        /*use channels from cfg80211 parameter*/
+        realtek_cfg80211_fill_available_channel(priv,request);        
+
+    }else{
+    
+        /*use rtk default available channels*/
+       get_available_channel(priv);
+    }
 
 	start_clnt_ss(priv);
 
+		
 	NLEXIT;
 	return 0;
 }
@@ -2669,17 +2573,11 @@ static int realtek_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	if(IS_ROOT_INTERFACE(priv))
 		rtk_abort_scan(priv, SCAN_ABORT_START_AP);
 
-	/*fixme, should not enable carrier here.
-	 Under mac80211 architecture will be invoked by compatible-wireless */
-	netif_carrier_on(priv->dev);
-
 	realtek_cfg80211_set_channel(wiphy, dev, &info->chandef);
 
 	realtek_set_ies_apmode(priv, &info->beacon);
 
-	ret = realtek_set_bss(priv, info);
-
-	realtek_reset_security(priv);
+	ret = realtek_set_ssid(priv, info);
 
 	ret = realtek_set_auth_type(priv, info->auth_type);
 	
@@ -2692,23 +2590,6 @@ static int realtek_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	//start sending beacon, blocked while init_beacon()
 	priv->pmib->miscEntry.func_off = 0;
 
-#if defined(DFS)
-	if((OPMODE&WIFI_AP_STATE) && info->chandef.chan->dfs_state == NL80211_DFS_AVAILABLE) {
-		printk("*** [%s]Under DFS channel, radar detection is active ***",priv->dev->name);
-		/* DFS activated after 1 sec; prevent switching channel due to DFS false alarm */
-		init_timer(&priv->DFS_timer);
-		priv->DFS_timer.data = (unsigned long) priv;
-		priv->DFS_timer.function = rtl8192cd_DFS_timer;
-		mod_timer(&priv->DFS_timer, jiffies + RTL_SECONDS_TO_JIFFIES(1));
-
-		init_timer(&priv->dfs_det_chk_timer);
-		priv->dfs_det_chk_timer.data = (unsigned long) priv;
-		priv->dfs_det_chk_timer.function = rtl8192cd_dfs_det_chk_timer;
-		mod_timer(&priv->dfs_det_chk_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(priv->pshare->rf_ft_var.dfs_det_period*10));
-
-		DFS_SetReg(priv);
-	}
-#endif
 	if(scan_req_pending)
 		realtek_cfg80211_scan(wiphy, scan_req_pending);
 
@@ -2742,7 +2623,7 @@ static int realtek_cfg80211_join_ibss(struct wiphy *wiphy, struct net_device *de
 	memcpy(SSID, ibss_param->ssid, ibss_param->ssid_len);	
 	SSID_LEN = ibss_param->ssid_len;
 
-	realtek_reset_security(priv);
+	realtek_auth_none(priv);
 
 	if (ibss_param->privacy) 
 	{
@@ -2820,7 +2701,7 @@ static void realtek_cfg80211_rfkill_poll(struct wiphy *wiphy)
 
 
 static int realtek_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
-				    BOOLEAN enabled, int timeout)
+				    bool enabled, int timeout)
 {
 	struct rtknl *rtk = wiphy_priv(wiphy);
 	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, dev);
@@ -2845,164 +2726,12 @@ static int realtek_cfg80211_set_bitrate_mask(struct wiphy *wiphy,
 
 	return 0;
 }
+
+
+
 #endif
 
-static int apply_acl_rules(struct rtl8192cd_priv *priv)
-{
-	unsigned int i=0;
 
-	for (i=0; i<priv->pmib->dot11StationConfigEntry.dot11AclNum; i++)
-	{
-		struct list_head *pnewlist;
-		struct wlan_acl_node *paclnode;
-
-		pnewlist = priv->wlan_aclpolllist.next;
-		list_del_init(pnewlist);
-
-		paclnode = list_entry(pnewlist,	struct wlan_acl_node, list);
-		memcpy((void *)paclnode->addr, priv->pmib->dot11StationConfigEntry.dot11AclAddr[i], MACADDRLEN);
-		paclnode->mode = (unsigned char)priv->pmib->dot11StationConfigEntry.dot11AclMode;
-		NDEBUG("[Drv]Sync MAC ACL entry[%d]: %02x:%02x:%02x:%02x:%02x:%02x,%s from MIB\n",i,
-			paclnode->addr[0],paclnode->addr[1],paclnode->addr[2],
-			paclnode->addr[3],paclnode->addr[4],paclnode->addr[5],
-			(paclnode->mode&1U)? "Allowed":"Denied");
-		list_add_tail(pnewlist, &priv->wlan_acl_list);
-	}
-
-	return 0;
-}
-
-static int realtek_reset_mac_acl(struct rtl8192cd_priv *priv)
-{
-	int i=0;
-
-	for(i;i<priv->pmib->dot11StationConfigEntry.dot11AclNum;i++) {
-		NDEBUG("Reset MAC ACL entry[%d]: %02x:%02x:%02x:%02x:%02x:%02x\n",i,
-			priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][0],priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][1],
-			priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][2],priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][3],
-			priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][4],priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][5]);
-		memset(priv->pmib->dot11StationConfigEntry.dot11AclAddr[i],0,MACADDRLEN);
-	}
-	priv->pmib->dot11StationConfigEntry.dot11AclNum = 0;
-	priv->pmib->dot11StationConfigEntry.dot11AclMode = 0;
-
-	return 0;
-}
-
-static int realtek_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
-			       const struct cfg80211_acl_data *params)
-{
-	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, dev);
-	int i=0;
-
-	priv->pmib->dot11StationConfigEntry.dot11AclNum = 0;
-    /*
-		params->acl_policy:
-		enum nl80211_acl_policy {
-			NL80211_ACL_POLICY_ACCEPT_UNLESS_LISTED,
-			NL80211_ACL_POLICY_DENY_UNLESS_LISTED,
-		};		
-     */
-	NDEBUG("MAC ACL mode:%s configured\n",(params->acl_policy&NL80211_ACL_POLICY_DENY_UNLESS_LISTED)? "Allow":"Deny");
-	priv->pmib->dot11StationConfigEntry.dot11AclMode = (params->acl_policy&NL80211_ACL_POLICY_DENY_UNLESS_LISTED)? 1:2;
-
-	for(i;i<params->n_acl_entries;i++) {
-		priv->pmib->dot11StationConfigEntry.dot11AclNum++;
-		memcpy(priv->pmib->dot11StationConfigEntry.dot11AclAddr[i],params->mac_addrs[i].addr,MACADDRLEN);
-		NDEBUG("Append MAC ACL entry[%d]: %02x:%02x:%02x:%02x:%02x:%02x\n",i,
-			priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][0],priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][1],
-			priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][2],priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][3],
-			priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][4],priv->pmib->dot11StationConfigEntry.dot11AclAddr[i][5]);
-	}
-	NDEBUG("MAC ACL total entry number:%d\n",priv->pmib->dot11StationConfigEntry.dot11AclNum);
-
-	apply_acl_rules(priv);
-	return 0;
-}
-
-#if defined(DFS)
-static int realtek_start_radar_detection (struct wiphy *wiphy,
-					 struct net_device *dev,
-					 struct cfg80211_chan_def *chandef,
-					 u32 cac_time_ms)
-{
-	int ret=0;
-	struct rtknl *rtk = wiphy_priv(wiphy);
-	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, NULL);
-	int channel = 0;
-
-	NLENTER;
-
-	/*fixme, should not enable carrier here.
-	 Under mac80211 architecture will be invoked by compatible-wireless */
-	netif_carrier_on(priv->dev);
-
-	if(priv->pshare->dfs_chan_def) {
-		if(priv->pshare->dfs_chan_def->chan)
-			kfree(priv->pshare->dfs_chan_def->chan);
-
-		kfree(priv->pshare->dfs_chan_def);
-	}
-
-	priv->pshare->dfs_chan_def = (struct cfg80211_chan_def *)kmalloc(sizeof(*chandef), GFP_KERNEL);
-	if(priv->pshare->dfs_chan_def)
-		memset(priv->pshare->dfs_chan_def, 0, sizeof(*chandef));
-    else
-		return -1;
-
-	priv->pshare->dfs_chan_def->chan = (struct ieee80211_channel *)kmalloc(sizeof(struct ieee80211_channel), GFP_KERNEL);
-	if(priv->pshare->dfs_chan_def->chan)
-		memset(priv->pshare->dfs_chan_def->chan, 0, sizeof(struct ieee80211_channel));
-	else
-		return -1;
-
-	//backup chandef for DFS report
-	memcpy(priv->pshare->dfs_chan_def,chandef,sizeof(*chandef));
-	memcpy(priv->pshare->dfs_chan_def->chan,chandef->chan,sizeof(struct ieee80211_channel));
-
-	channel = ieee80211_frequency_to_channel(chandef->chan->center_freq);
-
-	NDEBUG3("center_freq=[%u] channel=[%d] hw_value=[%u] bandwidth=[%d]\n",
-		chandef->chan->center_freq, channel, chandef->chan->hw_value, chandef->width);
-
-	priv->pmib->dot11RFEntry.dot11channel = channel;
-
-	rtk_set_band_mode(priv,chandef->chan->band , chandef->width);
-	rtk_set_channel_mode(priv,chandef);
-	SwChnl(priv, channel, priv->pmib->dot11nConfigEntry.dot11n2ndChOffset);
-
-	init_timer(&priv->ch_avail_chk_timer);
-	priv->ch_avail_chk_timer.data = (unsigned long) priv;
-	priv->ch_avail_chk_timer.function = rtl8192cd_ch_avail_chk_timer;
-	mod_timer(&priv->ch_avail_chk_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(cac_time_ms));
-	printk("*** [%s]Activate DFS-CAC for %d miliseconds ***\n",priv->dev->name,cac_time_ms);
-
-	init_timer(&priv->DFS_timer);
-	priv->DFS_timer.data = (unsigned long) priv;
-	priv->DFS_timer.function = rtl8192cd_DFS_timer;
-
-	init_timer(&priv->DFS_TXPAUSE_timer);
-	priv->DFS_TXPAUSE_timer.data = (unsigned long) priv;
-	priv->DFS_TXPAUSE_timer.function = rtl8192cd_DFS_TXPAUSE_timer;
-
-	/* DFS activated after 5 sec; prevent switching channel due to DFS false alarm */
-	mod_timer(&priv->DFS_timer, jiffies + RTL_SECONDS_TO_JIFFIES(5));
-
-	init_timer(&priv->dfs_det_chk_timer);
-	priv->dfs_det_chk_timer.data = (unsigned long) priv;
-	priv->dfs_det_chk_timer.function = rtl8192cd_dfs_det_chk_timer;
-	mod_timer(&priv->dfs_det_chk_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(priv->pshare->rf_ft_var.dfs_det_period*10));
-
-	DFS_SetReg(priv);
-
-	if (!priv->pmib->dot11DFSEntry.CAC_enable) {
-		del_timer_sync(&priv->ch_avail_chk_timer);
-		mod_timer(&priv->ch_avail_chk_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(200));
-	}
-
-	return ret;
-}
-#endif
 
 void copy_bss_ie(struct rtl8192cd_priv *priv, int ix)
 {
@@ -3016,21 +2745,16 @@ void copy_bss_ie(struct rtl8192cd_priv *priv, int ix)
 	memcpy(priv->rtk->clnt_info.rsn_ie.data, priv->site_survey->bss[ix].rsn_ie, rsn_ie_len);
 }
 
-int get_bss_by_bssid(struct rtl8192cd_priv *priv, unsigned char* bssid, unsigned int bssdb_count, struct bss_desc *bssdb)
+int get_bss_by_bssid(struct rtl8192cd_priv *priv, unsigned char* bssid)
 {
 	int ix = 0, found = 0;
 
-	STADEBUG("count = %d %02x:%02x:%02x:%02x:%02x:%02x\n", bssdb_count, bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
+	printk("count = %d ", priv->site_survey->count_backup);
 	//dump_mac(priv, bssid);
 
-	for(ix = 0 ; ix < bssdb_count ; ix++) //_Eric ?? will bss_backup be cleaned?? -> Not found in  codes
-	{
-		STADEBUG("[%d]Match %02x:%02x:%02x:%02x:%02x:%02x with %02x:%02x:%02x:%02x:%02x:%02x\n",
-			ix,bssdb[ix].bssid[0],bssdb[ix].bssid[1],
-			bssdb[ix].bssid[2],bssdb[ix].bssid[3],
-			bssdb[ix].bssid[4],bssdb[ix].bssid[5],
-			bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
-		if(!memcmp(bssdb[ix].bssid , bssid, 6))
+	for(ix = 0 ; ix < priv->site_survey->count_backup ; ix++) //_Eric ?? will bss_backup be cleaned?? -> Not found in  codes
+	{	
+		if(!memcmp(priv->site_survey->bss_backup[ix].bssid , bssid, 6))
 		{
 			found = 1;
 			copy_bss_ie(priv, ix);
@@ -3040,7 +2764,7 @@ int get_bss_by_bssid(struct rtl8192cd_priv *priv, unsigned char* bssid, unsigned
 
 	if(found == 0)
 	{	
-		printk("%s BSSID NOT Found !!\n",__func__);
+		printk("BSSID NOT Found !!\n");
 		return -EINVAL;
 	}
 	else
@@ -3049,16 +2773,15 @@ int get_bss_by_bssid(struct rtl8192cd_priv *priv, unsigned char* bssid, unsigned
 }
 
 
-int get_bss_by_ssid(struct rtl8192cd_priv *priv, unsigned char* ssid, int ssid_len, unsigned int bssdb_count, struct bss_desc *bssdb)
+int get_bss_by_ssid(struct rtl8192cd_priv *priv, unsigned char* ssid, int ssid_len)
 {
 	int ix = 0, found = 0;
 
-	STADEBUG("count[%d] ssid[%s]\n", bssdb_count, ssid);
+	NDEBUG3("count[%d] ssid[%s]\n", priv->site_survey->count_backup, ssid);
 
-	for(ix = 0 ; ix < bssdb_count ; ix++) //_Eric ?? will bss_backup be cleaned?? -> Not found in  codes
-	{
-		STADEBUG("[%d]Match %s to %s\n",ix,bssdb[ix].ssid, ssid);
-		if(!memcmp(bssdb[ix].ssid , ssid, ssid_len))
+	for(ix = 0 ; ix < priv->site_survey->count_backup ; ix++) //_Eric ?? will bss_backup be cleaned?? -> Not found in  codes
+	{	
+		if(!memcmp(priv->site_survey->bss_backup[ix].ssid , ssid, ssid_len))
 		{
 			found = 1;
 			copy_bss_ie(priv, ix);
@@ -3090,10 +2813,8 @@ static int realtek_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 
 	struct rtknl *rtk = wiphy_priv(wiphy);
 	struct rtl8192cd_priv *priv = realtek_get_priv(wiphy, dev);
-	unsigned int bssdb_count=0;
-	struct bss_desc *bssdb=NULL;
 	int status = 0;
-	int bss_num = -1;
+	int bss_num = 0;
 	int ret = 0;
 
 	NLENTER;
@@ -3125,6 +2846,7 @@ static int realtek_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 #endif
 
     //rtk_abort_scan(priv);
+
 	priv->receive_connect_cmd = 1;
 
 #if 1 //wrt-wps-clnt
@@ -3154,22 +2876,11 @@ static int realtek_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		vxd_copy_ss_result_from_root(priv);
 #endif
 
-	if(OPMODE & WIFI_STATION_STATE) {
-		bssdb_count = priv->site_survey->count_target;
-		bssdb = priv->site_survey->bss_target;
-	} else {
-		bssdb_count = priv->site_survey->count_backup;
-		bssdb = priv->site_survey->bss_backup;
-	}
-
 	if(sme->bssid){
-		bss_num = get_bss_by_bssid(priv, sme->bssid, bssdb_count, bssdb);
+		bss_num = get_bss_by_bssid(priv, sme->bssid);
 	}else if(sme->ssid){ //?? channel parameter check ??
-		bss_num = get_bss_by_ssid(priv, sme->ssid, sme->ssid_len, bssdb_count, bssdb);
-    }else{
-		NDEBUG("Unknown rule to search BSS!!\n");
-		return -1;
-	}
+		bss_num = get_bss_by_ssid(priv, sme->ssid, sme->ssid_len);
+    }
 
 	if(bss_num < 0)
 	{
@@ -3180,8 +2891,6 @@ static int realtek_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	priv->ss_req_ongoing = 0; //found bss, no need to scan ...
 
 //=== set security 
-	realtek_reset_security(priv); 
-
 	realtek_set_security(priv, rtk, sme->crypto);
 
 	if(priv->pmib->dot1180211AuthEntry.dot11EnablePSK)
@@ -3210,11 +2919,11 @@ static int realtek_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		memcpy(&priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TTKey.skey[0], sme->key, sme->key_len);
 	}
 
-	syncMulticastCipher(priv, &bssdb[bss_num]); /*eric refine 23277*/
+	syncMulticastCipher(priv, &priv->site_survey->bss_target[bss_num]); /*eric refine 23277*/
 
     if(OPMODE&(WIFI_AUTH_SUCCESS|WIFI_ASOC_STATE)==(WIFI_AUTH_SUCCESS|WIFI_ASOC_STATE)){
         NDEBUG3("try issue deauth to...\n");
-        if(memcmp(priv->pmib->dot11StationConfigEntry.dot11Bssid , bssdb[bss_num].bssid , 6)==0){
+        if(memcmp(priv->pmib->dot11StationConfigEntry.dot11Bssid , priv->site_survey->bss_target[bss_num].bssid , 6)==0){
             NDEBUG3("issue deauth to...\n");            
             //dump_mac(priv,priv->site_survey->bss_target[bss_num].bssid);            
             issue_deauth(priv,priv->site_survey->bss_target[bss_num].bssid,_RSON_DEAUTH_STA_LEAVING_);
@@ -3478,18 +3187,15 @@ static int realtek_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 
 static void realtek_mgmt_frame_register(struct wiphy *wiphy,
 				       struct  wireless_dev *wdev,
-				       u16 frame_type, BOOLEAN reg)
+				       u16 frame_type, bool reg)
 {
 	struct rtknl *rtk = wiphy_priv(wiphy);
 	struct rtl8192cd_priv *priv = get_priv_from_wdev(rtk, wdev);
 	NLENTER;
 	if (frame_type != (IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ)){
         NDEBUG3("frame_type=[%02X]\n",frame_type);        
-		goto realtek_mgmt_frame_register_end;
+		return;    
     }
-
-realtek_mgmt_frame_register_end:
-	NLEXIT;
 }
 
 
@@ -3537,7 +3243,7 @@ static int realtek_nliftype_to_drv_iftype(enum nl80211_iftype type, u8 *nw_type)
 	return 0;
 }
 
-static BOOLEAN realtek_is_valid_iftype(struct rtknl *rtk, enum nl80211_iftype type,
+static bool realtek_is_valid_iftype(struct rtknl *rtk, enum nl80211_iftype type,
 				   u8 *if_idx, u8 *nw_type)
 {
 	int i;
@@ -3841,10 +3547,10 @@ int realtek_interface_add(struct rtl8192cd_priv *priv,
 
 }
 
-#ifdef SUPPORT_MONITOR
+#if 0//def SUPPORT_MONITOR
 void rtk_enable_monitor_mode(struct rtl8192cd_priv *priv)
 {
-	//if(priv->pmib->miscEntry.scan_enable)
+	if(priv->pmib->miscEntry.scan_enable)
 		priv->chan_num = 0;
 
 	priv->is_monitor_mode = TRUE;	
@@ -3870,7 +3576,6 @@ void realtek_change_iftype(struct rtl8192cd_priv *priv ,enum nl80211_iftype type
 	//OPMODE &= ~(WIFI_STATION_STATE|WIFI_ADHOC_STATE|WIFI_AP_STATE);
 
 	if(IS_ROOT_INTERFACE(priv) && IS_DRV_OPEN(priv)){
-		if(type != NL80211_IFTYPE_P2P_CLIENT) 
 		rtl8192cd_close(priv->dev);
     }
 
@@ -3889,43 +3594,36 @@ void realtek_change_iftype(struct rtl8192cd_priv *priv ,enum nl80211_iftype type
 		break;
 	case NL80211_IFTYPE_AP:
 		OPMODE = WIFI_AP_STATE;
-		priv->wdev.beacon_interval = 0; 
-		priv->pmib->miscEntry.func_off = 1;
-		priv->pmib->p2p_mib.p2p_enabled=0;
+        priv->pmib->p2p_mib.p2p_enabled=0;                
 		priv->wdev.iftype = type;
-#ifdef SUPPORT_MONITOR
+#if 0//def SUPPORT_MONITOR
 		rtk_disable_monitor_mode(priv);
 #endif
-#if defined(DFS)
-		/*fixme, should not disable carrier here.
-		  Under mac80211 architecture will be invoked by compatible-wireless */
-		netif_carrier_off(priv->dev);
-#endif
-		_NDEBUG("switch to [NL80211_IFTYPE_AP]\n");
+		_NDEBUG("switch to [NL80211_IFTYPE_AP]\n");                
 		break;
 	case NL80211_IFTYPE_P2P_CLIENT:
 		OPMODE = (WIFI_STATION_STATE );      
-		rtk_p2p_set_role(priv,P2P_DEVICE);        
-		priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;
+        rtk_p2p_set_role(priv,P2P_DEVICE);        
+        priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;        
 		priv->wdev.iftype = type;        
 		_NDEBUG("switch to [NL80211_IFTYPE_P2P_CLIENT]\n");        
 		break;
 	case NL80211_IFTYPE_P2P_GO:
 		OPMODE = (WIFI_AP_STATE );        
-		rtk_p2p_set_role(priv,P2P_TMP_GO);        
-		priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;                
+        rtk_p2p_set_role(priv,P2P_TMP_GO);        
+        priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;                
 		priv->wdev.iftype = type;        
 		_NDEBUG("switch to [NL80211_IFTYPE_P2P_GO]\n");        
 		break;
 
     case NL80211_IFTYPE_P2P_DEVICE:
-		OPMODE = (WIFI_STATION_STATE);
-		rtk_p2p_set_role(priv,P2P_DEVICE);        
-		priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;         
-		priv->wdev.iftype = type;        
+        OPMODE = (WIFI_STATION_STATE);
+        rtk_p2p_set_role(priv,P2P_DEVICE);        
+        priv->pmib->p2p_mib.p2p_enabled=CFG80211_P2P;         
+        priv->wdev.iftype = type;        
 		_NDEBUG("switch to [NL80211_IFTYPE_P2P_DEVICE]\n");
         break;
-#ifdef SUPPORT_MONITOR
+#if 0//def SUPPORT_MONITOR
     case NL80211_IFTYPE_MONITOR:		
 		OPMODE = (WIFI_SITE_MONITOR);
 		priv->wdev.iftype = type;  
@@ -4123,8 +3821,7 @@ void close_vxd_vap(struct rtl8192cd_priv *priv_root)
 {
 	int i = 0;
 
-//#ifdef UNIVERSAL_REPEATER
-#if 0	//prevent drop vxd connection
+#ifdef UNIVERSAL_REPEATER
 	if(IS_DRV_OPEN(priv_root->pvxd_priv))
 		rtl8192cd_close(priv_root->pvxd_priv->dev);
 #endif
@@ -4137,6 +3834,7 @@ void close_vxd_vap(struct rtl8192cd_priv *priv_root)
 #endif
 
 }
+
 
 static int realtek_cfg80211_del_iface(struct wiphy *wiphy,
 				     struct wireless_dev *wdev)
@@ -4180,10 +3878,7 @@ static int realtek_cfg80211_del_iface(struct wiphy *wiphy,
 	priv->receive_connect_cmd = 0;
 
 	rtk_abort_scan(priv, SCAN_ABORT_DEL_IFACE);
-
-    if(priv->pmib->dot11StationConfigEntry.dot11AclMode)
-		realtek_reset_mac_acl(priv);
-
+	
 	rtl8192cd_close(priv->dev);
 
 	NLEXIT;
@@ -4330,6 +4025,9 @@ int realtek_remain_on_channel(struct wiphy *wiphy,
         del_timer(&priv->p2pPtr->remain_on_ch_timer);
 
     //rtk_abort_scan(priv);  // abort on going scan
+    
+
+    
 	memcpy(&priv->p2pPtr->remain_on_ch_channel, channel, sizeof(struct ieee80211_channel));
 	priv->p2pPtr->remain_on_ch_cookie= *cookie;
     priv->p2pPtr->restore_channel=GET_ROOT(priv)->pmib->dot11RFEntry.dot11channel;  /*restore orignal channel*/ 
@@ -4451,8 +4149,6 @@ struct cfg80211_ops realtek_cfg80211_ops = {
 	.join_ibss = realtek_cfg80211_join_ibss,
 	.leave_ibss = realtek_cfg80211_leave_ibss,
 	.set_wiphy_params = realtek_cfg80211_set_wiphy_params,
-	.set_ap_chanwidth = realtek_cfg80211_set_ap_chanwidth,
-	.set_monitor_channel = realtek_cfg80211_set_monitor_channel,
 	.set_tx_power = realtek_cfg80211_set_tx_power,
 	.get_tx_power = realtek_cfg80211_get_tx_power,
 	.set_power_mgmt = realtek_cfg80211_set_power_mgmt,
@@ -4478,10 +4174,6 @@ struct cfg80211_ops realtek_cfg80211_ops = {
 	.sched_scan_stop = realtek_cfg80211_sscan_stop,
 	.set_bitrate_mask = realtek_cfg80211_set_bitrate,
 	.set_cqm_txe_config = realtek_cfg80211_set_txe_config,
-#endif
-	.set_mac_acl = realtek_set_mac_acl,
-#if defined(DFS)
-	.start_radar_detection = realtek_start_radar_detection
 #endif
 };
 
@@ -4610,30 +4302,6 @@ static const struct ieee80211_txrx_stypes rtw_cfg80211_default_mgmt_stypes[NUM_N
 #define SCAN_IE_LEN_MAX                2304	
 #define SSID_SCAN_AMOUNT               1 // for WEXT_CSCAN_AMOUNT 9
 #define MAX_NUM_PMKIDS                 32 
-#define	NL_MAX_INTF						9
-
-static const struct ieee80211_iface_limit rtk_if_limits[] = {
-	{ .max = 8,	.types = BIT(NL80211_IFTYPE_AP) },
-	{ .max = 1,	.types = BIT(NL80211_IFTYPE_STATION) },
-};
-
-static const struct ieee80211_iface_combination rtk_2g_comb = {
-	.limits = rtk_if_limits,
-	.n_limits = ARRAY_SIZE(rtk_if_limits),
-	.max_interfaces = NL_MAX_INTF,
-	.num_different_channels = 1,
-};
-
-static const struct ieee80211_iface_combination rtk_5g_comb = {
-	.limits = rtk_if_limits,
-	.n_limits = ARRAY_SIZE(rtk_if_limits),
-	.max_interfaces = NL_MAX_INTF,
-	.num_different_channels = 1,
-	.radar_detect_widths =	BIT(NL80211_CHAN_WIDTH_20_NOHT) |
-					BIT(NL80211_CHAN_WIDTH_20) |
-					BIT(NL80211_CHAN_WIDTH_40),
-};
-
 /**
  * enum wiphy_flags - wiphy capability flags
  *
@@ -4705,7 +4373,7 @@ static const struct ieee80211_iface_combination rtk_5g_comb = {
 int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)  
 {
 	struct wiphy *wiphy = rtk->wiphy;
-	BOOLEAN band_2gig = false, band_5gig = false;
+	bool band_2gig = false, band_5gig = false;
 	int ret;
 #ifdef EN_EFUSE
 	char efusemac[ETH_ALEN];
@@ -4718,18 +4386,19 @@ int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)
 
 	//wiphy->mgmt_stypes = realtek_mgmt_stypes; //_eric_cfg ??
 	wiphy->mgmt_stypes = rtw_cfg80211_default_mgmt_stypes; /*cfg p2p*/
+	
 
-#if defined(SIGNAL_TYPE_UNSPEC)
+	//wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM; //mark_priv
 	wiphy->signal_type=CFG80211_SIGNAL_TYPE_UNSPEC;
-#else
-	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM; //mark_priv
-#endif
+
 	/* max num of ssids that can be probed during scanning */
 	//wiphy->max_scan_ssids = MAX_PROBED_SSIDS;
     wiphy->max_scan_ssids = SSID_SCAN_AMOUNT;	
 
 	/* max num of ssids that can be matched after scan */
 	//wiphy->max_match_sets = MAX_PROBED_SSIDS;
+
+    wiphy->max_num_pmkids = MAX_NUM_PMKIDS;  	
     
 	//wiphy->max_scan_ie_len = 1000; /* FIX: what is correct limit? */    
     wiphy->max_scan_ie_len = SCAN_IE_LEN_MAX;   
@@ -4757,7 +4426,6 @@ int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)
 								BIT(NL80211_IFTYPE_MONITOR);
     }                           
 
-	wiphy->max_acl_mac_addrs = NUM_STAT;
 	//printk("set_wiphy_dev +++ \n");
 	set_wiphy_dev(wiphy, rtk->dev); //return wiphy->dev.parent;
 	//printk("set_wiphy_dev --- \n");
@@ -4772,6 +4440,13 @@ int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)
 	memcpy(wiphy->perm_addr, rtk->root_mac, ETH_ALEN); 
 	memcpy(priv->pmib->dot11Bss.bssid, wiphy->perm_addr, ETH_ALEN);
 
+	
+
+
+	//wiphy->max_scan_ie_len = 1000; /* FIX: what is correct limit? */
+	
+
+
 	/*
 	 * Even if the fw has HT support, advertise HT cap only when
 	 * the firmware has support to override RSN capability, otherwise
@@ -4779,11 +4454,9 @@ int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)
 	 */
 	if(band_2gig)
 	{
-		realtek_band_2ghz.ht_cap.mcs.rx_mask[0] = 0xff;
-		realtek_band_2ghz.ht_cap.mcs.rx_mask[1] = 0xff;
-		wiphy->bands[IEEE80211_BAND_2GHZ] = &realtek_band_2ghz;
-		wiphy->iface_combinations = &rtk_2g_comb;
-		wiphy->n_iface_combinations = 1;
+	realtek_band_2ghz.ht_cap.mcs.rx_mask[0] = 0xff;
+	realtek_band_2ghz.ht_cap.mcs.rx_mask[1] = 0xff;
+	wiphy->bands[IEEE80211_BAND_2GHZ] = &realtek_band_2ghz;
 	}	
 
 	if(band_5gig)
@@ -4791,8 +4464,6 @@ int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)
 		realtek_band_5ghz.ht_cap.mcs.rx_mask[0] = 0xff;
 		realtek_band_5ghz.ht_cap.mcs.rx_mask[1] = 0xff;
 		wiphy->bands[IEEE80211_BAND_5GHZ] = &realtek_band_5ghz;
-        wiphy->iface_combinations = &rtk_5g_comb;
-		wiphy->n_iface_combinations = 1;
 #ifdef RTK_AC_SUPPORT
 		{
 			extern void input_value_32(unsigned long *p, unsigned char start, unsigned char end, unsigned int value);
@@ -4833,8 +4504,11 @@ int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)
 #endif
 	}	
 
+
+
 	wiphy->cipher_suites = cipher_suites;
 	wiphy->n_cipher_suites = ARRAY_SIZE(cipher_suites);
+
 #if 0//def CONFIG_PM
 	wiphy->wowlan.flags = WIPHY_WOWLAN_MAGIC_PKT |
 			      WIPHY_WOWLAN_DISCONNECT |
@@ -4855,8 +4529,6 @@ int realtek_cfg80211_init(struct rtknl *rtk,struct rtl8192cd_priv *priv)
 		NL80211_PROBE_RESP_OFFLOAD_SUPPORT_WPS2 |
 		NL80211_PROBE_RESP_OFFLOAD_SUPPORT_P2P;
 #endif
-
-	wiphy->features |= NL80211_FEATURE_AP_MODE_CHAN_WIDTH_CHANGE;
 
 	//printk("wiphy_register +++ \n");
 	ret = wiphy_register(wiphy);

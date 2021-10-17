@@ -573,7 +573,6 @@ int swNic_increaseRxIdx(int rxRingIdx)
 
 #if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
 int mbuf_pending_times = 0;
-extern int is_rtl865x_eth_priv_buf(unsigned char *head);
 int get_mbuf_pending_times(void)
 {
 	return mbuf_pending_times;
@@ -859,7 +858,6 @@ get_next:
 			info->input = pPkthdr->ph_mbuf->skb;
 			info->len = pPkthdr->ph_len - 4;
 			/* Increment index */
-//			memDump((void*)(((struct sk_buff *)(info->input))->data), 64, "RX");			
 			increase_rx_idx_release_pkthdr(skb, rxRingIdx);
 
 			REG32(CPUIISR) = (MBUF_DESC_RUNOUT_IP_ALL|PKTHDR_DESC_RUNOUT_IP_ALL);
@@ -1319,12 +1317,13 @@ void swNic_freeTxRing(void)
 			if (rtl_chip_version == RTL8196C_REVISION_A)
 				txPkthdrRing[idx][txPktDoneDescIndex[idx]] =txPkthdrRing_backup[idx][txPktDoneDescIndex[idx]] ;
 			#endif
+
 #ifdef CONFIG_RTL_ENHANCE_RELIABILITY
 			pPkthdr = (struct rtl_pktHdr *) (txPkthdrRing_base[idx] + (sizeof(struct rtl_pktHdr) * txPktDoneDescIndex[idx]));								
 #else
 			pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[idx][txPktDoneDescIndex[idx]]
 				& ~(DESC_OWNED_BIT | DESC_WRAP));
-#endif
+#endif			
 
 			if (pPkthdr->ph_mbuf->skb)
 			{

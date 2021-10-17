@@ -3,8 +3,8 @@ INBAND_LIB = ../../rtk_inbandLib/inband.a
 all:    iweventd
 #all:   eventd
 
-CC      = rsdk-linux-gcc
-STRIP   = rsdk-linux-strip
+CC      = $(CROSS_COMPILE)gcc
+STRIP   = $(CROSS_COMPILE)strip
 
 CFLAGS  =
 IFLAGS  =

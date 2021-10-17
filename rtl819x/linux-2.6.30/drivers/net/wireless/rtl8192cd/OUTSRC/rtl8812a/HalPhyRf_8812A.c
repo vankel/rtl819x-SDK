@@ -18,12 +18,8 @@
  *
  ******************************************************************************/
 
-#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
-#include "Mp_Precomp.h"
-#else
 #include "../Mp_Precomp.h"
-#endif
-#include "../odm_precomp.h"
+#include "../phydm_precomp.h"
 
 
 
@@ -2023,7 +2019,7 @@ void _IQK_Tx_8812A(
 					ODM_Write4Byte(pDM_Odm, 0xe84, 0x18008c15);// RX_Tone_idx[9:0], RxK_Mask[29]
 					ODM_Write4Byte(pDM_Odm, 0xe88, 0x02140119);
 					ODM_Write4Byte(pDM_Odm, 0xe8c, 0x28161cc0);
-					ODM_Write4Byte(pDM_Odm, 0xeb8, 0x00100000);// cb8[20] ???SI/PI 使用權?????iqk_dpk module
+					ODM_Write4Byte(pDM_Odm, 0xeb8, 0x00100000);// cb8[20] ???SI/PI 使用�?????iqk_dpk module
 
 					cal_retry = 0;
 	                    		while(1){
@@ -2972,7 +2968,7 @@ PHY_LCCalibrate_8812A(
 #endif
 
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
@@ -3605,7 +3601,7 @@ VOID
 	PDM_ODM_T		pDM_Odm = &pHalData->DM_OutSrc;
 #endif
 #endif	
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
@@ -3687,7 +3683,7 @@ VOID
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return TRUE;
 #endif
 #if !(DM_ODM_SUPPORT_TYPE & ODM_AP)

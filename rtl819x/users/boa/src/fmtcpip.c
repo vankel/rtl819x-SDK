@@ -207,23 +207,6 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 			for(i=0;i<NUM_WLAN_INTERFACE;i++)
 			{
 				wlan_idx=i;
-#if defined(CONFIG_APP_APPLE_MFI_WAC)//set wlan ssid
-				unsigned char ssid_str[64];
-				unsigned char tmpBuf2[32];
-				apmib_get(MIB_HW_WLAN_ADDR,  (void *)tmpBuf2);	
-				sprintf(ssid_str,"WAC_%02X%02X%02X",(unsigned char)tmpBuf2[3],(unsigned char)tmpBuf2[4],(unsigned char)tmpBuf2[5]);
-				if ( !apmib_set(MIB_WLAN_SSID, (void *)ssid_str)) {
-						strcpy(tmpBuf, ("Set MIB_WLAN_SSID mib error!"));
-						goto setErr_tcpip;
-				}
-				if(0 == i){
-					sprintf(ssid_str,"Realtek_WAC_%02X%02X%02X",(unsigned char)tmpBuf2[3],(unsigned char)tmpBuf2[4],(unsigned char)tmpBuf2[5]);
-					if ( !apmib_set(MIB_MFI_WAC_DEVICE_NAME, (void *)ssid_str)) {
-							strcpy(tmpBuf, ("Set MIB_MFI_WAC_DEVICE_NAME mib error!"));
-							goto setErr_tcpip;
-					}
-				}
-#endif					
 				for(j=0;j<NUM_VWLAN_INTERFACE;j++)
 				{
 					vwlan_idx=j;
@@ -239,21 +222,6 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 			for(i=0;i<NUM_WLAN_INTERFACE;i++)
 			{
 				wlan_idx=i;
-#if defined(CONFIG_APP_APPLE_MFI_WAC)//set wlan ssid
-				unsigned char ssid_str[64];
-				sprintf(ssid_str,"WAC_%02X%02X%02X",(unsigned char)tmpBuf[3],(unsigned char)tmpBuf[4],(unsigned char)tmpBuf[5]);
-				if ( !apmib_set(MIB_WLAN_SSID, (void *)ssid_str)) {
-						strcpy(tmpBuf, ("Set MIB_WLAN_SSID mib error!"));
-						goto setErr_tcpip;
-				}
-				if(0 == i){
-					sprintf(ssid_str,"Realtek_WAC_%02X%02X%02X",(unsigned char)tmpBuf[3],(unsigned char)tmpBuf[4],(unsigned char)tmpBuf[5]);
-					if ( !apmib_set(MIB_MFI_WAC_DEVICE_NAME, (void *)ssid_str)) {
-							strcpy(tmpBuf, ("Set MIB_MFI_WAC_DEVICE_NAME mib error!"));
-							goto setErr_tcpip;
-					}
-				}
-#endif				
 				for(j=0;j<NUM_VWLAN_INTERFACE;j++)
 				{
 					vwlan_idx=j;
@@ -821,6 +789,10 @@ int tcpipWanHandler(request *wp, char * tmpBuf, int *dns_changed)
 #ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
 	int intVal2,dot1x_mode,val,dot1x_enable;
 #endif
+#if defined(CONFIG_4G_LTE_SUPPORT)
+	int lte = 0;
+#endif
+
 	strVal = req_get_cstream_var(wp, ("lan_ip"), "");
 	if (strVal[0])
 		call_from_wizard = 1;	
@@ -2176,6 +2148,12 @@ set_ppp:
             }
         }
 #endif /* #ifdef RTK_USB3G */
+#if defined(CONFIG_4G_LTE_SUPPORT)
+		else if ( !strcmp(strMode, ("LTE4G"))) {
+			dhcp = DHCP_CLIENT;
+			lte = 1;
+		}
+#endif
 #ifdef CONFIG_IPV6
 #ifdef CONFIG_DSLITE_SUPPORT
 	else if ( !strcmp(strMode, ("dslite")))
@@ -2237,6 +2215,14 @@ set_ppp:
 			strcpy(tmpBuf, ("Invalid IP mode value!"));
 			goto setErr_tcpip;
 		}
+
+#if defined(CONFIG_4G_LTE_SUPPORT)
+		if ( !apmib_set(MIB_LTE4G, (void *)&lte)) {
+			strcpy(tmpBuf, ("Set MIB_LTE4G error!"));
+			goto setErr_tcpip;
+		}
+#endif
+
 		if ( !apmib_set(MIB_WAN_DHCP, (void *)&dhcp)) {
 	  		strcpy(tmpBuf, ("Set DHCP error!"));
 			goto setErr_tcpip;
@@ -2491,7 +2477,7 @@ end:
                 kill_3G_ppp_inet();
             else
         #endif
-			//if(dhcp != PPTP)
+		//if(dhcp != PPTP)		
 			if(1)
 			{
 			pid = fork();

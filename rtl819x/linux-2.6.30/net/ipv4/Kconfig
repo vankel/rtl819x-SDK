@@ -110,6 +110,10 @@ config RTL_PPTP_DIRECT_PPP_REPLY
         tristate "Realtek Fast PPTP LCP echo reply support"
         default n
 
+config RTL_PPTP_CTL_DIRECT_REPLY
+        tristate "Realtek PPTP keep alive echo reply support"
+        default n
+
 config FAST_PATH_SPI_ENABLED
         bool "Realtek Fastpath SPI(stateful packet inspection) support"
         depends on RTL_IPTABLES_FAST_PATH

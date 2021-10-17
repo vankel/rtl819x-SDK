@@ -276,7 +276,7 @@ static int try_mount(const char *devnode, const char *mnt) {
 		}
 	}
 #endif
-		
+
 	//do {
 	for (idx = 0; fstypes[idx] != 0; idx++) {
 		char source[80];

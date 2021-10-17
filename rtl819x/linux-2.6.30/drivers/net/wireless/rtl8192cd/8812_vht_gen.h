@@ -18,6 +18,10 @@
 
 #ifdef RTK_AC_SUPPORT
 
+#define BEAMFORM_MAX_ANT_SUPP	1
+#define BEAMFORM_SOUNDING_DIMENSIONS	1
+
+
 //=== VHT capability info field ===
 
 #define MAX_MPDU_LENGTH_S	0

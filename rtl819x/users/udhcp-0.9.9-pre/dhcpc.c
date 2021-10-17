@@ -374,7 +374,7 @@ int OptionStaticRoute(struct dhcpMessage *packet)
 						continue;
 					}
 				#if 1
-				char exebuf[60];		
+				char exebuf[256];		
 				sprintf(exebuf,"route add -host %u.%u.%u.%u gw %u.%u.%u.%u metric 1",
 							((unsigned char *)&des_ip)[0],((unsigned char *)&des_ip)[1],
 							((unsigned char *)&des_ip)[2],((unsigned char *)&des_ip)[3],
@@ -534,7 +534,7 @@ Note:
 					((unsigned char *)&gw)[0],((unsigned char *)&gw)[1],
 					((unsigned char *)&gw)[2],((unsigned char *)&gw)[3]);
 				#if 1
-				char exebuf[60];		
+				char exebuf[256];		
 				sprintf(exebuf,"route add -net %u.%u.%u.%u netmask %u.%u.%u.%u gw %u.%u.%u.%u metric 1",
 						((unsigned char *)&des_ip)[0],((unsigned char *)&des_ip)[1],
 						((unsigned char *)&des_ip)[2],((unsigned char *)&des_ip)[3],
@@ -681,7 +681,7 @@ Note:
 					((unsigned char *)&gw)[0],((unsigned char *)&gw)[1],
 					((unsigned char *)&gw)[2],((unsigned char *)&gw)[3]);
 			#if 1
-			char exebuf[60];		
+			char exebuf[256];		
 			sprintf(exebuf,"route add -net %u.%u.%u.%u netmask %u.%u.%u.%u gw %u.%u.%u.%u metric 1",
 				((unsigned char *)&des_ip)[0],((unsigned char *)&des_ip)[1],
 				((unsigned char *)&des_ip)[2],((unsigned char *)&des_ip)[3],
@@ -1773,11 +1773,7 @@ int main(int argc, char *argv[])
 			/* timeout dropped to zero */
 			switch (state) {
 			case INIT_SELECTING:
-#ifdef CONFIG_APP_SIMPLE_CONFIG
-				if (packet_num < 30) {
-#else
 				if (packet_num < 3) {
-#endif
 					if (packet_num == 0)
 						xid = random_xid();
 #ifdef SUPPORT_ZIONCOM_RUSSIA
@@ -1785,22 +1781,13 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 #endif
 					/* send discover packet */
 					send_discover(xid, requested_ip); /* broadcast */
-	#if defined(CONFIG_APP_APPLE_MFI_WAC)
-					if(strcmp(client_config.interface, "br0")==0){ 					
-						send_discover(xid, requested_ip); /* broadcast */
-					}	
-	#endif	
 #ifdef SUPPORT_ZIONCOM_RUSSIA
 	first_flag=0;
 #endif
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
 				system("exlog /tmp/log_web.lck /tmp/log_web \"tag:SYSACT;log_num:13;msg:DHCP Discover;\"");
 #endif
-#ifdef CONFIG_APP_SIMPLE_CONFIG
-					timeout = now + 1;
-#else
 					timeout = now + ((packet_num == 2) ? 4 : 2);
-#endif
 
 				#if defined(CONFIG_RTL_ULINKER)
 					if (detect)      timeout = now + 1;
@@ -1820,11 +1807,7 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					packet_num = 0;
 
 					/* make more constructive to send dhcp discover */
-#ifdef CONFIG_APP_SIMPLE_CONFIG
-					timeout = now + 5;
-#else
 					timeout = now + 10;
-#endif
 
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
 				system("exlog /tmp/log_web.lck /tmp/log_web \"tag:SYSACT;log_num:13;msg:DHCP Discover no response;\"");
@@ -1852,14 +1835,8 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 					/* send request packet */
 					if (state == RENEW_REQUESTED)
 						send_renew(xid, server_addr, requested_ip); /* unicast */
-					else {
-						send_selecting(xid, server_addr, requested_ip); /* broadcast */
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-					if(strcmp(client_config.interface, "br0")==0){ 					
-						send_selecting(xid, server_addr, requested_ip); /* broadcast */
-					}
-#endif
-				}
+					else send_selecting(xid, server_addr, requested_ip); /* broadcast */
+					
 					timeout = now + ((packet_num == 2) ? 10 : 2);
 					packet_num++;
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
@@ -2033,7 +2010,7 @@ system("route del default dev ppp0 > /dev/null 2>&1");
 				if (*message == DHCPACK) {
 					//update server_addr to avoid server ip change and client does not known
 					if ((temp = get_option(&packet, DHCP_SERVER_ID)))
-						memcpy(&server_addr, temp, 4);
+  						memcpy(&server_addr, temp, 4);
 
 					if(!(state == RENEWING || state == REBINDING))
 					{

@@ -45,7 +45,7 @@
 #endif
 
 #ifdef CONFIG_USB_HCI
-#include "./usb/8192cu/8192cd_usb.h"
+#include "./usb/8188eu/8192cd_usb.h"
 #endif
 
 #ifdef CONFIG_SDIO_HCI
@@ -73,10 +73,8 @@
 #define SMP_UNLOCK_ASOC_LIST(__x__)
 #define SMP_LOCK_SLEEP_LIST(__x__)
 #define SMP_UNLOCK_SLEEP_LIST(__x__)
-#define SMP_LOCK_MESH_ACL(__x__)
-#define SMP_UNLOCK_MESH_ACL(__x__)
-#define SMP_LOCK_MESH_MP_HDR(__X__)
-#define SMP_UNLOCK_MESH_MP_HDR(__X__)
+#define SMP_LOCK_STACONTROL_LIST(__X__)
+#define SMP_UNLOCK_STACONTROL_LIST(__X__)
 #define SMP_LOCK_SKB(__x__)			
 #define SMP_UNLOCK_SKB(__x__)
 #define SMP_LOCK_BUF(__x__)			
@@ -109,6 +107,8 @@
 #define SMP_LOCK_ASSERT()			do { } while (0)
 #define SMP_LOCK_XMIT(__x__)			do { } while (0)
 #define SMP_UNLOCK_XMIT(__x__)			do { } while (0)
+#define SMP_LOCK_STACONTROL_LIST(__x__)  do { } while (0)
+#define SMP_UNLOCK_STACONTROL_LIST(__x__) do { } while (0)
 #define SMP_LOCK_MBSSID(__x__)			_enter_critical_mutex(&priv->pshare->lock_mbssid, (__x__))
 #define SMP_UNLOCK_MBSSID(__x__)		_exit_critical_mutex(&priv->pshare->lock_mbssid, (__x__))
 #define SMP_LOCK_ACL(__x__)				do { spin_lock(&priv->wlan_acl_list_lock); (void)(__x__); } while (0)
@@ -136,10 +136,7 @@
 #define SMP_LOCK_WAKEUP_LIST(__x__)			do { spin_lock_bh(&priv->wakeup_list_lock); (void)(__x__); } while (0)
 #define SMP_UNLOCK_WAKEUP_LIST(__x__)			do { spin_unlock_bh(&priv->wakeup_list_lock); (void)(__x__); } while (0)
 #endif
-#define SMP_LOCK_MESH_MP_HDR(__X__)			do { spin_lock_bh(&priv->mesh_mp_hdr_lock); (void)(__x__); } while (0)
-#define SMP_UNLOCK_MESH_MP_HDR(__X__)			do { spin_unlock_bh(&priv->mesh_mp_hdr_lock); (void)(__x__); } while (0)
-#define SMP_LOCK_MESH_ACL(__x__)		do { spin_lock(&priv->mesh_acl_list_lock); (void)(__x__); } while (0)
-#define SMP_UNLOCK_MESH_ACL(__x__)		do { spin_unlock(&priv->mesh_acl_list_lock); (void)(__x__); } while (0)
+
 #elif defined(CONFIG_PCI_HCI)
 #define SMP_LOCK(__x__)	\
 	do { \
@@ -197,6 +194,9 @@
 #define SMP_LOCK_HASH_LIST(__x__)		spin_lock_irqsave(&priv->hash_list_lock, (__x__))
 #define SMP_UNLOCK_HASH_LIST(__x__)		spin_unlock_irqrestore(&priv->hash_list_lock, (__x__))
 
+#define SMP_LOCK_STACONTROL_LIST(__x__)  spin_lock_irqsave(&priv->stactrl.stactrl_lock, (__x__))
+#define SMP_UNLOCK_STACONTROL_LIST(__x__) spin_unlock_irqrestore(&priv->stactrl.stactrl_lock, (__x__))
+
 
 #define SMP_LOCK_ACL(__x__)
 #define SMP_UNLOCK_ACL(__x__)
@@ -204,10 +204,6 @@
 #define SMP_UNLOCK_ASOC_LIST(__x__)
 #define SMP_LOCK_SLEEP_LIST(__x__)
 #define SMP_UNLOCK_SLEEP_LIST(__x__)
-#define SMP_LOCK_MESH_MP_HDR(__X__)
-#define SMP_UNLOCK_MESH_MP_HDR(__X__)
-#define SMP_LOCK_MESH_ACL(__x__)
-#define SMP_UNLOCK_MESH_ACL(__x__)
 #endif
 #ifdef __KERNEL__
 #define SMP_LOCK_SKB(__x__)				spin_lock_irqsave(&priv->pshare->lock_skb, (__x__))
@@ -245,10 +241,6 @@
 #define SMP_UNLOCK_RX_MGT(__x__)		spin_unlock_irqrestore(&priv->rx_mgtlist_lock, (__x__))
 #define SMP_LOCK_RX_CTRL(__x__)			spin_lock_irqsave(&priv->rx_ctrllist_lock, (__x__))
 #define SMP_UNLOCK_RX_CTRL(__x__)		spin_unlock_irqrestore(&priv->rx_ctrllist_lock, (__x__))
-#ifdef RTK_NL80211
-#define SMP_LOCK_CFG80211(__x__)			spin_lock_irqsave(&priv->cfg80211_lock, (__x__))
-#define SMP_UNLOCK_CFG80211(__x__)		spin_unlock_irqrestore(&priv->cfg80211_lock, (__x__))
-#endif
 #endif
 #if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
 #ifdef __ECOS
@@ -294,10 +286,8 @@
 #define SMP_UNLOCK_ASOC_LIST(__x__)
 #define SMP_LOCK_SLEEP_LIST(__x__)
 #define SMP_UNLOCK_SLEEP_LIST(__x__)
-#define SMP_LOCK_MESH_ACL(__x__)
-#define SMP_UNLOCK_MESH_ACL(__x__)
-#define SMP_LOCK_MESH_MP_HDR(__X__)
-#define SMP_UNLOCK_MESH_MP_HDR(__X__)
+#define SMP_LOCK_STACONTROL_LIST(__X__)
+#define SMP_UNLOCK_STACONTROL_LIST(__X__)
 #define SMP_LOCK_SKB(__x__)			
 #define SMP_UNLOCK_SKB(__x__)		
 #define SMP_LOCK_BUF(__x__)			
@@ -342,15 +332,24 @@
 #define RTL_10MILISECONDS_TO_JIFFIES(x) (((x)*HZ)/100)
 #define RTL_JIFFIES_TO_MICROSECOND ((1000*1000)/HZ)
 #define RTL_JIFFIES_TO_MILISECONDS(x) (((x)*1000)/HZ)
-
+#define RTL_JIFFIES_TO_SECOND(x)  ((x)/HZ)
 
 #define RTL_MICROSECONDS_TO_GTIMERCOUNTER(x) ((x)*100/3125 + 1)
-
 
 #define CHIP_VER_92X_SERIES(priv)		( (priv->pshare->version_id&0xf) < 3)
 
 #if defined(CONFIG_PCI_HCI)
 #define GET_CHIP_VER(priv)		((priv->pshare->version_id&VERSION_MASK))
+
+#define BIT_RTL_ID                            	BIT(23)
+#define BIT_SHIFT_CHIP_VER                    	12
+#define BIT_MASK_CHIP_VER                     	0xf
+#define GET_BIT_CHIP_VER(x)  (((x)>>BIT_SHIFT_CHIP_VER) & BIT_MASK_CHIP_VER)
+
+#define IS_TEST_CHIP_8814(priv)     (RTL_R32(0x0F0) & BIT_RTL_ID)
+#define GET_CHIP_VER_8814(priv)     (GET_BIT_CHIP_VER(RTL_R32(0x0F0)))
+
+
 #elif  defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
 #if defined(CONFIG_RTL_92C_SUPPORT)
 #define GET_CHIP_VER(priv)		VERSION_8192C
@@ -446,7 +445,7 @@
 #endif
 
 #ifndef RTK_NL80211
-//extern unsigned char rfc1042_header[WLAN_LLC_HEADER_SIZE]; //mark_wrt
+extern unsigned char rfc1042_header[WLAN_LLC_HEADER_SIZE];
 #endif
 
 #ifdef CONFIG_RTL_8198
@@ -897,10 +896,25 @@ static __inline__ int is_CCK_rate(unsigned char rate)
 		return FALSE;
 }
 
+static __inline__ int is_OFDM_rate(unsigned char rate)
+{
+	if ((rate == _6M_RATE_) || (rate == _9M_RATE_) || (rate == _12M_RATE_) || (rate == _18M_RATE_) || (rate == _24M_RATE_) || (rate == _36M_RATE_) || (rate == _48M_RATE_) || (rate == _54M_RATE_))
+		return TRUE;
+	else
+		return FALSE;
+}
 
 static __inline__ int is_MCS_rate(unsigned char rate)
 {
 	if (rate >= HT_RATE_ID)
+		return TRUE;
+	else
+		return FALSE;
+}
+
+static __inline__ int is_HT_rate(unsigned char rate)
+{
+	if (rate >= HT_RATE_ID && rate < VHT_RATE_ID)
 		return TRUE;
 	else
 		return FALSE;
@@ -1010,6 +1024,45 @@ static __inline__ int is_MCS_4SS_rate(unsigned char rate)
 		return FALSE;
 }
 
+static __inline__ int is_1SS_rate(unsigned char rate)
+{
+#ifdef RTK_AC_SUPPORT
+	if ((rate >= _NSS1_MCS0_RATE_) && (rate <= _NSS1_MCS9_RATE_)) 
+		return TRUE;
+	else
+#endif
+		return (((rate >= _MCS0_RATE_) && (rate <= _MCS7_RATE_)) || rate <= _54M_RATE_) ? TRUE : FALSE;
+}
+
+static __inline__ int is_2SS_rate(unsigned char rate)
+{
+#ifdef RTK_AC_SUPPORT
+	if ((rate >= _NSS2_MCS0_RATE_) && (rate <= _NSS2_MCS9_RATE_)) 
+		return TRUE;
+	else
+#endif
+		return ((rate >= _MCS8_RATE_) && (rate <= _MCS15_RATE_)) ? TRUE : FALSE;
+}
+
+static __inline__ int is_3SS_rate(unsigned char rate)
+{
+#ifdef RTK_AC_SUPPORT
+	if ((rate >= _NSS3_MCS0_RATE_) && (rate <= _NSS3_MCS9_RATE_)) 
+		return TRUE;
+	else
+#endif
+		return ((rate >= _MCS16_RATE_) && (rate <= _MCS23_RATE_)) ? TRUE : FALSE;
+}
+
+static __inline__ int is_4SS_rate(unsigned char rate)
+{
+#ifdef RTK_AC_SUPPORT
+	if ((rate >= _NSS4_MCS0_RATE_) && (rate <= _NSS4_MCS9_RATE_)) 
+		return TRUE;
+	else
+#endif
+		return ((rate >= _MCS23_RATE_) && (rate <= _MCS31_RATE_)) ? TRUE : FALSE;
+}
 
 #ifdef CONFIG_PCI_HCI
 
@@ -1099,7 +1152,7 @@ static __inline__ unsigned long get_physical_addr(struct rtl8192cd_priv *priv, v
 
 static __inline__ int can_enable_rx_ldpc(struct rtl8192cd_priv *priv)
 {
-	if(GET_CHIP_VER(priv) >= VERSION_8813A)
+	if(GET_CHIP_VER(priv) >= VERSION_8814A)
 		return 1;
 	else
 #ifdef RTK_AC_SUPPORT //for 11ac logo
@@ -1109,6 +1162,41 @@ static __inline__ int can_enable_rx_ldpc(struct rtl8192cd_priv *priv)
 #endif
 		return 0;
 }
+
+/*
+ *  find a token in a string. If succes, return pointer of token next. If fail, return null
+ */
+static __inline__ char *get_value_by_token(char *data, char *token)
+{
+		int idx=0, src_len=strlen(data), token_len=strlen(token);
+
+		while (src_len >= token_len) {
+			if (!memcmp(&data[idx], token, token_len))
+				return (&data[idx+token_len]);
+			src_len--;
+			idx++;
+		}
+		return NULL;
+}
+static __inline__ int get_rf_NTx(unsigned char mimo_mode)
+{
+	u1Byte			Ntx = 0;
+
+	if(mimo_mode == MIMO_4T4R)
+		Ntx = 4;
+	else if(mimo_mode== MIMO_3T3R)
+		Ntx = 3;
+	else if(mimo_mode == MIMO_2T4R)
+		Ntx = 2;
+	else if(mimo_mode == MIMO_2T2R)
+		Ntx = 2;
+	else
+		Ntx = 1;
+
+	return Ntx;
+
+}
+
 
 static __inline__ int get_rf_mimo_mode(struct rtl8192cd_priv *priv)
 {
@@ -1120,9 +1208,12 @@ static __inline__ int get_rf_mimo_mode(struct rtl8192cd_priv *priv)
 		(priv->pmib->dot11RFEntry.MIMO_TR_mode == MIMO_1T2R)) 
 		return MIMO_1T2R;
 #endif
-	else if (priv->pshare->phw->MIMO_TR_hw_support == MIMO_2T2R)
+	else if (priv->pshare->phw->MIMO_TR_hw_support == MIMO_2T2R || 
+		priv->pmib->dot11RFEntry.MIMO_TR_mode == MIMO_2T2R ||
+		priv->pmib->dot11RFEntry.MIMO_TR_mode == MIMO_2T4R)
 		return MIMO_2T2R;
-	else if (priv->pshare->phw->MIMO_TR_hw_support == MIMO_3T3R)
+	else if (priv->pshare->phw->MIMO_TR_hw_support == MIMO_3T3R ||
+		priv->pmib->dot11RFEntry.MIMO_TR_mode == MIMO_3T3R)
 		return MIMO_3T3R;
 	else if (priv->pshare->phw->MIMO_TR_hw_support == MIMO_4T4R)
 		return MIMO_4T4R;
@@ -1178,7 +1269,7 @@ static __inline__ void tx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *
 			pstat->tx_pkts++;
 		} else
 #endif
-		if (pstat->sta_in_firmware != 1)
+        if(pstat->sta_in_firmware != 1)		
 #endif //TXREPORT
 		{
 #ifdef CONFIG_RTL8672
@@ -1187,6 +1278,12 @@ static __inline__ void tx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *
 				&& !txcfg->isMC2UC
 #endif		
 			)
+#endif
+#ifdef DONT_COUNT_PROBE_PACKET
+			if (pstat->tx_probe_rsp_pkts) {
+				// Don't increase pstat->tx_pkts for probe response
+				pstat->tx_probe_rsp_pkts--;
+			} else
 #endif
 			pstat->tx_pkts++;
 		}
@@ -1201,7 +1298,7 @@ static __inline__ void rx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *
 	struct net_device_stats *pnet_stats;
 
 	if (priv) {
-		pnet_stats = &(priv->net_stats);
+		pnet_stats = &(priv->net_stats);       
 		pnet_stats->rx_packets++;
 		pnet_stats->rx_bytes += pktlen;
 
@@ -1220,6 +1317,22 @@ static __inline__ void rx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *
 		pstat->rx_byte_cnt += pktlen;
 	}
 }
+
+#ifdef RX_CRC_EXPTIMER
+static __inline__ void rx_crc_sum_up(struct rtl8192cd_priv *priv, unsigned char rx_rate)
+{
+	struct net_device_stats *pnet_stats;
+
+	if (priv) {
+#ifdef RX_CRC_EXPTIMER
+        priv->ext_stats.rx_packets_exptimer++;
+		priv->ext_stats.rx_packets_by_rate[rx_rate]++;
+#endif        
+	}
+}
+
+#endif
+
 
 
 static __inline__ unsigned char get_cck_swing_idx(unsigned int bandwidth, unsigned char ofdm_swing_idx)
@@ -1344,6 +1457,9 @@ void rtw_mfree2d(void *pbuf, int h, int w, int size);
 #if defined(USE_PID_NOTIFY) && defined(LINUX_2_6_27_)
 extern struct pid *_wlanapp_pid;
 extern struct pid *_wlanwapi_pid;
+#ifdef CONFIG_IEEE80211R
+extern struct pid *_wlanft_pid;
+#endif
 #endif
 
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
@@ -1402,14 +1518,14 @@ static inline void rtw_reset_continual_urb_error(struct rtl8192cd_priv *priv)
 
 #endif // CONFIG_USB_HCI
 
-
+#if defined(RTK_ATM) && !defined(HS2_SUPPORT)
+void staip_snooping_byarp(struct sk_buff *pskb, struct stat_info *pstat);
+#endif
 #ifdef HS2_SUPPORT
-unsigned int getDSCP2UP(struct rtl8192cd_priv *priv, unsigned char DSCP); //after pf4
-void setQoSMapConf(struct rtl8192cd_priv *priv);//after pf4
 void staip_snooping_byarp(struct sk_buff *pskb, struct stat_info *pstat);
 void staip_snooping_bydhcp(struct sk_buff *pskb, struct rtl8192cd_priv *priv);
 void stav6ip_snooping_bynadvert(struct sk_buff *pskb, struct stat_info *pstat);
-void stav6ip_snooping_bynsolic(struct rtl8192cd_priv *priv, struct sk_buff *pskb, struct stat_info *pstat);// modify after pf4
+void stav6ip_snooping_bynsolic(struct sk_buff *pskb, struct stat_info *pstat);
 int proxy_arp_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb);
 int proxy_icmpv6_ndisc(struct rtl8192cd_priv *priv, struct sk_buff *skb);
 void calcu_sta_v6ip(struct stat_info *pstat);
@@ -1766,6 +1882,126 @@ static inline int wakeup_list_add(struct rtl8192cd_priv *priv, struct stat_info 
 	return ret;
 }
 #endif // CONFIG_USB_HCI || CONFIG_SDIO_HCI
+
+#define SET_PSEUDO_RANDOM_NUMBER(target)	{ \
+	get_random_bytes(&(target), sizeof(target)); \
+	target += (GET_MY_HWADDR[4] + GET_MY_HWADDR[5] + jiffies - priv->net_stats.rx_bytes \
+	+ priv->net_stats.tx_bytes + priv->net_stats.rx_errors - priv->ext_stats.beacon_ok); \
+}
+
+
+#ifdef __ECOS
+typedef void pr_fun(char *fmt, ...);
+extern pr_fun *ecos_pr_fun;
+
+#define PRINT_ONE(val, format, line_end) { \
+	ecos_pr_fun(format, val); \
+	if (line_end) 	\
+		ecos_pr_fun("\n"); \
+}
+
+#define PRINT_ARRAY(val, format, len, line_end) { \
+	int index; 	\
+	for (index=0; index<len; index++) \
+		ecos_pr_fun(format, val[index]); \
+	if (line_end) 	\
+		ecos_pr_fun("\n"); \
+}
+#else
+#ifdef CONFIG_RTL_PROC_NEW
+#define PRINT_ONE(val, format, line_end) { 		\
+	seq_printf(s, format, val); \
+	if (line_end) \
+		seq_printf(s, "\n");		\
+}
+
+#define PRINT_ARRAY(val, format, len, line_end) { 	\
+	int index;					\
+	for (index=0; index<len; index++)		\
+		seq_printf(s, format, val[index]); \
+	if (line_end)					\
+		seq_printf(s, "\n");		\
+							\
+}
+#else
+#define PRINT_ONE(val, format, line_end) { 		\
+	pos += sprintf(&buf[pos], format, val);		\
+	if (line_end)					\
+		strcat(&buf[pos++], "\n");		\
+}
+
+#define PRINT_ARRAY(val, format, len, line_end) { 	\
+	int index;					\
+	for (index=0; index<len; index++)		\
+		pos += sprintf(&buf[pos], format, val[index]); \
+	if (line_end)					\
+		strcat(&buf[pos++], "\n");		\
+							\
+}
+#endif //LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#endif
+
+#define PRINT_SINGL_ARG(name, para, format) { \
+	PRINT_ONE(name, "%s", 0); \
+	PRINT_ONE(para, format, 1); \
+}
+
+#define PRINT_ARRAY_ARG(name, para, format, len) { \
+	PRINT_ONE(name, "%s", 0); \
+	PRINT_ARRAY(para, format, len, 1); \
+}
+
+#if (NUM_STAT >64)
+#define PRINT_BITMAP_ARG(name, para) { \
+    PRINT_ONE(name, "%s: ", 0); \
+    PRINT_ONE(para._staMap_, "0x%08x", 1); \
+    PRINT_ONE(name, "%s ext 1: ", 0); \
+    PRINT_ONE(para._staMap_ext_1, "0x%08x", 1); \
+    PRINT_ONE(name, "%s ext 2: ", 0); \
+    PRINT_ONE(para._staMap_ext_2, "0x%08x", 1); \
+    PRINT_ONE(name, "%s ext 3: ", 0); \
+    PRINT_ONE(para._staMap_ext_3, "0x%08x", 1); \
+}
+
+#elif (NUM_STAT >32)
+#define PRINT_BITMAP_ARG(name, para) { \
+    PRINT_ONE(name, "%s: ", 0); \
+    PRINT_ONE(para._staMap_, "0x%08x", 1); \
+    PRINT_ONE(name, "%s ext 1: ", 0); \
+    PRINT_ONE(para._staMap_ext_1, "0x%08x", 1); \
+}
+#else
+#define PRINT_BITMAP_ARG(name, para) { \
+    PRINT_ONE(name, "%s: ", 0); \
+    PRINT_ONE(para._staMap_, "0x%08x", 1); \
+}
+#endif
+
+#if defined(__ECOS) 
+#define CHECK_LEN do {} while(0)
+#else
+#if defined(CONFIG_RTL_PROC_NEW)
+#define CHECK_LEN do {} while(0)
+#else
+#define CHECK_LEN { \
+	len += size; \
+	pos = begin + len; \
+	if (pos < offset) { \
+		len = 0; \
+		begin = pos; \
+	} else { \
+		if (len == size) { \
+			len -= (offset-begin); \
+			memcpy(buf, &buf[offset-begin], len); \
+			begin = offset; \
+		} \
+		if (len > length) \
+			goto _ret; \
+	} \
+}
+#endif
+#endif
+
 
 #endif // _8192CD_UTIL_H_
 

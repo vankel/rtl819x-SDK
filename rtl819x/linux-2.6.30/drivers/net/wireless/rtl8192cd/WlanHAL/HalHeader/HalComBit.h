@@ -29,17 +29,6 @@ Example:
 // TODO: temp setting, we need to move to matching file
 // Some setting can be replaced after normal MAC reg.h are released
 
-
-//----------------------------------------------------------------------------
-//       SYS_FUNC_EN bits					(Offset 0x2, 16bit)
-//----------------------------------------------------------------------------
-//----------------------------------------------------------------------------
-//       MCUFWDL bits						(Offset 0x80-83, 32 bits)
-//----------------------------------------------------------------------------
-//----------------------------------------------------------------------------
-//      (MSR) Media Status Register	(Offset 0x100, 8 bits)  
-//---------------------------------------------------------------------------
-
 // Loopback mode.
 #define		LBMODE_NORMAL			0x00
 #define		LBMODE_MAC				0x0B
@@ -58,593 +47,17 @@ Default: 00b.
 #define	MSR_INFRA				0x02
 #define	MSR_AP					0x03
 
-
 //----------------------------------------------------------------------------
 //      (PBP) Packet Buffer Page Register	(Offset 0x104[7:4], 4 bits)  
 //----------------------------------------------------------------------------
 #define PBP_UNIT                128
 
-
 //TXBD_IDX Common
 #define BIT_SHIFT_QUEUE_HOST_IDX    0
 #define BIT_SHIFT_QUEUE_HW_IDX      16
 #define BIT_MASK_QUEUE_IDX          0x0FFF
-
-
-//----------------------------------------------------------------------------
-//       TRXDMA_CTRL bits				(Offset 0x10C-10D, 16 bits)
-//----------------------------------------------------------------------------
-//----------------------------------------------------------------------------
-//       TRXFF_BNDY bits				(Offset 0x114-117, 32 bits)
-//----------------------------------------------------------------------------
-//----------------------------------------------------------------------------
-//       SPEC_SIFS bits					(Offset 0x428-429, 16 bits)
-//----------------------------------------------------------------------------
-//#define		BIT_SHIFT_SPEC_SIFS_OFDM	8	// spec SIFS value for duration calculation.
-//#define		BIT_MASK_SPEC_SIFS_OFDM	    0x0FF
-//#define		BIT_SHIFT_SPEC_SIFS_CCK	    0	// spec SIFS value for duration calculation.
-//#define		BIT_MASK_SPEC_SIFS_CCK	    0x0FF
-
-
-
-//----------------------------------------------------------------------------
-//       RL bits							(Offset 0x42A-42B, 16 bits)
-//----------------------------------------------------------------------------
-//#define BIT_SHIFT_SRL       8	    // Short Retry Limit.
-//#define BIT_MASK_SRL        0x03F 
-//#define BIT_SHIFT_LRL       0	    // Long Retry Limit.
-//#define BIT_MASK_LRL        0x03F 
-
-//----------------------------------------------------------------------------
-//       SIFS_CTX bits						(Offset 0x514-515, 16 bits)
-//----------------------------------------------------------------------------
-//#define BIT_SHIFT_SIFS_CCK_CTX      0
-//#define BIT_MASK_SIFS_CCK_CTX       0xFF
-//#define BIT_SHIFT_SIFS_OFDM_CTX     8
-//#define BIT_MASK_SIFS_OFDM_CTX      0xFF
-
-//----------------------------------------------------------------------------
-//       SIFS_TRX bits					(Offset 0x516-517, 16 bits)
-//----------------------------------------------------------------------------
-//#define BIT_SHIFT_SIFS_CCK_TRX      16
-//#define BIT_MASK_SIFS_CCK_TRX       0xFF
-//#define BIT_SHIFT_SIFS_OFDM_TRX     24
-//#define BIT_MASK_SIFS_OFDM_TRX      0xFF
-
-//----------------------------------------------------------------------------
-//       TBTT_PROHIBIT bits					(Offset 0x540, 20 bits)
-//----------------------------------------------------------------------------
-//#define     BIT_SHIFT_TBTT_HOLD_TIME_AP     8
-//#define     BIT_MASK_TBTT_HOLD_TIME_AP      0xFFF
-
-
-//----------------------------------------------------------------------------
-//       BCN_CTRL bits					(Offset 0x550, 8 bits)
-//----------------------------------------------------------------------------
-//#define     BIT_DIS_RX_BSSID_FIT    BIT(6)
-//#define 	BIT_DIS_TSF_UDT	        BIT(4)
-//#define		BIT_EN_BCN_FUNCTION	    BIT(3)	// bit=1, TSF and other beacon related functions are then enabled.
-//#define		BIT_EN_TXBCN_RPT		BIT(2)	//
-
-
-
-//----------------------------------------------------------------------------
-//       MBID_NUM bits					(Offset 0x552, 8 bits)
-//----------------------------------------------------------------------------
-//#define     BIT_SHIFT_MBID_BCN_NUM  0
-//#define     BIT_MASK_MBID_BCN_NUM   0x07
-
-
-//----------------------------------------------------------------------------
-//       MBSSID_BCN_SPACE bits			(Offset 0x554-557, 32 bits)
-//----------------------------------------------------------------------------
-//#define     BIT_SHIFT_BCN_SPACE1    0
-//#define     BIT_MASK_BCN_SPACE1     0xFFFF
-//#define     BIT_SHIFT_BCN_SPACE2    16
-//#define     BIT_MASK_BCN_SPACE2     0xFFFF
-
 #endif
 
-//-----------------------------------------------------
-//
-//  0x0300h ~ 0x03FFh   PCIe/LBus
-//
-//-----------------------------------------------------
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8192E
-//4 REG_PCIE_CTRL(0x300), 4 Bytes
-//#define BIT_PCIEIO_PERSTB_SEL       BIT(31)
-
-//#define BIT_MASK_PCIE_MAX_RXDMA     0x7
-//#define BIT_SHIFT_PCIE_MAX_RXDMA    28
-//#define BIT_PCIE_MAX_RXDMA(x)       (((x) & BIT_MASK_PCIE_MAX_RXDMA)<<BIT_SHIFT_PCIE_MAX_RXDMA)
-
-//#define BIT_MULRW                   BIT(27)
-
-//#define BIT_MASK_PCIE_MAX_TXDMA     0x7
-//#define BIT_SHIFT_PCIE_MAX_TXDMA    24
-//#define BIT_PCIE_MAX_TXDMA(x)       (((x) & BIT_MASK_PCIE_MAX_TXDMA)<<BIT_SHIFT_PCIE_MAX_TXDMA)
-
-//#define BIT_EN_CPL_TIMEOUT_PS       BIT(22)
-//#define BIT_REG_TXDMA_FAIL_PS       BIT(21)
-//#define BIT_PCIE_RST_TRXDMA_INTF    BIT(20)
-//#define BIT_EN_HWENTR_L1            BIT(19)
-//#define BIT_EN_ADV_CLKGATE          BIT(18)
-//#define BIT_PCIE_EN_SWENT_L23       BIT(17)
-//#define BIT_PCIE_EN_HWEXT_L1        BIT(16)
-#endif
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8881A
-//4 REG_LX_CTRL1(0x300)
-//#define BIT_WT_LIT_EDN              BIT(25)
-//#define BIT_RD_LITT_EDN             BIT(24)
-
-//#define BIT_SHIFT_MAX_RXDMA         20
-//#define BIT_MASK_MAX_RXDMA          0x7
-//#define BIT_MAX_RXDMA(x)            (((x) & BIT_MASK_MAX_RXDMA)<<BIT_SHIFT_MAX_RXDMA)
-
-//#define BIT_SHIFT_MAX_TXDMA         16
-//#define BIT_MASK_MAX_TXDMA          0x7
-//#define BIT_MAX_TXDMA(x)            (((x) & BIT_MASK_MAX_TXDMA)<<BIT_SHIFT_MAX_TXDMA)
-#endif
-
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E | SUPPORT_CHIP_8813A)
-//#define BIT_STOP_BCNQ               BIT(14)
-//#define BIT_STOP_MGQ                BIT(13)
-//#define BIT_STOP_VOQ                BIT(12)
-//#define BIT_STOP_VIQ                BIT(11)
-//#define BIT_STOP_BEQ                BIT(10)
-//#define BIT_STOP_BKQ                BIT(9)
-//#define BIT_STOP_RXQ                BIT(8)
-//#define BIT_STOP_HI7Q               BIT(7)
-//#define BIT_STOP_HI6Q               BIT(6)
-//#define BIT_STOP_HI5Q               BIT(5)
-//#define BIT_STOP_HI4Q               BIT(4)
-//#define BIT_STOP_HI3Q               BIT(3)
-//#define BIT_STOP_HI2Q               BIT(2)
-//#define BIT_STOP_HI1Q               BIT(1)
-//#define BIT_STOP_HI0Q               BIT(0)
-#endif
-
-
-//4 REG_INT_MIG(0x0304), 4 Bytes
-//#define BIT_SHIFT_TXTTIMER_MATCH_NUM                28
-//#define BIT_MASK_TXTTIMER_MATCH_NUM                 0xF
-//#define BIT_MAX_TXTTIMER_MATCH_NUM(x)               (((x) & BIT_MASK_TXTTIMER_MATCH_NUM)<<BIT_SHIFT_TXTTIMER_MATCH_NUM)
-
-//#define BIT_SHIFT_TXPKT_NUM_MATCH                   24
-//#define BIT_MASK_TXPKT_NUM_MATCH                    0xF
-//#define BIT_MAX_TXPKT_NUM_MATCH(x)                  (((x) & BIT_MASK_TXPKT_NUM_MATCH)<<BIT_SHIFT_TXPKT_NUM_MATCH)
-
-//#define BIT_SHIFT_RXTTIMER_MATCH_NUM                20
-//#define BIT_MASK_RXTTIMER_MATCH_NUM                 0xF
-//#define BIT_MAX_RXTTIMER_MATCH_NUM(x)               (((x) & BIT_MASK_RXTTIMER_MATCH_NUM)<<BIT_SHIFT_RXTTIMER_MATCH_NUM)
-
-//#define BIT_SHIFT_RXPKT_NUM_MATCH                   16
-//#define BIT_MASK_RXPKT_NUM_MATCH                    0xF
-//#define BIT_MAX_RXPKT_NUM_MATCH(x)                  (((x) & BIT_MASK_RXPKT_NUM_MATCH)<<BIT_SHIFT_RXPKT_NUM_MATCH)
-
-//#define BIT_SHIFT_MIGRATE_TIMER                     0
-//#define BIT_MASK_MIGRATE_TIMER                      0xFFFF
-//#define BIT_MAX_MIGRATE_TIMER(x)                    (((x) & BIT_MASK_MIGRATE_TIMER)<<BIT_SHIFT_MIGRATE_TIMER)
-
-//4 #define REG_BCNQ_TXBD_DESA          0x0308  // 8 Bytes
-//4 #define REG_MGQ_TXBD_DESA           0x0310  // 8 Bytes 
-//4 #define REG_VOQ_TXBD_DESA           0x0318  // 8 Bytes
-//4 #define REG_VIQ_TXBD_DESA           0x0320  // 8 Bytes
-//4 #define REG_BEQ_TXBD_DESA           0x0328  // 8 Bytes
-//4 #define REG_BKQ_TXBD_DESA           0x0330  // 8 Bytes
-//4 #define REG_RXQ_RXBD_DESA           0x0338  // 8 Bytes
-//4 #define REG_HI0Q_TXBD_DESA          0x0340  // 8 Bytes
-//4 #define REG_HI1Q_TXBD_DESA          0x0348  // 8 Bytes
-//4 #define REG_HI2Q_TXBD_DESA          0x0350  // 8 Bytes
-//4 #define REG_HI3Q_TXBD_DESA          0x0358  // 8 Bytes
-//4 #define REG_HI4Q_TXBD_DESA          0x0360  // 8 Bytes
-//4 #define REG_HI5Q_TXBD_DESA          0x0368  // 8 Bytes
-//4 #define REG_HI6Q_TXBD_DESA          0x0370  // 8 Bytes
-//4 #define REG_HI7Q_TXBD_DESA          0x0378  // 8 Bytes
-
-
-//4 #define REG_MGQ_TXBD_NUM            0x0380  // 2 Bytes
-//#define BIT_SHIFT_MGQ_DESC_MODE                      12
-//#define BIT_MASK_MGQ_DESC_MODE                       0x3
-//#define BIT_MAX_MGQ_DESC_MODE(x)                     (((x) & BIT_MASK_MGQ_DESC_MODE)<<BIT_SHIFT_MGQ_DESC_MODE)
-
-//#define BIT_SHIFT_MGQ_DESC_NUM                      0
-//#define BIT_MASK_MGQ_DESC_NUM                       0xFFF
-//#define BIT_MAX_MGQ_DESC_NUM(x)                     (((x) & BIT_MASK_MGQ_DESC_NUM)<<BIT_SHIFT_MGQ_DESC_NUM)
-
-
-//4 #define REG_RX_RXBD_NUM             0x0382  // 2 Bytes
-//#define BIT_SHIFT_SYS_32_64                         15
-//#define BIT_SYS_32_64                               BIT(BIT_SHIFT_SYS_32_64)
-
-//#define BIT_SHIFT_BCNQ_DESC_MODE                    13
-//#define BIT_MASK_BCNQ_DESC_MODE                     0x3
-//#define BIT_MAX_BCNQ_DESC_MODE(x)                   (((x) & BIT_MASK_BCNQ_DESC_MODE)<<BIT_SHIFT_BCNQ_DESC_MODE)
-
-//#define BIT_BCNQ_FLAG                               BIT(12)
-
-//#define BIT_SHIFT_RXQ_DESC_NUM                      0
-//#define BIT_MASK_RXQ_DESC_NUM                       0xFFF
-//#define BIT_MAX_RXQ_DESC_NUM(x)                     (((x) & BIT_MASK_RXQ_DESC_NUM)<<BIT_SHIFT_RXQ_DESC_NUM)
-
-
-//4 #define REG_VOQ_TXBD_NUM            0x0384  // 2 Bytes
-//#define BIT_VOQ_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_VOQ_DESC_MODE                    12
-//#define BIT_MASK_VOQ_DESC_MODE                     0x3
-//#define BIT_MAX_VOQ_DESC_MODE(x)                   (((x) & BIT_MASK_VOQ_DESC_MODE)<<BIT_SHIFT_VOQ_DESC_MODE)
-
-//#define BIT_SHIFT_VOQ_DESC_NUM                      0
-//#define BIT_MASK_VOQ_DESC_NUM                       0xFFF
-//#define BIT_MAX_VOQ_DESC_NUM(x)                     (((x) & BIT_MASK_VOQ_DESC_NUM)<<BIT_SHIFT_VOQ_DESC_NUM)
-
-
-//4 #define REG_VIQ_TXBD_NUM            0x0386  // 2 Bytes
-//#define BIT_VIQ_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_VIQ_DESC_MODE                    12
-//#define BIT_MASK_VIQ_DESC_MODE                     0x3
-//#define BIT_MAX_VIQ_DESC_MODE(x)                   (((x) & BIT_MASK_VIQ_DESC_MODE)<<BIT_SHIFT_VIQ_DESC_MODE)
-
-//#define BIT_SHIFT_VIQ_DESC_NUM                      0
-//#define BIT_MASK_VIQ_DESC_NUM                       0xFFF
-//#define BIT_MAX_VIQ_DESC_NUM(x)                     (((x) & BIT_MASK_VIQ_DESC_NUM)<<BIT_SHIFT_VIQ_DESC_NUM)
-
-
-//4 #define REG_BEQ_TXBD_NUM            0x0388  // 2 Bytes
-//#define BIT_BEQ_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_BEQ_DESC_MODE                    12
-//#define BIT_MASK_BEQ_DESC_MODE                     0x3
-//#define BIT_MAX_BEQ_DESC_MODE(x)                   (((x) & BIT_MASK_BEQ_DESC_MODE)<<BIT_SHIFT_BEQ_DESC_MODE)
-
-//#define BIT_SHIFT_BEQ_DESC_NUM                      0
-//#define BIT_MASK_BEQ_DESC_NUM                       0xFFF
-//#define BIT_MAX_BEQ_DESC_NUM(x)                     (((x) & BIT_MASK_BEQ_DESC_NUM)<<BIT_SHIFT_BEQ_DESC_NUM)
-
-
-
-//4 #define REG_BKQ_TXBD_NUM            0x038A  // 2 Bytes
-//#define BIT_BKQ_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_BKQ_DESC_MODE                    12
-//#define BIT_MASK_BKQ_DESC_MODE                     0x3
-//#define BIT_MAX_BKQ_DESC_MODE(x)                   (((x) & BIT_MASK_BKQ_DESC_MODE)<<BIT_SHIFT_BKQ_DESC_MODE)
-
-//#define BIT_SHIFT_BKQ_DESC_NUM                      0
-//#define BIT_MASK_BKQ_DESC_NUM                       0xFFF
-//#define BIT_MAX_BKQ_DESC_NUM(x)                     (((x) & BIT_MASK_BKQ_DESC_NUM)<<BIT_SHIFT_BKQ_DESC_NUM)
-
-
-//4 #define REG_HI0Q_TXBD_NUM            0x038C  // 2 Bytes
-//#define BIT_HI0Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI0Q_DESC_MODE                    12
-//#define BIT_MASK_HI0Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI0Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI0Q_DESC_MODE)<<BIT_SHIFT_HI0Q_DESC_MODE)
-
-//#define BIT_SHIFT_HI0Q_DESC_NUM                      0
-//#define BIT_MASK_HI0Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI0Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI0Q_DESC_NUM)<<BIT_SHIFT_HI0Q_DESC_NUM)
-
-
-//4 #define REG_HI1Q_TXBD_NUM            0x038E  // 2 Bytes
-//#define BIT_HI1Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI1Q_DESC_MODE                    12
-//#define BIT_MASK_HI1Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI1Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI1Q_DESC_MODE)<<BIT_SHIFT_HI1Q_DESC_MODE)
-
-//#define BIT_SHIFT_HI1Q_DESC_NUM                      0
-//#define BIT_MASK_HI1Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI1Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI1Q_DESC_NUM)<<BIT_SHIFT_HI1Q_DESC_NUM)
-
-
-//4 #define REG_HI2Q_TXBD_NUM            0x0390  // 2 Bytes
-//#define BIT_HI2Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI2Q_DESC_MODE                    12
-//#define BIT_MASK_HI2Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI2Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI2Q_DESC_MODE)<<BIT_SHIFT_HI2Q_DESC_MODE)
-
-
-//#define BIT_SHIFT_HI2Q_DESC_NUM                      0
-//#define BIT_MASK_HI2Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI2Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI2Q_DESC_NUM)<<BIT_SHIFT_HI2Q_DESC_NUM)
-
-
-//4 #define REG_HI3Q_TXBD_NUM            0x0392  // 2 Bytes
-//#define BIT_HI3Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI3Q_DESC_MODE                    12
-//#define BIT_MASK_HI3Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI3Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI3Q_DESC_MODE)<<BIT_SHIFT_HI3Q_DESC_MODE)
-
-//#define BIT_SHIFT_HI3Q_DESC_NUM                      0
-//#define BIT_MASK_HI3Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI3Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI3Q_DESC_NUM)<<BIT_SHIFT_HI3Q_DESC_NUM)
-
-
-//4 #define REG_HI4Q_TXBD_NUM            0x0394  // 2 Bytes
-//#define BIT_HI4Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI4Q_DESC_MODE                    12
-//#define BIT_MASK_HI4Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI4Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI4Q_DESC_MODE)<<BIT_SHIFT_HI4Q_DESC_MODE)
-
-//#define BIT_SHIFT_HI4Q_DESC_NUM                      0
-//#define BIT_MASK_HI4Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI4Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI4Q_DESC_NUM)<<BIT_SHIFT_HI4Q_DESC_NUM)
-
-
-//4 #define REG_HI5Q_TXBD_NUM            0x0396  // 2 Bytes
-//#define BIT_HI5Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI5Q_DESC_MODE                    12
-//#define BIT_MASK_HI5Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI5Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI5Q_DESC_MODE)<<BIT_SHIFT_HI5Q_DESC_MODE)
-
-//#define BIT_SHIFT_HI5Q_DESC_NUM                      0
-//#define BIT_MASK_HI5Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI5Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI5Q_DESC_NUM)<<BIT_SHIFT_HI5Q_DESC_NUM)
-
-
-//4 #define REG_HI6Q_TXBD_NUM            0x0398  // 2 Bytes
-//#define BIT_HI6Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI6Q_DESC_MODE                    12
-//#define BIT_MASK_HI6Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI6Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI6Q_DESC_MODE)<<BIT_SHIFT_HI6Q_DESC_MODE)
-
-//#define BIT_SHIFT_HI6Q_DESC_NUM                      0
-//#define BIT_MASK_HI6Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI6Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI6Q_DESC_NUM)<<BIT_SHIFT_HI6Q_DESC_NUM)
-
-
-//4 #define REG_HI7Q_TXBD_NUM            0x039A  // 2 Bytes
-//#define BIT_HI7Q_FLAG                                BIT(14)
-
-//#define BIT_SHIFT_HI7Q_DESC_MODE                    12
-//#define BIT_MASK_HI7Q_DESC_MODE                     0x3
-//#define BIT_MAX_HI7Q_DESC_MODE(x)                   (((x) & BIT_MASK_HI7Q_DESC_MODE)<<BIT_SHIFT_HI7Q_DESC_MODE)
-
-//#define BIT_SHIFT_HI7Q_DESC_NUM                      0
-//#define BIT_MASK_HI7Q_DESC_NUM                       0xFFF
-//#define BIT_MAX_HI7Q_DESC_NUM(x)                     (((x) & BIT_MASK_HI7Q_DESC_NUM)<<BIT_SHIFT_HI7Q_DESC_NUM)
-
-
-//4 #define REG_TSFTIMER_HCI            0x039C  // 4 Bytes
-//#define BIT_SHIFT_TSFT2_HCI                           16
-//#define BIT_MASK_TSFT2_HCI                            0xFFFF
-//#define BIT_MAX_TSFT2_HCI(x)                         (((x) & BIT_MASK_TSFT2_HCI)<<BIT_SHIFT_TSFT2_HCI)
-
-//#define BIT_SHIFT_TSFT1_HCI                           0
-//#define BIT_MASK_TSFT1_HCI                            0xFFFF
-//#define BIT_MAX_TSFT1_HCI(x)                         (((x) & BIT_MASK_TSFT1_HCI)<<BIT_SHIFT_TSFT1_HCI)
-
-
-//4 #define REG_BD_RWPTR_CLR            0x039C  // 4 Bytes
-//#define BIT_CLR_HI7Q_HW_IDX                             BIT(29)
-//#define BIT_CLR_HI6Q_HW_IDX                             BIT(28)
-//#define BIT_CLR_HI5Q_HW_IDX                             BIT(27)
-//#define BIT_CLR_HI4Q_HW_IDX                             BIT(26)
-//#define BIT_CLR_HI3Q_HW_IDX                             BIT(25)
-//#define BIT_CLR_HI2Q_HW_IDX                             BIT(24)
-//#define BIT_CLR_HI1Q_HW_IDX                             BIT(23)
-//#define BIT_CLR_HI0Q_HW_IDX                             BIT(22)
-//#define BIT_CLR_BKQ_HW_IDX                              BIT(21)
-//#define BIT_CLR_BEQ_HW_IDX                              BIT(20)
-//#define BIT_CLR_VIQ_HW_IDX                              BIT(19)
-//#define BIT_CLR_VOQ_HW_IDX                              BIT(18)
-//#define BIT_CLR_MGTQ_HW_IDX                             BIT(17)
-//#define BIT_CLR_RXQ_HW_IDX                              BIT(16)
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8881A
-//#define BIT_SRST_TX                                     BIT(15)
-//#define BIT_SRST_RX                                     BIT(14)
-#endif  //CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8881A
-
-//#define BIT_CLR_HI7Q_HOST_IDX                           BIT(13)
-//#define BIT_CLR_HI6Q_HOST_IDX                           BIT(12)
-//#define BIT_CLR_HI5Q_HOST_IDX                           BIT(11)
-//#define BIT_CLR_HI4Q_HOST_IDX                           BIT(10)
-//#define BIT_CLR_HI3Q_HOST_IDX                           BIT(9)
-//#define BIT_CLR_HI2Q_HOST_IDX                           BIT(8)
-//#define BIT_CLR_HI1Q_HOST_IDX                           BIT(7)
-//#define BIT_CLR_HI0Q_HOST_IDX                           BIT(6)
-//#define BIT_CLR_BKQ_HOST_IDX                            BIT(5)
-//#define BIT_CLR_BEQ_HOST_IDX                            BIT(4)
-//#define BIT_CLR_VIQ_HOST_IDX                            BIT(3)
-//#define BIT_CLR_VOQ_HOST_IDX                            BIT(2)
-//#define BIT_CLR_MGTQ_HOST_IDX                           BIT(1)
-//#define BIT_CLR_RXQ_HOST_IDX                            BIT(0)
-
-
-//4 #define REG_VOQ_TXBD_IDX            0x03A0  // 4 Bytes
-//4 #define REG_VIQ_TXBD_IDX            0x03A4  // 4 Bytes
-//4 #define REG_BEQ_TXBD_IDX            0x03A8  // 4 Bytes
-//4 #define REG_BKQ_TXBD_IDX            0x03AC  // 4 Bytes
-//4 #define REG_MGQ_TXBD_IDX            0x03B0  // 4 Bytes
-//4 #define REG_RXQ_RXBD_IDX            0x03B4  // 4 Bytes
-//4 #define REG_HI0Q_TXBD_IDX           0x03B8  // 4 Bytes
-//4 #define REG_HI1Q_TXBD_IDX           0x03BC  // 4 Bytes
-//4 #define REG_HI2Q_TXBD_IDX           0x03C0  // 4 Bytes
-//4 #define REG_HI3Q_TXBD_IDX           0x03C4  // 4 Bytes
-//4 #define REG_HI4Q_TXBD_IDX           0x03C8  // 4 Bytes
-//4 #define REG_HI5Q_TXBD_IDX           0x03CC  // 4 Bytes
-//4 #define REG_HI6Q_TXBD_IDX           0x03D0  // 4 Bytes
-//4 #define REG_HI7Q_TXBD_IDX           0x03D4  // 4 Bytes
-
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8192E
-//4 #define REG_DBG_SEL_V1              0x03D8  // 1 Bytes
-#endif
-
-//4 #define REG_PCIE_HRPWM1_V1          0x03D9  // 1 Bytes
-//4 #define REG_PCIE_HCPWM1_V1          0x03DA  // 1 Bytes
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8192E
-//4 #define REG_PCIE_CTRL2              0x03DB  // 1 Bytes
-//#define BIT_DIS_TXDMA_PRE                           BIT(7)
-//#define BIT_DIS_RXDMA_PRE                           BIT(6)
-
-//#define BIT_SHIFT_HPS_CLKR_PCIE                     4
-//#define BIT_MASK_HPS_CLKR_PCIE                      0x3
-//#define BIT_HPS_CLKR_PCIE(x)                        (((x) & BIT_MASK_HPS_CLKR_PCIE)<<BIT_SHIFT_HPS_CLKR_PCIE)
-
-//#define BIT_PCIE_INT                                BIT(3)
-//#define BIT_TXFLAG_EXIT_L1_EN                       BIT(2)
-//#define BIT_EN_RXDMA_ALIGN                          BIT(1)
-//#define BIT_EN_TXDMA_ALIGN                          BIT(0)
-#endif
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8881A
-//4 #define REG_LX_CTRL2                0x03DB  // 1 Bytes
-//#define BIT_SHIFT_HPS_CLKR                          4
-//#define BIT_MASK_HPS_CLKR                           0x3
-//#define BIT_HPS_CLKR(x)                             (((x) & BIT_MASK_HPS_CLKR)<<BIT_SHIFT_HPS_CLKR)
-//#define BIT_LX_INT                                  BIT(3)
-#endif
-
-//4 #define REG_PCIE_HRPWM2_V1          0x03DC  // 2 Bytes
-//4 #define REG_PCIE_HCPWM2_V1          0x03DE  // 2 Bytes
-//4 #define REG_PCIE_H2C_MSG_V1         0x03E0  // 4 Bytes
-//4 #define REG_PCIE_C2H_MSG_V1         0x03E4  // 4 Bytes
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8192E
-//4 #define REG_DBI_WDATA_V1            0x03E8  // 4 Bytes
-//4 #define REG_DBI_RDATA_V1            0x03EC  // 4 Bytes
-//4 #define REG_DBI_FLAG_V1             0x03F0  // 4 Bytes
-//#define BIT_DBI_RFLAG                               BIT(17)
-//#define BIT_DBI_WFLAG                               BIT(16)
-
-//#define BIT_SHIFT_DBI_WREN                          12
-//#define BIT_MASK_DBI_WREN                           0xF
-//#define BIT_DBI_WREN(x)                             (((x) & BIT_MASK_DBI_WREN)<<BIT_SHIFT_DBI_WREN)
-
-//#define BIT_SHIFT_DBI_ADDR                          0
-//#define BIT_MASK_DBI_ADDR                           0xFFF
-//#define BIT_DBI_ADDR(x)                             (((x) & BIT_MASK_DBI_ADDR)<<BIT_SHIFT_DBI_ADDR)
-#endif 
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8881A
-//4 #define REG_LX_DMA_ISR              0x03E8  // 4 Bytes
-//#define BIT_BCN7DOK         BIT(23)
-//#define BIT_BCN6DOK         BIT(22)
-//#define BIT_BCN5DOK         BIT(21)
-//#define BIT_BCN4DOK         BIT(20)
-//#define BIT_BCN3DOK         BIT(19)
-//#define BIT_BCN2DOK         BIT(18)
-//#define BIT_BCN1DOK         BIT(17)
-//#define BIT_BCN0DOK         BIT(16)
-
-//#define BIT_M7DOK           BIT(15)
-//#define BIT_M6DOK           BIT(14)
-//#define BIT_M5DOK           BIT(13)
-//#define BIT_M4DOK           BIT(12)
-//#define BIT_M3DOK           BIT(11)
-//#define BIT_M2DOK           BIT(10)
-//#define BIT_M1DOK           BIT(9)
-//#define BIT_M0DOK           BIT(8)
-
-//#define BIT_MGTQDOK         BIT(6)
-//#define BIT_BKQDOK          BIT(5)
-//#define BIT_BEQDOK          BIT(4)
-//#define BIT_VIQDOK          BIT(3)
-//#define BIT_VOQDOK          BIT(2)
-//#define BIT_RDU             BIT(1)
-//#define BIT_RXDOK           BIT(0)
-
-//4 #define REG_LX_DMA_IMR              0x03EC  // 4 Bytes
-//#define BIT_BCN7DOKM        BIT(23)
-//#define BIT_BCN6DOKM        BIT(22)
-//#define BIT_BCN5DOKM        BIT(21)
-//#define BIT_BCN4DOKM        BIT(20)
-//#define BIT_BCN3DOKM        BIT(19)
-//#define BIT_BCN2DOKM        BIT(18)
-//#define BIT_BCN1DOKM        BIT(17)
-//#define BIT_BCN0DOKM        BIT(16)
-
-//#define BIT_M7DOKM          BIT(15)
-//#define BIT_M6DOKM          BIT(14)
-//#define BIT_M5DOKM          BIT(13)
-//#define BIT_M4DOKM          BIT(12)
-//#define BIT_M3DOKM          BIT(11)
-//#define BIT_M2DOKM          BIT(10)
-//#define BIT_M1DOKM          BIT(9)
-//#define BIT_M0DOKM          BIT(8)
-
-//#define BIT_MGTQDOKM        BIT(6)
-//#define BIT_BKQDOKM         BIT(5)
-//#define BIT_BEQDOKM         BIT(4)
-//#define BIT_VIQDOKM         BIT(3)
-//#define BIT_VOQDOKM         BIT(2)
-//#define BIT_RDUM            BIT(1)
-//#define BIT_RXDOKM          BIT(0)
-
-//4 #define REG_LX_DMA_DBG              0x03F0  // 4 Bytes
-//#define BIT_RX_OVER_RD_ERR              BIT(20)
-//#define BIT_RXDMA_STUCK                 BIT(19)
-
-//#define BIT_SHIFT_RX_STATE              16
-//#define BIT_MASK_RX_STATE               0x7
-//#define BIT_RX_STATE(x)                 (((x) & BIT_MASK_RX_STATE)<<BIT_SHIFT_RX_STATE)
-
-//#define BIT_TDE_NO_IDLE                 BIT(15)
-//#define BIT_TXDMA_STUCK                 BIT(14)
-//#define BIT_TDE_FULL_ERR                BIT(13)
-//#define BIT_HD_SIZE_ERR                 BIT(12)
-
-//#define BIT_SHIFT_TX_STATE              8
-//#define BIT_MASK_TX_STATE               0xF
-//#define BIT_TX_STATE(x)                 (((x) & BIT_MASK_TX_STATE)<<BIT_SHIFT_TX_STATE)
-
-//#define BIT_MST_BUSY                    BIT(3)
-//#define BIT_SLV_BUSY                    BIT(2)
-//#define BIT_RXDES_UNAVAIL               BIT(1)
-//#define BIT_EN_DBG_STUCK                BIT(0)
-#endif
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8192E
-//4 #define REG_MDIO_V1                 0x03F4  // 4 Bytes
-#endif
-
-
-#if 0
-//4 #define REG_PCIE_MIX_CFG            0x03F8  // 4 Bytes
-//4 #define REG_BUS_MIX_CFG             0x03F8  // 4 Bytes
-#define BIT_SHIFT_WATCH_DOG_RECORD              10
-#define BIT_MASK_WATCH_DOG_RECORD               0x3FFF
-#define BIT_WATCH_DOG_RECORD(x)                 (((x) & BIT_MASK_WATCH_DOG_RECORD)<<BIT_SHIFT_WATCH_DOG_RECORD)
-
-#define BIT_R_IO_TIMEOUT_FLAG                   BIT(9)
-#define BIT_EN_WATCH_DOG                        BIT(8)
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8192E
-//4 //4 #define REG_PCIE_MIX_CFG            0x03F8  // 4 Bytes
-#define BIT_ECRC_EN                             BIT(7)
-#define BIT_MDIO_RFLAG                          BIT(6)
-#define BIT_MDIO_WFLAG                          BIT(5)
-
-#define BIT_SHIFT_MDIO_ADDRESS                  0
-#define BIT_MASK_MDIO_ADDRESS                   0x1F
-#define BIT_MDIO_ADDRESS(x)                     (((x) & BIT_MASK_MDIO_ADDRESS)<<BIT_SHIFT_MDIO_ADDRESS)
-#endif
-#endif
-
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8881A
-//4 #define REG_BUS_MIX_CFG             0x03F8  // 4 Bytes
-#endif
-
-#endif // endif CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
-
-
-
-// TODO: remove above ............
 //---------------------------------------------------
 //
 // transform from excel
@@ -674,7 +87,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -684,7 +97,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -705,7 +118,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -726,7 +139,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -747,7 +160,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -769,7 +182,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -789,7 +202,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -799,7 +212,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -819,7 +232,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_ISO_CTRL                       (Offset 0x0000)
@@ -829,7 +242,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_FUNC_EN                        (Offset 0x0002)
@@ -850,7 +263,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_FUNC_EN                        (Offset 0x0002)
@@ -882,7 +295,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -892,7 +305,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -913,7 +326,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -933,7 +346,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -943,7 +356,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -953,7 +366,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -963,7 +376,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -973,7 +386,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -993,7 +406,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1003,7 +416,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1023,7 +436,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1033,7 +446,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1054,7 +467,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1064,7 +477,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1085,7 +498,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1105,7 +518,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1115,7 +528,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1136,7 +549,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1146,7 +559,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1156,7 +569,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1176,7 +589,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1196,7 +609,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1206,7 +619,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1226,7 +639,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1236,7 +649,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_PW_CTRL                        (Offset 0x0004)
@@ -1256,7 +669,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1266,7 +679,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1286,7 +699,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1306,7 +719,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1316,7 +729,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1338,7 +751,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1359,7 +772,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1373,7 +786,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1396,7 +809,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1406,7 +819,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CLK_CTRL                       (Offset 0x0008)
@@ -1440,7 +853,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_EEPROM_CTRL                    (Offset 0x000A)
@@ -1450,7 +863,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_EEPROM_CTRL                    (Offset 0x000A)
@@ -1477,7 +890,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_EE_VPD                             (Offset 0x000C)
@@ -1501,7 +914,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1529,7 +942,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1565,7 +978,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1589,7 +1002,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1617,7 +1030,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1646,7 +1059,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1660,7 +1073,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1672,7 +1085,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL1                      (Offset 0x0010)
@@ -1711,7 +1124,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1738,7 +1151,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1766,7 +1179,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1795,7 +1208,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1816,7 +1229,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1843,7 +1256,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1872,7 +1285,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1900,7 +1313,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1928,7 +1341,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1957,7 +1370,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL2                      (Offset 0x0014)
@@ -1971,7 +1384,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_SWR_CTRL3                      (Offset 0x0018)
@@ -2001,7 +1414,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RSV_CTRL                           (Offset 0x001C)
@@ -2024,7 +1437,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RSV_CTRL                           (Offset 0x001C)
@@ -2034,7 +1447,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RSV_CTRL                           (Offset 0x001C)
@@ -2054,7 +1467,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RSV_CTRL                           (Offset 0x001C)
@@ -2074,7 +1487,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RSV_CTRL                           (Offset 0x001C)
@@ -2084,7 +1497,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RSV_CTRL                           (Offset 0x001C)
@@ -2104,7 +1517,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_LDO_CTRL                       (Offset 0x0020)
@@ -2129,7 +1542,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_AFE_LDO_CTRL                       (Offset 0x0020)
@@ -2155,7 +1568,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_LDO_CTRL                       (Offset 0x0020)
@@ -2185,7 +1598,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_LDO_CTRL                       (Offset 0x0020)
@@ -2217,7 +1630,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2238,7 +1651,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2262,7 +1675,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2291,7 +1704,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2320,7 +1733,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2348,7 +1761,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2368,7 +1781,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2396,7 +1809,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2416,7 +1829,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2444,7 +1857,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2470,7 +1883,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2498,7 +1911,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2526,7 +1939,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2550,7 +1963,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2570,7 +1983,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_AFE_CTRL1                          (Offset 0x0024)
@@ -2594,7 +2007,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2623,7 +2036,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2659,7 +2072,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2689,7 +2102,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2713,7 +2126,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2733,7 +2146,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2757,7 +2170,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2777,7 +2190,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2788,7 +2201,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_AFE_CTRL2                          (Offset 0x0028)
@@ -2812,7 +2225,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -2843,7 +2256,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -2877,7 +2290,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -2905,7 +2318,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -2933,7 +2346,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -2961,7 +2374,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -2994,7 +2407,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -3022,7 +2435,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -3050,7 +2463,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -3075,7 +2488,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_CTRL3                          (Offset 0x002C)
@@ -3085,7 +2498,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_EFUSE_CTRL                         (Offset 0x0030)
@@ -3120,7 +2533,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_EFUSE_CTRL                         (Offset 0x0030)
@@ -3159,7 +2572,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_EFUSE_CTRL                     (Offset 0x0034)
@@ -3183,7 +2596,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_EFUSE_CTRL                     (Offset 0x0034)
@@ -3207,7 +2620,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_EFUSE_CTRL                     (Offset 0x0034)
@@ -3221,7 +2634,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_LDO_EFUSE_CTRL                     (Offset 0x0034)
@@ -3235,7 +2648,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_EFUSE_CTRL                     (Offset 0x0034)
@@ -3260,7 +2673,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_LDO_EFUSE_CTRL                     (Offset 0x0034)
@@ -3275,7 +2688,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3294,7 +2707,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3319,7 +2732,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3344,7 +2757,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3378,7 +2791,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3388,7 +2801,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3408,7 +2821,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3418,7 +2831,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3438,7 +2851,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3476,7 +2889,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3504,7 +2917,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3518,7 +2931,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PWR_OPTION_CTRL                    (Offset 0x0038)
@@ -3561,7 +2974,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3593,7 +3006,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3613,7 +3026,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3624,7 +3037,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3634,7 +3047,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3645,7 +3058,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3665,7 +3078,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3675,7 +3088,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3702,7 +3115,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3722,7 +3135,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3732,7 +3145,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_GPIO_MUXCFG                        (Offset 0x0040)
@@ -3791,7 +3204,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_INTM                          (Offset 0x0048)
@@ -3823,7 +3236,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GPIO_INTM                          (Offset 0x0048)
@@ -3837,7 +3250,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_GPIO_INTM                          (Offset 0x0048)
@@ -3862,7 +3275,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -3882,7 +3295,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -3902,7 +3315,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -3922,7 +3335,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -3942,7 +3355,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -3962,7 +3375,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -3992,7 +3405,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -4022,7 +3435,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -4092,7 +3505,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -4102,7 +3515,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -4141,7 +3554,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_LED_CFG                            (Offset 0x004C)
@@ -4171,7 +3584,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4191,7 +3604,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4214,7 +3627,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4234,7 +3647,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4254,7 +3667,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4274,7 +3687,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4294,7 +3707,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4314,7 +3727,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4334,7 +3747,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4354,7 +3767,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4374,7 +3787,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4394,7 +3807,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4414,7 +3827,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4434,7 +3847,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4454,7 +3867,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4474,7 +3887,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4494,7 +3907,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4514,7 +3927,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4537,7 +3950,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4557,7 +3970,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4577,7 +3990,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4597,7 +4010,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4617,7 +4030,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4637,7 +4050,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSIMR                              (Offset 0x0050)
@@ -4647,7 +4060,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4667,7 +4080,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4687,7 +4100,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4710,7 +4123,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4730,7 +4143,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4750,7 +4163,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4770,7 +4183,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4790,7 +4203,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4810,7 +4223,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4830,7 +4243,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4850,7 +4263,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4870,7 +4283,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4890,7 +4303,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4910,7 +4323,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4930,7 +4343,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4950,7 +4363,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4970,7 +4383,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -4990,7 +4403,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5010,7 +4423,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5033,7 +4446,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5053,7 +4466,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5073,7 +4486,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5093,7 +4506,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5113,7 +4526,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5133,7 +4546,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FSISR                              (Offset 0x0054)
@@ -5143,7 +4556,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HSIMR                              (Offset 0x0058)
@@ -5178,7 +4591,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HSIMR                              (Offset 0x0058)
@@ -5188,7 +4601,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HSIMR                              (Offset 0x0058)
@@ -5229,7 +4642,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HSISR                              (Offset 0x005C)
@@ -5239,7 +4652,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HSISR                              (Offset 0x005C)
@@ -5284,7 +4697,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5304,7 +4717,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5324,7 +4737,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5344,7 +4757,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5364,7 +4777,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5394,7 +4807,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5415,7 +4828,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5450,7 +4863,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5460,7 +4873,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5480,7 +4893,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5510,7 +4923,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5530,7 +4943,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5570,7 +4983,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5600,7 +5013,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5630,7 +5043,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5660,7 +5073,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5680,7 +5093,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5700,7 +5113,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5730,7 +5143,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5760,7 +5173,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5790,7 +5203,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5820,7 +5233,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL1                          (Offset 0x0064)
@@ -5863,7 +5276,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -5893,7 +5306,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -5913,7 +5326,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -5933,7 +5346,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -5953,7 +5366,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -5984,7 +5397,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -6054,7 +5467,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -6074,7 +5487,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -6085,7 +5498,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -6115,7 +5528,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -6135,7 +5548,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WL_BT_PWR_CTRL                     (Offset 0x0068)
@@ -6164,7 +5577,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GSSR                               (Offset 0x006C)
@@ -6202,7 +5615,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_GSSR                               (Offset 0x006C)
@@ -6238,7 +5651,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLKR                           (Offset 0x0070)
@@ -6258,7 +5671,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CLKR                           (Offset 0x0070)
@@ -6312,7 +5725,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6332,7 +5745,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6352,7 +5765,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6372,7 +5785,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6392,7 +5805,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6402,7 +5815,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6426,7 +5839,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6446,7 +5859,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6470,7 +5883,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6490,7 +5903,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_OPT_CTRL                       (Offset 0x0074)
@@ -6516,7 +5929,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_XTAL_CTRL_EXT                  (Offset 0x0078)
@@ -6536,7 +5949,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_XTAL_CTRL_EXT                  (Offset 0x0078)
@@ -6596,7 +6009,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_XTAL_CTRL_EXT                  (Offset 0x0078)
@@ -6641,7 +6054,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_XTAL_CTRL_EXT                  (Offset 0x0078)
@@ -6676,7 +6089,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_XTAL_CTRL_EXT                  (Offset 0x0078)
@@ -6703,7 +6116,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AFE_XTAL_CTRL_EXT                  (Offset 0x0078)
@@ -6757,7 +6170,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_SWR_CTRL                       (Offset 0x007C)
@@ -6792,7 +6205,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_SWR_CTRL                       (Offset 0x007C)
@@ -6816,7 +6229,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_SWR_CTRL                       (Offset 0x007C)
@@ -6837,7 +6250,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_SWR_CTRL                       (Offset 0x007C)
@@ -6865,7 +6278,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_SWR_CTRL                       (Offset 0x007C)
@@ -6894,7 +6307,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LDO_SWR_CTRL                       (Offset 0x007C)
@@ -6904,7 +6317,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -6919,7 +6332,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -6931,7 +6344,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -6946,7 +6359,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -6967,7 +6380,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -6991,7 +6404,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7011,7 +6424,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7031,7 +6444,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7051,7 +6464,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7071,7 +6484,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7081,7 +6494,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7091,7 +6504,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7111,7 +6524,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7131,7 +6544,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7151,7 +6564,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7161,7 +6574,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7171,7 +6584,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7181,7 +6594,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7191,7 +6604,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7201,7 +6614,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_8051FW_CTRL                        (Offset 0x0080)
@@ -7255,7 +6668,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7275,7 +6688,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7295,7 +6708,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7305,7 +6718,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7316,7 +6729,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7326,7 +6739,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7336,7 +6749,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7356,7 +6769,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WLLPS_CTRL                         (Offset 0x0090)
@@ -7419,7 +6832,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HIMR0                              (Offset 0x00B0)
@@ -7449,7 +6862,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR0                              (Offset 0x00B0)
@@ -7471,7 +6884,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR0                              (Offset 0x00B0)
@@ -7481,7 +6894,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HIMR0                              (Offset 0x00B0)
@@ -7525,7 +6938,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HISR0                              (Offset 0x00B4)
@@ -7546,7 +6959,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HISR0                              (Offset 0x00B4)
@@ -7577,7 +6990,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7603,7 +7016,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7623,7 +7036,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7643,7 +7056,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7663,7 +7076,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7673,7 +7086,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7695,7 +7108,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7715,7 +7128,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7735,7 +7148,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7755,7 +7168,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7775,7 +7188,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIMR1                              (Offset 0x00B8)
@@ -7795,7 +7208,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HISR1                              (Offset 0x00BC)
@@ -7828,7 +7241,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HISR1                              (Offset 0x00BC)
@@ -7856,7 +7269,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL2                          (Offset 0x00C4)
@@ -7882,7 +7295,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PAD_CTRL2                          (Offset 0x00C4)
@@ -7907,7 +7320,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MEM_RMC                            (Offset 0x00C8)
@@ -7947,7 +7360,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PMC_DBG_CTRL2                      (Offset 0x00CC)
@@ -7973,7 +7386,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PMC_DBG_CTRL2                      (Offset 0x00CC)
@@ -8005,7 +7418,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PMC_DBG_CTRL2                      (Offset 0x00CC)
@@ -8034,7 +7447,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8054,7 +7467,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8074,7 +7487,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8094,7 +7507,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8118,7 +7531,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8143,7 +7556,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8164,7 +7577,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8178,7 +7591,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BIST_CTRL                          (Offset 0x00D0)
@@ -8355,7 +7768,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MEM_CTRL                           (Offset 0x00D8)
@@ -8383,7 +7796,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WLAN_DBG                           (Offset 0x00DC)
@@ -8407,7 +7820,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_USB_SIE_INTF                       (Offset 0x00E0)
@@ -8418,7 +7831,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_USB_SIE_INTF                       (Offset 0x00E0)
@@ -8467,7 +7880,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HPON_FSM                           (Offset 0x00EC)
@@ -8510,7 +7923,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8535,7 +7948,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8549,7 +7962,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8569,7 +7982,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8579,7 +7992,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8600,7 +8013,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8628,7 +8041,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8642,7 +8055,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8881A_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8657,7 +8070,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8668,7 +8081,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8690,7 +8103,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8710,7 +8123,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8730,7 +8143,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8740,7 +8153,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8760,7 +8173,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8770,7 +8183,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8790,7 +8203,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8800,7 +8213,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SYS_CFG1                           (Offset 0x00F0)
@@ -8818,7 +8231,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -8845,7 +8258,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -8871,7 +8284,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -8897,7 +8310,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -8921,7 +8334,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -8941,7 +8354,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -8967,7 +8380,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -8991,7 +8404,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -9022,7 +8435,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_STATUS1                        (Offset 0x00F4)
@@ -9055,7 +8468,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG2                           (Offset 0x00FC)
@@ -9082,7 +8495,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SYS_CFG2                           (Offset 0x00FC)
@@ -9096,7 +8509,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_CR                                 (Offset 0x0100)
@@ -9130,7 +8543,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CR                                 (Offset 0x0100)
@@ -9141,7 +8554,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_CR                                 (Offset 0x0100)
@@ -9192,7 +8605,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TSF_CLK_STATE                      (Offset 0x0108)
@@ -9216,7 +8629,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TXDMA_PQ_MAP                       (Offset 0x010C)
@@ -9258,7 +8671,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TRXFF_BNDY                         (Offset 0x0114)
@@ -9291,7 +8704,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TRXFF_BNDY                         (Offset 0x0114)
@@ -9305,7 +8718,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TRXFF_BNDY                         (Offset 0x0114)
@@ -9319,7 +8732,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FF_STATUS                          (Offset 0x0118)
@@ -9333,7 +8746,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PTA_I2C_MBOX                       (Offset 0x0118)
@@ -9361,7 +8774,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FF_STATUS                          (Offset 0x0118)
@@ -9385,7 +8798,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FF_STATUS                          (Offset 0x0118)
@@ -9409,7 +8822,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FF_STATUS                          (Offset 0x0118)
@@ -9433,7 +8846,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FF_STATUS                          (Offset 0x0118)
@@ -9467,7 +8880,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FE1IMR                             (Offset 0x0120)
@@ -9509,7 +8922,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FE1IMR                             (Offset 0x0120)
@@ -9529,7 +8942,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FE1IMR                             (Offset 0x0120)
@@ -9549,7 +8962,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FE1IMR                             (Offset 0x0120)
@@ -9595,7 +9008,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FE1ISR                             (Offset 0x0124)
@@ -9615,7 +9028,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FE1ISR                             (Offset 0x0124)
@@ -9635,7 +9048,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FE1ISR                             (Offset 0x0124)
@@ -9645,7 +9058,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_CPWM                               (Offset 0x012C)
@@ -9660,7 +9073,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9680,7 +9093,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9700,7 +9113,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9720,7 +9133,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9740,7 +9153,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9760,7 +9173,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9780,7 +9193,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9800,7 +9213,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9820,7 +9233,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9840,7 +9253,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9860,7 +9273,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9880,7 +9293,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9900,7 +9313,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9920,7 +9333,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9940,7 +9353,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9960,7 +9373,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -9984,7 +9397,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10004,7 +9417,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10024,7 +9437,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10044,7 +9457,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10064,7 +9477,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10084,7 +9497,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10104,7 +9517,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10124,7 +9537,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10144,7 +9557,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10164,7 +9577,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10184,7 +9597,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10204,7 +9617,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWIMR                              (Offset 0x0130)
@@ -10228,7 +9641,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10248,7 +9661,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10268,7 +9681,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10288,7 +9701,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10308,7 +9721,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10328,7 +9741,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10348,7 +9761,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10368,7 +9781,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10388,7 +9801,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10408,7 +9821,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10428,7 +9841,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10448,7 +9861,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10468,7 +9881,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10488,7 +9901,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10508,7 +9921,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10532,7 +9945,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10552,7 +9965,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10572,7 +9985,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10592,7 +10005,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10612,7 +10025,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10632,7 +10045,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10652,7 +10065,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10672,7 +10085,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10692,7 +10105,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10712,7 +10125,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10732,7 +10145,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10752,7 +10165,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWISR                              (Offset 0x0134)
@@ -10786,7 +10199,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10806,7 +10219,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10826,7 +10239,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10850,7 +10263,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10870,7 +10283,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10890,7 +10303,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10910,7 +10323,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10930,7 +10343,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10950,7 +10363,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10970,7 +10383,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -10990,7 +10403,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -11010,7 +10423,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTIMR                              (Offset 0x0138)
@@ -11044,7 +10457,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11064,7 +10477,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11084,7 +10497,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11108,7 +10521,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11128,7 +10541,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11148,7 +10561,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11168,7 +10581,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11188,7 +10601,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11208,7 +10621,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11228,7 +10641,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11248,7 +10661,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11268,7 +10681,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FTISR                              (Offset 0x013C)
@@ -11278,7 +10691,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PKTBUF_DBG_CTRL                    (Offset 0x0140)
@@ -11302,7 +10715,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PKTBUF_DBG_CTRL                    (Offset 0x0140)
@@ -11322,7 +10735,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PKTBUF_DBG_CTRL                    (Offset 0x0140)
@@ -11342,7 +10755,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PKTBUF_DBG_CTRL                    (Offset 0x0140)
@@ -11366,7 +10779,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_PKTBUF_DBG_CTRL                    (Offset 0x0140)
@@ -11380,7 +10793,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PKTBUF_DBG_DATA_L                  (Offset 0x0144)
@@ -11489,7 +10902,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TC5_CTRL                           (Offset 0x0168)
@@ -11499,7 +10912,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TC5_CTRL                           (Offset 0x0168)
@@ -11525,7 +10938,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TC6_CTRL                           (Offset 0x016C)
@@ -11535,7 +10948,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TC6_CTRL                           (Offset 0x016C)
@@ -11634,7 +11047,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MBIST_FAIL_NRML                    (Offset 0x017C)
@@ -11648,7 +11061,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_AES_DECRPT_DATA                    (Offset 0x0180)
@@ -11704,7 +11117,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_OSC_32K_CTRL                       (Offset 0x0194)
@@ -11714,7 +11127,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_32K_CAL_REG1                       (Offset 0x0198)
@@ -11743,7 +11156,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TC7_CTRL                           (Offset 0x01B0)
@@ -11771,7 +11184,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SW_DEFINED_PAGE1                   (Offset 0x01B8)
@@ -11876,7 +11289,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LLT_INIT                           (Offset 0x01E0)
@@ -11909,7 +11322,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LLT_INIT                           (Offset 0x01E0)
@@ -11937,7 +11350,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LLT_INIT_ADDR                      (Offset 0x01E4)
@@ -11951,7 +11364,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BB_ACCESS_CTRL                     (Offset 0x01E8)
@@ -12008,7 +11421,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FIFOPAGE_CTRL_1                    (Offset 0x0200)
@@ -12041,7 +11454,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FIFOPAGE_CTRL_1                    (Offset 0x0200)
@@ -12078,7 +11491,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FIFOPAGE_CTRL_2                    (Offset 0x0204)
@@ -12112,7 +11525,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FIFOPAGE_CTRL_2                    (Offset 0x0204)
@@ -12140,7 +11553,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AUTO_LLT_V1                        (Offset 0x0208)
@@ -12169,7 +11582,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AUTO_LLT_V1                        (Offset 0x0208)
@@ -12183,7 +11596,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_AUTO_LLT_V1                        (Offset 0x0208)
@@ -12197,7 +11610,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_AUTO_LLT_V1                        (Offset 0x0208)
@@ -12210,7 +11623,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TXDMA_OFFSET_CHK                   (Offset 0x020C)
@@ -12221,7 +11634,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXDMA_OFFSET_CHK                   (Offset 0x020C)
@@ -12246,7 +11659,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXDMA_OFFSET_CHK                   (Offset 0x020C)
@@ -12260,7 +11673,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TXDMA_OFFSET_CHK                   (Offset 0x020C)
@@ -12343,7 +11756,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TQPNT1                             (Offset 0x0218)
@@ -12376,7 +11789,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TQPNT1                             (Offset 0x0218)
@@ -12409,7 +11822,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TQPNT2                             (Offset 0x021C)
@@ -12442,7 +11855,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TQPNT2                             (Offset 0x021C)
@@ -12478,7 +11891,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TQPNT3                             (Offset 0x0220)
@@ -12508,7 +11921,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TQPNT4                             (Offset 0x0224)
@@ -12541,7 +11954,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TQPNT4                             (Offset 0x0224)
@@ -12567,7 +11980,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RQPN_CTRL_1                        (Offset 0x0228)
@@ -12600,7 +12013,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RQPN_CTRL_1                        (Offset 0x0228)
@@ -12691,7 +12104,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXDMA_AGG_PG_TH                    (Offset 0x0280)
@@ -12705,7 +12118,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RXDMA_AGG_PG_TH                    (Offset 0x0280)
@@ -12733,7 +12146,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXDMA_AGG_PG_TH                    (Offset 0x0280)
@@ -12747,7 +12160,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RXDMA_AGG_PG_TH                    (Offset 0x0280)
@@ -12792,7 +12205,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXDMA_STATUS                       (Offset 0x0288)
@@ -12802,7 +12215,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RXDMA_STATUS                       (Offset 0x0288)
@@ -12825,7 +12238,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RXDMA_STATUS                       (Offset 0x0288)
@@ -12866,7 +12279,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXDMA_MODE                         (Offset 0x0290)
@@ -12876,7 +12289,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_C2H_PKT                            (Offset 0x0294)
@@ -12894,7 +12307,7 @@ Default: 00b.
 #if 1  //Filen: Page 0/1/2 completion
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_PCIE_CTRL                          (Offset 0x0300)
@@ -12922,7 +12335,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_PCIE_CTRL                          (Offset 0x0300)
@@ -12946,7 +12359,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_PCIE_CTRL                          (Offset 0x0300)
@@ -12972,7 +12385,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_PCIE_CTRL                          (Offset 0x0300)
@@ -12999,7 +12412,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PCIE_CTRL                          (Offset 0x0300)
@@ -13390,7 +12803,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13411,7 +12824,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13432,7 +12845,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13454,7 +12867,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13476,7 +12889,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13497,7 +12910,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13518,7 +12931,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TSFTIMER_HCI                       (Offset 0x039C)
@@ -13557,7 +12970,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13579,7 +12992,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13601,7 +13014,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13622,7 +13035,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13643,7 +13056,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13664,7 +13077,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13690,7 +13103,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13712,7 +13125,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13733,7 +13146,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13759,7 +13172,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13782,7 +13195,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13804,7 +13217,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BD_RWPTR_CLR                       (Offset 0x039C)
@@ -13825,7 +13238,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TSFTIMER_HCI                       (Offset 0x039C)
@@ -13852,7 +13265,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_VOQ_TXBD_IDX                       (Offset 0x03A0)
@@ -14040,7 +13453,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_DBG_SEL_V1                         (Offset 0x03D8)
@@ -14054,7 +13467,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PCIE_HRPWM1_V1                     (Offset 0x03D9)
@@ -14076,7 +13489,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_PCIE_CTRL2                         (Offset 0x03DB)
@@ -14096,7 +13509,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PCIE_HRPWM2_V1                     (Offset 0x03DC)
@@ -14134,7 +13547,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_DBI_WDATA_V1                       (Offset 0x03E8)
@@ -14217,7 +13630,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HCI_MIX_CFG                        (Offset 0x03FC)
@@ -14248,7 +13661,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q0_INFO                            (Offset 0x0400)
@@ -14267,7 +13680,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q0_INFO                            (Offset 0x0400)
@@ -14291,7 +13704,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q0_INFO                            (Offset 0x0400)
@@ -14324,7 +13737,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q0_INFO                            (Offset 0x0400)
@@ -14338,7 +13751,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q1_INFO                            (Offset 0x0404)
@@ -14357,7 +13770,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q1_INFO                            (Offset 0x0404)
@@ -14381,7 +13794,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q1_INFO                            (Offset 0x0404)
@@ -14414,7 +13827,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q1_INFO                            (Offset 0x0404)
@@ -14428,7 +13841,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q2_INFO                            (Offset 0x0408)
@@ -14447,7 +13860,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q2_INFO                            (Offset 0x0408)
@@ -14471,7 +13884,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q2_INFO                            (Offset 0x0408)
@@ -14504,7 +13917,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q2_INFO                            (Offset 0x0408)
@@ -14518,7 +13931,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q3_INFO                            (Offset 0x040C)
@@ -14537,7 +13950,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q3_INFO                            (Offset 0x040C)
@@ -14561,7 +13974,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q3_INFO                            (Offset 0x040C)
@@ -14594,7 +14007,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q3_INFO                            (Offset 0x040C)
@@ -14608,7 +14021,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_MGQ_INFO                           (Offset 0x0410)
@@ -14627,7 +14040,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MGQ_INFO                           (Offset 0x0410)
@@ -14651,7 +14064,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MGQ_INFO                           (Offset 0x0410)
@@ -14684,7 +14097,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MGQ_INFO                           (Offset 0x0410)
@@ -14698,7 +14111,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_HIQ_INFO                           (Offset 0x0414)
@@ -14717,7 +14130,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIQ_INFO                           (Offset 0x0414)
@@ -14741,7 +14154,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIQ_INFO                           (Offset 0x0414)
@@ -14774,7 +14187,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_HIQ_INFO                           (Offset 0x0414)
@@ -14807,7 +14220,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCNQ_INFO                          (Offset 0x0418)
@@ -14821,7 +14234,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TXPKT_EMPTY                        (Offset 0x041A)
@@ -14842,7 +14255,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CPU_MGQ_INFO                       (Offset 0x041C)
@@ -14852,7 +14265,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_CPU_MGQ_INFO                       (Offset 0x041C)
@@ -14863,7 +14276,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CPU_MGQ_INFO                       (Offset 0x041C)
@@ -14888,7 +14301,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CPU_MGQ_INFO                       (Offset 0x041C)
@@ -14902,7 +14315,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_FWHW_TXQ_CTRL                      (Offset 0x0420)
@@ -14925,7 +14338,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FWHW_TXQ_CTRL                      (Offset 0x0420)
@@ -14960,7 +14373,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCNQ_BDNY_V1                       (Offset 0x0424)
@@ -14988,7 +14401,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_LIFETIME_EN                        (Offset 0x0426)
@@ -15010,7 +14423,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_LIFETIME_EN                        (Offset 0x0426)
@@ -15020,7 +14433,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_LIFETIME_EN                        (Offset 0x0426)
@@ -15047,7 +14460,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SPEC_SIFS                          (Offset 0x0428)
@@ -15094,7 +14507,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXBF_CTRL                          (Offset 0x042C)
@@ -15104,7 +14517,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TXBF_CTRL                          (Offset 0x042C)
@@ -15263,7 +14676,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCNQ1_BDNY_V1                      (Offset 0x0456)
@@ -15291,7 +14704,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_AMPDU_MAX_LENGTH                   (Offset 0x0458)
@@ -15330,7 +14743,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_NDPA_RATE                          (Offset 0x045D)
@@ -15348,7 +14761,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TX_HANG_CTRL                       (Offset 0x045E)
@@ -15359,7 +14772,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_NDPA_OPT_CTRL                      (Offset 0x045F)
@@ -15387,7 +14800,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_NDPA_OPT_CTRL                      (Offset 0x045F)
@@ -15397,7 +14810,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_NDPA_OPT_CTRL                      (Offset 0x045F)
@@ -15453,7 +14866,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RD_RESP_PKT_TH                     (Offset 0x0463)
@@ -15489,7 +14902,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CMDQ_INFO                          (Offset 0x0464)
@@ -15518,7 +14931,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CMDQ_INFO                          (Offset 0x0464)
@@ -15551,7 +14964,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CMDQ_INFO                          (Offset 0x0464)
@@ -15565,7 +14978,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q4_INFO                            (Offset 0x0468)
@@ -15584,7 +14997,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q4_INFO                            (Offset 0x0468)
@@ -15608,7 +15021,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q4_INFO                            (Offset 0x0468)
@@ -15641,7 +15054,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q4_INFO                            (Offset 0x0468)
@@ -15655,7 +15068,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q5_INFO                            (Offset 0x046C)
@@ -15674,7 +15087,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q5_INFO                            (Offset 0x046C)
@@ -15698,7 +15111,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q5_INFO                            (Offset 0x046C)
@@ -15731,7 +15144,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q5_INFO                            (Offset 0x046C)
@@ -15745,7 +15158,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q6_INFO                            (Offset 0x0470)
@@ -15764,7 +15177,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q6_INFO                            (Offset 0x0470)
@@ -15788,7 +15201,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q6_INFO                            (Offset 0x0470)
@@ -15821,7 +15234,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q6_INFO                            (Offset 0x0470)
@@ -15835,7 +15248,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_Q7_INFO                            (Offset 0x0474)
@@ -15854,7 +15267,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q7_INFO                            (Offset 0x0474)
@@ -15878,7 +15291,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q7_INFO                            (Offset 0x0474)
@@ -15911,7 +15324,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_Q7_INFO                            (Offset 0x0474)
@@ -15955,7 +15368,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_CTRL                         (Offset 0x047C)
@@ -15983,7 +15396,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_CTRL                         (Offset 0x047C)
@@ -16011,7 +15424,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_CTRL                         (Offset 0x047C)
@@ -16039,7 +15452,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_CTRL                         (Offset 0x047C)
@@ -16053,7 +15466,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_INIRTS_RATE_SEL                    (Offset 0x0480)
@@ -16140,7 +15553,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_START_OFFSET                 (Offset 0x04AC)
@@ -16164,7 +15577,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_START_OFFSET                 (Offset 0x04AC)
@@ -16188,7 +15601,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_START_OFFSET                 (Offset 0x04AC)
@@ -16216,7 +15629,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_START_OFFSET                 (Offset 0x04AC)
@@ -16244,7 +15657,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXRPT_START_OFFSET                 (Offset 0x04AC)
@@ -16312,7 +15725,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_POWER_STAGE1                       (Offset 0x04B4)
@@ -16326,7 +15739,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_POWER_STAGE2                       (Offset 0x04B8)
@@ -16348,7 +15761,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SW_AMPDU_BURST_MODE_CTRL           (Offset 0x04BC)
@@ -16366,7 +15779,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_SW_AMPDU_BURST_MODE_CTRL           (Offset 0x04BC)
@@ -16376,7 +15789,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SW_AMPDU_BURST_MODE_CTRL           (Offset 0x04BC)
@@ -16487,7 +15900,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RA_TRY_RATE_AGG_LMT                (Offset 0x04CF)
@@ -16501,7 +15914,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_MACID_SLEEP2                       (Offset 0x04D0)
@@ -16523,7 +15936,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CSI_SEQ                            (Offset 0x04DE)
@@ -16545,7 +15958,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_NULL_PKT_STATUS                    (Offset 0x04E0)
@@ -16578,7 +15991,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_VIDEO_ENHANCEMENT_FUN              (Offset 0x04E4)
@@ -16603,7 +16016,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 
 //2 REG_DUMMY_PAGE4                        (Offset 0x04FC)
@@ -16657,7 +16070,7 @@ Default: 00b.
 
 #endif
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 //2 REG_DUMMY_PAGE4_V1
 
@@ -16678,7 +16091,7 @@ Default: 00b.
 
 #endif
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 //2 REG_EDCA_VO_PARAM                      (Offset 0x0500)
 
@@ -16869,7 +16282,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_P2PPS_CTRL                         (Offset 0x0527)
@@ -16890,7 +16303,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PKT_LIFETIME_CTRL                  (Offset 0x0528)
@@ -16950,7 +16363,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TBTT_PROHIBIT                      (Offset 0x0540)
@@ -16998,7 +16411,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCN_CTRL                           (Offset 0x0550)
@@ -17019,7 +16432,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCN_CTRL_CLINT0                    (Offset 0x0551)
@@ -17039,7 +16452,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCN_CTRL_CLINT0                    (Offset 0x0551)
@@ -17059,7 +16472,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCN_CTRL_CLINT0                    (Offset 0x0551)
@@ -17079,7 +16492,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BCN_CTRL_CLINT0                    (Offset 0x0551)
@@ -17091,7 +16504,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_MBID_NUM                           (Offset 0x0552)
@@ -17117,7 +16530,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_DUAL_TSF_RST                       (Offset 0x0553)
@@ -17137,7 +16550,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_DUAL_TSF_RST                       (Offset 0x0553)
@@ -17157,7 +16570,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_DUAL_TSF_RST                       (Offset 0x0553)
@@ -17177,7 +16590,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_DUAL_TSF_RST                       (Offset 0x0553)
@@ -17197,7 +16610,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_DUAL_TSF_RST                       (Offset 0x0553)
@@ -17207,7 +16620,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_DUAL_TSF_RST                       (Offset 0x0553)
@@ -17217,7 +16630,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MBSSID_BCN_SPACE                   (Offset 0x0554)
@@ -17245,7 +16658,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_MBSSID_BCN_SPACE                   (Offset 0x0554)
@@ -17259,7 +16672,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_MBSSID_BCN_SPACE                   (Offset 0x0554)
@@ -17303,7 +16716,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_ATIMWND                            (Offset 0x055A)
@@ -17317,7 +16730,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_USTIME_TSF                         (Offset 0x055C)
@@ -17377,7 +16790,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_FREERUN_CNT                        (Offset 0x0568)
@@ -17405,7 +16818,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_ATIMWND1                           (Offset 0x0570)
@@ -17427,7 +16840,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_CTWND                              (Offset 0x0572)
@@ -17466,7 +16879,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXCMD_TIMEOUT_PERIOD               (Offset 0x0576)
@@ -17563,7 +16976,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_PS_TIMER                           (Offset 0x0580)
@@ -17773,7 +17186,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_EARLY_128US                        (Offset 0x05B1)
@@ -17873,7 +17286,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_ACMHWCTRL                          (Offset 0x05C0)
@@ -17945,7 +17358,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TXCMD_NOA_SEL                      (Offset 0x05CF)
@@ -17959,7 +17372,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TXCMD_NOA_SEL                      (Offset 0x05CF)
@@ -18020,7 +17433,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_P2P_RST                            (Offset 0x05F0)
@@ -18040,7 +17453,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_SCH_TXCMD                          (Offset 0x05F8)
@@ -18063,7 +17476,7 @@ Default: 00b.
 
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WMAC_CR                            (Offset 0x0600)
@@ -18075,7 +17488,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WMAC_CR                            (Offset 0x0600)
@@ -18085,7 +17498,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TCR                                (Offset 0x0604)
@@ -18115,7 +17528,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TCR                                (Offset 0x0604)
@@ -18128,7 +17541,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TCR                                (Offset 0x0604)
@@ -18149,7 +17562,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TCR                                (Offset 0x0604)
@@ -18159,7 +17572,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_TCR                                (Offset 0x0604)
@@ -18180,7 +17593,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_TCR                                (Offset 0x0604)
@@ -18190,7 +17603,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RCR                                (Offset 0x0608)
@@ -18204,7 +17617,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RCR                                (Offset 0x0608)
@@ -18214,7 +17627,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RCR                                (Offset 0x0608)
@@ -18336,7 +17749,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WMAC_TCR_TSFT_OFS                  (Offset 0x0630)
@@ -18380,7 +17793,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_STMP_THSD                          (Offset 0x0634)
@@ -18410,7 +17823,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_USTIME_EDCA                        (Offset 0x0638)
@@ -18542,7 +17955,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WMAC_BACAM_RPMEN                   (Offset 0x0661)
@@ -18566,7 +17979,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXERR_RPT                          (Offset 0x0664)
@@ -18580,7 +17993,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RXERR_RPT                          (Offset 0x0664)
@@ -18590,7 +18003,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXERR_RPT                          (Offset 0x0664)
@@ -18600,7 +18013,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RXERR_RPT                          (Offset 0x0664)
@@ -18704,7 +18117,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WMAC_TRXPTCL_CTL                   (Offset 0x0668)
@@ -18718,7 +18131,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_CAMCMD                             (Offset 0x0670)
@@ -18750,7 +18163,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_CAMCMD                             (Offset 0x0670)
@@ -18764,7 +18177,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_CAMWRITE                           (Offset 0x0674)
@@ -18821,7 +18234,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WOW_CTRL                           (Offset 0x0690)
@@ -18831,7 +18244,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WOW_CTRL                           (Offset 0x0690)
@@ -18878,7 +18291,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WKFMCAM_CMD                        (Offset 0x0698)
@@ -18901,7 +18314,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_RXFLTMAP0                          (Offset 0x06A0)
@@ -19012,7 +18425,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXPKTMON_CTRL                      (Offset 0x06B0)
@@ -19062,7 +18475,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_STATE_MON                          (Offset 0x06B4)
@@ -19096,7 +18509,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_STATE_MON                          (Offset 0x06B4)
@@ -19135,7 +18548,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_BT_COEX_TABLE                      (Offset 0x06C0)
@@ -19192,7 +18605,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_RXCMD_0                            (Offset 0x06D0)
@@ -19247,7 +18660,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WMAC_RESP_TXINFO                   (Offset 0x06D8)
@@ -19297,7 +18710,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_WMAC_RESP_TXINFO                   (Offset 0x06D8)
@@ -19332,7 +18745,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_P2P_RX_BCN_NOA                     (Offset 0x06E0)
@@ -19421,7 +18834,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_BSSID1                             (Offset 0x0708)
@@ -19979,7 +19392,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 
 //2 REG_WMAC_PKTCNT_RWD                    (Offset 0x07B8)
@@ -20005,7 +19418,7 @@ Default: 00b.
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 
 //2 REG_IQ_DUMP                            (Offset 0x07C0)

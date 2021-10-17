@@ -459,7 +459,7 @@ menu "Bad Block Table Type"
 choice
 	prompt "Table Type"
 	depends on MTD_NAND && MTD_NAND_RTK
-	default RTK_REMAP_BBT
+	default RTK_NORMAL_BBT
 config RTK_NORMAL_BBT
 	bool "Support Normal BBT - default"
 	help

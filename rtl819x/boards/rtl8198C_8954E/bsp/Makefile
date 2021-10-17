@@ -20,7 +20,7 @@ load-y   += 0x80000000
 extra-y  += vmlinux.lds
 
 obj-y := prom.o setup.o irq.o timer.o serial.o flushall.o
-obj-$(CONFIG_PCI) += pci-fixup.o pci-ops.o
+#obj-$(CONFIG_PCI) += pci-fixup.o pci-ops.o
 obj-$(CONFIG_PCI) += pci.o
 obj-$(CONFIG_USB) += usb.o
 obj-$(CONFIG_SATA_AHCI_PLATFORM) += sata.o

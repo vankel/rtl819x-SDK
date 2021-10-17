@@ -1436,7 +1436,11 @@ int  main( int numArgs, char ** theArgs )
 	lib1x_init_authGlobal(&RTLAuthenticator);
 #endif
 
+#if 0//def 	CONFIG_RTL_ETH_802DOT1X_SUPPORT
+		//auth->PeriodSendEAPRequestIDCounter = SECONDS_TO_TIMERCOUNT(3);
+#endif
 	RTLAuthenticator.MaxSupplicant = MAX_SUPPLICANT;
+
 
 	if ((RTLAuthenticator.currentRole != role_Supplicant_adhoc) &&
 					(RTLAuthenticator.currentRole != role_wds)) {
@@ -1465,18 +1469,15 @@ int  main( int numArgs, char ** theArgs )
 
 		}
 	}
-	
+
+
+
 #ifdef RTL_WPA_CLIENT
 #if defined(CONFIG_RTL_802_1X_CLIENT_SUPPORT) 
 	sprintf(xsup_conf, XSUP_CONF_FILE_NAME_FMT, theArgs[1]);
 #endif
 #endif
 
-/*HS2 SUPPORT*/
-#ifdef CONFIG_IEEE80211W
-	//lib1x_control_InitPMF(auth);
-#endif
-/*HS2 SUPPORT*/
 #ifdef RTL_WPA_CLIENT
 	if ( auth->currentRole !=  role_Authenticator
 #ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
@@ -1485,9 +1486,10 @@ int  main( int numArgs, char ** theArgs )
 		){
 		lib1x_init_supp(&RTLAuthenticator, &RTLClient);
 	}
-    // david ----------------------
+
+// david ----------------------
 	if ( (auth->currentRole == role_Supplicant_adhoc) || (auth->currentRole == role_wds)) {
-        lib1x_control_STA_SetGTK(auth->client->global, auth->RSNVariable.PassPhraseKey, 0);
+		lib1x_control_STA_SetGTK(auth->client->global, auth->RSNVariable.PassPhraseKey, 0);
 		if (auth->currentRole == role_Supplicant_adhoc) {
 			lib1x_control_RSNIE(auth, DOT11_Ioctl_Set);
 			lib1x_control_InitQueue(auth);
@@ -1515,22 +1517,23 @@ int  main( int numArgs, char ** theArgs )
 		// from /var/wpa-wlan0.conf to /var/1x/1x.conf
 		// "/var/1x/1x_module.conf" for test only!
 		if(prepareClientMode1xConf(&RTLAuthenticator, xsup_conf) == FAILED){
-			AUTHDEBUG("prepare ClientMode1xConf fail!\n");//Added for test
+			printf("%s(%d): prepareClientMode1xConf() failed.\n",__FUNCTION__,__LINE__);//Added for test
 		}
 	}
 #endif
-    //----------------------------
+
+//----------------------------
 #endif
 
-    // david
-    // kenny
+// david
+// kenny
 	lib1x_init_authTimer( &RTLAuthenticator);
 
-    //	printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
-    //				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
-    //	printf("%s(%d): auth->RSNVariable.Dot1xEnabled(%d), auth->RSNVariable.RSNEnabled(%d), auth->RSNVariable.MacAuthEnabled(%d)=============== \n",__FUNCTION__,__LINE__,
-    //				auth->RSNVariable.Dot1xEnabled,auth->RSNVariable.RSNEnabled,auth->RSNVariable.MacAuthEnabled);//Added for test
-    
+//	printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
+//				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
+
+//	printf("%s(%d): auth->RSNVariable.Dot1xEnabled(%d), auth->RSNVariable.RSNEnabled(%d), auth->RSNVariable.MacAuthEnabled(%d)=============== \n",__FUNCTION__,__LINE__,
+//				auth->RSNVariable.Dot1xEnabled,auth->RSNVariable.RSNEnabled,auth->RSNVariable.MacAuthEnabled);//Added for test
 	while(1)
 	{
 		//----if 0802
@@ -1561,22 +1564,28 @@ int  main( int numArgs, char ** theArgs )
 #ifdef RTL_WPA_CLIENT
 
 #ifdef CLIENT_TLS
-
+//			printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
+//				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
 			if(auth->currentRole == role_Supplicant_infra
-			    &&( RTLClient.global->AuthKeyMethod == DOT11_AuthKeyType_RSN 			    
-			    	|| RTLClient.global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)
-			   )	
+			    && RTLClient.global->AuthKeyMethod == DOT11_AuthKeyType_RSN)
 			{
 				static int xsup_inited = 0;
 				static int not_associated = 1;
 				static int reset_xsup = 0;
 				not_associated = lib1x_control_STA_QUERY_BSSID(RTLClient.global);
 
-				if ( not_associated != 0) {
+//			printf("%s(%d): not_associated(%d), xsup_inited(%d)=============== \n",__FUNCTION__,__LINE__,
+//				not_associated,xsup_inited);//Added for test
 
+				if ( not_associated != 0) {
+					//printf("%s role_Supplicant_infra not associated!\n", __FUNCTION__);//Added for test
+					//printf(".");
 					if ((xsup_inited == 1) && (reset_xsup==0)) {
+						//statemachine_reset(int_list);
 						eapol_cleanup(int_list);
 						reset_xsup = 1;
+
+						//printf("set xsup_inited = %d\n", xsup_inited);
 					}
 
 					continue;
@@ -1638,39 +1647,45 @@ int  main( int numArgs, char ** theArgs )
 #endif /* CLIENT_TLS */
 
 
-
+// david ---------------------------
+#if 0
+			if(auth->currentRole == role_Supplicant)
+				lib1x_do_supplicant(&RTLAuthenticator, RTLClient.global);
+			else
+#endif
+//			printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
+//				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
 			if(auth->currentRole == role_Supplicant_infra)
 				lib1x_do_supplicant(&RTLAuthenticator, RTLClient.global);
 
 			else if ( (auth->currentRole == role_Supplicant_adhoc) ||
 						(auth->currentRole == role_wds))
 				break;
-			#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
+#ifdef CONFIG_RTL_ETH_802DOT1X_SUPPORT
 			else if( auth ->currentRole == role_eth && (auth ->ethDot1xMode & ETH_DOT1X_PROXY_MODE)){
 				lib1x_do_authenticator( &RTLAuthenticator );
 			}
-			#endif
-			#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
+#endif
+#ifdef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
 			else if(auth ->currentRole == role_eth && (auth ->ethDot1xMode & ETH_DOT1X_CLIENT_MODE)){
 				sleep(2);
 			}
-			#endif
-			else
-
 #endif
-            {
-    			lib1x_do_authenticator( &RTLAuthenticator );
-            }
+			else
+//----------------------------------
+#endif
+			lib1x_do_authenticator( &RTLAuthenticator );
 
-            // david ---------
-            // kenny
-            /*
-            			if (!(cnt++%10))
-            				lib1x_timer_authenticator(SIGALRM);
 
-            			usleep(10000);
-                    */
-            //----------------
+// david ---------
+// kenny
+/*
+			if (!(cnt++%10))
+				lib1x_timer_authenticator(SIGALRM);
+
+			usleep(10000);
+*/
+//----------------
 
 		}
 		else

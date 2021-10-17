@@ -142,7 +142,7 @@ ap_hcm_out:
 				#if defined(CONFIG_USB_UWIFI_HOST)
 				if(iph->daddr == 0xEFFFFFFA || iph->daddr == 0xE1010101)
 				#else
-				if(iph->daddr == 0xEFFFFFFA || iph->daddr == 0xE00000FB)
+				if(iph->daddr == 0xEFFFFFFA)
 				#endif
 				{
 					/*for microsoft upnp*/

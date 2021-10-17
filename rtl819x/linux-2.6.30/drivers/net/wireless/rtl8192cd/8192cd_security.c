@@ -44,14 +44,11 @@
 #include "8192cd_cfg80211.h" 
 #endif
 
+
 #define E_MSG_DOT11_2LARGE      "ItemSize Too Large"
 #define E_MSG_DOT11_QFULL       "Event Queue Full"
 #define E_MSG_DOT11_QEMPTY      "Event Queue Empty"
 
-#if defined(SUPPORT_UCFGING_LED) 
-extern unsigned int LED_Configuring;
-extern struct timer_list	LED_TimerCFGING;
-#endif
 
 void DOT11_InitQueue(DOT11_QUEUE * q)
 {
@@ -195,11 +192,6 @@ static int DOT11_Process_Set_RSNIE(struct net_device *dev, struct iw_point *data
 #else
 	struct rtl8192cd_priv	*priv = (struct rtl8192cd_priv *)(dev->priv);
 #endif
-
-#ifdef HS2_SUPPORT
-	unsigned char       rsnie_hdr_OSEN[4]={0x50, 0x6F, 0x9A, 0x12};
-#endif
-
 	DOT11_SET_RSNIE		*Set_RSNIE = (DOT11_SET_RSNIE *)data->pointer;
 
 	DEBUG_INFO("going to set rsnie\n");
@@ -211,12 +203,7 @@ static int DOT11_Process_Set_RSNIE(struct net_device *dev, struct iw_point *data
 		memcpy((void *)pdot11RsnIE->rsnie, Set_RSNIE->RSNIE, pdot11RsnIE->rsnielen);
 		priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm = 1;
 		DEBUG_INFO("DOT11_Process_Set_RSNIE rsnielen=%d\n", pdot11RsnIE->rsnielen);
-		#ifdef HS2_SUPPORT
-        if ((*(unsigned char *)pdot11RsnIE->rsnie == _RSN_IE_1_) && (pdot11RsnIE->rsnielen >= 4) && (!memcmp((void *)(pdot11RsnIE->rsnie + 2), (void *)rsnie_hdr_OSEN, 4))) {
-				HS2DEBUG("found OSEN IE in Assoc Req, set dgaf_disable = 1\n");
-                priv->dgaf_disable = 1;	// under OSEN mode , all broadcast frame will transfor to unicast
-        }
-		#endif        
+
 		// see whether if driver is open. If not, do not enable tx/rx, david
 		if (!netif_running(priv->dev)) {
 #ifdef __OSK__
@@ -373,6 +360,7 @@ int __DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point *data
 
 #ifdef CLIENT_MODE
 	if(OPMODE & WIFI_STATION_STATE){
+
 		if((OPMODE&(  WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE))
 				==(  WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE))
 		{
@@ -1034,13 +1022,19 @@ static int DOT11_Process_Set_Port(struct net_device *dev, struct iw_point *data)
 		/*cfg p2p cfg p2p
 		P2P_STATE = P2P_S_CLIENT_CONNECTED_DHCPC;*/
 		rtk_p2p_set_state(priv,P2P_S_CLIENT_CONNECTED_DHCPC);
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+		/*it will trigger application to start DHCPC !!*/
+		if (priv->p2p_event_indicate_cb_func)
+			priv->p2p_event_indicate_cb_func("wlan0", WIFI_P2P_EVENT_START_DHCPC);
+#endif        
 		priv->p2pPtr->clientmode_try_connect = 0;
+		priv->p2pPtr->clientmode_connected = 0;
 		P2P_DEBUG("Set_Port Sta[%02X%02X%02X%02X%02X%02X],Status=%X\n\n\n",
 			Set_Port->MACAddr[0],Set_Port->MACAddr[1],Set_Port->MACAddr[2],
 			Set_Port->MACAddr[3],Set_Port->MACAddr[4],Set_Port->MACAddr[5],
 			Set_Port->PortStatus);
 	}
-#endif	
+#endif
 	return 0;
 }
 
@@ -1696,19 +1690,18 @@ static int DOT11_PMF_set_ie(struct net_device *dev, struct iw_point *data)
 		PMFDEBUG("memcpy fail!, data=%x, length=%d\n", data->pointer, data->length);
 		return -1;
 	}
-
+	PMFDEBUG("driver:setPMF=%d\n",flags.isPMF);		
 	pstat= get_stainfo(priv,flags.macAddr); 			
 
-	if(!pstat){
-		//PMFDEBUG("psta is NULL\n");
-	}else{
+	if(!pstat)
+		PMFDEBUG("psta is NULL\n");
+	else
 		pstat->isPMF = flags.isPMF;
-    	PMFDEBUG("set sta[%02x%02x%02x:%02x%02x%02x]'s PMF=[%d]\n",pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5], flags.isPMF);		        
-    }
 
 	return 0;
 }
 #endif
+
 
 
 #ifdef HS2_SUPPORT
@@ -1721,32 +1714,13 @@ static int DOT11_HS2_set_ie(struct net_device *dev, struct iw_point *data)
     struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)(dev->priv);
 #endif
     DOT11_SET_RSNIE *Set_RSNIE = (DOT11_SET_RSNIE *)data->pointer;
-	HS2_DEBUG_INFO("HS2 set ie, flag=%d\n",Set_RSNIE->Flag);
+    HS2_DEBUG_INFO("HS2 set ie, flag=%d\n",Set_RSNIE->Flag);
     if (Set_RSNIE->Flag == SET_IE_FLAG_INTERWORKING)
     {
         //DEBUG_INFO
-		HS2_DEBUG_TRACE(1, "HS2: set interworking IE,%x,%x\n",Set_RSNIE->RSNIE[0], Set_RSNIE->RSNIE[1]);
+        HS2_DEBUG_TRACE(1, "HS2: set interworking IE,%x,%x\n",Set_RSNIE->RSNIE[0], Set_RSNIE->RSNIE[1]);
         priv->pmib->hs2Entry.interworking_ielen = Set_RSNIE->RSNIELen;
         memcpy((void *)priv->pmib->hs2Entry.interworking_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
-    }
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_QOSMAP)
-    {
-        //DEBUG_INFO
-		HS2_DEBUG_TRACE(1, "HS2: set QoSMAP set IE,%x,%x\n",Set_RSNIE->RSNIE[0], Set_RSNIE->RSNIE[1]);
-		if(priv->pmib->hs2Entry.nQoSMap == 2) {
-			priv->pmib->hs2Entry.nQoSMap = 0;
-			panic_printk("WLAN Driver cannot set more than two QoSMAP ie\n");
-		}
-		
-        priv->pmib->hs2Entry.QoSMap_ielen[priv->pmib->hs2Entry.nQoSMap] = Set_RSNIE->RSNIELen;
-	    memcpy((void *)priv->pmib->hs2Entry.QoSMap_ie[priv->pmib->hs2Entry.nQoSMap], Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
-		if(priv->pmib->hs2Entry.nQoSMap == 0) {
-			priv->pmib->hs2Entry.curQoSMap = 0;
-			setQoSMapConf(priv);
-		}
-		HS2_DEBUG_TRACE(1, "QoSMap_ielen[%d]=%d\n",priv->pmib->hs2Entry.nQoSMap,priv->pmib->hs2Entry.QoSMap_ielen[priv->pmib->hs2Entry.nQoSMap]);
-		priv->pmib->hs2Entry.nQoSMap++;
-		
     }
     else if (Set_RSNIE->Flag == SET_IE_FLAG_ADVT_PROTO)
     {
@@ -1760,84 +1734,55 @@ static int DOT11_HS2_set_ie(struct net_device *dev, struct iw_point *data)
         priv->pmib->hs2Entry.roam_ielen = Set_RSNIE->RSNIELen;
         memcpy((void *)priv->pmib->hs2Entry.roam_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
     }
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_HS2)
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_HS2)
     {
         HS2_DEBUG_TRACE(1, "HS2: set HS2 IE\n");
         priv->pmib->hs2Entry.hs2_ielen = Set_RSNIE->RSNIELen;
         memcpy((void *)priv->pmib->hs2Entry.hs2_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
         if (priv->pmib->hs2Entry.hs2_ie[4] & 0x01)
         {
-        	HS2_DEBUG_TRACE(1, "dgaf enable\n");
-        	priv->dgaf_disable = 1;
+            HS2_DEBUG_TRACE(1, "dgaf enable\n");
+            priv->dgaf_disable = 1;
         }
-    	else
-    	{
-    		HS2_DEBUG_TRACE(1, "dgaf disable\n");
-    		priv->dgaf_disable = 0;
-    	}
-		//OSU_Present
-		if (priv->pmib->hs2Entry.hs2_ie[4] & 0x02)
+        else
         {
-        	DEBUG_INFO("OSU Provider List enable\n");
-        	priv->OSU_Present = 1;
+            HS2_DEBUG_TRACE(1, "dgaf disable\n");
+            priv->dgaf_disable = 0;
         }
-    	else
-    	{
-    		DEBUG_INFO("OSU Provider List disable\n");
-    		priv->OSU_Present = 0;
-    	}
+
         //channel utilization
         rtl8192cd_cu_start(priv);
     }
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_TIMEADVT)
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_TIMEADVT)
     {
         HS2_DEBUG_TRACE(1, "HS2: set timeadvt IE\n");
         priv->pmib->hs2Entry.timeadvt_ielen = Set_RSNIE->RSNIELen;
         memcpy((void *)priv->pmib->hs2Entry.timeadvt_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
-	}
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_TIMEZONE)
+    }
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_TIMEZONE)
     {
         HS2_DEBUG_TRACE(1, "HS2: set time zone IE\n");
         priv->pmib->hs2Entry.timezone_ielen = Set_RSNIE->RSNIELen;
         memcpy((void *)priv->pmib->hs2Entry.timezone_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
     }
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_PROXYARP)
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_PROXYARP)
     {
-		priv->proxy_arp = *Set_RSNIE->RSNIE;
-        HS2_DEBUG_INFO("\n proxy arp in driver[%d]\n", priv->proxy_arp);
+        priv->proxy_arp = *Set_RSNIE->RSNIE;
+        HS2_DEBUG_INFO("\n\n\n\nproxy arp in driver=%d\n\n\n\n\n", priv->proxy_arp);
     } 
     else if (Set_RSNIE->Flag == SET_IE_FLAG_ICMPv4ECHO)
     {
         priv->pmib->hs2Entry.ICMPv4ECHO = *Set_RSNIE->RSNIE;
-        HS2_DEBUG_INFO("ICMPv4ECHO in driver=[%d]\n", priv->pmib->hs2Entry.ICMPv4ECHO);
+        HS2_DEBUG_INFO("\n\n\n\nICMPv4ECHO in driver=%d\n\n\n\n\n", priv->pmib->hs2Entry.ICMPv4ECHO);
     }	
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_MBSSID)
-	{
-		HS2_DEBUG_INFO("HS2: set Multiple BSSID IE\n");
-        priv->pmib->hs2Entry.MBSSID_ielen= Set_RSNIE->RSNIELen;
-        memcpy((void *)priv->pmib->hs2Entry.MBSSID_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
-	}
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_REMEDSVR)
-	{
-		HS2_DEBUG_INFO("HS2: set REMEDSVR string\n");
-        memcpy((void *)priv->pmib->hs2Entry.remedSvrURL, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
-		HS2_DEBUG_INFO("REMEDSVR:%s\n",priv->pmib->hs2Entry.remedSvrURL);
-	}
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_SessionInfoURL)
-	{
-		DEBUG_INFO("HS2: set SessionInfoURL string\n");
-        memcpy((void *)priv->pmib->hs2Entry.SessionInfoURL, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
-		HS2_DEBUG_INFO("SessionInfoURL:%s\n",priv->pmib->hs2Entry.SessionInfoURL);
-	}
-	else if (Set_RSNIE->Flag == SET_IE_FLAG_MMPDULIMIT) {
-		HS2_DEBUG_INFO("HS2: set REMEDSVR string\n");
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_MMPDULIMIT) {
         memcpy((void *)(&priv->pmib->hs2Entry.mmpdu_limit), Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
-		HS2_DEBUG_INFO("mmpdu_limit:%d\n",priv->pmib->hs2Entry.mmpdu_limit);
-	}
-	else
-	{
-		HS2_DEBUG_ERR("HS2: unknown ioctl flag\n");
-	}
+        HS2_DEBUG_INFO("mmpdu_limit:%d\n",priv->pmib->hs2Entry.mmpdu_limit);
+    }
+    else
+    {
+        HS2_DEBUG_ERR("HS2: unknown ioctl flag\n");
+    }
 }
 #endif
 
@@ -2223,8 +2168,7 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 #ifdef HS2_SUPPORT
 /* Hotsport 2.0 Release 1 */
 		case DOT11_EVENT_HS2_SET_IE:
-            if(!DOT11_HS2_set_ie(dev, data))
-            {};
+			if(!DOT11_HS2_set_ie(dev, data)) {};
 			break;
         case DOT11_EVENT_HS2_GET_TSF:
 			{
@@ -2245,45 +2189,7 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			issue_GASrsp(priv, data->pointer);
 			break;
         case DOT11_EVENT_HS2_TSM_REQ:
-			{
-			DOT11_BSS_SessInfo_URL sesionInfoURL; 
-			DOT11_HS2_TSM_REQ tsmreq;
-					
-			if (copy_from_user((void *)(&sesionInfoURL),(void *)(data->pointer), data->length))
-			{
-				DEBUG_ERR("copy_from_user fail!\n");
-				return -1;
-			}
-			
-			HS2_DEBUG_INFO("send bss tx mgmt req to STA:");
-			MAC_PRINT(sesionInfoURL.macAddr);
-			
-			memcpy(tsmreq.MACAddr, sesionInfoURL.macAddr, 6);
-			memcpy(priv->pmib->hs2Entry.sta_mac, sesionInfoURL.macAddr, 6); // used in dissassoc timer
-
-            //tsmreq.Req_mode = 16; // ESS Disassoc Imminent
-			/*HS2 R2 logo test ; ESS Disassoc Imminent  , test plan 4.12*/ 
-            tsmreq.Req_mode = 0x14; //
-
-			tsmreq.term_len = 0;
-
-			tsmreq.Dialog_token = 5;
-			tsmreq.Disassoc_timer = sesionInfoURL.SWT;
-			tsmreq.Validity_intval = 0;	
-			tsmreq.url_len = strlen(sesionInfoURL.URL);
-			memcpy(tsmreq.Session_url, sesionInfoURL.URL, tsmreq.url_len);
-			tsmreq.list_len = 0;	
-
-
-
-            issue_BSS_TSM_req(priv, &tsmreq);
-
-			HS2_DEBUG_INFO("issue_BSS_TSM_req and set timer to disassoc[%d]ms\n",(tsmreq.Disassoc_timer * 60 * 1000));
-						
-           	if (timer_pending(&priv->disassoc_timer))
-        		del_timer_sync(&priv->disassoc_timer);            
-			mod_timer(&priv->disassoc_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(tsmreq.Disassoc_timer * 60 * 1000));
-			}
+			issue_BSS_TSM_req(priv, data->pointer);
 			break;
         case DOT11_EVENT_HS2_GET_RSN:
 			{
@@ -2311,149 +2217,10 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 				data->length = sizeof(unsigned int);
             }
             break;
-		case DOT11_EVENT_WNM_NOTIFY: // HS2.0 (case 4.10)
-			{
-				struct wifi_mib *pmib;
-				int i;
-				DOT11_WNM_NOTIFY WNM_Notify;
-					
-				pmib = GET_MIB(priv);
-				if (copy_from_user((void *)(&WNM_Notify),(void *)(data->pointer), data->length))
-				{
-					DEBUG_ERR("copy_from_user fail!\n");
-					return -1;
-				}
-				strcpy(pmib->hs2Entry.remedSvrURL,WNM_Notify.remedSvrURL);
-
-				pmib->hs2Entry.serverMethod = WNM_Notify.serverMethod;
-				memcpy(pmib->hs2Entry.sta_mac,WNM_Notify.macAddr,6);
-				HS2_DEBUG_INFO("WNM Dest=");
-				MAC_PRINT(pmib->hs2Entry.sta_mac);				
-				HS2_DEBUG_INFO("Server URL = %s\n",pmib->hs2Entry.remedSvrURL);
-				issue_WNM_Notify(priv);				
-			}
-			break;
-		case DOT11_EVENT_WNM_DEAUTH_REQ: // HS2.0 (case 4.13)
-			{
-				struct wifi_mib *pmib;
-				int i;
-				DOT11_WNM_DEAUTH_REQ WNM_Deauth;
-					
-				pmib = GET_MIB(priv);
-				if (copy_from_user((void *)(&WNM_Deauth),(void *)(data->pointer), data->length))
-				{
-					DEBUG_ERR("copy_from_user fail!\n");
-					return -1;
-				}
-				HS2_DEBUG_INFO("WNM Deauth da=");
-				MAC_PRINT(WNM_Deauth.macAddr);
-				HS2_DEBUG_INFO("reason=%d, reAuthDelay=%d, WNM URL=%s\n",WNM_Deauth.reason, WNM_Deauth.reAuthDelay,WNM_Deauth.URL);
-				
-				issue_WNM_Deauth_Req(priv,WNM_Deauth.macAddr,WNM_Deauth.reason,WNM_Deauth.reAuthDelay,WNM_Deauth.URL);
-			}
-			break;
-		case DOT11_EVENT_QOS_MAP_CONF:
-			{
-				struct wifi_mib *pmib;
-				int i;
-				DOT11_QoSMAPConf QoSMAPConf;
-					
-				pmib = GET_MIB(priv);
-				if (copy_from_user((void *)(&QoSMAPConf),(void *)(data->pointer), data->length))
-				{
-					HS2_DEBUG_ERR("copy_from_user fail!\n");
-					return -1;
-				}
-				if(QoSMAPConf.indexQoSMAP > 1)
-				{
-					HS2_DEBUG_ERR("indexQoSMAP > 1!\n");
-					return -1;
-				}
-				HS2_DEBUG_INFO("QoSMAPConf da=");
-				MAC_PRINT(QoSMAPConf.macAddr);				
-				HS2_DEBUG_INFO("QoSMAP index=%d\n",QoSMAPConf.indexQoSMAP);
-
-				memcpy(priv->pmib->hs2Entry.sta_mac,QoSMAPConf.macAddr,6);
-				priv->pmib->hs2Entry.curQoSMap = QoSMAPConf.indexQoSMAP;
-				setQoSMapConf(priv);
-				issue_QoS_MAP_Configure(priv, QoSMAPConf.macAddr, QoSMAPConf.indexQoSMAP);
-			}
-			break;
 #endif // HS2_SUPPORT
-#ifdef USER_ADDIE
-		case DOT11_EVENT_USER_SETIE:
-			{
-				if(DOT11_USER_set_ie(dev, data) < 0) {
-					DEBUG_ERR("DOT11_USER_set_ie failed\n");
-					return -1;
-				};
-			}
-			break;
-#endif
-#if defined(SUPPORT_UCFGING_LED) 
-		case DOT11_EVENT_UCFGING_LED:
-			{
-				DOT11_SET_UCFGING_LED *SetData = (DOT11_SET_UCFGING_LED *)data->pointer;
-				if(LED_Configuring != SetData->State){
-					LED_Configuring = SetData->State;
-				//panic_printk("LED_Configuring=%d\n", LED_Configuring);
-				
-					if(LED_Configuring == 1){
-						if (timer_pending(&priv->pshare->LED_Timer))
-							del_timer_sync(&priv->pshare->LED_Timer);
-						//init another timer for specific function	
-							StartCFGINGTimer();
-						
-					}else{
-						//del another timer that specific function used	
-						if (timer_pending(&LED_TimerCFGING))
-							del_timer_sync(&LED_TimerCFGING);
-						enable_sw_LED(priv, 1);
-					}
-				}
- 			}
-			break;
-#endif //SUPPORT_UCFGING_LED
 #ifdef CONFIG_IEEE80211W
-		/*HS2 R2 logo test*/ 
-        case DOT11_EVENT_INIT_PMF:
-        {
-				int i;
-				DOT11_INIT_11W_Flags flags;				
-				if (copy_from_user((void *)(&flags),(void *)(data->pointer), data->length))
-				{
-					PMFDEBUG("copy_from_user fail!\n");
-					return -1;
-				}
-
-                PMFDEBUG("init pmf:11W[%d],SHA256[%d]\n",flags.dot11IEEE80211W, flags.dot11EnableSHA256);
-			
-				priv->pmib->dot1180211AuthEntry.dot11IEEE80211W = flags.dot11IEEE80211W;
-                priv->pmib->dot1180211AuthEntry.dot11EnableSHA256 = flags.dot11EnableSHA256;
-        }
 		case DOT11_EVENT_SET_PMF:
-			{
-				struct stat_info *pstat; 
-				int i;
-				DOT11_SET_11W_Flags flags;				
-				if (copy_from_user((void *)(&flags),(void *)(data->pointer), data->length))
-				{
-					PMFDEBUG("copy_from_user fail!\n");
-					return -1;
-				}
-                #ifdef PMF_DEBUGMSG
-                PMFDEBUG("set sta[%02X%02X%02X:%02X%02X]'s PMF=[%d]\n",
-                    flags.macAddr[0],flags.macAddr[1],flags.macAddr[2],
-                    flags.macAddr[3],flags.macAddr[4],flags.macAddr[5],flags.isPMF);                    
-                #endif
-				pstat= get_stainfo(priv,flags.macAddr);				
-				if(!pstat){
-					PMFDEBUG("psta is NULL\n");
-				}else{
-					pstat->isPMF = flags.isPMF;
-
-                }
-			}
+			if(!DOT11_PMF_set_ie(dev, data)) {};
 				break;
 		case DOT11_EVENT_GET_IGTK_PN:
 			{
@@ -2461,24 +2228,16 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 				int i;
 				unsigned char *tt;
 				pmib = GET_MIB(priv);			
-
-                #ifdef PMF_DEBUGMSG
-				PMFDEBUG("get IGTK_PN:");
+				//pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48 = 0;				
+				//printk("driver:dot11TXPN48.val48=%ull\n",pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48);
 				tt = (unsigned char *) & pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48;
-				for (i=0;i<sizeof(unsigned long long);i++){
-					panic_printk("%02X ",tt[i]);
-				}
-				panic_printk("\n");
-                #if 0
-				PMFDEBUG("dot11TXPN48.val48=%x %x %x %x %x %x\n",pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC0
+				PMFDEBUG("driver:dot11TXPN48.val48=%x %x %x %x %x %x\n",pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC0
 													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC1
 													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC2
 													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC3
 													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC4
 													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC5);
-                #endif             
-                #endif
-
+				PMFDEBUG("dot11TXPN48 = %x, len=%lld\n", &pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48);
 				if (copy_to_user((void *)(data->pointer), (void *) (&pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48), sizeof(pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48)))
 				{
 					DEBUG_ERR("copy_to_user fail!\n");
@@ -2500,102 +2259,576 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 				}
 				break;
 #endif // CONFIG_IEEE80211W
-#ifdef RSSI_MONITOR_NCR
-		case DOT11_EVENT_RSSI_MONITOR_REPORT:
+#ifdef CONFIG_IEEE80211R
+		case DOT11_EVENT_FT_GET_EVENT:
 			{
-				int more_data=0;
-#ifdef MBSSID
-				int i;
-#endif
-				priv = GET_ROOT(priv);
-				ret = DOT11_DeQueue((unsigned long)priv, priv->rssimEvent_queue, QueueData, &QueueDataLen);
-				if(ret != 0)
+				if((ret = DOT11_DeQueue((unsigned long)priv, priv->pftevent_queue, QueueData, &QueueDataLen)) != 0)
 				{
-#ifdef UNIVERSAL_REPEATER
-					if (IS_DRV_OPEN(GET_VXD_PRIV(priv)))	{
-						ret = DOT11_DeQueue((unsigned long)priv, GET_VXD_PRIV(priv)->rssimEvent_queue, QueueData, &QueueDataLen);						
+					val8 = DOT11_EVENT_NO_EVENT;
+					if (copy_to_user((void *)((unsigned long)(data->pointer)), &val8, 1)) {
+						DEBUG_ERR("copy_to_user fail!\n");
+						return -1;
 					}
-#endif
-#ifdef MBSSID
-					if (priv->pmib->miscEntry.vap_enable) 		{
-						for (i=0; i<RTL8192CD_NUM_VWLAN && (ret != 0); i++) {
-							if (IS_DRV_OPEN(priv->pvap_priv[i])) {
-								ret = DOT11_DeQueue((unsigned long)priv, priv->pvap_priv[i]->rssimEvent_queue, QueueData, &QueueDataLen);	
+					val8 = 0;
+					if (copy_to_user((void *)((unsigned long)(data->pointer) + 1), &val8, 1)) {
+						DEBUG_ERR("copy_to_user fail!\n");
+						return -1;
+					}
+					data->length = sizeof(DOT11_NO_EVENT);
+				}
+				else
+				{
+					QueueData[1] = (priv->pftevent_queue->NumItem != 0)? 1 : 0;
+					if (copy_to_user((void *)data->pointer, (void *)QueueData, QueueDataLen)) {
+						DEBUG_ERR("copy_to_user fail!\n");
+						return -1;
+					}
+					data->length = QueueDataLen;
+				}
+			}
+			break;
+
+		case DOT11_EVENT_FT_GET_KEY:
+			{
+				DOT11_FT_GET_KEY_PROTO proto;
+				struct r1_key_holder *r1_key, out;
+				struct r0_key_holder *r0_key;
+				
+				if (copy_from_user((void *)(&proto),(void *)(data->pointer), sizeof(DOT11_FT_GET_KEY_PROTO)))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+
+				switch (proto.Type)
+				{
+					case FTKEY_TYPE_PUSH:
+						{
+							DOT11_FT_GET_KEY getkey;
+							DOT11_FT_GET_KEY_PUSH push;
+
+							if (copy_from_user((void *)(&getkey),(void *)(data->pointer), data->length))
+							{
+								DEBUG_ERR("copy_from_user fail!\n");
+								return -1;
 							}
+
+							r1_key = search_r1kh(priv, getkey.s1kh_id, getkey.r1kh_id);
+							if (!r1_key) {
+								if (derive_r1_key(priv, getkey.s1kh_id, getkey.r1kh_id, &out)) {
+									DEBUG_ERR("Can't derive PMK-R1 key\n");
+									return -1;
+								}
+								r1_key = &out;
+							}
+
+							push.EventId = getkey.EventId;
+							push.IsMoreEvent = 0;
+							push.Type = getkey.Type;
+							push.Length = sizeof(DOT11_FT_GET_KEY_PUSH) - offsetof(DOT11_FT_GET_KEY_PUSH, timestamp);
+							push.timestamp = 0;
+							memcpy(push.r1kh_id, getkey.r1kh_id, MACADDRLEN);
+							memcpy(push.s1kh_id, getkey.s1kh_id, MACADDRLEN);
+							memcpy(push.pmk_r0_name, r1_key->pmk_r0_name, PMKID_LEN);
+							memcpy(push.pmk_r1, r1_key->pmk_r1, PMK_LEN);
+							memcpy(push.pmk_r1_name, r1_key->pmk_r1_name, PMKID_LEN);
+							push.pairwise = cpu_to_le16(r1_key->pairwise);
+
+							if (copy_to_user((void *)(data->pointer), (void *)(&push), sizeof(DOT11_FT_GET_KEY_PUSH)))
+							{
+								DEBUG_ERR("copy_to_user fail!\n");
+								return -1;
+							}
+							data->length = sizeof(DOT11_FT_GET_KEY_PUSH);
 						}
+						break;
+					case FTKEY_TYPE_PULL:
+						{
+							DOT11_FT_PULL_KEY_IND keyind;
+							DOT11_FT_GET_KEY_PULL pull;
+
+							if (copy_from_user((void *)(&keyind),(void *)(data->pointer), data->length))
+							{
+								DEBUG_ERR("copy_from_user fail!\n");
+								return -1;
+							}
+							r0_key = search_r0kh(priv, keyind.s1kh_id);
+							if (!r0_key) {
+								DEBUG_ERR("No PMK-R0 for this STA\n");
+								return -1;
+							}
+							r1_key = search_r1kh(priv, keyind.s1kh_id, BSSID);
+							if (!r1_key) {
+								DEBUG_ERR("No PMK-R1 for this STA\n");
+								return -1;
+							}
+
+							if (memcmp(r1_key->pmk_r0_name, keyind.pmk_r0_name, PMKID_LEN)) {
+								DEBUG_ERR("PMK-R1-Name mismatch\n");
+								return -1;
+							}
+							
+							if (derive_r1_key(priv, keyind.s1kh_id, keyind.r1kh_id, &out)) {
+								DEBUG_ERR("Can't derive PMK-R1 key\n");
+								return -1;
+							}
+							r1_key = &out;
+
+							pull.EventId = keyind.EventId;
+							pull.IsMoreEvent = 0;
+							pull.Type = keyind.Type;
+							pull.Length = sizeof(DOT11_FT_GET_KEY_PULL) - offsetof(DOT11_FT_GET_KEY_PULL, nonce);
+							memset(pull.nonce, 0, sizeof(pull.nonce));
+							memcpy(pull.r1kh_id, keyind.r1kh_id, MACADDRLEN);
+							memcpy(pull.s1kh_id, keyind.s1kh_id, MACADDRLEN);
+							memcpy(pull.pmk_r1, r1_key->pmk_r1, PMK_LEN);
+							memcpy(pull.pmk_r1_name, r1_key->pmk_r1_name, PMKID_LEN);
+							pull.pairwise = cpu_to_le16(r1_key->pairwise);
+
+							if (copy_to_user((void *)(data->pointer), (void *)(&pull), sizeof(DOT11_FT_GET_KEY_PULL)))
+							{
+								DEBUG_ERR("copy_to_user fail!\n");
+								return -1;
+							}
+							data->length = sizeof(DOT11_FT_GET_KEY_PULL);
+						}
+						break;
+					default:
+						DEBUG_ERR("DOT11_EVENT_FT_GET_KEY with wrong type (%d)\n", proto.Type);
+						return -1;
+				}
+			}
+			break;
+
+		case DOT11_EVENT_FT_SET_KEY:
+			{
+				DOT11_FT_SET_KEY_PROTO proto;
+				int bset = 0;
+				
+				if (copy_from_user((void *)(&proto),(void *)(data->pointer), sizeof(DOT11_FT_SET_KEY_PROTO)))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+
+				switch (proto.Type)
+				{
+					case FTKEY_TYPE_PUSH:
+					{
+						DOT11_FT_SET_KEY_PUSH setkey;
+						DOT11_FT_SET_KEY_PUSH *pkey = &setkey;
+
+						if (copy_from_user((void *)pkey,(void *)(data->pointer), data->length))
+						{
+							DEBUG_ERR("copy_from_user fail!\n");
+							return -1;
+						}
+
+						pkey->pairwise = le16_to_cpu(pkey->pairwise);
+
+						// The key is pushed from another AP, it means the STA is associated with the AP unsing
+						// initial mobility domain association. The R0KH associated with the STA should be removed
+						// from current AP.
+						remove_r0kh(priv, pkey->s1kh_id);
+						
+						bset = store_r1kh(priv, pkey->s1kh_id, pkey->r1kh_id, NULL, 0, 
+							pkey->pmk_r1, pkey->pmk_r1_name, pkey->pmk_r0_name, pkey->pairwise);
+						if (bset) {
+							DEBUG_ERR("fail to store r1kh\n");
+							return -1;
+						}
+						break;
 					}
-#endif								
-				}			
-				if(ret != 0) {
-					QueueDataLen = sizeof(rssim_msg);				
-					memset(QueueData, 0, QueueDataLen);				
-				} else {
-					if(!DOT11_IsEmptyQueue(priv->rssimEvent_queue))
-						more_data++;
-#ifdef UNIVERSAL_REPEATER
-						if ((more_data==0) && IS_DRV_OPEN(GET_VXD_PRIV(priv)))	{
-							if(!DOT11_IsEmptyQueue(GET_VXD_PRIV(priv)->rssimEvent_queue))
-								more_data++;
+					case FTKEY_TYPE_PULL:
+					{
+						DOT11_FT_SET_KEY_PULL setkey;
+						DOT11_FT_SET_KEY_PULL *pkey = &setkey;
+
+						if (copy_from_user((void *)pkey,(void *)(data->pointer), data->length))
+						{
+							DEBUG_ERR("copy_from_user fail!\n");
+							return -1;
 						}
-#endif
-#ifdef MBSSID
-						if (GET_ROOT(priv)->pmib->miscEntry.vap_enable) 		{
-							for (i=0; i<RTL8192CD_NUM_VWLAN && (more_data == 0); i++) {
-								if (IS_DRV_OPEN(priv->pvap_priv[i])) {
-									if(!DOT11_IsEmptyQueue(priv->pvap_priv[i]->rssimEvent_queue))
-										more_data++;
+
+						pkey->pairwise = le16_to_cpu(pkey->pairwise);
+						struct stat_info *pstat;
+						unsigned char *pos, resp[MAX_FTACTION_LEN];
+						unsigned int ielen;
+						struct ft_action_param param;
+						struct r1_key_holder *r1kh;
+
+						bset = store_r1kh(priv, pkey->s1kh_id, pkey->r1kh_id, NULL, 0, 
+							pkey->pmk_r1, pkey->pmk_r1_name, NULL, pkey->pairwise);
+						if (bset) {
+							DEBUG_ERR("fail to store r1kh\n");
+							return -1;
+						}
+
+						pstat = get_stainfo(priv, pkey->s1kh_id);
+						if (pstat && 
+								(pstat->ft_state == state_ft_auth) && 
+								(pstat->wpa_sta_info->r1kh == NULL)) {
+							r1kh = pstat->wpa_sta_info->r1kh = search_r1kh(priv, pkey->s1kh_id, pkey->r1kh_id);
+							if (r1kh) {
+								memcpy(r1kh->r0kh_id, pstat->wpa_sta_info->cache_r0kh_id, pstat->wpa_sta_info->cache_r0kh_id_len);
+								r1kh->r0kh_id_len = pstat->wpa_sta_info->cache_r0kh_id_len;
+								derive_ft_keys(priv, pstat);
+								
+								if (pstat->wpa_sta_info->over_ds) {
+									pos = resp;
+									*pos++ = _FAST_BSS_TRANSITION_CATEGORY_ID_;
+									*pos++ = _FT_RESPONSE_ACTION_ID_;
+									memcpy(pos, pkey->s1kh_id, MACADDRLEN);
+									pos += MACADDRLEN;
+									memcpy(pos, pkey->r1kh_id, MACADDRLEN);
+									pos += MACADDRLEN;
+									*((unsigned short *)pos) = cpu_to_le16(_STATS_SUCCESSFUL_);
+									pos += 2;
+									
+									if (pstat->wpa_sta_info->isFT) {
+										pos = set_ft_rsnie_with_pmkid(priv, pos, &ielen, pstat, 2);
+									}
+									pos = construct_mobility_domain_ie(priv, pos, &ielen);
+									if (pstat->wpa_sta_info->isFT)
+										pos = construct_fast_bss_transition_ie(priv, pos, &ielen, pstat);
+
+									param.action_code = ACTION_CODE_RESPONSE;
+									memcpy(param.target_addr, pstat->wpa_sta_info->current_ap, MACADDRLEN);
+									param.length = pos - resp;
+									param.pdata = resp;
+									
+									FT_IndicateEvent(priv, pstat, DOT11_EVENT_FT_ACTION_IND, &param);								
+								}
+								else {
+									issue_auth(priv, pstat, (unsigned short)(_STATS_SUCCESSFUL_));
 								}
 							}
 						}
-#endif								
-				}
-				if (copy_to_user((void *)data->pointer, (void *)QueueData, QueueDataLen)) {
-					DEBUG_ERR("copy_to_user fail!\n");	
-					return -1;
-				}
-				data->length = QueueDataLen;			
-				if(more_data)
-					rssi_event_indicate(priv);
-			}
-			break;
-			case DOT11_EVENT_RSSI_MONITOR_SETTYPE:
-			{
-				DOT11_RSSIM_SET_TYPE event;
-				struct stat_info	*pstat;
-#ifdef MBSSID
-				int i;
-#endif
-				if (copy_from_user((void *)&event, (void *)(data->pointer), data->length)) {
-					DEBUG_ERR("copy_from_user error!\n");
-					return -1;
-				}				
-				if(pstat = get_stainfo(priv, event.hwaddr)) {
-					pstat->rssim_type = event.type;
-					break;
-				}
-#ifdef UNIVERSAL_REPEATER
-				if ( IS_DRV_OPEN(GET_VXD_PRIV(priv)))	{
-					if(pstat = get_stainfo(GET_VXD_PRIV(priv), event.hwaddr)) {
-						pstat->rssim_type = event.type;
 						break;
 					}
+					default:
+						DEBUG_ERR("DOT11_EVENT_FT_SET_KEY with wrong type (%d)\n", proto.Type);
+						break;
 				}
-#endif
-#ifdef MBSSID
-				if (GET_ROOT(priv)->pmib->miscEntry.vap_enable) 		{
-					for (i=0; i<RTL8192CD_NUM_VWLAN; i++) {
-						if (IS_DRV_OPEN(priv->pvap_priv[i])) {
-							if(pstat = get_stainfo(priv->pvap_priv[i], event.hwaddr)) {
-								pstat->rssim_type = event.type;
-								break;
-							}
+			}
+			break;
+
+		case DOT11_EVENT_FT_ACTION_IND:
+			{
+				DOT11_FT_ACTION action;
+				unsigned char *pframe, *sta_addr, *ap_addr, *ies;
+				struct stat_info *pstat;
+				unsigned int status = _STATS_SUCCESSFUL_;
+				unsigned char *pos, resp[MAX_FTACTION_LEN];
+				unsigned int ielen = 0;
+				struct ft_action_param param;
+				unsigned char category, action_code;
+				unsigned long flags;
+				
+				if (copy_from_user((void *)(&action),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+
+				pframe = action.packet;
+				category = *pframe;
+				action_code = *(pframe + 1);
+				sta_addr = pframe + 2;
+				ap_addr = pframe + 8;
+				ies = pframe + 14;
+
+				if (category != _FAST_BSS_TRANSITION_CATEGORY_ID_) {
+					DEBUG_ERR("Not supported FT Action category id : %d\n", pframe[0]);
+					return -1;
+				}
+				
+				SAVE_INT_AND_CLI(flags);
+				
+				if (action_code == _FT_REQUEST_ACTION_ID_) {
+					pstat = get_stainfo(priv, sta_addr);
+					if (pstat == NULL) {
+						pstat = alloc_stainfo(priv, sta_addr, -1);
+						if (pstat == NULL)
+						{
+							DEBUG_ERR("Exceed the upper limit of supported clients...\n");
+							RESTORE_INT(flags);
+							return -1;
 						}
 					}
+
+					if (pstat->ft_auth_expire_to) {
+							RESTORE_INT(flags);
+							return 0;
+					}
+					
+					pstat->state = WIFI_AUTH_SUCCESS;
+					pstat->auth_seq = 0;
+					if (priv->pmib->dot11FTEntry.dot11FTReassociationDeadline)
+						pstat->expire_to = priv->pmib->dot11FTEntry.dot11FTReassociationDeadline;
+					else
+						pstat->expire_to = MAX_FTREASSOC_DEADLINE;
+					pstat->AuthAlgrthm = 2;
+					pstat->ft_state = state_ft_auth;
+					pstat->ft_auth_expire_to = 3;
+					pstat->tpcache_mgt = 0xffff;
+
+					if (ft_check_ft_auth(priv, pstat, ies, action.packet_len - 14, &status)) {
+						free_stainfo(priv, pstat);
+						pstat = NULL;
+						DEBUG_ERR("ft_check_ft_auth failed (%d)\n", status);
+						RESTORE_INT(flags);
+						return -1;
+					}
+
+					auth_list_add(priv, pstat);
+
+					if (!pstat->wpa_sta_info->r1kh) {
+						pstat->wpa_sta_info->over_ds = 1;
+						memcpy(pstat->wpa_sta_info->current_ap, action.MACAddr, MACADDRLEN);
+						printk("Delay action response due to poll key\n");
+						RESTORE_INT(flags);
+						return 0;
+					}
+					
+					pos = resp;
+					*pos++ = _FAST_BSS_TRANSITION_CATEGORY_ID_;
+					*pos++ = _FT_RESPONSE_ACTION_ID_;
+					memcpy(pos, sta_addr, MACADDRLEN);
+					pos += MACADDRLEN;
+					memcpy(pos, ap_addr, MACADDRLEN);
+					pos += MACADDRLEN;
+					*((unsigned short *)pos) = cpu_to_le16(_STATS_SUCCESSFUL_);
+					pos += 2;
+					
+					if (pstat->wpa_sta_info->isFT) {
+						pos = set_ft_rsnie_with_pmkid(priv, pos, &ielen, pstat, 2);
+					}
+					pos = construct_mobility_domain_ie(priv, pos, &ielen);
+					if (pstat->wpa_sta_info->isFT)
+						pos = construct_fast_bss_transition_ie(priv, pos, &ielen, pstat);
+					
+					param.action_code = ACTION_CODE_RESPONSE;
+					memcpy(param.target_addr, action.MACAddr, MACADDRLEN);
+					param.length = pos - resp;
+					param.pdata = resp;
+					
+					FT_IndicateEvent(priv, pstat, DOT11_EVENT_FT_ACTION_IND, &param);
 				}
-#endif		
+				else if (action_code == _FT_RESPONSE_ACTION_ID_) {
+					pstat = get_stainfo(priv, sta_addr);
+					if (pstat) {
+						issue_ft_action(priv, pstat, pframe, action.packet_len);
+					}
+				}
+				else if (action_code == _FT_CONFIRM_ACTION_ID_) {
+
+				}
+				else if (action_code == _FT_ACK_ACTION_ID_) {
+
+				}
+				else {
+					DEBUG_ERR("Not supported FT Action id : %d\n", pframe[1]);
+					RESTORE_INT(flags);
+					return -1;
+				}
+
+				RESTORE_INT(flags);
+			}
+			break;
+
+		case DOT11_EVENT_FT_ASSOC_IND:
+			{
+				DOT11_FT_ASSOC_IND ft_assoc;
+				unsigned char tmpBuf[20], *addr;
+
+				if (copy_from_user((void *)(&ft_assoc),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+
+				addr = ft_assoc.MACAddr;
+						memset(tmpBuf, 0, sizeof(tmpBuf));
+						sprintf(tmpBuf, "%02x%02x%02x%02x%02x%02xno", 
+							addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+						del_sta(priv, tmpBuf);
+			}
+						break;
+
+		case DOT11_EVENT_FT_KEY_EXPIRE_IND:
+			{
+				DOT11_FT_KEY_EXPIRE_IND key_expire;
+				unsigned char tmpBuf[20], *addr;
+				
+				if (copy_from_user((void *)(&key_expire),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+
+				addr = key_expire.MACAddr;
+				memset(tmpBuf, 0, sizeof(tmpBuf));
+				sprintf(tmpBuf, "%02x%02x%02x%02x%02x%02xyes", 
+					addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+				del_sta(priv, tmpBuf);		
+
+				remove_r0kh(priv, addr);
+				remove_r1kh(priv, addr, BSSID);
+			}
+			break;
+
+		case DOT11_EVENT_FT_QUERY_INFO:
+			{
+				DOT11_QUERY_FT_INFORMATION query_info, out;
+				struct stat_info *pstat;
+				
+				if (copy_from_user((void *)(&query_info),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+
+				pstat = get_stainfo(priv, query_info.sta_addr);
+				if (!pstat) {
+					DEBUG_ERR("get_stainfo return NULL\n");
+					return -1;
+				}
+				
+				memset(&out, 0, sizeof(DOT11_QUERY_FT_INFORMATION));
+				
+				out.EventId = DOT11_EVENT_FT_QUERY_INFO;
+				out.IsMoreEvent = 0;
+				memcpy(out.sta_addr, query_info.sta_addr, MACADDRLEN);
+				memcpy(out.ssid, SSID, SSID_LEN);
+				out.ssid_len = SSID_LEN;
+				memcpy(out.mdid, MDID, 2);
+				memcpy(out.r0kh_id, R0KH_ID, R0KH_ID_LEN);
+				out.r0kh_id_len = R0KH_ID_LEN;
+				memcpy(out.bssid, BSSID, MACADDRLEN);
+				out.over_ds = priv->pmib->dot11FTEntry.dot11FTOverDSEnabled;
+				out.res_request = priv->pmib->dot11FTEntry.dot11FTResourceRequestSupported;
+
+				if (copy_to_user((void *)(data->pointer), (void *)(&out), sizeof(DOT11_QUERY_FT_INFORMATION)))
+				{
+					DEBUG_ERR("copy_to_user fail!\n");
+					return -1;
+				}
+				data->length = sizeof(DOT11_QUERY_FT_INFORMATION);
+			}
+			break;
+
+		case DOT11_EVENT_FT_SET_INFO:
+			{
+				DOT11_SET_FT_INFORMATION set_info;
+				struct stat_info *pstat;
+				
+				if (copy_from_user((void *)(&set_info),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+				
+				pstat = get_stainfo(priv, set_info.sta_addr);
+				if (!pstat) {
+					DEBUG_ERR("get_stainfo return NULL\n");
+					return -1;
+				}
+
+				pstat->wpa_sta_info->UnicastCipher_1x = set_info.UnicastCipher;
+				pstat->wpa_sta_info->MulticastCipher_1x = set_info.MulticastCipher;
+
+				if (set_info.bInstallKey) {
+					pstat->wpa_sta_info->UnicastCipher = pstat->wpa_sta_info->UnicastCipher_1x;
+					priv->wpa_global_info->MulticastCipher = pstat->wpa_sta_info->MulticastCipher_1x;
+					install_ft_keys(priv, pstat);
+				}
+			}
+			break;
+			
+		case DOT11_EVENT_FT_AUTH_INSERT_R0:
+			{
+				DOT11_AUTH_FT_INSERT_R0_KEY insert_r0;
+				struct stat_info *pstat;
+
+				if (copy_from_user((void *)(&insert_r0),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+				
+				pstat = get_stainfo(priv, insert_r0.sta_addr);
+				if (!pstat) {
+					DEBUG_ERR("Insert R0 key failed, no pstat\n");
+					return -1;
+				}
+				
+				if (store_r0kh(priv, insert_r0.sta_addr, insert_r0.pmk_r0, insert_r0.pmk_r0_name)) {
+					DEBUG_ERR("store_r0kh failed\n");
+					return -1;
+				}				
+			}
+			break;
+
+		case DOT11_EVENT_FT_AUTH_INSERT_R1:
+			{
+				DOT11_AUTH_FT_INSERT_R1_KEY insert_r1;
+				struct stat_info *pstat;
+
+				if (copy_from_user((void *)(&insert_r1),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+				
+				pstat = get_stainfo(priv, insert_r1.sta_addr);
+				if (!pstat) {
+					DEBUG_ERR("Insert R1 key failed, no pstat\n");
+					return -1;
+				}
+				
+				if (store_r1kh(priv, insert_r1.sta_addr, insert_r1.bssid, 
+					insert_r1.r0kh_id, insert_r1.r0kh_id_len, insert_r1.pmk_r1,
+					insert_r1.pmk_r1_name, insert_r1.pmk_r0_name, insert_r1.pairwise)) {
+					DEBUG_ERR("store_r1kh failed\n");
+					return -1;
+				}
+			}
+			break;
+
+		case DOT11_EVENT_FT_TRIGGER_EVENT:
+			{
+				DOT11_AUTH_FT_TRIGGER_EVENT in_evt;
+				struct stat_info *pstat;
+		
+				if (copy_from_user((void *)(&in_evt),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}				
+
+				pstat = get_stainfo(priv, in_evt.sta_addr);
+				if (!pstat) {
+					DEBUG_ERR("trigger event error, no pstat\n");
+					return -1;
+				}	
+
+				if (in_evt.trigger_eventid == DOT11_EVENT_FT_IMD_ASSOC_IND) {
+					FT_IndicateEvent(priv, pstat, DOT11_EVENT_FT_IMD_ASSOC_IND, NULL);
+
+					// Set key expire timer
+					if (priv->pmib->dot11FTEntry.dot11FTR0KeyLifetime) {
+						set_r0key_expire_time(priv, pstat->hwaddr, priv->pmib->dot11FTEntry.dot11FTR0KeyLifetime * 60);
+					}	
+				}
+				else {
+					DEBUG_ERR("Not supported event type : %d\n", in_evt.trigger_eventid);
+					return -1;
+				}
 			}
 			break;
 #endif
+
 		default:
 						DEBUG_ERR("unknown user daemon command\n");
 						break;

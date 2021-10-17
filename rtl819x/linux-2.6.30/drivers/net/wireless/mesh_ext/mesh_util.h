@@ -20,11 +20,151 @@
 
 
 #ifdef GREEN_HILL
-#define MESH_LOCK(x,y)		{ y = save_and_cli(); }
-#define MESH_UNLOCK(x,y)	restore_flags(y)
+#define SMP_LOCK_MESH_PATH(__x__) 
+#define SMP_UNLOCK_MESH_PATH(__x__)
+#define SMP_LOCK_MESH_QUEUE(__x__) 
+#define SMP_UNLOCK_MESH_QUEUE(__x__)
+#define SMP_LOCK_MESH_PROXY(__x__)
+#define SMP_UNLOCK_MESH_PROXY(__x__)
+#define SMP_LOCK_MESH_PROXYUPDATE(__x__)
+#define SMP_UNLOCK_MESH_PROXYUPDATE(__x__)
+#define SMP_LOCK_MESH_PREQ(__x__)
+#define SMP_UNLOCK_MESH_PREQ(__x__)
+#define SMP_LOCK_MESH_ACL(__x__)
+#define SMP_UNLOCK_MESH_ACL(__x__)
+#define SMP_LOCK_MESH_MP_HDR(__X__)
+#define SMP_UNLOCK_MESH_MP_HDR(__X__)
+
+#elif defined(SMP_SYNC) //Add these spin locks to avoid deadlock under SMP platforms.
+
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+#define SMP_LOCK_MESH_PATH(__x__) do { } while (0)
+#define SMP_UNLOCK_MESH_PATH(__x__) do { } while (0)
+#define SMP_LOCK_MESH_QUEUE(__x__) do { } while (0)
+#define SMP_UNLOCK_MESH_QUEUE(__x__) do { } while (0)
+#define SMP_LOCK_MESH_PROXY(__x__)  do { } while (0)
+#define SMP_UNLOCK_MESH_PROXY(__x__)  do { } while (0)
+#define SMP_LOCK_MESH_PROXYUPDATE(__x__) do { } while (0)
+#define SMP_UNLOCK_MESH_PROXYUPDATE(__x__) do { } while (0)
+#define SMP_LOCK_MESH_PREQ(__x__)     do { } while (0)
+#define SMP_UNLOCK_MESH_PREQ(__x__)   do { } while (0)
+#define SMP_LOCK_MESH_MP_HDR(__X__)			do { spin_lock_bh(&priv->mesh_mp_hdr_lock); (void)(__x__); } while (0)
+#define SMP_UNLOCK_MESH_MP_HDR(__X__)			do { spin_unlock_bh(&priv->mesh_mp_hdr_lock); (void)(__x__); } while (0)
+#define SMP_LOCK_MESH_ACL(__x__)		do { spin_lock(&priv->mesh_acl_list_lock); (void)(__x__); } while (0)
+#define SMP_UNLOCK_MESH_ACL(__x__)		do { spin_unlock(&priv->mesh_acl_list_lock); (void)(__x__); } while (0)
+
+#elif defined(CONFIG_PCI_HCI)
+
+
+#define SMP_LOCK_MESH_MP_HDR(__X__)
+#define SMP_UNLOCK_MESH_MP_HDR(__X__)
+#define SMP_LOCK_MESH_ACL(__x__)
+#define SMP_UNLOCK_MESH_ACL(__x__)
+
+#if 0
+
+#define SMP_LOCK_MESH_PATH(__x__)      spin_lock_irqsave(&priv->mesh_path_lock, (__x__))
+#define SMP_UNLOCK_MESH_PATH(__x__)    spin_unlock_irqrestore(&priv->mesh_path_lock, (__x__))
+#define SMP_LOCK_MESH_QUEUE(__x__)     spin_lock_irqsave(&priv->mesh_queue_lock, (__x__))
+#define SMP_UNLOCK_MESH_QUEUE(__x__)   spin_unlock_irqrestore(&priv->mesh_queue_lock, (__x__))
+#define SMP_LOCK_MESH_PROXY(__x__)     spin_lock_irqsave(&priv->mesh_proxy_lock, (__x__))
+#define SMP_UNLOCK_MESH_PROXY(__x__)   spin_unlock_irqrestore(&priv->mesh_proxy_lock, (__x__))
+#define SMP_LOCK_MESH_PROXYUPDATE(__x__)     spin_lock_irqsave(&priv->mesh_proxyupdate_lock, (__x__))
+#define SMP_UNLOCK_MESH_PROXYUPDATE(__x__)   spin_unlock_irqrestore(&priv->mesh_proxyupdate_lock, (__x__))
+#define SMP_LOCK_MESH_PREQ(__x__)     spin_lock_irqsave(&priv->mesh_preq_lock, (__x__))
+#define SMP_UNLOCK_MESH_PREQ(__x__)   spin_unlock_irqrestore(&priv->mesh_preq_lock, (__x__))
+
 #else
-#define MESH_SPINLOCK(x)		spin_trylock(&priv->pshare->x)
-#define MESH_SPINUNLOCK(x)	spin_unlock(&priv->pshare->x)
+
+#define SMP_LOCK_MESH_QUEUE(__x__)      do { \
+                                            if(priv->mesh_queue_lock_owner!=smp_processor_id()) \
+                                                spin_lock_irqsave(&priv->mesh_queue_lock, __x__); \
+                                            else {\
+                                                panic_printk("[%s %d] recursion detection, caller=%p\n",__FUNCTION__,__LINE__,__builtin_return_address(0)); \
+                                                panic_printk("Previous Lock Function is %s\n",priv->mesh_queue_lock_func); \
+                                                panic_printk("Priv is %s\n",priv->dev->name); \
+                                            } \
+                                            strcpy(priv->mesh_queue_lock_func, __FUNCTION__);\
+                                            priv->mesh_queue_lock_owner=smp_processor_id();\
+                                        }while(0)
+#define SMP_UNLOCK_MESH_QUEUE(__x__)   do {priv->mesh_queue_lock_owner=-1;spin_unlock_irqrestore(&priv->mesh_queue_lock, __x__);}while(0)
+
+#define SMP_LOCK_MESH_PATH(__x__)      do { \
+                                            if(priv->mesh_path_lock_owner!=smp_processor_id()) \
+                                                spin_lock_irqsave(&priv->mesh_path_lock, __x__); \
+                                            else {\
+                                                panic_printk("[%s %d] recursion detection, caller=%p\n", __FUNCTION__,__LINE__,__builtin_return_address(0)); \
+                                                panic_printk("Previous Lock Function is %s\n",priv->mesh_path_lock_func); \
+                                                panic_printk("Priv is %s\n",priv->dev->name); \
+                                            } \
+                                            strcpy(priv->mesh_path_lock_func, __FUNCTION__);\
+                                            priv->mesh_path_lock_owner=smp_processor_id();\
+                                        }while(0)
+#define SMP_UNLOCK_MESH_PATH(__x__)   do {priv->mesh_path_lock_owner=-1;spin_unlock_irqrestore(&priv->mesh_path_lock, __x__);}while(0)
+
+
+
+#define SMP_LOCK_MESH_PROXY(__x__)      do { \
+                                            if(priv->mesh_proxy_lock_owner!=smp_processor_id()) \
+                                                spin_lock_irqsave(&priv->mesh_proxy_lock, __x__); \
+                                            else {\
+                                                panic_printk("[%s %d] recursion detection, caller=%p\n", __FUNCTION__,__LINE__,__builtin_return_address(0)); \
+                                                panic_printk("Previous Lock Function is %s\n",priv->mesh_proxy_lock_func); \
+                                                panic_printk("Priv is %s\n",priv->dev->name); \
+                                            } \
+                                            strcpy(priv->mesh_proxy_lock_func, __FUNCTION__);\
+                                            priv->mesh_proxy_lock_owner=smp_processor_id();\
+                                        }while(0)
+#define SMP_UNLOCK_MESH_PROXY(__x__)   do {priv->mesh_proxy_lock_owner=-1;spin_unlock_irqrestore(&priv->mesh_proxy_lock, __x__);}while(0)
+#define SMP_LOCK_MESH_PROXYUPDATE(__x__) do { \
+                                            if(priv->mesh_proxyupdate_lock_owner!=smp_processor_id()) \
+                                                spin_lock_irqsave(&priv->mesh_proxyupdate_lock, __x__); \
+                                            else {\
+                                                panic_printk("[%s %d] recursion detection, caller=%p\n",__FUNCTION__,__LINE__,__builtin_return_address(0)); \
+                                                panic_printk("Previous Lock Function is %s\n",priv->mesh_proxyupdate_lock_func); \
+                                                panic_printk("Priv is %s\n",priv->dev->name); \
+                                            } \
+                                            strcpy(priv->mesh_proxyupdate_lock_func, __FUNCTION__);\
+                                            priv->mesh_proxyupdate_lock_owner=smp_processor_id();\
+                                        }while(0)
+#define SMP_UNLOCK_MESH_PROXYUPDATE(__x__) do {priv->mesh_proxyupdate_lock_owner=-1;spin_unlock_irqrestore(&priv->mesh_proxyupdate_lock, __x__);}while(0)
+
+
+#define SMP_LOCK_MESH_PREQ(__x__)      do { \
+                                            if(priv->mesh_preq_lock_owner!=smp_processor_id()) \
+                                                spin_lock_irqsave(&priv->mesh_preq_lock, __x__); \
+                                            else {\
+                                                panic_printk("[%s %d] recursion detection, caller=%p\n",__FUNCTION__,__LINE__,__builtin_return_address(0)); \
+                                                panic_printk("Previous Lock Function is %s\n",priv->mesh_preq_lock_func); \
+                                                panic_printk("Priv is %s\n",priv->dev->name); \
+                                            } \
+                                            strcpy(priv->mesh_preq_lock_func, __FUNCTION__);\
+                                            priv->mesh_preq_lock_owner=smp_processor_id();\
+                                        }while(0)
+#define SMP_UNLOCK_MESH_PREQ(__x__)   do {priv->mesh_preq_lock_owner=-1;spin_unlock_irqrestore(&priv->mesh_preq_lock, __x__);}while(0)
+
+#endif
+
+
+#endif
+
+#else
+#define SMP_LOCK_MESH_PATH(__x__) 
+#define SMP_UNLOCK_MESH_PATH(__x__)
+#define SMP_LOCK_MESH_QUEUE(__x__) 
+#define SMP_UNLOCK_MESH_QUEUE(__x__)
+#define SMP_LOCK_MESH_PROXY(__x__)
+#define SMP_UNLOCK_MESH_PROXY(__x__)
+#define SMP_LOCK_MESH_PROXYUPDATE(__x__)
+#define SMP_UNLOCK_MESH_PROXYUPDATE(__x__)
+#define SMP_LOCK_MESH_PREQ(__x__)
+#define SMP_UNLOCK_MESH_PREQ(__x__)
+#define SMP_LOCK_MESH_ACL(__x__)
+#define SMP_UNLOCK_MESH_ACL(__x__)
+#define SMP_LOCK_MESH_MP_HDR(__X__)
+#define SMP_UNLOCK_MESH_MP_HDR(__X__)
+
+
 #endif // not GREEN_HILL
 
 
@@ -32,28 +172,6 @@
  *	@brief	MESH  PeerLink_CAP number routine
  */
 #define MESH_PEER_LINK_CAP_NUM(priv)	(priv->mesh_PeerCAP_cap)
-
-// Galileo 2008.06.18
-#ifdef _11s_TEST_MODE_
-struct Galileo {
-	struct rtl8190_priv *priv;
-	struct tx_insn txcfg;
-	struct timer_list expire_timer;
-	unsigned short tx_count;
-};
- 
-struct Galileo_node {
-	struct list_head list;
-	struct Galileo data;
-};
- 
-struct Galileo_poll {
-	struct Galileo_node node[AODV_RREQ_TABLE_SIZE];
-	int count;
-};
- 
-#endif
-
 
 #ifdef PU_STANDARD
 typedef struct {
@@ -64,31 +182,5 @@ typedef struct {
 	struct list_head addrs;
 } ProxyUpdate;
 #endif
-
-#ifdef	_11s_TEST_MODE_
-extern void mac12_to_6(unsigned char*, unsigned char*);
-#endif
-
-#ifdef CONFIG_RTL8192CD
-extern int clear_route_info(struct rtl8192cd_priv *priv, char *delMAC);
-#else
-extern int clear_route_info(struct rtl8190_priv *priv, char *delMAC);
-#endif
-
-/*
- *	@brief	Set pseudo random number
- *
- *	@param	target		: Variable for set
- *
- *	@retval	target		: Set finish variable.
- *	
- *	PS1. Avoid generator same random number by use get_random_bytes same sequence and time.
- *	PS2. Generator more randomly random number (Avoid get same random number per boot).
- */
-#define SET_PSEUDO_RANDOM_NUMBER(target)	{ \
-	get_random_bytes(&(target), sizeof(target)); \
-	target += (GET_MY_HWADDR[4] + GET_MY_HWADDR[5] + jiffies - priv->net_stats.rx_bytes \
-	+ priv->net_stats.tx_bytes + priv->net_stats.rx_errors - priv->ext_stats.beacon_ok); \
-}
 
 #endif	// _MESH_UTIL_H_

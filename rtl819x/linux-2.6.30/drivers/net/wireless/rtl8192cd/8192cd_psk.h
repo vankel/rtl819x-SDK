@@ -52,14 +52,21 @@
 #define LIB1X_EAPOL_START			1		//0000 0001B
 #define LIB1X_EAPOL_KEY				3		//0000 0011B
 #define LIB1X_EAPOL_ENCASFALERT		4		//0000 0100B
-
+#ifdef CONFIG_IEEE80211W_CLI
+#define KeyAKMPos					16	
+#define KEY_AKM_LEN					4
+#endif
 
 #define RANDOM_EXPANSION_CONST		"Init Counter"
 #define RANDOM_EXPANSION_CONST_SIZE			12
 #define A_SHA_DIGEST_LEN			20
 #define ETHER_HDRLEN				14
 #define LIB1X_EAPOL_HDRLEN			4
+#ifdef CONFIG_IEEE80211R
+#define INFO_ELEMENT_SIZE       	384
+#else
 #define INFO_ELEMENT_SIZE       	128
+#endif
 #define MAX_EAPOLMSG_LEN        	512
 #define MAX_EAPOLKEYMSG_LEN	(MAX_EAPOLMSG_LEN-(ETHER_HDRLEN+LIB1X_EAPOL_HDRLEN))
 #define EAPOLMSG_HDRLEN				95      //EAPOL-key payload length without KeyData
@@ -167,7 +174,7 @@ typedef struct _DOT11_WPA2_IE_HEADER {
         unsigned short Version;
 } DOT11_WPA2_IE_HEADER;
 
-#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS)
+#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS) || defined(RTK_NL80211)
 // group key info
 typedef struct _wpa_global_info {
 	OCTET_STRING		AuthInfoElement;
@@ -209,6 +216,9 @@ typedef struct _wpa_global_info {
 	int					GN;
 	int					GM;
 #ifdef CONFIG_IEEE80211W	
+#ifdef CONFIG_IEEE80211W_CLI		
+	unsigned short		rsnie_cap;	
+#endif	
 	unsigned char		IGTK[2][IGTK_LEN];	
 	int					GN_igtk;	
 	int 				GM_igtk;	
@@ -224,7 +234,7 @@ typedef struct _wpa_global_info {
 } WPA_GLOBAL_INFO;
 #endif
 
-#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS)
+#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS) || defined(RTK_NL80211)
 // wpa sta info
 typedef struct _wpa_sta_info {
 	int 				state;
@@ -276,6 +286,17 @@ typedef struct _wpa_sta_info {
 	LARGE_INTEGER		clientMICReportReplayCounter;
 #ifdef CONFIG_IEEE80211W	
 	BOOLEAN 			mgmt_frame_prot;
+#endif
+#ifdef CONFIG_IEEE80211R
+	unsigned char		isFT;
+	unsigned char		cache_pmk_r0_id[PMKID_LEN];
+	struct r1_key_holder *r1kh;
+	unsigned char		over_ds;
+	unsigned char		current_ap[MACADDRLEN];
+	unsigned char		cache_r0kh_id[MAX_R0KHID_LEN];
+	unsigned int		cache_r0kh_id_len;
+	unsigned char		UnicastCipher_1x;
+	unsigned char		MulticastCipher_1x;
 #endif
 } WPA_STA_INFO;
 #endif
@@ -366,6 +387,9 @@ __PACK struct lib1x_eapol
 
 #define Message_CopyReplayCounter(f1, f2)	memcpy(f1.Octet + ReplayCounterPos, f2.Octet + ReplayCounterPos, KEY_RC_LEN)
 #define Message_DefaultReplayCounter(li)	((li.field.HighPart == 0xffffffff) && (li.field.LowPart == 0xffffffff) ) ?1:0
+#ifdef CONFIG_IEEE80211W_CLI
+#define Message_setSha256AKM(f, v)			SetSubStr(f, v, KeyAKMPos)
+#endif
 
 #if defined(CONFIG_RTL8186_KB_N)
 extern int authRes;//0: success; 1: fail

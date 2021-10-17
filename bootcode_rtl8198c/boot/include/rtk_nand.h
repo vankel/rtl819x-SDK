@@ -2,6 +2,8 @@
 #define _NAND_FLASH_H_
 
 
+#include <linux/config.h>
+
 #define NAND_DBG 0
 
 #define rtk_readb(offset)         (*(volatile unsigned char *)(offset))
@@ -259,8 +261,13 @@ struct  BB_t{
 #define BACKUP_LOADER 3
 //#define BACKUP_IMAGE 3  //jasonwang must modified it 0713
 //debug cl should be 1 not bake
+#ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_STATIC
+#define BACKUP_IMAGE 2  //jasonwang must modified it 0713
+#define IMG_BACKUP_ADDR  CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET
+#else
 #define BACKUP_IMAGE 1  //jasonwang must modified it 0713
 #define IMG_BACKUP_ADDR  0x1800000
+#endif
 extern int nand_erase_nand (unsigned int addr, unsigned int len);
 extern int nand_read_ecc_ob (unsigned int from, unsigned int len, unsigned char *data_buf, unsigned char *oob_buf);
 extern unsigned int page_size;
@@ -285,6 +292,9 @@ extern int page_shift;
 #define OOB_BBI_OFF  0 /*(0~23)6+[10]+6+[10]+6+[10]+6+[10] []:ecc bytes*/
 #define DATA_BBI_OFF 0
 #endif
+
+#define DRAM_DIMAGE_ADDR       0xa0a00000
+#define DRAM_DOOB_ADDR           0xa1000000
 
 
 #endif

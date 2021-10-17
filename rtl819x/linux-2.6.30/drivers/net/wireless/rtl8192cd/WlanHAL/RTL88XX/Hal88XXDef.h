@@ -94,12 +94,12 @@ InitLLT_Table88XX(
 );
 #endif //#if (IS_RTL8881A_SERIES || IS_RTL8192E_SERIES)
 
-#if IS_RTL8813A_SERIES
+#if IS_RTL8814A_SERIES
 RT_STATUS
 InitLLT_Table88XX_V1(
     IN  HAL_PADAPTER    Adapter
 );
-#endif //#if IS_RTL8813A_SERIES
+#endif //#if IS_RTL8814A_SERIES
 
 RT_STATUS
 InitMAC88XX(
@@ -169,7 +169,7 @@ StopMBIDCAM88XX(
     IN  u1Byte       MBID_Addr
 );
 
-#ifdef MULTI_MAC_CLONE
+#if CFG_HAL_MULTI_MAC_CLONE
 VOID
 McloneSetMBSSID88XX(
     IN  HAL_PADAPTER Adapter,
@@ -182,7 +182,7 @@ McloneStopMBSSID88XX(
     IN  HAL_PADAPTER Adapter,
     IN	int          entIdx
 );
-#endif
+#endif // #if CFG_HAL_MULTI_MAC_CLONE
 
 RT_STATUS
 StopHW88XX(
@@ -208,7 +208,8 @@ RT_STATUS
 GetTxRPTBuf88XX(
     IN	HAL_PADAPTER        Adapter,
     IN	u4Byte              macID,
-    IN  u1Byte              variable,    
+    IN  u1Byte              variable,   
+    IN 	u1Byte				byteoffset,
     OUT pu1Byte             val
 );
 
@@ -251,6 +252,14 @@ SetCRC5EndBit88XX(
 VOID
 InitMACIDSearch88XX(
     IN	HAL_PADAPTER        Adapter    
+);
+
+
+RT_STATUS
+CheckHWMACIDResult88XX(
+    IN	HAL_PADAPTER        Adapter,    
+    IN  u4Byte              MacID,
+    OUT pu1Byte             result
 );
 
 

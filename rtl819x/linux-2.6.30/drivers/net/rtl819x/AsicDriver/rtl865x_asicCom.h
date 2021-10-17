@@ -10,6 +10,11 @@
 #ifndef RTL865X_ASICCOM_H
 #define RTL865X_ASICCOM_H
 
+// note: CONFIG_RTL_CPU_TAG should NOT be defined when CONFIG_RTL_8370_SUPPORT is chose.
+#if defined(CONFIG_RTL_8367R_SUPPORT)
+#define CONFIG_RTL_CPU_TAG		1
+#endif
+
 #if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define RTL865XC_VLANTBL_SIZE				16
 #else

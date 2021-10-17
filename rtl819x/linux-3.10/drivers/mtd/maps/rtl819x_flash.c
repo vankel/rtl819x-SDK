@@ -37,9 +37,7 @@
 #define MAX_SPI_CS 1
 #endif
 
-#ifdef CONFIG_APPLE_HOMEKIT_BLOCK_SUPPORT
-#define HAP_CONFIG_BLOCK
-#endif
+
 
 //static struct mtd_info *rtl8196_mtd;
 
@@ -183,34 +181,14 @@ static struct mtd_partition rtl8196_parts1[] = {
 		  size:        (CONFIG_RTL_SPI_FLASH1_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #endif
 #else
-#if !defined(CONFIG_MTD_CHAR) && !defined(HAP_CONFIG_BLOCK)
+#if !defined(CONFIG_MTD_CHAR)
                 size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #else
-#if defined(HAP_CONFIG_BLOCK)
-				size:		(CONFIG_HAP_CONFIG_TABLE_OFFSET-CONFIG_RTL_ROOT_IMAGE_OFFSET),
-#else
-#if defined(CONFIG_MTD_CHAR)
 		size:        (CONFIG_RTL_FLATFS_IMAGE_OFFSET-CONFIG_RTL_ROOT_IMAGE_OFFSET),
-#else
-			size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),  
-#endif
-#endif
 #endif                	
 #endif
                 offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
         }
-#ifdef HAP_CONFIG_BLOCK
-		,
-        {
-		name:           "hap config",  
-#if defined(CONFIG_MTD_CHAR)   
-		size:			(CONFIG_RTL_FLATFS_IMAGE_OFFSET-CONFIG_HAP_CONFIG_TABLE_OFFSET),
-#else
-		size:			(CONFIG_RTL_FLASH_SIZE-CONFIG_HAP_CONFIG_TABLE_OFFSET),
-#endif
-		offset:			(CONFIG_HAP_CONFIG_TABLE_OFFSET),
-		}
-#endif
 #if defined(CONFIG_MTD_CHAR)   
 	,     
           {
@@ -238,7 +216,7 @@ static struct mtd_partition rtl8196_parts1[] = {
                 offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
         },
         {
-                name: "linux(bank2)",
+                name: "inux(bank2)",
                 size:           (CONFIG_RTL_ROOT_IMAGE_OFFSET-0),
                 offset:         CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET,
         },

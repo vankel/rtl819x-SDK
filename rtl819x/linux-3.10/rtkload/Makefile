@@ -155,7 +155,11 @@ FLASH_OFFSET=30000
 endif
 
 ifdef CONFIG_RTL_8198C
+ifdef CONFIG_NO_FLASH_BOOTING_RAMFS_ROOTFS
 LOAD_START_ADDR=0x80500000
+else
+LOAD_START_ADDR=0x80500000
+endif
 FLASH_OFFSET=30000
 endif
 
@@ -222,12 +226,20 @@ MKJFFS2 = ./mkfs.jffs2
 MKIMAGE_UBOOT = ./mkimage-uboot
 
 O_TARGET := rtk
+ifdef CONFIG_NO_FLASH_BOOTING_RAMFS_ROOTFS
 obj-y		:= vmlinux_img.o $(START_FILE) $(LOADER_FILES) $(SUPPORT_FILES)
+else
+obj-y		:= vmlinux_img.o $(START_FILE) $(LOADER_FILES) $(SUPPORT_FILES)
+endif
 
 ifdef CONFIG_ROOTFS_JFFS2
 all: rtk-clean rtk-vmlinux_img vmlinux_img.gzip.uboot.jffs2
 else
+ifdef CONFIG_NO_FLASH_BOOTING_RAMFS_ROOTFS
 all: rtk-clean rtk-vmlinux_img $(START_FILE) $(LOADER_FILES) $(SUPPORT_FILES)
+else
+all: rtk-clean rtk-vmlinux_img $(START_FILE) $(LOADER_FILES) $(SUPPORT_FILES)
+endif
 endif
 
 #memload-partial
@@ -252,6 +264,8 @@ ifeq ($(CONFIG_RTL_FLASH_MAPPING_ENABLE),y)
 	@$(CVIMG) flash_size_chk linux.bin || exit $$?
 endif
 endif
+
+
 
 rtk-clean:
 	rm -f *.o memload system.map nfjrom memload-partial memload-full vmlinux_img.gz target target.img strip1 linux.bin vmlinux-stripped  $(LDSCRIPT) vmlinux_img vmlinux_img.gzip.uboot.jffs2

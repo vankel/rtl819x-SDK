@@ -3035,7 +3035,7 @@ void rxBB_dm(struct rtl8192cd_priv *priv)
 	if (priv->pshare->rf_ft_var.adaptivity_enable){
 		unsigned char IGI;
 		IGI = RTL_R8(0xc50);
-		priv->pshare->rf_ft_var.bAdaOn = rtl8192cd_Adaptivity(priv,IGI);		
+		rtl8192cd_Adaptivity(priv,IGI);		
 	}
 }
 
@@ -5913,39 +5913,34 @@ unsigned char _PHY_PathA_IQK(struct rtl8192cd_priv *priv, char	configPathB)
 	
 	//	RTPRINT(FINIT, INIT_IQK, ("Path-A IQK setting!\n"));
 #if defined(HIGH_POWER_EXT_PA) && defined(CONFIG_RTL_92C_SUPPORT)
-	if (priv->pshare->rf_ft_var.use_ext_pa){
-
-	//path-A IQK setting
-	PHY_SetBBReg(priv, 0xe30, bMaskDWord, 0x18008c1f);
-	PHY_SetBBReg(priv, 0xe34, bMaskDWord, 0x18008c1f);
-	PHY_SetBBReg(priv, 0xe38, bMaskDWord, 0x82140102);
-	PHY_SetBBReg(priv, 0xe3c, bMaskDWord, 0x28160804);
-
-	//path-B IQK setting
-	if(configPathB) {
-		PHY_SetBBReg(priv, 0xe50, bMaskDWord, 0x18008c22);
-		PHY_SetBBReg(priv, 0xe54, bMaskDWord, 0x18008c22);
-		PHY_SetBBReg(priv, 0xe58, bMaskDWord, 0x82140102);
-		PHY_SetBBReg(priv, 0xe5c, bMaskDWord, 0x28160804);
-	}
-}else
+		//path-A IQK setting
+		PHY_SetBBReg(priv, 0xe30, bMaskDWord, 0x18008c1f);
+		PHY_SetBBReg(priv, 0xe34, bMaskDWord, 0x18008c1f);
+		PHY_SetBBReg(priv, 0xe38, bMaskDWord, 0x82140102);
+		PHY_SetBBReg(priv, 0xe3c, bMaskDWord, 0x28160804);
+	
+		//path-B IQK setting
+		if(configPathB) {
+			PHY_SetBBReg(priv, 0xe50, bMaskDWord, 0x18008c22);
+			PHY_SetBBReg(priv, 0xe54, bMaskDWord, 0x18008c22);
+			PHY_SetBBReg(priv, 0xe58, bMaskDWord, 0x82140102);
+			PHY_SetBBReg(priv, 0xe5c, bMaskDWord, 0x28160804);
+		}
+#else
+		//path-A IQK setting
+		PHY_SetBBReg(priv, 0xe30, bMaskDWord, 0x10008c1f);
+		PHY_SetBBReg(priv, 0xe34, bMaskDWord, 0x10008c1f);
+		PHY_SetBBReg(priv, 0xe38, bMaskDWord, 0x82140102);
+		PHY_SetBBReg(priv, 0xe3c, bMaskDWord, ((configPathB |IS_UMC_B_CUT_88C(priv)) ? 0x28160202 : 0x28160502));
+	
+		//path-B IQK setting
+		if(configPathB) {
+			PHY_SetBBReg(priv, 0xe50, bMaskDWord, 0x10008c22);
+			PHY_SetBBReg(priv, 0xe54, bMaskDWord, 0x10008c22);
+			PHY_SetBBReg(priv, 0xe58, bMaskDWord, 0x82140102);
+			PHY_SetBBReg(priv, 0xe5c, bMaskDWord, 0x28160202);
+		}
 #endif
-{
-	//path-A IQK setting
-	PHY_SetBBReg(priv, 0xe30, bMaskDWord, 0x10008c1f);
-	PHY_SetBBReg(priv, 0xe34, bMaskDWord, 0x10008c1f);
-	PHY_SetBBReg(priv, 0xe38, bMaskDWord, 0x82140102);
-	PHY_SetBBReg(priv, 0xe3c, bMaskDWord, ((configPathB |IS_UMC_B_CUT_88C(priv)) ? 0x28160202 : 0x28160502));
-
-	//path-B IQK setting
-	if(configPathB) {
-		PHY_SetBBReg(priv, 0xe50, bMaskDWord, 0x10008c22);
-		PHY_SetBBReg(priv, 0xe54, bMaskDWord, 0x10008c22);
-		PHY_SetBBReg(priv, 0xe58, bMaskDWord, 0x82140102);
-		PHY_SetBBReg(priv, 0xe5c, bMaskDWord, 0x28160202);
-	}
-}
-
 
 
 	//LO calibration setting

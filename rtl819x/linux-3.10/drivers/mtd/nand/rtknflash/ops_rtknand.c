@@ -14,6 +14,10 @@
 #ifdef __UBOOT__
 #include <nand.h>
 #else
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/partitions.h>
+#include <linux/version.h>
+#include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #endif
@@ -31,11 +35,15 @@ static int rtkn_test_num = 0;
 static int rtkn_test_write = 0;
 #endif
 
-/**************************openwrt *********************************************/
-#ifdef CONFIG_WRT_BARRIER_BREAKER
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 #include <linux/mtd/partitions.h>
 #include <linux/proc_fs.h>
-#include <linux/seq_file.h>
+#include <linux/seq_file.h>	
+#endif
+
+/**************************openwrt *********************************************/
+#ifdef CONFIG_WRT_BARRIER_BREAKER
 
 #define SQUASHFS_MAGIC_LE 		0x68737173
 #define FLASH_PROC_DIR_NAME 	"flash"
@@ -619,7 +627,7 @@ int rtk_check_allone(int page, int offset)
 	/* rlen is equal to (512 + 16) */
 	rlen = 528; 
 	
-	rtk_writel(0xc0077777, NACR);
+	rtk_writel(0xc00fffff, NACR);
 
 	/* Command cycle 1*/
 	rtk_writel((CECS0|CMD_PG_READ_C1), NACMR);
@@ -734,7 +742,7 @@ int rtk_check_pageData(struct mtd_info *mtd, u16 chipnr,int page, int offset, in
 			error_count = (status & 0xf0) >> 4;
 			if(error_count <=4 && error_count > 0 ) {
 				printk("[%s] R: Correctable HW ECC Error at page=%u, status=0x%08X\n\r", __FUNCTION__, page,status);
-				status &= 0xff; //clear NECN
+				status &= 0x0f; //clear NECN
 				rtk_writel(status, NASR);
 				return 0;
 			}else{
@@ -742,20 +750,20 @@ int rtk_check_pageData(struct mtd_info *mtd, u16 chipnr,int page, int offset, in
 			    if(!NAND_ADDR_CYCLE){
 			        if( rtk_check_allone(page,offset) == 0 ){
 				        //printf("[%s] Page %d is all one page, bypass it !!\n\r",__func__,page);
-						status &= 0xff; //clear NECN
+						status &= 0x0f; //clear NECN
 						rtk_writel(status, NASR);
 				        return 0;
 			        }
 			    }else{
 				    if( rtk_check_allone_512(page) == 0 ){
 					    //printk("[%s] Page %d is all one page, bypass it !!\n\r",__func__,page);
-						status &= 0xff; //clear NECN
+						status &= 0x0f; //clear NECN
 					    rtk_writel(status, NASR);
 					    return 0;
 				    }
 			    }			
 				printk("[%s] R: Un-Correctable HW ECC Error at page=%u, status=0x%08X\n\r", __FUNCTION__, page,status);
-				status &= 0xff; //clear NECN
+				status &= 0x0f; //clear NECN
 				rtk_writel(status, NASR);
 				return -1;				
 			}
@@ -774,7 +782,7 @@ int rtk_check_pageData(struct mtd_info *mtd, u16 chipnr,int page, int offset, in
 			if( status & NWER) {
 			    printk("[%s] A NAND Flash write failed at page=%u, status=0x%08X\n\r", __FUNCTION__, page,status);
 
-			    status &= 0xff; //clear NECN
+			    status &= 0x0f; //clear NECN
 				rtk_writel(status, NASR);
 			    //rtk_writel(status, NASR);
 			    return -1;				
@@ -783,15 +791,20 @@ int rtk_check_pageData(struct mtd_info *mtd, u16 chipnr,int page, int offset, in
 
 	}
 
-	status &= 0xff; //clear NECN
+	status &= 0x0f; //clear NECN
 	rtk_writel(status, NASR);
 //printk("[%s:%d] status=%x page %u offset %u idx %d\n",__FUNCTION__,__LINE__,status, page,offset, index);
 
 	return rc;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+static int rtkn_ecc_read_page(struct mtd_info *mtd, struct nand_chip *chip,
+				uint8_t *buf)
+#else
 static int rtkn_ecc_read_page(struct mtd_info *mtd, struct nand_chip *chip,
 				uint8_t *buf, int oob_required, int page)
+#endif
 {
 	nand_printf("[%s]:%d\n",__func__,__LINE__);
 	struct rtknflash *rtkn = (struct rtknflash *)chip->priv;
@@ -800,7 +813,13 @@ static int rtkn_ecc_read_page(struct mtd_info *mtd, struct nand_chip *chip,
 	unsigned long flash_addr_t=0;
 	unsigned int flags_nand = 0;
 	uint8_t* oobBuf = chip->oob_poi;
-	int orig_block = page/(mtd->erasesize/mtd->writesize);
+	/* for 2.6.30 have only three param */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	int realpage = rtkn->curr_page_addr;
+#else
+	int realpage = page;
+#endif
+	int orig_block = realpage/(mtd->erasesize/mtd->writesize);
 	
 	int i;
 	//printk("[%s]:%d,page=%x\n",__func__,__LINE__,page);
@@ -808,21 +827,21 @@ static int rtkn_ecc_read_page(struct mtd_info *mtd, struct nand_chip *chip,
 
 	/* get the real page */
 #ifdef CONFIG_RTK_REMAP_BBT
-	page = rtkn_bbt_get_realpage(mtd,page);
+	realpage = rtkn_bbt_get_realpage(mtd,realpage);
 #endif
 
 	//__flush_cache_all();
 	/* addr */
 	uint8_t *oob_area,*data_area,data_area0[512+16+CACHELINE_SIZE+CACHELINE_SIZE-4]; //data,oob point must 32 cache aligment
 	memset(data_area0, 0xff, 512+16+CACHELINE_SIZE+CACHELINE_SIZE-4);
-	data_area = data_area0;
+	data_area = (uint8_t*) ((uint32_t)(data_area0 + CACHELINE_SIZE-4) & 0xFFFFFFF0); 
 	oob_area=(uint8_t*) data_area+512;
 	oob_sa =  ( (uint32_t)(oob_area ) & (~M_mask));
 	dram_sa = ((uint32_t)data_area) & (~M_mask);	
 
 	/* flash addr */
 	for(page_shift=0;page_shift<3; page_shift++) {
-	    page_num[page_shift] = ((page>>(8*page_shift)) & 0xff);
+	    page_num[page_shift] = ((realpage>>(8*page_shift)) & 0xff);
 		flash_addr_t |= (page_num[page_shift] << (12+8*page_shift));
 	}
 
@@ -849,7 +868,7 @@ static int rtkn_ecc_read_page(struct mtd_info *mtd, struct nand_chip *chip,
 		else
 			lastSec =0;
 
-		if(rtk_check_pageData(mtd,0,page,buf_pos*(512+16),lastSec)==-1)
+		if(rtk_check_pageData(mtd,0,realpage,buf_pos*(512+16),lastSec)==-1)
 		{
 		    goto Error;
 		}
@@ -1170,7 +1189,15 @@ static int rtkn_ecc_read_oob(struct mtd_info *mtd, struct nand_chip *chip,
 	memset(chip->oob_poi, ~0, mtd->oobsize);
 	memset(rtkn->buf,~0,MAX_RTKN_BUF_SIZE);
 
+
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	/* for 2.6.30 kernel */
+	rtkn->curr_page_addr = page;
+	rtkn_ecc_read_page(mtd,chip,rtkn->buf);
+#else
 	rtkn_ecc_read_page(mtd,chip,rtkn->buf,1,page);
+#endif
 	return 0;
 }
 
@@ -1230,12 +1257,19 @@ int rtknflash_ops_init(struct rtknflash *rtkn)
 	
 	/* ecc mode */
 	rtkn->nand_chip->ecc.mode			= NAND_ECC_HW;
+
 	rtkn->nand_chip->ecc.size			= 1;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	rtkn->nand_chip->ecc.strength		= 8;
+#endif
 	rtkn->nand_chip->ecc.layout 		= &nand_bch_oob_64;
 
 	/* chip option */
 	rtkn->nand_chip->options			|= NAND_NO_SUBPAGE_WRITE;
+	/* for 2.6.30 kernel used */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	rtkn->nand_chip->options			|= NAND_NO_AUTOINCR;
+#endif
 
 	/* Enable NAND flash access */
 #ifdef CONFIG_RTL_8325D_SUPPORT
@@ -1259,6 +1293,74 @@ int rtknflash_ops_init(struct rtknflash *rtkn)
 exit:
 	return err;
 }
+
+
+/* nand info proc */
+#ifndef __UBOOT__
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+static int rtk_read_proc_nandinfo(struct seq_file *s, void *v)
+{
+	struct nand_chip	*this = (struct nand_chip *) rtkn->nand_chip;
+	struct mtd_info		*mtd = (struct mtd_info *)rtkn->mtd;
+	int wlen = 0;
+
+	//seq_printf(s,"nand_size:%u\n", this->device_size);
+	seq_printf(s,"chip_size:%lld\n", this->chipsize);
+	seq_printf(s,"block_size:%u\n", mtd->erasesize);
+	seq_printf(s,"page_size:%u\n", mtd->writesize);
+	seq_printf(s,"oob_size:%u\n", mtd->oobsize);
+	seq_printf(s,"ppb:%u\n", mtd->erasesize/mtd->writesize);
+#ifdef CONFIG_RTK_REMAP_BBT
+	seq_printf(s,"RBA:%u\n", rtkn->RBA);
+#endif	
+#ifdef CONFIG_RTK_NORMAL_BBT
+	seq_printf(s,"bbt_num:%u\n", rtkn->bbt_num);
+#endif	
+	seq_printf(s,"BBs:%u\n", rtkn->BBs);
+
+	return 0;
+	
+}
+#else
+int rtk_read_proc_nandinfo(char *buf, char **start, off_t offset, int len, int *eof, void *data)
+{
+	struct nand_chip	*this = (struct nand_chip *) rtkn->nand_chip;
+	struct mtd_info		*mtd = (struct mtd_info *)rtkn->mtd;
+	int wlen = 0;
+
+	//wlen += sprintf(buf+wlen,"nand_PartNum:%s\n", rtk_mtd->PartNum); //czyao
+	//wlen += sprintf(buf+wlen,"nand_size:%u\n", this->device_size);
+	wlen += sprintf(buf+wlen,"chip_size:%lld\n", this->chipsize);
+	wlen += sprintf(buf+wlen,"block_size:%u\n", mtd->erasesize);
+	wlen += sprintf(buf+wlen,"page_size:%u\n", mtd->writesize);
+	wlen += sprintf(buf+wlen,"oob_size:%u\n", mtd->oobsize);
+	wlen += sprintf(buf+wlen,"ppb:%u\n", mtd->erasesize/mtd->writesize);
+#ifdef CONFIG_RTK_REMAP_BBT
+	wlen += sprintf(buf+wlen,"RBA:%u\n", rtkn->RBA);
+#endif	
+#ifdef CONFIG_RTK_NORMAL_BBT
+	wlen += sprintf(buf+wlen,"bbt_num:%u\n", rtkn->bbt_num);
+#endif	
+	wlen += sprintf(buf+wlen,"BBs:%u\n", rtkn->BBs);
+	return wlen;
+}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+int rtk_nand_read_open(struct inode *inode, struct file *file)
+{
+	return(single_open(file, rtk_read_proc_nandinfo, NULL));
+}
+
+static const struct file_operations rtk_nand_flash_ops = {
+	.owner = THIS_MODULE,
+	.open			= rtk_nand_read_open,
+	.read           = seq_read,
+    .llseek         = seq_lseek,
+    .release        = single_release,
+};
+#endif
+#endif
 
 
 int  rtknflash_lowinit(struct mtd_info *mtd,struct nand_chip* nand)
@@ -1286,14 +1388,39 @@ int  rtknflash_lowinit(struct mtd_info *mtd,struct nand_chip* nand)
 		printk("Initialization failed: %d\n", err);
 		goto err_init;
 	}
+	
 
 #ifndef __UBOOT__
 #ifndef CONFIG_WRT_BARRIER_BREAKER
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	int pnum = 0;
+        struct mtd_partition *mtd_parts;
+
+        pnum = parse_mtd_partitions (mtd, probes, &mtd_parts, 0);
+        if (pnum <= 0) {
+                printk(KERN_NOTICE "RTK: using the whole nand as a partitoin\n");
+                if(add_mtd_device(mtd)) {
+                        printk(KERN_WARNING "RTK: Failed to register new nand device\n");
+                        err = EAGAIN;
+			goto err_init;
+                }
+        }else{
+                printk(KERN_NOTICE "RTK: using dynamic nand partition\n");
+                if (add_mtd_partitions (mtd, mtd_parts, pnum)) {
+                        printk("%s: Error, cannot add %s device\n",
+                                        __FUNCTION__, mtd->name);
+                        mtd->size = 0;
+                        err = EAGAIN;
+ 			goto err_init;
+                }
+        }
+#else
 	err = mtd_device_parse_register(mtd, probes, NULL, NULL, 0);
 	if (err) {
 		pr_err("Failed to register MTD device: %d\n", err);
 		goto err_init;
 	}
+#endif
 #else
 	detect_nand_flash_map(mtd,rtl8196_parts1);
 	if(mtd_device_parse_register(mtd,NULL,NULL,rtl8196_parts1,ARRAY_SIZE(rtl8196_parts1))){
@@ -1303,6 +1430,17 @@ int  rtknflash_lowinit(struct mtd_info *mtd,struct nand_chip* nand)
 	}
 #endif
 #endif
+
+	/* nand info proc */
+#ifndef __UBOOT__
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	create_proc_read_entry("nandinfo", 0, NULL, rtk_read_proc_nandinfo, NULL);
+#else	
+	proc_create("nandinfo", 0, NULL, &rtk_nand_flash_ops);
+#endif
+#endif
+	
+
 
 	return 0;
 
@@ -1325,7 +1463,7 @@ void  board_nand_init(void)
 		hang();
 }
 #else
-static struct mtd_info rtkn_mtd_info;
+struct mtd_info rtkn_mtd_info;
 int board_nand_init(void)
 {
 	struct mtd_info *mtd = &rtkn_mtd_info;
@@ -1333,8 +1471,6 @@ int board_nand_init(void)
 
 	if(rtknflash_lowinit(mtd,nand))
 		return -1;
-	
-
 } 
 #endif
 

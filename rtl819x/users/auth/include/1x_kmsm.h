@@ -168,6 +168,20 @@ typedef struct Auth_PairwiseKeyManage_tag
         u_long                          IdleTimeoutCounter;
 	u_long				InterimTimeoutCounter;
 	*/
+#ifdef CONFIG_IEEE80211R
+	u_char					isFT;
+	u_char					xxkey[PMK_LEN];
+	u_char					ssid[32];
+	int						ssid_len;
+	u_char					mdid[2];
+	u_char					r0kh_id[48];
+	int						r0kh_id_len;
+	u_char					bssid[6];
+	u_char					pmk_r1_name[PMKID_LEN];
+	u_char					over_ds_enabled;
+	u_char					resource_request_support;
+#endif
+
 }APKeyManage_SM;
 
 
@@ -201,6 +215,8 @@ void KeyDump(char *fun, u_char *buf, int siz, char *comment);
 OCTET32_INTEGER * INCOctet32_INTEGER(OCTET32_INTEGER * x);
 int _tmain();
 
-
+#ifdef CONFIG_IEEE80211R
+void CalcFTPTK(Global_Params * global, u_char * keyout, int keyoutlen);
+#endif
 
 #endif //LIB1X_KMSM_H

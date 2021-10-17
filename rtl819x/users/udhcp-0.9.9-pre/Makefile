@@ -39,19 +39,9 @@ endif
 
 include ../../users/.config
 
-ifeq ($(CONFIG_APP_SIMPLE_CONFIG),y)
-CFLAGS += -DCONFIG_APP_SIMPLE_CONFIG
-endif
-
 ifeq ($(CONFIG_RTL_ULINKER),y)
 CFLAGS += -DCONFIG_RTL_ULINKER
 endif
-USE_BOUND_TEMPLETE=0
-ifeq ($(CONFIG_APP_APPLE_MFI_WAC),y)
-USE_BOUND_TEMPLETE=1
-CFLAGS += -DCONFIG_APP_APPLE_MFI_WAC
-endif
-
 
 ifdef COMBINED_BINARY
 EXEC1 = udhcpd
@@ -221,6 +211,8 @@ ifeq ($(CINIT), 1)
 	cp ../script/cinit/wlan1-vxd.renew $(DIR_ROMFS)/usr/share/udhcpc/wlan1-vxd.renew
 	cp ../script/cinit/br0.bound $(DIR_ROMFS)/usr/share/udhcpc/br0.bound
 	cp ../script/cinit/br0.renew $(DIR_ROMFS)/usr/share/udhcpc/br0.renew
+	cp ../script/cinit/usb0.bound $(DIR_ROMFS)/usr/share/udhcpc/usb0.bound
+	cp ../script/cinit/usb0.renew $(DIR_ROMFS)/usr/share/udhcpc/usb0.renew
 endif
 	$(ROMFSINST) -s /var/udhcpc /etc/
 	rm $(DIR_ROMFS)/usr/share/udhcpc/*.deconfig
@@ -231,6 +223,7 @@ endif
 	$(ROMFSINST) -s /var/udhcpc/wlan1.deconfig /usr/share/udhcpc/wlan1.deconfig
 	$(ROMFSINST) -s /var/udhcpc/wlan0-vxd.deconfig /usr/share/udhcpc/wlan0-vxd.deconfig
 	$(ROMFSINST) -s /var/udhcpc/wlan1-vxd.deconfig /usr/share/udhcpc/wlan1-vxd.deconfig
+	$(ROMFSINST) -s /var/udhcpc/usb0.deconfig /usr/share/udhcpc/usb0.deconfig
 	$(ROMFSINST) -s udhcpd /bin/udhcpc
 	$(ROMFSINST) -s /var/udhcpd /etc
 endif

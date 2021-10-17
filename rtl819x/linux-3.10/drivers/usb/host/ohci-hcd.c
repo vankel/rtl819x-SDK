@@ -1152,11 +1152,6 @@ MODULE_LICENSE ("GPL");
 #define NXP_PLATFORM_DRIVER	usb_hcd_nxp_driver
 #endif
 
-#if defined(CONFIG_RTL_819X)
-#include "ohci-rtl8652.c"
-#define PLATFORM_DRIVER		ohci_hcd_rtl8652_driver
-#endif
-
 #ifdef CONFIG_ARCH_DAVINCI_DA8XX
 #include "ohci-da8xx.c"
 #define DAVINCI_PLATFORM_DRIVER	ohci_hcd_da8xx_driver
@@ -1237,14 +1232,6 @@ static int __init ohci_hcd_mod_init(void)
 	pr_debug ("%s: block sizes: ed %Zd td %Zd\n", hcd_name,
 		sizeof (struct ed), sizeof (struct td));
 	set_bit(USB_OHCI_LOADED, &usb_hcds_loaded);
-
-#if defined(CONFIG_RTL_819X)
-	if(ohci_rtl8652_init() !=0)
-	{ 
-		retval = -1;	 //wei add
-	   	goto err_out;   //wei add
-	}
-#endif
 
 #ifdef DEBUG
 	ohci_debug_root = debugfs_create_dir("ohci", usb_debug_root);
@@ -1422,11 +1409,6 @@ static int __init ohci_hcd_mod_init(void)
 	ohci_debug_root = NULL;
  error_debug:
 #endif
-err_out:
-
-#if defined(CONFIG_RTL_819X)  
-	ohci_rtl8652_cleanup();   //wei add
-#endif
 
 	clear_bit(USB_OHCI_LOADED, &usb_hcds_loaded);
 	return retval;
@@ -1485,10 +1467,6 @@ static void __exit ohci_hcd_mod_exit(void)
 #endif
 #ifdef DEBUG
 	debugfs_remove(ohci_debug_root);
-#endif
-
-#if defined(CONFIG_RTL_819X)  //wei add
-	ohci_rtl8652_cleanup();
 #endif
 	clear_bit(USB_OHCI_LOADED, &usb_hcds_loaded);
 }

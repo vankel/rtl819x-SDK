@@ -181,36 +181,22 @@ static void _rtl8651_clearSpecifiedAsicTable(uint32 type, uint32 count)
 		swTable_addEntry(type, idx, &entry);
 }
 
+#include <asm/delay.h>
+
+extern unsigned long loops_per_jiffy;
+#define __mdelay(x) { int i=x; while(i--) __udelay(1000, loops_per_jiffy * 100); }
+
 void FullAndSemiReset( void )
 {
 
-	/* FIXME: Currently workable for FPGA, may need further modification for real chip */
-// CONFIG_RTL8198C
-//	REG32(0xb8000010)|=(1<<27);  //protect bit=1
+	REG32(SIRR) |= FULL_RST;
+	__mdelay(300);
+
+	REG32(SYS_CLK_MAG) &= ~CM_ACTIVE_SWCORE;
+	__mdelay(300);
 	
-	REG32(0xb8000010)&= ~(1<<11);  //active_swcore=0
-
-	__delay(5000);
-	
-	REG32(0xb8000010)|= (1<<11);  //active_swcore=1
-	
-// CONFIG_RTL8198C	
-//	REG32(0xb8000010)&=~(1<<27);   //protect bit=0
-
-#if 0
-	    /* Perform full-reset for sw-core. */ 
-	    REG32(SIRR) |= FULL_RST;
-
-		tick_Delay10ms(50);
-
-		/* Enable TRXRDY */
-		REG32(SIRR) |= TRXRDY;
-
-#endif
-
-
-
-
+	REG32(SYS_CLK_MAG) |= CM_ACTIVE_SWCORE;
+	__mdelay(50);
 }
 
 #if 0
@@ -701,14 +687,477 @@ int Setting_RTL8196E_PHY(void)
 }
 #endif
 
+#ifdef CONFIG_RTL8198C
+#define RTL8198C_PORT0_PHY_ID		8
+
+static const unsigned int phy_98c_ado[]={	
+    27, 0x83de,
+    28, 0xaf83,
+    28, 0xeaaf,
+    28, 0x83ed,
+    28, 0xaf83,
+    28, 0xf0af,
+    28, 0x83f3,
+    28, 0xaf0c,
+    28, 0x0caf,
+    28, 0x83ed,
+    28, 0xaf83,
+    28, 0xf0af,
+    28, 0x83f3,
+    27, 0xb818,
+    28, 0x0bf1,
+    27, 0xb81a,
+    28, 0xfffd,
+    27, 0xb81c,
+    28, 0xfffd,
+    27, 0xb81e,
+    28, 0xfffd,
+    27, 0xb832,
+    28, 0x0001,
+};
+
+int Ado_RamCode_Efuse(int phyport)
+{
+	unsigned int readReg;
+	int j , len;
+
+	while(1)
+	{
+		rtl8651_setAsicEthernetPHYReg( phyport, 31, 0xa46 );
+		rtl8651_getAsicEthernetPHYReg( phyport, 21, &readReg );
+		rtl8651_setAsicEthernetPHYReg( phyport, 31, 0);
+
+		if(((readReg >> 8) & 7) == 3)
+			break;
+	}
+
+	Set_GPHYWB(phyport, 0xb82, 16, (0xffff & ~(1<<4)), (1<<4));
+
+	while(1)
+	{
+		rtl8651_setAsicEthernetPHYReg( phyport, 31, 0xb80 );
+		rtl8651_getAsicEthernetPHYReg( phyport, 16, &readReg );
+		rtl8651_setAsicEthernetPHYReg( phyport, 31, 0);
+
+		if(((readReg >> 6) & 1) == 1)
+			break;
+	}
+
+	len = sizeof(phy_98c_ado)/sizeof(unsigned int);
+	for(j=0;j<len;j=j+2)
+	{
+		Set_GPHYWB(phyport, 0, phy_98c_ado[j], 0, phy_98c_ado[j+1]);
+	}
+
+	Set_GPHYWB(phyport, 0xb82, 16, (0xffff & ~(1<<4)), (0<<4));
+	return 0;
+}
+
+static const unsigned int phy_ado_data[]={	
+	27, 0x83de,
+	28, 0xaf83,
+	28, 0xeaaf,
+	28, 0x83ed,
+	28, 0xaf85,
+	28, 0x85af,
+	28, 0x8588,
+	28, 0xaf0c,
+	28, 0x0cf6,
+	28, 0x0102,
+	28, 0x83f5,
+	28, 0xaf00,
+	28, 0x8ff8,
+	28, 0xf9cd,
+	28, 0xf9fa,
+	28, 0xef69,
+	28, 0xfafb,
+	28, 0xe080,
+	28, 0x13ac,
+	28, 0x2303,
+	28, 0xaf85,
+	28, 0x21d1,
+	28, 0x00bf,
+	28, 0x8597,
+	28, 0x0241,
+	28, 0x05d1,
+	28, 0x0fbf,
+	28, 0x859a,
+	28, 0x0241,
+	28, 0x05bf,
+	28, 0x859d,
+	28, 0x0245,
+	28, 0xbbbf,
+	28, 0x85a0,
+	28, 0x0245,
+	28, 0xb3bf,
+	28, 0x85a3,
+	28, 0x0245,
+	28, 0xb3bf,
+	28, 0x85a6,
+	28, 0x0245,
+	28, 0xb3ee,
+	28, 0x87f4,
+	28, 0x001f,
+	28, 0x44e0,
+	28, 0x87f4,
+	28, 0xbfa8,
+	28, 0xc4ef,
+	28, 0x591a,
+	28, 0x54e6,
+	28, 0x87f5,
+	28, 0xe787,
+	28, 0xf6e1,
+	28, 0x87f4,
+	28, 0xd000,
+	28, 0xbf85,
+	28, 0x8b4c,
+	28, 0x0003,
+	28, 0x1a49,
+	28, 0xe487,
+	28, 0xf7e5,
+	28, 0x87f8,
+	28, 0xee87,
+	28, 0xf907,
+	28, 0xee87,
+	28, 0xfaff,
+	28, 0xee87,
+	28, 0xfb00,
+	28, 0xee87,
+	28, 0xfc10,
+	28, 0xee87,
+	28, 0xfd00,
+	28, 0x0285,
+	28, 0x2bef,
+	28, 0x67ad,
+	28, 0x5f03,
+	28, 0x7fff,
+	28, 0xffe2,
+	28, 0x87f9,
+	28, 0xe387,
+	28, 0xfa09,
+	28, 0xef56,
+	28, 0xef67,
+	28, 0x0bc6,
+	28, 0x0244,
+	28, 0xf4ad,
+	28, 0x5015,
+	28, 0xcce4,
+	28, 0x87f9,
+	28, 0xe587,
+	28, 0xfae0,
+	28, 0x87f7,
+	28, 0xe187,
+	28, 0xf8ef,
+	28, 0x9402,
+	28, 0x4143,
+	28, 0xe587,
+	28, 0xfee1,
+	28, 0x87fd,
+	28, 0x3904,
+	28, 0x9e38,
+	28, 0xe187,
+	28, 0xfd11,
+	28, 0xe587,
+	28, 0xfde0,
+	28, 0x87f7,
+	28, 0xe187,
+	28, 0xf8ef,
+	28, 0x9402,
+	28, 0x4143,
+	28, 0xad37,
+	28, 0x08e5,
+	28, 0x87fc,
+	28, 0xe087,
+	28, 0xfbae,
+	28, 0x06e5,
+	28, 0x87fb,
+	28, 0xe087,
+	28, 0xfc1a,
+	28, 0x100d,
+	28, 0x11d0,
+	28, 0x0008,
+	28, 0xe087,
+	28, 0xf7e1,
+	28, 0x87f8,
+	28, 0xef94,
+	28, 0x0802,
+	28, 0x4105,
+	28, 0xae8e,
+	28, 0xe187,
+	28, 0xfed0,
+	28, 0x0008,
+	28, 0xe087,
+	28, 0xf7e1,
+	28, 0x87f8,
+	28, 0xef94,
+	28, 0x0802,
+	28, 0x4105,
+	28, 0xe187,
+	28, 0xf439,
+	28, 0x039e,
+	28, 0x0ae1,
+	28, 0x87f4,
+	28, 0x11e5,
+	28, 0x87f4,
+	28, 0xaf84,
+	28, 0x33d1,
+	28, 0x00bf,
+	28, 0x859a,
+	28, 0x0241,
+	28, 0x05bf,
+	28, 0x85a6,
+	28, 0x0245,
+	28, 0xbbbf,
+	28, 0x859d,
+	28, 0x0245,
+	28, 0xb3bf,
+	28, 0x85a0,
+	28, 0x0245,
+	28, 0xbbbf,
+	28, 0x85a3,
+	28, 0x0245,
+	28, 0xbbff,
+	28, 0xfeef,
+	28, 0x96fe,
+	28, 0xfdc5,
+	28, 0xfdfc,
+	28, 0x04f8,
+	28, 0xf9fa,
+	28, 0xef69,
+	28, 0xfa1f,
+	28, 0x441f,
+	28, 0x77e2,
+	28, 0x87f5,
+	28, 0xe387,
+	28, 0xf6ef,
+	28, 0x95e2,
+	28, 0x87f3,
+	28, 0x1f66,
+	28, 0x160c,
+	28, 0x61b2,
+	28, 0xfcda,
+	28, 0x19db,
+	28, 0x890c,
+	28, 0x570d,
+	28, 0x581a,
+	28, 0x45ef,
+	28, 0x54ef,
+	28, 0x323a,
+	28, 0x7f9e,
+	28, 0x063b,
+	28, 0x809e,
+	28, 0x08ae,
+	28, 0x0a17,
+	28, 0x5c00,
+	28, 0xffae,
+	28, 0x0487,
+	28, 0x6cff,
+	28, 0x00b6,
+	28, 0xdc4f,
+	28, 0x007f,
+	28, 0x0d48,
+	28, 0x1a74,
+	28, 0xe087,
+	28, 0xf338,
+	28, 0x089e,
+	28, 0x050d,
+	28, 0x7180,
+	28, 0xaef9,
+	28, 0xfeef,
+	28, 0x96fe,
+	28, 0xfdfc,
+	28, 0x04af,
+	28, 0x8585,
+	28, 0xaf85,
+	28, 0x8830,
+	28, 0xbcfc,
+	28, 0x74bc,
+	28, 0xfcb8,
+	28, 0xbcfc,
+	28, 0xfcbc,
+	28, 0xfc40,
+	28, 0xa810,
+	28, 0x96a8,
+	28, 0x10aa,
+	28, 0xbcd2,
+	28, 0xccbc,
+	28, 0xd2ee,
+	28, 0xbcd2,
+	28, 0xffbc,
+	28, 0xd200,
+	27, 0xb818,
+	28, 0x0bf1,
+	27, 0xb81a,
+	28, 0x008d,
+	27, 0xb81c,
+	28, 0xfffd,
+	27, 0xb81e,
+	28, 0xfffd,
+	27, 0xb832,
+	28, 0x0003,
+	31, 0x0000,
+	27, 0x87f2,
+	28, 0x000f,	
+};  
+
+int phy_ready(int phyport)
+{
+	uint32 readReg, count=0;
+	
+	while(1)
+	{
+		rtl8651_setAsicEthernetPHYReg( phyport, 31, 0xa46 );
+		rtl8651_getAsicEthernetPHYReg( phyport, 21, &readReg );
+		rtl8651_setAsicEthernetPHYReg( phyport, 31, 0);
+
+		if(((readReg >> 8) & 7) == 2)
+			return 1;
+		else if((count++) >= 10) 
+			return 0;
+	}
+}
+
+/*
+ must do this adc refinement in phy_state 2 (page 0xa46, reg 21, bit 9-8),
+ */
+unsigned int efuse_value[5];
+void ado_refine(void)
+{
+	int i,phyport;
+	int j, len;
+	uint32 readReg;
+
+	REG32(SYS_CLK_MAG) |= CM_ACTIVE_SWCORE;
+
+	for(i=0;i<5;i++) {
+		REG32(PCRP0+i*4) |= (EnForceMode);
+		efuse_value[i] = 0;
+	}
+	
+	if ((REG32(REVR) & 0xfff) > 0) {
+		REG32(EFUSE_TIMING_CONTROL)=0x030c174f; 
+		REG32(EFUSE_CONFIG)=0x00040112; 
+
+		for(i=0; i<5; i++) {
+			REG32(EFUSE_CONFIG) |= EFUSE_CFG_INT_STS;		/* clear efuse interrupt status bit */
+			REG32(EFUSE_CMD) = i;
+			while( ( REG32(EFUSE_CONFIG) & EFUSE_CFG_INT_STS ) == 0 );		/* Wait efuse_interrupt */
+			efuse_value[i] = REG32(EFUSE_RW_DATA);
+		}
+	}
+
+	rtl8651_getAsicEthernetPHYReg( RTL8198C_PORT0_PHY_ID, 0, &readReg );
+	
+	for(i=0;i<5;i++)
+	{
+		if (i==0)
+			phyport = RTL8198C_PORT0_PHY_ID;
+		else 
+			phyport = i;
+		
+		rtl8651_getAsicEthernetPHYReg( phyport, 0, &readReg );
+		
+		if((readReg & POWER_DOWN) == 0) // power_down=1, do it
+			continue;
+		
+		if ((phy_ready(phyport)) == 0) // phy state=2, do it
+			continue;
+		
+		if ((efuse_value[i] & 0x80))   // bit7=0, do it
+			continue;
+
+		len = sizeof(phy_ado_data)/sizeof(unsigned int);
+		for(j=0;j<len;j=j+2)
+		{
+			Set_GPHYWB(phyport, 0, phy_ado_data[j], 0, phy_ado_data[j+1]);
+		}	
+	}
+}
+
+int Setting_RTL8198C_GPHY(void)
+{
+	int i, phyid;
+	unsigned int data;
+
+	for(i=0; i<5; i++)
+		REG32(PCRP0+i*4) |= (EnForceMode);
+
+	// to disable the PCS INT (GPHY PCS interrupt (MAC_INTRUPT  signal )). 
+	Set_GPHYWB(999, 0xa42, 18, 0, 0);
+
+	// read to clear INT status. 
+	for(i=0; i<5; i++) {
+		if (i==0)
+			phyid = RTL8198C_PORT0_PHY_ID;
+		else 
+			phyid = i;
+		
+		rtl8651_setAsicEthernetPHYReg( phyid, 31, 0xa42);
+		rtl8651_getAsicEthernetPHYReg( phyid, 29, &data);		
+		rtl8651_setAsicEthernetPHYReg( phyid, 31, 0);
+	}
+
+	// fix MDI 10pf codedsp shift
+	Set_GPHYWB(999, 0xBCD, 21, 0, 0x2222);	// codedsp register = 2
+	Set_GPHYWB(999, 0, 27, 0, 0x8277);
+	Set_GPHYWB(999, 0, 28, 0xffff - 0xff00, 0x02 << 8);	// uc codedsp = 2
+
+	// giga master sd_thd
+	Set_GPHYWB(999, 0, 27, 0, 0x8101);
+	Set_GPHYWB(999, 0, 28, 0, 0x4000);
+
+	/* enlarge "Flow control DSC tolerance" from 36 pages to 48 pages
+	    to prevent the hardware may drop incoming packets
+	    after flow control triggered and Pause frame sent */
+ 	REG32(MACCR)= (REG32(MACCR) & ~CF_FCDSC_MASK) | (0x30 << CF_FCDSC_OFFSET);
+
+	/* set "System clock selection" to 100MHz 
+		2'b00: 50MHz, 2'b01: 100MHz, 2'b10, 2'b11 reserved
+	*/
+ 	REG32(MACCR)= (REG32(MACCR) & ~(CF_SYSCLK_SEL_MASK)) | (0x01 << CF_SYSCLK_SEL_OFFSET); 
+
+	/* set "Cport MAC clock selection with NIC interface" to lx_clk */
+ 	REG32(MACCTRL1) |= CF_CMAC_CLK_SEL;
+
+	if ((REG32(REVR) & 0xfff) > 0) {
+		for(i=0;i<5;i++)
+		{
+			if ((efuse_value[i] & 0x80)) { // bit7 != 0
+			 	// to backfill adc_ioffset
+				if (i==0)
+					phyid = RTL8198C_PORT0_PHY_ID;
+				else 
+					phyid = i;
+
+				Ado_RamCode_Efuse(phyid);								
+				Set_GPHYWB(phyid, 0xbcf, 22, 0, (efuse_value[i]>>8)&0xffff);
+			}
+		}
+	}	
+
+	for(i=0; i<5; i++)
+		REG32(PCRP0+i*4) &= ~(EnForceMode);
+
+	return 0;
+}
+#endif
+
 int32 swCore_init()
 {
-		#define REG32_ANDOR(x,y,z)   (REG32(x)=(REG32(x)& (y))|(z))
+	#define REG32_ANDOR(x,y,z)   (REG32(x)=(REG32(x)& (y))|(z))
 
 	int port;
 
+#ifdef CONFIG_RTL8198C
+	ado_refine();
+#endif
+
 	/* Full reset and semreset */
 	FullAndSemiReset();
+	
+#ifdef CONFIG_RTL8198C
+	Setting_RTL8198C_GPHY();
+#endif
 
 #ifndef CONFIG_FPGA_ROMCODE
 #if defined(CONFIG_RTL8196D)  
@@ -900,12 +1349,7 @@ int32 swCore_init()
 	
 	/* Init PHY LED style */
 
-#define PINMUX   0xb8000040
-#define PINMUX2 0xb8000044
-
 #if defined(CONFIG_RTL8198C)
-	REG32(PINMUX) &= ~((3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
-	REG32(PINMUX2) &= ~((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
 
 	#ifdef CONFIG_USING_JTAG
 	REG32(PIN_MUX_SEL3) = (REG32(PIN_MUX_SEL3) & ~ (0x7FFF));  //LED0~LED4
@@ -922,9 +1366,9 @@ int32 swCore_init()
 		set mode 0x0
 		swwb 0xbb804300 21-20 0x2 19-18 $mode 17-16 $mode 15-14 $mode 13-12 $mode 11-10 $mode 9-8 $mode
 	*/	
-	REG32(PINMUX)= (REG32(PINMUX) & ~( (7<<2) | (7<<7) | (3<<10) |  (1<<15) )) | (4<<2);  //let P0 to mii mode
+	REG32(PIN_MUX_SEL)= (REG32(PIN_MUX_SEL) & ~( (7<<2) | (7<<7) | (3<<10) |  (1<<15) )) | (4<<2);  //let P0 to mii mode
 	
-	REG32(PINMUX2)&=~ ((7<<0) | (7<<3) | (7<<6) | (7<<9) | (3<<12)   );  //S0-S3, P0
+	REG32(PIN_MUX_SEL2)&=~ ((7<<0) | (7<<3) | (7<<6) | (7<<9) | (3<<12)   );  //S0-S3, P0
 	
 	REG32(LEDCR)  = (2<<20) | (0<<18) | (0<<16) | (0<<14) | (0<<12) | (0<<10) | (0<<8);  //P0-P5
 #endif

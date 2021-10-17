@@ -261,7 +261,6 @@ static const char *const comments[] = {
 	[NF_IP_TRACE_COMMENT_POLICY]	= "policy",
 };
 
-#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE)
 static struct nf_loginfo trace_loginfo = {
 	.type = NF_LOG_TYPE_LOG,
 	.u = {
@@ -271,7 +270,6 @@ static struct nf_loginfo trace_loginfo = {
 		},
 	},
 };
-#endif
 
 /* Mildly perf critical (only if packet tracing is on) */
 static inline int
@@ -305,7 +303,6 @@ get_chainname_rulenum(const struct ipt_entry *s, const struct ipt_entry *e,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE)
 static void trace_packet(const struct sk_buff *skb,
 			 unsigned int hook,
 			 const struct net_device *in,
@@ -336,9 +333,8 @@ static void trace_packet(const struct sk_buff *skb,
 		      "TRACE: %s:%s:%s:%u ",
 		      tablename, chainname, comment, rulenum);
 }
-#endif
 
-#if defined(CONFIG_RTL_AVOID_UPNP_RULE_TO_ACL)&&defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
+#if defined(CONFIG_RTL_AVOID_UPNP_RULE_TO_ACL)
 static void rtl_getChainName(unsigned int hook,
 			 const char *tablename,
 			 struct xt_table_info *private,
@@ -359,8 +355,8 @@ static void rtl_getChainName(unsigned int hook,
 	comment = (char *)comments[NF_IP_TRACE_COMMENT_RULE];
 
 	xt_entry_foreach(iter, root, private->size - private->hook_entry[hook])
-		if (get_chainname_rulenum(iter, e,(const char **) hookname,
-		    (const char **)chainName,(const char **)&comment, &rulenum) != 0)
+		if (get_chainname_rulenum(iter, e, hookname,
+		    chainName, &comment, &rulenum) != 0)
 			break;
 		
 }
@@ -2041,11 +2037,11 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 	}
 #if defined(CONFIG_RTL_819X)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
-	name 		= (char *)(repl->name);
-	hook_entries 	=(unsigned int *) (repl->hook_entry);
+	name 		= repl->name;
+	hook_entries 	= repl->hook_entry;
 	valid_hooks 	= repl->valid_hooks;
 	size 			= repl->size;
-	underflows	=(unsigned int *) (repl->underflow);
+	underflows	= repl->underflow;
 	number		= repl->num_entries;
 #endif
 #endif

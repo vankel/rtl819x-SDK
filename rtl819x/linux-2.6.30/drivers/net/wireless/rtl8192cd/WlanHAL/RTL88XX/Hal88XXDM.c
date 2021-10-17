@@ -13,7 +13,11 @@ Major Change History:
 	2013-08-19 Filen            Create.
 --*/
 
+#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
+#include "HalPrecomp.h"
+#else
 #include "../HalPrecomp.h"
+#endif
 
 #if CFG_HAL_MACDM
 
@@ -24,14 +28,124 @@ typedef enum _MACDM_STATE_CHANGE_{
 } MACDM_STATE_CHANGE, *PMACDM_STATE_CHANGE;
 
 
+#define MAX_MSDU_LEN_802_11    1536
+#define MAX_AMSDU_LEN_802_11   8192
+u4Byte
+CalMaxAggreNum(
+    IN  u4Byte  page_size,
+    IN  u4Byte  min_pageNum, //the minimum pageNum of "dedicated queue + pub queue"
+    IN  BOOLEAN AMSDU_En,
+    IN  u4Byte  txdesc_len
+)
+{
+    u4Byte  MaxPktSize;
+    BOOLEAN bWithRemainder;
+    u4Byte  PageNumOnePkt;
+    u4Byte  UpperboundPktNum = 0;
+    
+    if (AMSDU_En) {
+        MaxPktSize = MAX_AMSDU_LEN_802_11;
+    }
+    else {
+        MaxPktSize = MAX_MSDU_LEN_802_11;
+    }
+
+    bWithRemainder  = ((MaxPktSize+txdesc_len) % page_size) ? _TRUE: _FALSE;
+    PageNumOnePkt   = (MaxPktSize+txdesc_len) / page_size;
+    if (bWithRemainder) {
+        PageNumOnePkt++;
+    }
+
+    UpperboundPktNum    = min_pageNum / PageNumOnePkt;
+
+    return UpperboundPktNum>>1;
+}
+
+#define MAX_VALUE_REG_AGGRE_NUM 63
+VOID
+DecisionAggrePara(
+    IN  HAL_PADAPTER    Adapter,
+    IN  u4Byte          aggre_state,
+    IN  u4Byte          TxopMaxAggreNum
+)
+{
+    PHAL_DATA_TYPE      pHalData    = _GET_HAL_DATA(Adapter);
+    BOOLEAN             bEnableTXOP = _TRUE;
+    u4Byte              AggreNum    = MAX_VALUE_REG_AGGRE_NUM;
+
+    pHalData->MACDM_Aggre_state = aggre_state;
+
+    switch(aggre_state) {
+        case MACDM_AGGRE_STATE_NONE:
+            bEnableTXOP = _FALSE;
+            break;
+
+        case MACDM_AGGRE_STATE_TXOP:
+            bEnableTXOP = _TRUE;
+            
+            //exception catch
+            if (TxopMaxAggreNum > MAX_VALUE_REG_AGGRE_NUM) {
+                TxopMaxAggreNum = MAX_VALUE_REG_AGGRE_NUM;
+            }
+
+            AggreNum = TxopMaxAggreNum;
+            break;
+
+        case MACDM_AGGRE_STATE_TXOP_EARLY:
+            // TODO: check with Pisa, three mode
+            bEnableTXOP = _TRUE;
+
+            //exception catch
+            if (TxopMaxAggreNum > MAX_VALUE_REG_AGGRE_NUM) {
+                TxopMaxAggreNum = MAX_VALUE_REG_AGGRE_NUM;
+            }
+
+            AggreNum = TxopMaxAggreNum;            
+            break;
+
+        default:
+            RT_TRACE(COMP_INIT, DBG_WARNING, ("AGGRE_STATE Error\n"));
+            break;
+    }
+
+    //Fill HW register
+    HAL_RTL_W16(REG_PROT_MODE_CTRL+2, AggreNum | (AggreNum<<8));
+
+    if (_TRUE==bEnableTXOP) {
+        HAL_RTL_W8(REG_EDCA_BE_PARAM+2, 0x5E);
+    }
+    else {
+        HAL_RTL_W8(REG_EDCA_BE_PARAM+2, 0x0);
+    }
+}
+
+
 static
 RSSI_LVL_DM_88XX
 TranslateRSSI88XX(
-    u4Byte rssi
+    u4Byte rssi_lvl_odm
 )
 {
-    // TODO:
-    return RSSI_LVL_LOW;
+    u4Byte  rssi = RSSI_LVL_NORMAL;
+    
+    switch(rssi_lvl_odm) {
+        case 1:
+            //high quality
+            rssi = RSSI_LVL_HIGH;
+            break;
+        case 2:
+            //normal quality
+            rssi = RSSI_LVL_NORMAL;
+            break;
+        case 3:
+            //low quality
+            rssi = RSSI_LVL_LOW;
+            break;
+        default:
+            break;
+    }
+    
+    return rssi;
 }
 
 
@@ -120,7 +234,7 @@ InitMACDM88XX(
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_DEF_LOW_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen, 
-                        pHalData->MACDM_Table[MACDM_TP_STATE_DEFAULT][RSSI_LVL_LOW],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_DEFAULT][RSSI_LVL_LOW],
                         MAX_MACDM_REG_NUM);
 
     //(default, normal)
@@ -128,7 +242,7 @@ InitMACDM88XX(
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_DEF_NORMAL_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen, 
-                        pHalData->MACDM_Table[MACDM_TP_STATE_DEFAULT][RSSI_LVL_NORMAL],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_DEFAULT][RSSI_LVL_NORMAL],
                         MAX_MACDM_REG_NUM);
 
     //(default, high)
@@ -136,7 +250,7 @@ InitMACDM88XX(
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_DEF_HIGH_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen,
-                        pHalData->MACDM_Table[MACDM_TP_STATE_DEFAULT][RSSI_LVL_HIGH],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_DEFAULT][RSSI_LVL_HIGH],
                         MAX_MACDM_REG_NUM);
 
     //(general, low)
@@ -144,7 +258,7 @@ InitMACDM88XX(
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_GEN_LOW_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen, 
-                        pHalData->MACDM_Table[MACDM_TP_STATE_GENERAL][RSSI_LVL_LOW],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_GENERAL][RSSI_LVL_LOW],
                         MAX_MACDM_REG_NUM);
 
     //(general, normal)
@@ -152,7 +266,7 @@ InitMACDM88XX(
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_GEN_NORMAL_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen, 
-                        pHalData->MACDM_Table[MACDM_TP_STATE_GENERAL][RSSI_LVL_NORMAL],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_GENERAL][RSSI_LVL_NORMAL],
                         MAX_MACDM_REG_NUM);
 
     //(general, high)
@@ -160,7 +274,7 @@ InitMACDM88XX(
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_GEN_HIGH_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen,
-                        pHalData->MACDM_Table[MACDM_TP_STATE_GENERAL][RSSI_LVL_HIGH],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_GENERAL][RSSI_LVL_HIGH],
                         MAX_MACDM_REG_NUM);
 
     //(txop, low)
@@ -168,23 +282,23 @@ InitMACDM88XX(
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_TXOP_LOW_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen, 
-                        pHalData->MACDM_Table[MACDM_TP_STATE_TXOP][RSSI_LVL_LOW],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_TXOP][RSSI_LVL_LOW],
                         MAX_MACDM_REG_NUM);
 
-    //(general, normal)
+    //(txop, normal)
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_TXOP_NORMAL_START, (pu1Byte)&pRegFileStart);
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_TXOP_NORMAL_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen, 
-                        pHalData->MACDM_Table[MACDM_TP_STATE_TXOP][RSSI_LVL_NORMAL],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_TXOP][RSSI_LVL_NORMAL],
                         MAX_MACDM_REG_NUM);
 
-    //(general, high)
+    //(txop, high)
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_TXOP_HIGH_START, (pu1Byte)&pRegFileStart);
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_MACDM_TXOP_HIGH_SIZE, (pu1Byte)&RegFileLen);
     LoadFileToIORegTable(pRegFileStart, 
                             RegFileLen,
-                        pHalData->MACDM_Table[MACDM_TP_STATE_TXOP][RSSI_LVL_HIGH],
+                        (pu1Byte)pHalData->MACDM_Table[MACDM_TP_STATE_TXOP][RSSI_LVL_HIGH],
                         MAX_MACDM_REG_NUM);
 
 
@@ -249,17 +363,20 @@ BOOLEAN
 MACDM_Core88XX(
     IN  HAL_PADAPTER    Adapter,
     IN  u4Byte          TP,         // Mbps
-    IN  u4Byte          rssi,
-    IN  u4Byte          CurTxRate  //Data Rate Index
+    IN  u4Byte          rssi_lvl_odm,
+    IN  u4Byte          CurTxRate,  //Data Rate Index
+    IN  WIRELESS_MODE   WirelessMode
 )
 {
     PHAL_DATA_TYPE              pHalData    = _GET_HAL_DATA(Adapter);
-    u4Byte                      rssi_lvl    = TranslateRSSI88XX(rssi);
+    u4Byte                      rssi_lvl    = TranslateRSSI88XX(rssi_lvl_odm);
     BOOLEAN                     StateChange = _FALSE;
     MACDM_STATE_CHANGE          stateChange;
+    u4Byte                      RequestAggreState;
 
     stateChange = CheckMACDMThrs(Adapter, pHalData->MACDM_State, TP, rssi_lvl);
     
+    //3 Stage 1: check TP & RSSI
     switch(pHalData->MACDM_State) {
         case MACDM_TP_STATE_DEFAULT:
             if (MACDM_STATE_CHANGE_UP == stateChange) {
@@ -288,6 +405,19 @@ MACDM_Core88XX(
                 RT_TRACE_F(COMP_DBG, DBG_LOUD, ("state(%d -> %d)\n", 
                                                 MACDM_TP_STATE_GENERAL, 
                                                 pHalData->MACDM_State));
+
+                // TODO: TXOP_SPEED mode by loading file
+                // TODO: now 92E support only
+#if IS_EXIST_RTL8192EE
+                if ( IS_HARDWARE_TYPE_8192EE(Adapter) ) {
+                    if ((TP >= 155) && 
+                        (CurTxRate == _MCS15_RATE_) &&
+                        (rssi_lvl == RSSI_LVL_HIGH)
+                        ) {
+                        HAL_RTL_W32(REG_FAST_EDCA_CTRL, 0x0308DDDD);
+                    }
+                }
+#endif //   IS_EXIST_RTL8192EE
                 StateChange = _TRUE;
             }
             else if (MACDM_STATE_CHANGE_DOWN == stateChange) {
@@ -319,6 +449,20 @@ MACDM_Core88XX(
                 if (pHalData->MACDM_preRssiLvl != rssi_lvl) {
                     LoadMACDMTable(Adapter, MACDM_TP_STATE_TXOP, rssi_lvl);
                 }
+
+                // TODO: TXOP_SPEED mode by loading file
+                // TODO: now 92E support only
+#if IS_EXIST_RTL8192EE
+                if ( IS_HARDWARE_TYPE_8192EE(Adapter) ) {
+                    if ((TP >= 155) && 
+                        (CurTxRate == _MCS15_RATE_) &&
+                        (rssi_lvl == RSSI_LVL_HIGH)
+                        ) {
+                        HAL_RTL_W32(REG_FAST_EDCA_CTRL, 0x0308DDDD);
+                    }
+                }
+#endif //   IS_EXIST_RTL8192EE
+
             }
             else {
                 //Error, impossible
@@ -330,6 +474,97 @@ MACDM_Core88XX(
             //impossible
             break;
     };
+
+    //3 Stage 2: check air collision
+    // TODO: 3SS
+    switch(WirelessMode) {
+        case WIRELESS_MODE_A:
+        case WIRELESS_MODE_G:
+            if (CurTxRate <= _12M_RATE_) {
+
+                // low rate
+                if (RSSI_LVL_HIGH!=rssi_lvl) {
+                    RequestAggreState = MACDM_AGGRE_STATE_TXOP;
+                }
+                else {
+                    // Disable TXOP
+                    RequestAggreState = MACDM_AGGRE_STATE_NONE;
+                }
+            }
+            else {
+                // high rate
+                //OFDM 18 / 24 / 36 / 48 /54
+                RequestAggreState = MACDM_AGGRE_STATE_TXOP;
+            }
+
+            break;
+            
+        case WIRELESS_MODE_N_24G:
+        case WIRELESS_MODE_N_5G:
+            if ((CurTxRate <= _MCS11_RATE_ &&
+                CurTxRate >= _MCS8_RATE_
+                ) ||
+                (CurTxRate <= _MCS3_RATE_ &&
+                CurTxRate >= _MCS0_RATE_
+                ) ||
+                (CurTxRate <= _54M_RATE_)
+                ) {
+                // low rate
+                if (RSSI_LVL_HIGH!=rssi_lvl) {
+                    RequestAggreState = MACDM_AGGRE_STATE_TXOP;
+                }
+                else {
+                    // Disable TXOP
+                    RequestAggreState = MACDM_AGGRE_STATE_NONE;
+                }
+            }
+            else {
+                //high rate
+                //MCS 4~7, 12~15
+                RequestAggreState = MACDM_AGGRE_STATE_TXOP;
+            }
+            break;
+            
+        case WIRELESS_MODE_AC_5G:
+            // TODO:
+            if ((CurTxRate <= _NSS3_MCS9_RATE_ &&
+                CurTxRate >= _NSS3_MCS6_RATE_
+                ) ||
+                (CurTxRate <= _NSS2_MCS9_RATE_ &&
+                CurTxRate >= _NSS2_MCS6_RATE_
+                ) ||
+                (CurTxRate <= _NSS1_MCS9_RATE_ &&
+                CurTxRate >= _NSS1_MCS6_RATE_
+                )
+                ) {
+                // high rate
+                // Enable TXOP
+                RequestAggreState = MACDM_AGGRE_STATE_TXOP;
+            }
+            else {
+                // low rate
+                if (RSSI_LVL_HIGH!=rssi_lvl) {
+                    RequestAggreState = MACDM_AGGRE_STATE_TXOP;
+                }
+                else {
+                    // Disable TXOP
+                    RequestAggreState = MACDM_AGGRE_STATE_NONE;
+                }
+            }
+            break;
+
+        case WIRELESS_MODE_B:
+        default:
+            RequestAggreState = MACDM_AGGRE_STATE_NONE;
+            break;
+    }
+
+    if (RequestAggreState!=pHalData->MACDM_Aggre_state) {
+        DecisionAggrePara(Adapter, RequestAggreState, 0);
+    }
+    else {
+        // DoNothing
+    }
 
     //Record last one RSSI Level
     pHalData->MACDM_preRssiLvl = rssi_lvl;
@@ -374,8 +609,9 @@ Timer1SecDM88XX(
             if (pstat_highest) {
                 MACDM_Core88XX(Adapter, 
                                 highest_tp, 
-                                pstat_highest->rssi, 
-                                pstat_highest->current_tx_rate
+                                pstat_highest->rssi_level, 
+                                pstat_highest->current_tx_rate,
+                                pstat_highest->WirelessMode
                                 );
             }
         }
@@ -387,6 +623,7 @@ Timer1SecDM88XX(
             u4Byte              LinkedStaNum    = 0;
             u4Byte              Total_rssi      = 0, average_rssi = 0; 
             u4Byte              Min_CurTxRate   = 0xFFFFFFFF;
+            HAL_PSTAINFO        pstat_Average   = NULL;
 
             while(pEntry) {
 
@@ -399,11 +636,12 @@ Timer1SecDM88XX(
                     Total_tp    += tmpTotal_tp;
 
                     //accumulate RSSI
-                    Total_rssi += pEntry->rssi;
+                    Total_rssi += pEntry->rssi_level;
 
                     //find lowest rate of all linked sta
                     if (pEntry->current_tx_rate < Min_CurTxRate) {
                         Min_CurTxRate = pEntry->current_tx_rate;
+                        pstat_Average = pEntry;
                     }
                 }
                 
@@ -419,7 +657,8 @@ Timer1SecDM88XX(
                 MACDM_Core88XX(Adapter, 
                                 average_tp, 
                                 average_rssi, 
-                                Min_CurTxRate
+                                Min_CurTxRate,
+                                pstat_Average->WirelessMode
                                 );
             }
         }
@@ -450,8 +689,9 @@ Timer1SecDM88XX(
             if (pstat_lowest) {
                 MACDM_Core88XX(Adapter, 
                                 lowest_tp, 
-                                pstat_lowest->rssi, 
-                                pstat_lowest->current_tx_rate
+                                pstat_lowest->rssi_level, 
+                                pstat_lowest->current_tx_rate,
+                                pstat_lowest->WirelessMode
                                 );
             }
         }

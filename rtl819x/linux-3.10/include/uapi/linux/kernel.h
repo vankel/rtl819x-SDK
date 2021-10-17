@@ -1,9 +1,9 @@
 #ifndef _UAPI_LINUX_KERNEL_H
 #define _UAPI_LINUX_KERNEL_H
 
-#if defined(__KERNEL__ ) && (defined(CONFIG_RTL_8881A)||defined(CONFIG_RTL_8196E)||defined(CONFIG_RTL_819XD))
+#if defined(__KERNEL__ ) && defined(CONFIG_RLX) //modified by lynn_pu, 2014-10-30
 #include <generated/uapi/linux/version.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)) // modified by lynn_pu, 2014-10-16
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
 #include <uapi/linux/sysinfo.h>
 #else
 #include <linux/sysinfo.h>

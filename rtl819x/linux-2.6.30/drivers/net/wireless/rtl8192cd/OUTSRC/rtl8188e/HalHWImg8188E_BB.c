@@ -18,12 +18,8 @@
 * 
 ******************************************************************************/
 
-#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
 #include "Mp_Precomp.h"
-#else
-#include "../Mp_Precomp.h"
-#endif
-#include "../odm_precomp.h"
+#include "../phydm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)
 static BOOLEAN
@@ -706,7 +702,7 @@ ODM_ReadAndConfig_MP_8188E_AGC_TAB(
 u4Byte
 ODM_GetVersion_MP_8188E_AGC_TAB(void)
 {
-	   return 53;
+	   return 54;
 }
 
 /******************************************************************************
@@ -1053,7 +1049,7 @@ ODM_ReadAndConfig_MP_8188E_PHY_REG(
 u4Byte
 ODM_GetVersion_MP_8188E_PHY_REG(void)
 {
-	   return 53;
+	   return 54;
 }
 
 /******************************************************************************
@@ -1061,10 +1057,10 @@ ODM_GetVersion_MP_8188E_PHY_REG(void)
 ******************************************************************************/
 
 u4Byte Array_MP_8188E_PHY_REG_PG[] = { 
-	0, 0, 0, 0x00000e08, 0x0000ff00, 0x00004000,
-	0, 0, 0, 0x0000086c, 0xffffff00, 0x34363800,
-	0, 0, 0, 0x00000e00, 0xffffffff, 0x42444646,
-	0, 0, 0, 0x00000e04, 0xffffffff, 0x30343840,
+	0, 0, 0, 0x00000e08, 0x0000ff00, 0x00003800,
+	0, 0, 0, 0x0000086c, 0xffffff00, 0x32343600,
+	0, 0, 0, 0x00000e00, 0xffffffff, 0x40424446,
+	0, 0, 0, 0x00000e04, 0xffffffff, 0x28323638,
 	0, 0, 0, 0x00000e10, 0xffffffff, 0x38404244,
 	0, 0, 0, 0x00000e14, 0xffffffff, 0x26303436
 };

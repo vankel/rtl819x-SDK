@@ -25,8 +25,10 @@ romfs:
 	$(ROMFSINST) $(DIR_SOURCE)/source/bin/smbd /bin/smbd
 	$(ROMFSINST) $(DIR_SOURCE)/source/bin/smbpasswd /bin/smbpasswd
 	$(ROMFSINST) $(DIR_SOURCE)/source/bin/nmbd /bin/nmbd
-#	$(ROMFSINST) /etc/samba/smb.conf
-#	$(ROMFSINST) /etc/samba/smbpasswd
-
+	$(ROMFSINST) $(DIR_SOURCE)/source/codepages/lowcase.dat /etc/samba/lowcase.dat
+	$(ROMFSINST) $(DIR_SOURCE)/source/codepages/upcase.dat /etc/samba/upcase.dat
+	$(ROMFSINST) $(DIR_SOURCE)/source/codepages/valid.dat /etc/samba/valid.dat
+	$(ROMFSINST) smbpasswd /etc/samba/smbpasswd
+	$(ROMFSINST) smb.conf /etc/samba/smb.conf
 clean:
 	make -C $(DIR_SOURCE)/source clean

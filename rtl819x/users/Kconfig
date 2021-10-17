@@ -23,13 +23,6 @@ config APP_AUTH_2NDSRV
 	depends on APP_AUTH
 	help
 	  Config auth daemon to support dual radius server
-source "adapter-api/Kconfig"
-
-config APP_AVAHI
-	bool "avahi-0.6.31"
-	select LIB_LIBDAEMON
-	help
-	  A daemon used for Zeroconf under linux.
 
 config APP_BRCTL
 	bool "brctl"
@@ -41,15 +34,6 @@ config APP_BLUEZ
 	bool "bluez"
 	help
 	   bluez is bluetooth utility
-choice
-        prompt "Bluez Version"
-        default APP_BLUEZ_522
-	depends on APP_BLUEZ
-        config APP_BLUEZ_522
-                bool "Bluez 5.22"
-        config APP_BLUEZ_496
-                bool "Bluez 4.96"
-endchoice
 
 source "rtk_bluetooth_firmware/Kconfig"
 
@@ -160,51 +144,26 @@ config APP_BOA_WITH_SSL
 	help
 	  boa with openssl support, which will enable HTTPS visit.
 
+config APP_BOA_AUTO_RECOVER
+	depends on APP_BOA
+	bool "boa auto recover Support"
+	help
+	  boa will auto recover when crash.
+
 config APP_UWIFI
 	bool "uWiFi"
 	help
 	  A uWiFi package for customer
 	  
+config APP_CURL
+	bool "curl"
+	help
+	  curl
+	  
 config APP_ALSA_AUDIO
 	bool "alsa related"
 	help
 	  ALSA Audio
-
-config APP_APPLE_MFI_WAC
-	bool "Apple WAC Support"
-	help
-	    Apple Support Package, including WAC wifi audio
-
-config APP_APPLE_HOMEKIT
-	bool "Apple Homekit Support"
-    	depends on APP_APPLE_MFI_WAC
-	help
-	    Apple Support Package, including Homekit accessory protocol
-	choice 
-            prompt "Choose Homekit Services"
-		depends on APP_APPLE_HOMEKIT
-		
-            config APP_HAP_SWITCH_SERVICE
-            bool "Homekit Switch Service"
-            depends on APP_APPLE_HOMEKIT
-
-            config APP_HAP_IP_CAM_SERVICE
-            bool "Homekit IP Camera Services"
-            depends on APP_APPLE_HOMEKIT
-
-	endchoice
-
-config APP_HAP_CAM_SERVICE
-        bool "Homekit Camera Services"
-        depends on APP_HAP_IP_CAM_SERVICE
-
-config APP_HAP_MICROPHONE_SERVICE
-	bool "Homekit Microphone Services"
-        depends on APP_HAP_IP_CAM_SERVICE
-
-config APP_HAP_SPEAKER_SERVICE
-	bool "Homekit Speaker Services"
-        depends on APP_HAP_IP_CAM_SERVICE
 
 config APP_GPROXY
 	bool "gproxy"
@@ -228,11 +187,6 @@ config MLDPROXY_MULTIWAN
 #config MLDV2_SUPPORT
 #        depends on APP_MLDPROXY
 #        bool "support mldv2 proxy"
-
-config APP_NDP_PROXY
-	bool "ndp proxy"
-	help
-	    ipv6 neighbor discover protocol proxy
 	   			 
 config APP_NETATALK
         bool "netatalk"
@@ -242,6 +196,7 @@ config APP_IAPP
 	bool "iapp"
 	help
 	  The IAPP application
+
 config APP_IGMPPROXY
 	bool "igmp proxy"
 	help
@@ -318,6 +273,12 @@ config APP_MINIIGD_IPV6
         bool "miniigd ipv6 support"
     help
            Make miniigd support ipv6.
+config APP_MINIIGD_CERTIFICATION
+    depends on APP_MINIIGD
+        bool "miniigd certification support"
+    help
+           Make miniigd support certification.
+
 
 
 config APP_MKDOSFS
@@ -340,7 +301,10 @@ config APP_NTPCLIENT
 	bool "ntpclient"
 	help
 	  The ntpclient daemon
-
+config APP_NFS_UTILITY
+	bool "NFS utility"
+	help
+	  NFS server and portmap support
 config APP_OPENSSL
 	bool "openssl"
 	help
@@ -405,7 +369,12 @@ config  PPPOE_DISCONNECT_FLOW_PATCH
         bool "pppoe_disc_flow_patch"
         help
            A pppoe disconect flow patch.
- 
+
+config  PPP_REJECT_ERROR_SESSION_PATCH
+	bool "ppp reject error session patch"
+	help
+	  A  ppp reject error session patch.
+
 config APP_PPTP
 	bool "pptp"
 	help
@@ -450,6 +419,18 @@ config APP_RTK_CMD
 	  A rtk_cmd daemon.
 source "samba/Kconfig"
 
+config APP_MDADM
+	bool "mdadm-3.2.5"
+	default n
+	help
+	  mdadm-3.2.5
+
+config APP_E2FSPROGS
+	bool "e2fsprogs"
+	default n
+	help
+	  e2fsprogs
+
 config APP_SCRIPT
 	bool "scripts"
 	help
@@ -460,11 +441,21 @@ config APP_SQUASHFS40
 	help
 	  squashfs tools to build image 
 
+config APP_SQUASHFS42
+	bool "squashfs 4.2"
+	help
+	  squashfs tools to build image 
+
 config APP_SNMP
 	bool "snmp"
 	help
 	  An SNMP Daemon for network management
- 
+
+config APP_TRANSMISSION
+	bool "Transmission BT"
+	help
+		An Transmission BT Daemon
+
 config APP_TR069
 	bool "tr069"
 	select APP_ROUTED
@@ -636,20 +627,18 @@ config APP_NMBS
 	help
 	  Nmb server.	  
 
+config FT_DAEMON
+        bool "FT Daemon support"
+
 config APP_AUTORUNIMG
 	bool "ulinker autorun image tool"
 	help
 	  Tool for generate ulinker auto install image.
+
 config APP_SIMPLE_CONFIG
 	bool "simple config support"
 	help
 	  Tool for client mode device connect to AP.
-
-config SIMPLE_CONFIG_SYNC_VXD_PROFILE
-	depends on APP_SIMPLE_CONFIG 
-	bool "simple config sync repeater interface setting to root interface"
-	help 
-	  Sync repeater client setting to root AP interface after simple config success.
 
 comment "USB3G support"
 config APP_COMGT
@@ -704,11 +693,6 @@ config LIB_CURL
         help
 	  curl-7.34.0 required by transmission	
 
-config LIB_LIBDAEMON
-	bool "libdaemon-0.14"
-	help
-	  A lightweight C library that eases the writing of UNIX daemons.
-
 config LIB_PNG
     bool "libpng"
     select LIB_Z
@@ -731,11 +715,16 @@ config APP_FLEX
 	help
 	  flex library.
 
+config LIB_LIBPCAP
+	bool "Libpcap library"
+	help
+		libpcap-1.4.0
+
 config LIB_FUSE
 	bool "fuse library"
 	help
 		library required by exfat-fuse
-	
+		
 comment "Debug & Test"
 
 config APP_CLE_SHELL
@@ -784,6 +773,11 @@ config APP_DLNA_DMS
 	help
 	 ushare daemon
 
+config APP_TEST11K
+	bool "802.11k"
+	help
+	  An application for testing wifi 802.11k feature  
+
 config APP_LIBICONV
 	bool "libiconv"
 	depends on APP_DLNA_DMS
@@ -814,10 +808,18 @@ config SIGMA_VHT
         bool "VHT5G"
         
 config SIGMA_HS2
-        bool "HS2R2"
+        bool "HS2R1"
+
 config SIGMA_PMF
         bool "PMF"
+
 endchoice
+
+config APP_PCAP
+	bool "pcap"
+	depends on LIB_LIBPCAP
+	help
+	  pacekt capture.
 
 source "rtl_fs/Kconfig"
 #############################################################################

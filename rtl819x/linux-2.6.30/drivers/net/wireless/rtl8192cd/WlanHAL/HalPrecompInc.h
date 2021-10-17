@@ -47,11 +47,11 @@
 #include "Hal8192EPhyCfg.h"
 #endif
 
-#if IS_RTL8813A_SERIES
-#include "Hal8813APwrSeqCmd.h"
-#include "Hal8813ADef.h"
-#include "Hal8813APhyCfg.h"
-#include "Hal8813AFirmware.h"
+#if IS_RTL8814A_SERIES
+#include "Hal8814APwrSeqCmd.h"
+#include "Hal8814ADef.h"
+#include "Hal8814APhyCfg.h"
+#include "Hal8814AFirmware.h"
 
 #endif
 
@@ -59,8 +59,8 @@
 #include "Hal8192EEDef.h"
 #endif
 
-#if IS_EXIST_RTL8813AE
-#include "Hal8813AEDef.h"
+#if IS_EXIST_RTL8814AE
+#include "Hal8814AEDef.h"
 #endif
 
 #include "Hal88XXDef.h"
@@ -115,11 +115,11 @@
 #include "RTL88XX/RTL8192E/Hal8192EPhyCfg.h"
 #endif
 
-#if IS_RTL8813A_SERIES
-#include "Hal8813APwrSeqCmd.h"
-#include "Hal8813ADef.h"
-#include "Hal8813APhyCfg.h"
-#include "Hal8813AFirmware.h"
+#if IS_RTL8814A_SERIES
+#include "Hal8814APwrSeqCmd.h"
+#include "Hal8814ADef.h"
+#include "Hal8814APhyCfg.h"
+#include "Hal8814AFirmware.h"
 
 #endif
 
@@ -127,8 +127,8 @@
 #include "RTL88XX/RTL8192E/RTL8192EE/Hal8192EEDef.h"
 #endif
 
-#if IS_EXIST_RTL8813AE
-#include "Hal8813AEDef.h"
+#if IS_EXIST_RTL8814AE
+#include "Hal8814AEDef.h"
 #endif
 
 

@@ -1660,8 +1660,6 @@ static int htb_syncHwQueue(struct net_device *dev)
 		{
 			{
 				portBandwidth += (classHandle[idx]->ceil.rate_bps);
-				
-				//printk("[%d]:%d,[%s]:[%d].\n",idx,(classHandle[idx]->ceil.rate_bps<<3),__FUNCTION__,__LINE__);
 			}
 		}
 

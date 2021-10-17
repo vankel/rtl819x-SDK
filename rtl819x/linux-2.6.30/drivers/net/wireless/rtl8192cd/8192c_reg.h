@@ -336,7 +336,8 @@
 #define		BT_COEX_TABLE		0x6C0	// BT-Coexistence Control.
 #define		WMAC_RESP_TXINFO	0x6D8	// Response TXINFO.
 
-#define         BSSIDR1                 0x708
+#define		MACID1				0x700	// MAC ID1 Register (Offset 0700h~0705h)
+#define		BSSIDR1				0x708
 
 //-----------------------------------------------------
 //

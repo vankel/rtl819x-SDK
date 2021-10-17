@@ -342,7 +342,7 @@ int io_shuffle(request * req)
         if (temp < 0) {
             req->status = DEAD;
             log_error_doc(req);
-            //perror("ioshuffle lseek");
+            perror("ioshuffle lseek");
             return 0;
         }
 
@@ -362,7 +362,7 @@ int io_shuffle(request * req)
             } else {
                 req->status = DEAD;
                 log_error_doc(req);
-               // perror("ioshuffle read");
+                perror("ioshuffle read");
                 return 0;
             }
         } else if (bytes_read == 0) { /* eof, write rest of buffer */
@@ -399,7 +399,7 @@ int io_shuffle(request * req)
         else {
             req->status = DEAD;
             log_error_doc(req);
-            //perror("ioshuffle write");
+            perror("ioshuffle write");
             return 0;
         }
     } else if (bytes_written == 0) {

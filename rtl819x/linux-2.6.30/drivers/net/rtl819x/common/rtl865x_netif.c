@@ -1574,7 +1574,6 @@ rtl865x_netif_local_t *_rtl865x_getSWNetifByName(char *name)
 	if(virtualNetIf.valid == 1 && strlen(name) == strlen(virtualNetIf.name) && memcmp(virtualNetIf.name,name,strlen(name)) == 0)
 	{
 		netif = &virtualNetIf;
-
 	}
 	#endif
 
@@ -1680,9 +1679,7 @@ rtl865x_netif_local_t *_rtl865x_getDefaultWanNetif(void)
 	{
 		defNetif = firstWan;
 	}
-
 	return defNetif;
-
 }
 
 int32 _rtl865x_setDefaultWanNetif(char *name)
@@ -1693,7 +1690,6 @@ int32 _rtl865x_setDefaultWanNetif(char *name)
 	//printk("set default wan interface....(%s)\n",name);
 	if(entry)
 		entry->is_defaultWan = 1;
-
 	return SUCCESS;
 }
 
@@ -1726,7 +1722,6 @@ static int32 _rtl865x_attachMasterNetif(char *slave, char *master)
 	slave_netif ->master = master_netif;
 
 	return SUCCESS;
-
 }
 
 static int32 _rtl865x_detachMasterNetif(char *slave)
@@ -1818,7 +1813,7 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
     #endif
 
 	memcpy(entry->name,netif->name,MAX_IFNAMESIZE);
-	
+//	printk("netif:%s,%d,[%s]:[%d].\n",netif->name,netif->is_slave,__FUNCTION__,__LINE__);
 	/*private number...*/
 #if defined (CONFIG_RTL_LOCAL_PUBLIC) ||defined(CONFIG_RTL_MULTIPLE_WAN)
 	entry->asicIdx=asicIdx;
@@ -4440,7 +4435,6 @@ int32 rtl865x_addNetif(rtl865x_netif_t *netif)
 	SMP_UNLOCK_ETH(flags);
 	return retval;
 }
-
 /*
 @func int32 | rtl865x_delNetif |delete network interface.
 @parm char* | ifName | network interface name
@@ -5197,13 +5191,13 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 
 #if defined (CONFIG_RTK_VLAN_SUPPORT)
 		if(rtk_vlan_support_enable==0)
-		{
+		{		
 			/*del old default permit acl*/
 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
 			rule.ruleType_ = RTL865X_ACL_MAC;
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rule.actionType_ = RTL865X_ACL_PERMIT;
-			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
+			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);	
 
 			/*add new default permit acl*/
 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
@@ -5249,6 +5243,23 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 
 		return SUCCESS;
 }
+
+#if defined(CONFIG_RTL_HW_QOS_BRIDGE_FWD_SUPPORT)
+int rtl865x_isWanNetifByIdx(int netifIdx)
+{
+	if (netifIdx <0 || netifIdx >= NETIF_NUMBER)
+		return -1;
+	
+	if (netifTbl[netifIdx].valid) {
+		if (strncmp(netifTbl[netifIdx].name, RTL_DRV_LAN_NETIF_NAME, strlen(RTL_DRV_LAN_NETIF_NAME))==0)
+			return 0;
+		else if (strncmp(netifTbl[netifIdx].name, RTL_DRV_WAN0_NETIF_NAME, strlen(RTL_DRV_WAN0_NETIF_NAME))==0)
+			return 1;
+	}
+
+	return -1;
+}
+#endif
 
 #ifdef CONFIG_RTL_PROC_NEW
 int32 sw_netif_read(struct seq_file *s, void *v)

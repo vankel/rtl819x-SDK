@@ -4,8 +4,6 @@
 ## Makefile for OpenSSL
 ##
 #include $(DIR_LINUX)/.config
-CROSS_COMPILE ?= rsdk-linux-
-CROSS_TARGET ?= rsdk-linux
 
 VERSION=0.9.8y
 MAJOR=0
@@ -15,9 +13,9 @@ SHLIB_VERSION_HISTORY=
 SHLIB_MAJOR=0
 SHLIB_MINOR=9.8
 SHLIB_EXT=.so.$(SHLIB_MAJOR).$(SHLIB_MINOR)
-PLATFORM=$(CROSS_TARGET)
+PLATFORM=rsdk-linux
 OPTIONS=enable-shared no-camellia no-capieng no-cms no-gmp no-jpake no-krb5 no-mdc2 no-montasm no-rc5 no-rfc3779 no-seed no-zlib no-zlib-dynamic
-CONFIGURE_ARGS=shared $(CROSS_TARGET)
+CONFIGURE_ARGS=shared rsdk-linux
 SHLIB_TARGET=linux-shared
 
 # HERE indicates where this Makefile lives.  This can be used to indicate
@@ -62,10 +60,8 @@ OPENSSLDIR=/usr/local/ssl
 # equal 4.
 # PKCS1_CHECK - pkcs1 tests.
 
-#CROSS_COMPILE ?= rsdk-linux-
-#CROSS_TARGET ?= rsdk-linux
-#CC= rsdk-linux-gcc
-CC = $(CROSS_COMPILE)gcc
+CROSS_COMPILE= rsdk-linux-
+CC= rsdk-linux-gcc
 CFLAG= -fPIC -DOPENSSL_PIC -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -DTERMIO -Os -fomit-frame-pointer -Wall
 DEPFLAG= -DOPENSSL_NO_CAMELLIA -DOPENSSL_NO_CAPIENG -DOPENSSL_NO_CMS -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SEED
 PEX_LIBS= 
@@ -75,12 +71,10 @@ ARFLAGS=
 AR=ar $(ARFLAGS) r
 ARD=ar $(ARFLAGS) d
 RANLIB= $(CROSS_COMPILE)ranlib
-
-PERL=/usr/local/bin/perl
-$(shell if [ ! -e /usr/local/bin/perl ]; then \
+PERL= /usr/local/bin/perl
+if [ ! -e /usr/local/bin/perl ]; then \
 PERL=/usr/bin/perl; \
-fi)
-
+fi
 TAR= tar
 TARFLAGS= --no-recursion
 MAKEDEPPROG=makedepend

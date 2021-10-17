@@ -1,0 +1,13 @@
+
+comment "rtl819xD"
+choice
+prompt "Selected Board Configuration"
+default MODEL_RTL819xD_96D_8194_GW
+
+config MODEL_RTL819xD_96D_8194_GW
+        bool "96D+8194 GW"
+
+config MODEL_RTL819xD_MP
+        bool "MP"
+
+endchoice

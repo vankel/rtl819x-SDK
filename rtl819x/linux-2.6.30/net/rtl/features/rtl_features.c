@@ -135,11 +135,14 @@ EXPORT_SYMBOL(fast_path_hook);
 #endif
 
 #ifdef FAST_PPTP
-	//void (*sync_tx_pptp_gre_seqno_hook)(struct sk_buff *skb) = NULL;
-	void (*sync_tx_pptp_gre_seqno_hook)(void *skb) = NULL;
+	void (*sync_tx_pptp_gre_seqno_hook)(struct sk_buff *skb) = NULL;
 #ifdef CONFIG_FAST_PATH_MODULE
 EXPORT_SYMBOL(sync_tx_pptp_gre_seqno_hook);
 #endif
+#endif
+
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT)&&defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+extern int rtl_getMaxDecisionBitMap(unsigned int* maxDecision);
 #endif
 
 #if !defined(CONFIG_RTK_VLAN_SUPPORT)
@@ -168,7 +171,20 @@ int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb)
 	rtl865x_napt_entry rtl865xNaptEntry;
 	rtl865x_priority rtl865xPrio;
 	#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
+	#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	int i;
+	int cnt = 0;
+	int first_match = 0;
+	int maxDownPriority = 0;
+	int maxUpPriority = 0;
+	unsigned int maxDecisionBitMap = 0;
+	unsigned int downPriority[max_decision_priority];
+	unsigned int upPriority[max_decision_priority];
+	unsigned int maxDecision[max_decision_priority];
+	rtl865x_qos_mark rtl865xQosMark[max_decision_priority];
+	#else
 	rtl865x_qos_mark rtl865xQosMark;
+	#endif
 	#endif
 #endif
 
@@ -249,7 +265,53 @@ int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb)
 			rtl865xNaptEntry.extPort=gp;
 			rtl865xNaptEntry.remIp=dip;
 			rtl865xNaptEntry.remPort=dp;
-	
+			
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+			memset(upPriority, 0, sizeof(upPriority));
+			memset(downPriority, 0, sizeof(downPriority));
+			memset(maxDecision, 0, sizeof(maxDecision));
+			memset(rtl865xQosMark, 0, sizeof(rtl865xQosMark));
+		
+			ret=rtl_qosGetSkbMarkByNaptEntry(&rtl865xNaptEntry, rtl865xQosMark, skb);
+			lanDev=rtl865x_getLanDev();
+			wanDev=rtl865x_getWanDev();
+			for (i=port_decision_priority; i<max_decision_priority; i++) {
+				if (rtl865xQosMark[i].downlinkMark) {
+					downPriority[i] = rtl_qosGetPriorityByMark(lanDev->name, rtl865xQosMark[i].downlinkMark);
+				}
+
+				if (rtl865xQosMark[i].uplinkMark) {
+					upPriority[i] = rtl_qosGetPriorityByMark(wanDev->name, rtl865xQosMark[i].uplinkMark);
+				}
+			}
+
+			rtl_getMaxDecisionBitMap(&maxDecisionBitMap);
+			for (i=0; i<5; i++) {
+				if (maxDecisionBitMap&(1<<i)) {
+					if (++cnt == 1)
+						first_match = i;
+					maxDecision[i] = 1;
+				}
+			}
+
+			if (cnt == 1) {	//only one decision priority is max, so just use this decision
+				rtl865xPrio.downlinkPrio = downPriority[first_match];
+				rtl865xPrio.uplinkPrio = upPriority[first_match];
+				/*Should I update skb->mark here?*/
+			} else if (cnt > 1) {	//more than one decision priority are max, use the highest priority
+				for (i=0; i<5; i++) {
+					if ((maxDecision[i]==1)) {
+						if (downPriority[i] > maxDownPriority)
+							maxDownPriority = downPriority[i];
+
+						if (upPriority[i] > maxUpPriority)
+							maxUpPriority = upPriority[i];
+					}
+				}
+				rtl865xPrio.downlinkPrio = maxDownPriority;
+				rtl865xPrio.uplinkPrio = maxUpPriority;				
+			}
+#else
 			rtl865xQosMark.downlinkMark=0;	//Initial
 			rtl865xQosMark.uplinkMark=0;	//Initial
 			ret=rtl_qosGetSkbMarkByNaptEntry(&rtl865xNaptEntry, &rtl865xQosMark, skb);
@@ -258,6 +320,8 @@ int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb)
 			wanDev=rtl865x_getWanDev();
 			rtl865xPrio.downlinkPrio=rtl_qosGetPriorityByMark(lanDev->name, rtl865xQosMark.downlinkMark);
 			rtl865xPrio.uplinkPrio=rtl_qosGetPriorityByMark(wanDev->name, rtl865xQosMark.uplinkMark);
+#endif
+
 
 			if(lanDev)
 				dev_put(lanDev);
@@ -416,7 +480,7 @@ int get_dev_ip_mask(const char * name, unsigned int *ip, unsigned int *mask)
 }
 
 
-#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_WLAN_DOS_FILTER) ||defined(CONFIG_RTL_BATTLENET_ALG) ||defined(CONFIG_RTL_USB_IP_HOST_SPEEDUP) || defined(CONFIG_HTTP_FILE_SERVER_SUPPORT) || defined(CONFIG_RTL_USB_UWIFI_HOST_SPEEDUP)
+#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_WLAN_DOS_FILTER) ||defined(CONFIG_RTL_BATTLENET_ALG)
 unsigned int _br0_ip;
 unsigned int _br0_mask;
 #ifndef CONFIG_RTL8686_GMAC
@@ -425,6 +489,7 @@ static void get_br0_ip_mask(void)
 void get_br0_ip_mask(void)
 #endif
 {
+
 	get_dev_ip_mask(RTL_PS_BR0_DEV_NAME, &_br0_ip, &_br0_mask);
 }
 #endif
@@ -714,8 +779,7 @@ static inline int32 rtl_addConnCheck(struct nf_conn *ct, struct iphdr *iph, stru
 	return create_conn;
 }
 
-//#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
-#if 0
+#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
 static int rtl_isWlanPkt(struct nf_conn *ct)
 {
 	int ret = FALSE;
@@ -759,10 +823,8 @@ static int rtl_isWlanPkt(struct nf_conn *ct)
 
 	return ret;
 }
-#endif
 
 
-#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
 static int rtl_checkLanIp(struct nf_conn *ct)
 {
 
@@ -1459,7 +1521,7 @@ int32 rtl_nat_init(void)
 	#endif
 	#endif
 	#if defined(CONFIG_PROC_FS) && !defined(CONFIG_RTL_HARDWARE_NAT)
-	#if defined(CONFIG_RTL_PROC_NEW)
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	proc_sw_nat = proc_create_data("sw_nat", 0, &proc_root,
 			 &sw_nat_proc_fops, NULL);
 	#else
@@ -1789,7 +1851,7 @@ static int qos_write_proc(struct file *file, const char *buffer,
       }
       return -EFAULT;
 }
-#if defined(CONFIG_RTL_PROC_NEW)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 static int qos_read_proc(struct seq_file *s, void *v)
 {
      seq_printf(s, "%s\n", gQosSetting);
@@ -1839,7 +1901,7 @@ static int qos_read_proc(char *page, char **start, off_t off,
 int32 rtl_qos_init(void)
 {
 	#if defined(CONFIG_PROC_FS)
-	#if defined(CONFIG_RTL_PROC_NEW)
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	proc_qos = proc_create_data("qos", 0, &proc_root,
 			 &qos_proc_fops, NULL);
 	#else
@@ -2634,17 +2696,30 @@ int32 rtl_ip_vs_conn_expire_check_delete(struct ip_vs_conn *cp)
 	return SUCCESS;
 }
 
-void rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
+int32 rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
 {
 	#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
 	uint32			ret;
 	struct net_device	*lanDev, *wanDev;
-	rtl865x_qos_mark rtl865xQosMark;
 	#endif
 
 	#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 	rtl865x_napt_entry rtl865xNaptEntry;
 	rtl865x_priority rtl865xPrio;
+	#if defined(CONFIG_RTL_HW_QOS_SUPPORT)&&defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	int i;
+	int cnt = 0;
+	int first_match = 0;
+	int maxDownPriority = 0;
+	int maxUpPriority = 0;
+	unsigned int maxDecisionBitMap = 0;
+	unsigned int downPriority[max_decision_priority];
+	unsigned int upPriority[max_decision_priority];
+	unsigned int maxDecision[max_decision_priority];
+	rtl865x_qos_mark rtl865xQosMark[max_decision_priority];
+	#else
+	rtl865x_qos_mark rtl865xQosMark;
+	#endif
 	#endif
 
 	/*2007-12-19*/
@@ -2674,7 +2749,52 @@ void rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const 
 			rtl865xNaptEntry.extPort=cp->vport;
 			rtl865xNaptEntry.remIp=cp->caddr.ip;
 			rtl865xNaptEntry.remPort=cp->cport;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+			memset(upPriority, 0, sizeof(upPriority));
+			memset(downPriority, 0, sizeof(downPriority));
+			memset(maxDecision, 0, sizeof(maxDecision));
+			memset(rtl865xQosMark, 0, sizeof(rtl865xQosMark));
+		
+			ret=rtl_qosGetSkbMarkByNaptEntry(&rtl865xNaptEntry, rtl865xQosMark, skb);
+			lanDev=rtl865x_getLanDev();
+			wanDev=rtl865x_getWanDev();
+			for (i=port_decision_priority; i<max_decision_priority; i++) {
+				if (rtl865xQosMark[i].downlinkMark) {
+					downPriority[i] = rtl_qosGetPriorityByMark(lanDev->name, rtl865xQosMark[i].downlinkMark);
+				}
 
+				if (rtl865xQosMark[i].uplinkMark) {
+					upPriority[i] = rtl_qosGetPriorityByMark(wanDev->name, rtl865xQosMark[i].uplinkMark);
+				}
+			}
+
+			rtl_getMaxDecisionBitMap(&maxDecisionBitMap);
+			for (i=0; i<5; i++) {
+				if (maxDecisionBitMap&(1<<i)) {
+					if (++cnt == 1)
+						first_match = i;
+					maxDecision[i] = 1;
+				}
+			}
+
+			if (cnt == 1) {	//only one decision priority is max, so just use this decision
+				rtl865xPrio.downlinkPrio = downPriority[first_match];
+				rtl865xPrio.uplinkPrio = upPriority[first_match];
+				/*Should I update skb->mark here?*/
+			} else if (cnt > 1) {	//more than one decision priority are max, use the highest priority
+				for (i=0; i<5; i++) {
+					if ((maxDecision[i]==1)) {
+						if (downPriority[i] > maxDownPriority)
+							maxDownPriority = downPriority[i];
+
+						if (upPriority[i] > maxUpPriority)
+							maxUpPriority = upPriority[i];
+					}
+				}
+				rtl865xPrio.downlinkPrio = maxDownPriority;
+				rtl865xPrio.uplinkPrio = maxUpPriority;				
+			}
+#else
 			rtl865xQosMark.downlinkMark=0;	//Initial
 			rtl865xQosMark.uplinkMark=0;	//Initial
 			ret=rtl_qosGetSkbMarkByNaptEntry(&rtl865xNaptEntry, &rtl865xQosMark, skb);
@@ -2683,6 +2803,7 @@ void rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const 
 			wanDev=rtl865x_getWanDev();
 			rtl865xPrio.downlinkPrio=rtl_qosGetPriorityByMark(lanDev->name, rtl865xQosMark.downlinkMark);
 			rtl865xPrio.uplinkPrio=rtl_qosGetPriorityByMark(wanDev->name, rtl865xQosMark.uplinkMark);
+#endif
 			if(lanDev)
 				dev_put(lanDev);
 
@@ -2717,16 +2838,29 @@ void rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const 
 	}
 }
 
-void rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
+int32 rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp)
 {
 	#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
 	uint32 ret;
 	struct net_device	*lanDev, *wanDev;
-	rtl865x_qos_mark rtl865xQosMark;
 	#endif
 	#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 	rtl865x_napt_entry rtl865xNaptEntry;
 	rtl865x_priority rtl865xPrio;
+	#if defined(CONFIG_RTL_HW_QOS_SUPPORT)&&defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	int i;
+	int cnt = 0;
+	int first_match = 0;
+	int maxDownPriority = 0;
+	int maxUpPriority = 0;
+	unsigned int maxDecisionBitMap = 0;
+	unsigned int downPriority[max_decision_priority];
+	unsigned int upPriority[max_decision_priority];
+	unsigned int maxDecision[max_decision_priority];
+	rtl865x_qos_mark rtl865xQosMark[max_decision_priority];
+	#else
+	rtl865x_qos_mark rtl865xQosMark;
+	#endif
 	#endif
 
 	/*2007-12-19*/
@@ -2744,7 +2878,52 @@ void rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const 
 			rtl865xNaptEntry.extPort=cp->vport;
 			rtl865xNaptEntry.remIp=cp->caddr.ip;
 			rtl865xNaptEntry.remPort=cp->cport;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+			memset(upPriority, 0, sizeof(upPriority));
+			memset(downPriority, 0, sizeof(downPriority));
+			memset(maxDecision, 0, sizeof(maxDecision));
+			memset(rtl865xQosMark, 0, sizeof(rtl865xQosMark));
+		
+			ret=rtl_qosGetSkbMarkByNaptEntry(&rtl865xNaptEntry, rtl865xQosMark, skb);
+			lanDev=rtl865x_getLanDev();
+			wanDev=rtl865x_getWanDev();
+			for (i=port_decision_priority; i<max_decision_priority; i++) {
+				if (rtl865xQosMark[i].downlinkMark) {
+					downPriority[i] = rtl_qosGetPriorityByMark(lanDev->name, rtl865xQosMark[i].downlinkMark);
+				}
 
+				if (rtl865xQosMark[i].uplinkMark) {
+					upPriority[i] = rtl_qosGetPriorityByMark(wanDev->name, rtl865xQosMark[i].uplinkMark);
+				}
+			}
+
+			rtl_getMaxDecisionBitMap(&maxDecisionBitMap);
+			for (i=0; i<5; i++) {
+				if (maxDecisionBitMap&(1<<i)) {
+					if ((++cnt) == 1)
+						first_match = i;
+					maxDecision[i] = 1;
+				}
+			}
+
+			if (cnt == 1) {	//only one decision priority is max, so just use this decision
+				rtl865xPrio.downlinkPrio = downPriority[first_match];
+				rtl865xPrio.uplinkPrio = upPriority[first_match];
+				/*Should I update skb->mark here?*/
+			} else if (cnt > 1) {	//more than one decision priority are max, use the highest priority
+				for (i=0; i<5; i++) {
+					if ((maxDecision[i]==1)) {
+						if (downPriority[i] > maxDownPriority)
+							maxDownPriority = downPriority[i];
+
+						if (upPriority[i] > maxUpPriority)
+							maxUpPriority = upPriority[i];
+					}
+				}
+				rtl865xPrio.downlinkPrio = maxDownPriority;
+				rtl865xPrio.uplinkPrio = maxUpPriority;				
+			}
+#else
 			rtl865xQosMark.downlinkMark=0;	//Initial
 			rtl865xQosMark.uplinkMark=0;	//Initial
 			ret=rtl_qosGetSkbMarkByNaptEntry(&rtl865xNaptEntry, &rtl865xQosMark, skb);
@@ -2753,7 +2932,7 @@ void rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const 
 			wanDev=rtl865x_getWanDev();
 			rtl865xPrio.downlinkPrio=rtl_qosGetPriorityByMark(lanDev->name, rtl865xQosMark.downlinkMark);
 			rtl865xPrio.uplinkPrio=rtl_qosGetPriorityByMark(wanDev->name, rtl865xQosMark.uplinkMark);
-
+#endif
 			if(lanDev)
 				dev_put(lanDev);
 
@@ -2820,7 +2999,7 @@ int32 rtl8198c_ipv6_router_add(struct rt6_info *rt)
 		
 		addr_type = ipv6_addr_type(&ipDst);
 		if ((((ipDst.v6_addr32[0]==0)&&(ipDst.v6_addr32[1]==0)&&(ipDst.v6_addr32[2]==0)&&(ipDst.v6_addr32[3]==0)) ||
-		     ((!(addr_type&IPV6_ADDR_MULTICAST))&&(!(addr_type&IPV6_ADDR_LOOPBACK)))) && (fc_dst_len != 128)){
+		     ((!(addr_type&IPV6_ADDR_MULTICAST))&&(!(addr_type&IPV6_ADDR_LOOPBACK))))&&(fc_dst_len != 128)) {
 			rc = rtl8198c_addIpv6Route(ipDst, fc_dst_len, ipGw, dev_t);
 			#if 0
 			printk("%s:%d:(%s): dst: 0x%4x%4x%4x%4x%4x%4x%4x%4x, fc_dst_len is %d, gw:  0x%4x%4x%4x%4x%4x%4x%4x%4x, dev: %s, errno=%d\n",
@@ -3006,7 +3185,7 @@ static int print_log_write_proc(struct file *file, const char *buffer,
 	return count;
 }
 
-#if defined(CONFIG_RTL_PROC_NEW)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 static int print_log_read_proc(struct seq_file *s, void *v)
 {
 	char * data = (char *)s->private;
@@ -3105,7 +3284,7 @@ void log_print_proc_init(void)
 	proc_log_print_control= proc_mkdir("log_print_control",NULL);
 	if(proc_log_print_control)
 	{
-		#if defined(CONFIG_RTL_PROC_NEW)
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 		proc_printMask = proc_create_data(print_Mask_ID, 0, proc_log_print_control,
 			 &print_log_proc_fops, print_Mask_ID);
 

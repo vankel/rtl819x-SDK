@@ -229,22 +229,59 @@ function wlan_adv_switch()
 	onclick_mc2u();
 	document.advanceSetup.elements["RFPower"][<% getIndex("RFPower"); %>].checked = true;
 
-	if (<% getIndex("tdls_prohibited"); %> == 1){
-		document.advanceSetup.elements["tdls_prohibited_"][0].checked = true;
-		document.advanceSetup.elements["tdls_cs_prohibited_"][0].disabled = true;
-		document.advanceSetup.elements["tdls_cs_prohibited_"][1].checked = true;
-		document.advanceSetup.elements["tdls_cs_prohibited_"][1].disabled = true;	
+	if(<% getIndex("isStaControlDefined"); %> == 1 && wlan_idx_ == 1) {	
+		document.getElementById("stactrl").style.display = "";
+		if (<% getIndex("staControlEnabled"); %> == 1)
+			document.advanceSetup.elements["staControlEnabled"].checked=true;			
+		else 
+			document.advanceSetup.elements["staControlEnabled"].checked=false;
+		updateStaControlState(document.advanceSetup, wlan_mode);
 	}
-	else{
-		document.advanceSetup.elements["tdls_prohibited_"][1].checked = true;
-		
+	else {
+		document.getElementById("stactrl").style.display = "none";
+	}
+
+	if(wlan_mode == 0)
+	{
+		if (<% getIndex("tdls_prohibited"); %> == 1){
+			document.advanceSetup.elements["tdls_prohibited_"][0].checked = true;
+			document.advanceSetup.elements["tdls_cs_prohibited_"][0].disabled = true;
+			document.advanceSetup.elements["tdls_cs_prohibited_"][1].checked = true;
+			document.advanceSetup.elements["tdls_cs_prohibited_"][1].disabled = true;	
+		}
+		else{
+			document.advanceSetup.elements["tdls_prohibited_"][1].checked = true;
+			
+			if (<% getIndex("tdls_cs_prohibited"); %> == 1)
+				document.advanceSetup.elements["tdls_cs_prohibited_"][0].checked = true;
+			else
+				document.advanceSetup.elements["tdls_cs_prohibited_"][1].checked = true;
+		}
+
 		if (<% getIndex("tdls_cs_prohibited"); %> == 1)
 			document.advanceSetup.elements["tdls_cs_prohibited_"][0].checked = true;
 		else
 			document.advanceSetup.elements["tdls_cs_prohibited_"][1].checked = true;
 	}
+}
 
-	
+function updateStaControlState(form, wlan_mode)
+{   
+	disableCheckBox(form.elements["staControlEnabled"]);
+	form.elements["staControlPrefer"].disabled = true;
+
+ 	
+	if(wlan_mode==0 ||
+	   wlan_mode==3 ||
+	   wlan_mode==4
+	  )
+	{     	
+		enableCheckBox(form.elements["staControlEnabled"]);
+		if (form.elements["staControlEnabled"].checked)
+		{
+			form.elements["staControlPrefer"].disabled = false;
+		}	
+	}  	
 }
 
 function onClick_func(enable)
@@ -477,6 +514,21 @@ document.write('<option value="' + 0 + '">' + rate_name[0] + '\n');
 	  <input type="radio" name="RFPower" value="3">35%&nbsp;&nbsp;
 	  <input type="radio" name="RFPower" value="4">15%</td>
     </tr>
+
+    
+  <tr id="stactrl" style="display:none">
+    <td width="35%"><font size=2><b>
+   	<input type="checkbox" name="staControlEnabled" value="ON" 
+		ONCLICK="updateStaControlState(document.advanceSetup, wlan_mode)">&nbsp;&nbsp; Enable STA Control</b>
+      </td>
+     <td width="60%"><font size=2>
+		<select size="1" name="staControlPrefer">
+    		<option value="0">Prefer 5GHz</option>
+   			<option value="1">Prefer 2GHz</option>
+    	</select>
+	</td>	      
+  </tr>
+    
   </table>
   <p>
   <input type="submit" value="Apply Changes" name="save" onClick="return saveChanges()">&nbsp;&nbsp;

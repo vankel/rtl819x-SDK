@@ -432,7 +432,7 @@ struct sk_buff {
 	 * first. This is owned by whoever has the skb queued ATM.
 	 */
 	char			cb[48] __aligned(8);
-	
+
 	/*This field is only needed by RtL8190 Driver.FIX ME!!!*/
         unsigned char   __unused;
 	
@@ -2524,14 +2524,15 @@ extern struct sk_buff *skb_recv_datagram(struct sock *sk, unsigned flags,
 					 int noblock, int *err);
 extern unsigned int    datagram_poll(struct file *file, struct socket *sock,
 				     struct poll_table_struct *wait);
-#ifdef CONFIG_RTL_SENDFILE_PATCH
-extern int	       skb_copy_datagram_iovec1(const struct sk_buff *from,
-					       int offset, struct iovec *to,
-					       int size);
-#endif /* CONFIG_RTL_SENDFILE_PATCH */
 extern int	       skb_copy_datagram_iovec(const struct sk_buff *from,
 					       int offset, struct iovec *to,
 					       int size);
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+//Patch by G2NAS:enhance performance from socket to file
+extern int             skb_copy_datagram_to_kernel_iovec(const struct sk_buff *from,
+                                               int offset, struct iovec *to,
+                                               int size);
+#endif /* CONFIG_RTL_SENDFILE_PATCH */
 extern int	       skb_copy_and_csum_datagram_iovec(struct sk_buff *skb,
 							int hlen,
 							struct iovec *iov);

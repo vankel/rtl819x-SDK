@@ -31,14 +31,6 @@ struct ioh_header {
 
 struct ioh_class {
 	int sockfd;
-#if defined(IS_CLOUD_DEVICE_DOMAIN_APP_SUPPORT)
-	int ds_fd; // domain socket fd of cloud_device
-	int which_fd; // 1-sockfd; 2-ds_fd
-	unsigned char inband_cmd;
-	unsigned short inband_data_len;
-	int local_magic;
-    int thread_id;
-#endif
 	char dev[64];
 	unsigned char src_mac[ETH_MAC_LEN];
 	unsigned char dest_mac[ETH_MAC_LEN];

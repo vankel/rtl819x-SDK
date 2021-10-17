@@ -2,6 +2,15 @@
 VERSION=1.7.2
 RELEASE=
 
+KERNEL_VER=$(patsubst $(DIR_ROOT)/%,%,$(DIR_LINUX))
+
+ifeq ($(KERNEL_VER),linux-2.6.30)
+include ../../linux-2.6.30/.config
+endif
+ifeq ($(KERNEL_VER),linux-3.10)
+include ../../linux-3.10/.config
+endif
+
 #################################################################
 # CHANGE THIS LINE to point to the location of your pppd binary.
 PPPD = /usr/sbin/pppd
@@ -19,6 +28,10 @@ INCLUDE =
 #CFLAGS  = -Wall $(OPTIMIZE) $(DEBUG) $(INCLUDE)
 CFLAGS  += -Wall $(OPTIMIZE) $(INCLUDE) -DNO_LD_SHARELIB #-ffunction-sections -fdata-sections
 CFLAGS += $(EXTRA_CFLAGS)
+
+ifeq ($(CONFIG_RTL_PPTP_CTL_DIRECT_REPLY), y)
+CFLAGS	+= -DCONFIG_KERNEL_DIRECT_REPLY
+endif
 #LIBS	= -lutil
 # Solaris 10
 # LIBS	= -lnsl -lsocket -lresolv

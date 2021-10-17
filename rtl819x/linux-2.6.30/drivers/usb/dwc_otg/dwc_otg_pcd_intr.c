@@ -758,7 +758,7 @@ int32_t dwc_otg_pcd_handle_usb_reset_intr( dwc_otg_pcd_t * _pcd)
 	int i = 0;
 	gintsts_data_t gintsts;
 	
-#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
+#if defined(CONFIG_RTL_ULINKER)
 	extern unsigned long rst_jiffies;
 	rst_jiffies = jiffies;
 	BDBG_GADGET_MODE_SWITCH("[%s:%d] rst_jiffies[%lu]\n", __FUNCTION__, __LINE__, rst_jiffies);
@@ -1818,7 +1818,7 @@ static void complete_ep( dwc_otg_pcd_ep_t *_ep )
 		if (deptsiz.b.xfersize == 0 && deptsiz.b.pktcnt == 0 &&
 				_ep->dwc_ep.xfer_count == _ep->dwc_ep.xfer_len) 
 		{
-		#if !defined(CONFIG_RTL_ULINKER) && !defined(CONFIG_RTL_8881A_ULINKER)
+		#if !defined(CONFIG_RTL_ULINKER)
 			//only support zlp on endpoint 1 (bulk in)
 			if((_ep->dwc_ep.num == 1) && !_ep->dwc_ep.sent_zlp && !(_ep->dwc_ep.xfer_len & (_ep->dwc_ep.maxpacket-1))){
 				_ep->dwc_ep.sent_zlp = 1;
@@ -2676,7 +2676,7 @@ int32_t dwc_otg_pcd_handle_out_nak_effective( dwc_otg_pcd_t *_pcd )
  * All interrupt registers are processed from LSB to MSB.
  * 
  */
-#if defined(CONFIG_RTL_ULINKER) || defined(CONFIG_RTL_8881A_ULINKER)
+#if defined(CONFIG_RTL_ULINKER)
 int fsg_init_once = 0;
 #endif
 #if ULINKER_BRSC_RECOVER_TX_REQ

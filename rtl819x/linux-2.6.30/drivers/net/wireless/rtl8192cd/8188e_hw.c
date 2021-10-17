@@ -216,11 +216,6 @@ void RTL8188E_DetectSTAExistance(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRaInfo, int 
 	struct rtl8192cd_priv *priv = pDM_Odm->priv;
 	PSTA_INFO_T pstat = pDM_Odm->pODM_StaInfo[MacID];
     const unsigned int  txFailSecThr= 3;            // threshold of Tx Fail Time (in second)
-	const unsigned char	TFRL = 7;					// New Retry Limit value
-	const unsigned char	TFRL_FailCnt = 2;			// Tx Fail Count threshold to set Retry Limit
-	const unsigned char	TFRL_SetTime = 2;			// Time to set Retry Limit (in second)
-	const unsigned char	TFRL_RcvTime = 10;			// Time to recover Retry Limit (in second)	
-
 	if(!pstat || !MacID)
 		return;
 #else
@@ -228,10 +223,6 @@ void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO p
 {
     struct stat_info    *pstat = pRaInfo->pstat;
     const unsigned int  txFailSecThr= 3;            // threshold of Tx Fail Time (in second)
-	const unsigned char	TFRL = 7;					// New Retry Limit value
-	const unsigned char	TFRL_FailCnt = 2;			// Tx Fail Count threshold to set Retry Limit
-	const unsigned char	TFRL_SetTime = 2;			// Time to set Retry Limit (in second)
-	const unsigned char	TFRL_RcvTime = 10;			// Time to recover Retry Limit (in second)	
 #endif
 
 	if(OPMODE & WIFI_STATION_STATE)
@@ -251,14 +242,6 @@ void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO p
 		if (pstat->leave)
 			return;
 	
-		if((priv->up_time >= (pstat->tx_last_good_time+TFRL_SetTime)) &&
-			pstat->tx_conti_fail_cnt >= TFRL_FailCnt && 
-			!priv->pshare->bRLShortened )
-		{ // Shorten retry limit, because AP spending too much time to send out g mode STA pending packets in HW queue.
-			RTL_W16(RL, (TFRL&SRL_Mask)<<SRL_SHIFT|(TFRL&LRL_Mask)<<LRL_SHIFT);
-			priv->pshare->bRLShortened = TRUE;
-			DEBUG_WARN( "== Shorten RetryLimit to 0x%04X ==\n", RTL_R16(RL) );
-		}
         pstat->tx_conti_fail_cnt += pRaInfo->DROP;
         if((pstat->tx_conti_fail_cnt >= priv->pshare->rf_ft_var.max_pkt_fail) ||
             (pstat->tx_conti_fail_cnt >= priv->pshare->rf_ft_var.min_pkt_fail && priv->up_time >= (pstat->tx_last_good_time+txFailSecThr) )
@@ -266,6 +249,9 @@ void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO p
             DEBUG_INFO("sta aid:%d leave\n", pstat->aid);
             ++(pstat->leave);
             RTL8188E_MACID_NOLINK(priv, 1, REMAP_AID(pstat));
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+            free_sta_tx_skb(priv, pstat);
+#endif
 
             // Reset Counter
             pstat->tx_conti_fail_cnt = 0;

@@ -37,11 +37,14 @@
 #define HY27US08561A      0xAD75AD75    /*Hynix SLC, 256 Mbit, 1 dies */
 #define F59L1G81A               0x92F18095 
 #define F59L4G81A  		0xc8dc9095
+#define F59L1G81LA  0xc8d18095
+
 //porting cl
 #define S34ML01G200TFI000 0x01F1801D
 
 #define S34ML02G200TFI00  0x01DA9095
-  
+  //01h/DCh/90h/95h/56h
+#define S34ML04G200TFI00  0x01DC9095
   //typedef unsigned int uint32;
 extern void *malloc (uint32 nbytes );  /* bytes to allocate */
 extern void free (void *ap );
@@ -80,8 +83,9 @@ const struct device_type nand_device[] = {
 /*debug cl*/
   {"F59L1G81A", F59L1G81A, 128, ((2048) * 64 * 1024), 2048, 1024, 64 * 2048,
    64, 1, 0, 0x0, 0x00, 0x00, 0x00},
-  {"F59L4G81A", F59L4G81A, 0x20000000, ((4096) * 64 * 2048), 2048, 4096, 64 * 2048,
-   64, 1, 0, 0x0, 0x00, 0x00, 0x00},
+  {"F59L4G81A", F59L4G81A, 0x20000000, ((4096) * 64 * 2048), 2048, 4096, 64 * 2048,64, 1, 0, 0x0, 0x00, 0x00, 0x00},
+
+  {"F59L1G81LA", F59L1G81LA, 0x20000000, ((4096) * 64 * 2048), 2048, 4096, 64 * 2048,64, 1, 0, 0x0, 0x00, 0x00, 0x00},
 /*debug cl*/
   {"S34ML01G200TFI000", S34ML01G200TFI000, 128, ((2048) * 64 * 1024), 2048, 1024, 64 * 2048,
    64, 1, 0, 0x0, 0x00, 0x00, 0x00},
@@ -96,6 +100,7 @@ const struct device_type nand_device[] = {
   /* 256M 2048+128 */
   {"S34ML02G200TI00",S34ML02G200TFI00,0x10000000,((2048) * 64 * 2048), 2048, 2048, 64 * 2048, 64, 1, 0, 0x44, 0x00, 0x00, 0x00}, 
 	
+  {"S34ML04G200TI00",S34ML04G200TFI00,0x20000000,((2048) * 64 * 2048), 2048, 2048, 64 * 2048, 64, 1, 0, 0x44, 0x00, 0x00, 0x00}, 
 };
 
 
@@ -4192,3 +4197,172 @@ ew @ $NACMR = 0x40000010:check_ready_5
 
 }
 
+/* must block size aligned */
+extern unsigned int gCHKKEY_CNT;
+#include "../init/utility.h"
+
+/* src must 4 byte aligned ,and dst must block aligned */
+int nflashwrite(unsigned long dst, unsigned long src, unsigned long length)
+{
+	/* nand flash write function */
+	unsigned int start_block,block_end,start_page;
+	unsigned int addr,page,offset = 0;
+	unsigned char *tmp_oob = NULL;
+	int i;
+
+	start_block = dst>>block_shift;
+	block_end = (length+dst-1)>>block_shift;
+	start_page = ((dst)/page_size);
+
+	if(length == 0)
+		return 0;
+
+	tmp_oob = (unsigned char*)malloc((sizeof(char)*ppb*oob_size));
+	if(tmp_oob == NULL){
+		prom_printf("malloc tmpoob fail\n");
+		return -1;
+	}
+	
+	//prom_printf("form %x to %x\n",start_block,(block_end));
+	memset(tmp_oob,0xff,(sizeof(char)*ppb*oob_size));
+	
+#ifdef CONFIG_RTK_NAND_BBT
+	for(i=start_block;i<block_end+1;i++){ //caculate how many block.
+		addr = (i << block_shift);
+		page = i * ppb;
+		if(nand_erase_nand(addr, block_size)){
+			printf("%s: erase blockv:%x pagev:%x fail!\n",__FUNCTION__, i, page);
+			if(tmp_oob)
+				free(tmp_oob);
+			return -1;
+		}
+		if(nand_write_ecc_ob(addr, block_size, src+offset, tmp_oob)){
+			printf("%s: nand_write_ecc addrv :%x error\n",__FUNCTION__, addr);
+			if(tmp_oob)
+				free(tmp_oob);
+			return -1;
+		}	
+		offset += block_size;//shift buffer ptr one block each time.
+	}
+#else //CONFIG_RTK_NAND_BBT
+	 for(i=0;i<(block_end-start_block+1);i++){ //caculate how many block.
+			NEXT_BLOCK:
+			#if 0	//donot need IMG_BACKUP_ADDR
+			if(!j && (start_page*page_size >= IMG_BACKUP_ADDR)){
+				printf("Warning: block[%d] overwrite IMG_BACKUP_ADDR region!!\n",i);
+				return -1;
+			}
+			#endif
+			while(rtk_block_isbad(start_page*page_size)){
+				start_page+=ppb;
+			}
+
+			if(rtk_write_ecc_page(start_page*page_size, src+offset, block_size)){
+				printf("HW ECC error on this block %d, just skip it!\n", (start_page/ppb));
+				goto NEXT_BLOCK;
+			}
+			offset += block_size;//shift buffer ptr one block each time.
+	}
+#endif //CONFIG_RTK_NAND_BBT			
+	if(tmp_oob)
+		free(tmp_oob);
+		
+	return 0;
+}
+
+
+/* 	
+	default read at DRAM_DIMAGE_ADDR=0xa0a00000 tmp value
+*/
+int nflashread (unsigned long dst, unsigned int src, unsigned long length,int checkEsc)
+{
+	int i;
+	unsigned int start_block=0,block_end = 0, count=0, addr_bt=0,start_page=0,offset=0;
+	
+	unsigned char *ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
+	unsigned char *ptr_oob  = (unsigned char*)malloc((sizeof(char)*ppb*oob_size));
+
+	if(length == 0)
+		return 0;
+
+	offset = src % block_size;
+	start_block = (src >> block_shift);
+	block_end = (src+length-1+offset)>>block_shift;
+	start_page = ((src)/page_size);
+	
+	if(ptr_oob == NULL){
+		return 0;
+	}
+	
+	#ifdef CONFIG_RTK_NAND_BBT
+	count=0;	
+	for(i=start_block;i< block_end+1;i++){ //caculate how many block.
+		addr_bt = (i << block_shift);//real block index, addr.
+		if(nand_read_ecc_ob(addr_bt, block_size, ptr_data+(count*block_size), ptr_oob)){
+			if(ptr_oob)
+				free(ptr_oob);
+            return -1;
+		}
+		count++;
+
+		if(checkEsc){
+			if((i%0x10000) == 0){
+				gCHKKEY_CNT++;
+				if( gCHKKEY_CNT>ACCCNT_TOCHKKEY)
+				{	gCHKKEY_CNT=0;
+					if ( user_interrupt(0)==1 )  //return 1: got ESC Key
+					{
+						#if CONFIG_ESD_SUPPORT//patch for ESD
+              	 		REG32(0xb800311c)|= (1<<23);
+             			#endif
+						//prom_printf("ret=%d  ------> line %d!\n",ret,__LINE__);
+						if(ptr_oob)
+							free(ptr_oob);
+						return -1;
+					}
+				}
+			}
+		}
+	}
+	#else // CONFIG_RTK_NAND_BBT
+	for(i=0;i<(block_end-start_block+1);i++){
+		while(rtk_block_isbad(start_page*page_size)){
+		        start_page+=ppb;
+		}
+		for(j=0;j<ppb;j++){
+			if(rtk_read_ecc_page(start_page+j , ptr_data+ (block_size*i) + (j * page_size), ptr_oob, page_size)){
+			    //printf("read ecc page :%d error\n", start_page+j);
+				break;
+			}
+			 if(checkEsc){
+				if((i%0x10000) == 0){
+					gCHKKEY_CNT++;
+					if( gCHKKEY_CNT>ACCCNT_TOCHKKEY)
+					{	gCHKKEY_CNT=0;
+						if ( user_interrupt(0)==1 )  //return 1: got ESC Key
+						{
+	             			#if CONFIG_ESD_SUPPORT//patch for ESD
+	              	 		REG32(0xb800311c)|= (1<<23);
+	             			#endif
+							//prom_printf("ret=%d  ------> line %d!\n",ret,__LINE__);
+							if(ptr_oob)
+								free(ptr_oob);
+							return -1;
+						}
+					}
+				}			
+		    }     
+		}
+	}
+	#endif
+	
+	if(dst != 0){
+		prom_printf("do copy,dst=%x,src=%x\n",dst,src);
+		memcpy(dst,ptr_data+offset,length);
+	}
+	if(ptr_oob)
+		free(ptr_oob);
+	return 0;
+}
+
+		

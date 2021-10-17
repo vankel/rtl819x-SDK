@@ -10,9 +10,6 @@
 
 #include <asm/time.h>
 
-#if defined(CONFIG_RTL_WTDOG)
-	int is_fault=0; // kernel fault flag
-#endif
 int ext_timer_state(void)
 {
 	return 0;

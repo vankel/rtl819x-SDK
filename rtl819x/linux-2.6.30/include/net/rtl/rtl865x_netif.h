@@ -19,6 +19,9 @@
 #define IF_6RD	5
 #define IF_DSLT	6
 
+#if defined(CONFIG_RTL_INBAND_CTL_ACL)
+#define RTL865X_ACL_TEST_USED		-30002
+#endif
 #define RTL865X_ACL_IPV6_USED		-30000
 #define RTL865X_ACL_QOS_USED2		-20002		/* dummy queue for iptable 2 acl translate */
 #define RTL865X_ACL_QOS_USED1		-20000		/* for default queue */
@@ -453,7 +456,7 @@ typedef struct _rtl865x_AclRule_s
 	#define	RTL8366RB_GMIIPORT		0x20
 	#define	RTL8366RB_LANPORT		0xCf
 	#define	RTL8366RB_WANPORT		0x10
-#elif defined(CONFIG_RTL_819X) && (defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV) || defined(CONFIG_RTL_EXCHANGE_PORTMASK))
+#elif defined(CONFIG_RTL_819X) && (defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV))
 #if defined (CONFIG_POCKET_ROUTER_SUPPORT)
 	#define	RTL_WANPORT_MASK		0x10
 	#define	RTL_LANPORT_MASK			0x10
@@ -486,14 +489,8 @@ typedef struct _rtl865x_AclRule_s
 	#define	RTL_WANPORT_MASK		0x00
 	#define	RTL_LANPORT_MASK			0x11f
     #else
-	#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
-	//change wan port to port0
-	#define RTL_WANPORT_MASK		0x01 //port0
-	#define RTL_LANPORT_MASK			0x11e
-	#else
 	#define	RTL_WANPORT_MASK		0x10
 	#define	RTL_LANPORT_MASK			0x10f
-	#endif
         #endif
 #endif
 #endif
@@ -506,17 +503,10 @@ typedef struct _rtl865x_AclRule_s
     #if defined(CONFIG_RTL_AP_PACKAGE)
     #define     RTL_LANPORT_MASK_0      0x10     //port 4
     #endif
-	#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
-	#define 	RTL_LANPORT_MASK_1		0x10 	//port 4
-	#define RTL_LANPORT_MASK_2		0x8 	//port 3
-	#define 	RTL_LANPORT_MASK_3		0x4 	//port 2
-	#define 	RTL_LANPORT_MASK_4		0x2 	//port 1
-	#else
 	#define 	RTL_LANPORT_MASK_1		0x8		//port 0
 	#define	RTL_LANPORT_MASK_2		0x4		//port 1
 	#define 	RTL_LANPORT_MASK_3		0x2		//port 2
 	#define 	RTL_LANPORT_MASK_4		0x1		//port 3
-	#endif
 	#endif
 	#ifdef CONFIG_8198_PORT5_GMII
 	#define 	RTL_LANPORT_MASK_5		0x20	//port 5
@@ -593,7 +583,6 @@ typedef struct rtl865x_netif_s
 	uint16 	mtuV6; /*netif's ipv6 MTU*/
 #endif
 }rtl865x_netif_t;
-
 /*internal...*/
 int32 _rtl865x_getAclFromAsic(int32 index, rtl865x_AclRule_t *rule);
 

@@ -1,4 +1,0 @@
-#!/bin/sh
-#
-
-hcd -jump 807f0000

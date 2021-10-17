@@ -169,34 +169,6 @@ void __init bsp_serial_init(void)
 #endif
 
 	if (early_serial_setup(&s) != 0) {
-		panic("8198C: bsp_serial_init port 1 failed!");
-	}
-#endif
-
-#ifdef CONFIG_SERIAL_RTL_UART2
-	/*
-	 * UART2
-	 */
-	s.line += 1;
-	s.type = PORT_16550A;
-	s.irq = BSP_UART2_IRQ;
-	s.iotype = UPIO_MEM;
-	s.regshift = 2;
-#if 1
-	s.uartclk = BSP_SYS_CLK_RATE;
-	s.fifosize = 16;
-	//s.flags = UPF_SKIP_TEST | UPF_LOW_LATENCY;
-	s.flags = UPF_SKIP_TEST;
-	s.mapbase = BSP_UART2_MAP_BASE;
-	//s.membase = ioremap_nocache(s.mapbase, BSP_UART0_MAPSIZE);
-	s.membase = ioremap_nocache(s.mapbase, 0x20);
-#else
-    s.flags = UPF_SKIP_TEST | UPF_LOW_LATENCY | UPF_SPD_CUST;
-    s.membase = (unsigned char *)BSP_UART0_BASE;
-    s.custom_divisor = BSP_SYS_CLK_RATE / (BSP_BAUDRATE * 16) - 1;
-#endif
-
-	if (early_serial_setup(&s) != 0) {
 		panic("8198C: bsp_serial_init port 2 failed!");
 	}
 #endif

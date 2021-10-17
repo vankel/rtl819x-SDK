@@ -1582,12 +1582,14 @@ ErrorRes:
 	protocol = GetValueFromNameValueList(&data, "NewProtocol");
 	desc = GetValueFromNameValueList(&data, "NewPortMappingDescription");
 	bool_enabled = GetValueFromNameValueList(&data, "NewEnabled");
+
 	if(!is_ipv4str(int_ip) || !is_number(int_port) || !is_number(ext_port) || !is_number(bool_enabled)  || !is_valid_protocol(protocol))
 	{
 		ClearNameValueList(&data);
 		SoapError(h, 402, "Invalid Args");
 		return;
 	}
+	
 //	syslog(LOG_INFO, "AddportMapping Enabled=%d, %s, description : %s",atoi(bool_enabled), int_ip, desc);
 	eport = (unsigned short)atoi(ext_port);
 	iport = (unsigned short)atoi(int_port);

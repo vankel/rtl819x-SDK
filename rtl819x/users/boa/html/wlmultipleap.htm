@@ -110,21 +110,25 @@ var mssid_num=<%getIndex("wlan_mssid_num");%>;
 		virtual_access[4] = val;
 	}
 
-var rate_mask = [15,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8];
-var rate_name =["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", "MCS0", "MCS1"
-				, "MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", "MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15"];
-var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
+var rate_mask = [31,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8,16,16,16,16,16,16,16,16];
+	var rate_name=["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", 
+		"MCS0", "MCS1", "MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", 
+		"MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15", 
+		"MCS16", "MCS17", "MCS18", "MCS19", "MCS20", "MCS21", "MCS22", "MCS23",];
+	var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
 		"NSS1-MCS5","NSS1-MCS6","NSS1-MCS7","NSS1-MCS8","NSS1-MCS9",
 		"NSS2-MCS0","NSS2-MCS1","NSS2-MCS2","NSS2-MCS3","NSS2-MCS4",
-		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9"];
-
+		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9",
+		"NSS3-MCS0","NSS3-MCS1","NSS3-MCS2","NSS3-MCS3","NSS3-MCS4",
+		"NSS3-MCS5","NSS3-MCS6","NSS3-MCS7","NSS3-MCS8","NSS3-MCS9"];
+	
 function DisplayTxRate(v_index, band, auto, txrate, rf_num,bound)
 {
-	var mask=0, defidx=0, i, rate;
+	var mask, defidx, i, rate;
 	var vht_num;
-	var option_num = 0;
 	
 	mask=0;
+	var option_num = 0;
 	if (auto)
 		txrate=0;
 	if (band & 1)
@@ -132,14 +136,17 @@ function DisplayTxRate(v_index, band, auto, txrate, rf_num,bound)
 	if ((band&2) || (band&4))
 		mask |= 2;
 	if (band & 8) {
-		if (rf_num == 2)
+		if (rf_num == 3)
+			mask |= 28;
+		else if (rf_num == 2)
 			mask |= 12;	
 		else
 			mask |= 4;
 	}	
+	defidx=0;
 	document.write('<option value="' + 0 + '">' + rate_name[0] + '\n');
 	option_num++;
-	for (idx=1, i=1; i<=28; i++) {
+	for (idx=1, i=1; i<=36; i++) {
 		if (rate_mask[i] & mask) {
 			rate = (1 << (i-1));
 		 	if(txrate == 0)
@@ -152,14 +159,25 @@ function DisplayTxRate(v_index, band, auto, txrate, rf_num,bound)
 		}
 	}
 	if(band & 64){
-		if(rf_num==1)
-			vht_num=9;
+		if(rf_num == 3)
+			vht_num = 29; 
+		else if(rf_num == 2)
+			vht_num = 19;
 		else
-			vht_num=19; 
-		for (idx=30, i=0; i<=vht_num; i++) {		
-			rate = ((1 << 31) + i);
+			vht_num = 9;
+		for (idx=40, i=0; i<=vht_num; i++) {
+						rate = ((1 << 31) + i);
+				
 			if (txrate == rate){
 				defidx = option_num;
+			}
+				if((i == 9) || (i == 19) || (i==29))
+			{
+				if(bound == 0)//channel width = 20M
+				{
+					idx++;
+					continue;
+				}
 			}
 			document.write('<option value="' + idx + '">' + vht_rate_name[i] + '\n');
 			idx++;
@@ -209,7 +227,8 @@ function saveChanges(form, wlan_id)
 	        	return false;
 	        }
 			else if(tx_restrict.value >= 0 && tx_restrict.value <= 1000)
-			{				
+			{
+				
 			}
 			else
 			{
@@ -217,7 +236,6 @@ function saveChanges(form, wlan_id)
 				tx_restrict.focus();
 				return false;
 			}
-			
 			
 			rx_restrict = form.elements["rx_restrict"+idx];		
 			if (rx_restrict.value == "") 
@@ -233,7 +251,7 @@ function saveChanges(form, wlan_id)
 	        }
 			else if(rx_restrict.value >= 0 && rx_restrict.value <= 1000)
 			{
-			}		
+			}
 			else
 			{
 				alert('rx_restrict value between 0 to 1000!');
@@ -251,6 +269,7 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
   	var txrate_str;
 	var band, current_value, txrate_idx;
 	var rf_num= <% getIndex("rf_used"); %> ;
+	var bound = <% getIndex("ChannelBonding"); %>;
 
 	txrate_idx = form.elements["TxRate"+wlan_id].selectedIndex;
 	current_value = form.elements["TxRate"+wlan_id].options[txrate_idx].value;
@@ -307,7 +326,8 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS6", "36", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS7", "37", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS8", "38", false, false);
-				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS9", "39", false, false);
+				 if(bound)//not 20M
+				 	form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS9", "39", false, false);
 				 if(rf_num == 2){ //8812_1t1r
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS0", "40", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS1", "41", false, false);
@@ -318,7 +338,8 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS6", "46", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS7", "47", false, false);
 				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS8", "48", false, false);
-				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS9", "49", false, false);
+				 if(bound)//not 20M
+				 	form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS9", "49", false, false);
 				 }
 			}
 
@@ -344,8 +365,10 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
  
  	for (i=0; i<idx; i++) {
  		txrate_str = form.elements["TxRate"+wlan_id].options[i].value;
- 		if(current_value == txrate_str)
+ 		if(current_value == txrate_str){
  			form.elements["TxRate"+wlan_id].selectedIndex = i;
+			break;
+ 		}
 		else
 			form.elements["TxRate"+wlan_id].selectedIndex = 0;
  	}
@@ -374,17 +397,11 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
 
   if(band_root ==0){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
-  }else if(band_root ==1){
-	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);
-  }else if(band_root ==2){
+  }else if(band_root ==1 || band_root ==2){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
-  }else if(band_root ==9){
-	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);
-	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
-	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
-  }else if(band_root ==10){
+  }else if(band_root ==9 || band_root ==10){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
@@ -396,28 +413,27 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
   }else if(band_root ==7){
   var Band2G5GSupport=<% getIndex("Band2G5GSupport"); %>;
   if(Band2G5GSupport==1)//2g
-  		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
-  else if(Band2G5GSupport==2)//5g
+  	{
+  		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G+N)", "10", false, false);
+  	}
+  	else if(Band2G5GSupport==2)//5g
+  	{
+  		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
-  }else if(band_root ==11){
+		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
+  	}
+  }
+  else if(band_root ==11 ){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
   }
-  else if(band_root ==63){
-	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
-  }
-   else if(band_root ==67){
-  	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
-  	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
-	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+AC)", "67", false, false);
-  }
-  else if(band_root ==71){
-	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
-	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
-	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N+AC)", "71", false, false);
-  }
-  else if(band_root ==75){
+  else if(band_root ==75 || band_root ==63 || band_root ==71 || band_root ==67){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);

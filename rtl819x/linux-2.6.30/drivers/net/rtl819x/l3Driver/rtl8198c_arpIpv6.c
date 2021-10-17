@@ -40,7 +40,6 @@
 static uint32 rtl8198c_ipv6ArpHash(inv6_addr_t ip, uint32 subnetIdx);
 static int32 rtl8198c_ipv6_arp_callbackFn_for_del_fdb(void *param);
 static int32 rtl8198c_ipv6_arp_register_event(void);
-
 static struct rtl8198c_ipv6_arp_table ipv6ArpTables;
 
 static int32 rtl8198c_ipv6_arp_callbackFn_for_del_fdb(void *param)
@@ -167,7 +166,7 @@ static uint32 rtl8198c_ipv6ArpHash(inv6_addr_t ip, uint32 subnetIdx)
 		hash_idx_arpv6 = hash_idx_arpv6+(arpv6_hash[i]<<i);
 	}
  
-   	 //printk("hash_idx_arpv6:0x%x @ rtl8651_Arpv6TableIndexn\n",hash_idx_arpv6);
+   //	printk("hash_idx_arpv6:0x%x @ rtl8651_Arpv6TableIndexn\n",hash_idx_arpv6);
 	return hash_idx_arpv6&0x3f;
 }
 #if defined(CONFIG_RTL_8198C)
@@ -212,6 +211,7 @@ int32 rtl8198c_getIpv6ArpMapping(inv6_addr_t ip, rtl8198c_ipv6_arpMapping_entry_
 
 	if (arp_mapping == NULL)
 		return FAILED;
+	
 	memset(arp_mapping, 0, sizeof(rtl8198c_ipv6_arpMapping_entry_t));
 	
 	route = &rt_entry;
@@ -219,6 +219,7 @@ int32 rtl8198c_getIpv6ArpMapping(inv6_addr_t ip, rtl8198c_ipv6_arpMapping_entry_
 	retval = rtl8198c_getIpv6RouteEntryByIp(ip, route);
 	if (retval != SUCCESS)
 		return retval;
+
 	if ((route->valid!=1) ||(route->process!=2) ||(route->dstNetif==NULL))
 		return FAILED;
 
@@ -226,14 +227,13 @@ int32 rtl8198c_getIpv6ArpMapping(inv6_addr_t ip, rtl8198c_ipv6_arpMapping_entry_
 	/*ipv6 arp table use 4-way hash*/
 	for (hash_low=0; hash_low<4; hash_low++)
 	{
-		hash = hash_high<<2 |hash_low;
+		hash = hash_high<<2 |hash_low;		
 		if ((memcmp(&ipv6ArpTables.mappings[hash].ip, &ip, sizeof(inv6_addr_t))==0)&&
 			(ipv6ArpTables.mappings[hash].subnetIdx==route->arp.subnetIdx)) {
 			memcpy(arp_mapping, &(ipv6ArpTables.mappings[hash]), sizeof(rtl8198c_ipv6_arpMapping_entry_t));
 			return SUCCESS;
 		}
 	}
-
 	return FAILED;
 }
 
@@ -315,6 +315,16 @@ int32 rtl8198c_addIpv6Arp(inv6_addr_t ip, ether_addr_t *mac)
 	rtl8198C_tblAsicDrv_arpV6Param_t asicArpEntry;
 	
 	uint32 fdb_type[]={ FDB_STATIC, FDB_DYNAMIC };
+
+
+	#if 0
+	printk("%s.%d.ipAddr(0x%4x%4x%4x%4x%4x%4x%4x%4x),mac(%02x:%02x:%02x:%02x:%02x:%02x)****\n",
+			__FUNCTION__,__LINE__,
+			ip.v6_addr16[0],ip.v6_addr16[1],ip.v6_addr16[2],ip.v6_addr16[3],
+			ip.v6_addr16[4],ip.v6_addr16[5],ip.v6_addr16[6],ip.v6_addr16[7],
+			mac->octet[0],mac->octet[1],
+			mac->octet[2],mac->octet[3],mac->octet[4],mac->octet[5]);
+	#endif
 	
 	if (((ip.v6_addr32[0]==0)&&(ip.v6_addr32[1]==0)&&(ip.v6_addr32[2]==0)&&(ip.v6_addr32[3]==0)) ||(mac==NULL))
 		return RTL_EINVALIDINPUT;
@@ -370,10 +380,12 @@ int32 rtl8198c_addIpv6Arp(inv6_addr_t ip, ether_addr_t *mac)
 	
 	for (i=0; i<2; i++) 
 	{
-		/*
+
+		#if 0
 		printk("%s:%d\n,fid(%d),mac(%02x:%02x:%02x:%02x:%02x:%02x)\n",__FUNCTION__,__LINE__,fid,mac->octet[0],mac->octet[1],
 			mac->octet[2],mac->octet[3],mac->octet[4],mac->octet[5]);
-		*/
+		#endif
+		
 		if (rtl865x_Lookup_fdb_entry(fid, mac, fdb_type[i], &column, &fdbEntry) != SUCCESS)
 			continue;
 

@@ -46,6 +46,24 @@
 #endif
 #endif
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+#define PORT_DECISION_PRIORITY_BITMAP	1<<0
+#define VLAN_DECISION_PRIORITY_BITMAP	1<<1
+#define DSCP_DECISION_PRIORITY_BITMAP	1<<2
+#define ACL_DECISION_PRIORITY_BITMAP		1<<3
+#define NAT_DECISION_PRIORITY_BITMAP	1<<4
+
+enum decision_priority
+{
+	port_decision_priority,
+	vlan_decision_priority,
+	dscp_decision_priority,
+	acl_decision_priority,
+	nat_decision_priority,
+	max_decision_priority,
+};
+#endif
+
 
 /* Don't change this without changing skb_csum_unnecessary! */
 #define CHECKSUM_NONE 0
@@ -455,6 +473,11 @@ struct sk_buff {
 	__u8 original_dscp;
  #endif
 
+ #if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	__u8 	decision_bitmap;
+ 	__u32 	mark_ext[max_decision_priority];
+#endif
+ 
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 /* #if defined(IMPROVE_QOS) && defined(CONFIG_NET_SCHED) */
 	/* This member is only used at fastpath when both IMPROVE_QOS and CONFIG_NET_SCHED are defined. */

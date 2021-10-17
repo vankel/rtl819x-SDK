@@ -210,9 +210,19 @@ void br_fdb_changeaddr(struct net_bridge_port *p, const unsigned char *newaddr)
 							StaMacAndGroup[0],StaMacAndGroup[1],StaMacAndGroup[2],StaMacAndGroup[3],StaMacAndGroup[4],StaMacAndGroup[5],
 							StaMacAndGroup[6],StaMacAndGroup[7],StaMacAndGroup[8],StaMacAndGroup[9],StaMacAndGroup[10],StaMacAndGroup[11]);
 					}
+				#ifdef CONFIG_RTL_8370_SUPPORT
+					{
+					extern void rtl8370L2McastAddrUpdate(int mode, unsigned int groupAddress, unsigned int clientAddr, unsigned char *mac);
+					unsigned int ga;
+					ga = (StaMacAndGroup[3] << 16) | (StaMacAndGroup[4] << 8) | (StaMacAndGroup[5]);
+					rtl8370L2McastAddrUpdate(2, ga, 0xFFFFFFFF, StaMacAndGroup+6);
+					}
+				#endif								
 				}
 					
-				#if defined(CONFIG_RTL_92D_SUPPORT)|| defined(CONFIG_RTL_8812_SUPPORT)||defined (CONFIG_RTL_8881A)
+				//#if defined(CONFIG_RTL_92D_SUPPORT)|| defined(CONFIG_RTL_8812_SUPPORT)||defined (CONFIG_RTL_8881A)
+				//dual band
+				#if (defined (CONFIG_USE_PCIE_SLOT_0) )&&(defined (CONFIG_USE_PCIE_SLOT_1)||defined (CONFIG_RTL_8881A))
 				
 				dev = __dev_get_by_name(&init_net, RTL_PS_WLAN1_DEV_NAME);	
 	
@@ -1060,4 +1070,5 @@ int rtl_delFdbByMac(const unsigned char *macAddr, const char* devName)
 	return FAILED;
 }		
 #endif
+
 

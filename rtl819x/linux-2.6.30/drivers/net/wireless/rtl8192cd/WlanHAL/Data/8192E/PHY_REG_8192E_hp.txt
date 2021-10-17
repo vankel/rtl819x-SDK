@@ -11,9 +11,9 @@
 0x818	0x02220385  // 92E testchip 0x818[17]=1b1 for IQ inverse                                                           	
 0x81c	0x00000000                                                                                                          	
 0x820	0x01000100  // 0x01000000 (SI)  0x01000100 (PI)                                                                     	
-0x824	0x00390204  // 92E testchip 0x824[22:20]=3h6 for RF path-A mode table setting  C-cut back to 3                                      	
+0x824	0x00390004  // 92E testchip 0x824[22:20]=3h6 for RF path-A mode table setting  C-cut back to 3                                      	
 0x828	0x01000100  // 0x01000000 (SI)  0x01000100 (PI)                                                                     	
-0x82c	0x00390204  // 92E testchip 0x82c[22:20]=3h6 for RF path-B mode table setting  C-cut back to 3                                      	
+0x82c	0x00390004  // 92E testchip 0x82c[22:20]=3h6 for RF path-B mode table setting  C-cut back to 3                                      	
 0x830	0x32323232  // Path-B TX AGC codewod  6M  9M 12M 18M                                                              	
 0x834	0x30303030  // Path-B TX AGC codewod  24M 36M 48M 54M                                                            	
 0x838	0x30303030  // Path-B TX AGC codewod  MCS32 1M 2M 5.5M                                                           	
@@ -70,7 +70,7 @@
 0xa00	0x00d0c7c8  // bit7 ant div enable                                                   	
 0xa04	0x81ff000c                                                   	
 0xa08	0x8c838300 // MP: 0x88838300  driver: 0x8ccd8300             	
-0xa0c	0x2e68120f                                                   	
+0xa0c	0x2e2e120f                                                   	
 0xa10	0x95009b78 //                                                	
 0xa14	0x1114D028                                                   	
 0xa18	0x00881117                                                   	
@@ -78,7 +78,7 @@
 0xa20	0x1a1b0000                                                   	
 0xa24	0x090e1317                                                   	
 0xa28	0x00000204                                                   	
-0xa2c	0x10d30000                                                   	
+0xa2c	0x00d30000                                                   	
 0xa70	0x101fbf00                                                   	
 0xa74	0x00000007                                                   	
 0xa78	0x00000900                                                   	

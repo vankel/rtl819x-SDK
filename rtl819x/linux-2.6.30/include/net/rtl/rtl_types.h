@@ -368,7 +368,7 @@
 
 // to_be_checked !!!, since kernel does not has panic_printk
 //#ifdef CONFIG_RTL_8198C // modified by lynn_pu, 2014-10-21
-#if defined(CONFIG_RTL_8198C) || ((defined(CONFIG_RTL_8881A)||defined(CONFIG_RTL_8196E)||defined(CONFIG_RTL_819XD))&&(LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)))
+#if defined(CONFIG_RTL_8198C) || (defined(CONFIG_RLX)&&(LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)))
 	#define  rtlglue_printf		printk
 	#define  panic_printk		printk
 #else

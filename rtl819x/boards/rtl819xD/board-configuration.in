@@ -1,0 +1,46 @@
+
+comment "rtl819xD"
+choice
+prompt "Selected Board Configuration"
+default MODEL_RTL819xD_96D_92D_GW
+
+config MODEL_RTL819xD_96D_92D_GW
+        bool "96D+92D GW"
+
+config MODEL_RTL819xD_97D_92C_92D_GW
+        bool "97D+92C+92D GW"
+
+config MODEL_RTL819xD_97D_8367R_GW
+        bool "97D+8367R+92C+8812 GW"
+
+config MODEL_RTL819xD_97D_8367R_92E_8812_GW
+        bool "97D+8367R+92E+8812 GW"
+
+config MODEL_RTL819xD_97DN_8367R_92E_HP_8812_HP_GW
+        bool "97DN+8367R+92E_HP+8812_HP GW"
+
+config MODEL_RTL819xD_97D_8367R_AP
+        bool "97D+8367R AP"
+
+config MODEL_RTL819xD_97D_8370_GW
+        bool "97D+8370+92E+8812 GW"
+
+config MODEL_RTL819xD_97DL_88ER_GW
+        bool "97DL+88ER GW"
+
+config MODEL_RTL819xD_97DL_92C_92D_GW
+        bool "97DL+92C+92D GW"
+
+config MODEL_RTL819xD_97DL_92E_8812_GW
+        bool "97DL+92E+8812 GW"
+
+config MODEL_RTL819xD_97DL_92E_8812AR-VN_GW
+        bool "97DL+92E+8812AR-VN GW"
+	
+config MODEL_RTL819xD_97D_92C_92D_NAND_FLASH_GW
+        bool "97D+92C+92D NAND FLASH GW"
+
+config MODEL_RTL819xD_MP
+        bool "MP"
+
+endchoice

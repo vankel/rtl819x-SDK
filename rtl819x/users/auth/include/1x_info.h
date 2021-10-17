@@ -47,6 +47,11 @@ typedef enum{ERROR_BUFFER_TOO_SMALL = -1, ERROR_INVALID_PARA = -2, ERROR_INVALID
 		ERROR_UNSUPPORTED_RSNEVERSION = -21,  ERROR_INVALID_CAPABILITIES = -22,
 		ERROR_MGMT_FRAME_PROTECTION_VIOLATION = -31}INFO_ERROR;
 
+#ifdef CONFIG_IEEE80211R
+typedef enum{__STATS_INVALID_IE_ = 40, __STATS_INVALID_AKMP_ = 43, _STATS_INVALID_PMKID_ = 53, 
+		_STATS_INVALID_MDIE_ = 54, } INFO_ERROR_FT;
+#endif
+
 #define RSN_STRERROR_BUFFER_TOO_SMALL           "Input Buffer too small"
 #define RSN_STRERROR_INVALID_PARAMETER          "Invalid RSNIE Parameter"
 #define RSN_STRERROR_INVALID_RSNIE              "Invalid RSNIE"
@@ -73,14 +78,6 @@ typedef struct _DOT11_RSN_IE_HEADER {
         u_short Version;
 }DOT11_RSN_IE_HEADER;
 
-#ifdef HS2_SUPPORT
-typedef struct _DOT11_OSEN_IE_HEADER {
-    u_char  ElementID;
-    u_char  Length;
-	u_char  OUI[3];
-    u_char Type;
-}DOT11_OSEN_IE_HEADER;
-#endif
 #ifdef RTL_WPA2
 #define WPA2_ELEMENT_ID                          0x30
 typedef struct _DOT11_WPA2_IE_HEADER {

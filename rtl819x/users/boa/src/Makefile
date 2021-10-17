@@ -75,6 +75,12 @@ EXTRA_CFLAGS =
 # Files
 #------------------------------------------------------------------------------
 REALTEK_FILES = fmtcpip.c fmfwall.c utility.c fmget.c fmwlan.c fmmgmt.c version.c
+
+ifeq ($(CONFIG_APP_RTK_INBAND_CTL), y)
+SHOW_WAN_STATUS_FILES = showwanstatus.c utility.c 
+SHOW_WAN_STATUS_OBJS = $(SHOW_WAN_STATUS_FILES:.c=.o)
+endif
+
 ifeq ($(GW),1)
 REALTEK_FILES += fmddns.c fmroute.c fmipv6.c fmbt.c fmpocketap.c
 endif
@@ -148,20 +154,30 @@ SOURCES = alias.c boa.c buffer.c cgi.c cgi_header.c config.c escape.c \
 	asp_page.c \
 	$(REALTEK_FILES)
 
-OBJS = $(SOURCES:.c=.o) timestamp.o 
+OBJS = $(SOURCES:.c=.o) timestamp.o
 ifeq ($(CONFIG_HTTP_FILE_SERVER_SUPPORT),y)
 OBJS += fmhttp_files.o 
 endif
 #------------------------------------------------------------------------------
 # targets
 #------------------------------------------------------------------------------
-all: fileserver depend boa release
+ifeq ($(CONFIG_APP_RTK_INBAND_CTL), y)
+all: depend boa fileserver release showwanstatus
+else
+all: depend fileserver boa
+endif
 
 #boa:	$(OBJS) 
 #	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) 
 #	
 #boa_indexer:	index_dir.o escape.o   
 #	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+ifeq ($(CONFIG_APP_RTK_INBAND_CTL), y)
+showwanstatus:Makefile $(SHOW_WAN_STATUS_OBJS)
+	$(CC) -o $@ $(SHOW_WAN_STATUS_OBJS) $(LDFLAGS) -L$(APMIB_DIR) -lapmib
+	$(STRIP) $@
+endif
 
 boa: Makefile $(OBJS) $(APMIB_DIR)/$(APMIB_LIB)
 ifdef CONFIG_APP_BOA_WITH_SSL
@@ -174,6 +190,9 @@ endif
 clean:
 	rm -f $(DEPEND)
 	rm -f $(OBJS) boa core *~ boa_indexer
+ifeq ($(CONFIG_APP_RTK_INBAND_CTL), y)
+	rm -f showwanstatus showwanstatus.o
+endif
 	
 distclean:	mrclean
 
@@ -191,17 +210,14 @@ timestamp.o:	$(SOURCES)
 #	$(CPP) $(CPPFLAGS) -MM $^ select.c poll.c access.c > $(DEPEND)
 fileserver:
 ifeq ($(CONFIG_HTTP_FILE_SERVER_SUPPORT),y)
-ifeq ($(CONFIG_RTL_8196E),y)
+ifeq ($(CONFIG_RTL_8198C), y)
 	if [ ! -e fmhttp_files.o ]; then \
-		cp fmhttp_files_4.6.4-4181.obj fmhttp_files.o;\
+		cp fmhttp_files.obj fmhttp_files.o;\
 	fi
 endif
-ifeq ($(CONFIG_RTL_8198C_GW),y)
-	 if [ ! -e fmhttp_files.o ]; then \
-                cp fmhttp_files_msdk-4.4.7.obj fmhttp_files.o;\
-         fi
+
 endif
-endif
+
 depend: $(SOURCES)
 	if [ ! -e $(DEPEND) ]; then \
 		$(CPP) $(DEBUG) $(CFLAGS) $(IFLAGS) -MM $^ > $(DEPEND); \

@@ -85,6 +85,84 @@ int sysctl_tcp_tw_reuse __read_mostly;
 int sysctl_tcp_low_latency __read_mostly;
 
 
+#ifdef CONFIG_RTL_PPTP_CTL_DIRECT_REPLY
+struct pptp_request_ptk
+{
+	unsigned short	packetLength;
+	unsigned short	messageType;
+	unsigned int	magicCookie;
+	unsigned short  ctlmessType;
+	unsigned short  reserved;
+	unsigned int 	identifier;
+};
+struct pptp_reply_ptk
+{	
+	unsigned short	packetLength;
+	unsigned short	messageType;
+	unsigned int	magicCookie;
+	unsigned short  ctlmessType;
+	unsigned short  reserved;
+	unsigned int 	identifier;
+	
+	unsigned char 	resultCode;
+	unsigned char	errorCode;
+	unsigned short	reserved_;
+};
+
+/*direct send pptp echo reply packet*/
+void handle_pptp(struct sk_buff * skb,struct sock *sk)
+{
+	struct tcphdr *rtl_th;					
+	rtl_th = tcp_hdr(skb);
+	struct pptp_request_ptk * pptp_req_ptk =NULL;	
+	struct pptp_reply_ptk	* pptp_rly_ptk,pptp_entry;
+	pptp_rly_ptk = &pptp_entry; 				
+			
+	pptp_req_ptk = (struct pptp_request_ptk *)(((unsigned char*)rtl_th)+rtl_th->doff*4);								
+	if(1==pptp_req_ptk->messageType && 5==pptp_req_ptk->ctlmessType)
+	{					
+		struct msghdr msg;
+		struct iovec iov;
+		struct kiocb iocb;
+		struct sock_iocb siocb;
+		struct sock_iocb *si;
+		unsigned int pptp_length;
+		
+		pptp_length = sizeof(struct pptp_reply_ptk);
+		pptp_rly_ptk->packetLength = 20;
+		pptp_rly_ptk->messageType = 1;
+		pptp_rly_ptk->magicCookie = 0x1a2b3c4d;
+		pptp_rly_ptk->ctlmessType  = 6;
+		pptp_rly_ptk->reserved	= 0;
+		pptp_rly_ptk->identifier  = pptp_req_ptk->identifier;
+		pptp_rly_ptk->resultCode  = 1;
+		pptp_rly_ptk->errorCode  = 0;							
+		pptp_rly_ptk->reserved_   = 0;							
+		
+		iov.iov_base = (unsigned char*)pptp_rly_ptk;
+		iov.iov_len = pptp_length;
+		msg.msg_name = NULL;
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
+		msg.msg_control = NULL;
+		msg.msg_controllen = 0;
+		msg.msg_namelen = 0;							
+		msg.msg_flags = 64;
+		
+		init_sync_kiocb(&iocb, NULL);
+		iocb.private = &siocb;
+		
+		si = kiocb_to_siocb(&iocb);
+		si->sock = sk->sk_socket;
+		si->scm = NULL;
+		si->msg = &msg;
+		si->size = pptp_length;
+		
+		tcp_sendmsg(&iocb,sk->sk_socket,&msg,pptp_length);
+		panic_printk("D rly\n");
+	}
+}
+#endif
 #ifdef CONFIG_TCP_MD5SIG
 static struct tcp_md5sig_key *tcp_v4_md5_do_lookup(struct sock *sk,
 						   __be32 addr);
@@ -1661,6 +1739,12 @@ process:
 
 	bh_lock_sock_nested(sk);
 	ret = 0;
+#ifdef CONFIG_RTL_PPTP_CTL_DIRECT_REPLY
+	if(1723 == th->source)
+	{
+		handle_pptp(skb,sk);
+	}
+#endif	
 	if (!sock_owned_by_user(sk)) {
 #ifdef CONFIG_NET_DMA
 		struct tcp_sock *tp = tcp_sk(sk);

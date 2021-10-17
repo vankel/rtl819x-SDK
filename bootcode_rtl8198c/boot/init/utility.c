@@ -13,8 +13,6 @@
 		//debug cl
 		//#define DRAM_DIMAGE_ADDR       0x80a00000
 		//#define DRAM_DOOB_ADDR           0x81000000
-		#define DRAM_DIMAGE_ADDR       0xa0a00000
-		#define DRAM_DOOB_ADDR           0xa1000000
 		#include "rtk_nand.h" // rtk_check_nand_space, DRAM_DLOADER_ADDR
 		int tftp_img=0;
 		//bootloader will use these parameter to note kernel the rootfs image addr.
@@ -198,91 +196,25 @@ int check_system_image(unsigned long addr,IMG_HEADER_Tp pHeader,SETTING_HEADER_T
 	char image_sig_check[1]={0};
 	char image_sig[4]={0};
 	char image_sig_root[4]={0};
-	#ifdef CONFIG_NAND_FLASH_BOOTING
-	int j;
-	unsigned int start_page=0;
-	unsigned char __attribute__ ((aligned(64))) oob_buf[64];
-	unsigned char *data_buf = (unsigned char *)(DRAM_DIMAGE_ADDR);
-	int jump_to_backup=0;
-	#endif
-
+	
 	if(gCHKKEY_HIT==1)
 		return 0;
 
-#ifdef CONFIG_NAND_FLASH_BOOTING
-		unsigned int page_data=0;
-		unsigned int search_region=0, start_position=0;
-		unsigned char *ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
-		unsigned long  add_real=0;
-		unsigned char *ptr_oob = (volatile unsigned char *)DRAM_DOOB_ADDR;
-		
-		#ifdef CONFIG_RTK_NAND_BBT
-		unsigned int start_block=0, real_addr=0, count=0, addr_bt=0;
-		#endif
-		RUN_BACKUP:
-	   	 ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
-		 if(jump_to_backup){
-		    //dprintf("[%s]:%d\n",__func__,__LINE__);
-		    start_page = ((IMG_BACKUP_ADDR)/page_size)-ppb;
-			start_position = IMG_BACKUP_ADDR;
-		    #ifdef CONFIG_RTK_NAND_BBT
-					start_block = (IMG_BACKUP_ADDR >> block_shift);//virtual block index
-		    #endif			
-		}
-		else
-		{
-			/*check firmware image.*/
-		    //dprintf("[%s]:%d\n",__func__,__LINE__);
-			word_ptr = (unsigned short *)pHeader;
-			start_page = ((addr)/page_size)-ppb;			
-			start_position = addr;
-			#ifdef CONFIG_RTK_NAND_BBT			
-						start_block = (addr >> block_shift);//virtual block index
-			#endif
-		}
-			#ifdef CONFIG_RTK_NAND_BBT
-			//printf("start blockv %x addr %x page_size:%x ppb:%x ptr_data:%x\n\r",start_block,addr,page_size,ppb,ptr_data);
-		    //dprintf("[%s]:%d block_shift = %d\n",__func__,__LINE__,block_shift );
-			count=0;
-			 for(i=start_block;i< start_block+1;i++){ //caculate how many block.
-				addr_bt = (i << block_shift);//real block index, addr.
-		       //printf("blockv:%x addrv:%x addr_bt:%x\n\r",i,addr,addr_bt);
-			   //while(1); //debug cl for safe sake //read a block here
-				if(nand_read_ecc_ob(addr_bt, block_size, ptr_data+(count*block_size), ptr_oob)){
-		                    //printf("%s: nand_read_ecc addrv :%x error\n",__FUNCTION__, addr_bt);
-							//while(1); //debug cl for safe sake
-		                    break;
-				}
-				count++;
-			 }
+#ifdef CONFIG_NAND_FLASH
+	word_ptr = (unsigned short *)pHeader;
+	unsigned char *ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
+	if(nflashread(0,addr,block_size,0)< 0){
+		prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,block_size);
+		return 0;
+	}
+	
+	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
+	{
+		*word_ptr = ((*(ptr_data+1+i))|*(ptr_data+i)<<8)&0xffff;
+	}
 			
-		    //dprintf("[%s]:%d read signature block ok, print header data:...\n",__func__,__LINE__);
-			 //printf("FF size:%x  ptr:%x \r\n",sizeof(IMG_HEADER_T),word_ptr);
-			for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
-			{
-				*word_ptr = ((*(ptr_data+1+i))|*(ptr_data+i)<<8)&0xffff;
-				//printf("%x ",(*word_ptr));
-			}
-			//printf("\r\n");
-			#else // CONFIG_RTK_NAND_BBT
-
-			do{
-				start_page+=ppb;
-			}while(rtk_block_isbad(start_page*page_size));
-			for(j=0;j<ppb;j++){
-				if(rtk_read_ecc_page(start_page+j , ptr_data+ (block_size) + (j * page_size), ptr_oob, page_size)){
-                    //printf("read ecc page :%d error\n", start_page+j);							
-				    break;
-			    }
-			}
-			for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
-			{
-				*word_ptr = ((*(ptr_data+1+i))|*(ptr_data+i)<<8)&0xffff;
-				//printf("%x ",(*word_ptr));
-			}
-			#endif
-			//printf("d:%x\r\n",(word_ptr));
 #else
+
         /*check firmware image.*/
 	word_ptr = (unsigned short *)pHeader;
 	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
@@ -324,78 +256,25 @@ SKIP_CHECK_BURN_SERIAL:
 	
 	if (ret) {
 
-#ifdef CONFIG_NAND_FLASH_BOOTING
-		#ifdef CONFIG_RTK_NAND_BBT
-		for(i=(start_block+1);i< (pHeader->len/block_size)+start_block+1;i++){ //caculate how many block.
-			addr_bt = (i << block_shift);//real block index, addr.
-		       //printf("blockv:%x addrv:%x\n\r",i,addr_bt);
-				if(nand_read_ecc_ob(addr_bt, block_size, ptr_data+(count*block_size), ptr_oob)){
-		                    //printf("%s: nand_read_ecc addrv :%x error\n",__FUNCTION__, addr_bt);
-							//while(1); //debug cl for safe sake
-		                    break;
-				}
-				count++;
-				//Enhance the user interrupt latency
-				if((i%0x10000) == 0){
-					gCHKKEY_CNT++;
-					if( gCHKKEY_CNT>ACCCNT_TOCHKKEY)
-					{	gCHKKEY_CNT=0;
-						if ( user_interrupt(0)==1 )  //return 1: got ESC Key
-						{
-							//prom_printf("ret=%d  ------> line %d!\n",ret,__LINE__);
-							return 0;
-						}
-					}
-				}
-		}
-		
-		for (i=0; i<pHeader->len; i+=2){
-                 #if CONFIG_ESD_SUPPORT//patch for ESD
-                  	 REG32(0xb800311c)|= (1<<23);
-                  #endif
-			
-			#if defined(NEED_CHKSUM)	
-			sum +=(unsigned short)(((*(ptr_data+1+i+ sizeof(IMG_HEADER_T)))|(*(ptr_data+i+ sizeof(IMG_HEADER_T)))<<8)&0xffff);
-			//sum += rtl_inw(ptr_data + sizeof(IMG_HEADER_T) + i);
-			#endif
-		
-		}
-		//printf("len:%x sum:%x add:%x\r\n",pHeader->len,sum,pHeader->startAddr);
-		#else
-		for(i=1;i<(pHeader->len/block_size)+1;i++){
-			do{
-				start_page+=ppb;
-			}while(rtk_block_isbad(start_page*page_size));
-			for(j=0;j<ppb;j++){
-				 if(rtk_read_ecc_page(start_page+j , ptr_data+ (block_size*i) + (j * page_size), ptr_oob, page_size)){
-                    				//printf("read ecc page :%d error\n", start_page+j);
-									break;
-				 	}
-
-				if((i%0x10000) == 0){
-					gCHKKEY_CNT++;
-					if( gCHKKEY_CNT>ACCCNT_TOCHKKEY)
-					{	gCHKKEY_CNT=0;
-						if ( user_interrupt(0)==1 )  //return 1: got ESC Key
-						{
-                 #if CONFIG_ESD_SUPPORT//patch for ESD
-                  	 REG32(0xb800311c)|= (1<<23);
-                  #endif
-							//prom_printf("ret=%d  ------> line %d!\n",ret,__LINE__);
-							return 0;
-						}
-					}
-				}				 
+#ifdef CONFIG_NAND_FLASH
+			if(nflashread(0,addr,pHeader->len+sizeof(IMG_HEADER_T),1) < 0){
+				prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,pHeader->len+sizeof(IMG_HEADER_T));
+				return 0;
 			}
+			#ifdef CONFIG_RTK_NAND_BBT
 			for (i=0; i<pHeader->len; i+=2){
+                 #if CONFIG_ESD_SUPPORT//patch for ESD
+                  	 REG32(0xb800311c)|= (1<<23);
+                 #endif
 			
-			#if defined(NEED_CHKSUM)	
-			sum +=(unsigned short)(((*(ptr_data+1+i+ sizeof(IMG_HEADER_T)))|(*(ptr_data+i+ sizeof(IMG_HEADER_T)))<<8)&0xffff);
-			//sum += rtl_inw(ptr_data + sizeof(IMG_HEADER_T) + i);
-			#endif		
+				#if defined(NEED_CHKSUM)	
+				sum +=(unsigned short)(((*(ptr_data+1+i+ sizeof(IMG_HEADER_T)))|(*(ptr_data+i+ sizeof(IMG_HEADER_T)))<<8)&0xffff);
+				//sum += rtl_inw(ptr_data + sizeof(IMG_HEADER_T) + i);
+				#endif
+			
 			}
-		}
-		#endif		
+			#endif
+			
 #else
 		for (i=0; i<pHeader->len; i+=2) {
 #if 1  //slowly
@@ -425,24 +304,6 @@ SKIP_CHECK_BURN_SERIAL:
 			//prom_printf("ret=%d  ------> line %d!\n",ret,__LINE__);
 			ret=0;
 		}
-		#ifdef CONFIG_NAND_FLASH_BOOTING
-		else
-		{
-		    //dprintf("[%s]:%d\n",__func__,__LINE__);
-			unsigned char* target_add;
-			target_add=pHeader->startAddr;
-			//target_add= ((pHeader->startAddr)|0x20000000);
-			memcpy(target_add,ptr_data+sizeof(IMG_HEADER_T),pHeader->len);		
-		}
-		#endif
-#else
-#ifdef CONFIG_NAND_FLASH_BOOTING
-		{
-			unsigned char* target_add;
-			target_add=pHeader->startAddr;
-			memcpy(target_add,ptr_data+sizeof(IMG_HEADER_T),pHeader->len);
-                }
-#endif
 #endif		
 	}
 	//prom_printf("ret=%d  sys signature at %X!\n",ret,addr-FLASH_BASE);
@@ -463,20 +324,29 @@ int check_rootfs_image(unsigned long addr)
 	unsigned long length=0;
 	unsigned char tmpbuf[16];	
 	
-#ifdef CONFIG_NAND_FLASH_BOOTING
-	int j;
-	unsigned int start_page=0;
-	unsigned char __attribute__ ((aligned(64))) oob_buf[64];
-	unsigned char *data_buf = (unsigned char *)(DRAM_DIMAGE_ADDR);
-	int jump_to_backup=0;
-#endif
+
 	
 	if(gCHKKEY_HIT==1)
 		return 0;
+
+#ifdef CONFIG_NAND_FLASH
+	word_ptr = (unsigned short *)tmpbuf;
+	unsigned char *ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
+	if(nflashread(0,addr,block_size,0)< 0){
+		prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,block_size);
+		return 0;
+	}
 	
+	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
+	{
+		*word_ptr = ((*(ptr_data+1+i))|*(ptr_data+i)<<8)&0xffff;
+	}
+			
+#else
 	word_ptr = (unsigned short *)tmpbuf;
 	for (i=0; i<16; i+=2, word_ptr++)
 		*word_ptr = rtl_inw(addr + i);
+#endif
 
 	if ( memcmp(tmpbuf, SQSH_SIGNATURE, SIG_LEN) && memcmp(tmpbuf, SQSH_SIGNATURE_LE, SIG_LEN)) {
 		prom_printf("no rootfs signature at %X!\n",addr-FLASH_BASE);
@@ -520,6 +390,26 @@ int check_rootfs_image(unsigned long addr)
 
 SKIP_CHECK_BURN_SERIAL:
 #endif
+#ifdef CONFIG_NAND_FLASH
+			if(nflashread(0,addr,length,1) < 0){
+				prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,length);
+				return 0;
+			}
+			#ifdef CONFIG_RTK_NAND_BBT
+			for (i=0; i<length; i+=2){
+                 #if CONFIG_ESD_SUPPORT//patch for ESD
+                  	 REG32(0xb800311c)|= (1<<23);
+                  #endif
+			
+				#if defined(NEED_CHKSUM)	
+				sum +=(unsigned short)(((*(ptr_data+1+i))|(*(ptr_data+i))<<8)&0xffff);
+				//sum += rtl_inw(ptr_data + sizeof(IMG_HEADER_T) + i);
+				#endif
+			
+			}
+			#endif
+			
+#else
 
 	for (i=0; i<length; i+=2) {
 #if 1  //slowly
@@ -542,6 +432,7 @@ SKIP_CHECK_BURN_SERIAL:
 		sum += rtl_inw(addr + i);
 #endif
 	}
+#endif
 
 #if defined(NEED_CHKSUM)		
 	if ( sum ) {
@@ -563,27 +454,69 @@ int check_webpage_image(unsigned long addr)
 	unsigned short temp16=0;
 	IMG_HEADER_T pHeader;
 	char	image_web[4] = {0};
+
+
+
+#ifdef CONFIG_NAND_FLASH
+	word_ptr = (unsigned short *)&pHeader;
+	unsigned char *ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
+	if(nflashread(0,addr,block_size,0)< 0){
+		prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,block_size);
+		return 0;
+	}
 	
+	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
+	{
+		*word_ptr = ((*(ptr_data+1+i))|*(ptr_data+i)<<8)&0xffff;
+	}
+			
+#else
 	word_ptr = (unsigned short *)&pHeader;
 	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
 		*word_ptr = rtl_inw(addr + i);	
+#endif
 
 	memcpy(image_web,WEBPAGE_SIGNATURE,SIG_LEN);
 	if (!memcmp(pHeader.signature, image_web, SIG_LEN))
 		ret=1;
 	else{
 		prom_printf("no webpage signature at %X!\n",addr-FLASH_BASE);
-	}		
-	
-	if (ret) {
-		for (i=0; i<pHeader.len; i++)
-			sum += rtl_inb(addr+sizeof(IMG_HEADER_T)+i);
 	}
+#ifdef CONFIG_NAND_FLASH
+			if(nflashread(0,addr,pHeader->len+sizeof(IMG_HEADER_T),1) < 0){
+				prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,pHeader->len+sizeof(IMG_HEADER_T));
+				return 0;
+			}
+			#ifdef CONFIG_RTK_NAND_BBT
+			for (i=0; i<pHeader->len; i++){
+                 #if CONFIG_ESD_SUPPORT//patch for ESD
+                  	 REG32(0xb800311c)|= (1<<23);
+                  #endif
+			
+				#if defined(NEED_CHKSUM)	
+				sum +=(unsigned char)(((*(ptr_data+1+i+ sizeof(IMG_HEADER_T)))|(*(ptr_data+i+ sizeof(IMG_HEADER_T)))<<8)&0xffff);
+				//sum += rtl_inw(ptr_data + sizeof(IMG_HEADER_T) + i);
+				#endif
+			
+			}
+			#endif
+			
+#else
+	if (ret) {
+		for (i=0; i<pHeader.len; i++){
+		#if defined(NEED_CHKSUM)
+			sum += rtl_inb(addr+sizeof(IMG_HEADER_T)+i);
+		#endif
+		}
+	}
+#endif
 
+#if defined(NEED_CHKSUM)
 	if(sum){
 		prom_printf("webpage checksum error at %X!\n",addr-FLASH_BASE);
 		ret = 0;
 	}
+#endif
 		
 	return ret;
 }
@@ -630,7 +563,9 @@ static int check_image_header(IMG_HEADER_Tp pHeader,SETTING_HEADER_Tp psetting_h
                 	ret=check_rootfs_image((unsigned long)FLASH_BASE+ROOT_FS_OFFSET+ROOT_FS_OFFSET_OP1+bank_offset);
                 if(ret==0)
                 	ret=check_rootfs_image((unsigned long)FLASH_BASE+ROOT_FS_OFFSET+ROOT_FS_OFFSET_OP1+ROOT_FS_OFFSET_OP2+bank_offset);
-#endif
+#else
+				ret = 0;
+#endif	
 
 #ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
 		i = CONFIG_ROOT_IMAGE_OFFSET_START;
@@ -690,9 +625,25 @@ int get_system_header(unsigned long addr, IMG_HEADER_Tp pImgHdr)
 	char image_sig_root[4] = {0};
 	int  i;
 
+#ifdef CONFIG_NAND_FLASH
+	word_ptr = (unsigned short *)pImgHdr;
+	unsigned char *ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
+	if(nflashread(0,addr,block_size,0)< 0){
+		prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,block_size);
+		return 0;
+	}
+	
+	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
+	{
+		*word_ptr = ((*(ptr_data+1+i))|*(ptr_data+i)<<8)&0xffff;
+	}
+			
+#else
 	word_ptr = (unsigned short *)pImgHdr;
 	for(i = 0; i < sizeof(IMG_HEADER_T); i+=2, word_ptr++)
 		*word_ptr = rtl_inw(addr +i);
+#endif
+		
 	memcpy(image_sig, FW_SIGNATURE, SIG_LEN);
 	memcpy(image_sig_root, FW_SIGNATURE_WITH_ROOT, SIG_LEN);
 	
@@ -713,6 +664,7 @@ int find_system_header(IMG_HEADER_Tp pImgHdr, unsigned long bank_offset, unsigne
 	int i=0;
 	unsigned long rAddr;
 
+#ifndef CONFIG_NAND_FLASH
 	rAddr = (unsigned long)FLASH_BASE+CODE_IMAGE_OFFSET+bank_offset;
 	ret = get_system_header(rAddr, pImgHdr);
 	if(0 == ret) {
@@ -723,12 +675,14 @@ int find_system_header(IMG_HEADER_Tp pImgHdr, unsigned long bank_offset, unsigne
 		rAddr = (unsigned long)FLASH_BASE+CODE_IMAGE_OFFSET3+bank_offset;
 		ret = get_system_header(rAddr, pImgHdr);
 	}
+#endif
 	
 #ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE	
 	i=CONFIG_LINUX_IMAGE_OFFSET_START;	
 	while(i<=CONFIG_LINUX_IMAGE_OFFSET_END && (0==ret))
 	{
 		rAddr=(unsigned long)FLASH_BASE+i+bank_offset; 
+
 		if(CODE_IMAGE_OFFSET == i || CODE_IMAGE_OFFSET2 == i || CODE_IMAGE_OFFSET3 == i){
 			i += CONFIG_LINUX_IMAGE_OFFSET_STEP; 
 			continue;
@@ -995,8 +949,10 @@ int check_image(IMG_HEADER_Tp pHeader,SETTING_HEADER_Tp psetting_header)
 
 	/* winfred_wang static mode */
 	#ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_STATIC
+	#ifndef CONFIG_NAND_FLASH
 	#define DST_BUFFER_ADDR	0x80800000	// place to put flash read image
-
+	#endif
+	
 	if (ret == 0
 		#ifdef CONFIG_BOOT_RESET_ENABLE
 			&& !gCHKKEY_HIT
@@ -1007,12 +963,19 @@ int check_image(IMG_HEADER_Tp pHeader,SETTING_HEADER_Tp psetting_header)
 		if (ret) {
 			unsigned long src_addr = return_addr - FLASH_BASE;			
 			unsigned long length = CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET*2 - src_addr;
-
+			#ifndef CONFIG_NAND_FLASH
 			printf("Flash read from %X to %X with %X bytes ?\n",src_addr, DST_BUFFER_ADDR, length);
 			flashread(DST_BUFFER_ADDR, src_addr, length);
 		
 			printf("Flash Program from %X to %X with %X bytes ?\n",DST_BUFFER_ADDR, src_addr-CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET, length);
 			flashwrite(src_addr-CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET, DST_BUFFER_ADDR, length);
+			#else
+			printf("Flash read from %X to %X with %X bytes ?\n",src_addr, DRAM_DIMAGE_ADDR, length);
+			nflashread(0, src_addr, length,0);
+		
+			printf("Flash Program from %X to %X with %X bytes ?\n",DRAM_DIMAGE_ADDR, src_addr-CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET, length);
+			nflashwrite(src_addr-CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET, DRAM_DIMAGE_ADDR, length);
+			#endif
 			
 			ret = check_image_header(pHeader,psetting_header,0); 
 			if (ret == 0)
@@ -1275,16 +1238,33 @@ void goToLocalStartMode(unsigned long addr,IMG_HEADER_Tp pheader)
 	int i;
 	
 	//prom_printf("\n---%X\n",return_addr);
-#ifndef  CONFIG_NAND_FLASH_BOOTING	
+#ifdef CONFIG_NAND_FLASH
+	word_ptr = (unsigned short *)pheader;
+	unsigned char *ptr_data = (volatile unsigned char *)DRAM_DIMAGE_ADDR;
+	if(nflashread(0,addr,block_size,0)< 0){
+		prom_printf("nand flash read fail,addr=%x,size=%d\n",addr,block_size);
+		return 0;
+	}
+	
+	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
+	{
+		*word_ptr = ((*(ptr_data+1+i))|*(ptr_data+i)<<8)&0xffff;
+	}			
+#else
+
 	word_ptr = (unsigned short *)pheader;
 	for (i=0; i<sizeof(IMG_HEADER_T); i+=2, word_ptr++)
 	*word_ptr = rtl_inw(addr + i);
-			
+#endif
+
 	// move image to SDRAM
 #if !defined(CONFIG_NONE_FLASH)	
-	flashread( pheader->startAddr|0x20000000,	(unsigned int)(addr-FLASH_BASE+sizeof(IMG_HEADER_T)), 	pheader->len-2);
-#endif		
+#ifdef CONFIG_NAND_FLASH
+	nflashread( pheader->startAddr|0x20000000,(unsigned int)(addr-FLASH_BASE+sizeof(IMG_HEADER_T)),pheader->len-2,0);
+#else
+	flashread( pheader->startAddr|0x20000000,	(unsigned int)(addr-FLASH_BASE+sizeof(IMG_HEADER_T)), pheader->len-2);
 #endif
+#endif		
 	if ( !user_interrupt(0) )  // See if user escape during copy image
 	{
 		outl(0,GIMR0); // mask all interrupt

@@ -338,7 +338,7 @@ int getMiscData(char *interface, struct _misc_data_ *pData);
 
 #ifdef CONFIG_RTK_MESH 
 	//GANTOE for site survey 2008/12/26
-int setWlJoinMesh (char*, unsigned char*, int, int, int, int); 
+int setWlJoinMesh (char*, unsigned char*, int, int, int); 
 int getWlMeshLink (char*, unsigned char*, int);	// This function might be removed when the mesh peerlink precedure has been completed
 int getWlMib (char*, unsigned char*, int);
 #endif

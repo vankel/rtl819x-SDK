@@ -18,7 +18,6 @@
 #if defined(CONFIG_RTL_FASTBRIDGE)
 #include <net/rtl/features/fast_bridge.h>
 #endif
-#include "../../../net/bridge/br_private.h"
 
 #define	RTL_PS_HOOKS_CONTINUE	0		/*	keep the process flow	*/
 #define	RTL_PS_HOOKS_BREAK		1		/*	should break from caller's loops	*/

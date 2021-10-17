@@ -1681,9 +1681,6 @@ int igmpv3_accept(int recvlen, struct IfDesc *dp)
 				group = igmpv3grec->grec_mca;
 				srcnum = ntohs(igmpv3grec->grec_nsrcs);
 				
-				if(group == ALL_PRINTER)	/* It's MS-Windows UPNP all printers notify */
-					goto nextgrec;
-				
 				switch( igmpv3grec->grec_type )
 				{
 				case IGMPV3_MODE_IS_INCLUDE:
@@ -1714,8 +1711,7 @@ int igmpv3_accept(int recvlen, struct IfDesc *dp)
 					IGMPV3LOG("%s> Unknown Group Record Types [%x]\n", __FUNCTION__, igmpv3grec->grec_type );
 					break;
 				}
-				
-			nextgrec:
+			
 				rec_id++;
 				//printf( "count next: 0x%x %d %d %d %d\n", igmpv3grec, sizeof( struct igmpv3_grec ), igmpv3grec->grec_auxwords, ntohs(igmpv3grec->grec_nsrcs), sizeof( __u32 ) );
 				igmpv3grec = (struct igmpv3_grec *)( (char*)igmpv3grec + sizeof( struct igmpv3_grec ) + (igmpv3grec->grec_auxwords+ntohs(igmpv3grec->grec_nsrcs))*sizeof( __u32 ) );

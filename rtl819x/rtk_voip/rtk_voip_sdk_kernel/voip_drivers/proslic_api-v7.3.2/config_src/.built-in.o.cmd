@@ -1,0 +1,1 @@
+cmd_rtk_voip/voip_drivers/proslic_api/config_src/built-in.o :=  msdk-linux-ld  -m elf32btsmip   -r -o rtk_voip/voip_drivers/proslic_api/config_src/built-in.o rtk_voip/voip_drivers/proslic_api/config_src/si3217x_LCQCUK_constants.o 

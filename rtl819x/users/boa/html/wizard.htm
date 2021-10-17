@@ -432,8 +432,8 @@ function Set_onChangeBand(form, wlan_id, band, index){
  	    var txrate;
 	var value;
 	
-	 var checkid_bound=document.getElementById("channel_bounding"+index);
-	 var checkid_sideband = document.getElementById("control_sideband"+index);
+	 var checkid_bound=document.getElementById("channel_bounding"+wlan_id);
+	 var checkid_sideband = document.getElementById("control_sideband"+wlan_id);
 	 var mode_selected=0;
 	var Type_selected=0;
 	var index_channelbound=0;
@@ -853,7 +853,12 @@ function Load_Setting()
 		document.wizard.l2tpSubnetMask.disabled = true;
 		document.wizard.l2tpDefGw.disabled = true;
 	}
-
+	var wlan_support_8812e=document.wizard.elements["wlan_support_8812e"].value;
+	var idx_value= document.wizard.elements["band"+0].selectedIndex;
+	var band_value= document.wizard.elements["band"+0].options[idx_value].value;
+	var bound_idx = document.wizard.elements["channelbound"+0].selectedIndex
+	if(bound_idx == 0 || bound_idx == 2 || (wlan_support_8812e==1 && (band_value==11 || band_value==63 || band_value==71 || band_value==75 ||(band_value==7 && idx_value==1))))
+		document.getElementById("control_sideband"+0).style.display = "none";
 }
 
 function wizardTopClick()
@@ -1010,7 +1015,9 @@ function wlanBandModeSelection(selValue)
 <INPUT type=hidden name=wlan1_phyband value="<% getIndex("wlan1_phyband"); %>">
 <INPUT type=hidden name=wlan2_phyband value="<% getIndex("wlan2_phyband"); %>">
 <INPUT type=hidden name=wlan_support_8812e value=<% getIndex("wlan_support_8812e"); %>>
-
+<!-- for lte4g -->
+<input type="hidden" id="lte4g_build" value="<% getIndex("lte4g_build"); %>" name="lte4g_build">
+<input type="hidden" id="lte4g_enable" value="<% getIndex("lte4g_enable"); %>" name="lte4g_enable">
 <span id = "top_div" class = "on" >
 <br>
 <table  border=0 width="500" cellspacing=4 cellpadding=0>
@@ -1921,7 +1928,7 @@ document.write('\
   <tr>\
       <td width="100%" colspan=2><font size=2><b>\
    	<input type="checkbox" name="wlanMacClone'+i+'" value="ON"\
-   	>&nbsp;&nbsp; Enable Mac Clone (Single Ethernet Client)</b>\
+   	>&nbsp;&nbsp; Enable Mac Clone </b>\
       </td>\
   </tr>\
   <tr>\

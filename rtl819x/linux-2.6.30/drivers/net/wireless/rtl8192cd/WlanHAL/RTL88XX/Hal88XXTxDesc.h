@@ -119,6 +119,39 @@ typedef struct _HCI_TX_DMA_MANAGER_88XX_
     HCI_TX_DMA_QUEUE_STRUCT_88XX  tx_queue[HCI_TX_DMA_QUEUE_MAX_NUM];
 } HCI_TX_DMA_MANAGER_88XX, *PHCI_TX_DMA_MANAGER_88XX;
 
+#if CFG_HAL_TX_AMSDU
+typedef struct _TX_BUFFER_DESCRIPTOR_AMSDU_
+{
+    TXBD_ELEMENT	TXBD_ELE[MAX_NUM_OF_MSDU_IN_AMSDU];
+} TX_BUFFER_DESCRIPTOR_AMSDU, *PTX_BUFFER_DESCRIPTOR_AMSDU;
+
+typedef enum _HCI_TX_AMSDU_DMA_QUEUE_88XX_
+{
+    //QoS
+    HCI_TX_AMSDU_DMA_QUEUE_BK,
+    HCI_TX_AMSDU_DMA_QUEUE_BE,
+    HCI_TX_AMSDU_DMA_QUEUE_VI,
+    HCI_TX_AMSDU_DMA_QUEUE_VO,
+    HCI_TX_AMSDU_DMA_QUEUE_MAX_NUM
+} HCI_TX_AMSDU_DMA_QUEUE_88XX, *PHCI_TX_AMSDU_DMA_QUEUE_88XX;
+
+typedef struct _HCI_TX_AMSDU_DMA_QUEUE_STRUCT_88XX_
+{
+    //AMSDU TXBD
+    PTX_BUFFER_DESCRIPTOR_AMSDU     pTXBD_head_amsdu;
+
+    //Current AMSDU TXBD element
+    u1Byte                          cur_txbd_element;
+} HCI_TX_AMSDU_DMA_QUEUE_STRUCT_88XX, *PHCI_TX_AMSDU_DMA_QUEUE_STRUCT_88XX;
+
+typedef struct _HCI_TX_AMSDU_DMA_MANAGER_88XX_
+{
+    HCI_TX_AMSDU_DMA_QUEUE_STRUCT_88XX  tx_amsdu_queue[HCI_TX_AMSDU_DMA_QUEUE_MAX_NUM];
+} HCI_TX_AMSDU_DMA_MANAGER_88XX, *PHCI_TX_AMSDU_DMA_MANAGER_88XX;
+
+#endif // CFG_HAL_TX_AMSDU
+
+
 //typedef struct _TXBD_INFO_
 //{
 //    u4Byte      Length;
@@ -175,6 +208,7 @@ typedef struct _TX_DESC_DATA_88XX_
     BOOLEAN         rtyLmtEn;
     u1Byte          dataRtyLmt;
     u1Byte          dataRateFBLmt;    
+    u1Byte          BMCRtyLmt;
 
     // TXDESC Dword 5
     u1Byte          dataBW;
@@ -204,6 +238,12 @@ typedef struct _TX_DESC_DATA_88XX_
     u4Byte          mic;
     u4Byte          secType;
     BOOLEAN         swCrypt;
+
+#if CFG_HAL_TX_AMSDU
+    // AMSDU
+    u1Byte          aggreEn;
+    u4Byte          amsduLen;
+#endif
 
 } TX_DESC_DATA_88XX, *PTX_DESC_DATA_88XX;
 
@@ -273,6 +313,7 @@ GetBeaconTXBDTXDESC88XX(
     OUT PTX_BUFFER_DESCRIPTOR       *pTXBD,
     OUT PTX_DESC_88XX               *ptx_desc
 );
+
 #if CFG_HAL_TX_SHORTCUT
 #if 0
 PVOID
@@ -321,6 +362,9 @@ FillShortCutTxHwCtrl88XX(
 
 void DumpTxBDesc88XX(
     IN      HAL_PADAPTER    Adapter,
+#ifdef CONFIG_RTL_PROC_NEW
+    IN      struct seq_file *s,
+#endif
     IN      u4Byte          q_num 
 );
 

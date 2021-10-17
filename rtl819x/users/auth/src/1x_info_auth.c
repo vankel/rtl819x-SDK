@@ -208,11 +208,8 @@ int lib1x_authRSN_constructIE(Dot1x_Authenticator * auth,
 
         DOT11_RSN_IE_HEADER dot11RSNIEHeader = { 0 };
         DOT11_RSN_IE_SUITE dot11RSNGroupSuite;
-#if defined(CONFIG_IEEE80211W) || defined(HS2_SUPPORT)
+#if defined(CONFIG_IEEE80211W)
 		DOT11_RSN_IE_SUITE dot11RSNMgmtSuite;
-#endif
-#ifdef HS2_SUPPORT
-		DOT11_OSEN_IE_HEADER dot11OSENHeader = {0};
 #endif
         DOT11_RSN_IE_COUNT_SUITE  * pDot11RSNPairwiseSuite = NULL;
         DOT11_RSN_IE_COUNT_SUITE  * pDot11RSNAuthSuite = NULL;
@@ -339,9 +336,11 @@ int lib1x_authRSN_constructIE(Dot1x_Authenticator * auth,
                     pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_RSNPSK;
 				    usSuitCount++;
                     break;
+#ifndef CONFIG_IEEE80211R
 				case DOT11_AuthKeyType_NonRSN802dot1x:
 				    pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_NonRSN802dot1x;
 				    usSuitCount++;
+#endif
 		        default:
                     break;
                 }
@@ -417,236 +416,147 @@ int lib1x_authRSN_constructIE(Dot1x_Authenticator * auth,
 		bAuthAlgoEnabled = FALSE;
 		ulRSNCapabilityLength = 0;
 
+		//
+		// Construct Information Header
+		//
+		dot11WPA2IEHeader.ElementID = WPA2_ELEMENT_ID;
+		lib1x_Little_S2N(RSN_VER1, (u_char*)&dot11WPA2IEHeader.Version);
+		ulIELength += sizeof(DOT11_WPA2_IE_HEADER);
 
-		/*Construct Information Header*/ 
+		// Construct Cipher Suite:
+		//      - Multicast Suite:
+		//
+		memset(&dot11RSNGroupSuite, 0, sizeof dot11RSNGroupSuite);
+		dot11RSNGroupSuite.OUI[0] = 0x00;
+		dot11RSNGroupSuite.OUI[1] = 0x0F;
+		dot11RSNGroupSuite.OUI[2] = 0xAC;
 
-        #ifdef HS2_SUPPORT
+		dot11RSNGroupSuite.Type = auth->RSNVariable.MulticastCipher;
+		ulIELength += sizeof(DOT11_RSN_IE_SUITE);
 
-        HS2DEBUG("OSEN=[%d]\n",auth->RSNVariable.bOSEN);
-		HS2DEBUG("11W=[%d]\n",auth->RSNVariable.ieee80211w);
+		//      - UnicastSuite
 
-        if(auth->RSNVariable.bOSEN == 1)
+		pDot11RSNPairwiseSuite = (DOT11_RSN_IE_COUNT_SUITE*)malloc(sizeof(DOT11_RSN_IE_COUNT_SUITE));
+		memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
+
+		usSuitCount = 0;
+                for (ulIndex = 0; ulIndex < auth->RSNVariable.WPA2UniCastCipherSuit.NumOfAlgo; ulIndex++)
 		{
-			//HS2DEBUG("OSEN IE Information\n");
-			dot11OSENHeader.ElementID = RSN_ELEMENT_ID;
-			dot11OSENHeader.OUI[0] = 0x50;
-			dot11OSENHeader.OUI[1] = 0x6F;
-			dot11OSENHeader.OUI[2] = 0x9A;
-			dot11OSENHeader.Type = 0x12;
-			ulIELength += sizeof(DOT11_OSEN_IE_HEADER);
-
-			/*Construct Cipher Suite:*/ 
-
-			/*- Multicast Suite:*/      
-			memset(&dot11RSNGroupSuite, 0, sizeof dot11RSNGroupSuite);
-			dot11RSNGroupSuite.OUI[0] = 0x00;
-			dot11RSNGroupSuite.OUI[1] = 0x0F;
-			dot11RSNGroupSuite.OUI[2] = 0xAC;
-			dot11RSNGroupSuite.Type = DOT11_ENC_NOGA;
-			ulIELength += sizeof(DOT11_RSN_IE_SUITE);
-
-			/*- UnicastSuite*/      
-			pDot11RSNPairwiseSuite = (DOT11_RSN_IE_COUNT_SUITE*)malloc(sizeof(DOT11_RSN_IE_COUNT_SUITE));
-			memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
-			usSuitCount = 0;
-			pDot11RSNPairwiseSuite->dot11RSNIESuite[0].OUI[0] = 0x00;
-			pDot11RSNPairwiseSuite->dot11RSNIESuite[0].OUI[1] = 0x0F;
-			pDot11RSNPairwiseSuite->dot11RSNIESuite[0].OUI[2] = 0xAC;
-			pDot11RSNPairwiseSuite->dot11RSNIESuite[0].Type = DOT11_ENC_CCMP;
-			usSuitCount++;
-			lib1x_Little_S2N(usSuitCount, (u_char*)&pDot11RSNPairwiseSuite->SuiteCount);
-			ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-			ulIELength += ulPairwiseLength;
+                        uCipherAlgo = auth->RSNVariable.WPA2UniCastCipherSuit.AlgoTable[ulIndex].AlgoId;
+                        bCipherAlgoEnabled = auth->RSNVariable.WPA2UniCastCipherSuit.AlgoTable[ulIndex].Enabled;
 
 
-			/*Construction of Auth Algo List*/ 
+			if (!bCipherAlgoEnabled) {
+			    continue;
+			}
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x0F;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xAC;
 
-			pDot11RSNAuthSuite = (DOT11_RSN_IE_COUNT_SUITE*)malloc(sizeof(DOT11_RSN_IE_COUNT_SUITE));
-			memset(pDot11RSNAuthSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
-			usSuitCount = 0;
-		
-			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x50;
-			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x6F;
-			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0x9A;
-			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = 0x01;
-			
-			usSuitCount++;	
-			lib1x_Little_S2N(usSuitCount, (u_char*)&pDot11RSNAuthSuite->SuiteCount);
-			ulAuthLength = sizeof(pDot11RSNAuthSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-			ulIELength += ulAuthLength;
-			
-			/*RSN Capability*/ 
-			memset(&dot11RSNCapability, 0, sizeof(dot11RSNCapability));
+			switch (uCipherAlgo) {
+				case DOT11_ENC_NONE:
+					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_NONE;
+					usSuitCount++;
+					break;
+				case DOT11_ENC_WEP40:
+					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_WEP40;
+					usSuitCount++;
+					break;
 
-			
-			pucBlob = pucOut + *usOutLen;
-			//memcpy(pucBlob, &dot11WPA2IEHeader, sizeof(DOT11_RSN_IE_HEADER));
-			pucBlob += sizeof(DOT11_OSEN_IE_HEADER);
-			memcpy(pucBlob, &dot11RSNGroupSuite, sizeof(DOT11_RSN_IE_SUITE));
-			pucBlob += sizeof(DOT11_RSN_IE_SUITE);
-			memcpy(pucBlob, pDot11RSNPairwiseSuite, ulPairwiseLength);
-			pucBlob += ulPairwiseLength;
-			memcpy(pucBlob, pDot11RSNAuthSuite, ulAuthLength);
-			pucBlob += ulAuthLength;
-			memcpy(pucBlob, &dot11RSNCapability, ulRSNCapabilityLength);
-			ulRSNCapabilityLength = sizeof(DOT11_RSN_CAPABILITY);
-			ulIELength += ulRSNCapabilityLength;
-						
-			pucBlob += ulRSNCapabilityLength + 2; // add PMDID Count (2bytes)
-			
-			memset(&dot11RSNMgmtSuite, 0, sizeof(dot11RSNMgmtSuite));					
-			memcpy(pucBlob, &dot11RSNMgmtSuite, sizeof(DOT11_RSN_IE_SUITE));	
-			ulIELength += sizeof(dot11RSNMgmtSuite)+2;
-			
-			pucBlob = pucOut + *usOutLen;
-			dot11OSENHeader.Length = (u_char)ulIELength - 2; //This -2 is to minus elementID and Length in OUI header
-			memcpy(pucBlob, &dot11OSENHeader, sizeof(DOT11_OSEN_IE_HEADER));
-			*usOutLen = *usOutLen + (int)ulIELength;
+				case DOT11_ENC_TKIP:
+					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_TKIP;
+					usSuitCount++;
+					break;
+
+				case DOT11_ENC_WRAP:
+					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_WRAP;
+					usSuitCount++;
+					break;
+
+				case DOT11_ENC_CCMP:
+					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_CCMP;
+					usSuitCount++;
+					break;
+
+				case DOT11_ENC_WEP104:
+					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_WEP104;
+					usSuitCount++;
+					break;
+				default:
+					break;
+				}//switch
 		}
-		else
-        #endif // end of HS2_SUPPORT
-    	{
+		lib1x_Little_S2N(usSuitCount, (u_char*)&pDot11RSNPairwiseSuite->SuiteCount);
+		ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
+		ulIELength += ulPairwiseLength;
+
+		//
+		// Construction of Auth Algo List
+		//
+
+		pDot11RSNAuthSuite = (DOT11_RSN_IE_COUNT_SUITE*)malloc(sizeof(DOT11_RSN_IE_COUNT_SUITE));
+		memset(pDot11RSNAuthSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
+
+		usSuitCount = 0;
+		for (ulIndex = 0; ulIndex < auth->RSNVariable.AuthenticationSuit.NumOfAlgo; ulIndex++)
+		{
+			uAuthAlgo = auth->RSNVariable.AuthenticationSuit.AlgoTable[ulIndex].AlgoId;
+			bAuthAlgoEnabled = auth->RSNVariable.AuthenticationSuit.AlgoTable[ulIndex].Enabled;
+
+			if (!bAuthAlgoEnabled) {
+			    continue;
+			}
+
+			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
+			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x0F;
+			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xAC;
+
+			switch (uAuthAlgo) {
+			case DOT11_AuthKeyType_RSN:
+			    pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_RSN;
+			    usSuitCount++;
+			    break;
+
+			case DOT11_AuthKeyType_RSNPSK:
+			    pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_RSNPSK;
+			    usSuitCount++;
+			    break;
+#ifndef CONFIG_IEEE80211R
+			case DOT11_AuthKeyType_NonRSN802dot1x:
+			    pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_NonRSN802dot1x;
+			    usSuitCount++;
+				break;
+#else
+			case DOT11_AuthKeyType_FT:	
+				pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_FT;	
+				usSuitCount++;
+				break;				
+#endif
+#ifdef CONFIG_IEEE80211W					
+			case DOT11_AuthKeyType_802_1X_SHA256:
+				pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_802_1X_SHA256;
+			    usSuitCount++;
+				break;
+#endif					
+			default:
+			    break;
+			}
+
+		}
+		lib1x_Little_S2N(usSuitCount, (u_char*)&pDot11RSNAuthSuite->SuiteCount);
+		ulAuthLength = sizeof(pDot11RSNAuthSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
+		ulIELength += ulAuthLength;
 
 
-    		//HS2DEBUG("WPA2 IE Information\n");
-    		dot11WPA2IEHeader.ElementID = WPA2_ELEMENT_ID;
-    		lib1x_Little_S2N(RSN_VER1, (u_char*)&dot11WPA2IEHeader.Version);
-    		ulIELength += sizeof(DOT11_WPA2_IE_HEADER);
-
-    		/*Construct Cipher Suite:*/ 
-
-    		/*- Multicast Suite:*/      
-
-    		memset(&dot11RSNGroupSuite, 0, sizeof dot11RSNGroupSuite);
-    		dot11RSNGroupSuite.OUI[0] = 0x00;
-    		dot11RSNGroupSuite.OUI[1] = 0x0F;
-    		dot11RSNGroupSuite.OUI[2] = 0xAC;
-
-    		dot11RSNGroupSuite.Type = auth->RSNVariable.MulticastCipher;
-    		ulIELength += sizeof(DOT11_RSN_IE_SUITE);
-
-    		/*- UnicastSuite*/      
-
-    		pDot11RSNPairwiseSuite = (DOT11_RSN_IE_COUNT_SUITE*)malloc(sizeof(DOT11_RSN_IE_COUNT_SUITE));
-    		memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
-    		usSuitCount = 0;
-            
-            for (ulIndex = 0; ulIndex < auth->RSNVariable.WPA2UniCastCipherSuit.NumOfAlgo; ulIndex++)
-    		{
-    		
-                uCipherAlgo = auth->RSNVariable.WPA2UniCastCipherSuit.AlgoTable[ulIndex].AlgoId;
-                bCipherAlgoEnabled = auth->RSNVariable.WPA2UniCastCipherSuit.AlgoTable[ulIndex].Enabled;
-
-
-    			if (!bCipherAlgoEnabled) {
-    			    continue;
-    			}
-                
-    			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
-    			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x0F;
-    			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xAC;
-
-    			switch (uCipherAlgo) {
-    				case DOT11_ENC_NONE:
-    					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_NONE;
-    					usSuitCount++;
-    					break;
-    				case DOT11_ENC_WEP40:
-    					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_WEP40;
-    					usSuitCount++;
-    					break;
-
-    				case DOT11_ENC_TKIP:
-    					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_TKIP;
-    					usSuitCount++;
-    					break;
-
-    				case DOT11_ENC_WRAP:
-    					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_WRAP;
-    					usSuitCount++;
-    					break;
-
-    				case DOT11_ENC_CCMP:
-    					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_CCMP;
-    					usSuitCount++;
-    					break;
-
-    				case DOT11_ENC_WEP104:
-    					pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_ENC_WEP104;
-    					usSuitCount++;
-    					break;
-    				default:
-    					break;
-    		    }//end of switch
-    		}
-            
-    		lib1x_Little_S2N(usSuitCount, (u_char*)&pDot11RSNPairwiseSuite->SuiteCount);
-    		ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-    		ulIELength += ulPairwiseLength;
-   			//printf("ulIELength=%d\n",ulIELength);
-
-            
-
-    		/* Construction of Auth Algo List*/
-
-    		pDot11RSNAuthSuite = (DOT11_RSN_IE_COUNT_SUITE*)malloc(sizeof(DOT11_RSN_IE_COUNT_SUITE));
-    		memset(pDot11RSNAuthSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
-
-    		usSuitCount = 0;
-    		for (ulIndex = 0; ulIndex < auth->RSNVariable.AuthenticationSuit.NumOfAlgo; ulIndex++)
-    		{
-    			uAuthAlgo = auth->RSNVariable.AuthenticationSuit.AlgoTable[ulIndex].AlgoId;
-    			bAuthAlgoEnabled = auth->RSNVariable.AuthenticationSuit.AlgoTable[ulIndex].Enabled;
-
-    			if (!bAuthAlgoEnabled) {
-    			    continue;
-    			}
-
-    			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
-    			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x0F;
-    			pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xAC;
-
-    			switch (uAuthAlgo) {
-        			case DOT11_AuthKeyType_RSN:
-        			    pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_RSN;
-        			    usSuitCount++;
-        			    break;
-
-        			case DOT11_AuthKeyType_RSNPSK:
-        			    pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_RSNPSK;
-        			    usSuitCount++;
-        			    break;
-        			case DOT11_AuthKeyType_NonRSN802dot1x:
-        			    pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_NonRSN802dot1x;
-        			    usSuitCount++;
-        				break;
-                    #ifdef CONFIG_IEEE80211W					
-        			case DOT11_AuthKeyType_802_1X_SHA256:
-        				pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_802_1X_SHA256;
-        			    usSuitCount++;
-        				break;
-                    #endif					
-        			default:
-        			    break;
-    			}
-
-    		}
-
-            
-    		lib1x_Little_S2N(usSuitCount, (u_char*)&pDot11RSNAuthSuite->SuiteCount);
-    		ulAuthLength = sizeof(pDot11RSNAuthSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-    		ulIELength += ulAuthLength;
-    		//printf("ulIELength=%d\n",ulIELength);
-
-    		//---------------------------------------------------------------------------------------------
-    		// Do not encapsulate capability field to solve TI WPA issue
-    		//---------------------------------------------------------------------------------------------
+		//---------------------------------------------------------------------------------------------
+		// Do not encapsulate capability field to solve TI WPA issue
+		//---------------------------------------------------------------------------------------------
 
 #ifdef RTL_WPA2
-    		dot11RSNCapability.field.PreAuthentication = auth->RSNVariable.isSupportPreAuthentication;
-
-            #ifdef CONFIG_IEEE80211W
-			/*Protected Managemenet Protection Capability (PMF)*/
+		dot11RSNCapability.field.PreAuthentication = auth->RSNVariable.isSupportPreAuthentication;
+#ifdef CONFIG_IEEE80211W
+		{
+			//Protected Managemenet Protection Capability (PMF)
 			if (auth->RSNVariable.ieee80211w == NO_MGMT_FRAME_PROTECTION) {			
 				dot11RSNCapability.field.MFPC = 0;
 				dot11RSNCapability.field.MFPR = 0;
@@ -657,81 +567,74 @@ int lib1x_authRSN_constructIE(Dot1x_Authenticator * auth,
 				dot11RSNCapability.field.MFPR= 1; // MFPR
 				dot11RSNCapability.field.MFPC= 1; // MFPC 
 			}
-            #endif
-            
-#else
-    		dot11RSNCapability.field.PairwiseAsDefaultKey = auth->RSNVariable.isSupportPairwiseAsDefaultKey;
-    		switch(auth->RSNVariable.NumOfRxTSC)
-    		{
-    		case 1:
-    			dot11RSNCapability.field.NumOfReplayCounter = 0;
-    			break;
-    		case 2:
-    			dot11RSNCapability.field.NumOfReplayCounter = 1;
-    			break;
-    		case 4:
-    			dot11RSNCapability.field.NumOfReplayCounter = 2;
-    			break;
-    		case 16:
-    			dot11RSNCapability.field.NumOfReplayCounter = 3;
-    			break;
-    		default:
-    			dot11RSNCapability.field.NumOfReplayCounter = 0;
-    		}
+		}
 #endif
-    		ulRSNCapabilityLength = sizeof(DOT11_RSN_CAPABILITY);
-    		ulIELength += ulRSNCapabilityLength;
+#else
+		dot11RSNCapability.field.PairwiseAsDefaultKey = auth->RSNVariable.isSupportPairwiseAsDefaultKey;
+		switch(auth->RSNVariable.NumOfRxTSC)
+		{
+		case 1:
+			dot11RSNCapability.field.NumOfReplayCounter = 0;
+			break;
+		case 2:
+			dot11RSNCapability.field.NumOfReplayCounter = 1;
+			break;
+		case 4:
+			dot11RSNCapability.field.NumOfReplayCounter = 2;
+			break;
+		case 16:
+			dot11RSNCapability.field.NumOfReplayCounter = 3;
+			break;
+		default:
+			dot11RSNCapability.field.NumOfReplayCounter = 0;
+		}
+#endif
+		ulRSNCapabilityLength = sizeof(DOT11_RSN_CAPABILITY);
+		ulIELength += ulRSNCapabilityLength;
+#ifdef CONFIG_IEEE80211W
+		// Construct Cipher Suite:
+		//		- IGTK Suite:
+		//		
+		if (auth->RSNVariable.sha256 == TRUE)
+		{
+			memset(&dot11RSNMgmtSuite, 0, sizeof(dot11RSNMgmtSuite));
+			dot11RSNMgmtSuite.OUI[0] = 0x00;
+			dot11RSNMgmtSuite.OUI[1] = 0x0F;
+			dot11RSNMgmtSuite.OUI[2] = 0xAC;
 
-            #ifdef CONFIG_IEEE80211W
+			dot11RSNMgmtSuite.Type = DOT11_ENC_BIP;
+			ulIELength += sizeof(dot11RSNMgmtSuite)+2;
+		}
+#endif // CONFIG_IEEE80211W
 
-    		/*Construct Cipher Suite: - IGTK Suite:*/ 
-
-    		if (auth->RSNVariable.sha256 == TRUE)
-    		{
-    			memset(&dot11RSNMgmtSuite, 0, sizeof(dot11RSNMgmtSuite));
-    			dot11RSNMgmtSuite.OUI[0] = 0x00;
-    			dot11RSNMgmtSuite.OUI[1] = 0x0F;
-    			dot11RSNMgmtSuite.OUI[2] = 0xAC;
-
-    			dot11RSNMgmtSuite.Type = DOT11_ENC_BIP;
-    			ulIELength += sizeof(dot11RSNMgmtSuite)+2;
-    		}
-            #endif // CONFIG_IEEE80211W
-
-    		pucBlob = pucOut + *usOutLen;
-    		//memcpy(pucBlob, &dot11WPA2IEHeader, sizeof(DOT11_RSN_IE_HEADER));
-    		pucBlob += sizeof(DOT11_WPA2_IE_HEADER);
-    		memcpy(pucBlob, &dot11RSNGroupSuite, sizeof(DOT11_RSN_IE_SUITE));
-    		pucBlob += sizeof(DOT11_RSN_IE_SUITE);
-    		memcpy(pucBlob, pDot11RSNPairwiseSuite, ulPairwiseLength);
-    		pucBlob += ulPairwiseLength;
-    		memcpy(pucBlob, pDot11RSNAuthSuite, ulAuthLength);
-    		pucBlob += ulAuthLength;
-    		memcpy(pucBlob, &dot11RSNCapability, ulRSNCapabilityLength);
-            
-            #ifdef CONFIG_IEEE80211W		
-    		if (auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) { 		
-    			pucBlob += ulRSNCapabilityLength + 2; // add PMDID Count (2bytes)
-    			memcpy(pucBlob, &dot11RSNMgmtSuite, sizeof(DOT11_RSN_IE_SUITE));
-    		}
-            #endif //end of  CONFIG_IEEE80211W
-            
-    		pucBlob = pucOut + *usOutLen;
-    		dot11WPA2IEHeader.Length = (u_char)ulIELength - 2; //This -2 is to minus elementID and Length in OUI header
-    		memcpy(pucBlob, &dot11WPA2IEHeader, sizeof(DOT11_WPA2_IE_HEADER));
-    		*usOutLen = *usOutLen + (int)ulIELength;
-   		}
-		
+		pucBlob = pucOut + *usOutLen;
+		//memcpy(pucBlob, &dot11WPA2IEHeader, sizeof(DOT11_RSN_IE_HEADER));
+		pucBlob += sizeof(DOT11_WPA2_IE_HEADER);
+		memcpy(pucBlob, &dot11RSNGroupSuite, sizeof(DOT11_RSN_IE_SUITE));
+		pucBlob += sizeof(DOT11_RSN_IE_SUITE);
+		memcpy(pucBlob, pDot11RSNPairwiseSuite, ulPairwiseLength);
+		pucBlob += ulPairwiseLength;
+		memcpy(pucBlob, pDot11RSNAuthSuite, ulAuthLength);
+		pucBlob += ulAuthLength;
+		memcpy(pucBlob, &dot11RSNCapability, ulRSNCapabilityLength);
+#ifdef CONFIG_IEEE80211W		
+		if (auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) { 		
+			pucBlob += ulRSNCapabilityLength + 2; // add PMDID Count (2bytes)
+			memcpy(pucBlob, &dot11RSNMgmtSuite, sizeof(DOT11_RSN_IE_SUITE));
+		}
+#endif // CONFIG_IEEE80211W
+		pucBlob = pucOut + *usOutLen;
+		dot11WPA2IEHeader.Length = (u_char)ulIELength - 2; //This -2 is to minus elementID and Length in OUI header
+		memcpy(pucBlob, &dot11WPA2IEHeader, sizeof(DOT11_WPA2_IE_HEADER));
+		*usOutLen = *usOutLen + (int)ulIELength;
 
 		free(pDot11RSNPairwiseSuite);
 		free(pDot11RSNAuthSuite);
-        #if 0 /*for debug*/ 
-    	wpa2_hexdump("lib1x_authRSN_constructIE: WPA2 RSN IE", pucBlob, ulIELength);
-        #endif
+
+		wpa2_hexdump("lib1x_authRSN_constructIE: WPA2 RSN IE", pucBlob, ulIELength);
 
     	}
-    
-#endif /*end  of  RTL_WPA2 */
+#endif /* RTL_WPA2 */
 
         return retVal;
 }
@@ -753,8 +656,7 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
 	DOT11_RSN_IE_COUNT_SUITE * pDot11RSNIECountSuite = NULL;
 	DOT11_RSN_CAPABILITY * pDot11RSNCapability = NULL;
 
-	//AUTHDEBUG("lib1x_authRSN_parseIE\n");
-    if(ulIELength < sizeof(DOT11_RSN_IE_HEADER)) {
+        if(ulIELength < sizeof(DOT11_RSN_IE_HEADER)) {
 		retVal = ERROR_INVALID_RSNIE;
 		goto lib1x_authRSN_parseIE_error;
 	}
@@ -800,26 +702,13 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
 		retVal = ERROR_INVALID_RSNIE;
 		goto lib1x_authRSN_parseIE_error;
 	}
-#ifdef CONFIG_IEEE80211W	
-	if(pDot11RSNIESuite->Type > DOT11_ENC_BIP)
-#else
 	if(pDot11RSNIESuite->Type > DOT11_ENC_WEP104)
-#endif	
 	{
 		retVal = ERROR_INVALID_MULTICASTCIPHER;
 		goto lib1x_authRSN_parseIE_error;
 	}
 
 	global->RSNVariable.MulticastCipher = pDot11RSNIESuite->Type;
-#ifdef CONFIG_IEEE80211W		
-	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)
-	{
-		if (global->RSNVariable.MulticastCipher != DOT11_ENC_CCMP) {
-			printf("Invalid WPA group cipher %d\n", global->RSNVariable.MulticastCipher);
-			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;
-		}
-	}
-#endif	
 	ulIELength -= sizeof(DOT11_RSN_IE_SUITE);
 	pucIE += sizeof(DOT11_RSN_IE_SUITE);
 
@@ -842,7 +731,7 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
 		pDot11RSNIESuite->OUI[1] != 0x50 ||
 		pDot11RSNIESuite->OUI[2] != 0xF2)
 	{
-		AUTHDEBUG(" RSN IE Suite[0x%x]\n", pDot11RSNIESuite->Type);
+		printf("pDot11RSNIESuite->Type = %x\n", pDot11RSNIESuite->Type);
 		retVal = ERROR_INVALID_RSNIE;
 		goto lib1x_authRSN_parseIE_error;
 	}
@@ -854,15 +743,7 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
                         //pDot11RSNConfig->ulNumOfPairwiseSuite = 1;
 
     global->RSNVariable.UnicastCipher = pDot11RSNIESuite->Type;
-#ifdef CONFIG_IEEE80211W						
-	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)
-	{
-		if (global->RSNVariable.UnicastCipher == DOT11_ENC_TKIP) {
-			printf("Management frame protection cannot use TKIP\n");
-			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;
-		}
-	}
-#endif	
+	
 	//pDot11SSNConfig->ulPairwiseSuite[0] = pDot11SSNIESuite->Type;
 	ulIELength -= sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
 	pucIE += sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
@@ -893,6 +774,9 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
 	if( pDot11RSNIESuite->Type == DOT11_AuthKeyType_RSN
 	  ||pDot11RSNIESuite->Type == DOT11_AuthKeyType_RSNPSK
 	  ||pDot11RSNIESuite->Type == DOT11_AuthKeyType_802_1X_SHA256
+#ifdef CONFIG_IEEE80211R	
+	   || pDot11RSNIESuite->Type == DOT11_AuthKeyType_FT
+#endif
 	  ||pDot11RSNIESuite->Type == DOT11_AuthKeyType_PSK_SHA256)
 	{
 		// Only Implement these algorithm?
@@ -900,13 +784,12 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
 	else
 #else
 	if( pDot11RSNIESuite->Type < DOT11_AuthKeyType_RSN
-	  ||pDot11RSNIESuite->Type > DOT11_AuthKeyType_RSNPSK)
-#endif	  	
+	  ||pDot11RSNIESuite->Type > DOT11_AuthKeyType_RSNPSK)  	
 	{
 		retVal = ERROR_INVALID_AUTHKEYMANAGE;
 		goto lib1x_authRSN_parseIE_error;
 	}
-
+#endif
 	//pDot11RSNConfig->ulNumOfAuthenticationSuite = 1;
 	global->AuthKeyMethod = pDot11RSNIESuite->Type;
 	ulIELength -= sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
@@ -945,25 +828,6 @@ int lib1x_authRSN_parseIE(Dot1x_Authenticator * auth,
 	}
 #endif /* RTL_WPA2 */
 
-#ifdef CONFIG_IEEE80211W
-	pDot11RSNCapability = (DOT11_RSN_CAPABILITY * )pucIE;
-	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)
-	{
-		if (!pDot11RSNCapability->field.MFPC) {
-			printf("Management frame protection Required, but client did not enable it\n");
-			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;
-		}
-	}
-	
-	if (auth->RSNVariable.ieee80211w == NO_MGMT_FRAME_PROTECTION ||
-	    !(pDot11RSNCapability->field.MFPC))
-		global->mgmt_frame_prot = 0;
-	else
-		global->mgmt_frame_prot = 1;
-		
-	HS2DEBUG("mgmt_frame_prot=%d\n",global->mgmt_frame_prot);
-
-#endif // CONFIG_IEEE80211W
 lib1x_authRSN_parseIE_success:
 
         return retVal;
@@ -975,33 +839,6 @@ lib1x_authRSN_parseIE_error:
 
 
 #ifdef RTL_WPA2
-int chk_RSN_Suite(unsigned char suite_type){
-
-    #ifdef CONFIG_IEEE80211W
-    
-    if( suite_type == DOT11_AuthKeyType_RSN   
-        ||suite_type == DOT11_AuthKeyType_RSNPSK      
-        ||suite_type == DOT11_AuthKeyType_802_1X_SHA256   
-        ||suite_type == DOT11_AuthKeyType_PSK_SHA256)   
-    {       
-        return 1; /*support*/ 
-    }else{
-        return 0; /*no support*/ 
-    }   
-    
-    #else
-    
-    if( suite_type < DOT11_AuthKeyType_RSN ||   suite_type > DOT11_AuthKeyType_RSNPSK )
-    {       
-        return 0; /*support*/ 
-    }else{
-        return 1; /*no support*/ 
-    }   
-    
-    #endif
-
-}
-
 //--------------------------------------------------------------------------
 // Save Association Request info
 //--------------------------------------------------------------------------
@@ -1019,7 +856,6 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 	DOT11_RSN_IE_COUNT_SUITE * pDot11RSNIECountSuite = NULL;
 	DOT11_RSN_CAPABILITY * pDot11RSNCapability = NULL;
 
-	AUTHDEBUG(" OSEN[%d]\n",auth->RSNVariable.bOSEN);
 	//wpa2_hexdump("lib1x_authWPA2_parseIE: RSN IE", pucIE, ulIELength);
 
     if( ulIELength < sizeof(DOT11_WPA2_IE_HEADER) ) {
@@ -1029,40 +865,24 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 	pDot11WPA2IEHeader = (DOT11_WPA2_IE_HEADER *)pucIE;
 	lib1x_Little_N2S((u_char*)&pDot11WPA2IEHeader->Version, usVersion);
 
-#ifdef HS2_SUPPORT
-	if(auth->RSNVariable.bOSEN)
+	if (usVersion != RSN_VER1)
 	{
-		// Check Before, No Check again
-		ulIELength -= 6; // ElementID(B1) + LEN(B1) + OI(B3) + TYPE(B1)
-		pucIE += 6;
+		retVal = ERROR_UNSUPPORTED_RSNEVERSION;
+		goto lib1x_authWPA2_parseIE_error;
 	}
-	else
-#endif
+	if (pDot11WPA2IEHeader->ElementID != WPA2_ELEMENT_ID ||
+		pDot11WPA2IEHeader->Length != ulIELength -2 )
 	{
-		//AUTHDEBUG("lib1x_authWPA2_parseIE, path1\n");
-		if (usVersion != RSN_VER1)
-		{
-			retVal = ERROR_UNSUPPORTED_RSNEVERSION;
-			goto lib1x_authWPA2_parseIE_error;
-		}
-		
-		if (pDot11WPA2IEHeader->ElementID != WPA2_ELEMENT_ID ||
-			pDot11WPA2IEHeader->Length != ulIELength -2 )
-		{
-			retVal = ERROR_INVALID_RSNIE;
-			goto lib1x_authWPA2_parseIE_error;
-		}
-		ulIELength -= sizeof(DOT11_WPA2_IE_HEADER);
-		pucIE += sizeof(DOT11_WPA2_IE_HEADER);
+		retVal = ERROR_INVALID_RSNIE;
+		goto lib1x_authWPA2_parseIE_error;
 	}
-	
 	global->RSNVariable.RSNEnabled= TRUE;
 #ifdef RTL_WPA2
 	global->RSNVariable.PMKCached= FALSE;  // init
 #endif
 
-	
-
+	ulIELength -= sizeof(DOT11_WPA2_IE_HEADER);
+	pucIE += sizeof(DOT11_WPA2_IE_HEADER);
 
 	//----------------------------------------------------------------------------------
  	// Multicast Cipher Suite processing
@@ -1078,7 +898,6 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 		pDot11RSNIESuite->OUI[1] != 0x0F ||
 		pDot11RSNIESuite->OUI[2] != 0xAC)
 	{
-		AUTHDEBUG("ERROR_INVALID_RSNIE, Multicast Cipher Suite\n");
 		retVal = ERROR_INVALID_RSNIE;
 		goto lib1x_authWPA2_parseIE_error;
 	}
@@ -1092,16 +911,11 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 		goto lib1x_authWPA2_parseIE_error;
 	}
 
-#ifdef HS2_SUPPORT
-	if(auth->RSNVariable.bOSEN)
-		global->RSNVariable.MulticastCipher = DOT11_ENC_CCMP;	
-	else
-#endif
 	global->RSNVariable.MulticastCipher = pDot11RSNIESuite->Type;
 #ifdef CONFIG_IEEE80211W
 	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)	{		
 		if (global->RSNVariable.MulticastCipher != auth->RSNVariable.MulticastCipher) {			
-			HS2DEBUG("Invalid WPA group cipher %d\n", global->RSNVariable.MulticastCipher);			
+			printf("Invalid WPA group cipher %d\n", global->RSNVariable.MulticastCipher);			
 			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;		
 		}	
 	}
@@ -1126,7 +940,7 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 		pDot11RSNIESuite->OUI[1] != 0x0F ||
 		pDot11RSNIESuite->OUI[2] != 0xAC)
 	{
-		AUTHDEBUG("RSN IE Suite =[0x %x]\n", pDot11RSNIESuite->Type);
+		printf("pDot11RSNIESuite->Type = %x\n", pDot11RSNIESuite->Type);
 		retVal = ERROR_INVALID_RSNIE;
 		goto lib1x_authWPA2_parseIE_error;
 	}
@@ -1141,11 +955,11 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 	global->RSNVariable.UnicastCipher = pDot11RSNIESuite->Type;							
 	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)	{		
 		if (global->RSNVariable.UnicastCipher == DOT11_ENC_TKIP) {			
-			HS2DEBUG("Management frame protection cannot use TKIP\n");			
+			printf("Management frame protection cannot use TKIP\n");			
 			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;		
 		}	
 	}
-#endif  
+#endif        			
 
 	ulIELength -= sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
 	pucIE += sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
@@ -1159,22 +973,7 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 	pDot11RSNIECountSuite = (PDOT11_RSN_IE_COUNT_SUITE)pucIE;
 	pDot11RSNIESuite = pDot11RSNIECountSuite->dot11RSNIESuite;
 	lib1x_Little_N2S((u_char*)&pDot11RSNIECountSuite->SuiteCount, usSuitCount);
-#ifdef HS2_SUPPORT	
-	HS2DEBUG("lib1x_authWPA2_parseIE, bOSEN=%d\n", auth->RSNVariable.bOSEN);
-	if(auth->RSNVariable.bOSEN == 1) {
-		if (usSuitCount != 1 ||
-			pDot11RSNIESuite->OUI[0] != 0x50 ||
-			pDot11RSNIESuite->OUI[1] != 0x6F ||
-			pDot11RSNIESuite->OUI[2] != 0x9A )
-		{
-			HS2DEBUG("ERROR_INVALID_RSNIE, OSEN\n");
-			retVal = ERROR_INVALID_RSNIE;
-			goto lib1x_authWPA2_parseIE_error;
-		}	
-	}
-	else
-#endif
-	{
+
 	if (usSuitCount != 1 ||
 		pDot11RSNIESuite->OUI[0] != 0x00 ||
 		pDot11RSNIESuite->OUI[1] != 0x0F ||
@@ -1183,82 +982,75 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 		retVal = ERROR_INVALID_RSNIE;
 		goto lib1x_authWPA2_parseIE_error;
 	}
-	}
 
-    #ifdef HS2_SUPPORT	
-	if(auth->RSNVariable.bOSEN) {
-		if( pDot11RSNIESuite->Type != 1) { // WFA Anonymous Client 802.1X AKM
-			retVal = ERROR_INVALID_AUTHKEYMANAGE;
-			goto lib1x_authWPA2_parseIE_error;
-		}
-	}
-	else
-    #endif
 	{
-
-        if(chk_RSN_Suite(pDot11RSNIESuite->Type)==0)
+#ifdef CONFIG_IEEE80211W
+		if( pDot11RSNIESuite->Type == DOT11_AuthKeyType_RSN	  
+			||pDot11RSNIESuite->Type == DOT11_AuthKeyType_RSNPSK	  
+			||pDot11RSNIESuite->Type == DOT11_AuthKeyType_802_1X_SHA256	  
+			||pDot11RSNIESuite->Type == DOT11_AuthKeyType_PSK_SHA256)	
+		{		
+			// Only Implement these algorithm?	
+		}	
+		else
+#else
+		if( pDot11RSNIESuite->Type < DOT11_AuthKeyType_RSN
+		  ||pDot11RSNIESuite->Type > DOT11_AuthKeyType_RSNPSK)
+#endif	
 		{
 			retVal = ERROR_INVALID_AUTHKEYMANAGE;
 			goto lib1x_authWPA2_parseIE_error;
 		}
 	}
-
-
 	//pDot11RSNConfig->ulNumOfAuthenticationSuite = 1;
 	global->AuthKeyMethod = pDot11RSNIESuite->Type;
-	HS2DEBUG("lib1x_authWPA2_parseIE..AuthKeyMethod=%d\n",pDot11RSNIESuite->Type);
-
 	ulIELength -= sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
 	pucIE += sizeof(pDot11RSNIECountSuite->SuiteCount) + sizeof(DOT11_RSN_IE_SUITE);
 
-    /* RSN Capability*/
+        // RSN Capability
 	if (ulIELength < sizeof(DOT11_RSN_CAPABILITY)) {
 		global->RSNVariable.NumOfRxTSC = 2;
 		retVal = 0;
 		goto lib1x_authWPA2_parseIE_success;
 	}
 
-	/*-------------------------------------------------------------
-        PMKID Count field
-	--------------------------------------------------------------*/
-
-	
+	//----------------------------------------------------------------------------------
+        // Capability field
+	//----------------------------------------------------------------------------------
 	pDot11RSNCapability = (DOT11_RSN_CAPABILITY * )pucIE;
 	global->RSNVariable.isSuppSupportPreAuthentication = pDot11RSNCapability->field.PreAuthentication;
-
-    #if 0   //def RTL_WPA2_PREAUTH  // kenny temp
+#ifdef RTL_WPA2_PREAUTH  // kenny temp
 	//wpa2_hexdump("WPA2 IE Capability", pucIE, 2);
 	//global->RSNVariable.isSuppSupportPreAuthentication = (pDot11RSNCapability->charData[0] & 0x01)?TRUE:FALSE;
-    #endif
+#endif
 
-    #ifdef RTL_WPA2
+#ifdef RTL_WPA2
 	global->RSNVariable.NumOfRxTSC = 1;
-    #else
+#else
 	global->RSNVariable.isSuppSupportPairwiseAsDefaultKey = pDot11RSNCapability->field.PairwiseAsDefaultKey;
 	switch (pDot11RSNCapability->field.NumOfReplayCounter) {
-    	case 0:
-    		global->RSNVariable.NumOfRxTSC = 1;
-    		break;
-    	case 1:
-    		global->RSNVariable.NumOfRxTSC = 2;
-    		break;
-    	case 2:
-    		global->RSNVariable.NumOfRxTSC = 4;
-    		break;
-    	case 3:
-    		global->RSNVariable.NumOfRxTSC = 16;
-    		break;
-    	default:
-    		global->RSNVariable.NumOfRxTSC = 1;
+	case 0:
+		global->RSNVariable.NumOfRxTSC = 1;
+		break;
+	case 1:
+		global->RSNVariable.NumOfRxTSC = 2;
+		break;
+	case 2:
+		global->RSNVariable.NumOfRxTSC = 4;
+		break;
+	case 3:
+		global->RSNVariable.NumOfRxTSC = 16;
+		break;
+	default:
+		global->RSNVariable.NumOfRxTSC = 1;
 	}
-    #endif
-
-    #ifdef CONFIG_IEEE80211W
+#endif
+#ifdef CONFIG_IEEE80211W
 	pDot11RSNCapability = (DOT11_RSN_CAPABILITY * )pucIE;
 	if (auth->RSNVariable.ieee80211w == MGMT_FRAME_PROTECTION_REQUIRED)
 	{
 		if (!pDot11RSNCapability->field.MFPC) {
-			PMFDEBUG("      CHK!!! myself PMF is Required[2], but STA did not support \n\n");
+			printf("Management frame protection Required, but client did not enable it\n");
 			return ERROR_MGMT_FRAME_PROTECTION_VIOLATION;
 		}
 	}
@@ -1268,10 +1060,9 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 	else
 		global->mgmt_frame_prot = 1;
 
-	PMFDEBUG("PMF enable=[%d]\n",global->mgmt_frame_prot);
+	PMFDEBUG("mgmt_frame_prot=%d\n",global->mgmt_frame_prot);
 	
-    #endif // end of CONFIG_IEEE80211W
-    
+#endif // CONFIG_IEEE80211W
 	pucIE += 2;
 	ulIELength -= 2;
 	
@@ -1281,17 +1072,13 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 		retVal = 0;
 		goto lib1x_authWPA2_parseIE_success;
 	}
-    //wpa2_hexdump("PMKID Count", pucIE, 2);
+        //wpa2_hexdump("PMKID Count", pucIE, 2);
 
-
-
-	/*-------------------------------------------------------------
-        PMKID Count field
-	--------------------------------------------------------------*/
-	
+	//----------------------------------------------------------------------------------
+        // PMKID Count field
+	//----------------------------------------------------------------------------------
 	lib1x_Little_N2S((u_char*)pucIE, usSuitCount);
 	//printf("PMKID Count = %d\n",usSuitCount);
-	
 	pucIE += 2;
 	ulIELength -= 2;
 	if ( usSuitCount > 0) {
@@ -1313,24 +1100,17 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 
 	}
 #ifdef CONFIG_IEEE80211W
-
-    pucIE += PMKID_LEN*usSuitCount;
-	//HS2DEBUG("usSuitCount=%d, ulIELength=%d\n",usSuitCount,ulIELength);
-
-
+	pucIE += PMKID_LEN*usSuitCount;
+	printf("usSuitCount=%d, ulIELength=%d\n",usSuitCount,ulIELength);
+	ulIELength -= PMKID_LEN*usSuitCount;
 	//----------------------------------------------------------------------------------
-    /*Group Management Cipher field (IGTK)*/ 
+    // Group Management Cipher field (IGTK)
 	//----------------------------------------------------------------------------------
 	if((ulIELength < sizeof(DOT11_RSN_IE_SUITE))) {
 		retVal = 0;
 		goto lib1x_authWPA2_parseIE_success;
 	}
 
-    #ifdef HS2_SUPPORT	
-	if(auth->RSNVariable.bOSEN) 		
-		global->RSNVariable.mgmt_group_cipher = 0; // Group Management Cipher Suite may be set to any value since DGAF is disabled for OSEN
-	else
-    #endif
 	{
 		pDot11RSNIESuite = (DOT11_RSN_IE_SUITE*)pucIE;
 
@@ -1338,7 +1118,7 @@ int lib1x_authWPA2_parseIE(Dot1x_Authenticator * auth,
 			pDot11RSNIESuite->OUI[1] != 0x0F ||
 			pDot11RSNIESuite->OUI[2] != 0xAC)
 		{
-			HS2DEBUG("RSNIE Suite OUI = %02x:%02x:%02x\n", pDot11RSNIESuite->OUI[0],pDot11RSNIESuite->OUI[1],pDot11RSNIESuite->OUI[2]);
+			printf("RSNIE Suite OUI = %02x:%02x:%02x\n", pDot11RSNIESuite->OUI[0],pDot11RSNIESuite->OUI[1],pDot11RSNIESuite->OUI[2]);
 			retVal = ERROR_INVALID_RSNIE;
 			goto lib1x_authWPA2_parseIE_error;
 		}

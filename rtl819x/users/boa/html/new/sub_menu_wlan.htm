@@ -11,8 +11,10 @@
   <body style="background-color: #3B9DCC">
   <SCRIPT language=Javascript>
     draw_subnav_head();
-	var is8021xClient="<% getInfo("is8021xClient"); %>"*1;
-	draw_subnav_wlan(is8021xClient);
+	var is8021xClient="<% getInfo("is8021xClient"); %>"*1;	
+    var isMeshDefined =  "<% getIndex("isMeshDefined"); %>";
+	var is80211rSupport="<% getIndex("is_80211r_support")%>";
+	draw_subnav_wlan(is8021xClient, isMeshDefined,is80211rSupport);
 	draw_subnav_tail();
 	init_submenu("Basic Setting");
 

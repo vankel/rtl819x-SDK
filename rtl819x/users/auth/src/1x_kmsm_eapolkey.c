@@ -14,6 +14,11 @@
 #include "1x_supp_pae.h"
 #endif
 
+#ifdef CONFIG_IEEE80211R
+#include "sha256.h"
+#include "1x_ioctl.h"
+#endif
+
 #define PMK_EXPANSION_CONST 	        "Pairwise key expansion"
 #define PMK_EXPANSION_CONST_SIZE		22
 #ifdef RTL_WPA2
@@ -108,7 +113,7 @@ int	CheckMIC(OCTET_STRING EAPOLMsgRecvd, u_char *key, int keylen)
 LIB1X_EAPOL_HDRLEN);
 	memset(tmpeapolkey->key_mic, 0, KEY_MIC_LEN);
 
-	AUTHDEBUG("unicast key mic Algo=[%d]\n",ucAlgo);
+
 	if(ucAlgo == key_desc_ver1)
 	{
 		hmac_md5((u_char*)tmpeapol, EAPOLMsgRecvd.Length - ETHER_HDRLEN ,
@@ -133,8 +138,8 @@ KEY_MIC_LEN))
 		if(!memcmp(sha1digest, EapolKeyMsgRecvd.Octet + KeyMICPos, KEY_MIC_LEN))
 			retVal = 1;
 	}
-#ifdef CONFIG_IEEE80211W
-	else if(ucAlgo == key_desc_ver3 || ucAlgo == 0)		/*HS2_SUPPORT  ; || ucAlgo == 0*/
+#if defined(CONFIG_IEEE80211W) || defined(CONFIG_IEEE80211R)
+	else if(ucAlgo == key_desc_ver3)
 	{
 		omac1_aes_128(key, (u_char*)tmpeapol, EAPOLMsgRecvd.Length - ETHER_HDRLEN, tmpeapolkey->key_mic);
 		if(!memcmp(tmpeapolkey->key_mic, EapolKeyMsgRecvd.Octet + KeyMICPos, KEY_MIC_LEN))
@@ -209,7 +214,7 @@ void CalcMIC(OCTET_STRING EAPOLMsgSend, int algo, u_char *key, int keylen)
 					key, keylen, sha1digest);
 		memcpy(eapolkey->key_mic, sha1digest, KEY_MIC_LEN);
 	}
-	else if (algo == key_desc_ver3 || algo == 0) {				/*HS2_SUPPORT  ; || ucAlgo == 0*/
+	else if (algo == key_desc_ver3) {		
 		omac1_aes_128(key, (unsigned char*)eapol, EAPOLMsgSend.Length - ETHER_HDRLEN, eapolkey->key_mic);
 	}
 	// kenny
@@ -269,6 +274,161 @@ void CalcPTK(u_char *addr1, u_char *addr2, u_char *nonce1, u_char *nonce2,
 
 }
 
+#ifdef CONFIG_IEEE80211R
+#define FT_PMKR0_CONST					"FT-R0"
+#define FT_PMKR0_CONST_SIZE				5
+#define FT_PMKR0_NAME_CONST				"FT-R0N"
+#define FT_PMKR0_NAME_CONST_SIZE		6
+#define FT_PMKR1_CONST					"FT-R1"
+#define FT_PMKR1_CONST_SIZE				5
+#define FT_PMKR1_NAME_CONST				"FT-R1N"
+#define FT_PMKR1_NAME_CONST_SIZE		6
+#define FT_PMK_EXPANSION_CONST			"FT-PTK"
+#define FT_PMK_EXPANSION_CONST_SIZE		6
+
+#define BIT(x)	(1 << (x))
+
+
+unsigned int mapPairwise(unsigned char enc)
+{
+	if (enc == DOT11_ENC_TKIP)
+		return BIT(3);
+	else if (enc == DOT11_ENC_CCMP)
+		return BIT(4);
+	else
+		return BIT(0);
+}
+
+void CalcFTPTK(Global_Params * global, u_char * keyout, int keyoutlen)
+{
+	struct _Dot1x_Authenticator *auth = global->auth;
+	unsigned char data[512];
+	unsigned char *pos;
+	unsigned char tmpBuf[128];
+	unsigned char *data_vec[4];
+	size_t len_vec[4];
+	unsigned char pmk_r0[PMK_LEN], pmk_r1[PMK_LEN];
+	unsigned char pmk_r0_name[PMKID_LEN], pmk_r1_name[PMKID_LEN];
+	unsigned char salt_buff[PMKID_LEN];
+	DOT11_QUERY_FT_INFORMATION ft_info;
+	DOT11_SET_FT_INFORMATION set_info;
+	
+	if (lib1x_control_query_ft_info(auth, global->theAuthenticator->supp_addr, &ft_info)) {
+		printf("lib1x_control_query_ft_info failed\n");
+		return;
+	}
+	memset(global->akm_sm->ssid, 0, sizeof(global->akm_sm->ssid));
+	memcpy(global->akm_sm->ssid, ft_info.ssid, ft_info.ssid_len);
+	global->akm_sm->ssid_len = ft_info.ssid_len;
+	memcpy(global->akm_sm->mdid, ft_info.mdid, 2);
+	memset(global->akm_sm->r0kh_id, 0, sizeof(global->akm_sm->r0kh_id));
+	memcpy(global->akm_sm->r0kh_id, ft_info.r0kh_id, ft_info.r0kh_id_len);
+	global->akm_sm->r0kh_id_len = ft_info.r0kh_id_len;
+	memcpy(global->akm_sm->bssid, ft_info.bssid, MacAddrLen);
+	global->akm_sm->over_ds_enabled = ft_info.over_ds;
+	global->akm_sm->resource_request_support = ft_info.res_request;
+
+	set_info.EventId = DOT11_EVENT_FT_SET_INFO;
+	memcpy(set_info.sta_addr, global->theAuthenticator->supp_addr, MacAddrLen);
+	set_info.UnicastCipher = global->RSNVariable.UnicastCipher;
+	set_info.MulticastCipher = global->RSNVariable.MulticastCipher;
+	set_info.bInstallKey = 0;
+	if (lib1x_control_set_ft_info(auth, &set_info)) {
+		printf("lib1x_control_set_ft_info failed\n");
+	}
+	
+	// Calc PMK-R0
+	pos = data;
+	*pos++ = (unsigned char)ft_info.ssid_len;
+	memcpy(pos, ft_info.ssid, ft_info.ssid_len);
+	pos += ft_info.ssid_len;
+	memcpy(pos, ft_info.mdid, 2);
+	pos += 2;
+	*pos++ = ft_info.r0kh_id_len;
+	memcpy(pos, ft_info.r0kh_id, ft_info.r0kh_id_len);
+	pos += ft_info.r0kh_id_len;
+	memcpy(pos, ft_info.sta_addr, MacAddrLen);
+	pos += MacAddrLen;
+	sha256_prf(global->akm_sm->xxkey, PMK_LEN, (unsigned char*)FT_PMKR0_CONST, data, pos - data, tmpBuf, 48);	
+	memcpy(pmk_r0, tmpBuf, PMK_LEN);
+	memcpy(salt_buff, tmpBuf + PMK_LEN, PMKID_LEN);
+
+	// Calc PMK-R0Name
+	data_vec[0] = FT_PMKR0_NAME_CONST;
+	len_vec[0] = FT_PMKR0_NAME_CONST_SIZE;
+	data_vec[1] = salt_buff;
+	len_vec[1] = PMKID_LEN;
+	if (sha256_vector(2, data_vec, len_vec, tmpBuf)) {
+		printf("Error: sha256 fail\n");
+		return;
+	}
+	memcpy(pmk_r0_name, tmpBuf, PMKID_LEN);
+
+
+	wpa2_hexdump("PSK: Generate PMK_R0_Name=", pmk_r0_name, PMKID_LEN);
+
+	if (lib1x_control_ft_set_r0(auth, global->theAuthenticator->supp_addr, pmk_r0, pmk_r0_name)) {
+		printf("Error: can't store r0kh\n");
+		return;
+	}
+
+	// Calc PMK-R1
+	pos = data;
+	memcpy(pos, ft_info.bssid, MacAddrLen);
+	pos += MacAddrLen;
+	memcpy(pos, ft_info.sta_addr, MacAddrLen);
+	pos += MacAddrLen;
+	sha256_prf(pmk_r0, PMK_LEN, (unsigned char *)FT_PMKR1_CONST,
+		data, pos - data, tmpBuf, 32);
+	memcpy(pmk_r1, tmpBuf, PMK_LEN);
+
+
+	wpa2_hexdump("PSK: Generate PMK_R1=", pmk_r1, PMK_LEN);
+
+
+	// Calc PMK-R1Name
+	data_vec[0] = FT_PMKR1_NAME_CONST;
+	len_vec[0] = FT_PMKR1_NAME_CONST_SIZE;
+	data_vec[1] = pmk_r0_name;
+	len_vec[1] = PMKID_LEN;
+	data_vec[2] = ft_info.bssid;
+	len_vec[2] = MacAddrLen;
+	data_vec[3] = ft_info.sta_addr;
+	len_vec[3] = MacAddrLen;
+	if (sha256_vector(4, data_vec, len_vec, tmpBuf)) {
+		printf("Error: sha256 fail\n");
+		return;
+	}
+	memcpy(pmk_r1_name, tmpBuf, PMKID_LEN);
+
+	// Backup pmk_r1_name
+	memcpy(global->akm_sm->pmk_r1_name, pmk_r1_name, PMKID_LEN);
+	
+	wpa2_hexdump("PSK: Generate PMK_R1_Name=", pmk_r1_name, PMKID_LEN);
+
+
+	// Calc PTK
+	pos = data;
+	memcpy(pos, global->akm_sm->SNonce.Octet, KEY_NONCE_LEN);
+	pos += KEY_NONCE_LEN;
+	memcpy(pos, global->akm_sm->ANonce.Octet, KEY_NONCE_LEN);
+	pos += KEY_NONCE_LEN;
+	memcpy(pos, ft_info.bssid, MacAddrLen);
+	pos += MacAddrLen;
+	memcpy(pos, ft_info.sta_addr, MacAddrLen);
+	pos += MacAddrLen;
+	sha256_prf(pmk_r1, PMK_LEN, (unsigned char *)FT_PMK_EXPANSION_CONST,
+		data, pos - data, tmpBuf, keyoutlen);
+	memcpy(keyout, tmpBuf, keyoutlen);
+
+	if (lib1x_control_ft_set_r1(auth, ft_info.sta_addr, ft_info.bssid, ft_info.r0kh_id, ft_info.r0kh_id_len, 
+			pmk_r1, pmk_r1_name, pmk_r0_name, mapPairwise(global->RSNVariable.UnicastCipher) )) {
+		printf("Error: fail to store r1kh\n");
+		return;
+	}
+
+}
+#endif
 
 
 // ////////////   Nonce generation function 802.11i/D3.0 p117, p.189/
@@ -349,8 +509,7 @@ void EncGTK(Global_Params * global, u_char *kek, int keklen, u_char *key,
 			//according to p75 of 11i/D3.0, the IV should be put in the least significant octecs of
 			//KeyIV field which shall be padded with 0, so eapolkey->key_iv + 8
 			AES_WRAP(key, keylen, default_key_iv, 8, kek, keklen, out, outlen);
-	}else if(Message_KeyDescVer(global->EapolKeyMsgSend) == key_desc_ver3 
-	|| Message_KeyDescVer(global->EapolKeyMsgSend) == 0)  /*HS2_SUPPORT  ; || Message_KeyDescVer(global->EapolKeyMsgSend) == 0 */
+	}else if(Message_KeyDescVer(global->EapolKeyMsgSend) == key_desc_ver3)
 	{
 			//according to p75 of 11i/D3.0, the IV should be put in the least significant octecs of
 			//KeyIV field which shall be padded with 0, so eapolkey->key_iv + 8

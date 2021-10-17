@@ -28,8 +28,6 @@
 #error "Different kernel and TC HTB versions"
 #endif
 
-
-
 static void explain(void)
 {
 	fprintf(stderr, "Usage: ... qdisc add ... htb [default N] [r2q N]\n"

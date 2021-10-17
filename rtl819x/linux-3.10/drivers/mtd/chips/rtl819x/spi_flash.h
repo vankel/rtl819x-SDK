@@ -33,6 +33,10 @@ struct spi_chip_info
 	int (*erase)(unsigned int  addr, unsigned int uiChip);
 };
 
+#ifdef RTK_FLASH_SPIN_LOCK
+extern spinlock_t lock_spi;
+#endif
+
 #endif /* _MTD_SPI_PROBE_H_ */
 
 

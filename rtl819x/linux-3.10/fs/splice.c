@@ -795,6 +795,9 @@ static void wakeup_pipe_writers(struct pipe_inode_info *pipe)
 int splice_from_pipe_feed(struct pipe_inode_info *pipe, struct splice_desc *sd,
 			  splice_actor *actor)
 {
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+	return rtl_splice_from_pipe_feed(pipe, sd, actor);
+#else /* CONFIG_RTL_SENDFILE_PATCH */
 	int ret;
 
 	while (pipe->nrbufs) {
@@ -838,6 +841,7 @@ int splice_from_pipe_feed(struct pipe_inode_info *pipe, struct splice_desc *sd,
 	}
 
 	return 1;
+#endif /* CONFIG_RTL_SENDFILE_PATCH */
 }
 EXPORT_SYMBOL(splice_from_pipe_feed);
 
@@ -1085,6 +1089,10 @@ static ssize_t default_file_splice_write(struct pipe_inode_info *pipe,
 ssize_t generic_splice_sendpage(struct pipe_inode_info *pipe, struct file *out,
 				loff_t *ppos, size_t len, unsigned int flags)
 {
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+	if (rtl_use_sendfile)
+		return splice_from_pipe(pipe, out, ppos, len, flags, pipe_to_sendpages);
+#endif /* CONFIG_RTL_SENDFILE_PATCH */
 	return splice_from_pipe(pipe, out, ppos, len, flags, pipe_to_sendpage);
 }
 
@@ -1724,15 +1732,21 @@ SYSCALL_DEFINE6(splice, int, fd_in, loff_t __user *, off_in,
 {
 	struct fd in, out;
 	long error;
+#ifdef CONFIG_RTL_SENDFILE_PATCH
+	int run_normal = 0;
+#endif /* CONFIG_RTL_SENDFILE_PATCH */
 
 	if (unlikely(!len))
 		return 0;
 
 #ifdef CONFIG_RTL_SENDFILE_PATCH
-		error = find_fd_from_socket(fd_in, off_in, 
-					fd_out, len);
-		if(error != -EBADF)
-			return error;
+	error = rtl_splice(fd_in, off_out, fd_out, len, &run_normal);
+	
+	if ( run_normal == 1 )
+		goto splice_normal;
+	else
+		return error;
+splice_normal:
 #endif /* CONFIG_RTL_SENDFILE_PATCH */
 
 	error = -EBADF;

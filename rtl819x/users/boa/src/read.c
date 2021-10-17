@@ -480,7 +480,7 @@ int write_body(request * req)
 #if defined(CONFIG_APP_FWD)
 	int content_length = boa_atoi(req->content_length);
 	if(content_length < 0)
-		return -1;
+	    return 0;
 	//    printf("%s:%d content_length=%d\n",__FUNCTION__,__LINE__,content_length);
 #ifdef CONFIG_RTL_WAPI_SUPPORT  //and cbo --when upload wapi certs, don't kill daemon
 	if(content_length>0 && content_length<2000)

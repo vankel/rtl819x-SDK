@@ -60,7 +60,11 @@
  * After a CPU has dirtied this many pages, balance_dirty_pages_ratelimited
  * will look to see if it needs to force writeback or throttling.
  */
+#ifndef CONFIG_RTL_SENDFILE_PATCH
 static long ratelimit_pages = 32;
+#else
+long ratelimit_pages = 32;
+#endif
 
 /* The following parameters are exported via /proc/sys/vm */
 
@@ -1205,7 +1209,6 @@ static long bdi_min_pause(struct backing_dev_info *bdi,
  * If we're over `background_thresh' then the writeback threads are woken to
  * perform some writeout.
  */
-
 #ifndef CONFIG_RTL_SENDFILE_PATCH
 static void balance_dirty_pages(struct address_space *mapping,
 				unsigned long pages_dirtied)

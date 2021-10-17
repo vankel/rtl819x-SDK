@@ -1569,6 +1569,11 @@ static int32_t handle_hc_xacterr_intr(dwc_otg_hcd_t *_hcd,
 	if(usb_dbg_err())
 		printk("DWC_OTG: xacterr!! hcint = 0x%08x\n", dwc_read_reg32(&_hc_regs->hcint));
 
+	if (_qtd == NULL || _qtd->urb == NULL || _qtd->urb->pipe == NULL) {
+		printk("%s: NULL pointer!\n", __func__);
+		goto err_exit;
+	}
+
 	switch (usb_pipetype(_qtd->urb->pipe)) {
 	case PIPE_CONTROL:
 	case PIPE_BULK:

@@ -34,10 +34,8 @@ choice 'Product' "RTL8198C_8954E CONFIG_RTL8198C  \
 
 
 if [ "$CONFIG_RTL8198C" = "y" ] ; then
-		define_bool RTL8196  y
 		define_bool RTL8198 y
 		define_bool CONFIG_HISTORY_KEYIN
-		define_bool CONFIG_RTL8198_REVISION_B y				
 		define_bool CONFIG_RTL8198 y
 		define_bool CONFIG_RTL8881A y
 fi

@@ -283,7 +283,6 @@ static unsigned int *tcp_get_timeouts(struct net *net);
 int	tcp_get_timeouts_by_state(u_int8_t state,void *ct_or_cp,int is_ct)
 {
     struct net *net = NULL;
-    unsigned int *tcp_timeouts_run = NULL;
     if(is_ct){
         struct nf_conn *ct = (struct nf_conn *)ct_or_cp;
         net = nf_ct_net(ct);
@@ -292,7 +291,7 @@ int	tcp_get_timeouts_by_state(u_int8_t state,void *ct_or_cp,int is_ct)
         struct ip_vs_conn *cp = (struct ip_vs_conn *)ct_or_cp;
 		net = ip_vs_conn_net(cp);
     }
-	tcp_timeouts_run = tcp_get_timeouts(net);
+	unsigned int *tcp_timeouts_run = tcp_get_timeouts(net);
     //net_warn_ratelimited("--%s--%d-- state = %d,  tcp_timeouts_run[%s] = %d\n",__FUNCTION__,__LINE__,state,tcp_conntrack_names[state],tcp_timeouts_run[state]);
 	return tcp_timeouts_run[state];
 }
@@ -469,7 +468,6 @@ static void tcp_options(const struct sk_buff *skb,
 	}
 }
 
-#if defined(FAST_PATH_SPI_ENABLED) || !(defined(CONFIG_RTL_IPTABLES_FAST_PATH) ||defined(CONFIG_RTL_HARDWARE_NAT))
 static void tcp_sack(const struct sk_buff *skb, unsigned int dataoff,
                      const struct tcphdr *tcph, __u32 *sack)
 {
@@ -530,7 +528,6 @@ static void tcp_sack(const struct sk_buff *skb, unsigned int dataoff,
 		}
 	}
 }
-#endif
 
 #ifdef CONFIG_NF_NAT_NEEDED
 static inline s16 nat_offset(const struct nf_conn *ct,
@@ -547,7 +544,6 @@ static inline s16 nat_offset(const struct nf_conn *ct,
 #define NAT_OFFSET(ct, dir, seq)	0
 #endif
 
-#if defined(FAST_PATH_SPI_ENABLED) || !(defined(CONFIG_RTL_IPTABLES_FAST_PATH) ||defined(CONFIG_RTL_HARDWARE_NAT))
 #if !defined(FAST_PATH_SPI_ENABLED)
 static
 #endif
@@ -782,7 +778,6 @@ bool tcp_in_window(const struct nf_conn *ct,
 
 	return res;
 }
-#endif
 
 /* table of valid flag combinations - PUSH, ECE and CWR are always valid */
 static const u8 tcp_valid_flags[(TCPHDR_FIN|TCPHDR_SYN|TCPHDR_RST|TCPHDR_ACK|
@@ -893,7 +888,7 @@ static int tcp_packet(struct nf_conn *ct,
 #if defined(CONFIG_RTL_819X)
 	conn_info.net = net;
 	conn_info.ct = ct;
-	conn_info.skb = (struct sk_buff *)skb;
+	conn_info.skb = skb;
 	conn_info.hooknum = hooknum;
 	conn_info.ctinfo = ctinfo;
 	conn_info.new_state=new_state;

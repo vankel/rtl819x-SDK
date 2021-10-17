@@ -459,6 +459,9 @@ function pppoeNoSelection(field)
 }
 function wanTypeSelection(field)
 {
+	var wantype = document.getElementById("wanType_id");
+	var optval = wantype.options[wantype.selectedIndex].value;
+
   //dzh   	
   	//DisableAllPPPoE();
   //dzh 
@@ -479,7 +482,7 @@ function wanTypeSelection(field)
 	enableDNSinput();	
 	document.tcpip.dnsMode[1].checked = true ; // dns change to manual mode
   }
-  else if(field.selectedIndex == 1){ //Dhcp
+  else if(field.selectedIndex == 1 || optval == "LTE4G"){ //Dhcp
   	document.tcpip.dnsMode[0].disabled = false;
 	document.tcpip.dnsMode[1].disabled = false;
   	wanShowDiv(0 ,1, 1, 0, 0, 0, 0);   
@@ -616,7 +619,7 @@ function wanTypeSelection(field)
 	show_div(1, "dslite_div");
   }
   wan_connection_type=document.tcpip.wanType.selectedIndex;
-   if(wan_connection_type == 2)
+   if(wan_connection_type == 2 || optval == "LTE4G")
    		pppTypeSelection(0);
    	else if(wan_connection_type == 3)
    		pppTypeSelection(1);
@@ -761,6 +764,18 @@ function Load_Setting()
 	var wanDhcp_ = <% getIndex("wanDhcp"); %>;
 	var wanDhcp_selidx = 0;
 	var dF=document.tcpip;
+	var lte_idx = -1;
+
+	var s = document.getElementById("wanType_id")
+	for (var i=0; i<s.options.length; i++) {
+		if (s.options[i].value == "LTE4G") {
+			lte_idx = i;
+			if (<% getIndex("lte4g_build"); %> == "1" && 
+				<% getIndex("lte4g_enable"); %> == "1")
+				wanDhcp_ = -1;
+			break;
+		}
+	}
 	
 	if ( wanDhcp_ == 0 )
 		wanDhcp_selidx = 0;
@@ -790,6 +805,13 @@ function Load_Setting()
 		}
 	}
 <% getInfo("ipv6_jscomment_end");%>
+	else if (lte_idx > 0)
+	{
+		//alert("lte_idx="+lte_idx);
+		wanDhcp_selidx = lte_idx;
+		wanDhcp_ = 1;
+	}
+
 	document.tcpip.wanType.selectedIndex = wanDhcp_selidx;
 //	wanTypeSelection(document.tcpip.wanType);
 
@@ -1066,6 +1088,15 @@ function manualDsliteclicked()
 {
 	document.tcpip.dsliteAftrIpAddr6.disabled = false;
 }
+function clone_wan_mac()
+{	
+	document.tcpip.wan_macAddr.value="<% getInfo("wan_mac_clone_address");%>";
+}
+
+function restore_wan_default_mac()
+{	
+	document.tcpip.wan_macAddr.value="<% getInfo("wan_default_mac_address");%>";
+}
 //end
 </SCRIPT>
 </head>
@@ -1087,11 +1118,13 @@ function manualDsliteclicked()
 </table>
  <input type="hidden" value="pptp" name="ipMode">
  <Iinput type=hidden name="pptpDynamicWanIP";  value=0>
+ <input type="hidden" value="<% getIndex("lte4g_build"); %>" name="lte4g_build">
+ <input type="hidden" value="<% getIndex("lte4g_enable"); %>" name="lte4g_enable">
 
   <table border="0" width=480>
     <tr>
        <td width="30%" height=40><font size=2><b>WAN Access Type:</b></td>
-       <td width="70%"><font size=2><select size="1" name="wanType" onChange="wanTypeSelection(this)">
+       <td width="70%"><font size=2><select id="wanType_id" size="1" name="wanType" onChange="wanTypeSelection(this)">
 	<option value="fixedIp">Static IP</option>
 	<option value="autoIp">DHCP Client</option>
 	<option value="ppp">PPPoE</option>
@@ -1105,6 +1138,12 @@ function manualDsliteclicked()
 <% getInfo("usb3g_comment_start");%>
 	<option value="USB3G">USB3G</option>
 <% getInfo("usb3g_comment_end");%>
+<% getInfo("ipv6_comment_start");%>
+	<option value="dslite">DS-Lite</option>
+<% getInfo("ipv6_comment_end");%>
+<% getInfo("lte4g_comment_start");%>
+	<option value="LTE4G">LTE4G</option>
+<% getInfo("lte4g_comment_end");%>
 <% getInfo("ipv6_comment_start");%>
 	<option value="dslite">DS-Lite</option>
 <% getInfo("ipv6_comment_end");%>
@@ -1795,8 +1834,10 @@ function manualDsliteclicked()
     <span id = "always_div" class = "off" >
     <table border="0" width=480>
     <tr> 
-       <td width="30%"><font size=2><b>Clone MAC Address:</b></td>
-       <td width="70%"><font size=2><input type="text" name="wan_macAddr" size="18" maxlength="12" value=<% getInfo("wanMac"); %>></td>
+       <td width="40%"><font size=2><b>Clone MAC Address:</b></td>
+       <td width="20%"><font size=2><input type="text" name="wan_macAddr" size="18" maxlength="12" value=<% getInfo("wanMac"); %>></td>
+	<td width="20%"><input type="button" value="Clone MAC" name="wan_macAddr_clone" onClick="clone_wan_mac();" ></td>
+       <td width="20%"><input type="button" value="Restore Default MAC" name="wan_default_macAddr" onClick="restore_wan_default_mac();" ></td>
     </tr>
     <tr>
       <td width="100%" colspan="2"><font size=2>

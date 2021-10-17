@@ -84,7 +84,12 @@ function saveChanges()
 
   if ( checkIpAddr(document.tcpip.lan_ip, 'Invalid IP address value! ') == false )
 	    return false;
-
+  if (isReservedIpAddress(document.tcpip.lan_ip.value) == true)
+  {
+		alert('Invalid IP address value!\nIt should not be reserved IP address(127.x.x.x).');
+		return false;
+  }
+  
   if (checkIPMask(document.tcpip.lan_mask) == false)
   	return false ;
   
@@ -94,7 +99,7 @@ function saveChanges()
   if ( document.tcpip.dhcp.selectedIndex == 2) {
   	if ( checkIpAddr(document.tcpip.dhcpRangeStart, 'Invalid DHCP client start address! ') == false )
 	    return false;
-
+	
 	if(checkHostIPValid(document.tcpip.dhcpRangeStart,document.tcpip.lan_mask,'Invalid DHCP client start address! ')== false) 
 		return false;
 

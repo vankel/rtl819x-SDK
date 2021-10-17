@@ -20,11 +20,6 @@
 
 //#define MESH_ROUTE_MAINTENANCE
 
-// TEST and DEBUG sub-section
-//
-// The following settings (DBG_NCTU_MESH, _11s_TEST_MODE_ and _11s_TRACE_MODE_) could
-// be removed for release version.
-//
 
 #define SIMPLE_CH_UNI_PROTOCOL
  
@@ -34,7 +29,6 @@
 #endif
 
 //#define D_ACL 	//tsananiu
-//#define FREDDY
 
 #if defined(CONFIG_RTL8192SE)
 #define SIGNINTX rtl8192SE_signin_txdesc
@@ -42,20 +36,7 @@
 #define SIGNINTX signin_txdesc
 #endif
 
-#if 0
-#define _11s_TRACE_MODE_
-#ifndef _11s_TEST_MODE_
-#undef _11s_TRACE_MODE_
-#endif
-#endif
 
-// If DBG_NCTU_MESH is disabled, the corresponding flags in
-// br_input.c, arp.c, icmp.c, skbuff.c, skbuff.h, netdevice.h and eth865x.c
-// should NOT be enabled!
-// #define DBG_NCTU_MESH 1
-
-//
-// End of TEST and DEBUG sub-section
 
 #endif
 #endif	// _MESH_CFG_H

@@ -18,12 +18,8 @@
 * 
 ******************************************************************************/
 
-#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
 #include "Mp_Precomp.h"
-#else
-#include "../Mp_Precomp.h"
-#endif
-#include "../odm_precomp.h"
+#include "../phydm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)
 static BOOLEAN
@@ -353,7 +349,7 @@ ODM_ReadAndConfig_MP_8188E_RadioA(
 u4Byte
 ODM_GetVersion_MP_8188E_RadioA(void)
 {
-	   return 53;
+	   return 54;
 }
 
 /******************************************************************************

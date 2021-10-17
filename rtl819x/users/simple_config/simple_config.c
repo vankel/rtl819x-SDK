@@ -56,13 +56,6 @@ static int parse_argument(int argc, char *argv[], RTK_SC_CTXp pCtx)
 			
 			pCtx->sc_debug= atoi(argv[argNum]);
 		}
-		else if( !strcmp(argv[argNum], "-led"))
-		{
-			if (++argNum >= argc)
-				break;
-			
-			pCtx->sc_led_enabled = atoi(argv[argNum]);
-		}
 		else
 		{
 			printf("invalid argument - %s\n", argv[argNum]);
@@ -136,8 +129,8 @@ static int get_sc_status(RTK_SC_CTXp pCtx)
 		system(buffer);
 		get_file_value(&value);
 		string_to_hex(value, (unsigned char *)&pCtx->sc_control_ip, 8);
-		//if(pCtx->sc_debug)
-		//	printf("the control IP is %x, value is %s\n", pCtx->sc_control_ip, value);
+		if(pCtx->sc_debug)
+			printf("the control IP is %x, value is %s\n", pCtx->sc_control_ip, value);
 	}
 	return 0;
 }
@@ -164,36 +157,6 @@ static int get_gpio_status()
 
 	return ret;
 }
-
-static int set_sc_led_status(RTK_SC_CTXp pCtx)
-{
-	if(pCtx->sc_wlan_status == 0 && pCtx->sc_status>=2)
-	{
-		if(pCtx->sc_led_status == 1)
-		{
-			system("echo 0 > /proc/gpio");
-			pCtx->sc_led_status = 0;
-		}
-		else if(pCtx->sc_led_status == 0)
-		{
-			system("echo 1 > /proc/gpio");
-			pCtx->sc_led_status = 1;
-		}
-	}
-	else if(pCtx->sc_wlan_status == 0 && pCtx->sc_status<=2 && pCtx->sc_led_status==1)
-	{
-		system("echo 0 > /proc/gpio");
-		pCtx->sc_led_status = 0;
-	}
-	else if(pCtx->sc_wlan_status == 1 && pCtx->sc_led_status==0)
-	{
-		system("echo 1 > /proc/gpio");
-		pCtx->sc_led_status = 1;
-	}
-
-	return 0;
-}
-
 
 static int Check_Wlan_isConnected(RTK_SC_CTXp pCtx)
 {
@@ -251,6 +214,7 @@ static int set_profile_to_flash(RTK_SC_CTXp pCtx, unsigned char *config_prefix)
 	unsigned char wsc_psk[65] = {0};
 
 	security_type = pCtx->sc_status - 10;
+
 	system("flash setconf start");
 	sprintf(buffer, "cat /proc/%s/mib_staconfig | grep scPassword > %s", pCtx->sc_wlan_ifname, SC_SECURITY_FILE);
 	system(buffer);
@@ -258,7 +222,7 @@ static int set_profile_to_flash(RTK_SC_CTXp pCtx, unsigned char *config_prefix)
 	value[strlen(value)-1] = '\0';
 	strcpy(pCtx->sc_passwd, value);
 	if(pCtx->sc_debug)
-		printf("the password is %s,", pCtx->sc_passwd);
+		printf("the password is %s", pCtx->sc_passwd);
 	sprintf(buffer, "flash setconf %sSC_PASSWD \"%s\"", config_prefix, pCtx->sc_passwd);
 	system(buffer);
 
@@ -538,10 +502,6 @@ int init_config(RTK_SC_CTXp pCtx)
 		else if (!strcmp(name, "scSyncVxdToRoot")) {
 			pCtx->sc_sync_profile = atoi(value);
 		}
-		else if (!strcmp(name, "scPinEnabled")) {
-			pCtx->sc_pin_enabled = atoi(value);
-		}
-		
 		if(pCtx->sc_debug)
 			printf("%s:	%s", name, value);
 	}
@@ -714,7 +674,6 @@ int send_connect_ack(RTK_SC_CTXp pCtx)
 	ack_msg.device_ip = intaddr;
 	memset(ack_msg.device_name, 0, 64);
 	strcpy(ack_msg.device_name, pCtx->sc_device_name);
-	ack_msg.pin_enabled = pCtx->sc_pin_enabled;
 	
 	if(pCtx->sc_debug == 2)
 	{
@@ -724,11 +683,10 @@ int send_connect_ack(RTK_SC_CTXp pCtx)
 			printf("%02x", p[i]);
 		printf("\n");
 	}
-
 	
 	addr_len = sizeof(struct sockaddr);
 	
-	for(i=0; i<SC_ACK_ROUND;i++)
+	for(i=0; i<10;i++)
 	{
 		sendto(sockfd_ack,(unsigned char *)&ack_msg,sizeof(struct ack_msg),0,(struct sockaddr *)&control_addr,addr_len);
 	}
@@ -780,7 +738,6 @@ int sync_vxd_to_root(RTK_SC_CTXp pCtx)
 		strcpy(ifname, "wlan0");
 	else if(strstr(pCtx->sc_wlan_ifname, "wlan1-vxd"))
 		strcpy(ifname, "wlan1");
-	
 	sprintf(buffer, "ifconfig %s down", pCtx->sc_wlan_ifname);
 	system(buffer);
 	sprintf(buffer, "ifconfig %s down", ifname);
@@ -789,7 +746,7 @@ int sync_vxd_to_root(RTK_SC_CTXp pCtx)
 	system(buffer);
 	sprintf(buffer, "iwpriv %s set_mib sc_enabled=0", pCtx->sc_wlan_ifname);
 	system(buffer);
-	
+
 	switch(security_type)
 	{
 		case 0:
@@ -892,16 +849,15 @@ int main(int argc, char *argv[])
 	unsigned char buf[256];
 	RTK_SC_CTXp pCtx;
 	unsigned char *p;
-	struct timeval timeout, begin_time, current_time; 
+	struct timeval timeout; 
 	struct ack_msg ack_msg;
 	struct response_msg res_msg;
 	//int buf_len=2048;
 	int configured=0;
-	int link_time=0;
+	int disconnect_time=0;
 	
 	pCtx = &g_sc_ctx;
-	pCtx->sc_debug = 0;
-	pCtx->sc_led_enabled = 1;
+	pCtx->sc_debug = 1;
 	if(parse_argument(argc, argv, pCtx)<0)
 		return 0;
 
@@ -913,7 +869,7 @@ int main(int argc, char *argv[])
 	}
 
 	//ret = setsockopt( sockfd_scan, SOL_SOCKET, SO_BROADCAST|SO_REUSEADDR, &on, sizeof(on) );
-	//ret = setsockopt( sockfd_scan, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
+	ret = setsockopt( sockfd_scan, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
 	//ret = setsockopt( sockfd_scan, SOL_SOCKET, SO_RCVBUF, &buf_len, sizeof(int));
 
 	bzero(&device_addr,sizeof(struct sockaddr_in)); 
@@ -934,7 +890,7 @@ int main(int argc, char *argv[])
 		perror("socket");
 		exit(1);
 	}
-	//ret = setsockopt( sockfd_control, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
+	ret = setsockopt( sockfd_control, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
 
 	bzero(&device_addr,sizeof(struct sockaddr_in)); 
 	device_addr.sin_family = AF_INET;         		// host byte order
@@ -959,14 +915,11 @@ int main(int argc, char *argv[])
 	{
 		sprintf(buf, "iwpriv %s set_mib sc_enabled=1", pCtx->sc_wlan_ifname);
 		system(buf);
-		sleep(1);
 	}
 	else
 	{
 		configured = 1;
 		pCtx->sc_config_success = 1;
-		sprintf(buf, "iwpriv %s set_mib sc_status=0", pCtx->sc_wlan_ifname);
-		system(buf);
 	}
 
 	pCtx->sc_ip_status = get_device_ip_status();
@@ -975,46 +928,43 @@ int main(int argc, char *argv[])
 		pCtx->sc_run_time++;
 		pCtx->sc_wlan_status = Check_Wlan_isConnected(pCtx);
 		get_sc_status(pCtx);
-		if((pCtx->sc_wlan_status == 0) && (pCtx->sc_status == 0))
+		/*sc_save_profile is 2 means the config info has be saved to flash.
+		    if run time is 30s but the sc_wlan_status is 0, it meas DUT can't connect to the saved target AP, it should enable Simple Config now.
+		    if run time is large than 30s,  the linkd time is 0, but the sc_status is connected, it means connect to target AP by Simple Config, but it can't connect to target AP now.
+		*/
+		if((pCtx->sc_save_profile ==2) && (pCtx->sc_wlan_status==0))
+		{
+			disconnect_time++;
+			if((disconnect_time == 30 && pCtx->sc_status == 0) || (pCtx->sc_status >=1 && disconnect_time>120))
+		
 		{
 			sprintf(buf, "ifconfig %s down", pCtx->sc_wlan_ifname);
 			system(buf);
-			
 			sprintf(buf, "iwpriv %s set_mib sc_enabled=1", pCtx->sc_wlan_ifname);
 			system(buf);
 			sprintf(buf, "iwpriv %s set_mib sc_status=0", pCtx->sc_wlan_ifname);
 			system(buf);
+				//sprintf(buf, "flash set %s SC_SAVE_PROFILE 0", pCtx->sc_wlan_ifname);
+				//system(buf);
 			sprintf(buf, "ifconfig %s up", pCtx->sc_wlan_ifname);
 			system(buf);
-			
 			pCtx->sc_save_profile = 0;
-			if(pCtx->sc_debug)
-				printf("Simple Config enter monitor mode\n");
-			//sleep enough time for driver timer set sc_status after sc_enabled is set to 1.
-			sleep(2);
+				disconnect_time = 0;
+			}
 		}
 		
 		if(1)//(pCtx->sc_wlan_status == 1)
 		{
-			
-			if(pCtx->sc_led_enabled)
-			{
-				timeout.tv_sec = 0;
-				timeout.tv_usec = 250000;
-			}
-			else
-			{
-				timeout.tv_sec = 1;
-				timeout.tv_usec = 0;
-			}
+			timeout.tv_sec = 1;
+			timeout.tv_usec = 0;
 			max_fd = 0;
 			FD_ZERO(&fds);
 			FD_SET(sockfd_scan, &fds);
 			FD_SET(sockfd_control, &fds);
+
 			max_fd = (sockfd_control > sockfd_scan) ? sockfd_control : sockfd_scan;
-
-
 			selret = select(max_fd+1, &fds, NULL, NULL, &timeout);
+			
 			if (selret && FD_ISSET(sockfd_scan, &fds)) 
 			{
 				struct scan_msg *pMsg;
@@ -1023,9 +973,9 @@ int main(int argc, char *argv[])
 				unsigned char *pMacAddr;
 				
 				memset(buf, 0, 256);
-				if (((numbytes = recvfrom(sockfd_scan, buf, 256, 0,
-					(struct sockaddr *)&control_addr, &addr_len)) == -1) && (pCtx->sc_wlan_status == 1)) {
-					fprintf(stderr,"Receive scan packet failed!!!\n");
+				if ((numbytes = recvfrom(sockfd_scan, buf, 256, 0,
+					(struct sockaddr *)&control_addr, &addr_len)) == -1) {
+					fprintf(stderr,"Receive failed!!!\n");
 					close(sockfd_scan);
 					exit(1);
 				}
@@ -1045,19 +995,17 @@ int main(int argc, char *argv[])
 									pCtx->sc_send_ack = SC_SUCCESS_IP;
 								}
 							}
-#if 0
 							if((pCtx->sc_send_ack == SC_SUCCESS_ACK) || (pCtx->sc_send_ack == SC_SUCCESS_IP))
 							{
 								if(pCtx->sc_ip_status != SC_DHCP_GETTING_IP)
 								{
 									if(pCtx->sc_debug)
 										printf("receive config success ack\n");
-									//if(pCtx->sc_save_profile == 0)
+									if(pCtx->sc_save_profile == 0)
 										pCtx->sc_save_profile = 1;
 									pCtx->sc_send_ack = 0;
 								}
 							}
-#endif
 							break;
 						case SC_SCAN:
 							if(pCtx->sc_save_profile != 2)
@@ -1108,7 +1056,7 @@ int main(int argc, char *argv[])
 							ack_msg.device_ip = intaddr;
 							memset(ack_msg.device_name, 0, 64);
 							strcpy(ack_msg.device_name, pCtx->sc_device_name);
-							ack_msg.pin_enabled = pCtx->sc_pin_enabled;
+							
 							if(pCtx->sc_debug == 2)
 							{
 								p=&ack_msg;
@@ -1123,7 +1071,7 @@ int main(int argc, char *argv[])
 							}
 							break;
 						default:
-							//printf("invalid request\n");
+							printf("invalid request\n");
 							break;
 					}
 				}
@@ -1142,8 +1090,8 @@ int main(int argc, char *argv[])
 
 				memset(buf, 0, 256);
 				if ((numbytes = recvfrom(sockfd_control, buf, 256, 0,
-					(struct sockaddr *)&control_addr, &addr_len)) == -1  && (pCtx->sc_wlan_status == 1)) {
-					fprintf(stderr,"Receive control packet failed!!!\n");
+					(struct sockaddr *)&control_addr, &addr_len)) == -1 ) {
+					fprintf(stderr,"Receive failed!!!\n");
 					close(sockfd_control);
 					exit(1);
 				}
@@ -1169,7 +1117,6 @@ int main(int argc, char *argv[])
 							{
 								if(pCtx->sc_debug)
 									printf("receive info to save profile!\n");
-								gettimeofday(&begin_time, NULL);
 								res_msg.flag = SC_RSP_SAVE;
 								res_msg.status = 1;
 								if(pMsg->sec_level != 0)
@@ -1179,23 +1126,10 @@ int main(int argc, char *argv[])
 										res_msg.status = 0;
 										printf("the control info is invalid!\n");
 									}
-									else if(pCtx->sc_pin_enabled == 1)
+									else if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
 									{
-										if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
-										{
-											res_msg.status = 0;
-											if(pCtx->sc_debug)
-												printf("the control info is invalid!\n");
-										}
-									}
-									else if(pCtx->sc_pin_enabled == 0)
-									{
-										if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_default_pin, 8, pCtx) == 0)
-										{
-											res_msg.status = 0;
-											if(pCtx->sc_debug)
-												printf("the control info is invalid!\n");
-										}
+										res_msg.status = 0;
+										printf("the control info is invalid!\n");
 									}
 								}
 								if(res_msg.status != 0)
@@ -1217,8 +1151,6 @@ int main(int argc, char *argv[])
 							{
 								if(pCtx->sc_debug)
 									printf("receive info to remove device!\n");
-								
-								gettimeofday(&begin_time, NULL);
 								res_msg.status = 1;
 								res_msg.flag = SC_RSP_DEL;
 								if(pMsg->sec_level != 0)
@@ -1227,25 +1159,13 @@ int main(int argc, char *argv[])
 									{
 										res_msg.status = 0;
 										if(pCtx->sc_debug)
-											printf("the control info delete is invalid!\n");
+											printf("the control info is invalid!\n");
 									}
-									else if(pCtx->sc_pin_enabled == 1)
+									else if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
 									{
-										if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
-										{
-											res_msg.status = 0;
-											if(pCtx->sc_debug)
-												printf("the control info delete is invalid!\n");
-										}
-									}
-									else if(pCtx->sc_pin_enabled == 0)
-									{
-										if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_default_pin, 8, pCtx) == 0)
-										{
-											res_msg.status = 0;
-											if(pCtx->sc_debug)
-												printf("the control info delete is invalid!\n");
-										}
+										res_msg.status = 0;
+										if(pCtx->sc_debug)
+											printf("the control info is invalid!\n");
 									}
 								}
 								if(res_msg.status != 0)
@@ -1253,10 +1173,11 @@ int main(int argc, char *argv[])
 								
 									accept_control = 0;
 									pCtx->sc_send_ack = SC_DEL_PROFILE;
-									if(pCtx->sc_sync_profile && strstr(pCtx->sc_wlan_ifname, "vxd"))
-										reinit = SC_REINIT_SYSTEM;
-									else
+
+									if(1)
 										reinit = SC_REINIT_WLAN;
+									else
+										reinit = SC_REINIT_SYSTEM;
 								}
 								
 							}
@@ -1269,8 +1190,6 @@ int main(int argc, char *argv[])
 							{
 								if(pCtx->sc_debug)
 									printf("receive info to rename device\n");
-								
-								gettimeofday(&begin_time, NULL);
 								res_msg.status = 1;
 								res_msg.flag = SC_RSP_RENAME;
 								if(pMsg->sec_level != 0)
@@ -1278,25 +1197,12 @@ int main(int argc, char *argv[])
 									if(is_valid_control_pkt(pMsg->nonce, pMsg->digest1, pCtx->sc_default_pin, 8, pCtx) == 0)
 									{
 										res_msg.status = 0;
-										printf("the control info rename is invalid!\n");
+										printf("the control info is invalid!\n");
 									}
-									else if(pCtx->sc_pin_enabled == 1)
+									else if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
 									{
-										if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
-										{
-											res_msg.status = 0;
-											if(pCtx->sc_debug)
-												printf("the control info rename is invalid!%d\n", __LINE__);
-										}
-									}
-									else if(pCtx->sc_pin_enabled == 0)
-									{
-										if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_default_pin, 8, pCtx) == 0)
-										{
-											res_msg.status = 0;
-											if(pCtx->sc_debug)
-												printf("the control info rename is invalid!%d\n", __LINE__);
-										}
+										res_msg.status = 0;
+										printf("the control info is invalid!\n");
 									}
 								}
 								if(res_msg.status != 0)
@@ -1316,11 +1222,12 @@ int main(int argc, char *argv[])
 								if(pCtx->sc_ip_status != SC_DHCP_GETTING_IP)
 								{
 									if(pCtx->sc_debug)
-										printf("receive connect success ack and can control device now!\n");
-									//if(pCtx->sc_save_profile == 0)
-									pCtx->sc_save_profile = 1;
+										printf("receive config success ack\n");
+									if(pCtx->sc_save_profile == 0)
+										pCtx->sc_save_profile = 1;
 									pCtx->sc_send_ack = 0;
 									pCtx->sc_config_success = 1;
+									
 									break;
 								}
 							}
@@ -1330,71 +1237,30 @@ int main(int argc, char *argv[])
 								if(is_valid_control_pkt(pMsg->nonce, pMsg->digest1, pCtx->sc_default_pin, 8, pCtx) == 0)
 								{
 									res_msg.status = 0;
-									printf("the control info success is invalid!\n");
+									printf("the control info is invalid!\n");
 								}
-								else if(pCtx->sc_pin_enabled == 1)
+								else if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
 								{
-									if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_pin, 8, pCtx) == 0)
-									{
-										res_msg.status = 0;
-										if(pCtx->sc_debug)
-											printf("the control info success is invalid!\n");
-									}
-								}
-								else if(pCtx->sc_pin_enabled == 0)
-								{
-									if(is_valid_control_pkt(pMsg->nonce, pMsg->digest2, pCtx->sc_default_pin, 8, pCtx) == 0)
-									{
-										res_msg.status = 0;
-										if(pCtx->sc_debug)
-											printf("the control info success is invalid!\n");
-									}
+									res_msg.status = 0;
+									printf("the control info is invalid!\n");
 								}
 							}
 							
 							if(res_msg.status != 0)
 							{
 							
-								//if(pCtx->sc_debug == 1)
-								//	printf("receive ack type is %d, request ack type is %d\n", pMsg->device_name[0],  pCtx->sc_send_ack);
+								if(pCtx->sc_debug == 2)
+									printf("receive ack type is %d, request ack type is %d\n", pMsg->device_name[0],  pCtx->sc_send_ack);
 								if(pMsg->device_name[0] == pCtx->sc_send_ack)
 								{
 									pCtx->sc_config_success = 1;
-										
-									if(pCtx->sc_debug)
-									{
-										switch(pCtx->sc_send_ack)
-										{
-											case SC_SUCCESS_ACK:
-												printf("receive control success ack\n");
-												break;
-											case SC_RENAME:
-												printf("receive rename device success ack\n");
-												break;
-											case SC_DEL_PROFILE:
-												printf("receive remove device success ack\n");
-												break;
-											default:
-												break;
-										}
-									}
-									
-									//down interface and don't receive packet avoid socket queue packet, daemon will continue get packet from socket.
-									if(reinit != 0)
-									{
-										sprintf(buf, "ifconfig %s down", pCtx->sc_wlan_ifname);
-										system(buf);
-										
-										if(pCtx->sc_debug == 2)
-											printf("down interface for reinit system!\n");
-									}
 								}
 							}
 
 							break;							
 						default:
-							//if(pCtx->sc_debug)
-							//	printf("invalid request\n");
+							if(pCtx->sc_debug)
+								printf("invalid request\n");
 							res_msg.flag = SC_RSP_INVALID;
 							status = 0;
 							break;
@@ -1426,23 +1292,7 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				//try to receive all packets from socket and then receive anothor control device info.
 				accept_control = 1;
-			}
-			
-			if(accept_control == 1)
-			{
-				if(pCtx->sc_send_ack == SC_RENAME || pCtx->sc_send_ack==SC_DEL_PROFILE)
-				{
-					gettimeofday(&current_time, NULL);
-					if((current_time.tv_sec-begin_time.tv_sec)>=3)
-					{
-						pCtx->sc_config_success = 1;
-						if(pCtx->sc_debug)
-							printf("auto do control command after receive control info enough time.\n");
-					}
-				}
-				
 				if(pCtx->sc_config_success == 1)
 				{
 					switch(pCtx->sc_send_ack)
@@ -1472,14 +1322,13 @@ int main(int argc, char *argv[])
 							system(buf);
 							sprintf(buf, "flash setconf %sSC_SAVE_PROFILE 0", pCtx->sc_mib_prefix);
 							system(buf);
-							if(pCtx->sc_sync_profile && strstr(pCtx->sc_wlan_ifname, "vxd"))
-							{
-								sprintf(buf, "flash setconf %sSSID \"RTK 11n AP\"", pCtx->sc_mib_sync_prefix);
-								system(buf);
-								sprintf(buf, "flash setconf %sENCRYPT 0", pCtx->sc_mib_sync_prefix);
-								system(buf);
-							}
 							system("flash setconf end");
+							sprintf(buf, "iwpriv %s set_mib sc_pin_enabled=1", pCtx->sc_wlan_ifname);
+							system(buf);
+							sprintf(buf, "iwpriv %s set_mib ssid=%s", pCtx->sc_wlan_ifname, pCtx->sc_ssid);
+							system(buf);
+							sprintf(buf, "iwpriv %s set_mib sc_status=0", pCtx->sc_wlan_ifname);
+							system(buf);
 							break;
 						case SC_RENAME:
 							sprintf(buf, "flash set SC_DEVICE_NAME \"%s\"", pCtx->sc_device_name);
@@ -1502,32 +1351,21 @@ int main(int argc, char *argv[])
 						pCtx->sc_save_profile = 0;
 						configured = 0;
 						pCtx->sc_ip_status = get_device_ip_status();
-						if(pCtx->sc_ip_status == SC_DHCP_GETTING_IP || pCtx->sc_ip_status == SC_DHCP_GOT_IP)
+						if(pCtx->sc_ip_status != SC_DHCP_STATIC_IP)
 						{
-							close(sockfd_scan);
-							close(sockfd_control);
 							system("killall udhcpc");
 						}
-						
 						sprintf(buf, "ifconfig %s down", pCtx->sc_wlan_ifname);
-						system(buf);
-						
-						sprintf(buf, "iwpriv %s set_mib sc_pin_enabled=%d", pCtx->sc_wlan_ifname, pCtx->sc_pin_enabled);
-						system(buf);
-						sprintf(buf, "iwpriv %s set_mib ssid=%s", pCtx->sc_wlan_ifname, pCtx->sc_ssid);
-						system(buf);
-						sprintf(buf, "iwpriv %s set_mib sc_status=0", pCtx->sc_wlan_ifname);
 						system(buf);
 						sprintf(buf, "iwpriv %s set_mib sc_enabled=1", pCtx->sc_wlan_ifname);
 						system(buf);
 						sprintf(buf, "ifconfig %s up", pCtx->sc_wlan_ifname);
 						system(buf);
 						pCtx->sc_status = 0;
-						if(pCtx->sc_ip_status == SC_DHCP_GETTING_IP || pCtx->sc_ip_status == SC_DHCP_GOT_IP)
+						if(pCtx->sc_ip_status != SC_DHCP_STATIC_IP)
 						{
-							system("udhcpc -i br0 -p /etc/udhcpc/udhcpc-br0.pid -s /usr/share/udhcpc/br0.sh &");
+							system("udhcpc -i br0 -p /etc/udhcpc/udhcpc-br0.pid -s /usr/share/udhcpc/br0.sh");
 						}
-						sleep(2);
 					}
 
 					pCtx->sc_send_ack = 0;
@@ -1547,60 +1385,27 @@ int main(int argc, char *argv[])
 			pCtx->sc_linked_time= 0;
 			pCtx->sc_send_ack = 0;
 			pCtx->sc_control_ip = 0;
-			link_time = 0;
-			if(pCtx->sc_status >= 10)
-			{
-				//connect successful by simple config but hasn't save setting to flash, wait more time for disconnect abnormal
-				i = 10;
-				while(i-- && !Check_Wlan_isConnected(pCtx))
-				{
-					sleep(1);
-				}
-				pCtx->sc_wlan_status = Check_Wlan_isConnected(pCtx);
-				if(pCtx->sc_wlan_status==0 && reinit==0 && i==0)
-				{
-					sprintf(buf, "iwpriv %s set_mib sc_status=0", pCtx->sc_wlan_ifname);
-					system(buf);
-					
-					if(pCtx->sc_debug) 
-						printf("disconnect after Simple Config success, try to restart simple config\n");
-				}
-			}
-			
 		}
 		else
 		{
-
-			if(pCtx->sc_save_profile == 0 && configured == 1 )
+			disconnect_time = 0;
+			pCtx->sc_linked_time++;
+			if(pCtx->sc_linked_time >= 30 && pCtx->sc_save_profile == 0)
 			{
-				pCtx->sc_save_profile = 2;
-			}
-			if(link_time++==80)
-			{
-				if(pCtx->sc_status ==1 && (pCtx->sc_send_ack == 0 ))
+				if(configured == 1)
 				{
-					if(pCtx->sc_debug)
-						printf("disable simple config for it has connect to target AP for enough time\n");
-					sprintf(buf, "iwpriv %s set_mib sc_status=0", pCtx->sc_wlan_ifname);
-					system(buf);
-					sprintf(buf, "iwpriv %s set_mib sc_enabled=0", pCtx->sc_wlan_ifname);
-					system(buf);
 					pCtx->sc_save_profile = 2;
 				}
 			}
 			
-			if(pCtx->sc_status >= 10)
+			if( (pCtx->sc_status >= 10))
 			{
-				pCtx->sc_linked_time++;
-				if(pCtx->sc_linked_time == 1)
+				if(pCtx->sc_linked_time == 1 && pCtx->sc_save_profile == 0)
 				{
 					reinit= 0;
 					//pCtx->sc_save_profile = 0;
 					pCtx->sc_send_ack = SC_SUCCESS_ACK;
 					pCtx->sc_config_success = 0;
-					if(pCtx->sc_debug)
-						printf("try to send driver connect successful ack\n");
-					gettimeofday(&begin_time, NULL);
 #if 0
 					pCtx->sc_ip_status = get_device_ip_status();
 					if(pCtx->sc_ip_status != SC_DHCP_STATIC_IP)
@@ -1620,45 +1425,17 @@ int main(int argc, char *argv[])
 					{
 						printf("sync vxd setting to root interface now\n");
 						set_profile_to_flash(pCtx, pCtx->sc_mib_sync_prefix);
-						reinit = 0;
-						close(sockfd_scan);
-						close(sockfd_control);
-						system("init.sh gw all");
-						//if(pCtx->sc_sync_profile == 2)
-						//	sync_vxd_to_root(pCtx);
+						if(pCtx->sc_sync_profile == 2)
+							sync_vxd_to_root(pCtx);
 					}
 					pCtx->sc_save_profile = 2;
-					sprintf(buf, "iwpriv %s set_mib sc_status=0", pCtx->sc_wlan_ifname);
-					system(buf);
-					sprintf(buf, "iwpriv %s set_mib sc_enabled=0", pCtx->sc_wlan_ifname);
-					system(buf);
 				}
 				if((pCtx->sc_send_ack == SC_SUCCESS_ACK) || (pCtx->sc_send_ack == SC_SUCCESS_IP))
-				{
-					if(pCtx->sc_linked_time>=60)
-					{
-						gettimeofday(&current_time, NULL);
-						if((current_time.tv_sec-begin_time.tv_sec)>=60)
-						{
-							pCtx->sc_save_profile = 1;
-							pCtx->sc_send_ack = 0;
-							pCtx->sc_config_success = 1;
-							if(pCtx->sc_debug)
-								printf("auto save config info to flash after connect success for enough time.\n");
-						}
-						else
-							send_connect_ack(pCtx);
-					}
-					else
-						send_connect_ack(pCtx);
-				}
+					send_connect_ack(pCtx);
 			}
 			
 			pCtx->sc_pbc_duration_time = 0;
 		}
-
-		if(pCtx->sc_led_enabled)
-			set_sc_led_status(pCtx);
 
 #if defined(SIMPLE_CONFIG_PBC_SUPPORT)			
 		if(1)//(g_sc_connect_status == 0)
@@ -1724,7 +1501,6 @@ int main(int argc, char *argv[])
 					pCtx->sc_status = 0;
 					pCtx->sc_save_profile = 0;
 					configured = 0;
-					sleep(2);
 #if 0					
 					system("echo 1 > /proc/gpio");
 					sleep(1);
@@ -1751,14 +1527,13 @@ int main(int argc, char *argv[])
 						system(buf);
 						sprintf(buf, "iwpriv %s set_mib sc_duration_time=-1", pCtx->sc_wlan_ifname);
 						system(buf);
-						sprintf(buf, "iwpriv %s set_mib sc_pin_enabled=%d", pCtx->sc_wlan_ifname, pCtx->sc_pin_enabled);
+						sprintf(buf, "iwpriv %s set_mib sc_pin_enabled=1", pCtx->sc_wlan_ifname);
 						system(buf);
 						sprintf(buf, "ifconfig %s up", pCtx->sc_wlan_ifname);
 						system(buf);
 						sleep(2);
 						sprintf(buf, "iwpriv %s set_mib sc_enabled=1", pCtx->sc_wlan_ifname);
 						system(buf);
-						sleep(2);
 					}
 				}
 	
@@ -1790,7 +1565,6 @@ int main(int argc, char *argv[])
 						system(buf);
 						pCtx->sc_wps_duration_time = 0;
 						pCtx->sc_pbc_duration_time = 1;
-						sleep(2);
 					}
 				}
 			}
@@ -1834,8 +1608,6 @@ int main(int argc, char *argv[])
 #endif
 	}
 	
-	close(sockfd_scan);
-	close(sockfd_control);
 }
 
 

@@ -84,6 +84,8 @@ static inline int irq_ffs(unsigned int pending, unsigned int offset)
  * then we just return, if multiple IRQs are pending then we will just take
  * another exception, big deal.
  */
+ 
+ 
 asmlinkage void bsp_irq_dispatch(void)
 {
 #define IRQ_SPEEDUP 1

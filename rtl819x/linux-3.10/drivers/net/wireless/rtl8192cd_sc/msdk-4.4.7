@@ -1,0 +1,2715 @@
+	.file	1 "8192cd_profile.c"
+	.section .mdebug.abi32
+	.previous
+	.gnu_attribute 4, 3
+	.section	.text.bytecopy,"ax",@progbits
+	.align	2
+	.globl	bytecopy
+	.set	nomips16
+	.ent	bytecopy
+	.type	bytecopy, @function
+bytecopy:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	j	$L2
+	move	$2,$0
+
+$L3:
+	lbu	$3,0($8)
+	addiu	$2,$2,1
+	sb	$3,0($7)
+$L2:
+	sltu	$3,$2,$6
+	addu	$8,$4,$2
+	bne	$3,$0,$L3
+	addu	$7,$5,$2
+
+	j	$31
+	move	$2,$0
+
+	.set	macro
+	.set	reorder
+	.end	bytecopy
+	.size	bytecopy, .-bytecopy
+	.section	.text.get_bssid,"ax",@progbits
+	.align	2
+	.globl	get_bssid
+	.set	nomips16
+	.ent	get_bssid
+	.type	get_bssid, @function
+get_bssid:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lhu	$5,0($4)
+	andi	$3,$5,0x1
+	sll	$3,$3,1
+	ext	$5,$5,1,1
+	or	$3,$5,$3
+	li	$5,1			# 0x1
+	beq	$3,$5,$L13
+	addiu	$2,$4,10
+
+	beq	$3,$0,$L13
+	addiu	$2,$4,16
+
+	addiu	$5,$4,4
+	xori	$3,$3,0x2
+	addiu	$2,$4,10
+	movz	$2,$5,$3
+$L13:
+	j	$31
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	get_bssid
+	.size	get_bssid, .-get_bssid
+	.section	.text.rtk_sc_register_pattern,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_register_pattern
+	.set	nomips16
+	.ent	rtk_sc_register_pattern
+	.type	rtk_sc_register_pattern, @function
+rtk_sc_register_pattern:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lui	$2,%hi(g_sc_ctx)
+	addiu	$2,$2,%lo(g_sc_ctx)
+	lw	$3,2672($2)
+	addiu	$3,$3,604
+	sll	$3,$3,2
+	addu	$2,$3,$2
+	lw	$3,0($2)
+	beql	$3,$0,$L15
+	sw	$4,0($2)
+
+$L15:
+	lui	$2,%hi(g_sc_ctx)
+	addiu	$2,$2,%lo(g_sc_ctx)
+	lw	$3,2672($2)
+	addiu	$3,$3,1
+	j	$31
+	sw	$3,2672($2)
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_register_pattern
+	.size	rtk_sc_register_pattern, .-rtk_sc_register_pattern
+	.section	.text.CHECKSUM_OK,"ax",@progbits
+	.align	2
+	.globl	CHECKSUM_OK
+	.set	nomips16
+	.ent	CHECKSUM_OK
+	.type	CHECKSUM_OK, @function
+CHECKSUM_OK:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	move	$2,$0
+	j	$L18
+	move	$3,$0
+
+$L19:
+	lbu	$6,0($7)
+	addiu	$3,$3,1
+	addu	$2,$2,$6
+	andi	$2,$2,0x00ff
+$L18:
+	slt	$6,$3,$5
+	bne	$6,$0,$L19
+	addu	$7,$4,$3
+
+	j	$31
+	sltu	$2,$2,1
+
+	.set	macro
+	.set	reorder
+	.end	CHECKSUM_OK
+	.size	CHECKSUM_OK, .-CHECKSUM_OK
+	.section	.text.send_simple_config_ack,"ax",@progbits
+	.align	2
+	.globl	send_simple_config_ack
+	.set	nomips16
+	.ent	send_simple_config_ack
+	.type	send_simple_config_ack, @function
+send_simple_config_ack:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	j	$31
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	send_simple_config_ack
+	.size	send_simple_config_ack, .-send_simple_config_ack
+	.section	.text.rtk_sc_check_pattern,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_check_pattern
+	.set	nomips16
+	.ent	rtk_sc_check_pattern
+	.type	rtk_sc_check_pattern, @function
+rtk_sc_check_pattern:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$25,40($4)
+	bne	$25,$0,$L24
+	move	$2,$0
+
+	j	$31
+	nop
+
+$L24:
+	jr	$25
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_check_pattern
+	.size	rtk_sc_check_pattern, .-rtk_sc_check_pattern
+	.section	.text.rtk_sc_generate_key,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_generate_key
+	.set	nomips16
+	.ent	rtk_sc_generate_key
+	.type	rtk_sc_generate_key, @function
+rtk_sc_generate_key:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$25,48($4)
+	bne	$25,$0,$L30
+	move	$2,$0
+
+	j	$31
+	nop
+
+$L30:
+	jr	$25
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_generate_key
+	.size	rtk_sc_generate_key, .-rtk_sc_generate_key
+	.section	.text.rtk_sc_get_cipher_info,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_get_cipher_info
+	.set	nomips16
+	.ent	rtk_sc_get_cipher_info
+	.type	rtk_sc_get_cipher_info, @function
+rtk_sc_get_cipher_info:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$25,44($4)
+	bne	$25,$0,$L36
+	move	$2,$0
+
+	j	$31
+	nop
+
+$L36:
+	jr	$25
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_get_cipher_info
+	.size	rtk_sc_get_cipher_info, .-rtk_sc_get_cipher_info
+	.section	.text.rtk_sc_decode_profile,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_decode_profile
+	.set	nomips16
+	.ent	rtk_sc_decode_profile
+	.type	rtk_sc_decode_profile, @function
+rtk_sc_decode_profile:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$25,52($4)
+	bne	$25,$0,$L42
+	move	$2,$0
+
+	j	$31
+	nop
+
+$L42:
+	jr	$25
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_decode_profile
+	.size	rtk_sc_decode_profile, .-rtk_sc_decode_profile
+	.section	.text.rtk_sc_get_tlv_info,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_get_tlv_info
+	.set	nomips16
+	.ent	rtk_sc_get_tlv_info
+	.type	rtk_sc_get_tlv_info, @function
+rtk_sc_get_tlv_info:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$25,56($4)
+	bne	$25,$0,$L48
+	move	$2,$0
+
+	j	$31
+	nop
+
+$L48:
+	jr	$25
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_get_tlv_info
+	.size	rtk_sc_get_tlv_info, .-rtk_sc_get_tlv_info
+	.section	.text.rtk_sc_set_ack_info,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_set_ack_info
+	.set	nomips16
+	.ent	rtk_sc_set_ack_info
+	.type	rtk_sc_set_ack_info, @function
+rtk_sc_set_ack_info:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$25,60($4)
+	bne	$25,$0,$L54
+	move	$2,$0
+
+	j	$31
+	nop
+
+$L54:
+	jr	$25
+	nop
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_set_ack_info
+	.size	rtk_sc_set_ack_info, .-rtk_sc_set_ack_info
+	.section	.text.mcast_udp_get_cipher_info,"ax",@progbits
+	.align	2
+	.globl	mcast_udp_get_cipher_info
+	.set	nomips16
+	.ent	mcast_udp_get_cipher_info
+	.type	mcast_udp_get_cipher_info, @function
+mcast_udp_get_cipher_info:
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$4,1852($5)
+	move	$3,$5
+	j	$L60
+	move	$2,$0
+
+$L61:
+	lbu	$7,313($3)
+	addiu	$2,$2,1
+	sb	$7,2152($6)
+$L60:
+	addu	$6,$5,$2
+	bne	$2,$4,$L61
+	addiu	$3,$3,6
+
+	j	$31
+	sw	$2,2408($5)
+
+	.set	macro
+	.set	reorder
+	.end	mcast_udp_get_cipher_info
+	.size	mcast_udp_get_cipher_info, .-mcast_udp_get_cipher_info
+	.section	.rodata.str1.4,"aMS",@progbits,1
+	.align	2
+$LC0:
+	.ascii	"this packet is not profile packet\012\000"
+	.section	.text.rtk_sc_valid_profile_packet,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_valid_profile_packet
+	.set	nomips16
+	.ent	rtk_sc_valid_profile_packet
+	.type	rtk_sc_valid_profile_packet, @function
+rtk_sc_valid_profile_packet:
+	.frame	$sp,24,$31		# vars= 0, regs= 1/0, args= 16, gp= 0
+	.mask	0x80000000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-24
+	sw	$31,20($sp)
+	lw	$2,24($4)
+	lui	$3,%hi(g_sc_magic)
+	lw	$6,12($4)
+	lbu	$5,3($2)
+	addiu	$3,$3,%lo(g_sc_magic)
+	move	$2,$0
+	li	$4,8			# 0x8
+	lw	$7,0($3)
+$L70:
+	addiu	$2,$2,1
+	addu	$7,$5,$7
+	bne	$6,$7,$L64
+	addiu	$3,$3,4
+
+	j	$L65
+	li	$2,1			# 0x1
+
+$L64:
+	bnel	$2,$4,$L70
+	lw	$7,0($3)
+
+	lui	$2,%hi(g_sc_debug)
+	lw	$4,%lo(g_sc_debug)($2)
+	li	$3,2			# 0x2
+	bne	$4,$3,$L65
+	move	$2,$0
+
+	lui	$4,%hi($LC0)
+	jal	printk
+	addiu	$4,$4,%lo($LC0)
+
+	move	$2,$0
+$L65:
+	lw	$31,20($sp)
+	j	$31
+	addiu	$sp,$sp,24
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_valid_profile_packet
+	.size	rtk_sc_valid_profile_packet, .-rtk_sc_valid_profile_packet
+	.section	.rodata.str1.4
+	.align	2
+$LC1:
+	.ascii	"    \000"
+	.align	2
+$LC2:
+	.ascii	"%02x\000"
+	.align	2
+$LC3:
+	.ascii	"\012\000"
+	.section	.text.bytedump,"ax",@progbits
+	.align	2
+	.globl	bytedump
+	.set	nomips16
+	.ent	bytedump
+	.type	bytedump, @function
+bytedump:
+	.frame	$sp,48,$31		# vars= 0, regs= 7/0, args= 16, gp= 0
+	.mask	0x803f0000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-48
+	sw	$31,44($sp)
+	sw	$21,40($sp)
+	sw	$20,36($sp)
+	sw	$19,32($sp)
+	sw	$18,28($sp)
+	sw	$17,24($sp)
+	sw	$16,20($sp)
+	lui	$19,%hi($LC1)
+	lui	$18,%hi($LC2)
+	move	$21,$4
+	move	$20,$5
+	addiu	$19,$19,%lo($LC1)
+	addiu	$18,$18,%lo($LC2)
+	move	$16,$0
+	j	$L72
+	li	$17,6			# 0x6
+
+$L74:
+	div	$0,$16,$17
+	mfhi	$2
+	bne	$2,$0,$L76
+	addu	$2,$21,$16
+
+	beql	$16,$0,$L77
+	lbu	$5,0($2)
+
+	jal	printk
+	move	$4,$19
+
+	addu	$2,$21,$16
+$L76:
+	lbu	$5,0($2)
+$L77:
+	move	$4,$18
+	jal	printk
+	addiu	$16,$16,1
+
+$L72:
+	sltu	$2,$16,$20
+	bne	$2,$0,$L74
+	lui	$4,%hi($LC3)
+
+	jal	printk
+	addiu	$4,$4,%lo($LC3)
+
+	lw	$31,44($sp)
+	lw	$21,40($sp)
+	lw	$20,36($sp)
+	lw	$19,32($sp)
+	lw	$18,28($sp)
+	lw	$17,24($sp)
+	lw	$16,20($sp)
+	move	$2,$0
+	j	$31
+	addiu	$sp,$sp,48
+
+	.set	macro
+	.set	reorder
+	.end	bytedump
+	.size	bytedump, .-bytedump
+	.section	.rodata.str1.4
+	.align	2
+$LC4:
+	.ascii	"The simple config don't support this type in prifole now"
+	.ascii	"\012\000"
+	.align	2
+$LC5:
+	.ascii	"the SSID is %s, the PASSWORD is %s, the IP is %x\012\000"
+	.align	2
+$LC6:
+	.ascii	"the profile MUST include IP\012\000"
+	.section	.text.parse_tlv_info,"ax",@progbits
+	.align	2
+	.globl	parse_tlv_info
+	.set	nomips16
+	.ent	parse_tlv_info
+	.type	parse_tlv_info, @function
+parse_tlv_info:
+	.frame	$sp,64,$31		# vars= 8, regs= 9/0, args= 16, gp= 0
+	.mask	0x80ff0000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-64
+	sw	$31,60($sp)
+	sw	$23,56($sp)
+	sw	$22,52($sp)
+	sw	$21,48($sp)
+	sw	$20,44($sp)
+	sw	$19,40($sp)
+	sw	$18,36($sp)
+	sw	$17,32($sp)
+	sw	$16,28($sp)
+	lui	$23,%hi($LC4)
+	move	$16,$4
+	andi	$17,$6,0x00ff
+	addiu	$23,$23,%lo($LC4)
+	addiu	$22,$4,256
+	move	$18,$0
+	li	$21,1			# 0x1
+	li	$20,2			# 0x2
+	j	$L94
+	li	$19,3			# 0x3
+
+$L90:
+	bne	$2,$21,$L80
+	addiu	$3,$5,2
+
+	lbu	$18,1($5)
+	j	$L81
+	move	$2,$0
+
+$L82:
+	lbu	$4,2($7)
+	addiu	$2,$2,1
+	sb	$4,30($6)
+$L81:
+	sltu	$4,$2,$18
+	addu	$7,$5,$2
+	bne	$4,$0,$L82
+	addu	$6,$16,$2
+
+	j	$L96
+	addu	$5,$3,$18
+
+$L80:
+	bne	$2,$20,$L83
+	nop
+
+	lbu	$18,1($5)
+	j	$L84
+	move	$2,$0
+
+$L85:
+	lbu	$4,2($7)
+	addiu	$2,$2,1
+	sb	$4,94($6)
+$L84:
+	sltu	$4,$2,$18
+	addu	$7,$5,$2
+	bne	$4,$0,$L85
+	addu	$6,$16,$2
+
+	j	$L96
+	addu	$5,$3,$18
+
+$L83:
+	bne	$2,$19,$L86
+	addiu	$3,$5,2
+
+	lbu	$18,1($5)
+	j	$L87
+	move	$2,$0
+
+$L88:
+	lbu	$4,2($7)
+	addiu	$2,$2,1
+	sb	$4,0($6)
+$L87:
+	sltu	$4,$2,$18
+	addu	$7,$5,$2
+	bne	$4,$0,$L88
+	addu	$6,$22,$2
+
+	addu	$5,$3,$18
+$L96:
+	j	$L94
+	addiu	$18,$18,2
+
+$L86:
+	beql	$2,$0,$L97
+	lw	$7,256($16)
+
+	move	$4,$23
+	jal	printk
+	sw	$5,16($sp)
+
+	lw	$5,16($sp)
+$L94:
+	slt	$2,$18,$17
+	bnel	$2,$0,$L90
+	lbu	$2,0($5)
+
+	lw	$7,256($16)
+$L97:
+	lui	$4,%hi($LC5)
+	addiu	$5,$16,30
+	addiu	$4,$4,%lo($LC5)
+	jal	printk
+	addiu	$6,$16,94
+
+	lw	$5,256($16)
+	bne	$5,$0,$L91
+	lui	$4,%hi($LC6)
+
+	jal	printk
+	addiu	$4,$4,%lo($LC6)
+
+	j	$L92
+	li	$2,-1			# 0xffffffffffffffff
+
+$L91:
+	jal	rtk_sc_set_value
+	li	$4,12			# 0xc
+
+	move	$2,$0
+$L92:
+	lw	$31,60($sp)
+	lw	$23,56($sp)
+	lw	$22,52($sp)
+	lw	$21,48($sp)
+	lw	$20,44($sp)
+	lw	$19,40($sp)
+	lw	$18,36($sp)
+	lw	$17,32($sp)
+	lw	$16,28($sp)
+	j	$31
+	addiu	$sp,$sp,64
+
+	.set	macro
+	.set	reorder
+	.end	parse_tlv_info
+	.size	parse_tlv_info, .-parse_tlv_info
+	.section	.text.mcast_udp_get_profile,"ax",@progbits
+	.align	2
+	.globl	mcast_udp_get_profile
+	.set	nomips16
+	.ent	mcast_udp_get_profile
+	.type	mcast_udp_get_profile, @function
+mcast_udp_get_profile:
+	.frame	$sp,32,$31		# vars= 0, regs= 3/0, args= 16, gp= 0
+	.mask	0x80030000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-32
+	sw	$31,28($sp)
+	sw	$17,24($sp)
+	sw	$16,20($sp)
+	move	$16,$5
+	lui	$5,%hi(default_key_iv)
+	addiu	$5,$5,%lo(default_key_iv)
+	addiu	$4,$16,1856
+	li	$6,8			# 0x8
+	jal	memcmp
+	lw	$17,2112($16)
+
+	beq	$2,$0,$L99
+	lw	$31,28($sp)
+
+	lw	$17,24($sp)
+	lw	$16,20($sp)
+	li	$2,-1			# 0xffffffffffffffff
+	j	$31
+	addiu	$sp,$sp,32
+
+$L99:
+	addiu	$6,$17,-8
+	move	$4,$16
+	addiu	$5,$16,1864
+	lw	$17,24($sp)
+	lw	$16,20($sp)
+	andi	$6,$6,0x00ff
+	j	parse_tlv_info
+	addiu	$sp,$sp,32
+
+	.set	macro
+	.set	reorder
+	.end	mcast_udp_get_profile
+	.size	mcast_udp_get_profile, .-mcast_udp_get_profile
+	.section	.text.rtk_sc_set_para,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_set_para
+	.set	nomips16
+	.ent	rtk_sc_set_para
+	.type	rtk_sc_set_para, @function
+rtk_sc_set_para:
+	.frame	$sp,24,$31		# vars= 0, regs= 2/0, args= 16, gp= 0
+	.mask	0x80010000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-24
+	sw	$31,20($sp)
+	sw	$16,16($sp)
+	jal	rtk_sc_get_value
+	li	$4,8			# 0x8
+
+	lui	$3,%hi(g_sc_debug)
+	li	$4,16			# 0x10
+	sw	$2,%lo(g_sc_debug)($3)
+	jal	rtk_sc_get_value
+	lui	$16,%hi(g_sc_check_level)
+
+	li	$4,17			# 0x11
+	jal	rtk_sc_get_value
+	sw	$2,%lo(g_sc_check_level)($16)
+
+	lw	$3,%lo(g_sc_check_level)($16)
+	lui	$4,%hi(g_sc_ignore_overlap)
+	beq	$3,$0,$L103
+	sw	$2,%lo(g_sc_ignore_overlap)($4)
+
+	lui	$4,%hi(g_sc_magic)
+	addiu	$4,$4,%lo(g_sc_magic)
+	jal	rtk_sc_get_magic
+	li	$5,8			# 0x8
+
+$L103:
+	lw	$31,20($sp)
+	lw	$16,16($sp)
+	move	$2,$0
+	j	$31
+	addiu	$sp,$sp,24
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_set_para
+	.size	rtk_sc_set_para, .-rtk_sc_set_para
+	.section	.rodata.str1.4
+	.align	2
+$LC7:
+	.ascii	"Register Realtek Simple Config\012\000"
+	.section	.text.rtk_sc_init,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_init
+	.set	nomips16
+	.ent	rtk_sc_init
+	.type	rtk_sc_init, @function
+rtk_sc_init:
+	.frame	$sp,24,$31		# vars= 0, regs= 2/0, args= 16, gp= 0
+	.mask	0x80010000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-24
+	sw	$31,20($sp)
+	sw	$16,16($sp)
+	lui	$16,%hi(g_sc_ctx)
+	addiu	$4,$16,%lo(g_sc_ctx)
+	move	$5,$0
+	addiu	$16,$16,%lo(g_sc_ctx)
+	jal	memset
+	li	$6,2876			# 0xb3c
+
+	lw	$2,2672($16)
+	li	$3,256			# 0x100
+	sw	$3,2112($16)
+	addiu	$2,$2,604
+	sll	$2,$2,2
+	addu	$16,$2,$16
+	lw	$2,0($16)
+	bne	$2,$0,$L109
+	lui	$2,%hi(g_sc_ctx)
+
+	lui	$2,%hi(udp_mcast)
+	addiu	$2,$2,%lo(udp_mcast)
+	sw	$2,0($16)
+	lui	$2,%hi(g_sc_ctx)
+$L109:
+	addiu	$2,$2,%lo(g_sc_ctx)
+	lw	$3,2672($2)
+	addiu	$4,$3,605
+	sll	$4,$4,2
+	addiu	$3,$3,1
+	sw	$3,2672($2)
+	addu	$2,$4,$2
+	lw	$3,0($2)
+	bnel	$3,$0,$L110
+	lui	$2,%hi(g_sc_ctx)
+
+	lui	$3,%hi(udp_mcast_pin)
+	addiu	$3,$3,%lo(udp_mcast_pin)
+	sw	$3,0($2)
+	lui	$2,%hi(g_sc_ctx)
+$L110:
+	addiu	$2,$2,%lo(g_sc_ctx)
+	lw	$3,2672($2)
+	lui	$4,%hi($LC7)
+	addiu	$4,$4,%lo($LC7)
+	addiu	$3,$3,1
+	jal	printk
+	sw	$3,2672($2)
+
+	lw	$31,20($sp)
+	lw	$16,16($sp)
+	move	$2,$0
+	j	$31
+	addiu	$sp,$sp,24
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_init
+	.size	rtk_sc_init, .-rtk_sc_init
+	.section	.text.rtk_sc_clean_profile_value,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_clean_profile_value
+	.set	nomips16
+	.ent	rtk_sc_clean_profile_value
+	.type	rtk_sc_clean_profile_value, @function
+rtk_sc_clean_profile_value:
+	.frame	$sp,24,$31		# vars= 0, regs= 1/0, args= 16, gp= 0
+	.mask	0x80000000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-24
+	sw	$31,20($sp)
+	lui	$3,%hi(fix_sa)
+	sw	$0,%lo(fix_sa)($3)
+	lui	$2,%hi(g_sc_ctx)
+	lui	$3,%hi(finish_sync)
+	addiu	$2,$2,%lo(g_sc_ctx)
+	sw	$0,%lo(finish_sync)($3)
+	lui	$4,%hi(g_sc_ctx+12)
+	lui	$3,%hi(sync_pkt_index)
+	addiu	$4,$4,%lo(g_sc_ctx+12)
+	move	$5,$0
+	li	$6,6			# 0x6
+	sw	$0,%lo(sync_pkt_index)($3)
+	sw	$0,2412($2)
+	lui	$3,%hi(profile_pkt_index)
+	sw	$0,8($2)
+	sw	$0,2112($2)
+	sw	$0,2148($2)
+	sw	$0,2408($2)
+	jal	memset
+	sw	$0,%lo(profile_pkt_index)($3)
+
+	lui	$4,%hi(g_sc_ctx+18)
+	addiu	$4,$4,%lo(g_sc_ctx+18)
+	move	$5,$0
+	jal	memset
+	li	$6,6			# 0x6
+
+	lui	$4,%hi(g_sc_ctx+24)
+	addiu	$4,$4,%lo(g_sc_ctx+24)
+	move	$5,$0
+	jal	memset
+	li	$6,6			# 0x6
+
+	lui	$4,%hi(g_sc_ctx+30)
+	addiu	$4,$4,%lo(g_sc_ctx+30)
+	move	$5,$0
+	jal	memset
+	li	$6,64			# 0x40
+
+	lui	$4,%hi(g_sc_ctx+94)
+	addiu	$4,$4,%lo(g_sc_ctx+94)
+	move	$5,$0
+	jal	memset
+	li	$6,64			# 0x40
+
+	lui	$4,%hi(g_sc_ctx+2741)
+	addiu	$4,$4,%lo(g_sc_ctx+2741)
+	move	$5,$0
+	jal	memset
+	li	$6,65			# 0x41
+
+	lui	$4,%hi(g_sc_ctx+2676)
+	addiu	$4,$4,%lo(g_sc_ctx+2676)
+	move	$5,$0
+	jal	memset
+	li	$6,65			# 0x41
+
+	lui	$4,%hi(g_sc_ctx+2810)
+	addiu	$4,$4,%lo(g_sc_ctx+2810)
+	move	$5,$0
+	jal	memset
+	li	$6,65			# 0x41
+
+	lui	$4,%hi(g_sc_ctx+260)
+	addiu	$4,$4,%lo(g_sc_ctx+260)
+	move	$5,$0
+	jal	memset
+	li	$6,54			# 0x36
+
+	lui	$4,%hi(g_sc_ctx+314)
+	addiu	$4,$4,%lo(g_sc_ctx+314)
+	move	$5,$0
+	jal	memset
+	li	$6,1536			# 0x600
+
+	lw	$31,20($sp)
+	move	$2,$0
+	j	$31
+	addiu	$sp,$sp,24
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_clean_profile_value
+	.size	rtk_sc_clean_profile_value, .-rtk_sc_clean_profile_value
+	.section	.rodata.str1.4
+	.align	2
+$LC8:
+	.ascii	"try to clean profile!\012\000"
+	.section	.text.rtk_sc_restart_simple_config,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_restart_simple_config
+	.set	nomips16
+	.ent	rtk_sc_restart_simple_config
+	.type	rtk_sc_restart_simple_config, @function
+rtk_sc_restart_simple_config:
+	.frame	$sp,24,$31		# vars= 0, regs= 1/0, args= 16, gp= 0
+	.mask	0x80000000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-24
+	sw	$31,20($sp)
+	lui	$2,%hi(g_sc_debug)
+	lw	$2,%lo(g_sc_debug)($2)
+	beq	$2,$0,$L114
+	lui	$4,%hi($LC8)
+
+	jal	printk
+	addiu	$4,$4,%lo($LC8)
+
+$L114:
+	jal	rtk_sc_clean_profile_value
+	nop
+
+	li	$4,13			# 0xd
+	jal	rtk_sc_set_value
+	li	$5,1			# 0x1
+
+	li	$4,7			# 0x7
+	jal	rtk_sc_set_value
+	li	$5,1			# 0x1
+
+	li	$4,5			# 0x5
+	jal	rtk_sc_set_value
+	li	$5,1000			# 0x3e8
+
+	lw	$31,20($sp)
+	li	$4,14			# 0xe
+	move	$5,$0
+	j	rtk_sc_set_value
+	addiu	$sp,$sp,24
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_restart_simple_config
+	.size	rtk_sc_restart_simple_config, .-rtk_sc_restart_simple_config
+	.section	.rodata.str1.4
+	.align	2
+$LC9:
+	.ascii	"get the profile info fail\012\000"
+	.align	2
+$LC10:
+	.ascii	"get the profile info now\012\000"
+	.section	.text.rtk_sc_check_profile,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_check_profile
+	.set	nomips16
+	.ent	rtk_sc_check_profile
+	.type	rtk_sc_check_profile, @function
+rtk_sc_check_profile:
+	.frame	$sp,32,$31		# vars= 0, regs= 4/0, args= 16, gp= 0
+	.mask	0x80070000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-32
+	sw	$31,28($sp)
+	sw	$18,24($sp)
+	sw	$17,20($sp)
+	sw	$16,16($sp)
+	lui	$17,%hi(pp)
+	move	$18,$4
+	lw	$4,%lo(pp)($17)
+	lui	$16,%hi(g_sc_ctx)
+	addiu	$5,$16,%lo(g_sc_ctx)
+	lui	$2,%hi(use_ios7_mac)
+	jal	rtk_sc_get_cipher_info
+	sw	$0,%lo(use_ios7_mac)($2)
+
+	lw	$4,%lo(pp)($17)
+	jal	rtk_sc_generate_key
+	addiu	$5,$16,%lo(g_sc_ctx)
+
+	bnel	$2,$0,$L127
+	lui	$17,%hi(pp)
+
+	lw	$4,%lo(pp)($17)
+	jal	rtk_sc_decode_profile
+	addiu	$5,$16,%lo(g_sc_ctx)
+
+	bnel	$2,$0,$L127
+	lui	$17,%hi(pp)
+
+	lw	$4,%lo(pp)($17)
+	jal	rtk_sc_get_tlv_info
+	addiu	$5,$16,%lo(g_sc_ctx)
+
+	beq	$2,$0,$L128
+	lui	$2,%hi(g_sc_debug)
+
+	lui	$17,%hi(pp)
+$L127:
+	lw	$4,%lo(pp)($17)
+	lui	$16,%hi(g_sc_ctx)
+	li	$3,1			# 0x1
+	lui	$2,%hi(use_ios7_mac)
+	addiu	$5,$16,%lo(g_sc_ctx)
+	jal	rtk_sc_generate_key
+	sw	$3,%lo(use_ios7_mac)($2)
+
+	bne	$2,$0,$L129
+	lui	$3,%hi(use_ios7_mac)
+
+	lw	$4,%lo(pp)($17)
+	jal	rtk_sc_decode_profile
+	addiu	$5,$16,%lo(g_sc_ctx)
+
+	bne	$2,$0,$L129
+	lui	$3,%hi(use_ios7_mac)
+
+	lw	$4,%lo(pp)($17)
+	jal	rtk_sc_get_tlv_info
+	addiu	$5,$16,%lo(g_sc_ctx)
+
+	lui	$3,%hi(use_ios7_mac)
+$L129:
+	beq	$2,$0,$L118
+	sw	$0,%lo(use_ios7_mac)($3)
+
+	lui	$2,%hi(g_sc_debug)
+	lw	$2,%lo(g_sc_debug)($2)
+	beq	$2,$0,$L120
+	lui	$4,%hi($LC9)
+
+	jal	printk
+	addiu	$4,$4,%lo($LC9)
+
+$L120:
+	jal	rtk_sc_restart_simple_config
+	move	$4,$18
+
+	j	$L121
+	li	$2,-1			# 0xffffffffffffffff
+
+$L118:
+	lui	$2,%hi(g_sc_debug)
+$L128:
+	lw	$2,%lo(g_sc_debug)($2)
+	beql	$2,$0,$L130
+	lui	$5,%hi(g_sc_ctx+94)
+
+	lui	$4,%hi($LC10)
+	jal	printk
+	addiu	$4,$4,%lo($LC10)
+
+	lui	$5,%hi(g_sc_ctx+94)
+$L130:
+	addiu	$5,$5,%lo(g_sc_ctx+94)
+	jal	rtk_sc_set_string_value
+	li	$4,22			# 0x16
+
+	li	$4,13			# 0xd
+	li	$5,3			# 0x3
+	lui	$2,%hi(profile_pkt_index)
+	jal	rtk_sc_set_value
+	sw	$0,%lo(profile_pkt_index)($2)
+
+	li	$4,7			# 0x7
+	li	$5,3			# 0x3
+	lui	$2,%hi(finish_sync)
+	jal	rtk_sc_set_value
+	sw	$0,%lo(finish_sync)($2)
+
+	li	$4,14			# 0xe
+	jal	rtk_sc_set_value
+	move	$5,$0
+
+	lui	$2,%hi(g_sc_ctx+30)
+	lbu	$2,%lo(g_sc_ctx+30)($2)
+	beql	$2,$0,$L123
+	lui	$5,%hi(g_sc_ctx+24)
+
+	lui	$5,%hi(g_sc_ctx+30)
+	addiu	$5,$5,%lo(g_sc_ctx+30)
+	j	$L126
+	li	$4,25			# 0x19
+
+$L123:
+	addiu	$5,$5,%lo(g_sc_ctx+24)
+	li	$4,26			# 0x1a
+$L126:
+	jal	rtk_sc_set_string_value
+	nop
+
+	move	$4,$18
+	jal	start_clnt_lookup
+	li	$5,1			# 0x1
+
+	move	$2,$0
+$L121:
+	lw	$31,28($sp)
+	lw	$18,24($sp)
+	lw	$17,20($sp)
+	lw	$16,16($sp)
+	j	$31
+	addiu	$sp,$sp,32
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_check_profile
+	.size	rtk_sc_check_profile, .-rtk_sc_check_profile
+	.section	.rodata.str1.4
+	.align	2
+$LC11:
+	.ascii	"%s %d,i is %d, profile_pkt_index is %d\012\000"
+	.align	2
+$LC12:
+	.ascii	"%s %d,i is %d, sync_pkt_index is %d, (sync_pkt_index |0x"
+	.ascii	"1ff) is %d\012\000"
+	.align	2
+$LC13:
+	.ascii	"the BSSID is \000"
+	.align	2
+$LC14:
+	.ascii	"the Control Device MAC is \000"
+	.section	.text.rtk_sc_start_parse_packet,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_start_parse_packet
+	.set	nomips16
+	.ent	rtk_sc_start_parse_packet
+	.type	rtk_sc_start_parse_packet, @function
+rtk_sc_start_parse_packet:
+	.frame	$sp,56,$31		# vars= 8, regs= 6/0, args= 24, gp= 0
+	.mask	0x801f0000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-56
+	sw	$31,52($sp)
+	sw	$20,48($sp)
+	sw	$19,44($sp)
+	sw	$18,40($sp)
+	sw	$17,36($sp)
+	sw	$16,32($sp)
+	move	$16,$4
+	li	$4,13			# 0xd
+	jal	rtk_sc_get_value
+	move	$17,$5
+
+	move	$18,$2
+	lui	$2,%hi(g_sc_debug)
+	lw	$3,%lo(g_sc_debug)($2)
+	li	$2,-1			# 0xffffffffffffffff
+	bnel	$3,$2,$L171
+	lw	$2,24($17)
+
+	lw	$4,24($17)
+	jal	bytedump
+	li	$5,6			# 0x6
+
+	lw	$2,24($17)
+$L171:
+	li	$3,1			# 0x1
+	lbu	$4,0($2)
+	bnel	$4,$3,$L172
+	addiu	$2,$18,-1
+
+	lbu	$3,1($2)
+	bnel	$3,$0,$L172
+	addiu	$2,$18,-1
+
+	lbu	$4,2($2)
+	li	$3,94			# 0x5e
+	bnel	$4,$3,$L172
+	addiu	$2,$18,-1
+
+	lbu	$3,3($2)
+	bnel	$3,$0,$L172
+	addiu	$2,$18,-1
+
+	lbu	$3,5($2)
+	beql	$3,$0,$L172
+	addiu	$2,$18,-1
+
+	li	$3,-128			# 0xffffffffffffff80
+	sb	$3,3($2)
+	addiu	$2,$18,-1
+$L172:
+	sltu	$2,$2,2
+	beq	$2,$0,$L170
+	lw	$31,52($sp)
+
+	lui	$2,%hi(finish_sync)
+	lw	$3,%lo(finish_sync)($2)
+	bne	$3,$0,$L135
+	li	$2,2			# 0x2
+
+	lw	$3,24($17)
+	li	$2,1			# 0x1
+	lbu	$4,0($3)
+	bne	$4,$2,$L173
+	lw	$20,48($sp)
+
+	lbu	$2,1($3)
+	bne	$2,$0,$L170
+	li	$2,94			# 0x5e
+
+	lbu	$4,2($3)
+	bne	$4,$2,$L174
+	lw	$19,44($sp)
+
+	move	$4,$0
+	move	$2,$0
+	li	$5,6			# 0x6
+$L136:
+	addu	$6,$3,$2
+	lbu	$6,0($6)
+	addiu	$2,$2,1
+	addu	$4,$4,$6
+	bne	$2,$5,$L136
+	andi	$4,$4,0x00ff
+
+	bnel	$4,$0,$L170
+	lw	$31,52($sp)
+
+	lui	$2,%hi(g_sc_check_level)
+	lw	$3,%lo(g_sc_check_level)($2)
+	li	$2,2			# 0x2
+	bne	$3,$2,$L175
+	lui	$2,%hi(fix_sa)
+
+	jal	rtk_sc_valid_profile_packet
+	move	$4,$17
+
+	beq	$2,$0,$L131
+	lui	$2,%hi(fix_sa)
+
+$L175:
+	lw	$3,%lo(fix_sa)($2)
+	li	$2,1			# 0x1
+	bne	$3,$2,$L176
+	lui	$2,%hi(fix_sa)
+
+	lw	$5,28($17)
+	lui	$4,%hi(g_sc_ctx+12)
+	addiu	$4,$4,%lo(g_sc_ctx+12)
+	jal	memcmp
+	li	$6,6			# 0x6
+
+	bne	$2,$0,$L138
+	lui	$2,%hi(fix_sa)
+
+	lw	$2,24($17)
+	li	$4,6			# 0x6
+	lbu	$7,3($2)
+	lui	$2,%hi(g_sc_ctx)
+	addiu	$2,$2,%lo(g_sc_ctx)
+	mul	$3,$7,$4
+	addu	$5,$3,$2
+	lbu	$5,260($5)
+	bne	$5,$0,$L131
+	slt	$5,$7,9
+
+	bne	$5,$0,$L139
+	addu	$3,$2,$3
+
+	addiu	$3,$7,-9
+	mul	$3,$3,$4
+	addu	$4,$3,$2
+	lbu	$4,314($4)
+	bne	$4,$0,$L131
+	addu	$2,$2,$3
+
+	addiu	$2,$2,314
+	move	$3,$0
+	li	$4,6			# 0x6
+$L140:
+	lw	$5,24($17)
+	addu	$5,$5,$3
+	lbu	$5,0($5)
+	addiu	$3,$3,1
+	sb	$5,0($2)
+	bne	$3,$4,$L140
+	addiu	$2,$2,1
+
+	lui	$3,%hi(profile_pkt_index)
+	lw	$2,%lo(profile_pkt_index)($3)
+	lui	$4,%hi(g_sc_debug)
+	lw	$4,%lo(g_sc_debug)($4)
+	addiu	$2,$2,1
+	sw	$2,%lo(profile_pkt_index)($3)
+	li	$3,2			# 0x2
+	bnel	$4,$3,$L177
+	lui	$2,%hi(sync_pkt_index)
+
+	lui	$4,%hi($LC11)
+	lui	$5,%hi(__func__.60931)
+	addiu	$4,$4,%lo($LC11)
+	addiu	$5,$5,%lo(__func__.60931)
+	j	$L167
+	li	$6,962			# 0x3c2
+
+$L139:
+	addiu	$3,$3,260
+	move	$2,$0
+	li	$4,6			# 0x6
+$L142:
+	lw	$5,24($17)
+	addu	$5,$5,$2
+	lbu	$5,0($5)
+	addiu	$2,$2,1
+	sb	$5,0($3)
+	bne	$2,$4,$L142
+	addiu	$3,$3,1
+
+	lui	$3,%hi(sync_pkt_index)
+	lw	$5,%lo(sync_pkt_index)($3)
+	lui	$2,%hi(g_sc_debug)
+	lw	$4,%lo(g_sc_debug)($2)
+	li	$2,1			# 0x1
+	sll	$2,$2,$7
+	or	$2,$2,$5
+	sw	$2,%lo(sync_pkt_index)($3)
+	li	$3,2			# 0x2
+	bnel	$4,$3,$L177
+	lui	$2,%hi(sync_pkt_index)
+
+	ori	$3,$2,0x1ff
+	lui	$4,%hi($LC12)
+	lui	$5,%hi(__func__.60931)
+	addiu	$4,$4,%lo($LC12)
+	addiu	$5,$5,%lo(__func__.60931)
+	li	$6,978			# 0x3d2
+	sw	$3,20($sp)
+$L167:
+	jal	printk
+	sw	$2,16($sp)
+
+	lui	$2,%hi(sync_pkt_index)
+$L177:
+	lw	$3,%lo(sync_pkt_index)($2)
+	li	$2,511			# 0x1ff
+	andi	$3,$3,0x1ff
+	bne	$3,$2,$L170
+	lw	$31,52($sp)
+
+	lui	$19,%hi(g_sc_ctx+2416)
+	lui	$17,%hi(g_sc_ctx)
+	addiu	$19,$19,%lo(g_sc_ctx+2416)
+	addiu	$17,$17,%lo(g_sc_ctx)
+	move	$18,$0
+	j	$L143
+	lui	$20,%hi(pp)
+
+$L148:
+	addiu	$18,$18,1
+	addiu	$19,$19,4
+	beq	$4,$0,$L143
+	sw	$4,%lo(pp)($20)
+
+	lw	$2,4($4)
+	andi	$2,$2,0x2
+	beql	$2,$0,$L178
+	lw	$2,2672($17)
+
+	move	$5,$17
+	jal	rtk_sc_check_pattern
+	move	$6,$16
+
+	bnel	$2,$0,$L178
+	lw	$2,2672($17)
+
+	li	$3,1			# 0x1
+	li	$4,14			# 0xe
+	lui	$2,%hi(finish_sync)
+	move	$5,$0
+	jal	rtk_sc_set_value
+	sw	$3,%lo(finish_sync)($2)
+
+	lui	$2,%hi(profile_pkt_index)
+	lw	$3,1852($17)
+	lw	$2,%lo(profile_pkt_index)($2)
+	lui	$4,%hi(sync_pkt_index)
+	sltu	$2,$2,$3
+	bne	$2,$0,$L131
+	sw	$0,%lo(sync_pkt_index)($4)
+
+	lui	$4,%hi(g_sc_ctx+368)
+	addiu	$4,$4,%lo(g_sc_ctx+368)
+	j	$L145
+	li	$2,9			# 0x9
+
+$L147:
+	beq	$4,$0,$L159
+	nop
+
+	addiu	$2,$2,1
+	addiu	$4,$4,6
+$L145:
+	sltu	$5,$2,$3
+	bne	$5,$0,$L147
+	nop
+
+	j	$L159
+	nop
+
+$L143:
+	lw	$2,2672($17)
+$L178:
+	slt	$2,$18,$2
+	bnel	$2,$0,$L148
+	lw	$4,0($19)
+
+	move	$4,$16
+	lui	$2,%hi(fix_sa)
+	jal	rtk_sc_restart_simple_config
+	sw	$0,%lo(fix_sa)($2)
+
+	j	$L170
+	lw	$31,52($sp)
+
+$L138:
+$L176:
+	lw	$3,%lo(fix_sa)($2)
+	li	$2,1			# 0x1
+	bne	$3,$2,$L179
+	lui	$2,%hi(g_sc_check_level)
+
+	lui	$2,%hi(g_sc_ignore_overlap)
+	lw	$2,%lo(g_sc_ignore_overlap)($2)
+	bne	$2,$0,$L131
+	lui	$2,%hi(g_sc_check_level)
+
+$L179:
+	lw	$2,%lo(g_sc_check_level)($2)
+	beql	$2,$0,$L180
+	lw	$5,28($17)
+
+	jal	rtk_sc_valid_profile_packet
+	move	$4,$17
+
+	beq	$2,$0,$L170
+	lw	$31,52($sp)
+
+	lw	$5,28($17)
+$L180:
+	lui	$16,%hi(g_sc_ctx+12)
+	addiu	$4,$16,%lo(g_sc_ctx+12)
+	jal	memcpy
+	li	$6,6			# 0x6
+
+	lw	$5,28($17)
+	lui	$4,%hi(g_smac)
+	li	$6,6			# 0x6
+	jal	memcpy
+	addiu	$4,$4,%lo(g_smac)
+
+	lw	$2,0($17)
+	lui	$18,%hi(g_sc_ctx+24)
+	lui	$20,%hi(g_sc_bssid)
+	lw	$4,196($2)
+	jal	get_bssid
+	lui	$19,%hi(null_mac)
+
+	move	$17,$2
+	addiu	$4,$18,%lo(g_sc_ctx+24)
+	move	$5,$2
+	jal	memcpy
+	li	$6,6			# 0x6
+
+	li	$6,6			# 0x6
+	addiu	$4,$20,%lo(g_sc_bssid)
+	jal	memcpy
+	move	$5,$17
+
+	addiu	$5,$20,%lo(g_sc_bssid)
+	jal	rtk_sc_set_string_value
+	li	$4,26			# 0x1a
+
+	move	$4,$17
+	addiu	$5,$19,%lo(null_mac)
+	jal	memcmp
+	li	$6,6			# 0x6
+
+	beq	$2,$0,$L181
+	lui	$2,%hi(sync_pkt_index)
+
+	addiu	$5,$19,%lo(null_mac)
+	addiu	$4,$16,%lo(g_sc_ctx+12)
+	jal	memcmp
+	li	$6,6			# 0x6
+
+	beq	$2,$0,$L181
+	lui	$2,%hi(sync_pkt_index)
+
+	move	$4,$17
+	addiu	$5,$16,%lo(g_sc_ctx+12)
+	jal	memcmp
+	li	$6,6			# 0x6
+
+	beq	$2,$0,$L151
+	lui	$2,%hi(g_sc_debug)
+
+	lw	$2,%lo(g_sc_debug)($2)
+	lui	$3,%hi(finish_sync)
+	beq	$2,$0,$L152
+	sw	$0,%lo(finish_sync)($3)
+
+	lui	$4,%hi($LC13)
+	jal	printk
+	addiu	$4,$4,%lo($LC13)
+
+	li	$5,6			# 0x6
+	jal	bytedump
+	addiu	$4,$18,%lo(g_sc_ctx+24)
+
+	lui	$4,%hi($LC14)
+	jal	printk
+	addiu	$4,$4,%lo($LC14)
+
+	addiu	$4,$16,%lo(g_sc_ctx+12)
+	jal	bytedump
+	li	$5,6			# 0x6
+
+$L152:
+	li	$4,13			# 0xd
+	jal	rtk_sc_set_value
+	li	$5,2			# 0x2
+
+	li	$4,7			# 0x7
+	jal	rtk_sc_set_value
+	li	$5,2			# 0x2
+
+	li	$4,5			# 0x5
+	jal	rtk_sc_set_value
+	li	$5,1			# 0x1
+
+	li	$3,1			# 0x1
+	lui	$2,%hi(fix_sa)
+	sw	$3,%lo(fix_sa)($2)
+$L151:
+	lui	$2,%hi(sync_pkt_index)
+$L181:
+	sw	$0,%lo(sync_pkt_index)($2)
+	lui	$2,%hi(profile_pkt_index)
+	li	$4,14			# 0xe
+	move	$5,$0
+	sw	$0,%lo(profile_pkt_index)($2)
+	lui	$2,%hi(sequence)
+	jal	rtk_sc_set_value
+	sw	$0,%lo(sequence)($2)
+
+	j	$L170
+	lw	$31,52($sp)
+
+$L135:
+	bne	$18,$2,$L131
+	li	$2,1			# 0x1
+
+	bne	$3,$2,$L170
+	lw	$31,52($sp)
+
+	lw	$2,24($17)
+	lbu	$4,0($2)
+	bne	$4,$3,$L173
+	lw	$20,48($sp)
+
+	lbu	$3,1($2)
+	bne	$3,$0,$L184
+	li	$3,94			# 0x5e
+
+	lbu	$4,2($2)
+	bne	$4,$3,$L174
+	lw	$19,44($sp)
+
+	move	$3,$0
+	move	$18,$0
+	li	$4,6			# 0x6
+$L153:
+	addu	$5,$2,$18
+	lbu	$5,0($5)
+	addiu	$18,$18,1
+	addu	$3,$3,$5
+	bne	$18,$4,$L153
+	andi	$3,$3,0x00ff
+
+	bne	$3,$0,$L170
+	lw	$31,52($sp)
+
+	lw	$5,28($17)
+	lui	$4,%hi(g_sc_ctx+12)
+	addiu	$4,$4,%lo(g_sc_ctx+12)
+	jal	memcmp
+	li	$6,6			# 0x6
+
+	bne	$2,$0,$L170
+	lw	$31,52($sp)
+
+	lw	$2,24($17)
+	lbu	$7,3($2)
+	slt	$2,$7,9
+	bne	$2,$0,$L185
+	addiu	$19,$7,-9
+
+	mul	$3,$19,$18
+	lui	$2,%hi(g_sc_ctx)
+	addiu	$2,$2,%lo(g_sc_ctx)
+	addu	$18,$3,$2
+	lbu	$2,314($18)
+	bne	$2,$0,$L186
+	lui	$2,%hi(g_sc_check_level)
+
+	lw	$3,%lo(g_sc_check_level)($2)
+	li	$2,2			# 0x2
+	bne	$3,$2,$L182
+	li	$3,6			# 0x6
+
+	move	$4,$17
+	jal	rtk_sc_valid_profile_packet
+	sw	$7,24($sp)
+
+	beq	$2,$0,$L131
+	lw	$7,24($sp)
+
+	li	$3,6			# 0x6
+$L182:
+	mul	$4,$19,$3
+	lui	$2,%hi(g_sc_ctx)
+	addiu	$2,$2,%lo(g_sc_ctx)
+	addu	$19,$4,$2
+	addiu	$19,$19,314
+	move	$2,$0
+$L156:
+	lw	$4,24($17)
+	addu	$4,$4,$2
+	lbu	$4,0($4)
+	addiu	$2,$2,1
+	sb	$4,0($19)
+	bne	$2,$3,$L156
+	addiu	$19,$19,1
+
+	lui	$3,%hi(profile_pkt_index)
+	lw	$2,%lo(profile_pkt_index)($3)
+	lui	$4,%hi(g_sc_debug)
+	lw	$4,%lo(g_sc_debug)($4)
+	addiu	$2,$2,1
+	sw	$2,%lo(profile_pkt_index)($3)
+	li	$3,2			# 0x2
+	bnel	$4,$3,$L183
+	lui	$2,%hi(g_sc_ctx+1852)
+
+	lui	$4,%hi($LC11)
+	lui	$5,%hi(__func__.60931)
+	addiu	$4,$4,%lo($LC11)
+	addiu	$5,$5,%lo(__func__.60931)
+	li	$6,1088			# 0x440
+	jal	printk
+	sw	$2,16($sp)
+
+	lui	$2,%hi(g_sc_ctx+1852)
+$L183:
+	lw	$3,%lo(g_sc_ctx+1852)($2)
+	lui	$2,%hi(profile_pkt_index)
+	lw	$2,%lo(profile_pkt_index)($2)
+	sltu	$2,$2,$3
+	bne	$2,$0,$L131
+	li	$2,9			# 0x9
+
+	lui	$4,%hi(g_sc_ctx+368)
+	j	$L158
+	addiu	$4,$4,%lo(g_sc_ctx+368)
+
+$L160:
+	beq	$4,$0,$L159
+	nop
+
+	addiu	$2,$2,1
+	addiu	$4,$4,6
+$L158:
+	sltu	$5,$2,$3
+	bne	$5,$0,$L160
+	nop
+
+$L159:
+	bne	$2,$3,$L170
+	lw	$31,52($sp)
+
+	jal	rtk_sc_check_profile
+	move	$4,$16
+
+$L131:
+	lw	$31,52($sp)
+$L170:
+$L184:
+$L185:
+$L186:
+	lw	$20,48($sp)
+$L173:
+	lw	$19,44($sp)
+$L174:
+	lw	$18,40($sp)
+	lw	$17,36($sp)
+	lw	$16,32($sp)
+	move	$2,$0
+	j	$31
+	addiu	$sp,$sp,56
+
+	.set	macro
+	.set	reorder
+	.end	rtk_sc_start_parse_packet
+	.size	rtk_sc_start_parse_packet, .-rtk_sc_start_parse_packet
+	.section	.text.rtk_sc_set_ack_pkt,"ax",@progbits
+	.align	2
+	.globl	rtk_sc_set_ack_pkt
+	.set	nomips16
+	.ent	rtk_sc_set_ack_pkt
+	.type	rtk_sc_set_ack_pkt, @function
+rtk_sc_set_ack_pkt:
+	.frame	$sp,32,$31		# vars= 0, regs= 4/0, args= 16, gp= 0
+	.mask	0x80070000,-4
+	.fmask	0x00000000,0
+	addiu	$sp,$sp,-32
+	sw	$31,28($sp)
+	sw	$18,24($sp)
+	sw	$17,20($sp)
+	sw	$16,16($sp)
+	move	$5,$0
+	li	$6,108			# 0x6c
+	.set	noreorder
+	.set	nomacro
+	jal	memset
+	move	$16,$4
+	.set	macro
+	.set	reorder
+
+	li	$2,32			# 0x20
+	sb	$2,28($16)
+	li	$2,77			# 0x4d
+	sb	$2,30($16)
+	lui	$17,%hi(g_sc_ctx)
+	li	$2,1			# 0x1
+	sb	$2,37($16)
+	sb	$0,29($16)
+	addiu	$17,$17,%lo(g_sc_ctx)
+	lbu	$2,2808($17)
+	addiu	$18,$16,44
+	move	$4,$18
+	sb	$2,38($16)
+	lbu	$2,2809($17)
+	move	$5,$0
+	li	$6,64			# 0x40
+	sb	$2,39($16)
+	swl	$0,40($16)
+	.set	noreorder
+	.set	nomacro
+	jal	memset
+	swr	$0,43($16)
+	.set	macro
+	.set	reorder
+
+	lui	$2,%hi(g_sc_ctx+2810)
+	addiu	$2,$2,%lo(g_sc_ctx+2810)
+ #APP
+ # 27 "/home/winfred_wang/trunk_code/branch-rtl819x-sdk-v3.4.9_backup/linux-3.10/arch/mips/include/asm/string.h" 1
+	.set	noreorder
+	.set	noat
+1:	lbu	$1,($2)
+	addiu	$2,1
+	sb	$1,($18)
+	bnez	$1,1b
+	addiu	$18,1
+	.set	at
+	.set	reorder
+ # 0 "" 2
+ #NO_APP
+	lui	$5,%hi(g_sc_ctx+18)
+	addiu	$5,$5,%lo(g_sc_ctx+18)
+	addiu	$4,$16,31
+	.set	noreorder
+	.set	nomacro
+	jal	memcpy
+	li	$6,6			# 0x6
+	.set	macro
+	.set	reorder
+
+	lbu	$2,0($16)
+	li	$3,4			# 0x4
+	sb	$0,1($16)
+	ins	$2,$3,4,4
+	li	$3,5			# 0x5
+	ins	$2,$3,0,4
+	sb	$2,0($16)
+	li	$2,108			# 0x6c
+	sb	$2,3($16)
+	li	$2,64			# 0x40
+	sb	$2,6($16)
+	li	$2,2			# 0x2
+	sb	$2,8($16)
+	li	$2,17			# 0x11
+	sb	$2,9($16)
+	sb	$0,2($16)
+	sb	$0,4($16)
+	sb	$0,5($16)
+	sb	$0,7($16)
+	sb	$0,10($16)
+	sb	$0,11($16)
+	lw	$2,256($17)
+	.set	noreorder
+	.set	nomacro
+	beql	$2,$0,$L188
+	li	$2,-1			# 0xffffffffffffffff
+	.set	macro
+	.set	reorder
+
+	swl	$2,16($16)
+	swr	$2,19($16)
+	.set	noreorder
+	.set	nomacro
+	j	$L193
+	addiu	$2,$2,1
+	.set	macro
+	.set	reorder
+
+$L188:
+	swl	$2,16($16)
+	swr	$2,19($16)
+	li	$2,-1062731776			# 0xffffffffc0a80000
+	ori	$2,$2,0x164
+$L193:
+	swl	$2,12($16)
+	swr	$2,15($16)
+	move	$3,$16
+	addiu	$4,$16,20
+	move	$2,$0
+$L190:
+	lhu	$5,0($3)
+	addiu	$3,$3,2
+	.set	noreorder
+	.set	nomacro
+	bne	$3,$4,$L190
+	addu	$2,$2,$5
+	.set	macro
+	.set	reorder
+
+	andi	$3,$2,0xffff
+	srl	$2,$2,16
+	addu	$2,$3,$2
+	srl	$3,$2,16
+	addu	$2,$3,$2
+	nor	$2,$0,$2
+	andi	$2,$2,0xffff
+	sb	$2,11($16)
+	li	$4,34			# 0x22
+	li	$3,-96			# 0xffffffffffffffa0
+	srl	$5,$2,8
+	li	$2,88			# 0x58
+	sb	$5,10($16)
+	sb	$4,22($16)
+	sb	$3,23($16)
+	sb	$2,25($16)
+	sb	$0,27($16)
+	sb	$4,20($16)
+	sb	$3,21($16)
+	sb	$0,24($16)
+	sb	$0,26($16)
+	lw	$31,28($sp)
+	lw	$18,24($sp)
+	lw	$17,20($sp)
+	lw	$16,16($sp)
+	.set	noreorder
+	.set	nomacro
+	j	$31
+	addiu	$sp,$sp,32
+	.set	macro
+	.set	reorder
+
+	.end	rtk_sc_set_ack_pkt
+	.size	rtk_sc_set_ack_pkt, .-rtk_sc_set_ack_pkt
+	.section	.text.mcast_udp_send_ack,"ax",@progbits
+	.align	2
+	.globl	mcast_udp_send_ack
+	.set	nomips16
+	.ent	mcast_udp_send_ack
+	.type	mcast_udp_send_ack, @function
+mcast_udp_send_ack:
+	.frame	$sp,24,$31		# vars= 0, regs= 1/0, args= 16, gp= 0
+	.mask	0x80000000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-24
+	sw	$31,20($sp)
+	lui	$4,%hi(ack_pkt)
+	jal	rtk_sc_set_ack_pkt
+	addiu	$4,$4,%lo(ack_pkt)
+
+	lw	$31,20($sp)
+	j	$31
+	addiu	$sp,$sp,24
+
+	.set	macro
+	.set	reorder
+	.end	mcast_udp_send_ack
+	.size	mcast_udp_send_ack, .-mcast_udp_send_ack
+	.section	.text.mcast_udp_decode_profile,"ax",@progbits
+	.align	2
+	.globl	mcast_udp_decode_profile
+	.set	nomips16
+	.ent	mcast_udp_decode_profile
+	.type	mcast_udp_decode_profile, @function
+mcast_udp_decode_profile:
+	.frame	$sp,32,$31		# vars= 0, regs= 2/0, args= 24, gp= 0
+	.mask	0x80010000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-32
+	sw	$31,28($sp)
+	sw	$16,24($sp)
+	move	$16,$5
+	lw	$7,2148($16)
+	lw	$5,2408($5)
+	addiu	$2,$16,1856
+	addiu	$4,$16,2152
+	addiu	$6,$16,2116
+	jal	AES_UnWRAP
+	sw	$2,16($sp)
+
+	lw	$3,2408($16)
+	move	$2,$0
+	sw	$3,2112($16)
+	lw	$31,28($sp)
+	lw	$16,24($sp)
+	j	$31
+	addiu	$sp,$sp,32
+
+	.set	macro
+	.set	reorder
+	.end	mcast_udp_decode_profile
+	.size	mcast_udp_decode_profile, .-mcast_udp_decode_profile
+	.section	.rodata.str1.4
+	.align	2
+$LC15:
+	.ascii	"the pin code is %s, the pin length is %d\012\000"
+	.align	2
+$LC16:
+	.ascii	"It is not invalid pattern\012\000"
+	.align	2
+$LC17:
+	.ascii	"this client MUST have pin\012\000"
+	.section	.text.mcast_udp_get_pattern,"ax",@progbits
+	.align	2
+	.globl	mcast_udp_get_pattern
+	.set	nomips16
+	.ent	mcast_udp_get_pattern
+	.type	mcast_udp_get_pattern, @function
+mcast_udp_get_pattern:
+	.frame	$sp,248,$31		# vars= 200, regs= 7/0, args= 16, gp= 0
+	.mask	0x803f0000,-4
+	.fmask	0x00000000,0
+	addiu	$sp,$sp,-248
+	sw	$31,244($sp)
+	sw	$21,240($sp)
+	sw	$20,236($sp)
+	sw	$19,232($sp)
+	sw	$18,228($sp)
+	sw	$17,224($sp)
+	sw	$16,220($sp)
+	li	$4,6			# 0x6
+	addiu	$17,$sp,80
+	move	$16,$5
+	.set	noreorder
+	.set	nomacro
+	jal	rtk_sc_get_value
+	addiu	$20,$sp,148
+	.set	macro
+	.set	reorder
+
+	li	$4,21			# 0x15
+	move	$5,$17
+	.set	noreorder
+	.set	nomacro
+	jal	rtk_sc_get_string_value
+	move	$19,$2
+	.set	macro
+	.set	reorder
+
+	li	$4,20			# 0x14
+	.set	noreorder
+	.set	nomacro
+	jal	rtk_sc_get_string_value
+	move	$5,$20
+	.set	macro
+	.set	reorder
+
+	li	$4,23			# 0x17
+	.set	noreorder
+	.set	nomacro
+	jal	rtk_sc_get_string_value
+	addiu	$5,$sp,16
+	.set	macro
+	.set	reorder
+
+	lbu	$4,271($16)
+	lbu	$2,265($16)
+	lbu	$3,277($16)
+	sll	$4,$4,8
+	sll	$2,$2,16
+	addu	$2,$4,$2
+	addu	$2,$2,$3
+	li	$4,2			# 0x2
+	.set	noreorder
+	.set	nomacro
+	bne	$2,$4,$L199
+	li	$4,3			# 0x3
+	.set	macro
+	.set	reorder
+
+	lbu	$6,263($16)
+	lbu	$5,270($16)
+	lbu	$4,283($16)
+	addu	$3,$6,$3
+	addu	$3,$3,$5
+	lbu	$5,289($16)
+	addu	$3,$3,$4
+	andi	$3,$3,0xff
+	.set	noreorder
+	.set	nomacro
+	bnel	$3,$5,$L211
+	li	$2,1			# 0x1
+	.set	macro
+	.set	reorder
+
+	addiu	$4,$4,-9
+	sw	$4,1852($16)
+	sw	$2,8($16)
+	.set	noreorder
+	.set	nomacro
+	jal	strlen
+	move	$4,$17
+	.set	macro
+	.set	reorder
+
+	move	$6,$2
+	move	$5,$17
+	.set	noreorder
+	.set	nomacro
+	jal	memcpy
+	addiu	$4,$16,2741
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	strlen
+	move	$4,$17
+	.set	macro
+	.set	reorder
+
+	addu	$3,$16,$2
+	lui	$4,%hi(g_sc_pin_len)
+	sw	$2,%lo(g_sc_pin_len)($4)
+	sb	$0,2741($3)
+	.set	noreorder
+	.set	nomacro
+	j	$L200
+	sb	$0,2806($16)
+	.set	macro
+	.set	reorder
+
+$L199:
+	.set	noreorder
+	.set	nomacro
+	bnel	$2,$4,$L201
+	lui	$2,%hi(g_sc_debug)
+	.set	macro
+	.set	reorder
+
+	lbu	$6,263($16)
+	lbu	$5,270($16)
+	lbu	$4,283($16)
+	addu	$3,$6,$3
+	addu	$3,$3,$5
+	lbu	$5,289($16)
+	addu	$3,$3,$4
+	andi	$3,$3,0xff
+	.set	noreorder
+	.set	nomacro
+	bnel	$3,$5,$L211
+	li	$2,1			# 0x1
+	.set	macro
+	.set	reorder
+
+	addiu	$4,$4,-9
+	sw	$2,8($16)
+	li	$2,1			# 0x1
+	sw	$4,1852($16)
+	sb	$2,2806($16)
+	.set	noreorder
+	.set	nomacro
+	jal	strlen
+	move	$4,$20
+	.set	macro
+	.set	reorder
+
+	lui	$18,%hi(g_sc_pin_len)
+	sw	$2,%lo(g_sc_pin_len)($18)
+	.set	noreorder
+	.set	nomacro
+	bne	$2,$0,$L202
+	addiu	$21,$16,2676
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	strlen
+	move	$4,$17
+	.set	macro
+	.set	reorder
+
+	move	$6,$2
+	move	$4,$21
+	.set	noreorder
+	.set	nomacro
+	jal	memcpy
+	move	$5,$17
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	strlen
+	move	$4,$17
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	j	$L203
+	sw	$2,%lo(g_sc_pin_len)($18)
+	.set	macro
+	.set	reorder
+
+$L202:
+	move	$4,$21
+	move	$5,$20
+	.set	noreorder
+	.set	nomacro
+	jal	memcpy
+	move	$6,$2
+	.set	macro
+	.set	reorder
+
+$L203:
+	lui	$2,%hi(g_sc_pin_len)
+	lw	$3,%lo(g_sc_pin_len)($2)
+	addu	$3,$16,$3
+	sb	$0,2676($3)
+	lui	$3,%hi(g_sc_debug)
+	lw	$3,%lo(g_sc_debug)($3)
+	.set	noreorder
+	.set	nomacro
+	beql	$3,$0,$L211
+	li	$2,1			# 0x1
+	.set	macro
+	.set	reorder
+
+	lw	$6,%lo(g_sc_pin_len)($2)
+	lui	$4,%hi($LC15)
+	addiu	$4,$4,%lo($LC15)
+	.set	noreorder
+	.set	nomacro
+	jal	printk
+	addiu	$5,$16,2676
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	j	$L211
+	li	$2,1			# 0x1
+	.set	macro
+	.set	reorder
+
+$L201:
+	lw	$2,%lo(g_sc_debug)($2)
+	.set	noreorder
+	.set	nomacro
+	beql	$2,$0,$L205
+	li	$2,-1			# 0xffffffffffffffff
+	.set	macro
+	.set	reorder
+
+	lui	$4,%hi($LC16)
+	.set	noreorder
+	.set	nomacro
+	j	$L210
+	addiu	$4,$4,%lo($LC16)
+	.set	macro
+	.set	reorder
+
+$L200:
+	li	$2,1			# 0x1
+$L211:
+	.set	noreorder
+	.set	nomacro
+	bne	$19,$2,$L212
+	lui	$2,%hi(radom_value)
+	.set	macro
+	.set	reorder
+
+	lbu	$2,2806($16)
+	.set	noreorder
+	.set	nomacro
+	bne	$2,$0,$L206
+	lui	$2,%hi(radom_value)
+	.set	macro
+	.set	reorder
+
+	lui	$2,%hi(g_sc_debug)
+	lw	$2,%lo(g_sc_debug)($2)
+	.set	noreorder
+	.set	nomacro
+	beql	$2,$0,$L204
+	li	$2,-1			# 0xffffffffffffffff
+	.set	macro
+	.set	reorder
+
+	lui	$4,%hi($LC17)
+	addiu	$4,$4,%lo($LC17)
+$L210:
+	jal	printk
+	.set	noreorder
+	.set	nomacro
+	j	$L205
+	li	$2,-1			# 0xffffffffffffffff
+	.set	macro
+	.set	reorder
+
+$L206:
+$L212:
+	lui	$4,%hi(radom_value+4)
+	addiu	$2,$2,%lo(radom_value)
+	addiu	$4,$4,%lo(radom_value+4)
+	move	$3,$16
+$L207:
+	lbu	$5,295($3)
+	sb	$5,0($2)
+	addiu	$2,$2,1
+	.set	noreorder
+	.set	nomacro
+	bne	$2,$4,$L207
+	addiu	$3,$3,6
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	rtk_sc_get_value
+	li	$4,24			# 0x18
+	.set	macro
+	.set	reorder
+
+	sh	$2,2808($16)
+	addiu	$3,$16,2810
+	addiu	$2,$sp,16
+ #APP
+ # 27 "/home/winfred_wang/trunk_code/branch-rtl819x-sdk-v3.4.9_backup/linux-3.10/arch/mips/include/asm/string.h" 1
+	.set	noreorder
+	.set	noat
+1:	lbu	$1,($2)
+	addiu	$2,1
+	sb	$1,($3)
+	bnez	$1,1b
+	addiu	$3,1
+	.set	at
+	.set	reorder
+ # 0 "" 2
+ #NO_APP
+	move	$2,$0
+$L204:
+$L205:
+	lw	$31,244($sp)
+	lw	$21,240($sp)
+	lw	$20,236($sp)
+	lw	$19,232($sp)
+	lw	$18,228($sp)
+	lw	$17,224($sp)
+	lw	$16,220($sp)
+	.set	noreorder
+	.set	nomacro
+	j	$31
+	addiu	$sp,$sp,248
+	.set	macro
+	.set	reorder
+
+	.end	mcast_udp_get_pattern
+	.size	mcast_udp_get_pattern, .-mcast_udp_get_pattern
+	.section	.text.mcast_udp_generate_key,"ax",@progbits
+	.align	2
+	.globl	mcast_udp_generate_key
+	.set	nomips16
+	.ent	mcast_udp_generate_key
+	.type	mcast_udp_generate_key, @function
+mcast_udp_generate_key:
+	.frame	$sp,416,$31		# vars= 360, regs= 7/0, args= 24, gp= 0
+	.mask	0x803f0000,-4
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-416
+	sw	$31,412($sp)
+	sw	$21,408($sp)
+	sw	$20,404($sp)
+	sw	$19,400($sp)
+	sw	$18,396($sp)
+	sw	$17,392($sp)
+	sw	$16,388($sp)
+	addiu	$17,$sp,128
+	move	$19,$4
+	move	$16,$5
+	move	$4,$17
+	move	$5,$0
+	jal	memset
+	li	$6,256			# 0x100
+
+	lui	$2,%hi(use_ios7_mac)
+	lw	$2,%lo(use_ios7_mac)($2)
+	beq	$2,$0,$L214
+	move	$4,$17
+
+	lui	$5,%hi(g_ios_mac)
+	j	$L219
+	addiu	$5,$5,%lo(g_ios_mac)
+
+$L214:
+	addiu	$5,$16,12
+$L219:
+	jal	memcpy
+	li	$6,6			# 0x6
+
+	lbu	$3,2806($16)
+	addiu	$4,$sp,134
+	beq	$3,$0,$L216
+	lui	$2,%hi(g_sc_pin_len)
+
+	lw	$6,%lo(g_sc_pin_len)($2)
+	j	$L220
+	addiu	$5,$16,2676
+
+$L216:
+	lw	$6,%lo(g_sc_pin_len)($2)
+	addiu	$5,$16,2741
+$L220:
+	jal	memcpy
+	lui	$20,%hi(mcast_udp_buffer)
+
+	lui	$2,%hi(g_sc_pin_len)
+	lw	$18,%lo(g_sc_pin_len)($2)
+	addiu	$20,$20,%lo(mcast_udp_buffer)
+	move	$4,$20
+	jal	strlen
+	addiu	$17,$sp,128
+
+	addiu	$18,$18,6
+	move	$5,$20
+	addu	$4,$17,$18
+	jal	memcpy
+	move	$6,$2
+
+	jal	strlen
+	move	$4,$20
+
+	addu	$18,$2,$18
+	lui	$5,%hi(radom_value)
+	addiu	$20,$sp,40
+	addu	$4,$17,$18
+	addiu	$5,$5,%lo(radom_value)
+	jal	memcpy
+	li	$6,4			# 0x4
+
+	addiu	$18,$18,4
+	jal	wlan_MD5_Init
+	move	$4,$20
+
+	addiu	$21,$sp,24
+	move	$6,$18
+	move	$4,$20
+	jal	wlan_MD5_Update
+	move	$5,$17
+
+	addiu	$19,$19,8
+	move	$5,$20
+	jal	wlan_MD5_Final
+	move	$4,$21
+
+	jal	strlen
+	move	$4,$19
+
+	move	$6,$2
+	move	$5,$19
+	jal	memcpy
+	addu	$4,$17,$18
+
+	jal	strlen
+	move	$4,$19
+
+	addu	$5,$18,$2
+	move	$4,$17
+	addiu	$2,$16,2116
+	move	$6,$21
+	li	$7,16			# 0x10
+	jal	hmac_sha1
+	sw	$2,16($sp)
+
+	li	$2,16			# 0x10
+	sw	$2,2148($16)
+	lw	$31,412($sp)
+	lw	$21,408($sp)
+	lw	$20,404($sp)
+	lw	$19,400($sp)
+	lw	$18,396($sp)
+	lw	$17,392($sp)
+	lw	$16,388($sp)
+	move	$2,$0
+	j	$31
+	addiu	$sp,$sp,416
+
+	.set	macro
+	.set	reorder
+	.end	mcast_udp_generate_key
+	.size	mcast_udp_generate_key, .-mcast_udp_generate_key
+	.globl	sync_pkt_index
+	.section	.bss.sync_pkt_index,"aw",@nobits
+	.align	2
+	.type	sync_pkt_index, @object
+	.size	sync_pkt_index, 4
+sync_pkt_index:
+	.space	4
+	.globl	profile_pkt_index
+	.section	.bss.profile_pkt_index,"aw",@nobits
+	.align	2
+	.type	profile_pkt_index, @object
+	.size	profile_pkt_index, 4
+profile_pkt_index:
+	.space	4
+	.globl	finish_sync
+	.section	.bss.finish_sync,"aw",@nobits
+	.align	2
+	.type	finish_sync, @object
+	.size	finish_sync, 4
+finish_sync:
+	.space	4
+	.globl	use_ios7_mac
+	.section	.bss.use_ios7_mac,"aw",@nobits
+	.align	2
+	.type	use_ios7_mac, @object
+	.size	use_ios7_mac, 4
+use_ios7_mac:
+	.space	4
+	.globl	sequence
+	.section	.bss.sequence,"aw",@nobits
+	.align	2
+	.type	sequence, @object
+	.size	sequence, 4
+sequence:
+	.space	4
+	.globl	g_sc_send_ack_round
+	.section	.bss.g_sc_send_ack_round,"aw",@nobits
+	.align	2
+	.type	g_sc_send_ack_round, @object
+	.size	g_sc_send_ack_round, 4
+g_sc_send_ack_round:
+	.space	4
+	.globl	g_sc_is_vxd
+	.section	.bss.g_sc_is_vxd,"aw",@nobits
+	.align	2
+	.type	g_sc_is_vxd, @object
+	.size	g_sc_is_vxd, 4
+g_sc_is_vxd:
+	.space	4
+	.globl	g_ios_mac
+	.section	.data.g_ios_mac,"aw",@progbits
+	.align	2
+	.type	g_ios_mac, @object
+	.size	g_ios_mac, 6
+g_ios_mac:
+	.byte	2
+	.byte	0
+	.byte	0
+	.byte	0
+	.byte	0
+	.byte	0
+	.globl	null_mac
+	.section	.bss.null_mac,"aw",@nobits
+	.align	2
+	.type	null_mac, @object
+	.size	null_mac, 6
+null_mac:
+	.space	6
+	.globl	g_sc_debug
+	.section	.bss.g_sc_debug,"aw",@nobits
+	.align	2
+	.type	g_sc_debug, @object
+	.size	g_sc_debug, 4
+g_sc_debug:
+	.space	4
+	.globl	g_sc_check_level
+	.section	.bss.g_sc_check_level,"aw",@nobits
+	.align	2
+	.type	g_sc_check_level, @object
+	.size	g_sc_check_level, 4
+g_sc_check_level:
+	.space	4
+	.globl	g_sc_ignore_overlap
+	.section	.bss.g_sc_ignore_overlap,"aw",@nobits
+	.align	2
+	.type	g_sc_ignore_overlap, @object
+	.size	g_sc_ignore_overlap, 4
+g_sc_ignore_overlap:
+	.space	4
+	.globl	default_key_iv
+	.section	.data.default_key_iv,"aw",@progbits
+	.align	2
+	.type	default_key_iv, @object
+	.size	default_key_iv, 8
+default_key_iv:
+	.byte	-90
+	.byte	-90
+	.byte	-90
+	.byte	-90
+	.byte	-90
+	.byte	-90
+	.byte	-90
+	.byte	-90
+	.globl	udp_mcast
+	.section	.data.udp_mcast,"aw",@progbits
+	.align	2
+	.type	udp_mcast, @object
+	.size	udp_mcast, 64
+udp_mcast:
+	.word	2
+	.word	10
+	.ascii	"sc_mcast_udp\000"
+	.space	19
+	.word	mcast_udp_get_pattern
+	.word	mcast_udp_get_cipher_info
+	.word	mcast_udp_generate_key
+	.word	mcast_udp_decode_profile
+	.word	mcast_udp_get_profile
+	.word	mcast_udp_send_ack
+	.globl	udp_mcast_pin
+	.section	.data.udp_mcast_pin,"aw",@progbits
+	.align	2
+	.type	udp_mcast_pin, @object
+	.size	udp_mcast_pin, 64
+udp_mcast_pin:
+	.word	3
+	.word	10
+	.ascii	"sc_mcast_udp\000"
+	.space	19
+	.word	mcast_udp_get_pattern
+	.word	mcast_udp_get_cipher_info
+	.word	mcast_udp_generate_key
+	.word	mcast_udp_decode_profile
+	.word	mcast_udp_get_profile
+	.word	mcast_udp_send_ack
+	.section	.rodata.__func__.60931,"a",@progbits
+	.align	2
+	.type	__func__.60931, @object
+	.size	__func__.60931, 26
+__func__.60931:
+	.ascii	"rtk_sc_start_parse_packet\000"
+	.section	.bss.radom_value,"aw",@nobits
+	.align	2
+	.type	radom_value, @object
+	.size	radom_value, 4
+radom_value:
+	.space	4
+	.section	.data.mcast_udp_buffer,"aw",@progbits
+	.align	2
+	.type	mcast_udp_buffer, @object
+	.size	mcast_udp_buffer, 65
+mcast_udp_buffer:
+	.ascii	"8CmT/ J(3_aE R_UFR}`mtwF=)Qfjtn^S_1/ffg<_C7yw's}?'_'n&2~"
+	.ascii	"Blm&_k?6\000"
+	.section	.bss.g_sc_ctx,"aw",@nobits
+	.align	2
+	.type	g_sc_ctx, @object
+	.size	g_sc_ctx, 2876
+g_sc_ctx:
+	.space	2876
+	.globl	fix_sa
+	.section	.bss.fix_sa,"aw",@nobits
+	.align	2
+	.type	fix_sa, @object
+	.size	fix_sa, 4
+fix_sa:
+	.space	4
+	.globl	g_sc_pin_len
+	.section	.bss.g_sc_pin_len,"aw",@nobits
+	.align	2
+	.type	g_sc_pin_len, @object
+	.size	g_sc_pin_len, 4
+g_sc_pin_len:
+	.space	4
+	.globl	g_sc_bssid
+	.section	.bss.g_sc_bssid,"aw",@nobits
+	.align	2
+	.type	g_sc_bssid, @object
+	.size	g_sc_bssid, 6
+g_sc_bssid:
+	.space	6
+	.globl	g_smac
+	.section	.bss.g_smac,"aw",@nobits
+	.align	2
+	.type	g_smac, @object
+	.size	g_smac, 6
+g_smac:
+	.space	6
+	.globl	g_dmac
+	.section	.bss.g_dmac,"aw",@nobits
+	.align	2
+	.type	g_dmac, @object
+	.size	g_dmac, 6
+g_dmac:
+	.space	6
+	.globl	g_sc_ifname
+	.section	.bss.g_sc_ifname,"aw",@nobits
+	.align	2
+	.type	g_sc_ifname, @object
+	.size	g_sc_ifname, 32
+g_sc_ifname:
+	.space	32
+	.globl	g_sc_magic
+	.section	.bss.g_sc_magic,"aw",@nobits
+	.align	2
+	.type	g_sc_magic, @object
+	.size	g_sc_magic, 32
+g_sc_magic:
+	.space	32
+	.globl	pp
+	.section	.bss.pp,"aw",@nobits
+	.align	2
+	.type	pp, @object
+	.size	pp, 4
+pp:
+	.space	4
+	.globl	ack_pkt
+	.section	.bss.ack_pkt,"aw",@nobits
+	.align	2
+	.type	ack_pkt, @object
+	.size	ack_pkt, 108
+ack_pkt:
+	.space	108
+	.ident	"GCC: (Realtek MSDK-4.4.7 Build 1459) 4.4.7"

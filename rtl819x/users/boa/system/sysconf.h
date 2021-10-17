@@ -26,6 +26,9 @@
 #define BR_INIT_FILE "/tmp/bridge_init"
 #define ETH_VLAN_SWITCH "/proc/disable_l2_table"
 #define PROC_RTK_VLAN_SUPPORT "/proc/rtk_vlan_support"
+#if defined(CONFIG_APP_RTK_INBAND_CTL)
+#define PROC_INBAND_CTL_ACL "/proc/inband_ctl_acl"
+#endif
 //Initial system time especilly for cert usage
 #define SET_TIME "/var/system/set_time"
 
@@ -151,4 +154,3 @@
 #ifdef CONFIG_CPU_UTILIZATION
 #define CPU_LOAD_FILE "/web/cpu_data0.cpudat"
 #endif
-

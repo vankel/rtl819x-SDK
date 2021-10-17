@@ -822,7 +822,7 @@ int rtl_net80211_setmlme(struct net_device *dev, struct iw_request_info *info, u
 
 			if(found == 0)
 			{	
-				printk("%s BSSID NOT Found !!\n",__func__);
+				printk("BSSID NOT Found !!\n");
 				return -EINVAL;
 			}
 			else
@@ -1646,12 +1646,20 @@ int rtl_wpas_config(struct rtl8192cd_priv *priv, unsigned char bandmode, unsigne
 				return -1;
 			
 		}
+#if defined(CUSTOMIZE_WLAN_IF_NAME)
+	else if(!strcmp(priv->dev->name, ROOT_IFNAME_5G))
+#else
 	else if(!strcmp(priv->dev->name, "wlan0"))
+#endif
 		{
 			priv->pmib->dot11RFEntry.macPhyMode = DUALMAC_DUALPHY;
 			rtl_wpas_config_5G(priv);
 		}
+#if defined(CUSTOMIZE_WLAN_IF_NAME)
+		else if(!strcmp(priv->dev->name, ROOT_IFNAME_2G))
+#else
 	else if(!strcmp(priv->dev->name, "wlan1"))
+#endif
 		{
 			priv->pmib->dot11RFEntry.macPhyMode = DUALMAC_DUALPHY;
 			rtl_wpas_config_2G(priv);

@@ -332,7 +332,7 @@ int br_handle_frame_finish(struct sk_buff *skb)
 	struct net_bridge *br;
 	struct net_bridge_fdb_entry *dst;
 #if defined(CONFIG_RTL_8198C)
-	//int i;
+	int i;
 #endif
 #if defined(CONFIG_BRIDGE_IGMP_SNOOPING)
 	struct net_bridge_mdb_entry *mdst;
@@ -554,11 +554,11 @@ int br_handle_frame_finish(struct sk_buff *skb)
 							/*igmp query packet*/
 							if(p)
 							{
-								br_updateQuerierInfo(4,p->br->dev->name,(unsigned int*)&(iph->saddr));
+								br_updateQuerierInfo(4,p->br->dev->name,&(iph->saddr));
 							}
 							else
 							{
-								br_updateQuerierInfo(4,skb->dev->name,(unsigned int*)&(iph->saddr));
+								br_updateQuerierInfo(4,skb->dev->name,&(iph->saddr));
 							}
 						}
 				#endif
@@ -650,11 +650,11 @@ int br_handle_frame_finish(struct sk_buff *skb)
 								struct net_bridge_port *p = br_port_get_rcu(skb->dev);
 								if(p)
 								{
-									br_updateQuerierInfo(6,p->br->dev->name,(unsigned int*)&(ipv6h->saddr));
+									br_updateQuerierInfo(6,p->br->dev->name,&(ipv6h->saddr));
 								}
 								else
 								{
-									br_updateQuerierInfo(6,skb->dev->name,(unsigned int*)&(ipv6h->saddr));
+									br_updateQuerierInfo(6,skb->dev->name,&(ipv6h->saddr));
 								}
 		
 							}
@@ -1114,13 +1114,11 @@ static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, st
 	unsigned char port_comein;
 	int tt1;
 	u16 vid = 0;
-#if defined (MCAST_TO_UNICAST)
-	struct net_device *dev = NULL; 
-#endif
 
 	br_vlan_get_tag(skb, &vid);
 
 #if defined (MCAST_TO_UNICAST)
+	struct net_device *dev; 
 	if(!dest)	return;
 	if( !MULTICAST_MAC(dest)
 #if defined (IPV6_MCAST_TO_UNICAST)

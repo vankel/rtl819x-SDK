@@ -157,7 +157,7 @@ static REG_DOMAIN_TABLE_ELEMENT_T Bandtable_2dot4G[]={
 		{0, 0,  ""},
 		{1, 11, "FCC"},			//FCC
 		{2, 11, "IC"},			//IC
-		{3, 13, "ETSI"},		//ETSI world
+		{3, 13, "ETSI"},			//ETSI world
 		{4, 13,  "SPAIN"},		//SPAIN
 		{5, 4, "FRANCE"},		//FRANCE
 		{6, 14, "MKK"},			//MKK , Japan	
@@ -593,7 +593,7 @@ int getInfo(request *wp, int argc, char **argv)
    	else if ( !strcmp(name, "clientnum")) {
 		apmib_get( MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
 
-		if (intVal == 1 || wlan_num<=0)	// disable
+		if (intVal == 1)	// disable
 			intVal = 0;
 		else if(!check_wlan_downup(wlan_idx))//if wlanx down
 			intVal = 0;
@@ -705,7 +705,7 @@ int getInfo(request *wp, int argc, char **argv)
 				else if (entry.encryption == 6)
 		            strcpy( buffer, "WPA-Mixed");
 				else 
-		            strcpy( buffer, "Disabled");
+		                      strcpy( buffer, "Disabled");
 
 //printf("\r\n buffer[%s],__[%s-%u]\r\n",buffer,__FILE__,__LINE__);			
 
@@ -1289,6 +1289,29 @@ int getInfo(request *wp, int argc, char **argv)
 			return -1;
 		return req_format_write(wp, "%02x%02x%02x%02x%02x%02x", (unsigned char)buffer[0], (unsigned char)buffer[1],
 						(unsigned char)buffer[2], (unsigned char)buffer[3], (unsigned char)buffer[4], (unsigned char)buffer[5]);
+	}
+	else if ( !strcmp(name, "wan_mac_clone_address")) {
+		
+		sprintf(buffer, "%s", wp->remote_ip_addr);
+		//printf("%s:%d####buffer=%s\n", __FUNCTION__,__LINE__,buffer);
+		intVal=get_clone_mac_by_ip(buffer, tmpStr);
+		//printf("%s:%d####clone_mac=%s\n", __FUNCTION__,__LINE__,tmpStr);
+		if(intVal==0)
+		{
+			strcpy(buffer, tmpStr);
+			return req_format_write(wp, buffer);
+		}
+		else
+		{
+			apmib_get(MIB_HW_NIC1_ADDR,  (void *)buffer);
+			return req_format_write(wp, "%02x%02x%02x%02x%02x%02x", (unsigned char)buffer[0], (unsigned char)buffer[1],
+						(unsigned char)buffer[2], (unsigned char)buffer[3], (unsigned char)buffer[4], (unsigned char)buffer[5]);
+		}
+	}
+	else if ( !strcmp(name, "wan_default_mac_address")) {		
+		apmib_get(MIB_HW_NIC1_ADDR,  (void *)buffer);
+		return req_format_write(wp, "%02x%02x%02x%02x%02x%02x", (unsigned char)buffer[0], (unsigned char)buffer[1],
+			(unsigned char)buffer[2], (unsigned char)buffer[3], (unsigned char)buffer[4], (unsigned char)buffer[5]);
 	}
 	else if ( !strcmp(name, "fixedIpMtuSize")) {
 		if ( !apmib_get( MIB_FIXED_IP_MTU_SIZE, (void *)&intVal) )
@@ -2248,6 +2271,49 @@ int getInfo(request *wp, int argc, char **argv)
 		return 0;
 	}
 #endif /* #ifdef RTK_USB3G */
+#if defined(CONFIG_4G_LTE_SUPPORT)
+	else if(!strcmp(argv[0],"lte4g_comment_start"))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],"lte4g_comment_end"))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("lte4g_jscomment_start")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("lte4g_jscomment_end")))
+	{
+		req_format_write(wp, "");
+		return 0;
+	}
+#else
+	else if(!strcmp(argv[0],"lte4g_comment_start"))
+	{
+		req_format_write(wp, "<!--");
+		return 0;
+	}
+	else if(!strcmp(argv[0],"lte4g_comment_end"))
+	{
+		req_format_write(wp, "-->");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("lte4g_jscomment_start")))
+	{
+		req_format_write(wp, "/*");
+		return 0;
+	}
+	else if(!strcmp(argv[0],("lte4g_jscomment_end")))
+	{
+		req_format_write(wp, "*/");
+		return 0;
+	}
+#endif /* #if defined(CONFIG_4G_LTE_SUPPORT) */
 #ifndef CONFIG_RTL_ETH_802DOT1X_CLIENT_MODE_SUPPORT
 	else if(!strcmp(argv[0],("eth1xclient_jscomment_start")))
 	{
@@ -2534,7 +2600,7 @@ int getInfo(request *wp, int argc, char **argv)
 		//SetWlan_idx("wlan0");
 
 #else
-
+	bzero(buffer,sizeof(buffer));	
 #endif //#if defined(UNIVERSAL_REPEATER) && defined(CONFIG_REPEATER_WPS_SUPPORT)
    		return req_format_write(wp, buffer);
 	}
@@ -3493,105 +3559,6 @@ int getInfo(request *wp, int argc, char **argv)
             return req_format_write(wp, "%s", buffer);
     }
 
-#ifdef 	_11s_TEST_MODE_
-
-		else if ( !strcmp(name, "meshTestParam1")) {
-  			if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM1, (void *)&intVal) )
-  				return -1;
-  			sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParam2")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM2, (void *)&intVal) )
-		  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParam3")) {
-  			if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM3, (void *)&intVal) )
-	  			return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParam4")) {
-  			if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM4, (void *)&intVal) )
-		  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-		else if ( !strcmp(name, "meshTestParam5")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM5, (void *)&intVal) )
-	  			return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParam6")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM6, (void *)&intVal) )
-	  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParam7")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM7, (void *)&intVal) )
-	  			return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParam8")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM8, (void *)&intVal) )
-		  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParam9")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAM9, (void *)&intVal) )
-		  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParama")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAMA, (void *)&intVal) )
-	  			return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParamb")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAMB, (void *)&intVal) )
-	 	 		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParamc")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAMC, (void *)&intVal) )
-		  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParamd")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAMD, (void *)&intVal) )
-		  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParame")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAME, (void *)&intVal) )
-		  		return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-  		else if ( !strcmp(name, "meshTestParamf")) {
-	  		if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAMF, (void *)&intVal) )
-	  			return -1;
-	  		sprintf(buffer, "%d", intVal );
-	  		return req_format_write(wp, buffer);
-  		}
-		else if ( !strcmp(name, "meshTestParamStr1")) {
-			if ( !apmib_get( MIB_WLAN_MESH_TEST_PARAMSTR1, (void *)buffer) )
-				return -1;
-	        translate_control_code(buffer);
-	        return req_format_write(wp, buffer);
-		}
-#endif
 
 #endif // CONFIG_RTK_MESH
 #ifdef UNIVERSAL_REPEATER
@@ -4534,6 +4501,55 @@ else if(!strcmp(argv[0],"caCertExist"))
 	 {
 	 	req_format_write(wp,"1");
 		return 0;
+	}
+	else if(!strcmp(argv[0],"bt_status"))
+	{
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"bt_limits"))
+	{
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"BTDDir"))
+	{
+	        if(!apmib_get(MIB_BT_DOWNLOAD_DIR,buffer))
+	                return -1;
+	        req_format_write(wp,"%s",buffer);
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"BTUDir"))
+	{
+	        if(!apmib_get(MIB_BT_UPLOAD_DIR,buffer))
+	                return -1;
+	        req_format_write(wp,"%s",buffer);
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"BTdlimit"))
+	{
+	        if(!apmib_get(MIB_BT_TOTAL_DLIMIT,&intVal))
+	                return -1;
+	        req_format_write(wp,"%d",intVal);
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"BTulimit"))
+	{
+	        if(!apmib_get(MIB_BT_TOTAL_ULIMIT,&intVal))
+	                return -1;
+	        req_format_write(wp,"%d",intVal);
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"BTrefreshtime"))
+	{
+	        if(!apmib_get(MIB_BT_REFRESH_TIME,&intVal))
+	                return -1;
+	        req_format_write(wp,"%d",intVal);
+	        return 0;
+	}
+	else if(!strcmp(argv[0],"rtl_bt_menu"))
+	{
+		req_format_write(wp, "%s","manage.addItem(\"BT Client\", \"bt.htm\", \"\", \"BT Client\");");
+		return 0;
+	}
 	 }
 #else
 	 else if(!strcmp(argv[0],"rtl_bt_menu"))
@@ -4543,6 +4559,49 @@ else if(!strcmp(argv[0],"caCertExist"))
 	 else if(!strcmp(argv[0],"is_enabled_bt"))
 	 {
 	 	req_format_write(wp,"0");
+		return 0;
+	 }
+#endif
+
+#ifdef CONFIG_RTL_TRANSMISSION
+	else if(!strcmp(argv[0],"bt_enabled"))
+	{
+		if(!apmib_get(MIB_BT_ENABLED,&intVal))
+			return -1;
+		if(intVal)
+			req_format_write(wp,"checked");
+		else
+			req_format_write(wp,"");
+		return 0;
+	}
+	else if(!strcmp(argv[0],"BTDDir"))
+	{
+		if(!apmib_get(MIB_BT_DOWNLOAD_DIR,buffer))
+			return -1;
+		req_format_write(wp,"%s",buffer);
+		return 0;
+	}
+	else if(!strcmp(argv[0],"BTUDir"))
+	{
+		if(!apmib_get(MIB_BT_UPLOAD_DIR,buffer))
+			return -1;
+		req_format_write(wp,"%s",buffer);
+		return 0;
+	}
+	else if(!strcmp(argv[0],"rtl_trans_bt_menu"))
+	{
+		req_format_write(wp, "%s","manage.addItem(\"BT Client\", \"transmission.htm\", \"\", \"BT Client\");");
+		return 0;
+	}
+#else
+	else if(!strcmp(argv[0],"rtl_trans_bt_menu"))
+	{
+		return 0;
+	}
+	else if(!strcmp(argv[0],"isEnableBT"))
+	{
+		sprintf(buffer, "1");
+		req_format_write(wp, buffer);
 		return 0;
 	 }
 #endif
@@ -5268,6 +5327,13 @@ else if(!strcmp(argv[0],"caCertExist"))
 		return 0;
 	}
 #endif
+	else if(!strcmp(name, "saveConfig"))
+	{
+#ifdef SHRINK_INIT_TIME
+		save_cs_to_file();
+#endif
+		return 0;
+	}
 
 	for(i=0 ;i < wlan_num ; i++){
 		sprintf(buffer, "wlan%d-status", i);
@@ -5363,7 +5429,7 @@ int getIndex(request *wp, int argc, char **argv)
 		req_format_write(wp, buffer);
 		return 0;
 	}
-
+	
 	if(!strcmp(name, "route_setup_onoff")){
 #ifdef ROUTE_SUPPORT
 		sprintf(buffer, "1");		
@@ -5383,7 +5449,22 @@ int getIndex(request *wp, int argc, char **argv)
 		req_format_write(wp, buffer);
 		return 0;
 	}
-	
+	if(!strcmp(name, "lte4g_build")){
+#ifdef CONFIG_4G_LTE_SUPPORT
+		sprintf(buffer, "1");
+#else
+		sprintf(buffer, "0");
+#endif
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	if(!strcmp(name, "lte4g_enable")){
+		if ( !apmib_get( MIB_LTE4G, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
    	if ( !strcmp(name, "dhcp")) {
  		if ( !apmib_get( MIB_DHCP, (void *)&dhcp) )
 			return -1;
@@ -5424,6 +5505,103 @@ int getIndex(request *wp, int argc, char **argv)
 		req_format_write(wp, buffer);
 		return 0;
 	}
+    else if ( !strcmp(name, "is_80211k_support")) {
+#ifdef DOT11K
+        sprintf(buffer,"%d", 1);
+#else
+        sprintf(buffer,"%d", 0);
+#endif
+        req_format_write(wp, buffer);
+    }    
+else if(!strcmp(name, "is_80211r_support"))
+	{
+#if defined(FAST_BSS_TRANSITION)
+		sprintf(buffer, "%s", "1" );
+#else
+		sprintf(buffer, "%s", "0");
+#endif
+		return req_format_write(wp, buffer);
+	}
+#ifdef FAST_BSS_TRANSITION
+	else if(!strcmp(name, "11r_ftkh_num")){
+		req_format_write(wp, "%d", MAX_VWLAN_FTKH_NUM);
+		return 0;
+	}
+	else if(!strcmp(name, "ft_enable"))
+	{
+		if ( !apmib_get( MIB_WLAN_FT_ENABLE, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		return req_format_write(wp, buffer);
+	}
+	else if(!strcmp(name, "_ft_mdid"))
+		{
+			if ( !apmib_get( MIB_WLAN_FT_MDID, (void *)&buffer) )
+				return -1;
+			if(buffer[0])
+				sprintf(inner_buf, "%s", buffer);
+			else
+				sprintf(inner_buf, "%s", "0");
+			return req_format_write(wp, inner_buf);
+		}
+	else if(!strcmp(name, "_ft_over_ds"))
+		{
+			if ( !apmib_get( MIB_WLAN_FT_OVER_DS, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			return req_format_write(wp, buffer);
+		}
+	else if(!strcmp(name, "_ft_res_request"))
+		{
+			if ( !apmib_get( MIB_WLAN_FT_RES_REQUEST, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			return req_format_write(wp, buffer);
+		}
+	else if(!strcmp(name, "_ft_r0key_timeout"))
+		{
+			if ( !apmib_get( MIB_WLAN_FT_R0KEY_TO, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			return req_format_write(wp, buffer);
+		}
+	else if(!strcmp(name, "_ft_reasoc_timeout"))
+		{
+			if ( !apmib_get( MIB_WLAN_FT_REASOC_TO, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			return req_format_write(wp, buffer);
+		}
+	else if(!strcmp(name, "_ft_r0kh_id"))
+		{
+			if ( !apmib_get( MIB_WLAN_FT_R0KH_ID, (void *)&buffer) )
+				return -1;
+			if(buffer[0])
+				sprintf(inner_buf, "%s", buffer);
+			else
+				sprintf(inner_buf, "%s", "0");
+			return req_format_write(wp, inner_buf);
+		}
+	else if(!strcmp(name, "_ft_push"))
+		{
+			if ( !apmib_get( MIB_WLAN_FT_PUSH, (void *)&val) )
+				return -1;
+			sprintf(buffer, "%d", val);
+			return req_format_write(wp, buffer);
+		}
+	else if(!strcmp(name, "_ft_kh_num"))
+			{
+				if ( !apmib_get( MIB_WLAN_FTKH_NUM, (void *)&val) )
+					return -1;
+				sprintf(buffer, "%d", val);
+				return req_format_write(wp, buffer);
+			}
+	else if(!strcmp(name, "selectedId"))
+		{
+			sprintf(buffer, "%d", vwlan_idx);
+			return req_format_write(wp, buffer);
+		}
+#endif
   	else if ( !strcmp(name, "dhcp-current")) {
    		if ( !apmib_get( MIB_DHCP, (void *)&dhcp) )
 			return -1;
@@ -6920,6 +7098,32 @@ int getIndex(request *wp, int argc, char **argv)
 		req_format_write(wp, buffer);
 	}
 #endif
+
+#ifdef STA_CONTROL
+    else if ( !strcmp(name, "staControlEnabled")) {        
+        if ( !apmib_get( MIB_WLAN_STACTRL_ENABLE, (void *)&val) )
+            return -1;
+        sprintf(buffer, "%d", val);
+        req_format_write(wp, buffer);
+        return 0;
+    }
+    else if ( !strcmp(name, "staControlPrefer")) {
+        if ( !apmib_get( MIB_WLAN_STACTRL_PREFER, (void *)&val) )
+            return -1;
+        sprintf(buffer, "%d", val);
+        req_format_write(wp, buffer);
+        return 0;
+    }    
+#endif
+    else if ( !strcmp(name, "isStaControlDefined")) {
+#ifdef STA_CONTROL
+        sprintf(buffer,"%d", 1);
+#else
+        sprintf(buffer,"%d", 0);
+#endif
+        req_format_write(wp, buffer);
+    }
+
 #ifdef CONFIG_RTK_MESH
 	else if ( !strcmp(name, "wlanMeshEnabled")) {
 				//new feature:Mesh enable/disable
@@ -7267,15 +7471,6 @@ int getIndex(request *wp, int argc, char **argv)
 		return 0;
 	}
 #endif
-	else if ( !strcmp(name, "pmfEnabled")) {
-#ifdef CONFIG_IEEE80211W
-		sprintf(buffer, "%d", 1);
-#else
-		sprintf(buffer, "%d", 0);		
-#endif
-		req_format_write(wp, buffer);
-		return 0;
-	}
 // for WMM
 	else if ( !strcmp(name, "wmmEnabled")) {
 		if ( !apmib_get(MIB_WLAN_WMM_ENABLED, (void *)&val) )
@@ -7582,7 +7777,7 @@ else if ( !strcmp(name, "wps_either_ap_or_vxd")) {
 	}
 	else if(!strcmp(name,"wlan_support_ac2g")) //ac2g
 	{
-#if defined(CONFIG_RTL_AC2G_256QAM)
+#if defined(CONFIG_RTL_AC2G_256QAM) || defined(CONFIG_WLAN_HAL_8814AE)
 		sprintf(buffer, "%d", 1) ;
 #else
 		sprintf(buffer, "%d", 0) ;
@@ -8081,99 +8276,112 @@ else if ( !strcmp(name, "wps_either_ap_or_vxd")) {
 #endif
 #ifdef CONFIG_IPV6
 #ifdef CONFIG_DSLITE_SUPPORT
-		else if ( !strcmp(name, "dsliteMode")) {
-			if ( !apmib_get( MIB_DSLITE_MODE, (void *)&val) )
-				return -1;
-			sprintf(buffer, "%d", val);
-			req_format_write(wp, buffer);
-			return 0;
-		}
+	else if ( !strcmp(name, "dsliteMode")) {
+		if ( !apmib_get( MIB_DSLITE_MODE, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
 #else
-		else if ( !strcmp(name, "dsliteMode")) {
-			sprintf(buffer, "0");
-			req_format_write(wp, buffer);
-			return 0;
-		}
+	else if ( !strcmp(name, "dsliteMode")) {
+		sprintf(buffer, "0");
+		req_format_write(wp, buffer);
+		return 0;
+	}
 #endif
 #else
-		else if ( !strcmp(name, "dsliteMode")) {
-			sprintf(buffer, "0");
-			req_format_write(wp, buffer);
-			return 0;
-		}
+	else if ( !strcmp(name, "dsliteMode")) {
+		sprintf(buffer, "0");
+		req_format_write(wp, buffer);
+		return 0;
+	}
 #endif
 #ifdef CONFIG_CPU_UTILIZATION
-		else if (!strcmp(name, "isDisplayCPU")) {
-			sprintf(buffer, "1");
-			req_format_write(wp, buffer);
-			return 0;
+	else if (!strcmp(name, "isDisplayCPU")) {
+		sprintf(buffer, "1");
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if (!strcmp(name, "CPUnumber")) {
+		FILE *fh;
+	  	char buf[64], tmp[3];
+		char *p, *q;
+		int cpu_num=-1;
+
+		fh = fopen("/proc/cpuinfo", "r");
+		if (!fh) {
+//			printf("Warning: cannot open /proc/cpuinfo\n");
+			return req_format_write(wp, "Warning: cannot open /proc/cpuinfo");
 		}
-		else if (!strcmp(name, "CPUnumber")) {
-			FILE *fh;
-			char buf[64], tmp[3];
-			char *p, *q;
-			int cpu_num=-1;
-	
-			fh = fopen("/proc/cpuinfo", "r");
-			if (!fh) {
-	//			printf("Warning: cannot open /proc/cpuinfo\n");
-				return req_format_write(wp, "Warning: cannot open /proc/cpuinfo");
-			}
-			
-			while(!feof(fh))
+		
+		while(!feof(fh))
+		{
+			fgets(buf, sizeof buf, fh);
+
+			if(strncmp(buf, "processor", strlen("processor")) == 0)
 			{
-				fgets(buf, sizeof buf, fh);
-	
-				if(strncmp(buf, "processor", strlen("processor")) == 0)
+				p = buf + 9;
+				q = tmp;
+				while(*p)
 				{
-					p = buf + 9;
-					q = tmp;
-					while(*p)
+					if(*p >= '0' && *p <= '9')
 					{
-						if(*p >= '0' && *p <= '9')
-						{
-							*q = *p;
-							q++;
-						}
-						p++;
+						*q = *p;
+						q++;
 					}
-					*q='\0';
-					cpu_num = atoi(tmp);
+					p++;
 				}
+				*q='\0';
+				cpu_num = atoi(tmp);
 			}
-	
-			fclose(fh);
-	
-			cpu_num++;
-			sprintf(buffer, "%d", cpu_num);
-			req_format_write(wp, buffer);
-			return 0;
 		}
-		else if(!strcmp(name, "CPUsample"))
-		{
-			if ( !apmib_get( MIB_CPU_UTILIZATION_INTERVAL, (void *)&val) )
-				return -1;
-			sprintf(buffer, "%d", val);
-			req_format_write(wp, buffer);
-			return 0;
-		}
-		else if(!strcmp(name, "CPUenable"))
-		{
-			if ( !apmib_get( MIB_ENABLE_CPU_UTILIZATION, (void *)&val) )
-				return -1;
-			sprintf(buffer, "%d", val);
-			req_format_write(wp, buffer);
-			return 0;
-		}
+
+		fclose(fh);
+
+		cpu_num++;
+		sprintf(buffer, "%d", cpu_num);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if(!strcmp(name, "CPUsample"))
+	{
+		if ( !apmib_get( MIB_CPU_UTILIZATION_INTERVAL, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
+	else if(!strcmp(name, "CPUenable"))
+	{
+		if ( !apmib_get( MIB_ENABLE_CPU_UTILIZATION, (void *)&val) )
+			return -1;
+		sprintf(buffer, "%d", val);
+		req_format_write(wp, buffer);
+		return 0;
+	}
 #else
-		else if (!strcmp(name, "isDisplayCPU")) {
-			sprintf(buffer, "0");
-			req_format_write(wp, buffer);
-			return 0;
-		}
+	else if (!strcmp(name, "isDisplayCPU")) {
+		sprintf(buffer, "0");
+		req_format_write(wp, buffer);
+		return 0;
+	}
 #endif
-
-
+#ifdef CONFIG_RTL_TRANSMISSION
+	else if(!strcmp(name,"isEnableBT"))
+	{
+		sprintf(buffer, "1");
+		req_format_write(wp, buffer);
+		return 0;
+	}
+#else
+	else if(!strcmp(name,"isEnableBT"))
+	{
+		sprintf(buffer, "0");
+		req_format_write(wp, buffer);
+		return 0;
+	}
+#endif
 	else
 	{
 FMGET_FAIL:
@@ -8268,6 +8476,12 @@ int getVirtualInfo(request *wp, int argc, char **argv)
 
 	vwlan_idx = old;
 	return ret;
+}
+#endif
+#ifdef FAST_BSS_TRANSITION
+void multilang(request *wp, int argc, char **argv)
+{
+	return req_format_write(wp,"%s",argv[0]);
 }
 #endif
 
@@ -8391,6 +8605,114 @@ int getDHCPModeCombobox(request *wp, int argc, char **argv)
 #endif
 	return 0;
 }
+#ifdef FAST_BSS_TRANSITION
+void SSID_select(request *wp, int argc, char **argv)
+{
+	int wlan_disable=0,wlan_mode=0,i=0;
+	
+	char ssid[MAX_SSID_LEN]={0};
+	apmib_get(MIB_WLAN_WLAN_DISABLED,(void*)&wlan_disable);
+	apmib_get(MIB_WLAN_MODE,(void*)&wlan_mode);
+	apmib_get(MIB_WLAN_SSID,(void*)ssid);
+	translate_control_code(ssid);
+
+	if(wlan_disable)
+		return req_format_write(wp, "<option selected value=\"0\">wlan disabled</option>");
+	if(wlan_mode==AP_MODE)
+	{
+		req_format_write(wp, "<option value=0>Root AP - %s</option>\n", ssid);
+	}
+	
+	apmib_save_wlanIdx();
+	
+	for (i=1; i<NUM_VWLAN_INTERFACE+1; i++) 
+	{
+			vwlan_idx=i;
+			apmib_get(MIB_WLAN_WLAN_DISABLED,(void*)&wlan_disable);
+			if(!wlan_disable)
+			{
+				apmib_get(MIB_WLAN_SSID,(void*)ssid);
+				
+				translate_control_code(ssid);
+				if(i==NUM_VWLAN_INTERFACE)
+					req_format_write(wp, "<option value=%d>wlan%d repeater - %s</option>\n",i,wlan_idx, ssid);
+				else
+					req_format_write(wp, "<option value=%d>wlan%d - %s</option>\n",i,wlan_idx, ssid);
+			}
+			
+	}
+	apmib_recov_wlanIdx();
+}
+void wlFtKhList(request *wp, int argc, char **argv)
+{
+    int nBytesSent=0, entryNum, i, j, intfIndex=-1;
+    FTKH_T ftkh_entry={0};
+    int colspan;
+
+
+    char strSsid[MAX_SSID_LEN],strAddr[18], strId[49], strKey[33];
+
+    // show title
+    nBytesSent += req_format_write(wp, "<tr>"
+            "<td align=center width=\"14%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+            "<td align=center width=\"44%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+            "<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+            #ifdef DOT11K		
+            "<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+            "<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td>\n"
+            #endif		
+            "<td align=center width=\"7%%\" bgcolor=\"#808080\"><font size=\"2\"><b>%s</b></font></td></tr>\n",
+            "MAC address", ("NAS identifier"),("128-bit key / passphrase"), 
+            #ifdef DOT11K		
+            ("Op Class"), ("Channel"), 
+            #endif				
+            ("Select"));
+
+    #ifdef DOT11K       
+    colspan = 6;
+    #else
+    colspan = 4;
+    #endif
+    apmib_get(MIB_WLAN_SSID,(void*)&strSsid);
+    nBytesSent += req_format_write(wp, "<tr>"
+            "<td align=left width=\"100%%\" colspan=\"%d\" bgcolor=\"#A0A0A0\"><font size=\"2\"><b>%s</b></td></tr>\n",
+            colspan, strSsid);
+
+    apmib_get(MIB_WLAN_FTKH_NUM,(void*)&entryNum);
+    for(i=1;i<=entryNum;i++)
+    {
+        *((char*)(&ftkh_entry))=(char)i;
+        apmib_get(MIB_WLAN_FTKH,(void*)&ftkh_entry);
+        //printf("%s:%d mac=%02x%02x%02x%02x%02x%02x kh_nas_id=%s\n",__FUNCTION__,__LINE__,ftkh_entry.macAddr[0],ftkh_entry.macAddr[1],ftkh_entry.macAddr[2]
+        //	,ftkh_entry.macAddr[3],ftkh_entry.macAddr[4],ftkh_entry.macAddr[5],ftkh_entry.nas_id);
+        snprintf(strAddr, sizeof(strAddr), "%02x:%02x:%02x:%02x:%02x:%02x",
+            ftkh_entry.macAddr[0], ftkh_entry.macAddr[1], ftkh_entry.macAddr[2],
+            ftkh_entry.macAddr[3], ftkh_entry.macAddr[4], ftkh_entry.macAddr[5]);
+            snprintf(strId, sizeof(strId), "%s", ftkh_entry.nas_id);
+            snprintf(strKey, sizeof(strKey), "%s", ftkh_entry.key);
+
+        nBytesSent += req_format_write(wp, "<tr>"
+                "<td align=center width=\"16%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+                "<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+                "<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"    
+                #ifdef DOT11K					
+                "<td align=center width=\"12%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%d</td>\n"
+                "<td align=center width=\"12%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%d</td>\n"
+                #endif			
+                "<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"kh_entry_%d\" value=\"ON\"></td></tr>\n",
+                strAddr, strId, strKey, 
+                #ifdef DOT11K
+                ftkh_entry.opclass, ftkh_entry.channel,
+                #endif
+                i);
+    }
+
+
+    return nBytesSent;
+}
+
+#endif
+
 int getModeCombobox(request *wp, int argc, char **argv)
 {
 	int val = 0;

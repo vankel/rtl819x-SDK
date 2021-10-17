@@ -22,9 +22,6 @@
 #include <../net/bridge/br_private.h>
 #endif
 
-#ifdef HS2_SUPPORT
-#include <linux/in6.h>
-#endif
 #ifdef __DRAYTEK_OS__
 #include <draytek/softimer.h>
 #include <draytek/skbuff.h>
@@ -112,7 +109,7 @@ typedef signed long long	INT64;
 
 #if defined(CONFIG_USB_HCI)
 #include "./osdep_service.h"
-#include "./usb/8192cu/8192cd_usb.h"
+#include "./usb/8188eu/8192cd_usb.h"
 #elif defined(CONFIG_SDIO_HCI)
 #ifdef __ECOS
 #include <cyg/io/eth/rltk/819x/wrapper/osdep_service.h>
@@ -131,9 +128,10 @@ typedef signed long long	INT64;
 #endif
 
 #ifdef USE_OUT_SRC
-#include "OUTSRC/odm_types.h"
+#include "OUTSRC/phydm_types.h"
 #include "./odm_inc.h"
-#include "OUTSRC/odm.h"
+#include "OUTSRC/phydm.h"
+#include "./EdcaTurboCheck.h"
 #endif
 
 #if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
@@ -166,19 +164,24 @@ typedef signed long long	INT64;
 #include "wapiCrypto.h"
 #endif
 
-#ifdef CONFIG_RTK_MESH
-#ifdef __ECOS
-#include "./mesh_ext/mesh.h"
-#include "./mesh_ext/hash_table.h"
-#include "./mesh_ext/mesh_route.h"
-#include "./mesh_ext/mesh_security.h"
-#else
-#include "../mesh_ext/mesh.h"
-#include "../mesh_ext/hash_table.h"
-#include "../mesh_ext/mesh_route.h"
-#include "../mesh_ext/mesh_security.h"
+#ifdef DOT11K
+#define MAX_REPORT_FRAME_SIZE (PRE_ALLOCATED_BUFSIZE*4)
+#define MAX_BEACON_REPORT		    64
+#define MAX_BEACON_REQ_CHANNEL      16
+#define MIN_BEACON_INTERVAL         600 // sec
+#define MAX_REQUEST_IE_LEN          16
+#define MAX_MEASUREMENT_REQUEST     5
+#define MAX_AP_CHANNEL_REPORT       4
+#define MAX_AP_CHANNEL_NUM          8
+#define MAX_NEIGHBOR_REPORT         32
 #endif
+
+#if defined(HS2_SUPPORT) || defined(DOT11K) 
+#define CU_TO           RTL_MILISECONDS_TO_JIFFIES(210)         // 200ms to calculate bbp channel load
+#define CU_Intval       200
 #endif
+
+
 #define DWNGRADE_PROBATION_TIME		3
 #define UPGRADE_PROBATION_TIME		3
 #define TRY_RATE_FREQ				6
@@ -219,7 +222,8 @@ typedef signed long long	INT64;
 
 #ifdef BEAMFORMING_SUPPORT
 
-#define BEAMFORMING_ENTRY_NUM		2
+#define BEAMFORMEE_ENTRY_NUM		2
+#define BEAMFORMER_ENTRY_NUM		2
 
 typedef enum _ACT_CATEGORY {
 	ACT_CAT_SPECTRUM_MGNT = 0,		// Spectrum management
@@ -298,10 +302,19 @@ typedef enum _BEAMFORMING_ENTRY_STATE
 }BEAMFORMING_ENTRY_STATE, *PBEAMFORMING_ENTRY_STATE;
 typedef enum _BEAMFORMING_STATE
 {
-	BEAMFORMING_STATE_IDLE, 
-	BEAMFORMING_STATE_START, 
 	BEAMFORMING_STATE_END,
+	BEAMFORMING_STATE_START_1BFee, 
+	BEAMFORMING_STATE_START_2BFee	
 } BEAMFORMING_STATE, *PBEAMFORMING_STATE;
+
+typedef enum _BEAMFORMING_NOTIFY_STATE
+{
+	BEAMFORMING_NOTIFY_NONE,
+	BEAMFORMING_NOTIFY_ADD,
+	BEAMFORMING_NOTIFY_DELETE,
+	BEAMFORMING_NOTIFY_RESET
+} BEAMFORMING_NOTIFY_STATE, *PBEAMFORMING_NOTIFY_STATE;
+
 typedef enum _BEAMFORMING_CAP
 {
 	BEAMFORMING_CAP_NONE = 0x0,
@@ -322,10 +335,13 @@ typedef enum _SOUNDING_MODE
 	SOUNDING_STOP_OID_TIMER = 0x5, 
 	SOUNDING_AUTO_VHT_TIMER = 0x6,
 	SOUNDING_AUTO_HT_TIMER = 0x7,
+	SOUNDING_FW_VHT_TIMER = 0x8,
+	SOUNDING_FW_HT_TIMER = 0x9
 }SOUNDING_MODE, *PSOUNDING_MODE;
 typedef struct _RT_BEAMFORMING_ENTRY {
 	BOOLEAN bUsed;
 	BOOLEAN	 bTxBF;	
+	BOOLEAN bSound;
 	u2Byte	AID;
 	u2Byte	MacId;		// Used to Set Reg42C in IBSS mode. 
 	u2Byte	P_AID;
@@ -338,7 +354,17 @@ typedef struct _RT_BEAMFORMING_ENTRY {
 	u1Byte	LogRetryCnt; 
 	u1Byte	LogSuccessCnt;	
 	u1Byte	LogStatusFailCnt;
+	u1Byte	CompSteeringNumofBFer;
+	struct stat_info	*pSTA;
 } RT_BEAMFORMING_ENTRY, *PRT_BEAMFORMING_ENTRY;
+typedef struct _RT_BEAMFORMER_ENTRY {
+	BOOLEAN 			bUsed;
+	u2Byte				P_AID;
+	u1Byte				MacAddr[6];
+	BEAMFORMING_CAP	BeamformEntryCap;
+	u1Byte				NumofSoundingDim;
+	
+} RT_BEAMFORMER_ENTRY, *PRT_BEAMFORMER_ENTRY;
 typedef struct _RT_BEAMFORMING_TIMER_INFO {
 	u1Byte			Mode; 
 	ODM_BW_E		BW;
@@ -358,12 +384,13 @@ typedef struct _RT_BEAMFORMING_PERIOD_INFO {
 	u2Byte			BeamPeriod;
 } RT_BEAMFORMING_PERIOD_INFO, *PRT_BEAMFORMING_PERIOD_INFO;
 typedef struct _RT_BEAMFORMING_INFO {
-	BEAMFORMING_CAP				BeamformCap;
-	BEAMFORMING_STATE	BeamformState;
-	RT_BEAMFORMING_ENTRY 		BeamformingEntry[BEAMFORMING_ENTRY_NUM];
-	u1Byte						BeamformingCurIdx;
+	BEAMFORMING_CAP			BeamformCap;
+	BEAMFORMING_STATE			BeamformState;
+	RT_BEAMFORMING_ENTRY 		BeamformeeEntry[BEAMFORMEE_ENTRY_NUM];
+	RT_BEAMFORMER_ENTRY		BeamformerEntry[BEAMFORMER_ENTRY_NUM];
+	u1Byte						BeamformeeCurIdx;
 	RT_TIMER					BeamformingTimer;
-	RT_BEAMFORMING_TIMER_INFO	BeamformingTimerInfo[BEAMFORMING_ENTRY_NUM];
+	RT_BEAMFORMING_TIMER_INFO	BeamformingTimerInfo[BEAMFORMEE_ENTRY_NUM];
 	RT_BEAMFORMING_PERIOD_INFO	BeamformingPeriodInfo;	
 	u1Byte						BeamformingPeriodState;   //  add by Gary
 } RT_BEAMFORMING_INFO, *PRT_BEAMFORMING_INFO;
@@ -482,9 +509,6 @@ enum wifi_state {
 	WIFI_WAIT_FOR_CHANNEL_SELECT    = 0x04000000,
 #endif
 
-#ifdef P2P_SUPPORT
-	WIFI_P2P_SUPPORT	=	0x08000000
-#endif
 };
 
 enum frag_chk_state {
@@ -669,8 +693,11 @@ enum _ANTENNA_ {
 	ANTENNA_D		= 0x8,
 	ANTENNA_AC		= 0x5,
 	ANTENNA_AB		= 0x3,
+	ANTENNA_BC		= 0x6,	
 	ANTENNA_BD		= 0xA,
 	ANTENNA_CD		= 0xC,
+	ANTENNA_ABC		= 0x7,	
+	ANTENNA_BCD		= 0xE,	
 	ANTENNA_ABCD	= 0xF
 };
 
@@ -696,10 +723,7 @@ enum RTK_CFG80211_EVENT {
 	CFG80211_IBSS_JOINED = 3,
 	CFG80211_NEW_STA = 4,
 	CFG80211_SCAN_DONE = 5, 
-	CFG80211_SCAN_ABORDED = 6,
-	CFG80211_DEL_STA = 7, 
-	CFG80211_RADAR_CAC_FINISHED = 8,
-	CFG80211_RADAR_DETECTED = 9
+	CFG80211_DEL_STA = 6, 
 };
 #endif
 
@@ -721,13 +745,6 @@ enum _PA_TYPE {
 	PA_SKYWORKS_5023 = 2,
 	PA_RTC5634 = 3,
 	PA_INTERNAL = 0x10,
-};
-
-enum _LNA_TYPE {
-	LNA_TYPE_0 = 0,
-	LNA_TYPE_1 = 1,	
-	LNA_TYPE_2 = 2,
-	LNA_TYPE_3 = 3,
 };
 
 
@@ -794,7 +811,8 @@ typedef enum _HT_IOT_PEER {
 	HT_IOT_PEER_REALTEK_WOW 		= 15,
 	HT_IOT_PEER_HTC 				= 16,
 	HT_IOT_PEER_REALTEK_8812		= 17,	
-	HT_IOT_PEER_MAX 				= 18
+	HT_IOT_PEER_CMW 				= 18,
+	HT_IOT_PEER_MAX 				= 19
 } HT_IOT_PEER_E, *PHTIOT_PEER_E;
 #endif
 
@@ -809,26 +827,6 @@ struct apsd_pkt_queue {
 	struct sk_buff	*pSkb[NUM_APSD_TXPKT_QUEUE];
 	int				head;
 	int				tail;
-};
-#endif
-
-#ifdef CAM_SWAP
-enum TRAFFIC_LEVEL {
-	STA_TRAFFIC_DONT_CARE = 0,
-	STA_TRAFFIC_IDLE = 1,
-	STA_TRAFFIC_LOW = 2,
-	STA_TRAFFIC_MID = 3,
-	STA_TRAFFIC_HIGH = 4
-};
-
-struct traffic_status {
-	int level;
-	
-	int delta_tx_bytes;
-	int delta_rx_bytes;
-
-	int prev_tx_bytes;
-	int prev_rx_bytes;
 };
 #endif
 
@@ -869,10 +867,34 @@ struct tx_servq {
 	unsigned int ts_used;
 #endif
 };
+
+#ifdef CONFIG_TCP_ACK_TX_AGGREGATION
+struct tcpack_servq {
+	_list tx_pending;
+	_queue xframe_queue;
+	int q_num;
+	unsigned long start_time;
+};
+#endif
 #endif // CONFIG_USB_HCI || CONFIG_SDIO_HCI
 
 #if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack(1)
+#endif
+
+
+#ifdef CONFIG_RTK_MESH
+#ifdef __ECOS
+#include "./mesh_ext/mesh.h"
+#include "./mesh_ext/hash_table.h"
+#include "./mesh_ext/mesh_route.h"
+#include "./mesh_ext/mesh_security.h"
+#else
+#include "../mesh_ext/mesh.h"
+#include "../mesh_ext/hash_table.h"
+#include "../mesh_ext/mesh_route.h"
+#include "../mesh_ext/mesh_security.h"
+#endif
 #endif
 
 
@@ -1075,6 +1097,7 @@ struct mesh_txcache_t {
 
 struct reorder_ctrl_entry {
 	struct sk_buff		*packet_q[RC_ENTRY_NUM];
+	struct rx_frinfo 	*frinfo_q[RC_ENTRY_NUM];	
 	unsigned char		start_rcv;
 	short				rc_timer_id;
 	unsigned short		win_start;
@@ -1136,6 +1159,7 @@ struct rx_sc_entry {
 #ifdef SW_TX_QUEUE
 #define CHECK_DEC_AGGN		0
 #define CHECK_INC_AGGN		1
+#define TURBO_AGGN			2
 #define MAX_BACKOFF_CNT		8
 
 struct sw_tx_q {
@@ -1153,16 +1177,216 @@ struct sw_tx_q {
     unsigned char           swq_en[8];
     unsigned long           swq_keeptime[8];
     unsigned char           swq_timeout_change[8];        
-    unsigned char           swq_prev_timeout[8];     
+    unsigned char           swq_prev_timeout[8]; 
+
 };
 #endif
 
-#ifdef ERR_ACCESS_CNTR
-struct err_access_list {
-	unsigned int		used;
-	unsigned char		mac[MACADDRLEN];
-	unsigned int		num;
+#ifdef CONFIG_IEEE80211R
+struct r0_key_holder {
+	struct list_head list;
+	unsigned char sta_addr[MACADDRLEN];
+	unsigned char pmk_r0[PMK_LEN];
+	unsigned char pmk_r0_name[PMKID_LEN];
+	unsigned long key_expire_to;
 };
+
+struct r1_key_holder {
+	struct list_head list;
+	unsigned char sta_addr[MACADDRLEN];
+	unsigned char r1kh_id[MACADDRLEN];
+	unsigned char r0kh_id[MAX_R0KHID_LEN];
+	unsigned int r0kh_id_len;
+	unsigned char pmk_r1[PMK_LEN];
+	unsigned char pmk_r1_name[PMKID_LEN];
+	unsigned char pmk_r0_name[PMKID_LEN];
+	int pairwise;
+};
+#endif
+
+#ifdef DOT11K
+enum MEASUREMENT_RESULT{
+    MEASUREMENT_UNKNOWN = 0,
+    MEASUREMENT_PROCESSING = 1,
+    MEASUREMENT_SUCCEED = 2,
+    MEASUREMENT_INCAPABLE = 3,
+    MEASUREMENT_REFUSED = 4,    
+};
+
+enum BEACON_MODE{
+    BEACON_MODE_PASSIVE = 0,
+    BEACON_MODE_ACTIVE = 1,
+    BEACON_MODE_TABLE = 2,
+};
+
+
+#pragma pack(1)
+struct dot11k_link_measurement {
+    unsigned char tpc_tx_power;
+    unsigned char tpc_link_margin;    
+    unsigned char recv_antenna_id;
+    unsigned char xmit_antenna_id;    
+    unsigned char RCPI;
+    unsigned char RSNI;    
+};
+
+
+struct dot11k_ap_channel_report
+{
+    unsigned char len;
+    unsigned char op_class;
+    unsigned char channel[MAX_AP_CHANNEL_NUM];
+};
+
+struct dot11k_beacon_measurement_req
+{
+    unsigned char op_class;
+    unsigned char channel;
+    unsigned short random_interval;    
+    unsigned short measure_duration;    
+    unsigned char mode;     
+    unsigned char bssid[MACADDRLEN];
+    char ssid[WLAN_SSID_MAXLEN + 1];
+    unsigned char report_detail; /* 0: no-fixed len field and element, 
+                                                               1: all fixed len field and elements in Request ie,
+                                                               2: all fixed len field and elements (default)*/
+    unsigned char request_ie_len;
+    unsigned char request_ie[MAX_REQUEST_IE_LEN];    
+    struct dot11k_ap_channel_report ap_channel_report[MAX_AP_CHANNEL_REPORT];    
+};
+
+
+struct dot11k_beacon_measurement_report_info
+{
+    unsigned char op_class;
+    unsigned char channel;
+    unsigned int  measure_time_hi;
+    unsigned int  measure_time_lo;    
+    unsigned short measure_duration;
+    unsigned char frame_info;
+    unsigned char RCPI;
+    unsigned char RSNI;
+    unsigned char bssid[MACADDRLEN];    
+    unsigned char antenna_id;
+    unsigned int  parent_tsf;     
+};
+
+struct dot11k_beacon_measurement_report
+{
+    struct dot11k_beacon_measurement_report_info info;
+    unsigned char subelements_len;    
+    unsigned char subelements[MAX_BEACON_SUBLEMENT_LEN];
+};
+
+struct dot11k_beacon_accumulate_report
+{
+    struct dot11k_beacon_measurement_report_info info;
+    char ssid[WLAN_SSID_MAXLEN + 1];   
+};
+
+
+union dot11k_neighbor_report_bssinfo {
+    unsigned int value;
+    struct {        
+#ifdef _BIG_ENDIAN_
+        unsigned int reserved:20;    
+        unsigned int high_tp:1;        
+        unsigned int mde:1;
+        unsigned int cap_im_ba:1;  
+        unsigned int cap_delay_ba:1;
+        unsigned int cap_rm:1;
+        unsigned int cap_apsd:1;
+        unsigned int cap_qos:1;
+        unsigned int cap_spectrum:1;
+        unsigned int key_scope:1;
+        unsigned int security:1;        
+        unsigned int ap_reachability:2;
+#else
+        unsigned int ap_reachability:2;
+        unsigned int security:1;
+        unsigned int key_scope:1;
+        unsigned int cap_spectrum:1;
+        unsigned int cap_qos:1;
+        unsigned int cap_apsd:1;
+        unsigned int cap_rm:1;
+        unsigned int cap_delay_ba:1;
+        unsigned int cap_im_ba:1;    
+        unsigned int mde:1;
+        unsigned int high_tp:1;
+        unsigned int reserved:20;
+#endif    
+    } field;
+
+};
+
+
+struct dot11k_neighbor_report
+{
+    unsigned char bssid[MACADDRLEN];
+    union dot11k_neighbor_report_bssinfo bssinfo;
+    unsigned char op_class;
+    unsigned char channel;    
+    unsigned char phytype;  
+};
+
+struct dot11k_priv
+{
+    /* receiving measurement request and do the measurement and then report to other STA*/
+    struct stat_info * req_pstat;
+    unsigned char dialog_token;  
+    unsigned char measure_count;            
+    unsigned char measure_type[MAX_MEASUREMENT_REQUEST];
+    unsigned char measure_token[MAX_MEASUREMENT_REQUEST];
+    unsigned short measure_interval[MAX_MEASUREMENT_REQUEST];    
+    enum MEASUREMENT_RESULT measure_result[MAX_MEASUREMENT_REQUEST];     
+    struct timer_list delay_timer;
+    unsigned int measure_time_hi;
+    unsigned int measure_time_lo; 
+
+    /*for beacon measurement*/
+    struct dot11k_beacon_measurement_req beacon_req;
+    unsigned long  beacon_last_time;
+    unsigned int  beacon_channel_num;    
+    unsigned int  beacon_channel[MAX_BEACON_REQ_CHANNEL];    
+    unsigned int  available_chnl_backup[MAX_CHANNEL_NUM];		/*backup all available channel before doing beacon measurement*/
+    unsigned int  available_chnl_num_backup;		/* backup available channel number*/
+    unsigned char beacon_send_count;
+    unsigned char beacon_report_num;
+    struct dot11k_beacon_measurement_report beacon_report[MAX_BEACON_REPORT];  
+    char beacon_ssid[MAX_BEACON_REPORT][WLAN_SSID_MAXLEN + 1];
+    unsigned char beacon_accumulate_num;
+    struct dot11k_beacon_accumulate_report beacon_accumulate_report[MAX_BEACON_REPORT]; 
+    unsigned char force_stop_ss;            
+
+#ifdef CLIENT_MODE
+    /*for issuing neighbor report request and get report from serving AP*/    
+    unsigned char neighbor_dialog_token;    
+    enum MEASUREMENT_RESULT neighbor_result;
+    unsigned char neighbor_report_num;
+    struct dot11k_neighbor_report neighbor_report[MAX_NEIGHBOR_REPORT];
+#endif
+
+};
+
+struct dot11k_stat_info 
+{
+    /* for issuing link measurement request and getting report from other STA */
+    unsigned char link_dialog_token;
+    enum MEASUREMENT_RESULT link_result;
+    struct dot11k_link_measurement link_measurement;
+
+
+    /* for issuing radio measurement request to and getting report from other STA*/
+    unsigned char dialog_token;
+    enum MEASUREMENT_RESULT measure_result;
+    struct dot11k_beacon_measurement_req beacon_req;
+    unsigned char beacon_report_num;
+    struct dot11k_beacon_measurement_report beacon_report[MAX_BEACON_REPORT];  
+};
+
+
+#pragma pack(0)
+
 #endif
 
 struct stat_info {
@@ -1185,7 +1409,35 @@ struct stat_info {
 #endif
 
 #ifdef SW_TX_QUEUE
-    struct sw_tx_q  swq;       
+	struct sw_tx_q  swq;
+#ifdef RTK_ATM
+	struct sw_tx_q  atm_swq;
+
+	unsigned int		atm_tx_rate;//tx rate
+	unsigned int		atm_sta_time;//sta tx time for mode 0/1
+	unsigned int		atm_match_sta_time;//sta tx time for mode 2
+
+	unsigned int		atm_adj_factor;//adjust tx swq length by tx time	
+	unsigned int		atm_burst_num;//packet num that must sent
+	unsigned int		atm_burst_size;//txrate*txtime
+	unsigned int		atm_burst_unit;//packet num that must sent
+	unsigned int		atm_burst_sent;//packet num that already sent
+
+	unsigned int		atm_tx_time;//real transmission time//ms
+	unsigned int		atm_tx_time_static;//accumuler sta tx time
+	unsigned int		atm_wait_cnt;//when burst out but must wait others
+	unsigned int		atm_drop_cnt;
+	unsigned int		atm_queue_full;
+	unsigned int		atm_full_sent_cnt;//when dequeue but burst sent is full
+	unsigned int		atm_swq_sent_cnt;//how many packet swq has sent
+
+	//retry
+	unsigned int		atm_txretry_pre;
+	unsigned int		atm_txpkt_pre;
+	unsigned int		atm_txtetry_ratio;	
+
+	unsigned int		is_hightp_sta;
+#endif//RTL_ATM
 #endif
 
 #ifdef CONFIG_RTK_MESH
@@ -1198,10 +1450,6 @@ struct stat_info {
 
 #if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	WPA_STA_INFO		*wpa_sta_info;
-#endif
-
-#ifdef CAM_SWAP
-	struct traffic_status	traffic;
 #endif
 
 #ifdef TLN_STATS
@@ -1240,6 +1488,9 @@ struct stat_info {
 
 #if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
 	struct tx_servq	tx_queue[MAX_STA_TX_SERV_QUEUE];		// Mgnt/BK/BE/VI/VO
+#ifdef CONFIG_TCP_ACK_TX_AGGREGATION
+	struct tcpack_servq tcpack_queue[MAX_STA_TX_SERV_QUEUE];	// Mgnt(unused)/BK/BE/VI/VO
+#endif
 	unsigned long		pending_cmd;
 	int				asoc_list_refcnt;
 #ifdef __ECOS
@@ -1250,6 +1501,10 @@ struct stat_info {
 #endif
 
 	struct reorder_ctrl_entry	rc_entry[8];
+
+#ifdef DOT11K
+    struct timer_list       rm_timer;
+#endif
 
 	/****************************************************************
 	 * from here on, data will be clear in init_stainfo() except "aid" and "hwaddr"  *
@@ -1267,7 +1522,18 @@ struct stat_info {
 	unsigned short      tpcache_mcast;  // for client mode broadcast or multicast used
 #endif
 
-#ifdef _DEBUG_RTL8192CD_
+	//AMSDU DEBUG
+	unsigned int		tx_amsdu_timer_ovf;	
+#ifdef _AMPSDU_AMSDU_DEBUG_
+	unsigned int		tx_amsdu_to;
+	unsigned int		tx_amsdu_buf_overflow;
+	unsigned int		tx_amsdu_1pkt;
+	unsigned int		tx_amsdu_2pkt;
+	unsigned int		tx_amsdu_3pkt;
+	unsigned int		tx_amsdu_4pkt;
+	unsigned int		tx_amsdu_5pkt;
+	unsigned int		tx_amsdu_gt5pkt;
+
 	unsigned int		rx_amsdu_err;
 	unsigned int		rx_amsdu_1pkt;
 	unsigned int		rx_amsdu_2pkt;
@@ -1275,7 +1541,11 @@ struct stat_info {
 	unsigned int		rx_amsdu_4pkt;
 	unsigned int		rx_amsdu_5pkt;
 	unsigned int		rx_amsdu_gt5pkt;
+#endif
 
+	//RC over window size
+	unsigned int		rx_rc4_count;
+#ifdef _DEBUG_RTL8192CD_ 
 	unsigned int		rx_rc_drop1;
 	unsigned int		rx_rc_drop3;
 	unsigned int		rx_rc_drop4;
@@ -1319,6 +1589,12 @@ struct stat_info {
 	struct sk_buff_head	amsdu_tx_que[8];
 	int					amsdu_timer_id[8];
 	int					amsdu_size[8];
+#endif
+
+
+
+#ifdef DOT11K
+    struct dot11k_stat_info rm;
 #endif
 
 	/******************************************************************
@@ -1384,10 +1660,6 @@ struct stat_info {
 #endif
 
 #endif
-#ifdef RSSI_MONITOR_NCR
-	unsigned char		rssi_report;
-	unsigned char		rssim_type;
-#endif
 	unsigned char		leave;
 	unsigned char		no_rts;
 	unsigned char		disable_ldpc;	
@@ -1408,6 +1680,10 @@ struct stat_info {
 
 	unsigned int		tx_bytes;
 	unsigned int		rx_bytes;
+#ifdef RTK_ATM
+	unsigned int		tx_bytes_1s;
+	unsigned int		tx_bytes_pre;
+#endif
 #ifdef RADIUS_ACCOUNTING
 	unsigned int		tx_bytes_1m;
 	unsigned int		rx_bytes_1m;
@@ -1430,6 +1706,9 @@ struct stat_info {
 	unsigned int		tx_conti_fail_cnt;	// continuous tx fail count; added by Annie, 2010-08-10.
 	unsigned long		tx_last_good_time;	// up_time record for last good tx; added by Annie, 2010-08-10.
 	unsigned long		rx_last_good_time;	// up_time record for rx resume time, added by Eric, 2013-01-18.
+#ifdef DONT_COUNT_PROBE_PACKET
+	unsigned int		tx_probe_rsp_pkts;
+#endif
 #ifdef CONFIG_WLAN_HAL
     unsigned char       bDrop;
 #endif
@@ -1438,8 +1717,6 @@ struct stat_info {
 	unsigned int		current_rx_bytes;
 
 #ifdef TXRETRY_CNT
-	unsigned int		cur_tx_fail;
-	unsigned int		cur_tx_ok;
 	unsigned int		cur_tx_retry_pkts;
 	unsigned int		cur_tx_retry_cnt;
 	unsigned int		total_tx_retry_pkts;
@@ -1475,6 +1752,7 @@ struct stat_info {
 #endif
 
 	unsigned char	 		ratr_idx;
+	unsigned char	 		ratr_idx_init;
 
 	struct ht_cap_elmt	ht_cap_buf;
 	unsigned int		ht_cap_len;
@@ -1487,9 +1765,11 @@ struct stat_info {
 	unsigned char		ADDBA_ready[8];
 	unsigned char		ADDBA_req_num[8];
 	unsigned char		ADDBA_sent[8];
+	unsigned char		AMSDU_AMPDU_support;
 	unsigned int		diffAmpduSz;
 	unsigned int		amsdu_level;
 	unsigned char		tmp_mic_key[8];
+	unsigned short		maxAggNum;
 
 #ifdef GBWC
 	unsigned char		GBWC_in_group;
@@ -1523,11 +1803,9 @@ struct stat_info {
 #endif
 	unsigned int		retry_inc;
 
-#if defined(HS2_SUPPORT) || defined(UNIVERSAL_REPEATER)
+#if defined(HS2_SUPPORT) || defined(UNIVERSAL_REPEATER) || defined(RTK_ATM)
     /* Hotspot 2.0 Release 1 */
 	unsigned char	sta_ip[4];
-	struct in6_addr sta_v6ip[10];
-	int v6ipCount;
 #endif
 #ifdef CONFIG_IEEE80211W
 	unsigned char 			isPMF;
@@ -1538,7 +1816,13 @@ struct stat_info {
 	int						sa_query_timed_out;
 	int						sa_query_count;
 #endif
-
+#ifdef CONFIG_IEEE80211R
+	unsigned char			ft_state;
+	unsigned char			ft_auth_expire_to;
+#endif
+#if defined(HS2_SUPPORT)
+	struct in6_addr sta_v6ip;
+#endif
 #ifdef P2P_SUPPORT
 	unsigned char is_p2p_client;
 #endif
@@ -1554,7 +1838,6 @@ struct stat_info {
 	unsigned char txpause_flag;
 	unsigned long txpause_time;
 #endif
-
 	UINT8		WirelessMode;		//
 	
 #ifdef USE_OUT_SRC
@@ -1606,6 +1889,11 @@ struct aid_obj {
 struct extra_stats {
 	unsigned long		tx_retrys;
 	unsigned long		tx_drops;
+#ifdef SW_TX_QUEUE	
+	unsigned long       swq_enque_pkt;	
+	unsigned long       swq_xmit_out_pkt;
+    unsigned long       swq_drop_pkt;
+#endif	
 	unsigned long		rx_retrys;
 	unsigned long		rx_decache;
 	unsigned long		rx_data_drops;
@@ -1621,8 +1909,19 @@ struct extra_stats {
 	unsigned long		tx_dma_err;
 	unsigned long		rx_dma_err;
 	unsigned long		tx_dma_status;
-	unsigned long		rx_dma_status;    
+	unsigned long		rx_dma_status;
+#endif	
+#ifdef CONFIG_WLAN_HAL_8814AE
+    unsigned long       tx_fovw;
+	unsigned long		rx_ht_status;
 #endif
+#ifdef RX_CRC_EXPTIMER
+    unsigned long       rx_crc_exptimer;
+    unsigned long       rx_packets_exptimer;
+	unsigned long		rx_crc_by_rate[256];
+	unsigned long		rx_packets_by_rate[256];
+#endif
+
 	unsigned long		tx_byte_cnt;
 	unsigned long		tx_avarage;
 	unsigned long		rx_byte_cnt;
@@ -1772,6 +2071,7 @@ struct ss_res {
 #endif
 #ifdef CONFIG_RTL_NEW_AUTOCH
 	unsigned int		to_scan_40M;
+	unsigned int		start_ch_40M;
 #endif
 	unsigned int		hidden_ap_found;
 	unsigned int		target_ap_found;
@@ -1802,10 +2102,19 @@ struct mc2u_flood_mac_entry {
 	unsigned char macAddr[MACADDRLEN];
 };
 
+#ifdef RTK_ATM
+struct atm_stat_info{
+	unsigned char		hwaddr[MACADDRLEN];
+	unsigned char		ipaddr[4];
+	int			atm_time;
+};
+#endif//RTK_ATM
+
 struct rf_finetune_var {
 	unsigned char		ofdm_1ss_oneAnt;// for 2T2R
 	unsigned char		pathB_1T; // for 1T2R, 1T1R
 	unsigned char		rssi_dump;
+	unsigned char		totaltp;
 	unsigned char		rxfifoO;
 	unsigned char		raGoDownUpper;
 	unsigned char		raGoDown20MLower;
@@ -1841,16 +2150,6 @@ struct rf_finetune_var {
 
 	// Tx power tracking
 	unsigned int		tpt_period;
-
-#ifdef CAM_SWAP	
-	unsigned int		cam_rotation;
-
-	unsigned int		thrd_low;
-	unsigned int		thrd_mid;
-	unsigned int		thrd_high;
-
-	unsigned int		camforce;
-#endif
 
 	// TXOP enlarge
 	unsigned char		txop_enlarge_upper;
@@ -1900,47 +2199,36 @@ struct rf_finetune_var {
 #ifdef HIGH_POWER_EXT_PA
 	unsigned char		use_ext_pa;
 #endif
-#ifdef CONFIG_8881A_2LAYER
-	unsigned char		use_8881a_2layer;
-#endif
 #ifdef HIGH_POWER_EXT_LNA
 	unsigned char		use_ext_lna;
-    unsigned int		lna_type;
 #endif
-	unsigned char       NDSi_support;
-	unsigned char		edcca_thd;
-	unsigned char		force_edcca;
-	unsigned char		IGI_target;	
-	unsigned char		IGI_LowerBound;	
-	char				IGI_Base;
-	char 				TH_L2H_ini;
-	char				TH_L2H_ini_mode2;
-	char				TH_L2H_ini_backup;
-	char				TH_EDCCA_HL_diff;
-	char				TH_EDCCA_HL_diff_mode2;
-	char				TH_EDCCA_HL_diff_backup;
-	unsigned short      NHM_cnt_0;
-	unsigned short		NHM_cnt_1;
-	char				Force_TH_H;
-	char				Force_TH_L;
+	unsigned char           NDSi_support;
+
+	//	for adaptivity
+	u1Byte				IGI_target;	
+	s1Byte				IGI_Base;
+	s1Byte 				TH_L2H_ini;
+	s1Byte				TH_L2H_ini_mode2;
+	s1Byte				TH_L2H_ini_backup;
+	s1Byte				TH_EDCCA_HL_diff;
+	s1Byte				TH_EDCCA_HL_diff_mode2;
+	s1Byte				TH_EDCCA_HL_diff_backup;
+	u2Byte     			NHM_cnt_0;
+	u2Byte				NHM_cnt_1;
 	BOOLEAN				adaptivity_flag;
-	unsigned char			tolerance_cnt;
-	unsigned long long		NHMCurTxOkcnt;
-	unsigned long long		NHMCurRxOkcnt;
-	unsigned long long		NHMLastTxOkcnt;
-	unsigned long long		NHMLastRxOkcnt;
-	char				H2L_lb;
-	char				L2H_lb;
-	BOOLEAN				Adaptivity_IGI_upper;
-	BOOLEAN				NHMWait;
+	s1Byte				H2L_lb;
+	s1Byte				L2H_lb;
+	u1Byte				Adaptivity_IGI_upper;
+	u1Byte				NHMWait;
 	BOOLEAN				bFirstLink;
 	BOOLEAN				bCheck;
-	BOOLEAN				EDCCA_enable_state;
-	BOOLEAN				NHM_enable;
+	u1Byte				dcbackoff;
 	BOOLEAN				adap_debug;
-	BOOLEAN 			txbuf_merge;
 	BOOLEAN				DynamicLinkAdaptivity;
-	BOOLEAN				bAdaOn;
+	BOOLEAN 			Adaptivity_enable;
+	BOOLEAN				bLinked;
+	//	for adaptivity
+	unsigned char		manual_ampdu;
 #ifdef ADD_TX_POWER_BY_CMD
 	char		txPowerPlus_cck_1;
 	char		txPowerPlus_cck_2;
@@ -1977,6 +2265,11 @@ struct rf_finetune_var {
 
 	unsigned char		diffAmpduSz;
 	unsigned char		one_path_cca;		// 0: 2-path, 1: path-A, 2: path-B
+#ifdef CONFIG_1RCCA_RF_POWER_SAVING
+	unsigned char		one_path_cca_ps;	// 0: disable, 1: enable, 2: auto
+	unsigned char		one_path_cca_ps_active;
+	unsigned char		one_path_cca_ps_thd;
+#endif
 #ifdef DFS
 	unsigned char		dfsdbgmode;
 	unsigned char		dfs_force_TP_mode;
@@ -2000,6 +2293,11 @@ struct rf_finetune_var {
 	unsigned char		dfs_det_print2;
 	unsigned char		dfs_det_print3;
 	unsigned char		dfs_det_print4;
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	unsigned char		dfs_radar_diff_on;
+	unsigned char		dfs_radar_diff_print;
+	unsigned char		dfs_print_hist_report;	
+#endif    
 	unsigned char		dfs_det_print_psd;
 	unsigned char		dfs_pulse_print;
 	unsigned char		dfs_det_hist_len;
@@ -2037,10 +2335,33 @@ struct rf_finetune_var {
 	int             	swq_enable;
 	int             	swq_dbg;
 	int					swq_aggnum;
+	int					swqturboaggnum;
+	int					swqmaxturbotime;
 	int					timeout_thd;
 	int					timeout_thd2;
-	int					timeout_thd3;    
+	int					timeout_thd3;
 #endif
+
+#ifdef RTK_ATM	
+	int					atm_en;
+	int					atm_mode;//0: auto 1:interface 2:client
+	struct atm_stat_info atm_sta_info[NUM_STAT];
+
+	int					atm_quota;//burst size base
+	int					atm_aggmax;//dequeue num max
+	int					atm_aggmin;//dequeue num min
+	int					atm_enqmax;//enqueue max
+	int					atm_rhi;//max/min hi
+	int					atm_rlo;//max/min lo
+	int					atm_sto;//short timer
+	int					atm_mto;//middle timer
+	int					atm_lto;//lo timer
+	int					atm_chk_txtime;//check tx time
+#endif
+
+	unsigned int		amsdu_th;
+	unsigned int		amsdu_th2;
+
 
 #ifdef A4_STA
 	unsigned char		a4_enable;
@@ -2110,6 +2431,10 @@ struct rf_finetune_var {
 	unsigned int		em_swq_thd_high;
 	unsigned int		em_swq_thd_low;
 #endif
+#ifdef CONFIG_TCP_ACK_TX_AGGREGATION
+	unsigned int		tcpack_agg;
+	unsigned int		tcpack_merge;
+#endif
 #ifdef CLIENT_MODE
 	unsigned char		sta_mode_ps;
 #endif
@@ -2135,7 +2460,9 @@ struct rf_finetune_var {
 	unsigned int		soundingPeriod;
 	unsigned char		soundingEnable;	
 	unsigned char		ndparate;
-	unsigned char		ndpaaid;	
+	unsigned char		ndpaaid;
+	unsigned char		applyVmatrix;
+	unsigned char		Nsnding3SS;
 #endif
 	unsigned char		use_cca;
 
@@ -2154,17 +2481,17 @@ struct rf_finetune_var {
 	unsigned char		cca_rts;
 
 	unsigned char		txforce;
+#ifdef RX_CRC_EXPTIMER
+	unsigned char		crc_enable;
+	unsigned char		crc_dump;
+#endif
+	
 #ifdef CONFIG_WLAN_HAL_8192EE
 	unsigned int 		delay_8b4;
 	unsigned int 		thrd_8b4;
 	unsigned char 		loop_8b4;
 	unsigned char 		disable_ACPR;
 	unsigned char		ldpc_92e;
-#endif
-#ifdef RSSI_MONITOR_NCR
-	unsigned char		rssi_monitor_enable;
-	unsigned char		rssi_monitor_thd1;
-	unsigned char		rssi_monitor_thd2;	
 #endif
 #ifdef RTK_NL80211
 //mark_priv
@@ -2187,6 +2514,17 @@ struct rf_finetune_var {
 	unsigned int		check_hang;
 #endif
 	unsigned char		auto_cipher;
+#ifdef CONFIG_WLAN_HAL_8814AE
+	unsigned char		bf_sup_val;
+#endif 
+#ifdef MCR_WIRELESS_EXTEND
+	unsigned char		mcr_ft;
+#endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+	unsigned char		enable_2ndcca;
+#endif
+	unsigned char		print_table;
+	unsigned char		curr_ther;
 };
 
 //Filen
@@ -2368,6 +2706,79 @@ struct a4_tbl_entry {
 };
 #endif
 
+#ifdef STA_CONTROL
+#define STACTRL_PREFERBAND_HASH_BITS		    5
+#define STACTRL_PREFERBAND_HASH_SIZE		    (1 << STACTRL_PREFERBAND_HASH_BITS)
+#define MAX_STACTRL_PREFERBAND_NUM	        128
+#define STACTRL_PREFERBAND_RSSI		        (priv->pmib->staControl.stactrl_param_1) // 40
+#define STACTRL_PREFERBAND_RSSI_TOLERANCE    (priv->pmib->staControl.stactrl_param_2) // 5
+#define STACTRL_PREFERBAND_EXPIRE		300 //sec
+#if STA_CONTROL_ALGO == STA_CONTROL_ALGO1
+#define STACTRL_BLOCK_HASH_BITS		5
+#define STACTRL_BLOCK_HASH_SIZE		(1 << STACTRL_BLOCK_HASH_BITS)
+#define MAX_STACTRL_BLOCK_NUM	    128
+#define STACTRL_BLOCK_EXPIRE_X	    (priv->pmib->staControl.stactrl_param_3) //300
+#define STACTRL_BLOCK_RETRY_Y	    (priv->pmib->staControl.stactrl_param_4) // 1
+#define STACTRL_BLOCK_EXPIRE_Z	    (priv->pmib->staControl.stactrl_param_5) // 10
+#elif STA_CONTROL_ALGO == STA_CONTROL_ALGO2
+#define STACTRL_BLOCK_HASH_BITS		3
+#define STACTRL_BLOCK_HASH_SIZE		(1 << STACTRL_BLOCK_HASH_BITS)
+#define MAX_STACTRL_BLOCK_NUM	    32
+#define STACTRL_NON_PREFER_TIMER	100 // ms
+#define STACTRL_BLOCK_EXPIRE_X	    (priv->pmib->staControl.stactrl_param_3) // 2
+#define STACTRL_BLOCK_RETRY_Y	    (priv->pmib->staControl.stactrl_param_4) // 1
+#define STACTRL_BLOCK_EXPIRE_Z	    (priv->pmib->staControl.stactrl_param_5) // 100
+#endif
+
+struct stactrl_link_list {
+    struct stactrl_link_list	*next_hash;
+    struct stactrl_link_list	**pprev_hash;
+};
+
+struct stactrl_preferband_entry {
+    int used;
+    unsigned char			mac[MACADDRLEN];
+    unsigned char           rssi;    
+    unsigned int			aging;    
+    struct stactrl_link_list     link_list;
+};
+
+struct stactrl_block_entry {
+    int used;
+    unsigned char			mac[MACADDRLEN];
+    unsigned char           retryY;
+    unsigned short			timerX;
+    unsigned short			timerZ;
+    struct stactrl_link_list    link_list;
+};
+
+
+struct stactrl_data {
+    struct rtl8192cd_priv   *stactrl_rootpriv_sc;      
+    struct rtl8192cd_priv   *stactrl_priv_sc;  
+#if STA_CONTROL_ALGO == STA_CONTROL_ALGO2
+    struct timer_list        stactrl_timer;    
+#endif
+
+#ifdef SMP_SYNC
+    spinlock_t          stactrl_lock;
+#endif
+
+    /*used for prefer band*/
+    struct stactrl_link_list        *stactrl_preferband_machash[STACTRL_PREFERBAND_HASH_SIZE];
+    struct stactrl_preferband_entry  *stactrl_preferband_ent;
+
+    /*used for non-prefer band*/
+    struct stactrl_link_list        *stactrl_block_machash[STACTRL_BLOCK_HASH_SIZE];
+    struct stactrl_block_entry  *stactrl_block_ent;
+
+    unsigned char           stactrl_status;            // 0: sta control  disable,  1: sta control enable
+    unsigned char           stactrl_prefer;            // 0: not prefer band,  1: is prefer band
+    
+};
+#endif //STA_CONTROL
+
+
 #ifdef SW_ANT_SWITCH
 
 // 20100503 Joseph:
@@ -2481,6 +2892,7 @@ struct mclone_timer_data {
 	struct rtl8192cd_priv *priv;
 	unsigned long active_id;
 };
+
 struct mclone_sta_addr {
     unsigned char clone_addr[MACADDRLEN];		// mac address
     unsigned char used;							// used or not
@@ -2519,6 +2931,7 @@ struct channel_utilization_info {
     struct timer_list       cu_cntdwn_timer;
 };
 #endif
+
 typedef struct _sta_bitmap_{
     unsigned int    _staMap_;    
     #if (NUM_STAT >32)
@@ -2552,16 +2965,11 @@ struct priv_shared_info {
 #ifdef USE_PID_NOTIFY
 	pid_t					wlanapp_pid;
 #endif
-
+#ifdef CONFIG_IEEE80211R
+	pid_t					wlanft_pid;
+#endif
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 	pid_t					wlanwapi_pid;
-#endif
-
-#ifdef RSSI_MONITOR_NCR
-	pid_t					wlanrssim_pid;
-#if defined(LINUX_2_6_27_)
-	struct pid *			_wlanrssim_pid;
-#endif
 #endif
 
 #ifdef CONFIG_PCI_HCI
@@ -2637,6 +3045,11 @@ struct priv_shared_info {
 	u8 *pallocated_bcn_xmitbuf;
 	u8 *pbcn_xmitbuf;
 	
+#ifdef CONFIG_TCP_ACK_TX_AGGREGATION
+	_queue tcpack_queue;
+	struct timer_list tcpack_timer;
+#endif
+	
 	struct tasklet_struct xmit_tasklet;
 	
 	// cmd priv
@@ -2696,7 +3109,14 @@ struct priv_shared_info {
 	u8 *pallocated_bcn_xmitbuf;
 	u8 *pbcn_xmitbuf;
 	
-#ifdef __KERNEL__
+#ifdef CONFIG_TCP_ACK_TX_AGGREGATION
+	_queue tcpack_queue;
+	struct timer_list tcpack_timer;
+#endif
+	
+#ifdef __ECOS
+	int xmit_tasklet;
+#else
 	struct tasklet_struct xmit_tasklet;
 #endif
 
@@ -2707,8 +3127,11 @@ struct priv_shared_info {
 #else
 	_queue pending_xmitbuf_queue;
 #ifdef CONFIG_SDIO_TX_INTERRUPT
-	volatile u8 freepage_updated;
+	volatile unsigned long freepage_updated;
+#ifdef CONFIG_SDIO_TX_IN_INTERRUPT
+	volatile int xmit_thread_state;
 #endif
+#endif // CONFIG_SDIO_TX_INTERRUPT
 #endif
 #ifdef __ECOS
 	cyg_flag_t xmit_flag;
@@ -2749,18 +3172,20 @@ struct priv_shared_info {
 #ifdef __ECOS
 	int	rx_tasklet;
 	int	tx_tasklet;
-#ifdef PCIE_POWER_SAVING
-	int ps_tasklet;
-#endif
-#elif defined(__KERNEL__)
+#else
 	struct tasklet_struct	rx_tasklet;
 	struct tasklet_struct	tx_tasklet;
 	struct tasklet_struct	oneSec_tasklet;
+#endif
+#endif
 #ifdef PCIE_POWER_SAVING
+#ifdef __ECOS
+	int	ps_tasklet;
+#else
 	struct tasklet_struct	ps_tasklet;
 #endif
 #endif
-#endif
+
 #if defined(PCIE_POWER_SAVING) || defined(RF_MIMO_SWITCH)
 	unsigned int rf_phy_bb_backup[26];
 #endif
@@ -2788,11 +3213,6 @@ struct priv_shared_info {
 
 	struct aid_obj			*aidarray[NUM_STAT];
 	unsigned int			max_fw_macid;
-
-#ifdef _11s_TEST_MODE_
-	struct Galileo_poll 	*galileo_poll;
-	struct list_head		galileo_list;
-#endif
 
 	unsigned char			agc_tab_buf[AGC_TAB_SIZE];
 	unsigned char			mac_reg_buf[MAC_REG_SIZE];
@@ -2831,10 +3251,41 @@ struct priv_shared_info {
 	unsigned int			txpwr_lmt_VHT2S;
 	unsigned char			ch_pwr_lmtVHT80_1S[SUPPORT_CH_NUM];
 	unsigned char			ch_pwr_lmtVHT80_2S[SUPPORT_CH_NUM];
+
+#ifdef CONFIG_WLAN_HAL_8814AE   
+	unsigned int			txpwr_lmt_HT3S;
+	unsigned int			txpwr_lmt_HT4S;
+
+	unsigned char			ch_pwr_lmtHT20_3S[SUPPORT_CH_NUM];
+	unsigned char			ch_pwr_lmtHT20_4S[SUPPORT_CH_NUM];
+	unsigned char			ch_pwr_lmtHT40_3S[SUPPORT_CH_NUM];
+	unsigned char			ch_pwr_lmtHT40_4S[SUPPORT_CH_NUM];
+
+	unsigned char			ch_tgpwr_HT20_3S[SUPPORT_CH_NUM];
+	unsigned char			ch_tgpwr_HT20_4S[SUPPORT_CH_NUM];
+	unsigned char			ch_tgpwr_HT40_3S[SUPPORT_CH_NUM];
+	unsigned char			ch_tgpwr_HT40_4S[SUPPORT_CH_NUM];
+
+    unsigned int            tgpwr_HT3S;
+    unsigned int            tgpwr_HT4S;
+
+    unsigned int            txpwr_lmt_VHT3S;
+    unsigned int            txpwr_lmt_VHT4S;
+    unsigned char           ch_pwr_lmtVHT80_3S[SUPPORT_CH_NUM];
+    unsigned char           ch_pwr_lmtVHT80_4S[SUPPORT_CH_NUM];
+#endif
+
 #endif
 #endif // TXPWR_LMT
 
-#if 1//defined(CONFIG_RTL_8812_SUPPORT) || defined(TXPWR_LMT_88E) || defined(CONFIG_WLAN_HAL)
+#ifdef CONFIG_WLAN_HAL_8814AE 
+	unsigned char			tgpwr_CCK_new[4];
+	unsigned char			tgpwr_OFDM_new[4];
+	unsigned char			tgpwr_HT1S_new[4];
+	unsigned char			tgpwr_HT2S_new[4];
+	unsigned char			tgpwr_VHT1S_new[4];
+	unsigned char			tgpwr_VHT2S_new[4];
+#else
 	unsigned char			tgpwr_CCK_new[2];
 	unsigned char			tgpwr_OFDM_new[2];
 	unsigned char			tgpwr_HT1S_new[2];
@@ -2842,13 +3293,20 @@ struct priv_shared_info {
 	unsigned char			tgpwr_VHT1S_new[2];
 	unsigned char			tgpwr_VHT2S_new[2];
 #endif
+#ifdef CONFIG_WLAN_HAL_8814AE 
+    unsigned char           tgpwr_HT3S_new[4];
+    unsigned char           tgpwr_HT4S_new[4];
+    unsigned char           tgpwr_VHT3S_new[4];
+    unsigned char           tgpwr_VHT4S_new[4];
+#endif
+
 
 #ifdef _TRACKING_TABLE_FILE
-	unsigned char			txpwr_tracking_2G_CCK[4][index_mapping_NUM_MAX];
-	unsigned char			txpwr_tracking_2G_OFDM[4][index_mapping_NUM_MAX];
-	unsigned char			txpwr_tracking_5GL[4][index_mapping_NUM_MAX];
-	unsigned char			txpwr_tracking_5GM[4][index_mapping_NUM_MAX];
-	unsigned char			txpwr_tracking_5GH[4][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_2G_CCK[2*TXPWR_TRACKING_PATH_NUM ][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_2G_OFDM[2*TXPWR_TRACKING_PATH_NUM ][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_5GL[2*TXPWR_TRACKING_PATH_NUM ][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_5GM[2*TXPWR_TRACKING_PATH_NUM ][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_5GH[2*TXPWR_TRACKING_PATH_NUM ][index_mapping_NUM_MAX];
 	unsigned char			tracking_table_new;
 #endif
 
@@ -2896,6 +3354,11 @@ struct priv_shared_info {
 	struct stat_info                *txpause_pstat;
 	unsigned long                   txpause_time;
 	unsigned char			rssi_min;
+#ifdef CONFIG_WLAN_HAL_8814AE	
+	unsigned char			th_mode; //0: boot, 1: tx mode, 2:rx mode
+	unsigned char			txop_turbo; //0: TXOP normal mode, 1: TXOP turbo mode
+	unsigned char			amsdu_mode; //0:rx amsdu normal, 1:rx amsdu turbo
+#endif	
 
 	unsigned char			agg_to;
 #ifdef WIFI_WMM
@@ -2934,10 +3397,7 @@ struct priv_shared_info {
 
 #ifdef CONFIG_RTK_MESH
 	struct MESH_Share		meshare; 	// mesh share data
-#if defined(__KERNEL__) || (defined(__ECOS) && defined(SMP_SYNC))
-	spinlock_t				lock_queue;	// lock for DOT11_EnQueue2/DOT11_DeQueue2
-	spinlock_t				lock_Rreq;	// lock for rreq_retry. Some function like aodv_expire/tx use lock_queue simultaneously
-#endif
+
 #endif
 
 	unsigned int			curr_band;				// remember the current band to save switching time
@@ -3032,13 +3492,11 @@ struct priv_shared_info {
 	struct mclone_sta_addr  mclone_sta_fixed_addr[MAX_MAC_CLONE_NUM];
 	struct rtl8192cd_priv	*root_repeater;
 #endif
-#if defined(RTK_NL80211)
-	volatile struct cfg80211_chan_def *dfs_chan_def;
-#endif
 
 #if defined(HS2_SUPPORT) || defined(DOT11K)
     struct channel_utilization_info      cu_info;
 #endif
+
 
 	/*********************************************************
 	 * from here on, data will be clear in rtl8192cd_init_sw() *
@@ -3066,10 +3524,18 @@ struct priv_shared_info {
 	unsigned char			ThermalValue;
 	unsigned char			ThermalValue_LCK;
 	unsigned char			ThermalValue_IQK;
+#if defined(CONFIG_WLAN_HAL_8814AE)
+
+	unsigned char			CCK_index;
+	unsigned char			OFDM_index[4];
+	unsigned char			CCK_index0;
+	unsigned char			OFDM_index0[4];
+#else
 	unsigned char			CCK_index;
 	unsigned char			OFDM_index[2];
 	unsigned char			CCK_index0;
 	unsigned char			OFDM_index0[2];
+#endif
 #ifdef CONFIG_WLAN_HAL_8881A
 	unsigned char			AddTxAGC;
 	unsigned char			AddTxAGC_index;
@@ -3130,17 +3596,18 @@ struct priv_shared_info {
 	//for IQK debug
 	unsigned int			IQK_total_cnt;
 	unsigned int			IQK_fail_cnt;
+	unsigned char			PhyVersion;
 
-	int		    	txop_decision;    
+	int		    	txop_decision;       
 #ifdef SW_TX_QUEUE
-	unsigned char   record_mac[6];
-	int             record_qnum;
-	int             swq_txmac_chg;
-	int             swq_en;
-	unsigned short  record_aid;
-	unsigned long   swqen_keeptime;
+    unsigned char   record_mac[6];
+    int             record_qnum;
+    int             swq_txmac_chg;
+    int             swq_en;
+    unsigned short  record_aid;
+    unsigned long   swqen_keeptime;
 #ifdef SW_TX_QUEUE_SMALL_PACKET_CHECK
-	int             swq_boost_delay;
+    int             swq_boost_delay;
 #endif
 #endif
 
@@ -3197,7 +3664,7 @@ struct priv_shared_info {
 	unsigned int			NumQryPhyStatusCCK;
 	unsigned int			NumQryPhyStatusOFDM;
 
-#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8813AE) //for 8812 tx power tracking
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE) //for 8812 tx power tracking
 	unsigned char	Power_tracking_on_8812;
 	unsigned char	ThermalValue_AVG_8812[AVG_THERMAL_NUM_8812];
 	unsigned char	ThermalValue_AVG_index_8812;
@@ -3269,7 +3736,9 @@ struct priv_shared_info {
 
 #ifdef HW_DETEC_POWER_STATE
     unsigned char           HWPwrState[128];            
-    unsigned char           HWPwroldState[128];   
+    unsigned char           HWPwroldState[128];             
+	unsigned char           HWPwrStateUpdateIndex[128];    
+    unsigned int            HWPwrDetectFailCnt;
     unsigned char           HWPwrStateUpdate[128];       
 #endif //#ifdef HW_DETEC_POWER_STATE
 
@@ -3295,7 +3764,15 @@ struct priv_shared_info {
 	u8					stop_netif_tx_queue;
 #ifdef CONFIG_SDIO_HCI
 	unsigned int			nr_interrupt;
+	unsigned int			nr_xmit_thread_run;
 	unsigned int			nr_out_of_txoqt_space;
+	
+	unsigned short			xmitbuf_agg_num;
+	unsigned short			nr_xmitbuf_handled_in_thread;
+	unsigned short			nr_xmitbuf_handled_in_irq;
+	unsigned short			nr_recvbuf_handled_in_irq;
+	unsigned short			nr_recvbuf_handled_in_tasklet;
+	unsigned short			nr_recvframe_in_recvbuf;
 #endif
 #endif // CONFIG_USB_HCI || CONFIG_SDIO_HCI
 
@@ -3305,6 +3782,11 @@ struct priv_shared_info {
 	unsigned char			mp_antenna_rx;
 	unsigned char			mp_txpwr_patha;
 	unsigned char			mp_txpwr_pathb;
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	unsigned char			mp_txpwr_pathc;
+	unsigned char			mp_txpwr_pathd;
+#endif
+
 	unsigned char			mp_cck_txpwr_odd;
 
 	unsigned char			mp_rx_rate;
@@ -3342,9 +3824,15 @@ struct priv_shared_info {
 #endif
 //arx parameters
 	unsigned int			mp_filter_flag;
-	unsigned char 		mp_filter_DA[6];
-	unsigned char 		mp_filter_SA[6];
-	unsigned char 		mp_filter_BSSID[6];
+	unsigned char 			mp_filter_DA[6];
+	unsigned char 			mp_filter_SA[6];
+	unsigned char 			mp_filter_BSSID[6];
+#if defined(CONFIG_WLAN_HAL_8814AE)	
+	UINT64					mp_rx_mac_ok;
+	UINT64					mp_rx_mac_crc_err;
+	UINT64					mp_rx_phy_ok;
+	UINT64					mp_rx_phy_crc_err;
+#endif	
 
 #endif // MP_TEST
 
@@ -3414,8 +3902,31 @@ struct priv_shared_info {
     unsigned short              swq_timer_head;
     unsigned short              swq_timer_tail;
     UINT32                      swq_current_timeout;
-    struct timer_list		    swq_sw_timer;    
-    unsigned char               swq_use_hw_timer;    
+    struct timer_list           swq_sw_timer;    
+    unsigned char               swq_use_hw_timer;
+	unsigned char				swq_numActiveSTA;
+	unsigned long				swq_turbo_time;
+#ifdef RTK_ATM
+	UINT32                      atm_swq_current_timeout;
+	struct timer_list           atm_swq_sw_timer;    
+	unsigned char               atm_swq_use_hw_timer;
+
+	unsigned int				atm_min_burstsize;
+	unsigned int				atm_max_burstsize;
+	unsigned int				atm_min_txrate;
+	unsigned int				atm_max_txrate;
+	unsigned int				atm_ttl_stanum;//sta num of 2.4G/5G interface
+
+	unsigned int				atm_ttl_match_stanum;// num of cli that in client list of interface 2.4G/5G
+	unsigned int				atm_ttl_match_statime;// total matched sta time
+
+	//unsigned int				atm_burst_base;
+	unsigned int				atm_timer;
+	
+	unsigned int				atm_swq_en;
+	unsigned int				atm_timeout_count;
+	unsigned int				atm_timer_init;//timer init flag
+#endif//RTK_ATM
 #endif
 
 	// ht associated client statistic
@@ -3601,9 +4112,15 @@ struct priv_shared_info {
 #endif
 
 #ifdef CONFIG_WLAN_HAL_8192EE
-	BOOLEAN				PLL_reset_ok;
+	bool				PLL_reset_ok;
+#endif
+
+	unsigned int		mapMBIDCAM;
+#ifdef MCR_WIRELESS_EXTEND
+	unsigned int		cmw_link;
 #endif
 };
+
 
 #ifdef SUPPORT_MONITOR	
 struct rtl_wifi_header {
@@ -3624,19 +4141,15 @@ typedef struct guestmac {
 	unsigned char			valid;
 } GUESTMAC_T;
 #endif
-#ifdef RSSI_MONITOR_NCR
-typedef		struct rssim_msg {
-	unsigned char		hwaddr[MACADDRLEN];
-	unsigned char		event;
-	unsigned char		rssi;
-	unsigned long		timestamp;
-}rssim_msg, *prssim_msg;
-#endif
+
 
 typedef struct rtl8192cd_priv {
 #if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
 	wifi_link_status_cb_func_t	*link_status_cb_func; // for client mode
 	wifi_sta_status_cb_func_t	*sta_status_cb_func;  // for AP mode
+#ifdef P2P_SUPPORT
+	p2p_event_indicate_cb_func_t	*p2p_event_indicate_cb_func;
+#endif
 #endif
 #ifdef NETDEV_NO_PRIV
 	struct rtl8192cd_priv*	wlan_priv;		//This element shall be put at top of this struct
@@ -3669,23 +4182,20 @@ typedef struct rtl8192cd_priv {
 	struct list_head		wlan_acl_list;		// this is for auth checking
 #ifdef SMP_SYNC
 	spinlock_t			wlan_acl_list_lock;
-#ifdef RTK_NL80211
-	spinlock_t			cfg80211_lock;
-#endif
 #endif
 
 	DOT11_QUEUE				*pevent_queue;
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 	DOT11_QUEUE				*wapiEvent_queue;
 #endif
+#ifdef CONFIG_IEEE80211R
+	DOT11_QUEUE 			*pftevent_queue;
+#endif
 	DOT11_EAP_PACKET		*Eap_packet;
 #ifdef INCLUDE_WPS
 #ifndef CONFIG_MSC
 	DOT11_EAP_PACKET		*upnp_packet;
 #endif
-#endif
-#ifdef RSSI_MONITOR_NCR
-	DOT11_QUEUE				*rssimEvent_queue;
 #endif
 
 #ifdef _INCLUDE_PROC_FS_
@@ -3767,13 +4277,21 @@ typedef struct rtl8192cd_priv {
 	unsigned int			Not_DFS_chnl_num;
 #endif
 
-#if defined(DOT11D) || defined(DOT11H)
+#if defined(DOT11D) || defined(DOT11H) || defined(DOT11K)
     unsigned char           countryTableIdx;
+#endif
+
+#ifdef DOT11K     
+    /*static data of 11k*/
+    struct dot11k_ap_channel_report rm_ap_channel_report[MAX_AP_CHANNEL_REPORT];
+    unsigned char rm_neighbor_bitmask[(MAX_NEIGHBOR_REPORT + 7)/8];
+    struct dot11k_neighbor_report rm_neighbor_report[MAX_NEIGHBOR_REPORT];
+    char rm_neighbor_ssid[MAX_NEIGHBOR_REPORT][WLAN_SSID_MAXLEN+1];    
 #endif
 
 #ifdef SUPPORT_MONITOR
 	struct timer_list		chan_switch_timer;
-	BOOLEAN 					is_monitor_mode;
+	bool 					is_monitor_mode;
 	unsigned int 			chan_num;
 #endif
 
@@ -3791,6 +4309,9 @@ typedef struct rtl8192cd_priv {
 	unsigned int			check_cnt_rst;
 	unsigned int			check_cnt_bb;
 	unsigned int			check_cnt_cca;
+#ifdef CONFIG_WLAN_HAL_8814AE
+	unsigned int			check_cnt_2s_notx;
+#endif
 #endif
 
 #ifdef WDS
@@ -3805,20 +4326,47 @@ typedef struct rtl8192cd_priv {
 #ifdef CONFIG_RTK_MESH
 	struct timer_list		mesh_expire_timer;
 	struct wlan_ethhdr_t	ethhdr;
+
+
+    /* protected by mesh_preq_lock*/    
 	unsigned char			RreqMAC[AODV_RREQ_TABLE_SIZE][MACADDRLEN];
 	unsigned int			RreqBegin;
 	unsigned int			RreqEnd;
+	struct hash_table		*mesh_rreq_retry_queue;
+    /* End of protected by mesh_preq_lock*/
 
-	struct hash_table		*proxy_table, *mesh_rreq_retry_queue;
+    
+	struct hash_table		*proxy_table; /* protected by mesh_proxy_lock*/
 #ifdef PU_STANDARD
-	struct hash_table		*proxyupdate_table;
+	struct hash_table		*proxyupdate_table; /* protected by mesh_proxyupdate_lock*/
 #endif
-	struct hash_table		*pathsel_table; // add by chuangch 2007.09.13
+	struct hash_table		*pathsel_table;
 	struct mpp_tb			*pann_mpp_tb;
 
 	struct MESH_FAKE_MIB_T	mesh_fake_mib;
 	unsigned char			root_mac[MACADDRLEN];		// Tree Base root MAC
 
+
+#ifdef SMP_SYNC
+    spinlock_t              mesh_path_lock;
+    spinlock_t              mesh_queue_lock;
+    spinlock_t              mesh_preq_lock;
+    spinlock_t              mesh_proxy_lock;
+    spinlock_t              mesh_proxyupdate_lock;
+
+
+    int                     mesh_proxy_lock_owner;
+    int                     mesh_proxyupdate_lock_owner;
+    int                     mesh_preq_lock_owner;
+    int                     mesh_queue_lock_owner;
+    int                     mesh_path_lock_owner;
+    
+    unsigned char			mesh_proxy_lock_func[50];
+    unsigned char			mesh_proxyupdate_lock_func[50];
+    unsigned char			mesh_preq_lock_func[50];
+    unsigned char			mesh_queue_lock_func[50];
+    unsigned char			mesh_path_lock_func[50];
+#endif
 
     UINT16 seqNum;     // record for  recently sent multicast packet
 	/*
@@ -3842,18 +4390,12 @@ typedef struct rtl8192cd_priv {
 #endif
 #endif
 
+    /*protected by mesh_queue_lock*/
 	DOT11_QUEUE2			*pathsel_queue;		// pathselection QUEUE
-#ifdef _11s_TEST_MODE_
-	DOT11_QUEUE2			*receiver_queue;	// pathselection QUEUE
-	struct list_head		mtb_list;
-#endif
+
 	int pid_pathsel;
 
 	struct net_device_stats	mesh_stats;
-
-#ifdef _11s_TEST_MODE_
-	char 					rvTestPacket[3000];
-#endif
 
 	UINT8					mesh_Version;
 	// WLAN Mesh Capability
@@ -3990,6 +4532,10 @@ typedef struct rtl8192cd_priv {
 	unsigned short  nat25_filter_ethlist[NAT25_FILTER_ETH_NUM]; /*ethernet type list for nat25 filter*/
 	unsigned char   nat25_filter_ipprotolist[NAT25_FILTER_IPPROTO_NUM]; /*ip prototcol list for nat25 filter*/
 #endif    
+
+#ifdef STA_CONTROL
+    struct stactrl_data stactrl;   
+#endif
 
 
 	/*********************************************************
@@ -4167,7 +4713,9 @@ typedef struct rtl8192cd_priv {
 	int						assoc_num;		// association client number
 	int						link_status;
 #if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+	int						assoc_num_bak;
 	int						link_status_bak;
+	int						ap_ready;
 #endif
 
 	unsigned short			*pBeaconCapability;		// ptr of capability field in beacon buf
@@ -4229,9 +4777,6 @@ typedef struct rtl8192cd_priv {
 	struct timer_list		dfs_cntdwn_timer;
 #endif
 
-#ifdef HS2_SUPPORT
-	struct timer_list		disassoc_timer;
-#endif
 	unsigned int			join_req_ongoing;
 	int						join_index;
 	unsigned long			jiffies_pre;
@@ -4279,6 +4824,10 @@ typedef struct rtl8192cd_priv {
 	STA_BITMAP  					switch_20_sta;
 #endif
 
+#ifdef DOT11K
+    struct dot11k_priv rm;
+#endif    
+
 	/*********************************************************************
 	 * from here on till EE_Cached will be backup during hang up reset   *
 	 *********************************************************************/
@@ -4309,7 +4858,9 @@ typedef struct rtl8192cd_priv {
 #ifdef MICERR_TEST
 	unsigned int			micerr_flag;
 #endif
-
+#ifdef CONFIG_WLAN_HAL_8814AE
+	struct timer_list		mimo_switch_timer_8814;
+#endif
 #ifdef DFS
 	struct timer_list		DFS_timer;			/* timer for radar detection */
 	struct timer_list		DFS_TXPAUSE_timer;	/* timer for checking whether restarting TX or not*/
@@ -4321,6 +4872,11 @@ typedef struct rtl8192cd_priv {
 	unsigned int			VHT_CRC_ok_cnt_pre;
 	unsigned int			HT_CRC_ok_cnt_pre;
 	unsigned int			LEG_CRC_ok_cnt_pre;
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	unsigned char			g_ti_pre[16];
+	unsigned char			g_pw_pre[6];
+	unsigned char			g_pri_pre[6];
+#endif    
 	unsigned char			radar_det_mask_hist[10];
 	unsigned char			mask_idx;
 	unsigned char			mask_hist_checked;
@@ -4380,6 +4936,10 @@ typedef struct rtl8192cd_priv {
 	int						amsdu_len;
 	int						ampdu_len;
 
+#ifdef WLAN_HAL_TX_AMSDU
+    int                     amsdu_num;
+#endif
+
 #ifdef CHECK_RX_HANGUP
 	unsigned long			rx_packets_pre1;
 	unsigned long			rx_packets_pre2;
@@ -4413,7 +4973,7 @@ typedef struct rtl8192cd_priv {
 	unsigned char offload_proc_page;
 #endif //#ifdef CONFIG_OFFLOAD_FUNCTION
 
-#ifdef CONFIG_8813_AP_MAC_VERI
+#ifdef CONFIG_8814_AP_MAC_VERI
 	unsigned char macID_temp;
     unsigned char lowestRate_TXDESCen;
     unsigned int lowestRate;    
@@ -4426,9 +4986,12 @@ typedef struct rtl8192cd_priv {
     unsigned char testResult;         
     unsigned short hw_seq[128];    
     unsigned short sw_seq;        
-    unsigned char test_seq_MACID;      
+    unsigned char test_Compare;      
     unsigned char sw_Carrier;         
-    unsigned char hw_Carrier;         
+    unsigned char hw_Carrier;
+    unsigned char tx_pwrBit;    
+    unsigned char BMC_RTY_LMT;        
+    unsigned char ProtectionType;          
 #endif //#ifdef CONFIG_OFFLOAD_FUNCTION
 
 #ifdef PCIE_POWER_SAVING
@@ -4468,21 +5031,20 @@ typedef struct rtl8192cd_priv {
 	int	offset_backup;
 	int func_backup;
 #endif
-#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)
+#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)||defined(CONFIG_WLAN_HAL_8814AE)
 	char bFWReady;
 #endif
 #ifdef HS2_SUPPORT
-
     /* Hotspot 2.0 Release 1 */
 	unsigned char			timeadvt_dtimcount;
-
 	unsigned int			dgaf_disable;
-	unsigned int			OSU_Present;
 	unsigned int			proxy_arp;
 #endif
+
 #if defined(HS2_SUPPORT) || defined(DOT11K)
     unsigned char           cu_enable; /*channel utilization calculated enable/disable*/
 #endif
+
 #ifdef CONFIG_IEEE80211W_CLI	// all ap's cap
 	unsigned char 			support_sha256;		
 	unsigned char 			support_pmf;
@@ -4498,10 +5060,16 @@ typedef struct rtl8192cd_priv {
 	int simple_config_time;
 	int simple_config_could_fix;
 #endif
+#ifdef CONFIG_IEEE80211R
+	struct list_head r0kh;
+	struct list_head r1kh;
+#endif
 	unsigned char take_over_hidden;
 
-#ifdef ERR_ACCESS_CNTR
-	struct err_access_list	err_ac_list[MAX_ERR_ACCESS_CNTR];
+#ifdef RTK_ATM
+	unsigned int		atm_iftime;
+	unsigned int		atm_sta_num;//num of cli of every SSID		
+	unsigned int		atm_ttl_txtime;//total txtime per interface 2.4G/5G in 1sec
 #endif
 } RTL8192CD_PRIV, *PRTL8192CD_PRIV;
 
@@ -4580,7 +5148,8 @@ typedef struct _sta_info_2_web {
 #define ACTIVE_ID 		(priv->pshare->mclone_active_id)
 #endif
 #define MCLONE_NUM		(priv->pshare->mclone_num)
-#define OPMODE			(((ACTIVE_ID > 0) && ((GET_MIB(priv))->dot11OperationEntry.opmode & WIFI_STATION_STATE)) ? priv->pshare->mclone_sta[ACTIVE_ID-1].opmode : (GET_MIB(priv))->dot11OperationEntry.opmode)
+#define OPMODE_VXD			(((ACTIVE_ID > 0) && ((GET_MIB((GET_VXD_PRIV(priv))))->dot11OperationEntry.opmode & WIFI_STATION_STATE)) ? priv->pshare->mclone_sta[ACTIVE_ID-1].opmode : (GET_MIB(priv))->dot11OperationEntry.opmode)
+#define OPMODE			(((ACTIVE_ID > 0) && ((GET_MIB(priv))->dot11OperationEntry.opmode & WIFI_STATION_STATE))
 #define OPMODE_VAL(mod) do {\
 		if ( (ACTIVE_ID > 0) && ((GET_MIB(priv))->dot11OperationEntry.opmode & WIFI_STATION_STATE)) \
 			priv->pshare->mclone_sta[ACTIVE_ID-1].opmode = mod;\
@@ -4589,16 +5158,11 @@ typedef struct _sta_info_2_web {
 		} while (0)
 #else
 #define ACTIVE_ID 		(0)
+#define OPMODE_VXD		((GET_MIB((GET_VXD_PRIV(priv))))->dot11OperationEntry.opmode)
 #define OPMODE			((GET_MIB(priv))->dot11OperationEntry.opmode)
 #define OPMODE_VAL(mod) do {\
 		(GET_MIB(priv))->dot11OperationEntry.opmode = mod;\
 		} while (0)
-#endif
-
-#ifdef CAM_SWAP
-#define TRAFFIC_THRESHOLD_LOW	((priv->pshare->rf_ft_var.cam_rotation)*(priv->pshare->rf_ft_var.thrd_low))
-#define TRAFFIC_THRESHOLD_MID	((priv->pshare->rf_ft_var.cam_rotation)*(priv->pshare->rf_ft_var.thrd_mid))
-#define TRAFFIC_THRESHOLD_HIGH	((priv->pshare->rf_ft_var.cam_rotation)*(priv->pshare->rf_ft_var.thrd_high))
 #endif
 
 #define TAKEOVER_HIDDEN_AP		(priv->take_over_hidden)
@@ -4896,6 +5460,29 @@ typedef struct _sta_info_2_web {
 #define WAIT_TP_TIME				3	/* wait TP limit for this period in sec */
 #endif
 
+#ifdef CONFIG_IEEE80211R
+#define FT_R0KH_ID_STR				"default.r0kh-id.fqdn"
+#define FT_ENABLE					(priv->pmib->dot11FTEntry.dot11FastBSSTransitionEnabled)
+#define MDID						(priv->pmib->dot11FTEntry.dot11FTMobilityDomainID)
+#define R0KH_ID						(priv->pmib->dot11FTEntry.dot11FTR0KeyHolderID)
+#define R0KH_ID_LEN					(priv->pmib->dot11FTEntry.dot11FTR0KeyHolderIDLen)
+
+enum ft_assoc_state {
+	state_none						= 0,
+	state_imd_assoc					= 1,
+	state_imd_4way					= 2,
+	state_ft_auth					= 3,
+	state_ft_auth_rrq				= 4,
+	state_ft_assoc					= 5
+};
+
+struct ft_action_param {
+	unsigned char action_code;
+	unsigned char target_addr[MACADDRLEN];
+	unsigned int length;
+	unsigned char *pdata;
+};
+#endif
 
 #ifdef __ECOS
 #undef ASSERT
@@ -5154,7 +5741,7 @@ enum _HW_TX_SHORTCUT_ {
 #endif  //CONFIG_WLAN_HAL
 
 #ifdef CONFIG_USB_HCI
-#include "./usb/8192cu/8192cd_usb_xmit.h"
+#include "./usb/8188eu/8192cd_usb_xmit.h"
 #endif
 
 #ifdef CONFIG_SDIO_HCI
@@ -5173,11 +5760,10 @@ enum _HW_TX_SHORTCUT_ {
 
 #define RESCAN_BY_NEXTTIME 0
 
-enum {
-	SSFROM_WEB = 1,
-	SSFROM_WSC,
-	SSFROM_REPEATER_VXD
-};
+#define SSFROM_WSC 2
+#define SSFROM_REPEATER_VXD 3
+#define SSFROM_11K_BEACONREQ 4
+
 
 /*sorting by profile*/
 enum {
@@ -5209,6 +5795,39 @@ struct brsc_cache_t {
 	unsigned char cached_br_sta_mac[MACADDRLEN];
 	struct net_device *cached_br_sta_dev;
 };
+
+
+#if defined(CUSTOMIZE_WLAN_IF_NAME)
+#define ROOT_IFNAME_INDEX	2
+
+#define ROOT_IFNAME_5G		"wl1"
+#define VIRTUAL1_IFNAME_5G	"wl1.0"
+#define VIRTUAL2_IFNAME_5G	"wl1.1"
+#define VIRTUAL3_IFNAME_5G	"wl1.2"
+#define VIRTUAL4_IFNAME_5G	"wl1.3"
+#define REPEATER_IFNAME_5G	"wl1-vxd"
+
+#define ROOT_IFNAME_2G		"wl0"
+#define VIRTUAL1_IFNAME_2G	"wl0.0"
+#define VIRTUAL2_IFNAME_2G	"wl0.1"
+#define VIRTUAL3_IFNAME_2G	"wl0.2"
+#define VIRTUAL4_IFNAME_2G	"wl0.3"
+#define REPEATER_IFNAME_2G	"wl0-vxd"
+
+#define WLAN0_IFNAME			"wl0"
+#define WLAN0_VIRTUAL1_IFNAME	"wl0.0"
+#define WLAN0_VIRTUAL2_IFNAME	"wl0.1"
+#define WLAN0_VIRTUAL3_IFNAME	"wl0.2"
+#define WLAN0_VIRTUAL4_IFNAME	"wl0.3"
+#define WLAN0_REPEATER_IFNAME	"wl0-vxd"
+
+#define WLAN1_IFNAME			"wl1"
+#define WLAN1_VIRTUAL1_IFNAME	"wl1.0"
+#define WLAN1_VIRTUAL2_IFNAME	"wl1.1"
+#define WLAN1_VIRTUAL3_IFNAME	"wl1.2"
+#define WLAN1_VIRTUAL4_IFNAME	"wl1.3"
+#define WLAN1_REPEATER_IFNAME	"wl1-vxd"
+#endif
 
 #endif // _8192CD_H_
 

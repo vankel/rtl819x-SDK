@@ -94,6 +94,7 @@ do { \
 #endif
 
 
+unsigned int uni_counter=10000; //1220
 
 int mtd_spi_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
@@ -134,12 +135,22 @@ retry0:
 	if (!ret)
 	{
 		count++;
-	//	printk("RR\r\n");
-		if(count<100000)
+		if(count<uni_counter)
+		{
+			if(uni_counter>1000)
+			{
+				uni_counter=uni_counter - 1;
+			//	printk("uni:%d\r\n",uni_counter);
+			}
+			 cond_resched();
  				goto retry0;
+		}
 		else
+		{
+			
+		printk("$");
 			mutex_lock(&chip_info->lock);
-			//return 0; 
+	}
 	}
 #endif
 #ifdef RTK_FLASH_SPIN_LOCK
@@ -210,7 +221,7 @@ retry0:
 
 	return 0;
 }
-
+int uni_counter1=1200;
 int mtd_spi_read(struct mtd_info *mtd, loff_t from, size_t len, size_t *retlen, u_char *buf)
 {
 	struct map_info *map = mtd->priv;
@@ -230,16 +241,30 @@ int mtd_spi_read(struct mtd_info *mtd, loff_t from, size_t len, size_t *retlen, 
 retry1:
 	ret=mutex_trylock(&chip_info->lock);
 	
-	//mutex_lock(&chip_info->lock);
+
 
 	if (!ret)
 	{
 		count++;
-	//	printk("RR\r\n");
-		if(count<100000)
+
+
+//	 cfi_udelay(1);
+		if(count<400)
+		{
+			{
+//				uni_counter1--;
+//				printk("uni1:%d\r\n",uni_counter1);
+				
+			}
+			 cond_resched();
  				goto retry1;
+		}
 		else
+{
+
+	  cfi_udelay(1);
 			mutex_lock(&chip_info->lock);
+}
 			//return 0; 
 	}
 #endif
@@ -265,7 +290,7 @@ spin_unlock_irqrestore(&lock_spi, flags);
 #endif
 #ifdef  RTK_FLASH_MUTEX	
 	mutex_unlock(&chip_info->lock);
-	cfi_udelay(1);
+	 cfi_udelay(1);
 #endif
 #endif
 		return ret;
@@ -288,7 +313,7 @@ spin_unlock_irqrestore(&lock_spi, flags);
 #endif
 	return 0;
 }
-
+int uni_counter2=1200;
 int mtd_spi_write(struct mtd_info *mtd, loff_t to, size_t len, size_t *retlen, const u_char *buf)
 {
 	struct map_info *map = mtd->priv;
@@ -314,12 +339,25 @@ retry2:
 	if (!ret)
 	{
 		count++;
-	//	printk("RR\r\n");
-		if(count<100000)
+
+		
+	 cfi_udelay(1);
+		if(count<10000)
+		{
+			if(uni_counter2<1000)
+			{	
+				uni_counter2--;
+			}
+			 cond_resched();
+
  				goto retry2;
+		}
 		else
-			mutex_lock(&chip_info->lock);
-			//return 0; 
+		{
+		
+	 	cfi_udelay(1);
+			mutex_lock(&chip_info->lock); 
+	}
 	}
 #endif
 #ifdef RTK_FLASH_SPIN_LOCK
@@ -346,7 +384,7 @@ retry2:
 #endif
 #ifdef  RTK_FLASH_MUTEX	
 	mutex_unlock(&chip_info->lock);
-	cfi_udelay(1);
+	 cfi_udelay(1);
 #endif
 #endif
 		return ret;
@@ -390,14 +428,24 @@ retry4:
 	if (!ret)
 	{
 		count++;
-	//	printk("RR\r\n");
-		if(count<100000)
+
+
+	 cfi_udelay(1);
+		if(count<1000)
+		{
+			 cond_resched();
  				goto retry4;
+		}
 		else
+	{
+	
+	 cfi_udelay(1);
 			mutex_lock(&chip_info->lock);
 			//return 0; 
 	}
+	}
 #endif
+
 
 //	return -EOPNOTSUPP;
 	return 0;

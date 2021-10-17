@@ -302,14 +302,6 @@ int skb_kill_datagram(struct sock *sk, struct sk_buff *skb, unsigned int flags)
 }
 EXPORT_SYMBOL(skb_kill_datagram);
 
-#ifdef CONFIG_RTL_SENDFILE_PATCH
-void do_trace_skb_copy_datagram_iovec(const struct sk_buff *skb, int len)
-{
-	trace_skb_copy_datagram_iovec(skb, len);
-	
-}
-#endif
-
 /**
  *	skb_copy_datagram_iovec - Copy a datagram to an iovec.
  *	@skb: buffer to copy

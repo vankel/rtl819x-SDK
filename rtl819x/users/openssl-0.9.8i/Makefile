@@ -73,7 +73,7 @@ ARFLAGS=
 AR=ar $(ARFLAGS) r
 RANLIB= $(CROSS_COMPILE)ranlib
 
-PERL=/usr/local/bin/perl
+PERL= /usr/local/bin/perl
 $(shell if [ ! -e /usr/local/bin/perl ]; then \
 PERL=/usr/bin/perl; \
 fi)

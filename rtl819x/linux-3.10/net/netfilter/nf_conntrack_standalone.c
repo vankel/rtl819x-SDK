@@ -440,7 +440,6 @@ static unsigned int nf_conntrack_reserved_num = 1024;
 static int conntrack_dointvec_819x(ctl_table *table, int write, 
 		     void *buffer, size_t *lenp, loff_t *ppos) 
 {
-
 	int err;
 
 	err = proc_dointvec(table, write,  buffer, lenp, ppos);

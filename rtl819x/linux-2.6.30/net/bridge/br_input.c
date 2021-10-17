@@ -784,7 +784,7 @@ ap_hcm_out:
 			#if defined(CONFIG_USB_UWIFI_HOST)
 				if(iph->daddr == 0xEFFFFFFA || iph->daddr == 0xE1010101)
 			#else
-				if(iph->daddr == 0xEFFFFFFA || iph->daddr == 0xE00000FB)
+				if(iph->daddr == 0xEFFFFFFA)
 			#endif
 			
 			{
@@ -1463,7 +1463,15 @@ static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, st
 				}
 			#endif
 				
-														
+			#ifdef CONFIG_RTL_8370_SUPPORT
+				{
+				extern void rtl8370L2McastAddrUpdate(int mode, unsigned int groupAddress, unsigned int clientAddr, unsigned char *mac);
+				unsigned int ga;
+				ga = (StaMacAndGroup[3] << 16) | (StaMacAndGroup[4] << 8) | (StaMacAndGroup[5]);
+ 				if ((ga != 0x007ffffa) && (ga != 0x00000002))
+					rtl8370L2McastAddrUpdate(1, ga, 0xFFFFFFFF, StaMacAndGroup+6);
+				}
+			#endif																	
 			}
 		}
 	/*process wlan client join --- end*/

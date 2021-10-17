@@ -17,8 +17,6 @@
 #include <linux/netfilter_ipv4/ip_tables.h>
 extern int gQosEnabled;
 #endif
-#include <net/ip_fib.h>
-#include <net/ip_vs.h>
 #include <net/rtl/features/rtl_features.h>
 
 #include <net/rtl/fastpath/fastpath_core.h>
@@ -274,7 +272,7 @@ static int write_proc(struct file *file, const char *buffer,
 	return -EFAULT;
 }
 
-#if defined(CONFIG_RTL_PROC_NEW)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 static int read_proc(struct seq_file *s, void *v)
 {
 	#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
@@ -342,7 +340,7 @@ static int spi_write_proc(struct file *file, const char *buffer,
 	return count;
 }
 
-#if defined(CONFIG_RTL_PROC_NEW)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 static int spi_read_proc(struct seq_file *s, void *v)
 {
 
@@ -405,6 +403,11 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	__u32 oriSkbMark;
 	unsigned long irq_flags;
 	uint32 preMark, postMark;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	uint32 preMarkExt[max_decision_priority];
+	uint32 postMarkExt[max_decision_priority];
+	uint32 oriSkbMarkExt[max_decision_priority];
+#endif
 
 	if(pskb==NULL)
 		return FAILED;
@@ -435,6 +438,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 
 	//Bak orignal skb mark
 	oriSkbMark=pskb->mark;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	memcpy(oriSkbMarkExt, pskb->mark_ext, sizeof(pskb->mark_ext));
+#endif
 
 	//check ip-based qos rule at iptables mangle table
 	//To record original info
@@ -444,7 +450,6 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	ori_dport=tcphupuh->dest;
 
 	/* for dst mac match, please refer to the xt_mac.c */
-	
 	//dst_tmp = skb_dst(pskb);
 	//pskb->dst = NULL;
 	//skb_dst_set(pskb,NULL);
@@ -453,6 +458,10 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 #if defined(CONFIG_NET_SCHED)
 	preMark = 0;
 	postMark= 0;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	memset(preMarkExt, 0, sizeof(preMarkExt));
+	memset(postMarkExt, 0, sizeof(postMarkExt));
+#endif
 	{
 	//Replace source addr to check uplink mark
 	iph->saddr=naptEntry->intIp;
@@ -478,6 +487,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	}
 
 	pskb->mark=0;//initial
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	memset(pskb->mark_ext, 0, sizeof(pskb->mark_ext));
+#endif
 
 	if(proto == ETH_P_IP){
 		(list_empty(&nf_hooks[PF_INET][NF_IP_PRE_ROUTING]))?: \
@@ -491,6 +503,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 					pskb->inDev?pskb->inDev->name:"NULL",
 					pskb->dev?pskb->dev->name:"NULL", pskb->mark);
 	preMark = pskb->mark;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	memcpy(preMarkExt, pskb->mark_ext, sizeof(pskb->mark_ext));
+#endif
 
 	//Replace dest addr to check uplink mark
 	iph->saddr=naptEntry->extIp;
@@ -516,6 +531,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 	}
 
 	pskb->mark=0;//initial
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	memset(pskb->mark_ext, 0, sizeof(pskb->mark_ext));
+#endif
 
 	if(proto == ETH_P_IP){
 		(list_empty(&nf_hooks[PF_INET][NF_IP_POST_ROUTING]))?: \
@@ -528,15 +546,28 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 					pskb->inDev?pskb->inDev->name:"NULL",
 					pskb->dev?pskb->dev->name:"NULL", pskb->mark);
 		postMark= pskb->mark;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+		memcpy(postMark, pskb->mark_ext, sizeof(pskb->mark_ext));
+#endif
 	}
-
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	qosMark[port_decision_priority].uplinkMark = (postMarkExt[port_decision_priority]?postMarkExt[port_decision_priority]:preMarkExt[port_decision_priority]);
+	qosMark[vlan_decision_priority].uplinkMark = (postMarkExt[vlan_decision_priority]?postMarkExt[vlan_decision_priority]:preMarkExt[vlan_decision_priority]);
+	qosMark[dscp_decision_priority].uplinkMark = (postMarkExt[dscp_decision_priority]?postMarkExt[dscp_decision_priority]:preMarkExt[dscp_decision_priority]);
+	qosMark[nat_decision_priority].uplinkMark = (postMark?postMark:preMark);	/*nat decision mark is store in skb->mark*/
+#else
 	qosMark->uplinkMark=(postMark?postMark:preMark);
+#endif
 #endif
 
 	//for downlink
 #if defined(CONFIG_NET_SCHED)
 	preMark = 0;
 	postMark = 0;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	memset(preMarkExt, 0, sizeof(preMarkExt));
+	memset(postMarkExt, 0, sizeof(postMarkExt));
+#endif
 	{
 		//Replace source addr to check uplink mark
 		iph->saddr=naptEntry->remIp;
@@ -561,6 +592,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 		}
 
 		pskb->mark=0;//initial
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+		memset(pskb->mark_ext, 0, sizeof(pskb->mark_ext));
+#endif
 		if(proto == ETH_P_IP){
 			(list_empty(&nf_hooks[PF_INET][NF_IP_PRE_ROUTING]))?: \
 				ipt_do_table(pskb, NF_IP_PRE_ROUTING, wanDev,lanDev,\
@@ -572,6 +606,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 						pskb->inDev?pskb->inDev->name:"NULL",
 						pskb->dev?pskb->dev->name:"NULL", pskb->mark);
 		preMark = pskb->mark;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+		memcpy(preMarkExt, pskb->mark_ext, sizeof(pskb->mark_ext));
+#endif
 
 		//Replace dest addr to check uplink mark
 		iph->saddr=naptEntry->remIp;
@@ -594,6 +631,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 			memcpy(eth_hdr(pskb)->h_source, lanDev->dev_addr, ETH_ALEN);
 		}
 		pskb->mark=0;//initial
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+		memset(pskb->mark_ext, 0, sizeof(pskb->mark_ext));
+#endif
 
 		if(proto == ETH_P_IP){
 			(list_empty(&nf_hooks[PF_INET][NF_IP_POST_ROUTING]))?: \
@@ -606,9 +646,18 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 						pskb->inDev?pskb->inDev->name:"NULL",
 						pskb->dev?pskb->dev->name:"NULL", pskb->mark);
 		postMark= pskb->mark;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+		memcpy(postMark, pskb->mark_ext, sizeof(pskb->mark_ext));
+#endif
 	}
-
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	qosMark[port_decision_priority].downlinkMark = (postMarkExt[port_decision_priority]?postMarkExt[port_decision_priority]:preMarkExt[port_decision_priority]);
+	qosMark[vlan_decision_priority].downlinkMark = (postMarkExt[vlan_decision_priority]?postMarkExt[vlan_decision_priority]:preMarkExt[vlan_decision_priority]);
+	qosMark[dscp_decision_priority].downlinkMark = (postMarkExt[dscp_decision_priority]?postMarkExt[dscp_decision_priority]:preMarkExt[dscp_decision_priority]);
+	qosMark[nat_decision_priority].downlinkMark = (postMark?postMark:preMark);	/*nat decision mark is store in skb->mark*/
+#else
 	qosMark->downlinkMark=(postMark?postMark:preMark);
+#endif
 #endif
 
 	//Back to original value
@@ -618,6 +667,9 @@ int32 rtl_qosGetSkbMarkByNaptEntry(rtl865x_napt_entry *naptEntry, rtl865x_qos_ma
 
 	//Back to original skb mark
 	pskb->mark=oriSkbMark;
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	memcpy(pskb->mark_ext, oriSkbMarkExt, sizeof(pskb->mark_ext));
+#endif
 
 	//back to original info
 	iph->saddr=ori_saddr;
@@ -932,20 +984,6 @@ int rtl_ip_route_input(struct sk_buff  *skb, __be32 daddr, __be32 saddr, u8 tos)
 }
 
 #if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
-static void rtl_neigh_probe(struct neighbour *neigh)
-	__releases(neigh->lock)
-{
-	struct sk_buff *skb = skb_peek(&neigh->arp_queue);
-	/* keep skb alive even if arp_queue overflows */
-	if (skb)
-		skb = skb_copy(skb, GFP_ATOMIC);
-	write_unlock(&neigh->lock);
-	neigh->ops->solicit(neigh, skb);
-	atomic_inc(&neigh->probes);
-	kfree_skb(skb);
-}
-extern void neigh_probe(struct neighbour *neigh);
-
 int rtl_skb_dst_check(struct sk_buff *skb, unsigned long dip)
 {
 	int ret = SUCCESS;
@@ -957,34 +995,18 @@ int rtl_skb_dst_check(struct sk_buff *skb, unsigned long dip)
 
 	if (rt == NULL)
 		return FAILED;
-
-    if(skb->len>dst_mtu(dst))
-        return FAILED;
 	
-    rcu_read_lock_bh();
 	nexthop = (__force u32) rt_nexthop(rt, dip);
 	neigh = __ipv4_neigh_lookup_noref(dev, nexthop);
-
-    if(neigh != NULL)
-        write_lock(&neigh->lock);
-
 	/*linux kernel 3.4 struct hh_cache is in struct neighbour*/
-	if ( (neigh==NULL) ||!(neigh->nud_state & NUD_CONNECTED))
+	if ( (neigh==NULL) ||!(neigh->nud_state & NUD_CONNECTED) ||(skb->len>dst_mtu(dst)))
 	{
-        if((neigh!=NULL)&&!(neigh->nud_state & NUD_CONNECTED))
-            rtl_neigh_probe(neigh);
-        else if(neigh != NULL)
-            write_unlock(&neigh->lock);
-
 		ret = FAILED;
-        rcu_read_unlock_bh();
 		return ret;
-	}
+	}	
 
 	neigh->confirmed = jiffies;
-    write_unlock(&neigh->lock);
-    rcu_read_unlock_bh();
-	
+
 	return ret;
 }
 
@@ -1120,9 +1142,6 @@ __be32 rtl_get_ct_ip_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag)
 		else if(flag == 1)
 			return ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.ip;
 	}
-
-    printk("[%s:] %d get bad contrack direction\n",__func__,__LINE__);
-    return __cpu_to_be32(0xdead);
 }
 
 /*flag = 0 for src; flag = 1 for dst*/
@@ -1145,8 +1164,6 @@ __be16 rtl_get_ct_port_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag)
 		else if(flag == 1)
 			return ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u.all;
 	}
-    printk("[%s:] %d get bad contrack direction\n",__func__,__LINE__);
-    return __cpu_to_be32(0xdead);
 }
 
 void rtl_set_ct_timeout_expires(void *ct_ptr, unsigned long value)
@@ -1169,7 +1186,7 @@ void rtl_set_fdb_aging(void *fdb_ptr, unsigned long value)
 {
 	struct net_bridge_fdb_entry *fdb = (struct net_bridge_fdb_entry *)fdb_ptr;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	fdb->updated = value;
 #else
 	fdb->ageing_timer = value;
@@ -1181,7 +1198,7 @@ void rtl_set_fdb_aging(void *fdb_ptr, unsigned long value)
 unsigned long rtl_get_fdb_aging(void *fdb_ptr)
 {
 	struct net_bridge_fdb_entry *fdb = (struct net_bridge_fdb_entry *)fdb_ptr;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	return fdb->updated;
 #else
 	return fdb->ageing_timer;
@@ -1213,7 +1230,7 @@ struct net_device *rtl_get_skb_dev(struct sk_buff* skb)
 
 void rtl_set_skb_dev(struct sk_buff *skb, struct net_device *dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	if(dev == NULL) {
 		struct dst_entry *dst = skb_dst(skb);
 		skb->dev = dst->dev;
@@ -1272,7 +1289,7 @@ struct net_device *rtl_get_skb_rx_dev(struct sk_buff* skb)
 void rtl_set_skb_rx_dev(struct sk_buff* skb,struct net_device *dev)
 {
 	#if defined (CONFIG_RTL_FAST_PPPOE)
-	skb->rx_dev=dev;
+	return skb->rx_dev=dev;
 	#endif
 
 	return;
@@ -1286,7 +1303,7 @@ char *rtl_get_ppp_dev_name(struct net_device *ppp_dev)
 
 void * rtl_get_ppp_dev_priv(struct net_device *ppp_dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	return netdev_priv(ppp_dev);
 #else
 	return ppp_dev->priv;
@@ -1320,7 +1337,7 @@ void rtl_inc_ppp_stats(struct ppp *ppp, int act, int len)
 }
 
 
-void rtl_set_skb_tail(struct sk_buff *skb, int offset, int action)
+void *rtl_set_skb_tail(struct sk_buff *skb, int offset, int action)
 {
 	if(action == 1)
 		skb->tail -= offset;
@@ -1381,7 +1398,7 @@ struct neighbour *rtl_neigh_lookup(const void *pkey, struct net_device *dev)
 
 struct hh_cache *rtl_get_hh_from_neigh(struct neighbour *neigh)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	/*linux-3.4, hh is struct in neigh;linux-2.6.30, hh is pointer in neigh*/
 	return &(neigh->hh);
 #else
@@ -1947,6 +1964,7 @@ int FastPath_Enter(struct sk_buff **pskb)
 			(strncmp(skb->dev->name,"ppp",3)==0))
 			return 0;
 	}
+
 #ifdef CONFIG_RTL_FAST_IPV6
 	if(fast_ipv6_fw){
 		ret = ipv6_fast_enter(*pskb);
@@ -1991,6 +2009,7 @@ int FastPath_Enter(struct sk_buff **pskb)
 		goto out;
 	}
 #endif
+
 
 	if(!(skb->pkt_type == PACKET_HOST))
 	{
@@ -2174,7 +2193,7 @@ static int __init fastpath_init(void)
 	#endif
 	#ifdef CONFIG_PROC_FS
 	
-	#if defined(CONFIG_RTL_PROC_NEW)
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	res1 = proc_create_data("fast_nat", 0, &proc_root,
 			 &fastpath_proc_fops, NULL);
 	#else
@@ -2186,7 +2205,7 @@ static int __init fastpath_init(void)
 	#endif
 
 	#if defined(FAST_PATH_SPI_ENABLED)
-	#if defined(CONFIG_RTL_PROC_NEW)
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	res_spi = proc_create_data("fast_spi", 0, &proc_root,
 			 &fastspi_proc_fops, NULL);
 	#else
@@ -2204,8 +2223,8 @@ static int __init fastpath_init(void)
 	rtl_fp_gc_rx_threshold = RTL_FP_SESSION_LEVEL3_ALLOW_COUNT;
 	#endif
 	
-	get_fastpath_module_info((unsigned char *)buf);
-	printk("%s",(char *)buf);
+	get_fastpath_module_info(buf);
+	printk("%s",buf);
 
 	return 0;
 }
@@ -2246,7 +2265,7 @@ static void __exit fastpath_exit(void)
 
 #ifdef CONFIG_PROC_FS
 	if (res1) {
-		#if defined(CONFIG_RTL_PROC_NEW)
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 		remove_proc_entry("fast_nat", &proc_root);
 		#else
 		remove_proc_entry("fast_nat", res1);
@@ -2256,7 +2275,7 @@ static void __exit fastpath_exit(void)
 
 	#if defined(FAST_PATH_SPI_ENABLED)
 	if(res_spi){
-		#if defined(CONFIG_RTL_PROC_NEW)
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 		remove_proc_entry("fast_spi", &proc_root);
 		#else
 		remove_proc_entry("fast_spi", res_spi);
@@ -2376,8 +2395,6 @@ int Direct_Send_Reply(struct sk_buff * skb, int offset)
 		//kfree_skb(skb);
 		return 1;		
 	}
-#else
-    return 0;
 #endif
 }
 

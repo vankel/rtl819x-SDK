@@ -2,10 +2,6 @@
 # Makefile for the IEEE 802.1d ethernet bridging layer.
 #
 
-ifeq ($(CONFIG_RTL_A4_STA_SUPPORT),y)
-        EXTRA_CFLAGS += -DA4_STA
-endif
-
 ifeq ($(CONFIG_RTL_MESH_SUPPORT),y)
         EXTRA_CFLAGS += -DCONFIG_RTK_MESH
 

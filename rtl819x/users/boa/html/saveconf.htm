@@ -28,6 +28,7 @@ function resetClick()
 
 function saveClick(url)
 {
+	var saveConfig= "<% getInfo("saveConfig"); %>";
   if (verifyBrowser() == "ie4" ) {
 	window.location.href = url;
 	return false;

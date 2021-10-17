@@ -249,7 +249,6 @@ int32 rtl8651_setAsicRouting(uint32 index, rtl865x_tblAsicDrv_routingParam_t *ro
 
     	return _rtl8651_forceAddAsicEntry(TYPE_L3_ROUTING_TABLE, index, &entry);
 }
-
 int32 rtl8651_delAsicRouting(uint32 index) 
 {
 	rtl865xc_tblAsic_l3RouteTable_t entry;
@@ -812,31 +811,7 @@ int32 rtl8651_getAsicMulticastEnable(uint32 *enable)
 
 	return SUCCESS;
 }
-#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8881A) || defined(CONFIG_RTL_8198C)
 
-int32 rtl865x_set_mcastMacClone(uint32 enabled, unsigned char * macAddr)
-{
-	uint32 value0_31=0,value32_47=0;
-	
-	if(enabled)
-	{
-		WRITE_MEM32(FFCR,((READ_MEM32(FFCR)&(~CF_IPMMAC_CLONE_EN))|CF_IPMMAC_CLONE_EN));
-		if(macAddr)
-		{
-			value32_47 = (macAddr[0]<<8)|(macAddr[1]);
-			value0_31 = (macAddr[2]<<24)|(macAddr[3]<<16)|(macAddr[4]<<8)|(macAddr[5]);
-			WRITE_MEM32(IPMCMCR0,value0_31);
-			WRITE_MEM32(IPMCMCR1,value32_47);
-		}
-	}
-	else
-	{
-		WRITE_MEM32(FFCR,((READ_MEM32(FFCR)&(~CF_IPMMAC_CLONE_EN))));
-	}
-	return SUCCESS;
-}
-
-#endif
 /*
 @func int32		|	rtl8651_setAsicMulticastPortInternal 	| Configure internal/external state for each port
 @parm uint32		|	port		| Port to set its state.
@@ -1341,7 +1316,6 @@ int32 rtl8198C_setAsicRoutingv6(uint32 index, rtl8198C_tblAsicDrv_routingv6Param
 	} else{
 		asicMask = 0;
 	}	
-
 	switch(routingp->process) {
     	case 0://PPPoE
     		entry.linkTo.PPPoEEntry.PPPoEIndex = routingp->pppoeIdx;

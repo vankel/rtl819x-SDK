@@ -81,12 +81,6 @@ static struct usb_device_id btusb_table[] = {
 	  .bInterfaceClass = 0xe0,
 	  .bInterfaceSubClass = 0x01,
 	  .bInterfaceProtocol = 0x01 },
-	{ .match_flags = USB_DEVICE_ID_MATCH_VENDOR |
-					 USB_DEVICE_ID_MATCH_INT_INFO,
-	  .idVendor = 0x13d3,
-	  .bInterfaceClass = 0xe0,
-	  .bInterfaceSubClass = 0x01,
-	  .bInterfaceProtocol = 0x01 },
 	{ }
 };
 
@@ -1372,7 +1366,6 @@ static patch_info patch_table[] = {
     { 0xb72B, 0x8723,  "mp_rtl8723b_fw",      "rtl8723b_fw", "rtl8723b_config", NULL, 0 }, //Rtl8723BE
     { 0xb002, 0x8723,  "mp_rtl8723b_fw",      "rtl8723b_fw", "rtl8723b_config", NULL, 0 }, //Rtl8723BE
     { 0xb001, 0x8723, "mp_rtl8723b_fw",       "rtl8723b_fw", "rtl8723b_config", NULL, 0 },  //Rtl8723BE for hp
-    { 0x3416, 0x8723, "mp_rtl8723b_fw",       "rtl8723b_fw", "rtl8723b_config", NULL, 0 },  //Rtl8723BE for azwave
     
     { 0, 0, NULL,NULL, NULL, 0 } 
     

@@ -193,6 +193,13 @@ ifeq ($(strip $(ENABLE_RADIUS_2SET)),true)
 RTL_WPA_DEFFLAGS +=  -DRTL_RADIUS_2SET
 endif #ENABLE_RADIUS_2SET
 
+ifeq ($(CONFIG_RTL_11W_SUPPORT),y)
+RTL_WPA_DEFFLAGS += -DCONFIG_IEEE80211W
+endif
+
+ifeq ($(CONFIG_RTL_11R_SUPPORT),y)
+RTL_WPA_DEFFLAGS += -DCONFIG_IEEE80211R
+endif
 
 #------------------------------------------------------------------------
 # source files

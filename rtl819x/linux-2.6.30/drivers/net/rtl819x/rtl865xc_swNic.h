@@ -87,7 +87,7 @@
   	#endif
 	#define NUM_TX_PKTHDR_DESC			1024
 	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC
-#elif defined(CONFIG_RTL_8367R_SUPPORT)
+#elif defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT) 
 	#if defined(SKIP_ALLOC_RX_BUFF)
 	#define MAX_PRE_ALLOC_RX_SKB			0
 	#define NUM_RX_PKTHDR_DESC			1412
@@ -97,16 +97,7 @@
 	#endif
 	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC	
 	#define NUM_TX_PKTHDR_DESC			768	
-#elif defined(CONFIG_RTL_819XD)
-	#if defined(SKIP_ALLOC_RX_BUFF)
-	#define MAX_PRE_ALLOC_RX_SKB		0 
-	#define NUM_RX_PKTHDR_DESC			1024	//512+512
-	#else
-	#define MAX_PRE_ALLOC_RX_SKB		512 
-	#define NUM_RX_PKTHDR_DESC			512
-	#endif
-	#define ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
-	#define NUM_TX_PKTHDR_DESC			512 
+
 #elif defined(CONFIG_RTL_8198C)
 
 	#if defined(SKIP_ALLOC_RX_BUFF)
@@ -123,11 +114,20 @@
 	#if defined(DELAY_REFILL_ETH_RX_BUF)
 	#define MAX_PRE_ALLOC_RX_SKB			512
 	#else
+	#if defined(CONFIG_WLAN_HAL_8814AE)
+	#define MAX_PRE_ALLOC_RX_SKB			2048
+	#else
 	#define MAX_PRE_ALLOC_RX_SKB			1024
 	#endif
+	#endif
 	
+	#if defined(CONFIG_WLAN_HAL_8814AE)
+	#define NUM_RX_PKTHDR_DESC			2048
+	#define NUM_TX_PKTHDR_DESC			2048
+	#else
 	#define NUM_RX_PKTHDR_DESC			512
 	#define NUM_TX_PKTHDR_DESC			1024
+	#endif
 	#endif
 	#define	ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
 
@@ -374,9 +374,7 @@ int32 swNic_setVlanPortTag(int portmask);
 #define	RTL8651_IOCTL_GETWANPORTLINKSTATUS		2004
 #define 	RTL8651_IOCTL_GETWANLINKSPEED 			2100
 //#define 	RTL8651_IOCTL_SETWANLINKSPEED 			2101
-#ifdef CONFIG_AUTO_DHCP_CHECK
-#define RTL8651_IOCTL_SET_GETLINKSTATUS_PID			2102
-#endif
+
 #define RTL8651_IOCTL_GETLANLINKSTATUSALL		2105
 
 #define	RTL8651_IOCTL_SETWANLINKSTATUS			2200

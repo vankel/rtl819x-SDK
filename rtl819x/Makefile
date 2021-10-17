@@ -89,17 +89,7 @@ TARGET := error
 endif
 
 endif
-#add for 96e and 98cd use the different toolchain
-TOOLCHAIN =
-ifeq ($(CONFIG_BOARD_rtl8196e),y)
-TOOLCHAIN = 4.6.4-4181
-endif
-ifeq ($(CONFIG_BOARD_rtl8198C_8954E),y)
-TOOLCHAIN = msdk-4.4.7
-endif
-ifeq ($(CONFIG_BOARD_rtl89xxE),y)
-TOOLCHAIN = msdk-4.4.7
-endif
+
 all: $(TARGET)
 
 error:
@@ -123,20 +113,10 @@ config menuconfig:
 	@config/genconfig > Kconfig
 	@config/mconf Kconfig
 #	@if egrep "^CONFIG_BOARD_rtl8196eu=y" .config > /dev/null; then \
-#		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
-#	else \
-#		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+#        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
+#    else \
+#        cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
 #	fi	
-	@if egrep "^CONFIG_MODEL_RTL8871_ONLY=y" .config > /dev/null; then \
-		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
-	else \
-		cp $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig-not-otg $(shell pwd)/linux-2.6.30/drivers/usb/Kconfig; \
-	fi
-	@if egrep "^CONFIG_ARCH_CPU_MIPS=y" .config > /dev/null; then \
-		export VAR_ARCH=mips; \
-		export CROSS_COMPILE=mips-linux-; \
-		export CROSS_TARGET=mips-linux; \
-	fi
 	@config/setconfig defaults
 	@if egrep "^CONFIG_MCONF_LINUX=y" .config > /dev/null; then \
 		$(MAKE) -C $(DIR_LINUX) menuconfig; \
@@ -163,7 +143,7 @@ config menuconfig:
 .PHONY: users bins
 users bins:
 	$(MAKE) -C $(DIR_LINUX) dep > /dev/null
-	$(MAKE) -C $(DIR_USERS) TOOLCHAIN=$(TOOLCHAIN) || exit $$?
+	$(MAKE) -C $(DIR_USERS) || exit $$?
 
 #
 #2.1 user menuconfig
@@ -181,7 +161,7 @@ romfs:
 	cp -R $(DIR_RSDK)/lib/*.so $(DIR_ROMFS)/lib
 	cp -R $(DIR_RSDK)/lib/*.so.* $(DIR_ROMFS)/lib
 	chmod 755 $(DIR_ROMFS)/lib/*.so
-	$(MAKE) -C $(DIR_USERS) TOOLCHAIN=$(TOOLCHAIN) romfs || exit $$?
+	$(MAKE) -C $(DIR_USERS) romfs || exit $$?
 	$(LSTRIP) $(DIR_ROMFS)
 
 #

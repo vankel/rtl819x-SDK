@@ -956,14 +956,10 @@ void dwc_otg_phy_write(unsigned char reg, unsigned char val)
 	tmp = tmp & 0xFF00FF00;
 	REG32(0xb8003314) = (val << 16) | tmp; USB2_PHY_DELAY;
 #else  //8196D otg
-	unsigned int tmp = REG32(0xb8000090);  //8672 only
-#ifdef CONFIG_RTL_8198C
+	unsigned int tmp = REG32(0xb8000090);  //8672 only	
 	tmp = tmp & ~(0xff<<(11-11));
 	REG32(0xb8000090) = (val << (11-11)) | tmp; USB2_PHY_DELAY;
-#else
-	tmp = tmp & ~(0xff<<11);
-	REG32(0xb8000090) = (val << 11) | tmp; USB2_PHY_DELAY;
-#endif
+
 #endif	
 	//REG32(0xb8003314) = (val << 16) | tmp; USB2_PHY_DELAY;
 	REG32(0xb8030034) = ((reg & 0x0F) << 16) | 0x00004002; USB2_PHY_DELAY;
@@ -1008,12 +1004,10 @@ void HangUpRes(int en)
 {
 	#define SYS_USB_SIE 0xb8000034
 	if(en==0)
-	{	
-		REG32(SYS_USB_SIE) &= ~(1<<(27-0));  //s_usbotg_fs_ternel=0	
+	{	REG32(SYS_USB_SIE) &= ~(1<<(27-0));  //s_usbotg_fs_ternel=0	
 	}
 	else
-	{	
-		REG32(SYS_USB_SIE) |= (1<<(27-0));  //s_usbotg_fs_ternel=1
+	{	REG32(SYS_USB_SIE) |= (1<<(27-0));  //s_usbotg_fs_ternel=1
 	}
 }
 //===============================================================
@@ -1021,17 +1015,17 @@ void Set_SelUSBPort(int port)  // pass 1: is one port, other value is 2port
 {	
 	#define SYS_USB_SIE 0xb8000034
 	if(port==1)
-	{	REG32(SYS_USB_SIE) |= (1<<18);   //one_port_host_sel=1, means: one port
+	{	REG32(SYS_USB_SIE) |= (1<<(18-0));   //one_port_host_sel=1, means: one port
 	}
 	else
-	{	REG32(SYS_USB_SIE) &= ~(1<<18);   //one_port_host_sel=0, means: two port
+	{	REG32(SYS_USB_SIE) &= ~(1<<(18-0));   //one_port_host_sel=0, means: two port
 	}
 }
 //-----------------------------------------------------------------------------------
 unsigned int Get_SelUSBPort()
 {
 	#define SYS_USB_SIE 0xb8000034
-	unsigned int oneportsel=(REG32(SYS_USB_SIE) & (1<<18))>>18; 
+	unsigned int oneportsel=(REG32(SYS_USB_SIE) & (1<<(18-0)))>>(18-0); 
 	return (oneportsel & 0x1);
 }
 //-----------------------------------------------------------------------------------
@@ -1125,12 +1119,10 @@ Enable_OTG_Suspend(int sel, int en)  //sel=0 src from sys, then see en, sel=1, s
 	if(sel==0)
 	{
 		if(en==1)
-		{	
-			REG32(SYS_USB_SIE)&= ~(1<<(21-0));        //s_suspend_n=0		
+		{	REG32(SYS_USB_SIE)&= ~(1<<(21-0));        //s_suspend_n=0		
 		}
 		else
-		{	
-			REG32(SYS_USB_SIE) |= (1<<(21-0));        //s_suspend_n=1	  
+		{	REG32(SYS_USB_SIE) |= (1<<(21-0));        //s_suspend_n=1	  
 		}
 		
 		REG32(SYS_USB_SIE) &= ~(1<<(26-0));     //s_suspend_sel=0  (source from system)		
@@ -1145,17 +1137,9 @@ USBPhyReset(int reset)  //1: in reset,  0: working
 {
 	#define SYS_USB_PHY 0xb8000090
 	if(reset==0)
-#ifdef CONFIG_RTL_8198C
-	REG32(SYS_USB_PHY) &= ~(1<<(20-11));   //usbphy_reset=0 
-#else
-	REG32(SYS_USB_PHY) &= ~(1<<20);   //usbphy_reset=0	
-#endif
+	REG32(SYS_USB_PHY) &= ~(1<<(20-11));   //usbphy_reset=0	
 	else
-#ifdef CONFIG_RTL_8198C
 	REG32(SYS_USB_PHY) |=  (1<<(20-11));   //usbphy_reset=1
-#else
-	REG32(SYS_USB_PHY) |=  (1<<20);   //usbphy_reset=1
-#endif
 }
 //---------------------------------------------------------------------------------
 
@@ -1172,13 +1156,10 @@ int otg_reset_procedure(int mode)
 	 								//en=1 go to suspend, en=0 not in suspend, is working
 	
 	REG32(SYS_USB_SIE) |= (1<<(22-0));     //en_usbotg=1,  connect MAC and PHY
-#ifdef CONFIG_RTL_8198C
+
 	REG32(SYS_USB_PHY)|=(1<<(19-11));  //USBPHY_EN=1
 	REG32(SYS_USB_PHY)|=(1<<(21-11));  //active_usbphy
-#else
-	REG32(SYS_USB_PHY)|=(1<<(19-0));  //USBPHY_EN=1
-	REG32(SYS_USB_PHY)|=(1<<(21-0));  //active_usbphy
-#endif
+
 //----------------------------------------
 #ifndef CONFIG_RTL_OTGCTRL  //software decide iddig
 	Enable_AutoDetectionCircuit(0);  //disable autodet
@@ -1204,7 +1185,7 @@ int otg_reset_procedure(int mode)
 	}
 #endif
 //----------------------------------------
-#ifdef CONFIG_RTL_8198C
+#if CONFIG_RTL_8198C
 	
 	REG32(0xb8000010) = REG32(0xb8000010) | (0x1<<29);
 #endif
@@ -1218,7 +1199,7 @@ int otg_reset_procedure(int mode)
 #endif
 
 #if 1
-#ifdef CONFIG_RTL_8198C
+#if CONFIG_RTL_8198C
 	
 //	REG32(0xb8000010) = REG32(0xb8000010) | (0x1<<29);
 	//USBPhyReset(0);
@@ -1240,19 +1221,17 @@ int otg_reset_procedure(int mode)
         dwc_otg_phy_write(0xe6,0x98);  //disco
 
         dwc_otg_phy_write(0xf5,0x49);  //disco
-	//printk("b8000010=%x\r\n",REG32(0xb8000010));
+	printk("b8000010=%x\r\n",REG32(0xb8000010));
 	
-	//printk("b8000090=%x\r\n",REG32(0xb8000090));
-	//int i;;
-	//for(i=0xe0;i<=0xe7; i++)
-		//printk("reg %x=%x\n", i,dwc_otg_phy_read(i) );	
+	printk("b8000090=%x\r\n",REG32(0xb8000090));
+	int i;;
+	for(i=0xe0;i<=0xe7; i++)
+		printk("reg %x=%x\n", i,dwc_otg_phy_read(i) );	
 
 	//for(i=0xe0;i<=0xe7; i++)
 	//	printk("reg %x=%x\n", i,dwc_otg_phy_read(i) );	
 
 #else
-#if !defined(CONFIG_RTL_8881A)
-
 	//USBPhyReset(0);  //1: in reset, 0: working	
 	//PHYPatch();  //wei add	
 	dwc_otg_phy_write(0xe0,0x99);  //disconnect, work
@@ -1273,9 +1252,8 @@ int otg_reset_procedure(int mode)
 	
 	dwc_otg_phy_write(0xe6,0xb8);  //disconnect, work
 	int i;
-	//for(i=0xe0;i<=0xe7; i++)
-		//printk("reg %x=%x\n", i,dwc_otg_phy_read(i) );	
-#endif
+	for(i=0xe0;i<=0xe7; i++)
+		printk("reg %x=%x\n", i,dwc_otg_phy_read(i) );	
 #endif
 #endif
 	
@@ -1343,32 +1321,6 @@ int  dwc_otg_driver_init(void)
 		DWC_ERROR("OTG Device not found ! Bad value for SNPSID: 0x%08x\n", snpsid);
 		return 0;
 	}
-	#if defined(CONFIG_RTL_8881A)
-         
-	// refine for B-cut and later
-	{
-	unsigned int val= REG32(0xb80000dc);
-	if ((val & 0x3) != 0x3)
-		REG32(0xb80000dc) |= 0x3; // wlanmac_control, set active_wlanmac_sys and active_wlanmac_lx for RF revision ID
-
-	if ((REG32(0xb86400f0) & 0x0000f000) >= 0x00001000)
-	{
-		//Recommand by Yozen 09272013 for FT parameters
-		dwc_otg_phy_write(0xe2,0x9b); 
-		dwc_otg_phy_write(0xe6,0xe8); 
-	}
-	else
-	{
-			dwc_otg_phy_write(0xe2,0x9c); 
-            dwc_otg_phy_write(0xe6,0xa8); 
-	}
-
-	REG32(0xb80000dc) = val; // restore value.
-	}
-
-
-	    
-        #endif
 #if 0
 	if(IS_6085) {
 		printk("PHY IS_6085 \n");
@@ -1445,12 +1397,7 @@ int  dwc_otg_driver_init(void)
 #endif
    //Enhance USB 3.0 IOT issues
        dwc_otg_phy_write(0xE2, 0x99);
-#ifdef CONFIG_RTL_8198C
        dwc_otg_phy_write(0xE6, 0xc8);
-#else
-       dwc_otg_phy_write(0xE6, 0xb8);
-#endif
-
 
 #if DRIVER_USING_LM
 //cathy, allocate a lmdev device for driver

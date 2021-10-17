@@ -336,7 +336,20 @@ function wanShowDiv(pptp_bool, dns_bool, dnsMode_bool, pppoe_bool, static_bool, 
   	else
   		show_div(0,"dhcp_div");  
 }
-
+//-------------------------------------------------------------------------------------------
+function validateInteger(strMsg)//if strMsg contain nonnumeric character,it will return false,else it will return true;
+{
+	var test=/^(0|[1-9]\d*)$/;
+	if(test.exec(strMsg))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+//-------------------------------------------------------------------------------------------
 function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 {
   var wanType = form.wanType.selectedIndex ;
@@ -347,12 +360,16 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
   	
   var subNetNumber;
   //alert("pppoeNumber value ="+pppoeNumber);	
+
+  if (form.lte4g_build.value == 1 && form.lte4g_enable.value == 1)
+	wanType = 1;
+
   if ( wanType == 0 ){ //static IP
 	  if ( checkIpAddr(form.wan_ip, 'Invalid IP address') == false )
 	    return false;
   	  if (checkIPMask(form.wan_mask) == false)
   		return false ;
-
+	  
 	  if(checkHostIPValid(form.wan_ip,form.wan_mask,'Invalid IP address')== false) 
 		return false;
 
@@ -376,7 +393,15 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		if ( checkIpAddr(form.dns1, 'Invalid DNS address') == false ) 
               		return false;
 	}
-	  if (form.fixedIpMtuSize != null){
+	if (form.fixedIpMtuSize != null)
+	{
+			if(validateInteger(form.fixedIpMtuSize.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+			{
+				alert("You can't input nonnumeric character!");
+				form.fixedIpMtuSize.focus();
+ 				return false;
+			}
+
 	     d2 = getDigit(form.fixedIpMtuSize.value, 1);
 	     if ( validateKey(form.fixedIpMtuSize.value) == 0 ||
 			(d2 > 1500 || d2 < 1400) ) {
@@ -388,7 +413,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	  }    
   }
   else if ( wanType == 1){ //dhcp wanType
-  	  if (form.dhcpMtuSize != null){
+  	if (form.dhcpMtuSize != null)
+	{
+		if(validateInteger(form.dhcpMtuSize.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+		{
+			alert("You can't input nonnumeric character!");
+			form.dhcpMtuSize.focus();
+ 			return false;
+		}
 	     d2 = getDigit(form.dhcpMtuSize.value, 1);
 	     if ( validateKey(form.dhcpMtuSize.value) == 0 ||
 			(d2 > 1500 || d2 < 1400) ) {
@@ -453,7 +485,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	     }
 	   } 
            
-           if ( form.pppMtuSize != null){
+        if ( form.pppMtuSize != null)
+		{
+			if(validateInteger(form.pppMtuSize.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+			{
+				alert("You can't input nonnumeric character!");
+				form.pppMtuSize.focus();
+ 				return false;
+			}
 	     d2 = getDigit(form.pppMtuSize.value, 1);
 	     if ( validateKey(form.pppMtuSize.value) == 0 ||
 			(d2 > 1492 || d2 < 1360) ) {
@@ -493,7 +532,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 					}
 			     }
 		   }
-		   if ( form.pppMtuSize2 != null){
+		    if ( form.pppMtuSize2 != null)
+			{
+				if(validateInteger(form.pppMtuSize2.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+				{
+					alert("You can't input nonnumeric character!");
+					form.pppMtuSize2.focus();
+	 				return false;
+				}
 			     d2 = getDigit(form.pppMtuSize2.value, 1);
 			     if ( validateKey(form.pppMtuSize2.value) == 0 ||
 					(d2 > 1492 || d2 < 1360) ) {
@@ -536,7 +582,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 					}
 			     }
 		   } 	   
-		   if ( form.pppMtuSize3 != null){
+			if ( form.pppMtuSize3 != null)
+			{
+				if(validateInteger(form.pppMtuSize3.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+				{
+					alert("You can't input nonnumeric character!");
+					form.pppMtuSize3.focus();
+	 				return false;
+				}
 			     d2 = getDigit(form.pppMtuSize3.value, 1);
 			     if ( validateKey(form.pppMtuSize3.value) == 0 ||
 					(d2 > 1492 || d2 < 1360) ) {
@@ -577,7 +630,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 					}
 			     }
 		   } 	   
-		   if ( form.pppMtuSize4 != null){
+			if ( form.pppMtuSize4 != null)
+			{
+				if(validateInteger(form.pppMtuSize4.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+				{
+					alert("You can't input nonnumeric character!");
+					form.pppMtuSize4.focus();
+	 				return false;
+				}
 			     d2 = getDigit(form.pppMtuSize4.value, 1);
 			     if ( validateKey(form.pppMtuSize4.value) == 0 ||
 					(d2 > 1492 || d2 < 1360) ) {
@@ -602,7 +662,7 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		    return false;
 		  if (checkIPMask(form.pptpSubnetMask) == false)
 	  			return false ;
-		  
+
 		  if(checkHostIPValid(form.pptpIpAddr,form.pptpSubnetMask,'Invalid IP address')== false) 
 			return false;
 		  
@@ -648,7 +708,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 				}
 			     }
 	   }
-	  if ( form.pptpMtuSize != null){
+	if ( form.pptpMtuSize != null)
+	{
+		if(validateInteger(form.pptpMtuSize.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+		{
+			alert("You can't input nonnumeric character!");
+			form.pptpMtuSize.focus();
+	 		return false;
+		}
 	  	var d2 = getDigit(form.pptpMtuSize.value, 1);
 	   	if ( validateKey(form.pptpMtuSize.value) == 0 ||
 			(d2 > 1460 || d2 < 1400) ) {
@@ -669,8 +736,8 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		    return false;
 		  if (checkIPMask(form.l2tpSubnetMask) == false)
 	  			return false ;
-
-		   if(checkHostIPValid(form.l2tpIpAddr,form.l2tpSubnetMask,'Invalid IP address')== false) 
+		  
+		  if(checkHostIPValid(form.l2tpIpAddr,form.l2tpSubnetMask,'Invalid IP address')== false) 
 			return false;
 		  
 		  if ( checkIpAddr(form.l2tpServerIpAddr, 'Invalid server IP address') == false )
@@ -715,7 +782,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 				}
 	     }
 	   } 
-	  if ( form.l2tpMtuSize != null){
+	if ( form.l2tpMtuSize != null)
+	{
+		if(validateInteger(form.l2tpMtuSize.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+		{
+			alert("You can't input nonnumeric character!");
+			form.l2tpMtuSize.focus();
+	 		return false;
+		}
 	  	d2 = getDigit(form.l2tpMtuSize.value, 1);
 	   	if ( validateKey(form.l2tpMtuSize.value) == 0 ||
 			(d2 > 1460 || d2 < 1400) ) {
@@ -754,7 +828,14 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	                }
 	            }
 	        }
-	        if ( form.USB3GMtuSize != null){
+	        if ( form.USB3GMtuSize != null)
+			{
+				if(validateInteger(form.USB3GMtuSize.value)==false)//if nonnumeric character was input,a warining will be generated and this text box will be focused.
+				{
+					alert("You can't input nonnumeric character!");
+					form.USB3GMtuSize.focus();
+		 			return false;
+				}
 	            d2 = getDigit(form.USB3GMtuSize.value, 1);
 	            if ( validateKey(form.USB3GMtuSize.value) == 0 || (d2 > 1490 || d2 < 1420) ) {
 	                alert("Invalid MTU size! You should set a value between 1420-1490.");
@@ -1041,7 +1122,7 @@ function enableButton (button) {
     button.value = button.oldValue;
   }
 }
-	
+
 function showChannel5G(form, wlan_id)
 {
 	var sideBand=form.elements["controlsideband"+wlan_id].value;
@@ -1313,7 +1394,7 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 	}
 
 
-	if(band_value == 9 || band_value == 10 || band_value==7){
+	if(band_value == 9 || band_value == 10 || band_value==7 || band_value==74){
 		if(bound_40 ==1){
 			var sideBand_idex = form.elements["controlsideband"+wlan_id].selectedIndex;
 			var sideBand=form.elements["controlsideband"+wlan_id].options[sideBand_idex].value;
@@ -1367,20 +1448,6 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 	var chan;
 	
 //ac2g
-if(band_value == 74)
-{
-	start = 1;
-	end = 13;
-	for (chan=start; chan<=end; idx++) {
-		form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
-		if(chan == wlan_channel[wlan_id]){
-			form.elements["chan"+wlan_id].selectedIndex = idx;
-			defChanIdx = idx;
-		}
-		chan=chan+4;
-	}
-}
-else
 {
 	for (chan=start; chan<=end; chan++, idx++) {
 		form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
@@ -1938,6 +2005,25 @@ function updateRepeaterState(form, wlan_id)
 			disableTextField(form.elements["repeaterSSID"+wlan_id]);
 		}
   }
+}
+
+function updateStaControlState(form, wlan_mode)
+{   
+	disableCheckBox(form.elements["staControlEnabled"]);
+	form.elements["staControlPrefer"].disable = true;
+
+ 	
+	if(wlan_mode==0 ||
+	   wlan_mode==3 ||
+	   wlan_mode==4
+	  )
+	{     	
+		enableCheckBox(form.elements["staControlEnabled"]);
+		if (form.elements["staControlEnabled"].checked)
+		{
+			form.elements["staControlPrefer"].disable = false;
+		}	
+	}  	
 }
 
 function updateType(form, wlan_id)
@@ -2567,7 +2653,7 @@ function checkMacAddr_is_muticast(field)
 {
 	//var reg = /01005[eE][0-7][0-9a-fA-F]{5}/;
 	//if(reg.exec(field.value))
-	if(parseInt(str.substr(0, 2), 16) & 0x01 != 0)
+	if(parseInt(field.value.substr(0, 2), 16) & 0x01 != 0)
 	{
 		field.focus();
 		field.select();
@@ -2578,7 +2664,7 @@ function checkMacAddr_is_muticast(field)
 }
 function checkMacAddr(field,msg)
 {
-	return (checkMacAddr_is_legal(field) & checkMacAddr_is_zero(field) & checkMacAddr_is_broadcast(field) & checkMacAddr_is_muticast(field));
+	return (checkMacAddr_is_legal(field) && checkMacAddr_is_zero(field) && checkMacAddr_is_broadcast(field) && checkMacAddr_is_muticast(field));
 }
 function ppp_checkSubNetFormat(field,msg)
 {
@@ -3016,7 +3102,7 @@ function showchannelbound_updated(form, band, wlan_id, rf_num)
  form.elements["channelbound"+wlan_id].options[idx++] = new Option("20MHz", "0", false, false);
  form.elements["channelbound"+wlan_id].options[idx++] = new Option("40MHz", "1", false, false);
  
- if(band == 75 || band ==71|| band ==63 || band==74){ //ac2g
+ if(band == 75 || band ==71|| band ==63){ //ac2g
  form.elements["channelbound"+wlan_id].options[idx++] = new Option("80MHz", "2", false, false);
  }
  
@@ -3130,7 +3216,7 @@ function update_controlsideband(form, wlan_id)
 	var band_value= form.elements["band"+wlan_id].options[idx_value].value;
 	
 //ac2g
-	if(index ==0 || index==2 || (wlan_support_8812e==1 && (band_value==11 || band_value==63 || band_value==71 || band_value==75 || band_value==74 ||(band_value==7 && idx_value==1)))) //8812
+	if(index ==0 || index==2 || (wlan_support_8812e==1 && (band_value==11 || band_value==63 || band_value==71 || band_value==75 ||(band_value==7 && idx_value==1)))) //8812
 		disableTextField(form.elements["controlsideband"+wlan_id]);	
 	else
 		enableTextField(form.elements["controlsideband"+wlan_id]);
@@ -3165,6 +3251,21 @@ function updateChan_selectedIndex(form, wlan_id)
 		}
 	
 //ac2g	
-	if( ((wlan_support_8812e==1) && (chan_number > 14)) || band_value==74) //8812
+	if( ((wlan_support_8812e==1) && (chan_number > 14))) //8812
 		disableTextField(form.elements["controlsideband"+wlan_id]);	
+}
+
+function isReservedIpAddress(ip)
+{
+	var num = 0;
+	var ipaddr;
+
+	ipaddr = ip.split(".");
+	num = Number(ipaddr[0]);
+
+	if (num == 127)
+		return true;
+	else
+		return false;
+	
 }

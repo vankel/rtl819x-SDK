@@ -181,6 +181,7 @@ void formRoute(request *wp, char *path, char *query)
                         intVal = 1;
                 else
                         intVal = 0;	
+
 		if ( apmib_set( MIB_RIP_ENABLED, (void *)&intVal) == 0) {
 			strcpy(tmpBuf, ("Set enabled flag error!"));
 			goto setErr_route;
@@ -257,7 +258,6 @@ void formRoute(request *wp, char *path, char *query)
 				strcpy(tmpBuf, ("\"Set RIP LAN Tx error!\""));
 				goto setErr_route;
 		}
-		
 		if(nat_mode ==0){
 			if (apmib_set( MIB_RIP_WAN_TX, (void *)&ripmode_tx) == 0) {
 					strcpy(tmpBuf, ("\"Set RIP WAN Tx error!\""));
@@ -270,11 +270,10 @@ void formRoute(request *wp, char *path, char *query)
 			ripmode_rx = strRip_Mode[0] - '0' ;
 		}else
 			ripmode_rx = DISABLE_MODE;
-		
 		if (apmib_set( MIB_RIP_LAN_RX, (void *)&ripmode_rx) == 0) {
 			strcpy(tmpBuf, ("\"Set RIP LAN Rx error!\""));
 				goto setErr_route;
-			}
+		}
 		if(nat_mode ==0){
 			if ( apmib_set( MIB_RIP_WAN_RX, (void *)&ripmode_rx) == 0) {
 					strcpy(tmpBuf, ("\"Set RIP WAN Rx error!\""));

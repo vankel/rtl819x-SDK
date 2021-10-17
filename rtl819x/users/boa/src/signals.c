@@ -279,9 +279,66 @@ void sigalrm_run(void)
     sigalrm_flag = 0;
 }
 */
+
+#if defined(CONFIG_4G_LTE_SUPPORT)
+#include <sys/ioctl.h>
+#include <net/if.h>
+void lte_process()
+{
+	static int wait_reinit = 0;
+	static int needReboot_pre;
+
+	int sock_fd, lte = -1, wan_dhcp = -1;
+	struct stat fst;
+	struct ifreq ifr;
+
+	apmib_get( MIB_LTE4G,	 (void *)&lte);
+	apmib_get( MIB_WAN_DHCP, (void *)&wan_dhcp);
+
+	if (wan_dhcp != DHCP_CLIENT || lte != 1)
+		return;
+
+	if(wait_reinit == 0) {
+		strncpy(ifr.ifr_name, "usb0", IFNAMSIZ);
+
+	    if((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	        printf("Create socket failed!\n");
+			return;
+		}
+
+		if(ioctl(sock_fd, SIOCGIFFLAGS, ifr.ifr_name) < 0) {
+	        //printf("get SIOCGIFFLAGS fail!\n");
+			system("killall udhcpc > /dev/null 2>&1");
+			system("rm /etc/udhcpc/udhcpc-usb0.pid > /dev/null 2>&1");
+			close(sock_fd);
+			return;
+		}
+
+		close(sock_fd);
+
+		if ((stat("/etc/udhcpc/udhcpc-usb0.pid", &fst) < 0)) {
+			//printf("[%s:%d] reinit, run_init_script_flag[%d], needReboot[%d]\n", __FUNCTION__, __LINE__, run_init_script_flag, needReboot);
+			if (needReboot == 0 && needReboot_pre == 1) {
+				wait_reinit = 8;
+			}
+			else if (needReboot == 0 && needReboot_pre == 0) {
+				wait_reinit = 5;
+				system("init.sh gw all");
+			}
+		}
+	}
+
+	if (wait_reinit > 0) {
+		//printf("[%s:%d] wait_reinit=%d\n", __FUNCTION__, __LINE__, wait_reinit);
+		wait_reinit--;
+	}
+	needReboot_pre = needReboot;
+}
+#endif /* #if defined(CONFIG_4G_LTE_SUPPORT) */
+
 #define TIME_SLOT_1M	60
 #define TIME_SLOT_1H	3600
-	
+
 void sigalrm_run(void)
 {
 	static unsigned int count=0;
@@ -292,6 +349,10 @@ void sigalrm_run(void)
 		ulinker_process();
 #elif defined(CONFIG_POCKET_ROUTER_SUPPORT)
 		pocketAPProcess();
+#endif
+
+#if defined(CONFIG_4G_LTE_SUPPORT)
+	lte_process();
 #endif
 
 #ifdef CONFIG_RTL_P2P_SUPPORT	

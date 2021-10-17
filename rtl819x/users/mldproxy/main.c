@@ -2567,7 +2567,7 @@ void sigifup(int signum)
 			// Update default multicast interface for this socket.
 			Dup->pif_idx=IfPt->ifr_ifindex;
 			ifindex=(int)IfPt->ifr_ifindex;	
-			//IPPROTO_IP   Õâ¸öÓ¦¸Ã¶ÔÓ¦ÓÚipv6µÄÊ²Ã´å
+			//IPPROTO_IP   Õâ¸öÓ¦¸Ã¶ÔÓ¦ÓÚipv6µÄÊ²Ã´?
 			setsockopt(Ddp->sock, IPPROTO_IPV6 , IPV6_MULTICAST_IF, 
 				(void*)&ifindex, sizeof(int));
 		}

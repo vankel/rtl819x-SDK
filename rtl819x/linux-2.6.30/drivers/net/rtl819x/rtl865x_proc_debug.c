@@ -61,11 +61,14 @@
 #include <net/rtl/rtl_nic.h>
 #endif
 
+
 #if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
 extern unsigned int rx_noBuffer_cnt;
 extern unsigned int tx_ringFull_cnt;
 extern unsigned int tx_drop_cnt;
 #endif
+
+//#define CONFIG_FORCE_10M_100M_FULL_REFINE 1
 
 #define CONFIG_TR181_ETH  1
 
@@ -344,11 +347,6 @@ static int32 vlan_single_show(struct seq_file *s, void *v)
 #if defined(CONFIG_RTL_DYNAMIC_IRAM_MAPPING_FOR_WAPI)
 extern int switch_iram(uint32 addr);
 #endif
-extern 	int32 rtl865x_addVlan(uint16 vid);
-extern 	int32 rtl865x_addVlanPortMember(uint16 vid, uint32 portMask);
-extern 	int32 rtl865x_setVlanPortTag(uint16 vid,uint32 portMask,uint8 tag);
-extern 	int32 rtl865x_setVlanFilterDatabase(uint16 vid, uint32 fid);
-extern  int32 rtl865x_delVlan(uint16 vid);
 static int32 vlan_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	char 		tmpbuf[256];
@@ -3465,11 +3463,16 @@ static int32 hs_read( char *page, char **start, off_t off, int count, int *eof, 
 		len += sprintf(page+len,"\t\tpriority:%d",hsa_r->priority);
 
 		len += sprintf(page+len,"\tdp:0x%x\n",hsa_r->dp);
-#if !defined(CONFIG_RTL_8198C)
-		len += sprintf(page+len,")\n");
-#endif
 
-#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8881A)
+		len += sprintf(page+len,"\tcputag:%d",hsa_r->cputag);
+		len += sprintf(page+len,"\tptp_pkt:%d",hsa_r->ptp_pkt);
+		len += sprintf(page+len,"\tptp_v2:%d",hsa_r->ptp_v2);
+		len += sprintf(page+len,"\tptp_type:0x%x\n",hsa_r->ptp_type);
+		len += sprintf(page+len,"\trmdp:0x%x",hsa_r->rmdp);
+		len += sprintf(page+len,"\tdpri:0x%x\n",hsa_r->dpri);
+		len += sprintf(page+len,")\n");
+#elif defined(CONFIG_RTL_8198C)
  
 	len += sprintf(page+len,"\tcputag:%d",hsa_r->cputag);
 	len += sprintf(page+len,"\tptp_pkt:%d",hsa_r->ptp_pkt);
@@ -3515,6 +3518,8 @@ static int32 hs_read( char *page, char **start, off_t off, int count, int *eof, 
 	len += sprintf(page+len,"\tmltcst_v6:0x%x",hsa_r->mltcst_v6);
 	len += sprintf(page+len,"\taddip_pri:0x%x\n",hsa_r->addip_pri);
 	len += sprintf(page+len,")\n");
+#else
+		len += sprintf(page+len,")\n");
 #endif
 	}
 
@@ -4494,6 +4499,11 @@ static int32 nexthop_write( struct file *filp, const char *buff,unsigned long le
 #ifdef CONFIG_RTL_PROC_NEW
 static int32 l3_read(struct seq_file *s, void *v)
 {
+#if 0
+uint32			DSLEG;
+uint32			DSL_IDX;
+
+#endif
 	rtl865x_tblAsicDrv_routingParam_t asic_l3;
 	int8 *str[] = { "PPPoE", "L2", "ARP", " ", "CPU", "NxtHop", "DROP", " " };
 	int8 *strNetType[] = { "WAN", "DMZ", "LAN",  "RLAN"};
@@ -4513,15 +4523,10 @@ static int32 l3_read(struct seq_file *s, void *v)
 		else for(mask=32; !(asic_l3.ipMask&0x01); asic_l3.ipMask=asic_l3.ipMask>>1)
 				mask--;
 		netIdx = asic_l3.internal<<1|asic_l3.DMZFlag;
-#if defined(CONFIG_RTL_8198C)
 		seq_printf(s,"\t[%d]  %d.%d.%d.%d/%d process(%s) %s DSLEG(%d),DSL_IDX(%d)\n", idx, (asic_l3.ipAddr>>24),
 			((asic_l3.ipAddr&0x00ff0000)>>16), ((asic_l3.ipAddr&0x0000ff00)>>8), (asic_l3.ipAddr&0xff),
 			mask, str[asic_l3.process],strNetType[netIdx],asic_l3.DSLEG,asic_l3.DSL_IDX);
-#else
-		seq_printf(s,"\t[%d]  %d.%d.%d.%d/%d process(%s) %s \n", idx, (asic_l3.ipAddr>>24),
-			((asic_l3.ipAddr&0x00ff0000)>>16), ((asic_l3.ipAddr&0x0000ff00)>>8), (asic_l3.ipAddr&0xff),
-			mask, str[asic_l3.process],strNetType[netIdx]);
-#endif
+
 		switch(asic_l3.process)
 		{
 		case 0x00:	/* PPPoE */
@@ -5321,13 +5326,16 @@ errout:
 
 #endif
 
-#if defined(CONFIG_RTL_ETH_PRIV_SKB)
-extern int get_buf_in_poll(void);
-extern int get_buf_in_rx_skb_queue(void);
-#endif
-
 #if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
 //the following proc default established
+#ifdef CONFIG_RTL_819X_SWCORE
+extern int cnt_swcore ;
+extern int cnt_swcore_tx;
+extern int cnt_swcore_rx;
+extern int cnt_swcore_link;
+extern int cnt_swcore_err;
+#endif
+
 #ifdef CONFIG_RTL_PROC_NEW
 static int32 stats_debug_entry_read(struct seq_file *s, void *v)
 {
@@ -5340,6 +5348,15 @@ static int32 stats_debug_entry_read(struct seq_file *s, void *v)
 	seq_printf(s,"    rx_noBuffer_cnt:	%d\n",rx_noBuffer_cnt);
 	seq_printf(s,"    tx_ringFull_cnt:	%d\n",tx_ringFull_cnt);
 	seq_printf(s,"    tx_drop_cnt:	%d\n",tx_drop_cnt);
+	
+#ifdef CONFIG_RTL_819X_SWCORE
+	seq_printf(s,"    cnt_swcore:	%d\n",cnt_swcore);
+	seq_printf(s,"    cnt_swcore_tx:	%d\n",cnt_swcore_tx);
+	seq_printf(s,"    cnt_swcore_rx:	%d\n",cnt_swcore_rx);
+	seq_printf(s,"    cnt_swcore_link:	%d\n",cnt_swcore_link);
+	seq_printf(s,"    cnt_swcore_err:	%d\n",cnt_swcore_err);
+
+#endif
 	return 0;
 }
 #else
@@ -5356,6 +5373,14 @@ static int32 stats_debug_entry_read( char *page, char **start, off_t off, int co
 	len += sprintf(page+len,"    rx_noBuffer_cnt:	%d\n",rx_noBuffer_cnt);
 	len += sprintf(page+len,"    tx_ringFull_cnt:	%d\n",tx_ringFull_cnt);
 	len += sprintf(page+len,"    tx_drop_cnt:	%d\n",tx_drop_cnt);
+#ifdef CONFIG_RTL_819X_SWCORE
+	len += sprintf(page+len,"	  cnt_swcore:	%d\n",cnt_swcore);
+	len += sprintf(page+len,"	  cnt_swcore_tx:	%d\n",cnt_swcore_tx);
+	len += sprintf(page+len,"	  cnt_swcore_rx:	%d\n",cnt_swcore_rx);
+	len += sprintf(page+len,"	  cnt_swcore_link:	%d\n",cnt_swcore_link);
+	len += sprintf(page+len,"	  cnt_swcore_err:	%d\n",cnt_swcore_err);	
+#endif
+	
 	return len;
 		
 }
@@ -5386,6 +5411,14 @@ static int32 stats_debug_entry_write(struct file *file, const char *buffer,
 			rx_noBuffer_cnt=0;
 			tx_ringFull_cnt=0;
 			tx_drop_cnt=0;
+			
+#ifdef CONFIG_RTL_819X_SWCORE
+			cnt_swcore = 0;
+			cnt_swcore_tx = 0;
+			cnt_swcore_rx = 0;
+			cnt_swcore_link = 0;
+			cnt_swcore_err = 0;
+#endif
 		}
 
 	}
@@ -5399,11 +5432,6 @@ errout:
 
 
 #if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
-extern int get_mbuf_pending_times(void);
-extern int get_nic_rxRing_buf(void);
-extern int get_nic_txRing_buf(void);
-extern int get_nic_buf_in_wireless_tx(const char *name);
-extern	int get_cpu_completion_queue_num(void);
 #ifdef CONFIG_RTL_PROC_NEW
 static int32 rtl819x_proc_privSkbInfo_read(struct seq_file *s, void *v)
 {
@@ -5849,7 +5877,7 @@ static int32 port_status_read(struct seq_file *s, void *v)
 		data0 = (regData & (PortEEEStatus_MASK))>>PortEEEStatus_OFFSET;
 		seq_printf(s,"	EEE Status %0x\n\n",data0);
 #endif
-						
+
 	}
 #endif
 
@@ -5860,10 +5888,10 @@ static int32 port_status_read( char *page, char **start, off_t off, int count, i
 {
 	int		len, port;
 	
-#if defined(CONFIG_RTL_8367R_SUPPORT)
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 	len = sprintf(page, "Dump Port Status:\n");
 
-	for(port=PHY0;port<=PHY4;port++)
+	for(port=PHY0;port<EXT_SWITCH_MAX_PHY_PORT;port++)
 	{
 		extern int  rtk_port_macStatus_get(int port, rtk_port_mac_ability_t *pPortstatus);
 		rtk_port_mac_ability_t sts;
@@ -5949,14 +5977,6 @@ static int32 port_status_read( char *page, char **start, off_t off, int count, i
 }
 #endif
 
-extern int32 rtl8651_setAsicEthernetPHYPowerDown( uint32 port, uint32 pwrDown );
-extern int32 rtl8651_setAsicEthernetPHYSpeed( uint32 port, uint32 speed );
-extern int32 rtl8651_setAsicEthernetPHYDuplex( uint32 port, uint32 duplex );
-extern int32 rtl8651_setAsicEthernetPHYAutoNeg( uint32 port, uint32 autoneg);
-extern int32 rtl8651_setAsicEthernetPHYAdvCapality(uint32 port, uint32 capality);
-extern int32 rtl865xC_setAsicEthernetForceModeRegs(uint32 port, uint32 enForceMode, uint32 forceLink, uint32 forceSpeed, uint32 forceDuplex);
-extern int32 rtl8651_restartAsicEthernetPHYNway(uint32 port);
-
 static int32 port_status_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	char		tmpbuf[64];
@@ -5965,7 +5985,7 @@ static int32 port_status_write( struct file *filp, const char *buff,unsigned lon
 	char		*tokptr;
 	int 	type;
 	int 		port;
-#if !defined(CONFIG_RTL_8367R_SUPPORT)
+#if !defined(CONFIG_RTL_8367R_SUPPORT) && !defined(CONFIG_RTL_8370_SUPPORT)
 	int forceMode = 0;
 	int forceLink = 0;
 	int forceLinkSpeed = 0;
@@ -6023,13 +6043,13 @@ static int32 port_status_write( struct file *filp, const char *buff,unsigned lon
 			else
 				type = PORT_AUTO;
 
-#if defined(CONFIG_RTL_8367R_SUPPORT)
-			for(port = 0; port < 5; port++)
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
+			for(port = 0; port < EXT_SWITCH_MAX_PHY_PORT; port++)
 			{
-				extern int set_8367r_speed_mode(int port, int type);
+				extern int set_83XX_speed_mode(int port, int type);
 				if (((1<<port) & port_mask) && (type != HALF_DUPLEX_1000M))
 				{
-					set_8367r_speed_mode(port, type);
+					set_83XX_speed_mode(port, type);
 				}
 			}
 #else
@@ -6106,6 +6126,49 @@ static int32 port_status_write( struct file *filp, const char *buff,unsigned lon
 				/*all capality*/
 				advCapability=(1<<DUPLEX_1000M);
 			}
+#endif
+
+#ifdef CONFIG_FORCE_10M_100M_FULL_REFINE
+			/* design note:
+  			1. When user force port to 100MF, we still set to AN mode but disable 1000MF ability.
+  			2. When user force port to 10MF, we still set to AN mode but disable 100MF/100MH/1000MF ability.
+  			3. When user force port to 10MF/100MF, we process it as old way.
+ 			 */
+			 
+			if (type == DUPLEX_10M) {
+				for(port = 0; port < CPU; port++)
+				{
+					if ((1<<port) & port_mask) {
+						rtl8651_setAsicEthernetPHYAutoNeg(port, TRUE);
+						rtl8651_setAsicEthernetPHYAdvCapality(port, ((1<<HALF_DUPLEX_10M) | (1<<DUPLEX_10M)));
+						REG32(PCRP0 + (port * 4)) = (REG32(PCRP0 + (port * 4)) | AutoNegoSts_MASK) & ~(EnForceMode | PollLinkStatus | NwayAbility100MF | NwayAbility100MH |NwayAbility1000MF);
+					
+						rtl8651_restartAsicEthernetPHYNway(port);
+					}
+				}				
+			} else if (type == DUPLEX_100M) {
+				for(port = 0; port < CPU; port++)
+				{
+					if ((1<<port) & port_mask) {
+						rtl8651_setAsicEthernetPHYAutoNeg(port, TRUE);
+						rtl8651_setAsicEthernetPHYAdvCapality(port, ((1<<HALF_DUPLEX_10M) | (1<<DUPLEX_10M) |(1<<HALF_DUPLEX_100M) | (1<<DUPLEX_100M)));
+						REG32(PCRP0 + (port * 4)) = (REG32(PCRP0 + (port * 4)) | AutoNegoSts_MASK) & ~(EnForceMode | PollLinkStatus |NwayAbility1000MF);
+					
+						rtl8651_restartAsicEthernetPHYNway(port);
+					}
+				}				
+			} else if ((type == DUPLEX_1000M) ||(type == PORT_AUTO)) {
+				for(port = 0; port < CPU; port++)
+				{
+					if ((1<<port) & port_mask) {
+						rtl8651_setAsicEthernetPHYAutoNeg(port, TRUE);
+						rtl8651_setAsicEthernetPHYAdvCapality(port, ((1<<HALF_DUPLEX_10M) | (1<<DUPLEX_10M) |(1<<HALF_DUPLEX_100M) | (1<<DUPLEX_100M) |(1<<DUPLEX_1000M)));
+						REG32(PCRP0 + (port * 4)) = (REG32(PCRP0 + (port * 4)) | AutoNegoSts_MASK) & ~(EnForceMode | PollLinkStatus);
+					
+						rtl8651_restartAsicEthernetPHYNway(port);
+					}
+				}				
+			} else
 #endif
 
 			for(port = 0; port < CPU; port++)
@@ -6230,6 +6293,49 @@ void display_8367r_port_stat(uint32 port, rtk_stat_port_cntr_t *pPort_cntrs)
 }
 #endif
 
+#ifdef CONFIG_RTL_8370_SUPPORT
+extern rtk_stat_port_cntr_t  port_cntrs;
+
+void display_8370_port_stat(uint32 port, rtk_stat_port_cntr_t *p)
+{
+	if ( port == 9 )
+		rtlglue_printf("\n<CPU port>\n");
+	else
+		rtlglue_printf("\n<Port: %d>\n", port);
+
+	rtlglue_printf("Rx counters:\n");
+
+	rtlglue_printf("   Rcv %llu bytes, Unicast %u pkts, Multicast %u pkts, Broadcast %u pkts\n", 
+		p->ifInOctets, p->ifInUcastPkts, p->etherStatsMcastPkts, p->etherStatsBcastPkts);
+	rtlglue_printf("   64: %u pkts, 65 -127: %u pkts, 128 -255: %u pkts\n", 
+		p->etherStatsPkts64Octets, p->etherStatsPkts65to127Octets, p->etherStatsPkts128to255Octets);
+	rtlglue_printf("   256 - 511: %u pkts, 512 - 1023: %u pkts, 1024 - max: %u pkts\n", 
+		p->etherStatsPkts256to511Octets, p->etherStatsPkts512to1023Octets, p->etherStatsPkts1024toMaxOctets);
+	rtlglue_printf("   Drop: %u, FCSError: %u, Fragment: %u, JabberErr: %u\n", 
+		p->etherStatsDropEvents, p->dot3StatsFCSErrors, p->etherStatsFragments, p->etherStatsJabbers);
+	rtlglue_printf("   OverSize: %u, UnderSize: %u, Unknown: %u, inOampdu: %u\n", 
+		p->etherStatsOversizePkts, p->etherStatsUndersizePkts, 
+		p->dot3ControlInUnknownOpcodes, p->inOampduPkts);
+	rtlglue_printf("   PortInDiscard: %u, SymbolErr: %u, Pause: %u\n", 
+		p->dot1dTpPortInDiscards, p->dot3StatsSymbolErrors, p->dot3InPauseFrames);
+	rtlglue_printf("   etherStatsOctets  %llu\n", p->etherStatsOctets);
+
+
+	rtlglue_printf("\nOutput counters:\n");
+
+	rtlglue_printf("   Snd %llu bytes, Unicast %u pkts, Multicast %u pkts, Broadcast %u pkts\n", 
+		p->ifOutOctets, p->ifOutUcastPkts, p->ifOutMulticastPkts, p->ifOutBrocastPkts);
+	rtlglue_printf("   Collision: %u, SingleCol: %u, MultipleCol: %u, LateCol: %u\n", 
+		p->etherStatsCollisions, p->dot3StatsSingleCollisionFrames, 
+		p->dot3StatsMultipleCollisionFrames, p->dot3StatsLateCollisions);
+	rtlglue_printf("   ExcessiveCol: %u, DeferredTx: %u, DelayExceededDiscard: %u\n", 
+		p->dot3StatsExcessiveCollisions, p->dot3StatsDeferredTransmissions, 
+		p->dot1dBasePortDelayExceededDiscards);
+	rtlglue_printf("   outOampdu: %u, pktgen: %u, Pause: %u\n", 
+		p->outOampduPkts, p->pktgenPkts, p->dot3OutPauseFrames);
+}
+#endif
+
 static int32 rtl865x_proc_mibCounter_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	char 		tmpbuf[512];
@@ -6263,7 +6369,7 @@ static int32 rtl865x_proc_mibCounter_write( struct file *filp, const char *buff,
 		{
 			rtl8651_clearAsicCounter();
 
-#ifdef CONFIG_RTL_8367R_SUPPORT
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 			rtk_stat_global_reset();
 #endif
 		}
@@ -6282,8 +6388,27 @@ static int32 rtl865x_proc_mibCounter_write( struct file *filp, const char *buff,
 					if ((portNum > 4) && (portNum != r8367_cpu_port))	// skip port 6 in 8367R; skip port 5 in 8367RB
 						continue;
 
+					memset(&port_cntrs, 0, sizeof(rtk_stat_port_cntr_t));
 					rtk_stat_port_getAll(portNum, &port_cntrs);
 					display_8367r_port_stat(portNum, &port_cntrs);
+				}
+				return len;
+			}
+#endif
+#ifdef CONFIG_RTL_8370_SUPPORT
+			if(strncmp(cmdptr, "8370",4) == 0) {	// 8370 or 83700 ~ 83709
+			
+				if ((cmdptr[4] >= '0') && (cmdptr[4] <= '9')) {
+					memset(&port_cntrs, 0, sizeof(rtk_stat_port_cntr_t));
+					rtk_stat_port_getAll((cmdptr[4] - '0'), &port_cntrs);
+					display_8370_port_stat((cmdptr[4] - '0'), &port_cntrs);
+				}
+				else {
+					for (portNum=0; portNum<=9; portNum++) {
+						memset(&port_cntrs, 0, sizeof(rtk_stat_port_cntr_t));
+						rtk_stat_port_getAll(portNum, &port_cntrs);
+						display_8370_port_stat(portNum, &port_cntrs);
+					}
 				}
 				return len;
 			}
@@ -6397,9 +6522,6 @@ static int32 proc_mmd_read( char *page, char **start, off_t off, int count, int 
 	return PROC_READ_RETURN_VALUE;
 }
 #endif
-
-extern int32 mmd_read(uint32 phyId, uint32 devId, uint32 regId, uint32 *rData);
-extern int32 mmd_write(uint32 phyId, uint32 devId, uint32 regId, uint32 wData);
 
 /*
 	echo read phy_id device_id reg_addr  > /proc/rtl865x/mmd
@@ -6845,6 +6967,149 @@ static int32 proc_phyReg_write( struct file *filp, const char *buff,unsigned lon
 			}		
 		}
 #endif
+#ifdef CONFIG_RTL_8370_SUPPORT
+		else if (!memcmp(cmd_addr, "8370read", 8))
+		{
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			if (!memcmp(tokptr, "l2", 2))
+			{
+				extern void get_all_L2(void);
+				get_all_L2();
+			}
+			else 
+			{
+				regId=simple_strtol(tokptr, NULL, 16);
+				ret = rtl8370_getAsicReg(regId, &regData);
+
+				if(ret==0)
+					rtlglue_printf("rtl8370_getAsicReg: reg= %x, data= %x\n", regId, regData);
+				else
+					rtlglue_printf("get fail %d\n", ret);
+			}
+		}
+		else if (!memcmp(cmd_addr, "8370write", 9))
+		{
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 16);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regData=simple_strtol(tokptr, NULL, 16);
+
+			ret = rtl8370_setAsicReg(regId, regData);
+
+			if(ret==0)
+			{
+				rtlglue_printf("rtl8370_setAsicReg: reg= %x, data= %x\n", regId, regData);
+			}
+			else
+			{
+				rtlglue_printf("set fail %d\n", ret);
+			}
+		}
+		else if (!memcmp(cmd_addr, "8370phyr", 8))
+		{
+			extern int rtl8370_getAsicPHYReg(uint32 phyNo, uint32 phyAddr, uint32 *pRegData );
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 0);
+
+			ret=rtl8370_getAsicPHYReg(phyId, regId, &regData);
+			if(ret==SUCCESS)
+			{
+				rtlglue_printf("read 8370 phyId(%d), regId(%d), regData:0x%x\n", phyId, regId, regData);
+			}
+			else
+			{
+				rtlglue_printf("error input!\n");
+			}		
+		}
+		else if (!memcmp(cmd_addr, "8370phyw", 8))
+		{
+			extern int rtl8370_setAsicPHYReg(uint32 phyNo, uint32 phyAddr, uint32 phyData );
+			
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regData=simple_strtol(tokptr, NULL, 16);
+
+			ret=rtl8370_setAsicPHYReg(phyId, regId, regData);
+			if(ret==SUCCESS)
+			{
+				rtlglue_printf("Write 8370 phyId(%d), regId(%d), regData:0x%x\n", phyId, regId, regData);
+			}
+			else
+			{
+				rtlglue_printf("error input!\n");
+			}
+		}
+		else if (!memcmp(cmd_addr, "8370test", 8))
+		{
+			extern int rtk_port_phyTestMode_set(uint32 port, int mode);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 0);
+
+			ret=rtk_port_phyTestMode_set(phyId, regId);
+			if(ret==SUCCESS)
+			{
+				rtlglue_printf("set 8370 phyId(%d) to mode: %d\n", phyId, regId);
+			}
+			else
+			{
+				rtlglue_printf("rtk_port_phyTestMode_set return error\n");
+			}		
+		}
+#endif
 		else if (!memcmp(cmd_addr, "extRead", 7))
 		{
 			tokptr = strsep(&strptr," ");
@@ -7015,7 +7280,7 @@ static int32 proc_phyReg_write( struct file *filp, const char *buff,unsigned lon
 			}			
 			else
 				goto errout;
-		}	
+		}		
 		else if (!memcmp(cmd_addr, "ado", 3))
 		{
 			extern void ado_setting(int mode);
@@ -7284,9 +7549,9 @@ static int32 fc_threshold_read(struct seq_file *s, void *v)
 	//SBFCR2
 	regData = READ_MEM32(SBFCR2);
 	data0 = (regData & S_Max_SBuf_FCOFF_MASK)>>S_Max_SBuf_FCOFF_OFFSET;
-	seq_printf(s, "S_MaxSBuf_FCOFF:%d, ",data0);
+	seq_printf(s, "S_MaxSBuf_FCON:%d, ",data0);
 	data0 = (regData & S_Max_SBuf_FCON_MASK)>>S_Max_SBuf_FCON_OFFSET;
-	seq_printf(s, "S_MaxSBuf_FCON:%d\n",data0);
+	seq_printf(s, "S_MaxSBuf_FCOFF:%d\n",data0);
 	//FCCR0,FCCR1
 	regData = READ_MEM32(FCCR0);
 	data0 =(regData & Q_P0_EN_FC_MASK)>>(Q_P0_EN_FC_OFFSET);	
@@ -7428,9 +7693,9 @@ static int32 fc_threshold_read( char *page, char **start, off_t off, int count, 
 	//SBFCR2
 	regData = READ_MEM32(SBFCR2);
 	data0 = (regData & S_Max_SBuf_FCOFF_MASK)>>S_Max_SBuf_FCOFF_OFFSET;
-	len += sprintf(page+len, "S_MaxSBuf_FCOFF:%d, ",data0);
+	len += sprintf(page+len, "S_MaxSBuf_FCON:%d, ",data0);
 	data0 = (regData & S_Max_SBuf_FCON_MASK)>>S_Max_SBuf_FCON_OFFSET;
-	len += sprintf(page+len, "S_MaxSBuf_FCON:%d\n",data0);
+	len += sprintf(page+len, "S_MaxSBuf_FCOFF:%d\n",data0);
 	//FCCR0,FCCR1
 	regData = READ_MEM32(FCCR0);
 	data0 =(regData & Q_P0_EN_FC_MASK)>>(Q_P0_EN_FC_OFFSET);	
@@ -7713,7 +7978,6 @@ static int32 arp6_read(struct seq_file *s, void *v)
 					asic_arpv6.hostid.v6_addr32[3],
 					asic_arpv6.aging);
 	}
-
 	return 0;
 }
 #else
@@ -8301,11 +8565,8 @@ struct file_operations nexthop_proc_fops= {
         .llseek         = seq_lseek,
         .release        = single_release,
 };
-#ifdef CONFIG_RTL_PROC_NEW
+
 extern int32 sw_nexthop_read(struct seq_file *s, void *v);
-#else
-extern int32 sw_nexthop_read( char *page, char **start, off_t off, int count, int *eof, void *data );
-#endif
 extern int32 sw_nexthop_write( struct file *filp, const char *buff,unsigned long len, void *data );
 
 int sw_nexthop_single_open(struct inode *inode, struct file *file)
@@ -8342,11 +8603,7 @@ struct file_operations l3_proc_fops= {
         .release        = single_release,
 };
 /*sw_l3*/
-#ifdef CONFIG_RTL_PROC_NEW
 extern int32 sw_l3_read(struct seq_file *s, void *v);
-#else
-extern int32 sw_l3_read( char *page, char **start, off_t off, int count, int *eof, void *data );
-#endif
 extern int32 sw_l3_write( struct file *filp, const char *buff,unsigned long len, void *data );
 
 int sw_l3_single_open(struct inode *inode, struct file *file)
@@ -8823,7 +9080,17 @@ struct file_operations sw_dslite_proc_fops= {
 };
 #endif
 #endif
-#endif
+
+#else	// CONFIG_RTL_PROC_NEW
+
+	#ifdef CONFIG_RTL_PROC_DEBUG
+	extern int32 sw_nexthop_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+	extern int32 sw_nexthop_write( struct file *filp, const char *buff,unsigned long len, void *data );
+	extern int32 sw_l3_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+	extern int32 sw_l3_write( struct file *filp, const char *buff,unsigned long len, void *data );	
+	#endif
+	
+#endif	// CONFIG_RTL_PROC_NEW
 
 
 int32 rtl865x_proc_debug_init(void)
@@ -8843,7 +9110,7 @@ int32 rtl865x_proc_debug_init(void)
 	if(rtl865x_proc_dir)
 	{
 		#ifdef CONFIG_RTL_PROC_DEBUG
-#if 0//ndef CONFIG_RTL_8198C  /* "/proc/rtl865x/stats" is duplicated */
+#ifndef CONFIG_RTL_8198C  /* "/proc/rtl865x/stats" is duplicated */
 		/*stats*/
 		{
 #ifdef CONFIG_RTL_PROC_NEW

@@ -109,12 +109,7 @@ int main(unsigned long stack_start_addr)
 	printf("done decompressing kernel.\n");
 #endif
 
-#if defined(CONFIG_RTL_8198C)&&defined(CONFIG_MTD_NAND)&&defined(CONFIG_MTD_NAND_RTK)
-    flush_cache_really();
-#else
-    flush_cache();
-#endif
-
+	flush_cache();
 	
 	printf("start address: 0x%08x\n", kernelStartAddr);
 	start_kernel(kernelStartAddr);

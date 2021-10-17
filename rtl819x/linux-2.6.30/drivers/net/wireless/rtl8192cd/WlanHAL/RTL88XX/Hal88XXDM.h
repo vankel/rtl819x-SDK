@@ -50,6 +50,11 @@ typedef enum _MACDM_TP_THRS_88XX_ {
 }MACDM_TP_THRS_88XX, *PMACDM_TP_THRS_88XX;
 
 
+typedef enum _MACDM_AGGRE_STATE_{
+    MACDM_AGGRE_STATE_NONE = 0,
+    MACDM_AGGRE_STATE_TXOP,
+    MACDM_AGGRE_STATE_TXOP_EARLY
+} MACDM_AGGRE_STATE, *PMACDM_AGGRE_STATE;
 
 
 VOID
@@ -64,6 +69,21 @@ Timer1SecDM88XX(
 );
 
 
+u4Byte
+CalMaxAggreNum(
+    IN  u4Byte  page_size,
+    IN  u4Byte  min_pageNum, //the minimum pageNum of "dedicated queue + pub queue"
+    IN  BOOLEAN AMSDU_En,
+    IN  u4Byte  txdesc_len
+);
+
+
+VOID
+DecisionAggrePara(
+    IN  HAL_PADAPTER    Adapter,
+    IN  u4Byte          aggre_state,
+    IN  u4Byte          TxopMaxAggreNum
+);
 
 
 

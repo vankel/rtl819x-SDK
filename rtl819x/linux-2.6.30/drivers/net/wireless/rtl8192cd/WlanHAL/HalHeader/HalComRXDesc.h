@@ -7,7 +7,7 @@
 #include "HalHWCfg.h"
 /*--------------------------Include File--------------------------------------*/
 
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 //3 RX Buffer Descriptor
 //RXBD Desc bit Mask & Shift
 //Dword 0 MSK
@@ -56,10 +56,10 @@
 #define RX_DW0_SHIFT_MSK                0x3
 #define RX_DW0_PHYST_MSK                0x1
 #define RX_DW0_SWDEC_MSK                0x1
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW0_RSVD28_29_MSK            0x3
 #endif
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW0_PHYPKTIDC_MSK            0x1
 #define RX_DW0_RSVD_29_MSK              0x1
 #endif
@@ -76,10 +76,10 @@
 #define RX_DW0_SHIFT_SH                 24
 #define RX_DW0_PHYST_SH                 26
 #define RX_DW0_SWDEC_SH                 27
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW0_RSVD28_29_SH             28
 #endif
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW0_PHYPKTIDC_SH             28
 #define RX_DW0_RSVD29_SH                29
 #endif
@@ -89,10 +89,10 @@
 
 //Dword1
 #define RX_DW1_MACID_MSK                0x7F
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW1_RSVD7_MSK                0x1
 #endif
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW1_EXT_SECTYPE_MSK          0x1
 #endif
 #define RX_DW1_TID_MSK                  0xF
@@ -100,10 +100,10 @@
 #define RX_DW1_AMSDU_MSK                0x1
 #define RX_DW1_RXID_MATCH_MSK           0x1
 #define RX_DW1_PAGGR_MSK                0x1
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW1_A1_FIT_MSK               0xF
 #endif
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW1_RSVD_16_19_MSK           0xF
 #endif
 #define RX_DW1_CHKERR_MSK               0x1
@@ -121,10 +121,10 @@
 //Dword1
 #define RX_DW1_MACID_SH                 0
 
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW1_RSVD7_SH                 7
 #endif
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW1_EXT_SECTYPE_SH           7
 #endif
 #define RX_DW1_TID_SH                   8
@@ -132,11 +132,11 @@
 #define RX_DW1_AMSDU_SH                 13
 #define RX_DW1_RXID_MATCH_SH            14
 #define RX_DW1_PAGGR_SH                 15
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW1_A1_FIT_SH                16
 #endif
 
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW1_RSVD_16_19_SH            16
 #endif
 #define RX_DW1_CHKERR_SH                20
@@ -177,11 +177,11 @@
 
 //Dword3
 #define RX_DW3_RX_RATE_MSK              0x7F
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW3_RSVD7_9_MSK              0x7
 #endif
 
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW3_BSSID_FIT_MSK            0x7
 #endif
 
@@ -197,11 +197,11 @@
 
 //Dword3
 #define RX_DW3_RX_RATE_SH               0
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW3_RSVD7_9_SH               7
 #endif
 
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW3_BSSID_FIT_SH             7
 #endif
 #define RX_DW3_HTC_SH                   10
@@ -216,7 +216,7 @@
 
 
 //Dword4
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW4_OFDM_SGI_MSK             0x1
 #define RX_DW4_CCK_SPLCP_MSK            0x1
 #define RX_DW4_LDPC_MSK                 0x1
@@ -224,9 +224,9 @@
 #define RX_DW4_NOT_SOUNDING_MSK         0x1
 #define RX_DW4_BW_MSK                   0x3
 #define RX_DW4_RSVD6_31_MSK             0x3FFFFFF
-#endif //#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#endif
 
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW4_PATTERN_IDX_MSK          0xFF
 #define RX_DW4_RXEOF_MSK                0x1
 #define RX_DW4_RX_SCRMBLER_MSK          0x7F
@@ -234,10 +234,10 @@
 #define RX_DW4_MACID_MSK                0x7F
 #define RX_DW4_A1_FIT_MSK               0x1F
 #define RX_DW4_RSVD29_31_MSK            0x7
-#endif //#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#endif
 
 //Dword4
-#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#if (RTL8881A_SUPPORT || RTL8192E_SUPPORT)
 #define RX_DW4_OFDM_SGI_SH              0
 #define RX_DW4_CCK_SPLCP_SH             0
 #define RX_DW4_LDPC_SH                  1
@@ -245,9 +245,9 @@
 #define RX_DW4_NOT_SOUNDING_SH          3
 #define RX_DW4_BW_SH                    4
 #define RX_DW4_RSVD6_31_SH              6
-#endif //#if CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#endif
 
-#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#if RTL8814A_SUPPORT
 #define RX_DW4_PATTERN_IDX_SH           0
 #define RX_DW4_RXEOF_SH                 8
 #define RX_DW4_RX_SCRMBLER_SH           9
@@ -255,7 +255,7 @@
 #define RX_DW4_MACID_SH                 17
 #define RX_DW4_A1_FIT_SH                24
 #define RX_DW4_RSVD29_31_SH             29
-#endif //#if CONFIG_WLANREG_SUPPORT & SUPPORT_CHIP_8813A
+#endif
 
 
 //Dword5
@@ -265,5 +265,5 @@
 #define RX_DW5_TSFL_SH                  0
 
 
-#endif	//CONFIG_WLANREG_SUPPORT & (SUPPORT_CHIP_8881A|SUPPORT_CHIP_8192E)
+#endif	// (RTL8881A_SUPPORT || RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 #endif  //__HAL_COM_RXDESC_H__

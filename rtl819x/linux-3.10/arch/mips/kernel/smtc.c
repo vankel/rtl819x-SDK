@@ -912,7 +912,7 @@ void smtc_send_ipi(int cpu, int type, unsigned int action)
 			 * loop, we need to force exit from the wait and
 			 * do a direct post of the IPI.
 			 */
-#if 0//def CONFIG_CPU_HAS_WAITOFF
+#ifdef CONFIG_CPU_HAS_WAITOFF
 			tcrestart = read_tc_c0_tcrestart();
 			if (address_is_in_r4k_wait_irqoff(tcrestart)) {
 				write_tc_c0_tcrestart(__pastwait);

@@ -102,15 +102,16 @@ typedef enum{
 	DOT11_AuthKeyType_RSNReserved = 0,
 	DOT11_AuthKeyType_RSN = 1,
 	DOT11_AuthKeyType_RSNPSK = 2,
+#ifdef CONFIG_IEEE80211R
+	DOT11_AuthKeyType_FT = 3,
+#else
 	DOT11_AuthKeyType_NonRSN802dot1x = 3,
+#endif
 	DOT11_AuthKeyType_802_1X_SHA256 = 5,
 	DOT11_AuthKeyType_PSK_SHA256 = 6,
 	DOT11_AuthKeyType_PRERSN = 255,
 } DOT11_AUTHKEY_TYPE;
 
-#ifdef HS2_SUPPORT
-#define	WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256 1
-#endif
 
 typedef enum{
         DOT11_Ioctl_Query = 0,
@@ -208,9 +209,7 @@ typedef enum{
 #endif  //ifdef CONFIG_IWPRIV_INTF
 #endif	
 
-    DOT11_EVENT_WSC_RM_PBC_STA=106,
 #ifdef HS2_SUPPORT
-	DOT11_EVENT_WNM_NOTIFY = 109,
 	DOT11_EVENT_GAS_INIT_REQ = 110,
 	DOT11_EVENT_GAS_COMEBACK_REQ = 111,
 	DOT11_EVENT_HS2_SET_IE = 112,
@@ -219,13 +218,20 @@ typedef enum{
 	DOT11_EVENT_HS2_TSM_REQ = 115,
 	DOT11_EVENT_HS2_GET_RSN = 116,
 	DOT11_EVENT_HS2_GET_MMPDULIMIT=117,
-	DOT11_EVENT_WNM_DEAUTH_REQ = 118,
-	DOT11_EVENT_QOS_MAP_CONF = 119,
 #endif
+	DOT11_EVENT_WSC_RM_PBC_STA=119,
 #ifdef CONFIG_IEEE80211W
 	DOT11_EVENT_SET_PMF = 120,
 	DOT11_EVENT_GET_IGTK_PN = 121,
 	DOT11_EVENT_INIT_PMF = 122,
+#endif
+#ifdef CONFIG_IEEE80211R
+	DOT11_EVENT_FT_IMD_ASSOC_IND	= 126,
+	DOT11_EVENT_FT_QUERY_INFO		= 133,
+	DOT11_EVENT_FT_SET_INFO			= 134,
+	DOT11_EVENT_FT_AUTH_INSERT_R0	= 135,
+	DOT11_EVENT_FT_AUTH_INSERT_R1	= 136,
+	DOT11_EVENT_FT_TRIGGER_EVENT	= 137,
 #endif
 
     DOT11_EVENT_MAX = 200,
@@ -267,9 +273,9 @@ typedef struct _DOT11_WPA_MULTICAST_CIPHER{
 typedef struct _DOT11_ASSOCIATION_IND{
         unsigned char   EventId;
         unsigned char   IsMoreEvent;
-        unsigned char            MACAddr[MacAddrLen];
+        char            MACAddr[MacAddrLen];
         unsigned short  RSNIELen;
-        unsigned char            RSNIE[MAXRSNIELEN];
+        char            RSNIE[MAXRSNIELEN];
 }DOT11_ASSOCIATION_IND;
 
 typedef struct _DOT11_ASSOCIATION_RSP{
@@ -330,41 +336,7 @@ typedef struct _DOT11_DISASSOCIATION_IND{
 	unsigned long   Reason;
 }DOT11_DISASSOCIATION_IND;
 
-#if	defined( CONFIG_IEEE80211W	) || 	defined( HS2_SUPPORT	)
-typedef struct _DOT11_WNM_NOTIFY{
-        unsigned char   EventId;
-        unsigned char   IsMoreEvent;
-		unsigned char   macAddr[MacAddrLen];
-        unsigned char   remedSvrURL[2048];
-#if 1		
-		unsigned char   serverMethod;
-#endif
-}DOT11_WNM_NOTIFY;
-
-typedef struct _DOT11_WNM_DEAUTH_REQ{
-        unsigned char   EventId;
-        unsigned char   IsMoreEvent;
-		unsigned char   macAddr[MacAddrLen];
-		unsigned char   reason;
-		unsigned short  reAuthDelay;
-        unsigned char   URL[2048];
-}DOT11_WNM_DEAUTH_REQ;
-
-typedef struct _DOT11_BSS_SessInfo_URL{
-        unsigned char   EventId;
-        unsigned char   IsMoreEvent;
-		unsigned char   macAddr[MacAddrLen];
-		unsigned char   SWT;
-        unsigned char   URL[2048];
-}DOT11_BSS_SessInfo_URL;
-
-typedef struct _DOT11_INIT_11W_Flags {
-	unsigned char	EventId;
-	unsigned char	IsMoreEvent;
-	unsigned char   dot11IEEE80211W;
-    unsigned char   dot11EnableSHA256;
-}DOT11_INIT_11W_Flags;
-
+#ifdef CONFIG_IEEE80211W	
 typedef struct _DOT11_SET_11W_Flags {
 	unsigned char	EventId;
 	unsigned char	IsMoreEvent;
@@ -542,7 +514,63 @@ typedef struct _DOT11_INIT_QUEUE
     unsigned char EventId;
     unsigned char IsMoreEvent;
 } DOT11_INIT_QUEUE, *PDOT11_INIT_QUEUE;
+#ifdef CONFIG_IEEE80211R
+typedef struct _DOT11_QUERY_FT_INFORMATION
+{
+    unsigned char EventId;
+    unsigned char IsMoreEvent;
+	unsigned char sta_addr[MacAddrLen];
+	unsigned char ssid[32];
+	unsigned int ssid_len;
+	unsigned char mdid[2];
+	unsigned char r0kh_id[48];
+	unsigned int r0kh_id_len;
+	unsigned char bssid[MacAddrLen];
+	unsigned char over_ds;
+	unsigned char res_request;
+} DOT11_QUERY_FT_INFORMATION, *PDOT11_QUERY_FT_INFORMATION;
 
+typedef struct _DOT11_SET_FT_INFORMATION
+{
+    unsigned char EventId;
+    unsigned char IsMoreEvent;
+	unsigned char sta_addr[MacAddrLen];
+	unsigned char UnicastCipher;
+	unsigned char MulticastCipher;
+	unsigned char bInstallKey;
+} DOT11_SET_FT_INFORMATION, *PDOT11_SET_FT_INFORMATION;
+
+typedef struct _DOT11_AUTH_FT_INSERT_R0_KEY
+{
+    unsigned char EventId;
+    unsigned char IsMoreEvent;
+	unsigned char sta_addr[MacAddrLen];
+	unsigned char pmk_r0[PMK_LEN];
+	unsigned char pmk_r0_name[PMKID_LEN];
+} DOT11_AUTH_FT_INSERT_R0_KEY, *PDOT11_AUTH_FT_INSERT_R0_KEY;
+
+typedef struct _DOT11_AUTH_FT_INSERT_R1_KEY
+{
+    unsigned char EventId;
+    unsigned char IsMoreEvent;
+	unsigned char sta_addr[MacAddrLen];
+	unsigned char bssid[MacAddrLen];
+	unsigned char r0kh_id[48];
+	unsigned int r0kh_id_len;
+	unsigned char pmk_r1[PMK_LEN];
+	unsigned char pmk_r1_name[PMKID_LEN];
+	unsigned char pmk_r0_name[PMKID_LEN];
+	unsigned int pairwise;
+} DOT11_AUTH_FT_INSERT_R1_KEY, *PDOT11_AUTH_FT_INSERT_R1_KEY;
+
+typedef struct _DOT11_AUTH_FT_TRIGGER_EVENT
+{
+    unsigned char EventId;
+    unsigned char IsMoreEvent;
+	unsigned char trigger_eventid;
+	unsigned char sta_addr[MacAddrLen];
+} DOT11_AUTH_FT_TRIGGER_EVENT, *PDOT11_AUTH_FT_TRIGGER_EVENT;
+#endif
 
 
 //------------------------------------------------------------

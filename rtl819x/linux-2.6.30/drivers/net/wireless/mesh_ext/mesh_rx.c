@@ -17,13 +17,6 @@
 
 #ifdef CONFIG_RTK_MESH
 
-
-
-#ifdef _11s_TEST_MODE_
-int pid_receiver = 0;
-#endif
-
-
 /*
 	Check the "to_fr_ds" field:
 
@@ -69,8 +62,9 @@ int rx_dispatch_mesh(DRV_PRIV *priv, struct rx_frinfo *pfrinfo)
 	// Hence, we had to use WIFI_DATA_TYPE in 8186, 8187B and now 8190.
 	if (frtype == WIFI_DATA_TYPE) {	
 		struct stat_info	*pstat;
+        #ifndef SMP_SYNC
 		unsigned long		flags;
-               
+        #endif               
 		SAVE_INT_AND_CLI(flags);
 		pstat = get_stainfo(priv, GetAddr2Ptr(pframe));
 		
@@ -109,19 +103,7 @@ int rx_dispatch_mesh(DRV_PRIV *priv, struct rx_frinfo *pfrinfo)
 		if(TTL == 0)	// filter packets due to duplicate
 			goto out;
 						
-		*GetMeshHeaderTTLWithOutQOS(pframe) = TTL-1;
-
-		/* Totti 2008.07.30 test Pause filter.
-		if(IS_MCAST(da) && !chkMeshSeq(priv, GetAddr4Ptr(pframe),seq))	// filter packets due to duplicate
-			 goto out;
-		*/
-	
-		//pPathselEntry = priv->pathsel_table->search_entry(priv->pathsel_table, sa);
-
-// Gallardo test 2008.0901	
-//		if (NULL != pPathselEntry)
-//			pPathselEntry->update_time = xtime;
-						
+		*GetMeshHeaderTTLWithOutQOS(pframe) = TTL-1;				
 		SetFrameSubType(pframe, WIFI_WMM_ACTION); // it's easier for mgt_handler
 
 		// IF Draft modify Action frame to Date frame, Remove line between here to goto out ?
@@ -138,40 +120,6 @@ int rx_dispatch_mesh(DRV_PRIV *priv, struct rx_frinfo *pfrinfo)
 	{
 	
 		memcpy(pfrinfo->prehop_11s, GetAddr2Ptr(pframe), MACADDRLEN);
-		
-/*	
-		struct path_sel_entry *pPathselEntry;
-		
-#ifdef MESH_AMSDU
-		if(((*GetQosControl(pframe))& BIT(7))==0)
-#endif
-		{			
-			unsigned short seq=0;
-			int TTL=0;				
-
-			unsigned char *meshHdrPtr; 
-			meshHdrPtr = getMeshHeader(priv, priv->pmib->dot11sKeysTable.dot11Privacy, pframe);	   	
-			if( meshHdrPtr ) 
-			{
-				seq = *((unsigned short*)(meshHdrPtr+2));
-				TTL = *((unsigned char*) (meshHdrPtr+1));
-				if(TTL == 0)	// filter packets due to duplicate
-					goto out;
-				
-				*(meshHdrPtr+1)=TTL-1;
-				memcpy(&(pfrinfo->mesh_header), meshHdrPtr, sizeof(struct lls_mesh_header) );
-			}		
-			// Usually, IS_MCAST(A3) = IS_MCAST(A1) for a multicast frame
-			// However, when using unicast to simulate multicast, A3 is unicast but A1 is not (it is not implemented now)
-			// On the other hand, if a maliciuos host issues multicast for A1 but unicast for A3, a flooding would happen if not chcking A1
-			if((IS_MCAST(da)||IS_MCAST(GetAddr1Ptr(pframe))) && !chkMeshSeq(priv, GetAddr4Ptr(pframe),seq))	// filter packets due to duplicate
-				goto out;
-		}
-	
-		pPathselEntry = priv->pathsel_table->search_entry(priv->pathsel_table, sa);	
-		if (NULL != pPathselEntry)
-			pPathselEntry->update_time = xtime;							
-*/		
 	} 
 	else { 
 		DEBUG_ERR("Rx a 11s packet but which type is not DATA, drop it!\n");
@@ -190,151 +138,149 @@ out:
 
 
 
-#ifdef	_11s_TEST_MODE_
-void GEN_TEST_PACKET_ACK(struct rtl8190_priv *priv, int n)
-{
-	unsigned char data[20];
-	struct task_struct *p;
-
-	memset(data, 0, 20);	
-	sprintf(data, "%d", n);
-	DOT11_EnQueue2((unsigned long)priv, priv->receiver_queue, data, strlen(data)+1 );
-                
-    if(pid_receiver != 0){
-        read_lock(&tasklist_lock); 
-        p = find_task_by_pid(pid_receiver);
-        read_unlock(&tasklist_lock);
-        if(p)
-                send_sig(SIGUSR2, p, 0); 	
-        else
-                pid_receiver = 0;        
-    }
-}
-#endif
-
 #ifdef MESH_AMSDU
 static void process_11s_amsdu(struct rtl8190_priv *priv, struct stat_info *pstat, struct rx_frinfo *pfrinfo)
 {
-	unsigned char	*pframe;
-	struct sk_buff	*pskb  = NULL, *pnewskb = NULL;
-	unsigned char	*next_head;
-	int 			rest, agg_pkt_num=0, i, privacy;
-	unsigned int	subfr_len, padding;
-	unsigned const char rfc1042_ip_header[8]={0xaa,0xaa,0x03,00,00,00,0x08,0x00};
+    unsigned char	*pframe;
+    struct sk_buff	*pskb  = NULL, *pnewskb = NULL;
+    unsigned char	*next_head;
+    int 			rest, agg_pkt_num=0, i, privacy;
+    unsigned int	subfr_len, padding;
+    unsigned const char rfc1042_ip_header[8]={0xaa,0xaa,0x03,00,00,00,0x08,0x00};
+#ifdef SMP_SYNC
+    unsigned long flags;
+#endif
 
-	pframe = get_pframe(pfrinfo);
-	pskb = get_pskb(pfrinfo);
+    pframe = get_pframe(pfrinfo);
+    pskb = get_pskb(pfrinfo);
 
-	rest = pfrinfo->pktlen - pfrinfo->hdr_len;
-	next_head = pframe + pfrinfo->hdr_len;
+    rest = pfrinfo->pktlen - pfrinfo->hdr_len;
+    next_head = pframe + pfrinfo->hdr_len;
 
-	if (GetPrivacy(pframe)) {
-		privacy = get_sta_encrypt_algthm(priv, pstat);
-		if ((privacy == _CCMP_PRIVACY_) || (privacy == _TKIP_PRIVACY_)) {
-			rest -= 8;
-			next_head += 8;
-		}
-		else {	// WEP
-			rest -= 4;
-			next_head += 4;
-		}
-	}
-	while (rest > WLAN_ETHHDR_LEN) {
-		pnewskb = skb_clone(pskb, GFP_ATOMIC);
-		if (pnewskb) {
-			pnewskb->data = next_head;		
-			subfr_len = (*(next_head + MACADDRLEN*2) << 8) + (*(next_head + MACADDRLEN*2 + 1));
-			pnewskb->len = WLAN_ETHHDR_LEN + subfr_len;
-			pnewskb->tail = pnewskb->data + pnewskb->len;
+    if (GetPrivacy(pframe)) {
+        privacy = get_sta_encrypt_algthm(priv, pstat);
+        if ((privacy == _CCMP_PRIVACY_) || (privacy == _TKIP_PRIVACY_)) {
+            rest -= 8;
+            next_head += 8;
+        }
+        else {	// WEP
+            rest -= 4;
+            next_head += 4;
+        }
+    }
+    while (rest > WLAN_ETHHDR_LEN) {
+        pnewskb = skb_clone(pskb, GFP_ATOMIC);
+        if (pnewskb) {
+            pnewskb->data = next_head;		
+            subfr_len = (*(next_head + MACADDRLEN*2) << 8) + (*(next_head + MACADDRLEN*2 + 1));
+            pnewskb->len = WLAN_ETHHDR_LEN + subfr_len;
+            pnewskb->tail = pnewskb->data + pnewskb->len;
 
-			if (!memcmp(rfc1042_ip_header, pnewskb->data+WLAN_ETHHDR_LEN, 8)) {
-				for (i=0; i<MACADDRLEN*2; i++)
-					pnewskb->data[19-i] = pnewskb->data[11-i];
-				pnewskb->data += 8;
-				pnewskb->len -= 8;
-			}
-			else
-				strip_amsdu_llc(priv, pnewskb, pstat);
-			agg_pkt_num++;
+            if (!memcmp(rfc1042_ip_header, pnewskb->data+WLAN_ETHHDR_LEN, 8)) {
+                for (i=0; i<MACADDRLEN*2; i++)
+                    pnewskb->data[19-i] = pnewskb->data[11-i];
+                pnewskb->data += 8;
+                pnewskb->len -= 8;
+            }
+            else
+                strip_amsdu_llc(priv, pnewskb, pstat);
+            agg_pkt_num++;
 
-			
-			{
-				struct rx_frinfo newfrinfo;
-				struct	MESH_HDR* mhdr = (struct MESH_HDR*) (pnewskb->data+sizeof(struct wlan_ethhdr_t));
-				memset(&newfrinfo, 0, sizeof(newfrinfo));
-				newfrinfo.is_11s = 8;
-				newfrinfo.to_fr_ds = 3;
-				newfrinfo.pktlen = pnewskb->len;
-				newfrinfo.da = (pnewskb->data);
-				newfrinfo.sa = (pnewskb->data+MACADDRLEN);
-				newfrinfo.pskb = pnewskb;
-				if( 1 >= mhdr->TTL--)
-					rtl_kfree_skb(priv, pnewskb, _SKB_RX_);
-				else
-				{
-					struct path_sel_entry *pPathselEntry;		
-					pPathselEntry = priv->pathsel_table->search_entry(priv->pathsel_table, newfrinfo.sa);                                         
-					if (pPathselEntry) {
+
+            {
+                struct rx_frinfo newfrinfo;
+                struct	MESH_HDR* mhdr = (struct MESH_HDR*) (pnewskb->data+sizeof(struct wlan_ethhdr_t));
+                memset(&newfrinfo, 0, sizeof(newfrinfo));
+                newfrinfo.is_11s = 8;
+                newfrinfo.to_fr_ds = 3;
+                newfrinfo.pktlen = pnewskb->len;
+                newfrinfo.da = (pnewskb->data);
+                newfrinfo.sa = (pnewskb->data+MACADDRLEN);
+                newfrinfo.pskb = pnewskb;
+                if( 1 >= mhdr->TTL--)
+                    rtl_kfree_skb(priv, pnewskb, _SKB_RX_);
+                else
+                {
+                    struct path_sel_entry *pPathselEntry;		
+                    SMP_LOCK_MESH_PATH(flags);
+                    pPathselEntry = HASH_SEARCH(priv->pathsel_table, newfrinfo.sa);                                         
+                    if (pPathselEntry) {
                         if(IS_MCAST(newfrinfo.da) && !chkMeshSeq(pPathselEntry, newfrinfo.sa, mhdr->segNum)) {
+                            SMP_UNLOCK_MESH_PATH(flags);
                             rtl_kfree_skb(priv, pnewskb, _SKB_RX_);
                         }
                         else {
-    						pPathselEntry->update_time = xtime; 					
+                            pPathselEntry->update_time = jiffies; 
+                            SMP_UNLOCK_MESH_PATH(flags);
+
                             memcpy(&(newfrinfo.mesh_header), mhdr, sizeof(struct MESH_HDR));
                             if (process_11s_datafrme(priv, &newfrinfo, pstat) == FAIL) 
                                 rtl_kfree_skb(priv, pnewskb, _SKB_RX_);
 
                         }                    
                     }    
-					
-				}				
-			}
+                    else {
+                        SMP_UNLOCK_MESH_PATH(flags);
+                    }
 
-			padding = 4 - ((WLAN_ETHHDR_LEN + subfr_len) % 4);
-			if (padding == 4)
-				padding = 0;
-			rest -= (WLAN_ETHHDR_LEN + subfr_len + padding);
-			next_head += (WLAN_ETHHDR_LEN + subfr_len + padding);
-		}
-		else {
-			// Can't get new skb header, drop this packet
-			break;
-		}
-	}
+                }				
+            }
+
+            padding = 4 - ((WLAN_ETHHDR_LEN + subfr_len) % 4);
+            if (padding == 4)
+                padding = 0;
+            rest -= (WLAN_ETHHDR_LEN + subfr_len + padding);
+            next_head += (WLAN_ETHHDR_LEN + subfr_len + padding);
+        }
+        else {
+            // Can't get new skb header, drop this packet
+            break;
+        }
+    }
 
 
-	// clear saved shortcut data
+    // clear saved shortcut data
 #if defined(RX_SHORTCUT) && defined(RX_RL_SHORTCUT)
-	if (pstat->rx_payload_offset)
-		pstat->rx_payload_offset = 0;
+    if (pstat->rx_payload_offset)
+        pstat->rx_payload_offset = 0;
 #endif
 
 
-	rtl_kfree_skb(priv, pskb, _SKB_RX_);
+    rtl_kfree_skb(priv, pskb, _SKB_RX_);
 }
 #endif
 
 
 #ifdef RX_RL_SHORTCUT
-int mesh_shortcut_update(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_info *pstat, int idx, struct path_sel_entry **pEntry, struct MESH_HDR **meshHdrPt)
+int mesh_shortcut_update(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, 
+             struct stat_info *pstat, int idx, struct path_sel_entry *pEntry, unsigned char *to_mesh, struct MESH_HDR **meshHdrPt)
 {
+#ifdef SMP_SYNC
+    unsigned long flags;
+#endif
     unsigned char *pframe = get_pframe(pfrinfo);
     struct path_sel_entry *pPathselEntry;
     struct proxy_table_entry *pProxyEntry;
-    struct MESH_HDR * mesh_header;
+    struct MESH_HDR * mesh_header;            
     DRV_PRIV * orig_priv = priv;
+
+    *to_mesh = 0;
     if (memcmp(GetAddr4Ptr(pframe), pstat->rx_sc_ent[idx].rx_wlanhdr.addr4, MACADDRLEN)){
         return -1;
     }
 
     priv = (DRV_PRIV *)priv->mesh_priv_first;
     if (memcmp(GetAddr3Ptr(pframe), GET_MY_HWADDR, MACADDRLEN)) {
-			
-        *pEntry = priv->pathsel_table->search_entry(priv->pathsel_table, GetAddr3Ptr(pframe));
-        if (*pEntry) {	            
-            //printk("pEntry -> nh %02x \n", (*pEntry)->nexthopMAC[5]);
+
+        SMP_LOCK_MESH_PATH(flags);
+        pPathselEntry = HASH_SEARCH(priv->pathsel_table, GetAddr3Ptr(pframe));
+        if (pPathselEntry) {	            
+            memcpy(pEntry, pPathselEntry, sizeof(struct path_sel_entry));
+            *to_mesh = 1;
         }
-        else
+        SMP_UNLOCK_MESH_PATH(flags);
+        
+        if(pPathselEntry == NULL)
             return -1;	
     }
 
@@ -356,10 +302,13 @@ int mesh_shortcut_update(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
 	
 	
     //6 addresss format, update pathsel and proxy timer 
-    pPathselEntry = priv->pathsel_table->search_entry(priv->pathsel_table, pfrinfo->sa); 
+    SMP_LOCK_MESH_PATH(flags);
+    pPathselEntry = HASH_SEARCH(priv->pathsel_table, pfrinfo->sa); 
     if (pPathselEntry != NULL)
-        pPathselEntry->update_time = xtime; 
+        pPathselEntry->update_time = jiffies;
+    SMP_UNLOCK_MESH_PATH(flags);
 
+    SMP_LOCK_MESH_PROXY(flags);
     pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, mesh_header->SrcMACAddr);
     if (pProxyEntry != NULL)
         pProxyEntry->aging_time = 0;
@@ -367,6 +316,8 @@ int mesh_shortcut_update(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
     pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, mesh_header->DestMACAddr); 
     if (pProxyEntry != NULL && pProxyEntry->aging_time >= 0) 
         pProxyEntry->aging_time = 0;
+    SMP_UNLOCK_MESH_PROXY(flags);
+
 
     return 0;
 }
@@ -380,6 +331,9 @@ int mesh_shortcut_update(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
 */
 int process_11s_datafrme(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_info *pstat)
 {
+#ifdef SMP_SYNC
+    unsigned long flags;
+#endif
     unsigned char 	*pframe;
     unsigned int  	privacy, res;
     struct sk_buff	 *pskb  = NULL;
@@ -418,7 +372,9 @@ int process_11s_datafrme(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
                 return FAIL;
             }
 
-            pPathselEntry = priv->pathsel_table->search_entry(priv->pathsel_table, pfrinfo->sa);
+            SMP_LOCK_MESH_PATH(flags);
+
+            pPathselEntry = HASH_SEARCH(priv->pathsel_table, pfrinfo->sa);
             if(pPathselEntry) {
             
                 // Usually, IS_MCAST(A3) = IS_MCAST(A1) for a multicast frame
@@ -426,14 +382,17 @@ int process_11s_datafrme(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
                 // On the other hand, if a maliciuos host issues multicast for A1 but unicast for A3, a flooding would happen if not chcking A1
                 if(IS_MCAST(pfrinfo->da) ){ // filter packets due to duplicate                                       
                     if(!chkMeshSeq(pPathselEntry, pfrinfo->sa, meshHdrPtr->segNum)) {  
+                        SMP_UNLOCK_MESH_PATH(flags);
                         return FAIL;
                     }            
                 }     
-                pPathselEntry->update_time = xtime; 
+                pPathselEntry->update_time = jiffies;
             }
             else {/*drop loop multicast packet*/
+                SMP_UNLOCK_MESH_PATH(flags);
                 return FAIL;
             }
+            SMP_UNLOCK_MESH_PATH(flags);
 		
             memcpy(&(pfrinfo->mesh_header), meshHdrPtr, sizeof(struct lls_mesh_header) );
 		
@@ -450,49 +409,7 @@ int process_11s_datafrme(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
 
     //if frame is 6 addresss format, update proxy table 
     if(memcmp(pfrinfo->sa, addr6, MACADDRLEN)) { // addr4 <> addr 6, save it to proxy table
-        struct proxy_table_entry*   pProxyEntry = NULL, Entry;          
-        pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, addr6);    
-        if(!pProxyEntry) {
-            memcpy(Entry.sta, addr6, MACADDRLEN);
-            memcpy(Entry.owner, pfrinfo->sa, MACADDRLEN);
-            Entry.aging_time = 0;
-            HASH_INSERT(priv->proxy_table, Entry.sta, &Entry);
-
-            mesh_proxy_debug("[A6 forwardding]Insert Proxy table: %02x:%02x:%02x:%02x:%02x:%02x/%02x:%02x:%02x:%02x:%02x:%02x\n",
-                Entry.owner[0],Entry.owner[1],Entry.owner[2],Entry.owner[3],Entry.owner[4],Entry.owner[5],
-                Entry.sta[0],Entry.sta[1],Entry.sta[2],Entry.sta[3],Entry.sta[4],Entry.sta[5]);
-#if defined(CONFIG_RTL_MESH_CROSSBAND)
-            sync_proxy_info(priv->mesh_priv_sc,Entry.sta, 0); //refresh proxy info of another band 
-#endif
-        } else if(pProxyEntry && memcmp(pProxyEntry->owner, pfrinfo->sa, MACADDRLEN)) {
-
-            mesh_proxy_debug("[A6 forwardding]Update Proxy table:from %02x:%02x:%02x:%02x:%02x:%02x to  %02x:%02x:%02x:%02x:%02x:%02x/%02x:%02x:%02x:%02x:%02x:%02x\n",
-                pProxyEntry->owner[0],pProxyEntry->owner[1],pProxyEntry->owner[2],pProxyEntry->owner[3],pProxyEntry->owner[4],pProxyEntry->owner[5],
-                pfrinfo->sa[0],pfrinfo->sa[1],pfrinfo->sa[2],pfrinfo->sa[3],pfrinfo->sa[4],pfrinfo->sa[5],
-                pProxyEntry->sta[0],pProxyEntry->sta[1],pProxyEntry->sta[2],pProxyEntry->sta[3],pProxyEntry->sta[4],pProxyEntry->sta[5]);
-
-
-                                               
-            memcpy(pProxyEntry->owner,pfrinfo->sa,MACADDRLEN);
-            pProxyEntry->aging_time = 0;
-
-            #if defined(RTL_MESH_TXCACHE)
-            priv->mesh_txcache.dirty = 0;
-            #endif
-#if defined(CONFIG_RTL_MESH_CROSSBAND)
-            sync_proxy_info(priv->mesh_priv_sc,pProxyEntry->sta, 2); //delete proxy info of another band 
-#endif
-        } else {
-            pProxyEntry->aging_time = 0;
-            mesh_proxy_debug("[A6 forwardding]Refresh Proxy table: %02x:%02x:%02x:%02x:%02x:%02x/%02x:%02x:%02x:%02x:%02x:%02x\n",
-                pProxyEntry->owner[0],pProxyEntry->owner[1],pProxyEntry->owner[2],pProxyEntry->owner[3],pProxyEntry->owner[4],pProxyEntry->owner[5],
-                pProxyEntry->sta[0],pProxyEntry->sta[1],pProxyEntry->sta[2],pProxyEntry->sta[3],pProxyEntry->sta[4],pProxyEntry->sta[5]);
-
-#if defined(CONFIG_RTL_MESH_CROSSBAND)
-            sync_proxy_info(priv->mesh_priv_sc, pProxyEntry->sta, 0); //refresh proxy info of another band 
-#endif
-
-        }
+        mesh_proxy_update(priv, pfrinfo->sa, addr6);
     }
 
     privacy = get_sta_encrypt_algthm(orig_priv, pstat);
@@ -517,188 +434,78 @@ int process_11s_datafrme(DRV_PRIV *priv, struct rx_frinfo *pfrinfo, struct stat_
     {
 
         if( memcmp(pfrinfo->da, GET_MY_HWADDR, MACADDRLEN)== 0)
-        {
+        {     
+            // filter packets that SA is myself 
+            if ( memcmp(pfrinfo->sa, GET_MY_HWADDR, MACADDRLEN) == 0)
+                return FAIL;
 
-#if 0 		
-			// dest is me, and I am root
-			if( memcmp(priv->root_mac, GET_MY_HWADDR, MACADDRLEN) == 0 ) 
-			{
-				struct proxy_table_entry*	pProxyEntry = NULL;			
-				struct path_sel_entry *pEntry = NULL;
-				
-				pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, addr5);
-				if(pProxyEntry != NULL) // addr5 is a proxy sta
-				{
-					memcpy(pfrinfo->da, pProxyEntry->owner, MACADDRLEN);
-					if(memcmp(pProxyEntry->owner, GET_MY_HWADDR, MACADDRLEN)== 0) 
-					{
-						if (0 != memcmp(pfrinfo->sa, GET_MY_HWADDR, MACADDRLEN)) 
-						{
-							goto receive_packet;
-						} 
-						else 
-						 	// I am the owner of dest. However, I am also the sender of the packet.
-							// e.g., still not knowing the owner(myself)-dest, so I issued the packet
-							//rtl_kfree_skb(priv, pskb, _SKB_RX_);
-							return FAIL;
-						
-					}
-					else 
-					// stanley
-					{
-    					pProxyEntry->aging_time = 0;              
-						if(relay_11s_dataframe(pskb, /*pskb->dev,*/ privacy, pfrinfo)) 
-						{
-							rtl_kfree_skb(priv, pskb, _SKB_TX_);
-						}
-					}
-				} 
-				else 	// for pProxyEntry == 0
-				{ 
-					pEntry = pathsel_query_table( priv, addr5 );
-					if(pEntry != (struct path_sel_entry *)-1) // add5 is an MP
-					{ 
-						memcpy(pfrinfo->da, addr5, MACADDRLEN);					
-						if(relay_11s_dataframe(pskb, /*pskb->dev,*/ privacy, pfrinfo))
-							rtl_kfree_skb(priv, pskb, _SKB_TX_);					
-						
-					} 
-					else  // pProxyEntry == 0 && pEntry = -1, addr5 is unknown
-					{
-						unsigned char toUpper = 0, freeSkb=1;
-			
-						// note: Mac addr of br0 and msh0 might be different.
-						//       Hence, even the packet was issued by myself, addr4 might not equal to addr6
-						//       That's why we keep a seperated 'toUpper' flag
-						if(memcmp(pfrinfo->sa, GET_MY_HWADDR, MACADDRLEN))
-	  						toUpper = 1;
-						
-						res = skb_p80211_to_ether(pskb->dev, privacy, pfrinfo);
-						if (res == FAIL) {
-							priv->ext_stats.rx_data_drops++;
-							DEBUG_ERR("RX DROP: skb_p80211s_to_ether fail!\n");
-							return FAIL;
-						}
-
-						// 802.3 format, I am not dest
-						if( memcmp(pskb->data, GET_MY_HWADDR, MACADDRLEN)) 
-						{
-							if( toUpper )
-							{
-								// copy the content of pskb into a new memory (pnewskb)
-								pnewskb = skb_copy(pskb, GFP_ATOMIC);
-								if(pnewskb)
-								{
-									do_aodv_routing(priv, pnewskb, pnewskb->data);
-								}
-							}
-							else
-							{							
-								do_aodv_routing(priv, pskb, pskb->data);
-								freeSkb =0;
-							}								
-						}
-						
-						// filter packets that SA is myself
-						if (toUpper)
-							rtl_netif_rx(priv, pskb, pstat);	//also let bridge flooding to all interface besides mesh0
-						else if( freeSkb )
-							rtl_kfree_skb(priv, pskb, _SKB_RX_);
-					} 
-				} 
-				return SUCCESS;		
-			} 
-			else
-#endif                
-            // dest is me, but I am not root
-            {
-                static unsigned char zero_addr[MACADDRLEN] = {0}; 
-
-                // filter packets that SA is myself 
-                if ( memcmp(pfrinfo->sa, GET_MY_HWADDR, MACADDRLEN) == 0)
-                    return FAIL;
-
-                //when the packets from root to dest, we need let dest triger AODV protocl to find src
-                if(memcmp(priv->root_mac, zero_addr, MACADDRLEN) != 0)
-                {
-                    struct path_sel_entry *pEntry = NULL;							
-                    pEntry = pathsel_query_table( priv, pfrinfo->sa );
-                    if(pEntry == (struct path_sel_entry *)-1) {
-
-                        if(MESH_SPINLOCK(lock_Rreq)) {
-                            GEN_PREQ_PACKET(pfrinfo->sa, priv, 1);
-                            MESH_SPINUNLOCK(lock_Rreq);
-                            {
-#if 0
-                            LOG_MESH_MSG("RX fire AODV to find:%02X:%02X:%02X:%02X:%02X:%02X\n",
-                            pfrinfo->da[0], pfrinfo->da[1], pfrinfo->da[2], pfrinfo->da[3], pfrinfo->da[4], pfrinfo->da[5]);
-#endif								
-                            }
-                        } else {
-                            panic_printk("%s suffer racing issue\n",__func__);
-                        }
-                    } 
-                } 
 #ifdef PU_STANDARD_RX
-                if( Is_6AddrFormat && memcmp(GET_MY_HWADDR, addr5, MACADDRLEN) )
+            if( Is_6AddrFormat && memcmp(GET_MY_HWADDR, addr5, MACADDRLEN) )
+            {
+                struct proxyupdate_table_entry Entry;
+                struct proxy_table_entry *pEntry=NULL;
+                struct path_sel_entry *pdstEntry=NULL;
+
+                //check if addr5 is my associating STA
+                if(get_stainfo(priv, addr5)!=NULL)
+                    goto receive_packet;
+
+                // check if addr5 is any other AP's STA
+                SMP_LOCK_MESH_PROXY(flags);
+                pEntry = HASH_SEARCH(priv->proxy_table, addr5);
+                if( pEntry )
                 {
-                    struct proxyupdate_table_entry Entry;
-                    struct proxy_table_entry *pEntry=NULL;
-                    struct path_sel_entry *pdstEntry=NULL;
-
-                    //check if addr5 is my associating STA
-                    if(get_stainfo(priv, addr5)!=NULL)
+                    pEntry->aging_time = 0;
+                    // case: my bridged PC
+                    //     da=me, STA = NULL, proxy != NULL 
+                    if(memcmp(GET_MY_HWADDR, pEntry->owner, MACADDRLEN)==0) {
+                        SMP_UNLOCK_MESH_PROXY(flags);
                         goto receive_packet;
+                    }
 
-                    // check if addr5 is any other AP's STA
-                    pEntry = HASH_SEARCH(priv->proxy_table, addr5);
-                    if( pEntry )
+                    // case: I know the proxied node resided in (but not behind me)
+                    //     da=me, STA =NULL, proxy->owner=other node -> proxy update:add
+                    else 
                     {
-                        pEntry->aging_time = 0;
-                        // case: my bridged PC
-                        //     da=me, STA = NULL, proxy != NULL 
-                        if(memcmp(GET_MY_HWADDR, pEntry->owner, MACADDRLEN)==0) 
-                            goto receive_packet;
-
-                        // case: I know the proxied node resided in (but not behind me)
-                        //     da=me, STA =NULL, proxy->owner=other node -> proxy update:add
-                        else 
-                        {
-                            Entry.PUflag = PU_add;
-                            memcpy((void *)Entry.proxymac, pEntry->owner, MACADDRLEN);
-                        }
+                        Entry.PUflag = PU_add;
+                        memcpy((void *)Entry.proxymac, pEntry->owner, MACADDRLEN);
                     }
-                    else					
-                    {
-                        // case: unknown entry
-                        //  da=me, STA=NULL, proxy = NULL
-                        //  it might be an un-recorded bridged PC happens for pEntry = NULL
-                        Entry.PUflag = PU_delete;
-                        memcpy((void *)Entry.proxymac, GET_MY_HWADDR, MACADDRLEN);
-                    }
-					
-                    pdstEntry = pathsel_query_table( priv, pfrinfo->sa);
-                    if( pdstEntry != (struct path_sel_entry *) -1 ){
-                        Entry.isMultihop = pdstEntry->hopcount ;
-                        memcpy(Entry.nexthopmac ,pdstEntry->nexthopMAC ,MACADDRLEN);
-                    }
-                    else{
-                        memset((void *)Entry.nexthopmac ,0xff ,MACADDRLEN);
-                        Entry.isMultihop =0;
-                    }
-                    memcpy(Entry.destproxymac ,pfrinfo->sa ,MACADDRLEN);
-                    memcpy((void *)Entry.proxiedmac, addr5 ,MACADDRLEN);								
-                    Entry.retry = 1U;
-                    Entry.PUSN = getPUSeq(priv);
-                    Entry.STAcount = 0x0001;
-                    Entry.update_time = xtime;
-                    issue_proxyupdate_MP(priv,&Entry);
                 }
+                else					
+                {
+                    // case: unknown entry
+                    //  da=me, STA=NULL, proxy = NULL
+                    //  it might be an un-recorded bridged PC happens for pEntry = NULL
+                    Entry.PUflag = PU_delete;
+                    memcpy((void *)Entry.proxymac, GET_MY_HWADDR, MACADDRLEN);
+                }                    
+                SMP_UNLOCK_MESH_PROXY(flags);
+
+                SMP_LOCK_MESH_PATH(flags);
+                pdstEntry = HASH_SEARCH(priv->pathsel_table, pfrinfo->sa);
+                if( pdstEntry){
+                    Entry.isMultihop = pdstEntry->hopcount ;
+                    memcpy(Entry.nexthopmac ,pdstEntry->nexthopMAC ,MACADDRLEN);
+                    SMP_UNLOCK_MESH_PATH(flags);
+                }
+                else{
+                    SMP_UNLOCK_MESH_PATH(flags);
+                    memset((void *)Entry.nexthopmac ,0xff ,MACADDRLEN);
+                    Entry.isMultihop =0;
+                }
+                memcpy(Entry.destproxymac ,pfrinfo->sa ,MACADDRLEN);
+                memcpy((void *)Entry.proxiedmac, addr5 ,MACADDRLEN);								
+                Entry.retry = 1U;
+                Entry.PUSN = getPUSeq(priv);
+                Entry.STAcount = 0x0001;
+                Entry.update_time = jiffies;
+                issue_proxyupdate_MP(priv,&Entry);
+            }
 
 #endif // PU_STANDARD_RX
 
-                goto receive_packet;
-            }							
+            goto receive_packet;
+							
         } // if( !memcmp(pfrinfo->da, GET_MY_HWADDR, MACADDRLEN) )
         else if (orig_priv->pmib->dot11OperationEntry.block_relay == 0)
         { 
@@ -739,37 +546,7 @@ to_bridge:
                 rtl_kfree_skb(orig_priv, pskb, _SKB_RX_);	
         } 
 		return SUCCESS;
-	}
+    }   
 }
-
-#ifdef _11s_TEST_MODE_
-int mesh_debug_rx1(DRV_PRIV *priv, struct sk_buff *pskb)
-{
-	if(!memcmp("NRX", priv->pmib->dot1180211sInfo.mesh_reservedstr1, 3))
-	{
-		unsigned char destMAC[6]= { 0 };
-		mac12_to_6(priv->pmib->dot1180211sInfo.mesh_reservedstr1+3, destMAC );
-
-		if(!memcmp(pskb->data+6, destMAC, 6))
-		{
-			LOG_MESH_MSG("rx:%02X %02X %02X %02X %02X %02X ] %02X %02X %02X %02X %02X %02X, %s, %d\n",
-				pskb->data[0]&0xff, pskb->data[1]&0xff, pskb->data[2]&0xff, pskb->data[3]&0xff, pskb->data[4]&0xff, pskb->data[5]&0xff,
-				pskb->data[6]&0xff, pskb->data[7]&0xff, pskb->data[8]&0xff, pskb->data[9]&0xff, pskb->data[10]&0xff, pskb->data[11]&0xff,
-				pskb->dev->name, pskb->len);
-		}
-	}
-	return 0;
-}
-
-int mesh_debug_rx2(DRV_PRIV *priv, unsigned int cmd)
-{
-	if( ( !memcmp("JasonRver",  priv->pmib->dot1180211sInfo.mesh_reservedstr1, 9) ||
-			!memcmp("JasonRelay", priv->pmib->dot1180211sInfo.mesh_reservedstr1, 10) )
-			&& (priv->pmib->dot1180211sInfo.mesh_reserved3 +36 == (cmd & 0xfff) - _CRCLNG_ ))
-		priv->mesh_stats.rx_crc_errors++;
-
-	return 0;
-}
-#endif // _11s_TEST_MODE_
 
 #endif	// CONFIG_RTK_MESH

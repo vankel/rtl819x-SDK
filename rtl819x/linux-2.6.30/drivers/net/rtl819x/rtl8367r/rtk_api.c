@@ -14223,6 +14223,8 @@ int rtk_rgmii_set(int enable)
 }
 #endif
 
+#include <linux/delay.h>
+
 int RTL8367R_init(void)
 {
     rtk_portmask_t portmask;
@@ -14232,6 +14234,10 @@ int RTL8367R_init(void)
     /* Set external interface 0 to RGMII with Force mode, 1000M, Full-duple, enable TX&RX pause*/
     rtk_port_mac_ability_t mac_cfg;
     rtk_mode_ext_t mode ;
+
+    // do the whole chip reset in case the 8367 may be set in boot loader
+    rtl8367b_setAsicReg(RTL8367B_REG_CHIP_RESET, (1<<RTL8367B_CHIP_RST_OFFSET));
+    mdelay(1200);
  
     /* Initial Chip */
     ret = rtk_switch_init();
@@ -14261,6 +14267,9 @@ int RTL8367R_init(void)
     mac_cfg.txpause = ENABLED;
     mac_cfg.rxpause = ENABLED;
     rtk_port_macForceLinkExt_set(EXT_PORT_2,mode,&mac_cfg);
+
+    // the tx/rx delay is depend on the board
+    //rtk_port_rgmiiDelayExt_set(EXT_PORT_2, 1, 3);
 #endif
 
     /* Set RGMII Interface 0 TX delay to 2ns and RX to step 4 */
@@ -14318,11 +14327,8 @@ int RTL8367R_init(void)
 #define BIT(nr)			(1UL << (nr))
 #define WAN_VID			8
 #define LAN_VID			9
-#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
-#define	RTL8367R_WAN			0		// WAN port is set to 8367R port 0
-#else
+
 #define	RTL8367R_WAN			4		// WAN port is set to 8367R port 4
-#endif
 
 #define	RTL_WANPORT_MASK		(0x1 << RTL8367R_WAN)
 #define	RTL_LANPORT_MASK		(0x1f & (~RTL_WANPORT_MASK))
@@ -14333,7 +14339,94 @@ int RTL8367R_init(void)
 static  int rtl8197d_op_mode = 0;
 extern rtk_uint32 r8367_cpu_port;
 
-int RTL8367R_vlan_init(void)
+// refine RTL8367R_vlan_init() and RTL8367R_vlan_reinit()
+#if 1
+
+struct _vlan_conf {
+	rtk_vlan_t 		vid;
+	rtk_uint32		mbrmsk;
+	rtk_uint32		untagmsk;
+	rtk_fid_t			fid;
+	rtk_pri_t 			priority;
+};
+
+#define _VID_END	(RTL8367B_VIDMAX+1)
+#define _8367RB_RGMII2		7
+#define BIT(nr)			(1UL << (nr))
+
+// please assign different fid for them
+struct _vlan_conf vc_gateway[] = {
+#ifdef ENABLE_8367RB_RGMII2
+	{ 	LAN_VID,	 	(RTL_LANPORT_MASK | BIT(_8367RB_RGMII2)),   	(RTL_LANPORT_MASK | BIT(_8367RB_RGMII2)),	0, 0 },
+#else
+	{ 	LAN_VID,	 	RTL_LANPORT_MASK,   	RTL_LANPORT_MASK,	0, 0 },
+#endif	
+	{	WAN_VID,	RTL_WANPORT_MASK,   RTL_WANPORT_MASK,	1, 0},
+	{	_VID_END,	0, 0, 0, 0}
+};
+
+struct _vlan_conf vc_bridge_svl[] = {
+	{ 	LAN_VID,	 	(RTL_LANPORT_MASK | RTL_WANPORT_MASK),   	(RTL_LANPORT_MASK | RTL_WANPORT_MASK),	2, 0 },
+	{	_VID_END,	0, 0, 0, 0}
+};
+
+
+int _vlan_setting(struct _vlan_conf vc[])
+{
+	int i, j, retval;
+	rtk_portmask_t mbrmsk, untagmsk;
+
+	for(i=0; vc[i].vid <= RTL8367B_VIDMAX; i++)
+	{
+		mbrmsk.bits[0] = (vc[i].mbrmsk) |BIT(r8367_cpu_port);
+		untagmsk.bits[0] = (vc[i].untagmsk);
+		retval = rtk_vlan_set(vc[i].vid, mbrmsk, untagmsk, vc[i].fid);
+		
+		/* set pvid*/	
+		for(j=0;j<5;j++)
+		{
+			if  ((1<<j)& (vc[i].mbrmsk))
+				rtk_vlan_portPvid_set(j, vc[i].vid, vc[i].priority);			
+		}     	  
+	}	
+	return 0;
+}
+
+int RTL83XX_vlan_init(void)
+{
+	_vlan_setting(vc_gateway);
+
+	rtl8197d_op_mode = GATEWAY_MODE;
+	return 0;
+}
+
+int RTL83XX_vlan_reinit(int mode)
+{
+#if defined (CONFIG_RTL_IVL_SUPPORT)
+	// when CONFIG_RTL_IVL_SUPPORT is defined, keep vc_gateway setting for gateway and bridge mode both
+	
+	rtk_l2_flushType_set(FLUSH_TYPE_BY_PORT, WAN_VID, r8367_cpu_port);				
+#else
+
+	if (mode==rtl8197d_op_mode) // no need tio do the re-initialization
+		return 0;
+
+	rtk_vlan_init();
+
+	if (mode==GATEWAY_MODE)
+		_vlan_setting(vc_gateway);
+	
+	else
+		_vlan_setting(vc_bridge_svl);
+		
+#endif
+
+	rtl8197d_op_mode = mode;	
+	return 0;
+}
+
+#else
+int RTL83XX_vlan_init(void)
 {
 	int i, retval;
 	rtk_portmask_t mbrmsk, untagmsk;
@@ -14366,7 +14459,7 @@ int RTL8367R_vlan_init(void)
 	return 0;
 }
 
-int RTL8367R_vlan_reinit(int mode)
+int RTL83XX_vlan_reinit(int mode)
 {
 	int i, retval;
 	rtk_portmask_t mbrmsk, untagmsk;
@@ -14419,6 +14512,7 @@ int RTL8367R_vlan_reinit(int mode)
 	
 	return 0;
 }
+#endif
 
 #define RTL8367R_WAN_PORT_BITMAP 		(1<<RTL8367R_WAN)
 #define RTL8367R_LAN_PORT_BITMAP 		(0x1f - RTL8367R_WAN_PORT_BITMAP)
@@ -14605,7 +14699,7 @@ void RTL8367R_cpu_tag(int enable)
 	}
 }
 
-void del_8367r_L2(rtk_mac_t *pMac)
+void del_83XX_L2(rtk_mac_t *pMac)
 {
 	rtk_l2_ucastAddr_t L2_data;
 
@@ -14652,7 +14746,7 @@ enum
 	PORT_AUTO
 };
 
-rtk_api_ret_t set_8367r_speed_mode(int port, int mode)
+rtk_api_ret_t set_83XX_speed_mode(int port, int mode)
 {
 	rtk_port_phy_ability_t phyAbility;
 
@@ -14694,7 +14788,7 @@ rtk_api_ret_t set_8367r_speed_mode(int port, int mode)
 	return (rtk_port_phyAutoNegoAbility_set(port, &phyAbility));
 }
 
-void rtl8367rb_reset(void)
+void rtl83XX_reset(void)
 {
 	rtl8367b_setAsicReg(RTL8367B_REG_CHIP_RESET, (1<<RTL8367B_CHIP_RST_OFFSET));	
 	return;

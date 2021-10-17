@@ -265,4 +265,40 @@ function sendCAClicked(F)
   
   F.submit();
 }
+function disableRadioGroup (radioArrOrButton)
+{
+  if (radioArrOrButton.type && radioArrOrButton.type == "radio") {
+        var radioButton = radioArrOrButton;
+        var radioArray = radioButton.form[radioButton.name];
+  }
+  else
+        var radioArray = radioArrOrButton;
+        radioArray.disabled = true;
+        for (var b = 0; b < radioArray.length; b++) {
+        if (radioArray[b].checked) {
+                radioArray.checkedElement = radioArray[b];
+                break;
+        }
+  }
+  for (var b = 0; b < radioArray.length; b++) {
+        radioArray[b].disabled = true;
+        radioArray[b].checkedElement = radioArray.checkedElement;
+  }
+}
 
+function enableRadioGroup (radioArrOrButton)
+{
+  if (radioArrOrButton.type && radioArrOrButton.type == "radio") {
+        var radioButton = radioArrOrButton;
+        var radioArray = radioButton.form[radioButton.name];
+  }
+  else
+        var radioArray = radioArrOrButton;
+
+  radioArray.disabled = false;
+  radioArray.checkedElement = null;
+  for (var b = 0; b < radioArray.length; b++) {
+        radioArray[b].disabled = false;
+        radioArray[b].checkedElement = null;
+  }
+}

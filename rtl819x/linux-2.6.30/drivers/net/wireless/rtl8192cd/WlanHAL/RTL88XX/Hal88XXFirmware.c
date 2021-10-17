@@ -18,7 +18,7 @@ Major Change History:
 #include "../HalPrecomp.h"
 #endif
 
-#if (IS_RTL8881A_SERIES || IS_RTL8192E_SERIES )
+#if (IS_RTL8881A_SERIES || IS_RTL8192E_SERIES || IS_RTL8814A_SERIES)
 // c2h callback function register here
 struct cmdobj	HalC2Hcmds[] = 
 {
@@ -31,7 +31,7 @@ struct cmdobj	HalC2Hcmds[] =
 #endif // #if (IS_RTL8881A_SERIES || IS_RTL8192E_SERIES )
 
 
-#if (IS_RTL8813A_SERIES)
+#if (IS_RTL8814A_SERIES)
 //
 //3 Download Firmware
 //
@@ -61,6 +61,8 @@ u2Byte checksum(u1Byte *idx, u4Byte len) //Cnt - count of bytes
 	checksum32 = checksum[0] |(checksum[1]<<8);		
 
 	printk("sofetware check sum = %x !!!!!!!!!!!!!!!!!!\n ",checksum32 );
+	
+	return checksum32;
 }
 
 
@@ -73,6 +75,21 @@ ReadMIPSFwHdr88XX(
     PRTL88XX_MIPS_FW_HDR pfw_hdr;
     pfw_hdr = (PRTL88XX_MIPS_FW_HDR)_GET_HAL_DATA(Adapter)->PFWHeader;
 
+#ifdef _BIG_ENDIAN_
+	Adapter->pshare->fw_signature= le16_to_cpu(pfw_hdr->signature);
+	Adapter->pshare->fw_version = le16_to_cpu(pfw_hdr->version);
+	//pfw_hdr->SVN_index = le32_to_cpu(pfw_hdr->SVN_index); 
+	//pfw_hdr->Year = le16_to_cpu(pfw_hdr->Year); 
+#endif
+
+	Adapter->pshare->fw_category	= pfw_hdr->category;
+	Adapter->pshare->fw_function	= pfw_hdr->function;
+	Adapter->pshare->fw_sub_version = pfw_hdr->Subversion;
+	Adapter->pshare->fw_date_month	= pfw_hdr->Month;
+	Adapter->pshare->fw_date_day	= pfw_hdr->Date;
+	Adapter->pshare->fw_date_hour	= pfw_hdr->Hour;
+	Adapter->pshare->fw_date_minute = pfw_hdr->Min;
+	
     RT_TRACE_F(COMP_INIT, DBG_TRACE ,("FW version = %x \n", pfw_hdr->version));
     RT_TRACE_F(COMP_INIT, DBG_TRACE ,("FW release at %x/%x \n",     pfw_hdr->Month, pfw_hdr->Date));    
 }
@@ -105,20 +122,30 @@ ConfigBeforeDLFW(
     // Disable MCU Core (CPU RST)
     temBuf[4] =  (u2Byte)HAL_RTL_R16(REG_SYS_FUNC_EN);  
     tmpVal = temBuf[4] & (~BIT_FEN_CPUEN);
-    tmpVal = tmpVal & (~BIT_FEN_BBRSTB);    
-    tmpVal = tmpVal & (~BIT_FEN_BB_GLB_RSTn);    
+    //tmpVal = tmpVal & (~BIT_FEN_BBRSTB);
+    //tmpVal = tmpVal & (~BIT_FEN_BB_GLB_RSTn);
     HAL_RTL_W16(REG_SYS_FUNC_EN,tmpVal);    
 
     SetHwReg88XX(Adapter, HW_VAR_ENABLE_BEACON_DMA, NULL);
 
-    // disable multi-tag
-    HAL_RTL_W8(REG_HCI_MIX_CFG,0);
-  
-    tmpVal = HAL_RTL_R32(REG_8051FW_CTRL);    
-    tmpVal = (tmpVal & (~0x7ff));    
-    tmpVal = (tmpVal & ~(BIT_FW_DW_RDY|BIT_FW_INIT_RDY));
-    tmpVal = (tmpVal | BIT_MCUFWDL_EN);
-    HAL_RTL_W32(REG_8051FW_CTRL,tmpVal);    
+#ifdef ENABLE_PCIE_MULTI_TAG
+	// Do nothing
+#else
+	// disable multi-tag
+	HAL_RTL_W8(REG_HCI_MIX_CFG,0);
+#endif
+
+	tmpVal = HAL_RTL_R32(REG_8051FW_CTRL);
+	tmpVal = (tmpVal & (~0x7ff));
+	tmpVal = (tmpVal & ~(BIT_FW_DW_RDY|BIT_FW_INIT_RDY));
+	tmpVal = (tmpVal | BIT_MCUFWDL_EN);
+
+	// set 3081 CPU clock to 100M
+	tmpVal = tmpVal & 0xFFFFCFFF;    
+	tmpVal = tmpVal | BIT_CPU_CLK_SEL(2);
+	DEBUG_INFO("set 3081 CPU clock to 100M !!! \n");
+
+	HAL_RTL_W32(REG_8051FW_CTRL,tmpVal);
 }
 
 VOID
@@ -128,10 +155,14 @@ RestoreAfterDLFW(
 )
 {
     u4Byte tmpVal,count = 0;
+
+    SetBeaconDownload88XX(Adapter, HW_VAR_BEACON_DISABLE_DOWNLOAD);
+
+    // Restore beacon header to page 0
+    HAL_RTL_W32(REG_FIFOPAGE_CTRL_2,temBuf[3]);    
     
 	//Restore SW TX beacon
     HAL_RTL_W32(REG_CR,temBuf[0]);
-
 
 	//Restore BIT_EN_BCN_FUNCTION
     HAL_RTL_W32(REG_BCN_CTRL,temBuf[1]);    
@@ -140,8 +171,6 @@ RestoreAfterDLFW(
     HAL_RTL_W32(REG_FWHW_TXQ_CTRL,temBuf[2]);
 #endif  //#if !CFG_HAL_MAC_LOOPBACK
 
-    // Restore beacon header to page 0
-    HAL_RTL_W32(REG_FIFOPAGE_CTRL_2,temBuf[3]);    
 
     // Restore MCU Core (CPU RST)
     HAL_RTL_W16(REG_SYS_FUNC_EN,(u2Byte)temBuf[4]);  
@@ -367,28 +396,27 @@ InitMIPSFirmware88XX(
     IN  HAL_PADAPTER    Adapter
 )
 {
-    PHAL_DATA_TYPE          pHalData    = _GET_HAL_DATA(Adapter);    
     PRTL88XX_MIPS_FW_HDR    pfw_hdr;
     pu1Byte                 pFWStart;
     pu1Byte                 imemPtr;    
     pu1Byte                 dmemPtr;        
-    pu1Byte                 downloadPrt;        
-    u1Byte                  tempReg[4];
+    pu1Byte                 fwBufPtr;
     u4Byte                  temBuf[8];
-    pu1Byte                 pbuf;
     u4Byte                  imemSZ;
     u2Byte                  dmemSZ;
-    u4Byte                  downloadSZ;    
-    u4Byte                  downloadcnt = 0;    
-    u4Byte                  offset = 0;       
-    BOOLEAN                 fs = TRUE;
-    BOOLEAN                 ls = FALSE;
+    u4Byte                  offset = 0;
+    RT_STATUS status;
+    PHAL_DATA_TYPE          pHalData    = _GET_HAL_DATA(Adapter);    
+
+    pHalData->bFWReady = _FALSE;
 
     GET_HAL_INTERFACE(Adapter)->GetHwRegHandler(Adapter, HW_VAR_FWFILE_START, (pu1Byte)&pFWStart);
     //Register to HAL_DATA
     _GET_HAL_DATA(Adapter)->PFWHeader = (PVOID)pFWStart;
+
+	ReadMIPSFwHdr88XX(Adapter);
+	
     pfw_hdr = (PRTL88XX_MIPS_FW_HDR)pFWStart;
-    pbuf=   (pu1Byte)Adapter->beaconbuf;
  
 
     if(RT_STATUS_SUCCESS != CheckMIPSFWImageSize(Adapter)) {
@@ -405,7 +433,16 @@ InitMIPSFirmware88XX(
     dmemPtr = pFWStart + MIPS_FW_HEADER_SIZE;
     imemPtr = pFWStart + MIPS_FW_HEADER_SIZE + dmemSZ;
 
-    ConfigBeforeDLFW(Adapter,&temBuf);
+#if defined(CONFIG_NET_PCI) && defined(NOT_RTK_BSP)
+    fwBufPtr = HALMalloc(Adapter, GET_MAX(dmemSZ, imemSZ));
+    if (NULL == fwBufPtr) {
+        RT_TRACE_F(COMP_INIT, DBG_WARNING, ("Allocate FW buffer error ! \n"));
+        return RT_STATUS_FAILURE;
+    }
+#endif
+    status = RT_STATUS_FAILURE;
+
+    ConfigBeforeDLFW(Adapter,(pu4Byte)&temBuf);
 
     // Download size limitation
     // IMEM: 128K, DMEM: 128K
@@ -414,71 +451,86 @@ InitMIPSFirmware88XX(
     //          tx descriptor:64K          128K
     // Download limitation = 64K - sizeof(TX_DESC) 
     
-
-
-    if(RT_STATUS_SUCCESS != checkFWSizeAndDLFW88XX(Adapter,dmemPtr,dmemSZ,MIPS_DL_DMEM))
+#if defined(CONFIG_NET_PCI) && defined(NOT_RTK_BSP)
+    HAL_memcpy(fwBufPtr, dmemPtr, dmemSZ);
+#else
+    fwBufPtr = dmemPtr;
+#endif
+    if(RT_STATUS_SUCCESS != checkFWSizeAndDLFW88XX(Adapter,fwBufPtr,dmemSZ,MIPS_DL_DMEM))
     {
-        RestoreAfterDLFW(Adapter,&temBuf);    
+        RestoreAfterDLFW(Adapter,(pu4Byte)&temBuf);    
         RT_TRACE_F(COMP_INIT, DBG_WARNING, ("%s %d DL DMEM fail ! \n",__FUNCTION__,__LINE__));
-        return RT_STATUS_FAILURE;
+        goto out;
     }
 
     // verify checkSum
     if(RT_STATUS_SUCCESS != DLImageCheckSum(Adapter)) {
         HAL_RTL_W8(REG_8051FW_CTRL, HAL_RTL_R8(REG_8051FW_CTRL)|DMEM_CHKSUM_FAIL);
-        RestoreAfterDLFW(Adapter,&temBuf);        
+        RestoreAfterDLFW(Adapter,(pu4Byte)&temBuf);        
         RT_TRACE_F(COMP_INIT, DBG_WARNING, ("%s %d DL DMEM checkSum fail ! \n",__FUNCTION__,__LINE__));        
-        return RT_STATUS_FAILURE;
+        goto out;
     }else {
         RT_TRACE_F(COMP_INIT, DBG_WARNING, ("%s %d DL DMEM checkSum ok ! \n",__FUNCTION__,__LINE__));     
-        HAL_RTL_W8(REG_8051FW_CTRL, HAL_RTL_R8(REG_8051FW_CTRL)&(~DMEM_CHKSUM_FAIL)|DMEM_DL_RDY);
+        HAL_RTL_W8(REG_8051FW_CTRL, ((HAL_RTL_R8(REG_8051FW_CTRL)&(~DMEM_CHKSUM_FAIL))|DMEM_DL_RDY));
     }
 
     // Copy IMEM
-    if(RT_STATUS_SUCCESS != checkFWSizeAndDLFW88XX(Adapter,imemPtr,imemSZ,MIPS_DL_IMEM))	
+#if defined(CONFIG_NET_PCI) && defined(NOT_RTK_BSP)
+    HAL_memcpy(fwBufPtr, imemPtr, imemSZ);
+#else
+    fwBufPtr = imemPtr;
+#endif
+    if(RT_STATUS_SUCCESS != checkFWSizeAndDLFW88XX(Adapter,fwBufPtr,imemSZ,MIPS_DL_IMEM))	
     {
-        RestoreAfterDLFW(Adapter,&temBuf);        
+        RestoreAfterDLFW(Adapter,(pu4Byte)&temBuf);        
         RT_TRACE_F(COMP_INIT, DBG_WARNING, ("%s %d DL IMEM fail ! \n",__FUNCTION__,__LINE__));  
-        return RT_STATUS_FAILURE;
+        goto out;
     }    
 
     // verify checkSum
     if(RT_STATUS_SUCCESS != DLImageCheckSum(Adapter))    {
         HAL_RTL_W8(REG_8051FW_CTRL, HAL_RTL_R8(REG_8051FW_CTRL)|IMEM_CHKSUM_FAIL);
-        RestoreAfterDLFW(Adapter,&temBuf);   
+        RestoreAfterDLFW(Adapter,(pu4Byte)&temBuf);   
         RT_TRACE_F(COMP_INIT, DBG_WARNING, ("%s %d DL IMEM checkSum fail ! \n",__FUNCTION__,__LINE__));          
-        return RT_STATUS_FAILURE;
+        goto out;
     }else {
-  		RT_TRACE_F(COMP_INIT, DBG_WARNING, ("%s %d DL IMEM checkSum ok ! \n",__FUNCTION__,__LINE__));     		
-        HAL_RTL_W8(REG_8051FW_CTRL, HAL_RTL_R8(REG_8051FW_CTRL)&(~IMEM_CHKSUM_FAIL)|IMEM_DL_RDY);
+        RT_TRACE_F(COMP_INIT, DBG_WARNING, ("%s %d DL IMEM checkSum ok ! \n",__FUNCTION__,__LINE__));     		
+        HAL_RTL_W8(REG_8051FW_CTRL, ((HAL_RTL_R8(REG_8051FW_CTRL)&(~IMEM_CHKSUM_FAIL))|IMEM_DL_RDY));
     }
     
-
+    RestoreAfterDLFW(Adapter,(pu4Byte)&temBuf);
     HAL_RTL_W8(REG_8051FW_CTRL,HAL_RTL_R8(REG_8051FW_CTRL)&(~BIT_MCUFWDL_EN));
-    RestoreAfterDLFW(Adapter,&temBuf);
     HAL_RTL_W16(REG_SYS_FUNC_EN,HAL_RTL_R16(REG_SYS_FUNC_EN)|BIT_FEN_CPUEN);
-
     // wait CPU set ready flag 
     delay_ms(100);    
     if(HAL_RTL_R32(REG_8051FW_CTRL)&BIT_FW_INIT_RDY)
     {
-        RT_TRACE_F(COMP_INIT, DBG_WARNING, ("MIPS CPU Running \n"));          
-        return RT_STATUS_SUCCESS;
+        RT_TRACE_F(COMP_INIT, DBG_WARNING, ("MIPS CPU Running \n"));        
+        pHalData->bFWReady = _TRUE;
+		_GET_HAL_DATA(Adapter)->H2CBufPtr88XX = 0;
     }else
     {
         RT_TRACE_F(COMP_INIT, DBG_WARNING, ("MIPS CPU Not Running \n"));          
-        return RT_STATUS_FAILURE;
+        goto out;
     }
 
-    return RT_STATUS_SUCCESS;
+    status = RT_STATUS_SUCCESS;
+
+out:
+
+#if defined(CONFIG_NET_PCI) && defined(NOT_RTK_BSP)
+    HAL_free(fwBufPtr);
+#endif
+
+    return status;
 }
 
 
 
 
-#endif //(IS_RTL8813A_SERIES)
+#endif //(IS_RTL8814A_SERIES)
 
-#if (IS_RTL8881A_SERIES || IS_RTL8192E_SERIES )
+#if (IS_RTL8881A_SERIES || IS_RTL8192E_SERIES || IS_RTL8814A_SERIES )
 //
 //3 Download Firmware
 //
@@ -724,12 +776,16 @@ LoadFirmware88XX(
     
     // reset MCU, 8051 will jump to RAM code    
 	HAL_RTL_W8(REG_8051FW_CTRL+1, 0x00);
-	HAL_RTL_W8(REG_RSV_CTRL+1, HAL_RTL_R8(REG_RSV_CTRL+1)&(~BIT0));
+
+    // Disable WLMCU IO interface control
+    HAL_RTL_W8(REG_RSV_CTRL+1, HAL_RTL_R8(REG_RSV_CTRL+1)&(~BIT0));
     HAL_RTL_W8(REG_SYS_FUNC_EN+1, HAL_RTL_R8(REG_SYS_FUNC_EN+1)&(~BIT2));
-    HAL_delay_ms(1);    
-	HAL_RTL_W8(REG_RSV_CTRL+1, HAL_RTL_R8(REG_RSV_CTRL+1)| BIT0);  
-    HAL_RTL_W8(REG_SYS_FUNC_EN+1, HAL_RTL_R8(REG_SYS_FUNC_EN+1) | BIT2);
-  //  RT_TRACE_F(COMP_INIT, DBG_WARNING , ("After download RAM reset MCU\n"));
+    HAL_delay_ms(1);
+    HAL_RTL_W8(REG_RSV_CTRL+1, HAL_RTL_R8(REG_RSV_CTRL+1)| BIT0);  
+    HAL_RTL_W8(REG_SYS_FUNC_EN+1, HAL_RTL_R8(REG_SYS_FUNC_EN+1) | BIT2);   
+
+
+    RT_TRACE_F(COMP_INIT, DBG_WARNING , ("After download RAM reset MCU\n"));
 
 	// Check if firmware RAM Code is ready
     while (!(HAL_RTL_R8(REG_8051FW_CTRL) & BIT_WINTINI_RDY)) {
@@ -776,260 +832,6 @@ InitFirmware88XX(
     return RT_STATUS_SUCCESS;
 }
 
-//
-//3 H2C Command
-//
-#if 0
-BOOLEAN
-IsH2CBufOccupy88XX(
-    IN  HAL_PADAPTER    Adapter
-)
-{
-    PHAL_DATA_TYPE              pHalData = _GET_HAL_DATA(Adapter);
-   
-    if ( HAL_RTL_R8(REG_HMETFR) & BIT(pHalData->H2CBufPtr88XX) ) {
-        return _TRUE;
-    }
-    else {
-        RT_TRACE(COMP_DBG, DBG_WARNING, ("H2CBufOccupy(%d) !!\n", 
-                                            pHalData->H2CBufPtr88XX) );
-        return _FALSE;
-    }
-}
-
-
-BOOLEAN
-SigninH2C88XX(
-    IN  HAL_PADAPTER    Adapter,
-    IN  PH2C_CONTENT    pH2CContent
-)
-{
-    PHAL_DATA_TYPE      pHalData = _GET_HAL_DATA(Adapter);
-    u4Byte              DelayCnt = H2CBUF_OCCUPY_DELAY_CNT;
-    
-    //Check if h2c cmd signin buffer is occupied
-    while( _TRUE == IsH2CBufOccupy88XX(Adapter) ) {
-       HAL_delay_us(H2CBUF_OCCUPY_DELAY_US);
-       DelayCnt--;
-
-       if ( 0 == DelayCnt ) {
-            RT_TRACE(COMP_DBG, DBG_WARNING, ("H2CBufOccupy retry timeout\n") );
-            return _FALSE;
-       }
-       else {
-            //Continue to check H2C Buf
-       }
-       
-    }
-
-    //signin reg in order to fit hw requirement
-    if ( pH2CContent->content & BIT7 ) {
-        HAL_RTL_W16(REG_HMEBOX_E0_E1 + (pHalData->H2CBufPtr88XX*2), pH2CContent->ext_content);
-    }
-
-    HAL_RTL_W16(REG_HMEBOX0 + (pHalData->H2CBufPtr88XX*4), pH2CContent->content);
-
-	//printk("(smcc) sign in h2c %x\n", HMEBOX_0+(priv->pshare->fw_q_fifo_count*4));
-    RT_TRACE(COMP_DBG, DBG_LOUD, ("sign in h2c(%d) 0x%x\n", 
-                                        pHalData->H2CBufPtr88XX, 
-                                        REG_HMEBOX0 + (pHalData->H2CBufPtr88XX*4)) );
-
-    //rollover ring buffer count
-    if (++pHalData->H2CBufPtr88XX > 3) {
-        pHalData->H2CBufPtr88XX = 0;
-    }
-
-    return _TRUE;
-}
-
-#else
-BOOLEAN
-CheckFwReadLastH2C88XX(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u1Byte          BoxNum
-)
-{
-	u1Byte      valHMETFR;
-	BOOLEAN     Result = FALSE;
-	
-	valHMETFR = HAL_RTL_R8(REG_HMETFR);
-
-	if(((valHMETFR>>BoxNum)&BIT0) == 0)
-		Result = TRUE;
-		
-	return Result;
-}
-
-
-RT_STATUS
-FillH2CCmd88XX(
-	IN  HAL_PADAPTER    Adapter,
-	IN	u1Byte 		    ElementID,
-	IN	u4Byte 		    CmdLen,
-	IN	pu1Byte		    pCmdBuffer
-)
-{
-    PHAL_DATA_TYPE      pHalData = _GET_HAL_DATA(Adapter);
-	u1Byte	            BoxNum;
-	u2Byte	            BOXReg=0, BOXExtReg=0;
-	u2Byte	            BOXRegLast=0, BOXExtRegLast=0;
-	BOOLEAN             bFwReadClear=FALSE;
-	u1Byte	            BufIndex=0;
-	u2Byte	            WaitH2cLimmit=0;
-	u1Byte	            BoxContent[4], BoxExtContent[4];
-#if IS_EXIST_PCI || IS_EXIST_EMBEDDED
-	u1Byte	            idx=0;
-#elif IS_EXIST_USB || IS_EXIST_SDIO
-	u4Byte 				value;
-#endif
-#ifdef BT_COEXIST	
-	int 				i=0;
-#endif
-	if(pHalData == NULL)
-	{
-		return RT_STATUS_FAILURE;
-	}
-
-    if(!pHalData->bFWReady) {
-        RT_TRACE(COMP_DBG, DBG_WARNING, ("H2C bFWReady=False !!\n") );
-        return RT_STATUS_FAILURE;
-    }
-	
-#ifdef BT_COEXIST	
-#ifdef BT_COEXIST_DEBUG
-		if(ElementID >= 0x60 && ElementID <= 0x66){
-			printk("[%s] ID=%x, data:",__FUNCTION__,ElementID);
-			for(i=0;i<CmdLen;i++)
-				printk("%x ", *(pCmdBuffer+i)); 	
-			printk("\n");
-		}
-#endif		
-#endif	
-	// 1. Find the last BOX number which has been writen.
-	BoxNum = pHalData->H2CBufPtr88XX;	//pHalData->LastHMEBoxNum;
-	switch(BoxNum)
-	{	//eric-8813
-		case 0:
-			BOXReg = REG_HMEBOX0;
-			BOXExtReg = REG_HMEBOX_E0;
-			BOXRegLast = REG_HMEBOX3;
-			BOXExtRegLast = REG_HMEBOX_E3;
-			break;
-		case 1:
-			BOXReg = REG_HMEBOX1;
-			BOXExtReg = REG_HMEBOX_E1;
-			BOXRegLast = REG_HMEBOX0;
-			BOXExtRegLast = REG_HMEBOX_E0;
-			break;
-		case 2:
-			BOXReg = REG_HMEBOX2;
-			BOXExtReg = REG_HMEBOX_E2;
-			BOXRegLast = REG_HMEBOX1;
-			BOXExtRegLast = REG_HMEBOX_E1;
-			break;
-		case 3:
-			BOXReg = REG_HMEBOX3;
-			BOXExtReg = REG_HMEBOX_E3;
-			BOXRegLast = REG_HMEBOX2;
-			BOXExtRegLast = REG_HMEBOX_E2;
-			break;
-		default:
-			break;
-	}
-
-	// 2. Check if the box content is empty.
-	while(!bFwReadClear)
-	{
-		bFwReadClear = CheckFwReadLastH2C88XX(Adapter, BoxNum);
-		if(WaitH2cLimmit == 600) { //do the first stage, clear last cmd
-			HAL_RTL_W32(BOXRegLast, 0x00020101);
-			//printk("H2C cmd-TO, first stage!! REG_HMETFR:0x%x, BoxNum:%d\n", HAL_RTL_R8(REG_HMETFR), BoxNum);
-		} else if(WaitH2cLimmit == 1000) { //do the second stage, clear all cmd
-			HAL_RTL_W32(REG_HMEBOX0, 0x00020101); //eric-8813
-			HAL_RTL_W32(REG_HMEBOX1, 0x00020101);
-			HAL_RTL_W32(REG_HMEBOX2, 0x00020101);
-			HAL_RTL_W32(REG_HMEBOX3, 0x00020101);
-			//printk("H2C cmd-TO, second stage!! REG_HMETFR:0x%x, BoxNum:%d\n", HAL_RTL_R8(REG_HMETFR), BoxNum);
-		} else if(WaitH2cLimmit >= 1200) {
-			//printk("H2C cmd-TO, final stage!! REG_HMETFR:0x%x, BoxNum:%d\n", HAL_RTL_R8(REG_HMETFR), BoxNum);
-			Adapter->pshare->h2c_box_full++;
-			return RT_STATUS_FAILURE;
-		}
-		else if(!bFwReadClear)
-		{	
-			HAL_delay_us(10); //us
-		}
-		WaitH2cLimmit++;
-	}
-
-	// 4. Fill the H2C cmd into box 	
-	HAL_memset(BoxContent, 0, sizeof(BoxContent));
-	HAL_memset(BoxExtContent, 0, sizeof(BoxExtContent));
-	
-	BoxContent[0] = ElementID; // Fill element ID
-//	RTPRINT(FFW, FW_MSG_H2C_CONTENT, ("[FW], Write ElementID BOXReg(%4x) = %2x \n", BOXReg, ElementID));
-
-	switch(CmdLen)
-	{
-	case 1:
-	case 2:
-	case 3:
-	{
-		//BoxContent[0] &= ~(BIT7);
-		HAL_memcpy((pu1Byte)(BoxContent)+1, pCmdBuffer+BufIndex, CmdLen);
-#if IS_EXIST_PCI || IS_EXIST_EMBEDDED
-		//For Endian Free.
-		for(idx= 0; idx < 4; idx++)
-		{
-			HAL_RTL_W8(BOXReg+idx, BoxContent[idx]);
-		}
-#elif IS_EXIST_USB || IS_EXIST_SDIO
-		value = *(u4Byte*)BoxContent;
-		HAL_RTL_W32(BOXReg, cpu_to_le32(value));
-#endif
-		break;
-	}
-	case 4: 
-	case 5:
-	case 6:
-	case 7:
-	{
-		//BoxContent[0] |= (BIT7);
-		HAL_memcpy((pu1Byte)(BoxExtContent), pCmdBuffer+BufIndex+3, (CmdLen-3));
-		HAL_memcpy((pu1Byte)(BoxContent)+1, pCmdBuffer+BufIndex, 3);
-#if IS_EXIST_PCI || IS_EXIST_EMBEDDED
-		//For Endian Free.
-		for(idx = 0 ; idx < 4 ; idx ++)
-		{
-			HAL_RTL_W8(BOXExtReg+idx, BoxExtContent[idx]);
-		}		
-		for(idx = 0 ; idx < 4 ; idx ++)
-		{
-			HAL_RTL_W8(BOXReg+idx, BoxContent[idx]);
-		}
-#elif IS_EXIST_USB || IS_EXIST_SDIO
-		if (CmdLen > 4) {
-			value = *(u4Byte*)BoxExtContent;
-			HAL_RTL_W32(BOXExtReg, cpu_to_le32(value));
-		}
-		value = *(u4Byte*)BoxContent;
-		HAL_RTL_W32(BOXReg, cpu_to_le32(value));
-#endif
-		break;
-	}
-	
-	default:
-//RTPRINT(FFW, FW_MSG_H2C_STATE, ("[FW], Invalid command len=%d!!!\n", CmdLen));
-		return RT_STATUS_FAILURE;
-	}
-
-	if (++pHalData->H2CBufPtr88XX > 3)
-		pHalData->H2CBufPtr88XX = 0;
-
-//RTPRINT(FFW, FW_MSG_H2C_CONTENT, ("[FW], pHalData->LastHMEBoxNum = %d\n", pHalData->LastHMEBoxNum));
-	return RT_STATUS_SUCCESS;
-}
-#endif
 
 static VOID
 SetBcnCtrlReg88XX(
@@ -1060,23 +862,29 @@ MRateIdxToARFRId88XX(
 	case RATR_INX_WIRELESS_NGB:
 		if(RfType == MIMO_1T1R)
 			Ret = 1;
-		else 
+		else if(RfType == MIMO_2T2R)
 			Ret = 0;
+		else if(RfType == MIMO_3T3R)// 3T
+			Ret = 14;
 		break;
 
 	case RATR_INX_WIRELESS_N:
 	case RATR_INX_WIRELESS_NG:
 		if(RfType == MIMO_1T1R)
 			Ret = 5;
-		else
+		else if(RfType == MIMO_2T2R)
 			Ret = 4;
+		else if(RfType == MIMO_3T3R)// 3T // becarefull, share with 3T BGN mode, we need to change register setting
+			Ret = 14;
 		break;
 
 	case RATR_INX_WIRELESS_NB:
 		if(RfType == MIMO_1T1R)
 			Ret = 3;
-		else 
+		else if(RfType == MIMO_2T2R)
 			Ret = 2;
+		else if(RfType == MIMO_3T3R)// 3T // becarefull, share with 3T BGN mode, we need to change register setting
+			Ret = 14;
 		break;
 
 	case RATR_INX_WIRELESS_GB:
@@ -1101,8 +909,10 @@ MRateIdxToARFRId88XX(
 	case RATR_INX_WIRELESS_AC_N:
 		if(RfType == MIMO_1T1R)
 			Ret = 10;
-		else
+		else if(RfType == MIMO_2T2R)
 			Ret = 9;
+		else
+			Ret = 13;
 		break;
 #endif
 
@@ -1221,7 +1031,7 @@ Get_RA_ShortGI88XX(
 	return bShortGI;
 }
 
-static u4Byte
+static u8Byte
   RateToBitmap_VHT88XX(
 	pu1Byte			pVHTRate,
 	u1Byte 		rf_mimo_mode
@@ -1230,13 +1040,15 @@ static u4Byte
 {
 
 	u1Byte	i,j , tmpRate,rateMask;
-	u4Byte	RateBitmap = 0;
+	u8Byte	RateBitmap = 0;
 
     if(rf_mimo_mode == MIMO_1T1R)
 		rateMask = 2;
+	else if(rf_mimo_mode == MIMO_2T2R)
+        rateMask = 4;
 	else
-    	rateMask = 4;
-    
+    	rateMask = 6;
+
 	for(i = j= 0; i < rateMask; i+=2, j+=10)
 	{
         // now support for 1ss and 2ss
@@ -1306,13 +1118,15 @@ UpdateHalRAMask88XX(
 #if CFG_HAL_RTK_AC_SUPPORT
 	u4Byte 				VHT_TxMap = Adapter->pmib->dot11acConfigEntry.dot11VHT_TxMap;
 #endif
-	
-
+#ifdef MCR_WIRELESS_EXTEND
+	u1Byte				print_dbg = Adapter->pshare->rf_ft_var.afb_dbg;
+#endif
 	if(pEntry == NULL)		
 	{
 		return;
 	}
-	{
+	
+	
 		if(pEntry->MIMO_ps & _HT_MIMO_PS_STATIC_)
             MimoPs = MIMO_PS_STATIC;
 		else if(pEntry->MIMO_ps & _HT_MIMO_PS_DYNAMIC_)
@@ -1320,7 +1134,8 @@ UpdateHalRAMask88XX(
 
 #if	1
 		BW = pEntry->tx_bw;
-		if( BW > Adapter->pshare->CurrentChannelBW)
+
+	if( BW > (Adapter->pshare->CurrentChannelBW))
 			BW = Adapter->pshare->CurrentChannelBW;
 #endif	
 		add_RATid(Adapter, pEntry);		
@@ -1357,7 +1172,10 @@ UpdateHalRAMask88XX(
 		}
 
 		pstat->WirelessMode = WirelessMode;
-
+#ifdef MCR_WIRELESS_EXTEND
+		if (print_dbg)
+		GDEBUG("WirelessMode=%d\n", WirelessMode);
+#endif		
 #if CFG_HAL_RTK_AC_SUPPORT
 		if(WirelessMode == WIRELESS_MODE_AC_5G) {
 			ratr_bitmap &= 0xfff;
@@ -1365,8 +1183,10 @@ UpdateHalRAMask88XX(
 //			ratr_bitmap &= 0x3FCFFFFF;
 			if(rf_mimo_mode == MIMO_1T1R)
 				ratr_bitmap &= 0x003fffff;
-			else
+			else if(rf_mimo_mode == MIMO_2T2R)
 				ratr_bitmap &= 0x3FCFFFFF;			// Test Chip...	2SS MCS7
+			else
+				ratr_bitmap &= 0x3FF3FCFFFFF;		// Test Chip...	3SS MCS7
 
 			if(BW==HT_CHANNEL_WIDTH_80)
 				bCurTxBW80MHz = TRUE;
@@ -1380,7 +1200,7 @@ UpdateHalRAMask88XX(
 				&& (Adapter->bg_ap_timeout 	|| orForce20_Switch20Map(Adapter)
 				))
 #endif
-		)
+	){
 			bCurTxBW40MHz = TRUE;
 	}
 
@@ -1408,15 +1228,30 @@ UpdateHalRAMask88XX(
 		case WIRELESS_MODE_B:
 		{
 			ratr_index = RATR_INX_WIRELESS_B;
+#ifdef MCR_WIRELESS_EXTEND	
+			ratr_bitmap &= 0x0000000f;
+			if (print_dbg)
+				GDEBUG("ratr_bitmap=0x%x\n", ratr_bitmap);
+#else
 			if(ratr_bitmap & 0x0000000c)		//11M or 5.5M enable				
 				ratr_bitmap &= 0x0000000d;
 			else
 				ratr_bitmap &= 0x0000000f;
+#endif			
 		}
 		break;
 
 		case WIRELESS_MODE_G:
 		{
+#ifdef MCR_WIRELESS_EXTEND			
+			if (pstat->IOTPeer == HT_IOT_PEER_CMW)
+			{
+				ratr_index = RATR_INX_WIRELESS_G;
+				ratr_bitmap &= 0x00000ff0;
+			}
+			else
+#endif				
+			{
 			ratr_index = RATR_INX_WIRELESS_GB;
 			
 			if(rssi_level == 1)
@@ -1427,6 +1262,7 @@ UpdateHalRAMask88XX(
 				ratr_bitmap &= 0x00000fff;
 			else
 				ratr_bitmap &= 0x0000000f;
+			}
 		}
 		break;
 			
@@ -1441,7 +1277,14 @@ UpdateHalRAMask88XX(
 		case WIRELESS_MODE_N_5G:
 		{
 			if(WirelessMode == WIRELESS_MODE_N_24G)
+			{
+#ifdef MCR_WIRELESS_EXTEND			
+				if (pstat->IOTPeer == HT_IOT_PEER_CMW) 					
+					ratr_index = RATR_INX_WIRELESS_N;
+				else
+#endif					
 				ratr_index = RATR_INX_WIRELESS_NGB;
+			}
 			else
 				ratr_index = RATR_INX_WIRELESS_NG;
 
@@ -1458,6 +1301,16 @@ UpdateHalRAMask88XX(
 			}
 			else
 #endif			
+#ifdef MCR_WIRELESS_EXTEND
+			if (pstat->IOTPeer == HT_IOT_PEER_CMW)
+			{
+				if (rf_mimo_mode == MIMO_1T1R)
+					ratr_bitmap &= 0x000ff000;
+				else if (rf_mimo_mode == MIMO_2T2R)
+					ratr_bitmap &= 0x0ffff000;
+			}
+			else
+#endif
 			{
 				if (rf_mimo_mode == MIMO_1T1R)
 				{					
@@ -1511,7 +1364,6 @@ UpdateHalRAMask88XX(
 							else 
 								ratr_bitmap &= 0x0ffff01f;
 						}
-							
 					}
 					else
 					{
@@ -1545,9 +1397,9 @@ UpdateHalRAMask88XX(
 				#if 1 // enable VHT-MCS 8~9
 				ratr_bitmap &= 0x003ff010;
 // 8881A: RSSI < 30, disable MCS8,9
-				//if(pstat->rssi_level == 3)
-				//	ratr_bitmap &= 0x000ff010;
-//				
+				if(pstat->rssi_level == 3)
+					ratr_bitmap &= 0x000ff010;
+				
 				#else
 				ratr_bitmap &= 0x000ff010;	//Disable VHT-MCS 8~9
 				#endif
@@ -1568,13 +1420,13 @@ UpdateHalRAMask88XX(
 				ratr_bitmap &= 0x0f8ff0ff;
 			break;
 	}
-
+	BW = Get_RA_BW88XX(bCurTxBW80MHz, bCurTxBW40MHz);
 	bShortGI = Get_RA_ShortGI88XX(Adapter, pEntry, WirelessMode, BW);
 
 	pstat->ratr_idx = MRateIdxToARFRId88XX(Adapter, ratr_index, rf_mimo_mode) ;
 	pstat->tx_bw_fw = BW;
 
-#ifdef AC2G_256QAM
+#if defined(AC2G_256QAM) || defined(WLAN_HAL_8814AE)
 	 if(is_ac2g(Adapter) && pstat->vht_cap_len ) {
 		 printk("AC2G STA Associated !!\n");
 		 if (rf_mimo_mode == MIMO_1T1R)
@@ -1614,9 +1466,65 @@ UpdateHalRAMask88XX(
 		 pstat->WirelessMode = WIRELESS_MODE_AC_24G;
 	 }
 #endif
+#ifdef MCR_WIRELESS_EXTEND
+	if (print_dbg)
+		GDEBUG(" WirelessMode[%d] rssi[%d] ratr_bitmap= 0x%x   ==> ", WirelessMode, pstat->rssi, ratr_bitmap);
+	if (pstat->IOTPeer == HT_IOT_PEER_CMW && (Adapter->pshare->rf_ft_var.afb_ft)) {
+		if (WirelessMode == WIRELESS_MODE_B) {
+			if (pstat->rssi >= 27)
+				ratr_bitmap &= 0x8;
+			else if ((pstat->rssi >= 23) && (pstat->rssi <= 26))
+				ratr_bitmap &= 0x7;
+			else if ((pstat->rssi >= 17) && (pstat->rssi <= 22))
+				ratr_bitmap &= 0x2;
+			else if (pstat->rssi <= 16)
+				ratr_bitmap &= 0x1;
+		} 
+		else if (WirelessMode == WIRELESS_MODE_G) {
+			if (pstat->rssi > 38)
+				ratr_bitmap &= 0x800;
+			else if ((pstat->rssi >= 34) && (pstat->rssi <= 38))	
+				ratr_bitmap &= 0x400;
+			else if ((pstat->rssi >= 29) && (pstat->rssi <= 33))
+				ratr_bitmap &= 0x200;
+			else if ((pstat->rssi >= 26) && (pstat->rssi <= 28))
+				ratr_bitmap &= 0x1f0;
+			else if ((pstat->rssi >= 23) && (pstat->rssi <= 25))
+				ratr_bitmap &= 0x0f0;
+			else if ((pstat->rssi >= 19) && (pstat->rssi <= 22))
+				ratr_bitmap &= 0x070;
+			else if ((pstat->rssi >= 15) && (pstat->rssi <= 18))
+				ratr_bitmap &= 0x030;
+			else if ((pstat->rssi <= 14))
+				ratr_bitmap &= 0x010;
+		}
+		else if (WirelessMode == WIRELESS_MODE_N_24G) {	
+			if (pstat->rssi > 38)
+				ratr_bitmap &= 0xffff000;
+			else if ((pstat->rssi >= 34) && (pstat->rssi <= 38))	
+				ratr_bitmap &= 0x7f7f000;
+			else if ((pstat->rssi >= 29) && (pstat->rssi <= 33))
+				ratr_bitmap &= 0x3f3f000;
+			else if ((pstat->rssi >= 26) && (pstat->rssi <= 28))	
+				ratr_bitmap &= 0x1f1f000;
+			else if ((pstat->rssi >= 23) && (pstat->rssi <= 25))
+				ratr_bitmap &= 0x0f0f000;
+			else if ((pstat->rssi >= 19) && (pstat->rssi <= 22))
+				ratr_bitmap &= 0x0707000;
+			else if ((pstat->rssi >= 15) && (pstat->rssi <= 18))
+				ratr_bitmap &= 0x0303000;
+			else if ((pstat->rssi <= 14))
+				ratr_bitmap &= 0x0101000;
+		}
+		if (Adapter->pshare->rf_ft_var.afb_force)
+			ratr_bitmap = Adapter->pshare->rf_ft_var.afb_force;
+		if (print_dbg)
+			printk("0x%x\n", ratr_bitmap);	
+	}
+#endif
 	
-	H2CCommand[0] = (pstat->aid);
-	H2CCommand[1] =  (pstat->ratr_idx)| (bShortGI?0x80:0x00) ;	
+	H2CCommand[0] = (pstat->aid); //macid
+	H2CCommand[1] = (pstat->ratr_idx)| (bShortGI?0x80:0x00) ; //rate_id
 	H2CCommand[2] = BW |Get_VHT_ENI88XX(IOTAction, WirelessMode, ratr_bitmap);	
 
 	H2CCommand[2] |= BIT6;			// DisableTXPowerTraining
@@ -1638,6 +1546,434 @@ UpdateHalRAMask88XX(
 		H2CCommand[3] ,H2CCommand[4], H2CCommand[5], H2CCommand[6]		);
 #endif	
 	
+}
+
+VOID
+UpdateHalRAMask8814A(
+	IN HAL_PADAPTER         Adapter,
+	HAL_PSTAINFO            pEntry,
+	u1Byte                  rssi_level
+	)
+{
+
+	u1Byte		        WirelessMode    = WIRELESS_MODE_A;
+	u1Byte		        BW              = HT_CHANNEL_WIDTH_20;
+	u1Byte		        MimoPs          = MIMO_PS_NOLIMIT, ratr_index = 8, H2CCommand[7] ={ 0};
+	u8Byte		        ratr_bitmap     = 0, IOTAction = 0;
+	BOOLEAN		        bShortGI        = FALSE, bCurTxBW80MHz=FALSE, bCurTxBW40MHz=FALSE;
+	struct stat_info    *pstat          = pEntry;
+	u1Byte              rf_mimo_mode    = get_rf_mimo_mode(Adapter);
+	u1Byte		sta_mimo_mode;
+#ifdef MCR_WIRELESS_EXTEND	
+	u1Byte				print_dbg = Adapter->pshare->rf_ft_var.afb_dbg;
+#endif
+	//printk("%s %d ratr_bitmap = %llx \n",__func__,__LINE__,ratr_bitmap);            
+	//printk("pstat=%x pstat->AID= %x \n",pstat,pstat->aid);
+
+	if(pEntry == NULL)		
+	{
+		return;
+	}
+	{
+		if(pEntry->MIMO_ps & _HT_MIMO_PS_STATIC_)
+            MimoPs = MIMO_PS_STATIC;
+		else if(pEntry->MIMO_ps & _HT_MIMO_PS_DYNAMIC_)
+			MimoPs = MIMO_PS_DYNAMIC;
+
+#if	1
+		BW = pEntry->tx_bw;
+		if( BW > Adapter->pshare->CurrentChannelBW)
+			BW = Adapter->pshare->CurrentChannelBW;
+#endif	
+		add_RATid(Adapter, pEntry);		
+		rssi_level = pstat->rssi_level;
+//		rssi_level = 3;
+		ratr_bitmap =  0xffffffffffffffff;
+
+#if CFG_HAL_RTK_AC_SUPPORT
+		if(pstat->vht_cap_len && (HAL_VAR_NETWORK_TYPE & WIRELESS_11AC)) {
+			WirelessMode = WIRELESS_MODE_AC_5G;
+			if(((HAL_le32_to_cpu(pstat->vht_cap_buf.vht_support_mcs[0])>>8)&3)==3) // no support RX 5ss
+				sta_mimo_mode = MIMO_4T4R;
+			if(((HAL_le32_to_cpu(pstat->vht_cap_buf.vht_support_mcs[0])>>6)&3)==3) // no support RX 4ss
+				sta_mimo_mode = MIMO_3T3R;
+			if(((HAL_le32_to_cpu(pstat->vht_cap_buf.vht_support_mcs[0])>>4)&3)==3) // no support RX 3ss
+				sta_mimo_mode = MIMO_2T2R;
+			if(((HAL_le32_to_cpu(pstat->vht_cap_buf.vht_support_mcs[0])>>2)&3)==3) // no support RX 2ss
+				sta_mimo_mode = MIMO_1T1R;
+
+			if (get_rf_NTx(sta_mimo_mode) < get_rf_NTx(rf_mimo_mode))
+				rf_mimo_mode = sta_mimo_mode;
+		
+		} 
+        else 
+#endif
+        if ((HAL_VAR_NETWORK_TYPE & WIRELESS_11N) && pstat->ht_cap_len && (!should_restrict_Nrate(Adapter, pstat))) {
+			if(HAL_VAR_NETWORK_TYPE & WIRELESS_11A)
+				WirelessMode = WIRELESS_MODE_N_5G;
+			else
+				WirelessMode = WIRELESS_MODE_N_24G;
+			
+			if (pstat->ht_cap_buf.support_mcs[4] == 0) // no support RX 5ss
+				sta_mimo_mode = MIMO_4T4R;
+			if (pstat->ht_cap_buf.support_mcs[3] == 0) // no support RX 4ss
+				sta_mimo_mode = MIMO_3T3R;
+			if (pstat->ht_cap_buf.support_mcs[2] == 0) // no support RX 3ss
+				sta_mimo_mode = MIMO_2T2R;
+			if (pstat->ht_cap_buf.support_mcs[1] == 0) // no support RX 2ss
+				sta_mimo_mode = MIMO_1T1R;
+
+			if (get_rf_NTx(sta_mimo_mode) < get_rf_NTx(rf_mimo_mode))
+				rf_mimo_mode = sta_mimo_mode;
+
+			//if((pstat->tx_ra_bitmap & 0xff00000) == 0)
+			//	rf_mimo_mode = MIMO_1T1R;
+		}
+		else if (((HAL_VAR_NETWORK_TYPE & WIRELESS_11G) && isErpSta(pstat))){
+				WirelessMode = WIRELESS_MODE_G;		
+		}
+        else if ((HAL_VAR_NETWORK_TYPE & WIRELESS_11A) &&
+				((HAL_OPMODE & WIFI_AP_STATE) || (Adapter->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G))) {
+				WirelessMode = WIRELESS_MODE_A;		
+		}
+		else if(HAL_VAR_NETWORK_TYPE & WIRELESS_11B){
+			WirelessMode = WIRELESS_MODE_B;		
+		}
+
+		pstat->WirelessMode = WirelessMode;
+
+#if CFG_HAL_RTK_AC_SUPPORT
+		if(WirelessMode == WIRELESS_MODE_AC_5G) {
+			ratr_bitmap &= 0xfff;
+			ratr_bitmap |= RateToBitmap_VHT88XX((pu1Byte)&(pstat->vht_cap_buf.vht_support_mcs[0]), rf_mimo_mode) << 12;
+
+			if(rf_mimo_mode == MIMO_1T1R)
+				ratr_bitmap &= 0x003fffff;
+            else if(rf_mimo_mode == MIMO_3T3R)
+                ratr_bitmap &= 0xFFF3FCFFFFF;			// 3SS MCS9
+			else
+				ratr_bitmap &= 0xFFCFFFFF;			// 2SS MCS9
+				
+			if(BW==HT_CHANNEL_WIDTH_80)
+				bCurTxBW80MHz = TRUE;
+
+		}
+#endif
+
+		if (Adapter->pshare->is_40m_bw && (BW == HT_CHANNEL_WIDTH_20_40)
+#ifdef WIFI_11N_2040_COEXIST
+				&& !(((((GET_MIB(Adapter))->dot11OperationEntry.opmode) & WIFI_AP_STATE)||
+				(((GET_MIB(Adapter))->dot11OperationEntry.opmode) & WIFI_STATION_STATE)) 
+				&& Adapter->pmib->dot11nConfigEntry.dot11nCoexist 
+				&& (Adapter->bg_ap_timeout || orForce20_Switch20Map(Adapter))
+			)
+#endif
+		)
+			bCurTxBW40MHz = TRUE;
+	}
+
+	// assign band mask and rate bitmap
+	switch (WirelessMode)
+	{
+		case WIRELESS_MODE_B:
+		{
+			ratr_index = RATR_INX_WIRELESS_B;
+			if(ratr_bitmap & 0x000000000000000c)		//11M or 5.5M enable				
+				ratr_bitmap &= 0x000000000000000d;
+			else
+				ratr_bitmap &= 0x000000000000000f;
+		}
+		break;
+
+		case WIRELESS_MODE_G:
+		{
+#ifdef MCR_WIRELESS_EXTEND			
+			if (pstat->IOTPeer == HT_IOT_PEER_CMW)
+			{
+				ratr_index = RATR_INX_WIRELESS_G;
+				ratr_bitmap &= 0x00000ff0;
+			}
+			else
+#endif		
+			{
+			ratr_index = RATR_INX_WIRELESS_GB;
+			
+			if(rssi_level == 1)
+				ratr_bitmap &= 0x0000000000000f00;
+			else if(rssi_level == 2)
+				ratr_bitmap &= 0x0000000000000ff0;
+			else
+				ratr_bitmap &= 0x0000000000000ff5;
+			}
+		}
+		break;
+			
+		case WIRELESS_MODE_A:
+		{
+			ratr_index = RATR_INX_WIRELESS_G;
+			ratr_bitmap &= 0x00000ff0;
+		}
+		break;
+			
+		case WIRELESS_MODE_N_24G:
+		case WIRELESS_MODE_N_5G:
+		{
+			if(WirelessMode == WIRELESS_MODE_N_24G)
+			{
+#if 0//def MCR_WIRELESS_EXTEND			
+				if (pstat->IOTPeer == HT_IOT_PEER_CMW) 					
+					ratr_index = RATR_INX_WIRELESS_N;
+				else
+#endif				
+				ratr_index = RATR_INX_WIRELESS_NGB;
+			}
+			else
+				ratr_index = RATR_INX_WIRELESS_NG;
+#ifdef MCR_WIRELESS_EXTEND			
+			if (pstat->IOTPeer == HT_IOT_PEER_CMW)					
+				ratr_index = RATR_INX_WIRELESS_N;		
+#endif	
+
+//			if(MimoPs <= MIMO_PS_DYNAMIC)
+#if 0
+			if(MimoPs < MIMO_PS_DYNAMIC)
+			{
+				if(rssi_level == 1)
+					ratr_bitmap &= 0x00070000;
+				else if(rssi_level == 2)
+					ratr_bitmap &= 0x0007f000;
+				else
+					ratr_bitmap &= 0x0007f005;
+			}
+			else
+#endif			
+#ifdef MCR_WIRELESS_EXTEND
+			if (pstat->IOTPeer == HT_IOT_PEER_CMW)
+			{
+				if (rf_mimo_mode == MIMO_1T1R)
+					ratr_bitmap &= 0x000ff000;
+				else if (rf_mimo_mode == MIMO_2T2R)
+					ratr_bitmap &= 0x0ffff000;
+			}
+			else
+#endif			
+			{
+				if (rf_mimo_mode == MIMO_1T1R)
+				{					
+					if (bCurTxBW40MHz)
+					{
+						if(rssi_level == 1)
+							ratr_bitmap &= 0x00000000000f0000;
+						else if(rssi_level == 2)
+							ratr_bitmap &= 0x00000000000ff000;
+						else
+							ratr_bitmap &= 0x00000000000ff015;
+					}
+					else
+					{
+						if(rssi_level == 1)
+							ratr_bitmap &= 0x00000000000f0000;
+						else if(rssi_level == 2)
+							ratr_bitmap &= 0x00000000000ff000;
+						else
+							ratr_bitmap &= 0x00000000000ff005;
+					}	
+				}
+				else if (rf_mimo_mode == MIMO_2T2R)
+				{
+					if (bCurTxBW40MHz)
+					{
+						if(rssi_level == 1)
+							ratr_bitmap &= 0x000000000f8f0000;
+						else if(rssi_level == 2) {
+							//ratr_bitmap &= 0x0f8ff000;
+							ratr_bitmap &= 0x000000000ffff000;
+						}
+						else {
+							//ratr_bitmap &= 0x0f8ff015;
+							ratr_bitmap &= 0x000000000ffff015;
+						}
+					}
+					else
+					{
+						if(rssi_level == 1)
+							ratr_bitmap &= 0x000000000f8f0000;
+						else if(rssi_level == 2) {
+							//ratr_bitmap &= 0x0f8ff000;
+							ratr_bitmap &= 0x000000000ffff000;
+						}
+						else {
+							//ratr_bitmap &= 0x0f8ff005;
+							ratr_bitmap &= 0x000000000ffff005;
+						}
+					}
+				}
+				else
+				{
+					if(rssi_level == 1){
+						ratr_bitmap &= 0x0000000f8f8f0000;
+					}
+					else if(rssi_level == 2){
+						ratr_bitmap &= 0x0000000ffffff000;
+					}
+					else{
+						ratr_bitmap &= 0x0000000ffffff015;
+					}
+				}
+			}
+		}
+		break;
+
+#if CFG_HAL_RTK_AC_SUPPORT
+		case WIRELESS_MODE_AC_24G:
+		{
+			// need to check !!!
+			ratr_index = RATR_INX_WIRELESS_AC_24N;
+			if(rssi_level == 1)
+				ratr_bitmap &= 0x00000000fc3f0000;
+			else if(rssi_level == 2)
+				ratr_bitmap &= 0x00000000fffff000;
+			else
+				ratr_bitmap &= 0x00000000ffffffff;
+		}
+		break;
+		
+		case WIRELESS_MODE_AC_5G:
+		{
+			ratr_index = RATR_INX_WIRELESS_AC_N;
+
+			if (rf_mimo_mode == MIMO_1T1R) {
+				ratr_bitmap &= 0x00000000003ff010;
+				if(rssi_level == 3)
+					ratr_bitmap &= 0x00000000000ff010;
+			}
+			else if (rf_mimo_mode == MIMO_2T2R) 
+				ratr_bitmap &= 0x00000000fffff010;
+			else
+				ratr_bitmap &= 0x000003fffffff010; // VHT 3SS MCS0~9
+
+			//marked to prevent resize ratr_bitmap from 8-byte to 4-byte
+			//ratr_bitmap &= (Adapter->pmib->dot11acConfigEntry.dot11VHT_TxMap << 12)|0xff0;
+		}
+		break;
+#endif
+
+		default:
+			ratr_index = RATR_INX_WIRELESS_NGB;
+			
+			if(rf_mimo_mode == MIMO_1T1R)
+				ratr_bitmap &= 0x00000000000ff0ff;
+			else
+				ratr_bitmap &= 0x000000000f8ff0ff;
+			break;
+	}
+
+#ifdef MCR_WIRELESS_EXTEND
+	if (pstat->IOTPeer == HT_IOT_PEER_CMW && (Adapter->pshare->rf_ft_var.afb_ft)) 
+	{
+		if (print_dbg)
+			GDEBUG(" WirelessMode[%d] rssi[%d] ratr_bitmap= 0x%llx   ==> ", WirelessMode, pstat->rssi, ratr_bitmap);
+#if 1
+		if (pstat->rssi >= 38)
+			ratr_bitmap &= 0x0fffffff;
+		else if ((pstat->rssi >= 34) && (pstat->rssi <= 37))
+			ratr_bitmap &= 0x07f7f7ff;
+		else if ((pstat->rssi >= 30) && (pstat->rssi <= 33))
+			ratr_bitmap &= 0x03f3f3ff;
+		else if ((pstat->rssi >= 27) && (pstat->rssi <= 29))
+			ratr_bitmap &= 0x01f1f1f7;
+		else if ((pstat->rssi >= 23) && (pstat->rssi <= 26))
+			ratr_bitmap &= 0x00f0f0f7;
+		else if ((pstat->rssi >= 19) && (pstat->rssi <= 22))
+			ratr_bitmap &= 0x00707073;
+		else if ((pstat->rssi >= 15) && (pstat->rssi <= 18))
+			ratr_bitmap &= 0x00303033;
+		else if ((pstat->rssi <= 14))
+			ratr_bitmap &= 0x00101011;
+#else			
+		if (pstat->rssi >= 38)
+			ratr_bitmap &= 0x0fffffff;
+		else if ((pstat->rssi >= 35) && (pstat->rssi <= 37))
+			ratr_bitmap &= 0x07f7f7ff;
+		else if ((pstat->rssi >= 30) && (pstat->rssi <= 34))
+			ratr_bitmap &= 0x03f3f3ff;
+		else if ((pstat->rssi >= 27) && (pstat->rssi <= 29))
+			ratr_bitmap &= 0x01f1f1f7;
+		else if ((pstat->rssi >= 23) && (pstat->rssi <= 26))
+			ratr_bitmap &= 0x00f0f0f7;
+		else if ((pstat->rssi >= 20) && (pstat->rssi <= 22))
+			ratr_bitmap &= 0x00707073;
+		else if ((pstat->rssi >= 16) && (pstat->rssi <= 19))
+			ratr_bitmap &= 0x00303033;
+		else if ((pstat->rssi <= 15))
+			ratr_bitmap &= 0x00101011;
+#endif
+		if (Adapter->pshare->rf_ft_var.afb_force) {
+			if (WirelessMode == WIRELESS_MODE_A)
+				ratr_bitmap = (Adapter->pshare->rf_ft_var.afb_force) << 4;
+			else if (WirelessMode == WIRELESS_MODE_N_5G)
+				ratr_bitmap = (Adapter->pshare->rf_ft_var.afb_force << 20) | (Adapter->pshare->rf_ft_var.afb_force << 12) ;
+		}
+		if (print_dbg)
+			printk("0x%llx\n", ratr_bitmap);	
+	}
+#endif
+	BW = Get_RA_BW88XX(bCurTxBW80MHz, bCurTxBW40MHz);
+	bShortGI = Get_RA_ShortGI88XX(Adapter, pEntry, WirelessMode, BW);
+
+	pstat->ratr_idx = MRateIdxToARFRId88XX(Adapter, ratr_index, rf_mimo_mode);
+	pstat->tx_bw_fw = BW;
+	
+	H2CCommand[0] = (pstat->aid);
+	H2CCommand[1] =  (pstat->ratr_idx)| (bShortGI?0x80:0x00) ;	
+	H2CCommand[2] = BW |Get_VHT_ENI88XX(IOTAction, WirelessMode, ratr_bitmap);
+	
+
+	H2CCommand[2] |= BIT6;			// DisableTXPowerTraining
+
+	H2CCommand[3] = (u1Byte)(ratr_bitmap & 0x000000ff);
+	H2CCommand[4] = (u1Byte)((ratr_bitmap & 0x0000ff00) >>8);
+	H2CCommand[5] = (u1Byte)((ratr_bitmap & 0x00ff0000) >> 16);
+	H2CCommand[6] = (u1Byte)((ratr_bitmap & 0xff000000) >> 24);
+	
+	FillH2CCmd88XX(Adapter, H2C_88XX_RA_MASK, 7, H2CCommand);
+#if 0
+    printk("H2C H2C_88XX_RA_MASK 0x40\n");
+    printk("%s %d ratr_bitmap = %llx \n",__func__,__LINE__,ratr_bitmap);
+    printk("pstat->ratr_idx = %x \n",pstat->ratr_idx);
+    printk("pstat->aid = %x \n",pstat->aid);
+    printk("bShortGI = %x \n",bShortGI);
+    printk("MimoPs = %x \n",MimoPs);    
+	printk("UpdateHalRAMask88XX(): bitmap = %x ratr_index = %x, pstat->aid = %x, ShortGI:%x, MimoPs=%d\n", 
+			ratr_bitmap, pstat->ratr_idx,  (pstat->aid), bShortGI, MimoPs);
+
+	panic_printk("Cmd: %02x, %02x, %02x, %02x, %02x, %02x, %02x  \n",
+					H2CCommand[0] ,H2CCommand[1], H2CCommand[2],
+					H2CCommand[3] ,H2CCommand[4], H2CCommand[5], H2CCommand[6]      );
+#endif
+	H2CCommand[0] = (pstat->aid);
+	H2CCommand[3] = (u1Byte)((ratr_bitmap>>32) & 0x000000ff);
+	H2CCommand[4] = (u1Byte)(((ratr_bitmap>>32) & 0x0000ff00) >>8);
+	#if (IS_RTL8814A_SERIES)
+	FillH2CCmd88XX(Adapter, H2C_88XX_RA_MASK_3SS, 5, H2CCommand);
+	#endif
+
+	//SetBcnCtrlReg88XX(Adapter, BIT3, 0);
+#if 0
+	printk("H2C H2C_88XX_RA_MASK_3SS 0x46\n");
+	printk("%s %d ratr_bitmap = %llx \n",__func__,__LINE__,ratr_bitmap);
+	printk("pstat->ratr_idx = %x \n",pstat->ratr_idx);
+	printk("pstat->aid = %x \n",pstat->aid);
+	printk("bShortGI = %x \n",bShortGI);
+	printk("MimoPs = %x \n",MimoPs);
+
+	//printk("UpdateHalRAMask88XX(): bitmap = %x ratr_index = %x, pstat->aid:%x, ShortGI:%x, MimoPs=%d\n", 
+	//	ratr_bitmap, pstat->ratr_idx,  (pstat->aid), bShortGI, MimoPs);
+	
+	panic_printk("Cmd: %02x, %02x, %02x, %02x, %02x, %02x, %02x  \n",
+		H2CCommand[0] ,H2CCommand[1], H2CCommand[2],
+		H2CCommand[3] ,H2CCommand[4], H2CCommand[5], H2CCommand[6]		);
+#endif	
 }
 
 void
@@ -1672,7 +2008,7 @@ SetBCNRsvdPage88XX
 
     for(i=0;i<numOfAP;i++)
     {
-        H2CCommand[i] = *(loc_bcn);      
+        H2CCommand[i] = *(loc_bcn+i);
     }   
 
    	FillH2CCmd88XX(Adapter, H2C_88XX_BCN_RSVDPAGE, 7, H2CCommand);
@@ -1691,7 +2027,7 @@ SetProbeRsvdPage88XX
 
     for(i=0;i<numOfAP;i++)
     {
-        H2CCommand[i] = *(loc_probe);
+        H2CCommand[i] = *(loc_probe+i);
     }   
 
    	FillH2CCmd88XX(Adapter, H2C_88XX_PROBE_RSVDPAGE, 7, H2CCommand);
@@ -1789,8 +2125,8 @@ GetRsvdPageLoc88XX
 	}
 #endif // (IS_RTL8192E_SERIES || IS_RTL8881A_SERIES)
 
-#if (IS_RTL8813A_SERIES)
-	if ( IS_HARDWARE_TYPE_8813A(Adapter) ) {
+#if (IS_RTL8814A_SERIES)
+	if ( IS_HARDWARE_TYPE_8814A(Adapter) ) {
 	    if(frlen%PBP_PSTX_SIZE_V1)
 	    {
 	        frlen = (frlen+PBP_PSTX_SIZE_V1-(frlen%PBP_PSTX_SIZE_V1)) ;
@@ -1798,7 +2134,7 @@ GetRsvdPageLoc88XX
 
 	    *(loc_page) = (u1Byte)(frlen /PBP_PSTX_SIZE_V1);
 	}
-#endif // IS_RTL8813A_SERIES
+#endif // IS_RTL8814A_SERIES
     return frlen;
 }
 
@@ -1818,8 +2154,248 @@ SetRsvdPage88XX
     FillBeaconDesc88XX(Adapter, prsp-SIZE_TXDESC_88XX, (void*)prsp, pktLen, 1);
 
     SigninBeaconTXBD88XX(Adapter, beaconbuf, bigPktLen);
-#endif
+#endif	
 }
+
+
+#endif //(IS_RTL8881A_SERIES || IS_RTL8192E_SERIES)
+
+#if IS_RTL88XX_GENERATION
+
+//
+//3 H2C Command
+//
+#if 0
+BOOLEAN
+IsH2CBufOccupy88XX(
+    IN  HAL_PADAPTER    Adapter
+)
+{
+    PHAL_DATA_TYPE              pHalData = _GET_HAL_DATA(Adapter);
+   
+    if ( HAL_RTL_R8(REG_HMETFR) & BIT(pHalData->H2CBufPtr88XX) ) {
+        return _TRUE;
+    }
+    else {
+        RT_TRACE(COMP_DBG, DBG_WARNING, ("H2CBufOccupy(%d) !!\n", 
+                                            pHalData->H2CBufPtr88XX) );
+        return _FALSE;
+    }
+}
+
+
+BOOLEAN
+SigninH2C88XX(
+    IN  HAL_PADAPTER    Adapter,
+    IN  PH2C_CONTENT    pH2CContent
+)
+{
+    PHAL_DATA_TYPE      pHalData = _GET_HAL_DATA(Adapter);
+    u4Byte              DelayCnt = H2CBUF_OCCUPY_DELAY_CNT;
+    
+    //Check if h2c cmd signin buffer is occupied
+    while( _TRUE == IsH2CBufOccupy88XX(Adapter) ) {
+       HAL_delay_us(H2CBUF_OCCUPY_DELAY_US);
+       DelayCnt--;
+
+       if ( 0 == DelayCnt ) {
+            RT_TRACE(COMP_DBG, DBG_WARNING, ("H2CBufOccupy retry timeout\n") );
+            return _FALSE;
+       }
+       else {
+            //Continue to check H2C Buf
+       }
+       
+    }
+
+    //signin reg in order to fit hw requirement
+    if ( pH2CContent->content & BIT7 ) {
+        HAL_RTL_W16(REG_HMEBOX_E0_E1 + (pHalData->H2CBufPtr88XX*2), pH2CContent->ext_content);
+    }
+
+    HAL_RTL_W16(REG_HMEBOX0 + (pHalData->H2CBufPtr88XX*4), pH2CContent->content);
+
+	//printk("(smcc) sign in h2c %x\n", HMEBOX_0+(priv->pshare->fw_q_fifo_count*4));
+    RT_TRACE(COMP_DBG, DBG_LOUD, ("sign in h2c(%d) 0x%x\n", 
+                                        pHalData->H2CBufPtr88XX, 
+                                        REG_HMEBOX0 + (pHalData->H2CBufPtr88XX*4)) );
+
+    //rollover ring buffer count
+    if (++pHalData->H2CBufPtr88XX > 3) {
+        pHalData->H2CBufPtr88XX = 0;
+    }
+
+    return _TRUE;
+}
+
+#else
+BOOLEAN
+CheckFwReadLastH2C88XX(
+	IN  HAL_PADAPTER    Adapter,
+	IN  u1Byte          BoxNum
+)
+{
+	u1Byte      valHMETFR;
+	BOOLEAN     Result = FALSE;
+	
+	valHMETFR = HAL_RTL_R8(REG_HMETFR);
+
+	if(((valHMETFR>>BoxNum)&BIT0) == 0)
+		Result = TRUE;
+		
+	return Result;
+}
+
+
+RT_STATUS
+FillH2CCmd88XX(
+	IN  HAL_PADAPTER    Adapter,
+	IN	u1Byte 		    ElementID,
+	IN	u4Byte 		    CmdLen,
+	IN	pu1Byte		    pCmdBuffer
+)
+{
+    PHAL_DATA_TYPE      pHalData = _GET_HAL_DATA(Adapter);
+	u1Byte	            BoxNum;
+	u2Byte	            BOXReg=0, BOXExtReg=0;
+	u2Byte	            BOXRegLast=0, BOXExtRegLast=0;
+	BOOLEAN             bFwReadClear=FALSE;
+	u1Byte	            BufIndex=0;
+	u2Byte	            WaitH2cLimmit=0;
+	u1Byte	            BoxContent[4], BoxExtContent[4];
+	u1Byte	            idx=0;
+#ifdef BT_COEXIST	
+	int 				i=0;
+#endif
+
+#ifdef BT_COEXIST	
+#ifdef BT_COEXIST_DEBUG
+			if(ElementID >= 0x60 && ElementID <= 0x66){
+				printk("[%s] ID=%x, data:",__FUNCTION__,ElementID);
+				for(i=0;i<CmdLen;i++)
+					printk("%x ", *(pCmdBuffer+i)); 	
+				printk("\n");
+			}
+#endif		
+#endif	
+    if(!pHalData->bFWReady) {
+        RT_TRACE(COMP_DBG, DBG_WARNING, ("H2C bFWReady=False !!\n") );
+        return RT_STATUS_FAILURE;
+    }
+
+	// 1. Find the last BOX number which has been writen.
+	BoxNum = pHalData->H2CBufPtr88XX;	//pHalData->LastHMEBoxNum;
+	switch(BoxNum)
+	{
+		case 0:
+			BOXReg = REG_HMEBOX0;
+			BOXExtReg = REG_HMEBOX_E0;
+			BOXRegLast = REG_HMEBOX3;
+			BOXExtRegLast = REG_HMEBOX_E3;
+			break;
+		case 1:
+			BOXReg = REG_HMEBOX1;
+			BOXExtReg = REG_HMEBOX_E1;
+			BOXRegLast = REG_HMEBOX0;
+			BOXExtRegLast = REG_HMEBOX_E0;
+			break;
+		case 2:
+			BOXReg = REG_HMEBOX2;
+			BOXExtReg = REG_HMEBOX_E2;
+			BOXRegLast = REG_HMEBOX1;
+			BOXExtRegLast = REG_HMEBOX_E1;
+			break;
+		case 3:
+			BOXReg = REG_HMEBOX3;
+			BOXExtReg = REG_HMEBOX_E3;
+			BOXRegLast = REG_HMEBOX2;
+			BOXExtRegLast = REG_HMEBOX_E2;
+			break;
+		default:
+			break;
+	}
+
+	// 2. Check if the box content is empty.
+	while(!bFwReadClear)
+	{
+		bFwReadClear = CheckFwReadLastH2C88XX(Adapter, BoxNum);
+		if(WaitH2cLimmit == 600) { //do the first stage, clear last cmd
+			HAL_RTL_W32(BOXRegLast, 0x00020101);
+			//printk("H2C cmd-TO, first stage!! REG_HMETFR:0x%x, BoxNum:%d\n", HAL_RTL_R8(REG_HMETFR), BoxNum);
+		} else if(WaitH2cLimmit == 1000) { //do the second stage, clear all cmd
+			HAL_RTL_W32(REG_HMEBOX0, 0x00020101);
+			HAL_RTL_W32(REG_HMEBOX1, 0x00020101);
+			HAL_RTL_W32(REG_HMEBOX2, 0x00020101);
+			HAL_RTL_W32(REG_HMEBOX3, 0x00020101);
+			//printk("H2C cmd-TO, second stage!! REG_HMETFR:0x%x, BoxNum:%d\n", HAL_RTL_R8(REG_HMETFR), BoxNum);
+		} else if(WaitH2cLimmit >= 1200) {
+			//printk("H2C cmd-TO, final stage!! REG_HMETFR:0x%x, BoxNum:%d\n", HAL_RTL_R8(REG_HMETFR), BoxNum);
+			Adapter->pshare->h2c_box_full++;
+			return RT_STATUS_FAILURE;
+		}
+		else if(!bFwReadClear)
+		{	
+			HAL_delay_us(10); //us
+		}
+		WaitH2cLimmit++;
+	}
+
+	// 4. Fill the H2C cmd into box 	
+	HAL_memset(BoxContent, 0, sizeof(BoxContent));
+	HAL_memset(BoxExtContent, 0, sizeof(BoxExtContent));
+	
+	BoxContent[0] = ElementID; // Fill element ID
+//	RTPRINT(FFW, FW_MSG_H2C_CONTENT, ("[FW], Write ElementID BOXReg(%4x) = %2x \n", BOXReg, ElementID));
+
+	switch(CmdLen)
+	{
+	case 1:
+	case 2:
+	case 3:
+	{
+		//BoxContent[0] &= ~(BIT7);
+		HAL_memcpy((pu1Byte)(BoxContent)+1, pCmdBuffer+BufIndex, CmdLen);
+		//For Endian Free.
+		for(idx= 0; idx < 4; idx++)
+		{
+			HAL_RTL_W8(BOXReg+idx, BoxContent[idx]);
+		}
+		break;
+	}
+	case 4: 
+	case 5:
+	case 6:
+	case 7:
+	{
+		//BoxContent[0] |= (BIT7);
+		HAL_memcpy((pu1Byte)(BoxExtContent), pCmdBuffer+BufIndex+3, (CmdLen-3));
+		HAL_memcpy((pu1Byte)(BoxContent)+1, pCmdBuffer+BufIndex, 3);
+		//For Endian Free.
+		for(idx = 0 ; idx < 4 ; idx ++)
+		{
+			HAL_RTL_W8(BOXExtReg+idx, BoxExtContent[idx]);
+		}		
+		for(idx = 0 ; idx < 4 ; idx ++)
+		{
+			HAL_RTL_W8(BOXReg+idx, BoxContent[idx]);
+		}
+		break;
+	}
+	
+	default:
+//RTPRINT(FFW, FW_MSG_H2C_STATE, ("[FW], Invalid command len=%d!!!\n", CmdLen));
+		return RT_STATUS_FAILURE;
+	}
+
+	if (++pHalData->H2CBufPtr88XX > 3)
+		pHalData->H2CBufPtr88XX = 0;
+
+//RTPRINT(FFW, FW_MSG_H2C_CONTENT, ("[FW], pHalData->LastHMEBoxNum = %d\n", pHalData->LastHMEBoxNum));
+	return RT_STATUS_SUCCESS;
+}
+#endif
+
+
 
 void C2HHandler88XX(
     IN HAL_PADAPTER     Adapter
@@ -1866,7 +2442,6 @@ void C2HHandler88XX(
 
 #endif
 }
-#endif //(IS_RTL8881A_SERIES || IS_RTL8192E_SERIES)
 
 #if 1
 
@@ -1903,102 +2478,75 @@ C2HPacket88XX
 VOID
 C2HEventHandler88XX
 (
-	IN HAL_PADAPTER     Adapter,
-	IN u1Byte			c2hCmdId, 
-	IN u1Byte			c2hCmdLen,
-	IN pu1Byte 			tmpBuf
+    IN HAL_PADAPTER     Adapter,
+    IN u1Byte			c2hCmdId, 
+    IN u1Byte			c2hCmdLen,
+    IN pu1Byte 			tmpBuf    			
 )
 {
-	static u1Byte CmdBuffer = 0x1;
-	u1Byte i;
+    static u1Byte CmdBuffer = 0x1;
+    u1Byte i;
 	u1Byte	Extend_c2hSubID = 0;
-
-	switch(c2hCmdId)
-	{
-	case C2H_88XX_DBG:
-//		phydm_fw_trace_handler(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
-		break;
-	
-	case C2H_88XX_LB:
-		// get c2h loopback
-		printk("c2h content c2hCmdId = 0x%x c2hCmdLen= 0x%x \n", c2hCmdId, c2hCmdLen);
-
-		for(i=0;i<c2hCmdLen;i++)
-		{
-			printk("%x ",*(tmpBuf+i));    
-		}
-
-		printk("\n");
-
-		CmdBuffer++;
-
-		delay_ms(100);
-		// issue h2c 0xE0 back
-		printk("GEN h2c cmd CmdBuffer = %x \n",CmdBuffer);        
-		FillH2CCmd88XX(Adapter,0xE0,1,&CmdBuffer);        
-		//  FillH2CCmd88XX(Adapter,0xE0,1,&CmdBuffer);                
-		break;
-
-	case C2H_88XX_TX_RATE:
-
-#ifdef TXREPORT	
-		APReqTXRptHandler(Adapter,tmpBuf);
-
-#ifdef TXRETRY_CNT
-		requestTxRetry88XX(Adapter);
-#else
-		requestTxReport88XX(Adapter);
-#endif			
-
-#endif			
-		break;
-
-#ifdef TXRETRY_CNT
-	case C2H_88XX_TX_RETRY:
-		C2HTxTxRetryHandler(Adapter, tmpBuf);
-		requestTxReport88XX(Adapter);	
-		break;
-#endif
-
-
-	case C2H_88XX_TXBF:
-		#ifdef BEAMFORMING_SUPPORT
-		C2HTxBeamformingHandler88XX(Adapter, tmpBuf, c2hCmdLen);
-		#endif
-		break;
 		
-	case C2H_88XX_RA_RPT:
-
-		phydm_c2h_ra_report_handler(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
-
+    switch(c2hCmdId)
+    {
+	case C2H_88XX_DBG:
+		phydm_fw_trace_handler(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
 		break;
+    
+    case C2H_88XX_LB:
+        // get c2h loopback
+        printk("c2h content c2hCmdId = 0x%x c2hCmdLen= 0x%x \n", c2hCmdId, c2hCmdLen);
 
-	case C2H_88XX_RA_PARA_RPT:
-//		ODM_C2HRaParaReportHandler(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
+        for(i=0;i<c2hCmdLen;i++)
+        {
+            printk("%x ",*(tmpBuf+i));    
+        }
+
+        printk("\n");
+
+        CmdBuffer++;
+
+        delay_ms(100);
+        // issue h2c 0xE0 back
+        printk("GEN h2c cmd CmdBuffer = %x \n",CmdBuffer);        
+        FillH2CCmd88XX(Adapter,0xE0,1,&CmdBuffer);        
+      //  FillH2CCmd88XX(Adapter,0xE0,1,&CmdBuffer);                
+    break;
+    
+    case C2H_88XX_TX_RATE:
+#ifdef TXREPORT	
+        APReqTXRptHandler(Adapter,tmpBuf);
+        requestTxReport88XX(Adapter);
+#endif			
+    break;
+
+case C2H_88XX_TXBF:
+#ifdef BEAMFORMING_SUPPORT
+	C2HTxBeamformingHandler88XX(Adapter, tmpBuf, c2hCmdLen);
+#endif
+    break;
+
+    case C2H_88XX_RA_PARA_RPT:
+	ODM_C2HRaParaReportHandler(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
 		break;
 		
 	case C2H_88XX_RA_DYNAMIC_TX_PATH_RPT:
-//		phydm_c2h_dtp_handler(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
-		//DbgPrint("[C2H] C2H_8192E_RA_PARA_RPT \n");
-		break;
+		phydm_c2h_dtp_handler(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
+	//DbgPrint("[C2H] C2H_8192E_RA_PARA_RPT \n");
+	break;
 
-	case C2H_88XX_EXTEND_DEBUG_CODE:
-
-		phydm_fw_trace_handler_code(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
-
-		break;
-		
 	case C2H_88XX_EXTEND_IND:	
 		Extend_c2hSubID= tmpBuf[0];
 		if(Extend_c2hSubID == EXTEND_C2H_88XX_DBG_PRINT)
 		{
-//			phydm_fw_trace_handler_8051(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
+			phydm_fw_trace_handler_8051(&(Adapter->pshare->_dmODM), tmpBuf, c2hCmdLen);
 		}
 		break;
 
-	default:
-		break;
-	}
+    default:
+    break;
+    }
 }
 #endif
 VOID
@@ -2010,6 +2558,11 @@ C2HExtEventHandler88XX
     IN pu1Byte 			tmpBuf    			
 )
 {
+		
+	//printk("c2h content c2hCmdId = 0x%x  \n",C2H_88XX_EXTEND_IND);
+	//printk("total length=%d\n",c2hCmdLen);
+	//printk("pkt inside=%s\n",tmpBuf);
+
 	u1Byte c2hissued_len = 0;
 	
 	u1Byte cmdseq = 0;
@@ -2055,8 +2608,7 @@ C2HTxBeamformingHandler88XX(
 
 }
 #endif
-#if IS_RTL88XX_GENERATION
-#if (HAL_DEV_BUS_TYPE & (HAL_RT_EMBEDDED_INTERFACE | HAL_RT_PCI_INTERFACE))
+
 BOOLEAN
 DownloadRsvdPage88XX
 ( 
@@ -2075,7 +2627,7 @@ DownloadRsvdPage88XX
     {
         if (++wait_cnt > 100) { 
             RT_TRACE_F(COMP_INIT, DBG_SERIOUS, ("Download Img fail\n"));
-            return _TRUE;
+            return _FALSE;
         }
        delay_us(10);
     }
@@ -2089,6 +2641,5 @@ DownloadRsvdPage88XX
 
     return _TRUE;
 }
-#endif // (HAL_DEV_BUS_TYPE & (HAL_RT_EMBEDDED_INTERFACE | HAL_RT_PCI_INTERFACE))
 #endif //if IS_RTL88XX_GENERATION
 

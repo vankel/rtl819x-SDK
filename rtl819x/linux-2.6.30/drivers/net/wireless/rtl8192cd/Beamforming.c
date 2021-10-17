@@ -10,6 +10,240 @@
 
 #ifdef BEAMFORMING_SUPPORT
 
+
+VOID
+Beamforming_SetBeamFormLeave(
+	struct rtl8192cd_priv *priv,
+	u1Byte				Idx
+	)
+{
+
+#ifdef CONFIG_RTL_8812_SUPPORT
+		if(GET_CHIP_VER(priv) == VERSION_8812E)
+			SetBeamformLeave8812(priv, Idx);	
+#endif
+
+#ifdef CONFIG_WLAN_HAL_8192EE
+		if(GET_CHIP_VER(priv) == VERSION_8192E)
+			SetBeamformLeave92E(priv,Idx);
+#endif
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+		if(GET_CHIP_VER(priv) == VERSION_8814A)
+			SetBeamformLeave8814A(priv,Idx);
+#endif
+
+}
+
+VOID
+Beamforming_SetBeamFormStatus(
+	struct rtl8192cd_priv *priv,
+	u1Byte				Idx
+	)
+{
+
+#ifdef CONFIG_WLAN_HAL_8192EE
+		if(GET_CHIP_VER(priv)== VERSION_8192E)
+			SetBeamformStatus92E(priv, Idx);		
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+		if(GET_CHIP_VER(priv)== VERSION_8812E)
+			SetBeamformStatus8812(priv, Idx);
+#endif
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+		if(GET_CHIP_VER(priv) == VERSION_8814A)
+			SetBeamformStatus8814A(priv,Idx);
+#endif
+
+}
+
+VOID
+Beamforming_SetBeamFormEnter(
+	struct rtl8192cd_priv *priv,
+	u1Byte				Idx
+	)
+{
+
+#ifdef CONFIG_WLAN_HAL_8192EE
+		if (GET_CHIP_VER(priv)== VERSION_8192E)	
+			SetBeamformEnter92E(priv, Idx);
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+		if (GET_CHIP_VER(priv)== VERSION_8812E)	
+			SetBeamformEnter8812(priv, Idx);
+#endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+		if(GET_CHIP_VER(priv) == VERSION_8814A)
+			SetBeamformEnter8814A(priv,Idx);
+#endif
+
+}
+
+
+VOID
+Beamforming_NDPARate(
+	struct rtl8192cd_priv *priv,
+	BOOLEAN		Mode,
+	u1Byte		BW,
+	u1Byte		Rate
+	)
+{
+#ifdef CONFIG_WLAN_HAL_8192EE
+	if(GET_CHIP_VER(priv)== VERSION_8192E){
+		Beamforming_NDPARate_92E(priv, Mode, BW, Rate);
+	}		
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+	if(GET_CHIP_VER(priv)== VERSION_8812E) {
+		Beamforming_NDPARate_8812(priv, Mode, BW, Rate);  //
+	}
+#endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if(GET_CHIP_VER(priv)== VERSION_8814A){
+		Beamforming_NDPARate_8814A(priv, Mode, BW, Rate);
+	}		
+#endif
+
+}
+
+VOID
+Beamforming_SetHWTimer(
+	struct rtl8192cd_priv *priv,
+	u2Byte	t
+	)
+{
+#ifdef CONFIG_WLAN_HAL_8192EE
+		if(GET_CHIP_VER(priv)== VERSION_8192E)
+		{			
+			HW_VAR_HW_REG_TIMER_STOP_92E(priv);
+			HW_VAR_HW_REG_TIMER_INIT_92E(priv, t);
+			HW_VAR_HW_REG_TIMER_START_92E(priv);
+		}
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+		if(GET_CHIP_VER(priv)== VERSION_8812E)
+		{
+			HW_VAR_HW_REG_TIMER_STOP_8812(priv);
+			HW_VAR_HW_REG_TIMER_INIT_8812(priv, t);
+			HW_VAR_HW_REG_TIMER_START_8812(priv);
+		}
+#endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+		if(GET_CHIP_VER(priv)== VERSION_8814A)
+		{			
+			HW_VAR_HW_REG_TIMER_STOP_8814A(priv);
+			HW_VAR_HW_REG_TIMER_INIT_8814A(priv, t);
+			HW_VAR_HW_REG_TIMER_START_8814A(priv);
+		}
+#endif
+}
+
+VOID
+Beamforming_StopHWTimer(
+	struct rtl8192cd_priv *priv
+	)
+{
+#ifdef CONFIG_WLAN_HAL_8192EE
+		if(GET_CHIP_VER(priv)== VERSION_8192E)
+		{			
+			HW_VAR_HW_REG_TIMER_STOP_92E(priv);
+		}
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+		if(GET_CHIP_VER(priv)== VERSION_8812E)
+		{
+			HW_VAR_HW_REG_TIMER_STOP_8812(priv);
+		}
+#endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+		if(GET_CHIP_VER(priv)== VERSION_8814A)
+		{			
+			HW_VAR_HW_REG_TIMER_STOP_8814A(priv);
+		}
+#endif
+}
+
+u1Byte
+Beamforming_GetHTNDPTxRate(
+	struct rtl8192cd_priv *priv,
+	u1Byte	CompSteeringNumofBFer
+)
+{
+	u1Byte Nr_index = 0;
+	u1Byte NDPTxRate;
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if(GET_CHIP_VER(priv)== VERSION_8814A)
+		Nr_index = TxBF_Nr(halTxbf8814A_GetNtx(priv), CompSteeringNumofBFer);		/*find Nr*/
+	else
+#endif
+		Nr_index = TxBF_Nr(1, CompSteeringNumofBFer);		/*find Nr*/
+	switch(Nr_index)
+	{
+		case 1:
+		NDPTxRate = _MCS8_RATE_;
+		break;
+
+		case 2:
+		NDPTxRate = _MCS16_RATE_;
+		break;
+
+		case 3:
+		NDPTxRate = _MCS24_RATE_;
+		break;
+			
+		default:
+		NDPTxRate = _MCS8_RATE_;
+		break;
+	
+	}
+
+return NDPTxRate;
+
+}
+
+u1Byte
+Beamforming_GetVHTNDPTxRate(
+	struct rtl8192cd_priv *priv,
+	u1Byte	CompSteeringNumofBFer
+)
+{
+	u1Byte Nr_index = 0;
+	u1Byte NDPTxRate;
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if(GET_CHIP_VER(priv)== VERSION_8814A)
+		Nr_index = TxBF_Nr(halTxbf8814A_GetNtx(priv), CompSteeringNumofBFer);		/*find Nr*/
+	else
+#endif
+		Nr_index = TxBF_Nr(1, CompSteeringNumofBFer);		/*find Nr*/
+	
+	switch(Nr_index)
+	{
+		case 1:
+		NDPTxRate = _NSS2_MCS0_RATE_;
+		break;
+
+		case 2:
+		NDPTxRate = _NSS3_MCS0_RATE_;
+		break;
+
+		case 3:
+		NDPTxRate = _NSS4_MCS0_RATE_;
+		break;
+			
+		default:
+		NDPTxRate = _NSS2_MCS0_RATE_;
+		break;
+	
+	}
+
+return NDPTxRate;
+
+}
+
+
 VOID
 PacketAppendData(
 	IN	POCTET_STRING	packet,
@@ -61,13 +295,13 @@ Beamforming_GetEntryBeamCapByMacId(
 	PRT_BEAMFORMING_INFO	pBeamformingInfo = &(priv->pshare->BeamformingInfo);
 	BEAMFORMING_CAP			BeamformEntryCap = BEAMFORMING_CAP_NONE;
 	
-	for(i = 0; i < BEAMFORMING_ENTRY_NUM; i++)
+	for(i = 0; i < BEAMFORMEE_ENTRY_NUM; i++)
 	{
-		if(	pBeamformingInfo->BeamformingEntry[i].bUsed && 
-			(MacId == pBeamformingInfo->BeamformingEntry[i].MacId))
+		if(pBeamformingInfo->BeamformeeEntry[i].bUsed &&
+			(MacId == pBeamformingInfo->BeamformeeEntry[i].MacId))
 		{
-			BeamformEntryCap =  pBeamformingInfo->BeamformingEntry[i].BeamformEntryCap;
-			i = BEAMFORMING_ENTRY_NUM;
+			BeamformEntryCap =  pBeamformingInfo->BeamformeeEntry[i].BeamformEntryCap;
+			i = BEAMFORMEE_ENTRY_NUM;
 		}
 	}
 
@@ -76,7 +310,7 @@ Beamforming_GetEntryBeamCapByMacId(
 
 
 PRT_BEAMFORMING_ENTRY
-Beamforming_GetEntryByAddr(
+Beamforming_GetBFeeEntryByAddr(
 	struct rtl8192cd_priv *priv,
 	IN	pu1Byte		RA,
 	OUT	pu1Byte		Idx
@@ -85,13 +319,35 @@ Beamforming_GetEntryByAddr(
 	u1Byte	i = 0;
 	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
 	
-	for(i = 0; i < BEAMFORMING_ENTRY_NUM; i++)
+	for(i = 0; i < BEAMFORMEE_ENTRY_NUM; i++)
 	{
-		if(	pBeamformingInfo->BeamformingEntry[i].bUsed && 
-			0 == (memcmp(RA, pBeamformingInfo->BeamformingEntry[i].MacAddr, MACADDRLEN)))
+		if((pBeamformingInfo->BeamformeeEntry[i].bUsed) && 
+			((memcmp(RA, pBeamformingInfo->BeamformeeEntry[i].MacAddr, MACADDRLEN)) == 0))
 		{
 			*Idx = i;
-			return &(pBeamformingInfo->BeamformingEntry[i]);
+			return &(pBeamformingInfo->BeamformeeEntry[i]);
+		}
+	}
+	return NULL;
+}
+
+PRT_BEAMFORMER_ENTRY
+Beamforming_GetBFerEntryByAddr(
+	struct rtl8192cd_priv *priv,
+	IN	pu1Byte		RA,
+	OUT	pu1Byte		Idx
+	)
+{
+	u1Byte	i = 0;
+	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
+	
+	for(i = 0; i < BEAMFORMER_ENTRY_NUM; i++)
+	{
+		if((pBeamformingInfo->BeamformerEntry[i].bUsed) && 
+			((memcmp(RA, pBeamformingInfo->BeamformerEntry[i].MacAddr, MACADDRLEN)) == 0))
+		{
+			*Idx = i;
+			return &(pBeamformingInfo->BeamformerEntry[i]);
 		}
 	}
 	return NULL;
@@ -108,13 +364,13 @@ Beamforming_GetEntryByMacId(
 	u1Byte	i = 0;
 	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
 	
-	for(i = 0; i < BEAMFORMING_ENTRY_NUM; i++)
+	for(i = 0; i < BEAMFORMEE_ENTRY_NUM; i++)
 	{
-		if(	pBeamformingInfo->BeamformingEntry[i].bUsed && 
-			(MacId == pBeamformingInfo->BeamformingEntry[i].MacId))
+		if(pBeamformingInfo->BeamformeeEntry[i].bUsed && 
+			(MacId == pBeamformingInfo->BeamformeeEntry[i].MacId))
 		{
 			*Idx = i;
-			return &(pBeamformingInfo->BeamformingEntry[i]);
+			return &(pBeamformingInfo->BeamformeeEntry[i]);
 		}
 	}
 
@@ -123,7 +379,7 @@ Beamforming_GetEntryByMacId(
 }
 
 PRT_BEAMFORMING_ENTRY
-Beamforming_GetFreeEntry(
+Beamforming_GetFreeBFeeEntry(
 	struct rtl8192cd_priv *priv,
 	OUT	pu1Byte		Idx
 	)
@@ -131,30 +387,52 @@ Beamforming_GetFreeEntry(
 	u1Byte	i = 0;
 	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
 	
-	for(i = 0; i < BEAMFORMING_ENTRY_NUM; i++)
+	for(i = 0; i < BEAMFORMEE_ENTRY_NUM; i++)
 	{
-		if(pBeamformingInfo->BeamformingEntry[i].bUsed == FALSE)
+		if(pBeamformingInfo->BeamformeeEntry[i].bUsed == FALSE)
 		{
 			*Idx = i;
-			return &(pBeamformingInfo->BeamformingEntry[i]);
+			return &(pBeamformingInfo->BeamformeeEntry[i]);
+		}	
+	}
+	return NULL;
+}
+
+PRT_BEAMFORMER_ENTRY
+Beamforming_GetFreeBFerEntry(
+	struct rtl8192cd_priv *priv,
+	OUT	pu1Byte		Idx
+	)
+{
+	u1Byte	i = 0;
+	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
+	
+	for(i = 0; i < BEAMFORMER_ENTRY_NUM; i++)
+	{
+		if(pBeamformingInfo->BeamformerEntry[i].bUsed == FALSE)
+		{
+			*Idx = i;
+			return &(pBeamformingInfo->BeamformerEntry[i]);
 		}	
 	}
 	return NULL;
 }
 
 PRT_BEAMFORMING_ENTRY
-Beamforming_AddEntry(
+Beamforming_AddBFeeEntry(
 	struct rtl8192cd_priv *priv,
+	struct stat_info	*pSTA,
 		pu1Byte				RA,
 		u2Byte				AID,
 		u2Byte				MacID,
 		u1Byte				BW,
 		BEAMFORMING_CAP		BeamformCap,
-		pu1Byte				Idx
+		pu1Byte				Idx,
+		u2Byte				CompSteeringNumofBFer
 	)
 {
 	PRT_BEAMFORMING_ENTRY	pEntry;
-	pEntry = Beamforming_GetFreeEntry(priv, Idx);
+	pEntry = Beamforming_GetFreeBFeeEntry(priv, Idx);
 
 	if(pEntry != NULL)
 	{	
@@ -185,11 +463,15 @@ Beamforming_AddEntry(
 			
 		memcpy(pEntry->MacAddr, RA, MACADDRLEN);
 		pEntry->bTxBF = FALSE;
+		pEntry->bSound = FALSE;
+		
 		pEntry->BeamformEntryCap = BeamformCap;	
 		pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_UNINITIALIZE;
 		pEntry->LogSeq = 0xff;
 		pEntry->LogRetryCnt = 0;
-		pEntry->LogStatusFailCnt = 0;		
+		pEntry->LogStatusFailCnt = 0;
+		pEntry->CompSteeringNumofBFer = CompSteeringNumofBFer;
+		pEntry->pSTA = pSTA;
 #ifdef MBSSID
 		if(GET_CHIP_VER(priv) == VERSION_8812E)
 			if (GET_MIB(GET_ROOT(priv))->miscEntry.vap_enable)
@@ -201,6 +483,53 @@ Beamforming_AddEntry(
 		return NULL;
 }
 
+PRT_BEAMFORMER_ENTRY
+Beamforming_AddBFerEntry(
+		struct rtl8192cd_priv *priv,
+		pu1Byte				RA,
+		u2Byte				AID,
+		BEAMFORMING_CAP	BeamformCap,
+		pu1Byte				Idx,
+		u2Byte				NumofSoundingDim
+	)
+{
+	PRT_BEAMFORMER_ENTRY	pEntry;
+	pEntry = Beamforming_GetFreeBFerEntry(priv, Idx);
+
+	if(pEntry != NULL)
+	{	
+		pEntry->bUsed = TRUE;			
+
+		// AID -> P_AID
+		if (OPMODE & WIFI_AP_STATE)
+		{
+			u2Byte bssid = ((GET_MY_HWADDR[5]>> 4) & 0x0f ) ^ 
+							(GET_MY_HWADDR[5] & 0xf);				// BSSID[44:47] xor BSSID[40:43]
+			pEntry->P_AID = (AID + (bssid <<5)) & 0x1ff;				// (dec(A) + dec(B)*32) mod 512	
+
+		}
+		else if (OPMODE & WIFI_ADHOC_STATE)
+		{
+//			pEntry->P_AID = AID;
+			pEntry->P_AID = 0;
+	
+		}
+		else if (OPMODE & WIFI_STATION_STATE) {
+			pEntry->P_AID =  RA[5];						// BSSID[39:47]
+			pEntry->P_AID = (pEntry->P_AID << 1) | (RA[4] >> 7 );
+		}
+
+		memcpy(pEntry->MacAddr, RA, MACADDRLEN);
+		pEntry->BeamformEntryCap = BeamformCap;	
+		pEntry->NumofSoundingDim = NumofSoundingDim;
+		
+		return pEntry;
+	}
+	else
+		return NULL;
+}
+
+
 BOOLEAN
 Beamforming_RemoveEntry(
 	struct rtl8192cd_priv *priv,
@@ -208,33 +537,45 @@ Beamforming_RemoveEntry(
 	OUT	pu1Byte		Idx
 	)
 {
-	PRT_BEAMFORMING_ENTRY	pEntry = Beamforming_GetEntryByAddr(priv, RA, Idx);
+	PRT_BEAMFORMER_ENTRY	pBFerEntry = Beamforming_GetBFerEntryByAddr(priv, RA, Idx);
+	PRT_BEAMFORMING_ENTRY	pEntry = Beamforming_GetBFeeEntryByAddr(priv, RA, Idx);
+	BOOLEAN ret = FALSE;
 
-	if(pEntry != NULL)
-	{	
+	if (pBFerEntry != NULL) {
+		pBFerEntry->bUsed = FALSE;
+		pBFerEntry->BeamformEntryCap = BEAMFORMING_CAP_NONE;
+		ret = TRUE;
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, Remove BFerentry idx=%d\n", __FUNCTION__, *Idx));
+	}
+	
+	if (pEntry != NULL) {	
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, Remove Bfeeentry idx=%d\n", __FUNCTION__, *Idx));
 		pEntry->bUsed = FALSE;
 		pEntry->BeamformEntryCap = BEAMFORMING_CAP_NONE;
-		pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_UNINITIALIZE;
-		return TRUE;
+		//pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_UNINITIALIZE;
+		ret = TRUE;
 	}
-	else
-		return FALSE;
+
+	return ret;
 }
 
 BOOLEAN
 Beamforming_InitEntry(
 	struct rtl8192cd_priv	*priv,
 	struct stat_info		*pSTA,
-	pu1Byte					Idx	
+	pu1Byte				BFerBFeeIdx	
 	)
 {
 
 	PRT_BEAMFORMING_ENTRY	pBeamformEntry = NULL;
+	PRT_BEAMFORMER_ENTRY	pBeamformerEntry = NULL;
 	pu1Byte					RA; 
 	u2Byte					AID, MacID;
 	u1Byte					WirelessMode;
 	u1Byte					BW = HT_CHANNEL_WIDTH_20;
-	BEAMFORMING_CAP			BeamformCap = BEAMFORMING_CAP_NONE;	
+	BEAMFORMING_CAP		BeamformCap = BEAMFORMING_CAP_NONE;	
+	u1Byte					BFerIdx = 0xF, BFeeIdx = 0xF;
+	u2Byte					CompSteeringNumofBFer = 0, NumofSoundingDim = 0;
 
 	// The current setting does not support Beaforming
 	if (priv->pmib->dot11RFEntry.txbf == 0)
@@ -265,12 +606,17 @@ Beamforming_InitEntry(
 
 // BIT 4 implies capable of sending NDPA (BFER),
 // BIT 3 implies capable of receiving NDPA (BFEE),
-	if(pSTA->ht_cap_len && (cpu_to_le32(pSTA->ht_cap_buf.txbf_cap) & 0x8)&& (priv->pmib->dot11RFEntry.txbfer == 1)){
+
+	if(pSTA->ht_cap_len && (cpu_to_le32(pSTA->ht_cap_buf.txbf_cap) & 0x8)&& (priv->pmib->dot11RFEntry.txbfer == 1))	//bfer
+	{
 		BeamformCap |=BEAMFORMER_CAP_HT_EXPLICIT;
+		CompSteeringNumofBFer = (u1Byte)((cpu_to_le32(pSTA->ht_cap_buf.txbf_cap) & (BIT(23)|BIT(24)))>>23);
 //		panic_printk("[%d] BeamformCap = BEAMFORMER_CAP_HT_EXPLICIT \n",__LINE__);
 	}
-	if (pSTA->ht_cap_len && (cpu_to_le32(pSTA->ht_cap_buf.txbf_cap) & 0x10)&& (priv->pmib->dot11RFEntry.txbfee == 1)){
+	if (pSTA->ht_cap_len && (cpu_to_le32(pSTA->ht_cap_buf.txbf_cap) & 0x10)&& (priv->pmib->dot11RFEntry.txbfee == 1))	//bfee
+	{
 		BeamformCap |=BEAMFORMEE_CAP_HT_EXPLICIT;
+		NumofSoundingDim = (u1Byte)((cpu_to_le32(pSTA->ht_cap_buf.txbf_cap) & (BIT(27)|BIT(28)))>>27);
 //		panic_printk("[%d] BeamformCap = BEAMFORMEE_CAP_HT_EXPLICIT \n",__LINE__);
 	}
 
@@ -278,46 +624,77 @@ Beamforming_InitEntry(
 		if(WirelessMode == WIRELESS_MODE_AC_5G)
 		{
 			if(pSTA->vht_cap_len && (cpu_to_le32(pSTA->vht_cap_buf.vht_cap_info) & BIT(SU_BFEE_S)) && (priv->pmib->dot11RFEntry.txbfer == 1))  // ACÁÙ¨S¨Ì¾Úbfer or bfee¾×
-				BeamformCap |=BEAMFORMER_CAP_VHT_SU;
+			{
+			BeamformCap |=BEAMFORMER_CAP_VHT_SU;
+			CompSteeringNumofBFer = (u1Byte)((cpu_to_le32(pSTA->vht_cap_buf.vht_cap_info) & (BIT(MAX_ANT_SUPP_S)|BIT(MAX_ANT_SUPP_S+1)|BIT(MAX_ANT_SUPP_E)))>>MAX_ANT_SUPP_S);
+			}
 			if(pSTA->vht_cap_len && (cpu_to_le32(pSTA->vht_cap_buf.vht_cap_info) & BIT(SU_BFER_S)) && (priv->pmib->dot11RFEntry.txbfee == 1))
-				BeamformCap |=BEAMFORMEE_CAP_VHT_SU;			
+			{
+			BeamformCap |=BEAMFORMEE_CAP_VHT_SU;
+			NumofSoundingDim = (u1Byte)((cpu_to_le32(pSTA->vht_cap_buf.vht_cap_info) & (BIT(SOUNDING_DIMENSIONS_S)|BIT(SOUNDING_DIMENSIONS_S+1)|BIT(SOUNDING_DIMENSIONS_E)))>>SOUNDING_DIMENSIONS_S);
+			}
 		}
 #endif		
 	}
 
 	if(BeamformCap == BEAMFORMING_CAP_NONE)
 		return FALSE;
-	
 
-	pBeamformEntry = Beamforming_GetEntryByAddr(priv, RA, Idx);
-	if(pBeamformEntry == NULL)
+	ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, CompSteeringNumofBFer = %d, NumofSoundingDim = %d\n", __FUNCTION__, CompSteeringNumofBFer, NumofSoundingDim));
+// bfme
+	if((BeamformCap & BEAMFORMEE_CAP_HT_EXPLICIT) || (BeamformCap & BEAMFORMEE_CAP_VHT_SU))
 	{
-		pBeamformEntry = Beamforming_AddEntry(priv, RA, AID, MacID, BW, BeamformCap, Idx);
-		if(pBeamformEntry == FALSE){
-			return FALSE;
-		}else
-			pBeamformEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZEING;
-	}	
-	else
-	{
-		// Entry has been created. If entry is initialing or progressing then errors occur.
-		if(	pBeamformEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_INITIALIZED && 
-			pBeamformEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_PROGRESSED)
+		pBeamformerEntry = Beamforming_GetBFerEntryByAddr(priv, RA, &BFerIdx);
+
+		if(pBeamformerEntry == NULL)
 		{
-			panic_printk("Error State of Beamforming");
-			return FALSE;
-		}	
-		else
-			pBeamformEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZEING;
+			pBeamformerEntry = Beamforming_AddBFerEntry(priv, RA, AID, BeamformCap, &BFerIdx, NumofSoundingDim);
+			
+			if(pBeamformerEntry == NULL)
+				ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, Not enough BFer entry!\n", __FUNCTION__));
+		}
 	}
 
-	pBeamformEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZED;
-	Beamforming_AutoTest(priv, *Idx, pBeamformEntry);
+// bfer
+	if((BeamformCap & BEAMFORMER_CAP_HT_EXPLICIT) || (BeamformCap & BEAMFORMER_CAP_VHT_SU))
+	{
+		pBeamformEntry = Beamforming_GetBFeeEntryByAddr(priv, RA, &BFeeIdx);
+		
+		if(pBeamformEntry == NULL)
+		{
+			pBeamformEntry = Beamforming_AddBFeeEntry(priv, pSTA, RA, AID, MacID, BW, BeamformCap, &BFeeIdx, CompSteeringNumofBFer);
+
+			if(pBeamformEntry == NULL)
+			{
+				return NULL;
+			}
+			else
+				pBeamformEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZEING;
+		}	
+		else
+		{
+			// Entry has been created. If entry is initialing or progressing then errors occur.
+			if(	pBeamformEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_INITIALIZED && 
+				pBeamformEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_PROGRESSED)
+			{
+				ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, Error State of Beamforming\n", __FUNCTION__));
+				return FALSE;
+			}	
+			else
+				pBeamformEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZEING;
+		}
+
+		pBeamformEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZED;
+		Beamforming_AutoTest(priv, BFeeIdx, pBeamformEntry);
+	}
+
+	*BFerBFeeIdx = (BFerIdx<<4) | BFeeIdx;
+	ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s,  BFerIdx=%d, BFeeIdx=%d, BFerBFeeIdx=%d \n", __FUNCTION__, BFerIdx, BFeeIdx, *BFerBFeeIdx));
 
 	return TRUE;
 }
 
-VOID
+BOOLEAN
 Beamforming_DeInitEntry(
 	struct rtl8192cd_priv *priv,
 	pu1Byte			RA
@@ -329,21 +706,21 @@ Beamforming_DeInitEntry(
 	
 	if(Beamforming_RemoveEntry(priv, RA, &Idx) == TRUE)
 	{
-#ifdef CONFIG_RTL_8812_SUPPORT
-		if(GET_CHIP_VER(priv) == VERSION_8812E) {
-			SetBeamformLeave8812(priv, Idx);	
+		Beamforming_SetBeamFormLeave(priv, Idx);
+
+#ifdef CONFIG_RTL_8812_SUPPORT				// 8812 only??
 #ifdef MBSSID
-			if (GET_MIB(GET_ROOT(priv))->miscEntry.vap_enable)
-				rtl8192cd_clear_mbssid(priv, Idx);
+		if (GET_MIB(GET_ROOT(priv))->miscEntry.vap_enable)
+			rtl8192cd_clear_mbssid(priv, Idx);
 #endif
-		}
 #endif
-#ifdef CONFIG_WLAN_HAL_8192EE
-		if(GET_CHIP_VER(priv) == VERSION_8192E){
-			SetBeamformLeave92E(priv,Idx);
-//			panic_printk("[%d][%s]\n",__LINE__,__FUNCTION__);
-		}
-#endif
+		
+		return TRUE;
+	}
+	else
+	{
+		// For AP debug, because when STA disconnect AP, release_stainfo will be triggered many times
+		return FALSE;
 	}
 
 }
@@ -356,23 +733,23 @@ BeamformingReset(
 	u1Byte		Idx = 0;
 	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
 
-	for(Idx = 0; Idx < BEAMFORMING_ENTRY_NUM; Idx++)
+	for(Idx = 0; Idx < BEAMFORMEE_ENTRY_NUM; Idx++)
 	{
-		if(pBeamformingInfo->BeamformingEntry[Idx].bUsed == TRUE)
+		if(pBeamformingInfo->BeamformeeEntry[Idx].bUsed == TRUE)
 		{
-			pBeamformingInfo->BeamformingEntry[Idx].bUsed = FALSE;
-			pBeamformingInfo->BeamformingEntry[Idx].BeamformEntryCap = BEAMFORMING_CAP_NONE;
-			pBeamformingInfo->BeamformingEntry[Idx].BeamformEntryState = BEAMFORMING_ENTRY_STATE_UNINITIALIZE;
+			ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, Reset entry idx=%d\n", __FUNCTION__, Idx));
+			pBeamformingInfo->BeamformeeEntry[Idx].bUsed = FALSE;
+			pBeamformingInfo->BeamformeeEntry[Idx].BeamformEntryCap = BEAMFORMING_CAP_NONE;
+			//pBeamformingInfo->BeamformeeEntry[Idx].BeamformEntryState = BEAMFORMING_ENTRY_STATE_UNINITIALIZE;
+			pBeamformingInfo->BeamformeeEntry[Idx].bBeamformingInProgress = FALSE;
 
-#ifdef CONFIG_RTL_8812_SUPPORT
-			if(GET_CHIP_VER(priv) == VERSION_8812E)
-				SetBeamformLeave8812(priv, Idx);
-#endif
-#ifdef CONFIG_WLAN_HAL_8192EE
-			if(GET_CHIP_VER(priv) == VERSION_8192E)			
-				SetBeamformLeave92E(priv, Idx);
-#endif			
+			Beamforming_SetBeamFormLeave(priv, Idx);		
 		}
+	}
+
+	for(Idx = 0; Idx < BEAMFORMER_ENTRY_NUM; Idx++)
+	{
+		pBeamformingInfo->BeamformerEntry[Idx].bUsed = FALSE;
 	}
 
 }
@@ -390,7 +767,6 @@ ConstructHTNDPAPacket(
 	pu1Byte				Buffer,
 	pu4Byte				pLength,
 	u1Byte			 	BW
-
 	)
 {
 	u2Byte					Duration= 0;
@@ -433,8 +809,8 @@ BOOLEAN
 SendHTNDPAPacket(
 	struct rtl8192cd_priv *priv,
 		pu1Byte				RA,
-		u1Byte 				BW
-
+		u1Byte 				BW,
+		u1Byte		NDPTxRate
 	)
 {
 	BOOLEAN					ret = TRUE;
@@ -459,7 +835,7 @@ SendHTNDPAPacket(
 		txinsn.phdr = pbuf;
 		txinsn.hdr_len = PacketLength;
 		txinsn.fr_len = 0;
-		txinsn.tx_rate = _MCS8_RATE_; //_MCS8_RATE_;
+		txinsn.tx_rate = NDPTxRate; //_MCS8_RATE_;, According to Nr
 		txinsn.fixed_rate = 1;	
 		txinsn.ndpa = 1;
 
@@ -545,7 +921,8 @@ SendVHTNDPAPacket(
 	struct rtl8192cd_priv *priv,
 	IN	pu1Byte			RA,
 	IN	u2Byte			AID,
-	u1Byte 				BW
+	u1Byte 				BW,
+	u1Byte		NDPTxRate
 	)
 {
 	BOOLEAN					ret = TRUE;
@@ -572,7 +949,7 @@ SendVHTNDPAPacket(
 		txinsn.hdr_len = PacketLength;
 		txinsn.fr_len = 0;
 		txinsn.fixed_rate = 1;	
-		txinsn.tx_rate = _NSS2_MCS0_RATE_;	
+		txinsn.tx_rate = NDPTxRate;	// According to Nr	
 		txinsn.ndpa = 1;
 
 		if (rtl8192cd_wlantx(priv, &txinsn) == CONGESTED) {		
@@ -612,27 +989,40 @@ beamforming_SoundingIdx(
 }
 
 
-BOOLEAN
+BEAMFORMING_NOTIFY_STATE
 beamfomring_bSounding(
 	PRT_BEAMFORMING_INFO 	pBeamInfo,
-	u1Byte					Idx
+	pu1Byte					Idx
 	)
 {
-	BOOLEAN							bSounding = FALSE;
-	RT_BEAMFORMING_ENTRY			Entry = pBeamInfo->BeamformingEntry[Idx];
+	BEAMFORMING_NOTIFY_STATE		bSounding = BEAMFORMING_NOTIFY_NONE;
+	//RT_BEAMFORMING_ENTRY			Entry = pBeamInfo->BeamformeeEntry[*Idx];
 	RT_BEAMFORMING_PERIOD_INFO		BeamPeriodInfo = pBeamInfo->BeamformingPeriodInfo;
 
-	if((pBeamInfo->BeamformCap & BEAMFORMER_CAP) == 0)
-		bSounding = FALSE;
-	else if(BeamPeriodInfo.Mode == SOUNDING_STOP_All_TIMER)
-		bSounding = FALSE;
-	else if(	((Entry.BeamformEntryCap & BEAMFORMER_CAP_VHT_SU) == 0) &&
-			((Entry.BeamformEntryCap & BEAMFORMER_CAP_HT_EXPLICIT) == 0))
-		bSounding = FALSE;
-	else if(BeamPeriodInfo.Mode == SOUNDING_STOP_OID_TIMER && Entry.bTxBF == FALSE)
-		bSounding = FALSE;
-	else 
-		bSounding = TRUE;
+	if(BeamPeriodInfo.Mode == SOUNDING_STOP_All_TIMER)
+		bSounding = BEAMFORMING_NOTIFY_RESET;
+//	else if(BeamPeriodInfo.Mode == SOUNDING_STOP_OID_TIMER && Entry.bTxBF == FALSE)
+//		bSounding = BEAMFORMING_NOTIFY_RESET;
+	else
+	{
+		u1Byte i;
+
+		for(i=0;i<BEAMFORMEE_ENTRY_NUM;i++)
+		{
+			//panic_printk("[David]@%s: BFee Entry %d bUsed=%d, bSound=%d \n", __FUNCTION__, i, pBeamInfo->BeamformeeEntry[i].bUsed, pBeamInfo->BeamformeeEntry[i].bSound);
+			if(pBeamInfo->BeamformeeEntry[i].bUsed && (!pBeamInfo->BeamformeeEntry[i].bSound))
+			{
+				*Idx = i;
+				bSounding = BEAMFORMING_NOTIFY_ADD;
+			}
+
+			if((!pBeamInfo->BeamformeeEntry[i].bUsed) && pBeamInfo->BeamformeeEntry[i].bSound)
+			{
+				*Idx = i;
+				bSounding = BEAMFORMING_NOTIFY_DELETE;
+			}
+		}
+	}
 
 	return bSounding;
 }
@@ -646,7 +1036,7 @@ beamforming_SoundingMode(
 {
 	RT_BEAMFORMING_PERIOD_INFO		BeamPeriodInfo = pBeamInfo->BeamformingPeriodInfo;	
 	SOUNDING_MODE					Mode = BeamPeriodInfo.Mode;
-	RT_BEAMFORMING_ENTRY			Entry = pBeamInfo->BeamformingEntry[Idx];
+	RT_BEAMFORMING_ENTRY			Entry = pBeamInfo->BeamformeeEntry[Idx];
 
 	if(	BeamPeriodInfo.Mode == SOUNDING_SW_VHT_TIMER || BeamPeriodInfo.Mode == SOUNDING_SW_HT_TIMER ||
 		BeamPeriodInfo.Mode == SOUNDING_HW_VHT_TIMER || BeamPeriodInfo.Mode == SOUNDING_HW_HT_TIMER )
@@ -655,8 +1045,6 @@ beamforming_SoundingMode(
 		Mode = SOUNDING_AUTO_VHT_TIMER;
 	else	if(Entry.BeamformEntryCap & BEAMFORMER_CAP_HT_EXPLICIT)
 		Mode = SOUNDING_AUTO_HT_TIMER;
-//	else 
-//		printk("%s %d Mode %d\n", __FUNCTION__, Idx, Mode);
 
 	return Mode;
 }
@@ -690,7 +1078,7 @@ beamforming_SoundingBW(
 	)
 {
 	u1Byte							SoundingBW = HT_CHANNEL_WIDTH_20;
-	RT_BEAMFORMING_ENTRY			Entry = pBeamInfo->BeamformingEntry[Idx];
+	RT_BEAMFORMING_ENTRY			Entry = pBeamInfo->BeamformeeEntry[Idx];
 	RT_BEAMFORMING_PERIOD_INFO		BeamPeriodInfo = pBeamInfo->BeamformingPeriodInfo;
 
 	if(Mode == SOUNDING_HW_HT_TIMER || Mode == SOUNDING_HW_VHT_TIMER)
@@ -720,24 +1108,13 @@ beamforming_StartPeriod(
 	pBeamTimerInfo->BW = beamforming_SoundingBW(pBeamInfo, pBeamTimerInfo->Mode, Idx);
 	pBeamTimerInfo->BeamPeriod = beamforming_SoundingTime(pBeamInfo, pBeamTimerInfo->Mode);
 
-	if(pBeamTimerInfo->Mode == SOUNDING_SW_VHT_TIMER || pBeamTimerInfo->Mode == SOUNDING_SW_HT_TIMER) {
-
+	if(pBeamTimerInfo->Mode == SOUNDING_SW_VHT_TIMER || pBeamTimerInfo->Mode == SOUNDING_SW_HT_TIMER) 
+	{
 		ODM_SetTimer(ODMPTR, &pBeamInfo->BeamformingTimer, pBeamTimerInfo->BeamPeriod);
-	} else	{
-#ifdef CONFIG_WLAN_HAL_8192EE
-		if(GET_CHIP_VER(priv)== VERSION_8192E){			
-			HW_VAR_HW_REG_TIMER_STOP_92E(priv);
-			HW_VAR_HW_REG_TIMER_INIT_92E(priv, pBeamTimerInfo->BeamPeriod);
-			HW_VAR_HW_REG_TIMER_START_92E(priv);
-		}
-#endif
-#ifdef CONFIG_RTL_8812_SUPPORT
-		if(GET_CHIP_VER(priv)== VERSION_8812E){
-			HW_VAR_HW_REG_TIMER_STOP_8812(priv);
-			HW_VAR_HW_REG_TIMER_INIT_8812(priv, pBeamTimerInfo->BeamPeriod);
-			HW_VAR_HW_REG_TIMER_START_8812(priv);
-		}
-#endif
+	} 
+	else
+	{
+		Beamforming_SetHWTimer(priv, pBeamTimerInfo->BeamPeriod);
 	}	
 
 //	panic_printk ("%s Idx %d Mode %d BW %d Period %d\n", __FUNCTION__, 
@@ -746,7 +1123,7 @@ beamforming_StartPeriod(
 
 
 VOID
-beamforming_EndPeriod(
+beamforming_EndPeriod_SW(
 		struct rtl8192cd_priv *priv,
 		u1Byte		Idx
 	)
@@ -754,56 +1131,111 @@ beamforming_EndPeriod(
 //	u1Byte						Idx = 0;
 	PRT_BEAMFORMING_ENTRY		pBeamformEntry;
 	PRT_BEAMFORMING_INFO 		pBeamInfo = &(priv->pshare->BeamformingInfo);
-	PRT_BEAMFORMING_TIMER_INFO	pBeamTimerInfo = &(pBeamInfo->BeamformingTimerInfo[Idx]);	
+	PRT_BEAMFORMING_TIMER_INFO	pBeamTimerInfo = &(pBeamInfo->BeamformingTimerInfo[Idx]);
 
-	if(pBeamTimerInfo->Mode == SOUNDING_SW_VHT_TIMER || pBeamTimerInfo->Mode == SOUNDING_SW_HT_TIMER) {
-
-		ODM_CancelTimer(ODMPTR, &pBeamInfo->BeamformingTimer);
-	}  else {
-
-#ifdef CONFIG_RTL_8812_SUPPORT
-		if(GET_CHIP_VER(priv) == VERSION_8812E)
-			HW_VAR_HW_REG_TIMER_STOP_8812(priv);
-#endif
-#ifdef CONFIG_WLAN_HAL_8192EE
-		if(GET_CHIP_VER(priv) == VERSION_8192E)
-			HW_VAR_HW_REG_TIMER_STOP_92E(priv);
-#endif
-	}
-
-
-	for(Idx = 0; Idx < BEAMFORMING_ENTRY_NUM; Idx++)
+	if(pBeamTimerInfo->Mode == SOUNDING_SW_VHT_TIMER || pBeamTimerInfo->Mode == SOUNDING_SW_HT_TIMER) 
 	{
-		pBeamformEntry = pBeamInfo->BeamformingEntry+Idx;
-	
-		if(pBeamformEntry->bUsed)
-		{
-			/*	
-			*	If End procedure is 
-			*	1. Between (Send NDPA, C2H packet return), reset state to initialized.
-			*	After C2H packet return , status bit will be set to zero. 
-			*
-			*	2. After C2H packet, then reset state to initialized and clear status bit.
-			*/ 
-			if(pBeamformEntry->BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSING)
-				Beamforming_End(priv, 0);
-			else if(pBeamformEntry->BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSED)
-			{
-				pBeamformEntry->BeamformEntryState  = BEAMFORMING_ENTRY_STATE_INITIALIZED;
-#ifdef CONFIG_WLAN_HAL_8192EE
-				if(GET_CHIP_VER(priv)== VERSION_8192E)
-					SetBeamformStatus92E(priv, Idx);		
-#endif
-#ifdef CONFIG_RTL_8812_SUPPORT
-				if(GET_CHIP_VER(priv)== VERSION_8812E)
-					SetBeamformStatus8812(priv, Idx);
-#endif
-			}	
-		}
+		ODM_CancelTimer(ODMPTR, &pBeamInfo->BeamformingTimer);
 	}
+	else
+	{
+		Beamforming_StopHWTimer(priv);
+	}
+
 }
 
-struct rtl8192cd_priv* getBeamEntryDev(struct rtl8192cd_priv *priv, PRT_BEAMFORMING_ENTRY pEntry)
+VOID
+beamforming_EndPeriod_FW(
+		struct rtl8192cd_priv 	*priv,
+		u1Byte				Idx
+	)
+{
+	return;
+}
+
+VOID
+beamforming_ClearEntry_SW(
+		struct rtl8192cd_priv 	*priv,
+		BOOLEAN				IsDelete,
+		u1Byte				DeleteIdx
+	)
+{
+	u1Byte						Idx = 0;
+	PRT_BEAMFORMING_ENTRY		pBeamformEntry;
+	PRT_BEAMFORMING_INFO 		pBeamInfo = &(priv->pshare->BeamformingInfo);
+
+	if(IsDelete)
+	{
+		if(DeleteIdx<BEAMFORMEE_ENTRY_NUM)
+		{
+			pBeamformEntry = pBeamInfo->BeamformeeEntry + DeleteIdx;
+
+			if(!((!pBeamformEntry->bUsed) && pBeamformEntry->bSound))
+			{
+				ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, SW DeleteIdx is wrong!\n", __FUNCTION__)); 
+				return;
+			}
+		}
+
+		if(pBeamformEntry->BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSING)
+		{
+			pBeamformEntry->bBeamformingInProgress = FALSE;
+			pBeamformEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_UNINITIALIZE;
+		}
+		else if(pBeamformEntry->BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSED)
+		{
+			pBeamformEntry->BeamformEntryState  = BEAMFORMING_ENTRY_STATE_UNINITIALIZE;
+			Beamforming_SetBeamFormStatus(priv, DeleteIdx);
+		}	
+		pBeamformEntry->bSound=FALSE;
+		
+	}
+	else
+	{
+		for(Idx = 0; Idx < BEAMFORMEE_ENTRY_NUM; Idx++)
+		{
+			pBeamformEntry = pBeamInfo->BeamformeeEntry+Idx;
+
+			if(pBeamformEntry->bSound)
+			{
+				ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, SW Reset entry %d\n", __FUNCTION__, Idx)); 
+
+				/*	
+				*	If End procedure is 
+				*	1. Between (Send NDPA, C2H packet return), reset state to initialized.
+				*	After C2H packet return , status bit will be set to zero. 
+				*r
+				*	2. After C2H packet, then reset state to initialized and clear status bit.
+				*/ 
+				if(pBeamformEntry->BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSING)
+					{
+					Beamforming_End(priv, 0);
+					}	
+				else if(pBeamformEntry->BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSED)
+				{
+					pBeamformEntry->BeamformEntryState  = BEAMFORMING_ENTRY_STATE_INITIALIZED;
+					Beamforming_SetBeamFormStatus(priv, Idx);
+				}	
+				
+				pBeamformEntry->bSound=FALSE;
+			}
+		}			
+	}
+
+}
+
+VOID
+beamforming_ClearEntry_FW(
+		struct rtl8192cd_priv 	*priv,
+		BOOLEAN				IsDelete,
+		u1Byte				DeleteIdx
+	)
+{
+	return;
+}
+
+struct rtl8192cd_priv* 
+getBeamEntryDev(struct rtl8192cd_priv *priv, PRT_BEAMFORMING_ENTRY pEntry)
 {
 	struct stat_info *pstat;
 	struct rtl8192cd_priv *vxd_priv;	
@@ -814,9 +1246,12 @@ struct rtl8192cd_priv* getBeamEntryDev(struct rtl8192cd_priv *priv, PRT_BEAMFORM
 		return priv;
 	
 #ifdef MBSSID
-	  if ((OPMODE & WIFI_AP_STATE) && priv->pmib->miscEntry.vap_enable) {
-		for (j=0; j<RTL8192CD_NUM_VWLAN; j++) {
-			if ((priv->pvap_priv[j]->assoc_num > 0) && IS_DRV_OPEN(priv->pvap_priv[j])) {
+	  if ((OPMODE & WIFI_AP_STATE) && priv->pmib->miscEntry.vap_enable) 
+	  {
+		for (j=0; j<RTL8192CD_NUM_VWLAN; j++) 
+		{
+			if ((priv->pvap_priv[j]->assoc_num > 0) && IS_DRV_OPEN(priv->pvap_priv[j]))
+			{
 				pstat = get_stainfo(priv->pvap_priv[j], pEntry->MacAddr);
 				if(pstat)
 					return priv->pvap_priv[j];
@@ -827,7 +1262,9 @@ struct rtl8192cd_priv* getBeamEntryDev(struct rtl8192cd_priv *priv, PRT_BEAMFORM
 #endif			
 #ifdef UNIVERSAL_REPEATER
 	vxd_priv = GET_VXD_PRIV(priv);
-	if((OPMODE & WIFI_STATION_STATE) && (vxd_priv->assoc_num > 0) && IS_DRV_OPEN(vxd_priv)	) { 	
+	priv = vxd_priv;
+	if((OPMODE & WIFI_STATION_STATE) && (vxd_priv->assoc_num > 0) && IS_DRV_OPEN(vxd_priv)	) 
+	{ 	
 		pstat = get_stainfo(vxd_priv, pEntry->MacAddr);
 		if(pstat)
 			return vxd_priv;
@@ -850,18 +1287,16 @@ BeamformingStart_V2(
 	PRT_BEAMFORMING_ENTRY	pEntry;
 	BOOLEAN					ret = TRUE;
 	PRT_BEAMFORMING_INFO 	pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-
-	pEntry = &(pBeamformingInfo->BeamformingEntry[Idx]);
+	u1Byte					NDPTxRate;
+	pEntry = &(pBeamformingInfo->BeamformeeEntry[Idx]);
 
 	priv = getBeamEntryDev(priv, pEntry);
 	if( !priv)
 		return FALSE;
-
-//panic_printk("%d", Idx);	
+ 
 	if(pEntry->bUsed == FALSE)
 	{
 		pEntry->bBeamformingInProgress = FALSE;
-//		panic_printk("%s, %d, \n", __FUNCTION__, __LINE__);
 		return FALSE;
 	}
 	else
@@ -877,9 +1312,7 @@ BeamformingStart_V2(
 			if(!(pEntry->BeamformEntryCap & BEAMFORMER_CAP_HT_EXPLICIT))
 			{
 //				pBeamformingInfo->bBeamformingInProgress = FALSE;
-				pEntry->bBeamformingInProgress = FALSE;
-
-//				panic_printk("%s, %d, %d\n", __FUNCTION__, __LINE__, pEntry->BeamformEntryCap);
+				pEntry->bBeamformingInProgress = FALSE; 
 				return FALSE;
 			}
 		}
@@ -888,40 +1321,29 @@ BeamformingStart_V2(
 			if(!(pEntry->BeamformEntryCap & BEAMFORMER_CAP_VHT_SU))
 			{
 //				pBeamformingInfo->bBeamformingInProgress = FALSE;
-				pEntry->bBeamformingInProgress = FALSE;
-
-//				panic_printk("%s, %d, %d\n", __FUNCTION__, __LINE__, pEntry->BeamformEntryCap);
+				pEntry->bBeamformingInProgress = FALSE; 
 				return FALSE;
 			}
 		}
-		if(	pEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_INITIALIZED &&
-			pEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_PROGRESSED)
+		
+		if(pEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_INITIALIZED && pEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_PROGRESSED)
 		{
 //			pBeamformingInfo->bBeamformingInProgress = FALSE;
-			pEntry->bBeamformingInProgress = FALSE;
-//			panic_printk("%s, %d, %d\n", __FUNCTION__, __LINE__, pEntry->BeamformEntryState);
+			pEntry->bBeamformingInProgress = FALSE; 
 			return FALSE;
 		}	
 		else
-			pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_PROGRESSING;
+		{
+			pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_PROGRESSING; 
+			pEntry->bSound = TRUE;
+		}
 	}
 
 	pEntry->BW = BW;
-	pBeamformingInfo->BeamformingCurIdx = Idx;
+	pBeamformingInfo->BeamformeeCurIdx = Idx;
 	
-
-#ifdef CONFIG_WLAN_HAL_8192EE
-	if(GET_CHIP_VER(priv)== VERSION_8192E){
-		Beamforming_NDPARate_92E(priv, Mode, BW, 0);
-		SetBeamformStatus92E(priv, (pBeamformingInfo->BeamformingCurIdx));
-	}		
-#endif
-#ifdef CONFIG_RTL_8812_SUPPORT
-	if(GET_CHIP_VER(priv)== VERSION_8812E) {
-		Beamforming_NDPARate_8812(priv, Mode, BW, priv->pshare->rf_ft_var.ndparate);  //
-		SetBeamformStatus8812(priv, (pBeamformingInfo->BeamformingCurIdx));
-	}
-#endif
+	Beamforming_SetBeamFormStatus(priv, (pBeamformingInfo->BeamformeeCurIdx));
+	Beamforming_NDPARate(priv, Mode, BW, 0);	// soundingpreiod only for debug, use 0 for all case
 
 //  debug
 	if(!priv->pshare->rf_ft_var.soundingEnable)
@@ -933,18 +1355,32 @@ BeamformingStart_V2(
 #endif	
 //	
 	if(Mode == SOUNDING_SW_HT_TIMER || Mode == SOUNDING_HW_HT_TIMER || Mode == SOUNDING_AUTO_HT_TIMER)
-		ret = SendHTNDPAPacket(priv,RA, BW);	
-	else {
-
-		if(priv->pshare->rf_ft_var.ndpaaid != 0xff)
-			ret = SendVHTNDPAPacket(priv,RA, priv->pshare->rf_ft_var.ndpaaid, BW);
+	{
+		NDPTxRate = Beamforming_GetHTNDPTxRate(priv, pEntry->CompSteeringNumofBFer);
+		ret = SendHTNDPAPacket(priv,RA, BW, NDPTxRate);
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, HT NDP Rate = %d\n", __FUNCTION__, NDPTxRate));  
+	}
+	else
+	{
+		NDPTxRate = Beamforming_GetVHTNDPTxRate(priv, pEntry->CompSteeringNumofBFer);
+		if(((pEntry->pSTA->current_tx_rate >=_NSS3_MCS7_RATE_) && (pEntry->pSTA->current_tx_rate <=_NSS3_MCS9_RATE_)) &&
+			priv->pshare->rf_ft_var.Nsnding3SS)
+		{
+			ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, VHT3SS 7,8,9, not sounding!!\n", __FUNCTION__));
+		}
 		else
-			ret = SendVHTNDPAPacket(priv,RA, pEntry->AID, BW);
+		{
+			if(priv->pshare->rf_ft_var.ndpaaid != 0xff)
+				ret = SendVHTNDPAPacket(priv,RA, priv->pshare->rf_ft_var.ndpaaid, BW, NDPTxRate);
+			else
+				ret = SendVHTNDPAPacket(priv,RA, pEntry->AID, BW, NDPTxRate);
+		}
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, VHT NDP Rate = %d\n", __FUNCTION__, NDPTxRate));  
 	}
 
 	if(ret == FALSE)
 	{
-//		panic_printk("Beamforming_RemoveEntry because of failure sending NDPA for addr =\n");
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, Beamforming_RemoveEntry because of failure sending NDPA for addr =\n", __FUNCTION__));  
 //		Beamforming_RemoveEntry(priv, RA, &Idx);
 		Beamforming_Leave(priv, RA);
 //		pBeamformingInfo->bBeamformingInProgress = FALSE;
@@ -958,49 +1394,105 @@ BeamformingStart_V2(
 
 VOID
 Beamforming_Notify(
-	struct rtl8192cd_priv *priv, 
-	u1Byte		Idx
+	struct rtl8192cd_priv *priv
 	)
 {
-//	u1Byte						Idx;
-	BOOLEAN						bSounding = FALSE;
-	PRT_BEAMFORMING_INFO 		pBeamInfo = &(priv->pshare->BeamformingInfo);	
+	u1Byte						Idx=BEAMFORMEE_ENTRY_NUM;
+	BEAMFORMING_NOTIFY_STATE	bSounding = BEAMFORMING_NOTIFY_NONE;
+	PRT_BEAMFORMING_INFO 		pBeamInfo = &(priv->pshare->BeamformingInfo);
+	PRT_BEAMFORMING_TIMER_INFO	pBeamTimerInfo = NULL;	
 
-//	Idx = beamforming_SoundingIdx(pBeamInfo);
-	bSounding = beamfomring_bSounding(pBeamInfo, Idx);
+	bSounding = beamfomring_bSounding(pBeamInfo, &Idx);
 
-//panic_printk ("%s bSounding=%d, state=%d\n", __FUNCTION__, bSounding, pBeamInfo->BeamformState);
+	if(Idx<BEAMFORMEE_ENTRY_NUM)
+		pBeamTimerInfo = &(pBeamInfo->BeamformingTimerInfo[Idx]);	
+	else if(bSounding == BEAMFORMING_NOTIFY_RESET)
+		pBeamTimerInfo = &(pBeamInfo->BeamformingTimerInfo[0]);	
 
-	if(pBeamInfo->BeamformState == BEAMFORMING_STATE_IDLE)
+	if(pBeamInfo->BeamformState == BEAMFORMING_STATE_END)
 	{
-		if(bSounding)
+		if(bSounding==BEAMFORMING_NOTIFY_ADD)
 		{			
 			beamforming_StartPeriod(priv, Idx);
-			pBeamInfo->BeamformState = BEAMFORMING_STATE_START;
+			pBeamInfo->BeamformState = BEAMFORMING_STATE_START_1BFee;
 		}
 	}
-	else if(pBeamInfo->BeamformState == BEAMFORMING_STATE_START)
+	else if(pBeamInfo->BeamformState == BEAMFORMING_STATE_START_1BFee)
 	{
-		if(bSounding){
-			beamforming_StartPeriod(priv, Idx);
-		}
-		else
+		if(bSounding==BEAMFORMING_NOTIFY_ADD)
 		{
-			beamforming_EndPeriod(priv, Idx);
+			beamforming_StartPeriod(priv, Idx);
+			pBeamInfo->BeamformState = BEAMFORMING_STATE_START_2BFee;
+		}
+		else if(bSounding == BEAMFORMING_NOTIFY_DELETE)
+		{
+			if(pBeamTimerInfo->Mode == SOUNDING_FW_HT_TIMER || pBeamTimerInfo->Mode == SOUNDING_FW_VHT_TIMER)
+			{
+				beamforming_EndPeriod_FW(priv, Idx);
+				beamforming_ClearEntry_FW(priv, TRUE, Idx);
+			}
+			else
+			{
+				beamforming_EndPeriod_SW(priv, Idx);
+				beamforming_ClearEntry_SW(priv, TRUE, Idx);
+			}
+			
+			pBeamInfo->BeamformState = BEAMFORMING_STATE_END;
+		}
+		else if(bSounding == BEAMFORMING_NOTIFY_RESET)
+		{
+			if(pBeamTimerInfo->Mode == SOUNDING_FW_HT_TIMER || pBeamTimerInfo->Mode == SOUNDING_FW_VHT_TIMER)
+			{
+				beamforming_EndPeriod_FW(priv, Idx);
+				beamforming_ClearEntry_FW(priv, FALSE, Idx);
+			}
+			else
+			{
+				beamforming_EndPeriod_SW(priv, Idx);
+				beamforming_ClearEntry_SW(priv, FALSE, Idx);
+			}
+			
 			pBeamInfo->BeamformState = BEAMFORMING_STATE_END;
 		}
 	}
-	else if(pBeamInfo->BeamformState == BEAMFORMING_STATE_END)
+	else if(pBeamInfo->BeamformState == BEAMFORMING_STATE_START_2BFee)
 	{
-		if(bSounding)
+		if(bSounding == BEAMFORMING_NOTIFY_ADD)
 		{
-			beamforming_StartPeriod(priv, Idx);
-			pBeamInfo->BeamformState = BEAMFORMING_STATE_START;
+			ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, should be block\n", __FUNCTION__));  
+
+		}
+		else if(bSounding == BEAMFORMING_NOTIFY_DELETE)
+		{
+			if(pBeamTimerInfo->Mode == SOUNDING_FW_HT_TIMER || pBeamTimerInfo->Mode == SOUNDING_FW_VHT_TIMER)
+			{
+				beamforming_EndPeriod_FW(priv, Idx);
+				beamforming_ClearEntry_FW(priv, TRUE, Idx);
+			}
+			else
+			{
+				// For 2->1 entry, we should not cancel SW timer
+				beamforming_ClearEntry_SW(priv, TRUE, Idx);
+			}
+		
+			pBeamInfo->BeamformState = BEAMFORMING_STATE_START_1BFee;
+		}
+		else if(bSounding == BEAMFORMING_NOTIFY_RESET)
+		{
+			if(pBeamTimerInfo->Mode == SOUNDING_FW_HT_TIMER || pBeamTimerInfo->Mode == SOUNDING_FW_VHT_TIMER)
+			{
+				beamforming_EndPeriod_FW(priv, Idx);
+				beamforming_ClearEntry_FW(priv, FALSE, Idx);
+			}
+			else
+			{
+				beamforming_EndPeriod_SW(priv, Idx);
+				beamforming_ClearEntry_SW(priv, FALSE, Idx);
+			}
+			
+			pBeamInfo->BeamformState = BEAMFORMING_STATE_END;
 		}
 	}
-//	else
-//		panic_printk ("%s BeamformState %d\n", __FUNCTION__, pBeamInfo->BeamformState);
-	
 
 }
 
@@ -1020,8 +1512,11 @@ Beamforming_AutoTest(
 
 	if(BeamformCap & BEAMFORMER_CAP_VHT_SU)
 		Mode = SOUNDING_SW_VHT_TIMER;
-	else if(BeamformCap & BEAMFORMER_CAP_HT_EXPLICIT){
-#ifdef CONFIG_WLAN_HAL_8192EE
+	else if(BeamformCap & BEAMFORMER_CAP_HT_EXPLICIT)
+	{
+	Mode = SOUNDING_SW_HT_TIMER;		// use sw timer for all IC
+	
+/*#ifdef CONFIG_WLAN_HAL_8192EE
 		if(GET_CHIP_VER(priv)== VERSION_8192E)
 			Mode = SOUNDING_SW_HT_TIMER;
 #endif
@@ -1029,6 +1524,10 @@ Beamforming_AutoTest(
 		if(GET_CHIP_VER(priv)== VERSION_8812E)
 			Mode = SOUNDING_HW_HT_TIMER;
 #endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+		if(GET_CHIP_VER(priv)== VERSION_8814A)
+			Mode = SOUNDING_HW_HT_TIMER;
+#endif*/
 	}
 	else 
 		return;
@@ -1051,7 +1550,7 @@ Beamforming_End(
 {
 
 	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	PRT_BEAMFORMING_ENTRY	pEntry = &(pBeamformingInfo->BeamformingEntry[pBeamformingInfo->BeamformingCurIdx]);
+	PRT_BEAMFORMING_ENTRY	pEntry = &(pBeamformingInfo->BeamformeeEntry[pBeamformingInfo->BeamformeeCurIdx]);
 
 
 	if(pEntry->BeamformEntryState != BEAMFORMING_ENTRY_STATE_PROGRESSING)
@@ -1059,85 +1558,96 @@ Beamforming_End(
 		return;
 	}
 
-	if(Status == 1)
+	if(((pEntry->pSTA->current_tx_rate >=_NSS3_MCS7_RATE_) && (pEntry->pSTA->current_tx_rate <=_NSS3_MCS9_RATE_)) &&
+		priv->pshare->rf_ft_var.Nsnding3SS)
+	{
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, VHT3SS 7,8,9, do not apply V matrix.\n", __FUNCTION__));
+		pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZED;
+		Beamforming_SetBeamFormStatus(priv, (pBeamformingInfo->BeamformeeCurIdx));
+	}
+	else if(Status == 1)
 	{
 		pEntry->LogStatusFailCnt = 0;
 		pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_PROGRESSED;
-#ifdef CONFIG_WLAN_HAL_8192EE
-		if(GET_CHIP_VER(priv)== VERSION_8192E)
-			SetBeamformStatus92E(priv, (pBeamformingInfo->BeamformingCurIdx));		
-#endif		
-#ifdef CONFIG_RTL_8812_SUPPORT
-		if(GET_CHIP_VER(priv)== VERSION_8812E)
-			SetBeamformStatus8812(priv, (pBeamformingInfo->BeamformingCurIdx));
-#endif
-	}	
-	else {
+		Beamforming_SetBeamFormStatus(priv, (pBeamformingInfo->BeamformeeCurIdx));
+	}
+	else
+	{
 		pEntry->LogStatusFailCnt++;
 		pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZED;
 	}
-//	Beamforming_SetTxBFen(priv, pEntry->MacId, Status);
-//	pBeamformingInfo->bBeamformingInProgress = FALSE;
-	pEntry->bBeamformingInProgress = FALSE;
 
+	pEntry->bBeamformingInProgress = FALSE;
+	ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, pEntry->LogStatusFailCnt : %d\n", __FUNCTION__, pEntry->LogStatusFailCnt));  
 
 	if(pEntry->LogStatusFailCnt > 50)
-		Beamforming_DeInitEntry(priv, pEntry->MacAddr); 	
-
-
+	{
+		if(Beamforming_DeInitEntry(priv, pEntry->MacAddr))
+			Beamforming_Notify(priv);
+	}
 
 }	
 
 int shortenSoundingPeriod(struct rtl8192cd_priv *priv)
 {
 	PRT_BEAMFORMING_INFO 		pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	PRT_BEAMFORMING_ENTRY		pEntry = &(pBeamformingInfo->BeamformingEntry[0]);
+	PRT_BEAMFORMING_ENTRY		pEntry = &(pBeamformingInfo->BeamformeeEntry[0]);
 	struct stat_info 			*pstat;
 	struct rtl8192cd_priv 		*vxd_priv;	
-	int idx, j, ret=0;
+	u4Byte idx, j, ret=0;
 	pBeamformingInfo->BeamformingPeriodState = 0;     //
 
-	for(idx=0 ; idx<BEAMFORMING_ENTRY_NUM; idx++)  {
-		pEntry = &(pBeamformingInfo->BeamformingEntry[idx]);
-		if( pEntry->bUsed)  {
+	for(idx=0 ; idx<BEAMFORMEE_ENTRY_NUM; idx++)
+	{
+		pEntry = &(pBeamformingInfo->BeamformeeEntry[idx]);
+		if( pEntry->bUsed)  
+		{
 			pstat = get_stainfo(priv, pEntry->MacAddr);
-			if(pstat) {
-				if(pstat->tx_avarage > (1<<16)){   // 0.5Mbps
+			if(pstat) 
+			{
+				if(pstat->tx_avarage > (1<<16))//0.5Mbps
+				{
 					++ret;
 					if(idx == 0)                                                                        //
-						pBeamformingInfo->BeamformingPeriodState+=1;        //
-					else                                                                                  //
-						pBeamformingInfo->BeamformingPeriodState+=2;        //
+						pBeamformingInfo->BeamformingPeriodState+=1;        // entry 0 only = 1
+					else                                                                                  // entry 1 only = 2
+						pBeamformingInfo->BeamformingPeriodState+=2;        // entry 0 and 1 = 3
 				}
 			}
 
 #ifdef MBSSID
-		  if ((OPMODE & WIFI_AP_STATE) && priv->pmib->miscEntry.vap_enable) {
-			for (j=0; j<RTL8192CD_NUM_VWLAN; j++) {
-				if ((priv->pvap_priv[j]->assoc_num > 0) && IS_DRV_OPEN(priv->pvap_priv[j])) {
-					pstat = get_stainfo(priv->pvap_priv[j], pEntry->MacAddr);
-					if(pstat) {
-						if(pstat->tx_avarage > (1<<16))  // 0.5Mbps
-							++ret;
+			if ((OPMODE & WIFI_AP_STATE) && priv->pmib->miscEntry.vap_enable)
+			{
+				for (j=0; j<RTL8192CD_NUM_VWLAN; j++)
+				{
+					if ((priv->pvap_priv[j]->assoc_num > 0) && IS_DRV_OPEN(priv->pvap_priv[j]))
+					{
+						pstat = get_stainfo(priv->pvap_priv[j], pEntry->MacAddr);
+						if(pstat)
+						{
+							if(pstat->tx_avarage > (1<<16))  // 0.5Mbps
+								++ret;
+						}
 					}
 				}
 			}
-		}
 #endif		
 #ifdef UNIVERSAL_REPEATER
-		vxd_priv = GET_VXD_PRIV(priv);
-		if((OPMODE & WIFI_STATION_STATE) && (vxd_priv->assoc_num > 0) && IS_DRV_OPEN(vxd_priv) 	) {		
-			pstat = get_stainfo(vxd_priv, pEntry->MacAddr);
-			if(pstat) {
-				if(pstat->tx_avarage >  (1<<16))  // 0.5Mbps
-					++ret;
+			vxd_priv = GET_VXD_PRIV(priv);
+			if((OPMODE_VXD & WIFI_STATION_STATE) && (vxd_priv->assoc_num > 0) && IS_DRV_OPEN(vxd_priv) 	)
+			{		
+				pstat = get_stainfo(vxd_priv, pEntry->MacAddr);
+				if(pstat)
+				{
+					if(pstat->tx_avarage >  (1<<16))  // 0.5Mbps
+						++ret;
+				}
 			}
-		}
 #endif
 			
 		}
 	}
-//	panic_printk("BeamformPeriodState = %d\n", pBeamformingInfo->BeamformingPeriodState);
+	//panic_printk("BeamformPeriodState = %d\n", pBeamformingInfo->BeamformingPeriodState);
 	return ret;
 }
 
@@ -1149,8 +1659,9 @@ getBFeeStaNum(
 	PRT_BEAMFORMING_INFO 		pBeamformingInfo = &(priv->pshare->BeamformingInfo);
 	int idx;
 	u1Byte BFee_STA_Num = 0;
-	for(idx=0 ; idx<BEAMFORMING_ENTRY_NUM; idx++){
-		if(pBeamformingInfo->BeamformingEntry[idx].bUsed)
+	for(idx=0 ; idx<BEAMFORMEE_ENTRY_NUM; idx++)
+	{
+		if(pBeamformingInfo->BeamformeeEntry[idx].bUsed)
 			BFee_STA_Num++;
 	}
 	return BFee_STA_Num;	
@@ -1164,8 +1675,8 @@ Beamforming_TimerCallback(
 {
 	BOOLEAN						ret = FALSE;//, timer_set=FALSE;
 	PRT_BEAMFORMING_INFO 		pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	int 							idx = pBeamformingInfo->BeamformingCurIdx;		
-	PRT_BEAMFORMING_ENTRY		pEntry = &(pBeamformingInfo->BeamformingEntry[idx]);
+	int 							idx = pBeamformingInfo->BeamformeeCurIdx;		
+	PRT_BEAMFORMING_ENTRY		pEntry = &(pBeamformingInfo->BeamformeeEntry[idx]);
 	PRT_BEAMFORMING_TIMER_INFO	pBeamformingTimerInfo = &(pBeamformingInfo->BeamformingTimerInfo[idx]);	
 	u1Byte						BFee_STA_Num = 0;
 	u1Byte						index = 0;
@@ -1176,71 +1687,77 @@ Beamforming_TimerCallback(
 		return;
 
 #if 0
-	for(idx=0 ; idx<BEAMFORMING_ENTRY_NUM; idx++)  
+	for(idx=0 ; idx<BEAMFORMEE_ENTRY_NUM; idx++)  
 	{
 #else
 	{		
 
-		if(BFee_STA_Num == 2){
-			if(pBeamformingInfo->BeamformingPeriodState == 0 || pBeamformingInfo->BeamformingPeriodState == 3){
-				if(pBeamformingInfo->BeamformingEntry[idx^1].bUsed)
+		if(BFee_STA_Num == 2)
+		{
+			if(pBeamformingInfo->BeamformingPeriodState == 0 || pBeamformingInfo->BeamformingPeriodState == 3)
+			{
+				if(pBeamformingInfo->BeamformeeEntry[idx^1].bUsed)
 					idx ^=1;
 			}
-			else if(pBeamformingInfo->BeamformingPeriodState == 2){
+			else if(pBeamformingInfo->BeamformingPeriodState == 2)
+			{
 				idx = 1;
 			}
 			else
 				idx = 0;
-	
 		}	
-		else{  
-			
-			if(pBeamformingInfo->BeamformingEntry[0].bUsed)
+		else
+		{  
+			if(pBeamformingInfo->BeamformeeEntry[0].bUsed)
 				idx = 0;
-			else if(pBeamformingInfo->BeamformingEntry[1].bUsed)
+			else if(pBeamformingInfo->BeamformeeEntry[1].bUsed)
 				idx = 1;
 		}
 		
-		pBeamformingInfo->BeamformingCurIdx = idx;
-
+		pBeamformingInfo->BeamformeeCurIdx = idx;
 #endif
-		pEntry = &(pBeamformingInfo->BeamformingEntry[idx]);
+		pEntry = &(pBeamformingInfo->BeamformeeEntry[idx]);
 		pBeamformingTimerInfo = &(pBeamformingInfo->BeamformingTimerInfo[idx]);
 		
-		if(pEntry->bBeamformingInProgress) {
+		if(pEntry->bBeamformingInProgress)
+		{
 			Beamforming_End(priv, 0);
-			pEntry->bBeamformingInProgress = FALSE;
 		}
 		if( pEntry->bUsed) 
 		{
-			ret = BeamformingStart_V2( priv, idx,
-				pBeamformingTimerInfo->Mode,
-				pEntry->BW );
+			ret = BeamformingStart_V2( priv, idx, pBeamformingTimerInfo->Mode, pEntry->BW);
 
 		}
 
 //		if(ret && !timer_set)
 //		if(ret)
-		if(pBeamformingInfo->BeamformingEntry[0].bUsed || pBeamformingInfo->BeamformingEntry[1].bUsed)
+		if(pBeamformingInfo->BeamformeeEntry[0].bUsed || pBeamformingInfo->BeamformeeEntry[1].bUsed)
 		{		
-			if(pBeamformingInfo->BeamformState == BEAMFORMING_STATE_START)
+			if(pBeamformingInfo->BeamformState >= BEAMFORMING_STATE_START_1BFee)
 			{
-				if(pBeamformingTimerInfo->Mode == SOUNDING_SW_VHT_TIMER || pBeamformingTimerInfo->Mode == SOUNDING_SW_HT_TIMER)  {
+				if(pBeamformingTimerInfo->Mode == SOUNDING_SW_VHT_TIMER || pBeamformingTimerInfo->Mode == SOUNDING_SW_HT_TIMER)  
+				{
 					if(shortenSoundingPeriod(priv)){
 						if(pBeamformingInfo->BeamformingPeriodState == 1 || pBeamformingInfo->BeamformingPeriodState == 2)
+						{
 							ODM_SetTimer(ODMPTR, &pBeamformingInfo->BeamformingTimer, pBeamformingTimerInfo->BeamPeriod/100);
+						}
 						else   // pBeamformingInfo->BeamformingPeriodState == 3
+						{
 							ODM_SetTimer(ODMPTR, &pBeamformingInfo->BeamformingTimer, pBeamformingTimerInfo->BeamPeriod/200);
+						}
 					}
 					else  
+					{
 						ODM_SetTimer(ODMPTR, &pBeamformingInfo->BeamformingTimer, pBeamformingTimerInfo->BeamPeriod);
+					}
 				}
-				else{
-
+				else
+				{
 					int BeamPeriod = priv->pshare->rf_ft_var.soundingPeriod;
 
 					if(pBeamformingTimerInfo->Mode == SOUNDING_HW_VHT_TIMER || pBeamformingTimerInfo->Mode == SOUNDING_HW_HT_TIMER)
-						BeamPeriod *=32;
+						BeamPeriod *=32;	//HW timer, clock = 32K
 	
 					if(shortenSoundingPeriod(priv))
 					{
@@ -1249,29 +1766,12 @@ Beamforming_TimerCallback(
 						else //two entries are in used
 							BeamPeriod /= 200;
 					}
-#ifdef CONFIG_WLAN_HAL_8192EE
-					if(GET_CHIP_VER(priv)== VERSION_8192E){
-						if(pBeamformingTimerInfo->BeamPeriod != BeamPeriod) {
-							pBeamformingTimerInfo->BeamPeriod = BeamPeriod;
-							HW_VAR_HW_REG_TIMER_STOP_92E(priv);
-							HW_VAR_HW_REG_TIMER_INIT_92E(priv, pBeamformingTimerInfo->BeamPeriod);
-						}
-						HW_VAR_HW_REG_TIMER_START_92E(priv);
-					}
-#endif
-#ifdef CONFIG_RTL_8812_SUPPORT
-					if(GET_CHIP_VER(priv)== VERSION_8812E){
-						if(pBeamformingTimerInfo->BeamPeriod != BeamPeriod) {
-							pBeamformingTimerInfo->BeamPeriod = BeamPeriod;
-							HW_VAR_HW_REG_TIMER_STOP_8812(priv);
-							HW_VAR_HW_REG_TIMER_INIT_8812(priv, pBeamformingTimerInfo->BeamPeriod);
-						}
-						HW_VAR_HW_REG_TIMER_START_8812(priv);
-					}
-#endif
 
-					
-			
+					if(pBeamformingTimerInfo->BeamPeriod != BeamPeriod)
+					{
+						pBeamformingTimerInfo->BeamPeriod = BeamPeriod;
+					}
+					Beamforming_SetHWTimer(priv, pBeamformingTimerInfo->BeamPeriod);
 				}
 //				timer_set = 1;
 			}
@@ -1322,19 +1822,10 @@ Beamforming_Enter(
 	struct stat_info	*pstat
 )
 {
-	u1Byte	Idx = 0xff;
-
-	if(Beamforming_InitEntry(priv, pstat, &Idx)){
-#ifdef CONFIG_WLAN_HAL_8192EE
-		if (GET_CHIP_VER(priv)== VERSION_8192E)	
-			SetBeamformEnter92E(priv, Idx);
-#endif
-#ifdef CONFIG_RTL_8812_SUPPORT
-		if (GET_CHIP_VER(priv)== VERSION_8812E)	
-			SetBeamformEnter8812(priv, Idx);
-#endif
-
-		Beamforming_Notify(priv, Idx);
+	u1Byte	BFerBFeeIdx = 0xff;
+	if(Beamforming_InitEntry(priv, pstat, &BFerBFeeIdx))
+	{
+		Beamforming_SetBeamFormEnter(priv, BFerBFeeIdx);
 	}	
 }
 
@@ -1347,16 +1838,21 @@ Beamforming_Leave(
 {
 	u1Byte		Idx = 0;
 	PRT_BEAMFORMING_INFO 	pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	Beamforming_GetEntryByAddr(priv, RA, &Idx);
+	Beamforming_GetBFeeEntryByAddr(priv, RA, &Idx);
 
 	if(RA == NULL)
+	{
 		BeamformingReset(priv);
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, Reset entry\n", __FUNCTION__));  
+	}
 	else
+	{
 		Beamforming_DeInitEntry(priv, RA);
+		ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, DeInit entry %d\n", __FUNCTION__, Idx));  
+	}
 
-	Beamforming_Notify(priv, Idx);
+	Beamforming_Notify(priv);
 
-//	RT_DISP(FBEAM, FBEAM_FUN, ("%s\n", __FUNCTION__));
 }
 
 
@@ -1378,9 +1874,70 @@ Beamforming_SetTxBFen(
 	else
 		pEntry->bTxBF = bTxBF;
 
-	Beamforming_Notify(priv, Idx);
+	Beamforming_Notify(priv);
 }
 
+BEAMFORMING_CAP
+Beamforming_GetBeamCap(
+	IN PRT_BEAMFORMING_INFO 	pBeamInfo
+	)
+{
+	u1Byte					i;
+	BOOLEAN 				bSelfBeamformer = FALSE;
+	BOOLEAN 				bSelfBeamformee = FALSE;
+	RT_BEAMFORMING_ENTRY	BeamformeeEntry;
+	RT_BEAMFORMER_ENTRY	BeamformerEntry;
+	BEAMFORMING_CAP 		BeamformCap = BEAMFORMING_CAP_NONE;
+
+	/*
+	for(i = 0; i < BEAMFORMEE_ENTRY_NUM; i++)
+	{
+		BeamformEntry = pBeamInfo->BeamformeeEntry[i];
+
+		if(BeamformEntry.bUsed)
+		{
+			if( (BeamformEntry.BeamformEntryCap & BEAMFORMEE_CAP_VHT_SU) ||
+				(BeamformEntry.BeamformEntryCap & BEAMFORMEE_CAP_HT_EXPLICIT))
+				bSelfBeamformee = TRUE;
+			if( (BeamformEntry.BeamformEntryCap & BEAMFORMER_CAP_VHT_SU) ||
+				(BeamformEntry.BeamformEntryCap & BEAMFORMER_CAP_HT_EXPLICIT))
+				bSelfBeamformer = TRUE;
+		}
+
+		if(bSelfBeamformer && bSelfBeamformee)
+			i = BEAMFORMEE_ENTRY_NUM;
+	}
+	*/
+
+	for(i = 0; i < BEAMFORMEE_ENTRY_NUM; i++)
+	{
+		BeamformeeEntry = pBeamInfo->BeamformeeEntry[i];
+
+		if(BeamformeeEntry.bUsed)
+		{
+			bSelfBeamformer = TRUE;
+			//panic_printk("[Beamform]%s, BFee entry %d bUsed=TRUE\n", __FUNCTION__, i);  
+		}
+	}
+
+	for(i = 0; i < BEAMFORMER_ENTRY_NUM; i++)
+	{
+		BeamformerEntry = pBeamInfo->BeamformerEntry[i];
+
+		if(BeamformerEntry.bUsed)
+		{
+			bSelfBeamformee = TRUE;
+			//panic_printk"[Beamform]%s, BFer entry %d bUsed=TRUE\n", __FUNCTION__, i);  
+		}
+	}
+
+	if(bSelfBeamformer)
+		BeamformCap |= BEAMFORMER_CAP;
+	if(bSelfBeamformee)
+		BeamformCap |= BEAMFORMEE_CAP;
+
+	return BeamformCap;
+}
 
 VOID
 Beamforming_GetNDPAFrame(
@@ -1400,7 +1957,7 @@ Beamforming_GetNDPAFrame(
 	TA = GetAddr2Ptr(pNDPAFrame);
 	// Remove signaling TA. 
 	TA[0] = TA[0] & 0xFE; 
-	pBeamformEntry = Beamforming_GetEntryByAddr(priv, TA, &Idx);
+	pBeamformEntry = Beamforming_GetBFeeEntryByAddr(priv, TA, &Idx);
 	if(pBeamformEntry == NULL)
 		return;
 	else if(!(pBeamformEntry->BeamformEntryCap & BEAMFORMEE_CAP_VHT_SU))
@@ -1424,8 +1981,8 @@ Beamforming_GetNDPAFrame(
 #endif		
 		pBeamformEntry->LogRetryCnt++;
 	}
-//	RT_DISP(FBEAM, FBEAM_FUN, ("%s LogSeq %d LogRetryCnt %d LogSuccessCnt %d\n", 
-//			__FUNCTION__, pBeamformEntry->LogSeq, pBeamformEntry->LogRetryCnt, pBeamformEntry->LogSuccessCnt));
+	ODM_RT_TRACE(ODMPTR, BEAMFORMING_DEBUG, ODM_DBG_LOUD, ("%s, LogSeq %d LogRetryCnt %d LogSuccessCnt %d\n", __FUNCTION__, pBeamformEntry->LogSeq, pBeamformEntry->LogRetryCnt, pBeamformEntry->LogSuccessCnt));  
+
 }
 
 #endif

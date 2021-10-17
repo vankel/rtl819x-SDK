@@ -86,10 +86,7 @@ u_char ConfigTag[][32] =
 #endif
 #ifdef CONFIG_IEEE80211W
 	"ieee80211w",
-	"sha256",
-#endif
-#ifdef HS2_SUPPORT
-	"OSEN"
+	"sha256"
 #endif
 };
 

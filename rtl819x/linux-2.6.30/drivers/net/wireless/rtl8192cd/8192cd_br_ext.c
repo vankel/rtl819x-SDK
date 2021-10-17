@@ -1153,7 +1153,7 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 	/*         Handle IPX and Apple Talk frame           */
 	/*---------------------------------------------------*/
 	else if((protocol == __constant_htons(ETH_P_IPX)) ||
-			(protocol <= __constant_htons(ETH_FRAME_LEN)))
+			(ntohs(protocol) <= ETH_FRAME_LEN))
 	{
 		unsigned char ipx_header[2] = {0xFF, 0xFF};
 		struct ipxhdr	*ipx = NULL;
@@ -1166,7 +1166,7 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 			DEBUG_INFO("NAT25: Protocol=IPX (Ethernet II)\n");
 			ipx = (struct ipxhdr *)framePtr;
 		}
-		else if(protocol <= __constant_htons(ETH_FRAME_LEN))
+		else if(ntohs(protocol) <= ETH_FRAME_LEN)
 		{
 			if(!memcmp(ipx_header, framePtr, 2))
 			{
@@ -1984,7 +1984,7 @@ unsigned char FindWiFiSta(struct rtl8192cd_priv *inPriv, unsigned char *addr)
 int mclone_find_unused_id(struct rtl8192cd_priv *priv)
 {
     int i=0;
-    for (i=0; i<MAX_MAC_CLONE_NUM; i++) {
+     for (i=0; i<MAX_MAC_CLONE_NUM ; i++) {
 		if (priv->pshare->mclone_sta[i].priv == NULL) 
 			return i+1;
 	}
@@ -2150,7 +2150,7 @@ int mac_clone_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 				    panic_printk("clone mac -- should always have value for wifi sta addr, err!!!!\n");
 				} else {
 				    panic_printk("clone mac -- wifi sta addr useID: %d \n", usedID);
-				    priv->pshare->mclone_sta_fixed_addr[usedID].used  =1;
+				    priv->pshare->mclone_sta_fixed_addr[usedID].used = 1;
 				}
 				if (priv->pmib->ethBrExtInfo.macclone_method == 1){
 					memcpy(priv->pshare->mclone_sta_fixed_addr[usedID].clone_addr,skb->data+ETH_ALEN, ETH_ALEN);//wifi sta addr
@@ -2167,9 +2167,9 @@ int mac_clone_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 			priv->pshare->mclone_sta[id-1].priv = priv;
 			
 			#ifdef  CONFIG_WLAN_HAL
-				if (IS_HAL_CHIP(priv))
-            	GET_HAL_INTERFACE(priv)->McloneSetMBSSIDHandler(priv, priv->pshare->mclone_sta[id-1].hwaddr, (id-1));
-				else
+				if (IS_HAL_CHIP(priv)){
+            		GET_HAL_INTERFACE(priv)->McloneSetMBSSIDHandler(priv, priv->pshare->mclone_sta[id-1].hwaddr, (id-1));
+				}else
 			#endif
 				mclone_set_mbssid(priv, priv->pshare->mclone_sta[id-1].hwaddr);
 			

@@ -37,12 +37,16 @@ __delay(unsigned long loops)
 extern __inline__ void __udelay(unsigned long usecs, unsigned long lps)
 {
 	unsigned long lo;
-
+#if 0
 	usecs *= 0x000010c6;		/* 2**32 / 1000000 */
 	__asm__("multu\t%2,%3"
 		:"=h" (usecs), "=l" (lo)
 		:"r" (usecs),"r" (lps));
 	__delay(usecs);
+#else
+	lo = ((usecs * 0x000010c6) >> 12) * (lps >> 20);
+	__delay(lo);
+#endif	
 }
 
 #ifdef CONFIG_SMP

@@ -22,7 +22,6 @@ mkdir /var/dnrd
 mkdir /var/lib
 mkdir /var/lib/misc
 mkdir /var/home
-mkdir /var/tmp/net
 
 ##For miniigd
 mkdir /var/linuxigd
@@ -62,6 +61,8 @@ cp /bin/init.sh /var/udhcpc/br0.deconfig
 echo " " > /var/udhcpc/br0.deconfig
 cp /bin/init.sh /var/udhcpc/wlan0.deconfig
 echo " " > /var/udhcpc/wlan0.deconfig
+cp /bin/init.sh /var/udhcpc/usb0.deconfig
+echo " " > /var/udhcpc/usb0.deconfig
 
 if [ "$CINIT" = 1 ]; then
 startup.sh

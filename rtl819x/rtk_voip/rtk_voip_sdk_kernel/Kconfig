@@ -696,6 +696,8 @@ menu "RTK VoIP Suite"
 			        bool "Fly Back"
 			config RTK_VOIP_DRIVERS_SLIC_SI3217x_PBB
 			        bool "PMOS Buck Boost"
+			config RTK_VOIP_DRIVERS_SLIC_SI3217x_LCQC
+					bool "LCQC"
 		endchoice
 		
 		config	RTK_VOIP_DRIVERS_SLIC_SI3217x_WIDEBAND
@@ -704,6 +706,37 @@ menu "RTK VoIP Suite"
 		
 		comment "SI3217x family SLIC select"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
+	
+	config	RTK_VOIP_SLIC_SI32176_CS
+			bool "SI3217x (Chip Select)"
+			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
+
+		choice
+			prompt "SI3217x use SPI type"
+			depends on RTK_VOIP_SLIC_SI32176_CS
+			default RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+			
+			config RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
+				bool "Hardware"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+
+		config RTK_VOIP_SLIC_SI32176_CS_NR
+			int "SI3217x number (Chip Select)"
+			range 1 16
+			depends on RTK_VOIP_SLIC_SI32176_CS 
+
+		config RTK_VOIP_SLIC_SI32176_CS_PIN_CS
+			int "SI3217x use PIN_CS# (Chip Select)"
+			range 1 4 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+			range 0 4 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
+			depends on RTK_VOIP_SLIC_SI32176_CS 
 		
 		config	RTK_VOIP_SLIC_SI32176
 			bool "SI32176 (Daisy Chain)"
@@ -736,36 +769,7 @@ menu "RTK VoIP Suite"
 			default 0 if RTK_VOIP_SLIC_SI32176_PIN_CS_USE_HW
 			depends on RTK_VOIP_SLIC_SI32176 
 		
-		config	RTK_VOIP_SLIC_SI32176_CS
-			bool "SI32176 (Chip Select)"
-			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
 
-		choice
-			prompt "SI32176 use SPI type"
-			depends on RTK_VOIP_SLIC_SI32176_CS
-			default RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
-			
-			config RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
-				bool "Software"
-				depends on RTK_VOIP_SOFTWARE_SPI
-				
-			config RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
-				bool "Hardware"
-				depends on RTK_VOIP_HARDWARE_SPI
-		endchoice
-
-		config RTK_VOIP_SLIC_SI32176_CS_NR
-			int "SI32176 number (Chip Select)"
-			range 1 16
-			depends on RTK_VOIP_SLIC_SI32176_CS 
-
-		config RTK_VOIP_SLIC_SI32176_CS_PIN_CS
-			int "SI32176 use PIN_CS# (Chip Select)"
-			range 1 4 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
-			default 1 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
-			range 0 4 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
-			default 0 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
-			depends on RTK_VOIP_SLIC_SI32176_CS 
 	
 		config	RTK_VOIP_SLIC_SI32178
 			bool "SI32178 (Chip Select)"

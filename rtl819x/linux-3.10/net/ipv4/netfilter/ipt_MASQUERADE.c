@@ -144,7 +144,7 @@ static int masq_device_event(struct notifier_block *this,
 	}
 
 #if defined (CONFIG_RTL_819X)
-	rtl_masq_device_event_hooks(this,(struct net_device *)dev,event);
+	rtl_masq_device_event_hooks(this, dev,event);
 #endif
 
 	return NOTIFY_DONE;

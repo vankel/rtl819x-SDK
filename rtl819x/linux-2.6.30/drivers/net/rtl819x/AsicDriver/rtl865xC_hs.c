@@ -191,8 +191,14 @@ int32 convertHsaToSoftware( hsa_t* rawHsa, hsa_param_t* hsa )
 	hsa->dp = rawHsa->dp6_0;
 	hsa->priority = rawHsa->priority;
 
-
-#if defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8881A)
+	hsa->cputag   = rawHsa->cputag;
+	hsa->ptp_pkt  = rawHsa->ptp_pkt;
+	hsa->ptp_v2   = rawHsa->ptp_v2;
+	hsa->ptp_type = rawHsa->ptp_type;
+	hsa->rmdp     = rawHsa->rmdp;
+	hsa->dpri     = rawHsa->dpri;
+#elif defined(CONFIG_RTL_8198C)
 	hsa->cputag   = rawHsa->cputag;
 	hsa->ptp_pkt  = rawHsa->ptp_pkt;
 	hsa->ptp_v2   = rawHsa->ptp_v2;

@@ -63,9 +63,6 @@ asp_name_t root_asp[] = {
 	{"getModeCombobox", getModeCombobox},
 	{"getDHCPModeCombobox", getDHCPModeCombobox},
 #ifdef CONFIG_RTK_MESH
-#ifdef 	_11s_TEST_MODE_
-	{"wlRxStatics", wlRxStatics},
-#endif
 #ifdef _MESH_ACL_ENABLE_
 	{"wlMeshAcList", wlMeshAcList},
 #endif
@@ -81,6 +78,11 @@ asp_name_t root_asp[] = {
 #endif
 	{"dhcpClientList", dhcpClientList},
 	{"dhcpRsvdIp_List", dhcpRsvdIp_List},
+#ifdef FAST_BSS_TRANSITION	
+	{"multilang",multilang},
+	{"SSID_select",SSID_select},
+	{"wlFtKhList",wlFtKhList},
+#endif
 #if defined(POWER_CONSUMPTION_SUPPORT)
 	{"getPowerConsumption", getPowerConsumption},
 #endif
@@ -185,10 +187,6 @@ form_name_t root_form[] = {
 	{"formMeshProxy", formMeshProxy},
 	//{"formMeshProxyTbl", formMeshProxyTbl},
 	{"formMeshStatus", formMeshStatus},
-#ifdef 	_11s_TEST_MODE_
-	{"asdfgh", formEngineeringMode},
-	{"zxcvbnm", formEngineeringMode2},
-#endif
 #ifdef _MESH_ACL_ENABLE_
 	{"formMeshACLSetup", formMeshACLSetup},
 #endif
@@ -228,6 +226,9 @@ form_name_t root_form[] = {
 #if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8881A_SELECTIVE)
         {"formWlanBand2G5G", formWlanBand2G5G},
 #endif
+#ifdef FAST_BSS_TRANSITION	
+	{"formFt",formFt},
+#endif
 
 #if defined(VLAN_CONFIG_SUPPORTED)
 	{"formVlan", formVlan},
@@ -262,6 +263,9 @@ form_name_t root_form[] = {
 	{"formBTClientSetting",formBTClientSetting},
 	{"formBTFileSetting",formBTFileSetting},
 	{"formBTNewTorrent",formBTNewTorrent},
+#endif
+#ifdef CONFIG_RTL_TRANSMISSION
+	{"formTransmissionBT", formTransmissionBT},
 #endif
 #ifdef DOS_SUPPORT
 	{"formDosCfg", formDosCfg},
@@ -592,7 +596,9 @@ char *memstr(char *membuf, char *param, int memsize)
 int rtl_mime_get_boundry(char *query_string, int query_string_len)
 {
 	char *substr_start,*ptr;
-	char *substr="----------------------------";
+	//char *substr="----------------------------";
+	//for chrome to install wapi cert
+	char *substr="------";
 	substr_start=memstr(query_string,substr,query_string_len);
 	if(substr_start==NULL)
 	{
@@ -814,8 +820,8 @@ void asp_init(int argc,char **argv)
 #if defined(VOIP_SUPPORT) && defined(ATA867x)
 	// no wlan interface in ATA867x
 #else
-	//	if (wlan_num==0)
-	//	wlan_num = 1;	// set 1 as default
+	if (wlan_num==0)
+		wlan_num = 1;	// set 1 as default
 #endif
 
 #ifdef MBSSID
@@ -831,8 +837,9 @@ void asp_init(int argc,char **argv)
 		printf("Initialize AP MIB failed!%s:%d\n",__FUNCTION__,__LINE__);
 		return;
 	}
-
+#ifndef SHRINK_INIT_TIME
 	save_cs_to_file();
+#endif
 	apmib_get(MIB_WAN_DHCP, (void *)&last_wantype);
 
 	/* determine interface name by mib value */

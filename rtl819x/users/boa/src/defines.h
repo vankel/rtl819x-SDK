@@ -55,8 +55,6 @@
 //davidhsu
 //#define SINGLE_POST_LIMIT_DEFAULT               1024 * 1024 /* 1 MB */
 #if defined(CONFIG_RTL_WAPI_SUPPORT) || defined(HTTP_FILE_SERVER_SUPPORTED) || defined(CONFIG_RTK_VOIP) || defined(CONFIG_RTL_ULINKER) || defined (CONFIG_APP_TR069)
-#define SINGLE_POST_LIMIT_DEFAULT             1024*1024*4 /* 4 MB */
-#elif defined(CONFIG_APP_APPLE_MFI_WAC)
 #define SINGLE_POST_LIMIT_DEFAULT             1024*1024*8 /* 8 MB */
 #else
 #define SINGLE_POST_LIMIT_DEFAULT             1024*1024*2 /* 2 MB */

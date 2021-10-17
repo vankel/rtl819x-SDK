@@ -412,10 +412,6 @@ retry:
 		printk("DEBUG_BLOCK_EXT_DEVT is enabled, you need to specify "
 		       "explicit textual name for \"root=\" boot option.\n");
 #endif
-#ifdef CONFIG_MTD_NAND
-		#define REG32(reg)	(*(volatile unsigned int *)(reg))
-		REG32(0xb8019004) += 1;
-#endif
 		panic("VFS: Unable to mount root fs on %s", b);
 	}
 
@@ -427,9 +423,6 @@ retry:
 	printk("\n");
 #ifdef CONFIG_BLOCK
 	__bdevname(ROOT_DEV, b);
-#endif
-#ifdef CONFIG_MTD_NAND
-	REG32(0xb8019004) += 1;
 #endif
 	panic("VFS: Unable to mount root fs on %s", b);
 out:
@@ -566,11 +559,6 @@ void __init prepare_namespace(void)
 			mount_block_root(root_device_name, root_mountflags);
 			goto out;
 		}
-#ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
-extern int is_bank2_root();  //extern from rtl_gpio.c
-		if(is_bank2_root()) //assume bank1 root is mtdblock1 , bank2's root is mtdblock3
-			strcpy(root_device_name,"/dev/mtdblock3");		
-#endif
 		ROOT_DEV = name_to_dev_t(root_device_name);
 		if (strncmp(root_device_name, "/dev/", 5) == 0)
 			root_device_name += 5;

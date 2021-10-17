@@ -25,7 +25,7 @@
 #include <sys/ioctl.h>
 #endif
 
-#if !defined(CONFIG_RTL_8198C)
+#if 1//!defined(CONFIG_RTL_8198C)
 #define RTL_L2TP_POWEROFF_PATCH 1
 #endif
 
@@ -329,6 +329,7 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
          */
         if (t->self == c)
         {
+      
             if (t->lns)
             {
                 t->ourrws = t->lns->tun_rws;
@@ -392,6 +393,11 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
             if (gconfig.debug_state)
                 log (LOG_DEBUG, "%s: sending SCCRQ\n",
                      __FUNCTION__);
+
+			/*before start init a new connection,clear last session info for windows server*/
+			#if defined(RTL_L2TP_POWEROFF_PATCH)
+			system("disconnect.sh clear_l2tp");
+			#endif
             control_xmit (buf);
 	     gconfig.hello_count=0;
 	     gconfig.rx_pktnum=0;

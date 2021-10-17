@@ -446,12 +446,6 @@ int32 rtl8198C_flushHWMulticastv6Entry(void);
 int rtl8198C_getMCastv6HashMethod(unsigned int *hashMethod);
 int rtl8198C_setMCastv6HashMethod(unsigned int hashMethod);
 #endif
-#if defined (CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
-#define MACCLONE_MODE_HW_REPLACE 1
-#define	MACCLONE_MODE_SW_REPLACE 2
-#define MACCLONE_MODE_HW_DISBLE 3
-#define	MACCLONE_MODE_ORI 0
-#endif
 
 #endif
 

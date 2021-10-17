@@ -943,10 +943,10 @@ void update_hw_l2table(const char *srcName,const unsigned char *addr)
 		}
 #endif
 
-#ifdef CONFIG_RTL_8367R_SUPPORT
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 		{
-		extern void del_8367r_L2(const unsigned char *addr);
-		del_8367r_L2(addr);	
+		extern void del_83XX_L2(const unsigned char *addr);
+		del_83XX_L2(addr);	
 		}	
 #endif
 	}

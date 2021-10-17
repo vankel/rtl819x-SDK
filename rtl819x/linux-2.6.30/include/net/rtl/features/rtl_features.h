@@ -6,7 +6,6 @@
 
 #if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 #include <linux/seq_file.h>
-#include <linux/inetdevice.h>
 extern struct proc_dir_entry proc_root;
 #endif
 
@@ -185,8 +184,8 @@ int32 rtl_fib_flush(u32 tb_id, u32 fn_key, u32 ip_mask);
 int32 rtl_fn_flush(int	 fz_order, int idx, u32 tb_id, u32 fn_key);
 int32 rtl_ip_vs_conn_expire_check(struct ip_vs_conn *cp);
 int32 rtl_ip_vs_conn_expire_check_delete(struct ip_vs_conn *cp);
-void rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
-void rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
+int32 rtl_tcp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
+int32 rtl_udp_state_transition_check(struct ip_vs_conn *cp, int direction, const struct sk_buff *skb, struct ip_vs_protocol *pp);
 #endif
 
 #if defined(CONFIG_IPV6) && defined(CONFIG_RTL_8198C)

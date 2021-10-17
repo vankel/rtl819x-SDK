@@ -299,7 +299,6 @@ inband_remote_cmd(unsigned char *cmd)
 		inband_close(channel);
 	}*/
 	inband_close(channel);
-    return 1;
 }
 
 #ifdef INBAND_HOST

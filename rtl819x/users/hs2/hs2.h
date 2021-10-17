@@ -3,40 +3,24 @@
 
 #include <netdb.h>
 
-extern unsigned int HS_debug_info;
-
-#define HS2MSG_NOOUT  0
-#define HS2MSG_DEBUG  1
-#define HS2MSG_INFO   2
-#define HS2MSG_DETIAL 3
-#define HS2MSG_TRACE  4
-
-
-#define DEBUG_INFO(level, fmt, args...) \
-	if ( HS_debug_info >= level) \
-		printf("[%s %d]"fmt,__func__,__LINE__, ## args)
-		
-#define _DEBUG_INFO(level, fmt, args...) \
-        if ( (HS_debug_info) >= level) \
-            printf(""fmt, ## args)
-#define DEBUG_ERR(fmt, args...) (printf("[%s %d]"fmt,__func__,__LINE__,## args))
 
 #define FIFO_HEADER_LEN 		5
 #define MACADDRLEN				6
 #define MAX_STA_NUM				10
 #define MAXRSNIELEN				600
 #define MAX_MSG_SIZE			1600
+#define MAX_CONF_NUM			2
+#define MAX_VENUE_NUM			10
+#define MAX_DOMAIN_NUM			10
+#define MAX_REDIR_URL_NUM		10
+#define MAX_OPNAME_NUM			5
 #define SIOCGIWIND      		0x89ff
-#define MAX_GAS_CONTENTS_LEN 	65535
+#define MAX_GAS_CONTENTS_LEN 	8192
 
 #define _GAS_INIT_REQ_ACTION_ID_    10
 #define _GAS_INIT_RSP_ACTION_ID_    11
 #define _GAS_COMBACK_REQ_ACTION_ID_ 12
 #define _GAS_COMBACK_RSP_ACTION_ID_ 13
-
-#define _NTX_BSSID_CAPABILITY_IE		83	// element ID of Nontransmitted BSSID Capability
-#define _SSID_IE						0   // element ID of SSID
-#define _MBSSID_INDEX_IE				85
 
 #define SUCCESS                         0
 #define GAS_ADVT_PROTO_NOT_SUPPORT      59
@@ -55,17 +39,20 @@ extern unsigned int HS_debug_info;
 #define TMPTSM_EN		"/var/tsmen"
 #define	TMPTSM_FILE		"/var/tsm"
 
+#define HS2_DEBUG_INFO(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#define HS2_DEBUG_ERR(fmt, args...) printf("ERR: [%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+
+
 //#define TIMEZONE_SUPPORT
 
 enum {ANQP_QUERY=256, ANQP_CAP=257, VENUE_INFO=258, NET_AUTH_INFO=260, ROAM_LIST=261, IP_TYPE=262, NAI_LIST=263, 
 		CELL_NET=264, DOMAIN_LIST=268, MAX_ANQP=8, VENDOR_LIST=56797, 
-		HS2_QUERY=1, HS2_CAP=2, HS2_OP_NAME=3, HS2_WAN=4, HS2_CONN_CAP=5, NAI_QUERY=6, OP_BAND=7,
-		HS_OSU_PROVIDER_LIST = 8, HS_Anonymous_NAI = 9, HS_ICON_REQ=10, HS_ICON_BIN_FILE = 11};
+		HS2_QUERY=1, HS2_CAP=2, HS2_OP_NAME=3, HS2_WAN=4, HS2_CONN_CAP=5, NAI_QUERY=6, OP_BAND=7, MAX_HS_ANQP=5, 
+	 };
 
 enum {SET_IE_FLAG_INTERWORKING=1, SET_IE_FLAG_ADVT_PROTO=2, SET_IE_FLAG_ROAMING=3,
         SET_IE_FLAG_HS2=4, SET_IE_FLAG_TIMEADVT=5, SET_IE_FLAG_TIMEZONE=6, SET_IE_FLAG_PROXYARP=7,
-        SET_IE_FLAG_MBSSID=8, SET_IE_FLAG_REMEDSVR=9, SET_IE_FLAG_MMPDULIMIT=10, SET_IE_FLAG_ICMPv4ECHO=11,
-        SET_IE_FLAG_SessionInfoURL=12, SET_IE_FLAG_QOSMAP=13};
+        SET_IE_FLAG_MMPDULIMIT=10, SET_IE_FLAG_ICMPv4ECHO=11};
 
 #if 0
 enum anqp_cap_bitmask {
@@ -169,9 +156,7 @@ typedef enum{
 		DOT11_EVENT_HS2_GAS_RSP = 113,
 		DOT11_EVENT_HS2_GET_TSF = 114,
 		DOT11_EVENT_HS2_TSM_REQ = 115,
-		DOT11_EVENT_HS2_GET_RSN = 116,
-		DOT11_EVENT_HS2_GET_MMPDULIMIT=117,
-		DOT11_EVENT_WNM_DEAUTH_REQ = 118,
+		DOT11_EVENT_HS2_GET_MMPDULIMIT=117
 } DOT11_EVENT;
 
 typedef struct _DOT11_REQUEST{
@@ -228,27 +213,27 @@ typedef struct sta_ctx
 	//unsigned char		query_rsp[1024];
 } STA_CTX, *pSTA_CTX;
 
-typedef struct hs2_eap_method {
+struct hs2_eap_method {
 	struct hs2_eap_method	*next;
 	unsigned char			method;
 	unsigned char			auth_id[10];
 	unsigned char			auth_val[10][8];
 	unsigned char			auth_cnt;
-}hs2_eap_method_t;
+};
 
-typedef struct hs2_realm {
+struct hs2_realm {
 	struct hs2_realm		*next;
 	unsigned char			name[255];
 	unsigned char			eap_method_cnt;
 	struct hs2_eap_method	*eap_method;	
-}hs2_realm_t;
+};
 
-typedef struct proto_port {
+struct proto_port {
 	struct proto_port	*next;
 	unsigned char		ip_proto;
 	unsigned short		port;
 	unsigned char		status;
-}proto_port_t;
+};
 
 struct wan_metric {
 	unsigned char		waninfo;
@@ -257,41 +242,6 @@ struct wan_metric {
 	unsigned char		dlload;
 	unsigned char		ulload;
 	unsigned short		lmd;
-};
-
-
-
-typedef struct hs2_OSU_FName {
-	struct hs2_OSU_FName *next;
-	unsigned char LangCode[4]; // Language Code
-	unsigned char OSU_FName[253]; // OSU Friendly Name
-}hs2_OSU_FName_t;
-
-struct hs2_IconMetadata {
-	struct hs2_IconMetadata *next;	
-	unsigned short Width;
-	unsigned short Height;
-	unsigned char LangCode[4];
-	unsigned char IconType[256];
-	unsigned char FileName[256]; // maximum length = 255 + '\0' = 256
-};
-struct hs2_OSU_Desc {
-	struct hs2_OSU_Desc *next;
-	unsigned char LangCode[4];	 // maximum length = 3 + '\0' = 4
-	unsigned char OSU_Desc[253]; // maximum length = 252 + '\0' = 253
-};
-struct hs2_OSUProvider {
-	struct hs2_OSUProvider	*next;	
-	struct hs2_OSU_FName 	*FName_list; // OSU Friendly Name
-	unsigned char 			OSU_URI[256]; // OSU Server URI
-	struct hostent *OSUhost;
-	unsigned char 			OSU_Methods[10]; // OSU Method List (0: OMA-DM, 1: SOAP-XML SPP, others: reserved)
-											 // 10 is a value for future spec extensioin.
-											 // When the number of OSU Methods > 10, the number
-											 // should be modified.
-	struct hs2_IconMetadata *metadata_List;	// Icon Metadata
-	unsigned char 			OSU_NAI[256]; // OSU NAI
-	struct hs2_OSU_Desc 	*descList;	// OSU Service Description 
 };
 
 struct hs2_plmn {
@@ -307,7 +257,6 @@ struct hs2_config {
 //below parser configure parameters=================
 	int					anqp_enable;
 	unsigned int                 mmpdu_limit;
-    unsigned char       enableGASComeback;
     int                 comeback_delay;
 	int					l2_inspect;
 	int					sigma_test;
@@ -318,37 +267,20 @@ struct hs2_config {
     unsigned char		venue_type;
 	unsigned char		advtid;
 	unsigned char		wlan_iface[16];
-	unsigned char		OSU_iface[4][16]; // release 2
-	unsigned char		remedSvrURL[256];
-	unsigned char		SessionInfoURL[256];
-	unsigned char		venue_name[10][512];
+	unsigned char		*venue_name[MAX_VENUE_NUM];
 	unsigned char		venue_cnt;
-	unsigned char		domain_name[10][256];
+	unsigned char		*domain_name[MAX_DOMAIN_NUM];
 	unsigned char		domain_cnt;
 	unsigned char		netauth_type[10];
 	unsigned char		netauth_cnt;
-	unsigned char		redirectURL[10][256];
+	unsigned char		*redirectURL[MAX_REDIR_URL_NUM];
 	unsigned char		ipv4type;
 	unsigned char		ipv6type;
     unsigned char		hessid[6];
     unsigned char		roi[10][10];
 	unsigned char		roi_len[10];
     unsigned char		roi_cnt;
-	unsigned char       op_name[10][256];
-	unsigned char		anonymous_nai[256]; // release 2
-//	unsigned char		iconname[256]; 		// release 2	
-	
-	unsigned char		iconStatusCode;		// release 2
-//	unsigned char		iconType[128];		// release 2
-	unsigned short      icondata_Len;		// release 2
-	void				*icondata; 			// release 2
-	struct hs2_OSUProvider	*OSUProviderList;	
-	unsigned char           OSU_cnt;		// Release 2
-	unsigned char			OSU_SSID[4][33]; // release 2
-	unsigned char			L_OSU_SSID[33]; // release 2
-	unsigned char			MBSSID_Index[4];  // release 2
-	unsigned char			MBSSID_INDICATOR; // release 2
-	unsigned char			MBSSID_CAP; // release 2
+	unsigned char       *op_name[MAX_OPNAME_NUM];
     unsigned char       op_cnt;
 	unsigned char		opband[10];
 	unsigned char		opband_len;
@@ -361,9 +293,6 @@ struct hs2_config {
     unsigned char		hs2_ielen;
     unsigned char		iw_ie[20];
 	unsigned char		iw_ielen;
-	unsigned char		nQoSMAP;
-	unsigned char		QoSMap_ie[2][30];
-	unsigned char 		QoSMap_ielen[2];
     unsigned char		advt_ie[10];
     unsigned char		advt_ielen;
     unsigned char		roam_ie[40];
@@ -372,19 +301,11 @@ struct hs2_config {
     unsigned char		timeadvt_ielen;
     unsigned char		timezone_ie[10];
     unsigned char		timezone_ielen;
-	unsigned char		MBSSID_ie[20];	// release 2
-	unsigned char		MBSSID_ielen;	// release 2
-	unsigned char		rsn_ie[4][256];	
-	unsigned int		rsnielen[4];
     unsigned char		utc_countdown;
     unsigned char		proxy_arp;
 	unsigned char		ICMPv4ECHO;
 	unsigned char		dgaf_disable;
-	unsigned char		OSU_Present;	// release 2
-	unsigned char		ReleaseNumber;  // release 2
-#if !defined(PC_TEST)
     time_t				tsf;
-#endif
 	STA_CTX				*sta[MAX_STA_NUM];
 };
 
@@ -392,8 +313,8 @@ typedef struct hs2_context {
     unsigned char		RecvBuf[MAX_MSG_SIZE];
 	unsigned char		cfg_num;
 	unsigned char		pid_filename[100];
-	unsigned char		cfg_filename[8][100];
-	struct hs2_config	hs2conf[8];
+	unsigned char		*cfg_filename[MAX_CONF_NUM];
+	struct hs2_config	hs2conf[MAX_CONF_NUM];
 } HS2CTX, *pHS2CTX;
 
 //Function declartion
@@ -402,6 +323,5 @@ int get_value(char *data, char *value);
 unsigned char convert_atob(char *data, int base);
 int isFileExist(char *file_name);
 unsigned short convert_atob_sh(char *data, int base);
-void * getIconData(unsigned char *iconName, struct hs2_config *config, unsigned short *iconLen, unsigned char *statusCode, unsigned char *iconType);
 
 #endif /* HS2_H */

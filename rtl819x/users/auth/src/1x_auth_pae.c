@@ -72,8 +72,9 @@ void lib1x_authsm_execute_authsm( Global_Params * global );
 
 BOOLEAN lib1x_trans_authsm( Global_Params * global );
 
-void lib1x_process_radiusdisconreq( Global_Params * global, struct lib1x_packet * spkt);
 
+
+//----if 0706
 void lib1x_handle_eapol_start(Global_Params * global);
 void lib1x_handle_eapsupp( Global_Params * global,  struct lib1x_packet * pkthdr);
 void lib1x_handle_eapsvr( Global_Params * global, u_char * packet , struct lib1x_packet * pkthdr);
@@ -251,11 +252,6 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 #ifdef _RTL_WPA_UNIX
 		lib1x_init_authRSNConfig(auth);
 #endif
-#ifdef CONFIG_IEEE80211W
-		lib1x_control_InitPMF(auth);
-#endif
-
-
 		if(lib1x_nal_connect( dev_txrx->network_svr,  & dev_txrx->radsvraddr, sizeof(struct sockaddr_in ), LIB1X_IT_UDPSOCK_AUTH) < 0)
 		{
 			auth->RSNVariable.Dot1xEnabled = FALSE ;
@@ -1655,7 +1651,11 @@ void lib1x_authsm_capture_supp( Global_Params * global, struct lib1x_nal_intfdes
 
 			if(global->AuthKeyMethod == DOT11_AuthKeyType_PRERSN)
 			{
+#ifdef CONFIG_IEEE80211R
+				global->AuthKeyMethod = DOT11_AuthKeyType_FT;
+#else
 				global->AuthKeyMethod = DOT11_AuthKeyType_NonRSN802dot1x;
+#endif
 				global->RSNVariable.UnicastCipher = global->auth->RSNVariable.WepMode;
 				//global->AuthKeyMethod = DOT11_AuthKeyType_RSN;
 			}
@@ -1675,6 +1675,7 @@ void lib1x_authsm_capture_supp( Global_Params * global, struct lib1x_nal_intfdes
 			// Page 53.
 			// TODO: Parse EAP PACKET and if EAP Response/Identity Packet
 			// is received set rxRespId of authpae to TRUE;
+#ifndef CONFIG_IEEE80211R
 			lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATOR> EAPOL EAP PKT");
 			if(global->AuthKeyMethod == DOT11_AuthKeyType_PRERSN)
 			{
@@ -1682,6 +1683,7 @@ void lib1x_authsm_capture_supp( Global_Params * global, struct lib1x_nal_intfdes
 				global->RSNVariable.UnicastCipher = global->auth->RSNVariable.WepMode;
 
 			}
+#endif
 			lib1x_handle_eapsupp( global, spkt);
 
 
@@ -1815,11 +1817,6 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 	u_char	wpa2IETag[] = {0x01, 0x00};
 	BOOLEAN bWPA2 = FALSE;
 #endif
-#ifdef HS2_SUPPORT
-	u_char	OSENIETag[] = {0x50, 0x6F, 0x9A, 0x12};
-	BOOLEAN bOSEN = FALSE;
-	int i;
-#endif
 
         // The first byte is [event type]
         // The second byte is [more event] flag
@@ -1852,25 +1849,6 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 			global->RSNVariable.WPA2Enabled = bWPA2;
 
 
-            
-#ifdef HS2_SUPPORT
-			HS2DEBUG("bWPA2=%d\n",bWPA2);
-			if(global->auth->RSNVariable.bOSEN) 
-			{
-				bOSEN = (((u_char)pAssoInd->RSNIE[0] == 0xdd) && !strncmp(OSENIETag, (pAssoInd->RSNIE + 2), sizeof (OSENIETag)))? TRUE:FALSE;
-				bWPA2 = bOSEN;
-				global->RSNVariable.WPA2Enabled = bOSEN;
-			}
-
-			//printf("bOSEN=%d, compared1=%d, compare=%d, \nbOSEN=%d, usLength=%d, RSNIE[0]=%x, RSNIE[1]=%x\n",
-			//global->auth->RSNVariable.bOSEN, ((u_char)pAssoInd->RSNIE[0] == 0xdd), !strncmp(OSENIETag, (pAssoInd->RSNIE + 2), sizeof (OSENIETag)), bOSEN,usLength,pAssoInd->RSNIE[0],pAssoInd->RSNIE[1]);
-			#ifdef HS2DEBUGMSG
-			printf("RSNIE=");
-			for(i=0;i<usLength;i++)
-				printf("%02X ",pAssoInd->RSNIE[i]);
-			printf("\n");
-            #endif
-#endif
 			if(usLength && ( (!strncmp(wpaIETag, (pAssoInd->RSNIE + 2), sizeof (wpaIETag))) || bWPA2 ))
 
 #else
@@ -1942,21 +1920,19 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 				}
 
 #ifdef RTL_WPA2
-
 				PMFDEBUG("lib1x_control_AssociationRsp\n");
  				lib1x_control_AssociationRsp(global, 0, event);	// successful
 #else
 				lib1x_control_AssociationRsp(global, 0);	// successful
 #endif
 
-                #ifdef RTL_WPA2_PREAUTH
+#ifdef RTL_WPA2_PREAUTH
 				//printf("%s successful\n", event == DOT11_EVENT_ASSOCIATION_IND?"DOT11_EVENT_ASSOCIATION_IND":"DOT11_EVENT_REASSOCIATION_IND");
-                #endif
-                
+#endif
 				global->theAuthenticator->eapStart = TRUE;
 				global->akm_sm->AuthenticationRequest = TRUE;
-				//reset replay counter, david+12-01-2006				
-                //memset(&global->akm_sm->CurrentReplayCounter, '\0', sizeof(LARGE_INTEGER));
+				// reset replay counter, david+12-01-2006				
+//				memset(&global->akm_sm->CurrentReplayCounter, '\0', sizeof(LARGE_INTEGER));
 				
 				lib1x_message(MESS_DBG_RSNINFO, "lib1x_authRSN_match return Success\n");
 				// david+2006-03-31, add event to syslog
@@ -1997,7 +1973,6 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 			}else
 			//---- Not RSN Client. either STA without 802.1x or 802.1x client
 			{
-				
 				global->AuthKeyMethod = DOT11_AuthKeyType_PRERSN;
 
 				//---- If Association or Re-association happen within expire timeout or idle time-out
@@ -2029,7 +2004,6 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 					lib1x_message(MESS_DBG_RSNINFO, "without RSNIE");
 					lib1x_message(MESS_DBG_RSNINFO, lib1x_authRSN_err(ERROR_INVALID_RSNIE));
 #ifdef RTL_WPA2
-
 					lib1x_control_AssociationRsp(global, -ERROR_INVALID_RSNIE, event);
 #else
 					lib1x_control_AssociationRsp(global, -ERROR_INVALID_RSNIE);
@@ -2119,7 +2093,7 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 
 			// make sure the state m/c is enabled !
 			global->theAuthenticator->isSuppPresent = TRUE;
-
+#ifndef CONFIG_IEEE80211R
 			//0825
 			if(global->AuthKeyMethod == DOT11_AuthKeyType_PRERSN ||
 				global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x||
@@ -2131,7 +2105,7 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 				if(global->akm_sm->eapStart == TRUE)
 					lib1x_reset_authenticator(global);
 			}
-
+#endif
 			break;
 #ifdef RTL_WPA2_PREAUTH
 	case DOT11_EVENT_EAPOLSTART_PREAUTH:
@@ -2312,11 +2286,6 @@ void lib1x_authsm_capture_svr( Global_Params * global, struct lib1x_nal_intfdesc
 						lib1x_process_radiusacct(global, pkt);
 						lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATION RADIUS Accounting Respond");
 						break;
-		/*HS2 SUPPORT ; HS2_SUPPORT*/
-		case	LIB1X_RAD_DISCONNECT_REQ:
-						lib1x_process_radiusdisconreq(global, pkt);						
-						lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATION RADIUS Accounting Respond");
-						break;
 	}
 
 }
@@ -2385,11 +2354,6 @@ void lib1x_process_radiusaccept( Global_Params * global, struct lib1x_packet * s
 			lib1x_N2L(vendor_ptr, vendor);
 			if(vendor == LIB1X_RADVENDOR_MS)
 				lib1x_rad_vendor_attr(global, ((u_char *)rattr) + 6, rattr->length - 6);
-#ifdef HS2_SUPPORT
-			else if(vendor == LIB1X_RADVENDOR_WFA)
-				lib1x_rad_vendor_attr_WFA(global, ((u_char *)rattr) + 6, rattr->length - 6);
-				
-#endif
                 }
 		//Accounting
 		if( rattr->type == LIB1X_RAD_SESSION_TIMEOUT)
@@ -2535,120 +2499,6 @@ void lib1x_process_radiuschallenge( Global_Params * global, struct lib1x_packet 
 	}
 
 }
-
-//--------------------------------------------------
-//HS2 SUPPORT
-// Process the radius Disconnect Request message
-//--------------------------------------------------
-void lib1x_process_radiusdisconreq( Global_Params * global, struct lib1x_packet * spkt)
-{
-
-	Auth_Pae		* auth_pae;
-	struct lib1x_radiushdr  * rhdr;
-	struct lib1x_radiusattr * rattr;
-	struct lib1x_eap        * eap;
-	struct lib1x_radius_das_attr das_attr;
-	u_char done;
-	u_short  unexplen;
-	int  tmplen;
-	u_char *eap_ptr;
-	u_char *vendor_ptr;
-	u_long vendor;
-	int error = 0;
-
-	lib1x_message( MESS_DBG_RAD, "lib1x_process_radiusaccept(1)");
-	auth_pae = global->theAuthenticator;
-
-	rhdr = ( struct lib1x_radiushdr * ) spkt->data ;
-	rattr = ( struct lib1x_radiusattr * ) ( spkt->data + LIB1X_RADHDRLEN );
-
-	done = 0;
-	unexplen = ntohs(rhdr->length) - LIB1X_RADHDRLEN;
-
-	// cycle through the attributes
-	eap_ptr = auth_pae->rinfo->eap_message_frmserver;
-	auth_pae->rinfo->eap_messlen_frmserver = 0;
-	auth_pae->rinfo->rad_stateavailable = FALSE;
-
-	while (!done )
-    {
-	    if ( rattr->type == LIB1X_RAD_VENDOR_SPECIFIC)
-	    {
-			vendor_ptr = ( ( u_char *  )rattr ) + 2;
-			lib1x_N2L(vendor_ptr, vendor);
-			if(vendor == LIB1X_RADVENDOR_MS)
-				lib1x_rad_vendor_attr(global, ((u_char *)rattr) + 6, rattr->length - 6);
-#ifdef HS2_SUPPORT
-			else if(vendor == LIB1X_RADVENDOR_WFA)
-				lib1x_rad_vendor_attr_WFA(global, ((u_char *)rattr) + 6, rattr->length - 6);
-				
-#endif
-	    }
-		if( rattr->type == LIB1X_RAD_USER_NAME)
-		{
-			das_attr.user_name = (u_char *)rattr+2;
-			das_attr.user_name_len = rattr->length;
-			printf("das_attr.user_name=%s\n",das_attr.user_name);
-			
-		}
-		if( rattr->type == LIB1X_RAD_CALLING_STID)
-		{
-			printf("LIB1X_RAD_CALLING_STID=%s\n",(u_char *)rattr+2);
-		}
-		if( rattr->type == LIB1X_RAD_ACCT_SESSION_ID)
-		{
-			u_char		szUTF8[6];
-			u_long		ulUTF8Len;
-			int i;
-			das_attr.acct_session_id = (u_char *)rattr+2;
-			das_attr.acct_session_id_len = rattr->length;
-			printf("das_attr.acct_session_id=%s, das_attr.acct_session_id_len=%d\n",das_attr.acct_session_id, das_attr.acct_session_id_len);
-			lib1x_acct_UCS4_TO_UTF8( auth_pae->acct_sm->sessionId, (u_char*)szUTF8, &ulUTF8Len);
-			printf("auth_pae->acct_sm->sessionId=\n");
-			for(i=0;i<ulUTF8Len;i++)
-				printf("%x\n",szUTF8[i]);
-			printf("\n");
-		}
-		//if( rattr->type == LIB1X_RAD_ACCT_EVT_TIMESTAMP)
-		//{
-		//	
-		//}
-		//if( rattr->type == LIB1X_RAD_MESS_AUTH)
-		//{
-		//	
-		//}
-		if( rattr->type == LIB1X_RAD_ACCT_CHARGEABLE_USER_ID)
-		{
-			das_attr.cui = (u_char *)rattr+2;
-			das_attr.cui_len = rattr->length;
-			printf("das_attr.cui=%s\n",das_attr.cui);
-		}
-		
-		if (!done )
-		{
-			unexplen -= rattr->length;
-			lib1x_message( MESS_DBG_RAD," -------  UNEXP LEN = %d", unexplen );
-			if ( unexplen <= 2 )
-			{		
-			    done = 1;
-			} else
-			{
-			    rattr = ( struct lib1x_radiusattr * )(  (  (u_char *) rattr ) + rattr->length );
-			    /* this should send rattr to the next rattr */
-			}
-			if (rattr->length <= 0 ) done =1 ;
-		}
-	}
-
-
-	global->EventId = akmsm_EVENT_Disconnect;
-	global->akm_sm->Disconnect = TRUE;
-	global->akm_sm->ErrorRsn = auth_not_valid;
-	lib1x_akmsm_Disconnect(global);
-
-	lib1x_rad_disconnect_type( auth_pae, error ? LIB1X_RAD_DISCONNECT_NACK : LIB1X_RAD_DISCONNECT_ACK);
-}
-
 
 //--------------------------------------------------
 // Process response from accounting server
@@ -3499,13 +3349,6 @@ void lib1x_auth_txReqId( Auth_Pae * auth_pae, int identifier )
 	eth_hdr->ether_type = htons(LIB1X_ETHER_EAPOL_TYPE);
 #else
 	eth_hdr->ether_type = htons(LIB1X_ETHER_EAPOL_TYPE);
-#endif
-
-#ifdef HS2_SUPPORT
-    if(auth_pae->global->auth->RSNVariable.bOSEN) {
-        HS2DEBUG("OSEN mode , protocol_version=2\n");
-        eapol->protocol_version = 2;
-    } else
 #endif
 	eapol->protocol_version = LIB1X_EAPOL_VER;
 

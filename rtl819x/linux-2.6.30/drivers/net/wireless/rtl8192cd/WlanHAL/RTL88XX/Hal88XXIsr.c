@@ -31,12 +31,19 @@ EnableIMR88XX(
     HAL_RTL_W32(REG_HIMR0, pHalData->IntMask[0]);
     HAL_RTL_W32(REG_HIMR1, pHalData->IntMask[1]);
 
-#if IS_EXIST_RTL8813AE
-    if ( IS_HARDWARE_TYPE_8813AE(Adapter) ) {
+#if IS_EXIST_RTL8814AE
+    if ( IS_HARDWARE_TYPE_8814AE(Adapter) ) {
         HAL_RTL_W32(REG_HIMR2, pHalData->IntMask[2]);    
         HAL_RTL_W32(REG_HIMR3, pHalData->IntMask[3]);
     }
-#endif //#if IS_EXIST_RTL8813AE
+#endif //#if IS_EXIST_RTL8814AE
+
+#if CFG_HAL_TX_AMSDU
+    if ( IS_HARDWARE_TYPE_8814A(Adapter) ) {
+        HAL_RTL_W32(REG_FTIMR, pHalData->FtIntMask);
+    }
+#endif
+
 }
 
 
@@ -81,8 +88,8 @@ InterruptRecognized88XX(
 
     result = (pHalData->IntArray[0]!=0 || pHalData->IntArray[1]!=0);
 
-#if IS_EXIST_RTL8813AE
-    if ( IS_HARDWARE_TYPE_8813AE(Adapter) ) {
+#if IS_EXIST_RTL8814AE
+    if ( IS_HARDWARE_TYPE_8814AE(Adapter) ) {
 
     pHalData->IntArray[2] = HAL_RTL_R32(REG_HISR2);
     pHalData->IntArray[2] &= pHalData->IntMask[2];
@@ -95,8 +102,17 @@ InterruptRecognized88XX(
     result = (result || (pHalData->IntArray[2]!=0 || pHalData->IntArray[3]!=0 ));
 
     }
-#endif // #if IS_EXIST_RTL8813AE
+#endif // #if IS_EXIST_RTL8814AE
 
+#if CFG_HAL_TX_AMSDU
+    if ( IS_HARDWARE_TYPE_8814A(Adapter) ) {
+        pHalData->FtIntArray = HAL_RTL_R32(REG_FTISR);
+        pHalData->FtIntArray &= pHalData->FtIntMask;
+        HAL_RTL_W32(REG_FTISR, pHalData->FtIntArray);
+
+        result = (result || (pHalData->FtIntArray!=0));
+    }
+#endif
 
     return result;
 }
@@ -155,10 +171,11 @@ GetInterrupt88XX(
 	case HAL_INT_TYPE_BcnInt:
 		bResult = (pHalData->IntArray[0] & BIT_BCNDMAINT0) ? TRUE : FALSE;
 		break;
+
     case HAL_INT_TYPE_GTIMER4:
         bResult = (pHalData->IntArray[0] & BIT_GTINT4) ? TRUE : FALSE;
         break;
-		
+				
 	case HAL_INT_TYPE_PSTIMEOUT:
 		bResult = (pHalData->IntArray[0] & BIT_PSTIMEOUT) ? TRUE : FALSE;
 		break;
@@ -228,10 +245,10 @@ GetInterrupt88XX(
         }
 #endif //(IS_RTL8192E_SERIES || IS_RTL8881A_SERIES)
         
-#if IS_RTL8813A_SERIES
-        if (IS_HARDWARE_TYPE_8813A(Adapter))
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter))
         {
-            //this interrupt is removed at 8813A
+            //this interrupt is removed at 8814A
             bResult = FALSE;
         }
 #endif // IS_RTL8192E_SERIES
@@ -289,9 +306,64 @@ GetInterrupt88XX(
 		bResult = (pHalData->IntArray[1] & BIT_BCNDMAINT7) ? TRUE : FALSE;
         break;
 
-#if IS_EXIST_RTL8813AE
-    if ( IS_HARDWARE_TYPE_8813AE(Adapter) ) {
+#if IS_EXIST_RTL8814AE
+    if ( IS_HARDWARE_TYPE_8814AE(Adapter) ) {
 
+    case HAL_INT_TYPE_TXBCNOK_MBSSID:
+        bResult = ((pHalData->IntArray[2] & (BIT_TXBCN1OK|BIT_TXBCN2OK|BIT_TXBCN3OK|BIT_TXBCN4OK|
+                                    BIT_TXBCN5OK|BIT_TXBCN6OK|BIT_TXBCN7OK)) ||
+                    (pHalData->IntArray[0] & BIT_TXBCN0OK)
+                    ) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN1OK:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN1OK) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN2OK:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN2OK) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN3OK:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN3OK) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN4OK:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN4OK) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN5OK:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN5OK) ? TRUE : FALSE;
+        break;    
+    case HAL_INT_TYPE_TXBCN6OK:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN6OK) ? TRUE : FALSE;
+        break;    
+    case HAL_INT_TYPE_TXBCN7OK:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN7OK) ? TRUE : FALSE;
+        break;    
+
+    case HAL_INT_TYPE_TXBCNERR_MBSSID:
+        bResult = ((pHalData->IntArray[2] & (BIT_TXBCN1ERR|BIT_TXBCN2ERR|BIT_TXBCN3ERR|BIT_TXBCN4ERR|
+                                   BIT_TXBCN5ERR|BIT_TXBCN6ERR|BIT_TXBCN7ERR)) ||
+                   (pHalData->IntArray[0] & BIT_TXBCN0ERR)
+                   ) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN1ERR:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN1ERR) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN2ERR:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN2ERR) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN3ERR:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN3ERR) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN4ERR:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN4ERR) ? TRUE : FALSE;
+        break;
+    case HAL_INT_TYPE_TXBCN5ERR:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN5ERR) ? TRUE : FALSE;
+        break;    
+    case HAL_INT_TYPE_TXBCN6ERR:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN6ERR) ? TRUE : FALSE;
+        break;    
+    case HAL_INT_TYPE_TXBCN7ERR:
+        bResult = (pHalData->IntArray[2] & BIT_TXBCN7ERR) ? TRUE : FALSE;
+        break;            
     case HAL_INT_TYPE_PwrInt0:
         bResult = (pHalData->IntArray[3] & BIT_PWR_INT_31to0) ? TRUE : FALSE;
         break;
@@ -308,7 +380,16 @@ GetInterrupt88XX(
         bResult = (pHalData->IntArray[3] & BIT_PWR_INT_127) ? TRUE : FALSE;
         break;    
     }
-#endif // #if IS_EXIST_RTL8813AE
+#endif // #if IS_EXIST_RTL8814AE
+
+#if CFG_HAL_TX_AMSDU
+    if ( IS_HARDWARE_TYPE_8814A(Adapter) ) {
+
+    case HAL_INT_TYPE_FS_TIMEOUT0:
+        bResult = (pHalData->FtIntArray & BIT_FS_TIMEOUT0_EN) ? TRUE : FALSE;
+        break;
+    }
+#endif
 
 	}
 
@@ -351,10 +432,10 @@ AddInterruptMask88XX(
     	case HAL_INT_TYPE_TBDER:
             pHalData->IntMask[0] |= BIT_TXBCN0ERR;
     		break;
-    		
+            
         case HAL_INT_TYPE_GTIMER4:
             pHalData->IntMask[0] |= BIT_GTINT4;
-            break;
+            break;    		
     	case HAL_INT_TYPE_BcnInt:
     		pHalData->IntMask[0] |= BIT_BCNDMAINT0;
     		break;
@@ -438,8 +519,8 @@ AddInterruptMask88XX(
             pHalData->IntMask[1] |= BIT_TXERR_INT;
             break;
 
-#if IS_EXIST_RTL8813AE
-        if ( IS_HARDWARE_TYPE_8813AE(Adapter) ) {
+#if IS_EXIST_RTL8814AE
+        if ( IS_HARDWARE_TYPE_8814AE(Adapter) ) {
     
         case HAL_INT_TYPE_PwrInt0:
             pHalData->IntMask[3] |= BIT_PWR_INT_31to0;
@@ -457,7 +538,16 @@ AddInterruptMask88XX(
             pHalData->IntMask[3] |= BIT_PWR_INT_127;            
             break;    
         }
-#endif // #if IS_EXIST_RTL8813AE
+#endif // #if IS_EXIST_RTL8814AE
+
+#if CFG_HAL_TX_AMSDU
+        if ( IS_HARDWARE_TYPE_8814A(Adapter) ) {
+
+        case HAL_INT_TYPE_FS_TIMEOUT0:
+            pHalData->FtIntArray |= BIT_FS_TIMEOUT0_EN;
+            break;
+        }
+#endif
 
 	}
 }
@@ -496,10 +586,11 @@ RemoveInterruptMask88XX(
     	case HAL_INT_TYPE_TBDER:
             pHalData->IntMask[0] &= ~BIT_TXBCN0ERR;
     		break;
-    		
+            
         case HAL_INT_TYPE_GTIMER4:
             pHalData->IntMask[0] &= ~BIT_GTINT4;
             break;
+            
     	case HAL_INT_TYPE_BcnInt:
     		pHalData->IntMask[0] &= ~BIT_BCNDMAINT0;
     		break;
@@ -583,8 +674,8 @@ RemoveInterruptMask88XX(
             pHalData->IntMask[1] &= ~BIT_TXERR_INT;
             break;
 
-#if IS_EXIST_RTL8813AE
-        if ( IS_HARDWARE_TYPE_8813AE(Adapter) ) {
+#if IS_EXIST_RTL8814AE
+        if ( IS_HARDWARE_TYPE_8814AE(Adapter) ) {
     
         case HAL_INT_TYPE_PwrInt0:
             pHalData->IntMask[3] &= ~BIT_PWR_INT_31to0;
@@ -602,8 +693,17 @@ RemoveInterruptMask88XX(
             pHalData->IntMask[3] &= ~BIT_PWR_INT_127;            
             break;    
         }
-#endif // #if IS_EXIST_RTL8813AE
-            
+#endif // #if IS_EXIST_RTL8814AE
+
+#if CFG_HAL_TX_AMSDU
+        if ( IS_HARDWARE_TYPE_8814A(Adapter) ) {
+
+        case HAL_INT_TYPE_FS_TIMEOUT0:
+            pHalData->FtIntArray &= ~BIT_FS_TIMEOUT0_EN;
+            break;
+        }
+#endif
+
 	}
 }
 

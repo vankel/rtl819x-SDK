@@ -9,10 +9,16 @@
 
 #source "../target/selection/config.cpu"
 #source "../target/selection/config.in"
-source "../target/config.in"
+source "../target/config.in.linux-3.10"
 source "arch/rlx/config.cpu"
 
+####################################
+#
+# CPU configuration
+#
 menu "CPU configuration"
+
+comment "Select CPU features"
 
 config CPU_ENABLE_FPU
 	bool "Enable Taroko FPU support"
@@ -123,6 +129,7 @@ config CPU_HAS_ULS
 
 config CPU_HAS_TLS
 	bool
+    default y if ARCH_CPU_TLS
 
 config CPU_HAS_LLSC
 	bool
@@ -178,7 +185,6 @@ config CPU_HAS_WBIC
 #
 config HW_HAS_USB
 	bool
-	default y
 
 #
 # MISC

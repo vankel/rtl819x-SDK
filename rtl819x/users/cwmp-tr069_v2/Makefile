@@ -1,13 +1,11 @@
 
 .EXPORT_ALL_VARIABLES:
 
-include ../../.config
-
 CWMP_ROOT=$(shell pwd)
 GSOAP_DIR=gsoaplib
 LIBCWMP_DIR=libcwmp
 MATRIXSSL_DIR=matrixssl-1-8-3-open
-LIBOPENSSL_INC_DIR=$(CWMP_ROOT)/../openssl-0.9.8i/include
+LIBOPENSSL_INC_DIR=$(CWMP_ROOT)/../openssl-0.9.8b/include
 LIBMATRIXSSL_INC_DIR=$(CWMP_ROOT)/$(MATRIXSSL_DIR)
 
 ifeq ($(CONFIG_APP_GOAHEAD), y)
@@ -55,7 +53,7 @@ romfs:
 	cp -f $(CWMP_ROOT)/cwmpClient/DefaultCwmpNotify.txt $(CWMP_ROOT)/../../romfs/etc
 	$(ROMFSINST) -s /var/cwmp_default /etc/cwmp_default
 	$(ROMFSINST) -s /var/cwmp_config /etc/cwmp_config 
-ifeq ($(CONFIG_USER_CWMP_WITH_TR143),y)
+ifeq ($(CONFIG_USER_TR143),y)
 	cp -f $(CWMP_ROOT)/cwmpClient/udpechoserver $(CWMP_ROOT)/../../romfs/bin
 endif
 ifeq ($(CONFIG_USER_CWMP_WITH_SSL),y)

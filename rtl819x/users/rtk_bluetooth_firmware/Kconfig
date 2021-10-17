@@ -11,34 +11,34 @@ choice
 	prompt "Serial Bluetooth chip"
 		default RTK_BLUETOOTH_HW_RTL8723A
 	depends on SERIAL_BLUETOOTH
-#	config RTK_BLUETOOTH_HW_RTL8723A_S
-#		bool "rtl8723a"
-#	config RTK_BLUETOOTH_HW_RTL8723B_S
-#		bool "rtl8723b"
+	config RTK_BLUETOOTH_HW_RTL8723A_S
+		bool "rtl8723a"
+	config RTK_BLUETOOTH_HW_RTL8723B_S
+		bool "rtl8723b"
 	config RTK_BLUETOOTH_HW_RTL8761A_S
 		bool "rtl8761a"
-#	config RTK_BLUETOOTH_HW_RTL8821A_S
-#		bool "rtl8821a"
+	config RTK_BLUETOOTH_HW_RTL8821A_S
+		bool "rtl8821a"
 endchoice
 
 config USB_BLUETOOTH
 	depends on APP_RTK_BLUETOOTH_FM
 	bool "USB bluetooth"
-#
-#	prompt "USB Bluetooth chip"
-#config RTK_BLUETOOTH_HW_RTL8723A_U
-#	depends on USB_BLUETOOTH 
-#	bool "rtl8723a"
 
-#config RTK_BLUETOOTH_HW_RTL8723B_U
-#	depends on USB_BLUETOOTH 
-#	bool "rtl8723b"
+	prompt "USB Bluetooth chip"
+config RTK_BLUETOOTH_HW_RTL8723A_U
+	depends on USB_BLUETOOTH 
+	bool "rtl8723a"
+
+config RTK_BLUETOOTH_HW_RTL8723B_U
+	depends on USB_BLUETOOTH 
+	bool "rtl8723b"
 
 config RTK_BLUETOOTH_HW_RTL8761A_U
 	depends on USB_BLUETOOTH 
 	bool "rtl8761a"
 	
-#config RTK_BLUETOOTH_HW_RTL8821A_U
-#	depends on USB_BLUETOOTH 
-#	bool "rtl8821a"
+config RTK_BLUETOOTH_HW_RTL8821A_U
+	depends on USB_BLUETOOTH 
+	bool "rtl8821a"
 	

@@ -194,6 +194,7 @@ int rtl8196b_pci_reset(unsigned long conf_addr)
 
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL8196C) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B) || defined(CONFIG_RTL_8198C) //CONFIG_RTL_8198C
 #define MAX_PAYLOAD_SIZE_128B    0x00
+#define MAX_PAYLOAD_SIZE_256B    0x01
 
 #ifndef CONFIG_RTL_8198B
 #define CLK_MANAGE     0xb8000010
@@ -738,7 +739,7 @@ TRY_AGAIN:
 		#if defined(CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) ||  defined(CONFIG_RTL_8198C)
 		#if defined(CONFIG_RTL_8198C)
 		
-		REG32(0xb8000104)=(REG32(0xb8000104)&(~(0x3<<20)))|(1<<20);  //PCIe MUX switch to PCIe reset
+		REG32(0xb8000104)=(REG32(0xb8000104)&(~0x3<<20))|(1<<20);  //PCIe MUX switch to PCIe reset
 #if 0
 		#ifdef  CONFIG_PHY_EAT_40MHZ
 		delay_ms(500);
@@ -786,6 +787,15 @@ TRY_AGAIN:
 
 			
 		}
+		#ifdef CONFIG_RTL_PCIE_SSC_92E
+		 #ifdef CONFIG_WLAN_HAL_8192EE
+		if(portnum==0)
+		{
+			HostPCIe_SetPhyMdioWrite(portnum, 0x1, 0x0004);
+			HostPCIe_SetPhyMdioWrite(portnum, 0xb, 0x4599);
+		}
+		#endif
+		#endif
 	}
 #endif		
 
@@ -991,7 +1001,11 @@ SET_BAR:
 		if (pcie_reset_done[portnum] == 0) {
 #if (defined(__LINUX_2_6__) && defined(USE_RLX_BSP)) || defined(__ECOS)
 		WRITE_MEM32(BSP_PCIE0_H_CFG + 0x04, 0x00100007);
-		WRITE_MEM8(BSP_PCIE0_H_CFG + 0x78, (READ_MEM8(conf_addr + 0x78) & (~0xE0)) | MAX_PAYLOAD_SIZE_128B);  // Set MAX_PAYLOAD_SIZE to 128B
+#if defined(CONFIG_RTL_8198C) & defined(CONFIG_WLAN_HAL_8814AE)
+        WRITE_MEM8(BSP_PCIE0_H_CFG + 0x78, (READ_MEM8(conf_addr + 0x78) & (~0xE0)) | MAX_PAYLOAD_SIZE_256B);  // Set MAX_PAYLOAD_SIZE to 256B
+#else
+        WRITE_MEM8(BSP_PCIE0_H_CFG + 0x78, (READ_MEM8(conf_addr + 0x78) & (~0xE0)) | MAX_PAYLOAD_SIZE_128B);  // Set MAX_PAYLOAD_SIZE to 128B
+#endif
 #else
 			WRITE_MEM32(PCIE0_H_CFG + 0x04, 0x00100007);
 			WRITE_MEM8(PCIE0_H_CFG + 0x78, (READ_MEM8(conf_addr + 0x78) & (~0xE0)) | MAX_PAYLOAD_SIZE_128B);  // Set MAX_PAYLOAD_SIZE to 128B
@@ -1014,7 +1028,11 @@ SET_BAR:
 #if (defined(__LINUX_2_6__) && defined(USE_RLX_BSP))  || defined(__ECOS)
 		if (pcie_reset_done[portnum] == 0) {
 			WRITE_MEM32(BSP_PCIE1_H_CFG + 0x04, 0x00100007);
-			WRITE_MEM8(BSP_PCIE1_H_CFG + 0x78, (READ_MEM8(conf_addr + 0x78) & (~0xE0)) | MAX_PAYLOAD_SIZE_128B);  // Set MAX_PAYLOAD_SIZE to 128B
+#if defined(CONFIG_RTL_8198C) & defined(CONFIG_WLAN_HAL_8814AE)
+            WRITE_MEM8(BSP_PCIE1_H_CFG + 0x78, (READ_MEM8(conf_addr + 0x78) & (~0xE0)) | MAX_PAYLOAD_SIZE_256B);  // Set MAX_PAYLOAD_SIZE to 256B
+#else
+            WRITE_MEM8(BSP_PCIE1_H_CFG + 0x78, (READ_MEM8(conf_addr + 0x78) & (~0xE0)) | MAX_PAYLOAD_SIZE_128B);  // Set MAX_PAYLOAD_SIZE to 128B
+#endif       
 			pcie_reset_done[portnum] = 1;
 		}
 		#ifdef CONFIG_RTL_92D_DMDP
@@ -1147,7 +1165,12 @@ struct pcie_para ePHY[][29] = {
 	{1, 4, 0x856a},	{1, 5, 0x8109},	{1, 6, 0x6081},	{1, 7, 0x5400},
 	{1, 8, 0x9000},	{1, 9, 0x0ccc},	{1, 0xa, 0x4437},	{1, 0xb, 0x0230}, 	
 	{1, 0xc, 0x0021},	{1, 0xd, 0x0000},	{1, 0xe, 0x0000},	{1, 0x1f, 0x0000}, 
-	{0xff,0xff,0xffff}} //8685 25M clk
+	{0xff,0xff,0xffff}}, //8685 25M clk
+      {{0, 0, 0x404c},	{0, 1, 0x16a3},	{0, 2, 0x6340},	{0, 3, 0x370d},	
+	{0, 4, 0x856a},	{0, 5, 0x8109},	{0, 6, 0x6081},	{0, 7, 0x5400},
+	{0, 8, 0x9000},	{0, 9, 0x0ccc},	{0, 0xa, 0x4437},	{0, 0xb, 0x0230}, 	
+	{0, 0xc, 0x0021},	{0, 0xd, 0x0000},	{0, 0xe, 0x0000},	{0, 0x1f, 0x0000}, 
+	{0xff,0xff,0xffff}} //8685S 25M clk	
 };
 
 int PCIE_reset_procedure(int portnum, int Use_External_PCIE_CLK, int mdio_reset, unsigned long conf_addr)
@@ -1218,6 +1241,10 @@ int PCIE_reset_procedure(int portnum, int Use_External_PCIE_CLK, int mdio_reset,
 		// 5.MDIO Reset
 		#ifndef CONFIG_RTL8676S
 		REG32(PCI_MISC) = BSP_PCI_MDIO_RESET_RELEASE;
+		#else	
+		REG32(PCI_MISC) &= ~(1<<20);
+		delay_ms(2);
+		REG32(PCI_MISC) |= (1<<20);	
 		#endif
 	}
 #if defined(CONFIG_USE_PCIE_SLOT_0) && defined(CONFIG_USE_PCIE_SLOT_1)
@@ -1313,8 +1340,11 @@ int PCIE_reset_procedure(int portnum, int Use_External_PCIE_CLK, int mdio_reset,
 		    delay_ms(100);
 	    }
 		
-		if (i == 0)
+		if (i == 0){
 			printk("%s[%d]: Error!! Port %d WLan device PCIE Link failed, State=0x%x\n", __FUNCTION__, __LINE__, portnum, REG32(PCIE_H_CFG + 0x0728));
+			//check pcie link fail~
+			return FAIL;
+		}
 	}
 	delay_ms(100);
 

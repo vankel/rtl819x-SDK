@@ -3,7 +3,7 @@
 # script file to startup
 TOOL=flash
 GETMIB="$TOOL get"
-LOADDEF="$TOOL default"
+LOADDEF="$TOOL default-hw"
 LOADDEFSW="$TOOL default-sw"
 LOADDS="$TOOL reset"
 # See if flash data is valid

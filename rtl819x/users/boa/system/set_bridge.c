@@ -474,11 +474,6 @@ void set_lan_dhcpd(char *interface, int mode)
 }
 #endif
 
-#if defined(CONFIG_RTL_ULINKER_NOT_8881A)
-	system("ifconfig usb0 up");
-	system("brctl addif br0 usb0");
-#endif
-
 #ifdef _PRMT_X_TELEFONICA_ES_DHCPOPTION_
 	ret_val=create_dhcpd_configfile(interface);
 	if(ret_val<1)
@@ -546,7 +541,6 @@ void set_lan_dhcpd(char *interface, int mode)
 		}
 #endif
 	}
-	intValue=0;
 	if((mode==1) 
 #if 1
 	||(mode==2 && dns_mode==1)
@@ -592,13 +586,6 @@ void set_lan_dhcpd(char *interface, int mode)
 					strtmp= inet_ntoa(*((struct in_addr *)tmp2));
 					sprintf(line_buffer,"opt dns %s\n",strtmp);
 					write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
-				}else{
-					apmib_get( MIB_IP_ADDR,  (void *)tmp2);
-					if (memcmp(tmp2, "\x0\x0\x0\x0", 4)){
-						strtmp= inet_ntoa(*((struct in_addr *)tmp2));
-						sprintf(line_buffer,"opt dns %s\n",strtmp);
-						write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
-					}
 				}
 			}else {
 				apmib_get( MIB_IP_ADDR,  (void *)tmp2);
@@ -642,22 +629,11 @@ void set_lan_dhcpd(char *interface, int mode)
 	sprintf(tmpBuff2, "%s", strtmp1);
 	RunSystemCmd(NULL_FILE, "ifconfig", interface, tmpBuff1, "netmask", tmpBuff2,  NULL_STR);
 	/*start dhcp server*/
-	#if defined(CONFIG_AUTO_DHCP_CHECK)
-		int opmode;
-		apmib_get(MIB_OP_MODE,(void *)&opmode);
-		if(opmode != BRIDGE_MODE)
-		{
-			char tmpBuff4[100];
-			sprintf(tmpBuff4,"udhcpd %s\n",DHCPD_CONF_FILE);
-			system(tmpBuff4);
-		}
-	#else
-		char tmpBuff4[100];
-		sprintf(tmpBuff4,"udhcpd %s\n",DHCPD_CONF_FILE);
-		system(tmpBuff4);
-	#endif
+	char tmpBuff4[100];
+	sprintf(tmpBuff4,"udhcpd %s\n",DHCPD_CONF_FILE);
+	system(tmpBuff4);
 	//RunSystemCmd(stdout, "udhcpd", DHCPD_CONF_FILE, NULL_STR);
-
+	
 #if defined(CONFIG_APP_SIMPLE_CONFIG)
 	system("echo 1 > /var/sc_ip_status");
 #endif
@@ -693,6 +669,7 @@ void set_lan_dhcpc(char *iface)
 	//sprintf(cmdBuff, "udhcpc -i %s -p %s -s %s -n &", iface, pid_file, script_file);
 	sprintf(cmdBuff, "udhcpc -i %s -p %s -s %s &", iface, pid_file, script_file);
 	system(cmdBuff);
+
 #if defined(CONFIG_APP_SIMPLE_CONFIG)
 	system("echo 0 > /var/sc_ip_status");
 #endif
@@ -1594,7 +1571,7 @@ void lan_connect(char *interface, char *option)
 				else
 					write_line_to_file(RESOLV_CONF, 2, line);
 			}
-		}		
+		}	
 #if defined(CONFIG_APP_SIMPLE_CONFIG)
 		system("echo 2 > /var/sc_ip_status");
 #endif

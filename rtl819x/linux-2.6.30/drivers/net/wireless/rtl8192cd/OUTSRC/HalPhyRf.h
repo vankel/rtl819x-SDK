@@ -24,24 +24,38 @@
 
 typedef enum _PWRTRACK_CONTROL_METHOD {
 	BBSWING,
-	TXAGC
+	TXAGC,
+	MIX_MODE,
+	TSSI_MODE
 } PWRTRACK_METHOD;
 
-typedef VOID (*FuncSetPwr)(PDM_ODM_T, PWRTRACK_METHOD, u1Byte, u1Byte);
-typedef VOID (*FuncIQK)(PDM_ODM_T, u1Byte, u1Byte, u1Byte);
-typedef VOID (*FuncLCK)(PDM_ODM_T);
+typedef VOID 	(*FuncSetPwr)(PDM_ODM_T, PWRTRACK_METHOD, u1Byte, u1Byte);
+typedef VOID 	(*FuncIQK)(PDM_ODM_T, u1Byte);
+typedef VOID 	(*FuncLCK)(PDM_ODM_T);
+				//refine by YuChen for 8814A
+typedef VOID  	(*FuncSwing)(PDM_ODM_T, pu1Byte*, pu1Byte*, pu1Byte*, pu1Byte*);
+typedef VOID	(*FuncSwing8814only)(PDM_ODM_T, pu1Byte*, pu1Byte*, pu1Byte*, pu1Byte*);
 
 typedef struct _TXPWRTRACK_CFG {
 	u1Byte 		SwingTableSize_CCK;	
 	u1Byte 		SwingTableSize_OFDM;
-	u1Byte 		Threshold_IQK;	
+	u1Byte 		Threshold_IQK;
+	u1Byte 		Threshold_DPK;	
 	u1Byte 		AverageThermalNum;
 	u1Byte 		RfPathCount;
 	u4Byte 		ThermalRegAddr;	
 	FuncSetPwr 	ODM_TxPwrTrackSetPwr;
 	FuncIQK 	DoIQK;
 	FuncLCK		PHY_LCCalibrate;
+	FuncSwing	GetDeltaSwingTable;
+	FuncSwing8814only	GetDeltaSwingTable8814only;
 } TXPWRTRACK_CFG, *PTXPWRTRACK_CFG;
+
+VOID
+ConfigureTxpowerTrack(
+	IN 	PDM_ODM_T		pDM_Odm,
+	OUT	PTXPWRTRACK_CFG	pConfig
+	);
 
 
 VOID
@@ -64,7 +78,17 @@ ODM_TXPowerTrackingCallback_ThermalMeter_92E(
 	);
 #endif
 
-#if ODM_IC_11AC_SERIES_SUPPORT
+#if (RTL8814A_SUPPORT == 1)
+VOID
+ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries2(
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm
+#else
+	IN PADAPTER	Adapter
+#endif
+	);
+
+#elif ODM_IC_11AC_SERIES_SUPPORT
 VOID
 ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
@@ -74,6 +98,9 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 #endif
 	);
 #endif
+
+#define IS_CCK_RATE(_rate) 				(MGN_1M == _rate || _rate == MGN_2M || _rate == MGN_5_5M || _rate == MGN_11M )
+
 
 #if(DM_ODM_SUPPORT_TYPE & ODM_WIN)
 #define MAX_TOLERANCE          5

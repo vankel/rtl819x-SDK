@@ -311,7 +311,6 @@ union pptp_ctrl_union {
 	struct PptpSetLinkInfo		setlink;
 };
 
-#if 0
 extern int
 (*ip_nat_pptp_hook_outbound)(struct sk_buff **pskb,
 			  struct ip_conntrack *ct,
@@ -333,7 +332,6 @@ extern void
 extern void
 (*ip_nat_pptp_hook_expectfn)(struct ip_conntrack *ct,
 			     struct ip_conntrack_expect *exp);
-#endif
 
 
 #endif /* __KERNEL__ */

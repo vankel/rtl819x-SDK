@@ -83,8 +83,8 @@ HAL_ReadTypeID(
 		break;
 #endif
 
-#if     IS_RTL8813A_SERIES
-        case HAL_HW_TYPE_ID_8813A:
+#if     IS_RTL8814A_SERIES
+        case HAL_HW_TYPE_ID_8814A:
             switch(GET_BIT_HCI_SEL_V2(HCI)) {
                 //BIT_HCI_SEL_V1
                 //  01: USB-Phy
@@ -93,17 +93,17 @@ HAL_ReadTypeID(
                 //  11: PCIe
 
                 case 0x3:
-                    _GET_HAL_DATA(Adapter)->HardwareType = HARDWARE_TYPE_RTL8813AE;
+                    _GET_HAL_DATA(Adapter)->HardwareType = HARDWARE_TYPE_RTL8814AE;
                     rtResult = RT_STATUS_SUCCESS;
                     break;
                     
                 case 0x1:
-                    _GET_HAL_DATA(Adapter)->HardwareType = HARDWARE_TYPE_RTL8813AU;
+                    _GET_HAL_DATA(Adapter)->HardwareType = HARDWARE_TYPE_RTL8814AU;
             rtResult = RT_STATUS_SUCCESS;
             break;
                     
                 default:
-                    RT_TRACE(COMP_INIT, DBG_SERIOUS, (" 8813A HCI_SEL Error(0x%x) \n", HCI));
+                    RT_TRACE(COMP_INIT, DBG_SERIOUS, (" 8814A HCI_SEL Error(0x%x) \n", HCI));
                     break;
             }
             break;
@@ -252,10 +252,10 @@ HalAssociateNic(
         }
 #endif
 
-#if IS_EXIST_RTL8813AE
-        if ( IS_HARDWARE_TYPE_8813AE(Adapter) ) {
-            RT_TRACE(COMP_INIT, DBG_LOUD, (" IS_HARDWARE_TYPE_8813AE\n"));
-            status = hal_Associate_8813AE(Adapter, TRUE);
+#if IS_EXIST_RTL8814AE
+        if ( IS_HARDWARE_TYPE_8814AE(Adapter) ) {
+            RT_TRACE(COMP_INIT, DBG_LOUD, (" IS_HARDWARE_TYPE_8814AE\n"));
+            status = hal_Associate_8814AE(Adapter, TRUE);
             if (RT_STATUS_SUCCESS != status) {
                 return status;
             }
@@ -428,7 +428,7 @@ CRC5(
 {
     u1Byte poly5 = 0x05;  
     u1Byte crc5  = 0x1f;
-    u1Byte shift,i  = 0x0 ;
+    u1Byte i  = 0x0 ;
     u1Byte udata;
     u1Byte BitCount;
 
@@ -614,7 +614,7 @@ LoadFileToIORegTable(
 {
     u1Byte          *line_head, *next_head;
     u4Byte          u4bRegOffset, u4bRegValue;
-    s4Byte          num, len = 0;;
+    s4Byte          num, len = 0;
     PIOREG_FORMAT   reg_table = (PIOREG_FORMAT)pTableStart;
 
     next_head = pRegFileStart;
@@ -660,7 +660,7 @@ LoadFileToOneParaTable(
 {
     u1Byte          *line_head, *next_head;
     u4Byte          u4bValue0, u4bValue1;
-    s4Byte          num, len = 0;;
+    s4Byte          num, len = 0;
     pu4Byte         OneParatable = (pu4Byte)pTableStart;
 
     next_head = pFileStart;

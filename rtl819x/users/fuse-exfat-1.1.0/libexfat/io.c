@@ -254,7 +254,6 @@ struct exfat_dev* exfat_open(const char* spec, enum exfat_mode mode)
 		return NULL;
 	}
 #endif
-
 	return dev;
 }
 

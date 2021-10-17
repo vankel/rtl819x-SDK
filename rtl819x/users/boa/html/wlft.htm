@@ -1,0 +1,507 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2007. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html" charset="utf-8">
+<title><% multilang("Fast BSS Transition (802.11r)"); %></title>
+<script type="text/javascript" src="share.js"></script>
+<script type="text/javascript" src="util_gw.js"></script>
+<script>
+
+var _dotIEEE80211r=new Array();
+var _encrypt=new Array();
+var _ft_enable=new Array();
+var _ft_mdid=new Array();
+var _ft_over_ds=new Array();
+var _ft_res_request=new Array();
+var _ft_r0key_timeout=new Array();
+var _ft_reasoc_timeout=new Array();
+var _ft_r0kh_id=new Array();
+var _ft_push=new Array();
+var _ft_kh_num=new Array();
+
+function wlftSSIDSelected(index, form)
+{
+	document.formFt.ftSSID.value = index;
+	document.formFtKhAdd.ftSSID.value = index;
+	document.formFtKhDel.ftSSID.value = index;
+
+	document.formFt.security_method.value = _encrypt[index];
+	if ((_encrypt[index]==4) || (_encrypt[index]==6)) { //WPA2,WPA2-MIXED
+		_dotIEEE80211r[index] = true;
+		enableRadioGroup(document.formFt.ft_enable);
+	} else { //NONE,WEP
+		_dotIEEE80211r[index] = false;
+		disableRadioGroup(document.formFt.ft_enable);
+	}
+
+	enable_80211r_setting(index);
+	load_80211r_setting(index);
+}
+
+function enable_80211r_setting(index)
+{
+	if ((_dotIEEE80211r[index]==false) || (document.formFt.ft_enable[0].checked==true)) {
+		document.formFt.ft_mdid.disabled = true;
+		disableRadioGroup(document.formFt.ft_over_ds);
+		disableRadioGroup(document.formFt.ft_res_request);
+		document.formFt.ft_r0key_timeout.disabled = true;
+		document.formFt.ft_reasoc_timeout.disabled = true;
+		document.formFt.ft_r0kh_id.disabled = true;
+		disableRadioGroup(document.formFt.ft_push);
+	} else {
+		document.formFt.ft_mdid.disabled = false;
+		enableRadioGroup(document.formFt.ft_over_ds);
+		enableRadioGroup(document.formFt.ft_res_request);
+		document.formFt.ft_r0key_timeout.disabled = false;
+		document.formFt.ft_reasoc_timeout.disabled = false;
+		document.formFt.ft_r0kh_id.disabled = false;
+		enableRadioGroup(document.formFt.ft_push);
+	}
+}
+
+function load_80211r_setting(index)
+{
+	document.formFt.ft_enable[_ft_enable[index]].checked = true;
+	document.formFt.ft_mdid.value = _ft_mdid[index];
+	document.formFt.ft_over_ds[_ft_over_ds[index]].checked = true;
+	document.formFt.ft_res_request[_ft_res_request[index]].checked = true;
+	document.formFt.ft_r0key_timeout.value = _ft_r0key_timeout[index];
+	document.formFt.ft_reasoc_timeout.value = _ft_reasoc_timeout[index];
+	document.formFt.ft_r0kh_id.value = _ft_r0kh_id[index];
+	document.formFt.ft_push[_ft_push[index]].checked = true;
+	enable_80211r_setting(index);
+}
+
+function check_80211r_setting()
+{
+	var i, len, val;
+	
+	//check MDID
+	len = document.formFt.ft_mdid.value.length;
+	if (len != 4) {
+		alert("Invalid MDID (2-octet identifier as a hex string)");
+		document.formFt.ft_mdid.focus();
+		return false;
+	}
+	for (i=0; i<len; i++) {
+		if (is_hex(document.formFt.ft_mdid.value.charAt(i)) == false) {
+			alert("Invalid hex number");
+			document.formFt.ft_mdid.focus();
+			return false;
+		}
+	}
+	
+	//check Key expiration timeout
+	val = parseInt(document.formFt.ft_r0key_timeout.value);
+	if (val>65535)
+	{
+		alert("Invalid range of key expiration timeout (0 or 1~65535 minutes)");
+		document.formFt.ft_r0key_timeout.focus();
+		return false;
+	}
+	
+	// check Reassociation timeout
+	val = parseInt(document.formFt.ft_reasoc_timeout.value);
+	if ((val!=0) && (val<1000 || val>65535))
+	{
+		alert("Invalid range of reassociation timeout (0 or 1000~65535)");
+		document.formFt.ft_reasoc_timeout.focus();
+		return false;
+	}
+	
+	// check NAS identifier
+	len = document.formFt.ft_r0kh_id.value.length;
+	if (len<1 || len>48)
+	{
+		alert("Invalid NAS identifier (1~48 characters)");
+		document.formFt.ft_r0kh_id.focus();
+		return false;
+	}
+	
+	return true;
+}
+
+function is_hex(ch)
+{
+	if ((ch>='0' && ch<='9') || (ch>='a' && ch<='f') || (ch>='A' && ch<='F'))
+		return true;
+	else
+		return false;
+}
+
+function check_kh_setting(index)
+{
+	var len;
+	
+	// check if exceed max number of KH entry
+	if (_ft_kh_num[index] >= <% getIndex("11r_ftkh_num") %>) {
+		alert("Exceed max. number of KH entry for selected SSID");
+		return false;
+	}
+	
+	// check MAC address
+	if (!checkMacAddr(document.formFtKhAdd.kh_mac, "invlide mac address!"))
+		return false;
+
+	// check NAS ID (1~48 characters)
+	len = document.formFtKhAdd.kh_nas_id.value.length;
+	if (len<1 || len>48)
+	{
+		alert("Invalid NAS identifier (1~48 characters)");
+		document.formFtKhAdd.kh_nas_id.focus();
+		return false;
+	}
+	for (i=0; i<len; i++) {
+		if (document.formFtKhAdd.kh_nas_id.value.charAt(i) == ' ') {
+			alert("White-space is not allowed in NAS identifier field.");
+			document.formFtKhAdd.kh_nas_id.focus();
+			return false;
+		}
+	}
+
+	// check AES wrap/unwrap key (16 octets)
+	len = document.formFtKhAdd.kh_kek.value.length;
+	if (len<1 || len>32)
+	{
+		alert("Invalid key length (should be 16 octets or 1~32 characters)");
+		document.formFtKhAdd.kh_nas_id.focus();
+		return false;
+	}
+
+	return true;
+}
+function wlftSelectChange(form)
+{
+	form.submit();
+}
+function wlft_onload()
+{
+	
+	if(<% getIndex("wlanDisabled")%>)
+	{
+		document.getElementById("wlan_dot11r_table").style.display = 'none';
+	}	
+
+	if(<% getIndex("is_80211k_support"); %> == 1) {	
+		document.getElementById("dot11k_opclass").style.display = "";
+		document.getElementById("dot11k_channel").style.display = "";
+	}
+	else {
+		document.getElementById("dot11k_opclass").style.display = "none";
+		document.getElementById("dot11k_channel").style.display = "none";
+	}
+	
+		_encrypt[0]=<% getIndex("encrypt")%>;
+		_ft_enable[0]=<% getIndex("ft_enable")%>;
+		_ft_mdid[0]="<% getIndex("_ft_mdid")%>";
+		_ft_over_ds[0]=<% getIndex("_ft_over_ds")%>;
+		_ft_res_request[0]=<% getIndex("_ft_res_request")%>;
+		_ft_r0key_timeout[0]=<% getIndex("_ft_r0key_timeout")%>;
+		_ft_reasoc_timeout[0]=<% getIndex("_ft_reasoc_timeout")%>;
+		_ft_r0kh_id[0]="<% getIndex("_ft_r0kh_id")%>";
+		_ft_push[0]=<% getIndex("_ft_push")%>;
+		_ft_kh_num[0]=<% getIndex("_ft_kh_num")%>;
+	
+		_encrypt[1]=<% getVirtualIndex("encrypt", "1"); %>
+		_ft_enable[1]=<% getVirtualIndex("ft_enable","1")%>;
+		_ft_mdid[1]=<% getVirtualIndex("_ft_mdid","1")%>;
+		_ft_over_ds[1]=<% getVirtualIndex("_ft_over_ds","1")%>;
+		_ft_res_request[1]=<% getVirtualIndex("_ft_res_request","1")%>;
+		_ft_r0key_timeout[1]=<% getVirtualIndex("_ft_r0key_timeout","1")%>;
+		_ft_reasoc_timeout[1]=<% getVirtualIndex("_ft_reasoc_timeout","1")%>;
+		_ft_r0kh_id[1]=<% getVirtualIndex("_ft_r0kh_id","1")%>;
+		_ft_push[1]=<% getVirtualIndex("_ft_push","1")%>;
+		_ft_kh_num[1]=<% getVirtualIndex("_ft_kh_num","1")%>;
+
+		_encrypt[2]=<% getVirtualIndex("encrypt", "2"); %>
+		_ft_enable[2]=<% getVirtualIndex("ft_enable","2")%>;
+		_ft_mdid[2]=<% getVirtualIndex("_ft_mdid","2")%>;
+		_ft_over_ds[2]=<% getVirtualIndex("_ft_over_ds","2")%>;
+		_ft_res_request[2]=<% getVirtualIndex("_ft_res_request","2")%>;
+		_ft_r0key_timeout[2]=<% getVirtualIndex("_ft_r0key_timeout","2")%>;
+		_ft_reasoc_timeout[2]=<% getVirtualIndex("_ft_reasoc_timeout","2")%>;
+		_ft_r0kh_id[2]=<% getVirtualIndex("_ft_r0kh_id","2")%>;
+		_ft_push[2]=<% getVirtualIndex("_ft_push","2")%>;
+		_ft_kh_num[2]=<% getVirtualIndex("_ft_kh_num","2")%>;
+
+		_encrypt[3]=<% getVirtualIndex("encrypt", "3"); %>
+		_ft_enable[3]=<% getVirtualIndex("ft_enable","3")%>;
+		_ft_mdid[3]=<% getVirtualIndex("_ft_mdid","3")%>;
+		_ft_over_ds[3]=<% getVirtualIndex("_ft_over_ds","3")%>;
+		_ft_res_request[3]=<% getVirtualIndex("_ft_res_request","3")%>;
+		_ft_r0key_timeout[3]=<% getVirtualIndex("_ft_r0key_timeout","3")%>;
+		_ft_reasoc_timeout[3]=<% getVirtualIndex("_ft_reasoc_timeout","3")%>;
+		_ft_r0kh_id[3]=<% getVirtualIndex("_ft_r0kh_id","3")%>;
+		_ft_push[3]=<% getVirtualIndex("_ft_push","3")%>;
+		_ft_kh_num[3]=<% getVirtualIndex("_ft_kh_num","3")%>;
+
+		_encrypt[4]=<% getVirtualIndex("encrypt", "4"); %>
+		_ft_enable[4]=<% getVirtualIndex("ft_enable","4")%>;
+		_ft_mdid[4]=<% getVirtualIndex("_ft_mdid","4")%>;
+		_ft_over_ds[4]=<% getVirtualIndex("_ft_over_ds","4")%>;
+		_ft_res_request[4]=<% getVirtualIndex("_ft_res_request","4")%>;
+		_ft_r0key_timeout[4]=<% getVirtualIndex("_ft_r0key_timeout","4")%>;
+		_ft_reasoc_timeout[4]=<% getVirtualIndex("_ft_reasoc_timeout","4")%>;
+		_ft_r0kh_id[4]=<% getVirtualIndex("_ft_r0kh_id","4")%>;
+		_ft_push[4]=<% getVirtualIndex("_ft_push","4")%>;
+		_ft_kh_num[4]=<% getVirtualIndex("_ft_kh_num","4")%>;
+		
+	
+	wlftSSIDSelected(<%getIndex("selectedId");%>, document.formFt);
+}
+</script>
+</head>
+
+<body onload="wlft_onload();">
+<blockquote>
+<h2><font color="#0000FF"><% multilang("Fast BSS Transition (802.11r)"); %></font></h2>
+
+<!-- Page description -->
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+	<tr>
+		<td><font size=2>
+		<% multilang("This page allows you to change the setting for Fast BSS Transition (802.11r)"); %>
+		</font>
+		</td>
+	</tr>
+	<tr><td><hr size=1 noshade align=top></td></tr>
+</table>
+
+<div id="wlan_dot11r_table" style="display:on">
+<!-- 802.11r driver configuration -->
+<form action=/boafrm/formFt method=POST name="formFt">
+<!-- select SSID -->
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+		<tr>
+			<td width="35%"><font size="2"><b><% multilang("SSID"); %> <% multilang("Type"); %>:</b></font></td>
+			<td width="65%">
+				<font size="2">
+				<select name=ftSSID onChange="wlftSelectChange(this.form);"><% SSID_select(); %></select>
+				</font>
+			</td>
+		</tr>
+		<tr>
+			<td width="35%"><font size="2"><b><% multilang("Encryption"); %>:</b></font></td>
+			<td width="65%">
+				<font size="2">
+				<select size="1" id="security_method" name="security_method" disabled>
+					<option value=0>None</option>
+					<option value=1>WEP</option>
+					<option value=4>WPA2</option>
+					<option value=6>WPA2 Mixed</option>
+				</select>
+				</font>
+			</td>
+		</tr>
+</table>
+
+<!-- ----------------------------------------------------- -->
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+	<tr><td><hr size=1 noshade align=top></td></tr>
+</table>
+
+<!-- mib settings -->
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+	<!-- Enable/Disable Fast BSS Transition -->
+	<tr id="show_ft_enable">
+		<td width="30%" class="bgblue">
+			<font size="2"><b><% multilang("IEEE 802.11r"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<font size="2">
+			<input type="radio" name="ft_enable" value=0 onClick="enable_80211r_setting()" >Disable
+			<input type="radio" name="ft_enable" value=1 onClick="enable_80211r_setting()" >Enable
+			</font>
+		</td>
+	</tr>
+
+	<!-- Mobility Domain ID -->
+	<tr id="show_ft_mdid">
+		<td width="30%" bgcolor="#FFFFFF" class="bgblue">
+			<font size="2"><b><% multilang("Mobility Domain ID"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<input type="text" name="ft_mdid" size="4" maxlength="4" value="A1B2">
+		</td>
+	</tr>
+
+	<!-- Support over DS -->
+	<tr id="show_ft_over_ds">
+		<td width="30%" class="bgblue">
+			<font size="2"><b><% multilang("Support over DS"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<font size="2">
+			<input type="radio" name="ft_over_ds" value=0 >Disable
+			<input type="radio" name="ft_over_ds" value=1 >Enable
+			</font>
+		</td>
+	</tr>
+
+	<!-- Support resource request -->
+	<tr id="show_ft_res_request" style="display:none">
+		<td width="30%" class="bgblue">
+			<font size="2"><b><% multilang("Support resource request"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<font size="2">
+			<input type="radio" name="ft_res_request" value=0 >Disable
+			<input type="radio" name="ft_res_request" value=1 >Enable
+			</font>
+		</td>
+	</tr>
+
+	<!-- Key expiration timeout -->
+	<tr id="show_ft_r0key_timeout">
+		<td width="30%" bgcolor="#FFFFFF" class="bgblue">
+			<font size="2"><b><% multilang("Key expiration timeout"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<input type="text" name="ft_r0key_timeout" size="12" maxlength="10" value="10000">
+			<font size="1">&nbsp;(1..65535 minutes, 0:disable)</font>
+		</td>
+	</tr>
+
+	<!-- Reassociation timeout -->
+	<tr id="show_ft_reasoc_timeout">
+		<td width="30%" bgcolor="#FFFFFF" class="bgblue">
+			<font size="2"><b><% multilang("Reassociation timeout"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<input type="text" name="ft_reasoc_timeout" size="12" maxlength="10" value="1000">
+			<font size="1">&nbsp;(1000..65535 seconds, 0:disable)</font>
+		</td>
+	</tr>
+
+	<!-- NAS identifier (R0KH-ID) -->
+	<tr id="show_ft_r0kh_id">
+		<td width="30%" bgcolor="#FFFFFF" class="bgblue">
+			<font size="2"><b><% multilang("NAS identifier"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<input type="text" name="ft_r0kh_id" size="30" maxlength="48" value="www.realtek.com.tw">
+			<font size="1">&nbsp;(1~48 characters)</font>
+		</td>
+	</tr>
+
+	<!-- Enable Key-Push, this is for FT-Daemon -->
+	<tr id="show_ft_push">
+		<td width="30%" class="bgblue">
+			<font size="2"><b><% multilang("Support Key-Push"); %>:</b></font>
+		</td>
+		<td width="70%" class="bggrey">
+			<font size="2">
+			<input type="radio" name="ft_push" value=0 >Disable
+			<input type="radio" name="ft_push" value=1 >Enable
+			</font>
+		</td>
+	</tr>
+
+	<tr>
+		<td width="100%" colspan="2" height="40">
+			<input type="hidden" name="wlan_idx" value=<% getIndex("wlan_idx"); %>>
+			<input type="hidden" name="submit-url" value="/wlft.htm">
+			<input type="submit" name="ftSaveConfig" value="<% multilang("Apply Changes"); %>" onclick="return check_80211r_setting()">
+		</td>
+	</tr>
+</table>
+</form>
+
+<!-- ----------------------------------------------------- -->
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+	<tr><td><hr size=1 noshade align=top></td></tr>
+</table>
+
+<!-- Add R0KH/R1KH entry -->
+<form action=/boafrm/formFt method=POST name="formFtKhAdd">
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+	<tr>
+		<td colspan="2"><font size="2"><b><% multilang("Key Holder Configuration"); %>:</b></font></td>
+	</tr>
+
+	<tr>
+		<td width="35%"><font size="2"><b><% multilang("SSID"); %> <% multilang("Type"); %>:</b></font></td>
+		<td width="65%">
+			<font size="2">
+			<select name=ftSSID onChange="wlftSelectChange(this.form);"><% SSID_select(); %></select>
+			</font>
+		</td>
+	</tr>
+</table>
+
+<table>
+	<tr>
+		<td width="25%"><font size="2"><b><% multilang("MAC address"); %>:</b></font></td>
+		<td width="75%"><input type="text" name="kh_mac" size="10" maxlength="12" value="">
+			<font size=1>&nbsp(ex: 00E086710502)</font></td>
+	</tr>
+
+	<tr>
+		<td width="25%"><font size="2"><b><% multilang("NAS identifier"); %>:</b></font></td>
+		<td width="75%" nowrap><input type="text" name="kh_nas_id" size="34" maxlength="48" value="">
+			<font size=1>&nbsp(1~48 characters)</font></td>
+	</tr>
+
+	<tr>
+		<td width="25%"><font size="2"><b><% multilang("Encryption key"); %>:</b></font></td>
+		<td width="75%" nowrap><input type="text" name="kh_kek" size="34" maxlength="32" value="">
+			<font size=1>&nbsp;(16 octets or passphrase)</font></td>
+	</tr>
+
+	<tr id="dot11k_opclass" style="display:none">
+		<td width="25%"><font size="2"><b><% multilang("Op Class"); %>:</b></font></td>
+		<td width="75%" nowrap><input type="text" name="kh_opclass" size="3" maxlength="3" value="">
+		</td>
+	</tr>
+
+	<tr id="dot11k_channel" style="display:none">
+		<td width="25%"><font size="2"><b><% multilang("Channel"); %>:</b></font></td>
+		<td width="75%" nowrap><input type="text" name="kh_channel" size="3" maxlength="3" value="">
+	   </td>
+	</tr>
+	<tr>
+		<td width="100%" colspan="2" height="40">
+		<input type="hidden" name="submit-url" value="/wlft.htm">
+		<input type="hidden" name="wlan_idx" value=<% getIndex("wlan_idx"); %>>
+		<input type="submit" name="ftAddKH" value="<% multilang("Add"); %>"
+			onClick="return check_kh_setting(ftSSID.selectedIndex)">&nbsp;&nbsp;
+		<input type="reset" name="reset" value="<% multilang("Reset"); %>">&nbsp;&nbsp;
+		</td>
+	</tr>
+</table>
+</form>
+
+<!-- ----------------------------------------------------- -->
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+	<tr><td><hr size=1 noshade align=top></td></tr>
+</table>
+
+<!-- Delete R0KH/R1KH entry -->
+<form action=/boafrm/formFt method=POST name="formFtKhDel">
+<table border=0 width="700">
+	<tr>
+		<td colspan="4"><font size=2><b><% multilang("Current Key Holder Information"); %>:</b></font></td>
+	</tr>
+	<% wlFtKhList(); %>
+
+	<tr>
+		<td width="100%" colspan="4" height="40">
+		<input type="hidden" name="submit-url" value="/wlft.htm">
+		<input type="hidden" name="wlan_idx" value=<% getIndex("wlan_idx"); %>>
+		<input type="hidden" name=ftSSID>
+		<input type="submit" name="ftDelSelKh" value="<% multilang("Delete Selected"); %>"
+			onClick="return deleteClick()">&nbsp;&nbsp;
+		<input type="submit" name="ftDelAllKh" value="<% multilang("Delete All"); %>"
+			onClick="return deleteAllClick()">&nbsp;&nbsp;
+		</td>
+	</tr>
+</table>
+</form>
+</div>
+
+<script>
+
+</script>
+</blockquote>
+</body>
+</html>

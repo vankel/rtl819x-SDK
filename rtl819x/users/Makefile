@@ -178,17 +178,19 @@ app_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
 app_$(CONFIG_APP_BUSYBOX)		+= busybox
 app_$(CONFIG_APP_GOAHEAD)		+= goahead-2.1.1
 app_$(CONFIG_APP_BOA)			+= boa
-app_$(CONFIG_APP_ADAPTER_API)       	+= adapter-api
 ifeq ($(CINIT), 1)
 app_$(CONFIG_APP_SCRIPT)		+= script/cinit
 else
 app_$(CONFIG_APP_SCRIPT)		+= script
 endif
 app_$(CONFIG_APP_SQUASHFS40)		+= squashfs4.0/squashfs-tools
+app_$(CONFIG_APP_SQUASHFS42)		+= squashfs4.2/squashfs-tools
 app_$(CONFIG_APP_IPROUTE)		+= iproute2-2.6.29-1
+#app_$(CONFIG_APP_IPROUTE)		+= iproute2-3.10.0
 app_$(CONFIG_APP_IPTABLES)		+= iptables-1.4.4
 app_$(CONFIG_APP_L7FILTER_PAT)		+= l7-protocols
 app_$(CONFIG_APP_NTPCLIENT)		+= ntpclient
+app_$(CONFIG_APP_CURL)			+= curl-7.36.0
 app_$(CONFIG_APP_DHCPV6)		+= wide-dhcpv6
 app_$(CONFIG_APP_RADVD)			+= radvd-0.9.1
 app_$(CONFIG_APP_ECMH)			+= ecmh
@@ -199,8 +201,14 @@ app_$(CONFIG_APP_DOSFSCK)		+= dosfstools-2.11/dosfsck
 app_$(CONFIG_APP_MKDOSFS)		+= dosfstools-2.11/mkdosfs
 app_$(CONFIG_APP_NTFS3G)		+= ntfs-3g-2010.10.2
 app_$(CONFIG_APP_MP)			+= mp-daemon
+app_$(CONFIG_APP_TRANSMISSION)		+= libevent-2.0.21-stable
+app_$(CONFIG_APP_TRANSMISSION)		+= curl-7.34.0
+#app_$(CONFIG_APP_TRANSMISSION)		+= openssl-fips-2.0.5
+app_$(CONFIG_APP_TRANSMISSION)		+= transmission-2.82
+app_$(CONFIG_APP_TRANSMISSION)		+= transmission-web
+app_$(CONFIG_APP_TRANSMISSION)		+= http_test
+app_$(CONFIG_LIB_Z)			+= zlib-1.2.5
 app_$(CONFIG_LIB_CURL)			+= curl-7.34.0
-app_$(CONFIG_LIB_LIBDAEMON)		+= libdaemon-0.14
 #CONFIG_APP_SAMBA-3.0.37 OR CONFIG_APP_SAMBA-3.0.24 at most one will be chose
 #app_$(CONFIG_APP_SAMBA-3.0.37)		+= samba-3.0.37/source
 app_$(CONFIG_APP_SAMBA)		+= samba
@@ -216,7 +224,7 @@ app_$(CONFIG_APP_GPROXY)		+= gproxy
 app_$(CONFIG_APP_IGMPPROXY)		+= igmpproxy
 app_$(CONFIG_APP_MLDPROXY)      += mldproxy
 app_$(CONFIG_APP_PATHSEL)		+= 11s-PathSelection
-app_$(CONFIG_APP_WIRELESSTOOLS)		+= $(WLTOOLS)
+app_$(CONFIG_APP_WIRELESSTOOLS)	+= $(WLTOOLS)
 app_$(CONFIG_APP_DNRD)			+= dnrd-2.12.1/src
 app_$(CONFIG_APP_ROUTED)		+= routed
 app_$(CONFIG_APP_BIRD)			+= bird-1.4.0
@@ -229,16 +237,15 @@ app_$(CONFIG_APP_MINI_UPNP)		+= mini_upnp
 app_$(CONFIG_APP_WSC)			+= wsc 
 app_$(CONFIG_APP_AUTH)			+= auth/src 
 app_$(CONFIG_APP_IWCONTROL)		+= auth/src/dlisten
-app_$(CONFIG_APP_AVAHI)			+= avahi-0.6.31
 app_$(CONFIG_APP_HOSTAPD)		+= hostapd-2.0/hostapd
 app_$(CONFIG_APP_UDHCPD)		+= udhcp-0.9.9-pre
 app_$(CONFIG_APP_BRCTL)			+= bridge-utils
 app_$(CONFIG_APP_MINIIGD)		+= miniigd
 app_$(CONFIG_APP_RELOAD)		+= rc
 app_$(CONFIG_APP_LLTDD)			+= lltdd/native-linux
-app_$(CONFIG_APP_ORAYDDNS)			+= orayddns
-app_$(CONFIG_APP_UPDATEDD)			+=  updatedd-2.5
-app_$(CONFIG_APP_DISCOVER)			+=  discover
+app_$(CONFIG_APP_ORAYDDNS)		+= orayddns
+app_$(CONFIG_APP_UPDATEDD)		+=  updatedd-2.5
+app_$(CONFIG_APP_DISCOVER)		+=  discover
 app_$(CONFIG_APP_IAPP)			+= IAPP 
 ifeq ($(CONFIG_APP_RTK_VOIP),y)
 ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxE
@@ -273,7 +280,6 @@ app_$(CONFIG_APP_NMBS)		+= nbserver
 app_$(CONFIG_APP_ALSA_AUDIO)	+= alsa_related
 app_$(CONFIG_APP_AUTORUNIMG)    += autorun_img_tool
 app_$(CONFIG_APP_SIMPLE_CONFIG)    += simple_config
-app_$(CONFIG_APP_APPLE_MFI_WAC)	+= mfi_wac
 
 # USB3G
 app_$(CONFIG_APP_COMGT)			+= comgt.0.32
@@ -294,15 +300,15 @@ app_$(CONFIG_APP_DHRYSTONE)		+= dhrystone
 app_$(CONFIG_APP_IOZONE)		+= iozone3_327/src/current
 app_$(CONFIG_APP_EXAMPLE)		+= example
 app_$(CONFIG_APP_LTP)			+= ltp
+app_$(CONFIG_APP_TEST11K)		+= dot11k
 
 # wapi related
 #app_$(CONFIG_APP_OPENSSL)		+= openssl-0.9.8b 
 app_$(CONFIG_APP_OPENSSL)		+= 	
-app_$(CONFIG_APP_NDP_PROXY)			+= ndppd
 
-#app_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
+app_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
 #app_$(CONFIG_APP_OPENSSL-0.9.8I)	+= openssl-0.9.8i
-#app_$(CONFIG_APP_OPENSSL-0.9.8Y)	+= openssl-0.9.8y
+app_$(CONFIG_APP_OPENSSL-0.9.8Y)	+= openssl-0.9.8y
 
 app_$(CONFIG_APP_WAPI)			+= wapi_utils/udp_sock wapi_utils/rwWapiFiles \
 					  wapi_utils/other_tools wapi_utils/wapi_scripts
@@ -313,10 +319,20 @@ app_$(CONFIG_APP_MT_DAAPD)		+= mt-daapd-0.2.4.2
 
 app_$(CONFIG_APP_FLATFSD) +=flatfsd
 app_$(CONFIG_APP_SIGMA_UTILS)		+=  sigma_utils
+
+
+app_$(CONFIG_APP_MDADM)		+=  mdadm-3.2.5
+app_$(CONFIG_APP_E2FSPROGS) +=  e2fsprogs-1.42.11
+
+app_$(CONFIG_LIB_LIBPCAP)			+= libpcap-1.4.0
+app_$(CONFIG_APP_PCAP)				+=  pcap
+app_$(CONFIG_FT_DAEMON)			    +=  ft_daemon
 # libraries
 #lib_$(CONFIG_LIBNL) += iw-0.9.17
 #ifdef CONFIG_APP_HOSTAPD
 lib_$(CONFIG_APP_OPENSSL-0.9.8B)	+= openssl-0.9.8b
+lib_$(CONFIG_APP_OPENSSL-0.9.8I)	+= openssl-0.9.8i
+lib_$(CONFIG_APP_OPENSSL-0.9.8Y)	+= openssl-0.9.8y
 #endif
 lib_$(CONFIG_APP_HOSTAPD_HCM)		+= inband_lib
 lib_$(CONFIG_APP_HOSTAPD_SLAVE)		+= inband_lib
@@ -329,9 +345,11 @@ lib_$(CONFIG_APP_PPPD)			+= ppp-2.4.4/pppd/plugins/rp-pppoe
 
 ifeq ($(CONFIG_APP_SNMP),y)
 lib_$(CONFIG_APP_GOAHEAD)		+= goahead-2.1.1
+lib_$(CONFIG_APP_BOA)		+= boa
 endif
 ifeq ($(CONFIG_APP_TR069),y)
 lib_$(CONFIG_APP_GOAHEAD)		+= goahead-2.1.1
+lib_$(CONFIG_APP_BOA)		+= boa
 endif
 ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 #lib_$(CONFIG_APP_OPENSSL)		+= openssl-0.9.8b
@@ -347,20 +365,13 @@ lib_$(CONFIG_APP_OPENSSL-0.9.8Y)    += openssl-0.9.8y
 endif
 app_$(CONFIG_LIB_FUSE)			+= fuse-2.9.0
 app_$(CONFIG_APP_MINIDLNA)  +=minidlna
-
-ifeq ($(CONFIG_APP_BLUEZ_522),y)
-BLUEZ_DIR = bluez-5.22
-else
-ifeq ($(CONFIG_APP_BLUEZ_496),y)
-BLUEZ_DIR = bluez-4.96
-endif
-endif
-
-app_$(CONFIG_APP_BLUEZ)  +=$(BLUEZ_DIR)
+app_$(CONFIG_APP_BLUEZ)  +=bluez-4.96
 app_$(CONFIG_APP_RTK_BLUETOOTH_FM)  +=rtk_bluetooth_firmware
 app_$(CONFIG_APP_UPIMAGE) += upImage/lrzsz/lrzsz-0.12.20/
 app_$(CONFIG_APP_UPIMAGE) += upImage/flash_writer
-
+app_y += testfb
+app_$(CONFIG_APP_NFS_UTILITY) +=portmap_6.0
+app_$(CONFIG_APP_NFS_UTILITY) +=unfs3-0.9.22
 app_$(CONFIG_APP_CPU_UTILIZATION)       += cpu
 app_$(CONFIG_APP_EXFAT_FUSE)		+= fuse-exfat-1.1.0
 app_$(CONFIG_RTL_USERSPACE_WTDOG)       += watchdog
@@ -400,75 +411,6 @@ define create-symlink
 endef
 
 prepare:
-ifeq ($(CONFIG_APP_AVAHI), y)
-	@cd ./avahi-0.6.31; \
-	if [ ! -e Makefile ]; then \
-		AR=$(CROSS_COMPILE)ar \
-		AS="$(CROSS_COMPILE)gcc -c -Os -pipe -fno-caller-saves -fpic -DGETTEXT_PACKAGE" \
-		LD=$(CROSS_COMPILE)ld \
-		NM=$(CROSS_COMPILE)nm \
-		CC="$(CROSS_COMPILE)gcc" \
-		GCC="$(CROSS_COMPILE)gcc" \
-		RANLIB=$(CROSS_COMPILE)ranlib \
-		STRIP=$(CROSS_COMPILE)strip \
-		OBJCOPY=$(CROSS_COMPILE)objcopy \
-		OBJDUMP=$(CROSS_COMPILE)objdump \
-		SIZE=$(CROSS_COMPILE)size \
-		CFLAGS="-Os -pipe -fno-caller-saves -fpic -DGETTEXT_PACKAGE -DNDEBUG -DDISABLE_SYSTEMD -I$(DIR_ROOT)/users/libdaemon-0.14/" \
-		LIBDAEMON_CFLAGS="-I$(DIR_ROOT)/users/libdaemon-0.14/libdaemon/" \
-		LIBDAEMON_LIBS="-L$(DIR_ROOT)/users/libdaemon-0.14/libdaemon/.libs/ -ldaemon" \
-		ac_cv_header_sys_capability_h=no \
-		./configure --target=mips-linux --host=mips-linux --build=i686-linux-gnu \
-		--program-prefix="" --program-suffix="" --prefix=/usr --exec-prefix=/usr \
-		--bindir=/usr/bin --sbindir=/usr/sbin --libexecdir=/usr/lib --sysconfdir=/etc \
-		--datadir=/usr/share --localstatedir=/var --mandir=/usr/man --infodir=/usr/info \
-		--disable-nls --enable-shared --enable-static --disable-glib --disable-gobject \
-		--disable-qt3 --disable-qt4 --disable-gtk --disable-gtk3 --with-xml=none --disable-dbm --disable-gdbm \
-		--enable-libdaemon --disable-python --disable-pygtk --disable-python-dbus --disable-mono --disable-monodoc \
-		--disable-doxygen-doc --disable-doxygen-dot --disable-doxygen-man --disable-doxygen-rtf --disable-doxygen-xml \
-		--disable-doxygen-chm --disable-doxygen-chi --disable-doxygen-html --disable-doxygen-ps --disable-doxygen-pdf \
-		--disable-xmltoman --with-distro=none --with-avahi-user=nobody --with-avahi-group=nogroup \
-		--with-autoipd-user=nobody --with-autoipd-group=nogroup --disable-stack-protector --disable-dbus; \
-	fi; \
-	make; \
-	cd ..
-endif
-
-ifeq ($(CONFIG_LIB_LIBDAEMON), y)
-	@cd ./libdaemon-0.14; \
-	if [ ! -e Makefile ]; then \
-		AR=$(CROSS_COMPILE)ar \
-		AS="$(CROSS_COMPILE)gcc -c -Os -pipe -fno-caller-saves -fpic" \
-		LD=$(CROSS_COMPILE)ld \
-		NM=$(CROSS_COMPILE)nm \
-		CC="$(CROSS_COMPILE)gcc" \
-		GCC="$(CROSS_COMPILE)gcc" \
-		RANLIB=$(CROSS_COMPILE)ranlib \
-		STRIP=$(CROSS_COMPILE)strip \
-		OBJCOPY=$(CROSS_COMPILE)objcopy \
-		OBJDUMP=$(CROSS_COMPILE)objdump \
-		SIZE=$(CROSS_COMPILE)size \
-		CFLAGS="-Os -pipe -fno-caller-saves -fpic " \
-		./configure --target=mips-linux --host=mips-linux --build=i686-linux-gnu \
-		--program-prefix="" --program-suffix="" --prefix=/usr --exec-prefix=/usr \
-		--bindir=/usr/bin --sbindir=/usr/sbin --libexecdir=/usr/lib --sysconfdir=/etc \
-		--datadir=/usr/share --localstatedir=/var --mandir=/usr/man --infodir=/usr/info \
-		--disable-nls --enable-shared --disable-static --disable-lynx \
-		ac_cv_func_setpgrp_void=yes; \
-	fi; \
-	make; \
-	cd ..
-endif
-
-ifeq ($(CONFIG_APP_RTK_API_TEST_CASE),y)
-	@if [ ! -e ./CUnit-2.1-2/Makefile ]; then \
-                cd ./CUnit-2.1-2; \
-                pwd; \
-                ./configure --host=mips-linux; \
-                make;\
-                cd ..; \
-        fi
-endif
 ifeq ($(CONFIG_APP_CLE_SHELL),y)
 	@$(create-symlink)
 endif
@@ -484,6 +426,17 @@ ifeq ($(CONFIG_APP_IPERF),y)
 		ac_cv_func_malloc_0_nonnull=yes ./configure --host=mips-linux --disable-threads --disable-web100; \
 	fi
 endif
+
+ifeq ($(CONFIG_APP_SQUASHFS42),y)
+	mkdir -p lib;
+	@if [ ! -e ./xz-5.0.5/Makefile ]; then \
+		cd ./xz-5.0.5; \
+		./configure CC=gcc --prefix="$(DIR_ROOT)/users/lib"; \
+		make; \
+		make install; \
+	fi
+endif
+
 ifeq ($(CONFIG_APP_BLUEZ),y)
 	@echo "Generate lib";
 	mkdir -p lib;
@@ -506,7 +459,6 @@ ifeq ($(CONFIG_APP_BLUEZ),y)
 		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib"; \
 		make; \
 		make install; \
-		cp dbus-1.pc "$(DIR_ROOT)/users/lib/lib/pkgconfig"; \
 		cd -; \
 	fi
 
@@ -569,7 +521,7 @@ ifeq ($(CONFIG_APP_BLUEZ),y)
 		echo c_cv_func_posix_getpwuid_r=yes>>mips-linux.cache; \
 		echo ac_cv_func_posix_getpwuid_r=yes>>mips-linux.cache; \
 		echo ac_cv_func_posix_getgrgid_r=yes>>mips-linux.cache; \
-		PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" CFLAGS="-fPIC" ./configure --with-libiconv=gnu --host=mips-linux --prefix="$(DIR_ROOT)/users/lib" \
+		PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" CFLAGS="-fPIC" ./configure --host=mips-linux --prefix="$(DIR_ROOT)/users/lib" \
 		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib" \
 		--cache-file=mips-linux.cache; \
 		make; \
@@ -597,26 +549,14 @@ ifeq ($(CONFIG_APP_BLUEZ),y)
 		cd ./libsndfile-1.0.25; \
 		cd -; \
 	fi
-
 	@echo "build bluez";
-	@echo "bluez dir: $(BLUEZ_DIR)";
-ifeq ($(CONFIG_APP_BLUEZ_522),y)
-	@if [ ! -e ./$(BLUEZ_DIR)/Makefile ]; then \
-		cd ./$(BLUEZ_DIR); \
-		echo "bluez first"; \
-		CFLAGS="-fPIC" ac_cv_lib_glib_2_0_g_slist_free_full=yes PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" ./configure --enable-static=yes --host=mips-linux --disable-udev --disable-obex --disable-systemd --disable-client\
-		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include -I$(DIR_ROOT)/users/lib/include/glib-2.0 -I$(DIR_ROOT)/users/lib/include/libusb-1.0 -I$(DIR_ROOT)/users/lib/include/sys -I$(DIR_ROOT)/users/lib/include/alsa -I$(DIR_ROOT)/users/lib/include/dbus-1.0" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib -lglib-2.0"; \
-		cd -; \
-	fi
-else
-	@if [ ! -e ./$(BLUEZ_DIR)/Makefile ]; then \
-		cd ./$(BLUEZ_DIR); \
+	@if [ ! -e ./bluez-4.96/Makefile ]; then \
+		cd ./bluez-4.96; \
 		CFLAGS="-fPIC" ac_cv_lib_glib_2_0_g_slist_free_full=yes PKG_CONFIG_PATH="$(DIR_ROOT)/users/lib/lib/pkgconfig" ./configure --enable-static=yes --host=mips-linux \
 		--disable-audio --disable-usb \
 		CPPFLAGS="-I$(DIR_ROOT)/users/lib/include -I$(DIR_ROOT)/users/lib/include/glib-2.0 -I$(DIR_ROOT)/users/lib/include/libusb-1.0 -I$(DIR_ROOT)/users/lib/include/sys -I$(DIR_ROOT)/users/lib/include/alsa -I$(DIR_ROOT)/users/lib/include/dbus-1.0" LDFLAGS="-L$(DIR_ROOT)/users/lib/lib"; \
 		cd -; \
 	fi
-endif
 endif
 
 #ifeq ($(CONFIG_APP_OPENSSL),y)
@@ -830,6 +770,80 @@ ifeq ($(CONFIG_LIB_CURL),y)
 		touch Makefile.in; \
 	fi
 endif
+
+ifeq ($(CONFIG_APP_TRANSMISSION),y)
+ifneq ($(CONFIG_APP_OPENSSL-0.9.8B),y)
+	$(error openssl-0.9.8b shold be selected for transmissionBT)
+endif
+ifneq ($(CONFIG_LIB_Z),y)
+	$(error zlib shold be selected for transmissionBT)
+endif
+endif
+
+ifeq ($(CONFIG_APP_TRANSMISSION),y)
+	@if [ ! -e ./libevent-2.0.21-stable/Makefile ]; then \
+		cd ./libevent-2.0.21-stable; \
+		./configure --host=mips-linux --disable-nls --enable-static=yes --enable-shared=no --enable-fast-install=no; \
+		touch Makefile.in; \
+	fi
+endif
+
+ifeq ($(CONFIG_APP_TRANSMISSION),y)
+	@if [ ! -e ./curl-7.34.0/Makefile ]; then \
+		cd ./curl-7.34.0; \
+		./configure --host=mips-linux --disable-shared --enable-static --without-libidn \
+		--without-ssl --without-librtmp --without-gnutls --without-nss \
+		--without-libssh2 --without-zlib --without-winidn --disable-rtsp \
+		--disable-ldap --disable-ldaps --disable-ipv6; \
+		touch Makefile.in; \
+	fi
+endif
+
+ifeq ($(CONFIG_APP_TRANSMISSION),y)
+	@if [ ! -e ./transmission-2.82/Makefile ]; then \
+		cd ./transmission-2.82; \
+		./configure --host=mips-linux LIBCURL_CFLAGS="-I$(DIR_ROOT)/users/curl-7.34.0/include/" \
+		LIBCURL_LIBS="-L$(DIR_ROOT)/users/curl-7.34.0/lib/.libs/ -lcurl" \
+		LIBEVENT_CFLAGS="-I$(DIR_ROOT)/users/libevent-2.0.21-stable/include/" \
+		LIBEVENT_LIBS="-L$(DIR_ROOT)/users/libevent-2.0.21-stable/.libs/ -levent" \
+		OPENSSL_CFLAGS="-I$(DIR_ROOT)/users/openssl-0.9.8b/include/" \
+		OPENSSL_LIBS="-L$(DIR_ROOT)/users/openssl-0.9.8b/ -lssl -lcrypto" \
+		ZLIB_CFLAGS="-DHAVE_ZLIB -I$(DIR_ROOT)/users/zlib-1.2.5/ -L$(DIR_ROOT)/users/zlib-1.2.5/ -lz" \
+		--disable-nls --enable-lightweight; \
+		touch Makefile.in; \
+	fi
+endif
+
+ifeq ($(CONFIG_APP_E2FSPROGS),y)
+	@cd ./e2fsprogs-1.42.11; \
+		if [ ! -f e2fsprogs_config_done ]; then \
+			LD=$(CROSS_COMPILE)ld STRIP=$(CROSS_COMPILE)strip AR=$(CROSS_COMPILE)ar ./configure --host=mips-linux --disable-defrag LDFLAGS=-static CFLAGS=-Os; \
+			make clean; \
+			echo "" >> Makefile; \
+			echo "romfs:" >> Makefile; \
+			echo "	cp ./misc/mke2fs ../../romfs/bin/mke2fs" >> Makefile; \
+			touch e2fsprogs_config_done; \
+			exit;\
+		fi; \
+	cd -
+endif
+
+ifeq ($(CONFIG_APP_CURL),y)
+	@cd ./curl-7.36.0; \
+		if [ ! -f curl_config_done ]; then \
+			LD=$(CROSS_COMPILE)ld ./configure --host=mips-linux --with-ksource=$(DIR_LINUX_KERNEL) --enable-shared=yes --disable-static CFLAGS=-Os; \
+			make clean; \
+			echo "" >> Makefile; \
+			echo "romfs:" >> Makefile; \
+			echo "	mkdir -p ../../romfs/usr/lib" >> Makefile; \
+			echo "	cp ./src/.libs/curl ../../romfs/bin/curl" >> Makefile; \
+			echo "	cp -av ./lib/.libs/libcurl.so* ../../romfs/usr/lib" >> Makefile; \
+			touch curl_config_done; \
+			exit;\
+		fi; \
+	cd -
+endif
+
 ifeq ($(CONFIG_APP_EXFAT_FUSE),y)
 ifneq ($(CONFIG_LIB_FUSE), y)
 	$(error fuse library should selected by exfat fuse)
@@ -844,6 +858,7 @@ ifeq ($(CONFIG_LIB_FUSE), y)
 		cd -; \
 	fi
 endif
+
 prepare_lib:
 ifeq ($(CONFIG_APP_LIBICONV),y)
 	cd ./libiconv-1.14; \
@@ -858,6 +873,58 @@ ifeq ($(CONFIG_APP_LIBICONV),y)
 endif
 
 prepare_app:
+ifeq ($(CONFIG_APP_NFS_UTILITY),y)
+	@echo "Check cmake ...";
+	@if [ ! -e ./cmake-2.8.12.1/bin/cmake ]; then \
+		cd ./cmake-2.8.12.1; \
+		CFLAGS="-fPIC" CC=gcc CXX=g++ ./bootstrap ; \
+		make ; \
+		cd - ; \
+	fi
+
+	@echo "Check librpc.so ...";	
+	@if [ ! -e ./librpc-0.9.32-rc2/librpc.so ]; then \
+                cd ./librpc-0.9.32-rc2; \
+		rm ./Makefile; \
+		rm ./uClibc_mutex.h; \
+		cp ../../$(CONFIG_RSDKDIR)/config/uclibc/libc/sysdeps/linux/common/bits/uClibc_mutex.h ./;\
+                ../cmake-2.8.12.1/bin/cmake \
+                        -DCMAKE_SYSTEM_NAME=Linux \
+                        -DCMAKE_SYSTEM_VERSION=1 \
+                        -DCMAKE_SYSTEM_PROCESSOR=$(ARCH) \
+                        -DCMAKE_BUILD_TYPE=Release \
+                        -DCMAKE_C_FLAGS_RELEASE="-DNDEBUG" \
+                        -DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
+                        -DCMAKE_C_COMPILER="$(CROSS_COMPILE)gcc" \
+                        -DCMAKE_C_COMPILER_ARG1="$(CMAKE_C_COMPILER_ARG1)" \
+                        -DCMAKE_CXX_COMPILER="$(CROSS_COMPILE)g++" \
+                        -DCMAKE_CXX_COMPILER_ARG1="$(CMAKE_CXX_COMPILER_ARG1)" \
+                        -DCMAKE_EXE_LINKER_FLAGS:STRING="$(CFLAGS)" \
+                        -DCMAKE_MODULE_LINKER_FLAGS:STRING="$(CFLAGS)" \
+                        -DCMAKE_SHARED_LINKER_FLAGS:STRING="$(CFLAGS)" \
+                        -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH \
+                        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+                        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+                        -DCMAKE_STRIP=: .; \
+                        -DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG" \
+                        -DCMAKE_C_COMPILER="$(CROSS_COMPILE)gcc" \
+                        -DCMAKE_C_COMPILER_ARG1="$(CMAKE_C_COMPILER_ARG1)" \
+                        -DCMAKE_CXX_COMPILER="$(CROSS_COMPILE)g++" \
+                        -DCMAKE_CXX_COMPILER_ARG1="$(CMAKE_CXX_COMPILER_ARG1)" \
+                        -DCMAKE_EXE_LINKER_FLAGS:STRING="$(TARGET_LDFLAGS)" \
+                        -DCMAKE_MODULE_LINKER_FLAGS:STRING="$(TARGET_LDFLAGS)" \
+                        -DCMAKE_SHARED_LINKER_FLAGS:STRING="$(TARGET_LDFLAGS)" \
+			-DCMAKE_FIND_ROOT_PATH="$(DIR_RSDK)" \
+                        -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH \
+                        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+                        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+			-DDL_LIBRARY=$(DIR_RSDK) \
+                        -DCMAKE_STRIP=: .; \
+		CFLAGS="-fPIC" ./configure --host=mips-linux --prefix="$(DIR_ROOT)/users/lib"; \
+		make;\
+		cd -; \
+        fi
+endif
 ifeq ($(CONFIG_APP_SNMP),y)
 	cd ./net-snmp-5.4.1; \
 	./configure.rtk-snmp CROSS_COMPILE=$(CROSS_COMPILE) APMIBINC=$(APMIBINC) APMIBLIB=$(APMIBLIB); \
@@ -915,8 +982,8 @@ distclean:
 	if [ -e glib-2.36.0/Makefile ]; then \
 		make -C glib-2.36.0 distclean; \
 	fi
-	if [ -e $(BLUEZ_DIR)/Makefile ]; then \
-		make -C $(BLUEZ_DIR) distclean; \
+	if [ -e bluez-4.96/Makefile ]; then \
+		make -C bluez-4.96 distclean; \
 	fi
 	if [ -e libiconv-1.14/Makefile ]; then \
 		make -C libiconv-1.14 distclean; \

@@ -117,12 +117,22 @@ echo
 # select toolchain version 
 #
 
+echo "if BOARD_rtl8196e||BOARD_rtl8196eu"
 echo "choice"
 echo "  prompt \"Selected toolchain\""
+echo "config RSDK_rsdk-1.5.5-4181-EB-2.6.30-0.9.30.3-110225"
+echo "	bool \"rsdk-1.5.5-4181-EB-2.6.30-0.9.30.3-110225\""
+echo "config RSDK_rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129"
+echo "	bool \"rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129\""
+echo "endchoice"
+echo "endif"
 
+echo "if  !BOARD_rtl8196e && !BOARD_rtl8196eu "
+echo "choice"
+echo "  prompt \"Selected toolchain\""
 GOTDEFAULT="no"
 
-find toolchain -type d -name '[m|r]sdk-*' -maxdepth 1 -mindepth 1 -print | \
+find toolchain -type d -name '[r|m]sdk-*' -maxdepth 1 -mindepth 1 -print | \
        sed -e 's?^toolchain/??' -e 's?/[^/]*$??' -e 's?/? ?g' | \
        (sort; echo "END END") | while read v p 
 
@@ -135,6 +145,7 @@ do
 done
                                                                                                     
 echo "endchoice"
+echo "endif"
 
 
 echo
@@ -152,11 +163,26 @@ do
    [ "$v" = END ] && break
 	CFG="BOARD_$v"
 	DEF="$v"
-	if [ -f "boards/${DEF}/board-configuration.in" ]
+	if [ ${DEF} = "rtl819xD" ]
 	then
-		echo "if ${CFG}"
-		echo "	source \"boards/${DEF}/board-configuration.in\""
-		echo "endif"
+        	if [ -f "boards/${DEF}/board-configuration.in" ]
+	        then
+        	        echo "if ${CFG}"
+			echo "  if LINUX_3.10"
+                	echo "    source \"boards/${DEF}/board-configuration-3.10.in\""
+			echo "  endif"
+			echo "  if LINUX_2.6.30"
+                	echo "    source \"boards/${DEF}/board-configuration.in\""
+			echo "  endif"
+	                echo "endif"
+        	fi
+	else
+		if [ -f "boards/${DEF}/board-configuration.in" ]
+		then
+			echo "if ${CFG}"
+			echo "	source \"boards/${DEF}/board-configuration.in\""
+			echo "endif"
+		fi
 	fi
 done
 

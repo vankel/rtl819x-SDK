@@ -111,7 +111,9 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 
 	FPRINTF_INT("func_off",             pmib->miscEntry.func_off);
 	fprintf_BArray(fp,"hwaddr",ifname,	pmib->dot11OperationEntry.hwaddr, 6);
+#if defined(CONFIG_RTL_BR_SHORTCUT_SUPPORT)	
 	FPRINTF_INT("disable_brsc", 		pmib->dot11OperationEntry.disable_brsc);
+#endif
 	FPRINTF_INT("led_type", 			pmib->dot11OperationEntry.ledtype);
 	FPRINTF_INT("opmode", 				pmib->dot11OperationEntry.opmode);
 	//FPRINTF_INT("RFChipID", 			pmib->dot11RFEntry.dot11RFType); 
@@ -226,6 +228,31 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
         fprintf_BArray(fp,"pwrdiff_20BW1S_OFDM1T_B",ifname,     pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_B, MAX_2G_CHANNEL_NUM_MIB);
         fprintf_BArray(fp,"pwrdiff_40BW2S_20BW2S_B",ifname,     pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_B, MAX_2G_CHANNEL_NUM_MIB);
         #endif
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		fprintf_BArray(fp,"pwrlevelCCK_C",ifname,pmib->dot11RFEntry.pwrlevelCCK_C, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrlevelCCK_D",ifname,pmib->dot11RFEntry.pwrlevelCCK_D, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrlevelHT40_1S_C",ifname,pmib->dot11RFEntry.pwrlevelHT40_1S_C, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrlevelHT40_1S_D",ifname,pmib->dot11RFEntry.pwrlevelHT40_1S_D, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrlevel5GHT40_1S_C",ifname,pmib->dot11RFEntry.pwrlevel5GHT40_1S_C, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrlevel5GHT40_1S_D",ifname,pmib->dot11RFEntry.pwrlevel5GHT40_1S_D, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_20BW1S_OFDM1T_C",ifname,pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_C, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_40BW2S_20BW2S_C",ifname,pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_C, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_20BW1S_OFDM1T_C",ifname,pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_C, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_40BW2S_20BW2S_C",ifname,pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_C, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_80BW1S_160BW1S_C",ifname,pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_C, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_80BW2S_160BW2S_C",ifname,pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_C, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_20BW1S_OFDM1T_D",ifname,pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_D, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_40BW2S_20BW2S_D",ifname,pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_D, MAX_2G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_20BW1S_OFDM1T_D",ifname,pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_D, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_40BW2S_20BW2S_D",ifname,pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_D, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_80BW1S_160BW1S_D",ifname,pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_D, MAX_5G_CHANNEL_NUM_MIB);
+		fprintf_BArray(fp,"pwrdiff_5G_80BW2S_160BW2S_D",ifname,pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_D, MAX_5G_CHANNEL_NUM_MIB);
+		FPRINTF_INT("tx3path",pmib->dot11RFEntry.tx3path);
+		FPRINTF_INT("supportedmcs",pmib->dot11nConfigEntry.dot11nSupportedMCS);
+		FPRINTF_INT("supportedvht",pmib->dot11acConfigEntry.dot11SupportedVHT);
+#endif
+
         FPRINTF_INT("tssi1",pmib->dot11RFEntry.tssi1);
         FPRINTF_INT("tssi2",pmib->dot11RFEntry.tssi2);
 
@@ -387,24 +414,6 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
     #endif 
     
 	FPRINTF_INT("mesh_privacy",pmib->dot11sKeysTable.dot11Privacy);
-    #ifdef 	_11s_TEST_MODE_  
-	FPRINTF_INT("mesh_reserved1",pmib->dot1180211sInfo.mesh_reserved1);
-	FPRINTF_INT("mesh_reserved2",pmib->dot1180211sInfo.mesh_reserved2);
-	FPRINTF_INT("mesh_reserved3",pmib->dot1180211sInfo.mesh_reserved3);
-	FPRINTF_INT("mesh_reserved4",pmib->dot1180211sInfo.mesh_reserved4);
-	FPRINTF_INT("mesh_reserved5",pmib->dot1180211sInfo.mesh_reserved5);
-	FPRINTF_INT("mesh_reserved6",pmib->dot1180211sInfo.mesh_reserved6);
-	FPRINTF_INT("mesh_reserved7",pmib->dot1180211sInfo.mesh_reserved7);
-	FPRINTF_INT("mesh_reserved8",pmib->dot1180211sInfo.mesh_reserved8);
-	FPRINTF_INT("mesh_reserved9",pmib->dot1180211sInfo.mesh_reserved9);
-	FPRINTF_INT("mesh_reserveda",pmib->dot1180211sInfo.mesh_reserveda);
-	FPRINTF_INT("mesh_reservedb",pmib->dot1180211sInfo.mesh_reservedb);
-	FPRINTF_INT("mesh_reservedc",pmib->dot1180211sInfo.mesh_reservedc);
-	FPRINTF_INT("mesh_reservedd",pmib->dot1180211sInfo.mesh_reservedd);
-	FPRINTF_INT("mesh_reservede",pmib->dot1180211sInfo.mesh_reservede);
-	FPRINTF_INT("mesh_reservedf",pmib->dot1180211sInfo.mesh_reservedf);
-	fprintf_BArray(fp,"mesh_reservedstr1",ifname,pmib->dot1180211sInfo.mesh_reservedstr1,16);
-    #endif
 #endif
     
 	/* wps relative config */
@@ -1590,60 +1599,6 @@ int comapi_initWlan(char *ifname)
 		pmib->dot11sKeysTable.dot11Privacy	= 2;
 	else
 		pmib->dot11sKeysTable.dot11Privacy	= 0;
-	
-#ifdef 	_11s_TEST_MODE_	
-
-	apmib_get(MIB_MESH_TEST_PARAM1, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved1 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAM2, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved2 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAM3, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved3 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAM4, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved4 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAM5, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved5 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAM6, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved6 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAM7, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved7 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAM8, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved8 = intVal;
-	
-	apmib_get(MIB_MESH_TEST_PARAM9, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserved9 = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAMA, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reserveda = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAMB, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedb = intVal;
-	
-	apmib_get(MIB_MESH_TEST_PARAMC, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedc = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAMD, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedd = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAME, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservede = intVal;
-
-	apmib_get(MIB_MESH_TEST_PARAMF, (void *)&intVal);
-	pmib->dot1180211sInfo.mesh_reservedf = intVal;
-	
-	apmib_get(MIB_MESH_TEST_PARAMSTR1, (void *)buf1);
-	intVal2 = strlen(buf1)<15 ? strlen(buf1) : 15;
-	memset(pmib->dot1180211sInfo.mesh_reservedstr1, 0, 16);
-	memcpy(pmib->dot1180211sInfo.mesh_reservedstr1, buf1, intVal2);
-	
-#endif
 	
 #endif // CONFIG_RTK_MESH
 

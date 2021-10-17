@@ -10,7 +10,7 @@
 #ifndef INCLUDE_WSC_H
 #define INCLUDE_WSC_H
 
-#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+#ifdef __ECOS
 #include <cyg/kernel/kapi.h>
 #include "wps_def.h" //export some definitions
 #endif
@@ -47,8 +47,10 @@
 
 
 //auto decision at Makefile
+#ifndef __ECOS
 #ifndef FOR_DUAL_BAND
 #define FOR_DUAL_BAND
+#endif
 #endif
 
 //define CONFIG_RTL_REPEATER_WPS_SUPPORT for use one wscd binary
@@ -463,9 +465,9 @@ extern void wsc_debug_out(char *label, unsigned char *data, int data_length);
 #define PROGRAM_NAME				"wscd"
 
 #ifdef WPS2DOTX
-#define VERSION_STR					"v2.17-wps2.0"
+#define VERSION_STR					"v2.16-wps2.0"
 #else
-#define VERSION_STR					"v2.17-wps1.0"
+#define VERSION_STR					"v2.16-wps1.0"
 #endif
 
 #ifdef __ECOS
@@ -787,7 +789,7 @@ extern int wps_done;			// "/var/wps_done"
 #define MSG_TYPE_DONE				15
 
 #define NOT_GREATER_THAN_MASK		0x80000000
-#define SIOCGIWIND      			0x89ff
+#define SIOCGIWIND      			0x89ff  // RTL8192CD_IOCTL_USER_DAEMON_REQUEST
 #define SIOCGIWRTLSCANREQ			0x8B33	// scan request
 #define SIOCGIWRTLGETBSSDB			0x8B34	// get bss data base
 #define SIOCGIWRTLGETMIB			0x89f2	// get mib (== RTL8190_IOCTL_GET_MIB)

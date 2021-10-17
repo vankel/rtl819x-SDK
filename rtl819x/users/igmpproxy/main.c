@@ -1336,8 +1336,6 @@ int igmp_accept(int recvlen, struct IfDesc *dp)
 				//printf( "igmpv3grec[%d]->grec_mca:%s\n", rec_id, inet_ntoa(igmpv3grec->grec_mca) );
 			
 				group = igmpv3grec->grec_mca;
-				if(group == ALL_PRINTER)	/* It's MS-Windows UPNP all printers notify */
-					goto nextgrec;
 				
 				switch( igmpv3grec->grec_type )
 				{
@@ -1370,7 +1368,7 @@ int igmp_accept(int recvlen, struct IfDesc *dp)
 						//printf( "!!! can't handle the group record types: %d\n", igmpv3grec->grec_type );
 						break;
 				}
-nextgrec:
+			
 				rec_id++;
 				//printf( "count next: 0x%x %d %d %d %d\n", igmpv3grec, sizeof( struct igmpv3_grec ), igmpv3grec->grec_auxwords, ntohs(igmpv3grec->grec_nsrcs), sizeof( __u32 ) );
 				igmpv3grec = (struct igmpv3_grec *)( (char*)igmpv3grec + sizeof( struct igmpv3_grec ) + (igmpv3grec->grec_auxwords+ntohs(igmpv3grec->grec_nsrcs))*sizeof( __u32 ) );
@@ -1995,7 +1993,7 @@ int main(int argc, char **argv)
 #ifdef CONFIG_IGMPPROXY_MULTIWAN
 
         if(argc == 2)
-		strcpy(igmp_down_if_name, "br0");
+		strcpy(igmp_down_if_name, "eth0");
 	else
 		strcpy(igmp_down_if_name, argv[argc-1]);
 	
@@ -2006,7 +2004,7 @@ int main(int argc, char **argv)
 	
 #else 
 	if(argc == 2)
-		strcpy(igmp_down_if_name, "br0");
+		strcpy(igmp_down_if_name, "eth0");
 	else
 		strcpy(igmp_down_if_name, argv[2]);
 //#endif			

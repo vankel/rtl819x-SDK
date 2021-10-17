@@ -61,7 +61,7 @@ typedef enum	{ acctsm_Start, acctsm_Stop } ACCT_SM_STATE;
 
 typedef enum    { akmsm_status_NotInDriverTable, akmsm_status_Idle , akmsm_status_NotIdle } AKM_SM_STATUS;
 
-#if defined( CONFIG_IEEE80211W) || defined(HS2_SUPPORT)
+#ifdef CONFIG_IEEE80211W
 enum mfp_options {
 	NO_MGMT_FRAME_PROTECTION = 0,
 	MGMT_FRAME_PROTECTION_OPTIONAL = 1,

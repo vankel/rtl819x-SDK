@@ -85,6 +85,3 @@ obj-$(CONFIG_SERIAL_AR933X)   += ar933x_uart.o
 obj-$(CONFIG_SERIAL_EFM32_UART) += efm32-uart.o
 obj-$(CONFIG_SERIAL_ARC)	+= arc_uart.o
 obj-$(CONFIG_SERIAL_RP2)	+= rp2.o
-
-obj-$(CONFIG_I2C_GPIO_MFI_COPROCESSOR_DRIVER) += wifi_audio.o
-obj-$(CONFIG_I2C_GPIO_MFI_COPROCESSOR_DRIVER) += i2c_gpio.o

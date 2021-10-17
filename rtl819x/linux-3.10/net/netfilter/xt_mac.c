@@ -81,7 +81,6 @@ static int compare_with_header_cache_dest_mac(const struct sk_buff *skb, unsigne
 	struct neighbour *neigh = NULL;
 	struct hh_cache *hh = NULL;
 	unsigned int nexthop;
-    unsigned int seqnum = 0;
 
 	if(!compare_ether_addr(eth_hdr(skb)->h_dest, macaddr))
 	{
@@ -89,35 +88,32 @@ static int compare_with_header_cache_dest_mac(const struct sk_buff *skb, unsigne
 	}
 	else
 	{
-		if (rt==NULL || ip_hdr(skb)==NULL)
-			return 0;
-		
-		nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
-		neigh = __ipv4_neigh_lookup_noref(dst->dev, nexthop);
+	if (rt==NULL || ip_hdr(skb)==NULL)
+		return 0;
+	
+	nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
+	neigh = __ipv4_neigh_lookup_noref(dst->dev, nexthop);
 
-		if (neigh != NULL)
-			hh = &(neigh->hh);
-		
-		if (neigh&&hh&&(neigh->nud_state&NUD_CONNECTED)&&(hh->hh_len))
+	if (neigh != NULL)
+		hh = &(neigh->hh);
+	
+	if (neigh&&hh&&(neigh->nud_state&NUD_CONNECTED)&&(hh->hh_len))
+	{
+	    	//if (hh && (hh->hh_type==ETH_P_IP || hh->hh_type==ETH_P_IPV6))
 		{
-		    	//if (hh && (hh->hh_type==ETH_P_IP || hh->hh_type==ETH_P_IPV6))
-			{
-                do{
-		    		//read_lock_bh(&hh->hh_lock);
-                    seqnum=read_seqbegin(&hh->hh_lock);
-		      		memcpy(skb->data - 16, hh->hh_data, 16);
-		      		if (memcmp((((u8*)hh->hh_data) + 2), macaddr, ETH_ALEN) == 0)
-		      		    ret = 1;
-		    		//read_unlock_bh(&hh->hh_lock);
-                }while(read_seqretry(&hh->hh_lock,seqnum));
-		    	}
-		}
+	    		read_lock_bh(&hh->hh_lock);
+	      		memcpy(skb->data - 16, hh->hh_data, 16);
+	      		if (memcmp((((u8*)hh->hh_data) + 2), macaddr, ETH_ALEN) == 0)
+	      		    ret = 1;
+	    		read_unlock_bh(&hh->hh_lock);
+	    	}
+	}
 	}
 	
 	return ret;
 }
 
-static bool mac_mt(const struct sk_buff *skb, struct xt_action_param *par)
+static bool mac_mt(const struct sk_buff *skb, const struct xt_action_param *par)
 {
 	const struct xt_mac_info *info = par->matchinfo;   
 

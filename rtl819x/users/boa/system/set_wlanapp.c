@@ -26,8 +26,16 @@ extern int apmib_initialized;
 #define PATHSEL_PID_FILE1 "/var/run/pathsel-wlan0.pid"
 #define PATHSEL_PID_FILE2 "/var/run/pathsel-wlan1.pid"
 #define PATHSEL_PID_FILE3 "/var/run/pathsel-wlan-msh.pid"
+
+#ifdef FAST_BSS_TRANSITION
+#define FT_DAEMON_PID_FILE "/var/run/ft.pid"
+#endif
+
 #ifdef CONFIG_IAPP_SUPPORT
 #define IAPP_PID_FILE "/var/run/iapp.pid"
+#endif
+#ifdef SHRINK_INIT_TIME
+#define WLAN_APP_CLEAN_FILE "/var/tmp/clean_wlanapp_done"
 #endif
 #define MESH_PATHSEL "/bin/pathsel" 
 #define MAX_CHECK_PID_NUM 10
@@ -214,6 +222,210 @@ static int start_wsc_deamon(char * wlan_interface, int mode, int WSC_UPNP_Enable
     return use_iwcontrol;
 }
 
+#ifdef SHRINK_INIT_TIME
+int cleanWlan_Applications(char* wlanInterface)
+{
+	char *token=NULL, *savestr1=NULL;
+	char tmpBuff[100], tmpBuff1[100], arg_buff[200];
+	char iface_name[16];
+	int wlan0_mode=1, wlan1_mode=1, both_band_ap=0;
+	int pid=-1;
+	char strPID[10];	
+
+	if(isFileExist(WLAN_APP_CLEAN_FILE)){
+		unlink(WLAN_APP_CLEAN_FILE);
+		return;
+	}
+
+	if(isFileExist(IWCONTROL_PID_FILE)){
+		pid=getPid_fromFile(IWCONTROL_PID_FILE);
+		if(pid != -1){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);
+		}
+		unlink(IWCONTROL_PID_FILE);
+	}
+
+//for mesh========================================================
+#if defined(CONFIG_RTK_MESH)    
+	if(isFileExist(PATHSEL_PID_FILE1)){
+		pid=getPid_fromFile(PATHSEL_PID_FILE1);
+		if(pid != -1){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID,NULL_STR);
+		}
+		unlink(PATHSEL_PID_FILE1);
+		RunSystemCmd(NULL_FILE, "brctl", "meshsignaloff",NULL_STR);
+		
+	}
+	if(isFileExist(PATHSEL_PID_FILE2)){
+		pid=getPid_fromFile(PATHSEL_PID_FILE2);
+		if(pid != -1){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID,NULL_STR);
+		}
+		unlink(PATHSEL_PID_FILE2);
+		RunSystemCmd(NULL_FILE, "brctl", "meshsignaloff",NULL_STR);
+		
+	}
+	if(isFileExist(PATHSEL_PID_FILE3)){
+		pid=getPid_fromFile(PATHSEL_PID_FILE3);
+		if(pid != -1){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID,NULL_STR);
+		}
+		unlink(PATHSEL_PID_FILE3);
+		RunSystemCmd(NULL_FILE, "brctl", "meshsignaloff",NULL_STR);
+		
+	}	 
+#endif
+
+	system("killall wscd");
+	system("killall iapp");
+	system("killall auth");
+
+	unlink("/var/run/wscd*");
+	unlink("/var/run/iapp*");
+	
+#ifdef WLAN_HS2_CONFIG
+	if(isFileExist("/tmp/hs2_pidname")){
+		FILE *fp;
+		char line[100];
+		fp = fopen("/tmp/hs2_pidname", "r");
+		if (fp != NULL) {
+			fgets(line, 100, fp);
+			fclose(fp);
+			//line[strlen(line)-1]='\0';
+			if(isFileExist(line)){
+				pid = getPid_fromFile(line);
+				if (pid != -1){
+					printf("kill hs2:%d\n",pid);
+					sprintf(strPID, "%d", pid);
+					RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);
+				}
+				unlink(line);
+			}
+		}
+		unlink("/tmp/hs2_pidname");
+	}
+#endif
+	//RunSystemCmd(NULL_FILE, "rm", "-f", "/var/*.fifo", NULL_STR);
+	system("rm -f /var/*.fifo");
+
+#ifdef CONFIG_APP_SIMPLE_CONFIG 
+	system("killall simple_config >/dev/null 2>&1");
+#endif
+
+	RunSystemCmd(NULL_FILE, "echo 0 >", WLAN_APP_CLEAN_FILE);
+	return 0;
+}
+#endif
+
+
+#ifdef FAST_BSS_TRANSITION
+#define FT_ENABLE 1
+#define FIRST_CMD 1
+#define ZERO_NUM  0
+void config_ft_daemon()
+{
+	char tmpBuff[100]={0};
+	char CmdBuff1[100]={0};
+	char CmdBuff2[100]={0};
+	FTKH_T khEntryTmp={0};
+	int ft_enable = 0, idx;
+	int num_5g, num_2g;
+
+	SetWlan_idx("wlan0");
+	if ( !apmib_get(MIB_WLAN_FT_ENABLE, (void *)&ft_enable)) {
+  		printf( "Get MIB_WLAN_FT_ENABLE table entry error!\n");
+		return -1;
+	}
+	if(ft_enable == FT_ENABLE)
+	{
+		
+		if ( !apmib_get(MIB_WLAN_FTKH_NUM, (void *)&num_5g)) {
+	  		printf( "Get MIB_WLAN_FTKH_NUM table entry error!\n");
+			return -1;
+		}
+		
+		if(num_5g < ZERO_NUM){
+			printf(" (%s)line=%d,wlan0 ft_ table num  == 0 !!\n", __FUNCTION__, __LINE__);
+			return -1;
+		}else
+			printf(" (%s)line=%d,wlan0 ft_ table num  = %d\n", __FUNCTION__, __LINE__, num_5g);
+		
+		for (idx = 1; idx <= num_5g; idx++)
+		{
+			*((char *)&khEntryTmp) = (char)idx;
+			if (!apmib_get(MIB_WLAN_FTKH,(void*)&khEntryTmp)) {
+	              	printf( "Get MIB_WLAN_FTKH table entry error!\n");
+				return -1;
+			}
+			sprintf(tmpBuff,"%02x:%02x:%02x:%02x:%02x:%02x",
+				khEntryTmp.macAddr[0], khEntryTmp.macAddr[1], khEntryTmp.macAddr[2],
+				khEntryTmp.macAddr[3], khEntryTmp.macAddr[4], khEntryTmp.macAddr[5]);
+			//printf("@@=> %s, %s, %s\n", tmpBuff, khEntryTmp.nas_id, khEntryTmp.key);
+			
+			if(idx == FIRST_CMD)
+				sprintf(CmdBuff1, "echo r0kh=%s %s %s wlan0 > /tmp/ft.conf",  tmpBuff, khEntryTmp.nas_id, khEntryTmp.key);
+			else
+				sprintf(CmdBuff1, "echo r0kh=%s %s %s wlan0 >> /tmp/ft.conf",  tmpBuff, khEntryTmp.nas_id, khEntryTmp.key);
+			system(CmdBuff1);	
+				
+			sprintf(CmdBuff2, "echo r1kh=%s %s %s wlan0 >> /tmp/ft.conf",  tmpBuff, tmpBuff, khEntryTmp.key);
+			system(CmdBuff2);	
+			
+			SDEBUG("Cmd1=> %s\n", CmdBuff1);
+			SDEBUG("Cmd2=> %s\n", CmdBuff2);
+		}
+	}
+
+	SetWlan_idx("wlan1");
+	if ( !apmib_get(MIB_WLAN_FT_ENABLE, (void *)&ft_enable)) {
+  		printf( "Get MIB_WLAN_FT_ENABLE table entry error!\n");
+		return -1;
+	}
+	if(ft_enable == FT_ENABLE)
+	{
+		if ( !apmib_get(MIB_WLAN_FTKH_NUM, (void *)&num_2g)) {
+	  		printf( "Get MIB_WLAN_FTKH_NUM table entry error!\n");
+			return -1;
+		}
+		
+		if(num_2g < 0){
+			printf(" (%s)line=%d,wlan1 ft_ table num  == 0 !!\n", __FUNCTION__, __LINE__);
+			return -1;
+		}else
+			printf(" (%s)line=%d,wlan1 ft_ table num  = %d\n", __FUNCTION__, __LINE__, num_2g);
+		
+		for (idx = 1; idx <= num_2g; idx++)
+		{
+			*((char *)&khEntryTmp) = (char)idx;
+			if (!apmib_get(MIB_WLAN_FTKH,(void*)&khEntryTmp)) {
+	              	printf( "Get MIB_WLAN_FTKH table entry error!\n");
+				return -1;
+			}
+			sprintf(tmpBuff,"%02x:%02x:%02x:%02x:%02x:%02x",
+				khEntryTmp.macAddr[0], khEntryTmp.macAddr[1], khEntryTmp.macAddr[2],
+				khEntryTmp.macAddr[3], khEntryTmp.macAddr[4], khEntryTmp.macAddr[5]);
+			//printf("@@=> %s, %s, %s\n", tmpBuff, khEntryTmp.nas_id, khEntryTmp.key);
+		
+			if(idx == FIRST_CMD && (num_5g == ZERO_NUM))
+				sprintf(CmdBuff1, "echo r0kh=%s %s %s wlan1 > /tmp/ft.conf",  tmpBuff, khEntryTmp.nas_id, khEntryTmp.key);
+			else
+				sprintf(CmdBuff1, "echo r0kh=%s %s %s wlan1 >> /tmp/ft.conf",  tmpBuff, khEntryTmp.nas_id, khEntryTmp.key);
+			system(CmdBuff1);	
+			
+			sprintf(CmdBuff2, "echo r1kh=%s %s %s wlan1 >> /tmp/ft.conf",  tmpBuff, tmpBuff, khEntryTmp.key);
+			system(CmdBuff2);
+			
+			SDEBUG("Cmd1=> %s\n", CmdBuff1);
+			SDEBUG("Cmd2=> %s\n", CmdBuff2);
+		}
+	}
+}
+#endif
+
 int setWlan_Applications(char *action, char *argv)
 {
 	int pid=-1;
@@ -222,8 +434,8 @@ int setWlan_Applications(char *action, char *argv)
 	char tmpBuff[100], tmpBuff1[100], arg_buff[200],wlan_wapi_asipaddr[100];
 	int wlan_wapi_cert_sel;
 	int _enable_1x=0, _use_rs=0;
-	int wlan_mode_root=0,wlan_disabled_root=0, wlan_wpa_auth_root=0, wlan1_wpa_auth_root=0;
-	int wlan0_mode=1, wlan1_mode=1, both_band_ap=0;
+	int wlan_mode_root=0,wlan_disabled_root=0, wlan_wpa_auth_root=0;
+	int wlan0_mode=1, wlan1_mode=1;
 	int wlan_wsc_disabled_root=0, wlan_network_type_root=0, wlan0_wsc_disabled_vxd=1, wlan1_wsc_disabled_vxd=1;
 	int wlan_1x_enabled_root=0, wlan_encrypt_root=0, wlan_mac_auth_enabled_root=0,wlan_wapi_auth=0;
 	int wlan_disabled=0, wlan_mode=0, wlan_wds_enabled=0, wlan_wds_num=0;
@@ -231,7 +443,7 @@ int setWlan_Applications(char *action, char *argv)
 	int wlan_wpa_auth=0;
 	int wlan_1x_enabled=0,wlan_mac_auth_enabled=0;
 	int wlan_root_auth_enable=0, wlan_vap_auth_enable=0;
-	int wlan_network_type=0, wlan_wsc_disabled=0, wlan_hidden_ssid_enabled=0,wlan0_hidden_ssid_enabled=0,wlan1_hidden_ssid_enabled=0;
+	int wlan_network_type=0, wlan_wsc_disabled=0, wlan_hidden_ssid_enabled=0;
 	char tmp_iface[30]={0}, wlan_role[30]={0}, wlan_vap[30]={0}, wlan_vxd[30]={0};
 	char valid_wlan_interface[200]={0}, all_wlan_interface[200]={0};
 	int vap_not_in_pure_ap_mode=0, deamon_created=0;
@@ -304,37 +516,6 @@ int setWlan_Applications(char *action, char *argv)
 #endif
 
 
-#if defined(FOR_DUAL_BAND)
-	SetWlan_idx("wlan0");
-	apmib_get(MIB_WLAN_MODE, (void *)&wlan0_mode);
-	apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disabled_root);
-	apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc_disabled);
-	apmib_get(MIB_WLAN_HIDDEN_SSID, (void *)&wlan0_hidden_ssid_enabled);
-	apmib_get(MIB_WLAN_WPA_AUTH, (void *)&wlan_wpa_auth_root);
-	SetWlan_idx("wlan1");
-	apmib_get( MIB_WLAN_MODE, (void *)&wlan1_mode);
-	apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan1_disabled_root);
-	apmib_get(MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc1_disabled);
-	apmib_get(MIB_WLAN_HIDDEN_SSID, (void *)&wlan1_hidden_ssid_enabled);
-	apmib_get(MIB_WLAN_WPA_AUTH, (void *)&wlan1_wpa_auth_root);
-	if( ((wlan0_mode == AP_MODE) || (wlan0_mode == AP_WDS_MODE) || (wlan0_mode == AP_MESH_MODE)) && ((wlan1_mode == 0) || (wlan1_mode == AP_WDS_MODE) || (wlan1_mode == AP_MESH_MODE))
-		&& (wlan_disabled_root == 0) && (wlan1_disabled_root == 0) && (wlan_wsc_disabled == 0) && (wlan_wsc1_disabled == 0) && (wlan0_hidden_ssid_enabled ==0) && (wlan1_hidden_ssid_enabled ==0)
-		&&(wlan_wpa_auth_root != WPA_AUTH_AUTO)&&(wlan1_wpa_auth_root != WPA_AUTH_AUTO) )
-	{
-#if defined(CONFIG_WPS_EITHER_AP_OR_VXD)
-		if ( (isRptEnabled1 == 1 && wlan_disabled_root == 0 && wlan_wsc_disabled == 0) 
-			|| (isRptEnabled2 == 1 && wlan1_disabled_root == 0 && wlan_wsc1_disabled == 0))
-			both_band_ap = 0;
-		else
-			both_band_ap = 1;
-#else
-		both_band_ap = 1;	
-#endif
-	}
-
-	SetWlan_idx("wlan0");
-#endif
-
 #ifdef CONFIG_RTL_P2P_SUPPORT							
 	int p2p_mode=0;
 #endif
@@ -365,9 +546,9 @@ int setWlan_Applications(char *action, char *argv)
 		token = strtok_r(NULL, " ", &savestr1);
 	}while(token !=NULL);
 	//printf("bridge_iface=%s\n", bridge_iface);
-	
-	
-	
+#ifdef SHRINK_INIT_TIME
+	cleanWlan_Applications(all_wlan_interface);
+#else
 	if(isFileExist(IWCONTROL_PID_FILE)){
 		pid=getPid_fromFile(IWCONTROL_PID_FILE);
 		if(pid != -1){
@@ -376,6 +557,7 @@ int setWlan_Applications(char *action, char *argv)
 		}
 		unlink(IWCONTROL_PID_FILE);
 	}
+	
 
 //for mesh========================================================
 #if defined(CONFIG_RTK_MESH)    
@@ -523,7 +705,20 @@ int setWlan_Applications(char *action, char *argv)
             break;
     }while(find_pid_by_name("wscd") > 0);
 
-    
+
+#ifdef FAST_BSS_TRANSITION
+	if(isFileExist(FT_DAEMON_PID_FILE)){
+		pid=getPid_fromFile(FT_DAEMON_PID_FILE);
+		if(pid != -1){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID,NULL_STR);
+		}
+		unlink(FT_DAEMON_PID_FILE);	
+	}
+	config_ft_daemon();
+	system("ftd -c /tmp/ft.conf &");
+#endif
+	
 #ifdef CONFIG_IAPP_SUPPORT	
 	if(isFileExist(IAPP_PID_FILE)){
 		pid=getPid_fromFile(IAPP_PID_FILE);
@@ -558,8 +753,10 @@ int setWlan_Applications(char *action, char *argv)
 #endif
 	//RunSystemCmd(NULL_FILE, "rm", "-f", "/var/*.fifo", NULL_STR);
 	system("rm -f /var/*.fifo");
+
 #ifdef CONFIG_APP_SIMPLE_CONFIG 
 	system("killall simple_config >/dev/null 2>&1");
+#endif
 #endif
 	if(!strcmp(action, "kill"))
 		return 0;
@@ -1354,7 +1551,7 @@ int setWlan_Applications(char *action, char *argv)
 #endif
 
 #if defined(CONFIG_APP_SIMPLE_CONFIG)
-	int sc_enabled, sc_store, sc_sync, vxd_enabled, root_disabled;
+	int sc_enabled, sc_store, sc_sync;
 	memset(cmd_opt, 0x00, 16);
 	cmd_cnt=0;
 
@@ -1364,7 +1561,6 @@ int setWlan_Applications(char *action, char *argv)
 	apmib_get(MIB_WLAN_SC_ENABLED, (void *)&sc_enabled);
 	apmib_get(MIB_WLAN_SC_SAVE_PROFILE, (void *)&sc_store);
 	apmib_get(MIB_WLAN_SC_SYNC_PROFILE, (void *)&sc_sync);
-	root_disabled = wlan_disabled;
 	
 	if((wlan0_mode == CLIENT_MODE)&&(wlan_disabled == 0) && (sc_enabled==1))
 	{
@@ -1380,8 +1576,8 @@ int setWlan_Applications(char *action, char *argv)
 		apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disabled);
 		apmib_get(MIB_WLAN_SC_ENABLED, (void *)&sc_enabled);
 		apmib_get(MIB_WLAN_SC_SAVE_PROFILE, (void *)&sc_store);
-		apmib_get(MIB_REPEATER_ENABLED1, (void *)&vxd_enabled);
-		if((wlan0_mode == CLIENT_MODE)&&(wlan_disabled == 0)  && (sc_enabled==1) && (vxd_enabled==1) && (root_disabled==0))
+		
+		if((wlan0_mode == CLIENT_MODE)&&(wlan_disabled == 0)  && (sc_enabled==1))
 		{
 			sprintf(arg_buff,"simple_config -i wlan0-vxd -store %d &", sc_store);
 			system(arg_buff);
@@ -1410,9 +1606,8 @@ int setWlan_Applications(char *action, char *argv)
 		apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disabled);
 		apmib_get(MIB_WLAN_SC_ENABLED, (void *)&sc_enabled);
 		apmib_get(MIB_WLAN_SC_SAVE_PROFILE, (void *)&sc_store);
-		apmib_get(MIB_REPEATER_ENABLED2, (void *)&vxd_enabled);
 		
-		if((wlan1_mode == CLIENT_MODE)&&(wlan_disabled == 0) && (sc_enabled==1) && (wlan1_disabled_root==0) && (vxd_enabled==1))
+		if((wlan1_mode == CLIENT_MODE)&&(wlan_disabled == 0) && (sc_enabled==1))
 		{
 			sprintf(arg_buff,"simple_config -i wlan1-vxd -store %d &", sc_store);
 			system(arg_buff);
@@ -1421,6 +1616,7 @@ int setWlan_Applications(char *action, char *argv)
 	}
 #endif
 #endif
+
 return 0;	
 	
 		

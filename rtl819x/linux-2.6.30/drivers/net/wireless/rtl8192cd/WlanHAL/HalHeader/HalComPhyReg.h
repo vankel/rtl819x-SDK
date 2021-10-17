@@ -33,6 +33,7 @@
 #define    REG_BB_PWED_TH_AC                             0x830   
 #define    REG_BB_BWINDICATION_AC                        0x834
 #define    REG_BB_CCAONSEC_AC                            0x838
+#define    REG_BB_L1_Weight_Jaguar                       0x840
 #define    REG_BB_L1PEAKTH_AC                            0x848
 #define    REG_BB_FC_AREA_AC                             0x860   // fc_area 
 #define    REG_BB_FPGA0_XB_RFINTERFACEOE_AC              0x864
@@ -51,9 +52,24 @@
 #define    REG_BB_FC_ENABL_VHT_AC                        0x8c0
 #define    REG_BB_VHTLEN_USE_LSIG_AC                     0x8c3    // Use LSIG for VHT length
 #define    REG_BB_ADC_BUF_CLK_AC                         0x8c4  
+#define    REG_BB_ADC_BUF_CLK_2_AC                       0x8c8  
+
+/**** For 8814 Rx spur issue ****/
+#if IS_RTL8814A_SERIES
+#define    rNBI_Setting_Jaguar                           0x87c
+#define    rCSI_Mask_Setting1_Jaguar                     0x874
+#define    rCSI_Fix_Mask7_Jaguar                         0x89c
+#define    rCSI_Fix_Mask6_Jaguar                         0x898
+#define    rCSI_Fix_Mask0_Jaguar                         0x880
+#define    rCSI_Fix_Mask1_Jaguar                         0x884
+#endif
 
 /**** page 9 ****/
 #define    REG_BB_SINGLETONE_CONTTX_AC                   0x914
+#define    REG_BB_AGC_TABLE_AC_V2                        0x958
+#define	REG_BB_TX_PATH_SEL_1					0x93c
+#define	REG_BB_TX_PATH_SEL_2					0x940
+
 
 /**** page a ****/
 #define    REG_BB_CCK_SYSTEM_AC                          0xa00   // for cck sideband
@@ -101,11 +117,17 @@
 #define    REG_BB_TXAGC_A_MCS7_MCS4_AC                    0xc30
 #define    REG_BB_TXAGC_A_MCS11_MCS8_AC                   0xc34
 #define    REG_BB_TXAGC_A_MCS15_MCS12_AC                  0xc38
+#define    REG_BB_TXAGC_A_MCS19_MCS16_AC                  0xcd8
+#define    REG_BB_TXAGC_A_MCS23_MCS20_AC				  0xcdc
 #define    REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC        0xc3c
 #define    REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC        0xc40
 #define    REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC        0xc44
 #define    REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC        0xc48
 #define    REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC        0xc4c
+#define    REG_BB_TXAGC_A_NSS3INDEX3_NSS3INDEX0_AC        0xce0
+#define    REG_BB_TXAGC_A_NSS3INDEX7_NSS3INDEX4_AC        0xce4
+#define    REG_BB_TXAGC_A_NSS3INDEX9_NSS3INDEX8_AC        0xce8
+
 // DIG-related
 #define    REG_BB_A_IGI_AC                                0xc50    // Initial Gain for path-A
 // AFE-related
@@ -126,8 +148,14 @@
 /**** page d ****/
 #define    REG_BB_A_PIREAD_AC                             0xd04 // RF readback with PI
 #define    REG_BB_B_PIREAD_AC                             0xd44 // RF readback with PI
+#define    REG_BB_C_PIREAD_AC                             0xd84 // RF readback with PI
+#define    REG_BB_D_PIREAD_AC                             0xdc4 // RF readback with PI
 #define    REG_BB_A_SIREAD_AC                             0xd08 // RF readback with SI
 #define    REG_BB_B_SIREAD_AC                             0xd48 // RF readback with SI
+#define    REG_BB_C_SIREAD_AC                             0xd88 // RF readback with SI
+#define    REG_BB_D_SIREAD_AC                             0xdc8 // RF readback with SI
+
+
 /**** page e ****/
 // RXIQC
 #define    REG_BB_B_TXSCALE_AC                            0xe1c  // Path_B TX scaling factor
@@ -142,11 +170,16 @@
 #define    REG_BB_TXAGC_B_MCS7_MCS4_AC                    0xe30
 #define    REG_BB_TXAGC_B_MCS11_MCS8_AC                   0xe34
 #define    REG_BB_TXAGC_B_MCS15_MCS12_AC                  0xe38
+#define    REG_BB_TXAGC_B_MCS19_MCS16_AC                  0xed8
+#define    REG_BB_TXAGC_B_MCS23_MCS20_AC				  0xedc
 #define    REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC        0xe3c
 #define    REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC        0xe40
 #define    REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC        0xe44
 #define    REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC        0xe48
 #define    REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC        0xe4c
+#define    REG_BB_TXAGC_B_NSS3INDEX3_NSS3INDEX0_AC        0xee0
+#define    REG_BB_TXAGC_B_NSS3INDEX7_NSS3INDEX4_AC        0xee4
+#define    REG_BB_TXAGC_B_NSS3INDEX9_NSS3INDEX8_AC        0xee8
 
 // DIG-related
 #define    REG_BB_B_IGI_AC                                0xe50    // Initial Gain for path-B
@@ -169,6 +202,59 @@
 #define    REG_BB_OFDM_RXEVMCSI_AC                        0xf8c
 #define    REG_BB_OFDM_SIGREPORT_AC                       0xf90
 
+/**** page 18 ****/
+// TX AGC 
+#define    REG_BB_TXAGC_C_CCK11_CCK1_AC                   0x1820
+#define    REG_BB_TXAGC_C_OFDM18_OFDM6_AC                 0x1824
+#define    REG_BB_TXAGC_C_OFDM54_OFDM24_AC                0x1828
+#define    REG_BB_TXAGC_C_MCS3_MCS0_AC                    0x182c
+#define    REG_BB_TXAGC_C_MCS7_MCS4_AC                    0x1830
+#define    REG_BB_TXAGC_C_MCS11_MCS8_AC                   0x1834
+#define    REG_BB_TXAGC_C_MCS15_MCS12_AC                  0x1838
+#define    REG_BB_TXAGC_C_MCS19_MCS16_AC                  0x18d8
+#define    REG_BB_TXAGC_C_MCS23_MCS20_AC				  0x18dc
+#define    REG_BB_TXAGC_C_NSS1INDEX3_NSS1INDEX0_AC        0x183c
+#define    REG_BB_TXAGC_C_NSS1INDEX7_NSS1INDEX4_AC        0x1840
+#define    REG_BB_TXAGC_C_NSS2INDEX1_NSS1INDEX8_AC        0x1844
+#define    REG_BB_TXAGC_C_NSS2INDEX5_NSS2INDEX2_AC        0x1848
+#define    REG_BB_TXAGC_C_NSS2INDEX9_NSS2INDEX6_AC        0x184c
+#define    REG_BB_TXAGC_C_NSS3INDEX3_NSS3INDEX0_AC        0x18e0
+#define    REG_BB_TXAGC_C_NSS3INDEX7_NSS3INDEX4_AC        0x18e4
+#define    REG_BB_TXAGC_C_NSS3INDEX9_NSS3INDEX8_AC        0x18e8
+
+#define    REG_BB_C_LSSIWRITE_AC                          0x1890 // RF write addr
+#define    REG_BB_C_RFE_PINMUX_AC                         0x18b4 // Path_C RFE control pinmux
+
+/**** page 19 ****/
+//TX BeamForming
+#define	REG_BB_TXBF_ANT_SET_BF1				0x19ac
+#define	REG_BB_TXBF_ANT_SET_BF0				0x19b4
+
+
+/**** page 1a ****/
+// TX AGC 
+#define    REG_BB_TXAGC_D_CCK11_CCK1_AC                   0x1a20
+#define    REG_BB_TXAGC_D_OFDM18_OFDM6_AC                 0x1a24
+#define    REG_BB_TXAGC_D_OFDM54_OFDM24_AC                0x1a28
+#define    REG_BB_TXAGC_D_MCS3_MCS0_AC                    0x1a2c
+#define    REG_BB_TXAGC_D_MCS7_MCS4_AC                    0x1a30
+#define    REG_BB_TXAGC_D_MCS11_MCS8_AC                   0x1a34
+#define    REG_BB_TXAGC_D_MCS15_MCS12_AC                  0x1a38
+#define    REG_BB_TXAGC_D_MCS19_MCS16_AC                  0x1ad8
+#define    REG_BB_TXAGC_D_MCS23_MCS20_AC				  0x1adc
+#define    REG_BB_TXAGC_D_NSS1INDEX3_NSS1INDEX0_AC        0x1a3c
+#define    REG_BB_TXAGC_D_NSS1INDEX7_NSS1INDEX4_AC        0x1a40
+#define    REG_BB_TXAGC_D_NSS2INDEX1_NSS1INDEX8_AC        0x1a44
+#define    REG_BB_TXAGC_D_NSS2INDEX5_NSS2INDEX2_AC        0x1a48
+#define    REG_BB_TXAGC_D_NSS2INDEX9_NSS2INDEX6_AC        0x1a4c
+#define    REG_BB_TXAGC_D_NSS3INDEX3_NSS3INDEX0_AC        0x1ae0
+#define    REG_BB_TXAGC_D_NSS3INDEX7_NSS3INDEX4_AC        0x1ae4
+#define    REG_BB_TXAGC_D_NSS3INDEX9_NSS3INDEX8_AC        0x1ae8
+
+#define    REG_BB_D_LSSIWRITE_AC                          0x1a90 // RF write addr
+#define    REG_BB_D_RFE_PINMUX_AC                         0x1ab4 // Path_D RFE control pinmux
+
+
 //////////////////////////////////////
 
 
@@ -190,6 +276,128 @@
 #define    REG_RF_RCK3_AC                                  0x1e
 #define    REG_RF_LCK_AC                                   0xB4
 #define    REG_BB_BRFREGOFFSETMASK_AC                      0xfffff
+
+// TX AGC V2 - 8814A MP
+#define REG_BB_TXAGC_V2_BASE_ADDR      0x1998
+
+/*
+Example:
+0x1998 = 0x12801151
+0x1998[7:0]=0x51: TX_RATE VHT 4ss mcs7
+0x1998[9:8]=path_idx=1: path B (path A/B/C/D -> 0/1/2/3)
+0x1998[12]¢FDy3¢FG?n1, |b8813!LS|3!¡Ó@¢FDI.
+0x1998[23]=1: write
+0x1998[31:24]=0x12: txagc codeword
+*/
+
+#define BIT_SHIFT_BB_TXAGC_V2_TX_RATE   0
+#define BIT_MASK_BB_TXAGC_V2_TX_RATE    0xff
+#define BIT_BB_TXAGC_V2_TX_RATE(x)      (((x) & BIT_MASK_BB_TXAGC_V2_TX_RATE) << BIT_SHIFT_BB_TXAGC_V2_TX_RATE)
+
+#define BIT_SHIFT_BB_TXAGC_V2_PATH_IDX  8
+#define BIT_MASK_BB_TXAGC_V2_PATH_IDX   0x3
+#define BIT_BB_TXAGC_V2_PATH_IDX(x)     (((x) & BIT_MASK_BB_TXAGC_V2_PATH_IDX) << BIT_SHIFT_BB_TXAGC_V2_PATH_IDX)
+
+#define BIT_SHIFT_BB_TXAGC_V2_NONE      12
+#define BIT_MASK_BB_TXAGC_V2_NONE       0x1
+#define BIT_BB_TXAGC_V2_NONE(x)         (((x) & BIT_MASK_BB_TXAGC_V2_NONE) << BIT_SHIFT_BB_TXAGC_V2_NONE)
+
+#define BIT_SHIFT_BB_TXAGC_V2_WRITE     23
+#define BIT_MASK_BB_TXAGC_V2_WRITE      0x1
+#define BIT_BB_TXAGC_V2_WRITE(x)        (((x) & BIT_MASK_BB_TXAGC_V2_WRITE) << BIT_SHIFT_BB_TXAGC_V2_WRITE)
+
+#define BIT_SHIFT_BB_TXAGC_V2_CODEWORD  24
+#define BIT_MASK_BB_TXAGC_V2_CODEWORD   0xff
+#define BIT_BB_TXAGC_V2_CODEWORD(x)     (((x) & BIT_MASK_BB_TXAGC_V2_CODEWORD) << BIT_SHIFT_BB_TXAGC_V2_CODEWORD)
+
+#define FILL_REG_BB_TXAGC_V2(RATE, PATH_IDX, NONE_VALUE, WRITE_VALUE, DEF_POWER)    (BIT_BB_TXAGC_V2_TX_RATE(RATE) | BIT_BB_TXAGC_V2_PATH_IDX(PATH_IDX) | BIT_BB_TXAGC_V2_NONE(NONE_VALUE) | BIT_BB_TXAGC_V2_WRITE(WRITE_VALUE) | BIT_BB_TXAGC_V2_CODEWORD(DEF_POWER))
+
+#define TX_AGC_CCK_1M           0x00
+#define TX_AGC_CCK_2M           0x01
+#define TX_AGC_CCK_5_5M         0x02
+#define TX_AGC_CCK_11M          0x03
+#define TX_AGC_OFDM_6M          0x04
+#define TX_AGC_OFDM_9M          0x05
+#define TX_AGC_OFDM_12M         0x06
+#define TX_AGC_OFDM_18M         0x07
+#define TX_AGC_OFDM_24M         0x08
+#define TX_AGC_OFDM_36M         0x09
+#define TX_AGC_OFDM_48M         0x0A
+#define TX_AGC_OFDM_54M         0x0B
+
+#define TX_AGC_HT_NSS1_MCS0        0x0C
+#define TX_AGC_HT_NSS1_MCS1        0x0D
+#define TX_AGC_HT_NSS1_MCS2        0x0E
+#define TX_AGC_HT_NSS1_MCS3        0x0F
+#define TX_AGC_HT_NSS1_MCS4        0x10
+#define TX_AGC_HT_NSS1_MCS5        0x11
+#define TX_AGC_HT_NSS1_MCS6        0x12
+#define TX_AGC_HT_NSS1_MCS7        0x13
+#define TX_AGC_HT_NSS2_MCS8        0x14
+#define TX_AGC_HT_NSS2_MCS9        0x15
+#define TX_AGC_HT_NSS2_MCS10       0x16
+#define TX_AGC_HT_NSS2_MCS11       0x17
+#define TX_AGC_HT_NSS2_MCS12       0x18
+#define TX_AGC_HT_NSS2_MCS13       0x19
+#define TX_AGC_HT_NSS2_MCS14       0x1A
+#define TX_AGC_HT_NSS2_MCS15       0x1B
+#define TX_AGC_HT_NSS3_MCS16       0x1C
+#define TX_AGC_HT_NSS3_MCS17       0x1D
+#define TX_AGC_HT_NSS3_MCS18       0x1E
+#define TX_AGC_HT_NSS3_MCS19       0x1F
+#define TX_AGC_HT_NSS3_MCS20       0x20
+#define TX_AGC_HT_NSS3_MCS21       0x21
+#define TX_AGC_HT_NSS3_MCS22       0x22
+#define TX_AGC_HT_NSS3_MCS23       0x23
+#define TX_AGC_HT_NSS4_MCS24       0x24
+#define TX_AGC_HT_NSS4_MCS25       0x25
+#define TX_AGC_HT_NSS4_MCS26       0x26
+#define TX_AGC_HT_NSS4_MCS27       0x27
+#define TX_AGC_HT_NSS4_MCS28       0x28
+#define TX_AGC_HT_NSS4_MCS29       0x29
+#define TX_AGC_HT_NSS4_MCS30       0x2A
+#define TX_AGC_HT_NSS4_MCS31       0x2B
+
+#define TX_AGC_VHT_NSS1_MCS0       0x2C
+#define TX_AGC_VHT_NSS1_MCS1       0x2D
+#define TX_AGC_VHT_NSS1_MCS2       0x2E
+#define TX_AGC_VHT_NSS1_MCS3       0x2F
+#define TX_AGC_VHT_NSS1_MCS4       0x30
+#define TX_AGC_VHT_NSS1_MCS5       0x31
+#define TX_AGC_VHT_NSS1_MCS6       0x32
+#define TX_AGC_VHT_NSS1_MCS7       0x33
+#define TX_AGC_VHT_NSS1_MCS8       0x34
+#define TX_AGC_VHT_NSS1_MCS9       0x35
+#define TX_AGC_VHT_NSS2_MCS0       0x36
+#define TX_AGC_VHT_NSS2_MCS1       0x37
+#define TX_AGC_VHT_NSS2_MCS2       0x38
+#define TX_AGC_VHT_NSS2_MCS3       0x39
+#define TX_AGC_VHT_NSS2_MCS4       0x3A
+#define TX_AGC_VHT_NSS2_MCS5       0x3B
+#define TX_AGC_VHT_NSS2_MCS6       0x3C
+#define TX_AGC_VHT_NSS2_MCS7       0x3D
+#define TX_AGC_VHT_NSS2_MCS8       0x3E
+#define TX_AGC_VHT_NSS2_MCS9       0x3F
+#define TX_AGC_VHT_NSS3_MCS0       0x40
+#define TX_AGC_VHT_NSS3_MCS1       0x41
+#define TX_AGC_VHT_NSS3_MCS2       0x42
+#define TX_AGC_VHT_NSS3_MCS3       0x43
+#define TX_AGC_VHT_NSS3_MCS4       0x44
+#define TX_AGC_VHT_NSS3_MCS5       0x45
+#define TX_AGC_VHT_NSS3_MCS6       0x46
+#define TX_AGC_VHT_NSS3_MCS7       0x47
+#define TX_AGC_VHT_NSS3_MCS8       0x48
+#define TX_AGC_VHT_NSS3_MCS9       0x49
+#define TX_AGC_VHT_NSS4_MCS0       0x4A
+#define TX_AGC_VHT_NSS4_MCS1       0x4B
+#define TX_AGC_VHT_NSS4_MCS2       0x4C
+#define TX_AGC_VHT_NSS4_MCS3       0x4D
+#define TX_AGC_VHT_NSS4_MCS4       0x4E
+#define TX_AGC_VHT_NSS4_MCS5       0x4F
+#define TX_AGC_VHT_NSS4_MCS6       0x50
+#define TX_AGC_VHT_NSS4_MCs7       0x51
+#define TX_AGC_VHT_NSS4_MCS8       0x52
+#define TX_AGC_VHT_NSS4_MCS9       0x53
 
 
 #endif //#if IS_RTL88XX_AC
@@ -413,6 +621,38 @@
 #define    REG_RF_RTL8258_TXLPF_N                0x11    // Useless now
 #define    REG_RF_RTL8258_RXLPF_N                0x13
 
+// 92E temp
+#define		RF_SYN_G1					0x25	// RF TX Power control
+#define		RF_SYN_G2					0x26	// RF TX Power control
+#define		RF_SYN_G3					0x27	// RF TX Power control
+#define		RF_SYN_G4					0x28	// RF TX Power control
+#define		RF_SYN_G5					0x29	// RF TX Power control
+#define		RF_SYN_G6					0x2A	// RF TX Power control
+#define		RF_SYN_G7					0x2B	// RF TX Power control
+#define		RF_SYN_G8					0x2C	// RF TX Power control
+
+#define		RF_RCK_OS					0x30	// RF TX PA control
+#define		RF_TXPA_G1					0x31	// RF TX PA control
+#define		RF_TXPA_G2					0x32	// RF TX PA control
+#define		RF_TXPA_G3					0x33	// RF TX PA control
+#define		RF_TX_BIAS_A				0x35
+#define		RF_TX_BIAS_D				0x36
+#define		RF_LOBF_9					0x38
+#define		RF_RXRF_A3					0x3C	//	
+#define		RF_TRSW						0x3F
+
+#define		RF_TXRF_A2					0x41
+#define		RF_TXPA_G4					0x46	
+#define		RF_TXPA_A4					0x4B	
+#define 	RF_0x52						0x52
+#define		RF_WE_LUT					0xEF
+
+#define REG_BFMEE_SEL_8192E			0x0714
+#define	REG_SND_PTCL_CTRL_8192E		0x0718
+#define REG_BFMER0_INFO_8192E		0x06E4
+#define REG_BFMER1_INFO_8192E		0x06EC
+#define REG_CSI_RPT_PARAM_BW20_92E  0x06F4
+#define REG_CSI_RPT_PARAM_BW40_92E  0x06F8
 
 #endif //#if IS_RTL88XX_N
 #endif //#ifndef __INC_HALCOMPHYREG_BB_H

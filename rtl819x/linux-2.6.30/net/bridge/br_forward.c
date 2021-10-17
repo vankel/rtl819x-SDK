@@ -48,6 +48,12 @@ extern unsigned int br1SwFwdPortMask;
 extern struct net_bridge *bridge1;
 #endif
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+extern unsigned int brIgmpModuleIndex_2;
+extern unsigned int br1SwFwdPortMask;
+extern struct net_bridge *bridge1;
+#endif
+
 #if	defined(CONFIG_RTL_819X)
 #include <net/rtl/features/rtl_ps_hooks.h>
 #endif
@@ -299,11 +305,7 @@ static void br_flood(struct net_bridge *br, struct sk_buff *skb,
 #ifndef CONFIG_RTL_8198C
 
 				/*patch for lan->wan duplicat packet(dmac=33:33:ff:xx:xx:xx) when pppoe/ipv6 passthrough enable*/
-			if(((strcmp(skb->dev->name,"eth0")==0)
-			#if defined (CONFIG_RTL_MULTI_LAN_DEV)
-			||(strcmp(skb->dev->name,"eth2")==0)||(strcmp(skb->dev->name,"eth3")==0)||(strcmp(skb->dev->name,"eth4")==0)
-			#endif
-			)&&(	
+			if((strcmp(skb->dev->name,"eth0")==0)&&(	
 			#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
 				(rtk_vlan_support_enable==0)&&
 			#endif
@@ -445,8 +447,11 @@ extern int rtl865x_blockMulticastFlow(unsigned int srcVlanId, unsigned int srcPo
 extern int rtl865x_curOpMode;
 
 #define MAX_UNKNOWN_MULTICAST_NUM 16
-#define MAX_UNKNOWN_MULTICAST_PPS 1500
+//#define MAX_UNKNOWN_MULTICAST_PPS 1500
 #define BLOCK_UNKNOWN_MULTICAST 1
+
+unsigned int maxUnknownMcastPPS=1500;
+unsigned int chkUnknownMcastEnable=1;
 
 struct rtl865x_unKnownMCastRecord
 {
@@ -460,7 +465,15 @@ struct rtl865x_unKnownMCastRecord unKnownMCastRecord[MAX_UNKNOWN_MULTICAST_NUM];
 int rtl865x_checkUnknownMCastLoading(struct rtl_multicastDataInfo *mCastInfo)
 {
 	int i;
+	
+	if(chkUnknownMcastEnable==0)
+		return 0;
+	
 	if(mCastInfo==NULL)
+	{
+		return 0;
+	}
+	if(rtl_check_ReservedMCastAddr(mCastInfo->groupAddr[0])==SUCCESS)
 	{
 		return 0;
 	}
@@ -517,7 +530,7 @@ int rtl865x_checkUnknownMCastLoading(struct rtl_multicastDataInfo *mCastInfo)
 		unKnownMCastRecord[i].pktCnt=0;
 	}
 
-	if(unKnownMCastRecord[i].pktCnt>MAX_UNKNOWN_MULTICAST_PPS)
+	if(unKnownMCastRecord[i].pktCnt>maxUnknownMcastPPS)
 	{
 		return BLOCK_UNKNOWN_MULTICAST;
 	}
@@ -611,7 +624,8 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 
 		iph=(struct iphdr *)(ptr+2);
 
-		if(iph->daddr== 0xEFFFFFFA)
+		if((iph->daddr== 0xEFFFFFFA)||
+			(rtl_check_ReservedMCastAddr(iph->daddr)==SUCCESS))
 		{
 			/*for microsoft upnp*/
 			reserved=1;
@@ -633,7 +647,7 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 				{
 					if(rtl865x_checkUnknownMCastLoading(&multicastDataInfo)==BLOCK_UNKNOWN_MULTICAST)
 					{
-#if defined( CONFIG_RTL865X_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
+#if defined(CONFIG_RTL_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
 						if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF))
 						{
 							rtl865x_blockMulticastFlow(srcVlanId, srcPort, iph->saddr,iph->daddr);
@@ -672,7 +686,7 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 					(strncmp(skb->dev->name,RTL_PS_WAN0_DEV_NAME,4)==0) && 		//only block heavyloading multicast data from wan
 					(rtl865x_checkUnknownMCastLoading(&multicastDataInfo)==BLOCK_UNKNOWN_MULTICAST))
 				{
-#if defined( CONFIG_RTL865X_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
+#if defined(CONFIG_RTL_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
 					if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF))
 					{
 						rtl865x_blockMulticastFlow(srcVlanId, srcPort, iph->saddr,iph->daddr);

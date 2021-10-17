@@ -34,6 +34,10 @@ CFLAGS += -DKERNEL_2_6_30
 endif
 ifeq ($(KERNEL_VER),linux-3.10)
 CFLAGS += -DKERNEL_3_10
+include $(DIR_LINUX)/.config
+ifeq ($(CONFIG_RLX),y)
+CFLAGS += -DCONFIG_RLX
+endif
 endif
 
 all: Config

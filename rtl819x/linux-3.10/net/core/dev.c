@@ -2168,26 +2168,6 @@ void dev_kfree_skb_irq(struct sk_buff *skb)
 }
 EXPORT_SYMBOL(dev_kfree_skb_irq);
 
-#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
-__MIPS16 __IRAM_FWD  extern int is_rtl865x_eth_priv_buf(unsigned char *head);
-int get_cpu_completion_queue_num(void)
-{
-	int skbCnt = 0;
-	struct softnet_data *sd = &__get_cpu_var(softnet_data);
-	struct sk_buff *clist = sd->completion_queue;
-
-	while (clist)
-	{
-		if(is_rtl865x_eth_priv_buf(clist->head))
-			skbCnt++;
-		clist = clist->next;
-	}
-
-	return skbCnt;
-}
-
-#endif
-
 void dev_kfree_skb_any(struct sk_buff *skb)
 {
 	if (in_irq() || irqs_disabled())
@@ -3742,7 +3722,7 @@ static int __netif_receive_skb(struct sk_buff *skb)
 			return NET_RX_SUCCESS;
 		}
 		#endif
-		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)||defined(CONFIG_RTL_WLAN_DOS_FILTER)//defined(CONFIG_RTL_ETH_DRIVER_REFINE)
+		#if 1//defined(CONFIG_RTL_ETH_DRIVER_REFINE)
 		if (
 			#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 			fast_nat_fw
@@ -3780,13 +3760,11 @@ static int __netif_receive_skb(struct sk_buff *skb)
  */
 int netif_receive_skb(struct sk_buff *skb)
 {
-#if defined(CONFIG_RPS) && defined(CONFIG_RTL_USB_IP_HOST_SPEEDUP)
-    struct iphdr *iph = NULL;
-#endif
 	net_timestamp_check(netdev_tstamp_prequeue, skb);
 #if defined(CONFIG_RPS) && defined(CONFIG_RTL_USB_IP_HOST_SPEEDUP)
-	iph = (struct iphdr *)skb->data;
+	struct iphdr *iph = (struct iphdr *)skb->data;
 #endif
+
 
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;

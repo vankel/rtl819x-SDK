@@ -121,9 +121,8 @@ static void bsp_machine_restart(char *command)
 	static void (*back_to_prom)(void) = (void (*)(void)) 0xbfc00000;
 	
 	REG32(BSP_GIMR)=0;
-	
 #ifdef CONFIG_SMP
-    smp_send_stop();
+	smp_send_stop();
 #endif
 	local_irq_disable();
 #ifdef CONFIG_NET    

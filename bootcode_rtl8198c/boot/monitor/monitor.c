@@ -336,7 +336,7 @@ __delay(unsigned long loops)
 
 
 //---------------------------------------------------------------------------
-static volatile unsigned long loops_per_jiffy = (1<<12);
+volatile unsigned long loops_per_jiffy = (1<<12);
 #define LPS_PREC 8
 #define HZ 100
 #ifdef RTL8198
@@ -1056,7 +1056,7 @@ int CmdPhyPageRegR(int argc, char* argv[])
 	if(page > 0)
 		rtl8651_setAsicEthernetPHYReg( phyid, 31, 0  );
 	
-    dprintf("PHYID=0x%x, regID=0x%x, data=0x%x\r\n", phyid, regnum, uid);
+    dprintf("PHYID=0x%x, page=0x%x, regID=0x%x, data=0x%x\r\n", phyid, page, regnum, uid);
 	return 0;
 }
 
@@ -1081,7 +1081,7 @@ int CmdPhyPageRegW(int argc, char* argv[])
 	if(page > 0)
 		rtl8651_setAsicEthernetPHYReg( phyid, 31, 0  );
 
-    dprintf("PHYID=0x%x ,regID=0x%x, read back data=0x%x\r\n", phyid, regnum, uid);
+    dprintf("PHYID=0x%x, page=0x%x, regID=0x%x, read back data=0x%x\r\n", phyid, page, regnum, uid);
 	return 0;
 }
 #endif
@@ -2286,8 +2286,8 @@ COMMAND_TABLE	MainCmdTable[] =
 	{ "MDIOW"   ,0, TestCmd_MDIOW			, "MDIOW:  MDIOW phyid reg data"				}, //wei add, 	
 	{ "PHYR",    2, CmdPHYregR, 			  "PHYR: PHYR <PHYID><reg>"},
 	{ "PHYW",    3, CmdPHYregW, 			  "PHYW: PHYW <PHYID><reg><data>"},
-	{ "PHYPR",   3, CmdPhyPageRegR, 		  "PHYPR: PHYR <PHYID><page><reg>"},
-	{ "PHYPW",   4, CmdPhyPageRegW, 		  "PHYPW: PHYW <PHYID><page><reg><data>"},
+	{ "PHYPR",   3, CmdPhyPageRegR, 		  "PHYPR: PHYPR <PHYID><page><reg>"},
+	{ "PHYPW",   4, CmdPhyPageRegW, 		  "PHYPW: PHYPW <PHYID><page><reg><data>"},
 #endif
 
 #ifndef CONFIG_RTL8196E

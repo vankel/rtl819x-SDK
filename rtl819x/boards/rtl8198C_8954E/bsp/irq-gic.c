@@ -117,8 +117,7 @@ static struct gic_intr_map gic_intr_map[GIC_NUM_INTRS] = {
 #else	
 	{ X, X,            X,           X,              0 },  //19
 #endif
-	{ 0, GIC_CPU_INT0, GIC_POL_POS, GIC_TRIG_LEVEL, GIC_FLAG_TRANSPARENT },  //19  uart 2
-//	{ X, X,            X,           X,              0 },  //20
+	{ X, X,            X,           X,              0 },  //20
 	{ X, X,            X,           X,              0 },  //21
 	{ 0, GIC_CPU_INT0, GIC_POL_POS, GIC_TRIG_LEVEL, GIC_FLAG_TRANSPARENT  },  //22, i2c	
 	{ X, X,            X,           X,              0 },  //23
@@ -146,7 +145,11 @@ static struct gic_intr_map gic_intr_map[GIC_NUM_INTRS] = {
 	{ X, X,            X,           X,              0 },  //35
 	{ X, X,            X,           X,              0 },  //36
 	{ X, X,            X,           X,              0 },  //37
+#ifdef IRQ_SPEEDUP
+	{ 0, GIC_CPU_INT1, GIC_POL_POS, GIC_TRIG_LEVEL, GIC_FLAG_TRANSPARENT  },  //38, sata
+#else	
 	{ 0, GIC_CPU_INT0, GIC_POL_POS, GIC_TRIG_LEVEL, GIC_FLAG_TRANSPARENT  },  //38, sata
+#endif
 
        { X, X,            X,           X,              0 },  //39
 

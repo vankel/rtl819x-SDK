@@ -115,11 +115,6 @@ int BIO_free(BIO *a)
 	if (a == NULL) return(0);
 
 	i=CRYPTO_add(&a->references,-1,CRYPTO_LOCK_BIO);
-	if(i<0)
-	{
-		printf("BIO_free, bad reference count!\n");
-		return 0;
-	}
 #ifdef REF_PRINT
 	REF_PRINT("BIO",a);
 #endif

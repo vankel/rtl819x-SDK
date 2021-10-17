@@ -19,6 +19,8 @@
 
 #include <linux/delay.h>
 
+//#define CONFIG_RTL_FAST_ETH_IOT		1
+
 static uint8 fidHashTable[]={0x00,0x0f,0xf0,0xff};
 
 __DRAM_FWD int32		rtl865x_wanPortMask;
@@ -66,7 +68,10 @@ int phy_link_sts = 0;
 extern uint32 port_link_sts, port_linkpartner_eee;
 #endif
 
-#if defined(RTL8196C_EEE_MAC)
+#if defined(CONFIG_RTL_8196C)
+
+#define RTL8196C_EEE_REFINE		1
+
 int eee_enabled = 1;
 void eee_phy_enable(void);
 void eee_phy_disable(void);
@@ -208,7 +213,7 @@ static void _rtl8651_syncToAsicEthernetBandwidthControl(void);
 static int32 _rtl865xC_QM_init( void );
 #endif
 
-#if defined(RTL8196C_EEE_MAC)
+#if defined(CONFIG_RTL_8196C)
 // EEE PHY -- Page 4
 // register 16
 #define P4R16_eee_10_cap                           (1 << 13)	// enable EEE 10M
@@ -400,6 +405,118 @@ static const unsigned short phy_data_b[]={
   0x3043,  // write, address 68
 };
 
+#ifdef RTL8196C_EEE_REFINE
+void cmp_eee_ram_code(int mode)
+{
+	uint32 reg;
+	int i, len=sizeof(phy_data_b)/sizeof(unsigned short);
+
+	printk(" => comparing eee ram code\n");
+
+	// change to page 4
+	rtl8651_setAsicEthernetPHYReg(4, 31, 4);
+
+	for(i=0;i<5;i++) {
+		rtl8651_getAsicEthernetPHYReg(i, 0x19, &reg );
+		rtl8651_setAsicEthernetPHYReg(i, 0x19, ((reg & ~(P4R25_rg_eeeprg_en)) | P4R25_rg_eeeprg_rst));
+	}
+
+	rtl8651_setAsicEthernetPHYReg(4, 29, 0x0000);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0180);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x017F);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0180);
+
+	for(i=0;i<len;i++) {
+		rtl8651_getAsicEthernetPHYReg(4, 0x1d, &reg);
+		if (mode == 0)
+			printk(" => [%d]  %x\n", i, reg);
+		else if (mode == 1) {
+			if (reg != phy_data_b[i])
+				printk(" => different: idx= %d, readback: %x, expect: %x\n",i, reg, phy_data_b[i]);				
+		}
+	}
+
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x017E);
+	rtl8651_setAsicEthernetPHYReg(4, 29, 0x0001);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x017F);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0180);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0080);
+
+	for(i=0;i<5;i++) {
+		rtl8651_getAsicEthernetPHYReg(i, 0x19, &reg );
+		rtl8651_setAsicEthernetPHYReg(i, 0x19, ((reg & ~(P4R25_rg_eeeprg_rst)) | P4R25_rg_eeeprg_en));
+	}
+
+	// switch to page 0
+	rtl8651_setAsicEthernetPHYReg(4, 31, 0 );
+	printk(" => compare done\n");
+	return;
+}
+
+void set_ram_code_b(void)
+{
+	uint32 reg;
+	int i, len=sizeof(phy_data_b)/sizeof(unsigned short);
+
+	if (ram_code_done)
+		return;
+
+	/* 2. disable all of the fephy access 
+	    wr  0   4  25  0x0760  
+	    wr  1   4  25  0x0760
+	    wr  2   4  25  0x0760
+	    wr  3   4  25  0x0760
+	    wr  4   4  25  0x0760
+	    ( bit 6 = 1  /  bit4 = 0 )
+	 */
+	for(i=0;i<5;i++) {
+		rtl8651_getAsicEthernetPHYReg(i, 0x19, &reg );
+		rtl8651_setAsicEthernetPHYReg(i, 0x19, ((reg & ~(P4R25_rg_eeeprg_en)) | P4R25_rg_eeeprg_rst));
+	}
+	/* 3. enable memory access
+	    wr  4  4  29  0x0000  //  
+           wr  4  4  28  0x0180  //  
+	    wr  4  4  28  0x017F  // mem_mdio_en = 1 / ram bist control = 0x00
+	    wr  4   4  28  0x0180 // mem_mdio_en = 1
+	 */
+	rtl8651_setAsicEthernetPHYReg(4, 29, 0x0000);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0180);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x017F);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0180);
+
+	// 4. start to write patch 
+	for(i=0;i<len;i++) {
+		rtl8651_setAsicEthernetPHYReg(4, 0x1d, phy_data_b[i]);
+	}
+
+	/* 5. disable memory access
+	    wr  4  4  28   0x017E  //
+	    wr  4  4  29   0x0001  //  ram 0x7E  =  0x01
+	    wr  4  4  28   0x017F  //  ram bist control = 0x01
+	    wr  4  4  28   0x0180  //  addr = 0x00	    
+	    wr  4  4  28   0x0080  //  mem_mdio_en = 0
+	 */
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x017E);
+	rtl8651_setAsicEthernetPHYReg(4, 29, 0x0001);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x017F);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0180);
+	rtl8651_setAsicEthernetPHYReg(4, 28, 0x0080);
+
+	/* 6. reenable all of the fephy access
+	    wr  0   4  25  0x0730  
+	    wr  1   4  25  0x0730
+	    wr  2   4  25  0x0730
+	    wr  3   4  25  0x0730
+	    wr  4   4  25  0x0730
+	    ( bit 6 = 0  /  bit4 = 1 )	
+	 */
+	for(i=0;i<5;i++) {
+		rtl8651_getAsicEthernetPHYReg(i, 0x19, &reg );
+		rtl8651_setAsicEthernetPHYReg(i, 0x19, ((reg & ~(P4R25_rg_eeeprg_rst)) | P4R25_rg_eeeprg_en));
+	}
+	ram_code_done = 1;
+}
+#else
 void set_ram_code_b(void)
 {
 	uint32 reg;
@@ -421,6 +538,7 @@ void set_ram_code_b(void)
 
 	ram_code_done = 1;
 }
+#endif
 
 void eee_phy_enable_by_port(int port)
 {
@@ -460,6 +578,19 @@ void eee_phy_enable_by_port(int port)
 	rtl8651_setAsicEthernetPHYReg(port, 31, 0 );
 }
 
+#ifdef RTL8196C_EEE_REFINE
+void eee_phy_enable(void)
+{
+	int i;
+
+	// EEE PHY enable
+	for (i=0; i<MAX_PORT_NUMBER; i++)
+	{
+		eee_phy_enable_by_port(i);
+		rtl8651_restartAsicEthernetPHYNway(i+1);
+	}
+}
+#else
 void eee_phy_enable(void)
 {
 	int i;
@@ -499,6 +630,7 @@ void eee_phy_enable(void)
 		rtl8651_restartAsicEthernetPHYNway(i+1);
 	}
 }
+#endif
 
 void eee_phy_disable(void)
 {
@@ -1119,7 +1251,7 @@ void Set_GPHYWB(unsigned int phyid, unsigned int page, unsigned int reg, unsigne
 void set_gray_code_by_port(int port)
 {
         uint32 val;
-
+ 
         rtl8651_setAsicEthernetPHYReg( 4, 31, 1  );
         rtl8651_getAsicEthernetPHYReg( 4, 20, &val  );
         rtl8651_setAsicEthernetPHYReg( 4, 20, val + (0x1 << port)  );
@@ -1249,8 +1381,10 @@ void Setting_RTL8196C_PHY(void)
 	// for "DSP recovery fail when link partner = force 100F"
 	Set_GPHYWB(999, 4, 26, 0xffff-(0xfff<<4), 0xff8<<4);
 
+#ifdef CONFIG_RTL_FAST_ETH_IOT
 	// fix unlink IOT issue
 	Set_GPHYWB(999, 0, 26, 0xffff-(0x1<<14), 0x0<<14);
+#endif
 
 #ifdef CONFIG_RTL8196C_ETH_IOT
         for(j=0; j<5; j++) {
@@ -3980,8 +4114,10 @@ int Setting_RTL8197D_PHY(void)
 		Set_GPHYWB(999, 4, 25, 0, 0x0730);	 // turn off tx/rx pwr at LPI state
 	}
 
+#ifdef CONFIG_RTL_FAST_ETH_IOT
 	// fix unlink IOT issue
 	Set_GPHYWB(999, 0, 26, 0xffff-(0x1<<14), 0x0<<14);
+#endif
 
 	/* fine tune port on/off threshold to 160/148 */
 	REG32(PBFCR0) = 0x009400A0;
@@ -4169,7 +4305,7 @@ void set_giga_lite(int mode)
 
 #ifdef CONFIG_RTL_GIGA_LITE_REFINE
 static int _8198c_link_speed = 0;
-				
+
 void set_giga_lite2(void)
 {
 	int i, phyid;
@@ -4479,7 +4615,7 @@ void Ado_RamCode(int phyport)
 	//#POLL	a46	21	10	8	3
 	//#wr 0xB82 rg16[4] = 1     // set patch_req
 	//#polling 0xB80 rg16[6] = 1   // patch rdy
-
+    
 	while(1)
 	{
 		rtl8651_setAsicEthernetPHYReg( phyport, 31, 0xa46 );
@@ -5148,7 +5284,7 @@ int Setting_RTL8198C_GPHY(void)
 				Set_GPHYWB(i, 0xbcf, 22, 0, (efuse_value[i]>>8)&0xffff);
 			}
 		}
-	}	
+	}
 	}
 #endif
 
@@ -5291,10 +5427,10 @@ else
 
 void enable_EEE(void)
 {
-#ifdef CONFIG_RTL_8367R_SUPPORT
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 	int i;
 	extern int rtk_eee_portEnable_set(uint32 port, uint32 enable);
-	for (i=0;i<5;i++) {
+	for (i=0;i<EXT_SWITCH_MAX_PHY_PORT;i++) {
 		rtk_eee_portEnable_set(i, 1);
 	}
 #elif defined(CONFIG_RTL_8198)
@@ -5331,9 +5467,34 @@ void enable_EEE(void)
 	REG32(EEECR) = 0x0E739CE7;
 	
 #elif defined(CONFIG_RTL_8196C)
+
+	#ifdef RTL8196C_EEE_REFINE
+	{
+	/* 1. to link down all of the PHY */
+	uint32 reg;
+	 
+	for(i=0; i<RTL8651_PHY_NUMBER; i++) {
+		rtl8651_getAsicEthernetPHYReg( i, 0, &reg );
+		reg |= (POWER_DOWN); 
+		rtl8651_setAsicEthernetPHYReg( i, 0, reg );
+	}	 
+
 	for(i=0; i<RTL8651_PHY_NUMBER; i++) {
 		eee_phy_enable_by_port(i);
 	}
+
+	/* 7. set PHY POWER_DOWN=0 */	 
+	for(i=0; i<RTL8651_PHY_NUMBER; i++) {
+		rtl8651_getAsicEthernetPHYReg( i, 0, &reg );
+		reg &= (~POWER_DOWN); 
+		rtl8651_setAsicEthernetPHYReg( i, 0, reg );
+	}	
+	}
+	#else
+	for(i=0; i<RTL8651_PHY_NUMBER; i++) {
+		eee_phy_enable_by_port(i);
+	}
+	#endif
 
 	// set FRC_P0_EEE_100, EN_P0_TX_EEE and EN_P0_RX_EEE
 	//REG32(EEECR) = 0x0E739CE7;		// consult with Jim and Anson, we do not use this setting.
@@ -5360,10 +5521,10 @@ void enable_EEE(void)
 
 void disable_EEE(void)
 {
-#ifdef CONFIG_RTL_8367R_SUPPORT
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 	int i;
 	extern int rtk_eee_portEnable_set(uint32 port, uint32 enable);
-	for (i=0;i<5;i++) {
+	for (i=0;i<EXT_SWITCH_MAX_PHY_PORT;i++) {
 		rtk_eee_portEnable_set(i, 0);
 	}
 #elif defined(CONFIG_RTL_8198)
@@ -5433,24 +5594,12 @@ void set_8198C_EEE(int mode, uint32 port_mask)
 }
 #endif
 
-#ifdef CONFIG_RTL_8367R_SUPPORT
-extern int32 smi_init(uint32 port, uint32 pinSCK, uint32 pinSDA);
-extern int RTL8367R_init(void);
-extern int rtk_vlan_init(void);
-#if defined(CONFIG_RTK_VLAN_SUPPORT)
-extern int rtk_filter_igrAcl_init(void);
-#endif
-
-// for linking issue of \linux-2.6.30\net\rtl\fastpath\9xD\filter.S 
-#if !defined(CONFIG_RTL_IGMP_SNOOPING)
-int igmp_delete_init_netlink(void) { return 0; }
-#endif
-
-	#define REG_IOCFG_GPIO		0x00000018
+#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
+#define REG_IOCFG_GPIO		0x00000018
 	
-	/* define GPIO port */
-	enum GPIO_PORT
-	{
+/* define GPIO port */
+enum GPIO_PORT
+{
 	GPIO_PORT_A = 0,
 	GPIO_PORT_B,
 	GPIO_PORT_C,
@@ -5461,28 +5610,40 @@ int igmp_delete_init_netlink(void) { return 0; }
 	GPIO_PORT_H,
 	GPIO_PORT_I,
 	GPIO_PORT_MAX,
-	};
+};
+
+extern int32 smi_init(uint32 port, uint32 pinSCK, uint32 pinSDA);
+extern int rtk_vlan_init(void);
+#endif
+
+#ifdef CONFIG_RTL_8367R_SUPPORT
+extern int RTL8367R_init(void);
+#if defined(CONFIG_RTK_VLAN_SUPPORT)
+extern int rtk_filter_igrAcl_init(void);
+#endif
+
+// for linking issue of \linux-2.6.30\net\rtl\fastpath\9xD\filter.S 
+#if !defined(CONFIG_RTL_IGMP_SNOOPING)
+int igmp_delete_init_netlink(void) { return 0; }
+#endif
 
 void init_8367r(void)
 {
 #ifdef CONFIG_RTL_8881A
-int i=0;
-int ret=0;
+	int i=0;
+	int ret=0;
 	REG32(0xb8000044) |=  (3<<12); // reg_iocfg_fcs1, set to GPIO mode
 	REG32(PABCD_CNR) &= (~(0x00004000)); //set GPIO pin, A1
 	REG32(PABCD_DIR) |= (0x00004000); //output pin
 
 	for (i=0; i<3; i++) 
 	{
-#if 1
-	// for 8367r h/w reset pin
-		{
+		// for 8367r h/w reset pin
 		REG32(PABCD_DAT) &= (~(0x00004000)); 
 		mdelay(1000);
 		REG32(PABCD_DAT) |= (0x00004000); 
 		mdelay(1000);
-		}
-#endif	
+
 		// set to GPIO mode
 		#ifndef CONFIG_MTD_NAND 
 		REG32(PIN_MUX_SEL)=0xc;// ((REG32(PIN_MUX_SEL)&(~(7<<2))|0x3<<2));
@@ -5536,11 +5697,57 @@ int ret=0;
 	// clear mib counter
 	rtk_stat_global_reset();
 
+#ifdef CONFIG_RTL_CPU_TAG
 	RTL8367R_vlan_set();
 	RTL8367R_cpu_tag(1);
+#endif
+
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
 	rtk_filter_igrAcl_init();
 #endif
+}
+#endif
+
+#ifdef CONFIG_RTL_8370_SUPPORT
+extern int RTL8370_init(void);
+
+void init_8370(void)
+{	
+	int ret, i;
+
+	REG32(PIN_MUX_SEL) |=  (3<<12); // reg_iocfg_fcs1, set to GPIO mode
+	REG32(PABCD_CNR) &= (~(0x00000002)); //set GPIO pin, A1
+	REG32(PABCD_DIR) |= (0x00000002); //output pin
+
+	for (i=0; i<3; i++) {
+		// for 8370 h/w reset pin
+		REG32(PABCD_DAT) &= ~(0x00000002); 
+		mdelay(1000);
+
+		REG32(PABCD_DAT) |= (0x00000002); 
+		mdelay(1000);
+
+		// set to GPIO mode
+		REG32(PIN_MUX_SEL) |= (0x3c000000); // bit 27~26 = 0b11, bit 29~28 = 0b11
+
+		//MA22(GPIOC5) => clock
+		//MA21(GPIOC4) => IO
+		// MDC: C5, MDIO: C4
+		WRITE_MEM32(PEFGH_CNR, READ_MEM32(PEFGH_CNR) & (~(0x00300000)));	//set GPIO pin, C5 and C4
+		WRITE_MEM32(PEFGH_DIR, READ_MEM32(PEFGH_DIR) | ((0x00300000))); //output pin
+
+		smi_init(GPIO_PORT_C, 5, 4);
+	
+		ret = RTL8370_init();
+		if (ret == 0) 
+			break;
+	}
+
+	// 8370_VLAN
+	rtk_vlan_init();
+
+	// clear mib counter
+	rtk_stat_global_reset();
 }
 #endif
 
@@ -5726,6 +5933,10 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	init_8367r();
 #endif
 
+#ifdef CONFIG_RTL_8370_SUPPORT
+	init_8370();
+#endif
+
 	/* 	2006.12.12
 		We turn on bit.10 (ENATT2LOG).
 
@@ -5800,13 +6011,8 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (7<<15) );  //S0-S3, P0-P1
 	
 	#else
-	#if defined(CONFIG_I2C_GPIO_MFI_COPROCESSOR_DRIVER)
-	REG32(PIN_MUX_SEL) &= ~( (1<<15) ); 
-	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
-	#else
 	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
 	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
-	#endif
 	#endif
 	REG32(LEDCREG)  = (2<<20) | (0<<18) | (0<<16) | (0<<14) | (0<<12) | (0<<10) | (0<<8);  //P0-P5
 
@@ -5821,7 +6027,7 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	//REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
 	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) );  //LED0~LED4
 
-	#elif defined(CONFIG_RTL_8367R_SUPPORT)
+	#elif defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (1<<15) );
 	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
 	
@@ -5829,24 +6035,12 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	#ifndef CONFIG_MTD_NAND
 	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
 	#endif
-	#if defined(CONFIG_RTL_8196E) && defined(CONFIG_APPLE_MFI_SUPPORT)
-		
-		if (((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196E3))
-		{
-			REG32(PIN_MUX_SEL2) &= ~ ((3<<12) | (7<<15) );  //P4
-		}
-		else if (((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196EU3))
-		{
-			REG32(PIN_MUX_SEL2) &= ~ ((7<<15)); 
-		}
-		else
-			REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
-		
-	#else
-		REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+#if defined(CONFIG_RTL_96E_GPIOB5_RESET)
+	REG32(PIN_MUX_SEL2) &= ~ ((3<<12));  
+#else
+	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+#endif
 	#endif
-	#endif
-	
 	REG32(LEDCREG)  = (2<<20) | (0<<18) | (0<<16) | (0<<14) | (0<<12) | (0<<10) | (0<<8);  //P0-P5
 
 #elif defined (CONFIG_RTL_8198C)
@@ -5987,7 +6181,7 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	/* ===============================
 	 	EEE setup
 	    =============================== */
-#if defined(CONFIG_RTL_EEE_DISABLED) ||defined(CONFIG_MP_PSD_SUPPORT)	
+#if defined(CONFIG_RTL_EEE_DISABLED) || defined(CONFIG_MP_PSD_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 	eee_enabled = 0;
 #else
 	eee_enabled = 1;
@@ -6260,7 +6454,7 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 
 	P0phymode=1;
 
-#if (defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)) || defined(CONFIG_RTL_8367R_SUPPORT)
+#if (defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)) || defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 	P0phymode = 3;
 
 #elif defined(CONFIG_RTL_8196E)
@@ -6281,11 +6475,12 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	{
 		P0miimode=Get_P0_MiiMode();
 
-	#if (defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D))  || defined(CONFIG_RTL_8367R_SUPPORT)
+	#if (defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D))  || defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 		P0miimode = 3;
 	#endif
 
-		REG32(PCRP0) |=  (0x06 << ExtPHYID_OFFSET) | MIIcfg_RXER |  EnablePHYIf | MacSwReset;	//external
+		REG32(PCRP0) = (REG32(PCRP0) & ~(ExtPHYID_MASK)) | (P0_EXT_PHY_ID << ExtPHYID_OFFSET)
+						| MIIcfg_RXER |  EnablePHYIf | MacSwReset;	//external
 
 		if(P0miimode==0)
 			REG32_ANDOR(P0GMIICR, ~(3<<23)  , LINK_MII_PHY<<23);
@@ -6301,7 +6496,7 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 			P0txdly=Get_P0_TxDelay();
 			P0rxdly=Get_P0_RxDelay();
 
-			#if defined(CONFIG_RTL_8367R_SUPPORT)
+			#if defined(CONFIG_RTL_8367R_SUPPORT) || defined(CONFIG_RTL_8370_SUPPORT)
 			P0txdly = 1;
 			P0rxdly = 5;
 			#endif
@@ -6327,7 +6522,7 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 				mdelay(30);
 				//__delay(50000);
 
-				rtl8651_getAsicEthernetPHYReg(0x6, 0, &reg_tmp);//Learning PHY ID
+				rtl8651_getAsicEthernetPHYReg(P0_EXT_PHY_ID, 0, &reg_tmp);//Learning PHY ID
 
 				for(i=0; i<5; i++)
 					REG32(PCRP0+i*4) &= ~(EnForceMode);
@@ -6335,10 +6530,12 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 		}
 
 #if defined(CONFIG_RTL_8367R_SUPPORT)
+#ifdef CONFIG_RTL_CPU_TAG
 		REG32(P0GMIICR) |= (CFG_CPUC_TAG|CFG_TX_CPUC_TAG);
 
 		// enable port 0 router mode
 		REG32(MACCR1) |= PORT0_ROUTER_MODE;        	
+#endif
 #endif
 
 		if(P0miimode==0)
@@ -6494,20 +6691,6 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	}
 #endif
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-#if defined(PATCH_GPIO_FOR_LED)
-	REG32(PIN_MUX_SEL2) |= (0x3FFF);
-#endif
-#endif
-
-#if defined(CONFIG_RTL_8881A)
-
-  #if !defined(CONFIG_RTL_8367R_SUPPORT)
-    REG32(PIN_MUX_SEL) |= 0x180;
-    //panic_printk("MUX==>%x",REG32(PIN_MUX_SEL));
-  #endif
-#endif
-
 #if defined(CONFIG_RTL_8198C)
 	// for the board which has 512Mbytes RAM
 	REG32(DMA_CR0) |= (1 << HsbAddrMark_OFFSET);
@@ -6515,11 +6698,23 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	#if defined(PATCH_GPIO_FOR_LED)
 	REG32(PIN_MUX_SEL3) = (REG32(PIN_MUX_SEL3) & ~0x7FFF) | (0x36DB);
 	#endif
-#endif
 
-#if defined(CONFIG_RTL_8198C)
 	/*fix jwj: let ipv6 with exten header to cpu*/
 	REG32(IPV6CR1) = (REG32(IPV6CR1) & ~0x3) | (0x3);
+
+#elif defined(CONFIG_RTL_8881A)
+	#if !defined(CONFIG_RTL_8367R_SUPPORT)
+	REG32(PIN_MUX_SEL) |= 0x180;
+	#endif
+
+	#if defined(PATCH_GPIO_FOR_LED)
+	REG32(PIN_MUX_SEL2) = (REG32(PIN_MUX_SEL2) & ~(0x3FFF)) | (0x36DB);
+	#endif
+
+#elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	#if defined(PATCH_GPIO_FOR_LED)
+	REG32(PIN_MUX_SEL2) |= (0x3FFF);
+	#endif
 #endif
 
 	return SUCCESS;

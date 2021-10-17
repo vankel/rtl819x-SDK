@@ -89,6 +89,13 @@ extern unsigned int brIgmpModuleIndex_2;
 
 struct rtl865x_ReservedMCastRecord reservedMCastRecord[MAX_RESERVED_MULTICAST_NUM];
 
+#if defined(CONFIG_RTL_8370_SUPPORT)
+static uint32 wait_mac=0;
+static uint32 saved_groupAddress;
+static uint32 saved_clientAddr;
+void rtl8370L2McastAddrUpdate(int mode, uint32 groupAddress, uint32 clientAddr, uint8 *mac);
+#endif
+
 /*******************************internal function declaration*****************************/
 
 
@@ -550,6 +557,17 @@ static int32 rtl_setClientMacAddr(struct rtl_macFrameInfo *macFrameInfo)
 							if(memcmp(clientEntryPtr->clientAddr, macFrameInfo->srcIpAddr,4)==0)
 							{
 								memcpy(clientEntryPtr->clientMacAddr,macFrameInfo->srcMacAddr,6);	
+#if defined(CONFIG_RTL_8370_SUPPORT)
+								if ((wait_mac == 1) &&
+									(groupEntryPtr->groupAddr[0] == saved_groupAddress) &&
+									(clientEntryPtr->clientAddr[0] == saved_clientAddr)
+									) {
+									wait_mac = 0;
+									//  add/update 8370 L2 multicast entry here
+									rtl8370L2McastAddrUpdate(1, saved_groupAddress, saved_clientAddr, 
+										clientEntryPtr->clientMacAddr);								
+								}
+#endif
 							}
 							clientEntryPtr=clientEntryPtr->next;
 						}
@@ -1941,7 +1959,15 @@ static void rtl_deleteClientEntry(struct rtl_groupEntry* groupEntry,struct rtl_c
 	{
 		return;
 	}
-	
+
+#if defined(CONFIG_RTL_8370_SUPPORT)
+	// delete/update 8370 L2 multicast entry here
+	if (clientEntry->portNum == 0) {
+		rtl8370L2McastAddrUpdate(2, groupEntry->groupAddr[0], clientEntry->clientAddr[0], 
+			clientEntry->clientMacAddr);
+	}
+#endif
+
 	rtl_deleteSourceList(clientEntry);
 	rtl_unlinkClientEntry(groupEntry,clientEntry);
 	rtl_clearClientEntry(clientEntry);
@@ -1968,7 +1994,6 @@ static void rtl_deleteClientList(struct rtl_groupEntry* groupEntry)
 		rtl_deleteClientEntry(groupEntry,clientEntry);
 		clientEntry=nextClientEntry;
 	}
-
 }
 
 
@@ -1976,7 +2001,7 @@ static void rtl_deleteGroupEntry( struct rtl_groupEntry* groupEntry,struct rtl_g
 {	
 	if(groupEntry!=NULL)
 	{
-
+	
 		rtl_deleteClientList(groupEntry);
 		rtl_unlinkGroupEntry(groupEntry, hashTable);
 		rtl_clearGroupEntry(groupEntry);
@@ -3296,6 +3321,19 @@ static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 port
 #else	
 	clientEntry=rtl_searchClientEntry(ipVersion, groupEntry, portNum, clientAddr);
 #endif
+
+#ifdef CONFIG_RTL_8370_SUPPORT
+	// www.iana.org/assignments/multicast-addresses/multicast-addresses.xhtml
+	#define RESERVED_MC_IP1		0xE00000FC	// Link-local Multicast Name Resolution	[RFC4795]
+	if ((portNum == 0)) {
+		if (groupAddress[0] != RESERVED_MC_IP1) {
+			wait_mac = 1;
+			saved_groupAddress = groupAddress[0];
+			saved_clientAddr = *clientAddr;
+		}
+	}
+#endif
+
 	if(clientEntry==NULL)
 	{
 		newClientEntry=rtl_allocateClientEntry();
@@ -3415,7 +3453,6 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 		groupAddress[3]=ntohl(((struct mldv1Pkt *)pktBuf)->mCastAddr[3]);
 	}
 #endif	
-
 	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
 		goto out;
 	
@@ -3435,7 +3472,6 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 
 			if(rtl_mCastModuleArray[moduleIndex].enableFastLeave==TRUE)
 			{
-				
 				rtl_deleteClientEntry(groupEntry, clientEntry);
 			}
 			else
@@ -3518,7 +3554,7 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 	}
 	#endif
 	#endif
-	
+
 #if defined (CONFIG_STATIC_RESERVED_MULTICAST)
 out:	
 #endif
@@ -4203,7 +4239,8 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 			clientEntry->groupFilterTimer=rtl_sysUpSeconds+rtl_mCastTimerParas.lastMemberAgingTime;
 		}
 		
-	}	
+	}
+    //to_in(empty) == leave
 	if(numOfSrc ==0)
 		ClientNum=rtl_getClientNum(moduleIndex,ipVersion,groupEntry,clientEntry);
 	#if defined (CONFIG_STATIC_RESERVED_MULTICAST)
@@ -4261,7 +4298,7 @@ OUT:
 	else{
 		//printk("exist clinetNum :%d\n",ClientNum);
 		return 0;
-	}	
+	}
 	//return SUCCESS;
     #endif
         return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));

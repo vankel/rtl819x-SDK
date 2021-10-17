@@ -378,15 +378,7 @@ void Create_script(char *script_path, char *iface, int network, char *ipaddr, ch
 		return;
 	}
 	if(network==LAN_NETWORK){
-#ifdef CONFIG_AVAHI
-		sprintf(tmpbuf, "%s", "#!/bin/sh\n");
-		write(fh, tmpbuf, strlen(tmpbuf));
-		sprintf(tmpbuf, "echo \"Enter Deconfig Script From BOA Since DONOT Get IP address for  %s\"\n",iface);
-		write(fh, tmpbuf, strlen((char *)tmpbuf));
-#else
 		sprintf((char *)tmpbuf, "%s", "#!/bin/sh\n");
-		write(fh, tmpbuf, strlen((char *)tmpbuf));
-		sprintf((char *)tmpbuf, "ifconfig %s %s\n", iface, ipaddr);
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
 		sprintf((char *)tmpbuf, "ifconfig %s %s netmask %s\n", iface, ipaddr, mask);
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
@@ -400,9 +392,7 @@ void Create_script(char *script_path, char *iface, int network, char *ipaddr, ch
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
 		sprintf((char *)tmpbuf, "%s\n", "init.sh ap wlan_app");
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
-#endif
 	}
-#ifndef CONFIG_AVAHI
 	if(network==WAN_NETWORK){
 		sprintf((char *)tmpbuf, "%s", "#!/bin/sh\n");
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
@@ -416,7 +406,6 @@ void Create_script(char *script_path, char *iface, int network, char *ipaddr, ch
 		write(fh, tmpbuf, strlen((char *)tmpbuf));
 		
 	}
-#endif
 	close(fh);
 }
 #if 0
@@ -470,11 +459,12 @@ extern pid_t find_pid_by_name( char* pidName)
 {
 	DIR *dir;
 	struct dirent *next;
+
 	pid_t pid;
-	
+
 	if ( strcmp(pidName, "init")==0)
 		return 1;
-	
+
 	dir = opendir("/proc");
 	if (!dir) {
 		printf("Cannot open /proc");

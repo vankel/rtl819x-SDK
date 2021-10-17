@@ -384,7 +384,7 @@ struct ppp {
 	struct net	*ppp_net;	/* the net we belong to */
 };
 
-extern void (*sync_tx_pptp_gre_seqno_hook)(void *skb);
+extern void (*sync_tx_pptp_gre_seqno_hook)(struct sk_buff *skb);
 #endif
 #if defined(CUSTOM_RSP_PACKET)
 void register_customRspHook(int *_cusRsp401_func,int *_cusRspTCPFinAck_func,int *_cusRspTCPEndAck_func);
@@ -1019,7 +1019,7 @@ int rtl_call_skb_ndo_start_xmit(struct sk_buff *skb);
 
 void rtl_inc_ppp_stats(struct ppp *ppp, int act, int len);
 
-void rtl_set_skb_tail(struct sk_buff *skb, int offset, int action);
+void *rtl_set_skb_tail(struct sk_buff *skb, int offset, int action);
 struct sk_buff *rtl_ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb, int is_fast_fw);
 int rtl_ppp_start_xmit(struct sk_buff *skb, struct net_device *dev);
 void rtl_set_skb_cb(struct sk_buff *skb, char *value, int len);

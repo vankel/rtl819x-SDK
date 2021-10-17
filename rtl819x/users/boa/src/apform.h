@@ -584,18 +584,18 @@ extern int wlMeshRoutingTable(request *wp, int argc, char **argv);
 extern int wlMeshProxyTable(request *wp, int argc, char **argv);
 extern int wlMeshRootInfo(request *wp, int argc, char **argv);
 extern int wlMeshPortalTable(request *wp, int argc, char **argv);
-#ifdef 	_11s_TEST_MODE_
-extern void formEngineeringMode(request *wp, char *path, char *query);
-extern void formEngineeringMode2(request *wp, char *path, char *query);
-extern int wlRxStatics(request *wp, int argc, char **argv);
-#endif
+
 #ifdef _MESH_ACL_ENABLE_
 extern void formMeshACLSetup(request *wp, char *path, char *query);
 extern int wlMeshAcList(request *wp, int argc, char **argv);
 #endif
 #endif
 //========add for MESH=========
-
+#ifdef FAST_BSS_TRANSITION
+extern void multilang(request *wp, int argc, char **argv);
+extern void SSID_select(request *wp, int argc, char **argv);
+extern void wlFtKhList(request *wp, int argc, char **argv);
+#endif
 extern void formWlanSetup(request *wp, char *path, char *query);
 extern int wlAcList(request *wp, int argc, char **argv);
 extern void formWlAc(request *wp, char *path, char *query);
@@ -651,6 +651,10 @@ extern void formBTFileSetting(request *wp, char * path, char * query);
 extern void formBTNewTorrent(request *wp, char * path, char * query);
 #endif
 
+#ifdef CONFIG_RTL_TRANSMISSION
+extern void formTransmissionBT(request *wp, char * path, char * query);
+#endif
+
 #ifndef NO_ACTION
 extern void run_init_script(char *arg);
 #ifdef REBOOT_CHECK
@@ -676,6 +680,9 @@ extern void formVlan(request *wp, char *path, char *query);
 #endif
 #if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8881A_SELECTIVE)
 extern void formWlanBand2G5G(request *wp, char *path, char *query);
+#endif
+#ifdef FAST_BSS_TRANSITION	
+extern void formFt(request *wp, char *path, char *query);
 #endif
 
 #ifdef HOME_GATEWAY

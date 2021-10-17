@@ -33,7 +33,7 @@ typedef struct _OCTET_STRING {
     unsigned short Length;
 } OCTET_STRING;
 
-/*typedef struct _BssDscr {
+typedef struct _BssDscr {
        unsigned char bdBssId[6];
     unsigned char bdSsIdBuf[SSID_LEN];
     OCTET_STRING  bdSsId;
@@ -60,36 +60,6 @@ typedef struct _OCTET_STRING {
 	unsigned char	p2prole;	
 	unsigned short	p2pwscconfig;		
 	unsigned char	p2paddress[6];	
-} BssDscr, *pBssDscr;*/
-
-typedef struct _BssDscr {
-    unsigned char bdBssId[6];
-    unsigned char bdSsIdBuf[SSID_LEN];
-    OCTET_STRING  bdSsId;
-
-#if defined(CONFIG_RTK_MESH) || defined(CONFIG_RTL_819X) 
-	//by GANTOE for site survey 2008/12/26
-	unsigned char bdMeshIdBuf[MESHID_LEN]; 
-	OCTET_STRING bdMeshId; 
-#endif 
-    BssType bdType;
-    unsigned short bdBcnPer;			// beacon period in Time Units
-    unsigned char bdDtimPer;			// DTIM period in beacon periods
-    unsigned long bdTstamp[2];			// 8 Octets from ProbeRsp/Beacon
-    IbssParms bdIbssParms;			// empty if infrastructure BSS
-    unsigned short bdCap;				// capability information
-    unsigned char ChannelNumber;			// channel number
-    unsigned long bdBrates;
-    unsigned long bdSupportRates;		
-    unsigned char bdsa[6];			// SA address
-    unsigned char rssi, sq;			// RSSI and signal strength
-    unsigned char network;			// 1: 11B, 2: 11G, 4:11G
-	// P2P_SUPPORT
-	unsigned char	p2pdevname[33];		
-	unsigned char	p2prole;	
-	unsigned short	p2pwscconfig;		
-	unsigned char	p2paddress[6];	
-	unsigned char	stage;	    
 } BssDscr, *pBssDscr;
 
 

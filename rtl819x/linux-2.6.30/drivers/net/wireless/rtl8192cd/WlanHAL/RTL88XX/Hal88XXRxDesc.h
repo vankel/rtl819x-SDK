@@ -38,6 +38,9 @@ typedef struct _RX_BUFFER_DESCRIPTOR_
 typedef struct _HCI_RX_DMA_QUEUE_STRUCT_88XX_
 {
     PRX_BUFFER_DESCRIPTOR   pRXBD_head;
+#ifdef CONFIG_NET_PCI
+    unsigned long rxbd_dma_addr;
+#endif
 
     u2Byte                  hw_idx;         //Mapping to HW register
     u2Byte	                host_idx;       //Mapping to HW register 
@@ -151,6 +154,9 @@ PrepareRXBD88XX(
 
 void DumpRxBDesc88XX(
     IN      HAL_PADAPTER    Adapter,
+#ifdef CONFIG_RTL_PROC_NEW
+    IN      struct seq_file *s,
+#endif
     IN      u4Byte          q_num 
 );
 

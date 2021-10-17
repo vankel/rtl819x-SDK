@@ -950,7 +950,7 @@ COMMAND DESCRIPTIONS
                 2417    .
 
     dumpkmap
-        dumpkmap > keymap
+        dumpkmap
 
         Print a binary keyboard translation table to standard output
 
@@ -1725,14 +1725,14 @@ COMMAND DESCRIPTIONS
                   # ifenslave bond0 eth0 eth1 eth2
                   If bond0 didn't have a MAC address, it will take eth0's. Then, all
                   interfaces attached AFTER this assignment will get the same MAC addr.
-        
-                  To detach a dead interface without setting the bond device down :
+                
+          To detach a dead interface without setting the bond device down :
                    # ifenslave -d bond0 eth1
-        
-                  To set the bond device down and automatically release all the slaves :
+                
+          To set the bond device down and automatically release all the slaves :
                    # ifconfig bond0 down
-        
-                  To change active slave :
+                
+          To change active slave :
                    # ifenslave -c bond0 eth0
 
     ifup
@@ -1862,8 +1862,8 @@ COMMAND DESCRIPTIONS
                 # This is run first except when booting in single-user mode
                 #
                 ::sysinit:/etc/init.d/rcS
-        
-                # /bin/sh invocations on selected ttys
+                
+        # /bin/sh invocations on selected ttys
                 #
                 # Start an "askfirst" shell on the console (whatever that may be)
                 ::askfirst:-/bin/sh
@@ -1871,25 +1871,25 @@ COMMAND DESCRIPTIONS
                 tty2::askfirst:-/bin/sh
                 tty3::askfirst:-/bin/sh
                 tty4::askfirst:-/bin/sh
-        
-                # /sbin/getty invocations for selected ttys
+                
+        # /sbin/getty invocations for selected ttys
                 #
                 tty4::respawn:/sbin/getty 38400 tty4
                 tty5::respawn:/sbin/getty 38400 tty5
+                
         
-        
-                # Example of how to put a getty on a serial line (for a terminal)
+        # Example of how to put a getty on a serial line (for a terminal)
                 #
                 #::respawn:/sbin/getty -L ttyS0 9600 vt100
                 #::respawn:/sbin/getty -L ttyS1 9600 vt100
                 #
                 # Example how to put a getty on a modem line
                 #::respawn:/sbin/getty 57600 ttyS2
-        
-                # Stuff to do when restarting the init process
+                
+        # Stuff to do when restarting the init process
                 ::restart:/sbin/init
-        
-                # Stuff to do before rebooting
+                
+        # Stuff to do before rebooting
                 ::ctrlaltdel:/sbin/reboot
                 ::shutdown:/bin/umount -a -r
                 ::shutdown:/sbin/swapoff -a
@@ -2399,8 +2399,8 @@ COMMAND DESCRIPTIONS
                 /dev/zero    c   666    0    0    1      5      0      0    -
                 /dev/hda     b   640    0    0    3      0      0      0    -
                 /dev/hda     b   640    0    0    3      1      1      1    15
-        
-                Will Produce:
+                
+        Will Produce:
                 /dev
                 /dev/console
                 /dev/null
@@ -2693,28 +2693,28 @@ COMMAND DESCRIPTIONS
         Example:
 
                 (with the above /etc/modules.conf):
-        
-                $ modprobe tulip
+                
+        $ modprobe tulip
                    will load the module 'tulip' with default option 'irq=3'
-        
-                $ modprobe tulip irq=5
+                
+        $ modprobe tulip irq=5
                    will load the module 'tulip' with option 'irq=5', thus overriding the default
-        
-                $ modprobe tulip2
+                
+        $ modprobe tulip2
                    will load the module 'tulip' with default options 'irq=4 io=0x308',
                    which are the default for alias 'tulip2'
-        
-                $ modprobe tulip2 irq=8
+                
+        $ modprobe tulip2 irq=8
                    will load the module 'tulip' with default options 'irq=4 io=0x308 irq=8',
                    which are the default for alias 'tulip2' overridden by the option 'irq=8'
-        
-                   from the command line
-        
-                $ modprobe tulip2 irq=2 io=0x210
+                
+           from the command line
+                
+        $ modprobe tulip2 irq=2 io=0x210
                    will load the module 'tulip' with default options 'irq=4 io=0x308 irq=4 io=0x210',
                    which are the default for alias 'tulip2' overridden by the options 'irq=2 io=0x210'
-        
-                   from the command line
+                
+           from the command line
 
     more
         more [FILE...]
@@ -2945,8 +2945,8 @@ COMMAND DESCRIPTIONS
                 $ nslookup localhost
                 Server:     default
                 Address:    default
-        
-                Name:       debian
+                
+        Name:       debian
                 Address:    127.0.0.1
 
     od  od [-aBbcDdeFfHhIiLlOovXx] [-t TYPE] [FILE]
@@ -3056,8 +3056,8 @@ COMMAND DESCRIPTIONS
                 $ ping localhost
                 PING slag (127.0.0.1): 56 data bytes
                 64 bytes from 127.0.0.1: icmp_seq=0 ttl=255 time=20.1 ms
-        
-                --- debian ping statistics ---
+                
+        --- debian ping statistics ---
                 1 packets transmitted, 1 packets received, 0% packet loss
                 round-trip min/avg/max = 20.1/20.1/20.1 ms
 
@@ -3079,8 +3079,8 @@ COMMAND DESCRIPTIONS
                 $ ping6 ip6-localhost
                 PING ip6-localhost (::1): 56 data bytes
                 64 bytes from ::1: icmp6_seq=0 ttl=64 time=20.1 ms
-        
-                --- ip6-localhost ping statistics ---
+                
+        --- ip6-localhost ping statistics ---
                 1 packets transmitted, 1 packets received, 0% packet loss
                 round-trip min/avg/max = 20.1/20.1/20.1 ms
 
@@ -3442,16 +3442,16 @@ COMMAND DESCRIPTIONS
 
                 $ run-parts -a start /etc/init.d
                 $ run-parts -a stop=now /etc/init.d
-        
-                Let's assume you have a script foo/dosomething:
+                
+        Let's assume you have a script foo/dosomething:
                 #!/bin/sh
                 for i in $*; do eval $i; done; unset i
                 case "$1" in
                 start*) echo starting something;;
                 stop*) set -x; shutdown -h $stop;;
                 esac
-        
-                Running this yields:
+                
+        Running this yields:
                 $run-parts -a stop=+4m foo/
                 + shutdown -h +4m
 
@@ -4952,4 +4952,857 @@ AUTHORS
     Tito Ragusa <farmatito@tiscali.it>
 
             devfsd and size optimizations in strings, openvt and deallocvt.
+
+POD ERRORS
+    Hey! The above document had some coding errors, which are explained
+    below:
+
+    Around line 129:
+        Unterminated B<...> sequence
+
+    Around line 141:
+        Unterminated B<...> sequence
+
+    Around line 159:
+        Unterminated B<...> sequence
+
+    Around line 176:
+        Unterminated B<...> sequence
+
+    Around line 192:
+        Unterminated B<...> sequence
+
+    Around line 218:
+        Unterminated B<...> sequence
+
+    Around line 240:
+        Unterminated B<...> sequence
+
+    Around line 248:
+        Unterminated B<...> sequence
+
+    Around line 260:
+        Unterminated B<...> sequence
+
+    Around line 278:
+        Unterminated B<...> sequence
+
+    Around line 286:
+        Unterminated B<...> sequence
+
+    Around line 295:
+        Unterminated B<...> sequence
+
+    Around line 303:
+        Unterminated B<...> sequence
+
+    Around line 327:
+        Unterminated B<...> sequence
+
+    Around line 340:
+        Unterminated B<...> sequence
+
+    Around line 351:
+        Unterminated B<...> sequence
+
+    Around line 359:
+        Unterminated B<...> sequence
+
+    Around line 375:
+        Unterminated B<...> sequence
+
+    Around line 388:
+        Unterminated B<...> sequence
+
+    Around line 405:
+        Unterminated B<...> sequence
+
+    Around line 419:
+        Unterminated B<...> sequence
+
+    Around line 430:
+        Unterminated B<...> sequence
+
+    Around line 461:
+        Unterminated B<...> sequence
+
+    Around line 482:
+        Unterminated B<...> sequence
+
+    Around line 509:
+        Unterminated B<...> sequence
+
+    Around line 536:
+        Unterminated B<...> sequence
+
+    Around line 566:
+        Unterminated B<...> sequence
+
+    Around line 579:
+        Unterminated B<...> sequence
+
+    Around line 609:
+        Unterminated B<...> sequence
+
+    Around line 626:
+        Unterminated B<...> sequence
+
+    Around line 648:
+        Unterminated B<...> sequence
+
+    Around line 656:
+        Unterminated B<...> sequence
+
+    Around line 664:
+        Unterminated B<...> sequence
+
+    Around line 672:
+        Unterminated B<...> sequence
+
+    Around line 686:
+        Unterminated B<...> sequence
+
+    Around line 700:
+        Unterminated B<...> sequence
+
+    Around line 720:
+        Unterminated B<...> sequence
+
+    Around line 739:
+        Unterminated B<...> sequence
+
+    Around line 753:
+        Unterminated B<...> sequence
+
+    Around line 766:
+        Unterminated B<...> sequence
+
+    Around line 779:
+        Unterminated B<...> sequence
+
+    Around line 787:
+        Unterminated B<...> sequence
+
+    Around line 811:
+        Unterminated B<...> sequence
+
+    Around line 844:
+        Unterminated B<...> sequence
+
+    Around line 870:
+        Unterminated B<...> sequence
+
+    Around line 911:
+        Unterminated B<...> sequence
+
+    Around line 919:
+        Unterminated B<...> sequence
+
+    Around line 927:
+        Unterminated B<...> sequence
+
+    Around line 935:
+        Unterminated B<...> sequence
+
+    Around line 953:
+        Unterminated B<...> sequence
+
+    Around line 965:
+        Unterminated B<...> sequence
+
+    Around line 1008:
+        Unterminated B<...> sequence
+
+    Around line 1034:
+        Unterminated B<...> sequence
+
+    Around line 1049:
+        Unterminated B<...> sequence
+
+    Around line 1063:
+        Unterminated B<...> sequence
+
+    Around line 1079:
+        Unterminated B<...> sequence
+
+    Around line 1093:
+        Unterminated B<...> sequence
+
+    Around line 1111:
+        Unterminated B<...> sequence
+
+    Around line 1131:
+        Unterminated B<...> sequence
+
+    Around line 1168:
+        Unterminated B<...> sequence
+
+    Around line 1194:
+        Unterminated B<...> sequence
+
+    Around line 1216:
+        Unterminated B<...> sequence
+
+    Around line 1241:
+        Unterminated B<...> sequence
+
+    Around line 1249:
+        Unterminated B<...> sequence
+
+    Around line 1257:
+        Unterminated B<...> sequence
+
+    Around line 1271:
+        Unterminated B<...> sequence
+
+    Around line 1285:
+        Unterminated B<...> sequence
+
+    Around line 1318:
+        Unterminated B<...> sequence
+
+    Around line 1331:
+        Unterminated B<...> sequence
+
+    Around line 1386:
+        Unterminated B<...> sequence
+
+    Around line 1400:
+        Unterminated B<...> sequence
+
+    Around line 1419:
+        Unterminated B<...> sequence
+
+    Around line 1436:
+        Unterminated B<...> sequence
+
+    Around line 1444:
+        Unterminated B<...> sequence
+
+    Around line 1456:
+        Unterminated B<...> sequence
+
+    Around line 1475:
+        Unterminated B<...> sequence
+
+    Around line 1483:
+        Unterminated B<...> sequence
+
+    Around line 1531:
+        Unterminated B<...> sequence
+
+    Around line 1543:
+        Unterminated B<...> sequence
+
+    Around line 1558:
+        Unterminated B<...> sequence
+
+    Around line 1586:
+        Unterminated B<...> sequence
+
+    Around line 1623:
+        Unterminated B<...> sequence
+
+    Around line 1639:
+        Unterminated B<...> sequence
+
+    Around line 1654:
+        Unterminated B<...> sequence
+
+    Around line 1679:
+        Unterminated B<...> sequence
+
+    Around line 1727:
+        Unterminated B<...> sequence
+
+    Around line 1749:
+        Unterminated B<...> sequence
+
+    Around line 1788:
+        Unterminated B<...> sequence
+
+    Around line 1810:
+        Unterminated B<...> sequence
+
+    Around line 1832:
+        Unterminated B<...> sequence
+
+    Around line 1847:
+        Unterminated B<...> sequence
+
+    Around line 1855:
+        Unterminated B<...> sequence
+
+    Around line 1903:
+        Unterminated B<...> sequence
+
+    Around line 1926:
+        Unterminated B<...> sequence
+
+    Around line 1949:
+        Unterminated B<...> sequence
+
+    Around line 1957:
+        Unterminated B<...> sequence
+
+    Around line 1978:
+        Unterminated B<...> sequence
+
+    Around line 2000:
+        Unterminated B<...> sequence
+
+    Around line 2008:
+        Unterminated B<...> sequence
+
+    Around line 2025:
+        Unterminated B<...> sequence
+
+    Around line 2047:
+        Unterminated B<...> sequence
+
+    Around line 2068:
+        Unterminated B<...> sequence
+
+    Around line 2120:
+        Unterminated B<...> sequence
+
+    Around line 2136:
+        Unterminated B<...> sequence
+
+    Around line 2152:
+        Unterminated B<...> sequence
+
+    Around line 2287:
+        Unterminated B<...> sequence
+
+    Around line 2314:
+        Unterminated B<...> sequence
+
+    Around line 2333:
+        Unterminated B<...> sequence
+
+    Around line 2353:
+        Unterminated B<...> sequence
+
+    Around line 2363:
+        Unterminated B<...> sequence
+
+    Around line 2379:
+        Unterminated B<...> sequence
+
+    Around line 2396:
+        Unterminated B<...> sequence
+
+    Around line 2411:
+        Unterminated B<...> sequence
+
+    Around line 2432:
+        Unterminated B<...> sequence
+
+    Around line 2444:
+        Unterminated B<...> sequence
+
+    Around line 2461:
+        Unterminated B<...> sequence
+
+    Around line 2476:
+        Unterminated B<...> sequence
+
+    Around line 2490:
+        Unterminated B<...> sequence
+
+    Around line 2506:
+        Unterminated B<...> sequence
+
+    Around line 2530:
+        Unterminated B<...> sequence
+
+    Around line 2548:
+        Unterminated B<...> sequence
+
+    Around line 2561:
+        Unterminated B<...> sequence
+
+    Around line 2574:
+        Unterminated B<...> sequence
+
+    Around line 2583:
+        Unterminated B<...> sequence
+
+    Around line 2597:
+        Unterminated B<...> sequence
+
+    Around line 2610:
+        Unterminated B<...> sequence
+
+    Around line 2628:
+        Unterminated B<...> sequence
+
+    Around line 2636:
+        Unterminated B<...> sequence
+
+    Around line 2644:
+        Unterminated B<...> sequence
+
+    Around line 2652:
+        Unterminated B<...> sequence
+
+    Around line 2683:
+        Unterminated B<...> sequence
+
+    Around line 2697:
+        Unterminated B<...> sequence
+
+    Around line 2712:
+        Unterminated B<...> sequence
+
+    Around line 2730:
+        Unterminated B<...> sequence
+
+    Around line 2744:
+        Unterminated B<...> sequence
+
+    Around line 2757:
+        Unterminated B<...> sequence
+
+    Around line 2769:
+        Unterminated B<...> sequence
+
+    Around line 2793:
+        Unterminated B<...> sequence
+
+    Around line 2808:
+        Unterminated B<...> sequence
+
+    Around line 2821:
+        Unterminated B<...> sequence
+
+    Around line 2834:
+        Unterminated B<...> sequence
+
+    Around line 2874:
+        Unterminated B<...> sequence
+
+    Around line 2890:
+        Unterminated B<...> sequence
+
+    Around line 2898:
+        Unterminated B<...> sequence
+
+    Around line 2906:
+        Unterminated B<...> sequence
+
+    Around line 2945:
+        Unterminated B<...> sequence
+
+    Around line 2960:
+        Unterminated B<...> sequence
+
+    Around line 2985:
+        Unterminated B<...> sequence
+
+    Around line 3011:
+        Unterminated B<...> sequence
+
+    Around line 3044:
+        Unterminated B<...> sequence
+
+    Around line 3055:
+        Unterminated B<...> sequence
+
+    Around line 3071:
+        Unterminated B<...> sequence
+
+    Around line 3094:
+        Unterminated B<...> sequence
+
+    Around line 3123:
+        Unterminated B<...> sequence
+
+    Around line 3152:
+        Unterminated B<...> sequence
+
+    Around line 3175:
+        Unterminated B<...> sequence
+
+    Around line 3183:
+        Unterminated B<...> sequence
+
+    Around line 3209:
+        Unterminated B<...> sequence
+
+    Around line 3294:
+        Unterminated B<...> sequence
+
+    Around line 3306:
+        Unterminated B<...> sequence
+
+    Around line 3377:
+        Unterminated B<...> sequence
+
+    Around line 3385:
+        Unterminated B<...> sequence
+
+    Around line 3400:
+        Unterminated B<...> sequence
+
+    Around line 3418:
+        Unterminated B<...> sequence
+
+    Around line 3438:
+        Unterminated B<...> sequence
+
+    Around line 3477:
+        Unterminated B<...> sequence
+
+    Around line 3499:
+        Unterminated B<...> sequence
+
+    Around line 3511:
+        Unterminated B<...> sequence
+
+    Around line 3542:
+        Unterminated B<...> sequence
+
+    Around line 3554:
+        Unterminated B<...> sequence
+
+    Around line 3572:
+        Unterminated B<...> sequence
+
+    Around line 3581:
+        Unterminated B<...> sequence
+
+    Around line 3600:
+        Unterminated B<...> sequence
+
+    Around line 3608:
+        Unterminated B<...> sequence
+
+    Around line 3624:
+        Unterminated B<...> sequence
+
+    Around line 3639:
+        Unterminated B<...> sequence
+
+    Around line 3656:
+        Unterminated B<...> sequence
+
+    Around line 3677:
+        Unterminated B<...> sequence
+
+    Around line 3708:
+        Unterminated B<...> sequence
+
+    Around line 3751:
+        Unterminated B<...> sequence
+
+    Around line 3800:
+        Unterminated B<...> sequence
+
+    Around line 3814:
+        Unterminated B<...> sequence
+
+    Around line 3823:
+        Unterminated B<...> sequence
+
+    Around line 3837:
+        Unterminated B<...> sequence
+
+    Around line 3863:
+        Unterminated B<...> sequence
+
+    Around line 3880:
+        Unterminated B<...> sequence
+
+    Around line 3905:
+        Unterminated B<...> sequence
+
+    Around line 3918:
+        Unterminated B<...> sequence
+
+    Around line 3939:
+        Unterminated B<...> sequence
+
+    Around line 3970:
+        Unterminated B<...> sequence
+
+    Around line 3978:
+        Unterminated B<...> sequence
+
+    Around line 4008:
+        Unterminated B<...> sequence
+
+    Around line 4023:
+        Unterminated B<...> sequence
+
+    Around line 4031:
+        Unterminated B<...> sequence
+
+    Around line 4059:
+        Unterminated B<...> sequence
+
+    Around line 4078:
+        Unterminated B<...> sequence
+
+    Around line 4095:
+        Unterminated B<...> sequence
+
+    Around line 4113:
+        Unterminated B<...> sequence
+
+    Around line 4127:
+        Unterminated B<...> sequence
+
+    Around line 4145:
+        Unterminated B<...> sequence
+
+    Around line 4153:
+        Unterminated B<...> sequence
+
+    Around line 4201:
+        Unterminated B<...> sequence
+
+    Around line 4218:
+        Unterminated B<...> sequence
+
+    Around line 4231:
+        Unterminated B<...> sequence
+
+    Around line 4239:
+        Unterminated B<...> sequence
+
+    Around line 4250:
+        Unterminated B<...> sequence
+
+    Around line 4262:
+        Unterminated B<...> sequence
+
+    Around line 4275:
+        Unterminated B<...> sequence
+
+    Around line 4308:
+        Unterminated B<...> sequence
+
+    Around line 4332:
+        Unterminated B<...> sequence
+
+    Around line 4347:
+        Unterminated B<...> sequence
+
+    Around line 4356:
+        Unterminated B<...> sequence
+
+    Around line 4387:
+        Unterminated B<...> sequence
+
+    Around line 4409:
+        Unterminated B<...> sequence
+
+    Around line 4458:
+        Unterminated B<...> sequence
+
+    Around line 4477:
+        Unterminated B<...> sequence
+
+    Around line 4485:
+        Unterminated B<...> sequence
+
+    Around line 4500:
+        Unterminated B<...> sequence
+
+    Around line 4514:
+        Unterminated B<...> sequence
+
+    Around line 4533:
+        Unterminated B<...> sequence
+
+    Around line 4578:
+        Unterminated B<...> sequence
+
+    Around line 4620:
+        Unterminated B<...> sequence
+
+    Around line 4685:
+        Unterminated B<...> sequence
+
+    Around line 4746:
+        Unterminated B<...> sequence
+
+    Around line 4761:
+        Unterminated B<...> sequence
+
+    Around line 4777:
+        Unterminated B<...> sequence
+
+    Around line 4791:
+        Unterminated B<...> sequence
+
+    Around line 4803:
+        Unterminated B<...> sequence
+
+    Around line 4816:
+        Unterminated B<...> sequence
+
+    Around line 4837:
+        Unterminated B<...> sequence
+
+    Around line 4845:
+        Unterminated B<...> sequence
+
+    Around line 4857:
+        Unterminated B<...> sequence
+
+    Around line 4883:
+        Unterminated B<...> sequence
+
+    Around line 4891:
+        Unterminated B<...> sequence
+
+    Around line 4916:
+        Unterminated B<...> sequence
+
+    Around line 4943:
+        Unterminated B<...> sequence
+
+    Around line 4951:
+        Unterminated B<...> sequence
+
+    Around line 4979:
+        Unterminated B<...> sequence
+
+    Around line 5012:
+        Unterminated B<...> sequence
+
+    Around line 5036:
+        Unterminated B<...> sequence
+
+    Around line 5064:
+        Unterminated B<...> sequence
+
+    Around line 5088:
+        Unterminated B<...> sequence
+
+    Around line 5107:
+        Unterminated B<...> sequence
+
+    Around line 5115:
+        Unterminated B<...> sequence
+
+    Around line 5134:
+        Unterminated B<...> sequence
+
+    Around line 5158:
+        Unterminated B<...> sequence
+
+    Around line 5174:
+        Unterminated B<...> sequence
+
+    Around line 5196:
+        Unterminated B<...> sequence
+
+    Around line 5209:
+        Unterminated B<...> sequence
+
+    Around line 5219:
+        Unterminated B<...> sequence
+
+    Around line 5239:
+        Unterminated B<...> sequence
+
+    Around line 5288:
+        Unterminated B<...> sequence
+
+    Around line 5302:
+        Unterminated B<...> sequence
+
+    Around line 5319:
+        Unterminated B<...> sequence
+
+    Around line 5327:
+        Unterminated B<...> sequence
+
+    Around line 5335:
+        Unterminated B<...> sequence
+
+    Around line 5377:
+        Unterminated B<...> sequence
+
+    Around line 5389:
+        Unterminated B<...> sequence
+
+    Around line 5409:
+        Unterminated B<...> sequence
+
+    Around line 5430:
+        Unterminated B<...> sequence
+
+    Around line 5466:
+        Unterminated B<...> sequence
+
+    Around line 5480:
+        Unterminated B<...> sequence
+
+    Around line 5504:
+        Unterminated B<...> sequence
+
+    Around line 5518:
+        Unterminated B<...> sequence
+
+    Around line 5531:
+        Unterminated B<...> sequence
+
+    Around line 5549:
+        Unterminated B<...> sequence
+
+    Around line 5562:
+        Unterminated B<...> sequence
+
+    Around line 5575:
+        Unterminated B<...> sequence
+
+    Around line 5590:
+        Unterminated B<...> sequence
+
+    Around line 5610:
+        Unterminated B<...> sequence
+
+    Around line 5627:
+        Unterminated B<...> sequence
+
+    Around line 5641:
+        Unterminated B<...> sequence
+
+    Around line 5653:
+        Unterminated B<...> sequence
+
+    Around line 5673:
+        Unterminated B<...> sequence
+
+    Around line 5689:
+        Unterminated B<...> sequence
+
+    Around line 5710:
+        Unterminated B<...> sequence
+
+    Around line 5730:
+        Unterminated B<...> sequence
+
+    Around line 5743:
+        Unterminated B<...> sequence
+
+    Around line 5755:
+        Unterminated B<...> sequence
+
+    Around line 5763:
+        Unterminated B<...> sequence
+
+    Around line 5787:
+        Unterminated B<...> sequence
+
+    Around line 5795:
+        Unterminated B<...> sequence
+
+    Around line 5803:
+        Unterminated B<...> sequence
 

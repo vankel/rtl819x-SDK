@@ -25,12 +25,25 @@ MODULE_DESCRIPTION("iptables realsil extensions matching module");
 MODULE_ALIAS("ipt_vlanpriority");
 MODULE_ALIAS("ip6t_vlanpriority");
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+static bool
+match(struct sk_buff *skb, const struct xt_match_param *par)
+#else
 static bool
 match(const struct sk_buff *skb, const struct xt_match_param *par)
+#endif
 {
 	const struct xt_vlanpriority_info *info = par->matchinfo;
 	
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	if ((skb->srcVlanPriority== info->priority) ^ info->invert) {
+		skb->decision_bitmap |= VLAN_DECISION_PRIORITY_BITMAP;
+		return true;
+	} else
+		return false;
+#else
 	return (skb->srcVlanPriority== info->priority) ^ info->invert;
+#endif
 }
 
 static bool

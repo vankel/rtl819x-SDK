@@ -1276,7 +1276,6 @@ void SFCSR_CS_H(unsigned char ucChip, unsigned char ucLen, unsigned char ucIOWid
 	 count=smp_processor_id();
 	 while(( ( ((*((volatile unsigned int *)SFCSR) & (1<<30)) == (0)) )  ))
 	{
-	
 	 printk("! %d  ",count);
  	__flush_cache_all();
 	
@@ -1284,40 +1283,10 @@ void SFCSR_CS_H(unsigned char ucChip, unsigned char ucLen, unsigned char ucIOWid
 	 count=0;
 	while(( ( ((*((volatile unsigned int *)SFCSR) & (1<<30)) == (0)) )  ))
 	{
-	
 	 printk("! %d  ",count);
 	 __flush_cache_all();
 	
 	}
-
-#if 1
-			 count=0;
-	while(( ( ((*((volatile unsigned int *)SFCSR) & (1<<30)) == (0)) )  ))
-	{
-	
-	 printk("! %d  ",count);
-	 __flush_cache_all();
-	
-	}
- count=0;
-	while(( ( ((*((volatile unsigned int *)SFCSR) & (1<<30)) == (0)) )  ))
-	{
-	
- printk("! %d  ",count);
-	 __flush_cache_all();
-	
-	}
- count=0;
-	while(( ( ((*((volatile unsigned int *)SFCSR) & (1<<30)) == (0)) )  ))
-	{
-	 printk("! %d  ",count);
-	 __flush_cache_all();
-	
-	}
-
-
-
-#endif
 	 count=0;
 	while(( ( ((*((volatile unsigned int *)SFCSR) & (1<<30)) == (0)) )  ))
 	{
@@ -1564,7 +1533,7 @@ void ComSrlCmd_InputCommand(unsigned char ucChip, unsigned int uiAddr, unsigned 
 	SFCSR_CS_L(ucChip, 3, ucIOWidth);
 	// rtk_udelay(1);
 	}
-        rtk_udelay(500);
+        rtk_udelay(430);
 #else
 	// input command
 	if(ucIsFast == ISFAST_ALL)

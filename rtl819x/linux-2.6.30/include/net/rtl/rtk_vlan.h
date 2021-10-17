@@ -11,6 +11,22 @@
 #ifndef CONFIG_RTL_8198C
 #include "rtl_types.h"
 #endif
+//#define CONFIG_PPPOE_VLANTAG 1
+
+#if	defined (CONFIG_PPPOE_VLANTAG)
+#define COPY_TAG(tag, info) { \
+	tag.f.tpid =  htons(ETH_P_8021Q); \
+	tag.f.pci = (unsigned short) (((((unsigned char)info->pri)&0x7) << 13) | \
+					((((unsigned char)info->cfi)&0x1) << 12) |((unsigned short)info->id&0xfff)); \
+	tag.f.pci =  htons(tag.f.pci);	\
+}
+
+
+#define STRIP_TAG(skb) { \
+	memmove(skb->data+VLAN_HLEN, skb->data, ETH_ALEN*2); \
+	skb_pull(skb, VLAN_HLEN); \
+}
+#endif
 
 struct vlan_info {
 	int global_vlan;	// 0/1 - global vlan disable/enable

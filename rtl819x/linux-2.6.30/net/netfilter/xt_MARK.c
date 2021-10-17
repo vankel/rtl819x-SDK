@@ -35,7 +35,26 @@ mark_tg_v0(struct sk_buff *skb, const struct xt_target_param *par)
 {
 	const struct xt_mark_target_info *markinfo = par->targinfo;
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	if (skb->decision_bitmap & PORT_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[port_decision_priority] = markinfo->mark;
+		skb->decision_bitmap &= (~PORT_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	} else if (skb->decision_bitmap & VLAN_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[vlan_decision_priority] = markinfo->mark;
+		skb->decision_bitmap &= (~VLAN_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	} else if (skb->decision_bitmap & DSCP_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[dscp_decision_priority] = markinfo->mark;
+		skb->decision_bitmap &= (~DSCP_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	}
+#endif
+
 	skb->mark = markinfo->mark;
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+OUT:
+#endif
 	return XT_CONTINUE;
 }
 
@@ -59,7 +78,26 @@ mark_tg_v1(struct sk_buff *skb, const struct xt_target_param *par)
 		break;
 	}
 	
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	if (skb->decision_bitmap & PORT_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[port_decision_priority] = mark;
+		skb->decision_bitmap &= (~PORT_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	} else if (skb->decision_bitmap & VLAN_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[vlan_decision_priority] = mark;
+		skb->decision_bitmap &= (~VLAN_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	} else if (skb->decision_bitmap & DSCP_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[dscp_decision_priority] = mark;
+		skb->decision_bitmap &= (~DSCP_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	}
+#endif
+
 	skb->mark = mark;
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+OUT:
+#endif
 	return XT_CONTINUE;
 }
 
@@ -67,8 +105,26 @@ static unsigned int
 mark_tg(struct sk_buff *skb, const struct xt_target_param *par)
 {
 	const struct xt_mark_tginfo2 *info = par->targinfo;
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	if (skb->decision_bitmap & PORT_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[port_decision_priority] = (skb->mark_ext[port_decision_priority] & ~info->mask) ^ info->mark;
+		skb->decision_bitmap &= (~PORT_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	} else if (skb->decision_bitmap & VLAN_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[vlan_decision_priority] = (skb->mark_ext[vlan_decision_priority] & ~info->mask) ^ info->mark;
+		skb->decision_bitmap &= (~VLAN_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	} else if (skb->decision_bitmap & DSCP_DECISION_PRIORITY_BITMAP) {
+		skb->mark_ext[dscp_decision_priority] = (skb->mark_ext[dscp_decision_priority] & ~info->mask) ^ info->mark;
+		skb->decision_bitmap &= (~DSCP_DECISION_PRIORITY_BITMAP);
+		goto OUT;
+	}
+#endif
 
 	skb->mark = (skb->mark & ~info->mask) ^ info->mark;
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+OUT:
+#endif
 	return XT_CONTINUE;
 }
 

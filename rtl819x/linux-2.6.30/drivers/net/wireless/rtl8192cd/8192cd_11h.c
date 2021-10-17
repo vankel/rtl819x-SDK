@@ -38,7 +38,7 @@
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
 
-#if (defined(DOT11D) || defined(DOT11H))
+#if (defined(DOT11D) || defined(DOT11H) || defined(DOT11K))
 
 #define MAX_CHANNEL_SET_NUMBER	20
 
@@ -323,6 +323,44 @@ unsigned char * construct_country_ie(struct rtl8192cd_priv *priv, unsigned char	
     return pbuf;
 }
 
+unsigned char search_country_txpower(struct rtl8192cd_priv *priv, unsigned char channel)
+{
+    const COUNTRY_IE_ELEMENT * country_ie;
+    const BAND_TABLE_ELEMENT * band_table = NULL;
+    int i;
+    int step;
+    country_ie = &(countryIEArray[priv->countryTableIdx-1]);
+    if ( priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G)
+    {
+        if(country_ie->G_Band_Region)
+        {
+            band_table = &(country_ie_channel_2_4g[country_ie->G_Band_Region-1]);
+            step = 1;
+        }
+    }
+    else
+    {
+        if(country_ie->A_Band_Region)
+        {
+            band_table = &(country_ie_channel_5g[country_ie->A_Band_Region-1]);
+            step = 4;
+        }
+    }
+    if(band_table)
+    {
+        for(i = 0; i < band_table->channel_set_number; i++)
+        {
+            if(band_table->channel_set[i].firstChannel <= channel  &&
+                    channel < band_table->channel_set[i].firstChannel + band_table->channel_set[i].numberOfChannel*step)
+            {
+                return band_table->channel_set[i].maxTxDbm;
+            }
+        }
+    }
+
+    return 0;
+
+}
 
 #endif
 
@@ -343,7 +381,7 @@ unsigned char * construct_supported_channel_ie(struct rtl8192cd_priv *priv, unsi
     const BAND_TABLE_ELEMENT * band_table = NULL;
     unsigned char temp[MAX_CHANNEL_SET_NUMBER*2];/*channel sets*/
     unsigned int i,j = 0;
-    if(priv->countryTableIdx) {        
+    if(priv->countryTableIdx) {
         country_ie = &(countryIEArray[priv->countryTableIdx-1]);
         if ( priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G) {
             if(country_ie->G_Band_Region) {

@@ -167,6 +167,12 @@
 #define		rPm_Rx2_AntB				0xbf4
 #define		rPm_Rx3_AntB				0xbf8
 
+//for power tracking 
+#define	 	rA_TxScale_Jaguar 		0xc1c  // Pah_A TX scaling factor
+#define		rB_TxScale_Jaguar 		0xe1c  // Path_B TX scaling factor
+#define	 	rC_TxScale_Jaguar2 		0x181c  // Pah_C TX scaling factor
+#define		rD_TxScale_Jaguar2 		0x1A1c  // Path_D TX scaling factor
+#define 		rRF_TxGainOffset		0x55
 
 
 //============================================================
@@ -737,6 +743,10 @@
 // DIG-related
 #define		rA_IGI_Jaguar				0xc50	// Initial Gain for path-A
 #define		rB_IGI_Jaguar				0xe50	// Initial Gain for path-B
+#if defined(CONFIG_WLAN_HAL_8814AE)
+#define		rC_IGI_Jaguar				0x1850	// Initial Gain for path-C
+#define		rD_IGI_Jaguar				0x1a50	// Initial Gain for path-D
+#endif
 #define		rOFDM_FalseAlarm1_Jaguar		0xf48  // counter for break
 #define		rOFDM_FalseAlarm2_Jaguar		0xf4c  // counter for spoofing
 #define		rCCK_FalseAlarm_Jaguar        	0xa5c // counter for cck false alarm
@@ -1800,7 +1810,9 @@ Current IOREG MAP
 #define EEPROM_8812_IQK_DELTA			0xBB //[1:0]
 
 #define EEPROM_8812_VERSION				0xC4
-#define EEPROM_8812_CUSTOMER_ID                 0xC5
+#define EEPROM_8812_CUSTOMER_ID         0xC5
+#define EEPROM_2G_TxBBSwing				0xC6
+#define EEPROM_5G_TxBBSwing				0xC7
 
 #define EEPROM_8812_MACADDRESS                  0xD0 // MAC Address
 #endif

@@ -108,7 +108,10 @@ MODULE_PARM_DESC (ignore_oc, "ignore bogus hardware overcurrent indications");
 /*-------------------------------------------------------------------------*/
 
 #include "ehci.h"
+//#ifdef CONFIG_USB_EHCI_PCI //modified by lynn_pu, 2014-10-30
+#if defined(CONFIG_USB_EHCI_PCI) || (defined(CONFIG_RLX)&&defined(CONFIG_PCI_HCI))
 #include "pci-quirks.h"
+#endif
 
 /*
  * The MosChip MCS9990 controller updates its microframe counter

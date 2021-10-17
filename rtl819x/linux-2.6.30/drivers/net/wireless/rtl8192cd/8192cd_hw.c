@@ -11,6 +11,7 @@
  */
 
 #define _8192CD_HW_C_
+#define _printk printk
 
 #ifdef __KERNEL__
 #include <linux/module.h>
@@ -83,7 +84,7 @@
 #endif // USE_RTL8186_SDK
 
 
-#define MAX_CONFIG_FILE_SIZE (20*1024) // for 8192, added to 20k
+#define MAX_CONFIG_FILE_SIZE (64*1024) // for 8814, added to 64k
 
 int rtl8192cd_fileopen(const char *filename, int flags, int mode);
 void selectMinPowerIdex(struct rtl8192cd_priv *priv);
@@ -309,31 +310,9 @@ VAR_MAPPING(REG_TXPWR_TRK_hp, REG_TXPWR_TRK_hp);
 
 #ifdef CONFIG_RTL_88E_SUPPORT
 #include "data_PHY_REG_PG_88E.c"
-#include "data_PHY_REG_MP_88E.c"
+
 VAR_MAPPING(PHY_REG_PG_88E, PHY_REG_PG_88E);
-VAR_MAPPING(PHY_REG_MP_88E, PHY_REG_MP_88E);
 
-#ifndef CONFIG_MACBBRF_BY_ODM
-#include "data_AGC_TAB_1T_88E.c"
-#include "data_MAC_REG_88E.c"
-#include "data_PHY_REG_1T_88E.c"
-#include "data_radio_a_1T_88E.c"
-#ifdef SUPPORT_RTL8188E_TC
-#include "data_MAC_REG_88E_TC.c"
-#include "data_PHY_REG_1T_88E_TC.c"
-#include "data_radio_a_1T_88E_TC.c"
-#endif
-
-VAR_MAPPING(AGC_TAB_1T_88E, AGC_TAB_1T_88E);
-VAR_MAPPING(MAC_REG_88E, MAC_REG_88E);
-VAR_MAPPING(PHY_REG_1T_88E, PHY_REG_1T_88E);
-VAR_MAPPING(radio_a_1T_88E, radio_a_1T_88E);
-#ifdef SUPPORT_RTL8188E_TC
-VAR_MAPPING(MAC_REG_88E_TC, MAC_REG_88E_TC);
-VAR_MAPPING(PHY_REG_1T_88E_TC, PHY_REG_1T_88E_TC);
-VAR_MAPPING(radio_a_1T_88E_TC, radio_a_1T_88E_TC);
-#endif
-#endif
 #include "data_PHY_REG_PG_88E_new.c"
 VAR_MAPPING(PHY_REG_PG_88E_new, PHY_REG_PG_88E_new);
 #ifdef TXPWR_LMT_88E
@@ -744,6 +723,11 @@ unsigned int phy_RFSerialRead(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E e
 		// For 92S LSSI Read RFLSSIRead
 		// For RF A/B write 0x824/82c(does not work in the future)
 		// We must use 0x824 for RF A and B to execute read trigger
+		if( pPhyReg->rfHSSIPara2==0 )
+		{
+			printk(KERN_ERR"Warnning in %s %d : rfHSSIPara2 don't be initialized yet\n",__FUNCTION__,__LINE__);
+			return 0;
+		}
 		tmplong = RTL_R32(rFPGA0_XA_HSSIParameter2);
 		tmplong2 = RTL_R32(pPhyReg->rfHSSIPara2);
 		tmplong2 = (tmplong2 & (~bLSSIReadAddress)) | ((NewOffset << 23) | bLSSIReadEdge);	//T65 RF
@@ -781,8 +765,7 @@ unsigned int phy_RFSerialRead(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E e
 	return retValue;
 }
 
-
-#ifdef AC2G_256QAM
+#if defined(AC2G_256QAM) || defined(WLAN_HAL_8814AE)
 char is_ac2g(struct rtl8192cd_priv * priv)
 {
 
@@ -799,6 +782,11 @@ char is_ac2g(struct rtl8192cd_priv * priv)
 		if((OPMODE&WIFI_STATION_STATE) 
 			&& (priv->pmib->dot11BssType.net_work_type == (WIRELESS_11A|WIRELESS_11B|WIRELESS_11G|WIRELESS_11N|WIRELESS_11AC))
 			&& ((priv->pmib->dot11RFEntry.dot11channel != 0) && (priv->pmib->dot11RFEntry.dot11channel<36)))
+			ac2g = 1;
+	}
+
+	if(GET_CHIP_VER(priv)==VERSION_8814A) {
+		if(priv->pmib->dot11RFEntry.phyBandSelect ==  PHY_BAND_2G)
 			ac2g = 1;
 	}
 
@@ -1031,7 +1019,7 @@ void PHY_SetRFReg(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E eRFPath, unsi
 		}
 
 		RESTORE_INT(flags);
-		delay_us(1);	// At least 500ns delay to avoid RF write fail.
+		delay_us(1);    // At least 500ns delay to avoid RF write fail.
 	}
 }
 
@@ -1617,10 +1605,10 @@ unsigned int generate_u4bRegValue_8812_new(struct rtl8192cd_priv *priv, unsigned
 	unsigned char tmp_reg[4];
 	unsigned int  reg_value = 0;
 	unsigned char target = 0;
-
+	int i;
 	if(*u4bRegOffset == rTxAGC_A_Nss2Index1_Nss1Index8_JAguar)
 	{
-		tmp_reg[0]= tmp_byte[0]- priv->pshare->tgpwr_VHT1S_new[RF_PATH_A];
+		tmp_reg[0]= tmp_byte[0]- priv->pshare->tgpwr_VHT1S_new[RF_PATH_A]; // tgpwr_VHT1S_new is ZERO?
 		tmp_reg[1]= tmp_byte[1]- priv->pshare->tgpwr_VHT1S_new[RF_PATH_A];
 		tmp_reg[2]= tmp_byte[2]- priv->pshare->tgpwr_VHT2S_new[RF_PATH_A];
 		tmp_reg[3]= tmp_byte[3]- priv->pshare->tgpwr_VHT2S_new[RF_PATH_A];
@@ -1641,7 +1629,7 @@ unsigned int generate_u4bRegValue_8812_new(struct rtl8192cd_priv *priv, unsigned
 
 	switch (*u4bRegOffset) {
 		case rTxAGC_A_CCK11_CCK1_JAguar:
-			target = priv->pshare->tgpwr_CCK_new[RF_PATH_A];
+			target = priv->pshare->tgpwr_CCK_new[RF_PATH_A]; // tgpwr_CCK_new is ZERO?
 			break;
 		case rTxAGC_A_Ofdm18_Ofdm6_JAguar:
 			target = priv->pshare->tgpwr_OFDM_new[RF_PATH_A];
@@ -1715,6 +1703,557 @@ unsigned int generate_u4bRegValue_8812_new(struct rtl8192cd_priv *priv, unsigned
 	reg_value = gen_reg_value_2(target, tmp_byte, tmp_reg);
 	return reg_value; 
 
+}
+#endif
+
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+void set_power_by_rate_8814(struct rtl8192cd_priv *priv, unsigned int *u4bRegOffset, unsigned char *tmp_byte)
+{
+	unsigned char tmp_reg[4];
+	unsigned int  reg_value = 0;
+	unsigned char target = 0;
+	int i;
+	
+	switch (*u4bRegOffset) {
+		case rTxAGC_A_CCK11_CCK1_JAguar:
+				priv->pshare->phw->CCKTxAgc_A[0] = (char)tmp_byte[0];
+				priv->pshare->phw->CCKTxAgc_A[1] = (char)tmp_byte[1];
+				priv->pshare->phw->CCKTxAgc_A[2] = (char)tmp_byte[2];
+				priv->pshare->phw->CCKTxAgc_A[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+					//printk("priv->pshare->phw->CCKTxAgc_A[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_A[i]);
+			break;
+		case rTxAGC_A_Ofdm18_Ofdm6_JAguar:
+				priv->pshare->phw->OFDMTxAgcOffset_A[0] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_A[1] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_A[2] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_A[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+					//printk("priv->pshare->phw->OFDMTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_A[i]);
+			break;
+		case rTxAGC_A_Ofdm54_Ofdm24_JAguar: 
+				priv->pshare->phw->OFDMTxAgcOffset_A[4] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_A[5] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_A[6] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_A[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+					//printk("priv->pshare->phw->OFDMTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_A[i]);	
+			break;
+		case rTxAGC_A_MCS3_MCS0_JAguar: 
+				priv->pshare->phw->MCSTxAgcOffset_A[0] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_A[1] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_A[2] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_A[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+					//printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);						
+			break;
+		case rTxAGC_A_MCS7_MCS4_JAguar: 
+				priv->pshare->phw->MCSTxAgcOffset_A[4] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_A[5] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_A[6] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_A[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+					//printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);					
+			break;
+		case rTxAGC_A_MCS11_MCS8_JAguar:	
+				priv->pshare->phw->MCSTxAgcOffset_A[8] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_A[9] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_A[10] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_A[11] = (char)tmp_byte[3];
+				//for(i=8;i<12;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);					
+			break;
+		case rTxAGC_A_MCS15_MCS12_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_A[12] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_A[13] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_A[14] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_A[15] = (char)tmp_byte[3];
+				//for(i=12;i<16;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);						
+			break;
+		case rTxAGC_A_MCS19_MCS16_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_A[16] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_A[17] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_A[18] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_A[19] = (char)tmp_byte[3];
+				//for(i=16;i<20;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);
+			break;
+		case rTxAGC_A_MCS23_MCS20_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_A[20] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_A[21] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_A[22] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_A[23] = (char)tmp_byte[3];
+				//for(i=20;i<24;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);
+			break;
+		case rTxAGC_A_Nss1Index3_Nss1Index0_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_A[0] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[1] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_A[2] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_A[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);					
+			break;
+		case rTxAGC_A_Nss1Index7_Nss1Index4_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_A[4] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[5] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_A[6] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_A[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);						
+			break;
+		case rTxAGC_A_Nss2Index1_Nss1Index8_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_A[8] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[9] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_A[10] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_A[11] = (char)tmp_byte[3];
+				//for(i=8;i<12;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);
+			break;
+		case rTxAGC_A_Nss2Index5_Nss2Index2_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_A[12] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[13] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_A[14] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_A[15] = (char)tmp_byte[3];
+				//for(i=12;i<16;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);					
+			break;
+		case rTxAGC_A_Nss2Index9_Nss2Index6_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_A[16] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[17] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_A[18] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_A[19] = (char)tmp_byte[3];
+				//for(i=16;i<20;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);						
+			break;
+		case rTxAGC_A_Nss3Index3_Nss3Index0_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_A[20] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[21] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_A[22] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_A[23] = (char)tmp_byte[3];
+				//for(i=20;i<24;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);
+			break;
+		case rTxAGC_A_Nss3Index7_Nss3Index4_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_A[24] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[25] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_A[26] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_A[27] = (char)tmp_byte[3];
+				//for(i=24;i<28;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);
+			break;
+		case rTxAGC_A_Nss3Index9_Nss3Index8_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_A[28] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_A[29] = (char)tmp_byte[1];
+				//for(i=28;i<30;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);
+			break;
+		case rTxAGC_B_CCK11_CCK1_JAguar:	
+				priv->pshare->phw->CCKTxAgc_B[0] = (char)tmp_byte[0];
+				priv->pshare->phw->CCKTxAgc_B[1] = (char)tmp_byte[1];
+				priv->pshare->phw->CCKTxAgc_B[2] = (char)tmp_byte[2];
+				priv->pshare->phw->CCKTxAgc_B[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->CCKTxAgc_B[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_B[i]);
+			break;
+		case rTxAGC_B_Ofdm18_Ofdm6_JAguar:	
+				priv->pshare->phw->OFDMTxAgcOffset_B[0] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_B[1] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_B[2] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_B[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->OFDMTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_B[i]);
+			break;
+		case rTxAGC_B_Ofdm54_Ofdm24_JAguar: 
+				priv->pshare->phw->OFDMTxAgcOffset_B[4] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_B[5] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_B[6] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_B[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+				//	printk("priv->pshare->phw->OFDMTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_B[i]);
+			break;
+		case rTxAGC_B_MCS3_MCS0_JAguar: 
+				priv->pshare->phw->MCSTxAgcOffset_B[0] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_B[1] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_B[2] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_B[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);				
+			break;
+		case rTxAGC_B_MCS7_MCS4_JAguar: 
+			priv->pshare->phw->MCSTxAgcOffset_B[4] = (char)tmp_byte[0];
+			priv->pshare->phw->MCSTxAgcOffset_B[5] = (char)tmp_byte[1];
+			priv->pshare->phw->MCSTxAgcOffset_B[6] = (char)tmp_byte[2];
+			priv->pshare->phw->MCSTxAgcOffset_B[7] = (char)tmp_byte[3];
+			//for(i=4;i<8;i++)
+			//	printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);				
+			break;
+		case rTxAGC_B_MCS11_MCS8_JAguar:
+			priv->pshare->phw->MCSTxAgcOffset_B[8] = (char)tmp_byte[0];
+			priv->pshare->phw->MCSTxAgcOffset_B[9] = (char)tmp_byte[1];
+			priv->pshare->phw->MCSTxAgcOffset_B[10] = (char)tmp_byte[2];
+			priv->pshare->phw->MCSTxAgcOffset_B[11] = (char)tmp_byte[3];
+			//for(i=8;i<12;i++)
+			//	printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);				
+			break;
+		case rTxAGC_B_MCS15_MCS12_JAguar:
+			priv->pshare->phw->MCSTxAgcOffset_B[12] = (char)tmp_byte[0];
+			priv->pshare->phw->MCSTxAgcOffset_B[13] = (char)tmp_byte[1];
+			priv->pshare->phw->MCSTxAgcOffset_B[14] = (char)tmp_byte[2];
+			priv->pshare->phw->MCSTxAgcOffset_B[15] = (char)tmp_byte[3];
+			//for(i=12;i<16;i++)
+			//	printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);				
+			break;
+		case rTxAGC_B_MCS19_MCS16_JAguar: 
+			priv->pshare->phw->MCSTxAgcOffset_B[16] = (char)tmp_byte[0];
+			priv->pshare->phw->MCSTxAgcOffset_B[17] = (char)tmp_byte[1];
+			priv->pshare->phw->MCSTxAgcOffset_B[18] = (char)tmp_byte[2];
+			priv->pshare->phw->MCSTxAgcOffset_B[19] = (char)tmp_byte[3];
+			//for(i=16;i<20;i++)
+			//	printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);				
+			break;
+		case rTxAGC_B_MCS23_MCS20_JAguar: 
+			priv->pshare->phw->MCSTxAgcOffset_B[20] = (char)tmp_byte[0];
+			priv->pshare->phw->MCSTxAgcOffset_B[21] = (char)tmp_byte[1];
+			priv->pshare->phw->MCSTxAgcOffset_B[22] = (char)tmp_byte[2];
+			priv->pshare->phw->MCSTxAgcOffset_B[23] = (char)tmp_byte[3];
+			//for(i=20;i<24;i++)
+			//	printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);				
+			break;
+		case rTxAGC_B_Nss1Index3_Nss1Index0_JAguar: 
+			priv->pshare->phw->VHTTxAgcOffset_B[0] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[1] = (char)tmp_byte[1];
+			priv->pshare->phw->VHTTxAgcOffset_B[2] = (char)tmp_byte[2];
+			priv->pshare->phw->VHTTxAgcOffset_B[3] = (char)tmp_byte[3];
+			//for(i=0;i<4;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);						
+			break;
+		case rTxAGC_B_Nss1Index7_Nss1Index4_JAguar:
+			priv->pshare->phw->VHTTxAgcOffset_B[4] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[5] = (char)tmp_byte[1];
+			priv->pshare->phw->VHTTxAgcOffset_B[6] = (char)tmp_byte[2];
+			priv->pshare->phw->VHTTxAgcOffset_B[7] = (char)tmp_byte[3];
+			//for(i=4;i<8;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);
+
+			break;
+		case rTxAGC_B_Nss2Index1_Nss1Index8_JAguar: 
+			priv->pshare->phw->VHTTxAgcOffset_B[8] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[9] = (char)tmp_byte[1];
+			priv->pshare->phw->VHTTxAgcOffset_B[10] = (char)tmp_byte[2];
+			priv->pshare->phw->VHTTxAgcOffset_B[11] = (char)tmp_byte[3];
+			//for(i=8;i<12;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);	
+			break;
+		case rTxAGC_B_Nss2Index5_Nss2Index2_JAguar: 
+			priv->pshare->phw->VHTTxAgcOffset_B[12] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[13] = (char)tmp_byte[1];
+			priv->pshare->phw->VHTTxAgcOffset_B[14] = (char)tmp_byte[2];
+			priv->pshare->phw->VHTTxAgcOffset_B[15] = (char)tmp_byte[3];
+			//for(i=12;i<16;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);	
+			break;
+		case rTxAGC_B_Nss2Index9_Nss2Index6_JAguar: 
+			priv->pshare->phw->VHTTxAgcOffset_B[16] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[17] = (char)tmp_byte[1];
+			priv->pshare->phw->VHTTxAgcOffset_B[18] = (char)tmp_byte[2];
+			priv->pshare->phw->VHTTxAgcOffset_B[19] = (char)tmp_byte[3];
+			//for(i=16;i<20;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);	
+			break;
+		case rTxAGC_B_Nss3Index3_Nss3Index0_JAguar: 
+			priv->pshare->phw->VHTTxAgcOffset_B[20] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[21] = (char)tmp_byte[1];
+			priv->pshare->phw->VHTTxAgcOffset_B[22] = (char)tmp_byte[2];
+			priv->pshare->phw->VHTTxAgcOffset_B[23] = (char)tmp_byte[3];
+			//for(i=20;i<24;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);	
+			break;
+		case rTxAGC_B_Nss3Index7_Nss3Index4_JAguar: 
+			priv->pshare->phw->VHTTxAgcOffset_B[24] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[25] = (char)tmp_byte[1];
+			priv->pshare->phw->VHTTxAgcOffset_B[26] = (char)tmp_byte[2];
+			priv->pshare->phw->VHTTxAgcOffset_B[27] = (char)tmp_byte[3];
+			//for(i=24;i<28;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);	
+			break;
+		case rTxAGC_B_Nss3Index9_Nss3Index8_JAguar: 
+			priv->pshare->phw->VHTTxAgcOffset_B[28] = (char)tmp_byte[0];
+			priv->pshare->phw->VHTTxAgcOffset_B[29] = (char)tmp_byte[1];
+			//for(i=28;i<30;i++)
+			//	printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);	
+			break;
+		case rTxAGC_C_CCK11_CCK1_JAguar:
+				priv->pshare->phw->CCKTxAgc_C[0] = (char)tmp_byte[0];
+				priv->pshare->phw->CCKTxAgc_C[1] = (char)tmp_byte[1];
+				priv->pshare->phw->CCKTxAgc_C[2] = (char)tmp_byte[2];
+				priv->pshare->phw->CCKTxAgc_C[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->CCKTxAgc_C[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_C[i]);
+			break;
+		case rTxAGC_C_Ofdm18_Ofdm6_JAguar:
+				priv->pshare->phw->OFDMTxAgcOffset_C[0] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_C[1] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_C[2] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_C[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->OFDMTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_C[i]);
+			break;
+		case rTxAGC_C_Ofdm54_Ofdm24_JAguar: 
+				priv->pshare->phw->OFDMTxAgcOffset_C[4] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_C[5] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_C[6] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_C[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+				//	printk("priv->pshare->phw->OFDMTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_C[i]);	
+			break;
+		case rTxAGC_C_MCS3_MCS0_JAguar: 
+				priv->pshare->phw->MCSTxAgcOffset_C[0] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_C[1] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_C[2] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_C[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);						
+			break;
+		case rTxAGC_C_MCS7_MCS4_JAguar: 
+				priv->pshare->phw->MCSTxAgcOffset_C[4] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_C[5] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_C[6] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_C[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+					//printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);					
+			break;
+		case rTxAGC_C_MCS11_MCS8_JAguar:	
+				priv->pshare->phw->MCSTxAgcOffset_C[8] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_C[9] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_C[10] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_C[11] = (char)tmp_byte[3];
+				//for(i=8;i<12;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);					
+			break;
+		case rTxAGC_C_MCS15_MCS12_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_C[12] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_C[13] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_C[14] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_C[15] = (char)tmp_byte[3];
+				//for(i=12;i<16;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);						
+			break;
+		case rTxAGC_C_MCS19_MCS16_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_C[16] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_C[17] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_C[18] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_C[19] = (char)tmp_byte[3];
+				//for(i=16;i<20;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);
+			break;
+		case rTxAGC_C_MCS23_MCS20_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_C[20] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_C[21] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_C[22] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_C[23] = (char)tmp_byte[3];
+				//for(i=20;i<24;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);
+			break;
+		case rTxAGC_C_Nss1Index3_Nss1Index0_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_C[0] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[1] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_C[2] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_C[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);					
+			break;
+		case rTxAGC_C_Nss1Index7_Nss1Index4_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_C[4] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[5] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_C[6] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_C[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);						
+			break;
+		case rTxAGC_C_Nss2Index1_Nss1Index8_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_C[8] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[9] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_C[10] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_C[11] = (char)tmp_byte[3];
+				//for(i=8;i<12;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);
+			break;
+		case rTxAGC_C_Nss2Index5_Nss2Index2_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_C[12] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[13] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_C[14] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_C[15] = (char)tmp_byte[3];
+				//for(i=12;i<16;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);					
+			break;
+		case rTxAGC_C_Nss2Index9_Nss2Index6_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_C[16] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[17] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_C[18] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_C[19] = (char)tmp_byte[3];
+				//for(i=16;i<20;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);						
+			break;
+		case rTxAGC_C_Nss3Index3_Nss3Index0_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_C[20] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[21] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_C[22] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_C[23] = (char)tmp_byte[3];
+				//for(i=20;i<24;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);
+			break;
+		case rTxAGC_C_Nss3Index7_Nss3Index4_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_C[24] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[25] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_C[26] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_C[27] = (char)tmp_byte[3];
+				//for(i=24;i<28;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);
+			break;
+		case rTxAGC_C_Nss3Index9_Nss3Index8_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_C[28] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_C[29] = (char)tmp_byte[1];
+				//for(i=28;i<30;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);
+			break;
+		case rTxAGC_D_CCK11_CCK1_JAguar:
+				priv->pshare->phw->CCKTxAgc_D[0] = (char)tmp_byte[0];
+				priv->pshare->phw->CCKTxAgc_D[1] = (char)tmp_byte[1];
+				priv->pshare->phw->CCKTxAgc_D[2] = (char)tmp_byte[2];
+				priv->pshare->phw->CCKTxAgc_D[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->CCKTxAgc_D[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_D[i]);
+			break;
+		case rTxAGC_D_Ofdm18_Ofdm6_JAguar:
+				priv->pshare->phw->OFDMTxAgcOffset_D[0] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_D[1] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_D[2] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_D[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->OFDMTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_D[i]);
+			break;
+		case rTxAGC_D_Ofdm54_Ofdm24_JAguar: 
+				priv->pshare->phw->OFDMTxAgcOffset_D[4] = (char)tmp_byte[0];
+				priv->pshare->phw->OFDMTxAgcOffset_D[5] = (char)tmp_byte[1];
+				priv->pshare->phw->OFDMTxAgcOffset_D[6] = (char)tmp_byte[2];
+				priv->pshare->phw->OFDMTxAgcOffset_D[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+				//	printk("priv->pshare->phw->OFDMTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_D[i]);	
+			break;
+		case rTxAGC_D_MCS3_MCS0_JAguar: 
+				priv->pshare->phw->MCSTxAgcOffset_D[0] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_D[1] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_D[2] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_D[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);						
+			break;
+		case rTxAGC_D_MCS7_MCS4_JAguar: 
+				priv->pshare->phw->MCSTxAgcOffset_D[4] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_D[5] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_D[6] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_D[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);					
+			break;
+		case rTxAGC_D_MCS11_MCS8_JAguar:	
+				priv->pshare->phw->MCSTxAgcOffset_D[8] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_D[9] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_D[10] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_D[11] = (char)tmp_byte[3];
+				//for(i=8;i<12;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);					
+			break;
+		case rTxAGC_D_MCS15_MCS12_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_D[12] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_D[13] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_D[14] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_D[15] = (char)tmp_byte[3];
+				//for(i=12;i<16;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);						
+			break;
+		case rTxAGC_D_MCS19_MCS16_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_D[16] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_D[17] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_D[18] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_D[19] = (char)tmp_byte[3];
+				//for(i=16;i<20;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);
+			break;
+		case rTxAGC_D_MCS23_MCS20_JAguar:
+				priv->pshare->phw->MCSTxAgcOffset_D[20] = (char)tmp_byte[0];
+				priv->pshare->phw->MCSTxAgcOffset_D[21] = (char)tmp_byte[1];
+				priv->pshare->phw->MCSTxAgcOffset_D[22] = (char)tmp_byte[2];
+				priv->pshare->phw->MCSTxAgcOffset_D[23] = (char)tmp_byte[3];
+				//for(i=20;i<24;i++)
+				//	printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);
+			break;
+		case rTxAGC_D_Nss1Index3_Nss1Index0_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_D[0] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[1] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_D[2] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_D[3] = (char)tmp_byte[3];
+				//for(i=0;i<4;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);					
+			break;
+		case rTxAGC_D_Nss1Index7_Nss1Index4_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_D[4] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[5] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_D[6] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_D[7] = (char)tmp_byte[3];
+				//for(i=4;i<8;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);						
+			break;
+		case rTxAGC_D_Nss2Index1_Nss1Index8_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_D[8] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[9] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_D[10] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_D[11] = (char)tmp_byte[3];
+				//for(i=8;i<12;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);
+			break;
+		case rTxAGC_D_Nss2Index5_Nss2Index2_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_D[12] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[13] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_D[14] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_D[15] = (char)tmp_byte[3];
+				//for(i=12;i<16;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);					
+			break;
+		case rTxAGC_D_Nss2Index9_Nss2Index6_JAguar: 
+				priv->pshare->phw->VHTTxAgcOffset_D[16] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[17] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_D[18] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_D[19] = (char)tmp_byte[3];
+				//for(i=16;i<20;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);						
+			break;
+		case rTxAGC_D_Nss3Index3_Nss3Index0_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_D[20] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[21] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_D[22] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_D[23] = (char)tmp_byte[3];
+				//for(i=20;i<24;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);
+			break;
+		case rTxAGC_D_Nss3Index7_Nss3Index4_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_D[24] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[25] = (char)tmp_byte[1];
+				priv->pshare->phw->VHTTxAgcOffset_D[26] = (char)tmp_byte[2];
+				priv->pshare->phw->VHTTxAgcOffset_D[27] = (char)tmp_byte[3];
+				//for(i=24;i<28;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);
+			break;
+		case rTxAGC_D_Nss3Index9_Nss3Index8_JAguar:
+				priv->pshare->phw->VHTTxAgcOffset_D[28] = (char)tmp_byte[0];
+				priv->pshare->phw->VHTTxAgcOffset_D[29] = (char)tmp_byte[1];
+				//for(i=28;i<30;i++)
+				//	printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);
+			break;
+	}
 }
 #endif
 
@@ -1880,6 +2419,7 @@ static int get_offset_mask_val_new(struct rtl8192cd_priv *priv, unsigned char *l
 
 	unsigned char *b3, *b2, *b1, *b0;
 	unsigned char tmp_byte[4];
+	unsigned char lable = 0;		//lable = {0: none, 1: 1Tx, 2: 2Tx}
 
 	*u4bRegOffset = *u4bRegValue = *u4bMask = '\0';
 
@@ -1901,36 +2441,88 @@ static int get_offset_mask_val_new(struct rtl8192cd_priv *priv, unsigned char *l
 
 	if ((!memcmp(line_head, "0x", 2)) || (!memcmp(line_head, "0X", 2)))
 	{
-		base = 16;
 		idx = 2;
+	}
+	else if (!memcmp(line_head, "[1Tx]", 5))
+	{
+		lable = 1;
+		idx = find_str(line_head, "0x");
+	}
+	else if (!memcmp(line_head, "[2Tx]", 5))
+	{
+		lable = 2;
+		idx = find_str(line_head, "0x");
+	}
+	else if (!memcmp(line_head, "[3Tx]", 5))
+	{
+		lable = 3;
+		idx = find_str(line_head, "0x");
 	}
 	else
 	{
 		return 0;
 	}
+	base = 16;
 
-	*u4bRegOffset = _atoi((char *)&line_head[idx], base);
+	if (lable) /* For 8814 */
+	{
+		next = &(line_head[idx+2]);
+		pMask = get_digit(&next);
+		if (NULL == pMask)
+			return 0;
+		*u4bRegOffset = _atoi((char *)next, base);
+		
+		next = &pMask[2];
+		b3 = get_digit(&next);
+		*u4bMask = _atoi((char *)next, 16);
 
-	if ((GET_CHIP_VER(priv) == VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8192E))
+		if (b3 == NULL)
+			return 0;
+		//panic_printk("b3:%s,", b3);
+
+		b2 = get_digit_dot(&b3);
+		if (b2 == NULL)
+			return 0;
+		//panic_printk("b2:%s,", b2);
+		
+		b1 = get_digit_dot(&b2);
+		if (b1 == NULL)
+			return 0;
+		//panic_printk("b1:%s,", b1);
+		
+		b0 = get_digit_dot(&b1);
+		if (b0 == NULL)
+			return 0;
+		//panic_printk("b0:%s\n", b0);
+	}
+	else
+	{
+		*u4bRegOffset = _atoi((char *)&line_head[idx], base);
+		if ((GET_CHIP_VER(priv) == VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8192E))
 		*u4bMask = 0xffffffff;
-	else if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv)==VERSION_8881A)
+		else if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv)==VERSION_8881A)
 		*u4bMask = 0x7f7f7f7f;
-	
-	b3 = get_digit_dot(&line_head);
-	if (b3 == NULL)
-		return 0;
-			
-	b2 = get_digit_dot(&b3);	
-	if (b2 == NULL)
-		return 0;
 
-	b1 = get_digit_dot(&b2);
-	if (b1 == NULL)
-		return 0;
+		b3 = get_digit_dot(&line_head);
+		
+		if (b3 == NULL)
+			return 0;
+		
+		b2 = get_digit_dot(&b3);
 
-	b0 = get_digit_dot(&b1);
-	if (b0 == NULL)
-		return 0;
+		if (b2 == NULL)
+			return 0;
+		
+		b1 = get_digit_dot(&b2);
+
+		if (b1 == NULL)
+			return 0;
+		
+		b0 = get_digit_dot(&b1);
+
+		if (b0 == NULL)
+			return 0;
+	}
 	
 	base = 10;
 	idx = 0;
@@ -1947,7 +2539,6 @@ static int get_offset_mask_val_new(struct rtl8192cd_priv *priv, unsigned char *l
 	tmp_byte[0] = _atoi(b0, base);
 #endif
 
-
 #if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) //CONFIG_RTL_88E_SUPPORT
 	if(GET_CHIP_VER(priv) == VERSION_8188E || GET_CHIP_VER(priv) == VERSION_8192E)
 	*u4bRegValue = generate_u4bRegValue_88e_new(priv, u4bRegOffset, tmp_byte);
@@ -1955,9 +2546,11 @@ static int get_offset_mask_val_new(struct rtl8192cd_priv *priv, unsigned char *l
 #if defined( CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
 	if(GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv)==VERSION_8881A) 
 		*u4bRegValue = generate_u4bRegValue_8812_new(priv, u4bRegOffset, tmp_byte);
-	
 #endif
-
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	if(GET_CHIP_VER(priv) == VERSION_8814A && !priv->pshare->rf_ft_var.disable_pwr_by_rate) 
+		set_power_by_rate_8814(priv, u4bRegOffset, tmp_byte);
+#endif	
 #if 0
 	panic_printk("[0x%x] tmp_byte = %02d-%02d-%02d-%02d ", *u4bRegOffset, 
 		tmp_byte[3], tmp_byte[2], tmp_byte[1], tmp_byte[0]);
@@ -1967,6 +2560,7 @@ static int get_offset_mask_val_new(struct rtl8192cd_priv *priv, unsigned char *l
 
 	return 1;
 }
+
 
 
 static int get_offset_mask_val(unsigned char *line_head, unsigned int *u4bRegOffset, unsigned int *u4bMask, unsigned int *u4bRegValue)
@@ -2105,18 +2699,55 @@ void find_pwr_limit_new(struct rtl8192cd_priv *priv, int channel, int offset)
 			priv->pshare->txpwr_lmt_HT2S = priv->pshare->ch_pwr_lmtHT40_2S[chidx_40];
 			priv->pshare->txpwr_lmt_VHT1S = priv->pshare->ch_pwr_lmtVHT80_1S[chidx_80];
 			priv->pshare->txpwr_lmt_VHT2S = priv->pshare->ch_pwr_lmtVHT80_2S[chidx_80];
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			priv->pshare->txpwr_lmt_HT3S = priv->pshare->ch_pwr_lmtHT40_3S[chidx_40];
+			priv->pshare->txpwr_lmt_HT4S = priv->pshare->ch_pwr_lmtHT40_4S[chidx_40];
+			priv->pshare->txpwr_lmt_VHT3S = priv->pshare->ch_pwr_lmtVHT80_3S[chidx_80];
+			priv->pshare->txpwr_lmt_VHT4S = priv->pshare->ch_pwr_lmtVHT80_4S[chidx_80];
+#endif			
 		} else if (priv->pshare->CurrentChannelBW == 1){ //BW=40M
 			priv->pshare->txpwr_lmt_HT1S = priv->pshare->ch_pwr_lmtHT40_1S[chidx_40];
 			priv->pshare->txpwr_lmt_HT2S = priv->pshare->ch_pwr_lmtHT40_2S[chidx_40];
 			priv->pshare->txpwr_lmt_VHT1S = priv->pshare->ch_pwr_lmtHT40_1S[chidx_40];
 			priv->pshare->txpwr_lmt_VHT2S = priv->pshare->ch_pwr_lmtHT40_2S[chidx_40];
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			priv->pshare->txpwr_lmt_HT3S = priv->pshare->ch_pwr_lmtHT40_3S[chidx_40];
+			priv->pshare->txpwr_lmt_HT4S = priv->pshare->ch_pwr_lmtHT40_4S[chidx_40];
+			priv->pshare->txpwr_lmt_VHT3S = priv->pshare->ch_pwr_lmtHT40_3S[chidx_40];
+			priv->pshare->txpwr_lmt_VHT4S = priv->pshare->ch_pwr_lmtHT40_4S[chidx_40];
+#endif			
+			
 		} else { //BW=20M
 			priv->pshare->txpwr_lmt_HT1S = priv->pshare->ch_pwr_lmtHT20_1S[chidx_20];
 			priv->pshare->txpwr_lmt_HT2S = priv->pshare->ch_pwr_lmtHT20_2S[chidx_20];
 			priv->pshare->txpwr_lmt_VHT1S = priv->pshare->ch_pwr_lmtHT20_1S[chidx_20];
 			priv->pshare->txpwr_lmt_VHT2S = priv->pshare->ch_pwr_lmtHT20_2S[chidx_20];
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			priv->pshare->txpwr_lmt_HT3S = priv->pshare->ch_pwr_lmtHT20_3S[chidx_20];
+			priv->pshare->txpwr_lmt_HT4S = priv->pshare->ch_pwr_lmtHT20_4S[chidx_20];
+			priv->pshare->txpwr_lmt_VHT3S = priv->pshare->ch_pwr_lmtHT20_3S[chidx_20];
+			priv->pshare->txpwr_lmt_VHT4S = priv->pshare->ch_pwr_lmtHT20_4S[chidx_20];
+#endif			
+			
 		}
-
+#if defined CONFIG_WLAN_HAL_8814AE
+		if(priv->pmib->dot11RFEntry.tx3path){
+#if 0			
+			if (priv->pshare->txpwr_lmt_CCK)
+				priv->pshare->txpwr_lmt_CCK -= 9;
+			if (priv->pshare->txpwr_lmt_OFDM)
+				priv->pshare->txpwr_lmt_OFDM -= 9;
+			if (priv->pshare->txpwr_lmt_HT1S)
+				priv->pshare->txpwr_lmt_HT1S -= 9;	
+			if (priv->pshare->txpwr_lmt_VHT1S)
+				priv->pshare->txpwr_lmt_VHT1S -= 9;
+			if (priv->pshare->txpwr_lmt_HT2S)
+				priv->pshare->txpwr_lmt_HT2S -= 6;	
+			if (priv->pshare->txpwr_lmt_VHT2S)
+				priv->pshare->txpwr_lmt_VHT2S -= 6;
+#endif			
+		} else
+#endif
 		if (priv->pmib->dot11RFEntry.tx2path && !priv->pshare->rf_ft_var.disable_txpwrlmt2path) {
 			if (priv->pshare->txpwr_lmt_CCK)
 				priv->pshare->txpwr_lmt_CCK -= 6;
@@ -2126,7 +2757,7 @@ void find_pwr_limit_new(struct rtl8192cd_priv *priv, int channel, int offset)
 				priv->pshare->txpwr_lmt_HT1S -= 6;	
 			if (priv->pshare->txpwr_lmt_VHT1S)
 				priv->pshare->txpwr_lmt_VHT1S -= 6;
-		}			
+		}
 	} else {
 		priv->pshare->txpwr_lmt_CCK = 0;
 		priv->pshare->txpwr_lmt_OFDM = 0;
@@ -2134,7 +2765,13 @@ void find_pwr_limit_new(struct rtl8192cd_priv *priv, int channel, int offset)
 		priv->pshare->txpwr_lmt_HT2S = 0;
 		priv->pshare->txpwr_lmt_VHT1S = 0;
 		priv->pshare->txpwr_lmt_VHT2S = 0;
-		DEBUG_INFO("Cannot map current working channel to find power limit!\n");
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		priv->pshare->txpwr_lmt_HT3S = 0;
+		priv->pshare->txpwr_lmt_HT4S = 0;
+		priv->pshare->txpwr_lmt_VHT3S = 0;
+		priv->pshare->txpwr_lmt_VHT4S = 0;
+#endif			
+		printk("Cannot map current working channel to find power limit!\n");
 	}
 	
 }
@@ -2193,16 +2830,27 @@ void find_pwr_limit(struct rtl8192cd_priv *priv, int channel, int offset)
 #define	BAND2G_20M_1T_OFDM 		2
 #define	BAND2G_20M_1T_HT 		3
 #define	BAND2G_20M_2T_HT 		4
-#define	BAND2G_40M_1T_HT		5
-#define	BAND2G_40M_2T_HT		6
+#define	BAND2G_20M_3T_HT 		5
+#define	BAND2G_20M_4T_HT 		6
+#define	BAND2G_40M_1T_HT		7
+#define	BAND2G_40M_2T_HT		8
+#define	BAND2G_40M_3T_HT		9
+#define	BAND2G_40M_4T_HT		10
 
-#define	BAND5G_20M_1T_OFDM 		7
-#define	BAND5G_20M_1T_HT 		8
-#define	BAND5G_20M_2T_HT 		9
-#define	BAND5G_40M_1T_HT		10
-#define	BAND5G_40M_2T_HT		11
-#define	BAND5G_80M_1T_VHT		12
-#define	BAND5G_80M_2T_VHT		13
+#define	BAND5G_20M_1T_OFDM 		11
+#define	BAND5G_20M_1T_HT 		12
+#define	BAND5G_20M_2T_HT 		13
+#define	BAND5G_20M_3T_HT 		14
+#define	BAND5G_20M_4T_HT 		15
+#define	BAND5G_40M_1T_HT		16
+#define	BAND5G_40M_2T_HT		17
+#define	BAND5G_40M_3T_HT		18
+#define	BAND5G_40M_4T_HT		19
+#define	BAND5G_80M_1T_VHT		20
+#define	BAND5G_80M_2T_VHT		21
+#define	BAND5G_80M_3T_VHT		22
+#define	BAND5G_80M_4T_VHT		23
+
 
 int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 {
@@ -2220,6 +2868,12 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 	priv->pshare->txpwr_lmt_HT2S = 0;
 	priv->pshare->txpwr_lmt_VHT1S = 0;
 	priv->pshare->txpwr_lmt_VHT2S = 0;
+#ifdef CONFIG_WLAN_HAL_8814AE
+	priv->pshare->txpwr_lmt_HT3S = 0;
+	priv->pshare->txpwr_lmt_HT4S = 0;
+	priv->pshare->txpwr_lmt_VHT3S = 0;
+	priv->pshare->txpwr_lmt_VHT4S = 0;
+#endif	
 
 	reg_table = (struct TxPwrLmtTable *)priv->pshare->txpwr_lmt_buf;
 
@@ -2235,8 +2889,8 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 #ifdef CONFIG_RTL_8812_SUPPORT
 	if(GET_CHIP_VER(priv) == VERSION_8812E){
 		panic_printk("[TXPWR_LMT_8812_new]\n");
-		next_head = data_TXPWR_LMT_8812_new_start;
-		read_bytes = (int)(data_TXPWR_LMT_8812_new_end - data_TXPWR_LMT_8812_new_start);
+	next_head = data_TXPWR_LMT_8812_new_start;
+	read_bytes = (int)(data_TXPWR_LMT_8812_new_end - data_TXPWR_LMT_8812_new_start);
 	}
 	else 
 #endif
@@ -2253,6 +2907,7 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 #ifdef PWR_BY_RATE_92E_HP
 #ifdef HIGH_POWER_EXT_PA
 		if (priv->pshare->rf_ft_var.use_ext_pa && GET_CHIP_VER(priv) == VERSION_8192E) {
+			panic_printk("[%s][TXPWR_LMT_92EE_hp]\n", __FUNCTION__);				
 			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_POWERLIMITFILE_HP_SIZE, (pu1Byte)&read_bytes);
 			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_POWERLIMITFILE_HP_START, (pu1Byte)&next_head);
 		} else
@@ -2261,7 +2916,7 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 		{
 			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_POWERLIMITFILE_SIZE, (pu1Byte)&read_bytes);
 			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_POWERLIMITFILE_START, (pu1Byte)&next_head);
-		}
+		}			
 	} else
 #endif		
 	{
@@ -2280,7 +2935,7 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 		if (line_head == NULL)
 			break;
 
-		if ((line_head[0] == '/') && (line_head[2] != 'T')) 
+		if ((line_head[0] == '/') && (line_head[2] != 'T')) /* get string "//Table 1:" */
 			continue;
 
 		found = get_chnl_lmt_dot_new(priv, line_head, &channel, &limit, &table_idx);
@@ -2312,6 +2967,15 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 	memset(priv->pshare->ch_pwr_lmtHT40_2S, 0, SUPPORT_CH_NUM);
 	memset(priv->pshare->ch_pwr_lmtVHT80_1S, 0, SUPPORT_CH_NUM);
 	memset(priv->pshare->ch_pwr_lmtVHT80_2S, 0, SUPPORT_CH_NUM);
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+	memset(priv->pshare->ch_pwr_lmtHT20_3S, 0, SUPPORT_CH_NUM);
+	memset(priv->pshare->ch_pwr_lmtHT20_4S, 0, SUPPORT_CH_NUM);
+	memset(priv->pshare->ch_pwr_lmtHT40_3S, 0, SUPPORT_CH_NUM);
+	memset(priv->pshare->ch_pwr_lmtHT40_4S, 0, SUPPORT_CH_NUM);
+	memset(priv->pshare->ch_pwr_lmtVHT80_3S, 0, SUPPORT_CH_NUM);
+	memset(priv->pshare->ch_pwr_lmtVHT80_4S, 0, SUPPORT_CH_NUM);
+#endif
 	
 	while (1) {
 		channel = reg_table[num].channel;
@@ -2323,7 +2987,7 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 			//printk(">> [%02d]-%03d-%02d\n", table_idx, channel , limit);
 
 			if(priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G)
-			if ((table_idx >= BAND2G_20M_1T_CCK) && (table_idx <= BAND2G_40M_2T_HT)){
+			if ((table_idx >= BAND2G_20M_1T_CCK) && (table_idx <= BAND2G_40M_4T_HT)){
 				
 				int j = ch2idx(channel);
 
@@ -2340,10 +3004,22 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 				}else if (table_idx == BAND2G_40M_2T_HT){
 					priv->pshare->ch_pwr_lmtHT40_2S[j] = limit;
 				}
+#ifdef CONFIG_WLAN_HAL_8814AE				
+				else if (table_idx == BAND2G_20M_3T_HT){
+					priv->pshare->ch_pwr_lmtHT20_3S[j] = limit;
+				}else if (table_idx == BAND2G_20M_4T_HT){
+					priv->pshare->ch_pwr_lmtHT20_4S[j] = limit;
+				}else if (table_idx == BAND2G_40M_3T_HT){
+					priv->pshare->ch_pwr_lmtHT40_3S[j] = limit;
+				}else if (table_idx == BAND2G_40M_4T_HT){
+					priv->pshare->ch_pwr_lmtHT40_4S[j] = limit;
+				}
+#endif
+				
 			}
 
 			if(priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
-			if ( (table_idx >= BAND5G_20M_1T_OFDM) && (table_idx <= BAND5G_80M_2T_VHT)){
+			if ( (table_idx >= BAND5G_20M_1T_OFDM) && (table_idx <= BAND5G_80M_4T_VHT)){
 				
 				int j = ch2idx(channel);
 				
@@ -2362,6 +3038,21 @@ int PHY_ConfigTXLmtWithParaFile_new(struct rtl8192cd_priv *priv)
 				}else if (table_idx == BAND5G_80M_2T_VHT){
 					priv->pshare->ch_pwr_lmtVHT80_2S[j] = limit;
 				}
+#ifdef CONFIG_WLAN_HAL_8814AE
+				else if (table_idx == BAND5G_20M_3T_HT){
+					priv->pshare->ch_pwr_lmtHT20_3S[j] = limit;
+				}else if (table_idx == BAND5G_20M_4T_HT){
+					priv->pshare->ch_pwr_lmtHT20_4S[j] = limit;
+				}else if (table_idx == BAND5G_40M_3T_HT){
+					priv->pshare->ch_pwr_lmtHT40_3S[j] = limit;
+				}else if (table_idx == BAND5G_40M_4T_HT){
+					priv->pshare->ch_pwr_lmtHT40_4S[j] = limit;
+				}else if (table_idx == BAND5G_80M_3T_VHT){
+					priv->pshare->ch_pwr_lmtVHT80_3S[j] = limit;
+				}else if (table_idx == BAND5G_80M_4T_VHT){
+					priv->pshare->ch_pwr_lmtVHT80_4S[j] = limit;
+				}
+#endif				
 			}
 		
 		}
@@ -2639,7 +3330,50 @@ static char TXPWR_TRACKING_NAME[][32] = {
 	"5GHB_N",
 };
 
-#if 1// not used
+#if defined(CONFIG_WLAN_HAL_8814AE)
+static char TXPWR_TRACKING_NAME_NEW[][32] = {
+	"[2G][A][+][CCK]",
+	"[2G][A][-][CCK]",
+	"[2G][B][+][CCK]",
+	"[2G][B][-][CCK]",
+	"[2G][C][+][CCK]",
+	"[2G][C][-][CCK]",
+	"[2G][D][+][CCK]",
+	"[2G][D][-][CCK]",
+	"[2G][A][+][ALL]",
+	"[2G][A][-][ALL]",
+	"[2G][B][+][ALL]",
+	"[2G][B][-][ALL]",
+	"[2G][C][+][ALL]",
+	"[2G][C][-][ALL]",
+	"[2G][D][+][ALL]",
+	"[2G][D][-][ALL]",
+	"[5G][A][+][ALL][0]",
+	"[5G][A][-][ALL][0]",
+	"[5G][B][+][ALL][0]",
+	"[5G][B][-][ALL][0]",
+	"[5G][C][+][ALL][0]",
+	"[5G][C][-][ALL][0]",
+	"[5G][D][+][ALL][0]",
+	"[5G][D][-][ALL][0]",
+	"[5G][A][+][ALL][1]",
+	"[5G][A][-][ALL][1]",
+	"[5G][B][+][ALL][1]",
+	"[5G][B][-][ALL][1]",
+	"[5G][C][+][ALL][1]",
+	"[5G][C][-][ALL][1]",
+	"[5G][D][+][ALL][1]",
+	"[5G][D][-][ALL][1]",	
+	"[5G][A][+][ALL][2]",
+	"[5G][A][-][ALL][2]",
+	"[5G][B][+][ALL][2]",
+	"[5G][B][-][ALL][2]",	
+	"[5G][C][+][ALL][2]",
+	"[5G][C][-][ALL][2]",
+	"[5G][D][+][ALL][2]",
+	"[5G][D][-][ALL][2]",
+};
+#else
 static char TXPWR_TRACKING_NAME_NEW[][32] = {
 	"[2G][A][+][CCK]",
 	"[2G][A][-][CCK]",
@@ -2687,18 +3421,21 @@ static unsigned char *get_digit_tracking(unsigned char **data)
 {
 	unsigned char *buf = *data;
 	int i = 0;
+	bool others=FALSE;
 
 	*data = &buf[i];
 
 	while (1) {
-		if ((buf[i] == '\n') || (buf[i] == '\r')) {
+		if ((buf[i] == '\n') || (buf[i] == '\r')) { //4 Enter -> end of a line
 			return NULL;
 		}
 
-		if ((buf[i] == ' ') || (buf[i] == '\t'))
+		//if ((buf[i] == ' ') || (buf[i] == '\t'))   //4 Next is supposed to be a number so break... 
+		if(others && buf[i+1] >= '0' && buf[i+1] <= '9')  //4 get the next number by passing through "something other than numbers"
 			break;
 
 		i++;
+		others=TRUE;
 	}
 
 	while (1) {
@@ -2723,63 +3460,105 @@ static unsigned char *get_digit_tracking(unsigned char **data)
 void input_tracking_value(struct rtl8192cd_priv *priv, int offset, int num, int value)
 {
 
+	//printk("[%d][%d]=%d\n",offset%8, num, value);
 	switch (offset) {
-	case CCKA_P:
-	case CCKA_N:
-	case CCKB_P:
-	case CCKB_N:
-		offset = (offset % 4);
-		priv->pshare->txpwr_tracking_2G_CCK[offset][num] = value;
-		break;
-	case A_P:
-	case A_N:
-	case B_P:
-	case B_N:
-		offset = (offset % 4);
-		priv->pshare->txpwr_tracking_2G_OFDM[offset][num] = value;
-		break;
-	case LA_P:
-	case LA_N:
-	case LB_P:
-	case LB_N:
-		offset = (offset % 4);
-		priv->pshare->txpwr_tracking_5GL[offset][num] = value;
-		//printk("txpwr_tracking_5GL[%d][%d]=%d\n", offset, num,value);
-		break;
-	case MA_P:
-	case MA_N:
-	case MB_P:
-	case MB_N:
-		offset = (offset % 4);
-		priv->pshare->txpwr_tracking_5GM[offset][num] = value;
-		//printk("txpwr_tracking_5GM[%d][%d]=%d\n", offset, num,value);
-		break;
-	case HA_P:
-	case HA_N:
-	case HB_P:
-	case HB_N:
-		offset = (offset % 4);
-		priv->pshare->txpwr_tracking_5GH[offset][num] = value;
-		//printk("txpwr_tracking_5GH[%d][%d]=%d\n", offset, num,value);
-		break;
-	default:
-		break;
+		case CCKA_P:
+		case CCKA_N:
+		case CCKB_P:
+		case CCKB_N:
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		case CCKC_P:
+		case CCKC_N:
+		case CCKD_P:
+		case CCKD_N:
+			offset = (offset % 8);		
+#else
+			offset = (offset % 4);
+#endif
+			priv->pshare->txpwr_tracking_2G_CCK[offset][num] = value;
+			//printk("txpwr_tracking_2G_CCK[%d][%d]=%d\n", offset, num,value);
+			break;
+		case A_P:
+		case A_N:
+		case B_P:
+		case B_N:
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		case C_P:
+		case C_N:
+		case D_P:
+		case D_N:
+			offset = (offset % 8);		
+#else
+			offset = (offset % 4);
+#endif
+			priv->pshare->txpwr_tracking_2G_OFDM[offset][num] = value;
+			//printk("txpwr_tracking_2G_OFDM[%d][%d]=%d\n", offset, num,value);
+			break;
+		case LA_P:
+		case LA_N:
+		case LB_P:
+		case LB_N:
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		case LC_P:
+		case LC_N:
+		case LD_P:
+		case LD_N:
+			offset = (offset % 8);		
+#else
+			offset = (offset % 4);
+#endif
+			priv->pshare->txpwr_tracking_5GL[offset][num] = value;
+			//printk("txpwr_tracking_5GL[%d][%d]=%d\n", offset, num,value);
+			break;
+		case MA_P:
+		case MA_N:
+		case MB_P:
+		case MB_N:
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		case MC_P:
+		case MC_N:
+		case MD_P:
+		case MD_N:
+			offset = (offset % 8);		
+#else
+			offset = (offset % 4);
+#endif
+			priv->pshare->txpwr_tracking_5GM[offset][num] = value;
+			//printk("txpwr_tracking_5GM[%d][%d]=%d\n", offset, num,value);
+			break;
+		case HA_P:
+		case HA_N:
+		case HB_P:
+		case HB_N:
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		case HC_P:
+		case HC_N:
+		case HD_P:
+		case HD_N:
+			offset = (offset % 8);		
+#else
+			offset = (offset % 4);
+#endif	
+			priv->pshare->txpwr_tracking_5GH[offset][num] = value;
+			//printk("txpwr_tracking_5GH[%d][%d]=%d\n", offset, num,value);
+			break;
+		default:
+			break;
 
-	}
+		}
 
 
 }
 
-
-int get_tx_tracking_index(struct rtl8192cd_priv *priv, int channel, int i, int delta, int is_decrease, int is_CCK)
+int get_tx_tracking_index(struct rtl8192cd_priv *priv, int channel, int rf_path, int delta, int is_decrease, int is_CCK)
 {
 	int index = 0;
 
 	if (delta == 0)
 		return 0;
 
-	if (delta > index_mapping_NUM_MAX)
-		delta = index_mapping_NUM_MAX;
+	if (delta > index_mapping_NUM_MAX-1)
+		delta = index_mapping_NUM_MAX-1;
 
 	//printk("\n_eric_tracking +++ channel = %d, i = %d, delta = %d, is_decrease = %d, is_CCK = %d\n", channel, i, delta, is_decrease, is_CCK);
 
@@ -2788,18 +3567,18 @@ int get_tx_tracking_index(struct rtl8192cd_priv *priv, int channel, int i, int d
 
 	if (channel > 14) {
 		if (channel <= 99) {
-			index = priv->pshare->txpwr_tracking_5GL[(i * 2) + is_decrease][delta];
+			index = priv->pshare->txpwr_tracking_5GL[(rf_path * 2) + is_decrease][delta];
 		} else if (channel <= 140) {
 
-			index = priv->pshare->txpwr_tracking_5GM[(i * 2) + is_decrease][delta];
+			index = priv->pshare->txpwr_tracking_5GM[(rf_path * 2) + is_decrease][delta];
 		} else {
-			index = priv->pshare->txpwr_tracking_5GH[(i * 2) + is_decrease][delta];
+			index = priv->pshare->txpwr_tracking_5GH[(rf_path * 2) + is_decrease][delta];
 		}
 	} else {
 		if (is_CCK) {
-			index = priv->pshare->txpwr_tracking_2G_CCK[(i * 2) + is_decrease][delta];
+			index = priv->pshare->txpwr_tracking_2G_CCK[(rf_path * 2) + is_decrease][delta];
 		} else {
-			index = priv->pshare->txpwr_tracking_2G_OFDM[(i * 2) + is_decrease][delta];
+			index = priv->pshare->txpwr_tracking_2G_OFDM[(rf_path * 2) + is_decrease][delta];
 		}
 	}
 
@@ -2818,35 +3597,43 @@ static int get_tracking_table(struct rtl8192cd_priv *priv, unsigned char *line_h
 	unsigned char *swim;
 	extern int _atoi(char * s, int base);
 
-	// remove comments
 	swim = line_head + 1;
 	priv->pshare->tracking_table_new = 0;
-
-	for (offset = 0; offset < TXPWR_TRACKING_NAME_NUM; offset++) {
-		if (!memcmp(line_head, TXPWR_TRACKING_NAME[offset], strlen(TXPWR_TRACKING_NAME[offset])))
+	
+	for (offset = 0; offset < sizeof(TXPWR_TRACKING_NAME)/sizeof(TXPWR_TRACKING_NAME[0]); offset++) { //4 legacy format
+		if (!memcmp(line_head, TXPWR_TRACKING_NAME[offset], strlen(TXPWR_TRACKING_NAME[offset]))){
+			//printk("Legacy****************offset:%d   For %s\n",offset,TXPWR_TRACKING_NAME[offset]);
 			break;
+		}
 	}
-
-	if (offset >= TXPWR_TRACKING_NAME_NUM) {
-		for (offset = 0; offset < TXPWR_TRACKING_NAME_NUM; offset++) {
-			if (!memcmp(line_head, TXPWR_TRACKING_NAME_NEW[offset], strlen(TXPWR_TRACKING_NAME_NEW[offset])))
+	
+	if (offset >= sizeof(TXPWR_TRACKING_NAME)/sizeof(TXPWR_TRACKING_NAME[0])) { //4 new format
+		for (offset = 0; offset < sizeof(TXPWR_TRACKING_NAME_NEW)/sizeof(TXPWR_TRACKING_NAME_NEW[0]); offset++) {
+			if (!memcmp(line_head, TXPWR_TRACKING_NAME_NEW[offset], strlen(TXPWR_TRACKING_NAME_NEW[offset]))){
+				//printk("****************   For %s\n",TXPWR_TRACKING_NAME_NEW[offset]);
+				swim = line_head + strlen(TXPWR_TRACKING_NAME_NEW[offset]);
 				break;
+			}
 		}
 
-		if (offset >= TXPWR_TRACKING_NAME_NUM)
+		if (offset >= sizeof(TXPWR_TRACKING_NAME_NEW)/sizeof(TXPWR_TRACKING_NAME_NEW[0])){
+			//printk("offset >= TXPWR_TRACKING_NAME_NUM %d\n",sizeof(TXPWR_TRACKING_NAME)/sizeof(TXPWR_TRACKING_NAME[0]));
 			return offset;
+		}
 
 		priv->pshare->tracking_table_new = 1;
 	}
 
-	if (offset >= TXPWR_TRACKING_NAME_NUM)
+	if (offset >= sizeof(TXPWR_TRACKING_NAME_NEW)/sizeof(TXPWR_TRACKING_NAME_NEW[0])){
+		//printk("ERROR !  offset >= TXPWR_TRACKING_NAME_NUM %d\n",sizeof(TXPWR_TRACKING_NAME)/sizeof(TXPWR_TRACKING_NAME[0]));
 		return offset;
+	}
 
 	//printk("_Eric offset = %d \n", offset);
 	//printk("_Eric line_head = %s \n", line_head);
 
-	next = get_digit_tracking(&swim);
-
+	next = get_digit_tracking(&swim); //4 Get the start address of next number
+	//printk("*next = %c\n",*next);
 	while (1) {
 
 		if (next == NULL)
@@ -2857,17 +3644,19 @@ static int get_tracking_table(struct rtl8192cd_priv *priv, unsigned char *line_h
 			base = 10;
 			idx = 0;
 
-			//printk("num#%d = %d \n", num, _convert_2_pwr_tracking((char *)&next[idx], base));
+			//printk("[%d][%d] = %d \n",offset, num, _convert_2_pwr_tracking((char *)&next[idx], base)); //4 convert to 10-base for next number
 			input_tracking_value(priv, offset, num, _convert_2_pwr_tracking((char *)&next[idx], base));
 
 			num++;
 		} else
 			break;
 
-		if (num >= index_mapping_NUM_MAX)
+		if (num >= index_mapping_NUM_MAX){
 			break;
-
+		}
 		next = get_digit_tracking(&next);
+		//if(next != NULL)
+		//	printk("   *next  =  %c\n",*next);
 
 	}
 
@@ -2883,36 +3672,41 @@ void check_tracking_table(struct rtl8192cd_priv *priv)
 	int tmp = 0;
 	int tmp2 = 0;
 
-	for (tmp = 0; tmp < 4; tmp++) {
+	for (tmp = 0; tmp < 2*TXPWR_TRACKING_PATH_NUM; tmp++) {
 		for (tmp2 = 1; tmp2 < index_mapping_NUM_MAX; tmp2 ++) {
+			//printk("tracking_2G_CCK[%d][%d]=%d\n",tmp,tmp2-1,priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2-1]);
 			if (priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2] < priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2 - 1])
 				priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2] = priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2 - 1];
 		}
 	}
 
-	for (tmp = 0; tmp < 4; tmp++) {
+	for (tmp = 0; tmp < 2*TXPWR_TRACKING_PATH_NUM; tmp++) {
 		for (tmp2 = 1; tmp2 < index_mapping_NUM_MAX; tmp2 ++) {
+			//printk("txpwr_tracking_2G_OFDM[%d][%d]=%d\n",tmp,tmp2-1,priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2-1]);
 			if (priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2] < priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2 - 1])
 				priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2] = priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2 - 1];
 		}
 	}
 
-	for (tmp = 0; tmp < 4; tmp++) {
+	for (tmp = 0; tmp < 2*TXPWR_TRACKING_PATH_NUM; tmp++) {
 		for (tmp2 = 1; tmp2 < index_mapping_NUM_MAX; tmp2 ++) {
+			//printk("txpwr_tracking_5GL[%d][%d]=%d\n",tmp,tmp2-1,priv->pshare->txpwr_tracking_5GL[tmp][tmp2-1]);			
 			if (priv->pshare->txpwr_tracking_5GL[tmp][tmp2] < priv->pshare->txpwr_tracking_5GL[tmp][tmp2 - 1])
 				priv->pshare->txpwr_tracking_5GL[tmp][tmp2] = priv->pshare->txpwr_tracking_5GL[tmp][tmp2 - 1];
 		}
 	}
 
-	for (tmp = 0; tmp < 4; tmp++) {
+	for (tmp = 0; tmp < 2*TXPWR_TRACKING_PATH_NUM; tmp++) {
 		for (tmp2 = 1; tmp2 < index_mapping_NUM_MAX; tmp2 ++) {
+			//printk("txpwr_tracking_5GM[%d][%d]=%d\n",tmp,tmp2-1,priv->pshare->txpwr_tracking_5GM[tmp][tmp2-1]);			
 			if (priv->pshare->txpwr_tracking_5GM[tmp][tmp2] < priv->pshare->txpwr_tracking_5GM[tmp][tmp2 - 1])
 				priv->pshare->txpwr_tracking_5GM[tmp][tmp2] = priv->pshare->txpwr_tracking_5GM[tmp][tmp2 - 1];
 		}
 	}
 
-	for (tmp = 0; tmp < 4; tmp++) {
+	for (tmp = 0; tmp < 2*TXPWR_TRACKING_PATH_NUM; tmp++) {
 		for (tmp2 = 1; tmp2 < index_mapping_NUM_MAX; tmp2 ++) {
+			//printk("txpwr_tracking_5GH[%d][%d]=%d\n",tmp,tmp2-1,priv->pshare->txpwr_tracking_5GH[tmp][tmp2-1]);			
 			if (priv->pshare->txpwr_tracking_5GH[tmp][tmp2] < priv->pshare->txpwr_tracking_5GH[tmp][tmp2 - 1])
 				priv->pshare->txpwr_tracking_5GH[tmp][tmp2] = priv->pshare->txpwr_tracking_5GH[tmp][tmp2 - 1];
 		}
@@ -2924,12 +3718,13 @@ int PHY_ConfigTXPwrTrackingWithParaFile(struct rtl8192cd_priv *priv)
 {
 	int read_bytes, num;
 	unsigned char *mem_ptr, *line_head, *next_head;
-
-	memset(priv->pshare->txpwr_tracking_2G_CCK, 0, (4 * index_mapping_NUM_MAX));
-	memset(priv->pshare->txpwr_tracking_2G_OFDM, 0, (4 * index_mapping_NUM_MAX));
-	memset(priv->pshare->txpwr_tracking_5GL, 0, (4 * index_mapping_NUM_MAX));
-	memset(priv->pshare->txpwr_tracking_5GM, 0, (4 * index_mapping_NUM_MAX));
-	memset(priv->pshare->txpwr_tracking_5GH, 0, (4 * index_mapping_NUM_MAX));
+	printk("[%s]\n",__FUNCTION__);
+	
+	memset(priv->pshare->txpwr_tracking_2G_CCK, 0, (2*TXPWR_TRACKING_PATH_NUM * index_mapping_NUM_MAX)); 
+	memset(priv->pshare->txpwr_tracking_2G_OFDM, 0, (2*TXPWR_TRACKING_PATH_NUM * index_mapping_NUM_MAX));
+	memset(priv->pshare->txpwr_tracking_5GL, 0, (2*TXPWR_TRACKING_PATH_NUM * index_mapping_NUM_MAX));  
+	memset(priv->pshare->txpwr_tracking_5GM, 0, (2*TXPWR_TRACKING_PATH_NUM * index_mapping_NUM_MAX));
+	memset(priv->pshare->txpwr_tracking_5GH, 0, (2*TXPWR_TRACKING_PATH_NUM * index_mapping_NUM_MAX));
 
 	if ((mem_ptr = (unsigned char *)kmalloc(MAX_CONFIG_FILE_SIZE, GFP_ATOMIC)) == NULL) {
 		printk("PHY_ConfigTXPwrTrackingWithParaFile(): not enough memory\n");
@@ -2968,7 +3763,7 @@ int PHY_ConfigTXPwrTrackingWithParaFile(struct rtl8192cd_priv *priv)
 #ifdef CONFIG_RTL_8812_SUPPORT
 	else if (GET_CHIP_VER(priv) == VERSION_8812E) {
 #ifdef HIGH_POWER_EXT_PA
-		if (priv->pshare->rf_ft_var.use_ext_pa) {	
+		if (priv->pshare->rf_ft_var.use_ext_pa) {
 			panic_printk("[REG_TXPWR_TRK_8812_hp]\n");
 			next_head = data_REG_TXPWR_TRK_8812_hp_start;
 			read_bytes = (int)(data_REG_TXPWR_TRK_8812_hp_end - data_REG_TXPWR_TRK_8812_hp_start);
@@ -2995,8 +3790,15 @@ int PHY_ConfigTXPwrTrackingWithParaFile(struct rtl8192cd_priv *priv)
 		GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_POWERTRACKINGFILE_START, (pu1Byte)&next_head);			
 	} 
 #endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+	else if (GET_CHIP_VER(priv) == VERSION_8814A) {
+		//printk("[%s][REG_TXPWR_TRK_8814A]\n", __FUNCTION__);
+		GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_POWERTRACKINGFILE_SIZE, (pu1Byte)&read_bytes);
+		GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_POWERTRACKINGFILE_START, (pu1Byte)&next_head);			
+	} 
+#endif
 	else {
-		printk("[%s][NOT SUPPORT]\n", __FUNCTION__);
+		//printk("[%s][NOT SUPPORT]\n", __FUNCTION__);
 		kfree(mem_ptr);
 		return -1;
 	}
@@ -3012,10 +3814,23 @@ int PHY_ConfigTXPwrTrackingWithParaFile(struct rtl8192cd_priv *priv)
 		if (line_head == NULL)
 			break;
 
-		if (line_head[0] == '/')
+		if (line_head[0] == '/'){
+			if(find_str(line_head, "Parameter")){ /* Record PHY parameter version */
+				char *ch = line_head+2;
+				while (1) {
+					if (*ch == '\n')
+						break;
+					else {
+						printk("%c", *ch);
+						ch++;
+					}
+				}
+				printk("\n");
+			} 
 			continue;
+		}
 
-		num = get_tracking_table(priv, line_head);
+		num = get_tracking_table(priv, line_head); //4 for each line
 
 	}
 
@@ -3209,8 +4024,8 @@ void SetTxPowerLevel(struct rtl8192cd_priv *priv)
 	}
 #endif
 	
-#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8813AE)
-	if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8813A)) {
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
+	if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		GET_HAL_INTERFACE(priv)->PHYSetOFDMTxPowerHandler(priv, channel);
 		if (priv->pshare->curr_band == BAND_2G) {
 			if (RT_STATUS_FAILURE == GET_HAL_INTERFACE(priv)->PHYSetCCKTxPowerHandler(priv, channel)) {
@@ -3247,7 +4062,7 @@ void SetTxPowerLevel(struct rtl8192cd_priv *priv)
 #ifdef _DEBUG_RTL8192CD_
 
 //_TXPWR_REDEFINE
-void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
+int Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 				  char *MCSTxAgcOffset_A, char *MCSTxAgcOffset_B, char *OFDMTxAgcOffset_A,
 				  char *OFDMTxAgcOffset_B, char *CCKTxAgc_A, char *CCKTxAgc_B)
 {
@@ -3358,11 +4173,7 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 	{
 		if ((mem_ptr = (unsigned char *)kmalloc(MAX_CONFIG_FILE_SIZE, GFP_ATOMIC)) == NULL) {
 			printk("PHY_ConfigBBWithParaFile(): not enough memory\n");
-#ifdef __ECOS
-			return;
-#else
 			return -1;
-#endif
 		}
 
 		memset(mem_ptr, 0, MAX_CONFIG_FILE_SIZE); // clear memory
@@ -3409,11 +4220,7 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 
 		if ((len * sizeof(struct PhyRegTable)) > max_len) {
 			printk("PHY REG table buffer not large enough!\n");
-#ifdef __ECOS
-			return;
-#else
 			return -1;
-#endif
 		}
 	}
 
@@ -3523,11 +4330,7 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 		num++;
 	}
 
-#ifdef __ECOS
-	return;
-#else
 	return 0;
-#endif
 }
 
 #endif
@@ -3628,13 +4431,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 		}
 #endif
 
-#if !defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
-		if (GET_CHIP_VER(priv) == VERSION_8188E) {
-			DEBUG_INFO("[AGC_TAB_1T_88E]\n");
-			next_head = data_AGC_TAB_1T_88E_start;
-			read_bytes = (int)(data_AGC_TAB_1T_88E_end - data_AGC_TAB_1T_88E_start);
-		}
-#endif
+
 
 #ifdef CONFIG_RTL_8812_SUPPORT //8812 agc
 		if (GET_CHIP_VER(priv) == VERSION_8812E) {
@@ -3844,7 +4641,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 #ifdef __ECOS
 			DEBUG_INFO("[%s][PHY_REG_PG_88E_new]\n", __FUNCTION__);
 #else
-			//printk("[%s][PHY_REG_PG_88E_new]\n", __FUNCTION__);
+			printk("[%s][PHY_REG_PG_88E_new]\n", __FUNCTION__);
 #endif
 			next_head = data_PHY_REG_PG_88E_new_start;
 			read_bytes = (int)(data_PHY_REG_PG_88E_new_end - data_PHY_REG_PG_88E_new_start);
@@ -3936,8 +4733,8 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_PHYREGFILE_PG_SIZE, (pu1Byte)&read_bytes);
 				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_PHYREGFILE_PG_START, (pu1Byte)&next_head);
 			}
-#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8192EE)
-			if (GET_CHIP_VER(priv) == VERSION_8881A ||GET_CHIP_VER(priv) == VERSION_8192E) {
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
+			if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 				if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
 					pg_tbl_idx = 1;
 				else
@@ -4183,14 +4980,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			max_len = PHY_REG_SIZE;
 		}
 #endif
-#ifdef CONFIG_RTL_88E_SUPPORT
-		if (GET_CHIP_VER(priv) == VERSION_8188E) {
-			phyreg_table = (struct PhyRegTable *)priv->pshare->phy_reg_mp_buf;
-			next_head = data_PHY_REG_MP_88E_start;
-			read_bytes = (int)(data_PHY_REG_MP_88E_end - data_PHY_REG_MP_88E_start);
-			max_len = PHY_REG_SIZE;
-		}
-#endif
+
 
 #ifdef CONFIG_RTL_8812_SUPPORT //8812 phy mp
 		if (GET_CHIP_VER(priv) == VERSION_8812E) {
@@ -4247,22 +5037,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			}
 		}
 #endif
-#if !defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
-		if (GET_CHIP_VER(priv) == VERSION_8188E) {
-#ifdef SUPPORT_RTL8188E_TC
-			if (IS_TEST_CHIP(priv)) {
-				DEBUG_INFO("[%s][PHY_REG_1T_88E_TC]\n", __FUNCTION__);
-				next_head = data_PHY_REG_1T_88E_TC_start;
-				read_bytes = (int)(data_PHY_REG_1T_88E_TC_end - data_PHY_REG_1T_88E_TC_start);
-			} else
-#endif
-			{
-				DEBUG_INFO("[%s][PHY_REG_1T_88E]\n", __FUNCTION__);
-				next_head = data_PHY_REG_1T_88E_start;
-				read_bytes = (int)(data_PHY_REG_1T_88E_end - data_PHY_REG_1T_88E_start);
-			}
-		}
-#endif
+
 
 #ifdef CONFIG_WLAN_HAL
 		if ( IS_HAL_CHIP(priv) ) {
@@ -4286,6 +5061,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 #endif
 #ifdef CONFIG_RTL_92C_SUPPORT
 	else if (reg_file == PHYREG_2T2R) {
+		printk("[%s][PHY_REG_2T]\n",__FUNCTION__);
 #ifdef TESTCHIP_SUPPORT
 		if (IS_TEST_CHIP(priv)) {
 			phyreg_table = (struct PhyRegTable *)priv->pshare->phy_reg_buf;
@@ -4323,21 +5099,28 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 
 	{
 #if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)		
-		if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv)==VERSION_8881A) {
-			if (pg_tbl_idx == 0) {
+		if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv)==VERSION_8881A  || GET_CHIP_VER(priv)==VERSION_8814A) {
+			if (pg_tbl_idx == 0) { //4 2G
 				regstart = 0xc20;
-				regend = 0xe38;
+				if(GET_CHIP_VER(priv) == VERSION_8814A)
+					regend = 0x1ae8;
+				else
+					regend = 0xe38;
 			} else {
 				regstart = 0xc24;
-				regend = 0xe4c;
+				if(GET_CHIP_VER(priv) == VERSION_8814A)
+					regend = 0x1ae8;
+				else
+					regend = 0xe4c;
 			}
 		} else {
 			regstart = 0xe00;
 			regend = 0x868;
 		}		
+		//printk("regstart=%x\nregend=%x\n",regstart,regend);
 #endif		
 #if 0
-		if (file_format == FIVE_COLUMN)
+		if ((file_format == FIVE_COLUMN) || (file_format == SEVEN_COLUMN))
 		{
 
 			if ((mem_ptr2 = (unsigned char *)kmalloc(MAX_CONFIG_FILE_SIZE, GFP_ATOMIC)) == NULL) {
@@ -4378,9 +5161,21 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			if (line_head == NULL)
 				break;
 
-			if (line_head[0] == '/')
+			if (line_head[0] == '/'){
+				if(find_str(line_head, "Parameter")){ /* Record PHY parameter version */
+					char *ch = line_head+2;
+					while (1) {
+						if (*ch == '\n')
+							break;
+						else {
+							printk("%c", *ch);
+							ch++;
+						}
+					}
+					printk("\n");
+				} 
 				continue;
-
+			}
 			if (file_format == TWO_COLUMN) {
 				num = get_offset_val(line_head, &u4bRegOffset, &u4bRegValue);
 				if (num > 0) {
@@ -4406,10 +5201,20 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 				}
 			} else {
 				if (reg_file == PHYREG_PG) {
-					if (file_format == THREE_COLUMN)				
+					if (file_format == THREE_COLUMN){				
 						num = get_offset_mask_val(line_head, &u4bRegOffset, &u4bRegMask , &u4bRegValue);
-					else				
-						num = get_offset_mask_val_new(priv, line_head, &u4bRegOffset, &u4bRegMask , &u4bRegValue);				
+					}else{				
+						num = get_offset_mask_val_new(priv, line_head, &u4bRegOffset, &u4bRegMask , &u4bRegValue);		
+						//printk("reg=%x, mask=%x, power=%x\n",u4bRegOffset,u4bRegMask,u4bRegValue);					
+						/* 2G parse first parts, 5G parse both parts but only use the last one*/
+#ifdef CONFIG_WLAN_HAL_8814AE
+						if(GET_CHIP_VER(priv) == VERSION_8814A){
+							if (pg_tbl_idx == 0 && u4bRegOffset == regend) {							
+								break;
+							}
+						}
+#endif						
+					}	
 				}			
 		
 				if (num > 0) {
@@ -4436,6 +5241,43 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			}
 		}
 
+#if 0//defined(CONFIG_WLAN_HAL_8814AE)
+	if(GET_CHIP_VER(priv) == VERSION_8814A){
+		int i;
+		for(i=0;i<4;i++)
+			printk("priv->pshare->phw->CCKTxAgc_A[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_A[i]);
+		for(i=0;i<8;i++)
+			printk("priv->pshare->phw->OFDMTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_A[i]);
+		for(i=0;i<24;i++)
+			printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);
+		for(i=0;i<30;i++)
+			printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);
+		for(i=0;i<4;i++)
+			printk("priv->pshare->phw->CCKTxAgc_B[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_B[i]);
+		for(i=0;i<8;i++)
+			printk("priv->pshare->phw->OFDMTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_B[i]);
+		for(i=0;i<24;i++)
+			printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);
+		for(i=0;i<30;i++)
+			printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);
+		for(i=0;i<4;i++)
+			printk("priv->pshare->phw->CCKTxAgc_C[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_C[i]);
+		for(i=0;i<8;i++)
+			printk("priv->pshare->phw->OFDMTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_C[i]);
+		for(i=0;i<24;i++)
+			printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);
+		for(i=0;i<30;i++)
+			printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);
+		for(i=0;i<4;i++)
+			printk("priv->pshare->phw->CCKTxAgc_D[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_D[i]);
+		for(i=0;i<8;i++)
+			printk("priv->pshare->phw->OFDMTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_D[i]);
+		for(i=0;i<24;i++)
+			printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);
+		for(i=0;i<30;i++)
+			printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);
+	}
+#endif
 		kfree(mem_ptr);
 
 		if ((len * sizeof(struct PhyRegTable)) > max_len) {
@@ -4446,7 +5288,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 
 	num = 0;
 	while (1) {
-		if (file_format == THREE_COLUMN || file_format == FIVE_COLUMN) {
+		if (file_format == THREE_COLUMN || file_format == FIVE_COLUMN || file_format == SEVEN_COLUMN) {
 			u4bRegOffset = macreg_table[num].offset;
 			u4bRegValue = macreg_table[num].value;
 			u4bRegMask = macreg_table[num].mask;
@@ -4479,8 +5321,12 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 							write_en = 1;
 						idx++;
 					}
-					if (write_en) {
-						//panic_printk("0x%03x	0x%08x\n", u4bRegOffset, u4bRegValue);
+					if (write_en
+#if defined(CONFIG_WLAN_HAL_8814AE)
+						&& (GET_CHIP_VER(priv) != VERSION_8814A) /* 8814 needs not to set Tx AGC registers */
+#endif						
+						) { //3 5 column PG set regs
+						//panic_printk("0x%05x	0x%08x\n", u4bRegOffset, u4bRegValue);
 						PHY_SetBBReg(priv, u4bRegOffset, u4bRegMask, u4bRegValue);
 						if (u4bRegOffset == regend) {
 							write_en = 0;
@@ -4493,9 +5339,14 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			{
 				PHY_SetBBReg(priv, u4bRegOffset, u4bRegMask, u4bRegValue);
 			}
-		} else{
+		} else
 			PHY_SetBBReg(priv, u4bRegOffset, bMaskDWord, u4bRegValue);
+#ifdef USE_OUT_SRC
+		if (reg_file == AGCTAB &&  priv->pshare->_dmODM.print_agc) 
+		{
+			panic_printk("Reg %x [31:0]  =  %x \n", u4bRegOffset, u4bRegValue);
 		}
+#endif
 		num++;
 	}
 
@@ -4541,8 +5392,21 @@ int PHY_ConfigRFWithParaFile(struct rtl8192cd_priv *priv,
 		if (line_head == NULL)
 			break;
 
-		if (line_head[0] == '/')
+		if (line_head[0] == '/'){
+			if(find_str(line_head, "Parameter")){ /* Record PHY parameter version */
+				char *ch = line_head+2;
+				while (1) {
+					if (*ch == '\n')
+						break;
+					else {
+						printk("%c", *ch);
+						ch++;
+					}
+				}
+				printk("\n");
+			} 
 			continue;
+		}
 
 		num = get_offset_val(line_head, &u4bRegOffset, &u4bRegValue);
 		if (num > 0) {
@@ -4615,24 +5479,7 @@ int PHY_ConfigMACWithParaFile(struct rtl8192cd_priv *priv)
 			memcpy(mem_ptr, data_MACPHY_REG_92C_start, read_bytes);
 		}
 #endif
-#ifdef CONFIG_RTL_88E_SUPPORT
-#if !defined(CONFIG_MACBBRF_BY_ODM)
-		if (GET_CHIP_VER(priv) == VERSION_8188E) {
-#ifdef SUPPORT_RTL8188E_TC
-			if (IS_TEST_CHIP(priv)) {
-				DEBUG_INFO("[%s][MAC_REG_88E_TC]\n", __FUNCTION__);
-				read_bytes = (int)(data_MAC_REG_88E_TC_end - data_MAC_REG_88E_TC_start);
-				memcpy(mem_ptr, data_MAC_REG_88E_TC_start, read_bytes);
-			} else
-#endif
-			{
-				DEBUG_INFO("[%s][MAC_REG_88E]\n", __FUNCTION__);
-				read_bytes = (int)(data_MAC_REG_88E_end - data_MAC_REG_88E_start);
-				memcpy(mem_ptr, data_MAC_REG_88E_start, read_bytes);
-			}
-		}
-#endif
-#endif
+
 
 #ifdef CONFIG_RTL_8812_SUPPORT //mac reg
 		if (GET_CHIP_VER(priv) == VERSION_8812E) {
@@ -4786,16 +5633,51 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
     }
 #endif
 
-#if defined(DFS) && !defined(RTK_NL80211)
+#if 0//defined(DFS) && !defined(RTK_NL80211)
 #ifdef UNIVERSAL_REPEATER
 	unsigned int no_beacon = 0;
+	unsigned int tmp_opmode =0;
 	if(under_apmode_repeater(priv))
 	{
+
 		if(!priv->pmib->dot11DFSEntry.disable_DFS && is_DFS_channel(channel))
 		{		
-		    if(!priv->site_survey->hidden_ap_found){
-                no_beacon = 1;
+            int hidden_ap_found=0;
+            int target_ap_found=0;            
+            if(IS_ROOT_INTERFACE(priv)){
+                hidden_ap_found = GET_VXD_PRIV(priv)->site_survey->hidden_ap_found;
+                target_ap_found = GET_VXD_PRIV(priv)->site_survey->target_ap_found;                
+            }else{
+                hidden_ap_found = priv->site_survey->hidden_ap_found;
+                target_ap_found = priv->site_survey->target_ap_found;                
             }
+		    if(hidden_ap_found || target_ap_found){
+
+                RTL_W8(TXPAUSE, 0);
+                no_beacon = 0;
+            }
+            else{
+			RTL_W8(TXPAUSE, BIT(6)); //Close Beacon
+			no_beacon = 1;
+            }
+			
+			if((OPMODE & WIFI_ASOC_STATE) && (OPMODE & WIFI_STATION_STATE))
+			{
+				no_beacon = 0;
+				//RTL_W8(TXPAUSE, 0x0);
+			}
+			
+			if(IS_ROOT_INTERFACE(priv))
+			{
+				tmp_opmode = GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode;
+
+				if((tmp_opmode & WIFI_ASOC_STATE) && (tmp_opmode & WIFI_STATION_STATE))
+				{
+					no_beacon = 0;
+					//RTL_W8(TXPAUSE, 0x0);
+				}
+			}
+			//STADEBUG("DFS Channel=%d, 0x522=0x%x\n", channel, RTL_R8(TXPAUSE));		
 		}
 	}
 #endif
@@ -4808,17 +5690,17 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 	}
 #endif
 
-// TODO: 8813AE BB/RF
-// TODO: after all BB/RF init ready, change (8881A || 8813AE) to (WLAN_HAL && 11AC_SUPPORT) ??
-#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8813AE)
-	if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8813A)) {
+// TODO: 8814AE BB/RF
+// TODO: after all BB/RF init ready, change (8881A || 8814AE) to (WLAN_HAL && 11AC_SUPPORT) ??
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
+	if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		priv->pshare->No_RF_Write = 0;
 		GET_HAL_INTERFACE(priv)->PHYUpdateBBRFValHandler(priv, channel, offset);
 	}
 #endif
 
-#ifdef AC2G_256QAM
-	if(is_ac2g(priv)) //for 8812 & 8881a
+#if defined(AC2G_256QAM)
+	if(is_ac2g(priv)) //for 8812 & 8881a & 8194
 	{
 		RTL_W32(0x8c0, RTL_R32(0x8c0) & (~BIT(17)));	//enable tx vht rates
 	}
@@ -4838,7 +5720,7 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 		curMaxRFPath = RF92CD_PATH_B;
 	else
 #endif
-		curMaxRFPath = RF92CD_PATH_MAX;
+		curMaxRFPath = priv->pshare->phw->NumTotalRFPath;
 
 	if (channel > 14)
 		priv->pshare->curr_band = BAND_5G;
@@ -4980,14 +5862,14 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 #endif
 
 
-#if defined(DFS) && !defined(RTK_NL80211)
+#if 0//defined(DFS) && !defined(RTK_NL80211)
 #ifdef UNIVERSAL_REPEATER
 	if(under_apmode_repeater(priv))
 	{
 		if(no_beacon == 1)
-			RTL_W8(TXPAUSE, RTL_R8(TXPAUSE) | STOP_BCN);
+			RTL_W8(TXPAUSE, BIT(6));
 		else
-			RTL_W8(TXPAUSE, RTL_R8(TXPAUSE) & ~STOP_BCN);
+			RTL_W8(TXPAUSE, 0x0);
 	}
 #endif
 #endif
@@ -4995,9 +5877,17 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 	priv->pshare->working_channel = val;
 	priv->pshare->working_channel2 = channel;
 	SetTxPowerLevel(priv);
+	
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	/* eliminate the 5280MHz & 5600MHz & 5760MHzspur of 8814A */
+	if(GET_CHIP_VER(priv) == VERSION_8814A && priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
+		GET_HAL_INTERFACE(priv)->PHYSpurCalibration(priv);
+	}
+#endif	
+
 #ifdef BT_COEXIST	
 	extern unsigned char bt_state;
-	if(bt_state && IS_DRV_OPEN(priv)){ /* BT enable, set channel for BT*/
+	if(bt_state){ /* BT enable, set channel for BT*/
 		unsigned char H2CCommand[3]={0};
 		unsigned int center_ch;
 #ifdef BT_COEXIST_DEBUG
@@ -5017,6 +5907,228 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 	return;
 }
 
+#ifdef MCR_WIRELESS_EXTEND
+#ifdef CONFIG_WLAN_HAL_8192EE
+int Switch_Antenna_92E(struct rtl8192cd_priv *priv, unsigned char *data)
+{
+	unsigned int rx_ss=0, ant=0;
+	unsigned char*val=NULL;	
+
+	if (strlen(data)==0) {
+		GDEBUG("Null data !!!\n");
+		return 1;
+	} 
+
+	val = get_value_by_token((char *)data, "ss=");
+	if (val) {
+		rx_ss = _atoi(val,10);
+		if (rx_ss < 1 || rx_ss > 2) {
+			GDEBUG("not support ss=%d !\n", rx_ss);
+			return 1;
+		}
+	} else {
+		GDEBUG("no specific ss !\n");
+		return 1;
+	}
+
+	val = get_value_by_token((char *)data, "path=");
+	if (val) {
+		if (rx_ss == 1) {
+			if (!strcmp(val,"a"))	
+				ant = ANTENNA_A;
+			else if (!strcmp(val,"b"))	
+				ant = ANTENNA_B;
+		}
+		else if (rx_ss == 2) {
+			if (!strcmp(val,"ab"))	
+				ant = ANTENNA_AB;
+		}
+
+		if (!ant) {
+			GDEBUG("not support ant=%s ! (rx_ss=%d)\n", val, rx_ss);
+			return 1;
+		}	
+	}
+
+	switch(ant)
+	{
+		case ANTENNA_B:
+			PHY_SetBBReg(priv, 0xa04, 0xf0000000, 0x4);
+			PHY_SetBBReg(priv, 0xa04, 0x0f000000, 0x5);		
+			break;	
+
+		case ANTENNA_A:
+		case ANTENNA_AB:
+		default:	
+			PHY_SetBBReg(priv, 0xa04, 0xf0000000, 0x8);
+			PHY_SetBBReg(priv, 0xa04, 0x0f000000, 0x1);
+			break;	
+	}
+
+	return 0;
+}
+#endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+int Switch_Antenna_8814(struct rtl8192cd_priv *priv, unsigned char *data)
+{
+	unsigned int rx_ss=0, ant=0;
+	unsigned char*val=NULL;	
+
+	if (strlen(data)==0) {
+		GDEBUG("Null data !!!\n");
+		return 1;
+	} else
+		GDEBUG("data: %s\n", data);
+
+
+	val = get_value_by_token((char *)data, "ss=");
+	if (val) {
+		rx_ss = _atoi(val,10);
+		if (rx_ss < 1 || rx_ss > 4) {
+			GDEBUG("not support ss=%d !\n", rx_ss);
+			return 1;
+		}
+	} else {
+		GDEBUG("no specific ss !\n");
+		return 1;
+	}
+
+	val = get_value_by_token((char *)data, "path=");
+	if (val) {
+		if (rx_ss == 1) {
+			if (priv->pshare->is_40m_bw == HT_CHANNEL_WIDTH_80) {
+				PHY_SetBBReg(priv, 0x838, BIT0, 0x1);
+				PHY_SetBBReg(priv, 0x82c, 0x0fff0000, 0x5a9);
+				PHY_SetBBReg(priv, 0x838, 0x0fff0000, 0x788);
+				PHY_SetBBReg(priv, 0x840, 0x0000f000, 0x7);				
+				RTL_W8(0x830,0xa);	
+			} 
+						
+			if (!strcmp(val,"a"))	
+				ant = ANTENNA_A;
+			else if (!strcmp(val,"b"))	
+				ant = ANTENNA_B;
+			else if (!strcmp(val,"c"))	
+				ant = ANTENNA_C;
+			else if (!strcmp(val,"d"))	
+				ant = ANTENNA_D;
+		}
+		else if (rx_ss == 2) {
+			if (priv->pshare->is_40m_bw == HT_CHANNEL_WIDTH_80) {
+				PHY_SetBBReg(priv, 0x838, BIT0, 0x1);
+				PHY_SetBBReg(priv, 0x82c, 0x0fff0000, 0x5a9);
+				PHY_SetBBReg(priv, 0x838, 0x0fff0000, 0x788);
+				PHY_SetBBReg(priv, 0x840, 0x0000f000, 0x6);
+
+				RTL_W8(0x830,0xa);
+			} 		
+			if (!strcmp(val,"ab"))	
+				ant = 0;	//ANTENNA_AB;
+			else if (!strcmp(val,"bc"))	
+				ant = ANTENNA_BC;
+			else if (!strcmp(val,"cd"))	
+				ant = 0;	//ANTENNA_CD;
+		}
+		else if (rx_ss == 3) {
+			if (priv->pshare->is_40m_bw == HT_CHANNEL_WIDTH_80) {
+				PHY_SetBBReg(priv, 0x838, BIT0, 0x1);
+				PHY_SetBBReg(priv, 0x82c, 0x0fff0000, 0x398);
+				PHY_SetBBReg(priv, 0x838, 0x0fff0000, 0x777);
+				PHY_SetBBReg(priv, 0x840, 0x0000f000, 0x6);
+				RTL_W8(0x830,0x8);
+			} 				
+			
+			if (!strcmp(val,"abc"))	
+				ant = 0;	//ANTENNA_ABC;
+			else if (!strcmp(val,"bcd"))	
+				ant = ANTENNA_BCD;
+		}
+		else if (rx_ss == 4) {
+			if (priv->pshare->is_40m_bw == HT_CHANNEL_WIDTH_80) {
+				PHY_SetBBReg(priv, 0x838, BIT0, 0x1);
+				PHY_SetBBReg(priv, 0x82c, 0x0fff0000, 0x398);
+				PHY_SetBBReg(priv, 0x838, 0x0fff0000, 0x777);
+				PHY_SetBBReg(priv, 0x840, 0x0000f000, 0x7);
+				RTL_W8(0x830,0x8);
+			}
+			
+			if (!strcmp(val,"abcd"))	
+				ant = ANTENNA_ABCD;
+		}
+		
+		if (!ant) {
+			GDEBUG("not support ant=%s ! (rx_ss=%d)\n", val, rx_ss);
+			return 1;
+		}
+	} else {
+		GDEBUG("no specific path !\n");
+		return 1;
+	}
+
+
+	switch(ant)
+	{
+		case ANTENNA_A:
+			//Tx
+			PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x001);	// 0x93C[31:20]=12'b0000_0000_0001
+
+			//Rx
+			PHY_SetBBReg(priv, 0x808, 0xff, 0x11);
+			break;
+			
+		case ANTENNA_B:
+			//Tx
+			PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x002);	// 0x93C[31:20]=12'b0000_0000_0001
+
+			//Rx
+			PHY_SetBBReg(priv, 0x808, 0xff, 0x22);
+			break;	
+
+		case ANTENNA_C:
+			//Tx
+			PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x004);	// 0x93C[31:20]=12'b0000_0000_0001
+
+			//Rx
+			PHY_SetBBReg(priv, 0x808, 0xff, 0x44);
+			break;	
+
+		case ANTENNA_D:
+			//Tx
+			PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x008);	// 0x93C[31:20]=12'b0000_0000_0001
+
+			//Rx
+			PHY_SetBBReg(priv, 0x808, 0xff, 0x88);			
+			break;		
+
+		case ANTENNA_BC:
+			//Tx
+			PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x106);	// 0x93C[31:20]=12'b0000_0000_0001
+
+			//Rx
+			PHY_SetBBReg(priv, 0x808, 0xff, 0x66);			
+			break;	
+
+		case ANTENNA_BCD:
+			//Tx
+			PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x106);	// 0x93C[31:20]=12'b0000_0000_0001
+			
+			//Rx
+			PHY_SetBBReg(priv, 0x808, 0xff, 0xee);			
+			break;	
+
+		case ANTENNA_ABCD:
+			//Tx
+			PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x106);	// 0x93C[31:20]=12'b0000_0000_0001
+
+			//Rx
+			PHY_SetBBReg(priv, 0x808, 0xff, 0xff);			
+			break;				
+	}
+
+		return 0;
+}
+#endif
+#endif
 #ifdef EXPERIMENTAL_WIRELESS_EXTEND
 // switch 1 spatial stream path
 //antPath: 01 for PathA,10 for PathB, 11for Path AB
@@ -5333,6 +6445,16 @@ void check_chipID_MIMO(struct rtl8192cd_priv *priv)
 	}else if (GET_CHIP_VER(priv) == VERSION_8192E)	{
 		priv->pshare->version_id |= (RTL_R16(0xf0)>>8) & 0x0f0;		// 92E c-cut	
 		goto exit_func;
+	}else if (GET_CHIP_VER(priv) == VERSION_8814A)	{
+		u8 ChipCut      = _GET_HAL_DATA(priv)->cutVersion & 0xF;
+        u8 bTestChip    = _GET_HAL_DATA(priv)->bTestChip;
+
+        priv->pshare->version_id |= (ChipCut<<4);
+        if (bTestChip) {
+            priv->pshare->version_id |= 0x100;
+        }
+
+        goto exit_func;
 	}
 #endif
 #ifdef CONFIG_RTL_8812_SUPPORT //FOR_8812_MP_CHIP
@@ -6200,7 +7322,7 @@ void PHY_RF6052SetCCKTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 		return;
 	}
 
-	if ((pwrlevelCCK_A == 0)
+	if ((pwrlevelCCK_A == 0 && pwrlevelCCK_B == 0)
 #if defined(MP_TEST) && defined(CONFIG_RTL_88E_SUPPORT) && defined(CALIBRATE_BY_ODM)
 			|| ((priv->pshare->rf_ft_var.mp_specific) || (OPMODE & WIFI_MP_STATE))
 #endif
@@ -6331,28 +7453,28 @@ int PHY_CheckBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			max_len = PHY_REG_SIZE;
 
 			if (IS_TEST_CHIP(priv)) { //for_8812_mp_chip
-				printk("PHY_CheckBBWithParaFile - [PHY_REG_8812]\n");
+				printk("[%s][PHY_REG_8812]\n", __FUNCTION__);
 				next_head = data_PHY_REG_8812_start;
 				read_bytes = (int)(data_PHY_REG_8812_end - data_PHY_REG_8812_start);
 			} else {
 #ifdef HIGH_POWER_EXT_PA
 #ifdef HIGH_POWER_EXT_LNA
 				if (priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {
-					printk("PHY_CheckBBWithParaFile - [PHY_REG_8812_n_hp]\n");
+					printk("[%s][PHY_REG_8812_n_hp]\n", __FUNCTION__);
 					next_head = data_PHY_REG_8812_n_hp_start;
 					read_bytes = (int)(data_PHY_REG_8812_n_hp_end - data_PHY_REG_8812_n_hp_start);
 				} else if (priv->pshare->rf_ft_var.use_ext_pa && !priv->pshare->rf_ft_var.use_ext_lna) {
-					printk("PHY_CheckBBWithParaFile - [PHY_REG_8812_n_extpa]\n");
+					printk("[%s][PHY_REG_8812_n_extpa]\n", __FUNCTION__);
 					next_head = data_PHY_REG_8812_n_extpa_start;
 					read_bytes = (int)(data_PHY_REG_8812_n_extpa_end - data_PHY_REG_8812_n_extpa_start);
 				} else if (!priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {
-					printk("PHY_CheckBBWithParaFile - [PHY_REG_8812_n_extlna]\n");
+					printk("[%s][PHY_REG_8812_n_extlna]\n", __FUNCTION__);
 					next_head = data_PHY_REG_8812_n_extlna_start;
 					read_bytes = (int)(data_PHY_REG_8812_n_extlna_end - data_PHY_REG_8812_n_extlna_start);
 				} else 
 #else
 				if (priv->pshare->rf_ft_var.use_ext_pa) {					
-					printk("PHY_CheckBBWithParaFile - [PHY_REG_8812_n_hp]\n");
+					printk("[%s][PHY_REG_8812_n_hp]\n", __FUNCTION__);
 					next_head = data_PHY_REG_8812_n_hp_start;
 					read_bytes = (int)(data_PHY_REG_8812_n_hp_end - data_PHY_REG_8812_n_hp_start);
 				} else
@@ -6360,14 +7482,14 @@ int PHY_CheckBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 #else
 #ifdef HIGH_POWER_EXT_LNA
 				if (priv->pshare->rf_ft_var.use_ext_lna) {
-					printk("PHY_CheckBBWithParaFile - [PHY_REG_8812_n_extlna]\n");
+					printk("[%s][PHY_REG_8812_n_extlna]\n", __FUNCTION__);
 					next_head = data_PHY_REG_8812_n_extlna_start;
 					read_bytes = (int)(data_PHY_REG_8812_n_extlna_end - data_PHY_REG_8812_n_extlna_start);
 				} else
 #endif
 #endif
 				{
-					printk("[PHY_CheckBBWithParaFile - PHY_REG_8812_n_default]\n");
+					printk("[%s][PHY_REG_8812_n_default]\n", __FUNCTION__);
 					next_head = data_PHY_REG_8812_n_default_start;
 					read_bytes = (int)(data_PHY_REG_8812_n_default_end - data_PHY_REG_8812_n_default_start);
 				}
@@ -6572,6 +7694,14 @@ static int phy_BB88XX_Config_ParaFile(struct rtl8192cd_priv *priv)
 	unsigned int val32;
 
 	phy_InitBBRFRegisterDefinition(priv);
+	
+#if defined(CONFIG_SDIO_HCI) && defined(HIGH_POWER_EXT_LNA)
+	if (priv->pshare->rf_ft_var.use_ext_lna) {
+		RTL_W8(0x11, 0xeb);	    
+		RTL_W8(0x12, 0x07);
+		RTL_W8(0x14, 0x75);
+	}
+#endif
 
 	// Enable BB and RF
 	val16 = RTL_R16(REG_SYS_FUNC_EN);
@@ -6582,7 +7712,8 @@ static int phy_BB88XX_Config_ParaFile(struct rtl8192cd_priv *priv)
 	/*----Check chip ID and hw TR MIMO config----*/
 //	check_chipID_MIMO(priv);
 
-#if 0// eric-8813 def CONFIG_WLAN_HAL
+// 8814 merge issue, why eric mark this flag in branch 3.4
+#if 0//def CONFIG_WLAN_HAL
 	if ( IS_HAL_CHIP(priv) ) {
 
 #ifdef CONFIG_WLAN_HAL_8192EE
@@ -6597,12 +7728,12 @@ static int phy_BB88XX_Config_ParaFile(struct rtl8192cd_priv *priv)
 		}
 #endif //CONFIG_WLAN_HAL_8192EE        
 
-#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8813AE)
-		if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8813A)) {
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
+		if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 			printk("%s(%d), HAL PHY_ConfigBBWithParaFile\n", __FUNCTION__, __LINE__);
 			rtStatus = PHY_ConfigBBWithParaFile(priv, PHYREG);
 		}
-#endif //CONFIG_WLAN_HAL_8881A        
+#endif //CONFIG_WLAN_HAL_8881A || CONFIG_WLAN_HAL_8814AE       
 	}
 #endif  //CONFIG_WLAN_HAL
 
@@ -6724,6 +7855,7 @@ static int phy_BB8192CD_Config_ParaFile(struct rtl8192cd_priv *priv)
 		val32 = (val32 & (~(BIT(11) | BIT(14)))) | (BIT(18) | BIT(19) | BIT(21) | BIT(22));
 		RTL_W32(REG_AFE_XTAL_CTRL, val32);
 	}
+
 #endif
 	/*----Check chip ID and hw TR MIMO config----*/
 //	check_chipID_MIMO(priv);
@@ -6860,41 +7992,74 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 	int rtStatus = 0;
 	RF92CD_RADIO_PATH_E eRFPath;
 	BB_REGISTER_DEFINITION_T *pPhyReg;
-	unsigned int  u4RegValue = 0;
+	unsigned int  u4RegValue = 0, NumTotalRFPath;
 #ifndef SMP_SYNC
 	unsigned long x;
 #endif
 
-	SAVE_INT_AND_CLI(x);
-
-#ifdef CONFIG_WLAN_HAL_8813AE
 #ifdef CONFIG_WLAN_HAL
+#if defined(HIGH_POWER_EXT_PA) && defined(HIGH_POWER_EXT_LNA)
 	HW_VARIABLES RF_REG_FILE_RADIO_HP_SIZE[RF92CD_PATH_MAX]  = {
 		HW_VAR_RFREGFILE_RADIO_A_HP_SIZE,  HW_VAR_RFREGFILE_RADIO_B_HP_SIZE,
-#ifdef CONFIG_WLAN_HAL_8813AE
+#ifdef CONFIG_WLAN_HAL_8814AE
 		HW_VAR_RFREGFILE_RADIO_C_HP_SIZE,  HW_VAR_RFREGFILE_RADIO_D_HP_SIZE
 #endif
 	};
 	HW_VARIABLES RF_REG_FILE_RADIO_HP_START[RF92CD_PATH_MAX] = {
 		HW_VAR_RFREGFILE_RADIO_A_HP_START, HW_VAR_RFREGFILE_RADIO_B_HP_START,
-#ifdef CONFIG_WLAN_HAL_8813AE
+#ifdef CONFIG_WLAN_HAL_8814AE
 		HW_VAR_RFREGFILE_RADIO_C_HP_START, HW_VAR_RFREGFILE_RADIO_D_HP_START
 #endif
 	};
+#endif // HIGH_POWER_EXT_PA && HIGH_POWER_EXT_LNA
+
 	HW_VARIABLES RF_REG_FILE_RADIO_SIZE[RF92CD_PATH_MAX]     = {
 		HW_VAR_RFREGFILE_RADIO_A_SIZE,     HW_VAR_RFREGFILE_RADIO_B_SIZE,
-#ifdef CONFIG_WLAN_HAL_8813AE
+#ifdef CONFIG_WLAN_HAL_8814AE
 		HW_VAR_RFREGFILE_RADIO_C_SIZE,     HW_VAR_RFREGFILE_RADIO_D_SIZE
 #endif
 	};
 	HW_VARIABLES RF_REG_FILE_RADIO_START[RF92CD_PATH_MAX]    = {
 		HW_VAR_RFREGFILE_RADIO_A_START,    HW_VAR_RFREGFILE_RADIO_B_START,
-#ifdef CONFIG_WLAN_HAL_8813AE
+#ifdef CONFIG_WLAN_HAL_8814AE
 		HW_VAR_RFREGFILE_RADIO_C_START,    HW_VAR_RFREGFILE_RADIO_D_START
 #endif
 	};
+	
+#ifdef HIGH_POWER_EXT_PA
+	HW_VARIABLES RF_REG_FILE_RADIO_EXTPA_SIZE[RF92CD_PATH_MAX]	= {
+		HW_VAR_RFREGFILE_RADIO_A_EXTPA_SIZE,  HW_VAR_RFREGFILE_RADIO_B_EXTPA_SIZE,
+#ifdef CONFIG_WLAN_HAL_8814AE			
+		HW_VAR_RFREGFILE_RADIO_C_EXTPA_SIZE,  HW_VAR_RFREGFILE_RADIO_D_EXTPA_SIZE
+#endif		
+		};
+	HW_VARIABLES RF_REG_FILE_RADIO_EXTPA_START[RF92CD_PATH_MAX] = {
+		HW_VAR_RFREGFILE_RADIO_A_EXTPA_START, HW_VAR_RFREGFILE_RADIO_B_EXTPA_START,
+#ifdef CONFIG_WLAN_HAL_8814AE				
+		HW_VAR_RFREGFILE_RADIO_C_EXTPA_START, HW_VAR_RFREGFILE_RADIO_D_EXTPA_START
+#endif		
+		};
+#endif // HIGH_POWER_EXT_PA
+
+#ifdef HIGH_POWER_EXT_LNA
+	HW_VARIABLES RF_REG_FILE_RADIO_EXTLNA_SIZE[RF92CD_PATH_MAX]  = {
+		HW_VAR_RFREGFILE_RADIO_A_EXTLNA_SIZE,  HW_VAR_RFREGFILE_RADIO_B_EXTLNA_SIZE,
+#ifdef CONFIG_WLAN_HAL_8814AE				
+		HW_VAR_RFREGFILE_RADIO_C_EXTLNA_SIZE,  HW_VAR_RFREGFILE_RADIO_D_EXTLNA_SIZE
+#endif		
+		};
+	
+	HW_VARIABLES RF_REG_FILE_RADIO_EXTLNA_START[RF92CD_PATH_MAX] = {
+		HW_VAR_RFREGFILE_RADIO_A_EXTLNA_START, HW_VAR_RFREGFILE_RADIO_B_EXTLNA_START,
+#ifdef CONFIG_WLAN_HAL_8814AE		
+		HW_VAR_RFREGFILE_RADIO_C_EXTLNA_START, HW_VAR_RFREGFILE_RADIO_D_EXTLNA_START
+#endif			
+		};
+#endif // HIGH_POWER_EXT_LNA
 #endif // CONFIG_WLAN_HAL
-#endif
+
+//	SAVE_INT_AND_CLI(x);
+
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if ((GET_CHIP_VER(priv) == VERSION_8192D) && (priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY))
 		priv->pshare->phw->NumTotalRFPath = 1;
@@ -6906,13 +8071,25 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 		else
 #endif
 #ifdef CONFIG_WLAN_HAL
-			if ( IS_HAL_CHIP(priv)) {
-				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_NUM_TOTAL_RF_PATH, (pu1Byte)&priv->pshare->phw->NumTotalRFPath);
-			} else if(CONFIG_WLAN_NOT_HAL_EXIST)
+		if ( IS_HAL_CHIP(priv)) {
+			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_NUM_TOTAL_RF_PATH, (pu1Byte)&priv->pshare->phw->NumTotalRFPath);
+		} else if(CONFIG_WLAN_NOT_HAL_EXIST)
 #endif //CONFIG_WLAN_HAL
-				priv->pshare->phw->NumTotalRFPath = 2;
+		priv->pshare->phw->NumTotalRFPath = 2;
+	
+		NumTotalRFPath = priv->pshare->phw->NumTotalRFPath;	
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		if(GET_CHIP_VER(priv) == VERSION_8814A)
+			NumTotalRFPath++;
+#endif
+	for (eRFPath = RF92CD_PATH_A; eRFPath < NumTotalRFPath; eRFPath++) {
 
-	for (eRFPath = RF92CD_PATH_A; eRFPath < priv->pshare->phw->NumTotalRFPath; eRFPath++) {
+#ifdef CONFIG_WLAN_HAL_8814AE
+        if (GET_CHIP_VER(priv) == VERSION_8814A && !IS_HAL_TEST_CHIP(priv)){
+            // Note: In 8814A MP chip, we should read radio.txt in a special sequence. => RadioB, C, D, and A.
+            eRFPath = (eRFPath+1)%4;
+        }
+#endif
 		pPhyReg = &priv->pshare->phw->PHYRegDef[eRFPath];
 
 		/*----Store original RFENV control type----*/
@@ -6923,9 +8100,9 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 		case RF92CD_PATH_B :
 			u4RegValue = PHY_QueryBBReg(priv, pPhyReg->rfintfs, bRFSI_RFENV << 16);
 			break;
-#ifdef CONFIG_WLAN_HAL_8813AE
+#ifdef CONFIG_WLAN_HAL_8814AE
 		case RF92CD_PATH_C:
-			// TODO: 8813AE BB/RF
+			// TODO: 8814AE BB/RF
 			break;
 		case RF92CD_PATH_D:
 			break;
@@ -6934,6 +8111,7 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 			break;
 		}
 
+#ifndef  CONFIG_WLAN_HAL_8814AE // TODO: temporarily remove in 8814A, need to ask SD8 eric
 		/*----Set RF_ENV enable----*/
 		PHY_SetBBReg(priv, pPhyReg->rfintfe, bRFSI_RFENV << 16, 0x1);
 
@@ -6943,7 +8121,7 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 		/* Set bit number of Address and Data for RF register */
 		PHY_SetBBReg(priv, pPhyReg->rfHSSIPara2, b3WireAddressLength, 0x0);
 		PHY_SetBBReg(priv, pPhyReg->rfHSSIPara2, b3WireDataLength, 0x0);
-
+#endif
 		/*----Initialize RF fom connfiguration file----*/
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv) == VERSION_8192D) {
@@ -7204,33 +8382,7 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 		}
 #endif
 
-#ifdef CONFIG_RTL_88E_SUPPORT
-#if !defined(CONFIG_MACBBRF_BY_ODM)
-		if (GET_CHIP_VER(priv) == VERSION_8188E) {
-			switch (eRFPath) {
-			case RF92CD_PATH_A:
-				if (get_rf_mimo_mode(priv) == MIMO_1T1R) {
-#ifdef SUPPORT_RTL8188E_TC
-					if (IS_TEST_CHIP(priv)) {
-						DEBUG_INFO("[%s][radio_a_1T_88E_TC]\n", __FUNCTION__);
-						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_1T_88E_TC_start,
-															(int)(data_radio_a_1T_88E_TC_end - data_radio_a_1T_88E_TC_start), eRFPath);
-					} else
-#endif
-					{
-						DEBUG_INFO("[%s][radio_a_1T_88E]\n", __FUNCTION__);
-						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_1T_88E_start,
-															(int)(data_radio_a_1T_88E_end - data_radio_a_1T_88E_start), eRFPath);
-					}
-				}
-				break;
-			default:
-				DEBUG_ERR("%s Line %d, wrong Ant settings\n", __FUNCTION__, __LINE__);
-				break;
-			}
-		}
-#endif
-#endif
+
 
 #ifdef CONFIG_RTL_8812_SUPPORT //data radio
 		if (GET_CHIP_VER(priv) == VERSION_8812E) {
@@ -7364,101 +8516,139 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 		if (IS_HAL_CHIP(priv)) {
 			pu4Byte FileStartPtr;
 			u4Byte  FileLength;
-			
-#ifdef CONFIG_WLAN_HAL_8813AE
 #ifdef HIGH_POWER_EXT_PA
-			if ( priv->pshare->rf_ft_var.use_ext_pa) {
-                // TODO: temporarily add for 8813A only RadioA, RadioB have HP files
-                if (eRFPath <= RF92CD_PATH_B) {
-    				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_HP_SIZE[eRFPath], (pu1Byte)&FileLength);
-    				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_HP_START[eRFPath], (pu1Byte)&FileStartPtr);
-    				printk("[%s][RadioA_HAL_hp]\n", __FUNCTION__);
-    				rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
-                }
+#ifdef HIGH_POWER_EXT_LNA
+			if (priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {
+				//printk("[%s][Radio_HAL_hp] path%d\n",__FUNCTION__,eRFPath+1);
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_HP_SIZE[eRFPath], (pu1Byte)&FileLength);
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_HP_START[eRFPath], (pu1Byte)&FileStartPtr);
+    			rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+			} else if (priv->pshare->rf_ft_var.use_ext_pa && !priv->pshare->rf_ft_var.use_ext_lna) {
+				//printk("[%s][Radio_HAL_extpa] path%d\n",__FUNCTION__,eRFPath+1);
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTPA_SIZE[eRFPath], (pu1Byte)&FileLength);
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTPA_START[eRFPath], (pu1Byte)&FileStartPtr);
+    			rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+			} else if (!priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {			
+				//printk("[%s][Radio_HAL_extlna] path%d\n",__FUNCTION__,eRFPath+1);	
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTLNA_SIZE[eRFPath], (pu1Byte)&FileLength);
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTLNA_START[eRFPath], (pu1Byte)&FileStartPtr);
+    			rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+			} else
+#else
+			if (priv->pshare->rf_ft_var.use_ext_pa) {	
+				//printk("[%s][Radio_HAL_extpa] path%d\n",__FUNCTION__,eRFPath+1);				
+				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTPA_SIZE[eRFPath], (pu1Byte)&FileLength);
+				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTPA_START[eRFPath], (pu1Byte)&FileStartPtr);
+				rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+			}else
+#endif  //HIGH_POWER_EXT_LNA
+#else
+#ifdef HIGH_POWER_EXT_LNA
+			if (priv->pshare->rf_ft_var.use_ext_lna) {			
+				//printk("[%s][Radio_HAL_extlna] path%d\n",__FUNCTION__,eRFPath+1);	
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTLNA_SIZE[eRFPath], (pu1Byte)&FileLength);
+    			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_EXTLNA_START[eRFPath], (pu1Byte)&FileStartPtr);
+    			rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
 			} else
 #endif
+#endif  //HIGH_POWER_EXT_PA
 			{
+				//printk("[%s][Radio_HAL] path%d\n",__FUNCTION__,eRFPath+1);				
 				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_SIZE[eRFPath], (pu1Byte)&FileLength);
 				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, RF_REG_FILE_RADIO_START[eRFPath], (pu1Byte)&FileStartPtr);
-				printk("[%s][RadioA_HAL]\n", __FUNCTION__);
 				rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
 			}
-
-#else // TODO: can be removed after 8813A test ok
+#if 0 // TODO: can be removed after 8814A test ok
 			switch (eRFPath) {
 			case RF92CD_PATH_A:
 #ifdef HIGH_POWER_EXT_PA
-#ifdef HIGH_POWER_EXT_LNA
-				if (priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {
+				if ( priv->pshare->rf_ft_var.use_ext_pa) {
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_HP_SIZE, (pu1Byte)&FileLength);
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_HP_START, (pu1Byte)&FileStartPtr);
-				} 
-				else if (priv->pshare->rf_ft_var.use_ext_pa && !priv->pshare->rf_ft_var.use_ext_lna) {
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTPA_SIZE, (pu1Byte)&FileLength);
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTPA_START, (pu1Byte)&FileStartPtr);
-				} 
-				else if (!priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTLNA_SIZE, (pu1Byte)&FileLength);
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTLNA_START, (pu1Byte)&FileStartPtr);
-				} else 
-#else
-				if (priv->pshare->rf_ft_var.use_ext_pa) {						
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTPA_SIZE, (pu1Byte)&FileLength);
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTPA_START, (pu1Byte)&FileStartPtr);
+					printk("[%s][%s][RadioA_HAL_hp]\n", __FUNCTION__, ((GET_CHIP_VER(priv) == VERSION_8881A) ? "RTL_8881A" : "RTL_8192E"));
+					rtStatus = PHY_ConfigRFWithParaFile(priv, FileStartPtr,
+														(int)FileLength, eRFPath);
 				} else
 #endif
-#else
 #ifdef HIGH_POWER_EXT_LNA
-				if (priv->pshare->rf_ft_var.use_ext_lna) {						
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTLNA_SIZE, (pu1Byte)&FileLength);
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTLNA_START, (pu1Byte)&FileStartPtr);
-				} else
-#endif
+					if ( priv->pshare->rf_ft_var.use_ext_lna) {
+						GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTLNA_SIZE, (pu1Byte)&FileLength);
+						GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_EXTLNA_START, (pu1Byte)&FileStartPtr);
+						printk("[%s][%s][RadioA_HAL_extlna]\n", __FUNCTION__, ((GET_CHIP_VER(priv) == VERSION_8881A) ? "RTL_8881A" : "RTL_8192E"));
+						rtStatus = PHY_ConfigRFWithParaFile(priv, FileStartPtr,
+															(int)FileLength, eRFPath);
+					} else
 #endif
 				{
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_SIZE, (pu1Byte)&FileLength);
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_A_START, (pu1Byte)&FileStartPtr);
-				}				
-				
-				rtStatus = PHY_ConfigRFWithParaFile(priv, FileStartPtr,(int)FileLength, eRFPath);
-				
+					printk("[%s][RadioA_HAL]\n", __FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+				}
 				break;
 			case RF92CD_PATH_B:
 #ifdef HIGH_POWER_EXT_PA
-#ifdef HIGH_POWER_EXT_LNA
-				if (priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {
+				if ( priv->pshare->rf_ft_var.use_ext_pa) {
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_HP_SIZE, (pu1Byte)&FileLength);
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_HP_START, (pu1Byte)&FileStartPtr);
-				} 
-				else if (priv->pshare->rf_ft_var.use_ext_pa && !priv->pshare->rf_ft_var.use_ext_lna) {
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTPA_SIZE, (pu1Byte)&FileLength);
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTPA_START, (pu1Byte)&FileStartPtr);
-				} 
-				else if (!priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) {
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTLNA_SIZE, (pu1Byte)&FileLength);
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTLNA_START, (pu1Byte)&FileStartPtr);
-				} else 
-#else
-				if (priv->pshare->rf_ft_var.use_ext_pa) {						
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTPA_SIZE, (pu1Byte)&FileLength);
-					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTPA_START, (pu1Byte)&FileStartPtr);
+					printk("[%s][%s][RadioB_HAL_hp]\n", __FUNCTION__, ((GET_CHIP_VER(priv) == VERSION_8881A) ? "RTL_8881A" : "RTL_8192E"));
+					rtStatus = PHY_ConfigRFWithParaFile(priv, FileStartPtr,
+														(int)FileLength, eRFPath);
 				} else
 #endif
-#else
 #ifdef HIGH_POWER_EXT_LNA
-				if (priv->pshare->rf_ft_var.use_ext_lna) {						
+				if ( priv->pshare->rf_ft_var.use_ext_lna) {
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTLNA_SIZE, (pu1Byte)&FileLength);
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_EXTLNA_START, (pu1Byte)&FileStartPtr);
+					printk("[%s][%s][RadioB_HAL_extlna]\n", __FUNCTION__, ((GET_CHIP_VER(priv) == VERSION_8881A) ? "RTL_8881A" : "RTL_8192E"));
+					rtStatus = PHY_ConfigRFWithParaFile(priv, FileStartPtr,
+														(int)FileLength, eRFPath);
 				} else
-#endif
 #endif
 				{
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_SIZE, (pu1Byte)&FileLength);
 					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_B_START, (pu1Byte)&FileStartPtr);
-				}				
-
-				rtStatus = PHY_ConfigRFWithParaFile(priv, FileStartPtr,(int)FileLength, eRFPath);								
+					printk("[%s][RadioB_HAL]\n", __FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr,
+														(int)FileLength, eRFPath);
+				}
 				break;
+#ifdef CONFIG_WLAN_HAL_8814AE				
+// TODO: 8814AE BB/RF
+			case RF92CD_PATH_C:
+#ifdef HIGH_POWER_EXT_PA
+				if ( priv->pshare->rf_ft_var.use_ext_pa) {
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_C_HP_SIZE, (pu1Byte)&FileLength);
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_C_HP_START, (pu1Byte)&FileStartPtr);
+					printk("[%s][RadioC_HAL_hp]\n", __FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+				} else
+#endif
+				{
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_C_SIZE, (pu1Byte)&FileLength);
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_C_START, (pu1Byte)&FileStartPtr);
+					printk("[%s][RadioC_HAL]\n", __FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+				}
+				break;
+			// TODO: 8814AE BB/RF
+			case RF92CD_PATH_D:
+#ifdef HIGH_POWER_EXT_PA
+				if ( priv->pshare->rf_ft_var.use_ext_pa) {
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_D_HP_SIZE, (pu1Byte)&FileLength);
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_D_HP_START, (pu1Byte)&FileStartPtr);
+					printk("[%s][RadioD_HAL_hp]\n", __FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+				} else
+#endif
+				{
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_D_SIZE, (pu1Byte)&FileLength);
+					GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_RFREGFILE_RADIO_D_START, (pu1Byte)&FileStartPtr);
+					printk("[%s][RadioD_HAL]\n", __FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, (pu1Byte)FileStartPtr, (int)FileLength, eRFPath);
+				}
+				break;
+#endif // CONFIG_WLAN_HAL_8814AE
 
 			default:
 				break;
@@ -7469,7 +8659,7 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 #endif
 
 
-
+#ifndef CONFIG_WLAN_HAL_8814AE // TODO: temporarily remove in 8814A, need to ask SD8 eric
 		/*----Restore RFENV control type----*/;
 		switch (eRFPath) {
 		case RF92CD_PATH_A:
@@ -7478,21 +8668,38 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 		case RF92CD_PATH_B :
 			PHY_SetBBReg(priv, pPhyReg->rfintfs, bRFSI_RFENV << 16, u4RegValue);
 			break;
-#ifdef CONFIG_WLAN_HAL_8813AE
-		// TODO: 8813AE BB/RF
+#ifdef CONFIG_WLAN_HAL_8814AE
+		// TODO: 8814AE BB/RF
 		case RF92CD_PATH_C:
 			break;
 		case RF92CD_PATH_D:
 			break;
-#endif // CONFIG_WLAN_HAL_8813AE
+#endif // CONFIG_WLAN_HAL_8814AE
 		case RF92CD_PATH_MAX:
 			break;
 		}
+#endif
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+        if (GET_CHIP_VER(priv) == VERSION_8814A && !IS_HAL_TEST_CHIP(priv)){
+            eRFPath = (eRFPath-1)%4;
+        }
+#endif
 	}
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+    /* Fix 8814 MP-chip RF reg setting bug  */
+    if (GET_CHIP_VER(priv) == VERSION_8814A && !IS_HAL_TEST_CHIP(priv)){
+        unsigned int rfPathA = PHY_QueryRFReg(priv, RF_PATH_A, 0x1c, bMaskDWord, 1);
+        PHY_SetRFReg(priv, RF_PATH_B, 0x1c, bMaskDWord, rfPathA);
+        PHY_SetRFReg(priv, RF_PATH_C, 0x1c, bMaskDWord, rfPathA);
+        PHY_SetRFReg(priv, RF_PATH_D, 0x1c, bMaskDWord, rfPathA);
+    }
+#endif
 
 	DEBUG_INFO("PHY-RF Initialization Success\n");
 
-	RESTORE_INT(x);
+//	RESTORE_INT(x);
 	return rtStatus;
 }
 #endif
@@ -8079,10 +9286,9 @@ static void MacInit_8812(struct rtl8192cd_priv *priv)
 
 	RTL_W32(PCIE_CTRL_REG, RTL_R32(PCIE_CTRL_REG) | (0x07 & MAX_RXDMA_Mask) << MAX_RXDMA_SHIFT
 			| (0x07 & MAX_TXDMA_Mask) << MAX_TXDMA_SHIFT | BCNQSTOP);
-
-	if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_5)
+	if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_5){
 		RTL_W8(0x303,0x80);
-
+	}
 	// 20090928 Joseph
 	// Reconsider when to do this operation after asking HWSD.
 	RTL_W8(APSD_CTRL, RTL_R8(APSD_CTRL) & ~ BIT(6));
@@ -8673,13 +9879,6 @@ static void MacConfig(struct rtl8192cd_priv *priv)
 		RTL_W32(ARFR1, 0xFF010);	// 20M mode
 	} else
 #endif
-#if defined(CONFIG_RTL_88E_SUPPORT) && (defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI))
-	if (GET_CHIP_VER(priv) == VERSION_8188E)
-	{
-		RTL_W32(ARFR0, 0xFF00F);	// 40M mode
-		RTL_W32(ARFR1, 0xFF00F);	// 20M mode
-	} else
-#endif
 	{
 		// set user defining ARFR table for 11n 1T
 		RTL_W32(ARFR0, 0xFF015);	// 40M mode
@@ -8746,7 +9945,7 @@ static void MacConfig(struct rtl8192cd_priv *priv)
 	// 2010.02.24.
 	//
 //	value8 = SdioLocalCmd52Read1Byte(priv, SDIO_REG_TX_CTRL);
-	SdioLocalCmd52Write1Byte(priv, SDIO_REG_TX_CTRL, 0x02);
+	SdioLocalCmd52Write4Byte(priv, SDIO_REG_TX_CTRL, 0x02);
 	//
 	// Update current Tx FIFO page status.
 	//
@@ -9421,7 +10620,19 @@ void PHY_IQCalibrate(struct rtl8192cd_priv *priv)
 		phy_IQCalibrate_8812A(ODMPTR, priv->pshare->working_channel);
 		priv->pshare->No_RF_Write = 1;
 		RESTORE_INT(x);
-
+	}
+#endif
+#endif
+/*
+*   Disable IQK for 8814 MP chip
+*/
+#ifdef CONFIG_WLAN_HAL_8814AE //FOR_8814_IQK
+#ifdef USE_OUT_SRC
+	if (GET_CHIP_VER(priv) == VERSION_8814A) {
+		printk("\nIQ Calibrate\n");
+		priv->pshare->No_RF_Write = 0;
+		PHY_IQCalibrate_8814A(ODMPTR, FALSE);
+		priv->pshare->No_RF_Write = 1;
 	}
 #endif
 #endif
@@ -9535,6 +10746,7 @@ static void assign_txpwr_offset(struct rtl8192cd_priv *priv)
 void reload_txpwr_pg(struct rtl8192cd_priv *priv)
 {
 	int i;
+	
 	PHY_ConfigBBWithParaFile(priv, PHYREG_PG);
 
 #if 0 //def HIGH_POWER_EXT_PA
@@ -9575,6 +10787,7 @@ void reload_txpwr_pg(struct rtl8192cd_priv *priv)
 				| (RTL_R32(rTxAGC_B_CCK5_1_Mcs32) >> 8));
 
 	}
+
 
 #ifdef TXPWR_LMT
 	if (!priv->pshare->rf_ft_var.disable_txpwrlmt) {
@@ -9674,7 +10887,7 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 	// 2. u4Byte SupportAbility
 	ability =	\
 			ODM_BB_DIG				|
-			ODM_BB_RA_MASK		|
+			ODM_BB_RA_MASK			|
 			ODM_BB_FA_CNT			|
 			ODM_BB_RATE_ADAPTIVE	|
 			ODM_MAC_EDCA_TURBO	|
@@ -9682,21 +10895,22 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 			ODM_RF_CALIBRATION		|
 			ODM_BB_DYNAMIC_TXPWR	|
 			ODM_RF_TX_PWR_TRACK 	|
-				ODM_BB_NHM_CNT		| 
+			ODM_BB_NHM_CNT		| 
+			ODM_BB_PRIMARY_CCA	| 
 			0;
 
 #ifdef CONFIG_RTL_8812_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8812E) {
 		ability =	\
 			ODM_BB_DIG				|
-			ODM_BB_RA_MASK		|
+			ODM_BB_RA_MASK			|
 			ODM_BB_FA_CNT			|
 			ODM_MAC_EDCA_TURBO	|
 			ODM_BB_RSSI_MONITOR 	|
 			ODM_BB_DYNAMIC_TXPWR	|
 			ODM_RF_TX_PWR_TRACK 	|
-			ODM_RF_CALIBRATION		|				
-			ODM_BB_NHM_CNT			| 
+			ODM_RF_CALIBRATION		|
+			ODM_BB_NHM_CNT		|
 			0;
 	}
 #endif
@@ -9705,15 +10919,15 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
     	if (GET_CHIP_VER(priv) == VERSION_8881A) {		
         	ability = \
 			ODM_BB_DIG          		|
-                    	ODM_BB_RA_MASK      		|
-                    	ODM_BB_FA_CNT       		|
-                    	ODM_MAC_EDCA_TURBO  	|
-                    	ODM_BB_RSSI_MONITOR 	|
-                    	ODM_BB_DYNAMIC_TXPWR	|
-                    	ODM_RF_TX_PWR_TRACK	|
-                    	ODM_RF_CALIBRATION		|
-						ODM_BB_NHM_CNT			| 
-                    	0;
+                    ODM_BB_RA_MASK      		|
+                    ODM_BB_FA_CNT       		|
+                    ODM_MAC_EDCA_TURBO  	|
+                    ODM_BB_RSSI_MONITOR 	|
+                    ODM_BB_DYNAMIC_TXPWR	|
+                    ODM_RF_TX_PWR_TRACK	|
+                    ODM_RF_CALIBRATION		|
+			ODM_BB_NHM_CNT		|
+                    0;
 	}
 #endif
 
@@ -9728,19 +10942,25 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 			ODM_BB_DYNAMIC_TXPWR	|
 			ODM_RF_TX_PWR_TRACK	|
 			ODM_RF_CALIBRATION		|
-			ODM_BB_CCK_PD			|			
-			ODM_BB_NHM_CNT		| 
+			ODM_BB_CCK_PD			|
+			ODM_BB_NHM_CNT		|
 			0;
 	}
 #endif
 
-#ifdef CONFIG_WLAN_HAL_8813AE
-    if (GET_CHIP_VER(priv) == VERSION_8813A) {
-        if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific)
-            ability = 0;
-        else
-            ability = 0;
-    }
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if (GET_CHIP_VER(priv) == VERSION_8814A) {
+		ability = ODM_BB_DIG			|
+//			ODM_BB_RA_MASK			|
+			ODM_BB_FA_CNT			|
+			ODM_BB_RSSI_MONITOR	|
+			//ODM_MAC_EDCA_TURBO	|
+			ODM_BB_DYNAMIC_TXPWR	|
+			ODM_RF_TX_PWR_TRACK		|
+//			ODM_RF_CALIBRATION		|
+			ODM_BB_CCK_PD			|
+			0;
+	}
 #endif
 
 	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
@@ -9791,12 +11011,15 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_IC_TYPE, ODM_RTL8881A);
 	else if (GET_CHIP_VER(priv) == VERSION_8192E)
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_IC_TYPE, ODM_RTL8192E);
+	else if (GET_CHIP_VER(priv) == VERSION_8814A)
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_IC_TYPE, ODM_RTL8814A);
 
 	// 5. u1Byte CutVersion
 	if (IS_TEST_CHIP(priv)) {
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CUT_VER, ODM_CUT_TEST);
 	} else {
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CUT_VER, (RTL_R32(SYS_CFG) >> 12) & 0xF);
+
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_MP_TEST_CHIP, 1);
 	}	
 
@@ -9809,10 +11032,11 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_FAB_VER, ODM_TSMC);
 
 	// 7. u1Byte RFType
-	if (get_rf_mimo_mode(priv) == MIMO_3T3R)
+	if (get_rf_mimo_mode(priv) == MIMO_4T4R)
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_RF_TYPE, ODM_4T4R);
+	else if (get_rf_mimo_mode(priv) == MIMO_3T3R)
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_RF_TYPE, ODM_3T3R);
-	else
-	if (get_rf_mimo_mode(priv) == MIMO_2T2R)
+	else if (get_rf_mimo_mode(priv) == MIMO_2T2R)
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_RF_TYPE, ODM_2T2R);
 	else
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_RF_TYPE, ODM_1T1R);
@@ -9822,11 +11046,12 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 	if(priv->pshare->rf_ft_var.use_ext_pa && priv->pshare->rf_ft_var.use_ext_lna) { //For 88C/92C only	
 		priv->pmib->dot11RFEntry.trswitch = 1;
 	}
-#endif	
+#endif
+
 #ifdef HIGH_POWER_EXT_PA
 	if(priv->pshare->rf_ft_var.use_ext_pa)
 	{
-		if(GET_CHIP_VER(priv) == VERSION_8192D)
+		if(GET_CHIP_VER(priv) == VERSION_8192D || GET_CHIP_VER(priv) == VERSION_8814A) 
 			BoardType |= (ODM_BOARD_EXT_LNA|ODM_BOARD_EXT_LNA_5G|ODM_BOARD_EXT_PA|ODM_BOARD_EXT_PA_5G);
 		else if((GET_CHIP_VER(priv) == VERSION_8812E)||(GET_CHIP_VER(priv) == VERSION_8881A))
 			BoardType |= ODM_BOARD_EXT_PA_5G;
@@ -9845,7 +11070,9 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 	if(priv->pmib->dot11RFEntry.trswitch)
 		BoardType |= ODM_BOARD_EXT_TRSW;
 	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_BOARD_TYPE, BoardType);
-	
+
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_RFE_TYPE, priv->pmib->dot11RFEntry.rfe_type);
+    
 	// ExtLNA & ExtPA Type
 	if(GET_CHIP_VER(priv) == VERSION_8812E)
 	{
@@ -9858,12 +11085,45 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, 0x00);
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, 0x00);	
 	}
-	else
-	{
-		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GPA, 0x00);
-		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_APA, 0x00);
-		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, 0x00);
-		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, 0x00);	
+	else if(GET_CHIP_VER(priv) == VERSION_8814A)
+	{		
+		if(priv->pmib->dot11RFEntry.rfe_type == 2) {
+			panic_printk("PHY paratemters: RFE type 2 APA1+ALNA1+GPA1+GLNA1\n");
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GPA, TYPE_GPA1);  // path (A,B,C,D) = (1,1,1,1)
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_APA, TYPE_APA1);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, TYPE_GLNA1);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, TYPE_ALNA1);	
+		} else if(priv->pmib->dot11RFEntry.rfe_type == 3) {
+			panic_printk("PHY paratemters: RFE type 3 APA2+ALNA2+GPA2+GLNA2\n");
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GPA, TYPE_GPA2);	// path (A,B,C,D) = (2,2,2,2)
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_APA, TYPE_APA2);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, TYPE_GLNA2);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, TYPE_ALNA2);	
+		} else if(priv->pmib->dot11RFEntry.rfe_type == 4) {
+			panic_printk("PHY paratemters: RFE type 4 APA1+ALNA3+GPA1+GLNA1\n");
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GPA, TYPE_GPA1); // path (A,B,C,D) = (2,2,2,2)
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_APA, TYPE_APA1);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, TYPE_GLNA1); // path (A,B,C,D) = (3,3,3,3)
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, TYPE_ALNA3);	
+		} else if(priv->pmib->dot11RFEntry.rfe_type == 5) {
+			panic_printk("PHY paratemters: RFE type 5 APA2+ALNA4+GPA2+GLNA2\n");
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GPA, TYPE_GPA2); 
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_APA, TYPE_APA2);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, TYPE_GLNA2); 
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, TYPE_ALNA4);
+		} else if(priv->pmib->dot11RFEntry.rfe_type == 0){
+			panic_printk("PHY paratemters: RFE type 0\n");
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GPA, TYPE_GPA0);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_APA, TYPE_APA0);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, TYPE_GLNA0);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, TYPE_ALNA0);	
+		}else {
+			panic_printk("PHY paratemters: Unknow RFE type!!\n");
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GPA, TYPE_GPA0);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_APA, TYPE_APA0);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_GLNA, TYPE_GLNA0);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ALNA, TYPE_ALNA0);	
+		}
 	}
 	//Package Type => To Be Done!
 	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_PACKAGE_TYPE, 0);
@@ -9904,6 +11164,7 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 			}
 		}
 #endif
+
 	// 11. u1Byte ExtTRSW, ODM_CMNINFO_EXT_TRSW:
 	// follows variable "trswitch" which is modified in rtl8192cd_init_hw_PCI().
 	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_EXT_TRSW, priv->pmib->dot11RFEntry.trswitch);
@@ -9921,7 +11182,7 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_SMART_CONCURRENT, FALSE);
 
 	// Config BB/RF by ODM
-	if ((GET_CHIP_VER(priv) == VERSION_8188E))
+	if ((GET_CHIP_VER(priv) == VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8814A))
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CONFIG_BB_RF, TRUE);
 	else
 		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CONFIG_BB_RF, FALSE);
@@ -9982,6 +11243,8 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 	// 15. BOOLEAN *pbScanInProcess
 	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_SCAN, &priv->pshare->bScanInProcess);
 
+	// 16. pU4byte force data rate add by YuChen
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_FORCED_RATE, &priv->pshare->current_tx_rate);
 
 	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_POWER_SAVING, &priv->pshare->dummy);
 
@@ -9996,6 +11259,10 @@ void ODM_software_init(struct rtl8192cd_priv *priv)
 	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_INIT_ON, &priv->pshare->dummy);
 	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BT_BUSY, &priv->pshare->dummy);
 //	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_ANT_DIV, &priv->pshare->dummy);
+
+	//For Phy para verison
+	ODM_GetHWImgVersion(ODMPTR);
+
 
 // DM parameters init
 //	ODM_DMInit(ODMPTR);
@@ -10059,7 +11326,7 @@ unsigned int getval_8b4(struct rtl8192cd_priv *priv, unsigned char rf_path)
 }
 
 
-void Check_92E_Spur_Valid(struct rtl8192cd_priv * priv, BOOLEAN long_delay)
+void Check_92E_Spur_Valid(struct rtl8192cd_priv * priv, bool long_delay)
 {
 #ifdef CONFIG_PCI_HCI
 	unsigned char tmp_loop = 0;
@@ -10091,7 +11358,7 @@ void Check_92E_Spur_Valid(struct rtl8192cd_priv * priv, BOOLEAN long_delay)
 
 	path_a_8b4 = getval_8b4(priv, RF92CD_PATH_A);
 	path_b_8b4 = getval_8b4(priv, RF92CD_PATH_B);
-	priv->pshare->PLL_reset_ok = false;
+	
 	for(tmp_loop = 0 ; tmp_loop < priv->pshare->rf_ft_var.loop_8b4 ; tmp_loop ++) {
 		if (path_a_8b4 > priv->pshare->rf_ft_var.thrd_8b4 || path_b_8b4 > priv->pshare->rf_ft_var.thrd_8b4) {					
 			//PLL reset
@@ -10113,8 +11380,8 @@ void Check_92E_Spur_Valid(struct rtl8192cd_priv * priv, BOOLEAN long_delay)
 	}
 
 	if (tmp_loop == priv->pshare->rf_ft_var.loop_8b4) {
-		
-		DEBUG_ERR("\n[Loop#%d] 0x8b4 = 0x%x[A] 0x%x[B], FAIL1 !!\n\n", tmp_loop, path_a_8b4, path_b_8b4);
+		priv->pshare->PLL_reset_ok = false;
+		DEBUG_INFO("\n[Loop#%d] 0x8b4 = 0x%x[A] 0x%x[B], FAIL1 !!\n\n", tmp_loop, path_a_8b4, path_b_8b4);
 #if 0
 		if (long_delay) {
 		for(tmp_loop = 0 ; tmp_loop < priv->pshare->rf_ft_var.loop_8b4 ; tmp_loop ++) {
@@ -10167,12 +11434,224 @@ void Check_92E_Spur_Valid(struct rtl8192cd_priv * priv, BOOLEAN long_delay)
 		PHY_SetBBReg(priv, 0xd2C, BIT(28), 0);
 		PHY_SetBBReg(priv, 0xd40, BIT(26), 0);
 	}
-	watchdog_kick();
 
 //	watchdog_resume(priv);
 }
 
 #endif // CONFIG_WLAN_HAL_8192EE
+
+
+void set_target_power(struct rtl8192cd_priv *priv)
+{	
+	int i;
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G) {
+		//CCK
+		priv->pshare->tgpwr_CCK_new[RF_PATH_A] = priv->pshare->phw->CCKTxAgc_A[0];				
+		priv->pshare->tgpwr_CCK_new[RF_PATH_B] = priv->pshare->phw->CCKTxAgc_B[0];
+		for (i=0;i<4;i++) {
+			priv->pshare->phw->CCKTxAgc_A[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_A];													
+			priv->pshare->phw->CCKTxAgc_B[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_B];								
+		}
+	}
+	//OFDM
+	priv->pshare->tgpwr_OFDM_new[RF_PATH_A] = priv->pshare->phw->OFDMTxAgcOffset_A[4];	
+	priv->pshare->tgpwr_OFDM_new[RF_PATH_B] = priv->pshare->phw->OFDMTxAgcOffset_B[4];
+	for (i=0;i<8;i++) {
+		priv->pshare->phw->OFDMTxAgcOffset_A[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_A];				
+		priv->pshare->phw->OFDMTxAgcOffset_B[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_B];
+	}
+
+	//HT-1S
+	priv->pshare->tgpwr_HT1S_new[RF_PATH_A] = priv->pshare->phw->MCSTxAgcOffset_A[4];				
+	priv->pshare->tgpwr_HT1S_new[RF_PATH_B] = priv->pshare->phw->MCSTxAgcOffset_B[4];
+	for (i=0;i<8;i++) {
+		priv->pshare->phw->MCSTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_A];
+		priv->pshare->phw->MCSTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_B];
+	}
+
+	//HT-2S
+	priv->pshare->tgpwr_HT2S_new[RF_PATH_A] = priv->pshare->phw->MCSTxAgcOffset_A[12];
+	priv->pshare->tgpwr_HT2S_new[RF_PATH_B] = priv->pshare->phw->MCSTxAgcOffset_B[12];
+	for (i=8;i<16;i++) {
+		priv->pshare->phw->MCSTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_A];
+		priv->pshare->phw->MCSTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_B];
+	}
+#ifdef RTK_AC_SUPPORT
+	if ((GET_CHIP_VER(priv)==VERSION_8812E) || (GET_CHIP_VER(priv)==VERSION_8881A) ||(GET_CHIP_VER(priv) == VERSION_8814A)) {			
+	//VHT-1S
+	priv->pshare->tgpwr_VHT1S_new[RF_PATH_A] = priv->pshare->phw->VHTTxAgcOffset_A[4];				
+	priv->pshare->tgpwr_VHT1S_new[RF_PATH_B] = priv->pshare->phw->VHTTxAgcOffset_B[4];
+	//VHT-2S				
+	priv->pshare->tgpwr_VHT2S_new[RF_PATH_A] = priv->pshare->phw->VHTTxAgcOffset_A[18]; 			
+	priv->pshare->tgpwr_VHT2S_new[RF_PATH_B] = priv->pshare->phw->VHTTxAgcOffset_B[18];
+
+	for (i=0 ; i<20 ; i++) {
+		if (i<8) {
+			priv->pshare->phw->VHTTxAgcOffset_A[i] -= priv->pshare->tgpwr_VHT1S_new[RF_PATH_A];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] -= priv->pshare->tgpwr_VHT1S_new[RF_PATH_B];					
+		} else if (i==10 || i==11) {						
+			priv->pshare->phw->VHTTxAgcOffset_A[i] = priv->pshare->tgpwr_VHT1S_new[RF_PATH_A] - priv->pshare->phw->VHTTxAgcOffset_A[i];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] = priv->pshare->tgpwr_VHT1S_new[RF_PATH_B] - priv->pshare->phw->VHTTxAgcOffset_B[i];				
+		} else if (i==16 || i==17) {						
+			priv->pshare->phw->VHTTxAgcOffset_A[i] = priv->pshare->tgpwr_VHT2S_new[RF_PATH_A] - priv->pshare->phw->VHTTxAgcOffset_A[i];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] = priv->pshare->tgpwr_VHT2S_new[RF_PATH_B] - priv->pshare->phw->VHTTxAgcOffset_B[i];				
+		} else {
+			priv->pshare->phw->VHTTxAgcOffset_A[i] -= priv->pshare->tgpwr_VHT2S_new[RF_PATH_A];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] -= priv->pshare->tgpwr_VHT2S_new[RF_PATH_B];					
+		}
+	}
+	} 
+#endif		
+}
+
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+void set_target_power_8814(struct rtl8192cd_priv *priv)
+{
+	int i;
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G) {
+		priv->pshare->tgpwr_CCK_new[RF_PATH_A] = priv->pshare->phw->CCKTxAgc_A[3]; /* CCK 11M */				
+		priv->pshare->tgpwr_CCK_new[RF_PATH_B] = priv->pshare->phw->CCKTxAgc_B[3];
+		priv->pshare->tgpwr_CCK_new[RF_PATH_C] = priv->pshare->phw->CCKTxAgc_C[3]; 				
+		priv->pshare->tgpwr_CCK_new[RF_PATH_D] = priv->pshare->phw->CCKTxAgc_D[3];		
+		for (i=0;i<4;i++) {
+			priv->pshare->phw->CCKTxAgc_A[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_A]; 												
+			priv->pshare->phw->CCKTxAgc_B[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_B];
+			priv->pshare->phw->CCKTxAgc_C[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_C]; 												
+			priv->pshare->phw->CCKTxAgc_D[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_D];
+		}
+	}
+	priv->pshare->tgpwr_OFDM_new[RF_PATH_A] = priv->pshare->phw->OFDMTxAgcOffset_A[7]; /* OFDM 54M */
+	priv->pshare->tgpwr_OFDM_new[RF_PATH_B] = priv->pshare->phw->OFDMTxAgcOffset_B[7];
+	priv->pshare->tgpwr_OFDM_new[RF_PATH_C] = priv->pshare->phw->OFDMTxAgcOffset_C[7];
+	priv->pshare->tgpwr_OFDM_new[RF_PATH_D] = priv->pshare->phw->OFDMTxAgcOffset_D[7];
+
+	for (i=0;i<8;i++) {
+		priv->pshare->phw->OFDMTxAgcOffset_A[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_A]; 			
+		priv->pshare->phw->OFDMTxAgcOffset_B[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_B];
+		priv->pshare->phw->OFDMTxAgcOffset_C[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_C]; 			
+		priv->pshare->phw->OFDMTxAgcOffset_D[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_D];		
+	}
+
+	priv->pshare->tgpwr_HT1S_new[RF_PATH_A] = priv->pshare->phw->MCSTxAgcOffset_A[7]; /* MCS 7 */				
+	priv->pshare->tgpwr_HT1S_new[RF_PATH_B] = priv->pshare->phw->MCSTxAgcOffset_B[7];
+	priv->pshare->tgpwr_HT1S_new[RF_PATH_C] = priv->pshare->phw->MCSTxAgcOffset_C[7];				
+	priv->pshare->tgpwr_HT1S_new[RF_PATH_D] = priv->pshare->phw->MCSTxAgcOffset_D[7];
+	
+	for (i=0;i<8;i++) {
+		priv->pshare->phw->MCSTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_A];
+		priv->pshare->phw->MCSTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_B];
+		priv->pshare->phw->MCSTxAgcOffset_C[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_C];
+		priv->pshare->phw->MCSTxAgcOffset_D[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_D];		
+	}
+
+	priv->pshare->tgpwr_HT2S_new[RF_PATH_A] = priv->pshare->phw->MCSTxAgcOffset_A[15]; /* MCS 15 */
+	priv->pshare->tgpwr_HT2S_new[RF_PATH_B] = priv->pshare->phw->MCSTxAgcOffset_B[15];
+	priv->pshare->tgpwr_HT2S_new[RF_PATH_C] = priv->pshare->phw->MCSTxAgcOffset_C[15];
+	priv->pshare->tgpwr_HT2S_new[RF_PATH_D] = priv->pshare->phw->MCSTxAgcOffset_D[15];
+	for (i=8;i<16;i++) {
+		priv->pshare->phw->MCSTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_A];
+		priv->pshare->phw->MCSTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_B];
+		priv->pshare->phw->MCSTxAgcOffset_C[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_C];
+		priv->pshare->phw->MCSTxAgcOffset_D[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_D];		
+	}
+
+	priv->pshare->tgpwr_HT3S_new[RF_PATH_A] = priv->pshare->phw->MCSTxAgcOffset_A[23]; /* MCS 23 */
+	priv->pshare->tgpwr_HT3S_new[RF_PATH_B] = priv->pshare->phw->MCSTxAgcOffset_B[23];
+	priv->pshare->tgpwr_HT3S_new[RF_PATH_C] = priv->pshare->phw->MCSTxAgcOffset_C[23];
+	priv->pshare->tgpwr_HT3S_new[RF_PATH_D] = priv->pshare->phw->MCSTxAgcOffset_D[23];
+	for (i=16;i<24;i++) {
+		priv->pshare->phw->MCSTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT3S_new[RF_PATH_A];
+		priv->pshare->phw->MCSTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT3S_new[RF_PATH_B];
+		priv->pshare->phw->MCSTxAgcOffset_C[i] -= priv->pshare->tgpwr_HT3S_new[RF_PATH_C];
+		priv->pshare->phw->MCSTxAgcOffset_D[i] -= priv->pshare->tgpwr_HT3S_new[RF_PATH_D];		
+	}
+
+	priv->pshare->tgpwr_VHT1S_new[RF_PATH_A] = priv->pshare->phw->VHTTxAgcOffset_A[7]; /* VHT MCS 7 */
+	priv->pshare->tgpwr_VHT1S_new[RF_PATH_B] = priv->pshare->phw->VHTTxAgcOffset_B[7];
+	priv->pshare->tgpwr_VHT1S_new[RF_PATH_C] = priv->pshare->phw->VHTTxAgcOffset_C[7]; 				
+	priv->pshare->tgpwr_VHT1S_new[RF_PATH_D] = priv->pshare->phw->VHTTxAgcOffset_D[7];
+			
+	priv->pshare->tgpwr_VHT2S_new[RF_PATH_A] = priv->pshare->phw->VHTTxAgcOffset_A[17]; /* VHT NSS2 MCS7 */
+	priv->pshare->tgpwr_VHT2S_new[RF_PATH_B] = priv->pshare->phw->VHTTxAgcOffset_B[17];
+	priv->pshare->tgpwr_VHT2S_new[RF_PATH_C] = priv->pshare->phw->VHTTxAgcOffset_C[17];
+	priv->pshare->tgpwr_VHT2S_new[RF_PATH_D] = priv->pshare->phw->VHTTxAgcOffset_D[17];
+
+	priv->pshare->tgpwr_VHT3S_new[RF_PATH_A] = priv->pshare->phw->VHTTxAgcOffset_A[27]; /* VHT NSS3 MCS7 */
+	priv->pshare->tgpwr_VHT3S_new[RF_PATH_B] = priv->pshare->phw->VHTTxAgcOffset_B[27];
+	priv->pshare->tgpwr_VHT3S_new[RF_PATH_C] = priv->pshare->phw->VHTTxAgcOffset_C[27];
+	priv->pshare->tgpwr_VHT3S_new[RF_PATH_D] = priv->pshare->phw->VHTTxAgcOffset_D[27];
+
+	for (i=0 ; i<30 ; i++) {
+		if (i < 8) {
+			priv->pshare->phw->VHTTxAgcOffset_A[i] -= priv->pshare->tgpwr_VHT1S_new[RF_PATH_A];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] -= priv->pshare->tgpwr_VHT1S_new[RF_PATH_B];
+			priv->pshare->phw->VHTTxAgcOffset_C[i] -= priv->pshare->tgpwr_VHT1S_new[RF_PATH_C];
+			priv->pshare->phw->VHTTxAgcOffset_D[i] -= priv->pshare->tgpwr_VHT1S_new[RF_PATH_D];			
+		}else if(i == 8 || i == 9) {	/* VHT NSS1 MCS8,9 */					
+			priv->pshare->phw->VHTTxAgcOffset_A[i] = priv->pshare->tgpwr_VHT1S_new[RF_PATH_A] - priv->pshare->phw->VHTTxAgcOffset_A[i];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] = priv->pshare->tgpwr_VHT1S_new[RF_PATH_B] - priv->pshare->phw->VHTTxAgcOffset_B[i];				
+			priv->pshare->phw->VHTTxAgcOffset_C[i] = priv->pshare->tgpwr_VHT1S_new[RF_PATH_C] - priv->pshare->phw->VHTTxAgcOffset_C[i];
+			priv->pshare->phw->VHTTxAgcOffset_D[i] = priv->pshare->tgpwr_VHT1S_new[RF_PATH_D] - priv->pshare->phw->VHTTxAgcOffset_D[i];					
+		}else if(i < 18){
+			priv->pshare->phw->VHTTxAgcOffset_A[i] -= priv->pshare->tgpwr_VHT2S_new[RF_PATH_A];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] -= priv->pshare->tgpwr_VHT2S_new[RF_PATH_B];	
+			priv->pshare->phw->VHTTxAgcOffset_C[i] -= priv->pshare->tgpwr_VHT2S_new[RF_PATH_C];
+			priv->pshare->phw->VHTTxAgcOffset_D[i] -= priv->pshare->tgpwr_VHT2S_new[RF_PATH_D];				
+		}else if(i == 18 || i == 19) {	 /* VHT NSS2 MCS8,9 */					
+			priv->pshare->phw->VHTTxAgcOffset_A[i] = priv->pshare->tgpwr_VHT2S_new[RF_PATH_A] - priv->pshare->phw->VHTTxAgcOffset_A[i];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] = priv->pshare->tgpwr_VHT2S_new[RF_PATH_B] - priv->pshare->phw->VHTTxAgcOffset_B[i];				
+			priv->pshare->phw->VHTTxAgcOffset_C[i] = priv->pshare->tgpwr_VHT2S_new[RF_PATH_C] - priv->pshare->phw->VHTTxAgcOffset_C[i];
+			priv->pshare->phw->VHTTxAgcOffset_D[i] = priv->pshare->tgpwr_VHT2S_new[RF_PATH_D] - priv->pshare->phw->VHTTxAgcOffset_D[i];				
+		}else if(i == 28 || i == 29){   /* VHT NSS3 MCS8,9 */	
+			priv->pshare->phw->VHTTxAgcOffset_A[i] = priv->pshare->tgpwr_VHT3S_new[RF_PATH_A] - priv->pshare->phw->VHTTxAgcOffset_A[i];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] = priv->pshare->tgpwr_VHT3S_new[RF_PATH_B] - priv->pshare->phw->VHTTxAgcOffset_B[i];				
+			priv->pshare->phw->VHTTxAgcOffset_C[i] = priv->pshare->tgpwr_VHT3S_new[RF_PATH_C] - priv->pshare->phw->VHTTxAgcOffset_C[i];
+			priv->pshare->phw->VHTTxAgcOffset_D[i] = priv->pshare->tgpwr_VHT3S_new[RF_PATH_D] - priv->pshare->phw->VHTTxAgcOffset_D[i];								
+		}else{
+			priv->pshare->phw->VHTTxAgcOffset_A[i] -= priv->pshare->tgpwr_VHT3S_new[RF_PATH_A];
+			priv->pshare->phw->VHTTxAgcOffset_B[i] -= priv->pshare->tgpwr_VHT3S_new[RF_PATH_B];	
+			priv->pshare->phw->VHTTxAgcOffset_C[i] -= priv->pshare->tgpwr_VHT3S_new[RF_PATH_C];
+			priv->pshare->phw->VHTTxAgcOffset_D[i] -= priv->pshare->tgpwr_VHT3S_new[RF_PATH_D];				
+		}
+	}
+#if 0	
+	for(i=0;i<4;i++)
+		printk("priv->pshare->phw->CCKTxAgc_A[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_A[i]);
+	for(i=0;i<8;i++)
+		printk("priv->pshare->phw->OFDMTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_A[i]);
+	for(i=0;i<24;i++)
+		printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_A[i]);
+	for(i=0;i<30;i++)
+		printk("priv->pshare->phw->VHTTxAgcOffset_A[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_A[i]);
+	for(i=0;i<4;i++)
+		printk("priv->pshare->phw->CCKTxAgc_B[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_B[i]);
+	for(i=0;i<8;i++)
+		printk("priv->pshare->phw->OFDMTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_B[i]);
+	for(i=0;i<24;i++)
+		printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_B[i]);
+	for(i=0;i<30;i++)
+		printk("priv->pshare->phw->VHTTxAgcOffset_B[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_B[i]);
+	for(i=0;i<4;i++)
+		printk("priv->pshare->phw->CCKTxAgc_C[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_C[i]);
+	for(i=0;i<8;i++)
+		printk("priv->pshare->phw->OFDMTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_C[i]);
+	for(i=0;i<24;i++)
+		printk("priv->pshare->phw->MCSTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_C[i]);
+	for(i=0;i<30;i++)
+		printk("priv->pshare->phw->VHTTxAgcOffset_C[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_C[i]);
+	for(i=0;i<4;i++)
+		printk("priv->pshare->phw->CCKTxAgc_D[%d]=%x\n",i,priv->pshare->phw->CCKTxAgc_D[i]);
+	for(i=0;i<8;i++)
+		printk("priv->pshare->phw->OFDMTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->OFDMTxAgcOffset_D[i]);
+	for(i=0;i<24;i++)
+		printk("priv->pshare->phw->MCSTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->MCSTxAgcOffset_D[i]);
+	for(i=0;i<30;i++)
+		printk("priv->pshare->phw->VHTTxAgcOffset_D[%d]=%x\n",i,priv->pshare->phw->VHTTxAgcOffset_D[i]);
+#endif	
+}
+#endif
+
 
 int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 {
@@ -10190,9 +11669,13 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT)
 	unsigned int fwStatus = 0, dwnRetry = 5;
 #endif
-#ifdef CONFIG_RTL_8812_SUPPORT
+#if defined(CONFIG_RTL_8812_SUPPORT)
 	unsigned int	c50_bak, e50_bak;
 #endif
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	unsigned int	back_c50, back_e50, back_1850, back_1a50;
+#endif
+
 	SAVE_INT_AND_CLI(x);
 
 	pmib = GET_MIB(priv);
@@ -10274,11 +11757,11 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #ifdef CONFIG_PHY_WLAN_EAT_40MHZ
 		ClkSel = XTAL_CLK_SEL_40M;
 #else
-#ifdef CONFIG_RTL_8881A
+#ifdef CONFIG_WLAN_HAL_8881A
 		if(GET_CHIP_VER(priv) == VERSION_8881A)
 			ClkSel = XTAL_CLK_SEL_40M;
 		else
-#endif
+#endif			
 		ClkSel = XTAL_CLK_SEL_25M;
 #endif //CONFIG_PHY_EAT_40MHZ
 #endif //defined(CONFIG_AUTO_PCIE_PHY_SCAN)
@@ -10325,22 +11808,22 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif
 	{//not HAL
 #ifdef CONFIG_RTL_8812_SUPPORT
-		if (priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_5){
-			unsigned int dwTmp1,dwTmp2,dwTmp3 = 0; 
-			dwTmp1 = RTL_R8(0x301);
-			dwTmp2 = RTL_R32(0x808);
-			dwTmp2 &= ~(BIT(28) | BIT(29));
-			RTL_W8(REG_RSV_CTRL_8812, 0x0); // Enable to write page 3 reg
-			RTL_W8(0x301,0xff); // Close dma before clock set to 5M 			
-			RTL_W8(0x303,0x80); 
-			RTL_W32 (0x808,dwTmp2);
-			dwTmp3 = RTL_R8(0x8);
-			dwTmp3 &= ~(BIT(7) | BIT(6));
-			dwTmp3 |= BIT(7);	
-			RTL_W8(0x8,dwTmp3);
-			RTL_W8(0x301,dwTmp1);// rewrite 301 to default
-			RTL_W8(REG_RSV_CTRL_8812, 0x0e);
-		}
+	if (priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_5){
+		unsigned int dwTmp1,dwTmp2,dwTmp3 = 0; 
+		dwTmp1 = RTL_R8(0x301);
+		dwTmp2 = RTL_R32(0x808);
+		dwTmp2 &= ~(BIT(28) | BIT(29));
+		RTL_W8(REG_RSV_CTRL_8812, 0x0); // Enable to write page 3 reg
+		RTL_W8(0x301,0xff); // Close dma before clock set to 5M				
+		RTL_W8(0x303,0x80); 
+		RTL_W32 (0x808,dwTmp2);
+		dwTmp3 = RTL_R8(0x8);
+		dwTmp3 &= ~(BIT(7) | BIT(6));
+		dwTmp3 |= BIT(7);	
+		RTL_W8(0x8,dwTmp3);
+		RTL_W8(0x301,dwTmp1);// rewrite 301 to default
+		RTL_W8(REG_RSV_CTRL_8812, 0x0e);
+	}
 #endif
 		if (MacInit(priv) == FALSE) {
 #if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
@@ -10350,7 +11833,6 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif
 		}
 	}
-
 
 //	RTL_W32(AGGLEN_LMT, RTL_R32(AGGLEN_LMT)|(0x0F&AGGLMT_MCS15S_Mask)<<AGGLMT_MCS15S_SHIFT
 //		|(0x0F&AGGLMT_MCS15_Mask)<<AGGLMT_MCS15_SHIFT);
@@ -10406,8 +11888,9 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	{
 #ifdef  CONFIG_WLAN_HAL
 		if (IS_HAL_CHIP(priv)) {
+			RESTORE_INT(x);
 			val32 = phy_BB88XX_Config_ParaFile(priv);
-
+			SAVE_INT_AND_CLI(x);
 			if (val32) {
 				GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_DRV_DBG, (pu1Byte)&errorFlag);
 				errorFlag |= DRV_ER_INIT_BBEGFILE;
@@ -10509,6 +11992,57 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		RTL_W8(0xe50, e50_bak);
 	}
 #endif
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	if (GET_CHIP_VER(priv) == VERSION_8814A) {
+		if (priv->pmib->dot11RFEntry.xcap > 0 && priv->pmib->dot11RFEntry.xcap < 0x3F) {
+			int org_val, tmp_val;
+			org_val = (RTL_R32(0x2C) >> 15) & 0x3F;
+			if (org_val > priv->pmib->dot11RFEntry.xcap) {
+				for (tmp_val=org_val; tmp_val>=priv->pmib->dot11RFEntry.xcap; tmp_val--) {
+					PHY_SetBBReg(priv, 0x2C, 0x1f8000, tmp_val & 0x3F); // 0x2c[20:15]
+					PHY_SetBBReg(priv, 0x2C, 0x7e00000, tmp_val & 0x3F); // 0x2c[26:21]
+				}
+			}	
+			else {
+				for (tmp_val=org_val; tmp_val<=priv->pmib->dot11RFEntry.xcap; tmp_val++) {
+					PHY_SetBBReg(priv, 0x2C, 0x1f8000, tmp_val & 0x3F); // 0x2c[20:15]
+					PHY_SetBBReg(priv, 0x2C, 0x7e00000, tmp_val & 0x3F); // 0x2c[26:21]
+				}
+			}
+		}
+
+		// chang initial gain to avoid loading wrong AGC table, by Arthur
+		back_c50 = RTL_R8(0xc50);
+		back_e50 = RTL_R8(0xe50);
+		back_1850 = RTL_R8(0x1850);
+		back_1a50 = RTL_R8(0x1a50);
+
+		RTL_W8(0xc50, 0x22);
+		RTL_W8(0xe50, 0x22);
+		RTL_W8(0x1850, 0x22);
+		RTL_W8(0x1a50, 0x22);
+
+		RTL_W8(0xc50, back_c50);
+		RTL_W8(0xe50, back_e50);
+		RTL_W8(0x1850, back_1850);
+		RTL_W8(0x1a50, back_1a50);
+	}
+#endif
+	
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	if (GET_CHIP_VER(priv) == VERSION_8814A){
+		if(priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G){
+#if 0 /* Enable 2R CCA for CCK Rx @ path B, 2nd CCA @ path C*/
+			PHY_SetBBReg(priv,0xA00,0x8000,0x0); //0xA01[7] = 1'b0  turn off antenna diversity
+			PHY_SetBBReg(priv,0xA2C,BIT18,1); //0xA2e[6,2] = 2'b11 enable 2R CCA
+			PHY_SetBBReg(priv,0xA2C,BIT22,1);
+#else /* Disable 2RCCA for CCK Rx */
+			PHY_SetBBReg(priv,0xA2C,BIT18,0); // disable 2R CCA
+			PHY_SetBBReg(priv,0xA2C,BIT22,0);
+#endif
+		}
+	}
+#endif		
 
 	// support up to MCS7 for 1T1R, modify rx capability here
 	/*
@@ -10624,10 +12158,14 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 				else
 					val32 = phy_RF6052_Config_ParaFile(priv);
 
+#if defined(CONFIG_WLAN_HAL_8814AE)
+				if (GET_CHIP_VER(priv) == VERSION_8814A)
+					priv->pshare->phw->NumTotalRFPath = 4;
+#endif				
 				
-#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8813AE)
-				if ((GET_CHIP_VER(priv) == VERSION_8881A) ||(GET_CHIP_VER(priv) == VERSION_8813A))
-				{						
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
+				if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
+
 					if (val32) {
 						GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_DRV_DBG, (pu1Byte)&errorFlag);
 						errorFlag |= DRV_ER_INIT_PHYRF;
@@ -10635,7 +12173,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 					}
 					priv->pshare->No_RF_Write = 1;
 				}
-				//eric-8813 else if(CONFIG_WLAN_NOT_HAL_EXIST)
+				//eric-8814 else if(CONFIG_WLAN_NOT_HAL_EXIST)
 #endif
 
 				if (val32)
@@ -10644,7 +12182,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			else if(CONFIG_WLAN_NOT_HAL_EXIST)
 #endif
 			{//not HAL
-#if 0 //eric-8813 defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
+#if 0 //eric-8814 defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
 				if (GET_CHIP_VER(priv) == VERSION_8188E) {
 					priv->pshare->phw->NumTotalRFPath = 1;
 					val32 = ODM_ConfigRFWithHeaderFile(ODMPTR, ODM_RF_PATH_A, ODM_RF_PATH_A);
@@ -10879,6 +12417,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		MacCfgPara.vap_enable           = GET_ROOT(priv)->pmib->miscEntry.vap_enable;
 		MacCfgPara.OP_Mode              = OP_Mode;
 		MacCfgPara.dot11DTIMPeriod      = priv->pmib->dot11StationConfigEntry.dot11DTIMPeriod;
+		MacCfgPara.WdsPure      		= priv->pmib->dot11WdsInfo.wdsPure;
 		beaconPeriod                    = pmib->dot11StationConfigEntry.dot11BeaconPeriod;
 
 		GET_HAL_INTERFACE(priv)->SetHwRegHandler(priv, HW_VAR_BEACON_INTERVAL, (pu1Byte)&beaconPeriod);
@@ -11171,7 +12710,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
             }            
        }else{
             // for STA mode only
-            RTL_W32(TBTT_PROHIBIT, 0x4004); //tbtt=2ms
+            RTL_W32(TBTT_PROHIBIT, 0x104);
        }
 	   
 	   
@@ -11292,14 +12831,15 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
         #ifdef SW_TX_QUEUE
         GET_HAL_INTERFACE(priv)->AddInterruptMaskHandler(priv, HAL_INT_TYPE_GTIMER4);
         #endif
+
 		// TODO: Filen, no need to sync !?
 		priv->pshare->InterruptMask = _GET_HAL_DATA(priv)->IntMask[0];
 		priv->pshare->InterruptMask = _GET_HAL_DATA(priv)->IntMask[1];
 
 		// TODO: Filen, check download 8051 firmware
 		//Download Firmware
-
-
+#if 1
+		RESTORE_INT(x);
 		if ( RT_STATUS_SUCCESS != GET_HAL_INTERFACE(priv)->InitFirmwareHandler(priv)) {
 			GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_DRV_DBG, (pu1Byte)&errorFlag);
 			errorFlag |= DRV_ER_INIT_DLFW;
@@ -11308,7 +12848,14 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		} else {
 			DEBUG_INFO("InitDownload FW OK \n");
 		}
-		RTL_W8(DRVERLYINT, 10);	// v24 92e fw overwrire DRVERLYINT
+		SAVE_INT_AND_CLI(x);
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		//To prevent FW hangup
+		RTL_W8(0xf0, 0x3f);
+#endif
+#else
+		panic_printk("\n[%s] Not To Use FW\n",__FUNCTION__);
+#endif
 	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
 #endif
 	{//not HAL
@@ -11329,30 +12876,29 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		//priv->pshare->InterruptMask = HIMR_ROK | HIMR_BCNDMA0 | HIMR_RDU | HIMR_RXFOVW;
 
 #ifdef CONFIG_RTL_88E_SUPPORT
-        if (GET_CHIP_VER(priv) == VERSION_8188E) {
-            priv->pshare->InterruptMask = HIMR_88E_ROK | HIMR_88E_HISR1_IND_INT;
-            priv->pshare->InterruptMaskExt = HIMRE_88E_RXFOVW;
-        } else
+		if (GET_CHIP_VER(priv) == VERSION_8188E) {
+			priv->pshare->InterruptMask = HIMR_88E_ROK | HIMR_88E_HISR1_IND_INT;
+			priv->pshare->InterruptMaskExt = HIMRE_88E_RXFOVW;
+		} else
 #endif
 #if defined(CONFIG_RTL_8812_SUPPORT)
-        if (GET_CHIP_VER(priv) == VERSION_8812E) {
-            priv->pshare->InterruptMask = HIMR_92E_ROK | HIMR_92E_HISR1_IND_INT;
-            priv->pshare->InterruptMaskExt = HIMRE_92E_RXFOVW;
-            #ifdef BEAMFORMING_SUPPORT 
-            if (priv->pmib->dot11RFEntry.txbf == 1) {
-                priv->pshare->InterruptMask |= IMR_GTINT3_8812;
-            }
-            #endif
-
-            #ifdef SW_TX_QUEUE
-            priv->pshare->InterruptMask |= IMR_GTINT4_8812;
-            #endif
-        } else
+			if (GET_CHIP_VER(priv) == VERSION_8812E) {
+				priv->pshare->InterruptMask = HIMR_92E_ROK | HIMR_92E_HISR1_IND_INT;
+				priv->pshare->InterruptMaskExt = HIMRE_92E_RXFOVW;
+#ifdef BEAMFORMING_SUPPORT 
+				if (priv->pmib->dot11RFEntry.txbf == 1) {
+					priv->pshare->InterruptMask |= IMR_GTINT3_8812;
+				}
 #endif
-        {
-            priv->pshare->InterruptMask = HIMR_ROK | HIMR_BCNDMA0 | HIMR_RXFOVW;
-            priv->pshare->InterruptMaskExt = 0;
-        }
+                #ifdef SW_TX_QUEUE
+                priv->pshare->InterruptMask |= IMR_GTINT4_8812;
+                #endif
+			} else
+#endif
+			{
+				priv->pshare->InterruptMask = HIMR_ROK | HIMR_BCNDMA0 | HIMR_RXFOVW;
+				priv->pshare->InterruptMaskExt = 0;
+			}
 
 #ifdef MP_TEST
 		if (priv->pshare->rf_ft_var.mp_specific) {
@@ -11430,7 +12976,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		//
 		// Initialize and enable SDIO Host Interrupt.
 		//
-		InitInterrupt8188ESdio(priv);
+		InitSdioInterrupt(priv);
 #endif
 #endif // CONFIG_RTL_88E_SUPPORT
 
@@ -11565,6 +13111,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif		
 	} else
 #endif
+
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv) == VERSION_8192D) {
 			if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
@@ -11705,7 +13252,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			*(unsigned int *)(&priv->pshare->phw->VHTTxAgcOffset_B[16]) = cpu_to_be32(RTL_R32(rTxAGC_B_Nss2Index9_Nss2Index6_JAguar));
 		} else
 #endif
-#ifdef CONFIG_WLAN_HAL_8881A
+#if defined(CONFIG_WLAN_HAL_8881A)
 		if (GET_CHIP_VER(priv)==VERSION_8881A) {
 			*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_A[0]) = cpu_to_be32(RTL_R32(rTxAGC_A_CCK11_CCK1_JAguar));
 			*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[0]) = cpu_to_be32(RTL_R32(rTxAGC_A_Ofdm18_Ofdm6_JAguar));
@@ -11721,6 +13268,9 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			*(unsigned int *)(&priv->pshare->phw->VHTTxAgcOffset_A[16]) = cpu_to_be32(RTL_R32(rTxAGC_A_Nss2Index9_Nss2Index6_JAguar));
 		} else
 #endif	
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		if( GET_CHIP_VER(priv) != VERSION_8814A)
+#endif
 		{
 			// get default Tx AGC offset
 			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[0])  = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs03_Mcs00));
@@ -11757,64 +13307,12 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 
 		if (priv->pshare->txpwr_pg_format_abs)
 		{
-			if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G) {
-				//CCK
-				priv->pshare->tgpwr_CCK_new[RF_PATH_A] = priv->pshare->phw->CCKTxAgc_A[0];				
-				priv->pshare->tgpwr_CCK_new[RF_PATH_B] = priv->pshare->phw->CCKTxAgc_B[0];
-				for (i=0;i<4;i++) {
-					priv->pshare->phw->CCKTxAgc_A[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_A];													
-					priv->pshare->phw->CCKTxAgc_B[i] -= priv->pshare->tgpwr_CCK_new[RF_PATH_B];								
-				}
-			}
-			//OFDM
-			priv->pshare->tgpwr_OFDM_new[RF_PATH_A] = priv->pshare->phw->OFDMTxAgcOffset_A[4];	
-			priv->pshare->tgpwr_OFDM_new[RF_PATH_B] = priv->pshare->phw->OFDMTxAgcOffset_B[4];
-			for (i=0;i<8;i++) {
-				priv->pshare->phw->OFDMTxAgcOffset_A[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_A];				
-				priv->pshare->phw->OFDMTxAgcOffset_B[i] -= priv->pshare->tgpwr_OFDM_new[RF_PATH_B];
-			}
-
-			//HT-1S
-			priv->pshare->tgpwr_HT1S_new[RF_PATH_A] = priv->pshare->phw->MCSTxAgcOffset_A[4];				
-			priv->pshare->tgpwr_HT1S_new[RF_PATH_B] = priv->pshare->phw->MCSTxAgcOffset_B[4];
-			for (i=0;i<8;i++) {
-				priv->pshare->phw->MCSTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_A];
-				priv->pshare->phw->MCSTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_B];
-			}
-
-			//HT-2S
-			priv->pshare->tgpwr_HT2S_new[RF_PATH_A] = priv->pshare->phw->MCSTxAgcOffset_A[12];
-			priv->pshare->tgpwr_HT2S_new[RF_PATH_B] = priv->pshare->phw->MCSTxAgcOffset_B[12];
-			for (i=8;i<16;i++) {
-				priv->pshare->phw->MCSTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_A];
-				priv->pshare->phw->MCSTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_B];
-			}
-#ifdef RTK_AC_SUPPORT
-		if ((GET_CHIP_VER(priv)==VERSION_8812E) || (GET_CHIP_VER(priv)==VERSION_8881A)) {			
-			//VHT-1S
-			priv->pshare->tgpwr_VHT1S_new[RF_PATH_A] = priv->pshare->phw->VHTTxAgcOffset_A[4];				
-			priv->pshare->tgpwr_VHT1S_new[RF_PATH_B] = priv->pshare->phw->VHTTxAgcOffset_B[4];
-			//VHT-2S				
-			priv->pshare->tgpwr_VHT2S_new[RF_PATH_A] = priv->pshare->phw->VHTTxAgcOffset_A[18]; 			
-			priv->pshare->tgpwr_VHT2S_new[RF_PATH_B] = priv->pshare->phw->VHTTxAgcOffset_B[18];
-
-			for (i=0 ; i<20 ; i++) {
-				if (i<8) {
-					priv->pshare->phw->VHTTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_A];
-					priv->pshare->phw->VHTTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT1S_new[RF_PATH_B];					
-				} else if (i==10 || i==11) {						
-					priv->pshare->phw->VHTTxAgcOffset_A[i] = priv->pshare->tgpwr_HT1S_new[RF_PATH_A] - priv->pshare->phw->VHTTxAgcOffset_A[i];
-					priv->pshare->phw->VHTTxAgcOffset_B[i] = priv->pshare->tgpwr_HT1S_new[RF_PATH_B] - priv->pshare->phw->VHTTxAgcOffset_B[i];				
-				} else if (i==16 || i==17) {						
-					priv->pshare->phw->VHTTxAgcOffset_A[i] = priv->pshare->tgpwr_HT2S_new[RF_PATH_A] - priv->pshare->phw->VHTTxAgcOffset_A[i];
-					priv->pshare->phw->VHTTxAgcOffset_B[i] = priv->pshare->tgpwr_HT2S_new[RF_PATH_B] - priv->pshare->phw->VHTTxAgcOffset_B[i];				
-				} else {
-					priv->pshare->phw->VHTTxAgcOffset_A[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_A];
-					priv->pshare->phw->VHTTxAgcOffset_B[i] -= priv->pshare->tgpwr_HT2S_new[RF_PATH_B];					
-				}
-			}
-		} 
-#endif		
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			if( GET_CHIP_VER(priv) == VERSION_8814A)
+				set_target_power_8814(priv);
+			else
+#endif
+			set_target_power(priv);
 		}
 
 	}
@@ -11834,10 +13332,15 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		PHY_ConfigTXLmtWithParaFile(priv);
 	}
 #endif
+	RESTORE_INT(x);
 
 #ifdef _TRACKING_TABLE_FILE
-	if (priv->pshare->rf_ft_var.pwr_track_file)
-		PHY_ConfigTXPwrTrackingWithParaFile(priv);
+	if (priv->pshare->rf_ft_var.pwr_track_file) {
+		if((ODMPTR->ConfigBBRF) && (GET_CHIP_VER(priv) != VERSION_8188E))
+			ODM_ConfigRFWithTxPwrTrackHeaderFile(ODMPTR);
+		else
+			PHY_ConfigTXPwrTrackingWithParaFile(priv);
+	}
 #endif
 
 
@@ -11875,8 +13378,8 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 
 #ifdef CONFIG_WLAN_HAL
 	if (IS_HAL_CHIP(priv)) {
-#ifdef CONFIG_WLAN_HAL_8881A
-		if (GET_CHIP_VER(priv) == VERSION_8881A) {
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
+		if ((GET_CHIP_VER(priv) == VERSION_8881A)||(GET_CHIP_VER(priv) == VERSION_8814A)){
 			//Don't enable BB here
 		}
 #endif // CONFIG_WLAN_HAL_8881A         
@@ -11918,7 +13421,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		delay_ms(150);
 	}
 #endif
-	RESTORE_INT(x);
+//	RESTORE_INT(x);
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
@@ -12042,22 +13545,46 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	priv->pshare->digDeadPoint = 0;
 	priv->pshare->digDeadPointHitCount = 0;
 
-	if (priv->pshare->rf_ft_var.nbi_filter_enable) {
+	if (priv->pshare->rf_ft_var.nbi_filter_enable && 
+		(priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G)) {
 		NBI_filter_on(priv);
 	}
 
 	set_DIG_state(priv, 1);		// DIG on
 
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	if (priv->pmib->dot11RFEntry.tx3path){
+		if(get_rf_mimo_mode(priv) < MIMO_3T3R){
+			DEBUG_INFO("Not 3T3R, disable tx3path\n");
+			priv->pmib->dot11RFEntry.tx3path = 0;
+		} else{
+			if(priv->pmib->dot11RFEntry.tx2path)
+				priv->pmib->dot11RFEntry.tx2path = 0;
+		}
+	}
+#endif
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	if(GET_CHIP_VER(priv) == VERSION_8814A){
+		if(priv->pmib->dot11RFEntry.tx3path){
+			PHY_SetBBReg(priv,rTX_PATH_SEL_1, bMaskH12Bits,0x90e);	// Tx path B/C/D for 1SS HT/VHT
+			PHY_SetBBReg(priv,rTX_PATH_SEL_2, bMask4to15Bits,0x90e);// Tx path B/C/D for 2SS HT/VHT
+			PHY_SetBBReg(priv,rTXPATH_AC, bMask4to7Bits,0xe);		// Tx path B/C/D for CCK
+			PHY_SetBBReg(priv,rCCK_RX_AC, bMaskH4Bits,0x7);			// Tx path B/C/D for CCK
+		}else if(priv->pmib->dot11RFEntry.tx2path){
+			PHY_SetBBReg(priv,rTX_PATH_SEL_1, bMaskH12Bits,0x106);	// Tx path B/C for 1SS
+			PHY_SetBBReg(priv,rTXPATH_AC, bMask4to7Bits,0x6);		// Tx path B/C for CCK
+			PHY_SetBBReg(priv,rCCK_RX_AC, bMaskH4Bits	,0x6);		// Tx path B/C for CCK
+		}
+	}
+#endif
 #if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
 	if ((GET_CHIP_VER(priv) == VERSION_8812E) || IS_HAL_CHIP(priv)) {
 		if (GET_CHIP_VER(priv) == VERSION_8192E) {
 			if (priv->pmib->dot11RFEntry.tx2path)
 			{
-//				RTL_W32(0x90C, 0x83321333);
-				RTL_W32(0x90C, 0xc3321333);
+				RTL_W32(0x90C, 0x83321333);
 				RTL_W32(0x80C, RTL_R32(0x80C) & ~BIT(31));
-//				RTL_W8(0x6D8, RTL_R8(0x6D8) | 0x3F);
-				RTL_W8(0x6D8, RTL_R8(0x6D8) | 0xFF);
+				RTL_W8(0x6D8, RTL_R8(0x6D8) | 0x3F);
 
 				RTL_W8(0xA07, 0xC1);
 				RTL_W8(0xA11, RTL_R8(0xA11) & ~BIT(5));
@@ -12067,9 +13594,8 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 				//RTL_W8(0xA75, RTL_R8(0xA75) | BIT(0));
 				RTL_W32(0xC8C, 0xa0240000);
 				RTL_W8(0x800, RTL_R8(0x800) & ~BIT(1));
-			} else {
-				PHY_SetBBReg(priv, 0x90C, BIT(30), 0);
 			}
+				PHY_SetBBReg(priv, 0x90C, BIT(30), 0);
 			if (priv->pmib->dot11RFEntry.bcn2path){
 				RTL_W32(0x80c,RTL_R32(0x80c)|BIT(31));
 				RTL_W8(0x6D8, RTL_R8(0x6D8) | 0xCF);
@@ -12096,13 +13622,20 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif
 
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
-		RTL_W8(AGGR_BK_TIME, 0x18);
-		RTL_W16(0x4ca, 0x0a0a);
-//	RTL_W32(RESP_SIFS_CCK, 0x0e0e0a0a);
-		//RTL_W32(ACKTO, 0x40001440);
-		RTL_W16(ACKTO, 0x1440);
-		RTL_W16(RXFLTMAP2, 0xffff);
-		//RTL_W16(RCR, RTL_R16(RCR)&(~ BIT(11)));
+// 8814 merge issue
+#ifdef CONFIG_WLAN_HAL
+        if (IS_HAL_CHIP(priv)) {
+        } else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif //CONFIG_WLAN_HAL
+        {
+    		RTL_W8(AGGR_BK_TIME, 0x18);
+    		RTL_W16(0x4ca, 0x0a0a);
+    //	RTL_W32(RESP_SIFS_CCK, 0x0e0e0a0a);
+    		//RTL_W32(ACKTO, 0x40001440);
+    		RTL_W16(ACKTO, 0x1440);
+    		RTL_W16(RXFLTMAP2, 0xffff);
+    		//RTL_W16(RCR, RTL_R16(RCR)&(~ BIT(11)));
+        }
 #endif
 
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -12142,12 +13675,13 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
 //	priv->pmib->dot11RFEntry.trswitch = 1;
 #endif
-	if(GET_CHIP_VER(priv) != VERSION_8188E ){
-		if (priv->pmib->dot11RFEntry.trswitch)
-			RTL_W8(GPIO_MUXCFG, RTL_R8(GPIO_MUXCFG) | TRSW0EN);
-		else
-			RTL_W8(GPIO_MUXCFG, RTL_R8(GPIO_MUXCFG) & ~TRSW0EN);
-	}
+		if(GET_CHIP_VER(priv) != VERSION_8188E){
+			if (priv->pmib->dot11RFEntry.trswitch)
+				RTL_W8(GPIO_MUXCFG, RTL_R8(GPIO_MUXCFG) | TRSW0EN);
+			else
+				RTL_W8(GPIO_MUXCFG, RTL_R8(GPIO_MUXCFG) & ~TRSW0EN);
+		}
+
 #ifdef DFS
 		if (!priv->pmib->dot11DFSEntry.disable_DFS) {
 			RTL_W8(0xc50, 0x24);
@@ -12211,6 +13745,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #ifdef USE_OUT_SRC
 		if (IS_OUTSRC_CHIP(priv)) {
 			ODM_DMInit(ODMPTR);			// DM parameters init
+			EdcaParaInit(priv);
         }
         else
 #endif
@@ -12218,8 +13753,9 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
             rtl8192cd_AdaptivityInit(priv);
         }
 
-#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
-		if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+// TODO: the following code need to be integrated into WlanHAL.... for 8814A...
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A) ||  defined(CONFIG_WLAN_HAL_8814AE)
+		if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 // ?	did twice ?
 //		phy_BB8192CD_Check_ParaFile(priv);
 #if defined(CONFIG_WLAN_HAL_8881A)
@@ -12236,12 +13772,57 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
 				RTL_W32(0x808, RTL_R32(0x808) | BIT(29));
 				RTL_W8(0x454, RTL_R8(0x454) | BIT(7));
-			} else {
+			} else { //PHY_BAND_2G
 				RTL_W32(0x808, RTL_R32(0x808) | BIT(29) | BIT(28));
 				RTL_W8(0x454, RTL_R8(0x454) & ~ BIT(7));
 			}
-			RTL_W16(0x4ca, 0x1f1f);
-			RTL_W8(REG_RA_TRY_RATE_AGG_LMT_8812, 0x0);				// try rate agg limit
+#if defined(CONFIG_WLAN_HAL_8814AE)			
+			if (GET_CHIP_VER(priv) != VERSION_8814A)
+#endif
+			{
+				RTL_W16(0x4ca, 0x1f1f);			
+				RTL_W8(REG_RA_TRY_RATE_AGG_LMT_8812, 0x0);				// try rate agg limit
+			}	
+
+#if defined(CONFIG_WLAN_HAL_8814AE)			
+			if (GET_CHIP_VER(priv) == VERSION_8814A) {
+				if(priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G)
+					RTL_W16(0x4ca, 0x2a2a);
+				else
+					RTL_W8(0x80b, 0x2e);
+#ifdef MBSSID
+				if (GET_ROOT(priv)->vap_count == 0)
+					RTL_W8(0x5BE,0x08);
+#endif				
+				if (priv->pmib->dot11RFEntry.MIMO_TR_mode == MIMO_2T2R) {			
+					if(priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G)
+						RTL_W8(0xa07, 0x46);
+
+					{			
+					RTL_W8(0x1002, 0x2);
+								
+					//4 Tx setting
+					PHY_SetBBReg(priv, 0x93c, 0xfff00000, 0x106);
+					PHY_SetBBReg(priv, 0x940, 0x0000fff0, 0x106);	
+
+					//4 Rx setting					
+					//RTL_W8(0x808, 0x66);					
+					
+					//4 CCA
+					PHY_SetBBReg(priv, 0x82c, 0x0f000000, 0x5);
+					RTL_W8(0x830, 0xa);
+					//4 2ndCCA
+					PHY_SetBBReg(priv, 0x82C, 0x0fff0000, 0x5a9);
+					PHY_SetBBReg(priv, 0x838, 0x0fff0000, 0x788);
+					PHY_SetBBReg(priv, 0x840, 0x0000f000, 0x6);
+							
+					RTL_W8(0x1002, 0x3);
+
+					GDEBUG(" switch to 2T2R!\n");
+					}					
+				}
+			}
+#endif
 
 
 //		RTL_W32(0x2c, 0x28a3e200);
@@ -12323,11 +13904,17 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			}
 #endif
 
-			PHY_IQCalibrate(priv); //FOR_8812_IQK
+			// 8814 merge issue
+			PHY_IQCalibrate(priv); //FOR_8812_IQK			
 
 #if 1 //for 8812 IOT issue with 11N NICs
-			DEBUG_INFO("0x838 B(1)= 0, 0x456 = 0x32 \n");
-			RTL_W8(0x838, (RTL_R8(0x838)& ~ BIT(0))); //Disbale CCA
+#if defined(CONFIG_WLAN_HAL_8814AE)			
+			if (GET_CHIP_VER(priv) == VERSION_8814A && !priv->pshare->rf_ft_var.enable_2ndcca)
+#endif
+			{
+				DEBUG_INFO("0x838 B(1)= 0, 0x456 = 0x32 \n");
+				RTL_W8(0x838, (RTL_R8(0x838)& ~ BIT(0))); //Disbale CCA
+			}
 #if defined(CONFIG_RTL_8812_SUPPORT)
 			if (GET_CHIP_VER(priv) == VERSION_8812E) {
 				if (IS_TEST_CHIP(priv))
@@ -12351,6 +13938,10 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 					RTL_W8(0x640, 0x80);
 				}
 
+#ifdef EN_EFUSE
+				PHY_SetBBReg(priv, 0xc1c, 0xffe00000, OFDMSwingTable_8812[priv->pshare->OFDM_index0[0]]);
+				PHY_SetBBReg(priv, 0xe1c, 0xffe00000, OFDMSwingTable_8812[priv->pshare->OFDM_index0[1]]);
+#else
 #ifdef HIGH_POWER_EXT_PA
 				if (priv->pshare->rf_ft_var.use_ext_pa) {
 					// ext_pa OFDM base index should be -4dB
@@ -12367,18 +13958,86 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 					priv->pshare->OFDM_index0[0] = 18;
 					priv->pshare->OFDM_index0[1] = 18;
 				}
+#endif
+#ifdef MCR_WIRELESS_EXTEND				
+				RTL_W32(0x10 , 0x2aab5e0c); //Enhance the Vcore for reviewing the function on
+				RTL_W32(0x830,0x2aaa6c88);
+#endif
 			}
 #endif
+#if defined(CONFIG_WLAN_HAL_8814AE)
+			if (GET_CHIP_VER(priv) == VERSION_8814A) {
+#if 0
+				if (IS_TEST_CHIP(priv))
+					RTL_W8(0x456, 0x32); //Refine AMPDU MAX duration
+				else if(get_rf_mimo_mode(priv) == MIMO_1T1R)
+					RTL_W8(0x456, 0xe0);
+				else
+					RTL_W8(0x456, 0x70); //8812_11n_iot, increase 0x456 for ampdu number
+
+				RTL_W8(0x480, 0x20); //Enable duplicate RTS to whole bandwidth
+				
+				//RTL_W32(0x458, 0xffff);			// aggregation max length
+				RTL_W32(0x458, 0x7fff); 			// agg size 64k->32k
+
+				if (IS_C_CUT_8812(priv)) {
+					RTL_W8(0x640, 0x40);
+					RTL_W8(0x45b, 0x80);
+				} else {
+					RTL_W8(0x640, 0x80);
+				}
+#endif
+#ifdef HIGH_POWER_EXT_PA
+				if (priv->pshare->rf_ft_var.use_ext_pa) {
+					//4 ext_pa OFDM base index  -3dB
+					PHY_SetBBReg(priv, rA_TxScale_Jaguar, 0xffe00000, TxScalingTable_Jaguar[18]); //4 path A
+					PHY_SetBBReg(priv, rB_TxScale_Jaguar, 0xffe00000, TxScalingTable_Jaguar[18]); //4 path B
+					PHY_SetBBReg(priv, rC_TxScale_Jaguar2, 0xffe00000, TxScalingTable_Jaguar[18]); //4 path C
+					PHY_SetBBReg(priv, rD_TxScale_Jaguar2, 0xffe00000, TxScalingTable_Jaguar[18]); //4 path D
+					priv->pshare->OFDM_index0[0] = 18;
+					priv->pshare->OFDM_index0[1] = 18;
+					priv->pshare->OFDM_index0[2] = 18;
+					priv->pshare->OFDM_index0[3] = 18;
+				} else
+#endif
+				{
+					//4 0 dB for internal PA
+					PHY_SetBBReg(priv, rA_TxScale_Jaguar, 0xffe00000, TxScalingTable_Jaguar[24]);
+					PHY_SetBBReg(priv, rB_TxScale_Jaguar, 0xffe00000, TxScalingTable_Jaguar[24]);
+					PHY_SetBBReg(priv, rC_TxScale_Jaguar2, 0xffe00000, TxScalingTable_Jaguar[24]);
+					PHY_SetBBReg(priv, rD_TxScale_Jaguar2, 0xffe00000, TxScalingTable_Jaguar[24]);
+					priv->pshare->OFDM_index0[0] = 24;
+					priv->pshare->OFDM_index0[1] = 24;
+					priv->pshare->OFDM_index0[2] = 24;
+					priv->pshare->OFDM_index0[3] = 24;					
+				}
+			/* 
+			*  Do LCK for 8814 MP chip
+			*/	
+#if 1
+#ifdef CONFIG_WLAN_HAL_8814AE			
+			printk("Doing LCK: PHY_LCCalibrate_8814A\n");
+			phy_LCCalibrate_8814A(ODMPTR, TRUE);
+			priv->pshare->ThermalValue_LCK = (unsigned char)PHY_QueryRFReg(priv, RF_PATH_A, 0x42, 0xfc00, 1); /*set LCK base thermal as current thermal*/
+#endif			
+#else
+			printk("Disable LCK due to RX hang in normal driver\n");
+#endif
+			}
+
+#endif
+
 #endif
 		}
 #endif
 	}
 
+	RESTORE_INT(x);
 #if	defined(CONFIG_WLAN_HAL_8192EE)
 
 	if (GET_CHIP_VER(priv) == VERSION_8192E) {
 		PHY_SetRFReg(priv, RF92CD_PATH_A, 0xb1, bMask20Bits, 0x55418);		// LCK
-		RESTORE_INT(x);
+//		RESTORE_INT(x);
 		PHY_IQCalibrate(priv);
         // TX power tracking init 
 #ifdef HIGH_POWER_EXT_PA
@@ -12420,7 +14079,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			DEBUG_INFO("==> RF 0xB2 = 0x%x\n", PHY_QueryRFReg(priv, RF_PATH_A, 0xB2, bMaskDWord, 1));
 		}
 		DEBUG_INFO("8192E LCK done!!\n");
-		SAVE_INT_AND_CLI(x);
+//	   SAVE_INT_AND_CLI(x);
 	   
 		//Increse 92E rx gain   #20130301 Anchi
 		PHY_SetRFReg(priv, RF_PATH_A, 0x0, bMaskDWord, 0x33e74);
@@ -12428,32 +14087,41 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		//2013-0717 VCO 9.6G supr #Anchi
 	   //PHY_SetRFReg(priv, RF_PATH_A, 0xb2, bMaskDWord, 0xCC00);    
 	   //PHY_SetRFReg(priv, RF_PATH_A, 0x18, bMaskDWord, 0xFC07);    
-		// 92E ACPR patch 
-		if (priv->pshare->rf_ft_var.disable_ACPR) {		
-#ifdef HIGH_POWER_EXT_LNA
-			if (priv->pshare->rf_ft_var.use_ext_lna) 
-#endif
-			{
-				for (i=0 ; i<2; i++) {
-					PHY_SetRFReg(priv, i, 0xef, bMaskDWord, 0x020A0);	  
-					PHY_SetRFReg(priv, i, 0x3b, bMaskDWord, 0xF82B0);	  
-					PHY_SetRFReg(priv, i, 0x3b, bMaskDWord, 0x7c730);	   				
-					PHY_SetRFReg(priv, i, 0xef, bMaskDWord, 0x000A0);	   
-				}
-			}
-		}
-		RTL_W8(0x4c7, 0x80); 	// Enable Single-AMPDU
-		
+
+#ifdef MCR_WIRELESS_EXTEND
+		if (priv->pshare->rf_ft_var.mcr_ft && !priv->pshare->rf_ft_var.mp_specific)
+		{
+		//ARFR
+		RTL_W32(0x438, 0x01000000);
+		RTL_W32(0x43c, 0x07060504);
+
 		//CCK-2RCCA+path selection
-		RTL_W8(0xa2e, 0xd6);  
-		RTL_W8(0xa2f, 0x10);	//CDD for CCK
+		RTL_W8(0xa2e, 0xd6); 
 		RTL_W8(0xa01, 0x47);
 			
 		PHY_SetBBReg(priv,0xa04,BIT(24)|BIT(25),1); 
 		PHY_SetBBReg(priv,0xa04,BIT(26)|BIT(27),0); 
 		PHY_SetBBReg(priv,0xa74,BIT(8),1); 
 		PHY_SetBBReg(priv,0xa08,BIT(28),1); 
-		
+		} 
+#else
+		// 92E ACPR patch 
+		if (priv->pshare->rf_ft_var.disable_ACPR) 
+		{		
+			for (i=0 ; i<2; i++) {
+				PHY_SetRFReg(priv, i, 0xef, bMaskDWord, 0x020A0);	 
+#ifdef CONFIG_SDIO_HCI
+				PHY_SetRFReg(priv, i, 0x3b, bMaskDWord, 0xF52B0);	  
+				PHY_SetRFReg(priv, i, 0x3b, bMaskDWord, 0x70730);	   
+#else
+				PHY_SetRFReg(priv, i, 0x3b, bMaskDWord, 0xF82B0);	  
+				PHY_SetRFReg(priv, i, 0x3b, bMaskDWord, 0x7c730);	   
+#endif									
+				PHY_SetRFReg(priv, i, 0xef, bMaskDWord, 0x000A0);	   
+			}
+		}
+#endif
+
 		SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
 		SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
 	}
@@ -12529,7 +14197,11 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			|| priv->pshare->rf_ft_var.use_ext_lna
 #endif
 			) {
-			PHY_SetBBReg(priv,0x4c,0xfffffff,0x628282);			
+#if defined(CONFIG_PCI_HCI)
+			PHY_SetBBReg(priv,0x4c,0xfffffff,0x628282);
+#elif defined(CONFIG_SDIO_HCI)
+			PHY_SetBBReg(priv,0x4c,0xffffffff,0x70628282);
+#endif
 			PHY_SetBBReg(priv,0x930,0xff000f,0x540000);//930[3:0] =0 for RFE_CTRL_0 and 54 for tr switch
 			//if (IS_HAL_TEST_CHIP(priv)) 
 				RTL_W32(0x938, 0x540); //938[27:24]=0 for RFE_CTRL_6 and 54 for tr switch
@@ -12541,11 +14213,20 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			DEBUG_INFO("8192E ext PA or ext LNA !!!\n");
 		}
 	
+		if (OPMODE & WIFI_AP_STATE) {
+			if ((priv->pshare->CurrentChannelBW==0 && priv->pmib->dot11RFEntry.dot11channel==13) 
+				||(priv->pshare->CurrentChannelBW==1 && priv->pmib->dot11RFEntry.dot11channel>=11))
+				Check_92E_Spur_Valid(priv, false);
+		} 	
 		RTL_W8(0x462, 0x02);
-		RTL_W16(0x4ca, 0x1414);		
+#if defined(CONFIG_PCI_HCI)
+		RTL_W16(0x4ca, 0x1414);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+		RTL_W16(0x4ca, 0x0a0a);
+#endif
 #if defined(HIGH_POWER_EXT_PA)
-        if (priv->pshare->rf_ft_var.use_ext_pa)
-			set_CCK_swing_index(priv, 30);
+		if (priv->pshare->rf_ft_var.use_ext_pa)
+			set_CCK_swing_index(priv, 30);	
 #endif		
 	}
 #endif
@@ -12613,7 +14294,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
             valtmp = (val_8b&(BIT(4)|BIT(5)|BIT(6)))>> 4 ;                               
             if(valtmp==1 && priv->pshare->phw->MIMO_TR_hw_support==MIMO_2T2R){
                 panic_printk("Antenna munber not match[%d]\n",valtmp);
-				RESTORE_INT(x);
+//				RESTORE_INT(x);
                 return -1;
             }    
             /*---------------------TYPES;AC or N---------------------------*/
@@ -12623,13 +14304,13 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
                 if(priv->pmib->dot11BssType.net_work_type & WIRELESS_11AC){
                     //priv->pmib->dot11BssType.net_work_type &= ~(WIRELESS_11AC);
                     panic_printk("Not support AC!!\n");
-					RESTORE_INT(x);
+//					RESTORE_INT(x);
                     return -1;                        
                 }                    
                 if( priv->pshare->is_40m_bw == 2 ){
                    //priv->pshare->is_40m_bw=1;                        
                     panic_printk("Not support 80M BW!!\n");
-					RESTORE_INT(x);
+//					RESTORE_INT(x);
                     return -1;                       
                 }                    
             }
@@ -12651,11 +14332,59 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif
 
 	//Tego added power on protection to avoid wlan hang after suddenly wdg reboot, button reviewed
-#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8881A)
-				if ((GET_CHIP_VER(priv) == VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8192E)||(GET_CHIP_VER(priv) == VERSION_8881A)){
-					RTL_W8(0x1c, RTL_R8(0x1c)|0x02);				
-					}
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8881A)|| defined(CONFIG_WLAN_HAL_8814AE)
+	if ((GET_CHIP_VER(priv) == VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8192E)||
+        (GET_CHIP_VER(priv) == VERSION_8881A)||(GET_CHIP_VER(priv) == VERSION_8814A)){
+		RTL_W8(0x1c, RTL_R8(0x1c)|0x02);
+	}
 #endif
+
+#ifdef CONFIG_WLAN_HAL_8192EE
+	if (GET_CHIP_VER(priv) == VERSION_8192E)
+	{
+		if(priv->pmib->dot11RFEntry.tx2path)
+		{
+			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_WE_LUT, 0x80000,0x1); // RF Mode table write enable
+			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_WE_LUT, 0x80000,0x1); // RF Mode table write enable
+
+			// Paath_A
+			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode 0x30=0x18000
+			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
+			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G2, 0xfffff,0x77fc2); // Enable TXIQGEN in RX mode
+			// Path_B
+			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode
+			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
+			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G2, 0xfffff,0x77fc2); // Enable TXIQGEN in RX mode
+
+			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_WE_LUT, 0x80000,0x0); // RF Mode table write disable
+			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_WE_LUT, 0x80000,0x0); // RF Mode table write disable
+			RTL_W8(0xA2F, 0x10);
+		}
+	}
+#endif
+
+#ifdef RTL8814_TP_TUNING
+	// TXOP
+	RTL_W8(0x50A, 0x5E);
+
+	// agg num, not use 63 temporarily
+	//RTL_W16(0x4CA, 0x3F3F);
+
+	// prefetch
+	//RTL_W8(0x3DB, 0xB);
+    
+	//ew 0xbb805100 0x11
+	//ew 0xb8010000 0xe4000000
+#endif
+
+#ifdef CONFIG_1RCCA_RF_POWER_SAVING
+#ifdef MP_TEST
+	if (!priv->pshare->rf_ft_var.mp_specific)
+#endif
+	if (priv->pshare->rf_ft_var.one_path_cca_ps) {
+		one_path_cca_power_save(priv, 1);
+	}
+#endif // CONFIG_1RCCA_RF_POWER_SAVING
 
 #ifdef USB_INTERFERENCE_ISSUE
 #ifdef CONFIG_RTL_92C_SUPPORT
@@ -12694,7 +14423,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif // CONFIG_RTL_92C_SUPPORT
 #endif // USB_INTERFERENCE_ISSUE
 
-	RESTORE_INT(x);
+//	RESTORE_INT(x);
 	DBFEXIT;
 
 	return 0;
@@ -13246,7 +14975,7 @@ int rtl8192cd_stop_hw(struct rtl8192cd_priv *priv)
 #endif // CONFIG_PCI_HCI
 
 
-#ifdef RTK_AC_SUPPORT  //#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8813AE)
+#ifdef RTK_AC_SUPPORT  //#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
 
 #ifdef AC2G_256QAM
 #define MAX_NUM_80M 8
@@ -13342,35 +15071,42 @@ void get_txsc_AC(struct rtl8192cd_priv *priv, unsigned char channel)
 void SwBWMode_AC(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 {
 	unsigned char bTmp = 0, bTmp2 = 0;
-	unsigned int dwTmp = 0, dwTmp2 = 0, tmp_rf = 0;
+	unsigned int dwTmp = 0, dwTmp2 = 0,dwTmp3 = 0, tmp_rf = 0;
 	unsigned char primary_channel = 0;
 	unsigned int eRFPath, curMaxRFPath;
 
 //		printk("SwBWMode_AC +++ BW = %d txsc_20 = %d txsc_40 = %d\n", bandwidth, priv->pshare->txsc_20, priv->pshare->txsc_40);
 	
-	curMaxRFPath = RF92CD_PATH_MAX;
+	curMaxRFPath = priv->pshare->phw->NumTotalRFPath;
 
 	primary_channel = priv->pshare->txsc_20;
 
 //3 ========== <1> Set rf_mode 0x8ac & 0x668 & 0x8
 	dwTmp = RTL_R32(0x8ac);
 	dwTmp2 = RTL_R32(0x668);
+	dwTmp3 = RTL_R32(0x830);
 
 	dwTmp &= ~(BIT(0) | BIT(1) | BIT(6) | BIT(7) | BIT(8) | BIT(9) | BIT(20) | BIT(21));
 	dwTmp2 &= ~(BIT(7) | BIT(8));
+	dwTmp3 &= ~(BIT(3) | BIT(2) | BIT(1));
 
 	switch (bandwidth) {
 	case HT_CHANNEL_WIDTH_AC_5:
 		dwTmp |= (BIT(6) | BIT(20));
+		dwTmp3 |= (BIT(3) | BIT(1));
 		RTL_W32(0x8ac, dwTmp);
 
 		RTL_W32(0x668, dwTmp2);
+		RTL_W32(0x830, dwTmp3);
 		break;
 	case HT_CHANNEL_WIDTH_AC_10:
 		dwTmp |= (BIT(7) | BIT(8) | BIT(21));
 		RTL_W32(0x8ac, dwTmp);
 
 		RTL_W32(0x668, dwTmp2);
+		
+		dwTmp3 |= BIT(3);
+		RTL_W32(0x830, dwTmp3);
 		break;
 	case HT_CHANNEL_WIDTH_AC_20:
 		dwTmp |= (BIT(9) | BIT(20) | BIT(21));
@@ -13492,7 +15228,19 @@ void SwBWMode_AC(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset
 		switch (bandwidth) {
 
 		case HT_CHANNEL_WIDTH_AC_5:
+			if (get_rf_mimo_mode(priv) == MIMO_1T1R)
+				dwTmp |= (7<<22);
+			else
+				dwTmp |= (6<<22);
+			break;
+			
 		case HT_CHANNEL_WIDTH_AC_10:
+			if (get_rf_mimo_mode(priv) == MIMO_1T1R)
+				dwTmp |= (8<<22);
+			else
+				dwTmp |= (7<<22);
+			break;
+			
 		case HT_CHANNEL_WIDTH_AC_20:
 			if (get_rf_mimo_mode(priv) == MIMO_1T1R)
 				dwTmp |= (8<<22);
@@ -13552,7 +15300,6 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 {
 	unsigned char regBwOpMode, regRRSR_RSC, nCur40MhzPrimeSC;
 	unsigned int eRFPath, curMaxRFPath, val;
-	priv->pshare->CurrentChannelBW = bandwidth; 
 
 #if defined(CONFIG_RTL_8812_SUPPORT)
 	if (GET_CHIP_VER(priv) == VERSION_8812E) {
@@ -13564,12 +15311,19 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 	}
 #endif //#if defined(CONFIG_RTL_8812_SUPPORT)
 
-#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8813AE)
-	if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8813A)) {
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
+	if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A))
+    {
 		priv->pshare->No_RF_Write = 0;
 		get_txsc_AC(priv, priv->pmib->dot11RFEntry.dot11channel);
 		GET_HAL_INTERFACE(priv)->PHYSwBWModeHandler(priv, bandwidth, offset);
 		priv->pshare->No_RF_Write = 1;
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		/* eliminate the 5280MHz & 5600MHz & 5760MHzspur of 8814A */
+		if(GET_CHIP_VER(priv) == VERSION_8814A && priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
+			GET_HAL_INTERFACE(priv)->PHYSpurCalibration(priv);
+		}
+#endif	
 		return;
 	}
 #endif //#if defined(CONFIG_WLAN_HAL_8881A)
@@ -13588,7 +15342,7 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 		curMaxRFPath = RF92CD_PATH_B;
 	else
 #endif
-		curMaxRFPath = RF92CD_PATH_MAX;
+		curMaxRFPath = priv->pshare->phw->NumTotalRFPath;
 
 	if (offset == 1)
 		nCur40MhzPrimeSC = 2;
@@ -13722,16 +15476,32 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 #if defined(SUPPORT_TX_AMSDU) || defined (P2P_SUPPORT)
 void setup_timer2(struct rtl8192cd_priv *priv, unsigned int timeout)
 {
-	unsigned int current_value = RTL_R32(TSFTR);
+	unsigned int current_value;
+
+#ifdef CONFIG_WLAN_HAL
+    if ( IS_HAL_CHIP(priv) ) {
+        GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_TSF_TIMER, (pu1Byte)&current_value);
+    } else
+#endif
+    {
+        current_value = RTL_R32(TSFTR);
+    }
 
 	if (TSF_LESS(timeout, current_value))
 		timeout = current_value + 20;
 
-	RTL_W32(TIMER1, timeout);
+#ifdef CONFIG_WLAN_HAL
+    if ( IS_HAL_CHIP(priv) ) {
+        GET_HAL_INTERFACE(priv)->SetHwRegHandler(priv, HW_VAR_PS_TIMER, (pu1Byte)&timeout);
+    } else 
+#endif
+    {
+    	RTL_W32(TIMER1, timeout);
+    }
 
 #ifdef CONFIG_WLAN_HAL
 	if ( IS_HAL_CHIP(priv) ) {
-		GET_HAL_INTERFACE(priv)->AddInterruptMaskHandler(priv, HAL_INT_TYPE_PSTIMEOUT2);
+        GET_HAL_INTERFACE(priv)->AddInterruptMaskHandler(priv, HAL_INT_TYPE_FS_TIMEOUT0);
 	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
 #endif //CONFIG_WLAN_HAL
 	{//not HAL
@@ -13750,7 +15520,7 @@ void cancel_timer2(struct rtl8192cd_priv *priv)
 
 #ifdef CONFIG_WLAN_HAL
 	if ( IS_HAL_CHIP(priv) ) {
-		GET_HAL_INTERFACE(priv)->RemoveInterruptMaskHandler(priv, HAL_INT_TYPE_PSTIMEOUT2);
+        GET_HAL_INTERFACE(priv)->RemoveInterruptMaskHandler(priv, HAL_INT_TYPE_FS_TIMEOUT0);
 	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
 #endif //CONFIG_WLAN_HAL    
 	{//not HAL
@@ -14076,9 +15846,6 @@ static UCHAR CAM_find_usable(struct rtl8192cd_priv *priv)
 	}
 #endif
 
-	if(GET_CHIP_VER(priv) >= VERSION_8812E)
-		for_begin = 0;
-
 #ifdef  CONFIG_WLAN_HAL
 	if (IS_HAL_CHIP(priv)) {
 		retVal = GET_HAL_INTERFACE(priv)->CAMFindUsableHandler(priv, for_begin);
@@ -14198,7 +15965,7 @@ int CamAddOneEntry(struct rtl8192cd_priv *priv, unsigned char *pucMacAddr, unsig
 
 	usConfig = usConfig | CFG_VALID | ((USHORT)(encAlg)) | (UCHAR)keyId;
 #ifdef MULTI_MAC_CLONE
-	if ((OPMODE&WIFI_STATION_STATE) && priv->pmib->ethBrExtInfo.macclone_enable)
+	if ((OPMODE & WIFI_STATION_STATE) && priv->pmib->ethBrExtInfo.macclone_enable)
 		usConfig |= CFG_RPT_MD;
 #endif
 
@@ -14257,9 +16024,6 @@ int CamAddOneEntry(struct rtl8192cd_priv *priv, unsigned char *pucMacAddr, unsig
 #endif
 	}
 #endif
-
-	if(GET_CHIP_VER(priv) >= VERSION_8812E)
-		set_dk_margin = 0;
 
 	if (camIndex < set_dk_margin) {
 #ifdef  CONFIG_WLAN_HAL
@@ -14432,9 +16196,6 @@ int CamDeleteOneEntry(struct rtl8192cd_priv *priv, unsigned char *pMacAddr, unsi
 	}
 #endif
 
-	if(GET_CHIP_VER(priv) >= VERSION_8812E)
-		for_begin = 0;
-
 	// unicast key processing
 	// key processing for RTL818X(B) series
 	for (ucIndex = for_begin; ucIndex < TOTAL_CAM_ENTRY; ucIndex++) {
@@ -14549,254 +16310,6 @@ void CAM_read_entry(struct rtl8192cd_priv *priv, unsigned char index, unsigned c
 }
 
 
-#ifdef CAM_SWAP
-
-void dump_mac3(struct rtl8192cd_priv *priv, unsigned char *mac)
-{
-	if(mac)
-		printk(" %02x:%02x:%02x:%02x:%02x:%02x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-}
-
-
-int is_hw_encrypt(struct stat_info	*pstat)
-{
-
-	if(pstat->dot11KeyMapping.keyInCam)
-		return 1;
-	else
-		return 0;
-}
-
-void swap_to_sw_encrypt(struct rtl8192cd_priv *priv, struct stat_info	 *pstat)
-{
-	int ret = 0;
-
-	//dump_mac3(priv, pstat->hwaddr);
-
-	ret = CamDeleteOneEntry(priv, pstat->hwaddr, pstat->dot11KeyMapping.keyid, 0);
-
-	pstat->dot11KeyMapping.keyInCam = 0;
-	priv->pshare->CamEntryOccupied--;
-}
-
-void swap_to_hw_encrypt(struct rtl8192cd_priv *priv, struct stat_info *pstat)
-{
-	int ret = 0;
-
-	//dump_mac3(priv, pstat->hwaddr);
-
-	ret = CamAddOneEntry(priv, pstat->hwaddr, pstat->dot11KeyMapping.keyid, 
-		pstat->dot11KeyMapping.dot11Privacy<<2, 0, GET_UNICAST_ENCRYP_KEY);
-
-	pstat->dot11KeyMapping.keyInCam = 1;
-	priv->pshare->CamEntryOccupied++;
-}
-
-struct sta_list{
-	struct stat_info *pstat_array[NUM_STAT];
-	unsigned char	num;
-};
-
-static struct sta_list sta_idle_hw_cam[NUM_STAT];
-static struct sta_list sta_low_hw_cam[NUM_STAT];
-static struct sta_list sta_mid_sw_cam[NUM_STAT];
-static struct sta_list sta_high_sw_cam[NUM_STAT];
-
-int get_sw_encrypt_sta_num(struct rtl8192cd_priv *priv)
-{
-	int i;
-	struct stat_info *pstat = NULL;
-	int num = 0;
-			
-	for(i=0; i<NUM_STAT; i++) { 
-		if (priv->pshare->aidarray[i] && (priv->pshare->aidarray[i]->used == TRUE)) {
-			
-			if (!((GET_MIB(priv->pshare->aidarray[i]->priv))->dot11OperationEntry.opmode & WIFI_AP_STATE))
-				continue;
-	
-			pstat = &(priv->pshare->aidarray[i]->station);
-		
-			if((pstat->wpa_sta_info->RSNEnabled) && (pstat->dot11KeyMapping.keyInCam==0))
-				num ++;
-		}
-	}
-
-	return num;
-
-}
-
-void get_sta_traffic_level(struct rtl8192cd_priv *priv, struct stat_info *pstat)
-{
-	int total_cnt = pstat->traffic.delta_tx_bytes + pstat->traffic.delta_rx_bytes;
-
-	//printk("%s +++ \n", __FUNCTION__);
-	
-	if(total_cnt <= TRAFFIC_THRESHOLD_LOW)
-		pstat->traffic.level = STA_TRAFFIC_IDLE;
-#if 0
-	else if(total_cnt <= TRAFFIC_THRESHOLD_MID)
-		pstat->traffic.level = STA_TRAFFIC_LOW;
-	else if(total_cnt <= TRAFFIC_THRESHOLD_HIGH)
-		pstat->traffic.level = STA_TRAFFIC_MID;
-#endif
-	else if(total_cnt > TRAFFIC_THRESHOLD_HIGH)
-		pstat->traffic.level = STA_TRAFFIC_HIGH;
-	else
-		pstat->traffic.level = STA_TRAFFIC_DONT_CARE;
-
-	//printk("total_cnt=%d level=%d\n", total_cnt, pstat->traffic.level);
-
-}
-
-void add_sta_traffic_list(struct stat_info *pstat)
-{
-	//printk("%s +++ \n", __FUNCTION__);
-	//printk("pstat = 0x%x is_hw_encrypt=%d level=%d \n",
-		//pstat, is_hw_encrypt(pstat), pstat->traffic.level);
-
-	switch(pstat->traffic.level) {
-		case STA_TRAFFIC_IDLE:
-			if(is_hw_encrypt(pstat)){
-				sta_idle_hw_cam->pstat_array[sta_idle_hw_cam->num] = pstat;
-				sta_idle_hw_cam->num ++;
-			}
-			break;
-#if 0
-		case STA_TRAFFIC_LOW:
-			if(is_hw_encrypt(pstat)){
-				sta_low_hw_cam->pstat_array[sta_low_hw_cam->num] = pstat;
-				sta_low_hw_cam->num ++;
-			}
-			break;
-
-		case STA_TRAFFIC_MID:
-			if(!is_hw_encrypt(pstat)){
-				sta_mid_sw_cam->pstat_array[sta_mid_sw_cam->num] = pstat;
-				sta_mid_sw_cam->num ++;
-			}
-			break;
-#endif
-		case STA_TRAFFIC_HIGH:
-			if(!is_hw_encrypt(pstat)){
-				sta_high_sw_cam->pstat_array[sta_high_sw_cam->num] = pstat;
-				sta_high_sw_cam->num ++;
-			}
-			break;
-
-	}
-
-	//printk("cam num = %d %d %d %d \n", 
-		//sta_idle_hw_cam->num, sta_low_hw_cam->num, 
-		//sta_mid_sw_cam->num, sta_high_sw_cam->num);
-
-
-}
-
-
-void cal_sta_traffic(struct rtl8192cd_priv *priv, int sta_use_sw_encrypt)
-{
-	int i;
-	struct stat_info *pstat = NULL;
-
-	//printk("%s +++ \n", __FUNCTION__);
-
-	sta_idle_hw_cam->num = 0;
-	sta_low_hw_cam->num = 0;
-	sta_mid_sw_cam->num = 0;
-	sta_high_sw_cam->num = 0;
-
-	for(i=0; i<NUM_STAT; i++) { 
-		if (priv->pshare->aidarray[i] && (priv->pshare->aidarray[i]->used == TRUE)) {
-			
-			if (!((GET_MIB(priv->pshare->aidarray[i]->priv))->dot11OperationEntry.opmode & WIFI_AP_STATE))
-				continue;
-	
-			pstat = &(priv->pshare->aidarray[i]->station);
-		
-			if(pstat->wpa_sta_info->RSNEnabled){
-				 pstat->traffic.delta_tx_bytes = pstat->tx_bytes - pstat->traffic.prev_tx_bytes;
-				 pstat->traffic.delta_rx_bytes = pstat->rx_bytes - pstat->traffic.prev_rx_bytes;
-
-				 pstat->traffic.prev_tx_bytes = pstat->tx_bytes;
-				 pstat->traffic.prev_rx_bytes = pstat->rx_bytes;
-
-				 get_sta_traffic_level(priv, pstat);
-
-				 add_sta_traffic_list(pstat);
-			}
-		}
-	}
-
-
-}
-
-void rotate_sta_cam(struct rtl8192cd_priv *priv, int sta_use_sw_encrypt)
-{
-	int i = 0;
-	int num_remove_idle = 0;
-	int num_remove_low = 0;
-
-	struct stat_info *pstat_remove_hw = NULL;
-	struct stat_info *pstat_move2_hw = NULL;
-
-	//printk("%s +++ \n", __FUNCTION__);
-
-	//printk("cam num = %d %d %d %d \n", 
-		//sta_idle_hw_cam->num, sta_low_hw_cam->num, 
-		//sta_mid_sw_cam->num, sta_high_sw_cam->num);
-	
-	
-	for(i = 0; i<sta_high_sw_cam->num; i++){
-
-		if(num_remove_idle < sta_idle_hw_cam->num){
-			
-			pstat_remove_hw = sta_idle_hw_cam->pstat_array[i];
-			pstat_move2_hw = sta_high_sw_cam->pstat_array[i];
-
-			swap_to_sw_encrypt(priv, pstat_remove_hw);
-			swap_to_hw_encrypt(priv, pstat_move2_hw);
-			
-			num_remove_idle++; 
-			continue; 
-		}
-#if 0
-		if(num_remove_low < sta_low_hw_cam->num){
-
-			pstat_remove_hw = sta_low_hw_cam->pstat_array[i];
-			pstat_move2_hw = sta_high_sw_cam->pstat_array[i];
-
-			swap_to_sw_encrypt(priv, pstat_remove_hw);
-			swap_to_hw_encrypt(priv, pstat_move2_hw);
-			
-			num_remove_low++; 
-		}
-#endif
-
-	}
-
-#if 0
-	if(num_remove_idle < sta_idle_hw_cam->num)
-	for(i = 0; i<sta_mid_sw_cam->num; i++){
-
- 		if(num_remove_idle < sta_idle_hw_cam->num){
-			
-			pstat_remove_hw = sta_idle_hw_cam->pstat_array[i];
-			pstat_move2_hw = sta_mid_sw_cam->pstat_array[i];
-
-			swap_to_sw_encrypt(priv, pstat_remove_hw);
-			swap_to_hw_encrypt(priv, pstat_move2_hw);
-			
-			num_remove_idle++; 
-			continue; 
-		}
-
-	}
-#endif
-
-}
-
-#endif
-
 #if 0
 void debug_cam(UCHAR*TempOutputMac, UCHAR*TempOutputKey, USHORT TempOutputCfg)
 {
@@ -14871,12 +16384,38 @@ int offloadTestFunction(struct rtl8192cd_priv *priv, unsigned char *data)
 
 		return 0;
 	}
-
+	
+	if (mode == 0x0) {		
+		u1Byte reg_val;
+		 //clear the non-valid bit	
+		GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_REG_CCK_CHECK, (pu1Byte)&reg_val);
+		reg_val = reg_val & ~BIT(6);
+		GET_HAL_INTERFACE(priv)->SetHwRegHandler(priv, HW_VAR_REG_CCK_CHECK, (pu1Byte)&reg_val);
+	}
+	
 	if (mode == 0x1) {
 		printk("epdn 6e: download probe rsp\n");
 		priv->offload_function_ctrl = 1;
-		RTL_W16(0x100 , RTL_R16(0x100) | BIT(8));		// enable sw beacon
+		//RTL_W16(0x100 , RTL_R16(0x100) | BIT(8));		// enable sw beacon
 //		tasklet_hi_schedule(&priv->pshare->rx_tasklet);
+		//RTL_W8(HWSEQ_CTRL,RTL_R8(HWSEQ_CTRL) | BIT(6)); // HW SEQ
+
+		u4Byte u4_val;
+		
+		// enable sw beacon
+		GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_REG_CR, (pu4Byte)&u4_val);
+		u4_val = u4_val | BIT(8);
+		GET_HAL_INTERFACE(priv)->SetHwRegHandler(priv, HW_VAR_REG_CR, (pu4Byte)&u4_val);
+
+		u1Byte u1_val;
+
+#if (IS_RTL8192E_SERIES | IS_RTL8881A_SERIES)
+		 // HW SEQ
+		GET_HAL_INTERFACE(priv)->GetHwRegHandler(priv, HW_VAR_HWSEQ_CTRL, (pu1Byte)&u1_val);
+		u1_val = u1_val | BIT(6);
+		GET_HAL_INTERFACE(priv)->SetHwRegHandler(priv, HW_VAR_HWSEQ_CTRL, (pu1Byte)&u1_val);
+#endif
+        
 	}
 
 
@@ -16455,6 +17994,16 @@ void radio_off(struct rtl8192cd_priv *priv)
 }
 #endif
 
+#ifdef CONFIG_WLAN_HAL_8814AE
+void MIMO_mode_switch_8814(struct rtl8192cd_priv *priv)
+{
+	if(get_rf_mimo_mode(priv) != MIMO_2T2R)
+		return;
+
+	GDEBUG(" -> switch to 2T2R\n");
+	RTL_W8(0x808, 0x66);
+}
+#endif
 
 #if defined(RF_MIMO_SWITCH) || defined(PCIE_POWER_SAVING)
 int MIMO_mode_switch(struct rtl8192cd_priv *priv, int mode)
@@ -16470,6 +18019,7 @@ int MIMO_mode_switch(struct rtl8192cd_priv *priv, int mode)
 			//panic_printk("switch to 1x1\n");
 #ifdef CONFIG_RTL_8812_SUPPORT
 		if (GET_CHIP_VER(priv) == VERSION_8812E) {
+			Assert_BB_Reset(priv);
 			priv->pshare->rf_phy_bb_backup[0] = RTL_R32(0x808); 	
 			priv->pshare->rf_phy_bb_backup[1] = RTL_R32(0x80c); 	
 			priv->pshare->rf_phy_bb_backup[2] = RTL_R32(0xa04); 	
@@ -16486,6 +18036,7 @@ int MIMO_mode_switch(struct rtl8192cd_priv *priv, int mode)
 			RTL_W8(0xe90, 0);
 			RTL_W32(0xe60, 0);
 			RTL_W32(0xe64, 0);
+			Release_BB_Reset(priv);
 		}
 #endif	
 #ifdef CONFIG_WLAN_HAL_8192EE
@@ -16634,6 +18185,7 @@ int MIMO_mode_switch(struct rtl8192cd_priv *priv, int mode)
 			//panic_printk("switch to 2x2\n");
 #ifdef CONFIG_RTL_8812_SUPPORT
 		if (GET_CHIP_VER(priv) == VERSION_8812E) {
+			Assert_BB_Reset(priv);
 			RTL_W32(0x808, priv->pshare->rf_phy_bb_backup[0]);	
 			RTL_W32(0x80c, priv->pshare->rf_phy_bb_backup[1]);	
 			RTL_W32(0xa04, priv->pshare->rf_phy_bb_backup[2]);	
@@ -16642,6 +18194,7 @@ int MIMO_mode_switch(struct rtl8192cd_priv *priv, int mode)
 			RTL_W32(0xe90, priv->pshare->rf_phy_bb_backup[5]);	
 			RTL_W32(0xe60, priv->pshare->rf_phy_bb_backup[6]);
 			RTL_W32(0xe64, priv->pshare->rf_phy_bb_backup[7]);			
+			Release_BB_Reset(priv);
 		}
 #endif	
 #ifdef CONFIG_RTL_92C_SUPPORT
@@ -16698,7 +18251,7 @@ int MIMO_mode_switch(struct rtl8192cd_priv *priv, int mode)
 #ifdef EN_EFUSE
 #define VOLTAGE_V25		0x03
 
-#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE)
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
 #define MAX_2G_CHNLGRP	6
 #define MAX_5G_CHNLGRP	14
 
@@ -16717,24 +18270,44 @@ static struct channel_group chnl_pwrlvlgp_2G[] = {
 	{13, 13}
 };
 
+#if 0 //3 Old 
 static struct channel_group chnl_pwrlvlgp_5G[] = {
 	//decrease 1 for array index
-	{35, 42},
+	{35, 39},
+	{43, 47},
+	{51, 55},
+	{59, 63},
+	{99, 103},
+	{107, 111},
+	{115, 119},
+	{123, 127},
+	{131, 135},
+	{139, 143},
+	{148, 152},
+	{156, 160},
+	{164, 168},
+	{172, 176}
+};
+#else //3 New
+static struct channel_group chnl_pwrlvlgp_5G[] = {
+	//decrease 1 for array index
+	{35, 42}, //4 41-> ch 42 for 80M
 	{43, 50},
-	{51, 58},
+	{51, 58}, //4 57-> ch 58 for 80M
 	{59, 98},
-	{99, 106},
+	{99, 106}, //4 105-> ch 106 for 80M
 	{107, 114},
-	{115, 122},
+	{115, 122}, //4 121-> ch 122 for 80M
 	{123, 130},
 	{131, 138},
 	{139, 147},
-	{148, 155},
+	{148, 155}, //4 154-> ch 155 for 80M
 	{156, 163},
-	{164, 171},
+	{164, 171}, //4 170-> ch 171 for 80M
 	{172, 176}
 };
 
+#endif
 int find_2gchnlgroup(int chnl)
 {
 	int index = 0;
@@ -16748,7 +18321,7 @@ int find_2gchnlgroup(int chnl)
 	return -1;
 }
 
-#ifdef CONFIG_RTL_8812_SUPPORT
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8814AE)
 int find_5gchnlgroup(int chnl)
 {
 	int index = 0;
@@ -16766,20 +18339,51 @@ void read_efusemap_2gtxpwrdiff(struct rtl8192cd_priv *priv, unsigned int chnl)
 {
 	unsigned char *hwinfo = &(priv->EfuseMap[EFUSE_INIT_MAP][0]);
 
-	if (GET_CHIP_VER(priv) == VERSION_8812E) {
+	if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv) == VERSION_8814A) {
+		//4 Path A
 		priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_A[chnl]
 			= hwinfo[EEPROM_2G_HT201S_TxPowerDiff + PATHA_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_A[chnl]
 			= hwinfo[EEPROM_2G_HT402S_TxPowerDiff + PATHA_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_OFDM2T_CCK2T_A[chnl]
 			= hwinfo[EEPROM_2G_OFDM2T_TxPowerDiff + PATHA_OFFSET];
-
+#if defined(CONFIG_WLAN_HAL_8814AE)	
+		priv->pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_A[chnl]
+			= hwinfo[EEPROM_2G_HT403S_TxPowerDiff + PATHA_OFFSET];
+#endif
+		//4 Path B
 		priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_B[chnl]
 			= hwinfo[EEPROM_2G_HT201S_TxPowerDiff + PATHB_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_B[chnl]
 			= hwinfo[EEPROM_2G_HT402S_TxPowerDiff + PATHB_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_OFDM2T_CCK2T_B[chnl]
 			= hwinfo[EEPROM_2G_OFDM2T_TxPowerDiff + PATHB_OFFSET];
+#if defined(CONFIG_WLAN_HAL_8814AE)	
+		priv->pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_B[chnl]
+			= hwinfo[EEPROM_2G_HT403S_TxPowerDiff + PATHB_OFFSET];
+		//4 Path C
+		priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_C[chnl]
+			= hwinfo[EEPROM_2G_HT201S_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_C[chnl]
+			= hwinfo[EEPROM_2G_HT402S_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_OFDM2T_CCK2T_C[chnl]
+			= hwinfo[EEPROM_2G_OFDM2T_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_C[chnl]
+			= hwinfo[EEPROM_2G_HT403S_TxPowerDiff + PATHC_OFFSET];
+		
+		//4 Path D
+		priv->pmib->dot11RFEntry.pwrdiff_20BW1S_OFDM1T_D[chnl]
+			= hwinfo[EEPROM_2G_HT201S_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_40BW2S_20BW2S_D[chnl]
+			= hwinfo[EEPROM_2G_HT402S_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_OFDM2T_CCK2T_D[chnl]
+			= hwinfo[EEPROM_2G_OFDM2T_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_40BW3S_20BW3S_D[chnl]
+			= hwinfo[EEPROM_2G_HT403S_TxPowerDiff + PATHD_OFFSET];
+#endif
+
+
+		
 	}
 }
 
@@ -16787,30 +18391,76 @@ void read_efusemap_5gtxpwrdiff(struct rtl8192cd_priv *priv, unsigned int chnl)
 {
 	unsigned char *hwinfo = &(priv->EfuseMap[EFUSE_INIT_MAP][0]);
 
-	if (GET_CHIP_VER(priv) == VERSION_8812E) {
+	if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv) == VERSION_8814A) {
+		//4 Path A
 		priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_A[chnl]
 			= hwinfo[EEPROM_5G_HT201S_TxPowerDiff + PATHA_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_A[chnl]
 			= hwinfo[EEPROM_5G_HT402S_TxPowerDiff + PATHA_OFFSET];
+#if defined(CONFIG_WLAN_HAL_8814AE)		
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_A[chnl]
+			= hwinfo[EEPROM_5G_HT403S_TxPowerDiff + PATHA_OFFSET];
+#endif
 		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_A[chnl]
 			= hwinfo[EEPROM_5G_HT801S_TxPowerDiff + PATHA_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_A[chnl]
 			= hwinfo[EEPROM_5G_HT802S_TxPowerDiff + PATHA_OFFSET];
-
+#if defined(CONFIG_WLAN_HAL_8814AE)				
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_A[chnl]
+			= hwinfo[EEPROM_5G_HT803S_TxPowerDiff + PATHA_OFFSET];
+#endif
+		
+		//4 Path B
 		priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_B[chnl]
 			= hwinfo[EEPROM_5G_HT201S_TxPowerDiff + PATHB_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_B[chnl]
 			= hwinfo[EEPROM_5G_HT402S_TxPowerDiff + PATHB_OFFSET];
+#if defined(CONFIG_WLAN_HAL_8814AE)		
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_B[chnl]
+			= hwinfo[EEPROM_5G_HT403S_TxPowerDiff + PATHB_OFFSET];
+#endif		
 		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_B[chnl]
 			= hwinfo[EEPROM_5G_HT801S_TxPowerDiff + PATHB_OFFSET];
 		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_B[chnl]
 			= hwinfo[EEPROM_5G_HT802S_TxPowerDiff + PATHB_OFFSET];
+#if defined(CONFIG_WLAN_HAL_8814AE)				
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_B[chnl]
+			= hwinfo[EEPROM_5G_HT803S_TxPowerDiff + PATHB_OFFSET];
+
+		//4 Path C
+		priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_C[chnl]
+			= hwinfo[EEPROM_5G_HT201S_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_C[chnl]
+			= hwinfo[EEPROM_5G_HT402S_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_C[chnl]
+			= hwinfo[EEPROM_5G_HT403S_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_C[chnl]
+			= hwinfo[EEPROM_5G_HT801S_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_C[chnl]
+			= hwinfo[EEPROM_5G_HT802S_TxPowerDiff + PATHC_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_C[chnl]
+			= hwinfo[EEPROM_5G_HT803S_TxPowerDiff + PATHC_OFFSET];
+
+		//4 Path D
+		priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_D[chnl]
+			= hwinfo[EEPROM_5G_HT201S_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_D[chnl]
+			= hwinfo[EEPROM_5G_HT402S_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_D[chnl]
+			= hwinfo[EEPROM_5G_HT403S_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_D[chnl]
+			= hwinfo[EEPROM_5G_HT801S_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_D[chnl]
+			= hwinfo[EEPROM_5G_HT802S_TxPowerDiff + PATHD_OFFSET];
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_D[chnl]
+			= hwinfo[EEPROM_5G_HT803S_TxPowerDiff + PATHD_OFFSET];
+#endif
 	}
 }
 
 int clear_5g_pwr_params(struct rtl8192cd_priv *priv, int index)
 {
-	if (GET_CHIP_VER(priv) == VERSION_8812E) {
+	if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv) == VERSION_8814A) {
 		priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[index] = 0;
 		priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[index] = 0;
 		priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_A[index] = 0;
@@ -16822,6 +18472,33 @@ int clear_5g_pwr_params(struct rtl8192cd_priv *priv, int index)
 		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_B[index] = 0;
 		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_B[index] = 0;
 		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_B[index] = 0;
+
+#if defined(CONFIG_WLAN_HAL_8814AE)	
+
+		priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_C[index] = 0;
+		priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_D[index] = 0;
+
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_A[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_B[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_A[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_B[index] = 0;
+
+		priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_C[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_C[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_C[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_C[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_C[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_C[index] = 0;
+
+		priv->pmib->dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_D[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_D[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_40BW3S_20BW3S_D[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_D[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_D[index] = 0;
+		priv->pmib->dot11RFEntry.pwrdiff_5G_80BW3S_160BW3S_D[index] = 0;
+
+#endif
+		
 	}
 
 	return 0;
@@ -16852,8 +18529,8 @@ static	void efuse_PowerSwitch(struct rtl8192cd_priv *priv, unsigned char bWrite,
 	unsigned char tempval;
 	short tmpV16;
 	if (PwrState == TRUE) {
-#if defined(CONFIG_RTL_8812_SUPPORT)
-		if (GET_CHIP_VER(priv) == VERSION_8812E) {
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8814AE)
+		if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv) == VERSION_8814A) {
 			tempval = 0x69;
 			RTL_W8(REG_PG_PASSWD_8812, tempval);
 		}
@@ -16868,8 +18545,8 @@ static	void efuse_PowerSwitch(struct rtl8192cd_priv *priv, unsigned char bWrite,
 #endif
 
 		// 1.2V Power: From VDDON with Power Cut(0x0000h[15]), defualt valid
-#if defined(CONFIG_RTL_8812_SUPPORT)
-		if (GET_CHIP_VER(priv) != VERSION_8812E) 
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8814AE)
+		if (GET_CHIP_VER(priv) != VERSION_8812E && GET_CHIP_VER(priv) != VERSION_8814A) 
 #endif
 
 		{
@@ -16900,8 +18577,8 @@ static	void efuse_PowerSwitch(struct rtl8192cd_priv *priv, unsigned char bWrite,
 		if (bWrite == TRUE) {
 			// Enable LDO 2.5V before read/write action
 			tempval = RTL_R8(EFUSE_TEST + 3);
-#if defined(CONFIG_RTL_8812_SUPPORT)
-			if (GET_CHIP_VER(priv) == VERSION_8812E) {
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8814AE)
+			if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv) == VERSION_8814A) {
 				tempval &= ~(BIT3 | BIT4 | BIT5 | BIT6);
 				tempval |= (VOLTAGE_V25 << 3);
 				tempval |= BIT7;
@@ -16915,8 +18592,8 @@ static	void efuse_PowerSwitch(struct rtl8192cd_priv *priv, unsigned char bWrite,
 			}
 		}
 	} else {
-#if defined(CONFIG_RTL_8812_SUPPORT)
-		if (GET_CHIP_VER(priv) == VERSION_8812E) {
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8814AE)
+		if (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv) == VERSION_8814A) {
 			tempval = 0x0;
 			RTL_W8(REG_PG_PASSWD_8812, tempval);
 		}
@@ -17012,9 +18689,9 @@ static void ReadEFuse(struct rtl8192cd_priv *priv, unsigned short _offset, int _
 	unsigned short  i, j;
 	unsigned short 	eFuseWord[priv->EfuseMaxSection][EFUSE_MAX_WORD_UNIT];
 	unsigned short	efuse_utilized = 0;
-#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT)  || defined(CONFIG_WLAN_HAL_8192EE)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
 	UINT8 bSupportExtendHdr = ((GET_CHIP_VER(priv) == VERSION_8192D) || (GET_CHIP_VER(priv) == VERSION_8188E)
-			|| (GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8812E));
+			|| (GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8814A));
 #endif
 
 	//
@@ -17049,7 +18726,7 @@ static void ReadEFuse(struct rtl8192cd_priv *priv, unsigned short _offset, int _
 	//
 	while ((*rtemp8 != 0xFF) && (eFuse_Addr < priv->EfuseRealContentLen)) {
 
-#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
 		// Check PG header for section num.
 		if (bSupportExtendHdr && ((*rtemp8 & 0x1F) == 0x0F)) {	//extended header
 			unsigned char u1temp = ((*rtemp8 & 0xE0) >> 5);
@@ -17363,6 +19040,49 @@ static void ReadTxPowerInfoFromHWPG_8192E(struct rtl8192cd_priv *priv)
 }
 #endif // CONFIG_WLAN_HAL_8192EE
 
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+static void ReadTxPowerInfoFromHWPG_8814(struct rtl8192cd_priv *priv)
+{
+	int i, ch_gp;
+	unsigned char *hwinfo = &(priv->EfuseMap[EFUSE_INIT_MAP][0]);
+	for (i = 0; i < MAX_2G_CHANNEL_NUM; i++) {
+		ch_gp = -1;
+		ch_gp = find_2gchnlgroup(i);
+
+		if (ch_gp > -1) {
+			priv->pmib->dot11RFEntry.pwrlevelCCK_A[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_CCK1T_TxPower + PATHA_OFFSET + ch_gp]);												
+			priv->pmib->dot11RFEntry.pwrlevelCCK_B[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_CCK1T_TxPower + PATHB_OFFSET + ch_gp]);						
+			priv->pmib->dot11RFEntry.pwrlevelCCK_C[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_CCK1T_TxPower + PATHC_OFFSET + ch_gp]);												
+			priv->pmib->dot11RFEntry.pwrlevelCCK_D[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_CCK1T_TxPower + PATHD_OFFSET + ch_gp]);
+
+			if(ch_gp == 5)
+				ch_gp = 4;
+			priv->pmib->dot11RFEntry.pwrlevelHT40_1S_A[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_HT401S_TxPower + PATHA_OFFSET + ch_gp]);
+			priv->pmib->dot11RFEntry.pwrlevelHT40_1S_B[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_HT401S_TxPower + PATHB_OFFSET + ch_gp]);
+			priv->pmib->dot11RFEntry.pwrlevelHT40_1S_C[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_HT401S_TxPower + PATHC_OFFSET + ch_gp]);
+			priv->pmib->dot11RFEntry.pwrlevelHT40_1S_D[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_2G_HT401S_TxPower + PATHD_OFFSET + ch_gp]);
+			read_efusemap_2gtxpwrdiff(priv, i);
+		}
+	}
+
+	for (i = 0; i < MAX_5G_CHANNEL_NUM; i++) {
+		int ch_gp = -1;
+		ch_gp = find_5gchnlgroup(i);
+		if (ch_gp > -1) {
+			priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_5G_HT401S_TxPower + PATHA_OFFSET + ch_gp]);
+			priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_5G_HT401S_TxPower + PATHB_OFFSET + ch_gp]);					
+			priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_C[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_5G_HT401S_TxPower + PATHC_OFFSET + ch_gp]);
+			priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_D[i] = HAL_EFUSE_POWER_RANGE_CHECK(hwinfo[EEPROM_5G_HT401S_TxPower + PATHD_OFFSET + ch_gp]);		
+			read_efusemap_5gtxpwrdiff(priv, i);
+		} else {
+			clear_5g_pwr_params(priv, i);
+		}			
+	} 
+}
+#endif //#if defined(CONFIG_WLAN_HAL_8814AE)
+
+
 static int isPGValueValid(struct rtl8192cd_priv *priv, unsigned char *hwinfo)
 {
 	int j=0;
@@ -17452,6 +19172,12 @@ void ReadTxPowerInfoFromHWPG(struct rtl8192cd_priv *priv)
 #endif
 
 	if (/*priv->AutoloadFailFlag==FALSE &&*/ priv->pmib->efuseEntry.enable_efuse == 1) {
+		
+#if defined(CONFIG_WLAN_HAL_8814AE)
+		if ( GET_CHIP_VER(priv) == VERSION_8814A ) {
+			ReadTxPowerInfoFromHWPG_8814(priv);
+		} else
+#endif //#if defined(CONFIG_WLAN_HAL_8814AE)
 #if defined(CONFIG_RTL_8812_SUPPORT)
 		if ( GET_CHIP_VER(priv) == VERSION_8812E ) {
 			for (i = 0; i < MAX_2G_CHANNEL_NUM; i++) {
@@ -17686,9 +19412,6 @@ void ReadMacAddressFromEfuse(struct rtl8192cd_priv *priv)
 	if (GET_CHIP_VER(priv) == VERSION_8192E)
 		efuse_MAC = EEPROM_92E_MACADDRESS;
 #endif
-
-
-
 #ifdef CONFIG_RTL_8812_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8812E)
 		efuse_MAC = EEPROM_8812_MACADDRESS;
@@ -17704,7 +19427,7 @@ void ReadMacAddressFromEfuse(struct rtl8192cd_priv *priv)
 		unsigned char zero[] = {0, 0, 0, 0, 0, 0}, mac[6];
 
 		memcpy(mac, efuse_mac, MACADDRLEN);
-		/* printk("wlan%d EFUSE MAC [%02x:%02x:%02x:%02x:%02x:%02x]\n", priv->pshare->wlandev_idx,
+		/*panic_printk("wlan%d EFUSE MAC [%02x:%02x:%02x:%02x:%02x:%02x]\n", priv->pshare->wlandev_idx,
 				*mac, *(mac+1), *(mac+2), *(mac+3), *(mac+4), *(mac+5)); */
 #if 0
 		if (memcmp(mac, zero, MACADDRLEN) && !IS_MCAST(mac)) {
@@ -17801,12 +19524,18 @@ void ReadThermalMeterFromEfuse(struct rtl8192cd_priv *priv)
 		TherMask = 0xff;
 	}
 #endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+		if (GET_CHIP_VER(priv) == VERSION_8814A) {
+			efuse_Ther = EEPROM_8812_THERMAL_METER;
+			TherMask = 0xff;
+		}
+#endif
 
 	priv->pmib->dot11RFEntry.ther = (hwinfo[efuse_Ther] & TherMask);
 	DEBUG_INFO("ThermalMeter = 0x%x\n", priv->pmib->dot11RFEntry.ther);
 
-#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE)
-	if ((GET_CHIP_VER(priv) == VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8192E)) {
+#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
+	if ((GET_CHIP_VER(priv) == VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if ((priv->pmib->dot11RFEntry.ther < 0x07) || (priv->pmib->dot11RFEntry.ther > 0x32)) {
 			DEBUG_ERR("TPT: unreasonable target ther %d, disable tpt\n", priv->pmib->dot11RFEntry.ther);
 			priv->pmib->dot11RFEntry.ther = 0;
@@ -17817,26 +19546,6 @@ void ReadThermalMeterFromEfuse(struct rtl8192cd_priv *priv)
 		priv->pmib->dot11RFEntry.ther = 0;
 	}
 }
-
-
-#ifdef CONFIG_LNA_FROM_EFUSE
-void ReadLNATypeFromEfuse(struct rtl8192cd_priv *priv)
-{
-	unsigned char *hwinfo = &(priv->EfuseMap[EFUSE_INIT_MAP][0]);
-	u8 efuse_LNAType = 0, LNAMask = 0x70;
-    
-	if (!priv->pmib->efuseEntry.enable_efuse)
-		return;
-
-    efuse_LNAType = EEPROM_RFE_OPTION_8192E;
-	priv->pshare->rf_ft_var.lna_type= (hwinfo[efuse_LNAType] & LNAMask)>>4;
-
-    if((priv->pshare->rf_ft_var.lna_type!=LNA_TYPE_0) && (priv->pshare->rf_ft_var.lna_type!=LNA_TYPE_1) && (priv->pshare->rf_ft_var.lna_type!=LNA_TYPE_2) && (priv->pshare->rf_ft_var.lna_type!=LNA_TYPE_3)){
-        printk("===============Invalid LNA Type of eFuse=================\n");  
-		priv->pshare->rf_ft_var.lna_type=LNA_TYPE_0;
-	}
-}
-#endif
 
 
 #ifdef CONFIG_USB_HCI
@@ -17950,7 +19659,7 @@ void rtw_bb_rf_gain_offset(struct rtl8192cd_priv *priv)
 }
 #endif // CONFIG_SDIO_HCI
 
-#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
 void ReadCrystalCalibrationFromEfuse(struct rtl8192cd_priv *priv)
 {
 	unsigned char *hwinfo = &(priv->EfuseMap[EFUSE_INIT_MAP][0]);
@@ -17965,6 +19674,15 @@ void ReadCrystalCalibrationFromEfuse(struct rtl8192cd_priv *priv)
 			priv->pmib->dot11RFEntry.xcap = hwinfo[EEPROM_8812_XTAL_K] & 0x3f;	//[5:0]
 	}
 #endif
+#if defined(CONFIG_WLAN_HAL_8814AE)
+	if (GET_CHIP_VER(priv) == VERSION_8814A) {
+		if (hwinfo[EEPROM_8812_XTAL_K] == 0xff)
+			priv->pmib->dot11RFEntry.xcap = 0x0;
+		else
+			priv->pmib->dot11RFEntry.xcap = hwinfo[EEPROM_8812_XTAL_K] & 0x3f;	//[5:0]
+	}
+#endif
+
 #ifdef CONFIG_RTL_88E_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8188E) {
 		priv->pmib->dot11RFEntry.xcap = (hwinfo[EEPROM_XTAL_88E]);	//[7:0]
@@ -18013,6 +19731,31 @@ void ReadChannelPlanFromEfuse(struct rtl8192cd_priv *priv)
 #endif
 }
 #endif
+
+#if defined(CONFIG_RTL_8812_SUPPORT)
+void ReadTxBBSwingFromEfuse(struct rtl8192cd_priv *priv)
+{
+	unsigned char *hwinfo = &(priv->EfuseMap[EFUSE_INIT_MAP][0]);
+	unsigned int swing_setting[4] = {12, 18, 24, 30};	
+#if defined(CONFIG_RTL_8812_SUPPORT)
+	if (GET_CHIP_VER(priv) == VERSION_8812E) {
+		int idx = 0;
+		if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G) {
+			idx = hwinfo[EEPROM_2G_TxBBSwing] & 0x3; // 2G PathA OFDM
+			priv->pshare->OFDM_index0[0] = swing_setting[idx];
+			idx = (hwinfo[EEPROM_2G_TxBBSwing]>>2) & 0x3; // 2G PathB OFDM
+			priv->pshare->OFDM_index0[1] = swing_setting[idx];
+		} else if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) {
+			idx = hwinfo[EEPROM_5G_TxBBSwing] & 0x3; // 5G PathA OFDM
+			priv->pshare->OFDM_index0[0] = swing_setting[idx];
+			idx = (hwinfo[EEPROM_5G_TxBBSwing]>>2) & 0x3; // 5G PathB OFDM
+			priv->pshare->OFDM_index0[1] = swing_setting[idx];
+		}
+	}
+#endif
+}
+#endif
+
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 void ReadDeltaValFromEfuse(struct rtl8192cd_priv *priv)
@@ -18139,7 +19882,6 @@ int EfuseCmdInit(struct rtl8192cd_priv *priv)
 		priv->EfuseCmd[13] = "HW_11N_THER";
 		priv->EfuseCmd[14] = "HW_11N_XCAP";
 		priv->EfuseCmd[15] = "EFUSE_TEST";
-		priv->EfuseCmd[16] = "EFUSE_LNA_TYPE";
 	}
 #endif
 
@@ -18179,6 +19921,72 @@ int EfuseCmdInit(struct rtl8192cd_priv *priv)
 		priv->EfuseCmd[30] = "HW_TX_POWER_DIFF_40BW2S_20BW2S_B";		
 	}
 #endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if( GET_CHIP_VER(priv) == VERSION_8814A)
+	{//1 EXTEND
+		priv->EfuseCmd[0] = "HW_TX_POWER_CCK_A";
+		priv->EfuseCmd[1] = "HW_TX_POWER_CCK_B";
+		priv->EfuseCmd[2] = "HW_TX_POWER_CCK_C";
+		priv->EfuseCmd[3] = "HW_TX_POWER_CCK_D";
+		priv->EfuseCmd[4] = "HW_TX_POWER_HT40_1S_A";
+		priv->EfuseCmd[5] = "HW_TX_POWER_HT40_1S_B";
+		priv->EfuseCmd[6] = "HW_TX_POWER_HT40_1S_C";
+		priv->EfuseCmd[7] = "HW_TX_POWER_HT40_1S_D";
+		priv->EfuseCmd[8] = "HW_TX_POWER_DIFF_HT40_2S";
+		priv->EfuseCmd[9] = "HW_TX_POWER_DIFF_HT20";
+		priv->EfuseCmd[10] = "HW_TX_POWER_DIFF_OFDM";
+		priv->EfuseCmd[11] = "HW_WLAN0_WLAN_ADDR";
+		priv->EfuseCmd[12] = "EFUSE_MAP0";
+		priv->EfuseCmd[13] = "EFUSE_MAP1";
+		priv->EfuseCmd[14] = "HW_11N_THER";
+		priv->EfuseCmd[15] = "HW_TX_POWER_5G_HT40_1S_A";
+		priv->EfuseCmd[16] = "HW_TX_POWER_5G_HT40_1S_B";
+		priv->EfuseCmd[17] = "HW_TX_POWER_5G_HT40_1S_C";
+		priv->EfuseCmd[18] = "HW_TX_POWER_5G_HT40_1S_D";
+		priv->EfuseCmd[19] = "HW_TX_POWER_DIFF_5G_HT40_2S";
+		priv->EfuseCmd[20] = "HW_TX_POWER_DIFF_5G_HT20";
+		priv->EfuseCmd[21] = "HW_TX_POWER_DIFF_5G_OFDM";
+		priv->EfuseCmd[22] = "HW_11N_TRSWPAPE_C9";
+		priv->EfuseCmd[23] = "HW_11N_TRSWPAPE_CC";
+		priv->EfuseCmd[24] = "HW_11N_XCAP";
+		priv->EfuseCmd[25] = "HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_A";
+		priv->EfuseCmd[26] = "HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_B";
+		priv->EfuseCmd[27] = "HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_C";
+		priv->EfuseCmd[28] = "HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_D";
+		priv->EfuseCmd[29] = "HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_A";
+		priv->EfuseCmd[30] = "HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_B";
+		priv->EfuseCmd[31] = "HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_C";
+		priv->EfuseCmd[32] = "HW_TX_POWER_DIFF_5G_40BW2S_20BW2S_D";	
+		priv->EfuseCmd[33] = "HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_A";
+		priv->EfuseCmd[34] = "HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_B";
+		priv->EfuseCmd[35] = "HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_C";
+		priv->EfuseCmd[36] = "HW_TX_POWER_DIFF_5G_40BW3S_20BW3S_D";		
+		priv->EfuseCmd[37] = "HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_A";
+		priv->EfuseCmd[38] = "HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_B";
+		priv->EfuseCmd[39] = "HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_C";
+		priv->EfuseCmd[40] = "HW_TX_POWER_DIFF_5G_80BW1S_160BW1S_D";		
+		priv->EfuseCmd[41] = "HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_A";
+		priv->EfuseCmd[42] = "HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_B";
+		priv->EfuseCmd[43] = "HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_C";
+		priv->EfuseCmd[44] = "HW_TX_POWER_DIFF_5G_80BW2S_160BW2S_D";
+		priv->EfuseCmd[45] = "HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_A";
+		priv->EfuseCmd[46] = "HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_B";
+		priv->EfuseCmd[47] = "HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_C";
+		priv->EfuseCmd[48] = "HW_TX_POWER_DIFF_5G_80BW3S_160BW3S_D";		
+		priv->EfuseCmd[49] = "HW_TX_POWER_DIFF_20BW1S_OFDM1T_A";
+		priv->EfuseCmd[50] = "HW_TX_POWER_DIFF_20BW1S_OFDM1T_B";
+		priv->EfuseCmd[51] = "HW_TX_POWER_DIFF_20BW1S_OFDM1T_C";
+		priv->EfuseCmd[52] = "HW_TX_POWER_DIFF_20BW1S_OFDM1T_D";
+		priv->EfuseCmd[53] = "HW_TX_POWER_DIFF_40BW2S_20BW2S_A";
+		priv->EfuseCmd[54] = "HW_TX_POWER_DIFF_40BW2S_20BW2S_B";		
+		priv->EfuseCmd[55] = "HW_TX_POWER_DIFF_40BW2S_20BW2S_C";
+		priv->EfuseCmd[56] = "HW_TX_POWER_DIFF_40BW2S_20BW2S_D";	
+		priv->EfuseCmd[57] = "HW_TX_POWER_DIFF_40BW3S_20BW3S_A";
+		priv->EfuseCmd[58] = "HW_TX_POWER_DIFF_40BW3S_20BW3S_B";		
+		priv->EfuseCmd[59] = "HW_TX_POWER_DIFF_40BW3S_20BW3S_C";
+		priv->EfuseCmd[60] = "HW_TX_POWER_DIFF_40BW3S_20BW3S_D";		
+	}                
+#endif
 	
 	return SUCCESS;
 }
@@ -18217,7 +20025,7 @@ void EfuseInit(struct rtl8192cd_priv *priv)
 	{
 		priv->EfuseRealContentLen = 1024;
 		priv->EfuseMapLen= 256;
-		priv->EfuseMaxSection= 32
+		priv->EfuseMaxSection= 32;
 		priv->EfuseOobProtectBytes= 18;
 		priv->EfuseCmdNum = 19;
 	}
@@ -18230,7 +20038,7 @@ void EfuseInit(struct rtl8192cd_priv *priv)
 		priv->EfuseMapLen = 512;
 		priv->EfuseMaxSection = 64;
 		priv->EfuseOobProtectBytes = 15;
-		priv->EfuseCmdNum = 17;
+		priv->EfuseCmdNum = 16;
 	}	
 #endif
 
@@ -18244,6 +20052,18 @@ void EfuseInit(struct rtl8192cd_priv *priv)
 		priv->EfuseCmdNum = 31;
 	}
 #endif
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if( GET_CHIP_VER(priv) == VERSION_8814A )
+	{
+		priv->EfuseRealContentLen = 1024;
+		priv->EfuseMapLen= 512;
+		priv->EfuseMaxSection= 64;
+		priv->EfuseOobProtectBytes= 506;
+		priv->EfuseCmdNum = 61;
+	}
+#endif
+
 }
 
 //
@@ -18316,15 +20136,10 @@ int ReadAdapterInfo8192CE(struct rtl8192cd_priv *priv)
 	}
 #endif
 
+
 	ReadTxPowerInfoFromHWPG(priv);
 	ReadThermalMeterFromEfuse(priv);
 	ReadMacAddressFromEfuse(priv);
-
-#ifdef CONFIG_LNA_FROM_EFUSE
-	if (GET_CHIP_VER(priv) == VERSION_8192E)
-		ReadLNATypeFromEfuse(priv);
-#endif
-
 #ifdef CONFIG_USB_HCI
 	ReadIDFromEfuse(priv);
 	ReadBoardTypeFromEfuse(priv);
@@ -18634,6 +20449,199 @@ static int getEEPROMOffset(struct rtl8192cd_priv *priv, int type)
 	}
 #endif
 
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if (GET_CHIP_VER(priv) == VERSION_8814A) {
+		switch (type) {
+		//4 CCK
+		case 0:
+			offset = EEPROM_2G_CCK1T_TxPower + PATHA_OFFSET;
+			break;
+		case 1:
+			offset = EEPROM_2G_CCK1T_TxPower + PATHB_OFFSET;
+			break;
+		case 2:
+			offset = EEPROM_2G_CCK1T_TxPower + PATHC_OFFSET;
+			break;
+		case 3:
+			offset = EEPROM_2G_CCK1T_TxPower + PATHD_OFFSET;
+			break;		
+		//4 2G HT40 
+		case 4:
+			offset = EEPROM_2G_HT401S_TxPower + PATHA_OFFSET;
+			break;
+		case 5:
+			offset = EEPROM_2G_HT401S_TxPower + PATHB_OFFSET;
+			break;
+		case 6:
+			offset = EEPROM_2G_HT401S_TxPower + PATHC_OFFSET;
+			break;
+		case 7:
+			offset = EEPROM_2G_HT401S_TxPower + PATHD_OFFSET;
+			break;
+		//4 N-mode 2G DIFF
+		case 8:
+			offset = EEPROM_2G_HT402S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 9:
+			offset = EEPROM_2G_HT201S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 10:
+			offset = EEPROM_2G_OFDM1T_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 11:
+			offset = EEPROM_8812_MACADDRESS;
+			break;
+		case 12:
+			offset = 0x00;
+			break;
+		case 13:
+			offset = 0x32;
+			break;
+		case 14:
+			offset = EEPROM_8812_THERMAL_METER;
+			break;
+		//4 5G HT40	
+		case 15:
+			offset = EEPROM_5G_HT401S_TxPower + PATHA_OFFSET;
+			break;
+		case 16:
+			offset = EEPROM_5G_HT401S_TxPower + PATHB_OFFSET;
+			break;
+		case 17:
+			offset = EEPROM_5G_HT401S_TxPower + PATHC_OFFSET;
+			break;
+		case 18:
+			offset = EEPROM_5G_HT401S_TxPower + PATHD_OFFSET;
+			break;			
+		case 24:
+			offset = EEPROM_8812_XTAL_K;
+			break;
+		//4 AC-mode 5G DIFF
+		case 25:
+			offset = EEPROM_5G_HT201S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 26:
+			offset = EEPROM_5G_HT201S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 27:
+			offset = EEPROM_5G_HT201S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 28:
+			offset = EEPROM_5G_HT201S_TxPowerDiff + PATHD_OFFSET;
+			break;
+		//4 40M 20M 2S
+		case 29:
+			offset = EEPROM_5G_HT402S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 30:
+			offset = EEPROM_5G_HT402S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 31:
+			offset = EEPROM_5G_HT402S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 32:
+			offset = EEPROM_5G_HT402S_TxPowerDiff + PATHD_OFFSET;
+			break;
+		//4 40M 20M 3S
+		case 33:
+			offset = EEPROM_5G_HT403S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 34:
+			offset = EEPROM_5G_HT403S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 35:
+			offset = EEPROM_5G_HT403S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 36:
+			offset = EEPROM_5G_HT403S_TxPowerDiff + PATHD_OFFSET;
+			break;
+		//4 80M 1S
+		case 37:
+			offset = EEPROM_5G_HT801S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 38:
+			offset = EEPROM_5G_HT801S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 39:
+			offset = EEPROM_5G_HT801S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 40:
+			offset = EEPROM_5G_HT801S_TxPowerDiff + PATHD_OFFSET;
+			break;
+		//4 80M 2S	
+		case 41:
+			offset = EEPROM_5G_HT802S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 42:
+			offset = EEPROM_5G_HT802S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 43:
+			offset = EEPROM_5G_HT802S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 44:
+			offset = EEPROM_5G_HT802S_TxPowerDiff + PATHD_OFFSET;
+			break;
+		//4 80M 3S
+		case 45:
+			offset = EEPROM_5G_HT803S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 46:
+			offset = EEPROM_5G_HT803S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 47:
+			offset = EEPROM_5G_HT803S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 48:
+			offset = EEPROM_5G_HT803S_TxPowerDiff + PATHD_OFFSET;
+			break;				
+		//4 AC-mode 2G DIFF	
+		case 49:
+			offset = EEPROM_2G_HT201S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 50:
+			offset = EEPROM_2G_HT201S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 51:
+			offset = EEPROM_2G_HT201S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 52:
+			offset = EEPROM_2G_HT201S_TxPowerDiff + PATHD_OFFSET;
+			break;			
+		//4 40M 20M 2S	
+		case 53:
+			offset = EEPROM_2G_HT402S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 54:
+			offset = EEPROM_2G_HT402S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 55:
+			offset = EEPROM_2G_HT402S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 56:
+			offset = EEPROM_2G_HT402S_TxPowerDiff + PATHD_OFFSET;
+			break;
+		//4 40M 20M 3S	
+		case 57:
+			offset = EEPROM_2G_HT403S_TxPowerDiff + PATHA_OFFSET;
+			break;
+		case 58:
+			offset = EEPROM_2G_HT403S_TxPowerDiff + PATHB_OFFSET;
+			break;
+		case 59:
+			offset = EEPROM_2G_HT403S_TxPowerDiff + PATHC_OFFSET;
+			break;
+		case 60:
+			offset = EEPROM_2G_HT403S_TxPowerDiff + PATHD_OFFSET;
+			break;
+		default:
+			offset = -1;
+			panic_printk("NOT SUPPORT!!\n");
+			break;
+		}
+	}
+#endif
+
+
 #ifdef CONFIG_RTL_88E_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8188E) {
 		switch (type) {
@@ -18713,27 +20721,24 @@ static int getEEPROMOffset(struct rtl8192cd_priv *priv, int type)
 			offset = EEPROM_92E_MACADDRESS;
 			break;
 		case 11:		//	EFUSE_MAP0
-			offset = 0x00;
-			break;
+				offset = 0x00;
+				break;
 		case 12:		//	EFUSE_MAP1
-			offset = 0x32;
-			break;
+				offset = 0x32;
+				break;
 		case 13:		//	HW_11N_THER
 			offset = EEPROM_92E_THERMAL_METER;
-			break;
+				break;
 		case 14:		//	HW_11N_XCAP
 			offset = EEPROM_92E_XTAL_K;
 			break;
 		case 15:		//	EFUSE_TEST
 			offset = 0x02;
-			break;
-		case 16:		//	EFUSE_LNA_TYPE
-			offset = EEPROM_RFE_OPTION_8192E;
-			break;		
-		default:
-			offset = -1;
-			panic_printk("NOT SUPPORT!!\n");
-			break;
+				break;
+			default:
+				offset = -1;
+				panic_printk("NOT SUPPORT!!\n");
+				break;
 			}
 		}
 #endif
@@ -18775,9 +20780,9 @@ static UINT16 efuse_GetCurrentSize(struct rtl8192cd_priv *priv)
 	UINT16 efuse_addr = 0;
 	UINT8 hoffset = 0, hworden = 0;
 	UINT8 efuse_data, word_cnts = 0;
-#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
 	UINT8 bSupportExtendHdr = ((GET_CHIP_VER(priv) == VERSION_8192D) || (GET_CHIP_VER(priv) == VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8192E)
-			|| (GET_CHIP_VER(priv) == VERSION_8812E));
+			|| (GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8814A));
 #endif
 
 
@@ -19598,11 +21603,6 @@ static int EFUSE_ShadowUpdate(struct rtl8192cd_priv *priv)
 
 	ReadTxPowerInfoFromHWPG(priv);
 	ReadThermalMeterFromEfuse(priv);
-#ifdef CONFIG_LNA_FROM_EFUSE
-    if (GET_CHIP_VER(priv) == VERSION_8192E)
-		ReadLNATypeFromEfuse(priv);
-#endif
-
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8192D) {
 		ReadCrystalCalibrationFromEfuse(priv);
@@ -19611,8 +21611,8 @@ static int EFUSE_ShadowUpdate(struct rtl8192cd_priv *priv)
 	}
 #endif
 
-#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE)
-	if ((GET_CHIP_VER(priv)==VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv)==VERSION_8192E))
+#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
+	if ((GET_CHIP_VER(priv)==VERSION_8188E) || (GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv)==VERSION_8192E) || (GET_CHIP_VER(priv)==VERSION_8814A))
 		ReadCrystalCalibrationFromEfuse(priv);
 #endif
 
@@ -19625,6 +21625,7 @@ static void shadowMapWrite(struct rtl8192cd_priv *priv, int type, char *value, u
 {
 	int  i, offset ;
 	offset = getEEPROMOffset(priv, type);
+	//printk("[%s] offset=%d\n",__FUNCTION__,offset);
 
 	if (offset < 0)
 		return;
@@ -19785,6 +21786,97 @@ static void shadowMapWrite(struct rtl8192cd_priv *priv, int type, char *value, u
 	}
 #endif
 
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if (GET_CHIP_VER(priv) == VERSION_8814A) {
+
+		switch(offset){
+			case 0:
+		  //case 0x32:
+				for (i = 0; i < 0x32; i++) {
+					get_array_val(hwinfo + offset + i, value + i * 2, 2);
+				}
+				break;
+			case EEPROM_8812_MACADDRESS:
+				for (i = 0; i < MACADDRLEN; i++) {
+					get_array_val(hwinfo + offset + i, value + i * 2, 2);
+				}
+				break;
+			case EEPROM_8812_THERMAL_METER:
+			case EEPROM_8812_XTAL_K:
+				get_array_val(hwinfo + offset, value, 2);
+				break;
+			case EEPROM_2G_CCK1T_TxPower + PATHA_OFFSET:
+			case EEPROM_2G_CCK1T_TxPower + PATHB_OFFSET:
+			case EEPROM_2G_CCK1T_TxPower + PATHC_OFFSET:
+			case EEPROM_2G_CCK1T_TxPower + PATHD_OFFSET:
+				for (i = 0 ; i < MAX_2G_CHNLGRP ; i++){
+					//printk("%c",(unsigned char)_atoi(value + i * 2, 16));
+					get_array_val(hwinfo + offset + i, value + i * 2,  2);
+				}
+				break;
+			case EEPROM_2G_HT401S_TxPower + PATHA_OFFSET:
+			case EEPROM_2G_HT401S_TxPower + PATHB_OFFSET:
+			case EEPROM_2G_HT401S_TxPower + PATHC_OFFSET:
+			case EEPROM_2G_HT401S_TxPower + PATHD_OFFSET:
+				for (i = 0 ; i < MAX_2G_CHNLGRP-1 ; i++){
+					//printk("%c",(unsigned char)_atoi(value + i * 2, 16));
+					get_array_val(hwinfo + offset + i, value + i * 2,  2);
+				}
+				break;
+			case EEPROM_5G_HT401S_TxPower + PATHA_OFFSET:
+			case EEPROM_5G_HT401S_TxPower + PATHB_OFFSET:
+			case EEPROM_5G_HT401S_TxPower + PATHC_OFFSET:
+			case EEPROM_5G_HT401S_TxPower + PATHD_OFFSET:
+				for (i = 0 ; i < MAX_5G_CHNLGRP ; i++){
+					//printk("%c",(unsigned char)_atoi(value + i * 2, 16));
+					get_array_val(hwinfo + offset + i, value + i * 2,  2);
+				}
+				//printk("\n");
+				break;
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHA_OFFSET:	
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHB_OFFSET:	
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHC_OFFSET:	
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHD_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHA_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHB_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHC_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHD_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHA_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHB_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHC_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHD_OFFSET:
+				get_array_val(hwinfo + offset, value, 2);
+				break;
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHD_OFFSET:
+				get_array_val(hwinfo + offset, value, 2);
+		}
+	}
+#endif
+
+
 #ifdef CONFIG_RTL_88E_SUPPORT
 	if(GET_CHIP_VER(priv) == VERSION_8188E){
 		if (offset == 0 || offset == 0x32) {
@@ -19920,19 +22012,6 @@ static void shadowMapWrite(struct rtl8192cd_priv *priv, int type, char *value, u
 				hwinfo[offset] = (orig_value & 0xf0) | (input_value & 0x0f);
 			}
 		}
-		else if(offset==EEPROM_RFE_OPTION_8192E)
-		{
-
-				int RFE_value;
-				RFE_value=_atoi(value, 10);
-                if((RFE_value != LNA_TYPE_0) && (RFE_value != LNA_TYPE_1) && (RFE_value != LNA_TYPE_2) && (RFE_value != LNA_TYPE_3))
-                {
-                    printk("Invalid LNA type value! Set default~\n");
-                    RFE_value = LNA_TYPE_0;
-				}
-				
-				hwinfo[offset] = (RFE_value << 4); //0xCA[6:4] : LNA TYPE
-		}
 		#if 0
 		else if (offset == 0x02 )	// EFUSE_TEST
 		{ 		
@@ -19972,7 +22051,7 @@ static int converToFlashFormat(struct rtl8192cd_priv *priv, unsigned char *out, 
 {
 	int  i, offset, len = 0;
 	offset = getEEPROMOffset(priv, type);
-
+	//printk("[%s]offset=%d\n",__FUNCTION__,offset);
 	if (offset < 0)
 		return 0;
 
@@ -20389,6 +22468,90 @@ static int converToFlashFormat(struct rtl8192cd_priv *priv, unsigned char *out, 
 		}
 	}
 #endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+	if (GET_CHIP_VER(priv) == VERSION_8814A) {
+		switch(offset){
+			case EEPROM_8812_MACADDRESS:
+				for (i = 0; i < MACADDRLEN; i++) {
+					sprintf(out + len, "%02x", hwinfo[offset + i]);
+					len += 2;
+				}
+				break;
+			case EEPROM_8812_THERMAL_METER:
+			case EEPROM_8812_XTAL_K:
+				sprintf(out + len, "%02x", hwinfo[offset]);
+				len += 2;
+				break;
+			case EEPROM_2G_CCK1T_TxPower + PATHA_OFFSET:
+			case EEPROM_2G_CCK1T_TxPower + PATHB_OFFSET:
+			case EEPROM_2G_CCK1T_TxPower + PATHC_OFFSET:
+			case EEPROM_2G_CCK1T_TxPower + PATHD_OFFSET:
+				for (i = 0; i < MAX_2G_CHNLGRP; i++) {
+					sprintf(out + len, "%02x", hwinfo[offset + i]);
+					len += 2;
+				}
+				break;
+			case EEPROM_2G_HT401S_TxPower + PATHA_OFFSET:
+			case EEPROM_2G_HT401S_TxPower + PATHB_OFFSET:
+			case EEPROM_2G_HT401S_TxPower + PATHC_OFFSET:
+			case EEPROM_2G_HT401S_TxPower + PATHD_OFFSET:
+				for (i = 0; i < MAX_2G_CHNLGRP-1; i++) {
+					sprintf(out + len, "%02x", hwinfo[offset + i]);
+					len += 2;
+				}
+				break;
+			case EEPROM_5G_HT401S_TxPower + PATHA_OFFSET:
+			case EEPROM_5G_HT401S_TxPower + PATHB_OFFSET:
+			case EEPROM_5G_HT401S_TxPower + PATHC_OFFSET:
+			case EEPROM_5G_HT401S_TxPower + PATHD_OFFSET:
+				for (i = 0; i < MAX_5G_CHNLGRP; i++) {
+					sprintf(out + len, "%02x", hwinfo[offset + i]);
+					len += 2;
+				}
+				break;
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_5G_HT201S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_5G_HT402S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_5G_HT403S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHA_OFFSET:	
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHB_OFFSET:	
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHC_OFFSET:	
+			case EEPROM_5G_HT801S_TxPowerDiff + PATHD_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHA_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHB_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHC_OFFSET:	
+			case EEPROM_5G_HT802S_TxPowerDiff + PATHD_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHA_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHB_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHC_OFFSET:	
+			case EEPROM_5G_HT803S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_2G_HT201S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_2G_HT402S_TxPowerDiff + PATHD_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHA_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHB_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHC_OFFSET:
+			case EEPROM_2G_HT403S_TxPowerDiff + PATHD_OFFSET:
+				sprintf(out + len, "%02x", hwinfo[offset]);
+				len += 2;
+				break;
+		}
+		//printk("[%s]out=%s\n",__FUNCTION__,out);
+	}
+#endif
 
 #ifdef CONFIG_RTL_88E_SUPPORT
 	if(GET_CHIP_VER(priv) == VERSION_8188E){
@@ -20506,9 +22669,6 @@ static int converToFlashFormat(struct rtl8192cd_priv *priv, unsigned char *out, 
 		case EEPROM_92E_THERMAL_METER:	//	HW_11N_THER
 		case EEPROM_92E_XTAL_K:			//	HW_11N_XCAP
 			len += sprintf(out + len, "%02x", hwinfo[offset]);
-			break;			
-		case EEPROM_RFE_OPTION_8192E:	//	EFUSE_LNA_TYPE
-			len += sprintf(out + len, "%02x", (hwinfo[offset]&0x70) >> 4);
 			break;
 		default:
 			break;
@@ -20602,13 +22762,16 @@ int efuse_get(struct rtl8192cd_priv *priv, unsigned char *data)
 		para_num = EFUSECMD_NUM_92E;
 #endif
 #endif
+	printk("[%s] data=%s\n",__FUNCTION__,data);
 
 	for( j = 0 ; j < priv->EfuseCmdNum ; j++ )
 	{
 		if (strcmp(data, priv->EfuseCmd[j]) == 0) 
-		{
+		{	
+		//	printk("[%s]priv->EfuseCmd[j]=%s\n",__FUNCTION__,priv->EfuseCmd[j]);
 			len =  converToFlashFormat(priv, data, &(priv->EfuseMap[EFUSE_INIT_MAP][0]), j);
 			//printk("%s\n", data);
+
 			return len;
 		}
 	}
@@ -20638,13 +22801,18 @@ int efuse_set(struct rtl8192cd_priv *priv, unsigned char *data)
 			para_num = EFUSECMD_NUM_92E;
 #endif
 #endif
-
+	int i=0;
+	printk("[%s] data=%s\n",__FUNCTION__,data);
 	for( j = 0 ; j < priv->EfuseCmdNum ; j++ )
 	{
+	//	printk("[%s] priv->EfuseCmd[j]=%s\n",__FUNCTION__,priv->EfuseCmd[j]);
 		val = get_value_by_token(data, priv->EfuseCmd[j]);
-		if(val)
+	
+		if(val){
 			shadowMapWrite(priv, j, val + 1, &(priv->EfuseMap[EFUSE_MODIFY_MAP][0]));
+			break; //4 Added
 		}
+	}
 	return 0;
 }
 
@@ -20662,16 +22830,6 @@ void read_efuse_mac_address(struct rtl8192cd_priv *priv,char * efusemac)
 	u8 efuse_MAC = 0;
 	if(!efusemac)
 		return;
-
-	EfuseInit(priv);
-	if (EfuseMapAlloc(priv) == FAIL) {
-		printk(KERN_ERR "%s: can't allocate efuse map\n", __func__);
-		return -ENOMEM;
-	}
-	if (EfuseCmdInit(priv) == FAIL) {
-		printk(KERN_ERR "%s: can't allocate efuse cmd\n", __func__);
-		return -ENOMEM;
-	}
 	EFUSE_ShadowMapUpdate(priv); 
 #ifdef CONFIG_RTL_92C_SUPPORT
 	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
@@ -20796,7 +22954,7 @@ void RTLWIFINIC_GPIO_config(unsigned int gpio_num, unsigned int direction)
 		}
 	}
 
-	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if ((gpio_num >= 8) && (gpio_num <= 15)) {
 			priv->pshare->phw->GPIO_dir[gpio_num] = direction;
 
@@ -20847,7 +23005,7 @@ void RTLWIFINIC_GPIO_write(unsigned int gpio_num, unsigned int value)
 		return;
 	}
 
-	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if (((gpio_num >= 8) && (gpio_num <= 15)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10)) {
 			if (value)
 				RTL_W32(0x060, RTL_R32(0x060) & ~BIT(gpio_num));
@@ -20894,7 +23052,7 @@ int RTLWIFINIC_GPIO_read(unsigned int gpio_num)
 			return 1;
 	}
 
-	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if (((gpio_num >= 8) && (gpio_num <= 15)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x01)) {
 			val32 = RTL_R32(0x060);
 			if (val32 & BIT(gpio_num - 8))
@@ -20941,7 +23099,7 @@ void RTLWIFINIC_GPIO_config_proc(struct rtl8192cd_priv *priv, unsigned int gpio_
 		}
 	}
 
-	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if ((gpio_num >= 8) && (gpio_num <= 15)) {
 			priv->pshare->phw->GPIO_dir[gpio_num] = direction;
 
@@ -20989,7 +23147,7 @@ void RTLWIFINIC_GPIO_write_proc(struct rtl8192cd_priv *priv, unsigned int gpio_n
 		return;
 	}
 
-	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if (((gpio_num >= 8) && (gpio_num <= 15)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10)) {
 			if (value)
 				RTL_W32(0x060, RTL_R32(0x060) & ~BIT(gpio_num));
@@ -21033,7 +23191,7 @@ int RTLWIFINIC_GPIO_read_proc(struct rtl8192cd_priv *priv, unsigned int gpio_num
 			return 1;
 	}
 
-	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+	if ((GET_CHIP_VER(priv) == VERSION_8192E) || (GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8814A)) {
 		if (((gpio_num >= 8) && (gpio_num <= 15)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x01)) {
 			val32 = RTL_R32(0x060);
 			if (val32 & BIT(gpio_num - 8))
@@ -21315,41 +23473,60 @@ compareAvailableTXBD(
 #endif // CONFIG_WLAN_HAL && CONFIG_PCI_HCI
 
 /* Hotsport 2.0 Release 1 */
-#if defined(HS2_SUPPORT) || defined(RTK_NL80211)//survey_dump
+#if defined(HS2_SUPPORT) || defined(RTK_NL80211) /*survey_dump*/ || defined(DOT11K)
 void start_bbp_ch_load(struct rtl8192cd_priv *priv, unsigned int units)
 {
-	if(GET_CHIP_VER(priv)==VERSION_8192E)
-	{
-		RTL_W16(0x894, units); //set ch load period time units*4 usec
-		RTL_W32(0x890, 0x0);	//reset
-		RTL_W32(0x890, 0x100); 
-		RTL_W32(0x890, 0x101); 
-	}
-	else if(GET_CHIP_VER(priv)==VERSION_8812E)
-	{
-		RTL_W16(0x990, units); //set ch load period time units*4 usec
-		RTL_W32(0x994, 0x0);	//reset
-		RTL_W32(0x994, 0x100); 
-		RTL_W32(0x994, 0x101);
-	}
+    unsigned short chip_ver = GET_CHIP_VER(priv);
+    if(chip_ver == VERSION_8188C || chip_ver == VERSION_8192C || chip_ver ==VERSION_8192D || 
+        chip_ver == VERSION_8188E || chip_ver == VERSION_8192E) /*all N-series ic*/
+    {
+        RTL_W16(0x894, units); //set ch load period time units*4 usec
+        RTL_W32(0x890, 0x0);	//reset
+        RTL_W32(0x890, 0x100); 
+        RTL_W32(0x890, 0x101); 
+    }
+    else /* 8812, 8881A, 8814A, all AC-series ic*/
+    {
+        RTL_W16(0x990, units); //set ch load period time units*4 usec
+        RTL_W32(0x994, 0x0);	//reset
+        RTL_W32(0x994, 0x100); 
+        RTL_W32(0x994, 0x101);
+    }
 }
 
 int read_bbp_ch_load(struct rtl8192cd_priv *priv)
 {
-	if(GET_CHIP_VER(priv)==VERSION_8192E)
-	{
-		if (RTL_R32(0x8b4) & 0x00010000)
-			return (RTL_R32(0x8d0) & 0xffff)*4;
-		else
-			return -1;
-	}
-	else if(GET_CHIP_VER(priv)==VERSION_8812E)
-	{
-		if (RTL_R32(0xfa4) & 0x00010000)
-			return (RTL_R32(0xfa4) & 0xffff)*4;
-		else
-			return -1;
-	}
+    unsigned short chip_ver = GET_CHIP_VER(priv);
+    if(chip_ver == VERSION_8188C || chip_ver == VERSION_8192C || chip_ver ==VERSION_8192D || 
+        chip_ver == VERSION_8188E || chip_ver == VERSION_8192E) /*all N-series ic*/
+    {
+        if (RTL_R32(0x8b4) & 0x00010000)
+            return (RTL_R32(0x8d0) & 0xffff)*4;
+        else
+            return -1;
+    }
+    else /* 8812, 8881A, 8813, all AC-series ic*/
+    {
+        if (RTL_R32(0xfa4) & 0x00010000)
+            return (RTL_R32(0xfa4) & 0xffff)*4;
+        else
+            return -1;
+    }
 }
 #endif
+
+#ifdef CONFIG_1RCCA_RF_POWER_SAVING
+void one_path_cca_power_save(struct rtl8192cd_priv *priv, int enable)
+{
+	if (enable && !priv->pshare->rf_ft_var.one_path_cca_ps_active) {
+		priv->pshare->rf_ft_var.one_path_cca_ps_active = 1;
+		RTL_W8(0x800, RTL_R8(0x800) | BIT1);
+		RTL_W8(0xc04, 0x13);
+	} else if (!enable && priv->pshare->rf_ft_var.one_path_cca_ps_active) {
+		priv->pshare->rf_ft_var.one_path_cca_ps_active = 0;
+		RTL_W8(0x800, RTL_R8(0x800) & ~BIT1);
+		RTL_W8(0xc04, 0x33);
+	}
+}
+#endif // CONFIG_1RCCA_RF_POWER_SAVING
 

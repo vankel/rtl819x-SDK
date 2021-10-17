@@ -663,7 +663,7 @@ char *apmib_dsconf(void)
 
 			// copy the mib header from expFile
 			memcpy((char *)&dsHeader, expFile, sizeof(dsHeader));
-
+			
 #ifndef RTL_DEF_SETTING_IN_FW
 			//check mib ver and tag
 			if ( sscanf((char *)&dsHeader.signature[TAG_LEN], "%02d", &ver) != 1)
@@ -972,7 +972,7 @@ char *apmib_csconf(void)
 
 			// copy the mib header from expFile
 			memcpy((char *)&csHeader, expFile, sizeof(csHeader));
-
+			
 			// check version and tag
 			if ( sscanf((char *)&csHeader.signature[TAG_LEN], "%02d", &ver) != 1)
 				ver = -1;
@@ -2219,14 +2219,7 @@ char *apmib_load_csconf(void)
 			// copy the mib header from expFile
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);				
 			memcpy((char *)&csHeader, expFile, sizeof(csHeader));
-
-            #define MAX_CONFIG_LEN 1024*1024
-            #define MIN_CONFIG_LEN 8*1024
-            if((csHeader.len > MAX_CONFIG_LEN)||(csHeader.len < MIN_CONFIG_LEN))
-            {
-                printf("INVALID CONFIG FILE\n");
-                return NULL;
-            }
+			
 		} 
 		else 
 		{
@@ -3749,7 +3742,7 @@ int apmib_set(int id, void *value)
 
 		if(id == MIB_L2TP_PAYLOAD){
 //			  apmib_get(MIB_L2TP_PAYLOAD_LENGTH, (void *)&payload_len);
-			  memcpy((unsigned char *)((( long)pMibTbl) + pTbl[i].offset), (unsigned char *)value, 70);
+			  memcpy((unsigned char *)((( long)pMibTbl) + pTbl[i].offset), (unsigned char *)value, MAX_L2TP_BUFF_LEN);
 		}
 		else
 			
@@ -3773,9 +3766,12 @@ int apmib_set(int id, void *value)
 #elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
                         if((id >= MIB_HW_TX_POWER_CCK_A &&  id <=MIB_HW_TX_POWER_DIFF_OFDM))
 				max_chan_num = MAX_2G_CHANNEL_NUM_MIB;
-			else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM))
+			else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM)
+#if defined(CONFIG_WLAN_HAL_8814AE)
+					||(id >= MIB_HW_TX_POWER_5G_HT40_1S_C &&  id <=MIB_HW_TX_POWER_5G_HT40_1S_D)
+#endif
+			)
 				max_chan_num = MAX_5G_CHANNEL_NUM_MIB;         
-
 #endif
 
 #if defined(CONFIG_RTL_8812_SUPPORT)
@@ -4593,11 +4589,8 @@ static int flash_read(char *buf, int offset, int len)
 {
 	int fh;
 	int ok=1;
-#ifdef CONFIG_MTD_NAND
-	fh = open(FLASH_DEVICE_SETTING, O_RDONLY | O_CREAT);
-#else
+
 	fh = open(FLASH_DEVICE_NAME, O_RDONLY);
-#endif
 	if ( fh == -1 )
 		return 0;
 
@@ -4618,11 +4611,7 @@ static int flash_write(char *buf, int offset, int len)
 	int fh;
 	int ok=1;
 
-#ifdef CONFIG_MTD_NAND
-	fh = open(FLASH_DEVICE_SETTING, O_RDWR | O_CREAT);
-#else
 	fh = open(FLASH_DEVICE_NAME, O_RDWR);
-#endif
 
 	if ( fh == -1 )
 		return 0;

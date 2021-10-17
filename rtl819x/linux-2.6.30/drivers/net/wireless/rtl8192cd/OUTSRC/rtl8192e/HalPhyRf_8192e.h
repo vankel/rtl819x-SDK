@@ -27,11 +27,7 @@
 #define 	AVG_THERMAL_NUM_92E	4
 #define	RF_T_METER_92E			0x42
 
-#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
-#include "HalPhyRf.h"
-#else
 #include "../HalPhyRf.h"
-#endif
 
 void ConfigureTxpowerTrack_8192E(
 	PTXPWRTRACK_CFG	pConfig

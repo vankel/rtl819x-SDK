@@ -23,7 +23,7 @@
 #else
 #include "../Mp_Precomp.h"
 #endif
-#include "../odm_precomp.h"
+#include "../phydm_precomp.h"
 
 #if (RTL8812A_SUPPORT == 1)
 static BOOLEAN

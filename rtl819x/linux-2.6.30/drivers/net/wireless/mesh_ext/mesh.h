@@ -12,7 +12,6 @@
 #include <linux/circ_buf.h>
 #include <linux/pci.h>
 #include <linux/random.h>
-#include <linux/config.h>
 #endif
 
 #include "mesh_cfg.h"
@@ -66,70 +65,26 @@ typedef struct rtl8190_priv DRV_PRIV;
 #define mesh_proxy_debug scrlog_printk
 #define mesh_route_debug scrlog_printk
 #else
-#define mesh_tx_debug printk
-#define mesh_txsc_debug printk
-#define mesh_sme_debug printk
-#define mesh_proxy_debug printk
-#define mesh_route_debug printk
+#define mesh_tx_debug(msg, args...) 
+#define mesh_txsc_debug(msg, args...) 
+#define mesh_sme_debug(msg, args...)  
+#define mesh_proxy_debug(msg, args...) 
+#define mesh_route_debug(msg, args...)
 #endif
 
 #define ONLY_ROOT_DO_AODV 0
 #define RELAY_11S 8
 #define XMIT_11S 4
 
-#ifdef __LINUX_2_6__
-#define DBG_NCTU_MESH 		0x1
-#define MESH_DBG_COMPLEX	0x2
-#define MESH_DBG_TEST		0x4
-#define MESH_DBG_SIMPLE		0x8
-#define MESH_DBG_LV		0xf9
-#else
-//#define _MESH_DEBUG_
-#endif
-//#define briansay(msg,args...) printk(msg, ## args);
-
-#define MESH_DEBUG_MSG(msg, args...)		printk(msg,  ## args)
 
 #ifdef  _MESH_DEBUG_
-
-//#define MESH_DBG_COMPLEX	(1<<7)
-//#define MESH_DBG_TEST		(1<<6)
-//#define MESH_DBG_SIMPLE	(1)
-
 #define MESH_DEBUG_MSG(msg, args...)		printk(KERN_ERR msg,  ## args)
 //#define MESH_BOOTSEQ_STRESS_TEST
 
-//#define MESH_DBG_LV		0
-// #define MESH_DBG_LV		MESH_DBG_SIMPLE
-//#define MESH_DBG_LV		(MESH_DBG_COMPLEX | MESH_DBG_SIMPLE)
-
 #else
-//#define MESH_DEBUG_MSG(msg, args...)
+#define MESH_DEBUG_MSG(msg, args...)
 #undef MESH_BOOTSEQ_STRESS_TEST
 #endif
-
-/////////////////////////////////////////////
-#undef _MESH_PATHSEL_DEBUG_
-
-//#define _MESH_PATHSEL_DEBUG_
-
-#ifdef  _MESH_PATHSEL_DEBUG_
-
-#define MESH_PATHSEL_DBG_COMPLEX	(1<<7)
-#define MESH_PATHSEL_DBG_TEST		(1<<6)
-#define MESH_PATHSEL_DBG_SIMPLE		(1)
-
-// #define MESH_DEBUG_MSG(msg, args...)		printk(KERN_ERR msg,  ## args)
-//#define MESH_DEBUG_MSG(msg, args...)
-
-// #define MESH_DBG_LV					0
-//#define MESH_PATHSEL_DBG_LV			MESH_PATHSEL_DBG_SIMPLE
-// #define MESH_DBG_LV					(MESH_DBG_COMPLEX | MESH_DBG_SIMPLE)
-
-#else
-#define MESH_DEBUG_MSG1(msg, args...)
-#endif
-
 
 
 
@@ -140,32 +95,31 @@ typedef struct rtl8190_priv DRV_PRIV;
  *
  *	@retval	jiffies
  */
-#define CALC_TIME_TO_JIFFIES(time)		((time*HZ)/1000)
 
 // Define of time out jiffies
-#define MESH_EXPIRE_TO				CALC_TIME_TO_JIFFIES(4000)	// MP MAX  idle time
-#define MESH_EXPIRE_TO_STAGE2		CALC_TIME_TO_JIFFIES(1000)	// MP Prob req wai time
-#define MESH_TIMER_TO				CALC_TIME_TO_JIFFIES(250)	// MP mesh_unEstablish_hdr  peer link expire  timer.
-#define MESH_LocalLinkStateANNOU_TO	CALC_TIME_TO_JIFFIES(5000)	// MP Local Link State Announcement time.
+#define MESH_EXPIRE_TO				RTL_MILISECONDS_TO_JIFFIES(4000)	// MP MAX  idle time
+#define MESH_EXPIRE_TO_STAGE2		RTL_MILISECONDS_TO_JIFFIES(1000)	// MP Prob req wai time
+#define MESH_TIMER_TO				RTL_MILISECONDS_TO_JIFFIES(250)	// MP mesh_unEstablish_hdr  peer link expire  timer.
+#define MESH_LocalLinkStateANNOU_TO	RTL_MILISECONDS_TO_JIFFIES(5000)	// MP Local Link State Announcement time.
 
 // Define of time out Stress test (Association expire time)
 #ifdef	MESH_BOOTSEQ_STRESS_TEST
-#define MESH_BS_STRESS_TEST_MIN_TIME	CALC_TIME_TO_JIFFIES(1000)
-#define MESH_BS_STRESS_TEST_MAX_TIME	CALC_TIME_TO_JIFFIES(5000)
+#define MESH_BS_STRESS_TEST_MIN_TIME	RTL_MILISECONDS_TO_JIFFIES(1000)
+#define MESH_BS_STRESS_TEST_MAX_TIME	RTL_MILISECONDS_TO_JIFFIES(5000)
 #endif	// MESH_BOOTSEQ_STRESS_TEST
 
 #ifdef MESH_BOOTSEQ_AUTH
 // Auth
-#define MESH_AUTH_RETRY_TO			CALC_TIME_TO_JIFFIES(500)	// AUTH resend Authentication request time
-#define MESH_AUTH_REQUEST_TO		CALC_TIME_TO_JIFFIES(1000)	// AUTH   after recived RSP , Betweend RSP and REQ time
-#define MESH_AUTH_LISTEN_TO			CALC_TIME_TO_JIFFIES(5000)	// MP connection time
+#define MESH_AUTH_RETRY_TO			RTL_MILISECONDS_TO_JIFFIES(500)	// AUTH resend Authentication request time
+#define MESH_AUTH_REQUEST_TO		RTL_MILISECONDS_TO_JIFFIES(1000)	// AUTH   after recived RSP , Betweend RSP and REQ time
+#define MESH_AUTH_LISTEN_TO			RTL_MILISECONDS_TO_JIFFIES(5000)	// MP connection time
 #endif
 
 // peer link
-#define MESH_PEER_LINK_RETRY_TO		CALC_TIME_TO_JIFFIES(500)	// start peer link resend Association request time
-#define MESH_PEER_LINK_OPEN_TO		CALC_TIME_TO_JIFFIES(1000)	// peer link after recived  confirm, Between confirm and open time
-#define MESH_PEER_LINK_CLOSE_TO		CALC_TIME_TO_JIFFIES(1000)	// peer link close wait time
-#define MESH_PEER_LINK_LISTEN_TO	CALC_TIME_TO_JIFFIES(5000)	// MP connection time
+#define MESH_PEER_LINK_RETRY_TO		RTL_MILISECONDS_TO_JIFFIES(500)	// start peer link resend Association request time
+#define MESH_PEER_LINK_OPEN_TO		RTL_MILISECONDS_TO_JIFFIES(1000)	// peer link after recived  confirm, Between confirm and open time
+#define MESH_PEER_LINK_CLOSE_TO		RTL_MILISECONDS_TO_JIFFIES(1000)	// peer link close wait time
+#define MESH_PEER_LINK_LISTEN_TO	RTL_MILISECONDS_TO_JIFFIES(5000)	// MP connection time
 
 // Retry 
 #define MESH_AUTH_RETRY_LIMIT		6		// Retry AUTH count
@@ -212,7 +166,7 @@ typedef struct rtl8190_priv DRV_PRIV;
 
 #define MAX_MPP_NUM 				15
 #define DATA_SKB_BUFFER_SIZE 		7 		// acutal size is power of 2
-#define AODV_RREQ_TABLE_SIZE 		256 	// must equal 2^DATA_SKB_BUFFER_SIZE
+#define AODV_RREQ_TABLE_SIZE 		128 	// must equal 2^DATA_SKB_BUFFER_SIZE
 #define PROXY_TABLE_SIZE 			7  		// acutal size is power of 2
 // #define PATHSEL_TABLE_SIZE			128
 
@@ -276,51 +230,51 @@ enum MESH_PEER_LINK_CLOSE_REASON {
  *
  */
 struct MESH_Neighbor_Entry {
-	// when state = MP_UNUSED, the entry is invalid	
-	enum dot11_MP_NEIGHBOR_STATE	State; // type of dot11_MP_NEIGHBOR_STATE
-		
-	// The following entries represents the "MP Meighbor Table Entry" in page 61, D0.02
-	// UINT8	NeighborMACADDR[MACADDRLEN]; 	// in fact, this info can be obtained by this.pstate->hwaddr
-	// UINT8	PrimaryMACADDR[MACADDRLEN];		// (popen) No need,Because interface have  priv 	
-	unsigned long	LocalLinkID;		// peer link local link id (Identify connect by myself)
-	unsigned long	PeerLinkID;			// peer link Peer link id (Identify connect by peer MP)  (PS:Some process allow NULL,  Check NULL before, If no, compare  match or not.)
-	UINT8			Co;					// operating channel
-	UINT32			Pl;					// CPI
-	UINT16			r;					// byte rate (PS:Undefine use byte number !!)
-	UINT16			ept;				// error rate
-	UINT16			Q;					// strength or quality (PS:Undefine use byte number !!)
-	
-	// expire time counter (upcount, use system jiffies)
-	unsigned long		expire;					// Connect successful MP expire timer.
-	unsigned long		BSexpire_LLSAperiod;	// 1.boot sequence process Peer link retry, open, cancel timer, 2.period send LLS timer.
-	
-	// The following entries are internal data structure
-	// a counter
-	//   Set it to zero, when State changed from MP_UNUSED to Start Peer Link process.
-	//   Path selection or data transmission can reuse it for their propose
-	//   Peer link open REQ_MAX
-	UINT8			retry;			// retry counter
+    // when state = MP_UNUSED, the entry is invalid	
+    enum dot11_MP_NEIGHBOR_STATE	State; // type of dot11_MP_NEIGHBOR_STATE
 
-	UINT32			metric;				// recorded metric
+    // The following entries represents the "MP Meighbor Table Entry" in page 61, D0.02
+    // UINT8	NeighborMACADDR[MACADDRLEN]; 	// in fact, this info can be obtained by this.pstate->hwaddr
+    // UINT8	PrimaryMACADDR[MACADDRLEN];		// (popen) No need,Because interface have  priv 	
+    unsigned long	LocalLinkID;		// peer link local link id (Identify connect by myself)
+    unsigned long	PeerLinkID;			// peer link Peer link id (Identify connect by peer MP)  (PS:Some process allow NULL,  Check NULL before, If no, compare  match or not.)
+    UINT8			Co;					// operating channel
+    UINT32			Pl;					// CPI
+    UINT16			r;					// byte rate (PS:Undefine use byte number !!)
+    UINT16			ept;				// error rate
+    UINT16			Q;					// strength or quality (PS:Undefine use byte number !!)
+
+    // expire time counter (upcount, use system jiffies)
+    unsigned long		expire;					// Connect successful MP expire timer.
+    unsigned long		BSexpire_LLSAperiod;	// 1.boot sequence process Peer link retry, open, cancel timer, 2.period send LLS timer.
+
+    // The following entries are internal data structure
+    // a counter
+    //   Set it to zero, when State changed from MP_UNUSED to Start Peer Link process.
+    //   Path selection or data transmission can reuse it for their propose
+    //   Peer link open REQ_MAX
+    UINT8			retry;			// retry counter
+
+    UINT32			metric;				// recorded metric
     UINT16 seqNum;     // record for  recently sent multicast packet
-	#if defined(RTK_MESH_MANUALMETRIC)
+    #if defined(RTK_MESH_MANUALMETRIC)
     UINT32			manual_metric;				// recorded metric
     #endif
-#ifdef MESH_USE_METRICOP
-	UINT8                   retryMetric;
-	UINT8                   isAsym; // if neighbor is non-Realtek device
-	atomic_t                isMetricTesting; // if a testing is performing: 1/2: sender, 4: receiver
-	UINT32                  timeMetricUpdate; // jiffies when metric should be updated
-	struct {
-		UINT32  toRx; // jiffies indicating a peer's test is expired
-		UINT32  toTx; // jiffies indicating my test should be terminated
-		UINT8   rateRx; // the data rate of the testing traffic been testing by peer
-		UINT8   rateTx; // data rate used when issuing test traffic
-		UINT8   prioRx, prioTx; // priority during test
-		UINT16  lenRx0, lenRx1, cntRx0, cntRx1; // Rx0: from action frame; cntRx1: counted by rx, lenRx1: total received len
-		UINT16  lenTx0, cntTx0, cntTx1; // Tx0: parameters for issue_xxx, cntTx1: # of pkt already sent
-	} spec11kv;
-#endif
+    #ifdef MESH_USE_METRICOP
+    UINT8                   retryMetric;
+    UINT8                   isAsym; // if neighbor is non-Realtek device
+    atomic_t                isMetricTesting; // if a testing is performing: 1/2: sender, 4: receiver
+    UINT32                  timeMetricUpdate; // jiffies when metric should be updated
+    struct {
+        UINT32  toRx; // jiffies indicating a peer's test is expired
+        UINT32  toTx; // jiffies indicating my test should be terminated
+        UINT8   rateRx; // the data rate of the testing traffic been testing by peer
+        UINT8   rateTx; // data rate used when issuing test traffic
+        UINT8   prioRx, prioTx; // priority during test
+        UINT16  lenRx0, lenRx1, cntRx0, cntRx1; // Rx0: from action frame; cntRx1: counted by rx, lenRx1: total received len
+        UINT16  lenTx0, cntTx0, cntTx1; // Tx0: parameters for issue_xxx, cntTx1: # of pkt already sent
+    } spec11kv;
+    #endif
 	
 	//Use  Local Link Announcement Packet error rate calculate(Not use temporary)
 	// unsigned int		tx_pkts_pre;
@@ -370,15 +324,7 @@ struct MESH_Profile { // mesh_profile Configure by WEB in the future, Maybe dele
 
 struct MESH_Share {
 	unsigned short	seq;
-	UINT8			PUseq;
-    
-#if (MESH_DBG_LV & MESH_DBG_COMPLEX)
-	struct timer_list		mesh_test_sme_timer; // issue one kind of mgt frame /sec
-#endif // (MESH_DBG_LV & MESH_DBG_COMPLEX)
-
-#if (MESH_DBG_LV & MESH_DBG_SIMPLE)
-	struct timer_list		mesh_test_sme_timer2; // issue 100 probe req / sec
-#endif  // (MESH_DBG_LV & MESH_DBG_SIMPLE)
+	UINT8			PUseq;   
 };
 
 
@@ -418,44 +364,9 @@ struct MESH_FAKE_MIB_T {
 };
 
 
-
-#if (MESH_DBG_LV & MESH_DBG_COMPLEX)
-extern void	mesh_test_sme_timer(unsigned long task_priv);
-extern unsigned char mesh_test_dst_mac[6];
-#endif // (MESH_DBG_LV & MESH_DBG_COMPLEX)
-
 #ifdef	_MESH_DEBUG_
 extern UINT8 mesh_proc_MAC[MACADDRLEN];
 #endif	// _MESH_DEBUG_
-
-#if (MESH_DBG_LV & MESH_DBG_SIMPLE)
-extern void	mesh_test_sme_timer2(unsigned long task_priv);
-#endif // (MESH_DBG_LV & MESH_DBG_SIMPLE)
-
-#ifdef  _11s_TEST_MODE_
-struct tx_insn;
-extern int mesh_debug_tx1(struct net_device *dev, DRV_PRIV *priv, struct sk_buff *skb);
-extern int mesh_debug_tx2(DRV_PRIV *priv, struct sk_buff *skb);
-extern int mesh_debug_tx3(struct net_device *dev, DRV_PRIV *priv, struct sk_buff *skb);
-extern int mesh_debug_tx4(DRV_PRIV *priv, struct tx_insn* txcfg);
-extern int mesh_debug_tx5(DRV_PRIV *priv, struct tx_insn* txcfg);
-extern int mesh_debug_tx6(DRV_PRIV *priv, struct tx_insn* txcfg);
-extern int mesh_debug_tx7(DRV_PRIV *priv,  struct tx_desc *pdesc);
-extern int mesh_debug_tx8(DRV_PRIV *priv,  struct tx_desc *pdesc);
-extern int mesh_debug_tx9(struct tx_insn* txcfg, struct tx_desc_info *pdescinfo);
-extern int mesh_debug_tx10(struct tx_insn* txcfg, struct tx_desc_info *pndescinfo);
-
-extern int mesh_debug_rx1(DRV_PRIV *priv, struct sk_buff *pskb);
-extern int mesh_debug_rx2(DRV_PRIV *priv, unsigned int cmd);
-
-extern int mesh_debug_sme1(DRV_PRIV *priv);
-extern int mesh_debug_sme2(DRV_PRIV *priv, unsigned int *rate);
-
-extern int pid_receiver;
-extern void clean_for_join(DRV_PRIV *priv);
-#endif // _11s_TEST_MODE_
-
-extern void hex_dump(void *data, int size);
 
 
 #endif // _8190S_MESH_PUB_HDR_H_

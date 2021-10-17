@@ -10,10 +10,11 @@
   </head>
   <body style="background-color: #3B9DCC">
   <SCRIPT language=Javascript>
-  	var isDisplayCPU = '<% getIndex("isDisplayCPU"); %>';
+  	var isDisplayCPU = <% getIndex("isDisplayCPU"); %>;
+	var isEnableBT = <% getIndex("isEnableBT"); %>;
 	var isDisplayTR069 = '<% getIndex("isDisplayTR069"); %>';
 	draw_subnav_head();
-	draw_subnav_mng(isDisplayCPU,isDisplayTR069);
+	draw_subnav_mng(isDisplayCPU, isEnableBT, isDisplayTR069);
 	draw_subnav_tail();
 	init_submenu("Status");	
   </SCRIPT>

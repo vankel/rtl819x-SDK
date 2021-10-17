@@ -574,7 +574,7 @@ typedef union _block                 // AES cipher block
 
 typedef struct _packet
     {
-    BOOLEAN    encrypted;      // TRUE if encrypted
+    bool    encrypted;      // TRUE if encrypted
     u08b    TA[6];          // xmit address
     int     micLength;      // # octets of MIC appended to plaintext (M)
     int     clrCount;       // # cleartext octets covered by MIC

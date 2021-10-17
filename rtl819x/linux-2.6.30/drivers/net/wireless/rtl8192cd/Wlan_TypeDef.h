@@ -21,7 +21,7 @@ typedef enum _MIMO_TR_STATUS {
 	MIMO_2T4R = 2,
 	MIMO_2T2R = 3,
 	MIMO_1T1R = 4,
-	MIMO_3T3R = 5, //8814
+	MIMO_3T3R = 5,
 	MIMO_4T4R = 6
 } MIMO_TR_STATUS;
 

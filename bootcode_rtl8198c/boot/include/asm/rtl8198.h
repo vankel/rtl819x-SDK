@@ -137,23 +137,6 @@ typedef unsigned char UCHAR8;
 
 //JSW:Add UART 0/1 ,"0"=UART0,"1"=UART1
 
-#if   0// For Uart1 Controller 8196 
-#define UART_RBR	0x2100
-#define UART_THR	0x2100
-#define UART_DLL	0x2100
-#define	UART_IER	0x2104
-#define	UART_DLM	0x2104
-#define	UART_IIR	0x2108
-
-#define	UART_FCR	0x2108
-#define UART_LCR	0x210c
-#define	UART_MCR	0x2110
-#define	UART_LSR	0x2114
-#define	UART_MSR	0x2118
-#define	UART_SCR	0x211c
-
-#endif
-
 #if   1// For Uart0 Controller 8196 
 #define UART_RBR	0x2000
 #define UART_THR	0x2000
@@ -213,15 +196,16 @@ typedef unsigned char UCHAR8;
 #ifdef CONFIG_NFBI
 #define REG32(reg) (*(volatile unsigned int *)(reg))
 #endif
-#if 0
-#define REG32(reg) (*(volatile unsigned int *)(reg))
-#define REG16(reg) (*(volatile unsigned short *)(reg))
-#define REG8(reg) (*(volatile unsigned char *)(reg))
-#endif
+
 #define MEM_CONTROLLER_REG	0xB8001000	// memory contoller register
 
+#ifdef CONFIG_RTL8198C
+#define PIN_MUX_SEL  0xb8000100
+#define PIN_MUX_SEL2 0xb8000104
+#define PIN_MUX_SEL3 0xb8000108
+#else
 #define PIN_MUX_SEL 0xb8000040
-
+#endif
 
 /*GPIO register */
 #define GPIO_BASE                           0xB8003500
@@ -350,7 +334,6 @@ typedef unsigned char UCHAR8;
 	#define DTR_REG 0xb8001008
 
 
-
 #define BIST_CONTROL_REG 0xb8000014
 	//For Crypto register
 	#define CRYPTO_REG 0xb800c000
@@ -368,9 +351,14 @@ typedef unsigned char UCHAR8;
 	#define SBCR_REG 0xbb804208
 	#define MSCR_REG 0xbb804410
 	#define BIST_CONTROL_REG 0xb8000014
+
+#ifdef RTL8198
 	#define BIST_DONE_REG 0xb8000020
 	#define BIST_FAIL_REG 0xb8000024
-
+#else
+	#define BIST_DONE_REG 0xb8000018
+	#define BIST_FAIL_REG 0xb800001C
+#endif
 	//PCIE Register
 	#define PCIE_PLL 0xb8000044
 	#define CLK_MANAGE 0xb8000010
@@ -383,8 +371,5 @@ typedef unsigned char UCHAR8;
 
 
 #endif
-
-
-
 
 

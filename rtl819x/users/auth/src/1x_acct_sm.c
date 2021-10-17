@@ -214,12 +214,6 @@ int lib1x_acct_request( Auth_Pae * auth_pae, unsigned int msg_type, int iTermina
 	if ( rinfo->username_len != 0 )
 		lib1x_radconst_addattr( rconst, LIB1X_RAD_USER_NAME , rinfo->username_len, rinfo->username);
 
-#ifdef HS2_SUPPORT
-	u_char HS2_AP_VER_ATTR[9]={0x68,0x9F,0x00,0x00,0x02,0x03,0x01}; // hs20-radius.txt
-	lib1x_radconst_addattr( rconst, LIB1X_RAD_VENDOR_SPECIFIC , 9, HS2_AP_VER_ATTR);
-	u_char HS2_DEVICE_VER_ATTR[9]={0x68,0x9F,0x00,0x00,0x03,0x03,0x01}; // hs20-radius.txt
-	lib1x_radconst_addattr( rconst, LIB1X_RAD_VENDOR_SPECIFIC , 9, HS2_DEVICE_VER_ATTR);	
-#endif
 
 	if(msg_type != LIB1X_RADACCT_ACTION_ACCOUNT_ON)
 	{

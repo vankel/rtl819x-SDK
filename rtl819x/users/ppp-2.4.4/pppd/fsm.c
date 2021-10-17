@@ -614,7 +614,6 @@ fsm_rtermreq(f, id, p, len)
     u_char *p;
     int len;
 {
-	//output_log("fsm_rtermreq");
     switch (f->state) {
     case ACKRCVD:
     case ACKSENT:

@@ -92,18 +92,18 @@ _C2HContentParsing8881A(
 			break;
 #endif
 		case C2H_8881A_RA_PARA_RPT:
-//			ODM_C2HRaParaReportHandler(ODMPTR, tmpBuf, c2hCmdLen);
+			ODM_C2HRaParaReportHandler(ODMPTR, tmpBuf, c2hCmdLen);
 			break;
 			
 		case C2H_8881A_RA_RPT:
-//			phydm_c2h_ra_report_handler(ODMPTR, tmpBuf, c2hCmdLen);
+			phydm_c2h_ra_report_handler(ODMPTR, tmpBuf, c2hCmdLen);
 			break;
 			
 		case C2H_8881A_EXTEND_IND:	
 			Extend_c2hSubID= tmpBuf[0];
 			if(Extend_c2hSubID == EXTEND_C2H_8881A_DBG_PRINT)
 			{
-//				phydm_fw_trace_handler_8051(ODMPTR, tmpBuf, c2hCmdLen);
+				phydm_fw_trace_handler_8051(ODMPTR, tmpBuf, c2hCmdLen);
 			}
 			break;
 			

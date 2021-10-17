@@ -242,8 +242,6 @@ static int32 _rtl865x_synNxtHopToAsic(rtl865x_nextHopEntry_t *entry_t)
 		retval = rtl865x_getIpIdxByExtIp(entry_t->srcIp, &ipIdx);
 	
 	asic.extIntIpIdx	= entry_t->srcIp? ipIdx: 0;
-
-	//printk("%s(%d), entryIdx(%d),asic.isPPPoe(%d),asic.pppoeIdx(%d),asic.dvid(%d)\n", __FUNCTION__,__LINE__,entry_t->entryIndex,asic.isPppoe,asic.pppoeIdx,asic.dvid);
 	rtl8651_setAsicNextHopTable(entry_t->entryIndex,  &asic);
 	
 	return SUCCESS;
@@ -360,7 +358,7 @@ found:
 			break;
 		
 	}
-
+	
 	if(attr == NEXTHOP_L3)
 	{
 		entry1 = &rtl865x_nxtHopTable[entryIdx+1];

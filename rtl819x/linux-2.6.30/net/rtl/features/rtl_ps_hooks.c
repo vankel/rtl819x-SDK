@@ -1127,7 +1127,7 @@ int32 rtl_br_fdb_cleanup_hooks(struct net_bridge *br, struct net_bridge_fdb_entr
 	int ret;
 
 	/*printk("timelist as follow:(s)jiffies:%ld,f->ageing_timer:%ld,delay:%ld",jiffies/HZ,f->ageing_timer/HZ,delay/HZ);*/
-	#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 	if (time_after(f->updated, jiffies))
 	{
 		printk("\nf->ageing_timer AFTER jiffies:addr is :%x,%x,%x,%x,%x,%x\n",f->addr.addr[0],f->addr.addr[1],f->addr.addr[2],f->addr.addr[3],f->addr.addr[4],f->addr.addr[5]);
@@ -1169,7 +1169,7 @@ int32 rtl_br_fdb_cleanup_hooks(struct net_bridge *br, struct net_bridge_fdb_entr
 		}
 
 		ret = 0;
-		#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 		if(time_before_eq(f->updated,  hw_aging))
 		{
 			/*fresh f->ageing_timer*/
@@ -1186,7 +1186,7 @@ int32 rtl_br_fdb_cleanup_hooks(struct net_bridge *br, struct net_bridge_fdb_entr
 
 	#if defined(CONFIG_RTL_FASTBRIDGE)
 		fb_aging = rtl_fb_get_entry_lastused(f->addr.addr);
-		#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		#if defined(CONFIG_RTL_FASTPATH_HWNAT_SUPPORT_KERNEL_3_X)
 		if(time_before_eq(f->updated,  fb_aging))
 		{
 			f->updated = fb_aging;

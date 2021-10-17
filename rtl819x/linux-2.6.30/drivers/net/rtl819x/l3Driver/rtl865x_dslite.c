@@ -318,7 +318,7 @@ int32 _rtl865x_delIpv6DsLiteEntry(uint32 entryIdx)
 {
 	int32 retval=FAILED;
 	rtl865x_dslite_s *entry= NULL;
-
+	
 	if (entryIdx >= IPV6_DSLT_ENTRY_NUM)
 		return RTL_EINVALIDINPUT;
 	
@@ -326,6 +326,7 @@ int32 _rtl865x_delIpv6DsLiteEntry(uint32 entryIdx)
 
 	if(entry->valid == 0)
 		return RTL_EENTRYNOTFOUND;
+	
 
 	/*delete route from asic*/
 	if(entry->index< IPV6_DSLT_ENTRY_NUM)

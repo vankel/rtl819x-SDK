@@ -16,7 +16,7 @@
 
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
     #define REG_SYS_ISO_CTRL            0x0000
     #define REG_SYS_FUNC_EN             0x0002
@@ -60,7 +60,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_GSSR                              	0x006C
 
@@ -74,14 +74,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_SYS_CLKR                          	0x0070
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
     #define REG_HCI_OPT_CTRL            0x0074
 
@@ -95,14 +95,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_AFE_XTAL_CTRL_EXT                 	0x0078
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
     #define REG_LDO_SWR_CTRL            0x007C  
     #define REG_8051FW_CTRL             0x0080
@@ -124,14 +124,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_MEM_RMC                           	0x00C8
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
     #define REG_PMC_DBG_CTRL2           0x00CC
     #define REG_BIST_CTRL               0x00D0
@@ -141,14 +141,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WLAN_DBG                          	0x00DC
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
     #define REG_USB_SIE_INTF            0x00E0
     #define REG_PCIE_MIO_INTF           0x00E4
@@ -157,14 +157,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_HPON_FSM                          	0x00EC
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_SYS_CFG1                            0x00F0
 #define REG_SYS_STATUS1                         0x00F4
@@ -187,14 +187,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_FF_STATUS                         	0x0118
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_RXFF_PTR                0x011C
 
@@ -208,7 +208,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_FE1IMR                            	0x0120
 
@@ -222,14 +222,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_FE1ISR                            	0x0124
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_CPWM                              	0x012C
 #define REG_FWIMR                             	0x0130
@@ -262,14 +262,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_MBIST_FAIL_NRML                   	0x017C
 
 #endif 
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_AES_DECRPT_DATA         0x0180
 #define REG_AES_DECRPT_CFG          0x0184
@@ -281,7 +281,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_TC7_CTRL                          	0x01B0
 #define REG_TC8_CTRL                          	0x01B4
@@ -289,7 +289,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_SW_DEFINED_PAGE1                  	0x01B8
 #define REG_MCUTST_I                          	0x01C0
@@ -312,14 +312,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_LLT_INIT_ADDR                     	0x01E4
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_BB_ACCESS_CTRL                    	0x01E8
 #define REG_BB_ACCESS_DATA                    	0x01EC
@@ -338,7 +338,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_FIFOPAGE_CTRL_1                   	0x0200
 
@@ -352,7 +352,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_FIFOPAGE_CTRL_2                  	0x0204
 
@@ -366,14 +366,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_AUTO_LLT_V1                       	0x0208
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_TXDMA_OFFSET_CHK                  	0x020C
 #define REG_TXDMA_STATUS                      	0x0210
@@ -388,14 +388,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_TX_DMA_DBG                        	0x0214
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_TQPNT1                            	0x0218
 #define REG_TQPNT2                            	0x021C
@@ -410,7 +410,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_TQPNT3                            	0x0220
 
@@ -424,7 +424,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_TQPNT4                            	0x0224
 
@@ -438,7 +438,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_RQPN_CTRL_1                       	0x0228
 #define REG_RQPN_CTRL_2                       	0x022C
@@ -451,10 +451,11 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_RXDMA_AGG_PG_TH                   	0x0280
 #define REG_RXPKT_NUM                         	0x0284
+#define REG_RXDMA_CONTROL                         	0x0286
 #define REG_RXDMA_STATUS                      	0x0288
 #define REG_RXDMA_DPR                         	0x028C
 #define REG_RXDMA_MODE                        	0x0290
@@ -463,7 +464,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 #define REG_PCIE_CTRL                         	0x0300
 
@@ -477,7 +478,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_INT_MIG                           	0x0304
 #define REG_BCNQ_TXBD_DESA                    	0x0308
@@ -529,14 +530,14 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 #define REG_DBG_SEL_V1                        	0x03D8
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_PCIE_HRPWM1_V1                    	0x03D9
 #define REG_PCIE_HCPWM1_V1                    	0x03DA
@@ -544,7 +545,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 #define REG_PCIE_CTRL2                        	0x03DB
 
@@ -558,7 +559,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_PCIE_HRPWM2_V1                    	0x03DC
 #define REG_PCIE_HCPWM2_V1                    	0x03DE
@@ -568,7 +569,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 #define REG_DBI_WDATA_V1                      	0x03E8
 
@@ -582,7 +583,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 #define REG_DBI_RDATA_V1                      	0x03EC
 
@@ -596,7 +597,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 #define REG_DBI_FLAG_V1                       	0x03F0
 
@@ -610,7 +611,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT)
 
 #define REG_MDIO_V1                           	0x03F4
 
@@ -624,7 +625,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_HCI_MIX_CFG                         0x03FC
 
@@ -638,7 +639,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_Q0_INFO                           	0x0400
 #define REG_Q1_INFO                           	0x0404
@@ -662,7 +663,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BCNQ_BDNY_V1                      	0x0424
 
@@ -676,7 +677,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_LIFETIME_EN                       	0x0426
 
@@ -690,7 +691,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_SPEC_SIFS                         	0x0428
 #define REG_RETRY_LIMIT                       	0x042A
@@ -712,7 +713,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_AMPDU_MAX_TIME_V1                 	0x0455
 
@@ -726,7 +727,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BCNQ1_BDNY_V1                     	0x0456
 
@@ -740,7 +741,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_AMPDU_MAX_LENGTH                  	0x0458
 #define REG_ACQ_STOP                          	0x045C
@@ -755,14 +756,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_NDPA_RATE                         	0x045D
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_TX_HANG_CTRL                      	0x045E
 #define REG_NDPA_OPT_CTRL                     	0x045F
@@ -777,7 +778,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_RD_RESP_PKT_TH                    	0x0463
 #define REG_CMDQ_INFO                         	0x0464
@@ -789,7 +790,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WMAC_LBK_BUF_HD_V1                	0x0478
 #define REG_MGQ_BDNY_V1                         0x047A
@@ -797,7 +798,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_TXRPT_CTRL                        	0x047C
 #define REG_INIRTS_RATE_SEL                   	0x0480
@@ -822,21 +823,21 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_POWER_STAGE1                      	0x04B4
 
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_POWER_STAGE2                      	0x04B8
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_SW_AMPDU_BURST_MODE_CTRL          	0x04BC
 #define REG_PKT_LIFE_TIME                     	0x04C0
@@ -863,7 +864,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_CSI_SEQ                           	0x04DE
 
@@ -877,14 +878,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_NULL_PKT_STATUS_V1                	0x04E0
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_PTCL_ERR_STATUS                   	0x04E2
 
@@ -898,7 +899,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_VIDEO_ENHANCEMENT_FUN             	0x04E4
 
@@ -913,7 +914,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_DUMMY_PAGE4_V1                    	0x04FC
 #define REG_MOREDATA                          	0x04FE
@@ -921,7 +922,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_EDCA_VO_PARAM           0x0500
 #define REG_EDCA_VI_PARAM           0x0504
@@ -958,14 +959,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BCN_CTRL_CLINT0                   	0x0551
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_MBID_NUM                0x0552
 #define REG_DUAL_TSF_RST            0x0553
@@ -989,7 +990,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_FREERUN_CNT                       	0x0568
 
@@ -1003,7 +1004,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_ATIMWND1_V1                       	0x0570
 #define REG_TBTT_PROHIBIT_INFRA               	0x0571
@@ -1011,7 +1012,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_CTWND                   0x0572
 #define REG_BCNIVLCUNT              0x0573
@@ -1021,7 +1022,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_TXCMD_TIMEOUT_PERIOD              	0x0576
 #define REG_MISC_CTRL                         	0x0577
@@ -1036,7 +1037,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_PS_TIMER                0x0580
 #define REG_TIMER0                  0x0584
@@ -1067,7 +1068,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_EARLY_128US                       	0x05B1
 #define REG_P2PPS1_CTRL                       	0x05B2
@@ -1081,7 +1082,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_ACMHWCTRL               0x05C0
 #define REG_ACMRSTCTRL              0x05C1
@@ -1103,7 +1104,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_P2P_RST                           	0x05F0
 #define REG_SCHEDULER_RST                     	0x05F1
@@ -1111,7 +1112,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_SCH_TXCMD                         	0x05F8
 #define REG_PAGE5_DUMMY                       	0x05FC
@@ -1120,14 +1121,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BWOPMODE                          	0x0603
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_TCR                     0x0604
 #define REG_RCR                     0x0608
@@ -1137,7 +1138,6 @@
 #define REG_MACID                   0x0610
 #define REG_BSSID                   0x0618
 #define REG_MAR                     0x0620
-#define REG_MBIDCAMCFG              0x0628
 #define REG_MBIDCAMCFG_1                      	0x0628
 #define REG_MBIDCAMCFG_2                      	0x062C
 
@@ -1151,7 +1151,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WMAC_TCR_TSFT_OFS                 	0x0630
 #define REG_UDF_THSD                          	0x0632
@@ -1167,7 +1167,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_STMP_THSD                         	0x0634
 #define REG_WMAC_TXTIMEOUT                    	0x0635
@@ -1176,7 +1176,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_USTIME_EDCA             0x0638
 #define REG_MAC_SPEC_SIFS           0x063A
@@ -1193,14 +1193,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WMAC_BACAM_RPMEN                  	0x0661
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_RXERR_RPT               0x0664
 #define REG_WMAC_TRXPTCL_CTL        0x0668
@@ -1224,7 +1224,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WKFMCAM_CMD             0x0698
 #define REG_WKFMCAM_RWD             0x069C
@@ -1232,7 +1232,7 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_RXFLTMAP0               0x06A0
 #define REG_RXFLTMAP1               0x06A2
@@ -1252,21 +1252,21 @@
 #endif 
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_RXPKTMON_CTRL                     	0x06B0
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_STATE_MON                         	0x06B4
 
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_ERROR_MON                         	0x06B8
 #define REG_SEARCH_MACID                      	0x06BC
@@ -1274,14 +1274,14 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_BT_COEX_TABLE           0x06C0
 
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_RXCMD_0                           	0x06D0
 #define REG_RXCMD_1                           	0x06D4
@@ -1289,21 +1289,21 @@
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_WMAC_RESP_TXINFO        0x06D8
 
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BBPSF_CTRL                        	0x06DC
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_P2P_RX_BCN_NOA                    	0x06E0
 #define REG_ASSOCIATED_BFMER0_INFO            	0x06E4
@@ -1316,14 +1316,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BSSID1                  0x0708
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_BCN_PSR_RPT1                  0x0710
 
@@ -1337,7 +1337,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BEAMFORMEE_SEL                    	0x0714
 
@@ -1351,7 +1351,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_SOUNDING_PTCL_CTRL                	0x0718
 
@@ -1365,14 +1365,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_RX_CSI_RPT                        	0x071C
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_NS_ARP_CTRL                       	0x0720
 #define REG_NS_ARP_INFO                       	0x0724
@@ -1388,7 +1388,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BEAMFORMING_INFO_NSARP            	0x072C
 
@@ -1403,7 +1403,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WMAC_RTX_CTX_SUBTYPE_CFG          	0x0750
 
@@ -1417,14 +1417,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_COEX_V2                        	0x0762
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_BT_COEX                           	0x0764
 
@@ -1438,7 +1438,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WLAN_ACT_MASK_CTRL                	0x0768
 
@@ -1453,14 +1453,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_COEX_ENHANCED_INTR_CTRL        	0x076E
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_BT_ACT_STATISTICS                 	0x0770
 
@@ -1474,7 +1474,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_Statistics_Control_Register    	0x0778
 
@@ -1488,7 +1488,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_Status_Report_Register         	0x077C
 
@@ -1503,7 +1503,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_Interrupt_Control_Register     	0x0780
 
@@ -1519,7 +1519,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_WLAN_Report_Time_Out_Control_Register	0x0784
 
@@ -1533,7 +1533,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_Isolation_Table_Register_Register	0x0785
 
@@ -1547,7 +1547,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_Interrupt_Status_Register      	0x078F
 
@@ -1561,7 +1561,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_TDMA_Time_Register             	0x0790
 
@@ -1575,7 +1575,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_BT_ACT_Register                   	0x0794
 
@@ -1590,7 +1590,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_OBFF_CTRL_basic                   	0x0798
 
@@ -1604,7 +1604,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_OBFF_CTRL2_timer                  	0x079C
 
@@ -1618,7 +1618,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_LTR_CTRL_basic                    	0x07A0
 
@@ -1632,7 +1632,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_LTR_CTRL2_timer_threshold         	0x07A4
 
@@ -1646,7 +1646,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_LTR_IDLE_latency                  	0x07A8
 #define REG_LTR_ACTIVE_latency                	0x07AC
@@ -1661,14 +1661,14 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_Antenna_Training_Control_Register 	0x07B0
 
 #endif
 
 
-#if (RTL8192E_SUPPORT || RTL8813A_SUPPORT || RTL8881A_SUPPORT)
+#if (RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8881A_SUPPORT)
 
 #define REG_WMAC_PKTCNT_RWD                   	0x07B8
 #define REG_WMAC_PKTCNT_CTRL                  	0x07BC
@@ -1676,7 +1676,7 @@
 #endif
 
 
-#if (RTL8813A_SUPPORT)
+#if (RTL8814A_SUPPORT)
 
 #define REG_IQ_DUMP                           	0x07C0
 #define REG_OFDM_CCK_LEN_MASK                 	0x07D0
@@ -1896,7 +1896,7 @@
 #define REG_USB_GPS_EP_CONFIG           0xFE6D
 
 
-//eric-8813
+//eric-8814
 #define		RF_SYN_G1					0x25	// RF TX Power control
 #define		RF_SYN_G2					0x26	// RF TX Power control
 #define		RF_SYN_G3					0x27	// RF TX Power control

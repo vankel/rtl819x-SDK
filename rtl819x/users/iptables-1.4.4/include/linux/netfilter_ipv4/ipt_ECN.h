@@ -8,11 +8,7 @@
 */
 #ifndef _IPT_ECN_TARGET_H
 #define _IPT_ECN_TARGET_H
-
-#if defined(KERNEL_3_10) && defined(CONFIG_RLX)
-#else
 #include <linux/netfilter_ipv4/ipt_DSCP.h>
-#endif
 
 #define IPT_ECN_IP_MASK	(~IPT_DSCP_MASK)
 

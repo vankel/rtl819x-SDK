@@ -125,6 +125,4 @@ obj-$(CONFIG_BTRFS_FS)		+= btrfs/
 obj-$(CONFIG_GFS2_FS)           += gfs2/
 obj-$(CONFIG_EXOFS_FS)          += exofs/
 obj-$(CONFIG_YAFFS_FS)		+= yaffs2/
-
-obj-$(CONFIG_RTL_SENDFILE_PATCH)	+= reverse_sendfile.o
-obj-$(CONFIG_RTL_SENDFILE_PATCH)	+= reverse_sendfile_common.o
+obj-$(CONFIG_RTL_SENDFILE_PATCH)	+= reverse_sendfile_fastpath/

@@ -58,7 +58,7 @@ typedef struct _mib_table_ {
 } mib_table_T;
 
 #ifdef COMPRESS_MIB_SETTING
-int cvcfg_mib_compress_write(CONFIG_DATA_T type, char *data, PARAM_HEADER_T *pheader, int fh, int *pcomplen);
+int cvcfg_mib_compress_write(CONFIG_DATA_T type, char *data, void *pheader2, int fh, int *pcomplen);
 #ifdef MIB_TLV
 void mib_display_data_content(CONFIG_DATA_T type, unsigned char * pdata, unsigned int mib_data_len);
 void mib_display_tlv_content(CONFIG_DATA_T type, unsigned char * ptlv, unsigned int mib_tlv_len);
@@ -1145,9 +1145,6 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 	char *p1, *p2, *p3, *p4, *p5, *p6, *p7, *p8, *p9, *p10;
 	char *p11, *p12, *p13, *p14, *p15, *p16, *p17, *p18, *p19, *p20;
 	char *p21, *p22, *p23, *p24, *p25, *p26, *p27, *p28, *p29;
-#ifdef CONFIG_IPV6	
-	char **p30,*p31,*p32,*p33,*p34;
-#endif
 #else
 	char *p1, *p2, *p3, *p4,*p5,*p6, *p7,*p8;
 #ifdef HOME_GATEWAY
@@ -3163,23 +3160,6 @@ static void swap_mib_word_value(APMIB_Tp pMib)
 #endif
 	pMib->system_time_year = WORD_SWAP(pMib->system_time_year);
 
-#ifdef 	_11s_TEST_MODE_	
-	pMib->meshTestParam1 = WORD_SWAP(pMib->meshTestParam1);
-	pMib->meshTestParam2 = WORD_SWAP(pMib->meshTestParam2);	
-	pMib->meshTestParam3 = WORD_SWAP(pMib->meshTestParam3);
-	pMib->meshTestParam4 = WORD_SWAP(pMib->meshTestParam4);
-	pMib->meshTestParam5 = WORD_SWAP(pMib->meshTestParam5);
-	pMib->meshTestParam6 = WORD_SWAP(pMib->meshTestParam6);
-	pMib->meshTestParam7 = WORD_SWAP(pMib->meshTestParam7);
-	pMib->meshTestParam8 = WORD_SWAP(pMib->meshTestParam8);
-	pMib->meshTestParam9 = WORD_SWAP(pMib->meshTestParam9);
-	pMib->meshTestParama = WORD_SWAP(pMib->meshTestParama);
-	pMib->meshTestParamb = WORD_SWAP(pMib->meshTestParamb);
-	pMib->meshTestParamc = WORD_SWAP(pMib->meshTestParamc);
-	pMib->meshTestParamd = WORD_SWAP(pMib->meshTestParamd);
-	pMib->meshTestParame = WORD_SWAP(pMib->meshTestParame);
-	pMib->meshTestParamf = WORD_SWAP(pMib->meshTestParamf);
-#endif
 }
 #else
 static int _mib_swap_value(const mib_table_entry_T *mib, void *data)
@@ -4830,13 +4810,15 @@ unsigned int mib_tlv_init(const mib_table_entry_T *mib_tbl, unsigned char *from_
 }
 
 #endif // #ifdef MIB_TLV
-int cvcfg_mib_compress_write(CONFIG_DATA_T type, char *data, PARAM_HEADER_T *pheader, int fh, int *pcomplen)
+int cvcfg_mib_compress_write(CONFIG_DATA_T type, char *data, void *pheader2, int fh, int *pcomplen)
 {
 
 	unsigned char* pContent = NULL;
 #ifdef HEADER_LEN_INT
-	HW_PARAM_HEADER_T *phwHeader;
+	HW_PARAM_HEADER_T *phwHeader = (HW_PARAM_HEADER_T *)pheader2;
 #endif
+	PARAM_HEADER_T *pheader = (PARAM_HEADER_T *)pheader2;
+
 	COMPRESS_MIB_HEADER_T compHeader;
 	unsigned char *expPtr, *compPtr;
 	unsigned int expLen = 0;

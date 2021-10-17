@@ -83,7 +83,8 @@ RT_STATUS
 GetTxRPTBuf88XX(
     IN	HAL_PADAPTER        Adapter,
     IN	u4Byte              macID,
-    IN  u1Byte              variable,    
+    IN  u1Byte              variable,  
+    IN 	u1Byte				byteoffset,
     OUT pu1Byte             val
 );
 

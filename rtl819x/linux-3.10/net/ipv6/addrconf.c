@@ -1400,7 +1400,7 @@ int ipv6_dev_get_saddr(struct net *net, const struct net_device *dst_dev,
 			if ((score->ifa->flags & IFA_F_TENTATIVE) &&
 			    (!(score->ifa->flags & IFA_F_OPTIMISTIC)))
 				continue;
-			
+
 			score->addr_type = __ipv6_addr_type(&score->ifa->addr);
 
 			if (unlikely(score->addr_type == IPV6_ADDR_ANY ||

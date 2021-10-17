@@ -103,7 +103,11 @@ static int count_them(struct xt_connlimit_data *data,
 		      const struct nf_conntrack_tuple *tuple,
 		      const union nf_inet_addr *addr,
 		      const union nf_inet_addr *mask,
-		      const struct xt_match *match)
+		      const struct xt_match *match
+  		      #if defined(CONFIG_RTL_NETFILTER_XT_MATCH_CONNLIMIT_PATCH)
+			  ,u_int8_t family
+			  #endif
+		      )
 {
 	const struct nf_conntrack_tuple_hash *found;
 	struct xt_connlimit_conn *conn;
@@ -158,7 +162,7 @@ static int count_them(struct xt_connlimit_data *data,
 		}
 
 		if (same_source_net(addr, mask, &conn->tuple.src.u3,
-		    match->family))
+		    family))
 			/* same source network -> be counted! */
 			++matches;
 		nf_ct_put(found_ct);
@@ -207,7 +211,11 @@ connlimit_mt(const struct sk_buff *skb, const struct xt_match_param *par)
 
 	spin_lock_bh(&info->data->lock);
 	connections = count_them(info->data, tuple_ptr, &addr,
-	                         &info->mask, par->match);
+	                         &info->mask, par->match
+ 	                         #if defined(CONFIG_RTL_NETFILTER_XT_MATCH_CONNLIMIT_PATCH)
+							 ,par->family
+							 #endif
+	                         );
 	spin_unlock_bh(&info->data->lock);
 
 	if (connections < 0) {

@@ -512,7 +512,10 @@ lcp_extcode(f, code, id, inp, len)
     int len;
 {
     u_char *magp;
-
+#ifdef REJECT_ERROR_SESSION_PATCH
+	unsigned int *magI;
+    lcp_options *ho = &lcp_hisoptions[f->unit];
+#endif
     switch( code ){
     case PROTREJ:
 	lcp_rprotrej(f, inp, len);
@@ -522,6 +525,20 @@ lcp_extcode(f, code, id, inp, len)
 	if (f->state != OPENED)
 	    break;
 	magp = inp;
+
+
+#if 0
+	notice("%s.%d.peer_magic_%u\n",__FUNCTION__,__LINE__,*magI);	
+	notice("%s.%d.client_magic_%u\n",__FUNCTION__,__LINE__,lcp_gotoptions[f->unit].magicnumber);
+	notice("%s.%d.acked_magic_%u\n",__FUNCTION__,__LINE__,ho->magicnumber);	
+#endif
+#ifdef REJECT_ERROR_SESSION_PATCH
+	/*if magic number won't be ack ,just skip it*/
+	magI = (unsigned int *)magp;
+	if(*magI != ho->magicnumber)
+		return 0;
+#endif
+
 	PUTLONG(lcp_gotoptions[f->unit].magicnumber, magp);
 	fsm_sdata(f, ECHOREP, id, inp, len);
 	break;

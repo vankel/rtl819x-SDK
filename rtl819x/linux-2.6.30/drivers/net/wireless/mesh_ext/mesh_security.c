@@ -27,52 +27,60 @@ void DOT11_InitQueue2(DOT11_QUEUE2 * q, int szMaxItem, int szMaxData)
 
 int DOT11_EnQueue2(unsigned long task_priv, DOT11_QUEUE2 *q, unsigned char *item, int itemsize)
 {
-	DRV_PRIV *priv = (DRV_PRIV *)task_priv;
+    DRV_PRIV *priv = (DRV_PRIV *)task_priv;
+    unsigned long flags;
+    int ret = 0;
+    SAVE_INT_AND_CLI(flags);
+    SMP_LOCK_MESH_QUEUE(flags);
 
-	if(DOT11_IsFullQueue(q))
-		return E_DOT11_QFULL;
-	if(itemsize > q->MaxData)
-		return E_DOT11_2LARGE;
+    if(DOT11_IsFullQueue(q)) {
+        ret =  E_DOT11_QFULL;
+        goto ret;
+    }
+    if(itemsize > q->MaxData) {
+        ret = E_DOT11_2LARGE;
+        goto ret;
+    }
 
-	if(MESH_SPINLOCK(lock_queue)) {
-		q->ItemArray[q->Tail].ItemSize = itemsize;
-		memset(q->ItemArray[q->Tail].Item, 0, sizeof(q->ItemArray[q->Tail].Item));
-		memcpy(q->ItemArray[q->Tail].Item, item, itemsize);
-		q->NumItem++;
-		if((q->Tail+1) == q->MaxItem)
-			q->Tail = 0;
-		else
-			q->Tail++;
+    q->ItemArray[q->Tail].ItemSize = itemsize;
+    memset(q->ItemArray[q->Tail].Item, 0, sizeof(q->ItemArray[q->Tail].Item));
+    memcpy(q->ItemArray[q->Tail].Item, item, itemsize);
+    q->NumItem++;
+    if((q->Tail+1) == q->MaxItem)
+        q->Tail = 0;
+    else
+        q->Tail++;
 
-		MESH_SPINUNLOCK(lock_queue);
-	} else {
-		panic_printk("%s suffer racing issue\n",__func__);
-	}
-	return 0;
+ret:
+    RESTORE_INT(flags);
+    SMP_UNLOCK_MESH_QUEUE(flags);
+    return ret;
 }
 
 int DOT11_DeQueue2(unsigned long task_priv, DOT11_QUEUE2 *q, unsigned char *item, int *itemsize)
 {
-	DRV_PRIV *priv = (DRV_PRIV *)task_priv;
+    DRV_PRIV *priv = (DRV_PRIV *)task_priv;
+    unsigned long flags;
+    int ret = 0;
+    SAVE_INT_AND_CLI(flags);
+    SMP_LOCK_MESH_QUEUE(flags);
 
-	if(DOT11_IsEmptyQueue(q))
-		return E_DOT11_QEMPTY;
+    if(DOT11_IsEmptyQueue(q)) {
+        ret =  E_DOT11_QEMPTY;
+        goto ret;
+    }
 
-	if(MESH_SPINLOCK(lock_queue)) {
-		memcpy(item, q->ItemArray[q->Head].Item, q->ItemArray[q->Head].ItemSize);
-		*itemsize = q->ItemArray[q->Head].ItemSize;
-		q->NumItem--;
-		if((q->Head+1) == q->MaxItem)
-			q->Head = 0;
-		else
-			q->Head++;
-
-		MESH_SPINUNLOCK(lock_queue);
-	} else {
-		panic_printk("%s suffer racing issue\n",__func__);
-	}
-
-	return 0;
+    memcpy(item, q->ItemArray[q->Head].Item, q->ItemArray[q->Head].ItemSize);
+    *itemsize = q->ItemArray[q->Head].ItemSize;
+    q->NumItem--;
+    if((q->Head+1) == q->MaxItem)
+        q->Head = 0;
+    else
+        q->Head++;
+ret:
+    RESTORE_INT(flags);
+    SMP_UNLOCK_MESH_QUEUE(flags);    
+    return ret;
 }
 
 #endif

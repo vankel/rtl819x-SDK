@@ -243,6 +243,11 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	skb->toLocalPublic=0;
 #endif
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	skb->decision_bitmap = 0;
+	memset(skb->mark_ext, 0, sizeof(skb->mark_ext));
+#endif
+
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 	skb->inDev=NULL;
 #endif
@@ -342,6 +347,11 @@ struct sk_buff *dev_alloc_8190_skb(unsigned char *data, int size)
 	skb->srcLocalPublicIp=0;
 	skb->fromLocalPublic=0;
 	skb->toLocalPublic=0;
+#endif
+
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	skb->decision_bitmap = 0;
+	memset(skb->mark_ext, 0, sizeof(skb->mark_ext));
 #endif
 
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
@@ -713,6 +723,11 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 #if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT) || defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH) || defined(CONFIG_RTK_VOIP_QOS)|| defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT) ||defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
 	new->srcPhyPort=old->srcPhyPort;
 	new->dstPhyPort=old->dstPhyPort;
+#endif
+
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	new->decision_bitmap = old->decision_bitmap;
+	memcpy(new->mark_ext, old->mark_ext, sizeof(old->mark_ext));
 #endif
 
 #ifdef CONFIG_RTL_819X

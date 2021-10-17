@@ -9,13 +9,6 @@
 #Add mips16 Support
 
 #DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
-include $(DIR_LINUX)/.config
-ifeq ($(CONFIG_RTL_8196E),y)
-TARGET = 96E
-endif
-ifeq ($(CONFIG_RTL_8198C_GW),y)
-TARGET = 98C
-endif
 
 ifeq ($(CONFIG_RTK_IPTABLES_FAST_PATH),m)
 EXTRA_CFLAGS += -DCONFIG_FAST_PATH_MODULE
@@ -31,7 +24,7 @@ ifdef CONFIG_RTL865X_KERNEL_MIPS16_LAYERDRIVER
 endif
 
 obj-y := \
-	$(TARGET)/rtl865x_asicBasic.o \
+	rtl865x_asicBasic.o \
 	rtl865x_asicCom.o \
 	rtl865x_asicL2.o \
 	rtl865xC_hs.o

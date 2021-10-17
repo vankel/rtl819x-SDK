@@ -82,7 +82,7 @@ extern int32 _rtl_spi_rawWrite( rtl_spi_dev_t* pDev, void* pData, int32 bits );
 // SPI transaction (3 phases) read/write 
 extern int32 _rtl_spi_transRead8( rtl_spi_dev_t* pDev, uint8 ctrl, uint8 addr, uint8 *data );
 extern int32 _rtl_spi_transWrite8( rtl_spi_dev_t* pDev, uint8 ctrl, uint8 addr, uint8 data );
-void gpioResetSLIC();
+
 #if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676)
 #ifdef CONFIG_RTK_VOIP_8676_SPI_GPIO
 #elif defined (CONFIG_RTK_VOIP_8676_SHARED_SPI)

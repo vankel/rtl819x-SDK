@@ -116,14 +116,31 @@ unsigned char HAL_check_lmt_valid(IN  HAL_PADAPTER	Adapter, unsigned char phy_ba
 	if (Adapter->pshare->txpwr_lmt_HT2S == 0)
 		lmt_valid = 0;
 
+#if IS_RTL8814A_SERIES
+    if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+        if(Adapter->pshare->txpwr_lmt_HT3S == 0)
+            lmt_valid = 0;
+        if(Adapter->pshare->txpwr_lmt_HT4S == 0)
+            lmt_valid = 0;
+    }
+#endif
+
+	
 	if (phy_band == PHY_BAND_5G) {
 		if (Adapter->pshare->txpwr_lmt_VHT1S == 0)
 			lmt_valid = 0;
 
 		if (Adapter->pshare->txpwr_lmt_VHT2S == 0)
 			lmt_valid = 0;
+#if IS_RTL8814A_SERIES
+        if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+            if(Adapter->pshare->txpwr_lmt_VHT3S == 0)
+                lmt_valid = 0;
+            if(Adapter->pshare->txpwr_lmt_VHT4S == 0)
+                lmt_valid = 0;
+        }
+#endif
 	}
-
 #if 1
 	if (lmt_valid == 0)
 		RT_TRACE(COMP_RF, DBG_WARNING, ("NO Limit Value, NO limit TX POWER !!!\n limit for cck=%d, ofdm=%d, ht1s=%d, ht2s=%d, vht1s=%d, vht2s=%d\n",
@@ -141,16 +158,19 @@ unsigned char HAL_check_lmt_valid(IN  HAL_PADAPTER	Adapter, unsigned char phy_ba
 
 
 #if IS_RTL88XX_AC
-void TxLMT_OFDM_Jaguar_AC(IN  HAL_PADAPTER	Adapter)
+void TxLMT_OFDM_Jaguar_PathX_AC(
+    IN  HAL_PADAPTER	Adapter,
+    IN  u1Byte          bPathXEnIdx
+    )
 {
 
 	unsigned int  tmp_dw = 0;
-
+ 
 	unsigned char	idx_odfm_54m = 0;
 	unsigned char	idx_ht_mcs7 = 0;
 	unsigned char	idx_ht_mcs15 = 0;
-	unsigned char	idx_vht_1ss_mcs7 = 0;
-	unsigned char	idx_vht_2ss_mcs7 = 0;
+	unsigned char	idx_vht_1ss_mcs7 =0;
+	unsigned char	idx_vht_2ss_mcs7 =0;
 
 	char	lmt_pg_idx_ofdm = 0;
 	char	lmt_pg_idx_ht1s, lmt_pg_idx_ht2s = 0;
@@ -160,100 +180,225 @@ void TxLMT_OFDM_Jaguar_AC(IN  HAL_PADAPTER	Adapter)
 	unsigned char	max_lmt_idx_ht1s, max_lmt_idx_ht2s = 0;
 	unsigned char	max_lmt_idx_vht1s, max_lmt_idx_vht2s = 0;
 
+    // for MIMO 3T3R, 4T4R
+	unsigned char	idx_vht_3ss_mcs7 =0;    
+	unsigned char	idx_vht_4ss_mcs7 =0;  
+	char	        lmt_pg_idx_ht3s, lmt_pg_idx_ht4s = 0;
+	char	        lmt_pg_idx_vht3s, lmt_pg_idx_vht4s = 0;
+	unsigned char	max_lmt_idx_ht3s, max_lmt_idx_ht4s = 0;
+	unsigned char	max_lmt_idx_vht3s, max_lmt_idx_vht4s = 0;
+
+    u4Byte REG_BB_TXAGC_X_OFDM18_OFDM6_AC[4] =  {REG_BB_TXAGC_A_OFDM18_OFDM6_AC, REG_BB_TXAGC_B_OFDM18_OFDM6_AC, REG_BB_TXAGC_C_OFDM18_OFDM6_AC, REG_BB_TXAGC_D_OFDM18_OFDM6_AC};
+    u4Byte REG_BB_TXAGC_X_OFDM54_OFDM24_AC[4] = {REG_BB_TXAGC_A_OFDM54_OFDM24_AC, REG_BB_TXAGC_B_OFDM54_OFDM24_AC, REG_BB_TXAGC_C_OFDM54_OFDM24_AC, REG_BB_TXAGC_D_OFDM54_OFDM24_AC};
+
+    u4Byte REG_BB_TXAGC_X_MCS3_MCS0_AC[4] =     {REG_BB_TXAGC_A_MCS3_MCS0_AC, REG_BB_TXAGC_B_MCS3_MCS0_AC, REG_BB_TXAGC_C_MCS3_MCS0_AC, REG_BB_TXAGC_D_MCS3_MCS0_AC};
+    u4Byte REG_BB_TXAGC_X_MCS7_MCS4_AC[4] =     {REG_BB_TXAGC_A_MCS7_MCS4_AC, REG_BB_TXAGC_B_MCS7_MCS4_AC, REG_BB_TXAGC_C_MCS7_MCS4_AC, REG_BB_TXAGC_D_MCS7_MCS4_AC};
+    u4Byte REG_BB_TXAGC_X_MCS11_MCS8_AC[4] =    {REG_BB_TXAGC_A_MCS11_MCS8_AC, REG_BB_TXAGC_B_MCS11_MCS8_AC, REG_BB_TXAGC_C_MCS11_MCS8_AC, REG_BB_TXAGC_D_MCS11_MCS8_AC};
+    u4Byte REG_BB_TXAGC_X_MCS15_MCS12_AC[4] =   {REG_BB_TXAGC_A_MCS15_MCS12_AC, REG_BB_TXAGC_B_MCS15_MCS12_AC, REG_BB_TXAGC_C_MCS15_MCS12_AC, REG_BB_TXAGC_D_MCS15_MCS12_AC};
+
+    u4Byte REG_BB_TXAGC_X_NSS1INDEX3_NSS1INDEX0_AC[4] = {REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_C_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_D_NSS1INDEX3_NSS1INDEX0_AC};
+    u4Byte REG_BB_TXAGC_X_NSS1INDEX7_NSS1INDEX4_AC[4] = {REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_C_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_D_NSS1INDEX7_NSS1INDEX4_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_C_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_D_NSS2INDEX1_NSS1INDEX8_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX5_NSS2INDEX2_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_C_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_D_NSS2INDEX5_NSS2INDEX2_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX9_NSS2INDEX6_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_C_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_D_NSS2INDEX9_NSS2INDEX6_AC};
+
 	lmt_pg_idx_ofdm = Adapter->pshare->txpwr_lmt_OFDM - Adapter->pshare->tgpwr_OFDM_new[0];
 	lmt_pg_idx_ht1s = Adapter->pshare->txpwr_lmt_HT1S - Adapter->pshare->tgpwr_HT1S_new[0];
 	lmt_pg_idx_ht2s = Adapter->pshare->txpwr_lmt_HT2S - Adapter->pshare->tgpwr_HT2S_new[0];
 	lmt_pg_idx_vht1s = Adapter->pshare->txpwr_lmt_VHT1S - Adapter->pshare->tgpwr_VHT1S_new[0];
 	lmt_pg_idx_vht2s = Adapter->pshare->txpwr_lmt_VHT2S - Adapter->pshare->tgpwr_VHT2S_new[0];
 
-	//printk("%d %d %d %d %d\n", lmt_pg_idx_ofdm,
-	//lmt_pg_idx_ht1s, lmt_pg_idx_ht2s, lmt_pg_idx_vht1s, lmt_pg_idx_vht2s);
+ 	//Cal Max tx pwr idx for OFDM
 
-
-
-	//Cal Max tx pwr idx for OFDM
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_OFDM54_OFDM24_AC);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_X_OFDM54_OFDM24_AC[bPathXEnIdx]);
 	idx_odfm_54m = HAL_get_byte_from_dw(tmp_dw, 3);
 	max_lmt_idx_ofdm = idx_odfm_54m + lmt_pg_idx_ofdm;
 
 	//Cal Max tx pwr idx for HT1S
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_MCS7_MCS4_AC);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_X_MCS7_MCS4_AC[bPathXEnIdx]);
 	idx_ht_mcs7 = HAL_get_byte_from_dw(tmp_dw, 3);
 	max_lmt_idx_ht1s = idx_ht_mcs7 + lmt_pg_idx_ht1s;
 
 	//Cal Max tx pwr idx for HT2S
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_MCS15_MCS12_AC);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_X_MCS15_MCS12_AC[bPathXEnIdx]);
 	idx_ht_mcs15 = HAL_get_byte_from_dw(tmp_dw, 3);
 	max_lmt_idx_ht2s = idx_ht_mcs15 + lmt_pg_idx_ht2s;
 
 	//Cal Max tx pwr idx for VHT1S
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_X_NSS1INDEX7_NSS1INDEX4_AC[bPathXEnIdx]);
 	idx_vht_1ss_mcs7 = HAL_get_byte_from_dw(tmp_dw, 3);
 	max_lmt_idx_vht1s = idx_vht_1ss_mcs7 + lmt_pg_idx_vht1s;
 
 	//Cal Max tx pwr idx for VHT2S
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_X_NSS2INDEX9_NSS2INDEX6_AC[bPathXEnIdx]);
 	idx_vht_2ss_mcs7 = HAL_get_byte_from_dw(tmp_dw, 1);
-	max_lmt_idx_vht2s = idx_vht_2ss_mcs7 + lmt_pg_idx_vht2s;
+	max_lmt_idx_vht2s = idx_vht_2ss_mcs7 + lmt_pg_idx_vht2s; 
 
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_OFDM18_OFDM6_AC, max_lmt_idx_ofdm, 0);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_OFDM54_OFDM24_AC, max_lmt_idx_ofdm, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_OFDM18_OFDM6_AC[bPathXEnIdx], max_lmt_idx_ofdm, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_OFDM54_OFDM24_AC[bPathXEnIdx], max_lmt_idx_ofdm, 0);
+	
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_MCS3_MCS0_AC[bPathXEnIdx], max_lmt_idx_ht1s, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_MCS7_MCS4_AC[bPathXEnIdx], max_lmt_idx_ht1s, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_MCS11_MCS8_AC[bPathXEnIdx], max_lmt_idx_ht2s, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_MCS15_MCS12_AC[bPathXEnIdx], max_lmt_idx_ht2s, 0);
 
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_MCS3_MCS0_AC, max_lmt_idx_ht1s, 0);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_MCS7_MCS4_AC, max_lmt_idx_ht1s, 0);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_MCS11_MCS8_AC, max_lmt_idx_ht2s, 0);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_MCS15_MCS12_AC, max_lmt_idx_ht2s, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_NSS1INDEX3_NSS1INDEX0_AC[bPathXEnIdx], max_lmt_idx_vht1s, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_NSS1INDEX7_NSS1INDEX4_AC[bPathXEnIdx], max_lmt_idx_vht1s, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[bPathXEnIdx], max_lmt_idx_vht1s, max_lmt_idx_vht2s);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_NSS2INDEX5_NSS2INDEX2_AC[bPathXEnIdx], max_lmt_idx_vht2s, 0);
+	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_NSS2INDEX9_NSS2INDEX6_AC[bPathXEnIdx], max_lmt_idx_vht2s, 0);
 
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC, max_lmt_idx_vht1s, 0);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC, max_lmt_idx_vht1s, 0);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, max_lmt_idx_vht1s, max_lmt_idx_vht2s);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC, max_lmt_idx_vht2s, 0);
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC, max_lmt_idx_vht2s, 0);
+}
 
 
-	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
-		//Cal Max tx pwr idx for OFDM
-		tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_OFDM54_OFDM24_AC);
-		idx_odfm_54m = HAL_get_byte_from_dw(tmp_dw, 3);
-		max_lmt_idx_ofdm = idx_odfm_54m + lmt_pg_idx_ofdm;
+#if IS_RTL8814A_SERIES	
+void TxLMT_OFDM_Jaguar_AC_8814(
+    IN  HAL_PADAPTER	Adapter
+    )
+{
 
-		//Cal Max tx pwr idx for HT1S
-		tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_MCS7_MCS4_AC);
-		idx_ht_mcs7 = HAL_get_byte_from_dw(tmp_dw, 3);
-		max_lmt_idx_ht1s = idx_ht_mcs7 + lmt_pg_idx_ht1s;
+	unsigned int  	tmp_dw = 0;
+	unsigned char	bPathXEnIdx, rate, start, end;
+ 
+	unsigned char	idx_odfm_54m = 0;
+	unsigned char	idx_ht_mcs7 = 0;
+	unsigned char	idx_ht_mcs15 = 0;
+	unsigned char	idx_vht_1ss_mcs7 =0;
+	unsigned char	idx_vht_2ss_mcs7 =0;
+	unsigned char	idx_vht_3ss_mcs7 =0;    
+	unsigned char	idx_vht_4ss_mcs7 =0; 
 
-		//Cal Max tx pwr idx for HT2S
-		tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_MCS15_MCS12_AC);
-		idx_ht_mcs15 = HAL_get_byte_from_dw(tmp_dw, 3);
-		max_lmt_idx_ht2s = idx_ht_mcs15 + lmt_pg_idx_ht2s;
+	char			lmt_pg_idx_ofdm = 0;
+	char			lmt_pg_idx_ht1s, lmt_pg_idx_ht2s = 0;
+	char			lmt_pg_idx_vht1s, lmt_pg_idx_vht2s = 0;
+	char	        lmt_pg_idx_ht3s, lmt_pg_idx_ht4s = 0;
+	char	        lmt_pg_idx_vht3s, lmt_pg_idx_vht4s = 0;
 
-		//Cal Max tx pwr idx for VHT1S
-		tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC);
-		idx_vht_1ss_mcs7 = HAL_get_byte_from_dw(tmp_dw, 3);
-		max_lmt_idx_vht1s = idx_vht_1ss_mcs7 + lmt_pg_idx_vht1s;
+	unsigned char	max_lmt_idx_ofdm = 0;
+	unsigned char	max_lmt_idx_ht1s, max_lmt_idx_ht2s = 0;
+	unsigned char	max_lmt_idx_vht1s, max_lmt_idx_vht2s = 0;
+	unsigned char	max_lmt_idx_ht3s, max_lmt_idx_ht4s = 0;
+	unsigned char	max_lmt_idx_vht3s, max_lmt_idx_vht4s = 0;
 
-		//Cal Max tx pwr idx for VHT2S
-		tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC);
-		idx_vht_2ss_mcs7 = HAL_get_byte_from_dw(tmp_dw, 1);
-		max_lmt_idx_vht2s = idx_vht_2ss_mcs7 + lmt_pg_idx_vht2s;
+	lmt_pg_idx_ofdm = Adapter->pshare->txpwr_lmt_OFDM - Adapter->pshare->tgpwr_OFDM_new[0];
+	lmt_pg_idx_ht1s = Adapter->pshare->txpwr_lmt_HT1S - Adapter->pshare->tgpwr_HT1S_new[0];
+	lmt_pg_idx_ht2s = Adapter->pshare->txpwr_lmt_HT2S - Adapter->pshare->tgpwr_HT2S_new[0];
+	lmt_pg_idx_ht3s = Adapter->pshare->txpwr_lmt_HT3S - Adapter->pshare->tgpwr_HT3S_new[0];
+    lmt_pg_idx_ht4s = Adapter->pshare->txpwr_lmt_HT4S - Adapter->pshare->tgpwr_HT4S_new[0];
+	lmt_pg_idx_vht1s = Adapter->pshare->txpwr_lmt_VHT1S - Adapter->pshare->tgpwr_VHT1S_new[0];
+	lmt_pg_idx_vht2s = Adapter->pshare->txpwr_lmt_VHT2S - Adapter->pshare->tgpwr_VHT2S_new[0];
+    lmt_pg_idx_vht3s = Adapter->pshare->txpwr_lmt_VHT3S - Adapter->pshare->tgpwr_VHT3S_new[0];
+    lmt_pg_idx_vht4s = Adapter->pshare->txpwr_lmt_VHT4S - Adapter->pshare->tgpwr_VHT4S_new[0];
+#if 0	// Debug message
+	printk("lmt_pg_idx_ofdm=%d =(txpwr_lmt_OFDM=%d - tgpwr_OFDM_new[0]=%d)\n",lmt_pg_idx_ofdm, Adapter->pshare->txpwr_lmt_OFDM, Adapter->pshare->tgpwr_OFDM_new[0]);
+	printk("lmt_pg_idx_ht1s=%d =(txpwr_lmt_HT1S=%d - tgpwr_HT1S_new[0]=%d)\n",lmt_pg_idx_ht1s, Adapter->pshare->txpwr_lmt_HT1S, Adapter->pshare->tgpwr_HT1S_new[0]);
+	printk("lmt_pg_idx_ht2s=%d =(txpwr_lmt_HT2S=%d - tgpwr_HT2S_new[0]=%d)\n",lmt_pg_idx_ht2s, Adapter->pshare->txpwr_lmt_HT2S, Adapter->pshare->tgpwr_HT2S_new[0]);
+	printk("lmt_pg_idx_ht3s=%d =(txpwr_lmt_HT3S=%d - tgpwr_HT3S_new[0]=%d)\n",lmt_pg_idx_ht3s, Adapter->pshare->txpwr_lmt_HT3S, Adapter->pshare->tgpwr_HT3S_new[0]);
+	printk("lmt_pg_idx_ht4s=%d =(txpwr_lmt_HT4S=%d - tgpwr_HT4S_new[0]=%d)\n",lmt_pg_idx_ht4s, Adapter->pshare->txpwr_lmt_HT4S, Adapter->pshare->tgpwr_HT4S_new[0]);
+	printk("lmt_pg_idx_vht1s=%d =(txpwr_lmt_VHT1S=%d - tgpwr_VHT1S_new[0]=%d)\n",lmt_pg_idx_vht1s, Adapter->pshare->txpwr_lmt_VHT1S, Adapter->pshare->tgpwr_VHT1S_new[0]);
+	printk("lmt_pg_idx_vht2s=%d =(txpwr_lmt_VHT2S=%d - tgpwr_VHT2S_new[0]=%d)\n",lmt_pg_idx_vht2s, Adapter->pshare->txpwr_lmt_VHT2S, Adapter->pshare->tgpwr_VHT2S_new[0]);
+	printk("lmt_pg_idx_vht3s=%d =(txpwr_lmt_VHT3S=%d - tgpwr_VHT3S_new[0]=%d)\n",lmt_pg_idx_vht3s, Adapter->pshare->txpwr_lmt_VHT3S, Adapter->pshare->tgpwr_VHT3S_new[0]);
+	printk("lmt_pg_idx_vht4s=%d =(txpwr_lmt_VHT4S=%d - tgpwr_VHT4S_new[0]=%d)\n",lmt_pg_idx_vht4s, Adapter->pshare->txpwr_lmt_VHT4S, Adapter->pshare->tgpwr_VHT4S_new[0]);
+#endif
+#ifdef CONFIG_RTL_8814_8194_2T2R_SUPPORT
+		start=1;
+		end=2;
+#else
+		start=1;
+		end=3;
+#endif
 
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_OFDM18_OFDM6_AC, max_lmt_idx_ofdm, 0);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_OFDM54_OFDM24_AC, max_lmt_idx_ofdm, 0);
-
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_MCS3_MCS0_AC, max_lmt_idx_ht1s, 0);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_MCS7_MCS4_AC, max_lmt_idx_ht1s, 0);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_MCS11_MCS8_AC, max_lmt_idx_ht2s, 0);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_MCS15_MCS12_AC, max_lmt_idx_ht2s, 0);
-
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC, max_lmt_idx_vht1s, 0);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, max_lmt_idx_vht1s, 0);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, max_lmt_idx_vht1s, max_lmt_idx_vht2s);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC, max_lmt_idx_vht2s, 0);
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, max_lmt_idx_vht2s, 0);
+ 	/* Cal Max tx pwr idx for each path */
+	for(bPathXEnIdx = start; bPathXEnIdx <= end ; bPathXEnIdx++ ){
+		max_lmt_idx_ofdm = lmt_pg_idx_ofdm + HAL_VAR_CurrentTxAgcOFDM(bPathXEnIdx, TX_AGC_OFDM_54M-TX_AGC_OFDM_6M);
+		max_lmt_idx_ht1s = lmt_pg_idx_ht1s + HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, TX_AGC_HT_NSS1_MCS7-TX_AGC_HT_NSS1_MCS0);
+		max_lmt_idx_ht2s = lmt_pg_idx_ht2s + HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, TX_AGC_HT_NSS2_MCS15-TX_AGC_HT_NSS1_MCS0);
+		max_lmt_idx_ht3s = lmt_pg_idx_ht3s + HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, TX_AGC_HT_NSS3_MCS23-TX_AGC_HT_NSS1_MCS0);
+		max_lmt_idx_vht1s = lmt_pg_idx_vht1s + HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, TX_AGC_VHT_NSS1_MCS7-TX_AGC_VHT_NSS1_MCS0);
+		max_lmt_idx_vht2s = lmt_pg_idx_vht2s + HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, TX_AGC_VHT_NSS2_MCS7-TX_AGC_VHT_NSS1_MCS0);
+		max_lmt_idx_vht3s = lmt_pg_idx_vht3s + HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, TX_AGC_VHT_NSS3_MCS7-TX_AGC_VHT_NSS1_MCS0);
+#if 0	// Debug message
+		printk("max_lmt_idx_ofdm=%d =(lmt_pg_idx_ofdm=%d + HAL_VAR_CurrentTxAgcOFDM(%d, TX_AGC_OFDM_54M-TX_AGC_OFDM_6M)=%d)\n",max_lmt_idx_ofdm, lmt_pg_idx_ofdm, bPathXEnIdx, HAL_VAR_CurrentTxAgcOFDM(bPathXEnIdx, TX_AGC_OFDM_54M-TX_AGC_OFDM_6M));
+		printk("max_lmt_idx_ht1s=%d =(lmt_pg_idx_ht1s=%d + HAL_VAR_CurrentTxAgcMCS(%d, TX_AGC_HT_NSS1_MCS7-TX_AGC_HT_NSS1_MCS0)=%d)\n",max_lmt_idx_ht1s, lmt_pg_idx_ht1s, bPathXEnIdx, HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, TX_AGC_HT_NSS1_MCS7-TX_AGC_HT_NSS1_MCS0));
+		printk("max_lmt_idx_ht2s=%d =(lmt_pg_idx_ht2s=%d + HAL_VAR_CurrentTxAgcMCS(%d, TX_AGC_HT_NSS2_MCS15-TX_AGC_HT_NSS1_MCS0)=%d)\n",max_lmt_idx_ht2s, lmt_pg_idx_ht2s, bPathXEnIdx, HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, TX_AGC_HT_NSS2_MCS15-TX_AGC_HT_NSS1_MCS0));
+		printk("max_lmt_idx_ht3s=%d =(lmt_pg_idx_ht3s=%d + HAL_VAR_CurrentTxAgcMCS(%d, TX_AGC_HT_NSS3_MCS23-TX_AGC_HT_NSS1_MCS0)=%d)\n",max_lmt_idx_ht3s, lmt_pg_idx_ht3s, bPathXEnIdx, HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, TX_AGC_HT_NSS3_MCS23-TX_AGC_HT_NSS1_MCS0));
+		printk("max_lmt_idx_vht1s=%d =(lmt_pg_idx_vht1s=%d + HAL_VAR_CurrentTxAgcVHT(%d, TX_AGC_VHT_NSS1_MCS7-TX_AGC_VHT_NSS1_MCS0)=%d)\n",max_lmt_idx_vht1s, lmt_pg_idx_vht1s, bPathXEnIdx, HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, TX_AGC_VHT_NSS1_MCS7-TX_AGC_VHT_NSS1_MCS0));
+		printk("max_lmt_idx_vht2s=%d =(lmt_pg_idx_vht2s=%d + HAL_VAR_CurrentTxAgcVHT(%d, TX_AGC_VHT_NSS2_MCS7-TX_AGC_VHT_NSS1_MCS0)=%d)\n",max_lmt_idx_vht2s, lmt_pg_idx_vht2s, bPathXEnIdx, HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, TX_AGC_VHT_NSS2_MCS7-TX_AGC_VHT_NSS1_MCS0));
+		printk("max_lmt_idx_vht3s=%d =(lmt_pg_idx_vht3s=%d + HAL_VAR_CurrentTxAgcVHT(%d, TX_AGC_VHT_NSS3_MCS7-TX_AGC_VHT_NSS1_MCS0)=%d)\n",max_lmt_idx_vht3s, lmt_pg_idx_vht3s, bPathXEnIdx, HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, TX_AGC_VHT_NSS3_MCS7-TX_AGC_VHT_NSS1_MCS0));
+#endif
+		/* set OFDM power index */
+		for(rate = 0; rate <= TX_AGC_OFDM_54M - TX_AGC_OFDM_6M; rate++)
+			PHYSetTxPower88XX(Adapter, rate+TX_AGC_OFDM_6M, rate+TX_AGC_OFDM_6M, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcOFDM(bPathXEnIdx, rate), max_lmt_idx_ofdm)));
+		/* set MCS 1/2/3 SS power index */
+		for(rate = 0; rate <= TX_AGC_HT_NSS1_MCS7-TX_AGC_HT_NSS1_MCS0; rate++)
+			PHYSetTxPower88XX(Adapter, rate+TX_AGC_HT_NSS1_MCS0, rate+TX_AGC_HT_NSS1_MCS0, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, rate), max_lmt_idx_ht1s)));
+		for(rate = TX_AGC_HT_NSS2_MCS8-TX_AGC_HT_NSS1_MCS0; rate <= TX_AGC_HT_NSS2_MCS15-TX_AGC_HT_NSS1_MCS0; rate++)
+			PHYSetTxPower88XX(Adapter, rate+TX_AGC_HT_NSS1_MCS0, rate+TX_AGC_HT_NSS1_MCS0, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, rate), max_lmt_idx_ht2s)));
+		for(rate = TX_AGC_HT_NSS3_MCS16-TX_AGC_HT_NSS1_MCS0; rate <= TX_AGC_HT_NSS3_MCS23-TX_AGC_HT_NSS1_MCS0; rate++)
+			PHYSetTxPower88XX(Adapter, rate+TX_AGC_HT_NSS1_MCS0, rate+TX_AGC_HT_NSS1_MCS0, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcMCS(bPathXEnIdx, rate), max_lmt_idx_ht3s)));
+		/* set VHT MCS 1/2/3 SS power index */		
+		for(rate = 0; rate <= TX_AGC_VHT_NSS1_MCS9-TX_AGC_VHT_NSS1_MCS0; rate++)
+			PHYSetTxPower88XX(Adapter, rate+TX_AGC_VHT_NSS1_MCS0, rate+TX_AGC_VHT_NSS1_MCS0, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, rate), max_lmt_idx_vht1s)));
+		for(rate = TX_AGC_VHT_NSS2_MCS0-TX_AGC_VHT_NSS1_MCS0; rate <= TX_AGC_VHT_NSS2_MCS9-TX_AGC_VHT_NSS1_MCS0; rate++)
+			PHYSetTxPower88XX(Adapter, rate+TX_AGC_VHT_NSS1_MCS0, rate+TX_AGC_VHT_NSS1_MCS0, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, rate), max_lmt_idx_vht2s)));
+		for(rate = TX_AGC_VHT_NSS3_MCS0-TX_AGC_VHT_NSS1_MCS0; rate <= TX_AGC_VHT_NSS3_MCS9-TX_AGC_VHT_NSS1_MCS0; rate++)
+			PHYSetTxPower88XX(Adapter, rate+TX_AGC_VHT_NSS1_MCS0, rate+TX_AGC_VHT_NSS1_MCS0, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcVHT(bPathXEnIdx, rate), max_lmt_idx_vht3s)));
 	}
 }
 
-void TxLMT_CCK_Jaguar_AC(IN  HAL_PADAPTER	Adapter)
+
+void TxLMT_CCK_Jaguar_AC_8814(IN  HAL_PADAPTER	Adapter)
+{
+
+	unsigned int	tmp_dw = 0;
+	unsigned char	idx_cck_11m = 0;
+	unsigned char	max_lmt_idx_cck, bPathXEnIdx, rate;
+	char			lmt_pg_idx_cck;
+	int i, start, end;
+	
+#ifdef CONFIG_RTL_8814_8194_2T2R_SUPPORT
+			start=1;
+			end=2;
+#else
+			start=1;
+			end=3;
+#endif
+
+	lmt_pg_idx_cck = Adapter->pshare->txpwr_lmt_CCK - Adapter->pshare->tgpwr_CCK_new[0];
+	//printk("lmt_pg_idx_cck=%d =(txpwr_lmt_CCK=%d - tgpwr_CCK_new[0]=%d)\n",lmt_pg_idx_cck, Adapter->pshare->txpwr_lmt_CCK, Adapter->pshare->tgpwr_CCK_new[0]);
+
+	//Cal Max tx pwr idx for CCK
+	for(bPathXEnIdx = start; bPathXEnIdx <= end ; bPathXEnIdx++ ){
+		max_lmt_idx_cck = lmt_pg_idx_cck + HAL_VAR_CurrentTxAgcCCK(bPathXEnIdx, TX_AGC_CCK_11M);
+		//printk("max_lmt_idx_cck=%d =(lmt_pg_idx_cck=%d + HAL_VAR_CurrentTxAgcCCK(%d, TX_AGC_CCK_11M)=%d)\n",max_lmt_idx_cck, lmt_pg_idx_cck, bPathXEnIdx, HAL_VAR_CurrentTxAgcCCK(bPathXEnIdx, TX_AGC_CCK_11M));
+		/* set CCK power index */
+		for(rate = 0; rate <= TX_AGC_CCK_11M; rate++)
+			PHYSetTxPower88XX(Adapter, rate, rate, bPathXEnIdx, POWER_RANGE_CHECK(POWER_MIN_CHECK(HAL_VAR_CurrentTxAgcCCK(bPathXEnIdx, rate), max_lmt_idx_cck)));
+	}
+}
+#endif
+
+
+void TxLMT_OFDM_Jaguar_AC(IN  HAL_PADAPTER	Adapter)
+{
+    if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 0);
+	} else if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 0);
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 1);
+    } else if (GetChipIDMIMO88XX(Adapter) == MIMO_3T3R) {
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 0);
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 1);
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 2);
+    } else if (GetChipIDMIMO88XX(Adapter) == MIMO_4T4R) {
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 0);
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 1);
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 2);
+        TxLMT_OFDM_Jaguar_PathX_AC(Adapter, 3);
+	}
+}
+
+void TxLMT_CCK_Jaguar_AC(IN  HAL_PADAPTER	Adapter, IN pu1Byte bPathXEn)
 {
 
 	unsigned int  tmp_dw = 0;
@@ -263,28 +408,25 @@ void TxLMT_CCK_Jaguar_AC(IN  HAL_PADAPTER	Adapter)
 	char	lmt_pg_idx_cck;
 
 	unsigned char	max_lmt_idx_cck;
+    int i;
+
+    unsigned int REG_BB_TXAGC_X_CCK11_CCK1_AC[4] = {REG_BB_TXAGC_A_CCK11_CCK1_AC, REG_BB_TXAGC_B_CCK11_CCK1_AC, REG_BB_TXAGC_C_CCK11_CCK1_AC, REG_BB_TXAGC_D_CCK11_CCK1_AC};
 
 	lmt_pg_idx_cck = Adapter->pshare->txpwr_lmt_CCK - Adapter->pshare->tgpwr_CCK_new[0];
 
-	//printk("%d %d %d %d %d %d\n", lmt_pg_idx_cck, lmt_pg_idx_ofdm,
-	//lmt_pg_idx_ht1s, lmt_pg_idx_ht2s, lmt_pg_idx_vht1s, lmt_pg_idx_vht2s);
-
-
 	//Cal Max tx pwr idx for CCK
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_CCK11_CCK1_AC);
-	idx_cck_11m = HAL_get_byte_from_dw(tmp_dw, 3);
-	max_lmt_idx_cck = idx_cck_11m + lmt_pg_idx_cck;
-	HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_A_CCK11_CCK1_AC, max_lmt_idx_cck, 0);
-
-	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
-		tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_CCK11_CCK1_AC);
-		idx_cck_11m = HAL_get_byte_from_dw(tmp_dw, 3);
-		max_lmt_idx_cck = idx_cck_11m + lmt_pg_idx_cck;
-		HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_B_CCK11_CCK1_AC, max_lmt_idx_cck, 0);
+    for(i = 0; i < 4; i++) {
+        if (bPathXEn[i]) {
+            tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_X_CCK11_CCK1_AC[i]);
+            idx_cck_11m = HAL_get_byte_from_dw(tmp_dw, 3);
+            max_lmt_idx_cck = idx_cck_11m + lmt_pg_idx_cck;
+            HAL_assign_lmt_reg_value(Adapter, REG_BB_TXAGC_X_CCK11_CCK1_AC[i], max_lmt_idx_cck, 0);
+        }
 	}
 
 
 }
+
 
 #endif
 #if IS_RTL88XX_N
@@ -292,7 +434,7 @@ void TxLMT_OFDM_Jaguar_N(IN  HAL_PADAPTER	Adapter)
 {
 
 	unsigned int  tmp_dw = 0;
-
+ 
 	unsigned char	idx_ht_mcs7 = 0;
 	unsigned char	idx_ht_mcs15 = 0;
 	unsigned char   idx_rate54 = 0;
@@ -302,9 +444,7 @@ void TxLMT_OFDM_Jaguar_N(IN  HAL_PADAPTER	Adapter)
 
 	unsigned char	max_lmt_idx_ht1s, max_lmt_idx_ht2s = 0;
 	unsigned char   max_lmt_rate54 = 0;
-#ifdef _DEBUG_RTL8192CD_
-	PRTL8192CD_PRIV		priv = Adapter;
-#endif
+ 	
 	lmt_pg_idx_ht1s = Adapter->pshare->txpwr_lmt_HT1S - Adapter->pshare->tgpwr_HT1S_new[0];
 	lmt_pg_idx_ht2s = Adapter->pshare->txpwr_lmt_HT2S - Adapter->pshare->tgpwr_HT2S_new[0];
 	lmt_pg_idx_rate = Adapter->pshare->txpwr_lmt_OFDM - Adapter->pshare->tgpwr_OFDM_new[0];
@@ -372,13 +512,11 @@ void TxLMT_CCK_Jaguar_N(IN  HAL_PADAPTER	Adapter)
 
 	unsigned char	idx_cck_11m_A = 0, idx_cck_11m_B = 0;
 
-	char	lmt_pg_idx_cck_A, lmt_pg_idx_cck_B;
+	char	lmt_pg_idx_cck_A,lmt_pg_idx_cck_B;
 
 	unsigned char	max_lmt_idx_cck_A;
 	unsigned char	max_lmt_idx_cck_B = 0;
-#ifdef _DEBUG_RTL8192CD_
-	PRTL8192CD_PRIV		priv = Adapter;
-#endif
+
 	lmt_pg_idx_cck_A = Adapter->pshare->txpwr_lmt_CCK - Adapter->pshare->tgpwr_CCK_new[0];
 
 	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R)
@@ -422,7 +560,10 @@ phy_RFSerialWrite_88XX_AC
 {
 	u4Byte dwTmp = 0;
 	u4Byte value = ((RegAddr << 20) | Data); // addr BIT[27:20], data BIT[19:0]
+	u4Byte temp_CCA = 0;
 
+
+    temp_CCA = HAL_RTL_R32(REG_BB_CCAONSEC_AC);
 	PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT_MASK_BB_CCA_AC, 0xc); // CCA off
 
 	if (eRFPath == RF88XX_PATH_A) {
@@ -438,8 +579,26 @@ phy_RFSerialWrite_88XX_AC
 
 		HAL_RTL_W32(REG_BB_B_LSSIWRITE_AC, dwTmp);
 	}
+#if IS_RTL8814A_SERIES
+	else if(eRFPath == RF88XX_PATH_C)
+	{
+		dwTmp = HAL_RTL_R32(REG_BB_C_LSSIWRITE_AC);
+		dwTmp &= BIT_MASK_BB_LSSIWRITE_AC;
+		dwTmp |= value;
+	
+		HAL_RTL_W32(REG_BB_C_LSSIWRITE_AC, dwTmp);
+	}
+	else if(eRFPath == RF88XX_PATH_D)
+	{
+		dwTmp = HAL_RTL_R32(REG_BB_D_LSSIWRITE_AC);
+		dwTmp &= BIT_MASK_BB_LSSIWRITE_AC;
+		dwTmp |= value;
+	
+		HAL_RTL_W32(REG_BB_D_LSSIWRITE_AC, dwTmp);
+	}
+#endif
 
-	PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT_MASK_BB_CCA_AC, 0x4); // CCA off
+	PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT_MASK_BB_CCA_AC, temp_CCA); // CCA off
 }
 
 u4Byte
@@ -460,6 +619,7 @@ PHY_QueryRFReg_88XX_AC(
 	HAL_PADAPTER    priv     = Adapter;
 	unsigned long   flags;
 	u4Byte          Original_Value, Readback_Value, BitShift;
+    u4Byte          temp_CCA;
 
 #if CFG_HAL_DISABLE_BB_RF
 	return 0;
@@ -467,6 +627,7 @@ PHY_QueryRFReg_88XX_AC(
 
 	HAL_SAVE_INT_AND_CLI(flags);
 
+    temp_CCA = HAL_RTL_R32(REG_BB_CCAONSEC_AC);
 	PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT_MASK_BB_CCA_AC, 0xc); // CCA off
 
 	HAL_RTL_W8(REG_BB_HSSIREAD_AC, RegAddr);
@@ -478,18 +639,27 @@ PHY_QueryRFReg_88XX_AC(
 		Original_Value = HAL_RTL_R32(REG_BB_A_PIREAD_AC);
 	} else if (eRFPath == RF88XX_PATH_B) {
 		Original_Value = HAL_RTL_R32(REG_BB_B_PIREAD_AC);
-	} else {
+	}
+#if IS_RTL8814A_SERIES
+	else if(eRFPath == RF88XX_PATH_C) {
+		Original_Value = HAL_RTL_R32(REG_BB_C_PIREAD_AC);
+	}
+	else if(eRFPath == RF88XX_PATH_D) {
+		Original_Value = HAL_RTL_R32(REG_BB_D_PIREAD_AC);
+	}
+#endif
+    else {
 		RT_TRACE_F(COMP_RF, DBG_SERIOUS, ("RF PATH no existence\n"));
 		HAL_RESTORE_INT(flags);
 		return 0xFFFFFFFF;
 	}
 
 	Original_Value &= 0xfffff;
-
+	
 	BitShift =	phy_CalculateBitShift_88XX(BitMask);
 	Readback_Value = (Original_Value & BitMask) >> BitShift;
 
-	PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT_MASK_BB_CCA_AC, 0x4); //	CCA on
+	PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT_MASK_BB_CCA_AC, temp_CCA); //	CCA on
 
 	HAL_RESTORE_INT(flags);
 
@@ -516,7 +686,8 @@ PHY_SetRFReg_88XX_AC
 
 	HAL_SAVE_INT_AND_CLI(flags);
 	if (BitMask != BIT_MASK_SET_MASK20BITS_COMMON) {
-		Original_Value = PHY_QueryRFReg_88XX_AC(Adapter, eRFPath, RegAddr, BIT_MASK_SET_MASK20BITS_COMMON);
+		Original_Value = GET_HAL_INTERFACE(priv)->PHYQueryRFRegHandler(Adapter, eRFPath, RegAddr, BIT_MASK_SET_MASK20BITS_COMMON); 
+		//Original_Value = PHY_QueryRFReg_88XX_AC(Adapter, eRFPath, RegAddr, BIT_MASK_SET_MASK20BITS_COMMON);
 		BitShift = phy_CalculateBitShift_88XX(BitMask);
 		New_Value = ((Original_Value & (~BitMask)) | (Data << BitShift));
 		phy_RFSerialWrite_88XX_AC(Adapter, eRFPath, RegAddr, New_Value);
@@ -542,7 +713,8 @@ void get_tx_pwr_88XX(unsigned int tmp_dw, unsigned char *tmp_b1, unsigned char *
 
 void TxPG_CCK_Jaguar
 (
-	IN  HAL_PADAPTER                Adapter
+	IN  HAL_PADAPTER    Adapter,
+	IN  pu1Byte         bPathXEn
 )
 {
 	unsigned char b1, b2, b3, b4;
@@ -553,26 +725,153 @@ void TxPG_CCK_Jaguar
 	unsigned int  tmp_dw = 0;
 	unsigned int  writeVal = 0;
 
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_CCK11_CCK1_AC);
-	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
-	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->CCKTxAgc_A[3]);
-	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->CCKTxAgc_A[2]);
-	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->CCKTxAgc_A[1]);
-	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->CCKTxAgc_A[0]);
-	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
-	HAL_RTL_W32(REG_BB_TXAGC_A_CCK11_CCK1_AC, writeVal);
-
-	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_CCK11_CCK1_AC);
-	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
-	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->CCKTxAgc_B[7]);
-	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->CCKTxAgc_B[6]);
-	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->CCKTxAgc_B[5]);
-	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->CCKTxAgc_B[4]);
-	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
-	HAL_RTL_W32(REG_BB_TXAGC_B_CCK11_CCK1_AC, writeVal);
+    if (bPathXEn[0]) {
+    	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_A_CCK11_CCK1_AC);
+    	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+    	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->CCKTxAgc_A[3]);
+    	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->CCKTxAgc_A[2]);
+    	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->CCKTxAgc_A[1]);
+    	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->CCKTxAgc_A[0]);
+    	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+    	HAL_RTL_W32(REG_BB_TXAGC_A_CCK11_CCK1_AC, writeVal);
+    } 
+    // TODO: 8814AE CCKTxAgc_B[4,5,6,7] ???
+    if (bPathXEn[1]) {
+    	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_CCK11_CCK1_AC);
+    	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+    	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->CCKTxAgc_B[3]);
+    	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->CCKTxAgc_B[2]);
+    	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->CCKTxAgc_B[1]);
+    	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->CCKTxAgc_B[0]);
+    	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+    	HAL_RTL_W32(REG_BB_TXAGC_B_CCK11_CCK1_AC, writeVal);
+    }		
+    if (bPathXEn[2]) {
+        tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_CCK11_CCK1_AC);
+        get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+        *tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->CCKTxAgc_C[3]);
+        *tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->CCKTxAgc_C[2]);
+        *tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->CCKTxAgc_C[1]);
+        *tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->CCKTxAgc_C[0]);
+        writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+        HAL_RTL_W32(REG_BB_TXAGC_C_CCK11_CCK1_AC, writeVal);
+    }
+    if (bPathXEn[3]) {
+        tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_CCK11_CCK1_AC);
+        get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+        *tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->CCKTxAgc_D[3]);
+        *tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->CCKTxAgc_D[2]);
+        *tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->CCKTxAgc_D[1]);
+        *tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->CCKTxAgc_D[0]);
+        writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+        HAL_RTL_W32(REG_BB_TXAGC_D_CCK11_CCK1_AC, writeVal);
+    }	
 }
 
 
+#if IS_RTL8814A_SERIES
+void TxPG_CCK_8814
+(
+	IN  HAL_PADAPTER                Adapter
+)
+{
+	int path, rate, start, end;
+	char *pTxAgcOffset;
+	
+#ifdef CONFIG_RTL_8814_8194_2T2R_SUPPORT
+		start=1;
+		end=2;
+#else
+		start=1;
+		end=3;
+#endif
+
+	for(path=start;path<=end;path++){
+		switch(path){
+		case 0:	pTxAgcOffset = Adapter->pshare->phw->CCKTxAgc_A;	break;
+		case 1:	pTxAgcOffset = Adapter->pshare->phw->CCKTxAgc_B;	break;
+		case 2:	pTxAgcOffset = Adapter->pshare->phw->CCKTxAgc_C;	break;
+		case 3:	pTxAgcOffset = Adapter->pshare->phw->CCKTxAgc_D;	break;
+		}
+		for(rate=TX_AGC_CCK_1M;rate<=TX_AGC_CCK_11M;rate++){
+			//printk("CurrentTxAgcCCK[%d][%d]=%x + %x = ",path,rate,Adapter->pshare->phw->CurrentTxAgcCCK[path][rate],(unsigned char)*(pTxAgcOffset+rate));
+			Adapter->pshare->phw->CurrentTxAgcCCK[path][rate] += (unsigned char)*(pTxAgcOffset+rate);
+            PHYSetTxPower88XX(Adapter, rate, rate, path, Adapter->pshare->phw->CurrentTxAgcCCK[path][rate]);
+			//printk("CurrentTxAgcCCK[%d][%d]=%x\n",path,rate,Adapter->pshare->phw->CurrentTxAgcCCK[path][rate]);
+		}
+	}
+}
+
+
+void TxPG_OFDM_8814
+(
+	IN  HAL_PADAPTER                Adapter
+)
+{
+	int path, rate, start, end;
+	char *pTxAgcOffset;
+
+#ifdef CONFIG_RTL_8814_8194_2T2R_SUPPORT
+	start=1;
+	end=2;
+#else
+	start=1;
+	end=3;
+#endif
+	/* OFDM */
+	for(path=start;path<=end;path++){
+		switch(path){
+		case 0:	pTxAgcOffset = Adapter->pshare->phw->OFDMTxAgcOffset_A;	break;
+		case 1:	pTxAgcOffset = Adapter->pshare->phw->OFDMTxAgcOffset_B;	break;
+		case 2:	pTxAgcOffset = Adapter->pshare->phw->OFDMTxAgcOffset_C;	break;
+		case 3:	pTxAgcOffset = Adapter->pshare->phw->OFDMTxAgcOffset_D;	break;
+		}
+		for(rate=TX_AGC_OFDM_6M;rate<=TX_AGC_OFDM_54M;rate++){
+			//printk("CurrentTxAgcOFDM[%d][%d]=%x + %x = ",path,rate-TX_AGC_OFDM_6M,Adapter->pshare->phw->CurrentTxAgcOFDM[path][rate-TX_AGC_OFDM_6M],(unsigned char)*(pTxAgcOffset+rate-TX_AGC_OFDM_6M));
+			Adapter->pshare->phw->CurrentTxAgcOFDM[path][rate-TX_AGC_OFDM_6M] += (unsigned char)*(pTxAgcOffset+rate-TX_AGC_OFDM_6M);
+            PHYSetTxPower88XX(Adapter, rate, rate, path, Adapter->pshare->phw->CurrentTxAgcOFDM[path][rate-TX_AGC_OFDM_6M]);
+			//printk("CurrentTxAgcOFDM[%d][%d]=%x\n",path,rate-TX_AGC_OFDM_6M,Adapter->pshare->phw->CurrentTxAgcOFDM[path][rate-TX_AGC_OFDM_6M]);
+		}
+	}
+	/* HT MCS */
+	for(path=start;path<=end;path++){
+		switch(path){
+		case 0:	pTxAgcOffset = Adapter->pshare->phw->MCSTxAgcOffset_A;	break;
+		case 1:	pTxAgcOffset = Adapter->pshare->phw->MCSTxAgcOffset_B;	break;
+		case 2:	pTxAgcOffset = Adapter->pshare->phw->MCSTxAgcOffset_C;	break;
+		case 3:	pTxAgcOffset = Adapter->pshare->phw->MCSTxAgcOffset_D;	break;
+		}
+		for(rate=TX_AGC_HT_NSS1_MCS0;rate<=TX_AGC_HT_NSS3_MCS23;rate++){
+			//printk("CurrentTxAgcMCS[%d][%d]=%x + %x = ",path,rate-TX_AGC_HT_NSS1_MCS0,Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0],(unsigned char)*(pTxAgcOffset+rate-TX_AGC_HT_NSS1_MCS0));
+			Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0] += (unsigned char)*(pTxAgcOffset+rate-TX_AGC_HT_NSS1_MCS0);
+            PHYSetTxPower88XX(Adapter, rate, rate, path, Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);			
+			//printk("CurrentTxAgcMCS[%d][%d]=%x\n",path,rate-TX_AGC_HT_NSS1_MCS0,Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);
+		}
+	}
+	/* VHT MCS */
+	for(path=start;path<=end;path++){
+		switch(path){
+		case 0:	pTxAgcOffset = Adapter->pshare->phw->VHTTxAgcOffset_A;	break;
+		case 1:	pTxAgcOffset = Adapter->pshare->phw->VHTTxAgcOffset_B;	break;
+		case 2:	pTxAgcOffset = Adapter->pshare->phw->VHTTxAgcOffset_C;	break;
+		case 3:	pTxAgcOffset = Adapter->pshare->phw->VHTTxAgcOffset_D;	break;
+		}
+		for(rate=TX_AGC_VHT_NSS1_MCS0;rate<=TX_AGC_VHT_NSS3_MCS9;rate++){
+			//printk("CurrentTxAgcVHT[%d][%d]=%x + %x = ",path,rate-TX_AGC_VHT_NSS1_MCS0,Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0],(unsigned char)*(pTxAgcOffset+rate-TX_AGC_VHT_NSS1_MCS0));
+			if( rate == TX_AGC_VHT_NSS1_MCS8 || rate == TX_AGC_VHT_NSS1_MCS9 \
+				|| rate == TX_AGC_VHT_NSS2_MCS8|| rate == TX_AGC_VHT_NSS2_MCS9 \
+				|| rate == TX_AGC_VHT_NSS3_MCS8 || rate == TX_AGC_VHT_NSS3_MCS9 )
+				Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0] -= (unsigned char)*(pTxAgcOffset+rate-TX_AGC_VHT_NSS1_MCS0);
+			else
+				Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0] += (unsigned char)*(pTxAgcOffset+rate-TX_AGC_VHT_NSS1_MCS0);			
+            PHYSetTxPower88XX(Adapter, rate, rate, path, Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);			
+			//printk("CurrentTxAgcVHT[%d][%d]=%x\n",path,rate-TX_AGC_VHT_NSS1_MCS0,Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);
+		}
+	}		
+}
+#endif
+
+	
 void TxPG_OFDM_Jaguar_A
 (
 	IN  HAL_PADAPTER                Adapter
@@ -769,7 +1068,7 @@ void TxPG_OFDM_Jaguar_B
 	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
 	HAL_RTL_W32(REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, writeVal);
 	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC);
-	tmp_dw1 = HAL_RTL_R32(REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC);
+	tmp_dw1= HAL_RTL_R32(REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC);
 	get_tx_pwr_88XX(tmp_dw1, tmp_b1, tmp_b2, tmp_b3, tmp_b5);
 	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
 	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b5 - Adapter->pshare->phw->VHTTxAgcOffset_B[11]);
@@ -796,6 +1095,221 @@ void TxPG_OFDM_Jaguar_B
 	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, writeVal);
 }
 
+void TxPG_OFDM_Jaguar_C
+(    
+	IN  HAL_PADAPTER                Adapter
+)	
+{
+	unsigned char b1, b2, b3, b4, b5;
+	unsigned char* tmp_b1 = &b1;
+	unsigned char* tmp_b2 = &b2;
+	unsigned char* tmp_b3 = &b3;
+	unsigned char* tmp_b4 = &b4;
+	unsigned char* tmp_b5 = &b5;
+	unsigned int  tmp_dw = 0;
+	unsigned int  tmp_dw1 =0;
+	unsigned int  writeVal = 0;
+
+	//printk("TxPG_OFDM_8812_B!!\n");
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_OFDM18_OFDM6_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->OFDMTxAgcOffset_C[3]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->OFDMTxAgcOffset_C[2]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->OFDMTxAgcOffset_C[1]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->OFDMTxAgcOffset_C[0]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_OFDM18_OFDM6_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_OFDM54_OFDM24_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->OFDMTxAgcOffset_C[7]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->OFDMTxAgcOffset_C[6]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->OFDMTxAgcOffset_C[5]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->OFDMTxAgcOffset_C[4]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_OFDM54_OFDM24_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_MCS3_MCS0_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_C[3]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_C[2]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_C[1]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_C[0]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_MCS3_MCS0_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_MCS7_MCS4_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_C[7]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_C[6]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_C[5]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_C[4]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_MCS7_MCS4_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_MCS11_MCS8_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_C[11]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_C[10]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_C[9]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_C[8]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_MCS11_MCS8_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_MCS15_MCS12_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_C[15]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_C[14]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_C[13]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_C[12]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_MCS15_MCS12_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_NSS1INDEX3_NSS1INDEX0_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_C[3]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_C[2]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_C[1]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_C[0]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_NSS1INDEX3_NSS1INDEX0_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_NSS1INDEX7_NSS1INDEX4_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_C[7]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_C[6]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_C[5]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_C[4]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_NSS1INDEX7_NSS1INDEX4_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_NSS2INDEX1_NSS1INDEX8_AC);
+	tmp_dw1= HAL_RTL_R32(REG_BB_TXAGC_C_NSS1INDEX7_NSS1INDEX4_AC);
+	get_tx_pwr_88XX(tmp_dw1, tmp_b1, tmp_b2, tmp_b3, tmp_b5);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b5 - Adapter->pshare->phw->VHTTxAgcOffset_C[11]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b5 - Adapter->pshare->phw->VHTTxAgcOffset_C[10]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_C[9]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_C[8]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_NSS2INDEX5_NSS2INDEX2_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_C[15]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_C[14]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_C[13]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_C[12]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_NSS2INDEX5_NSS2INDEX2_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_C_NSS2INDEX9_NSS2INDEX6_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_C[19]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_C[18]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 - Adapter->pshare->phw->VHTTxAgcOffset_C[17]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 - Adapter->pshare->phw->VHTTxAgcOffset_C[16]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_C_NSS2INDEX9_NSS2INDEX6_AC, writeVal);
+}
+
+void TxPG_OFDM_Jaguar_D
+(    
+	IN  HAL_PADAPTER                Adapter
+)	
+{
+	unsigned char b1, b2, b3, b4, b5;
+	unsigned char* tmp_b1 = &b1;
+	unsigned char* tmp_b2 = &b2;
+	unsigned char* tmp_b3 = &b3;
+	unsigned char* tmp_b4 = &b4;
+	unsigned char* tmp_b5 = &b5;
+	unsigned int  tmp_dw = 0;
+	unsigned int  tmp_dw1 =0;
+	unsigned int  writeVal = 0;
+
+	//printk("TxPG_OFDM_8812_B!!\n");
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_OFDM18_OFDM6_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->OFDMTxAgcOffset_D[3]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->OFDMTxAgcOffset_D[2]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->OFDMTxAgcOffset_D[1]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->OFDMTxAgcOffset_D[0]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_OFDM18_OFDM6_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_OFDM54_OFDM24_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->OFDMTxAgcOffset_D[7]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->OFDMTxAgcOffset_D[6]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->OFDMTxAgcOffset_D[5]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->OFDMTxAgcOffset_D[4]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_OFDM54_OFDM24_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_MCS3_MCS0_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_D[3]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_D[2]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_D[1]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_D[0]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_MCS3_MCS0_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_MCS7_MCS4_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_D[7]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_D[6]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_D[5]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_D[4]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_MCS7_MCS4_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_MCS11_MCS8_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_D[11]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_D[10]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_D[9]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_D[8]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_MCS11_MCS8_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_MCS15_MCS12_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->MCSTxAgcOffset_D[15]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->MCSTxAgcOffset_D[14]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->MCSTxAgcOffset_D[13]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->MCSTxAgcOffset_D[12]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_MCS15_MCS12_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_NSS1INDEX3_NSS1INDEX0_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_D[3]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_D[2]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_D[1]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_D[0]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_NSS1INDEX3_NSS1INDEX0_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_NSS1INDEX7_NSS1INDEX4_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_D[7]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_D[6]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_D[5]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_D[4]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_NSS1INDEX7_NSS1INDEX4_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_NSS2INDEX1_NSS1INDEX8_AC);
+	tmp_dw1= HAL_RTL_R32(REG_BB_TXAGC_D_NSS1INDEX7_NSS1INDEX4_AC);
+	get_tx_pwr_88XX(tmp_dw1, tmp_b1, tmp_b2, tmp_b3, tmp_b5);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b5 - Adapter->pshare->phw->VHTTxAgcOffset_D[11]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b5 - Adapter->pshare->phw->VHTTxAgcOffset_D[10]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_D[9]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_D[8]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_NSS2INDEX5_NSS2INDEX2_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_D[15]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_D[14]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 + Adapter->pshare->phw->VHTTxAgcOffset_D[13]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 + Adapter->pshare->phw->VHTTxAgcOffset_D[12]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_NSS2INDEX5_NSS2INDEX2_AC, writeVal);
+	tmp_dw = HAL_RTL_R32(REG_BB_TXAGC_D_NSS2INDEX9_NSS2INDEX6_AC);
+	get_tx_pwr_88XX(tmp_dw, tmp_b1, tmp_b2, tmp_b3, tmp_b4);
+	*tmp_b1 = HAL_POWER_RANGE_CHECK(*tmp_b1 + Adapter->pshare->phw->VHTTxAgcOffset_D[19]);
+	*tmp_b2 = HAL_POWER_RANGE_CHECK(*tmp_b2 + Adapter->pshare->phw->VHTTxAgcOffset_D[18]);
+	*tmp_b3 = HAL_POWER_RANGE_CHECK(*tmp_b3 - Adapter->pshare->phw->VHTTxAgcOffset_D[17]);
+	*tmp_b4 = HAL_POWER_RANGE_CHECK(*tmp_b4 - Adapter->pshare->phw->VHTTxAgcOffset_D[16]);
+	writeVal = (*tmp_b4 << 24) | (*tmp_b3 << 16) | (*tmp_b2 << 8) | *tmp_b1;
+	HAL_RTL_W32(REG_BB_TXAGC_D_NSS2INDEX9_NSS2INDEX6_AC, writeVal);
+}
 #endif
 
 
@@ -885,7 +1399,12 @@ SwBWMode88XX_AC(
 	u1Byte dataSC = 0;
 	u1Byte SCSettingOf40 = 0;
 	u1Byte SCSettingOf20 = 0;
-
+    u1Byte Current_band;
+    
+	if (HAL_VAR_DOT11CHANNEL <= CHANNEL_MAX_NUMBER_2G)
+		Current_band = RF88XX_BAND_ON_2_4G;
+	else
+		Current_band = RF88XX_BAND_ON_5G;
 	SCSettingOf20 = HAL_VAR_TXSC_20;
 	SCSettingOf40 = HAL_VAR_TXSC_40;
 
@@ -895,59 +1414,213 @@ SwBWMode88XX_AC(
 	rfBand = HAL_RTL_R32(REG_WMAC_TRXPTCL_CTL);
 	rfBand &= ~(BIT(7) | BIT(8));
 
-	clkSel = HAL_RTL_R32(REG_AFE_CTRL1);
-	clkSel &= ~(BIT(20) | BIT(21));
-
+#if IS_RTL8814A_SERIES
+    if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+        clkSel = HAL_RTL_R32(REG_SYS_CLK_CTRL);
+        clkSel &= ~(BIT(6)|BIT(7));
+    } else
+#endif
+    {
+        clkSel = HAL_RTL_R32(REG_AFE_CTRL1);
+        clkSel &= ~(BIT(20)|BIT(21));
+    }
+	
 	switch (bandwidth) {
 	case HT_CHANNEL_WIDTH_AC_5:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x100040); // 5M : 0x8ac[21,20,9:6,1,0]=8'b01000100
-		clkSel |= BIT(21);
-		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+            if(IS_HAL_TEST_CHIP(Adapter)) {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x200040); // 5M : 0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b0100000100
+            } else {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x200140); // 5M : 0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b0100010100
+            }
+            clkSel |= BIT(7);
+    		HAL_RTL_W32(REG_SYS_CLK_CTRL, clkSel);
+            
+        } else
+#endif
+        {
+            PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x100040); // 5M : 0x8ac[21,20,9:6,1,0]=8'b01000100
+            clkSel |= BIT(21);
+    		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+        }
 		HAL_RTL_W32(REG_WMAC_TRXPTCL_CTL, rfBand);
 		break;
 	case HT_CHANNEL_WIDTH_AC_10:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x200180); // 10M : 0x8ac[21,20,9:6,1,0]=8'b10011000
-		clkSel |= BIT(20);
-		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+            if(IS_HAL_TEST_CHIP(Adapter)) {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x300180); // 10M :0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b0110011000
+            } else {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x300280); // 10M :0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b0110101000
+            }
+            clkSel |= BIT(6);
+            HAL_RTL_W32(REG_SYS_CLK_CTRL, clkSel);
+        } else
+#endif
+        {
+            PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x200180); // 10M : 0x8ac[21,20,9:6,1,0]=8'b10011000
+    		clkSel |= BIT(20);
+    		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+        }
 		HAL_RTL_W32(REG_WMAC_TRXPTCL_CTL, rfBand);
 		break;
 	case HT_CHANNEL_WIDTH_AC_20:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x300200); // 20M : 0x8ac[21,20,9:6,1,0]=8'b11100000
-		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+            if(IS_HAL_TEST_CHIP(Adapter)) {            
+                if (Current_band == RF88XX_BAND_ON_5G) { // 5G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x10000200); // 20M : 0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b1000100000
+                } else { // 2.4G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x10010000); // 20M : 0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b1001000000
+                }
+            } else {
+                if (Current_band == RF88XX_BAND_ON_5G) { // 5G
+                    if (IS_HAL_A_CUT(Adapter)) {
+                        // MP chip - A-cut
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x10000300); // 20M : 0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b1000110000
+                    } else {
+                        // MP chip - B-cut
+                        PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x10010100); // 20M : 0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b1001010000
+                    }
+                } else { // 2.4G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x103103C3, 0x10010100); // 20M : 0x8ac[28,21,20,16,9,8,7,6,1,0]=10'b1001010000
+                }            
+            }
+            HAL_RTL_W32(REG_SYS_CLK_CTRL, clkSel);
+        } else
+#endif
+        {
+            PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x300200); // 20M : 0x8ac[21,20,9:6,1,0]=8'b11100000        
+		    HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+        }
 		HAL_RTL_W32(REG_WMAC_TRXPTCL_CTL, rfBand);
 		break;
 	case HT_CHANNEL_WIDTH_AC_40:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x300201); // 40M : 0x8ac[21,20,9:6,1,0]=8'b11100001
-		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+            if(IS_HAL_TEST_CHIP(Adapter)) { 
+                if (Current_band == RF88XX_BAND_ON_5G) { // 5G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x20CC3, 0xC01); // 40M : 0x8ac[17,11,10,7,6,1,0]=7'b0110001
+                } else { // 2.4G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x20CC3, 0x20001); // 40M : 0x8ac[17,11,10,7,6,1,0]=7'b1000001
+                }
+            } else {
+                if (Current_band == RF88XX_BAND_ON_5G) { // 5G
+                    if (IS_HAL_A_CUT(Adapter)) {
+                        // MP chip - A-cut
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x20CC3, 0x20001); // 40M : 0x8ac[17,11,10,7,6,1,0]=7'b1000001
+                    } else {
+                        // MP chip - B-cut
+                        PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x20C20CC3, 0x20020401); // 40M : 0x8ac[29,23,22,17,11,10,7,6,1,0]=10'b1001010001
+                    }
+                } else { // 2.4G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x20CC3, 0x20401); // 40M : 0x8ac[17,11,10,7,6,1,0]=7'b1010001
+                }
+            }
+            HAL_RTL_W32(REG_SYS_CLK_CTRL, clkSel);
+        } else
+#endif
+        {
+            PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x300201); // 40M : 0x8ac[21,20,9:6,1,0]=8'b11100001
+       		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+        }
 		rfBand |= BIT(7);
 		HAL_RTL_W32(REG_WMAC_TRXPTCL_CTL, rfBand);
 		break;
 	case HT_CHANNEL_WIDTH_AC_80:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x300202); // 80M : 0x8ac[21,20,9:6,1,0]=8'b11100010
-		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+            if(IS_HAL_TEST_CHIP(Adapter)) {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0xC3, 0x2); // 80M : 0x8ac[7,6,1,0]=4'b0010
+            } else {
+                if (IS_HAL_A_CUT(Adapter)) {
+                    // MP chip - A-cut
+            PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0xC3, 0x2); // 80M : 0x8ac[7,6,1,0]=4'b0010
+                } else {
+                    // MP chip - B-cut
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x430430C3, 0x40041002); // 80M : 0x8ac[30,25,24,18,13,12,7,6,1,0]=10'b1001010010
+                }
+            }
+            HAL_RTL_W32(REG_SYS_CLK_CTRL, clkSel);
+        } else
+#endif
+        {
+            PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x003003C3, 0x300202); // 80M : 0x8ac[21,20,9:6,1,0]=8'b11100010 
+       		HAL_RTL_W32(REG_AFE_CTRL1, clkSel);
+        }
 		rfBand |= BIT(8);
 		HAL_RTL_W32(REG_WMAC_TRXPTCL_CTL, rfBand);
 		break;
-	}
+	}	
 
 	//3 ========== <2> Set adc buff clk 0x8c4
-	switch (bandwidth) {
-	case HT_CHANNEL_WIDTH_AC_5:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
-		break;
-	case HT_CHANNEL_WIDTH_AC_10:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
-		break;
-	case HT_CHANNEL_WIDTH_AC_20:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
-		break;
-	case HT_CHANNEL_WIDTH_AC_40:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
-		break;
-	case HT_CHANNEL_WIDTH_AC_80:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 1);
-		break;
-	}
+
+#if IS_RTL8814A_SERIES
+    if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+        if(IS_HAL_TEST_CHIP(Adapter) || IS_HAL_A_CUT(Adapter)) {    
+            switch (bandwidth)
+            {
+            case HT_CHANNEL_WIDTH_AC_5:
+            case HT_CHANNEL_WIDTH_AC_10:
+            case HT_CHANNEL_WIDTH_AC_20:
+                if (Current_band == RF88XX_BAND_ON_5G) { // 5G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_2_AC, BIT(31), 1);
+                } else {
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 1);
+                }
+                break;
+            case HT_CHANNEL_WIDTH_AC_40:
+                if (Current_band == RF88XX_BAND_ON_5G) { // 5G
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_2_AC, BIT(31), 0);
+                } else {
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 1);
+                }
+                break;
+            case HT_CHANNEL_WIDTH_AC_80:
+                PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 1);
+                break;
+            }
+        } else {
+            switch (bandwidth)
+            {
+            case HT_CHANNEL_WIDTH_AC_5:
+            case HT_CHANNEL_WIDTH_AC_10:
+                PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
+                PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_2_AC, BIT(31), 1);
+                break;
+            case HT_CHANNEL_WIDTH_AC_20:
+            case HT_CHANNEL_WIDTH_AC_40:
+            case HT_CHANNEL_WIDTH_AC_80:
+                PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 1);
+                break;
+            }
+        }
+        
+    } else 
+#endif
+    {
+    	switch (bandwidth)
+    	{
+    	case HT_CHANNEL_WIDTH_AC_5:
+    		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_10:
+    		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_20:
+    		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_40:
+    		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 0);
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_80:
+    		PHY_SetBBReg_88XX(Adapter, REG_BB_ADC_BUF_CLK_AC, BIT(30), 1);
+    		break;
+    	}
+    }
 
 	//3 ========== <3> Set primary channel 0x8ac & 0xa00, txsc 0x483
 
@@ -961,7 +1634,14 @@ SwBWMode88XX_AC(
 
 	case HT_CHANNEL_WIDTH_AC_40:
 		PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x3C, SCSettingOf20); //0x8ac[5:2]=1/2
-		PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, 0xF0000000, SCSettingOf20); //0x838[31:28]=1/2
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+            // Do nothing for 8814A
+        } else 
+#endif
+        {
+            PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, 0xF0000000, SCSettingOf20); //0x838[31:28]=1/2
+        }
 
 		if (SCSettingOf20 == 1) {
 			// BIT(4) = 1, upper sideBand
@@ -977,7 +1657,14 @@ SwBWMode88XX_AC(
 
 	case HT_CHANNEL_WIDTH_AC_80:
 		PHY_SetBBReg_88XX(Adapter, REG_BB_RFMOD_AC, 0x3C, SCSettingOf20); //0x8ac[5:2]=1/2/3/4 offset 9&10 seems few to use
-		PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, 0xF0000000, SCSettingOf20); //0x838[31:28]=1/2/3/4
+#if IS_RTL8814A_SERIES
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+            // Do nothing for 8814A
+        } else 
+#endif
+        {
+            PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, 0xF0000000, SCSettingOf20); //0x838[31:28]=1/2/3/4
+        }
 
 		dataSC = ( SCSettingOf20 | (SCSettingOf40 << 4)); //0x483[3:0]=1/2/3/4
 		HAL_RTL_W8(REG_DATA_SC, dataSC);
@@ -986,51 +1673,111 @@ SwBWMode88XX_AC(
 	}
 
 	//3 ========== <4> Set Equzlier step size , reg0x864[20:18]
-	switch (bandwidth) {
-	case HT_CHANNEL_WIDTH_AC_5:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 4);
-		break;
-	case HT_CHANNEL_WIDTH_AC_10:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 4);
-		break;
-	case HT_CHANNEL_WIDTH_AC_20:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 4);
-		break;
-	case HT_CHANNEL_WIDTH_AC_40:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 2);
-		break;
-	case HT_CHANNEL_WIDTH_AC_80:
-		PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 2);
-		break;
-	}
+
+#if IS_RTL8814A_SERIES
+    if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+        // Do nothing for 8814A
+    } else 
+#endif
+    {
+		switch (bandwidth) {
+		case HT_CHANNEL_WIDTH_AC_5:
+			PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 4);
+			break;
+		case HT_CHANNEL_WIDTH_AC_10:
+			PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 4);
+			break;
+		case HT_CHANNEL_WIDTH_AC_20:
+			PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 4);
+			break;
+		case HT_CHANNEL_WIDTH_AC_40:
+			PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 2);
+			break;
+		case HT_CHANNEL_WIDTH_AC_80:
+			PHY_SetBBReg_88XX(Adapter, REG_BB_FPGA0_XB_RFINTERFACEOE_AC, (BIT20 | BIT19 | BIT18), 2);
+			break;
+		}
+    }
+
+
+    //3 ========== <> PWED_TH_FB, 0x82C[15:12]
+    //3 ========== <> r_CCA_primary, 0x838[0]
+#if IS_RTL8814A_SERIES
+    if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+    	switch (bandwidth)
+    	{
+    	case HT_CHANNEL_WIDTH_AC_5:
+    	case HT_CHANNEL_WIDTH_AC_10:
+    	case HT_CHANNEL_WIDTH_AC_20:
+            if(IS_HAL_TEST_CHIP(Adapter)) {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x9);
+                PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT0, 0x1);
+            } else {
+            	if (Current_band == RF88XX_BAND_ON_5G)
+                	PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x7);
+				else		
+					PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x7);
+            }
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_40:
+            if(IS_HAL_TEST_CHIP(Adapter)) {
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x5);
+                PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT0, 0x0);
+            } else {
+	            if (Current_band == RF88XX_BAND_ON_5G)
+    	          	PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x8);
+				else
+					PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x7);
+            }
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_80:
+            if(IS_HAL_TEST_CHIP(Adapter)) {
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x7);
+                PHY_SetBBReg_88XX(Adapter, REG_BB_CCAONSEC_AC, BIT0, 0x0);
+            } else {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, (BIT15|BIT14|BIT13|BIT12), 0x3);
+            }
+    		break;
+    	}
+    }
+#endif
+
 
 	//3 ========== <5> 0821, L1_peak_th 0x848
-	switch (bandwidth) {
-	case HT_CHANNEL_WIDTH_AC_5:
-	case HT_CHANNEL_WIDTH_AC_10:
-	case HT_CHANNEL_WIDTH_AC_20:
-#if 0
-		if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R)
-			PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 7);		// 2R 0x848[25:22] = 0x7
-		else
-			PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 8);		// 1R 0x848[25:22] = 0x8
+
+#if IS_RTL8814A_SERIES
+    if (IS_HARDWARE_TYPE_8814A(Adapter)) {
+        // Do nothing here..
+    } else 
 #endif
-		// TODO: 8813AE BB/RF
-		if (IS_HARDWARE_TYPE_8881A(Adapter)) {
-			PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 8);
-		}
-		break;
-	case HT_CHANNEL_WIDTH_AC_40:
-		if (IS_HARDWARE_TYPE_8881A(Adapter)) {
-			PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 8);
-		}
-		break;
-	case HT_CHANNEL_WIDTH_AC_80:
-		if (IS_HARDWARE_TYPE_8881A(Adapter)) {
-			PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 7);
-		}
-		break;
-	}
+    {
+    	switch (bandwidth)
+    	{
+    	case HT_CHANNEL_WIDTH_AC_5:
+    	case HT_CHANNEL_WIDTH_AC_10:
+    	case HT_CHANNEL_WIDTH_AC_20:
+        #if 0
+            if(GetChipIDMIMO88XX(Adapter) == MIMO_2T2R)
+    			PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 7);		// 2R 0x848[25:22] = 0x7
+    		else	
+    			PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 8);		// 1R 0x848[25:22] = 0x8
+        #endif
+            if (IS_HARDWARE_TYPE_8881A(Adapter)) {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 8);
+            }
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_40:
+            if (IS_HARDWARE_TYPE_8881A(Adapter)) {
+    		    PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 8);
+            }
+    		break;
+    	case HT_CHANNEL_WIDTH_AC_80:
+            if (IS_HARDWARE_TYPE_8881A(Adapter)) {
+    		    PHY_SetBBReg_88XX(Adapter, REG_BB_L1PEAKTH_AC, 0x03C00000, 7);
+            }
+    		break;
+    	}	
+    }
 
 	//3 ========== <6> Set RRSR_RSC 0x440[22:21]
 
@@ -1065,13 +1812,68 @@ SwBWMode88XX_AC(
 		break;
 	}
 
-	// TODO: 8813AE BB/RF
-	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
-		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, (BIT11 | BIT10), tmp_rf);
-		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, (BIT11 | BIT10), tmp_rf);
-	} else {
-		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, (BIT11 | BIT10), tmp_rf);
-	}
+    if(GetChipIDMIMO88XX(Adapter) == MIMO_1T1R)
+    {
+		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+#if IS_RTL8814A_SERIES
+		/* 2nd CCA enable/disable settings*/
+		if(IS_HARDWARE_TYPE_8814A(Adapter)) {
+			if (Adapter->pshare->rf_ft_var.enable_2ndcca)
+			GET_HAL_INTERFACE(Adapter)->PHYSetSecCCATHbyRXANT(Adapter, ANTENNA_A);
+		}
+#endif	
+    }
+    else if(GetChipIDMIMO88XX(Adapter) == MIMO_2T2R)
+    {
+		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+#if IS_RTL8814A_SERIES
+		/* 2nd CCA enable/disable settings*/
+		if(IS_HARDWARE_TYPE_8814A(Adapter)) {
+			if (Adapter->pshare->rf_ft_var.enable_2ndcca)
+			GET_HAL_INTERFACE(Adapter)->PHYSetSecCCATHbyRXANT(Adapter, ANTENNA_AB);
+		}
+#endif			
+    }
+#if IS_RTL8814A_SERIES
+    else if(GetChipIDMIMO88XX(Adapter) == MIMO_3T3R)
+    {
+		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+        PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_C, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+		if(IS_HARDWARE_TYPE_8814A(Adapter))		
+	        PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_D, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+#if IS_RTL8814A_SERIES
+		/* 2nd CCA enable/disable settings*/
+		if(IS_HARDWARE_TYPE_8814A(Adapter)) {
+			if (Adapter->pshare->rf_ft_var.enable_2ndcca)
+			GET_HAL_INTERFACE(Adapter)->PHYSetSecCCATHbyRXANT(Adapter, ANTENNA_ABCD);
+		}
+#endif	
+    }
+    else if(GetChipIDMIMO88XX(Adapter) == MIMO_4T4R)
+    {
+		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+        PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_C, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+        PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_D, REG_RF_CHNLBW_AC, (BIT11|BIT10),tmp_rf);
+#if IS_RTL8814A_SERIES
+		/* 2nd CCA enable/disable settings*/
+		if(IS_HARDWARE_TYPE_8814A(Adapter)) {
+			if (Adapter->pshare->rf_ft_var.enable_2ndcca)
+			GET_HAL_INTERFACE(Adapter)->PHYSetSecCCATHbyRXANT(Adapter, ANTENNA_ABCD);
+		}
+#endif			
+    }
+#endif
+#if IS_RTL8814A_SERIES
+    // for MP chip A-cut
+    if(IS_HARDWARE_TYPE_8814A(Adapter)) {
+	    if (IS_HAL_A_CUT(Adapter)) {
+	        phy_ADC_CLK_8814A(Adapter);
+	    }
+    }
+#endif	
 }
 
 void
@@ -1095,7 +1897,32 @@ SetChannelPara88XX_AC(
 			//5G
 			PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC, BIT_MASK_BB_BAGC_TABLE_AC, 1);
 		}
-	} else {
+    }
+#if IS_RTL8814A_SERIES
+    else if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+        if (channel <= CHANNEL_MAX_NUMBER_2G) {
+            // 2G
+            PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC_V2, BIT_MASK_BB_BAGC_TABLE_AC_V2, 0);
+        }
+        else {
+            //5G
+            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                if (36 <= channel && channel <= 64) {
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC_V2, BIT_MASK_BB_BAGC_TABLE_AC_V2, 1);
+                } else if (100 <= channel && channel <= 144) {
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC_V2, BIT_MASK_BB_BAGC_TABLE_AC_V2, 2);
+                } else if (149 <= channel) {
+                    PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC_V2, BIT_MASK_BB_BAGC_TABLE_AC_V2, 3);
+                } else {
+                    printk("%s(%d): REG_BB_AGC_TABLE setting error !!! \n", __FUNCTION__, __LINE__);
+                }
+            } else {
+                PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC_V2, BIT_MASK_BB_BAGC_TABLE_AC_V2, 1);
+            }
+        }
+    }
+#endif
+    else {
 		if (channel <= CHANNEL_MAX_NUMBER_2G) {
 			// 2G
 			PHY_SetBBReg_88XX(Adapter, REG_BB_AGC_TABLE_AC_V1, BIT_MASK_BB_BAGC_TABLE_AC_V1, 0);
@@ -1136,15 +1963,39 @@ SetChannelPara88XX_AC(
 	if (channel <= 14) {
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, 0x70300, 0x0); //RF_A reg18[18,17,16,9,8]=4'b00101
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, 0x70300, 0x0); //RF_B reg18[18,17,16,9,8]=4'b00101
+#if IS_RTL8814A_SERIES
+       if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_C,REG_RF_CHNLBW_AC,0x70300,0x0); //RF_C reg18[18,17,16,9,8]=5'b00000
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_D,REG_RF_CHNLBW_AC,0x70300,0x0); //RF_D reg18[18,17,16,9,8]=5'b00000
+       }
+#endif
 	} else if (36 <= channel && channel <= 64) {
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, 0x70300, 0x101); //RF_A reg18[18,17,16,9,8]=4'b00101
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, 0x70300, 0x101); //RF_B reg18[18,17,16,9,8]=4'b00101
+#if IS_RTL8814A_SERIES
+       if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_C,REG_RF_CHNLBW_AC,0x70300,0x101); //RF_A reg18[18,17,16,9,8]=5'b00101
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_D,REG_RF_CHNLBW_AC,0x70300,0x101); //RF_B reg18[18,17,16,9,8]=5'b00101 
+       }
+#endif
 	} else if (100 <= channel && channel <= 140) {
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, 0x70300, 0x301); //RF_A reg18[18,17,16,9,8]=4'b01101
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, 0x70300, 0x301); //RF_B reg18[18,17,16,9,8]=4'b01101
+#if IS_RTL8814A_SERIES
+       if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_C,REG_RF_CHNLBW_AC,0x70300,0x301); //RF_A reg18[18,17,16,9,8]=5'b01101
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_D,REG_RF_CHNLBW_AC,0x70300,0x301); //RF_B reg18[18,17,16,9,8]=5'b01101
+       }
+#endif
 	} else if (140 < channel) {
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_A, REG_RF_CHNLBW_AC, 0x70300, 0x501); //RF_A reg18[18,17,16,9,8]=4'b10101
 		PHY_SetRFReg_88XX_AC(Adapter, RF88XX_PATH_B, REG_RF_CHNLBW_AC, 0x70300, 0x501); //RF_B reg18[18,17,16,9,8]=4'b10101
+#if IS_RTL8814A_SERIES
+       if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_C,REG_RF_CHNLBW_AC,0x70300,0x501); //RF_A reg18[18,17,16,9,8]=5'b10101
+           PHY_SetRFReg_88XX_AC(Adapter,RF88XX_PATH_D,REG_RF_CHNLBW_AC,0x70300,0x501); //RF_B reg18[18,17,16,9,8]=5'b10101
+       }
+#endif
 	}
 
 	// set channel number
@@ -1228,6 +2079,116 @@ CheckBand88XX_AC(
 	}
 }
 
+#if IS_RTL8814A_SERIES
+void
+phy_ADC_CLK_8814A(
+	IN  HAL_PADAPTER    Adapter
+	)
+{
+	printk("[%s]\n",__FUNCTION__);
+
+	u4Byte     MAC_REG_520, BB_REG_8FC, BB_REG_808, RXIQC[4], Search_index = 0, MAC_Active = 1;
+	u4Byte     RXIQC_REG[2][4] = {{0xc10, 0xe10, 0x1810, 0x1a10}, {0xc14, 0xe14, 0x1814, 0x1a14}} ;
+
+	//1 Step1. MAC TX pause
+
+	MAC_REG_520 = PHY_QueryBBReg( Adapter, 0x520, BIT_MASK_SET_MASKDWORD_COMMON);
+	BB_REG_8FC = PHY_QueryBBReg( Adapter, 0x8fc, BIT_MASK_SET_MASKDWORD_COMMON);
+	BB_REG_808 = PHY_QueryBBReg( Adapter, 0x808, BIT_MASK_SET_MASKDWORD_COMMON);
+	PHY_SetBBReg(Adapter, 0x520, BIT_MASK_SET_MASKBYTE2_COMMON, 0x3f);
+
+	//1 Step 2. Backup RXIQC & RXIQC = 0
+	
+	for(Search_index = 0; Search_index<4; Search_index++){
+	    RXIQC[Search_index] = PHY_QueryBBReg( Adapter, RXIQC_REG[0][Search_index], BIT_MASK_SET_MASKDWORD_COMMON);
+        PHY_SetBBReg(Adapter, RXIQC_REG[0][Search_index], BIT_MASK_SET_MASKDWORD_COMMON, 0x0);
+        PHY_SetBBReg(Adapter, RXIQC_REG[1][Search_index], BIT_MASK_SET_MASKDWORD_COMMON, 0x0);
+	}
+	PHY_SetBBReg(Adapter, 0xa14, 0x00000300, 0x3);
+	Search_index = 0;
+
+
+	//1 Step 3. Monitor MAC IDLE
+	PHY_SetBBReg(Adapter, 0x8fc, BIT_MASK_SET_MASKDWORD_COMMON, 0x0);
+	while(MAC_Active){
+		MAC_Active = PHY_QueryBBReg( Adapter, 0xfa0, BIT_MASK_SET_MASKDWORD_COMMON) & (0x803e0008);
+		Search_index++;
+		if(Search_index>1000){
+			break;
+		}
+	}
+	//1 Step 4. ADC clk flow
+	
+	PHY_SetBBReg(Adapter, 0x808, BIT_MASK_SET_MASKBYTE0_COMMON, 0x11);
+	PHY_SetBBReg(Adapter, 0x90c, BIT(13), 0x1);
+	PHY_SetBBReg(Adapter, 0x764, BIT(10)|BIT(9), 0x3);
+	
+	PHY_SetBBReg(Adapter, 0x804, BIT(2), 0x1);
+	// 0xc1c/0xe1c/0x181c/0x1a1c[4] must=1 to ensure table can be written when bbrstb=0         
+	// 0xc60/0xe60/0x1860/0x1a60[15] always = 1 after this line              
+	// 0xc60/0xe60/0x1860/0x1a60[14] always = 0 bcz its error in A-cut          
+	// power_off/clk_off @ anapar_state=idle mode
+	PHY_SetBBReg(Adapter, 0xc60, BIT_MASK_SET_MASKDWORD_COMMON, 0x15800002);      //0xc60       0x15808002    
+	PHY_SetBBReg(Adapter, 0xc60, BIT_MASK_SET_MASKDWORD_COMMON, 0x01808003);      //0xc60       0x01808003
+	PHY_SetBBReg(Adapter, 0xe60, BIT_MASK_SET_MASKDWORD_COMMON, 0x15800002);      //0xe60      0x15808002    
+	PHY_SetBBReg(Adapter, 0xe60, BIT_MASK_SET_MASKDWORD_COMMON, 0x01808003);      //0xe60      0x01808003    
+	PHY_SetBBReg(Adapter, 0x1860, BIT_MASK_SET_MASKDWORD_COMMON, 0x15800002);    //0x1860    0x15808002    
+	PHY_SetBBReg(Adapter, 0x1860, BIT_MASK_SET_MASKDWORD_COMMON, 0x01808003);    //0x1860    0x01808003    
+	PHY_SetBBReg(Adapter, 0x1a60, BIT_MASK_SET_MASKDWORD_COMMON, 0x15800002);    //0x1a60    0x15808002        
+	PHY_SetBBReg(Adapter, 0x1a60, BIT_MASK_SET_MASKDWORD_COMMON, 0x01808003);    //0x1a60    0x01808003    
+	PHY_SetBBReg(Adapter, 0x764, BIT(10), 0x0);
+	PHY_SetBBReg(Adapter, 0x804, BIT(2), 0x0);
+	PHY_SetBBReg(Adapter, 0xc5c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D080058);     //0xc5c       0x00080058  // [19] =1 to turn off ADC  
+	PHY_SetBBReg(Adapter, 0xe5c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D080058);    //0xe5c       0x00080058  // [19] =1 to turn off ADC     
+	PHY_SetBBReg(Adapter, 0x185c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D080058);  //0x185c     0x00080058 // [19] =1 to turn off ADC    
+	PHY_SetBBReg(Adapter, 0x1a5c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D080058);  //0x1a5c     0x00080058 // [19] =1 to turn off ADC       
+	// power_on/clk_off 
+
+	//PHY_SetBBReg(Adapter, 0x764, BIT(10), 0x1);
+
+	PHY_SetBBReg(Adapter, 0xc5c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D000058);     //0xc5c       0x0D000058   // [19] =0 to turn on ADC    
+	PHY_SetBBReg(Adapter, 0xe5c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D000058);    //0xe5c       0x0D000058  // [19] =0 to turn on ADC     
+	PHY_SetBBReg(Adapter, 0x185c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D000058);  //0x185c     0x0D000058  // [19] =0 to turn on ADC     
+	PHY_SetBBReg(Adapter, 0x1a5c, BIT_MASK_SET_MASKDWORD_COMMON,  0x0D000058);  //0x1a5c     0x0D000058 // [19] =0 to turn on ADC       
+
+	// power_on/clk_on @ anapar_state=BT mode
+
+	PHY_SetBBReg(Adapter, 0xc60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);      //0xc60 0x05808002 
+	PHY_SetBBReg(Adapter, 0xe60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);      //0xe60 0x05808002           
+	PHY_SetBBReg(Adapter, 0x1860, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);    //0x1860 0x05808002    
+	PHY_SetBBReg(Adapter, 0x1a60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);    //0x1a60 0x05808002            
+	PHY_SetBBReg(Adapter, 0x764, BIT(10), 0x1);
+	PHY_SetBBReg(Adapter, 0x804, BIT(2), 0x1);
+	// recover original setting @ anapar_state=BT mode                              
+	PHY_SetBBReg(Adapter, 0xc60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);      //0xc60       0x05808036    
+	PHY_SetBBReg(Adapter, 0xe60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);      //0xe60      0x05808036    
+	PHY_SetBBReg(Adapter, 0x1860, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);    //0x1860    0x05808036    
+	PHY_SetBBReg(Adapter, 0x1a60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05808032);    //0x1a60    0x05808036        
+	PHY_SetBBReg(Adapter, 0xc60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05800002);      //0xc60       0x05800002    
+	PHY_SetBBReg(Adapter, 0xc60, BIT_MASK_SET_MASKDWORD_COMMON, 0x07808003);      //0xc60       0x07808003
+	PHY_SetBBReg(Adapter, 0xe60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05800002);      //0xe60      0x05800002    
+	PHY_SetBBReg(Adapter, 0xe60, BIT_MASK_SET_MASKDWORD_COMMON, 0x07808003);      //0xe60      0x07808003    
+	PHY_SetBBReg(Adapter, 0x1860, BIT_MASK_SET_MASKDWORD_COMMON, 0x05800002);    //0x1860    0x05800002    
+	PHY_SetBBReg(Adapter, 0x1860, BIT_MASK_SET_MASKDWORD_COMMON, 0x07808003);    //0x1860    0x07808003    
+	PHY_SetBBReg(Adapter, 0x1a60, BIT_MASK_SET_MASKDWORD_COMMON, 0x05800002);    //0x1a60    0x05800002        
+	PHY_SetBBReg(Adapter, 0x1a60, BIT_MASK_SET_MASKDWORD_COMMON, 0x07808003);    //0x1a60    0x07808003     
+	PHY_SetBBReg(Adapter, 0x764, BIT(10)|BIT(9), 0x0);	
+	PHY_SetBBReg(Adapter, 0x804, BIT(2), 0x0);
+	PHY_SetBBReg(Adapter, 0x90c, BIT(13), 0x0);
+
+	//1 Step 5. Recover MAC TX & IQC
+
+	PHY_SetBBReg(Adapter, 0x520, BIT_MASK_SET_MASKDWORD_COMMON, MAC_REG_520);
+	PHY_SetBBReg(Adapter, 0x8fc, BIT_MASK_SET_MASKDWORD_COMMON, BB_REG_8FC);
+	PHY_SetBBReg(Adapter, 0x808, BIT_MASK_SET_MASKDWORD_COMMON, BB_REG_808);
+	for(Search_index = 0; Search_index<4; Search_index++){
+        PHY_SetBBReg(Adapter, RXIQC_REG[0][Search_index], BIT_MASK_SET_MASKDWORD_COMMON, RXIQC[Search_index]);
+        PHY_SetBBReg(Adapter, RXIQC_REG[1][Search_index], BIT_MASK_SET_MASKDWORD_COMMON, 0x01000000);
+	}
+	PHY_SetBBReg(Adapter, 0xa14, 0x00000300, 0x0);
+}
+#endif
+
 void
 SwitchWirelessBand88XX_AC(
 	IN  HAL_PADAPTER    Adapter,
@@ -1242,7 +2203,6 @@ SwitchWirelessBand88XX_AC(
 		PHY_SetBBReg_88XX(Adapter, REG_BB_CCKENABLE_AC, BIT_MASK_BB_BCCKEN_AC | BIT_MASK_BB_BOFDMEN_AC , 0x00);
 
 		// PWED_TH
-		// TODO: 8813AE BB/RF
 #if IS_RTL8881A_SERIES
 		if (IS_HARDWARE_TYPE_8881A(Adapter)) {
 			if ((GET_CHIP_VER(Adapter) == VERSION_8881A) && IS_HAL_TEST_CHIP(Adapter)) {
@@ -1276,11 +2236,57 @@ SwitchWirelessBand88XX_AC(
 				PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, BIT_MASK_SET_MASKBYTE2_COMMON, 0x77);
 				PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKBYTE2_COMMON, 0x77);
 			}
-		} else if (GET_CHIP_VER(Adapter) == VERSION_8813A) {
-			// TODO: 8813AE BB/RF
-		} else {
-			RT_TRACE(COMP_RF, DBG_WARNING, ("Error: No set BB register\n"));
-		}
+        } else if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+            panic_printk("2G RFE TYPE\n");
+#ifdef HIGH_POWER_EXT_PA
+#ifdef HIGH_POWER_EXT_LNA
+			//3 RFE Type 2
+			if (Adapter->pshare->rf_ft_var.use_ext_pa && Adapter->pshare->rf_ft_var.use_ext_lna) {
+				switch(Adapter->pmib->dot11RFEntry.rfe_type){
+				case 3:
+				case 5:
+					panic_printk("TRSWITCH: RFE TYPE 3 or 5\n");
+					PHY_SetBBReg_88XX(Adapter, 0x1994, 0xf, 0xf); // (ANTSW/ANTSWB controlled by S3)
+					PHY_SetBBReg_88XX(Adapter, REG_GPIO_MUXCFG, 0x00f00000, 0xf); // (S3 RFE output enable) , 0x40[23:20]
+					PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x45704570);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x45704570);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_C_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x45704570);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_D_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77707770);
+					PHY_SetBBReg_88XX(Adapter, 0x1ABC, 0x0FF00000, 0x45); // (D路, use ANTSW/ANTSWB pins as LNAON), 0x1ABC[27:20]
+					break;
+				case 2:
+				case 4:
+					panic_printk("TRSWITCH: RFE TYPE 2 or 4\n");
+					PHY_SetBBReg_88XX(Adapter, 0x1994, 0xf, 0xf); // (ANTSW/ANTSWB controlled by S3)
+					PHY_SetBBReg_88XX(Adapter, REG_GPIO_MUXCFG, 0x00f00000, 0xf); // (S3 RFE output enable) , 0x40[23:20]
+					PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x72707270);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x72707270);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_C_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x72707270);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_D_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77707770);
+					PHY_SetBBReg_88XX(Adapter, 0x1ABC, 0x0FF00000, 0x72); // (D路, use ANTSW/ANTSWB pins as LNAON), 0x1ABC[27:20]
+					break;
+				default:	
+					GDEBUG("TRSWITCH: Unknown RFE type (%d)!\n", Adapter->pmib->dot11RFEntry.rfe_type);
+					break;
+						// TODO: high power setting
+					
+				}
+			} else
+#endif
+#endif		
+			//3 RFE Type 0
+			{
+				panic_printk("TRSWITCH: RFE TYPE 0\n");
+	            // RFE type 0
+	            PHY_SetBBReg_88XX(Adapter, 0x1994, 0xf, 0xf); // (ANTSW/ANTSWB controlled by S3)
+	            PHY_SetBBReg_88XX(Adapter, REG_GPIO_MUXCFG, 0xC00000, 0x2); // (S3 RFE output enable) , 0x40[23:22]
+
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77777777);
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77777777);
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_C_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77777777);
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_D_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77777777);
+	            PHY_SetBBReg_88XX(Adapter, 0x1abc, 0xFF00000, 0x77);  //  0x1ABC[27:20]
+            }
 
 		// cck_enable
 		PHY_SetBBReg_88XX(Adapter, REG_BB_CCKENABLE_AC, BIT_MASK_BB_BCCKEN_AC | BIT_MASK_BB_BOFDMEN_AC, 0x3);
@@ -1288,6 +2294,7 @@ SwitchWirelessBand88XX_AC(
 
 		// CCK_CHECK_en
 		HAL_RTL_W8(REG_CCK_CHECK, (HAL_RTL_R8(REG_CCK_CHECK) & ~(BIT(7)))); // 5G to 2.4G last lauch
+		}
 	} else if (Band == RF88XX_BAND_ON_5G) { //5G band
 		RT_TRACE(COMP_RF, DBG_LOUD, ("==>PHY_SwitchWirelessBand8812() BAND_ON_5G settings\n"));
 
@@ -1298,7 +2305,6 @@ SwitchWirelessBand88XX_AC(
 		PHY_SetBBReg_88XX(Adapter, REG_BB_CCKENABLE_AC, BIT_MASK_BB_BCCKEN_AC | BIT_MASK_BB_BOFDMEN_AC , 0x00);
 
 		// PWED_TH
-		// TODO: 8813AE BB/RF
 #if IS_RTL8881A_SERIES
 		if (IS_HARDWARE_TYPE_8881A(Adapter)) {
 			if ((GET_CHIP_VER(Adapter) == VERSION_8881A) && IS_HAL_TEST_CHIP(Adapter)) {
@@ -1319,8 +2325,9 @@ SwitchWirelessBand88XX_AC(
 				) {
 				PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, 0xff, 0x54);
 				panic_printk("8881A internal PA PIN control or 8881A high power\n");
-			} else {
+			} else 
 #endif
+			{
 				PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, 0xff, 0x55);
 				panic_printk("8881A external PA PIN control :87503 or RTC 5634\n");
 			}
@@ -1349,18 +2356,65 @@ SwitchWirelessBand88XX_AC(
 					PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKBYTE2_COMMON, 0x54);
 				}
 			}
-		} else if (GET_CHIP_VER(Adapter) == VERSION_8813A) {
-			// TODO: 8813AE BB/RF
-		} else {
-			RT_TRACE(COMP_RF, DBG_WARNING, ("Error: No set BB register\n"));
-		}
+        }  else if (GET_CHIP_VER(Adapter) == VERSION_8814A) {
+			 panic_printk("5G RFE TYPE\n");
+#ifdef HIGH_POWER_EXT_PA
+#ifdef HIGH_POWER_EXT_LNA
+			//3 RFE Type
+			if (Adapter->pshare->rf_ft_var.use_ext_pa && Adapter->pshare->rf_ft_var.use_ext_lna) {
+				switch(Adapter->pmib->dot11RFEntry.rfe_type){
+				case 3:
+				case 5:
+					panic_printk("TRSWITCH: RFE TYPE 3 or 5\n");
+					PHY_SetBBReg_88XX(Adapter, 0x1994, 0xf, 0xf); // (ANTSW/ANTSWB controlled by S3)
+					PHY_SetBBReg_88XX(Adapter, REG_GPIO_MUXCFG, 0x00f00000, 0xf); // (S3 RFE output enable) , 0x40[23:20]
+					PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x54175417);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x54175417);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_C_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x54175417);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_D_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77177717);
+					PHY_SetBBReg_88XX(Adapter, 0x1ABC, 0x0FF00000, 0x54); // (D路, use ANTSW/ANTSWB pins as LNAON), 0x1ABC[27:20]
+					break;
+				case 2:				
+				case 4:
+					panic_printk("TRSWITCH: RFE TYPE 2 or 4\n");
+					PHY_SetBBReg_88XX(Adapter, 0x1994, 0xf, 0xf); // (ANTSW/ANTSWB controlled by S3)
+					PHY_SetBBReg_88XX(Adapter, REG_GPIO_MUXCFG, 0x00f00000, 0xf); // (S3 RFE output enable) , 0x40[23:20]
+					PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x37173717);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x37173717);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_C_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x37173717);
+					PHY_SetBBReg_88XX(Adapter, REG_BB_D_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x77177717);
+					PHY_SetBBReg_88XX(Adapter, 0x1ABC, 0x0FF00000, 0x37); // (D路, use ANTSW/ANTSWB pins as LNAON), 0x1ABC[27:20]
+					break;
+				default:	
+					GDEBUG("TRSWITCH: Unknown RFE type (%d)!\n", Adapter->pmib->dot11RFEntry.rfe_type);
+					break;	
+				}
+				  // TODO: high power setting
+			} else
+#endif
+#endif
+			//3 RFE Type 0
+			{
+				panic_printk("TRSWITCH: RFE TYPE 0\n");
 
-		// OFDM_enable,CCK disable
-//       PHY_SetBBReg_88XX(Adapter, REG_BB_CCKENABLE_AC, BIT_MASK_BB_BCCKEN_AC|BIT_MASK_BB_BOFDMEN_AC , 0x2);
-		PHY_SetBBReg_88XX(Adapter, REG_BB_CCKENABLE_AC, BIT_MASK_BB_BCCKEN_AC | BIT_MASK_BB_BOFDMEN_AC , 0x3);
-		PHY_SetBBReg_88XX(Adapter, REG_BB_CCK_RX_AC, 0x0f000000, 0xf);
-		PHY_SetBBReg_88XX(Adapter, REG_BB_FC_ENABL_VHT_AC, BIT17 , 0x0);
-	}
+	            // RFE type 0
+	            PHY_SetBBReg_88XX(Adapter, 0x1994, 0xf, 0xf); // (ANTSW/ANTSWB controlled by S3)
+	            PHY_SetBBReg_88XX(Adapter, REG_GPIO_MUXCFG, 0xC00000, 0x2); // (S3 RFE output enable)        
+	            
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_A_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x54775477);
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_B_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x54775477);
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_C_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x54775477);
+	            PHY_SetBBReg_88XX(Adapter, REG_BB_D_RFE_PINMUX_AC, BIT_MASK_SET_MASKDWORD_COMMON, 0x54775477);
+	            PHY_SetBBReg_88XX(Adapter, 0x1abc, 0xFF00000, 0x54); // 0x1ABC[27:20]
+	        }
+			//else {
+	        //    RT_TRACE(COMP_RF, DBG_WARNING,("Error: No set BB register\n"));
+	        //}       
+
+			PHY_SetBBReg_88XX(Adapter, REG_BB_CCKENABLE_AC, BIT_MASK_BB_BCCKEN_AC|BIT_MASK_BB_BOFDMEN_AC , 0x2);
+	        PHY_SetBBReg_88XX(Adapter, REG_BB_FC_ENABL_VHT_AC, BIT17 ,0x0);
+	   }
+   	}
 }
 
 
@@ -1379,6 +2433,58 @@ void UpdateBBRFVal88XX_AC(
 
 }
 
+#if IS_RTL8814A_SERIES
+void
+SetCurrentTxAGC(
+	IN	HAL_PADAPTER	Adapter,
+	IN  u1Byte 		 txPathIdx,	
+	IN  u1Byte 		 txRate,
+	IN  u1Byte 		 power
+)
+{
+	if(txRate <= TX_AGC_CCK_11M){
+		Adapter->pshare->phw->CurrentTxAgcCCK[txPathIdx][txRate] = power;
+	}else if(txRate <= TX_AGC_OFDM_54M){
+		Adapter->pshare->phw->CurrentTxAgcOFDM[txPathIdx][txRate - TX_AGC_OFDM_6M] = power;	
+	}else if(txRate <= TX_AGC_HT_NSS4_MCS31 ){
+		Adapter->pshare->phw->CurrentTxAgcMCS[txPathIdx][txRate - TX_AGC_HT_NSS1_MCS0] = power;	
+	}else if(txRate <= TX_AGC_VHT_NSS4_MCS9){
+		Adapter->pshare->phw->CurrentTxAgcVHT[txPathIdx][txRate - TX_AGC_VHT_NSS1_MCS0] = power;	
+	}
+}
+
+
+void
+PHYSetTxPower88XX(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u1Byte          txRateStart,
+    IN  u1Byte          txRateEnd,
+    IN  u1Byte          txPathIdx,
+    IN  u1Byte          defPower
+)
+{
+    u1Byte i            = 0;
+    u1Byte tx_path_idx  = txPathIdx;  // select path a/b/c/d
+    u1Byte tx_none      = 0x1;
+    u1Byte tx_write     = 0x1;
+    u1Byte def_power    = defPower;
+    u4Byte value32      = 0;
+
+#if 0
+	printk("[%s] Path %u, rate from 0x%x to 0x%x: 0x%x\n", __FUNCTION__, tx_path_idx+1, txRateStart, txRateEnd, def_power);
+#endif
+
+    // before write data, we must add extra one write commnad to "turn on" the AGC table
+    // TODO: this can be moved to other place ?? ex: after init done ?
+    HAL_RTL_W32(REG_BB_TXAGC_V2_BASE_ADDR, FILL_REG_BB_TXAGC_V2(txRateStart, tx_path_idx, tx_none, tx_write, def_power));
+
+    for (i = txRateStart; i <= txRateEnd; i++) {
+        HAL_RTL_W32(REG_BB_TXAGC_V2_BASE_ADDR, FILL_REG_BB_TXAGC_V2(i, tx_path_idx, tx_none, tx_write, def_power));
+		SetCurrentTxAGC(Adapter,tx_path_idx,i,def_power); /* Path, Rate, Power */
+    }
+}
+#endif
+
 
 RT_STATUS
 PHYSetCCKTxPower88XX_AC(
@@ -1391,8 +2497,17 @@ PHYSetCCKTxPower88XX_AC(
 	u1Byte ch_idx       = 0;
 	u1Byte tmp_TPI      = 0;
 	u1Byte phy_band     = 0;
-	u1Byte bPathAEn     = 0;
-	u1Byte bPathBEn     = 0;
+    u1Byte bPathXEn[4]   = {0};
+    u1Byte i;
+
+    u1Byte def_power_value = 0x12;
+
+    u4Byte REG_BB_TXAGC_X_CCK11_CCK1_AC[4] = {REG_BB_TXAGC_A_CCK11_CCK1_AC, REG_BB_TXAGC_B_CCK11_CCK1_AC,
+		REG_BB_TXAGC_C_CCK11_CCK1_AC, REG_BB_TXAGC_D_CCK11_CCK1_AC
+		};
+    u1Byte HAL_VAR_pwrlevelCCK_X[4] = {HAL_VAR_pwrlevelCCK_A(channel - 1), HAL_VAR_pwrlevelCCK_B(channel - 1), 			
+		HAL_VAR_pwrlevelCCK_C(channel - 1), HAL_VAR_pwrlevelCCK_D(channel - 1)
+		};
 
 	if (channel > 0)
 		ch_idx = (channel - 1);
@@ -1406,49 +2521,196 @@ PHYSetCCKTxPower88XX_AC(
 	else
 		phy_band = PHY_BAND_2G;
 
-	// TODO: 8813AE BB/RF
-	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
-		if ((HAL_VAR_pwrlevelCCK_A(ch_idx) == 0) || (HAL_VAR_pwrlevelCCK_B(ch_idx) == 0)) {
-			RT_TRACE_F(COMP_RF, DBG_WARNING, ("2T2R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
-			HAL_RTL_W32(REG_BB_TXAGC_A_CCK11_CCK1_AC, def_power);
-			HAL_RTL_W32(REG_BB_TXAGC_B_CCK11_CCK1_AC, def_power);
-			return RT_STATUS_SUCCESS;
-		}
-		bPathAEn = 1;
-		bPathBEn = 1;
-	} else if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
-		if (HAL_VAR_pwrlevelCCK_A(ch_idx) == 0) {
-			RT_TRACE_F(COMP_RF, DBG_WARNING, ("1T1R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
-			HAL_RTL_W32(REG_BB_TXAGC_A_CCK11_CCK1_AC, def_power);
-			return RT_STATUS_SUCCESS;
-		}
-		bPathAEn = 1;
-		bPathBEn = 0;
+#if 0
+	printk("\n-----------------------   CCK Efuse Power  ------------------------\n");
+	printk("[%s]HAL_VAR_pwrlevelCCK_A(%d)=%x\n",__FUNCTION__,ch_idx,HAL_VAR_pwrlevelCCK_A(ch_idx));
+	printk("[%s]HAL_VAR_pwrlevelCCK_B(%d)=%x\n",__FUNCTION__,ch_idx,HAL_VAR_pwrlevelCCK_B(ch_idx)); 
+	printk("[%s]HAL_VAR_pwrlevelCCK_C(%d)=%x\n",__FUNCTION__,ch_idx,HAL_VAR_pwrlevelCCK_C(ch_idx));
+	printk("[%s]HAL_VAR_pwrlevelCCK_D(%d)=%x\n",__FUNCTION__,ch_idx,HAL_VAR_pwrlevelCCK_D(ch_idx)); 
+#endif
+    if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 0;
+        bPathXEn[2] = 0;
+        bPathXEn[3] = 0;
+        if(HAL_VAR_pwrlevelCCK_A(ch_idx) == 0) {
+            RT_TRACE_F(COMP_RF, DBG_WARNING,("1T1R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
+
+#if IS_RTL8814A_SERIES
+            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 0, def_power_value);
+            } else 
+#endif
+            {
+                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[0], def_power);
+            }
+           	return RT_STATUS_SUCCESS;
+        }
+    }
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 1;
+        bPathXEn[2] = 0;
+        bPathXEn[3] = 0;
+        if ((HAL_VAR_pwrlevelCCK_A(ch_idx) == 0) || (HAL_VAR_pwrlevelCCK_B(ch_idx) == 0)) {
+		    RT_TRACE_F(COMP_RF, DBG_WARNING,("2T2R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
+
+#if IS_RTL8814A_SERIES            
+            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 0, def_power_value);
+                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 1, def_power_value);
+            } else 
+#endif
+            {
+                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[0], def_power);
+                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[1], def_power);
+            }
+            return RT_STATUS_SUCCESS;
+        }
 	}
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_3T3R) {
+			if(IS_HARDWARE_TYPE_8814A(Adapter)){
+#ifdef	CONFIG_RTL_8814_8194_2T2R_SUPPORT
+				bPathXEn[0] = 0;
+				bPathXEn[1] = 1;
+				bPathXEn[2] = 1;
+				bPathXEn[3] = 0;
+				if ((HAL_VAR_pwrlevelCCK_B(ch_idx)== 0) || (HAL_VAR_pwrlevelCCK_C(ch_idx) == 0)){
+				    RT_TRACE_F(COMP_RF, DBG_WARNING,("3T3R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
+#if IS_RTL8814A_SERIES
+		            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+		            	PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 1, def_power_value);
+		            	PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 2, def_power_value);
+		            } else 
+#endif
+		            {
+		                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[1], def_power);
+		                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[2], def_power);
+		            }
+		            return RT_STATUS_SUCCESS;
+				}
+#else
+				bPathXEn[0] = 0;
+				bPathXEn[1] = 1;
+				bPathXEn[2] = 1;
+				bPathXEn[3] = 1;
+				if ((HAL_VAR_pwrlevelCCK_B(ch_idx)== 0) || (HAL_VAR_pwrlevelCCK_C(ch_idx) == 0)
+					||(HAL_VAR_pwrlevelCCK_D(ch_idx)== 0)
+				){
+				    RT_TRACE_F(COMP_RF, DBG_WARNING,("3T3R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
+#if IS_RTL8814A_SERIES
+		            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+		                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 1, def_power_value);
+		                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 2, def_power_value);
+		                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 3, def_power_value);
+		            } else 
+#endif
+		            {
+		                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[1], def_power);
+		                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[2], def_power);
+		                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[3], def_power);
+		            }
+		            return RT_STATUS_SUCCESS;
+				}
+#endif
+		}else{
+			bPathXEn[0] = 1;
+			bPathXEn[1] = 1;
+			bPathXEn[2] = 1;
+			bPathXEn[3] = 0;
+	        if ((HAL_VAR_pwrlevelCCK_A(ch_idx) == 0)||(HAL_VAR_pwrlevelCCK_B(ch_idx) == 0)
+				||(HAL_VAR_pwrlevelCCK_C(ch_idx) == 0)	
+				) {
+			    RT_TRACE_F(COMP_RF, DBG_WARNING,("3T3R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
+#if IS_RTL8814A_SERIES
+	            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+	                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 0, def_power_value);
+	                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 1, def_power_value);
+	                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 2, def_power_value);
+	            } else 
+#endif
+	            {
+	                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[0], def_power);
+	                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[1], def_power);
+	                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[2], def_power);
+	            }
+	            return RT_STATUS_SUCCESS;
+	        }
+    	}
+   	}
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_4T4R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 1;
+        bPathXEn[2] = 1;
+        bPathXEn[3] = 1;
+        if ((HAL_VAR_pwrlevelCCK_A(ch_idx) == 0)||(HAL_VAR_pwrlevelCCK_B(ch_idx) == 0)		
+			||(HAL_VAR_pwrlevelCCK_C(ch_idx) == 0)||(HAL_VAR_pwrlevelCCK_D(ch_idx) == 0)
+			) {
+		    RT_TRACE_F(COMP_RF, DBG_WARNING,("4T4R NO Calibration data, use default CCK power = 0x%x\n", (unsigned int)def_power));
+
+#if IS_RTL8814A_SERIES
+            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 0, def_power_value);
+                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 1, def_power_value);
+                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 2, def_power_value);
+                PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, 3, def_power_value);
+            } else 
+#endif
+            {
+        		HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[0], def_power);
+        		HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[1], def_power);
+                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[2], def_power);
+                HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[3], def_power);
+            }
+            return RT_STATUS_SUCCESS;
+        }
+    }
+
 
 	if (phy_band == PHY_BAND_2G) {
 
-		//PATH A
-		if (bPathAEn) {
-			tmp_TPI = HAL_VAR_pwrlevelCCK_A(ch_idx);
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			HAL_RTL_W32(REG_BB_TXAGC_A_CCK11_CCK1_AC, writeVal);
-		}
-
-		//PATH B
-		if (bPathBEn) {
-			tmp_TPI = HAL_VAR_pwrlevelCCK_B(ch_idx);
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			HAL_RTL_W32(REG_BB_TXAGC_B_CCK11_CCK1_AC, writeVal);
-		}
+        for(i = 0; i < 4; i++) {
+            //PATH X
+            if(bPathXEn[i]) {
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_CCK_1M, TX_AGC_CCK_11M, i, HAL_VAR_pwrlevelCCK_X[i]);
+                } else 
+#endif
+                {                
+                    tmp_TPI = HAL_VAR_pwrlevelCCK_X[i];
+                    writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+                    HAL_RTL_W32(REG_BB_TXAGC_X_CCK11_CCK1_AC[i], writeVal);
+                }
+            }
+        }  
 	}
 
-	TxPG_CCK_Jaguar(Adapter);
+#if IS_RTL8814A_SERIES	
+		if(IS_HARDWARE_TYPE_8814A(Adapter)){
+			TxPG_CCK_8814(Adapter);
+		}else
+#endif
+			TxPG_CCK_Jaguar(Adapter, bPathXEn);
+#if 0//def CONFIG_WLAN_HAL_8814AE
+		printk("CCK After TxPG_CCK_8814\n");
+		for(path=0;path<4;path++){
+			printk("\n	Path%d\n	CCK:		",path);
+			for(rate=TX_AGC_CCK_1M;rate<=TX_AGC_CCK_11M;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcCCK[path][rate]);
+			}
+		}
+#endif //#ifdef CONFIG_WLAN_HAL_8814AE
 
-#ifdef TXPWR_LMT
+#ifdef TXPWR_LMT	
 	if (!Adapter->pshare->rf_ft_var.disable_txpwrlmt) {
 		if (HAL_check_lmt_valid(Adapter, phy_band)) {
-			TxLMT_CCK_Jaguar_AC(Adapter);
+#if IS_RTL8814A_SERIES		
+			if(IS_HARDWARE_TYPE_8814A(Adapter))
+				TxLMT_CCK_Jaguar_AC_8814(Adapter);
+			else
+#endif						
+				TxLMT_CCK_Jaguar_AC(Adapter, bPathXEn);
 		}
 	}
 #endif
@@ -1465,7 +2727,6 @@ PHYSetOFDMTxPower88XX_AC(
 {
 	u1Byte ch_idx = 0, no_cali_data = 0;
 	u1Byte phy_band = 0;
-	u1Byte pwrlevelHT40_1S_A;
 
 	if (channel > 0)
 		ch_idx = (channel - 1);
@@ -1478,12 +2739,96 @@ PHYSetOFDMTxPower88XX_AC(
 		phy_band = PHY_BAND_5G;
 	else
 		phy_band = PHY_BAND_2G;
+#if 0	
+	printk("\n-----------------------	5G Efuse Power	 ------------------------\n");
 
-	// TODO: 8813AE BB/RF
+	printk("HAL_VAR_pwrlevel5GHT40_1S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx));
+	printk("HAL_VAR_pwrlevel5GHT40_1S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx));	
+	printk("HAL_VAR_pwrlevel5GHT40_1S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx));
+	printk("HAL_VAR_pwrlevel5GHT40_1S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx)); 
+	
+	printk("HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_A(ch_idx)); 
+
+	printk("HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_B(ch_idx)); 
+
+	printk("HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_C(ch_idx)); 
+
+	printk("HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_D(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_D(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_D(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_D(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_D(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_D(ch_idx)); 
+
+
+	printk("\n-----------------------   2G Efuse Power  ------------------------\n");
+	
+	printk("HAL_VAR_pwrlevelHT40_1S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrlevelHT40_1S_A(ch_idx));
+	printk("HAL_VAR_pwrlevelHT40_1S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrlevelHT40_1S_B(ch_idx));	
+	printk("HAL_VAR_pwrlevelHT40_1S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrlevelHT40_1S_C(ch_idx));
+	printk("HAL_VAR_pwrlevelHT40_1S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrlevelHT40_1S_D(ch_idx));	
+
+	printk("HAL_VAR_pwrdiff_20BW1S_OFDM1T_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_20BW1S_OFDM1T_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW2S_20BW2S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_40BW2S_20BW2S_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW3S_20BW3S_A(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_40BW3S_20BW3S_A(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_20BW1S_OFDM1T_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_20BW1S_OFDM1T_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW2S_20BW2S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_40BW2S_20BW2S_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW3S_20BW3S_B(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_40BW3S_20BW3S_B(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_20BW1S_OFDM1T_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_20BW1S_OFDM1T_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW2S_20BW2S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_40BW2S_20BW2S_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW3S_20BW3S_C(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_40BW3S_20BW3S_C(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_20BW1S_OFDM1T_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_20BW1S_OFDM1T_D(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW2S_20BW2S_D(%d)=%x\n",ch_idx,HAL_VAR_pwrdiff_40BW2S_20BW2S_D(ch_idx)); 
+	printk("HAL_VAR_pwrdiff_40BW3S_20BW3S_D(%d)=%x\n\n",ch_idx,HAL_VAR_pwrdiff_40BW3S_20BW3S_D(ch_idx)); 
+#endif		
+
 	if (phy_band == PHY_BAND_5G) {
-		if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+	    if (GetChipIDMIMO88XX(Adapter) == MIMO_4T4R) {
+	        if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0)
+				||(HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx)== 0)||(HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx) == 0)		
+				) {
+				no_cali_data = 1;	
+		    }            
+	    } else if (GetChipIDMIMO88XX(Adapter) == MIMO_3T3R) {
+			if(IS_HARDWARE_TYPE_8814A(Adapter)){
+#ifdef	CONFIG_RTL_8814_8194_2T2R_SUPPORT				
+				if ((HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0) || (HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx) == 0)) {
+					no_cali_data = 1;
+				}
+#else
+				if ((HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0) || (HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx)== 0)
+					||(HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx) == 0)
+					) {
+					no_cali_data = 1;
+			    }
+#endif
+			}else{
+		        if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0)			
+					||(HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx)== 0)
+					) {
+					no_cali_data = 1;
+			    } 
+			}
+	    } else if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+
 			if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx) == 0) || (HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0)) {
 				no_cali_data = 1;
+
 			}
 		} else if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
 			if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx) == 0)) {
@@ -1491,7 +2836,33 @@ PHYSetOFDMTxPower88XX_AC(
 			}
 		}
 	} else {
-		if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+		if (GetChipIDMIMO88XX(Adapter) == MIMO_4T4R) {
+	        if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0)
+				||(HAL_VAR_pwrlevelHT40_1S_C(ch_idx)== 0)||(HAL_VAR_pwrlevelHT40_1S_D(ch_idx) == 0)			
+				) {
+				no_cali_data = 1;	
+		    }            
+	    } else if (GetChipIDMIMO88XX(Adapter) == MIMO_3T3R) {
+			if(IS_HARDWARE_TYPE_8814A(Adapter)){
+#ifdef	CONFIG_RTL_8814_8194_2T2R_SUPPORT				
+				if ((HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0) || (HAL_VAR_pwrlevelHT40_1S_C(ch_idx) == 0)) {
+					no_cali_data = 1;
+				}
+#else
+				if ((HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0) || (HAL_VAR_pwrlevelHT40_1S_C(ch_idx)== 0)
+					||(HAL_VAR_pwrlevelHT40_1S_D(ch_idx) == 0)
+					) {
+					no_cali_data = 1;
+			    }
+#endif
+			}else{
+		        if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0)			
+					||(HAL_VAR_pwrlevelHT40_1S_C(ch_idx)== 0)
+					) {
+					no_cali_data = 1;
+			    } 
+			}
+	    } else if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
 			if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx) == 0) || (HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0)) {
 				no_cali_data = 1;
 			}
@@ -1501,24 +2872,134 @@ PHYSetOFDMTxPower88XX_AC(
 			}
 		}
 	}
-
+	
 	if (phy_band == PHY_BAND_5G) {
 		CalOFDMTxPower5G_88XX_AC(Adapter, ch_idx);
 	} else if (phy_band == PHY_BAND_2G) {
 		CalOFDMTxPower2G_88XX_AC(Adapter, ch_idx);
 	}
 
+#if 0//def CONFIG_WLAN_HAL_8814AE
+	int path, rate;
+	printk("After CalOFDMTxPower5G_88XX_AC()\n");
+	for(path=0;path<4;path++){
+		printk("\n	Path%d\nCCK:		",path);
+		for(rate=TX_AGC_CCK_1M;rate<=TX_AGC_CCK_11M;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcCCK[path][rate]);
+		}
+		printk("\n	OFDM: 		");
+		for(rate=TX_AGC_OFDM_6M;rate<=TX_AGC_OFDM_54M;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcOFDM[path][rate-TX_AGC_OFDM_6M]);
+		}
+		printk("\n	HT MCS 1SS:	");
+		for(rate=TX_AGC_HT_NSS1_MCS0;rate<=TX_AGC_HT_NSS1_MCS7;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);
+		}		
+		printk("\n	HT MCS 2SS:	");
+		for(rate=TX_AGC_HT_NSS2_MCS8;rate<=TX_AGC_HT_NSS2_MCS15;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);
+		}
+		printk("\n	HT MCS 3SS:	");
+		for(rate=TX_AGC_HT_NSS3_MCS16;rate<=TX_AGC_HT_NSS3_MCS23;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);
+		}
+		printk("\n	VHT MCS 1SS:	");
+		for(rate=TX_AGC_VHT_NSS1_MCS0;rate<=TX_AGC_VHT_NSS1_MCS9;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);
+		}			
+		printk("\n	VHT MCS 2SS:	");
+		for(rate=TX_AGC_VHT_NSS2_MCS0;rate<=TX_AGC_VHT_NSS2_MCS9;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);
+		}
+		printk("\n	VHT MCS 3SS:	");
+		for(rate=TX_AGC_VHT_NSS3_MCS0;rate<=TX_AGC_VHT_NSS3_MCS9;rate++){
+			printk("%x,",Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);
+		}
+		printk("\n");
+	}
+#endif //#ifdef CONFIG_WLAN_HAL_8814AE
+
+
+
+
 	if (!no_cali_data) {
-		TxPG_OFDM_Jaguar_A(Adapter);
-		if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R)
-			TxPG_OFDM_Jaguar_B(Adapter);
+#if IS_RTL8814A_SERIES	
+		if(IS_HARDWARE_TYPE_8814A(Adapter)){
+			TxPG_OFDM_8814(Adapter);
+			
+#if 0//def CONFIG_WLAN_HAL_8814AE
+		int path, rate;
+
+		printk("After TxPG_OFDM_8814()\n");
+		for(path=0;path<4;path++){
+			printk("\n	Path%d\n	CCK:		",path);
+			for(rate=TX_AGC_CCK_1M;rate<=TX_AGC_CCK_11M;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcCCK[path][rate]);
+			}
+			printk("\n	OFDM:		");
+			for(rate=TX_AGC_OFDM_6M;rate<=TX_AGC_OFDM_54M;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcOFDM[path][rate-TX_AGC_OFDM_6M]);
+			}
+			printk("\n	HT MCS 1SS: ");
+			for(rate=TX_AGC_HT_NSS1_MCS0;rate<=TX_AGC_HT_NSS1_MCS7;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);
+			}		
+			printk("\n	HT MCS 2SS: ");
+			for(rate=TX_AGC_HT_NSS2_MCS8;rate<=TX_AGC_HT_NSS2_MCS15;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);
+			}
+			printk("\n	HT MCS 3SS: ");
+			for(rate=TX_AGC_HT_NSS3_MCS16;rate<=TX_AGC_HT_NSS3_MCS23;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcMCS[path][rate-TX_AGC_HT_NSS1_MCS0]);
+			}
+			printk("\n	VHT MCS 1SS:	");
+			for(rate=TX_AGC_VHT_NSS1_MCS0;rate<=TX_AGC_VHT_NSS1_MCS9;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);
+			}			
+			printk("\n	VHT MCS 2SS:	");
+			for(rate=TX_AGC_VHT_NSS2_MCS0;rate<=TX_AGC_VHT_NSS2_MCS9;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);
+			}
+			printk("\n	VHT MCS 3SS:	");
+			for(rate=TX_AGC_VHT_NSS3_MCS0;rate<=TX_AGC_VHT_NSS3_MCS9;rate++){
+				printk("%x,",Adapter->pshare->phw->CurrentTxAgcVHT[path][rate-TX_AGC_VHT_NSS1_MCS0]);
+			}
+			printk("\n");
+		}
+#endif //#ifdef CONFIG_WLAN_HAL_8814AE
+		}else
+#endif
+		{
+		    // TODO: try to rewrite and combine the functions: TxPG_OFDM_Jaguar_A, B, C, D
+		    if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
+			    TxPG_OFDM_Jaguar_A(Adapter);
+	        } else if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+	            TxPG_OFDM_Jaguar_A(Adapter);
+				TxPG_OFDM_Jaguar_B(Adapter);
+	        } else if (GetChipIDMIMO88XX(Adapter) == MIMO_3T3R) {
+	            TxPG_OFDM_Jaguar_A(Adapter);
+	            TxPG_OFDM_Jaguar_B(Adapter);
+		        TxPG_OFDM_Jaguar_C(Adapter);
+	        } else if (GetChipIDMIMO88XX(Adapter) == MIMO_4T4R) {
+	            TxPG_OFDM_Jaguar_A(Adapter);
+	            TxPG_OFDM_Jaguar_B(Adapter);			
+	            TxPG_OFDM_Jaguar_C(Adapter);
+	            TxPG_OFDM_Jaguar_D(Adapter);		
+	        }
+		}
 
 #ifdef TXPWR_LMT
-		if (!Adapter->pshare->rf_ft_var.disable_txpwrlmt) {
-			if (HAL_check_lmt_valid(Adapter, phy_band)) {
+	if (!Adapter->pshare->rf_ft_var.disable_txpwrlmt) {
+		if (HAL_check_lmt_valid(Adapter, phy_band)) {
+#if IS_RTL8814A_SERIES		
+			if(IS_HARDWARE_TYPE_8814A(Adapter))
+				TxLMT_OFDM_Jaguar_AC_8814(Adapter);
+			else
+#endif			
 				TxLMT_OFDM_Jaguar_AC(Adapter);
-			}
+			
 		}
+	}
 #endif
 	}
 	return RT_STATUS_SUCCESS;
@@ -1657,219 +3138,310 @@ CalOFDMTxPower5G_88XX_AC(
 	u1Byte pwr_40_1s = 0, pwr_80_1s = 0, ch_idx_ht40 = 0, ch_idx_vht80 = 0;
 	s1Byte diff_ofdm_1t = 0;
 	s1Byte diff_bw40_2s = 0;
+	s1Byte diff_bw40_3s = 0;	
 	s1Byte diff_bw20_1s = 0;
 	s1Byte diff_bw20_2s = 0;
+	s1Byte diff_bw20_3s = 0;	
 	s1Byte diff_bw80_1s = 0;
 	s1Byte diff_bw80_2s = 0;
-	u4Byte writeVal = 0;
-	u1Byte bPathAEn = 0;
-	u1Byte bPathBEn = 0;
+	s1Byte diff_bw80_3s = 0;
+	u4Byte writeVal     = 0;
+    u1Byte bPathXEn[4]  = {0};
 	ch_idx_ht40 = ((HAL_VAR_OFFSET_2ND_CHANNEL==1) ? (HAL_VAR_DOT11CHANNEL-2) : (HAL_VAR_DOT11CHANNEL+2)) -1;
 	ch_idx_vht80 = get_center_channel(Adapter, HAL_VAR_DOT11CHANNEL, HAL_VAR_OFFSET_2ND_CHANNEL, 1) -1;
+	
+    u1Byte i;
+    u1Byte HAL_VAR_pwrlevel5GHT40_1S_X[4] = {HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx), HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx),		
+		HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx), HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx)	
+		};
+	/* for 40M*/
+	u1Byte HAL_VAR_pwrlevel5GHT40_1S_X_40M[4] = {HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx_ht40), HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx_ht40),		
+		HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx_ht40), HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx_ht40)
+		};
+	/* for 80M*/
+    u1Byte HAL_VAR_pwrlevel5GHT40_1S_X_A[4] = {HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx_vht80-4), HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx_vht80-4), 
+		HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx_vht80-4), HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx_vht80-4)
+		};
+    u1Byte HAL_VAR_pwrlevel5GHT40_1S_X_B[4] = {HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx_vht80+4), HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx_vht80+4),		
+		HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx_vht80+4), HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx_vht80+4)
+		};
+    s1Byte HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_X[4] = {HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_A(ch_idx), HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_B(ch_idx),
+		HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_C(ch_idx), HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_D(ch_idx)
+		};
+    s1Byte HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_X[4] = {HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_A(ch_idx), HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_B(ch_idx), 
+		HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_C(ch_idx), HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_D(ch_idx)
+		};
+    s1Byte HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_X[4] = {HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_A(ch_idx), HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_B(ch_idx),
+		HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_C(ch_idx), HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_D(ch_idx)
+		};
+    s1Byte HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_X[4] = {HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_A(ch_idx), HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_B(ch_idx), 
+		HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_C(ch_idx), HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_D(ch_idx)
+		};	
+    s1Byte HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_X[4] = {HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_A(ch_idx), HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_B(ch_idx), HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_C(ch_idx), HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_D(ch_idx)};		
+	s1Byte HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_X[4] = {HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_A(ch_idx), HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_B(ch_idx), HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_C(ch_idx), HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_D(ch_idx)};		
 
-	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
-		if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx) == 0) || (HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0)) {
-			use_DefaultOFDMTxPowerPathA88XX_AC(Adapter);
-			use_DefaultOFDMTxPowerPathB88XX_AC(Adapter);
-			return;
+
+    if (GetChipIDMIMO88XX(Adapter) == MIMO_4T4R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 1;
+        bPathXEn[2] = 1;
+        bPathXEn[3] = 1;
+        if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0)
+			||(HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx)== 0)||(HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx)== 0)	
+			) {
+            use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+            return;
+        }
+    }
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_3T3R) {
+		if(IS_HARDWARE_TYPE_8814A(Adapter)){
+#ifdef	CONFIG_RTL_8814_8194_2T2R_SUPPORT
+			bPathXEn[0] = 0;
+			bPathXEn[1] = 1;
+			bPathXEn[2] = 1;
+			bPathXEn[3] = 0;
+			if ((HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx)== 0) || (HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx) == 0)){
+				use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+				return;
+			}
+#else
+			bPathXEn[0] = 0;
+			bPathXEn[1] = 1;
+			bPathXEn[2] = 1;
+			bPathXEn[3] = 1;
+			if ((HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx)== 0) || (HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx) == 0)
+				||(HAL_VAR_pwrlevel5GHT40_1S_D(ch_idx)== 0)
+			){
+				use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+				return;
+			}
+#endif
+		}else
+
+		{
+			bPathXEn[0] = 1;
+			bPathXEn[1] = 1;
+			bPathXEn[2] = 1;
+			bPathXEn[3] = 0;
+	        if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0)
+				||(HAL_VAR_pwrlevel5GHT40_1S_C(ch_idx)== 0)	
+				) {
+	            use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+	            return;
+	        }
 		}
-		bPathAEn = 1;
-		bPathBEn = 1;
-	} else if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
-		if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx) == 0)) {
-			use_DefaultOFDMTxPowerPathA88XX_AC(Adapter);
-			return;
-		}
-		bPathAEn = 1;
+    }
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 1;
+        bPathXEn[2] = 0;
+        bPathXEn[3] = 0;
+	    if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) == 0)) {
+            use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+       		return;
+	    }
+	}
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 0;
+        bPathXEn[2] = 0;
+        bPathXEn[3] = 0;
+        if ((HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx)== 0)) {
+            use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+    		return;
+        }
 	}
 
-	// PATH A, OFDM
-	if (bPathAEn) {
-		pwr_40_1s =  HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx);
-		diff_ofdm_1t = (HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_A(ch_idx) & 0x0f);
-		diff_ofdm_1t = convert_diff_88XX_AC(diff_ofdm_1t);
-		tmp_TPI = pwr_40_1s + diff_ofdm_1t;
-		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-		Write_OFDM_A_88XX_AC(Adapter, writeVal); // fill path A 0xc24,0xc28
+    for (i = 0; i < 4; i++) {
+        // PATH i, OFDM
+        if(bPathXEn[i]) {
+            pwr_40_1s =  HAL_VAR_pwrlevel5GHT40_1S_X[i];
+            diff_ofdm_1t = (HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_X[i] & 0x0f);
+            diff_ofdm_1t = convert_diff_88XX_AC(diff_ofdm_1t);
+            tmp_TPI = pwr_40_1s + diff_ofdm_1t;
+			//tmp_TPI  = HAL_POWER_RANGE_CHECK(tmp_TPI );
+#if IS_RTL8814A_SERIES
+            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                PHYSetTxPower88XX(Adapter, TX_AGC_OFDM_6M, TX_AGC_OFDM_54M, i, tmp_TPI);
+            } else
+#endif
+            {
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+                Write_OFDM_X_88XX_AC(Adapter, writeVal, i);
+            }
+        }
+    }
+   
+    //3 20M
+	if (HAL_VAR_CurrentChannelBW == 0) {
+
+        for (i = 0; i < 4; i++) {
+            if(bPathXEn[i]) {
+                //PATH i, BW20-1S
+                
+                pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_X[i];
+				//printk("[%s]pwr_40_1s=%x\n",__FUNCTION__,pwr_40_1s);
+                diff_bw20_1s = ((HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_X[i] & 0xf0) >> 4);				
+				//printk("[%s]diff_bw20_1s=%x\n",__FUNCTION__,diff_bw20_1s);
+                diff_bw20_1s = convert_diff_88XX_AC(diff_bw20_1s);
+                tmp_TPI = pwr_40_1s + diff_bw20_1s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;		
+				//printk("[%s]writeVal=%x\n",__FUNCTION__,writeVal);
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS1_MCS0, TX_AGC_HT_NSS1_MCS7, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS1_MCS0, TX_AGC_VHT_NSS1_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_1S_X_88XX_AC(Adapter, writeVal, i);
+                }
+                       
+                //PATH i, BW20-2S
+                diff_bw20_2s = (HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_X[i] & 0x0f);
+				//printk("[%s]diff_bw20_2s=%x\n",__FUNCTION__,diff_bw20_2s);
+				
+                diff_bw20_2s = convert_diff_88XX_AC(diff_bw20_2s);
+                tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS2_MCS8, TX_AGC_HT_NSS2_MCS15, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS2_MCS0, TX_AGC_VHT_NSS2_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_2S_X_88XX_AC(Adapter, writeVal, i);
+                }
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+				//PATH i, BW20-3S
+                diff_bw20_3s = (HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_X[i] & 0x0f);
+                diff_bw20_3s = convert_diff_88XX_AC(diff_bw20_3s);
+                tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s + diff_bw20_3s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS3_MCS16, TX_AGC_HT_NSS3_MCS23, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS3_MCS0, TX_AGC_VHT_NSS3_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_3S_X_88XX_AC(Adapter, writeVal, i);
+                }
+#endif
+            }
+        }
+	//3 40M
+	} else if (HAL_VAR_CurrentChannelBW == 1) {
+        for (i = 0; i < 4; i++) {
+            if(bPathXEn[i]) {
+                //PATH i, BW40-1S
+                pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_X_40M[i];
+                tmp_TPI = pwr_40_1s ;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS1_MCS0, TX_AGC_HT_NSS1_MCS7, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS1_MCS0, TX_AGC_VHT_NSS1_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_1S_X_88XX_AC(Adapter, writeVal, i);
+                }
+
+                //PATH i, BW40-2S
+                diff_bw40_2s = ((HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_X[i] & 0xf0) >> 4);
+                diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
+                tmp_TPI = pwr_40_1s + diff_bw40_2s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS2_MCS8, TX_AGC_HT_NSS2_MCS15, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS2_MCS0, TX_AGC_VHT_NSS2_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_2S_X_88XX_AC(Adapter, writeVal, i);
+                }
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+				//PATH i, BW40-3S
+				diff_bw40_3s = ((HAL_VAR_pwrdiff_5G_40BW3S_20BW3S_X[i] & 0xf0) >> 4);
+                diff_bw40_3s = convert_diff_88XX_AC(diff_bw40_3s);
+                tmp_TPI = pwr_40_1s + diff_bw40_2s + diff_bw40_3s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS3_MCS16, TX_AGC_HT_NSS3_MCS23, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS3_MCS0, TX_AGC_VHT_NSS3_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_3S_X_88XX_AC(Adapter, writeVal, i);
+                }
+#endif
+            }
+        }
 	}
-	//printk("Write_OFDM_A_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_ofdm_1t);
+	//3 80M
+	else if (HAL_VAR_CurrentChannelBW == 2) {
 
 
-	// PATH B, OFDM
-	if (bPathBEn) {
-		pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx);
-		diff_ofdm_1t = (HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_B(ch_idx) & 0x0f);
-		diff_ofdm_1t = convert_diff_88XX_AC(diff_ofdm_1t);
-		tmp_TPI = pwr_40_1s + diff_ofdm_1t;
-		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-		Write_OFDM_B_88XX_AC(Adapter, writeVal);  // fill path A 0xc24,0xc28
-	}
-	//printk("Write_OFDM_A_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_ofdm_1t);
+        for (i = 0; i < 4; i++) {
+            if(bPathXEn[i]) {
+                //PATH X, BW80-1S
+                pwr_40_1s = (HAL_VAR_pwrlevel5GHT40_1S_X_A[i] +
+                             HAL_VAR_pwrlevel5GHT40_1S_X_B[i]) / 2  ;
+                diff_bw80_1s = ((HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_X[i] & 0xf0) >> 4);
+                diff_bw80_1s = convert_diff_88XX_AC(diff_bw80_1s);
+                tmp_TPI = pwr_40_1s + diff_bw80_1s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS1_MCS0, TX_AGC_HT_NSS1_MCS7, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS1_MCS0, TX_AGC_VHT_NSS1_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_1S_X_88XX_AC(Adapter, writeVal, i);
+                }
 
+                //PATH X, BW80-2S
+                diff_bw80_2s = ((HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_X[i] & 0xf0) >> 4);
+                diff_bw80_2s = convert_diff_88XX_AC(diff_bw80_2s);
+                tmp_TPI = pwr_40_1s + diff_bw80_1s + diff_bw80_2s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS2_MCS8, TX_AGC_HT_NSS2_MCS15, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS2_MCS0, TX_AGC_VHT_NSS2_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_2S_X_88XX_AC(Adapter, writeVal, i);
+                }
 
-	if (HAL_VAR_CurrentChannelBW == 0) 
-	{
-		if (bPathAEn) {
-			//PATH A, BW20-1S
-			pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx);
-			diff_bw20_1s = ((HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_A(ch_idx) & 0xf0) >> 4);
-			diff_bw20_1s = convert_diff_88XX_AC(diff_bw20_1s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_1S_A_88XX_AC(Adapter, writeVal);
+#if defined(CONFIG_WLAN_HAL_8814AE)
+				//PATH X, BW80-2S
+			   diff_bw80_3s = ((HAL_VAR_pwrdiff_5G_80BW3S_160BW3S_X[i] & 0xf0) >> 4);
+			   diff_bw80_3s = convert_diff_88XX_AC(diff_bw80_3s);
+			   //panic_printk("diff_bw80_3s=%c, %d\n",diff_bw80_3s,diff_bw80_3s);
+			   tmp_TPI = pwr_40_1s + diff_bw80_1s + diff_bw80_2s +diff_bw80_3s;
+			   writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+               if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                   PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS3_MCS16, TX_AGC_HT_NSS3_MCS23, i, tmp_TPI);
+                   PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS3_MCS0, TX_AGC_VHT_NSS3_MCS9, i, tmp_TPI);
+               } else
+#endif
+               {
+                   Write_3S_X_88XX_AC(Adapter, writeVal, i);
+               }
 
-			//printk("Write_1S_A_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw20_1s);
-
-			//PATH A, BW20-2S
-			diff_bw20_2s = (HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_A(ch_idx) & 0x0f);
-			diff_bw20_2s = convert_diff_88XX_AC(diff_bw20_2s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_2S_A_88XX_AC(Adapter, writeVal);
-		}
-		//printk("Write_2S_A_88XX %d = %d + %d + %d\n", tmp_TPI, pwr_40_1s , diff_bw20_1s, diff_bw20_2s);
-
-		if (bPathBEn) {
-			//PATH B, BW20-1S
-			pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx) ;
-			diff_bw20_1s = ((HAL_VAR_pwrdiff_5G_20BW1S_OFDM1T_B(ch_idx) & 0xf0) >> 4);
-			diff_bw20_1s = convert_diff_88XX_AC(diff_bw20_1s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_1S_B_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_1S_B_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw20_1s);
-
-			//PATH B, BW20-2S
-			diff_bw20_2s = (HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_B(ch_idx) & 0x0f);
-			diff_bw20_2s = convert_diff_88XX_AC(diff_bw20_2s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_2S_B_88XX_AC(Adapter, writeVal);
-		}
-		//printk("Write_2S_B_88XX %d = %d + %d + %d\n", tmp_TPI, pwr_40_1s , diff_bw20_1s, diff_bw20_2s);
-
-	}
-	else if (HAL_VAR_CurrentChannelBW == 1) 
-	{
-		if (bPathAEn) {
-			//PATH A, BW40-1S
-			pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx_ht40);
-			tmp_TPI = pwr_40_1s ;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_1S_A_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_1S_A_88XX %d = %d \n", tmp_TPI, pwr_40_1s);
-
-
-			//PATH A, BW40-2S
-			diff_bw40_2s = ((HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_A(ch_idx_ht40) & 0xf0) >> 4);
-			diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
-			tmp_TPI = pwr_40_1s + diff_bw40_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_2S_A_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_2S_A_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw40_2s);
-		}
-
-		if (bPathBEn) {
-			//PATH B, BW40-1S
-			pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx_ht40);
-			tmp_TPI = pwr_40_1s ;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_1S_B_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_1S_B_88XX %d = %d \n", tmp_TPI, pwr_40_1s);
-
-
-			//PATH A, BW40-2S
-			diff_bw40_2s = ((HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_B(ch_idx_ht40) & 0xf0) >> 4);
-			diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
-			tmp_TPI = pwr_40_1s + diff_bw40_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_2S_B_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_2S_B_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw40_2s);
-		}
-
-	}
-	else if (HAL_VAR_CurrentChannelBW == 2) 
-	{
-		if (bPathAEn) {
-			pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx_ht40);
-			tmp_TPI = pwr_40_1s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT1S_A_88XX_AC(Adapter, writeVal);
-			//printk("Write_1S_A_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw80_1s);
-
-			//PATH A, BW40-2S
-			diff_bw40_2s = ((HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_A(ch_idx_ht40) & 0xf0) >> 4);
-			diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
-			tmp_TPI = pwr_40_1s + diff_bw40_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT2S_A_88XX_AC(Adapter, writeVal);
-			
-			//PATH A, BW80-1S
-			pwr_80_1s = (HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx_vht80- 4) +
-						 HAL_VAR_pwrlevel5GHT40_1S_A(ch_idx_vht80+ 4)) / 2  ;
-			diff_bw80_1s = ((HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_A(ch_idx_vht80) & 0xf0) >> 4);
-			diff_bw80_1s = convert_diff_88XX_AC(diff_bw80_1s);
-			tmp_TPI = pwr_80_1s + diff_bw80_1s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_VHT1S_A_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_1S_A_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw80_1s);
-
-
-			//PATH A, BW80-2S
-			diff_bw80_2s = ((HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_A(ch_idx_vht80) & 0xf0) >> 4);
-			diff_bw80_2s = convert_diff_88XX_AC(diff_bw80_2s);
-			tmp_TPI = pwr_80_1s + diff_bw80_1s + diff_bw80_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_VHT2S_A_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_2S_A_88XX %d = %d + %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw80_1s, diff_bw80_1s);
-		}
-
-		if (bPathBEn) {
-			//PATH B, BW40-1S
-			pwr_40_1s = HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx_ht40);
-			tmp_TPI = pwr_40_1s ;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT1S_B_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_1S_B_88XX %d = %d \n", tmp_TPI, pwr_40_1s);
-
-
-			//PATH A, BW40-2S
-			diff_bw40_2s = ((HAL_VAR_pwrdiff_5G_40BW2S_20BW2S_B(ch_idx_ht40) & 0xf0) >> 4);
-			diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
-			tmp_TPI = pwr_40_1s + diff_bw40_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT2S_B_88XX_AC(Adapter, writeVal);
-
-			
-			//PATH B, BW80-1S
-			pwr_80_1s = (HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx_vht80 - 4) +
-						 HAL_VAR_pwrlevel5GHT40_1S_B(ch_idx_vht80 + 4)) / 2;
-			diff_bw80_1s = ((HAL_VAR_pwrdiff_5G_80BW1S_160BW1S_B(ch_idx_vht80) & 0xf0) >> 4);
-			diff_bw80_1s = convert_diff_88XX_AC(diff_bw80_1s);
-			tmp_TPI = pwr_80_1s + diff_bw80_1s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_VHT1S_B_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_1S_B_88XX %d = %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw80_1s);
-
-
-			//PATH B, BW80-2S
-			diff_bw80_2s = ((HAL_VAR_pwrdiff_5G_80BW2S_160BW2S_B(ch_idx_vht80) & 0xf0) >> 4);
-			diff_bw80_2s = convert_diff_88XX_AC(diff_bw80_2s);
-			tmp_TPI = pwr_80_1s + diff_bw80_1s + diff_bw80_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_VHT2S_B_88XX_AC(Adapter, writeVal);
-
-			//printk("Write_2S_B_88XX %d = %d + %d + %d \n", tmp_TPI, pwr_40_1s , diff_bw80_1s, diff_bw80_1s);
-		}
+#endif
+            }
+        }
 	}
 }
 
@@ -1880,139 +3452,231 @@ CalOFDMTxPower2G_88XX_AC(
 )
 {
 	u1Byte tmp_TPI = 0;
-	u1Byte pwr_40_1s = 0;
+	u1Byte pwr_40_1s = 0, ch_idx_ht40 = 0;
 	s1Byte diff_ofdm_1t = 0;
 	s1Byte diff_bw40_2s = 0;
+	s1Byte diff_bw40_3s = 0;	
 	s1Byte diff_bw20_1s = 0;
-	s1Byte diff_bw20_2s = 0;
-	u4Byte  writeVal = 0;
-	u1Byte bPathAEn = 0;
-	u1Byte bPathBEn = 0;
-	u1Byte ch_idx_ht40 = ((HAL_VAR_OFFSET_2ND_CHANNEL==1) ? (HAL_VAR_DOT11CHANNEL-2) : (HAL_VAR_DOT11CHANNEL+2)) -1;
-	u1Byte is_coexist = 0;
-	PRTL8192CD_PRIV		priv = Adapter;
-		
-	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
-		if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx) == 0) || (HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0)) {
-			use_DefaultOFDMTxPowerPathA88XX_AC(Adapter);
-			use_DefaultOFDMTxPowerPathB88XX_AC(Adapter);
-			return;
-		}
-		bPathAEn = 1;
-		bPathBEn = 1;
-	} else if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
-		if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx) == 0)) {
-			use_DefaultOFDMTxPowerPathA88XX_AC(Adapter);
-			return;
-		}
-		bPathAEn = 1;
-	}
+	s1Byte diff_bw20_2s = 0;	
+	s1Byte diff_bw20_3s = 0;
+	u4Byte writeVal = 0;
+    u1Byte bPathXEn[4] = {0};
+    u1Byte i;
+	
+	ch_idx_ht40 = ((HAL_VAR_OFFSET_2ND_CHANNEL==1) ? (HAL_VAR_DOT11CHANNEL-2) : (HAL_VAR_DOT11CHANNEL+2)) -1;
 
-
-	if (Adapter->pshare->is_40m_bw && (HAL_VAR_CurrentChannelBW == HT_CHANNEL_WIDTH_20_40)
-#ifdef WIFI_11N_2040_COEXIST
-					&& ((((GET_MIB(Adapter))->dot11OperationEntry.opmode) & WIFI_AP_STATE)) 
-					&& COEXIST_ENABLE
-					&& (Adapter->bg_ap_timeout || orForce20_Switch20Map(Adapter))
+    u1Byte HAL_VAR_pwrlevelHT40_1S_X[4] = {HAL_VAR_pwrlevelHT40_1S_A(ch_idx), HAL_VAR_pwrlevelHT40_1S_B(ch_idx), 
+		HAL_VAR_pwrlevelHT40_1S_C(ch_idx), HAL_VAR_pwrlevelHT40_1S_D(ch_idx)
+		};
+	/* for 40M*/
+	u1Byte HAL_VAR_pwrlevelHT40_1S_X_40M[4] = {HAL_VAR_pwrlevelHT40_1S_A(ch_idx_ht40), HAL_VAR_pwrlevelHT40_1S_B(ch_idx_ht40),
+		HAL_VAR_pwrlevelHT40_1S_C(ch_idx_ht40), HAL_VAR_pwrlevelHT40_1S_D(ch_idx_ht40)
+		};
+    s1Byte HAL_VAR_pwrdiff_20BW1S_OFDM1T_X[4] = {HAL_VAR_pwrdiff_20BW1S_OFDM1T_A(ch_idx), HAL_VAR_pwrdiff_20BW1S_OFDM1T_B(ch_idx),
+		HAL_VAR_pwrdiff_20BW1S_OFDM1T_C(ch_idx), HAL_VAR_pwrdiff_20BW1S_OFDM1T_D(ch_idx)
+		};
+    s1Byte HAL_VAR_pwrdiff_40BW2S_20BW2S_X[4] = {HAL_VAR_pwrdiff_40BW2S_20BW2S_A(ch_idx), HAL_VAR_pwrdiff_40BW2S_20BW2S_B(ch_idx),
+		HAL_VAR_pwrdiff_40BW2S_20BW2S_C(ch_idx), HAL_VAR_pwrdiff_40BW2S_20BW2S_D(ch_idx)
+		};
+	s1Byte HAL_VAR_pwrdiff_40BW3S_20BW3S_X[4] = {HAL_VAR_pwrdiff_40BW3S_20BW3S_A(ch_idx), HAL_VAR_pwrdiff_40BW3S_20BW3S_B(ch_idx), 
+		HAL_VAR_pwrdiff_40BW3S_20BW3S_C(ch_idx), HAL_VAR_pwrdiff_40BW3S_20BW3S_D(ch_idx)
+		};		
+       
+    if (GetChipIDMIMO88XX(Adapter) == MIMO_4T4R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 1;
+        bPathXEn[2] = 1;
+        bPathXEn[3] = 1;
+        if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0)	
+			||(HAL_VAR_pwrlevelHT40_1S_C(ch_idx) == 0)||(HAL_VAR_pwrlevelHT40_1S_D(ch_idx) == 0)
+			) {
+            use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+            return;
+        }
+    }
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_3T3R) {
+		if(IS_HARDWARE_TYPE_8814A(Adapter)){
+#ifdef	CONFIG_RTL_8814_8194_2T2R_SUPPORT
+			bPathXEn[0] = 0;
+			bPathXEn[1] = 1;
+			bPathXEn[2] = 1;
+			bPathXEn[3] = 0;
+			if ((HAL_VAR_pwrlevelHT40_1S_B(ch_idx)== 0) || (HAL_VAR_pwrlevelHT40_1S_C(ch_idx) == 0)){
+				use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+				return;
+			}
+#else
+			bPathXEn[0] = 0;
+			bPathXEn[1] = 1;
+			bPathXEn[2] = 1;
+			bPathXEn[3] = 1;
+			if ((HAL_VAR_pwrlevelHT40_1S_B(ch_idx)== 0) || (HAL_VAR_pwrlevelHT40_1S_C(ch_idx) == 0)
+				||(HAL_VAR_pwrlevelHT40_1S_D(ch_idx)== 0)
+			){
+				use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+				return;
+			}
 #endif
-	) {
-		is_coexist = 1;
-	}
-
-
-	// PATH A, OFDM
-	if (bPathAEn) {
-		pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_A(ch_idx);
-		diff_ofdm_1t = (HAL_VAR_pwrdiff_20BW1S_OFDM1T_A(ch_idx) & 0x0f);
-		diff_ofdm_1t = convert_diff_88XX_AC(diff_ofdm_1t);
-		tmp_TPI = pwr_40_1s + diff_ofdm_1t;
-		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-		Write_OFDM_A_88XX_AC(Adapter, writeVal);
-	}
-
-	// PATH B, OFDM
-	if (bPathBEn) {
-		pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_B(ch_idx);
-		diff_ofdm_1t = (HAL_VAR_pwrdiff_20BW1S_OFDM1T_B(ch_idx) & 0x0f);
-		diff_ofdm_1t = convert_diff_88XX_AC(diff_ofdm_1t);
-		tmp_TPI = pwr_40_1s + diff_ofdm_1t;
-		writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-		Write_OFDM_B_88XX_AC(Adapter, writeVal);
-	}
-
-	if (HAL_VAR_CurrentChannelBW == 0 || is_coexist) {
-
-		if (bPathAEn) {
-			//PATH A, BW20-1S
-			pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_A(ch_idx);
-			diff_bw20_1s = ((HAL_VAR_pwrdiff_20BW1S_OFDM1T_A(ch_idx) & 0xf0) >> 4);
-			diff_bw20_1s = convert_diff_88XX_AC(diff_bw20_1s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT1S_A_88XX_AC(Adapter, writeVal);
-
-
-			//PATH A, BW20-2S
-			diff_bw20_2s = (HAL_VAR_pwrdiff_40BW2S_20BW2S_A(ch_idx) & 0x0f);
-			diff_bw20_2s = convert_diff_88XX_AC(diff_bw20_2s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT2S_A_88XX_AC(Adapter, writeVal);
+		}else{
+			bPathXEn[0] = 1;
+			bPathXEn[1] = 1;
+			bPathXEn[2] = 1;
+			bPathXEn[3] = 0;
+			if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0)
+				||(HAL_VAR_pwrlevelHT40_1S_C(ch_idx) == 0)
+				) {
+				use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+				return;
+			}
 		}
-		// ==== //
-
-		if (bPathBEn) {
-			//PATH B, BW20-1S
-			pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_B(ch_idx);
-			diff_bw20_1s = ((HAL_VAR_pwrdiff_20BW1S_OFDM1T_B(ch_idx) & 0xf0) >> 4);
-			diff_bw20_1s = convert_diff_88XX_AC(diff_bw20_1s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT1S_B_88XX_AC(Adapter, writeVal);
-
-			//PATH B, BW20-2S
-			diff_bw20_2s = (HAL_VAR_pwrdiff_40BW2S_20BW2S_B(ch_idx) & 0x0f);
-			diff_bw20_2s = convert_diff_88XX_AC(diff_bw20_2s);
-			tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT2S_B_88XX_AC(Adapter, writeVal);
-		}
-
-	} else if (HAL_VAR_CurrentChannelBW == 1) {
-
-		if (bPathAEn) {
-			//PATH A, BW40-1S
-			pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_A(ch_idx_ht40);
-			tmp_TPI = pwr_40_1s ;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT1S_A_88XX_AC(Adapter, writeVal);
+    }
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 1;
+        bPathXEn[2] = 0;
+        bPathXEn[3] = 0;
+        if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx)== 0)||(HAL_VAR_pwrlevelHT40_1S_B(ch_idx) == 0)) {
+            use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+            return;
+        }
+    }
+    else if (GetChipIDMIMO88XX(Adapter) == MIMO_1T1R) {
+        bPathXEn[0] = 1;
+        bPathXEn[1] = 0;
+        bPathXEn[2] = 0;
+        bPathXEn[3] = 0;
+        if ((HAL_VAR_pwrlevelHT40_1S_A(ch_idx)== 0)) {
+            use_DefaultOFDMTxPowerPathX88XX_AC(Adapter, bPathXEn);
+            return;
+        }                   
+    }
 
 
-			//PATH A, BW40-2S
-			diff_bw40_2s = ((HAL_VAR_pwrdiff_40BW2S_20BW2S_A(ch_idx_ht40) & 0xf0) >> 4);
-			diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
-			tmp_TPI = pwr_40_1s + diff_bw40_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT2S_A_88XX_AC(Adapter, writeVal);
-		}
+    for(i = 0; i < 4; i++) {
+        // PATH X, OFDM
+        if(bPathXEn[i]) {
+            pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_X[i];
+            diff_ofdm_1t = (HAL_VAR_pwrdiff_20BW1S_OFDM1T_X[i] & 0x0f);
+            diff_ofdm_1t = convert_diff_88XX_AC(diff_ofdm_1t);
+            tmp_TPI = pwr_40_1s + diff_ofdm_1t;
+       		//tmp_TPI  = HAL_POWER_RANGE_CHECK(tmp_TPI );
+#if IS_RTL8814A_SERIES
+            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                PHYSetTxPower88XX(Adapter, TX_AGC_OFDM_6M, TX_AGC_OFDM_54M, i, tmp_TPI);
+            } else
+#endif
+            {
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+                Write_OFDM_X_88XX_AC(Adapter, writeVal, i);
+            }
+        }
+    }
+	//3 20M
+	if (HAL_VAR_dot11nUse40M == 0) {
 
-		// ==== //
+        for (i = 0; i < 4; i++) {
+            if(bPathXEn[i]) {   
+                //PATH A, BW20-1S
+                pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_X[i];
+                diff_bw20_1s = ((HAL_VAR_pwrdiff_20BW1S_OFDM1T_X[i] & 0xf0) >> 4);
+                diff_bw20_1s = convert_diff_88XX_AC(diff_bw20_1s);
+                tmp_TPI = pwr_40_1s + diff_bw20_1s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS1_MCS0, TX_AGC_HT_NSS1_MCS7, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS1_MCS0, TX_AGC_VHT_NSS1_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_1S_X_88XX_AC(Adapter, writeVal, i);
+                }
 
-		if (bPathBEn) {
-			//PATH B, BW40-1S
-			pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_B(ch_idx_ht40);
-			tmp_TPI = pwr_40_1s ;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT1S_B_88XX_AC(Adapter, writeVal);
+                //PATH A, BW20-2S
+                diff_bw20_2s = (HAL_VAR_pwrdiff_40BW2S_20BW2S_X[i] & 0x0f);
+                diff_bw20_2s = convert_diff_88XX_AC(diff_bw20_2s);
+                tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS2_MCS8, TX_AGC_HT_NSS2_MCS15, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS2_MCS0, TX_AGC_VHT_NSS2_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_2S_X_88XX_AC(Adapter, writeVal, i);
+                }
 
+#if defined(CONFIG_WLAN_HAL_8814AE)
+				//PATH i, BW20-3S
+				diff_bw20_3s = (HAL_VAR_pwrdiff_40BW3S_20BW3S_X[i] & 0x0f);
+				diff_bw20_3s = convert_diff_88XX_AC(diff_bw20_3s);
+				tmp_TPI = pwr_40_1s + diff_bw20_1s + diff_bw20_2s + diff_bw20_3s;
+				writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+               if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                   PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS3_MCS16, TX_AGC_HT_NSS3_MCS23, i, tmp_TPI);
+                   PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS3_MCS0, TX_AGC_VHT_NSS3_MCS9, i, tmp_TPI);
+               } else
+#endif
+                {
+                	Write_3S_X_88XX_AC(Adapter, writeVal, i);
+                }
+#endif
+            }
+        }
+	//3 40M
+	} else if (HAL_VAR_dot11nUse40M == 1) {
+        for (i = 0; i < 4; i++) {
+            if(bPathXEn[i]) {
+                //PATH A, BW40-1S
+                pwr_40_1s = HAL_VAR_pwrlevelHT40_1S_X_40M[i];
+                tmp_TPI = pwr_40_1s ;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS1_MCS0, TX_AGC_HT_NSS1_MCS7, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS1_MCS0, TX_AGC_VHT_NSS1_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_1S_X_88XX_AC(Adapter, writeVal, i);
+                }
 
-			//PATH B, BW40-2S
-			diff_bw40_2s = ((HAL_VAR_pwrdiff_40BW2S_20BW2S_B(ch_idx_ht40) & 0xf0) >> 4);
-			diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
-			tmp_TPI = pwr_40_1s + diff_bw40_2s;
-			writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
-			Write_HT2S_B_88XX_AC(Adapter, writeVal);
-		}
+                //PATH A, BW40-2S
+                diff_bw40_2s = ((HAL_VAR_pwrdiff_40BW2S_20BW2S_X[i] & 0xf0) >> 4);
+                diff_bw40_2s = convert_diff_88XX_AC(diff_bw40_2s);
+                tmp_TPI = pwr_40_1s + diff_bw40_2s;
+                writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS2_MCS8, TX_AGC_HT_NSS2_MCS15, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS2_MCS0, TX_AGC_VHT_NSS2_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                    Write_2S_X_88XX_AC(Adapter, writeVal, i);
+                }
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+				//PATH i, BW40-3S
+				diff_bw40_3s = ((HAL_VAR_pwrdiff_40BW3S_20BW3S_X[i] & 0xf0) >> 4);
+				diff_bw40_3s = convert_diff_88XX_AC(diff_bw40_3s);
+				tmp_TPI = pwr_40_1s + diff_bw40_2s + diff_bw40_3s;
+				writeVal = (tmp_TPI << 24) | (tmp_TPI << 16) | (tmp_TPI << 8) | tmp_TPI;
+#if IS_RTL8814A_SERIES
+                if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                    PHYSetTxPower88XX(Adapter, TX_AGC_HT_NSS3_MCS16, TX_AGC_HT_NSS3_MCS23, i, tmp_TPI);
+                    PHYSetTxPower88XX(Adapter, TX_AGC_VHT_NSS3_MCS0, TX_AGC_VHT_NSS3_MCS9, i, tmp_TPI);
+                } else
+#endif
+                {
+                	Write_3S_X_88XX_AC(Adapter, writeVal, i);
+                }
+#endif
+            }
+        }
+
 	}
 }
 
@@ -2030,212 +3694,129 @@ convert_diff_88XX_AC(
 		return (value - 16);
 }
 
-void
-Write_OFDM_A_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
+void 
+Write_OFDM_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
 )
 {
-	HAL_RTL_W32(REG_BB_TXAGC_A_OFDM18_OFDM6_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_OFDM54_OFDM24_AC, writeVal);
+    u4Byte REG_BB_TXAGC_X_OFDM18_OFDM6_AC[4] = {REG_BB_TXAGC_A_OFDM18_OFDM6_AC, REG_BB_TXAGC_B_OFDM18_OFDM6_AC, REG_BB_TXAGC_C_OFDM18_OFDM6_AC, REG_BB_TXAGC_D_OFDM18_OFDM6_AC};
+    u4Byte REG_BB_TXAGC_X_OFDM54_OFDM24_AC[4] = {REG_BB_TXAGC_A_OFDM54_OFDM24_AC, REG_BB_TXAGC_B_OFDM54_OFDM24_AC, REG_BB_TXAGC_C_OFDM54_OFDM24_AC, REG_BB_TXAGC_D_OFDM54_OFDM24_AC};
+
+	HAL_RTL_W32(REG_BB_TXAGC_X_OFDM18_OFDM6_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_OFDM54_OFDM24_AC[bPathXEnIdx], writeVal);
 }
 
-void
-Write_1S_A_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
+void 
+Write_1S_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
 )
 {
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS3_MCS0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS7_MCS4_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
-}
-
-void
-Write_HT1S_A_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS3_MCS0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS7_MCS4_AC, writeVal);
-}
-
-void
-Write_VHT1S_A_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
-}
-
-void
-Write_2S_A_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS11_MCS8_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS15_MCS12_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC, writeVal);
-	writeVal = (writeVal & 0xffff0000) | (HAL_RTL_R32(REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC) & 0xffff);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
-}
-
-void
-Write_HT2S_A_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS11_MCS8_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS15_MCS12_AC, writeVal);
-}
-
-void
-Write_VHT2S_A_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC, writeVal);
-	writeVal = (writeVal & 0xffff0000) | (HAL_RTL_R32(REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC) & 0xffff);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
+    u4Byte REG_BB_TXAGC_X_MCS3_MCS0_AC[4] = {REG_BB_TXAGC_A_MCS3_MCS0_AC, REG_BB_TXAGC_B_MCS3_MCS0_AC, REG_BB_TXAGC_C_MCS3_MCS0_AC, REG_BB_TXAGC_D_MCS3_MCS0_AC};
+    u4Byte REG_BB_TXAGC_X_MCS7_MCS4_AC[4] = {REG_BB_TXAGC_A_MCS7_MCS4_AC, REG_BB_TXAGC_B_MCS7_MCS4_AC, REG_BB_TXAGC_C_MCS7_MCS4_AC, REG_BB_TXAGC_D_MCS7_MCS4_AC};
+    u4Byte REG_BB_TXAGC_X_NSS1INDEX3_NSS1INDEX0_AC[4] = {REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_C_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_D_NSS1INDEX3_NSS1INDEX0_AC};
+    u4Byte REG_BB_TXAGC_X_NSS1INDEX7_NSS1INDEX4_AC[4] = {REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_C_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_D_NSS1INDEX7_NSS1INDEX4_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_C_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_D_NSS2INDEX1_NSS1INDEX8_AC};
+	HAL_RTL_W32(REG_BB_TXAGC_X_MCS3_MCS0_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_MCS7_MCS4_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS1INDEX3_NSS1INDEX0_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS1INDEX7_NSS1INDEX4_AC[bPathXEnIdx], writeVal);
+    // TODO: compare with Write_2S_X_88XX_AC, why don't we write only NSS1 (reference to Write_2S_X_88XX_AC)
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[bPathXEnIdx], writeVal);
 }
 
 
-void
-Write_OFDM_B_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
+void 
+Write_2S_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
 )
 {
-	HAL_RTL_W32(REG_BB_TXAGC_B_OFDM18_OFDM6_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_OFDM54_OFDM24_AC, writeVal);
+    u4Byte REG_BB_TXAGC_X_MCS11_MCS8_AC[4] = {REG_BB_TXAGC_A_MCS11_MCS8_AC, REG_BB_TXAGC_B_MCS11_MCS8_AC, REG_BB_TXAGC_C_MCS11_MCS8_AC, REG_BB_TXAGC_D_MCS11_MCS8_AC};
+    u4Byte REG_BB_TXAGC_X_MCS15_MCS12_AC[4] = {REG_BB_TXAGC_A_MCS15_MCS12_AC, REG_BB_TXAGC_B_MCS15_MCS12_AC, REG_BB_TXAGC_C_MCS15_MCS12_AC, REG_BB_TXAGC_D_MCS15_MCS12_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX5_NSS2INDEX2_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_C_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_D_NSS2INDEX5_NSS2INDEX2_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX9_NSS2INDEX6_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_C_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_D_NSS2INDEX9_NSS2INDEX6_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_C_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_D_NSS2INDEX1_NSS1INDEX8_AC};
+
+	HAL_RTL_W32(REG_BB_TXAGC_X_MCS11_MCS8_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_MCS15_MCS12_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS2INDEX5_NSS2INDEX2_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS2INDEX9_NSS2INDEX6_AC[bPathXEnIdx], writeVal);
+	writeVal = (writeVal & 0xffff0000) | (HAL_RTL_R32(REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[bPathXEnIdx]) & 0xffff);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[bPathXEnIdx], writeVal);
 }
 
-
-void
-Write_1S_B_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
+void 
+Write_3S_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
 )
 {
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS3_MCS0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS7_MCS4_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
+    u4Byte REG_BB_TXAGC_X_MCS19_MCS16_AC[4] = {REG_BB_TXAGC_A_MCS19_MCS16_AC, REG_BB_TXAGC_B_MCS19_MCS16_AC, REG_BB_TXAGC_C_MCS19_MCS16_AC, REG_BB_TXAGC_D_MCS19_MCS16_AC};
+    u4Byte REG_BB_TXAGC_X_MCS23_MCS20_AC[4] = {REG_BB_TXAGC_A_MCS23_MCS20_AC, REG_BB_TXAGC_B_MCS23_MCS20_AC, REG_BB_TXAGC_C_MCS23_MCS20_AC, REG_BB_TXAGC_D_MCS23_MCS20_AC};
+    u4Byte REG_BB_TXAGC_X_NSS3INDEX3_NSS3INDEX0_AC[4] = {REG_BB_TXAGC_A_NSS3INDEX3_NSS3INDEX0_AC, REG_BB_TXAGC_B_NSS3INDEX3_NSS3INDEX0_AC, REG_BB_TXAGC_C_NSS3INDEX3_NSS3INDEX0_AC, REG_BB_TXAGC_D_NSS3INDEX3_NSS3INDEX0_AC};
+    u4Byte REG_BB_TXAGC_X_NSS3INDEX7_NSS3INDEX4_AC[4] = {REG_BB_TXAGC_A_NSS3INDEX7_NSS3INDEX4_AC, REG_BB_TXAGC_B_NSS3INDEX7_NSS3INDEX4_AC, REG_BB_TXAGC_C_NSS3INDEX7_NSS3INDEX4_AC, REG_BB_TXAGC_D_NSS3INDEX7_NSS3INDEX4_AC};
+    u4Byte REG_BB_TXAGC_X_NSS3INDEX9_NSS3INDEX8_AC[4] = {REG_BB_TXAGC_A_NSS3INDEX9_NSS3INDEX8_AC, REG_BB_TXAGC_B_NSS3INDEX9_NSS3INDEX8_AC, REG_BB_TXAGC_C_NSS3INDEX9_NSS3INDEX8_AC, REG_BB_TXAGC_D_NSS3INDEX9_NSS3INDEX8_AC};
+
+	HAL_RTL_W32(REG_BB_TXAGC_X_MCS19_MCS16_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_MCS23_MCS20_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS3INDEX3_NSS3INDEX0_AC[bPathXEnIdx], writeVal);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS3INDEX7_NSS3INDEX4_AC[bPathXEnIdx], writeVal);
+	writeVal = (writeVal & 0xffff) | (HAL_RTL_R32(REG_BB_TXAGC_X_NSS3INDEX9_NSS3INDEX8_AC[bPathXEnIdx]) & 0xffff0000);
+	HAL_RTL_W32(REG_BB_TXAGC_X_NSS3INDEX9_NSS3INDEX8_AC[bPathXEnIdx], writeVal);
 }
 
-void
-Write_HT1S_B_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
+void 
+use_DefaultOFDMTxPowerPathX88XX_AC(
+    IN  HAL_PADAPTER    Adapter,
+    IN  pu1Byte         bPathXEn
 )
 {
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS3_MCS0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS7_MCS4_AC, writeVal);
+    u4Byte def_power = 0x12121212;   //0x20202020; 
+    u4Byte REG_BB_TXAGC_X_OFDM18_OFDM6_AC[4] = {REG_BB_TXAGC_A_OFDM18_OFDM6_AC, REG_BB_TXAGC_B_OFDM18_OFDM6_AC, REG_BB_TXAGC_C_OFDM18_OFDM6_AC, REG_BB_TXAGC_D_OFDM18_OFDM6_AC};
+    u4Byte REG_BB_TXAGC_X_OFDM54_OFDM24_AC[4] = {REG_BB_TXAGC_A_OFDM54_OFDM24_AC, REG_BB_TXAGC_B_OFDM54_OFDM24_AC, REG_BB_TXAGC_C_OFDM54_OFDM24_AC, REG_BB_TXAGC_D_OFDM54_OFDM24_AC};
+    u4Byte REG_BB_TXAGC_X_MCS3_MCS0_AC[4] = {REG_BB_TXAGC_A_MCS3_MCS0_AC, REG_BB_TXAGC_B_MCS3_MCS0_AC, REG_BB_TXAGC_C_MCS3_MCS0_AC, REG_BB_TXAGC_D_MCS3_MCS0_AC};
+    u4Byte REG_BB_TXAGC_X_MCS7_MCS4_AC[4] = {REG_BB_TXAGC_A_MCS7_MCS4_AC, REG_BB_TXAGC_B_MCS7_MCS4_AC, REG_BB_TXAGC_C_MCS7_MCS4_AC, REG_BB_TXAGC_D_MCS7_MCS4_AC};
+    u4Byte REG_BB_TXAGC_X_MCS11_MCS8_AC[4] = {REG_BB_TXAGC_A_MCS11_MCS8_AC, REG_BB_TXAGC_B_MCS11_MCS8_AC, REG_BB_TXAGC_C_MCS11_MCS8_AC, REG_BB_TXAGC_D_MCS11_MCS8_AC};
+    u4Byte REG_BB_TXAGC_X_MCS15_MCS12_AC[4] = {REG_BB_TXAGC_A_MCS15_MCS12_AC, REG_BB_TXAGC_B_MCS15_MCS12_AC, REG_BB_TXAGC_C_MCS15_MCS12_AC, REG_BB_TXAGC_C_MCS15_MCS12_AC};
+    u4Byte REG_BB_TXAGC_X_NSS1INDEX3_NSS1INDEX0_AC[4] = {REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_C_NSS1INDEX3_NSS1INDEX0_AC, REG_BB_TXAGC_D_NSS1INDEX3_NSS1INDEX0_AC};
+    u4Byte REG_BB_TXAGC_X_NSS1INDEX7_NSS1INDEX4_AC[4] = {REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_C_NSS1INDEX7_NSS1INDEX4_AC, REG_BB_TXAGC_D_NSS1INDEX7_NSS1INDEX4_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_C_NSS2INDEX1_NSS1INDEX8_AC, REG_BB_TXAGC_D_NSS2INDEX1_NSS1INDEX8_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX5_NSS2INDEX2_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_C_NSS2INDEX5_NSS2INDEX2_AC, REG_BB_TXAGC_D_NSS2INDEX5_NSS2INDEX2_AC};
+    u4Byte REG_BB_TXAGC_X_NSS2INDEX9_NSS2INDEX6_AC[4] = {REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_C_NSS2INDEX9_NSS2INDEX6_AC, REG_BB_TXAGC_D_NSS2INDEX9_NSS2INDEX6_AC};
+    u1Byte i;
+
+    u1Byte def_power_value = 0x12;
+
+    for (i = 0; i < 4; i++) {
+        if (bPathXEn[i]) {
+#if IS_RTL8814A_SERIES
+            if ( IS_HARDWARE_TYPE_8814A(Adapter) && (IS_HAL_TEST_CHIP(Adapter)==FALSE)) {
+                PHYSetTxPower88XX(Adapter, TX_AGC_OFDM_6M, TX_AGC_VHT_NSS4_MCS9, i, def_power_value);
+            } else 
+#endif
+            {
+            	HAL_RTL_W32(REG_BB_TXAGC_X_OFDM18_OFDM6_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_OFDM54_OFDM24_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_MCS3_MCS0_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_MCS7_MCS4_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_MCS11_MCS8_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_MCS15_MCS12_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_NSS1INDEX3_NSS1INDEX0_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_NSS1INDEX7_NSS1INDEX4_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_NSS2INDEX1_NSS1INDEX8_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_NSS2INDEX5_NSS2INDEX2_AC[i], def_power);
+            	HAL_RTL_W32(REG_BB_TXAGC_X_NSS2INDEX9_NSS2INDEX6_AC[i], def_power);
+            }
+        }
+    }
 }
 
-void
-Write_VHT1S_B_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
-}
-
-
-void
-Write_2S_B_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS11_MCS8_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS15_MCS12_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, writeVal);
-	writeVal = (writeVal & 0xffff0000) | (HAL_RTL_R32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC) & 0xffff);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
-}
-
-void
-Write_HT2S_B_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS11_MCS8_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS15_MCS12_AC, writeVal);
-}
-
-void
-Write_VHT2S_B_88XX_AC(
-	IN  HAL_PADAPTER    Adapter,
-	IN  u4Byte          writeVal
-)
-{
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC, writeVal);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, writeVal);
-	writeVal = (writeVal & 0xffff0000) | (HAL_RTL_R32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC) & 0xffff);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, writeVal);
-}
-
-
-void
-use_DefaultOFDMTxPowerPathA88XX_AC(
-	IN  HAL_PADAPTER    Adapter
-)
-{
-	u4Byte def_power = 0x12121212;   //0x20202020;
-
-	HAL_RTL_W32(REG_BB_TXAGC_A_OFDM18_OFDM6_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_OFDM54_OFDM24_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS3_MCS0_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS7_MCS4_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS11_MCS8_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_MCS15_MCS12_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS1INDEX3_NSS1INDEX0_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS1INDEX7_NSS1INDEX4_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX1_NSS1INDEX8_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX5_NSS2INDEX2_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_A_NSS2INDEX9_NSS2INDEX6_AC, def_power);
-}
-
-
-void
-use_DefaultOFDMTxPowerPathB88XX_AC(
-	IN  HAL_PADAPTER    Adapter
-)
-{
-	u4Byte def_power = 0x12121212;    //0x20202020;
-
-	HAL_RTL_W32(REG_BB_TXAGC_B_OFDM18_OFDM6_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_OFDM54_OFDM24_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS3_MCS0_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS7_MCS4_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS11_MCS8_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_MCS15_MCS12_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS1INDEX3_NSS1INDEX0_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS1INDEX7_NSS1INDEX4_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX1_NSS1INDEX8_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX5_NSS2INDEX2_AC, def_power);
-	HAL_RTL_W32(REG_BB_TXAGC_B_NSS2INDEX9_NSS2INDEX6_AC, def_power);
-
-
-}
 #endif //#if IS_RTL88XX_AC
 
 
@@ -2444,15 +4025,15 @@ PHYSetOFDMTxPower88XX_N(
 		 ))
 			is_coexist = 1;	 
 #endif
- 
+
 	if ((HAL_VAR_CurrentChannelBW == HT_CHANNEL_WIDTH_20) || is_coexist) {
-		pwrlevelHT40_1S_A = HAL_VAR_pwrlevelHT40_1S_A(ch_idx);
-		pwrlevelHT40_1S_B = HAL_VAR_pwrlevelHT40_1S_B(ch_idx);
-		pwrdiffHT40_2S = HAL_VAR_pwrdiffHT40_2S(ch_idx);
+	        pwrlevelHT40_1S_A = HAL_VAR_pwrlevelHT40_1S_A(ch_idx);
+	        pwrlevelHT40_1S_B = HAL_VAR_pwrlevelHT40_1S_B(ch_idx);
+	        pwrdiffHT40_2S = HAL_VAR_pwrdiffHT40_2S(ch_idx);
 	} else if (HAL_VAR_CurrentChannelBW == HT_CHANNEL_WIDTH_20_40) {
-		pwrlevelHT40_1S_A = HAL_VAR_pwrlevelHT40_1S_A(ch_idx_ht40);
-		pwrlevelHT40_1S_B = HAL_VAR_pwrlevelHT40_1S_B(ch_idx_ht40);
-		pwrdiffHT40_2S = HAL_VAR_pwrdiffHT40_2S(ch_idx_ht40);
+	        pwrlevelHT40_1S_A = HAL_VAR_pwrlevelHT40_1S_A(ch_idx_ht40);
+	        pwrlevelHT40_1S_B = HAL_VAR_pwrlevelHT40_1S_B(ch_idx_ht40);
+	        pwrdiffHT40_2S = HAL_VAR_pwrdiffHT40_2S(ch_idx_ht40);
 	}
 
 	if ((pwrlevelHT40_1S_A == 0) )
@@ -2572,8 +4153,8 @@ PHYSetOFDMTxPower88XX_N(
 	}
 
 	/******************************  PATH A  ******************************/
-	base = HAL_VAR_pwrlevelHT40_1S_A(ch_idx);
-	offset = (HAL_VAR_pwrdiffOFDM(ch_idx) & 0x0f);
+	base = pwrlevelHT40_1S_A;
+	offset = (pwrdiffOFDM & 0x0f);
 	base = HAL_COUNT_SIGN_OFFSET(base, offset);
 #if CFG_HAL_POWER_PERCENT_ADJUSTMENT
 	base = base + pwrdiff_percent;
@@ -2595,9 +4176,9 @@ PHYSetOFDMTxPower88XX_N(
 	writeVal = (byte0 << 24) | (byte1 << 16) | (byte2 << 8) | byte3;
 	HAL_RTL_W32(REG_BB_TXAGC_A_RATE54_24_N, writeVal);
 
-	// cal HT rate diff
+    // cal HT rate diff
 	base = pwrlevelHT40_1S_A;
-	if (HAL_VAR_CurrentChannelBW == HT_CHANNEL_WIDTH_20 || is_coexist) {
+	if (HAL_VAR_CurrentChannelBW == HT_CHANNEL_WIDTH_20) {
 		offset = (pwrdiffHT20 & 0x0f);
 		base = HAL_COUNT_SIGN_OFFSET(base, offset);
 	}
@@ -2641,7 +4222,7 @@ PHYSetOFDMTxPower88XX_N(
 	byte2 = HAL_POWER_RANGE_CHECK(base + HAL_VAR_MCSTxAgcOffset_A(14));
 	byte3 = HAL_POWER_RANGE_CHECK(base + HAL_VAR_MCSTxAgcOffset_A(15));
 
-	writeVal = (byte0 << 24) | (byte1 << 16) | (byte2 << 8) | byte3;
+	writeVal = (byte0<<24) | (byte1<<16) |(byte2<<8) | byte3;
 	HAL_RTL_W32(REG_BB_TXAGC_A_MCS15_MCS12_N, writeVal);
 
 	/******************************  PATH B  ******************************/
@@ -2649,7 +4230,7 @@ PHYSetOFDMTxPower88XX_N(
 	if (GetChipIDMIMO88XX(Adapter) == MIMO_2T2R) {
 
 		base = pwrlevelHT40_1S_B;
-		offset = ((HAL_VAR_pwrdiffOFDM(ch_idx) & 0xf0) >> 4);
+	offset = ((pwrdiffOFDM & 0xf0) >> 4);
 		base = HAL_COUNT_SIGN_OFFSET(base, offset);
 #if CFG_HAL_POWER_PERCENT_ADJUSTMENT
 		base = base + pwrdiff_percent;
@@ -2670,7 +4251,7 @@ PHYSetOFDMTxPower88XX_N(
 		HAL_RTL_W32(REG_BB_TXAGC_B_RATE54_24_N, writeVal);
 
 		base = pwrlevelHT40_1S_B;
-		if (HAL_VAR_CurrentChannelBW == HT_CHANNEL_WIDTH_20 || is_coexist) {			
+	if (HAL_VAR_CurrentChannelBW == HT_CHANNEL_WIDTH_20) {
 			offset = ((pwrdiffHT20 & 0xf0) >> 4);
 			base = HAL_COUNT_SIGN_OFFSET(base, offset);
 		}
@@ -2740,7 +4321,7 @@ PHYSetCCKTxPower88XX_N(
 	if (channel > CHANNEL_MAX_NUMBER_2G)
 		phy_band = PHY_BAND_5G;
 	else
-		phy_band = PHY_BAND_2G;
+		phy_band = PHY_BAND_2G;	
 
 	if (HAL_cck_pwr_max) {
 		byte = HAL_POWER_RANGE_CHECK((char)HAL_cck_pwr_max);
@@ -2753,7 +4334,7 @@ PHYSetCCKTxPower88XX_N(
 		return RT_STATUS_SUCCESS;
 	}
 
-	if ((pwrlevelCCK_A == 0)) {
+	if ((pwrlevelCCK_A == 0 && pwrlevelCCK_B == 0)) {
 #if CFG_HAL_HIGH_POWER_EXT_PA
 		if (HAL_VAR_use_ext_pa)
 			byte = HP_CCK_POWER_DEFAULT;
@@ -3413,7 +4994,7 @@ IsBBRegRange88XX
 }
 #endif //(IS_RTL8192E_SERIES || IS_RTL8881A_SERIES)
 
-#if (IS_RTL8813A_SERIES)
+#if (IS_RTL8814A_SERIES)
 BOOLEAN
 IsBBRegRange88XX_V1
 (
@@ -3428,7 +5009,7 @@ IsBBRegRange88XX_V1
 		return _FALSE;
 	}
 }
-#endif //(IS_RTL8813A_SERIES)
+#endif //(IS_RTL8814A_SERIES)
 
 
 

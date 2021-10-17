@@ -19,7 +19,7 @@
 ******************************************************************************/
 
 #include "Mp_Precomp.h"
-#include "../odm_precomp.h"
+#include "../phydm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)
 u1Byte Array_8188E_FW_AP[] = {

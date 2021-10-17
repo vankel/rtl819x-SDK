@@ -176,14 +176,20 @@ function Load_Setting()
 	rf_num = <% getIndex("rf_used"); %>;
 	var vht_num;
 
-	rate_mask = [15,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8];
-	rate_name =["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", "MCS0", "MCS1"
-				, "MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", "MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15"];
-	vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
+	var rate_mask = [31,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8,16,16,16,16,16,16,16,16];
+	var rate_name=["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", 
+		"MCS0", "MCS1", "MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", 
+		"MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15", 
+		"MCS16", "MCS17", "MCS18", "MCS19", "MCS20", "MCS21", "MCS22", "MCS23",];
+	var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
 		"NSS1-MCS5","NSS1-MCS6","NSS1-MCS7","NSS1-MCS8","NSS1-MCS9",
 		"NSS2-MCS0","NSS2-MCS1","NSS2-MCS2","NSS2-MCS3","NSS2-MCS4",
-		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9"];
+		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9",
+		"NSS3-MCS0","NSS3-MCS1","NSS3-MCS2","NSS3-MCS3","NSS3-MCS4",
+		"NSS3-MCS5","NSS3-MCS6","NSS3-MCS7","NSS3-MCS8","NSS3-MCS9"];
 	mask=0;
+	var option_num = 0;
+	
 	if (auto)
 		txrate=0;
 	if (band & 1)
@@ -191,13 +197,16 @@ function Load_Setting()
 	if ((band&2) || (band&4))
 		mask |= 2;
 	if (band & 8) {
-		if (rf_num == 2)
+		if (rf_num == 3)
+			mask |= 28;
+		else if (rf_num == 2)
 			mask |= 12;	
 		else
 			mask |= 4;
 	}	
 	document.write('<option value="' + 0 + '">' + rate_name[0] + '\n');
-	for (idx=1, i=1; i<=28; i++) {
+	option_num++;
+	for (idx=1, i=1; i<=36; i++) {
 		if (rate_mask[i] & mask) {
 				rate = (1 << (i-1));
 		 if(txrate == 0)
@@ -206,28 +215,35 @@ function Load_Setting()
 				defidx = idx;
 			document.write('<option value="' + i + '">' + rate_name[i] + '\n');
 			idx++;
+			option_num++;
 		}
 	}
 	bound = <% getIndex("ChannelBonding"); %>;
 	if(band & 64){
-		if(rf_num==1)
-			vht_num=9;
+
+		if(rf_num == 3)
+			vht_num = 29; 
+		else if(rf_num == 2)
+			vht_num = 19;
 		else
-			vht_num=19;
-		for (idx=30, i=0; i<=vht_num; i++) {
+			vht_num = 9;
 		
-				rate = ((1 << 31) + i);
-				
-				if (txrate == rate)
+		for (idx=40, i=0; i<=vht_num; i++) {		
+			rate = ((1 << 31) + i);
+			if (txrate == rate){
+				defidx = option_num;
+			}
+			if((i == 9) || (i == 19) || (i==29))
+			{
+				if(bound == 0)//channel width = 20M
 				{
-					if(vht_num == 19)
-					defidx = idx-5;
-					else
-						defidx = idx-5-8;
+					idx++;
+					continue;
 				}
-				if(bound!=0 || (i!=9 && i!=19))//no MCS9 when 20M
-					document.write('<option value="' + (i+30) + '">' + vht_rate_name[i] + '\n');
-				idx++;
+			}
+			document.write('<option value="' + idx + '">' + vht_rate_name[i] + '\n');
+			idx++;
+			option_num++;
 		}
 	}
 	document.formWlWdsAdd.elements["txRate"].selectedIndex=defidx;

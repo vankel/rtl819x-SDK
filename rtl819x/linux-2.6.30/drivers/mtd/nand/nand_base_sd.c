@@ -253,7 +253,6 @@ static void nand_resume(struct mtd_info *mtd)
 #define NAND256W3A		0x20752075	//SLC, 32MB,    1dies, 512 Bytes page
 /*ESMT*/
 #define F59L1G81A		0x92F18095	//
-#define F59L4G81A		0xc8dc9095
 #define S34ML01G200TFI000 0x01F1801D
 #define S34ML02G200TFI00  0x01DA9095	
 
@@ -310,7 +309,6 @@ static device_type_t nand_device[] =
 /*end-ccwei*/
 /*winfred_wang*/
 	{"F59L1G81A",F59L1G81A,0x8000000, 0x8000000, 2048, 64*2048, 64, 1, 0, 0xff, 0x00, 0x00, 0x00} ,
-	{"F59L4G81A",F59L4G81A,0x20000000, ((4096)*64*2048), 2048, 64*2048, 64, 1, 0, 0xff, 0x00, 0x00, 0x00} ,
 	 /* 256M 2048+128 */
   	{"S34ML02G200TI00",S34ML02G200TFI00,0x10000000,((2048) * 64 * 2048), 2048,64 * 2048, 64, 1, 0, 0x44, 0x00, 0x00, 0x00}, 
 	{NULL, }

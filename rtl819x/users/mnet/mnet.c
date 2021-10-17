@@ -469,7 +469,7 @@ int exec_action_for_tty(int action, char *ttyitf)
 			if (FAILURE == isFileExisted("/var/usb3g.tty"))
 			{
 				get_device_info_from_proc(vender, prodid);
-				sprintf(buffer, "usb_modeswitch -f %s:%s", vender, prodid);
+				sprintf(buffer, "usb_modeswitch -f %s:%s -c /etc/usb_modeswitch.d/tty%s:%s", vender, prodid, vender, prodid);
 				system(buffer);
 				if (SUCCESS == isFileExisted("/var/usb3g.tty")) {
 					fp = fopen("/var/usb3g.tty", "r");

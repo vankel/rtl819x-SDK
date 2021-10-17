@@ -21,6 +21,10 @@ Major Change History:
 typedef enum _RF88XX_RADIO_PATH_ {
 	RF88XX_PATH_A = 0,			//Radio Path A
 	RF88XX_PATH_B = 1,			//Radio Path B
+#if defined(CONFIG_WLAN_HAL_8814AE)	
+    RF88XX_PATH_C = 2,          //Radio Path C
+    RF88XX_PATH_D = 3,          //Radio Path D
+#endif	
 	RF88XX_PATH_MAX				//Max RF number 
 } RFRF88XX_RADIO_PATH_E, *PRFRF88XX_RADIO_PATH_E;
 
@@ -108,6 +112,10 @@ CheckBand88XX_AC(
     IN  u4Byte          RequestChannel
 );
 
+void
+phy_ADC_CLK_8814A(
+	IN  HAL_PADAPTER    Adapter
+);
 
 void SwitchWirelessBand88XX_AC(
     IN  HAL_PADAPTER    Adapter, 
@@ -154,50 +162,36 @@ convert_diff_88XX_AC(
 );
 
 void 
+Write_1S_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
+);
+
+
+void 
+Write_2S_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
+);
+
+void 
+Write_3S_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
+);
+
+#if 0
+void 
 Write_1S_A_88XX_AC(
     IN  HAL_PADAPTER    Adapter, 
     IN  u4Byte          writeVal
 );
 
 void 
-Write_HT1S_A_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-void 
-Write_VHT1S_A_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-
-void 
 Write_2S_A_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-void 
-Write_HT2S_A_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-void 
-Write_VHT2S_A_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-void 
-Write_OFDM_A_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-void 
-Write_OFDM_B_88XX_AC(
     IN  HAL_PADAPTER    Adapter, 
     IN  u4Byte          writeVal
 );
@@ -209,35 +203,41 @@ Write_1S_B_88XX_AC(
 );
 
 void 
-Write_HT1S_B_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-void 
-Write_VHT1S_B_88XX_AC(
-    IN  HAL_PADAPTER    Adapter, 
-    IN  u4Byte          writeVal
-);
-
-void 
 Write_2S_B_88XX_AC(
     IN  HAL_PADAPTER    Adapter, 
     IN  u4Byte          writeVal
 );
 
+#endif
+
 void 
-Write_HT2S_B_88XX_AC(
+Write_OFDM_X_88XX_AC(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u4Byte          writeVal,
+    IN  u1Byte          bPathXEnIdx
+);
+
+#if 0
+void 
+Write_OFDM_A_88XX_AC(
     IN  HAL_PADAPTER    Adapter, 
     IN  u4Byte          writeVal
 );
 
 void 
-Write_VHT2S_B_88XX_AC(
+Write_OFDM_B_88XX_AC(
     IN  HAL_PADAPTER    Adapter, 
     IN  u4Byte          writeVal
 );
+#endif
 
+void 
+use_DefaultOFDMTxPowerPathX88XX_AC(
+    IN  HAL_PADAPTER    Adapter,
+    IN  pu1Byte         bPathXEn
+);
+
+#if 0
 void 
 use_DefaultOFDMTxPowerPathA88XX_AC(
     IN  HAL_PADAPTER    Adapter
@@ -247,16 +247,14 @@ void
 use_DefaultOFDMTxPowerPathB88XX_AC(
     IN  HAL_PADAPTER    Adapter
 );
+#endif
 
-
-RT_STATUS
-PHYSetOFDMTxPower88XX_N(
+RT_STATUS PHYSetOFDMTxPower88XX_N(
         IN  HAL_PADAPTER    Adapter, 
         IN  u1Byte          channel
 );
 
-RT_STATUS
-PHYSetCCKTxPower88XX_N(
+RT_STATUS PHYSetCCKTxPower88XX_N(
         IN  HAL_PADAPTER    Adapter, 
         IN  u1Byte          channel
 );
@@ -310,6 +308,16 @@ void TXPowerTracking_ThermalMeter_88XX
     IN  HAL_PADAPTER    Adapter
 );
 #endif
+
+void
+PHYSetTxPower88XX(
+    IN  HAL_PADAPTER    Adapter, 
+    IN  u1Byte          txRateStart,
+    IN  u1Byte          txRateEnd,
+    IN  u1Byte          txPathIdx,
+    IN  u1Byte          defPower
+);
+
 RT_STATUS 
 AddTxPower88XX_AC(
         IN  HAL_PADAPTER    Adapter, 
@@ -325,14 +333,14 @@ IsBBRegRange88XX
 #endif //#if (IS_RTL8192E_SERIES || IS_RTL8881A_SERIES)
 
 
-#if (IS_RTL8813A_SERIES)
+#if (IS_RTL8814A_SERIES)
 BOOLEAN
 IsBBRegRange88XX_V1
 (
     IN  HAL_PADAPTER                Adapter, 
     IN  u4Byte                      RegAddr
 );
-#endif //#if (IS_RTL8813A_SERIES)
+#endif //#if (IS_RTL8814A_SERIES)
 
 #endif // #ifndef __HAL88XXPHYCFG_H__
 

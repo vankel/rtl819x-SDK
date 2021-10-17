@@ -1,0 +1,42 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<title>BT Controller</title>
+<SCRIPT>
+
+
+</SCRIPT>
+</head>
+
+<body onload="initData();">
+<blockquote>
+<h2><font color="#0000FF">BT Controller</font></h2>
+<table border=0 width="800" cellspacing=0 cellpadding=0>
+  <tr><font size=2>
+  Start/Stop for BT. Please use transmission-remote-gui to get more information.
+  </tr>
+  <tr><hr size=1 noshade align=top></tr>
+</table>
+<form action="/boafrm/formTransmissionBT" method=POST name="formBT">
+<table border='1' width="580" align=top>
+<tr>
+	<td width=26%><font size=2>BT Enabled</td>
+	<td width = 74%>
+		<INPUT type=checkbox name=bt_enabled value=1 <%getInfo("bt_enabled");%>>
+	</td>
+</tr>
+<tr>
+	<td width=26%><font size=2>BT Download Directory</td>
+	<td width = 74%>
+		<INPUT type=text name=btdownloaddir size=64 value="<%getInfo("BTDDir");%>">
+	</td>
+</tr>
+</table>
+<input type=hidden name=nextwebpage value="/transmission.htm">
+<input type="submit" value="save" name="save">
+</form>
+<tr><hr size=1 noshade align=top></tr>
+</blockquote>
+</body>
+</html>

@@ -79,15 +79,11 @@ netdev_tx_t br_dev_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct net_bridge *br = netdev_priv(dev);
 	const unsigned char *dest = skb->data;
 	struct net_bridge_fdb_entry *dst;
-#ifndef CONFIG_RTL_IGMP_SNOOPING
 	struct net_bridge_mdb_entry *mdst;
-#endif
 	struct br_cpu_netstats *brstats = this_cpu_ptr(br->stats);
 	u16 vid = 0;
 #if defined(CONFIG_RTL_HARDWARE_MULTICAST)&&defined(CONFIG_RTL_8198C)
-#if 0 /*for compiler warning: unused variable 'i'*/
 	int i = 0;
-#endif
 #endif
 #if defined (CONFIG_RTL_IGMP_SNOOPING)	
 		struct iphdr *iph=NULL;
@@ -612,8 +608,8 @@ int rtl865x_ipMulticastHardwareAccelerate(struct net_bridge *br, unsigned int br
 {
 	int ret;
 	unsigned int tagged_portmask=0;
-	struct rtl_multicastDataInfo multicastDataInfo = {0};
-	struct rtl_multicastFwdInfo  multicastFwdInfo = {0};
+	struct rtl_multicastDataInfo multicastDataInfo;
+	struct rtl_multicastFwdInfo  multicastFwdInfo;
 	
 	rtl865x_tblDrv_mCast_t * existMulticastEntry;
 	rtl865x_mcast_fwd_descriptor_t  fwdDescriptor;
@@ -742,11 +738,10 @@ int rtl865x_ipv6MulticastHardwareAccelerate(struct net_bridge *br, unsigned int 
 	if(net_ratelimit())
 		printk("[%s:%d]\n",__FUNCTION__,__LINE__);
 #endif
-	int ret;
+	int ret,i;
 	unsigned int tagged_portmask=0;
-	struct rtl_multicastDataInfo multicastDataInfo = {0};
-	struct rtl_multicastFwdInfo  multicastFwdInfo = {0};
-	inv6_addr_t sip,dip;
+	struct rtl_multicastDataInfo multicastDataInfo;
+	struct rtl_multicastFwdInfo  multicastFwdInfo;
 
 	rtl8198c_tblDrv_mCastv6_t * existMulticastEntry;
 	rtl8198c_mcast_fwd_descriptor6_t  fwdDescriptor;
@@ -754,6 +749,7 @@ int rtl865x_ipv6MulticastHardwareAccelerate(struct net_bridge *br, unsigned int 
 	#if 0
 	printk("%s:%d,srcPort is %d,srcVlanId is %d,srcIpAddr is 0x%x,destIpAddr is 0x%x\n",__FUNCTION__,__LINE__,srcPort,srcVlanId,srcIpAddr,destIpAddr);
 	#endif
+
 
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 	
@@ -782,6 +778,7 @@ int rtl865x_ipv6MulticastHardwareAccelerate(struct net_bridge *br, unsigned int 
 	}
 #endif
 	//printk("%s:%d,destIpAddr is 0x%x, srcIpAddr is 0x%x, srcVlanId is %d, srcPort is %d\n",__FUNCTION__,__LINE__,destIpAddr, srcIpAddr, srcVlanId, srcPort);
+	inv6_addr_t sip,dip;
 	memcpy(&sip,&srcIpAddr,sizeof(struct in6_addr));
 	memcpy(&dip,&destIpAddr,sizeof(struct in6_addr));
 	#if 0
@@ -825,20 +822,20 @@ int rtl865x_ipv6MulticastHardwareAccelerate(struct net_bridge *br, unsigned int 
 	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 	if(strcmp(br->dev->name,RTL_PS_BR0_DEV_NAME)==0)
 	{
-		memset(&fwdDescriptor, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
+		memset(&fwdDescriptor, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
 		strcpy(fwdDescriptor.netifName,"eth*");
 		fwdDescriptor.fwdPortMask=0xFFFFFFFF;
 		ret= rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
 	}
 	else if(strcmp(br->dev->name,RTL_PS_BR1_DEV_NAME)==0)
 	{
-		memset(&fwdDescriptor, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
+		memset(&fwdDescriptor, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
 		strcpy(fwdDescriptor.netifName,"eth2");
 		fwdDescriptor.fwdPortMask=0xFFFFFFFF;
 		ret= rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex_2, &multicastDataInfo, &multicastFwdInfo);
 	}
 	#else
-	memset(&fwdDescriptor, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
+	memset(&fwdDescriptor, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
 	strcpy(fwdDescriptor.netifName,"eth*");
 	fwdDescriptor.fwdPortMask=0xFFFFFFFF;
 	
@@ -858,7 +855,7 @@ int rtl865x_ipv6MulticastHardwareAccelerate(struct net_bridge *br, unsigned int 
 		fwdDescriptor.fwdPortMask=multicastFwdInfo.fwdPortMask & (~(1<<srcPort));
 	}
 #else/*!CONFIG_RTL_MULTI_LAN_DEV*/
-	memset(&fwdDescriptor, 0, sizeof(rtl8198c_mcast_fwd_descriptor6_t ));
+	memset(&fwdDescriptor, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
 	strcpy(fwdDescriptor.netifName,RTL_BR_NAME);
 	if(multicastFwdInfo.cpuFlag)
 	{

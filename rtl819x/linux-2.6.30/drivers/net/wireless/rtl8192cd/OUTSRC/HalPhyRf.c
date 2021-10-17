@@ -19,7 +19,7 @@
  ******************************************************************************/
 
  #include "Mp_Precomp.h"
- #include "odm_precomp.h"
+ #include "phydm_precomp.h"
 
 #ifndef index_mapping_NUM_88E
  #define	index_mapping_NUM_88E	15
@@ -43,7 +43,7 @@
 					} while(0)
 
 
-void configureTxpowerTrack(
+void ConfigureTxpowerTrack(
 	IN 	PDM_ODM_T		pDM_Odm,
 	OUT	PTXPWRTRACK_CFG	pConfig
 	)
@@ -56,6 +56,13 @@ void configureTxpowerTrack(
 	//else
 #endif
 #endif
+
+#if RTL8814A_SUPPORT
+	if(pDM_Odm->SupportICType== ODM_RTL8814A)
+		ConfigureTxpowerTrack_8814A(pConfig);
+#endif
+
+
 #if RTL8188E_SUPPORT
 	if(pDM_Odm->SupportICType==ODM_RTL8188E)
 		ConfigureTxpowerTrack_8188E(pConfig);
@@ -78,7 +85,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter_92E(
 	s1Byte	OFDM_index[2], index ;
     	u4Byte	ThermalValue_AVG = 0, Reg0x18;
 	u4Byte	i = 0, j = 0, rf;
-	s4Byte	value32, CCK_index, ele_A, ele_D, ele_C, X, Y;
+	s4Byte	value32, CCK_index = 0, ele_A, ele_D, ele_C, X, Y;
 	prtl8192cd_priv 	priv = pDM_Odm->priv;
 
 	rf_mimo_mode = pDM_Odm->RFType;
@@ -283,7 +290,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter_92E(
 			PHY_SetRFReg(priv, RF_PATH_A, 0x18, bMask20Bits, Reg0x18);		
 			RTL_W8(0x522, 0x0);
 			priv->pshare->ThermalValue_LCK = ThermalValue;
-		}
+		}	
 	}
 
 	//update thermal meter value
@@ -296,7 +303,265 @@ ODM_TXPowerTrackingCallback_ThermalMeter_92E(
 }
 #endif
 
-#if ODM_IC_11AC_SERIES_SUPPORT						
+#if (RTL8814A_SUPPORT ==1)					
+		
+VOID
+ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries2(
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm
+#else
+	IN PADAPTER	Adapter
+#endif
+	)
+{
+	u1Byte			ThermalValue = 0, delta, delta_LCK, delta_IQK, channel, is_increase;
+	u1Byte			ThermalValue_AVG_count = 0, p = 0, i = 0;
+	u4Byte			ThermalValue_AVG = 0, Reg0x18;
+	u4Byte 			BBSwingReg[4] = {rA_TxScale_Jaguar,rB_TxScale_Jaguar,rC_TxScale_Jaguar2,rD_TxScale_Jaguar2};
+	s4Byte			ele_D;
+	u4Byte			BBswingIdx;
+	prtl8192cd_priv	priv = pDM_Odm->priv;
+	TXPWRTRACK_CFG 	c;
+	BOOLEAN			bTSSIenable = FALSE;
+
+	//4 1. The following TWO tables decide the final index of OFDM/CCK swing table.
+	pu1Byte			deltaSwingTableIdx_TUP_A = NULL, deltaSwingTableIdx_TDOWN_A = NULL;
+	pu1Byte			deltaSwingTableIdx_TUP_B = NULL, deltaSwingTableIdx_TDOWN_B = NULL;
+	//for 8814 add by Yu Chen
+	pu1Byte			deltaSwingTableIdx_TUP_C = NULL, deltaSwingTableIdx_TDOWN_C = NULL;
+	pu1Byte			deltaSwingTableIdx_TUP_D = NULL, deltaSwingTableIdx_TDOWN_D = NULL;
+
+#ifdef MP_TEST
+	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
+		channel = priv->pshare->working_channel;
+		if (priv->pshare->mp_txpwr_tracking == FALSE)
+			return;
+	} else
+#endif
+	{
+		channel = (priv->pmib->dot11RFEntry.dot11channel);
+	}
+
+	ConfigureTxpowerTrack(pDM_Odm, &c);
+	pDM_Odm->DefaultOfdmIndex = priv->pshare->OFDM_index0[ODM_RF_PATH_A];
+
+	(*c.GetDeltaSwingTable)(pDM_Odm, (pu1Byte*)&deltaSwingTableIdx_TUP_A, (pu1Byte*)&deltaSwingTableIdx_TDOWN_A,
+									  (pu1Byte*)&deltaSwingTableIdx_TUP_B, (pu1Byte*)&deltaSwingTableIdx_TDOWN_B);
+
+	if(pDM_Odm->SupportICType & ODM_RTL8814A)	// for 8814 path C & D
+	(*c.GetDeltaSwingTable8814only)(pDM_Odm, (pu1Byte*)&deltaSwingTableIdx_TUP_C, (pu1Byte*)&deltaSwingTableIdx_TDOWN_C,
+									  (pu1Byte*)&deltaSwingTableIdx_TUP_D, (pu1Byte*)&deltaSwingTableIdx_TDOWN_D);
+	
+	ThermalValue = (u1Byte)ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_A, c.ThermalRegAddr, 0xfc00); //0x42: RF Reg[15:10] 88E
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+		("\nReadback Thermal Meter = 0x%x, pre thermal meter 0x%x, EEPROMthermalmeter 0x%x\n", ThermalValue, pDM_Odm->RFCalibrateInfo.ThermalValue, priv->pmib->dot11RFEntry.ther));
+
+	/* Initialize */
+	if (!pDM_Odm->RFCalibrateInfo.ThermalValue) {
+		pDM_Odm->RFCalibrateInfo.ThermalValue = priv->pmib->dot11RFEntry.ther;
+	}
+	
+	if (!pDM_Odm->RFCalibrateInfo.ThermalValue_LCK) {
+		pDM_Odm->RFCalibrateInfo.ThermalValue_LCK = priv->pmib->dot11RFEntry.ther;
+	}
+
+	if (!pDM_Odm->RFCalibrateInfo.ThermalValue_IQK) {
+		pDM_Odm->RFCalibrateInfo.ThermalValue_IQK = priv->pmib->dot11RFEntry.ther;
+	}
+	
+	bTSSIenable = (BOOLEAN)ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_A, rRF_TxGainOffset, BIT7);	// check TSSI enable
+	
+	//4 Query OFDM BB swing default setting 	Bit[31:21]	
+	for(p = ODM_RF_PATH_A ; p < c.RfPathCount ; p++)
+	{
+		ele_D = ODM_GetBBReg(pDM_Odm, BBSwingReg[p], 0xffe00000);	
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+			("0x%x:0x%x ([31:21] = 0x%x)\n", BBSwingReg[p], ODM_GetBBReg(pDM_Odm, BBSwingReg[p], bMaskDWord), ele_D));
+		
+		for (BBswingIdx = 0; BBswingIdx < TXSCALE_TABLE_SIZE; BBswingIdx++) {//4 
+			if (ele_D == TxScalingTable_Jaguar[BBswingIdx]) {
+				pDM_Odm->RFCalibrateInfo.OFDM_index[p] = (u1Byte)BBswingIdx;
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+					("OFDM_index[%d]=%d\n",p, pDM_Odm->RFCalibrateInfo.OFDM_index[p]));				
+				break;
+			}
+		}
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("KfreeOffset[%d]=%d\n",p, pDM_Odm->KfreeOffset[p]));
+		
+	}
+
+	/* calculate average thermal meter */
+	pDM_Odm->RFCalibrateInfo.ThermalValue_AVG[pDM_Odm->RFCalibrateInfo.ThermalValue_AVG_index] = ThermalValue;
+	pDM_Odm->RFCalibrateInfo.ThermalValue_AVG_index++;
+	if(pDM_Odm->RFCalibrateInfo.ThermalValue_AVG_index == c.AverageThermalNum)   //Average times =  c.AverageThermalNum
+		pDM_Odm->RFCalibrateInfo.ThermalValue_AVG_index = 0;
+
+	for(i = 0; i < c.AverageThermalNum; i++)
+	{
+		if(pDM_Odm->RFCalibrateInfo.ThermalValue_AVG[i])
+		{
+			ThermalValue_AVG += pDM_Odm->RFCalibrateInfo.ThermalValue_AVG[i];
+			ThermalValue_AVG_count++;
+		}
+	}
+
+	if(ThermalValue_AVG_count)               //Calculate Average ThermalValue after average enough times
+	{
+		ThermalValue = (u1Byte)(ThermalValue_AVG / ThermalValue_AVG_count);
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+			("AVG Thermal Meter = 0x%X, EEPROMthermalmeter = 0x%X\n", ThermalValue, priv->pmib->dot11RFEntry.ther));					
+	}
+
+	//4 Calculate delta, delta_LCK, delta_IQK.
+	delta = RTL_ABS(ThermalValue, priv->pmib->dot11RFEntry.ther);	
+	delta_LCK = RTL_ABS(ThermalValue, pDM_Odm->RFCalibrateInfo.ThermalValue_LCK);
+	delta_IQK = RTL_ABS(ThermalValue, pDM_Odm->RFCalibrateInfo.ThermalValue_IQK);
+	is_increase = ((ThermalValue < priv->pmib->dot11RFEntry.ther) ? 0 : 1);
+
+	//4 if necessary, do LCK.
+	
+	if (delta_LCK > c.Threshold_IQK) 
+	{
+		ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("delta_LCK(%d) >= Threshold_IQK(%d)\n", delta_LCK, c.Threshold_IQK));
+		pDM_Odm->RFCalibrateInfo.ThermalValue_LCK = ThermalValue;
+		if(c.PHY_LCCalibrate)
+			(*c.PHY_LCCalibrate)(pDM_Odm);
+	} 
+
+	if (delta_IQK > c.Threshold_IQK) 
+	{
+		//panic_printk("%s(%d)\n", __FUNCTION__, __LINE__);
+		ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("delta_IQK(%d) >= Threshold_IQK(%d)\n", delta_IQK, c.Threshold_IQK));
+		pDM_Odm->RFCalibrateInfo.ThermalValue_IQK = ThermalValue;
+		if(c.DoIQK)
+			(*c.DoIQK)(pDM_Odm, TRUE);
+	} 
+
+	if(!priv->pmib->dot11RFEntry.ther)	/*Don't do power tracking since no calibrated thermal value*/
+		return;
+	
+	 //4 Do Power Tracking
+
+	 if(bTSSIenable == TRUE)
+	{
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("**********Enter PURE TSSI MODE**********\n"));
+		for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++)
+			(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, TSSI_MODE, p, 0);
+	}
+	else if (ThermalValue != pDM_Odm->RFCalibrateInfo.ThermalValue)
+	{
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+			("\n******** START POWER TRACKING ********\n")); 					
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+			("\nReadback Thermal Meter = 0x%x pre thermal meter 0x%x EEPROMthermalmeter 0x%x\n", ThermalValue, pDM_Odm->RFCalibrateInfo.ThermalValue, priv->pmib->dot11RFEntry.ther)); 			
+				
+#ifdef _TRACKING_TABLE_FILE
+		if (priv->pshare->rf_ft_var.pwr_track_file)
+		{				
+			if (is_increase)			// thermal is higher than base
+			{
+				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++) 
+				{
+					switch(p)
+					{
+					case ODM_RF_PATH_B:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("deltaSwingTableIdx_TUP_B[%d] = %d\n", delta, deltaSwingTableIdx_TUP_B[delta])); 						
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = deltaSwingTableIdx_TUP_B[delta];       // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is higher and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_B] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p]));  
+					break;
+
+					case ODM_RF_PATH_C:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("deltaSwingTableIdx_TUP_C[%d] = %d\n", delta, deltaSwingTableIdx_TUP_C[delta]));								
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = deltaSwingTableIdx_TUP_C[delta];       // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is higher and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_C] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p]));  
+					break;
+
+					case ODM_RF_PATH_D:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("deltaSwingTableIdx_TUP_D[%d] = %d\n", delta, deltaSwingTableIdx_TUP_D[delta]));							
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = deltaSwingTableIdx_TUP_D[delta];       // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is higher and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_D] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p]));  
+					break;
+
+					default:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, 
+							("deltaSwingTableIdx_TUP_A[%d] = %d\n", delta, deltaSwingTableIdx_TUP_A[delta]));						
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = deltaSwingTableIdx_TUP_A[delta];        // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is higher and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_A] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p]));  
+					break;
+					}		
+				}
+			}
+			else					// thermal is lower than base
+			{
+				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++) 
+				{
+					switch(p)
+					{
+					case ODM_RF_PATH_B:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("deltaSwingTableIdx_TDOWN_B[%d] = %d\n", delta, deltaSwingTableIdx_TDOWN_B[delta]));  
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = -1 * deltaSwingTableIdx_TDOWN_B[delta];        // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is lower and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_B] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p])); 
+					break;
+
+					case ODM_RF_PATH_C:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("deltaSwingTableIdx_TDOWN_C[%d] = %d\n", delta, deltaSwingTableIdx_TDOWN_C[delta]));  
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = -1 * deltaSwingTableIdx_TDOWN_C[delta];        // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is lower and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_C] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p]));   
+					break;
+
+					case ODM_RF_PATH_D:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("deltaSwingTableIdx_TDOWN_D[%d] = %d\n", delta, deltaSwingTableIdx_TDOWN_D[delta]));  
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = -1 * deltaSwingTableIdx_TDOWN_D[delta];        // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is lower and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_D] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p]));  
+					break;
+
+					default:
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("deltaSwingTableIdx_TDOWN_A[%d] = %d\n", delta, deltaSwingTableIdx_TDOWN_A[delta]));  
+						pDM_Odm->Absolute_OFDMSwingIdx[p] = -1 * deltaSwingTableIdx_TDOWN_A[delta];        // Record delta swing for mix mode power tracking
+						ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,
+							("******Temp is lower and pDM_Odm->Absolute_OFDMSwingIdx[ODM_RF_PATH_A] = %d\n", pDM_Odm->Absolute_OFDMSwingIdx[p]));  
+					break;
+					}		
+				}
+			}
+				
+			if (is_increase)
+			{
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,(">>> increse power ---> \n"));
+				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++) 
+				(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, MIX_MODE, p, 0);
+			} 
+			else
+			{
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,(">>> decrese power --->\n"));
+				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++) 
+				(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, MIX_MODE, p, 0);
+			}
+		}
+#endif		
+
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("\n******** END:%s() ********\n", __FUNCTION__));
+	//update thermal meter value
+	pDM_Odm->RFCalibrateInfo.ThermalValue =  ThermalValue;
+
+	}
+}
+
+#elif(ODM_IC_11AC_SERIES_SUPPORT)
 VOID
 ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
@@ -309,9 +574,10 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 	unsigned char			ThermalValue = 0, delta, delta_LCK, channel, is_decrease;
 	unsigned char			ThermalValue_AVG_count = 0;
 	unsigned int			ThermalValue_AVG = 0, Reg0x18;
+	unsigned int 			BBSwingReg[4]={0xc1c,0xe1c,0x181c,0x1a1c};
 	int 					ele_D, value32;
 	char					OFDM_index[2], index;
-	unsigned int			i = 0, j = 0, rf = 2;
+	unsigned int			i = 0, j = 0, rf_path, max_rf_path =2 ,rf;
 	prtl8192cd_priv		priv = pDM_Odm->priv;
 	unsigned char			OFDM_min_index = 7; //OFDM BB Swing should be less than +2.5dB, which is required by Arthur and Mimic
 
@@ -328,7 +594,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 
 #if RTL8881A_SUPPORT
 	if (pDM_Odm->SupportICType == ODM_RTL8881A) {
-		rf = 1;
+		max_rf_path = 1;
 		if ((get_bonding_type_8881A() == BOND_8881AM ||get_bonding_type_8881A() == BOND_8881AN) 			
 			&& priv->pshare->rf_ft_var.use_intpa8881A && (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G))			
 			OFDM_min_index = 6;		// intPA - upper bond set to +3 dB (base: -2 dB)ot11RFEntry.phyBandSelect == PHY_BAND_2G))
@@ -341,17 +607,30 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 	ThermalValue = (unsigned char)PHY_QueryRFReg(priv, RF_PATH_A, 0x42, 0xfc00, 1); //0x42: RF Reg[15:10] 88E
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("\nReadback Thermal Meter = 0x%x pre thermal meter 0x%x EEPROMthermalmeter 0x%x\n", ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther));
 
+
+	//4 Query OFDM BB swing default setting 	Bit[31:21]
+	for(rf_path = 0 ; rf_path < max_rf_path ; rf_path++){
+		ele_D = PHY_QueryBBReg(priv, BBSwingReg[rf_path], 0xffe00000);	
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("0x%x:0x%x ([31:21] = 0x%x)\n",BBSwingReg[rf_path], PHY_QueryBBReg(priv, BBSwingReg[rf_path], bMaskDWord),ele_D)); 			
+		for (i = 0; i < OFDM_TABLE_SIZE_8812; i++) {//4 
+			if (ele_D == OFDMSwingTable_8812[i]) {
+				OFDM_index[rf_path] = (unsigned char)i;
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("OFDM_index[%d]=%d\n",rf_path, OFDM_index[rf_path]));				
+				break;
+			}
+		}
+	}
+#if 0	
 	//Query OFDM path A default setting 	Bit[31:21]
 	ele_D = PHY_QueryBBReg(priv, 0xc1c, 0xffe00000);	
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("0xc1c:0x%x ([31:21] = 0x%x)\n", PHY_QueryBBReg(priv, 0xc1c, bMaskDWord),ele_D)); 			
-	for (i = 0; i < OFDM_TABLE_SIZE_8812; i++) {
+	for (i = 0; i < OFDM_TABLE_SIZE_8812; i++) {//4 
 		if (ele_D == OFDMSwingTable_8812[i]) {
 			OFDM_index[0] = (unsigned char)i;
 			ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("OFDM_index[0]=%d\n", OFDM_index[0]));				
 			break;
 		}
 	}
-
 	//Query OFDM path B default setting
 	if (rf == 2) {
 		ele_D = PHY_QueryBBReg(priv, 0xe1c, 0xffe00000);		
@@ -364,7 +643,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 			}
 		}
 	}
-
+#endif
 	/* Initialize */
 	if (!priv->pshare->ThermalValue) {
 		priv->pshare->ThermalValue = priv->pmib->dot11RFEntry.ther;
@@ -390,6 +669,12 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 			//printk("AVG Thermal Meter = 0x%x \n", ThermalValue);
 		}
 	}
+	
+
+	//4 If necessary,  do power tracking
+
+	if(!priv->pmib->dot11RFEntry.ther) /*Don't do power tracking since no calibrated thermal value*/
+		return;  
 
 	if (ThermalValue != priv->pshare->ThermalValue) {
 		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("\n******** START POWER TRACKING ********\n")); 					
@@ -401,12 +686,12 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 		{
 #ifdef _TRACKING_TABLE_FILE
 			if (priv->pshare->rf_ft_var.pwr_track_file) {				
-				for (i = 0; i < rf; i++) {
-					ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("Diff: (%s)%d ==> get index from table : %d)\n", (is_decrease?"-":"+"), delta, get_tx_tracking_index(priv, channel, i, delta, is_decrease, 0)));
+				for (rf_path = 0; rf_path < max_rf_path; rf_path++) {
+					ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("Diff: (%s)%d ==> get index from table : %d)\n", (is_decrease?"-":"+"), delta, get_tx_tracking_index(priv, channel, rf_path, delta, is_decrease, 0)));
 					if (is_decrease) {
-						OFDM_index[i] = priv->pshare->OFDM_index0[i] + get_tx_tracking_index(priv, channel, i, delta, is_decrease, 0);
-						OFDM_index[i] = ((OFDM_index[i] > (OFDM_TABLE_SIZE_8812 - 1)) ? (OFDM_TABLE_SIZE_8812 - 1) : OFDM_index[i]);
-						ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,(">>> decrese power ---> new OFDM_INDEX:%d (%d + %d)\n", OFDM_index[i], priv->pshare->OFDM_index0[i], get_tx_tracking_index(priv, channel, i, delta, is_decrease, 0)));
+						OFDM_index[rf_path] = priv->pshare->OFDM_index0[rf_path] + get_tx_tracking_index(priv, channel, rf_path, delta, is_decrease, 0);
+						OFDM_index[rf_path] = ((OFDM_index[rf_path] > (OFDM_TABLE_SIZE_8812 - 1)) ? (OFDM_TABLE_SIZE_8812 - 1) : OFDM_index[rf_path]);
+						ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,(">>> decrese power ---> new OFDM_INDEX:%d (%d + %d)\n", OFDM_index[rf_path], priv->pshare->OFDM_index0[rf_path], get_tx_tracking_index(priv, channel, rf_path, delta, is_decrease, 0)));
 #if 0// RTL8881A_SUPPORT
 						if (pDM_Odm->SupportICType == ODM_RTL8881A){
 							if(priv->pshare->rf_ft_var.pwrtrk_TxAGC_enable){
@@ -420,7 +705,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 #endif				
 					} else {
 
-						OFDM_index[i] = priv->pshare->OFDM_index0[i] - get_tx_tracking_index(priv, channel, i, delta, is_decrease, 0);
+						OFDM_index[rf_path] = priv->pshare->OFDM_index0[rf_path] - get_tx_tracking_index(priv, channel, rf_path, delta, is_decrease, 0);
 #if 0// RTL8881A_SUPPORT
 						if(pDM_Odm->SupportICType == ODM_RTL8881A){ 
 							if(priv->pshare->rf_ft_var.pwrtrk_TxAGC_enable){
@@ -440,20 +725,20 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 							}
 						}
 #else
-						OFDM_index[i] = ((OFDM_index[i] < OFDM_min_index) ?  OFDM_min_index : OFDM_index[i]);
+						OFDM_index[rf_path] = ((OFDM_index[rf_path] < OFDM_min_index) ?  OFDM_min_index : OFDM_index[rf_path]);
 #endif
-						ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,(">>> increse power ---> new OFDM_INDEX:%d (%d - %d)\n", OFDM_index[i], priv->pshare->OFDM_index0[i], get_tx_tracking_index(priv, channel, i, delta, is_decrease, 0)));
+						ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,(">>> increse power ---> new OFDM_INDEX:%d (%d - %d)\n", OFDM_index[rf_path], priv->pshare->OFDM_index0[rf_path], get_tx_tracking_index(priv, channel, rf_path, delta, is_decrease, 0)));
 					}
 				}
 			}
 #endif
-			PHY_SetBBReg(priv, 0xc1c, 0xffe00000, OFDMSwingTable_8812[(unsigned int)OFDM_index[0]]);
-			if (rf == 2)
-				PHY_SetBBReg(priv, 0xe1c, 0xffe00000, OFDMSwingTable_8812[(unsigned int)OFDM_index[1]]);
-
+			//4 Set new BB swing index
+			for (rf_path = 0; rf_path < max_rf_path; rf_path++) {
+				PHY_SetBBReg(priv, BBSwingReg[rf_path], 0xffe00000, OFDMSwingTable_8812[(unsigned int)OFDM_index[rf_path]]);
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("Readback 0x%x[31:21] = 0x%x, OFDM_index:%d\n",BBSwingReg[rf_path], PHY_QueryBBReg(priv, BBSwingReg[rf_path], 0xffe00000), OFDM_index[rf_path]));				
+			}
 
 		}
-
 		if (delta_LCK > 8) {
 			RTL_W8(0x522, 0xff);
 			Reg0x18 = PHY_QueryRFReg(priv, RF_PATH_A, 0x18, bMask20Bits, 1);
@@ -461,26 +746,19 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 			PHY_SetRFReg(priv, RF_PATH_A, 0x18, BIT(15), 1);
             delay_ms(200); // frequency deviation
 			PHY_SetRFReg(priv, RF_PATH_A, 0xB4, BIT(14), 0);
-			PHY_SetRFReg(priv, RF_PATH_A, 0x18, bMask20Bits, Reg0x18);	
-#ifdef CONFIG_RTL_8812_SUPPORT
-			if (GET_CHIP_VER(priv)== VERSION_8812E)			
-				UpdateBBRFVal8812(priv, priv->pmib->dot11RFEntry.dot11channel);			
-#endif
+			PHY_SetRFReg(priv, RF_PATH_A, 0x18, bMask20Bits, Reg0x18);		
 			RTL_W8(0x522, 0x0);
 			priv->pshare->ThermalValue_LCK = ThermalValue;
-		}
-
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("Readback 0xc1c[31:21] = 0x%x, OFDM_index:%d\n", PHY_QueryBBReg(priv, 0xc1c, 0xffe00000), OFDM_index[0]));
-		if (rf == 2)
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("PathB >>>>> 0xe1c[31:21] = 0x%x, OFDM_index:%d\n", PHY_QueryBBReg(priv, 0xe1c, 0xffe00000), OFDM_index[1]));
+		}	
 		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("\n******** END:%s() ********\n", __FUNCTION__));
 
 		//update thermal meter value
 		priv->pshare->ThermalValue = ThermalValue;
-		for (i = 0 ; i < rf ; i++)
-			priv->pshare->OFDM_index[i] = OFDM_index[i];
+		for (rf_path = 0; rf_path < max_rf_path; rf_path++)
+			priv->pshare->OFDM_index[rf_path] = OFDM_index[rf_path];
 	}
 }
+
 #endif
 
 
@@ -493,12 +771,19 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 #endif
 	)
 {
-#if ODM_IC_11AC_SERIES_SUPPORT
+
+#if (RTL8814A_SUPPORT == 1)		//use this function to do power tracking after 8814 by YuChen
+	if (pDM_Odm->SupportICType & ODM_RTL8814A) {
+		ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries2(pDM_Odm);
+		return;
+		}
+#elif ODM_IC_11AC_SERIES_SUPPORT
 	if (pDM_Odm->SupportICType & ODM_IC_11AC_SERIES) {
 		ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(pDM_Odm);
 		return;
 	}
 #endif
+
 #if (RTL8192E_SUPPORT == 1)
 	if (pDM_Odm->SupportICType==ODM_RTL8192E) {
 		ODM_TXPowerTrackingCallback_ThermalMeter_92E(pDM_Odm);
@@ -551,7 +836,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 
 	//4 2. Initilization ( 7 steps in total )
 
-	configureTxpowerTrack(pDM_Odm, &c);
+	ConfigureTxpowerTrack(pDM_Odm, &c);
 	
 	pDM_Odm->RFCalibrateInfo.TXPowerTrackingCallbackCnt++; //cosa add for debug
 	pDM_Odm->RFCalibrateInfo.bTXPowerTrackingInit = TRUE;
@@ -1956,7 +2241,7 @@ PHY_IQCalibrate_8192C(
 	if(bStartContTx || bSingleTone || bCarrierSuppression)
 		return;
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 	if(pAdapter->bSlaveOfDMSP)
@@ -2148,7 +2433,7 @@ PHY_LCCalibrate_8192C(
 	bCarrierSuppression = pAdapter->MptCtx.bCarrierSuppression;		
 #endif
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
@@ -2206,7 +2491,7 @@ PHY_APCalibrate_8192C(
 	//default disable APK, because Tx NG issue, suggest by Jenyu, 2011.11.25
 	return;
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 

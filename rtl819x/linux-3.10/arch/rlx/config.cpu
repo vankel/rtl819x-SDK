@@ -58,7 +58,7 @@ config ARCH_CPU_ULS
 
 config ARCH_CPU_TLS
 	bool
-	default n
+	default y
 
 config ARCH_CPU_LLSC
 	bool

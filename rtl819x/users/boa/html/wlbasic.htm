@@ -208,12 +208,6 @@ function updateRepeaterState(form, wlan_id)
   	
   	
   }
-// mesh check
-if(form.elements["mode"+wlan_id].selectedIndex>3)
-{
-  disableCheckBox(form.elements["repeaterEnabled"+wlan_id]);
-  disableTextField(form.elements["repeaterSSID"+wlan_id]);
-}
 
 }
 
@@ -503,13 +497,17 @@ function updateDateRate()
 	var txrate = <% getIndex("fixTxRate"); %>;
 	var rf_num = <% getIndex("rf_used"); %>;
 
-	var rate_mask = [15,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8];
-	var rate_name=["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", "MCS0", "MCS1",
-		"MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", "MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15"];
+	var rate_mask = [31,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8,16,16,16,16,16,16,16,16];
+	var rate_name=["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", 
+		"MCS0", "MCS1", "MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", 
+		"MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15", 
+		"MCS16", "MCS17", "MCS18", "MCS19", "MCS20", "MCS21", "MCS22", "MCS23",];
 	var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
 		"NSS1-MCS5","NSS1-MCS6","NSS1-MCS7","NSS1-MCS8","NSS1-MCS9",
 		"NSS2-MCS0","NSS2-MCS1","NSS2-MCS2","NSS2-MCS3","NSS2-MCS4",
-		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9"];
+		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9",
+		"NSS3-MCS0","NSS3-MCS1","NSS3-MCS2","NSS3-MCS3","NSS3-MCS4",
+		"NSS3-MCS5","NSS3-MCS6","NSS3-MCS7","NSS3-MCS8","NSS3-MCS9"];
 	var mask=0;
 	var defidx=0;
 	var idx, i, rate;
@@ -523,19 +521,23 @@ function updateDateRate()
 	if ((band&2) || (band&4))
 		mask |= 2;
 	if (band & 8) {
-		if (rf_num == 2)
+		if (rf_num == 3)
+			mask |= 28;
+		else if (rf_num == 2)
 			mask |= 12;	
 		else
 			mask |= 4;
 	}	
 	document.write('<option value="' + 0 + '">' + rate_name[0] + '\n');
 	option_num++;
-	for (idx=1, i=1; i<=28; i++) {
+	for (idx=1, i=1; i<=36; i++) {
 		if (rate_mask[i] & mask) {
 			rate = (1 << (i-1));
 		 	if(txrate == 0)
             	defidx = 0;
-			 else if (txrate == rate)
+			else if (txrate == rate)
+				defidx = idx;
+			else if (i>=29 && (txrate == ((1<<28)+(i-29))))
 				defidx = idx;
 			document.write('<option value="' + i + '">' + rate_name[i] + '\n');
 			idx++;
@@ -543,16 +545,14 @@ function updateDateRate()
 		}
 	}
 	if(band & 64){
-		if(rf_num==1)
-			vht_num = 9;
-		else
-			vht_num = 19; 
-		for (idx=30, i=0; i<=vht_num; i++) {		
+		vht_num = rf_num*10-1;
+		
+		for (idx=37, i=0; i<=vht_num; i++) {
 			rate = ((1 << 31) + i);
 			if (txrate == rate){
 				defidx = option_num;
 			}
-			if((i == 9) || (i == 19))
+			if((i == 9) || (i == 19) || (i==29))
 			{
 				if(document.wlanSetup.elements["channelbound" + <% getIndex("wlan_idx"); %>].selectedIndex == 0)//channel width = 20M
 				{
@@ -1013,7 +1013,7 @@ else
   </tr>
   <tr>
       <td width="100%" colspan=2><font size=2><b>
-   	<input type="checkbox" name="wlanMacClone<% getIndex("wlan_idx"); %>" value="ON">&nbsp;&nbsp; Enable Mac Clone (Single Ethernet Client)</b>
+   	<input type="checkbox" name="wlanMacClone<% getIndex("wlan_idx"); %>" value="ON">&nbsp;&nbsp; Enable Mac Clone </b>
       </td>
   </tr>
   <tr>

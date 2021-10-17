@@ -29,13 +29,8 @@ typedef enum _RTL88XX_C2H_EVT
 	C2H_88XX_TX_RATE =4,
 	C2H_88XX_BT_INFO = 9,
 	C2H_88XX_BT_MP = 11,
-	C2H_88XX_RA_RPT=12,	
-#ifdef TXRETRY_CNT
-	C2H_88XX_TX_RETRY = 13, //0x0D
-#endif
 	C2H_88XX_RA_PARA_RPT=14,
 	C2H_88XX_RA_DYNAMIC_TX_PATH_RPT = 15,
-	C2H_88XX_EXTEND_DEBUG_CODE = 0xFE,
 	C2H_88XX_EXTEND_IND = 0xFF,
 	MAX_88XX_C2HEVENT
 }RTL88XX_C2H_EVT;
@@ -176,9 +171,14 @@ typedef enum _RTL88XX_H2C_CMD
 	H2C_88XX_RA_MASK            = 0x40,
 	H2C_88XX_RSSI_REPORT        = 0x42,
 	H2C_88XX_AP_REQ_TXREP		= 0x43,
+	H2C_88XX_RA_MASK_3SS 			= 0x46,
+	H2C_88XX_RA_PARA_ADJUST 		= 0x47,
+	H2C_88XX_DYNAMIC_TX_PATH      = 0x48,
+	H2C_88XX_FW_TRACE_EN		= 0x49,
+
 #ifdef BT_COEXIST	
-	H2C_88XX_BT_TDMA			= 0x60,	/* BT TDMA */
-	H2C_88XX_BT_INFO			= 0x61,	/* BT info */
+	H2C_88XX_BT_TDMA			= 0x60, /* BT TDMA */
+	H2C_88XX_BT_INFO			= 0x61, /* BT info */
 	H2C_88XX_BT_63				= 0x63,
 #endif	
 	H2C_88XX_NHM				= 0xC1,
@@ -198,7 +198,8 @@ typedef enum _RTL88XX_C2H_CMD
 //	C2H_88XX_SCAN_COMPLETE      = 0x7, 
 //	C2H_88XX_PSD_CONTROL        = 0x8,
 //	C2H_88XX_BT_INFO            = 0x9,
-//	C2H_88XX_BT_LOOPBACK        = 0xa,	
+//	C2H_88XX_BT_LOOPBACK        = 0xa,
+
 	MAX_88XX_C2HCMD
 }RTL88XX_C2H_CMD;
 
@@ -262,6 +263,13 @@ UpdateHalRAMask88XX(
 	IN HAL_PADAPTER         Adapter,	
 	HAL_PSTAINFO            pEntry,
 	u1Byte				    rssi_level
+);
+
+VOID
+UpdateHalRAMask8814A(
+	IN HAL_PADAPTER         Adapter,
+	HAL_PSTAINFO            pEntry,
+	u1Byte                  rssi_level
 );
 
 void

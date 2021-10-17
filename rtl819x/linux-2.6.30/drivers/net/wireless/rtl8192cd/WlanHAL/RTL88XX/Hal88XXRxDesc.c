@@ -21,8 +21,17 @@ Major Change History:
 
 #if (HAL_DEV_BUS_TYPE & (HAL_RT_EMBEDDED_INTERFACE | HAL_RT_PCI_INTERFACE))
 
+#ifdef CONFIG_RTL_PROC_NEW
+#define PROC_PRINT(fmt, arg...)	seq_printf(s, fmt, ## arg)
+#else
+#define PROC_PRINT	printk
+#endif
+
 void DumpRxBDesc88XX(
     IN      HAL_PADAPTER    Adapter,
+#ifdef CONFIG_RTL_PROC_NEW
+    IN      struct seq_file *s,
+#endif
     IN      u4Byte          q_num 
 )
 {
@@ -30,51 +39,51 @@ void DumpRxBDesc88XX(
 	int i=0;
 	prx_dma = (PHCI_RX_DMA_MANAGER_88XX)(_GET_HAL_DATA(Adapter)->PRxDMA88XX);
 
+#ifdef NOT_RTK_BSP
+	if (NULL == prx_dma->rx_queue[q_num].pRXBD_head)
+		return;
+#endif
+
 #if RXBD_READY_CHECK_METHOD
-	printk(" q_num:%d, hw_idx=%d,host_idx= %d,cur_host_idx:%d, rxtag_seq_num:%d\n", q_num,
+	PROC_PRINT(" q_num:%d, hw_idx=%d,host_idx= %d,cur_host_idx:%d, rxtag_seq_num:%d\n", q_num,
 		prx_dma->rx_queue[q_num].hw_idx, prx_dma->rx_queue[q_num].host_idx, 
 		prx_dma->rx_queue[q_num].cur_host_idx, prx_dma->rx_queue[q_num].rxtag_seq_num);
 #else
-	printk(" q_num:%d, hw_idx=%d,host_idx= %d,cur_host_idx:%d\n", q_num,
+	PROC_PRINT(" q_num:%d, hw_idx=%d,host_idx= %d,cur_host_idx:%d\n", q_num,
 		prx_dma->rx_queue[q_num].hw_idx, prx_dma->rx_queue[q_num].host_idx, 
 		prx_dma->rx_queue[q_num].cur_host_idx);
 #endif
 
-	printk("total_rxbd_num=%d,avail_rxbd_num= %d,reg_rwptr_idx:%x\n",
+	PROC_PRINT("total_rxbd_num=%d,avail_rxbd_num= %d,reg_rwptr_idx:%x\n",
 		prx_dma->rx_queue[q_num].total_rxbd_num, prx_dma->rx_queue[q_num].avail_rxbd_num, prx_dma->rx_queue[q_num].reg_rwptr_idx);
 
-	printk("RWreg(%x):%08x\n", REG_RXQ_RXBD_IDX, HAL_RTL_R32(REG_RXQ_RXBD_IDX));
+	PROC_PRINT("RWreg(%x):%08x\n", REG_RXQ_RXBD_IDX, HAL_RTL_R32(REG_RXQ_RXBD_IDX));
 
 #ifdef CONFIG_NET_PCI
-	if ((((Adapter->pshare->type >> TYPE_SHIFT) & TYPE_MASK) == TYPE_PCI_BIOS)) {
-		u4Byte uiTmp=0;
-
-		for (i=1;i<=q_num;i++){
-			uiTmp = _GET_HAL_DATA(Adapter)->ring_dma_addr + prx_dma->rx_queue[i-1].total_rxbd_num * sizeof(RX_BUFFER_DESCRIPTOR);
-		}
-		printk("pRXBD_head=%08x, %08lx, reg(%x):%08x\n",
-		(u4Byte)prx_dma->rx_queue[q_num].pRXBD_head , 
-			_GET_HAL_DATA(Adapter)->ring_dma_addr + uiTmp,
-		REG_RXQ_RXBD_DESA, HAL_RTL_R32(REG_RXQ_RXBD_DESA));
+	if (HAL_IS_PCIBIOS_TYPE(Adapter)) {
+		PROC_PRINT("pRXBD_head=%08x, %08lx, reg(%x):%08x\n",
+			(u4Byte)prx_dma->rx_queue[q_num].pRXBD_head , 
+			prx_dma->rx_queue[q_num].rxbd_dma_addr,
+			REG_RXQ_RXBD_DESA, HAL_RTL_R32(REG_RXQ_RXBD_DESA));
 
 		for (i=0;i<RX_Q_RXBD_NUM;i++ ){
-			printk("pRXBD_head[%d], addr:%08x,%08lx: Dword0: 0x%x, Dword1: 0x%x\n", 
+			PROC_PRINT("pRXBD_head[%d], addr:%08x,%08lx: Dword0: 0x%x, Dword1: 0x%x\n", 
 				i, 
 				(u4Byte)&prx_dma->rx_queue[q_num].pRXBD_head[i],
-				_GET_HAL_DATA(Adapter)->ring_dma_addr + uiTmp + sizeof(RX_BUFFER_DESCRIPTOR)*i,
+				prx_dma->rx_queue[q_num].rxbd_dma_addr + sizeof(RX_BUFFER_DESCRIPTOR)*i,
 				(u4Byte)GET_DESC(prx_dma->rx_queue[q_num].pRXBD_head[i].Dword0), 
 				(u4Byte)GET_DESC(prx_dma->rx_queue[q_num].pRXBD_head[i].Dword1)     ); 
 		}
 	} else
 #endif
 	{
-		printk("pRXBD_head=%08x, %08x, reg(%x):%08x\n",
-			(u4Byte)prx_dma->rx_queue[q_num].pRXBD_head , 
+		PROC_PRINT("pRXBD_head=%p, %08lx, reg(%x):%08x\n",
+			prx_dma->rx_queue[q_num].pRXBD_head , 
 			HAL_VIRT_TO_BUS1(Adapter, (PVOID)prx_dma->rx_queue[q_num].pRXBD_head,sizeof(RX_BUFFER_DESCRIPTOR) * RX_Q_RXBD_NUM, PCI_DMA_TODEVICE),
 			REG_RXQ_RXBD_DESA, HAL_RTL_R32(REG_RXQ_RXBD_DESA));
 
 	    for (i=0;i<RX_Q_RXBD_NUM;i++ ){
-			printk("pRXBD_head[%d], addr:%08x,%08x: Dword0: 0x%x, Dword1: 0x%x\n", 
+			PROC_PRINT("pRXBD_head[%d], addr:%08x,%08x: Dword0: 0x%x, Dword1: 0x%x\n", 
 				i, 
 				(u4Byte)&prx_dma->rx_queue[q_num].pRXBD_head[i],
 				(u4Byte)HAL_VIRT_TO_BUS1(Adapter, (PVOID)&prx_dma->rx_queue[q_num].pRXBD_head[i],sizeof(RX_BUFFER_DESCRIPTOR), PCI_DMA_TODEVICE),
@@ -104,6 +113,10 @@ PrepareRXBD88XX(
     u4Byte                      value32 = 0;
     PHAL_BUF                    pbuf;
 
+#if CFG_HAL_TX_AMSDU
+    pu1Byte                     pdesc_dma_buf_amsdu, desc_dma_buf_start_amsdu;
+#endif
+
     u4Byte RXBD_NUM[HCI_RX_DMA_QUEUE_MAX_NUM] =
     {
         RX_Q_RXBD_NUM
@@ -123,23 +136,16 @@ PrepareRXBD88XX(
     PlatformZeroMemory(prx_dma, sizeof(HCI_RX_DMA_MANAGER_88XX));
 
 #ifdef CONFIG_NET_PCI
-    if ((((Adapter->pshare->type >> TYPE_SHIFT) & TYPE_MASK) == TYPE_PCI_BIOS)) {
+    if (HAL_IS_PCIBIOS_TYPE(Adapter)) {
         unsigned long tmp_dma_ring_addr =0;
-#ifndef TRXBD_CACHABLE_REGION		
         PlatformZeroMemory((void*)_GET_HAL_DATA(Adapter)->alloc_dma_buf, DESC_DMA_PAGE_SIZE_MAX_HAL);
-#endif
+
         pdesc_dma_buf = (pu1Byte)(_GET_HAL_DATA(Adapter)->ring_virt_addr);
-        printk("%s(%d):size=%d, ring_dma_addr:%08lx, alloc_dma_buf:%08lx, ring_virt_addr:%08lx\n", __FUNCTION__,__LINE__, DESC_DMA_PAGE_SIZE_MAX_HAL, _GET_HAL_DATA(Adapter)->ring_dma_addr, _GET_HAL_DATA(Adapter)->alloc_dma_buf, (_GET_HAL_DATA(Adapter)->ring_virt_addr));
-        prx_dma = (PHCI_RX_DMA_MANAGER_88XX)(_GET_HAL_DATA(Adapter)->PRxDMA88XX);
+        printk("%s(%d):size=%d, ring_dma_addr:%08lx, alloc_dma_buf:%08lx, ring_virt_addr:%08lx\n",
+			__FUNCTION__,__LINE__, DESC_DMA_PAGE_SIZE_MAX_HAL,
+			_GET_HAL_DATA(Adapter)->ring_dma_addr, _GET_HAL_DATA(Adapter)->alloc_dma_buf,
+			_GET_HAL_DATA(Adapter)->ring_virt_addr);
 
-        //Transfer to Non-cachable address, need this??
-#ifdef TRXBD_CACHABLE_REGION
-        pdesc_dma_buf =  (pu1Byte)((unsigned long)pdesc_dma_buf | 0x20000000);
-        PlatformZeroMemory((void*)_GET_HAL_DATA(Adapter)->alloc_dma_buf, DESC_DMA_PAGE_SIZE_MAX_HAL);        
-        printk("%s(%d): pdesc_dma_buf:%08x, size:%x \n", __FUNCTION__,__LINE__, pdesc_dma_buf, sizeof(RX_BUFFER_DESCRIPTOR) * RXBD_NUM[0]);
-
-        dma_cache_inv((unsigned long)bus_to_virt((pdesc_dma_buf&(~0x20000000))-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), _GET_HAL_DATA(Adapter)->alloc_dma_buf);
-#endif
         for (q_num = 0; q_num < HCI_RX_DMA_QUEUE_MAX_NUM; q_num++)
         {
             prx_dma->rx_queue[q_num].hw_idx         = 0;
@@ -164,9 +170,10 @@ PrepareRXBD88XX(
                                                   sizeof(RX_BUFFER_DESCRIPTOR) * RXBD_NUM[q_num-1];
                 tmp_dma_ring_addr = tmp_dma_ring_addr + sizeof(RX_BUFFER_DESCRIPTOR) * RXBD_NUM[q_num-1];
             }
+            prx_dma->rx_queue[q_num].rxbd_dma_addr = tmp_dma_ring_addr;
 
-            printk ("QNum: 0x%x, RXBDHead: 0x%x, tmp_dma_ring_addr:0x%08lx\n", 
-                   (u4Byte)q_num, (u4Byte)(prx_dma->rx_queue[q_num].pRXBD_head), tmp_dma_ring_addr);
+            printk ("QNum: 0x%x, RXBDHead: 0x%p, tmp_dma_ring_addr:0x%08lx\n", 
+                   (u4Byte)q_num, prx_dma->rx_queue[q_num].pRXBD_head, tmp_dma_ring_addr);
 
             HAL_RTL_W32(RXBD_Reg[q_num], tmp_dma_ring_addr);
  
@@ -175,10 +182,9 @@ PrepareRXBD88XX(
 
             for(rxbd_idx = 0; rxbd_idx < RXBD_NUM[q_num]; rxbd_idx++)
             {
-//            struct sk_buff *skb = dev_alloc_skb(RX_BUF_LEN + sizeof(RX_DESC_88XX));
-				pbuf = HAL_OS_malloc(Adapter, bufferLen, _SKB_RX_, TRUE);
+                pbuf = HAL_OS_malloc(Adapter, bufferLen, _SKB_RX_, TRUE);
                 if ( NULL == pbuf ) {
-                    panic_printk("%s:%d Allocate HAL Memory Failed\n", __FUNCTION__, __LINE__);
+                    RT_TRACE_F( COMP_INIT, DBG_SERIOUS, ("Allocate HAL Memory Failed\n") );
                     return RT_STATUS_FAILURE;
                 }
                 else {
@@ -195,25 +201,42 @@ PrepareRXBD88XX(
                 }
             }
         }
-		DumpRxBDesc88XX(Adapter, 0);
+//DumpRxBDesc88XX(Adapter, 0);
         return RT_STATUS_SUCCESS;
     } 
 #endif
 
     desc_dma_buf_start = _GET_HAL_DATA(Adapter)->desc_dma_buf;
+#if CFG_HAL_TX_AMSDU
+    desc_dma_buf_start_amsdu = _GET_HAL_DATA(Adapter)->desc_dma_buf_amsdu;
+#endif
 	
 	PlatformZeroMemory(desc_dma_buf_start, _GET_HAL_DATA(Adapter)->desc_dma_buf_len);
-	HAL_CACHE_SYNC_WBACK(Adapter, (unsigned long)((PVOID)(desc_dma_buf_start)-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), _GET_HAL_DATA(Adapter)->desc_dma_buf_len, PCI_DMA_TODEVICE);
+#if CFG_HAL_TX_AMSDU
+    PlatformZeroMemory(desc_dma_buf_start_amsdu, _GET_HAL_DATA(Adapter)->desc_dma_buf_len_amsdu);
+#endif
+#ifdef TRXBD_CACHABLE_REGION    
+    _dma_cache_wback((unsigned long)((PVOID)(desc_dma_buf_start)-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), _GET_HAL_DATA(Adapter)->desc_dma_buf_len);
+#if CFG_HAL_TX_AMSDU
+    _dma_cache_wback((unsigned long)((PVOID)(desc_dma_buf_start_amsdu)-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), _GET_HAL_DATA(Adapter)->desc_dma_buf_len_amsdu);
+#endif
+#endif // #ifdef TRXBD_CACHABLE_REGION       
 	pdesc_dma_buf = (pu1Byte)(((unsigned long)desc_dma_buf_start) + \
 		(HAL_PAGE_SIZE - (((unsigned long)desc_dma_buf_start) & (HAL_PAGE_SIZE-1))));
+#if CFG_HAL_TX_AMSDU
+    pdesc_dma_buf_amsdu = (pu1Byte)(((unsigned long)desc_dma_buf_start_amsdu) + \
+        (HAL_PAGE_SIZE - (((unsigned long)desc_dma_buf_start_amsdu) & (HAL_PAGE_SIZE-1))));
+#endif
 
     //Transfer to Non-cachable address
 #ifdef TRXBD_CACHABLE_REGION    
   // Do nothing for un-cachable      
 #else
     pdesc_dma_buf =  (pu1Byte)HAL_TO_NONCACHE_ADDR((u4Byte)pdesc_dma_buf);
-#endif	
-
+#if CFG_HAL_TX_AMSDU
+    pdesc_dma_buf_amsdu = (pu1Byte)HAL_TO_NONCACHE_ADDR((u4Byte)pdesc_dma_buf_amsdu);
+#endif
+#endif // #ifdef TRXBD_CACHABLE_REGION    
     for (q_num = 0; q_num < HCI_RX_DMA_QUEUE_MAX_NUM; q_num++)
     {
         prx_dma->rx_queue[q_num].hw_idx         = 0;
@@ -253,7 +276,7 @@ PrepareRXBD88XX(
         {
             pbuf = HAL_OS_malloc(Adapter, bufferLen, _SKB_RX_, TRUE);
             if ( NULL == pbuf ) {
-                panic_printk("%s:%d [%d]Allocate HAL Memory Failed\n", __FUNCTION__, __LINE__, rxbd_idx);
+                RT_TRACE_F( COMP_INIT, DBG_SERIOUS, ("[%d]Allocate HAL Memory Failed\n", rxbd_idx));
                 return RT_STATUS_FAILURE;
             }
             else {
@@ -286,7 +309,8 @@ UpdateRXBDInfo88XX(
     INIT_RXBUF_FUNC             InitRXDescFunc = (INIT_RXBUF_FUNC)Callback; 
     u4Byte                      bufAddr;
     u4Byte                      bufLen;
-	PRX_BUFFER_DESCRIPTOR		pRXBD_head, pRXBD_head1;
+    unsigned long dma_addr;
+
     prx_dma = (PHCI_RX_DMA_MANAGER_88XX)(_GET_HAL_DATA(Adapter)->PRxDMA88XX);    
 
     InitRXDescFunc(Adapter, pBuf, rxbd_idx, &bufAddr, &bufLen);
@@ -298,11 +322,7 @@ UpdateRXBDInfo88XX(
         rxbd_idx, bufAddr, HAL_VIRT_TO_BUS1(Adapter, (PVOID)bufAddr, bufLen, HAL_PCI_DMA_TODEVICE)));
 
 #endif 
-	
-	pRXBD_head = &(prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx]);
-#ifdef TRXBD_CACHABLE_REGION
-	pRXBD_head = (PRX_BUFFER_DESCRIPTOR)((unsigned long)pRXBD_head | 0x20000000);
-#endif
+
 #if 0 //Filen_test
     if ( _TRUE == bInit ) {    
         SET_DESC_FIELD_CLR(prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx].Dword0,
@@ -310,50 +330,50 @@ UpdateRXBDInfo88XX(
             RXBD_DW0_RXBUFSIZE_MSK, RXBD_DW0_RXBUFSIZE_SH);
     }
 #else
-    SET_DESC_FIELD_CLR(pRXBD_head->Dword0,
+    SET_DESC_FIELD_CLR(prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx].Dword0,
         bufLen,
         RXBD_DW0_RXBUFSIZE_MSK, RXBD_DW0_RXBUFSIZE_SH);
 #endif
 
-    SET_DESC_FIELD_CLR(pRXBD_head->Dword1,
-        HAL_VIRT_TO_BUS1(Adapter, (PVOID)bufAddr, bufLen, HAL_PCI_DMA_TODEVICE) + CONFIG_LUNA_SLAVE_PHYMEM_OFFSET_HAL,
+#if defined(CONFIG_NET_PCI) && defined(NOT_RTK_BSP)
+    dma_addr = GET_HW(Adapter)->rx_infoL[rxbd_idx].paddr;
+#else
+    dma_addr = HAL_VIRT_TO_BUS1(Adapter, (PVOID)bufAddr, bufLen, HAL_PCI_DMA_TODEVICE);
+#endif
+    SET_DESC_FIELD_CLR(prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx].Dword1,
+        dma_addr + CONFIG_LUNA_SLAVE_PHYMEM_OFFSET_HAL,
         RXBD_DW1_PHYADDR_LOW_MSK, RXBD_DW1_PHYADDR_LOW_SH);
 
 #if RXBD_READY_CHECK_METHOD
     if ( _TRUE == bInit ) {
-        SET_DESC_FIELD_CLR(pRXBD_head->Dword0,
+        SET_DESC_FIELD_CLR(prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx].Dword0,
                 0xFFFF, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH);
     }
 #else
-    SET_DESC_FIELD_CLR(pRXBD_head->Dword0,
+    SET_DESC_FIELD_CLR(prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx].Dword0,
                 0, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH);
 #endif  //RXBD_READY_CHECK_METHOD
 
 #ifdef CONFIG_NET_PCI
-     if (((Adapter->pshare->type >> TYPE_SHIFT) & TYPE_MASK) == TYPE_PCI_BIOS) {
+     if (HAL_IS_PCIBIOS_TYPE(Adapter)) {
          HAL_CACHE_SYNC_WBACK(Adapter,
-            _GET_HAL_DATA(Adapter)->ring_dma_addr + rxbd_idx * sizeof(RX_BUFFER_DESCRIPTOR),
+            prx_dma->rx_queue[queueIndex].rxbd_dma_addr + rxbd_idx * sizeof(RX_BUFFER_DESCRIPTOR),
             sizeof(RX_BUFFER_DESCRIPTOR), HAL_PCI_DMA_TODEVICE);
      } else   
 #endif
+
 #ifdef TRXBD_CACHABLE_REGION
-    _dma_cache_wback((unsigned long)((PVOID)(pRXBD_head)-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), sizeof(RX_BUFFER_DESCRIPTOR));
-#if 0
-	// For test _dma_cache_wback fail issue
-	if(pRXBD_head->Dword1 != pRXBD_head1->Dword1 || pRXBD_head->Dword0 != pRXBD_head1->Dword0) {
-		panic_printk("Dword0:%x,%x, Dword1:%x%x\n",pRXBD_head->Dword0,pRXBD_head1->Dword0,pRXBD_head->Dword1,pRXBD_head1->Dword1);
-	}
-#endif	
+    _dma_cache_wback((unsigned long)((PVOID)(prx_dma->rx_queue[queueIndex].pRXBD_head + rxbd_idx)-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), sizeof(RX_BUFFER_DESCRIPTOR));
 #else
     HAL_CACHE_SYNC_WBACK(Adapter,
-        HAL_VIRT_TO_BUS1(Adapter, (PVOID)(pRXBD_head), sizeof(RX_BUFFER_DESCRIPTOR), HAL_PCI_DMA_TODEVICE),
+        HAL_VIRT_TO_BUS1(Adapter, (PVOID)(prx_dma->rx_queue[queueIndex].pRXBD_head + rxbd_idx), sizeof(RX_BUFFER_DESCRIPTOR), HAL_PCI_DMA_TODEVICE),
         sizeof(RX_BUFFER_DESCRIPTOR), HAL_PCI_DMA_TODEVICE);
-#endif
-    if ( 0 == GET_DESC(pRXBD_head->Dword1) ) {
-        RT_TRACE(COMP_INIT, DBG_SERIOUS, ("Address(0x%lx) Error\n",  pRXBD_head->Dword1));
+
+    if ( 0 == GET_DESC(prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx].Dword1) ) {
+        RT_TRACE(COMP_INIT, DBG_SERIOUS, ("Address(0x%lx) Error\n",  prx_dma->rx_queue[queueIndex].pRXBD_head[rxbd_idx].Dword1));
         return RT_STATUS_FAILURE;
     }
-
+#endif //#ifdef TRXBD_CACHABLE_REGION
     return RT_STATUS_SUCCESS;
 }
 
@@ -427,21 +447,29 @@ QueryRxDesc88XX (
 
     prx_desc_status = (PRX_DESC_STATUS_88XX)pRxDescStatus;
 
-    do {
-
-#if RXBD_READY_CHECK_METHOD
-#ifdef TRXBD_CACHABLE_REGION
-        _dma_cache_inv((unsigned long)((&(cur_q->pRXBD_head[cur_q->cur_host_idx]))-CONFIG_LUNA_SLAVE_PHYMEM_OFFSET), 
-            sizeof(RX_BUFFER_DESCRIPTOR));
+    PRX_BUFFER_DESCRIPTOR nonCacheAddr = (PRX_BUFFER_DESCRIPTOR)HAL_TO_NONCACHE_ADDR((u4Byte)(&(cur_q->pRXBD_head[cur_q->cur_host_idx])));
+    u4Byte RXBDDword0;
+#ifdef CONFIG_NET_PCI
+    unsigned long rxbd_dma_addr = cur_q->rxbd_dma_addr + sizeof(RX_BUFFER_DESCRIPTOR)*cur_q->cur_host_idx;
 #endif
 
-        if ( cur_q->rxtag_seq_num != GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH) ) {
+    do {
+#ifdef CONFIG_NET_PCI
+        if (HAL_IS_PCIBIOS_TYPE(Adapter)) {
+            HAL_CACHE_SYNC_WBACK(Adapter, rxbd_dma_addr, sizeof(RX_BUFFER_DESCRIPTOR), HAL_PCI_DMA_FROMDEVICE);
+        }
+#endif
+
+#if RXBD_READY_CHECK_METHOD
+        RXBDDword0 = nonCacheAddr->Dword0;
+
+        if ( cur_q->rxtag_seq_num !=  GET_DESC_FIELD(RXBDDword0, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH)) {
             RT_TRACE(COMP_RECV, DBG_WARNING, ("Polling failed(cnt: %d), keep trying, DW0(0x%x), RXBDCheckRdySeqNum(0x%x) FS,LS(0x%x,0x%x)\n", 
                                             PollingCnt, 
-                                            GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH), 
+                                            GET_DESC_FIELD(RXBDDword0, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH), 
                                             cur_q->rxtag_seq_num,
-                                            GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0, RXBD_DW0_FS_MSK, RXBD_DW0_FS_SH),
-                                            GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0, RXBD_DW0_LS_MSK, RXBD_DW0_LS_SH)
+                                            GET_DESC_FIELD(RXBDDword0, RXBD_DW0_FS_MSK, RXBD_DW0_FS_SH),
+                                            GET_DESC_FIELD(RXBDDword0, RXBD_DW0_LS_MSK, RXBD_DW0_LS_SH)
                                             ));
         }
         else {
@@ -478,7 +506,7 @@ QueryRxDesc88XX (
 //        return RT_STATUS_FAILURE;
 
 #if RXBD_READY_CHECK_METHOD
-		cur_q->rxtag_seq_num = GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH);
+		cur_q->rxtag_seq_num = GET_DESC_FIELD(RXBDDword0, RXBD_DW0_TOTALRXPKTSIZE_MSK, RXBD_DW0_TOTALRXPKTSIZE_SH);
 #endif
 #endif  //#if  CFG_HAL_DBG        
 
@@ -490,32 +518,19 @@ QueryRxDesc88XX (
 			cur_q->rxtag_seq_num++;
 			cur_q->rxtag_seq_num &= RXBD_RXTAG_MASK;
 #endif  //#if RXBD_READY_CHECK_METHOD
-
-
-    #if 0
-    //Cache flush for current RXDESC, becuase we don't flush rxdesc in some cases. ex. memory allocate fail then reuse
-    // TODO: move to other better place
-    HAL_CACHE_SYNC_WBACK(Adapter,
-        HAL_VIRT_TO_BUS1(Adapter, (PVOID)prx_desc, sizeof(RX_DESC_88XX), HAL_PCI_DMA_TODEVICE),
-        sizeof(RX_DESC_88XX), HAL_PCI_DMA_TODEVICE);    
-    #endif
-
-    #if 0
-    HAL_CACHE_SYNC_WBACK(Adapter,
-        HAL_VIRT_TO_BUS1(Adapter, (PVOID)(prx_desc), 2048, HAL_PCI_DMA_TODEVICE),
-        2048, HAL_PCI_DMA_TODEVICE);
-    #endif
    
-
     // get rxbd    
-    prx_desc_status->FS = GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0,
-                                            RXBD_DW0_FS_MSK, RXBD_DW0_FS_SH);
-    prx_desc_status->LS = GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0,
-                                            RXBD_DW0_LS_MSK, RXBD_DW0_LS_SH);
-    prx_desc_status->RXBuffSize = GET_DESC_FIELD(cur_q->pRXBD_head[cur_q->cur_host_idx].Dword0,
-                                            RXBD_DW0_RXBUFSIZE_MSK, RXBD_DW0_RXBUFSIZE_SH);
+    prx_desc_status->FS = GET_DESC_FIELD(RXBDDword0, RXBD_DW0_FS_MSK, RXBD_DW0_FS_SH);
+    prx_desc_status->LS = GET_DESC_FIELD(RXBDDword0, RXBD_DW0_LS_MSK, RXBD_DW0_LS_SH);
+    prx_desc_status->RXBuffSize = GET_DESC_FIELD(RXBDDword0, RXBD_DW0_RXBUFSIZE_MSK, RXBD_DW0_RXBUFSIZE_SH);
 
     if ( prx_desc_status->FS==0x01 ) {
+#ifdef CONFIG_NET_PCI
+        if (HAL_IS_PCIBIOS_TYPE(Adapter)) {
+            HAL_CACHE_SYNC_WBACK(Adapter, GET_HW(Adapter)->rx_infoL[cur_q->cur_host_idx].paddr, sizeof(RX_DESC_88XX), HAL_PCI_DMA_FROMDEVICE);
+        }
+#endif
+
         prx_desc                        = (PRX_DESC_88XX)pBufAddr;
         // get rx desc
         prx_desc_status->PKT_LEN        = GET_DESC_FIELD(prx_desc->Dword0, RX_DW0_PKT_LEN_MSK, RX_DW0_PKT_LEN_SH);
@@ -530,17 +545,17 @@ QueryRxDesc88XX (
         prx_desc_status->RX_RATE        = GET_DESC_FIELD(prx_desc->Dword3, RX_DW3_RX_RATE_MSK, RX_DW3_RX_RATE_SH);
 
 #if (IS_RTL8192E_SERIES || IS_RTL8881A_SERIES)
-    if (IS_HARDWARE_TYPE_8192E(Adapter) || IS_HARDWARE_TYPE_8881A(Adapter)) {        
-        prx_desc_status->OFDM_SGI       = GET_DESC_FIELD(prx_desc->Dword4, RX_DW4_OFDM_SGI_MSK, RX_DW4_OFDM_SGI_SH);
-    }
+        if (IS_HARDWARE_TYPE_8192E(Adapter) || IS_HARDWARE_TYPE_8881A(Adapter)) {        
+            prx_desc_status->OFDM_SGI       = GET_DESC_FIELD(prx_desc->Dword4, RX_DW4_OFDM_SGI_MSK, RX_DW4_OFDM_SGI_SH);
+            prx_desc_status->BW             = GET_DESC_FIELD(prx_desc->Dword4, RX_DW4_BW_MSK, RX_DW4_BW_SH);
+        }
 #endif //#if (IS_RTL8192E_SERIES || IS_RTL8881A_SERIES)
 
-        prx_desc_status->BW             = GET_DESC_FIELD(prx_desc->Dword4, RX_DW4_BW_MSK, RX_DW4_BW_SH);
 #if CFG_HAL_HW_FILL_MACID
-        if (IS_HARDWARE_TYPE_8813A(Adapter)) {        
+        if (IS_HARDWARE_TYPE_8814A(Adapter)) {        
             prx_desc_status->rxMACID        = GET_DESC_FIELD(prx_desc->Dword4, RX_DW4_MACID_MSK, RX_DW4_MACID_SH);     
         }
-#endif //#if IS_RTL8813A_SERIES
+#endif //#if IS_RTL8814A_SERIES
 
 #if 0 //CFG_HAL_DBG
         RT_TRACE_F(COMP_RECV, DBG_TRACE, ("pBufAddr: 0x%lx\n", (u4Byte)pBufAddr));

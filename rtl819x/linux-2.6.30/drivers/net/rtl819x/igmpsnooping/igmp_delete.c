@@ -123,7 +123,7 @@ int igmp_delete_init_netlink(void)
 {
 // to_be_checked !!!
 //#ifndef CONFIG_RTL_8198C // modified by lynn_pu, 2014-10-22
-#if !defined(CONFIG_RTL_8198C) && ((!defined(CONFIG_RTL_8881A)||!defined(CONFIG_RTL_8196E)||!defined(CONFIG_RTL_819XD))&&(LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)))
+#if !defined(CONFIG_RTL_8198C) && (!defined(CONFIG_RLX)&&(LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)))
   	igmp_delete_sk = netlink_kernel_create(&init_net, NETLINK_MULTICAST_DELETE, 0, igmp_delete, NULL, THIS_MODULE);
 
   	if (!igmp_delete_sk) {

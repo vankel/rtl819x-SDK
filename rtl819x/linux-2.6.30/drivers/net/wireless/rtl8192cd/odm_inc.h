@@ -97,17 +97,24 @@
 #define		RTL8192E_SUPPORT						0
 #endif
 
-#ifdef CONFIG_WLAN_HAL_8813AE
-#define		RTL8813A_SUPPORT						1
+#ifdef CONFIG_WLAN_HAL_8814AE
+#define		RTL8814A_SUPPORT						1
 #else
-#define		RTL8813A_SUPPORT						0
+#define		RTL8814A_SUPPORT						0
 #endif
 
+#ifdef CONFIG_WLAN_HAL_8195A
+#define		RTL8195A_SUPPORT						1
+#else
+#define		RTL8195A_SUPPORT						0
+#endif
 
-
-
+#if (DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
 #define		RTL8723A_SUPPORT						0
+#define		RTL8723B_SUPPORT						0
+#define		RTL8821A_SUPPORT						0
 #define		BT_30_SUPPORT							0
+#endif
 
 //2 [HEADER\TypeDef.h]
 

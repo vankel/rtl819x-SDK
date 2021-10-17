@@ -1992,10 +1992,10 @@ int ip_mr_input(struct sk_buff *skb)
 	struct mr_table *mrt;
 
 #if defined (CONFIG_RTL_IGMP_PROXY)
+	cache=NULL;
 	struct net_device *dev=skb->dev;
 	int vif_index;
 	__be32 origin_temp=0;
-	cache=NULL;
 #endif
 
 	/* Packet is looped back after forward, it should not be

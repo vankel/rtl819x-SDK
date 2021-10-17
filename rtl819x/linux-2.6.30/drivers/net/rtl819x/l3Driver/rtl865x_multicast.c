@@ -2981,7 +2981,7 @@ static int32 rtl8198C_multicastv6CallbackFn(void *param)
 				oldDescPortMask=rtl8198C_getMCastv6EntryDescPortMask( mCastEntry); 		
 					
 				/*sync with control plane*/
-				memset(&newFwdDesc, 0 ,sizeof(rtl8198c_mcast_fwd_descriptor6_t));
+				memset(&newFwdDesc, 0 ,sizeof(rtl865x_mcast_fwd_descriptor_t));
 				strcpy(newFwdDesc.netifName,mcastEventContext.devName);
 				multicastDataInfo.ipVersion=6;
 				memcpy(multicastDataInfo.sourceIp,&mCastEntry->sip,sizeof(inv6_addr_t));
@@ -3008,7 +3008,7 @@ static int32 rtl8198C_multicastv6CallbackFn(void *param)
 					_rtl8198C_freeMCastv6Entry(mCastEntry,index);
 					_rtl8198C_arrangeMulticastv6(index);
 				}
-					
+					
 			}
 		}
 			

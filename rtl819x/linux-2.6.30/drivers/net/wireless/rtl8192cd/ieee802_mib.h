@@ -23,7 +23,7 @@
 #include <pkgconf/devs_eth_rltk_819x_wlan.h>
 #endif
 
-#define MIB_VERSION				30
+#define MIB_VERSION				26
 
 #define MAX_2G_CHANNEL_NUM		14
 #define MAX_5G_CHANNEL_NUM		196
@@ -106,9 +106,6 @@ struct Dot11StationConfigEntry {
 	int				fastRoaming;			// 1: enable fast-roaming, 0: disable
 	unsigned int	lowestMlcstRate;		// 1: use lowest basic rate to send multicast
 	unsigned int	supportedStaNum;		// limit supported station number
-	unsigned int	staAssociateRSSIThreshold;	
-	unsigned int	RmStaRSSIThreshold;			
-	
 	unsigned int	probe_info_enable;		// proc probe_info 
 	unsigned int sc_enabled;	//0 is disable, 1 is enable
 	int sc_duration_time;				//-1 is always parse, 0 stop parse, >0 parse all packets.
@@ -133,9 +130,7 @@ struct Dot11StationConfigEntry {
 	int sc_reset_beacon_psk;				//0, close/open interface when receive profile and try to connect remote AP; 1. reset psk and beacon only when try to connect remote AP
 	int sc_security_type;
 	int sc_fix_channel;					//0, don't fix channel; others, the remote AP's channel
-	int sc_fix_encrypt;					//0, not fix; >0, fix
-	int sc_config_type;					
-	
+
 	int sc_fix_bw;
 	int sc_fix_offset;
 	
@@ -146,8 +141,17 @@ struct Dot11StationConfigEntry {
 	unsigned char   pmf_cli_test;			// CONFIG_IEEE80211W_CLI
 	unsigned char   pmftest;	// CONFIG_IEEE80211W
 	unsigned int	bcastSSID_inherit;
-	unsigned int	beacon_rate;
 	unsigned int    channel_utili_beaconIntval;
+
+    /* below is for 802.11k radio measurement*/
+    unsigned char   dot11RadioMeasurementActivated;
+    unsigned char   dot11RMLinkMeasurementActivated;
+    unsigned char   dot11RMNeighborReportActivated;
+    unsigned char   dot11RMBeaconPassiveMeasurementActivated;
+    unsigned char   dot11RMBeaconActiveMeasurementActivated;
+    unsigned char   dot11RMBeaconTableMeasurementActivated;
+    unsigned char   dot11RMAPChannelReportActivated;
+
 };
 
 /* add for 802.11d */
@@ -312,13 +316,19 @@ struct Dot11RFEntry {
 	unsigned int	dot11ch_hi;
 	unsigned char	pwrlevelCCK_A[MAX_2G_CHANNEL_NUM];
 	unsigned char	pwrlevelCCK_B[MAX_2G_CHANNEL_NUM];
+    unsigned char	pwrlevelCCK_C[MAX_2G_CHANNEL_NUM];
+    unsigned char	pwrlevelCCK_D[MAX_2G_CHANNEL_NUM];
 	unsigned char	pwrlevelHT40_1S_A[MAX_2G_CHANNEL_NUM];
 	unsigned char	pwrlevelHT40_1S_B[MAX_2G_CHANNEL_NUM];
+    unsigned char   pwrlevelHT40_1S_C[MAX_2G_CHANNEL_NUM];
+    unsigned char   pwrlevelHT40_1S_D[MAX_2G_CHANNEL_NUM];
 	unsigned char	pwrdiffHT40_2S[MAX_2G_CHANNEL_NUM];
 	unsigned char	pwrdiffHT20[MAX_2G_CHANNEL_NUM];
 	unsigned char	pwrdiffOFDM[MAX_2G_CHANNEL_NUM];
 	unsigned char	pwrlevel5GHT40_1S_A[MAX_5G_CHANNEL_NUM];
 	unsigned char	pwrlevel5GHT40_1S_B[MAX_5G_CHANNEL_NUM];
+    unsigned char	pwrlevel5GHT40_1S_C[MAX_5G_CHANNEL_NUM];
+    unsigned char	pwrlevel5GHT40_1S_D[MAX_5G_CHANNEL_NUM];
 	unsigned char	pwrdiff5GHT40_2S[MAX_5G_CHANNEL_NUM];
 	unsigned char	pwrdiff5GHT20[MAX_5G_CHANNEL_NUM];
 	unsigned char	pwrdiff5GOFDM[MAX_5G_CHANNEL_NUM];
@@ -344,6 +354,7 @@ struct Dot11RFEntry {
 	unsigned char	trsw_pape_C9;
 	unsigned char	trsw_pape_CC;
 	unsigned int	tx2path;
+	unsigned int	tx3path;	
 	unsigned int	txbf;
 	unsigned int    txbfer;
 	unsigned int	txbfee;
@@ -351,8 +362,8 @@ struct Dot11RFEntry {
 	unsigned char	bcn2path;
 	unsigned char	add_cck1M_pwr;
 	unsigned int	pa_type;
-	unsigned char	txpwr_reduction;
-        unsigned int	acs_type;
+	unsigned char	rfe_type;
+	unsigned int	acs_type;
 
 //#ifdef RTK_AC_SUPPORT
 	unsigned char pwrdiff_20BW1S_OFDM1T_A[MAX_2G_CHANNEL_NUM];	
@@ -391,6 +402,43 @@ struct Dot11RFEntry {
 	unsigned char pwrdiff_5G_80BW2S_160BW2S_B[MAX_5G_CHANNEL_NUM];	
 	unsigned char pwrdiff_5G_80BW3S_160BW3S_B[MAX_5G_CHANNEL_NUM];	
 	unsigned char pwrdiff_5G_80BW4S_160BW4S_B[MAX_5G_CHANNEL_NUM];	
+
+    unsigned char pwrdiff_20BW1S_OFDM1T_C[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_40BW2S_20BW2S_C[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_OFDM2T_CCK2T_C[MAX_2G_CHANNEL_NUM];
+    unsigned char pwrdiff_40BW3S_20BW3S_C[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_4OFDM3T_CCK3T_C[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_40BW4S_20BW4S_C[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_OFDM4T_CCK4T_C[MAX_2G_CHANNEL_NUM];
+
+    unsigned char pwrdiff_5G_20BW1S_OFDM1T_C[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_40BW2S_20BW2S_C[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_40BW3S_20BW3S_C[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_40BW4S_20BW4S_C[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_RSVD_OFDM4T_C[MAX_5G_CHANNEL_NUM]; 
+    unsigned char pwrdiff_5G_80BW1S_160BW1S_C[MAX_5G_CHANNEL_NUM];  
+    unsigned char pwrdiff_5G_80BW2S_160BW2S_C[MAX_5G_CHANNEL_NUM];  
+    unsigned char pwrdiff_5G_80BW3S_160BW3S_C[MAX_5G_CHANNEL_NUM];  
+    unsigned char pwrdiff_5G_80BW4S_160BW4S_C[MAX_5G_CHANNEL_NUM];
+
+    unsigned char pwrdiff_20BW1S_OFDM1T_D[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_40BW2S_20BW2S_D[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_OFDM2T_CCK2T_D[MAX_2G_CHANNEL_NUM];
+    unsigned char pwrdiff_40BW3S_20BW3S_D[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_4OFDM3T_CCK3T_D[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_40BW4S_20BW4S_D[MAX_2G_CHANNEL_NUM];  
+    unsigned char pwrdiff_OFDM4T_CCK4T_D[MAX_2G_CHANNEL_NUM];
+
+    unsigned char pwrdiff_5G_20BW1S_OFDM1T_D[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_40BW2S_20BW2S_D[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_40BW3S_20BW3S_D[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_40BW4S_20BW4S_D[MAX_5G_CHANNEL_NUM];   
+    unsigned char pwrdiff_5G_RSVD_OFDM4T_D[MAX_5G_CHANNEL_NUM]; 
+    unsigned char pwrdiff_5G_80BW1S_160BW1S_D[MAX_5G_CHANNEL_NUM];  
+    unsigned char pwrdiff_5G_80BW2S_160BW2S_D[MAX_5G_CHANNEL_NUM];  
+    unsigned char pwrdiff_5G_80BW3S_160BW3S_D[MAX_5G_CHANNEL_NUM];  
+    unsigned char pwrdiff_5G_80BW4S_160BW4S_D[MAX_5G_CHANNEL_NUM];
+
 	unsigned char power_percent;
 
 };
@@ -541,6 +589,10 @@ struct MiscEntry {
 	unsigned int	autoch_ss_to;//AUTOCH_SS_SPEEDUP
 	unsigned int	autoch_ss_cnt;//AUTOCH_SS_SPEEDUP
 	unsigned int	autoch_1611_enable;//AUTOCH_SS_SPEEDUP
+	unsigned int	max_xmitbuf_agg;
+	unsigned int	max_recvbuf_agg;
+	unsigned int	max_handle_xmitbuf;
+	unsigned int	max_handle_recvbuf;
 };
 
 struct ParaRecord {
@@ -610,6 +662,7 @@ struct Dot11nConfigEntry {
 	unsigned int	dot11nAMSDURecvMax;		// 0: 4K, 1: 8K
 	unsigned int	dot11nAMSDUSendTimeout;	// timeout value to queue AMSDU packets
 	unsigned int	dot11nAMSDUSendNum;		// max aggregation packet number
+	unsigned int	dot11curAMSDUSendNum;		// current AMSDU packet number
 	unsigned int	dot11nLgyEncRstrct;		// bit0: Wep, bit1: TKIP, bit2: restrict Realtek client, bit3: forbid  N mode for legacy enc
 	unsigned int	dot11nCoexist;
 	unsigned int	dot11nCoexist_ch_chk;	// coexist channel chaek
@@ -729,20 +782,12 @@ typedef struct __wapiMibInfo {
 } wapiMibInfo;
 
 /*for HS2_SUPPORT*/
-#define MAX_DSCP_EXCEPT 4
-#define MAX_QOS_PRIORITY 8
 struct HotSpotConfigEntry {
 	unsigned int	hs_enable;
 	unsigned char   hs2_ie[256];
     int             hs2_ielen;
 	unsigned char	interworking_ie[256];
 	int				interworking_ielen;
-	unsigned char	QoSMap_ie[2][256];
-	unsigned char	QoSMap_ielen[2];
-	unsigned char   QoSMAP_range[MAX_QOS_PRIORITY][2];
-	unsigned char   QoSMAP_except[MAX_DSCP_EXCEPT][2];
-	unsigned char   nQoSMap;
-	unsigned char   curQoSMap;
 	unsigned char	advt_proto_ie[256];
     int				advt_proto_ielen;
 	unsigned char	roam_ie[256];
@@ -753,13 +798,7 @@ struct HotSpotConfigEntry {
 	int				timezone_ielen;
 	unsigned char	MBSSID_ie[256];
 	int				MBSSID_ielen;
-	unsigned char   remedSvrURL[256];
-
-	unsigned char 	serverMethod;
-
-	unsigned char   SessionInfoURL[256];
 	unsigned char	bssload_ie[5];
-	//	unsigned int    channel_utili_beaconIntval;
 	unsigned int	timeadvt_DTIMIntval;
 	unsigned int	reqmode;
 	unsigned int	disassoc_timer;
@@ -767,11 +806,8 @@ struct HotSpotConfigEntry {
 	unsigned char	session_url[50];
 	unsigned char   sta_mac[MACADDRLEN];
     unsigned char   redir_mac[MACADDRLEN];
-	unsigned char	remed_mac[MACADDRLEN];
 	unsigned int    roam_enable;
 	unsigned int    mmpdu_limit;
-	unsigned int	bssload;
-	unsigned int	radioOff;
 	unsigned int	ICMPv4ECHO;
 };
 
@@ -793,6 +829,7 @@ struct P2P_Direct {
 	unsigned short p2p_wsc_config_method;
 
 };
+
 
 #define PROFILE_NUM		5 	// must reserve one for root profile. 
 
@@ -816,6 +853,30 @@ struct ap_conn_profile { // ap connection profile
 	int	profile_num;		// profile number, except root profile.
     int sortbyprofile;	
 	struct ap_profile profile[PROFILE_NUM];
+};
+
+struct StaControl {
+    unsigned char stactrl_enable; //0:disable, 1:enable   
+    unsigned char stactrl_groupID;    
+    unsigned char stactrl_prefer_band;    //0: disable, 1: enable
+    unsigned int  stactrl_param_1;    // rssi threshold   
+    unsigned int  stactrl_param_2;    // rssi threshold tolerance
+    unsigned int  stactrl_param_3;    // timer X    
+    unsigned int  stactrl_param_4;    // retry Y         
+    unsigned int  stactrl_param_5;    // timer Z    
+};
+
+
+struct Dot11FastBSSTransitionEntry {
+	int dot11FastBSSTransitionEnabled;
+	unsigned char dot11FTMobilityDomainID[2];
+	int dot11FTOverDSEnabled;
+	int dot11FTResourceRequestSupported;
+	unsigned char dot11FTR0KeyHolderID[49];
+	unsigned int dot11FTR0KeyHolderIDLen;
+	int dot11FTReassociationDeadline;
+	int dot11FTR0KeyLifetime;
+	int dot11FTR1KeyPushEnable;
 };
 
 // driver mib
@@ -853,7 +914,9 @@ struct wifi_mib {
 	struct StaDetectInfo			staDetectInfo;
 	struct P2P_Direct				p2p_mib;	// add for P2P_SUPPORT
 	struct ap_conn_profile			ap_profile;
+	struct Dot11FastBSSTransitionEntry	dot11FTEntry;
     struct HotSpotConfigEntry		hs2Entry;	// add for HS2_SUPPORT, Hotspot 2.0 Release 1
+	struct StaControl			    staControl;	// add for sta control
 };
 
 #endif // _IEEE802_MIB_H_

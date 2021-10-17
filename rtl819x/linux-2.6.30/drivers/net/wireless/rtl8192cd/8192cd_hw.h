@@ -81,7 +81,7 @@ enum _CHIP_VERSION_ {
 	VERSION_8812E = 0x1004, //CONFIG_RTL_8812_SUPPORT
 	VERSION_8192E = 0x1005,
 	VERSION_8881A = 0x1006,
-	VERSION_8813A = 0x1007  //CONFIG_WLAN_HAL_8813AE
+	VERSION_8814A = 0x1007  //CONFIG_WLAN_HAL_8814AE
 };
 
 
@@ -576,7 +576,7 @@ enum _ARFR_TABLE_SET_
 	ARFR_BMC = 6,
 };
 
-#if (defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8813AE)
+#if (defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8192EE) || defined(CONFIG_WLAN_HAL_8814AE)
 typedef enum _RATR_TABLE_MODE{
 	RATR_INX_WIRELESS_NGB = 0,		// BGN 40 Mhz 2SS 1SS
 	RATR_INX_WIRELESS_NG = 1,		// GN or N
@@ -587,6 +587,7 @@ typedef enum _RATR_TABLE_MODE{
 	RATR_INX_WIRELESS_B = 6,
 	RATR_INX_WIRELESS_MC = 7,
 	RATR_INX_WIRELESS_AC_N = 8,
+	RATR_INX_WIRELESS_AC_24N = 9
 }RATR_TABLE_MODE, *PRATR_TABLE_MODE;
 #endif
 
@@ -774,14 +775,14 @@ struct rx_desc_info {
 
 struct rf_misc_info {
 #ifdef USE_OUT_SRC
-	u1Byte                            mimorssi[2];
-	s1Byte                              mimosq[2];
-    u1Byte                            RxSNRdB[2];  
+	u1Byte                            mimorssi[4];
+	s1Byte                              mimosq[4];
+    u1Byte                            RxSNRdB[4];  
     u1Byte                             BandWidth;
 #else
-	unsigned char		mimorssi[2];
-	signed char			mimosq[2];
-	int					RxSNRdB[2];
+	unsigned char		mimorssi[4];
+	signed char			mimosq[4];
+	int					RxSNRdB[4];
 #endif
 };
 
@@ -941,8 +942,8 @@ struct tx_desc_info {
 	unsigned int		type;
 	void				*pframe;
 #if defined(CONFIG_PCI_HCI)
-    unsigned long		paddr;
-    unsigned int		len;
+	unsigned long		paddr;
+	unsigned int		len;
 #ifdef CONFIG_WLAN_HAL
     // buf_pframe[0]: cur_txbd->TXBD_ELE[2].Dword1 : packet payload
     // buf_pframe[1]: cur_txbd->TXBD_ELE[3].Dword1 : icv/mic
@@ -950,6 +951,10 @@ struct tx_desc_info {
     unsigned int        buf_type[2];
     unsigned int        buf_paddr[2];
     void                *buf_pframe[2];
+#ifdef WLAN_HAL_TX_AMSDU
+    unsigned int        buf_type_amsdu[WLAN_HAL_TX_AMSDU_MAX_NUM];
+    void                *buf_pframe_amsdu[WLAN_HAL_TX_AMSDU_MAX_NUM];
+#endif
     unsigned int        buf_len[2];
 #endif // CONFIG_WLAN_HAL
 #elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
@@ -1017,6 +1022,9 @@ typedef struct _BB_REGISTER_DEFINITION {
 
 #ifdef CONFIG_WLAN_HAL
 #define DESC_DMA_PAGE_SIZE ((DESC_DMA_SIZE + PAGE_SIZE) > DESC_DMA_PAGE_SIZE_MAX_HAL ? (DESC_DMA_SIZE + PAGE_SIZE) : DESC_DMA_PAGE_SIZE_MAX_HAL)
+#ifdef WLAN_HAL_TX_AMSDU
+#define DESC_DMA_PAGE_SIZE_HAL_FOR_AMSDU    (DESC_DMA_SIZE_FOR_AMSDU + HAL_PAGE_SIZE)
+#endif
 #else
 //#define DESC_DMA_PAGE_SIZE ((DESC_DMA_SIZE + (2*PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1)))
 #define DESC_DMA_PAGE_SIZE ((DESC_DMA_SIZE + PAGE_SIZE))
@@ -1144,13 +1152,21 @@ struct rtl8192cd_hw {
 	unsigned long		txcmd_ring_addr;
 #endif
 #endif // CONFIG_PCI_HCI
-
+#ifdef CONFIG_WLAN_HAL_8814AE	/* change to ANT_3T3R or ANT_4T4R */
+	char				MCSTxAgcOffset_A[32];
+	char				MCSTxAgcOffset_B[32];
+	char				MCSTxAgcOffset_C[32];
+	char				MCSTxAgcOffset_D[32];
+	char				VHTTxAgcOffset_A[40];
+	char				VHTTxAgcOffset_B[40];
+	char				VHTTxAgcOffset_C[40];
+	char				VHTTxAgcOffset_D[40];
+#else
 	char				MCSTxAgcOffset_A[16];
 	char				MCSTxAgcOffset_B[16];
-	char				OFDMTxAgcOffset_A[8];
-	char				OFDMTxAgcOffset_B[8];
 	char				VHTTxAgcOffset_A[20];
 	char				VHTTxAgcOffset_B[20];
+#endif	
 	//_TXPWR_REDEFINE ?? int or char ??
 #if 0
 	int					CCKTxAgc_A[4];
@@ -1158,6 +1174,20 @@ struct rtl8192cd_hw {
 #endif
 	char				CCKTxAgc_A[4];
 	char				CCKTxAgc_B[4];
+	char				OFDMTxAgcOffset_A[8];
+	char				OFDMTxAgcOffset_B[8];
+#ifdef CONFIG_WLAN_HAL_8814AE
+    char                CCKTxAgc_C[4];
+    char                CCKTxAgc_D[4];
+	char				OFDMTxAgcOffset_C[8];
+	char				OFDMTxAgcOffset_D[8];	
+#endif
+#ifdef CONFIG_WLAN_HAL_8814AE
+	unsigned char		CurrentTxAgcCCK[4][4];
+	unsigned char		CurrentTxAgcOFDM[4][8];
+	unsigned char		CurrentTxAgcMCS[4][32];	
+	unsigned char		CurrentTxAgcVHT[4][40];
+#endif
 
 	unsigned int				NumTotalRFPath;
 	/*PHY related*/
@@ -1436,8 +1466,6 @@ enum _RTL8192CD_TX_DESC_ {
 #if defined(CONFIG_RTL_8812_SUPPORT)
 	TXdesc_92E_NDPASHIFT	= 22,
 	TXdesc_92E_NDPAMASK		= 0x03,	
-	TXdesc_92E_MAX_AGG_NUMSHIFT = 17,
-	TXdesc_92E_MAX_AGG_NUMMask	= 0x1F,
 	TXdesc_92E_NAVUSEHDR	= BIT(15),
 	TXdesc_92E_PortId		= BIT(14), 
 	TXdesc_92E_HwRtsEn		= BIT(13),
@@ -1902,7 +1930,7 @@ typedef enum _HW90_BLOCK {
 typedef enum _RF92CD_RADIO_PATH_ {
 	RF92CD_PATH_A = 0,			//Radio Path A
 	RF92CD_PATH_B = 1,			//Radio Path B
-#if 0
+#if defined(CONFIG_WLAN_HAL_8814AE)
 	RF92CD_PATH_C = 2,			//Radio Path C
 	RF92CD_PATH_D = 3,			//Radio Path D
 #endif
@@ -1933,7 +1961,8 @@ typedef enum _PHY_REG_FILE {
 enum REG_FILE_FORMAT {
 	TWO_COLUMN,
 	THREE_COLUMN,
-	FIVE_COLUMN
+	FIVE_COLUMN,
+	SEVEN_COLUMN
 };
 
 #if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
@@ -2244,8 +2273,58 @@ enum _8190_CPU_RESET_BITFIELD_ {
 #else
 #define index_mapping_NUM_MAX	20
 #endif
+#if defined(CONFIG_WLAN_HAL_8814AE)
+#define TXPWR_TRACKING_NAME_NUM 40
+#define TXPWR_TRACKING_PATH_NUM 4
+#else
 #define TXPWR_TRACKING_NAME_NUM 20
+#define TXPWR_TRACKING_PATH_NUM 2
+#endif
 
+#if defined(CONFIG_WLAN_HAL_8814AE)
+enum txpwr_tracking_offset {
+	CCKA_P, //"2GCCKA_P"
+	CCKA_N, //"2GCCKA_N"
+	CCKB_P, //"2GCCKB_P"
+	CCKB_N, //"2GCCKB_N"
+	CCKC_P, //"2GCCKC_P"
+	CCKC_N, //"2GCCKC_N"
+	CCKD_P, //"2GCCKD_P"
+	CCKD_N, //"2GCCKD_N"
+	A_P,	//"2GA_P"
+	A_N,	//"2GA_N"
+	B_P,	//"2GB_P"
+	B_N,	//"2GB_N"	
+	C_P,	//"2GC_P"
+	C_N,	//"2GC_N"
+	D_P,	//"2GD_P"
+	D_N,	//"2GD_N"
+	LA_P,	//"5GLA_P"
+	LA_N,	//"5GLA_N"
+	LB_P,	//"5GLB_P"
+	LB_N,	//"5GLB_N"
+	LC_P,	//"5GLC_P"
+	LC_N,	//"5GLC_N"
+	LD_P,	//"5GLD_P"
+	LD_N,	//"5GLD_N"
+	MA_P,	//"5GMA_P"
+	MA_N,	//"5GMA_N"
+	MB_P,	//"5GMB_P"
+	MB_N,	//"5GMB_N"	
+	MC_P,	//"5GMC_P"
+	MC_N,	//"5GMC_N"
+	MD_P,	//"5GMD_P"
+	MD_N,	//"5GMD_N"
+	HA_P,	//"5GHA_P"
+	HA_N,	//"5GHA_N"
+	HB_P,	//"5GHB_P"
+	HB_N,	//"5GHB_N"
+	HC_P,	//"5GHC_P"
+	HC_N,	//"5GHC_N"
+	HD_P,	//"5GHD_P"
+	HD_N,	//"5GHD_N"
+};
+#else
 enum txpwr_tracking_offset {
 	CCKA_P, //"2GCCKA_P"
 	CCKA_N, //"2GCCKA_N"
@@ -2268,8 +2347,7 @@ enum txpwr_tracking_offset {
 	HB_P,	//"5GHB_P"
 	HB_N,	//"5GHB_N"
 };
-
-
+#endif
 #endif
 
 
@@ -2384,7 +2462,8 @@ typedef enum _RTL8812_H2C_CMD
 	H2C_8812_P2P_PS_MODE = 0x24,
 	H2C_8812_RA_MASK = 0x40,
 	H2C_8812_RSSI_REPORT = 0x42,
-	H2C_8812_TX_REPORT = 0x43,	
+	H2C_8812_TX_REPORT = 0x43,
+	H2C_8812_RA_PARA_ADJUST 	= 0x46,
 	H2C_8812_NHM = 0xc1,
 	MAX_8812_H2CCMD
 }RTL8812_H2C_CMD;

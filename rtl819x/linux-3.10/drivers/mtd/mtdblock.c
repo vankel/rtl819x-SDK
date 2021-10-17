@@ -318,6 +318,7 @@ static void mtdblock_release(struct mtd_blktrans_dev *mbd)
 
 	mutex_lock(&mtdblk->cache_mutex);
 	write_cached_data(mtdblk);
+	
 	mutex_unlock(&mtdblk->cache_mutex);
 
 	if (!--mtdblk->count) {
@@ -326,7 +327,9 @@ static void mtdblock_release(struct mtd_blktrans_dev *mbd)
 		 * opened for writing.
 		 */
 		if (mbd->file_mode & FMODE_WRITE)
+		{
 			mtd_sync(mbd->mtd);
+		}	
 		vfree(mtdblk->cache_data);
 	}
 
@@ -341,6 +344,7 @@ static int mtdblock_flush(struct mtd_blktrans_dev *dev)
 
 	mutex_lock(&mtdblk->cache_mutex);
 	write_cached_data(mtdblk);
+	
 	mutex_unlock(&mtdblk->cache_mutex);
 	mtd_sync(dev->mtd);
 	return 0;

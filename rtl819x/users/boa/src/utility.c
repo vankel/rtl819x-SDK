@@ -1289,14 +1289,14 @@ int getWlStaInfo( char *interface,  WLAN_STA_INFO_Tp pInfo )
 
 // ==== inserted by GANTOE for site survey 2008/12/26 ==== 
 #ifdef CONFIG_RTK_MESH 
-int setWlJoinMesh (char *interface, unsigned char* MeshId, int MeshId_Len, int Channel, int offset, int Reset) 
+int setWlJoinMesh (char *interface, unsigned char* MeshId, int MeshId_Len, int Channel, int offset) 
 { 
     int skfd; 
     struct iwreq wrq; 
     struct 
     {
         unsigned char *meshid;
-        int meshid_len, channel, offset, reset; 
+        int meshid_len, channel, offset; 
     }mesh_identifier; 
   
     skfd = socket(AF_INET, SOCK_DGRAM, 0); 
@@ -1308,9 +1308,9 @@ int setWlJoinMesh (char *interface, unsigned char* MeshId, int MeshId_Len, int C
 
     mesh_identifier.meshid = MeshId; 
     mesh_identifier.meshid_len = MeshId_Len; 
-    mesh_identifier.channel = Channel;
+    mesh_identifier.channel = Channel;    
     mesh_identifier.offset = offset;    
-    mesh_identifier.reset = Reset;
+
     wrq.u.data.pointer = (caddr_t)&mesh_identifier; 
     wrq.u.data.length = sizeof(mesh_identifier); 
 
@@ -1464,7 +1464,7 @@ int getWlSiteSurveyRequest(char *interface, int *pStatus)
     wrq.u.data.length = sizeof(result);
 
     if (iw_get_ext(skfd, interface, SIOCGIWRTLSCANREQ, &wrq) < 0){
-    	//close( skfd );
+		//close( skfd );
 		//return -1;
 	}
     close( skfd );
@@ -1610,7 +1610,7 @@ extern pid_t find_pid_by_name( char* pidName)
 			closedir(dir);
 			return pid;
 		}
-	}	
+	}
 	closedir(dir);
 	return 0;
 }
@@ -2354,7 +2354,7 @@ void killDaemon(int wait)
             		|| (strstr(strtmp, "root") == 0)
 #if defined(CONFIG_APP_FWD) // fwd is daemon to write firmware in flash at last.
             		|| (strstr(strtmp, "fwd") != 0)
-#endif
+#endif            		
 #if defined(APP_WATCHDOG)
 					|| (strstr(strtmp,"watchdog") != 0)
 #endif
@@ -4788,4 +4788,36 @@ char getInterfaces(char* lanIface,char* wanIface)
 	}
 	return (0);
 }
+int get_clone_mac_by_ip(char *ip, char *clone_mac)
+{
+	FILE *fp;
+	char line_buffer[128], tmp_mac_str[18], ip_str[16], if_name[16];		
+	int i, j, retval=-1;	
+	
+	if(ip==NULL || clone_mac==NULL)
+		return retval; 
+	
+	if((fp= fopen("/proc/net/arp", "r"))==NULL)
+		return retval;
+	
+	while(fgets(line_buffer, sizeof(line_buffer), fp))
+	{			
+		line_buffer[strlen(line_buffer)-1]='\0';		
 
+		sscanf(line_buffer,"%s %*s %*s %s %*s %s",ip_str,tmp_mac_str,if_name);
+		
+		if(strcmp(if_name, "br0")!=0 || strcmp(ip, ip_str)!=0)
+			continue;
+		
+		for(i=0, j=0; i<17 && j<12; i++)
+		{
+			if(tmp_mac_str[i]!=':')
+				clone_mac[j++]=tmp_mac_str[i];
+		}
+		clone_mac[12]=0;
+		retval=0;
+		break;
+	}
+	fclose(fp);
+	return retval;		
+}

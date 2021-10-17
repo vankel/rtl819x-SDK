@@ -31,7 +31,7 @@
 void (*cpu_wait)(void);
 EXPORT_SYMBOL(cpu_wait);
 
-#if 1//ndef CONFIG_CPU_HAS_WAITOFF
+#ifndef CONFIG_CPU_HAS_WAITOFF
 void r4k_wait(void)
 {
 	local_irq_enable();
@@ -46,7 +46,7 @@ void r4k_wait(void)
  * interrupt is requested" restriction in the MIPS32/MIPS64 architecture makes
  * using this version a gamble.
  */
-#if 0//def CONFIG_CPU_HAS_WAITOFF
+#ifdef CONFIG_CPU_HAS_WAITOFF
 void r4k_wait_irqoff(void)
 {
 	if (!need_resched())
@@ -64,7 +64,7 @@ void r4k_wait_irqoff(void)
 
 void __init check_wait(void)
 {
-#if 0//def CONFIG_CPU_HAS_WAITOFF
+#ifdef CONFIG_CPU_HAS_WAITOFF
 	cpu_wait = r4k_wait_irqoff;
 #else
 	cpu_wait = r4k_wait;

@@ -79,7 +79,6 @@ static inline int _isReservedIPAddr(unsigned int srcIP, unsigned int dstIP)
 
 	return 0;
 }
-
 int isReservedConntrack(const struct nf_conntrack_tuple *orig,
 				   const struct nf_conntrack_tuple *repl)
 {
@@ -88,13 +87,11 @@ int isReservedConntrack(const struct nf_conntrack_tuple *orig,
 		return 1;
 	}
 
-
 	if(_isReservedIPAddr(orig->src.u3.ip, orig->dst.u3.ip) ||
 		_isReservedIPAddr(repl->src.u3.ip, repl->dst.u3.ip))
 	{
 		return 1;
 	}
-
 
 	if(_isReservedL4Port(orig->src.u.all) ||
 		_isReservedL4Port(orig->dst.u.all) ||
@@ -103,10 +100,6 @@ int isReservedConntrack(const struct nf_conntrack_tuple *orig,
 	{
 		return 1;
 	}
-
-
-
-
 	return 0;
 }
 #endif
@@ -1349,7 +1342,7 @@ nf_conntrack_in(struct net *net, u_int8_t pf, unsigned int hooknum,
 	}
 	
 	#if defined(CONFIG_RTL_819X)
-	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_FAST_IPV6)//defined(CONFIG_RTL_ETH_DRIVER_REFINE)
+	#if 1//defined(CONFIG_RTL_ETH_DRIVER_REFINE)
 	if (
 		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 		fast_nat_fw

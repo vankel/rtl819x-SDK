@@ -16,74 +16,53 @@
 #include <asm/pci.h>
 
 #include "bspchip.h"
-//#include <asm/mach-realtek/bspchip.h>
-extern int pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin);
-extern struct pci_ops bsp_pcie_ops;
-extern struct pci_ops bsp_pcie_ops1;
-extern int PCIE_reset_procedure(int portnum, int Use_External_PCIE_CLK, int mdio_reset); //fixup.c
-extern int bsp_has_pci_slot(int pci_slot);
 
+extern struct pci_ops bsp_pcie_ops;
 
 static struct resource pcie_mem_resource = {
 	.name = "PCIe Memory resources",
-	.start = PADDR(BSP_PCIE0_D_MEM),
-	.end = PADDR(BSP_PCIE0_D_MEM + 0xFFFFFF),
+	.start = 0x19400000,
+	.end = 0x19ffffff,
 	.flags = IORESOURCE_MEM,
 };
 
 static struct resource pcie_io_resource = {
 	.name = "PCIe I/O resources",
-	.start = PADDR(BSP_PCIE0_D_IO),
-	.end = PADDR(BSP_PCIE0_D_IO + 0x1FFFFF),
+	.start = 0x19200000,
+	.end = 0x193fffff,
 	.flags = IORESOURCE_IO,
 };
 
 static struct pci_controller bsp_pcie_controller = {
 	.pci_ops = &bsp_pcie_ops,
 	.mem_resource = &pcie_mem_resource,
+	.mem_offset = 0x19400000,
 	.io_resource = &pcie_io_resource,
-};
-
-static struct resource pcie_mem_resource1 = {
-	.name = "PCIe1 Memory resources",
-	.start = PADDR(BSP_PCIE1_D_MEM),
-	.end = PADDR(BSP_PCIE1_D_MEM + 0xFFFFFF),
-	.flags = IORESOURCE_MEM,
-};
-
-static struct resource pcie_io_resource1 = {
-	.name = "PCIe1 I/O resources",
-	.start = PADDR(BSP_PCIE1_D_IO),
-	.end = PADDR(BSP_PCIE1_D_IO + 0x1FFFFF),
-	.flags = IORESOURCE_IO,
-};
-
-static struct pci_controller bsp_pcie_controller1 = {
-	.pci_ops = &bsp_pcie_ops1,
-	.mem_resource = &pcie_mem_resource1,
-	.io_resource = &pcie_io_resource1,
+	.io_offset = 0x19200000,
 };
 
 static int __init bsp_pcie_init(void)
 {
-	int pci_slot=0;
-	int pci_exist0=0;
-	int pci_exist1=0;
+	unsigned int val;
 
-	 //pci 0 
-		if(PCIE_reset_procedure(pci_slot, 0, 1)) // (port,externalClk,mdio_reset)		
-			pci_exist0=1;
+	val = REG32(0xbb004000);
+	if (val != 0x3) {
+		printk("no device found, skipping PCIe initialization\n");
+		return 0;
+	}
 
-	pci_slot=1;
-		if(PCIE_reset_procedure(pci_slot, 0, 1)) // (port,externalClk,mdio_reset)		
-			pci_exist1=1;
+	/* initialize Sheipa PCIe */
+	printk("Initializing Sheipa PCIe controller\n");
+	printk("I/O base = %lx, size = %lx\n", BSP_PCIE_IO_BASE, BSP_PCIE_IO_SIZE);
+	printk("MEM base = %lx, size = %lx\n", BSP_PCIE_MEM_BASE, BSP_PCIE_MEM_SIZE);
 
-	if(pci_exist0)		
-		register_pci_controller(&bsp_pcie_controller);
+	REG32(BSP_PCIE_RC_CFG + 0x04) = 0x00100007;
+	REG32(BSP_PCIE_RC_CFG + 0x78) = 0x105030;
 
-	if(pci_exist1)		
-		register_pci_controller(&bsp_pcie_controller1);
-
+	bsp_pcie_controller.io_map_base = (unsigned long)ioremap(BSP_PCIE_IO_BASE,
+								 BSP_PCIE_IO_SIZE);
+	set_io_port_base(bsp_pcie_controller.io_map_base);
+	register_pci_controller(&bsp_pcie_controller);
 	return 0;
 }
 arch_initcall(bsp_pcie_init);

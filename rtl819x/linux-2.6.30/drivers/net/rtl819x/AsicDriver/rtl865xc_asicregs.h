@@ -175,10 +175,17 @@ extern int8						*pVirtualSWTable;
 #endif
 
 #define RTL8197D_RGMII_PORT	0
-#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
-#define RTL8367R_WAN			0		// WAN port is set to 8367R port 0
+#define RTL83XX_WAN			4		// WAN port is set to 8367R port 4
+
+#ifdef CONFIG_RTL_8370_SUPPORT
+#define P0_EXT_PHY_ID			5
+#define EXT_SWITCH_MAX_PHY_PORT	8
+#undef RTL83XX_WAN
+#define RTL83XX_WAN				8		// WAN port is set to 8370 port 8
+
 #else
-#define RTL8367R_WAN			4		// WAN port is set to 8367R port 4
+#define P0_EXT_PHY_ID			6
+#define EXT_SWITCH_MAX_PHY_PORT	5
 #endif
 
 #ifndef REVR
@@ -1513,10 +1520,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define MGFCR_E3R1				(0x54+ALE_BASE)       /*L2 MAC Group Forwarding Control Register Entry_1 R1 */
 #define MGFCR_E3R2				(0x58+ALE_BASE)       /*L2 MAC Group Forwarding Control Register Entry_2 R2 */
 #define OCR						L4TOCR				/* Alias Name */
-#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8881A) || defined(CONFIG_RTL_8198C)
-#define IPMCMCR0					(0x5C+ALE_BASE)			/*IPM Clone Mac Configuration register 0 */
-#define IPMCMCR1					(0x60+ALE_BASE)			/*IPM Clone Mac Configuration register 1 */
-#endif
+
 #define V4VLDSCPCR0				(0x64+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 0 */
 #define V4VLDSCPCR1				(0x68+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 1 */
 #define V4VLDSCPCR2				(0x6C+ALE_BASE)       /* V4 VLAN and DSCP remarking control register for Port 2 */
@@ -1706,8 +1710,6 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define CF_IPM_IP_UNMCH_TO_CPU		(0)
 
 #define CF_IPMMAC_CLONE_EN                (1<<7)      /* Configure to clone the IP multicast mac from register */
-#define CF_IPMMAC_CLONE_EN_OFFSET         (7)      /* Configure to clone the IP multicast mac from register */
-
 #define IPMltHash_OFFSET                 	(5)         /* The hash algorithm selection for IP Multicast routing */
 #define IPMltHash_MASK                 	(3<<5)         /* The hash algorithm selection for IP Multicast routing */
 #define IPMltCstCtrl_OFFSET                 (3)         /* IP Multicast Forwarding Control */
@@ -1715,7 +1717,6 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define IPMltCstCtrl_Disable                (0<<3)      /* Disable IP Multicast table lookup (just follow L2 Multicast packet procedure) */
 #define IPMltCstCtrl_Enable                 (1<<3)      /* Enable IP Multicast table lookup */
 #define IPMltCstCtrl_TrapToCpu              (2<<3)      /* Tral all IP Multicast packet to CPU port */
-
 #if defined(CONFIG_RTL_8198C)
 #define IPMltCstv6Ctrl_Disable                (0<<20)      /* Disable IPV6 Multicast table lookup (just follow L2 Multicast packet procedure) */
 #define IPMltCstv6Ctrl_Enable                 (1<<20)      /* Enable IPV6 Multicast table lookup */

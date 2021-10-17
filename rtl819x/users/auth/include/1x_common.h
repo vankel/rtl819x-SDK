@@ -219,15 +219,16 @@ typedef struct _DOT11_AlgoSuit
 
 typedef struct _DOT11_RSN_AUTHENTICATOR_VARIABLE
 {
-	//RSN related variable
+
+        //RSN related variable
 	OCTET_STRING                    AuthInfoElement;
-	BOOLEAN                         isSupportUnicastCipher;
-	BOOLEAN                         isSupportMulticastCipher;
-	BOOLEAN                         isSupportPreAuthentication;
-	BOOLEAN                         isSupportPairwiseAsDefaultKey;
+        BOOLEAN                         isSupportUnicastCipher;
+        BOOLEAN                         isSupportMulticastCipher;
+        BOOLEAN                         isSupportPreAuthentication;
+        BOOLEAN                         isSupportPairwiseAsDefaultKey;
 	BOOLEAN				Dot1xEnabled;
 	BOOLEAN				MacAuthEnabled;
-	BOOLEAN                         RSNEnabled;
+        BOOLEAN                         RSNEnabled;
 #ifdef RTL_WPA2        
 	BOOLEAN				WPAEnabled;
 	BOOLEAN				WPA2Enabled;
@@ -235,20 +236,20 @@ typedef struct _DOT11_RSN_AUTHENTICATOR_VARIABLE
 #endif
 	BOOLEAN				TSNEnabled;
 	int				WepMode;
-	int                             NumOfUnicastCipher;
-	int                             NumOfAuthCipher;
-	DOT11_AlgoSuit                  UniCastCipherSuit;
+        int                             NumOfUnicastCipher;
+        int                             NumOfAuthCipher;
+        DOT11_AlgoSuit                  UniCastCipherSuit;
 #ifdef RTL_WPA2        
-    DOT11_AlgoSuit                  WPA2UniCastCipherSuit;
+        DOT11_AlgoSuit                  WPA2UniCastCipherSuit;
 #endif
-	DOT11_AlgoSuit                  MulticastCipherSuit;
-	DOT11_AlgoSuit                  AuthenticationSuit;
-	u_char                          NumOfRxTSC;
-	u_char                          MulticastCipher;
+        DOT11_AlgoSuit                  MulticastCipherSuit;
+        DOT11_AlgoSuit                  AuthenticationSuit;
+        u_char                          NumOfRxTSC;
+        u_char                          MulticastCipher;
 	u_char                          AuthKeyMethod;
-#if defined( CONFIG_IEEE80211W) || defined(HS2_SUPPORT)
+#ifdef CONFIG_IEEE80211W
 	enum mfp_options ieee80211w;
-    unsigned sha256;	/*HS2_SUPPORT*/
+	unsigned sha256;  
 	/* dot11AssociationSAQueryMaximumTimeout (in TUs) */
 	unsigned int assoc_sa_query_max_timeout;
 	/* dot11AssociationSAQueryRetryTimeout (in TUs) */
@@ -403,19 +404,7 @@ typedef struct Global_Params_tag
 #ifdef CONFIG_IEEE80211W
 	BOOLEAN 		mgmt_frame_prot;
 #endif
-#ifdef HS2_SUPPORT
-	unsigned char   remed_URL[256];
-	unsigned char   serverMethod;
-	unsigned char   isTriggerWNM;
-	unsigned char   isTriggerWNM_DEAUTH;
-	u_char WNMDEAUTH_reason;
-	u_short WNMDEAUTH_reAuthDelay;
-	u_char WNMDEAUTH_URL[256];	
-	unsigned char   isTriggerSessionInfo_URL;
-	u_char SWT;
-	u_char SessionInfo_URL[256]; // BSS Transition Management URL
-	
-#endif
+
 	//RSNIE related variable
 	struct _DOT11_RSN_SUPPLICANT_VARIABLE   RSNVariable;
 	Dot11RSNConfigEntry		Dot11RSNConfig;
@@ -714,8 +703,8 @@ void DUMP_GLOBAL_PARAMS( Global_Params *g, u_char *exp );
 #define DUMP_GLOBAL_PARAMS(a, b)  do{}while(0)
 #endif
 
-
-
+#define PMFDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+//#define PMFDEBUG(fmt, args...)
 
 
 //sc_yang
@@ -795,30 +784,6 @@ struct _WPA2_PMKSA_Node
 };
 
 
-
-
-
-
-//#define AUTH_DEBUGMSG
-#ifdef AUTH_DEBUGMSG
-#define AUTHDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
-#else
-#define AUTHDEBUG(fmt, args...) {}
-#endif
-
-//#define PMF_DEBUGMSG
-#ifdef PMF_DEBUGMSG
-#define PMFDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
-#else
-#define PMFDEBUG(fmt, args...) {}
-#endif
-
-//#define HS2_DEBUGMSG
-#ifdef HS2_DEBUGMSG
-#define HS2DEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
-#else
-#define HS2DEBUG(fmt, args...) {}
-#endif
 
 #endif /* RTL_WPA2 */
 

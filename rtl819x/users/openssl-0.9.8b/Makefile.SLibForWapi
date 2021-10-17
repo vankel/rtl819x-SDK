@@ -8,7 +8,6 @@ include $(DIR_LINUX)/.config
 
 CROSS_COMPILE ?= rsdk-linux-
 CROSS_TARGET ?= rsdk-linux
-
 VERSION=0.9.8b
 MAJOR=0
 MINOR=9.8

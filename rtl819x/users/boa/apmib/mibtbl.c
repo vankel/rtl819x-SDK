@@ -616,6 +616,25 @@ mib_table_entry_T wlan_wds_tbl[]={
 {0}
 };
 
+#ifdef FAST_BSS_TRANSITION
+mib_table_entry_T wlan_ftkh_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_FTKH_IMPORT
+#include "mibdef.h"
+#undef MIB_FTKH_IMPORT
+
+#undef MIBDEF
+{0}
+};
+#endif
+
 /*
  * When using flash (set/get/all) command to access the MIB of below table,
  * it needs append a keyword "WLANx_" in ahead of mib name.

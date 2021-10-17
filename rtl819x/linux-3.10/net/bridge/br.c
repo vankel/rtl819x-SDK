@@ -63,20 +63,11 @@ struct proc_dir_entry *procIgmpSnoop=NULL;
 int igmpsnoopenabled=0;	// Should be 0(default), set 1 when igmpproxy up!
 extern struct net_bridge *bridge0;
 extern int32 rtl_configMulticastSnoopingFastLeave(int enableFastLeave, int ageTime);
+
+extern unsigned int maxUnknownMcastPPS;
+extern unsigned int chkUnknownMcastEnable;
+
 extern struct rtl865x_ReservedMCastRecord reservedMCastRecord[MAX_RESERVED_MULTICAST_NUM];
-
-#if defined  (CONFIG_RTL_HARDWARE_MULTICAST)
-
-#if defined (CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
-unsigned char macCloneProcess=0;
-unsigned char cloneMacAddr[6]={0};
-unsigned char replaceMacAddr[6]={0};
-int igmpClonePort=-1;
-#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8881A) || defined(CONFIG_RTL_8198C)
-extern int32 rtl865x_set_mcastMacClone(uint32 enabled, unsigned char * macAddr);
-#endif
-#endif
-#endif
 
 #ifdef CONFIG_RTL_PROC_NEW
 static int br_igmpSnoopRead(struct seq_file *s, void *v)
@@ -91,7 +82,7 @@ static int br_igmpSnoopRead(char *page, char **start, off_t off,
     unsigned int currHashMethod; 
 #endif
 #endif
-	int cnt = 0;
+	int cnt;
 	
 
 #ifdef CONFIG_RTL_PROC_NEW
@@ -101,6 +92,7 @@ static int br_igmpSnoopRead(char *page, char **start, off_t off,
     len = sprintf(page, "igmpsnoopenabled:%c\n\n", igmpsnoopenabled + '0');
 #endif
 #ifdef CONFIG_RTL_PROC_NEW
+	seq_printf(s,  "Block Info :%d,%d\n",chkUnknownMcastEnable,maxUnknownMcastPPS); 
 	seq_printf(s,  "Reserved multicast address:\n");	
 	for(i=0; i<MAX_RESERVED_MULTICAST_NUM; i++)
 	{
@@ -117,6 +109,7 @@ static int br_igmpSnoopRead(char *page, char **start, off_t off,
 		seq_printf(s, "NULL\n");
 	seq_printf(s, "\n");
 #else
+	len += sprintf(page+len, "Block Info :%d,%d\n",chkUnknownMcastEnable,maxUnknownMcastPPS); 
 	len += sprintf(page+len, "Reserved multicast address:\n");	
 	for(i=0; i<MAX_RESERVED_MULTICAST_NUM; i++)
 	{
@@ -132,25 +125,6 @@ static int br_igmpSnoopRead(char *page, char **start, off_t off,
 	if(cnt==0)
 		len += sprintf(page+len, "NULL\n");
 	len += sprintf(page+len, "\n");
-#endif
-#if defined  (CONFIG_RTL_HARDWARE_MULTICAST)
-#if defined (CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
-#ifdef CONFIG_RTL_PROC_NEW
-	seq_printf(s, "mcastMac:[%d] oriMac:%2x-%2x-%2x-%2x-%2x-%2x	replaceMac:%2x-%2x-%2x-%2x-%2x-%2x\n", 
-		macCloneProcess,cloneMacAddr[0],cloneMacAddr[1],cloneMacAddr[2],
-		cloneMacAddr[3],cloneMacAddr[4],cloneMacAddr[5],
-		replaceMacAddr[0],replaceMacAddr[1],replaceMacAddr[2],
-		replaceMacAddr[3],replaceMacAddr[4],replaceMacAddr[5]);
-
-#else
-	len += sprintf(page+len, "mcastMac:[%d] oriMac:%2x-%2x-%2x-%2x-%2x-%2x	replaceMac:%2x-%2x-%2x-%2x-%2x-%2x\n", 
-		macCloneProcess,cloneMacAddr[0],cloneMacAddr[1],cloneMacAddr[2],
-		cloneMacAddr[3],cloneMacAddr[4],cloneMacAddr[5],
-		replaceMacAddr[0],replaceMacAddr[1],replaceMacAddr[2],
-		replaceMacAddr[3],replaceMacAddr[4],replaceMacAddr[5]);
-
-#endif
-#endif
 #endif
 
 #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)  ||defined(CONFIG_RTL_8198C)
@@ -239,55 +213,28 @@ static int br_igmpSnoopRead(char *page, char **start, off_t off,
     return len;
 #endif
 }
-#if defined  (CONFIG_RTL_HARDWARE_MULTICAST) && defined(CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
-static int _is_hex(char c)
-{
-    return (((c >= '0') && (c <= '9')) ||
-            ((c >= 'A') && (c <= 'F')) ||
-            ((c >= 'a') && (c <= 'f')));
-}
-
-static int string_to_hex(char *string, unsigned char *key, int len)
-{
-	char tmpBuf[4];
-	int idx, ii=0;
-	for (idx=0; idx<len; idx+=2) {
-		tmpBuf[0] = string[idx];
-		tmpBuf[1] = string[idx+1];
-		tmpBuf[2] = 0;
-		if ( !_is_hex(tmpBuf[0]) || !_is_hex(tmpBuf[1]))
-			return 0;
-
-		key[ii++] = (unsigned char) simple_strtol(tmpBuf, (char**)NULL, 16);
-	}
-	return 1;
-}
-#endif
 
 static int br_igmpSnoopWrite(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
 {
-      //unsigned char br_tmp;
-      char        tmpbuf[512];
-      char        *strptr = NULL;
-      char        *tokptr = NULL;
-      #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) ||defined(CONFIG_RTL_8198C)        
-      unsigned int newHashMethod=0;
-      #endif
+	//unsigned char br_tmp;
+	char        tmpbuf[512];
+	char        *strptr = NULL;
+	char        *tokptr = NULL;
+#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) ||defined(CONFIG_RTL_8198C)        
+	unsigned int newHashMethod=0;
+#endif
 	uint32  ipAddr[4];	  
 	uint32 groupAddr;
-	int flag = 0;
+	int flag;
 	int cnt;
 	int fastLeave=0;
 	int ageTime=0;
-#if defined  (CONFIG_RTL_HARDWARE_MULTICAST) && defined(CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
-	int processMode=0;
-#endif
-
+      
       if (count < 2) 
 	    return -EFAULT;
       
-      if (buffer && !copy_from_user(&tmpbuf, buffer, count)) {
+      if (buffer && !copy_from_user(tmpbuf, buffer, count)) {
           tmpbuf[count] = '\0';
           strptr = tmpbuf;
           
@@ -328,6 +275,29 @@ static int br_igmpSnoopWrite(struct file *file, const char *buffer,
 				ageTime = simple_strtol(tokptr, NULL, 0);
 				rtl_configMulticastSnoopingFastLeave(fastLeave,ageTime);
 			}
+			else if(!memcmp(tokptr,"block",5))
+			{
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					return -EFAULT;
+				}
+				
+				chkUnknownMcastEnable = simple_strtol(tokptr, NULL, 0);
+
+				if(chkUnknownMcastEnable)
+				{
+					chkUnknownMcastEnable=1;
+				}
+				
+				tokptr = strsep(&strptr," ");
+				if (tokptr==NULL)
+				{
+					return -EFAULT;
+				}
+				
+				maxUnknownMcastPPS = simple_strtol(tokptr, NULL, 0);
+			}
 			else if(!memcmp(tokptr, "reserve", 7)) 
 			{
 				
@@ -359,55 +329,6 @@ static int br_igmpSnoopWrite(struct file *file, const char *buffer,
 				groupAddr=(ipAddr[0]<<24)|(ipAddr[1]<<16)|(ipAddr[2]<<8)|(ipAddr[3]);
 				rtl_add_ReservedMCastAddr(groupAddr,flag);
 			}
-#if defined  (CONFIG_RTL_HARDWARE_MULTICAST)
-
-#if defined (CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
-			else if(!memcmp(tokptr,"mcastMac",8))
-			{
-							
-				
-				tokptr = strsep(&strptr," ");
-				if (tokptr==NULL)
-				{
-					return -EFAULT;
-				}
-				processMode = simple_strtol(tokptr, NULL, 0);
-				macCloneProcess =processMode;/*1:hw mac replace;2:sw mac replace 3: disable hw multicast;0 do nothing*/
-			
-				tokptr = strsep(&strptr," ");
-				if (tokptr==NULL)
-				{
-					return -EFAULT;
-				}
-				
-				string_to_hex(tokptr, cloneMacAddr, 12);
-			
-				tokptr = strsep(&strptr," ");
-				if (tokptr==NULL)
-				{
-					return -EFAULT;
-				}
-				string_to_hex(tokptr, replaceMacAddr, 12);
-					
-	#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8881A) || defined(CONFIG_RTL_8198C)
-				if(processMode)
-					macCloneProcess =MACCLONE_MODE_HW_REPLACE;
-				else
-					macCloneProcess =0;
-				
-				/*
-				printk("macCloneProcess:%d,replaceMacAddr:%x-%x-%x-%x-%x-%x[%s]:[%d].\n",
-				macCloneProcess,replaceMacAddr[0],replaceMacAddr[1],replaceMacAddr[2],
-				replaceMacAddr[3],replaceMacAddr[4],replaceMacAddr[5],__FUNCTION__,__LINE__);
-				*/
-				rtl865x_set_mcastMacClone(macCloneProcess, replaceMacAddr);
-	#else
-				//do nothing now
-	
-	#endif
-			}
-#endif
-#endif
 #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)  
 			else if(!memcmp(tokptr, "hash", 4)) 
@@ -458,7 +379,7 @@ int igmp_db_open(struct inode *inode, struct file *file)
 
 int igmp_db_write(struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
-        return igmp_write(file, buffer, count,data);
+         igmp_write(file, buffer, count,data);
 }
 
 struct file_operations igmp_db_seq_file_operations = {

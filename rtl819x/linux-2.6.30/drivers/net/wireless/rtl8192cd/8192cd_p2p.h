@@ -682,15 +682,19 @@ struct p2p_context {
 	struct p2p_device_peer others_nego_tar_device; 
 
 	unsigned char clientmode_try_connect;
+	unsigned char clientmode_connected;    
 	int backup_orig_use40M;
 	int backup_orig_2ndchoffset;    
+	unsigned char change_role_is_ongoing; // to avoid deadlock at 8192cd_close()    
 };
 
+#if defined(RTK_NL80211)
 typedef struct android_wifi_priv_cmd {
 	char *buf;
 	int used_len;
 	int total_len;
 } android_wifi_priv_cmd_t;
+#endif
 
 #define CFG80211_P2P 1
 #define PROPERTY_P2P 2

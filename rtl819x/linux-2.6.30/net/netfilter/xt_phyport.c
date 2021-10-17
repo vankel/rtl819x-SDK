@@ -56,7 +56,11 @@ checkentry(const struct xt_mtchk_param *par)
 	return 1;
 }
 
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+static bool phyport_mt(struct sk_buff *skb, const struct xt_match_param *par)
+#else
 static bool phyport_mt(const struct sk_buff *skb, const struct xt_match_param *par)
+#endif
 {
 	const struct xt_phyport_info *info = par->matchinfo;   
 
@@ -74,6 +78,10 @@ static bool phyport_mt(const struct sk_buff *skb, const struct xt_match_param *p
 		printk(KERN_WARNING "wrong phy port flags 0x%x\n", info->flags);
 		return false;
 	}
+
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+	skb->decision_bitmap |= PORT_DECISION_PRIORITY_BITMAP;
+#endif
 
 	return true;
 }

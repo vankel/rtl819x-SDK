@@ -55,7 +55,7 @@ NESTED(mips_trap_dispatch, 0, sp)
 
 	__FINIT
 
-#if 1//ndef CONFIG_CPU_HAS_WAITOFF
+#ifndef CONFIG_CPU_HAS_WAITOFF
 	.align	5	/* 32 byte rollback region */
 LEAF(__r4k_wait)
 	.set	push

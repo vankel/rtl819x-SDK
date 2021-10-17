@@ -64,6 +64,11 @@ ifdef CONFIG_8198_PORT5_RGMII
 	subdir-y += ../RTL8370_RTL8367_API
 endif
 
+ifdef CONFIG_RTL_8370_SUPPORT
+	obj-y += ../RTL8370_RTL8367_API/built-in.o
+	subdir-y += ../RTL8370_RTL8367_API
+endif
+
 ifdef CONFIG_RTL_8367R_SUPPORT
 	obj-y += ../rtl8367r/built-in.o
 	subdir-y += ../rtl8367r

@@ -400,9 +400,6 @@ option_t auth_options[] = {
     { NULL }
 };
 
-
-
-
 /*dzh add for fast clear ppp kernel info!!!*/
 void clear_ppp_info(void)
 {

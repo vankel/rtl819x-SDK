@@ -261,11 +261,13 @@ static int dwc_otg_pcd_ep_enable(struct usb_ep *_ep,
 	}
 
 	pcd = ep->pcd;
+#if 0
 	if (!pcd->driver || pcd->gadget.speed == USB_SPEED_UNKNOWN) 
 	{
 		DWC_WARN("%s, bogus device state\n", __func__);
 		return -ESHUTDOWN;
 	}
+#endif
 
 	SPIN_LOCK_IRQSAVE(&pcd->lock, flags);
 		
@@ -806,8 +808,8 @@ static struct usb_ep_ops dwc_otg_pcd_ep_ops =
 	.alloc_request	= dwc_otg_pcd_alloc_request,
 	.free_request	= dwc_otg_pcd_free_request,
 
-//	.alloc_buffer	= dwc_otg_pcd_alloc_buffer,
-//	.free_buffer	= dwc_otg_pcd_free_buffer,
+	//.alloc_buffer	= dwc_otg_pcd_alloc_buffer,
+	//.free_buffer	= dwc_otg_pcd_free_buffer,
 
 	.queue		= dwc_otg_pcd_ep_queue,
 	.dequeue	= dwc_otg_pcd_ep_dequeue,
@@ -1556,11 +1558,11 @@ int  dwc_otg_pcd_init(struct lm_device *_lmdev)
 		 (GET_CORE_IF(pcd)->hwcfg2.b.fs_phy_type == 1) &&
 		 (GET_CORE_IF(pcd)->core_params->ulpi_fs_ls)))
 	{
-		pcd->gadget.max_speed = USB_SPEED_FULL;
+    	//	pcd->gadget.is_dualspeed = 0;
 	}
   	else 
 	{
-		pcd->gadget.max_speed = USB_SPEED_HIGH;
+	//	pcd->gadget.is_dualspeed = 1;
 	}
 
 	if ((otg_dev->core_if->hwcfg2.b.op_mode == DWC_HWCFG2_OP_MODE_NO_SRP_CAPABLE_DEVICE) || 

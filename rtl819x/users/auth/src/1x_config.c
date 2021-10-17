@@ -92,8 +92,8 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 
 	while( fgets( tmps, CONFIG_PARSE_TAG+CONFIG_PARSE_VALUE, confFile ) ){
 
-        //printf("%s", tmps);
-        //printf("[%c|0x%02x]",*ptr,*ptr);
+//		printf("%s", tmps);
+//		printf("[%c|0x%02x]",*ptr,*ptr);
 
 		ptr = &tmps[0];
 
@@ -109,7 +109,18 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 		ptr += 1 ;
 
 		if( *ptr == '"' ){
-		    int idx=0;
+// david -------------------------------
+#if 0
+			ptr++;
+			lenVal = 0;
+                        do{
+                                lenVal++;
+                        }while( *ptr++ != '"' && lenVal < CONFIG_PARSE_VALUE );
+	                lenVal -= 1;
+	                strncpy( tmpVal, &tmps[lenTag+4], lenVal );
+		        tmpVal[lenVal] = 0;
+#else
+		  { int idx;
 		  	ptr++;
 			for (lenVal=0; ;lenVal++) {
 				if (ptr[lenVal] == '\n')
@@ -122,7 +133,9 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 			lenVal = idx;
  			strncpy( tmpVal, &tmps[lenTag+4], lenVal );
 		        tmpVal[lenVal] = 0;
-		  
+		  }
+#endif
+//---------------------------------------
 		}
 		else{
 			lenVal = 0;
@@ -318,7 +331,6 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 
 		}else
 		{
-			
 			lib1x_message(MESS_DBG_CONFIG, "%s->%s", lib1x_config_err(retResult), authTag);
 			continue;
 		}
@@ -351,6 +363,16 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 				pAuth->AlgoTable[DOT11_AuthKeyType_RSNPSK].Enabled = TRUE;
 				lib1x_message(MESS_DBG_CONFIG, "authentication = %s\n","DOT11_AuthKeyType_RSNPSK");
 			}
+#ifdef CONFIG_IEEE80211R
+			else if(atoi(authVal) == DOT11_AuthKeyType_FT)
+			{
+				pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled = TRUE;
+				lib1x_message(MESS_DBG_CONFIG, "authentication = %s\n","DOT11_AuthKeyType_RSN");
+
+				pAuth->AlgoTable[DOT11_AuthKeyType_FT].Enabled = TRUE;
+				lib1x_message(MESS_DBG_CONFIG, "authentication = %s\n","DOT11_AuthKeyType_FT");
+			}
+#endif
 #ifdef CONFIG_IEEE80211W
 			else  if(atoi(authVal) == DOT11_AuthKeyType_802_1X_SHA256)
 			{
@@ -374,23 +396,14 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 			auth->RSNVariable.ieee80211w = atoi(authVal);
 			if(MGMT_FRAME_PROTECTION_REQUIRED == auth->RSNVariable.ieee80211w)
 				pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled = FALSE;
-			
-			PMFDEBUG("11w=[%d]\n",auth->RSNVariable.ieee80211w);
+			printf("1:auth->RSNVariable.ieee80211w=%d\n\n\n\n",auth->RSNVariable.ieee80211w);
 		}
 
 		else if(!strcmp(ConfigTag[tagIndex], "sha256"))
 		{					
 			//if(MGMT_FRAME_PROTECTION_REQUIRED != auth->RSNVariable.ieee80211w)
-			auth->RSNVariable.sha256= atoi(authVal);
-			pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled = atoi(authVal);	
-			PMFDEBUG("sha256=[%d]\n",pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled);            
-		}
-#endif
-#ifdef HS2_SUPPORT
-		else if(!strcmp(ConfigTag[tagIndex], "OSEN"))
-		{						
-			auth->RSNVariable.bOSEN = atoi(authVal);
-			HS2DEBUG("OSEN=[%d]\n",auth->RSNVariable.bOSEN);
+				pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled = atoi(authVal);	
+			printf("1:sha256=%d\n\n\n\n", pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled);
 		}
 #endif
 #ifdef RTL_WPA2
@@ -706,6 +719,9 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 #endif
 		
 			if(pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled
+#ifdef CONFIG_IEEE80211R
+			  || pAuth->AlgoTable[DOT11_AuthKeyType_FT].Enabled
+#endif
 #ifdef CONFIG_IEEE80211W
 			  || pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled	
 #endif

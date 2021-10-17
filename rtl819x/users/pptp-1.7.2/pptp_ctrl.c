@@ -22,7 +22,7 @@
 #include "vector.h"
 #include "util.h"
 #include "pptp_quirks.h"
-
+#include <stdio.h>
 /* BECAUSE OF SIGNAL LIMITATIONS, EACH PROCESS CAN ONLY MANAGE ONE
  * CONNECTION.  SO THIS 'PPTP_CONN' STRUCTURE IS A BIT MISLEADING.
  * WE'LL KEEP CONNECTION-SPECIFIC INFORMATION IN THERE ANYWAY (AS
@@ -189,6 +189,64 @@ int ctrlp_disp(PPTP_CONN * conn, void * buffer, size_t size);
    for that quirk */
 void pptp_set_link(PPTP_CONN * conn, int peer_call_id);
 
+
+#ifdef CONFIG_KERNEL_DIRECT_REPLY
+#define PKTNUM_THRESHOLD_PERMIN 2000
+static unsigned int last_rx_pktnum=0;
+static unsigned int last_tx_pktnum=0;
+/*
+	1----> indicate ppp device is busy
+	0----> indicate ppp device isn't busy
+*/
+int get_ppp_status()
+{
+	FILE *fp;
+	int unit;
+	unsigned long rxb, rxnr, rx_errs;
+	unsigned long drop, fifo, frame, compressed, multicast;
+	unsigned long txb, txnr;
+	unsigned int cur_rx_pktnum;
+	unsigned int cur_tx_pktnum;
+
+	char buf[512];
+	char ifname[]="ppp0";
+	int matched = 0;
+
+	fp = fopen("/proc/net/dev", "r");
+	if (!fp)
+		return;
+	while (NULL != fgets(buf, sizeof(buf), fp)) 
+	{
+		if (strstr(buf, ifname)) 
+		{
+			matched = sscanf(buf, " ppp%d: %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+			&unit, &rxb, &rxnr, &rx_errs,
+			&drop, &fifo, &frame, &compressed, &multicast, &txb, &txnr);
+
+			if (matched >= 3) 
+			{
+				cur_rx_pktnum = rxnr;
+				cur_tx_pktnum = txnr;			
+				if( (cur_rx_pktnum - last_rx_pktnum > PKTNUM_THRESHOLD_PERMIN)||
+					(cur_tx_pktnum - last_tx_pktnum > PKTNUM_THRESHOLD_PERMIN))
+				{
+					last_rx_pktnum = cur_rx_pktnum;
+					last_tx_pktnum = cur_tx_pktnum;					
+					fclose(fp);
+					return 1;
+				}
+				else
+				{
+					last_rx_pktnum = cur_rx_pktnum;
+					last_tx_pktnum = cur_tx_pktnum;	
+				}
+			}
+		}
+	}
+	fclose(fp);
+	return 0;
+}
+#endif
 /*** log error information in control packets *********************************/
 static void ctrlp_error( int result, int error, int cause,
         const char *result_text[], int max_result)
@@ -449,6 +507,9 @@ void pptp_conn_destroy(PPTP_CONN * conn)
     /* deallocate */
     vector_destroy(conn->call);
     free(conn);
+	
+	memset(conn,0,sizeof(struct PPTP_CONN));
+	conn->inet_sock = -1;	
 }
 
 /*** Deal with messages, in a non-blocking manner 
@@ -459,6 +520,10 @@ void pptp_fd_set(PPTP_CONN * conn, fd_set * read_set, fd_set * write_set,
 {
     int sig_fd;
     assert(conn && conn->call);
+	if(!conn || !(conn->call))
+		return ;
+	if(conn->inet_sock < 0)
+		return ;
     /* Add fd to write_set if there are outstanding writes. */
     if (conn->write_size > 0)
         FD_SET(conn->inet_sock, write_set);
@@ -828,7 +893,10 @@ int ctrlp_disp(PPTP_CONN * conn, void * buffer, size_t size)
                 hton8(1), hton8(PPTP_GENERAL_ERROR_NONE), 0
             };
             logecho( PPTP_ECHO_RQST);
+			
+			#ifndef CONFIG_KERNEL_DIRECT_REPLY			
             pptp_send_ctrl_packet(conn, &reply, sizeof(reply));
+			#endif
             pptp_reset_timer();
             break;
         }
@@ -1048,12 +1116,23 @@ static void pptp_handle_timer()
     if (global.conn->ka_state == KA_OUTSTANDING) {
         /* no response to keep-alive */
         log ("closing control connection due to missing echo reply");
+			#ifdef CONFIG_KERNEL_DIRECT_REPLY
+			if(get_ppp_status() == 0)
+			#endif
 	pptp_conn_close(global.conn, PPTP_STOP_NONE);
     } else { /* ka_state == NONE */ /* send keep-alive */
         struct pptp_echo_rqst rqst = {
             PPTP_HEADER_CTRL(PPTP_ECHO_RQST), hton32(global.conn->ka_id) };
+
+			#ifdef CONFIG_KERNEL_DIRECT_REPLY
+			if(get_ppp_status() == 0)
+			{
+			#endif
         pptp_send_ctrl_packet(global.conn, &rqst, sizeof(rqst));
         global.conn->ka_state = KA_OUTSTANDING;
+			#ifdef CONFIG_KERNEL_DIRECT_REPLY
+			}
+			#endif
     }
     /* check incoming/outgoing call states for !IDLE && !ESTABLISHED */
     for (i = 0; i < vector_size(global.conn->call); i++) {

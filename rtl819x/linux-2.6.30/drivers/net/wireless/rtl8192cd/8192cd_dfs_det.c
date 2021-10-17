@@ -19,7 +19,6 @@
 
 
 #if defined(DFS) && !defined(CONFIG_RTL_92D_SUPPORT)
-
 extern u2Byte dB_Invert_Table[8][12];
 
 static u4Byte 
@@ -124,8 +123,13 @@ void Scan_BB_PSD(
 		ODM_Write1Byte(pDM_Odm, 0x522, 0xFF); //REG_TXPAUSE 改為0x522
 
 	// Turn off CCA
-	ODM_SetBBReg(pDM_Odm, 0x838, BIT3, 0x1); //838[3] 設為1
-
+	if(GET_CHIP_VER(priv) == VERSION_8814A){
+		ODM_SetBBReg(pDM_Odm, 0x838, BIT1, 0x1); //838[1] 設為1
+	}
+	else{
+		ODM_SetBBReg(pDM_Odm, 0x838, BIT3, 0x1); //838[3] 設為1
+	}
+	
 	// PHYTXON while loop
 	PHY_SetBBReg(priv, 0x8fc, 0xfff, 0);
 	i = 0;
@@ -215,7 +219,13 @@ void Scan_BB_PSD(
 	odm_PauseDIG(pDM_Odm, ODM_RESUME_DIG, NONE);
 
 	//Turn on CCA
-	ODM_SetBBReg(pDM_Odm, 0x838, BIT3, 0); //838[3] 設為0
+	if(GET_CHIP_VER(priv) == VERSION_8814A){
+		ODM_SetBBReg(pDM_Odm, 0x838, BIT1, 0); //838[1] 設為0
+	}
+	else{
+		ODM_SetBBReg(pDM_Odm, 0x838, BIT3, 0); //838[3] 設為0
+	}
+	
 
 	// Turn on TX
 	// Resume TX Queue
@@ -223,6 +233,7 @@ void Scan_BB_PSD(
 		ODM_Write1Byte(pDM_Odm, 0x522, 0x00); //REG_TXPAUSE 改為0x522
 
 	// CCK on
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G)
 	ODM_SetBBReg(pDM_Odm, 0x808, BIT28, 1); //808[28]	
 	
 	// Resume DFS ST_TH
@@ -877,6 +888,369 @@ void rtl8192cd_dfs_dynamic_setting(struct rtl8192cd_priv *priv)
 	priv->three_peak_opt = three_peak_opt_cur;
 	priv->three_peak_th2 = three_peak_th2_cur;
 }
+
+#if defined(CONFIG_WLAN_HAL_8814AE)
+void rtl8192cd_radar_type_differentiation(struct rtl8192cd_priv *priv)
+{
+	unsigned char i, need_reset, g_ti_cur[16], g_pw_cur[6], g_pri_cur[6], g_ti_inc[16], g_pw_inc[6], g_pri_inc[6];	// ti = tone index, pw = pulse width, pri = pulse repetition interval
+	unsigned int g_total, g0_ratio, g1_ratio, g2_ratio, g3_ratio, g4_ratio, g5_ratio;
+	unsigned int regf98_value;
+	unsigned char DFS_tri_short_pulse=0, DFS_tri_long_pulse=0, short_pulse_th;
+
+	regf98_value = PHY_QueryBBReg(priv, 0xf98, 0xffffffff);
+	DFS_tri_short_pulse = (regf98_value & BIT(17))? 1 : 0;
+	DFS_tri_long_pulse = (regf98_value & BIT(19))? 1 : 0;
+	short_pulse_th = PHY_QueryBBReg(priv, 0x920, 0x000f0000);
+	
+	PHY_SetBBReg(priv, 0x19b8, 0x40, 0);  // switch 0xf5c & 0xf74 to DFS report
+	// read peak index hist report
+	PHY_SetBBReg(priv, 0x19e4, 0x00c00000, 0);  // report selection = 0 (peak index)
+	g_ti_cur[0] = PHY_QueryBBReg(priv, 0xf74, 0xf0000000);
+	if (g_ti_cur[0] >= priv->g_ti_pre[0])
+		g_ti_inc[0] = g_ti_cur[0] - priv->g_ti_pre[0];
+	else
+		g_ti_inc[0] = g_ti_cur[0];
+	priv->g_ti_pre[0] = g_ti_cur[0];
+	
+	g_ti_cur[1] = PHY_QueryBBReg(priv, 0xf74, 0x0f000000);
+	if (g_ti_cur[1] >= priv->g_ti_pre[1])
+		g_ti_inc[1] = g_ti_cur[1] - priv->g_ti_pre[1];
+	else
+		g_ti_inc[1] = g_ti_cur[1];
+	priv->g_ti_pre[1] = g_ti_cur[1];
+	
+	g_ti_cur[2] = PHY_QueryBBReg(priv, 0xf74, 0x00f00000);
+	if (g_ti_cur[2] >= priv->g_ti_pre[2])
+		g_ti_inc[2] = g_ti_cur[2] - priv->g_ti_pre[2];
+	else
+		g_ti_inc[2] = g_ti_cur[2];
+	priv->g_ti_pre[2] = g_ti_cur[2];
+	
+	g_ti_cur[3] = PHY_QueryBBReg(priv, 0xf74, 0x000f0000);
+	if (g_ti_cur[3] >= priv->g_ti_pre[3])
+		g_ti_inc[3] = g_ti_cur[3] - priv->g_ti_pre[3];
+	else
+		g_ti_inc[3] = g_ti_cur[3];
+	priv->g_ti_pre[3] = g_ti_cur[3];
+	
+	g_ti_cur[4] = PHY_QueryBBReg(priv, 0xf74, 0x0000f000);
+	if (g_ti_cur[4] >= priv->g_ti_pre[4])
+		g_ti_inc[4] = g_ti_cur[4] - priv->g_ti_pre[4];
+	else
+		g_ti_inc[4] = g_ti_cur[4];
+	priv->g_ti_pre[4] = g_ti_cur[4];
+	
+	g_ti_cur[5] = PHY_QueryBBReg(priv, 0xf74, 0x00000f00);
+	if (g_ti_cur[5] >= priv->g_ti_pre[5])
+		g_ti_inc[5] = g_ti_cur[5] - priv->g_ti_pre[5];
+	else
+		g_ti_inc[5] = g_ti_cur[5];
+	priv->g_ti_pre[5] = g_ti_cur[5];
+	
+	g_ti_cur[6] = PHY_QueryBBReg(priv, 0xf74, 0x000000f0);
+	if (g_ti_cur[6] >= priv->g_ti_pre[6])
+		g_ti_inc[6] = g_ti_cur[6] - priv->g_ti_pre[6];
+	else
+		g_ti_inc[6] = g_ti_cur[6];
+	priv->g_ti_pre[6] = g_ti_cur[6];
+	
+	g_ti_cur[7] = PHY_QueryBBReg(priv, 0xf74, 0x0000000f);
+	if (g_ti_cur[7] >= priv->g_ti_pre[7])
+		g_ti_inc[7] = g_ti_cur[7] - priv->g_ti_pre[7];
+	else
+		g_ti_inc[7] = g_ti_cur[7];
+	priv->g_ti_pre[7] = g_ti_cur[7];
+	
+	g_ti_cur[8] = PHY_QueryBBReg(priv, 0xf5c, 0xf0000000);
+	if (g_ti_cur[8] >= priv->g_ti_pre[8])
+		g_ti_inc[8] = g_ti_cur[8] - priv->g_ti_pre[8];
+	else
+		g_ti_inc[8] = g_ti_cur[8];
+	priv->g_ti_pre[8] = g_ti_cur[8];
+	
+	g_ti_cur[9] = PHY_QueryBBReg(priv, 0xf5c, 0x0f000000);
+	if (g_ti_cur[9] >= priv->g_ti_pre[9])
+		g_ti_inc[9] = g_ti_cur[9] - priv->g_ti_pre[9];
+	else
+		g_ti_inc[9] = g_ti_cur[9];
+	priv->g_ti_pre[9] = g_ti_cur[9];
+	
+	g_ti_cur[10] = PHY_QueryBBReg(priv, 0xf5c, 0x00f00000);
+	if (g_ti_cur[10] >= priv->g_ti_pre[10])
+		g_ti_inc[10] = g_ti_cur[10] - priv->g_ti_pre[10];
+	else
+		g_ti_inc[10] = g_ti_cur[10];
+	priv->g_ti_pre[10] = g_ti_cur[10];
+	
+	g_ti_cur[11] = PHY_QueryBBReg(priv, 0xf5c, 0x000f0000);
+	if (g_ti_cur[11] >= priv->g_ti_pre[0])
+		g_ti_inc[11] = g_ti_cur[11] - priv->g_ti_pre[11];
+	else
+		g_ti_inc[11] = g_ti_cur[11];
+	priv->g_ti_pre[11] = g_ti_cur[11];
+	
+	g_ti_cur[12] = PHY_QueryBBReg(priv, 0xf5c, 0x0000f000);
+	if (g_ti_cur[12] >= priv->g_ti_pre[12])
+		g_ti_inc[12] = g_ti_cur[12] - priv->g_ti_pre[12];
+	else
+		g_ti_inc[12] = g_ti_cur[12];
+	priv->g_ti_pre[12] = g_ti_cur[12];
+	
+	g_ti_cur[13] = PHY_QueryBBReg(priv, 0xf5c, 0x00000f00);
+	if (g_ti_cur[13] >= priv->g_ti_pre[13])
+		g_ti_inc[13] = g_ti_cur[13] - priv->g_ti_pre[13];
+	else
+		g_ti_inc[13] = g_ti_cur[13];
+	priv->g_ti_pre[13] = g_ti_cur[13];
+	
+	g_ti_cur[14] = PHY_QueryBBReg(priv, 0xf5c, 0x000000f0);
+	if (g_ti_cur[14] >= priv->g_ti_pre[14])
+		g_ti_inc[14] = g_ti_cur[14] - priv->g_ti_pre[14];
+	else
+		g_ti_inc[14] = g_ti_cur[14];
+	priv->g_ti_pre[14] = g_ti_cur[14];
+	
+	g_ti_cur[15] = PHY_QueryBBReg(priv, 0xf5c, 0x0000000f);
+	if (g_ti_cur[15] >= priv->g_ti_pre[15])
+		g_ti_inc[15] = g_ti_cur[15] - priv->g_ti_pre[15];
+	else
+		g_ti_inc[15] = g_ti_cur[15];
+	priv->g_ti_pre[15] = g_ti_cur[15];
+
+	// read pulse width hist report
+	PHY_SetBBReg(priv, 0x19e4, 0x00c00000, 1);  // report selection = 1 (pulse width)
+
+	g_pw_cur[0] = PHY_QueryBBReg(priv, 0xf74, 0xff000000);
+	if (g_pw_cur[0] >= priv->g_pw_pre[0])
+		g_pw_inc[0] = g_pw_cur[0] - priv->g_pw_pre[0];
+	else
+		g_pw_inc[0] = g_pw_cur[0];
+	priv->g_pw_pre[0] = g_pw_cur[0];
+	
+	g_pw_cur[1] = PHY_QueryBBReg(priv, 0xf74, 0x00ff0000);
+	if (g_pw_cur[1] >= priv->g_pw_pre[1])
+		g_pw_inc[1] = g_pw_cur[1] - priv->g_pw_pre[1];
+	else
+		g_pw_inc[1] = g_pw_cur[1];
+	priv->g_pw_pre[1] = g_pw_cur[1];
+	
+	g_pw_cur[2] = PHY_QueryBBReg(priv, 0xf74, 0x0000ff00);
+	if (g_pw_cur[2] >= priv->g_pw_pre[2])
+		g_pw_inc[2] = g_pw_cur[2] - priv->g_pw_pre[2];
+	else
+		g_pw_inc[2] = g_pw_cur[2];
+	priv->g_pw_pre[2] = g_pw_cur[2];
+	
+	g_pw_cur[3] = PHY_QueryBBReg(priv, 0xf74, 0x000000ff);
+	if (g_pw_cur[3] >= priv->g_pw_pre[3])
+		g_pw_inc[3] = g_pw_cur[3] - priv->g_pw_pre[3];
+	else
+		g_pw_inc[3] = g_pw_cur[3];
+	priv->g_pw_pre[3] = g_pw_cur[3];
+	
+	g_pw_cur[4] = PHY_QueryBBReg(priv, 0xf5c, 0xff000000);
+	if (g_pw_cur[4] >= priv->g_pw_pre[4])
+		g_pw_inc[4] = g_pw_cur[4] - priv->g_pw_pre[4];
+	else
+		g_pw_inc[4] = g_pw_cur[4];
+	priv->g_pw_pre[4] = g_pw_cur[4];
+	
+	g_pw_cur[5] = PHY_QueryBBReg(priv, 0xf5c, 0x00ff0000);
+	if (g_pw_cur[5] >= priv->g_pw_pre[5])
+		g_pw_inc[5] = g_pw_cur[5] - priv->g_pw_pre[5];
+	else
+		g_pw_inc[5] = g_pw_cur[5];
+	priv->g_pw_pre[5] = g_pw_cur[5];
+
+	g_total = g_pw_inc[0] + g_pw_inc[1] + g_pw_inc[2] + g_pw_inc[3] + g_pw_inc[4] + g_pw_inc[5];
+	if(g_pw_inc[0] == 0) g0_ratio = 0;
+	else g0_ratio = g_total / g_pw_inc[0];
+	if(g_pw_inc[1] == 0) g1_ratio = 0;
+	else g1_ratio = g_total / g_pw_inc[1];
+	if(g_pw_inc[2] == 0) g2_ratio = 0;
+	else g2_ratio = g_total / g_pw_inc[2];
+	if(g_pw_inc[3]== 0) g3_ratio = 0;
+	else g3_ratio = g_total / g_pw_inc[3];
+	if(g_pw_inc[4]== 0) g4_ratio = 0;
+	else g4_ratio = g_total / g_pw_inc[4];
+	if(g_pw_inc[5] == 0) g5_ratio = 0;
+	else g5_ratio = g_total / g_pw_inc[5];
+
+	// read pulse repetition interval hist report
+	PHY_SetBBReg(priv, 0x19e4, 0x00c00000, 3);  // report selection = 3 (pulse repetition interval)
+	g_pri_cur[0] = PHY_QueryBBReg(priv, 0xf74, 0xff000000);
+	if (g_pri_cur[0] >= priv->g_pri_pre[0])
+		g_pri_inc[0] = g_pri_cur[0] - priv->g_pri_pre[0];
+	else
+		g_pri_inc[0] = g_pri_cur[0];
+	priv->g_pri_pre[0] = g_pri_cur[0];
+	
+	g_pri_cur[1] = PHY_QueryBBReg(priv, 0xf74, 0x00ff0000);
+	if (g_pri_cur[1] >= priv->g_pri_pre[1])
+		g_pri_inc[1] = g_pri_cur[1] - priv->g_pri_pre[1];
+	else
+		g_pri_inc[1] = g_pri_cur[1];
+	priv->g_pri_pre[1] = g_pri_cur[1];
+	
+	g_pri_cur[2] = PHY_QueryBBReg(priv, 0xf74, 0x0000ff00);
+	if (g_pri_cur[2] >= priv->g_pri_pre[2])
+		g_pri_inc[2] = g_pri_cur[2] - priv->g_pri_pre[2];
+	else
+		g_pri_inc[2] = g_pri_cur[2];
+	priv->g_pri_pre[2] = g_pri_cur[2];
+	
+	g_pri_cur[3] = PHY_QueryBBReg(priv, 0xf74, 0x000000ff);
+	if (g_pri_cur[3] >= priv->g_pri_pre[3])
+		g_pri_inc[3] = g_pri_cur[3] - priv->g_pri_pre[3];
+	else
+		g_pri_inc[3] = g_pri_cur[3];
+	 priv->g_pri_pre[3] = g_pri_cur[3];
+	
+	g_pri_cur[4] = PHY_QueryBBReg(priv, 0xf5c, 0xff000000);
+	if (g_pri_cur[4] >= priv->g_pri_pre[4])
+		g_pri_inc[4] = g_pri_cur[4] - priv->g_pri_pre[4];
+	else
+		g_pri_inc[4] = g_pri_cur[4];
+	priv->g_pri_pre[4] = g_pri_cur[4];
+	
+	g_pri_cur[5] = PHY_QueryBBReg(priv, 0xf5c, 0x00ff0000);
+	if (g_pri_cur[5] >= priv->g_pri_pre[5])
+		g_pri_inc[5] = g_pri_cur[5] - priv->g_pri_pre[5];
+	else
+		g_pri_inc[5] = g_pri_cur[5];
+	priv->g_pri_pre[5] = g_pri_cur[5];
+	
+	need_reset = 0;
+	for(i = 0; i < 6; i++){
+		if((priv->g_pw_pre[i]==255) || (priv->g_pri_pre[i] == 255)){
+			need_reset = 1;
+		}			
+	}	
+	if(need_reset){
+		PHY_SetBBReg(priv, 0x19b4, 0x10000000, 1);  // reset histogram report
+		PHY_SetBBReg(priv, 0x19b4, 0x10000000, 0);  // continue histogram report
+		for(i = 0; i < 6; i++){
+			priv->g_pw_pre[i]=0;
+			priv->g_pri_pre[i]=0;
+		}
+		for(i = 0; i < 16; i++){
+			priv->g_ti_pre[i]=0;
+		}		
+	}
+
+	if(DFS_tri_short_pulse || DFS_tri_long_pulse){
+		if(priv->pshare->rf_ft_var.dfs_print_hist_report){
+			panic_printk("peak index hist\n");
+			panic_printk("g0 = %d, g1 = %d, g2 = %d, g3 = %d, g4 = %d, g5 = %d, g6 = %d, g7 = %d\n", g_ti_inc[0], g_ti_inc[1], g_ti_inc[2], g_ti_inc[3], g_ti_inc[4], g_ti_inc[5], g_ti_inc[6], g_ti_inc[7]);
+			panic_printk("g8 = %d, g9 = %d, g10 = %d, g11 = %d, g12 = %d, g13 = %d, g14 = %d, g15 = %d\n", g_ti_inc[8], g_ti_inc[9], g_ti_inc[10], g_ti_inc[11], g_ti_inc[12], g_ti_inc[13], g_ti_inc[14], g_ti_inc[15]);
+			panic_printk("pulse width hist\n");		
+			panic_printk("g0 = %d, g1 = %d, g2 = %d, g3 = %d, g4 = %d, g5 = %d\n",g_pw_inc[0], g_pw_inc[1], g_pw_inc[2], g_pw_inc[3], g_pw_inc[4], g_pw_inc[5]);
+			panic_printk("g0_ratio = %d, g1_ratio = %d, g2_ratio = %d, g3_ratio = %d, g4_ratio = %d, g5_ratio = %d\n", g0_ratio, g1_ratio, g2_ratio, g3_ratio, g4_ratio, g5_ratio);
+			panic_printk("pulse repetition interval hist\n");
+			panic_printk("g0 = %d, g1 = %d, g2 = %d, g3 = %d, g4 = %d, g5 = %d\n",g_pri_inc[0], g_pri_inc[1], g_pri_inc[2], g_pri_inc[3], g_pri_inc[4], g_pri_inc[5]);
+		}
+		
+		if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK) {
+			if((priv->pmib->dot11RFEntry.dot11channel >= 52) && (priv->pmib->dot11RFEntry.dot11channel <= 64)){
+				// classify radar by pulse width hist
+				if(g_pw_inc[1] >= short_pulse_th + 1){ 
+					if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+						panic_printk("MKK w53 radar type1 is detected!\n");
+					}
+				}
+				else if(g_pw_inc[3] >= short_pulse_th + 1){
+					if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+						panic_printk("MKK w53 radar type2 is detected!\n");
+					}
+				}
+				else{
+					DFS_tri_long_pulse = 0;
+					DFS_tri_short_pulse = 0;
+				}
+			}
+			else{
+				if (DFS_tri_long_pulse){
+					if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+						panic_printk("MKK w56 radar type7 is detected!\n");
+					}
+				}
+				else{
+					if(g_pw_inc[0] >= short_pulse_th + 1){
+						if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+							panic_printk("MKK w56 radar type1 is detected!\n");
+						}
+					}
+					else if(g_pw_inc[1] >= short_pulse_th + 1){
+						if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+							panic_printk("MKK w56 radar type2 or type8 is detected!\n");
+						}
+					}
+					else if(g_pw_inc[2] >= short_pulse_th + 1){
+						if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+							panic_printk("MKK w56 radar type3 is detected!\n");
+						}
+					}
+					else if(g_pw_inc[1]+g_pw_inc[2]+g_pw_inc[3] >= short_pulse_th + 1){
+						if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+							panic_printk("MKK w56 radar type4 is detected!\n");
+						}
+					}
+					else if(g_pw_inc[4] >= short_pulse_th + 1){
+						if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+							panic_printk("MKK w56 radar type5 is detected!\n");
+						}
+					}
+					else if(g_pw_inc[5] >= short_pulse_th + 1){
+						if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+							panic_printk("MKK w56 radar type6 is detected!\n");
+						}
+					}
+					else{
+						DFS_tri_short_pulse = 0;
+					}
+				}
+			}
+		}
+		else if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI){
+		}
+		else if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_FCC){
+			if (DFS_tri_long_pulse){
+				if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+					panic_printk("FCC radar type5 is detected!\n");
+				}
+			}
+			else{
+				if(g_pw_inc[1] >= short_pulse_th + 1){
+					if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+						panic_printk("FCC radar type1 or type6 is detected!\n");
+					}
+				}
+				else if(g_pw_inc[1] + g_pw_inc[2]>= short_pulse_th + 1){
+					if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+						panic_printk("FCC radar type2 is detected!\n");
+					}
+				}
+				else if(g_pw_inc[3] >= short_pulse_th + 1){
+					if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+						panic_printk("FCC radar type3 is detected!\n");
+					}
+				}
+				else if(g_pw_inc[4] >= short_pulse_th + 1){
+					if(priv->pshare->rf_ft_var.dfs_radar_diff_print){
+						panic_printk("FCC radar type4 is detected!\n");
+					}
+				}
+				else{
+					DFS_tri_short_pulse = 0;
+				}
+			}
+		}
+		else{
+		} 
+	}	
+	
+}
+#endif //#if defined(CONFIG_WLAN_HAL_8814AE)
 
 #endif
 

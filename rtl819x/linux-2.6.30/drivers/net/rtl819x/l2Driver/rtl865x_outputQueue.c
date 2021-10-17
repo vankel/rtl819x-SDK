@@ -98,6 +98,14 @@ static uint8    priorityDecisionArray[] = {	2,		/* port base */
 									8		/* nat base */
 								};
 
+#if defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+static uint8    swPriorityDecisionArray[] = {	8,		/* port base */
+									8,		/*         802.1p base */ 
+									8,		/*         dscp base */                   
+									2,		/*         acl base */    
+									8		/* nat base */
+								};
+#endif
 
 static uint32	defPriority[NETIF_NUMBER] = {0};
 static uint32	queueNumber[NETIF_NUMBER] = {0};
@@ -107,6 +115,18 @@ static rtl_qos_mark_info_t	mark2Priority[NETIF_NUMBER][MAX_MARK_NUM_PER_DEV] = {
 rtl865x_qos_rule_t		*rtl865x_qosRuleHead = NULL;
 extern int hw_qos_init_netlink(void);
 static int32 _rtl865x_qosArrangeRuleByNetif(uint8 *netIfName);
+
+#if defined(CONFIG_RTL_HW_QOS_BRIDGE_FWD_SUPPORT)
+#define TOTAL_DSCP_NUM 64
+struct proc_dir_entry *rtl_hw_qos_config_entry;
+extern int rtl865x_isWanNetifByIdx(int netifIdx);
+static int32 rtl_hw_qos_config_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+static int32 rtl_hw_qos_config_write( struct file *filp, const char *buff,unsigned long len, void *data );
+uint32 classId2Port[NETIF_NUMBER][RTL8651_PORT_NUMBER];
+uint32 classId2VlanPriority[NETIF_NUMBER][TOTAL_VLAN_PRIORITY_NUM];
+uint32 classId2Dscp[NETIF_NUMBER][TOTAL_DSCP_NUM];
+static uint8 vlanPri2SystemPri[TOTAL_VLAN_PRIORITY_NUM] = {2, 0, 1, 3, 4, 5, 6, 7};
+#endif
 	
 int32 rtl865x_qosSetBandwidth(uint8 *netIfName, uint32 bps)
 {
@@ -360,6 +380,30 @@ int32 rtl_qosSetPriorityByMark(uint8 *netIfName, int32 mark, int32 handler, int3
 	}
 	return SUCCESS;
 }
+
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_SW_QUEUE_DECISION_PRIORITY)
+/*Make sure priorityDecisionArray parameter seq is the same with enum decision_priority*/
+int rtl_getMaxDecisionBitMap(unsigned int* maxDecision)
+{
+	int i;
+	int max = 0;
+
+	for (i=0; i<5; i++) {
+		if (i==3)	//skip acl decision
+			continue;
+
+		if (swPriorityDecisionArray[i] > max) {
+			max = swPriorityDecisionArray[i];
+			*maxDecision = 0;
+			*maxDecision |= 1<<i;
+		} else if (swPriorityDecisionArray[i] == max) {
+			*maxDecision |= 1<<i;
+		}
+	}
+
+	return SUCCESS;
+}
+#endif
 
 #if 1
 /*
@@ -1228,6 +1272,24 @@ int __init rtl865x_initOutputQueue(uint8 **netIfName)
 	if (rtl865x_compFunc==NULL)
 		rtl865x_compFunc = _rtl865x_compare2Entry;
 	
+#if defined(CONFIG_RTL_HW_QOS_BRIDGE_FWD_SUPPORT)
+	rtl_hw_qos_config_entry=create_proc_entry("rtl_hw_qos_config", 0, NULL);
+	if (rtl_hw_qos_config_entry) {
+	    	rtl_hw_qos_config_entry->read_proc=rtl_hw_qos_config_read;
+	    	rtl_hw_qos_config_entry->write_proc=rtl_hw_qos_config_write;
+	}
+
+	for (i=0; i<NETIF_NUMBER; i++)
+	{
+		for (j=0; j<RTL8651_PORT_NUMBER; j++) 
+			classId2Port[i][j] = 0;
+		for (j=0; j<TOTAL_VLAN_PRIORITY_NUM; j++) 
+			classId2VlanPriority[i][j] = 0;
+		for (j=0; j<TOTAL_DSCP_NUM; j++) 
+			classId2Dscp[i][j] = 0;
+	}
+#endif
+
 	return SUCCESS;
 }
 
@@ -1245,6 +1307,13 @@ void __exit rtl865x_exitOutputQueue(void)
 			rtl865x_closeQos(netIfNameArray[i]);
 		}
 	}
+	
+#if defined(CONFIG_RTL_HW_QOS_BRIDGE_FWD_SUPPORT)
+	if (rtl_hw_qos_config_entry) {
+		remove_proc_entry("rtl_hw_qos_config", NULL);
+		rtl_hw_qos_config_entry = NULL;
+	}	
+#endif
 }
 
 #if defined (CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_QOS_PATCH)
@@ -1686,5 +1755,537 @@ int32 rtl865x_show_allQosAcl(void)
 
 }
 #endif
+
+#if defined(CONFIG_RTL_HW_QOS_BRIDGE_FWD_SUPPORT)
+static int rtl865x_setPortPriorityByClassId(int port, int netifIdx, unsigned int classId)
+{
+	int priority = 0;
+
+	priority = _rtl865x_qosGetPriorityByHandle(netifIdx, classId);
+	
+	rtl865xC_lockSWCore();
+	
+	rtl8651_setAsicPortPriority(port, priority);
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_setVlanPriorityByClassId(int vlanPri, int netifIdx, unsigned int classId)
+{
+	int priority = 0;
+
+	priority = _rtl865x_qosGetPriorityByHandle(netifIdx, classId);
+	
+	rtl865xC_lockSWCore();
+	
+	rtl8651_setAsicDot1qAbsolutelyPriority(vlanPri, priority);
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_setDscpPriorityByClassId(int dscp, int netifIdx, unsigned int classId)
+{
+	int priority = 0;
+
+	priority = _rtl865x_qosGetPriorityByHandle(netifIdx, classId);
+	
+	rtl865xC_lockSWCore();
+	
+	rtl8651_setAsicDscpPriority(dscp, priority);
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_resetPortPriority(int port)
+{	
+	rtl865xC_lockSWCore();
+	
+	rtl8651_setAsicPortPriority(port, 0);
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_resetVlanPriority(int vlanPri)
+{
+	int priority = 0;
+
+	priority = vlanPri2SystemPri[vlanPri];
+	rtl865xC_lockSWCore();
+	
+	rtl8651_setAsicDot1qAbsolutelyPriority(vlanPri, priority);
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_resetDscpPriority(int dscp)
+{
+	rtl865xC_lockSWCore();
+	
+	rtl8651_setAsicDscpPriority(dscp, 1);
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_flushPortPriority(void)
+{
+	int port;
+
+	rtl865xC_lockSWCore();
+
+	for (port=0; port<RTL8651_PORT_NUMBER; port++) 
+	{
+		rtl8651_setAsicPortPriority(port, 0);
+	}
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_flushVlanPriority(void)
+{
+	int vlanPri, priority;
+
+	rtl865xC_lockSWCore();
+
+	for (vlanPri=0; vlanPri<TOTAL_VLAN_PRIORITY_NUM; vlanPri++) 
+	{
+		priority = vlanPri2SystemPri[vlanPri];
+		rtl8651_setAsicDot1qAbsolutelyPriority(vlanPri, priority);
+	}
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+static int rtl865x_flushDscpPriority(void)
+{
+	int dscp;
+
+	rtl865xC_lockSWCore();
+
+	for (dscp=0; dscp<TOTAL_DSCP_NUM; dscp++) 
+	{
+		rtl8651_setAsicDscpPriority(dscp, 1);
+	}
+	
+	rtl865xC_waitForOutputQueueEmpty();
+	rtl8651_resetAsicOutputQueue();
+	rtl865xC_unLockSWCore();
+
+	return SUCCESS;
+}
+
+
+static int32 rtl_hw_qos_config_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int i, j;
+	int len=0;
+
+	for (i=0; i<2; i++)
+	{
+		if (rtl865x_isWanNetifByIdx(i)==0) 
+			len += sprintf(page+len, "%s\n", "br0 Hw Qos Cofig");
+		else if (rtl865x_isWanNetifByIdx(i)==1) 
+			len += sprintf(page+len, "%s\n", "eth1 Hw Qos Cofig");
+		else
+			continue;
+		
+		len += sprintf(page+len, "\t%s\n", "Port Based Info:");
+		for (j=0; j<RTL8651_PORT_NUMBER; j++)
+		{
+			if (classId2Port[i][j]!=0) {
+				len += sprintf(page+len, "\t\tPort[%d] mapping to classId[0x%x]\n", j, classId2Port[i][j]);
+			}
+		}
+		
+		len += sprintf(page+len, "\t%s\n", "Vlan Priority Based Info:");
+		for (j=0; j<TOTAL_VLAN_PRIORITY_NUM; j++)
+		{
+			if (classId2VlanPriority[i][j]!=0) {
+				len += sprintf(page+len, "\t\tVlan Priority[%d] mapping to classId[0x%x]\n", j, classId2VlanPriority[i][j]);
+			}
+		}
+		
+		len += sprintf(page+len, "\t%s\n", "DSCP Based Info:");
+		for (j=0; j<TOTAL_DSCP_NUM; j++)
+		{
+			if (classId2Dscp[i][j]!=0) {
+				len += sprintf(page+len, "\t\tDscp[%d] mapping to classId[0x%x]\n", j, classId2Dscp[i][j]);
+			}
+		}
+	}
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count)
+		len = count;
+	if (len<0)
+	  	len = 0;
+
+	return len;
+}
+
+/*cmd example:
+echo "add port 1 classId 1000 eth1" > /proc/rtl_hw_qos_config
+echo "add vlan 2 classId 2000 br0" > /proc/rtl_hw_qos_config
+echo "add dscp 4 classId 3000 eth1" > /proc/rtl_hw_qos_config
+
+echo "del port 1 classId 1000 eth1" > /proc/rtl_hw_qos_config
+echo "del vlan 2 classId 2000 br0" > /proc/rtl_hw_qos_config
+echo "del dscp 4 classId 3000 eth1" > /proc/rtl_hw_qos_config
+
+echo "flush port" > /proc/rtl_hw_qos_config
+echo "flush vlan" > /proc/rtl_hw_qos_config
+echo "flush dscp" > /proc/rtl_hw_qos_config
+echo "flush all" > /proc/rtl_hw_qos_config
+*/
+static int32 rtl_hw_qos_config_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	int i, j;
+	char tmpbuf[512];
+	char *strptr;
+	char	*cmdptr;
+	int tmp = 0;
+	int netifIdx = 0;
+	unsigned classId = 0;
+
+	if (len>512) 
+		goto errout;
+
+	if (buff && !copy_from_user(tmpbuf, buff, len))
+	{
+		tmpbuf[len] = '\0';
+		strptr=tmpbuf;
+		if (strlen(strptr)==0) 
+			goto errout;
+
+		cmdptr = strsep(&strptr," ");
+		if (cmdptr==NULL) 
+			goto errout;
+		/*echo "add port 1 classId 1000 eth1" > /proc/rtl_hw_qos_config*/
+		if (strncmp(cmdptr, "add",3) == 0) {
+			cmdptr = strsep(&strptr," ");
+			if (cmdptr==NULL) 
+				goto errout;
+
+			if (strncmp(cmdptr, "port",4) == 0) {
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				sscanf(cmdptr, "%d", &tmp);
+				if (tmp<0 ||tmp>=RTL8651_PORT_NUMBER) 
+					goto errout;
+
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				if (strncmp(cmdptr, "classId",7) == 0) {
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					sscanf(cmdptr, "%u", &classId);
+
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					if (strncmp(cmdptr, RTL_DRV_LAN_NETIF_NAME,strlen(RTL_DRV_LAN_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_LAN_NETIF_NAME);
+					else if (strncmp(cmdptr, RTL_DRV_WAN0_NETIF_NAME, strlen(RTL_DRV_WAN0_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_WAN0_NETIF_NAME);
+					else 
+						goto errout;
+
+					if (netifIdx < 0)
+						goto errout;
+					classId2Port[netifIdx][tmp] = classId;
+					rtl865x_setPortPriorityByClassId(tmp, netifIdx, classId);
+				}	
+			} else if (strncmp(cmdptr, "vlan",4) == 0) {
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				sscanf(cmdptr, "%d", &tmp);
+				if (tmp<0 ||tmp>=TOTAL_VLAN_PRIORITY_NUM) 
+					goto errout;
+
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				if (strncmp(cmdptr, "classId",7) == 0) {
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					sscanf(cmdptr, "%u", &classId);
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					if (strncmp(cmdptr, RTL_DRV_LAN_NETIF_NAME,strlen(RTL_DRV_LAN_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_LAN_NETIF_NAME);
+					else if (strncmp(cmdptr, RTL_DRV_WAN0_NETIF_NAME, strlen(RTL_DRV_WAN0_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_WAN0_NETIF_NAME);
+					else 
+						goto errout;
+
+					if (netifIdx < 0)
+						goto errout;
+					
+					classId2VlanPriority[netifIdx][tmp] = classId;
+					rtl865x_setVlanPriorityByClassId(tmp, netifIdx, classId);
+				}	
+			} else if (strncmp(cmdptr, "dscp",4) == 0) {
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				sscanf(cmdptr, "%d", &tmp);
+				if (tmp<0 ||tmp>=TOTAL_DSCP_NUM) 
+					goto errout;
+
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				if (strncmp(cmdptr, "classId",7) == 0) {
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					sscanf(cmdptr, "%u", &classId);
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					if (strncmp(cmdptr, RTL_DRV_LAN_NETIF_NAME,strlen(RTL_DRV_LAN_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_LAN_NETIF_NAME);
+					else if (strncmp(cmdptr, RTL_DRV_WAN0_NETIF_NAME, strlen(RTL_DRV_WAN0_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_WAN0_NETIF_NAME);
+					else 
+						goto errout;
+
+					if (netifIdx < 0)
+						goto errout;
+					
+					classId2Dscp[netifIdx][tmp] = classId;
+					rtl865x_setDscpPriorityByClassId(tmp, netifIdx, classId);
+				}	
+			} else
+				goto errout;
+		} else if (strncmp(cmdptr, "del",3) == 0) {
+			cmdptr = strsep(&strptr," ");
+			if (cmdptr==NULL) 
+				goto errout;
+
+			if (strncmp(cmdptr, "port",4) == 0) {
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				sscanf(cmdptr, "%d", &tmp);
+				if (tmp<0 ||tmp>=RTL8651_PORT_NUMBER) 
+					goto errout;
+
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				if (strncmp(cmdptr, "classId",7) == 0) {
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					sscanf(cmdptr, "%u", &classId);
+
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					if (strncmp(cmdptr, RTL_DRV_LAN_NETIF_NAME,strlen(RTL_DRV_LAN_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_LAN_NETIF_NAME);
+					else if (strncmp(cmdptr, RTL_DRV_WAN0_NETIF_NAME, strlen(RTL_DRV_WAN0_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_WAN0_NETIF_NAME);
+					else 
+						goto errout;
+
+					if (netifIdx < 0)
+						goto errout;
+
+					if (classId2Port[netifIdx][tmp]==classId) {
+						classId2Port[netifIdx][tmp] = 0;
+						rtl865x_resetPortPriority(tmp);
+					}
+				}	
+			} else if (strncmp(cmdptr, "vlan",4) == 0) {
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				sscanf(cmdptr, "%d", &tmp);
+				if (tmp<0 ||tmp>=TOTAL_VLAN_PRIORITY_NUM) 
+					goto errout;
+
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				if (strncmp(cmdptr, "classId",7) == 0) {
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					sscanf(cmdptr, "%u", &classId);
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					if (strncmp(cmdptr, RTL_DRV_LAN_NETIF_NAME,strlen(RTL_DRV_LAN_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_LAN_NETIF_NAME);
+					else if (strncmp(cmdptr, RTL_DRV_WAN0_NETIF_NAME, strlen(RTL_DRV_WAN0_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_WAN0_NETIF_NAME);
+					else 
+						goto errout;
+
+					if (netifIdx < 0)
+						goto errout;
+					
+					if (classId2VlanPriority[netifIdx][tmp] == classId) {
+						classId2VlanPriority[netifIdx][tmp] = 0;
+						rtl865x_resetVlanPriority(tmp);
+					}
+				}	
+			} else if (strncmp(cmdptr, "dscp",4) == 0) {
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				sscanf(cmdptr, "%d", &tmp);
+				if (tmp<0 ||tmp>=TOTAL_DSCP_NUM) 
+					goto errout;
+
+				cmdptr = strsep(&strptr," ");
+				if (cmdptr==NULL) 
+					goto errout;
+
+				if (strncmp(cmdptr, "classId",7) == 0) {
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					sscanf(cmdptr, "%u", &classId);
+					cmdptr = strsep(&strptr," ");
+					if (cmdptr==NULL) 
+						goto errout;
+
+					if (strncmp(cmdptr, RTL_DRV_LAN_NETIF_NAME,strlen(RTL_DRV_LAN_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_LAN_NETIF_NAME);
+					else if (strncmp(cmdptr, RTL_DRV_WAN0_NETIF_NAME, strlen(RTL_DRV_WAN0_NETIF_NAME))==0)
+						netifIdx = _rtl865x_getNetifIdxByNameExt(RTL_DRV_WAN0_NETIF_NAME);
+					else 
+						goto errout;
+
+					if (netifIdx < 0)
+						goto errout;
+					
+					if (classId2Dscp[netifIdx][tmp] == classId) {
+						classId2Dscp[netifIdx][tmp] = 0;
+						rtl865x_resetDscpPriority(tmp);
+					}
+				}	
+			} else
+				goto errout;
+		}
+		else if (strncmp(cmdptr, "flush",5) == 0) {
+			cmdptr = strsep(&strptr," ");
+			if (cmdptr==NULL) 
+				goto errout;
+
+			if (strncmp(cmdptr, "port",4) == 0) {
+				for (i=0; i<NETIF_NUMBER; i++) {
+					for (j=0; j<RTL8651_PORT_NUMBER; j++) {
+						classId2Port[i][j] = 0;
+					}
+				}
+				
+				rtl865x_flushPortPriority();
+			} else if (strncmp(cmdptr, "vlan",4) == 0) {
+				for (i=0; i<NETIF_NUMBER; i++) {
+					for (j=0; j<TOTAL_VLAN_PRIORITY_NUM; j++) {
+						classId2VlanPriority[i][j] = 0;
+					}
+				}
+				
+				rtl865x_flushVlanPriority();
+			} else if (strncmp(cmdptr, "dscp",4) == 0) {
+				for (i=0; i<NETIF_NUMBER; i++) {
+					for (j=0; j<TOTAL_DSCP_NUM; j++) {
+						classId2Dscp[i][j] = 0;
+					}
+				}
+				
+				rtl865x_flushDscpPriority();
+			} else if (strncmp(cmdptr, "all",3) == 0) {
+				for (i=0; i<NETIF_NUMBER; i++) {
+					for (j=0; j<RTL8651_PORT_NUMBER; j++) 
+						classId2Port[i][j] = 0;
+					for (j=0; j<TOTAL_VLAN_PRIORITY_NUM; j++) 
+						classId2VlanPriority[i][j] = 0;
+					for (j=0; j<TOTAL_DSCP_NUM; j++) 
+						classId2Dscp[i][j] = 0;
+				}
+				rtl865x_flushPortPriority();
+				rtl865x_flushVlanPriority();
+				rtl865x_flushDscpPriority();
+			} else
+				goto errout;
+		}
+		else {
+errout:
+			printk("error input\n");
+			return len;
+		}
+	}
+	
+	return len;
+}
+#endif
+
 
 

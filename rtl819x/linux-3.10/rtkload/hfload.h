@@ -42,7 +42,11 @@ extern int file_offset;
 #if (defined(CONFIG_RTL8186_AP) || defined(CONFIG_RTL8186_KB) || defined(CONFIG_RTL865X_PANAHOST))
 	#define FREEMEM_END	0x80800000
 #else
+#if defined(CONFIG_NO_FLASH_BOOTING_RAMFS_ROOTFS)
 	#define FREEMEM_END	0x81000000
+#else
+	#define FREEMEM_END	0x81000000
+#endif
 #endif
 #endif
 
@@ -53,7 +57,7 @@ extern int file_offset;
 
 #ifdef CONFIG_RTL_8198C
 	#undef FREEMEM_END
-	#define FREEMEM_END	0x82000000
+	#define FREEMEM_END	0x81000000
 #endif
 
 // david -----------------

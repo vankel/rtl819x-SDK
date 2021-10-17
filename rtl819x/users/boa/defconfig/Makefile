@@ -171,6 +171,11 @@ CONFIG_FILE = config-example.txt
 CONFIG_DAT=config.dat
 #endif
 endif
+
+ifeq ($(CONFIG_WLAN_HAL_8814AE),y)
+CONFIG_FILE = config-gw-98C-8814.txt
+CONFIG_DAT = config-gw-98C-8814.dat
+endif
 #------------------------------------------------------------------------------
 # all
 #------------------------------------------------------------------------------	

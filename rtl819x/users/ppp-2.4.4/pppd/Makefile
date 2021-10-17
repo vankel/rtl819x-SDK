@@ -16,6 +16,11 @@ endif
 ifdef CONFIG_PPPOE_DISCONNECT_FLOW_PATCH
         CFLAGS += -D PPPOE_DISC_FLOW_PATCH
 endif
+
+ifdef CONFIG_PPP_REJECT_ERROR_SESSION_PATCH
+	CFLAGS += -D REJECT_ERROR_SESSION_PATCH
+endif
+
 TARGETS = pppd
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap-new.c md5.c ccp.c \

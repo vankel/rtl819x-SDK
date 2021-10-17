@@ -1,5 +1,0 @@
-#define CONFIG_VENDOR ""
-#define CONFIG_PRODUCT ""
-#define CONFIG_LINUXDIR "linux-2.6.x"
-#define VENDORS_AUTOCONF_INCLUDED
-#undef AUTOCONF_INCLUDED

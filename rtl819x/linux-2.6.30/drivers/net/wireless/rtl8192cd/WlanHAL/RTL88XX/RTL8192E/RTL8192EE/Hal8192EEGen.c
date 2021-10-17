@@ -19,6 +19,7 @@ Major Change History:
 #include "../../../HalPrecomp.h"
 #endif
 #include "../../../../8192cd.h"
+
 typedef enum _RTL8192E_C2H_EVT
 {
 	C2H_8192E_DBG = 0,
@@ -28,11 +29,20 @@ typedef enum _RTL8192E_C2H_EVT
 	C2H_8192E_TX_RATE =4,
 	C2H_8192E_BT_INFO = 9,
 	C2H_8192E_BT_MP = 11,
+	C2H_8192E_RA_RPT = 12,
 #ifdef TXRETRY_CNT
 	C2H_8192E_TX_RETRY = 13, //0x0D
 #endif
+	C2H_8192E_RA_PARA_RPT=14,
+	C2H_8192E_EXTEND_IND = 0xFF,
 	MAX_8192E_C2HEVENT
 }RTL8192E_C2H_EVT;
+
+typedef enum _RTL8192E_EXTEND_C2H_EVT
+{
+	EXTEND_C2H_8192E_DBG_PRINT = 0
+
+}RTL8192E_EXTEND_C2H_EVT;
 
 RT_STATUS
 InitPON8192EE(
@@ -376,6 +386,8 @@ _C2HContentParsing92E(
 		pu1Byte 			tmpBuf
 )
 {
+	u1Byte	Extend_c2hSubID = 0;
+	
 	switch(c2hCmdId)
 	{
 		case C2H_8192E_TXBF:
@@ -405,7 +417,23 @@ _C2HContentParsing92E(
 		case C2H_8192E_BT_INFO:
 			C2HBTInfoHandler_92E(priv, tmpBuf, c2hCmdLen);
 			break;		
-#endif			
+#endif
+		case C2H_8192E_RA_PARA_RPT:
+			ODM_C2HRaParaReportHandler(ODMPTR, tmpBuf, c2hCmdLen);
+			break;
+
+		case C2H_8192E_RA_RPT:
+			phydm_c2h_ra_report_handler(ODMPTR, tmpBuf, c2hCmdLen);
+			break;
+			
+		case C2H_8192E_EXTEND_IND:	
+			Extend_c2hSubID= tmpBuf[0];
+			if(Extend_c2hSubID == EXTEND_C2H_8192E_DBG_PRINT)
+			{
+				phydm_fw_trace_handler_8051(ODMPTR, tmpBuf, c2hCmdLen);
+			}
+			break;
+
 		default:
 			break;
 	}
@@ -422,9 +450,21 @@ C2HPacketHandler_92E(
 	pu1Byte tmpBuf=NULL;
 	c2hCmdId = Buffer[0];
 	c2hCmdSeq = Buffer[1];
-	c2hCmdLen = Length -2;
-	tmpBuf = Buffer+2;
-	_C2HContentParsing92E(priv, c2hCmdId, c2hCmdLen, tmpBuf);
+/*
+	if(c2hCmdId==C2H_88XX_EXTEND_IND)
+	{
+		c2hCmdLen = Length;
+		tmpBuf = Buffer;
+		C2HExtEventHandler88XX(NULL, c2hCmdId, c2hCmdLen, tmpBuf);
+	}
+	else
+*/
+	{
+		c2hCmdLen = Length -2;
+		tmpBuf = Buffer+2;
+		
+		_C2HContentParsing92E(priv, c2hCmdId, c2hCmdLen, tmpBuf);		
+	}
 }
 
 
@@ -435,210 +475,200 @@ SetBeamformRfMode92E(
 	struct rtl8192cd_priv *priv,
 	PRT_BEAMFORMING_INFO 	pBeamformingInfo
 	)
+{
+	u1Byte					i;
+	BOOLEAN 				bSelfBeamformer = FALSE;
+	BOOLEAN 				bSelfBeamformee = FALSE;
+	RT_BEAMFORMING_ENTRY	BeamformEntry;
+	BEAMFORMING_CAP 	BeamformCap = BEAMFORMING_CAP_NONE;
+
+	BeamformCap = Beamforming_GetBeamCap(pBeamformingInfo);
+	
+	if(BeamformCap == pBeamformingInfo->BeamformCap)
+		return;
+	else 
+		pBeamformingInfo->BeamformCap = BeamformCap;
+	
+	if(get_rf_mimo_mode(priv) == MIMO_1T1R)
+		return;
+
+	PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_WE_LUT, 0x80000,0x1); // RF Mode table write enable
+	PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_WE_LUT, 0x80000,0x1); // RF Mode table write enable
+
+	bSelfBeamformer = BeamformCap & BEAMFORMER_CAP;
+	bSelfBeamformee = BeamformCap & BEAMFORMEE_CAP;
+
+	if(bSelfBeamformer)
+	{ 
+		// Paath_A
+		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode	0x30=0x18000
+		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G2, 0xfffff,0x77fc2); // Enable TXIQGEN in RX mode
+		// Path_B
+		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode
+		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G2, 0xfffff,0x77fc2); // Enable TXIQGEN in RX mode
+	}
+	else
 	{
-		u1Byte					i;
-		BOOLEAN 				bSelfBeamformer = FALSE;
-		BOOLEAN 				bSelfBeamformee = FALSE;
-		RT_BEAMFORMING_ENTRY	BeamformEntry;
-		BEAMFORMING_CAP 	BeamformCap = BEAMFORMING_CAP_NONE;
-	
-	
-		for(i = 0; i < BEAMFORMING_ENTRY_NUM; i++)
-		{
-			BeamformEntry = pBeamformingInfo->BeamformingEntry[i];
-		
-			if(BeamformEntry.bUsed)
-			{
-				if( (BeamformEntry.BeamformEntryCap & BEAMFORMEE_CAP_VHT_SU) ||
-					(BeamformEntry.BeamformEntryCap & BEAMFORMEE_CAP_HT_EXPLICIT))
-					bSelfBeamformee = TRUE;
-				if( (BeamformEntry.BeamformEntryCap & BEAMFORMER_CAP_VHT_SU) ||
-					(BeamformEntry.BeamformEntryCap & BEAMFORMER_CAP_HT_EXPLICIT))
-					bSelfBeamformer = TRUE;
-			}
-	
-			if(bSelfBeamformer && bSelfBeamformee)
-				i = BEAMFORMING_ENTRY_NUM;
-		}
-	
-		if(bSelfBeamformer)
-			BeamformCap |= BEAMFORMER_CAP;
-		if(bSelfBeamformee)
-			BeamformCap |= BEAMFORMEE_CAP;
-	
-		if(BeamformCap == pBeamformingInfo->BeamformCap)
-			return;
-		else 
-			pBeamformingInfo->BeamformCap = BeamformCap;
-	
-		if(get_rf_mimo_mode(priv) == MIMO_1T1R)
-			return;
-	
-		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_WE_LUT, 0x80000,0x1); // RF Mode table write enable
-		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_WE_LUT, 0x80000,0x1); // RF Mode table write enable
-		if(bSelfBeamformer)
-		{ 
-			// Paath_A
-			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode	0x30=0x18000
-			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G2, 0xfffff,0x77fc2); // Enable TXIQGEN in RX mode
-			// Path_B
-			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode
-			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G2, 0xfffff,0x77fc2); // Enable TXIQGEN in RX mode
-		}
-		else
-		{
-			// Paath_A
-			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode
-			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G2, 0xfffff,0x77f82); // Disable TXIQGEN in RX mode
-			// Path_B
-			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode
-			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G2, 0xfffff,0x77f82); // Disable TXIQGEN in RX mode
-		}
+		// Paath_A
+		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode
+		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_TXPA_G2, 0xfffff,0x77f82); // Disable TXIQGEN in RX mode
+		// Path_B
+		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_RCK_OS, 0xfffff,0x18000); // Select RX mode
+		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G1, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_TXPA_G2, 0xfffff,0x77f82); // Disable TXIQGEN in RX mode
+	}
 #if 0
-		if(bSelfBeamformer)
-		{
-			// Paath_A
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableAddr, 0xfffff,0x10000); // Select TX mode	0x30=0x10000
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData1, 0xfffff,0x17e7e); // Enable RXIQGEN in TX mode
-			// Path_B
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableAddr, 0xfffff,0x10000); // Select TX mode
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData1, 0xfffff,0x17e7e); // Enable RXIQGEN in TX mode 
-		}
-		else  
-		{
-			// Paath_A
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableAddr, 0xfffff,0x10000); // Select TX mode
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData1, 0xfffff,0x07e7e); // Disable RXIQGEN in TX mode
-			// Path_B
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableAddr, 0xfffff,0x10000); // Select RX mode
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
-			PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData1, 0xfffff,0x07e7e); // Disable TXIQGEN in TX mode
-		}
+	if(bSelfBeamformer)
+	{
+		// Paath_A
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableAddr, 0xfffff,0x10000); // Select TX mode	0x30=0x10000
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData1, 0xfffff,0x17e7e); // Enable RXIQGEN in TX mode
+		// Path_B
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableAddr, 0xfffff,0x10000); // Select TX mode
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData1, 0xfffff,0x17e7e); // Enable RXIQGEN in TX mode 
+	}
+	else  
+	{
+		// Paath_A
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableAddr, 0xfffff,0x10000); // Select TX mode
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_ModeTableData1, 0xfffff,0x07e7e); // Disable RXIQGEN in TX mode
+		// Path_B
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableAddr, 0xfffff,0x10000); // Select RX mode
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData0, 0xfffff,0x0000f); // Set Table data
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_B, RF_ModeTableData1, 0xfffff,0x07e7e); // Disable TXIQGEN in TX mode
+	}
 #endif
-		PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_WE_LUT, 0x80000,0x0); // RF Mode table write disable
-		PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_WE_LUT, 0x80000,0x0); // RF Mode table write disable
-	
-		if(bSelfBeamformer){
-			PHY_SetBBReg(priv, 0x90c, 0xffffffff, 0x83321333);
-			PHY_SetBBReg(priv, 0xa04, BIT31|BIT30, 0x3);
+	PHY_SetRFReg(priv, ODM_RF_PATH_A, RF_WE_LUT, 0x80000,0x0); // RF Mode table write disable
+	PHY_SetRFReg(priv, ODM_RF_PATH_B, RF_WE_LUT, 0x80000,0x0); // RF Mode table write disable
+
+	if(bSelfBeamformer){
+		PHY_SetBBReg(priv, 0x90c, 0xffffffff, 0x83321333);
+		PHY_SetBBReg(priv, 0xa04, BIT31|BIT30, 0x3);
 #ifdef RF_MIMO_SWITCH
-			priv->pshare->rf_phy_bb_backup[19] = 0x83321333;
-			priv->pshare->rf_phy_bb_backup[22] |=  BIT31|BIT30;
+		priv->pshare->rf_phy_bb_backup[19] = 0x83321333;
+		priv->pshare->rf_phy_bb_backup[22] |=  BIT31|BIT30;
 #endif
 			
-		}
-		else {
-			PHY_SetBBReg(priv, 0x90c, 0xffffffff, 0x81121313);
+	}
+	else {
+		PHY_SetBBReg(priv, 0x90c, 0xffffffff, 0x81121313);
 #ifdef RF_MIMO_SWITCH
-			priv->pshare->rf_phy_bb_backup[19] = 0x81121313;
+		priv->pshare->rf_phy_bb_backup[19] = 0x81121313;
 #endif
 
-		}
 	}
+}
 
 
 
 VOID
 SetBeamformEnter92E(
 	struct rtl8192cd_priv *priv,
-	u1Byte				Idx
+	u1Byte				BFerBFeeIdx
 	)
 {
 	u1Byte					i = 0;
+	u1Byte					BFerIdx = (BFerBFeeIdx & 0xF0)>>4;
+	u1Byte					BFeeIdx = (BFerBFeeIdx & 0xF);
 	u4Byte					CSI_Param;	
 	PRT_BEAMFORMING_INFO 	pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	RT_BEAMFORMING_ENTRY	BeamformEntry = pBeamformingInfo->BeamformingEntry[Idx];
-	
+	RT_BEAMFORMING_ENTRY	BeamformeeEntry;
+	RT_BEAMFORMER_ENTRY	BeamformerEntry;
 	u2Byte					STAid = 0;
 
 
 	SetBeamformRfMode92E(priv, pBeamformingInfo);
 
-
-	if(OPMODE & WIFI_ADHOC_STATE)
-		STAid = BeamformEntry.AID;
-	else 
-		STAid = BeamformEntry.P_AID;
-	
-//	panic_printk("%s, STAid=%d\n", __FUNCTION__, STAid);
-//eric-8813
-	if (IS_TEST_CHIP(priv))
-		RTL_W8( REG_SND_PTCL_CTRL, 0x1B); 		// Disable SIG-B CRC8 check
-	else
-		RTL_W8( REG_SND_PTCL_CTRL, 0xCB);	
-	
-	// MAC addresss/Partial AID of Beamformer
-	if(Idx == 0)
-	{
-		for(i = 0; i < 6 ; i++)
-			RTL_W8( (REG_ASSOCIATED_BFMER0_INFO+i), BeamformEntry.MacAddr[i]);
-		
-		RTL_W16( REG_ASSOCIATED_BFMER0_INFO+6, BeamformEntry.P_AID);
-	}
-	else
-	{
-		for(i = 0; i < 6 ; i++)
-			RTL_W8( (REG_ASSOCIATED_BFMER1_INFO+i), BeamformEntry.MacAddr[i]);
-
-		RTL_W16( REG_ASSOCIATED_BFMER1_INFO+6, BeamformEntry.P_AID);
-	}
-
-	// CSI report parameters of Beamformer
-	
-		CSI_Param = 0x03090309;//Nc =2, V matrix
-
 	if(get_rf_mimo_mode(priv) == MIMO_2T2R)
 		RTL_W32(0xD80, 0x01081008);
 
-	RTL_W32( REG_TX_CSI_RPT_PARAM_BW20, CSI_Param);
-	RTL_W32( REG_TX_CSI_RPT_PARAM_BW40, CSI_Param);
-	//RTL_W32( REG_CSI_RPT_PARAM_BW80_8812, CSI_Param);
+	if((pBeamformingInfo->BeamformCap & BEAMFORMEE_CAP) && (BFerIdx < BEAMFORMER_ENTRY_NUM))
+	{
+		BeamformerEntry = pBeamformingInfo->BeamformerEntry[BFerIdx];
+		//eric-8813
+		if (IS_TEST_CHIP(priv))
+			RTL_W8( REG_SND_PTCL_CTRL, 0x1B); 		// Disable SIG-B CRC8 check
+		else
+			RTL_W8( REG_SND_PTCL_CTRL, 0xCB);	
 
-	// P_AID of Beamformee & enable NDPA transmission
-	if(Idx == 0)
-	{	
-		RTL_W16( REG_TXBF_CTRL, STAid);	
-		RTL_W8( REG_TXBF_CTRL+3, RTL_R8( REG_TXBF_CTRL+3)|BIT6|BIT7|BIT4);
-	}	
-	else
-	{
-		RTL_W16( REG_TXBF_CTRL+2, STAid |BIT14| BIT15|BIT12);
-	}	
+		// MAC addresss/Partial AID of Beamformer
+		if(BFerIdx == 0)
+		{
+			for(i = 0; i < 6 ; i++)
+				RTL_W8( (REG_ASSOCIATED_BFMER0_INFO+i), BeamformerEntry.MacAddr[i]);
+			
+			RTL_W16( REG_ASSOCIATED_BFMER0_INFO+6, BeamformerEntry.P_AID);
+		}
+		else
+		{
+			for(i = 0; i < 6 ; i++)
+				RTL_W8( (REG_ASSOCIATED_BFMER1_INFO+i), BeamformerEntry.MacAddr[i]);
 
-	// CSI report parameters of Beamformee
-	if(Idx == 0)	
-	{
-		// Get BIT24 & BIT25
-		u1Byte	tmp = RTL_R8( REG_ASSOCIATED_BFMEE_SEL+3) & 0x3;	
-		RTL_W8( REG_ASSOCIATED_BFMEE_SEL+3, tmp | 0x60);
-		RTL_W16( REG_ASSOCIATED_BFMEE_SEL, STAid | BIT9);
-	}	
-	else
-	{
-		// Set BIT25
-		RTL_W16( REG_ASSOCIATED_BFMEE_SEL+2, STAid | 0xE2);
+			RTL_W16( REG_ASSOCIATED_BFMER1_INFO+6, BeamformerEntry.P_AID);
+		}
+
+		// CSI report parameters of Beamformer
+		CSI_Param = 0x03090309;//Nc =2, V matrix
+		RTL_W32( REG_TX_CSI_RPT_PARAM_BW20, CSI_Param);
+		RTL_W32( REG_TX_CSI_RPT_PARAM_BW40, CSI_Param);
+
+		// Timeout value for MAC to leave NDP_RX_standby_state 60 us
+		//	RTL_W8( REG_SND_PTCL_CTRL_8812+3, 0x3C);
+		RTL_W8( REG_SND_PTCL_CTRL+3, 0x50);				// // ndp_rx_standby_timer
 	}
 
-	// Timeout value for MAC to leave NDP_RX_standby_state 60 us
-//	RTL_W8( REG_SND_PTCL_CTRL_8812+3, 0x3C);
-	RTL_W8( REG_SND_PTCL_CTRL+3, 0x50);				// // ndp_rx_standby_timer
-
-
-//	if(pHalData->bIsMPChip == FALSE) 
-	if (IS_TEST_CHIP(priv))		
+	if((pBeamformingInfo->BeamformCap & BEAMFORMER_CAP) && (BFeeIdx < BEAMFORMEE_ENTRY_NUM))
 	{
-		// VHT category value 
-		RTL_W8( REG_SND_PTCL_CTRL+1, ACT_CAT_VHT);
-		// NDPA subtype
-		RTL_W8( REG_SND_PTCL_CTRL+2, Type_NDPA >> 4);
-	}	
+		BeamformeeEntry = pBeamformingInfo->BeamformeeEntry[BFeeIdx];
+		
+		if(OPMODE & WIFI_ADHOC_STATE)
+			STAid = BeamformeeEntry.AID;
+		else 
+			STAid = BeamformeeEntry.P_AID;
+
+		// P_AID of Beamformee & enable NDPA transmission
+		if(BFeeIdx == 0)
+		{	
+			RTL_W16( REG_TXBF_CTRL, STAid);	
+			RTL_W8( REG_TXBF_CTRL+3, RTL_R8( REG_TXBF_CTRL+3)|BIT6|BIT7|BIT4);
+		}	
+		else
+		{
+			RTL_W16( REG_TXBF_CTRL+2, STAid |BIT14| BIT15|BIT12);
+		}	
+
+		// CSI report parameters of Beamformee
+		if(BFeeIdx == 0)	
+		{
+			// Get BIT24 & BIT25
+			u1Byte	tmp = RTL_R8( REG_ASSOCIATED_BFMEE_SEL+3) & 0x3;	
+			RTL_W8( REG_ASSOCIATED_BFMEE_SEL+3, tmp | 0x60);
+			RTL_W16( REG_ASSOCIATED_BFMEE_SEL, STAid | BIT9);
+		}	
+		else
+		{
+			// Set BIT25
+			RTL_W16( REG_ASSOCIATED_BFMEE_SEL+2, STAid | 0xE200);
+		}
+
+	//	if(pHalData->bIsMPChip == FALSE) 
+		if (IS_TEST_CHIP(priv))		
+		{
+			// VHT category value 
+			RTL_W8( REG_SND_PTCL_CTRL+1, ACT_CAT_VHT);
+			// NDPA subtype
+			RTL_W8( REG_SND_PTCL_CTRL+2, Type_NDPA >> 4);
+		}	
+
+		Beamforming_Notify(priv);
+	}
+
 }
 
 
@@ -655,7 +685,7 @@ SetBeamformLeave92E(
 	*	Clear Associated Bfmee Sel
 	*/	
 //	panic_printk("[%d][%s]\n",__LINE__,__FUNCTION__);
-//eric-8813
+//eric-8814
 	if(Idx == 0)
 	{	
 		RTL_W16( REG_TXBF_CTRL, 0);	
@@ -684,7 +714,7 @@ SetBeamformStatus92E(
 	u4Byte					BeamCtrlReg;
 //	PRT_BEAMFORMING_INFO 	pBeamformingInfo = GET_BEAMFORM_INFO(&(Adapter->MgntInfo));
 	PRT_BEAMFORMING_INFO pBeamformingInfo = &(priv->pshare->BeamformingInfo);
-	RT_BEAMFORMING_ENTRY	BeamformEntry = pBeamformingInfo->BeamformingEntry[Idx];
+	RT_BEAMFORMING_ENTRY	BeamformEntry = pBeamformingInfo->BeamformeeEntry[Idx];
 
 //	if(ACTING_AS_IBSS(Adapter))
 	if(OPMODE & WIFI_ADHOC_STATE)
@@ -708,9 +738,9 @@ SetBeamformStatus92E(
 		if(BeamformEntry.BW == HT_CHANNEL_WIDTH_20)
 			BeamCtrlVal |= BIT9;
 		else if(BeamformEntry.BW == HT_CHANNEL_WIDTH_20_40)
-			BeamCtrlVal |= BIT10;
+			BeamCtrlVal |= (BIT9 | BIT10);
 		else if(BeamformEntry.BW == HT_CHANNEL_WIDTH_80)
-			BeamCtrlVal |= BIT11;
+			BeamCtrlVal |= (BIT9 | BIT10 | BIT11);
 	}
 #endif
 

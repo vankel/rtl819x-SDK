@@ -737,6 +737,7 @@ asmlinkage void do_bp(struct pt_regs *regs)
 	if (bcode >= (1 << 10))
 		bcode >>= 10;
 
+
 	/*
 	 * notify the kprobe handlers, if instruction is likely to
 	 * pertain to them.

@@ -41,11 +41,6 @@ VAR_MAPPING(PHY_REG_PG_8881A, PHY_REG_PG_8881A);
 #include "../../../data_AGC_TAB_8881ABP.c"
 #include "../../../data_AGC_TAB_8881ABP_intpa.c"
 #include "../../../data_AGC_TAB_8881AMP.c"
-#ifdef CONFIG_8881A_2LAYER
-#include "../../../data_AGC_TAB_8881AMP_2layer.c"
-#endif
-
-
 #include "../../../data_AGC_TAB_8881AMP_intpa.c"
 #include "../../../data_AGC_TAB_8881AN.c"
 #include "../../../data_AGC_TAB_8881AN_extpa.c"
@@ -54,9 +49,6 @@ VAR_MAPPING(AGC_TAB_8881Am, AGC_TAB_8881Am);
 VAR_MAPPING(AGC_TAB_8881ABP, AGC_TAB_8881ABP);
 VAR_MAPPING(AGC_TAB_8881ABP_intpa, AGC_TAB_8881ABP_intpa);
 VAR_MAPPING(AGC_TAB_8881AMP, AGC_TAB_8881AMP);
-#ifdef CONFIG_8881A_2LAYER
-VAR_MAPPING(AGC_TAB_8881AMP_2layer, AGC_TAB_8881AMP_2layer);
-#endif
 VAR_MAPPING(AGC_TAB_8881AMP_intpa, AGC_TAB_8881AMP_intpa);
 VAR_MAPPING(AGC_TAB_8881AN, AGC_TAB_8881AN);
 VAR_MAPPING(AGC_TAB_8881AN_extpa, AGC_TAB_8881AN_extpa);
@@ -75,9 +67,6 @@ VAR_MAPPING(PHY_REG_8881AMP, PHY_REG_8881AMP);
 #include "../../../data_RadioA_8881ABP.c"
 #include "../../../data_RadioA_8881ABP_intpa.c"
 #include "../../../data_RadioA_8881AMP.c"
-#ifdef CONFIG_8881A_2LAYER
-#include "../../../data_RadioA_8881AMP_2layer.c"
-#endif
 #include "../../../data_RadioA_8881AMP_intpa.c"
 #include "../../../data_RadioA_8881AN.c"
 #include "../../../data_RadioA_8881AN_extpa.c"
@@ -86,9 +75,6 @@ VAR_MAPPING(RadioA_8881Am, RadioA_8881Am);
 VAR_MAPPING(RadioA_8881ABP, RadioA_8881ABP);
 VAR_MAPPING(RadioA_8881ABP_intpa, RadioA_8881ABP_intpa);
 VAR_MAPPING(RadioA_8881AMP, RadioA_8881AMP);
-#ifdef CONFIG_8881A_2LAYER
-VAR_MAPPING(RadioA_8881AMP_2layer, RadioA_8881AMP_2layer);
-#endif
 VAR_MAPPING(RadioA_8881AMP_intpa, RadioA_8881AMP_intpa);
 VAR_MAPPING(RadioA_8881AN, RadioA_8881AN);
 VAR_MAPPING(RadioA_8881AN_extpa, RadioA_8881AN_extpa);
@@ -126,7 +112,6 @@ VAR_MAPPING(TxPowerTrack_AP_8881ABP, TxPowerTrack_AP_8881ABP);
 VAR_MAPPING(TxPowerTrack_AP_8881ABP_intpa, TxPowerTrack_AP_8881ABP_intpa);
 VAR_MAPPING(TxPowerTrack_AP_8881AN, TxPowerTrack_AP_8881AN);
 VAR_MAPPING(TxPowerTrack_AP_8881AN_extpa, TxPowerTrack_AP_8881AN_extpa);
-
 #ifdef TXPWR_LMT_8881A
 #include "../../../data_TXPWR_LMT_8881A_new.c"
 #include "../../../data_TXPWR_LMT_8881AMP.c"
@@ -135,7 +120,6 @@ VAR_MAPPING(TxPowerTrack_AP_8881AN_extpa, TxPowerTrack_AP_8881AN_extpa);
 #include "../../../data_TXPWR_LMT_8881ABP_intpa.c"
 #include "../../../data_TXPWR_LMT_8881AN.c"
 #include "../../../data_TXPWR_LMT_8881AN_extpa.c"
-
 VAR_MAPPING(TXPWR_LMT_8881A_new,TXPWR_LMT_8881A_new);
 VAR_MAPPING(TXPWR_LMT_8881AMP,TXPWR_LMT_8881AMP);
 VAR_MAPPING(TXPWR_LMT_8881AMP_intpa,TXPWR_LMT_8881AMP_intpa);

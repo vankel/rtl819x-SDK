@@ -10,10 +10,6 @@ hostname rlx-linux
 mount -t proc proc /proc
 mount -t ramfs ramfs /var
 
-if [ -d "/hw_setting" ];then
-mount -t yaffs2 -o tags-ecc-off /dev/mtdblock1 /hw_setting
-fi
-
 mkdir /var/tmp
 mkdir /var/web
 mkdir /var/log

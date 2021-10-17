@@ -1886,7 +1886,7 @@ void setRulesWithOutDevice(int opmode, int wan_dhcp , char* pInterface_wanPhy,ch
 		if(natEnabled==0){
 			RunSystemCmd(NULL_FILE, Iptables, POLICY, INPUT, ACCEPT, NULL_STR);
 			RunSystemCmd(NULL_FILE, Iptables, POLICY, FORWARD, ACCEPT, NULL_STR);
-		//	RunSystemCmd("/proc/fast_nat", "echo", "0", NULL_STR);//disable fastpath when nat is disabled
+			//RunSystemCmd("/proc/fast_nat", "echo", "0", NULL_STR);//disable fastpath when nat is disabled
 			return 0;
 		}
 	}
@@ -2018,11 +2018,11 @@ defined(CONFIG_RTL_HW_NAPT)
 	} else
 #endif
 	{
-		RunSystemCmd(NULL_FILE, Iptables, INSERT, FORWARD, _protocol, _tcp, tcp_flags, MSS_FLAG1, MSS_FLAG2, jump, TCPMSS, clamp, NULL_STR);	
-		///////////////////////////////////////////////////////////
-		RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, match, mstate, state, INVALID, jump, DROP, NULL_STR);	
+	RunSystemCmd(NULL_FILE, Iptables, INSERT, FORWARD, _protocol, _tcp, tcp_flags, MSS_FLAG1, MSS_FLAG2, jump, TCPMSS, clamp, NULL_STR);	
+	///////////////////////////////////////////////////////////
+	RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, match, mstate, state, INVALID, jump, DROP, NULL_STR);	
 
-		RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, "br0", jump, ACCEPT, NULL_STR);	
+	RunSystemCmd(NULL_FILE, Iptables, ADD, FORWARD, in, "br0", jump, ACCEPT, NULL_STR);	
 	}
 	///////////////////////////////////////////////////////////
 	if(wan_dhcp==4){			

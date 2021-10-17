@@ -77,20 +77,20 @@
 0x00	0x30159 //RX mode     	
 // RX setting 20111118  		
 0x84	0x68180 // update by Hillo for better IMR                                   	
-0x86	0x0014e  // LNA switch by BB control modified by Hillo	
-0x87	0x48e00  // modified by Hillo                                  	
+0x86	0x0010e  // LNA switch by BB control modified by Hillo	
+0x87	0xf5f80	//0x48e00  // modified by Hillo                                  	
 0x8e	0x65540                                   	
 0x8f	0x88000                                   	
 // RX gain table 20111118    		
 0xef 	0x020A0 //Rx gaintable WE                	
-0x3b 	0xf07b0	
-0x3b 	0xef7b0                                  	
-0x3b 	0xd4fb0                                  	
-0x3b 	0xcf060                                  	
-0x3b 	0xb0090                                  	
-0x3b 	0xa0080                                  	
-0x3b 	0x90080                                  	
-0x3b 	0x8f780                                  	
+0x3b 	0xf0730	
+0x3b 	0xe0730                                  	
+0x3b 	0xd0020                                  	
+0x3b 	0xc0020                                  	
+0x3b 	0xb0760                                  	
+0x3b 	0xa0010                                  	
+0x3b 	0x90000                                  	
+0x3b 	0x80000                                  	
 0x3b 	0x787b0	
 0x3b 	0x60fb0    // CS gain table              	
 0x3b 	0x5ffa0   //54fb0                        	

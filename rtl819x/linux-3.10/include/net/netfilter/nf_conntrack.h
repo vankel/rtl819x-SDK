@@ -133,7 +133,8 @@ struct nf_conn {
 	   char drop_flag;
 	   char removed;
 	#endif
-	
+
+
 	/* Storage reserved for other modules, must be the last member */
 	union nf_conntrack_proto proto;
 	

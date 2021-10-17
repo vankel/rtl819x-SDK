@@ -7,7 +7,6 @@ include $(DIR_LINUX)/.config
 
 CROSS_COMPILE ?= rsdk-linux-
 CROSS_TARGET ?= rsdk-linux
-
 VERSION=0.9.8i
 MAJOR=0
 MINOR=9.8
@@ -72,7 +71,6 @@ EXE_EXT=
 ARFLAGS= 
 AR=ar $(ARFLAGS) r
 RANLIB= $(CROSS_COMPILE)ranlib
-
 PERL=/usr/local/bin/perl
 $(shell if [ ! -e /usr/local/bin/perl ]; then \
 PERL=/usr/bin/perl; \

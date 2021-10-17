@@ -18,12 +18,8 @@
  *
  ******************************************************************************/
 
-#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
-#include "Mp_Precomp.h"
-#else
 #include "../Mp_Precomp.h"
-#endif
-#include "../odm_precomp.h"
+#include "../phydm_precomp.h"
 
 
 
@@ -2125,7 +2121,7 @@ PHY_IQCalibrate_8188E(
 	if(bSingleTone || bCarrierSuppression)
 		return;
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
@@ -2385,7 +2381,7 @@ PHY_LCCalibrate_8188E(
 #endif
 
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
@@ -2450,11 +2446,11 @@ PHY_APCalibrate_8188E(
 	PDM_ODM_T		pDM_Odm = &pHalData->DM_OutSrc;
 	#endif
 #endif	
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
-	return;
+#if 0
 #if (DM_ODM_SUPPORT_TYPE & (ODM_CE|ODM_AP))
 	if(!(pDM_Odm->SupportAbility & ODM_RF_CALIBRATION))
 	{
@@ -2481,6 +2477,7 @@ PHY_APCalibrate_8188E(
 		phy_APCalibrate_8188E(pDM_Odm, delta, FALSE);
 #endif
 	}
+#endif
 }
 VOID phy_SetRFPathSwitch_8188E(
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
@@ -2569,7 +2566,7 @@ VOID PHY_SetRFPathSwitch_8188E(
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 #endif
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
@@ -3045,7 +3042,7 @@ PHY_DigitalPredistortion_8188E(
 	PDM_ODM_T		pDM_Odm = &pHalData->DM_OutSrc;
 	#endif
 #endif	
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return;
 #endif
 
@@ -3126,7 +3123,7 @@ BOOLEAN PHY_QueryRFPathSwitch_8188E(
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 
-#if DISABLE_BB_RF
+#ifdef DISABLE_BB_RF
 	return TRUE;
 #endif
 #if !(DM_ODM_SUPPORT_TYPE & ODM_AP)

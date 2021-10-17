@@ -17,13 +17,6 @@
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
 
-#if defined(SUPPORT_UCFGING_LED) 
-struct timer_list	LED_TimerCFGING;
-unsigned int		LED_CFGING_Interval;
-unsigned char		LED_CFGING_Toggle;
-unsigned char		LED_CFGING_ToggleStart;
-unsigned int 		LED_Configuring=0;
-#endif
 
 // for SW LED ----------------------------------------------------
 #ifdef RTL8190_SWGPIO_LED
@@ -261,13 +254,6 @@ static void LED_Interval_timeout(unsigned long task_priv)
 
 void enable_sw_LED(struct rtl8192cd_priv *priv, int init)
 {
-#if defined(SUPPORT_UCFGING_LED) 
-
-	if(init){
-		if(LED_Configuring ==1)
-			return;
-	}
-#endif	
 #if (defined(HW_ANT_SWITCH) || defined(SW_ANT_SWITCH))&&( defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 		int b23 = RTL_R32(LEDCFG) & BIT(23);
 #endif
@@ -403,29 +389,6 @@ void enable_sw_LED(struct rtl8192cd_priv *priv, int init)
 	}
 }
 
-#if defined(SUPPORT_UCFGING_LED) 
-void LED_Interval_timeout2(unsigned long task_priv)
-{
-
-#ifdef RTLWIFINIC_GPIO_CONTROL
-		RTLWIFINIC_GPIO_write(5, LED_CFGING_Toggle);
-#endif		
-	mod_timer(&LED_TimerCFGING, jiffies + LED_UCFGING_TIME); 
-	LED_CFGING_Toggle = (LED_CFGING_Toggle + 1) % 2;		
-}
-
-void StartCFGINGTimer(void )
-{
-	
-	init_timer(&LED_TimerCFGING);
-	LED_TimerCFGING.data = 0;
-	LED_TimerCFGING.function = &LED_Interval_timeout2;
-	LED_CFGING_Interval = LED_UCFGING_TIME;
-	LED_CFGING_Toggle = 0;
-	LED_CFGING_ToggleStart = LED_OFF;
-	mod_timer(&LED_TimerCFGING, jiffies + LED_CFGING_Interval);
-}
-#endif
 
 void disable_sw_LED(struct rtl8192cd_priv *priv)
 {
@@ -452,11 +415,6 @@ void calculate_sw_LED_interval(struct rtl8192cd_priv *priv)
 
 	if (priv->pshare->set_led_in_progress)
 		return;
-
-#if defined(SUPPORT_UCFGING_LED) 
-	if(LED_Configuring ==1)
-			return;
-#endif	
 
 	if( (LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA) && 
 	    (!(OPMODE & WIFI_ASOC_STATE)))  //client not assco  , mark_led

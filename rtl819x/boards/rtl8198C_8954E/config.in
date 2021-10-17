@@ -45,7 +45,7 @@ config RTL_AP_PACKAGE
     default y if RTL_8198C_AP
 
 config RTL_PCIE_SIMPLE_INIT
-	bool "Disable PCIe Bios"
+	bool
 	default y if RTL8192SE
 	default y if RTL8192CD
 
@@ -141,6 +141,61 @@ config USB3G_SUPPORT
 	select ZLIB_DEFLATE
 	default n
 
+##### 4G_LTE_SUPPORT #####
+menuconfig 4G_LTE_SUPPORT
+	bool "4G LTE support"
+	default n
+	help
+		"4G LTE support"
+if 4G_LTE_SUPPORT
+config GCT_GDM7243
+	bool "GCT GDM7243"
+	select USB_USBNET
+	select USB_NET_CDCETHER
+	select USB_NET_CDC_EEM
+	select USB_NET_RNDIS_HOST
+	default n
+
+config ALTAIR
+	#bool "ALTAIR"
+	select USB_USBNET
+	select USB_NET_CDCETHER
+	select USB_ACM
+	default n
+endif
+##### 4G_LTE_SUPPORT #####
+
+##### RAID 0/1 SUPPORT #####
+config RTL_RAID01_SUPPORT
+	bool "Raid 0/1 support"
+	select IDE
+	select BLK_DEV_IDE_SATA
+	select IDE_GD
+	select IDE_GD_ATA
+	select IDE_PROC_FS
+	select ATA
+	select ATA_VERBOSE_ERROR
+	select SATA_PMP
+	select SATA_AHCI_PLATFORM
+	select MD
+	select BLK_DEV_MD
+	select MD_AUTODETECT
+	select MD_LINEAR
+	select MD_RAID0
+	select MD_RAID1
+	select MD_MULTIPATH
+	select BLK_DEV_DM
+	select DM_DEBUG
+	select DM_CRYPT
+	select DM_SNAPSHOT
+	select DM_MIRROR
+	select DM_ZERO
+	select EXT3_FS
+	select EXT3_DEFAULTS_TO_ORDERED
+	select EXT3_FS_XATTR
+	default n
+##### RAID 0/1 SUPPORT #####
+
 config RTL_USB_IP_HOST_SPEEDUP
 	bool "Seedup usb samba performance"
 
@@ -148,16 +203,13 @@ config RTL_SENDFILE_PATCH
 	bool "Speed up samba write performance"
 	select PAGE_SIZE_16KB	
 	default y
-
-config APPLE_MFI_SUPPORT
-        bool "Apple MFi program support"	
-
-config APPLE_HOMEKIT_BLOCK_SUPPORT
-        depends on APPLE_MFI_SUPPORT
-        bool "Apple Homekit mtd block support"
-
+	
 config HTTP_FILE_SERVER_SUPPORT
 	bool "Http File server support"
+
+config NO_FLASH_BOOTING_RAMFS_ROOTFS
+	bool "no flash booting ramfs as rootfs"
+	default n
 
 comment "Support two spi flash"
 config RTL_TWO_SPI_FLASH_ENABLE
@@ -262,15 +314,6 @@ config RTL_ROOT_IMAGE_OFFSET
         help
 	  root image store in flash from the offset.
 	  
-comment "Hap config table offset,should be 4K alignment."
-        depends on RTL_FLASH_MAPPING_ENABLE && APPLE_HOMEKIT_BLOCK_SUPPORT
-config HAP_CONFIG_TABLE_OFFSET
-        hex "hap config table offset in flash."
-        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE && APPLE_HOMEKIT_BLOCK_SUPPORT
-        default "0x3D0000"
-        help
-          hap config table store in flash from the offset.
-
 comment "Flatfs image offset,should be 128K alignment."
 	depends on RTL_FLASH_MAPPING_ENABLE
 config RTL_FLATFS_IMAGE_OFFSET
@@ -362,9 +405,6 @@ endchoice
 config BSP_ENABLE_PCI
 	bool "Enable PCI controller"
 	default n
-	select PCI
-	select HW_HAS_PCI
-	
 
 config BSP_ENABLE_USB
 	bool "Enable USB controller"

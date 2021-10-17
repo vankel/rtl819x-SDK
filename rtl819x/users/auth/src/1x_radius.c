@@ -748,121 +748,7 @@ int lib1x_decrypt_MPPESendRecvKeys(
 	return retVal;
 }
 
-#ifdef HS2_SUPPORT
-int lib1x_rad_vendor_attr_WFA(
-	Global_Params * global,
-	u_char * rattr_ptr,
-	int length
-) 
-{
-	struct lib1x_radius_vendorattr  * vattr = (struct lib1x_radius_vendorattr*) rattr_ptr;	
-	unsigned char *URL;
-	if(length != vattr->length)
-		return -1;
-	
-	if(vattr->type == LIB1X_RADVENDOR_WFA_ST_SUB_RED_SVR)
-	{
-		int i;
-		printf("RED_SVR, vattr->string=%x, length=%d\n",vattr->string,vattr->length);
 
-		if (vattr->string == NULL) {
-			printf("WNM String is NULL\n");
-			return -1;
-		}
-#if 0
-		printf("RED_SVR, vattr->string=");
-		for(i=0;i<vattr->length;i++) {
-			printf("%02x ",rattr_ptr[i]);
-		}
-		printf("\n");
-#endif	
-#if 1
-		global->serverMethod = rattr_ptr[2];
-#endif
-		memcpy(global->remed_URL, rattr_ptr+3, vattr->length-3);
-		printf("RED URL=%s\n",global->remed_URL);
-		global->isTriggerWNM = 1;
-		//lib1x_control_WNM_NOTIFY(global,URL);
-			
-		printf("WNM_Notify done\n");
-		free(URL);
-		return 0;
-		// Send a WNM Notification Message to Driver
-		// vattr->string : URL of the Subscription Remediation Server
-		
-	} 
-	else if(vattr->type == LIB1X_RADVENDOR_WFA_ST_DEAUTH_REQ)
-	{		
-		int i;
-		printf("DEAUTH, vattr->string=%x, length=%d\n",vattr->string,vattr->length);		
-		
-		if (vattr->string == NULL) {
-			printf("WNM Deauth String is NULL\n");
-			return -1;
-		}
-		
-		printf("DEAUTH, vattr->string=");
-		for(i=0;i<vattr->length;i++) {
-			printf("%02x",rattr_ptr[i]);
-		}
-		printf("\n");
-		
-		global->WNMDEAUTH_reason= *(unsigned char *)(rattr_ptr+2);
-		//global->WNMDEAUTH_reAuthDelay = *(unsigned short *)(rattr_ptr+3);
-		//lib1x_N2S(rattr_ptr+3, global->WNMDEAUTH_reAuthDelay);
-		lib1x_Little_N2S((u_char*)rattr_ptr+3, global->WNMDEAUTH_reAuthDelay);
-		if(vattr->length-5 > 0) {
-			memcpy(global->WNMDEAUTH_URL,rattr_ptr+5,vattr->length-5);
-			global->WNMDEAUTH_URL[vattr->length-5] = '\0';
-		} else if(vattr->length-5 == 0) {
-			global->WNMDEAUTH_URL[0] = '\0';
-		} else {
-			printf("WNM Deauth String length is too small\n");
-		}
-		printf("WNMDEAUTH_URL=%s\n", global->WNMDEAUTH_URL);	
-		
-		global->isTriggerWNM_DEAUTH = 1;
-		//lib1x_control_WNM_DEAUTH_REQ(global, code, reAuthDelay, URL);			
-		
-		return 0;
-	}
-	else if(vattr->type == LIB1X_RADVENDOR_WFA_ST_SESSION_URL) {
-		unsigned char SWT;
-		int i;
-		
-		printf("Session Information URL, vattr->string=%x, length=%d\n",vattr->string,vattr->length);
-		
-		
-		if (vattr->string == NULL) {
-			printf("SessionInfo URL String is NULL\n");
-			return -1;
-		}
-		
-		printf("Session Information URL, rattr_ptr=");
-		for(i=0;i<vattr->length;i++) {
-			printf("%02x",rattr_ptr[i]);
-		}
-		printf("\n");
-		
-		global->SWT = *(unsigned char *)(rattr_ptr+2);
-		
-		//URL = (unsigned char *) malloc(vattr->length-2);
-		memcpy(global->SessionInfo_URL,rattr_ptr+3,vattr->length-3);
-		global->SessionInfo_URL[vattr->length-3] = '\0';
-		printf("4.12 , !!SessionInfo_URL=%s\n", global->SessionInfo_URL);
-		global->isTriggerSessionInfo_URL = 1;
-		//lib1x_control_SessionInfo_URL(global, SWT, URL);
-				
-		free(URL);
-		return 0;
-	}
-	else {
-		printf("Auth (1x_radius.c): HS2 Radius Subtype %d is not supported\n",vattr->type);
-		return -1;
-	}
-	return -1;
-}
-#endif
 
 //---------------------------------------------------
 // lib1x_rad_vendor_attr : process MPPE-Send/Recv-Key
@@ -903,8 +789,11 @@ int lib1x_rad_vendor_attr(
 				global->RadiusKey.SendKey.Length);
 
 		global->RadiusKey.Status |= MPPE_SENDKEY_AVALIABLE;
-		if(global->RadiusKey.Status == MPPE_SDRCKEY_AVALIABLE &&
-		   global->AuthKeyMethod  == DOT11_AuthKeyType_NonRSN802dot1x)
+		if(global->RadiusKey.Status == MPPE_SDRCKEY_AVALIABLE 
+#ifndef CONFIG_IEEE80211R
+		&& global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x
+#endif
+		)
 			global->theAuthenticator->keyxmit_sm->keyAvailable = TRUE;
 		//lib1x_message(MESS_DBG_RAD, "global->theAuthenticator->keyxmit_sm->keyAvailable = %x \n",global->theAuthenticator->keyxmit_sm->keyAvailable);
 		//lib1x_hexdump2(MESS_DBG_RAD, "lib1x_rad_vendor_attr",
@@ -932,8 +821,11 @@ int lib1x_rad_vendor_attr(
 				(u_char*)(rattr_ptr + 5),
 				global->RadiusKey.RecvKey.Length);
 		global->RadiusKey.Status |= MPPE_RECVKEY_AVALIABLE;
-  		if(global->RadiusKey.Status == MPPE_SDRCKEY_AVALIABLE &&
-		   global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x)
+  		if(global->RadiusKey.Status == MPPE_SDRCKEY_AVALIABLE 
+#ifndef CONFIG_IEEE80211R
+		&& global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x
+#endif
+		)
 			global->theAuthenticator->keyxmit_sm->keyAvailable = TRUE;
 
 		//lib1x_message(MESS_DBG_RAD, "global->theAuthenticator->keyxmit_sm->keyAvailable = %x \n",global->theAuthenticator->keyxmit_sm->keyAvailable);
@@ -1185,51 +1077,6 @@ void lib1x_rad_special_type( Auth_Pae * auth_pae, u_long ulRequestType)
 
 }
 
-/*HS2 SUPPORT*/
-void lib1x_rad_disconnect_type( Auth_Pae * auth_pae, u_long ulRequestType)
-{
-	struct radius_info   * rinfo;
-	struct lib1x_radius_const * rconst = 0;
-	int		nas_port;
-	int		nas_port_type;
-	u_char		szAttr[4];
-	u_long		ulPasswordLength;
-	u_char		szPassword[20];	/* to store ether addresses */
-	u_char		szOutput[64];
-	u_long		ulOutput;
-	int		framed_mtu = 1400, val;
-	struct 		timeval tv;
-	struct 		timezone tz;
-	char		*src;
-
-
-	nas_port = 0;
-	nas_port_type = LIB1X_80211_NAS_PORTTYPE;	// IEEE 802.11
-
-
-	rinfo = auth_pae->rinfo;                      // get a handle
-	rinfo->identifier = auth_pae->acct_sm->sessionId;
-
-	rconst = lib1x_radconst_create( auth_pae, auth_pae->sendBuffer , ulRequestType, rinfo->identifier,LIB1X_IT_UDPSOCK_ACCT);	
-	lib1x_radconst_calradlength( rconst );
-
-	auth_pae->acct_sendbuflen = rconst->pktlen;
-	auth_pae->sendreplyready = TRUE;
-	lib1x_acctsm_sendReqToServer( auth_pae->global);
-
-	//switch(ulRequestType)
-	//{
-	//	case LIB1X_RAD_AUTH_MAC_AUTHENTICATION:
-	//		{
-	//			auth_pae->sendbuflen = rconst->pktlen;
-	//		lib1x_acctsm_sendReqToServer( auth_pae->global);
-	//		break;
-
-	//}
-	
-
-}
-/*HS2 SUPPORT*/
 
 int lib1x_radpassword_create( Auth_Pae * auth_pae, u_char* pucPassword, u_long ulPasswordLength)
 {

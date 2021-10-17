@@ -35,10 +35,6 @@
 #include "prmt_traceroute.h"
 #endif //_SUPPORT_TRACEROUTE_PROFILE_
 
-#ifdef _PRMT_TR143_
-#define _PRMT_CAPABILITIES_
-#endif //_SUPPORT_TRACEROUTE_PROFILE_
-
 #define LANDEVICE_NUM	1	/* one instance of LANDevice*/
 #define WANDEVICE_NUM	1	/* one instance of WANDevice*/
 
@@ -421,8 +417,12 @@ struct CWMP_NODE tIGDObject[] =
 #endif //_PRMT_CAPABILITIES_
 #ifdef _PRMT_TR143_
 {&tIGDObjectInfo[eDownloadDiagnostics],	tDownloadDiagnosticsLeaf,NULL},
+#ifdef _PRMT_TR143_UPLOAD_DIAG_
 {&tIGDObjectInfo[eUploadDiagnostics],	tUploadDiagnosticsLeaf,	NULL},
+#endif
+#ifdef _PRMT_TR143_UDP_ECHO_CONFIG_
 {&tIGDObjectInfo[eUDPEchoConfig],	tUDPEchoConfigLeaf,	NULL},
+#endif
 #endif //_PRMT_TR143_
 #ifdef _PRMT_X_CT_COM_QOS_
 {&tIGDObjectInfo[eX_CT_COM_QueueManagement],	tCT_QueueMntLeaf,		tCT_QueueMntObject},

@@ -92,15 +92,13 @@ void iw_init_fifo(Dot1x_RTLDListener *listen, char *fifo_name)
 	while(1){
 		if((listen->WriteFIFO = open(fifo_name, O_WRONLY, 0)) < 0)
 		{
-			printf("open fifo %s error\n", fifo_name);
+			//iw_message(MESS_DBG_CONTROL, "open fifo %s error: %s", fifo_name, strerror(errno));
 			iw_message(MESS_DBG_CONTROL, "wait %s to create", fifo_name);
 			sleep(1);
 			//exit(0);
 		}
-		else{
-			AUTHDEBUG("open fifo %s OK\n", fifo_name);
+		else
 			break;
-          }
 	}
 }
 
@@ -317,7 +315,7 @@ int ProcessRequestEvent(char *wlan_name)
 			break;
 		}
 
-		//iw_message(MESS_DBG_CONTROL, "[iwcontrol]: %s", szEvent);
+		iw_message(MESS_DBG_CONTROL, "[iwcontrol]: %s", szEvent);
 		if(iSend)
 		{
 #ifdef AUTO_CONFIG

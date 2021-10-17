@@ -34,7 +34,6 @@ config RTL_8881A
 	select RTL_8196D	
 	select GENERIC_GPIO
 	select GPIOLIB
-	def_bool n
 
 config RTL_8196D
 	select RTL_819XD
@@ -49,27 +48,6 @@ config RTL_819XD_GW
 
 config RTL_819X
 	def_bool n
-
-####################################
-#
-# CPU feature
-#
-comment "CPU features"
-
-config BSP_ENABLE_RADIAX
-	bool "Enable RADIAX support"
-	default n
-	depends on ARCH_CPU_RADIAX
-
-config BSP_ENABLE_TLS
-	bool "Enable Taroko TLS support"
-	default n
-	depends on ARCH_CPU_TLS
-
-config BSP_ENABLE_WMPU
-	bool "Enable Taroko WMPU support"
-	default n
-	depends on ARCH_CPU_WMPU
 
 #
 # FPGA

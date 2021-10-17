@@ -2353,12 +2353,6 @@ static void addrconf_dev_config(struct net_device *dev)
 				
        		if(!strncmp(dev->name,"wlan",strlen("wlan")))
                 return;
-
-			if(!strncmp(dev->name,"peth",strlen("peth")))
-                return;
-			
-			if(!strncmp(dev->name,"pwlan",strlen("pwlan")))
-                return;
 		}
 #endif
 

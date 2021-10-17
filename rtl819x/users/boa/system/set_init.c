@@ -16,6 +16,9 @@
 extern int set_QoS(int operation, int wan_type, int wisp_wan_id);
 extern int setbridge(char *argv);
 extern int setWlan_Applications(char *action, char *argv);
+#ifdef SHRINK_INIT_TIME
+extern int cleanWlan_Applications(char* wlanInterface);
+#endif
 extern int SetWlan_idx(char *wlan_iface_name);
 extern int setFirewallIptablesRules(int argc, char** argv);
 extern void set_lan_dhcpd(char *interface, int mode);
@@ -502,7 +505,7 @@ void start_wlanapp(int action)
 	if(tmpBuff[0])
 		setWlan_Applications("start", tmpBuff);
 
-	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_APP_APPLE_MFI_WAC)
+	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 		system("rm -f  /var/system/start_init 2> /dev/null");
 	#endif
 
@@ -661,7 +664,6 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			RunSystemCmd(HW_NAT_FILE, "echo", "5", NULL_STR); /*wisp mode with multiple vlan*/
 		
 	}else{/*software nat supported*/ 
-	if(isFileExist(SOFTWARE_NAT_FILE)){	
 		if(sys_opmode==0)
 		{
 #ifdef RTK_USB3G
@@ -679,7 +681,6 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "3", NULL_STR);
 		if(sys_opmode==4)
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "4", NULL_STR);
-	}
 		
 	}
 #endif	//CONFIG_POCKET_AP_SUPPORT
@@ -730,10 +731,6 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 		RunSystemCmd(NULL_FILE, "rm", "-f", "/etc/ppp/firstdemand", NULL_STR);
 		//RunSystemCmd(NULL_FILE, "disconnect.sh", "all", NULL_STR);
 		RunSystemCmd(NULL_FILE, "killall", "-9", "timelycheck", NULL_STR); //LZQ
-		#ifdef CONFIG_AUTO_DHCP_CHECK
-		RunSystemCmd(NULL_FILE, "killall", "-9", "Auto_DHCP_Check", NULL_STR);
-		#endif
-
 
 #if defined(CONFIG_APP_FWD)
 		RunSystemCmd(NULL_FILE, "killall", "-9", "fwd", NULL_STR); //LZQ
@@ -752,7 +749,7 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 	RunSystemCmd(NULL_FILE, "killall", "-9", "mini_upnpd", NULL_STR);
 	RunSystemCmd(NULL_FILE, "killall", "-9", "reload", NULL_STR);
 #if defined(CONFIG_APP_RTK_INBAND_CTL)
-   	RunSystemCmd(NULL_FILE, "killall", "-9", "hcd", NULL_STR);
+	RunSystemCmd(NULL_FILE, "killall", "-9", "hcd", NULL_STR);
 #endif
 	//RunSystemCmd(NULL_FILE, "killall", "-9", "ntfs-3g", NULL_STR);
 	if(isFileExist(L2TPD_PID_FILE)){
@@ -765,10 +762,6 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 	}
 	/* kill dhcp client */
 	killDhcpcDaemons();
-	sprintf(tmpBuff, "/etc/udhcpc/udhcpc-%s.pid", "br0");
-	if(isFileExist(tmpBuff)){
-		unlink(tmpBuff);
-	}
 #if 0
 /*kill dhcp client if br interface is dhcp client*/	
 	sprintf(tmpBuff, "/etc/udhcpc/udhcpc-%s.pid", lanInterface);
@@ -939,14 +932,10 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 #endif	
 	
 #if defined(CONFIG_APP_SIMPLE_CONFIG)
-	system("killall simple_config");
+	system("killall simple_config >/dev/null 2>&1");
 #endif
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-	system("killall wfaudio");
-	system("killall WACServer");
-#if defined(CONFIG_APPLE_HOMEKIT)
-	system("killall hapserver");
-#endif
+#ifdef SHRINK_INIT_TIME
+	cleanWlan_Applications(wlanInterface);
 #endif
 }
 #if defined(CONFIG_APP_USBMOUNT)
@@ -1099,14 +1088,14 @@ void autoMountOnBootUp(void)
 
 void start_mount()
 {
-#if defined(HTTP_FILE_SERVER_SUPPORTED) || defined(RTL_USB_IP_HOST_SPEEDUP)
+#if defined(HTTP_FILE_SERVER_SUPPORTED) || (defined(RTL_USB_IP_HOST_SPEEDUP) && !defined(CONFIG_RTL_8198C))
 	RunSystemCmd("/proc/sys/vm/min_free_kbytes", "echo", "2048", NULL_STR);
 	RunSystemCmd("/proc/sys/net/core/rmem_max", "echo", "1048576", NULL_STR);
 	RunSystemCmd("/proc/sys/net/core/wmem_max", "echo", "1048576", NULL_STR);
 	RunSystemCmd("/proc/sys/net/ipv4/tcp_rmem", "echo", "4096 108544 4194304", NULL_STR);
 	RunSystemCmd("/proc/sys/net/ipv4/tcp_wmem", "echo", "4096 108544 4194304", NULL_STR);
 	RunSystemCmd("/proc/sys/net/ipv4/tcp_moderate_rcvbuf", "echo", "0", NULL_STR);
-#else	
+#else
 	/*config linux parameter for improving samba performance*/
 	RunSystemCmd("/proc/sys/vm/min_free_kbytes", "echo", "1024", NULL_STR);
 	
@@ -1154,10 +1143,14 @@ void start_samba()
 	//RunSystemCmd(NULL_FILE,  "echo", "start samba", NULL_STR);
 	RunSystemCmd(NULL_FILE,  "mkdir", "/var/samba", NULL_STR);
 	RunSystemCmd(NULL_FILE,  "cp", "/etc/samba/smb.conf", "/var/samba/smb.conf",  NULL_STR);
+	RunSystemCmd(NULL_FILE,  "cp", "/etc/samba/smbpasswd", "/var/samba/smbpasswd",  NULL_STR);
+	RunSystemCmd(NULL_FILE,  "cp", "/etc/samba/upcase.dat", "/var/lib/",  NULL_STR);
+	RunSystemCmd(NULL_FILE,  "cp", "/etc/samba/lowcase.dat", "/var/lib/",  NULL_STR);
+	RunSystemCmd(NULL_FILE,  "cp", "/etc/samba/valid.dat", "/var/lib/",  NULL_STR);
 	RunSystemCmd("/var/group",  "echo", " ",  NULL_STR);
         RunSystemCmd(NULL_FILE,  "cp", "/etc/group", "/var/group",  NULL_STR);
-	//RunSystemCmd(NULL_FILE,  "smbd", "-D", NULL_STR);
-	//RunSystemCmd(NULL_FILE,  "nmbd", "-D", NULL_STR);
+//	RunSystemCmd(NULL_FILE,  "smbd", "-D", NULL_STR);
+//	RunSystemCmd(NULL_FILE,  "nmbd", "-D", NULL_STR);
 }
 #endif
 
@@ -1571,7 +1564,6 @@ int setinit(int argc, char** argv)
 
 	if(isFileExist(REINIT_FILE)==0){
 		up_mib_value();
-		RunSystemCmd(REINIT_FILE, "echo", "1", NULL_STR);
 		reinit = 0;
 	}
 	else
@@ -1605,7 +1597,7 @@ int setinit(int argc, char** argv)
 	}
 #endif
 #endif	
-	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_APP_APPLE_MFI_WAC)
+	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 		system("echo 1 > /var/system/start_init");
 	#endif 	
 	
@@ -1638,18 +1630,7 @@ int setinit(int argc, char** argv)
 
 	printf("Init Start...\n");
 
-/*#if defined(CONFIG_APP_APPLE_MFI_WAC)
-	{
-        char wac_nameBuf[64]={0};
-        char hostname_cmd[80]={0};
 
-	apmib_get(MIB_MFI_WAC_DEVICE_NAME,  (void *)wac_nameBuf);
-	if(wac_nameBuf[0]){
-		sprintf(hostname_cmd,"hostname \'%s\'",wac_nameBuf);
-		system(hostname_cmd);
-	}
-	}		
-#endif*/
 	apmib_get(MIB_OP_MODE,(void *)&opmode);
 	apmib_get(MIB_WISP_WAN_ID,(void *)&wisp_wan_id);
 	apmib_get(MIB_DHCP,(void *)&lan_dhcp_mode);
@@ -1695,6 +1676,17 @@ int setinit(int argc, char** argv)
 			
 #else
 			sprintf(wan_interface, "%s", "eth1");
+
+	#if defined(CONFIG_4G_LTE_SUPPORT)
+	{
+		int lte = -1, wan_dhcp = -1;
+		apmib_get( MIB_LTE4G,    (void *)&lte);
+		apmib_get( MIB_WAN_DHCP, (void *)&wan_dhcp);
+
+		if (wan_dhcp == DHCP_CLIENT && lte == 1)
+			sprintf(wan_interface, "%s", "usb0");
+	}
+	#endif /* #if defined(CONFIG_4G_LTE_SUPPORT) */
 #endif
 		}
 			
@@ -1880,7 +1872,6 @@ int setinit(int argc, char** argv)
 			RunSystemCmd(HW_NAT_FILE, "echo", "5", NULL_STR); /*wisp mode with multiple vlan*/
 		
 	}else{/*software nat supported*/ 
-		if(isFileExist(SOFTWARE_NAT_FILE)){
 		if(opmode==GATEWAY_MODE)
 		{
 #ifdef RTK_USB3G
@@ -1898,7 +1889,6 @@ int setinit(int argc, char** argv)
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "3", NULL_STR);
 		else if(opmode==4)
 			RunSystemCmd(SOFTWARE_NAT_FILE, "echo", "4", NULL_STR);
-	}
 		
 	}
 #endif	//CONFIG_POCKET_AP_SUPPORT
@@ -2047,7 +2037,11 @@ int setinit(int argc, char** argv)
 			if(SetWlan_idx(wlan_name))
 			{			
 				apmib_get( MIB_WLAN_WLAN_DISABLED, (void *)&wlan_disable);	  
+#ifdef SHRINK_INIT_TIME
+				if(wlan_disable == 1 && reinit == 1)
+#else
 				if(wlan_disable == 1)
+#endif
 				{
 					RunSystemCmd(NULL_FILE, "ifconfig", wlan_name, "down", NULL_STR);
 					RunSystemCmd(NULL_FILE, "iwpriv", wlan_name, "radio_off", NULL_STR);					
@@ -2064,13 +2058,23 @@ int setinit(int argc, char** argv)
 						
 					//printf("%s:%d wlan_name=%s\n",__FUNCTION__,__LINE__,wlan_name);
 #if defined(CONFIG_SMART_REPEATER)
+#ifdef SHRINK_INIT_TIME
+					if(reinit == 1)
+					{
+#endif
 					char vxd_interface[16]={0};
 					sprintf(vxd_interface,"%s-vxd",wlan_name);
 					RunSystemCmd(NULL_FILE, "ifconfig", vxd_interface, "0.0.0.0", NULL_STR);
 					RunSystemCmd(NULL_FILE, "ifconfig", vxd_interface, "down", NULL_STR);
+#ifdef SHRINK_INIT_TIME
+					}
+#endif
 					//printf("%s:%d vxd_interface=%s\n",__FUNCTION__,__LINE__,vxd_interface);
 #endif
-					RunSystemCmd(NULL_FILE, "ifconfig", wlan_name, "down", NULL_STR);
+#ifdef SHRINK_INIT_TIME
+					if(reinit == 1)
+#endif
+						RunSystemCmd(NULL_FILE, "ifconfig", wlan_name, "down", NULL_STR);
 					cmdRet=RunSystemCmd(NULL_FILE, "flash", "set_mib", wlan_name, NULL_STR);
 			
 					if(cmdRet != 0)
@@ -2122,7 +2126,10 @@ int setinit(int argc, char** argv)
 			token = strsep(&strptr," ");
 			while(token!=NULL)
 			{
-				RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
+#ifdef SHRINK_INIT_TIME
+				if(reinit == 1)
+#endif
+					RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
 				RunSystemCmd(NULL_FILE, "flash", "set_mib", token, NULL_STR);/*set vxd wlan iface*/
 				token = strsep(&strptr," ");
 			}
@@ -2136,15 +2143,39 @@ int setinit(int argc, char** argv)
 				if (token == NULL){
 					break;
 				}else{
+#ifdef SHRINK_INIT_TIME
+					if(reinit == 1)
+					{
+#endif
 					RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
 					RunSystemCmd(NULL_FILE, "flash", "set_mib", token, NULL_STR);/*set virtual wlan iface*/
+#ifdef SHRINK_INIT_TIME
+					}
+					else
+					{
+					
+						apmib_save_wlanIdx();
+						SetWlan_idx(token);
+						
+						apmib_get(MIB_WLAN_WLAN_DISABLED, &intValue);
+						if(intValue == 0)
+						{
+							RunSystemCmd(NULL_FILE, "flash", "set_mib", token, NULL_STR);/*set virtual wlan iface*/
+						}
+						apmib_recov_wlanIdx();
+						
+					}
+#endif
 				}
 				token = strtok_r(NULL, " ", &savestr1);
 			}while(token !=NULL);
 		}
 #if defined(CONFIG_SMART_REPEATER)
 		if(strstr(wan_interface,"-vxd")){
-			RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "down", NULL_STR);
+#ifdef SHRINK_INIT_TIME
+			if(reinit == 1)
+#endif
+				RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "down", NULL_STR);
 			RunSystemCmd(NULL_FILE, "flash", "set_mib", wan_interface, NULL_STR);
 		}
 #endif
@@ -2220,9 +2251,6 @@ int setinit(int argc, char** argv)
 					RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", Gateway, "dev", br_interface, NULL_STR);
 				}	
 				start_wlanapp(v_wlan_app_enabled);
-#if defined(CONFIG_APP_SIMPLE_CONFIG)
-				system("echo 1 > /var/sc_ip_status");
-#endif
 			}else
 				if(lan_dhcp_mode==DHCP_LAN_SERVER //dhcp disabled or server mode or auto
 #ifdef CONFIG_DOMAIN_NAME_QUERY_SUPPORT		
@@ -2242,13 +2270,17 @@ int setinit(int argc, char** argv)
 								intValue1=intValue1+1;
 						}	
 					}
+#ifndef SHRINK_INIT_TIME
 					sleep(intValue1);/*wait wlan wds init */		
+#endif
 					/*start dhcp server*/
 					set_lan_dhcpd(br_interface, 2);
 					start_wlanapp(v_wlan_app_enabled);
 				}
 		}/*for init bridge interface and wlan app*/
-
+#ifdef SHRINK_INIT_TIME
+	if( opmode!=BRIDGE_MODE || reinit ==1 ){
+#endif
 		RunSystemCmd(NULL_FILE, "iptables", "-F", NULL_STR);
 		RunSystemCmd(NULL_FILE, "iptables", "-F", "-t", "nat",  NULL_STR);
 		RunSystemCmd(NULL_FILE, "iptables", "-A", "INPUT", "-j", "ACCEPT", NULL_STR);
@@ -2264,9 +2296,15 @@ int setinit(int argc, char** argv)
 		//RunSystemCmd("/proc/pptp_src_ip", "echo", "0 0", NULL_STR);
 		if(wan_interface[0])
 		{
-			RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "down", NULL_STR);
+#ifdef SHRINK_INIT_TIME
+				if( reinit==1 )
+#endif
+					RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "down", NULL_STR);
 			RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "up", NULL_STR);
+			}
+#ifdef SHRINK_INIT_TIME
 		}
+#endif
 
 		if(enable_wan==1 && (opmode == GATEWAY_MODE || opmode==WISP_MODE)){/*for init internet wan setting*/ 
 			if(opmode==WISP_MODE)
@@ -2354,22 +2392,15 @@ int setinit(int argc, char** argv)
 		/* init log setting*/
 		set_log();
 		if(lan_dhcp_mode==DHCP_LAN_SERVER){	
+#ifndef SHRINK_INIT_TIME
 			sleep(1);
+#endif
 			//RunSystemCmd(NULL_FILE, "dhcpd.sh", br_interface, "ap", NULL_STR);
 			set_lan_dhcpd(br_interface, 1);
 		}	
 		if(lan_dhcp_mode==DHCP_LAN_SERVER || lan_dhcp_mode==DHCP_LAN_NONE){	
 			start_wlanapp(v_wlan_app_enabled);
 		}	
-#if defined(CONFIG_APP_APPLE_MFI_WAC)		
-		// IOT dhcp client device need to give up br0 ip here , since br0 ip will be decide in IOT networking framework (dhcpc+avahi)
-		// it is implement in wfaudio package 
-		if(lan_dhcp_mode==DHCP_LAN_NONE || lan_dhcp_mode==DHCP_LAN_CLIENT)
-		{
-			//printf("give up br0 ip !!!\n");
-			system("ifconfig br0 0.0.0.0");		
-		}		
-#endif	
 	}
 
 #ifndef STAND_ALONE_MINIUPNP
@@ -2554,47 +2585,33 @@ int setinit(int argc, char** argv)
 		RunSystemCmd("/proc/http_file/getLanIp", "echo", "1", NULL_STR);
 #endif
 
-	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_APP_APPLE_MFI_WAC)
+	#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 		system("rm -f  /var/system/start_init 2> /dev/null");
 	#endif
-	
-#ifdef CONFIG_APP_APPLE_MFI_WAC
-	if(isFileExist("/var/system/mdnsd_started")==0){
-		system("mdnsd");
-		system("echo 1 > /var/system/mdnsd_started");
-	}
-	system ("wfaudio &"); //some brach start in rcs
-#if defined(CONFIG_APPLE_HOMEKIT)
-	system("hapserver 1 0 0 &");
-#endif
-#endif
 
 #if defined(CONFIG_APP_FWD)
 	//##For fwd
 		//system("mount -t tmpfs none /sbin"); //put fwd to ram
 		//system("cp /bin/fwd /sbin"); //put fwd to ram
+#ifdef SHRINK_INIT_TIME
+		if(reinit == 0)
+#endif
 		system("fwd &");
 #endif
-#if 0 //defined(CONFIG_APPLE_HOMEKIT)
-	//simply init homekit server , 3 options with default value 
-	// thet are  "useMfi" , "reset Paired list" , "reset Device Json data"	
-	system("hapserver 1 0 0 &");
-#endif
+
 	//reply only if the target IP address is local address configured on the incoming interface
 	RunSystemCmd("/proc/sys/net/ipv4/conf/eth1/arp_ignore", "echo", "1", NULL_STR);
 	/*increase routing cache rebuild count from 4 to 2048*/
 	RunSystemCmd(RT_CACHE_REBUILD_COUNT, "echo", "2048", NULL_STR);
-	system("timelycheck &");
-#if defined(CONFIG_AUTO_DHCP_CHECK)
-	if(opmode==BRIDGE_MODE && lan_dhcp_mode == DHCP_SERVER)
-	{
-		system("Auto_DHCP_Check &");
-	}
+#ifdef SHRINK_INIT_TIME
+	if(opmode != BRIDGE_MODE)
 #endif
-#ifdef SAMBA_WEB_SUPPORT
+	system("timelycheck &");
+
 	system("cp /etc/passwd_orig /var/passwd");
 	system("cp /etc/group_orig /var/group");
-	system("cp /etc/samba/smbpasswd_orig /var/samba/smbpasswd");
+#ifdef SAMBA_WEB_SUPPORT
+	
 	//system("cp /etc/samba/smb_orig.conf /var/samba/smb.conf");
 	
 	apmib_get(MIB_STORAGE_GROUP_TBL_NUM,(void*)&number);
@@ -2637,11 +2654,6 @@ int setinit(int argc, char** argv)
 		start_tr069();
 #endif
 
-#if defined(CONFIG_APP_RTK_INBAND_CTL)
-	//RunSystemCmd(PROC_INBAND_CTL_ACL, "echo", "0x8899", NULL_STR);
-	system("hcd -daemon &");
-#endif
-
 #if defined(CONFIG_RTL_ETH_802DOT1X_SUPPORT)
 	init_EthDot1x(wan_dhcp_mode, wan_dhcp_mode, wan_interface, br_interface);
 #endif
@@ -2650,9 +2662,17 @@ int setinit(int argc, char** argv)
 	capwap_app();
 #endif
 
+#if defined(CONFIG_APP_RTK_INBAND_CTL)
+	RunSystemCmd(PROC_INBAND_CTL_ACL, "echo", "0x8899", NULL_STR);
+	system("hcd -daemon &");
+#endif
+
 #if defined(CONFIG_RPS)
 	rtl_configRps();
 #endif
+
+	if(isFileExist(REINIT_FILE)==0)
+		RunSystemCmd(REINIT_FILE, "echo", "1", NULL_STR);
 
 	return 0;
 }

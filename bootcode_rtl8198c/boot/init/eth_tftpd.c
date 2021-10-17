@@ -1235,9 +1235,9 @@ int trueorfalse = 0;
 			for(j=0;j<BACKUP_IMAGE;j++){
 					//dprintf("[%s]:%d\n",__func__,__LINE__);
 					if(j==1){
-						start_page = ((IMG_BACKUP_ADDR)/page_size)-ppb;
+						start_page = ((IMG_BACKUP_ADDR+Header.burnAddr+burn_offset)/page_size)-ppb;
 					#ifdef CONFIG_RTK_NAND_BBT		
-										start_block = (IMG_BACKUP_ADDR >> block_shift);
+										start_block = ((IMG_BACKUP_ADDR+Header.burnAddr+burn_offset) >> block_shift);
 					#endif
 						offset = 0;
 					}else{
@@ -1277,6 +1277,9 @@ int trueorfalse = 0;
 												//while(1);
 									
 									//printf("start blockv:%x start_page:%x block_count:%x\n\r",start_block,start_page,block_count);
+									#ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_STATIC
+									prom_printf("\nstatic dual mode,times=%d\n",j);
+									#endif
 									for(i=start_block;i<block_count+start_block;i++){ //caculate how many block.
 										//real_addr = (bbt_v2r[i].block_r << block_shift);
 										//real_page = bbt_v2r[i].block_r * ppb;

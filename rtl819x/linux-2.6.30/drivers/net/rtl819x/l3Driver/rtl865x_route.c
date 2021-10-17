@@ -126,7 +126,7 @@ static int32 _rtl865x_synRouteToAsic(rtl865x_route_t *rt_t)
 	rtl865x_tblAsicDrv_routingParam_t asic_t;
 	rtl865x_tblAsicDrv_l2Param_t asic_l2;
 	rtl865x_netif_local_t *dstNetif = NULL;
-	uint32 columIdx,fid;
+	uint32 columIdx,fid=0;
 	int32 pppIdx = 0;
 
 	bzero(&asic_t, sizeof(rtl865x_tblAsicDrv_routingParam_t));
@@ -190,13 +190,13 @@ static int32 _rtl865x_synRouteToAsic(rtl865x_route_t *rt_t)
 		*/
 		ret = rtl865x_getVlanFilterDatabaseId(rt_t->dstNetif->vid,&fid);		
 		ret = rtl865x_Lookup_fdb_entry(fid, (ether_addr_t *)rt_t->un.direct.macInfo, FDB_STATIC, &columIdx,&asic_l2);
-		if(ret != SUCCESS)
-			printk("can't get l2 entry by mac.....\n");
 
+		if(ret != SUCCESS)
+			printk("can't get l2 entry by mac.....***************\n");
+		
 		/*FIXME_hyking: update mac/fdb table reference count*/
 		asic_t.nextHopRow = rtl8651_filterDbIndex(rt_t->un.direct.macInfo,fid);
 		asic_t.nextHopColumn = columIdx;
-
 		break;
 
 	case RT_ARP:
@@ -212,6 +212,7 @@ static int32 _rtl865x_synRouteToAsic(rtl865x_route_t *rt_t)
 		break;
 		
 	case RT_NEXTHOP:
+		
  		asic_t.nhStart		 = rt_t->un.nxthop.nxtHopSta;
 		asic_t.nhNum	 	 = rt_t->un.nxthop.nxtHopEnd - rt_t->un.nxthop.nxtHopSta + 1;
 		asic_t.nhNxt	 	 = asic_t.nhStart;
@@ -462,6 +463,8 @@ static int32 _rtl865x_usedNetifInRoute(int8 *ifname)
 	}	
 	return FAILED;
 }
+
+
 
 static int32 _rtl865x_addRoute(ipaddr_t ipAddr, ipaddr_t ipMask, ipaddr_t nextHop, int8 * ifName,ipaddr_t srcIp)
 {

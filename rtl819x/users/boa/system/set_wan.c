@@ -17,7 +17,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-#if !defined(CONFIG_RTL_8198C)
+#if 1//!defined(CONFIG_RTL_8198C)
 #define RTL_L2TP_POWEROFF_PATCH 1
 #endif
 
@@ -357,6 +357,38 @@ int translate_domain_to_ip(unsigned char *server_domain, struct in_addr *server_
 }
 
 #endif
+
+#if defined(RTL_L2TP_POWEROFF_PATCH)
+void send_l2tp_cdn_packet()
+{
+	char l2tp_cmdBuf[100];
+	int buff_length = 0;
+	unsigned int l2tp_ns = 0;
+	unsigned char  l2tp_tmpBuff[100], lanIp_tmp[16], serverIp_tmp[16];
+	memset(lanIp_tmp,0, sizeof(lanIp_tmp));
+	memset(serverIp_tmp,0, sizeof(serverIp_tmp));
+	memset(l2tp_tmpBuff,0, sizeof(l2tp_tmpBuff));
+		
+	apmib_get(MIB_L2TP_PAYLOAD_LENGTH, (void *)&buff_length);
+	if(buff_length>0)
+	{	
+		apmib_get(MIB_L2TP_NS, (void *)&l2tp_ns);
+		apmib_get(MIB_L2TP_IP_ADDR,  (void *)lanIp_tmp);	
+		apmib_get(MIB_L2TP_SERVER_IP_ADDR,	(void *)serverIp_tmp);
+		apmib_get(MIB_L2TP_PAYLOAD,  (void *)l2tp_tmpBuff);
+	
+		sprintf(l2tp_cmdBuf,"flash clearl2tp %d %d %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+		l2tp_ns, buff_length, lanIp_tmp[0], lanIp_tmp[1], lanIp_tmp[2], lanIp_tmp[3], serverIp_tmp[0], serverIp_tmp[1], serverIp_tmp[2], serverIp_tmp[3], 
+		l2tp_tmpBuff[0], l2tp_tmpBuff[1], l2tp_tmpBuff[2], l2tp_tmpBuff[3], l2tp_tmpBuff[4], l2tp_tmpBuff[5], l2tp_tmpBuff[6], l2tp_tmpBuff[7], 
+		l2tp_tmpBuff[8], l2tp_tmpBuff[9], l2tp_tmpBuff[10], l2tp_tmpBuff[11], l2tp_tmpBuff[12], l2tp_tmpBuff[13], l2tp_tmpBuff[14], l2tp_tmpBuff[15], 
+		l2tp_tmpBuff[16], l2tp_tmpBuff[17], l2tp_tmpBuff[18], l2tp_tmpBuff[19], l2tp_tmpBuff[20], l2tp_tmpBuff[21], l2tp_tmpBuff[22], l2tp_tmpBuff[23], 
+		l2tp_tmpBuff[24], l2tp_tmpBuff[25], l2tp_tmpBuff[26], l2tp_tmpBuff[27], l2tp_tmpBuff[28], l2tp_tmpBuff[29], l2tp_tmpBuff[30], l2tp_tmpBuff[31], 
+		l2tp_tmpBuff[32], l2tp_tmpBuff[33], l2tp_tmpBuff[34], l2tp_tmpBuff[35], l2tp_tmpBuff[36], l2tp_tmpBuff[37]);
+
+		system(l2tp_cmdBuf); 
+	}
+}
+#endif 	
 
 #ifdef CONFIG_IPV6
 void ppp_connect_ipv6(char *ifname, char *option)
@@ -869,109 +901,6 @@ void set_6rd(char *wanip)
 }
 #endif
 #endif
-
-
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-
- void dhcp_connect(char *interface, char *option)
- {
-	char line[128], arg_buff[200];
-	char *cmd_opt[16];
-	int cmd_cnt = 0 ,x, index=0;
-	int dns_found=0; 
-	struct in_addr addr;
-	char dynip[32]={0}, mask[32]={0},remoteip[32]={0};
-	char serverId[32]={0};
-	char dns_server[5][32];
-	char *token=NULL, *savestr1=NULL;
-	unsigned char cmdBuffer[100], tmpBuff[64];
-	
-	 if(!strcmp(interface, "br0")){//do not care wan type, it is dhcp client only
-		for (x=0;x<5;x++){
-			memset(dns_server[x], '\0', 32);
-		}
-		token=NULL;
-		savestr1=NULL;	     
-		sprintf(arg_buff, "%s", option);
-	
-		token = strtok_r(arg_buff," ", &savestr1);
-		index=1;
-		do{
-			dns_found=0;
-			if (token == NULL){/*check if the first arg is NULL*/
-				break;
-			}else{   
-				if(index==3)
-					sprintf(dynip, "%s", token+2); /*wan ip address */
-				if(index==4)
-					sprintf(mask, "%s", token+2); /*subnet mask*/
-					
-				if(index==5){
-					if(token[0] =='r')
-						sprintf(remoteip, "%s", token+2); /*gateway ip*/	
-					if(token[0] == 's'){
-						sprintf(serverId, "%s", token+2); /*server ip*/	
-					}
-					if(token[0] == 'd'){ /*dns ip*/	
-						printf("Index ==4, but parse dns ipaddress token=%s\n",token);
-						token = token+2;
-						for(x=0;x<5;x++){
-							if(dns_server[x][0] != '\0'){
-								if(!strcmp(dns_server[x], token)){
-									dns_found = 1; 
-									break;
-								}
-							}
-						}
-						if(dns_found ==0){
-							for(x=0;x<5;x++){
-								if(dns_server[x][0] == '\0'){
-									sprintf(dns_server[x], "%s", token);
-									break;
-								}
-							}
-						}
-					}
-				}
-				
-				if(index > 6){
-					if(token[0] == 'd'){
-						token = token+2;
-					}
-					for(x=0;x<5;x++){
-						if(dns_server[x][0] != '\0'){
-							if(!strcmp(dns_server[x], token)){
-								dns_found = 1; 
-								break;
-							}
-						}
-					}
-					if(dns_found ==0){
-						for(x=0;x<5;x++){
-							if(dns_server[x][0] == '\0'){
-								sprintf(dns_server[x], "%s", token);
-								break;
-							}
-						}
-					}
-				}
-			}
-			index++;
-			token = strtok_r(NULL, " ", &savestr1);
-		}while(token !=NULL);  
-		
-		inet_aton(dynip, &addr);//save ipaddr we got
-		
-		RunSystemCmd(NULL_FILE, "ifconfig", interface, dynip, "netmask", mask, NULL_STR);	
-		RunSystemCmd(NULL_FILE, "route", "del", "default", "dev", interface, NULL_STR);
-		
-		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR);
-	}
-		
-}
- 
- #endif //#if defined(CONFIG_APP_APPLE_MFI_WAC)
-
 
 void wan_connect(char *interface, char *option)
 {
@@ -2191,11 +2120,32 @@ void wan_disconnect(char *option)
 		system("echo 0 >/proc/fast_l2tp");
 		system("echo 1 >/proc/fast_l2tp");
 	}
+#ifdef SHRINK_INIT_TIME
 	sleep(3);
-
+#endif
 	if((wan_type!=L2TP)&&(Last_WAN_Mode==L2TP)){
-	RunSystemCmd(NULL_FILE, "killall", "-9", "l2tpd", NULL_STR);
+		RunSystemCmd(NULL_FILE, "killall", "-15", "l2tpd", NULL_STR);
 	}
+	
+	if(wan_type == L2TP && !strcmp(option, "all"))
+	{
+		/*reinit all*/
+		#if defined(RTL_L2TP_POWEROFF_PATCH)
+			send_l2tp_cdn_packet();
+		#endif		
+		RunSystemCmd(NULL_FILE, "killall", "-15", "l2tpd", NULL_STR);	
+	}
+
+	if(wan_type == L2TP && !strcmp(option, "option_l2tp"))
+	{
+		/*just clear l2tp session info*/
+		//printf("%s.%d.start clear l2tp session inf\n",__FUNCTION__,__LINE__);
+		#if defined(RTL_L2TP_POWEROFF_PATCH)
+			send_l2tp_cdn_packet();
+		#endif		
+	}
+
+	
 	RunSystemCmd(NULL_FILE, "killall", "-9", "pptp", NULL_STR);
 	RunSystemCmd(NULL_FILE, "killall", "-9", "pppoe", NULL_STR);
 	if(isFileExist(PPPD_PID_FILE)){
@@ -4051,6 +4001,14 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		
 		sprintf(line_buffer,"%s\n", "noauth");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+
+		/*align the pptp packet*/
+		sprintf(line_buffer,"%s\n", "nopcomp");
+		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+		
+		sprintf(line_buffer,"%s\n", "noaccomp");
+		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);		
+		/***************************************************/
 		
 		sprintf(line_buffer,"%s\n", "nobsdcomp");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
@@ -4198,9 +4156,17 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		sprintf(tmp_args, "%s", "4");/*wan type*/
 		sprintf(tmp_args1, "%d", connect_type);/*connect type*/
 //#if defined(SUPPORT_ZIONCOM_RUSSIA) || defined(_ALPHA_DUAL_WAN_SUPPORT_)
+#ifdef SHRINK_INIT_TIME
+		if( isFileExist(REINIT_FILE) ){
+			RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR);
+			RunSystemCmd(NULL_FILE, "killall", "-9", "pptp", NULL_STR);
+			sleep(1);
+		}
+#else
+		RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR);
 		RunSystemCmd(NULL_FILE, "killall", "-9", "pptp", NULL_STR);
-		RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR);		
-		sleep(2);
+		sleep(1);
+#endif
 //#endif
 		RunSystemCmd(NULL_FILE, "ppp_inet", "-t", tmp_args,  "-c", tmp_args1, "-x", NULL_STR);
 	}
@@ -4278,7 +4244,12 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	addOneRoute(&saddr);
 #endif
 
-#if defined(RTL_L2TP_POWEROFF_PATCH)    //patch for l2tp by jiawenjan
+#if defined(RTL_L2TP_POWEROFF_PATCH)
+	sleep(1);
+	send_l2tp_cdn_packet();
+#endif
+
+#if 0//defined(RTL_L2TP_POWEROFF_PATCH)    //patch for l2tp by jiawenjan
 	char l2tp_cmdBuf[100];
 	int buff_length = 0;
 	unsigned int l2tp_ns = 0;
@@ -4286,7 +4257,7 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	memset(lanIp_tmp,0, sizeof(lanIp_tmp));
 	memset(serverIp_tmp,0, sizeof(serverIp_tmp));
 	memset(l2tp_tmpBuff,0, sizeof(l2tp_tmpBuff));
-	
+			
 	apmib_get(MIB_L2TP_PAYLOAD_LENGTH, (void *)&buff_length);
 	if(buff_length>0)
 	{	
@@ -4302,7 +4273,7 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		l2tp_tmpBuff[16], l2tp_tmpBuff[17], l2tp_tmpBuff[18], l2tp_tmpBuff[19], l2tp_tmpBuff[20], l2tp_tmpBuff[21], l2tp_tmpBuff[22], l2tp_tmpBuff[23], 
 		l2tp_tmpBuff[24], l2tp_tmpBuff[25], l2tp_tmpBuff[26], l2tp_tmpBuff[27], l2tp_tmpBuff[28], l2tp_tmpBuff[29], l2tp_tmpBuff[30], l2tp_tmpBuff[31], 
 		l2tp_tmpBuff[32], l2tp_tmpBuff[33], l2tp_tmpBuff[34], l2tp_tmpBuff[35], l2tp_tmpBuff[36], l2tp_tmpBuff[37]);
-
+		
 		system(l2tp_cmdBuf); 
 	}
 #endif 	
@@ -4335,8 +4306,13 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 	sprintf(line_buffer,"%s\n", "usepeerdns");
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-	sprintf(line_buffer,"%s\n", "lcp-echo-interval 0");
+	
+	sprintf(line_buffer,"%s\n", "lcp-echo-interval 20");
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+	
+	sprintf(line_buffer,"%s\n", "lcp-echo-failure 3");
+	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+
 	sprintf(line_buffer,"%s\n", "wantype 6");
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 	
@@ -4414,13 +4390,24 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	sprintf(line_buffer,"%s\n", "pppoptfile = /etc/ppp/options");
 	write_line_to_file(L2TPCONF, 2, line_buffer);
 
+#ifdef SHRINK_INIT_TIME
+	if( isFileExist(REINIT_FILE) ){
+		RunSystemCmd(NULL_FILE, "killall",,"l2tpd", NULL_STR);
+		RunSystemCmd(NULL_FILE, "killall", "ppp_inet", NULL_STR);
+		sleep(1);
+	}
+#else	
 	RunSystemCmd(NULL_FILE, "killall", "l2tpd", NULL_STR);
 	RunSystemCmd(NULL_FILE, "killall", "ppp_inet", NULL_STR);
 	sleep(1);
+#endif
 	//RunSystemCmd(NULL_FILE, "l2tpd", NULL_STR);	
 	system("l2tpd&");
+#ifdef SHRINK_INIT_TIME
+	if( isFileExist(REINIT_FILE) )
+#endif
 	sleep(3);
-	
+
 	apmib_get(MIB_L2TP_CONNECTION_TYPE, (void *)&connect_type);
 	if(connect_type==1){
 
@@ -4502,6 +4489,7 @@ void CREATE_WAN_INFO_FILE(char *wan_iface)
 		fclose(fp);
 	}
 }
+
 int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act_source)
 {
 	int lan_type=0;
@@ -4530,11 +4518,17 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 		memset(tmpBuff,0, sizeof(tmpBuff));
 		apmib_get(MIB_PPP_SESSION_NUM, (void *)&sessid);
 		apmib_get(MIB_PPP_SERVER_MAC,  (void *)tmpBuff);
-
+#ifndef SHRINK_INIT_TIME
 		sprintf(cmdBuf,"flash clearppp %d %02x%02x%02x%02x%02x%02x",sessid,(unsigned char)tmpBuff[0],(unsigned char)tmpBuff[1],(unsigned char)tmpBuff[2],(unsigned char)tmpBuff[3],(unsigned char)tmpBuff[4],(unsigned char)tmpBuff[5]);
 		system(cmdBuf);
 		sleep(2);	// Wait util pppoe server reply PADT, then start pppoe dialing, otherwise pppoe server will reply PADS with PPPoE tags: Generic-Error.
-		
+#else
+		if(isFileExist(REINIT_FILE)){
+			sprintf(cmdBuf,"flash clearppp %d %02x%02x%02x%02x%02x%02x",sessid,(unsigned char)tmpBuff[0],(unsigned char)tmpBuff[1],(unsigned char)tmpBuff[2],(unsigned char)tmpBuff[3],(unsigned char)tmpBuff[4],(unsigned char)tmpBuff[5]);
+			system(cmdBuf);
+			sleep(2);	// Wait util pppoe server reply PADT, then start pppoe dialing, otherwise pppoe server will reply PADS with PPPoE tags: Generic-Error.
+		}
+#endif
 		//RunSystemCmd(NULL_FILE, "pppoe.sh", "all", wan_iface, NULL_STR);
 		system("ifconfig eth5 up");
 

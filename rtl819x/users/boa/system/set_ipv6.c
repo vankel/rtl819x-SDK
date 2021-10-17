@@ -444,6 +444,7 @@ void set_radvd()
 	unsigned short tmpNum[8];
 	int dnsMode;
 	FILE *fp=NULL;
+
 #ifdef CONFIG_IPV6_CE_ROUTER_SUPPORT
 	addr6CfgParam_t ula_prefix;
 #endif
@@ -483,6 +484,7 @@ void set_radvd()
 #endif
 	if(!isFileExist(RADVD_CONF_FILE)){
 		/*create config file*/
+//		printf("%s-%d: create configure file: %s.\n", __FUNCTION__, __LINE__, RADVD_CONF_FILE);
 		fh = open(RADVD_CONF_FILE, O_RDWR|O_CREAT|O_TRUNC, S_IRWXO|S_IRWXG);	
 		if (fh < 0) {
 			fprintf(stderr, "Create %s file error!\n", RADVD_CONF_FILE);
@@ -756,21 +758,20 @@ start_radvd:
 	printf("%s %d: start radvd...\n", __FUNCTION__, __LINE__);
 	if(isFileExist(RADVD_PID_FILE)){
 		if(radvdCfgParam.enabled == 1) {
-			system("killall radvd 2> /dev/null");			
-			system("rm -f /var/run/radvd.pid 2> /dev/null");		
-			unlink(DNRD_PID_FILE);						
+			system("killall radvd 2> /dev/null");
+			system("rm -f /var/run/radvd.pid 2> /dev/null");
 			system("echo 1 > /proc/sys/net/ipv6/conf/all/forwarding");
 			system("radvd -C /var/radvd.conf");
 				
 		} else {	
-			system("killall radvd 2> /dev/null");		
-			system("rm -f /var/run/radvd.pid 2> /dev/null");			
+			system("killall radvd 2> /dev/null");
+			system("rm -f /var/run/radvd.pid 2> /dev/null");
 		}
 	} else{
 		if(radvdCfgParam.enabled == 1) {
 			system("echo 1 > /proc/sys/net/ipv6/conf/all/forwarding");
-			system("radvd -C /var/radvd.conf");		
-		}		
+			system("radvd -C /var/radvd.conf");	
+		}
 	}
 	
 	return;
@@ -900,7 +901,8 @@ void set_dhcp6c()
 			
 			dhcp6c_duid.duid_type=3;
 			dhcp6c_duid.hw_type=1;
-			if ( getInAddr(wan_interface, HW_ADDR_T, (void *)&hwaddr )==0)
+			//if ( getInAddr(wan_interface, HW_ADDR_T, (void *)&hwaddr )==0)
+			if ( getInAddr("eth1", HW_ADDR_T, (void *)&hwaddr )==0)
 			{
 					fprintf(stderr, "Read hwaddr Error\n");
 					return;	
@@ -1558,7 +1560,7 @@ void set_ipv6()
 	
 #if defined(CONFIG_IPV6)
 	printf("Start setting IPv6[IPv6]\n");
-	
+
 	if(!apmib_get(MIB_IPV6_WAN_ENABLE,&val)){		
 		fprintf(stderr, "get mib %d error!\n", MIB_IPV6_WAN_ENABLE);
 		return ;			
@@ -1633,9 +1635,6 @@ void set_ipv6()
 #ifdef CONFIG_DSLITE_SUPPORT
 	//printf("Start ds-lite[IPv6]\n");
 	set_dslite();
-#endif
-#ifdef CONFIG_APP_NDP_PROXY
-	system("ndppd&");
 #endif
 #endif
 

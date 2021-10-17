@@ -40,12 +40,15 @@ extern int setbridge(char *argv);
 extern int setFirewallIptablesRules(int argc, char** argv);
 extern int setWlan_Applications(char *action, char *argv);
 
+
+#if 1//!defined(CONFIG_RTL_8198C)
+#define RTL_L2TP_POWEROFF_PATCH 1
+#endif
+
 #if defined(CONFIG_APP_TR069)
 extern void start_tr069(void);
 #endif
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-extern void dhcp_connect(char *interface, char *option);
-#endif
+
 #ifdef MULTI_PPPOE
 extern void wan_disconnect(char *option , char *conncetOrder);
 #else
@@ -667,6 +670,7 @@ int main(int argc, char** argv)
     }
     printf("\n***************\n");
  }
+
    #endif
 	 struct  flock lock;
 	  int fd;
@@ -766,9 +770,15 @@ int main(int argc, char** argv)
 		}
 		else if((argv[2] && !strcmp(argv[2], "option_l2tp")) && !isFileExist(TEMP_WAN_PPPOE_L2TP_CHECK))
 			wan_disconnect(line);
+		#if defined(RTL_L2TP_POWEROFF_PATCH)
+		else if(argv[2] && !strcmp(argv[2], "clear_l2tp"))
+		{
+			send_l2tp_cdn_packet();
+		}
+		#endif
 #endif
-	}else if(argv[1] && (argc>=3 && strcmp(argv[3],"br0")!=0) &&  
-		((strcmp(argv[1], "conn")==0)||((strcmp(argv[1], "renew")==0) && (wan_type == DHCP_CLIENT)))){
+	}else if(argv[1] && (argc>=3 && argv[3] && strcmp(argv[3],"br0")!=0) &&
+		((strcmp(argv[1], "conn")==0 )||((strcmp(argv[1], "renew")==0) && (wan_type == DHCP_CLIENT)))){
 		
 		sysconf_lock(fd,lock);
 		if(argc < 4){
@@ -805,14 +815,7 @@ int main(int argc, char** argv)
 		else
 		wan_connect(action, line);
 #else
-#if defined(CONFIG_APP_APPLE_MFI_WAC)
-		if(!strcmp(argv[2], "dhcp") && !strcmp(action, "br0") && !strcmp(argv[4], "wac")){
-			dhcp_connect(action, line);
-		}else
-			wan_connect(action, line);
-#else
 		wan_connect(action, line);
-#endif
 #endif
 		sysconf_unlock(fd,lock);
 

@@ -38,8 +38,8 @@ typedef enum _HW_VARIABLES{
         HW_VAR_PHYREGFILE_PG_START, //Get Only
         HW_VAR_PHYREGFILE_PG_SIZE,  //Get Only   
 #ifdef PWR_BY_RATE_92E_HP			
-		HW_VAR_PHYREGFILE_PG_HP_START, //Get Only
-		HW_VAR_PHYREGFILE_PG_HP_SIZE,  //Get Only
+    	HW_VAR_PHYREGFILE_PG_HP_START, //Get Only
+        HW_VAR_PHYREGFILE_PG_HP_SIZE,  //Get Only
 #endif      
         HW_VAR_PHYREGFILE_AGC_START, //Get Only
         HW_VAR_PHYREGFILE_AGC_SIZE,  //Get Only        
@@ -61,18 +61,28 @@ typedef enum _HW_VARIABLES{
         HW_VAR_RFREGFILE_RADIO_B_SIZE,  //Get Only        
         HW_VAR_RFREGFILE_RADIO_B_HP_START, //Get Only
         HW_VAR_RFREGFILE_RADIO_B_HP_SIZE,  //Get Only   
-  	HW_VAR_RFREGFILE_RADIO_B_EXTPA_START, //Get Only
-	HW_VAR_RFREGFILE_RADIO_B_EXTPA_SIZE,  //Get Only
+	  	HW_VAR_RFREGFILE_RADIO_B_EXTPA_START, //Get Only
+		HW_VAR_RFREGFILE_RADIO_B_EXTPA_SIZE,  //Get Only
  		HW_VAR_RFREGFILE_RADIO_B_EXTLNA_START, //Get Only
 		HW_VAR_RFREGFILE_RADIO_B_EXTLNA_SIZE,  //Get Only
+#if defined(CONFIG_WLAN_HAL_8814AE)		
 		HW_VAR_RFREGFILE_RADIO_C_START, //Get Only
 		HW_VAR_RFREGFILE_RADIO_C_SIZE,	//Get Only	  
 		HW_VAR_RFREGFILE_RADIO_C_HP_START, //Get Only
 		HW_VAR_RFREGFILE_RADIO_C_HP_SIZE,  //Get Only	
+		HW_VAR_RFREGFILE_RADIO_C_EXTPA_SIZE,
+		HW_VAR_RFREGFILE_RADIO_C_EXTPA_START,
+		HW_VAR_RFREGFILE_RADIO_C_EXTLNA_SIZE,
+		HW_VAR_RFREGFILE_RADIO_C_EXTLNA_START,
 		HW_VAR_RFREGFILE_RADIO_D_START, //Get Only
 		HW_VAR_RFREGFILE_RADIO_D_SIZE,	//Get Only	  
 		HW_VAR_RFREGFILE_RADIO_D_HP_START, //Get Only
 		HW_VAR_RFREGFILE_RADIO_D_HP_SIZE,  //Get Only	
+		HW_VAR_RFREGFILE_RADIO_D_EXTPA_SIZE,
+		HW_VAR_RFREGFILE_RADIO_D_EXTPA_START,
+		HW_VAR_RFREGFILE_RADIO_D_EXTLNA_SIZE,
+		HW_VAR_RFREGFILE_RADIO_D_EXTLNA_START,		
+#endif		
         HW_VAR_FWFILE_START,        //Get Only
         HW_VAR_FWFILE_SIZE,         //Get Only        
         HW_VAR_TXPKTFWFILE_START,        //Get Only
@@ -80,10 +90,10 @@ typedef enum _HW_VARIABLES{
         HW_VAR_POWERTRACKINGFILE_START,  //Get Only
         HW_VAR_POWERTRACKINGFILE_SIZE,   //Get Only        
         HW_VAR_POWERLIMITFILE_START,  //Get Only
-        HW_VAR_POWERLIMITFILE_SIZE,   //Get Only        
+        HW_VAR_POWERLIMITFILE_SIZE,   //Get Only    
 #ifdef PWR_BY_RATE_92E_HP
-		HW_VAR_POWERLIMITFILE_HP_START,  //Get Only
-		HW_VAR_POWERLIMITFILE_HP_SIZE,	 //Get Only    
+        HW_VAR_POWERLIMITFILE_HP_START,  //Get Only
+        HW_VAR_POWERLIMITFILE_HP_SIZE,   //Get Only    
 #endif        
         HW_VAR_MEDIA_STATUS,
         HW_VAR_MAC_LOOPBACK_ENABLE, //Set Only
@@ -101,6 +111,8 @@ typedef enum _HW_VARIABLES{
         HW_VAR_NUM_TXDMA_STATUS,
         HW_VAR_BEACON_ENABLE_DOWNLOAD,
         HW_VAR_BEACON_DISABLE_DOWNLOAD,
+        HW_VAR_TSF_TIMER,           //Get Only
+        HW_VAR_PS_TIMER,
 #if CFG_HAL_MACDM
 //3 MACDM
         //Default
@@ -137,6 +149,18 @@ typedef enum _HW_VARIABLES{
         HW_VAR_HW_PS_STATE2,        
         HW_VAR_HW_PS_STATE3,        
 #endif //#if CFG_HAL_HW_DETEC_POWER_STATE    
+#if CFG_HAL_MULTICAST_BMC_ENHANCE
+        HW_VAR_BMC_RTS0_INVALID,
+        HW_VAR_BMC_RTS0_ADDR,        
+        HW_VAR_BMC_RTS1_INVALID,
+        HW_VAR_BMC_RTS1_ADDR,                
+#endif //#if CFG_HAL_MULTICAST_BMC_ENHANCE
+		HW_VAR_REG_CCK_CHECK,
+#if (IS_RTL8192E_SERIES | IS_RTL8881A_SERIES)
+		HW_VAR_HWSEQ_CTRL,
+#endif //#if (IS_RTL8192E_SERIES | IS_RTL8881A_SERIES)
+		HW_VAR_REG_CR,
+
 }HW_VARIABLES;
 
 
@@ -176,7 +200,10 @@ typedef enum _HAL_INT_TYPE
 	HAL_INT_TYPE_TXFOVW,            // Transmit packet buffer Overflow.
 	HAL_INT_TYPE_RXERR,             // Rx Error Flag INT Status
 	HAL_INT_TYPE_TXERR,             // Tx Error Flag INT Status
-    HAL_INT_TYPE_GTIMER4,           // Gtimer 4.
+    HAL_INT_TYPE_GTIMER4,           // Gtimer 4.	
+#if CFG_HAL_TX_AMSDU == 1 || defined(P2P_SUPPORT)
+	HAL_INT_TYPE_FS_TIMEOUT0,
+#endif	
 	#if 0   //Filen: Not used to AP Platform
 	//==== SDIO Specified Interrupt=====//
 	HAL_INT_TYPE_SDIO_ISR_IND,
@@ -186,13 +213,29 @@ typedef enum _HAL_INT_TYPE
 	HAL_INT_TYPE_SDIO_PDNINT,
 	HAL_INT_TYPE_SDIO_GPIO9_INT,
 	#endif
-#if IS_EXIST_RTL8813AE
+#if IS_EXIST_RTL8814AE
+    HAL_INT_TYPE_TXBCNOK_MBSSID,
+    HAL_INT_TYPE_TXBCN1OK,
+    HAL_INT_TYPE_TXBCN2OK,
+    HAL_INT_TYPE_TXBCN3OK,
+    HAL_INT_TYPE_TXBCN4OK,    
+    HAL_INT_TYPE_TXBCN5OK,        
+    HAL_INT_TYPE_TXBCN6OK,    
+    HAL_INT_TYPE_TXBCN7OK,    
+    HAL_INT_TYPE_TXBCNERR_MBSSID,    
+    HAL_INT_TYPE_TXBCN1ERR,    
+    HAL_INT_TYPE_TXBCN2ERR,    
+    HAL_INT_TYPE_TXBCN3ERR,    
+    HAL_INT_TYPE_TXBCN4ERR,        
+    HAL_INT_TYPE_TXBCN5ERR,        
+    HAL_INT_TYPE_TXBCN6ERR,        
+    HAL_INT_TYPE_TXBCN7ERR,              
     HAL_INT_TYPE_PwrInt0,
 	HAL_INT_TYPE_PwrInt1,    
 	HAL_INT_TYPE_PwrInt2,	
 	HAL_INT_TYPE_PwrInt3,	
 	HAL_INT_TYPE_PwrInt4,	
-#endif //#if IS_EXIST_RTL8813AE
+#endif //#if IS_EXIST_RTL8814AE
 
 }HAL_INT_TYPE, *PHAL_INT_TYPE;
 
@@ -206,6 +249,7 @@ typedef struct _MACCONFIG_PARA_ {
     u4Byte     vap_enable;
     u4Byte     OP_Mode;
     u2Byte     dot11DTIMPeriod;
+	u1Byte     WdsPure;
     // TODO:
 } MACCONFIG_PARA, *PMACCONFIG_PARA;
 
@@ -231,6 +275,8 @@ typedef enum _TXRPT_VARIABLES {
     TXRPT_VAR_DATA_RT_LMT,          // offset 5,shift 0
     TXRPT_VAR_PKT_TX_ONE_SEL,       // offset 5,shift 6    
     TXRPT_VAR_MAC_ADDRESS,          // offset 16,shift 0,mask 
+    TXRPT_VAR_SPECIALQ_PKT_NUM1,	//offset 14, shift 0 
+    TXRPT_VAR_SPECIALQ_PKT_NUM2,	//offset15, shift 0, mask 0xF
     TXRPT_VAR_ALL,        
 }TXRPT_VARIABLES;
 
@@ -342,7 +388,7 @@ typedef RT_STATUS
 
 typedef RT_STATUS 
 (*NicInitMACIDSearchHandler)(
-    IN  HAL_PADAPTER Adapter    
+    INPUT  HAL_PADAPTER Adapter    
 );
 
 
@@ -353,30 +399,37 @@ typedef RT_STATUS
     IN  u1Byte       MBID_Addr
 );
 
+typedef RT_STATUS 
+(*NicCheckHWMACIDResultHandler)(
+    INPUT  HAL_PADAPTER        Adapter,    
+    INPUT  u4Byte              MacID,
+    OUTPUT pu1Byte             result
+);
+
 typedef VOID
 (*NicInitVAPIMRHandler)(
-    IN  HAL_PADAPTER    Adapter,
-    IN  u4Byte          VapSeq
-    );
+    INPUT  HAL_PADAPTER    Adapter,
+    INPUT  u4Byte          VapSeq
+);
 
 typedef RT_STATUS
 (*NicInitLLT_TableHandler)(
     INPUT   HAL_PADAPTER        Adapter
-    );
+);
 
 
 //3 Stop Related
 typedef VOID
 (*NicDisableVXDAPHandler)(
     INPUT	HAL_PADAPTER		Adapter
-    );
+);
 
 
 //3 ISR Related 
 typedef VOID
 (*NicEnableIMRHandler)(
     INPUT	HAL_PADAPTER		Adapter
-    );
+);
 
 typedef BOOLEAN
 (*NicInterruptRecognizedHandler)(
@@ -530,7 +583,8 @@ typedef RT_STATUS
 (*NicGetTxRPTHandler)(
     IN	HAL_PADAPTER        Adapter,
     IN	u4Byte              macID,
-    IN  u1Byte              variable,        
+    IN  u1Byte              variable, 
+    IN	u1Byte				offset,
     OUT pu1Byte             val    
 );
 
@@ -685,6 +739,12 @@ typedef RT_STATUS
 	INPUT	HAL_PADAPTER		Adapter
 	);
 
+typedef RT_STATUS
+(*NicResetHWForSurpriseHandler)(
+	INPUT	HAL_PADAPTER		Adapter
+	);
+
+
 
 //3 Firmware CMD IO related
 typedef RT_STATUS
@@ -759,12 +819,18 @@ typedef void
 typedef VOID
 (*DumpRxBDescHandler)(
 	IN HAL_PADAPTER     Adapter,
+#ifdef CONFIG_RTL_PROC_NEW
+	IN struct seq_file *s,
+#endif
 	u4Byte              q_num
     );
 
 typedef VOID
 (*DumpTxBDescHandler)(
 	IN HAL_PADAPTER     Adapter,
+#ifdef CONFIG_RTL_PROC_NEW
+	IN struct seq_file *s,
+#endif
 	u4Byte              q_num
     );
 
@@ -829,6 +895,17 @@ typedef BOOLEAN
     IN  u4Byte                      RegAddr
 );
 
+typedef VOID
+(*NicPHYSetSecCCATHbyRXANT)(
+    IN  HAL_PADAPTER                Adapter,
+    IN  u4Byte                      ulAntennaRx
+);
+
+typedef VOID
+(*NicPHYSpurCalibration)(
+    IN  HAL_PADAPTER                Adapter
+);
+
 
 typedef struct _HAL_INTERFACE_COMMON_{
 
@@ -851,6 +928,7 @@ typedef struct _HAL_INTERFACE_COMMON_{
     NicInitLLT_TableHandler         InitLLT_TableHandler;
     NicInitMACIDSearchHandler       InitMACIDSearchHandler;    
     NicSetMBIDCAMHandler            SetMBIDCAMHandler;
+	NicCheckHWMACIDResultHandler    CheckHWMACIDResultHandler;     
     NicInitVAPIMRHandler            InitVAPIMRHandler;
 
     //3 Stop Related
@@ -858,7 +936,8 @@ typedef struct _HAL_INTERFACE_COMMON_{
     NicStopHWHandler                StopHWHandler;
     NicStopSWHandler                StopSWHandler;
     NicDisableVXDAPHandler          DisableVXDAPHandler;
-    NicStopMBIDCAMHandler           StopMBIDCAMHandler;
+    NicStopMBIDCAMHandler           StopMBIDCAMHandler;	
+    NicResetHWForSurpriseHandler    ResetHWForSurpriseHandler;
 
     //3 ISR Related 
     NicEnableIMRHandler                     EnableIMRHandler;
@@ -898,6 +977,8 @@ typedef struct _HAL_INTERFACE_COMMON_{
     NicPHYSSetRFRegHandler                  PHYSSetRFRegHandler;    
     NicPHYQueryRFRegHandler                 PHYQueryRFRegHandler;
     NicIsBBRegRangeHandler                  IsBBRegRangeHandler;
+    NicPHYSetSecCCATHbyRXANT                PHYSetSecCCATHbyRXANT;
+    NicPHYSpurCalibration                   PHYSpurCalibration;
 
     //3 Firmware CMD IO related
 
@@ -1041,7 +1122,11 @@ typedef struct _HAL_DATA_COMMON_
     PVOID               PTxDMA88XX;
     PVOID               PRxDMA88XX;
 
-#if defined(WLAN_HAL_TXDESC_CHECK_ADDR_LEN)
+#if CFG_HAL_TX_AMSDU
+    PVOID               PTxDMAAMSDU88XX;
+#endif
+
+#if WLAN_HAL_TXDESC_CHECK_ADDR_LEN
 #if IS_EXIST_RTL8881AEM
     u4Byte              cur_txbd;
 #if 0
@@ -1053,12 +1138,18 @@ typedef struct _HAL_DATA_COMMON_
 #endif // WLAN_HAL_TXDESC_CHECK_ADDR_LEN
     pu1Byte             desc_dma_buf;       //desc memory from common driver
     u4Byte              desc_dma_buf_len;   //desc memory length from common driver
-    unsigned long       ring_dma_addr;	//rx_dma_addr_start.
+#if CFG_HAL_TX_AMSDU
+    RT_INT_REG          FtIntArray;
+    RT_INT_REG			FtIntMask;
+    pu1Byte             desc_dma_buf_amsdu;
+    u4Byte              desc_dma_buf_len_amsdu;
+#endif
+    u4Byte              ring_dma_addr;	//rx_dma_addr_start.
     u4Byte              ring_buf_len;
-    unsigned long       ring_virt_addr;
-    unsigned long       alloc_dma_buf;
-    unsigned long       txBD_dma_ring_addr[14]; //there are 14 queues in system, including BCN queue
-    unsigned long       txDesc_dma_ring_addr[14]; //there are 14 queues in system, including BCN queue
+    u4Byte              ring_virt_addr;
+    u4Byte              alloc_dma_buf;
+    u4Byte              txBD_dma_ring_addr[14]; //there are 14 queues in system, including BCN queue
+    u4Byte              txDesc_dma_ring_addr[14]; //there are 14 queues in system, including BCN queue
 #endif
 
 #if IS_RTL8881A_SERIES
@@ -1069,10 +1160,10 @@ typedef struct _HAL_DATA_COMMON_
     PVOID               PHalData8192E;
 #endif  //IS_RTL8192E_SERIES
 
-#if IS_RTL8813A_SERIES
+#if IS_RTL8814A_SERIES
     u1Byte              crc5Valid[128];
     u1Byte              crc5groupValid[12];
-#endif //IS_RTL8813A_SERIES
+#endif //IS_RTL8814A_SERIES
 
 #endif  //IS_RTL88XX_GENERATION
 
@@ -1090,7 +1181,7 @@ typedef struct _HAL_DATA_COMMON_
 #define HAL_HW_TYPE_ID_8723B				0x05
 #define HAL_HW_TYPE_ID_8821A				0x06
 #define HAL_HW_TYPE_ID_8192E				0x07
-#define HAL_HW_TYPE_ID_8813A				0x08
+#define HAL_HW_TYPE_ID_8814A				0x08
 
 typedef enum _HARDWARE_TYPE{
 	HARDWARE_TYPE_RTL8192SE,
@@ -1113,14 +1204,14 @@ typedef enum _HARDWARE_TYPE{
 	HARDWARE_TYPE_RTL8192EE,
     HARDWARE_TYPE_RTL8192EU,
     HARDWARE_TYPE_RTL8192ES,
-    HARDWARE_TYPE_RTL8813AE,
-    HARDWARE_TYPE_RTL8813AU,
-    HARDWARE_TYPE_RTL8813AS,
+    HARDWARE_TYPE_RTL8814AE,
+    HARDWARE_TYPE_RTL8814AU,
+    HARDWARE_TYPE_RTL8814AS,
 	HARDWARE_TYPE_MAX,
 }HARDWARE_TYPE;
 
 #define IS_HAL_TEST_CHIP(_Adapter)              (_GET_HAL_DATA(_Adapter)->bTestChip==_TRUE)
-
+#define IS_HAL_A_CUT(_Adapter)                  (GET_BIT_CHIP_VER(HAL_RTL_R32(REG_SYS_CFG1)) == 0x0)
 //
 // RTL8192E Series
 //
@@ -1142,13 +1233,13 @@ typedef enum _HARDWARE_TYPE{
 #define IS_HARDWARE_TYPE_8881A(_Adapter)   	(_GET_HAL_DATA(_Adapter)->HardwareType==HARDWARE_TYPE_RTL8881AEM)
 
 //
-// RTL8813A Series
+// RTL8814A Series
 //
-#define IS_HARDWARE_TYPE_8813AS(_Adapter)	(_GET_HAL_DATA(_Adapter)->HardwareType==HARDWARE_TYPE_RTL8813AS)
-#define IS_HARDWARE_TYPE_8813AE(_Adapter)	(_GET_HAL_DATA(_Adapter)->HardwareType==HARDWARE_TYPE_RTL8813AE)
-#define IS_HARDWARE_TYPE_8813AU(_Adapter)	(_GET_HAL_DATA(_Adapter)->HardwareType==HARDWARE_TYPE_RTL8813AU)
-#define IS_HARDWARE_TYPE_8813A(_Adapter)			\
-    (IS_HARDWARE_TYPE_8813AE(_Adapter) || IS_HARDWARE_TYPE_8813AU(_Adapter) || IS_HARDWARE_TYPE_8813AS(_Adapter))
+#define IS_HARDWARE_TYPE_8814AS(_Adapter)	(_GET_HAL_DATA(_Adapter)->HardwareType==HARDWARE_TYPE_RTL8814AS)
+#define IS_HARDWARE_TYPE_8814AE(_Adapter)	(_GET_HAL_DATA(_Adapter)->HardwareType==HARDWARE_TYPE_RTL8814AE)
+#define IS_HARDWARE_TYPE_8814AU(_Adapter)	(_GET_HAL_DATA(_Adapter)->HardwareType==HARDWARE_TYPE_RTL8814AU)
+#define IS_HARDWARE_TYPE_8814A(_Adapter)			\
+    (IS_HARDWARE_TYPE_8814AE(_Adapter) || IS_HARDWARE_TYPE_8814AU(_Adapter) || IS_HARDWARE_TYPE_8814AS(_Adapter))
 
 
 #endif  //__HALDEF_H__

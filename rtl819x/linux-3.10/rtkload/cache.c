@@ -30,7 +30,7 @@
 #define _CACHE_LINE_SIZE	4			/* 4 words */
 #endif
 
-#if 1//defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_8198C)
 #define _ICACHE_SIZE		(64 * 1024)		/* 64K bytes */
 #define _DCACHE_SIZE		(32 * 1024)		/* 32K bytes */
 #define _CACHE_LINE_SIZE	32
@@ -60,7 +60,7 @@ void flush_icache(unsigned int start, unsigned int end);
 void flush_dcache(unsigned int start, unsigned int end);
 /*Cyrus Tsai*/
 
-#if 1//defined(CONFIG_RTL_8198C)
+#if defined(CONFIG_RTL_8198C)
 void flush_cache_range(ulong start_addr, ulong size)
 {
 	unsigned long lsize = _CACHE_LINE_SIZE;
@@ -98,47 +98,6 @@ void flush_cache(void)
 	#define START_ADDR 0x80000000
 	flush_cache_range(START_ADDR, _DCACHE_SIZE);
 #endif
-}
-
-#define __sync()				\
-	__asm__ __volatile__(			\
-		".set	push\n\t"		\
-		".set	noreorder\n\t"		\
-		".set	mips2\n\t"		\
-		"sync\n\t"			\
-		".set	pop"			\
-		: /* no output */		\
-		: /* no input */		\
-		: "memory")
-
-#define Hit_Writeback_Inv_SD	0x17
-#define CONFIG_SYS_CACHELINE_SIZE 32
-void flush_scache_range(ulong start_addr, ulong size)
-{
-	unsigned long lsize = CONFIG_SYS_CACHELINE_SIZE;
-	unsigned long addr = start_addr & ~(lsize - 1);
-	unsigned long aend = (start_addr + size - 1) & ~(lsize - 1);
-
-	/* aend will be miscalculated when size is zero, so we return here */
-	if (size == 0)
-		return;
-
-	while (1) 
-	{
-		cache_op(Hit_Writeback_Inv_SD, addr);
-		if (addr == aend)
-			break;
-		addr += lsize;
-	}
-	__sync();
-}
-
-void flush_cache_really(void)   
-{
-    /*this is the right way to flush_cache*/
-	#define START_ADDR 0x80000000
-	flush_cache_range(START_ADDR, 0x2000000); //flush 32M,bootcode may be used
-	flush_scache_range(START_ADDR, 0x2000000);
 }
 
 

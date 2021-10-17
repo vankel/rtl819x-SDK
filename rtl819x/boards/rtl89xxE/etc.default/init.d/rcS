@@ -12,7 +12,7 @@ hostname rlx-linux
 mount -t proc proc /proc
 mount -t ramfs ramfs /var
 if [ -d "/hw_setting" ];then
-    mount -t yaffs2 -o tags-ecc-off /dev/mtdblock1 /hw_setting
+     mount -t yaffs2 -o tags-ecc-off /dev/mtdblock3 /hw_setting
 fi
 
 mkdir /var/tmp
@@ -83,7 +83,7 @@ cp -rf /usr/1x/* /var/1x/ 2>/dev/null
 init.sh gw all
  
 # modify dst-cache setting
-echo "24576" > /proc/sys/net/ipv4/route/max_size
+echo "8192" > /proc/sys/net/ipv4/route/max_size
 echo "180" > /proc/sys/net/ipv4/route/gc_thresh
 echo 20 > /proc/sys/net/ipv4/route/gc_elasticity
 # echo 35 > /proc/sys/net/ipv4/route/gc_interval
@@ -91,7 +91,7 @@ echo 20 > /proc/sys/net/ipv4/route/gc_elasticity
 # echo 10 > /proc/sys/net/ipv4/route/gc_timeout
  
 # echo "4096" > /proc/sys/net/nf_conntrack_max
-echo "12288" > /proc/sys/net/netfilter/nf_conntrack_max
+echo "4096" > /proc/sys/net/netfilter/nf_conntrack_max
 echo "600" > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_established
 echo "20" > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_time_wait
 echo "20" > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_close
@@ -215,7 +215,6 @@ fi
 
 
 # start web server
-ls /bin/watchdog > /dev/null && watchdog 1000&
 if [ "$CONFIG_RTK_VOIP_ETHERNET_DSP_IS_DSP" != "y" ]; then
 webs&
 fi

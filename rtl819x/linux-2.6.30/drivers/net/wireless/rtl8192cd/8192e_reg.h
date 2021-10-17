@@ -345,8 +345,7 @@
 
 #define EEPROM_92E_XTAL_K 				0xB9 //Crystal Calibration [5:0]
 #define EEPROM_92E_THERMAL_METER		0xBA //Thermal meter
-#define EEPROM_92E_MACADDRESS			0xD0 // MAC Address
-#define EEPROM_RFE_OPTION_8192E			0xCA // 0xCA[6:4]: LNA Type ; 0xCA[3:2]:PA/LNA ; 0xCA[1:0]:RFE Type
+#define EEPROM_92E_MACADDRESS		0xD0 // MAC Address
 
 #endif
 

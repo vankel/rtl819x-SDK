@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(CONFIG_APP_BOA_AUTO_RECOVER)
+#define CHECK_BOA_TIMEOUT 5
+#endif
+
 static unsigned int time_count;
 
 #if defined(APP_WATCHDOG)
@@ -17,6 +21,18 @@ static int is_watchdog_alive(void)
 	return is_alive;
 }
 
+#endif
+
+#if defined(CONFIG_APP_BOA_AUTO_RECOVER)
+static int is_boa_alive(void)
+{
+	int pid = -1;
+	pid = find_pid_by_name("boa");
+	if(pid > 0)
+		return 1;
+	else
+		return 0;
+}
 #endif
 
 void timeout_handler() 
@@ -34,7 +50,15 @@ void timeout_handler()
 #endif
 
 	}	
-
+#if defined(CONFIG_APP_BOA_AUTO_RECOVER)
+	if(!(time_count%CHECK_BOA_TIMEOUT))
+	{
+		if(!is_boa_alive())
+		{
+			system("boa");
+		}
+	}
+#endif
 	if(!(time_count%60))
  	{
 

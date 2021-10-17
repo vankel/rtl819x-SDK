@@ -73,6 +73,7 @@
 #define		rFPGA0_TxInfo					0x804	// Status report??
 #define		rFPGA0_PSDFunction				0x808
 #define		rFPGA0_TxGainStage				0x80c	// Set TX PWR init gain?
+#define		rTXPATH_AC  					0x80c
 #define		rFPGA0_RFTiming1				0x810	// Useless now
 #define		rFPGA0_RFTiming2				0x814
 /*
@@ -131,6 +132,8 @@
 #define		rFPGA1_TxBlock				0x904	// Useless now
 #define		rFPGA1_DebugSelect			0x908	// Useless now
 #define		rFPGA1_TxInfo				0x90c	// Useless now // Status report??
+#define		rTX_PATH_SEL_1				0x93c	// Tx antenna path selection
+#define		rTX_PATH_SEL_2				0x940	// Tx antenna path selection2
 
 
 //
@@ -139,7 +142,8 @@
 // Set Control channel to upper or lower. These settings are required only for 40MHz
 #define		rCCK0_System				0xa00
 #define		rCCK0_AFESetting			0xa04	// Disable init gain now // Select RX path by RSSI
-#define		rCCK0_CCA					0xa08	// Disable init gain now // Init gain
+#define		rCCK_RX_AC  				0xa04
+#define		rCCK0_CCA   				0xa08	// Disable init gain now // Init gain
 #define		rCCK0_RxAGC1				0xa0c 	//AGC default value, saturation level // Antenna Diversity, RX AGC, LNA Threshold, RX LNA Threshold useless now. Not the same as 90 series
 #define		rCCK0_RxAGC2				0xa10 	//AGC & DAGC
 #define		rCCK0_RxHP					0xa14
@@ -934,13 +938,16 @@
 #define		bMaskByte1					0xff00
 #define		bMaskByte2					0xff0000
 #define		bMaskByte3					0xff000000
-#define		bMaskHWord				0xffff0000
+#define		bMaskHWord					0xffff0000
 #define		bMaskLWord					0x0000ffff
-#define		bMaskDWord				0xffffffff
-#define		bMaskH4Bits				  0xf0000000
+#define		bMaskDWord					0xffffffff
+#define		bMaskH4Bits					0xf0000000
+#define		bMaskH12Bits				0xfff00000
 #define		bMaskH3Bytes			  	0xffffff00	
-#define 	bMaskOFDM_D				  0xffc00000
-#define		bMaskCCK				  0x3f3f3f3f
+#define 	bMaskOFDM_D					0xffc00000
+#define		bMaskCCK				  	0x3f3f3f3f
+#define		bMask4to7Bits				0x000000f0
+#define		bMask4to15Bits				0x0000fff0
 
 
 //for PutRFRegsetting & GetRFRegSetting BitMask

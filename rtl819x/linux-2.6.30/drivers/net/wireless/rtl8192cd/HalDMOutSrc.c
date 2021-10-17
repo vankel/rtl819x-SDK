@@ -29,7 +29,7 @@
 #include "8192cd_debug.h"
 
 #ifdef USE_OUT_SRC
-#include "./OUTSRC/odm_precomp.h"
+#include "./OUTSRC/phydm_precomp.h"
 #else
 #define TX_POWER_NEAR_FIELD_THRESH_AP	HP_LOWER
 #endif
@@ -79,17 +79,21 @@ void DetectSTAExistance88XX(struct rtl8192cd_priv *priv, struct tx_rpt *report, 
 	const unsigned int		maxTxFailCnt = 300;		// MAX Tx fail packet count
 	const unsigned int		minTxFailCnt = 30;		// MIN Tx fail packet count; this value should be less than maxTxFailCnt.
 	const unsigned int		txFailSecThr=  3;			// threshold of Tx Fail Time (in second)
-	const unsigned int		NoTXOKSecThr=  5;			// threshold of NO Tx ok Time (in second)
-	const unsigned int		NoRXOKSecThr=  5;			// threshold of NO Tx ok Time (in second)	
+	//const unsigned int		NoTXOKSecThr=  5;			// threshold of NO Tx ok Time (in second)
+	//const unsigned int		NoRXOKSecThr=  5;			// threshold of NO Tx ok Time (in second)	
 
 	// Temporarily change Retry Limit when TxFail. (tfrl: TxFailRetryLimit)
-	const unsigned char	TFRL = 7;				// New Retry Limit value
-	const unsigned char	TFRL_FailCnt = 2;		// Tx Fail Count threshold to set Retry Limit
-	const unsigned char	TFRL_SetTime = 2;		// Time to set Retry Limit (in second)
-	const unsigned char	TFRL_RcvTime = 3;		// Time to recover Retry Limit (in second)
+	//const unsigned char	TFRL = 7;				// New Retry Limit value
+	//const unsigned char	TFRL_FailCnt = 2;		// Tx Fail Count threshold to set Retry Limit
+	//const unsigned char	TFRL_SetTime = 2;		// Time to set Retry Limit (in second)
+	//const unsigned char	TFRL_RcvTime = 3;		// Time to recover Retry Limit (in second)
 
-    const unsigned short Back_retty_value = 0x10;
+    //const unsigned short Back_retty_value = 0x10;
     
+#ifdef MCR_WIRELESS_EXTEND
+	if (pstat->IOTPeer==HT_IOT_PEER_CMW)
+		return;
+#endif
     if( report->txok != 0 )
     { // Reset Counter
             pstat->tx_conti_fail_cnt = 0;
@@ -140,6 +144,9 @@ void DetectSTAExistance88XX(struct rtl8192cd_priv *priv, struct tx_rpt *report, 
             //printk("Drop client packet, AID = %x TxFailCnt= %x \n",pstat->aid,pstat->tx_conti_fail_cnt);
             //RTL_W16(RL, (Back_retty_value&SRL_Mask)<<SRL_SHIFT|(Back_retty_value&LRL_Mask)<<LRL_SHIFT);
             // send H2C drop packet
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+            free_sta_tx_skb(priv, pstat);
+#endif
 
             // Reset Counter
             pstat->tx_conti_fail_cnt = 0;
@@ -171,7 +178,7 @@ void DetectSTAExistance88XX(struct rtl8192cd_priv *priv, struct tx_rpt *report, 
     }
 }
 #endif
-#if defined(DETECT_STA_EXISTANCE) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)  || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) )
+#if defined(DETECT_STA_EXISTANCE) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)  || defined(CONFIG_RTL_8812_SUPPORT))
 void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, struct stat_info *pstat)
 {
 	const unsigned int		maxTxFailCnt = 300;		// MAX Tx fail packet count
@@ -229,7 +236,7 @@ void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, stru
 		}
 	}
 }
-#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 
 // Timer callback function to recover hardware retry limit register. Added by Annie, 2010-08-10.
 void RetryLimitRecovery(unsigned long task_priv)
@@ -394,8 +401,8 @@ void check_DIG_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength)
 	if (OPMODE & WIFI_SITE_MONITOR)
 		return;
 
-#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)
-	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A))
+#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)||defined(CONFIG_WLAN_HAL_8814AE)
+	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A)||(GET_CHIP_VER(priv)== VERSION_8814A))
 		return;
 #endif
 
@@ -597,8 +604,8 @@ void DIG_for_site_survey(struct rtl8192cd_priv *priv, int do_ss)
 #ifdef WIFI_WMM
 void check_NAV_prot_len(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned int disassoc)
 {
-#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)
-	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A))
+#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A) ||defined(CONFIG_WLAN_HAL_8814AE)
+	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A)||(GET_CHIP_VER(priv)== VERSION_8814A))
 		return;
 #endif
 
@@ -642,8 +649,8 @@ static
 #endif
 void reset_FA_reg(struct rtl8192cd_priv *priv)
 {
-#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)
-	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A)) {
+#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A) ||defined(CONFIG_WLAN_HAL_8814AE)
+	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A)||(GET_CHIP_VER(priv)== VERSION_8814A)) {
 
 		// reset OFDM FA coutner
 		PHY_SetBBReg(priv, 0x9a4, BIT(17), 1);
@@ -720,8 +727,8 @@ void hold_CCA_FA_counter(struct rtl8192cd_priv *priv)
 
 void release_CCA_FA_counter(struct rtl8192cd_priv *priv)
 {
-#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)
-	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A))
+#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8814AE)
+	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A) ||(GET_CHIP_VER(priv)== VERSION_8814A))
 		return;
 #endif
 
@@ -744,8 +751,8 @@ void release_CCA_FA_counter(struct rtl8192cd_priv *priv)
 
 void _FA_statistic(struct rtl8192cd_priv *priv)
 {
-#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)
-	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A))
+#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL_8881A)||defined(CONFIG_WLAN_HAL_8814AE)
+	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A)||(GET_CHIP_VER(priv)== VERSION_8814A))
 		return;
 #endif
 
@@ -1088,9 +1095,9 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 					break;
 				case 3:
 					if (priv->pshare->is_40m_bw)
-						pstat->tx_ra_bitmap &= 0x100fe00f;
+						pstat->tx_ra_bitmap &= 0x100ff005;
 					else
-						pstat->tx_ra_bitmap &= 0x100fe00f;
+						pstat->tx_ra_bitmap &= 0x100ff001;
 					break;
 			}
 		} else {
@@ -1103,9 +1110,9 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 					break;
 				case 3:
 					if (priv->pshare->is_40m_bw)
-						pstat->tx_ra_bitmap &= 0x010fe00f;
+						pstat->tx_ra_bitmap &= 0x010ff00D;
 					else
-						pstat->tx_ra_bitmap &= 0x010ff00f;
+						pstat->tx_ra_bitmap &= 0x010ff001;
 					break;
 			}
 
@@ -1130,7 +1137,7 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 				pstat->tx_ra_bitmap &= 0x00000ff0;
 				break;
 			case 3:
-				pstat->tx_ra_bitmap &= 0x00000fef;
+				pstat->tx_ra_bitmap &= 0x00000ff5;
 				break;
 		}
 	} else {
@@ -1263,12 +1270,6 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 void rtl8192cd_NHMBBInit(struct rtl8192cd_priv *priv)
 {
-	priv->pshare->rf_ft_var.adaptivity_flag = 0;
-	priv->pshare->rf_ft_var.tolerance_cnt = 3;
-	priv->pshare->rf_ft_var.NHMLastTxOkcnt = 0;
-	priv->pshare->rf_ft_var.NHMLastRxOkcnt = 0;
-	priv->pshare->rf_ft_var.NHMCurTxOkcnt = 0;
-	priv->pshare->rf_ft_var.NHMCurRxOkcnt = 0;
 	RTL_W16(0x894+2, 0xc350);	//0x894[31:16]=0xffff	Time duration for NHM unit: 4us, 0x2710=40ms
 	RTL_W16(0x890+2, 0xffff);	//0x890[31:16]=0xffff	th_9, th_10
 	RTL_W32(0x898, 0xffffff50);	//0x898=0xffffff50 		th_3, th_2, th_1, th_0
@@ -1276,7 +1277,6 @@ void rtl8192cd_NHMBBInit(struct rtl8192cd_priv *priv)
 	PHY_SetBBReg(priv, 0xe28, bMaskByte0, 0xff);		//0xe28[7:0]=0xff		th_8
 	PHY_SetBBReg(priv, 0x890, BIT10|BIT9|BIT8, 0x1);	//0x890[9:8]=3			enable CCX
 	PHY_SetBBReg(priv, 0xc0c, BIT7, 0x1);		//0xc0c[7]=1		
-    
 }
 
 void rtl8192cd_GetNHMCounterStatistics(struct rtl8192cd_priv *priv)
@@ -1304,7 +1304,7 @@ void rtl8192cd_NHMCounterStatistics(struct rtl8192cd_priv *priv)
 	rtl8192cd_NHMCounterStatisticsReset(priv);
 }
 
-void rtl8192cd_SetTRxMux(struct rtl8192cd_priv *priv, unsigned char txMode, unsigned char rxMode)
+void rtl8192cd_SetTRxMux(struct rtl8192cd_priv *priv, u1Byte txMode, u1Byte rxMode)
 {
 	PHY_SetBBReg(priv, 0x824, BIT3|BIT2|BIT1, txMode);		// set TXmode to standby mode to remove outside noise affect
 	PHY_SetBBReg(priv, 0x824, BIT22|BIT21|BIT20, rxMode);	// set RXmode to standby mode to remove outside noise affect
@@ -1318,7 +1318,7 @@ void rtl8192cd_SetTRxMux(struct rtl8192cd_priv *priv, unsigned char txMode, unsi
 }
 
 
-void rtl8192cd_SetEDCCAThreshold(struct rtl8192cd_priv *priv, signed char H2L, signed char L2H)
+void rtl8192cd_SetEDCCAThreshold(struct rtl8192cd_priv *priv, s1Byte H2L, s1Byte L2H)
 {
 	PHY_SetBBReg(priv,rOFDM0_ECCAThreshold, bMaskByte0, (u1Byte)L2H);
 	PHY_SetBBReg(priv,rOFDM0_ECCAThreshold, bMaskByte2, (u1Byte)H2L);
@@ -1329,15 +1329,13 @@ void rtl8192cd_SearchPwdBLowerBound(struct rtl8192cd_priv *priv)
 {
 	u4Byte			value32;
 	u1Byte			cnt, IGI_Pause = 0x7f, IGI_Resume = 0x20, IGI = 0x50;	//IGI = 0x50 for cal EDCCA lower bound
-	BOOLEAN			bAdjust = TRUE;
-	s1Byte 			TH_L2H_dmc, TH_H2L_dmc, IGI_target = 0x32;
-	s1Byte 			TH_L2H, TH_H2L, Diff;
+	BOOLEAN			bAdjust = TRUE, bAdjust2 = TRUE;;
+	s1Byte 			TH_L2H_dmc, TH_H2L_dmc, Diff, IGI_target = 0x32;
 	u1Byte			txEdcca1 = 0, txEdcca0 = 0;
 	
 	rtl8192cd_SetTRxMux(priv, 1, 1); // Set both Tx mode and Rx mode to standby mode
-	IGI = 0x7f; // find H2L, L2H lower bound
-	RTL_W8(0xc50,IGI);
-	RTL_W8(0xc58,IGI);
+	RTL_W8(0xc50,IGI_Pause);
+	RTL_W8(0xc58,IGI_Pause);
 	
 	Diff = IGI_target -(s1Byte)IGI;
 	TH_L2H_dmc = priv->pshare->rf_ft_var.TH_L2H_ini + Diff;
@@ -1351,17 +1349,19 @@ void rtl8192cd_SearchPwdBLowerBound(struct rtl8192cd_priv *priv)
 	delay_ms(5);
 	while(bAdjust)
 	{
-		for(cnt=0; cnt<20; cnt ++)
+		for(cnt=0; cnt<250; cnt ++)
 		{
 			value32 = PHY_QueryBBReg(priv,0xDF4, bMaskDWord);
 			
-			if(value32 & BIT29)
+			if ( (GET_CHIP_VER(priv) == VERSION_8188E) && (value32 & BIT30) )
+				txEdcca1 = txEdcca1 + 1;
+			else if(value32 & BIT29)
 				txEdcca1 = txEdcca1 + 1;
 			else
 				txEdcca0 = txEdcca0 + 1;
 		}
 	
-		if(txEdcca1 > 9)
+		if(txEdcca1 > 1)
 		{
 			IGI = IGI -1;
 			TH_L2H_dmc = TH_L2H_dmc + 1;
@@ -1377,8 +1377,6 @@ void rtl8192cd_SearchPwdBLowerBound(struct rtl8192cd_priv *priv)
 			if(TH_L2H_dmc == 10)
 			{
 				bAdjust = FALSE;
-				txEdcca1 = 0;
-				txEdcca0 = 0;
 				priv->pshare->rf_ft_var.H2L_lb = TH_H2L_dmc;
 				priv->pshare->rf_ft_var.L2H_lb = TH_L2H_dmc;
 				priv->pshare->rf_ft_var.Adaptivity_IGI_upper = IGI;
@@ -1394,13 +1392,44 @@ void rtl8192cd_SearchPwdBLowerBound(struct rtl8192cd_priv *priv)
 			priv->pshare->rf_ft_var.Adaptivity_IGI_upper = IGI;
 		}
 	}	
+
+	while (bAdjust2) 
+	{
+		rtl8192cd_SetEDCCAThreshold(priv, priv->pshare->rf_ft_var.H2L_lb, priv->pshare->rf_ft_var.L2H_lb);
+
+		for (cnt = 0; cnt < 250; cnt++) 
+		{
+			value32 = PHY_QueryBBReg(priv,0xDF4, bMaskDWord);
+
+			if ( (GET_CHIP_VER(priv) == VERSION_8188E) && (value32 & BIT30) )
+				txEdcca1 = txEdcca1 + 1;
+			else if (value32 & BIT29)
+				txEdcca1 = txEdcca1 + 1;
+			else
+				txEdcca0 = txEdcca0 + 1;
+		}
+
+		if (txEdcca1 > 1) 
+		{
+			priv->pshare->rf_ft_var.Adaptivity_IGI_upper -= 1;
+			priv->pshare->rf_ft_var.H2L_lb += 1;
+			priv->pshare->rf_ft_var.L2H_lb += 1;
+		} 
+		else
+			bAdjust2 = FALSE;
+	}
+	
+	priv->pshare->rf_ft_var.Adaptivity_IGI_upper -= priv->pshare->rf_ft_var.dcbackoff;
+	priv->pshare->rf_ft_var.H2L_lb += priv->pshare->rf_ft_var.dcbackoff;
+	priv->pshare->rf_ft_var.L2H_lb += priv->pshare->rf_ft_var.dcbackoff;
+
 	rtl8192cd_SetTRxMux(priv, 2, 3); // Set  2:Tx mode and 3:Rx mode 
-	RTL_W8(0xc50,0x20);
-	RTL_W8(0xc58,0x20);	
+	RTL_W8(0xc50,IGI_Resume);
+	RTL_W8(0xc58,IGI_Resume);	
 	rtl8192cd_SetEDCCAThreshold(priv,0x7f,0x7f);
 }
 
-void rtl8192cd_MACEDCCAState(struct rtl8192cd_priv *priv, unsigned char State)
+void rtl8192cd_MACEDCCAState(struct rtl8192cd_priv *priv, u1Byte State)
 {
 	if(State == 0)//ignore edcca
 	{
@@ -1412,11 +1441,12 @@ void rtl8192cd_MACEDCCAState(struct rtl8192cd_priv *priv, unsigned char State)
 		PHY_SetBBReg(priv, REG_TX_PTCL_CTRL, BIT15, 0);	//don't ignore EDCCA	 reg520[15]=0
 		PHY_SetBBReg(priv, REG_RD_CTRL, BIT11, 1);	//reg524[11]=1	
 	}
-	priv->pshare->rf_ft_var.EDCCA_enable_state = State;
 }
 
 void rtl8192cd_AdaptivityInit(struct rtl8192cd_priv *priv)
 {
+	rtl8192cd_NHMBBInit(priv);
+
 	priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_backup; 
 	priv->pshare->rf_ft_var.TH_EDCCA_HL_diff = 7;
 	priv->pshare->rf_ft_var.TH_L2H_ini_mode2 = 20;
@@ -1424,25 +1454,24 @@ void rtl8192cd_AdaptivityInit(struct rtl8192cd_priv *priv)
 	priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_backup = priv->pshare->rf_ft_var.TH_EDCCA_HL_diff ;
 	priv->pshare->rf_ft_var.IGI_Base = 0x32;	
 	priv->pshare->rf_ft_var.IGI_target = 0x1c;
-	priv->pshare->rf_ft_var.force_edcca = 0;
 	priv->pshare->rf_ft_var.H2L_lb = 0;
 	priv->pshare->rf_ft_var.L2H_lb = 0;
 	priv->pshare->rf_ft_var.Adaptivity_IGI_upper = 0;	
 	priv->pshare->rf_ft_var.NHMWait = 0;
-	priv->pshare->rf_ft_var.NHM_enable = FALSE;
-	rtl8192cd_NHMBBInit(priv);
+	
 	priv->pshare->rf_ft_var.bCheck = FALSE;
 	priv->pshare->rf_ft_var.bFirstLink = TRUE;
-	priv->pshare->rf_ft_var.bAdaOn = TRUE;
-	PHY_SetBBReg(priv, 0x524, BIT11, 1); // stop counting if EDCCA is asserted	
-	PHY_SetBBReg(priv,0x908, bMaskDWord, 0x208);
+	priv->pshare->rf_ft_var.Adaptivity_enable = FALSE;	// use this flag to judge enable or disable	
 	
 	if(priv->pshare->rf_ft_var.adaptivity_enable == 2)
 		priv->pshare->rf_ft_var.DynamicLinkAdaptivity = TRUE;
 	else
 		priv->pshare->rf_ft_var.DynamicLinkAdaptivity = FALSE;
+
+	rtl8192cd_MACEDCCAState(priv, 1);
+	PHY_SetBBReg(priv,0x908, bMaskDWord, 0x208);
+	PHY_SetBBReg(priv, 0xc4c, BIT9 | BIT8, 0x0);// set forgetting factor = 0 for all n series IC	
 	rtl8192cd_SearchPwdBLowerBound(priv);
-	rtl8192cd_MACEDCCAState(priv,0);
 }
 
 
@@ -1469,7 +1498,6 @@ BOOLEAN	rtl8192cd_CalNHMcnt(struct rtl8192cd_priv *priv)
 void rtl8192cd_CheckEnvironment(struct rtl8192cd_priv *priv)
 {
 	BOOLEAN 	isCleanEnvironment = FALSE;
-	u1Byte		i, clean = 0;
 
 	if(priv->pshare->rf_ft_var.bFirstLink == TRUE)
 	{
@@ -1491,16 +1519,16 @@ void rtl8192cd_CheckEnvironment(struct rtl8192cd_priv *priv)
 			isCleanEnvironment = rtl8192cd_CalNHMcnt(priv);
 			if(isCleanEnvironment == TRUE)
 			{
-				rtl8192cd_MACEDCCAState(priv, 1);//don't ignore edcca
 				priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_backup;			//mode 1
 				priv->pshare->rf_ft_var.TH_EDCCA_HL_diff= priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_backup;
+				priv->pshare->rf_ft_var.Adaptivity_enable = TRUE;
 				priv->pshare->rf_ft_var.adaptivity_flag = TRUE;
 			}
 			else
 			{
-				rtl8192cd_MACEDCCAState(priv, 1);//don't ignore edcca
 				priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_mode2;			// for AP mode 2
 				priv->pshare->rf_ft_var.TH_EDCCA_HL_diff= priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_mode2;
+				priv->pshare->rf_ft_var.Adaptivity_enable = FALSE;
 				priv->pshare->rf_ft_var.adaptivity_flag = FALSE;
 			}
 
@@ -1514,201 +1542,90 @@ void rtl8192cd_CheckEnvironment(struct rtl8192cd_priv *priv)
 
 void rtl8192cd_CheckAdaptivity(struct rtl8192cd_priv *priv)
 {
-	if(priv->pshare->rf_ft_var.bAdaOn == TRUE)
+	if(priv->pshare->rf_ft_var.adaptivity_enable)
 	{
 		if(priv->pshare->rf_ft_var.DynamicLinkAdaptivity == TRUE)
 		{
-			if(!(((OPMODE & WIFI_AP_STATE)?(!(priv->assoc_num)):(!(OPMODE & WIFI_ASOC_STATE)))
-#ifdef UNIVERSAL_REPEATER
-			&& !(GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode & WIFI_ASOC_STATE)
-#endif
-				) && priv->pshare->rf_ft_var.bCheck == FALSE)//If linked and bCheck
+			if( priv->pshare->rf_ft_var.bLinked && !priv->pshare->rf_ft_var.bCheck )
 				{
 					rtl8192cd_NHMCounterStatistics(priv);
 					rtl8192cd_CheckEnvironment(priv);
 				}
-			else if((((OPMODE & WIFI_AP_STATE)?(!(priv->assoc_num)):(!(OPMODE & WIFI_ASOC_STATE)))
-#ifdef UNIVERSAL_REPEATER
-		&& !(GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode & WIFI_ASOC_STATE)
-#endif
-			))
+			else if( !priv->pshare->rf_ft_var.bLinked )
 			{
 				priv->pshare->rf_ft_var.bCheck = FALSE;
 			} 	
 		}
 		else
 		{
-			rtl8192cd_MACEDCCAState(priv, 1);//don't ignore edcca
+			priv->pshare->rf_ft_var.Adaptivity_enable = TRUE;
 			priv->pshare->rf_ft_var.adaptivity_flag = TRUE;
 		}
 	}
 	else
 	{
-		rtl8192cd_MACEDCCAState(priv, 0);// ignore edcca
-		priv->pshare->rf_ft_var.adaptivity_flag = FALSE;
-	}	
-}
-
-
-static void rtl8192cd_NHMBB(struct rtl8192cd_priv *priv)
-{
-	unsigned int	value32;
-	BOOLEAN 	bCleanEnvironment;
-	bCleanEnvironment = rtl8192cd_CalNHMcnt(priv);
-		
-	value32 = PHY_QueryBBReg(priv, 0x8d8, bMaskDWord);
-
-
-	priv->pshare->rf_ft_var.NHMCurTxOkcnt  = priv->pshare->NumTxBytesUnicast - priv->pshare->rf_ft_var.NHMLastTxOkcnt;
-	priv->pshare->rf_ft_var.NHMCurRxOkcnt  = priv->pshare->NumRxBytesUnicast - priv->pshare->rf_ft_var.NHMLastRxOkcnt;
-	priv->pshare->rf_ft_var.NHMLastTxOkcnt = priv->pshare->NumTxBytesUnicast;
-	priv->pshare->rf_ft_var.NHMLastRxOkcnt = priv->pshare->NumRxBytesUnicast;	
-
-	if(priv->pshare->rf_ft_var.NHMWait < 4) 		// Start enter NHM after 4 NHMWait
-	{
-		priv->pshare->rf_ft_var.NHMWait ++;
-		rtl8192cd_MACEDCCAState(priv,1);//Don't ignore edcca
-	}
-	else if (((priv->pshare->rf_ft_var.NHMCurTxOkcnt >> 10) > 2)&&((priv->pshare->rf_ft_var.NHMCurTxOkcnt) + 1 > (u8Byte)(priv->pshare->rf_ft_var.NHMCurRxOkcnt<<2) + 1))//Tx > 4*Rx and Tx > 2Mb possible for adaptivity test
-	{
-		if((bCleanEnvironment == TRUE || priv->pshare->rf_ft_var.adaptivity_flag == TRUE))
-		{
-			//Enable EDCCA since it is possible running Adaptivity testing
-			priv->pshare->rf_ft_var.adaptivity_flag = TRUE;
-			rtl8192cd_MACEDCCAState(priv,1);//Don't ignore edcca
-			priv->pshare->rf_ft_var.tolerance_cnt = 0;
-			priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_backup;
-			priv->pshare->rf_ft_var.TH_EDCCA_HL_diff = priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_backup ;
-		}
-		else
-		{
-			if(priv->pshare->rf_ft_var.tolerance_cnt < 3)
-				priv->pshare->rf_ft_var.tolerance_cnt++;
-			else
-			{
-				priv->pshare->rf_ft_var.adaptivity_flag = FALSE;
-				priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_mode2;
-				priv->pshare->rf_ft_var.TH_EDCCA_HL_diff = priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_mode2 ;
-			}
-		}
-	}
-	else	// TX<RX 
-	{
-		if(priv->pshare->rf_ft_var.adaptivity_flag == TRUE && bCleanEnvironment == FALSE)
-		{
-			rtl8192cd_MACEDCCAState(priv,1);//Don't ignore edcca
-			priv->pshare->rf_ft_var.tolerance_cnt = 0;
-			priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_backup;
-			priv->pshare->rf_ft_var.TH_EDCCA_HL_diff = priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_backup ;
-		}
-		
-#ifdef UNIVERSAL_REPEATER
-		else if((bCleanEnvironment == TRUE) && (GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode & WIFI_ASOC_STATE) && ((priv->pshare->rf_ft_var.NHMCurTxOkcnt >> 10) > 1))		// clean environment and VXD linked and Tx TP>1Mb
-		{
-			priv->pshare->rf_ft_var.adaptivity_flag = TRUE;
-			rtl8192cd_MACEDCCAState(priv,1);//Don't ignore edcca
-			priv->pshare->rf_ft_var.tolerance_cnt = 0;
-			priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_backup;
-			priv->pshare->rf_ft_var.TH_EDCCA_HL_diff = priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_backup ;
-		}
-#endif 
-		else
-		{
-			if(priv->pshare->rf_ft_var.tolerance_cnt < 3)
-				priv->pshare->rf_ft_var.tolerance_cnt = priv->pshare->rf_ft_var.tolerance_cnt + 1;
-			else
-			{
-				priv->pshare->rf_ft_var.adaptivity_flag = FALSE;				
-				priv->pshare->rf_ft_var.TH_L2H_ini = priv->pshare->rf_ft_var.TH_L2H_ini_mode2;
-				priv->pshare->rf_ft_var.TH_EDCCA_HL_diff = priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_mode2 ;
-			}
-		}
+		priv->pshare->rf_ft_var.Adaptivity_enable = FALSE;
+			priv->pshare->rf_ft_var.adaptivity_flag = FALSE;				
 	}	 
-	//panic_printk("%s adaptivity_flag = %d, bclean = %d\n ",,__FUNCTION__,priv->pshare->rf_ft_var.adaptivity_flag,bCleanEnvironment);	
 }
 
-BOOLEAN rtl8192cd_Adaptivity(struct rtl8192cd_priv *priv, unsigned char IGI)
+void rtl8192cd_Adaptivity(struct rtl8192cd_priv *priv, u1Byte IGI)
 {
-	char Diff,TH_L2H,TH_H2L;
-	char TH_L2H_dmc, TH_H2L_dmc, L2H_nolink_Band4 = 0x7f, H2L_nolink_Band4 = 0x7f;;
-	char IGI_target;
-	BOOLEAN EDCCA_State;
+	s1Byte Diff, IGI_target, TH_L2H_dmc, TH_H2L_dmc;
 	
 	if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20) 
 		IGI_target = priv->pshare->rf_ft_var.IGI_Base;
 	else if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20_40)
 		IGI_target = priv->pshare->rf_ft_var.IGI_Base + 2;
 	else
-		IGI_target = priv->pshare->rf_ft_var.IGI_Base +2;
+		IGI_target = priv->pshare->rf_ft_var.IGI_Base;
 	priv->pshare->rf_ft_var.IGI_target = IGI_target;
 
-	if((priv->pmib->dot11RFEntry.dot11channel >= 149)&&((OPMODE & WIFI_AP_STATE)?(!(priv->assoc_num)):(!(OPMODE & WIFI_ASOC_STATE)))
-#ifdef UNIVERSAL_REPEATER
-		&& !(GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode & WIFI_ASOC_STATE)
-#endif
-	){
-		Diff = IGI_target -(s1Byte)IGI;
-		L2H_nolink_Band4 = priv->pshare->rf_ft_var.TH_L2H_ini_mode2 + Diff;
-		if(L2H_nolink_Band4 > 10)	
-			L2H_nolink_Band4 = 10;		
-		H2L_nolink_Band4 = L2H_nolink_Band4 - priv->pshare->rf_ft_var.TH_EDCCA_HL_diff_mode2;
-
-		rtl8192cd_SetEDCCAThreshold(priv,H2L_nolink_Band4,L2H_nolink_Band4);
-		return FALSE;
+	if ( priv->pshare->rf_ft_var.adap_debug )
+	{
+		printk("DynamicLinkAdaptivity=%d, adaptivity_flag=%d, Adaptivity_enable=%d, bLinked=%d\n", 
+		priv->pshare->rf_ft_var.DynamicLinkAdaptivity, priv->pshare->rf_ft_var.adaptivity_flag, 
+		priv->pshare->rf_ft_var.Adaptivity_enable, priv->pshare->rf_ft_var.bLinked);
 	}
 	
-	if(!priv->pshare->rf_ft_var.force_edcca){
-		if(	!(((OPMODE & WIFI_AP_STATE)?(!(priv->assoc_num)):(!(OPMODE & WIFI_ASOC_STATE)))
-#ifdef UNIVERSAL_REPEATER
-		&& !(GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode & WIFI_ASOC_STATE)
-#endif
-	) && (priv->pshare->rf_ft_var.adaptivity_flag == FALSE) && (priv->pshare->rf_ft_var.DynamicLinkAdaptivity == TRUE)) {
-			priv->pshare->phw->EDCCA_on = 0;
-		}else{
-			if(priv->pshare->rssi_min > priv->pshare->rf_ft_var.edcca_thd){
-		        priv->pshare->phw->EDCCA_on =1;		
-			}
-		    else if(priv->pshare->rssi_min < priv->pshare->rf_ft_var.edcca_thd-5){
-		        priv->pshare->phw->EDCCA_on =0;
-			}
-		}
-	}else
-		priv->pshare->phw->EDCCA_on =1; 
-
-	if(priv->pshare->rf_ft_var.NHM_enable == TRUE)
-		rtl8192cd_NHMBB(priv);
-
-	if( priv->pshare->phw->EDCCA_on == 1)
+	if ( priv->pshare->rf_ft_var.DynamicLinkAdaptivity
+		&& !priv->pshare->rf_ft_var.bLinked
+		&& !priv->pshare->rf_ft_var.Adaptivity_enable )
 	{
-		Diff = IGI_target -IGI;
-		TH_L2H_dmc = priv->pshare->rf_ft_var.TH_L2H_ini + Diff;
-		TH_H2L_dmc = TH_L2H_dmc - priv->pshare->rf_ft_var.TH_EDCCA_HL_diff;
-		
-		if(TH_L2H_dmc >10)
-			TH_L2H_dmc = 10;
-		
-		TH_H2L_dmc = TH_L2H_dmc - priv->pshare->rf_ft_var.TH_EDCCA_HL_diff;
-		
-		//replace lower bound to prevent EDCCA always equal 1
-		if(TH_H2L_dmc < priv->pshare->rf_ft_var.H2L_lb)				
-			TH_H2L_dmc = priv->pshare->rf_ft_var.H2L_lb;
-		if(TH_L2H_dmc < priv->pshare->rf_ft_var.L2H_lb)
-			TH_L2H_dmc = priv->pshare->rf_ft_var.L2H_lb;
+		rtl8192cd_SetEDCCAThreshold(priv, 0x7f, 0x7f);
+		return;
 	}
-	else
-	{
-		TH_L2H_dmc = 0x7f;
-		TH_H2L_dmc = 0x7f;
-	}
+
+	Diff = IGI_target -IGI;
+	TH_L2H_dmc = priv->pshare->rf_ft_var.TH_L2H_ini + Diff;
+	TH_H2L_dmc = TH_L2H_dmc - priv->pshare->rf_ft_var.TH_EDCCA_HL_diff;
+		
+	if(TH_L2H_dmc >10)
+		TH_L2H_dmc = 10;
+		
+	TH_H2L_dmc = TH_L2H_dmc - priv->pshare->rf_ft_var.TH_EDCCA_HL_diff;
+		
+	//replace lower bound to prevent EDCCA always equal 1
+	if(TH_H2L_dmc < priv->pshare->rf_ft_var.H2L_lb)				
+		TH_H2L_dmc = priv->pshare->rf_ft_var.H2L_lb;
+	if(TH_L2H_dmc < priv->pshare->rf_ft_var.L2H_lb)
+		TH_L2H_dmc = priv->pshare->rf_ft_var.L2H_lb;
+
 	if(priv->pshare->rf_ft_var.adap_debug)
-		panic_printk("adaptivity_flag = %d, Edcca_enable_State = %d, TH_L2H_ini = %d,DynamicLinkAdaptivity = %d\n",priv->pshare->rf_ft_var.adaptivity_flag, priv->pshare->rf_ft_var.EDCCA_enable_state,priv->pshare->rf_ft_var.TH_L2H_ini,priv->pshare->rf_ft_var.DynamicLinkAdaptivity);
+	{
+		printk("TH_L2H_ini=%d, TH_EDCCA_HL_diff=%d\n", priv->pshare->rf_ft_var.TH_L2H_ini, priv->pshare->rf_ft_var.TH_EDCCA_HL_diff);
+		printk("IGI=0x%02x, TH_H2L_dmc=%d, TH_L2H_dmc=%d\n", IGI, TH_H2L_dmc, TH_L2H_dmc);
+		printk("Adaptivity_IGI_upper=0x%02x, H2L_lb=%d, L2H_lb=%d\n", priv->pshare->rf_ft_var.Adaptivity_IGI_upper, priv->pshare->rf_ft_var.H2L_lb, priv->pshare->rf_ft_var.L2H_lb);	
+	}
 	rtl8192cd_SetEDCCAThreshold(priv,TH_H2L_dmc,TH_L2H_dmc);
-	return TRUE;
 }
 
 void check_NBI_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength)
 {
 	if (OPMODE & WIFI_SITE_MONITOR)
+		return;
+
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
 		return;
 
 	if (priv->pshare->phw->nbi_filter_on) {
@@ -1765,6 +1682,7 @@ void NBI_filter_off(struct rtl8192cd_priv *priv)
 }
 
 #if defined(CONFIG_WLAN_HAL_8192EE)
+#ifdef CONFIG_PCI_HCI
 void RRSR_power_control_11n(struct rtl8192cd_priv *priv, int lower)
 {
 #ifndef SMP_SYNC
@@ -1858,6 +1776,49 @@ void RRSR_power_control_11n(struct rtl8192cd_priv *priv, int lower)
 		}
 		priv->pshare->phw->lower_tx_power = 0;
 		RESTORE_INT(x);
+	}
+}
+#endif // CONFIG_PCI_HCI
+
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+void RRSR_power_control_11n(struct rtl8192cd_priv *priv, int lower)
+{
+	u4Byte val32;
+	
+	if (lower && priv->pshare->phw->lower_tx_power == 0) {
+		priv->pshare->phw->lower_tx_power = 1;
+
+		val32 = RTL_R32(0x6d8);
+		val32 |= 0x8000;   
+		RTL_W32(0x6d8, val32);
+	} else if (!lower && priv->pshare->phw->lower_tx_power) {
+		priv->pshare->phw->lower_tx_power = 0;
+
+		val32 = RTL_R32(0x6d8);
+		val32 &= ~0x8000;
+		RTL_W32(0x6d8, val32);
+	}
+}
+#endif
+#endif // CONFIG_WLAN_HAL_8192EE
+
+#ifdef CONFIG_WLAN_HAL_8814AE
+void RRSR_power_control_14(struct rtl8192cd_priv *priv, int lower)
+{
+	u4Byte val32;	
+	if (lower && priv->pshare->phw->lower_tx_power == 0) {
+		priv->pshare->phw->lower_tx_power = 1;
+		val32 = RTL_R32(0x6d8);
+		if ((priv->pmib->dot11RFEntry.rfe_type == 3 || priv->pmib->dot11RFEntry.rfe_type == 5))
+			val32 = (val32 & ~0x001C0000) | 0x000C0000;				// [ 20:18] = 3 	( -11dB)
+		else					
+			val32 = (val32 & ~0x001C0000) | 0x00080000;				// [ 20:18] = 2 	( -7dB)
+		RTL_W32(0x6d8, val32);
+	} else if (!lower && priv->pshare->phw->lower_tx_power) {
+		priv->pshare->phw->lower_tx_power = 0;
+		val32 = RTL_R32(0x6d8);
+		val32 &= ~0x001C0000;									// [ 20:18] = 0 
+		RTL_W32(0x6d8, val32);
 	}
 }
 #endif

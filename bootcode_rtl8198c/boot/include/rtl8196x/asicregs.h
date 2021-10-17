@@ -1667,6 +1667,34 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 
 #endif /* CONFIG_RTL865XC */
 
+/* MACCR - MAC control register field definitions */
+#define CF_SYSCLK_SEL_MASK                  (0x3 << 12)
+#define CF_SYSCLK_SEL_OFFSET                (12)
+#define CF_FCDSC_OFFSET                     (4)                     	/* Flow control DSC tolerance, default: 24 pages ( also minimum value ) */
+#define CF_FCDSC_MASK                       (0x7f << 4)                /* Flow control DSC tolerance, default: 24 pages ( also minimum value ) */
+#define CF_RXIPG_MASK                       (0xf << 0)                /* Min. IPG limitation for RX receiving packetMinimum value is 6. Maximum value is 12. */
+
+/* Extend MAC Control Register */
+#define EXTMAC_BASE                         (SWCORE_BASE + 0x5100)
+#define MACCTRL1                            (0x00+EXTMAC_BASE)       	/* MAC Configuration Register 1 */
+
+/* MACCTRL1 - MAC Configuration Register 1 */
+#define CF_CMAC_CLK_SEL                     (1<<0)         /* Cport MAC clock selection with NIC interface,  1: lx_clk, 0: lx_clk/2 ( default ) */
+
+#define REVR                                (SYSTEM_BASE + 0x00000000)
+
+#define SYS_CLK_MAG                         (SYSTEM_BASE+0x0010)
+#define CM_ACTIVE_SWCORE                    (1<<11)
+
+/* Efuse_ctrl Registers */
+#define EFUSE_CMD                           (SYSTEM_BASE+0x0700)       /* cmd register */
+#define EFUSE_CONFIG                        (SYSTEM_BASE+0x0704)       /* Config register */
+#define EFUSE_RW_DATA                       (SYSTEM_BASE+0x0708)       /* Read or write data port register */
+#define EFUSE_TIMING_CONTROL                (SYSTEM_BASE+0x070C)       /* Timing control register */
+
+/* Config register */
+#define EFUSE_CFG_INT_STS                   (1 << 8)       /* Interrupt_status */
+
 //cary:add
 #if defined(CONFIG_NFBI)
 #define NFBI_BASE                                	(0xb8019000)    /*Non-flash booting interface regist*/
@@ -1688,7 +1716,14 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define	UART_MSR_REG	(0x2018+UART_BASE)
 #define	UART_SCR_REG	(0x201c+UART_BASE)
 
-#define PIN_MUX_SEL3		(SYSTEM_BASE + 0x0108)
+#ifdef CONFIG_RTL8198C
+#define PIN_MUX_SEL  		(SYSTEM_BASE + 0x0100)
+#define PIN_MUX_SEL2 		(SYSTEM_BASE + 0x0104)
+#define PIN_MUX_SEL3 		(SYSTEM_BASE + 0x0108)
+#else
+#define PIN_MUX_SEL 		(SYSTEM_BASE + 0x0040)
+#define PIN_MUX_SEL2 		(SYSTEM_BASE + 0x0044)
+#endif
 
 #endif   /* _ASICREGS_H */
 
