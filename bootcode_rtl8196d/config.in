@@ -1,0 +1,203 @@
+
+# ATTENTION:
+# Brief explaination:
+#
+# 1. "make menuconfig" will see this file.
+# 2. make menuconfig save file will produce "/.config" and "/autoconf.h" two files.
+# 3. makefile will see the "/.config" file
+# 4. C code will see the "/autoconf.h"  
+#
+# in this file, declare variable xxx, please add the prefix "CONFIG_" word.  Example: "CONFIG_XXX"
+
+
+
+
+
+#===========================================================================
+mainmenu_name 'RTL Bootcode Configuration'
+mainmenu_option next_comment
+comment 'Target Platform Selection'
+comment 'Choose a Vendor/Product combination.'
+
+
+#===========================================================================
+# Different IC decalre in here.
+
+choice 'Product' "RTL8196D CONFIG_RTL8196D_  \
+RTL8196E CONFIG_RTL8196E  \
+RTL89xxD CONFIG_RTL89xxD\
+" RTL8196D
+
+
+#===========================================================================
+# Different IC want contain with the different config in here 
+#
+
+if [ "$CONFIG_RTL8196D_" = "y" ] || [ "$CONFIG_RTL89xxD" = "y" ]; then
+		define_bool RTL8196  y
+		define_bool RTL8198 y
+		define_bool CONFIG_HISTORY_KEYIN
+		define_bool CONFIG_RTL8198_REVISION_B y				
+		define_bool CONFIG_RTL8198 y
+		define_bool CONFIG_RTL8196D y
+fi
+
+if [ "$CONFIG_RTL8196E" = "y" ] ; then
+		define_bool RTL8196  y
+		define_bool RTL8198 y
+		define_bool CONFIG_HISTORY_KEYIN
+		define_bool CONFIG_RTL8198_REVISION_B y				
+		define_bool CONFIG_RTL8198 y
+fi
+
+
+#===========================================================================
+# Common Config with every IC have this function in here. Don't litmit someone ic.
+#
+if [ "$CONFIG_RTL89xxD" = "y" ]; then
+choice 'VOIP Board version' " \
+v100_board RTK_VOIP_BOARD_V100 \
+" v100_board
+fi
+
+if [ "$CONFIG_RTL89xxD" = "y" ]; then
+        define_bool CONFIG_RTK_VOIP y
+fi
+
+
+choice 'is FLASH Type ' "NOR_FLASH  CONFIG_NOR_FLASH \
+SPI_FLASH  CONFIG_SPI_FLASH \
+NAND_FLASH  CONFIG_NAND_FLASH \
+NONE_FLASH  CONFIG_NONE_FLASH \
+" NOR_FLASH
+
+ if [ "$CONFIG_SPI_FLASH" = "y" ]; then
+
+choice 'is SPI IO Type'	"BOOT_SIO_8198_8196C CONFIG_BOOT_SIO_8198 \
+					 BOOT_DIO_8198_8196C CONFIG_BOOT_DIO_8198 \
+					 BOOT_QIO_8198_8196C CONFIG_BOOT_QIO_8198 \
+				      " BOOT_SIO_8198_8196C
+bool "SPI CLCK LIMIT SPEED<40MHz" CONFIG_AUTO_PROBE_LIMITED_SPI_CLK_UNDER_40MHZ	
+bool "SPI FLASH SINGLE IO MODE(CAN ENABLE DHCP)" CONFIG_SPI_STD_MODE	
+fi
+
+
+ if [ "$CONFIG_NAND_FLASH" = "y" ]; then
+
+choice 'is NAND Type'	"NAND_Flash_Large_Page_256MBto2GB_5cycles CONFIG_NAND_Flash_Large_Page_256MBto2GB_5cycles \
+					 NAND_Flash_Large_Page_128MB_4cycles CONFIG_NAND_Flash_Large_Page_128MB_4cycles \
+					 NAND_Flash_Small_Page_64MB_4cycles CONFIG_NAND_Flash_Small_Page_64MB_4cycles \
+					 NAND_Flash_Small_Page_32MB_3cycles CONFIG_NAND_Flash_Small_Page_32MB_3cycles \
+				      " NAND_Flash_Large_Page_256MBto2GB_5cycles
+fi
+			
+#fi
+
+#if [ "$CONFIG_RTL8196B" = "y" ]; then
+choice 'is SDRAM Type ' "NORMAL  CONFIG_SDRAM \
+DDR1 CONFIG_DDR1_SDRAM \
+DDR2 CONFIG_DDR2_SDRAM \
+"
+#fi
+
+
+#if [ "$CONFIG_RTL8196B" = "y" ]; then
+choice 'is the target of HW Setting ' "Dram8M_8Mx1_16bit	CONFIG_D8_16 \
+Dram16M_16Mx1_16bit	CONFIG_D16_16 \
+Dram32M_32Mx1_16bit	CONFIG_D32_16 \
+Dram64M_64Mx1_16bit	CONFIG_D64_16 \
+Dram128M_128Mx1_16bit	CONFIG_D128_16 \
+Dram8M_8Mx2_16bit	CONFIG_D8_16x2 \
+Dram16M_16Mx2_16bit	CONFIG_D16_16x2 \
+Dram32M_32Mx2_16bit	CONFIG_D32_16x2 \
+Dram64M_64Mx2_16bit	CONFIG_D64_16x2 \
+Dram128M_128Mx2_16bit	CONFIG_D128_16x2 \
+" CONFIG_D32_16
+#fi
+
+if [ "$CONFIG_DDR1_SDRAM" = "y" ] || [ "$CONFIG_DDR2_SDRAM" = "y" ]; then
+	define_bool CONFIG_DDR_SDRAM y
+fi
+
+if [ "$CONFIG_RTL8196D" = "y" ] || [ "$CONFIG_RTL8196E" = "y" ]; then
+choice 'is SWITCH Type ' "10M_100M  CONFIG_SW_100M \
+P0_GMII  CONFIG_SW_P0_GMII \
+P0_RGMII  CONFIG_SW_P0_RGMII \
+P0_MII	CONFIG_SW_MII \
+" 10M_100M
+fi
+
+
+
+bool "Config Spi Flash Number" CONFIG_SPI_FLASH_NUMBER
+if [ "$CONFIG_SPI_FLASH_NUMBER" = "y" ]; then
+hex 'FLASH_NUMBER' CONFIG_FLASH_NUMBER 0x1
+fi
+
+bool "Support Flash Mapping Customize" CONFIG_RTL_FLASH_MAPPING_ENABLE
+if [ "$CONFIG_RTL_FLASH_MAPPING_ENABLE" = "y" ]; then
+hex 'LINUX image flash offset start' CONFIG_LINUX_IMAGE_OFFSET_START  0x10000
+hex 'LINUX image flash offset end'   CONFIG_LINUX_IMAGE_OFFSET_END    0x40000
+hex 'lINUX image check step'         CONFIG_LINUX_IMAGE_OFFSET_STEP   0x1000
+hex 'ROOT image flash offset start'  CONFIG_ROOT_IMAGE_OFFSET_START  0xE0000
+hex 'ROOT image flash offset end'    CONFIG_ROOT_IMAGE_OFFSET_END    0x130000
+hex 'ROOT image check step'          CONFIG_ROOT_IMAGE_OFFSET_STEP   0x1000
+fi
+
+bool "Support Flash DualBank" CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
+if [ "$CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE" = "y" ]; then
+hex 'Second Bank offset' CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET  0x200000
+fi
+
+bool 'LZMA Enable(Default GZip)'		CONFIG_LZMA_ENABLE
+bool 'Support DHCP Server'			CONFIG_DHCP_SERVER
+bool 'Support HTTP Update'			CONFIG_HTTP_SERVER
+bool 'Power On Self Test Enable'		CONFIG_POST_ENABLE
+bool 'Boot Code Debug Command Enable'		CONFIG_BOOT_DEBUG_ENABLE
+bool 'Support reset botton feature'		CONFIG_BOOT_RESET_ENABLE
+bool 'Enable rtl8196d taroko cpu Test'	CONFIG_RTL8196D_TAROKO
+bool 'Enable IIS Test'	CONFIG_IIS_TEST
+
+#bool 'Update Default Vendor Settings'		CONFIG_DEFAULTS_VENDOR_UPDATE
+#bool 'Support History Keyin'		CONFIG_HISTORY_KEYIN
+
+#===========================================================================
+# Different IP module. If want to add test IP module, add in here. Can limmit some IC
+#
+bool 'Enable Test Host PCIE'	CONFIG_PCIE_MODULE
+bool 'Support OSK'     CONFIG_OSK
+
+ if [ "$CONFIG_NONE_FLASH" = "y" ]; then
+bool 'Enable NFBI'	CONFIG_NFBI
+fi
+
+ if [ "$CONFIG_NFBI" = "y" ]; then
+choice 'Switch Port5 Type is'		" NFBI_SWITCH_P5_MII_PHY_MODE	CONFIG_NFBI_SWITCH_P5_MII_PHY_MODE \
+							NFBI_SWITCH_P5_GMII_MAC_MODE	CONFIG_NFBI_SWITCH_P5_GMII_MAC_MODE \
+							" NFBI_SWITCH_P5_MII_PHY_MODE
+fi
+
+
+
+bool 'Enable DRAM Test'	CONFIG_DRAM_TEST
+
+bool 'Enable JTAG Function for code debugging'	CONFIG_USING_JTAG
+
+bool 'Enable NIC Loopback Feature'	CONFIG_NIC_LOOPBACK
+
+bool 'Enable DRAM CKE'   CONFIG_CKE_ENABLE
+
+if [ "$CONFIG_RTL8196E" = "y" ]; then
+bool 'Enable KLD Support'   CONFIG_RTL8196E_KLD
+bool 'Enable 96E ulinker boot led'   CONFIG_RTL8196E_ULINKER_BOOT_LED
+fi
+
+#---------------------------------------------------------------------------
+
+
+
+#---------------------------------------------------------------------------
+
+
+#===========================================================================
+endmenu

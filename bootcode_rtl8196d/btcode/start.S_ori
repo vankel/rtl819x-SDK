@@ -1,0 +1,1016 @@
+#include <asm/asm.h>
+#include <asm/regdef.h>
+#include <asm/mipsregs.h>
+#include "start.h"
+#include "../autoconf.h"
+
+
+
+
+		.text
+		.set noreorder
+		.globl __start
+__start:
+		j 	load_boot
+		nop              
+		nop
+		nop
+
+//--------------------------------------------------------------------------------              
+ load_boot:   
+ 		move 	t0, zero
+		mtc0 	t0, $12
+
+		nop
+//-------------------------------------------------------------------------------- 
+//============================================================================
+#if 0
+#ifdef CONFIG_UART_EAT_LXCLK
+	REG32_ANDOR(0xB8002010,0xffffffff-(1<<30), (0<<30));   //eat the lx clock
+#else
+	REG32_ANDOR(0xB8002010,0xffffffff-(1<<30), (1<<30));   //eat fix 200M
+#endif
+#endif
+//============================================================================
+#if 1
+lab_uart_show:
+		jal uart_show    //show boot msg
+		nop	
+#endif		
+//============================================================================		
+#if 0
+		jal DRAM_DETECT_BANK
+		nop		
+		jal DRAM_DETECT_ROW
+		nop
+		jal DRAM_DETECT_COL
+		nop
+#endif		
+
+//--------------------------------------------------------------------------------
+#ifdef CONFIG_NAND_FLASH  //For NAND Flash booting		
+
+
+	      ################ (DTR) DRAM Timing setting  ######################
+
+
+		//DTR
+         	li      t0,0xffff06c0		//8196 (QA board)      Safe parameter
+ 		li     t1, 0xb8001008
+ 	      	sw     t0, 0(t1)          
+		nop
+		nop		
+ 	  
+		################ (DTR) DRAM Timing End ######################
+
+
+
+
+		################ (DCR) DRAM Configuration setting######################
+	
+              //  DCR for SDRAM, 8196 (QA board) 
+              // li     t0, 0x54880000  # mem timing configuration Reg0 init 	//64MB-Micron
+                  li     t0, 0x54480000  # mem timing configuration Reg0 init  //32MB
+              //   li     t0, 0xd4480000  # mem timing configuration Reg0 init  //32MB  ,CL==4
+              //   li     t0, 0x5C480000  #   							//32MB,enable CS0 and CS1                  
+		//	  li     t0, 0x52480000  # mem timing configuration Reg0 init  //16MB
+             //    li     t0, 0x52080000  # mem timing configuration Reg0 init  //8MB
+             //  li     t0, 0x5A080000 # mem timing configuration Reg0 init  //8MB,enable CS0 and CS1               
+              li     t1, 0xb8001004
+ 	      	sw     t0, 0(t1)      
+		nop
+		nop
+		################DRAM Configuration setting End######################
+	
+	
+       ################DDR DDCR(0xb8001050) Fixed calibration######################
+        	
+		  //JSW: Pre-setting if you know  DRAM target chip's DDCR with ICE's calibration
+	          li     t0,  0xD0800000  # mem timing configuration Reg1 init
+ 		   li     t1, 0xb8001050
+ 		   sw     t0, 0(t1)  
+
+ 	       
+       ################ DDR DDCR(0xb8001050) Fixed calibration End ######################
+	
+
+	#----------------------------NAND flash-----------------------#
+	UART_PRINT_DELAY(nand_msg1);	
+
+		  #if 0  //For NAND debug purpose
+			     la     t0, 0x3c7  			# JSW:for setting 8196D fw_dbg_sel
+		 	     la     t1, 0xb8000094
+		 	     sw     t0, 0(t1)  
+
+			     # JSW:for setting 8196D NAND Flash debug ,default=0xd1000000   //LX Master
+		 	    // la     t0,  0xd3000000  			# JSW:for setting 8196D NAND Flash debug , NAND Flash debug port
+		 	    la     t0,  0xd7000000  			# JSW:for setting 8196D NAND Flash debug , SRAM debug port
+		 	     la     t1, 0xb801a000 
+		 	     sw     t0, 0(t1)  
+		 #endif
+
+
+#define NAND_CTRL_BASE 0xB801A000
+
+#ifdef CONFIG_NAND_Flash_Large_Page_256MBto2GB_5cycles //#OK 
+	//start from page 2(Due to first 4KB will move to SRAM automatically) , set 3rd cycle=>A13= page2 = from 4KB start (1page= 2KB)
+	#define NAND_FLASH_START 0x00002000 
+#endif
+
+#ifdef CONFIG_NAND_Flash_Large_Page_128MB_4cycles
+	//start from page 2(Due to first 4KB will move to SRAM automatically) , set 3rd cycle=>A13= page2 =1 (1page= 2KB)
+	#define NAND_FLASH_START 0x00002000 
+#endif
+
+
+#if (defined (CONFIG_NAND_Flash_Small_Page_32MB_3cycles)||defined (CONFIG_NAND_Flash_Small_Page_64MB_4cycles)) //OK
+	//start from page 2(Due to first 4KB will move to SRAM automatically) , set 2rd cycle=>A12= page8 =1 (1page= 512B)
+	#define NAND_FLASH_START 0x00001000 
+#endif
+
+
+#define NAND_MEM_START 0x00100000
+#define NAND_CHECK_READY()      \
+123:;							\
+	la		s0, NAND_CTRL_BASE+0x4; \
+	lw    	t0, 0(s0);       \
+	and   	t0, t0, 0x80000000;      \
+	bne   	t0, 0x80000000, 123b;    \
+	nop
+	
+	
+	#--- copy itself to RAM ---#
+
+	la		k0, __boot_start //k0: Flash's start address
+	la		t1, __boot_start 	
+
+#if (defined (CONFIG_NAND_Flash_Small_Page_32MB_3cycles)||defined (CONFIG_NAND_Flash_Small_Page_64MB_4cycles))
+	la		k1, (__boot_end+512 )  //k1: Flash's ending address
+#else			
+	la		k1, (__boot_end+2112 )  //k1: Flash's ending address
+#endif
+	
+	subu		t2,k1,k0  //t2: image size 
+	nop
+
+	la		t1, NAND_FLASH_START //Move 28(0x1c) pages =56 KB for boot.bin (56 KB)
+	
+	
+	addu t2,t2,t1 //t2=t2+t1 (Flash end address=image size + Flash's start address)
+	
+	la		t3, BOOT_ADDR 	//DRAM booting address
+	la		t4, NAND_CTRL_BASE+0x4
+	la		t5, 0xc00fffff  //set ECC=1 ,RBO/WBO=0
+	//la		t5, 0x800fffff  //set ECC=0 ,RBO/WBO=0
+	sw		t5, 0(t4)
+4:	
+	
+	li		k1, 0  //Calculate DMA times
+	li	t9, 4 //t9:DMA 512 Read Loop , 4 * 1DMA (512 bytes) = 2048 Bytes = 1 pages
+	nop	
+	nop
+
+	//UART_PRINT_DELAY(nand_page_times);
+	//UART_BIN2HEX(k1);	//print out total DMA times
+	
+5:	
+
+	addiu	k1, k1, +1  //v1: DMA times
+	#--- NAND DMA Flash data address ---#
+	la		t4, NAND_CTRL_BASE+0x18
+	sw		t1, 0(t4)	
+	
+	#--- NAND DMA SDRAM data address ---#
+	la		t4, NAND_CTRL_BASE+0x1c
+	and		t3,t3,0x1fffffff 
+	sw		t3, 0(t4)
+
+	#--- NAND DMA SDRAM oob address ---#
+	//la		t4, NAND_CTRL_BASE+0x54
+	//la		s1, 0x700000   //put OOB data to DRAM 7MB address	
+	//sw		s1, 0(t4)
+	
+	#--- NAND DMA Read operation ---#
+	la		t4, NAND_CTRL_BASE+0x10
+	la		t5, 0x0000005b //disable tag access,Enable DMARE
+	#la		t5, 0x0000001b //Enable tag access,Enable DMARE
+	sw		t5, 0(t4)
+	NAND_CHECK_READY()	
+
+
+	#define NAND_BOOTING_DBG_MSG
+	#ifdef  NAND_BOOTING_DBG_MSG
+			#if 1
+				//if NECN=1 , print warning msg and write "0"clear
+				lui	t4,0xb801
+				ori	t4,t4,0xa020
+				lw	v0,0(t4)
+				nop
+				andi	v0,v0,0xf0
+				bnez	v0,NAND_DMA_Read_NECN_Error		
+				nop	
+			#endif
+			
+			
+			//if NRER=1 ,means ECC happen un-recovery errors , so this block should be maked to "Bad block"!
+			lui	t4,0xb801
+			ori	t4,t4,0xa020
+			lw	v0,0(t4)
+			nop			
+			andi	v0,v0,0x8			
+			beqz	v0,NAND_DMA_Read_GoTo_Next
+			nop
+			nop
+			//UART_PRINT_DELAY(nand_ecc_warning_msg_NRER);
+			nop
+			ori	v0,v0,0x8			
+			sw	v0,0(t4)  //write "1" to clear			
+			nop			
+			//j 5b  /*More ECC DMA read can't make a bad block alive,so re-DMA read will be nothing*/			
+			nop
+
+			#if 1
+			NAND_DMA_Read_NECN_Error: //write "0" to clear
+				//UART_PRINT_DELAY(nand_ecc_warning_msg_NECN);
+				lw	v0,0(t4)
+				nop
+				li	v1,-241
+				and	v0,v0,v1
+				sw	v0,0(t4)
+				nop
+			#endif
+	#endif	
+
+
+
+NAND_DMA_Read_GoTo_Next:
+	
+
+	#if (defined (CONFIG_NAND_Flash_Small_Page_32MB_3cycles)||defined (CONFIG_NAND_Flash_Small_Page_64MB_4cycles))
+		addi	t1, t1, 512 //flash address+=0x200
+	#else
+		addi	t1, t1, 528 //flash address+=0x210
+	#endif
+	
+	addi	t3, t3, 512 //DRAMaddress+=0x200
+		
+	addi	t9, t9, -1
+	nop
+	nop	
+	
+	bne		t9, 0, 5b	
+	nop
+	nop	
+
+#if (defined (CONFIG_NAND_Flash_Small_Page_32MB_3cycles)||defined (CONFIG_NAND_Flash_Small_Page_64MB_4cycles))
+	addi	t1, t1, 0  //t1(flash start address )translate to next flash Page address,ex:page0:0x0,page1:0x200,page2:0x400
+	addi t2,t2,0   //t2 (flash end )+ 0 Bytes , for  balance the incremental value between t1 and t2 
+
+#else
+	addi	t1, t1, 1984  //t1(flash start address )translate to next flash Page address,ex:page0:0x0,page1:0x1000,page2:0x2000
+	addi t2,t2,1984   //t2 (flash end )+1984 Bytes , for  balance the incremental value between t1 and t2 
+#endif
+
+	//bne		t1, t2, 4b
+	ble		t1, t2, 4b
+	nop
+	nop
+		
+	
+	// flush all cache
+		#if 1
+			mtc0	zero, $20
+			nop
+			nop
+			li	 	t0, 0x3
+			mtc0	t0, $20
+			nop
+			nop
+			mtc0	zero, $20
+		#endif	
+
+		//		Jump to booting	
+		//UART_PRINT_DELAY(nand_msg_DMA_done);
+		li		k0, BOOT_ADDR //BOOT_ADDR: Dram's booting address
+	
+		
+		or k0,k0,0x80000000   //jump to cache address
+		jr		k0
+		nop
+
+#endif  //end of NAND Flash booting
+//--------------------------------------------------------------------------------
+#if 0
+lab_ddr_cali:
+
+		jal DDR_Auto_Calibration
+		nop
+#endif
+//============================================================================
+lab_start_c:
+#if 0
+		//enable unmap
+		REG32_W(0xb8001304,0x5);   //unmap seg len=4K
+		REG32_W(0xb8001300,VIR2PHY(SRAM_BASE) |1);   //unmap seg addr
+
+		//enable sram
+		REG32_W(0xb8004004,0x05);   //sram seg len=4K		
+		REG32_W(0xb8004000,VIR2PHY(SRAM_BASE) |1);   //sram seg addr
+
+#else
+	//initialize and start COP3
+	mfc0	$8,$12
+	nop
+	nop
+	or		$8,0x80000000
+	mtc0	$8,$12
+	nop
+	nop
+	
+	//dram base and top
+	la		$8,SRAM_BASE	//wei del
+	la		$9,0x0ffffc00
+	and		$8,$8,$9
+	mtc3	$8,$4								# DW bas
+	nop
+	nop
+	addiu	$8,$8,0x0fff
+	mtc3	$8,$5								# DW top
+	nop
+	nop
+
+	//--- DRAM en
+	mfc0	$8, $20	# CCTL
+	nop
+	nop
+	or		$8,(1<<10) 
+	mtc0	$8, $20
+	nop
+	nop
+#endif
+
+		li sp,SRAM_TOP-0x10
+		nop		
+		//jal start_c
+		nop
+
+		//disable sram
+//		REG32_W(0xb8001300,0);   //unmap seg addr
+//		REG32_W(0xb8004000,0);   //sram seg addr
+
+//--------------------------------------------------------------------------------
+#ifdef CONFIG_CKE_ENABLE  /*JSW@20110730: Enable 8196D DRAM CKE OK*/	
+	      REG32_W(0xb8001040, 0x3FFFFF80);      //3.1 MPMR,set default=0x3FFFFF80 , minimun Power saving parameter	 
+	      REG32_W(0xb8001040, 0x7FFFFF80);      //3.2 MPMR,Enable Power Down mode	 	      
+
+#endif
+//============================================================================
+//default, write direct
+//		REG32_W(0xb800100c, 0x00000000);  //4bank
+		//REG32_W(0xb8001008, 0xFFFFc270);
+		//REG32_W(0xb8001008, 0x91062920);
+		REG32_W(0xb8001008, 0x91062920);
+		REG32_W(0xb8001004, 0x54880000);
+//		REG32_W(0xb8001050, 0xc6400000);
+		
+#if 0
+1:
+	REG32_R(0xb8001004,k0);
+	and k0,k0,1
+	bne	zero, k0, 1b
+	nop	
+#endif
+//--------------------------------------------------------------------------------
+#ifdef CONFIG_SHOW_TRXDLY_MAP		
+		jal Auto_adjust_trxdly
+		nop
+		jal EnableIP_PADControl   //need set tx/rx delay again
+		nop		
+#endif		
+//--------------------------------------------------------------------------------
+
+
+//--------------------------------------------------------------------------------                               
+                               
+                               
+// flush all cache
+		mtc0	zero, $20	//cache control register:  *(20)=0x00
+		nop
+
+		li		t0, 0x3
+		mtc0	t0, $20		//cache control register:  *(20)=0x03
+		nop
+
+		mtc0	zero, $20	//cache control register:  *(20)=0x00
+
+#ifndef  CONFIG_NAND_FLASH //Booting from NOR and SPI Flash		
+
+		la		k0, __boot_start //k0: Flash's start address
+		la		k1, (__boot_end + 4)  //k0: Flash's ending address
+		la		t1, BOOT_ADDR //t1: DRAM address
+1:
+		lw		t0, 0(k0) //Load Flash's data into t0
+		nop
+		sw		t0, 0(t1) //Save Flash's data into DRAM's booting address
+		addu	t1, 4  //DRAM address +4
+		bne		k1, k0, 1b //Branch if Flash's start address not equal to Flash's ending address
+		addu	k0, 4 //Flash's start address +4
+		
+//		Jump to booting	
+		li		k0, BOOT_ADDR //BOOT_ADDR: Dram's booting address
+		jr		k0
+		nop
+                            
+#else  //For NAND Flash booting	
+
+#endif
+
+//======================================================================
+//  Sub-Function : DDR_Auto_Calibration
+//  Description  : Do DDR1 DDR2 calibration.
+
+	EXPORT(DDR_Auto_Calibration)	
+DDR_Auto_Calibration:
+################DDR DDCR calibration######################
+
+			
+		################ DDR DDCR calibration assembly code start ######################
+        	   			
+
+			li	t3,0xa0000000    	//(t3)=dram test address		                      
+			li	v0,0x5a5aa5a5      	//(v0)=dram test pattern
+			li	t2,0xb8001050        //(t2)=DDR calibration register                       
+
+			li	t1,0x80000000 //digital delay line(SW)     //(t1)=DDCR_Pattern
+			  // lui		t1,0x0     //analog delay line(HW)    
+
+			li	a2,0             //L0
+			li	t6,33        	//R0
+			
+			li	t5,0                //L1
+			li	t7,33              //R1
+			
+			sw	v0,0(t3)        // DRAM_ADDR=0x5a5aa5a5                             
+
+			li	v1,1           	        //v1=1,Calibration for DQS0 ,v1 will run 1~32 times   //(v1)=DQS0
+			move	a0,t1              //(a0)=DDCR_Pattern        
+			
+			li	t4,0x00ff00ff          // (t4)=mask
+		   		                
+			li	t0,0x005a00a5            //(t0)=expect valeue		              
+		       	             
+			move	a3,t4                         
+			move	a1,t0                             
+			addiu	v0,v1,-1                    
+
+	lab_loop_DQS0:
+			sll	v0,v1,25     // tmp=(DQS0<< DQS0_offset)                   
+			or	v0,a0,v0                 //tmp=DDCR_Pattern | tmp
+			
+			bnez	a2,lab_notzero      //if(L0==0), continue.
+			sw	v0,0(t2)               //DDCR=tmp     
+
+	lab_zero: //wei add, just for easy read		
+			lw	v0,0(t3)         //check read, (v0)= val                      
+			nop                                        
+			and	v0,v0,t4                       // val= val &mask        
+			bne	v0,t0,lab_next_DQS0    // compare val and exp_value
+			nop           
+			
+			j lab_next_DQS0             
+			move	a2,v1    //save to L0
+
+	lab_notzero:                           
+			lw	v0,0(t3)                                
+			nop                                        
+			and	v0,v0,a3               // val= val &mask         
+			bne	v0,a1,lab_end_DQS0     
+			nop     
+
+	lab_next_DQS0:                                   
+			addiu	v1,v1,1          //V1++  , DQS0++                  
+			sltiu	v0,v1,33                    
+			bnez	 v0,lab_loop_DQS0      
+
+       lab_end_DQS0:   
+			  
+			addiu	t8,v1,-1 	//saved R0's value to t8
+#ifdef CONFIG_RTL8198
+			//lui	v0,0x4000 //analog (HW)   
+			li	v0,0xc0000000 //digital (SW)			
+#else
+			li	v0,0xc0000000 //digital (SW)    
+#endif
+			and	t1,t1,v0                               
+			//addu	v0,a2,t6   
+			
+			add	v0,t8,a2   	//(L0+R0)			
+			srl	v0,v0,0x1      //c0=(L0+R0)/2
+
+#if 0
+	                li      t6,0xb8000000
+	                lw      t7,0(t6)
+        	        nop
+                	nop
+	                and     t7,t7,0x01
+        	        bnez    t7,DDCR_SHIFT_EXIT
+                	nop
+                	nop
+
+//if a2(L0) not equal to 1,then go to DDCR_SHIFT_EXIT without shift
+			bne  a2,1,DDCR_SHIFT_EXIT
+			nop
+			nop
+#endif
+
+#if 0//def CONFIG_RTL8198 //shift c0 anson@SD8 advise
+			li	s1, -3
+			li	s2, -2
+			li	s3, -1
+			sltiu	s0, v0, 9
+			movn	s1, s2, s0
+			sltiu	s0, v0, 6
+			movn	s1, s3, s0
+			sltiu	s0, v0, 5
+			movn	s1, zero, s0
+			addu	v0, v0, s1
+#endif
+DDCR_SHIFT_EXIT:
+			move t9,v0	  //command t9 if no set DQS1	
+			                              
+			sll	v0,v0,25       //DQS0 Offset
+			sll 	t9,t9,20  //command t9 if no set DQS1	//DQS1 Offset
+			or	t1,t1,v0
+			or    t1,t1,t9		  //command t9(and DDR_Calibration_end) if no set DQS1	
+			
+			sw	t1,0(t2)      //set DDCR DQS0/DQS1   //DDCR=(0xc0000000) | (C0<<25) | (C0<<20)
+			nop
+			nop
+
+			 j DDR_Calibration_end //end of set DDCR if don't try DQS1 
+			nop
+
+
+
+	############### DDR DDCR calibration assembly code end  #####################	
+			
+	
+	DDR_Calibration_end:  	
+
+		jr ra
+		nop
+
+//======================================================================
+//  Sub-Function : Auto_adjust_trxdly
+//  Description  : Show Tx Rx delay map
+
+	LEAF(Auto_adjust_trxdly)
+Auto_adjust_trxdly:
+
+		
+	UART_PRINT_DELAY(rxdly_msg);		
+	UART_PRINT_DELAY(seprate_msg);
+
+
+#define TXDLY_OFFSET 5
+#define RXDLY_OFFSET 0
+#define TXDLY_MAX 31
+#define RXDLY_MAX 31
+
+
+#define TRXDLY_MASK (0xffffffff-(TXDLY_MAX<<TXDLY_OFFSET)-(RXDLY_MAX<<RXDLY_OFFSET))
+
+#define CLKMGR_ADR 0xb8000010
+#define SDRAM_ADR 0xa0301234
+
+
+	//register.
+	//clk_mgr [5:3]=txdly   [2:0]=rxdly
+	
+	//operation register
+	// (k1,k0)= (txldy, rxdly),  (7-0,7-0)
+	li  k0,0     
+	li  k1,0   
+	
+	//save boundary region
+	//(a1,a0)=Rxdly OK(max,min)
+	//(a3,a2)=Txdly OK(max.min)
+  
+
+	//assume all not good.
+	li a0,RXDLY_MAX
+	li a1,0
+	li a2,TXDLY_MAX
+	li a3,0
+
+
+looptx:
+
+	bgt k1,TXDLY_MAX,end_cali    //if (k1>TXDLY_MAX) goto end_cali
+	nop
+
+		UART_WRITE(' ');
+		UART_BIN2HEX(k1);	
+		UART_WRITE(' ');		
+		UART_WRITE('|');	
+
+
+		li k0,0  //re-scan rxdly
+	looprx:
+		bgt k0,RXDLY_MAX,next_tx    //if (k1>RXDLY_MAX) goto next_tx
+		nop
+
+	
+	settrx:
+		sll t1,k1,TXDLY_OFFSET   // t1=k1<<TXDLY_OFFSET
+		sll t0,k0,RXDLY_OFFSET  // t0=k0<<RXDLY_OFFSET	
+		or t1,t1,t0    //  t1= t1 | t0 
+
+		REG32_ANDOR(CLKMGR_ADR, TRXDLY_MASK, t1);				
+		
+		//---------------mem access
+		REG32_W(SDRAM_ADR, 0x00000000);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop
+		//---------------
+		REG32_W(SDRAM_ADR, 0xffffffff);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop
+		//---------------
+		REG32_W(SDRAM_ADR, 0x55555555);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop
+		//---------------
+		REG32_W(SDRAM_ADR, 0xaaaaaaaa);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop		
+		//---------------
+		REG32_W(SDRAM_ADR, 0x5a5aa5a5);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop
+		//---------------
+		REG32_W(SDRAM_ADR, 0xa5a55a5a);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop		
+		//---------------
+		REG32_W(SDRAM_ADR, 0x11223344);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop	
+		//---------------
+		REG32_W(SDRAM_ADR, 0x55667788);   //t6=value
+		REG32_R(SDRAM_ADR, t5);
+		bne t6,t5,memfail
+		nop
+
+		//---------------memory test ok, then save boundary
+	mempass:
+		UART_WRITE(' ');	
+		UART_WRITE('O');
+
+
+#if 0
+		blt k0,a0,save_rxdly_left
+		nop
+		nop
+		b 1f
+		nop
+		nop
+		
+	save_rxdly_left:
+		move a0,k0   //rx_dly min
+
+	1:
+		
+		bgt k0,a1,save_rxdly_right
+		nop
+		nop
+		b 1f
+		nop
+		nop
+	save_rxdly_right:
+		move a1,k0    //rx_dly max
+
+	1:
+		
+		blt k1,a2,save_txdly_left   
+		nop
+		nop	
+		b 1f
+		nop
+		nop		
+	save_txdly_left:
+		move a2,k1  //tx_dly min  
+	1:
+		
+		bgt k1,a3,save_txdly_right    
+		nop
+		nop
+		b 1f
+		nop
+		nop
+	save_txdly_right:
+		move a3,k1   //tx_dly max
+
+	1:	
+#endif	
+		b next_rx
+		nop
+		nop
+	//--------------------
+
+
+
+
+	//-------------------
+	memfail:
+		UART_WRITE(' ');		
+		UART_WRITE('.');	
+	next_rx:
+		add k0,k0,1	//rxdly++
+		b looprx
+		nop
+
+	
+next_tx:
+		UART_WRITE('\r');	
+		UART_WRITE('\n');	
+
+	add k1,k1,1	//txdly++
+	b looptx
+	nop
+
+
+end_cali:
+#if 0
+#if 0   //use auto calibration  value
+	add k0,a0,a1    //k0=(a0+a1)/2
+	srl k0,k0,1
+	//add k0,k0,1  //k0++
+	add k1,a2,a3  //k1=(a2+a3)/2
+	srl k1,k1,1
+#else  //use manual value
+
+	li k0,6   //RxDly set value
+	li k1,2   //TxDly set value
+
+#endif
+
+	sll k0,k0,RXDLY_OFFSET
+	sll k1,k1,TXDLY_OFFSET
+	or t1,k1,k0    //t1= (k0<<Rxdly_off) | (k1<<txdly_off)
+
+
+	REG32_ANDOR(CLKMGR_ADR, TRXDLY_MASK, t1);
+#endif
+
+	jr ra
+	nop
+	END(Auto_adjust_trxdly)
+
+
+
+//==========================================================================	
+//  Sub-Function : uart_show
+//  Description  : Show "booting" word
+
+	EXPORT(uart_show)
+uart_show:	
+
+	//uart_init:		
+  	REG32_W( UART_LCR,0x03000000);
+  		
+  	REG32_W( UART_FCR,0xc7000000);
+  	REG32_W( UART_IER,0x00000000);
+  	dl = (SYS_CLK_RATE /16)/BAUD_RATE-1;
+
+  	dll = dl & 0xff;
+  	dlm = dl / 0x100;
+  	REG32_W( UART_LCR,0x83000000);
+  	REG32_W( UART_DLL,dll*0x1000000);
+   	REG32_W( UART_DLM,dlm*0x1000000); 
+	REG32_W( UART_LCR,0x83000000& 0x7fffffff);
+
+	//uart show
+	UART_PRINT(boot_msg);
+	j ra 
+ 	nop
+
+boot_msg:	.ascii "\r\nBooting...\r\n\0"
+rxdly_msg:	.ascii "T\\R| 0 1 2 3 4 5 6 7 8 9 a b c d e f 0 1 2 3 4 5 6 7 8 9 a b c d e f\r\n\0"
+seprate_msg:	.ascii "---+-----------------------------------------------------------------\r\n\0"	
+
+ 
+txdly_msg:	.ascii "abcdefghijk\0"
+ascii_tab:         .ascii "0123456789abcdef\0"
+
+	.align 4
+#if 0
+//==========================================================================	
+	#define BUS_WIDTH 1
+	
+	#define DCR_VALUE ((1<<30) | (BUS_WIDTH<<28))   //CL3
+	#define DCR_ADDR 0xb8001004
+	#define UNCACHED_ADDR 0xa0000000
+	#define WRITE_DATA 0x12345678
+
+	#define B_BITS s0	
+
+	
+	EXPORT(DRAM_DETECT_BANK)
+DRAM_DETECT_BANK:
+
+	REG32_W(DCR_ADDR,DCR_VALUE);
+
+#if 1	
+	//wait rdy
+1:
+	REG32_R(DCR_ADDR,t2)
+	li	k0, 0x1
+	and 	k0, k0, t2
+	bne	zero, k0, 1b
+	nop	
+#endif
+
+	REG32_ANDOR(DCR_ADDR, 0xffffffff, (1<<19) );  //set max banks=4 bank
+
+	//W1*R11*C8=1M bytes
+	li t8,UNCACHED_ADDR | ( 3<<(BUS_WIDTH+19) );
+	li t9,UNCACHED_ADDR | ( 1<<(BUS_WIDTH+19) );
+	
+	REG32_W(t8,0);
+	REG32_W(t9,0);	
+
+	REG32_W(t8,WRITE_DATA);
+	
+	REG32_R(t8, s5);
+	REG32_R(t9, s6);	
+	
+	IF_EQ(s5, s6, bank_one);  //the same, mean in one-bank
+
+bank_two:
+	li	B_BITS, 2
+	j ra
+	nop
+bank_one:	
+	li	B_BITS,1	
+	j ra
+	nop
+//==========================================================================	
+	EXPORT(DRAM_DETECT_ROW)
+DRAM_DETECT_ROW:
+
+	#define ROW_MIN 11
+	#define ROW_MAX 14
+	#define R_BITS s1
+	
+	REG32_ANDOR(DCR_ADDR, 0xffffffff-((3<<25) | (7<<22)), (3<<25) | (0<<22));  //set max
+	
+	li R_BITS,ROW_MIN
+	li     t1,1
+ROW_LOOP:	
+	
+
+	// t8 for addr
+	ADD3VAL(t8, BUS_WIDTH, R_BITS, 7); 
+	sll	t8, t1, t8
+	or	t8, UNCACHED_ADDR	
+/* 	
+	t8=0xa00000000 | (1<<(WIDTH + R_BITS + 7)); 
+*/
+	
+	REG32_W(t8,0);
+	REG32_W(UNCACHED_ADDR, WRITE_DATA);
+	REG32_R(t8,t3);
+
+	IF_EQ(WRITE_DATA, t3, ROW_OUT);
+/*
+	*t8=0
+	0xa00000000=DATA
+	if(DATA==*t8) goto ROW_OUT
+*/
+
+	add R_BITS, R_BITS, 1	
+	IF_NEQ(R_BITS, ROW_MAX+1, ROW_LOOP);
+
+	
+ROW_OUT:
+	sub R_BITS, R_BITS, 1	
+	
+	j ra
+	nop
+
+//==========================================================================	
+	EXPORT(DRAM_DETECT_COL)
+DRAM_DETECT_COL:
+
+	#define COL_MIN 8
+	#define COL_MAX 12	
+	#define C_BITS s2
+	
+	REG32_ANDOR(DCR_ADDR, 0xffffffff-((3<<25) | (7<<22)), (0<<25) | (4<<22));  //set max
+	
+	li C_BITS,COL_MIN
+	li     t1,1
+COL_LOOP:	
+
+	// t8 for addr
+	ADD3VAL(t8, BUS_WIDTH, C_BITS, -1); 	
+	sll	t8, t1, t8
+	or	t8, UNCACHED_ADDR	
+/* 	
+	t7=0xa00000000 | (1<<(WIDTH + C_BITS -1));
+*/
+	
+	REG32_W(t8,0);
+	REG32_W(UNCACHED_ADDR, WRITE_DATA);
+	REG32_R(t8,t3);
+
+	IF_EQ(WRITE_DATA, t3, COL_OUT);
+/*
+	*t7=0
+	0xa00000000=DATA
+	if(DATA==*t7) goto COW_OUT
+*/
+
+	add C_BITS, C_BITS, 1	
+	IF_NEQ(C_BITS, COL_MAX+1, COL_LOOP);
+
+	
+COL_OUT:
+	sub C_BITS, C_BITS, 1	
+
+	j ra
+	nop
+
+//==========================================================================	
+#if defined (CONFIG_SPE_DEVICE)
+
+	EXPORT(SPE_Patch)
+SPE_Patch:
+
+//---------
+#if 1 //intel board cannot get INTA interrupt when booting
+	REG32_W(UART_THR, 'T'<<24);	
+getlink:
+
+	REG32_R(0xb8002014, t1);
+	and t0,t1,0x01000000
+	beq t0,0x01000000,uart_break
+	nop
+
+	
+	REG32_R(0xb8b40728, t1);
+	and t0,t1,0x1f
+	bne t0,0x11,getlink     //not linkup 0x11, run loop
+	nop
+
+	REG32_ANDOR(0xb8b40004,0xffffffff, (1<<10));  //disable IRQ
+#endif	
+//-----------	
+#if 0
+	REG32_W(UART_THR, 'W'<<24);	
+1:
+
+	REG32_R(0xb8b41090, t0);     //wait host write trxdly
+	beq t0,0, 1b	
+	nop
+#endif
+	REG32_W(UART_THR, 'O'<<24);	
+	REG32_W(UART_THR, 'K'<<24);	
+#if 0
+	REG32_ANDOR(0xb8b40004, 0xffffffff-(1<<10), 0x0);  //enable IRQ
+#endif
+
+uart_break:	
+	j ra
+	nop
+#endif
+//==========================================================================	
+#endif
+
+
+
+//boot_msg:	.ascii "\r\nBooting...\r\n\0"	
+
+DTR_msg:	.ascii "\r\nDTR Done.\r\n\0"	
+
+DCR_msg:	.ascii "\r\nDCR Done.\r\n\0"	
+
+DDCR_msg:	.ascii "\r\nDDCR Done.\r\n\0"	
+
+
+nand_msg1:	.ascii "\r\nNand booting..\r\n\0"	
+nand_page_times:	.ascii "\r\nNand DMA pages:\0"	
+nand_msg_ECC_bit:	.ascii "\r\nNand ECC bit:\r\n\0"	
+nand_msg4:	.ascii "\r\nNand DMA Done4..\r\n\r\n\r\n\0"	
+nand_ecc_warning_msg_NRER:	.ascii "   Nand DMA ECC NRER error\0"	
+nand_ecc_warning_msg_NECN:	.ascii "   Nand DMA ECC NECN error\0"	
+nand_msg6:	.ascii "\r\nTotal DMA times\r\n\0"	
+nand_msg_DMA_done:	.ascii "\r\nNand DMA Read All Done->Jump to DRAM\r\n\0"

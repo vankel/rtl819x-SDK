@@ -1,0 +1,186 @@
+0. Introduction
+   This file will show you how to build the RTL8196E and RTL8196D/RTL8197D linux system. Besides, It
+will guide you how to download the built image to Realtek EV (Evaluation)
+board for testing. PLEASE NOTE, the download image will overwrite the original
+image existed in the flash memory of EV board.
+
+1. Build Environment
+   Fedora 9
+   Ubuntu 8.10/9.10
+
+2. Quick start
+   - tar xjvf rtl819x.tbz2
+   - cd rtl819x/
+   - make menuconfig:
+	--for 8196E
+		Select Target(rtl8196e)
+		Select Kernel (linux-2.6.30)
+		Select Busybox (busybox-1.13)
+		Select toolchain (rsdk-1.3.6-4181-EB-2.6.30-0.9.30)
+		Selected Target of SDK (11nRouter_GW)  --->
+		Select Board Configuration(96e+92c GW)
+		Select Load default settings
+	-- for 8196E MP
+		Select Target(rtl8196e)
+		Select Kernel (linux-2.6.30)
+		Select Busybox (busybox-1.13)
+		Select toolchain (rsdk-1.3.6-4181-EB-2.6.30-0.9.30)
+		Selected Target of SDK (11nRouter_GW)  --->
+		Selected Board Configuration (MP)
+		Select Load default settings
+        --for 8196D
+                Select Target(rtl819xD)
+                Select Kernel (linux-2.6.30)
+                Select Busybox (busybox-1.13)
+                Select toolchain (rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714)
+                Select Board Configuration(96D+92D GW)
+                Select Load default settings
+        -- for 819xD MP
+                Select Target(rtl819xD)
+                Select Kernel (linux-2.6.30)
+                Select Busybox (busybox-1.13)
+                Select toolchain (rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714)
+                Selected Board Configuration (MP)
+                Select Load default settings
+        --for 8197D
+                Select Target(rtl819xD)
+                Select Kernel (linux-2.6.30)
+                Select Busybox (busybox-1.13)
+                Select toolchain (rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714)
+                Select Load default settings
+         --for 8196c
+                Select Target(rtl8196c)
+                Select Kernel (linux-2.6.30)
+                Select Busybox (busybox-1.13)
+                Select toolchain (rsdk-1.3.6-4181-EB-2.6.30-0.9.30)
+                Selected Target of SDK (11nRouter_GW)  --->
+                Select Board Configuration(SPI flash + Squashfs)
+                Select Load default settings
+        -- for 8196c MP
+                Select Target(rtl8196c)
+                Select Kernel (linux-2.6.30)
+                Select Busybox (busybox-1.13)
+                Select toolchain (rsdk-1.3.6-4181-EB-2.6.30-0.9.30)
+                Selected Target of SDK (11nRouter_GW)  --->
+                Selected Board Configuration (MP)
+                Select Load default settings
+         --for 8198
+                Select Target(rtl8198)
+                Select Kernel (linux-2.6.30)
+                Select Busybox (busybox-1.13)
+                Select toolchain (rsdk-1.3.6-5281-EB-2.6.30-0.9.30)
+                Select Board Configuration(SPI flash + Squashfs)
+                Select Load default settings
+         --for 8198 MP
+                Select Target(rtl8198)
+                Select Kernel (linux-2.6.30)
+                Select Busybox (busybox-1.13)
+                Select toolchain (rsdk-1.3.6-5281-EB-2.6.30-0.9.30)
+                Select Board Configuration(MP)
+                Select Load default settings
+   - make
+	
+
+3. make image
+   there are four steps for making image:
+   - make users
+     build the users applications
+   - make linux
+     build the kernel files
+   - make romfs
+     copy all the application binary files into romfs
+   - make image
+     compress the root.bin and linux.bin
+
+4. build bootloader
+   - ensure the source code of sdk is existent, do command "tar xjvf rtl819x.tbz2" first, it include the toolchain.
+   - add environment variable(assume you source code directory is /rtl819x):
+	--for 8196E
+		 "export PATH=/rtl819x/toolchain/rsdk-1.3.6-4181-EB-2.6.30-0.9.30/bin:$PATH"
+        --for 819xD
+                 "export PATH=/rtl819x/toolchain/rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714/bin:$PATH"
+   - cd bootcode_rtl8196d
+   - make menuconfig:
+        --for 8196EU
+                select 'RTL8196E' for 8196E demo board
+                select 'Dram32M_32Mx1_16bit' for HW Setting
+                select 'SPI_FLASH' for SPI flash demo board, select 'NOR_FLASH' for NOR flash demo board
+                select 'BOOT_SIO_8198_8196C'
+                select 'NORMAL' for SDRAM demo board, select 'DDR2' for DDR memory demo board
+                enable LZMA '[*] LZMA Enable(Default GZip) '
+                enable [*] Boot Code Debug Command Enable
+                enable [*] Enable 96E ulinker boot led
+            you can do command "cp def-rtl8196e-ulinker-config .config', and it will do the default setting for rtl8196e bootcode.
+	--for 8196E
+		select 'RTL8196E' for 8196E demo board
+		select 'Dram32M_32Mx1_16bit' for HW Setting
+		select 'SPI_FLASH' for SPI flash demo board, select 'NOR_FLASH' for NOR flash demo board
+		select 'BOOT_SIO_8198_8196C'
+		select 'NORMAL' for SDRAM demo board, select 'DDR2' for DDR memory demo board
+		enable LZMA '[*] LZMA Enable(Default GZip) '
+		enable [*] Boot Code Debug Command Enable
+     	    you can do command "cp def-rtl8196e-config .config" before 'make menuconfig', and it will do the default setting for rtl8196e bootcode.
+        --for 8196D
+                select 'RTL8196D' for 8196D Product
+                select 'Dram32M_32Mx1_16bit' for HW Setting
+                select 'SPI_FLASH' for flash type
+                select 'BOOT_SIO_8198_8196C' for SPI IO type
+                select 'NORMAL' for SDRAM Type
+                select '10M_100M' for SWITCH type
+                enable LZMA '[*] LZMA Enable(Default GZip) '
+                enable [*]Config Spi flash Number
+            you can do command "cp def-rtl8196d-config .config" before 'make menuconfig', and it will do the default setting for rtl8196d bootcode.
+        --for 8197D
+                select 'RTL8196D' for 8196D Product
+                select 'Dram64M_64Mx1_16bit' for HW Setting
+                select 'SPI_FLASH' for flash type
+                select 'BOOT_SIO_8198_8196C' for SPI IO type
+                select 'NORMAL' for SDRAM Type
+                select '10M_100M' for SWITCH type
+                enable LZMA '[*] LZMA Enable(Default GZip)
+                enable [*]Config Spi flash Number
+           you can do command "cp def-rtl8197d-config .config" before 'make menuconfig',then change HW Setting to Dram64M_64Mx1_16bit, and it will do the default setting for rtl8197D bootcode.
+   - make 
+   - ==> you will find boot.bin in ./btcode
+   - ==> 'boot.bin' is the bootloader image
+
+5. binary file list
+   - bootcode_rtl8196e/btcode/boot.bin : bootloader image
+   - rtl819x/image/root.bin : rootfs binary image
+   - rtl819x/image/linux.bin: linux-2.6 kernel image
+   - rtl819x/image/webpages-gw.bin: the webpages image
+   - rtl819x/image/fw.bin: the image include
+     root.bin/linux.bin/webpages-gw.bin
+    	  
+6. Download image files to Realtek EV (evaluation) board for testing
+   - Use a RS232 cable to connect COM port between a LINUX PC and EV board.
+   - Connect LINUX PC Ethernet port to the LAN port of EV board. Set PC IP
+     address to 192.168.1.x (e.g., type 'ifconfig eth0 192.168.1.1').
+   - Start a COM port console (e.g., minicom), and set COM port setting to
+     38400, 8N1 and no flow control.
+   - Power on EV board, and press 'ESC' key in COM port console to escape the
+     booting process. If ok, you may see "<RealTek>" prompt in the console.
+   - Start a TFTP client in LINUX PC, and connect to 192.168.1.6. Set file
+     type to binary mode to TFTP server of EV board, put root.bin if gw 
+     platform to TFTP server, and put root image file(rtl819x/image/root.bin) to TFTP server,
+     then put the webpages image file and  linux image files to TFTP server.
+     After linux.bin file upload had finished, boot code will auto booting.
+   - NOTE:you can do the same thing on Windos PC.
+
+7. Build ramdisk for MP using "root" user
+   - modify /etc/fstab
+     vim /etc/fstab
+     add "/dev/ram /mnt/ramdisk ext2 suid,noauto,user,rw     0 0" in the file
+   - cd /mnt
+     mkdir ramdisk
+   - cd /bin
+     chmod +s mknod
+   - cd /dev
+     ln -sf ram1 ram
+
+NOTE:
+   - In order to create dev file in romfs, /bin/mknod should be suid.
+     Do the command "chmod +s /bin/mknod" as root privilege.
+     - If you don't use the default setting to make bootcode, make sure the size of boot.bin is less than 24K.
+
+02/29/2012
