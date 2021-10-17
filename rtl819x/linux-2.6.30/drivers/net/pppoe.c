@@ -304,11 +304,10 @@ static void pppoe_flush_dev(struct net_device *dev)
 	for (i = 0; i < PPPOE_HASH_SIZE; i++) {
 		struct pppox_sock *po = pn->hash_table[i];
 
-                if(!((unsigned int)po & 0x80000000))
+	        if(!((unsigned int)po & 0x80000000))
                 {
-                	continue;
+                        continue;
                 }
-
 		while (po != NULL) {
 			struct sock *sk;
 			if (po->pppoe_dev != dev) {

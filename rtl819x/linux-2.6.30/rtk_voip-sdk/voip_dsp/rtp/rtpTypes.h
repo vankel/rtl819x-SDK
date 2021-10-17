@@ -432,6 +432,8 @@ struct RtpTranInfoStruct
 
     /// LSR timestamp which will be one of the fields of the next SR sent out
     u_int32_t lastSRTimestamp;	// (NTP32: 32 bits out of 64 bits NTP)
+    
+    u_int32_t prevSRTimestamp;	// (NTP32: 32 bits out of 64 bits NTP)
 
     /// receiveing time of the last SR received
     NtpTime recvLastSRTimestamp;
@@ -566,7 +568,8 @@ typedef struct {
 } RtcpStatisticsUnit;
 
 typedef struct {
-	unsigned long packet_count;
+	unsigned long rtcp_packet_count;
+	unsigned long rtcp_xr_packet_count;
 	RtcpStatisticsUnit fraction_loss;	// RTCP 
 	RtcpStatisticsUnit inter_jitter;	// RTCP 
 	RtcpStatisticsUnit round_trip_delay;	// RTCP XR 4.7.3 
@@ -603,6 +606,14 @@ typedef struct stRtcpReceiver
 	unsigned long accumRoundTripDelayCount;
 	unsigned long avgRoundTripDelay;
 	
+	// delta ms of received RTCP
+	unsigned long maxDeltaMs;
+	unsigned long minDeltaMs;
+	unsigned long avgDeltaMs;
+	unsigned long lastDeltaMs;
+	unsigned long deltaMsCount;
+	unsigned long deltaMsSum;
+	
 	RtcpStatisticsLogger rxLogger;
 	
 }RtcpReceiver;
@@ -616,6 +627,7 @@ typedef struct stRtpReceiver
 	BOOL probationSet;				/* probation set flag */
 	RtpSrc srcProbation;			/* wouldn't listen to this source */
 	int probation;					/* probation, 0 source valid */
+	int probationAbort;				/* probation cumulation abort if probation is not continual */
 	RtpSeqNumber seedSeq;			/* inital seqence number */
 
 #if 1
@@ -727,6 +739,15 @@ typedef struct stRtcpTransmitter
 	
 /*	NetworkAddress remoteAddr; */
 }RtcpTransmitter;
+
+typedef struct 
+{
+	BOOL bMismatch_check;
+	BOOL bMismatch_report;
+	BOOL bMismatch_auto_sync;
+	unsigned int mismatch_cnt;
+	unsigned int mismatch_cnt_thres;
+}RtpPTChecker;
 
 
 #endif // RTPTYPES_H

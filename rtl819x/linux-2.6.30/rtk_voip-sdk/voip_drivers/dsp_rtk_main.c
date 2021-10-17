@@ -5,7 +5,8 @@
 #include "codec_descriptor.h"
 
 #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
-SampleRate_t VoipChannelSampleRate[ DSP_RTK_CH_NUM ] = {[0 ... DSP_RTK_CH_NUM-1] = SAMPLE_NARROW_BAND};
+// change DSP_RTK_CH_NUM to MAX_DSP_RTK_CH_NUM ip phone need ch3
+SampleRate_t VoipChannelSampleRate[ MAX_DSP_RTK_CH_NUM ] = {[0 ... MAX_DSP_RTK_CH_NUM-1] = SAMPLE_NARROW_BAND};
 #endif
 
 static int enable_dsp_rtk( voip_dsp_t *this, int enable )
@@ -13,6 +14,12 @@ static int enable_dsp_rtk( voip_dsp_t *this, int enable )
 	if( enable ) {
 		VoipChannelSampleRate[ this ->dch ] = 
 			( enable == 2 ? SAMPLE_WIDE_BAND : SAMPLE_NARROW_BAND );
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE		// ip phone handset mode using ch3
+		if ( 0 == this ->dch ) {
+			VoipChannelSampleRate[ 3 ] = 
+				( enable == 2 ? SAMPLE_WIDE_BAND : SAMPLE_NARROW_BAND );
+		}
+#endif /* CONFIG_RTK_VOIP_DRIVERS_IP_PHONE */
 	}
 
 	return 0;

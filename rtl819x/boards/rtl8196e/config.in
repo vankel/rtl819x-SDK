@@ -91,6 +91,13 @@ config RTL_8196E_GW
         help
           This enables support for Realtek RTL8196E demo board
 
+config RTL_8196E_AP
+        bool "96E AP"
+        select RTL_8196E
+		select SYS_HAS_EARLY_PRINTK
+        help
+          This enables support for Realtek RTL8196E demo board running AP mode
+
 endchoice
 
 config FPGA_PLATFORM
@@ -98,6 +105,10 @@ config FPGA_PLATFORM
 
 config RTL_8196E_GW
 	bool
+
+config RTL_AP_PACKAGE
+    bool
+    default y if RTL_8196E_AP
 
 config RTL_NFJROM_MP
 	bool "build nfjrom image for MP"
@@ -135,6 +146,10 @@ config AUTO_PCIE_PHY_SCAN
 config RTL_FLASH_DUAL_IMAGE_ENABLE
 	bool "Enable Flash Dual Bank support"
 
+config RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE
+	bool "Enable Flash Dual Bank Webpage Backup Support"
+	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
+
 comment "Second Bank Offset"
 	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
 config RTL_FLASH_DUAL_IMAGE_OFFSET
@@ -171,11 +186,11 @@ config USB3G_SUPPORT
 	select USB_DEVICEFS
 	select USB_DEVICE_CLASS
 	select USB_MON
-	select USB_EHCI_HCD
-	select USB_EHCI_ROOT_HUB_TT
-	select USB_EHCI_TT_NEWSCHED
-	select USB_OHCI_HCD
-	select USB_OHCI_LITTLE_ENDIAN
+	#select USB_EHCI_HCD
+	#select USB_EHCI_ROOT_HUB_TT
+	#select USB_EHCI_TT_NEWSCHED
+	#select USB_OHCI_HCD
+	#select USB_OHCI_LITTLE_ENDIAN
 	select USB_STORAGE
 	select USB_SERIAL
 	select USB_SERIAL_CONSOLE
@@ -188,6 +203,17 @@ config USB3G_SUPPORT
 config RTL_USB_IP_HOST_SPEEDUP
 	bool "Seedup usb samba performance"
 	
+config RTL_USB_ISOCHRONOUS_WEIGHT
+       bool "Enhance USB Isochronous Features Applications"
+       select USB_UWIFI_HOST
+       default n
+
+config APPLE_MFI_SUPPORT
+        bool "Apple MFi program support"
+config APPLE_HOMEKIT_BLOCK_SUPPORT
+	depends on APPLE_MFI_SUPPORT
+	bool "Apple Homekit mtd block support"
+
 config HTTP_FILE_SERVER_SUPPORT
 	bool "Http File server support"
 
@@ -292,6 +318,15 @@ config RTL_ROOT_IMAGE_OFFSET
         default "0xF0000"
         help
 	  root image store in flash from the offset.
+	  
+comment "Flatfs image offset,should be 128K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_FLATFS_IMAGE_OFFSET
+        hex "FLATFS image offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x3E0000"
+        help
+	  flatfs image store in flash from the offset.
 
 # KERNE_STACK_SIZE = PAGE_SIZE<<KERNEL_STACK_SIZE_ORDER
 config KERNEL_STACK_SIZE_ORDER

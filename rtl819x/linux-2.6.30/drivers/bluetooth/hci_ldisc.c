@@ -543,7 +543,12 @@ static int __init hci_uart_init(void)
 #ifdef CONFIG_BT_HCIUART_LL
 	ll_init();
 #endif
-
+//Realtek_add_start	
+//add realtek h5 support	
+#ifdef CONFIG_BT_HCIUART_RTKH5
+	h5_init();
+#endif
+//Realtek_add_end	
 	return 0;
 }
 
@@ -561,6 +566,9 @@ static void __exit hci_uart_exit(void)
 	ll_deinit();
 #endif
 
+#ifdef CONFIG_BT_HCIUART_RTKH5
+	h5_deinit();
+#endif
 	/* Release tty registration of line discipline */
 	if ((err = tty_unregister_ldisc(N_HCI)))
 		BT_ERR("Can't unregister HCI line discipline (%d)", err);

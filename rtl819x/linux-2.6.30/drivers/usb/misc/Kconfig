@@ -255,4 +255,4 @@ config USB_VST
 	  To compile this driver as a module, choose M here: the
 	  module will be called vstusb.
 
-#source "drivers/usb/misc/rts51xx/Kconfig"
+source "drivers/usb/misc/rts51xx/Kconfig"

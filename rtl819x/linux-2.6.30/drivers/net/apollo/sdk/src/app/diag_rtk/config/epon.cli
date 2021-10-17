@@ -1,0 +1,170 @@
+//
+// Copyright (C) 2012 Realtek Semiconductor Corp.
+// All Rights Reserved.
+//
+// This program is the proprietary software of Realtek Semiconductor
+// Corporation and/or its licensors, and only be used, duplicated,
+// modified or distributed under the authorized license from Realtek.
+//
+// ANY USE OF THE SOFTWARE OTHER THAN AS AUTHORIZED UNDER
+// THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+//
+// $Revision: 18886 $
+// $Date: 2011-06-21 19:07:50 +0800 (星期二, 21 六月 2011) $
+//
+// Purpose : Define diag shell commands for EPON.
+//
+// Feature : The file have include the following module and sub-modules
+//           1) epon commands.
+//
+
+//epon configuration
+//init epon
+epon init
+
+//epon configuration
+//get configuration
+//bypass fec function
+//state configuration
+epon get bypass-fec state
+
+//epon configuration
+//set configuration
+//bypass fec function
+//state configuration
+//disable function
+//enable function
+epon set bypass-fec state ( disable | enable )
+
+//epon configuration
+//get configuration
+//LLID table
+//table index, <0~7>
+epon get llid-table <UINT:index>
+
+//epon configuration
+//get configuration
+//LLID table
+//table index, <0~7>
+epon get llid-table
+
+//epon configuration
+//set configuration
+//LLID table
+//table index, <0~7>
+//state configuration
+//disable function
+//enable function
+epon set llid-table <UINT:index> state ( disable | enable )
+
+//epon configuration
+//set configuration
+//LLID table
+//table index, <0~7>
+//LLID value
+//LLID, <0~7FFF>
+epon set llid-table <UINT:index> llid <UINT:llid>
+
+//epon configuration
+//set configuration
+//LLID table
+//table index, <0~7>
+//report timer
+//report timer, <0~64>
+epon set llid-table <UINT:index> report-timer <UINT:timer>
+
+//epon configuration
+//get configuration
+//mpcp gate rx function
+//mpcp action configuration
+epon get mpcp-gate action
+
+//epon configuration
+//set configuration
+//mpcp gate rx function
+//mpcp action configuration
+//gate packet handle by asic
+//gate packet handle by asic and trap to CPU
+epon set mpcp-gate action ( asic-only | trap-and-asic ) 
+
+//epon configuration
+//get configuration
+//mpcp invalid length rx function
+//mpcp action configuration
+epon get mpcp-invalid-len action
+
+//epon configuration
+//set configuration
+//mpcp invalid length rx function
+//mpcp action configuration
+//gate packet handle by asic
+//gate packet handle by asic and trap to CPU
+epon set mpcp-invalid-len action ( drop | pass ) 
+ 
+//epon configuration
+//get configuration
+//registration seting
+//mode configuration
+epon get register mode
+ 
+//epon configuration
+//set configuration
+//registration seting
+//mode configuration
+//registration is handle by asic
+//registration is handle by SW
+epon set register mode ( asic | sw ) 
+
+//epon configuration
+//get configuration
+//registration seting
+//llid table index to for register
+epon get register llid-idx
+
+//epon configuration
+//set configuration
+//registration seting
+//llid table index to for register
+//llid table index, <0~7>
+epon set register llid-idx <UINT:index> 
+
+//epon configuration
+//get configuration
+//registration seting
+//state configuration
+epon get register state
+
+//epon configuration
+//set configuration
+//registration seting
+//state configuration
+//disable function
+//enable function
+epon set register state ( disable | enable )
+
+//epon configuration
+//get configuration
+//registration seting
+//MAC address for this registration
+epon get register mac-address
+
+//epon configuration
+//set configuration
+//registration seting
+//MAC address for this registration
+//MAC address, A:B:C:D:E:F
+epon set register mac-address <MACADDR:mac> 
+
+//epon configuration
+//get configuration
+//registration seting
+//pendding grant number for this llid register
+epon get register pendding-grant
+
+//epon configuration
+//set configuration
+//registration seting
+//llid table index to for register
+//pendding grant number for this llid register
+//pending grand numbet, <1~32>
+epon set register pendding-grant <UINT:number> 

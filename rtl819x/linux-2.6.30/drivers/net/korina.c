@@ -229,7 +229,9 @@ static int korina_send_packet(struct sk_buff *skb, struct net_device *dev)
 	dma_cache_wback((u32)skb->data, skb->len);
 
 	/* Setup the transmit descriptor. */
-	dma_cache_inv((u32) td, sizeof(*td));
+	/*Fix jwj, change from dma_cache_inv to dma_cache_wback_inv*/
+	//dma_cache_inv((u32) td, sizeof(*td));
+	dma_cache_wback_inv((u32) td, sizeof(*td));
 	td->ca = CPHYSADDR(skb->data);
 	chain_prev = (lp->tx_chain_tail - 1) & KORINA_TDS_MASK;
 	chain_next = (lp->tx_chain_tail + 1) & KORINA_TDS_MASK;
@@ -355,7 +357,9 @@ static int korina_rx(struct net_device *dev, int limit)
 	u32 devcs, pkt_len, dmas;
 	int count;
 
-	dma_cache_inv((u32)rd, sizeof(*rd));
+	/*Fix jwj, change from dma_cache_inv to dma_cache_wback_inv*/
+	//dma_cache_inv((u32)rd, sizeof(*rd));
+	dma_cache_wback_inv((u32)rd, sizeof(*rd));
 
 	for (count = 0; count < limit; count++) {
 		skb = lp->rx_skb[lp->rx_next_done];
@@ -396,7 +400,9 @@ static int korina_rx(struct net_device *dev, int limit)
 			pkt_buf = (u8 *)lp->rx_skb[lp->rx_next_done]->data;
 
 			/* invalidate the cache */
-			dma_cache_inv((unsigned long)pkt_buf, pkt_len - 4);
+			/*Fix jwj, change from dma_cache_inv to dma_cache_wback_inv*/
+			//dma_cache_inv((unsigned long)pkt_buf, pkt_len - 4);
+			dma_cache_wback_inv((unsigned long)pkt_buf, pkt_len - 4);
 
 			/* Malloc up new buffer. */
 			skb_new = netdev_alloc_skb(dev, KORINA_RBSIZE + 2);
@@ -1137,7 +1143,10 @@ static int korina_probe(struct platform_device *pdev)
 		goto probe_err_td_ring;
 	}
 
-	dma_cache_inv((unsigned long)(lp->td_ring),
+	/*Fix jwj, change from dma_cache_inv to dma_cache_wback_inv*/
+	//dma_cache_inv((unsigned long)(lp->td_ring),
+	//		TD_RING_SIZE + RD_RING_SIZE);
+	dma_cache_wback_inv((unsigned long)(lp->td_ring),
 			TD_RING_SIZE + RD_RING_SIZE);
 
 	/* now convert TD_RING pointer to KSEG1 */

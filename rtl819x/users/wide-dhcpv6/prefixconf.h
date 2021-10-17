@@ -31,6 +31,8 @@
 
 typedef enum { PREFIX6S_ACTIVE, PREFIX6S_RENEW,
 	       PREFIX6S_REBIND} prefix6state_t;
+		   
+#define DHCP6PD_CONF_FILE "/var/dhcp6pd.conf"
 
 extern int update_prefix __P((struct ia *, struct dhcp6_prefix *,
     struct pifc_list *, struct dhcp6_if *, struct iactl **,

@@ -1,0 +1,44 @@
+libm/ilogbf.o: libm/float_wrappers.c include/libc-symbols.h \
+ include/bits/uClibc_arch_features.h include/math.h include/features.h \
+ include/bits/uClibc_config.h include/sys/cdefs.h include/libc-internal.h \
+ include/bits/stackinfo.h include/bits/huge_val.h \
+ include/bits/huge_valf.h include/bits/huge_vall.h include/bits/inf.h \
+ include/bits/nan.h include/bits/mathdef.h include/sgidefs.h \
+ include/bits/mathcalls.h include/complex.h include/bits/cmathcalls.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+include/math.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/sys/cdefs.h:
+
+include/libc-internal.h:
+
+include/bits/stackinfo.h:
+
+include/bits/huge_val.h:
+
+include/bits/huge_valf.h:
+
+include/bits/huge_vall.h:
+
+include/bits/inf.h:
+
+include/bits/nan.h:
+
+include/bits/mathdef.h:
+
+include/sgidefs.h:
+
+include/bits/mathcalls.h:
+
+include/complex.h:
+
+include/bits/cmathcalls.h:
+cmd_libm_ilogbf.o := mips-linux-gcc -c libm/float_wrappers.c -o libm/ilogbf.o -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -DNOT_IN_libc -DIS_IN_libm -D_IEEE_LIBM -MT libm/ilogbf.o -MD -MP -MF libm/.ilogbf.o.dep -DL_ilogbf

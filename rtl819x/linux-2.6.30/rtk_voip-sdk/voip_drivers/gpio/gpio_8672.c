@@ -27,6 +27,9 @@
 
 int gpio_debug = 0;
 extern int spi_dbg;
+extern void gpioConfig (int gpio_num, int gpio_func);
+extern void gpioSet(int gpio_num);
+extern void gpioClear(int gpio_num);
 // Goal : unifiy GPIO functions
 //static uint32 _getGpio( enum GPIO_FUNC func, enum GPIO_PORT port, uint32 pin )
 static uint32 _getGpio( unsigned char port, uint32 pin )

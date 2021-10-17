@@ -16,7 +16,7 @@
 #include <config.h>
 #endif
 #ifndef __BOOTCODE__
-#include <linux/config.h>
+//#include <linux/config.h>
 #endif
 #include "voip_types.h"
 
@@ -36,6 +36,8 @@
 #include "gpio_8972b.h"
 #elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
 #include "gpio_8954c.h"
+#elif defined(CONFIG_RTK_VOIP_PLATFORM_8686)
+#include "gpio_8686.h"
 #elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
 #include "gpio_8972d.h"
 #else
@@ -104,10 +106,22 @@
 #define RTK_GPIO_GET(pid, pData) _rtl8954C_getGpioDataBit(pid, pData) 
 #define RTK_GPIO_SET(pid, data) _rtl8954C_setGpioDataBit(pid, data)
 
+#elif defined(CONFIG_RTK_VOIP_PLATFORM_8686)
+#ifdef CONFIG_RTK_VOIP_SOC_8686_CPU0
+#define RTK_GPIO_INIT(pid, dedicate, dir, interrupt)  _rtl8686_initGpioPin(pid, dir)
+#define RTK_GPIO_GET(pid, pData) _rtl8686_getGpioDataBit(pid, pData) 
+#define RTK_GPIO_SET(pid, data) _rtl8686_setGpioDataBit(pid, data)
+#elif defined (CONFIG_RTK_VOIP_SOC_8686_CPU1)
+#define RTK_GPIO_INIT(pid, dedicate, dir, interrupt)  ( -1 )
+#define RTK_GPIO_GET(pid, pData) ( -1 )
+#define RTK_GPIO_SET(pid, data) ( -1 )
+#endif
+
 #elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
 #define RTK_GPIO_INIT(pid, dedicate, dir, interrupt)  _rtl8972D_initGpioPin(pid, dedicate, dir, interrupt)
 #define RTK_GPIO_GET(pid, pData) _rtl8972D_getGpioDataBit(pid, pData) 
 #define RTK_GPIO_SET(pid, data) _rtl8972D_setGpioDataBit(pid, data)
+
 #else
 #error "unknown gpio driver"
 #endif

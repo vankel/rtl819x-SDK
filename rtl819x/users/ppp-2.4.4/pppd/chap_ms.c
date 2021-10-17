@@ -394,6 +394,11 @@ chapms_handle_failure(unsigned char *inp, int len)
 	else
 		goto print_msg; /* Message is badly formatted. */
 
+	{
+		char buffer[64];
+		sprintf(buffer,"echo %d > /var/ppp_error",err);
+		system(buffer);
+	}
 	if (len && ((p = strstr(p, " M=")) != NULL)) {
 		/* M=<message> field found. */
 		p += 3;
@@ -433,6 +438,9 @@ chapms_handle_failure(unsigned char *inp, int len)
 		}
 	}
 print_msg:
+	{
+		system("echo 691 > /var/ppp_error");
+	}
 	if (p != NULL)
 		error("MS-CHAP authentication failed: %v", p);
 	free(msg);

@@ -168,6 +168,12 @@ unsigned int ebt_do_table (unsigned int hook, struct sk_buff *skb,
 
 	read_lock_bh(&table->lock);
 	private = table->private;
+    if(NULL == private)
+    {
+        printk("####%s line:%d private is NULL,just return NF_ACCEPT####\n",__FUNCTION__,__LINE__);
+        read_unlock_bh(&table->lock);
+        return NF_ACCEPT;
+    }
 	cb_base = COUNTER_BASE(private->counters, private->nentries,
 	   smp_processor_id());
 	if (private->chainstack)

@@ -1,0 +1,607 @@
+//
+// Copyright (C) 2012 Realtek Semiconductor Corp.
+// All Rights Reserved.
+//
+// This program is the proprietary software of Realtek Semiconductor
+// Corporation and/or its licensors, and only be used, duplicated,
+// modified or distributed under the authorized license from Realtek.
+//
+// ANY USE OF THE SOFTWARE OTHER THAN AS AUTHORIZED UNDER
+// THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+//
+// $Revision: 14512 $
+// $Date: 2010-11-29 17:22:22 +0800 (Mon, 29 Nov 2010) $
+//
+// Purpose : Define diag shell commands for debug.
+//
+// Feature : The file have include the following module and sub-modules
+//           1) debug commands.
+//
+
+//classification configuration
+//show configuration
+//rule for configuration
+classf show rule
+
+//classification configuration
+//rule clear operation
+classf clear
+
+//classification configuration
+//initial
+classf init
+
+//classification configuration
+//add configuration
+//entry configuration
+//index, <0~511>
+classf add entry <UINT:index>
+
+//classification configuration
+//delete configuration
+//entry configuration
+//index, <0~511>
+classf del entry <UINT:index>
+
+//classification configuration
+//delete configuration
+//entry configuration
+//all entries
+classf del entry all
+
+//classification configuration
+//get configuation
+//entry configuration
+//index, <0~511>
+classf get entry <UINT:index>
+
+//classification configuration
+//set configuration
+//rule configuration
+//diretction configuration
+//specify to upstream
+//specify to downstream
+classf set rule direction ( upstream | downstream )
+
+//classification configuration
+//set configuration
+//rule configuration
+//tos(up) or sid(down) configuration
+//data configuration
+//data, 8 bits
+//mask configuration
+//mask, 8 bits
+classf set rule tos-sid data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//tag VID configuration
+//data configuration
+//VID data, 12 bits, 0~4095
+//mask configuration
+//VID mask, 12 bit
+classf set rule tag-vid data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//tag priority configuration
+//data configuration
+//priority data, 3 bits, 0~7
+//mask configuration
+//priority mask, 3 bit
+classf set rule tag-priority data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//internal priority configuration
+//data configuration
+//priority data, 3 bits, 0~7
+//mask configuration
+//priority mask, 3 bit
+classf set rule internal-priority data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//Stag bit configuration
+//data configuration
+//s bit data, 1 bit
+//mask configuration
+//s bit mask, 1 bit
+classf set rule svlan-bit data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//Ctag bit configuration
+//data configuration
+//c bit data, 1 bit
+//mask configuration
+//c bit mask, 1 bit
+classf set rule cvlan-bit data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//UNI configuration
+//data configuration
+//UNI data, 3 bits, 0-7
+//mask configuration
+//UNI mask, 3 bit
+classf set rule uni data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//ether type configuration
+//data configuration
+//type data, 16 bits
+//mask configuration
+//type mask, 16 bit
+classf set rule ether-type data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//L4 port range check configuration
+//data configuration
+//type data, 4 bits, MSB is hit bit.
+//mask configuration
+//type mask, 4 bit
+classf set rule range-l4port data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//IP range check configuration
+//data configuration
+//type data, 4 bits, MSB is hit bit.
+//mask configuration
+//type mask, 4 bit
+classf set rule range-ip data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//ACL hit latch configuration
+//data configuration
+//type data, 8 bits, MSB is hit bit.
+//mask configuration
+//type mask, 8 bits
+classf set rule hit-acl data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//WAN interface
+//data configuration
+//type data, 3 bits
+//mask configuration
+//type mask, 3 bits
+classf set rule wan-if data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//multicast IPv4 bit
+//data configuration
+//type data, 1 bit
+//mask configuration
+//type mask, 1 bit
+classf set rule ipmc-bit data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//multicast IPv6 bit
+//data configuration
+//type data, 1 bit
+//mask configuration
+//type mask, 1 bit
+classf set rule ip6mc-bit data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//IGMP bit
+//data configuration
+//type data, 1 bit
+//mask configuration
+//type mask, 1 bit
+classf set rule igmp-bit data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//MLD bit
+//data configuration
+//type data, 1 bit
+//mask configuration
+//type mask, 1 bit
+classf set rule mld-bit data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//rule configuration
+//VLAN DEI bit
+//data configuration
+//type data, 1 bit
+//mask configuration
+//type mask, 1 bit
+classf set rule dei-bit data <UINT:data> mask <UINT:mask>
+
+//classification configuration
+//set configuration
+//opeartion configuration
+//entry configuration
+//entry number
+//upstream
+//downstream
+//hit
+//not hit
+classf set operation entry <UINT:index> ( upstream | downstream ) ( hit | not )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Stag action configuration
+//specify to no operation
+//add classification tag which TPID as VS_TPID
+//add classification tag which TPID as 0x8100
+//delete Stag
+//transparent
+classf set upstream-action svlan-act ( nop | vs-tpid | c-tpid | del | transparent )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Ctag action configuration
+//specify to no operation
+//specify to add Ctag
+//specify to translation with C2S table
+//specify to delete Ctag
+//specify to transparent
+classf set upstream-action cvlan-act ( nop | c-tag | c2s | del | transparent )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Stag VID action configuration
+//specify to assign classify tag VID
+//VID, 0~4095
+classf set upstream-action svlan-id-act assign <UINT:vid>
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Stag VID action configuration
+//specify to copy from outer tag VID
+//specify to copy from inner tag VID
+classf set upstream-action svlan-id-act ( copy-outer | copy-inner )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Stag priority action configuration
+//specify to assign classify priority
+//priority, 0~7
+classf set upstream-action svlan-priority-act assign <UINT:priority>
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Stag priority action configuration
+//specify to copy from outer tag priority
+//specify to copy from inner tag priority
+//specify to from internal priority
+classf set upstream-action svlan-priority-act ( copy-outer | copy-inner | internal-priority )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Ctag VID action configuration
+//specify to assign Ctag VID
+//VID, 0~4095
+classf set upstream-action cvlan-id-act assign <UINT:vid>
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Ctag VID action configuration
+//specify to copy from outer tag VID
+//specify to copy from inner tag VID
+//specify to from internal VID
+classf set upstream-action cvlan-id-act ( copy-outer | copy-inner | internal-vid )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Ctag priority action configuration
+//specify to assign classify priority
+//priority, 0~7
+classf set upstream-action cvlan-priority-act assign <UINT:priority>
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//Ctag priority action configuration
+//specify to copy from outer tag priority
+//specify to copy from inner tag priority
+//specify to from internal priority
+classf set upstream-action cvlan-priority-act ( copy-outer | copy-inner | internal-priority )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//SID action configuration
+//assign to stream ID
+//assign to queue ID
+//ID, 0~127
+classf set upstream-action sid-act ( sid | qid ) <UINT:id>
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//classification priority action configuration
+//follow switch core
+classf set upstream-action priority-act follow-swcore
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//classfication priority action configuration
+//Assigned to classification priority
+//CFPri, 0~7
+classf set upstream-action priority-act assign <UINT:priority>
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//remarking DSCP
+//specify to enable
+//specify to disable
+classf set upstream-action remark-dscp ( enable | disable )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//drop configuration
+//specify to enable
+//specify to disable
+classf set upstream-action drop  ( enable | disable )
+
+//classification configuration
+//set configuration
+//upstream action configuration
+//statistic configuration
+//index, 0~31
+classf set upstream-action statistic <UINT:index>
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Stag action configuration
+//add classification tag which TPID as VS_TPID
+//add classification tag which TPID as 0x8100
+//delete Stag
+//transparent
+//SP2C
+classf set downstream-action svlan-act ( nop | vs-tpid | c-tpid | del | transparent | sp2c )
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Stag action configuration
+//assigned to tag VID
+//VID, 0~4095
+classf set downstream-action svlan-id-act assign <UINT:vid>
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Stag VID action configuration
+//specify to copy from outer tag VID
+//specify to copy from inner tag VID
+classf set downstream-action svlan-id-act ( copy-outer | copy-inner )
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Stag priority action configuration
+//specify to assign classify priority
+//priority, 0~7
+classf set downstream-action svlan-priority-act assign <UINT:priority>
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Stag priority action configuration
+//specify to copy from outer tag priority
+//specify to copy from inner tag priority
+//specify to from internal priority
+classf set downstream-action svlan-priority-act ( copy-outer | copy-inner | internal-priority )
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Ctag action configuration
+//specify to no operation
+//specify to tagging with TPID 0x8100
+//specify to VLAN translation with SP2C table
+//specify to delete ctag
+//specify to transparent
+classf set downstream-action cvlan-act ( nop | c-tag | sp2c | del | transparent )
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Ctag VID action configuration
+//follow switch core
+//copy from outer tag VID
+//copy from inner tag VID
+//egress CVID by LUT MAC VID learning
+classf set downstream-action cvlan-id-act ( follow-swcore | copy-outer | copy-inner | lookup-table )
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Ctag VID action configuration
+//assigned to CVID
+//CVID, 0~4095
+classf set downstream-action cvlan-id-act assign <UINT:cvid>
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Ctag priority action configuration
+//follow switch core
+//copy from outer tag priority
+//copy from inner tag priority
+//from internal priority
+classf set downstream-action cvlan-priority-act ( follow-swcore | copy-outer | copy-inner | internal-priority )
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//Ctag priority action configuration
+//assigned to ctag priority
+//CPRI, 0~7
+classf set downstream-action cvlan-priority-act assign <UINT:priority>
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//classification priority action configuration
+//follow switch core
+classf set downstream-action priority-act follow-swcore
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//classfication priority action configuration
+//Assigned to classification priority
+//CFPri, 0~7
+classf set downstream-action priority-act assign <UINT:priority>
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//UNI action configuration
+//flooding port mask to UNI-MASK
+//forced forwarding
+//port configurtion
+//port list, <0-6>
+//all port without port 6
+//none port
+classf set downstream-action uni-forward-act ( flood | forced ) port ( <PORT_LIST:ports> | all | none )
+
+//classification configuration
+//set configuration
+//downstream action configuration
+//remarking DSCP
+//specify to enable
+//specify to disable
+classf set downstream-action remark-dscp ( enable | disable )
+
+//classification configuration
+//set configuration
+//upstream unmatch action
+//specify to drop
+//specify to permit as normal forwarding
+//specify to permit without PON forwarding
+classf set upstream-unmatch-act ( drop | permit | permit-without-pon )
+
+//classification configuration
+//get configuration
+//upstream unmatch action
+classf get upstream-unmatch-act
+
+//classification configuration
+//set configuration
+//cf port selection
+//specify to PON port
+//specify to RGMII port
+//specify to enable
+//specify to disable
+classf set cf-sel-port ( pon | rg ) ( enable | disable )
+
+//classification configuration
+//get configuration
+//cf port selection
+classf get cf-sel-port
+
+//classification configuration
+//get configuration
+//IP range configuration
+//entry configuration
+//index, 0~7
+classf get range-ip entry <UINT:index>
+
+//classification configuration
+//set configuration
+//IP range configuration
+//entry configuration
+//index, 0~7
+//type configuration
+//ipv4 sip
+//ipv4 dip
+classf set range-ip entry <UINT:index> type ( sip | dip )
+
+//classification configuration
+//set configuration
+//IP range configuration
+//entry configuration
+//index, 0~7
+//low bound ip address configuation
+//low bound ip address
+//up bound ip address configuation
+//up bound ip address
+classf set range-ip entry <UINT:index> low-bound <IPV4ADDR:low_bound_ip> up-bound <IPV4ADDR:up_bound_ip>
+
+//classification configuration
+//get configuration
+//L4 port range configuration
+//entry configuration
+//index, 0~7
+classf get range-l4port entry <UINT:index>
+
+//classification configuration
+//set configuration
+//L4 port range configuration
+//entry configuration
+//index, 0~7
+//type configuration
+//source port configuration
+//destination port configuration
+classf set range-l4port entry <UINT:index> type ( src-port | dst-port )
+
+//classification configuration
+//set configuration
+//L4 port range configuration
+//entry configuration
+//index, 0~7
+//range lower port configuration
+//l4 port, 0~65535
+//range upper port configuration
+//l4 port, 0~65535
+classf set range-l4port entry <UINT:index> low-bound <UINT:l4lport> up-bound <UINT:l4uport>
+
+//classification configuration
+//set configuration
+//remarking
+//dscp remarking
+//classf priority configuration
+//priority <0~7>
+//remarking dscp configuration
+//dscp priority, <0~63>
+classf set remarking dscp priority <UINT:priority> dscp <UINT:dscp>
+
+//classification configuration
+//get configuration
+//remarking configuration
+//dscp remarking configuration
+classf get remarking dscp
+

@@ -94,16 +94,12 @@ function addRuleClick()
 		return false;
 	  }
 
-	  for (var i=0; i<str.length; i++) {
-	    if ( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
-			(str.charAt(i) >= 'a' && str.charAt(i) <= 'f') ||
-			(str.charAt(i) >= 'A' && str.charAt(i) <= 'F') )
-			continue;
-
-		alert("Invalid MAC address. It should be in hex number (0-9 or a-f).");
-		document.formQosAdd.mac.focus();
-		return false;
-	  }
+	  // add for "All MAC Address field can't reject 00:00:00:00:00:00/ff:ff:ff:ff:ff:ff MAC Address" issue
+	with(document.formQosAdd)
+	{
+		if(!checkMacAddr(mac,"mac address invalid!"))
+			return false;
+	} 
   }
   if ( (document.formQosAdd.bandwidth.value == "" || document.formQosAdd.bandwidth.value == 0)
    	&& (document.formQosAdd.bandwidth_downlink.value == "" || document.formQosAdd.bandwidth_downlink.value == 0) ) {
@@ -359,14 +355,17 @@ function Load_Setting()
 	</tr>
 </table>
 
-<table border=0 width=100>
+<table border=0 width=200>
 	<tr>
-		<td><input type="submit" value="Apply Changes" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
-    <td><input type="reset" value="Reset" name="reset"></td>
-  </tr>
-
-  <script> updateQosState(); </script>
-</form>
+		<td>
+			<input type="submit" value="Apply Changes" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;
+		</td>
+		<td>
+			<input type="reset" value="Reset" name="reset">
+		</td>
+	</tr>
+	<script> updateQosState(); </script>
+	<!--</form>-->
 </table>
 
 

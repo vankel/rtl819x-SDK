@@ -4,18 +4,18 @@ obj-y    :=
 #CONFIG_VOIP_SDK=y
 
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y += r1_main.obj
-obj-y += dtmf.obj
-obj-y += aes.obj
-obj-y += table.obj
-obj-y += jbc.obj
-obj-y += jbc2.obj
+#obj-y += r1_main.obj
+#obj-y += dtmf.obj
+#obj-y += aes.obj
+#obj-y += table.obj
+#obj-y += jbc.obj
+#obj-y += jbc2.obj
 
-obj-y    += g7111.obj
-obj-y    += common/common.obj
-obj-y    += wsola.obj
+#obj-y    += g7111.obj
+#obj-y    += common/common.obj
+#obj-y    += wsola.obj
 
-obj-y += r1_helpG711.obj
+#obj-y += r1_helpG711.obj
 
 else
 
@@ -41,18 +41,21 @@ obj-y += common/util/codec_mem.o
 
 ifeq ($(CONFIG_RTK_VOIP_G722),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += g7222.obj
-obj-y    += r1_helpG722.obj
+#obj-y    += g7222.obj
+#obj-y    += r1_helpG722.obj
 else
-#obj-y    += g722/			# rtk_voip.h, undef SUPPORT_G722_ITU
+ifeq ($(CONFIG_RTK_VOIP_G722_ITU_USE),y)
 obj-y   += g722_itu/
+else
+obj-y    += g722/
+endif
 endif
 endif
 
 ifeq ($(CONFIG_RTK_VOIP_G7111),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y	+= g711.1.obj
-obj-y   += r1_helpG711.1.obj
+#obj-y	+= g711.1.obj
+#obj-y   += r1_helpG711.1.obj
 else
 obj-y	+= g711.1/
 endif
@@ -60,8 +63,8 @@ endif
 
 ifeq ($(CONFIG_RTK_VOIP_G7231),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += g723.obj
-obj-y    += r1_helpG723.obj
+#obj-y    += g723.obj
+#obj-y    += r1_helpG723.obj
 else
 obj-y    += g723/
 endif
@@ -69,8 +72,8 @@ endif
 
 ifeq ($(CONFIG_RTK_VOIP_G729AB),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += g729.obj
-obj-y    += r1_helpG729.obj
+#obj-y    += g729.obj
+#obj-y    += r1_helpG729.obj
 else
 obj-y    += g729/
 endif
@@ -79,21 +82,21 @@ endif
 
 ifeq ($(CONFIG_RTK_VOIP_G726),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += g726.obj
-obj-y    += r1_helpG726.obj
+#obj-y    += g726.obj
+#obj-y    += r1_helpG726.obj
 else
 obj-y    += g726/
 endif
 else
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += g726_api.obj
+#obj-y    += g726_api.obj
 endif
 endif
 
 ifeq ($(CONFIG_RTK_VOIP_GSMFR),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += gsm_fr.obj
-obj-y    += r1_helpGSMfr.obj
+#obj-y    += gsm_fr.obj
+#obj-y    += r1_helpGSMfr.obj
 else
 obj-y    += gsm_fr/
 endif
@@ -101,10 +104,19 @@ endif
 
 ifeq ($(CONFIG_RTK_VOIP_AMR_NB),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += amr_nb.obj
-obj-y    += r1_helpAMRNB.obj
+#obj-y    += amr_nb.obj
+#obj-y    += r1_helpAMRNB.obj
 else
 obj-y    += amr_nb/
+endif
+endif
+
+ifeq ($(CONFIG_RTK_VOIP_AMR_WB),y)
+ifeq ($(CONFIG_VOIP_SDK),y)
+#obj-y    += g7222.obj
+#obj-y    += r1_helpG7222.obj
+else
+obj-y    += g722.2/
 endif
 endif
 
@@ -112,8 +124,8 @@ endif
 #obj-y    += speex/speex_out.o
 ifeq ($(CONFIG_RTK_VOIP_SPEEX_NB),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y	+= speex.obj
-obj-y	+= r1_helpSPEEXNB.obj
+#obj-y	+= speex.obj
+#obj-y	+= r1_helpSPEEXNB.obj
 else
 obj-y    += speex/
 endif
@@ -122,8 +134,8 @@ endif
 
 ifeq ($(CONFIG_RTK_VOIP_ILBC),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += iLBC.obj
-obj-y    += r1_helpiLBC.obj
+#obj-y    += iLBC.obj
+#obj-y    += r1_helpiLBC.obj
 else
 obj-y    += iLBC/
 endif
@@ -131,8 +143,8 @@ endif
 
 ifeq ($(CONFIG_RTK_VOIP_T38),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += t38.obj
-obj-y    += r1_helpT38.obj
+#obj-y    += t38.obj
+#obj-y    += r1_helpT38.obj
 else
 obj-y    += t38/
 endif
@@ -141,7 +153,7 @@ endif
 
 ifeq ($(CONFIG_RTK_VOIP_SILENCE),y)
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y    += r1_helpSilence.obj
+#obj-y    += r1_helpSilence.obj
 endif
 endif
 
@@ -163,11 +175,13 @@ endif
 EXTRA_CFLAGS += -DGNU
 EXTRA_CFLAGS += -I$(DIR_VOIP)/include
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/include
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/dsp_r1
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/dsp_r1/include
 ifeq ($(CONFIG_VOIP_SDK),y)
 else
 EXTRA_CFLAGS +=  -I$(DIR_VOIP)/voip_dsp/dsp_r1/common/basic_op
 EXTRA_CFLAGS +=  -I$(DIR_VOIP)/voip_dsp/dsp_r1/common/util
+CFLAGS_dtmf.o = -I$(DIR_VOIP)/voip_dsp/dsp_r0
 endif
 EXTRA_CFLAGS +=	-I$(DIR_VOIP)/voip_dsp/cp3
 
@@ -193,6 +207,8 @@ EXTRA_CFLAGS+=-DFEATURE_COP3_T38ENCPHASE
 EXTRA_CFLAGS+=-DFEATURE_COP3_T38DECPHASE
 EXTRA_CFLAGS+=-DFEATURE_COP3_AMRNBENCPHASE
 EXTRA_CFLAGS+=-DFEATURE_COP3_AMRNBDECPHASE
+EXTRA_CFLAGS+=-DFEATURE_COP3_G7222ENCPHASE
+EXTRA_CFLAGS+=-DFEATURE_COP3_G7222DECPHASE
 EXTRA_CFLAGS+=-DFEATURE_COP3_SPEEX_NB_ENCPHASE
 EXTRA_CFLAGS+=-DFEATURE_COP3_SPEEX_NB_DECPHASE
 EXTRA_CFLAGS+=-DFEATURE_COP3_G7111NBENCPHASE

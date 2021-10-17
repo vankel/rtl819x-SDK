@@ -3,7 +3,9 @@ include ../.linux_config
 OBJS = voip_flash_client.o
 LIBS = libvoip_flash_client.a
 
-CFLAGS = -g -Wall -I../includes -I../ui/include -I../../goahead-2.1.1/LINUX -fPIC
+#CFLAGS = -g -Wall -I../includes -I../ui/include -I../../goahead-2.1.1/LINUX -fPIC
+CFLAGS = -g -Wall -I../includes -I../ui/include -I../../boa/apmib/ -fPIC
+
 LDFLAGS = --static
 
 DEPENDENCY	= $(OBJS:.o=.d)

@@ -1,6 +1,7 @@
 #ifndef __CALLER_H__
 #define __CALLER_H__
 
+#include "voip_params.h"
 #define DTMF_CLID_SIZE	21
 
 typedef struct
@@ -9,8 +10,8 @@ typedef struct
 	unsigned char bAuto_SLIC_action;
 	unsigned char bBefore1stRing;
 	unsigned char bAuto_StartEnd;
-	unsigned char start_digit;
-	unsigned char end_digit;
+	DTMF_DIGIT start_digit;
+	DTMF_DIGIT end_digit;
 	unsigned int on_duration;		// unint: 1 meanes 10ms
 	unsigned int pause_duration;		// unint: 1 meanes 10ms
 	unsigned int pre_silence_duration;	// unint: 1 meanes 10ms

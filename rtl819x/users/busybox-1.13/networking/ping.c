@@ -37,6 +37,9 @@
 #undef IPV6_HOPLIMIT
 #define IPV6_HOPLIMIT IPV6_2292HOPLIMIT
 #endif
+
+#define IPV6_SRC_ADDR	73
+
 #endif
 
 enum {
@@ -527,7 +530,7 @@ static void unpack4(char *buf, int sz, struct sockaddr_in *from)
 	}
 }
 #if ENABLE_PING6
-static void unpack6(char *packet, int sz, /*struct sockaddr_in6 *from,*/ int hoplimit)
+static void unpack6(char *packet, int sz, struct in6_pktinfo *from, int hoplimit)
 {
 	struct icmp6_hdr *icmppkt;
 	char buf[INET6_ADDRSTRLEN];
@@ -546,10 +549,14 @@ static void unpack6(char *packet, int sz, /*struct sockaddr_in6 *from,*/ int hop
 
 		if (sz >= sizeof(struct icmp6_hdr) + sizeof(uint32_t))
 			tp = (uint32_t *) &icmppkt->icmp6_data8[4];
-		unpack_tail(sz, tp,
-			inet_ntop(AF_INET6, &pingaddr.sin6.sin6_addr,
-					buf, sizeof(buf)),
-			recv_seq, hoplimit);
+		if(from)
+			unpack_tail(sz, tp,
+				inet_ntop(AF_INET6, &(from->ipi6_addr),
+					buf, sizeof(buf)),recv_seq, hoplimit);
+		else
+			unpack_tail(sz, tp,
+				inet_ntop(AF_INET6, &pingaddr.sin6.sin6_addr,
+					buf, sizeof(buf)),recv_seq, hoplimit);
 	} else if (icmppkt->icmp6_type != ICMP6_ECHO_REQUEST) {
 		bb_error_msg("warning: got ICMP %d (%s)",
 				icmppkt->icmp6_type,
@@ -615,6 +622,7 @@ static void ping6(len_and_sockaddr *lsa)
 	struct sockaddr_in6 from;
 	struct iovec iov;
 	char control_buf[CMSG_SPACE(36)];
+	struct in6_pktinfo *pkt_info=NULL;
 
 	pingsock = create_icmp6_socket();
 	pingaddr.sin6 = lsa->u.sin6;
@@ -646,7 +654,7 @@ static void ping6(len_and_sockaddr *lsa)
 	 * broadcast ping etc) */
 	sockopt = (datalen * 2) + 7 * 1024; /* giving it a bit of extra room */
 	setsockopt(pingsock, SOL_SOCKET, SO_RCVBUF, &sockopt, sizeof(sockopt));
-
+		
 	sockopt = offsetof(struct icmp6_hdr, icmp6_cksum);
 	if (offsetof(struct icmp6_hdr, icmp6_cksum) != 2)
 		BUG_bad_offsetof_icmp6_cksum();
@@ -654,7 +662,9 @@ static void ping6(len_and_sockaddr *lsa)
 
 	/* request ttl info to be returned in ancillary data */
 	setsockopt(pingsock, SOL_IPV6, IPV6_HOPLIMIT, &const_int_1, sizeof(const_int_1));
-
+	/* request source ipv6 addr info to be returned in ancillary data */
+	setsockopt(pingsock, SOL_IPV6, IPV6_SRC_ADDR, &const_int_1, sizeof(const_int_1));
+	
 	if (if_index)
 		pingaddr.sin6.sin6_scope_id = if_index;
 
@@ -691,8 +701,17 @@ static void ping6(len_and_sockaddr *lsa)
 			) {
 				hoplimit = *(int*)CMSG_DATA(mp);
 			}
+			
+			if (mp->cmsg_level == SOL_IPV6
+			 && mp->cmsg_type == IPV6_SRC_ADDR
+			 /* don't check len - we trust the kernel: */
+			 /* && mp->cmsg_len >= CMSG_LEN(sizeof(int)) */
+			) {
+				pkt_info = (struct in6_pktinfo *)CMSG_DATA(mp);				
+			}
+			
 		}
-		unpack6(packet, c, /*&from,*/ hoplimit);
+		unpack6(packet, c, pkt_info, hoplimit);
 		if (pingcount && nreceived >= pingcount)
 			break;
 	}

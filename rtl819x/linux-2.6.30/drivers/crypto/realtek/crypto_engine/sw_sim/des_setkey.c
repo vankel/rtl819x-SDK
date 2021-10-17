@@ -184,8 +184,11 @@ int32 des_set_key(int8 * key, des_key_schedule schedule) {
 			return(-1);
 
 		if (des_is_weak_key(key))
-			return(-2);
+		{
+            printk("des_is_weak_key(key)\n");   
+			////leroy////return(-2);
 		}
+	}
 
 	k=(DES_LONG *)schedule;
 	in=(uint8 *)key;

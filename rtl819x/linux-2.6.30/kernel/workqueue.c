@@ -102,6 +102,18 @@ struct cpu_workqueue_struct *wq_per_cpu(struct workqueue_struct *wq, int cpu)
 	return per_cpu_ptr(wq->cpu_wq, cpu);
 }
 
+#ifdef CONFIG_KERNEL_POLLING
+static struct cpu_workqueue_struct *get_work_cwq(struct work_struct *work)
+{
+	unsigned long data = atomic_long_read(&work->data);
+
+	if (data & WORK_STRUCT_CWQ)
+		return (void *)(data & WORK_STRUCT_WQ_DATA_MASK);
+	else
+		return NULL;
+}
+#endif
+
 /*
  * Set the workqueue on which a work item is to be run
  * - Must *only* be called if the pending flag is set
@@ -598,6 +610,7 @@ int cancel_delayed_work_sync(struct delayed_work *dwork)
 EXPORT_SYMBOL(cancel_delayed_work_sync);
 
 static struct workqueue_struct *keventd_wq __read_mostly;
+struct workqueue_struct *system_nrt_wq __read_mostly;
 
 /**
  * schedule_work - put work task in global workqueue
@@ -638,6 +651,29 @@ int schedule_delayed_work(struct delayed_work *dwork,
 	return queue_delayed_work(keventd_wq, dwork, delay);
 }
 EXPORT_SYMBOL(schedule_delayed_work);
+
+#ifdef CONFIG_KERNEL_POLLING
+/**
+ * flush_delayed_work - block until a dwork_struct's callback has terminated
+ * @dwork: the delayed work which is to be flushed
+ *
+ * Any timeout is cancelled, and any pending work is run immediately.
+ */
+void flush_delayed_work(struct delayed_work *dwork)
+{
+	if (del_timer_sync(&dwork->timer)) {
+//		__queue_work(get_cpu(), get_work_cwq(&dwork->work)->wq,
+//			     &dwork->work);
+//		__queue_work(get_work_cwq(&dwork->work)->wq,
+//			     &dwork->work);
+		__queue_work(get_wq_data(&dwork->work)->wq,
+				&dwork->work);
+		put_cpu();
+	}
+	flush_work(&dwork->work);
+}
+EXPORT_SYMBOL(flush_delayed_work);
+#endif
 
 /**
  * schedule_delayed_work_on - queue work in global workqueue on CPU after delay
@@ -1021,5 +1057,11 @@ void __init init_workqueues(void)
 	cpu_singlethread_map = cpumask_of(singlethread_cpu);
 	hotcpu_notifier(workqueue_cpu_callback, 0);
 	keventd_wq = create_workqueue("events");
+#ifdef CONFIG_KERNEL_POLLING
+	system_nrt_wq = create_workqueue("events_nrt");
+#endif
 	BUG_ON(!keventd_wq);
+#ifdef CONFIG_KERNEL_POLLING
+	BUG_ON(!system_nrt_wq);
+#endif
 }

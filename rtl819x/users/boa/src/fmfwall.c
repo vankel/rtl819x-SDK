@@ -29,24 +29,29 @@
 #include "utility.h"
 #include "asp_page.h"
 
-#if defined(CONFIG_RTL_8198_AP_ROOT) && defined(VLAN_CONFIG_SUPPORTED)
+#if defined(VLAN_CONFIG_SUPPORTED)
 struct nameMapping
 {
 	char display[32];
 	char ifname[16];
 };
-static struct nameMapping vlanNameMapping[10] =
+static struct nameMapping vlanNameMapping[15] =
 {
 	{"Ethernet Port1","eth0"},
-	{"Ethernet Port2","eth1"},
-	{"Ethernet Port3","eth2"},
-	{"Ethernet Port4","eth3"},
-	{"Ethernet Port5","eth4"},
-	{"Wireless Primary AP","wlan0"},
-	{"Virtual AP1","wlan0-va0"},
-	{"Virtual AP2","wlan0-va1"},
-	{"Virtual AP3","wlan0-va2"},
-	{"Virtual AP4","wlan0-va3"},
+	{"Ethernet Port2","eth2"},
+	{"Ethernet Port3","eth3"},
+	{"Ethernet Port4","eth4"},
+	{"Ethernet Port5","eth1"},
+	{"Wireless 1 Primary AP","wlan0"},
+	{"Wireless 1 Virtual AP1","wlan0-va0"},
+	{"Wireless 1 Virtual AP2","wlan0-va1"},
+	{"Wireless 1 Virtual AP3","wlan0-va2"},
+	{"Wireless 1 Virtual AP4","wlan0-va3"},
+	{"Wireless 2 Primary AP","wlan1"},
+	{"Wireless 2 Virtual AP1","wlan1-va0"},
+	{"Wireless 2 Virtual AP2","wlan1-va1"},
+	{"Wireless 2 Virtual AP3","wlan1-va2"},
+	{"Wireless 2 Virtual AP4","wlan1-va3"},
 };
 
 static struct nameMapping* findNameMapping(const char *display)
@@ -84,13 +89,19 @@ int vlanList(request *wp, int idx)
 
 	if( index <= MAX_IFACE_VLAN_CONFIG && index != 0) /* ignore item 0 */
 	{
+
+    #ifdef RTK_USB3G_PORT5_LAN
+        DHCP_T wan_dhcp = -1;
+        apmib_get( MIB_DHCP, (void *)&wan_dhcp);
+    #endif
+
 		*((char *)&entry) = (char)index;
+
 		if ( !apmib_get(MIB_VLANCONFIG_TBL, (void *)&entry))
 		{
 			fprintf(stderr,"Get vlan entry fail\n");
 			return -1;
 		}
-
 #if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
 		forwarding_rule = entry.forwarding_rule;
 #endif
@@ -110,7 +121,6 @@ int vlanList(request *wp, int idx)
 				if(opmode == WISP_MODE)
 				{
 					sprintf(wanLan,"%s","WAN");
-
 #if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
 					forwarding_rule = VLAN_FORWARD_NAT;
 #endif
@@ -124,7 +134,7 @@ int vlanList(request *wp, int idx)
 			case 7:
 			case 8:
 			case 9:
-				sprintf(IfaceName,"%s%d","Virtual AP",index-5);
+				sprintf(IfaceName,"%s%d","Wireless 1 Virtual AP",index-5);
 				sprintf(wanLan,"%s","LAN");
 				break;
 			case 10:
@@ -135,7 +145,7 @@ int vlanList(request *wp, int idx)
 			case 12:
 			case 13:
 			case 14:
-				sprintf(IfaceName,"%s%d","Virtual AP",index-10);
+				sprintf(IfaceName,"%s%d","Wireless 2 Virtual AP",index-10);
 				sprintf(wanLan,"%s","LAN");
 				break;
 
@@ -167,11 +177,10 @@ int vlanList(request *wp, int idx)
 		/* enabled/netIface/tagged/untagged/priority/cfi/groupId/vlanId/LanWan */
 		//req_format_write(wp, ("%d|%s|%d|%d|%d|%d|%d|%d|%s"), entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan);
 #if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-		sprintf(bufStr, "token[%d] =\'%d|%s|%d|%d|%d|%d|%d|%d|%s|%d\';\n",idx, entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan, forwarding_rule);
+		sprintf(bufStr, "token[%d] =\'%d|%s|%d|%d|%d|%d|%d|%d|%s|%d\';\n",idx,entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan, forwarding_rule);
 #else
-		sprintf(bufStr, "token[%d] =\'%d|%s|%d|%d|%d|%d|%d|%d|%s\';\n",idx,entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan);
+		sprintf(bufStr, "token[%d] =\'%d|%s|%d|%d|%d|%d|%d|%d|%s\';\n",idx, entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan);
 #endif
-
 	}
 	else
 	{
@@ -197,6 +206,7 @@ int getVlanList(request *wp, int argc, char **argv)
 	for (i=0; i<=maxWebVlanNum; i++) {
 		vlanList(wp, i);
 	}
+	return 0;
 }
 
 void formVlan(request *wp, char *path, char *query)
@@ -208,6 +218,7 @@ void formVlan(request *wp, char *path, char *query)
 	char tmpBuf[100];
 
 	//displayPostDate(wp->post_data);
+	//printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
 
 	strTmp= req_get_cstream_var(wp, ("vlan_onoff"), "");
 	if(strTmp[0])
@@ -218,6 +229,7 @@ void formVlan(request *wp, char *path, char *query)
 	if (!apmib_set(MIB_VLANCONFIG_ENABLED, (void *)&vlan_onoff))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLANCONFIG_ENABLED error!"));
+	//	printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
 		goto setErr;
 	}
 	if(vlan_onoff == 1)
@@ -225,12 +237,14 @@ void formVlan(request *wp, char *path, char *query)
 		if ( !apmib_set(MIB_VLANCONFIG_DELALL, (void *)&entry))
 		{
 			strcpy(tmpBuf, ("Delete all table error!"));
+		//	printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
 			goto setErr;
 		}
 
 		for(i=1; i<=MAX_IFACE_VLAN_CONFIG ; i++)
 		{
 			memset(&entry, '\0', sizeof(entry));
+		//	printf("--%s(%d)--i is %d\n", __FUNCTION__, __LINE__, i);
 
 			*((char *)&entry) = (char)i;
 			apmib_get(MIB_VLANCONFIG_TBL, (void *)&entry);
@@ -242,19 +256,24 @@ void formVlan(request *wp, char *path, char *query)
 			if(strTmp[0])
 			{
 				//strcpy(entry.netIface,strTmp);
+
 				mapping = findNameMapping(strTmp);
+
 				if(mapping)
 				{
-					strcpy(entry.netIface,mapping->ifname);
+					strcpy((char *)entry.netIface,mapping->ifname);
 				}
 			}
 			else
 			{
+		//	printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
 				if ( apmib_set(MIB_VLANCONFIG_ADD, (void *)&entry) == 0)
 				{
 					strcpy(tmpBuf, ("Add table entry error!"));
+	//				printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
 					goto setErr;
 				}
+	//			printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
 				continue;
 			}
 
@@ -297,8 +316,8 @@ void formVlan(request *wp, char *path, char *query)
 			{
 				entry.priority = atoi(strTmp);
 			}
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
 
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
 			memset(tmpBuf,0x00, sizeof(tmpBuf));
 			sprintf(tmpBuf,"vlan_forward_%d",i);
 			strTmp = req_get_cstream_var(wp, tmpBuf, "");
@@ -311,7 +330,7 @@ void formVlan(request *wp, char *path, char *query)
 			if ( apmib_set(MIB_VLANCONFIG_ADD, (void *)&entry) == 0)
 			{
 				strcpy(tmpBuf, ("Add table entry error!"));
-				printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
+//				printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
 				goto setErr;
 			}
 
@@ -562,6 +581,10 @@ void formFilter(request *wp, char *path, char *query)
 	char *strAddIp, *strAddPort, *strAddMac, *strDelPort, *strDelIp, *strDelMac;
 	char *strDelAllPort, *strDelAllIp, *strDelAllMac, *strVal, *submitUrl, *strComment;
 	char *strFrom, *strTo;
+#ifdef CONFIG_IPV6
+	char *strIP6;
+	char *ipVer;
+#endif
 	char tmpBuf[100];
 	int entryNum, intVal, i;
 	IPFILTER_T ipEntry;
@@ -573,7 +596,7 @@ void formFilter(request *wp, char *path, char *query)
 	int num_id, get_id, add_id, del_id, delall_id, enable_id;
 	char *strAddUrl, *strDelUrl;
 	char *strDelAllUrl,*strUrlMode;
-	int mode;
+	int mode;/*url mode:white list or black list*/
 	URLFILTER_T urlEntry;
 #ifndef NO_ACTION
 	int pid;
@@ -654,13 +677,34 @@ void formFilter(request *wp, char *path, char *query)
 	/* Add IP filter */
 	if (strAddIp[0]) {
 		strVal = req_get_cstream_var(wp, ("ip"), "");
-		if (!strVal[0] && !strComment[0])
+#ifdef CONFIG_IPV6
+		strIP6 = req_get_cstream_var(wp, ("ip6addr"), "");
+#endif
+		if (!strVal[0] && !strComment[0]
+#ifdef CONFIG_IPV6
+			&& !strIP6[0]
+#endif
+			)
 			goto setOk_filter;
 
-		if (!strVal[0]) {
+		if (!strVal[0]
+#ifdef CONFIG_IPV6
+			&& !strIP6[0]
+#endif
+			) {
 			strcpy(tmpBuf, ("Error! No ip address to set."));
 			goto setErr_filter;
 		}
+
+#ifdef CONFIG_IPV6
+		if(strIP6[0]){
+			ipEntry.ipVer=IPv6;
+			strcpy(ipEntry.ip6Addr,strIP6);
+		}
+		else
+			ipEntry.ipVer=IPv4;
+#endif
+		if(strVal[0]){			
 		inet_aton(strVal, (struct in_addr *)&ipEntry.ipAddr);
 		getInAddr(BRIDGE_IF, IP_ADDR, (void *)&curIpAddr);
 		getInAddr(BRIDGE_IF, SUBNET_MASK, (void *)&curSubnet);
@@ -675,10 +719,13 @@ void formFilter(request *wp, char *path, char *query)
 		}
 	}
 
+	}
+
 	/* Add port filter */
 	if (strAddPort[0]) {
 		strFrom = req_get_cstream_var(wp, ("fromPort"), "");
 		strTo = req_get_cstream_var(wp, ("toPort"), "");
+	
 		if (!strFrom[0] && !strTo[0] && !strComment[0])
 			goto setOk_filter;
 
@@ -706,6 +753,13 @@ void formFilter(request *wp, char *path, char *query)
 			strcpy(tmpBuf, ("Error! Invalid port range."));
 			goto setErr_filter;
 		}
+#ifdef CONFIG_IPV6
+		ipVer = req_get_cstream_var(wp, ("ip6_enabled"), "");
+		if(atoi(ipVer))
+			portEntry.ipVer=IPv6;
+		else
+			portEntry.ipVer=IPv4;
+#endif
 	}
 
 	if (strAddPort[0] || strAddIp[0]) {
@@ -1129,337 +1183,6 @@ setErr_triPort:
 }
 #endif
 
-#if defined(VLAN_CONFIG_SUPPORTED)
-struct nameMapping
-{
-	char display[32];
-	char ifname[16];
-};
-static struct nameMapping vlanNameMapping[15] =
-{
-	{"Ethernet Port1","eth0"},
-	{"Ethernet Port2","eth2"},
-	{"Ethernet Port3","eth3"},
-	{"Ethernet Port4","eth4"},
-	{"Ethernet Port5","eth1"},
-	{"Wireless 1 Primary AP","wlan0"},
-	{"Wireless 1 Virtual AP1","wlan0-va0"},
-	{"Wireless 1 Virtual AP2","wlan0-va1"},
-	{"Wireless 1 Virtual AP3","wlan0-va2"},
-	{"Wireless 1 Virtual AP4","wlan0-va3"},
-	{"Wireless 2 Primary AP","wlan1"},
-	{"Wireless 2 Virtual AP1","wlan1-va0"},
-	{"Wireless 2 Virtual AP2","wlan1-va1"},
-	{"Wireless 2 Virtual AP3","wlan1-va2"},
-	{"Wireless 2 Virtual AP4","wlan1-va3"},
-};
-
-static struct nameMapping* findNameMapping(const char *display)
-{
-	int i;
-	for(i = 0; i < MAX_IFACE_VLAN_CONFIG;i++)
-	{
-		if(strcmp(display,vlanNameMapping[i].display) == 0)
-			return &vlanNameMapping[i];
-	}
-	return NULL;
-}
-
-int vlanList(request *wp, int idx)
-{
-	VLAN_CONFIG_T entry;
-	char *strToken;
-	int cmpResult=0;
-	//char *tmpStr0;
-	int  index=0;
-	char IfaceName[32];
-	OPMODE_T opmode=-1;
-	char wanLan[8];
-	char bufStr[128];
-
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-	unsigned char forwarding_rule;
-#endif
-
-	memset(IfaceName,0x00,sizeof(IfaceName));
-	memset(wanLan,0x00,sizeof(wanLan));
-	memset(bufStr,0x00,sizeof(bufStr));
-
-	index = idx;
-
-	if( index <= MAX_IFACE_VLAN_CONFIG && index != 0) /* ignore item 0 */
-	{
-
-    #ifdef RTK_USB3G_PORT5_LAN
-        DHCP_T wan_dhcp = -1;
-        apmib_get( MIB_DHCP, (void *)&wan_dhcp);
-    #endif
-
-		*((char *)&entry) = (char)index;
-
-		if ( !apmib_get(MIB_VLANCONFIG_TBL, (void *)&entry))
-		{
-			fprintf(stderr,"Get vlan entry fail\n");
-			return -1;
-		}
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-		forwarding_rule = entry.forwarding_rule;
-#endif
-		apmib_get( MIB_OP_MODE, (void *)&opmode);
-
-		switch(index)
-		{
-			case 1:
-			case 2:
-			case 3:
-			case 4:
-				sprintf(IfaceName,"%s%d","Ethernet Port",index);
-				sprintf(wanLan,"%s","LAN");
-				break;
-			case 5:
-				sprintf(IfaceName,"%s","Wireless 1 Primary AP");
-				if(opmode == WISP_MODE)
-				{
-					sprintf(wanLan,"%s","WAN");
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
-					forwarding_rule = VLAN_FORWARD_NAT;
-#endif
-				}
-				else
-				{
-					sprintf(wanLan,"%s","LAN");
-				}
-				break;
-			case 6:
-			case 7:
-			case 8:
-			case 9:
-				sprintf(IfaceName,"%s%d","Wireless 1 Virtual AP",index-5);
-				sprintf(wanLan,"%s","LAN");
-				break;
-			case 10:
-				sprintf(IfaceName,"%s","Wireless 2 Primary AP");
-				sprintf(wanLan,"%s","LAN");
-				break;
-			case 11:
-			case 12:
-			case 13:
-			case 14:
-				sprintf(IfaceName,"%s%d","Wireless 2 Virtual AP",index-10);
-				sprintf(wanLan,"%s","LAN");
-				break;
-
-			case 15:
-				sprintf(IfaceName,"%s","Ethernet Port5");
-#ifdef RTK_USB3G_PORT5_LAN
-				if(opmode == WISP_MODE || opmode == BRIDGE_MODE || wan_dhcp == USB3G)
-#else
-				if(opmode == WISP_MODE || opmode == BRIDGE_MODE)
-#endif
-				{
-					sprintf(wanLan,"%s","LAN");
-				}
-				else
-				{
-					sprintf(wanLan,"%s","WAN");
-
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-					forwarding_rule = VLAN_FORWARD_NAT;
-#endif
-				}
-				break;
-			case 16:
-			sprintf(IfaceName,"%s","Local Host/WAN");
-				sprintf(wanLan,"%s","LAN");
-				break;
-		}
-
-		/* enabled/netIface/tagged/untagged/priority/cfi/groupId/vlanId/LanWan */
-		//req_format_write(wp, ("%d|%s|%d|%d|%d|%d|%d|%d|%s"), entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan);
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-		sprintf(bufStr, "token[%d] =\'%d|%s|%d|%d|%d|%d|%d|%d|%s|%d\';\n",idx,entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan, forwarding_rule);
-#else
-		sprintf(bufStr, "token[%d] =\'%d|%s|%d|%d|%d|%d|%d|%d|%s\';\n",idx, entry.enabled,IfaceName,entry.tagged,0,entry.priority,entry.cfi,0,entry.vlanId,wanLan);
-#endif
-	}
-	else
-	{
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-		sprintf(bufStr, "token[%d] =\'0|none|0|0|0|0|0|0|LAN|0\';\n", idx);
-#else
-		sprintf(bufStr, "token[%d] =\'0|none|0|0|0|0|0|0|LAN\';\n", idx);
-#endif
-	}
-	req_format_write(wp, bufStr);
-	return 0;
-}
-
-int getVlanList(request *wp, int argc, char **argv)
-{
-	int i, maxWebVlanNum;
-
-#if defined(CONFIG_RTL_8198_AP_ROOT) && defined(GMII_ENABLED)
-	maxWebVlanNum = MAX_IFACE_VLAN_CONFIG-2;
-#else
-	maxWebVlanNum = MAX_IFACE_VLAN_CONFIG-1;
-#endif
-	for (i=0; i<=maxWebVlanNum; i++) {
-		vlanList(wp, i);
-	}
-	return 0;
-}
-
-void formVlan(request *wp, char *path, char *query)
-{
-	VLAN_CONFIG_T entry;
-	char *submitUrl,*strTmp;
-	int	i, vlan_onoff;
-	struct nameMapping *mapping;
-	char tmpBuf[100];
-
-	//displayPostDate(wp->post_data);
-	//printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
-
-	strTmp= req_get_cstream_var(wp, ("vlan_onoff"), "");
-	if(strTmp[0])
-	{
-		vlan_onoff = atoi(strTmp);
-	}
-
-	if (!apmib_set(MIB_VLANCONFIG_ENABLED, (void *)&vlan_onoff))
-	{
-		strcpy(tmpBuf, ("set  MIB_VLANCONFIG_ENABLED error!"));
-	//	printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
-		goto setErr;
-	}
-	if(vlan_onoff == 1)
-	{
-		if ( !apmib_set(MIB_VLANCONFIG_DELALL, (void *)&entry))
-		{
-			strcpy(tmpBuf, ("Delete all table error!"));
-		//	printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
-			goto setErr;
-		}
-
-		for(i=1; i<=MAX_IFACE_VLAN_CONFIG ; i++)
-		{
-			memset(&entry, '\0', sizeof(entry));
-		//	printf("--%s(%d)--i is %d\n", __FUNCTION__, __LINE__, i);
-
-			*((char *)&entry) = (char)i;
-			apmib_get(MIB_VLANCONFIG_TBL, (void *)&entry);
-
-			memset(tmpBuf,0x00, sizeof(tmpBuf));
-			sprintf(tmpBuf,"vlan_iface_%d",i);
-			strTmp = req_get_cstream_var(wp, tmpBuf, "");
-
-			if(strTmp[0])
-			{
-				//strcpy(entry.netIface,strTmp);
-
-				mapping = findNameMapping(strTmp);
-
-				if(mapping)
-				{
-					strcpy((char *)entry.netIface,mapping->ifname);
-				}
-			}
-			else
-			{
-		//	printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
-				if ( apmib_set(MIB_VLANCONFIG_ADD, (void *)&entry) == 0)
-				{
-					strcpy(tmpBuf, ("Add table entry error!"));
-	//				printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
-					goto setErr;
-				}
-	//			printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
-				continue;
-			}
-
-			memset(tmpBuf,0x00, sizeof(tmpBuf));
-			sprintf(tmpBuf,"vlan_enable_%d",i);
-			strTmp = req_get_cstream_var(wp, tmpBuf, "");
-			if(strTmp[0])
-			{
-				entry.enabled = atoi(strTmp);
-			}
-
-			memset(tmpBuf,0x00, sizeof(tmpBuf));
-			sprintf(tmpBuf,"vlan_tag_%d",i);
-			strTmp = req_get_cstream_var(wp, tmpBuf, "");
-			if(strTmp[0])
-			{
-				entry.tagged = atoi(strTmp);
-			}
-
-			memset(tmpBuf,0x00, sizeof(tmpBuf));
-			sprintf(tmpBuf,"vlan_cfg_%d",i);
-			strTmp = req_get_cstream_var(wp, tmpBuf, "");
-			if(strTmp[0])
-			{
-				entry.cfi = atoi(strTmp);
-			}
-
-			memset(tmpBuf,0x00, sizeof(tmpBuf));
-			sprintf(tmpBuf,"vlan_id_%d",i);
-			strTmp = req_get_cstream_var(wp, tmpBuf, "");
-			if(strTmp[0])
-			{
-				entry.vlanId = atoi(strTmp);
-			}
-
-			memset(tmpBuf,0x00, sizeof(tmpBuf));
-			sprintf(tmpBuf,"vlan_priority_%d",i);
-			strTmp = req_get_cstream_var(wp, tmpBuf, "");
-			if(strTmp[0])
-			{
-				entry.priority = atoi(strTmp);
-			}
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-
-			memset(tmpBuf,0x00, sizeof(tmpBuf));
-			sprintf(tmpBuf,"vlan_forward_%d",i);
-			strTmp = req_get_cstream_var(wp, tmpBuf, "");
-			if(strTmp[0])
-			{
-				entry.forwarding_rule = atoi(strTmp);
-			}
-#endif
-
-			if ( apmib_set(MIB_VLANCONFIG_ADD, (void *)&entry) == 0)
-			{
-				strcpy(tmpBuf, ("Add table entry error!"));
-//				printf("--%s(%d)--\n", __FUNCTION__, __LINE__);
-				goto setErr;
-			}
-
-
-
-
-		}
-
-	}
-
-	apmib_update_web(CURRENT_SETTING);
-
-#ifndef NO_ACTION
-	run_init_script("all");
-#endif
-
-	submitUrl = req_get_cstream_var(wp, "submit-url", "");   // hidden page
-	if (submitUrl[0])
-	{
-		OK_MSG(submitUrl);
-	}
-  	return;
-
-setErr:
-	ERR_MSG(tmpBuf);
-	return;
-
-}
-#endif
 #if defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
 void formVlanWAN(request *wp, char *path, char *query)
 {
@@ -1469,45 +1192,159 @@ void formVlanWAN(request *wp, char *path, char *query)
 	struct nameMapping *mapping;
 	char tmpBuf[100];
 	
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_ENALE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLANCONFIG_ENABLED error!"));
+		goto setErr;
+	}
 	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_tag"), ("0")));
-	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_enable"), ("")), "on"))
-		value = 0;
-
 	if (!apmib_set(MIB_VLAN_WAN_TAG, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_TAG error!"));
 		goto setErr;
 	}
 
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_host_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_HOST_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_HOST_ENALE error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_host_tag"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_HOST_TAG, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_HOST_TAG error!"));
+		goto setErr;
+	}
 	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_host_pri"), ("0")));
-	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_enable"), ("")), "on"))
-		value = 0;
 	if (!apmib_set(MIB_VLAN_WAN_HOST_PRI, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_HOST_PRI error!"));
 		goto setErr;
 	}
 
-	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_bridge_tag"), ("0")));
-	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_enable"), ("")), "on"))
-		value = 0;
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_wifi_root_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_ROOT_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_ROOT_ENALE error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_root_tag"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_ROOT_TAG, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_ROOT_TAG error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_root_pri"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_ROOT_PRI, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_ROOT_PRI error!"));
+		goto setErr;
+	}
+	
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_wifi_vap0_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP0_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP0_ENALE error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap0_tag"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP0_TAG, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP0_TAG error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap0_pri"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP0_PRI, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP0_PRI error!"));
+		goto setErr;
+	}
 
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_wifi_vap1_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP1_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP1_ENALE error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap1_tag"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP1_TAG, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP1_TAG error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap1_pri"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP1_PRI, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP1_PRI error!"));
+		goto setErr;
+	}
+
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_wifi_vap2_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP2_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP2_ENALE error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap2_tag"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP2_TAG, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP0_TAG error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap2_pri"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP2_PRI, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP2_PRI error!"));
+		goto setErr;
+	}
+
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_wifi_vap3_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP3_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP3_ENALE error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap3_tag"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP3_TAG, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP3_TAG error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_wifi_vap3_pri"), ("0")));
+	if (!apmib_set(MIB_VLAN_WAN_WIFI_VAP3_PRI, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_WIFI_VAP3_PRI error!"));
+		goto setErr;
+	}
+
+
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_enable"), ("")), "on");
+	if (!apmib_set(MIB_VLAN_WAN_BRIDGE_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  VLAN_WAN_BRIDGE_ENABLE error!"));
+		goto setErr;
+	}
+	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_bridge_tag"), ("0")));
 	if (!apmib_set(MIB_VLAN_WAN_BRIDGE_TAG, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_BRIDGE_TAG error!"));
 		goto setErr;
 	}
-
+	value = !strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_multicast_enable"), ("")), "on");
+	
+	if (!apmib_set(MIB_VLAN_WAN_BRIDGE_MULTICAST_ENABLE, (void *)&value))
+	{
+		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_BRIDGE_MULTICAST_ENABLE error!"));
+		goto setErr;
+	}
 	value =  atoi(req_get_cstream_var(wp, ("vlan_wan_bridge_multicast_tag"), ("0")));
-	if(strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_multicast_enable"), ("")), "on"))
-		value = 0;
-
 	if (!apmib_set(MIB_VLAN_WAN_BRIDGE_MULTICAST_TAG, (void *)&value))
 	{
 		strcpy(tmpBuf, ("set  MIB_VLAN_WAN_BRIDGE_MULTICAST_TAG error!"));
 		goto setErr;
 	}
-	
 	value = 0;
 	value |= (!strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_port_0"), ("")), "on"))<<3;
 	value |= (!strcmp(req_get_cstream_var(wp, ("vlan_wan_bridge_port_1"), ("")), "on"))<<2;
@@ -1597,7 +1434,7 @@ setOk_dmz:
 #ifndef NO_ACTION
 	pid = fork();
         if (pid) {
-	      	waitpid(pid, NULL, 0);
+	      	//waitpid(pid, NULL, 0); 
 	}
         else if (pid == 0) {
 		snprintf(tmpBuf, 100, "%s/%s", _CONFIG_SCRIPT_PATH, _FIREWALL_SCRIPT_PROG);
@@ -1608,6 +1445,14 @@ setOk_dmz:
 
 	submitUrl = req_get_cstream_var(wp, "submit-url", "");   // hidden page
 //	OK_MSG(submitUrl);
+
+#ifdef REBOOT_CHECK
+	if(needReboot == 1)
+	{
+		OK_MSG(submitUrl);
+		return;
+	}
+#endif
 	if (submitUrl[0])
 		send_redirect_perm(wp, submitUrl);
   	return;
@@ -1640,7 +1485,12 @@ int portFwList(request *wp, int argc, char **argv)
 		*((char *)&entry) = (char)i;
 		if ( !apmib_get(MIB_PORTFW_TBL, (void *)&entry))
 			return -1;
-
+		#if defined(CONFIG_RTL_BIND_IP_FOR_PORTFWD)
+		#define BIND_IP_FOR_PORTFWD_KEYWORDS	"1195"
+		//do not display 1195's rule
+		if ((entry.comment[0] != '\0') && !strncmp(entry.comment, BIND_IP_FOR_PORTFWD_KEYWORDS, strlen(BIND_IP_FOR_PORTFWD_KEYWORDS)))
+			continue;
+		#endif
 		ip = inet_ntoa(*((struct in_addr *)entry.ipAddr));
 		if ( !strcmp(ip, "0.0.0.0"))
 			ip = "----";
@@ -1686,6 +1536,9 @@ int portFilterList(request *wp, int argc, char **argv)
 	nBytesSent += req_format_write(wp, ("<tr>"
       	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Port Range</b></font></td>\n"
       	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Protocol</b></font></td>\n"
+#ifdef CONFIG_IPV6
+      	"<td align=center bgcolor=\"#808080\"><font size=\"2\"><b>IP Version</b></font></td>\n"
+#endif
 	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
       	"<td align=center width=\"15%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 
@@ -1711,9 +1564,16 @@ int portFilterList(request *wp, int argc, char **argv)
 		nBytesSent += req_format_write(wp, ("<tr>"
 			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
    			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+ #ifdef	CONFIG_IPV6
+ 			"<td align=center bgcolor=\"#C0C0C0\"><font size=\"2\">IPv%d</td>\n"
+ #endif
      			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
       			"<td align=center width=\"15%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
-				portRange, type, entry.comment, i);
+				portRange, type, 
+#ifdef	CONFIG_IPV6
+				entry.ipVer,
+#endif
+				entry.comment, i);
 	}
 	return nBytesSent;
 }
@@ -1752,13 +1612,29 @@ int ipFilterList(request *wp, int argc, char **argv)
 			type = "TCP";
 		else
 			type = "UDP";
-
+#ifdef CONFIG_IPV6
+		if(entry.ipVer==IPv4)
+			nBytesSent += req_format_write(wp, ("<tr>"
+			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+				ip, type, entry.comment, i);
+		else
+			nBytesSent += req_format_write(wp, ("<tr>"
+			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+      			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
+				entry.ip6Addr, type, entry.comment, i);
+#else
 		nBytesSent += req_format_write(wp, ("<tr>"
 			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
       			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
       			"<td align=center width=\"25%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
       			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				ip, type, entry.comment, i);
+#endif
 	}
 	return nBytesSent;
 }
@@ -2245,7 +2121,9 @@ int ipQosList(request *wp, int argc, char **argv)
 	IPQOS_T entry;
 	char	*mode, bandwidth[10], bandwidth_downlink[10];
 	char	mac[20], ip[40], *tmpStr;
-
+#ifdef CONFIG_IPV6
+	char	ip6[40];
+#endif
 	if ( !apmib_get(MIB_QOS_RULE_TBL_NUM, (void *)&entryNum)) {
   		fprintf(stderr, "Get table entry error!\n");
 		return -1;
@@ -2254,6 +2132,10 @@ int ipQosList(request *wp, int argc, char **argv)
 	nBytesSent += req_format_write(wp, ("<tr>"
       	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>Local IP Address</b></font></td>\n"
       	"<td align=center width=\"\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
+#if defined(CONFIG_IPV6)
+	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Local IPv6 addr</b></font></td>\n"
+#endif
+
 #if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)
 				"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Layer 7 Rule</b></font></td>\n"
 #endif
@@ -2273,6 +2155,9 @@ int ipQosList(request *wp, int argc, char **argv)
 			strcpy(mac, tmpStr);
 			tmpStr = inet_ntoa(*((struct in_addr *)entry.local_ip_end));
 			sprintf(ip, "%s - %s", mac, tmpStr);
+#ifdef CONFIG_IPV6
+			strcpy(ip6, s4dashes);
+#endif
 
 			strcpy(mac, s4dashes);
 		}
@@ -2280,11 +2165,25 @@ int ipQosList(request *wp, int argc, char **argv)
 			sprintf(mac, "%02x%02x%02x%02x%02x%02x",
 				entry.mac[0],entry.mac[1],entry.mac[2],entry.mac[3],entry.mac[4],entry.mac[5]);
 			strcpy(ip, s4dashes);
+#ifdef CONFIG_IPV6
+			strcpy(ip6, s4dashes);
+#endif
+
 		}
+#ifdef CONFIG_IPV6
+		else if( (entry.mode & QOS_RESTRICT_IPV6)  != 0){
+			strcpy(ip, s4dashes);
+			strcpy(mac, s4dashes);
+			strncpy(ip6,entry.ip6_src,40);
+		}
+#endif
 		else //all
 		{
 			strcpy(ip, s4dashes);
 			strcpy(mac, s4dashes);
+#ifdef CONFIG_IPV6
+			strcpy(ip6, s4dashes);
+#endif
 		}
 
 		if ( (entry.mode & QOS_RESTRICT_MIN)  != 0)
@@ -2305,6 +2204,9 @@ int ipQosList(request *wp, int argc, char **argv)
 		nBytesSent += req_format_write(wp, ("<tr>"
 			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
       			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+#ifdef CONFIG_IPV6
+			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
+#endif
 #if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)
       			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
 #endif      			
@@ -2314,6 +2216,9 @@ int ipQosList(request *wp, int argc, char **argv)
      			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
       			"<td align=center width=\"\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 				ip, mac, 
+#ifdef CONFIG_IPV6
+				ip6,
+#endif
 #if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)      	
 				entry.l7_protocol,
 #endif				
@@ -2324,10 +2229,7 @@ int ipQosList(request *wp, int argc, char **argv)
 
 int l7QosList(request *wp, int argc, char **argv)
 {
-	int	nBytesSent=0, entryNum, i;
-	IPQOS_T entry;
-	char	*mode, bandwidth[10], bandwidth_downlink[10];
-	char	mac[20], ip[40], *tmpStr;
+	int	nBytesSent=0;
 
 	nBytesSent += req_format_write(wp, ("<option value=\"Disable\">Disable</option>"));
 
@@ -2380,6 +2282,7 @@ int l7QosList(request *wp, int argc, char **argv)
 			nBytesSent += req_format_write(wp, ("<option value=\"%s\">%s</option>"),str,str);
 		
 		}
+		closedir(dir);
 	}
 	
 #endif //#if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7)
@@ -2392,6 +2295,9 @@ void formIpQoS(request *wp, char *path, char *query)
 {
 	char *submitUrl, *strAdd, *strDel, *strVal, *strDelAll;
 	char *strIpStart, *strIpEnd, *strMac, *strBandwidth, *strBandwidth_downlink, *strComment, *strL7Protocol;
+#ifdef CONFIG_IPV6
+	char *ip6_src;
+#endif
 	char tmpBuf[100];
 	int entryNum, intVal, i;
 	IPQOS_T entry;
@@ -2400,7 +2306,10 @@ void formIpQoS(request *wp, char *path, char *query)
 #endif
 	unsigned long totalUplinkBw, totalDownlinkBw;
 	int ret;
-
+	int j=0;
+	unsigned int ip1,ip2;
+	char mac[6];
+	struct in_addr ips,ipe;
 //displayPostDate(wp->post_data);
 
 	strAdd = req_get_cstream_var(wp, ("addQos"), "");
@@ -2483,36 +2392,98 @@ void formIpQoS(request *wp, char *path, char *query)
 		strIpStart = req_get_cstream_var(wp, ("ipStart"), "");
 		strIpEnd = req_get_cstream_var(wp, ("ipEnd"), "");
 		strMac = req_get_cstream_var(wp, ("mac"), "");
+#ifdef CONFIG_IPV6
+		ip6_src = req_get_cstream_var(wp, ("ip6_src"), "");
+#endif
 		strBandwidth = req_get_cstream_var(wp, ("bandwidth"), "");
 		strBandwidth_downlink = req_get_cstream_var(wp, ("bandwidth_downlink"), "");
 		strComment = req_get_cstream_var(wp, ("comment"), "");
 		strL7Protocol = req_get_cstream_var(wp, ("l7_protocol"), "");
-
+		
+#ifndef CONFIG_IPV6
 		if (!strIpStart[0] && !strIpEnd[0] && !strMac[0] && !strBandwidth[0] && !strBandwidth_downlink[0] && !strComment[0])
 			goto setOk;
+#endif
 
 		if ( strL7Protocol[0] ) {
 			strcpy((char *)entry.l7_protocol, strL7Protocol);
 		}
 
 		strVal = req_get_cstream_var(wp, ("addressType"), "");
-		string_to_dec(strVal, &intVal);
+		string_to_dec(strVal, &intVal);		
 		if (intVal == 0) { // IP
+			inet_aton(strIpStart, &ips);
+			inet_aton(strIpEnd, &ipe);
+			//printf("ips:%x,ipe:%x,[%s]:[%d].\n",ips.s_addr,ipe.s_addr,__FUNCTION__,__LINE__);
+						
+			apmib_get(MIB_QOS_RULE_TBL_NUM, (void *)&entryNum);
+						
+			for(j=1;j<=entryNum;j++)
+			{
+				*((char *)&entry) = (char)j;
+				if ( apmib_get(MIB_QOS_RULE_TBL, (void *)&entry))
+				{
+					if(entry.mode & QOS_RESTRICT_IP)
+					{
+						ip1=(*((struct in_addr *)entry.local_ip_start)).s_addr;
+						ip2=(*((struct in_addr *)entry.local_ip_end)).s_addr;
+						//printf("ip1:%x,ip2:%x,[%s]:[%d].\n",ip1,ip2,__FUNCTION__,__LINE__);
+						if(((ips.s_addr >= ip1) && (ips.s_addr <= ip2))
+							||((ipe.s_addr >= ip1) && (ipe.s_addr <=ip2))
+							||((ips.s_addr < ip1) && (ipe.s_addr > ip2)))
+						{
+							strcpy(tmpBuf, (" ip address conflict!"));
+							goto setErr;
+						}
+						
+					}
+				}
+			}
 			inet_aton(strIpStart, (struct in_addr *)&entry.local_ip_start);
 			inet_aton(strIpEnd, (struct in_addr *)&entry.local_ip_end);
-			entry.mode |= QOS_RESTRICT_IP;
+			entry.mode = QOS_RESTRICT_IP;
 		}
 		else if (intVal == 1) { //MAC
+			string_to_hex(strMac, mac, 12);
+			apmib_get(MIB_QOS_RULE_TBL_NUM, (void *)&entryNum);
+			
+			for(j=1;j<=entryNum;j++)
+			{
+				*((char *)&entry) = (char)j;
+				if ( apmib_get(MIB_QOS_RULE_TBL, (void *)&entry))
+				{
+					if(entry.mode & QOS_RESTRICT_MAC)
+					{
+						/*printf("[%s]:[%d]%02x%02x%02x%02x%02x%02x\n",__FUNCTION__,__LINE__,
+						entry.mac[0],entry.mac[1],entry.mac[2],entry.mac[3],entry.mac[4],entry.mac[5]);*/
+						if((entry.mac[0]==mac[0])&&(entry.mac[1]==mac[1])
+						&&(entry.mac[2]==mac[2])&&(entry.mac[3]==mac[3])
+						&&(entry.mac[4]==mac[4])&&(entry.mac[5]==mac[5]))
+						{
+							strcpy(tmpBuf, (" mac address conflict!"));
+							goto setErr;
+						}
+						
+					}
+				}
+			}
 			if (!string_to_hex(strMac, entry.mac, 12))
 			{
 				strcpy(tmpBuf, ("MAC input fail!"));
 				goto setErr;
 			}
-			entry.mode |= QOS_RESTRICT_MAC;
+			entry.mode = QOS_RESTRICT_MAC;
 		}
+#ifdef CONFIG_IPV6
+		else if(intVal == 2){
+			if(ip6_src!=NULL)
+				strncpy(entry.ip6_src,ip6_src,40);
+			entry.mode = QOS_RESTRICT_IPV6;
+		}
+#endif
 		else
 		{
-			entry.mode |= QOS_RESTRICT_ALL;
+			entry.mode = QOS_RESTRICT_ALL;
 		}
 
 		strVal = req_get_cstream_var(wp, ("mode"), "");

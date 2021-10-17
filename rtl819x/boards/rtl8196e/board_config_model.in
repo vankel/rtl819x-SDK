@@ -1,3 +1,0 @@
-config BOARD_CONFIG_MODEL
-string
-default 'RTL8196E_92D_GW'

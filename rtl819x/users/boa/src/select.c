@@ -132,6 +132,14 @@ void loop(int server_s)
                 			confirm_last_req=0;
               			}
                 	}
+			#if defined(CONFIG_APP_FWD)
+				{
+					extern int isCountDown;
+					if (isCountDown == 2) {
+						goto ToUpgrade;
+					}
+				}
+			#endif
                     continue;       /* while(1) */                
                 }
                 else if (errno != EBADF) {
@@ -175,7 +183,6 @@ void loop(int server_s)
 ToUpgrade:
 	 if (isFWUPGRADE !=0 && isREBOOTASP == 1 ) {
 		char buffer[200];
-		
 		//fprintf(stderr,"\r\n [%s-%u] FirmwareUpgrade start",__FILE__,__LINE__);
 		FirmwareUpgrade(firmware_data, firmware_len, 0, buffer);
 		//fprintf(stderr,"\r\n [%s-%u] FirmwareUpgrade end",__FILE__,__LINE__);

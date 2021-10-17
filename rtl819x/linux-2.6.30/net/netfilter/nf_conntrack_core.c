@@ -902,6 +902,9 @@ init_conntrack(struct net *net,
 	ct->drop_flag = -1;
 	ct->removed   = 0;
 	#endif
+	#if defined(CONFIG_RTL_HW_NAT_BYPASS_PKT)
+	ct->count = 0;
+	#endif
 	#endif
 
 	/* Overload tuple linked list to put us in unconfirmed list. */

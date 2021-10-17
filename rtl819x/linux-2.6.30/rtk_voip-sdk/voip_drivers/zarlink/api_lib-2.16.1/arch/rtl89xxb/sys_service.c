@@ -13,6 +13,7 @@
  * on legal obligations in using, modifying or distributing this file.
  */
 #include <linux/interrupt.h>
+#include <linux/version.h>
 #include "vp_api_types.h"
 #include "sys_service.h"
 /*
@@ -46,11 +47,13 @@ void VpSysSemaphoreInit(int semaphoreId)
  *  Number of critical sections currently entered for the device.
  */
 
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
-int flags;
-spinlock_t VpSysSpinLock;
+#define CRITICAL_DEPTH_MAX	10
+static unsigned int criticalDepth = 0;
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
+static int flags[CRITICAL_DEPTH_MAX];
+spinlock_t VpSysSpinLock[CRITICAL_DEPTH_MAX];
 #else
-static unsigned long flags = 0;
+static unsigned long flags[CRITICAL_DEPTH_MAX] = 0;
 #endif
  
 uint8
@@ -63,17 +66,28 @@ VpSysEnterCritical(
      * semaphore cannot be taken for this process ID.
      */
 	
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
-    spin_lock_irqsave(VpSysSpinLock,flags); //for Linux 2.6 style migration
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32))
+	spin_lock_irqsave(&VpSysSpinLock[criticalDepth],flags[criticalDepth]);
 #else
-	save_flags(flags); cli();
+    spin_lock_irqsave(VpSysSpinLock[criticalDepth],flags[criticalDepth]);
 #endif
+#else
+	save_flags(flags[criticalDepth]); cli();
+#endif
+
+	criticalDepth = criticalDepth + 1;
+
+	if (criticalDepth >= CRITICAL_DEPTH_MAX)
+		printk("%s error, criticalDepth is %d, over %d\n", __FUNCTION__, criticalDepth, CRITICAL_DEPTH_MAX);
+
     /*
      * criticalDepth++;
      * return criticalDepth;
      */
     /* Prevent compiler from generating error */
-    return 0;
+    return criticalDepth;
+    //return 0;
 } /* VpSysEnterCritical() */
 
 uint8
@@ -83,17 +97,25 @@ VpSysExitCritical(
 {
     /* Code to decrement semaphore */
     
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
-    spin_unlock_irqrestore(VpSysSpinLock,flags); 
+	criticalDepth = criticalDepth - 1;
+    
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32))
+	spin_unlock_irqrestore(&VpSysSpinLock[criticalDepth],flags[criticalDepth]); 
 #else
-    restore_flags(flags);
+    spin_unlock_irqrestore(VpSysSpinLock[criticalDepth],flags[criticalDepth]); 
 #endif
+#else
+    restore_flags(flags[criticalDepth]);
+#endif
+
     /*
      * criticalDepth--;
      * return criticalDepth;
      */
     /* Prevent compiler from generating error */
-    return 0;
+    return criticalDepth;
+    //return 0;
 } /* VpSysExitCritical() */
 
 /**

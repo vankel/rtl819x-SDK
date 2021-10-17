@@ -327,6 +327,15 @@ typedef unsigned char *sk_buff_data_t;
  *	@secmark: security marking
  *	@vlan_tci: vlan tag control information
  */
+#ifdef CONFIG_RTL8686_GMAC 
+enum src_port_t {
+  IF_DEFAULT  = 0,
+  IF_ETH      = 0x1001,
+  IF_ATM      = 0x1002,
+  IF_WLAN     = 0x1003,
+  IF_SWITCH     = 0x1004
+};
+#endif
 
 struct sk_buff {
 	/* These two members must be first. */
@@ -452,9 +461,13 @@ struct sk_buff {
 	struct net_device	*inDev;
 /* end of IMPROVE_QOS and CONFIG_NET_SCHED */
 #endif
+
 #if defined (CONFIG_RTL_FAST_PPPOE)
 	__u32 pppoe_flag;
 	struct net_device	*rx_dev;
+#endif
+#ifdef CONFIG_RTL8686_GMAC        
+        enum src_port_t         src_port;               /* hrchen, for dev alloc skb number control */
 #endif
 	__u32			mark;
 

@@ -12,6 +12,7 @@ pcm-mod-objs-y += con_register.o con_bind.o
 pcm-mod-objs-y += con_mux.o 
 pcm-mod-objs-y += con_event.o 
 pcm-mod-objs-y += con_pluse_dial.o 
+pcm-mod-objs-y += con_ring.o 
 pcm-mod-objs-$(CONFIG_RTK_VOIP_QOS) += con_sup_qos.o 
 pcm-mod-objs-$(CONFIG_RTK_VOIP_CON_BUSFIFO_LECBUF) += con_bus_fifo.o con_bus_handler.o con_lec_buf.o 
 
@@ -38,7 +39,9 @@ pcm-mod-objs-$(CONFIG_RTK_VOIP_DRIVERS_PCM_LAW) += bus_pcm_law.o
 pcm-mod-objs-$(CONFIG_RTK_VOIP_DRIVERS_VIRTUAL_DAA)   += snd_virtual_daa.o
 
 pcm-mod-objs-$(CONFIG_RTK_VOIP_DRIVERS_ATA_SLIC)    += snd_mux_slic.o snd_help.o 
-pcm-mod-objs-$(CONFIG_RTK_VOIP_DRIVERS_FXO)   += snd_mux_daa.o 
+#pcm-mod-objs-$(CONFIG_RTK_VOIP_DRIVERS_FXO)   += snd_mux_daa.o 
+pcm-mod-objs-y   += snd_mux_daa.o 
+pcm-mod-objs-$(CONFIG_RTK_VOIP_DRIVERS_IP_PHONE) += snd_mux_slic.o snd_help.o
 
 pcm-mod-objs-$(CONFIG_RTK_VOIP_DRIVERS_SI3050)   += snd_proslic_daa.o snd_si3050.o 
 
@@ -52,9 +55,10 @@ obj-$(CONFIG_RTK_VOIP_DRIVERS_SLIC_ZARLINK) += zarlink/ snd_pin_reset.o snd_pin_
 obj-$(CONFIG_RTK_VOIP_DRIVERS_SLIC_LE88221) += snd_le88221.o snd_zarlink_fxs.o snd_zarlink_common.o
 obj-$(CONFIG_RTK_VOIP_DRIVERS_SLIC_LE88111) += snd_le88111.o snd_zarlink_fxs.o snd_zarlink_common.o
 obj-$(CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116) += snd_le89116.o snd_zarlink_fxs.o snd_zarlink_common.o
-obj-$(CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89316) += snd_le89316.o snd_zarlink_daa.o snd_zarlink_common.o
+obj-$(CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89316) += snd_le89316.o snd_zarlink_fxs.o snd_zarlink_daa.o snd_zarlink_common.o
 
 obj-$(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621) += snd_alc5621.o 
+obj-$(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q) += snd_alc5633q.o
 
 
 obj-$(CONFIG_RTK_VOIP_DRIVERS_MIRROR_SLIC) += snd_mirror_slic.o
@@ -88,6 +92,7 @@ pcm-mod-objs-$(CONFIG_RTK_VOIP_LED)	+= led.o
 obj-$(CONFIG_SERIAL_SC16IS7X0)               += i2c.o
 obj-$(CONFIG_RTK_VOIP_DRIVERS_CODEC_WM8510)  += i2c.o
 obj-$(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621) += i2c.o
+obj-$(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q) += i2c.o
 obj-$(CONFIG_RTK_VOIP_DRIVERS)  += gpio/
 obj-$(CONFIG_RTK_VOIP_DRIVERS_ATA_SLIC) += spi/
 obj-$(CONFIG_RTK_VOIP_DECT_SPI_SUPPORT) += spi/
@@ -99,9 +104,11 @@ obj-y += os_timer_core.o os_timer_linux.o
 #g168 debut test input
 #pcm-mod-objs-y   += ec128_testdatas.o
 
-
+CFLAGS_bus_pcm_interface.o = -DCONFIG_VOIP_RADIAX_BACKUP
 EXTRA_CFLAGS += -I$(DIR_VOIP)/include
 EXTRA_CFLAGS += -Iarch/rlx/bsp
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/dsp_r1/common/basic_op
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/dsp_r1/common/util
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/include
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/cp3
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/v152
@@ -144,6 +151,13 @@ ifeq "$(CONFIG_RTK_VOIP_SLIC_ZARLINK_890_SERIES)" "y"
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/zarlink/ve890/
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/zarlink/$(ZARLINK_LIB)/vp890_api/
 endif
+endif
+
+ifeq "$(CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB)" "y"
+EXTRA_CFLAGS += -DREALTEK_PATCH_FOR_SILAB
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/proslic_api/config_inc/
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/proslic_api/inc/
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/proslic_api/custom/
 endif
 
 ifeq "$(CONFIG_VOIP_COP3_PROFILE)" "y"

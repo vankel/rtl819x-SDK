@@ -18,6 +18,10 @@
 #define FAST_PATH_SPI_ENABLED		1
 #endif
 
+#if defined(CONFIG_RTL_HARDWARE_NAT)
+#define CONFIG_RTL_HW_NAT_BYPASS_PKT 1
+#define RTL_HW_NAT_BYPASS_PKT_NUM	15
+#endif
 #endif
 
 #include <linux/netfilter/nf_conntrack_common.h>
@@ -158,6 +162,9 @@ struct nf_conn {
        struct list_head 	state_tuple;
 	   char drop_flag;
 	   char removed;
+	#endif
+	#if defined(CONFIG_RTL_HW_NAT_BYPASS_PKT)
+	unsigned long count;
 	#endif
 };
 

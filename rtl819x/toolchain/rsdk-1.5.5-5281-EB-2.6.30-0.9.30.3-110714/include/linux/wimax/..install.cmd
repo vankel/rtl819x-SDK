@@ -1,0 +1,1 @@
+cmd_/tmp/include/linux/wimax/.install := perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/linux/wimax /tmp/include/linux/wimax rlx i2400m.h; perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/linux/wimax /tmp/include/linux/wimax rlx ; touch /tmp/include/linux/wimax/.install

@@ -141,6 +141,7 @@ enum GPIO_PORT
 	GPIO_PORT_G,
 	GPIO_PORT_H,
 	GPIO_PORT_MAX,
+	GPIO_PORT_UNDEF,
 };
 
 /* define GPIO control pin */

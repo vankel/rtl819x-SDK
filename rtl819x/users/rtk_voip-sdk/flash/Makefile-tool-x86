@@ -9,7 +9,7 @@ LIB = libvoip_flash_tool.x86.a
 OBJS_EXE = cvvoip.x86.o 
 OBJS_LIB = voip_flash_mib.x86.o voip_flash_tool.x86.o
 
-CFLAGS = -g -Wall -I../includes
+CFLAGS = -g -Wall -I../includes -I../ui/include
 LDFLAGS = #--static
 
 DEPENDENCY	= $(OBJS:.o=.d)

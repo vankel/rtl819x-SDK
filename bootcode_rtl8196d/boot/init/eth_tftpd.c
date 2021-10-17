@@ -4,7 +4,9 @@
 #include "rtk.h"
 #include "spi_common.h"
 
-
+#ifdef CONFIG_NAND_FLASH
+#include "rtk_nand.h"
+#endif
 
 #if defined(RTL8198)	
 #include <asm/rtl8198.h>
@@ -26,6 +28,24 @@ struct arptable_t  arptable_tftp[3];
 #define BOOT_FILENAME	((char *)"boot.img")
 #define BOOTSTART 0x80000000
 
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)
+#define COMP_SIGNATURE_LEN			6
+#define COMP_HS_SIGNATURE			"COMPHS"
+#define COMP_CS_SIGNATURE			"COMPCS"
+#define COMP_DS_SIGNATURE			"COMPDS"
+
+#define COMP_HS_FLASH_ADDR			0x6000
+#define COMP_DS_FLASH_ADDR			0x8000
+#define COMP_CS_FLASH_ADDR			0xc000
+
+struct compress_mib_header {
+	unsigned char signature[COMP_SIGNATURE_LEN];
+	unsigned short compRate;
+	unsigned int compLen;
+};
+#endif
+
+
 #define prom_printf dprintf
 
 
@@ -38,7 +58,7 @@ void (*jumpF)(void);
 #define CODESTART 0x10000
 
 extern volatile int get_timer_jiffies(void);
-#if 0
+#if 1
 #define REG32(reg)   (*(volatile unsigned int   *)((unsigned int)reg))
 #endif
 int tftpd_is_ready = 0;
@@ -62,6 +82,19 @@ Int32 file_length_to_client;
 /*this is the file length, should extern to flash driver*/
 /*Cyrus Tsai*/
 
+#ifdef SUPPORT_TFTP_CLIENT
+#define MAX_RETRY_NUM		5
+#define WAIT_TIMEOUT		50 /* 50ms */
+
+extern char errmsg[512];
+extern unsigned short errcode;
+extern unsigned int tftp_from_command;
+extern unsigned int tftp_client_recvdone;
+extern char tftpfilename[128];
+static int tftp_client_enabled;
+volatile unsigned int last_sent_time = 0;
+int retry_cnt = 0;
+#endif
 
 /*store the block number*/
 volatile Int16 block_expected;
@@ -82,7 +115,13 @@ typedef enum BootStateTag
   BOOT_STATE0_INIT_ARP         = 0,
   BOOT_STATE1_TFTP_CLIENT_RRQ  = 1,
   BOOT_STATE2_TFTP_CLIENT_WRQ  = 2,
+#ifdef SUPPORT_TFTP_CLIENT
+  BOOT_STATE3_TFTP_SERVER_DATA  = 3,
+  BOOT_STATE4_TFTP_SERVER_DATA  = 4,
+  NUM_OF_BOOT_STATES		 	= 5,
+#else  
   NUM_OF_BOOT_STATES       = 3
+#endif  
 }
 BootState_t;
 
@@ -124,7 +163,7 @@ Int16 CLIENT_port;
 Int16 SERVER_port;
 
 /*tftpd server entry point*/
-void tftpd_entry(void);
+void tftpd_entry(int is_client_mode);
 
 void tftpd_send_ack(Int16 number);
 int check_image(Int32* data_to_transmit);
@@ -170,8 +209,142 @@ static const Func_t BootStateEvent[NUM_OF_BOOT_STATES][NUM_OF_BOOT_EVENTS]
   /*BOOT_EVENT5_TFTP_ACK*/    prepareDATA,
   /*BOOT_EVENT6_TFTP_ERROR*/  errorTFTP,/*ERROR in TFTP protocol*/
   /*BOOT_EVENT7_TFTP_OACK*/   errorTFTP,/*ERROR in TFTP protocol*/
-    	}                                               
+    	},
+#ifdef SUPPORT_TFTP_CLIENT
+  /*BOOT_STATE3_TFTP_SERVER_DATA*/
+   { 
+  /*BOOT_EVENT0_ARP_REQ*/ 	doARPReply,
+  /*BOOT_EVENT1_ARP_REPLY*/	updateARPTable,
+  /*BOOT_EVENT2_TFTP_RRQ*/	errorTFTP,/*ERROR in TFTP protocol*/
+  /*BOOT_EVENT3_TFTP_WRQ*/	errorTFTP,
+  /*BOOT_EVENT4_TFTP_DATA*/	prepareACK,
+  /*BOOT_EVENT5_TFTP_ACK*/	errorTFTP,
+  /*BOOT_EVENT6_TFTP_ERROR*/	errorTFTP,/*ERROR in TFTP protocol*/
+  /*BOOT_EVENT7_TFTP_OACK*/	errorTFTP,/*ERROR in TFTP protocol*/
+		},
+  /*BOOT_STATE4_TFTP_SERVER_DATA*/
+   { 
+  /*BOOT_EVENT0_ARP_REQ*/ 	doARPReply,
+  /*BOOT_EVENT1_ARP_REPLY*/	updateARPTable,
+  /*BOOT_EVENT2_TFTP_RRQ*/	errorTFTP,/*ERROR in TFTP protocol*/
+  /*BOOT_EVENT3_TFTP_WRQ*/	errorTFTP,
+  /*BOOT_EVENT4_TFTP_DATA*/	prepareACK,
+  /*BOOT_EVENT5_TFTP_ACK*/	errorTFTP,
+  /*BOOT_EVENT6_TFTP_ERROR*/	errorTFTP,/*ERROR in TFTP protocol*/
+  /*BOOT_EVENT7_TFTP_OACK*/	errorTFTP,/*ERROR in TFTP protocol*/
+    	},
+#endif  
 };
+
+
+#ifdef SUPPORT_TFTP_CLIENT
+static void send_arp_request()
+{
+ struct arprequest arp_req;
+
+//dprintf("send ARP request\n");
+
+ memset(&arp_req,'\0', sizeof(arp_req));
+
+ arp_req.hwtype = htons(1);
+ arp_req.protocol = htons(FRAME_IP);/*that is 0x0800*/
+ arp_req.hwlen = ETH_ALEN;
+ arp_req.protolen = 4;
+ arp_req.opcode = htons(ARP_REQUEST);
+
+ memcpy(arp_req.shwaddr, arptable_tftp[TFTP_CLIENT].node, ETH_ALEN);
+ memcpy(arp_req.thwaddr, arptable_tftp[TFTP_SERVER].node, ETH_ALEN); 
+ memcpy(arp_req.sipaddr, &arptable_tftp[TFTP_CLIENT].ipaddr, sizeof(in_addr)); 
+ memcpy(arp_req.tipaddr, &arptable_tftp[TFTP_SERVER].ipaddr, sizeof(in_addr));
+
+ prepare_txpkt(0,FRAME_ARP,arp_req.thwaddr,(Int8*)&arp_req,(Int16)sizeof(arp_req));   
+}
+
+static void send_tftp_rrq(char* filename)
+{
+ struct iphdr *ip;
+ struct udphdr *udp;
+ struct tftp_t tftp_tx;
+ int length;
+
+//dprintf("send TFTP-RRQ request\n");
+
+ memset(&tftp_tx, '\0', sizeof(tftp_tx));
+
+ tftp_tx.opcode = htons(TFTP_RRQ);
+ length = strlen(filename)+1;
+ memcpy(tftp_tx.u.rrq, filename, length); 
+ memcpy(&tftp_tx.u.rrq[length], "octet", 6);
+ length += 6;
+  
+ ip = (struct iphdr *)&tftp_tx;
+ udp = (struct udphdr *)((Int8*)&tftp_tx + sizeof(struct iphdr));
+ 
+ /*generate the IP header*/
+ ip->verhdrlen = 0x45;
+ ip->service = 0;
+ ip->len = htons(30+length);
+ ip->ident = 0;
+ ip->frags = 0;
+ ip->ttl = 60;
+ ip->protocol = IP_UDP;
+ ip->chksum = 0;
+ ip->src.s_addr = arptable_tftp[TFTP_CLIENT].ipaddr.s_addr;
+ ip->dest.s_addr = arptable_tftp[TFTP_SERVER].ipaddr.s_addr; 
+ ip->chksum = ipheader_chksum((Int16 *)&tftp_tx, sizeof(struct iphdr));
+ /*generate the UDP header*/
+ udp->src  = htons(CLIENT_port);
+ udp->dest = htons(SERVER_port);
+ udp->len  = htons(length+2+8);
+ udp->chksum = 0;
+ 
+ prepare_txpkt(0,FRAME_IP,arptable_tftp[TFTP_SERVER].node,(Int8*)&tftp_tx,(Int16)sizeof(struct iphdr)+sizeof(struct udphdr)+length+2);
+    	}                                               
+
+
+/* return value: -1, tftp client abort, 0 - waiting ARP reply, 1 - waiting first block, 2 - waiting remainding block */
+int check_tftp_client_state()
+{
+	if (!tftp_client_enabled)
+		return -1;
+
+	if (bootState == BOOT_STATE0_INIT_ARP) { /* wait arp reply */
+		if (last_sent_time == 0 || get_timer_jiffies() - last_sent_time > WAIT_TIMEOUT) {
+			if (retry_cnt++ > MAX_RETRY_NUM)
+				return -1;			
+			
+			send_arp_request();
+			last_sent_time = get_timer_jiffies();							
+		}		
+		return 0;
+	}
+	
+	if (bootState == BOOT_STATE3_TFTP_SERVER_DATA) { /* wait first read block */
+		if (get_timer_jiffies() - last_sent_time > WAIT_TIMEOUT) {
+			if (++retry_cnt > MAX_RETRY_NUM)
+				return -1;			
+			
+			if(tftp_from_command)
+				send_tftp_rrq(tftpfilename);
+			else
+				send_tftp_rrq(TEST_FILENAME);
+			last_sent_time = get_timer_jiffies();							
+		}				
+		return 1;	
+	}
+
+	if (bootState == BOOT_STATE4_TFTP_SERVER_DATA) { /* wait remainding block */
+		if (get_timer_jiffies() - last_sent_time > WAIT_TIMEOUT) 
+			return -1;		
+		
+		return 2;
+	}
+	
+	return -1;
+}
+#endif // SUPPORT_TFTP_CLIENT
+
+
 //----------------------------------------------------------------------------------------
 static void errorDrop(void)
 {
@@ -189,7 +362,22 @@ static void errorTFTP(void)
         return;
 /*no need to change boot state*/	
 //prom_printf("TFTP procotol error,%d,%d\n",bootState,bootEvent);
+#if defined(SUPPORT_TFTP_CLIENT)
+    if(bootState==BOOT_STATE3_TFTP_SERVER_DATA||bootState == BOOT_STATE4_TFTP_SERVER_DATA)
+	{
+		dprintf("[errcode from TFTP server:] %d\n",errcode);
+		dprintf("[errmsg from TFTP server:] %s\n",errmsg);
+		tftp_client_recvdone = 1;
+	}
+#endif
 bootState=BOOT_STATE0_INIT_ARP;
+
+#ifdef SUPPORT_TFTP_CLIENT
+	if (tftp_client_enabled) {
+		tftp_client_enabled	= 0;
+		tftpd_is_ready = 0;		
+	}
+#endif
 }
 //----------------------------------------------------------------------------------------
 static void doARPReply(void)
@@ -230,7 +418,13 @@ static void doARPReply(void)
  //now lock tftp.. 
  //now we have to check mac address, for safety..
 #endif
+
+#ifdef SUPPORT_TFTP_CLIENT
+ if ((tftp_client_enabled && (targetIP==arptable_tftp[TFTP_CLIENT].ipaddr.s_addr)) ||  	
+	  (!tftp_client_enabled && (targetIP==arptable_tftp[TFTP_SERVER].ipaddr.s_addr)))
+#else
  if(targetIP==arptable_tftp[TFTP_SERVER].ipaddr.s_addr)/*that is us*/
+#endif 	
  {
 #if 1
     /*Fill in the arp reply payload.*/
@@ -239,9 +433,17 @@ static void doARPReply(void)
     arpreply.hwlen = ETH_ALEN;
     arpreply.protolen = 4;
     arpreply.opcode = htons(ARP_REPLY);
-
+#ifdef SUPPORT_TFTP_CLIENT
+	if (tftp_client_enabled) {
+	    memcpy(&(arpreply.shwaddr), &(arptable_tftp[TFTP_CLIENT].node), ETH_ALEN);
+	    memcpy(&(arpreply.sipaddr), &(arptable_tftp[TFTP_CLIENT].ipaddr), sizeof(in_addr));		
+	}
+	else
+#endif
+	{
     memcpy(&(arpreply.shwaddr), &(arptable_tftp[TFTP_SERVER].node), ETH_ALEN);
     memcpy(&(arpreply.sipaddr), &(arptable_tftp[TFTP_SERVER].ipaddr), sizeof(in_addr));
+	}		
     memcpy(&(arpreply.thwaddr), arppacket->shwaddr, ETH_ALEN);
     memcpy(&(arpreply.tipaddr), arppacket->sipaddr, sizeof(in_addr));
 
@@ -288,6 +490,46 @@ static void updateARPTable(void)
  memcpy(arptable_tftp[TFTP_CLIENT].node, arppacket->shwaddr, ETH_ALEN);
  memcpy(arptable_tftp[TFTP_CLIENT].ipaddr.ip, arppacket->sipaddr, sizeof(in_addr)); 
 #endif
+
+#ifdef SUPPORT_TFTP_CLIENT
+
+//dprintf("Rx ARP reply\n");
+
+ if (tftp_client_enabled) {	
+	 /*??? do we really need this in TFTP server operation*/
+	 struct	arprequest*arppacket;
+	 arppacket=(struct arprequest *)&(nic.packet[ETH_HLEN]);
+	 Int32 sourceIP; 
+
+	 memcpy(&sourceIP,arppacket->sipaddr,4);
+	 if (sourceIP==arptable_tftp[TFTP_SERVER].ipaddr.s_addr) {	
+		memcpy(arptable_tftp[TFTP_SERVER].node, arppacket->shwaddr, ETH_ALEN);
+		
+		if(tftp_from_command)
+		{
+		    send_tftp_rrq(tftpfilename);
+			bootState = BOOT_STATE3_TFTP_SERVER_DATA;
+			block_expected = 1;		 
+			address_to_store = image_address;
+			file_length_to_server = 0;		 		
+			retry_cnt = 0;
+			last_sent_time = get_timer_jiffies();		
+			//tftp_from_command = 0;
+			dprintf("send rrq to TFTP server, [filename:] %s, image_address = 0x%x\n",tftpfilename,image_address);
+		}else
+		{
+		    send_tftp_rrq(TEST_FILENAME);
+			bootState = BOOT_STATE3_TFTP_SERVER_DATA;
+			block_expected = 1;		 
+			address_to_store = image_address = FILESTART;
+			file_length_to_server = 0;		 		
+			retry_cnt = 0;
+			last_sent_time = get_timer_jiffies();		
+			//dprintf("--send rrq to TFTP server--, [filename:] %s, image_address = 0x%x\n",TEST_FILENAME,image_address);
+		}
+	 }
+ }
+#endif 
 }
 //----------------------------------------------------------------------------------------
 static void setTFTP_RRQ(void)
@@ -422,6 +664,10 @@ static void setTFTP_WRQ(void)
        jump_to_test=1;
        image_address=BOOTSTART;
     }
+#ifdef SUPPORT_TFTP_CLIENT
+    else
+       jump_to_test=0;
+#endif
 //#endif  
     address_to_store=image_address;
     file_length_to_server=0;  
@@ -596,7 +842,9 @@ void autoreboot()
 #if defined(RTL865X) || defined(RTL8198)
 	/* this is to enable 865xc watch dog reset */
 	*(volatile unsigned long *)(0xB800311c)=0; 
-	for(;;);
+	#ifndef CONFIG_NAND_FLASH
+		for(;;); //Disable for NAND flash booting
+	#endif
 #endif
 	/* reboot */
 	jumpF();	
@@ -614,10 +862,112 @@ void checkAutoFlashing(unsigned long startAddr, int len)
 	IMG_HEADER_T Header ; //avoid unalign problem
 	int skip_check_signature=0;
 	unsigned long burn_offset =0; //mark_dual
-	
+
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)
+	struct compress_mib_header compHeader;
+	int		config_reboot = 0;
+	int		in_config = 0;
+	int		config_trueorfalse = 0;
+	int		config_burnLen;
+#endif
+
+	int trueorfaulse = 0;
 #ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE	
 	check_dualbank_setting(0); //must do check image to get current boot_bank.......
-#endif		
+#endif
+
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)
+	memcpy(&compHeader,(char*)startAddr+ head_offset,sizeof(struct compress_mib_header));
+	if(!memcmp(compHeader.signature,(char*)COMP_HS_SIGNATURE,COMP_SIGNATURE_LEN)
+		|| !memcmp(compHeader.signature,(char*)COMP_CS_SIGNATURE,COMP_SIGNATURE_LEN)
+		|| !memcmp(compHeader.signature,(char*)COMP_DS_SIGNATURE,COMP_SIGNATURE_LEN)
+		){
+		while((head_offset + sizeof(struct compress_mib_header)) < len){
+			memcpy(&compHeader, ((char *)startAddr + head_offset), sizeof(struct compress_mib_header));
+			config_reboot = 1;
+			in_config = 0;
+
+			if(!memcmp(compHeader.signature,(char*)COMP_HS_SIGNATURE,COMP_SIGNATURE_LEN)){
+				config_burnLen = compHeader.compLen+sizeof(struct compress_mib_header);
+#ifdef CONFIG_SPI_FLASH
+#ifdef SUPPORT_SPI_MIO_8198_8196C
+                if((COMP_HS_FLASH_ADDR+config_burnLen) > spi_flash_info[0].chip_size)
+				{
+					if(spi_flw_image_mio_8198(0,COMP_HS_FLASH_ADDR, startAddr+head_offset, spi_flash_info[0].chip_size-COMP_HS_FLASH_ADDR)&&
+						spi_flw_image_mio_8198(1,0, startAddr+head_offset+spi_flash_info[0].chip_size-COMP_HS_FLASH_ADDR, COMP_HS_FLASH_ADDR+config_burnLen-spi_flash_info[0].chip_size))
+							config_trueorfalse = 1;
+				}
+				else
+					if(spi_flw_image_mio_8198(0,COMP_HS_FLASH_ADDR, startAddr+head_offset, config_burnLen))
+						config_trueorfalse = 1;
+#else
+				spi_flw_image(0,COMP_HS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+#else
+                flashwrite(COMP_HS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+				head_offset += config_burnLen;
+				prom_printf("Update Hardware Setting Success\n");
+				in_config = 1;
+			}
+			if(!memcmp(compHeader.signature,(char*)COMP_CS_SIGNATURE,COMP_SIGNATURE_LEN)){
+				config_burnLen = compHeader.compLen+sizeof(struct compress_mib_header);
+#ifdef CONFIG_SPI_FLASH
+#ifdef SUPPORT_SPI_MIO_8198_8196C
+				if((COMP_CS_FLASH_ADDR+config_burnLen) > spi_flash_info[0].chip_size)
+				{
+					if(spi_flw_image_mio_8198(0,COMP_CS_FLASH_ADDR, startAddr+head_offset, spi_flash_info[0].chip_size-COMP_CS_FLASH_ADDR)&&
+						spi_flw_image_mio_8198(1,0, startAddr+head_offset+spi_flash_info[0].chip_size-COMP_CS_FLASH_ADDR, COMP_CS_FLASH_ADDR+config_burnLen-spi_flash_info[0].chip_size))
+							config_trueorfalse = 1;
+					}
+					else
+						if(spi_flw_image_mio_8198(0,COMP_CS_FLASH_ADDR, startAddr+head_offset, config_burnLen)){
+							config_trueorfalse = 1;
+						}
+#else
+				spi_flw_image(0,COMP_CS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+#else
+                flashwrite(COMP_CS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+
+				prom_printf("Update Current Setting Success\n");
+				head_offset += config_burnLen;
+				
+				in_config = 1;
+			}
+			if(!memcmp(compHeader.signature,(char*)COMP_DS_SIGNATURE,COMP_SIGNATURE_LEN)){
+				config_burnLen = compHeader.compLen+sizeof(struct compress_mib_header);
+#ifdef CONFIG_SPI_FLASH
+#ifdef SUPPORT_SPI_MIO_8198_8196C
+				if((COMP_DS_FLASH_ADDR+config_burnLen) > spi_flash_info[0].chip_size)
+				{
+					if(spi_flw_image_mio_8198(0,COMP_DS_FLASH_ADDR, startAddr+head_offset, spi_flash_info[0].chip_size-COMP_DS_FLASH_ADDR)&&
+						spi_flw_image_mio_8198(1,0, startAddr+head_offset+spi_flash_info[0].chip_size-COMP_DS_FLASH_ADDR, COMP_DS_FLASH_ADDR+config_burnLen-spi_flash_info[0].chip_size))
+							config_trueorfalse = 1;
+				}
+				else
+						if(spi_flw_image_mio_8198(0,COMP_DS_FLASH_ADDR, startAddr+head_offset, config_burnLen)){
+							config_trueorfalse = 1;
+						}
+#else
+                spi_flw_image(0,COMP_DS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+#else
+                flashwrite(COMP_DS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+
+				prom_printf("Update Default Setting Success\n");
+				head_offset += config_burnLen;
+				in_config = 1;
+			}
+			
+			if(in_config == 0)
+				break;
+		}	
+	}
+#endif
+
 	while( (head_offset + sizeof(IMG_HEADER_T)) <  len){
 		sum=0; sum1=0;
 		memcpy(&Header, ((char *)startAddr + head_offset), sizeof(IMG_HEADER_T));
@@ -666,12 +1016,16 @@ void checkAutoFlashing(unsigned long startAddr, int len)
 		}		
 
 		if(skip_check_signature || 
+#if defined(CONFIG_NAND_FLASH)
+			memcmp(Header.signature, WEB_SIGNATURE, 3)){
+#else
 			(memcmp(Header.signature, WEB_SIGNATURE, 3) &&
 			 memcmp(Header.signature, WEB_JFFS2_SIGNATURE, 4)&&
 //BUILDIN_SECURITY_FILE
 				memcmp(Header.signature, CWMP_SIGNATURE, 4) &&
 					memcmp(Header.signature, KSAP_SIGNATURE, 4))){
 //BUILDIN_SECURITY_FILE
+#endif
 			//calculate checksum
 			if(!memcmp(Header.signature, ALL1_SIGNATURE, SIG_LEN) ||
 					!memcmp(Header.signature, ALL2_SIGNATURE, SIG_LEN)) {										
@@ -690,7 +1044,7 @@ void checkAutoFlashing(unsigned long startAddr, int len)
 #if  defined(RTL8198)																		
 #if 1				
 						//sum +=*((unsigned short *)(startAddr+ head_offset + sizeof(IMG_HEADER_T) + i));
-						memcpy(&temp, (startAddr+ head_offset + sizeof(IMG_HEADER_T) + i), 2); // for alignment issue
+						memcpy(&temp, (void *)(startAddr+ head_offset + sizeof(IMG_HEADER_T) + i), 2); // for alignment issue
 						sum+=temp;
 #else						
 						x=*((unsigned char *)(startAddr+ head_offset + sizeof(IMG_HEADER_T) + i));						
@@ -728,11 +1082,35 @@ void checkAutoFlashing(unsigned long startAddr, int len)
 			}
 		}
 		prom_printf("checksum Ok !\n");
+	        
+		if( (burnLen % 0x1000) == 0) //mean 4k alignemnt
+		{
+			if( (*((unsigned int *)(startAddr+burnLen))) == 0xdeadc0de ) //wrt jffs2 endof mark
+			{	
+#ifdef CONFIG_RTK_BOOTINFO_DUALIMAGE 
+			     unsigned char next_bank;
+			     	next_bank = rtk_get_next_bootbank();
+		  	    //decide whick bank to burn
+  			    if(next_bank  == 1) //if bank is bank1 not bank0 ,then need add offset
+				  burn_offset = burn_offset + CONFIG_RTK_DUALIMAGE_FLASH_OFFSET ;			
+
+		 	    prom_printf("dual image burn_offset =0x%x \n", burn_offset); //mark_boot
+			    //update bootinfo 
+			    rtk_update_bootbank(next_bank);  //if bank is bank1 not bank0 ,then need add offset	
+#endif		
+		   	    prom_printf("it's special wrt image need add 4 byte to burnlen =%8x!\n",burnLen);
+			    burnLen += 4;
+			}
+		}
 		
 		prom_printf("burn Addr =0x%x! srcAddr=0x%x len =0x%x \n", Header.burnAddr, srcAddr, burnLen);
 
 #ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE				
-		if(!memcmp(Header.signature, FW_SIGNATURE, SIG_LEN) || !memcmp(Header.signature, FW_SIGNATURE_WITH_ROOT, SIG_LEN))
+		if(!memcmp(Header.signature, FW_SIGNATURE, SIG_LEN) || !memcmp(Header.signature, FW_SIGNATURE_WITH_ROOT, SIG_LEN) 
+#ifdef CONFIG_WEBPAGE_CHECK
+		|| !memcmp(Header.signature, WEBPAGE_SIGNATURE, SIG_LEN)
+#endif
+			)
 		{
 			IMG_HEADER_T header_t, *header_p;
 			header_p = &header_t;
@@ -749,7 +1127,7 @@ void checkAutoFlashing(unsigned long startAddr, int len)
 			prom_printf("burn_offset = %x !\n",burn_offset);
 		}
 #endif
-int trueorfaulse = 0;
+//int trueorfaulse = 0;
 #ifdef CONFIG_SPI_FLASH
 		#ifdef SUPPORT_SPI_MIO_8198_8196C
 			if(Header.burnAddr+burn_offset+burnLen > spi_flash_info[0].chip_size)
@@ -764,9 +1142,141 @@ int trueorfaulse = 0;
 		#else
 			if(spi_flw_image(0,Header.burnAddr+burn_offset, srcAddr, burnLen))
 		#endif
-#else
-		if (flashwrite(Header.burnAddr+burn_offset, srcAddr, burnLen))
 #endif
+
+#ifdef CONFIG_NOR_FLASH
+		if (flashwrite(Header.burnAddr+burn_offset, srcAddr, burnLen))
+		{
+			trueorfaulse = 1;
+		}
+#endif
+
+#ifdef CONFIG_NAND_FLASH
+			{
+				extern int nand_select;
+				extern int block_size;
+				extern int block_shift;
+				extern int pagemask;
+				extern int page_shift;
+				int j=0;
+				unsigned int start_page=0;
+				 int offset=0;
+				 int block_count=0;
+				 //printf("original src_len %d dest 0x%x\n\r",src_len, dest);
+				block_count = (len+(block_size-1))/block_size;
+	    		len = block_count*block_size;
+	              //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	              // Added ECC page
+	              //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	              
+				#ifdef CONFIG_RTK_NAND_BBT
+
+					extern unsigned int page_size;
+					extern unsigned int oob_size ;
+					extern unsigned int ppb;   
+					unsigned int start_block=0;
+					unsigned int addr=0, page=0;
+					unsigned char *tmp_oob;
+
+
+					tmp_oob = (unsigned char*)malloc((sizeof(char)*ppb*oob_size));
+					if(!tmp_oob){
+						printf("can't alloc memory for tmp_oob buf!!!\n\r");
+						return -1;
+					}
+						//printf("(sizeof(char)*ppb*oob_size) %d!!!\n\r", (sizeof(char)*ppb*oob_size));
+					memset(tmp_oob,0xff,(sizeof(char)*ppb*oob_size));
+					rtk_scan_v2r_bbt();
+					rtk_nand_scan_bbt();
+
+				#endif
+			#if 1
+			for(j=0;j<BACKUP_IMAGE;j++){
+					if(j==1){
+						start_page = ((IMG_BACKUP_ADDR)/page_size)-ppb;
+					#ifdef CONFIG_RTK_NAND_BBT		
+										start_block = (IMG_BACKUP_ADDR >> block_shift);
+					#endif
+						offset = 0;
+					}else{
+							printf("Header.burnAddr:%x burn_offset:%x\n\r",Header.burnAddr,burn_offset);
+							if((Header.burnAddr+burn_offset)==0){
+									start_page=0;
+									printf("\n--00--\n");
+									if (rtk_write_ecc_page(Header.burnAddr+burn_offset, srcAddr, burnLen))
+									{
+										//prom_printf("\nNAND Flash Header.burnAddr=0x%x!\n%s",Header.burnAddr);
+										trueorfaulse = 1;
+										goto FINISH_GO;
+									}
+									
+							}
+							else{
+								start_page = ((Header.burnAddr+burn_offset)/page_size)-ppb;
+							}
+					
+							
+							#ifdef CONFIG_RTK_NAND_BBT		
+									
+												start_block = ((Header.burnAddr+burn_offset) >> block_shift);
+							#endif
+							offset = 0;
+					}
+					#ifdef CONFIG_RTK_NAND_BBT
+									
+									//printf("start blockv:%x start_page:%x block_count:%x\n\r",start_block,start_page,block_count);
+									for(i=start_block;i<block_count+start_block;i++){ //caculate how many block.
+										//real_addr = (bbt_v2r[i].block_r << block_shift);
+										//real_page = bbt_v2r[i].block_r * ppb;
+										addr = (i << block_shift);
+										page = i * ppb;
+										//printf("addrv:%x pagev:%x block_count:%x i:%d\n\r",addr, page,block_count,i);
+								 
+										//if(rtk_erase_block(real_page)){
+										if(nand_erase_nand(addr, block_size)){
+											printf("%s: erase blockv:%x pagev:%x fail!\n",__FUNCTION__, i, page);
+											break;
+										}
+										if(nand_write_ecc_ob(addr, block_size, srcAddr+offset, tmp_oob)){
+												printf("%s: nand_write_ecc addrv :%x error\n",__FUNCTION__, addr);
+												break;
+										}	
+										offset += block_size;//shift buffer ptr one block each time.
+										if(i==(block_count+start_block-1)){
+											 trueorfaulse = 1;
+										}
+									}
+					#else //CONFIG_RTK_NAND_BBT
+						
+									 for(i=0;i<block_count;i++){ //caculate how many block.
+											NEXT_BLOCK:
+											if(!j && (start_page*page_size >= IMG_BACKUP_ADDR)){
+												printf("Warning: block[%d] overwrite IMG_BACKUP_ADDR region!!\n",i);
+												break;
+											}
+											do{
+												start_page+=ppb;
+											}while(rtk_block_isbad(start_page*page_size));
+								
+											if(rtk_write_ecc_page(start_page*page_size, srcAddr+offset, block_size)){
+															printf("HW ECC error on this block %d, just skip it!\n", (start_page/ppb));
+												goto NEXT_BLOCK;
+											}
+											offset += block_size;//shift buffer ptr one block each time.
+									}
+									trueorfaulse = 1;
+								
+									  //}  ///0729
+
+					#endif //CONFIG_RTK_NAND_BBT			
+		    } //for BACKUP_IMAGE
+			#endif
+
+
+}
+FINISH_GO:
+	
+              #endif
 		if(trueorfaulse)
 			prom_printf("\nFlash Write Successed!\n%s", "<RealTek>");
 		else{
@@ -776,7 +1286,11 @@ int trueorfaulse = 0;
 
 		head_offset += Header.len + sizeof(IMG_HEADER_T);
 	} //while
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)
+	if(reboot || config_reboot){
+#else
 	if(reboot){
+#endif
 	    	autoreboot();
 	}
 		
@@ -810,10 +1324,20 @@ static void prepareACK(void)
 	//dprintf("Receive TFTP Data\n");
  
  udpheader = (struct udphdr *)&nic.packet[ETH_HLEN+ sizeof(struct iphdr)];
+#ifdef SUPPORT_TFTP_CLIENT
+ if((tftp_client_enabled && (udpheader->dest==htons(CLIENT_port))) || 	
+	 (!tftp_client_enabled && (udpheader->dest==htons(SERVER_port))))
+#else	
  if(udpheader->dest==htons(SERVER_port))
+#endif 	
    {
-    /*memorize CLIENT port*/
-    CLIENT_port=  ntohs(udpheader->src); 
+#ifdef SUPPORT_TFTP_CLIENT
+   	if (tftp_client_enabled)
+		SERVER_port = ntohs(udpheader->src); 
+	else
+#endif		
+          /*memorize CLIENT port*/
+          CLIENT_port=  ntohs(udpheader->src); 
     tftppacket = (struct tftp_t *)&nic.packet[ETH_HLEN];
     /*no need to check opcode, this is a Data packet*/     
     /*parse the TFTP block number*/	
@@ -868,12 +1392,21 @@ static void prepareACK(void)
          /*file_length_to_server can not be reset,only when another WRQ */
          /*and export to file_length_to_client for our SDRAM direct RRQ*/
          it_is_EOF=0;
+#if defined(SUPPORT_TFTP_CLIENT)
+		if(tftp_from_command)
+		    tftp_client_recvdone = 1;
+#endif
          bootState=BOOT_STATE0_INIT_ARP;
          /*Cyrus Tsai*/
          one_tftp_lock=0; 
          SERVER_port++;
          
- 	 prom_printf( "\nSuccess!\n%s", "<RealTek>" );
+#if defined(SUPPORT_TFTP_CLIENT)
+     if(tftp_from_command)
+		prom_printf( "\nSuccess!\n");
+	 else
+#endif
+		prom_printf( "\nSuccess!\n%s", "<RealTek>" );
  	      
 #if defined( CONFIG_NFBI) || defined(CONFIG_NONE_FLASH)
         ret = check_system_image((unsigned long)image_address,&header);
@@ -893,6 +1426,7 @@ static void prepareACK(void)
 
          if(jump_to_test==1)
            {
+			REG32(0xb8000010)= REG32(0xb8000010)&(~(1<<11));
             jump_to_test=0;
 	    /*we should clear all irq mask.*/
 	    //jumpF = (void *)(TESTSTART); //sc_yang
@@ -907,11 +1441,19 @@ static void prepareACK(void)
            }
 #if !(defined( CONFIG_NFBI) || defined(CONFIG_NONE_FLASH))
 	   else if(autoBurn)
+	   {
 	   	checkAutoFlashing(image_address, file_length_to_server);
+	   }
 #endif
         }       
-      
-      
+#ifdef SUPPORT_TFTP_CLIENT
+		else if (tftp_client_enabled && block_expected == 2) { /* first block */
+			bootState = BOOT_STATE4_TFTP_SERVER_DATA;			
+			if(!tftp_from_command)
+				jump_to_test = 1;
+		}
+		last_sent_time = get_timer_jiffies();		
+#endif	        
      }
    }
 //else 
@@ -976,7 +1518,7 @@ static void prepareDATA(void)
 //----------------------------------------------------------------------------------------
 //char eth0_mac[6]={0x56, 0xaa, 0xa5, 0x5a, 0x7d, 0xe8};
 extern char eth0_mac[6];
-void tftpd_entry(void)
+void tftpd_entry(int is_client_mode)
 {
  int i,j;
 
@@ -1033,6 +1575,11 @@ arptable_tftp[TFTP_SERVER].node[0]=eth0_mac[0];
  file_length_to_server=0;
  file_length_to_client=0;
  
+#ifdef SUPPORT_TFTP_CLIENT
+ if (is_client_mode)
+	 SERVER_port=69; 	
+ else
+#endif 	
  SERVER_port=2098;
 
 #ifndef CONFIG_FPGA_PLATFORM
@@ -1044,6 +1591,25 @@ arptable_tftp[TFTP_SERVER].node[0]=eth0_mac[0];
         REG32(0xb801900c)= REG32(0xb801900c) & (~0x0020);
 	else
         REG32(0xb801900c)= REG32(0xb801900c) | 0x0020;
+#endif
+
+#ifdef SUPPORT_TFTP_CLIENT
+ if (is_client_mode) {
+	int start_time;	
+	arptable_tftp[TFTP_SERVER].ipaddr.s_addr = IPTOUL(192,168,1,97);	
+	arptable_tftp[TFTP_CLIENT].ipaddr.s_addr = IPTOUL(192,168,1,116);
+	memset(arptable_tftp[TFTP_SERVER].node, '\xff', ETH_ALEN);	
+	arptable_tftp[TFTP_CLIENT].node[5]=eth0_mac[5];
+	arptable_tftp[TFTP_CLIENT].node[4]=eth0_mac[4];
+	arptable_tftp[TFTP_CLIENT].node[3]=eth0_mac[3];
+	arptable_tftp[TFTP_CLIENT].node[2]=eth0_mac[2];
+	arptable_tftp[TFTP_CLIENT].node[1]=eth0_mac[1];
+	arptable_tftp[TFTP_CLIENT].node[0]=eth0_mac[0];
+	CLIENT_port = 1010;
+	tftp_client_enabled = 1;	
+ }
+ else	
+	tftp_client_enabled = 0;
 #endif
 }
 //----------------------------------------------------------------------------------------
@@ -1070,15 +1636,39 @@ void tftpd_send_ack(Int16 number)
  ip->ttl = 60;
  ip->protocol = IP_UDP;
  ip->chksum = 0;
+#ifdef SUPPORT_TFTP_CLIENT
+ if (tftp_client_enabled) {
+	 ip->src.s_addr = arptable_tftp[TFTP_CLIENT].ipaddr.s_addr;
+	 ip->dest.s_addr = arptable_tftp[TFTP_SERVER].ipaddr.s_addr; 	
+ }
+ else
+#endif
+ {
  ip->src.s_addr = arptable_tftp[TFTP_SERVER].ipaddr.s_addr;
  ip->dest.s_addr = arptable_tftp[TFTP_CLIENT].ipaddr.s_addr;
+ }
  ip->chksum = ipheader_chksum((Int16 *)&tftp_tx, sizeof(struct iphdr));
  /*generate the UDP header*/
+
+#ifdef SUPPORT_TFTP_CLIENT
+ if (tftp_client_enabled) {
+	 udp->src  = htons(CLIENT_port);
+	 udp->dest = htons(SERVER_port); 	
+ }
+ else
+#endif  
+ {
  udp->src  = htons(SERVER_port);
  udp->dest = htons(CLIENT_port);
+ }
  udp->len  = htons(32 - sizeof(struct iphdr));/*TFTP IP packet is 32 bytes.*/
  udp->chksum = 0;
 
+#ifdef SUPPORT_TFTP_CLIENT
+ if (tftp_client_enabled)
+	 prepare_txpkt(0,FRAME_IP,arptable_tftp[TFTP_SERVER].node,(Int8*)&tftp_tx,(Int16)sizeof(struct iphdr)+sizeof(struct udphdr)+4); 
+ else
+#endif  
  prepare_txpkt(0,FRAME_IP,arptable_tftp[TFTP_CLIENT].node,(Int8*)&tftp_tx,(Int16)sizeof(struct iphdr)+sizeof(struct udphdr)+4);
 }
 //----------------------------------------------------------------------------------------
@@ -1174,7 +1764,7 @@ void kick_tftpd(void)
       
     Int32 UDPIPETHheader = ETH_HLEN + sizeof(struct iphdr)  + sizeof(struct udphdr);		 
     
-    
+
     if (nic.packetlen >= ETH_HLEN+sizeof(struct arprequest)) {
     	 pkttype =( (Int16)(nic.packet[12]<< 8)  |(Int16)(nic.packet[13])   );   /*This BIG byte shifts right 8*/             
     } 
@@ -1194,6 +1784,9 @@ void kick_tftpd(void)
                 case htons(ARP_REQUEST):     														
 				    // check dst ip, david+2007-12-26											
                     if (!memcmp(arppacket->tipaddr, &arptable_tftp[TFTP_SERVER].ipaddr, 4)
+#ifdef SUPPORT_TFTP_CLIENT
+						||(tftp_client_enabled &&!memcmp(arppacket->tipaddr, &arptable_tftp[TFTP_CLIENT].ipaddr, 4))
+#endif
 #if defined(HTTP_SERVER)/*for httpd*/
                         || !memcmp(arppacket->tipaddr, &arptable_tftp[HTTPD_ARPENTRY].ipaddr, 4)
 #endif
@@ -1238,6 +1831,19 @@ void kick_tftpd(void)
                 if (ipheader->verhdrlen==0x45) {
                     //Cyrus Dick
                     /*check the destination ip addr*/
+#ifdef SUPPORT_TFTP_CLIENT
+                    if ((tftp_client_enabled && ip_addr.s_addr==arptable_tftp[TFTP_CLIENT].ipaddr.s_addr) ||
+						(!tftp_client_enabled && ip_addr.s_addr==arptable_tftp[TFTP_SERVER].ipaddr.s_addr) 
+					
+#if defined(DHCP_SERVER)/*for DHCP dst ip  broadcast*/
+                        || ip_addr.s_addr == 0xFFFFFFFF 
+#endif
+#if defined(HTTP_SERVER)/*for httpd*/
+                        || ip_addr.s_addr  == arptable_tftp[HTTPD_ARPENTRY].ipaddr.s_addr 
+#endif
+                        ) {					
+
+#else					
                     if (ip_addr.s_addr==arptable_tftp[TFTP_SERVER].ipaddr.s_addr 
 #if defined(DHCP_SERVER)/*for DHCP dst ip  broadcast*/
                         || ip_addr.s_addr == 0xFFFFFFFF 
@@ -1246,6 +1852,7 @@ void kick_tftpd(void)
                         || ip_addr.s_addr  == arptable_tftp[HTTPD_ARPENTRY].ipaddr.s_addr 
 #endif
                         ) {
+#endif                        
                         //if(source_ip_addr.s_addr==arptable_tftp[TFTP_CLIENT].ipaddr.s_addr)
                         //Cyrus Dick
                         if (!ipheader_chksum((Int16*)ipheader,sizeof(struct iphdr))) {
@@ -1296,6 +1903,15 @@ void kick_tftpd(void)
                                         kick_event= BOOT_EVENT5_TFTP_ACK;                 
                                         break; 
                                     case htons(TFTP_ERROR):
+										#if defined(SUPPORT_TFTP_CLIENT)
+										if(bootState==BOOT_STATE3_TFTP_SERVER_DATA||bootState == BOOT_STATE4_TFTP_SERVER_DATA)
+										{
+											memset(errmsg,0,512);
+											errcode = 0;
+										    strcpy(errmsg,tftppacket->u.err.errmsg);
+											errcode = tftppacket->u.err.errcode;
+										}
+										#endif
                                         kick_event= BOOT_EVENT6_TFTP_ERROR;                 
                                         break;
                                     case htons(TFTP_OACK):

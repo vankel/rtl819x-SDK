@@ -37,7 +37,7 @@ char *get_name(char *name, char *p);
 void string_casecade(char *dest, char *src);
 int write_line_to_file(char *filename, int mode, char *line_data);
 void Create_script(char *script_path, char *iface, int network, char *ipaddr, char *mask, char *gateway);
-unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned char symbol);
+//unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned char symbol);
 extern int find_pid_by_name( char* pidName);
 void reinit_webs();
 int getDefaultRoute(char *interface, struct in_addr *route);

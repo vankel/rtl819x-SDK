@@ -75,6 +75,10 @@ config ARCH_BUS_PCI_MSI
   bool
   default n
 
+config ARCH_CPU_WMPU
+  bool 
+  default n
+	
 #
 # System Config
 #
@@ -101,11 +105,10 @@ config RTL_8197D_GW
           This enables support for Realtek RTL8197D demo board
 
 config RTL_8197D_AP
-        bool "97D+92C+92D AP"
-        select RTL_8197D
-	select SYS_HAS_EARLY_PRINTK
-        help
-          This enables support for Realtek RTL8197D demo board
+	bool "97D+8367R AP"
+	select RTL_8197D
+	help
+	  This enables support for Realtek RTL8197D demo board running AP mode
 
 config RTL_8197DL_GW
         bool "97DL GW"
@@ -116,6 +119,10 @@ config RTL_8197DL_GW
           This enables support for Realtek RTL8197DL demo board
 
 endchoice
+
+config RTL_AP_PACKAGE
+	bool
+	default y if RTL_8197D_AP
 
 config FPGA_PLATFORM
 	bool
@@ -132,6 +139,10 @@ config RTL_8197DL
 config RTL_819XD_GW
 	bool
 	
+config RTL_SDRAM_GE_32M
+        bool "sdram size greater than or equal 32M"
+        default y if RTL_8197D
+	
 config RTL_PCIE_SIMPLE_INIT
 	bool
 	default y if RTL8192SE
@@ -142,6 +153,11 @@ config RTL_WTDOG
 
 config RTL_8211DS_SUPPORT
         bool "Support rtl8211ds for rtl8197D"
+        default n
+        depends on RTL_8197D
+
+config RTL_8367R_SUPPORT
+        bool "Support RTL8367R for RTL8197D"
         default n
         depends on RTL_8197D
 
@@ -156,7 +172,7 @@ config RTL819X_SPI_FLASH
 
 config AUTO_PCIE_PHY_SCAN
 	bool "8196D PCIE Autoscan PCIE PHY 40Mhz"
-	depends on RTL_8196D
+	depends on RTL_819XD
 	default y
 
 #config PHY_EAT_40MHZ
@@ -165,6 +181,10 @@ config AUTO_PCIE_PHY_SCAN
 
 config RTL_FLASH_DUAL_IMAGE_ENABLE
 	bool "Enable Flash Dual Bank support"
+
+config RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE
+	bool "Enable Flash Dual Bank Webpage Backup Support"
+	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
 
 comment "Second Bank Offset"
 	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
@@ -218,7 +238,13 @@ config USB3G_SUPPORT
 
 config RTL_USB_IP_HOST_SPEEDUP
 	bool "Seedup usb samba performance"
-	
+
+config RTL_USB_ISOCHRONOUS_WEIGHT
+       bool "Enhance USB Isochronous Features Applications"
+	select USB_UWIFI_HOST
+	default n
+
+
 config HTTP_FILE_SERVER_SUPPORT
 	bool "Http File server support"
 
@@ -323,6 +349,15 @@ config RTL_ROOT_IMAGE_OFFSET
         default "0xF0000"
         help
 	  root image store in flash from the offset.
+	  
+comment "Flatfs image offset,should be 128K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_FLATFS_IMAGE_OFFSET
+        hex "FLATFS image offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x3E0000"
+        help
+	  flatfs image store in flash from the offset.
 
 # KERNE_STACK_SIZE = PAGE_SIZE<<KERNEL_STACK_SIZE_ORDER
 config KERNEL_STACK_SIZE_ORDER
@@ -346,6 +381,9 @@ config RTL_HOSTAPD_SUPPORT
 
 config RTK_INBAND_HOST_HACK
 	bool
+
+config RTL_NFJROM_MP
+   	bool "MP Support"
 
 #------------------------------------------------------------------------
 comment "Build rootfs options"

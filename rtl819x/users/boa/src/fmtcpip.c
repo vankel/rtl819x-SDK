@@ -207,6 +207,27 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 			for(i=0;i<NUM_WLAN_INTERFACE;i++)
 			{
 				wlan_idx=i;
+#if defined(CONFIG_APP_APPLE_MFI_WAC)//set wlan ssid
+				unsigned char ssid_str[64];
+				unsigned char* ptr = NULL;
+				unsigned char hwmac_addr[6];
+				apmib_get(MIB_HW_WLAN_ADDR,  (void *)hwmac_addr);	
+				apmib_get(MIB_WLAN_SSID,ssid_str);
+				if(ptr = strstr(ssid_str,"_WAC_"))
+					*ptr = '\0';
+				sprintf(ssid_str+strlen(ssid_str),"_WAC_%02X%02X%02X",(unsigned char)hwmac_addr[3],(unsigned char)hwmac_addr[4],(unsigned char)hwmac_addr[5]);
+				if ( !apmib_set(MIB_WLAN_SSID, (void *)ssid_str)) {
+						strcpy(tmpBuf, ("Set MIB_WLAN_SSID mib error!"));
+						goto setErr_tcpip;
+				}
+				if(0 == i){
+					sprintf(ssid_str,"Realtek_WAC_%02X%02X%02X",(unsigned char)hwmac_addr[3],(unsigned char)hwmac_addr[4],(unsigned char)hwmac_addr[5]);
+					if ( !apmib_set(MIB_MFI_WAC_DEVICE_NAME, (void *)ssid_str)) {
+							strcpy(tmpBuf, ("Set MIB_MFI_WAC_DEVICE_NAME mib error!"));
+							goto setErr_tcpip;
+					}
+				}
+#endif					
 				for(j=0;j<NUM_VWLAN_INTERFACE;j++)
 				{
 					vwlan_idx=j;
@@ -222,6 +243,25 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 			for(i=0;i<NUM_WLAN_INTERFACE;i++)
 			{
 				wlan_idx=i;
+#if defined(CONFIG_APP_APPLE_MFI_WAC)//set wlan ssid
+				unsigned char ssid_str[64];
+				unsigned char* ptr = NULL;
+				apmib_get(MIB_WLAN_SSID,ssid_str);
+				if(ptr = strstr(ssid_str,"_WAC_"))
+					*ptr = '\0';
+				sprintf(ssid_str+strlen(ssid_str),"_WAC_%02X%02X%02X",(unsigned char)tmpBuf[3],(unsigned char)tmpBuf[4],(unsigned char)tmpBuf[5]);
+				if ( !apmib_set(MIB_WLAN_SSID, (void *)ssid_str)) {
+						strcpy(tmpBuf, ("Set MIB_WLAN_SSID mib error!"));
+						goto setErr_tcpip;
+				}
+				if(0 == i){
+					sprintf(ssid_str,"Realtek_WAC_%02X%02X%02X",(unsigned char)tmpBuf[3],(unsigned char)tmpBuf[4],(unsigned char)tmpBuf[5]);
+					if ( !apmib_set(MIB_MFI_WAC_DEVICE_NAME, (void *)ssid_str)) {
+							strcpy(tmpBuf, ("Set MIB_MFI_WAC_DEVICE_NAME mib error!"));
+							goto setErr_tcpip;
+					}
+				}
+#endif					
 				for(j=0;j<NUM_VWLAN_INTERFACE;j++)
 				{
 					vwlan_idx=j;
@@ -348,7 +388,7 @@ int tcpipLanHandler(request *wp, char *tmpBuf)
 				ip = *((unsigned long *)&inIp);
 				mask = *((unsigned long *)&inMask);
 				if (diff <= 0 ||
-	//				diff > 256*3 ||
+					diff > 256*3 ||
 					(ip&mask) != (start&mask) ||
 					(ip&mask) != (end& mask) ) {
 					strcpy(tmpBuf, ("Invalid DHCP client range!"));
@@ -434,6 +474,37 @@ extern mib_table_entry_T mib_root_table[];
 #else
 extern int update_linkchain(int fmt, void *Entry_old, void *Entry_new, int type_size);
 #endif
+int checkStaticIpIsValid(char *tmpBuf)
+{
+	int i, entryNum=0, enabled=0;
+	DHCPRSVDIP_T entry;
+	struct in_addr start_ip, end_ip, router_ip;
+	
+	apmib_get(MIB_DHCPRSVDIP_ENABLED, (void *)&enabled);
+	if(enabled==0)
+		return 0;
+	
+	apmib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&entryNum);
+	apmib_get(MIB_DHCP_CLIENT_START,  (void *)&start_ip);
+	apmib_get(MIB_DHCP_CLIENT_END,  (void *)&end_ip);
+	apmib_get(MIB_IP_ADDR,  (void *)&router_ip);
+	
+	for (i=1; i<=entryNum; i++) 
+	{
+		*((char *)&entry) = (char)i;
+		if(!apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&entry))
+		{
+			printf("get mib MIB_DHCPRSVDIP_TBL fail!\n");
+			return 0;
+		}		
+		if(entry.ipAddr<start_ip.s_addr || entry.ipAddr>end_ip.s_addr || entry.ipAddr==router_ip.s_addr)
+		{
+			strcpy(tmpBuf, ("Please check your \"Static DHCP\" setting. The static IP address must be in the range of dhcpd ip pool, and is not same with router's ip!"));
+			return 1;	
+		}
+	}	
+	return 0;
+}
 void formTcpipSetup(request *wp, char *path, char *query)
 {
 
@@ -494,6 +565,8 @@ void formTcpipSetup(request *wp, char *path, char *query)
 	apmib_get( MIB_SUBNET_MASK,  (void *)buffer); //check the new lan mask
 	memcpy((void *)&inLanmask_new, buffer, 4);
 
+	if(checkStaticIpIsValid(tmpBuf)>0)
+		goto setErr_end ;
 #if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 	apmib_get( MIB_DHCP, (void *)&lan_dhcp_mode);
 	apmib_get( MIB_DOMAIN_NAME, (void *)lan_domain_name);
@@ -594,7 +667,8 @@ int tcpipWanHandler(request *wp, char * tmpBuf, int *dns_changed)
 	int intVal;
 	struct in_addr inIp, inMask,dns1, dns2, dns3, inGateway;
 	DHCP_T dhcp, curDhcp;
-	
+
+	char tmpbuf[16];
 #if defined(ROUTE_SUPPORT)	
 	int orig_nat=0;
 	int curr_nat=0;
@@ -617,7 +691,6 @@ int tcpipWanHandler(request *wp, char * tmpBuf, int *dns_changed)
 #if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)
 	char *strGetServByDomain=NULL;
 	char *strGatewayDomain;
-	int getIpByDomain=0;
 #endif
 #endif
 
@@ -1618,52 +1691,50 @@ set_ppp:
 			}
 #endif
 
-			
+			strGateway = req_get_cstream_var(wp, ("pptpServerIpAddr"), "");
+			if ( strGateway[0] ) {
+				if ( !inet_aton(strGateway, &inGateway) ) {
+					strcpy(tmpBuf, ("Invalid pptp server ip value!"));
+					goto setErr_tcpip;
+				}
+				if ( !apmib_set(MIB_PPTP_SERVER_IP_ADDR, (void *)&inGateway)) {
+					strcpy(tmpBuf, ("Set pptp server ip error!"));
+					goto setErr_tcpip;
+				}
+			}
 
 #if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)
-			strGetServByDomain = req_get_cstream_var(wp,"pptpServerAddrIsDomainName","");
-//printf("%s:%d strGetServByDomain=%s\n",__FUNCTION__,__LINE__,strGetServByDomain);
-
-			if(!strGetServByDomain[0])
+			strGetServByDomain = req_get_cstream_var(wp,"pptpGetServMode","");
+			if(strGetServByDomain[0])
 			{
-				strcpy(tmpBuf, ("Can't get pptpServerAddrIsDomainName!"));
-				goto setErr_tcpip;
-			}
-			getIpByDomain = atoi(strGetServByDomain);
-			if(!apmib_set(MIB_PPTP_GET_SERV_BY_DOMAIN,(void*)&getIpByDomain))
-			{
-				strcpy(tmpBuf, ("Set pptp MIB_PPTP_GET_SERV_BY_DOMAIN error!"));
-				goto setErr_tcpip;
-			}
-			if(getIpByDomain!=0)
-			{//domain name
-			
-				strGatewayDomain = req_get_cstream_var(wp, ("pptpServerAddr"), "");
-				printf("%s:%d pptpServerAddr=%s\n",__FUNCTION__,__LINE__,strGatewayDomain);
-				if ( strGatewayDomain[0] ) 
-				{					
-					if ( !apmib_set(MIB_PPTP_SERVER_DOMAIN, (void *)strGatewayDomain)) {
-						strcpy(tmpBuf, ("Set pptp server Domain error!"));
-						goto setErr_tcpip;
+				if(!strcmp(strGetServByDomain,"pptpGetServByDomainName"))
+				{
+					intVal=1;
+					if(!apmib_set(MIB_PPTP_GET_SERV_BY_DOMAIN,(void*)&intVal))
+					{
+						strcpy(tmpBuf, ("Set pptp get server by domain error!"));
+							goto setErr_tcpip;
 					}
-				}
-			}else
-			
-#endif	
-			{
-				strGateway = req_get_cstream_var(wp, ("pptpServerAddr"), "");
-				if ( strGateway[0] ) {
-					if ( !inet_aton(strGateway, &inGateway) ) {
-						strcpy(tmpBuf, ("Invalid pptp server ip value!"));
-						goto setErr_tcpip;
+					strGatewayDomain = req_get_cstream_var(wp, ("pptpServerDomainName"), "");
+					if(strGatewayDomain[0])
+					{
+						if ( !apmib_set(MIB_PPTP_SERVER_DOMAIN, (void *)strGatewayDomain)) {
+							strcpy(tmpBuf, ("Set pptp server domain error!"));
+							goto setErr_tcpip;
+						}
 					}
-					if ( !apmib_set(MIB_PPTP_SERVER_IP_ADDR, (void *)&inGateway)) {
-						strcpy(tmpBuf, ("Set pptp server ip error!"));
-						goto setErr_tcpip;
+				}else
+				{
+					intVal=0;
+					if(!apmib_set(MIB_PPTP_GET_SERV_BY_DOMAIN,(void*)&intVal))
+					{
+						strcpy(tmpBuf, ("Set pptp get server by domain error!"));
+							goto setErr_tcpip;
 					}
 				}
 			}
-
+			
+#endif
 
 		strType = req_get_cstream_var(wp, ("pptpConnectType"), "");
 			if ( strType[0] ) {
@@ -1798,50 +1869,50 @@ set_ppp:
 #if defined(CONFIG_DYNAMIC_WAN_IP)
 			}
 #endif		
-			
+			strGateway = req_get_cstream_var(wp, ("l2tpServerIpAddr"), "");
+			if ( strGateway[0] ) {
+				if ( !inet_aton(strGateway, &inGateway) ) {
+					strcpy(tmpBuf, ("Invalid l2tp server ip value!"));
+					goto setErr_tcpip;
+				}
+				if ( !apmib_set(MIB_L2TP_SERVER_IP_ADDR, (void *)&inGateway)) {
+					strcpy(tmpBuf, ("Set pptp server ip error!"));
+					goto setErr_tcpip;
+				}
+			}
 			
 #if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)
-			strGetServByDomain = req_get_cstream_var(wp,"l2tpServerAddrIsDomainName","");
-
-			if(!strGetServByDomain[0])
+			strGetServByDomain = req_get_cstream_var(wp,"l2tpGetServMode","");
+			if(strGetServByDomain[0])
 			{
-				strcpy(tmpBuf, ("Can't get l2tpServerAddrIsDomainName!"));
-				goto setErr_tcpip;
-			}
-			getIpByDomain = atoi(strGetServByDomain);
-			if(!apmib_set(MIB_L2TP_GET_SERV_BY_DOMAIN,(void*)&getIpByDomain))
-			{
-				strcpy(tmpBuf, ("Set l2tp MIB_PPTP_GET_SERV_BY_DOMAIN error!"));
-				goto setErr_tcpip;
-			}
-			if(getIpByDomain!=0)
-			{//domain name			
-				
-				strGatewayDomain = req_get_cstream_var(wp, ("l2tpServerAddr"), "");
-				if ( strGatewayDomain[0] ) 
-				{					
-					if ( !apmib_set(MIB_L2TP_SERVER_DOMAIN, (void *)strGatewayDomain)) {
-						strcpy(tmpBuf, ("Set l2tp server Domain error!"));
-						goto setErr_tcpip;
+				if(!strcmp(strGetServByDomain,"l2tpGetServByDomainName"))
+				{
+					intVal=1;
+					if(!apmib_set(MIB_L2TP_GET_SERV_BY_DOMAIN,(void*)&intVal))
+					{
+						strcpy(tmpBuf, ("Set l2tp get server by domain error!"));
+							goto setErr_tcpip;
+					}
+					strGatewayDomain = req_get_cstream_var(wp, ("l2tpServerDomainName"), "");
+					if(strGatewayDomain[0])
+					{
+						if ( !apmib_set(MIB_L2TP_SERVER_DOMAIN, (void *)strGatewayDomain)) {
+							strcpy(tmpBuf, ("Set l2tp server domain error!"));
+							goto setErr_tcpip;
+						}
+					}
+				}else
+				{
+					intVal=0;
+					if(!apmib_set(MIB_L2TP_GET_SERV_BY_DOMAIN,(void*)&intVal))
+					{
+						strcpy(tmpBuf, ("Set l2tp get server by domain error!"));
+							goto setErr_tcpip;
 					}
 				}
-			}else
+			}
 			
-#endif	
-			{
-				strGateway = req_get_cstream_var(wp, ("l2tpServerAddr"), "");
-			//	printf("%s:%d l2tpServerIpAddr=%s\n",__FUNCTION__,__LINE__,strGateway);
-				if ( strGateway[0] ) {
-					if ( !inet_aton(strGateway, &inGateway) ) {
-						strcpy(tmpBuf, ("Invalid l2tp server ip value!"));
-						goto setErr_tcpip;
-					}
-					if ( !apmib_set(MIB_L2TP_SERVER_IP_ADDR, (void *)&inGateway)) {
-						strcpy(tmpBuf, ("Set l2tp server ip error!"));
-						goto setErr_tcpip;
-					}
-				}
-			}
+#endif
 
 		strType = req_get_cstream_var(wp, ("l2tpConnectType"), "");
 			if ( strType[0] ) {
@@ -2003,7 +2074,7 @@ set_ppp:
 #endif	
 
         if ( buttonState == 1 && (dhcp == PPPOE || dhcp == PPTP || dhcp == L2TP || dhcp == USB3G) ) { // connect button is pressed
-			int wait_time=30;
+			int wait_time=45;  // FOR WISP MODE
 			int opmode=0;
 			apmib_update_web(CURRENT_SETTING);	// update to flash
 			apmib_get(MIB_OP_MODE, (void *)&opmode);
@@ -2059,24 +2130,48 @@ set_ppp:
 			}
 End:			
 #endif
+////			if(opmode==2)
+////				WAN_IF = ("wlan0");
 			if(opmode==2)
-				WAN_IF = ("wlan0");
+			{
+				int wisp_wan_id, wlan_mode;
+				char wlan_name[16];
+				apmib_get(MIB_WISP_WAN_ID,(void *)&wisp_wan_id);
+
+				sprintf(wlan_name,"wlan%d",wisp_wan_id);
+				if(SetWlan_idx(wlan_name))
+				{
+					apmib_get(MIB_WLAN_MODE,(void *)&wlan_mode);
+					if(wlan_mode == CLIENT_MODE)			
+						sprintf(tmpbuf, "wlan%d", wisp_wan_id);
+					else			
+						sprintf(tmpbuf, "wlan%d-vxd", wisp_wan_id);
+				}	
+				WAN_IF=tmpbuf;	
+//				printf("%s:%d wan_if=%s\n",__FUNCTION__,__LINE__,WAN_IF);
+			}
 			else if(opmode ==0)
 				WAN_IF = ("eth1");
-
+			
 			system("killall -9 igmpproxy 2> /dev/null");
-			system("echo 1,0 > /proc/br_mCastFastFwd");
+			system("echo 1,1 > /proc/br_mCastFastFwd");
 			system("killall -9 dnrd 2> /dev/null");
+			
 			if(dhcp == PPPOE || dhcp == PPTP)
-				system("killall -15 pppd 2> /dev/null");
+			{
+				//system("killall -15 pppd 2> /dev/null");
+			}
         #ifdef RTK_USB3G
             else if (dhcp == USB3G)
                 kill_3G_ppp_inet();
         #endif
 			else
-				system("killall -9 pppd 2> /dev/null");
+			{
+				//system("killall -9 pppd 2> /dev/null");
+			}
 				
 				system("disconnect.sh option");
+				
 #ifndef NO_ACTION
         #ifdef RTK_USB3G
             if (dhcp == USB3G)
@@ -2204,7 +2299,9 @@ end:
                 kill_3G_ppp_inet();
             else
         #endif
-		if(dhcp != PPTP){
+		//if(dhcp != PPTP)
+			if(1)
+			{
 			pid = fork();
         		if (pid)
 	             		waitpid(pid, NULL, 0);
@@ -2445,6 +2542,60 @@ setErr_end:
 	ERR_MSG(tmpBuf);
 }
 #endif
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+int checkSameIpOrPort(struct in_addr *IpAddr, int port_num, int entryNum)
+{
+	if(IpAddr==NULL || entryNum<1)
+		return 0;
+	int i;
+	DHCPRSVDIP_T entry;
+	
+	for (i=1; i<=entryNum; i++) 
+	{
+		*((char *)&entry) = (char)i;
+		if(!apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&entry))
+		{
+			printf("get mib MIB_DHCPRSVDIP_TBL fail!\n");
+			return -1;
+		}
+		if(memcmp(IpAddr, entry.ipAddr, 4)==0)
+			return 1;
+		if(port_num==entry.portId)
+			return 3;
+	}
+	return 0;
+}
+#endif
+int checkSameIpOrMac(struct in_addr *IpAddr, char *macAddr, int entryNum)
+{
+	if(IpAddr==NULL || macAddr==NULL)
+		return 4;
+	int i;
+	DHCPRSVDIP_T entry;
+	struct in_addr start_ip, end_ip, router_ip;
+	
+	for (i=1; i<=entryNum; i++) 
+	{
+		*((char *)&entry) = (char)i;
+		if(!apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&entry))
+		{
+			printf("get mib MIB_DHCPRSVDIP_TBL fail!\n");
+			return -1;
+		}
+		if(memcmp(IpAddr, entry.ipAddr, 4)==0)
+			return 1;
+		if(memcmp(macAddr, entry.macAddr, 6)==0)
+			return 2;
+	}
+	apmib_get(MIB_DHCP_CLIENT_START,  (void *)&start_ip);
+	apmib_get(MIB_DHCP_CLIENT_END,  (void *)&end_ip);
+	apmib_get(MIB_IP_ADDR,  (void *)&router_ip);
+
+	if(IpAddr->s_addr<start_ip.s_addr || IpAddr->s_addr>end_ip.s_addr || IpAddr->s_addr==router_ip.s_addr)
+		return 3;
+	return 0;
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //Static DHCP 
 void formStaticDHCP(request *wp, char *path, char *query)
@@ -2457,6 +2608,7 @@ void formStaticDHCP(request *wp, char *path, char *query)
 	struct in_addr inIp;
 	struct in_addr inLanaddr_orig;
 	struct in_addr inLanmask_orig;
+	int retval;
 	strAddRsvIP = req_get_cstream_var(wp, ("addRsvIP"), "");
 	strDelRsvIP = req_get_cstream_var(wp, ("deleteSelRsvIP"), "");
 	strDelAllRsvIP = req_get_cstream_var(wp, ("deleteAllRsvIP"), "");
@@ -2497,6 +2649,11 @@ void formStaticDHCP(request *wp, char *path, char *query)
 	//		strcpy(tmpBuf, ("Error! No mac address to set."));
 			goto setac_ret;
 		}
+#ifdef  SUPPORT_DHCP_PORT_IP_BIND
+		if(strlen(strVal)==1)
+			staticIPEntry.portId=atoi(strVal);
+		else
+#endif
 		if (strlen(strVal)!=12 || !string_to_hex(strVal, staticIPEntry.macAddr, 12)) {
 			strcpy(tmpBuf, ("Error! Invalid MAC address."));
 			goto setErr_rsv;
@@ -2514,7 +2671,26 @@ void formStaticDHCP(request *wp, char *path, char *query)
 			goto setErr_rsv;
 		}
 	
-	
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+                if(staticIPEntry.portId>0)
+			retval=checkSameIpOrPort(&inIp, staticIPEntry.portId, entryNum);
+                else
+#endif	
+		retval=checkSameIpOrMac(&inIp, staticIPEntry.macAddr, entryNum);
+		if(retval>0)
+		{
+			if(retval==1)
+				strcpy(tmpBuf, ("This IP address has been setted!"));
+			if(retval==2)				
+				strcpy(tmpBuf, ("This MAC address has been setted!"));
+			if(retval==3)
+				strcpy(tmpBuf, ("Invalid ip address! It must be in the lan dhcp server ip range, and is not same with router's ip!"));
+			if(retval==4)
+				strcpy(tmpBuf, ("The IP and MAC address must be not null!"));
+			
+			goto setErr_rsv;
+		}
+		
 		// set to MIB. try to delete it first to avoid duplicate case
 		apmib_set(MIB_DHCPRSVDIP_DEL, (void *)&staticIPEntry);
 		if ( apmib_set(MIB_DHCPRSVDIP_ADD, (void *)&staticIPEntry) == 0) {
@@ -2580,16 +2756,18 @@ int dhcpRsvdIp_List(request *wp, int argc, char **argv)
 	char macaddr[30];
 	apmib_get(MIB_DHCPRSVDIP_TBL_NUM, (void *)&entryNum);
 	nBytesSent += req_format_write(wp, ("<tr>"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>IP Address</b></font></td>\n"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
-      	"<td align=center width=\"30%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
+      	"<td align=center width=\"25%%\" bgcolor=\"#808080\"><font size=\"2\"><b>IP Address</b></font></td>\n"
+      	"<td align=center width=\"45%%\" bgcolor=\"#808080\"><font size=\"2\"><b>MAC Address</b></font></td>\n"
+      	"<td align=center width=\"20%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Comment</b></font></td>\n"
       	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Select</b></font></td></tr>\n"));
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
 		apmib_get(MIB_DHCPRSVDIP_TBL, (void *)&entry);
-		if (!memcmp(entry.macAddr, "\x0\x0\x0\x0\x0\x0", 6))
-			macaddr[0]='\0';
-		else			
+
+			
+		{
+			if (memcmp(entry.macAddr, "\x0\x0\x0\x0\x0\x0", 6))
+			{				
 			sprintf(macaddr," %02x-%02x-%02x-%02x-%02x-%02x", entry.macAddr[0], entry.macAddr[1], entry.macAddr[2], entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
 		nBytesSent += req_format_write(wp, ("<tr>"
 			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
@@ -2597,6 +2775,8 @@ int dhcpRsvdIp_List(request *wp, int argc, char **argv)
       			"<td align=center width=\"30%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
        			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><input type=\"checkbox\" name=\"select%d\" value=\"ON\"></td></tr>\n"),
 			inet_ntoa(*((struct in_addr*)entry.ipAddr)), macaddr,entry.hostName, i);	
+			}		
+		}
 	}
 	return 0;
 }

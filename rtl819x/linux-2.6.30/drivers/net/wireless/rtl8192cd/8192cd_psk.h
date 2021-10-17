@@ -17,6 +17,9 @@
 #define GTK_LEN						32
 #define PMK_LEN						32
 #define PTK_LEN						32
+#ifdef CONFIG_IEEE80211W
+#define IGTK_LEN 					16
+#endif /* CONFIG_IEEE80211W */
 #define KEY_NONCE_LEN				32
 #define NumGroupKey					4
 #define KEY_RC_LEN					8
@@ -66,7 +69,7 @@
 
 typedef enum	{ desc_type_WPA2 = 2, desc_type_RSN = 254 } DescTypeRSN;
 typedef enum	{ type_Group = 0, type_Pairwise = 1 } KeyType;
-typedef enum	{ key_desc_ver1 = 1, key_desc_ver2 = 2 } KeyDescVer;
+typedef enum	{ key_desc_ver1 = 1, key_desc_ver2 = 2, key_desc_ver3 = 3 } KeyDescVer;
 enum { PSK_WPA=1, PSK_WPA2=2};
 
 #ifdef TLN_STATS
@@ -88,6 +91,14 @@ enum {
 	PSK_GSTATE_REKEYESTABLISHED,
 	PSK_GSTATE_KEYERROR,
 };
+
+#ifdef CONFIG_IEEE80211W
+enum mfp_options {
+	NO_MGMT_FRAME_PROTECTION = 0,	
+	MGMT_FRAME_PROTECTION_OPTIONAL = 1,	
+	MGMT_FRAME_PROTECTION_REQUIRED = 2
+};
+#endif
 
 /*
  * Reason code for Disconnect
@@ -124,7 +135,7 @@ typedef enum _ReasonCode{
 typedef	struct _OCTET_STRING {
 	unsigned char	*Octet;
 	int				Length;
-} OCTET_STRING;
+} OCTET_STRING, *POCTET_STRING;
 
 typedef union _LARGE_INTEGER {
 		unsigned char 	charData[8];
@@ -197,6 +208,12 @@ typedef struct _wpa_global_info {
 	unsigned char		GMK[GMK_LEN];
 	int					GN;
 	int					GM;
+#ifdef CONFIG_IEEE80211W	
+	unsigned char		IGTK[2][IGTK_LEN];	
+	int					GN_igtk;	
+	int 				GM_igtk;	
+	union PN48 IGTK_PN;
+#endif
 	int					GRekeyCounts;
 	int					GResetCounter;
 
@@ -228,6 +245,11 @@ typedef struct _wpa_sta_info {
 	unsigned char		UnicastCipher;
  	unsigned char		NumOfRxTSC;
  	unsigned char		AuthKeyMethod;
+#ifdef CONFIG_IEEE80211W	
+	enum mfp_options ieee80211w;	/* dot11AssociationSAQueryMaximumTimeout (in TUs) */
+	unsigned int assoc_sa_query_max_timeout;	/* dot11AssociationSAQueryRetryTimeout (in TUs) */	
+	int assoc_sa_query_retry_timeout;
+#endif /* CONFIG_IEEE80211W */	
  	int					isSuppSupportPreAuthentication;
 	int					isSuppSupportPairwiseAsDefaultKey;
 	LARGE_INTEGER		CurrentReplayCounter;
@@ -252,6 +274,9 @@ typedef struct _wpa_sta_info {
 	int					clientHndshkDone;
 	int 				clientGkeyUpdate;
 	LARGE_INTEGER		clientMICReportReplayCounter;
+#ifdef CONFIG_IEEE80211W	
+	BOOLEAN 			mgmt_frame_prot;
+#endif
 } WPA_STA_INFO;
 #endif
 
@@ -322,7 +347,7 @@ __PACK struct lib1x_eapol
 
 #define Message_KeyNonce(f)					SubStr(f,KeyNoncePos,KEY_NONCE_LEN)
 #define Message_setKeyNonce(f, v)			SetSubStr(f, v, KeyNoncePos)
-#define Message_EqualKeyNonce(f1, f2)		memcmp(f1.Octet + KeyNoncePos, f2.Octet, KEY_NONCE_LEN)? 0:1
+#define Message_EqualKeyNonce(f1, f2)		(memcmp(f1.Octet + KeyNoncePos, f2.Octet, KEY_NONCE_LEN)? 0:1)
 #define Message_KeyIV(f)					Substr(f, KeyIVPos, KEY_IV_LEN)
 #define Message_setKeyIV(f, v)				SetSubStr(f, v, KeyIVPos)
 #define Message_KeyRSC(f)					Substr(f, KeyRSCPos, KEY_RSC_LEN)
@@ -336,7 +361,7 @@ __PACK struct lib1x_eapol
 #define Message_setKeyDataLength(f, v)		(f.Octet[KeyDataLenPos] = (v&0xff00) >>8 ,  f.Octet[KeyDataLenPos+1] = (v&0x00ff))
 #define Message_KeyData(f, l)				SubStr(f, KeyDataPos, l)
 #define Message_setKeyData(f, v)			SetSubStr(f, v, KeyDataPos);
-#define Message_EqualRSNIE(f1 , f2, l)		memcmp(f1.Octet, f2.Octet, l) ? 0:1
+#define Message_EqualRSNIE(f1 , f2, l)		(memcmp(f1.Octet, f2.Octet, l) ? 0:1)
 #define Message_ReturnKeyDataLength(f)		f.Length - (ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + EAPOLMSG_HDRLEN)
 
 #define Message_CopyReplayCounter(f1, f2)	memcpy(f1.Octet + ReplayCounterPos, f2.Octet + ReplayCounterPos, KEY_RC_LEN)

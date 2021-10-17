@@ -31,6 +31,9 @@
 // interface to enable MAC clone function
 //#define RTL_BRIDGE_MAC_CLONE
 
+#define GUEST_ZONE
+
+
 struct bridge;
 struct bridge_info;
 struct fdb_entry;
@@ -155,6 +158,7 @@ int br_set_isolation_zone(struct bridge *br, int val);
 int br_set_isolation_guest(struct bridge *br, int val);
 int br_set_lock_client(struct bridge *br, unsigned char *mac);
 int br_show_guestinfo(struct bridge *br);
+int br_set_gateway_mac(struct bridge *br, unsigned char *mac);
 #endif
 
 /* libc5 combatability */

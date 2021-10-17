@@ -1,0 +1,7 @@
+libc/sysdeps/linux/common/uselib.os: libc/sysdeps/linux/common/uselib.c \
+ include/libc-symbols.h include/bits/uClibc_arch_features.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+cmd_libc_sysdeps_linux_common_uselib.os := mips-linux-gcc -c libc/sysdeps/linux/common/uselib.c -o libc/sysdeps/linux/common/uselib.os -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=5281 -EB -fuse-uls -msoft-float -ffix-bdsl -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p4/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p4/include -DNDEBUG -fPIC -MT libc/sysdeps/linux/common/uselib.os -MD -MP -MF libc/sysdeps/linux/common/.uselib.os.dep

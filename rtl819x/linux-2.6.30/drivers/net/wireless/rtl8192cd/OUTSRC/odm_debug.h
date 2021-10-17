@@ -65,6 +65,12 @@
 //
 #define ODM_DBG_TRACE					5
 
+/*FW DBG MSG*/
+#define	RATE_DECISION	1
+#define	INIT_RA_TABLE	2
+#define	RATE_UP		3
+#define	RATE_DOWN		4
+
 //-----------------------------------------------------------------------------
 // Define the tracing components
 //
@@ -83,12 +89,14 @@
 #define ODM_COMP_PATH_DIV			BIT10
 #define ODM_COMP_PSD				BIT11
 #define ODM_COMP_DYNAMIC_PRICCA		BIT12
-
-#define ODM_COMP_RXHP				BIT13			
+#define ODM_COMP_RXHP				BIT13	
+#define ODM_COMP_MP					BIT14
 
 //MAC Functions
 #define ODM_COMP_EDCA_TURBO			BIT16
 #define ODM_COMP_EARLY_MODE			BIT17
+#define ODM_FW_DEBUG_TRACE			BIT22
+
 //RF Functions
 #define ODM_COMP_TX_PWR_TRACK		BIT24
 #define ODM_COMP_RX_GAIN_TRACK		BIT25
@@ -98,8 +106,11 @@
 #define ODM_COMP_INIT				BIT31
 
 /*------------------------Export Marco Definition---------------------------*/
-#if (DM_ODM_SUPPORT_TYPE == ODM_MP)
+#if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 	#define RT_PRINTK				DbgPrint
+#elif (DM_ODM_SUPPORT_TYPE == ODM_CE)
+	#define DbgPrint	printk
+	#define RT_PRINTK(fmt, args...)	DbgPrint( "%s(): " fmt, __FUNCTION__, ## args);
 #else
 	#define DbgPrint	panic_printk
 	#define RT_PRINTK(fmt, args...)	DbgPrint( "%s(): " fmt, __FUNCTION__, ## args);
@@ -109,8 +120,7 @@
 	#define ASSERT(expr)
 #endif
 
-#if DBG
-#define ODM_RT_TRACE(pDM_Odm, comp, level, fmt)									\
+#define ODM_RT_TRACE(pDM_Odm, comp, level, fmt)									    \
 		if(((comp) & pDM_Odm->DebugComponents) && (level <= pDM_Odm->DebugLevel))	\
 		{																			\
 			if(pDM_Odm->SupportICType == ODM_RTL8192C)								\
@@ -118,15 +128,21 @@
 			else if(pDM_Odm->SupportICType == ODM_RTL8192D)							\
 				DbgPrint("[ODM-92D] ");												\
 			else if(pDM_Odm->SupportICType == ODM_RTL8723A)							\
-				DbgPrint("[ODM-8723A] ");												\
+				DbgPrint("[ODM-8723A] ");											\
 			else if(pDM_Odm->SupportICType == ODM_RTL8188E)							\
-				DbgPrint("[ODM-8188E] ");												\
+				DbgPrint("[ODM-8188E] ");											\
+			else if(pDM_Odm->SupportICType == ODM_RTL8192E) 						\
+				DbgPrint("[ODM-8192E] ");											\
 			else if(pDM_Odm->SupportICType == ODM_RTL8812)							\
-				DbgPrint("[ODM-8812] ");												\
+				DbgPrint("[ODM-8812] ");											\
 			else if(pDM_Odm->SupportICType == ODM_RTL8821)							\
-				DbgPrint("[ODM-8821] ");												\
+				DbgPrint("[ODM-8821] ");											\
+			else if(pDM_Odm->SupportICType == ODM_RTL8881A)							\
+				DbgPrint("[ODM-8881A] ");											\				
 			RT_PRINTK fmt;															\
 		}
+
+#if DBG
 
 #define ODM_RT_TRACE_F(pDM_Odm, comp, level, fmt)									\
 		if(((comp) & pDM_Odm->DebugComponents) && (level <= pDM_Odm->DebugLevel))	\
@@ -158,7 +174,7 @@
 				DbgPrint("\n");														\
 			}
 #else
-#define ODM_RT_TRACE(pDM_Odm, comp, level, fmt)
+
 #define ODM_RT_TRACE_F(pDM_Odm, comp, level, fmt)
 #define ODM_RT_ASSERT(pDM_Odm, expr, fmt)
 #define ODM_dbg_enter()
@@ -173,6 +189,20 @@ ODM_InitDebugSetting(
 	IN		PDM_ODM_T		pDM_Odm
 	);
 
+VOID
+phydm_c2h_ra_report_handler(
+	IN PVOID		pDM_VOID,
+	IN pu1Byte   CmdBuf,
+	IN u1Byte   CmdLen
+);
+
+
+VOID
+phydm_fw_trace_handler_code(
+	IN	PVOID	pDM_VOID,
+	IN	pu1Byte	Buffer,
+	IN	u1Byte	CmdLen
+);
 
 
 #if 0
@@ -667,7 +697,7 @@ typedef enum tag_DBGP_Flag_Type_Definition
 
 
 /*------------------------Export Marco Definition---------------------------*/
-#if (DM_ODM_SUPPORT_TYPE != ODM_MP)
+#if (DM_ODM_SUPPORT_TYPE != ODM_WIN)
 #define RT_PRINTK(fmt, args...)    printk( "%s(): " fmt, __FUNCTION__, ## args);
 
 #if DBG
@@ -800,7 +830,7 @@ typedef enum tag_DBGP_Flag_Type_Definition
 
 
 
-#endif	// #if (DM_ODM_SUPPORT_TYPE != ODM_MP)
+#endif	// #if (DM_ODM_SUPPORT_TYPE != ODM_WIN)
 
 #define		DEBUG_PRINT				1
 

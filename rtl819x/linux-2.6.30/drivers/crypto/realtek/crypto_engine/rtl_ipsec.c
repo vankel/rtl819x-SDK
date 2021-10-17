@@ -1,3 +1,6 @@
+#include <linux/sched.h>
+#include <asm/delay.h>
+
 #ifdef CONFIG_RTL_ICTEST
 #include "rtl_types.h"
 #include "rtl_ipsec.h"
@@ -17,11 +20,21 @@
 #else
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include "../../../net/rtl819x/AsicDriver/rtl865xc_asicregs.h"
+#else
 #include <asm/rtl865x/rtl865xc_asicregs.h>
+#endif
 #include "md5.h"
 #include "sha1.h"
 #include "hmac.h"
 #include "rtl_ipsec.h"
+#endif
+#if defined(CRYPTO_USE_SCHEDULE)
+#include <linux/completion.h>
+#include <linux/hardirq.h>
+#include <linux/sched.h>
+#include <asm/atomic.h>
 #endif
 
 // address macro
@@ -48,15 +61,24 @@ enum _AES_KEYlEN
 	_AES_KEYLEN_256BIT = 3,
 };
 
+#if defined(CONFIG_SMP)
+int lock_ipsec_owner = -1;
+spinlock_t lock_ipsec_engine;
+#endif
+
+int cond_resched_flag = 0;
+
 // debug
 int g_rtl_ipsec_dbg = 0;
 
 // descriptors
-static uint32 g_numSrc, g_numDst; /* the number of source & destination descriptor */
-static uint32 g_idxCpuSrc, g_idxAsicSrc;
-static uint32 g_idxCpuDst, g_idxAsicDst;
-static rtl_ipsec_source_t *g_ipssdar;
-static rtl_ipsec_dest_t *g_ipsddar;
+ uint32 g_numSrc, g_numDst; /* the number of source & destination descriptor */
+uint32 g_idxCpuSrc, g_idxAsicSrc;
+uint32 g_idxCpuDst, g_idxAsicDst;
+rtl_ipsec_source_t *g_ipssdar;
+rtl_ipsec_dest_t *g_ipsddar;
+
+static int8 g_mode32Bytes = 2; // DMA 64 bytes
 
 /* buffer for g_rtl_authEngineInputPad and g_rtl_authEngineOutputPad */
 static uint8 g_IOPAD[HMAC_MAX_MD_CBLOCK*2+32] __attribute__ ((aligned (32)));
@@ -161,11 +183,38 @@ int32 rtl_ipsecEngine_init(uint32 descNum, int8 mode32Bytes)
 	else 
 		return FAILED;
 
+	//WRITE_MEM32(0xb8000010, READ_MEM32(0xb8000010) | 0xFFFFFE00);	
+	//WRITE_MEM32(0xb8000010, READ_MEM32(0xb8000010) | (1<<17)|(1<<12)|(1<<13)|(1<<19)|(1<<20));
+	WRITE_MEM32(DLL_REG, READ_MEM32(DLL_REG) | _EN_IPSEC);
+	WRITE_MEM32(CLK_MANAGE, READ_MEM32(CLK_MANAGE) | _ACTIVE_IPSEC | _ACTIVE_1X1 | _ACTIVE_1X1_ARB);
+	#if defined(CONFIG_RTL_8198C) || defined(CONFIG_RTL_8881A)
+	/* make sure to turn off otg control when not use this function,  otherwise may casue the whole system unstable 
+	  * suggested by elvis_lin
+	   */
+	WRITE_MEM32(OTG_CONTROL, READ_MEM32(OTG_CONTROL) & (~(_ACTIVE_OTGCTRL|_OTGCTRL_STRAT|_PJ_RESET_ENABLE)));
+	WRITE_MEM32(OTG_CONTROL, READ_MEM32(OTG_CONTROL) | _OTGCTRL_MUX_SEL);
+	#endif
+	
 	/* Software Reset */
 	WRITE_MEM32(IPSCSR, READ_MEM32(IPSCSR) | IPS_SRST);
-
+	
+	SMP_LOCK_IPSEC;
 	rtl_ipsecEngine_free();
 	rtl_ipsecEngine_alloc(descNum);
+	
+	#if defined(CONFIG_CRYPTO_DEV_REALTEK_TEST) && defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+	extern int32 rtl_ipsecTest_free( void ); 
+	extern int32 rtl_ipsecTest_alloc(void); 
+	rtl_ipsecTest_free();
+	rtl_ipsecTest_alloc();
+
+	//for kernel testcase
+	extern int32 rtl_crypto_helper_free( void ); 
+	extern int32 rtl_crypto_helper_alloc(void); 
+	rtl_crypto_helper_free();
+	rtl_crypto_helper_alloc();
+	#endif
+	SMP_UNLOCK_IPSEC;
 	
 	g_idxCpuSrc = g_idxAsicSrc = 0;
 	g_idxCpuDst = g_idxAsicDst = 0;
@@ -176,16 +225,66 @@ int32 rtl_ipsecEngine_init(uint32 descNum, int8 mode32Bytes)
 	/* write 1 to clear */
 	WRITE_MEM32(IPSCSR, READ_MEM32(IPSCSR) | IPS_SDUEIP | IPS_SDLEIP | IPS_DDUEIP |
 		IPS_DDOKIP);
+	
+	// backup param
+	g_mode32Bytes = mode32Bytes;
 
 	return SUCCESS;
 }
 
 int32 rtl_ipsecEngine_exit(void)
 {
-	rtl_ipsecEngine_free();
+	rtl_ipsecEngine_free();	
+#if defined(CONFIG_CRYPTO_DEV_REALTEK_TEST) && defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+	extern int32 rtl_ipsecTest_free( void ); 
+	rtl_ipsecTest_free();
+	
+	extern int32 rtl_crypto_helper_free( void ); 
+	rtl_crypto_helper_free();
+#endif
 	return SUCCESS;
 }
 
+int32 rtl_ipsecEngine_dma_mode(void)
+{
+	return g_mode32Bytes;
+}
+
+#define MAX_SCATTER 8
+ int32 g_prepSrc=0;;
+int32 g_prepDst=0;
+#if defined(CRYPTO_USE_SCHEDULE)
+atomic_t hw_crypto_working;
+struct completion hw_crypto_working_completion;
+struct completion hw_crypto_done_completion;
+int32 loopWait_thread;
+int thread_check_hw_crypto_done(void)
+{
+	uint32 ips_mask;
+	ips_mask = IPS_SDUEIP | IPS_SDLEIP | IPS_DDUEIP | IPS_DDOKIP |
+		IPS_DABFIP;
+	set_user_nice(current,19); /*kernel thread own SCHED_NORMAL,cfs defaut,Do not change sched policy*/
+    while(1)
+	{
+		wait_for_completion(&hw_crypto_working_completion);
+		/*
+		if(atomic_read(&hw_crypto_working))
+		{
+		    loopWait_thread = 1000;  //only wait 1/1000 of ori most wait time
+			while ((READ_MEM32(IPSCSR) & ips_mask) == 0)
+			{
+				loopWait_thread--;
+				if (loopWait_thread == 0)
+					break;
+			}
+		}
+		*/
+		/*do not wait, schedule cost time,let other task can be schedule*/
+		complete(&hw_crypto_done_completion);
+	}
+}
+
+#endif
 /*************************************************************************
  *  Features of ipsec API:
  *    1. scatter list
@@ -208,6 +307,7 @@ int32 rtl_ipsecEngine_exit(void)
  *   ECB_AES:0x22
  *   CTR_AES:0x23
  *************************************************************************/
+uint8 g_numSrcDesc=0;
 int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth, 
 	uint32 cntScatter, rtl_ipsecScatter_t *scatter, void *pCryptResult,
 	uint32 lenCryptoKey, void* pCryptoKey, 
@@ -233,7 +333,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 	uint32 md5; /* for FS=1 crypto key array descriptor */
 	uint32 authPadSpace;
 	int i;
-
+	
 	if (g_rtl_ipsec_dbg)
 	{
 		printk("%s: modeCrypto=0x%x, modeAuth=0x%x, lenCryptoKey=%d, pCryptoKey=%p, "
@@ -257,7 +357,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 		if (unlikely(scatter[i].ptr == NULL))
 		{
 			printk("%s():%d Invalid scatter pointer: %p\n", __FUNCTION__,
-				__LINE__, scatter[i].ptr);	
+				__LINE__, scatter[i].ptr);
 			return FAILED;
 		}
 	}
@@ -265,7 +365,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 	if (unlikely(a2eo & 3))
 	{
 		printk("%s():%d A2EO(%u) should be 4-bytes alignment.\n",
-			__FUNCTION__, __LINE__, a2eo);	
+			__FUNCTION__, __LINE__, a2eo);
 		return FAILED;
 	}
 
@@ -329,7 +429,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 			__FUNCTION__, __LINE__, numSrcDesc, g_numSrc);
 		return FAILED;
 	}
-
+	 g_numSrcDesc=numSrcDesc;
 	if (modeAuth == _MD_NOAUTH)
 	{
 		apl = 0;
@@ -432,7 +532,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 					break;
 				default:
 					printk("%s():%d Unsupported crypto mode: %02x\n",
-						__FUNCTION__, __LINE__, modeCrypto);	
+						__FUNCTION__, __LINE__, modeCrypto);
 					return FAILED;
 			}
 
@@ -491,7 +591,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 				if (unlikely(lenCryptoKey != 64/8*3))
 				{
 					printk("%s():%d Invalid 3DES key length: %d bytes.\n",
-						__FUNCTION__, __LINE__, lenCryptoKey);	
+						__FUNCTION__, __LINE__, lenCryptoKey);
 					return FAILED;
 				}
 			
@@ -523,7 +623,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 				if (unlikely(lenCryptoKey != 64/8))
 				{
 					printk("%s():%d Invalid DES key length: %d bytes.\n",
-						__FUNCTION__, __LINE__, lenCryptoKey);	
+						__FUNCTION__, __LINE__, lenCryptoKey);
 					return FAILED;
 				}
 				
@@ -823,7 +923,8 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 			sizeof(prepDst[0]), "g_ipsddar");
 		//memDump(pCryptoKey, lenCryptoKey, "key");
 	}
-
+	g_prepSrc= sizeof(prepSrc[0]);
+	g_prepDst = sizeof(prepDst[0]);
 	g_idxCpuSrc = (g_idxCpuSrc + numSrcDesc) % g_numSrc;
 
 #ifdef CONFIG_RTL865X_MODEL_KERNEL
@@ -863,12 +964,41 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 		/* blocking mode */
 		int32 loopWait;
 		uint32 ips_mask;
+		#if defined(CRYPTO_USE_SCHEDULE)
+		atomic_t schedule_count;
+		#endif
 
 		ips_mask = IPS_SDUEIP | IPS_SDLEIP | IPS_DDUEIP | IPS_DDOKIP |
 			IPS_DABFIP;
 
+		#if defined(CRYPTO_USE_SCHEDULE)
+				atomic_set(&schedule_count,0);
+		atomic_set(&hw_crypto_working,1);
+		loopWait = 1000000;  /*hope long enough,keep ori value*/
+		#define MOST_SCHED_COUNT 10000
+		while(((READ_MEM32(IPSCSR) & ips_mask) == 0)&&(atomic_read(&schedule_count) < MOST_SCHED_COUNT))/*schedule for long enough*/
+		{
+		    loopWait--;
+		    if((!(in_interrupt())&&(!(preempt_count()&PREEMPT_MASK)))&&(need_resched()))
+			{
+				complete(&hw_crypto_working_completion);
+				wait_for_completion(&hw_crypto_done_completion);
+				atomic_add(1,&schedule_count); 
+			}
+
+			if ((loopWait == 0)||((atomic_read(&schedule_count) >= MOST_SCHED_COUNT)&&((READ_MEM32(IPSCSR) & ips_mask) == 0)))
+			{
+				printk("%s():%d Wait Timeout. READ_MEM32(IPSCSR)=0x%08x.\n",
+						__FUNCTION__, __LINE__, READ_MEM32(IPSCSR));
+				rtl_ipsec_info();
+				atomic_set(&hw_crypto_working,0);
+				return FAILED; /*error occurs*/
+			}
+		}
+		atomic_set(&hw_crypto_working,0);
+		#else
 		/* wait until ipsec engine stop */
-		loopWait = 1000000; /* hope long enough */
+		loopWait = 10000; /* hope long enough */
 		while ((READ_MEM32(IPSCSR) & ips_mask) == 0)
 		{
 			loopWait--;
@@ -879,7 +1009,13 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 				rtl_ipsec_info();
 				return FAILED; /* error occurs */
 			}
+			udelay(50);
+			if (cond_resched_flag)
+			{
+				cond_resched();
+			}
 		}
+		#endif
 
 		assert(g_ipsddar[(g_idxCpuDst + g_numDst - 1) % g_numDst].own == 0); 
 
@@ -896,9 +1032,13 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 	if (modeAuth != _MD_NOAUTH)
 	{
 		if (g_rtl_ipsec_dbg)
-		{
-			memDump(g_ipsddar[(g_idxCpuDst + g_numDst - 1) % g_numDst].icv, 16,
-				"Digest: g_ipsddar[(g_idxCpuDst+g_numDst-1) % g_numDst].icv");
+		{	
+			if (md5)
+				memDump(g_ipsddar[(g_idxCpuDst + g_numDst - 1) % g_numDst].icv, MD5_DIGEST_LENGTH,
+					"MD5 Digest: g_ipsddar[(g_idxCpuDst+g_numDst-1) % g_numDst].icv");
+			else
+				memDump(g_ipsddar[(g_idxCpuDst + g_numDst - 1) % g_numDst].icv, SHA_DIGEST_LENGTH,
+					"SHA Digest: g_ipsddar[(g_idxCpuDst+g_numDst-1) % g_numDst].icv");
 		}
 
 		if (md5)
@@ -908,7 +1048,7 @@ int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth,
 			memcpy(pDigest, g_ipsddar[(g_idxCpuDst + g_numDst - 1) % g_numDst].icv,
 				SHA_DIGEST_LENGTH); /* Avoid 4-byte alignment limitation */
 	}
-		
+	
 	return SUCCESS;
 }
 
@@ -1057,4 +1197,14 @@ void rtl_ipsec_info(void)
 		memDump(&g_ipsddar[i], sizeof(g_ipsddar[0]), buffer);
 	}
 }
+
+#if defined(CONFIG_SMP)
+void init_ipsec_lock(void)
+{
+	lock_ipsec_owner = -1;
+	spin_lock_init(&lock_ipsec_engine);
+
+	return ;
+}
+#endif
 

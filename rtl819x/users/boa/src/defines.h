@@ -30,6 +30,7 @@
 
 #define NEW_POST
 #define USE_AUTH
+//#define CSRF_SECURITY_PATCH
 
 /***** Change this, or use -c on the command line to specify it *****/
 
@@ -53,7 +54,7 @@
 /***** Change this via the SinglePostLimit configuration value in boa.conf *****/
 //davidhsu
 //#define SINGLE_POST_LIMIT_DEFAULT               1024 * 1024 /* 1 MB */
-#if defined(CONFIG_RTL_WAPI_SUPPORT) || defined(HTTP_FILE_SERVER_SUPPORTED) || defined(CONFIG_RTK_VOIP) || defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_WAPI_SUPPORT) || defined(HTTP_FILE_SERVER_SUPPORTED) || defined(CONFIG_RTK_VOIP) || defined(CONFIG_RTL_ULINKER) || defined (CONFIG_APP_TR069)
 #define SINGLE_POST_LIMIT_DEFAULT             1024*1024*4 /* 4 MB */
 #else
 #define SINGLE_POST_LIMIT_DEFAULT             1024*1024*2 /* 2 MB */

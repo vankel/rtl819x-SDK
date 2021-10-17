@@ -69,6 +69,9 @@ static rtl_multicastEventContext_t timerEventContext;
 static rtl_multicastEventContext_t linkEventContext;
 #endif
 
+extern unsigned int brIgmpModuleIndex;
+extern unsigned int brIgmpModuleIndex_2;
+struct rtl865x_ReservedMCastRecord reservedMCastRecord[MAX_RESERVED_MULTICAST_NUM];
 
 /*******************************internal function declaration*****************************/
 
@@ -127,7 +130,7 @@ static uint16 rtl_ipv6L3Checksum(uint8 *pktBuf, uint32 pktLen, union pseudoHeade
 #endif
 static int32 rtl_compareMacAddr(uint8* macAddr1, uint8* macAddr2);
 static uint16 rtl_checksum(uint8 *packetBuf, uint32 packetLen);
-static uint8 rtl_getClientFwdPortMask(struct rtl_clientEntry * clientEntry,  uint32 sysTime);
+static uint32 rtl_getClientFwdPortMask(struct rtl_clientEntry * clientEntry,  uint32 sysTime);
 static void rtl_checkSourceTimer(struct rtl_clientEntry * clientEntry , struct rtl_sourceEntry * sourceEntry);
 static uint32 rtl_getGroupSourceFwdPortMask(struct rtl_groupEntry * groupEntry, uint32 * sourceAddr, uint32 sysTime);
 static uint32 rtl_getClientSourceFwdPortMask(uint32 ipVersion, struct rtl_clientEntry * clientEntry, uint32 * sourceAddr, uint32 sysTime);
@@ -150,6 +153,19 @@ static void  rtl_parseMacFrame(uint32 moduleIndex, uint8* MacFrame, uint32 verif
 static void rtl_snoopQuerier(uint32 moduleIndex, uint32 ipVersion, uint32 portNum);
 static uint32 rtl_processQueries(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint8* pktBuf, uint32 pktLen);
 /*Process Report Packet*/
+#if defined (M2U_DELETE_CHECK)
+static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf);
+static	uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *clientmacAddr,uint8 *pktBuf); //process leave/done report packet
+static	int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf); //process MODE_IS_INCLUDE report packet 
+static	int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 portNum, uint32 *clientAddr, uint8 *clientmacAddr,uint8 *pktBuf); //process MODE_IS_EXCLUDE report packet
+static	int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 portNum, uint32 *clientAddr, uint8 *clientmacAddr,uint8 *pktBuf); //process CHANGE_TO_INCLUDE_MODE report packet
+static	int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 portNum , uint32 *clientAddr, uint8 *clientmacAddr,uint8 *pktBuf); //process CHANGE_TO_EXCLUDE_MODE report packet
+static	int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *clientmacAddr,uint8 *pktBuf); //process ALLOW_NEW_SOURCES report packet 
+static	int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion,uint32 portNum, uint32 *clientAddr, uint8 *clientmacAddr,uint8 *pktBuf);//process BLOCK_OLD_SOURCES report packet
+static	uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf);
+
+#else
+
 static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf); // process join report packet 
 static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf); //process leave/done report packet
 static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf); //process MODE_IS_INCLUDE report packet 
@@ -159,9 +175,13 @@ static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf); //process ALLOW_NEW_SOURCES report packet 
 static  int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion,uint32 portNum, uint32 *clientAddr, uint8 *pktBuf);//process BLOCK_OLD_SOURCES report packet
 static  uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8 *pktBuf);
-
+#endif
 /*******************different protocol process function**********************************/
+#if defined (M2U_DELETE_CHECK)	
+static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr,uint8 *clientMacAddr, uint8* pktBuf, uint32 pktLen);
+#else
 static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8* pktBuf, uint32 pktLen);
+#endif
 static uint32 rtl_processDvmrp(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint8* pktBuf, uint32 pktLen);
 static uint32 rtl_processMospf(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,  uint8* pktBuf, uint32 pktLen);
 static uint32 rtl_processPim(uint32 moduleIndex, uint32 ipVersion,  uint32 portNum, uint8* pktBuf, uint32 pktLen);
@@ -1156,6 +1176,62 @@ struct rtl_groupEntry* rtl_searchGroupEntry(uint32 moduleIndex, uint32 ipVersion
 	return NULL;
 }
 
+int32 rtl_getGroupNum(uint32 ipVersion)
+{
+	int32 moduleIndex;
+	int32 hashIndex;
+	int32 groupCnt=0;
+	struct rtl_groupEntry *groupEntryPtr;
+	
+	for(moduleIndex=0; moduleIndex<MAX_MCAST_MODULE_NUM ;moduleIndex++)
+	{
+		if(rtl_mCastModuleArray[moduleIndex].enableSnooping==TRUE)
+		{
+			if(ipVersion ==IP_VERSION4)
+			{
+				groupCnt=0; 
+				for(hashIndex=0;hashIndex<rtl_hashTableSize;hashIndex++)
+				{
+					groupEntryPtr=rtl_mCastModuleArray[moduleIndex].rtl_ipv4HashTable[hashIndex];
+					while(groupEntryPtr!=NULL)
+					{
+						if(groupEntryPtr->attribute!=STATIC_RESERVED_MULTICAST)
+							groupCnt++;
+						
+						
+						
+						groupEntryPtr=groupEntryPtr->next;	
+					}
+					
+				   }
+				
+			}
+#if defined (CONFIG_RTL_MLD_SNOOPING)			
+			else if(ipVersion ==IP_VERSION6)
+			{
+				groupCnt=0; 
+				for(hashIndex=0;hashIndex<rtl_hashTableSize;hashIndex++)
+				{
+					groupEntryPtr=rtl_mCastModuleArray[moduleIndex].rtl_ipv6HashTable[hashIndex];
+					while(groupEntryPtr!=NULL)
+					{
+						if(groupEntryPtr->attribute!=STATIC_RESERVED_MULTICAST)
+							groupCnt++; 
+						
+							
+						groupEntryPtr=groupEntryPtr->next;	
+					}
+					
+				  }
+			}
+			
+#endif			
+		}
+	}
+
+	return groupCnt;
+}
+
 
 /* link group Entry in the front of a group list */
 static void  rtl_linkGroupEntry(struct rtl_groupEntry* groupEntry ,  struct rtl_groupEntry ** hashTable)
@@ -1388,6 +1464,49 @@ static void rtl_clearClientEntry(struct rtl_clientEntry* clientEntry)
 	rtl_glueMutexUnlock();
 }
 
+static uint32 rtl_getClientNum(uint32 moduleIndex,uint32 ipVersion,struct rtl_groupEntry* groupEntry,struct rtl_clientEntry *clientEntry)
+{
+	uint32 ClientNum=0;
+	
+	struct rtl_clientEntry* clientPtr=NULL;
+	
+	if(groupEntry==NULL)
+		return 0;
+	/*printk("[%s]:[%d]moduleIndex:%d,group:%x,client:%x\n",__FUNCTION__,__LINE__,moduleIndex,
+		groupEntry->groupAddr[0],clientEntry->clientAddr[0]);*/
+	clientPtr = groupEntry->clientList; 
+	
+	while (clientPtr!=NULL)
+	{	
+		if(ipVersion==IP_VERSION4)
+		{
+			if(clientEntry&&(clientPtr->clientAddr[0]==clientEntry->clientAddr[0]))
+			{
+				clientPtr = clientPtr->next;
+				continue;
+			}
+			
+		}
+#ifdef CONFIG_RTL_MLD_SNOOPING
+		else
+		{
+			if(clientEntry&&
+				((clientPtr->clientAddr[0]==clientEntry->clientAddr[0])
+				&&(clientPtr->clientAddr[1]==clientEntry->clientAddr[1])
+				&&(clientPtr->clientAddr[2]==clientEntry->clientAddr[2])
+				&&(clientPtr->clientAddr[3]==clientEntry->clientAddr[3])))
+			{
+				clientPtr = clientPtr->next;
+				continue;
+			}
+		}
+#endif	
+		ClientNum++;
+		clientPtr = clientPtr->next;
+	}
+	
+	return ClientNum;
+}
 
 /*********************************************
 			source list operation
@@ -1952,11 +2071,11 @@ static uint16 rtl_ipv6L3Checksum(uint8 *pktBuf, uint32 pktLen, union pseudoHeade
 #endif
 
 
-static uint8 rtl_getClientFwdPortMask(struct rtl_clientEntry * clientEntry, uint32 sysTime)
+static uint32 rtl_getClientFwdPortMask(struct rtl_clientEntry * clientEntry, uint32 sysTime)
 {
 
-	uint8 portMask=(1<<clientEntry->portNum);
-	uint8 fwdPortMask=0;
+	uint32 portMask=(1<<clientEntry->portNum);
+	uint32 fwdPortMask=0;
 	
 	struct rtl_sourceEntry * sourcePtr=NULL;;
 	
@@ -2033,8 +2152,8 @@ static void rtl_checkSourceTimer(struct rtl_clientEntry * clientEntry , struct r
 
 static uint32 rtl_getClientSourceFwdPortMask(uint32 ipVersion, struct rtl_clientEntry * clientEntry,uint32 *sourceAddr, uint32 sysTime)
 {
-	uint8 portMask=(1<<clientEntry->portNum);
-	uint8 fwdPortMask=0;
+	uint32 portMask=(1<<clientEntry->portNum);
+	uint32 fwdPortMask=0;
 	struct rtl_sourceEntry * sourceEntry=NULL;
 	if(clientEntry==NULL)
 	{
@@ -2076,7 +2195,7 @@ static uint32 rtl_getClientSourceFwdPortMask(uint32 ipVersion, struct rtl_client
 
 static uint32 rtl_getGroupSourceFwdPortMask(struct rtl_groupEntry * groupEntry,uint32 *sourceAddr, uint32 sysTime)
 {
-	uint8 fwdPortMask=0;
+	uint32 fwdPortMask=0;
 	struct rtl_clientEntry * clientEntry=NULL;
 	if(groupEntry==NULL)
 	{
@@ -2103,8 +2222,8 @@ static uint32 rtl_getGroupSourceFwdPortMask(struct rtl_groupEntry * groupEntry,u
 
 static void rtl_checkClientEntryTimer(struct rtl_groupEntry * groupEntry, struct rtl_clientEntry * clientEntry)
 {
-	uint8 oldFwdPortMask=0;
-	uint8 newFwdPortMask=0;
+	uint32 oldFwdPortMask=0;
+	uint32 newFwdPortMask=0;
 	struct rtl_sourceEntry *sourceEntry=clientEntry->sourceList;
 	struct rtl_sourceEntry *nextSourceEntry=NULL;
 	
@@ -2941,10 +3060,57 @@ static void rtl_snoopQuerier(uint32 moduleIndex, uint32 ipVersion, uint32 portNu
 #endif	
 	return;
 }
+int rtl_is_reserve_multicastAddr(uint32 *groupAddress,uint32 ipVersion)
+{
+	int ret=FAILED;
+	if(ipVersion==IP_VERSION4)
+	{	
+		/*upnp:239.255.255.250
+		mdns:224.0.0.251
+		iapp:224.0.1.178*/
+		if(((groupAddress[0] & 0xFFFFFFFF)==0xEFFFFFFA)
+			||((groupAddress[0] & 0xFFFFFFFF)==0xE00001B2)
+			||((groupAddress[0] & 0xFFFFFFFF)==0xE00000FB))
+		{
+			ret=SUCCESS;
+		}
+	}
+#ifdef CONFIG_RTL_MLD_SNOOPING
+	else if (ipVersion==IP_VERSION6)
+	{
+		/*ff02::1:FFxx:xxxx	
+		MDNS:ff02::fb
+		UPNP: ff02::c */
+		if(
+			(((groupAddress[0] & 0xFFFFFFFF)==0xFF020000)
+			&&((groupAddress[1] & 0xFFFFFFFF)==0x0)
+			&&((groupAddress[2] & 0xFFFFFFFF)==0x1)
+			&&((groupAddress[3] & 0xFF000000)==0xFF000000))
+			||(((groupAddress[0] & 0xFFFFFFFF)==0xFF020000)
+			&&((groupAddress[1] & 0xFFFFFFFF)==0x00000000)
+			&&((groupAddress[2] & 0xFFFFFFFF)==0x00000000)
+			&&((groupAddress[3] & 0xFFFFFFFF)==0x000000FB))
+			||(((groupAddress[0] & 0xFFFFFFFF)==0xFF020000)
+			&&((groupAddress[1] & 0xFFFFFFFF)==0x00000000)
+			&&((groupAddress[2] & 0xFFFFFFFF)==0x00000000)
+			&&((groupAddress[3] & 0xFFFFFFFF)==0x0000000C))
+		)
+		{
+			//diag_printf("reverve mulitcast:%x:%x:%x:%x\n",groupAddress[0],groupAddress[1],groupAddress[2],groupAddress[3]);
+			ret=SUCCESS;
+		}
+	}
+#endif
+	return ret;
+}
 
 
 /*Process Report Packet*/
+#if defined (M2U_DELETE_CHECK)
+static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	
 	
@@ -2980,7 +3146,9 @@ static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 port
 		groupAddress[3]=ntohl(((struct mldv1Pkt *)pktBuf)->mCastAddr[3]);
 	}
 #endif	
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		goto out;
+	
 	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
 
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -3049,7 +3217,14 @@ static  uint32 rtl_processJoin(uint32 moduleIndex, uint32 ipVersion, uint32 port
 
 		}
 		#endif
-
+	#if defined (M2U_DELETE_CHECK)	
+		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
+		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
+		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
+		newClientEntry->clientMacAddr[3]=clientmacAddr[3];
+		newClientEntry->clientMacAddr[4]=clientmacAddr[4];
+		newClientEntry->clientMacAddr[5]=clientmacAddr[5];
+	#endif
 		rtl_linkClientEntry(groupEntry, newClientEntry);
 		clientEntry=newClientEntry;
 	}
@@ -3096,7 +3271,11 @@ out:
 	//return (multicastRouterPortMask&(~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 }
 
+#if defined (M2U_DELETE_CHECK)	
+static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	uint32 groupAddress[4]={0, 0, 0, 0};
 	struct rtl_groupEntry* groupEntry=NULL;
@@ -3105,6 +3284,7 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 	struct rtl_sourceEntry *nextSourceEntry=NULL;
 
 	uint32 hashIndex=0;
+	uint32 ClientNum=0;
 //	uint32 multicastRouterPortMask=rtl_getMulticastRouterPortMask(moduleIndex, ipVersion, rtl_sysUpSeconds);
 	
 	if(ipVersion==IP_VERSION4)
@@ -3120,7 +3300,9 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 		groupAddress[3]=ntohl(((struct mldv1Pkt *)pktBuf)->mCastAddr[3]);
 	}
 #endif	
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		goto out;
+	
 	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
 
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -3157,6 +3339,8 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 		}
 		
 	}	
+
+	ClientNum=rtl_getClientNum(moduleIndex,ipVersion,groupEntry,clientEntry);
 	
 	#if defined (CONFIG_STATIC_RESERVED_MULTICAST)
 	if((groupEntry!=NULL) && (groupEntry->attribute==STATIC_RESERVED_MULTICAST))
@@ -3201,12 +3385,26 @@ static  uint32 rtl_processLeave(uint32 moduleIndex, uint32 ipVersion, uint32 por
 #if defined (CONFIG_STATIC_RESERVED_MULTICAST)
 out:	
 #endif
-	return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
+    #if 0
+	/*no client exist, send leave*/
+	if (ClientNum==0){
+		//printk("no client exist.\n");
+		return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
+	}
+	else{
+		//printk("exist clinetNum :%d\n",ClientNum);
+		return 0;
+	}	
 	//return (multicastRouterPortMask&(~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
-	
+    #endif
+    return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 }
 
+#if defined (M2U_DELETE_CHECK)
+static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 
 	uint32 j=0;
@@ -3241,7 +3439,9 @@ static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 
 		sourceAddr=&(((struct mCastAddrRecord *)pktBuf)->srcList);
 	}
 #endif	
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		return FAILED;
+	
 	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
 
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -3313,6 +3513,14 @@ static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 
 		}
 		#endif
 		
+#if defined (M2U_DELETE_CHECK)  
+		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
+		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
+		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
+		newClientEntry->clientMacAddr[3]=clientmacAddr[3];
+		newClientEntry->clientMacAddr[4]=clientmacAddr[4];
+		newClientEntry->clientMacAddr[5]=clientmacAddr[5];
+#endif
 		rtl_linkClientEntry(groupEntry, newClientEntry);
 		clientEntry=newClientEntry;
 	}
@@ -3391,7 +3599,11 @@ static  int32 rtl_processIsInclude(uint32 moduleIndex, uint32 ipVersion, uint32 
 	return SUCCESS;
 }
 
+#if defined (M2U_DELETE_CHECK)	
+static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	uint32 j=0;
 	uint32 groupAddress[4]={0, 0, 0, 0};
@@ -3428,7 +3640,9 @@ static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 		sourceAddr=&(((struct mCastAddrRecord *)pktBuf)->srcList);
 	}
 #endif
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		return FAILED;
+	
 	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
 
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -3499,6 +3713,14 @@ static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 
 		}
 		#endif	
+#if defined (M2U_DELETE_CHECK) 
+		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
+		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
+		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
+		newClientEntry->clientMacAddr[3]=clientmacAddr[3];
+		newClientEntry->clientMacAddr[4]=clientmacAddr[4];
+		newClientEntry->clientMacAddr[5]=clientmacAddr[5];
+#endif
 		
 		rtl_linkClientEntry(groupEntry, newClientEntry);
 		clientEntry=newClientEntry;
@@ -3582,7 +3804,11 @@ static  int32 rtl_processIsExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 
 }
 
+#if defined (M2U_DELETE_CHECK)	
+static  int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	uint32 j=0;
 	uint32 groupAddress[4]={0, 0, 0, 0};
@@ -3597,7 +3823,8 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 	uint32 hashIndex=0;
 	uint16 numOfSrc=0;
 	uint32 *sourceAddr=NULL;
-
+	uint32 ClientNum=0;
+	
 	if(ipVersion==IP_VERSION4)
 	{
 		groupAddress[0]=ntohl(((struct groupRecord *)pktBuf)->groupAddr);
@@ -3618,7 +3845,9 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 	
 	}
 #endif
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		goto OUT;
+	
 	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
 
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -3690,6 +3919,14 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 		}
 		#endif
 		
+#if defined (M2U_DELETE_CHECK) 
+		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
+		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
+		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
+		newClientEntry->clientMacAddr[3]=clientmacAddr[3];
+		newClientEntry->clientMacAddr[4]=clientmacAddr[4];
+		newClientEntry->clientMacAddr[5]=clientmacAddr[5];
+#endif
 		rtl_linkClientEntry(groupEntry, newClientEntry);
 		clientEntry=newClientEntry;
 	}
@@ -3803,7 +4040,8 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 		}
 		
 	}	
-
+	if(numOfSrc ==0)
+		ClientNum=rtl_getClientNum(moduleIndex,ipVersion,groupEntry,clientEntry);
 	#if defined (CONFIG_STATIC_RESERVED_MULTICAST)
 	if((groupEntry!=NULL) && (groupEntry->attribute==STATIC_RESERVED_MULTICAST))
 	{
@@ -3837,12 +4075,29 @@ static int32 rtl_processToInclude(uint32 moduleIndex, uint32 ipVersion,  uint32 
 		
 	}
 	#endif
-
-	return SUCCESS;
+	
+OUT:	
+    #if 0
+	/*no client exist, send leave*/
+	if (ClientNum == 0){
+		//printk("no client exist.\n");
+		return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
+	}
+	else{
+		//printk("exist clinetNum :%d\n",ClientNum);
+		return 0;
+	}
+	//return SUCCESS;
+    #endif
+        return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 	
 }
 
+#if defined (M2U_DELETE_CHECK)	
+static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 portNum , uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	uint32 j=0;
 	uint32 groupAddress[4]={0, 0, 0, 0};
@@ -3878,7 +4133,9 @@ static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 		sourceAddr=&(((struct mCastAddrRecord *)pktBuf)->srcList);
 	}
 #endif
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		return FAILED;
+	
 	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
 	
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -3949,6 +4206,14 @@ static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 		}
 		#endif	
 		
+#if defined (M2U_DELETE_CHECK) 
+		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
+		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
+		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
+		newClientEntry->clientMacAddr[3]=clientmacAddr[3];
+		newClientEntry->clientMacAddr[4]=clientmacAddr[4];
+		newClientEntry->clientMacAddr[5]=clientmacAddr[5];
+#endif
 		rtl_linkClientEntry(groupEntry, newClientEntry);
 		clientEntry=newClientEntry;
 	}
@@ -4025,8 +4290,12 @@ static  int32 rtl_processToExclude(uint32 moduleIndex, uint32 ipVersion,uint32 p
 
 	return SUCCESS;
 }
+#if defined (M2U_DELETE_CHECK)	
+static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 
 static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	uint32 j=0;
 	uint32 groupAddress[4]={0, 0, 0, 0};
@@ -4061,7 +4330,9 @@ static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 port
 		sourceAddr=&(((struct mCastAddrRecord *)pktBuf)->srcList);
 	}
 #endif	
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		return FAILED;
+	
 	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
 
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -4133,6 +4404,14 @@ static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 port
 		}
 		#endif
 	
+#if defined (M2U_DELETE_CHECK) 
+		newClientEntry->clientMacAddr[0]=clientmacAddr[0];
+		newClientEntry->clientMacAddr[1]=clientmacAddr[1];
+		newClientEntry->clientMacAddr[2]=clientmacAddr[2];
+		newClientEntry->clientMacAddr[3]=clientmacAddr[3];
+		newClientEntry->clientMacAddr[4]=clientmacAddr[4];
+		newClientEntry->clientMacAddr[5]=clientmacAddr[5];
+#endif
 		rtl_linkClientEntry(groupEntry, newClientEntry);
 		clientEntry=newClientEntry;
 	}
@@ -4224,7 +4503,12 @@ static  int32 rtl_processAllow(uint32 moduleIndex, uint32 ipVersion, uint32 port
 	return SUCCESS;
 }
 
+#if defined (M2U_DELETE_CHECK)	
+static  int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
+
 static int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion,uint32 portNum, uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	uint32 j=0;
 	uint32 groupAddress[4]={0, 0, 0, 0};
@@ -4260,7 +4544,9 @@ static int32 rtl_processBlock(uint32 moduleIndex, uint32 ipVersion,uint32 portNu
 		sourceAddr=&(((struct mCastAddrRecord *)pktBuf)->srcList);
 	}
 #endif
-
+	if(rtl_is_reserve_multicastAddr(groupAddress,ipVersion)==SUCCESS)
+		return FAILED;
+	
 	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
 
 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
@@ -4420,7 +4706,11 @@ out:
 }
 
 
+#if defined (M2U_DELETE_CHECK)	
+static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion, uint32 portNum, uint32 *clientAddr,uint8 *clientmacAddr, uint8 *pktBuf)
+#else
 static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8 *pktBuf)
+#endif
 {
 	uint32 i=0;
 	uint16 numOfRecords=0;
@@ -4465,27 +4755,51 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 		switch(recordType)
 		{
 			case MODE_IS_INCLUDE:
+			#if defined (M2U_DELETE_CHECK)	
+				returnVal=rtl_processIsInclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
+			#else	
 				returnVal=rtl_processIsInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+			#endif
 			break;
 			
 			case MODE_IS_EXCLUDE:
+			#if defined (M2U_DELETE_CHECK) 
+				returnVal=rtl_processIsExclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
+			#else	
 				returnVal=rtl_processIsExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+			#endif
 			break;
 			
 			case CHANGE_TO_INCLUDE_MODE:
+			#if defined (M2U_DELETE_CHECK) 
+				returnVal=rtl_processToInclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
+			#else	
 				returnVal=rtl_processToInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+			#endif
 			break;
 			
 			case CHANGE_TO_EXCLUDE_MODE:
+			#if defined (M2U_DELETE_CHECK) 
+				returnVal=rtl_processToExclude(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
+			#else	
 				returnVal=rtl_processToExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+			#endif
 			break;
 			
 			case ALLOW_NEW_SOURCES:
+			#if defined (M2U_DELETE_CHECK) 
+				returnVal=rtl_processAllow(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
+			#else	
 				returnVal=rtl_processAllow(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+			#endif
 			break;
 			
 			case BLOCK_OLD_SOURCES:
+			#if defined (M2U_DELETE_CHECK) 
+				returnVal=rtl_processBlock(moduleIndex, ipVersion, portNum, clientAddr,clientmacAddr, groupRecords);
+			#else	
 				returnVal=rtl_processBlock(moduleIndex, ipVersion, portNum, clientAddr ,groupRecords);
+			#endif
 			break;
 			
 			default:break;
@@ -4508,13 +4822,23 @@ static uint32 rtl_processIgmpv3Mldv2Reports(uint32 moduleIndex, uint32 ipVersion
 #endif		
 	}
 	
-	/*no report supress, due to multiple group record in igmpv3 report*/
-	return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
+	if((numOfRecords==1) && (recordType==CHANGE_TO_INCLUDE_MODE))
+	{
+		return returnVal;
+	}	
+	else
+	{
+		/*no report supress, due to multiple group record in igmpv3 report*/
+		return ((~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
+	}
 	//return (multicastRouterPortMask&(~(1<<portNum))&((1<<MAX_SUPPORT_PORT_NUMBER)-1));
 	
 }
-
+#if defined (M2U_DELETE_CHECK)	
+static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr,uint8 *clientMacAddr, uint8* pktBuf, uint32 pktLen)
+#else
 static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 portNum,uint32 *clientAddr, uint8* pktBuf, uint32 pktLen)
+#endif
 {	
 	uint32 fwdPortMask=0;
 
@@ -4527,19 +4851,35 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case IGMPV1_REPORT:
+		#if defined (M2U_DELETE_CHECK)	
+			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
+		#else
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,pktBuf);
+		#endif
 		break;
 			
 		case IGMPV2_REPORT:	
+		#if defined (M2U_DELETE_CHECK) 
+			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
+		#else
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr, pktBuf);
+		#endif
 		break;
 			
 		case IGMPV2_LEAVE:
+		#if defined (M2U_DELETE_CHECK) 
+			 fwdPortMask=rtl_processLeave(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
+		#else	
 			 fwdPortMask=rtl_processLeave(moduleIndex, ipVersion, portNum, clientAddr,pktBuf);
+		#endif
 		break;
 
 		case IGMPV3_REPORT:
-			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum, clientAddr, pktBuf);
+		#if defined (M2U_DELETE_CHECK)
+			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
+		#else
+			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum, clientAddr,pktBuf);
+		#endif
 		break;
 
 		case MLD_QUERY:
@@ -4547,15 +4887,28 @@ static uint32 rtl_processIgmpMld(uint32 moduleIndex, uint32 ipVersion, uint32 po
 		break;
 			
 		case MLDV1_REPORT:
+		#if defined (M2U_DELETE_CHECK) 
+			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
+		#else		
 			 fwdPortMask=rtl_processJoin(moduleIndex, ipVersion, portNum, clientAddr, pktBuf);
+		#endif
 		break;
 			
 		case MLDV1_DONE:	
+		#if defined (M2U_DELETE_CHECK) 
+			
+			 fwdPortMask=rtl_processLeave(moduleIndex, ipVersion, portNum, clientAddr,clientMacAddr, pktBuf);
+		#else
 			 fwdPortMask=rtl_processLeave(moduleIndex, ipVersion, portNum, clientAddr, pktBuf);
+		#endif
 		break;
 			
 		case MLDV2_REPORT:
+		#if defined (M2U_DELETE_CHECK)
+			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum,clientAddr,clientMacAddr,pktBuf);
+		#else
 			 fwdPortMask=rtl_processIgmpv3Mldv2Reports(moduleIndex, ipVersion, portNum, clientAddr, pktBuf);
+		#endif
 		break;
 
 		default:
@@ -5172,11 +5525,20 @@ int32 rtl_igmpMldProcess(uint32 moduleIndex, uint8 * macFrame,  uint32 portNum, 
 		{
 
 			case IGMP_PROTOCOL:
+			//	printk("%x-%x-%x-%x-%x-%x[%s]:[%d].\n",macFrameInfo.srcMacAddr[0],macFrameInfo.srcMacAddr[1],macFrameInfo.srcMacAddr[2],macFrameInfo.srcMacAddr[3],macFrameInfo.srcMacAddr[4],macFrameInfo.srcMacAddr[5],__FUNCTION__,__LINE__);
+    			#if defined (M2U_DELETE_CHECK)
+				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion), portNum, macFrameInfo.srcIpAddr,macFrameInfo.srcMacAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
+			    #else
 				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion), portNum, macFrameInfo.srcIpAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
+                #endif
 			break;
 
 			case ICMP_PROTOCOL:
+    			#if defined (M2U_DELETE_CHECK)
+				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion),portNum, macFrameInfo.srcIpAddr,macFrameInfo.srcMacAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
+			    #else
 				*fwdPortMask=rtl_processIgmpMld(moduleIndex, (uint32)(macFrameInfo.ipVersion),portNum, macFrameInfo.srcIpAddr, macFrameInfo.l3PktBuf, macFrameInfo.l3PktLen);
+                #endif
 			break;
 
 
@@ -6189,6 +6551,58 @@ int32 rtl_delSpecialMCast(uint32 moduleIndex, uint32 ipVersion, uint32 *groupAdd
 }
 #endif
 
+
+int rtl_add_ReservedMCastAddr(uint32 groupAddr, int flag)
+{
+	int ret =FAILED;
+	int i=0;
+	if((groupAddr & htonl(0xf0000000)) != htonl(0xe0000000))
+		goto OUT;
+	for(i=0; i<MAX_RESERVED_MULTICAST_NUM; i++)
+	{
+		if((reservedMCastRecord[i].valid==0)&&(flag==ADD_RESERVED_MULTICAST_FLAG))
+		{
+			reservedMCastRecord[i].valid =1;
+			reservedMCastRecord[i].groupAddr=groupAddr;
+			ret =SUCCESS;
+			goto OUT;
+		}
+		else if((reservedMCastRecord[i].valid==1)
+			&&(flag==DEL_RESERVED_MULTICAST_FLAG)
+			&&(reservedMCastRecord[i].groupAddr== groupAddr)
+			)
+		{		
+			reservedMCastRecord[i].valid =0;			
+			ret =SUCCESS;			
+			goto OUT;
+		}
+	}
+	
+OUT:
+	return ret;
+}
+
+int rtl_check_ReservedMCastAddr(uint32 groupAddr)
+{
+	int ret =FAILED;
+	int i=0;
+	if((groupAddr & htonl(0xf0000000)) != htonl(0xe0000000))
+		goto OUT;
+	for(i=0; i<MAX_RESERVED_MULTICAST_NUM; i++)
+	{
+		if((reservedMCastRecord[i].valid==1)
+		&&(reservedMCastRecord[i].groupAddr== groupAddr)
+		)
+		{		
+			ret =SUCCESS;			
+			goto OUT;
+		}
+	}
+	
+OUT:
+	return ret;
+}
+
 #ifdef CONFIG_PROC_FS
 int igmp_show(struct seq_file *s, void *v)
 {
@@ -6211,9 +6625,9 @@ int igmp_show(struct seq_file *s, void *v)
 			seq_printf(s, "-------------------------------------------------------------------------\n");
 			seq_printf(s, "module index:%d, ",moduleIndex);
 			#ifdef CONFIG_RTL_HARDWARE_MULTICAST
-			seq_printf(s, "device:%s, portMask:0x%x,",rtl_mCastModuleArray[moduleIndex].deviceInfo.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.portMask);
+			seq_printf(s, "device:%s, portMask:0x%x,swPortMask:0x%x ",rtl_mCastModuleArray[moduleIndex].deviceInfo.devName,rtl_mCastModuleArray[moduleIndex].deviceInfo.portMask,rtl_mCastModuleArray[moduleIndex].deviceInfo.swPortMask);
 			#endif
-			seq_printf(s, "ipv4[0x%x]",rtl_mCastModuleArray[moduleIndex].ipv4UnknownMCastFloodMap);
+			seq_printf(s, "fastleave:%d ipv4[0x%x]",rtl_mCastModuleArray[moduleIndex].enableFastLeave,rtl_mCastModuleArray[moduleIndex].ipv4UnknownMCastFloodMap);
 			#if defined (CONFIG_RTL_MLD_SNOOPING)	
 			seq_printf(s, "ipv6[0x%x]\n",rtl_mCastModuleArray[moduleIndex].ipv6UnknownMCastFloodMap);
 			#endif
@@ -6245,9 +6659,14 @@ int igmp_show(struct seq_file *s, void *v)
 					{	
 						
 						clientCnt++;
-						seq_printf(s, "        <%d>%d.%d.%d.%d\\port %d\\IGMPv%d\\",clientCnt,
-							clientEntry->clientAddr[0]>>24, (clientEntry->clientAddr[0]&0x00ff0000)>>16,
-							(clientEntry->clientAddr[0]&0x0000ff00)>>8, clientEntry->clientAddr[0]&0xff,clientEntry->portNum, clientEntry->igmpVersion);
+						seq_printf(s, "        <%d>%d.%d.%d.%d",clientCnt,clientEntry->clientAddr[0]>>24, (clientEntry->clientAddr[0]&0x00ff0000)>>16,
+							(clientEntry->clientAddr[0]&0x0000ff00)>>8, clientEntry->clientAddr[0]&0xff);
+						#if defined (M2U_DELETE_CHECK)
+						seq_printf(s, "(%02X-%02X-%02X-%02X-%02X-%02X)",clientEntry->clientMacAddr[0],clientEntry->clientMacAddr[1],clientEntry->clientMacAddr[2],
+							clientEntry->clientMacAddr[3],clientEntry->clientMacAddr[4],clientEntry->clientMacAddr[5]);
+						#endif
+
+						seq_printf(s, "\\port %d\\IGMPv%d\\",clientEntry->portNum, clientEntry->igmpVersion);
 						
 						seq_printf(s, "%s",(clientEntry->groupFilterTimer>rtl_sysUpSeconds)?"EXCLUDE":"INCLUDE");
 						if(clientEntry->groupFilterTimer>rtl_sysUpSeconds)
@@ -6343,7 +6762,7 @@ int igmp_show(struct seq_file *s, void *v)
 							mldVersion = MLD_V1;
 						}
 						clientCnt++;
-						seq_printf(s, "        <%d>%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x\\port %d\\MLDv%d\\",clientCnt,
+						seq_printf(s, "        <%d>%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x",clientCnt,
 							(clientEntry->clientAddr[0])>>28,(clientEntry->clientAddr[0]<<4)>>28, (clientEntry->clientAddr[0]<<8)>>28,(clientEntry->clientAddr[0]<<12)>>28, 
 							(clientEntry->clientAddr[0]<<16)>>28,(clientEntry->clientAddr[0]<<20)>>28,(clientEntry->clientAddr[0]<<24)>>28, (clientEntry->clientAddr[0]<<28)>>28, 
 							(clientEntry->clientAddr[1])>>28,(clientEntry->clientAddr[1]<<4)>>28, (clientEntry->clientAddr[1]<<8)>>28,(clientEntry->clientAddr[1]<<12)>>28, 
@@ -6351,8 +6770,12 @@ int igmp_show(struct seq_file *s, void *v)
 							(clientEntry->clientAddr[2])>>28,(clientEntry->clientAddr[2]<<4)>>28, (clientEntry->clientAddr[2]<<8)>>28,(clientEntry->clientAddr[2]<<12)>>28, 
 							(clientEntry->clientAddr[2]<<16)>>28,(clientEntry->clientAddr[2]<<20)>>28,(clientEntry->clientAddr[2]<<24)>>28, (clientEntry->clientAddr[2]<<28)>>28, 
 							(clientEntry->clientAddr[3])>>28,(clientEntry->clientAddr[3]<<4)>>28, (clientEntry->clientAddr[3]<<8)>>28,(clientEntry->clientAddr[3]<<12)>>28, 
-							(clientEntry->clientAddr[3]<<16)>>28,(clientEntry->clientAddr[3]<<20)>>28,(clientEntry->clientAddr[3]<<24)>>28, (clientEntry->clientAddr[3]<<28)>>28, 
-							clientEntry->portNum, mldVersion);
+							(clientEntry->clientAddr[3]<<16)>>28,(clientEntry->clientAddr[3]<<20)>>28,(clientEntry->clientAddr[3]<<24)>>28, (clientEntry->clientAddr[3]<<28)>>28);
+					#if defined (M2U_DELETE_CHECK)
+						seq_printf(s, "(%02X-%02X-%02X-%02X-%02X-%02X)",clientEntry->clientMacAddr[0],clientEntry->clientMacAddr[1],clientEntry->clientMacAddr[2],
+								clientEntry->clientMacAddr[3],clientEntry->clientMacAddr[4],clientEntry->clientMacAddr[5]);
+					#endif
+						seq_printf(s, "\\port %d\\MLDv%d\\",clientEntry->portNum, mldVersion);
 						
 						seq_printf(s, "%s",(clientEntry->groupFilterTimer>rtl_sysUpSeconds)?"EXCLUDE":"INCLUDE");
 						if(clientEntry->groupFilterTimer>rtl_sysUpSeconds)
@@ -6913,3 +7336,130 @@ int32 rtl_getGroupInfo(uint32 groupAddr, struct rtl_groupInfo * groupInfo)
 	return SUCCESS;
 }
 
+#ifdef M2U_DELETE_CHECK
+int FindClientforM2U(unsigned int moduleindex, unsigned char *dMac, unsigned char *sMac)
+{
+	int32 hashIndex;
+	struct rtl_groupEntry *groupEntryPtr = NULL;
+	struct rtl_clientEntry* clientEntryPtr = NULL;
+    unsigned char groupip[16] = {0};
+    int ret = 0;
+
+    #if 0
+    printk("dst = %X:%X:%X:%X:%X:%X, src = %X:%X:%X:%X:%X:%X, [%s:%d]\n", 
+        dMac[0], dMac[1], dMac[2], dMac[3], dMac[4], dMac[5],
+        sMac[0], sMac[1], sMac[2], sMac[3], sMac[4], sMac[5],
+        __FUNCTION__, __LINE__);
+    #endif
+    
+    if(dMac[0]==0x01 && dMac[1]==0x00 && dMac[2]==0x5e)
+    {
+        if(rtl_mCastModuleArray[moduleindex].enableSnooping == TRUE)
+        {
+            for(hashIndex = 0; hashIndex < rtl_hashTableSize; ++hashIndex)
+            {
+                groupEntryPtr = rtl_mCastModuleArray[moduleindex].rtl_ipv4HashTable[hashIndex];
+                while(groupEntryPtr != NULL)
+                {
+                    memcpy(groupip, groupEntryPtr->groupAddr, 4);
+
+                    #if 0
+                    printk("groupip = %X:%X:%X:%X, [%s:%d]\n", 
+                        groupip[0], groupip[1], groupip[2], groupip[3], __FUNCTION__, __LINE__);
+
+                    #endif
+                    if((dMac[3]==groupip[1])&&
+                       (dMac[4]==groupip[2])&&
+                       (dMac[5]==groupip[3]))
+                    {
+
+                        clientEntryPtr = groupEntryPtr->clientList;
+                        while(clientEntryPtr != NULL)
+                        {
+                            if((sMac[0] == clientEntryPtr->clientMacAddr[0]) &&
+                               (sMac[1] == clientEntryPtr->clientMacAddr[1]) &&
+                               (sMac[2] == clientEntryPtr->clientMacAddr[2]) &&
+                               (sMac[3] == clientEntryPtr->clientMacAddr[3]) &&
+                               (sMac[4] == clientEntryPtr->clientMacAddr[4]) &&
+                               (sMac[5] == clientEntryPtr->clientMacAddr[5]))
+                            {
+                                ret = 1;
+                                break;
+                            }
+                            clientEntryPtr = clientEntryPtr->next;
+                        }
+
+                        /*client found*/
+                        if(clientEntryPtr)
+                        {
+                            break;
+                        }
+                    }
+                    groupEntryPtr = groupEntryPtr->next;
+                }
+                if(groupEntryPtr)
+                {
+                    break;
+                }
+            }
+        }
+    }
+#ifdef CONFIG_RTL_MLD_SNOOPING
+    else if(dMac[0]==0x33 && dMac[1]==0x33 && dMac[2]!=0x0f)
+    {
+        if(rtl_mCastModuleArray[moduleindex].enableSnooping == TRUE)
+        {
+            for(hashIndex = 0; hashIndex < rtl_hashTableSize; ++hashIndex)
+            {
+                groupEntryPtr = rtl_mCastModuleArray[moduleindex].rtl_ipv6HashTable[hashIndex];
+                while(groupEntryPtr != NULL)
+                {
+                    memcpy(groupip, groupEntryPtr->groupAddr, 16);
+                    if((dMac[2] == groupip[12]) &&
+                       (dMac[3] == groupip[13]) &&
+                       (dMac[4] == groupip[14]) &&
+                       (dMac[5] == groupip[15]))
+                    {
+                        clientEntryPtr = groupEntryPtr->clientList;
+                        while(clientEntryPtr != NULL)
+                        {
+                            if((sMac[0] == clientEntryPtr->clientMacAddr[0]) &&
+                               (sMac[1] == clientEntryPtr->clientMacAddr[1]) &&
+                               (sMac[2] == clientEntryPtr->clientMacAddr[2]) &&
+                               (sMac[3] == clientEntryPtr->clientMacAddr[3]) &&
+                               (sMac[4] == clientEntryPtr->clientMacAddr[4]) &&
+                               (sMac[5] == clientEntryPtr->clientMacAddr[5]))
+                            {
+                                ret = 1;
+                                break;
+                            }
+                            clientEntryPtr = clientEntryPtr->next;
+                        }
+
+                        /*client found*/
+                        if(clientEntryPtr)
+                            break;
+                    }
+                    groupEntryPtr = groupEntryPtr->next;
+                }
+                if(groupEntryPtr)
+                    break;
+            }
+        }
+    }
+#endif
+return ret;
+}
+
+int rtl_M2UDeletecheck(unsigned char *dMac, unsigned char *sMac)
+{
+    if(brIgmpModuleIndex!=0xFFFFFFFF && FindClientforM2U(brIgmpModuleIndex, dMac, sMac))
+        return 0;
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+    if(brIgmpModuleIndex_2!=0xFFFFFFFF && FindClientforM2U(brIgmpModuleIndex_2, dMac, sMac))
+        return 0;
+#endif
+    return 1;
+}
+
+#endif

@@ -30,7 +30,8 @@ typedef struct t38Capability_s {
 
 typedef struct t38Param_s {
 	short pECC_Signal;	/* # of Redundant frames to use for T.30 signalling frames */
-						/* (max 7, default 5) */
+						/* (max 7, default 4) */
+	                        /* 20130108 jwsyu change 5 to 4 iot with 'Ccnet' trunk */
 	short pECC_Data;	/* # of Redundant frames to use for image data packets frames */
 						/* (max 2, default 2) */
 	uint32 nPreambleDelayThres;	/* in unit of 10ms, so ( 3 * 1000 / 10 ) indicates 3 sec [default value]. */
@@ -47,7 +48,7 @@ typedef struct t38Param_s {
 } t38Param_t;
 
 #define T38_DEFAULT_PARAM_LIST() 		\
-						{ 5, 2, ( 0 * 1000 / 10 ), 40, 500, \
+						{ 4, 2, ( 0 * 1000 / 10 ), 40, 500, \
 						2, T38_MAX_RATE_14400, 1, 0, 1, 0 }
 
 extern void T38_API_Capability( t38Capability_t *pCapability );

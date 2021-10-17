@@ -36,6 +36,7 @@
 
 static int32 rtk_OpenRtpSession(uint32 chid, uint32 sid);
 int32 rtk_enable_pcm(uint32 chid, int32 bEnable);
+int rtk_IvrStartPlayG729( unsigned int chid, unsigned int sid, IvrPlayDir_t dir, unsigned int nFrameCount, const unsigned char *pData );
 
 #ifndef __mips__
 // use v400 + VE890 (2S1O) as default feature for x86
@@ -50,9 +51,6 @@ uint32 g_VoIP_Ports = 0;
 //static int no_resource_flag[VOIP_CH_NUM]={0};
 
 int g_VoIP_Mgr_FD = -1;
-
-int gCad_on_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 2000};		// 2s on
-int gCad_off_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 4000};	// 4s on
 
 /* If DAA is used by CHn, set g_DAA_used[CHn]=1, otherwise, set g_DAA_used[CHn]=0 */
 //int g_DAA_used[MAX_SLIC_NUM] = {0};
@@ -374,7 +372,7 @@ int32 rtk_SetDectLED( int chid, char state )
 
 #endif //CONFIG_RTK_VOIP_DRIVERS_ATA_DECT
 
-int32 rtk_InitDSP(int ch)
+int32 rtk_InitDsp(int ch)
 {
 	// init rtp session
 	rtk_OpenRtpSession(ch, 0);
@@ -405,6 +403,11 @@ int32 rtk_SetRtpConfig(rtp_config_t *cfg)
     stVoipMgrSession.udp_src_port = cfg->remPort;
     stVoipMgrSession.ip_dst_addr = cfg->extIp;
     stVoipMgrSession.udp_dst_port = cfg->extPort;
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+    stVoipMgrSession.ip6_src_addr = cfg->remIp6;
+    stVoipMgrSession.ip6_dst_addr = cfg->extIp6;
+    stVoipMgrSession.ipv6 = cfg->ipv6;
+#endif
 #ifdef SUPPORT_VOICE_QOS
     stVoipMgrSession.tos = cfg->tos;
 #endif
@@ -419,11 +422,16 @@ int32 rtk_SetRtpConfig(rtp_config_t *cfg)
 		stVoipMgrSession.remoteCryptAlg = cfg->remoteCryptAlg;
 	}
 #endif /* CONFIG_RTK_VOIP_SRTP */
-#ifdef SUPPORT_RTP_REDUNDANT
+#if defined(SUPPORT_RTP_REDUNDANT_APP)
 	stVoipMgrSession.rtp_redundant_payload_type_local = cfg ->rtp_redundant_payload_type_local;
 	stVoipMgrSession.rtp_redundant_payload_type_remote = cfg ->rtp_redundant_payload_type_remote;
 	stVoipMgrSession.rtp_redundant_max_Audio = cfg ->rtp_redundant_max_Audio;
 	stVoipMgrSession.rtp_redundant_max_RFC2833 = cfg ->rtp_redundant_max_RFC2833;
+#elif defined(SUPPORT_RTP_REDUNDANT)
+	stVoipMgrSession.rtp_redundant_payload_type_local = 0;
+	stVoipMgrSession.rtp_redundant_payload_type_remote = 0;
+	stVoipMgrSession.rtp_redundant_max_Audio = 0;
+	stVoipMgrSession.rtp_redundant_max_RFC2833 = 0;
 #endif
 
 #if 1
@@ -454,6 +462,17 @@ int32 rtk_SetRtpConfig(rtp_config_t *cfg)
 	return 0;//stVoipMgrSession.ret_val;
 }
 
+int32 rtk_SetQoSConfig(int chid, int sid, SessionType type, TstQosCfg *cfg){
+	
+	TstRtpQosRemark stRtpQosRemark;
+	stRtpQosRemark.chid = chid;
+	stRtpQosRemark.sid = sid;
+	stRtpQosRemark.sessiontype = type;
+	stRtpQosRemark.qos = *cfg;
+	SETSOCKOPT(VOIP_MGR_QOS_CFG, &stRtpQosRemark, TstRtpQosRemark, 1);
+	return 0;
+
+}
 int32 rtk_SetT38UdpConfig(t38udp_config_t* cfg)
 {
     TstVoipMgrSession stVoipMgrSession;
@@ -464,6 +483,11 @@ int32 rtk_SetT38UdpConfig(t38udp_config_t* cfg)
     stVoipMgrSession.udp_src_port = cfg->remPort;
     stVoipMgrSession.ip_dst_addr = cfg->extIp;
     stVoipMgrSession.udp_dst_port = cfg->extPort;
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+    stVoipMgrSession.ip6_src_addr = cfg->remIp6;
+    stVoipMgrSession.ip6_dst_addr = cfg->extIp6;
+    stVoipMgrSession.ipv6 = cfg->ipv6;
+#endif
 #ifdef SUPPORT_VOICE_QOS
     stVoipMgrSession.tos = cfg->tos;
 #endif
@@ -480,7 +504,12 @@ int32 rtk_SetT38UdpConfig(t38udp_config_t* cfg)
 		???
 	}
 #endif /* CONFIG_RTK_VOIP_SRTP */
-#ifdef SUPPORT_RTP_REDUNDANT
+#if defined(SUPPORT_RTP_REDUNDANT_APP)
+	stVoipMgrSession.rtp_redundant_payload_type_local = 0;
+	stVoipMgrSession.rtp_redundant_payload_type_remote = 0;
+	stVoipMgrSession.rtp_redundant_max_Audio = 0;
+	stVoipMgrSession.rtp_redundant_max_RFC2833 = 0;
+#elif defined(SUPPORT_RTP_REDUNDANT)
 	stVoipMgrSession.rtp_redundant_payload_type_local = 0;
 	stVoipMgrSession.rtp_redundant_payload_type_remote = 0;
 	stVoipMgrSession.rtp_redundant_max_Audio = 0;
@@ -538,6 +567,12 @@ int32 rtk_SetRtcpConfig(rtcp_config_t *cfg)	//thlin+ for Rtcp
     stVoipRtcpSession.rtcp_src_port = cfg->remPort;
     stVoipRtcpSession.ip_dst_addr = cfg->extIp;
     stVoipRtcpSession.rtcp_dst_port = cfg->extPort;
+
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	stVoipRtcpSession.ip6_src_addr = cfg->remIp6;
+    stVoipRtcpSession.ip6_dst_addr = cfg->extIp6;
+    stVoipRtcpSession.ipv6 = cfg->ipv6;
+#endif
     
 	stVoipRtcpSession.tx_interval = cfg ->txInterval;
 #ifdef CONFIG_RTK_VOIP_RTCP_XR
@@ -595,13 +630,16 @@ int32 rtk_SetRtpPayloadType(payloadtype_config_t *cfg)
     stVoipPayLoadTypeConfig.m_id = cfg->sid;
     stVoipPayLoadTypeConfig.local_pt = cfg->local_pt;
     stVoipPayLoadTypeConfig.remote_pt = cfg->remote_pt;
-    stVoipPayLoadTypeConfig.uPktFormat = cfg->uPktFormat;
+    stVoipPayLoadTypeConfig.uLocalPktFormat = cfg->uLocalPktFormat;
+    stVoipPayLoadTypeConfig.uRemotePktFormat = cfg->uRemotePktFormat;
     stVoipPayLoadTypeConfig.nG723Type = cfg->nG723Type;
-    stVoipPayLoadTypeConfig.nFramePerPacket = cfg->nFramePerPacket;
+    stVoipPayLoadTypeConfig.nLocalFramePerPacket = cfg->nLocalFramePerPacket;
+    stVoipPayLoadTypeConfig.nRemoteFramePerPacket = cfg->nRemoteFramePerPacket;
     stVoipPayLoadTypeConfig.bVAD = cfg->bVAD;
     stVoipPayLoadTypeConfig.bPLC = cfg->bPLC;
     stVoipPayLoadTypeConfig.nJitterDelay = cfg->nJitterDelay;
     stVoipPayLoadTypeConfig.nMaxDelay = cfg->nMaxDelay;
+    stVoipPayLoadTypeConfig.nMaxStrictDelay = cfg->nMaxStrictDelay;
     stVoipPayLoadTypeConfig.nJitterFactor = cfg->nJitterFactor;
     stVoipPayLoadTypeConfig.nG726Packing = cfg->nG726Packing;
     stVoipPayLoadTypeConfig.bT38ParamEnable = 0;
@@ -646,13 +684,16 @@ int32 rtk_SetT38PayloadType(t38_payloadtype_config_t *cfg)
     stVoipPayLoadTypeConfig.m_id = cfg->sid;
     stVoipPayLoadTypeConfig.local_pt = 0;
     stVoipPayLoadTypeConfig.remote_pt = 0;
-    stVoipPayLoadTypeConfig.uPktFormat = rtpPayloadT38_Virtual;
+    stVoipPayLoadTypeConfig.uLocalPktFormat = rtpPayloadT38_Virtual;
+    stVoipPayLoadTypeConfig.uRemotePktFormat = rtpPayloadT38_Virtual;
     stVoipPayLoadTypeConfig.nG723Type = 0;
-    stVoipPayLoadTypeConfig.nFramePerPacket = 1;
+    stVoipPayLoadTypeConfig.nLocalFramePerPacket = 1;
+    stVoipPayLoadTypeConfig.nRemoteFramePerPacket = 1;
     stVoipPayLoadTypeConfig.bVAD = 0;
     stVoipPayLoadTypeConfig.bPLC = 0;
     stVoipPayLoadTypeConfig.nJitterDelay = 4;
     stVoipPayLoadTypeConfig.nMaxDelay = 20;
+    stVoipPayLoadTypeConfig.nMaxStrictDelay = -1;
     stVoipPayLoadTypeConfig.nJitterFactor = 1;
     stVoipPayLoadTypeConfig.nG726Packing = 0;
     stVoipPayLoadTypeConfig.bT38ParamEnable = cfg->bT38ParamEnable;
@@ -787,13 +828,13 @@ int32 rtk_GetRtpSessionState(uint32 chid, uint32 sid, RtpSessionState *pstate)
 
 int g_bDisableRingFXS = 0;
 
-int32 rtk_DisableRingFXS(int bDisable)
+int32 rtk_DisableRingFxs(int bDisable)
 {
 	g_bDisableRingFXS = bDisable;
 	return 0;
 }
 
-int32 rtk_SetRingFXS(uint32 chid, uint32 bRinging)
+int32 rtk_SetRingFxs(uint32 chid, uint32 bRinging)
 {
     TstVoipSlicRing stVoipSlicRing;
 
@@ -903,7 +944,7 @@ void StopG723IvrFile( int chid )
 	rtk_IvrStopPlaying( chid );
 }
 
-void RefillG723IvrFile( int chid )
+void RefillG723IvrFile( int chid, int sid, IvrPlayDir_t dir )
 {
 	/* Try to refill G723 IVR buffer periodically. */
 	unsigned char buff723[ IVRFRAMESIZE * 10 ];
@@ -925,9 +966,9 @@ void RefillG723IvrFile( int chid )
 
 		if( count723 ) {
 	  #ifdef G729_HOLD_TONE
-	  		copied = rtk_IvrStartPlayG729( chid, count723, buff723 );
+	  		copied = rtk_IvrStartPlayG729( chid, sid, dir, count723, buff723 );
 	  #else
-			copied = rtk_IvrStartPlayG72363( chid, count723, buff723 );
+			copied = rtk_IvrStartPlayG72363( chid, sid, dir, count723, buff723 );
 	  #endif
 
 			if( count723 != copied )
@@ -954,7 +995,7 @@ void main_program_pseudo_code( void )
 		for( chid = 0; chid < 2; chid ++ ) {
 
 			/* refill IVR buffer in a certain period. */
-			RefillG723IvrFile( chid );
+			RefillG723IvrFile( chid, sid, IVR_DIR_LOCAL );
 
 			/* You may play hold tone somewhere, but it will play IVR. */
 			{
@@ -977,14 +1018,14 @@ int32 rtk_SetPlayTone(uint32 chid, uint32 sid, DSPCODEC_TONE nTone, uint32 bFlag
 
     /* hold tone use ivr to play */
     if( nTone == DSPCODEC_TONE_HOLD && bFlag ) {
-    	StartG723IvrFile( chid );
+    	StartG723IvrFile( chid, sid );
     	bPrevHoldTone[ chid ] = 1;
     	printf( "StartG723IvrFile(%d)\n", chid );
-    	return;	/* don't play tone */
+    	return -1;	/* don't play tone */
     } else if( bPrevHoldTone[ chid ] ) {
-    	StopG723IvrFile( chid );
+    	StopG723IvrFile( chid, sid );
     	bPrevHoldTone[ chid ] = 0;
-    	printf( "StopG723IvrFile(%d)\n", chid );
+    	printf( "StopG723IvrFile(%d)\n", chid);
     }
 #endif /* SUPPORT_IVR_HOLD_TONE */
 
@@ -1033,7 +1074,7 @@ unsigned short rtk_VoIP_resource_check(uint32 chid, int payload_type)
 	return stVoipCfg.enable;
 }
 
-int32 rtk_Onhook_Reinit(uint32 chid)
+int32 rtk_OnHookReinit(uint32 chid)
 {
 	TstVoipCfg stVoipCfg;
 
@@ -1246,6 +1287,7 @@ int32 rtk_GetFxsEvent(uint32 chid, SIGNSTATE *pval)
 {
 
 	TstVoipCfg stVoipCfg;
+	TstDtmfDetPara stDtmfDetPara;
 	int8 Event;
 	int8 Energy;
 	int16 Duration;
@@ -1255,7 +1297,7 @@ int32 rtk_GetFxsEvent(uint32 chid, SIGNSTATE *pval)
 	*pval = SIGN_NONE;
 
 #ifdef NO_SLIC
-return 0;
+	return 0;
 #endif
 
 	if( ( ret = rtk_GetSlicEvent( chid, &SlicEvent ) ) < 0 )
@@ -1284,7 +1326,7 @@ return 0;
 		rtk_GetDtmfEvent(chid, 1, &Event, &Energy, &Duration);
 		
 		if (Event == 'E' )
-			printf("dir=1, energey=%ddBFS, duration=%d0ms\n", Energy, Duration);
+			printf("dir=1, energey=%ddBFS, duration=%dms\n", Energy, Duration);
 
 		return 0;
 	}
@@ -1312,7 +1354,7 @@ return 0;
 #if 1
 			char text[]={IVR_TEXT_ID_NO_RESOURCE, '\0'};
 			printf("play ivr (%d)...\n", chid);
-			rtk_IvrStartPlaying( chid, IVR_DIR_LOCAL, text );
+			rtk_IvrStartPlaying( chid, sid, IVR_DIR_LOCAL, text );
 #else
 			rtk_SetPlayTone(chid, 0, DSPCODEC_TONE_BUSY, 1, DSPCODEC_TONEDIRECTION_LOCAL);
 #endif
@@ -1320,8 +1362,10 @@ return 0;
 		}
 #endif
 
-		stVoipCfg.cfg = 0; /*dir0*/
-		SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stVoipCfg, TstVoipCfg, 1);
+		stDtmfDetPara.ch_id = chid;
+    	stDtmfDetPara.enable = 1;
+		stDtmfDetPara.dir = 0; /*dir0*/
+		SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stDtmfDetPara, TstDtmfDetPara, 1);
 		//if (stVoipCfg.ret_val != 0)
 		//{
 		//	return stVoipCfg.ret_val;
@@ -1358,7 +1402,7 @@ return 0;
 			*pval = 0;
 #if 1
 			printf("stop play ivr(%d)...\n", chid);
-			rtk_IvrStopPlaying(chid);
+			rtk_IvrStopPlaying(chid, 0);
 #else
 			rtk_SetPlayTone(chid, 0, DSPCODEC_TONE_BUSY, 0, DSPCODEC_TONEDIRECTION_LOCAL);
 #endif
@@ -1366,8 +1410,10 @@ return 0;
 		}
 #endif
 
-		stVoipCfg.cfg = 0; /*dir0*/
-		SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stVoipCfg, TstVoipCfg, 1);
+		stDtmfDetPara.ch_id = chid;
+    	stDtmfDetPara.enable = 0;
+		stDtmfDetPara.dir = 0; /*dir0*/
+		SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stDtmfDetPara, TstDtmfDetPara, 1);
 		//if (stVoipCfg.ret_val != 0)
 		//{
 		//	return stVoipCfg.ret_val;
@@ -1400,6 +1446,104 @@ return 0;
 		*pval = SIGN_RING_OFF;
 		return 0;
 	}
+
+	return 0;
+}
+
+int32 rtk_ProcessFxsEvent(uint32 chid, VoipEventID evt, SIGNSTATE *pval)
+{
+	TstVoipCfg stVoipCfg;
+	TstDtmfDetPara	stDtmfDetPara;
+
+	*pval = SIGN_NONE;
+
+#ifdef NO_SLIC
+	return 0;
+#endif
+
+	if ( evt == VEID_DTMF_ENERGY )
+	{
+		//printf("dir=0, energey=%ddBFS, duration=%dms\n", Energy, Duration);
+	}
+	else if (evt >= VEID_DTMF_1 && evt <= VEID_DTMF_9 )
+	{
+		*pval = (evt & ~VET_DTMF) - '0'; 
+		return 0;
+	}
+	else if (evt == VEID_DTMF_0 )
+	{
+		*pval = SIGN_KEY0;
+		return 0;
+	}
+	else if (evt == VEID_DTMF_STAR )
+	{
+		*pval = SIGN_STAR;
+		return 0;
+	}
+	else if (evt == VEID_DTMF_SHARP )
+	{
+		*pval = SIGN_HASH;
+		return 0;
+	}
+	else if (evt == VEID_HOOK_PHONE_FLASH_HOOK ) /* PHONE_FLASH_HOOK */
+	{
+		*pval = SIGN_FLASHHOOK;
+		return 0;
+	}
+	else if (evt == VEID_HOOK_FXO_RING_ON) /* FXO_RING_ON */
+	{
+		*pval = SIGN_RING_ON;
+		return 0;
+	}
+	else if (evt == VEID_HOOK_FXO_RING_OFF)  /* FXO_RING_OFF */
+	{
+		*pval = SIGN_RING_OFF;
+		return 0;
+	}
+	else if ( evt == VEID_HOOK_PHONE_OFF_HOOK ) /* PHONE_OFF_HOOK */
+	{
+		*pval = SIGN_OFFHOOK;
+
+		/* when phone offhook, enable pcm and DTMF detection */
+		stVoipCfg.ch_id = chid;
+		stVoipCfg.enable = 1;//stVoipSlicHook.hook_status;
+
+		SETSOCKOPT(VOIP_MGR_PCM_CFG, &stVoipCfg, TstVoipCfg, 1);
+
+		stDtmfDetPara.ch_id = chid;
+    	stDtmfDetPara.enable = 1;
+		stDtmfDetPara.dir = 0; /*dir0*/
+		SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stDtmfDetPara, TstDtmfDetPara, 1);
+
+		stVoipCfg.enable = 1;
+		/* when phone offhook, enable fax detection */
+		SETSOCKOPT(VOIP_MGR_FAX_OFFHOOK, &stVoipCfg, TstVoipCfg, 1);
+
+		return 0;//stVoipCfg.ret_val;
+
+	}
+	else if ( evt == VEID_HOOK_PHONE_ON_HOOK ) /* PHONE_ON_HOOK */
+	{
+		*pval = SIGN_ONHOOK;
+
+		/* when phone onhook, stop play tone, disable pcm and DTMF detection */
+		rtk_SetPlayTone(chid, 0, DSPCODEC_TONE_DIAL, 0, DSPCODEC_TONEDIRECTION_LOCAL);
+		usleep(100000); // [Important] sleep >= 100ms. MUST add delay for ACMW to stop tone!
+
+		stVoipCfg.ch_id = chid;
+		stVoipCfg.enable = 0;//stVoipSlicHook.hook_status;
+		SETSOCKOPT(VOIP_MGR_PCM_CFG, &stVoipCfg, TstVoipCfg, 1);
+
+		stDtmfDetPara.ch_id = chid;
+    	stDtmfDetPara.enable = 0;
+		stDtmfDetPara.dir = 0; /*dir0*/
+		SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stDtmfDetPara, TstDtmfDetPara, 1);
+
+		/* when phone onhook, re-init CED detection */
+		SETSOCKOPT(VOIP_MGR_ON_HOOK_RE_INIT, &stVoipCfg, TstVoipCfg, 1);
+		return 0;//stVoipCfg.ret_val;
+	}
+
 
 	return 0;
 }
@@ -1491,7 +1635,7 @@ int32 rtk_GetFxoEvent(uint32 chid, SIGNSTATE *pval)
 		rtk_GetDtmfEvent(chid, 0, &Event, &Energy, &Duration);
 		
 		if (Event == 'E' )
-			printf("dir=0, energey=%ddBFS, duration=%d0ms\n", Energy, Duration);
+			printf("dir=0, energey=%ddBFS, duration=%dms\n", Energy, Duration);
 		
 		if (Event >= '1' && Event <= '9')
 			*pval = SIGN_KEY1 + Event - '1';
@@ -1508,7 +1652,7 @@ int32 rtk_GetFxoEvent(uint32 chid, SIGNSTATE *pval)
 		rtk_GetDtmfEvent(chid, 1, &Event, &Energy, &Duration);
 		
 		if (Event == 'E' )
-			printf("dir=1, energey=%ddBFS, duration=%d0ms\n", Energy, Duration);
+			printf("dir=1, energey=%ddBFS, duration=%dms\n", Energy, Duration);
 		
 		return 0;
 	}
@@ -1525,8 +1669,8 @@ int32 rtk_GetFxoEvent(uint32 chid, SIGNSTATE *pval)
 			usleep(500000);//after phone off-hook, wait for a second,and then play IVR.
 			char text[]={IVR_TEXT_ID_NO_RESOURCE, '\0'};
 			printf("play ivr...\n");
-			rtk_FXO_offhook(chid);
-			rtk_IvrStartPlaying( chid, IVR_DIR_LOCAL, text );
+			rtk_FxoOffHook(chid);
+			rtk_IvrStartPlaying( chid, 0, IVR_DIR_LOCAL, text );
 			//rtk_SetPlayTone(chid, 0, DSPCODEC_TONE_BUSY, 1, DSPCODEC_TONEDIRECTION_LOCAL);
 #else
 #endif
@@ -1556,8 +1700,8 @@ int32 rtk_GetFxoEvent(uint32 chid, SIGNSTATE *pval)
 			*pval = 0;
 #ifdef DAA_IVR
 			printf("stop play ivr...\n");
-			rtk_IvrStopPlaying(chid);
-			rtk_FXO_onhook(chid);
+			rtk_IvrStopPlaying(chid, 0);
+			rtk_FxoOnHook(chid);
 #endif
 			//rtk_SetPlayTone(chid, 0, DSPCODEC_TONE_BUSY, 0, DSPCODEC_TONEDIRECTION_LOCAL);
 			return 0;
@@ -1607,6 +1751,69 @@ int32 rtk_GetFxoEvent(uint32 chid, SIGNSTATE *pval)
 }
 
 
+int32 rtk_ProcessFxoEvent(uint32 chid, VoipEventID evt, SIGNSTATE *pval)
+{
+	TstVoipCfg stVoipCfg;
+
+	*pval = SIGN_NONE;
+
+	if ( evt == VEID_DTMF_ENERGY )
+	{
+		//printf("dir=0, energey=%ddBFS, duration=%dms\n", Energy, Duration);
+	}
+	else if (evt >= VEID_DTMF_1 && evt <= VEID_DTMF_9 )
+	{
+		*pval = (evt & ~VET_DTMF) - '0'; 
+		return 0;
+	}
+	else if (evt == VEID_DTMF_0 )
+	{
+		*pval = SIGN_KEY0;
+		return 0;
+	}
+	else if (evt == VEID_DTMF_STAR )
+	{
+		*pval = SIGN_STAR;
+		return 0;
+	}
+	else if (evt == VEID_DTMF_SHARP )
+	{
+		*pval = SIGN_HASH;
+		return 0;
+	}
+	else if (evt == VEID_HOOK_PHONE_FLASH_HOOK ) /* PHONE_FLASH_HOOK */
+	{
+		*pval = SIGN_FLASHHOOK;
+		return 0;
+	}
+	else if ( evt == VEID_HOOK_FXO_RING_ON ) /* FXO_RING_ON */
+	{
+		*pval = SIGN_OFFHOOK; // off-hook
+
+		stVoipCfg.ch_id = chid;
+		stVoipCfg.enable = 1;
+		 /* when phone offhook, enable fax detection */
+		SETSOCKOPT(VOIP_MGR_FAX_OFFHOOK, &stVoipCfg, TstVoipCfg, 1);
+		return 0;//stVoipCfg.ret_val;
+	}
+	else if ( 
+			evt == VEID_HOOK_FXO_RING_OFF ||	/* FXO_RING_OFF */
+			evt == VEID_HOOK_FXO_BUSY_TONE ||	/* FXO_BUSY_TONE */
+			evt == VEID_HOOK_FXO_DIS_TONE )   	/* FXO_DIS_TONE */
+	{
+       	*pval = SIGN_ONHOOK;	// on-hook
+		rtk_SetPlayTone(chid, 0, DSPCODEC_TONE_DIAL, RTK_DISABLE, DSPCODEC_TONEDIRECTION_LOCAL);
+		usleep(100000); // [Important] sleep >= 100ms. MUST add delay for ACMW to stop tone!
+
+		/* when phone onhook, re-init CED detection */
+		stVoipCfg.ch_id = chid;
+		SETSOCKOPT(VOIP_MGR_ON_HOOK_RE_INIT, &stVoipCfg, TstVoipCfg, 1);
+		return 0;//stVoipCfg.ret_val;
+	}
+
+	return 0;
+}
+
 int32 rtk_GetRealFxoEvent(uint32 chid, FXOEVENT *pval)
 {
 	int32 ret;
@@ -1630,7 +1837,7 @@ int32 rtk_GetRealFxoEvent(uint32 chid, FXOEVENT *pval)
 		rtk_GetDtmfEvent(chid, 0, &Event, &Energy, &Duration);
 		
 		if (Event == 'E' )
-			printf("dir=0, energey=%ddBFS, duration=%d0ms\n", Energy, Duration);
+			printf("dir=0, energey=%ddBFS, duration=%dms\n", Energy, Duration);
 		
 		if (Event >= '1' && Event <= '9')
 			*pval = SIGN_KEY1 + Event - '1';
@@ -1647,7 +1854,7 @@ int32 rtk_GetRealFxoEvent(uint32 chid, FXOEVENT *pval)
 		rtk_GetDtmfEvent(chid, 1, &Event, &Energy, &Duration);
 
 		if (Event == 'E' )
-			printf("dir=1, energey=%ddBFS, duration=%d0ms\n", Energy, Duration);
+			printf("dir=1, energey=%ddBFS, duration=%dms\n", Energy, Duration);
 		
 		return 0;
 	}
@@ -1777,7 +1984,7 @@ int32 rtk_SetConference(TstVoipMgr3WayCfg *stVoipMgr3WayCfg)
 }
 
 // 0:rfc2833  1: sip info  2: inband  3: DTMF delete
-int32 rtk_SetDTMFMODE(uint32 chid, uint32 mode)
+int32 rtk_SetDtmfMode(uint32 chid, uint32 mode)
 {
 	TstVoipCfg stVoipCfg;
 
@@ -1805,14 +2012,17 @@ int32 rtk_GetDTMFMODE(uint32 chid, uint32 sid, uint32 *pmode)
 }
 #endif
 
-// thlin 2006-05-04
-int32 rtk_Set_echoTail(uint32 chid, uint32 echo_tail, uint32 nlp)
+int32 rtk_SetEchoTail(uint32 chid, uint32 ec_select, uint32 echo_tail, uint32 nlp, uint32 at_stepsize, uint32 rt_stepsize, uint32 cng_flag)
 {
 	TstVoipValue stVoipValue;
 
 	stVoipValue.ch_id = chid;
-	stVoipValue.value = echo_tail;
+	stVoipValue.value6 = ec_select;
+	stVoipValue.value5 = echo_tail;
 	stVoipValue.value1 = nlp;
+	stVoipValue.value2 = at_stepsize;
+	stVoipValue.value3 = rt_stepsize;
+	stVoipValue.value4 = cng_flag;
 
 	SETSOCKOPT(VOIP_MGR_SET_ECHO_TAIL_LENGTH, &stVoipValue, TstVoipValue, 1);
 
@@ -1820,18 +2030,19 @@ int32 rtk_Set_echoTail(uint32 chid, uint32 echo_tail, uint32 nlp)
 
 }
 
-int32 rtk_Set_G168_LEC(uint32 chid, uint32 support_lec)	/* This function can turn on/off G168 LEC. */
+int32 rtk_SetG168Lec(uint32 chid, uint32 ec_enable, uint32 ec_on_state)	/* This function can turn on/off G168 LEC. */
 {
         TstVoipCfg stVoipCfg;
         stVoipCfg.ch_id = chid;
-        stVoipCfg.enable = support_lec;
+        stVoipCfg.enable = ec_enable;
+        stVoipCfg.cfg = ec_on_state;
 
         SETSOCKOPT(VOIP_MGR_SET_G168_LEC_CFG, &stVoipCfg, TstVoipCfg, 1);
 
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_Set_VBD_EC(uint32 chid, uint32 vbd_high_ec_mode, uint32 vbd_low_ec_mode, uint32 ec_restore_val)
+int32 rtk_SetVbdEc(uint32 chid, uint32 vbd_high_ec_mode, uint32 vbd_low_ec_mode, uint32 ec_restore_val)
 {
         TstVoipCfg stVoipCfg;
         stVoipCfg.ch_id = chid;
@@ -1893,7 +2104,7 @@ int32 rtk_Set_SLIC_Rx_Gain(uint32 chid, uint32 gain)
 }
 #endif
 
-int32 rtk_Set_SLIC_Ring_Cadence(uint32 chid, uint16 cad_on_msec, uint16 cad_off_msec)
+int32 rtk_SetSlicRingCadence(uint32 chid, uint16 cad_on_msec, uint16 cad_off_msec)
 {
 	TstVoipValue stVoipValue;
 
@@ -1901,15 +2112,12 @@ int32 rtk_Set_SLIC_Ring_Cadence(uint32 chid, uint16 cad_on_msec, uint16 cad_off_
 	stVoipValue.value5 = cad_on_msec;
 	stVoipValue.value6 = cad_off_msec;
 
-	gCad_on_msec[chid] = cad_on_msec;
-	gCad_off_msec[chid] = cad_off_msec;
-
 	SETSOCKOPT(VOIP_MGR_SET_SLIC_RING_CADENCE, &stVoipValue, TstVoipValue, 1);
 
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_SLIC_Ring_Freq_Amp(uint32 chid, uint8 preset)
+int32 rtk_SetSlicRingFreqAmp(uint32 chid, uint8 preset)
 {
 	TstVoipValue stVoipValue;
 
@@ -1918,13 +2126,21 @@ int32 rtk_Set_SLIC_Ring_Freq_Amp(uint32 chid, uint8 preset)
 
 	SETSOCKOPT(VOIP_MGR_SET_SLIC_RING_FRQ_AMP, &stVoipValue, TstVoipValue, 1);
 
-	rtk_Set_SLIC_Ring_Cadence(chid, gCad_on_msec[chid], gCad_off_msec[chid]);
-
 	return 0;//stVoipValue.ret_val;
 }
 
+int32 rtk_SetMultiRingCadence(uint32 chid, TstVoipCadence* pRingCad)
+{
+	pRingCad->ch_id = chid;
+
+	SETSOCKOPT(VOIP_MGR_SET_MULTI_RING_CADENCE, pRingCad, TstVoipCadence, 1);
+	//SETSOCKOPT(VOIP_MGR_SET_MULTI_RING_CADENCE, &stVoipCadence, TstVoipCadence, 1);
+
+	return 0;//stVoipCadence.ret_val;
+}
+
 // flag: line voltage flag. 0: zero voltage, 1: normal voltage, 2: reverse voltage
-int32 rtk_Set_SLIC_Line_Voltage(uint32 chid, uint8 flag)
+int32 rtk_SetSlicLineVoltage(uint32 chid, uint8 flag)
 {
 	TstVoipValue stVoipValue;
 
@@ -1936,7 +2152,7 @@ int32 rtk_Set_SLIC_Line_Voltage(uint32 chid, uint8 flag)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Gen_SLIC_CPC(uint32 chid, uint32 cpc_ms)
+int32 rtk_GenSlicCpc(uint32 chid, uint32 cpc_ms)
 {
         TstVoipCfg stVoipCfg;
         stVoipCfg.ch_id = chid;
@@ -1946,7 +2162,7 @@ int32 rtk_Gen_SLIC_CPC(uint32 chid, uint32 cpc_ms)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_Set_FXO_Ring_Detection(uint16 ring_on_msec, uint16 first_ringoff_msec, uint16 ring_off_msec)
+int32 rtk_SetFxoRingDetection(uint16 ring_on_msec, uint16 first_ringoff_msec, uint16 ring_off_msec)
 {
         TstVoipValue stVoipValue;
 
@@ -1960,7 +2176,7 @@ int32 rtk_Set_FXO_Ring_Detection(uint16 ring_on_msec, uint16 first_ringoff_msec,
 }
 
 // thlin 2006-05-10
-int32 rtk_Set_DAA_Tx_Gain(uint32 gain)
+int32 rtk_SetDaaTxGain(uint32 gain)
 {
 
 	if ((g_VoIP_Feature & DAA_TYPE_MASK) == REAL_DAA || (g_VoIP_Feature & DAA_TYPE_MASK) == REAL_DAA_NEGO)
@@ -1977,7 +2193,7 @@ int32 rtk_Set_DAA_Tx_Gain(uint32 gain)
 }
 
 // thlin 2006-05-10
-int32 rtk_Set_DAA_Rx_Gain(uint32 gain)
+int32 rtk_SetDaaRxGain(uint32 gain)
 {
 
 	if ((g_VoIP_Feature & DAA_TYPE_MASK) == REAL_DAA || (g_VoIP_Feature & DAA_TYPE_MASK) == REAL_DAA_NEGO)
@@ -1994,8 +2210,48 @@ int32 rtk_Set_DAA_Rx_Gain(uint32 gain)
 
 }
 
+int32 rtk_SetDaaHybrid(uint32 chid, uint8 index)
+{
+
+	rtk_GetVoIPFeature();
+
+	if ((g_VoIP_Feature & DAA_TYPE_MASK) != NO_DAA )
+	{
+		TstVoipValue stVoipValue;
+
+		stVoipValue.ch_id = chid;
+		stVoipValue.value = index;
+
+		SETSOCKOPT(VOIP_MGR_SET_DAA_HYBRID, &stVoipValue, TstVoipValue, 1);
+		
+		return 0;//stVoipValue.ret_val;
+	}
+	return 0;
+
+}
+
+int32 rtk_SetFxoTune(uint32 chid, uint32 control)
+{
+
+	rtk_GetVoIPFeature();
+
+	if ((g_VoIP_Feature & DAA_TYPE_MASK) != NO_DAA )
+	{
+		TstVoipCfg stVoipCfg;
+
+		stVoipCfg.ch_id = chid;
+		stVoipCfg.cfg = control;
+
+		SETSOCKOPT(VOIP_MGR_SET_FXO_TUNE, &stVoipCfg, TstVoipCfg, 1);
+		
+		return 0;//stVoipCfg.ret_val;
+	}
+	return 0;
+
+}
+
 // thlin 2006-06-07
-int32 rtk_Set_Flash_Hook_Time(uint32 chid, uint32 min_time, uint32 time)
+int32 rtk_SetFlashHookTime(uint32 chid, uint32 min_time, uint32 time)
 {
 	TstVoipHook stHookTime;
 
@@ -2045,7 +2301,7 @@ int32 rtk_SetRFC2833TxConfig(uint32 chid, uint32 tx_mode, RFC2833_VOLUME_MODE vo
 	return 0; //(stRFC2833.ret_val | stVoipCfg.ret_val);
 }
 
-int32 rtk_SetRTPRFC2833(uint32 chid, uint32 sid, uint32 event, unsigned int duration)
+int32 rtk_SetRtpRfc2833(uint32 chid, uint32 sid, uint32 event, unsigned int duration)
 {
 	TstVoip2833 stRFC2833;
 
@@ -2123,7 +2379,7 @@ int32 rtk_SetRfc2833PacketInterval(uint32 chid, uint32 mid, uint32 type, uint32 
  * @retval 0 Success
  * @note internal use
  */
-int32 rtk_Set_Dtmf_CID_String(uint32 chid, const char *str_cid)
+int32 rtk_SetDtmfCidString(uint32 chid, const char *str_cid)
 {
 	TstVoipCID stCIDstr;
 
@@ -2179,7 +2435,8 @@ int32 rtk_GetFaxModemEvent(uint32 chid, uint32 *pval, VoipEventID *pevent, uint3
 		if( ( ret = rtk_GetVoIPEvent( &stVoipEvent ) ) < 0 )
 			return ret;	
 		
-		*pval = stVoipEvent.p1;		// p1 is translated ID in FAX/Modem event 
+		if( pval )
+			*pval = stVoipEvent.p1;		// p1 is translated ID in FAX/Modem event 
 		
 		if( pevent )
 			*pevent = stVoipEvent.id;
@@ -2243,7 +2500,7 @@ int32 rtk_GetFxoLineVoltage(uint32 chid, uint32 *pval)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_enablePCM(uint32 chid, uint32 val)
+int32 rtk_EnablePcm(uint32 chid, uint32 val)
 {
 	TstVoipCfg stVoipCfg;
 
@@ -2279,7 +2536,7 @@ int32 rtk_SetPcmTimeslot(uint32 chid, uint32 timeslot1, uint32 timeslot2)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_Stop_CID(uint32 chid, char cid_mode)
+int32 rtk_StopCid(uint32 chid, char cid_mode)
 {
 	TstVoipCfg stVoipCfg;
 
@@ -2290,12 +2547,14 @@ int32 rtk_Stop_CID(uint32 chid, char cid_mode)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_Set_CID_DTMF_MODE(uint32 chid, char cid_dtmf_mode, uint32 dtmf_on_ms, uint32 dtmf_pause_ms, uint32 dtmf_pre_silence, uint32 dtmf_end_silence)
+int32 rtk_SetDtmfCidParam(uint32 chid, DTMF_DIGIT start_digit, DTMF_DIGIT end_digit, uint32 auto_ctrl, uint32 dtmf_on_ms, uint32 dtmf_pause_ms, uint32 dtmf_pre_silence, uint32 dtmf_end_silence)
 {
 	TstVoipCID stCIDstr;
 
 	stCIDstr.ch_id = chid;
-	stCIDstr.cid_dtmf_mode = cid_dtmf_mode;
+	stCIDstr.cid_dtmf_start = start_digit;
+	stCIDstr.cid_dtmf_end = end_digit;
+	stCIDstr.cid_dtmf_auto = auto_ctrl;
 	stCIDstr.cid_dtmf_on_ms = dtmf_on_ms;
 	stCIDstr.cid_dtmf_pause_ms = dtmf_pause_ms;
 	stCIDstr.cid_dtmf_pre_silence_ms = dtmf_pre_silence;
@@ -2306,15 +2565,15 @@ int32 rtk_Set_CID_DTMF_MODE(uint32 chid, char cid_dtmf_mode, uint32 dtmf_on_ms, 
 	return 0;//stCIDstr.ret_val;
 }
 
-int32 rtk_Gen_Dtmf_CID(uint32 chid, const char *str_cid)
+int32 rtk_GenDtmfCid(uint32 chid, const char *str_cid)
 {
 	int i = 0;
-	rtk_enablePCM(chid, 1); // enable PCM before generating dtmf caller id
+	rtk_EnablePcm(chid, 1); // enable PCM before generating dtmf caller id
 	// set cid_state
 	if (str_cid[0] == 0)               // not null str
-		rtk_Set_Dtmf_CID_String(chid, "0123456789");   // replace "0123456789" with From CID
+		rtk_SetDtmfCidString(chid, "0123456789");   // replace "0123456789" with From CID
 	else
-		rtk_Set_Dtmf_CID_String(chid, str_cid);
+		rtk_SetDtmfCidString(chid, str_cid);
 
 	// polling cid_state until be clear
 	uint32 tmp=-1;
@@ -2329,18 +2588,18 @@ int32 rtk_Gen_Dtmf_CID(uint32 chid, const char *str_cid)
 	while (tmp);
 
         //printf("Get DTMF CID state = 0\n");
-	rtk_enablePCM(chid, 0); // disable PCM after generating dtmf caller id
+	rtk_EnablePcm(chid, 0); // disable PCM after generating dtmf caller id
 	return 0;
 }
 
-int32 rtk_Gen_FSK_CID(uint32 chid, char *str_cid, char *str_date, char *str_cid_name, char mode)
+int32 rtk_GenFskCid(uint32 chid, char *str_cid, char *str_date, char *str_cid_name, char mode)
 {
 	time_t timer = time(0);		// fsk date & time sync
 	TstVoipCID stCIDstr;
 
 	uint32 tmp=-1;
 
-	rtk_GetFskCIDState(chid, &tmp);
+	rtk_GetFskCidState(chid, &tmp);
 
 	if (tmp)
 	{
@@ -2349,7 +2608,7 @@ int32 rtk_Gen_FSK_CID(uint32 chid, char *str_cid, char *str_date, char *str_cid_
 	}
 
 	if(!mode)			// on-hook
-		rtk_enablePCM(chid, 1); // enable PCM before generating fsk caller id
+		rtk_EnablePcm(chid, 1); // enable PCM before generating fsk caller id
 
 	stCIDstr.ch_id = chid;
 	stCIDstr.cid_mode = mode;       //0:on-hook
@@ -2377,7 +2636,7 @@ int32 rtk_Gen_FSK_CID(uint32 chid, char *str_cid, char *str_date, char *str_cid_
 	int32 tmp=-1;
 	do
 	{
-		if(rtk_GetFskCIDState(chid, &tmp) != 0)
+		if(rtk_GetFskCidState(chid, &tmp) != 0)
 			break;
 		usleep(50000);  // 50ms
 	}
@@ -2387,11 +2646,11 @@ int32 rtk_Gen_FSK_CID(uint32 chid, char *str_cid, char *str_date, char *str_cid_
 */
 }
 
-int32 rtk_Gen_MDMF_FSK_CID(uint32 chid, TstFskClid* pClid, uint32 num_clid_element)
+int32 rtk_GenMdmfFskCid(uint32 chid, TstFskClid* pClid, uint32 num_clid_element)
 {
 	uint32 tmp=-1;
 
-	rtk_GetFskCIDState(chid, &tmp);
+	rtk_GetFskCidState(chid, &tmp);
 
 	if (tmp)
 	{
@@ -2399,7 +2658,7 @@ int32 rtk_Gen_MDMF_FSK_CID(uint32 chid, TstFskClid* pClid, uint32 num_clid_eleme
 	}
 
 	if( pClid->service_type == 0 )	// on-hook
-		rtk_enablePCM(chid, 1); // enable PCM before generating fsk caller id
+		rtk_EnablePcm(chid, 1); // enable PCM before generating fsk caller id
 
 	SETSOCKOPT(VOIP_MGR_FSK_CID_MDMF_GEN, pClid, TstFskClid, 1);
 
@@ -2407,7 +2666,7 @@ int32 rtk_Gen_MDMF_FSK_CID(uint32 chid, TstFskClid* pClid, uint32 num_clid_eleme
 
 }
 
-int32 rtk_Gen_CID_And_FXS_Ring(uint32 chid, char cid_mode, char *str_cid, char *str_date, char *str_cid_name, char fsk_type, uint32 bRinging)
+int32 rtk_GenCidAndFxsRing(uint32 chid, char cid_mode, char *str_cid, char *str_date, char *str_cid_name, char fsk_type, uint32 bRinging)
 {
 
 	TstVoipSlicRing stVoipSlicRing;
@@ -2475,11 +2734,11 @@ int32 rtk_Gen_CID_And_FXS_Ring(uint32 chid, char cid_mode, char *str_cid, char *
 	{
 		if (cid_mode == 0)	// DTMF CID
 		{
-			ret = rtk_Gen_Dtmf_CID(chid, str_cid);
+			ret = rtk_GenDtmfCid(chid, str_cid);
 		}
 		else	// FSK CID
 		{
-			ret = rtk_Gen_FSK_CID(chid, str_cid, str_date, str_cid_name, fsk_type);
+			ret = rtk_GenFskCid(chid, str_cid, str_date, str_cid_name, fsk_type);
 		}
 
 		return ret;
@@ -2518,13 +2777,11 @@ int32 rtk_Gen_FSK_ALERT(uint32 chid, char *str_cid)
 }
 #endif
 
-int32 rtk_Gen_FSK_VMWI(uint32 chid, char *state, char mode)  /* state:	point to the address of value to set VMWI state. 0 : off; 1 : on*/
+int32 rtk_GenFskVmwi(uint32 chid, TstFskClid* pVmwi, uint32 num_vmwi_element)
 {
-	TstVoipCID stCIDstr;
-
 	uint32 tmp=-1;
 
-	rtk_GetFskCIDState(chid, &tmp);
+	rtk_GetFskCidState(chid, &tmp);
 
 	if (tmp)
 	{
@@ -2532,19 +2789,16 @@ int32 rtk_Gen_FSK_VMWI(uint32 chid, char *state, char mode)  /* state:	point to 
 		return -2; /* don't double send caller id/vmwi when sending */
 	}
 
-	if(!mode)			// on-hook
-		rtk_enablePCM(chid, 1); // enable PCM before generating VMWI
+	if( pVmwi->service_type == 0 )	// on-hook
+		rtk_EnablePcm(chid, 1); // enable PCM before generating VMWI
 
-	stCIDstr.ch_id = chid;
-	stCIDstr.cid_mode = mode;       //0:on-hook
-	strcpy(stCIDstr.string, state);
-	SETSOCKOPT(VOIP_MGR_SET_FSK_VMWI_STATE, &stCIDstr, TstVoipCID, 1);
+	SETSOCKOPT(VOIP_MGR_SET_FSK_VMWI_STATE, pVmwi, TstFskClid, 1);
 
 	return 0;//stCIDstr.ret_val;
 
 }
 
-int32 rtk_Set_FSK_Area(uint32 chid, uint32 area)   /* area -> 0:Bellcore 1:ETSI 2:BT 3:NTT */
+int32 rtk_SetFskArea(uint32 chid, uint32 area)   /* area -> 0:Bellcore 1:ETSI 2:BT 3:NTT */
 {
 	TstVoipCfg stVoipCfg;
 
@@ -2593,7 +2847,7 @@ int32 rtk_SetRunRing(char* number)
 }
 #endif
 
-int32 rtk_Hold_Rtp(uint32 chid, uint32 sid, uint32 enable)
+int32 rtk_HoldRtp(uint32 chid, uint32 sid, uint32 enable)
 {
     TstVoipCfg stVoipCfg;
 
@@ -2617,6 +2871,7 @@ int32 rtk_Hold_Rtp(uint32 chid, uint32 sid, uint32 enable)
 int32 rtk_enable_pcm(uint32 chid, int32 bEnable)
 {
     TstVoipCfg stVoipCfg;
+    TstDtmfDetPara stDtmfDetPara;
 
     stVoipCfg.ch_id = chid;
     stVoipCfg.enable = bEnable;
@@ -2626,12 +2881,14 @@ int32 rtk_enable_pcm(uint32 chid, int32 bEnable)
 	//	return stVoipCfg.ret_val;
 	//}
 
-    stVoipCfg.cfg = 0; /*dir0*/
-    SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stVoipCfg, TstVoipCfg, 1);
+	stDtmfDetPara.ch_id = chid;
+	stDtmfDetPara.enable = bEnable;
+    stDtmfDetPara.dir = 0; /*dir0*/
+    SETSOCKOPT(VOIP_MGR_DTMF_CFG, &stDtmfDetPara, TstDtmfDetPara, 1);
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_Set_DTMF_CFG(uint32 chid, int32 bEnable, uint32 dir)
+int32 rtk_SetDtmfCfg(uint32 chid, int32 bEnable, uint32 dir)
 {
     TstDtmfDetPara stDtmfDetPara;
 
@@ -2644,23 +2901,35 @@ int32 rtk_Set_DTMF_CFG(uint32 chid, int32 bEnable, uint32 dir)
 }
 
 
-int32 rtk_set_dtmf_det_param(uint32 chid, uint32 dir, int32 threshold, uint32 on_time_10ms, uint32 fore_twist, uint32 rev_twist) /* Threshold: 0 ~ 40, it means 0 ~ -40 dBm */
+int32 rtk_SetDtmfDetParam(uint32 chid, uint32 dir, int32 threshold, uint32 on_time_10ms, uint32 fore_twist, uint32 rev_twist) /* Threshold: 0 ~ 40, it means 0 ~ -40 dBm */
 {
 	TstDtmfDetPara stDtmfDetPara;
 
 	stDtmfDetPara.ch_id = chid;
 	stDtmfDetPara.dir = dir;
+	stDtmfDetPara.thres_upd = 1;
 	stDtmfDetPara.thres = threshold;
+	stDtmfDetPara.on_time_upd = 1;
 	stDtmfDetPara.on_time = on_time_10ms;
+	stDtmfDetPara.twist_upd = 1;
 	stDtmfDetPara.fore_twist = fore_twist;
 	stDtmfDetPara.rev_twist = rev_twist;
+	stDtmfDetPara.freq_offset_upd = 0; // no update freq.-offset flag
 
 	SETSOCKOPT(VOIP_MGR_DTMF_DET_PARAM, &stDtmfDetPara, TstDtmfDetPara, 1);
 
 	return 0;//stDtmfDetPara.ret_val;
 }
 
-uint32 rtk_Get_SLIC_Reg_Val(uint32 chid, uint32 reg, uint8 *regdata)
+int32 rtk_SetDtmfDetParamUpdate(TstDtmfDetPara* stDtmfDetPara)
+{
+
+	SETSOCKOPT(VOIP_MGR_DTMF_DET_PARAM, stDtmfDetPara, TstDtmfDetPara, 1);
+
+	return 0;//stDtmfDetPara.ret_val;
+}
+
+uint32 rtk_GetSlicRegVal(uint32 chid, uint32 reg, uint8 *regdata)
 {
 	TstVoipSlicReg stSlicReg;
 
@@ -2679,7 +2948,7 @@ uint32 rtk_Get_SLIC_Reg_Val(uint32 chid, uint32 reg, uint8 *regdata)
 	return stSlicReg.reg_len;
 }
 
-int rtk_Get_DAA_Used_By_Which_SLIC(uint32 chid)
+int rtk_GetDaaUsedByWhichSlic(uint32 chid)
 {
 
 	TstVoipValue stVoipValue;
@@ -2697,7 +2966,7 @@ int rtk_Get_DAA_Used_By_Which_SLIC(uint32 chid)
 
 }
 
-int rtk_DAA_on_hook(uint32 chid)// for virtual DAA on-hook(channel ID is FXS channel)
+int rtk_DaaOnHook(uint32 chid)// for virtual DAA on-hook(channel ID is FXS channel)
 {
 	if ((g_VoIP_Feature & DAA_TYPE_MASK) != NO_DAA )
 	{
@@ -2714,7 +2983,7 @@ int rtk_DAA_on_hook(uint32 chid)// for virtual DAA on-hook(channel ID is FXS cha
 	return 0;
 }
 
-int rtk_DAA_off_hook(uint32 chid)// for virtual DAA off-hook(channel ID is FXS channel)
+int rtk_DaaOffHook(uint32 chid)// for virtual DAA off-hook(channel ID is FXS channel)
 {
 	if ((g_VoIP_Feature & DAA_TYPE_MASK) != NO_DAA )
 	{
@@ -2732,12 +3001,12 @@ int rtk_DAA_off_hook(uint32 chid)// for virtual DAA off-hook(channel ID is FXS c
 	}
 	else
 	{
-		printf("API rtk_DAA_off_hook usage error.\n");
+		printf("API rtk_DaaOffHook usage error.\n");
 		return 0xff;
 	}
 }
 
-int rtk_DAA_ring(uint32 chid)
+int rtk_DaaRing(uint32 chid)
 {
 
 	if ((g_VoIP_Feature & DAA_TYPE_MASK) != NO_DAA )
@@ -2760,7 +3029,7 @@ int rtk_DAA_ring(uint32 chid)
 	}
 }
 
-int32 rtk_Set_Country(voipCfgParam_t *voip_ptr)
+int32 rtk_SetCountry(voipCfgParam_t *voip_ptr)
 {
 	TstVoipValue stVoipValue;
 	char country;
@@ -2793,7 +3062,7 @@ int32 rtk_Set_Country(voipCfgParam_t *voip_ptr)
 	return 0;
 }
 
-int32 rtk_Set_Country_Impedance(_COUNTRY_ country)
+int32 rtk_SetCountryImpedance(_COUNTRY_ country)
 {
 	TstVoipValue stVoipValue;
 
@@ -2803,7 +3072,7 @@ int32 rtk_Set_Country_Impedance(_COUNTRY_ country)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_Country_Tone(_COUNTRY_ country)
+int32 rtk_SetCountryTone(_COUNTRY_ country)
 {
 	TstVoipValue stVoipValue;
 
@@ -2813,7 +3082,7 @@ int32 rtk_Set_Country_Tone(_COUNTRY_ country)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_Impedance(uint16 preset)
+int32 rtk_SetImpedance(uint16 preset)
 {
 	TstVoipValue stVoipValue;
 
@@ -2823,7 +3092,7 @@ int32 rtk_Set_Impedance(uint16 preset)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_Dis_Tone_Para(voipCfgParam_t *voip_ptr)
+int32 rtk_SetDisTonePara(voipCfgParam_t *voip_ptr)
 {
 	TstVoipdistonedet_parm stVoipdistonedet_parm;
 
@@ -2858,7 +3127,7 @@ int32 rtk_Set_Dis_Tone_Para(voipCfgParam_t *voip_ptr)
 }
 
 
-int32 rtk_Set_Custom_Tone(uint8 custom, st_ToneCfgParam *pstToneCfgParam)
+int32 rtk_SetCustomTone(uint8 custom, st_ToneCfgParam *pstToneCfgParam)
 {
 	TstVoipValue stVoipValue;
 	TstVoipToneCfg stVoipToneCfg;
@@ -2885,7 +3154,7 @@ int32 rtk_Set_Custom_Tone(uint8 custom, st_ToneCfgParam *pstToneCfgParam)
  TstVoipValue.value4 Customer call waiting tone
  */
 
-int32 rtk_Use_Custom_Tone(uint8 dial, uint8 ringback, uint8 busy, uint8 waiting)
+int32 rtk_UseCustomTone(uint8 dial, uint8 ringback, uint8 busy, uint8 waiting)
 {
 	TstVoipValue stVoipValue;
 
@@ -2899,7 +3168,28 @@ int32 rtk_Use_Custom_Tone(uint8 dial, uint8 ringback, uint8 busy, uint8 waiting)
 	return 0;//stVoipValue.ret_val;
 }
 
-int rtk_Set_SLIC_Reg_Val(int chid, int reg, int len, char *regdata)
+int32 rtk_SetUpdateTone(uint8 update_country,uint8 update_tone, st_ToneCfgParam *pstToneCfgParam)
+{
+	TstVoipValue stVoipValue;
+	TstVoipToneCfg stVoipToneCfg;
+
+	stVoipValue.value = update_country;
+	stVoipValue.value1 = update_tone;
+	memcpy(&stVoipToneCfg, pstToneCfgParam, sizeof(TstVoipToneCfg));
+	SETSOCKOPT(VOIP_MGR_SET_TONE_OF_UPDATE, &stVoipValue, TstVoipValue, 1);
+
+	//if (stVoipValue.ret_val != 0)
+	//{
+	//	return stVoipValue.ret_val;
+	//}
+
+	SETSOCKOPT(VOIP_MGR_SET_UPDATE_TONE_PARAM, &stVoipToneCfg, TstVoipToneCfg, 1);
+
+	return 0;//stVoipToneCfg.ret_val;
+
+}
+
+int rtk_SetSlicRegVal(int chid, int reg, int len, char *regdata)
 {
 	//int i;
 	TstVoipSlicReg stSlicReg;
@@ -2943,7 +3233,7 @@ int rtk_Set_PCM_Loop_Mode(char group, char mode, char main_ch, char mate_ch) //m
 	return 0;//stVoipValue.ret_val;
 }
 
-int rtk_Set_FXS_FXO_Loopback(unsigned int chid, unsigned int enable)
+int rtk_SetFxsFxoLoopback(unsigned int chid, unsigned int enable)
 {
 	TstVoipCfg stVoipCfg;
 
@@ -2955,7 +3245,7 @@ int rtk_Set_FXS_FXO_Loopback(unsigned int chid, unsigned int enable)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int rtk_Set_FXS_OnHook_Trans_PCM_ON(unsigned int chid)
+int rtk_SetFxsOnHookTransPcmOn(unsigned int chid)
 {
 	TstVoipCfg stVoipCfg;
 
@@ -2982,151 +3272,15 @@ int rtk_debug(int dbg_flag)
 	return rtk_debug_with_watchdog( dbg_flag, 2 );
 }
 
-int rtk_8305_switch(unsigned short phy,unsigned short reg,unsigned short value,unsigned short r_w)
-{
-	TstVoipSwitch switch_value;
-
-	switch_value.phy = phy;
-	switch_value.reg = reg;
-	switch_value.value = value;
-	switch_value.read_write = r_w;
-	SETSOCKOPT(VOIP_MGR_8305_SWITCH_VAL, &switch_value, TstVoipSwitch,1);
-	return 0;
-}
-
-//add by Tim, 1/8/2008
-//Wan Clone MAC
-int rtk_WAN_Clone_MAC(unsigned char* MAC){
-	TstVoipCloneMAC MAC_address;
-	memcpy(MAC_address.CloneMACAddress, MAC, 6);
-	SETSOCKOPT(VOIP_MGR_SET_WAN_CLONE_MAC, &MAC_address, TstVoipCloneMAC,1);
-	return 0;
-}
-
-int rtk_Bandwidth_Mgr(	unsigned int port, unsigned int dir, unsigned int ban)
-{
-	TstVoipBandwidthMgr BandwidthMgr;
-	BandwidthMgr.port = port;
-	BandwidthMgr.dir = dir;
-	BandwidthMgr.ban = ban;
-	SETSOCKOPT(VOIP_MGR_BANDWIDTH_MGR, &BandwidthMgr, TstVoipBandwidthMgr,1);
-	return 0;
-}
-
-int rtk_Disable_Port(unsigned int port, unsigned int disable)
-{
-	TstVoipPortConfig DisablePort;
-	DisablePort.port = port;
-	DisablePort.config = disable;
-	SETSOCKOPT(VOIP_MGR_PORT_DISABLE, &DisablePort, TstVoipPortConfig,1);
-	return 0;
-}
-int rtk_qos_set_port_priority(unsigned int port, unsigned int priority)
-{
-	TstVoipPortConfig port_priority;
-	port_priority.port = port;
-	port_priority.config = priority;
-	SETSOCKOPT(VOIP_MGR_PORT_PRIORITY, &port_priority, TstVoipPortConfig,1);
-	return 0;
-}
-
-int rtk_Disable_FlowControl( unsigned int port,unsigned int disable)
-{
-	TstVoipPortConfig Disable_FlowControl;
-	Disable_FlowControl.port = port;
-	Disable_FlowControl.config = disable;
-	SETSOCKOPT(VOIP_MGR_PORT_DISABLE_FLOWCONTROL, &Disable_FlowControl, TstVoipPortConfig,1);
-	return 0;
-}
-#ifdef CONFIG_RTK_VOIP_WAN_VLAN
-
-int rtk_switch_wan_3_vlan(voipCfgParam_t *voip_ptr)
-{
-	TstVoipSwitch_3_VLAN_tag wan_3_vlan_tag;
-
-	if (voip_ptr->wanVlanEnable) {
-		wan_3_vlan_tag.enable = voip_ptr->wanVlanEnable;
-		wan_3_vlan_tag.vlanIdVoice =  voip_ptr->wanVlanIdVoice;
-		wan_3_vlan_tag.priorityVoice =  voip_ptr->wanVlanPriorityVoice;
-		wan_3_vlan_tag.cfiVoice =  voip_ptr->wanVlanCfiVoice;
-                wan_3_vlan_tag.vlanIdData =  voip_ptr->wanVlanIdData;
-                wan_3_vlan_tag.priorityData =  voip_ptr->wanVlanPriorityData;
-                wan_3_vlan_tag.cfiData =  voip_ptr->wanVlanCfiData;
-                wan_3_vlan_tag.vlanIdVideo =  voip_ptr->wanVlanIdVideo;
-                wan_3_vlan_tag.priorityVideo =  voip_ptr->wanVlanPriorityVideo;
-                wan_3_vlan_tag.cfiVideo =  voip_ptr->wanVlanCfiVideo;
-	} else {
-		memset(&wan_3_vlan_tag, 0, sizeof(wan_3_vlan_tag));
-	}
-	SETSOCKOPT(VOIP_MGR_WAN_3_VLAN_TAG, &wan_3_vlan_tag, TstVoipSwitch_VLAN_tag,1);
-	return 0;
-}
-
-
-int rtk_switch_wan_2_vlan(voipCfgParam_t *voip_ptr)
-{
-	TstVoipSwitch_2_VLAN_tag wan_2_vlan_tag;
-
-	if (voip_ptr->wanVlanEnable) {
-		wan_2_vlan_tag.enable = voip_ptr->wanVlanEnable;
-		wan_2_vlan_tag.vlanIdVoice =  voip_ptr->wanVlanIdVoice;
-		wan_2_vlan_tag.priorityVoice =  voip_ptr->wanVlanPriorityVoice;
-		wan_2_vlan_tag.cfiVoice =  voip_ptr->wanVlanCfiVoice;
-                wan_2_vlan_tag.vlanIdData =  voip_ptr->wanVlanIdData;
-                wan_2_vlan_tag.priorityData =  voip_ptr->wanVlanPriorityData;
-                wan_2_vlan_tag.cfiData =  voip_ptr->wanVlanCfiData;
-	} else {
-		memset(&wan_2_vlan_tag, 0, sizeof(wan_2_vlan_tag));
-	}
-	SETSOCKOPT(VOIP_MGR_WAN_2_VLAN_TAG, &wan_2_vlan_tag, TstVoipSwitch_VLAN_tag,1);
-	return 0;
-}
-
-
-int rtk_switch_wan_vlan(voipCfgParam_t *voip_ptr)
-{
-	TstVoipSwitch_VLAN_tag wan_vlan_tag;
-
-	if (voip_ptr->wanVlanEnable) {
-		wan_vlan_tag.enable = voip_ptr->wanVlanEnable;
-		wan_vlan_tag.vlanId =  voip_ptr->wanVlanIdVoice;
-		wan_vlan_tag.priority =  voip_ptr->wanVlanPriorityVoice;
-		wan_vlan_tag.cfi =  voip_ptr->wanVlanCfiVoice;
-	} else {
-		memset(&wan_vlan_tag, 0, sizeof(wan_vlan_tag));
-	}
-	SETSOCKOPT(VOIP_MGR_WAN_VLAN_TAG, &wan_vlan_tag, TstVoipSwitch_VLAN_tag,1);
-	return 0;
-}
-
-#endif // CONFIG_RTK_VOIP_WAN_VLAN
-
-#if 0
-int rtk_8305_switch_wan_vlan_tag(unsigned char enable,unsigned short wan_vlan_id)
-{
-	TstVoipSwitch_VLAN_tag wan_vlan_tag;
-
-	wan_vlan_tag.WAN_VLAN_TAG_ENABLE = enable;
-	wan_vlan_tag.WAN_VLAN_ID = wan_vlan_id;
-	SETSOCKOPT(VOIP_MGR_WAN_VLAN_TAG, &wan_vlan_tag, TstVoipSwitch_VLAN_tag,1);
-	return 0;
-}
-
-int rtk_8305_switch_bridge_mode(unsigned char bridge_mode_enable)
-{
-	SETSOCKOPT(VOIP_MGR_BRIDGE_MODE, &bridge_mode_enable, unsigned char,1);
-	return 0;
-}
-#endif
-
 #ifdef CONFIG_RTK_VOIP_IVR
-int rtk_IvrStartPlaying( unsigned int chid, IvrPlayDir_t dir, char *pszText2Speech )
+int rtk_IvrStartPlaying( unsigned int chid, unsigned int sid, IvrPlayDir_t dir, char *pszText2Speech )
 {
 	TstVoipPlayIVR_Text stVoipPlayIVR_Text;
 
 	stVoipPlayIVR_Text.ch_id = chid;
+	stVoipPlayIVR_Text.m_id = sid;
 	stVoipPlayIVR_Text.type = IVR_PLAY_TYPE_TEXT;
-	stVoipPlayIVR_Text.direction = dir;
+	stVoipPlayIVR_Text.dir = dir;
 	memcpy( stVoipPlayIVR_Text.szText2speech, pszText2Speech, MAX_LEN_OF_IVR_TEXT );
 	stVoipPlayIVR_Text.szText2speech[ MAX_LEN_OF_IVR_TEXT ] = '\x0';
 
@@ -3135,7 +3289,7 @@ int rtk_IvrStartPlaying( unsigned int chid, IvrPlayDir_t dir, char *pszText2Spee
 	return ( int )stVoipPlayIVR_Text.playing_period_10ms;
 }
 
-int rtk_IvrStartPlayG72363( unsigned int chid, unsigned int nFrameCount, const unsigned char *pData )
+int rtk_IvrStartPlayG72363( unsigned int chid, unsigned int sid, IvrPlayDir_t dir, unsigned int nFrameCount, const unsigned char *pData )
 {
 	TstVoipPlayIVR_G72363 stVoipPlayIVR;
 
@@ -3143,7 +3297,9 @@ int rtk_IvrStartPlayG72363( unsigned int chid, unsigned int nFrameCount, const u
 		nFrameCount = MAX_FRAMES_OF_G72363;
 
 	stVoipPlayIVR.ch_id = chid;
+	stVoipPlayIVR.m_id = sid;
 	stVoipPlayIVR.type = IVR_PLAY_TYPE_G723_63;
+	stVoipPlayIVR.dir = dir;
 	stVoipPlayIVR.nFramesCount = nFrameCount;
 	memcpy( stVoipPlayIVR.data, pData, nFrameCount * 24 );
 
@@ -3152,7 +3308,7 @@ int rtk_IvrStartPlayG72363( unsigned int chid, unsigned int nFrameCount, const u
     return stVoipPlayIVR.nRetCopiedFrames;
 }
 
-int rtk_IvrStartPlayG729( unsigned int chid, unsigned int nFrameCount, const unsigned char *pData )
+int rtk_IvrStartPlayG729( unsigned int chid, unsigned int sid, IvrPlayDir_t dir, unsigned int nFrameCount, const unsigned char *pData )
 {
 	TstVoipPlayIVR_G729 stVoipPlayIVR;
 
@@ -3160,7 +3316,9 @@ int rtk_IvrStartPlayG729( unsigned int chid, unsigned int nFrameCount, const uns
 		nFrameCount = MAX_FRAMES_OF_G729;
 
 	stVoipPlayIVR.ch_id = chid;
+	stVoipPlayIVR.m_id = sid;
 	stVoipPlayIVR.type = IVR_PLAY_TYPE_G729;
+	stVoipPlayIVR.dir = dir;
 	stVoipPlayIVR.nFramesCount = nFrameCount;
 	memcpy( stVoipPlayIVR.data, pData, nFrameCount * 10 );
 
@@ -3169,22 +3327,24 @@ int rtk_IvrStartPlayG729( unsigned int chid, unsigned int nFrameCount, const uns
     return stVoipPlayIVR.nRetCopiedFrames;
 }
 
-int rtk_IvrPollPlaying( unsigned int chid )
+int rtk_IvrPollPlaying( unsigned int chid, unsigned int sid)
 {
 	TstVoipPollIVR stVoipPollIVR;
 
 	stVoipPollIVR.ch_id = chid;
+	stVoipPollIVR.m_id = sid;
 
 	SETSOCKOPT( VOIP_MGR_POLL_IVR, &stVoipPollIVR, TstVoipPollIVR, 1 );
 
 	return ( int )stVoipPollIVR.bPlaying;
 }
 
-int rtk_IvrStopPlaying( unsigned int chid )
+int rtk_IvrStopPlaying( unsigned int chid, unsigned int sid)
 {
 	TstVoipStopIVR stVoipStopIVR;
 
 	stVoipStopIVR.ch_id = chid;
+	stVoipStopIVR.m_id = sid;
 
 	SETSOCKOPT( VOIP_MGR_STOP_IVR, &stVoipStopIVR, TstVoipStopIVR, 1 );
 
@@ -3192,7 +3352,7 @@ int rtk_IvrStopPlaying( unsigned int chid )
 }
 #endif /* CONFIG_RTK_VOIP_IVR */
 
-int rtk_sip_register(unsigned int chid, unsigned int isOK)
+int rtk_SipRegister(unsigned int chid, unsigned int isOK)
 {
    	TstVoipCfg stVoipCfg;
 
@@ -3206,7 +3366,7 @@ int rtk_sip_register(unsigned int chid, unsigned int isOK)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_SIP_INFO_play_tone(unsigned int chid, unsigned int ssid, DSPCODEC_TONE tone, unsigned int duration)
+int32 rtk_SipInfoPlayTone(unsigned int chid, unsigned int ssid, DSPCODEC_TONE tone, unsigned int duration)
 {
 	TstVoipValue stVoipValue;
 
@@ -3221,7 +3381,7 @@ int32 rtk_SIP_INFO_play_tone(unsigned int chid, unsigned int ssid, DSPCODEC_TONE
 }
 
 
-int32 rtk_Set_SPK_AGC(uint32 chid, uint32 support_gain, uint32 adaptive_threshold)
+int32 rtk_SetSpkAgc(uint32 chid, uint32 support_gain, uint32 adaptive_threshold)
 {
 	TstVoipValue stVoipValue;
 
@@ -3234,7 +3394,7 @@ int32 rtk_Set_SPK_AGC(uint32 chid, uint32 support_gain, uint32 adaptive_threshol
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_SPK_AGC_LVL(uint32 chid, uint32 level)
+int32 rtk_SetSpkAgcLvl(uint32 chid, uint32 level)
 {
 	TstVoipValue stVoipValue;
 
@@ -3248,7 +3408,7 @@ int32 rtk_Set_SPK_AGC_LVL(uint32 chid, uint32 level)
 }
 
 
-int32 rtk_Set_SPK_AGC_GUP(uint32 chid, uint32 gain)
+int32 rtk_SetSpkAgcGup(uint32 chid, uint32 gain)
 {
 	TstVoipValue stVoipValue;
 
@@ -3262,7 +3422,7 @@ int32 rtk_Set_SPK_AGC_GUP(uint32 chid, uint32 gain)
 }
 
 
-int32 rtk_Set_SPK_AGC_GDOWN(uint32 chid, uint32 gain)
+int32 rtk_SetSpkAgcGdown(uint32 chid, uint32 gain)
 {
 	TstVoipValue stVoipValue;
 
@@ -3276,7 +3436,7 @@ int32 rtk_Set_SPK_AGC_GDOWN(uint32 chid, uint32 gain)
 }
 
 
-int32 rtk_Set_MIC_AGC(uint32 chid, uint32 support_gain, uint32 adaptive_threshold)
+int32 rtk_SetMicAgc(uint32 chid, uint32 support_gain, uint32 adaptive_threshold)
 {
 	TstVoipValue stVoipValue;
 
@@ -3290,7 +3450,7 @@ int32 rtk_Set_MIC_AGC(uint32 chid, uint32 support_gain, uint32 adaptive_threshol
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_MIC_AGC_LVL(uint32 chid, uint32 level)
+int32 rtk_SetMicAgcLvl(uint32 chid, uint32 level)
 {
 	TstVoipValue stVoipValue;
 
@@ -3303,7 +3463,7 @@ int32 rtk_Set_MIC_AGC_LVL(uint32 chid, uint32 level)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_MIC_AGC_GUP(uint32 chid, uint32 gain)
+int32 rtk_SetMicAgcGup(uint32 chid, uint32 gain)
 {
 	TstVoipValue stVoipValue;
 
@@ -3317,7 +3477,7 @@ int32 rtk_Set_MIC_AGC_GUP(uint32 chid, uint32 gain)
 }
 
 
-int32 rtk_Set_MIC_AGC_GDOWN(uint32 chid, uint32 gain)
+int32 rtk_SetMicAgcGdown(uint32 chid, uint32 gain)
 {
 	TstVoipValue stVoipValue;
 
@@ -3332,7 +3492,7 @@ int32 rtk_Set_MIC_AGC_GDOWN(uint32 chid, uint32 gain)
 
 #if 0
 
-int32 rtk_Get_DAA_ISR_FLOW(unsigned int chid ,unsigned int mid)
+int32 rtk_GetDaaIsrFlow(unsigned int chid ,unsigned int mid)
 {
 	unsigned int flow;
 	TstVoipValue stVoipValue;
@@ -3347,11 +3507,11 @@ int32 rtk_Get_DAA_ISR_FLOW(unsigned int chid ,unsigned int mid)
 }
 
 /* Usage:
-	  rtk_Set_DAA_ISR_FLOW(chid, DAA_FLOW_NORMAL)
-	  rtk_Set_DAA_ISR_FLOW(chid, DAA_FLOW_3WAY_CONFERENCE)
-	  rtk_Set_DAA_ISR_FLOW(chid, DAA_FLOW_CALL_FORWARD)
+	  rtk_SetDaaIsrFlow(chid, DAA_FLOW_NORMAL)
+	  rtk_SetDaaIsrFlow(chid, DAA_FLOW_3WAY_CONFERENCE)
+	  rtk_SetDaaIsrFlow(chid, DAA_FLOW_CALL_FORWARD)
 */
-int32 rtk_Set_DAA_ISR_FLOW(unsigned int chid, unsigned int mid, unsigned int flow)
+int32 rtk_SetDaaIsrFlow(unsigned int chid, unsigned int mid, unsigned int flow)
 {
 	TstVoipValue stVoipValue;
 	int res;
@@ -3363,26 +3523,26 @@ int32 rtk_Set_DAA_ISR_FLOW(unsigned int chid, unsigned int mid, unsigned int flo
 
 	if( flow == 0 ) /* Normal */
 	{
-		if (rtk_Get_DAA_ISR_FLOW(chid, mid) == DAA_FLOW_CALL_FORWARD)
-			rtk_enablePCM(chid, 0);
-		rtk_DAA_on_hook(chid);
+		if (rtk_GetDaaIsrFlow(chid, mid) == DAA_FLOW_CALL_FORWARD)
+			rtk_EnablePcm(chid, 0);
+		rtk_DaaOnHook(chid);
 		res = 1;
 	}
 	else if ( flow == 1 ) /* PSTN 3-way conference */
 	{
-		res = rtk_DAA_off_hook(chid);
+		res = rtk_DaaOffHook(chid);
 
 		if (res == 0xff)
 			stVoipValue.value = DAA_FLOW_NORMAL;
 	}
 	else if ( flow == 2 ) /* PSTN call forward */
 	{
-		rtk_enablePCM(chid, 1);
-		res = rtk_DAA_off_hook(chid);
+		rtk_EnablePcm(chid, 1);
+		res = rtk_DaaOffHook(chid);
 
 		if (res == 0xff)
 		{
-			rtk_enablePCM(chid, 0);
+			rtk_EnablePcm(chid, 0);
 			stVoipValue.value = DAA_FLOW_NORMAL;
 		}
 	}
@@ -3395,7 +3555,7 @@ int32 rtk_Set_DAA_ISR_FLOW(unsigned int chid, unsigned int mid, unsigned int flo
 
 #endif
 
-int32 rtk_Dial_PSTN_Call_Forward(uint32 chid, uint32 sid, char *cf_no_str)
+int32 rtk_DialPstnCallForward(uint32 chid, uint32 sid, char *cf_no_str)
 {
    	char cf_no[21];
    	int len = strlen(cf_no_str), i;
@@ -3420,7 +3580,7 @@ int32 rtk_Dial_PSTN_Call_Forward(uint32 chid, uint32 sid, char *cf_no_str)
 
 #if 0
 
-int32 rtk_Set_PSTN_HOLD_CFG(unsigned int slic_chid, unsigned int daa_chid, unsigned int config)
+int32 rtk_SetPstnHoldCfg(unsigned int slic_chid, unsigned int daa_chid, unsigned int config)
 {
 	TstVoipValue stVoipValue;
 
@@ -3435,7 +3595,7 @@ int32 rtk_Set_PSTN_HOLD_CFG(unsigned int slic_chid, unsigned int daa_chid, unsig
 	return 0;
 }
 
-int32 rtk_Get_DAA_BusyTone_Status(unsigned int daa_chid)
+int32 rtk_GetDaaBusyToneStatus(unsigned int daa_chid)
 {
 	TstVoipValue stVoipValue;
 	int busy_flag;	/* Busy tone is  1: Detected, 0: NOT detected. */
@@ -3450,7 +3610,7 @@ int32 rtk_Get_DAA_BusyTone_Status(unsigned int daa_chid)
 
 #endif
 
-int32 rtk_Get_DAA_CallerID(uint32 chid, char *str_cid, char *str_date, char *str_name)
+int32 rtk_GetDaaCallerID(uint32 chid, char *str_cid, char *str_date, char *str_name)
 {
 	TstVoipCID stCIDstr;
 
@@ -3470,7 +3630,7 @@ int32 rtk_Get_DAA_CallerID(uint32 chid, char *str_cid, char *str_date, char *str
 	return 0;
 }
 
-int32 rtk_Get_VoIP_Feature(void)
+int32 rtk_GetVoIPFeature(void)
 {
    	TstVoipFeature stVoipFeature;
 
@@ -3485,7 +3645,7 @@ int32 rtk_Get_VoIP_Feature(void)
 
 	g_VoIP_Ports = RTK_VOIP_CH_NUM( g_VoIP_Feature );
 
-	//printf("rtk_Get_VoIP_Feature: 0x%llx \n", *( ( uint64 * )( void * )&g_VoIP_Feature ) );
+	//printf("rtk_GetVoIPFeature: 0x%llx \n", *( ( uint64 * )( void * )&g_VoIP_Feature ) );
 
 #if 0
 	printf( "\tRTK_VOIP_SLIC_NUM=%d\n", RTK_VOIP_SLIC_NUM( g_VoIP_Feature ) );
@@ -3507,7 +3667,7 @@ int32 rtk_Get_VoIP_Feature(void)
 	return 0;
 }
 
-int32 rtk_Set_CID_Det_Mode(uint32 chid, int auto_det, int cid_det_mode)
+int32 rtk_SetCidDetMode(uint32 chid, int auto_det, int cid_det_mode)
 {
    	TstVoipCfg stVoipCfg;
 
@@ -3520,7 +3680,7 @@ int32 rtk_Set_CID_Det_Mode(uint32 chid, int auto_det, int cid_det_mode)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_GetFskCIDState(uint32 chid, uint32 *cid_state)
+int32 rtk_GetFskCidState(uint32 chid, uint32 *cid_state)
 {
 	TstVoipCID stCIDstr;
 
@@ -3531,7 +3691,7 @@ int32 rtk_GetFskCIDState(uint32 chid, uint32 *cid_state)
 	return 0;//stCIDstr.ret_val;
 }
 
-int32 rtk_Set_CID_FSK_GEN_MODE(unsigned int chid, unsigned int isOK)
+int32 rtk_SetCidFskGenMode(unsigned int chid, unsigned int isOK)
 {
    	TstVoipCfg stVoipCfg;
 
@@ -3542,7 +3702,7 @@ int32 rtk_Set_CID_FSK_GEN_MODE(unsigned int chid, unsigned int isOK)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_Set_Voice_Gain(uint32 chid, int spk_gain, int mic_gain)
+int32 rtk_SetVoiceGain(uint32 chid, int spk_gain, int mic_gain)
 {
 	TstVoipValue stVoipValue;
 
@@ -3555,7 +3715,7 @@ int32 rtk_Set_Voice_Gain(uint32 chid, int spk_gain, int mic_gain)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_AnswerTone_Det(uint32 chid, uint32 config, int32 threshold)
+int32 rtk_SetAnswerToneDet(uint32 chid, uint32 config, int32 threshold)
 {
 	TstVoipCfg stVoipCfg;
 
@@ -3568,7 +3728,7 @@ int32 rtk_Set_AnswerTone_Det(uint32 chid, uint32 config, int32 threshold)
 	return 0;//stVoipValue.ret_val;
 }
 
-int32 rtk_Set_Silence_Det_Threshold(uint32 chid, uint32 energy, uint32 period)
+int32 rtk_SetSilenceDetThreshold(uint32 chid, uint32 energy, uint32 period)
 {
 	TstVoipCfg stVoipCfg;
 	
@@ -3591,7 +3751,7 @@ int32 rtk_Set_Silence_Det_Threshold(uint32 chid, uint32 energy, uint32 period)
 	return 0;
 }
 
-int32 rtk_Gen_FSK_CID_VMWI(uint32 chid, char *str_cid, char *str_date, char *str_cid_name, char mode, char msg_type)
+int32 rtk_GenFskCidVmwi(uint32 chid, char *str_cid, char *str_date, char *str_cid_name, char mode, char msg_type)
 {
 #if 1
 	printf("Error, API %s is not workable.\n", __FUNCTION__);
@@ -3600,7 +3760,7 @@ int32 rtk_Gen_FSK_CID_VMWI(uint32 chid, char *str_cid, char *str_date, char *str
 	TstVoipCID stCIDstr;
 	uint32 tmp=-1;
 
-	rtk_GetFskCIDState(chid, &tmp);
+	rtk_GetFskCidState(chid, &tmp);
 
 	if (tmp)
 	{
@@ -3609,7 +3769,7 @@ int32 rtk_Gen_FSK_CID_VMWI(uint32 chid, char *str_cid, char *str_date, char *str
 	}
 
 	if(!mode)			// on-hook
-		rtk_enablePCM(chid, 1); // enable PCM before generating VMWI
+		rtk_EnablePcm(chid, 1); // enable PCM before generating VMWI
 
 	stCIDstr.ch_id = chid;
 	stCIDstr.cid_mode = mode;       //0:on-hook
@@ -3627,7 +3787,7 @@ int32 rtk_Gen_FSK_CID_VMWI(uint32 chid, char *str_cid, char *str_date, char *str
 	return 0;//stCIDstr.ret_val;
 }
 
-int32 rtk_GetDspEvent(uint32 chid, uint32 mid, VoipEventID *pEvent)
+int32 rtk_GetDspEvent(uint32 chid, uint32 mid, VoipEventID *pEvent, uint32 *pData)
 {
 	int ret;
 	TstVoipEvent stVoipEvent;
@@ -3640,11 +3800,14 @@ int32 rtk_GetDspEvent(uint32 chid, uint32 mid, VoipEventID *pEvent)
 		return ret;
 	
 	*pEvent = stVoipEvent.id;
+
+	if (pData)
+		*pData = stVoipEvent.p0;
 	
 	return 0;
 }
 
-int32 rtk_Set_GetPhoneStat(TstVoipCfg* pstVoipCfg)
+int32 rtk_GetPhoneState(TstVoipCfg* pstVoipCfg)
 {
 	SETSOCKOPT(VOIP_MGR_GET_SLIC_STAT, pstVoipCfg, TstVoipCfg, 1);
 
@@ -3665,12 +3828,13 @@ int32 rtk_Set_Voice_Play(TstVoipdataput_o* pstVoipdataput_o)
 	return 0;//pstVoipdataput_o->ret_val;
 }
 
-int32 rtk_Get_Rtp_Statistics( uint32 chid, uint32 bReset, TstVoipRtpStatistics *pstVoipRtpStatistics )
+int32 rtk_GetRtpRtcpStatistics( uint32 chid, uint32 mid, uint32 bReset, TstRtpRtcpStatistics *pstRtpRtcpStatistics )
 {
-	pstVoipRtpStatistics ->ch_id = chid;
-	pstVoipRtpStatistics ->bResetStatistics = bReset;
+	pstRtpRtcpStatistics ->ch_id = chid;
+	pstRtpRtcpStatistics ->m_id = mid;
+	pstRtpRtcpStatistics ->bResetStatistics = bReset;
 
-	SETSOCKOPT( VOIP_MGR_GET_RTP_STATISTICS, pstVoipRtpStatistics, TstVoipRtpStatistics, 1 );
+	SETSOCKOPT( VOIP_MGR_GET_RTP_RTCP_STATISTICS, pstRtpRtcpStatistics, TstRtpRtcpStatistics, 1 );
 
 	return 0;//pstVoipRtpStatistics->ret_val;
 }
@@ -3686,7 +3850,7 @@ int32 rtk_Get_Session_Statistics( uint32 chid, uint32 sid, uint32 bReset, TstVoi
 	return 0;//pstVoipSessionStatistics->ret_val;
 }
 
-int32 rtk_qos_set_dscp_priority(int32 dscp, int32 priority)
+int32 rtk_QosSetDscpPriority(int32 dscp, int32 priority)
 {
 	int _dscp;
 	_dscp = (dscp & 0x00FF)<<8 | (priority & 0xFF);
@@ -3702,26 +3866,26 @@ int32 rtk_qos_reset_dscp_priority(void)
 	return 0;
 }
 
-int32 rtk_Set_Rtp_Tos(int32 rtp_tos)
+int32 rtk_SetRtpTos(int32 rtp_tos)
 {
 	SETSOCKOPT(VOIP_MGR_SET_RTP_TOS, &rtp_tos, int32, 1);
 	return 0;
 }
 
-int32 rtk_Set_Rtp_Dscp(int32 rtp_dscp)
+int32 rtk_SetRtpDscp(int32 rtp_dscp)
 {
 	SETSOCKOPT(VOIP_MGR_SET_RTP_DSCP, &rtp_dscp, int32, 1);
 	return 0;
 }
 
 
-int32 rtk_Set_Sip_Tos(int32 sip_tos)
+int32 rtk_SetSipTos(int32 sip_tos)
 {
 	SETSOCKOPT(VOIP_MGR_SET_SIP_TOS, &sip_tos, int32, 1);
 	return 0;
 }
 
-int32 rtk_Set_Sip_Dscp(int32 sip_dscp)
+int32 rtk_SetSipDscp(int32 sip_dscp)
 {
 	SETSOCKOPT(VOIP_MGR_SET_SIP_DSCP, &sip_dscp, int32, 1);
 	return 0;
@@ -3741,7 +3905,7 @@ int rtk_Set_IPhone(unsigned int function_type, unsigned int reg, unsigned int va
 #endif
 
 /******************** New Add for AudioCodes Solution ****************/
-int32 rtk_Onhook_Action(uint32 chid)
+int32 rtk_OnHookAction(uint32 chid)
 {
     	TstVoipCfg stVoipCfg;
 
@@ -3751,7 +3915,7 @@ int32 rtk_Onhook_Action(uint32 chid)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int32 rtk_Offhook_Action(uint32 chid)
+int32 rtk_OffHookAction(uint32 chid)
 {
     	TstVoipCfg stVoipCfg;
 
@@ -3780,7 +3944,7 @@ int rtk_GetIPPhoneHookStatus( uint32 *pHookStatus )
 }
 #endif /* CONFIG_RTK_VOIP_IP_PHONE */
 
-int rtk_Set_flush_fifo(uint32 chid)
+int rtk_SetFlushFifo(uint32 chid)
 {
 	int ret;
 	TstFlushVoipEvent stFlushVoipEvent;
@@ -3807,7 +3971,7 @@ int rtk_Set_flush_fifo(uint32 chid)
 	1: PSTN Line not connect,
 	2: PSTN Line busy
 */
-int rtk_line_check(uint32 chid)
+int rtk_LineCheck(uint32 chid)
 {
 	TstVoipValue stVoipValue;
 
@@ -3822,7 +3986,7 @@ int rtk_line_check(uint32 chid)
 	return stVoipValue.value;
 }
 
-int rtk_FXO_offhook(uint32 chid)// for real DAA off-hook(channel is FXO channel)
+int rtk_FxoOffHook(uint32 chid)// for real DAA off-hook(channel is FXO channel)
 {
 	if ((g_VoIP_Feature & DAA_TYPE_MASK) != NO_DAA )
 	{
@@ -3840,12 +4004,12 @@ int rtk_FXO_offhook(uint32 chid)// for real DAA off-hook(channel is FXO channel)
 	}
 	else
 	{
-		printf("API rtk_FXO_offhook usage error.\n");
+		printf("API rtk_FxoOffHook usage error.\n");
 		return 0;
 	}
 }
 
-int rtk_FXO_onhook(uint32 chid)// for real DAA on-hook(channel is FXO channel)
+int rtk_FxoOnHook(uint32 chid)// for real DAA on-hook(channel is FXO channel)
 {
 	if ((g_VoIP_Feature & DAA_TYPE_MASK) != NO_DAA )
 	{
@@ -3868,7 +4032,7 @@ int rtk_FXO_onhook(uint32 chid)// for real DAA on-hook(channel is FXO channel)
 		return 0;
 }
 
-int rtk_FXO_RingOn(uint32 chid)
+int rtk_FxoRingOn(uint32 chid)
 {
 	TstVoipCfg stVoipCfg;
 	stVoipCfg.ch_id = chid;
@@ -3880,7 +4044,7 @@ int rtk_FXO_RingOn(uint32 chid)
 	return 0;//stVoipCfg.ret_val;
 }
 
-int rtk_FXO_Busy(uint32 chid)
+int rtk_FxoBusy(uint32 chid)
 {
 	TstVoipCfg stVoipCfg;
 	stVoipCfg.ch_id = chid;
@@ -3940,7 +4104,7 @@ int rtk_Set_SLIC_Relay( uint32 chid, uint32 close1 )
 	return 0;
 }
 
-int rtk_Set_Pulse_Digit_Det(uint32 chid, uint32 enable, uint32 pause_time, uint32 min_break_ths, uint32 max_break_ths) /* 0: disable 1: enable Pulse Digit Detection */
+int rtk_SetPulseDigitDet(uint32 chid, uint32 enable, uint32 pause_time, uint32 min_break_ths, uint32 max_break_ths) /* 0: disable 1: enable Pulse Digit Detection */
 {
 	TstVoipCfg stVoipCfg;
     	stVoipCfg.ch_id = chid;
@@ -3954,7 +4118,7 @@ int rtk_Set_Pulse_Digit_Det(uint32 chid, uint32 enable, uint32 pause_time, uint3
 	return 0;//stVoipCfg.ret_val;
 }
 
-int rtk_Set_Dail_Mode(uint32 chid, uint32 mode) /* 0: disable 1: enable Pulse dial */
+int rtk_SetDailMode(uint32 chid, uint32 mode) /* 0: disable 1: enable Pulse dial */
 {
 	TstVoipCfg stVoipCfg;
     	stVoipCfg.ch_id = chid;
@@ -3965,7 +4129,7 @@ int rtk_Set_Dail_Mode(uint32 chid, uint32 mode) /* 0: disable 1: enable Pulse di
 	return 0;//stVoipCfg.ret_val;
 }
 
-int rtk_Get_Dail_Mode(uint32 chid) /* 0: disable 1: enable Pulse dial */
+int rtk_GetDailMode(uint32 chid) /* 0: disable 1: enable Pulse dial */
 {
 	TstVoipCfg stVoipCfg;
     	stVoipCfg.ch_id = chid;
@@ -3980,7 +4144,7 @@ int rtk_Get_Dail_Mode(uint32 chid) /* 0: disable 1: enable Pulse dial */
     	return 	stVoipCfg.cfg;
 }
 
-int rtk_PulseDial_Gen_Cfg(char pps, short make_duration, short interdigit_duration)
+int rtk_PulseDialGenCfg(char pps, short make_duration, short interdigit_duration)
 {
 	TstVoipValue stVoipValue;
 
@@ -3993,7 +4157,7 @@ int rtk_PulseDial_Gen_Cfg(char pps, short make_duration, short interdigit_durati
 	return 0;//stVoipValue.ret_val;
 }
 
-int rtk_Gen_Pulse_Dial(uint32 chid, char digit) /* digit: 0 ~ 9 */
+int rtk_GenPulseDial(uint32 chid, char digit) /* digit: 0 ~ 9 */
 {
 	TstVoipValue stVoipValue;
 
@@ -4005,7 +4169,7 @@ int rtk_Gen_Pulse_Dial(uint32 chid, char digit) /* digit: 0 ~ 9 */
 	return 0;//stVoipValue.ret_val;
 }
 
-uint32 rtk_Get_SLIC_Ram_Val(uint8 chid, uint16 reg)
+uint32 rtk_GetSlicRamVal(uint8 chid, uint16 reg)
 {
 	TstVoipSlicRam stSlicReg;
 
@@ -4021,7 +4185,7 @@ uint32 rtk_Get_SLIC_Ram_Val(uint8 chid, uint16 reg)
 	return stSlicReg.reg_val;
 }
 
-int rtk_Set_SLIC_Ram_Val(uint8 chid, uint16 reg, uint32 value)
+int rtk_SetSlicRamVal(uint8 chid, uint16 reg, uint32 value)
 {
 	TstVoipSlicRam stSlicReg;
 
@@ -4045,6 +4209,21 @@ int32 rtk_SetFaxModemDet(uint32 chid, uint32 mode)
 	return 0;//stVoipCfg.ret_val;
 }
 
+int32 rtk_Set_RTP_PT_checker(uint32 chid, uint32 enable, uint32 sync, uint32 report, uint32 pkt_cnt_thres)
+{
+	TstVoipCfg stVoipCfg;
+
+	stVoipCfg.ch_id = chid;   
+	stVoipCfg.enable = enable;
+	stVoipCfg.cfg = sync;
+	stVoipCfg.cfg2 = report;
+	stVoipCfg.cfg3 = pkt_cnt_thres;
+	
+	SETSOCKOPT(VOIP_MGR_SET_RTP_PT_CHECKER, &stVoipCfg, TstVoipCfg, 1);
+
+	return 0;//stVoipValue.ret_val;
+}
+
 int32 rtk_GetPortLinkStatus( uint32 *pstatus )
 {
 	TstVoipPortLinkStatus stVoipPortLinkStatus;
@@ -4063,7 +4242,7 @@ int32 rtk_WTD_Reboot(int reboot)
 	return 0;
 }
 
-int rtk_print(int level, char *module, char *msg)
+int rtk_Print(int level, char *module, char *msg)
 {
 
 #if 0	// print to stdout
@@ -4138,13 +4317,57 @@ uint8 rtk_CompleteDeferInitialzation( void )
 	return 0;
 }
 
+int32 rtkSetProslicParam(uint32 chid, ProslicType slic_type, ProslicParamType param_type, void* pParam, uint32 param_size)
+{
+	TstVoipCfg stVoipCfg;
+		
+	if (slic_type != PROSLIC_TYPE_SI3226X)
+	{
+		printf("%s doesn't support SLIC type: %d\n", __FUNCTION__, slic_type);
+		return -1;
+	}
+	
+	if (param_type >= PROSLIC_PARAM_TYPE_MAX)
+	{
+		printf("%s doesn't support param type: %d\n", __FUNCTION__, param_type);
+		return -1;
+	}
+	
+	stVoipCfg.ch_id = chid;
+	stVoipCfg.cfg = slic_type;
+	stVoipCfg.cfg2 = param_type;
+	stVoipCfg.cfg3 = param_size;
+
+	SETSOCKOPT(VOIP_MGR_SET_PROSLIC_PARAM_STEP1, &stVoipCfg, TstVoipCfg, 1);
+	SETSOCKOPT(VOIP_MGR_SET_PROSLIC_PARAM_STEP2, pParam, char, param_size);
+	
+	return 0;
+}
+
+#ifdef __ECOS
+void voip_manager_init( void )
+{
+	extern int linux_wrapper_chrdev_open( int major, int minor );
+	
+	g_VoIP_Mgr_FD = linux_wrapper_chrdev_open( 243, 1 );
+	
+	rtk_GetVoIPFeature();
+}
+
+void voip_manager_fini( void )
+{
+	extern int linux_wrapper_chrdev_close( int handle );
+	
+	linux_wrapper_chrdev_close( g_VoIP_Mgr_FD );
+}
+#else
 static void __attribute__ ((constructor)) voip_manager_init(void)
 {
 #ifdef __mips__
 	if( ( g_VoIP_Mgr_FD = open( VOIP_MGR_IOCTL_DEV_NAME, O_RDWR ) ) < 0 )
 		fprintf( stderr, "Open " VOIP_MGR_IOCTL_DEV_NAME " fail\n" );
 #endif	
-	rtk_Get_VoIP_Feature();
+	rtk_GetVoIPFeature();
 }
 
 static void __attribute__ ((destructor)) voip_manager_fini(void)
@@ -4153,4 +4376,5 @@ static void __attribute__ ((destructor)) voip_manager_fini(void)
 	close( g_VoIP_Mgr_FD );
 #endif
 }
+#endif
 

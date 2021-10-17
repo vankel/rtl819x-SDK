@@ -1,0 +1,27 @@
+libpthread/linuxthreads/pt-machine.oS: \
+ libpthread/linuxthreads/pt-machine.c include/libc-symbols.h \
+ include/bits/uClibc_arch_features.h \
+ libpthread/linuxthreads/sysdeps/rlx/pt-machine.h include/features.h \
+ include/bits/uClibc_config.h include/sys/cdefs.h include/libc-internal.h \
+ include/bits/stackinfo.h include/sgidefs.h include/sys/tas.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+libpthread/linuxthreads/sysdeps/rlx/pt-machine.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/sys/cdefs.h:
+
+include/libc-internal.h:
+
+include/bits/stackinfo.h:
+
+include/sgidefs.h:
+
+include/sys/tas.h:
+cmd_libpthread_linuxthreads_pt-machine.oS := mips-linux-gcc -c libpthread/linuxthreads/pt-machine.c -o libpthread/linuxthreads/pt-machine.oS -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -fPIC -DSHARED -DNOT_IN_libc -DIS_IN_libpthread -MT libpthread/linuxthreads/pt-machine.oS -MD -MP -MF libpthread/linuxthreads/.pt-machine.oS.dep

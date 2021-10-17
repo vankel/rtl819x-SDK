@@ -1,7 +1,6 @@
 #!/bin/sh
 # udhcpc bound script
-
-sysconf conn dhcp $interface $ip $subnet $router $dns
+echo "sysconf conn dhcp $interface $ip $subnet $router $dns" > /var/dhcp_connect
 
 
 

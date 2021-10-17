@@ -368,10 +368,21 @@ echo "/dev/sdp15     b 666 root root   8 255" >> squashfs-pf-list.txt
 
 fi
 
+if [ "$CONFIG_APP_APPLE_MFI_WAC" = "y" ]; then
+echo "/dev/mfi_cp c 666 root root 254 0" >> squashfs-pf-list.txt
+fi
 #DEVICES="$DEVICES  mtdblock1,b,31,1"
 echo "/dev/mtdblock1 b 666 root root  31  1" >> squashfs-pf-list.txt
 echo "/dev/mtdblock2 b 666 root root  31  2" >> squashfs-pf-list.txt
 echo "/dev/mtdblock3 b 666 root root  31  3" >> squashfs-pf-list.txt
+echo "/dev/mtdblock4 b 666 root root  31  3" >> squashfs-pf-list.txt
+
+###for tr069
+echo "/dev/mtd0 c 666 root root  90  0" >> squashfs-pf-list.txt
+echo "/dev/mtd1 c 666 root root  90  1" >> squashfs-pf-list.txt
+echo "/dev/mtd2 c 666 root root  90  2" >> squashfs-pf-list.txt
+echo "/dev/mtd3 c 666 root root  90  3" >> squashfs-pf-list.txt
+echo "/dev/mtd4 c 666 root root  90  4" >> squashfs-pf-list.txt
 
 if [ "$GW_VPN" = 1  ];then
 #DEVICES="$DEVICES  random,c,1,8"
@@ -420,6 +431,9 @@ fi
 
 echo "/dev/voip/pcmtx0 c 666 root root 243 64" >> squashfs-pf-list.txt
 echo "/dev/voip/pcmrx0 c 666 root root 243 65" >> squashfs-pf-list.txt
+#if [ "$CONFIG_RTL_USERSPACE_WTDOG" = "y" ]; then
+#echo "/dev/chr_watchdog c 666 root root 254 0" >> squashfs-pf-list.txt
+#fi
 
 ln -s /tmp/log $RAMFSDIR/dev/log
 

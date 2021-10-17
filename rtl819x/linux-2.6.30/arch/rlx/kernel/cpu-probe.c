@@ -19,12 +19,18 @@
 #include <asm/cpu.h>
 #include <asm/rlxregs.h>
 #include <asm/system.h>
+#include <asm/watch.h>
 
 const char *__cpu_name[NR_CPUS];
 
 void __cpuinit cpu_probe(void)
 {
 	struct cpuinfo_mips *c = &current_cpu_data;
+#if defined(CONFIG_CPU_HAS_WATCH)
+    c->options |= MIPS_CPU_WATCH;
+    rlx_probe_watch_registers(c);
+    c->watch_reg_use_cnt = c->watch_reg_count / 2;
+#endif
 
     c->processor_id = PRID_IMP_UNKNOWN;
     c->options = MIPS_CPU_TLB | MIPS_CPU_3K_CACHE | MIPS_CPU_NOFPUEX;

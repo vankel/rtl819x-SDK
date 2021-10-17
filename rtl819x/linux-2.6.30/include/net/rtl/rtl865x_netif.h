@@ -16,7 +16,9 @@
 #define	IF_PPPOE 2
 #define	IF_PPTP 3
 #define	IF_L2TP 4
-
+#if defined(CONFIG_RTL_INBAND_CTL_ACL)
+#define RTL865X_ACL_TEST_USED		-30002
+#endif
 #define RTL865X_ACL_IPV6_USED		-30000
 #define RTL865X_ACL_QOS_USED2		-20002		/* dummy queue for iptable 2 acl translate */
 #define RTL865X_ACL_QOS_USED1		-20000		/* for default queue */
@@ -385,7 +387,7 @@ typedef struct _rtl865x_AclRule_s
 	#define	RTL8366RB_GMIIPORT		0x20
 	#define	RTL8366RB_LANPORT		0xCf
 	#define	RTL8366RB_WANPORT		0x10
-#elif defined(CONFIG_RTL_819X) && (defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV))
+#elif defined(CONFIG_RTL_819X) && (defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV) || defined(CONFIG_RTL_EXCHANGE_PORTMASK))
 #if defined (CONFIG_POCKET_ROUTER_SUPPORT)
 	#define	RTL_WANPORT_MASK		0x10
 	#define	RTL_LANPORT_MASK			0x10
@@ -414,9 +416,20 @@ typedef struct _rtl865x_AclRule_s
         #define RTL_WANPORT_MASK                0x01  //port0
         #define RTL_LANPORT_MASK                        0x11e //all port eth0
 	#else
-        #define	RTL_WANPORT_MASK		0x10
-        #define	RTL_LANPORT_MASK			0x10f
+    #if defined(CONFIG_RTL_AP_PACKAGE)
+	#define	RTL_WANPORT_MASK		0x00
+	#define	RTL_LANPORT_MASK			0x11f
+    #else
+	#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
+	//change wan port to port0
+	#define RTL_WANPORT_MASK		0x01 //port0
+	#define RTL_LANPORT_MASK			0x11e
+	#else
+	#define	RTL_WANPORT_MASK		0x10
+	#define	RTL_LANPORT_MASK			0x10f
+	#endif
         #endif
+#endif
 #endif
 	#if defined(CONFIG_RTL_89xxD)
 	#define 	RTL_LANPORT_MASK_1		0x2		//port 1
@@ -424,10 +437,20 @@ typedef struct _rtl865x_AclRule_s
 	#define 	RTL_LANPORT_MASK_3		0x8		//port 3
 	#define 	RTL_LANPORT_MASK_4		0x10	//port 4
 	#else
+    #if defined(CONFIG_RTL_AP_PACKAGE)
+    #define     RTL_LANPORT_MASK_0      0x10     //port 4
+    #endif
+	#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
+	#define 	RTL_LANPORT_MASK_1		0x10 	//port 4
+	#define RTL_LANPORT_MASK_2		0x8 	//port 3
+	#define 	RTL_LANPORT_MASK_3		0x4 	//port 2
+	#define 	RTL_LANPORT_MASK_4		0x2 	//port 1
+	#else
 	#define 	RTL_LANPORT_MASK_1		0x8		//port 0
 	#define	RTL_LANPORT_MASK_2		0x4		//port 1
 	#define 	RTL_LANPORT_MASK_3		0x2		//port 2
 	#define 	RTL_LANPORT_MASK_4		0x1		//port 3
+	#endif
 	#endif
 	#ifdef CONFIG_8198_PORT5_GMII
 	#define 	RTL_LANPORT_MASK_5		0x20	//port 5
@@ -448,8 +471,13 @@ typedef struct _rtl865x_AclRule_s
         #define RTL_WANPORT_MASK                0x01
         #define RTL_LANPORT_MASK                        0x110 //mark_inic , only port4 connect to MII
 	#else
+#if defined(CONFIG_RTL_AP_PACKAGE)
+	#define	RTL_WANPORT_MASK		0x00
+	#define	RTL_LANPORT_MASK			0x11f
+#else
 	#define	RTL_WANPORT_MASK		0x10
 	#define	RTL_LANPORT_MASK			0x10f
+#endif
 	#endif
 #else
 	#define	RTL_WANPORT_MASK		0x01
@@ -461,6 +489,13 @@ typedef struct _rtl865x_AclRule_s
 	#define 	RTL_LANPORT_MASK_4		0x10	//port 4
 	#endif
 #endif	/*	defined(CONFIG_RTL8186_KB_N) || defined(CONFIG_RTL_819X)	*/
+
+#if defined(CONFIG_RTL_8881A) && defined(CONFIG_RTL_8211F_SUPPORT)
+#undef RTL_WANPORT_MASK
+#undef RTL_LANPORT_MASK
+#define	RTL_WANPORT_MASK		0x1
+#define	RTL_LANPORT_MASK		0x110
+#endif
 
 #if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
 #if defined(CONFIG_8198_PORT5_GMII)

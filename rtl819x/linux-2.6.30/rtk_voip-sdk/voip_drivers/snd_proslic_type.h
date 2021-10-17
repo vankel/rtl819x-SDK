@@ -1,9 +1,9 @@
 #ifndef __SND_PROSLIC_TYPE_H__
 #define __SND_PROSLIC_TYPE_H__
 
-#include "proslic_api/inc/proslic.h"
-#include "proslic_api/inc/vdaa.h"
-#include "proslic_api/inc/sys_driv_type.h"
+#include "proslic.h"
+#include "vdaa.h"
+#include "rtk_sys_driv_type.h"
 
 #include "con_register.h"
 

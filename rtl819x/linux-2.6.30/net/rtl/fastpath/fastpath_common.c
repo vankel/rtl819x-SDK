@@ -33,6 +33,163 @@ static int	rtl_fp_gc_rx_threshold;
 #endif
 static int fast_nat_fw = 1;
 
+#define MAX_EXT_SERVICE_PORTS 30
+static int ext_service_ports[MAX_EXT_SERVICE_PORTS] = {0};
+
+#ifdef CONFIG_RTL_PPPOE_DIRECT_REPLY
+int magicNum=-1;
+void clear_magicNum(struct sk_buff *pskb)
+{
+	//panic_printk("%s:%d\n",__FUNCTION__,__LINE__);
+	magicNum = -1;
+}
+
+int is_pppoe_lcp_echo_req(struct sk_buff *skb)
+{
+	unsigned char *mac_hdr=NULL;
+	if(skb->dev==NULL)
+	{
+		return 0;
+	}
+	
+	if(strncmp(skb->dev->name, "ppp" ,3)==0)
+	{
+		return 0;
+	}
+	//printk("%s:%d,%s\n",__FUNCTION__,__LINE__,skb->dev->name);
+	mac_hdr=rtl_skb_mac_header(skb);
+	if(mac_hdr==NULL)
+	{
+		return 0;
+	}
+	
+	if( (mac_hdr[12]!=0x88) || (mac_hdr[13]!=0x64) \
+		||(mac_hdr[20]!=0xc0) || (mac_hdr[21]!=0x21) \
+		|| (mac_hdr[22]!=0x09))
+	{		
+		return 0;
+	}
+	return 1;
+
+}
+
+
+void extract_magicNum(struct sk_buff *skb)
+{
+	unsigned char *mac_hdr = skb->data;
+	int i;
+	int payloadLen=0;
+	unsigned char type;
+	unsigned char len;
+	unsigned char *ptr;
+	
+	/*
+	if( (*(unsigned short *)(&mac_hdr[12])==0x8864) \
+		&&(*(unsigned short *)(&mac_hdr[20])==0xc021))
+	{
+		panic_printk("skb->dev is %s\n",skb->dev->name);
+		for(i=0;i<32;i++)
+		{
+				panic_printk("0x%x\t",mac_hdr[i]);
+				if(i%8==7)
+				{
+					panic_printk("\n");
+				}
+		}
+
+	}	
+	*/
+	//panic_printk("%s:%d,magicNum is 0x%x\n",__FUNCTION__,__LINE__,magicNum);
+	if(skb->dev==NULL)
+	{
+		return 0;
+	}
+	
+	if(strncmp(skb->dev->name, "ppp" ,3)==0)
+	{
+		return;
+	}
+	
+	if((mac_hdr[12]!=0x88) || (mac_hdr[13]!=0x64))
+	{
+		return;
+	}
+	
+	
+	if((mac_hdr[20]!=0xc0) || (mac_hdr[21]!=0x21))
+	{
+		return;
+	}
+
+	/*lcp configuration request*/
+	if(mac_hdr[22]==0x01)
+	{
+	
+		payloadLen=(mac_hdr[24]<<8)+mac_hdr[25];	
+		payloadLen=payloadLen-4;
+		ptr=(mac_hdr+26);
+
+		while(payloadLen>0)
+		{
+			/*parse tlv option*/
+			type=*ptr;
+			len=*(ptr+1);
+			
+			//panic_printk("%s:%d,type is %d\n",__FUNCTION__,__LINE__,type);
+			if(type==0x05) /*magic number option*/
+			{
+				memcpy(&magicNum, ptr+2 , 4);
+				//panic_printk("%s:%d,magicNum is 0x%x\n",__FUNCTION__,__LINE__,magicNum);
+				break;
+			}
+
+			if(len>payloadLen)
+			{
+				break;
+			}
+			ptr=ptr+len;
+			payloadLen=payloadLen-len;
+			
+		}
+	}
+	else if(mac_hdr[22]==0x09) /*lcp echo request*/
+	{
+		ptr=(mac_hdr+26);
+		memcpy(&magicNum, ptr , 4);
+		//panic_printk("%s:%d,magic number is 0x%x\n",__FUNCTION__,__LINE__,magicNum);
+	}
+	return;
+
+}
+
+int direct_send_reply(struct sk_buff *skb)
+{	
+
+	unsigned char tmp[6];
+	
+	if(strncmp(skb->dev->name, "ppp" ,3)!=0)
+	{
+		skb_push(skb,14);
+		
+		// swap src and dst mac  	
+		memcpy(tmp,skb->data,6);
+		memcpy(skb->data,(skb->data+6),6);
+		memcpy((skb->data+6),tmp,6);		
+			
+		// build ppp session header
+		skb->data[22] = 0x0a;			//reply num
+		memcpy((skb->data+26),&magicNum ,4);
+		
+		skb->dev->netdev_ops->ndo_start_xmit(skb,skb->dev);
+		//panic_printk("%s:%d, direct_send_reply  tx\n",__FUNCTION__,__LINE__);		
+		return 1;
+	}
+	
+	return 0;
+}
+
+
+#endif
 
 #if defined(IMPROVE_QOS) || defined(CONFIG_RTL_HW_QOS_SUPPORT)
 #include <net/arp.h>
@@ -154,6 +311,53 @@ static int write_proc(struct file *file, const char *buffer,
 	}
 
 	return -EFAULT;
+}
+
+static struct proc_dir_entry *res2=NULL;
+static int ext_service_ports_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int i;
+	int len = 0;
+
+	for (i=0; i<MAX_EXT_SERVICE_PORTS; i++)
+	{
+		if (ext_service_ports[i])
+		{
+			len += sprintf(&page[len], "%u ", ext_service_ports[i]);
+		}
+	}
+
+	return len;
+}
+
+static int ext_service_ports_write_proc(struct file *file, const char *buffer,
+		      unsigned long count, void *data)
+{
+	unsigned char tmpbuf[1024];
+	
+	memset(tmpbuf, 0, sizeof(tmpbuf));
+	if (count > sizeof(tmpbuf))
+		return -EFAULT;
+
+	if (buffer && !copy_from_user(tmpbuf, buffer, count))
+	{
+		int i = 0;
+		char *token;
+		char *str = (char *) tmpbuf;
+
+		memset(ext_service_ports, 0, sizeof(ext_service_ports));
+		while ((token = strsep(&str, " ")) != NULL && 
+			i < MAX_EXT_SERVICE_PORTS - 1)
+		{
+			if (!*token)
+				break;
+
+			ext_service_ports[i++] = simple_strtol(token, NULL, 0);
+		}	
+	}
+
+	return count;
 }
 #endif
 
@@ -440,6 +644,14 @@ static inline int rtl_fp_gc_status_check_priority(uint32 sIp, uint32 dIp, uint16
 		(!(IS_BROADCAST_ADDR(dIp))) &&
 		(!(IS_ALLZERO_ADDR(sIp))))
 	{
+		int i;
+
+		for (i=0; ext_service_ports[i]; i++)
+		{
+			if (dPort == ext_service_ports[i])
+				return NET_RX_SUCCESS;
+		}
+
 		return NET_RX_DROP;
 	}
 	else
@@ -515,6 +727,7 @@ static inline int enter_fast_path_fast_l2tp_post_process(struct sk_buff *skb)
 	return NET_RX_SUCCESS;
 }
 
+
 static inline int enter_fast_path_fast_pppoe_post_process(struct sk_buff *skb)
 {
 	
@@ -526,6 +739,7 @@ static inline int enter_fast_path_fast_pppoe_post_process(struct sk_buff *skb)
 #endif
 	return NET_RX_SUCCESS;
 }
+
 
 #if defined(FASTPTH_INDEPENDENCE_KERNEL)
 struct dst_entry *dst_tmp = NULL;
@@ -938,6 +1152,7 @@ void rtl_set_skb_rx_dev(struct sk_buff* skb,struct net_device *dev)
 	return;
 }
 
+
 char *rtl_get_ppp_dev_name(struct net_device *ppp_dev)
 {
 	return ppp_dev->name;
@@ -955,12 +1170,20 @@ int rtl_call_skb_ndo_start_xmit(struct sk_buff *skb)
 
 void rtl_inc_ppp_stats(struct ppp *ppp, int act, int len)
 {
+
 	if(act == 0){	//rx
+		//ppp->stats.rx_packets ++;
+		//ppp->stats.rx_bytes += len;
 		ppp->dev->stats.rx_packets ++;
 		ppp->dev->stats.rx_bytes += len;
+
+		
 	}else if(act == 1){ //tx
+		//ppp->stats.tx_packets ++;
+		//ppp->stats.tx_bytes += len;
 		ppp->dev->stats.tx_packets ++;
 		ppp->dev->stats.tx_bytes += len;
+
 	}
 
 	return;
@@ -1162,6 +1385,96 @@ int  rtl_Add_Pattern_ACL_For_ContentFilter(void)
  #endif
         return 0;
 }
+
+int  Add_Pattern_ACL_For_ContentFilter(void)
+{
+	return rtl_Add_Pattern_ACL_For_ContentFilter();
+}
+
+ int  Del_Pattern_ACL_For_ContentFilter(void)
+{
+#if defined (CONFIG_RTL_LAYERED_DRIVER_L4)
+#ifdef CONFIG_RTL_LAYERED_DRIVER_ACL
+        rtl865x_AclRule_t rule;
+                               
+        memset(&rule,0,sizeof(rtl865x_AclRule_t));                      
+        rule.actionType_ = RTL865X_ACL_TOCPU;
+        rule.ruleType_ = RTL865X_ACL_IP;
+        rule.ipHttpFilter_=rule.ipHttpFilterM_=1;
+        rule.pktOpApp_ = RTL865X_ACL_L3_AND_L4;
+	#if defined(CONFIG_RTL_NETIF_MAPPING)
+	{
+		ps_drv_netif_mapping_t *entry;
+		void *dev;
+		dev = rtl_get_dev_by_name(RTL_PS_BR0_DEV_NAME);
+		if(dev == NULL)
+			return 0;
+		
+		entry = rtl_get_ps_drv_netif_mapping_by_psdev(dev);
+		dev_put(dev);
+		if(entry == NULL)
+		{
+			printk("====%s(%d),ERROR,can't get lan device!\n",__FUNCTION__,__LINE__);
+			return 0;
+		}
+		rtl865x_del_pattern_acl_for_contentFilter(&rule,entry->drvName);
+	}
+	#else	
+	rtl865x_del_pattern_acl_for_contentFilter(&rule,"br0");
+	#endif
+
+//2010-12-29
+//when wan is connected,if url filter entry is NULL, default acl will be deleted!!
+//don't delete the default acl now...
+#if 0	
+#ifdef CONFIG_RTL_IPTABLES_RULE_2_ACL
+#else
+	//Patch: lan pkt rcv to cpu
+	memset(&rule,0,sizeof(rtl865x_AclRule_t));                      
+        rule.actionType_ = RTL865X_ACL_PERMIT;
+        rule.ruleType_ = RTL865X_ACL_MAC;
+        rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+	#if defined(CONFIG_RTL_NETIF_MAPPING)
+	{
+		ps_drv_netif_mapping_t *entry;
+		struct net_device *dev;
+		dev = dev_get_by_name(&init_net,RTL_PS_BR0_DEV_NAME);
+		if(dev == NULL)
+			return 0;
+		
+		entry = rtl_get_ps_drv_netif_mapping_by_psdev(dev);
+		if(entry == NULL)
+		{
+			printk("====%s(%d),ERROR,can't get lan device!\n",__FUNCTION__,__LINE__);
+			return 0;
+		}
+		rtl865x_del_pattern_acl_for_contentFilter(&rule,entry->drvName);
+
+		dev = dev_get_by_name(&init_net,RTL_PS_WAN0_DEV_NAME);
+		if(dev == NULL)
+			return 0;
+		
+		entry = rtl_get_ps_drv_netif_mapping_by_psdev(dev);
+		if(entry == NULL)
+		{
+			printk("====%s(%d),ERROR,can't get wan device!\n",__FUNCTION__,__LINE__);
+			return 0;
+		}
+		rtl865x_del_pattern_acl_for_contentFilter(&rule,entry->drvName);
+		
+	}
+	#else	
+	rtl865x_del_pattern_acl_for_contentFilter(&rule,"br0"); 
+	rtl865x_del_pattern_acl_for_contentFilter(&rule,"eth1"); 
+	#endif
+	//End patch
+#endif
+#endif
+#endif
+#endif
+        return 0;
+}
+
 #endif
 
 
@@ -1432,8 +1745,24 @@ int FastPath_Enter(struct sk_buff **pskb)
 	skb->transport_header=skb->data;
 	skb->network_header = skb->data;
 	//skb_reset_network_header(skb);
+#ifdef CONFIG_RTL_PPPOE_DIRECT_REPLY
+		if((magicNum != -1) && is_pppoe_lcp_echo_req(skb))
+		{	
+			if(direct_send_reply(skb)==1)
+				return 1;							
+		}
+#endif
 #if defined(CONFIG_RTL_FAST_PPPOE)
+	extern int fast_pppoe_fw;
 	check_and_pull_pppoe_hdr(*pskb);
+
+	if(fast_pppoe_fw)
+	{
+		if((rtl_get_skb_pppoe_flag(*pskb) ==0) && 
+			(strncmp(skb->dev->name,"ppp",3)==0))
+			return 0;
+	}
+
 #endif
 
 //hyking:
@@ -1446,39 +1775,39 @@ int FastPath_Enter(struct sk_buff **pskb)
 			return 1;
 		}
 #if	defined(CONFIG_RTL_FAST_FILTER)
-		else if(ret == NF_FASTPATH)
-		{
-			//continue the fastpath
-		}
-		else if(ret == NF_OMIT)
-		{
-			//don't support this in driver now
-			ret = 0;
-			goto out;
-		}
-		else if(ret == NF_LINUX)
-		{
-			//don't do rtk fastpath
-			ret = 0;
-			goto out;
-		}
+	else if(ret == NF_FASTPATH)
+	{
+		//continue the fastpath
+	}
+	else if(ret == NF_OMIT)
+	{
+		//don't support this in driver now
+		ret=0;
+		goto out;
+	}
+	else if(ret == NF_LINUX)
+	{
+		//don't do rtk fastpath
+		ret=0;
+		goto out;
+	}
 #endif
-		else if(ret != NF_ACCEPT)
-		{
-			ret = 0;
-			goto out;
-		}
+	else if(ret != NF_ACCEPT)
+	{
+		ret=0;
+		goto out;
+	}
 #endif
 
 	if(!(skb->pkt_type == PACKET_HOST))
-		{
-			ret = 0;
-			goto out;
-		}
+	{
+		ret=0;
+		goto out;
+	}
 
 	if (!fast_nat_fw)
 	{
-		ret = 0;
+		ret=0;
 		goto out;
 	}
 
@@ -1502,9 +1831,18 @@ int FastPath_Enter(struct sk_buff **pskb)
 
 #ifdef FAST_L2TP
 	if (fast_l2tp_fw)
+#ifndef CONFIG_SUPPORT_RUSSIA_FEATURES
 		fast_l2tp_rx((void*)skb);
+#else
+	{
+		ret=fast_l2tp_rx((void*)skb);
+		if(ret==1)
+		{
+			return 1;
+		}
+	}
 #endif
-
+#endif
 
 	ret = enter_fast_path((void*)skb);
 
@@ -1540,6 +1878,64 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_FP_BYPASS_PACKET
+static struct proc_dir_entry *proc_packet_bypassed=NULL;
+static struct proc_dir_entry *proc_packet_bypassed_tcpport=NULL;
+static struct proc_dir_entry *proc_packet_bypassed_udpport=NULL;
+extern unsigned int fastpath_packet_bypassed_num;
+static unsigned char *packet_bypassed_buffer = NULL;
+unsigned int entered_fast_path = 0;
+
+extern unsigned int (*rtl_init_bypass_packet_hook)(struct Path_List_Entry *entry_path);
+extern unsigned int (*rtl_check_bypass_packet_hook)(struct Path_List_Entry *entry_path);
+extern unsigned int rtl_init_bypass_packet(struct Path_List_Entry *entry_path);
+extern unsigned int rtl_check_bypass_packet(struct Path_List_Entry *entry_path);
+extern int proc_hwnat_packet_bypassed_tcpport_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data);
+extern int proc_hwnat_packet_bypassed_tcpport_write_proc(struct file *file, const char *buffer,
+		      unsigned long count, void *data);
+extern int proc_hwnat_packet_bypassed_udpport_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data);
+extern int proc_hwnat_packet_bypassed_udpport_write_proc(struct file *file, const char *buffer,
+		      unsigned long count, void *data);
+
+static int proc_packet_bypassed_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len = 0;
+
+	len = sprintf(page, "%d \n", fastpath_packet_bypassed_num);
+	len += sprintf(page+len, "%d \n", entered_fast_path);
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+
+}
+static int proc_packet_bypassed_write_proc(struct file *file, const char *buffer,
+		      unsigned long count, void *data)
+{
+	if (count < 1)
+		return -EFAULT;
+
+	packet_bypassed_buffer = (unsigned char *)kmalloc(count,GFP_ATOMIC);
+	if(!packet_bypassed_buffer)
+	{
+		printk("not enough memory\n");
+		return -ENOMEM;
+	}
+	memset(packet_bypassed_buffer, 0, count);
+	if (buffer && !copy_from_user(packet_bypassed_buffer, buffer, count)) {
+			sscanf(packet_bypassed_buffer, "%d", &fastpath_packet_bypassed_num);
+	}
+	if(packet_bypassed_buffer)
+		kfree(packet_bypassed_buffer);
+	return count;
+}
+#endif
 //======================================
 static int __init fastpath_init(void)
 {
@@ -1564,6 +1960,34 @@ static int __init fastpath_init(void)
 	/* proc file for debug */
 	init_fastpath_debug_proc();
 	#endif	/* DEBUG_PROCFILE */
+
+#ifdef CONFIG_FP_BYPASS_PACKET
+    rtl_init_bypass_packet_hook = rtl_init_bypass_packet;
+	rtl_check_bypass_packet_hook = rtl_check_bypass_packet;
+
+	proc_packet_bypassed= create_proc_entry("fastpath_packet_bypassed_num", 0, NULL);
+	if (proc_packet_bypassed) {
+		proc_packet_bypassed->read_proc = proc_packet_bypassed_read_proc;
+		proc_packet_bypassed->write_proc = proc_packet_bypassed_write_proc;
+	}
+
+	proc_packet_bypassed_tcpport= create_proc_entry("hwnat_packet_bypassed_tcpport_set", 0, NULL);
+	if (proc_packet_bypassed_tcpport) {
+		proc_packet_bypassed_tcpport->read_proc = proc_hwnat_packet_bypassed_tcpport_read_proc;
+		proc_packet_bypassed_tcpport->write_proc = proc_hwnat_packet_bypassed_tcpport_write_proc;
+	}
+
+	proc_packet_bypassed_udpport= create_proc_entry("hwnat_packet_bypassed_udpport_set", 0, NULL);
+	if (proc_packet_bypassed_udpport) {
+		proc_packet_bypassed_udpport->read_proc = proc_hwnat_packet_bypassed_udpport_read_proc;
+		proc_packet_bypassed_udpport->write_proc = proc_hwnat_packet_bypassed_udpport_write_proc;
+	}
+#else
+	extern unsigned int (*rtl_init_bypass_packet_hook)(struct Path_List_Entry *entry_path);
+	extern unsigned int (*rtl_check_bypass_packet_hook)(struct Path_List_Entry *entry_path);
+	rtl_init_bypass_packet_hook  = NULL;
+	rtl_check_bypass_packet_hook = NULL;
+#endif
 
 	#ifndef NO_ARP_USED
 	/* Arp-Table Init */
@@ -1615,6 +2039,7 @@ static int __init fastpath_init(void)
 	#ifdef FAST_L2TP
 	fast_l2tp_init();
 	#endif
+	
 	#if defined (CONFIG_RTL_FAST_PPPOE)
 	fast_pppoe_init();
 	#endif
@@ -1624,6 +2049,11 @@ static int __init fastpath_init(void)
 	if (res1) {
 	    res1->read_proc=read_proc;
 	    res1->write_proc=write_proc;
+	}
+	res2=create_proc_entry("ext_service_ports",0,NULL);
+	if (res2) {
+	    res2->read_proc=ext_service_ports_read_proc;
+	    res2->write_proc=ext_service_ports_write_proc;
 	}
 	#endif
 
@@ -1679,10 +2109,15 @@ static void __exit fastpath_exit(void)
 #if defined (CONFIG_RTL_FAST_PPPOE)
 	fast_pppoe_exit();
 #endif
+
 #ifdef CONFIG_PROC_FS
 	if (res1) {
 		remove_proc_entry("fast_nat", res1);
 		res1 = NULL;
+	}
+	if (res2) {
+		remove_proc_entry("ext_service_ports", res2);
+		res2 = NULL;
 	}
 #endif
 
@@ -1694,7 +2129,140 @@ static void __exit fastpath_exit(void)
 #endif
 
 
+
 	//printk("%s %s removed!\n", MODULE_NAME, MODULE_VERSION);
+}
+
+
+// direct tx ppp reply ptk to l2tp server
+#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
+extern unsigned int l2tp_ppp_imagic;
+extern struct l2tp_info l2tpInfo;
+#endif
+
+int Direct_Send_Reply(struct sk_buff * skb, int offset)
+{
+#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
+	int header_len;
+	struct iphdr *iph,*iph_new, iph_newone;
+	struct Rus_l2tp_ext_hdr *l2tph, l2tphone;
+	unsigned char tos;
+	unsigned short frag_off;
+	struct sk_buff *new_skb;
+	// var define ---------
+	unsigned char *data;
+	data = rtl_get_skb_data(skb);	
+	unsigned char req_id;
+	unsigned short req_len;
+
+	//if the info is integrity, conitune to contruct the ptk.
+	if(!fast_l2tp_fw || l2tpInfo.tid==0 || l2tpInfo.cid==0 || !l2tpInfo.wan_dev)
+		return 0;
+
+	if(l2tpInfo.valid != 1 || !l2tp_ppp_imagic)
+		return 0;
+
+	//extract necessary info
+	{
+		req_id = data[offset+1];
+		req_len = *((unsigned short*)(&data[offset+2]));
+	}
+
+	//contruct the ptk
+	skb_push(skb,ETH_HLEN);			//mac header push 
+	{
+		// build the mac header 
+		memcpy(skb->data, l2tpInfo.mac_header, ETH_HLEN);
+		
+		// build ip header
+		iph_new = &iph_newone;
+		iph_new->version	=	4;
+		iph_new->ihl		=	sizeof(struct iphdr) >> 2;
+		//iph_new->frag_off =	frag_off;
+		iph_new->frag_off	=	0x4000;
+		iph_new->protocol	=	IPPROTO_UDP;
+
+		//need confirm the value --------------------------------------
+		iph_new->tos		=	0;
+		
+		iph_new->daddr	=	l2tpInfo.daddr;
+		iph_new->saddr	=	l2tpInfo.saddr;
+		
+		iph_new->ttl		=	IPDEFTTL;
+		skb->ip_summed	=	CHECKSUM_NONE;
+		iph_new->tot_len	=	htons(skb->len - ETH_HLEN);
+		iph_new->id 	=	0;
+
+		iph_new->check	=	0;
+		iph_new->check	=	ip_fast_csum((unsigned char *)iph_new, iph_new->ihl);	
+		memcpy(skb->data + ETH_HLEN, &iph_newone, sizeof(iph_newone));
+
+		// build udp header
+		l2tph = &l2tphone;
+		l2tph->source	=1701;
+		l2tph->dest =1701;
+		//len ,need to confirm to modify
+		if(req_len >8)
+			l2tph->len	= 30;	
+		else
+			l2tph->len	= 26;				
+		l2tph->checksum=0;
+		
+		//build l2tp header
+		l2tph->type =0x0002;
+		l2tph->tid	=l2tpInfo.tid;
+		l2tph->cid	=l2tpInfo.cid;
+		
+		//build ppp header
+		l2tph->addr_control= 0xff03;
+		l2tph->protocol =0xc021;
+		l2tph->code = 0x0a;
+		l2tph->id = req_id;
+		l2tph->lcp_length= req_len;
+		//message && imagicNumber has the same value
+		l2tph->imagicNumber = l2tp_ppp_imagic;
+		if(req_len > 8 )
+		l2tph->message = l2tp_ppp_imagic;
+		
+		memcpy(skb->data+ETH_HLEN+sizeof(struct iphdr), &l2tphone, sizeof(struct Rus_l2tp_ext_hdr));
+
+		//reset the skb info
+		skb->len = ETH_HLEN+sizeof(struct iphdr)+sizeof(struct Rus_l2tp_ext_hdr);
+		
+		//set the ethx device to xmit
+		skb->dev=l2tpInfo.wan_dev;
+		l2tpInfo.last_xmit = jiffies;
+
+		//panic_printk("%s[%d] --\n",__FUNCTION__,__LINE__);
+		skb->dev->netdev_ops->ndo_start_xmit(skb,skb->dev);
+		//kfree_skb(skb);
+		return 1;		
+	}
+#endif
+}
+
+int fast_l2tp_tx_lcp_echo_reply(unsigned char *data, int rightShift, void *skb)
+{	
+#ifndef CONFIG_SUPPORT_RUSSIA_FEATURES
+	return 0;
+
+#else
+	//patch for russia ppp disconnect 
+	__u16 *ppp_protocol;
+	ppp_protocol = &data[36+rightShift];
+	
+	if(*ppp_protocol == 0xc021)
+	{
+		if( *((u_int8_t *)(((u_int8_t *)ppp_protocol) + 2)) == 0x09)//request
+		{
+			//contruct the reply ptk to eth dirver to send		
+			Direct_Send_Reply(skb,38+rightShift);
+			return 1;
+		}
+	}
+	
+	return 0;
+#endif
 }
 
 module_init(fastpath_init);

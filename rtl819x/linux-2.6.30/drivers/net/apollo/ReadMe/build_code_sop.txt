@@ -1,0 +1,149 @@
+Apollo build code SOP
+===================================================================================
+[diag shell]
+請進入 apollo\internal\apollo\diagShellCygwin
+
+make all   --> build 所有file 包含 SDK driver + diag shell + unittest 並產生 diag.exe
+
+make sdk        --> 只build SDK   會產生librtk.a
+make unittest   --> 只build unittest 會產生libut.a
+(unittest 很像之前CLE 的test case)
+
+make shell_tree -->
+若有變更 xxx.cli 要重build diag command tree
+會call mk_parser.py build 出 cparser_tree.c 與 cparser_tree.h
+並自動move 到  
+apollo\sdk\src\app\diag\include\parser\cparser_tree.h
+apollo\sdk\src\app\diag\src\parser\cparser_tree.c
+
+make clean   --> 一般的make clean
+
+
+
+===================================================================================
+如何增加CLI command
+1.增加 xxx.cli 於 apollo\sdk\src\app\diag\config\xxx.cli
+2.於 apollo\sdk\src\app\diag\config\diag_shell.cli   將 xxx.cli include 進來
+3.執行 make shell_tree
+4.於 cparser_tree.h 中找出 xxx.cli 所必須implement 的API
+5.create apollo\sdk\src\app\diag\src\diag_xxx.c  file 並將第4點中的API implement 在裡面
+6.add diag_xxx.c to apollo\internal\apollo\diagShellCygwin\Makefile
+7.use "make all" build 出 diag.exe
+
+
+另外 cli command 有重sdk team 取到一些sample command 與code 
+若要implement 可以參考
+apollo\sdk\src\app\diag_reference
+
+
+
+===================================================================================
+如何增加 sdk driver
+
+RTK API 
+-- RTK Layer
+1.增加 相對應 module 的RTK API
+ex:
+apollo\sdk\src\rtk\vlan.c
+apollo\sdk\include\rtk\vlan.h
+
+-- DAL Layer
+2.增加 相對應 module 的DAL API
+ex:
+apollo\sdk\src\dal\apollo\dal_apollo_vlan.c
+apollo\sdk\include\dal\apollo\dal_apollo_vlan.h
+
+
+3.將RTK API 與DAL API link 起來
+(1)於 apollo\sdk\include\dal\dal_mapper.h 中的dal_mapper_t
+   增加新的API
+   
+(2)於  apollo\sdk\src\dal\apollo\dal_apollo_mapper.c 中的dal_apollo_mapper   
+   增加新的API
+
+
+RAW API
+1. 增加 相對應 module 的RAW driver API
+ex:
+apollo\sdk\src\dal\apollo\raw\apollo_raw_vlan.c
+apollo\sdk\include\dal\apollo\raw\apollo_raw_vlan.h
+
+[modify makefile]
+--for cygwin
+sdk driver 的 makefile 位於
+apollo\internal\apollo\diagShellCygwin\build\Makefile.rtk
+ex:
+$(DAL_APOLLO_DIR)/raw/apollo_raw_vlan.o 
+
+
+若diag_xxx.c 會call 到 新的coding 的API or RAW driver
+會影響到  Linux base system 請務必也同步更新以下make file
+
+
+--for Linux base system
+[在開發初期請先在cygwin 部份開發,若確定無誤再放入 SoC 的makefile] 
+sdk driver 的 makefile 位於
+apollo\sdk\build\Makefile.linux.user.rtk
+apollo\sdk\build\Makefile.linux.kernel.rtk
+請將新增的.c file 加入makefile 中
+
+
+
+===================================================================================
+如何build unittest
+
+unittest 類似之前CLE 中的test case 用來測試driver 寫的對不對
+
+最主要將要test 的API 寫到 apollo\sdk\unittest\dal\
+ex: dal_vlan_test_case.c
+
+sample code 請參考 apollo\sdk\unittest_reference\dal 裡的file
+
+
+
+1.增加 dal_xxx_test_case.c
+2.於 apollo\sdk\unittest\sdk\sdk_test.c  加入你要test 的item
+3.modify make file 於 apollo\sdk\build\Makefile.linux.user.ut 將dal_xxx_test_case.o 加入make
+4.請進入 apollo\internal\apollo\diagShellCygwin
+  利用make all build 出diag.exe
+5.執行 diag.exe
+  透過 sdk test 這道command 可以驗證你的driver
+  
+  
+[for cygwin]
+unittest 的 makefile 位於
+apollo\internal\apollo\diagShellCygwin\build\Makefile.ut
+
+
+若diagshell.c 會call 到 新的coding 的test case
+會影響到  Linux base system 請務必也同步更新以下make file
+
+
+--for Linux base system
+[在開發初期請先在cygwin 部份開發,若確定無誤再放入 SoC 的makefile] 
+sdk driver 的 makefile 位於
+apollo\sdk\build\Makefile.linux.usr.ut
+apollo\sdk\build\Makefile.linux.kernel.ut
+請將新增的.c file 加入makefile 中
+
+
+
+
+
+
+[build code 順序]
+抓code 第一次
+make shell_tree
+make all
+
+修改SDK
+    make sdk
+修改diag
+    make diag
+修改unittest
+    make unittest
+
+
+
+
+

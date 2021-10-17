@@ -40,10 +40,18 @@
 #include "./wps/wsc.h"
 #endif
 
+#ifdef RTK_NL80211
+#include "8192cd_cfg80211.h" 
+#endif
+
 #define E_MSG_DOT11_2LARGE      "ItemSize Too Large"
 #define E_MSG_DOT11_QFULL       "Event Queue Full"
 #define E_MSG_DOT11_QEMPTY      "Event Queue Empty"
 
+#if defined(SUPPORT_UCFGING_LED) 
+extern unsigned int LED_Configuring;
+extern struct timer_list	LED_TimerCFGING;
+#endif
 
 void DOT11_InitQueue(DOT11_QUEUE * q)
 {
@@ -65,14 +73,20 @@ int DOT11_EnQueue(unsigned long task_priv, DOT11_QUEUE *q, unsigned char *item, 
 #ifdef __KERNEL__
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 #endif
+#ifndef SMP_SYNC
 	unsigned long flags;
-
-	if(DOT11_IsFullQueue(q))
-		return E_DOT11_QFULL;
-	if(itemsize > MAXDATALEN)
+#endif
+	
+	if (itemsize > MAXDATALEN)
 		return E_DOT11_2LARGE;
 
 	SAVE_INT_AND_CLI(flags);
+	
+	if (DOT11_IsFullQueue(q)) {
+		RESTORE_INT(flags);
+		return E_DOT11_QFULL;
+	}
+	
 	q->ItemArray[q->Tail].ItemSize = itemsize;
 	memset(q->ItemArray[q->Tail].Item, 0, sizeof(q->ItemArray[q->Tail].Item));
 	memcpy(q->ItemArray[q->Tail].Item, item, itemsize);
@@ -92,12 +106,17 @@ int DOT11_DeQueue(unsigned long task_priv, DOT11_QUEUE *q, unsigned char *item, 
 #ifdef __KERNEL__
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 #endif
+#ifndef SMP_SYNC
 	unsigned long flags;
-
-	if(DOT11_IsEmptyQueue(q))
-		return E_DOT11_QEMPTY;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
+	
+	if (DOT11_IsEmptyQueue(q)) {
+		RESTORE_INT(flags);
+		return E_DOT11_QEMPTY;
+	}
+	
 	memcpy(item, q->ItemArray[q->Head].Item, q->ItemArray[q->Head].ItemSize);
 	*itemsize = q->ItemArray[q->Head].ItemSize;
 	q->NumItem--;
@@ -176,6 +195,11 @@ static int DOT11_Process_Set_RSNIE(struct net_device *dev, struct iw_point *data
 #else
 	struct rtl8192cd_priv	*priv = (struct rtl8192cd_priv *)(dev->priv);
 #endif
+
+#ifdef HS2_SUPPORT
+	unsigned char       rsnie_hdr_OSEN[4]={0x50, 0x6F, 0x9A, 0x12};
+#endif
+
 	DOT11_SET_RSNIE		*Set_RSNIE = (DOT11_SET_RSNIE *)data->pointer;
 
 	DEBUG_INFO("going to set rsnie\n");
@@ -187,14 +211,24 @@ static int DOT11_Process_Set_RSNIE(struct net_device *dev, struct iw_point *data
 		memcpy((void *)pdot11RsnIE->rsnie, Set_RSNIE->RSNIE, pdot11RsnIE->rsnielen);
 		priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm = 1;
 		DEBUG_INFO("DOT11_Process_Set_RSNIE rsnielen=%d\n", pdot11RsnIE->rsnielen);
-
+		#ifdef HS2_SUPPORT
+        if ((*(unsigned char *)pdot11RsnIE->rsnie == _RSN_IE_1_) && (pdot11RsnIE->rsnielen >= 4) && (!memcmp((void *)(pdot11RsnIE->rsnie + 2), (void *)rsnie_hdr_OSEN, 4))) {
+				HS2DEBUG("found OSEN IE in Assoc Req, set dgaf_disable = 1\n");
+                priv->dgaf_disable = 1;	// under OSEN mode , all broadcast frame will transfor to unicast
+        }
+		#endif        
 		// see whether if driver is open. If not, do not enable tx/rx, david
-		if (!netif_running(priv->dev))
+		if (!netif_running(priv->dev)) {
+#ifdef __OSK__
+			if (IS_VXD_INTERFACE(priv) && pdot11RsnIE->rsnielen > 0)
+				priv->pmib->dot11OperationEntry.keep_rsnie = 1;
+#endif
 			return 0;
+		}
 
 		// Alway enable tx/rx in rtl8190_init_hw_PCI()
 		//RTL_W8(_CR_, BIT(2) | BIT(3));
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 		if (!priv->pmib->dot1180211AuthEntry.dot11EnablePSK)
 #endif
 		{
@@ -210,9 +244,10 @@ static int DOT11_Process_Set_RSNIE(struct net_device *dev, struct iw_point *data
 					}
 				}
 			}
-#ifdef CLIENT_MODE
+//for openwrt 8021x donot trigger site survey when rsnie init in init sw			
+#if defined(CLIENT_MODE) && !defined(RTK_NL80211) 
 			if (OPMODE & (WIFI_STATION_STATE | WIFI_ADHOC_STATE))
-				start_clnt_lookup(priv, 1);
+				start_clnt_lookup(priv, RESCAN);
 #endif
 		}
 	}
@@ -258,7 +293,9 @@ Success : 0
 ---------------------------------------------------*/
 static int DOT11_Process_Association_Rsp(struct net_device *dev, struct iw_point *data, int frame_type)
 {
+#ifndef SMP_SYNC
 	unsigned long		flags;
+#endif
 	struct stat_info	*pstat;
 	unsigned char		*hwaddr;
 #ifdef NETDEV_NO_PRIV
@@ -282,9 +319,8 @@ static int DOT11_Process_Association_Rsp(struct net_device *dev, struct iw_point
 	if (Assoc_Rsp->Status != 0)
 	{
 		SAVE_INT_AND_CLI(flags);
-		if (!list_empty(&pstat->asoc_list))
+		if (asoc_list_del(priv, pstat))
 		{
-			list_del_init(&pstat->asoc_list);
 			if (pstat->expire_to > 0)
 			{
 				cnt_assoc_num(priv, pstat, DECREASE, (char *)__FUNCTION__);
@@ -309,9 +345,14 @@ static int DOT11_Process_Association_Rsp(struct net_device *dev, struct iw_point
   Return Value
 Success : 0
 ---------------------------------------------------*/
-static int DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point *data)
+#ifdef CONFIG_PCI_HCI
+static inline
+#endif
+int __DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point *data)
 {
+#ifndef SMP_SYNC
 	unsigned long	flags;
+#endif
 	struct stat_info	*pstat;
 	unsigned char	*hwaddr;
 #ifdef NETDEV_NO_PRIV
@@ -332,13 +373,24 @@ static int DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point 
 
 #ifdef CLIENT_MODE
 	if(OPMODE & WIFI_STATION_STATE){
-
 		if((OPMODE&(  WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE))
 				==(  WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE))
 		{
-			issue_disassoc(priv, BSSID, _RSON_DEAUTH_STA_LEAVING_);					
-			OPMODE &= ~(WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE);
-			start_clnt_lookup(priv, 1);
+			issue_deauth(priv, BSSID, _RSON_DEAUTH_STA_LEAVING_);					
+			OPMODE_VAL(OPMODE & ~(WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE));
+ #ifdef SMART_REPEATER_MODE
+			if(GET_MIB(priv)->ap_profile.enable_profile && GET_MIB(priv)->ap_profile.profile_num > 0)			 
+			{
+				if((priv->site_survey->count_target > 0) && ((priv->join_index+1) > priv->site_survey->count_target)){
+					start_clnt_lookup(priv, RESCAN);		
+				}else{
+					start_clnt_lookup(priv, DONTRESCAN);		
+				}
+			} else
+#endif
+			{
+				start_clnt_lookup(priv, RESCAN);
+			}
 			//SME_DEBUG("!!issue disconnect at wlan!!\n");
 		}else{
 			return (-1);
@@ -347,13 +399,12 @@ static int DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point 
 	}else
 #endif
 	{
-		issue_disassoc(priv, pstat->hwaddr, Disconnect_Req->Reason);
+		issue_deauth(priv, pstat->hwaddr, Disconnect_Req->Reason);
 	}
 
 	SAVE_INT_AND_CLI(flags);
-	if (!list_empty(&pstat->asoc_list))
+	if (asoc_list_del(priv, pstat))
 	{
-		list_del_init(&pstat->asoc_list);
 		if (pstat->expire_to > 0)
 		{
 			cnt_assoc_num(priv, pstat, DECREASE, (char *)__FUNCTION__);
@@ -369,6 +420,15 @@ static int DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point 
 	return 0;
 }
 
+int DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point *data)
+{
+#if defined(CONFIG_PCI_HCI)
+	return __DOT11_Process_Disconnect_Req(dev, data);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	notify_disconnect_sta(dev, (DOT11_DISCONNECT_REQ *)data->pointer);
+	return 0;
+#endif
+}
 
 /*---------------------------------------------------------------------
   Delete Group Key for AP and Pairwise Key for specific STA
@@ -500,7 +560,7 @@ int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 	int	retVal;
 
 	if (data) {
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 		memcpy((void *)&Set_Key, (void *)data->pointer, sizeof(DOT11_SET_KEY));
 		memcpy((void *)key_combo,
 				((DOT11_SET_KEY *)data->pointer)->KeyMaterial, 32);
@@ -587,22 +647,14 @@ int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 			set_gkey_to_cam = 0;
 		}
 #endif
-
-#ifdef CONFIG_RTK_MESH
-		//modify by Joule for SECURITY
-		if (dev == priv->mesh_dev)
-		{
-			pmib->dot11sKeysTable.dot11Privacy = Set_Key.EncType;
-			pEncryptKey = &pmib->dot11sKeysTable.dot11EncryptKey;
-			pmib->dot11sKeysTable.keyid = (UINT)Set_Key.KeyIndex;
-		}
+		if(Set_Key.KeyIndex == GKEY_ID_SECOND) 
+			pEncryptKey = &pmib->dot11GroupKeysTable.dot11EncryptKey2;
 		else
-#endif
-		{
-			pmib->dot11GroupKeysTable.dot11Privacy = Set_Key.EncType;
 			pEncryptKey = &pmib->dot11GroupKeysTable.dot11EncryptKey;
-			pmib->dot11GroupKeysTable.keyid = (UINT)Set_Key.KeyIndex;
-		}
+			
+		pmib->dot11GroupKeysTable.dot11Privacy = Set_Key.EncType;
+		pmib->dot11GroupKeysTable.keyid = (UINT)Set_Key.KeyIndex;
+
 
 		switch(Set_Key.EncType)
 		{
@@ -681,11 +733,7 @@ int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 				set_aes_key(pEncryptKey, key_combo);
 
 				DEBUG_INFO("going to set CCMP-AES group key!\n");
-#ifdef CONFIG_RTK_MESH
-				if (dev == priv->mesh_dev)
-					pmib->dot11sKeysTable.keyInCam = TRUE;		// keyInCam means key in driver
-				else
-#endif
+
 					if (!SWCRYPTO) {
 						if (set_gkey_to_cam)
 						{
@@ -711,7 +759,34 @@ int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 				break;
 		}
 	}
-
+#ifdef CONFIG_IEEE80211W
+		else if(Set_Key.KeyType == DOT11_KeyType_IGTK)		
+		{	
+			int set_gkey_to_cam = 0;
+			
+#ifdef CONFIG_RTL_88E_SUPPORT
+			if (GET_CHIP_VER(priv) == VERSION_8188E)
+				set_gkey_to_cam = 1;
+#endif //CONFIG_RTL_88E_SUPPORT
+	
+#ifdef MBSSID
+			if (GET_ROOT(priv)->pmib->miscEntry.vap_enable)
+			{
+				// No matter root or vap, don't set key to cam if vap is enabled.
+				set_gkey_to_cam = 0;
+			}
+#endif
+	
+			pmib->dot11IGTKTable.dot11Privacy = Set_Key.EncType;
+			pEncryptKey = &pmib->dot11IGTKTable.dot11EncryptKey;
+			pmib->dot11IGTKTable.keyid = (UINT)Set_Key.KeyIndex;
+	
+			set_ttkeylen(pEncryptKey, 16);
+			set_tmickeylen(pEncryptKey, 16);
+			set_aes_key(pEncryptKey, key_combo);
+			
+		}
+#endif // CONFIG_IEEE80211W
 	else if(Set_Key.KeyType == DOT11_KeyType_Pairwise)
 	{
 #ifdef WDS
@@ -766,6 +841,18 @@ int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 		}
 		//----------------------------------- david+2006-06-30
 #endif // WDS
+
+#ifdef MULTI_MAC_CLONE
+		if ((OPMODE & WIFI_STATION_STATE) && priv->pmib->ethBrExtInfo.macclone_enable) {			
+			ACTIVE_ID = mclone_find_address(priv, Set_Key.MACAddr, NULL, MAC_CLONE_NOCARE_FIND);	
+			if (ACTIVE_ID < 0) {
+				DEBUG_ERR("Invalid mac address!\n");
+				return 0;
+			}				
+			pstat = get_stainfo(priv, priv->pmib->dot11Bss.bssid);			
+		}
+		else
+#endif		
 		pstat = get_stainfo(priv, Set_Key.MACAddr);
 		if (pstat == NULL) {
 			DEBUG_ERR("Set key failed, invalid mac address: %02x%02x%02x%02x%02x%02x\n",
@@ -939,10 +1026,14 @@ static int DOT11_Process_Set_Port(struct net_device *dev, struct iw_point *data)
 		pstat->ieee8021x_ctrlport = pmib->dot118021xAuthEntry.dot118021xDefaultPort;
 
 #ifdef P2P_SUPPORT
+/*cfg p2p cfg p2p
 	if((OPMODE&WIFI_P2P_SUPPORT)&&( P2PMODE ==P2P_CLIENT)){
-
+*/
+	if((rtk_p2p_is_enabled(priv)==PROPERTY_P2P)&&  rtk_p2p_chk_role(priv,P2P_CLIENT)){
 		/*to indicate web server that data path is connected done(can start issue udhcpc daemon)*/
-		P2P_STATE = P2P_S_CLIENT_CONNECTED_DHCPC;
+		/*cfg p2p cfg p2p
+		P2P_STATE = P2P_S_CLIENT_CONNECTED_DHCPC;*/
+		rtk_p2p_set_state(priv,P2P_S_CLIENT_CONNECTED_DHCPC);
 		priv->p2pPtr->clientmode_try_connect = 0;
 		P2P_DEBUG("Set_Port Sta[%02X%02X%02X%02X%02X%02X],Status=%X\n\n\n",
 			Set_Port->MACAddr[0],Set_Port->MACAddr[1],Set_Port->MACAddr[2],
@@ -1016,8 +1107,10 @@ static int DOT11_Porcess_EAPOL_MICReport(struct net_device *dev, struct iw_point
 	return 0;
 }
 
-
-int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
+#ifdef CONFIG_PCI_HCI
+static inline
+#endif
+int __DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 {
 #ifdef NETDEV_NO_PRIV
 	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
@@ -1055,7 +1148,7 @@ int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 #endif
 
 #ifdef WIFI_HAPD
-		event_indicate_hapd(priv, pstat_del->hwaddr, HAPD_MIC_FAILURE, NULL);
+		event_indicate_hapd(priv, pstat->hwaddr, HAPD_MIC_FAILURE, NULL);
 #ifdef HAPD_DRV_PSK_WPS
 		event_indicate(priv, pstat->hwaddr, 5);
 #endif
@@ -1085,7 +1178,7 @@ int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 #ifdef WDS
 					&& !(priv->pshare->aidarray[i]->station.state & WIFI_WDS)
 #endif
-			   ) {
+			) {
 #if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
 				if (priv != priv->pshare->aidarray[i]->priv)
 					continue;
@@ -1110,10 +1203,13 @@ int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 					DOT11_EnQueue((unsigned long)priv, priv->pevent_queue, (UINT8 *)&Disassociation_Ind,
 							sizeof(DOT11_DISASSOCIATION_IND));
 #endif
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 					psk_indicate_evt(priv, DOT11_EVENT_DISASSOCIATION_IND, pstat_del->hwaddr, NULL, 0);
 #endif
 
+#ifdef RTK_NL80211
+					event_indicate_cfg80211(priv, pstat_del->hwaddr, CFG80211_DEL_STA, NULL);
+#endif
 #ifdef WIFI_HAPD
 					event_indicate_hapd(priv, pstat_del->hwaddr, HAPD_EXIRED, NULL);
 #ifdef HAPD_DRV_PSK_WPS
@@ -1162,12 +1258,17 @@ int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 	return 0;
 }
 
-
-#ifdef __KERNEL__
-void DOT11_Process_MIC_Timerup(unsigned long data)
-#elif defined(__ECOS)
-void DOT11_Process_MIC_Timerup(void *data)
+int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
+{
+#if defined(CONFIG_PCI_HCI)
+	return __DOT11_Indicate_MIC_Failure(dev, pstat);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	notify_indicate_MIC_failure(dev, pstat);
+	return 0;
 #endif
+}
+
+void DOT11_Process_MIC_Timerup(unsigned long data)
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)data;
 
@@ -1178,12 +1279,7 @@ void DOT11_Process_MIC_Timerup(void *data)
 	priv->MIC_timer_on = FALSE;
 }
 
-
-#ifdef __KERNEL__
 void DOT11_Process_Reject_Assoc_Timerup(unsigned long data)
-#elif defined(__ECOS)
-void DOT11_Process_Reject_Assoc_Timerup(void *data)
-#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)data;
 
@@ -1199,13 +1295,15 @@ void DOT11_Process_Reject_Assoc_Timerup(void *data)
 	priv->assoc_reject_on = FALSE;
 }
 
-
-void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char *sa)
+#ifdef CONFIG_PCI_HCI
+static inline
+#endif
+void __DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char *sa)
 {
 	DOT11_MIC_FAILURE	Mic_Failure;
 	struct stat_info 	*pstat_del;
 	DOT11_DISASSOCIATION_IND Disassociation_Ind;
-	//int	i;
+//	int	i;
 #ifndef WITHOUT_ENQUEUE
 	Mic_Failure.EventId = DOT11_EVENT_MIC_FAILURE;
 	Mic_Failure.IsMoreEvent = 0;
@@ -1277,11 +1375,23 @@ void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char 
 	}
 }
 
+void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char *sa)
+{
+#if defined(CONFIG_PCI_HCI)
+	__DOT11_Indicate_MIC_Failure_Clnt(priv, sa);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	notify_indicate_MIC_failure_clnt(priv, sa);
+#endif
+}
 
 #ifdef RADIUS_ACCOUNTING
 void DOT11_Process_Acc_SetExpiredTime(struct net_device *dev, struct iw_point *data)
 {
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+#endif
 	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	DOT11_SET_EXPIREDTIME	*Set_ExpireTime = (DOT11_SET_EXPIREDTIME *)data->pointer;
 	struct stat_info *pstat=NULL;
@@ -1308,7 +1418,11 @@ void DOT11_Process_Acc_SetExpiredTime(struct net_device *dev, struct iw_point *d
 
 void DOT11_Process_Acc_QueryStats(struct net_device *dev, struct iw_point *data)
 {
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+#endif
 	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	struct stat_info *pstat=NULL;
 	DOT11_QUERY_STATS	*pStats = (DOT11_QUERY_STATS *)data->pointer;
@@ -1343,21 +1457,31 @@ void DOT11_Process_Acc_QueryStats(struct net_device *dev, struct iw_point *data)
 //data->pointer = (unsigned char *)stats;
 void DOT11_Process_Acc_QueryStats_All(struct net_device *dev, struct iw_point *data)
 {
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+#endif
 	struct list_head *phead=NULL, *plist=NULL;
 	struct stat_info *pstat=NULL;
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
 	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	DOT11_QUERY_STATS	*pStats = (DOT11_QUERY_STATS *)data->pointer;
 	//int i;
 	int cnt = 0;
-
-	phead = &priv->asoc_list;
+#ifdef SMP_SYNC
+	unsigned long flags=0;
+#endif
 
 	if( pStats != NULL ){
+		phead = &priv->asoc_list;
+		
+		SMP_LOCK_ASOC_LIST(flags);
+		
 		plist = phead->next;
 		while (plist != phead) {
 			pstat = list_entry(plist, struct stat_info, asoc_list);
-		
+			plist = plist->next;
+			
 			pStats[cnt].EventId = DOT11_EVENT_ACC_QUERY_STATS_ALL;
 			pStats[cnt].IsMoreEvent = 0;
 			memcpy( pStats[cnt].MACAddr, pstat->hwaddr, MACADDRLEN );
@@ -1368,6 +1492,7 @@ void DOT11_Process_Acc_QueryStats_All(struct net_device *dev, struct iw_point *d
 
 			cnt++;
 		}
+		SMP_UNLOCK_ASOC_LIST(flags);
 	}
 	else{
 		printk("%s: NULL POINTER!\n", (char *)__FUNCTION__);
@@ -1511,6 +1636,210 @@ error_handle:
 
 #endif // WIFI_SIMPLE_CONFIG
 
+#ifdef USER_ADDIE
+static int DOT11_USER_set_ie(struct net_device *dev, struct iw_point *data)
+{
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)(dev->priv);
+#endif
+	DOT11_SET_USERIE *Set_USERIE = (DOT11_SET_USERIE *)data->pointer;
+	unsigned int i;
+	
+	if (Set_USERIE->Flag == SET_IE_FLAG_INSERT) {
+		DEBUG_INFO("USER: add beacon IE\n");
+		for (i=0; i<MAX_USER_IE; i++) {
+			if (!priv->user_ie_list[i].used)
+				break;
+		}
+		if (i == MAX_USER_IE)
+			return -1;
+		priv->user_ie_list[i].used = 1;
+		priv->user_ie_list[i].ie_len = Set_USERIE->USERIELen;
+		memcpy((void *)priv->user_ie_list[i].ie, Set_USERIE->USERIE, Set_USERIE->USERIELen);
+	}
+	else if (Set_USERIE->Flag == SET_IE_FLAG_DELETE) {
+		DEBUG_INFO("USER: remove beacon IE\n");
+		for (i=0; i<MAX_USER_IE; i++) {
+			if (priv->user_ie_list[i].used &&
+				!memcmp(priv->user_ie_list[i].ie, Set_USERIE->USERIE, Set_USERIE->USERIELen)) {
+				priv->user_ie_list[i].used = 0;
+				break;
+			}
+		}
+		if (i == MAX_USER_IE)
+			return -1;
+	}
+	else {
+		DEBUG_ERR("Invalid flag of set IE [%d]!\n", Set_USERIE->Flag);
+	}
+
+	return 0;
+}
+
+#endif
+
+#ifdef CONFIG_IEEE80211W
+static int DOT11_PMF_set_ie(struct net_device *dev, struct iw_point *data)
+{
+#ifdef NETDEV_NO_PRIV
+    struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+    struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)(dev->priv);
+#endif
+
+	struct stat_info *pstat; 
+	DOT11_SET_11W_Flags flags;				
+	if (!memcpy((void *)(&flags),(void *)(data->pointer), data->length))
+	{
+		PMFDEBUG("memcpy fail!, data=%x, length=%d\n", data->pointer, data->length);
+		return -1;
+	}
+
+	pstat= get_stainfo(priv,flags.macAddr); 			
+
+	if(!pstat){
+		//PMFDEBUG("psta is NULL\n");
+	}else{
+		pstat->isPMF = flags.isPMF;
+    	PMFDEBUG("set sta[%02x%02x%02x:%02x%02x%02x]'s PMF=[%d]\n",pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5], flags.isPMF);		        
+    }
+
+	return 0;
+}
+#endif
+
+
+#ifdef HS2_SUPPORT
+/* Hotspot 2.0 Release 1*/
+static int DOT11_HS2_set_ie(struct net_device *dev, struct iw_point *data)
+{
+#ifdef NETDEV_NO_PRIV
+    struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+    struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)(dev->priv);
+#endif
+    DOT11_SET_RSNIE *Set_RSNIE = (DOT11_SET_RSNIE *)data->pointer;
+	HS2_DEBUG_INFO("HS2 set ie, flag=%d\n",Set_RSNIE->Flag);
+    if (Set_RSNIE->Flag == SET_IE_FLAG_INTERWORKING)
+    {
+        //DEBUG_INFO
+		HS2_DEBUG_TRACE(1, "HS2: set interworking IE,%x,%x\n",Set_RSNIE->RSNIE[0], Set_RSNIE->RSNIE[1]);
+        priv->pmib->hs2Entry.interworking_ielen = Set_RSNIE->RSNIELen;
+        memcpy((void *)priv->pmib->hs2Entry.interworking_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+    }
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_QOSMAP)
+    {
+        //DEBUG_INFO
+		HS2_DEBUG_TRACE(1, "HS2: set QoSMAP set IE,%x,%x\n",Set_RSNIE->RSNIE[0], Set_RSNIE->RSNIE[1]);
+		if(priv->pmib->hs2Entry.nQoSMap == 2) {
+			priv->pmib->hs2Entry.nQoSMap = 0;
+			panic_printk("WLAN Driver cannot set more than two QoSMAP ie\n");
+		}
+		
+        priv->pmib->hs2Entry.QoSMap_ielen[priv->pmib->hs2Entry.nQoSMap] = Set_RSNIE->RSNIELen;
+	    memcpy((void *)priv->pmib->hs2Entry.QoSMap_ie[priv->pmib->hs2Entry.nQoSMap], Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+		if(priv->pmib->hs2Entry.nQoSMap == 0) {
+			priv->pmib->hs2Entry.curQoSMap = 0;
+			setQoSMapConf(priv);
+		}
+		HS2_DEBUG_TRACE(1, "QoSMap_ielen[%d]=%d\n",priv->pmib->hs2Entry.nQoSMap,priv->pmib->hs2Entry.QoSMap_ielen[priv->pmib->hs2Entry.nQoSMap]);
+		priv->pmib->hs2Entry.nQoSMap++;
+		
+    }
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_ADVT_PROTO)
+    {
+        HS2_DEBUG_TRACE(1, "HS2: set advt proto IE\n");
+        priv->pmib->hs2Entry.advt_proto_ielen = Set_RSNIE->RSNIELen;
+        memcpy((void *)priv->pmib->hs2Entry.advt_proto_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+    }
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_ROAMING)
+    {
+        HS2_DEBUG_TRACE(1, "HS2: set roaming IE\n");
+        priv->pmib->hs2Entry.roam_ielen = Set_RSNIE->RSNIELen;
+        memcpy((void *)priv->pmib->hs2Entry.roam_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+    }
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_HS2)
+    {
+        HS2_DEBUG_TRACE(1, "HS2: set HS2 IE\n");
+        priv->pmib->hs2Entry.hs2_ielen = Set_RSNIE->RSNIELen;
+        memcpy((void *)priv->pmib->hs2Entry.hs2_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+        if (priv->pmib->hs2Entry.hs2_ie[4] & 0x01)
+        {
+        	HS2_DEBUG_TRACE(1, "dgaf enable\n");
+        	priv->dgaf_disable = 1;
+        }
+    	else
+    	{
+    		HS2_DEBUG_TRACE(1, "dgaf disable\n");
+    		priv->dgaf_disable = 0;
+    	}
+		//OSU_Present
+		if (priv->pmib->hs2Entry.hs2_ie[4] & 0x02)
+        {
+        	DEBUG_INFO("OSU Provider List enable\n");
+        	priv->OSU_Present = 1;
+        }
+    	else
+    	{
+    		DEBUG_INFO("OSU Provider List disable\n");
+    		priv->OSU_Present = 0;
+    	}
+        //channel utilization
+        rtl8192cd_cu_start(priv);
+    }
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_TIMEADVT)
+    {
+        HS2_DEBUG_TRACE(1, "HS2: set timeadvt IE\n");
+        priv->pmib->hs2Entry.timeadvt_ielen = Set_RSNIE->RSNIELen;
+        memcpy((void *)priv->pmib->hs2Entry.timeadvt_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+	}
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_TIMEZONE)
+    {
+        HS2_DEBUG_TRACE(1, "HS2: set time zone IE\n");
+        priv->pmib->hs2Entry.timezone_ielen = Set_RSNIE->RSNIELen;
+        memcpy((void *)priv->pmib->hs2Entry.timezone_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+    }
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_PROXYARP)
+    {
+		priv->proxy_arp = *Set_RSNIE->RSNIE;
+        HS2_DEBUG_INFO("\n proxy arp in driver[%d]\n", priv->proxy_arp);
+    } 
+    else if (Set_RSNIE->Flag == SET_IE_FLAG_ICMPv4ECHO)
+    {
+        priv->pmib->hs2Entry.ICMPv4ECHO = *Set_RSNIE->RSNIE;
+        HS2_DEBUG_INFO("ICMPv4ECHO in driver=[%d]\n", priv->pmib->hs2Entry.ICMPv4ECHO);
+    }	
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_MBSSID)
+	{
+		HS2_DEBUG_INFO("HS2: set Multiple BSSID IE\n");
+        priv->pmib->hs2Entry.MBSSID_ielen= Set_RSNIE->RSNIELen;
+        memcpy((void *)priv->pmib->hs2Entry.MBSSID_ie, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+	}
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_REMEDSVR)
+	{
+		HS2_DEBUG_INFO("HS2: set REMEDSVR string\n");
+        memcpy((void *)priv->pmib->hs2Entry.remedSvrURL, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+		HS2_DEBUG_INFO("REMEDSVR:%s\n",priv->pmib->hs2Entry.remedSvrURL);
+	}
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_SessionInfoURL)
+	{
+		DEBUG_INFO("HS2: set SessionInfoURL string\n");
+        memcpy((void *)priv->pmib->hs2Entry.SessionInfoURL, Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+		HS2_DEBUG_INFO("SessionInfoURL:%s\n",priv->pmib->hs2Entry.SessionInfoURL);
+	}
+	else if (Set_RSNIE->Flag == SET_IE_FLAG_MMPDULIMIT) {
+		HS2_DEBUG_INFO("HS2: set REMEDSVR string\n");
+        memcpy((void *)(&priv->pmib->hs2Entry.mmpdu_limit), Set_RSNIE->RSNIE, Set_RSNIE->RSNIELen);
+		HS2_DEBUG_INFO("mmpdu_limit:%d\n",priv->pmib->hs2Entry.mmpdu_limit);
+	}
+	else
+	{
+		HS2_DEBUG_ERR("HS2: unknown ioctl flag\n");
+	}
+}
+#endif
 
 /*-----------------------------------------------------------------------------
   Most of the time, we don't have to worry about the racing condition of
@@ -1541,7 +1870,7 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	memcpy((void *)&req, (void *)(data->pointer), sizeof(DOT11_REQUEST));
 #else
 	if (copy_from_user((void *)&req, (void *)(data->pointer), sizeof(DOT11_REQUEST))) {
@@ -1562,12 +1891,12 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			if((ret = DOT11_DeQueue((unsigned long)priv, priv->pevent_queue, QueueData, &QueueDataLen)) != 0)
 			{
 				val8 = DOT11_EVENT_NO_EVENT;
-				if (copy_to_user((void *)((UINT32)(data->pointer)), &val8, 1)) {
+				if (copy_to_user((void *)((unsigned long)(data->pointer)), &val8, 1)) {
 					DEBUG_ERR("copy_to_user fail!\n");
 					return -1;
 				}
 				val8 = 0;
-				if (copy_to_user((void *)((UINT32)(data->pointer) + 1), &val8, 1)) {
+				if (copy_to_user((void *)((unsigned long)(data->pointer) + 1), &val8, 1)) {
 					DEBUG_ERR("copy_to_user fail!\n");
 					return -1;
 				}
@@ -1588,10 +1917,10 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			if((ret = DOT11_DeQueue((unsigned long)priv, priv->pevent_queue, QueueData, &QueueDataLen)) != 0)
 			{
 				val8 = DOT11_EVENT_NO_EVENT;
-				memcpy((void *)((UINT32)(data->pointer)), &val8, 1);
+				memcpy((void *)((unsigned long)(data->pointer)), &val8, 1);
 
 				val8 = 0;
-				memcpy((void *)((UINT32)(data->pointer) + 1), &val8, 1);
+				memcpy((void *)((unsigned long)(data->pointer) + 1), &val8, 1);
 				data->length = sizeof(DOT11_NO_EVENT);
 			}
 			else
@@ -1619,8 +1948,12 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			break;
 
 		case DOT11_EVENT_SET_KEY:
+#if defined(CONFIG_PCI_HCI)
 			if(!DOT11_Process_Set_Key(dev, data, NULL, NULL))
 			{}
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+			notify_set_key(dev, (DOT11_SET_KEY *)data->pointer, NULL);
+#endif
 			break;
 
 		case DOT11_EVENT_SET_PORT:
@@ -1664,12 +1997,16 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			break;
 
 		case DOT11_EVENT_ACC_SET_EXPIREDTIME:
+#ifdef RADIUS_ACCOUNTING
 			DOT11_Process_Acc_SetExpiredTime(dev, data);
+#endif
 			DEBUG_INFO("trying to Set ACC Expiredtime\n");
 			break;
 
 		case DOT11_EVENT_ACC_QUERY_STATS:
+#ifdef RADIUS_ACCOUNTING			
 			DOT11_Process_Acc_QueryStats(dev, data);
+#endif
 			DEBUG_INFO("trying to Set ACC Expiredtime\n");
 			break;
 
@@ -1843,12 +2180,12 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 						if((ret = DOT11_DeQueue((unsigned long)priv, priv->wapiEvent_queue, QueueData, &QueueDataLen)) != 0)
 						{
 							val8 = DOT11_EVENT_NO_EVENT;
-							if (copy_to_user((void *)((UINT32)(data->pointer)), &val8, 1)) {
+							if (copy_to_user((void *)((unsigned long)(data->pointer)), &val8, 1)) {
 								DEBUG_ERR("copy_to_user fail!\n");
 								return -1;
 							}
 							val8 = 0;
-							if (copy_to_user((void *)((UINT32)(data->pointer) + 1), &val8, 1)) {
+							if (copy_to_user((void *)((unsigned long)(data->pointer) + 1), &val8, 1)) {
 								DEBUG_ERR("copy_to_user fail!\n");
 								return -1;
 							}
@@ -1882,6 +2219,382 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 							kfree(kernelbuf);
 						}
 						break;
+#endif
+#ifdef HS2_SUPPORT
+/* Hotsport 2.0 Release 1 */
+		case DOT11_EVENT_HS2_SET_IE:
+            if(!DOT11_HS2_set_ie(dev, data))
+            {};
+			break;
+        case DOT11_EVENT_HS2_GET_TSF:
+			{
+				unsigned long long  tsf;
+				unsigned long tsf_sec;
+				tsf = RTL_R32(TSFTR+4);
+				tsf = (tsf<<32) +  RTL_R32(TSFTR);
+				tsf_sec = (unsigned long)tsf/1000000;
+				if (copy_to_user((void *)(data->pointer), &tsf_sec, sizeof(unsigned long)))
+				{
+					HS2_DEBUG_ERR("copy_to_user fail!\n");
+					return -1;
+				}
+				data->length = sizeof(unsigned long);
+			}
+			break;      
+        case DOT11_EVENT_HS2_GAS_RSP:
+			issue_GASrsp(priv, data->pointer);
+			break;
+        case DOT11_EVENT_HS2_TSM_REQ:
+			{
+			DOT11_BSS_SessInfo_URL sesionInfoURL; 
+			DOT11_HS2_TSM_REQ tsmreq;
+					
+			if (copy_from_user((void *)(&sesionInfoURL),(void *)(data->pointer), data->length))
+			{
+				DEBUG_ERR("copy_from_user fail!\n");
+				return -1;
+			}
+			
+			HS2_DEBUG_INFO("send bss tx mgmt req to STA:");
+			MAC_PRINT(sesionInfoURL.macAddr);
+			
+			memcpy(tsmreq.MACAddr, sesionInfoURL.macAddr, 6);
+			memcpy(priv->pmib->hs2Entry.sta_mac, sesionInfoURL.macAddr, 6); // used in dissassoc timer
+
+            //tsmreq.Req_mode = 16; // ESS Disassoc Imminent
+			/*HS2 R2 logo test ; ESS Disassoc Imminent  , test plan 4.12*/ 
+            tsmreq.Req_mode = 0x14; //
+
+			tsmreq.term_len = 0;
+
+			tsmreq.Dialog_token = 5;
+			tsmreq.Disassoc_timer = sesionInfoURL.SWT;
+			tsmreq.Validity_intval = 0;	
+			tsmreq.url_len = strlen(sesionInfoURL.URL);
+			memcpy(tsmreq.Session_url, sesionInfoURL.URL, tsmreq.url_len);
+			tsmreq.list_len = 0;	
+
+
+
+            issue_BSS_TSM_req(priv, &tsmreq);
+
+			HS2_DEBUG_INFO("issue_BSS_TSM_req and set timer to disassoc[%d]ms\n",(tsmreq.Disassoc_timer * 60 * 1000));
+						
+           	if (timer_pending(&priv->disassoc_timer))
+        		del_timer_sync(&priv->disassoc_timer);            
+			mod_timer(&priv->disassoc_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(tsmreq.Disassoc_timer * 60 * 1000));
+			}
+			break;
+        case DOT11_EVENT_HS2_GET_RSN:
+			{
+				struct wifi_mib *pmib;
+				pmib = GET_MIB(priv);
+				if (pmib->dot11RsnIE.rsnielen) {                                
+					if (copy_to_user((void *)(data->pointer), pmib->dot11RsnIE.rsnie, pmib->dot11RsnIE.rsnielen))
+					{
+						HS2_DEBUG_ERR("copy_to_user fail!\n");
+						return -1;
+					}
+					data->length = pmib->dot11RsnIE.rsnielen;
+				}
+			}
+			break;
+        case DOT11_EVENT_HS2_GET_MMPDULIMIT:
+            {
+				struct wifi_mib *pmib;
+				pmib = GET_MIB(priv);
+				if (copy_to_user((void *)(data->pointer), (void *)(&pmib->hs2Entry.mmpdu_limit), sizeof(unsigned int)))
+				{
+					HS2_DEBUG_ERR("copy_to_user fail!\n");
+					return -1;
+				}
+				data->length = sizeof(unsigned int);
+            }
+            break;
+		case DOT11_EVENT_WNM_NOTIFY: // HS2.0 (case 4.10)
+			{
+				struct wifi_mib *pmib;
+				int i;
+				DOT11_WNM_NOTIFY WNM_Notify;
+					
+				pmib = GET_MIB(priv);
+				if (copy_from_user((void *)(&WNM_Notify),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+				strcpy(pmib->hs2Entry.remedSvrURL,WNM_Notify.remedSvrURL);
+
+				pmib->hs2Entry.serverMethod = WNM_Notify.serverMethod;
+				memcpy(pmib->hs2Entry.sta_mac,WNM_Notify.macAddr,6);
+				HS2_DEBUG_INFO("WNM Dest=");
+				MAC_PRINT(pmib->hs2Entry.sta_mac);				
+				HS2_DEBUG_INFO("Server URL = %s\n",pmib->hs2Entry.remedSvrURL);
+				issue_WNM_Notify(priv);				
+			}
+			break;
+		case DOT11_EVENT_WNM_DEAUTH_REQ: // HS2.0 (case 4.13)
+			{
+				struct wifi_mib *pmib;
+				int i;
+				DOT11_WNM_DEAUTH_REQ WNM_Deauth;
+					
+				pmib = GET_MIB(priv);
+				if (copy_from_user((void *)(&WNM_Deauth),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+				HS2_DEBUG_INFO("WNM Deauth da=");
+				MAC_PRINT(WNM_Deauth.macAddr);
+				HS2_DEBUG_INFO("reason=%d, reAuthDelay=%d, WNM URL=%s\n",WNM_Deauth.reason, WNM_Deauth.reAuthDelay,WNM_Deauth.URL);
+				
+				issue_WNM_Deauth_Req(priv,WNM_Deauth.macAddr,WNM_Deauth.reason,WNM_Deauth.reAuthDelay,WNM_Deauth.URL);
+			}
+			break;
+		case DOT11_EVENT_QOS_MAP_CONF:
+			{
+				struct wifi_mib *pmib;
+				int i;
+				DOT11_QoSMAPConf QoSMAPConf;
+					
+				pmib = GET_MIB(priv);
+				if (copy_from_user((void *)(&QoSMAPConf),(void *)(data->pointer), data->length))
+				{
+					HS2_DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+				if(QoSMAPConf.indexQoSMAP > 1)
+				{
+					HS2_DEBUG_ERR("indexQoSMAP > 1!\n");
+					return -1;
+				}
+				HS2_DEBUG_INFO("QoSMAPConf da=");
+				MAC_PRINT(QoSMAPConf.macAddr);				
+				HS2_DEBUG_INFO("QoSMAP index=%d\n",QoSMAPConf.indexQoSMAP);
+
+				memcpy(priv->pmib->hs2Entry.sta_mac,QoSMAPConf.macAddr,6);
+				priv->pmib->hs2Entry.curQoSMap = QoSMAPConf.indexQoSMAP;
+				setQoSMapConf(priv);
+				issue_QoS_MAP_Configure(priv, QoSMAPConf.macAddr, QoSMAPConf.indexQoSMAP);
+			}
+			break;
+#endif // HS2_SUPPORT
+#ifdef USER_ADDIE
+		case DOT11_EVENT_USER_SETIE:
+			{
+				if(DOT11_USER_set_ie(dev, data) < 0) {
+					DEBUG_ERR("DOT11_USER_set_ie failed\n");
+					return -1;
+				};
+			}
+			break;
+#endif
+#if defined(SUPPORT_UCFGING_LED) 
+		case DOT11_EVENT_UCFGING_LED:
+			{
+				DOT11_SET_UCFGING_LED *SetData = (DOT11_SET_UCFGING_LED *)data->pointer;
+				if(LED_Configuring != SetData->State){
+					LED_Configuring = SetData->State;
+				//panic_printk("LED_Configuring=%d\n", LED_Configuring);
+				
+					if(LED_Configuring == 1){
+						if (timer_pending(&priv->pshare->LED_Timer))
+							del_timer_sync(&priv->pshare->LED_Timer);
+						//init another timer for specific function	
+							StartCFGINGTimer();
+						
+					}else{
+						//del another timer that specific function used	
+						if (timer_pending(&LED_TimerCFGING))
+							del_timer_sync(&LED_TimerCFGING);
+						enable_sw_LED(priv, 1);
+					}
+				}
+ 			}
+			break;
+#endif //SUPPORT_UCFGING_LED
+#ifdef CONFIG_IEEE80211W
+		/*HS2 R2 logo test*/ 
+        case DOT11_EVENT_INIT_PMF:
+        {
+				int i;
+				DOT11_INIT_11W_Flags flags;				
+				if (copy_from_user((void *)(&flags),(void *)(data->pointer), data->length))
+				{
+					PMFDEBUG("copy_from_user fail!\n");
+					return -1;
+				}
+
+                PMFDEBUG("init pmf:11W[%d],SHA256[%d]\n",flags.dot11IEEE80211W, flags.dot11EnableSHA256);
+			
+				priv->pmib->dot1180211AuthEntry.dot11IEEE80211W = flags.dot11IEEE80211W;
+                priv->pmib->dot1180211AuthEntry.dot11EnableSHA256 = flags.dot11EnableSHA256;
+        }
+		case DOT11_EVENT_SET_PMF:
+			{
+				struct stat_info *pstat; 
+				int i;
+				DOT11_SET_11W_Flags flags;				
+				if (copy_from_user((void *)(&flags),(void *)(data->pointer), data->length))
+				{
+					PMFDEBUG("copy_from_user fail!\n");
+					return -1;
+				}
+                #ifdef PMF_DEBUGMSG
+                PMFDEBUG("set sta[%02X%02X%02X:%02X%02X]'s PMF=[%d]\n",
+                    flags.macAddr[0],flags.macAddr[1],flags.macAddr[2],
+                    flags.macAddr[3],flags.macAddr[4],flags.macAddr[5],flags.isPMF);                    
+                #endif
+				pstat= get_stainfo(priv,flags.macAddr);				
+				if(!pstat){
+					PMFDEBUG("psta is NULL\n");
+				}else{
+					pstat->isPMF = flags.isPMF;
+
+                }
+			}
+				break;
+		case DOT11_EVENT_GET_IGTK_PN:
+			{
+				struct wifi_mib *pmib;
+				int i;
+				unsigned char *tt;
+				pmib = GET_MIB(priv);			
+
+                #ifdef PMF_DEBUGMSG
+				PMFDEBUG("get IGTK_PN:");
+				tt = (unsigned char *) & pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48;
+				for (i=0;i<sizeof(unsigned long long);i++){
+					panic_printk("%02X ",tt[i]);
+				}
+				panic_printk("\n");
+                #if 0
+				PMFDEBUG("dot11TXPN48.val48=%x %x %x %x %x %x\n",pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC0
+													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC1
+													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC2
+													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC3
+													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC4
+													,pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48._byte_.TSC5);
+                #endif             
+                #endif
+
+				if (copy_to_user((void *)(data->pointer), (void *) (&pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48), sizeof(pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48)))
+				{
+					DEBUG_ERR("copy_to_user fail!\n");
+					return -1;
+				}
+				data->length = sizeof(pmib->dot11IGTKTable.dot11EncryptKey.dot11TXPN48.val48);
+			
+			}
+			break;
+		case DOT11_EVENT_SA_QUERY_RSP:
+			{
+				DOT11_SA_QUERY_RSP resp;
+				if (copy_from_user((void *)(&resp),(void *)(data->pointer), data->length))
+				{
+					DEBUG_ERR("copy_from_user fail!\n");
+					return -1;
+				}
+				issue_SA_Query_Rsp(dev, resp.MACAddr, resp.trans_id);
+				}
+				break;
+#endif // CONFIG_IEEE80211W
+#ifdef RSSI_MONITOR_NCR
+		case DOT11_EVENT_RSSI_MONITOR_REPORT:
+			{
+				int more_data=0;
+#ifdef MBSSID
+				int i;
+#endif
+				priv = GET_ROOT(priv);
+				ret = DOT11_DeQueue((unsigned long)priv, priv->rssimEvent_queue, QueueData, &QueueDataLen);
+				if(ret != 0)
+				{
+#ifdef UNIVERSAL_REPEATER
+					if (IS_DRV_OPEN(GET_VXD_PRIV(priv)))	{
+						ret = DOT11_DeQueue((unsigned long)priv, GET_VXD_PRIV(priv)->rssimEvent_queue, QueueData, &QueueDataLen);						
+					}
+#endif
+#ifdef MBSSID
+					if (priv->pmib->miscEntry.vap_enable) 		{
+						for (i=0; i<RTL8192CD_NUM_VWLAN && (ret != 0); i++) {
+							if (IS_DRV_OPEN(priv->pvap_priv[i])) {
+								ret = DOT11_DeQueue((unsigned long)priv, priv->pvap_priv[i]->rssimEvent_queue, QueueData, &QueueDataLen);	
+							}
+						}
+					}
+#endif								
+				}			
+				if(ret != 0) {
+					QueueDataLen = sizeof(rssim_msg);				
+					memset(QueueData, 0, QueueDataLen);				
+				} else {
+					if(!DOT11_IsEmptyQueue(priv->rssimEvent_queue))
+						more_data++;
+#ifdef UNIVERSAL_REPEATER
+						if ((more_data==0) && IS_DRV_OPEN(GET_VXD_PRIV(priv)))	{
+							if(!DOT11_IsEmptyQueue(GET_VXD_PRIV(priv)->rssimEvent_queue))
+								more_data++;
+						}
+#endif
+#ifdef MBSSID
+						if (GET_ROOT(priv)->pmib->miscEntry.vap_enable) 		{
+							for (i=0; i<RTL8192CD_NUM_VWLAN && (more_data == 0); i++) {
+								if (IS_DRV_OPEN(priv->pvap_priv[i])) {
+									if(!DOT11_IsEmptyQueue(priv->pvap_priv[i]->rssimEvent_queue))
+										more_data++;
+								}
+							}
+						}
+#endif								
+				}
+				if (copy_to_user((void *)data->pointer, (void *)QueueData, QueueDataLen)) {
+					DEBUG_ERR("copy_to_user fail!\n");	
+					return -1;
+				}
+				data->length = QueueDataLen;			
+				if(more_data)
+					rssi_event_indicate(priv);
+			}
+			break;
+			case DOT11_EVENT_RSSI_MONITOR_SETTYPE:
+			{
+				DOT11_RSSIM_SET_TYPE event;
+				struct stat_info	*pstat;
+#ifdef MBSSID
+				int i;
+#endif
+				if (copy_from_user((void *)&event, (void *)(data->pointer), data->length)) {
+					DEBUG_ERR("copy_from_user error!\n");
+					return -1;
+				}				
+				if(pstat = get_stainfo(priv, event.hwaddr)) {
+					pstat->rssim_type = event.type;
+					break;
+				}
+#ifdef UNIVERSAL_REPEATER
+				if ( IS_DRV_OPEN(GET_VXD_PRIV(priv)))	{
+					if(pstat = get_stainfo(GET_VXD_PRIV(priv), event.hwaddr)) {
+						pstat->rssim_type = event.type;
+						break;
+					}
+				}
+#endif
+#ifdef MBSSID
+				if (GET_ROOT(priv)->pmib->miscEntry.vap_enable) 		{
+					for (i=0; i<RTL8192CD_NUM_VWLAN; i++) {
+						if (IS_DRV_OPEN(priv->pvap_priv[i])) {
+							if(pstat = get_stainfo(priv->pvap_priv[i], event.hwaddr)) {
+								pstat->rssim_type = event.type;
+								break;
+							}
+						}
+					}
+				}
+#endif		
+			}
+			break;
 #endif
 		default:
 						DEBUG_ERR("unknown user daemon command\n");

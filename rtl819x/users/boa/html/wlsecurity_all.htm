@@ -32,11 +32,16 @@ var wps_type_old=<% getIndex("networkType");%>;
 var wps_wizard=0;
 // <<---------------------------------------------- for WPS	 
 
+// for HS2
+var hs2_enabled=<% getIndex("hs2Enabled");%>;
+
 var SSIDnum;
 var mode;
 var enable_1x;
 var wlan_auth;
 var wpa_auth;
+var wpa11w;
+var wpa2EnableSHA256;
 var wapi_auth;
 var wepmode;
 var wep_key_fmt;
@@ -170,7 +175,8 @@ function show_wpa_settings()
 	var wep_type = get_by_id("method");
 	var allow_tkip=0;
 	var wlan_index=<% getIndex("wlan_idx"); %>;
-
+	var pmf_enable=<% getIndex("pmfEnabled"); %>;
+	SSIDnum = parent.document.forms[0].SSID_Setting[idx].value;
 	if(wep_type.selectedIndex==2 || wep_type.selectedIndex==3)
 		allow_tkip=0;
 	else
@@ -179,8 +185,39 @@ function show_wpa_settings()
 	get_by_id("show_wpa_psk2").style.display = "none";	
 	get_by_id("show_8021x_eap").style.display = "none";
 	get_by_id("show_8021x_eap_client").style.display = "none";
-//	get_by_id("show_pre_auth").style.display = "none";
-	
+
+	if(ap_mode != 1){//ap mode
+		if(pmf_enable) {
+			get_by_id("show_80211w").style.display = "none"
+			if(wep_type.selectedIndex==2)
+				get_by_id("show_80211w").style.display = ""
+
+			if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[0].checked)
+				dF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[0].checked=true;			
+			
+
+			get_by_id("show_sha256").style.display = "none"
+			if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[1].checked)
+			{
+				get_by_id("show_sha256").style.display = ""
+			}
+
+			if(wep_type.selectedIndex==2 && dF.wpa11w<% getIndex("wlan_idx"); %>[2].checked)
+			{
+				dF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[1].checked=true;				
+			}
+		}else {
+			get_by_id("show_80211w").style.display = "none"
+			get_by_id("show_sha256").style.display = "none"				
+		}
+		
+		if(wep_type.selectedIndex == 3) { // WPA-Mix
+				dF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[1].checked=false;
+				dF.wpa11w<% getIndex("wlan_idx"); %>[2].checked = false;
+				dF.wpa11w<% getIndex("wlan_idx"); %>[1].checked = false;
+				dF.wpa11w<% getIndex("wlan_idx"); %>[0].checked = true;
+		}
+	}		
 	if (dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked)
 	{
 		get_by_id("show_wpa_psk1").style.display = "";
@@ -202,9 +239,35 @@ function show_wpa_settings()
 	
 		if("<% getInfo("wlan_onoff_tkip"); %>" * 1 == 0)
 		{
-			wlanBand = "<% getInfo("wlanband"); %>" *1;
-			wlanMode = "<% getIndex("wlanMode");%>"*1;
-			if(wlanMode!=1 && (wlanBand == 8 || wlanBand == 10 || wlanBand == 11 || wlanBand == 12) && allow_tkip==0)
+			if(SSIDnum==0){
+				wlanBand = "<% getVirtualInfo("wlanband","0"); %>" *1;
+				wlanMode = "<% getVirtualIndex("wlanMode","0");%>"*1;
+			}
+			if(SSIDnum==1){
+				wlanBand = "<% getVirtualInfo("wlanband","1"); %>" *1;
+				wlanMode = "<% getVirtualIndex("wlanMode","1");%>"*1;
+			}
+			if(SSIDnum==2){
+				wlanBand = "<% getVirtualInfo("wlanband","2"); %>" *1;
+				wlanMode = "<% getVirtualIndex("wlanMode","2");%>"*1;
+			}
+			if(SSIDnum==3){
+				wlanBand = "<% getVirtualInfo("wlanband","3"); %>" *1;
+				wlanMode = "<% getVirtualIndex("wlanMode","3");%>"*1;
+			}
+			if(SSIDnum==4){
+				wlanBand = "<% getVirtualInfo("wlanband","4"); %>" *1;
+				wlanMode = "<% getVirtualIndex("wlanMode","4");%>"*1;
+			}
+			if(SSIDnum==5){
+				wlanBand = "<% getVirtualInfo("wlanband","5"); %>" *1;
+				wlanMode = "<% getVirtualIndex("wlanMode","5");%>"*1;
+			}
+			if(SSIDnum>5){
+                        	wlanBand = 76;
+                        	wlanMode = 1;
+                       	}
+			/*if(wlanMode!=1 && (wlanBand == 8 || wlanBand == 10 || wlanBand == 11 || wlanBand == 12 || wlanBand == 76|| wlanBand == 64|| wlanBand == 72) && allow_tkip==0)
 			{
 				dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked=false;
 				dF.ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;
@@ -217,9 +280,33 @@ function show_wpa_settings()
 			{
 				dF.ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=false;
 				dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=false;
-			}
+			}*/
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[1].checked=false;
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=true;		
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=false;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=false;		
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=false;
 		}
-	
+		/*if(wep_type.selectedIndex==2 || wep_type.selectedIndex==3)
+		{
+			if(dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked == true && dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked == true )
+				dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked = false;
+			if(dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked == true && dF.ciphersuite<% getIndex("wlan_idx"); %>[1].checked == true )
+				dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked = false;
+		}*/
+		if((wep_type.selectedIndex==3 && ap_mode != 1) || (wep_type.selectedIndex==2 && ap_mode == 1)){
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+			dF.ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=true;		
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;		
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=true;	 			
+		}	
 }
 
 function show_wapi_settings()
@@ -350,8 +437,7 @@ function show_authentication()
 	var wep_type = get_by_id("method");
 	var enable_1x = get_by_id("use1x");	
 	var form1 = document.formEncrypt ;
-	var wlan_index=<% getIndex("wlan_idx"); %>;
-
+	var wlan_index = <% getIndex("wlan_idx"); %>;
 	get_by_id("show_wep_auth").style.display = "none";	
 	get_by_id("setting_wep").style.display = "none";
 	get_by_id("setting_wpa").style.display = "none";
@@ -364,6 +450,8 @@ function show_authentication()
 	if((SSIDnum >= "<%getIndex("wlan_root_mssid_rpt_num");%>"*1) || ap_mode == 1) //wlan profile || 1:client
 		dF.wpaAuth<% getIndex("wlan_idx"); %>[0].disabled=true;
 
+	if(ap_mode == 1 && client_mode_support_1x == 1)
+		dF.wpaAuth<% getIndex("wlan_idx"); %>[0].disabled=false;
 	get_by_id("show_8021x_eap").style.display = "none";
 	get_by_id("show_8021x_eap_client").style.display = "none";
 	get_by_id("show_8021x_wapi").style.display = "none";
@@ -393,22 +481,30 @@ function show_authentication()
 			}
 		}
 	
-	}else if (wep_type.selectedIndex > 1 && wep_type.selectedIndex < 4){
+	}else if (wep_type.selectedIndex ==2 && ap_mode!=1){//ap mode
 		get_by_id("setting_wpa").style.display = "";
-		if (wep_type.selectedIndex == 2)	
-			get_by_id("show_wpa_cipher").style.display = "";
-		if(wep_type.selectedIndex ==3)
+		//if(ap_mode == 1)//client mode	
+		//	get_by_id("show_wpa_cipher").style.display = "";
+		//if(ap_mode != 1)//AP mode
 			get_by_id("show_wpa2_cipher").style.display = "";	
 		show_wpa_settings();
 	}
-	else if (wep_type.selectedIndex==4&&ap_mode!=1)
+	else if (wep_type.selectedIndex==2 && ap_mode==1)//client mode
 	{
 		get_by_id("setting_wpa").style.display = "";
 		get_by_id("show_wpa_cipher").style.display = "";
 		get_by_id("show_wpa2_cipher").style.display = "";	
 		show_wpa_settings();
 	}
-	else if((wep_type.selectedIndex==5)||(wep_type.selectedIndex==4&&ap_mode==1))
+	else if (wep_type.selectedIndex==3)  	  	  
+	{
+		get_by_id("setting_wpa").style.display = "";
+		get_by_id("show_wpa_cipher").style.display = "";
+		get_by_id("show_wpa2_cipher").style.display = "";	
+		show_wpa_settings();
+	}
+	//else if((wep_type.selectedIndex==5)||(wep_type.selectedIndex==4&&ap_mode==1))
+	else if(wep_type.selectedIndex==4)
 	{
 		get_by_id("setting_wapi").style.display = "";
 		show_wapi_settings();
@@ -454,6 +550,8 @@ function Load_Setting()
 		enable_1x = <% getVirtualIndex("enable1X", "0") %>;
 		wlan_auth = <% getVirtualIndex("authType", "0") %>;
 		wpa_auth = <% getVirtualIndex("wpaAuth", "0") %>;
+		wpa11w =  <% getVirtualIndex("wpa11w", "0") %>;
+		wpa2EnableSHA256 = <% getVirtualIndex("wpa2EnableSHA256", "0") %>;
 		wapi_auth = <% getVirtualIndex("wapiAuth", "0") %>;
 		wepmode = <% getVirtualIndex("wep", "0") %>;
 		wep_key_fmt = <% getVirtualIndex("keyType", "0") %>;
@@ -490,6 +588,8 @@ function Load_Setting()
 		enable_1x = <% getVirtualIndex("enable1X", "1") %>;
 		wlan_auth = <% getVirtualIndex("authType", "1") %>;
 		wpa_auth = <% getVirtualIndex("wpaAuth", "1") %>;
+		wpa11w =  <% getVirtualIndex("wpa11w", "1") %>;
+		wpa2EnableSHA256 = <% getVirtualIndex("wpa2EnableSHA256", "1") %>;
 		wapi_auth = <% getVirtualIndex("wapiAuth", "1") %>;
 		wepmode = <% getVirtualIndex("wep", "1") %>;
 		wep_key_fmt = <% getVirtualIndex("keyType", "1") %>;
@@ -524,6 +624,8 @@ function Load_Setting()
 		enable_1x = <% getVirtualIndex("enable1X", "2") %>;
 		wlan_auth = <% getVirtualIndex("authType", "2") %>;
 		wpa_auth = <% getVirtualIndex("wpaAuth", "2") %>;
+		wpa11w =  <% getVirtualIndex("wpa11w", "2") %>;
+		wpa2EnableSHA256 = <% getVirtualIndex("wpa2EnableSHA256", "2") %>;
 		wapi_auth = <% getVirtualIndex("wapiAuth", "2") %>;
 		wepmode = <% getVirtualIndex("wep", "2") %>;
 		wep_key_fmt = <% getVirtualIndex("keyType", "2") %>;
@@ -558,6 +660,8 @@ function Load_Setting()
 		enable_1x = <% getVirtualIndex("enable1X", "3") %>;
 		wlan_auth = <% getVirtualIndex("authType", "3") %>;
 		wpa_auth = <% getVirtualIndex("wpaAuth", "3") %>;
+		wpa11w =  <% getVirtualIndex("wpa11w", "3") %>;
+		wpa2EnableSHA256 = <% getVirtualIndex("wpa2EnableSHA256", "3") %>;
 		wapi_auth = <% getVirtualIndex("wapiAuth", "3") %>;
 		wepmode = <% getVirtualIndex("wep", "3") %>;
 		wep_key_fmt = <% getVirtualIndex("keyType", "3") %>;
@@ -593,6 +697,8 @@ function Load_Setting()
 		enable_1x = <% getVirtualIndex("enable1X", "4") %>;
 		wlan_auth = <% getVirtualIndex("authType", "4") %>;
 		wpa_auth = <% getVirtualIndex("wpaAuth", "4") %>;
+		wpa11w =  <% getVirtualIndex("wpa11w", "4") %>;
+		wpa2EnableSHA256 = <% getVirtualIndex("wpa2EnableSHA256", "4") %>;
 		wapi_auth = <% getVirtualIndex("wapiAuth", "4") %>;
 		wepmode = <% getVirtualIndex("wep", "4") %>;
 		wep_key_fmt = <% getVirtualIndex("keyType", "4") %>;
@@ -627,6 +733,8 @@ function Load_Setting()
 		enable_1x = <% getVirtualIndex("enable1X", "5") %>;
 		wlan_auth = <% getVirtualIndex("authType", "5") %>;
 		wpa_auth = <% getVirtualIndex("wpaAuth", "5") %>;
+		wpa11w =  <% getVirtualIndex("wpa11w", "5") %>;
+		wpa2EnableSHA256 = <% getVirtualIndex("wpa2EnableSHA256", "5") %>;
 		wapi_auth = <% getVirtualIndex("wapiAuth", "5") %>;
 		wepmode = <% getVirtualIndex("wep", "5") %>;
 		wep_key_fmt = <% getVirtualIndex("keyType", "5") %>;
@@ -677,7 +785,10 @@ function Load_Setting()
 		psk_fmt = DataArray[7];
 		dF.pskValue<% getIndex("wlan_idx"); %>.value = DataArray[8];
 		
-		wpa_auth = 2;		
+		//wpa_auth = 2;		
+		wpa_auth="<% getIndex("enable1X");%>"*1;
+		wpa11w = 0;
+		wpa2EnableSHA256 = 0;
 		
 		enable_1x = 0;
 		
@@ -707,6 +818,12 @@ function Load_Setting()
 		
 	}		
 
+	var wpa2_idx;
+	//if(ap_mode != 1)//AP
+		wpa2_idx=2;
+	//else//client
+	//	wpa2_idx=3;
+	
 	if(mode =='0')
 		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=0;
 	else if(mode =='1')
@@ -714,13 +831,15 @@ function Load_Setting()
 	else if(mode == '2')
 		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=2;
 	else if (mode =='4')
-		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=3;
+		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=wpa2_idx;
 	else if (mode =='6' && ap_mode != 1)	
-		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=4;	
+		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=3;	
+	else if (mode =='6' && ap_mode == 1)	
+		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=2;
 	else if (mode =='7' && ap_mode != 1)	
-		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=5;
-	else if (mode =='7' && ap_mode == 1)	
 		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=4;
+	else if (mode =='7' && ap_mode == 1)	
+		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=3;
 	else 
 		dF.method<% getIndex("wlan_idx"); %>.selectedIndex=0;
 
@@ -764,15 +883,23 @@ function Load_Setting()
 		dF.format<% getIndex("wlan_idx"); %>.selectedIndex=1;
 		
 	updateWepFormat(document.formEncrypt, <% getIndex("wlan_idx"); %>);		
-	if (wpa_auth & 1)
+	//if (wpa_auth & 1)
+	if(wpa_auth == 1)
 		dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;
 	else
 		dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=true;
-	if (psk_fmt ==0)
+	if (psk_fmt ==0){
+		dF.pskValue<% getIndex("wlan_idx"); %>.maxLength = "63";
 		dF.pskFormat<% getIndex("wlan_idx"); %>.selectedIndex=0;
-	else		
+	}
+	else{
+		dF.pskValue<% getIndex("wlan_idx"); %>.maxLength = "64";
 		dF.pskFormat<% getIndex("wlan_idx"); %>.selectedIndex=1;
-		
+	}
+	
+	dF.wpa11w<% getIndex("wlan_idx"); %>[wpa11w].checked=true;	
+	dF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[wpa2EnableSHA256].checked=true;
+	
 	if (wpa_cipher & 1)
 		dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
 	if (wpa_cipher & 2)	
@@ -781,6 +908,16 @@ function Load_Setting()
 		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
 	if (wpa2_cipher & 2)	
 			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+	if( mode == '6' ){
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=true;		
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;		
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=true;	 
+	}
 //	if (wpa2_preAuth !=0)	
 //		dF.preAuth<% getIndex("wlan_idx"); %>.checked=true;
 	if (wapi_auth == 1)
@@ -866,6 +1003,9 @@ function check_wepkey(form, wlan_id)
 
 function save_confirm(wlan_id)
 {
+	var dF=document.forms[0];
+	if(client_mode_support_1x == 1 && ap_mode == 1 && dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked)
+		return true;
 	ret = saveChanges_wpa(document.formEncrypt, wlan_id);
 	//keith remove to avoid the web page reset current setting
 	//if (ret == false) 
@@ -873,18 +1013,50 @@ function save_confirm(wlan_id)
 	return ret;
 }
 
-
+function wpa_suite_select(wpa,suite)
+{
+	var dF=document.forms[0];
+	var enc_mode = dF.method<% getIndex("wlan_idx"); %>.value;
+	if(enc_mode == 6)
+		return;
+	if(wpa == 0)//wpa
+	{
+		if(dF.ciphersuite<% getIndex("wlan_idx"); %>[suite].checked)
+		{
+			if(suite == 0)
+				dF.ciphersuite<% getIndex("wlan_idx"); %>[1].checked = false;
+			else
+				dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked = false;
+		}
+	}
+	else//wpa2
+	{
+		if(dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[suite].checked)
+		{
+			if(suite == 0)
+				dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked = false;
+			else
+				dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked = false;
+		}
+	}
+}
 function ValidateForm(passForm)
 {
 	var tF= document.forms[0];
 	var enc_mode = tF.method<% getIndex("wlan_idx"); %>.value;
-
+	var eap_mode = tF.eapType<% getIndex("wlan_idx"); %>.selectedIndex;
 	if (tF.use1x<% getIndex("wlan_idx"); %>.checked)
 		tF.use1x<% getIndex("wlan_idx"); %>.value = "ON";
 	else
 		tF.use1x<% getIndex("wlan_idx"); %>.value = "OFF";	
 
-		
+	if (hs2_enabled == 1) {
+		if (enc_mode != 4 || !tF.use1x<% getIndex("wlan_idx"); %>.checked) {
+			alert('Before turn off WPA2 Enterprise, please disable HS2 Daemon first in Advanced page.');
+			return false;
+		}
+	}
+	
 	if (enc_mode == 0 ) { // open
 		// for test plan 4.1.8 ; WPS2DOTX
 		if(wps_mode_old==0 || wps_mode_old==3){
@@ -1028,7 +1200,15 @@ function ValidateForm(passForm)
 	if (tF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked && tF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked) {
 		passForm.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].value="tkip+aes";
 	}
-	
+
+	passForm.wpa11w<% getIndex("wlan_idx"); %>[0].checked = tF.wpa11w<% getIndex("wlan_idx"); %>[0].checked;
+	passForm.wpa11w<% getIndex("wlan_idx"); %>[1].checked = tF.wpa11w<% getIndex("wlan_idx"); %>[1].checked;
+	passForm.wpa11w<% getIndex("wlan_idx"); %>[2].checked = tF.wpa11w<% getIndex("wlan_idx"); %>[2].checked;
+
+	passForm.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[0].checked = tF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[0].checked;
+	passForm.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[1].checked = tF.wpa2EnableSHA256<% getIndex("wlan_idx"); %>[1].checked;
+
+
 	passForm.pskFormat<% getIndex("wlan_idx"); %>.value= tF.pskFormat<% getIndex("wlan_idx"); %>.value;
 	passForm.pskValue<% getIndex("wlan_idx"); %>.value = tF.pskValue<% getIndex("wlan_idx"); %>.value;
 	passForm.wapiAuth<% getIndex("wlan_idx"); %>[0].checked = tF.wapiAuth<% getIndex("wlan_idx"); %>[0].checked;
@@ -1060,8 +1240,6 @@ function ValidateForm(passForm)
 					 <select size="1"  id="method" name="method<% getIndex("wlan_idx"); %>" onChange="show_authentication()">	 
 						<option value="0"> Disable </option>
 			 			<option value="1"> WEP </option>
-						<option value="2"> WPA </option>
-						<option value="4"> WPA2 </option> 
 						<script>		
 							var dF=document.forms[0];
 							var idx = parent.document.forms[0].SSID_Setting.selectedIndex;						
@@ -1088,10 +1266,15 @@ function ValidateForm(passForm)
 							{
 								ap_mode = 1; //wireless profile force client mode;
 							}
+							
+							//  document.write('<option value=\"2\"> WPA </option>');
 							if (ap_mode != 1)
+							document.write('<option value=\"4\"> WPA2 </option>');
+							//if (ap_mode != 1)
 							  document.write('<option value=\"6\"> WPA-Mixed </option>');
-						</script>						
-						<% getInfo("wapiOption");%>
+							if (ap_mode != 1 && <% getInfo("isWapiSupport");%>)
+							  document.write('<option value=\"7\"> WAPI </option>');
+						</script>							
 					</select> </font>
 				</td> </tr>
 			</table>
@@ -1165,31 +1348,47 @@ function ValidateForm(passForm)
 				<tr id="show_wpa_cipher" style="display:none">
 					<td width="30%" class="bgblue"><font size="2"><b>WPA Cipher Suite:</b></font></td>
 					<td width="70%" class="bggrey"><font size="2">
-						<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="tkip">TKIP&nbsp;
-						<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="aes">AES
+						<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="tkip" onClick="wpa_suite_select(0,0);">TKIP&nbsp;
+						<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="aes"  onClick="wpa_suite_select(0,1);">AES
 							</font>
 				</td></tr> 
-					
-				<tr id="show_wpa2_cipher" style="display:none">
+					<tr id="show_wpa2_cipher" style="display:none">
 					<td width="30%"class="bgblue"><font size="2"><b>WPA2 Cipher Suite:</b></font></td>
 					<td width="70%" class="bggrey"><font size="2">
-						<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="tkip">TKIP&nbsp;
-						<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="aes">AES
+						<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="tkip" onClick="wpa_suite_select(1,0);">TKIP&nbsp;
+						<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="aes"  onClick="wpa_suite_select(1,1);">AES
 							</font>
 				</td></tr>
+
+				<tr id="show_80211w" style="display:none">
+					<td width="30%"class="bgblue"><font size="2"><b>Management Frame Protection:</b></font></td>
+					<td width="70%" class="bggrey"><font size="2">
+						<input name="wpa11w<% getIndex("wlan_idx"); %>" type="radio" value="none" onClick="show_wpa_settings()">none
+						<input name="wpa11w<% getIndex("wlan_idx"); %>" type="radio" value="capable" onClick="show_wpa_settings()">capable
+						<input name="wpa11w<% getIndex("wlan_idx"); %>" type="radio" value="required" onClick="show_wpa_settings()">required
+							</font>
+				</td></tr>
+				<tr id="show_sha256" style="display:none">
+					<td width="30%"class="bgblue"><font size="2"><b>SHA256:</b></font></td>
+					<td width="70%" class="bggrey"><font size="2">
+						<input name="wpa2EnableSHA256<% getIndex("wlan_idx"); %>" type="radio" value="disable">disable
+						<input name="wpa2EnableSHA256<% getIndex("wlan_idx"); %>" type="radio" value="enable">enable
+							</font>
+				</td></tr>
+			
 			
   
 				<tr id="show_wpa_psk1" style="display:none">				
 					<td width="30%" bgcolor="#FFFFFF" class="bgblue"><font size="2"><b>Pre-Shared&nbsp;Key&nbsp;Format:</b></font></td>
 					<td width="70%" class="bggrey">
-					<select id="psk_fmt" name="pskFormat<% getIndex("wlan_idx"); %>" onChange="">
+					<select id="psk_fmt" name="pskFormat<% getIndex("wlan_idx"); %>" onChange="pskFormatChange(formEncrypt,<% getIndex("wlan_idx"); %>)">
 						<option value="0">Passphrase</option>
 						<option value="1">HEX (64 characters)</option>
 						</select>
 				</td></tr>
 				<tr id="show_wpa_psk2" style="display:none">
 					<td width="30%" bgcolor="#FFFFFF" class="bgblue"><font size="2"><b>Pre-Shared&nbsp;Key:</b></font></td>
-					<td width="70%" class="bggrey"><input type="password" name="pskValue<% getIndex("wlan_idx"); %>" id="wpapsk" size="32" maxlength="64" value="">
+					<td width="70%" class="bggrey"><input type="password" name="pskValue<% getIndex("wlan_idx"); %>" id="wpapsk" size="32"   value="">
 				</td></tr>
 			</table>		
 	</td></tr>	 
@@ -1311,7 +1510,7 @@ function ValidateForm(passForm)
 				</tr>
                         </table>
         </td></tr>
-		
+
 	<script> updateWepFormat(document.formEncrypt, <% getIndex("wlan_idx"); %>);</script>
 </table>
 </form>

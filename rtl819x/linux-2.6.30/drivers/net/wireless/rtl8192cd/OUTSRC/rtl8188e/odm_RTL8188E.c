@@ -21,8 +21,14 @@
 //============================================================
 // include files
 //============================================================
-
+#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
+
+#if (RTL8188E_SUPPORT == 1)
 
 VOID
 ODM_DIG_LowerBound_88E(
@@ -42,652 +48,9 @@ ODM_DIG_LowerBound_88E(
 
 }
 
+#if(defined(CONFIG_HW_ANTENNA_DIVERSITY))
 
-VOID
-odm_RX_HWAntDivInit(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-	u4Byte	value32;
-
-        #if (MP_DRIVER == 1)
-        pDM_Odm->AntDivType = CGCS_RX_SW_ANTDIV;
-        ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 0); // disable HW AntDiv 
-        ODM_SetBBReg(pDM_Odm, 0xb2c , BIT31, 1);  // 1:CG, 0:CS
-        return;
-        #endif
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("odm_RX_HWAntDivInit() \n"));
-	//MAC Setting
-	value32 = ODM_GetMACReg(pDM_Odm, 0x4c, bMaskDWord);
-	ODM_SetMACReg(pDM_Odm, 0x4c, bMaskDWord, value32|(BIT23|BIT25)); //Reg4C[25]=1, Reg4C[23]=1 for pin output
-	
-	ODM_SetBBReg(pDM_Odm, 0x870 , BIT9|BIT8, 0);//Reg870[8]=1'b0, Reg870[9]=1'b0 		//antsel antselb by HW
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT10, 0);	//Reg864[10]=1'b0 	//antsel2 by HW
-	ODM_SetBBReg(pDM_Odm, 0xb2c , BIT22, 1);	//Regb2c[22]=1'b0 	//disable CS/CG switch
-	ODM_SetBBReg(pDM_Odm, 0xb2c , BIT31, 1);	//Regb2c[31]=1'b1	//output at CG only
-	ODM_SetBBReg(pDM_Odm, 0xca4 , bMaskDWord, 0x000000a0);
-
-	ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 1);	//RegC50[7]=1'b1 		//enable HW AntDiv
-}
-
-VOID
-odm_TRX_HWAntDivInit(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-	u4Byte	value32;
-	pFAT_T	pDM_FatTable = &pDM_Odm->DM_FatTable;
-	
-        #if (MP_DRIVER == 1)
-        pDM_Odm->AntDivType = CGCS_RX_SW_ANTDIV;
-        ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 0); // disable HW AntDiv 
-        ODM_SetBBReg(pDM_Odm, 0x864 , BIT5|BIT4|BIT3, 0); //Default RX   (0/1)
-        return;
-        #endif
-
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("odm_TRX_HWAntDivInit() \n"));
-	pDM_FatTable->RxIdleAnt = ANTDIV_ANT_A;
-	
-	//MAC Setting
-	value32 = ODM_GetMACReg(pDM_Odm, 0x4c, bMaskDWord);
-	ODM_SetMACReg(pDM_Odm, 0x4c, bMaskDWord, value32|(BIT23|BIT25)); //Reg4C[25]=1, Reg4C[23]=1 for pin output
-	
-	ODM_SetBBReg(pDM_Odm, 0x870 , BIT9|BIT8, 0);//Reg870[8]=1'b0, Reg870[9]=1'b0 		//antsel antselb by HW
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT10, 0);	//Reg864[10]=1'b0 	//antsel2 by HW
-	ODM_SetBBReg(pDM_Odm, 0xb2c , BIT22, 0);	//Regb2c[22]=1'b0 	//disable CS/CG switch
-	ODM_SetBBReg(pDM_Odm, 0xb2c , BIT31, 1);	//Regb2c[31]=1'b1	//output at CG only
-	ODM_SetBBReg(pDM_Odm, 0xca4 , bMaskDWord, 0x000000a0);
-	
-	//Default Ant Setting when no fast training
-	//ODM_SetBBReg(pDM_Odm, 0x80c , BIT21, 1); //Reg80c[21]=1'b1		//from TX Info
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT5|BIT4|BIT3, 0);	//Default RX
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT8|BIT7|BIT6, 1);	//Optional RX
-	//ODM_SetBBReg(pDM_Odm, 0x860 , BIT14|BIT13|BIT12, 1);	//Default TX
-
-	//antenna mapping table
-	if(!pDM_Odm->bIsMPChip) //testchip
-	{
-		ODM_SetBBReg(pDM_Odm, 0x858 , BIT10|BIT9|BIT8, 1);	//Reg858[10:8]=3'b001
-		ODM_SetBBReg(pDM_Odm, 0x858 , BIT13|BIT12|BIT11, 2);	//Reg858[13:11]=3'b010
-	}
-	else //MPchip
-	{
-		ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte0, 1);
-		ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte1, 2);
-	}
-	//Enter Traing state
-	//ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 1);	//RegC50[7]=1'b1 		//enable HW AntDiv	
-}
-
-VOID
-odm_FastAntTrainingInit(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-	u4Byte	value32, i;
-	pFAT_T	pDM_FatTable = &pDM_Odm->DM_FatTable;
-	u4Byte	AntCombination = 2;
-
-    ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("odm_FastAntTrainingInit() \n"));
-    
-#if (MP_DRIVER == 1)
-    ODM_RT_TRACE(pDM_Odm, ODM_COMP_INIT, ODM_DBG_LOUD, ("pDM_Odm->AntDivType: %d\n", pDM_Odm->AntDivType));
-    return;
-#endif
-
-	for(i=0; i<6; i++)
-	{
-		pDM_FatTable->Bssid[i] = 0;
-		pDM_FatTable->antSumRSSI[i] = 0;
-		pDM_FatTable->antRSSIcnt[i] = 0;
-		pDM_FatTable->antAveRSSI[i] = 0;
-	}
-	pDM_FatTable->TrainIdx = 0;
-	pDM_FatTable->FAT_State = FAT_NORMAL_STATE;
-
-	//MAC Setting
-	value32 = ODM_GetMACReg(pDM_Odm, 0x4c, bMaskDWord);
-	ODM_SetMACReg(pDM_Odm, 0x4c, bMaskDWord, value32|(BIT23|BIT25)); //Reg4C[25]=1, Reg4C[23]=1 for pin output
-	value32 = ODM_GetMACReg(pDM_Odm,  0x7B4, bMaskDWord);
-	ODM_SetMACReg(pDM_Odm, 0x7b4, bMaskDWord, value32|(BIT16|BIT17)); //Reg7B4[16]=1 enable antenna training, Reg7B4[17]=1 enable A2 match
-	//value32 = PlatformEFIORead4Byte(Adapter, 0x7B4);
-	//PlatformEFIOWrite4Byte(Adapter, 0x7b4, value32|BIT18);	//append MACID in reponse packet
-
-	//Match MAC ADDR
-	ODM_SetMACReg(pDM_Odm, 0x7b4, 0xFFFF, 0);
-	ODM_SetMACReg(pDM_Odm, 0x7b0, bMaskDWord, 0);
-	
-	ODM_SetBBReg(pDM_Odm, 0x870 , BIT9|BIT8, 0);//Reg870[8]=1'b0, Reg870[9]=1'b0 		//antsel antselb by HW
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT10, 0);	//Reg864[10]=1'b0 	//antsel2 by HW
-	ODM_SetBBReg(pDM_Odm, 0xb2c , BIT22, 0);	//Regb2c[22]=1'b0 	//disable CS/CG switch
-	ODM_SetBBReg(pDM_Odm, 0xb2c , BIT31, 1);	//Regb2c[31]=1'b1	//output at CG only
-	ODM_SetBBReg(pDM_Odm, 0xca4 , bMaskDWord, 0x000000a0);
-	
-	//antenna mapping table
-	if(AntCombination == 2)
-	{
-		if(!pDM_Odm->bIsMPChip) //testchip
-		{
-			ODM_SetBBReg(pDM_Odm, 0x858 , BIT10|BIT9|BIT8, 1);	//Reg858[10:8]=3'b001
-			ODM_SetBBReg(pDM_Odm, 0x858 , BIT13|BIT12|BIT11, 2);	//Reg858[13:11]=3'b010
-		}
-		else //MPchip
-		{
-			ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte0, 1);
-			ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte1, 2);
-		}
-	}
-	else if(AntCombination == 7)
-	{
-		if(!pDM_Odm->bIsMPChip) //testchip
-		{
-			ODM_SetBBReg(pDM_Odm, 0x858 , BIT10|BIT9|BIT8, 0);	//Reg858[10:8]=3'b000
-			ODM_SetBBReg(pDM_Odm, 0x858 , BIT13|BIT12|BIT11, 1);	//Reg858[13:11]=3'b001
-			ODM_SetBBReg(pDM_Odm, 0x878 , BIT16, 0);
-			ODM_SetBBReg(pDM_Odm, 0x858 , BIT15|BIT14, 2);	//(Reg878[0],Reg858[14:15])=3'b010
-			ODM_SetBBReg(pDM_Odm, 0x878 , BIT19|BIT18|BIT17, 3);//Reg878[3:1]=3b'011
-			ODM_SetBBReg(pDM_Odm, 0x878 , BIT22|BIT21|BIT20, 4);//Reg878[6:4]=3b'100
-			ODM_SetBBReg(pDM_Odm, 0x878 , BIT25|BIT24|BIT23, 5);//Reg878[9:7]=3b'101 
-			ODM_SetBBReg(pDM_Odm, 0x878 , BIT28|BIT27|BIT26, 6);//Reg878[12:10]=3b'110 
-			ODM_SetBBReg(pDM_Odm, 0x878 , BIT31|BIT30|BIT29, 7);//Reg878[15:13]=3b'111
-		}
-		else //MPchip
-		{
-			ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte0, 0);
-			ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte1, 1);	
-			ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte2, 2);
-			ODM_SetBBReg(pDM_Odm, 0x914 , bMaskByte3, 3);
-			ODM_SetBBReg(pDM_Odm, 0x918 , bMaskByte0, 4);
-			ODM_SetBBReg(pDM_Odm, 0x918 , bMaskByte1, 5);
-			ODM_SetBBReg(pDM_Odm, 0x918 , bMaskByte2, 6);
-			ODM_SetBBReg(pDM_Odm, 0x918 , bMaskByte3, 7);
-		}
-	}
-
-	//Default Ant Setting when no fast training
-	ODM_SetBBReg(pDM_Odm, 0x80c , BIT21, 1); //Reg80c[21]=1'b1		//from TX Info
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT5|BIT4|BIT3, 0);	//Default RX
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT8|BIT7|BIT6, 1);	//Optional RX
-	//ODM_SetBBReg(pDM_Odm, 0x860 , BIT14|BIT13|BIT12, 1);	//Default TX
-
-	//Enter Traing state
-	ODM_SetBBReg(pDM_Odm, 0x864 , BIT2|BIT1|BIT0, (AntCombination-1));	//Reg864[2:0]=3'd6	//ant combination=reg864[2:0]+1
-	//ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 0); //RegC50[7]=1'b0		//disable HW AntDiv
-	//ODM_SetBBReg(pDM_Odm,  0xe08 , BIT16, 0); //RegE08[16]=1'b0		//disable fast training
-	//ODM_SetBBReg(pDM_Odm, 0xe08 , BIT16, 1);	//RegE08[16]=1'b1		//enable fast training
-	ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 1);	//RegC50[7]=1'b1 		//enable HW AntDiv
-
-		
-	//SW Control
-	//PHY_SetBBReg(Adapter, 0x864 , BIT10, 1);
-	//PHY_SetBBReg(Adapter, 0x870 , BIT9, 1);
-	//PHY_SetBBReg(Adapter, 0x870 , BIT8, 1);
-	//PHY_SetBBReg(Adapter, 0x864 , BIT11, 1);
-	//PHY_SetBBReg(Adapter, 0x860 , BIT9, 0);
-	//PHY_SetBBReg(Adapter, 0x860 , BIT8, 0);
-}
-
-VOID
-ODM_AntennaDiversityInit_88E(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-/*
-	//2012.03.27 LukeLee: For temp use, should be removed later
-	//pDM_Odm->AntDivType = CG_TRX_HW_ANTDIV;
-	//{
-		PADAPTER		Adapter = pDM_Odm->Adapter;
-		HAL_DATA_TYPE*	pHalData = GET_HAL_DATA(Adapter);
-		//pHalData->AntDivCfg = 1;
-	//}
-*/
-	if(pDM_Odm->SupportICType != ODM_RTL8188E)
-		return;
-
-	//ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("pDM_Odm->AntDivType=%d, pHalData->AntDivCfg=%d\n",
-	//	pDM_Odm->AntDivType, pHalData->AntDivCfg));
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("pDM_Odm->AntDivType=%d\n",pDM_Odm->AntDivType));
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("pDM_Odm->bIsMPChip=%s\n",(pDM_Odm->bIsMPChip?"TRUE":"FALSE")));
-
-	if(pDM_Odm->AntDivType == CGCS_RX_HW_ANTDIV)
-		odm_RX_HWAntDivInit(pDM_Odm);
-	else if(pDM_Odm->AntDivType == CG_TRX_HW_ANTDIV)
-		odm_TRX_HWAntDivInit(pDM_Odm);
-	else if(pDM_Odm->AntDivType == CG_TRX_SMART_ANTDIV)
-		odm_FastAntTrainingInit(pDM_Odm);
-}
-
-VOID
-ODM_SetTxAntByAntDiv(
-	IN		PDM_ODM_T		pDM_Odm,
-	IN		pu1Byte			pDesc,
-	IN		u1Byte			macId	
-	)
-{
-#if (DM_ODM_SUPPORT_TYPE == ODM_MP)
-	PSTA_INFO_T   	pEntry;
-#if 0
-	pEntry = pDM_Odm->pODM_StaInfo[macId];
-	SET_TX_DESC_ANTSEL_A_88E(pDesc, pEntry->ANTSEL_A);
-	SET_TX_DESC_ANTSEL_B_88E(pDesc, pEntry->ANTSEL_B);
-	SET_TX_DESC_ANTSEL_C_88E(pDesc, pEntry->ANTSEL_C);
-#else
-	pFAT_T	pDM_FatTable = &pDM_Odm->DM_FatTable;
-	if((pDM_Odm->AntDivType == CG_TRX_HW_ANTDIV)||(pDM_Odm->AntDivType == CG_TRX_SMART_ANTDIV))
-	{
-		SET_TX_DESC_ANTSEL_A_88E(pDesc, pDM_FatTable->ANTSEL_A[macId]);
-		SET_TX_DESC_ANTSEL_B_88E(pDesc, pDM_FatTable->ANTSEL_B[macId]);
-		SET_TX_DESC_ANTSEL_C_88E(pDesc, pDM_FatTable->ANTSEL_C[macId]);
-	}
-#endif
-	//ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("ODM_SetTxAntByAntDiv(): MacID=%d, antsel_tr_mux=3'b%d%d%d\n", 
-	//	macId, pEntry->ANTSEL_C, pEntry->ANTSEL_B, pEntry->ANTSEL_A));
-#endif
-}
-
-VOID
-odm_TRX_HWAntDiv(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-	u4Byte	i, MinRSSI=0xFF, AntDivMaxRSSI=0, MaxRSSI=0, LocalMinRSSI, LocalMaxRSSI;
-	u4Byte	AntA_RSSI, AntB_RSSI;
-	u1Byte	RxIdleAnt=0, TargetAnt=7;
-	pFAT_T	pDM_FatTable = &pDM_Odm->DM_FatTable;
-	pDIG_T	pDM_DigTable = &pDM_Odm->DM_DigTable;
-//	BOOLEAN	bMatchBSSID;
-//	BOOLEAN	bPktFilterMacth = FALSE;
-	PSTA_INFO_T   	pEntry;
-
-	ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 1);	//RegC50[7]=1'b1 		//enable HW AntDiv
-
-	for (i=0; i<ODM_ASSOCIATE_ENTRY_NUM; i++)
-	{
-		pEntry = pDM_Odm->pODM_StaInfo[i];
-		if(IS_STA_VALID(pEntry))
-		{
-			//2 Caculate RSSI per Antenna
-			AntA_RSSI = (pDM_FatTable->AntA_Cnt[i]!=0)?(pDM_FatTable->AntA_Sum[i]/pDM_FatTable->AntA_Cnt[i]):0;
-			AntB_RSSI = (pDM_FatTable->AntB_Cnt[i]!=0)?(pDM_FatTable->AntB_Sum[i]/pDM_FatTable->AntB_Cnt[i]):0;
-			TargetAnt = (AntA_RSSI>AntB_RSSI)?ANTDIV_ANT_A:ANTDIV_ANT_B;
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("MacID=%d, AntA_Sum=%d, AntA_Cnt=%d\n", i, pDM_FatTable->AntA_Sum[i], pDM_FatTable->AntA_Cnt[i]));
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("MacID=%d, AntB_Sum=%d, AntB_Cnt=%d\n",i, pDM_FatTable->AntB_Sum[i], pDM_FatTable->AntB_Cnt[i]));
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("MacID=%d, AntA_RSSI= %d, AntB_RSSI= %d\n", i, AntA_RSSI, AntB_RSSI));
-
-			//2 Select MaxRSSI for DIG
-			LocalMaxRSSI = (AntA_RSSI>AntB_RSSI)?AntA_RSSI:AntB_RSSI;
-			if((LocalMaxRSSI > AntDivMaxRSSI) && (LocalMaxRSSI < 40))
-				AntDivMaxRSSI = LocalMaxRSSI;
-			if(LocalMaxRSSI > MaxRSSI)
-				MaxRSSI = LocalMaxRSSI;
-
-			//2 Select RX Idle Antenna
-			if((pDM_FatTable->RxIdleAnt == ANTDIV_ANT_A) && (AntA_RSSI == 0))
-				AntA_RSSI = AntB_RSSI;
-			else if((pDM_FatTable->RxIdleAnt == ANTDIV_ANT_B) && (AntB_RSSI == 0))
-				AntB_RSSI = AntA_RSSI;
-		
-			LocalMinRSSI = (AntA_RSSI>AntB_RSSI)?AntB_RSSI:AntA_RSSI;
-			if(LocalMinRSSI < MinRSSI)
-			{
-				MinRSSI = LocalMinRSSI;
-				RxIdleAnt = TargetAnt;
-			}	
-			
-			//2 Select TRX Antenna
-			//ODM_SetBBReg(pDM_Odm, 0x860 , BIT14|BIT13|BIT12, TargetAnt);	//Default TX
-			ODM_SetBBReg(pDM_Odm, 0x864 , BIT5|BIT4|BIT3, TargetAnt); //Default RX
-			ODM_SetBBReg(pDM_Odm, 0x864 , BIT8|BIT7|BIT6, TargetAnt); //Optional RX
-			ODM_SetBBReg(pDM_Odm, 0x80c , BIT21, 1); //Reg80c[21]=1'b1		//from TX Info
-#if 0			
-			pEntry = pDM_Odm->pODM_StaInfo[i];
-			pEntry->ANTSEL_A = TargetAnt&BIT0;
-			pEntry->ANTSEL_B = (TargetAnt&BIT1)>>1;
-			pEntry->ANTSEL_C = (TargetAnt&BIT2)>>2;
-#else
-			pDM_FatTable->ANTSEL_A[i] = TargetAnt&BIT0;
-			pDM_FatTable->ANTSEL_B[i] = (TargetAnt&BIT1)>>1;
-			pDM_FatTable->ANTSEL_C[i] = (TargetAnt&BIT2)>>2;
-#endif			
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("TargetAnt=%d\n",TargetAnt));
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("ANTSEL_A=%d\n",pDM_FatTable->ANTSEL_A[i]));
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("ANTSEL_B=%d\n",pDM_FatTable->ANTSEL_B[i]));
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("ANTSEL_C=%d\n",pDM_FatTable->ANTSEL_C[i]));
-		}
-		pDM_FatTable->AntA_Sum[i] = 0;
-		pDM_FatTable->AntB_Sum[i] = 0;
-		pDM_FatTable->AntA_Cnt[i] = 0;
-		pDM_FatTable->AntB_Cnt[i] = 0;
-	}
-
-	//2 Set RX Idle Antenna
-	if(RxIdleAnt == ANTDIV_ANT_A)
-	{
-		ODM_SetBBReg(pDM_Odm, 0x864 , BIT5|BIT4|BIT3, 0);	//Default RX
-		ODM_SetBBReg(pDM_Odm, 0x864 , BIT8|BIT7|BIT6, 1);	//Optional RX
-	}
-	else
-	{
-		ODM_SetBBReg(pDM_Odm, 0x864 , BIT5|BIT4|BIT3, 1);	//Default RX
-		ODM_SetBBReg(pDM_Odm, 0x864 , BIT8|BIT7|BIT6, 0);	//Optional RX
-	}
-	pDM_FatTable->RxIdleAnt = RxIdleAnt;
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("RxIdleAnt=%d\n",RxIdleAnt));
-
-	pDM_DigTable->AntDiv_RSSI_max = AntDivMaxRSSI;
-	pDM_DigTable->RSSI_max = MaxRSSI;
-}
-
-
-
-VOID
-odm_SetNextMACAddrTarget(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-	pFAT_T	pDM_FatTable = &pDM_Odm->DM_FatTable;
-	PSTA_INFO_T   	pEntry;
-//	u1Byte	Bssid[6];
-	u4Byte	value32, i/*, StartIdx */;
-
-	//
-	//2012.03.26 LukeLee: The MAC address is changed according to MACID in turn
-	//
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("odm_SetNextMACAddrTarget() ==>\n"));
-	if(pDM_Odm->bLinked)
-	{
-		for (i=0; i<ODM_ASSOCIATE_ENTRY_NUM; i++)
-		{
-			if((pDM_FatTable->TrainIdx+1) == ODM_ASSOCIATE_ENTRY_NUM)
-				pDM_FatTable->TrainIdx = 0;
-			else
-				pDM_FatTable->TrainIdx++;
-			
-			pEntry = pDM_Odm->pODM_StaInfo[pDM_FatTable->TrainIdx];
-			if(IS_STA_VALID(pEntry))
-			{
-				//Match MAC ADDR
-#if (DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
-				value32 = (pEntry->hwaddr[5]<<8)|pEntry->hwaddr[4];
-#else
-				value32 = (pEntry->MacAddr[5]<<8)|pEntry->MacAddr[4];
-#endif
-				ODM_SetMACReg(pDM_Odm, 0x7b4, 0xFFFF, value32);
-#if (DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
-				value32 = (pEntry->hwaddr[3]<<24)|(pEntry->hwaddr[2]<<16) |(pEntry->hwaddr[1]<<8) |pEntry->hwaddr[0];
-#else
-				value32 = (pEntry->MacAddr[3]<<24)|(pEntry->MacAddr[2]<<16) |(pEntry->MacAddr[1]<<8) |pEntry->MacAddr[0];
-#endif
-				ODM_SetMACReg(pDM_Odm, 0x7b0, bMaskDWord, value32);
-
-				ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("pDM_FatTable->TrainIdx=%d\n",pDM_FatTable->TrainIdx));
-				ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("Training MAC Addr = %x:%x:%x:%x:%x:%x\n",
-#if (DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
-					pEntry->hwaddr[5],pEntry->hwaddr[4],pEntry->hwaddr[3],pEntry->hwaddr[2],pEntry->hwaddr[1],pEntry->hwaddr[0]));
-#else
-					pEntry->MacAddr[5],pEntry->MacAddr[4],pEntry->MacAddr[3],pEntry->MacAddr[2],pEntry->MacAddr[1],pEntry->MacAddr[0]));
-#endif
-
-				break;
-			}
-		}
-		
-	}
-
-#if 0
-	//
-	//2012.03.26 LukeLee: This should be removed later, the MAC address is changed according to MACID in turn
-	//
-	#if( DM_ODM_SUPPORT_TYPE & ODM_MP)
-	{		
-		PADAPTER	Adapter =  pDM_Odm->Adapter;
-		PMGNT_INFO	pMgntInfo = &Adapter->MgntInfo;
-
-		for (i=0; i<6; i++)
-		{
-			Bssid[i] = pMgntInfo->Bssid[i];
-			//DbgPrint("Bssid[%d]=%x\n", i, Bssid[i]);
-		}
-	}
-	#endif
-
-	//odm_SetNextMACAddrTarget(pDM_Odm);
-	
-	//1 Select MAC Address Filter
-	for (i=0; i<6; i++)
-	{
-		if(Bssid[i] != pDM_FatTable->Bssid[i])
-		{
-			bMatchBSSID = FALSE;
-			break;
-		}
-	}
-	if(bMatchBSSID == FALSE)
-	{
-		//Match MAC ADDR
-		value32 = (Bssid[5]<<8)|Bssid[4];
-		ODM_SetMACReg(pDM_Odm, 0x7b4, 0xFFFF, value32);
-		value32 = (Bssid[3]<<24)|(Bssid[2]<<16) |(Bssid[1]<<8) |Bssid[0];
-		ODM_SetMACReg(pDM_Odm, 0x7b0, bMaskDWord, value32);
-	}
-
-	return bMatchBSSID;
-#endif
-				
-}
-
-VOID
-odm_FastAntTraining(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-	u4Byte	i, MaxRSSI=0;
-	u1Byte	TargetAnt=2;
-	pFAT_T	pDM_FatTable = &pDM_Odm->DM_FatTable;
-	BOOLEAN	bPktFilterMacth = FALSE;
-#if 0
-	PSTA_INFO_T   	pEntry;
-#endif
-
-
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("==>odm_FastAntTraining()\n"));
-
-	//1 TRAINING STATE
-	if(pDM_FatTable->FAT_State == FAT_TRAINING_STATE)
-	{
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("Enter FAT_TRAINING_STATE\n"));
-		//2 Caculate RSSI per Antenna
-		for (i=0; i<7; i++)
-		{
-			if(pDM_FatTable->antRSSIcnt[i] == 0)
-				pDM_FatTable->antAveRSSI[i] = 0;
-			else
-			{
-			pDM_FatTable->antAveRSSI[i] = pDM_FatTable->antSumRSSI[i] /pDM_FatTable->antRSSIcnt[i];
-				bPktFilterMacth = TRUE;
-			}
-			if(pDM_FatTable->antAveRSSI[i] > MaxRSSI)
-			{
-				MaxRSSI = pDM_FatTable->antAveRSSI[i];
-				TargetAnt = (u1Byte) i;
-			}
-
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("pDM_FatTable->antAveRSSI[%d] = %d, pDM_FatTable->antRSSIcnt[%d] = %d\n",
-				i, pDM_FatTable->antAveRSSI[i], i, pDM_FatTable->antRSSIcnt[i]));
-		}
-
-		//2 Select TRX Antenna
-		if(bPktFilterMacth == FALSE)
-		{
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("None Packet is matched\n"));
-
-			ODM_SetBBReg(pDM_Odm, 0xe08 , BIT16, 0);	//RegE08[16]=1'b0		//disable fast training
-			ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 0);		//RegC50[7]=1'b0 		//disable HW AntDiv
-		}
-		else
-		{
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("TargetAnt=%d, MaxRSSI=%d\n",TargetAnt,MaxRSSI));
-
-			ODM_SetBBReg(pDM_Odm, 0xe08 , BIT16, 0);	//RegE08[16]=1'b0		//disable fast training
-			//ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 0);		//RegC50[7]=1'b0 		//disable HW AntDiv
-			ODM_SetBBReg(pDM_Odm, 0x864 , BIT8|BIT7|BIT6, TargetAnt);	//Default RX is Omni, Optional RX is the best decision by FAT
-			//ODM_SetBBReg(pDM_Odm, 0x860 , BIT14|BIT13|BIT12, TargetAnt);	//Default TX
-			ODM_SetBBReg(pDM_Odm, 0x80c , BIT21, 1); //Reg80c[21]=1'b1		//from TX Info
-
-#if 0
-			pEntry = pDM_Odm->pODM_StaInfo[pDM_FatTable->TrainIdx];
-
-			if(IS_STA_VALID(pEntry))
-			{
-				pEntry->ANTSEL_A = TargetAnt&BIT0;
-				pEntry->ANTSEL_B = (TargetAnt&BIT1)>>1;
-				pEntry->ANTSEL_C = (TargetAnt&BIT2)>>2;
-			}
-#else
-			pDM_FatTable->ANTSEL_A[pDM_FatTable->TrainIdx] = TargetAnt&BIT0;
-			pDM_FatTable->ANTSEL_B[pDM_FatTable->TrainIdx] = (TargetAnt&BIT1)>>1;
-			pDM_FatTable->ANTSEL_C[pDM_FatTable->TrainIdx] = (TargetAnt&BIT2)>>2;
-#endif
-
-
-			if(TargetAnt == 0)
-				ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 0);		//RegC50[7]=1'b0 		//disable HW AntDiv
-
-		}
-
-		//2 Reset Counter
-		for(i=0; i<7; i++)
-		{
-			pDM_FatTable->antSumRSSI[i] = 0;
-			pDM_FatTable->antRSSIcnt[i] = 0;
-		}
-		
-		pDM_FatTable->FAT_State = FAT_NORMAL_STATE;
-		return;
-	}
-
-	//1 NORMAL STATE
-	if(pDM_FatTable->FAT_State == FAT_NORMAL_STATE)
-	{
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("Enter FAT_NORMAL_STATE\n"));
-
-		odm_SetNextMACAddrTarget(pDM_Odm);
-
-#if 0
-				pEntry = pDM_Odm->pODM_StaInfo[pDM_FatTable->TrainIdx];
-				if(IS_STA_VALID(pEntry))
-				{
-					pEntry->ANTSEL_A = TargetAnt&BIT0;
-					pEntry->ANTSEL_B = (TargetAnt&BIT1)>>1;
-					pEntry->ANTSEL_C = (TargetAnt&BIT2)>>2;
-				}
-#endif
-
-		//2 Prepare Training
-		pDM_FatTable->FAT_State = FAT_TRAINING_STATE;
-		ODM_SetBBReg(pDM_Odm, 0xe08 , BIT16, 1);	//RegE08[16]=1'b1		//enable fast training
-		ODM_SetBBReg(pDM_Odm, 0xc50 , BIT7, 1);	//RegC50[7]=1'b1 		//enable HW AntDiv
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("Start FAT_TRAINING_STATE\n"));
-		ODM_SetTimer(pDM_Odm,&pDM_Odm->FastAntTrainingTimer, 500 ); //ms
-		
-	}
-		
-}
-
-VOID
-odm_FastAntTrainingCallback(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-
-#if (DM_ODM_SUPPORT_TYPE == ODM_CE)
-	PADAPTER	padapter = pDM_Odm->Adapter;
-	if(padapter->net_closed == _TRUE)
-	    return;
-	//if(*pDM_Odm->pbNet_closed == TRUE)
-	   // return;
-#endif
-
-#if USE_WORKITEM
-	ODM_ScheduleWorkItem(&pDM_Odm->FastAntTrainingWorkitem);
-#else
-	odm_FastAntTraining(pDM_Odm);
-#endif
-}
-
-VOID
-odm_FastAntTrainingWorkItemCallback(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-	odm_FastAntTraining(pDM_Odm);
-}
-
-VOID
-ODM_AntennaDiversity_88E(
-	IN		PDM_ODM_T		pDM_Odm
-)
-{
-
-	if((pDM_Odm->SupportICType != ODM_RTL8188E) || (!(pDM_Odm->SupportAbility & ODM_BB_ANT_DIV)))
-	{
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("ODM_AntennaDiversity_88E: Not Support 88E AntDiv\n"));
-		return;	
-	}
-
-	if(!pDM_Odm->bLinked)
-	{
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_ANT_DIV, ODM_DBG_LOUD, ("ODM_AntennaDiversity_88E(): No Link.\n"));
-		return;
-	}
-
-	if(pDM_Odm->AntDivType == CG_TRX_HW_ANTDIV)
-		odm_TRX_HWAntDiv(pDM_Odm);
-	else if(pDM_Odm->AntDivType == CG_TRX_SMART_ANTDIV)
-		odm_FastAntTraining(pDM_Odm);
-
-}
-
-
-/*
-#if (DM_ODM_SUPPORT_TYPE == ODM_MP)
-VOID
-odm_FastAntTrainingCallback(
-	PRT_TIMER		pTimer
-)
-{
-	PADAPTER		Adapter = (PADAPTER)pTimer->Adapter;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
-
-	//#if DEV_BUS_TYPE==RT_PCI_INTERFACE
-	//#if USE_WORKITEM
-	//PlatformScheduleWorkItem(&pHalData->SwAntennaSwitchWorkitem);
-	//#else
-	odm_FastAntTraining(&pHalData->DM_OutSrc);
-	//#endif
-	//#else
-	//PlatformScheduleWorkItem(&pHalData->SwAntennaSwitchWorkitem);
-	//#endif
-	
-}
-#elif (DM_ODM_SUPPORT_TYPE == ODM_CE)
-VOID odm_FastAntTrainingCallback(void *FunctionContext)
-{
-	PDM_ODM_T	pDM_Odm= (PDM_ODM_T)FunctionContext;
-	PADAPTER	padapter = pDM_Odm->Adapter;
-	if(padapter->net_closed == _TRUE)
-	    return;
-	odm_FastAntTraining(pDM_Odm);
-}
-#elif (DM_ODM_SUPPORT_TYPE == ODM_AP)
-VOID odm_FastAntTrainingCallback(void *FunctionContext)
-{
-	PDM_ODM_T	pDM_Odm= (PDM_ODM_T)FunctionContext;
-	odm_FastAntTraining(pDM_Odm);
-}
-
-#endif
-*/
+#endif //#if(defined(CONFIG_HW_ANTENNA_DIVERSITY))
 //3============================================================
 //3 Dynamic Primary CCA
 //3============================================================
@@ -719,13 +82,11 @@ odm_DynamicPrimaryCCA(
 	IN		PDM_ODM_T		pDM_Odm
 	)
 {
+	//prtl8192cd_priv	priv		= pDM_Odm->priv;	// for AP
+
+	//HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
 #if (DM_ODM_SUPPORT_TYPE & (ODM_MP))	
 	PADAPTER	Adapter =  pDM_Odm->Adapter;	// for NIC
-#endif
-//	prtl8192cd_priv	priv		= pDM_Odm->priv;	// for AP
-
-//	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
-#if (DM_ODM_SUPPORT_TYPE & (ODM_MP))	
 	PMGNT_INFO	pMgntInfo = &(Adapter->MgntInfo);
 	PRT_WLAN_STA	pEntry;
 #endif	
@@ -744,11 +105,14 @@ odm_DynamicPrimaryCCA(
 	u8Byte		curTxOkCnt;
 	u8Byte		curRxOkCnt;
 	u1Byte		SecCHOffset;
-	u1Byte		i;
+	u4Byte		i;
 	
 #if((DM_ODM_SUPPORT_TYPE==ODM_ADSL) ||( DM_ODM_SUPPORT_TYPE==ODM_CE))
 	return;
 #endif
+
+	if(pDM_Odm->SupportICType != ODM_RTL8188E) 
+		return;
 
 	Is40MHz = *(pDM_Odm->pBandWidth);
 	SecCHOffset = *(pDM_Odm->pSecChOffset);
@@ -765,10 +129,10 @@ odm_DynamicPrimaryCCA(
 	lastRxOkCnt = Adapter->RxStats.NumRxBytesUnicast;	
 #elif (DM_ODM_SUPPORT_TYPE == ODM_AP)
 	//3 Check Current WLAN Traffic
-	curTxOkCnt = *pDM_Odm->pNumTxBytesUnicast-lastTxOkCnt;
-	curRxOkCnt = *pDM_Odm->pNumRxBytesUnicast-lastRxOkCnt;
-	lastTxOkCnt = *pDM_Odm->pNumTxBytesUnicast;
-	lastRxOkCnt = *pDM_Odm->pNumRxBytesUnicast;
+	curTxOkCnt = *(pDM_Odm->pNumTxBytesUnicast)-lastTxOkCnt;
+	curRxOkCnt = *(pDM_Odm->pNumRxBytesUnicast)-lastRxOkCnt;
+	lastTxOkCnt = *(pDM_Odm->pNumTxBytesUnicast);
+	lastRxOkCnt = *(pDM_Odm->pNumRxBytesUnicast);
 #endif
 
 	//==================Debug Message====================
@@ -1083,4 +447,28 @@ odm_DynamicPrimaryCCA(
 
 	Client_40MHz_pre = Client_40MHz;
 }
+#else //#if (RTL8188E_SUPPORT == 1)
+VOID
+ODM_UpdateRxIdleAnt_88E(IN PDM_ODM_T pDM_Odm, IN u1Byte Ant)
+{
+}
+VOID
+odm_PrimaryCCA_Init(
+	IN		PDM_ODM_T		pDM_Odm)
+{
+}
+VOID
+odm_DynamicPrimaryCCA(
+	IN		PDM_ODM_T		pDM_Odm
+	)
+{
+}
+BOOLEAN
+ODM_DynamicPrimaryCCA_DupRTS(
+	IN		PDM_ODM_T		pDM_Odm
+	)
+{
+	return FALSE;
+}
+#endif //#if (RTL8188E_SUPPORT == 1)
 

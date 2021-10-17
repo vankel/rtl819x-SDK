@@ -17,9 +17,9 @@ typedef enum {false = 0, true = 1} bool;
 #endif
 
 #include "apmib.h"
-#ifndef ASP_SECURITY_PATCH
-//#define ASP_SECURITY_PATCH
-#endif
+//#ifndef CSRF_SECURITY_PATCH
+	//#define CSRF_SECURITY_PATCH
+//#endif
 #ifdef __i386__
   #define _CONFIG_SCRIPT_PATH	"."
   #define _LITTLE_ENDIAN_
@@ -70,6 +70,13 @@ typedef enum {false = 0, true = 1} bool;
 
 #define FORM_FW_UPLOAD	"formUpload"
 #define FORM_CFG_UPLOAD	"formUploadConfig"
+
+#if defined(CONFIG_APP_TR069) && defined(_CWMP_WITH_SSL_)
+#define FORMTR069CACERT "formTR069CPECert"
+#define FORMTR069CPECERT "formTR069CACert"
+#endif
+
+
 
 #define MACIE5_CFGSTR	"/plain\x0d\x0a\0x0d\0x0a"
 #define WINIE6_STR	"/octet-stream\x0d\x0a\0x0d\0x0a"
@@ -263,7 +270,7 @@ static __inline__ void update_form_hander_name(request *wp)
 {
 	char			*last, *nextp;
 
-#ifdef ASP_SECURITY_PATCH	
+#ifdef CSRF_SECURITY_PATCH	
 	extern	void log_boaform(char *form);
 #endif	
 	last = wp->request_uri;
@@ -275,7 +282,7 @@ static __inline__ void update_form_hander_name(request *wp)
 			while (*nextp && !isspace(*nextp))
 				nextp++;			
 			*nextp = '\0';
-#ifdef ASP_SECURITY_PATCH	
+#ifdef CSRF_SECURITY_PATCH	
 			log_boaform(last);			
 #endif
 		}
@@ -298,6 +305,39 @@ static __inline__ void update_form_hander_name(request *wp)
 	send_redirect_perm(wp, COUNTDOWN_PAGE); \
 }
 
+#ifdef CSRF_SECURITY_PATCH
+#define OK_MSG(url) { \
+	extern void log_boaform(char *form);\	
+	needReboot = 1; \
+	if(strlen(url) == 0) \
+		strcpy(url,"/wizard.htm"); \
+ 	req_format_write(wp, "<html><body><blockquote><h4>Change setting successfully!</h4>Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
+	req_format_write(wp, "<form action=/boafrm/formRebootCheck method=POST name='rebootForm'>"); \
+	req_format_write(wp, "<input type='hidden' value='%s' name='submit-url'>",url); \
+	req_format_write(wp, "<input id='restartNow' type='submit' value='Reboot Now' onclick=\"return true\" />&nbsp;&nbsp;"); \
+	req_format_write(wp, "<input id='restartLater' type='button' value='Reboot Later' OnClick=window.location.replace(\"%s\")>", url); \
+	req_format_write(wp, "</form></blockquote></body></html>");\
+	log_boaform("formRebootCheck");\
+}
+
+#define RET_SURVEY_PAGE(pMsg, url, connectOK, wlan_id, isWizard) { \
+	extern void log_boaform(char *form);\
+	needReboot = 1; \
+	if(strlen(url) == 0) \
+		strcpy(url,"/wizard.htm"); \
+ 	req_format_write(wp, "<html><body><blockquote><h4>%s</h4>", pMsg); \
+ 	if(isWizard) req_format_write(wp, "Your changes have been saved. The router must be rebooted for the changes to take effect.<br> You can reboot now, or you can continue to make other changes and reboot later.\n"); \
+	req_format_write(wp, "<form action=/boafrm/formSiteSurveyProfile method=POST name='rebootSiteSurveyProfileForm'>"); \
+	req_format_write(wp, "<input type='hidden' value='%s' name='submit-url'>",url); \
+	if(connectOK) req_format_write(wp, "<td><font size=2><b><input type=\"checkbox\" name=wizardAddProfile%d value=\"ON\">&nbsp;&nbsp;Add to Wireless Profile</b></td><br><br>", wlan_id); \
+	if(!connectOK) req_format_write(wp, "<input id='restartLater' name='restartLater' type='submit' value='  OK  ' onclick=\"return true\" />&nbsp;&nbsp;"); \
+	if(connectOK) req_format_write(wp, "<input id='restartNow' name='restartNow' type='submit' value='Reboot Now' onclick=\"return true\" />&nbsp;&nbsp;"); \
+	if(connectOK) req_format_write(wp, "<input id='restartLater' name='restartLater' type='submit' value='Reboot Later' OnClick=window.location.replace(\"%s\");return true>", url); \
+	req_format_write(wp, "</form></blockquote></body></html>");\
+	log_boaform("formSiteSurveyProfile");\
+}
+
+#else
 #define OK_MSG(url) { \
 	needReboot = 1; \
 	if(strlen(url) == 0) \
@@ -324,6 +364,8 @@ static __inline__ void update_form_hander_name(request *wp)
 	if(connectOK) req_format_write(wp, "<input id='restartLater' name='restartLater' type='submit' value='Reboot Later' OnClick=window.location.replace(\"%s\");return true>", url); \
 	req_format_write(wp, "</form></blockquote></body></html>");\
 }
+#endif
+
 #else
 #define OK_MSG(url) { \
    	req_format_write(wp, "<html><body><blockquote><h4>Change setting successfully!</h4>\n"); \
@@ -380,6 +422,13 @@ static __inline__ void update_form_hander_name(request *wp)
 int dump_directory_index(request *wp, int argc, char **argv);
 void formusbdisk_uploadfile(request *wp, char * path, char * query);
 int Check_directory_status(request *wp, int argc, char **argv);
+int Upload_st(request *wp, int argc, char **argv);
+#ifdef HTTP_FILE_SERVER_HTM_UI
+int dump_httpFileDir_init(request *wp, int argc, char **argv);
+int dump_ListHead(request *wp, int argc, char **argv);
+int dumpDirectList(request *wp, int argc, char **argv);
+int dump_uploadDiv(request *wp, int argc, char **argv);
+#endif
 #endif
 
 /* Routines exported in fmmgmt.c */
@@ -390,6 +439,9 @@ extern int sysLogList(request *wp, int argc, char **argv);
 extern void formPasswordSetup(request *wp, char *path, char *query);
 #if defined(CONFIG_USBDISK_UPDATE_IMAGE)
 extern void formUploadFromUsb(request *wp, char * path, char * query);
+#endif
+#if defined(CONFIG_RTL_HTTP_REDIRECT)
+extern void formWelcomePage(request *wp, char * path, char * query);
 #endif
 extern void formUpload(request *wp, char * path, char * query);
 #ifdef CONFIG_RTL_WAPI_SUPPORT
@@ -418,9 +470,10 @@ extern int wlSchList(request *wp, int argc, char **argv);
 
 #if defined(CONFIG_RTL_P2P_SUPPORT)
 extern void formWiFiDirect(request *wp, char *path, char *query);
-int getWifiP2PState(request *wp, int argc, char **argv);
+extern int getWifiP2PState(request *wp, int argc, char **argv);
 extern void formWlP2PScan(request *wp, char *path, char *query);
-int wlP2PScanTbl(request *wp, int argc, char **argv);
+extern int wlP2PScanTbl(request *wp, int argc, char **argv);
+
 #endif // #if defined(CONFIG_RTL_P2P_SUPPORT)
 
 extern int getScheduleInfo(request *wp, int argc, char **argv);
@@ -446,10 +499,6 @@ extern void formOpMode(request *wp, char *path, char *query);
 extern void formUlkOpMode(request *wp, char *path, char *query);
 #endif //#if defined(CONFIG_RTL_ULINKER)
 
-#if defined(CONFIG_RTL_92D_SUPPORT)
-extern void formWlanBand2G5G(request *wp, char *path, char *query);
-#endif
-
 #if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE)
 extern void formDualFirmware(request *wp, char *path, char *query);
 #endif
@@ -459,6 +508,10 @@ extern void formDualFirmware(request *wp, char *path, char *query);
 extern void formNtp(request *wp, char *path, char *query);
 extern void formWizard(request *wp, char *path, char *query);
 extern void formPocketWizard(request *wp, char *path, char *query);
+
+#ifdef CONFIG_CPU_UTILIZATION
+extern void formCpuUtilization(request *wp, char *path, char *query);
+#endif
 
 #ifdef REBOOT_CHECK
 extern void formRebootCheck(request *wp, char *path, char *query);
@@ -585,13 +638,12 @@ extern int getPid(char *filename);
 extern int getPowerConsumption(request *wp, int argc, char **argv);
 #endif 
 
-#if defined(CONFIG_RTL_8198_AP_ROOT) && defined(VLAN_CONFIG_SUPPORTED)
+#if defined(VLAN_CONFIG_SUPPORTED) 
 extern int getVlanList(request *wp, int argc, char **argv);
 extern void formVlan(request *wp, char *path, char *query);
-
-#if defined(CONFIG_RTL_92D_SUPPORT)
-extern void formWlanBand2G5G(request *wp, char *path, char *query);
 #endif
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8881A_SELECTIVE)
+extern void formWlanBand2G5G(request *wp, char *path, char *query);
 #endif
 
 #ifdef HOME_GATEWAY
@@ -606,10 +658,6 @@ extern int ipFilterList(request *wp, int argc, char **argv);
 extern int macFilterList(request *wp, int argc, char **argv);
 extern int urlFilterList(request *wp, int argc, char **argv);
 extern void formDMZ(request *wp, char *path, char *query);
-#if defined(VLAN_CONFIG_SUPPORTED)
-extern int getVlanList(request *wp, int argc, char **argv);
-extern void formVlan(request *wp, char *path, char *query);
-#endif
 #if defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
 extern void formVlanWAN(request *wp, char *path, char *query);
 #endif
@@ -662,12 +710,17 @@ extern void formRadvd(request *wp, char *path, char *query);
 extern void formDnsv6(request *wp, char * path, char * query);
 extern void formDhcpv6s(request *wp, char * path, char * query);
 extern void formIPv6Addr(request *wp, char * path, char * query);
+extern void formIpv6Setup(request *wp, char * path, char * query);
 extern void formTunnel6(request *wp, char * path, char * query);
 extern uint32 getIPv6Info(request *wp, int argc, char **argv);
+extern uint32 getIPv6WanInfo(request *wp, int argc, char **argv);
+extern int getIPv6Status(request *wp, int argc, char **argv);
 extern int getIPv6BasicInfo(request *wp, int argc, char **argv);
 #endif
 #endif
+#if defined(WLAN_PROFILE)
 extern void getWlProfileInfo(request *wp, int argc, char **argv);
+#endif
 extern void formStaticDHCP(request *wp, char *path, char *query);
 
 /*+++++added by Jack for Tr-069 configuration+++++
@@ -676,9 +729,10 @@ Routines exported in fmtr069.c */
 extern void formTR069Config(request *wp, char *path, char *query);
 extern int saveTR069Config(request *wp, char *path, char *query);
 extern int TR069ConPageShow(request *wp, int argc, char **argv);
-#ifdef CONFIG_USER_CWMP_WITH_MATRIXSSL
+#ifdef _CWMP_WITH_SSL_
 extern int ShowMNGCertTable(request *wp);
-extern void formTR069CertUpload(request *wp, char *path, char *query);
+extern void formTR069CACert(request *wp, char *path, char *query);
+extern void formTR069CPECert(request *wp, char *path, char *query);
 #endif /*CONFIG_USER_CWMP_WITH_MATRIXSSL*/
 #endif /*CONFIG_APP_TR069*/
 

@@ -7,7 +7,9 @@ typedef struct
 	uint32 chid;
 	RtpPayloadType uPktFormat;
 	int32 nG723Type;
-	int32 nFramePerPacket;
+	//int32 nFramePerPacket;
+	int32 nLocalFramePerPacket;
+	int32 nRemoteFramePerPacket;
 	int32 bVAD;					// bool
 }payloadtype_config_t;
 

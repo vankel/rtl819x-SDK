@@ -9,6 +9,14 @@
 #include "leases.h"
 #include "version.h"
 
+#ifdef TR069_ANNEX_F
+#define TR069_ANNEX_F_FILE			"/var/udhcpc/tr069_annex_f.dat"
+#define TR069_ANNEX_F_DEVICE_FILE	"/var/udhcpd/tr069_annex_f_device.dat"
+#define MANUFACTURER_OUI			"00E04C" 
+#define PRODUCT_CLASS_GATEWAY		"InternetGatewayDevice"
+#define PRODUCT_CLASS_DEVICE		"DEVICE"
+#endif
+
 /************************************/
 /* Defaults _you_ may want to tweak */
 /************************************/
@@ -22,7 +30,7 @@
 /*****************************************************************/
 /* Do not modify below here unless you know what you are doing!! */
 /*****************************************************************/
-#ifdef CONFIG_RTL8186_TR
+#if defined(CONFIG_RTL8186_TR) || defined(SUPPORT_OPTION_33_121_249)
 #define RFC3442
 #define UDHCPC_STATIC_ROUTE
 #define UDHCPC_PASS_DOMAINNAME2DHCPSERVER
@@ -93,6 +101,9 @@
 #ifdef UDHCPC_RFC_CLASSLESS_STATIC_ROUTE
 #define RFC_CLASSLESS_STATIC_ROUTE 0x79
 #endif
+#ifdef TR069_ANNEX_F
+#define	DHCP_VI_VENSPEC		0x7d
+#endif
 /* ----------------------------------- */
 /* jimmy added 20080423 for option 249 */
 #ifdef UDHCPC_MS_CLASSLESS_STATIC_ROUTE
@@ -136,6 +147,9 @@ struct option_set {
 #ifdef STATIC_LEASE
 struct static_lease {
 	unsigned char *mac;
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+	int port_id;
+#endif
 	u_int32_t *ip;
 	unsigned char *host;
 	struct static_lease *next;
@@ -187,10 +201,30 @@ unsigned int upateConfig_isp; /* update config from isp*/
 unsigned int response_broadcast; /* */
 unsigned int upateConfig_isp_dns; /* */
 #endif
+
+#ifdef SUPPORT_T1_T2_OPTION
+	unsigned char t1_time[6];
+	unsigned char t2_time[6];
+#endif
 };	
+
+#ifdef TR069_ANNEX_F
+// option 125 VI Vendor-Specific
+struct device_id_t {
+	u_int32_t yiaddr;
+	// 1 enterprise only
+	u_int32_t ent_num;
+	unsigned char oui[7];
+	unsigned char serialNo[65];
+	unsigned char productClass[65];
+	struct device_id_t *next;
+};
+#endif
 
 extern struct server_config_t server_config;
 extern struct dhcpOfferedAddr *leases;
-		
-
+#ifdef SUPPORT_DHCP_PORT_IP_BIND	
+#define	RTL8651_IOCTL_GETPORTIDBYCLIENTMAC	2013		
+#define LAN_IFNAME "eth0"
+#endif
 #endif

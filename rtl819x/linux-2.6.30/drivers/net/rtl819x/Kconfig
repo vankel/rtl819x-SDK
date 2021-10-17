@@ -18,6 +18,9 @@ if RTL_819X_SWCORE
 config DEFAULTS_KERNEL_2_6
 	bool
 	default y
+config AUTO_DHCP_CHECK
+	bool "Auto DHCP Check"
+	default n
 	
 config NEW_PCI
 	bool 
@@ -37,6 +40,15 @@ config RTL_MLD_SNOOPING
 	bool 
 	default y
 	depends on RTL_IGMP_SNOOPING
+
+config RTL_QUERIER_SELECTION
+	bool
+	default y
+	depends on RTL_IGMP_SNOOPING
+
+config RTL_MLD_PROXY
+    bool
+    default y
 
 config RTL_LINKCHG_PROCESS
 	bool
@@ -178,7 +190,7 @@ menu "Config for Layered Driver Features"
 
 	config RTL_HW_NAPT
 		bool "Enable RTL Hardware NAPT"
-		depends on RTL_8198 || RTL_8196CT || RTL_8198T || RTL_819XDT
+		depends on RTL_8198 || RTL_8196CT || RTL_8198T || RTL_819XDT || RTL_8367R_SUPPORT || RTL_89xxD
 		select RTL_LAYERED_ASIC_DRIVER
 		select RTL_LAYERED_ASIC_DRIVER_L3
 		select RTL_LAYERED_ASIC_DRIVER_L4
@@ -209,6 +221,14 @@ menu "Config for Layered Driver Features"
 	        
 	comment 'Choose advance features.'	
 
+	config RTL_HW_MCAST_PATCH_FOR_MAC
+       		 bool "RTL Hardware Multicast patch for Mac address"
+       		 depends on RTL_HARDWARE_MULTICAST
+			 depends on RTL_8196E || RTL_8881A || RTL_8198C
+	config RTL_HW_MCAST_WIFI
+        bool "Enable RTL Hardware Multicast when wlan client exist"
+        depends on RTL_HARDWARE_MULTICAST  
+	
 	config RTL_NETIF_MAPPING
                 bool "enable linux ps vs rtl819x driver netif mapping"
                 default y
@@ -267,7 +287,7 @@ config RTL_ETH_PRIV_SKB
 	depends on RTL_819X
 
 config RTL_ETH_PRIV_SKB_DEBUG
-	bool 
+	bool "Enable Dump Ethernet Private Skb Info" 
 	default n
 	depends on RTL_ETH_PRIV_SKB
 
@@ -312,7 +332,7 @@ config RTL_HW_QOS_SUPPORT
 	default n
 	depends on RTL_LAYERED_DRIVER
 	depends on RTL_HARDWARE_NAT
-	depends on RTL_8196CT || RTL_8198T || RTL_8198 || RTL_819XDT
+	depends on RTL_8196CT || RTL_8198T || RTL_8198 || RTL_819XDT|| RTL_8367R_SUPPORT
 
 config RTL_QOS_PATCH
 	bool "HW QoS patch"
@@ -324,6 +344,13 @@ config RTL_HARDWARE_MULTICAST
 	default n
 	depends on RTL_LAYERED_DRIVER
 	depends on RTL_IGMP_SNOOPING
+
+config RTL_HARDWARE_MULTICAST_CAM
+    bool "HW multicast cam support"
+    default n
+    depends on RTL_LAYERED_DRIVER
+    depends on RTL_HARDWARE_MULTICAST
+	depends on RTL_8196E || RTL_819XD
 
 config RTL_HARDWARE_NAT
 	bool
@@ -401,6 +428,11 @@ config RTL_HW_VLAN_SUPPORT
 #	default n
 #	depends on MESH_ENABLE
 	
+config RTK_SUPPORT_DHCP_PORT_IP_BIDN
+	bool "Support dhcp ip and port bind"
+	default n
+	depends on RTL_819X
+
 config RTL_UNKOWN_UNICAST_CONTROL
 	bool
 	default n
@@ -422,14 +454,42 @@ config RTL_EEE_DISABLED
 	depends on RTL_819X
 
 config RTL_REINIT_SWITCH_CORE
-	bool
+	bool "Support reinit switch core"
 	default y
 	depends on RTL_8196C || RTL_819XD || RTL_8196E
 
-config RTL_SOCK_DEBUG
-	bool
+config RTL_CHECK_SWITCH_TX_HANGUP
+	bool "Support switch tx hangup check"
 	default n
+	depends on RTL_REINIT_SWITCH_CORE
+
+config RTL_SOCK_DEBUG
+	bool "Enable Dump Socket Buffer Info"
+	default n
+
+config RTL_96E_GPIOB5_RESET
+	bool "Enable GPIOB5 as Reset Button"
+	default n
+	depends on RTL_8196E
+
+config RTL_EXCHANGE_PORTMASK
+        bool "exchange portmask from left to right is wan lan1 lan2 lan3 lan4"
+
+config RTL_INBAND_CTL_API
+	bool "enable inband control api"
+	default n
+
+config RTL_INBAND_CTL_ACL
+        bool "Enable inband control ACL"
+        default n
+
+config RT_MULTIPLE_BR_SUPPORT
+	bool "support multiple bridge igmp snooping support"
+	default n
+	depends on RTL_IGMP_SNOOPING
+	
 endif #RTL_819X_SWCORE
+
 #endmenu
 #============================= End of Kconfig ===============================#
 

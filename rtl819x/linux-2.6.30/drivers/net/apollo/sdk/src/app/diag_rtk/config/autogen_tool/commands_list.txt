@@ -1,0 +1,65 @@
+./diag_gen.py -fd gen_file/ -f acl.cli
+
+./diag_gen.py -fd gen_file/ -f auto_fallback.cli
+
+./diag_gen.py -fd gen_file/ -f bandwidth.cli
+
+./diag_gen.py -fd gen_file/ -f classf.cli
+
+./diag_gen.py -fd gen_file/ -f counter.cli
+
+./diag_gen.py -fd gen_file/ -f cpu.cli
+
+./diag_gen.py -fd gen_file/ -f debug.cli
+
+./diag_gen.py -fd gen_file/ -f dot1x.cli
+
+./diag_gen.py -fd gen_file/ -f epon.cli
+
+./diag_gen.py -fd gen_file/ -f flowctrl.cli
+
+./diag_gen.py -fd gen_file/ -f gpon.cli
+
+./diag_gen.py -fd gen_file/ -f igmp.cli
+
+./diag_gen.py -fd gen_file/ -f iol.cli
+
+./diag_gen.py -fd gen_file/ -f l2.cli
+
+./diag_gen.py -fd gen_file/ -f l34.cli
+
+./diag_gen.py -fd gen_file/ -f meter.cli
+
+./diag_gen.py -fd gen_file/ -f mirror.cli
+
+./diag_gen.py -fd gen_file/ -f oam.cli
+
+./diag_gen.py -fd gen_file/ -f ponmac.cli
+
+./diag_gen.py -fd gen_file/ -f port.cli
+
+./diag_gen.py -fd gen_file/ -f qos.cli
+
+./diag_gen.py -fd gen_file/ -f reg.cli
+
+./diag_gen.py -fd gen_file/ -f rldp.cli
+
+./diag_gen.py -fd gen_file/ -f rma.cli
+
+./diag_gen.py -fd gen_file/ -f sdk.cli
+
+./diag_gen.py -fd gen_file/ -f sec.cli
+
+./diag_gen.py -fd gen_file/ -f storm_control.cli
+
+./diag_gen.py -fd gen_file/ -f stp.cli
+
+./diag_gen.py -fd gen_file/ -f svlan.cli
+
+./diag_gen.py -fd gen_file/ -f switch.cli
+
+./diag_gen.py -fd gen_file/ -f trap.cli
+
+./diag_gen.py -fd gen_file/ -f trunk.cli
+
+./diag_gen.py -fd gen_file/ -f vlan.cli

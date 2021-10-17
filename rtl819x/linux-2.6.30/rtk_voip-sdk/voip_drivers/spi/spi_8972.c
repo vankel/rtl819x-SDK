@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -26,10 +26,10 @@ extern rtl_spi_dev_t spi_dev[SPI_DEV_NUM];
 static int32 _rtl867x_spi_init( rtl_spi_dev_t* pDev, uint32 gpioSCLK, uint32 gpioCS_, uint32 gpioSDO, uint32 gpioSDI)
 {
 	
-	pDev->gpioSCLK = gpioSCLK;
-	pDev->gpioCS_ = gpioCS_;
-	pDev->gpioSDI = gpioSDI;
-	pDev->gpioSDO = gpioSDO;
+	pDev->sw.gpioSCLK = gpioSCLK;
+	pDev->sw.gpioCS_ = gpioCS_;
+	pDev->sw.gpioSDI = gpioSDI;
+	pDev->sw.gpioSDO = gpioSDO;
 	//pDev->SClkDelayLoop = SysClock / maxSpeed;
 	/*rtlglue_printf("GetSysClockRate()=%d\n",GetSysClockRate());*/
 #if 0 // conflicts with function prototype

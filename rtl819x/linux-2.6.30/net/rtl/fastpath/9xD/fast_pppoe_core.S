@@ -116,7 +116,7 @@ $L10:
 	addiu	$3,$2,16
 	addu	$3,$22,$3
 #APP
- # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home/kai_wang/3466/branch-rtl819x-sdk-v3.4.6.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$5,($3)
@@ -152,7 +152,7 @@ $L3:
 	addu	$2,$22,$2
 	move	$3,$2
 #APP
- # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home/kai_wang/3466/branch-rtl819x-sdk-v3.4.6.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$5,($3)
@@ -361,7 +361,7 @@ fast_pppoe_xmit:
 	addiu	$4,$3,%lo($LC0)
 	li	$5,3			# 0x3
 #APP
- # 106 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 106 "/home/kai_wang/3466/branch-rtl819x-sdk-v3.4.6.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 1:	lbu	$3,($2)
@@ -1068,7 +1068,7 @@ $L45:
 	.set	reorder
 
 #APP
- # 25 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 25 "/home/kai_wang/3466/branch-rtl819x-sdk-v3.4.6.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 1:	lbu	$1,($20)
@@ -1089,7 +1089,7 @@ $L46:
 	.set	reorder
 
 #APP
- # 25 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 25 "/home/kai_wang/3466/branch-rtl819x-sdk-v3.4.6.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 1:	lbu	$1,($19)
@@ -1203,7 +1203,7 @@ $L58:
 	addiu	$3,$3,16
 	addu	$3,$18,$3
 #APP
- # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home/kai_wang/3466/branch-rtl819x-sdk-v3.4.6.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$4,($3)
@@ -1247,7 +1247,7 @@ $L54:
 	mflo	$3
 	addu	$3,$18,$3
 #APP
- # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home/kai_wang/3466/branch-rtl819x-sdk-v3.4.6.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$4,($3)

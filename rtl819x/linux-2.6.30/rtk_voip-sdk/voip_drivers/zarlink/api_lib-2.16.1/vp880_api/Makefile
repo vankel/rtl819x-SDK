@@ -6,21 +6,11 @@ obj-y	:= 	apiCal.o 	\
 
 # apiseq.c requires Zarlink NDA
 ifeq ($(CONFIG_VOIP_SDK),y)
-
-ifeq ($(CONFIG_RTL_89xxD),y)
-obj-y += apiseq_rtl89xxD.obj
-else
-obj-y += apiseq.obj
-endif
-
-ifeq ($(CONFIG_RTK_VOIP_PACKAGE_867X),y)
-ifeq ($(CONFIG_8676_IAD_ZARLINK),y)
-	obj-y += apiseq_rtl8676.obj
-else
-	obj-y += apiseq.obj
-endif
-endif
-
+obj-$(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) += apiseq_rtl89xxD.obj
+obj-$(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) += apiseq.obj
+obj-$(CONFIG_RTK_VOIP_DRIVERS_PCM8676) += apiseq_rtl8676.obj
+obj-$(CONFIG_RTK_VOIP_SOC_8686_CPU0) += apiseq_rtl8686_cpu0.obj
+obj-$(CONFIG_RTK_VOIP_SOC_8686_CPU1) += apiseq_rtl8686_cpu1.obj
 else
 obj-y += apiseq.o
 endif

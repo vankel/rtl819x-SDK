@@ -20,14 +20,17 @@ Major Change History:
 #include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
-#ifdef CONFIG_RTL_88E_SUPPORT
+
 //#include "Mp_Precomp.h"
 #ifdef __KERNEL__
 #include <linux/kernel.h>
 #endif
+#include "8192cd.h"
 #include "8192cd_debug.h"
 #include "8192cd_headers.h"
 #include "8192cd_util.h"
+
+#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT)
 
 #define TRUE		1
 #define FALSE	0
@@ -75,13 +78,33 @@ unsigned int HalPwrSeqCmdParsing(struct rtl8192cd_priv *priv, unsigned char CutV
 				DEBUG_INFO("%s %d, PWR_CMD_WRITE\n", __FUNCTION__, __LINE__);
 				offset = GET_PWR_CFG_OFFSET(PwrCfgCmd);
 
-				//Read the value from system register		
-				value = RTL_R8(offset);
-				value = value&(~(GET_PWR_CFG_MASK(PwrCfgCmd)));
-				value = value|(GET_PWR_CFG_VALUE(PwrCfgCmd)&GET_PWR_CFG_MASK(PwrCfgCmd));
+#ifdef CONFIG_SDIO_HCI
+				//
+				// <Roger_Notes> We should deal with interface specific address mapping for some interfaces, e.g., SDIO interface
+				// 2011.07.07.
+				//
+				if (GET_PWR_CFG_BASE(PwrCfgCmd) == PWR_BASEADDR_SDIO)
+				{
+					// Read Back SDIO Local value
+					value = SdioLocalCmd52Read1Byte(priv, offset);
 
-				//Write the value back to sytem register
-				RTL_W8(offset, value);
+					value &= ~(GET_PWR_CFG_MASK(PwrCfgCmd));
+					value |= (GET_PWR_CFG_VALUE(PwrCfgCmd) & GET_PWR_CFG_MASK(PwrCfgCmd));
+
+					// Write Back SDIO Local value
+					SdioLocalCmd52Write1Byte(priv, offset, value);
+				}
+				else
+#endif
+				{
+					//Read the value from system register		
+					value = RTL_R8(offset);
+					value = value&(~(GET_PWR_CFG_MASK(PwrCfgCmd)));
+					value = value|(GET_PWR_CFG_VALUE(PwrCfgCmd)&GET_PWR_CFG_MASK(PwrCfgCmd));
+
+					//Write the value back to sytem register
+					RTL_W8(offset, value);
+				}
 				break;
 
 			case PWR_CMD_POLLING:
@@ -90,6 +113,11 @@ unsigned int HalPwrSeqCmdParsing(struct rtl8192cd_priv *priv, unsigned char CutV
 				offset = GET_PWR_CFG_OFFSET(PwrCfgCmd);				
 
 				do {
+#ifdef CONFIG_SDIO_HCI
+					if (GET_PWR_CFG_BASE(PwrCfgCmd) == PWR_BASEADDR_SDIO)
+						value = SdioLocalCmd52Read1Byte(priv, offset);
+					else
+#endif
 					value = RTL_R8(offset);
 					value=value&GET_PWR_CFG_MASK(PwrCfgCmd);
 					if(value==(GET_PWR_CFG_VALUE(PwrCfgCmd)&GET_PWR_CFG_MASK(PwrCfgCmd)))

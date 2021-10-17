@@ -64,6 +64,11 @@ extern void create_voip_session_proc_read_entry(
 	const char * name,
 	read_proc_t * read_proc );
 
+extern void create_voip_session_proc_rw_entry(
+	const char * name,
+	read_proc_t * read_proc,
+	write_proc_t * write_proc );
+
 /*
  * Remove entries from channel or session 
  */

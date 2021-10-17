@@ -75,6 +75,8 @@ void lib1x_trans_reauthsm( Global_Params * global , Reauth_SM * reauth_sm)
 	{
 		reauth_sm->state = resm_Initialize;
 		global->timers->reAuthWhen = reauth_sm->reAuthPeriod;
+		// resaon code = 30, expire
+		lib1x_control_STADisconnect(global, 30);
 		return;
 	}
 

@@ -166,7 +166,12 @@ void __init bsp_init(void)
 		mem_size = (row_cnt * col_cnt *bank_cnt) * (bus_width >> 3) * chip_sel;     
         }
 #endif
-    add_memory_region(0, mem_size, BOOT_MEM_RAM);
+	  if(mem_size == (256 << 20))
+        {
+                mem_size =(256 << 20) -32;
+        }
+
+	    add_memory_region(0, mem_size, BOOT_MEM_RAM);
 }
 
 void __init bsp_free_prom_memory(void)

@@ -4,6 +4,7 @@
 //
 
 #include <linux/string.h>
+#include <linux/interrupt.h>
 #include <net/ip.h>
 #include <linux/proc_fs.h>
 #include <linux/init.h>
@@ -33,6 +34,9 @@ extern int dsp_rtk_ss_num;
 #ifdef SUPPORT_DYNAMIC_PAYLOAD
 //int DPSize[MAX_SESS_NUM] = {1};
 
+//#define SUPPORT_SYNC_OUT_OF_SEQ
+#define SUPPORT_SYNC_BIG_CHANGE
+
 #ifdef DYNAMIC_PAYLOAD_VER1
 int DPInitSeq[MAX_DSP_RTK_SS_NUM] = {0};
 int DPInitStamp[MAX_DSP_RTK_SS_NUM] = {0};
@@ -45,6 +49,11 @@ uint16 DPNotFirstPacket[MAX_DSP_RTK_SS_NUM] = {0};	// If first packet from netwo
  #ifdef SUPPORT_SYNC_OUT_OF_SEQ
 uint16 DPEnableSyncInSeq[MAX_DSP_RTK_SS_NUM] = {0};
 uint16 DPSyncInSeq[MAX_DSP_RTK_SS_NUM] = {0};
+ #endif
+ #ifdef SUPPORT_SYNC_BIG_CHANGE
+uint16 BigChangeCount[ MAX_DSP_RTK_SS_NUM ];
+uint16 BigChangePreSeq[ MAX_DSP_RTK_SS_NUM ];
+uint16 BigChangeDeltaSeq[ MAX_DSP_RTK_SS_NUM ];
  #endif
 #endif
 
@@ -99,10 +108,11 @@ int tx_jit_buf_high_threshold[MAX_DSP_RTK_SS_NUM]={30};
 
 int touch_high_threshold[MAX_DSP_RTK_SS_NUM]={0};
 
-const codec_algo_desc_t *ppNowCodecAlgorithmDesc[MAX_DSP_RTK_SS_NUM];
+const codec_algo_desc_t *ppNowTranCodecAlgorithmDesc[MAX_DSP_RTK_SS_NUM];
+const codec_algo_desc_t *ppNowRecvCodecAlgorithmDesc[MAX_DSP_RTK_SS_NUM];
 
 // pkshih: move to rtk_trap.c 
-extern uint32 nRxRtpStatsLostPacket[MAX_DSP_RTK_CH_NUM];
+extern uint32 nRxRtpStatsLostPacket[MAX_DSP_RTK_SS_NUM];
 
 uint32 nRxSilencePacket[MAX_DSP_RTK_SS_NUM];
 
@@ -113,7 +123,8 @@ uint32 nRxSilencePacket[MAX_DSP_RTK_SS_NUM];
 
 typedef struct
 {
-	//DSPCODEC_ALGORITHM	m_uCodingAlgorithm;  	// which coding algorithm used: G711u, G711a, G723.1a53, G723.1a63, G729
+	//DSPCODEC_ALGORITHM	m_uTranCodingAlgorithm;  	// which coding algorithm used: G711u, G711a, G723.1a53, G723.1a63, G729
+	//DSPCODEC_ALGORITHM	m_uRecvCodingAlgorithm;  	// which coding algorithm used: G711u, G711a, G723.1a53, G723.1a63, G729
 	//CDspcodecConfig		m_xConfig;				// remember DSP configuration
 	//DSPCODEC_INTERFACE	m_nInterface;			// interface to play
 	int32				m_nRingType;			// which ring to play
@@ -370,6 +381,9 @@ void DynamicPayloadInit( uint32 sid )
 	DPSyncInSeq[sid] = 0;
 	DPEnableSyncInSeq[sid] = 0;
   #endif
+  #ifdef SUPPORT_SYNC_BIG_CHANGE
+	BigChangeCount[ sid ] = 0;
+  #endif
  #endif	
 }
 #endif /* SUPPORT_DYNAMIC_PAYLOAD */
@@ -472,20 +486,29 @@ void DspcodecDown(void)
 }
 #endif
 
-RESULT DspcodecInitialize(uint32 sid, DSPCODEC_ALGORITHM uCodingAlgorithm, const CDspcodecConfig *pConfig)
+RESULT DspcodecInitialize(uint32 sid, DSPCODEC_ALGORITHM uTranCodingAlgorithm, DSPCODEC_ALGORITHM uRecvCodingAlgorithm, const CDspcodecConfig *pConfig)
 {
 	int i;
 	RESULT retval;
 	CDspcodecInitializeParm xInitializeParm;
 
 #ifdef Doing_723_decode_play_test
-	uCodingAlgorithm = DSPCODEC_ALGORITHM_G711U ;
+	uTranCodingAlgorithm = DSPCODEC_ALGORITHM_G711U ;
+	uRecvCodingAlgorithm = DSPCODEC_ALGORITHM_G711U ;
 #endif
 
-	if( ( ppNowCodecAlgorithmDesc[ sid ] = GetCodecAlgoDesc( uCodingAlgorithm ) ) 
+	if( ( ppNowTranCodecAlgorithmDesc[ sid ] = GetCodecAlgoDesc( uTranCodingAlgorithm ) ) 
 		== NULL )
 	{
-		printk("Dspcodec: !!! Wrong parameter of uCodingAlgorithm %d !!!\n", uCodingAlgorithm);
+		printk("Dspcodec: !!! Wrong parameter of uTranCodingAlgorithm %d !!!\n", uTranCodingAlgorithm);
+		assert(0);
+		return DSPCODEC_ERROR_ALGORITHM;
+	}
+
+	if( ( ppNowRecvCodecAlgorithmDesc[ sid ] = GetCodecAlgoDesc( uRecvCodingAlgorithm ) ) 
+		== NULL )
+	{
+		printk("Dspcodec: !!! Wrong parameter of uRecvCodingAlgorithm %d !!!\n", uRecvCodingAlgorithm);
 		assert(0);
 		return DSPCODEC_ERROR_ALGORITHM;
 	}
@@ -507,13 +530,17 @@ RESULT DspcodecInitialize(uint32 sid, DSPCODEC_ALGORITHM uCodingAlgorithm, const
 
 #if 0
 	memset((void *)(&(pSendParm[sid].xParm)), 0, sizeof(CDspcodecInitializeParm));
-	Dsp_data[sid].m_uCodingAlgorithm = uCodingAlgorithm;
+	Dsp_data[sid].m_uTranCodingAlgorithm = uTranCodingAlgorithm;
+	Dsp_data[sid].m_uRecvCodingAlgorithm = uRecvCodingAlgorithm;
+
 	//pSendParm[sid].uCommand = DSPCODEC_COMMAND_INITIALIZE;
 	//pSendParm[sid].nOwner = 0;
-	pSendParm[sid].xParm.xInitializeParm.uCodingAlgorithm 		= Dsp_data[sid].m_uCodingAlgorithm;
+	pSendParm[sid].xParm.xInitializeParm.uTranCodingAlgorithm 	= Dsp_data[sid].m_uTranCodingAlgorithm;
+	pSendParm[sid].xParm.xInitializeParm.uRecvCodingAlgorithm	= Dsp_data[sid].m_uRecvCodingAlgorithm;
+
 	//pSendParm[sid].xParm.xInitializeParm.xConfig.pToneTable 	= Dsp_data[sid].m_xConfig.pToneTable;
 	//pSendParm[sid].xParm.xInitializeParm.xConfig.pCtrlParm 		= Dsp_data[sid].m_xConfig.pCtrlParm;
-	pSendParm[sid].xParm.xInitializeParm.xConfig.bVAD 		= Dsp_data[sid].m_xConfig.bVAD;
+	pSendParm[sid].xParm.xInitializeParm.xConfig.bVAD 			= Dsp_data[sid].m_xConfig.bVAD;
 	//pSendParm[sid].xParm.xInitializeParm.xConfig.nVadLevel 		= Dsp_data[sid].m_xConfig.nVadLevel;
 	//pSendParm[sid].xParm.xInitializeParm.xConfig.bAES 		= Dsp_data[sid].m_xConfig.bAES;
 	//pSendParm[sid].xParm.xInitializeParm.xConfig.nHangoverTime 	= Dsp_data[sid].m_xConfig.nHangoverTime;
@@ -528,7 +555,8 @@ RESULT DspcodecInitialize(uint32 sid, DSPCODEC_ALGORITHM uCodingAlgorithm, const
 	pSendParm[sid].xParm.xInitializeParm.xConfig.nMaxDelay		= Dsp_data[sid].m_xConfig.nMaxDelay;
 	pSendParm[sid].xParm.xInitializeParm.xConfig.nJitterFactor	= Dsp_data[sid].m_xConfig.nJitterFactor;
 #else
-	xInitializeParm.uCodingAlgorithm = uCodingAlgorithm;
+	xInitializeParm.uTranCodingAlgorithm = uTranCodingAlgorithm;
+	xInitializeParm.uRecvCodingAlgorithm = uRecvCodingAlgorithm;
 	xInitializeParm.xConfig = *pConfig;
 #endif
 
@@ -545,8 +573,8 @@ RESULT DspcodecInitialize(uint32 sid, DSPCODEC_ALGORITHM uCodingAlgorithm, const
 	Dsp_data[sid].m_nPreTimeStamp = 0;
 	Dsp_data[sid].m_nWState = DSPCODEC_WSTATE_NORMALJITTER;
 #ifdef CONFIG_RTK_VOIP_G7231
-	if((Dsp_data[sid].m_uCodingAlgorithm == DSPCODEC_ALGORITHM_G7231A53) ||
-		(Dsp_data[sid].m_uCodingAlgorithm == DSPCODEC_ALGORITHM_G7231A63))
+	if((Dsp_data[sid].m_uRecvCodingAlgorithm == DSPCODEC_ALGORITHM_G7231A53) ||
+		(Dsp_data[sid].m_uRecvCodingAlgorithm == DSPCODEC_ALGORITHM_G7231A63))
 	{
 		Dsp_data[sid].m_nInitTd = G723PRETD;
 
@@ -558,7 +586,7 @@ RESULT DspcodecInitialize(uint32 sid, DSPCODEC_ALGORITHM uCodingAlgorithm, const
 	else 
 #endif /* CONFIG_RTK_VOIP_G7231 */
 #ifdef CONFIG_RTK_VOIP_G729AB
-	if(Dsp_data[sid].m_uCodingAlgorithm == DSPCODEC_ALGORITHM_G729)
+	if(Dsp_data[sid].m_uRecvCodingAlgorithm == DSPCODEC_ALGORITHM_G729)
 	{
 		Dsp_data[sid].m_nInitTd = G729PRETD;
 
@@ -591,6 +619,7 @@ RESULT DspcodecInitialize(uint32 sid, DSPCODEC_ALGORITHM uCodingAlgorithm, const
 
 	if(retval != DSPCODEC_SUCCESS)
 	{
+		PRINT_R("%s: !!! Send command fail !!!\n", __FUNCTION__);
 	}
 	return retval;
 }
@@ -626,7 +655,7 @@ RESULT DspcodecSetConfig(uint32 sid/*, CDspcodecConfig* pConfig*/)
 
 	if(retval != DSPCODEC_SUCCESS)
 	{
-//		printf("Dspcodec: !!! Send command [SETCONFIG] fail !!!\n");
+		PRINT_R("%s: !!! Send command fail !!!\n", __FUNCTION__);
 	}
 	return retval;
 }
@@ -835,14 +864,19 @@ RESULT DspcodecPlayTone(uint32 sid, DSPCODEC_TONE nTone, bool bFlag, DSPCODEC_TO
 	if((nTone >= DSPCODEC_TONE_0) && (nTone <= DSPCODEC_TONE_HASHSIGN))
 	{
 		/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = nTone;
-//#ifndef CONFIG_RTK_VOIP_IP_PHONE	// pkshih: remove these 'debug' code 
+//#ifndef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE	// pkshih: remove these 'debug' code 
 //		if( dtmf_mode[0]==2/*_inband*/ )	// hc$ note, must follow chid
 //			path = DSPCODEC_TONEDIRECTION_BOTH ;	//WJF 931122 debug
 //#endif
+		// play DIGIT_0, DIGIT_1, DIGIT_2, DIGIT_3, DIGIT_4, DIGIT_5
+		//      DIGIT_6, DIGIT_7, DIGIT_8, DIGIT_9, DIGIT_STAR, DIGIT_PONDA
 	}
-	else if ((nTone >= DSPCODEC_TONE_0_CONT) && (nTone <= DSPCODEC_TONE_HASHSIGN_CONT))
+	else if ((nTone >= DSPCODEC_TONE_0_CONT) && (nTone <= DSPCODEC_TONE_D_CONT))
 	{	// thlin+ continous DTMF tone play for RFC2833
 		/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = nTone-DSPCODEC_TONE_0_CONT+DIGIT_0_CONT;
+		// play DIGIT_0_CONT, DIGIT_1_CONT, DIGIT_2_CONT, DIGIT_3_CONT, DIGIT_4_CONT, DIGIT_5_CONT,
+		//      DIGIT_6_CONT, DIGIT_7_CONT, DIGIT_8_CONT, DIGIT_9_CONT, DIGIT_STAR_CONT, DIGIT_PONDA_CONT,
+		//      DIGIT_A_CONT, DIGIT_B_CONT, DIGIT_C_CONT, DIGIT_D_CONT
 	}
 	else
 	{
@@ -869,8 +903,17 @@ RESULT DspcodecPlayTone(uint32 sid, DSPCODEC_TONE nTone, bool bFlag, DSPCODEC_TO
 		case DSPCODEC_TONE_CALL_WAITING_2:
 		case DSPCODEC_TONE_CALL_WAITING_3:
 		case DSPCODEC_TONE_CALL_WAITING_4:
+		case DSPCODEC_TONE_EXTEND_1:
+		case DSPCODEC_TONE_EXTEND_2:
+		case DSPCODEC_TONE_EXTEND_3:
+		case DSPCODEC_TONE_EXTEND_4:
+		case DSPCODEC_TONE_EXTEND_5:
 		case DSPCODEC_TONE_INGRESS_RINGBACK:
 			/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = Dsp_data[sid].m_nBaseTone + nTone - DSPCODEC_TONE_DIAL;
+			// play country DIAL, STUTTERDIAL, MESSAGE_WAITING, CONFIRMATION, RING, BUSY, CONGESTION, ROH, DOUBLE_RING,
+			//              SIT_NOCIRCUIT, SIT_INTERCEPT, SIT_VACANT, SIT_REORDER, CALLING_CARD_WITHEVENT, CALLING_CARD, 
+			//              CALL_WAITING_1, CALL_WAITING_2, CALL_WAITING_3, CALL_WAITING_4, EXTEND_1, EXTEND_2, EXTEND_3, 
+			//              EXTEND_4, EXTEND_5, INGRESS_RINGBACK,
 			break;
 		case DSPCODEC_TONE_HOLD:
 			/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = HOLDING;
@@ -904,13 +947,41 @@ RESULT DspcodecPlayTone(uint32 sid, DSPCODEC_TONE nTone, bool bFlag, DSPCODEC_TO
 			pSendParm[sid].xParm.xPlayToneParm.nTone = RING_1 + Dsp_data[sid].m_nRingType;
 			break;
 #endif	// #ifdef SUPPORT_TONE_PROFILE
+		case DSPCODEC_TONE_RING1:
+		case DSPCODEC_TONE_RING2:
+		case DSPCODEC_TONE_RING3:
+		case DSPCODEC_TONE_RING4:
+		case DSPCODEC_TONE_RING5:
+		case DSPCODEC_TONE_RING6:
+		case DSPCODEC_TONE_RING7:
+		case DSPCODEC_TONE_RING8:
+		case DSPCODEC_TONE_RING9:
+		case DSPCODEC_TONE_RING10:
+			/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = RING_1 + (nTone-DSPCODEC_TONE_RING1);
+			// play RING_1, RING_2, RING_3, RING_4, RING_5,
+			//      RING_6, RING_7, RING_8, RING_9, RING_10,
+			break;
 
-#ifdef SW_DTMF_CID	// hc+ 1124 for DTMF CID
+		case DSPCODEC_TONE_CUSTOM_TONE1:
+		case DSPCODEC_TONE_CUSTOM_TONE2:
+		case DSPCODEC_TONE_CUSTOM_TONE3:
+		case DSPCODEC_TONE_CUSTOM_TONE4:
+		case DSPCODEC_TONE_CUSTOM_TONE5:
+		case DSPCODEC_TONE_CUSTOM_TONE6:
+		case DSPCODEC_TONE_CUSTOM_TONE7:
+		case DSPCODEC_TONE_CUSTOM_TONE8:
+			/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = CUSTOM_TONE1 + (nTone-DSPCODEC_TONE_CUSTOM_TONE1);
+			// play CUSTOM_TONE1, CUSTOM_TONE2, CUSTOM_TONE3, CUSTOM_TONE4, 
+			//      CUSTOM_TONE5, CUSTOM_TONE6, CUSTOM_TONE7, CUSTOM_TONE8, 
+			break;
+
+#if 1 //def SW_DTMF_CID	// hc+ 1124 for DTMF CID, always enable
 		case DSPCODEC_TONE_A:
 		case DSPCODEC_TONE_B:
 		case DSPCODEC_TONE_C:
 		case DSPCODEC_TONE_D:		
-			/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = DIGIT_A + (nTone-DSPCODEC_TONE_A);			
+			/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = DIGIT_A + (nTone-DSPCODEC_TONE_A);	
+			// play DIGIT_A, DIGIT_B , DIGIT_C, DIGIT_D
 			break;
 #endif
 
@@ -928,7 +999,7 @@ RESULT DspcodecPlayTone(uint32 sid, DSPCODEC_TONE nTone, bool bFlag, DSPCODEC_TO
 
 		case DSPCODEC_TONE_NTT_IIT_TONE:
 			/*pSendParm[sid].xParm.*/xPlayToneParm.nTone = NTT_IIT_TONE;
-			printk("ntt_tone,%d\n",NTT_IIT_TONE);
+			//printk("ntt_tone, %d\n",NTT_IIT_TONE);
 			break;
 		
 		case DSPCODEC_TONE_VBD_ANS:
@@ -1371,7 +1442,7 @@ int32 DspcodecWrite(uint32 chid, uint32 sid, uint8* pBuf, int32 nSize, uint32 nS
 #ifdef SUPPORT_SYNC_OUT_OF_SEQ			
 			if( ( uint16 )( outof_seq_prevSeq[ sid ] + 1 ) == ( uint16 )nSeq ) {
 				if( ++ outof_seq_cnt[ sid ] > 30 ) {
-					SyncDynamicPayload( sid, Dsp_data[sid].m_nPreSeq );
+					SyncDynamicPayload( sid, JitterBuffer[sid].m_nPreSeq );
 					outof_seq_cnt[ sid ] = 0;
 				}
 			} else
@@ -1968,7 +2039,7 @@ int32 DPDspcodecWrite(uint32 chid, uint32 sid, uint8* pBuf, int32 nSize, uint32 
 	 * Step 1. According to codec algorithm, frame payload length, 
 	 *         frame timestamp and SID payload length are given.
 	 */
-	pCurrentCodecDescriptor = ppNowCodecAlgorithmDesc[ sid ];
+	pCurrentCodecDescriptor = ppNowRecvCodecAlgorithmDesc[ sid ];
 	
  	if( pCurrentCodecDescriptor == NULL ) {
  		printk("\n warning; (%d)codec algorithm is not defined, but for r1 writting!", sid );
@@ -2064,9 +2135,77 @@ int32 DPDspcodecWrite(uint32 chid, uint32 sid, uint8* pBuf, int32 nSize, uint32 
  			DPEnableSyncInSeq[ sid ] = 0;
  		}
  #endif
+ #ifdef SUPPORT_SYNC_BIG_CHANGE
+		DPExpTimeStamp[sid] = nTimestamp;	// for checking only.  
+ #endif
 
 		//debug_dev( "First packet seq#(%d): %d\n", sid, nSeq );
 	}
+
+#ifdef SUPPORT_SYNC_BIG_CHANGE
+	if( BigChangeCount[ sid ] == 0 ) {
+	
+		int16 delta_seq;
+		int32 delta_timestamp;
+	
+		delta_seq = ( int16 )( DPExpSeq[ sid ] - ( uint16 )nSeq );
+		delta_timestamp = ( int32 )( DPExpTimeStamp[sid] - nTimestamp );
+		
+#if 1	// exclude VAD case (consider VAD case and little packet loss )
+		if( delta_seq < 5 && delta_seq > -5 && 	// 5 sequence 
+			delta_timestamp < 30 * 8000 && delta_timestamp > -30 * 8000 ) // 30 seconds 
+		{
+			//if( delta_timestamp )
+			//	printk( "A: delta_seq=%d delta_timestamp=%d\n", delta_seq, delta_timestamp );
+		} else 
+#endif
+		if( delta_seq > 50 || delta_seq < -50 ||
+			delta_timestamp > 50 * 160 || delta_timestamp < -50 * 160 ) 
+		{
+			//printk( "B: delta_seq=%d delta_timestamp=%d\n", delta_seq, delta_timestamp );
+			PRINT_MSG( "B: DS=%d DT=%d\n", delta_seq, delta_timestamp );
+			
+			BigChangeCount[ sid ] ++;
+			BigChangePreSeq[ sid ] = nSeq;
+			
+			discard = rx_frames_per_packet[ sid ];
+			
+			BigChangeDeltaSeq[ sid ] = ((delta_seq >= 0) ? delta_seq : (-delta_seq) );
+		
+			goto label_no_update_variables;
+		}
+	
+	} else {
+	
+		if(  BigChangePreSeq[ sid ] + 1 == nSeq ) {
+			
+			BigChangeCount[ sid ] ++;
+			BigChangePreSeq[ sid ] = nSeq;
+			
+			if( BigChangeCount[ sid ] > 30 ) {
+			
+				extern void DspcodecWriteSnyc( uint32 sid );
+				
+				DspcodecWriteSnyc( sid );
+				
+				PRINT_MSG( "sync big change!!\n" );
+				
+				nRxRtpStatsLostPacket[ sid ] += BigChangeDeltaSeq[ sid ];
+				
+				BigChangeCount[ sid ] = 0;
+				BigChangeDeltaSeq[ sid ] = 0;
+				
+			}
+			
+			discard = rx_frames_per_packet[ sid ];
+			
+			goto label_no_update_variables;	
+		} else {
+			
+			BigChangePreSeq[ sid ] = 0;
+		}
+	}
+#endif // SUPPORT_SYNC_BIG_CHANGE
 	
 	if(DPExpSeq[sid] == nSeq) 	//arrival on time
 	{
@@ -2110,9 +2249,10 @@ int32 DPDspcodecWrite(uint32 chid, uint32 sid, uint8* pBuf, int32 nSize, uint32 
 		 * time	0	80								400 
 		 * 				--> (400-80)/80=4 --> seq# = 5 ><
 		 */
-		uint32 lost_pkt;
+		uint16 lost_pkt;
 		int32 lost_payload;
-		lost_pkt = nSeq - DPExpSeq[sid];	//lost packet no
+		
+		lost_pkt = ( uint16 )nSeq - DPExpSeq[sid];	//lost packet no		
 		lost_payload = ( int32 )(nTimestamp - DPExpTimeStamp[sid])/TempStamp;	//lost payload
 		//debug_warning("%d:L%d(%d, %d, %d) ",sid, lost_payload, lost_pkt, nSeq, DPExpSeq[sid]);
 		debug_warning("%d:L%d ",sid, lost_pkt);
@@ -2131,7 +2271,7 @@ int32 DPDspcodecWrite(uint32 chid, uint32 sid, uint8* pBuf, int32 nSize, uint32 
 		
 		debug_warning("%d:L%d,%d ",sid, lost_pkt, lost_payload);
 		in_seq += lost_payload;
-		nRxRtpStatsLostPacket[ chid ] += lost_pkt;
+		nRxRtpStatsLostPacket[ sid ] += lost_pkt;
 		//debug_dev("DPSeq %d->%d\n", DPInSeq[sid], seq);
 		
 		if( lost_pkt )
@@ -2303,6 +2443,56 @@ void ResetSessionRxStatistics( uint32 sid )
 	nRxSilencePacket[ sid ] = 0;
 }
 
+// ------------------------------------------------------------------
+// proc 
+// ------------------------------------------------------------------
+
+static int voip_rtp_write_read_proc( char *buf, char **start, off_t off, int count, int *eof, void *data )
+{
+	int ss;
+	int n = 0;
+
+	if( off ) {	/* In our case, we write out all data at once. */
+		*eof = 1;
+		return 0;
+	}
+	
+	if( IS_CH_PROC_DATA( data ) ) {
+		//ch = CH_FROM_PROC_DATA( data );
+		//n = sprintf( buf, "channel=%d\n", ch );
+	} else {
+		ss = SS_FROM_PROC_DATA( data );
+		
+		n = sprintf( buf, "session=%d\n", ss );
+		
+		n += sprintf( buf + n, "DPInSeq=%u DPExpSeq=%u "
+						"DPExpTimeStamp=%u DPNotFirstPacket=%u\n", 
+						DPInSeq[ ss ], DPExpSeq[ ss ], 
+						DPExpTimeStamp[ ss ], DPNotFirstPacket[ ss ] );
+	}
+	
+	*eof = 1;
+	return n;
+}
+
+static int __init voip_rtp_write_proc_init( void )
+{
+	create_voip_session_proc_read_entry( "rtp_write", voip_rtp_write_read_proc );
+
+	return 0;
+}
+
+static void __exit voip_rtp_write_proc_exit( void )
+{
+	remove_voip_session_proc_entry( "rtp_write" );
+}
+
+voip_initcall_proc( voip_rtp_write_proc_init );
+voip_exitcall( voip_rtp_write_proc_exit );
+
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+
 #ifdef SUPPORT_TONE_PROFILE
 RESULT DspcodecSetCustomTone(DSPCODEC_TONE nTone, ToneCfgParam_t *pToneCfg)
 {
@@ -2335,38 +2525,847 @@ RESULT DspcodecSetCustomTone(DSPCODEC_TONE nTone, ToneCfgParam_t *pToneCfg)
 	pToneTable->Gain1 = pToneCfg->Gain1;
 	pToneTable->Gain2 = pToneCfg->Gain2;
 	pToneTable->Gain3 = pToneCfg->Gain3;
+	pToneTable->C1_Freq0 = pToneCfg->C1_Freq0;
+	pToneTable->C1_Freq1 = pToneCfg->C1_Freq1;
+	pToneTable->C1_Freq2 = pToneCfg->C1_Freq2;
+	pToneTable->C1_Freq3 = pToneCfg->C1_Freq3;
+	pToneTable->C1_Gain0 = pToneCfg->C1_Gain0;
+	pToneTable->C1_Gain1 = pToneCfg->C1_Gain1;
+	pToneTable->C1_Gain2 = pToneCfg->C1_Gain2;
+	pToneTable->C1_Gain3 = pToneCfg->C1_Gain3;
+	pToneTable->C2_Freq0 = pToneCfg->C2_Freq0;
+	pToneTable->C2_Freq1 = pToneCfg->C2_Freq1;
+	pToneTable->C2_Freq2 = pToneCfg->C2_Freq2;
+	pToneTable->C2_Freq3 = pToneCfg->C2_Freq3;
+	pToneTable->C2_Gain0 = pToneCfg->C2_Gain0;
+	pToneTable->C2_Gain1 = pToneCfg->C2_Gain1;
+	pToneTable->C2_Gain2 = pToneCfg->C2_Gain2;
+	pToneTable->C2_Gain3 = pToneCfg->C2_Gain3;
+	pToneTable->C3_Freq0 = pToneCfg->C3_Freq0;
+	pToneTable->C3_Freq1 = pToneCfg->C3_Freq1;
+	pToneTable->C3_Freq2 = pToneCfg->C3_Freq2;
+	pToneTable->C3_Freq3 = pToneCfg->C3_Freq3;
+	pToneTable->C3_Gain0 = pToneCfg->C3_Gain0;
+	pToneTable->C3_Gain1 = pToneCfg->C3_Gain1;
+	pToneTable->C3_Gain2 = pToneCfg->C3_Gain2;
+	pToneTable->C3_Gain3 = pToneCfg->C3_Gain3;
+
+	pToneTable->CadOn4 = pToneCfg->CadOn4;
+	pToneTable->CadOff4 = pToneCfg->CadOff4;
+	pToneTable->CadOn5 = pToneCfg->CadOn5;
+	pToneTable->CadOff5 = pToneCfg->CadOff5;
+	pToneTable->CadOn6 = pToneCfg->CadOn6;
+	pToneTable->CadOff6 = pToneCfg->CadOff6;
+	pToneTable->CadOn7 = pToneCfg->CadOn7;
+	pToneTable->CadOff7 = pToneCfg->CadOff7;
+	pToneTable->C4_Freq0 = pToneCfg->C4_Freq0;
+	pToneTable->C4_Freq1 = pToneCfg->C4_Freq1;
+	pToneTable->C4_Freq2 = pToneCfg->C4_Freq2;
+	pToneTable->C4_Freq3 = pToneCfg->C4_Freq3;
+	pToneTable->C4_Gain0 = pToneCfg->C4_Gain0;
+	pToneTable->C4_Gain1 = pToneCfg->C4_Gain1;
+	pToneTable->C4_Gain2 = pToneCfg->C4_Gain2;
+	pToneTable->C4_Gain3 = pToneCfg->C4_Gain3;
+	pToneTable->C5_Freq0 = pToneCfg->C5_Freq0;
+	pToneTable->C5_Freq1 = pToneCfg->C5_Freq1;
+	pToneTable->C5_Freq2 = pToneCfg->C5_Freq2;
+	pToneTable->C5_Freq3 = pToneCfg->C5_Freq3;
+	pToneTable->C5_Gain0 = pToneCfg->C5_Gain0;
+	pToneTable->C5_Gain1 = pToneCfg->C5_Gain1;
+	pToneTable->C5_Gain2 = pToneCfg->C5_Gain2;
+	pToneTable->C5_Gain3 = pToneCfg->C5_Gain3;
+	pToneTable->C6_Freq0 = pToneCfg->C6_Freq0;
+	pToneTable->C6_Freq1 = pToneCfg->C6_Freq1;
+	pToneTable->C6_Freq2 = pToneCfg->C6_Freq2;
+	pToneTable->C6_Freq3 = pToneCfg->C6_Freq3;
+	pToneTable->C6_Gain0 = pToneCfg->C6_Gain0;
+	pToneTable->C6_Gain1 = pToneCfg->C6_Gain1;
+	pToneTable->C6_Gain2 = pToneCfg->C6_Gain2;
+	pToneTable->C6_Gain3 = pToneCfg->C6_Gain3;
+	pToneTable->C7_Freq0 = pToneCfg->C7_Freq0;
+	pToneTable->C7_Freq1 = pToneCfg->C7_Freq1;
+	pToneTable->C7_Freq2 = pToneCfg->C7_Freq2;
+	pToneTable->C7_Freq3 = pToneCfg->C7_Freq3;
+	pToneTable->C7_Gain0 = pToneCfg->C7_Gain0;
+	pToneTable->C7_Gain1 = pToneCfg->C7_Gain1;
+	pToneTable->C7_Gain2 = pToneCfg->C7_Gain2;
+	pToneTable->C7_Gain3 = pToneCfg->C7_Gain3;
+
+	pToneTable->CadOn8 = pToneCfg->CadOn8;
+	pToneTable->CadOff8 = pToneCfg->CadOff8;
+	pToneTable->CadOn9 = pToneCfg->CadOn9;
+	pToneTable->CadOff9 = pToneCfg->CadOff9;
+	pToneTable->CadOn10 = pToneCfg->CadOn10;
+	pToneTable->CadOff10 = pToneCfg->CadOff10;
+	pToneTable->CadOn11 = pToneCfg->CadOn11;
+	pToneTable->CadOff11 = pToneCfg->CadOff11;
+	pToneTable->C8_Freq0 = pToneCfg->C8_Freq0;
+	pToneTable->C8_Freq1 = pToneCfg->C8_Freq1;
+	pToneTable->C8_Freq2 = pToneCfg->C8_Freq2;
+	pToneTable->C8_Freq3 = pToneCfg->C8_Freq3;
+	pToneTable->C8_Gain0 = pToneCfg->C8_Gain0;
+	pToneTable->C8_Gain1 = pToneCfg->C8_Gain1;
+	pToneTable->C8_Gain2 = pToneCfg->C8_Gain2;
+	pToneTable->C8_Gain3 = pToneCfg->C8_Gain3;
+	pToneTable->C9_Freq0 = pToneCfg->C9_Freq0;
+	pToneTable->C9_Freq1 = pToneCfg->C9_Freq1;
+	pToneTable->C9_Freq2 = pToneCfg->C9_Freq2;
+	pToneTable->C9_Freq3 = pToneCfg->C9_Freq3;
+	pToneTable->C9_Gain0 = pToneCfg->C9_Gain0;
+	pToneTable->C9_Gain1 = pToneCfg->C9_Gain1;
+	pToneTable->C9_Gain2 = pToneCfg->C9_Gain2;
+	pToneTable->C9_Gain3 = pToneCfg->C9_Gain3;
+	pToneTable->C10_Freq0 = pToneCfg->C10_Freq0;
+	pToneTable->C10_Freq1 = pToneCfg->C10_Freq1;
+	pToneTable->C10_Freq2 = pToneCfg->C10_Freq2;
+	pToneTable->C10_Freq3 = pToneCfg->C10_Freq3;
+	pToneTable->C10_Gain0 = pToneCfg->C10_Gain0;
+	pToneTable->C10_Gain1 = pToneCfg->C10_Gain1;
+	pToneTable->C10_Gain2 = pToneCfg->C10_Gain2;
+	pToneTable->C10_Gain3 = pToneCfg->C10_Gain3;
+	pToneTable->C11_Freq0 = pToneCfg->C11_Freq0;
+	pToneTable->C11_Freq1 = pToneCfg->C11_Freq1;
+	pToneTable->C11_Freq2 = pToneCfg->C11_Freq2;
+	pToneTable->C11_Freq3 = pToneCfg->C11_Freq3;
+	pToneTable->C11_Gain0 = pToneCfg->C11_Gain0;
+	pToneTable->C11_Gain1 = pToneCfg->C11_Gain1;
+	pToneTable->C11_Gain2 = pToneCfg->C11_Gain2;
+	pToneTable->C11_Gain3 = pToneCfg->C11_Gain3;
+
+	pToneTable->CadOn12 = pToneCfg->CadOn12;
+	pToneTable->CadOff12 = pToneCfg->CadOff12;
+	pToneTable->CadOn13 = pToneCfg->CadOn13;
+	pToneTable->CadOff13 = pToneCfg->CadOff13;
+	pToneTable->CadOn14 = pToneCfg->CadOn14;
+	pToneTable->CadOff14 = pToneCfg->CadOff14;
+	pToneTable->CadOn15 = pToneCfg->CadOn15;
+	pToneTable->CadOff15 = pToneCfg->CadOff15;
+	pToneTable->C12_Freq0 = pToneCfg->C12_Freq0;
+	pToneTable->C12_Freq1 = pToneCfg->C12_Freq1;
+	pToneTable->C12_Freq2 = pToneCfg->C12_Freq2;
+	pToneTable->C12_Freq3 = pToneCfg->C12_Freq3;
+	pToneTable->C12_Gain0 = pToneCfg->C12_Gain0;
+	pToneTable->C12_Gain1 = pToneCfg->C12_Gain1;
+	pToneTable->C12_Gain2 = pToneCfg->C12_Gain2;
+	pToneTable->C12_Gain3 = pToneCfg->C12_Gain3;
+	pToneTable->C13_Freq0 = pToneCfg->C13_Freq0;
+	pToneTable->C13_Freq1 = pToneCfg->C13_Freq1;
+	pToneTable->C13_Freq2 = pToneCfg->C13_Freq2;
+	pToneTable->C13_Freq3 = pToneCfg->C13_Freq3;
+	pToneTable->C13_Gain0 = pToneCfg->C13_Gain0;
+	pToneTable->C13_Gain1 = pToneCfg->C13_Gain1;
+	pToneTable->C13_Gain2 = pToneCfg->C13_Gain2;
+	pToneTable->C13_Gain3 = pToneCfg->C13_Gain3;
+	pToneTable->C14_Freq0 = pToneCfg->C14_Freq0;
+	pToneTable->C14_Freq1 = pToneCfg->C14_Freq1;
+	pToneTable->C14_Freq2 = pToneCfg->C14_Freq2;
+	pToneTable->C14_Freq3 = pToneCfg->C14_Freq3;
+	pToneTable->C14_Gain0 = pToneCfg->C14_Gain0;
+	pToneTable->C14_Gain1 = pToneCfg->C14_Gain1;
+	pToneTable->C14_Gain2 = pToneCfg->C14_Gain2;
+	pToneTable->C14_Gain3 = pToneCfg->C14_Gain3;
+	pToneTable->C15_Freq0 = pToneCfg->C15_Freq0;
+	pToneTable->C15_Freq1 = pToneCfg->C15_Freq1;
+	pToneTable->C15_Freq2 = pToneCfg->C15_Freq2;
+	pToneTable->C15_Freq3 = pToneCfg->C15_Freq3;
+	pToneTable->C15_Gain0 = pToneCfg->C15_Gain0;
+	pToneTable->C15_Gain1 = pToneCfg->C15_Gain1;
+	pToneTable->C15_Gain2 = pToneCfg->C15_Gain2;
+	pToneTable->C15_Gain3 = pToneCfg->C15_Gain3;
+
+	pToneTable->CadOn16 = pToneCfg->CadOn16;
+	pToneTable->CadOff16 = pToneCfg->CadOff16;
+	pToneTable->CadOn17 = pToneCfg->CadOn17;
+	pToneTable->CadOff17 = pToneCfg->CadOff17;
+	pToneTable->CadOn18 = pToneCfg->CadOn18;
+	pToneTable->CadOff18 = pToneCfg->CadOff18;
+	pToneTable->CadOn19 = pToneCfg->CadOn19;
+	pToneTable->CadOff19 = pToneCfg->CadOff19;
+	pToneTable->C16_Freq0 = pToneCfg->C16_Freq0;
+	pToneTable->C16_Freq1 = pToneCfg->C16_Freq1;
+	pToneTable->C16_Freq2 = pToneCfg->C16_Freq2;
+	pToneTable->C16_Freq3 = pToneCfg->C16_Freq3;
+	pToneTable->C16_Gain0 = pToneCfg->C16_Gain0;
+	pToneTable->C16_Gain1 = pToneCfg->C16_Gain1;
+	pToneTable->C16_Gain2 = pToneCfg->C16_Gain2;
+	pToneTable->C16_Gain3 = pToneCfg->C16_Gain3;
+	pToneTable->C17_Freq0 = pToneCfg->C17_Freq0;
+	pToneTable->C17_Freq1 = pToneCfg->C17_Freq1;
+	pToneTable->C17_Freq2 = pToneCfg->C17_Freq2;
+	pToneTable->C17_Freq3 = pToneCfg->C17_Freq3;
+	pToneTable->C17_Gain0 = pToneCfg->C17_Gain0;
+	pToneTable->C17_Gain1 = pToneCfg->C17_Gain1;
+	pToneTable->C17_Gain2 = pToneCfg->C17_Gain2;
+	pToneTable->C17_Gain3 = pToneCfg->C17_Gain3;
+	pToneTable->C18_Freq0 = pToneCfg->C18_Freq0;
+	pToneTable->C18_Freq1 = pToneCfg->C18_Freq1;
+	pToneTable->C18_Freq2 = pToneCfg->C18_Freq2;
+	pToneTable->C18_Freq3 = pToneCfg->C18_Freq3;
+	pToneTable->C18_Gain0 = pToneCfg->C18_Gain0;
+	pToneTable->C18_Gain1 = pToneCfg->C18_Gain1;
+	pToneTable->C18_Gain2 = pToneCfg->C18_Gain2;
+	pToneTable->C18_Gain3 = pToneCfg->C18_Gain3;
+	pToneTable->C19_Freq0 = pToneCfg->C19_Freq0;
+	pToneTable->C19_Freq1 = pToneCfg->C19_Freq1;
+	pToneTable->C19_Freq2 = pToneCfg->C19_Freq2;
+	pToneTable->C19_Freq3 = pToneCfg->C19_Freq3;
+	pToneTable->C19_Gain0 = pToneCfg->C19_Gain0;
+	pToneTable->C19_Gain1 = pToneCfg->C19_Gain1;
+	pToneTable->C19_Gain2 = pToneCfg->C19_Gain2;
+	pToneTable->C19_Gain3 = pToneCfg->C19_Gain3;
+
+	pToneTable->CadOn20 = pToneCfg->CadOn20;
+	pToneTable->CadOff20 = pToneCfg->CadOff20;
+	pToneTable->CadOn21 = pToneCfg->CadOn21;
+	pToneTable->CadOff21 = pToneCfg->CadOff21;
+	pToneTable->CadOn22 = pToneCfg->CadOn22;
+	pToneTable->CadOff22 = pToneCfg->CadOff22;
+	pToneTable->CadOn23 = pToneCfg->CadOn23;
+	pToneTable->CadOff23 = pToneCfg->CadOff23;
+	pToneTable->C20_Freq0 = pToneCfg->C20_Freq0;
+	pToneTable->C20_Freq1 = pToneCfg->C20_Freq1;
+	pToneTable->C20_Freq2 = pToneCfg->C20_Freq2;
+	pToneTable->C20_Freq3 = pToneCfg->C20_Freq3;
+	pToneTable->C20_Gain0 = pToneCfg->C20_Gain0;
+	pToneTable->C20_Gain1 = pToneCfg->C20_Gain1;
+	pToneTable->C20_Gain2 = pToneCfg->C20_Gain2;
+	pToneTable->C20_Gain3 = pToneCfg->C20_Gain3;
+	pToneTable->C21_Freq0 = pToneCfg->C21_Freq0;
+	pToneTable->C21_Freq1 = pToneCfg->C21_Freq1;
+	pToneTable->C21_Freq2 = pToneCfg->C21_Freq2;
+	pToneTable->C21_Freq3 = pToneCfg->C21_Freq3;
+	pToneTable->C21_Gain0 = pToneCfg->C21_Gain0;
+	pToneTable->C21_Gain1 = pToneCfg->C21_Gain1;
+	pToneTable->C21_Gain2 = pToneCfg->C21_Gain2;
+	pToneTable->C21_Gain3 = pToneCfg->C21_Gain3;
+	pToneTable->C22_Freq0 = pToneCfg->C22_Freq0;
+	pToneTable->C22_Freq1 = pToneCfg->C22_Freq1;
+	pToneTable->C22_Freq2 = pToneCfg->C22_Freq2;
+	pToneTable->C22_Freq3 = pToneCfg->C22_Freq3;
+	pToneTable->C22_Gain0 = pToneCfg->C22_Gain0;
+	pToneTable->C22_Gain1 = pToneCfg->C22_Gain1;
+	pToneTable->C22_Gain2 = pToneCfg->C22_Gain2;
+	pToneTable->C22_Gain3 = pToneCfg->C22_Gain3;
+	pToneTable->C23_Freq0 = pToneCfg->C23_Freq0;
+	pToneTable->C23_Freq1 = pToneCfg->C23_Freq1;
+	pToneTable->C23_Freq2 = pToneCfg->C23_Freq2;
+	pToneTable->C23_Freq3 = pToneCfg->C23_Freq3;
+	pToneTable->C23_Gain0 = pToneCfg->C23_Gain0;
+	pToneTable->C23_Gain1 = pToneCfg->C23_Gain1;
+	pToneTable->C23_Gain2 = pToneCfg->C23_Gain2;
+	pToneTable->C23_Gain3 = pToneCfg->C23_Gain3;
+
+	pToneTable->CadOn24 = pToneCfg->CadOn24;
+	pToneTable->CadOff24 = pToneCfg->CadOff24;
+	pToneTable->CadOn25 = pToneCfg->CadOn25;
+	pToneTable->CadOff25 = pToneCfg->CadOff25;
+	pToneTable->CadOn26 = pToneCfg->CadOn26;
+	pToneTable->CadOff26 = pToneCfg->CadOff26;
+	pToneTable->CadOn27 = pToneCfg->CadOn27;
+	pToneTable->CadOff27 = pToneCfg->CadOff27;
+	pToneTable->C24_Freq0 = pToneCfg->C24_Freq0;
+	pToneTable->C24_Freq1 = pToneCfg->C24_Freq1;
+	pToneTable->C24_Freq2 = pToneCfg->C24_Freq2;
+	pToneTable->C24_Freq3 = pToneCfg->C24_Freq3;
+	pToneTable->C24_Gain0 = pToneCfg->C24_Gain0;
+	pToneTable->C24_Gain1 = pToneCfg->C24_Gain1;
+	pToneTable->C24_Gain2 = pToneCfg->C24_Gain2;
+	pToneTable->C24_Gain3 = pToneCfg->C24_Gain3;
+	pToneTable->C25_Freq0 = pToneCfg->C25_Freq0;
+	pToneTable->C25_Freq1 = pToneCfg->C25_Freq1;
+	pToneTable->C25_Freq2 = pToneCfg->C25_Freq2;
+	pToneTable->C25_Freq3 = pToneCfg->C25_Freq3;
+	pToneTable->C25_Gain0 = pToneCfg->C25_Gain0;
+	pToneTable->C25_Gain1 = pToneCfg->C25_Gain1;
+	pToneTable->C25_Gain2 = pToneCfg->C25_Gain2;
+	pToneTable->C25_Gain3 = pToneCfg->C25_Gain3;
+	pToneTable->C26_Freq0 = pToneCfg->C26_Freq0;
+	pToneTable->C26_Freq1 = pToneCfg->C26_Freq1;
+	pToneTable->C26_Freq2 = pToneCfg->C26_Freq2;
+	pToneTable->C26_Freq3 = pToneCfg->C26_Freq3;
+	pToneTable->C26_Gain0 = pToneCfg->C26_Gain0;
+	pToneTable->C26_Gain1 = pToneCfg->C26_Gain1;
+	pToneTable->C26_Gain2 = pToneCfg->C26_Gain2;
+	pToneTable->C26_Gain3 = pToneCfg->C26_Gain3;
+	pToneTable->C27_Freq0 = pToneCfg->C27_Freq0;
+	pToneTable->C27_Freq1 = pToneCfg->C27_Freq1;
+	pToneTable->C27_Freq2 = pToneCfg->C27_Freq2;
+	pToneTable->C27_Freq3 = pToneCfg->C27_Freq3;
+	pToneTable->C27_Gain0 = pToneCfg->C27_Gain0;
+	pToneTable->C27_Gain1 = pToneCfg->C27_Gain1;
+	pToneTable->C27_Gain2 = pToneCfg->C27_Gain2;
+	pToneTable->C27_Gain3 = pToneCfg->C27_Gain3;
+
+	pToneTable->CadOn28 = pToneCfg->CadOn28;
+	pToneTable->CadOff28 = pToneCfg->CadOff28;
+	pToneTable->CadOn29 = pToneCfg->CadOn29;
+	pToneTable->CadOff29 = pToneCfg->CadOff29;
+	pToneTable->CadOn30 = pToneCfg->CadOn30;
+	pToneTable->CadOff30 = pToneCfg->CadOff30;
+	pToneTable->CadOn31 = pToneCfg->CadOn31;
+	pToneTable->CadOff31 = pToneCfg->CadOff31;
+	pToneTable->C28_Freq0 = pToneCfg->C28_Freq0;
+	pToneTable->C28_Freq1 = pToneCfg->C28_Freq1;
+	pToneTable->C28_Freq2 = pToneCfg->C28_Freq2;
+	pToneTable->C28_Freq3 = pToneCfg->C28_Freq3;
+	pToneTable->C28_Gain0 = pToneCfg->C28_Gain0;
+	pToneTable->C28_Gain1 = pToneCfg->C28_Gain1;
+	pToneTable->C28_Gain2 = pToneCfg->C28_Gain2;
+	pToneTable->C28_Gain3 = pToneCfg->C28_Gain3;
+	pToneTable->C29_Freq0 = pToneCfg->C29_Freq0;
+	pToneTable->C29_Freq1 = pToneCfg->C29_Freq1;
+	pToneTable->C29_Freq2 = pToneCfg->C29_Freq2;
+	pToneTable->C29_Freq3 = pToneCfg->C29_Freq3;
+	pToneTable->C29_Gain0 = pToneCfg->C29_Gain0;
+	pToneTable->C29_Gain1 = pToneCfg->C29_Gain1;
+	pToneTable->C29_Gain2 = pToneCfg->C29_Gain2;
+	pToneTable->C29_Gain3 = pToneCfg->C29_Gain3;
+	pToneTable->C30_Freq0 = pToneCfg->C30_Freq0;
+	pToneTable->C30_Freq1 = pToneCfg->C30_Freq1;
+	pToneTable->C30_Freq2 = pToneCfg->C30_Freq2;
+	pToneTable->C30_Freq3 = pToneCfg->C30_Freq3;
+	pToneTable->C30_Gain0 = pToneCfg->C30_Gain0;
+	pToneTable->C30_Gain1 = pToneCfg->C30_Gain1;
+	pToneTable->C30_Gain2 = pToneCfg->C30_Gain2;
+	pToneTable->C30_Gain3 = pToneCfg->C30_Gain3;
+	pToneTable->C31_Freq0 = pToneCfg->C31_Freq0;
+	pToneTable->C31_Freq1 = pToneCfg->C31_Freq1;
+	pToneTable->C31_Freq2 = pToneCfg->C31_Freq2;
+	pToneTable->C31_Freq3 = pToneCfg->C31_Freq3;
+	pToneTable->C31_Gain0 = pToneCfg->C31_Gain0;
+	pToneTable->C31_Gain1 = pToneCfg->C31_Gain1;
+	pToneTable->C31_Gain2 = pToneCfg->C31_Gain2;
+	pToneTable->C31_Gain3 = pToneCfg->C31_Gain3;
 
 #endif
 	return DSPCODEC_SUCCESS;
 }
 #endif	/* #ifdef SUPPORT_TONE_PROFILE */
+//user space tone(DSPCODEC_TONE) to kernel space tone(TONES) convert table
+static TONES tone_convert_table[]={
+	DIGIT_0,
+	DIGIT_1,
+	DIGIT_2,
+	DIGIT_3,
+	DIGIT_4,
+	DIGIT_5,
+	DIGIT_6,
+	DIGIT_7,
+	DIGIT_8,
+	DIGIT_9,
+	DIGIT_STAR,
+	DIGIT_PONDA,
+#ifdef SUPPORT_TONE_PROFILE
+	USA_DIAL,
+	USA_STUTTERDIAL,
+	USA_MESSAGE_WAITING,
+	USA_CONFIRMATION,
+	USA_RING,
+	USA_BUSY,
+	USA_CONGESTION,
+	USA_ROH,
+	USA_DOUBLE_RING,
+	USA_SIT_NOCIRCUIT,
+	USA_SIT_INTERCEPT,
+	USA_SIT_VACANT,
+	USA_SIT_REORDER,
+	USA_CALLING_CARD_WITHEVENT,
+	USA_CALLING_CARD,
+	USA_CALL_WAITING_1,
+	USA_CALL_WAITING_2,
+	USA_CALL_WAITING_3,
+	USA_CALL_WAITING_4,
+	USA_EXTEND_1,
+	USA_EXTEND_2,
+	USA_EXTEND_3,
+	USA_EXTEND_4,
+	USA_EXTEND_5,
+	USA_INGRESS_RINGBACK,
+
+	HOLDING,
+	OFFHOOKWARING,
+	RING_1,
+#else
+  #error "only support tone profile"
+#endif
+	RING_1,
+	RING_2,
+	RING_3,
+	RING_4,
+	RING_5,
+	RING_6,
+	RING_7,
+	RING_8,
+	RING_9,
+	RING_10,
+	CUSTOM_TONE1,
+	CUSTOM_TONE2,
+	CUSTOM_TONE3,
+	CUSTOM_TONE4,
+	CUSTOM_TONE5,
+	CUSTOM_TONE6,
+	CUSTOM_TONE7,
+	CUSTOM_TONE8,
+	DIGIT_A,
+	DIGIT_B,
+	DIGIT_C,
+	DIGIT_D,
+	FSK_SAS,
+	FSK_ALERT,
+	FSK_MUTE,
+	NTT_IIT_TONE,
+	DIGIT_0_CONT,
+	DIGIT_1_CONT,
+	DIGIT_2_CONT,
+	DIGIT_3_CONT,
+	DIGIT_4_CONT,
+	DIGIT_5_CONT,
+	DIGIT_6_CONT,
+	DIGIT_7_CONT,
+	DIGIT_8_CONT,
+	DIGIT_9_CONT,
+	DIGIT_STAR_CONT,
+	DIGIT_PONDA_CONT,
+	DIGIT_A_CONT,
+	DIGIT_B_CONT,
+	DIGIT_C_CONT,
+	DIGIT_D_CONT,
+	VBD_ANS,
+	VBD_ANS_BAR,
+	VBD_ANSAM,
+	VBD_ANSAM_BAR,
+	VBD_CNG,
+	VBD_CRE,
+	USER_DEFINE1,
+	USER_DEFINE2,
+	USER_DEFINE3,
+	USER_DEFINE4,
+	USER_DEFINE5,
+	DIGIT_PONDA,
+};
+
+static void tone_convert_table_update_country(DSPCODEC_COUNTRY country)
+{
+	int start;
+	int i;
+
+	switch ( country )
+	{
+		default:
+		case DSPCODEC_COUNTRY_USA:
+			start = USA_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_UK:
+			start = UK_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_AUSTRALIA:
+			start = AUSTRALIA_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_HK:
+			start = HK_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_JP:
+			start = JP_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_SE:
+			start = SE_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_GR:
+			start = GR_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_FR:
+			start = FR_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_TW:
+			start = TW_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_BE:
+			start = BE_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_FL:
+			start = FL_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_IT:
+			start = IT_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_CN:
+			start = CN_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_EX1:
+			start = EX1_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_EX2:
+			start = EX2_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_EX3:
+			start = EX3_DIAL;
+			break;
+		case DSPCODEC_COUNTRY_EX4:
+			start = EX4_DIAL;
+			break;
+#ifdef COUNTRY_TONE_RESERVED
+		case DSPCODEC_COUNTRY_RESERVE:
+			start = RESERVE_DIAL;
+			break;
+#endif
+		case DSPCODEC_COUNTRY_CUSTOME:
+			start = CUSTOM_DIAL;
+			break;
+	}
+	for (i=0 ; i<25 ; i++) {
+		tone_convert_table[DSPCODEC_TONE_DIAL+i]=start+i;
+	}
+}
+
+
 
 /*	handsome add function 2005.12.1     */
-int32 setTone(aspToneCfgParam_t* pToneCfg)//thlin modify
+int32 setTone(DSPCODEC_COUNTRY country, DSPCODEC_TONE tone, aspToneCfgParam_t* pToneCfg)//thlin modify
 {
+	ToneCfgParam_t *pToneTable;
+	unsigned long flags;
 #ifdef SUPPORT_TONE_PROFILE
-	short *pToneTable = (short*)&ToneTable[CUSTOM_TONE1+cust];
-	pToneTable[0]=pToneCfg->toneType;
-	pToneTable[1]=pToneCfg->cycle;
-	pToneTable[2]=pToneCfg->cadNUM;
-	pToneTable[3]=pToneCfg->CadOn0;
-	pToneTable[4]=pToneCfg->CadOff0;
-	pToneTable[5]=pToneCfg->CadOn1;
-	pToneTable[6]=pToneCfg->CadOff1;
-	pToneTable[7]=pToneCfg->CadOn2;
-	pToneTable[8]=pToneCfg->CadOff2;
-	pToneTable[9]=pToneCfg->CadOn3;
-	pToneTable[10]=pToneCfg->CadOff3;
-	pToneTable[11]=pToneCfg->PatternOff;
-	pToneTable[12]=pToneCfg->ToneNUM;
-	pToneTable[13]=pToneCfg->Freq1;
-	pToneTable[14]=pToneCfg->Freq2;
-	pToneTable[15]=pToneCfg->Freq3;
-	pToneTable[16]=pToneCfg->Freq4;
-	pToneTable[17]=pToneCfg->Gain1;
-	pToneTable[18]=pToneCfg->Gain2;
-	pToneTable[19]=pToneCfg->Gain3;
-	pToneTable[20]=pToneCfg->Gain4;
+	tone_convert_table_update_country( country );
+	if((tone < DSPCODEC_TONE_0) || (tone > DSPCODEC_TONE_KEY)){
+		tone = DSPCODEC_TONE_0;
+	}
+	pToneTable = (ToneCfgParam_t *)&ToneTable[tone_convert_table[tone]];
+//disable interrupt at update tone parameter.
+	//ToneCfgParam_t *pToneTable = (ToneCfgParam_t *)&ToneTable[CUSTOM_TONE1+cust];
+	local_irq_save(flags);
+	pToneTable->ToneType = pToneCfg->toneType;
+	pToneTable->cycle = pToneCfg->cycle;
+	pToneTable->cadNUM = pToneCfg->cadNUM;
+	pToneTable->CadOn0 = pToneCfg->CadOn0;
+	pToneTable->CadOff0 = pToneCfg->CadOff0;
+	pToneTable->CadOn1 = pToneCfg->CadOn1;
+	pToneTable->CadOff1 = pToneCfg->CadOff1;
+	pToneTable->CadOn2 = pToneCfg->CadOn2;
+	pToneTable->CadOff2 = pToneCfg->CadOff2;
+	pToneTable->CadOn3 = pToneCfg->CadOn3;
+	pToneTable->CadOff3 = pToneCfg->CadOff3;
+	pToneTable->PatternOff = pToneCfg->PatternOff;
+	pToneTable->ToneNUM = pToneCfg->ToneNUM;
+	pToneTable->Freq0 = pToneCfg->Freq0;
+	pToneTable->Freq1 = pToneCfg->Freq1;
+	pToneTable->Freq2 = pToneCfg->Freq2;
+	pToneTable->Freq3 = pToneCfg->Freq3;
+	pToneTable->Gain0 = pToneCfg->Gain0;
+	pToneTable->Gain1 = pToneCfg->Gain1;
+	pToneTable->Gain2 = pToneCfg->Gain2;
+	pToneTable->Gain3 = pToneCfg->Gain3;
+	pToneTable->C1_Freq0 = pToneCfg->C1_Freq0;
+	pToneTable->C1_Freq1 = pToneCfg->C1_Freq1;
+	pToneTable->C1_Freq2 = pToneCfg->C1_Freq2;
+	pToneTable->C1_Freq3 = pToneCfg->C1_Freq3;
+	pToneTable->C1_Gain0 = pToneCfg->C1_Gain0;
+	pToneTable->C1_Gain1 = pToneCfg->C1_Gain1;
+	pToneTable->C1_Gain2 = pToneCfg->C1_Gain2;
+	pToneTable->C1_Gain3 = pToneCfg->C1_Gain3;
+	pToneTable->C2_Freq0 = pToneCfg->C2_Freq0;
+	pToneTable->C2_Freq1 = pToneCfg->C2_Freq1;
+	pToneTable->C2_Freq2 = pToneCfg->C2_Freq2;
+	pToneTable->C2_Freq3 = pToneCfg->C2_Freq3;
+	pToneTable->C2_Gain0 = pToneCfg->C2_Gain0;
+	pToneTable->C2_Gain1 = pToneCfg->C2_Gain1;
+	pToneTable->C2_Gain2 = pToneCfg->C2_Gain2;
+	pToneTable->C2_Gain3 = pToneCfg->C2_Gain3;
+	pToneTable->C3_Freq0 = pToneCfg->C3_Freq0;
+	pToneTable->C3_Freq1 = pToneCfg->C3_Freq1;
+	pToneTable->C3_Freq2 = pToneCfg->C3_Freq2;
+	pToneTable->C3_Freq3 = pToneCfg->C3_Freq3;
+	pToneTable->C3_Gain0 = pToneCfg->C3_Gain0;
+	pToneTable->C3_Gain1 = pToneCfg->C3_Gain1;
+	pToneTable->C3_Gain2 = pToneCfg->C3_Gain2;
+	pToneTable->C3_Gain3 = pToneCfg->C3_Gain3;
+
+	pToneTable->CadOn4 = pToneCfg->CadOn4;
+	pToneTable->CadOff4 = pToneCfg->CadOff4;
+	pToneTable->CadOn5 = pToneCfg->CadOn5;
+	pToneTable->CadOff5 = pToneCfg->CadOff5;
+	pToneTable->CadOn6 = pToneCfg->CadOn6;
+	pToneTable->CadOff6 = pToneCfg->CadOff6;
+	pToneTable->CadOn7 = pToneCfg->CadOn7;
+	pToneTable->CadOff7 = pToneCfg->CadOff7;
+	pToneTable->C4_Freq0 = pToneCfg->C4_Freq0;
+	pToneTable->C4_Freq1 = pToneCfg->C4_Freq1;
+	pToneTable->C4_Freq2 = pToneCfg->C4_Freq2;
+	pToneTable->C4_Freq3 = pToneCfg->C4_Freq3;
+	pToneTable->C4_Gain0 = pToneCfg->C4_Gain0;
+	pToneTable->C4_Gain1 = pToneCfg->C4_Gain1;
+	pToneTable->C4_Gain2 = pToneCfg->C4_Gain2;
+	pToneTable->C4_Gain3 = pToneCfg->C4_Gain3;
+	pToneTable->C5_Freq0 = pToneCfg->C5_Freq0;
+	pToneTable->C5_Freq1 = pToneCfg->C5_Freq1;
+	pToneTable->C5_Freq2 = pToneCfg->C5_Freq2;
+	pToneTable->C5_Freq3 = pToneCfg->C5_Freq3;
+	pToneTable->C5_Gain0 = pToneCfg->C5_Gain0;
+	pToneTable->C5_Gain1 = pToneCfg->C5_Gain1;
+	pToneTable->C5_Gain2 = pToneCfg->C5_Gain2;
+	pToneTable->C5_Gain3 = pToneCfg->C5_Gain3;
+	pToneTable->C6_Freq0 = pToneCfg->C6_Freq0;
+	pToneTable->C6_Freq1 = pToneCfg->C6_Freq1;
+	pToneTable->C6_Freq2 = pToneCfg->C6_Freq2;
+	pToneTable->C6_Freq3 = pToneCfg->C6_Freq3;
+	pToneTable->C6_Gain0 = pToneCfg->C6_Gain0;
+	pToneTable->C6_Gain1 = pToneCfg->C6_Gain1;
+	pToneTable->C6_Gain2 = pToneCfg->C6_Gain2;
+	pToneTable->C6_Gain3 = pToneCfg->C6_Gain3;
+	pToneTable->C7_Freq0 = pToneCfg->C7_Freq0;
+	pToneTable->C7_Freq1 = pToneCfg->C7_Freq1;
+	pToneTable->C7_Freq2 = pToneCfg->C7_Freq2;
+	pToneTable->C7_Freq3 = pToneCfg->C7_Freq3;
+	pToneTable->C7_Gain0 = pToneCfg->C7_Gain0;
+	pToneTable->C7_Gain1 = pToneCfg->C7_Gain1;
+	pToneTable->C7_Gain2 = pToneCfg->C7_Gain2;
+	pToneTable->C7_Gain3 = pToneCfg->C7_Gain3;
+
+	pToneTable->CadOn8 = pToneCfg->CadOn8;
+	pToneTable->CadOff8 = pToneCfg->CadOff8;
+	pToneTable->CadOn9 = pToneCfg->CadOn9;
+	pToneTable->CadOff9 = pToneCfg->CadOff9;
+	pToneTable->CadOn10 = pToneCfg->CadOn10;
+	pToneTable->CadOff10 = pToneCfg->CadOff10;
+	pToneTable->CadOn11 = pToneCfg->CadOn11;
+	pToneTable->CadOff11 = pToneCfg->CadOff11;
+	pToneTable->C8_Freq0 = pToneCfg->C8_Freq0;
+	pToneTable->C8_Freq1 = pToneCfg->C8_Freq1;
+	pToneTable->C8_Freq2 = pToneCfg->C8_Freq2;
+	pToneTable->C8_Freq3 = pToneCfg->C8_Freq3;
+	pToneTable->C8_Gain0 = pToneCfg->C8_Gain0;
+	pToneTable->C8_Gain1 = pToneCfg->C8_Gain1;
+	pToneTable->C8_Gain2 = pToneCfg->C8_Gain2;
+	pToneTable->C8_Gain3 = pToneCfg->C8_Gain3;
+	pToneTable->C9_Freq0 = pToneCfg->C9_Freq0;
+	pToneTable->C9_Freq1 = pToneCfg->C9_Freq1;
+	pToneTable->C9_Freq2 = pToneCfg->C9_Freq2;
+	pToneTable->C9_Freq3 = pToneCfg->C9_Freq3;
+	pToneTable->C9_Gain0 = pToneCfg->C9_Gain0;
+	pToneTable->C9_Gain1 = pToneCfg->C9_Gain1;
+	pToneTable->C9_Gain2 = pToneCfg->C9_Gain2;
+	pToneTable->C9_Gain3 = pToneCfg->C9_Gain3;
+	pToneTable->C10_Freq0 = pToneCfg->C10_Freq0;
+	pToneTable->C10_Freq1 = pToneCfg->C10_Freq1;
+	pToneTable->C10_Freq2 = pToneCfg->C10_Freq2;
+	pToneTable->C10_Freq3 = pToneCfg->C10_Freq3;
+	pToneTable->C10_Gain0 = pToneCfg->C10_Gain0;
+	pToneTable->C10_Gain1 = pToneCfg->C10_Gain1;
+	pToneTable->C10_Gain2 = pToneCfg->C10_Gain2;
+	pToneTable->C10_Gain3 = pToneCfg->C10_Gain3;
+	pToneTable->C11_Freq0 = pToneCfg->C11_Freq0;
+	pToneTable->C11_Freq1 = pToneCfg->C11_Freq1;
+	pToneTable->C11_Freq2 = pToneCfg->C11_Freq2;
+	pToneTable->C11_Freq3 = pToneCfg->C11_Freq3;
+	pToneTable->C11_Gain0 = pToneCfg->C11_Gain0;
+	pToneTable->C11_Gain1 = pToneCfg->C11_Gain1;
+	pToneTable->C11_Gain2 = pToneCfg->C11_Gain2;
+	pToneTable->C11_Gain3 = pToneCfg->C11_Gain3;
+
+	pToneTable->CadOn12 = pToneCfg->CadOn12;
+	pToneTable->CadOff12 = pToneCfg->CadOff12;
+	pToneTable->CadOn13 = pToneCfg->CadOn13;
+	pToneTable->CadOff13 = pToneCfg->CadOff13;
+	pToneTable->CadOn14 = pToneCfg->CadOn14;
+	pToneTable->CadOff14 = pToneCfg->CadOff14;
+	pToneTable->CadOn15 = pToneCfg->CadOn15;
+	pToneTable->CadOff15 = pToneCfg->CadOff15;
+	pToneTable->C12_Freq0 = pToneCfg->C12_Freq0;
+	pToneTable->C12_Freq1 = pToneCfg->C12_Freq1;
+	pToneTable->C12_Freq2 = pToneCfg->C12_Freq2;
+	pToneTable->C12_Freq3 = pToneCfg->C12_Freq3;
+	pToneTable->C12_Gain0 = pToneCfg->C12_Gain0;
+	pToneTable->C12_Gain1 = pToneCfg->C12_Gain1;
+	pToneTable->C12_Gain2 = pToneCfg->C12_Gain2;
+	pToneTable->C12_Gain3 = pToneCfg->C12_Gain3;
+	pToneTable->C13_Freq0 = pToneCfg->C13_Freq0;
+	pToneTable->C13_Freq1 = pToneCfg->C13_Freq1;
+	pToneTable->C13_Freq2 = pToneCfg->C13_Freq2;
+	pToneTable->C13_Freq3 = pToneCfg->C13_Freq3;
+	pToneTable->C13_Gain0 = pToneCfg->C13_Gain0;
+	pToneTable->C13_Gain1 = pToneCfg->C13_Gain1;
+	pToneTable->C13_Gain2 = pToneCfg->C13_Gain2;
+	pToneTable->C13_Gain3 = pToneCfg->C13_Gain3;
+	pToneTable->C14_Freq0 = pToneCfg->C14_Freq0;
+	pToneTable->C14_Freq1 = pToneCfg->C14_Freq1;
+	pToneTable->C14_Freq2 = pToneCfg->C14_Freq2;
+	pToneTable->C14_Freq3 = pToneCfg->C14_Freq3;
+	pToneTable->C14_Gain0 = pToneCfg->C14_Gain0;
+	pToneTable->C14_Gain1 = pToneCfg->C14_Gain1;
+	pToneTable->C14_Gain2 = pToneCfg->C14_Gain2;
+	pToneTable->C14_Gain3 = pToneCfg->C14_Gain3;
+	pToneTable->C15_Freq0 = pToneCfg->C15_Freq0;
+	pToneTable->C15_Freq1 = pToneCfg->C15_Freq1;
+	pToneTable->C15_Freq2 = pToneCfg->C15_Freq2;
+	pToneTable->C15_Freq3 = pToneCfg->C15_Freq3;
+	pToneTable->C15_Gain0 = pToneCfg->C15_Gain0;
+	pToneTable->C15_Gain1 = pToneCfg->C15_Gain1;
+	pToneTable->C15_Gain2 = pToneCfg->C15_Gain2;
+	pToneTable->C15_Gain3 = pToneCfg->C15_Gain3;
+
+	pToneTable->CadOn16 = pToneCfg->CadOn16;
+	pToneTable->CadOff16 = pToneCfg->CadOff16;
+	pToneTable->CadOn17 = pToneCfg->CadOn17;
+	pToneTable->CadOff17 = pToneCfg->CadOff17;
+	pToneTable->CadOn18 = pToneCfg->CadOn18;
+	pToneTable->CadOff18 = pToneCfg->CadOff18;
+	pToneTable->CadOn19 = pToneCfg->CadOn19;
+	pToneTable->CadOff19 = pToneCfg->CadOff19;
+	pToneTable->C16_Freq0 = pToneCfg->C16_Freq0;
+	pToneTable->C16_Freq1 = pToneCfg->C16_Freq1;
+	pToneTable->C16_Freq2 = pToneCfg->C16_Freq2;
+	pToneTable->C16_Freq3 = pToneCfg->C16_Freq3;
+	pToneTable->C16_Gain0 = pToneCfg->C16_Gain0;
+	pToneTable->C16_Gain1 = pToneCfg->C16_Gain1;
+	pToneTable->C16_Gain2 = pToneCfg->C16_Gain2;
+	pToneTable->C16_Gain3 = pToneCfg->C16_Gain3;
+	pToneTable->C17_Freq0 = pToneCfg->C17_Freq0;
+	pToneTable->C17_Freq1 = pToneCfg->C17_Freq1;
+	pToneTable->C17_Freq2 = pToneCfg->C17_Freq2;
+	pToneTable->C17_Freq3 = pToneCfg->C17_Freq3;
+	pToneTable->C17_Gain0 = pToneCfg->C17_Gain0;
+	pToneTable->C17_Gain1 = pToneCfg->C17_Gain1;
+	pToneTable->C17_Gain2 = pToneCfg->C17_Gain2;
+	pToneTable->C17_Gain3 = pToneCfg->C17_Gain3;
+	pToneTable->C18_Freq0 = pToneCfg->C18_Freq0;
+	pToneTable->C18_Freq1 = pToneCfg->C18_Freq1;
+	pToneTable->C18_Freq2 = pToneCfg->C18_Freq2;
+	pToneTable->C18_Freq3 = pToneCfg->C18_Freq3;
+	pToneTable->C18_Gain0 = pToneCfg->C18_Gain0;
+	pToneTable->C18_Gain1 = pToneCfg->C18_Gain1;
+	pToneTable->C18_Gain2 = pToneCfg->C18_Gain2;
+	pToneTable->C18_Gain3 = pToneCfg->C18_Gain3;
+	pToneTable->C19_Freq0 = pToneCfg->C19_Freq0;
+	pToneTable->C19_Freq1 = pToneCfg->C19_Freq1;
+	pToneTable->C19_Freq2 = pToneCfg->C19_Freq2;
+	pToneTable->C19_Freq3 = pToneCfg->C19_Freq3;
+	pToneTable->C19_Gain0 = pToneCfg->C19_Gain0;
+	pToneTable->C19_Gain1 = pToneCfg->C19_Gain1;
+	pToneTable->C19_Gain2 = pToneCfg->C19_Gain2;
+	pToneTable->C19_Gain3 = pToneCfg->C19_Gain3;
+
+	pToneTable->CadOn20 = pToneCfg->CadOn20;
+	pToneTable->CadOff20 = pToneCfg->CadOff20;
+	pToneTable->CadOn21 = pToneCfg->CadOn21;
+	pToneTable->CadOff21 = pToneCfg->CadOff21;
+	pToneTable->CadOn22 = pToneCfg->CadOn22;
+	pToneTable->CadOff22 = pToneCfg->CadOff22;
+	pToneTable->CadOn23 = pToneCfg->CadOn23;
+	pToneTable->CadOff23 = pToneCfg->CadOff23;
+	pToneTable->C20_Freq0 = pToneCfg->C20_Freq0;
+	pToneTable->C20_Freq1 = pToneCfg->C20_Freq1;
+	pToneTable->C20_Freq2 = pToneCfg->C20_Freq2;
+	pToneTable->C20_Freq3 = pToneCfg->C20_Freq3;
+	pToneTable->C20_Gain0 = pToneCfg->C20_Gain0;
+	pToneTable->C20_Gain1 = pToneCfg->C20_Gain1;
+	pToneTable->C20_Gain2 = pToneCfg->C20_Gain2;
+	pToneTable->C20_Gain3 = pToneCfg->C20_Gain3;
+	pToneTable->C21_Freq0 = pToneCfg->C21_Freq0;
+	pToneTable->C21_Freq1 = pToneCfg->C21_Freq1;
+	pToneTable->C21_Freq2 = pToneCfg->C21_Freq2;
+	pToneTable->C21_Freq3 = pToneCfg->C21_Freq3;
+	pToneTable->C21_Gain0 = pToneCfg->C21_Gain0;
+	pToneTable->C21_Gain1 = pToneCfg->C21_Gain1;
+	pToneTable->C21_Gain2 = pToneCfg->C21_Gain2;
+	pToneTable->C21_Gain3 = pToneCfg->C21_Gain3;
+	pToneTable->C22_Freq0 = pToneCfg->C22_Freq0;
+	pToneTable->C22_Freq1 = pToneCfg->C22_Freq1;
+	pToneTable->C22_Freq2 = pToneCfg->C22_Freq2;
+	pToneTable->C22_Freq3 = pToneCfg->C22_Freq3;
+	pToneTable->C22_Gain0 = pToneCfg->C22_Gain0;
+	pToneTable->C22_Gain1 = pToneCfg->C22_Gain1;
+	pToneTable->C22_Gain2 = pToneCfg->C22_Gain2;
+	pToneTable->C22_Gain3 = pToneCfg->C22_Gain3;
+	pToneTable->C23_Freq0 = pToneCfg->C23_Freq0;
+	pToneTable->C23_Freq1 = pToneCfg->C23_Freq1;
+	pToneTable->C23_Freq2 = pToneCfg->C23_Freq2;
+	pToneTable->C23_Freq3 = pToneCfg->C23_Freq3;
+	pToneTable->C23_Gain0 = pToneCfg->C23_Gain0;
+	pToneTable->C23_Gain1 = pToneCfg->C23_Gain1;
+	pToneTable->C23_Gain2 = pToneCfg->C23_Gain2;
+	pToneTable->C23_Gain3 = pToneCfg->C23_Gain3;
+
+	pToneTable->CadOn24 = pToneCfg->CadOn24;
+	pToneTable->CadOff24 = pToneCfg->CadOff24;
+	pToneTable->CadOn25 = pToneCfg->CadOn25;
+	pToneTable->CadOff25 = pToneCfg->CadOff25;
+	pToneTable->CadOn26 = pToneCfg->CadOn26;
+	pToneTable->CadOff26 = pToneCfg->CadOff26;
+	pToneTable->CadOn27 = pToneCfg->CadOn27;
+	pToneTable->CadOff27 = pToneCfg->CadOff27;
+	pToneTable->C24_Freq0 = pToneCfg->C24_Freq0;
+	pToneTable->C24_Freq1 = pToneCfg->C24_Freq1;
+	pToneTable->C24_Freq2 = pToneCfg->C24_Freq2;
+	pToneTable->C24_Freq3 = pToneCfg->C24_Freq3;
+	pToneTable->C24_Gain0 = pToneCfg->C24_Gain0;
+	pToneTable->C24_Gain1 = pToneCfg->C24_Gain1;
+	pToneTable->C24_Gain2 = pToneCfg->C24_Gain2;
+	pToneTable->C24_Gain3 = pToneCfg->C24_Gain3;
+	pToneTable->C25_Freq0 = pToneCfg->C25_Freq0;
+	pToneTable->C25_Freq1 = pToneCfg->C25_Freq1;
+	pToneTable->C25_Freq2 = pToneCfg->C25_Freq2;
+	pToneTable->C25_Freq3 = pToneCfg->C25_Freq3;
+	pToneTable->C25_Gain0 = pToneCfg->C25_Gain0;
+	pToneTable->C25_Gain1 = pToneCfg->C25_Gain1;
+	pToneTable->C25_Gain2 = pToneCfg->C25_Gain2;
+	pToneTable->C25_Gain3 = pToneCfg->C25_Gain3;
+	pToneTable->C26_Freq0 = pToneCfg->C26_Freq0;
+	pToneTable->C26_Freq1 = pToneCfg->C26_Freq1;
+	pToneTable->C26_Freq2 = pToneCfg->C26_Freq2;
+	pToneTable->C26_Freq3 = pToneCfg->C26_Freq3;
+	pToneTable->C26_Gain0 = pToneCfg->C26_Gain0;
+	pToneTable->C26_Gain1 = pToneCfg->C26_Gain1;
+	pToneTable->C26_Gain2 = pToneCfg->C26_Gain2;
+	pToneTable->C26_Gain3 = pToneCfg->C26_Gain3;
+	pToneTable->C27_Freq0 = pToneCfg->C27_Freq0;
+	pToneTable->C27_Freq1 = pToneCfg->C27_Freq1;
+	pToneTable->C27_Freq2 = pToneCfg->C27_Freq2;
+	pToneTable->C27_Freq3 = pToneCfg->C27_Freq3;
+	pToneTable->C27_Gain0 = pToneCfg->C27_Gain0;
+	pToneTable->C27_Gain1 = pToneCfg->C27_Gain1;
+	pToneTable->C27_Gain2 = pToneCfg->C27_Gain2;
+	pToneTable->C27_Gain3 = pToneCfg->C27_Gain3;
+
+	pToneTable->CadOn28 = pToneCfg->CadOn28;
+	pToneTable->CadOff28 = pToneCfg->CadOff28;
+	pToneTable->CadOn29 = pToneCfg->CadOn29;
+	pToneTable->CadOff29 = pToneCfg->CadOff29;
+	pToneTable->CadOn30 = pToneCfg->CadOn30;
+	pToneTable->CadOff30 = pToneCfg->CadOff30;
+	pToneTable->CadOn31 = pToneCfg->CadOn31;
+	pToneTable->CadOff31 = pToneCfg->CadOff31;
+	pToneTable->C28_Freq0 = pToneCfg->C28_Freq0;
+	pToneTable->C28_Freq1 = pToneCfg->C28_Freq1;
+	pToneTable->C28_Freq2 = pToneCfg->C28_Freq2;
+	pToneTable->C28_Freq3 = pToneCfg->C28_Freq3;
+	pToneTable->C28_Gain0 = pToneCfg->C28_Gain0;
+	pToneTable->C28_Gain1 = pToneCfg->C28_Gain1;
+	pToneTable->C28_Gain2 = pToneCfg->C28_Gain2;
+	pToneTable->C28_Gain3 = pToneCfg->C28_Gain3;
+	pToneTable->C29_Freq0 = pToneCfg->C29_Freq0;
+	pToneTable->C29_Freq1 = pToneCfg->C29_Freq1;
+	pToneTable->C29_Freq2 = pToneCfg->C29_Freq2;
+	pToneTable->C29_Freq3 = pToneCfg->C29_Freq3;
+	pToneTable->C29_Gain0 = pToneCfg->C29_Gain0;
+	pToneTable->C29_Gain1 = pToneCfg->C29_Gain1;
+	pToneTable->C29_Gain2 = pToneCfg->C29_Gain2;
+	pToneTable->C29_Gain3 = pToneCfg->C29_Gain3;
+	pToneTable->C30_Freq0 = pToneCfg->C30_Freq0;
+	pToneTable->C30_Freq1 = pToneCfg->C30_Freq1;
+	pToneTable->C30_Freq2 = pToneCfg->C30_Freq2;
+	pToneTable->C30_Freq3 = pToneCfg->C30_Freq3;
+	pToneTable->C30_Gain0 = pToneCfg->C30_Gain0;
+	pToneTable->C30_Gain1 = pToneCfg->C30_Gain1;
+	pToneTable->C30_Gain2 = pToneCfg->C30_Gain2;
+	pToneTable->C30_Gain3 = pToneCfg->C30_Gain3;
+	pToneTable->C31_Freq0 = pToneCfg->C31_Freq0;
+	pToneTable->C31_Freq1 = pToneCfg->C31_Freq1;
+	pToneTable->C31_Freq2 = pToneCfg->C31_Freq2;
+	pToneTable->C31_Freq3 = pToneCfg->C31_Freq3;
+	pToneTable->C31_Gain0 = pToneCfg->C31_Gain0;
+	pToneTable->C31_Gain1 = pToneCfg->C31_Gain1;
+	pToneTable->C31_Gain2 = pToneCfg->C31_Gain2;
+	pToneTable->C31_Gain3 = pToneCfg->C31_Gain3;
+	local_irq_restore(flags);
 #if 0   //thlin
 	if(cust == dialTone)
 		DspcodecSetCustomTone(DSPCODEC_TONE_DIAL, (ToneCfgParam_t *)pToneTable);
@@ -2379,6 +3378,7 @@ int32 setTone(aspToneCfgParam_t* pToneCfg)//thlin modify
 #endif
 
 #else
+	#error "deprecated, jwsyu 20121024 "
 	ToneTable[CUSTOM_TONE1+cust][0]=pToneCfg->toneType;
 	ToneTable[CUSTOM_TONE1+cust][1]=pToneCfg->cycle;
 	ToneTable[CUSTOM_TONE1+cust][2]=pToneCfg->cadNUM;
@@ -2392,14 +3392,14 @@ int32 setTone(aspToneCfgParam_t* pToneCfg)//thlin modify
 	ToneTable[CUSTOM_TONE1+cust][10]=pToneCfg->CadOff3;
 	ToneTable[CUSTOM_TONE1+cust][11]=pToneCfg->PatternOff;
 	ToneTable[CUSTOM_TONE1+cust][12]=pToneCfg->ToneNUM;
-	ToneTable[CUSTOM_TONE1+cust][13]=pToneCfg->Gain1;
-	ToneTable[CUSTOM_TONE1+cust][14]=pToneCfg->Gain2;
-	ToneTable[CUSTOM_TONE1+cust][15]=pToneCfg->Gain3;
-	ToneTable[CUSTOM_TONE1+cust][16]=pToneCfg->Gain4;
-	ToneTable[CUSTOM_TONE1+cust][17]=pToneCfg->Freq1;
-	ToneTable[CUSTOM_TONE1+cust][18]=pToneCfg->Freq2;
-	ToneTable[CUSTOM_TONE1+cust][19]=pToneCfg->Freq3;
-	ToneTable[CUSTOM_TONE1+cust][20]=pToneCfg->Freq4;
+	ToneTable[CUSTOM_TONE1+cust][13]=pToneCfg->Gain0;
+	ToneTable[CUSTOM_TONE1+cust][14]=pToneCfg->Gain1;
+	ToneTable[CUSTOM_TONE1+cust][15]=pToneCfg->Gain2;
+	ToneTable[CUSTOM_TONE1+cust][16]=pToneCfg->Gain3;
+	ToneTable[CUSTOM_TONE1+cust][17]=pToneCfg->Freq0;
+	ToneTable[CUSTOM_TONE1+cust][18]=pToneCfg->Freq1;
+	ToneTable[CUSTOM_TONE1+cust][19]=pToneCfg->Freq2;
+	ToneTable[CUSTOM_TONE1+cust][20]=pToneCfg->Freq3;
 #endif
 	return SUCCESS;
 }
@@ -2470,7 +3470,7 @@ char* country_table_str[]={"COUNTRY_USA", "COUNTRY_UK", "COUNTRY_AUSTRALIA",
                               };
 			    
 			    
-char* tone_type_str[]={"ADDITIVE", "MODULATED", "SUCC", "SUCC_ADD", " ", " ", "FOUR_FREQ"};
+char* tone_type_str[]={"ADDITIVE", "MODULATED", "SUCC", "SUCC_ADD", "RING_SUCC", "RING_SUCC_ADD", "FOUR_FREQ", "STEP_INC", "TWO_STEP"};
 
 
 static int voip_tone_read(char *page, char **start, off_t off,
@@ -2549,19 +3549,220 @@ static int voip_tone_read(char *page, char **start, off_t off,
 	*eof = 1;
 	return len;
 }
-
+extern char* playtone_whichtone_str[];
 int tone_test;
 static int voip_tone_write(struct file *file, const char *buffer, 
                                unsigned long count, void *data)
 {
-	char tmp[128];
-
+	char tmp[1024*4]={0};
+	int index=0;
 	if (count < 2)
 		return -EFAULT;
 
 	if (buffer && !copy_from_user(tmp, buffer, 128)) {
-		sscanf(tmp, "%x", &tone_test);
+		sscanf(tmp, "%d", &tone_test);
 	}
+	index += sprintf(tmp+index, "Which tone : %d(%s) \n", tone_test,
+	                                playtone_whichtone_str[tone_test]);
+		index += sprintf( tmp + index, "type(%s) cycle(%d) \n",  tone_type_str[ToneTable[tone_test].ToneType], ToneTable[tone_test].cycle);
+	index += sprintf(tmp+index, "          cad num(%d)= %don/%doff, %don/%doff, %don/%doff, %don/%doff unit:mSec\n",
+	                ToneTable[tone_test].cadNUM, ToneTable[tone_test].CadOn0, ToneTable[tone_test].CadOff0, ToneTable[tone_test].CadOn1,
+	                ToneTable[tone_test].CadOff1, ToneTable[tone_test].CadOn2, ToneTable[tone_test].CadOff2, ToneTable[tone_test].CadOn3,
+	                ToneTable[tone_test].CadOff3);
+		index += sprintf( tmp + index, "PatternOff(%d) \n",  ToneTable[tone_test].PatternOff);
+	index += sprintf(tmp+index, "          freq num(%d)= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].ToneNUM, ToneTable[tone_test].Freq0, ToneTable[tone_test].Gain0, ToneTable[tone_test].Freq1,
+	                ToneTable[tone_test].Gain1, ToneTable[tone_test].Freq2, ToneTable[tone_test].Gain2, ToneTable[tone_test].Freq3,
+	                ToneTable[tone_test].Gain3);
+
+		if (ToneTable[tone_test].ToneType>=6) { /* FOUR_FREQ or STEP_INC or TWO_STEP */
+	index += sprintf(tmp+index, "        cad1/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C1_Freq0, ToneTable[tone_test].C1_Gain0, ToneTable[tone_test].C1_Freq1,
+	                ToneTable[tone_test].C1_Gain1, ToneTable[tone_test].C1_Freq2, ToneTable[tone_test].C1_Gain2, ToneTable[tone_test].C1_Freq3,
+	                ToneTable[tone_test].C1_Gain3);
+			
+	index += sprintf(tmp+index, "        cad2/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C2_Freq0, ToneTable[tone_test].C2_Gain0, ToneTable[tone_test].C2_Freq1,
+	                ToneTable[tone_test].C2_Gain1, ToneTable[tone_test].C2_Freq2, ToneTable[tone_test].C2_Gain2, ToneTable[tone_test].C2_Freq3,
+	                ToneTable[tone_test].C2_Gain3);
+	index += sprintf(tmp+index, "        cad3/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C3_Freq0, ToneTable[tone_test].C3_Gain0, ToneTable[tone_test].C3_Freq1,
+	                ToneTable[tone_test].C3_Gain1, ToneTable[tone_test].C3_Freq2, ToneTable[tone_test].C3_Gain2, ToneTable[tone_test].C3_Freq3,
+	                ToneTable[tone_test].C3_Gain3);
+
+			}
+	if (ToneTable[tone_test].cadNUM>4) {
+		
+	index += sprintf(tmp+index, "        cad4/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C4_Freq0, ToneTable[tone_test].C4_Gain0, ToneTable[tone_test].C4_Freq1,
+	                ToneTable[tone_test].C4_Gain1, ToneTable[tone_test].C4_Freq2, ToneTable[tone_test].C4_Gain2, ToneTable[tone_test].C4_Freq3,
+	                ToneTable[tone_test].C4_Gain3);
+
+	index += sprintf(tmp+index, "        cad5/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C5_Freq0, ToneTable[tone_test].C5_Gain0, ToneTable[tone_test].C5_Freq1,
+	                ToneTable[tone_test].C5_Gain1, ToneTable[tone_test].C5_Freq2, ToneTable[tone_test].C5_Gain2, ToneTable[tone_test].C5_Freq3,
+	                ToneTable[tone_test].C5_Gain3);
+
+	index += sprintf(tmp+index, "        cad6/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C6_Freq0, ToneTable[tone_test].C6_Gain0, ToneTable[tone_test].C6_Freq1,
+	                ToneTable[tone_test].C6_Gain1, ToneTable[tone_test].C6_Freq2, ToneTable[tone_test].C6_Gain2, ToneTable[tone_test].C6_Freq3,
+	                ToneTable[tone_test].C6_Gain3);
+
+	index += sprintf(tmp+index, "        cad7/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C7_Freq0, ToneTable[tone_test].C7_Gain0, ToneTable[tone_test].C7_Freq1,
+	                ToneTable[tone_test].C7_Gain1, ToneTable[tone_test].C7_Freq2, ToneTable[tone_test].C7_Gain2, ToneTable[tone_test].C7_Freq3,
+	                ToneTable[tone_test].C7_Gain3);
+
+	}
+	if (ToneTable[tone_test].cadNUM>8) {
+		
+	index += sprintf(tmp+index, "        cad8/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C8_Freq0, ToneTable[tone_test].C8_Gain0, ToneTable[tone_test].C8_Freq1,
+	                ToneTable[tone_test].C8_Gain1, ToneTable[tone_test].C8_Freq2, ToneTable[tone_test].C8_Gain2, ToneTable[tone_test].C8_Freq3,
+	                ToneTable[tone_test].C8_Gain3);
+
+	index += sprintf(tmp+index, "        cad9/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C9_Freq0, ToneTable[tone_test].C9_Gain0, ToneTable[tone_test].C9_Freq1,
+	                ToneTable[tone_test].C9_Gain1, ToneTable[tone_test].C9_Freq2, ToneTable[tone_test].C9_Gain2, ToneTable[tone_test].C9_Freq3,
+	                ToneTable[tone_test].C9_Gain3);
+
+	index += sprintf(tmp+index, "        cad10/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C10_Freq0, ToneTable[tone_test].C10_Gain0, ToneTable[tone_test].C10_Freq1,
+	                ToneTable[tone_test].C10_Gain1, ToneTable[tone_test].C10_Freq2, ToneTable[tone_test].C10_Gain2, ToneTable[tone_test].C10_Freq3,
+	                ToneTable[tone_test].C10_Gain3);
+
+	index += sprintf(tmp+index, "        cad11/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C11_Freq0, ToneTable[tone_test].C11_Gain0, ToneTable[tone_test].C11_Freq1,
+	                ToneTable[tone_test].C11_Gain1, ToneTable[tone_test].C11_Freq2, ToneTable[tone_test].C11_Gain2, ToneTable[tone_test].C11_Freq3,
+	                ToneTable[tone_test].C11_Gain3);
+
+	}
+	printk("%s", tmp);
+	tmp[0]=0;
+	index=0;
+	if (ToneTable[tone_test].cadNUM>12) {
+		
+	index += sprintf(tmp, "        cad12/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C12_Freq0, ToneTable[tone_test].C12_Gain0, ToneTable[tone_test].C12_Freq1,
+	                ToneTable[tone_test].C12_Gain1, ToneTable[tone_test].C12_Freq2, ToneTable[tone_test].C12_Gain2, ToneTable[tone_test].C12_Freq3,
+	                ToneTable[tone_test].C12_Gain3);
+
+	index += sprintf(tmp+index, "        cad13/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C13_Freq0, ToneTable[tone_test].C13_Gain0, ToneTable[tone_test].C13_Freq1,
+	                ToneTable[tone_test].C13_Gain1, ToneTable[tone_test].C13_Freq2, ToneTable[tone_test].C13_Gain2, ToneTable[tone_test].C13_Freq3,
+	                ToneTable[tone_test].C13_Gain3);
+
+	index += sprintf(tmp+index, "        cad14/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C14_Freq0, ToneTable[tone_test].C14_Gain0, ToneTable[tone_test].C14_Freq1,
+	                ToneTable[tone_test].C14_Gain1, ToneTable[tone_test].C14_Freq2, ToneTable[tone_test].C14_Gain2, ToneTable[tone_test].C14_Freq3,
+	                ToneTable[tone_test].C14_Gain3);
+
+	index += sprintf(tmp+index, "        cad15/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C15_Freq0, ToneTable[tone_test].C15_Gain0, ToneTable[tone_test].C15_Freq1,
+	                ToneTable[tone_test].C15_Gain1, ToneTable[tone_test].C15_Freq2, ToneTable[tone_test].C15_Gain2, ToneTable[tone_test].C15_Freq3,
+	                ToneTable[tone_test].C15_Gain3);
+
+	}
+
+	if (ToneTable[tone_test].cadNUM>16) {
+		
+	index += sprintf(tmp+index, "        cad16/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C16_Freq0, ToneTable[tone_test].C16_Gain0, ToneTable[tone_test].C16_Freq1,
+	                ToneTable[tone_test].C16_Gain1, ToneTable[tone_test].C16_Freq2, ToneTable[tone_test].C16_Gain2, ToneTable[tone_test].C16_Freq3,
+	                ToneTable[tone_test].C16_Gain3);
+
+	index += sprintf(tmp+index, "        cad17/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C17_Freq0, ToneTable[tone_test].C17_Gain0, ToneTable[tone_test].C17_Freq1,
+	                ToneTable[tone_test].C17_Gain1, ToneTable[tone_test].C17_Freq2, ToneTable[tone_test].C17_Gain2, ToneTable[tone_test].C17_Freq3,
+	                ToneTable[tone_test].C17_Gain3);
+
+	index += sprintf(tmp+index, "        cad18/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C18_Freq0, ToneTable[tone_test].C18_Gain0, ToneTable[tone_test].C18_Freq1,
+	                ToneTable[tone_test].C18_Gain1, ToneTable[tone_test].C18_Freq2, ToneTable[tone_test].C18_Gain2, ToneTable[tone_test].C18_Freq3,
+	                ToneTable[tone_test].C18_Gain3);
+
+	index += sprintf(tmp+index, "        cad19/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C19_Freq0, ToneTable[tone_test].C19_Gain0, ToneTable[tone_test].C19_Freq1,
+	                ToneTable[tone_test].C19_Gain1, ToneTable[tone_test].C19_Freq2, ToneTable[tone_test].C19_Gain2, ToneTable[tone_test].C19_Freq3,
+	                ToneTable[tone_test].C19_Gain3);
+
+	}
+
+	if (ToneTable[tone_test].cadNUM>20) {
+		
+	index += sprintf(tmp+index, "        cad20/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C20_Freq0, ToneTable[tone_test].C20_Gain0, ToneTable[tone_test].C20_Freq1,
+	                ToneTable[tone_test].C20_Gain1, ToneTable[tone_test].C20_Freq2, ToneTable[tone_test].C20_Gain2, ToneTable[tone_test].C20_Freq3,
+	                ToneTable[tone_test].C20_Gain3);
+
+	index += sprintf(tmp+index, "        cad21/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C21_Freq0, ToneTable[tone_test].C21_Gain0, ToneTable[tone_test].C21_Freq1,
+	                ToneTable[tone_test].C21_Gain1, ToneTable[tone_test].C21_Freq2, ToneTable[tone_test].C21_Gain2, ToneTable[tone_test].C21_Freq3,
+	                ToneTable[tone_test].C21_Gain3);
+
+	index += sprintf(tmp+index, "        cad22/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C22_Freq0, ToneTable[tone_test].C22_Gain0, ToneTable[tone_test].C22_Freq1,
+	                ToneTable[tone_test].C22_Gain1, ToneTable[tone_test].C22_Freq2, ToneTable[tone_test].C22_Gain2, ToneTable[tone_test].C22_Freq3,
+	                ToneTable[tone_test].C22_Gain3);
+
+	index += sprintf(tmp+index, "        cad23/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C23_Freq0, ToneTable[tone_test].C23_Gain0, ToneTable[tone_test].C23_Freq1,
+	                ToneTable[tone_test].C23_Gain1, ToneTable[tone_test].C23_Freq2, ToneTable[tone_test].C23_Gain2, ToneTable[tone_test].C23_Freq3,
+	                ToneTable[tone_test].C23_Gain3);
+
+	}
+	printk("%s", tmp);
+	tmp[0]=0;
+	index=0;
+	if (ToneTable[tone_test].cadNUM>24) {
+		
+	index += sprintf(tmp+index, "        cad24/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C24_Freq0, ToneTable[tone_test].C24_Gain0, ToneTable[tone_test].C24_Freq1,
+	                ToneTable[tone_test].C24_Gain1, ToneTable[tone_test].C24_Freq2, ToneTable[tone_test].C24_Gain2, ToneTable[tone_test].C24_Freq3,
+	                ToneTable[tone_test].C24_Gain3);
+
+	index += sprintf(tmp+index, "        cad25/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C25_Freq0, ToneTable[tone_test].C25_Gain0, ToneTable[tone_test].C25_Freq1,
+	                ToneTable[tone_test].C25_Gain1, ToneTable[tone_test].C25_Freq2, ToneTable[tone_test].C25_Gain2, ToneTable[tone_test].C25_Freq3,
+	                ToneTable[tone_test].C25_Gain3);
+
+	index += sprintf(tmp+index, "        cad26/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C26_Freq0, ToneTable[tone_test].C26_Gain0, ToneTable[tone_test].C26_Freq1,
+	                ToneTable[tone_test].C26_Gain1, ToneTable[tone_test].C26_Freq2, ToneTable[tone_test].C26_Gain2, ToneTable[tone_test].C26_Freq3,
+	                ToneTable[tone_test].C26_Gain3);
+
+	index += sprintf(tmp+index, "        cad27/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C27_Freq0, ToneTable[tone_test].C27_Gain0, ToneTable[tone_test].C27_Freq1,
+	                ToneTable[tone_test].C27_Gain1, ToneTable[tone_test].C27_Freq2, ToneTable[tone_test].C27_Gain2, ToneTable[tone_test].C27_Freq3,
+	                ToneTable[tone_test].C27_Gain3);
+
+	}
+
+	if (ToneTable[tone_test].cadNUM>28) {
+		
+	index += sprintf(tmp+index, "        cad28/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C28_Freq0, ToneTable[tone_test].C28_Gain0, ToneTable[tone_test].C28_Freq1,
+	                ToneTable[tone_test].C28_Gain1, ToneTable[tone_test].C28_Freq2, ToneTable[tone_test].C28_Gain2, ToneTable[tone_test].C28_Freq3,
+	                ToneTable[tone_test].C28_Gain3);
+
+	index += sprintf(tmp+index, "        cad29/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C29_Freq0, ToneTable[tone_test].C29_Gain0, ToneTable[tone_test].C29_Freq1,
+	                ToneTable[tone_test].C29_Gain1, ToneTable[tone_test].C29_Freq2, ToneTable[tone_test].C29_Gain2, ToneTable[tone_test].C29_Freq3,
+	                ToneTable[tone_test].C29_Gain3);
+
+	index += sprintf(tmp+index, "        cad30/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C30_Freq0, ToneTable[tone_test].C30_Gain0, ToneTable[tone_test].C30_Freq1,
+	                ToneTable[tone_test].C30_Gain1, ToneTable[tone_test].C30_Freq2, ToneTable[tone_test].C30_Gain2, ToneTable[tone_test].C30_Freq3,
+	                ToneTable[tone_test].C30_Gain3);
+
+	index += sprintf(tmp+index, "        cad31/= %dHz/%ddB, %dHz/%ddB, %dHz/%ddB, %dHz/%ddB \n",
+	                ToneTable[tone_test].C31_Freq0, ToneTable[tone_test].C31_Gain0, ToneTable[tone_test].C31_Freq1,
+	                ToneTable[tone_test].C31_Gain1, ToneTable[tone_test].C31_Freq2, ToneTable[tone_test].C31_Gain2, ToneTable[tone_test].C31_Freq3,
+	                ToneTable[tone_test].C31_Gain3);
+
+	}
+
+	printk("%s", tmp);
 
 	return count;
 }

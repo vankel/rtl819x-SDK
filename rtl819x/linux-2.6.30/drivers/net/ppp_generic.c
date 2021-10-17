@@ -502,6 +502,24 @@ static const int npindex_to_ethertype[NUM_NP] = {
 #define ppp_unlock(ppp)		do { ppp_recv_unlock(ppp); \
 				     ppp_xmit_unlock(ppp); } while (0)
 
+void rtl_ppp_xmit_lock(struct ppp *ppp)
+{
+	ppp_xmit_lock(ppp);
+}
+void rtl_ppp_xmit_unlock(struct ppp *ppp)
+{
+	ppp_xmit_unlock(ppp);
+}
+
+void rtl_ppp_recv_lock(struct ppp *ppp)
+{
+	ppp_recv_lock(ppp);
+}
+
+void rtl_ppp_recv_unlock(struct ppp *ppp)
+{
+	ppp_recv_unlock(ppp);
+}
 /*
  * /dev/ppp device routines.
  * The /dev/ppp device is used by pppd to control the ppp unit.
@@ -599,7 +617,6 @@ static ssize_t ppp_read(struct file *file, char __user *buf,
 	if (copy_to_user(buf, skb->data, skb->len))
 		goto outf;
 	ret = skb->len;
-
  outf:
 	kfree_skb(skb);
  out:
@@ -719,6 +736,10 @@ extern int get_pppoe_last_rx_tx(char * ppp_dev,char * wan_dev,unsigned short sid
 extern int fast_pppoe_fw;
 
 #endif
+#if defined (CONFIG_RTL_PPPOE_DIRECT_REPLY)
+extern void clear_magicNum(void);
+#endif
+
 static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct ppp_file *pf = file->private_data;
@@ -790,8 +811,7 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				struct net_device *local_dev = po->pppoe_dev;
 #ifdef CONFIG_RTL_LAYERED_DRIVER
 #ifdef CONFIG_RTL_LAYERED_DRIVER_L3
-				{
-
+				{			
 
 					rtl865x_attachMasterNetif(pch->ppp->dev->name, local_dev->name);
 					//add the netif mapping table
@@ -799,11 +819,14 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				}
 				rtl865x_addPpp(pch->ppp->dev->name , (ether_addr_t*)po->pppoe_pa.remote, po->pppoe_pa.sid, SE_PPPOE);
 #endif
+
 #endif
+
 #if defined (CONFIG_RTL_FAST_PPPOE)
 				set_pppoe_info(pch->ppp->dev->name, local_dev->name, po->pppoe_pa.sid,
 							0,0,NULL, (unsigned char *)po->pppoe_pa.remote);	
 #endif							
+
 			}
 #endif
 
@@ -842,13 +865,17 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				rtl_del_ps_drv_netif_mapping(pch->ppp->dev);
 				rtl865x_delPppbyIfName(ppp->dev->name);
 #endif
-
 #endif
 
 #if defined (CONFIG_RTL_FAST_PPPOE)
 				clear_pppoe_info(pch->ppp->dev->name, NULL, 0,
 										0,0,NULL, NULL); 
 #endif
+
+#if defined (CONFIG_RTL_PPPOE_DIRECT_REPLY)
+				clear_magicNum(); 
+#endif
+
 			}
 #endif
 
@@ -3305,6 +3332,7 @@ static void ppp_shutdown_interface(struct ppp *ppp)
 	clear_pppoe_info(ppp->dev->name, NULL, 0,
 								0,0,NULL, NULL); 
 #endif
+
 	pn = ppp_pernet(ppp->ppp_net);
 	mutex_lock(&pn->all_ppp_mutex);
 

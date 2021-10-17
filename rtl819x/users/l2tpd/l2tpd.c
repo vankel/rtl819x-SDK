@@ -279,6 +279,30 @@ void death_handler (int signal)
     exit (1);
 }
 
+void kill_l2tpd(int signum)
+{
+	if(signum==SIGTERM)
+	{
+		struct tunnel *pt=tunnels.head, *tmppt=NULL;
+		struct call *pc=NULL, *tmppc=NULL;
+		while(pt)
+		{
+			tmppt=pt->next;
+			
+			pc=pt->call_head;
+			while(pc)
+			{
+				tmppc=pc->next;
+				call_close(pc);
+				pc=tmppc;
+			}
+			pt=tmppt;
+		}
+	}	
+    unlink (gconfig.pidfile);
+    unlink (gconfig.controlfile);
+    exit (1);
+}
 int start_pppd (struct call *c, struct ppp_opts *opts)
 {
     char a, b;
@@ -1129,7 +1153,8 @@ void init (int argc,char *argv[])
         exit (1);
     //if (gconfig.daemon)
 	//daemonize ();
-    signal (SIGTERM, &death_handler);
+//    signal (SIGTERM, &death_handler);
+    signal(SIGTERM, &kill_l2tpd);
     signal (SIGINT, &death_handler);
     signal (SIGCHLD, &child_handler);
     signal (SIGUSR1, &status_handler);

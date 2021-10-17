@@ -47,6 +47,9 @@ endif
 ifeq ($(CONFIG_HTTP_SERVER),y)
 CFLAGS += -DHTTP_SERVER
 endif
+ifeq ($(CONFIG_SUPPORT_TFTP_CLIENT),y)
+CFLAGS += -DSUPPORT_TFTP_CLIENT
+endif
 
 ifeq ($(CONFIG_BOOT_DEBUG_ENABLE),y)
 CFLAGS += -DCONFIG_BOOT_DEBUG_ENABLE
@@ -83,7 +86,9 @@ ifeq ($(CONFIG_SW_8366GIGA),y)
 CFLAGS += -DSW_8366GIGA
 endif
 
-
+ifeq ($(CONFIG_SW_8325D),y)
+CFLAGS += -I./rtl8325d/ -I./rtl8325d/asicdrv/ -I./rtl8325d/asicdrv/basic/
+endif
 
 #--------------------------------------
 
@@ -172,6 +177,9 @@ endif
 ifdef CONFIG_NOR_FLASH
 SRCLIST += ./flash/flash.c
 endif
+ifdef CONFIG_NAND_FLASH
+SRCLIST += ./flash/rtk_nand.c
+endif
 #----------------------------------------------------------------------------
 #ifdef CONFIG_PCIE_MODULE
 #SRCLIST += ./monitor/test_8168n.c 
@@ -218,11 +226,15 @@ SRCLIST += ./io/strtol.c
 SRCLIST += ./io/strtoul.c 
 SRCLIST += ./io/ctool.c 
 SRCLIST += ./io/misc.c 
+ifdef CONFIG_NEW_CONSOLE_SUPPORT
+SRCLIST += ./io/shelltask.c
+endif
 #SRCLIST += ./io/ctype.c
 
 SRCLIST += ./init/utility.c 
-#SRCLIST += ./nand/nand.c 
-
+ifdef CONFIG_NAND_FLASH
+SRCLIST += ./nand/nand.c 
+endif
 ifdef CONFIG_RTL8196D	
 #SRCLIST += ./monitor/test_lib.c 
 #SRCLIST += ./monitor/test_hw_96d.c    
@@ -230,10 +242,16 @@ endif
 
 ifdef CONFIG_RTL8196E_ULINKER_BOOT_LED
 SRCLIST += ./monitor/power_on_led.c
+else
+SRCLIST += ./monitor/power_on_led.c
 endif
 
-ifdef CONFIG_RTL8196E
-SRCLIST += ./monitor/power_on_led.c
+ifeq ($(CONFIG_SW_8325D),y)
+SRCLIST += ./rtl8325d/gpio.c
+SRCLIST += ./rtl8325d/smi.c
+SRCLIST += ./rtl8325d/rtl8316d_reg_list.c
+SRCLIST += ./rtl8325d/rtl8316d_regField_list.c
+SRCLIST += ./rtl8325d/rtl8316d_asicDrv.c
 endif
 
 ###C OBJ file, auto create ###############################################

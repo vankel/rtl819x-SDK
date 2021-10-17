@@ -156,8 +156,24 @@ VpStatusType zarlinkFxsRing(RTKLineObj *pLine, uint8 enable)
 
     DEBUG_API_PRINT();
 
-	if (enable) status = VpSetLineState( pLine->pLineCtx, VP_LINE_RINGING );
-	else 		status = VpSetLineState( pLine->pLineCtx, VP_LINE_OHT);
+	if (enable) 
+	{
+		status = VpSetLineState( pLine->pLineCtx, VP_LINE_RINGING );
+		//printk("VP_LINE_RINGING\n");
+	}
+	else
+	{
+		if (zarlinkFxsLineIsOffhook(pLine->pLineCtx, pLine->pDev->pDevCtx, 1))
+		{
+			status = VpSetLineState( pLine->pLineCtx, VP_LINE_OHT);
+			//printk("VP_LINE_OHT\n");
+		}
+		else
+		{
+			status = VpSetLineState( pLine->pLineCtx, VP_LINE_STANDBY);
+			//printk("VP_LINE_STANDBY\n");
+		}
+	}
 
 	return status;
 }
@@ -185,12 +201,32 @@ VpStatusType zarlinkSendNTTCAR(RTKLineObj *pLine)
 	return status;
 }
 
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+#define SUPPORT_CH_NUM	16
+static int NTTCar1stCheckFlag[SUPPORT_CH_NUM] = {[0 ... SUPPORT_CH_NUM-1] = 0};
+static unsigned long time_out_modify[SUPPORT_CH_NUM];
+#endif
+
 unsigned char zarlinkSendNTTCAR_Check(RTKLineObj *pLine, unsigned long time_out)
 {
 	VpStatusType status;
 	uint32 hook_status;
 	
     DEBUG_API_PRINT();
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	unsigned int chid;
+	chid = pLine->ch_id;
+
+	if (chid > (SUPPORT_CH_NUM-1))
+		printk("%s, line%d, chid %d is over range(%d).\n", __FUNCTION__, __LINE__, chid, SUPPORT_CH_NUM);
+
+	if (NTTCar1stCheckFlag[chid] == 0)
+	{
+		NTTCar1stCheckFlag[chid] = 1;
+		//printk("=1\n");
+		time_out_modify[chid] = timetick + 6000;
+	}
+#endif
 
 	/*********** Check Phone Hook State ***************/
 	hook_status = zarlinkFxsLineIsOffhook(pLine->pLineCtx, 
@@ -199,7 +235,11 @@ unsigned char zarlinkSendNTTCAR_Check(RTKLineObj *pLine, unsigned long time_out)
 	/* if phone on-hook */
 	if (hook_status == 0) {
 		/* time_after(a,b) returns true if the time a is after time b. */
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+		if (timetick_after(timetick,time_out_modify[chid]) ) 		{
+#else
 		if (timetick_after(timetick,time_out) ) 		{
+#endif
 			/* don't return 0, return 1, report time out don't wait */
 			PRINT_MSG("wait off-hook timeout...\n");
 		} else return 0;
@@ -212,6 +252,11 @@ unsigned char zarlinkSendNTTCAR_Check(RTKLineObj *pLine, unsigned long time_out)
 
 	/************** restore the register ***************/
 	zarlinkSetRingCadence(pLine, pLine->pDev->cad_on_ms, pLine->pDev->cad_off_ms);
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	NTTCar1stCheckFlag[chid] = 0;
+	//PRINT_Y("=0\n");
+#endif
 
 	PRINT_MSG("Set normal ring\n");
 

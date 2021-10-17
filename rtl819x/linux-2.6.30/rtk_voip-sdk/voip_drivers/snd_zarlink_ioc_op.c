@@ -29,11 +29,13 @@ static int ioc_op_set_led_state_zarlink( voip_ioc_t *this, ioc_state_t state )
 	
 	switch( state ) {
 	case IOC_STATE_LED_ON:
-		bHigh = 1;	// high --> LED ON 
+		//bHigh = 1;	// high --> LED ON 
+		bHigh = 0;	// low --> LED ON 
 		break;
 		
 	case IOC_STATE_LED_OFF:
-		bHigh = 0;	// low --> LED off 
+		//bHigh = 0;	// low --> LED off 
+		bHigh = 1;	// high --> LED off 
 		break;
 		
 	default:

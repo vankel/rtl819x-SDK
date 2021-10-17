@@ -69,7 +69,14 @@ u_char ConfigTag[][32] =
 	"accountRsUpdateEnabled",
 	"accountRsUpdateTime",
 #ifdef CONFIG_RTL8196C_AP_HCM
-	"hostmac"
+	"hostmac",
+#endif
+#ifdef CONFIG_IEEE80211W
+	"ieee80211w",
+	"sha256",
+#endif
+#ifdef HS2_SUPPORT
+	"OSEN"
 #endif
 };
 

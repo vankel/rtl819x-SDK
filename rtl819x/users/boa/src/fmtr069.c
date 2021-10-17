@@ -37,7 +37,14 @@
 #include "apform.h"
 #include "utility.h"
 
-#define	CONFIG_DIR	"/var/config"
+#define CWMP_PPPOE_STR	"pppoe"
+#define CWMP_DHCP_STR	"dhcp"
+#define CWMP_STATIC_IP_STR	"static_ip"
+#define CWMP_ACS_ADDR "/var/system/cwmp_ACS_Addr"
+extern char *req_get_cstream_var(request *req, char *var, char *defaultGetValue);
+extern int req_format_write(request *req, char *format, ...);
+enum {LINK_INIT=0, LINK_NO, LINK_DOWN, LINK_WAIT, LINK_UP};
+#define	CONFIG_DIR	"/var/cwmp_config"
 #define CA_FNAME	CONFIG_DIR"/cacert.pem"
 #define CERT_FNAME	CONFIG_DIR"/client.pem"
 #define strACSURLWrong  "ACS's URL can't be empty!"
@@ -59,13 +66,15 @@
 const char IFCONFIG[] = "/bin/ifconfig";
 const char IPTABLES[] = "/bin/iptables";
 const char ARG_T[] = "-t";
+const char FW_DEL[] = "-D";
 const char FW_PREROUTING[] = "PREROUTING";
 const char ARG_I[] = "-i";
 const char LANIF[] = "br0";
 const char ARG_TCP[] = "TCP";
+const char ARG_UDP[] = "UDP";
 const char FW_DPORT[] = "--dport";
 const char RMACC_MARK[] = "0x1000";
-
+const char FW_ADD[] = "-A";
 
 #define RECONNECT_MSG(url) { \
 	req_format_write(wp, ("<html><body><blockquote><h4>Change setting successfully!" \
@@ -79,10 +88,35 @@ const char RMACC_MARK[] = "0x1000";
 }
 
 #define CWMPPID  "/var/run/cwmp.pid"
+int  getPPPIface(char *wanIface,char * realIface)
+{
+	FILE *pMap = NULL;
+	char pppName[10]={0},name[10]={0};
+	int found=0;
+	if((pMap = fopen("/etc/ppp/pppx_map2_ethm","r+"))!= NULL)
+	{			
+		
+		while( fscanf(pMap,"%s %s",pppName,name) > 0 )
+		{						   
+		   if(!strcmp(name,realIface))
+		   {
+		   		strcpy(wanIface,pppName);
+		   		found=1;
+				break;
+			
+		   }	
+		   memset(pppName, 0x00, 10);
+		   memset(name, 0x00, 10);
+		}
+		close(pMap);
+		return found;
+	}else
+		return found;	
+	
+}
 void off_tr069()
 {
 	int cwmppid=0;
-	int status;
 
 	cwmppid = getPid((char*)CWMPPID);
 
@@ -93,42 +127,187 @@ void off_tr069()
 
 }
 
-int startCWMP(void)
+void GetACSURL_String(char *newurl, char *acsurl) //star: remove "http://" from acs url string
 {
-	char vChar=0;
-	char strPort[16];
-	unsigned int conreq_port=0;
-	unsigned int cwmp_flag;
+	  register const char *s;
+	  register size_t i, n;
+	  newurl[0] = '\0';
 
-/*	
-	//lan interface enable or disable
-	apmib_get(CWMP_LAN_IPIFENABLE, (void *)&vChar);
-	if(vChar==0)
-	{
-		va_cmd(IFCONFIG, 2, 1, "br0", "down");
-		//system("ifconfig ");
-		printf("Disable br0 interface\n");
+	  if (!acsurl || !*acsurl)
+	    return;
+	  s = strchr(acsurl, ':');
+	  if (s && s[1] == '/' && s[2] == '/')
+	    s += 3;
+	  else
+	    s = acsurl;
+	  n = strlen(s);
+	  if(n>256)
+	  	n=256;
+
+	  for (i = 0; i < n; i++)
+	  { newurl[i] = s[i];
+	    if (s[i] == '/' || s[i] == ':')
+	      break;
+	  }
+
+	  newurl[i] = '\0';
+}
+
+
+
+//got wan ip already, we need to add host route for ACS server 
+void set_ACSHostRoute(unsigned char urlChanged, int wan_type, char *gwip, char *wan_interface)
+{
+	char vStr[256+1];
+	char acsurl[256+1];
+	char ACSIP[64]={0};
+	char GWIP[64]={0};
+	char IFACE[64]={0};
+	char WriteBuffer[128]={0};
+	FILE *fp;
+	char *tmpStr=NULL;
+	struct hostent *host;
+	struct in_addr acsaddr;
+	
+	fp = fopen(CWMP_ACS_ADDR, "r");
+	if(fp !=NULL){
+		fscanf(fp,"%s %s %s",ACSIP, GWIP, IFACE);
+		fclose(fp);
+		printf("%s, %d, ACSIP=%s, GWIP=%s, IFACE=%s\n", __FUNCTION__, __LINE__, ACSIP,GWIP, IFACE);  
+		if(strcmp(GWIP, "NULL"))
+			va_cmd("/bin/route", 7, 1,"del", "-host", ACSIP, "gw", GWIP, "dev", IFACE);
+		else
+			va_cmd("/bin/route", 5, 1, "del", "-host", ACSIP, "dev", IFACE);
+	}
+	if(urlChanged){
+		apmib_get(MIB_CWMP_ACS_URL,(void*)vStr);
+		GetACSURL_String(acsurl,vStr);
+		fprintf(stderr, "ACS URL=%s\n",acsurl);
+		host=gethostbyname(acsurl);
+		if(host==NULL){
+			unlink(CWMP_ACS_ADDR);
+			printf("CANNOT get ACS IP Address\n");
+			return;
+		}
+		memcpy((char *) &(acsaddr.s_addr), host->h_addr_list[0], host->h_length);
+		if(!(fp = fopen(CWMP_ACS_ADDR, "w"))){
+			printf("%s, %d, Open ACS IP file failed: %s\n", __FUNCTION__, __LINE__,strerror(errno));
+			return;
+		}
+		tmpStr= inet_ntoa(acsaddr);
+		if(gwip[0]){
+			sprintf(WriteBuffer, "%s %s %s", tmpStr, gwip, wan_interface);
+			sprintf(GWIP, "%s", gwip);
+		}else{
+			sprintf(WriteBuffer, "%s NULL %s", tmpStr, wan_interface);	
+			sprintf(GWIP, "%s", "NULL");	
+		}	
+		sprintf(ACSIP,"%s", tmpStr);
+		sprintf(IFACE, "%s", wan_interface);
+		fwrite(WriteBuffer, strlen(WriteBuffer), 1, fp);
+		fclose(fp);
+	}
+	if(ACSIP[0]){
+		if(wan_type == PPPOE)
+		{
+			va_cmd("/bin/route", 4, 1, "add", "-host", ACSIP,  "dev", IFACE);
+			return;
+		}else{
+			if(strcmp(GWIP, "NULL")){
+				va_cmd("/bin/route", 7,1, "add", "-host", ACSIP, "gw", GWIP, "dev", IFACE);
+			}else
+				va_cmd("/bin/route", 5,1, "add", "-host", ACSIP,  "dev", IFACE);
+		}
 	}
 	
-	//eth0 interface enable or disable
-	apmib_get(CWMP_LAN_ETHIFENABLE, (void *)&vChar);
-	if(vChar==0)
-	{
-		va_cmd(IFCONFIG, 2, 1, "eth0", "down");
-		printf("Disable eth0 interface\n");
+}
+
+int is_wan_connected(int wanType, char *ifaceName)
+{	
+	struct in_addr intaddr;
+	int retValue=0;
+	int wanip1=0;
+	int wanip2=0;
+	int wanip3=0;
+	if (wanType == PPPOE) {
+		if ( !isConnectPPP())
+			return(LINK_DOWN);					
 	}
-*/
+	
+	if (wanType == PPPOE) {
+		retValue = getInAddr(ifaceName, IP_ADDR, (void *)&intaddr);
+		if (retValue < 0) {
+			return(LINK_DOWN);
+		}	
+	}
+	if (ifaceName && getInAddr(ifaceName, IP_ADDR, (void *)&intaddr)){ 		
+		if (wanType == PPPOE){
+			wanip1 = (intaddr.s_addr & 0xFF000000);
+			wanip2 = (intaddr.s_addr & 0x00FF0000);
+			wanip3 = (intaddr.s_addr & 0x0000FF00);
+			if((wanip1 == 0x0A000000) && (wanip2 == 0x00400000) && (wanip3 == 0x00004000)){
+				return(LINK_WAIT);
+			}
+		}
+		return(LINK_UP);
+	}else{
+		if (wanType == PPPOE){
+			retValue = getInAddr(ifaceName, IP_ADDR, (void *)&intaddr);
+			wanip1 = (intaddr.s_addr & 0xFF000000);
+			wanip2 = (intaddr.s_addr & 0x00FF0000);
+			wanip3 = (intaddr.s_addr & 0x0000FF00);
+			if((wanip1 == 0x0A000000) && (wanip2 == 0x00400000) && (wanip3 == 0x00004000)){
+					return(LINK_DOWN);
+			}
+		}else if(wanType ==DHCP_CLIENT)
+			return(LINK_DOWN);
+		else
+			return(LINK_DOWN);
+	}
+	return(LINK_DOWN);	
+}
+#if defined(MULTI_WAN_SUPPORT)
+void getRemoteIP(WANIFACE_T *wanEntry, char *gwip,char *ifaceName, unsigned int index)
+{
+	FILE *fp=NULL;
+	char tmpBuf[64]={0};
+	struct in_addr intaddr;
+	if(wanEntry->AddressType == DHCP_CLIENT){
+		sprintf(tmpBuf, "/var/dhcpRemoteIp_%d", index);
+		fp = fopen(tmpBuf, "r");
+		if(fp != NULL){
+			fscanf(fp,"%s",gwip);
+			fclose(fp);
+		}
+	}else if(wanEntry->AddressType == DHCP_DISABLED){
+		sprintf(gwip,"%s",inet_ntoa(*((struct in_addr *)wanEntry->remoteIpAddr)));
+	}else if(wanEntry->AddressType == PPPOE){
+		if(getInAddr( ifaceName, DST_IP_ADDR, (void *)&intaddr)){
+			sprintf(gwip,"%s",inet_ntoa(intaddr));
+		}
+	}
+}
+#endif //#if defined(MULTI_WAN_SUPPORT)
+
+int startCWMP(unsigned char urlChanged)
+{
+	char strPort[16];
+	char gwIpAddr[32]={0};
+	char wanName[16];
+	char pppName[16];
+	char cmdBuffer[64];
+	unsigned int conreq_port=0;
+	unsigned int cwmp_flag;
+	unsigned int i,wan_num=0;
+#if defined(MULTI_WAN_SUPPORT)	
+	WANIFACE_T *p,wan_entity;
+#endif	
+
+
 	/*add a wan port to pass */
-	apmib_get(MIB_CWMP_CONREQ_PORT, (void *)&conreq_port);
-	if(conreq_port==0) conreq_port=7547;
-	sprintf(strPort, "%u", conreq_port );
-	va_cmd(IPTABLES, 15, 1, ARG_T, "mangle", "-A", (char *)FW_PREROUTING,
-		(char *)ARG_I, "!", (char *)LANIF, "-p", (char *)ARG_TCP,
-		(char *)FW_DPORT, strPort, "-j", (char *)"MARK", "--set-mark", RMACC_MARK);
+	system("sysconf firewall");
 
 	/*start the cwmpClient program*/
-
-
 	apmib_get(MIB_CWMP_FLAG, (void *)&cwmp_flag);
 	if( cwmp_flag&CWMP_FLAG_AUTORUN )
 		va_cmd( "/bin/cwmpClient", 0, 0 );
@@ -136,114 +315,105 @@ int startCWMP(void)
 
 	return 0;
 }
-
+   
 #ifdef _CWMP_WITH_SSL_
+
+
+unsigned char* CWMP_find_multiPartBoundary(unsigned char *data, int dlen, char *pattern, int plen, int *result)
+{	
+	int i;	
+	unsigned char *end;	
+	
+	if (plen > dlen)
+		return 0;	
+	for (i=0; i<dlen;i++) {
+		if(memcmp(data + i, pattern, plen)!=0) {
+			continue;
+		}
+		else {		
+			*result = 1;	
+			end = (data + i);
+			return end;
+		}
+	}  
+	*result = 0;
+	return 0;
+}
+int CWMP_Find_head_offset(char *upload_data)
+{
+	int head_offset=0 ;
+	char *pStart=NULL;
+	int iestr_offset=0;
+	char *dquote;
+	char *dquote1;
+	
+	if (upload_data==NULL) {
+		fprintf(stderr, "upload data is NULL\n");
+		return -1;
+	}
+
+	
+	pStart = strstr(upload_data, "filename=");
+	if (pStart == NULL) {
+		return -1;
+	}
+	else {
+		
+		dquote =  strchr(pStart+strlen("filename="), '\n');
+		if (dquote !=NULL) {
+			dquote= dquote+2; 
+			dquote1 = strchr(dquote, '\r');
+			if (dquote1!=NULL) {
+				iestr_offset = 4;
+				pStart = dquote1;
+			}
+			else {
+				return -1;
+			}
+		}
+		else {
+			return -1;
+			}
+	}
+
+	
+
+	
+	//fprintf(stderr,"####%s:%d %d###\n",  __FILE__, __LINE__ , iestr_offset);
+	head_offset = (int)(((unsigned long)pStart)-((unsigned long)upload_data)) + iestr_offset;
+	return head_offset;
+}
+
 //copy from fmmgmt.c
 //find the start and end of the upload file.
-FILE * uploadGetCert(request *wp, unsigned int *startPos, unsigned *endPos)
+int uploadGetCert(request *wp, unsigned int *offset, unsigned int *len)
 {
-#if 0 //keith remove
-	FILE *fp=NULL;
-	struct stat statbuf;
-	unsigned char c, *buf;
-	char boundary[80];
+	
+	int head_offset=0;
+	int result_last=0;
+	unsigned char* uploadedFileContent_end=NULL;
+	unsigned char* uploadedFileContent=NULL;
 
-
-	//if (wp->method == M_POST)
-	if (wp->flags & WEBS_POST_REQUEST)
-	{
-		int i;
-
-		fstat(wp->post_data_fd, &statbuf);
-		lseek(wp->post_data_fd, SEEK_SET, 0);
-
-		printf("file size=%d\n",statbuf.st_size);
-		fp=fopen(wp->post_file_name,"rb");
-		if(fp==NULL) goto error;
-
-		memset( boundary, 0, sizeof( boundary ) );
-		if( fgets( boundary,80,fp )==NULL ) goto error;
-		if( boundary[0]!='-' || boundary[1]!='-') goto error;
-
-		i= strlen( boundary ) - 1;
-		while( boundary[i]=='\r' || boundary[i]=='\n' )
-		{
-			boundary[i]='\0';
-			i--;
-		}
-		printf( "boundary=%s\n", boundary );
+	head_offset = CWMP_Find_head_offset((char *)wp->upload_data); 
+	if (head_offset == -1) {
+		printf("find_head_offset error\n");
+		return -1;
 	}
-	else goto error;
+	uploadedFileContent = wp->upload_data+head_offset;
+	
+	uploadedFileContent_end = CWMP_find_multiPartBoundary(uploadedFileContent, wp->upload_len, wp->multipart_boundary, strlen(wp->multipart_boundary),&result_last);
+	if (result_last==1 && uploadedFileContent_end != NULL) {
+		uploadedFileContent_end = uploadedFileContent_end-2;
 
+		(*len) = uploadedFileContent_end -  uploadedFileContent;
+		(*offset) = head_offset;
+		return 0;
+		
+	}
+	
+	return -1;
+	
 
-   	//printf("_uploadGet\n");
-   	do
-   	{
-		if(feof(fp))
-		{
-			printf("Cannot find start of file\n");
-			goto error;
-		}
-		c= fgetc(fp);
-		if (c!=0xd)
-			continue;
-		c= fgetc(fp);
-		if (c!=0xa)
-			continue;
-		c= fgetc(fp);
-		if (c!=0xd)
-			continue;
-		c= fgetc(fp);
-		if (c!=0xa)
-			continue;
-		break;
-	}while(1);
-	(*startPos)=ftell(fp);
-
-   	if(fseek(fp,statbuf.st_size-0x200,SEEK_SET)<0)
-      		goto error;
-
-	do
-	{
-		if(feof(fp))
-		{
-			printf("Cannot find end of file\n");
-			goto error;
-		}
-		c= fgetc(fp);
-		if (c!=0xd)
-			continue;
-		c= fgetc(fp);
-		if (c!=0xa)
-			continue;
-
-		{
-			int i, blen;
-
-			blen= strlen( boundary );
-			for( i=0; i<blen; i++)
-			{
-				c= fgetc(fp);
-				//printf("%c(%u)", c, c);
-				if (c!=boundary[i])
-				{
-					ungetc( c, fp );
-					break;
-				}
-			}
-			//printf("\r\n");
-			if( i!=blen ) continue;
-		}
-
-		break;
-	}while(1);
-	(*endPos)=ftell(fp)-strlen(boundary)-2;
-
-   	return fp;
-error:
-#endif //	#if 0 //keith remove
-
-   	return NULL;
 }
 
 #endif //#ifdef _CWMP_WITH_SSL_
@@ -253,20 +423,31 @@ void formTR069Config(request *wp, char *path, char *query)
 {
 	char	*strData;
 	char tmpBuf[100];
+	char orig_acsUserName[64]={0};
+	char orig_acsPassword[64]={0};
+	char new_acsUserName[64]={0};
+	char new_acsPassword[64]={0};
+	char orig_ConReqUserName[64]={0};
+	char orig_ConReqPassword[64]={0};
+	char new_ConReqUserName[64]={0};
+	char new_ConReqPassword[64]={0};
 	unsigned char vChar;
 	unsigned int cwmp_flag;
 	int vInt;
 	// Mason Yu
 	char changeflag=0;
+	unsigned char acsurlchangeflag=0;
 	unsigned int informEnble;
 	unsigned int informInterv;
 	char cwmp_flag_value=1;
 	char tmpStr[256+1];
+	char origACSURL[256+1];
+	char NewACSURL[256+1];
 	int cur_port;
 	char isDisConReqAuth=0;
 
 //displayPostDate(wp->post_data);
-
+	apmib_get( MIB_CWMP_ACS_URL, (void *)origACSURL);
 #ifdef _CWMP_WITH_SSL_
 	//CPE Certificat Password
 	strData = req_get_cstream_var(wp, ("CPE_Cert"), (""));
@@ -281,8 +462,7 @@ void formTR069Config(request *wp, char *path, char *query)
 			goto setErr_tr069;
 		}
 		else
-			printf("Debug Test!\n");
-		goto end_tr069;
+			goto end_tr069;
 	}
 #endif
 
@@ -308,6 +488,21 @@ void formTR069Config(request *wp, char *path, char *query)
 		}
 	}
 
+	apmib_get( MIB_CWMP_ACS_URL, (void *)NewACSURL);
+	if(strcmp(origACSURL, NewACSURL)){
+		changeflag=1;
+		acsurlchangeflag=1;
+	}
+
+
+
+	apmib_get( MIB_CWMP_ACS_PASSWORD, (void *)orig_acsUserName);
+	apmib_get( MIB_CWMP_ACS_USERNAME, (void *)orig_acsPassword);
+
+	apmib_get( MIB_CWMP_CONREQ_USERNAME, (void *)orig_ConReqUserName);
+	apmib_get( MIB_CWMP_CONREQ_PASSWORD, (void *)orig_ConReqPassword);
+	
+	
 	strData = req_get_cstream_var(wp, ("username"), (""));
 	//if ( strData[0] )
 	{
@@ -331,7 +526,7 @@ void formTR069Config(request *wp, char *path, char *query)
 		informEnble = (strData[0]=='0')? 0:1;
 		apmib_get( MIB_CWMP_INFORM_ENABLE, (void*)&vInt);
 		if(vInt != informEnble){
-			int allow=1;
+			//int allow=1;
 			changeflag = 1;
 			if ( !apmib_set( MIB_CWMP_INFORM_ENABLE, (void *)&informEnble)) {
 				strcpy(tmpBuf, (strSetInformEnableerror));
@@ -584,21 +779,35 @@ void formTR069Config(request *wp, char *path, char *query)
 /*end for debug*/
 end_tr069:
 
-	// Mason Yu
-#ifdef APPLY_CHANGE
+	apmib_get( MIB_CWMP_ACS_PASSWORD, (void *)new_acsUserName);
+	apmib_get( MIB_CWMP_ACS_USERNAME, (void *)new_acsPassword);
+	
+	if(orig_acsUserName[0] && orig_acsPassword[0] && new_acsUserName[0] && new_acsPassword[0]) {
+		if((strcmp(orig_acsUserName, new_acsUserName)) || (strcmp(orig_acsPassword, new_acsPassword)))
+			changeflag=1;
+	}
+
+	apmib_get( MIB_CWMP_CONREQ_USERNAME, (void *)new_ConReqUserName);
+	apmib_get( MIB_CWMP_CONREQ_PASSWORD, (void *)new_ConReqPassword);
+	if(orig_ConReqUserName[0] && orig_ConReqPassword[0] && new_ConReqUserName[0] && new_ConReqPassword[0]) {
+		if((strcmp(orig_ConReqUserName, new_ConReqUserName)) || (strcmp(orig_ConReqPassword, new_ConReqPassword)))
+			changeflag=1;
+	}
+	
+
 	if ( changeflag ) {
 		if ( cwmp_flag_value == 0 ) {  // disable TR069
 			off_tr069();
 		} else {                       // enable TR069
 			off_tr069();
-			if (-1==startCWMP()){
+			if (-1==startCWMP(acsurlchangeflag)){
 				strcpy(tmpBuf, ("Start tr069 Fail *****"));
 				printf("Start tr069 Fail *****\n");
 				goto setErr_tr069;
 			}
 		}
 	}
-#endif
+
 
 // Magician: Commit immediately
 #ifdef COMMIT_IMMEDIATELY
@@ -628,47 +837,39 @@ void formTR069CPECert(request *wp, char *path, char *query)
 {
 	char	*strData;
 	char tmpBuf[100];
-	FILE	*fp=NULL,*fp_input;
-	unsigned char *buf;
-	unsigned int startPos,endPos,nLen,nRead;
-	if ((fp = uploadGetCert(wp, &startPos, &endPos)) == NULL)
+	FILE	*fp_input=NULL;
+	char *buf;
+	unsigned int nLen, head_offset=0;;
+	if ((uploadGetCert(wp, &head_offset, &nLen)) == -1)
 	{
 		strcpy(tmpBuf, (strUploaderror));
  		goto setErr_tr069cpe;
  	}
 
-	nLen = endPos - startPos;
-	//printf("filesize is %d\n", nLen);
-	buf = malloc(nLen+1);
+	
+	printf("filesize is %d\n", nLen);
+	buf = calloc(1,nLen+1);
 	if (!buf)
 	{
 		strcpy(tmpBuf, (strMallocFail));
  		goto setErr_tr069cpe;
  	}
-
-	fseek(fp, startPos, SEEK_SET);
-	nRead = fread((void *)buf, 1, nLen, fp);
-	buf[nRead]=0;
-	if (nRead != nLen)
- 		printf("Read %d bytes, expect %d bytes\n", nRead, nLen);
-
-	//printf("write to %d bytes from %08x\n", nLen, buf);
+	snprintf(buf, nLen+1, "%s", wp->upload_data+head_offset);
 
 	fp_input=fopen(CERT_FNAME,"w");
 	if (!fp_input)
 		printf("create %s file fail!\n", CERT_FNAME);
-	fprintf(fp_input,buf);
+	fprintf(fp_input,"%s",buf);
 	printf("create file %s\n", CERT_FNAME);
 	free(buf);
 	fclose(fp_input);
 
-#if 0 //keith
 	if( va_cmd( "/bin/flatfsd",1,1,"-s" ) )
-		printf( "[%d]:exec 'flatfsd -s' error!",__FILE__ );
-#endif
+		printf( "%s[%d]:exec 'flatfsd -s' error!",__FILE__ ,__LINE__);
+
 	off_tr069();
 
-	if (startCWMP() == -1)
+	if (startCWMP(0) == -1)
 	{
 		strcpy(tmpBuf, ("Start tr069 Fail *****"));
 		printf("Start tr069 Fail *****\n");
@@ -688,47 +889,39 @@ void formTR069CACert(request *wp, char *path, char *query)
 {
 	char	*strData;
 	char tmpBuf[100];
-	FILE	*fp=NULL,*fp_input;
-	unsigned char *buf;
-	unsigned int startPos,endPos,nLen,nRead;
-	if ((fp = uploadGetCert(wp, &startPos, &endPos)) == NULL)
+	FILE	*fp_input=NULL;
+	char *buf;
+	unsigned int nLen,head_offset=0;
+	if ((uploadGetCert(wp, &head_offset, &nLen)) == -1)
 	{
 		strcpy(tmpBuf, (strUploaderror));
  		goto setErr_tr069ca;
  	}
-
-	nLen = endPos - startPos;
-	//printf("filesize is %d\n", nLen);
-	buf = malloc(nLen+1);
+    
+	
+	printf("filesize is %d\n", nLen);
+	buf = calloc(1,nLen+1);
 	if (!buf)
 	{
 		strcpy(tmpBuf, (strMallocFail));
  		goto setErr_tr069ca;
  	}
-
-	fseek(fp, startPos, SEEK_SET);
-	nRead = fread((void *)buf, 1, nLen, fp);
-	buf[nRead]=0;
-	if (nRead != nLen)
- 		printf("Read %d bytes, expect %d bytes\n", nRead, nLen);
-
-	//printf("write to %d bytes from %08x\n", nLen, buf);
-
+	snprintf(buf, nLen+1, "%s", wp->upload_data+head_offset);
+	
 	fp_input=fopen(CA_FNAME,"w");
 	if (!fp_input)
 		printf("create %s file fail!\n", CA_FNAME );
-	fprintf(fp_input,buf);
+	fprintf(fp_input,"%s", buf);
 	printf("create file %s\n",CA_FNAME);
 	free(buf);
 	fclose(fp_input);
 
-#if 0 //keith
 	if( va_cmd( "/bin/flatfsd",1,1,"-s" ) )
-		printf( "[%d]:exec 'flatfsd -s' error!",__FILE__ );
-#endif
+		printf( "%s[%d]:exec 'flatfsd -s' error!",__FILE__ ,__LINE__);
+
 	off_tr069();
 
-	if (startCWMP() == -1)
+	if (startCWMP(0) == -1)
 	{
 		strcpy(tmpBuf, ("Start tr069 Fail *****"));
 		printf("Start tr069 Fail *****\n");
@@ -747,7 +940,7 @@ setErr_tr069ca:
 int ShowACSCertCPE(request *wp)
 {
 	int nBytesSent=0;
-	unsigned char vChar=0;
+	//unsigned char vChar=0;
 	int isEnable=0;
 	unsigned int cwmp_flag;
 
@@ -784,7 +977,8 @@ int ShowMNGCertTable(request *wp)
 		"  </tr>\n"
 		"\n"));
 
-
+//usually do not need to upload CPE cert file
+#if 0
 	nBytesSent += req_format_write(wp, ("\n"
 		"  <tr>\n"
 		"      <td width=\"30%%\"><font size=2><b>CPE Certificat Password:</b></td>\n"
@@ -810,7 +1004,7 @@ int ShowMNGCertTable(request *wp)
 		"      </td>\n"
 		"  </tr>\n"
 		"\n"));
-
+#endif
 	nBytesSent += req_format_write(wp, ("\n"
 		"  <tr>\n"
 		"      <td width=\"30%%\"><font size=2><b>CA Certificat:</b></td>\n"
@@ -876,7 +1070,7 @@ int TR069ConPageShow(request *wp, int argc, char **argv)
 {
 	int nBytesSent=0;
 	char *name;
-	unsigned int cwmp_flag;
+	//unsigned int cwmp_flag;
 	
 	//printf("get parameter=%s\n", argv[0]);
 	name = argv[0];

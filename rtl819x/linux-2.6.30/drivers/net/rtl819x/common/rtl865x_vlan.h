@@ -16,8 +16,15 @@
 #endif
 
 
-
 #define VLAN_NUMBER			4096
+
+
+#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_819XD)
+#define VLANTBL_SIZE				16
+#else
+#define VLANTBL_SIZE				4096
+#endif
+
 #define RTL865X_FDB_NUMBER	4
 
 #define RTL865X_PPTP_HWACC_PORTMASK		0x80

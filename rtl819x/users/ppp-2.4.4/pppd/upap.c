@@ -540,6 +540,7 @@ upap_rauthnak(u, inp, id, len)
 
     error("PAP authentication failed");
     auth_withpeer_fail(u->us_unit, PPP_PAP);
+    system("echo 691 > /var/ppp_error");
 }
 
 

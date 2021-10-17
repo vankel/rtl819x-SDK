@@ -174,7 +174,7 @@ int wlan_dos_filter_enabled = 1;
 
 extern unsigned int _br0_ip;
 
-#if defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
+#ifdef CONFIG_RTL8192CD
 extern int issue_disassoc_from_kernel(void *priv, unsigned char *mac);
 #endif
 
@@ -343,7 +343,7 @@ static int  filter_dos_wlan(struct sk_buff *skb)
 					//attack_daddr2=iph->daddr;
 					wlan_block=1;
 
-#if defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
+#ifdef CONFIG_RTL8192CD
 					issue_disassoc_from_kernel((void *) skb->dev->priv, &(skb->mac_header[6]));
 #endif
 					memcpy(block_source_mac, &(skb->mac_header[6]), 6);
@@ -523,13 +523,26 @@ static __inline__ int neigh_max_probes(struct neighbour *n)
 int32  rtl_neigh_periodic_timer_hooks(struct neighbour *n,  unsigned int  refresh)
 {
 	int	ret;
+	#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+	int 	tval = 0;
+	#endif
 
 	if (!(n->nud_state & NUD_VALID))
 		return RTL_PS_HOOKS_CONTINUE;
 
 	ret = RTL_PS_HOOKS_CONTINUE;
 	#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
-	if (rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), refresh)>0) {
+    #if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+	if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)n->primary_key)))== SUCCESS)
+		tval = rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), 1);
+	else
+		tval = rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), refresh);
+
+	if (tval > 0)
+    #else
+	if (rtl865x_arpSync(htonl(*((u32 *)n->primary_key)), refresh)>0) 
+    #endif
+	{
 		n->used = jiffies;
 		n->dead=0;
 		ret = RTL_PS_HOOKS_BREAK;
@@ -574,7 +587,12 @@ int32 rtl_neigh_timer_handler_pre_update_hooks(struct neighbour *neigh, unsigned
 		#endif
 
 		#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
-		tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
+		#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+		if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)neigh->primary_key)))== SUCCESS)
+    		tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 1);
+		else
+    	#endif
+		    tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
 		if (tval > 0)
 		{
 			neigh->confirmed = jiffies;
@@ -588,7 +606,12 @@ int32 rtl_neigh_timer_handler_pre_update_hooks(struct neighbour *neigh, unsigned
 
 	} else if (state & NUD_DELAY) {
 		#if defined(CONFIG_RTL_HARDWARE_NAT) && defined(CONFIG_RTL_LAYERED_DRIVER)  && defined(CONFIG_RTL_LAYERED_DRIVER_L3)
-		tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
+		#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+		if (rtl865x_check_hw_nat_by_ip(htonl(*((u32 *)neigh->primary_key)))== SUCCESS)
+		    tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 1);
+    	else
+		#endif
+		    tval = rtl865x_arpSync(htonl(*((u32 *)neigh->primary_key)), 0);
 		if (tval > 0)
 		{
 			neigh->confirmed = jiffies;

@@ -1126,6 +1126,7 @@ int clear_pppoe_info(char *ppp_dev, char *wan_dev, unsigned short sid,
 								unsigned int our_ip,unsigned int	peer_ip,
 								unsigned char * our_mac, unsigned char *peer_mac);
 #endif
+
 /**
  *	dev_close - shutdown an interface.
  *	@dev: device to shutdown
@@ -1135,6 +1136,9 @@ int clear_pppoe_info(char *ppp_dev, char *wan_dev, unsigned short sid,
  *	is then deactivated and finally a %NETDEV_DOWN is sent to the notifier
  *	chain.
  */
+#if defined (CONFIG_RTL_PPPOE_DIRECT_REPLY)
+extern void clear_magicNum(void); 
+#endif
 int dev_close(struct net_device *dev)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
@@ -1144,10 +1148,16 @@ int dev_close(struct net_device *dev)
 
 	if (!(dev->flags & IFF_UP))
 		return 0;
+	
 #if defined(CONFIG_RTL_FAST_PPPOE)
 		clear_pppoe_info(dev->name,dev->name,0,0,0,NULL,NULL);
 #endif
-
+#if defined (CONFIG_RTL_PPPOE_DIRECT_REPLY)
+		if(strncmp(dev->name, "ppp", 3) ==0)
+		{
+			clear_magicNum(); 
+		}
+#endif
 	/*
 	 *	Tell people we are going down, so that they can
 	 *	prepare to death, when device is still operating.

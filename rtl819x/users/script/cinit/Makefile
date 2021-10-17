@@ -9,6 +9,9 @@ ifeq ($(CONFIG_RTL_NFJROM_MP),y)
 else
 	@cp *.sh $(DIR_ROMFS)/bin/
 endif
+ifeq ($(CONFIG_APP_AP_CONTROLER),y)
+#	@cp *.sh $(DIR_ROMFS)/bin/
+endif
 	@cp ../script_dbg/* $(DIR_ROMFS)/bin/
 ifeq ($(CONFIG_APP_WSC),y)
 	$(ROMFSINST) simplecfgservice.xml /etc/simplecfgservice.xml

@@ -31,35 +31,35 @@ static void zarlinkFxoLineStateControl( VpLineCtxType *pLineCtx, VpLineStateType
 		/* Disables ring validation mode */
 		case VP_LINE_FXO_LOOP_OPEN:
 		{
-		   printk("DAA: Going OnHook\n");
-		   printk("DAA: Disables ring validation\n");
+		   PRINT_MSG("DAA: Going OnHook\n");
+		   PRINT_MSG("DAA: Disables ring validation\n");
 		}
 		break;
 	  
 		/*  Caller ID receive mode, enable onhook data reception  */
 		case VP_LINE_FXO_OHT:
 		{
-		   printk("DAA: Enable on-hook Caller ID receive. \n");
+		   PRINT_MSG("DAA: Enable on-hook Caller ID receive. \n");
 		}
 		break;
 
 		/* Put device into off-hook - seize line */
 		case VP_LINE_FXO_TALK:
 		{
-		   printk("DAA: Going OffHook\n");
+		   PRINT_MSG("DAA: Going OffHook\n");
 		}
 		break;
 
 		/* Enable ring validation mode */
 		case VP_LINE_FXO_LOOP_CLOSE:
 		{
-		   printk("DAA: Enable ring validation\n");
+		   PRINT_MSG("DAA: Enable ring validation\n");
 		}
 		break;
 		
 		default:
 		{
-		   printk("DAA: unrecognized DAA mode\n");
+		   PRINT_MSG("DAA: unrecognized DAA mode\n");
 		}
 		break;
     }

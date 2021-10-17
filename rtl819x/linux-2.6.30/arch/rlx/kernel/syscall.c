@@ -282,6 +282,9 @@ SYSCALL_DEFINE1(set_thread_area, unsigned long, addr)
 	struct thread_info *ti = task_thread_info(current);
 
 	ti->tp_value = addr;
+#ifdef CONFIG_CPU_HAS_TLS
+        write_lxc0_userlocal(addr);
+#endif
 	return 0;
 }
 

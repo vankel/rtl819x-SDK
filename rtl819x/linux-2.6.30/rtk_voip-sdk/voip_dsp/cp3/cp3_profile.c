@@ -95,10 +95,19 @@ __asm__ __volatile__ \
 static void CP3_COUNTER0_START( void )
 {
 #ifndef CONFIG_VOIP_COP3_PROFILE
+#if 0
+	//5181
 	tempVariable32 = /* Counter0 */((0x10|CP3CNT_CYCLES)<< 0) |
 	                 /* Counter1 */((0x10|CP3CNT_NEW_INST_FECTH)<< 8) |
 	                 /* Counter2 */((0x10|CP3CNT_DATA_LOAD_OR_STORE_MISS_BUSY_CYCLE)<<16) |
 	                 /* Counter3 */((0x10|CP3CNT_NEW_INST_MISS_BUSY_CYCLE)<<24);
+#else
+	//5281       
+	tempVariable32 = /* Counter0 */((8)<< 0) |
+	                 /* Counter1 */((1)<< 8) |
+	                 /* Counter2 */((2)<<16) |
+	                 /* Counter3 */((3)<<24);
+#endif
 #else
 	extern unsigned int gCp3Params;
 	tempVariable32 = gCp3Params;
@@ -290,7 +299,7 @@ int ProfileInit( void )
 	ProfileStat[PROFILE_INDEX_AMRNBENCPHASE].desc = "AMR_NB_EncPhase";
 	ProfileStat[PROFILE_INDEX_AMRNBENCPHASE].valid = 1;
 	ProfileStat[PROFILE_INDEX_AMRNBDECPHASE].desc = "AMR_NB_DecPhase_jbc";
-	ProfileStat[PROFILE_INDEX_AMRNBENCPHASE].valid = 1;
+	ProfileStat[PROFILE_INDEX_AMRNBDECPHASE].valid = 1;
 	ProfileStat[PROFILE_INDEX_SPEEXNBENCPHASE].desc = "SPEEX_NB_EncPhase";
 	ProfileStat[PROFILE_INDEX_SPEEXNBENCPHASE].valid = 1;
 	ProfileStat[PROFILE_INDEX_SPEEXNBDECPHASE].desc = "SPEEX_NB_DecPhase_jbc";
@@ -303,6 +312,10 @@ int ProfileInit( void )
 	ProfileStat[PROFILE_INDEX_G7111WBENCPHASE].valid = 1;
 	ProfileStat[PROFILE_INDEX_G7111WBDECPHASE].desc = "G7111WBDecPhase";
 	ProfileStat[PROFILE_INDEX_G7111WBDECPHASE].valid = 1;
+	ProfileStat[PROFILE_INDEX_G7222ENCPHASE].desc = "G722.2(AMR-WB)EncPhase";
+	ProfileStat[PROFILE_INDEX_G7222ENCPHASE].valid = 1;
+	ProfileStat[PROFILE_INDEX_G7222DECPHASE].desc = "G722.2(AMR-WB)DecPhase";
+	ProfileStat[PROFILE_INDEX_G7222DECPHASE].valid = 1;
 
 
 	

@@ -13,6 +13,9 @@
 #ifndef _8188E_REG_H_
 #define _8188E_REG_H_
 
+#ifndef WLAN_HAL_INTERNAL_USED
+
+
 //============================================================
 //       8188E Regsiter offset definition
 //============================================================
@@ -41,6 +44,8 @@
 #define		REG_88E_EFUSE_DATA1			0xCC
 #define		REG_88E_EFUSE_DATA0			0xCD
 #define		REG_88E_EPPR					0xCF
+#define		REG_88E_TXDMA_TH				0x218
+#define		REG_88E_LQ_TH					0x21C
 
 #define		REG_88E_WATCHDOG				0x368
 
@@ -269,6 +274,8 @@
 #define REG_GPIO_OUTSTS					0x00F4	// For RTL8723 only.
 #define REG_TYPE_ID						0x00FC	
 
+#define REG_32K_CTRL					0x0194 //RTL8188E
+
 #define		rConfig_AntA 				0xb68
 #define		rConfig_AntB 				0xb6c
 
@@ -362,6 +369,13 @@
 
 
 //----------------------------------------------------------------------------
+//       8188E REG_EFUSE_ACCESS			(Offset 0xCF, 8 bits)
+//----------------------------------------------------------------------------
+#define EFUSE_ACCESS_ON			0x69	// For RTL8723 only.
+#define EFUSE_ACCESS_OFF			0x00	// For RTL8723 only.
+
+
+//----------------------------------------------------------------------------
 //       8188E REG_88E_WATCHDOG bits				(Offset 0x368-369, 16 bits)
 //----------------------------------------------------------------------------
 #define	WATCHDOG_88E_ENABLE					BIT(15)		// Enable lbc timeout watchdog
@@ -438,6 +452,192 @@
 #define	TX_STS_INF_88E_TX_STS_TPY_INF_SHIFT		0
 #define	TX_STS_INF_88E_TX_STS_TPY_INF_Mask		0x3
 
+
+//----------------------------------------------------------------------------
+//       8192C EEPROM/EFUSE share register definition.
+//----------------------------------------------------------------------------
+
+//====================================================
+//			EEPROM/Efuse PG Offset for 88EE/88EU/88ES
+//====================================================
+#define	EEPROM_TX_PWR_INX_88E				0x10
+
+#define	EEPROM_ChannelPlan_88E				0xB8
+#define	EEPROM_XTAL_88E						0xB9
+#define	EEPROM_THERMAL_METER_88E			0xBA
+#define	EEPROM_IQK_LCK_88E					0xBB
+
+#define	EEPROM_RF_BOARD_OPTION_88E			0xC1
+#define	EEPROM_RF_FEATURE_OPTION_88E		0xC2
+#define	EEPROM_RF_BT_SETTING_88E				0xC3
+#define	EEPROM_VERSION_88E					0xC4
+#define	EEPROM_CUSTOMERID_88E				0xC5
+#define	EEPROM_RF_ANTENNA_OPT_88E			0xC9
+
+// RTL88EE
+#define	EEPROM_MAC_ADDR_88EE				0xD0
+#define	EEPROM_VID_88EE						0xD6
+#define	EEPROM_DID_88EE						0xD8
+#define	EEPROM_SVID_88EE						0xDA
+#define	EEPROM_SMID_88EE						0xDC
+
+//RTL88EU
+#define	EEPROM_MAC_ADDR_88EU				0xD7
+#define	EEPROM_VID_88EU						0xD0
+#define	EEPROM_PID_88EU						0xD2
+
+// RTL88ES
+#define	EEPROM_MAC_ADDR_88ES				0x11A
+
+
+//-----------------------------------------------------
+//
+//	RTL8188E SDIO Configuration
+//
+//-----------------------------------------------------
+
+// I/O bus domain address mapping
+#define SDIO_LOCAL_BASE				0x10250000
+#define WLAN_IOREG_BASE				0x10260000
+#define FIRMWARE_FIFO_BASE			0x10270000
+#define TX_HIQ_BASE				0x10310000
+#define TX_MIQ_BASE				0x10320000
+#define TX_LOQ_BASE				0x10330000
+#define RX_RX0FF_BASE				0x10340000
+
+// SDIO host local register space mapping.
+#define SDIO_LOCAL_MSK				0x0FFF
+#define WLAN_IOREG_MSK				0x7FFF
+#define WLAN_FIFO_MSK		      		0x1FFF	// Aggregation Length[12:0]
+#define WLAN_RX0FF_MSK			      	0x0003
+
+#define SDIO_WITHOUT_REF_DEVICE_ID		0	// Without reference to the SDIO Device ID
+#define SDIO_LOCAL_DEVICE_ID			0	// 0b[16], 000b[15:13]
+#define WLAN_TX_HIQ_DEVICE_ID			4	// 0b[16], 100b[15:13]
+#define WLAN_TX_MIQ_DEVICE_ID			5	// 0b[16], 101b[15:13]
+#define WLAN_TX_LOQ_DEVICE_ID			6	// 0b[16], 110b[15:13]
+#define WLAN_RX0FF_DEVICE_ID			7	// 0b[16], 111b[15:13]
+#define WLAN_IOREG_DEVICE_ID			8	// 1b[16]
+
+// SDIO Tx Free Page Index
+#define HI_QUEUE_IDX				0
+#define MID_QUEUE_IDX				1
+#define LOW_QUEUE_IDX				2
+#define PUBLIC_QUEUE_IDX			3
+
+#define SDIO_MAX_TX_QUEUE			3		// HIQ, MIQ and LOQ
+#define SDIO_MAX_RX_QUEUE			1
+
+#define SDIO_REG_TX_CTRL			0x0000 // SDIO Tx Control
+#define SDIO_REG_HIMR				0x0014 // SDIO Host Interrupt Mask
+#define SDIO_REG_HISR				0x0018 // SDIO Host Interrupt Service Routine
+#define SDIO_REG_HCPWM				0x0019 // HCI Current Power Mode
+#define SDIO_REG_RX0_REQ_LEN			0x001C // RXDMA Request Length
+#define SDIO_REG_FREE_TXPG			0x0020 // Free Tx Buffer Page
+#define SDIO_REG_HCPWM1				0x0024 // HCI Current Power Mode 1
+#define SDIO_REG_OQT_FREE_SPACE		0x0025 // OQT Free Space
+#define SDIO_REG_HCPWM2				0x0026 // HCI Current Power Mode 2
+#define SDIO_REG_HTSFR_INFO			0x0030 // HTSF Informaion
+#define SDIO_REG_HRPWM1				0x0080 // HCI Request Power Mode 1
+#define SDIO_REG_HRPWM2				0x0082 // HCI Request Power Mode 2
+#define SDIO_REG_HPS_CLKR			0x0084 // HCI Power Save Clock
+#define SDIO_REG_HSUS_CTRL			0x0086 // SDIO HCI Suspend Control
+#define SDIO_REG_HIMR_ON			0x0090 // SDIO Host Extension Interrupt Mask Always
+#define SDIO_REG_HISR_ON			0x0091 // SDIO Host Extension Interrupt Status Always
+
+#define SDIO_HIMR_DISABLED			0
+
+// RTL8188E SDIO Host Interrupt Mask Register
+#define SDIO_HIMR_RX_REQUEST_MSK		BIT0
+#define SDIO_HIMR_AVAL_MSK			BIT1
+#define SDIO_HIMR_TXERR_MSK			BIT2
+#define SDIO_HIMR_RXERR_MSK			BIT3
+#define SDIO_HIMR_TXFOVW_MSK			BIT4
+#define SDIO_HIMR_RXFOVW_MSK			BIT5
+#define SDIO_HIMR_TXBCNOK_MSK			BIT6
+#define SDIO_HIMR_TXBCNERR_MSK			BIT7
+#define SDIO_HIMR_BCNERLY_INT_MSK		BIT16
+#define SDIO_HIMR_C2HCMD_MSK			BIT17
+#define SDIO_HIMR_CPWM1_MSK			BIT18
+#define SDIO_HIMR_CPWM2_MSK			BIT19
+#define SDIO_HIMR_HSISR_IND_MSK			BIT20
+#define SDIO_HIMR_GTINT3_IND_MSK		BIT21
+#define SDIO_HIMR_GTINT4_IND_MSK		BIT22
+#define SDIO_HIMR_PSTIMEOUT_MSK			BIT23
+#define SDIO_HIMR_OCPINT_MSK			BIT24
+#define SDIO_HIMR_ATIMEND_MSK			BIT25
+#define SDIO_HIMR_ATIMEND_E_MSK			BIT26
+#define SDIO_HIMR_CTWEND_MSK			BIT27
+
+//RTL8188E SDIO Specific
+#define	SDIO_HIMR_MCU_ERR_MSK			BIT28
+#define	SDIO_HIMR_TSF_BIT32_TOGGLE_MSK	BIT29
+
+// SDIO Host Interrupt Service Routine
+#define SDIO_HISR_RX_REQUEST			BIT0
+#define SDIO_HISR_AVAL				BIT1
+#define SDIO_HISR_TXERR				BIT2
+#define SDIO_HISR_RXERR				BIT3
+#define SDIO_HISR_TXFOVW			BIT4
+#define SDIO_HISR_RXFOVW			BIT5
+#define SDIO_HISR_TXBCNOK			BIT6
+#define SDIO_HISR_TXBCNERR			BIT7
+#define SDIO_HISR_BCNERLY_INT			BIT16
+#define SDIO_HISR_C2HCMD			BIT17
+#define SDIO_HISR_CPWM1				BIT18
+#define SDIO_HISR_CPWM2				BIT19
+#define SDIO_HISR_HSISR_IND			BIT20
+#define SDIO_HISR_GTINT3_IND			BIT21
+#define SDIO_HISR_GTINT4_IND			BIT22
+#define SDIO_HISR_PSTIMEOUT			BIT23
+#define SDIO_HISR_OCPINT			BIT24
+#define SDIO_HISR_ATIMEND			BIT25
+#define SDIO_HISR_ATIMEND_E			BIT26
+#define SDIO_HISR_CTWEND			BIT27
+
+//RTL8188E SDIO Specific
+#define	SDIO_HISR_MCU_ERR					BIT28
+#define	SDIO_HISR_TSF_BIT32_TOGGLE		BIT29
+
+#define MASK_SDIO_HISR_CLEAR		(SDIO_HISR_TXERR |\
+									SDIO_HISR_RXERR |\
+									SDIO_HISR_TXFOVW |\
+									SDIO_HISR_RXFOVW |\
+									SDIO_HISR_TXBCNOK |\
+									SDIO_HISR_TXBCNERR |\
+									SDIO_HISR_C2HCMD |\
+									SDIO_HISR_CPWM1 |\
+									SDIO_HISR_CPWM2 |\
+									SDIO_HISR_HSISR_IND |\
+									SDIO_HISR_GTINT3_IND |\
+									SDIO_HISR_GTINT4_IND |\
+									SDIO_HISR_PSTIMEOUT |\
+									SDIO_HISR_OCPINT)
+
+// SDIO HCI Suspend Control Register
+#define HCI_RESUME_PWR_RDY			BIT1
+#define HCI_SUS_CTRL				BIT0
+
+// SDIO Tx FIFO related
+#define SDIO_TX_FREE_PG_QUEUE			4	// The number of Tx FIFO free page
+#define SDIO_TX_FIFO_PAGE_SZ 			128
+
+//-----------------------------------------------------
+//
+//	0xFE00h ~ 0xFE55h	USB Configuration
+//
+//-----------------------------------------------------
+
+//2 Special Option
+// 0; Use interrupt endpoint to upload interrupt pkt
+// 1; Use bulk endpoint to upload interrupt pkt,
+#define INT_BULK_SEL					BIT(4)
+
+//========================================================
+// General definitions
+//========================================================
+
+#define LAST_ENTRY_OF_TX_PKT_BUFFER_88E		176 // 22k 22528 bytes
 
 #ifdef USE_OUT_SRC
 
@@ -1567,6 +1767,7 @@
 /*--------------------------Define Parameters-------------------------------*/
 #endif
 
+#endif //#ifndef WLAN_HAL_INTERNAL_USED
 
 #endif
 

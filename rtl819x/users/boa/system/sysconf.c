@@ -39,13 +39,23 @@ extern int Init_Internet(int argc, char** argv);
 extern int setbridge(char *argv);
 extern int setFirewallIptablesRules(int argc, char** argv);
 extern int setWlan_Applications(char *action, char *argv);
+
+#if defined(CONFIG_APP_TR069)
+extern void start_tr069(void);
+#endif
+
 #ifdef MULTI_PPPOE
 extern void wan_disconnect(char *option , char *conncetOrder);
 #else
 extern void wan_disconnect(char *option);
 #endif
-extern int wan_dhcpcNeedRenewConn(char *interface, char *option);
+extern int dhcpcNeedRenewConn(char *interface, char *option);
 extern void wan_connect(char *interface, char *option);
+extern void lan_connect(char *interface, char *option);
+
+#ifdef CONFIG_IPV6
+extern void ppp_connect_ipv6(char *ifname, char *option);
+#endif
 
 extern int Init_QoS(int argc, char** argv);
 extern void start_lan_dhcpd(char *interface);
@@ -274,8 +284,11 @@ int switchFromClientMode(void)
 			sprintf(wlanif, "wlan%d",i);
 			if(SetWlan_idx(wlanif))
 			{
-				
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_92D_DMDP) && !defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)	
 				intVal = DMACDPHY;
+#else
+				intVal = SMACSPHY;
+#endif
 				apmib_set(MIB_WLAN_MAC_PHY_MODE, (void *)&intVal);
 				intVal = 0;
 				apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
@@ -581,15 +594,69 @@ extern int ulinker_bootup(void);
 extern int ulinker_wlan_init(void);
 #endif /* #if defined(CONFIG_RTL_ULINKER)  */
 
+///***************************************
+// to decide whether should reconn dhcp
+//***************************************/
+int dhcpcNeedRenewConn(char *interface, char *option)
+{
+	FILE *fp=NULL;
+	char *filename=NULL;
+	char pre_dhcp_info[256];
+	memset(pre_dhcp_info, 0, sizeof(pre_dhcp_info));
+	
+	if(strcmp(interface, "br0")==0)
+		filename=PREVIOUS_LAN_DHCP_INFO;
+	else
+		filename=PREVIOUS_WAN_DHCP_INFO;
+	if((fp = fopen(filename,"r")) != NULL)
+	{
+		fgets(pre_dhcp_info, sizeof(pre_dhcp_info), fp);
+		pre_dhcp_info[strlen(pre_dhcp_info)-1]=0;
+		fclose(fp);
+		
+		if(strcmp(pre_dhcp_info, option)==0)
+			return 0;
+		else
+			return 1;
+	}
+	return 0;
+}
+int sysconf_lock(int fd, struct  flock lock)
+{
+	int ret;
+        lock.l_type = F_WRLCK;
+        lock.l_start = 0;
+        lock.l_len = 0;
+        lock.l_whence = SEEK_SET;
+try_again:
+	ret=fcntl(fd,F_SETLKW,&lock);
 
+     	if(ret == -1) {
+			
+		printf("errno:%d\n",errno);
+		if (errno == EINTR) {
+			printf("try again\n");
+			goto try_again;
+		}
+	}
+		
+}
+
+int sysconf_unlock(int fd, struct  flock lock)
+{
+	
+
+	close(fd);
+}
 int main(int argc, char** argv)
 {
 	char	line[300];
 	char action[16];
 	int i;
+	int wan_type=0;
+	int lan_type=0;
 	//printf("start.......:%s\n",argv[1]);
-    #if 0
-    if(strcmp(argv[1],"firewall"))
+#if 1   
 {
     printf("******************\n");
     for(i=0;i<argc;i++)
@@ -598,9 +665,14 @@ int main(int argc, char** argv)
     }
     printf("\n***************\n");
  }
-   #endif	
-	
-	
+   #endif
+	 struct  flock lock;
+	  int fd;
+        fd = open("/tmp/lock", O_RDWR|O_CREAT|O_TRUNC);
+	  if(fd < 0)
+	  {
+	  	printf("create file lock erro\n");
+	  }
 	if ( !apmib_init()) {
 		printf("Initialize AP MIB failed !\n");
 		return -1;
@@ -608,7 +680,11 @@ int main(int argc, char** argv)
 	apmib_initialized = 1;
 	memset(line,0x00,300);
 	
+	apmib_get(MIB_WAN_DHCP, (void *)&wan_type);
+	apmib_get(MIB_DHCP, (void *)&lan_type);
+
 	if(argv[1] && (strcmp(argv[1], "init")==0)){
+		sysconf_lock(fd, lock);
 #if defined(CONFIG_RTL_ULINKER)
   #if defined(CONFIG_RTL_ULINKER_WLAN_DELAY_INIT)
 	int ulinker_auto = 0;
@@ -624,7 +700,6 @@ int main(int argc, char** argv)
 #elif defined(CONFIG_POCKET_ROUTER_SUPPORT)
 	pocketAP_bootup();
 #endif
-
 #ifdef CONFIG_POCKET_AP_SUPPORT
 		i=BRIDGE_MODE;
 		apmib_set(MIB_OP_MODE,(void *)&i);
@@ -640,16 +715,18 @@ int main(int argc, char** argv)
 	if (ulinker_auto == 1)
 		ulinker_wlan_init();
 #endif
+		sysconf_unlock(fd,lock);
 		return 0;
 	} else if(argv[1] && (strcmp(argv[1], "br")==0)){
 		for(i=0;i<argc;i++){
 			if( i>2 )
 				string_casecade(line, argv[i]);
 		}
-		setbridge(line);
+		setbridge(line);		
 	}
 #ifdef   HOME_GATEWAY	
-	else if(argv[1] && (strcmp(argv[1], "firewall")==0)){		
+	else if(argv[1] && (strcmp(argv[1], "firewall")==0)){
+		
 		if(argv[2] && (strcmp(argv[2], "Send_GARP")==0))	//it will be call by set_staticIP function
 		{
 			#ifdef SEND_GRATUITOUS_ARP
@@ -659,7 +736,7 @@ int main(int argc, char** argv)
 		else
 		{
 			setFirewallIptablesRules(argc,argv);
-		}
+		}		
 	}
 	else if(argv[1] && (strcmp(argv[1], "wlanapp")==0)){
 		for(i=0;i<argc;i++){
@@ -679,9 +756,10 @@ int main(int argc, char** argv)
 #else
 		wan_disconnect(line);
 #endif
-	}else if(argv[1] && 
-		((strcmp(argv[1], "conn")==0)||(strcmp(argv[1], "renew")==0))){
+	}else if(argv[1] && (argc>=3 && strcmp(argv[3],"br0")!=0) &&
+		((strcmp(argv[1], "conn")==0)||((strcmp(argv[1], "renew")==0) && (wan_type == DHCP_CLIENT)))){
 		
+		sysconf_lock(fd,lock);
 		if(argc < 4){
 			printf("sysconf conn Invalid agrments!\n");
 			return 0;
@@ -691,10 +769,13 @@ int main(int argc, char** argv)
 				if( i>2 )
 					string_casecade(line, argv[i]);
 			}
-		if((strcmp(argv[1], "renew")==0)&&!strcmp(argv[2],"dhcp") &&!wan_dhcpcNeedRenewConn(action,line))
-		{
+		if((strcmp(argv[1], "renew")==0)&&!strcmp(argv[2],"dhcp") &&!dhcpcNeedRenewConn(action,line))
+		{	
+			sysconf_unlock(fd,lock);
 			return 0;
 		}
+		if(wan_type==DHCP_CLIENT && (!strcmp(argv[2], "dhcp")))
+			RunSystemCmd(PREVIOUS_WAN_DHCP_INFO, "echo", line, NULL_STR);
 			
 #if defined(CONFIG_DYNAMIC_WAN_IP)
 		if((!strcmp(argv[2], "dhcp"))&&(isFileExist(TEMP_WAN_CHECK))){
@@ -715,7 +796,30 @@ int main(int argc, char** argv)
 #else
 		wan_connect(action, line);
 #endif
-	}else if(argv[1] && (strcmp(argv[1], "pppoe")==0)){
+		sysconf_unlock(fd,lock);
+
+#ifdef CONFIG_IPV6
+	extern void set_6to4tunnel();
+	extern void set_radvd();
+	set_6to4tunnel();
+	set_radvd();
+#endif
+	}
+#ifdef CONFIG_IPV6
+	else if(argv[1] && (strcmp(argv[1], "ipv6cp")==0)){ 	
+		if(argc < 4){
+			printf("sysconf ipv6cp Invalid agrments:%d!\n",argc);
+			return 0;
+		}
+		sprintf(action, "%s","ppp0");
+		for(i=0;i<argc;i++){			
+			if( i>2 )
+				string_casecade(line, argv[i]);
+		}		
+		ppp_connect_ipv6(action,line);
+	}
+#endif
+	else if(argv[1] && (strcmp(argv[1], "pppoe")==0)){
 		Init_Internet(argc,argv);
 	}else if(argv[1] && (strcmp(argv[1], "pptp")==0)){
 		Init_Internet(argc,argv);
@@ -737,6 +841,10 @@ int main(int argc, char** argv)
 	} 
 #endif	
 
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	else if(argv[1] && (strcmp(argv[1], "check_l2tp_status")==0))
+		check_l2tp_status();
+#endif
 //### add by sen_liu 2011.4.21 sync the system log update (enlarge from 1 pcs to 8 pcs) to	SDKv2.5 from kernel 2.4
 #if defined(RINGLOG)
 	else if(argv[1] && (strcmp(argv[1], "log")==0)){
@@ -766,9 +874,51 @@ int main(int argc, char** argv)
 	}
 #endif
 //### end
+//add for start tr069 when system is boot
+#if defined(CONFIG_APP_TR069)
+	else if(argv[1] && (strcmp(argv[1], "tr069")==0)){
+		start_tr069();
+	}
 	
 #endif	
+#endif	//HOME_GATEWAY
+	else if(argv[1] && 
+		((strcmp(argv[1], "conn")==0)||((strcmp(argv[1], "renew")==0) && (lan_type == DHCP_CLIENT))))
+	{//conn/renew dhcp br0 [IP] [mask] [GW]
 	
+		sysconf_lock(fd,lock);
+		if(argc < 4 || strcmp(argv[3],"br0")!=0){
+			printf("sysconf conn Invalid agrments!\n");
+			return 0;
+		}
+		sprintf(action, "%s",argv[3]);
+		for(i=0;i<argc;i++){
+				if( i>2 )
+					string_casecade(line, argv[i]);
+			}
+#if 1
+		if((strcmp(argv[1], "renew")==0)&&!strcmp(argv[2],"dhcp") &&!dhcpcNeedRenewConn(action,line))
+		{
+			return 0;
+		}
+#endif
+		if(lan_type==DHCP_CLIENT && (!strcmp(argv[2], "dhcp")))
+			RunSystemCmd(PREVIOUS_LAN_DHCP_INFO, "echo", line, NULL_STR);
+		
+#if defined(CONFIG_RTL_ULINKER)
+		/* notice ulinker_process to reset domain name query */
+		system("echo 1 > /var/ulinker_reset_domain");
+#endif
+		lan_connect(action, line);
+		sysconf_unlock(fd,lock);
+	}
+#ifdef CONFIG_IPV6
+	else if(argv[1] && (strcmp(argv[1],"dhcp6c_get")==0))
+	{
+		checkDhcp6pd();
+		checkDnsv6();
+	}
+#endif
 //#ifdef CONFIG_POCKET_ROUTER_SUPPORT
 //	system("boa");
 //#endif		

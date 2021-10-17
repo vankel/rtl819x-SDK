@@ -455,10 +455,13 @@ int translate_uri(request * req)
             boa_perror(req, "Could not strdup req->request_uri for req->script_name.");
             return 0;
         }
-        if (req->http_version == HTTP09)
+		
+        if (req->http_version == HTTP09
+			|| strncmp("nph-", req->pathname+5, 4) == 0)
             req->cgi_type = NPH;
         else
             req->cgi_type = CGI;
+
         return 1;
     } else if (req->method == M_POST) { /* POST to non-script */
 #ifdef SUPPORT_ASP

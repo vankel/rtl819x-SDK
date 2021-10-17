@@ -42,6 +42,10 @@ struct qos_cmd_info_s{
 			unsigned int portmask;
 			unsigned int queuemask;
 		}queue_rate;
+		struct{
+			unsigned int portmask;
+			unsigned short apr[8];
+		}port_rate;
 	} qos_data;
 };
 
@@ -70,6 +74,8 @@ struct qos_cmd_info_s{
 #define FLOW_CONTROL_ENABLE 23
 #define FLOW_CONTROL_DISABLE 24
 #define FLOW_CONTROL_CONFIGURATION_SHOW 25
+#define PORT_RATE 26
+#define PORT_RATE_SHOW 27
 
 
 int rtk_hw_qos_parse(int _num, char* _param[]);

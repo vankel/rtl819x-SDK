@@ -1,0 +1,1 @@
+cmd_/tmp/include/linux/can/.install := perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/linux/can /tmp/include/linux/can rlx bcm.h error.h raw.h; perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/linux/can /tmp/include/linux/can rlx ; touch /tmp/include/linux/can/.install

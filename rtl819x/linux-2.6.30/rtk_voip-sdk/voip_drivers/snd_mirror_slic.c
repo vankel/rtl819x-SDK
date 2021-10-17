@@ -8,6 +8,21 @@
 
 #include "snd_mirror_define.h"
 
+/* mirror has two types: 
+ * - type 1: Support context + RPC, so it can do not only storing real SLIC
+ *           context but also RPC to real SLIC. 
+ * - type 2: Support context only, so it is normally used to be a 'fake' SLIC. 
+ */        
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+#define MIRROR_SLIC_TYPE	1
+#else
+#define MIRROR_SLIC_TYPE	2
+#endif
+#else
+#define MIRROR_SLIC_TYPE	2
+#endif
+
 static mirror_slic_priv_t mirror_slic_priv[ CONFIG_RTK_VOIP_DRIVERS_MIRROR_SLIC_NR ];
 static voip_snd_t snd_mirror_slic[ CONFIG_RTK_VOIP_DRIVERS_MIRROR_SLIC_NR ];
 
@@ -51,7 +66,7 @@ static void SLIC_reset_mirror_slic( voip_snd_t *this, int codec_law )
 
 static void FXS_Ring_mirror_slic( voip_snd_t *this, unsigned char ringset )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_SLIC_TYPE == 1
 	mirror_slic_priv_t * const priv = ( mirror_slic_priv_t * )this ->priv;
 	DECLARE_SLIC_RPC_VARS( FXS_Ring, sizeof( ringset ) );
 	
@@ -96,6 +111,42 @@ static unsigned char SLIC_Get_Hook_Status_mirror_slic( voip_snd_t *this, int dir
 	
 	return ( unsigned char )priv ->hook_status;
 }
+
+static void SLIC_Set_Power_Save_Mode_mirror_slic(voip_snd_t *this)
+{
+#if MIRROR_SLIC_TYPE == 1
+	DECLARE_SLIC_RPC_VARS( SLIC_Set_Power_Save_Mode, 0 );
+	
+	*( ( int * )p_data ) = *( ( int * )p_data );	// avoid compiler warning
+	
+	p_con ->con_ops ->ipc_rpc_request( p_con, IPC_RPC_SLIC, content, sizeof( content ) );
+
+#else
+	PRINT_Y_LV1( "SLIC_Set_Power_Save_Mode_mirror_slic\n" );
+#endif
+}
+
+/* state: 
+	0: line in-active state
+	1: line active state
+	2: power save state
+	3: OHT
+	4: OHT polrev
+	5: Ring
+*/
+static void SLIC_Set_FXS_Line_State_mirror_slic(voip_snd_t *this, int state)
+{
+#if MIRROR_SLIC_TYPE == 1
+	DECLARE_SLIC_RPC_VARS( SLIC_Set_FXS_Line_State, sizeof(state) );
+	
+	*( ( unsigned char * )p_data ) = state;
+	
+	p_con ->con_ops ->ipc_rpc_request( p_con, IPC_RPC_SLIC, content, sizeof( content ) );
+
+#else
+	PRINT_Y_LV1( "SLIC_Set_FXS_Line_State_mirror_slic\n" );
+#endif
+}
 	
 static void Set_SLIC_Tx_Gain_mirror_slic( voip_snd_t *this, int tx_gain )
 {
@@ -112,6 +163,13 @@ static void SLIC_Set_Ring_Cadence_mirror_slic( voip_snd_t *this, unsigned short 
 	// Host will do this and forward to DSP 
 	
 	PRINT_Y_LV2( "SLIC_Set_Ring_Cadence_mirror_slic\n" );
+}
+
+static void SLIC_Set_Multi_Ring_Cadence_mirror_slic( voip_snd_t *this, unsigned short OnMsec1, unsigned short OffMsec1, unsigned short OnMsec2, unsigned short OffMsec2, unsigned short OnMsec3, unsigned short OffMsec3, unsigned short OnMsec4, unsigned short OffMsec4 )
+{
+	// Host will do this and forward to DSP 
+	
+	PRINT_Y_LV2( "SLIC_Set_Multi_Ring_Cadence_mirror_slic\n" );
 }
 
 static void SLIC_Set_Ring_Freq_Amp_mirror_slic( voip_snd_t *this, char preset )
@@ -133,7 +191,7 @@ static void SLIC_Set_Impendance_mirror_slic( voip_snd_t *this, unsigned short pr
 
 static void OnHookLineReversal_mirror_slic( voip_snd_t *this, unsigned char bReversal ) //0: Forward On-Hook Transmission, 1: Reverse On-Hook Transmission
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_SLIC_TYPE == 1
 	DECLARE_SLIC_RPC_VARS( OnHookLineReversal, sizeof( bReversal ) );
 	
 	*( ( unsigned char * )p_data ) = bReversal;
@@ -152,7 +210,7 @@ static void SLIC_Set_LineVoltageZero_mirror_slic( voip_snd_t *this )
 
 static uint8 SLIC_CPC_Gen_mirror_slic( voip_snd_t *this )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_SLIC_TYPE == 1
 	DECLARE_SLIC_RPC_VARS( SLIC_CPC_Gen, 0 );
 	
 	*( ( int * )p_data ) = *( ( int * )p_data );	// avoid compiler warning 
@@ -168,7 +226,7 @@ static uint8 SLIC_CPC_Gen_mirror_slic( voip_snd_t *this )
 
 static void SLIC_CPC_Check_mirror_slic( voip_snd_t *this, uint8 pre_linefeed )	// check in timer
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_SLIC_TYPE == 1
 	DECLARE_SLIC_RPC_VARS( SLIC_CPC_Check, sizeof( pre_linefeed ) );
 	
 	*( ( uint8 * )p_data ) = pre_linefeed;
@@ -183,7 +241,7 @@ static void SLIC_CPC_Check_mirror_slic( voip_snd_t *this, uint8 pre_linefeed )	/
 	
 static void SendNTTCAR_mirror_slic( voip_snd_t *this )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_SLIC_TYPE == 1
 	mirror_slic_priv_t * const priv = ( mirror_slic_priv_t * )this ->priv;
 	DECLARE_SLIC_RPC_VARS( SendNTTCAR, 0 );
 	
@@ -200,7 +258,7 @@ static void SendNTTCAR_mirror_slic( voip_snd_t *this )
 
 static unsigned int SendNTTCAR_check_mirror_slic( voip_snd_t *this, unsigned long time_out )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_SLIC_TYPE == 1
 	mirror_slic_priv_t * const priv = ( mirror_slic_priv_t * )this ->priv;
 	DECLARE_SLIC_RPC_VARS( SendNTTCAR_check, sizeof( time_out ) );
 	
@@ -240,6 +298,11 @@ static void FXS_FXO_DTx_DRx_Loopback_mirror_slic( voip_snd_t *this, voip_snd_t *
 static void SLIC_OnHookTrans_PCM_start_mirror_slic( voip_snd_t *this )
 {
 	PRINT_Y_LV1( "SLIC_OnHookTrans_PCM_start_mirror_slic\n" );
+}
+
+static void SLIC_set_param_mirror_slic( voip_snd_t *this, unsigned int slic_type, unsigned int param_type, unsigned char* pParam, unsigned int param_size )
+{
+	PRINT_Y_LV1( "SLIC_set_param_mirror_slic\n" );
 }
 
 // read/write register/ram
@@ -317,7 +380,7 @@ static void SLIC_show_ID_mirror_slic( voip_snd_t *this )
 
 static int enable_mirror_slic( voip_snd_t *this, int enable )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_SLIC_TYPE == 1
 	DECLARE_SLIC_RPC_VARS( enable, sizeof( enable ) );
 	
 	*( ( int * )p_data ) = enable;
@@ -346,10 +409,13 @@ static snd_ops_fxs_t snd_mirror_slic_ops = {
 	.FXS_Line_Check = FXS_Line_Check_mirror_slic,	// Note: this API may cause watch dog timeout. Should it disable WTD?
 	.SLIC_Set_PCM_state = SLIC_Set_PCM_state_mirror_slic,
 	.SLIC_Get_Hook_Status = SLIC_Get_Hook_Status_mirror_slic,
+	.SLIC_Set_Power_Save_Mode = SLIC_Set_Power_Save_Mode_mirror_slic,
+	.SLIC_Set_FXS_Line_State = SLIC_Set_FXS_Line_State_mirror_slic,
 	
 	.Set_SLIC_Tx_Gain = Set_SLIC_Tx_Gain_mirror_slic,
 	.Set_SLIC_Rx_Gain = Set_SLIC_Rx_Gain_mirror_slic,
 	.SLIC_Set_Ring_Cadence = SLIC_Set_Ring_Cadence_mirror_slic,
+	.SLIC_Set_Multi_Ring_Cadence = SLIC_Set_Multi_Ring_Cadence_mirror_slic,
 	.SLIC_Set_Ring_Freq_Amp = SLIC_Set_Ring_Freq_Amp_mirror_slic,
 	.SLIC_Set_Impendance_Country = SLIC_Set_Impendance_Country_mirror_slic, 
 	.SLIC_Set_Impendance = SLIC_Set_Impendance_mirror_slic,
@@ -369,6 +435,7 @@ static snd_ops_fxs_t snd_mirror_slic_ops = {
 	
 	.FXS_FXO_DTx_DRx_Loopback = FXS_FXO_DTx_DRx_Loopback_mirror_slic,
 	.SLIC_OnHookTrans_PCM_start = SLIC_OnHookTrans_PCM_start_mirror_slic,
+	.SLIC_set_param = SLIC_set_param_mirror_slic,
 	
 	// read/write register/ram
 	.SLIC_read_reg = SLIC_read_reg_mirror_slic,

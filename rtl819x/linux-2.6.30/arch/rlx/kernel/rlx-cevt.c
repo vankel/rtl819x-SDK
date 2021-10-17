@@ -22,6 +22,7 @@
 #include <linux/interrupt.h>
 
 #include <asm/time.h>
+#include "bspchip.h"
 
 #ifdef CONFIG_RTL_TIMER_ADJUSTMENT
 #include <net/rtl/rtl_types.h>
@@ -150,14 +151,21 @@ static irqreturn_t rlx_timer_interrupt(int irq, void *dev_id)
 
 #if defined(CONFIG_RTL_WTDOG)
     	if (!is_fault){
+#ifdef CONFIG_RTL_8198B
+		REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#else
   #ifdef CONFIG_RTK_VOIP
+#if 0//ndef CONFIG_RTL_WTDOG_SOFTIRQ_KICK
 		extern int bBspWatchdog;
-		
 		*(volatile unsigned long *)(0xB800311c) |= 
 					( bBspWatchdog ? ( 1 << 23 ) : ( ( 1 << 23 ) | ( 0xA5 << 24 ) ) );
+#endif
   #else
+#if 0// ndef CONFIG_RTL_WTDOG_SOFTIRQ_KICK
 		*(volatile unsigned long *)(0xB800311c) |=  1 << 23;
+#endif
   #endif
+#endif
 	}else {
   #ifdef CONFIG_RTK_VOIP
 		// run gdb cause Break instruction exception and call do_bp()
@@ -169,14 +177,18 @@ static irqreturn_t rlx_timer_interrupt(int irq, void *dev_id)
   #endif
 		{
 		// quick fix for warn reboot fail issue
-#if defined(CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
+#if defined(CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD)
 #if !defined(CONFIG_RTL865X_PANAHOST) && !defined(CONFIG_RTL8197B_PANA)
 		extern void force_stop_wlan_hw(void);
 		force_stop_wlan_hw();
 #endif
 #endif
-		local_irq_disable();	
+		local_irq_disable();
+#ifdef CONFIG_RTL_8198B
+		REG32(BSP_WDTCTRLR) = BSP_WDT_ENABLE;
+#else
 		*(volatile unsigned long *)(0xB800311c)=0; /*this is to enable 865xc watch dog reset*/
+#endif
 		for(;;);
 	    }
 	}

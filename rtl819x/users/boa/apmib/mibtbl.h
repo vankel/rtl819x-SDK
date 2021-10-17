@@ -60,7 +60,9 @@ typedef enum {
 		RADVDPREFIX_T,
 		DNSV6_T,
 		DHCPV6S_T,
+		DHCPV6C_T,
 		ADDR6_T,
+		ADDRV6_T,
 		TUNNEL6_T,
 #endif
 #endif
@@ -72,17 +74,27 @@ typedef enum {
 	/* below are table array type */			
 		TABLE_LIST_T,	
 		WLAC_ARRAY_T,
+#ifdef TR181_SUPPORT
+#ifdef CONFIG_IPV6
+		DHCPV6C_SENDOPT_ARRAY_T,
+#endif
+		DNS_CLIENT_SERVER_ARRAY_T,
+#endif
 	DHCPRSVDIP_ARRY_T,	
 #ifdef HOME_GATEWAY
 		PORTFW_ARRAY_T, 
 		IPFILTER_ARRAY_T, 
 		PORTFILTER_ARRAY_T, 
-		MACFILTER_ARRAY_T, 
+		MACFILTER_ARRAY_T,
+		NASFILTER_ARRAY_T, 	
 		URLFILTER_ARRAY_T,
 		TRIGGERPORT_ARRAY_T,
 #ifdef ROUTE_SUPPORT		
 		STATICROUTE_ARRAY_T,
 #endif		
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
+		MAC_REDIRECT_ARRAY_T,
+#endif
 
 #ifdef VPN_SUPPORT
 		IPSECTUNNEL_ARRAY_T,
@@ -102,22 +114,34 @@ typedef enum {
 		MESH_ACL_ARRAY_T,
 //#endif
 	        SCHEDULE_ARRAY_T, 
-#if defined(CONFIG_RTL_8198_AP_ROOT) || defined(HOME_GATEWAY) //defined(VLAN_CONFIG_SUPPORTED) Keith Modify
 #if defined(VLAN_CONFIG_SUPPORTED)
 	        VLANCONFIG_ARRAY_T,
 #endif	        
-#endif	
 
 #ifdef WLAN_PROFILE
 		PROFILE_ARRAY_T,
 #endif
-	     } TYPE_T;
+#ifdef CONFIG_APP_TR069
+#if defined(WLAN_SUPPORT)
+	CWMP_WLANCONF_ARRAY_T,
+#endif
+
+#ifdef CONFIG_APP_CLOUD
+	APP_LOGIN_MAC_TIME_ARRY_T,
+#endif
+
+#endif//#ifdef CONFIG_APP_TR069
+} TYPE_T;
 
 // MIB value, id mapping table
 typedef struct _mib_table_entry mib_table_entry_T;
 struct _mib_table_entry {
 	int id;
+#if defined(CONFIG_RTL_8812_SUPPORT)
+	char name[40];
+#else
 	char name[32];
+#endif
 	TYPE_T type;
 	int offset;
 	int size;

@@ -29,6 +29,7 @@
 #define MCAST_TO_UNICAST
 
 #define IGMP_EXPIRE_TIME (260*HZ)
+#define M2U_DELAY_DELETE_TIME (10*HZ)
 
 #if defined (MCAST_TO_UNICAST)
 #define IPV6_MCAST_TO_UNICAST
@@ -72,7 +73,7 @@ extern int rtk_vlan_support_enable;
 /* Path to usermode spanning tree program */
 #define BR_STP_PROG	"/sbin/bridge-stp"
 
-#if defined (CONFIG_RTK_MESH)
+#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 #define STP_ADDCOST_ETH
 
 #define MESH_PORTAL_EXPIRE 300 //seconds
@@ -82,6 +83,26 @@ extern int rtk_vlan_support_enable;
 #define ETH_CHK_INTVL		(30*HZ)
 #endif
 #endif
+#endif
+
+//#define CONFIG_RTK_GUEST_ZONE
+#ifdef CONFIG_RTK_GUEST_ZONE
+	#define MAX_LOCK_CLIENT		32
+//	#define DEBUG_GUEST_ZONE
+
+	enum ZONE_TYPE {
+		ZONE_TYPE_HOST,
+		ZONE_TYPE_GUEST,
+		ZONE_TYPE_GATEWAY
+	};
+#endif
+
+
+//#define DEBUG_GUEST_ZONE
+#ifdef DEBUG_GUEST_ZONE
+#define GZDEBUG(fmt, args...) panic_printk("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#else
+#define GZDEBUG(fmt, args...) {}
 #endif
 
 typedef struct bridge_id bridge_id;
@@ -173,6 +194,10 @@ struct net_bridge_port
 	struct timer_list		eth_disable_timer;
 #endif
 #endif //CONFIG_RTK_MESH
+
+#ifdef CONFIG_RTK_GUEST_ZONE
+	int	zone_type;	// 0: host zone, 1: guest zone, 2: gateway zone
+#endif
 };
 
 struct net_bridge
@@ -219,9 +244,9 @@ struct net_bridge
 	struct timer_list		topology_change_timer;
 	struct timer_list		gc_timer;
 	struct kobject			*ifobj;
-#if defined (CONFIG_RTK_MESH)
+#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 	//by brian, record pid for dynamic enable portal
-	int mesh_pathsel_pid;
+	int mesh_pathsel_pid[2];
 	int eth0_received;
 
 	int	eth0_monitor_interval;
@@ -239,12 +264,34 @@ struct net_bridge
 
 #endif //CONFIG_RTK_MESH
 
+#ifdef CONFIG_RTK_GUEST_ZONE
+	int	is_guest_isolated;	// isolate guest when 1
+	int	is_zone_isolated;	// isolate host and guest zone when 1
+	int	lock_client_num;
+	unsigned char lock_client_list[MAX_LOCK_CLIENT][6];
+	int gateway_mac_set;
+	unsigned char gateway_mac[6];
+#endif
+
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
 	int igmpProxy_pid;
 	struct timer_list	mCastQuerytimer;
 #endif
 };
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+#if defined (CONFIG_RTL_IGMP_SNOOPING)
 
+struct igmg_register_info
+{
+	unsigned int valid;
+	unsigned int moduleIndex;
+	unsigned int swFwdPortMask;
+	struct net_bridge *br;
+	//char name[16];
+};
+
+#endif
+#endif
 extern struct notifier_block br_device_notifier;
 extern const u8 br_group_address[ETH_ALEN];
 
@@ -272,8 +319,17 @@ extern struct net_bridge_fdb_entry *__br_fdb_get(struct net_bridge *br,
 extern struct net_bridge_fdb_entry *br_fdb_get(struct net_bridge *br,
 					       unsigned char *addr);
 extern void br_fdb_put(struct net_bridge_fdb_entry *ent);
+#ifdef CONFIG_RTK_GUEST_ZONE
+extern int br_fdb_fillbuf(struct net_bridge *br, void *buf,
+			  unsigned long count, unsigned long off, int for_guest);
+#else
 extern int br_fdb_fillbuf(struct net_bridge *br, void *buf,
 			  unsigned long count, unsigned long off);
+#endif
+
+#ifdef A4_STA
+extern struct net_bridge_fdb_entry *fdb_find_for_driver(struct net_bridge *br, const unsigned char *addr);
+#endif
 extern int br_fdb_insert(struct net_bridge *br,
 			 struct net_bridge_port *source,
 			 const unsigned char *addr);

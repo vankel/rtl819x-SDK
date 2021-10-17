@@ -1,0 +1,71 @@
+libc/sysdeps/linux/common/mprotect.os: \
+ libc/sysdeps/linux/common/mprotect.c include/libc-symbols.h \
+ include/bits/uClibc_arch_features.h include/sys/syscall.h \
+ include/features.h include/bits/uClibc_config.h include/sys/cdefs.h \
+ include/libc-internal.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h \
+ include/bits/stackinfo.h include/bits/sysnum.h include/bits/syscalls.h \
+ include/sgidefs.h include/errno.h include/bits/errno.h \
+ ../kernel/linux/errno.h ../kernel/asm/errno.h \
+ ../kernel/asm-generic/errno-base.h include/bits/uClibc_errno.h \
+ libpthread/linuxthreads/sysdeps/rlx/tls.h include/alloca.h \
+ include/sys/mman.h include/bits/types.h include/bits/wordsize.h \
+ include/bits/kernel_types.h include/bits/typesizes.h \
+ include/bits/pthreadtypes.h include/bits/sched.h include/bits/mman.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+include/sys/syscall.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/sys/cdefs.h:
+
+include/libc-internal.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h:
+
+include/bits/stackinfo.h:
+
+include/bits/sysnum.h:
+
+include/bits/syscalls.h:
+
+include/sgidefs.h:
+
+include/errno.h:
+
+include/bits/errno.h:
+
+../kernel/linux/errno.h:
+
+../kernel/asm/errno.h:
+
+../kernel/asm-generic/errno-base.h:
+
+include/bits/uClibc_errno.h:
+
+libpthread/linuxthreads/sysdeps/rlx/tls.h:
+
+include/alloca.h:
+
+include/sys/mman.h:
+
+include/bits/types.h:
+
+include/bits/wordsize.h:
+
+include/bits/kernel_types.h:
+
+include/bits/typesizes.h:
+
+include/bits/pthreadtypes.h:
+
+include/bits/sched.h:
+
+include/bits/mman.h:
+cmd_libc_sysdeps_linux_common_mprotect.os := mips-linux-gcc -c libc/sysdeps/linux/common/mprotect.c -o libc/sysdeps/linux/common/mprotect.os -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -fPIC -MT libc/sysdeps/linux/common/mprotect.os -MD -MP -MF libc/sysdeps/linux/common/.mprotect.os.dep

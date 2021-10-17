@@ -472,6 +472,8 @@ struct daemon {
   struct watch *watches;
 #endif
 
+char *wan_ifname;
+
 };
 
 /* cache.c */
@@ -546,7 +548,7 @@ unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
 void server_gone(struct daemon *daemon, struct server *server);
 
 /* network.c */
-struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds);
+struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds, char *wan_ifname);
 int reload_servers(char *fname, struct daemon *daemon);
 void check_servers(struct daemon *daemon);
 int enumerate_interfaces(struct daemon *daemon);

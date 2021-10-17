@@ -432,8 +432,12 @@ char *get_mime_type(const char *filename)
      *  foo. (in which case extension[1] == '\0')
      */
     /* extension[0] *can't* be NIL */
-    if (!extension || extension[1] == '\0')
+    if (!extension || extension[1] == '\0'){
+		if( !extension&& !strncmp(basename(filename), "form", 4) ){
+			return "text/html";
+		}
         return default_type;
+    }
 
     /* make sure we hash on the 'bar' not the '.bar' */
     ++extension;

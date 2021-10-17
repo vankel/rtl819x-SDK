@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include "rtk_voip.h"
 #include "voip_init.h"

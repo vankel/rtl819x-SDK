@@ -1,3 +1,3 @@
 // version header file
 
-static char B_VERSION[]="v0.6"; //Add Dhcp and HTTP.
+static char B_VERSION[]="v1.6a"; //Add Dhcp and HTTP.

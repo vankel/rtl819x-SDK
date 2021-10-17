@@ -77,7 +77,7 @@
 #include <signal.h>
 #include <lease.h>
 
-#define DUID_FILE "/var/dhcp6s_duid"
+#define DUID_FILE "/var/dhcpv6_duid"
 #define DEFAULT_KEYFILE SYSCONFDIR "/dhcp6sctlkey"
 #define DHCP6S_CONF  "/var/dhcp6s.conf"
 #define DHCP6S_PIDFILE "/var/run/dhcp6s.pid"

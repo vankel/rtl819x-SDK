@@ -181,7 +181,7 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 	dev_txrx = (TxRx_Params * ) malloc ( sizeof(TxRx_Params) );
 
 	memcpy( dev_txrx->oursvr_addr, oursvr_addr, ETHER_ADDRLEN );
-        memcpy( dev_txrx->oursupp_addr, oursupp_addr, ETHER_ADDRLEN );
+	memcpy( dev_txrx->oursupp_addr, oursupp_addr, ETHER_ADDRLEN );
 	memcpy( dev_txrx->svr_addr, svr_addr, ETHER_ADDRLEN );
 
 #ifndef PSK_ONLY
@@ -702,6 +702,11 @@ Global_Params *  lib1x_init_authenticator(Dot1x_Authenticator *auth, TxRx_Params
 
 // Kenny
     //    global->KeyDescriptorVer = key_desc_ver1;
+#ifdef CONFIG_IEEE80211W	
+    if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_BIP)
+		global->KeyDescriptorVer = key_desc_ver3;
+	else 
+#endif	
 	if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_CCMP)
 		global->KeyDescriptorVer = key_desc_ver2;
 	else
@@ -904,6 +909,11 @@ void lib1x_reset_authenticator(Global_Params * global)
 
 //Kenny
 	// global->KeyDescriptorVer = key_desc_ver1;
+#ifdef CONFIG_IEEE80211W	
+	if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_BIP)
+		global->KeyDescriptorVer = key_desc_ver3;
+	else 
+#endif	
 	if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_CCMP)
 		global->KeyDescriptorVer = key_desc_ver2;
 	else

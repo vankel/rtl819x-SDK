@@ -2,6 +2,7 @@
 //
 #include <linux/string.h>
 #include <linux/kernel.h>
+#include <linux/interrupt.h>
 //#include <asm/param.h>
 //#include "si3210init.h"
 #include "fsk.h"
@@ -28,6 +29,8 @@
 #endif
 #include "con_mux.h"
 #include "con_register.h"
+#include "con_ring.h"
+#include "codec_descriptor.h"
 
 unsigned char init ;// this will indicate if there is a missed interrupt
 static timetick_t FirstRingOffTimeOut[DSP_RTK_CH_NUM];
@@ -51,13 +54,18 @@ char fsk_spec_mode=0;	// 0 : Bellcore
 
 #ifdef FSK_TYPE2_ACK_CHECK
 unsigned int fsk_cid_type2_ack[DSP_RTK_CH_NUM] = {0};	// (dch)
+unsigned int fsk_cid_type2_ack_end[DSP_RTK_CH_NUM] = {0};	// (dch)
 #endif
+
+//#define FSK_TYPE2_DEBUG	// for debug dump
+
 
 TstVoipFskClid cid_info[DSP_RTK_CH_NUM];
 
 //unsigned char Voip_ringcfg[PCM_CH_NUM];
 
 extern char fsk_cid_state[DSP_RTK_CH_NUM];//={0};		// for FSK CID (dch)
+extern unsigned char ioctrl_ring_set[];
 
 void fsk_cid_onhook_process_only_dsp( unsigned int chid);
 void fsk_cid_onhook_process( unsigned int chid);
@@ -90,9 +98,9 @@ void dtmf_cid_init(unsigned int chid)
 	dtmf_cid_info[chid].bAuto_Ring = 1;		// default auto Ring
 	dtmf_cid_info[chid].bAuto_SLIC_action = 1;	// default auto SLIC action
 	dtmf_cid_info[chid].bBefore1stRing = 1;		// default before 1st Ring
-	dtmf_cid_info[chid].bAuto_StartEnd = 0;		// default non-auto
-	dtmf_cid_info[chid].start_digit = 'A'-'A';	// default A
-	dtmf_cid_info[chid].end_digit = 'C'-'A';	// default C
+	dtmf_cid_info[chid].bAuto_StartEnd = 1;		// default auto StartEnd
+	dtmf_cid_info[chid].start_digit = DTMF_DIGIT_A;	// default A
+	dtmf_cid_info[chid].end_digit = DTMF_DIGIT_C;	// default C
 	dtmf_cid_info[chid].on_duration = 8;		// default 80 msec
 	dtmf_cid_info[chid].pause_duration = 8;		// default 80 msec
 	dtmf_cid_info[chid].pre_silence_duration = 30;	// default 300 msec
@@ -460,6 +468,8 @@ unsigned int gtype2_delay_after_ack[DSP_RTK_CH_NUM];	/* delay after ack and befo
 unsigned int gtype1_cas_time[DSP_RTK_CH_NUM];		/* */
 unsigned int gtype1_delay_after_cas[DSP_RTK_CH_NUM];
 unsigned int gtype2_waiting_for_ack_time[DSP_RTK_CH_NUM];
+TstEtsiFskRpas gETSI_FSK_Para[DSP_RTK_CH_NUM];
+
 void fsk_cid_process( void )
 {
 	unsigned int chid;
@@ -472,6 +482,8 @@ void fsk_cid_process( void )
 #endif
 	extern uint32 chanInfo_GetTranSessionID(uint32 chid);
 	extern void hc_SetPlayTone(uint32 chid, uint32 sid, uint32 nTone, uint bFlag, uint path);
+	extern const codec_type_desc_t *FindStartTranCodecTypeDesc( uint32 chid );
+	extern const codec_type_desc_t *FindStartRecvCodecTypeDesc( uint32 chid );
 #ifdef FSK_TYPE2_ACK_CHECK
 	#define ACK_WAITING_TIME	20	//unit: 10ms
 	#define FSK2_SEND_DELAY		80	//unit: ms
@@ -499,27 +511,101 @@ void fsk_cid_process( void )
 #ifdef FSK_TYPE2_ACK_CHECK
 			if ((fsk_spec_areas[chid]&7) != FSK_NTT)
 			{
-				if ((cid_info[chid].cid_mode == 1) /*type2*/ && (fsk_cid_process_get_type2_ack[chid] == 0) )
+			#if 1
+				if ((cid_info[chid].cid_mode == 1) /*type2*/ && (fsk_cid_process_get_type2_ack[chid] == 0) 
+						&& (cid_info[chid].cid_complete == 0))
+		     	#else
+				if ((cid_info[chid].cid_mode == 1) /*type2*/ && (fsk_cid_process_get_type2_ack[chid] == 0) )								
+			#endif					
 				{
 					/*** th: wait 100ms for check type2 ack ***/
 					if ((check_type2_ack[chid] == 0) && (wait_ack[chid] == 0))
 					{
 						check_cnt[chid] = timetick;
+						
+						#ifdef FSK_TYPE2_DEBUG
+						printk("\n\n!!! check_cnt=%d %d\n",check_cnt[chid],gtype2_ack_waiting_time[chid]);
+						#endif
 						wait_ack[chid] = 1;
-						//printk("%d ", check_cnt[chid]);
+						//PRINT_MSG("->%d ", check_cnt[chid]);
 					}
-		
+
 					//if ((jiffies - check_cnt[chid]) > ACK_WAITING_TIME)
 					//if ((jiffies - check_cnt[chid]) > (gtype2_ack_waiting_time[chid]/10))
-					if ((timetick - check_cnt[chid]) > (gtype2_ack_waiting_time[chid]))
+					//if ((timetick - check_cnt[chid]) > (gtype2_ack_waiting_time[chid]))
+					if (timetick_after_eq( (timetick-check_cnt[chid]), gtype2_ack_waiting_time[chid] ))
 					{
-						check_type2_ack[chid] = 1;
+						#ifdef FSK_TYPE2_DEBUG
+						printk("timetick=%d %d > %d\n", 
+							timetick, (timetick-check_cnt[chid]), gtype2_ack_waiting_time[chid]);
+						printk("check_type2_ack=%d wait_ack=%d cid_complete=%d\n",
+							check_type2_ack[chid],wait_ack[chid], cid_info[chid].cid_complete);
+						#endif							
+						check_type2_ack[chid] = 1;	// no ack
 						check_cnt[chid] = 0;
 						wait_ack[chid] = 0;
-						//printk("check_type2_ack[%d] = %d\n", chid, check_type2_ack[chid]);
 					}
 					/*******************************************/
-	
+#if 1 // modified
+					if (fsk_cid_type2_ack[chid] == 1)
+					{
+						/**  Get ACK from phone,   **/
+						check_type2_ack[chid] = 0;
+						if (fsk_cid_type2_ack_end[chid] == 1)
+						{
+							fsk_cid_process_get_type2_ack[chid] = 1;
+
+							// The time between TE-ACK recognition and the start of FSK modulation transmission
+							/* Thlin: There are PCM TX/RX delay ~ 20ms, and ACK end detection delay ~ 30-40ms.
+							 * Totoally around 50-60 ms delay. If real ACK to FSK delay on RJ-11 is 80ms,
+							 * for sofware DSP delay should be 80 - (50 or 60) ms.
+							 */
+							//fsk2_send_dealy[chid] = timetick + gtype2_delay_after_ack[chid] - 90;	// unit: ms
+							if ( (gtype2_delay_after_ack[chid] - 50) >= 0 )
+								fsk2_send_dealy[chid] = timetick + (gtype2_delay_after_ack[chid] - 50);	// unit: ms
+							else
+								fsk2_send_dealy[chid] = timetick;
+
+						#ifdef FSK_TYPE2_DEBUG
+							printk("ACK t=%d %d\n", timetick,fsk2_send_dealy[chid] );
+							printk("wait_ack=%d check_type2_ack=%d \n", wait_ack[chid],check_type2_ack[chid]);
+						#endif
+						}
+						else
+							continue;
+					}
+					else	// waiting for ACK from phone					
+					{
+						if( check_type2_ack[chid] == 1 )	// Fail
+						{
+							/** Time out, don't get ACK from phone **/
+							//PRINT_MSG("No Ack, type2 cid process terminated!\n");
+							PRINT_Y("No Ack, type2 cid process terminated!\n");
+							#ifdef FSK_TYPE2_DEBUG
+							printk("check_type2_ack=%d wait_ack=%d fsk_alert_done=%d\n", 
+									check_type2_ack[chid],wait_ack[chid], fsk_alert_done[chid]);
+							#endif									
+							cid_info[chid].cid_setup = 0;
+							check_type2_ack[chid] = 0;
+							fsk_alert_done[chid] = 0;
+							fsk_cid_state[chid]=0;  // clear it
+							fsk_cid_type2_ack[chid] = 0;
+							fsk_cid_process_get_type2_ack[chid] = 0;
+							//printk("z");
+							sid = chanInfo_GetTranSessionID(chid);
+							hc_SetPlayTone(chid, sid, DSPCODEC_TONE_FSK_MUTE, 0, DSPCODEC_TONEDIRECTION_LOCAL);
+							if (fsk_cid_state[chid] == 0) {
+								voip_event_dsp_in( chid, chid, VEID_DSP_FSK_CLID_TYPE2_NO_ACK, 0 );
+							}
+							continue;
+						}
+						else	// still wait until time out
+						{
+							continue;
+						}
+					}
+#else
+
 					if ( check_type2_ack[chid] == 1)
 					{
 						if (fsk_cid_type2_ack[chid] == 0)
@@ -535,7 +621,7 @@ void fsk_cid_process( void )
 							sid = chanInfo_GetTranSessionID(chid);
 							hc_SetPlayTone(chid, sid, DSPCODEC_TONE_FSK_MUTE, 0, DSPCODEC_TONEDIRECTION_LOCAL);
 							if (fsk_cid_state[chid] == 0) {
-								voip_event_dsp_in( chid, chid, VEID_DSP_FSK_CLID_TYPE2_NO_ACK );
+								voip_event_dsp_in( chid, chid, VEID_DSP_FSK_CLID_TYPE2_NO_ACK, 0 );
 							}
 							continue;
 						}
@@ -559,6 +645,7 @@ void fsk_cid_process( void )
 						//printk("->b\n");
 						continue;
 					}
+#endif					
 				
 				}
 			}
@@ -570,6 +657,10 @@ void fsk_cid_process( void )
 					/** Delay after ACK not timeout **/
 					continue;
 				}
+				#ifdef FSK_TYPE2_DEBUG
+				else
+					printk(" [%d] ", timetick);
+				#endif					
 			}
 #endif
 			if (cid_info[chid].cid_complete == 0)
@@ -585,8 +676,13 @@ void fsk_cid_process( void )
 				{
 					sid = chanInfo_GetTranSessionID(chid);
 					hc_SetPlayTone(chid, sid, DSPCODEC_TONE_FSK_MUTE, 0, DSPCODEC_TONEDIRECTION_LOCAL);
+#ifdef FSK_TYPE2_DEBUG
+					printk("CID Gen %d check_type2_ack=%d\n", timetick, check_type2_ack[chid]);
+#endif					
 					genSoftFskCID(chid);// generate Caller ID
-					cid_info[chid].cid_complete = 1;					
+					cid_info[chid].cid_complete = 1;
+					fsk_cid_process_get_type2_ack[chid] = 0;
+					wait_ack[chid] = 0;
 					//printk("y");
 				}
 			}
@@ -600,13 +696,25 @@ void fsk_cid_process( void )
 
 					if ( cid_info[chid].cid_mode == 0)/* on-hook*/
 					{
-						// TH: Check if off-hook, if ture, not disable PCM.
+						/* TH: Check if SLIC is on-hook, and con-ch(pcm ch) is not enable, 
+						   if ture, disable con-ch(pcm ch).
+						*/
 #if 1
 						if (fsk_spec_areas[chid]&0x100) // auto SLIC action
 						{
 							const uint32 cch = chid;
-							if( !SLIC_Get_Hook_Status( cch, 0 ) ) {
-								con_enable_cch( cch, 0 );
+							const voip_con_t* con_ptr =	get_const_con_ptr(cch);
+
+							if( !SLIC_Get_Hook_Status( cch, 0 ))
+							{
+								// On-Hook, and session is not set -> disable pcm
+								if ((FindStartTranCodecTypeDesc( cch ) == NULL ) &&
+									(FindStartRecvCodecTypeDesc( cch ) == NULL ))
+								{
+									con_enable_cch( cch, 0 );
+								}
+								// In H.248 app, when sedning caller ID, and phone is on-hook,
+								// app may setup the session first. So, do not disable cch.
 							}
 						}
 #else
@@ -629,20 +737,21 @@ void fsk_cid_process( void )
 #ifdef FSK_TYPE2_ACK_CHECK
 					fsk_alert_done[chid] = 0;
 					fsk_cid_type2_ack[chid] = 0;
+					fsk_cid_type2_ack_end[chid] = 0;
 					fsk_cid_process_get_type2_ack[chid] = 0;
+					check_type2_ack[chid] = 0;
 #endif
 					restore_flags(flags);
 				}
 			}/* if (cid_info[chid].cid_complete == 0) */
 		}/* if (cid_info[chid].cid_setup ==1) */
 
-		if ((fsk_spec_areas[chid]&0x100) && (RingGenAfterCid[chid] == 1))
+		if ((fsk_spec_areas[chid]&0x100) && (RingGenAfterCid[chid] == 1) && (cid_info[chid].cid_complete == 1))
 		{
 			if (timetick_after(timetick, FirstRingOffTimeOut[chid])) // after 1st Ring Off cadence time out, gen 2nd Ring.
 			{
 				const uint32 cch = chid;
 				
-				extern unsigned char ioctrl_ring_set[];
 				if ((ioctrl_ring_set[cch]&0x2) && (!(ioctrl_ring_set[cch]&0x1)) && (!(fsk_spec_areas[chid]&0x08)))
 				{
 					/* App set Ring disable, so DSP no need to Ring atuomatically. */
@@ -779,29 +888,41 @@ void fsk_cid_onhook_process( unsigned int chid)
 			case 0 :	/* init state */
 				ntt_skip_dc_loop[chid]=1;
 				OnHookLineReversal(cch, 1);
+				cid_info[chid].time_out = timetick + 800 ;/*time out value = 6sec (6000ms), */
+				cid_info[chid].cid_states ++;
+				break;
+			case 1 :	/* init state */
+				if (timetick_after(timetick,cid_info[chid].time_out))
+				{
 				SendNTTCAR(cch);
 				//cid_info[chid].time_out = jiffies + HZ*6 ;/*time out value = 6sec, */
 				cid_info[chid].time_out = timetick + 6000 ;/*time out value = 6sec (6000ms), */
 				cid_info[chid].cid_states ++;
 				PRINT_MSG("RR0,%lx]", timetick);
+				}
 				break;
-			case 1 :	/* wait NTT CAR , phone off-hook, or time out */
+			case 2 :	/* wait NTT CAR , phone off-hook, or time out */
 				if(SendNTTCAR_check(cch, cid_info[chid].time_out))
+				{
 					cid_info[chid].cid_states ++;
+					cid_info[chid].time_out = timetick + 1000 ;
+				}
 				break;
-			case 2 :
+			case 3 :
+				if (timetick_after(timetick,cid_info[chid].time_out))
+				{
 				genSoftFskCID(chid);// generate Caller ID
 				PRINT_MSG("RR2,%lx]", timetick);
 				cid_info[chid].cid_states ++;
 				//cid_info[chid].time_out = jiffies + HZ*7 ;/*time out value = 7sec, */
 				cid_info[chid].time_out = timetick + 7000 ;/*time out value = 7sec (7000ms), */
+				}
 				break;
-			case 3 :
+			case 4 :
 				if( SLIC_Get_Hook_Status(cch, 0) ) /* wait 7 sec to on-hook */ /* 1:off-hook  0:on-hook */
 				{
 					if (timetick_after(timetick,cid_info[chid].time_out) ) //time_after(a,b): returns true if the time a is after time b.
 					{
-						extern unsigned char ioctrl_ring_set[];
 
 						cid_info[chid].cid_complete = 1;
 						if (cid_info[chid].cid_msg_type == FSK_MSG_CALLSETUP)
@@ -815,7 +936,6 @@ void fsk_cid_onhook_process( unsigned int chid)
 				}
 				else
 				{
-					extern unsigned char ioctrl_ring_set[];
 
 					cid_info[chid].cid_complete = 1;
 					if (cid_info[chid].cid_msg_type == FSK_MSG_CALLSETUP)
@@ -872,7 +992,12 @@ void fsk_cid_onhook_process( unsigned int chid)
 					FXS_Ring( cch, 1 );
 #endif
 					//cid_info[chid].time_out = jiffies + (HZ*250/1000) ;/*time out value = 250msec, */
+				#if 1
+					cid_info[chid].time_out = timetick + gETSI_FSK_Para[chid].RPAS_Duration + 10;
+					//printk("[Ring on] %d\n", timetick);
+			     	#else
 					cid_info[chid].time_out = timetick + 250 ;/*time out value = 250msec, */
+				#endif					
 					cid_info[chid].cid_states++;
 				}
 				else
@@ -892,8 +1017,11 @@ void fsk_cid_onhook_process( unsigned int chid)
 #endif
 
 					//cid_info[chid].time_out = jiffies + (HZ*650/1000) ;/*time out value = 650msec, */
-					cid_info[chid].time_out = timetick + 650 ;/*time out value = 650msec, */
+					//cid_info[chid].time_out = timetick + 650 ;/*time out value = 650msec, */
+					// case 4, 5, 9, 11, 12 totally 50ms but timetick_after() need >50ms (not >=50ms) so need 50ms delay
+					cid_info[chid].time_out = timetick + gETSI_FSK_Para[chid].RPAS_To_FSKData_Period - 50 - 10;
 					cid_info[chid].cid_states++;
+					//printk("[Ring off] %d \n", timetick);
 				}
 				break;
 			case 4 : //TH: need delay between short ring off and Line-OHT to avoid noise occasionally
@@ -956,7 +1084,6 @@ void fsk_cid_onhook_process( unsigned int chid)
 
 					if (cid_info[chid].cid_msg_type == FSK_MSG_CALLSETUP)
 					{
-						extern unsigned char ioctrl_ring_set[];
 #if 0
 						ringing.CH = chid;
 						ringing.ring_set = 1;
@@ -982,7 +1109,6 @@ void fsk_cid_onhook_process( unsigned int chid)
 				else
 				{
 					//Caller ID priori First Ring
-					extern unsigned char ioctrl_ring_set[];
 					ringing.ring_set = 1;
 					cid_info[chid].cid_states += 2;
 					ioctrl_ring_set[cch] = ringing.ring_set + (0x1<<1);//Must to keep DSP auto-Ring normal.
@@ -995,7 +1121,8 @@ void fsk_cid_onhook_process( unsigned int chid)
 
 				if (timetick_after(timetick,cid_info[chid].time_out) )
 				{
-					if (! FXS_Check_Ring(cch))	// 1st Ring stop
+					//if (! FXS_Check_Ring(cch))
+					if ( (FXS_Check_Ring(cch) == 0) || (FXS_Check_Ring(cch) == 6))	// 1st Ring pattern off
 					{
 						// Add delay between 1st Ring off and CLID gen start
 						//cid_info[chid].time_out = jiffies + (HZ*gDelayAfert1stRing[chid]/1000) ;
@@ -1032,7 +1159,6 @@ void fsk_cid_onhook_process( unsigned int chid)
 					if (0 == timetick_after(timetick,cid_info[chid].time_out))
 						break;
 				}
-				
 				genSoftFskCID(chid);// generate Caller ID
 				
 				cid_info[chid].cid_complete = 1;
@@ -1043,6 +1169,7 @@ void fsk_cid_onhook_process( unsigned int chid)
 					cid_process_delay = gChannelSeizureDuration[chid] + gMarkDuration[chid] + gMsgDuration[chid];
 					if (cid_info[chid].cid_msg_type == FSK_MSG_CALLSETUP)
 					{
+						ioctrl_ring_set[chid] = 1 + (0x1<<1); //enable ring
 						//FirstRingOffTimeOut[chid] = jiffies + (HZ*(350+cid_process_delay)/1000);
 						FirstRingOffTimeOut[chid] = timetick + 350+cid_process_delay;
 						RingGenAfterCid[chid] = 1;
@@ -1052,21 +1179,24 @@ void fsk_cid_onhook_process( unsigned int chid)
 				{
 					extern int gRingCadOff[];
 					unsigned int cid_process_delay;
-					cid_process_delay = gChannelSeizureDuration[chid] + gMarkDuration[chid] + gMsgDuration[chid];
-					//PRINT_R("%d, %d, %d\n", gChannelSeizureDuration[chid], gMarkDuration[chid], gMsgDuration[chid]);
-					
-					if (cid_info[chid].cid_msg_type == FSK_MSG_CALLSETUP)
+					if (!MultiRingCadenceEnableCheck(chid))
 					{
+						cid_process_delay = gChannelSeizureDuration[chid] + gMarkDuration[chid] + gMsgDuration[chid];
+						//PRINT_R("%d, %d, %d\n", gChannelSeizureDuration[chid], gMarkDuration[chid], gMsgDuration[chid]);
 						
-						if (gRingCadOff[cch] > (gDelayAfert1stRing[chid] + gDelayBefore2ndRing[chid] + cid_process_delay /*clid delay*/)) {
-							//FirstRingOffTimeOut[chid] = jiffies + (HZ*(gRingCadOff[cch]-gDelayAfert1stRing[chid])/1000) ;
-							FirstRingOffTimeOut[chid] = timetick + gRingCadOff[cch]-gDelayAfert1stRing[chid] ;
-						} else {
-							//FirstRingOffTimeOut[chid] = jiffies + (HZ*(gDelayBefore2ndRing[chid] + cid_process_delay /*clid delay*/)/1000) ;
-							FirstRingOffTimeOut[chid] = timetick + gDelayBefore2ndRing[chid] + cid_process_delay /*clid delay*/ ;
+						if (cid_info[chid].cid_msg_type == FSK_MSG_CALLSETUP)
+						{
+							
+							if (gRingCadOff[cch] > (gDelayAfert1stRing[chid] + gDelayBefore2ndRing[chid] + cid_process_delay /*clid delay*/)) {
+								//FirstRingOffTimeOut[chid] = jiffies + (HZ*(gRingCadOff[cch]-gDelayAfert1stRing[chid])/1000) ;
+								FirstRingOffTimeOut[chid] = timetick + gRingCadOff[cch]-gDelayAfert1stRing[chid] ;
+							} else {
+								//FirstRingOffTimeOut[chid] = jiffies + (HZ*(gDelayBefore2ndRing[chid] + cid_process_delay /*clid delay*/)/1000) ;
+								FirstRingOffTimeOut[chid] = timetick + gDelayBefore2ndRing[chid] + cid_process_delay /*clid delay*/ ;
+							}
+							//PRINT_R("%d, %d, %d\n", gRingCadOff[chid], gDelayAfert1stRing[chid], gDelayBefore2ndRing[chid]);
+							RingGenAfterCid[chid] = 1;
 						}
-						//PRINT_R("%d, %d, %d\n", gRingCadOff[chid], gDelayAfert1stRing[chid], gDelayBefore2ndRing[chid]);
-						RingGenAfterCid[chid] = 1;
 					}
 				}
 				break;
@@ -1336,17 +1466,24 @@ int stop_type1_fsk_cid_gen_when_phone_offhook( voip_dsp_t *this )
 {
 	const uint32 dch = this ->dch;
 	
-	if ((fsk_cid_state[dch] == 1) && (cid_info[dch].cid_mode == 0))
+	if ( cid_info[dch].cid_mode == 0)
 	{
 		//extern void pcm_clean_tx_fifo(unsigned int chid);
 		//extern void pcm_disableChan(unsigned int chid);
 	
-		init_softfskcidGen(dch);
-		fsk_cid_state[dch] = 0;
+		fsk_gen_init(dch);
 		//pcm_clean_tx_fifo(cch);
 		//bus_fifo_clean_tx_cch( cch );	// caller do this 
 		//pcm_disableChan(cch);
 		//PRINT_Y("init_cid(%d)\n", i);
+		
+		cid_info[dch].cid_setup = 0;
+		cid_info[dch].cid_complete = 0;
+		
+		// Stop non-multi-ring (Aviod 2nd DSP auto ring)
+		RingGenAfterCid[dch] = 0;
+		
+		PRINT_MSG("Stop type 1 fsk due to off-hook(%d)\n", dch);
 		
 		return 1;
 	}
@@ -1376,9 +1513,24 @@ int voip_clid_read_proc( char *buf, char **start, off_t off, int count, int *eof
 		n += sprintf( buf + n, " - bAuto_Ring = %d (ture=1)\n", dtmf_cid_info[ch].bAuto_Ring);
 		n += sprintf( buf + n, " - bAuto_SLIC_action = %d (ture=1)\n", dtmf_cid_info[ch].bAuto_SLIC_action);
 		n += sprintf( buf + n, " - bBefore1stRing = %d (ture=1)\n", dtmf_cid_info[ch].bBefore1stRing);
-		n += sprintf( buf + n, " - bAuto_StartEnd = %d (ture=0)\n", dtmf_cid_info[ch].bAuto_StartEnd);
-		n += sprintf( buf + n, " - start_digit = %c\n", 'A' + dtmf_cid_info[ch].start_digit);
-		n += sprintf( buf + n, " - end_digit = %c\n", 'A' + dtmf_cid_info[ch].end_digit);
+		n += sprintf( buf + n, " - bAuto_StartEnd = %d (ture=1)\n", dtmf_cid_info[ch].bAuto_StartEnd);
+		if (dtmf_cid_info[ch].start_digit == DTMF_DIGIT_STAR)
+			n += sprintf( buf + n, " - start_digit = *\n");
+		else if (dtmf_cid_info[ch].start_digit == DTMF_DIGIT_HASH)
+			n += sprintf( buf + n, " - start_digit = #\n");
+		else if ( (dtmf_cid_info[ch].start_digit >= DTMF_DIGIT_A) && (dtmf_cid_info[ch].start_digit <= DTMF_DIGIT_D) )
+			n += sprintf( buf + n, " - start_digit = %c\n", 'A' + dtmf_cid_info[ch].start_digit - DTMF_DIGIT_A);
+		else
+			n += sprintf( buf + n, " - start_digit configuration error!\n");
+
+		if (dtmf_cid_info[ch].end_digit == DTMF_DIGIT_STAR)
+			n += sprintf( buf + n, " - end_digit = *\n");
+		else if (dtmf_cid_info[ch].end_digit == DTMF_DIGIT_HASH)
+			n += sprintf( buf + n, " - end_digit = #\n");
+		else if ( (dtmf_cid_info[ch].end_digit >= DTMF_DIGIT_A) && (dtmf_cid_info[ch].end_digit <= DTMF_DIGIT_D) )
+			n += sprintf( buf + n, " - end_digit = %c\n", 'A' + dtmf_cid_info[ch].end_digit - DTMF_DIGIT_A);
+		else
+			n += sprintf( buf + n, " - end_digit configuration error!\n");
 		//n += sprintf( buf + n, " - data = %s\n", dtmf_cid_info[ch].data);
 		
 		n += sprintf( buf + n, "FSK Caller ID Setting:\n");
@@ -1408,6 +1560,14 @@ int voip_clid_read_proc( char *buf, char **start, off_t off, int count, int *eof
 		fsk_cid_para_get(ch, fsk_spec_areas[ch] & 0x7, &stFskClidParacurrnet);
 		n += sprintf( buf + n, " - ch_seizure_cnt: %d(only used in type 1)\n", stFskClidParacurrnet.ch_seizure_cnt);
 		n += sprintf( buf + n, " - mark_cnt: %d\n", stFskClidParacurrnet.mark_cnt);
+		if ((stFskClidParacurrnet.mark_gain >= 0) && (stFskClidParacurrnet.mark_gain <= 8))
+			n += sprintf( buf + n, " - mark_gain: %ddB Up\n", 8 - stFskClidParacurrnet.mark_gain);
+		else if (stFskClidParacurrnet.mark_gain > 8)
+			n += sprintf( buf + n, " - mark_gain: %ddB Down\n", stFskClidParacurrnet.mark_gain - 8);
+		if ((stFskClidParacurrnet.space_gain >= 0) && (stFskClidParacurrnet.space_gain <= 8))		
+			n += sprintf( buf + n, " - space_gain: %ddB Up\n", 8 - stFskClidParacurrnet.space_gain);
+		else if (stFskClidParacurrnet.space_gain > 8)
+			n += sprintf( buf + n, " - space_gain: %ddB Down\n", stFskClidParacurrnet.space_gain - 8);
 		n += sprintf( buf + n, " - delay_after_1st_ring: %d ms\n", stFskClidParacurrnet.delay_after_1st_ring);
 		n += sprintf( buf + n, " - delay_before_2nd_ring: %d ms\n", stFskClidParacurrnet.delay_before_2nd_ring);
 		n += sprintf( buf + n, " - silence_before_sas: %d ms\n", stFskClidParacurrnet.silence_before_sas);
@@ -1418,7 +1578,13 @@ int voip_clid_read_proc( char *buf, char **start, off_t off, int count, int *eof
 		n += sprintf( buf + n, " - ack_waiting_time: %d ms\n", stFskClidParacurrnet.ack_waiting_time);
 		n += sprintf( buf + n, " - delay_after_ack_recv: %d ms\n", stFskClidParacurrnet.delay_after_ack_recv);
 		n += sprintf( buf + n, " - delay_after_type2_fsk: %d ms\n", stFskClidParacurrnet.delay_after_type2_fsk);
+		if ( ( fsk_spec_areas[ch] & 0x7 ) == FSK_ETSI )
+		{
+			n += sprintf( buf + n, " - RP-AS duration (For FSK-ETSI): %d ms\n", gETSI_FSK_Para[ch].RPAS_Duration);			
+			n += sprintf( buf + n, " - RP-AS to FSK data period (For FSK-ETSI): %d ms\n", gETSI_FSK_Para[ch].RPAS_To_FSKData_Period);
+		}
 		n += sprintf( buf + n, " - type2_waiting_for_ack: %d ms [Read only] \n", gtype2_waiting_for_ack_time[ch]);
+		
 	}
 	
 	*eof = 1;

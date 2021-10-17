@@ -39,7 +39,14 @@ EXTRA_CFLAGS += -DMODULE_NAME=\"IPC\"
 hostprogs-y = ipc_arch_viewer 
 always = $(hostprogs-y)
 HOST_EXTRACFLAGS += -I$(DIR_VOIP)/include
-HOST_EXTRACFLAGS += -I$(DIR_LINUX)/include
+HOST_EXTRACFLAGS += -Iinclude
+ifeq ($(CONFIG_DEFAULTS_KERNEL_3_4),y)
+HOST_EXTRACFLAGS += -include include/linux/kconfig.h
+else
+ifeq ($(CONFIG_DEFAULTS_KERNEL_2_6),y)
+HOST_EXTRACFLAGS += -include include/linux/config.h
+endif
+endif
 
 include $(DIR_VOIP)/rules.mak
 

@@ -341,6 +341,9 @@ static uint32 rtl865x_genMCastEntryAsicFwdMask(rtl865x_tblDrv_mCast_t *mCastEntr
 		}
 		else
 		{
+		#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+			if(curDesc->fwdPortMask!=0)
+		#endif
 			asicFwdPortMask|=( 0x01<<RTL8651_MAC_NUMBER);
 		}
 	}
@@ -364,7 +367,12 @@ static uint16 rtl865x_genMCastEntryCpuFlag(rtl865x_tblDrv_mCast_t *mCastEntry)
 	
 	MC_LIST_FOREACH(curDesc, &(mCastEntry->fwdDescChain), next)
 	{
-		if(	(curDesc->toCpu==TRUE)	||
+		if(	((curDesc->toCpu==TRUE)
+			#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+			&&(curDesc->fwdPortMask)
+			#endif
+			)
+			||
 			(memcmp(curDesc->netifName, RTL_WLAN_NAME,4)==0)	)
 		{
 			cpuFlag=TRUE;
@@ -595,7 +603,11 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 	
 	TAILQ_FOREACH(mCast_t, &mCastTbl.inuseList.mCastTbl[entryIndex], nextMCast) 
 	{
-		if ((mCast_t->cpu == 0) && !(mCast_t->flag & RTL865X_MULTICAST_PPPOEPATCH_CPUBIT)) 
+		if (	
+		#ifndef CONFIG_RTL_HW_MCAST_WIFI
+			(mCast_t->cpu == 0) && 
+		#endif 
+		!(mCast_t->flag & RTL865X_MULTICAST_PPPOEPATCH_CPUBIT)) 
 		{ /* Ignore cpu=1 */
 
 			if(mCast_t->inAsic==TRUE)
@@ -614,68 +626,29 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 			
 			if (select_t) 
 			{
-#if 1
-				if ((mCast_t->unKnownMCast==TRUE) && (select_t->unKnownMCast==TRUE))
-				{
-					/*unknown multicast, select the heavy load*/
-					if (mCast_t->maxPPS > select_t->maxPPS)
-					{
-						select_t = mCast_t;
-					}
-				}
-				else if ((mCast_t->unKnownMCast==FALSE) && (select_t->unKnownMCast==TRUE))
+
+
+				if ((mCast_t->unKnownMCast==FALSE) && (select_t->unKnownMCast==TRUE))
 				{
 					/*replace unknown multicast*/
 					select_t = mCast_t;
 				}
-				else if((mCast_t->unKnownMCast==FALSE) && (select_t->unKnownMCast==FALSE))
+				else
 				{
 					/*select the heavy load*/
-					if (mCast_t->maxPPS > select_t->maxPPS)
+					if ((mCast_t->count) > (select_t->count))
 					{
 						select_t = mCast_t;
 					}
 				}
-				else if((mCast_t->unKnownMCast==TRUE) && (select_t->unKnownMCast==FALSE))
-				{
-					/*this  stream is unknown multicast,needn't change candidate*/
-				}
-#else
-				if ((mCast_t->mbr==0) && (select_t->mbr==0))
-				{
-					/*unknown multicast, select the heavy load*/
-					if (mCast_t->maxPPS > select_t->maxPPS)
-					{
-						select_t = mCast_t;
-					}
-				}
-				else if ((mCast_t->mbr!=0) && (select_t->mbr==0))
-				{
-					/*replace unknown multicast*/
-					select_t = mCast_t;
-				}
-				else if((mCast_t->mbr!=0) && (select_t->mbr!=0))
-				{
-					/*select the heavy load*/
-					if (mCast_t->maxPPS > select_t->maxPPS)
-					{
-						select_t = mCast_t;
-					}
-				}
-				else if((mCast_t->mbr==0) && (select_t->mbr!=0))
-				{
-					/*this  stream is unknown multicast,needn't change candidate*/
-				}
-#endif				
-				
 				
 			}
 			else 
 			{
 				select_t = mCast_t;
 			}
-
-			//printk("mCast_t->dip is 0x%x,mCast_t->inAsic is %d,mCast_t->maxPPS is %d\n\n\n",mCast_t->dip,mCast_t->inAsic,mCast_t->maxPPS);
+			
+			
 		}
 		else
 		{
@@ -684,16 +657,33 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 
 
 	}
+	
+	if(select_t && swapOutEntry)
+	{
+		if ((swapOutEntry->unKnownMCast==FALSE) && (select_t->unKnownMCast==TRUE))
+		{
+			/*replace unknown multicast*/
+			select_t = swapOutEntry;
+		}
+		else
+		{
+			if((select_t->count <= (swapOutEntry->count+RTL865X_HW_MCAST_SWAP_GAP)))
+				select_t = swapOutEntry;
+		}
+	}	
+	
+
+	
 	/*
 	if(swapOutEntry)
 	{
-		printk("%s:%d,swapOutEntry->dip is 0x%x,swapOutEntry->mbr is 0x%x\n",__FUNCTION__,__LINE__,swapOutEntry->dip,swapOutEntry->mbr);
+		printk("%s:%d,swapOutEntry->count:%d,swapOutEntry->dip is 0x%x,swapOutEntry->mbr is 0x%x\n",__FUNCTION__,__LINE__,swapOutEntry->count,swapOutEntry->dip,swapOutEntry->mbr);
 
 	}
 	
 	if (select_t) 
 	{
-		printk("%s:%d,select_t->dip is 0x%x,select_t->mbr is 0x%x\n",__FUNCTION__,__LINE__,select_t->dip,select_t->mbr);
+		printk("%s:%d,select_t->count:%d,select_t->dip is 0x%x,select_t->mbr is 0x%x\n",__FUNCTION__,__LINE__,select_t->count,select_t->dip,select_t->mbr);
 	}
 	*/
 	if (select_t) 
@@ -717,6 +707,9 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 #endif
 		
 			}
+	#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+			asic_mcast.idx=(uint16)entryIndex;
+	#endif
 			retval = rtl8651_setAsicIpMulticastTable(&asic_mcast);
 			
 #ifdef CONFIG_PROC_FS
@@ -743,7 +736,7 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 		else/*(swapOutEntry!=NULL) && (select_t!=swapOutEntry)*/
 		{
 			/*disable swap and only explicit joined mulicast flow can replace unknown multicast flow*/
-			if((swapOutEntry->unKnownMCast==TRUE) &&(select_t->unKnownMCast==FALSE))
+			if(1)
 			{
 				/*don't forget to set swapOutEntry's inAsic flag*/
 				swapOutEntry->inAsic=FALSE;
@@ -787,6 +780,7 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 				TAILQ_INSERT_HEAD(&mCastTbl.inuseList.mCastTbl[entryIndex], select_t, nextMCast);
 
 			}
+			#if 0
 			else
 			{			
 				if(swapOutEntry->inAsic == FALSE)
@@ -798,7 +792,8 @@ static void _rtl865x_arrangeMulticast(uint32 entryIndex)
 #endif
 				}
 				
-			}		
+			}	
+			#endif
 			
 		}
 		
@@ -896,17 +891,47 @@ rtl865x_tblDrv_mCast_t *rtl865x_findMCastEntry(ipaddr_t mAddr, ipaddr_t sip, uin
 
 			return mCast_t;
 		}
-		
-		mCast_t->count ++;
-		if(mCast_t->maxPPS<mCast_t->count)
-		{
-			/*update maxPPS*/
-			mCast_t->maxPPS=mCast_t->count ;
-		}
-			
 	}
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	for(entry=RTL8651_IPMULTICASTTBL_SIZE; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
+	{
+		TAILQ_FOREACH(mCast_t, &mCastTbl.inuseList.mCastTbl[entry], nextMCast) {
+			if (mCast_t->dip==mAddr && mCast_t->sip==sip && mCast_t->svid==svid && mCast_t->port==sport)
+			{
+				if (mCast_t->inAsic == FALSE) 
+				{
+					mCast_t->age = RTL865X_MULTICAST_TABLE_AGE;
+					mCast_t->count ++;
+				}
+
+				return mCast_t;
+			}
+					
+		}
+	}
+#endif	
 	return (rtl865x_tblDrv_mCast_t *)NULL;	
 }
+
+
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+
+int rtl865x_findEmptyCamEntry(void)
+{
+	int index=-1;
+
+	for(index=RTL8651_IPMULTICASTTBL_SIZE; index<RTL8651_MULTICASTTBL_SIZE; index++)
+	{
+
+		if(TAILQ_EMPTY(&mCastTbl.inuseList.mCastTbl[index]))
+		{
+			return index;
+		}
+	}
+	
+	return -1;
+}
+#endif
 
 /*
 @func int32	| rtl865x_addMulticastEntry	|  API to add a hardwawre multicast forwarding entry.
@@ -929,6 +954,9 @@ int32 rtl865x_addMulticastEntry(ipaddr_t mAddr, ipaddr_t sip, uint16 svid, uint1
 
 	rtl865x_tblDrv_mCast_t *mCast_t;
 	uint32 hashIndex = rtl8651_ipMulticastTableIndex(sip, mAddr);
+	#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	uint32 emptyCamIndex=-1; 
+	#endif
 	#if defined (CONFIG_RTL_IGMP_SNOOPING)
 	struct rtl_groupInfo groupInfo;
 	#endif
@@ -944,12 +972,33 @@ int32 rtl865x_addMulticastEntry(ipaddr_t mAddr, ipaddr_t sip, uint16 svid, uint1
 		return FAILED;
 	}
 #endif	
+
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	mCast_t=rtl865x_findMCastEntry(mAddr, sip, svid, sport);
+	if(mCast_t==NULL)
+	{
+		/*table entry collided*/
+		if(!TAILQ_EMPTY(&mCastTbl.inuseList.mCastTbl[hashIndex]))
+		{
+			emptyCamIndex=rtl865x_findEmptyCamEntry();
+			if(emptyCamIndex!=-1)
+			{
+				hashIndex=emptyCamIndex;
+			}
+		}
+	}
+	else
+	{
+		hashIndex=mCast_t->hashIndex;
+	}
+#else
 	/*try to match hash line*/
 	TAILQ_FOREACH(mCast_t, &mCastTbl.inuseList.mCastTbl[hashIndex], nextMCast) 
 	{
 		if (mCast_t->sip==sip && mCast_t->dip==mAddr && mCast_t->svid==svid && mCast_t->port==sport)
 			break;
 	}
+#endif	
 	
 	if (mCast_t == NULL) 
 	{
@@ -969,7 +1018,9 @@ int32 rtl865x_addMulticastEntry(ipaddr_t mAddr, ipaddr_t sip, uint16 svid, uint1
 		mCast_t->port		= sport;
 		mCast_t->mbr		= 0;
 		mCast_t->count		= 0;
-		mCast_t->maxPPS		= 0;
+		//mCast_t->maxPPS		= 0;
+		
+		
 		mCast_t->inAsic		= FALSE;
 	}
 	
@@ -1009,6 +1060,9 @@ int32 rtl865x_addMulticastEntry(ipaddr_t mAddr, ipaddr_t sip, uint16 svid, uint1
 		mCast_t->unKnownMCast=FALSE;
 	}
 	#endif
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST_CAM)
+	mCast_t->hashIndex=hashIndex;
+#endif
 	_rtl865x_patchPppoeWeak(mCast_t);
 	_rtl865x_arrangeMulticast(hashIndex);
 	return SUCCESS;	
@@ -1298,15 +1352,17 @@ static int32 _rtl865x_mCastFwdDescDequeue(mcast_fwd_descriptor_head_t * queueHea
 }
 
 #endif
-
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+extern int rtl_get_brIgmpModuleIndexbyId(int idx,char *name);
+#endif
 static int32 rtl865x_multicastCallbackFn(void *param)
 {
 	#if defined (CONFIG_RTL_IGMP_SNOOPING)
 	uint32 index;
-	uint32 oldDescPortMask,newDescPortMask;/*for device decriptor forwarding usage*/
+	uint32 oldDescPortMask=0,newDescPortMask=0;/*for device decriptor forwarding usage*/
 	
-	uint32 oldAsicFwdPortMask,newAsicFwdPortMask;/*for physical port forwarding usage*/
-	uint32 oldCpuFlag,newCpuFlag;
+	uint32 oldAsicFwdPortMask=0,newAsicFwdPortMask=0;/*for physical port forwarding usage*/
+	uint32 oldCpuFlag=0,newCpuFlag=0;
 	
 	rtl_multicastEventContext_t mcastEventContext;
 
@@ -1318,7 +1374,17 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 
 	struct rtl_groupInfo groupInfo;
 	int32 retVal=FAILED;
-
+#if defined (CONFIG_RTL_HW_MCAST_WIFI) ||defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+	uint32 oldAsicPortMask=0;
+	uint32 newAsicPortMask=0;
+#endif
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+	int i;
+	uint32 igmpModueIndex=0xFFFFFFFF;
+	char devName[16]={0};
+	int flag1=0,flag2=0;
+	uint32 newDescPortMask2=0;
+#endif
 	if(param==NULL)
 	{
 		return EVENT_CONTINUE_EXECUTE;
@@ -1330,7 +1396,7 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 		return EVENT_CONTINUE_EXECUTE;
 	}
 	#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
-	printk("%s:%d,mcastEventContext.devName is %s, mcastEventContext.groupAddr is 0x%x,mcastEventContext.sourceAdd is 0x%x,mcastEventContext.portMask is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName, mcastEventContext.groupAddr[0], mcastEventContext.sourceAddr[0], mcastEventContext.portMask);
+	printk("%s:%d,mcastEventContext.devName is %s,moduleindex:%x, mcastEventContext.groupAddr is 0x%x,mcastEventContext.sourceAdd is 0x%x,mcastEventContext.portMask is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName, mcastEventContext.moduleIndex,mcastEventContext.groupAddr[0], mcastEventContext.sourceAddr[0], mcastEventContext.portMask);
 	#endif
 	/*case 1:this is multicast event from bridge(br0) */
 	/*sync wlan and ethernet*/
@@ -1338,7 +1404,11 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
     if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0 || memcmp(mcastEventContext.devName,RTL_BR1_NAME,3)==0)
 #else
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,2)==0)
+#else
 	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0)
+#endif		
 #endif
 	{
 
@@ -1363,8 +1433,91 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 					mCastEntry->unKnownMCast=FALSE;
 				}
 
-				oldDescPortMask=rtl865x_getMCastEntryDescPortMask( mCastEntry);			
+				oldDescPortMask=rtl865x_getMCastEntryDescPortMask( mCastEntry);	
+				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+				oldAsicPortMask=mCastEntry->mbr;
+				#endif	
+				#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+				//oldAsicPortMask=mCastEntry->mbr;
+				oldCpuFlag = mCastEntry->cpu;
+				flag1=flag2=0;
+				for(i=0;i<RTL_IMGP_MAX_BRMODULE;i++)
+				{	
+					igmpModueIndex=rtl_get_brIgmpModuleIndexbyId(i,devName);
+					if(igmpModueIndex==0xFFFFFFFF)
+						continue;
+					/*sync with control plane*/
+					memset(&newFwdDesc, 0 ,sizeof(rtl865x_mcast_fwd_descriptor_t));
+					newDescPortMask2=0;
+					strcpy(newFwdDesc.netifName,devName);
+					
+					multicastDataInfo.ipVersion=4;
+					multicastDataInfo.sourceIp[0]=  mCastEntry->sip;
+					multicastDataInfo.groupAddr[0]= mCastEntry->dip;
+					
+					
+					retVal= rtl_getMulticastDataFwdInfo(igmpModueIndex, &multicastDataInfo, &multicastFwdInfo);
+					if(retVal!=SUCCESS)
+					{
+						continue;
+					}
+					flag1++;
+					newDescPortMask=multicastFwdInfo.fwdPortMask;
+					newCpuFlag =multicastFwdInfo.cpuFlag;
+					
+					
+					retVal= rtl_getIgmpSnoopingModuleDevInfo(igmpModueIndex, &bridgeMCastDev);
+					if(retVal!=SUCCESS)
+					{
+						continue;
+					}
+					flag2++;
+					newCpuFlag |=multicastFwdInfo.cpuFlag;
+					#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+					if(newCpuFlag)
+						newDescPortMask2 = (1<<RTL8651_MAC_NUMBER);	//cpu port
+					else
+						newDescPortMask = 0;
+					newFwdDesc.fwdPortMask = newDescPortMask2;
+					newFwdDesc.toCpu = newCpuFlag;
+					
+					_rtl865x_mergeMCastFwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
+					#endif
+				}
+				if(flag2==0){
+					continue;
+				}
+				mCastEntry->mbr 		= rtl865x_genMCastEntryAsicFwdMask(mCastEntry);
+				mCastEntry->cpu		= rtl865x_genMCastEntryCpuFlag(mCastEntry);
+				newAsicPortMask =mCastEntry->mbr;
+				newCpuFlag=mCastEntry->cpu;
 				
+				//printk("br:%s :oldAsicPortMask:%x,newAsicPortMask:%x,oldCpuFlag:%d,newCpuFlag:%d,[%s]:[%d].\n",devName,oldAsicPortMask,newAsicPortMask,oldCpuFlag,newCpuFlag,__FUNCTION__,__LINE__);
+
+				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+			
+				if((oldCpuFlag != newCpuFlag)||(newAsicPortMask!=oldAsicPortMask))
+				{
+					if(newAsicPortMask == 0){
+						//printk("[%s]:[%d].\n",__FUNCTION__,__LINE__);
+						_rtl865x_freeMCastEntry(mCastEntry, index);
+					}	
+					
+					_rtl865x_arrangeMulticast(index);
+				}	
+				#else
+				if(oldCpuFlag != newCpuFlag)
+				{
+				
+					_rtl865x_freeMCastEntry(mCastEntry, index);
+					_rtl865x_arrangeMulticast(index);
+				}
+				#endif
+				#else
+				
+				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+				oldCpuFlag = mCastEntry->cpu;
+				#endif
 				/*sync with control plane*/
 				memset(&newFwdDesc, 0 ,sizeof(rtl865x_mcast_fwd_descriptor_t));
 				strcpy(newFwdDesc.netifName,mcastEventContext.devName);
@@ -1372,28 +1525,54 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 				multicastDataInfo.sourceIp[0]=  mCastEntry->sip;
 				multicastDataInfo.groupAddr[0]= mCastEntry->dip;
 				retVal= rtl_getMulticastDataFwdInfo(mcastEventContext.moduleIndex, &multicastDataInfo, &multicastFwdInfo);
-				
-
+				//printk("dev:%s,retVal:%d,cpu:%d[%s]:[%d].\n",mcastEventContext.devName,retVal,newCpuFlag,__FUNCTION__,__LINE__);
 				if(retVal!=SUCCESS)
 				{
 					continue;
 				}
-				
 				retVal= rtl_getIgmpSnoopingModuleDevInfo(mcastEventContext.moduleIndex, &bridgeMCastDev);
 				if(retVal!=SUCCESS)
 				{
 					continue;
 				}
 				newDescPortMask=multicastFwdInfo.fwdPortMask;
+				newCpuFlag =multicastFwdInfo.cpuFlag;
+				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+				if(newCpuFlag)
+					newAsicPortMask = (1<<RTL8651_MAC_NUMBER);	//cpu port
+				else
+					newAsicPortMask = 0;
+				newFwdDesc.fwdPortMask = newAsicPortMask;
+				newFwdDesc.toCpu = newCpuFlag;
+				
+				//printk("br:%s :oldAsicPortMask:%x,newAsicPortMask:%x,oldCpuFlag:%d,newCpuFlag:%d,[%s]:[%d].\n",mcastEventContext.devName,oldAsicPortMask,newAsicPortMask,oldCpuFlag,newCpuFlag,__FUNCTION__,__LINE__);
+				_rtl865x_mergeMCastFwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
+				
+				mCastEntry->mbr 		= rtl865x_genMCastEntryAsicFwdMask(mCastEntry);
+				mCastEntry->cpu		= rtl865x_genMCastEntryCpuFlag(mCastEntry);
+				newAsicPortMask =mCastEntry->mbr;
+				newCpuFlag=mCastEntry->cpu;
+				if((oldCpuFlag != newCpuFlag)||(newAsicPortMask!=oldAsicPortMask))
+				{
+					if(newAsicPortMask == 0)
+						_rtl865x_freeMCastEntry(mCastEntry, index);
+					
+					_rtl865x_arrangeMulticast(index);
+				}	
+				#else
 				if(	(oldDescPortMask != newDescPortMask) &&
 					(	((newDescPortMask & bridgeMCastDev.swPortMask)!=0) ||
 						(((oldDescPortMask & bridgeMCastDev.swPortMask) !=0) && ((newDescPortMask & bridgeMCastDev.swPortMask)==0)))	)
+			
 				{
+					//printk("%s:%x,new:%x,old:%x[%s]:[%d].\n",bridgeMCastDev.devName,bridgeMCastDev.swPortMask,oldDescPortMask,newDescPortMask,__FUNCTION__,__LINE__);
 					/*this multicast entry should be re-generated at linux protocol stack bridge level*/
 					_rtl865x_freeMCastEntry(mCastEntry, index);
 					_rtl865x_arrangeMulticast(index);
 				}
-				
+				#endif
+
+				#endif
 			}
 		}
 		
@@ -1435,10 +1614,18 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 				multicastDataInfo.sourceIp[0]=  mCastEntry->sip;
 				multicastDataInfo.groupAddr[0]= mCastEntry->dip;
 				retVal= rtl_getMulticastDataFwdInfo(mcastEventContext.moduleIndex, &multicastDataInfo, &multicastFwdInfo);
-
+				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+				if(retVal!=SUCCESS)
+				{
+					newFwdDesc.fwdPortMask=0;
+					newFwdDesc.toCpu =1;
+				}else
+				#endif
+				{
 				newFwdDesc.fwdPortMask=multicastFwdInfo.fwdPortMask & (~(1<<mCastEntry->port));
 				newFwdDesc.toCpu=multicastFwdInfo.cpuFlag;
 			
+				}
 				/*update/replace old forward descriptor*/
 				
 				_rtl865x_mergeMCastFwdDescChain(&mCastEntry->fwdDescChain,&newFwdDesc);
@@ -1447,9 +1634,13 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 				
 				newAsicFwdPortMask	= mCastEntry->mbr ;
 				newCpuFlag			=mCastEntry->cpu;
-				
+				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+				if((newAsicFwdPortMask&(~(1<<6)))==0)
+					newAsicFwdPortMask =0;
+				#endif
 				#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
-				printk("%s:%d,oldAsicFwdPortMask is %d,newAsicFwdPortMask is %d\n",__FUNCTION__,__LINE__,oldAsicFwdPortMask,newAsicFwdPortMask);
+				printk("%s:%d,oldAsicFwdPortMask is %d,newAsicFwdPortMask is %d,cpuflag:%d->%d\n",
+				__FUNCTION__,__LINE__,oldAsicFwdPortMask,newAsicFwdPortMask,oldCpuFlag,newCpuFlag);
 				#endif
 				
 #ifndef RTL8651_MCAST_ALWAYS2UPSTREAM
@@ -1532,8 +1723,10 @@ void _rtl865x_timeUpdateMulticast(uint32 secPassed)
 	rtl865x_tblDrv_mCast_t *mCast_t, *nextMCast_t;
 	uint32 entry;
 	uint32 needReArrange=FALSE;
+	uint32 hashLineCnt=0;
 	/* check to Aging and HW swapping */
 	for (entry=0; entry< RTL8651_MULTICASTTBL_SIZE; entry++) {
+		hashLineCnt=0;
 		needReArrange=FALSE;
 		mCast_t = TAILQ_FIRST(&mCastTbl.inuseList.mCastTbl[entry]);
 		while (mCast_t) {
@@ -1563,16 +1756,6 @@ void _rtl865x_timeUpdateMulticast(uint32 secPassed)
 			else 
 			{
 				/* Entry is not in the ASIC */
-				if(mCast_t->maxPPS<mCast_t->count)
-				{
-					mCast_t->maxPPS=mCast_t->count ;
-				}
-				
-				if(mCast_t->maxPPS>0)
-				{
-					mCast_t->maxPPS--;
-				}
-				
 				if (mCast_t->age <= secPassed)
 				{ /* aging out */
 					_rtl865x_freeMCastEntry(mCast_t, entry);
@@ -1583,15 +1766,39 @@ void _rtl865x_timeUpdateMulticast(uint32 secPassed)
 				}
 			}
 			
-			mCast_t->count = 0;
+			/*won't count multicast entry forwarded by cpu*/
+			if(mCast_t->cpu==0)
+			{
+				
+				hashLineCnt++;
+				//printk("------------hashLineCnt:%d,[%s]:[%d].\n",hashLineCnt,__FUNCTION__,__LINE__);
+				if(hashLineCnt>=2)
+				{
+					needReArrange=TRUE;
+				}
+			}
+		
+			//mCast_t->count = 0;
 			mCast_t = nextMCast_t;
 		}
 
 		if(needReArrange==TRUE)
 		{
+			//printk("------------entry:%d,hashLineCnt:%d,[%s]:[%d].\n",entry,hashLineCnt,__FUNCTION__,__LINE__);
 			_rtl865x_arrangeMulticast(entry);
 		}
-	
+		mCast_t = TAILQ_FIRST(&mCastTbl.inuseList.mCastTbl[entry]);
+		
+		while (mCast_t) {
+			/*save the next entry first*/
+			nextMCast_t=TAILQ_NEXT(mCast_t, nextMCast);
+			
+			if (mCast_t->inAsic == FALSE)
+				mCast_t->count=0;
+			
+			mCast_t = nextMCast_t;
+		}
+		
 	}
 }
 
@@ -1772,8 +1979,8 @@ int32 rtl_dumpSwMulticastInfo(void)
 				mCast_t->dip>>24, (mCast_t->dip&0x00ff0000)>>16, (mCast_t->dip&0x0000ff00)>>8, (mCast_t->dip&0xff), 
 				mCast_t->sip>>24, (mCast_t->sip&0x00ff0000)>>16, (mCast_t->sip&0x0000ff00)>>8, (mCast_t->sip&0xff),
 				mCast_t->mbr,mCast_t->svid, mCast_t->port);
-			printk("\t      extIP:0x%x,age:%d, cpu:%d, maxPPS:%d, inAsic:%d, (%s)\n", 
-				mCast_t->extIp,mCast_t->age, mCast_t->cpu,mCast_t->maxPPS,mCast_t->inAsic,mCast_t->unKnownMCast?"UnknownMCast":"KnownMCast");
+			printk("\t      extIP:0x%x,age:%d, cpu:%d, count:%d, inAsic:%d, (%s)\n", 
+				mCast_t->extIp,mCast_t->age, mCast_t->cpu,mCast_t->count,mCast_t->inAsic,mCast_t->unKnownMCast?"UnknownMCast":"KnownMCast");
 			
 			cnt=0;
 			curDesc=MC_LIST_FIRST(&mCast_t->fwdDescChain);
@@ -1824,5 +2031,93 @@ int rtl865x_blockMulticastFlow(unsigned int srcVlanId, unsigned int srcPort,unsi
 	memset(&fwdDescriptor, 0, sizeof(rtl865x_mcast_fwd_descriptor_t ));
 	rtl865x_addMulticastEntry(destIpAddr, srcIpAddr, (unsigned short)srcVlanId, (unsigned short)srcPort, &fwdDescriptor, TRUE, 0, 0, 0);
 	return SUCCESS;
+}
+
+/*
+@func int32	| rtl865x_flushHWMulticastEntry	|  API to delete all multicast 
+forwarding entry
+@rvalue SUCCESS	|Delete hardware multicast forwarding entry successfully. 
+@rvalue FAILED	|Delete hardware multicast forwarding entry failed.
+*/
+
+int32 rtl865x_flushHWMulticastEntry(void)
+{
+
+	rtl865x_tblDrv_mCast_t *mCastEntry, *nextMCastEntry;
+	uint32 entry;
+	
+
+	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++) 
+	{
+		
+		mCastEntry = TAILQ_FIRST(&mCastTbl.inuseList.mCastTbl[entry]);
+		while (mCastEntry)
+		{
+			nextMCastEntry = TAILQ_NEXT(mCastEntry, nextMCast);
+			if(mCastEntry->dip)
+			{
+				
+				_rtl865x_freeMCastEntry(mCastEntry, entry);
+				_rtl865x_arrangeMulticast(entry);
+			}
+			
+			mCastEntry = nextMCastEntry;
+		}
+		
+
+
+		
+	}
+
+	return SUCCESS;
+}
+
+int rtl865x_getMCastHashMethod(unsigned int *hashMethod)
+{
+	if(hashMethod==NULL)
+	{
+		return -1;
+	}
+
+	#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
+	*hashMethod = (REG32(FFCR) & 0x60)>>5;
+	#else
+	*hashMethod=0;
+	#endif
+	return 0;
+}
+
+int rtl865x_setMCastHashMethod(unsigned int hashMethod)
+{
+    #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD)  || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198C)
+    uint32 	  oldHashMethod = 0;
+	uint32 	  currHashMethod = 0;
+ 	oldHashMethod = (REG32(FFCR) & 0x60)>>5;
+    currHashMethod = hashMethod; 
+	if(currHashMethod >3)
+	{
+		return -1;
+	}
+				
+	currHashMethod=currHashMethod&0x3;
+				
+    if (oldHashMethod != currHashMethod) /* set FFCR Register bit 5~6 and flush multicast table */
+    {
+        REG32(FFCR) = (REG32(FFCR) & 0xFFFFFF9F)|(currHashMethod << 5);
+        /* exclude 0->1 and 1->0 */
+        if(!((currHashMethod == HASH_METHOD_SIP_DIP0 && oldHashMethod == HASH_METHOD_SIP_DIP1) || 
+            (currHashMethod == HASH_METHOD_SIP_DIP1 && oldHashMethod == HASH_METHOD_SIP_DIP0)))
+        {
+
+            rtl865x_flushHWMulticastEntry();   
+                   
+
+        }
+            
+    }
+    return 0;
+#else
+	return 0;
+#endif	
 }
 

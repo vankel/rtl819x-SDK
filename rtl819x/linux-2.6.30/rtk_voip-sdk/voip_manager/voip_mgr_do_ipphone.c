@@ -4,6 +4,7 @@
 
 #include "rtk_voip.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "voip_control.h"
 #include "voip_params.h"
 #include "voip_mgr_define.h"
@@ -12,11 +13,13 @@
 #include "voip_mgr_do_ipphone.h"
 #endif
 
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
   #if defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_WM8510)
     #include "../voip_drivers/iphone/WM8510.h"	/* for type of AI_AO_select() */
   #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621)
     #include "../voip_drivers/iphone/ALC5621.h"
+  #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q)
+    #include "../voip_drivers/iphone/ALC5633Q.h"
   #endif
   #if defined( CONFIG_RTK_VOIP_GPIO_IPP_100 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_101 )
   #elif defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V01 ) 
@@ -34,8 +37,8 @@
  */
 int do_mgr_VOIP_MGR_CTL_KEYPAD( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
- #ifndef CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
+ #if !defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 ) && !defined(CONFIG_RTK_VOIP_GPIO_IPP_89XXC_V00) && !defined(CONFIG_RTK_VOIP_GPIO_IPP_89XXD_CODEC)
 	extern void do_keypad_opt_ctl( void *pUser, unsigned int len );
 	do_keypad_opt_ctl( user, len );
  #endif
@@ -51,8 +54,8 @@ int do_mgr_VOIP_MGR_CTL_KEYPAD( int cmd, void *user, unsigned int len, unsigned 
  */
 int do_mgr_VOIP_MGR_CTL_LCM( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
- #ifndef CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
+ #if !defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 ) && !defined(CONFIG_RTK_VOIP_GPIO_IPP_89XXC_V00) && !defined(CONFIG_RTK_VOIP_GPIO_IPP_89XXD_CODEC)
 	extern void do_lcm_opt_ctl( void *pUser, unsigned int len );
 	do_lcm_opt_ctl( user, len );
  #endif
@@ -67,7 +70,7 @@ int do_mgr_VOIP_MGR_CTL_LCM( int cmd, void *user, unsigned int len, unsigned sho
  */
 int do_mgr_VOIP_MGR_CTL_VOICE_PATH( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 	TstVoicePath_t stVoicePath;
 	extern void AI_AO_select(unsigned char type);
 	static const unsigned char select_type[] =
@@ -91,7 +94,7 @@ int do_mgr_VOIP_MGR_CTL_VOICE_PATH( int cmd, void *user, unsigned int len, unsig
  */
 int do_mgr_VOIP_MGR_CTL_LED( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 	TstLedCtl stLedCtl;
 	int ret;
 	
@@ -110,6 +113,10 @@ int do_mgr_VOIP_MGR_CTL_LED( int cmd, void *user, unsigned int len, unsigned sho
 	LED_DirectGPIO_SetDisplay( stLedCtl.led );
 #elif defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 )
 
+#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXC_V00 )
+	//todo jwsyu 20120509 ip phone
+#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXD_CODEC )
+	//todo jwsyu 20120509 ip phone
 #else
 	???
 #endif		
@@ -125,7 +132,7 @@ int do_mgr_VOIP_MGR_CTL_LED( int cmd, void *user, unsigned int len, unsigned sho
  */
 int do_mgr_VOIP_MGR_CTL_MISC( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 	TstMiscCtl_t stMiscCtl;
 	
 	//copy_from_user(&stMiscCtl, user, sizeof(TstMiscCtl_t));

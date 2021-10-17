@@ -307,6 +307,9 @@ static int vlan_dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 		vlan_tci = vlan_dev_info(dev)->vlan_id;
 		vlan_tci |= vlan_dev_get_egress_qos_mask(dev, skb);
+        #ifdef CONFIG_RTL_VLAN_8021Q
+		skb->vlan_tci = vlan_tci;
+        #endif
 		skb = __vlan_put_tag(skb, vlan_tci);
 		if (!skb) {
 			stats->tx_dropped++;

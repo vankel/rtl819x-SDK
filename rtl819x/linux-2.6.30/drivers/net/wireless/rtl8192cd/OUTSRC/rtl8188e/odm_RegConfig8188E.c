@@ -18,6 +18,11 @@
  *
  ******************************************************************************/
 
+#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)  
@@ -31,6 +36,13 @@ odm_ConfigRFReg_8188E(
 	IN	u4Byte				    RegAddr
 	)
 {
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP)
+#ifndef SMP_SYNC
+		unsigned long x;
+#endif
+		struct rtl8192cd_priv *priv = pDM_Odm->priv;
+#endif
+
     if(Addr == 0xffe)
 	{ 					  
 		#ifdef CONFIG_LONG_DELAY_ISSUE
@@ -61,7 +73,14 @@ odm_ConfigRFReg_8188E(
 	}
 	else
 	{
+
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP)
+		SAVE_INT_AND_CLI(x);	
 		ODM_SetRFReg(pDM_Odm, RF_PATH, RegAddr, bRFRegOffsetMask, Data);
+		RESTORE_INT(x);
+#else
+		ODM_SetRFReg(pDM_Odm, RF_PATH, RegAddr, bRFRegOffsetMask, Data);
+#endif		
 		// Add 1us delay between BB/RF register setting.
 		ODM_delay_us(1);
 	}	
@@ -77,7 +96,6 @@ odm_ConfigRF_RadioA_8188E(
 {
 	u4Byte  content = 0x1000; // RF_Content: radioa_txt
 	u4Byte	maskforPhySet= (u4Byte)(content&0xE000);
-//	u4Byte	i;
 
     odm_ConfigRFReg_8188E(pDM_Odm, Addr, Data, ODM_RF_PATH_A, Addr|maskforPhySet);
 
@@ -129,6 +147,9 @@ odm_ConfigBB_AGC_8188E(
 void
 odm_ConfigBB_PHY_REG_PG_8188E(
 	IN 	PDM_ODM_T 	pDM_Odm,
+	IN	u4Byte		Band,
+	IN	u4Byte		RfPath,
+	IN	u4Byte		TxNum,
     IN 	u4Byte 		Addr,
     IN 	u4Byte 		Bitmask,
     IN 	u4Byte 		Data
@@ -150,10 +171,31 @@ odm_ConfigBB_PHY_REG_PG_8188E(
 		ODM_delay_us(5);
 	else if (Addr == 0xf9)
 		ODM_delay_us(1);
-    // TODO: ODM_StorePwrIndexDiffRateOffset(...)
-	// storePwrIndexDiffRateOffset(Adapter, Addr, Bitmask, Data);
 
-    ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_TRACE, ("===> ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X %08X\n", Addr, Bitmask, Data));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("===> @@@@@@@ ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X %08X\n", Addr, Bitmask, Data));
+
+#if	!(DM_ODM_SUPPORT_TYPE&ODM_AP)
+	PHY_StoreTxPowerByRate(pDM_Odm->Adapter, Band, RfPath, TxNum, Addr, Bitmask, Data);
+#endif
+
+}
+
+void
+odm_ConfigBB_TXPWR_LMT_8188E(
+	IN 	PDM_ODM_T 	pDM_Odm,
+	IN	pu1Byte		Regulation,
+	IN	pu1Byte		Band,
+	IN	pu1Byte		Bandwidth,
+	IN	pu1Byte		RateSection,
+	IN	pu1Byte		RfPath,
+	IN	pu1Byte 	Channel,
+	IN	pu1Byte		PowerLimit
+    )
+{   
+#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
+	PHY_SetTxPowerLimit(pDM_Odm, Regulation, Band,
+		Bandwidth, RateSection, RfPath, Channel, PowerLimit);
+#endif
 }
 
 void 
@@ -189,3 +231,4 @@ odm_ConfigBB_PHY_8188E(
     ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_TRACE, ("===> ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X\n", Addr, Data));
 }
 #endif
+

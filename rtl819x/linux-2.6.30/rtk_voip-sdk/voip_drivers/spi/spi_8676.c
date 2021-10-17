@@ -5,7 +5,7 @@
 *
 *
 *****************************************************************************/
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -17,6 +17,12 @@
 //#ifdef CONFIG_RLE0412
 #include <bspchip.h>
 //#endif
+
+//#define FEATURE_COP3_PROFILE 1
+#ifdef FEATURE_COP3_PROFILE
+#include "cp3/cp3_profile.h"
+extern st_CP3_VoIP_param cp3_voip_param;
+#endif
 
 // gpio simulated spi interface
 #ifdef CONFIG_RTK_VOIP_8676_SPI_GPIO
@@ -221,7 +227,7 @@ extern void gpioClear(int gpio_num);
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB
 
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x
+#if defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
 
 void rtl8676_share_spi_write(unsigned int ch, unsigned int uses_daisy, unsigned int control, unsigned int address,unsigned int data)
 {
@@ -333,7 +339,7 @@ void __rtl867x_spi_init(int ch_spi)
 
 
 }
-#endif
+#endif //CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x || CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226
 
@@ -557,8 +563,8 @@ void vp_write(rtl_spi_dev_t *pDev, unsigned int data)
 	rtl_8676_reg_t	*spi_reg=get_spi_reg();
 	int flags;
 
-	spin_lock_irqsave(spi_lock,flags);
-	
+	//spin_lock_irqsave(spi_lock,flags);
+
 	//trans. conf
 	//spi_reg->SPITCR = 0x00205045 | (1<<(31 - pDev->SPI_SEL_CS));
 	spi_reg->SPITCR &= ~((0x3f) << 26); //clear chip selection
@@ -574,20 +580,39 @@ void vp_write(rtl_spi_dev_t *pDev, unsigned int data)
 	spi_reg->SPISTR = 0xC0000000;
 
 	//ctrl
-	spicnr = SPI_CSTIME(0) | SPI_WRIE(1) | SPI_RDIE(1) | SPI_LSB(0) | SPI_CMD(1) | SPI_START(1) | SPI_CSP(0);
+	//spicnr = SPI_CSTIME(0) | SPI_WRIE(1) | SPI_RDIE(1) | SPI_LSB(0) | SPI_CMD(1) | SPI_START(1) | SPI_CSP(0);
+	spicnr = SPI_CSTIME(0) | SPI_WRIE(1)/*| SPI_RDIE(1)*/| SPI_LSB(0) | SPI_CMD(1) | SPI_START(1) | SPI_CSP(0);
 
 	//data
 	spi_reg->SPIRDR = (data) << 24;
 
 	//start transfer
 	spi_reg->SPICNR = spicnr;
+
+#ifdef FEATURE_COP3_PROFILE
+	if (cp3_voip_param.bCp3Count_Temp200 == 1) {
+		save_flags(flags); cli();
+		ProfileEnterPoint(PROFILE_INDEX_TEMP200);
+	}
+#endif
 	
 	//wait unitl finish
-	while (spi_reg->SPISTR  == 0) ;
+	//while (spi_reg->SPISTR  == 0) ;
+	while ((spi_reg->SPISTR & SPI_WDIP(1))  == 0) ;
+	spi_reg->SPISTR |= SPI_WDIP(1);
+	while ((spi_reg->SPICNR & SPI_START(1)) != 0) ;
 
 	//spi_cs_delay();
+	
+#ifdef FEATURE_COP3_PROFILE
+	if (cp3_voip_param.bCp3Count_Temp200 == 1) {
+		ProfileExitPoint(PROFILE_INDEX_TEMP200);
+		restore_flags(flags);
+		ProfilePerDump(PROFILE_INDEX_TEMP200, cp3_voip_param.cp3_dump_period);
+	}
+#endif
 
-	spin_unlock_irqrestore(spi_lock,flags);
+	//spin_unlock_irqrestore(spi_lock,flags);
 }
 
 void vp_read(rtl_spi_dev_t *pDev, unsigned char *data)
@@ -597,7 +622,14 @@ void vp_read(rtl_spi_dev_t *pDev, unsigned char *data)
 	rtl_8676_reg_t	*spi_reg=get_spi_reg();
 	int flags;
 	
-	spin_lock_irqsave(spi_lock,flags);
+	//spin_lock_irqsave(spi_lock,flags);
+
+#ifdef FEATURE_COP3_PROFILE
+	if (cp3_voip_param.bCp3Count_Temp201 == 1) {
+		save_flags(flags); cli();
+		ProfileEnterPoint(PROFILE_INDEX_TEMP201);
+	}
+#endif
 
 	//trans. conf
 	//spi_reg->SPITCR = 0x00205045 | (1<<(31 - pDev->SPI_SEL_CS));
@@ -614,7 +646,8 @@ void vp_read(rtl_spi_dev_t *pDev, unsigned char *data)
 	spi_reg->SPISTR = 0xC0000000;
 
 	//ctrl
-	spicnr = SPI_CSTIME(0) | SPI_WRIE(1) | SPI_RDIE(1) | SPI_LSB(0) | SPI_CMD(0) | SPI_START(1) | SPI_CSP(0);
+	//spicnr = SPI_CSTIME(0) | SPI_WRIE(1) | SPI_RDIE(1) | SPI_LSB(0) | SPI_CMD(0) | SPI_START(1) | SPI_CSP(0);
+	spicnr = SPI_CSTIME(0)/*| SPI_WRIE(1)*/| SPI_RDIE(1) | SPI_LSB(0) | SPI_CMD(0) | SPI_START(1) | SPI_CSP(0);
 
 	//clear data
 	spi_reg->SPIRDR = 0x0;
@@ -623,14 +656,26 @@ void vp_read(rtl_spi_dev_t *pDev, unsigned char *data)
 	spi_reg->SPICNR = spicnr;
 	
 	//wait unitl finish
-	while (spi_reg->SPISTR  == 0) ;
+	//while (spi_reg->SPISTR  == 0) ;
+	while ((spi_reg->SPISTR & SPI_RDIP(1))  == 0) ;
+	spi_reg->SPISTR |= SPI_RDIP(1);
+	while ((spi_reg->SPICNR & SPI_START(1)) != 0) ;
 
 	buf = (unsigned char) (spi_reg->SPIRDR >> 24);
 	*data = buf;
 
 	//spi_cs_delay();
 	
-	spin_unlock_irqrestore(spi_lock,flags);
+	//spin_unlock_irqrestore(spi_lock,flags);
+
+#ifdef FEATURE_COP3_PROFILE
+	if (cp3_voip_param.bCp3Count_Temp201 == 1) {
+		ProfileExitPoint(PROFILE_INDEX_TEMP201);
+		restore_flags(flags);
+		ProfilePerDump(PROFILE_INDEX_TEMP201, cp3_voip_param.cp3_dump_period);
+	}
+#endif
+	
 }
 
 int32 __rtl867x_spi_init( rtl_spi_dev_t* pDev, uint32 SPI_SEL_CS)
@@ -647,8 +692,21 @@ int32 __rtl867x_spi_init( rtl_spi_dev_t* pDev, uint32 SPI_SEL_CS)
 
 	spi_reg = get_spi_reg();
 	/*Initialize Registers*/	
-	spi_reg->SPICKDIV = 0x40000000;
-	spi_reg->SPITCR = SPI_D0_EN(1) | 0x5045;
+
+#if 1
+	spi_reg->SPICKDIV = 0x40000000; // ~960K
+	spi_reg->SPITCR = SPI_D0_EN(1) | 0x0728;
+
+	//spi_reg->SPICKDIV = 0x07000000; // 7.8M
+	//spi_reg->SPITCR = SPI_D0_EN(1) | 0x0955;
+#else
+	spi_reg->SPICKDIV = 0x1E000000; // ~ 2M
+	//spi_reg->SPICKDIV = 0x13000000; // ~ 3.125M
+	//spi_reg->SPICKDIV = 0xF000000; // ~ 4M
+	//spi_reg->SPICKDIV = 0x9000000; // ~ 6.25M
+	//spi_reg->SPICKDIV = 0x7000000; // ~ 8M
+	spi_reg->SPITCR = SPI_D0_EN(1) | 0x0728;
+#endif
 	//printk("SPITCR:[%08x]=%08x\n", RTL8676_SPI_BASE + 0x10 , spi_reg->SPITCR);
 //#if (defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116) && defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89316)) || (CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR == 2)
 #ifdef CONFIG_RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01

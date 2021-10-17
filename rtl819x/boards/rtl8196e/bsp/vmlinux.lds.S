@@ -261,7 +261,7 @@ SECTIONS
 
 
   
-   	. = ALIGN(8192);
+   	. = ALIGN(16384);
    	__dram = . ;
    	__dram_start = . ;
 #ifdef CONFIG_RTK_VOIP
@@ -313,7 +313,7 @@ SECTIONS
 		*(.dram)		/* other usage */
 		*(.dram.1)
    	}
-   	. = ALIGN(8192);
+   	. = ALIGN(16384);
 #ifdef CONFIG_RTK_VOIP
 	__dram1_end = . ;
 #endif

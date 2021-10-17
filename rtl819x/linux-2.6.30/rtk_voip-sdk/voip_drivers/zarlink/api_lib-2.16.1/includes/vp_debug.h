@@ -20,7 +20,7 @@
 #include "sys_service.h"
 
 #ifdef VP_DEBUG 
-#include <linux/config.h> //printk
+//#include <linux/config.h> //printk
 #endif
 
 /* VP-API debug message types: */

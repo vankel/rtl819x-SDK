@@ -25,6 +25,9 @@ static void mac_help(void)
 static const struct option mac_opts[] = {
 	{ "mac-source", 1, NULL, '1' },
 	{ "mac-destination", 1, NULL, '2' },
+#if defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
+	{ "in-port", 1, NULL, '3' },
+#endif
 	{ .name = NULL }
 };
 
@@ -54,6 +57,24 @@ parse_mac(const char *mac, struct xt_mac *info)
 	}
 
 }
+
+#if defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
+static void
+parse_inPortMask(u_int8_t* info, u_int8_t *portMask)
+{
+	int i;
+	int temp;
+
+	for(i=0; i<5; i++)
+	{
+		if(info[i] != '\0'){
+			temp = info[i] - '0';
+			if(temp == 1)
+				*portMask |= 1<<i;
+		}
+	}
+}
+#endif
 
 static int
 mac_parse(int c, char **argv, int invert, unsigned int *flags,
@@ -88,6 +109,14 @@ mac_parse(int c, char **argv, int invert, unsigned int *flags,
                 }
                 parse_mac(optarg, &macinfo->dstaddr);
                 break;
+
+#if defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
+	case '3':
+		*flags |= INPORT_FLAG;
+		macinfo->flags |= INPORT_FLAG;
+		parse_inPortMask(optarg, &macinfo->inPortMask);
+		break;
+#endif
 
         default:
                 return 0;

@@ -43,7 +43,7 @@ extern void eth_startup(int etherport);
 extern void eth_listening(void);
 
 /*in eth_tftpd.c*/
-extern void tftpd_entry(void);
+extern void tftpd_entry(int is_client_mode);
 
 /*in monitor.c*/
 extern int check_cpu_speed(void);

@@ -10,8 +10,8 @@ int main(void)
 	SIGNSTATE val;
 	int bStartRinging, nRingCnt;
 
-	rtk_Set_DAA_Tx_Gain(7);
-	rtk_Set_DAA_Rx_Gain(7);
+	rtk_SetDaaTxGain(7);
+	rtk_SetDaaRxGain(7);
 
 	nRingCnt = 0;
 	bStartRinging = 0;
@@ -19,17 +19,17 @@ int main(void)
 	{
 		if (!bStartRinging)
 		{
-			if (rtk_DAA_ring(0))
+			if (rtk_DaaRing(0))
 			{
 				// DAA Ring Start
-				rtk_SetRingFXS(0, 1);
+				rtk_SetRingFxs(0, 1);
 				nRingCnt = 0;
 				bStartRinging = 1;
 			}
 		}
 		else
 		{
-			if (rtk_DAA_ring(0))
+			if (rtk_DaaRing(0))
 			{
 				// still ringing, reset cnt
 				nRingCnt = 0;
@@ -39,7 +39,7 @@ int main(void)
 				if (++nRingCnt >= MAX_RING_CNT)
 				{
 					// DAA Ring Stop
-					rtk_SetRingFXS(0, 0);
+					rtk_SetRingFxs(0, 0);
 					bStartRinging = 0;
 				}
 			}
@@ -49,12 +49,12 @@ int main(void)
 		switch (val)
 		{
 		case SIGN_ONHOOK:
-			rtk_DAA_on_hook(0);
-			rtk_Onhook_Action(0);
+			rtk_DaaOnHook(0);
+			rtk_OnHookAction(0);
 			break;
 		case SIGN_OFFHOOK:
-			rtk_Offhook_Action(0);
-			rtk_DAA_off_hook(0);
+			rtk_OffHookAction(0);
+			rtk_DaaOffHook(0);
 			break;
 		default:
 			break;

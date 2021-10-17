@@ -18,10 +18,11 @@ int main(int argc, char *argv[])
 	SIGNSTATE val;
 	rtp_config_t rtp_config;
 	payloadtype_config_t codec_config;
+	unsigned int codec_select = 0;
 	
-	if(argc != 2)
+	if(argc < 2)
 	{
-		printf("usage: %s DTMF_MODE(0:RFC2833 / 1:SIP_INFO / 2:INBAND) \n", argv[0]);
+		printf("usage: %s DTMF_MODE(0:RFC2833 / 1:SIP_INFO / 2:INBAND) [codec] \n", argv[0]);
 		return 0;
 	}
 
@@ -32,15 +33,17 @@ int main(int argc, char *argv[])
 	}
 	
 	dtmf_mode = atoi(argv[1]);
+	if( argc >= 3 )
+		codec_select = atoi( argv[ 2 ] ); 
 
 	for(chid = 0 ; chid <CON_CH_NUM ;chid ++)
 	{
 		if( !RTK_VOIP_IS_SLIC_CH( chid, g_VoIP_Feature ) )
 			continue;
 			
-		rtk_InitDSP(chid);
-		rtk_Set_flush_fifo(chid);	
-		rtk_SetDTMFMODE(chid, dtmf_mode);	// set dtmf mode
+		rtk_InitDsp(chid);
+		rtk_SetFlushFifo(chid);	
+		rtk_SetDtmfMode(chid, dtmf_mode);	// set dtmf mode
 	}
 	
 	while (1)
@@ -64,17 +67,17 @@ int main(int argc, char *argv[])
 			case SIGN_KEY0:
 				break;
 			case SIGN_STAR:
-				rtk_IvrStartPlaying  (chid, IVR_DIR_LOCAL, "STAR");
+				rtk_IvrStartPlaying  (chid, 0, IVR_DIR_LOCAL, "STAR");
 				break;
 			case SIGN_HASH:
-				rtk_IvrStartPlaying  (chid, IVR_DIR_REMOTE, "HASH");
+				rtk_IvrStartPlaying  (chid, 0, IVR_DIR_REMOTE, "HASH");
 				break;
 			case SIGN_OFFHOOK:
 
 				/*
-				 * call rtk_Offhook_Action at first
+				 * call rtk_OffHookAction at first
 				 */
-				rtk_Offhook_Action(chid);
+				rtk_OffHookAction(chid);
 				rtk_SetTranSessionID(chid, 0);
 	
 				/* 		
@@ -99,7 +102,12 @@ int main(int argc, char *argv[])
 					rtp_config.rfc2833_fax_modem_pt_local = 101;
 					rtp_config.rfc2833_fax_modem_pt_remote = 101;
 				}
-#ifdef SUPPORT_RTP_REDUNDANT
+#if defined(SUPPORT_RTP_REDUNDANT_APP)
+				rtp_config.rtp_redundant_payload_type_local	 = 0;
+				rtp_config.rtp_redundant_payload_type_remote = 0;
+				rtp_config.rtp_redundant_max_Audio = 0;
+				rtp_config.rtp_redundant_max_RFC2833 = 0;
+#elif defined(SUPPORT_RTP_REDUNDANT)
 				rtp_config.rtp_redundant_payload_type_local	 = 0;
 				rtp_config.rtp_redundant_payload_type_remote = 0;
 				rtp_config.rtp_redundant_max_Audio = 0;
@@ -122,21 +130,49 @@ int main(int argc, char *argv[])
 				codec_config.sid 			 = 0;
 				codec_config.local_pt 		 = 18;					// G729 use static pt 18
 				codec_config.remote_pt 		 = 18;					// G729 use static pt 18
-				codec_config.uPktFormat 	 = rtpPayloadG729;
+				switch( codec_select ) {
+				case 711:
+					codec_config.uLocalPktFormat  = rtpPayloadPCMU;		// for TX to remote
+					codec_config.uRemotePktFormat = rtpPayloadPCMU; 	// for RX from remote
+					break;
+				case 722:
+					codec_config.uLocalPktFormat  = rtpPayloadG722;		// for TX to remote
+					codec_config.uRemotePktFormat = rtpPayloadG722; 	// for RX from remote
+					break;
+				case 723:
+					codec_config.uLocalPktFormat  = rtpPayloadG723;		// for TX to remote
+					codec_config.uRemotePktFormat = rtpPayloadG723; 	// for RX from remote
+					break;
+				case 729:
+				default:
+					codec_config.uLocalPktFormat  = rtpPayloadG729;		// for TX to remote
+					codec_config.uRemotePktFormat = rtpPayloadG729; 	// for RX from remote
+					break;
+				}
 				codec_config.local_pt_vbd 	 = rtpPayloadUndefined;
 				codec_config.remote_pt_vbd 	 = rtpPayloadUndefined;
 				codec_config.uPktFormat_vbd  = rtpPayloadUndefined;
 				codec_config.nG723Type 		 = 0;
-				codec_config.nFramePerPacket = 1;
+				codec_config.nLocalFramePerPacket = 1;
+				codec_config.nRemoteFramePerPacket = 1;
 				codec_config.nFramePerPacket_vbd = 1;
 				codec_config.bVAD 			 = 0;
 				codec_config.bPLC 			 = 1;
 				codec_config.nG726Packing 	 = 2;
+#if 0
 				codec_config.nJitterDelay 	 = 4;
 				codec_config.nMaxDelay 		 = 13;
+				codec_config.nMaxStrictDelay = 10000;
 				codec_config.nJitterFactor 	 = 7;
+#else
+				codec_config.nJitterDelay 	 = 4;
+				codec_config.nMaxDelay 		 = 20;
+				codec_config.nMaxStrictDelay = 10000;
+				codec_config.nJitterFactor 	 = 1;
+#endif
 
-				if (codec_config.uPktFormat == rtpPayloadG722)
+				if ((codec_config.uLocalPktFormat == rtpPayloadG722) ||
+				    (codec_config.uRemotePktFormat == rtpPayloadG722) )
 					codec_config.nPcmMode = 3;	// wide-band
 				else
 					codec_config.nPcmMode = 2;	// narrow-band
@@ -156,10 +192,10 @@ int main(int argc, char *argv[])
 				rtk_SetRtpSessionState(chid, 0, rtp_session_inactive);
 
 				/*
-				 * call rtk_Offhook_Action at last
+				 * call rtk_OnHookAction at last
 				 */
 				 
-				rtk_Onhook_Action(chid);
+				rtk_OnHookAction(chid);
 				break;
 	
 			default:

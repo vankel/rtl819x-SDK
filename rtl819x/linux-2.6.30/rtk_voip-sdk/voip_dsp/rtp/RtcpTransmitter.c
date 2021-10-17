@@ -339,15 +339,18 @@ int RtcpTx_transmitRTCP (uint32 sid)
 	// load with RTCP XR packet 
 #ifdef CONFIG_RTK_VOIP_RTCP_XR
 	if( RtcpTxEnableXR[ sid ] )
-    	RtcpTx_addXR(sid, p, 0);
+	{
+		RtcpTx_addXR(sid, p, 0);
+		pInfo ->txLogger.rtcp_xr_packet_count ++;
+	}
 #endif
 
     // transmit packet
-    pInfo ->txLogger.packet_count ++;
+	pInfo ->txLogger.rtcp_packet_count ++;
 	int ret = RtcpTx_transmit(p);
 
 	RtcpTx_freePacket(p);
-    return ret;
+	return ret;
 }
 
 int RtcpTx_transmitRTCPBYE (uint32 sid)
@@ -394,7 +397,7 @@ int RtcpTx_transmitRTCPBYE (uint32 sid)
 	//printk("BYE-6\n");
 
 	/* transmit packet */
-	pInfo ->txLogger.packet_count ++;
+	pInfo ->txLogger.rtcp_packet_count ++;
 	int ret = RtcpTx_transmit(p);
 	//printk("BYE-7\n");
 
@@ -699,7 +702,7 @@ int RtcpTx_addSR (uint32 sid, RtcpPacket* p, int npadSize)
 
 u_int32_t RtcpTx_calcLostFrac (RtpTranInfo* s)
 {
-    /* from A.3 of RFC 1889 - RTP/RTCP Standards */
+    /* from A.3 of RFC 3550(1889) - RTP/RTCP Standards */
 
     RtpReceiver* r = s->recv;
 
@@ -722,7 +725,7 @@ u_int32_t RtcpTx_calcLostFrac (RtpTranInfo* s)
 
 u_int32_t RtcpTx_calcLostCount (RtpTranInfo* s)
 {
-    /* from A.3 of RFC 1889 - RTP/RTCP Standards */
+    /* from A.3 of RFC 3550(1889) - RTP/RTCP Standards */
 
     RtpReceiver* r = s->recv;
 
@@ -1236,35 +1239,32 @@ int RtcpTx_getLogger( uint32 sid, TstVoipRtcpLogger *pLogger )
 	
 	// caller set pLogger data as zeros 
 	
-	pLogger ->TX_packet_count = pInfo ->txLogger.packet_count;
-	if( pInfo ->txLogger.fraction_loss.count ) {
-		pLogger ->TX_loss_rate_max = pInfo ->txLogger.fraction_loss.max;
-		pLogger ->TX_loss_rate_min = pInfo ->txLogger.fraction_loss.min;
-		pLogger ->TX_loss_rate_avg = pInfo ->txLogger.fraction_loss.sum / 
-										pInfo ->txLogger.fraction_loss.count;
-		pLogger ->TX_loss_rate_cur = pInfo ->txLogger.fraction_loss.last;
-	}
-	if( pInfo ->txLogger.inter_jitter.count ) {
-		pLogger ->TX_jitter_max = pInfo ->txLogger.inter_jitter.max;
-		pLogger ->TX_jitter_min = pInfo ->txLogger.inter_jitter.min;
-		pLogger ->TX_jitter_avg = pInfo ->txLogger.inter_jitter.sum / 
-									pInfo ->txLogger.inter_jitter.count;
-		pLogger ->TX_jitter_cur = pInfo ->txLogger.inter_jitter.last;
-	}
-	if( pInfo ->txLogger.round_trip_delay.count ) {
-		pLogger ->TX_round_trip_max = pInfo ->txLogger.round_trip_delay.max;
-		pLogger ->TX_round_trip_min = pInfo ->txLogger.round_trip_delay.min;
-		pLogger ->TX_round_trip_avg = pInfo ->txLogger.round_trip_delay.sum / 
-										pInfo ->txLogger.round_trip_delay.count;
-		pLogger ->TX_round_trip_cur = pInfo ->txLogger.round_trip_delay.last;
-	}
-	if( pInfo ->txLogger.MOS_LQ.count ) {
-		pLogger ->TX_MOS_LQ_max_x10 = pInfo ->txLogger.MOS_LQ.max;
-		pLogger ->TX_MOS_LQ_min_x10 = pInfo ->txLogger.MOS_LQ.min;
-		pLogger ->TX_MOS_LQ_avg_x10 = pInfo ->txLogger.MOS_LQ.sum / 
-										pInfo ->txLogger.MOS_LQ.count;
-		pLogger ->TX_MOS_LQ_cur_x10 = pInfo ->txLogger.MOS_LQ.last;	
-	}
+	pLogger ->TX_packet_count = pInfo ->txLogger.rtcp_packet_count;
+	pLogger ->TX_XR_packet_count = pInfo ->txLogger.rtcp_xr_packet_count;
+
+	pLogger ->TX_loss_rate_max = pInfo ->txLogger.fraction_loss.max;
+	pLogger ->TX_loss_rate_min = pInfo ->txLogger.fraction_loss.min;
+	pLogger ->TX_loss_rate_avg = ( pInfo ->txLogger.fraction_loss.count ? 
+		(pInfo ->txLogger.fraction_loss.sum / pInfo ->txLogger.fraction_loss.count) : 0 );
+	pLogger ->TX_loss_rate_cur = pInfo ->txLogger.fraction_loss.last;
+
+	pLogger ->TX_jitter_max = pInfo ->txLogger.inter_jitter.max;
+	pLogger ->TX_jitter_min = pInfo ->txLogger.inter_jitter.min;
+	pLogger ->TX_jitter_avg = ( pInfo ->txLogger.inter_jitter.count ? 
+		(pInfo ->txLogger.inter_jitter.sum / pInfo ->txLogger.inter_jitter.count) : 0 );
+	pLogger ->TX_jitter_cur = pInfo ->txLogger.inter_jitter.last;
+
+	pLogger ->TX_round_trip_max = pInfo ->txLogger.round_trip_delay.max;
+	pLogger ->TX_round_trip_min = pInfo ->txLogger.round_trip_delay.min;
+	pLogger ->TX_round_trip_avg = ( pInfo ->txLogger.round_trip_delay.count ? 
+		(pInfo ->txLogger.round_trip_delay.sum / pInfo ->txLogger.round_trip_delay.count) : 0 );
+	pLogger ->TX_round_trip_cur = pInfo ->txLogger.round_trip_delay.last;
+
+	pLogger ->TX_MOS_LQ_max_x10 = pInfo ->txLogger.MOS_LQ.max;
+	pLogger ->TX_MOS_LQ_min_x10 = pInfo ->txLogger.MOS_LQ.min;
+	pLogger ->TX_MOS_LQ_avg_x10 = ( pInfo ->txLogger.MOS_LQ.count ? 
+		(pInfo ->txLogger.MOS_LQ.sum / pInfo ->txLogger.MOS_LQ.count) : 0 );
+	pLogger ->TX_MOS_LQ_cur_x10 = pInfo ->txLogger.MOS_LQ.last;	
 	
 	pLogger ->TX_MOS_LQ_max = pLogger ->TX_MOS_LQ_max_x10 / 10;
 	pLogger ->TX_MOS_LQ_min = pLogger ->TX_MOS_LQ_min_x10 / 10;
@@ -1272,6 +1272,27 @@ int RtcpTx_getLogger( uint32 sid, TstVoipRtcpLogger *pLogger )
 	pLogger ->TX_MOS_LQ_cur = pLogger ->TX_MOS_LQ_cur_x10 / 10;
 	
 	return 1;	
+}
+
+int RtcpTx_getReport( uint32 sid, TstVoipRtcpReport *pReport )
+{
+	const RtcpReport *pRtcpReport;
+
+	if(sid > DSP_RTK_SS_NUM)
+		return 0;
+
+	pRtcpReport = &RtcpReportPrev[ sid ];
+
+	pReport ->ssrc = pRtcpReport ->ssrc;
+	pReport ->fracLost = pRtcpReport ->fracLost;
+	pReport ->cumLost = ( ( uint32 )pRtcpReport ->cumLost[ 2 ] ) |
+				( ( uint32 )pRtcpReport ->cumLost[ 1 ] << 8 ) |
+				( ( uint32 )pRtcpReport ->cumLost[ 0 ] << 16 );
+	pReport ->jitter = pRtcpReport ->jitter;
+	pReport ->lastSRTimeStamp = pRtcpReport ->lastSRTimeStamp;
+	pReport ->lastSRDelay = pRtcpReport ->lastSRDelay;
+
+	return 1;
 }
 
 /*
@@ -1351,7 +1372,8 @@ int rtcp_logger_string( char *buff,
 {
 	int n = 0;
 	
-	n += sprintf( buff + n, "packet count: %lu\n", pLogger ->packet_count );
+	n += sprintf( buff + n, "packet count: %lu\n", pLogger ->rtcp_packet_count );
+	n += sprintf( buff + n, "XR packet count: %lu\n", pLogger ->rtcp_xr_packet_count );
 	
 	n += sprintf( buff + n, "fraction_loss (x/256):\n" );
 	n += rtcp_logger_unit_string( buff + n, &pLogger ->fraction_loss );

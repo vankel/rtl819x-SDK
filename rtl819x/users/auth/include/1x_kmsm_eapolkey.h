@@ -24,6 +24,14 @@ typedef unsigned long u_long;
 #define LIB1X_EAPOL_HDRLEN	4
 #define ETHER_ADDRLEN		6
 
+//
+#define GMK_EXPANSION_CONST 	        "Group key expansion"
+#define GMK_EXPANSION_CONST_SIZE		19
+#define RANDOM_EXPANSION_CONST 	        "Init Counter"
+#define RANDOM_EXPANSION_CONST_SIZE		12
+#define IGMK_EXPANSION_CONST 	        "IGTK key expansion"
+#define IGMK_EXPANSION_CONST_SIZE		18
+
 //size of the field in information element
 /*
 #define PMK_LEN			32
@@ -301,7 +309,9 @@ void CalcGTK(
 	u_char * keyin,
 	int keyinlen,
 	u_char * keyout,
-	int keyoutlen);
+	int keyoutlen,
+	u_char * label
+	);
 
 int DecGTK(
 	OCTET_STRING EAPOLMsgRecvd, 

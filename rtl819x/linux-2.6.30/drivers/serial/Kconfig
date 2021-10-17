@@ -124,11 +124,11 @@ config SERIAL_CORE_CONSOLE
 	bool
 
 comment "8250 compatible port support"
-config SERIAL_RTL8198_UART1
-	bool "8198 UART1 support"
+config SERIAL_RTL_UART1
+	bool "819x RTL UART1 support"
 	depends on SERIAL_8250 && SERIAL_8250_NR_UARTS >= 2 && SERIAL_8250_RUNTIME_UARTS >= 2
 	help
-		Enable 8198 UART1 support, and this MAY add an uart device to ttyS1. 
+		Enable RTL819x UART1 support, and this MAY add an uart device to ttyS1. 
 		NOTE: We don't provide option for this port to be console. 
 
 config SERIAL_SC16IS7X0
@@ -161,4 +161,6 @@ config SERIAL_SC16IS7X0_CONSOLE
 			If you want to make user space's stdout to this port, 
 			device (major,minor) of /dev/console has to be ttyS1 (4,65) 
 			instead of ttyS0 (4,64). 
+config I2C_GPIO_MFI_COPROCESSOR_DRIVER 
+        bool "Support I2C-GPIO Driver for MFi Coprocessor"
 endmenu

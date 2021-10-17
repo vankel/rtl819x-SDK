@@ -105,7 +105,6 @@ static void *tcp_handler(void *dummy)
     int                i;
     int	               connect = arg->connect;
     struct sockaddr_in client  = arg->client;
-    unsigned char transaction_id_bak[2];
 
     free(arg);
 
@@ -184,11 +183,7 @@ static void *tcp_handler(void *dummy)
 		log_debug("[%d] tcp read error %s", getpid(), strerror(errno));
 		break;
 	    }
-	    transaction_id_bak[0] = buffer[2];
-  	    transaction_id_bak[1] = buffer[3];
 	    retn = handle_query(&client, &buffer[2], &bytes, &srvridx);
-	    buffer[2] = transaction_id_bak[0];
-	    buffer[3] = transaction_id_bak[1];
 		if(retn<0)
 			break;
 	    /* If we can reply locally (master, cache, no servers), do so. */

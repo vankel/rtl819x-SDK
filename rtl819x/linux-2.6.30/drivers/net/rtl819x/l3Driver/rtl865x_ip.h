@@ -47,7 +47,7 @@ int32 rtl865x_reinitIpTable(void);
 //int32 rtl865x_delIp(ipaddr_t extIp);
 int32 rtl865x_getIPIdx(rtl865x_ip_entry_t *entry, int32 *idx);
 int32 rtl865x_getIpIdxByExtIp(ipaddr_t extIp, int32 *idx);
-
+int32 rtl865x_getIpIdxByIpRange(ipaddr_t ip, ipaddr_t mask, int32 *idx);
 
 #endif
 

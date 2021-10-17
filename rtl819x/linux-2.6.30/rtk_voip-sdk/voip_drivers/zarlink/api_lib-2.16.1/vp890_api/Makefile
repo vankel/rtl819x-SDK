@@ -8,21 +8,11 @@ obj-y	:= 	vp890_apiCal.o  	\
 
 # vp890_seq.c requires Zarlink NDA
 ifeq ($(CONFIG_VOIP_SDK),y)
-
-ifeq ($(CONFIG_RTL_89xxD),y)
-obj-y += vp890_seq_rtl89xxD.obj
-else
-obj-y += vp890_seq.obj
-endif
-
-ifeq ($(CONFIG_RTK_VOIP_PACKAGE_867X),y)
-ifeq ($(CONFIG_8676_IAD_ZARLINK),y)
-obj-y += vp890_seq_rtl8676.obj
-else
-obj-y += vp890_seq.obj
-endif
-endif
-
+obj-$(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) += vp890_seq_rtl89xxD.obj
+obj-$(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) += vp890_seq.obj
+obj-$(CONFIG_RTK_VOIP_DRIVERS_PCM8676) += vp890_seq_rtl8676.obj
+obj-$(CONFIG_RTK_VOIP_SOC_8686_CPU0) += vp890_seq_rtl8686_cpu0.obj
+obj-$(CONFIG_RTK_VOIP_SOC_8686_CPU1) += vp890_seq_rtl8686_cpu1.obj
 else
 obj-y += vp890_seq.o
 endif

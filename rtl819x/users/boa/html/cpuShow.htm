@@ -1,0 +1,860 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2004. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>CPU Utilization</title>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<% language=javascript %>
+<script type="text/javascript" src="util_gw.js"> </script>
+<% getInfo("include_css"); %>
+<script>
+
+var twConstants= 
+{ 
+	DIALECT_SVG:'svg', 
+	DIALECT_VML:'vml', 
+	NS_SVG:'http://www.w3.org/2000/svg', 
+	NS_XLINK:'http://www.w3.org/1999/xlink' 
+}
+
+var isIE=false;
+var cpu_num;
+var width;
+var height;
+var step=2;
+var height_interval = 20;
+var sample_info = [[1,	"1sec",		200,	60,	1,	"min"],
+				   [5,	"5sec",		200,	60,	5,	"min"],
+				   [10, "10sec",	200,	60,	10,	"min"],
+				   [30, "30sec",	200,	60,	30,	"min"],
+				   [60, "1min",		200,	60,	1,	"hour"],
+				   [300, "5min",	200,	24,	2,	"hour"],
+				   [600, "10min",	200,	12,	2,	"hour"]];				   
+var sample_index;
+var sample_interval;
+
+// svg parameter
+var svg;
+var G;
+var svgRoot;
+
+//vml parameter
+var div;
+
+var my_top;
+var my_left;
+
+var data;
+var data_scale;
+var data_avg;
+var data_display;
+
+var start_time;
+var end_time;
+var center_time; //the start time of ui display
+var current_time;
+var delta_time;
+
+var is_change_center_time;
+var is_data_full_screen;
+
+var refreshId;
+
+var gui_context;
+
+function check_browser(){ 
+	return navigator.appName == "Microsoft Internet Explorer";       
+}
+
+function getSVGDocument(svg){
+	var result=null;
+	result=svg.ownerDocument;
+	return result;
+}
+
+function getSVGRoot(svg,doc){
+	if(svg.tagName.toLowerCase()=="embed"){
+		if(doc){
+			return doc.documentElement;
+		}else{
+			return getSVGDocument(svg).documentElement;
+		}
+	}else if(svg.tagName.toLowerCase()=="svg"){
+		return svg;
+	}
+	return null;
+}
+
+function createSVG(id,parent){
+	var svg;
+	var h = (height + height_interval) * cpu_num;
+	parent.innerHTML = "";
+	svg=document.createElementNS(twConstants.NS_SVG,'svg');
+	svg.setAttribute("style", "width:"+width+"px; height:"+h+"px");
+	parent.appendChild(svg);
+	
+	return svg;
+}
+
+function create_xml()
+{
+	var xml;
+	if (window.XMLHttpRequest)
+	{// code for IE7+, Firefox, Chrome, Opera, Safari
+		xml=new XMLHttpRequest();
+	}
+	else
+	{// code for IE6, IE5
+		xml=new ActiveXObject("Microsoft.XMLHTTP");
+	}
+
+	return xml;
+}
+
+function create_rect(x, y, w, h)
+{
+	if(isIE)
+	{
+		return vml("rect").css({position:"absolute",left:x+'px',
+			top:y+'px',width:w+"px",height:h+"px"}).
+			appendTo(div);
+	}
+	else
+	{
+		var rect;
+		rect = G.createElementNS(twConstants.NS_SVG,'rect');
+		rect.setAttribute('x', x);
+		rect.setAttribute('y', y);
+		rect.setAttribute('width', w);
+		rect.setAttribute('height', h);
+		rect.setAttribute('style', 'stroke:#000000;stroke-width:1;fill:white;fill-opacity:1');
+		svgRoot.appendChild(rect);
+		return rect;
+	}
+}
+
+function create_polyline(pt, sc, fc)
+{
+	if(isIE)
+	{
+		return vml("polyline").css({position:"absolute", filter:"Alpha(Opacity=40)",strokecolor:sc, strokeweight:"1px"})
+			.attr({fillcolor:fc, points:pt}).appendTo(div);
+	}
+	else
+	{
+		var line;
+		line = G.createElementNS(twConstants.NS_SVG,'polyline');
+		line.setAttribute("style", "fill:"+fc+";fill-opacity:0.4;stroke:"+sc+";stroke-width:1");
+		line.setAttribute("points", pt);
+		svgRoot.appendChild(line);
+		return line;
+	}
+}
+function change_polyline(obj, pt)
+{
+	if(isIE)
+	{
+		div.removeChild(obj.getNode());
+		obj.attr({ points:pt}).appendTo(div);
+	}
+	else
+	{
+		obj.setAttribute("points", pt);
+		svgRoot.appendChild(obj);		
+	}
+}
+
+function create_textbox(x, y, content)
+{
+	if(isIE)
+	{
+		return vml("textbox").css({position:"absolute", left:x+50+'px', top:y+'px'}).
+			addtext(content).appendTo(div);
+	}
+	else
+	{
+		var text;
+		text = G.createElementNS(twConstants.NS_SVG,'text');
+		text.setAttribute('x', x);
+		text.setAttribute('y', y+10);
+		text.setAttribute('style', 'fill:#000000; font-size:9pt');
+		text.appendChild(G.createTextNode(content));
+		svgRoot.appendChild(text);
+		return text;
+	}
+}
+
+function create_line(x1, y1, x2, y2)
+{
+	if(isIE)
+	{
+		return vml("Line").css({position:"absolute",stroke:"#000000",strokewidth:"1px"}).
+			attr({from:x1+","+y1, to:x2+","+y2}).appendTo(div);
+	}
+	else
+	{
+		var line;
+		line = G.createElementNS(twConstants.NS_SVG, 'line');
+		line.setAttribute('x1', x1);
+		line.setAttribute('y1', y1);
+		line.setAttribute('x2', x2);
+		line.setAttribute('y2', y2);
+		line.setAttribute('style', 'stroke:#000000;stroke-width:0.1');
+		svgRoot.appendChild(line);
+		return line;
+	}
+}
+
+function send_request()
+{
+	var xmlhttp = create_xml();	
+
+	xmlhttp.onreadystatechange=function()
+	{
+		var tmp_text;
+		if (xmlhttp.readyState==4 && xmlhttp.status==200)
+		{
+			tmp_text = xmlhttp.responseText;
+			if(tmp_text.substr(0,6) == "<html>")
+			{
+				alert("Please wait 10 seconds!");
+			}
+			else
+			{
+				read_data(tmp_text);
+				//get_avg_data();
+				//get_display_data();
+				display();
+			}
+		}
+	}
+	xmlhttp.open("GET","cpu_data.dat",true);
+	xmlhttp.send();
+
+}
+
+function read_data(text)
+{
+	var index;
+	var len;
+	var curr_epo = Math.round((new Date()).getTime()/1000);
+	if(is_change_center_time & is_data_full_screen)
+	{
+		center_time += sample_interval;
+	}
+		
+	for(var i=0; i<cpu_num; i++)
+	{	
+		//data_display[i] = new Array();
+
+		start_time[i] = parseInt(text.substr(0,19));
+		len = 200;
+		end_time[i] = start_time[i] + len;
+		delta_time[i] = curr_epo - end_time[i];
+
+		for(var j=0; j<len; j++)
+		{
+			data_display[i][j] = text.charCodeAt(20+i*len+j)-1;
+		}
+	}
+}
+
+function init_display_context()
+{
+	var y_offset;
+	var y;
+	
+	gui_context	=	new Array();
+	for(var i=0; i<cpu_num; i++)
+	{
+		y_offset = (height + height_interval)*i;
+		gui_context[i] = {
+			polyline:	new Object(),			
+			surface:	new Object(),
+			axes:		new Object(),
+			gridvline:	new Array(),
+			xlabel:		new Array(),
+			gridhline:	new Array(),
+			ylabel:		new Array()};
+		gui_context[i].surface = create_rect(my_left, my_top+y_offset, width, height);
+		gui_context[i].axes = create_rect(my_left, my_top+y_offset, width, height);
+		gui_context[i].polyline = create_polyline("0,0 0,0", "#3300CC", "#33FFFF");
+		
+		var k = 0;
+		var scale_text;	
+		for(var j=0; j<width; j+=Math.floor(step*sample_info[sample_index][3]))
+		{
+			gui_context[i].gridvline[j] = create_line(j, y_offset, j, y_offset+height);
+			scale_text = sample_info[sample_index][4]*k + sample_info[sample_index][5];
+			gui_context[i].xlabel[j] = create_textbox(j+5, my_top+height+y_offset+5, scale_text);
+			k++;
+		}
+		
+		y = Math.round(height*0.25) + y_offset;
+		gui_context[i].gridhline[0] = create_line(0, y, width, y);
+		y = Math.round(height*0.5) + y_offset;
+		gui_context[i].gridhline[1] = create_line(0, y, width, y);
+		y = Math.round(height*0.75) + y_offset;
+		gui_context[i].gridhline[2] = create_line(0, y, width, y);
+
+		y = Math.round(height*0.70) + y_offset + my_top;
+		gui_context[i].xlabel[0] = create_textbox(20, y, "25%");
+		y = Math.round(height*0.45) + y_offset + my_top;
+		gui_context[i].xlabel[1] = create_textbox(20, y, "50%");
+		y = Math.round(height*0.20) + y_offset + my_top;
+		gui_context[i].xlabel[2] = create_textbox(20, y, "75%");
+	}
+}
+
+function display()
+{
+	var x;
+	var y_offset;
+	var y;
+	var h;
+	var pt;
+	var scale = height/100;
+	var data_max=0;
+	var data_cur;
+	var div_stat_info = document.getElementById("stat_info");
+	div_stat_info.innerHTML = '<table style="width:100%; table-layout:fixed" cellspacing="5">';
+	
+	for(var i=0; i<cpu_num; i++)
+	{
+		y_offset = (height + height_interval)*i;
+
+		/* plot data */
+		h = y_offset+height;
+		pt = '0,'+h;
+		for(var j=0; j<data_display[i].length; j++)
+		{
+			x = Math.floor(j*step);
+			y = h - Math.floor(data_display[i][j] * scale);
+
+			pt += ' ' + x + ',' + y;
+
+			// get peak data
+			if(data_max < data_display[i][j])
+				data_max = data_display[i][j];
+		}
+		pt += ' ' + x + ',' + h;
+		pt += ' 0,' + h;
+		//get current data
+		if(data_display[i].length ==0)
+		{
+			data_cur = 0;
+		}
+		else
+		{
+			data_cur = data_display[i][data_display[i].length-1];
+		}
+		
+		change_polyline(gui_context[i].polyline, pt);
+
+
+		div_stat_info.innerHTML += '<tr>';
+		div_stat_info.innerHTML += '<td style="text-align:right; vertical-align:top"><strong>Current:</strong></td>';
+		div_stat_info.innerHTML += '<td id="lb_load01_cur">'+data_cur+'</td>&nbsp;&nbsp;&nbsp;&nbsp;';
+		div_stat_info.innerHTML += '<td style="text-align:right; vertical-align:top"><strong>Peak:</strong></td>';
+		div_stat_info.innerHTML += '<td id="lb_load01_peak">'+data_max+'</td>';
+		div_stat_info.innerHTML += '</tr>';
+	}
+	div_stat_info.innerHTML += '</table>';
+	document.getElementById("now_time").innerHTML = "Start Time: "+format_date(center_time);
+	if(document.activeElement.id != "set_center_time")
+	{
+		document.cpuUti.center_time.value = format_date2(center_time);
+	}
+}
+
+function init_vml()
+{
+	if(!window.vml){
+		window.vml = {};
+		document.createStyleSheet().addRule(".vml", "behavior:url(#default#VML);display:inline-block;");
+		if (!document.namespaces.vml && !+"/v1"){
+			document.namespaces.add("vml", "urn:schemas-microsoft-com:vml");
+		}
+	}
+	var vml = window.vml = function(name){
+		var vmlobj = new Object();
+		for(var i in vml.fn){
+			vmlobj[i] = vml.fn[i];
+		}
+		return vml.fn.create.call(vmlobj, name || "rect");
+	}
+	vml.fn = vml.prototype = {
+		create : function(name){
+			this.node = document.createElement('<vml:' + name + ' class="vml">');
+			return this;
+		},
+		appendTo: function(parent){
+			if(typeof this.node !== "undefined" && parent.nodeType == 1){
+				parent.appendChild(this.node);
+			}
+			return this;
+		},
+		attr : function(bag){
+			for(var i in bag){
+				if(bag.hasOwnProperty(i)){
+					this.node.setAttribute(i,bag[i])
+				}
+			}
+			return this;
+		},
+		css: function(bag){
+			var str = ";"
+			for(var i in bag){
+				if(bag.hasOwnProperty(i))
+					str +=  i == "opacity" ? ("filter:alpha(opacity="+ bag[i] * 100+");"):(i+":"+bag[i]+";")
+			}
+			this.node.style.cssText = str;
+			return this;
+		},
+		addtext : function(bag){
+			this.node.innerHTML = bag;
+			return this;
+		},
+		getNode : function(){
+			return this.node;
+		}
+	}
+}
+
+function init()
+{
+	var cf = document.cpuUti;
+	var enable = <% getIndex("CPUenable"); %>;
+	sample_interval = <% getIndex("CPUsample"); %>;
+	if(enable==0)
+	{
+		cf.enableCpuUtilization.checked = false;
+		disable_all();
+		return;
+	}
+	else
+	{
+		cf.enableCpuUtilization.checked = true;
+		enable_all();
+	}
+	
+	isIE=check_browser();
+	cpu_num = <% getIndex("CPUnumber"); %>;
+	for(var i=0; i<sample_info.length; i++){
+		if( sample_info[i][0]==sample_interval ){
+			sample_index = i;
+			break;
+		}
+	}
+	cf.cpuUtilizationInterval.options[sample_index].selected = true;
+	
+	width = document.body.clientWidth-70;
+	height = 300;
+	var body;
+	body=document.getElementById('others');
+	body.style.width = width;
+	
+	body=document.getElementById('bwsvg');
+	body.style.width = width;
+	body.style.height = (height + height_interval) * cpu_num;
+	step=width/(sample_info[sample_index][2]-1.0);
+	if(isIE)
+	{
+		init_vml();
+		div = body;
+		my_top = div.offsetTop;
+		my_left = div.offsetLeft;
+	}
+	else
+	{	
+		svg=createSVG('svgid',body);
+		my_top = 0;
+		my_left = 0;
+		G = getSVGDocument(svg);
+		svgRoot=getSVGRoot(svg);
+	}
+	
+	current_time = new Date();
+	center_time = Math.round(current_time.getTime()/1000);
+	start_time = new Array();
+	end_time = new Array();
+	delta_time =new Array();
+	data = new Array();
+	data_scale = Math.ceil(width/step);
+	data_avg = new Array();
+	data_display = new Array();
+	for(var i=0; i<cpu_num; i++)
+	{	
+		data_display[i] = new Array();
+	}
+	is_change_center_time = 1;
+	is_data_full_screen = 0;
+
+	init_display_context();
+	
+	document.getElementById("now_time").innerHTML = "Start Time: "+format_date(center_time);
+	send_request();
+	refresh();
+}
+
+function refresh()
+{
+	refreshId = window.setInterval(send_request, sample_interval*1000);
+}
+
+function stop_refresh()
+{
+	window.clearInterval(refreshId);
+}
+
+function saveChanges(form){
+	return true;
+}
+
+function disable_all()
+{
+	show_div(0,"cpu_utilization");
+	show_div(0,"time_scale");
+}
+
+function enable_all()
+{
+	show_div(1,"cpu_utilization");
+}
+
+function enable_select(checked)
+{
+	if(checked)
+	{
+		if("undefined" == typeof current_time)
+		{
+			show_div(1,"time_scale");
+			document.cpuUti.cpuUtilizationInterval1.options[sample_index].selected = true;
+		}
+		else
+		{
+			enable_all();
+			document.getElementById("now_time").innerHTML = "Start Time: "+format_date(center_time);
+			send_request();
+			refresh();
+		}
+	}
+	else
+	{
+		stop_refresh();
+		disable_all();
+	}
+}
+
+function shift_left()
+{
+	stop_refresh();
+	center_time -= sample_interval;
+	if(center_time-delta_time[0] <= start_time[0])
+	{
+		center_time = start_time[0] + delta_time[0];
+		alert("Can't get the history data!");	
+	}
+	is_change_center_time = 0;
+	send_request();
+	refresh();
+}
+
+function shift_right()
+{
+	stop_refresh();
+	center_time += sample_interval;
+	if(center_time-delta_time[0] >= end_time[0])
+	{
+		center_time = end_time[0] + delta_time[0];
+		alert("Can't get the future data!");
+	}
+	if(center_time-delta_time[0]+(data_scale*sample_interval)>=end_time[0])
+	{
+		is_change_center_time = 1;
+	}
+	send_request();
+	refresh();
+}
+
+function change_scale(value)
+{
+	stop_refresh();
+	sample_index = value;
+	sample_interval = sample_info[value][0];
+	step = document.getElementById('bwsvg').style.width/(sample_info[value][2]-1.0);
+	send_request();
+	refresh();
+}
+
+function change_center_time()
+{
+	var str = document.cpuUti.center_time.value;
+
+	if(str.length != 14 & str.length != 6)
+	{
+		alert("Set start time error!");
+		return;
+	}
+
+	var year;
+	var mon;
+	var day;
+	var hour;
+	var min;
+	var sec;
+	var tmp;
+	var center_time_old = center_time;
+
+	if(str.length == 14) //YYYYMMDDHHMMSS
+	{
+		year = str.substr(0,4);
+		mon  = str.substr(4,2);
+		day  = str.substr(6,2);
+		hour = str.substr(8,2);
+		min  = str.substr(10,2);
+		sec  = str.substr(12,2);
+
+		tmp = year+'/'+mon+'/'+day+' '+hour+':'+min+':'+sec;
+		center_time = Math.round((new Date(tmp).getTime())/1000);
+		is_change_center_time = 0;
+	}
+
+	if(str.length == 6) //HHMMSS
+	{
+		year = current_time.getFullYear();
+		mon  = current_time.getMonth()+1;
+		day  = current_time.getDate();
+		hour = str.substr(0,2);
+		min  = str.substr(2,2);
+		sec  = str.substr(4,2);
+
+		if(mon<10)
+			mon = '0'+mon;
+		if(day<10)
+			day = '0'+day;
+
+		tmp = year+'/'+mon+'/'+day+' '+hour+':'+min+':'+sec;
+		center_time = Math.round((new Date(tmp)).getTime()/1000);
+		is_change_center_time = 0;
+	}
+
+	if(center_time-delta_time[0]<start_time[0] || center_time-delta_time[0]>end_time[0])
+	{
+		center_time = center_time_old;
+		var t = new Date((start_time[0]+delta_time[0])*1000);
+		year = t.getFullYear();
+		mon  = t.getMonth()+1;
+		day  = t.getDate();
+		hour = t.getHours();
+		min  = t.getMinutes();
+		sec  = t.getSeconds();
+		if(mon<10)
+			mon = '0'+mon;
+		if(day<10)
+			day = '0'+day;
+		if(hour<10)
+			hour = '0'+hour;
+		if(min<10)
+			min = '0'+min;
+		if(sec<10)
+			sec = '0'+sec;
+		var st=''+year+mon+day+hour+min+sec;
+		var t = new Date((end_time[0]+delta_time[0])*1000);
+		year = t.getFullYear();
+		mon  = t.getMonth()+1;
+		day  = t.getDate();
+		hour = t.getHours();
+		min  = t.getMinutes();
+		sec  = t.getSeconds();
+		if(mon<10)
+			mon = '0'+mon;
+		if(day<10)
+			day = '0'+day;
+		if(hour<10)
+			hour = '0'+hour;
+		if(min<10)
+			min = '0'+min;
+		if(sec<10)
+			sec = '0'+sec;
+		var end=''+year+mon+day+hour+min+sec;
+		alert("The time must between "+st+" and "+end+'!');
+		return;
+	}
+
+	stop_refresh();
+	send_request();
+	refresh();
+}
+
+function format_date(ns)
+{
+	var t = new Date(parseInt(ns) * 1000);
+	
+	var year=t.getFullYear();
+	var month=t.getMonth()+1;
+	if(month<10)
+		month = "0"+month;
+	var date=t.getDate();
+	if(date<10)
+		date = "0"+date;
+	var hour=t.getHours();
+	if(hour<10)
+		hour = "0"+hour;
+	var minute=t.getMinutes();
+	if(minute<10)
+		minute = "0"+minute;
+	var second=t.getSeconds();
+	if(second<10)
+		second = "0"+second;
+	
+ 	return year+"-"+month+"-"+date+" "+hour+":"+minute+":"+second; 
+}
+
+function format_date2(ns)
+{
+	var t = new Date(parseInt(ns) * 1000);
+	
+	var year=t.getFullYear();
+	var month=t.getMonth()+1;
+	if(month<10)
+		month = "0"+month;
+	var date=t.getDate();
+	if(date<10)
+		date = "0"+date;
+	var hour=t.getHours();
+	if(hour<10)
+		hour = "0"+hour;
+	var minute=t.getMinutes();
+	if(minute<10)
+		minute = "0"+minute;
+	var second=t.getSeconds();
+	if(second<10)
+		second = "0"+second;
+	
+ 	return ''+year+month+date+hour+minute+second; 
+}
+
+
+</script>
+</head>
+<body onload="init();">
+<blockquote>
+<h2>CPU Utilization</h2>
+<table border=0 width="500" cellspacing=0 cellpadding=0>
+	<tr><font size=2>
+		You can see the CPU utilization.
+	</tr>
+	<tr><hr size=1 noshade align=top></tr>
+</table>
+
+<form action=/boafrm/formCpuUtilization method=POST name="cpuUti">
+
+<tr><td colspan="2"><font size=2><b>
+	<input type="checkbox" name="enableCpuUtilization" value="ON" onclick='enable_select(this.checked);'>
+	&nbsp;Enable CPU Utlization </b><br>
+	</td>
+</tr>
+<br />
+
+<span id = "cpu_utilization" class = "off">
+<div id="now_time" style="text-align:left">Start Time:
+</div>
+<br />
+
+<div id="bwsvg" style="width:100%; height:300px">
+</div>
+<br />
+
+<div id="others">
+
+<table width="100%">
+<tr>
+	<td width="50%" height=40>
+		<div style="text-align:left">
+		<button type="button" width=20 onClick="shift_left()">
+		<img src="left.gif" width="20" height="20" border="0">
+		</button>
+	</div>
+	</td>
+	<td width="50%" height=40>
+		<div style="text-align:right">
+		<button type="button" width=20 onClick="shift_right()">
+		<img src="right.gif" width="20" height="20" border="0">
+		</button>
+		</div>
+	</td>
+</tr>
+</table>
+<hr />
+
+
+<table border="0" width=600>
+<tr>
+	<td width="30%" height=40><font size=2>
+		<div align="left"><b>Set Start Time :</b></div>
+	</td>
+	<td width="50%">
+		<input type="text" name="center_time" id="set_center_time" size="18" maxlength="14" value="">
+		eg. YYYYMMDDHHMMSS or HHMMSS
+	</td>
+	<td width="20%">
+		<button type="button" width=20 onClick="change_center_time()">OK</button>
+	</td>
+</tr>
+<tr>
+	<td width="30%" height=40><font size=2>
+		<div align="left"><b>Time Scale :</b></div>
+	</td>
+	<td width="70%">
+		<select name="cpuUtilizationInterval">
+			<script>
+				for(var i=0;i<sample_info.length;i++)
+					document.write('<option value="',sample_info[i][0],'">',sample_info[i][1],'</option>');
+			</script>
+		</select>
+	</td>
+</tr>
+<tr>
+	<td width="30%" height=40><font size=2>
+		<div align="left"><b>Statistics :</b></div>
+	</td>
+	<td width="70%">
+		<div id="stat_info"></div>
+	</td>
+</tr>
+</table>
+
+</div>
+</span>
+
+<span id = "time_scale" class = "off">
+<table border="0" width=480>
+<tr>
+	<td width="25%" height=40><font size=2>
+		<div align="right"><b>Time Scale :</b></div>
+	</td>
+	<td width="75%">
+		<select name="cpuUtilizationInterval1">
+			<script>
+				for(var i=0;i<sample_info.length;i++)
+					document.write('<option value="',i,'">',sample_info[i][1],'</option>');
+			</script>
+		</select>
+	</td>
+</tr>
+</table>
+</span>
+
+<input type="hidden" value="/cpuShow.htm" name="submit-url">
+  <p><input type="submit" value="Apply Change" name="save" onClick="return saveChanges(document.time)">
+&nbsp;&nbsp;
+  <input type="button" value="Refresh" name="refresh" onClick="javascript: window.location.reload()">
+</form>
+
+</body>
+</html>

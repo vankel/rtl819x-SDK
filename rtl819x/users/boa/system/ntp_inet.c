@@ -20,10 +20,10 @@ int main(int argc, char *argv[])
 {
 	int i;
 	unsigned char	ntp_server[40];
-	unsigned char command[100];
+	//unsigned char command[100];
 	unsigned short fail_wait_time = 300;
 	unsigned int succ_wait_time = 86400;
-	unsigned char daylight_save_str[5];
+	//unsigned char daylight_save_str[5];
 
 	for(i=1; i<argc; i++)
 	{
@@ -44,8 +44,8 @@ int main(int argc, char *argv[])
 	}
 
 	sprintf((char *)ntp_server, "%s", argv[2]);
-	sprintf((char *)command, "%s", argv[3]);
-	sprintf((char *)daylight_save_str, "%s", argv[4]);
+	//sprintf((char *)command, "%s", argv[3]);
+	//sprintf((char *)daylight_save_str, "%s", argv[4]);
 	
 	if(isDaemon==1){
 		if (daemon(0, 1) == -1) {
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 		unsigned char cmdBuffer[100];
 		
 		RunSystemCmd(NULL_FILE, "rm", "/tmp/ntp_tmp", NULL_STR);
-		RunSystemCmd(NULL_FILE, "rm", "/var/TZ", NULL_STR);
+		//RunSystemCmd(NULL_FILE, "rm", "/var/TZ", NULL_STR);
 
 		//ret = RunSystemCmd(NTPTMP_FILE, "ntpclient", "-s", "-h", ntp_server, "-i", "5", ">", NULL_STR);
 		sprintf((char *)cmdBuffer, "ntpclient -s -h %s -i 5 > %s", ntp_server, NTPTMP_FILE);
@@ -82,13 +82,13 @@ int main(int argc, char *argv[])
 					
 					// success
 
-					RunSystemCmd(TZ_FILE, "echo", command, NULL_STR);
-					if(strcmp((char *)daylight_save_str, "1") == 0)
+					//RunSystemCmd(TZ_FILE, "echo", command, NULL_STR);
+					/*if(strcmp((char *)daylight_save_str, "1") == 0)
 					{
 						sprintf((char *)cmdBuffer,"date > %s",  NTPTMP_FILE);
 						system((char *)cmdBuffer);
 						//RunSystemCmd(NTPTMP_FILE, "date", ">", NULL_STR);
-					}
+					}*/
 					RunSystemCmd(NULL_FILE, "echo", "ntp client success", NULL_STR);
 					sleep(succ_wait_time);
 					

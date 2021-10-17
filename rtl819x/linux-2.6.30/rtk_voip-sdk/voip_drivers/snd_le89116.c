@@ -10,7 +10,9 @@
 #include "zarlink_int.h"
 #include "zarlink_api.h"
 
+#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_SW
 #include "gpio.h"
+#endif
 #include "spi.h"
 
 static voip_snd_t			snd_zarlink_le89116[CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR];
@@ -33,6 +35,7 @@ static VpDevCtxType           VpDevCtx_le89116[CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89
 
 static VpLineCtxType          VpLineCtx_le89116[CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR];
 
+#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_SW
 #if 1
 static const uint32 * const pin_cs_le89116 = 
 		&snd_pin_cs[ CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS - 1 ];
@@ -47,6 +50,7 @@ static uint32 pin_cs_le89116[] = {
 #define NUM_OF_PIN_CS_LE89116		( sizeof( pin_cs_le89116 ) / sizeof( pin_cs_le89116[ 0 ] ) )
 
 CT_ASSERT( NUM_OF_PIN_CS_LE89116 >= CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR );
+#endif
 #endif
 
 static int SLIC_init_le89116(int pcm_mode, int initonly)
@@ -76,8 +80,21 @@ static int SLIC_init_le89116(int pcm_mode, int initonly)
 		PRINT_MSG( "le89116[%d] CS=%08X\n", i, CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS - 1 + i);
 		init_spi_pins( &spi_dev_le89116[ i ], CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS - 1 + i, PIN_CLK, PIN_DO, PIN_DI);
 		#else
+	#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_SW
 		PRINT_MSG( "le89116[%d] CS=%08X\n", i, pin_cs_le89116[ i ] );
 		init_spi_pins( &spi_dev_le89116[ i ], pin_cs_le89116[ i ], PIN_CLK, PIN_DO, PIN_DI);
+	#elif defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW )
+		PRINT_MSG( "le89116[%d] CS=%08X\n", i, 
+								CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS + i );
+		_init_rtl_spi_dev_type_hw( &spi_dev_le89116[ i ], 
+								CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS + i);
+	#elif defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW3 )
+			PRINT_MSG( "le89116[%d] CS=%08X\n", i, 
+								CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS + i );
+		_init_rtl_spi_dev_type_hw3( &spi_dev_le89116[ i ], 
+								CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS/* CS special mode use the same CS pin*/,
+								PIN_CSEN, i);
+	#endif
 		#endif
 	}
 	
@@ -121,7 +138,7 @@ label_do_init_only:
 		}
 	}
 	
-	return 0;
+	return SUCCESS;
 }
 
 static void SLIC_reset_le89116( voip_snd_t *this, int codec_law )
@@ -197,6 +214,7 @@ static int __init voip_snd_zarlink_init_le89116( void )
 	extern const snd_ops_fxs_t snd_zarlink_fxs_ops;
 	int i;//, sch, daa;
 	int TS_base, TS_cur;
+	int rtn;
 #ifdef CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT
 	static defer_init_t le89116_defer;
 #endif
@@ -235,7 +253,6 @@ static int __init voip_snd_zarlink_init_le89116( void )
 			TS_cur += 2;
 		}
 		
-		register_voip_snd( &snd_zarlink_le89116[ i ], 1 );	
 	}
 	
 	// SLIC init use ops 
@@ -245,9 +262,16 @@ static int __init voip_snd_zarlink_init_le89116( void )
 	le89116_defer.p1 = 0;
 	
 	add_defer_initialization( &le89116_defer );
+	rtn = 0; //success
 #else
-	SLIC_init_le89116( law, 0 /* allocate */ );
+	rtn = SLIC_init_le89116( law, 0 /* allocate */ );
 #endif
+
+	if ( rtn == FAILED ) /* init Device fail */
+		return -1;
+
+	for( i = 0; i < CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR; i ++ ) 
+		register_voip_snd( &snd_zarlink_le89116[ i ], 1 );	
 	
 	return 0;
 }
@@ -263,10 +287,28 @@ voip_initcall_snd( voip_snd_zarlink_init_le89116 );
 static voip_ioc_t le89116_ioc[ CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR ][ LE89116_IO_NUM ];
 static zarlink_ioc_priv_t le89116_ioc_priv[ CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR ][ LE89116_IO_NUM ];
 
+#ifdef CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT
+static int voip_ioc_zarlink_init_le89116_defer( void )
+{
+	int i, j;
+	for( i = 0; i < CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR; i ++ ) {
+		for( j = 0; j < LE89116_IO_NUM; j ++ ) {
+			voip_ioc_t * const p_ioc = &le89116_ioc[ i ][ j ];
+			
+			InitializeZarlinkIO( p_ioc );
+		}
+	}
+	return SUCCESS;
+}
+#endif
+
 static int __init voip_ioc_zarlink_init_le89116( void )
 {
 	int i, j;
-	
+
+#ifdef CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT
+	static defer_init_t le89116_ioc_defer;
+#endif
 	for( i = 0; i < CONFIG_RTK_VOIP_DRIVERS_SLIC_LE89116_NR; i ++ ) {
 		for( j = 0; j < LE89116_IO_NUM; j ++ ) {
 			
@@ -285,13 +327,22 @@ static int __init voip_ioc_zarlink_init_le89116( void )
 			
 			p_ioc_priv ->IO = zarlink_VPIO_list[ j ];
 			p_ioc_priv ->snd_priv = p_snd ->priv;
-			
+
+		#ifndef CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT
 			InitializeZarlinkIO( p_ioc );
+		#endif
 		}
 		
 		register_voip_ioc( &le89116_ioc[ i ][ 0 ], LE89116_IO_NUM );
 	}
-	
+	#if defined(CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT)
+		le89116_ioc_defer.fn_defer_func = ( fn_defer_func_t )voip_ioc_zarlink_init_le89116_defer;
+		le89116_ioc_defer.p0 = 0;
+		le89116_ioc_defer.p1 = 0;
+
+		add_defer_initialization( &le89116_ioc_defer );
+	#endif
+
 	return 0;
 }
 

@@ -8,6 +8,7 @@
 #include "codec_descriptor.h"
 
 #include "v152_api.h"
+#include "voip_mgr_events.h"
 
 ///////////////////////////////////////////////////////////////
 // static function
@@ -28,8 +29,12 @@ static int cur_get;		/// point to the current free RX buffer
 
 RtpReceiver RtpRxInfo[MAX_DSP_RTK_SS_NUM];
 extern unsigned char rfc2833_dtmf_pt_local[];
+extern unsigned char rfc2833_dtmf_pt_remote[];
 extern unsigned char rfc2833_fax_modem_pt_local[];
+extern unsigned char rfc2833_fax_modem_pt_remote[];
+extern int g_dynamic_pt_remote[];
 extern int g_dynamic_pt_local[];
+extern int g_dynamic_pt_remote_vbd[];
 extern int g_dynamic_pt_local_vbd[];
 void RtpRx_rtp2ntp (uint32 sid, RtpTime rtpTime, NtpTime* ntpTime);
 
@@ -38,6 +43,28 @@ static inline void rtcp_dd_write( const char *format, ... )	{}
 #else
 extern void rtcp_dd_write( const char *format, ... );
 #endif
+
+static uint32 gPktCntThres[MAX_DSP_RTK_SS_NUM] = {[0 ... MAX_DSP_RTK_SS_NUM-1] = 50};
+static RtpPTChecker RtpPtChecker[MAX_DSP_RTK_SS_NUM];
+
+static void RtpPtChecker_Init(uint32 sid)
+{
+	RtpPtChecker[sid].bMismatch_check = 1;
+	RtpPtChecker[sid].bMismatch_auto_sync = 1;
+	RtpPtChecker[sid].bMismatch_report = 1;
+	RtpPtChecker[sid].mismatch_cnt = 0;
+	RtpPtChecker[sid].mismatch_cnt_thres = gPktCntThres[sid];
+}
+
+void RtpPtChecker_Set(uint32 sid, uint32 enable, uint32 sync, uint32 report, uint32 pktCntThres)
+{
+	RtpPtChecker[sid].bMismatch_check = enable;
+	RtpPtChecker[sid].bMismatch_auto_sync = sync;
+	RtpPtChecker[sid].bMismatch_report = report;
+	RtpPtChecker[sid].mismatch_cnt = 0;
+	RtpPtChecker[sid].mismatch_cnt_thres = pktCntThres;
+	gPktCntThres[sid] = pktCntThres;
+}
 
 void RtpRx_Init(void)
 {
@@ -64,6 +91,7 @@ void RtpRx_InitbyID(uint32 sid)
 	pInfo->probationSet = FALSE;
 	pInfo->srcProbation = 0;
 	pInfo->probation = -2;
+	pInfo->probationAbort = 0;
 //	recvOpmode[i] = rtprecv_normal;
 	pInfo->recvOpmode = rtprecv_droppacket;
 	
@@ -82,6 +110,7 @@ void RtpRx_InitbyID(uint32 sid)
 	/*pInfo->rtcpRecv = NULL;*/
 	pInfo->rtcpRecv = RtcpRx_getInfo(sid);
 #endif
+	RtpPtChecker_Init(sid);
 }
 
 void RtpRx_renewSession(uint32 sid)
@@ -99,6 +128,7 @@ void RtpRx_renewSession(uint32 sid)
 	pInfo->probationSet = FALSE;
 	pInfo->srcProbation = 0;
 	pInfo->probation = -2;
+	pInfo->probationAbort = 0;
 //	pInfo->recvOpmode = rtprecv_normal;
 	
 	// inter jitter 
@@ -109,6 +139,7 @@ void RtpRx_renewSession(uint32 sid)
 	pInfo->transit = 0;
 	pInfo->jitter = 0;
 #endif
+	RtpPtChecker_Init(sid);
 }
 
 #if 0
@@ -322,12 +353,12 @@ KnownPayloadType checkIfKnownPayloadType( uint32 sid, RtpPayloadType pt,
 					int bIncSIDcount /* Increase SID counter? If we call this function more than one times, set this argument */
 					)
 {
-	extern uint16 SID_payload_type_local[ DSP_RTK_SS_NUM ];
+	extern uint16 SID_payload_type_remote[ DSP_RTK_SS_NUM ];
 	extern uint32 SID_count_rx[ DSP_RTK_SS_NUM ];
 	
-	if( ( !SID_payload_type_local[ sid ] && pt == 13 ) ||
-		( SID_payload_type_local[ sid ] && 
-		  SID_payload_type_local[ sid ] == pt ) )
+	if( ( !SID_payload_type_remote[ sid ] && pt == 13 ) ||
+		( SID_payload_type_remote[ sid ] && 
+		  SID_payload_type_remote[ sid ] == pt ) )
 	{
 		// SID: equal to case 13 
 		//setPayloadType(packet, pInfo->payloadFormat);	// caller do this 
@@ -335,7 +366,7 @@ KnownPayloadType checkIfKnownPayloadType( uint32 sid, RtpPayloadType pt,
 			SID_count_rx[ sid ] ++;
 		return KPT_SID;		// Silence 
 	}
-	
+
 #ifdef SUPPORT_RTP_REDUNDANT
 	if( GetRtpRedundantStatus( sid ) ) {
 		if( pt == 
@@ -346,7 +377,7 @@ KnownPayloadType checkIfKnownPayloadType( uint32 sid, RtpPayloadType pt,
 	} 
 #endif
 
-	if (pt == g_dynamic_pt_local[sid]) {
+	if (pt == g_dynamic_pt_remote[sid]) {
 #ifdef SUPPORT_V152_VBD
 		if( bPrimary ) {
 			V152_ConfirmStateTransition( sid, ST_AUDIO_ING );
@@ -360,7 +391,8 @@ KnownPayloadType checkIfKnownPayloadType( uint32 sid, RtpPayloadType pt,
 	}
 
 #ifdef SUPPORT_V152_VBD		
-	if (pt == g_dynamic_pt_local_vbd[sid]) {
+	//if (pt == g_dynamic_pt_local_vbd[sid]) {
+	if (pt == g_dynamic_pt_remote_vbd[sid]) {
 
 		if( bPrimary ) {
 			V152_ConfirmStateTransition( sid, ST_VBD_ING );
@@ -376,9 +408,18 @@ KnownPayloadType checkIfKnownPayloadType( uint32 sid, RtpPayloadType pt,
 	//if( pt < 96 && GetCodecPayloadDesc( pt ) )	// do we still need this??? 
 	//	return KPT_OTHERS;			// Exist in predefined table? (static payload type) 
 
-	if ((pt == rfc2833_dtmf_pt_local[sid]) || (pt == rfc2833_fax_modem_pt_local[sid]))
-		return KPT_RFC2833;		// RFC 2833
-		
+	if ((rfc2833_dtmf_pt_local[sid] != 0)&&(rfc2833_dtmf_pt_remote[sid] != 0))
+	{
+		if ((pt == rfc2833_dtmf_pt_local[sid]) || (pt == rfc2833_dtmf_pt_remote[sid]))
+			return KPT_RFC2833;	// RFC 2833
+	}
+
+	if ((rfc2833_fax_modem_pt_local[sid]!=0) && (rfc2833_fax_modem_pt_remote[sid]!=0))
+	{
+		if ((pt == rfc2833_fax_modem_pt_local[sid]) || (pt == rfc2833_fax_modem_pt_remote[sid]))
+			return KPT_RFC2833;	// RFC 2833
+	}
+
 #ifdef DEBUG_LOG
 	cpLog (LOG_ERR, "Unknown payload type");
 #endif
@@ -392,7 +433,7 @@ int isValid (RtpPacket* packet, KnownPayloadType *pKnownPT)
 	int sid;
 
 	if ( getTotalUsage (packet) <= 0)
-		return 0;
+		return -1;
 
 	// check version
 	if (getVersion(packet) != RTP_VERSION)
@@ -400,11 +441,11 @@ int isValid (RtpPacket* packet, KnownPayloadType *pKnownPT)
 #ifdef DEBUG_LOG
 		cpLog(LOG_DEBUG_STACK, "Wrong RTP version");
 #endif
-		return 0;
+		return -2;
 	}
 
 	if(packet->sid >= DSP_RTK_SS_NUM)
-		return 0 ;
+		return -3 ;
 
 	pInfo = &RtpRxInfo[packet->sid];
 	
@@ -414,10 +455,32 @@ int isValid (RtpPacket* packet, KnownPayloadType *pKnownPT)
 	// check if known payload type
 	switch( ( *pKnownPT = checkIfKnownPayloadType( sid, pt, 1, 1 ) ) ) {
 	case KPT_UNKNOWN:
-		return 0;
+	{
+		if (RtpPtChecker[sid].bMismatch_check == 1)
+		{
+			if (RtpPtChecker[sid].mismatch_cnt < RtpPtChecker[sid].mismatch_cnt_thres)
+				RtpPtChecker[sid].mismatch_cnt++;
+			else
+			{
+				//PRINT_R("PT mis-matched, sid%d\n", sid);
+				RtpPtChecker[sid].mismatch_cnt = 0;
+				if (RtpPtChecker[sid].bMismatch_report == 1)
+				{
+					//voip_rtp_payload_mismatch_event(sid, pt);
+					uint32 chid = chanInfo_GetChannelbySession( sid );
+					voip_event_dsp_in( chid, sid, VEID_DSP_RTP_PAYLOAD_MISMATCH, pt );
+				}
+				//auto sync. the received mis-matched codec
+				if (RtpPtChecker[sid].bMismatch_auto_sync == 1)
+					DspDecodercAutoSync(chanInfo_GetChannelbySession(sid), sid, pt);
+			}
+		}
+		return -4;
+	}
 
 	case KPT_SID:			// Silence 
 		setPayloadType(packet, pInfo->payloadFormat);
+		RtpPtChecker[sid].mismatch_cnt = 0;
 		break;
 		
 	case KPT_RTP_NORMAL:	// Normal voice, or V.152 Audio 
@@ -426,6 +489,7 @@ int isValid (RtpPacket* packet, KnownPayloadType *pKnownPT)
 	case KPT_REDUNDANCY:	// RTP redundancy 
 	case KPT_OTHERS:		// Exist in predefined table? (static payload type) 
 	default:
+		RtpPtChecker[sid].mismatch_cnt = 0;
 		break;
 	}
 
@@ -471,6 +535,14 @@ int updateSource (RtpPacket* p)
 			DspcodecWriteSnyc( p->sid );
 		}
 	}	
+	
+	// probation detection abort ? 
+	if( !pInfo ->probationSet && pInfo ->probation > 0 ) {
+		if( ++ pInfo ->probationAbort > 5 ) {
+			// 5 means -- 5 normal SSRC after 1 probation SSRC -> abort probation 
+			pInfo ->probation = 0;
+		}
+	}
 
 	// no vaild source yet
 	assert (pInfo->probation >= 0);
@@ -494,16 +566,17 @@ int addSource(RtpPacket* p)
 
     // don't allow ssrc changes without removing first
 	if (pInfo->sourceSet)
-    {
+	{
 		if (pInfo->probation < 4)
-        {
+		{
 			pInfo->probation ++;
+			pInfo->probationAbort = 0;
 #ifdef DEBUG_LOG
 			cpLog(LOG_ERR, "Rejecting new transmitter %d, keeping ",
 					getSSRC(p), pInfo->ssrc);
 #endif
 			return 1;
-        }
+		}
 		else
 		{
 			removeSource(p->sid, pInfo->ssrc, 0);
@@ -520,6 +593,7 @@ int addSource(RtpPacket* p)
 	cpLog(LOG_DEBUG_STACK, "Received ssrc = %d", ssrc[sid]);
 #endif
 	pInfo->probation = 0;
+	pInfo->probationAbort = 0;
 	pInfo->packetReceived = 0;
 	pInfo->payloadReceived = 0;
 
@@ -601,6 +675,7 @@ void removeSource (uint32 sid, RtpSrc s, int flag)
     pInfo->sourceSet = FALSE;
     pInfo->ssrc = 0;
     pInfo->probation = -2;
+    pInfo->probationAbort = 0;
 
     // remove from RTCP receiver
 //    if (rtcpRecv && !flag) rtcpRecv->removeTranInfo (s, 1);
@@ -738,9 +813,9 @@ static int voip_rtp_receiver_read_proc( char *buf, char **start, off_t off, int 
 						pRtpReceiver ->prevSeqRecv, pRtpReceiver ->prevSeqPlay );
 		n += sprintf( buf + n, "SSRC: %u, set=%d\n",
 						pRtpReceiver ->ssrc, pRtpReceiver ->sourceSet );
-		n += sprintf( buf + n, "Probation: ssrc=%u set=%d count=%d\n",
+		n += sprintf( buf + n, "Probation: ssrc=%u set=%d count=%d abort=%d\n",
 						pRtpReceiver ->srcProbation, pRtpReceiver ->probationSet,
-						pRtpReceiver ->probation );
+						pRtpReceiver ->probation, pRtpReceiver ->probationAbort );
 		n += sprintf( buf + n, "Seed: seq=%u ntp=(%u,%u), rtp=%u\n", 
 						pRtpReceiver ->seedSeq, 
 						pRtpReceiver ->seedNtpTime.seconds, 

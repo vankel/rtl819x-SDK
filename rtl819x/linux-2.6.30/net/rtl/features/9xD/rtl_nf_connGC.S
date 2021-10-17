@@ -684,7 +684,7 @@ $L70:
 
 $L72:
 #APP
- # 56 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 56 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
@@ -692,7 +692,7 @@ $L72:
 	lui	$2,%hi(prot_counters)
 	addiu	$2,$2,%lo(prot_counters)
 #APP
- # 58 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 58 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	1:	ll	$3, 4($2)		# atomic_add    
        nop                                             
 	addu	$3, 1					
@@ -735,7 +735,7 @@ $L73:
 $L76:
 	jal	rtl_list_add_tail
 #APP
- # 56 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 56 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
@@ -743,7 +743,7 @@ $L76:
 	lui	$2,%hi(prot_counters)
 	addiu	$2,$2,%lo(prot_counters)
 #APP
- # 58 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 58 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	1:	ll	$3, 8($2)		# atomic_add    
        nop                                             
 	addu	$3, 1					
@@ -758,14 +758,14 @@ $L76:
 	j	$L77
 $L79:
 #APP
- # 56 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 56 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
 #NO_APP
 	lui	$2,%hi(prot_counters)
 #APP
- # 58 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 58 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	1:	ll	$3, %lo(prot_counters)($2)		# atomic_add    
        nop                                             
 	addu	$3, 1					
@@ -779,7 +779,7 @@ $L79:
 #NO_APP
 $L77:
 #APP
- # 72 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 72 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
@@ -863,7 +863,7 @@ clean_from_lists:
 	j	$L91
 $L83:
 #APP
- # 94 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 94 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
@@ -871,7 +871,7 @@ $L83:
 	lui	$2,%hi(prot_counters)
 	addiu	$2,$2,%lo(prot_counters)
 #APP
- # 96 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 96 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	1:	ll	    $3, 4($2)		# atomic_sub		
        nop                                             
 	subu	$3, 1					
@@ -886,7 +886,7 @@ $L83:
 	j	$L89
 $L84:
 #APP
- # 94 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 94 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
@@ -894,7 +894,7 @@ $L84:
 	lui	$2,%hi(prot_counters)
 	addiu	$2,$2,%lo(prot_counters)
 #APP
- # 96 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 96 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	1:	ll	    $3, 8($2)		# atomic_sub		
        nop                                             
 	subu	$3, 1					
@@ -909,14 +909,14 @@ $L84:
 	j	$L89
 $L91:
 #APP
- # 94 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 94 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
 #NO_APP
 	lui	$2,%hi(prot_counters)
 #APP
- # 96 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 96 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	1:	ll	    $3, %lo(prot_counters)($2)		# atomic_sub		
        nop                                             
 	subu	$3, 1					
@@ -930,7 +930,7 @@ $L91:
 #NO_APP
 $L89:
 #APP
- # 110 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 110 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
@@ -1100,11 +1100,11 @@ $L97:
 	jal	local_bh_enable
 	beq	$16,$0,$L99
 #APP
- # 167 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 167 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2
- # 169 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 169 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	1:	ll	$3, 0($16)		# atomic_sub_return	
        nop                                             
 	subu	$2, $3, 1				
@@ -1116,7 +1116,7 @@ $L97:
 	.previous					
 
  # 0 "" 2
- # 185 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
+ # 185 "/home/janice_yu/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/atomic.h" 1
 	   
 
  # 0 "" 2

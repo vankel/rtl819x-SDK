@@ -16,7 +16,7 @@ var POCKETROUTER_BRIDGE_AP = 2;
 var POCKETROUTER_BRIDGE_CLIENT = 1;
 
 var is_ulinker="<% getInfo("is_ulinker"); %>"*1;
-var ulinker_opMode="<% getIndex("ulinker_opMode"); %>"*1; //0:AP; 1:Client; 2:Router; 3:RPT; 4:WISP-RPT
+var ulinker_opMode="<% getIndex("ulinker_opMode"); %>"*1; //0:AP; 1:Client; 2:Router; 3:RPT
 
 if(is_ulinker == 1)
 {
@@ -24,7 +24,7 @@ if(is_ulinker == 1)
 		pocketRouter_Mode = POCKETROUTER_BRIDGE_AP;
 	else if(ulinker_opMode == 1) 
 		pocketRouter_Mode = POCKETROUTER_BRIDGE_CLIENT;
-	else if(ulinker_opMode == 2 || ulinker_opMode == 4)
+	else if(ulinker_opMode == 2) 
 		pocketRouter_Mode = POCKETROUTER_GATEWAY;
 }
 	
@@ -95,6 +95,8 @@ if(is_ulinker == 1)
 var wlan1_phyband= "<% getIndex("wlan1_phyband"); %>" ;
 var wlan2_phyband= "<% getIndex("wlan2_phyband"); %>" ;
 
+//add for CPU utilization
+var isDisplayCPU = "<% getIndex("isDisplayCPU"); %>";
 <% getInfo("wizard_menu_onoff"); %>
 
 function get_form(page, wlan_id){
@@ -172,7 +174,7 @@ for(i=0; i < wlan_num ; i++){
 	 	wlan0= new MTMenu();
 	}
 	wlan0.addItem("Basic Settings", get_form("wlbasic.htm",i), "", "Setup wireless basic configuration");
-	wlan0.addItem("Advanced Settings",get_form("wladvanced.htm",i),"", "Setup wireless advanced configuration");
+	wlan0.addItem("Advanced",get_form("wladvanced.htm",i),"", "Setup wireless advanced configuration");
 //	wlan0.addItem("Security", get_form("wlwpa.htm",i), "", "Setup wireless security");
 	wlan0.addItem("Security", get_form("wlsecurity.htm",i), "", "Setup wireless security");
 	
@@ -196,12 +198,15 @@ for(i=0; i < wlan_num ; i++){
 	else
 		wlschhtm = "wlan_schedule.htm";
 	wlan0.addItem("Schedule", get_form(wlschhtm,i), "", "Wireles LAN Schedule");
+
+	//	P2P_SUPPORT
+	if(isP2PSupport == 1)
+		wlan0.addItem('Wi-Fi Direct', get_form('wlp2p.htm',i), '', 'Setup Wifi Direct');	
+		
 	if(wlan_num != 1)
 	wlan.makeLastSubmenu(wlan0);
 }
-//	P2P_SUPPORT
-	if(isP2PSupport == 1)
-		wlan.addItem('Wi-Fi Direct', get_form('wlp2p.htm',0), '', 'Setup Wifi Direct');
+
 		
 	menu.makeLastSubmenu(wlan);
 }
@@ -224,8 +229,8 @@ if( (pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT && pocketRouter_Mode != POC
 {
 menu.addItem("Firewall");
 firewall = new MTMenu();
-firewall.addItem("Port Filtering", "portfilter.htm", "", "Setup port filtering");
-firewall.addItem("IP Filtering", "ipfilter.htm", "", "Setup IP filering");
+<% getInfo("port_filter"); %>
+<% getInfo("ip_filter"); %>
 firewall.addItem("MAC Filtering", "macfilter.htm", "", "Setup MAC filering");
 firewall.addItem("Port Forwarding", "portfw.htm", "", "Setup port-forwarding");
 firewall.addItem("URL Filtering", "urlfilter.htm", "", "Setup URL filering");
@@ -262,7 +267,11 @@ manage.addItem("Statistics", "stats.htm", "", "Display packet statistics");
 <% getInfo("powerConsumption_menu"); %>
 if( (pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT && pocketRouter_Mode != POCKETROUTER_BRIDGE_AP)
 	&& isAP == 0){
-manage.addItem("DDNS", "ddns.htm", "", "Setup Dynamic DNS");
+<% getInfo("ddns_menu"); %>
+}
+if(isDisplayCPU == 1)
+{
+	manage.addItem("CPU utilization", "cpuShow.htm", "", "Display CPU utilization");
 }
 
 manage.addItem("Time Zone Setting", "ntp.htm", "", "Setup Time Zone");
@@ -273,7 +282,7 @@ if( (pocketRouter_Mode != POCKETROUTER_BRIDGE_CLIENT && pocketRouter_Mode != POC
 }
 manage.addItem("Log", "syslog.htm", "", "System Log");
 manage.addItem("Upgrade Firmware", "upload.htm", "", "Update firmware image");
-manage.addItem("Save/Reload Settings", "saveconf.htm", "", "Save/reload current settings");
+manage.addItem("Save/Load Setting", "saveconf.htm", "", "Save/reload current settings");
 <% getInfo("cwmp_tr069_menu"); %>
 manage.addItem("Password", "password.htm", "", "Setup access password");
 menu.makeLastSubmenu(manage);

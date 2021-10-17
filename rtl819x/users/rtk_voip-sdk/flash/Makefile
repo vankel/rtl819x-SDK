@@ -3,7 +3,7 @@ include ../.linux_config
 DIR_FLASH = $(shell pwd)
 
 HOSTCC = gcc
-CFLAGS = -g -Wall -I../includes
+CFLAGS = -g -Wall -I../includes -I../ui/include
 
 all: $(EXE) 
 	make -f Makefile-client 

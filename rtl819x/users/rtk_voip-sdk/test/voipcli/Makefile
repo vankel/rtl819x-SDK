@@ -1,7 +1,7 @@
 include ../../.linux_config
 
 CFLAGS += -I../../includes -Wall
-ifdef CONFIG_RTK_VOIP_IP_PHONE
+ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 CFLAGS 		+= -I../../ui/include
 endif
 CFLAGS += $(ECOS_SHELL_CFLAGS)

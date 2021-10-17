@@ -34,7 +34,9 @@
 #define NETLINK_RTK_FB		24
 #define NETLINK_RTK_HW_QOS 25
 #endif
-
+#ifdef CONFIG_AUTO_DHCP_CHECK
+#define NETLINK_RTK_EVENTD 26
+#endif
 #define MAX_LINKS 32
 
 struct net;

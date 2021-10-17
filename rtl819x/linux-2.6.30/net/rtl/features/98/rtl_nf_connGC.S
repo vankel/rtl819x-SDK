@@ -480,14 +480,14 @@ clean_from_lists:
 	li	$2,6			# 0x6
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L40
+	beq	$3,$2,$L38
 	slt	$2,$3,7
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L46
+	beq	$2,$0,$L44
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
@@ -495,22 +495,22 @@ clean_from_lists:
 	li	$2,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L44
-	move	$4,$16
-	.set	macro
-	.set	reorder
-
-	j	$L55
-$L46:
-	.set	noreorder
-	.set	nomacro
 	beq	$3,$2,$L42
 	move	$4,$16
 	.set	macro
 	.set	reorder
 
-	j	$L55
-$L40:
+	j	$L53
+$L44:
+	.set	noreorder
+	.set	nomacro
+	beq	$3,$2,$L40
+	move	$4,$16
+	.set	macro
+	.set	reorder
+
+	j	$L53
+$L38:
 	lui	$2,%hi(prot_counters+4)
 #APP
 	   
@@ -525,8 +525,8 @@ $L40:
 	.previous					
 
 #NO_APP
-	j	$L54
-$L42:
+	j	$L52
+$L40:
 	lui	$2,%hi(prot_counters+8)
 #APP
 	   
@@ -541,8 +541,8 @@ $L42:
 	.previous					
 
 #NO_APP
-	j	$L54
-$L44:
+	j	$L52
+$L42:
 	lui	$2,%hi(prot_counters)
 #APP
 	   
@@ -557,13 +557,13 @@ $L44:
 	.previous					
 
 #NO_APP
-$L54:
+$L52:
 #APP
 	   
 
 #NO_APP
 	move	$4,$16
-$L55:
+$L53:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_new_gc_get_ct_protonum
@@ -574,7 +574,7 @@ $L55:
 	li	$3,6			# 0x6
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L56
+	beq	$2,$3,$L54
 	move	$4,$16
 	.set	macro
 	.set	reorder
@@ -589,12 +589,12 @@ $L55:
 	li	$3,17			# 0x11
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$3,$L53
+	bne	$2,$3,$L51
 	move	$4,$16
 	.set	macro
 	.set	reorder
 
-$L56:
+$L54:
 	.set	noreorder
 	.set	nomacro
 	jal	clean_from_lists_hooks
@@ -613,7 +613,7 @@ $L56:
 	lw	$2,%lo(nf_conntrack_max)($2)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L57
+	beq	$2,$0,$L55
 	lui	$2,%hi(rtl_newGC_session_status_flags)
 	.set	macro
 	.set	reorder
@@ -627,7 +627,7 @@ $L56:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L49
+	bne	$2,$0,$L47
 	lui	$2,%hi(rtl_newGC_session_status_flags)
 	.set	macro
 	.set	reorder
@@ -637,7 +637,7 @@ $L56:
 	lw	$2,%lo(rtl_newGC_session_status_flags)($4)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L53
+	beq	$2,$3,$L51
 	lui	$2,%hi(jiffies)
 	.set	macro
 	.set	reorder
@@ -648,15 +648,15 @@ $L56:
 	addiu	$2,$2,1
 	.set	noreorder
 	.set	nomacro
-	j	$L53
+	j	$L51
 	sw	$2,%lo(rtl_newGC_session_status_time)($3)
 	.set	macro
 	.set	reorder
 
-$L49:
-$L57:
+$L47:
+$L55:
 	sw	$0,%lo(rtl_newGC_session_status_flags)($2)
-$L53:
+$L51:
 	jal	local_bh_enable
 	move	$4,$16
 	lw	$31,24($sp)
@@ -689,7 +689,7 @@ rtl_death_action:
 	lw	$3,200($4)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$0,$L65
+	beq	$3,$0,$L63
 	move	$16,$4
 	.set	macro
 	.set	reorder
@@ -697,18 +697,18 @@ rtl_death_action:
 	lbu	$2,8($3)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L65
+	beq	$2,$0,$L63
 	addu	$3,$3,$2
 	.set	macro
 	.set	reorder
 
-	beq	$3,$0,$L65
+	beq	$3,$0,$L63
 	lw	$2,0($3)
-	beq	$2,$0,$L65
+	beq	$2,$0,$L63
 	lw	$2,64($2)
-	beq	$2,$0,$L65
+	beq	$2,$0,$L63
 	jal	$2
-$L65:
+$L63:
 	jal	local_bh_disable
 	.set	noreorder
 	.set	nomacro
@@ -726,7 +726,7 @@ $L65:
 	.set	reorder
 
 	jal	local_bh_enable
-	beq	$16,$0,$L58
+	beq	$16,$0,$L56
 #APP
 	   
 
@@ -745,7 +745,7 @@ $L65:
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L58
+	bne	$2,$0,$L56
 	move	$4,$16
 	.set	macro
 	.set	reorder
@@ -760,7 +760,7 @@ $L65:
 	.set	macro
 	.set	reorder
 
-$L58:
+$L56:
 	lw	$31,24($sp)
 	lw	$17,20($sp)
 	lw	$16,16($sp)
@@ -794,7 +794,7 @@ rtl_connGC_addList:
 	.set	macro
 	.set	reorder
 
-	beq	$2,$0,$L85
+	beq	$2,$0,$L83
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_new_gc_get_skb_protocol
@@ -806,14 +806,14 @@ rtl_connGC_addList:
 	li	$2,6			# 0x6
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L88
+	beq	$3,$2,$L86
 	slt	$2,$3,7
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L97
+	beq	$2,$0,$L95
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
@@ -821,16 +821,16 @@ rtl_connGC_addList:
 	li	$2,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L95
+	beq	$3,$2,$L93
 	lui	$2,%hi(prot_counters)
 	.set	macro
 	.set	reorder
 
-	j	$L85
-$L97:
-	beq	$3,$2,$L91
-	j	$L85
-$L88:
+	j	$L83
+$L95:
+	beq	$3,$2,$L89
+	j	$L83
+$L86:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_new_gc_get_ct_tcp_state
@@ -845,7 +845,7 @@ $L88:
 	lw	$2,4($2)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L100
+	beq	$2,$0,$L98
 	lui	$2,%hi(prot_counters+4)
 	.set	macro
 	.set	reorder
@@ -860,7 +860,7 @@ $L88:
 	.set	reorder
 
 	lui	$2,%hi(prot_counters+4)
-$L100:
+$L98:
 #APP
 	   
 
@@ -874,8 +874,8 @@ $L100:
 	.previous                       
 
 #NO_APP
-	j	$L99
-$L91:
+	j	$L97
+$L89:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_new_gc_get_ct_udp_status
@@ -886,7 +886,7 @@ $L91:
 	andi	$2,$2,0x2
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L92
+	beq	$2,$0,$L90
 	move	$4,$17
 	.set	macro
 	.set	reorder
@@ -894,15 +894,15 @@ $L91:
 	li	$5,2			# 0x2
 	.set	noreorder
 	.set	nomacro
-	j	$L98
+	j	$L96
 	li	$6,1			# 0x1
 	.set	macro
 	.set	reorder
 
-$L92:
+$L90:
 	li	$5,2			# 0x2
 	move	$6,$0
-$L98:
+$L96:
 	jal	rtl_list_add_tail
 	lui	$2,%hi(prot_counters+8)
 #APP
@@ -918,8 +918,8 @@ $L98:
 	.previous                       
 
 #NO_APP
-	j	$L99
-$L95:
+	j	$L97
+$L93:
 #APP
 	   
 
@@ -933,12 +933,12 @@ $L95:
 	.previous                       
 
 #NO_APP
-$L99:
+$L97:
 #APP
 	   
 
 #NO_APP
-$L85:
+$L83:
 	lw	$31,24($sp)
 	move	$2,$0
 	lw	$17,20($sp)
@@ -983,28 +983,28 @@ __nf_ct_refresh_acct_proto:
 	jal	rtl_test_bit
 	li	$5,10			# 0xa
 
-	beq	$2,$0,$L121
+	beq	$2,$0,$L119
 	move	$4,$16
 
 	jal	rtl_test_bit
 	li	$5,3			# 0x3
 
 	li	$3,-1			# 0xffffffff
-	bne	$2,$3,$L108
+	bne	$2,$3,$L106
 	move	$5,$18
 
 	jal	rtl_new_gc_set_ct_timeout_expires
 	move	$4,$16
 
 	li	$2,8			# 0x8
-	j	$L109
+	j	$L107
 	sw	$2,24($sp)
 
-$L108:
+$L106:
 	jal	rtl_del_ct_timer
 	move	$4,$16
 
-	beq	$2,$0,$L109
+	beq	$2,$0,$L107
 	lui	$2,%hi(jiffies)
 
 	move	$4,$16
@@ -1018,41 +1018,41 @@ $L108:
 	li	$2,8			# 0x8
 	sw	$2,24($sp)
 	li	$2,6			# 0x6
-	beq	$17,$2,$L112
+	beq	$17,$2,$L110
 	li	$2,17			# 0x11
 
-	beq	$17,$2,$L113
+	beq	$17,$2,$L111
 	nop
 
-	j	$L109
+	j	$L107
 	nop
 
-$L112:
+$L110:
 	lw	$6,84($sp)
 	move	$4,$16
-	j	$L120
+	j	$L118
 	li	$5,1			# 0x1
 
-$L113:
+$L111:
 	jal	rtl_new_gc_get_ct_udp_status
 	move	$4,$16
 
 	andi	$2,$2,0x2
-	beq	$2,$0,$L114
+	beq	$2,$0,$L112
 	move	$4,$16
 
 	li	$5,2			# 0x2
-	j	$L120
+	j	$L118
 	li	$6,1			# 0x1
 
-$L114:
+$L112:
 	li	$5,2			# 0x2
 	move	$6,$0
-$L120:
+$L118:
 	jal	rtl_list_move_tail
 	nop
 
-$L109:
+$L107:
 	lw	$7,72($sp)
 	addiu	$2,$sp,24
 	move	$4,$16
@@ -1061,7 +1061,7 @@ $L109:
 	jal	__nf_ct_refresh_acct_proto_hooks
 	sw	$2,16($sp)
 
-$L121:
+$L119:
 	jal	local_bh_enable
 	nop
 
@@ -1155,49 +1155,49 @@ __conntrack_drop_check:
 	move	$3,$2
 	li	$4,-536870912			# 0xe0000000
 	and	$2,$17,$5
-	beq	$2,$4,$L124
+	beq	$2,$4,$L122
 	and	$2,$3,$5
 
-	beq	$2,$4,$L122
+	beq	$2,$4,$L120
 	li	$2,-1			# 0xffffffff
 
-	bne	$19,$3,$L127
+	bne	$19,$3,$L125
 	sltu	$2,$23,1024
 
-	beq	$17,$18,$L124
+	beq	$17,$18,$L122
 	nop
 
-$L127:
-	bne	$2,$0,$L122
+$L125:
+	bne	$2,$0,$L120
 	li	$2,-1			# 0xffffffff
 
 	sltu	$2,$22,1024
-	bne	$2,$0,$L122
+	bne	$2,$0,$L120
 	li	$2,-1			# 0xffffffff
 
 	sltu	$2,$21,1024
-	bne	$2,$0,$L122
+	bne	$2,$0,$L120
 	li	$2,-1			# 0xffffffff
 
 	sltu	$2,$20,1024
-	bne	$2,$0,$L124
+	bne	$2,$0,$L122
 	li	$3,8080			# 0x1f90
 
-	beq	$23,$3,$L124
+	beq	$23,$3,$L122
 	nop
 
-	beq	$22,$3,$L124
+	beq	$22,$3,$L122
 	nop
 
-	beq	$21,$3,$L122
+	beq	$21,$3,$L120
 	li	$2,-1			# 0xffffffff
 
-	bne	$20,$3,$L122
+	bne	$20,$3,$L120
 	move	$2,$0
 
-$L124:
-	li	$2,-1			# 0xffffffff
 $L122:
+	li	$2,-1			# 0xffffffff
+$L120:
 	lw	$31,48($sp)
 	lw	$23,44($sp)
 	lw	$22,40($sp)
@@ -1228,7 +1228,7 @@ isReservedConntrack:
 	
 	lbu	$3,38($4)
 	li	$2,1			# 0x1
-	beq	$3,$2,$L128
+	beq	$3,$2,$L126
 	li	$7,1			# 0x1
 
 	lw	$6,20($4)
@@ -1236,59 +1236,59 @@ isReservedConntrack:
 	li	$9,-536870912			# 0xe0000000
 	and	$2,$6,$8
 	lw	$3,0($4)
-	beq	$2,$9,$L139
+	beq	$2,$9,$L137
 	li	$7,-1			# 0xffffffff
 
-	beq	$6,$7,$L139
+	beq	$6,$7,$L137
 	nop
 
-	beq	$3,$0,$L139
+	beq	$3,$0,$L137
 	nop
 
 	lw	$3,20($5)
 	lw	$6,0($5)
 	and	$2,$3,$8
-	beq	$2,$9,$L139
+	beq	$2,$9,$L137
 	nop
 
-	beq	$3,$7,$L139
+	beq	$3,$7,$L137
 	nop
 
-	beq	$6,$0,$L139
+	beq	$6,$0,$L137
 	li	$3,80			# 0x50
 
 	lhu	$2,16($4)
-	beq	$2,$3,$L139
+	beq	$2,$3,$L137
 	li	$6,8080			# 0x1f90
 
-	beq	$2,$6,$L139
+	beq	$2,$6,$L137
 	nop
 
 	lhu	$4,36($4)
-	beq	$4,$3,$L139
+	beq	$4,$3,$L137
 	nop
 
-	beq	$4,$6,$L139
+	beq	$4,$6,$L137
 	nop
 
 	lhu	$2,16($5)
-	beq	$2,$3,$L139
+	beq	$2,$3,$L137
 	nop
 
-	beq	$2,$6,$L139
+	beq	$2,$6,$L137
 	nop
 
 	lhu	$5,36($5)
-	beq	$5,$3,$L156
+	beq	$5,$3,$L154
 	li	$7,1			# 0x1
 
-	bne	$5,$6,$L128
+	bne	$5,$6,$L126
 	move	$7,$0
 
-$L139:
+$L137:
 	li	$7,1			# 0x1
-$L128:
-$L156:
+$L126:
+$L154:
 	j	$31
 	move	$2,$7
 
@@ -1324,7 +1324,7 @@ drop_one_conntrack:
 	lw	$2,%lo(_prot_limit+4)($2)
 	lw	$3,%lo(prot_counters+4)($3)
 	slt	$2,$2,$3
-	beq	$2,$0,$L343
+	beq	$2,$0,$L341
 	lui	$2,%hi(_prot_limit+8)
 
 	lui	$20,%hi(drop_priority_max_idx)
@@ -1332,16 +1332,16 @@ drop_one_conntrack:
 	move	$19,$0
 
 	lw	$2,%lo(drop_priority_max_idx)($20)
-	blez	$2,$L304
+	blez	$2,$L302
 	lui	$3,%hi(drop_priority)
 
-$L344:
+$L342:
 	sll	$2,$19,2
 	addiu	$3,$3,%lo(drop_priority)
 	addu	$2,$2,$3
 	lbu	$3,0($2)
 	sltu	$2,$3,10
-	beq	$2,$0,$L164
+	beq	$2,$0,$L162
 	lui	$2,%hi(Tcp_State_Hash_Head)
 
 	sll	$3,$3,3
@@ -1349,56 +1349,56 @@ $L344:
 	addu	$3,$3,$2
 	lw	$18,4($3)
 	lw	$2,0($18)
-	beq	$2,$18,$L164
+	beq	$2,$18,$L162
 	move	$17,$2
 
-$L332:
-	beq	$17,$18,$L164
+$L330:
+	beq	$17,$18,$L162
 	addiu	$16,$17,-204
 
 	li	$2,-1			# 0xffffffff
 	lb	$3,212($16)
-	bne	$3,$2,$L171
+	bne	$3,$2,$L169
 	move	$4,$16
 
 	jal	__conntrack_drop_check
 	nop
 
 	sb	$2,212($16)
-$L171:
+$L169:
 	lb	$2,212($16)
-	bne	$2,$0,$L170
+	bne	$2,$0,$L168
 	move	$4,$16
 
 	jal	rtl_del_ct_timer
 	nop
 
-	bne	$2,$0,$L318
+	bne	$2,$0,$L316
 	nop
 
-$L170:
+$L168:
 	lw	$17,0($17)
-	j	$L332
+	j	$L330
 	nop
 
-$L164:
+$L162:
 	lw	$2,%lo(drop_priority_max_idx)($20)
 	addiu	$19,$19,1
 	slt	$2,$19,$2
-	bne	$2,$0,$L344
+	bne	$2,$0,$L342
 	lui	$3,%hi(drop_priority)
 
-$L304:
+$L302:
 	jal	local_bh_enable
 	nop
 
 	lui	$2,%hi(_prot_limit+8)
-$L343:
+$L341:
 	lui	$3,%hi(prot_counters+8)
 	lw	$2,%lo(_prot_limit+8)($2)
 	lw	$3,%lo(prot_counters+8)($3)
 	slt	$2,$2,$3
-	beq	$2,$0,$L182
+	beq	$2,$0,$L180
 	lui	$fp,%hi(drop_priority_max_idx)
 
 	lui	$20,%hi(drop_priority_max_idx)
@@ -1406,16 +1406,16 @@ $L343:
 	move	$19,$0
 
 	lw	$2,%lo(drop_priority_max_idx)($20)
-	blez	$2,$L307
+	blez	$2,$L305
 	lui	$3,%hi(drop_priority)
 
-$L345:
+$L343:
 	sll	$2,$19,2
 	addiu	$3,$3,%lo(drop_priority)
 	addu	$2,$2,$3
 	lbu	$3,0($2)
 	sltu	$2,$3,11
-	bne	$2,$0,$L188
+	bne	$2,$0,$L186
 	lui	$2,%hi(Udp_State_Hash_Head)
 
 	sll	$3,$3,3
@@ -1423,78 +1423,78 @@ $L345:
 	addu	$3,$3,$2
 	lw	$18,-84($3)
 	lw	$2,0($18)
-	beq	$2,$18,$L188
+	beq	$2,$18,$L186
 	move	$17,$2
 
-$L333:
-	beq	$17,$18,$L188
+$L331:
+	beq	$17,$18,$L186
 	addiu	$16,$17,-204
 
 	li	$2,-1			# 0xffffffff
 	lb	$3,212($16)
-	bne	$3,$2,$L195
+	bne	$3,$2,$L193
 	move	$4,$16
 
 	jal	__conntrack_drop_check
 	nop
 
 	sb	$2,212($16)
-$L195:
+$L193:
 	lb	$2,212($16)
-	bne	$2,$0,$L194
+	bne	$2,$0,$L192
 	move	$4,$16
 
 	jal	rtl_del_ct_timer
 	nop
 
-	bne	$2,$0,$L318
+	bne	$2,$0,$L316
 	nop
 
-$L194:
+$L192:
 	lw	$17,0($17)
-	j	$L333
+	j	$L331
 	nop
 
-$L188:
+$L186:
 	lw	$2,%lo(drop_priority_max_idx)($20)
 	addiu	$19,$19,1
 	slt	$2,$19,$2
-	bne	$2,$0,$L345
+	bne	$2,$0,$L343
 	lui	$3,%hi(drop_priority)
 
-$L307:
+$L305:
 	jal	local_bh_enable
 	lui	$fp,%hi(drop_priority_max_idx)
 
-	j	$L341
+	j	$L339
 	nop
 
-$L318:
+$L316:
 	jal	local_bh_enable
 	nop
 
 	jal	rtl_death_action
 	move	$4,$16
 
-	j	$L342
+	j	$L340
 	lui	$4,%hi(rtl_newGC_session_status_flags)
 
-$L182:
-$L341:
+$L180:
+$L339:
 	jal	local_bh_disable
 	move	$19,$0
 
 	lw	$2,%lo(drop_priority_max_idx)($fp)
-	blez	$2,$L310
+	blez	$2,$L308
 	lui	$22,%hi(drop_priority)
 
-$L346:
+$L344:
 	sll	$21,$19,2
 	addiu	$2,$22,%lo(drop_priority)
 	addu	$2,$21,$2
 	lbu	$2,0($2)
 	sltu	$3,$2,10
-	beq	$3,$0,$L214
+	beq	$3,$0,$L212
 	sll	$4,$2,3
 
 	lui	$2,%hi(Tcp_State_Hash_Head)
@@ -1502,28 +1502,119 @@ $L346:
 	addu	$2,$4,$2
 	lw	$18,4($2)
 	lw	$2,0($18)
-	beq	$2,$18,$L235
+	beq	$2,$18,$L233
 	li	$23,3			# 0x3
+
+	move	$17,$2
+	move	$20,$0
+$L332:
+	beq	$17,$18,$L233
+	addiu	$16,$17,-204
+
+	li	$2,-1			# 0xffffffff
+	lb	$3,212($16)
+	move	$4,$16
+	bne	$3,$2,$L219
+	addiu	$20,$20,1
+
+	jal	__conntrack_drop_check
+	nop
+
+	sb	$2,212($16)
+$L219:
+	lb	$2,212($16)
+	bne	$2,$0,$L218
+	move	$4,$16
+
+	jal	rtl_get_ct_timer_expires
+	nop
+
+	lui	$3,%hi(jiffies)
+	lw	$5,%lo(jiffies)($3)
+	addiu	$3,$22,%lo(drop_priority)
+	addu	$3,$21,$3
+	subu	$2,$2,$5
+	lhu	$3,2($3)
+	srl	$2,$2,7
+	sltu	$3,$3,$2
+	bne	$3,$0,$L221
+	move	$4,$16
+
+	jal	rtl_del_ct_timer
+	nop
+
+	move	$4,$16
+	move	$5,$19
+	move	$6,$0
+	beq	$2,$0,$L221
+	li	$7,1			# 0x1
+
+	jal	__drop_one_conntrack_process_hooks1
+	sw	$23,16($sp)
+
+	move	$4,$16
+	move	$3,$2
+	li	$2,1			# 0x1
+	move	$5,$19
+	move	$6,$0
+	beq	$3,$2,$L317
+	li	$7,1			# 0x1
+
+	li	$2,2			# 0x2
+	beq	$3,$2,$L244
+	li	$3,1			# 0x1
+
+	jal	__drop_one_conntrack_process_hooks2
+	sw	$23,16($sp)
+
+$L221:
+	slt	$2,$20,129
+	beq	$2,$0,$L244
+	move	$3,$0
+
+$L218:
+	lw	$17,0($17)
+	j	$L332
+	nop
+
+$L317:
+	jal	local_bh_enable
+	nop
+
+	jal	rtl_death_action
+	move	$4,$16
+
+	j	$L244
+	li	$3,1			# 0x1
+
+$L212:
+	lui	$2,%hi(Udp_State_Hash_Head)
+	addiu	$2,$2,%lo(Udp_State_Hash_Head)
+	addu	$2,$4,$2
+	lw	$18,-84($2)
+	lw	$2,0($18)
+	beq	$2,$18,$L233
+	li	$23,12			# 0xc
 
 	move	$17,$2
 	move	$20,$0
 $L334:
-	beq	$17,$18,$L235
+	beq	$17,$18,$L233
 	addiu	$16,$17,-204
 
 	li	$2,-1			# 0xffffffff
 	lb	$3,212($16)
 	move	$4,$16
-	bne	$3,$2,$L221
+	bne	$3,$2,$L238
 	addiu	$20,$20,1
 
 	jal	__conntrack_drop_check
 	nop
 
 	sb	$2,212($16)
-$L221:
+$L238:
 	lb	$2,212($16)
-	bne	$2,$0,$L220
+	bne	$2,$0,$L237
 	move	$4,$16
 
 	jal	rtl_get_ct_timer_expires
@@ -1537,7 +1628,7 @@ $L221:
 	lhu	$3,2($3)
 	srl	$2,$2,7
 	sltu	$3,$3,$2
-	bne	$3,$0,$L223
+	bne	$3,$0,$L240
 	move	$4,$16
 
 	jal	rtl_del_ct_timer
@@ -1546,7 +1637,7 @@ $L221:
 	move	$4,$16
 	move	$5,$19
 	move	$6,$0
-	beq	$2,$0,$L223
+	beq	$2,$0,$L240
 	li	$7,1			# 0x1
 
 	jal	__drop_one_conntrack_process_hooks1
@@ -1557,130 +1648,39 @@ $L221:
 	li	$2,1			# 0x1
 	move	$5,$19
 	move	$6,$0
-	beq	$3,$2,$L319
+	beq	$3,$2,$L317
 	li	$7,1			# 0x1
 
 	li	$2,2			# 0x2
-	beq	$3,$2,$L246
+	beq	$3,$2,$L244
 	li	$3,1			# 0x1
 
 	jal	__drop_one_conntrack_process_hooks2
 	sw	$23,16($sp)
 
-$L223:
+$L240:
 	slt	$2,$20,129
-	beq	$2,$0,$L246
+	beq	$2,$0,$L244
 	move	$3,$0
 
-$L220:
+$L237:
 	lw	$17,0($17)
 	j	$L334
 	nop
 
-$L319:
-	jal	local_bh_enable
-	nop
-
-	jal	rtl_death_action
-	move	$4,$16
-
-	j	$L246
-	li	$3,1			# 0x1
-
-$L214:
-	lui	$2,%hi(Udp_State_Hash_Head)
-	addiu	$2,$2,%lo(Udp_State_Hash_Head)
-	addu	$2,$4,$2
-	lw	$18,-84($2)
-	lw	$2,0($18)
-	beq	$2,$18,$L235
-	li	$23,12			# 0xc
-
-	move	$17,$2
-	move	$20,$0
-$L336:
-	beq	$17,$18,$L235
-	addiu	$16,$17,-204
-
-	li	$2,-1			# 0xffffffff
-	lb	$3,212($16)
-	move	$4,$16
-	bne	$3,$2,$L240
-	addiu	$20,$20,1
-
-	jal	__conntrack_drop_check
-	nop
-
-	sb	$2,212($16)
-$L240:
-	lb	$2,212($16)
-	bne	$2,$0,$L239
-	move	$4,$16
-
-	jal	rtl_get_ct_timer_expires
-	nop
-
-	lui	$3,%hi(jiffies)
-	lw	$5,%lo(jiffies)($3)
-	addiu	$3,$22,%lo(drop_priority)
-	addu	$3,$21,$3
-	subu	$2,$2,$5
-	lhu	$3,2($3)
-	srl	$2,$2,7
-	sltu	$3,$3,$2
-	bne	$3,$0,$L242
-	move	$4,$16
-
-	jal	rtl_del_ct_timer
-	nop
-
-	move	$4,$16
-	move	$5,$19
-	move	$6,$0
-	beq	$2,$0,$L242
-	li	$7,1			# 0x1
-
-	jal	__drop_one_conntrack_process_hooks1
-	sw	$23,16($sp)
-
-	move	$4,$16
-	move	$3,$2
-	li	$2,1			# 0x1
-	move	$5,$19
-	move	$6,$0
-	beq	$3,$2,$L319
-	li	$7,1			# 0x1
-
-	li	$2,2			# 0x2
-	beq	$3,$2,$L246
-	li	$3,1			# 0x1
-
-	jal	__drop_one_conntrack_process_hooks2
-	sw	$23,16($sp)
-
-$L242:
-	slt	$2,$20,129
-	beq	$2,$0,$L246
+$L233:
 	move	$3,$0
-
-$L239:
-	lw	$17,0($17)
-	j	$L336
-	nop
-
-$L235:
-	move	$3,$0
-$L246:
+$L244:
 	li	$2,1			# 0x1
-	beq	$3,$2,$L207
+	beq	$3,$2,$L205
 	addiu	$19,$19,1
 
 	lw	$2,%lo(drop_priority_max_idx)($fp)
 	slt	$2,$19,$2
-	bne	$2,$0,$L346
+	bne	$2,$0,$L344
 	lui	$22,%hi(drop_priority)
 
-$L310:
+$L308:
 	jal	local_bh_enable
 	lui	$fp,%hi(drop_priority_max_idx)
 
@@ -1688,16 +1688,16 @@ $L310:
 	move	$19,$0
 
 	lw	$2,%lo(drop_priority_max_idx)($fp)
-	blez	$2,$L314
+	blez	$2,$L312
 	lui	$22,%hi(drop_priority)
 
-$L347:
+$L345:
 	sll	$21,$19,2
 	addiu	$2,$22,%lo(drop_priority)
 	addu	$2,$21,$2
 	lbu	$2,0($2)
 	sltu	$3,$2,10
-	beq	$3,$0,$L260
+	beq	$3,$0,$L258
 	sll	$4,$2,3
 
 	lui	$2,%hi(Tcp_State_Hash_Head)
@@ -1705,28 +1705,28 @@ $L347:
 	addu	$2,$4,$2
 	lw	$18,4($2)
 	lw	$2,0($18)
-	beq	$2,$18,$L281
+	beq	$2,$18,$L279
 	li	$23,3			# 0x3
 
 	move	$17,$2
 	move	$20,$0
-$L337:
-	beq	$17,$18,$L281
+$L335:
+	beq	$17,$18,$L279
 	addiu	$16,$17,-204
 
 	li	$2,-1			# 0xffffffff
 	lb	$3,212($16)
 	move	$4,$16
-	bne	$3,$2,$L267
+	bne	$3,$2,$L265
 	addiu	$20,$20,1
 
 	jal	__conntrack_drop_check
 	nop
 
 	sb	$2,212($16)
-$L267:
+$L265:
 	lb	$2,212($16)
-	bne	$2,$0,$L266
+	bne	$2,$0,$L264
 	move	$4,$16
 
 	jal	rtl_get_ct_timer_expires
@@ -1740,7 +1740,7 @@ $L267:
 	lhu	$3,2($3)
 	srl	$2,$2,9
 	sltu	$3,$3,$2
-	bne	$3,$0,$L269
+	bne	$3,$0,$L267
 	move	$4,$16
 
 	jal	rtl_del_ct_timer
@@ -1749,7 +1749,7 @@ $L267:
 	move	$4,$16
 	move	$5,$19
 	li	$6,2			# 0x2
-	beq	$2,$0,$L269
+	beq	$2,$0,$L267
 	move	$7,$0
 
 	jal	__drop_one_conntrack_process_hooks1
@@ -1760,64 +1760,64 @@ $L267:
 	li	$2,1			# 0x1
 	move	$5,$19
 	li	$6,2			# 0x2
-	beq	$3,$2,$L324
+	beq	$3,$2,$L322
 	move	$7,$0
 
 	li	$2,2			# 0x2
-	beq	$3,$2,$L292
+	beq	$3,$2,$L290
 	li	$3,1			# 0x1
 
 	jal	__drop_one_conntrack_process_hooks2
 	sw	$23,16($sp)
 
-$L269:
+$L267:
 	slt	$2,$20,129
-	beq	$2,$0,$L292
+	beq	$2,$0,$L290
 	move	$3,$0
 
-$L266:
+$L264:
 	lw	$17,0($17)
-	j	$L337
+	j	$L335
 	nop
 
-$L324:
+$L322:
 	jal	local_bh_enable
 	nop
 
 	jal	rtl_death_action
 	move	$4,$16
 
-	j	$L292
+	j	$L290
 	li	$3,1			# 0x1
 
-$L260:
+$L258:
 	lui	$2,%hi(Udp_State_Hash_Head)
 	addiu	$2,$2,%lo(Udp_State_Hash_Head)
 	addu	$2,$4,$2
 	lw	$18,-84($2)
 	lw	$2,0($18)
-	beq	$2,$18,$L281
+	beq	$2,$18,$L279
 	li	$23,12			# 0xc
 
 	move	$17,$2
 	move	$20,$0
-$L339:
-	beq	$17,$18,$L281
+$L337:
+	beq	$17,$18,$L279
 	addiu	$16,$17,-204
 
 	li	$2,-1			# 0xffffffff
 	lb	$3,212($16)
 	move	$4,$16
-	bne	$3,$2,$L286
+	bne	$3,$2,$L284
 	addiu	$20,$20,1
 
 	jal	__conntrack_drop_check
 	nop
 
 	sb	$2,212($16)
-$L286:
+$L284:
 	lb	$2,212($16)
-	bne	$2,$0,$L285
+	bne	$2,$0,$L283
 	move	$4,$16
 
 	jal	rtl_get_ct_timer_expires
@@ -1831,7 +1831,7 @@ $L286:
 	lhu	$3,2($3)
 	srl	$2,$2,9
 	sltu	$3,$3,$2
-	bne	$3,$0,$L288
+	bne	$3,$0,$L286
 	move	$4,$16
 
 	jal	rtl_del_ct_timer
@@ -1840,7 +1840,7 @@ $L286:
 	move	$4,$16
 	move	$5,$19
 	li	$6,2			# 0x2
-	beq	$2,$0,$L288
+	beq	$2,$0,$L286
 	move	$7,$0
 
 	jal	__drop_one_conntrack_process_hooks1
@@ -1851,46 +1851,46 @@ $L286:
 	li	$2,1			# 0x1
 	move	$5,$19
 	li	$6,2			# 0x2
-	beq	$3,$2,$L324
+	beq	$3,$2,$L322
 	move	$7,$0
 
 	li	$2,2			# 0x2
-	beq	$3,$2,$L292
+	beq	$3,$2,$L290
 	li	$3,1			# 0x1
 
 	jal	__drop_one_conntrack_process_hooks2
 	sw	$23,16($sp)
 
-$L288:
+$L286:
 	slt	$2,$20,129
-	beq	$2,$0,$L292
+	beq	$2,$0,$L290
 	move	$3,$0
 
-$L285:
+$L283:
 	lw	$17,0($17)
-	j	$L339
+	j	$L337
 	nop
 
-$L281:
+$L279:
 	move	$3,$0
-$L292:
+$L290:
 	li	$2,1			# 0x1
-	beq	$3,$2,$L207
+	beq	$3,$2,$L205
 	addiu	$19,$19,1
 
 	lw	$2,%lo(drop_priority_max_idx)($fp)
 	slt	$2,$19,$2
-	bne	$2,$0,$L347
+	bne	$2,$0,$L345
 	lui	$22,%hi(drop_priority)
 
-	j	$L314
+	j	$L312
 	nop
 
-$L207:
+$L205:
 	lui	$4,%hi(rtl_newGC_session_status_flags)
-$L342:
+$L340:
 	lw	$2,%lo(rtl_newGC_session_status_flags)($4)
-	bne	$2,$0,$L300
+	bne	$2,$0,$L298
 	nop
 
 	lui	$2,%hi(jiffies)
@@ -1900,18 +1900,18 @@ $L342:
 	lui	$2,%hi(rtl_newGC_session_status_time)
 	addiu	$3,$3,1
 	sw	$3,%lo(rtl_newGC_session_status_time)($2)
-$L300:
-	j	$L157
+$L298:
+	j	$L155
 	li	$2,1			# 0x1
 
-$L314:
+$L312:
 	jal	local_bh_enable
 	nop
 
 	lui	$4,%hi(rtl_newGC_session_status_flags)
 	lw	$2,%lo(rtl_newGC_session_status_flags)($4)
 	li	$3,1			# 0x1
-	beq	$2,$3,$L302
+	beq	$2,$3,$L300
 	lui	$2,%hi(jiffies)
 
 	lw	$2,%lo(jiffies)($2)
@@ -1919,9 +1919,9 @@ $L314:
 	lui	$3,%hi(rtl_newGC_session_status_time)
 	addiu	$2,$2,200
 	sw	$2,%lo(rtl_newGC_session_status_time)($3)
-$L302:
+$L300:
 	move	$2,$0
-$L157:
+$L155:
 	lw	$31,60($sp)
 	lw	$fp,56($sp)
 	lw	$23,52($sp)
@@ -1959,32 +1959,32 @@ rtl_nf_conn_GC_init:
 	addiu	$2,$2,4
 	sw	$17,20($sp)
 	sw	$16,16($sp)
-$L354:
+$L352:
 	lw	$3,0($2)
 	addiu	$5,$5,-1
-	beq	$3,$0,$L351
+	beq	$3,$0,$L349
 	addiu	$2,$2,8
 
 	sw	$3,4($3)
 	sw	$3,0($3)
-$L351:
-	bgez	$5,$L354
+$L349:
+	bgez	$5,$L352
 	nop
 
 	lui	$2,%hi(Udp_State_Hash_Head)
 	li	$5,1			# 0x1
 	addiu	$2,$2,%lo(Udp_State_Hash_Head)
 	addiu	$2,$2,4
-$L360:
+$L358:
 	lw	$3,0($2)
 	addiu	$5,$5,-1
-	beq	$3,$0,$L357
+	beq	$3,$0,$L355
 	addiu	$2,$2,8
 
 	sw	$3,4($3)
 	sw	$3,0($3)
-$L357:
-	bgez	$5,$L360
+$L355:
+	bgez	$5,$L358
 	lui	$16,%hi(prot_limit)
 
 	move	$5,$0
@@ -1998,14 +1998,14 @@ $L357:
 	addiu	$6,$2,%lo(_prot_limit)
 	move	$5,$0
 	sll	$2,$5,2
-$L383:
+$L381:
 	addiu	$5,$5,1
 	addu	$4,$2,$6
 	slt	$3,$5,3
 	addu	$2,$2,$7
 	sw	$0,0($2)
 	sw	$0,0($4)
-	bne	$3,$0,$L383
+	bne	$3,$0,$L381
 	sll	$2,$5,2
 
 	lui	$2,%hi(nf_conntrack_max)
@@ -2029,7 +2029,7 @@ $L383:
 	sw	$2,8($4)
 	sw	$0,%lo(rtl_newGC_session_status_flags)($17)
 	sll	$3,$5,2
-$L384:
+$L382:
 	addiu	$5,$5,1
 	addu	$2,$3,$8
 	slt	$4,$5,3
@@ -2041,7 +2041,7 @@ $L384:
 	mfhi	$2
 	srl	$2,$2,5
 	sw	$2,0($3)
-	bne	$4,$0,$L384
+	bne	$4,$0,$L382
 	sll	$3,$5,2
 
 	li	$3,-859045888			# 0xcccc0000
@@ -2053,37 +2053,37 @@ $L384:
 	srl	$2,$2,2
 	subu	$3,$6,$2
 	sltu	$3,$3,65
-	bne	$3,$0,$L370
+	bne	$3,$0,$L368
 	sw	$2,%lo(rtl_nf_conntrack_threshold)($4)
 
 	addiu	$2,$6,-64
 	sw	$2,%lo(rtl_nf_conntrack_threshold)($4)
-$L370:
+$L368:
 	lui	$2,%hi(nf_conntrack_max)
 	lw	$2,%lo(nf_conntrack_max)($2)
-	beq	$2,$0,$L371
+	beq	$2,$0,$L369
 	nop
 
 	jal	rtl_gc_threshold_check
 	move	$4,$0
 
-	bne	$2,$0,$L371
+	bne	$2,$0,$L369
 	li	$3,3			# 0x3
 
 	lw	$2,%lo(rtl_newGC_session_status_flags)($17)
-	beq	$2,$3,$L374
+	beq	$2,$3,$L372
 	lui	$2,%hi(jiffies)
 
 	lw	$2,%lo(jiffies)($2)
 	sw	$3,%lo(rtl_newGC_session_status_flags)($17)
 	lui	$3,%hi(rtl_newGC_session_status_time)
 	addiu	$2,$2,1
-	j	$L374
+	j	$L372
 	sw	$2,%lo(rtl_newGC_session_status_time)($3)
 
-$L371:
+$L369:
 	sw	$0,%lo(rtl_newGC_session_status_flags)($17)
-$L374:
+$L372:
 	jal	rtl_nf_conn_GC_init_hooks
 	nop
 

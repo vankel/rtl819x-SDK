@@ -1,0 +1,11 @@
+src/mips/o32.lo: ../src/mips/o32.S fficonfig.h include/ffi.h \
+ include/ffitarget.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/asm/sgidefs.h
+
+fficonfig.h:
+
+include/ffi.h:
+
+include/ffitarget.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/asm/sgidefs.h:

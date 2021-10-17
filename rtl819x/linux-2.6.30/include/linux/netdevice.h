@@ -858,6 +858,9 @@ struct net_device
 
 	/* VLAN feature mask */
 	unsigned long vlan_features;
+    #ifdef CONFIG_RTL_VLAN_8021Q
+	unsigned int vlan_member_map;
+    #endif
 	
 	/* for setting kernel sock attribute on TCP connection setup */
 #define GSO_MAX_SIZE		65536
@@ -911,10 +914,10 @@ struct net_device
 	};
 #endif
 
-	#if	defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_HW_NAPT)
+	//#if	defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_HW_NAPT)
 	/*2007-12-19*/
 	int			wanif;
-	#endif
+	//#endif
 
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)

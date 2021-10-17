@@ -1,11 +1,27 @@
+#include <linux/version.h>
+
 #include <linux/time.h>
+#include <linux/proc_fs.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#define DRV_RELDATE		"Jan 27, 2014"
+#include <linux/kconfig.h>
+#else
+#define DRV_RELDATE		"Mar 25, 2004"
+#include <linux/config.h>
+#endif
+#include <linux/seq_file.h>
+#include <linux/jiffies.h>
 
 #ifdef CONFIG_RTL_ICTEST
 #include "rtl_types.h"
 #else
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
+#include "../../../net/rtl819x/AsicDriver/rtl865xc_asicregs.h"
+#else
 #include <asm/rtl865x/rtl865xc_asicregs.h>
+#endif
 #endif
 
 #include "md5.h"
@@ -24,13 +40,120 @@
 
 static uint32 rtl_seed = 0xDeadC0de;
 
+
+#if defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+static uint8 *cryptoKey, *cryptoIv, *authKey, *pad;
+static uint8 *asic_orig, *asic_enc, *asic_digest;
+
+
+int32 rtl_ipsecTest_alloc(void) 
+{
+	cryptoKey =(uint8 *) UNCACHED_MALLOC(CRYPTOTEST_KEY_LEN);
+	cryptoIv =(uint8 *) UNCACHED_MALLOC(CRYPTOTEST_IV_LEN);
+	authKey=(uint8 *) UNCACHED_MALLOC(CRYPTOTEST_AUTH_KEY_LEN);
+	
+	pad = (uint8 *) UNCACHED_MALLOC(CRYPTOTEST_PAD_LEN);
+	asic_orig = (uint8 *) UNCACHED_MALLOC(CRYPTOTEST_ASICORG_LEN);
+	asic_enc = (uint8 *) UNCACHED_MALLOC(CRYPTOTEST_ASICENC_LEN);
+	asic_digest = (uint8 *) UNCACHED_MALLOC(CRYPTOTEST_ASICDIGEST_LEN);
+
+	if (!cryptoKey || !cryptoIv || !authKey || !pad || !asic_orig || !asic_enc || !asic_digest)
+	{
+		printk("%s %d malloc memory failed \n", __FUNCTION__,__LINE__);
+		return FAILED;
+	}
+	return SUCCESS;
+}
+
+int32 rtl_ipsecTest_free( void ) 
+{
+	if (cryptoKey)
+	{
+		kfree((void *) CACHED_ADDRESS(cryptoKey));
+		cryptoKey = NULL;
+	}
+	if (cryptoIv)
+	{
+		kfree((void *) CACHED_ADDRESS(cryptoIv));
+		cryptoIv = NULL;
+	}
+	if (authKey)
+	{
+		kfree((void *) CACHED_ADDRESS(authKey));
+		authKey = NULL;
+	}
+	if (pad)
+	{	
+		kfree((void *) CACHED_ADDRESS(pad));
+		pad = NULL;
+	}
+	if (asic_orig)
+	{
+		kfree((void *) CACHED_ADDRESS(asic_orig));
+		asic_orig = NULL;
+	}
+	if (asic_enc)
+	{
+		
+		kfree((void *) CACHED_ADDRESS(asic_enc));
+		asic_enc = NULL;
+	}
+	if (asic_digest)
+	{
+		kfree((void *) CACHED_ADDRESS(asic_digest));
+		asic_digest = NULL;
+	}
+	
+	return SUCCESS;
+}
+
+int32 rtl_ipsecTest_Init( void ) 
+{
+	if (cryptoKey)
+	{
+		memset(cryptoKey, 0, CRYPTOTEST_KEY_LEN);
+	}
+	if (cryptoIv)
+	{
+		memset(cryptoIv, 0, CRYPTOTEST_IV_LEN);
+	}
+	if (authKey)
+	{
+		memset(authKey, 0, CRYPTOTEST_AUTH_KEY_LEN);
+	}
+	if (pad)
+	{	
+		memset(pad, 0, CRYPTOTEST_PAD_LEN);
+	}
+	if (asic_orig)
+	{
+		memset(asic_orig, 0, CRYPTOTEST_ASICORG_LEN);
+	}
+	if (asic_enc)
+	{
+		
+		memset(asic_enc, 0, CRYPTOTEST_ASICENC_LEN);
+	}
+	if (asic_digest)
+	{
+		memset(asic_digest, 0, CRYPTOTEST_ASICDIGEST_LEN);
+	}
+	
+	return SUCCESS;
+}
+#endif
+
 uint32 rtlglue_getmstime( uint32* pTime )
 {
+#if 0
     struct timeval tm;
-
     do_gettimeofday( &tm );
     tm.tv_sec = tm.tv_sec % 86400; /* to avoid overflow for 1000times, we wrap to the seconds in a day. */
     return *pTime = ( tm.tv_sec*1000 + tm.tv_usec/1000 );
+#else
+	*pTime = jiffies * 10;
+	return *pTime;
+#endif
 }
 
 void rtlglue_srandom( uint32 seed )
@@ -185,9 +308,10 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 	int32 lenEnl;
 	uint32 cntScatter = 0;
 	rtl_ipsecScatter_t src[8];
+	#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
 	static uint8 bufAsic[32+MAX_PKTLEN+32];
 	static uint8 _cryptoKey[32+256+32];
-	static uint8 _authKey[32+256+32];
+	static uint8 _authKey[32+MAX_AUTH_KEY+32];
 	static uint8 _iv[32+32+32]; /* 256-bits */
 	static uint8 _pad[32+128+32]; /* ipad + opad */
 	static uint8 _AsicDigest[32+20+32]; /* max digest length */
@@ -198,7 +322,14 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 	uint8 *pPad = (void *) UNCACHED_ADDRESS( &_pad[32] );
 	uint8 *pAsicDigest = &_AsicDigest[32];
 	uint8 *pAsicCrypt = (void *) UNCACHED_ADDRESS(&_AsicCrypt[32]);
-	
+	#else
+	uint8 *pCryptoKey = cryptoKey;
+	uint8 *pAuthKey = authKey;
+	uint8 *pIv = cryptoIv;
+	uint8 *pPad = pad; 
+	uint8 *pAsicDigest = asic_digest;
+	uint8 *pAsicCrypt = asic_enc;
+	#endif	
 	rtlglue_printf("Evaluate 8651b throughput(round=%d,cryptoStart=%d,cryptoEnd=%d,authStart=%d,authEnd=%d,"
 		"CryptoKeyLen=%d,AuthKeyLen=%d,pktLen=%d,a2eoLen=%d)\n", round, cryptoStart, cryptoEnd, authStart, authEnd,
 		CryptoKeyLen, AuthKeyLen, pktLen, a2eoLen);
@@ -213,7 +344,11 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 		rtlglue_printf( "[IGNORE,lenEnl<=0]\n" );
 		return FAILED;
 	}
-
+	
+	SMP_LOCK_IPSEC;
+	#if defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+	rtl_ipsecTest_Init(); 
+	#endif
 	/* Simple pattern for debug */
 	/* build keys and iv */
 	for( i = 0; i < CryptoKeyLen; i++ )
@@ -226,7 +361,11 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 		pPad[i] = i;
 
 	/* fill the test data */
+	#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
 	cur = (void *) UNCACHED_ADDRESS( &bufAsic[0+32] );
+	#else
+	cur = asic_orig;
+	#endif
 	for( i = 0; i < pktLen; i++ )
 	{
 		cur[i] = 0xff;
@@ -237,7 +376,7 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 	cntScatter = 1;
 
 	for (cryptoIdx=cryptoStart; cryptoIdx<=cryptoEnd; cryptoIdx++) 
-	{
+	{	
 		if ( cryptoIdx==-1 || // none
 		     cryptoIdx==0x00 || cryptoIdx==0x01 || cryptoIdx==0x02 || cryptoIdx==0x03 || // des/3des decode
 		     cryptoIdx==0x04 || cryptoIdx==0x05 || cryptoIdx==0x06 || cryptoIdx==0x07 || // des/3des encode
@@ -255,6 +394,7 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 			{ /* AES, ENL is the times of 16 bytes. */
 				if ( lenEnl&0xf )
 				{
+					SMP_UNLOCK_IPSEC;
 					rtlglue_printf( "[IGNORE,ENL=0x%04x]\n", lenEnl );
 					return FAILED;
 				}
@@ -263,6 +403,7 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 			{ /* DES, ENL is the times of 8 bytes. */
 				if ( lenEnl&0x7 )
 				{
+					SMP_UNLOCK_IPSEC;
 					rtlglue_printf( "[IGNORE,ENL=0x%04x]\n", lenEnl );
 					return FAILED;
 				}
@@ -276,12 +417,14 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 
 		for (authIdx=authStart; authIdx<=authEnd; authIdx++) 
 		{
+			
 			if ( authIdx!=(uint32)-1 )
 			{
 				if ( pktLen&3 )
 				{
 					/* Since A2EO and APL must be 4-byte times (ENL is 8/16-byte), lenValid must be 4-byte times.
 					 * Otherwise, APL will be non-4-byte times. */
+					SMP_UNLOCK_IPSEC;
 					rtlglue_printf( "[IGNORE,Valid=0x%04x]\n", pktLen );
 					return FAILED;
 				}
@@ -294,6 +437,7 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 					CryptoKeyLen, pCryptoKey, AuthKeyLen, pAuthKey, pIv, pPad, pAsicDigest, 
 					a2eoLen, lenEnl) != SUCCESS)
 				{
+					SMP_UNLOCK_IPSEC;
 					rtlglue_printf("testRound=%d, rtl8651x_ipsecEngine(modeIdx=%d,authIdx=%d) failed... pktlen=%d\n",
 						testRound, cryptoIdx, authIdx, pktLen);
 					return FAILED;
@@ -303,6 +447,7 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 
 			if ( eTime - sTime == 0 )
 			{
+				SMP_UNLOCK_IPSEC;
 				rtlglue_printf("round is too small to measure throughput, try larger round number!\n");
 				return FAILED;
 			}
@@ -327,7 +472,7 @@ int32 mix8651bAsicThroughput(int32 round, int32 cryptoStart, int32 cryptoEnd, in
 			}
 		}
 	}
-
+	SMP_UNLOCK_IPSEC;
 	return SUCCESS;
 }
 
@@ -420,6 +565,7 @@ static int32 ipsec_GeneralApiTestItem(uint32 modeCrypto, uint32 modeAuth,
 		return 5;
 	}
 
+	// enl length check
 	if (modeCrypto != (uint32)-1)
 	{
 		if (modeCrypto & 0x20) /* AES, ENL is the times of 16 bytes. */
@@ -432,13 +578,84 @@ static int32 ipsec_GeneralApiTestItem(uint32 modeCrypto, uint32 modeAuth,
 			if (lenEnl & 0x7)
 				return 7;
 		}
+
+		if ((int) lenEnl <= 0)
+			return 8;
 	}
 
-	if ( lenA2eo & 3 )
+	// a2eo check
+	if (lenA2eo)
 	{
-		/* A2EO must be 4-byte times */
-		return 8;
+		if ( lenA2eo & 3 )
+		{
+			/* A2EO must be 4-byte times */
+			return 9;
+		}
+		else if (modeAuth == (uint32)-1)
+		{
+			/* A2EO not support if no AUTH enable */
+			return 10;
+		}
 	}
+
+	if (cntScatter == 0) // pkt len = 0
+		return 11;
+		// Mix Mode issue
+	if (modeAuth != (uint32)-1 && modeCrypto != (uint32)-1)
+	{
+		int apl, authPadSpace;
+
+		// lenA2eo limit
+		if ((cntScatter == 1) ||
+			(!sawb))
+		{
+			int max_lenA2eo;
+
+			switch (rtl_ipsecEngine_dma_mode())
+			{
+			case 0: // 16 bytes
+				max_lenA2eo = 156 - 4;
+				break;
+			case 1: // 32 bytes
+				max_lenA2eo = 172 - 4; // 172 = 156 + 16
+				break;
+			case 2: // 64 bytes
+			case 3:
+				max_lenA2eo = 204 - 4; // 204 = 172 + 32
+				break;
+			default:
+				printk("unknown dma mode (%d)!\n", rtl_ipsecEngine_dma_mode());
+				return FAILED;
+			}
+
+			// 201303: A2EO limit depends on DMA burst: it cause encryption failed
+			if (lenA2eo > max_lenA2eo) 
+				return 12;
+		}
+		else // multi-desc && use sawb
+		{
+			// 201303: A2EO limit if Multi-Desc & SAWB: it cause encryption failed
+			if (lenA2eo > 136) // 136 = 152 - 16
+				return 13;
+		}
+
+		// 201303: APL lenEnl limit -> encryption ok but hmac failed
+		authPadSpace = 64 - ((lenA2eo + lenEnl) & 0x3f);
+		apl = authPadSpace > 8 ? authPadSpace : authPadSpace + 64;
+		if (apl == 68 && lenEnl < 64)
+			return 14; 
+		
+		// 201303: Multi-Desc lenEnl limit -> 'sometimes' timeout if multi-desc
+		if ((cntScatter > 1) && (lenEnl <= 48))
+			return 15;
+	}
+
+	// 20121009: scatter >= 8 will be failed
+	// 2013.3 scatter >= 8 issue is SAWB related, it may:
+	// 	- IPS_SDLEIP or IPS_DABFI error: can be recover via re-init
+	// 	- own bit failed: need hw reset
+	if (cntScatter >= 8 && sawb)
+		return 16;
 
 #if 0
 	if (modeAuth != (uint32)-1)
@@ -691,18 +908,20 @@ int32 ipsec_GeneralApiTest(uint32 round,
 	int32 modeCrypto, modeAuth;
 	int32 lenCryptoKey, lenAuthKey;
 	int32 lenA2eo;
-	int32 ret = SUCCESS;
+	int32 ret = SUCCESS;	
+	#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)	
 	static uint8 _cryptoKey[32 + 32 + 32]; // 32 for AES-256
 	static uint8 _cryptoIv[32 + 16 + 32]; // 16 for AES
-	static uint8 _authKey[32 + SHA_DIGEST_LENGTH + 32]; // 20 for SHA1
+	static uint8 _authKey[32 + MAX_AUTH_KEY + 32]; // 20 for SHA1
 	static uint8 _pad[32 + 128 + 32]; // 128 for ipad and opad 
 	static uint8 _asic_orig[32 + MAX_PKTLEN + 32];
 	static uint8 _asic_enc[32 + MAX_PKTLEN + 32];
 	static uint8 _asic_digest[32 + SHA_DIGEST_LENGTH + 32]; // 20 for SHA1
 	static uint8 *cryptoKey, *cryptoIv, *authKey, *pad;
 	static uint8 *asic_orig, *asic_enc, *asic_digest;
+	#endif
 	rtl_ipsecScatter_t scatter;
-
+	#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
 	cryptoKey = (void *) UNCACHED_ADDRESS(&_cryptoKey[32]);
 	cryptoIv = (void *) UNCACHED_ADDRESS(&_cryptoIv[32]);
 	authKey = (void *) UNCACHED_ADDRESS(&_authKey[32]);
@@ -710,7 +929,12 @@ int32 ipsec_GeneralApiTest(uint32 round,
 	asic_orig = (void *) UNCACHED_ADDRESS(&_asic_orig[32]);
 	asic_enc = (void *) UNCACHED_ADDRESS(&_asic_enc[32]);
 	asic_digest = (void *) UNCACHED_ADDRESS(&_asic_digest[32]);
-
+	#endif
+	
+	SMP_LOCK_IPSEC;
+	#if defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+	rtl_ipsecTest_Init(); 
+	#endif
 	for(i=0; i<24; i++)
 		cryptoKey[i] = 0x01;
 
@@ -747,20 +971,26 @@ int32 ipsec_GeneralApiTest(uint32 round,
 										lenA2eo, pktLen - lenA2eo);
 
 									if (ret == FAILED)
-									{
+									{								
+										SMP_UNLOCK_IPSEC;
 										printk("Len:%d Offser:%d Crypto:0x%x Auth:0x%x CKey:%d AKey:%d A2EO:%d [FAILED]\n",
 											pktLen, offset, modeCrypto, modeAuth, lenCryptoKey, lenAuthKey, lenA2eo);
 										return FAILED;
 									}
 									else if (ret == 1)
 									{
-//										printk("Len:%d Offset:%d Crypto:0x%x Auth:0x%x CKey:%d AKey:%d A2EO:%d [SKIP]\n",
-//											pktLen, offset, modeCrypto, modeAuth, lenCryptoKey, lenAuthKey, lenA2eo);
+										
+										#if defined(CRYPTOTEST_DEBUG)
+										printk("Len:%d Offset:%d Crypto:0x%x Auth:0x%x CKey:%d AKey:%d A2EO:%d [SKIP]\n",
+											pktLen, offset, modeCrypto, modeAuth, lenCryptoKey, lenAuthKey, lenA2eo);
+										#endif
 									}
 									else
 									{
+										#if defined(CRYPTOTEST_DEBUG)
 										printk("Len:%d Offser:%d Crypto:0x%x Auth:0x%x CKey:%d AKey:%d A2EO:%d [SUCCESS]\n",
 											pktLen, offset, modeCrypto, modeAuth, lenCryptoKey, lenAuthKey, lenA2eo);
+										#endif
 									}
 								}
 
@@ -772,14 +1002,26 @@ int32 ipsec_GeneralApiTest(uint32 round,
 								break;
 						}
 					}
+					#if 0
+					if (modeCrypto < 3) // no crypto or DES
+						modeCrypto++;
+					else if (modeCrypto == 3) // DES end
+						modeCrypto = 0x20;
+					else if (modeCrypto == 0x20) // skip 0x21 
+						modeCrypto = 0x22;
+					else
+						modeCrypto++;
+				    #endif
 				}
 			}
 		}
 	}
-				
+	SMP_UNLOCK_IPSEC;
 	printk("\nGeneral API Test Finished.\n");
 	return SUCCESS;	
 }
+
+
 
 /****************************************
  * By 'crypto mix rand' command
@@ -797,17 +1039,23 @@ int32 ipsec_GeneralApiRandTest(uint32 seed, uint32 round)
 	int32 modeCrypto_val[8] = {-1, 0x00, 0x01, 0x02, 0x03, 0x20, 0x22, 0x23};
 	int32 modeAuth_val[5] = {-1, 0, 1, 2, 3};
 	int32 CryptoKey_val[3] = {16, 24, 32};
+	#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
 	static uint8 _cryptoKey[32 + 32 + 32]; // 32 for AES-256
 	static uint8 _cryptoIv[32 + 16 + 32]; // 16 for AES
-	static uint8 _authKey[32 + SHA_DIGEST_LENGTH + 32]; // 20 for SHA1
+	static uint8 _authKey[32 + MAX_AUTH_KEY + 32]; // 20 for SHA1
 	static uint8 _pad[32 + 128 + 32]; // 128 for ipad and opad 
 	static uint8 _asic_orig[32 + MAX_PKTLEN + 32];
 	static uint8 _asic_enc[32 + MAX_PKTLEN + 32];
 	static uint8 _asic_digest[32 + SHA_DIGEST_LENGTH + 32]; // 20 for SHA1
 	static uint8 *cryptoKey, *cryptoIv, *authKey, *pad;
 	static uint8 *asic_orig, *asic_enc, *asic_digest;
+	#endif
 	rtl_ipsecScatter_t scatter;
+	uint32 sawb;
+	extern int cond_resched_flag;
 
+	rtl_ipsecGetOption(RTL_IPSOPT_SAWB, &sawb);
+	#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)	
 	cryptoKey = (void *) UNCACHED_ADDRESS(&_cryptoKey[32]);
 	cryptoIv = (void *) UNCACHED_ADDRESS(&_cryptoIv[32]);
 	authKey = (void *) UNCACHED_ADDRESS(&_authKey[32]);
@@ -815,11 +1063,16 @@ int32 ipsec_GeneralApiRandTest(uint32 seed, uint32 round)
 	asic_orig = (void *) UNCACHED_ADDRESS(&_asic_orig[32]);
 	asic_enc = (void *) UNCACHED_ADDRESS(&_asic_enc[32]);
 	asic_digest = (void *) UNCACHED_ADDRESS(&_asic_digest[32]);
+	#endif
 
 	rtlglue_srandom(seed);
 
 	for (roundIdx=0; roundIdx<round; roundIdx++) 
-	{
+	{		
+		SMP_LOCK_IPSEC;
+		#if defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+		rtl_ipsecTest_Init(); 
+		#endif
 		modeCrypto = modeCrypto_val[rtlglue_random() % 8];
 		modeAuth = modeAuth_val[rtlglue_random() % 5];
 
@@ -831,6 +1084,8 @@ int32 ipsec_GeneralApiRandTest(uint32 seed, uint32 round)
 			lenCryptoKey = CryptoKey_val[rtlglue_random() % 3];
 
 		lenAuthKey = rtlglue_random() & 0x3ff;
+		if (lenAuthKey > MAX_AUTH_KEY)
+			lenAuthKey = MAX_AUTH_KEY;
 
 		for(i=0; i<24; i++)
 			cryptoKey[i] = rtlglue_random() & 0xFF;
@@ -839,11 +1094,13 @@ int32 ipsec_GeneralApiRandTest(uint32 seed, uint32 round)
 
 		if (modeCrypto == -1 && modeAuth == -1)
 		{
+			SMP_UNLOCK_IPSEC;	
 			continue;
 		}
 		else if (modeCrypto == -1) // auth only
 		{
-			lenA2eo = 0; // lenA2eo must 0 if not mix mode
+			//lenA2eo = 0; // lenA2eo must 0 if not mix mode
+			lenA2eo = rtlglue_random() & 0xFC; // a2eo must 4 byte aligna, 0..252
 
 			if (modeAuth & 0x2) // HMAC
 				pktLen = rtlglue_random() % (0x3FC0 - 9 - HMAC_MAX_MD_CBLOCK) + 1; // 1..16247
@@ -852,7 +1109,7 @@ int32 ipsec_GeneralApiRandTest(uint32 seed, uint32 round)
 		}
 		else if (modeAuth == -1) // crypto only
 		{
-			lenA2eo = 0; // lenA2eo must 0 if not mix mode
+			lenA2eo = 0; // lenA2eo must 0 if crypto only
 
 			if (modeCrypto & 0x20)	// aes
 				pktLen = (rtlglue_random() + 16) & 0x3FF0; /* 16 ~ 16368 */   
@@ -861,22 +1118,45 @@ int32 ipsec_GeneralApiRandTest(uint32 seed, uint32 round)
 		} 
 		else // mix mode
 		{
+			int max_a2eo, cntScatter = 1;//In this test case scatter count always 1
+			
 			modeAuth |= 0x2; // support hmac only if mix mode
+			#if 1
+			if ((cntScatter == 1) || (!sawb))
+			{
+				int dma_bytes[4] = {16, 32, 64, 64};
+				max_a2eo = 152 + dma_bytes[rtl_ipsecEngine_dma_mode()] - 16;
+			}
+			else 
+			{
+				max_a2eo = 152 - 16;
+			}
 
+			lenA2eo = (rtlglue_random() % max_a2eo) & 0xFC; // a2eo must 4 byte aligna, 0..252
+			#endif
 #if 1
-			lenA2eo = rtlglue_random() & 0xFC; // a2eo must 4 byte aligna
-			if (lenA2eo > 200) lenA2eo = 200;
+			//lenA2eo = rtlglue_random() & 0xFC; // a2eo must 4 byte aligna
+			//if (lenA2eo > 200) lenA2eo = 200;
 #else
 			lenA2eo = rtlglue_random() & 0x3C; // a2eo must 4 byte aligna
 #endif
 			lenEnl = rtlglue_random() % (0x3FC0 - 9 - HMAC_MAX_MD_CBLOCK - lenA2eo) + 1; /* 1..16247 - a2eo*/
 
 			if (modeCrypto & 0x20)	// aes
+			{
 				lenEnl = lenEnl & 0x3FF0;
+				if (lenEnl <= 48)
+					lenEnl = 64;
+			}
 			else // des
+			{
 				lenEnl = lenEnl & 0x3FF8;
+				if (lenEnl <= 48)
+					lenEnl = 56;
+			}
 
 			pktLen = lenEnl + lenA2eo;
+				
 		}
 
 		offset = rtlglue_random() & 0x7;
@@ -886,43 +1166,60 @@ int32 ipsec_GeneralApiRandTest(uint32 seed, uint32 round)
 		
 		scatter.len = pktLen;
 		scatter.ptr = &asic_orig[offset];
-
+		
+		#if !defined(CRYPTO_USE_SCHEDULE)
+		cond_resched_flag = 1;
+		#endif
 		ret = ipsec_GeneralApiTestItem(modeCrypto, modeAuth,
 			1, &scatter, asic_enc,
 			lenCryptoKey, cryptoKey,
 			lenAuthKey, authKey,
 			cryptoIv, NULL/*pad*/, asic_digest,
 			lenA2eo, pktLen - lenA2eo);
+		#if !defined(CRYPTO_USE_SCHEDULE)
+		cond_resched_flag = 0;
+		#endif
 
 		if (ret == FAILED)
-		{
+		{			
+			SMP_UNLOCK_IPSEC;
 			printk("Len:%d Offser:%d Crypto:0x%x Auth:0x%x CKey:%d AKey:%d A2EO:%d [FAILED]\n",
 				pktLen, offset, modeCrypto, modeAuth, lenCryptoKey, lenAuthKey, lenA2eo);
 			return FAILED;
 		}
 		else if (ret > 0)
 		{
+			#if defined(CRYPTOTEST_DEBUG)
 			printk("Len:%d Offser:%d Crypto:0x%x Auth:0x%x CKey:%d AKey:%d A2EO:%d [SKIP %d]\n",
 				pktLen, offset, modeCrypto, modeAuth, lenCryptoKey, lenAuthKey, lenA2eo, ret);
+			#endif
 		}
 		else
-		{
+		{		
+			#if defined(CRYPTOTEST_DEBUG)
 			printk("Len:%d Offser:%d Crypto:0x%x Auth:0x%x CKey:%d AKey:%d A2EO:%d [SUCCESS]\n",
 				pktLen, offset, modeCrypto, modeAuth, lenCryptoKey, lenAuthKey, lenA2eo);
-		}
-	}
+			#endif
 
+		}
+		SMP_UNLOCK_IPSEC;	
+	}
+	
 	printk("\nGeneral API Random Test Finished.\n");
 	return SUCCESS;	
 }
 
+extern int do_test(int m);
+
 void rtl_ipsec_test(int test)
 {
 	static int seed = 0;
-
+	int ret = 0;
+	
 	if (test == 10)
 	{
 		rtl_ipsecEngine_init(8, 2);
+		rtl_ipsecSetOption(RTL_IPSOPT_SAWB, 0);
 	}
 	else if (test == 99)
 	{
@@ -941,11 +1238,11 @@ void rtl_ipsec_test(int test)
 		mix8651bAsicThroughput(10000, 0x20, 0x27, 2, 3, 16, 8, 1408, 16);
 		break;
 
-	case 13: // Auth 192 throughput
+	case 13: // AES 192 throughput
 		mix8651bAsicThroughput(10000, 0x20, 0x27, 2, 3, 24, 8, 1408, 16);
 		break;
 
-	case 14: // Auth 256 throughput
+	case 14: // AES 256 throughput
 		mix8651bAsicThroughput(10000, 0x20, 0x27, 2, 3, 32, 8, 1408, 16);
 		break;
 
@@ -958,11 +1255,11 @@ void rtl_ipsec_test(int test)
 		break;
 
 	case 19: // Random test
-		ipsec_GeneralApiRandTest(seed++, 10000000);
+		ipsec_GeneralApiRandTest(seed++, 100000);	
 		break;
 
 	case 21: // debug test
-	{
+	{			
 		g_rtl_ipsec_dbg = 1;
 		ipsec_GeneralApiRandTest(seed++, 1);
 		g_rtl_ipsec_dbg = 0;
@@ -971,12 +1268,14 @@ void rtl_ipsec_test(int test)
 
 	case 31: // test vector
 	{
+		#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
 		static uint8 _cryptoKey[32 + 32 + 32]; // 32 for AES-256
 		static uint8 _cryptoIv[32 + 16 + 32]; // 16 for AES
 		static uint8 _asic_orig[32 + MAX_PKTLEN + 32];
 		static uint8 _asic_enc[32 + MAX_PKTLEN + 32];
 		static uint8 *cryptoKey, *cryptoIv;
 		static uint8 *asic_orig, *asic_enc;
+		#endif
 		rtl_ipsecScatter_t scatter[1];
 		char *key = "\x06\xa9\x21\x40\x36\xb8\xa1\x5b"
 			  "\x51\x2e\x03\xd5\x34\x12\x00\x06";
@@ -987,13 +1286,20 @@ void rtl_ipsec_test(int test)
 			  "\x27\x08\x94\x2d\xbe\x77\x18\x1a";
 		int ilen = 16;
 		char *result = "Single block msg";
-		AES_KEY aes_key;
-
+		AES_KEY aes_key;	
+		uint32 sawb = 0;
+		uint8 *asic_result;
+		
+		SMP_LOCK_IPSEC;
+		rtl_ipsecGetOption(RTL_IPSOPT_SAWB, &sawb);
+		#if !defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
 		cryptoKey = (void *) UNCACHED_ADDRESS(&_cryptoKey[32]);
 		cryptoIv = (void *) UNCACHED_ADDRESS(&_cryptoIv[32]);
 		asic_orig = (void *) UNCACHED_ADDRESS(&_asic_orig[32]);
 		asic_enc = (void *) UNCACHED_ADDRESS(&_asic_enc[32]);
-
+		#else		
+		rtl_ipsecTest_Init(); 
+		#endif		
 		AES_set_encrypt_key(key, klen*8, &aes_key);
 		memcpy((void *) cryptoKey, &aes_key.rd_key[4*10], 16);
 		memDump(aes_key.rd_key, 11*4*4, "key");
@@ -1002,27 +1308,197 @@ void rtl_ipsec_test(int test)
 		memcpy(asic_orig, input, ilen);
 
 		scatter[0].len = ilen;
+#if 0
 		scatter[0].ptr = input;
+#else
+		memcpy(asic_orig, input, ilen);
+		scatter[0].ptr = asic_orig;
+#endif
 
 		g_rtl_ipsec_dbg = 1;
-		rtl_ipsecEngine(0x20, -1, 1, scatter, _asic_enc,
+		rtl_ipsecEngine(0x20, -1, 1, scatter, asic_enc,
 			klen, cryptoKey,
 			0, NULL,
 			cryptoIv, NULL, NULL,
 			0, ilen
 		);
 		g_rtl_ipsec_dbg = 0;
-
-		if (memcmp(scatter[0].ptr, result, ilen) == 0)
+		if (sawb)// use sawb, ASIC write back to scatter buffer
+			asic_result = scatter[0].ptr;
+		else// not use sawb, ASIC write to continuous buffer pCryptResult
+			asic_result = asic_enc;
+		//if (memcmp(scatter[0].ptr, result, ilen) == 0)
+		if (memcmp(asic_result, result, ilen) == 0)
 			printk("aes test vector success!\n");
 		else
 			printk("aes test vector failed!\n");
-
+		SMP_UNLOCK_IPSEC;
 		break;
 	}
-
+	#if defined(CONFIG_CRYPTO_DEV_REALTEK_LINUX_SELFTEST)
+	// kernel-self test
+	case 40: //md5 test
+		ret = do_test(1);
+		if (ret == 0)
+			printk("md5 test success! ret=%d \n", ret);
+		else
+			printk("md5 test failed! ret=%d \n", ret);
+		break;
+	
+	case 41: //sha1 test
+		ret = do_test(2);	
+		if (ret == 0)
+			printk("sha1 test success! ret=%d \n", ret);
+		else
+			printk("sha1 test failed! ret=%d \n", ret);
+		break;
+	case 42: //hmac-md5 test
+		ret = do_test(100);
+		if (ret == 0)
+			printk("hmac-md5 test success! ret=%d \n", ret);
+		else
+			printk("hmac-md5 test failed! ret=%d \n", ret);
+		break;
+	
+	case 43: //hmac-sha1 test
+		ret = do_test(101);	
+		if (ret == 0)
+			printk("hmac-sha1 test success! ret=%d \n", ret);
+		else
+			printk("hmac-sha1 test failed! ret=%d \n", ret);
+		break;
+	
+	case 44: //ecb(des)  and cbc(des)
+		ret = do_test(3);	
+		if (ret == 0)
+			printk("ecb(des)  and cbc(des) test success! ret=%d \n", ret);
+		else
+			printk("ecb(des)  and cbc(des) test failed! ret=%d \n", ret);
+		break;
+	
+	case 45: //ecb(des3_ede) and cbc(des3_ede)
+		ret = do_test(4);	
+		if (ret == 0)
+			printk("ecb(des3_ede) and cbc(des3_ede) test success! ret=%d \n", ret);
+		else
+			printk("ecb(des3_ede) and cbc(des3_ede) test failed! ret=%d \n", ret);
+		break;
+		
+	case 46: //ecb(aes) and cbc(aes) and ctr(aes)
+		ret = do_test(10);	
+		if (ret == 0)
+			printk("ecb(aes) and cbc(aes) and ctr(aes) test success! ret=%d \n", ret);
+		else
+			printk("ecb(aes) and cbc(aes) and ctr(aes) test failed! ret=%d \n", ret);
+		break;
+	#endif
+	
 	default:
 		break;
 	}
 }
 
+int rtk_ipsec_test;
+
+#ifdef CONFIG_RTL_PROC_NEW
+
+static int rtk_ipsec_test_read(struct seq_file *s, void *v)
+{
+	seq_printf(s, "%s %d\n", "rtk_ipsec_test:",rtk_ipsec_test);
+    return 0;
+}
+#else
+static int32 rtk_ipsec_test_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	len = sprintf(page, "%s %d\n", "rtk_ipsec_test:",rtk_ipsec_test);
+
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count)
+		len = count;
+	if (len<0)
+	  	len = 0;
+
+	return len;
+}
+#endif
+static int32 rtk_ipsec_test_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	unsigned char tmpbuf[32] = {0};
+	
+	if (buff && !copy_from_user(tmpbuf, buff, len))
+	{
+		tmpbuf[len-1] = '\0';
+		if(!memcmp(tmpbuf, "all", strlen("all")))
+		{
+			rtk_ipsec_test = -1;
+			//test all case
+
+		}
+		else
+		{
+			rtk_ipsec_test = simple_strtol(tmpbuf, NULL, 0);
+			if ((rtk_ipsec_test ==10) || (rtk_ipsec_test == 99)||(rtk_ipsec_test == 19)
+				||(rtk_ipsec_test == 21)||(rtk_ipsec_test == 31) || 
+				(rtk_ipsec_test>=11 && rtk_ipsec_test<=16)
+				#if defined(CONFIG_CRYPTO_DEV_REALTEK_LINUX_SELFTEST)
+				||(rtk_ipsec_test>=40 && rtk_ipsec_test<=46)
+				#endif
+			)
+				rtl_ipsec_test(rtk_ipsec_test);
+			else
+			{
+				printk("current support: 10/99/11~16/19/21/31/all \n");			
+				#if defined(CONFIG_CRYPTO_DEV_REALTEK_LINUX_SELFTEST)
+				printk("                 40~46 \n");			
+				#endif
+				return len;
+			}
+		}
+	}
+	
+	return len;
+}
+
+#ifdef CONFIG_RTL_PROC_NEW
+extern struct proc_dir_entry proc_root;
+int rtk_ipsec_test_single_open(struct inode *inode, struct file *file)
+{
+        return(single_open(file, rtk_ipsec_test_read,NULL));
+}
+static ssize_t rtk_ipsec_test_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtk_ipsec_test_write(file, userbuf,count, off);
+}
+struct file_operations rtk_ipsec_test_proc_fops= {
+        .open           = rtk_ipsec_test_single_open,
+        .write		    = rtk_ipsec_test_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+
+int32 init_proc_debug(void)
+{
+	#ifndef CONFIG_RTL_PROC_NEW
+	struct proc_dir_entry *ipsec_test_entry;
+	#endif
+
+	#ifdef CONFIG_RTL_PROC_NEW
+	proc_create_data("rtk_ipsec_test",0,&proc_root,&rtk_ipsec_test_proc_fops,NULL);
+	#else
+	ipsec_test_entry=create_proc_entry("rtk_ipsec_test",0,NULL);
+	if (ipsec_test_entry)
+	{
+		ipsec_test_entry->read_proc=rtk_ipsec_test_read;
+		ipsec_test_entry->write_proc=rtk_ipsec_test_write;
+	}
+	#endif
+
+	return 0;
+}

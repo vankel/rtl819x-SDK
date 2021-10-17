@@ -1,10 +1,12 @@
 #include <linux/interrupt.h>
 #include "rtk_voip.h"
 #include "voip_init.h"
-
+#include "voip_params.h"
 #include "con_register.h"
+#include "con_defer_init.h"
 #include "snd_pin_cs.h"
 #include "snd_proslic_type.h"
+#include "si3226x.h"
 
 // We consider diasy chain case only. 
 
@@ -25,6 +27,7 @@ static ProslicContainer_t gProslicContainer_3226x[ TOTAL_NUM_OF_3226x_CH ];
 
 static voip_snd_t snd_proslic_3226x[ TOTAL_NUM_OF_3226x_CH ];
 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_SW
 #if 1
 static const uint32 * const pin_cs = 
 		&snd_pin_cs[ CONFIG_RTK_VOIP_SLIC_SI3226x_PIN_CS - 1 ];
@@ -34,6 +37,7 @@ static const uint32 pin_cs[] = {
 };
 
 CT_ASSERT( ( sizeof( pin_cs ) / sizeof( pin_cs[ 0 ] ) ) >= NUMBER_OF_HWINTF_3226x );
+#endif
 #endif
 
 static const proslic_args_t proslic_args_3226x;
@@ -61,9 +65,20 @@ static int SLIC_init_si3226x(int pcm_mode, int initonly)
 	for( i = 0, sidx = 0; i < NUMBER_OF_HWINTF_3226x; i ++ ) {
 		
 		printk( "--------------------------------------\n" );
-		printk( "SLIC HW intf %d starting at %d CS=%08X\n", i, sidx, pin_cs[ i ] );
+		printk( "SLIC HW intf %d starting at %d CS=%08X\n", i, sidx, 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_SW
+			pin_cs[ i ] 
+#else 
+			CONFIG_RTK_VOIP_SLIC_SI3226x_PIN_CS + i
+#endif
+		);
 		
+#ifdef CONFIG_RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_SW
 		init_spi_pins( &gSpiGciObj_3226x[ i ].spi_dev, pin_cs[ i ], PIN_CLK, PIN_DO, PIN_DI);
+#else
+		_init_rtl_spi_dev_type_hw( &gSpiGciObj_3226x[ i ].spi_dev, 
+									CONFIG_RTK_VOIP_SLIC_SI3226x_PIN_CS + i );
+#endif
 		
 		i_size = NUMBER_OF_CHAN_3226x;
 		i_device = NUMBER_OF_PROSLIC_3226x;
@@ -132,6 +147,102 @@ static void SLIC_show_ID_si3226x( voip_snd_t *this )
 		PRINT_R("Unknow SLIC\n");
 }
 
+static Si3226x_Ring_param_dump(Si3226x_Ring_Cfg* p)
+{
+	printk("0x%8X\n", p->rtper);
+	printk("0x%8X\n", p->freq);
+	printk("0x%8X\n", p->amp);
+	printk("0x%8X\n", p->phas);
+	printk("0x%8X\n", p->offset);
+	printk("0x%8X\n", p->slope_ring);
+    	printk("0x%8X\n", p->iring_lim);
+    	printk("0x%8X\n", p->rtacth);
+	printk("0x%8X\n", p->rtdcth);
+	printk("0x%8X\n", p->rtacdb);
+	printk("0x%8X\n", p->rtdcdb);
+	printk("0x%8X\n", p->vov_ring_bat);
+	printk("0x%8X\n", p->vov_ring_gnd);
+    	printk("0x%8X\n", p->vbatr_expect);
+	printk("0x%2X\n", p->talo);
+	printk("0x%2X\n", p->tahi);
+	printk("0x%2X\n", p->tilo);
+	printk("0x%2X\n", p->tihi);
+	printk("0x%8X\n", p->adap_ring_min_i);
+    	printk("0x%8X\n", p->counter_iring_val);
+	printk("0x%8X\n", p->counter_vtr_val);
+    	printk("0x%8X\n", p->ar_const28);
+    	printk("0x%8X\n", p->ar_const32);
+   	printk("0x%8X\n", p->ar_const38);
+    	printk("0x%8X\n", p->ar_const46);
+	printk("0x%8X\n", p->rrd_delay);
+	printk("0x%8X\n", p->rrd_delay2);
+    	printk("0x%8X\n", p->vbat_track_min_rng);
+	printk("0x%2X\n", p->ringcon);
+    	printk("0x%2X\n", p->userstat);
+	printk("0x%8X\n", p->vcm_ring);
+    	printk("0x%8X\n", p->vcm_ring_fixed);
+    	printk("0x%8X\n", p->delta_vcm);
+    	printk("0x%8X\n", p->dcdc_rngtype);
+    	printk("0x%8X\n", p->vov_dcdc_slope);
+    	printk("0x%8X\n", p->vov_dcdc_os);
+    	printk("0x%8X\n", p->vov_ring_bat_max);
+}
+
+static void SLIC_set_param_si3226x(voip_snd_t *this, unsigned int slic_type, unsigned int param_type, unsigned char* pParam, unsigned int param_size)
+{
+	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
+	proslicChanType * const pSlic = container ->ProObj;
+
+	extern int si3226x_ring_preset_size;
+	extern int si3226x_dcfeed_preset_size;
+	extern int si3226x_impedance_preset_size;
+	extern Si3226x_Ring_Cfg Si3226x_Ring_Presets[];
+	extern Si3226x_DCfeed_Cfg Si3226x_DCfeed_Presets[];
+	extern Si3226x_Impedance_Cfg Si3226x_Impedance_Presets[];
+
+	if ( slic_type == PROSLIC_TYPE_SI3226X )
+	{
+		switch (param_type)
+		{
+			case PROSLIC_PARAM_TYPE_RING:
+				if ( param_size != (sizeof(Si3226x_Ring_Cfg)) )
+				{
+					PRINT_R("%s, line%d, size mis-match, %d != %d.\n", __FUNCTION__, __LINE__, param_size, sizeof(Si3226x_Ring_Cfg));
+					return;
+				}
+				//Si3226x_Ring_param_dump((Si3226x_Ring_Cfg*)pParam);
+				memcpy(&Si3226x_Ring_Presets[si3226x_ring_preset_size-1], pParam, param_size);
+				ProSLIC_RingSetup(pSlic, si3226x_ring_preset_size-1);
+				break;
+			case PROSLIC_PARAM_TYPE_DCFEED:
+				if ( param_size != (sizeof(Si3226x_DCfeed_Cfg)) )
+				{
+					PRINT_R("%s, line%d, size mis-match, %d != %d.\n", __FUNCTION__, __LINE__, param_size, sizeof(Si3226x_DCfeed_Cfg));
+					return;
+				}
+				memcpy(&Si3226x_DCfeed_Presets[si3226x_dcfeed_preset_size-1], pParam, param_size);
+				ProSLIC_DCFeedSetup(pSlic, si3226x_dcfeed_preset_size-1);
+				break;
+			case PROSLIC_PARAM_TYPE_IMPEDANCE:
+				if ( param_size != (sizeof(Si3226x_Impedance_Cfg)) )
+				{
+					PRINT_R("%s, line%d, size mis-match, %d != %d.\n", __FUNCTION__, __LINE__, param_size, sizeof(Si3226x_Impedance_Cfg));
+					return;
+				}
+				memcpy(&Si3226x_Impedance_Presets[si3226x_impedance_preset_size-1], pParam, param_size);
+				ProSLIC_ZsynthSetup(pSlic, si3226x_impedance_preset_size-1);
+				break;
+			default:
+				PRINT_R("%s doesn't support param type: %d\n", __FUNCTION__, param_type);
+				break;
+		}
+	}
+	else
+		PRINT_R("%s doesn't support SLIC type: %d\n", __FUNCTION__, slic_type);
+
+	PRINT_MSG("SLIC_set_param_proslic, ch = %d, slic_type = %d, param_type = %d, param_size = %d\n", this ->sch, slic_type, param_type, param_size);
+}
+
 // --------------------------------------------------------
 // channel mapping architecture 
 // --------------------------------------------------------
@@ -148,12 +259,16 @@ static int __init voip_snd_si3226x_init( void )
 	extern const snd_ops_fxs_t snd_proslic_fxs_ops;
 	int i, sch;
 	int TS_base;
+#ifdef CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT
+	static defer_init_t si3226x_defer;
+#endif
 	
 	// 3226x override proslic base ops 
 	snd_proslic_3226x_ops = snd_proslic_fxs_ops;
 	
 	snd_proslic_3226x_ops.SLIC_reset = SLIC_reset_si3226x;
 	snd_proslic_3226x_ops.SLIC_show_ID = SLIC_show_ID_si3226x;
+	snd_proslic_3226x_ops.SLIC_set_param = SLIC_set_param_si3226x,
 	
 	// get TS base 
 	TS_base = get_snd_free_timeslot();	
@@ -182,7 +297,15 @@ static int __init voip_snd_si3226x_init( void )
 	register_voip_snd( &snd_proslic_3226x[ 0 ], TOTAL_NUM_OF_3226x_CH );
 	
 	// SLIC init use ops 
+#ifdef CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT
+	si3226x_defer.fn_defer_func = ( fn_defer_func_t )SLIC_init_si3226x;
+	si3226x_defer.p0 = law;
+	si3226x_defer.p1 = 0;
+	
+	add_defer_initialization( &si3226x_defer );
+#else
 	SLIC_init_si3226x( law, 0 /* allocate */ );
+#endif
 	
 	return 0;
 }

@@ -7,7 +7,7 @@
  *
  *	Copyright 2008 Realtek Semiconductor Corp.
  */
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -133,7 +133,8 @@ static voip_bus_t bus_iis[ BUS_IIS_CH_NUM ];
 
 
 
-#ifdef OPTIMIZATION	/* byte unit */
+#if 0//def OPTIMIZATION	/* byte unit */  // jwsyu 2012.12.19 change not enable
+                                         // iis can have 16khz or 8khz (in IIS_WIDEBAND_16KHZ)
 #define iis_get_page_size(x) (IIS_PAGE_SIZE*4)
 #endif
 
@@ -162,7 +163,7 @@ static int iis_tr_cnt[MAX_IIS_CH_NUM];
 static char iis_chanEnabled[MAX_IIS_CH_NUM];
 //extern char chanEnabled[];
 
-static int iis_isr_cnt = 0;
+//static int iis_isr_cnt = 0;
 
 static unsigned long IISChanTxPage[4] = {IIS_TX_P0OK, IIS_TX_P1OK, IIS_TX_P2OK, IIS_TX_P3OK};
 static unsigned long IISChanRxPage[4] = {IIS_RX_P0OK, IIS_RX_P1OK, IIS_RX_P2OK, IIS_RX_P3OK};
@@ -210,7 +211,6 @@ unsigned long * piis_TxBuf[MAX_IIS_CH_NUM];
 //#endif
 
 
-//extern unsigned char support_lec_g168[] ;	// 0: LEC disable  1: LEC enable
 //#ifdef LEC_G168_ISR_SYNC_P
 //static short vpat[16]={32767,30272,23170,12539,0,-12539,-23170,-30272,-32767,-30272,-23170,-12539, 0,12539,23170,30272 };
 //static char sync = 0;
@@ -249,11 +249,28 @@ extern long voice_gain_spk[];//0 is mute, 1 is -31dB ~~~ 32 is 0dB , 33 is 1dB ~
 
 static void iis_isr_reset(unsigned int chid);
 
-static void iis_enableChan(unsigned int chid);
+static void iis_enableChan(unsigned int chid, unsigned int wideband);
 static void iis_disableChan(unsigned int chid);
 
 //========================================================//
 
+
+/* wideband : 1->16khz, 0->8khz */
+static int iis_set_samplerate(unsigned int chid, unsigned int wideband)
+{
+	/* Write the reg IIS_SETTING to set samplerate. */
+	
+	
+	unsigned int temp;
+
+	temp = rtl_inl(IIS_SETTING) & (~0x1C000);
+	rtl_outl(IIS_SETTING, temp | ( wideband ? (1<<14) : (0<<14) ) );	//set samplerate
+
+	//IISDBUG("set channel %d wideband = %d\n", chid, wideband);
+	// too many console message will cause R0, T0
+	//printk("set channel %d wideband = %d\n", chid, wideband);
+	return 0;
+}
 
 /* size :byte unit */
 static int iis_set_page_size(unsigned int chid, unsigned int size)
@@ -272,7 +289,7 @@ static int iis_set_page_size(unsigned int chid, unsigned int size)
 	return 0;
 }
 
-#ifndef OPTIMIZATION
+#if 1//ndef OPTIMIZATION
 static unsigned int iis_get_page_size(unsigned int chid)
 {
 	/* Read the reg IIS_SETTING to get pagesize*/
@@ -377,6 +394,7 @@ static unsigned int iis_get_rx_base_addr(unsigned int chid)
 
 static void iis_enable(void)
 {
+	int i;
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY
 	/* config Share Pin as IIS */
 
@@ -385,25 +403,53 @@ static void iis_enable(void)
 
 	iis_isr_reset( 0 );/* ack all pending isr */
 
-	rtl_outl(IISCR, SW_RSTN);	// pause IIS
-#ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
-	asm volatile ("nop\n\t");// add nop fix test chip cpu 5281 bug, formal chip is ok. advised by yen@rtk
+	rtl_outl(IISCR, SW_RSTN | IIS_WL_16BIT | IIS_MODE_MONO | IIS_EDGE_N | IIS_TXRXACT);	// pause IIS
+#if 1//def CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
+	for (i=0 ; i<20 ; i++) asm volatile ("nop\n\t");// add nop fix test chip cpu 5281 bug, formal chip is ok. advised by yen@rtk
 #endif
-	rtl_outl(IISCR, 0);	// reset IIS
-#ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
-	asm volatile ("nop\n\t");// add nop fix test chip cpu 5281 bug, formal chip is ok. advised by yen@rtk
+	rtl_outl(IISCR, 0 | IIS_WL_16BIT | IIS_MODE_MONO | IIS_EDGE_N | IIS_TXRXACT);	// reset IIS
+#if 1//def CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
+	for (i=0 ; i<20 ; i++) asm volatile ("nop\n\t");// add nop fix test chip cpu 5281 bug, formal chip is ok. advised by yen@rtk
 #endif
-	rtl_outl(IISCR, SW_RSTN);
+	rtl_outl(IISCR, SW_RSTN | IIS_WL_16BIT | IIS_MODE_MONO | IIS_EDGE_N | IIS_TXRXACT);
+
+	for (i=0 ; i<20 ; i++) asm volatile ("nop\n\t");
 
 	rtl_outl(IIS_SETTING, (IIS_PAGE_SIZE-1) | ((IIS_PAGE_NUM-1)<<12) | (IIS_SAMPLE_RATE << 14) );	//set page size, page number, sampling rate
 
 	IISDBUG("Enable IIS interface. IISCR(%X) = 0x%X. IIS_SETTING(%X) = 0x%X\n", IISCR, rtl_inl(IISCR), IIS_SETTING, rtl_inl(IIS_SETTING));
 }
 
+#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY)
+#define BIST_CONTROL	0xb8000014
+#define LOCK_LX2_BUS	(1<<4)
+#define BIST_DONE	0xb8000018
+#define LOCK_LX2_OK	(1<<2)
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#define BIST_CONTROL	0xb8000014
+#define LOCK_LX2_BUS	(1<<4)
+#define BIST_DONE	0xb8000020
+#define LOCK_LX2_OK	(1<<2)
+#endif /* (CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || (CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) */
+
 static void iis_disable(void)
 {
-	rtl_outl(IISCR, 0x0000);	// reset IIS
-	rtl_outl(IISCR, SW_RSTN);
+	int i, temp, temp1;
+	
+	//2012/05/21 PM 05:53:16 add lock lx2 bus
+	temp=rtl_inl(BIST_CONTROL);
+	rtl_outl(BIST_CONTROL, temp|LOCK_LX2_BUS);
+	for (i=0 ; i<2000 ; i++) {
+		temp1 = rtl_inl(BIST_DONE);
+		if (temp1&LOCK_LX2_OK)
+			break;
+	}
+	rtl_outl(IISCR, 0x0 | IIS_WL_16BIT | IIS_MODE_MONO | IIS_EDGE_N | IIS_TXRXACT);	// reset IIS
+	for (i=0 ; i<20 ; i++) asm volatile ("nop\n\t");
+	rtl_outl(IISCR, SW_RSTN | IIS_WL_16BIT | IIS_MODE_MONO | IIS_EDGE_N | IIS_TXRXACT);
+
+	temp=rtl_inl(BIST_CONTROL);
+	rtl_outl(BIST_CONTROL, temp&(~LOCK_LX2_BUS));
 
 	rtl_outl(IIS_SETTING, (IIS_PAGE_SIZE-1) | ((IIS_PAGE_NUM-1)<<12) | (IIS_SAMPLE_RATE << 14) );	//set page size, page number, sampling rate
 
@@ -413,10 +459,13 @@ static void iis_disable(void)
 static void iis_tx_rx_enable(unsigned int chid)
 {
 	unsigned int temp;
+	int i;
 
 	iis_isr_reset(chid);/* ack all pending isr */
 
 	temp = rtl_inl(IISCR) & (~0x7f);
+	rtl_outl(IISCR, temp | IIS_WL_16BIT | IIS_MODE_MONO | IIS_EDGE_N | IIS_TXRXACT);
+	for (i=0 ; i<20 ; i++) asm volatile ("nop\n\t");
 	rtl_outl(IISCR, temp | IIS_WL_16BIT | IIS_MODE_MONO | IIS_EDGE_N | IIS_TXRXACT | IIS_ENABLE);
 
 	IISDBUG("Enable IIS interface TX RX. IISCR(%X) = 0x%X. IIS_SETTING(%X) = 0x%X\n", IISCR, rtl_inl(IISCR), IIS_SETTING, rtl_inl(IIS_SETTING));
@@ -433,7 +482,7 @@ static void iis_isr_reset(unsigned int chid)
 static void iis_imr_enable(unsigned int chid, unsigned char type)
 {
 	//IISDBUG("enable IIS IMR\n");
-#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
+#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
 	switch(type)
 	{
 		case P0OK_TX:
@@ -497,7 +546,7 @@ static void iis_imr_enable(unsigned int chid, unsigned char type)
 
 static void iis_imr_disable(unsigned int chid, unsigned char type)
 {
-#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
+#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
 	switch(type)
 	{
 		case P0OK_TX:
@@ -552,7 +601,7 @@ static void iis_imr_disable(unsigned int chid, unsigned char type)
 			printk("disable channel %d IMR type error!\n", chid);
 			break;
 	}
-#endif /* (CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) */
+#endif /* (CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || (CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) */
 }
 
 static void EnaIisIntr(uint32 chid)
@@ -883,7 +932,7 @@ static void iis_twiddle(void)
 #endif
 }
 
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
 static irq_handler_t iis_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 #else
 static void iis_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
@@ -899,13 +948,13 @@ static void iis_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 		rtl_outl(IIS_RX_ISR, status_val_rx);
 
 		memset(&piis_TxBuf[0][0*iis_get_page_size(chid)>>2], 0xaa, iis_get_page_size(chid)*2);	
-#if 0
+	#if 0
 		int k;
 		for (k=0; k<160; k++)
 		{
 			*(((short*)&piis_TxBuf[0][0*iis_get_page_size(chid)>>2])+k) = Sin1KHz[k%8];
 		}
-#endif
+	#endif
 			iis_set_tx_own_bit(0);
 			iis_set_tx_own_bit(1);
 			iis_set_rx_own_bit(0);
@@ -1008,7 +1057,7 @@ static void iis_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 #endif
 #endif
 
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
     return IRQ_HANDLED;
 #endif
 }
@@ -1022,7 +1071,7 @@ static int __init iisctrl_init(void)
 	g726_itu_verify();
 #endif
 
-	int chid;
+	//int chid;
 
 	//for (chid=0; chid<1; chid++)
 	//{
@@ -1036,7 +1085,7 @@ static int __init iisctrl_init(void)
 
 	printk("\n====== RTK IIS Controller Initialization =======\n ");
 	int result; 
-	unsigned char ch = 0;
+	//unsigned char ch = 0;
 
 	iis_enable();
 
@@ -1110,7 +1159,7 @@ static void IIS_init(void)
 #endif
         save_flags(flags); cli();
 
-        uint32 chid;
+        //uint32 chid;
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8676
 
@@ -1169,7 +1218,7 @@ static void IIS_shutdown(void)
 }
 
 #if !defined (AUDIOCODES_VOTING_MECHANISM)
-static void iis_enableChan(unsigned int chid)
+static void iis_enableChan(unsigned int chid, unsigned int wideband)
 {
 	int reg_pbsize;
 	Word16 nPeriod;
@@ -1200,13 +1249,17 @@ static void iis_enableChan(unsigned int chid)
 #endif
 	reg_pbsize = nPeriod * 8 * 2;		// 8 samples/ms * 2 bytes/sample
 #ifdef IIS_WIDEBAND_16KHZ
-	iis_set_page_size(chid, reg_pbsize<<1);
+	iis_set_samplerate(chid, wideband);
+	if (wideband)
+		iis_set_page_size(chid, reg_pbsize<<1);
+	else
+		iis_set_page_size(chid, reg_pbsize);
 #else
 	iis_set_page_size(chid, reg_pbsize);
 #endif
 	//pcm_get_page_size(chid);
 #if 1
-	for (i=0 ; i<4 ; i++)
+	for (i=0 ; i<IIS_PAGE_NUM ; i++)
 	{
 		iis_set_tx_own_bit(i);
 		iis_set_rx_own_bit(i);
@@ -1256,7 +1309,11 @@ static void IIS_restart(unsigned int chid)
 	iis_rxpage[chid] = 0;
 #endif	
 	iis_tr_cnt[chid] = 0;
-	iis_enableChan(chid);
+#ifdef IIS_WIDEBAND_16KHZ
+	iis_enableChan(chid, 1);
+#else
+	iis_enableChan(chid, 0);
+#endif
 
 }
 
@@ -1276,9 +1333,9 @@ static int bus_iis_enable( voip_bus_t *this, int enable )
 {
 	const uint32 bch = this ->bch;
 	
-	if( enable )
-		iis_enableChan( bch );
-	else
+	if( enable ) {
+		iis_enableChan( bch, ( enable == 2 ? 1 : 0 ) );
+	} else
 		iis_disableChan( bch );
 
 	return 0;
@@ -1324,7 +1381,7 @@ static int __init voip_bus_iis_init( void )
 		bus_iis[ i ].name = "iis";
 		bus_iis[ i ].bus_type = BUS_TYPE_IIS;
 #ifdef IIS_WIDEBAND_16KHZ
-		bus_iis[ i ].band_mode_sup = BAND_MODE_16K;
+		bus_iis[ i ].band_mode_sup = BAND_MODE_16K | BAND_MODE_8K;
 #else
 		bus_iis[ i ].band_mode_sup = BAND_MODE_8K;
 #endif
@@ -1365,9 +1422,14 @@ int voip_iis_regs_read_proc( char *buf, char **start, off_t off, int count, int 
 	n += sprintf( buf + n, "IIS_RX_ISR= 0x%08x\n", rtl_inl(IIS_RX_ISR));
 	n += sprintf( buf + n, "IIS_TX_P0OWN= 0x%08x\n", rtl_inl(IIS_TX_P0OWN));
 	n += sprintf( buf + n, "IIS_TX_P1OWN= 0x%08x\n", rtl_inl(IIS_TX_P1OWN));
+	n += sprintf( buf + n, "IIS_TX_P2OWN= 0x%08x\n", rtl_inl(IIS_TX_P2OWN));
+	n += sprintf( buf + n, "IIS_TX_P3OWN= 0x%08x\n", rtl_inl(IIS_TX_P3OWN));
 	n += sprintf( buf + n, "IIS_RX_P0OWN= 0x%08x\n", rtl_inl(IIS_RX_P0OWN));
 	n += sprintf( buf + n, "IIS_RX_P1OWN= 0x%08x\n", rtl_inl(IIS_RX_P1OWN));	
-	
+	n += sprintf( buf + n, "IIS_RX_P2OWN= 0x%08x\n", rtl_inl(IIS_RX_P2OWN));
+	n += sprintf( buf + n, "IIS_RX_P3OWN= 0x%08x\n", rtl_inl(IIS_RX_P3OWN));	
+	n += sprintf( buf + n, "BIST_CONTROL= 0x%08x\n", rtl_inl(BIST_CONTROL));
+	n += sprintf( buf + n, "BIST_DONE= 0x%08x\n", rtl_inl(BIST_DONE));
 	*eof = 1;
 	return n;
 }

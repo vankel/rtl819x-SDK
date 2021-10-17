@@ -114,9 +114,9 @@
 #define BSP_GDMA_IRQ            (BSP_IRQ_ICTL_BASE + 23)
 #define BSP_PCIE_IRQ            (11)	/* BSP_IRQ_LOPI_BASE + 3	*/
 #define BSP_PCIE2_IRQ           (14)	/* BSP_IRQ_LOPI_BASE + 6	*/
-//#define BSP_I2S_IRQ             (BSP_IRQ_LOPI_BASE + 0)
-//#define BSP_I2S_IRQ             (BSP_IRQ_ICTL_BASE + 12)
 
+//#define BSP_I2S_IRQ             (BSP_IRQ_LOPI_BASE + 1)
+#define BSP_I2S_IRQ             (BSP_IRQ_ICTL_BASE + 26)
 /*
  * Interrupt Routing Selection
  */
@@ -159,8 +159,7 @@
 #define BSP_LBCTMOs_RS      BSP_IRQ_CASCADE
 #define BSP_CRYPTO_RS       BSP_IRQ_CASCADE
 //#define BSP_I2S_RS          BSP_I2S_IRQ
-//#define BSP_I2S_RS          BSP_IRQ_CASCADE
-
+#define BSP_I2S_RS          BSP_IRQ_CASCADE
 #define BSP_DIVISOR         8000
 
 #if BSP_DIVISOR > (1 << 16)
@@ -369,6 +368,7 @@
                          (BSP_LBCTMOs1_RS << 20) | \
                          (BSP_PKT_RS      << 16) | \
                          (BSP_SPI_RS      << 12) | \
+                         (BSP_I2S_RS   << 8)  | \
                          (BSP_SAR_RS      << 4)  | \
                          (BSP_DMT_RS      << 0)    \
                         )

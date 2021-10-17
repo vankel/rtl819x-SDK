@@ -95,6 +95,9 @@ romfs:
 		[ -d $(DIR_ROMFS)/$$i ] || mkdir -p $(DIR_ROMFS)/$$i; \
 	done
 	mkdir $(DIR_ROMFS)/dev/misc
+ifdef CONFIG_APP_ALSA_AUDIO	
+	mkdir $(DIR_ROMFS)/dev/snd
+endif	
 	mkdir $(DIR_ROMFS)/dev/pts
 	#chmod 777 $(DIR_ROMFS)/tmp
 	$(ROMFSINST) etc /etc

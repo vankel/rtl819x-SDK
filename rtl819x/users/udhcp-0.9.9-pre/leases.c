@@ -191,9 +191,33 @@ struct dhcpOfferedAddr *find_lease_by_chaddr(u_int8_t *chaddr)
 {
 	unsigned int i;
 
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+	unsigned int port_id;
+	struct static_lease *tmp_static_lease;
+#endif
 	for (i = 0; i < server_config.max_leases; i++)
-		if (!memcmp(leases[i].chaddr, chaddr, 16)) return &(leases[i]);
-	
+	{
+		if(leases[i].chaddr==NULL)
+			continue;
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+		if(reservedIp(server_config.static_leases, leases[i].yiaddr))
+		{
+			//DEBUG(LOG_INFO, "%s:%d##leases[i].yiaddr=%s\n",__FUNCTION__,__LINE__,inet_ntoa(*((struct in_addr*)&leases[i].yiaddr)));
+			port_id=getPortIdByMac(LAN_IFNAME, chaddr);			
+			for(tmp_static_lease=server_config.static_leases; tmp_static_lease!=NULL; tmp_static_lease=tmp_static_lease->next)
+			{
+				if(tmp_static_lease->port_id==port_id && *(tmp_static_lease->ip)==leases[i].yiaddr)
+					break;
+			}
+			if(tmp_static_lease==NULL)
+				continue;
+		}
+#endif
+		if (!memcmp(leases[i].chaddr, chaddr, 16)) 
+		{			
+			return &(leases[i]);	
+		}
+	}
 	return NULL;
 }
 

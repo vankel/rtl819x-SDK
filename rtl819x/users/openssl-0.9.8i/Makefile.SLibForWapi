@@ -70,6 +70,9 @@ ARFLAGS=
 AR=ar $(ARFLAGS) r
 RANLIB= rsdk-linux-ranlib
 PERL= /usr/local/bin/perl
+if [ ! -e /usr/local/bin/perl ]; then \
+PERL=/usr/bin/perl; \
+fi
 TAR= tar
 TARFLAGS= --no-recursion
 MAKEDEPPROG=makedepend

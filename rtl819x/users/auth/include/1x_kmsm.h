@@ -90,6 +90,12 @@ typedef struct Auth_GroupKeyManage_tag
 	u_char					GMK[GMK_LEN];
 	int					GN;
 	int					GM;
+	
+#ifdef CONFIG_IEEE80211W
+		unsigned char IGTK[2][IGTK_LEN];
+		int GN_igtk, GM_igtk;
+		union PN48 IGTK_PN;
+#endif //CONFIG_IEEE80211W
 
 	u_long					GRekeyCounts;
 	BOOLEAN					GResetCounter;
@@ -98,71 +104,61 @@ typedef struct Auth_GroupKeyManage_tag
 
 typedef struct Auth_PairwiseKeyManage_tag
 {
-
-        // The machine state
-        AUTH_PAIRWISEKEY_STATE  state;
-	AUTH_GROUPKEY_STATE	gstate;
-
-        // The Variables.
-
+	// The machine state
+	AUTH_PAIRWISEKEY_STATE	state;
+	AUTH_GROUPKEY_STATE		gstate;
+	// The Variables.
 	//802.1x related variable
-        BOOLEAN                                 eapStart;
-
-	 u_long                          	SessionTimeout;
-	 u_long                          	SessionTimeoutCounter;
-	 u_long					SessionTimeoutEnabled;
-         u_long                          	IdleTimeout;
-	 u_long                          	IdleTimeoutCounter;
-	 u_long				 	IdleTimeoutEnabled;
-         u_long                          	InterimTimeout;
-         u_long                          	InterimTimeoutCounter;
-	 u_long					InterimTimeoutEnabled;
-	 
-						 
-
+	BOOLEAN				eapStart;
+	u_long				SessionTimeout;
+	u_long				SessionTimeoutCounter;
+	u_long				SessionTimeoutEnabled;
+	u_long				IdleTimeout;
+	u_long				IdleTimeoutCounter;
+	u_long				IdleTimeoutEnabled;
+	u_long				InterimTimeout;
+	u_long				InterimTimeoutCounter;
+	u_long				InterimTimeoutEnabled;
 	//-----------Event
-        BOOLEAN                                 AuthenticationRequest;
-        BOOLEAN                                 ReAuthenticationRequest;
-        BOOLEAN                                 DeauthenticationRequest;
-	BOOLEAN                                 Disconnect;
-        BOOLEAN                                 Init;
-        BOOLEAN                                 Pair;
-	
-        BOOLEAN                                 RadiusKeyAvailable;
-        BOOLEAN                                 EAPOLKeyReceived;
-        BOOLEAN                                 EAPOLKeySend;   //added by Emily
-        BOOLEAN                                 TimeoutEvt;
-        int                                     TimeoutCtr;
- 	//sc_yang	
+	BOOLEAN				AuthenticationRequest;
+	BOOLEAN				ReAuthenticationRequest;
+	BOOLEAN				DeauthenticationRequest;
+	BOOLEAN				Disconnect;
+	BOOLEAN				Init;
+	BOOLEAN				Pair;
+	BOOLEAN				RadiusKeyAvailable;
+	BOOLEAN				EAPOLKeyReceived;
+	BOOLEAN				EAPOLKeySend;   //added by Emily
+	BOOLEAN				TimeoutEvt;
+	int					TimeoutCtr;
+	//sc_yang	
 	int					TickCnt;
-        BOOLEAN                                 L2Failure;
-        BOOLEAN                                 MICVerified;
-        BOOLEAN                                 IntegrityFailed;
+	BOOLEAN				L2Failure;
+	BOOLEAN				MICVerified;
+	BOOLEAN				IntegrityFailed;
 
-        BOOLEAN                                 PInitAKeys;
-        //int                                     ; //sc_yang
-        OCTET_STRING                    	ANonce;
-        OCTET_STRING                    	SNonce; //added by Emily
+	BOOLEAN				PInitAKeys;
+	//int                                     ; //sc_yang
+	OCTET_STRING		ANonce;
+	OCTET_STRING		SNonce; //added by Emily
 
-        u_char                                  PMK[PMK_LEN];
+	u_char				PMK[PMK_LEN];
 #ifdef RTL_WPA2
-        u_char                                  PMKID[PMKID_LEN];	
+	u_char				PMKID[PMKID_LEN];	
 #endif        
-        u_char                                  PTK[PTK_LEN];
+	u_char				PTK[PTK_LEN];
 
-        OCTET_STRING                    	SuppInfoElement;
-        OCTET_STRING                    	AuthInfoElement;
-        LARGE_INTEGER                   	CurrentReplayCounter;
-        LARGE_INTEGER                   	ReplayCounterStarted; // david+1-11-2007
-        u_short                                 ErrorRsn;
+	OCTET_STRING		SuppInfoElement;
+	OCTET_STRING		AuthInfoElement;
+	LARGE_INTEGER		CurrentReplayCounter;
+	LARGE_INTEGER		ReplayCounterStarted; // david+1-11-2007
+	u_short				ErrorRsn;
 
-	struct Global_Params_tag                *global;
+	struct Global_Params_tag	*global;
 
-	BOOLEAN					IfCalcMIC;
-	BOOLEAN					bWaitForPacket;
-
-	int                             	IgnoreEAPOLStartCounter;
-
+	BOOLEAN				IfCalcMIC;
+	BOOLEAN				bWaitForPacket;
+	int					IgnoreEAPOLStartCounter;
 	//Abocom
 	/*
         u_long                          SessionTimeout;
@@ -172,7 +168,6 @@ typedef struct Auth_PairwiseKeyManage_tag
         u_long                          IdleTimeoutCounter;
 	u_long				InterimTimeoutCounter;
 	*/
-
 }APKeyManage_SM;
 
 
@@ -195,7 +190,11 @@ int lib1x_akmsm_Disconnect( Global_Params * global);
 int MIN(u_char * ucStr1, u_char * ucStr2, u_long ulLen);
 void CalcPTK(u_char *addr1, u_char *addr2, u_char  *nonce1, 
 			 u_char *nonce2, u_char * keyin, int keyinlen, 
-			 u_char * keyout, int keyoutlen);
+			 u_char * keyout, int keyoutlen
+#ifdef CONFIG_IEEE80211W
+  			 ,int use_sha256
+#endif				 
+			 );
 void GenNonce(u_char * nonce, u_char * szRandom);
 char * KM_STRERR(int err);
 void KeyDump(char *fun, u_char *buf, int siz, char *comment);

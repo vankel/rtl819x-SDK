@@ -2,7 +2,7 @@
 #include <signal.h>
 #include <errno.h>
 #include "web_voip.h"
-#include "voip_version.h"
+#include "sip_version.h"
 #if CONFIG_RTK_VOIP_PACKAGE_867X
 #include <fcntl.h>
 #endif /* CONFIG_RTK_VOIP_PACKAGE_867X */
@@ -12,12 +12,26 @@
 
 #define FIFO_SOLAR "/var/run/solar_control.fifo"
 
-char *voipVersion = VOIP_VERSION;
+char dspVersion[30]={0};
+char *sipVersion = SIP_VERSION;
 
 #ifdef CONFIG_RTK_VOIP_PACKAGE_867X
 //shlee, fix merging problem
-char *CURRENT_SETTING_VER = VOIP_VERSION;
+char *CURRENT_SETTING_VER = SIP_VERSION;
 #endif
+
+static void get_voip_version()
+{
+	FILE *fp;
+
+	fp = fopen("/proc/voip/version", "r");
+
+	if (fp)
+	{
+		fgets(dspVersion, sizeof(dspVersion)-1, fp);
+		fclose(fp);
+    }
+}
 
 static void web_voip_abort(int sig)
 {
@@ -43,6 +57,7 @@ int web_voip_init()
 		fclose(fh);
 	}
 
+	get_voip_version();
 #if defined(CONFIG_APP_BOA)
 // TODO
 #else
@@ -192,7 +207,7 @@ int asp_voip_getInfo(webs_t wp, int argc, char_t **argv)
 			"<tr bgcolor=#DDDDDD>" \
 			"<td width=40%%><font size=2><b>Version</b></td>" \
 			"<td width=60%%><font size=2>%s</td>" \
-			"</tr>", voipVersion);
+			"</tr>", sipVersion);
 		return 0;
 	}
 	else if (strcmp(name, T("voip_menu")) == 0)
@@ -286,9 +301,8 @@ int asp_voip_getInfo(int eid, webs_t wp, int argc, char_t **argv)
 			"<td width=100%% colspan=2 bgcolor=#008000><font color=#FFFFFF size=2><b>VoIP</b></font></td>" \
 			"</tr>" \
 			"<tr bgcolor=#DDDDDD>" \
-			"<td width=40%%><font size=2><b>Version</b></td>" \
-			"<td width=60%%><font size=2>%s</td>" \
-			"</tr>" \
+			"<td width=40%%><font size=2><b>VoIP Version</b></td>" \
+			"<td width=60%%><font size=2>%s-%s</td>" \
 /*+++added by Jack for auto configuration+++*/
 			"<tr bgcolor=#DDDDDD>" \
 			"<td width=40%%><font size=2><b>Flash Version</b></td>" \
@@ -302,7 +316,7 @@ int asp_voip_getInfo(int eid, webs_t wp, int argc, char_t **argv)
 			"<td width=40%%><font size=2><b>Firmware upgrade Version</b></td>" \
 			"<td width=60%%><font size=2>%s</td>" \
 /*---end---*/
-			"</tr>", voipVersion, CURRENT_SETTING_VER, VOIP_FLASH_VER,
+			"</tr>",dspVersion ,sipVersion, CURRENT_SETTING_VER, VOIP_FLASH_VER,
 					pVoIPCfg->auto_cfg_ver, pVoIPCfg->fw_update_fw_version);
 	}
 	else if (strcmp(name, T("voip_menu")) == 0)

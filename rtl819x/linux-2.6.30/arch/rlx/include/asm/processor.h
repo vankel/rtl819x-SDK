@@ -108,6 +108,23 @@ static inline void cpu_wait(void)
 	{0,} \
 }
 
+#if defined(CONFIG_CPU_HAS_WATCH)
+struct rlx3264_watch_reg_state {
+	/* The width of watchlo is 32 in a 32 bit kernel and 64 in a
+	   64 bit kernel.  We use unsigned long as it has the same
+	   property. */
+	unsigned long watchlo[NUM_WATCH_REGS];
+	/* Only the mask and IRW bits from watchhi. */
+	u16 watchhi[NUM_WATCH_REGS];
+	unsigned long wmpxmask[NUM_WATCH_REGS];
+	unsigned long wmpvaddr;
+};
+
+union rlx_watch_reg_state {
+	struct rlx3264_watch_reg_state rlx3264;
+};
+#endif
+
 typedef struct {
 	unsigned long seg;
 } mm_segment_t;
@@ -127,7 +144,10 @@ struct thread_struct {
 
 	/* Saved cp0 stuff. */
 	unsigned long cp0_status;
-
+#if defined(CONFIG_CPU_HAS_WATCH)
+	/* Saved watch register state, if available. */
+	union rlx_watch_reg_state watch;
+#endif
 	/* Other stuff associated with the thread. */
 	unsigned long cp0_badvaddr;	/* Last user fault */
 	unsigned long cp0_baduaddr;	/* Last kernel fault accessing USEG */
@@ -136,6 +156,39 @@ struct thread_struct {
 	struct mips_abi *abi;
 };
 
+#if defined(CONFIG_CPU_HAS_WATCH)
+
+#define INIT_THREAD  {				    \
+    /*							        \
+     * Saved main processor registers	\
+     */							        \
+	.reg16			= 0,				\
+	.reg17			= 0,				\
+	.reg18			= 0,				\
+	.reg19			= 0,				\
+	.reg20			= 0,				\
+	.reg21			= 0,				\
+	.reg22			= 0,				\
+	.reg23			= 0,				\
+	.reg29			= 0,				\
+	.reg30			= 0,				\
+	.reg31			= 0,				\
+	/*							        \
+	 * Saved cp0 stuff					\
+	 */							        \
+	.cp0_status		= 0,				\
+	/*							\
+	 * saved watch register stuff				\
+	 */							\
+	.watch = {{{0,},},},					\
+	/*							        \
+	 * Other stuff associated with the process	\
+	 */                                     \
+	.cp0_badvaddr		= 0,				\
+	.cp0_baduaddr		= 0,				\
+	.error_code		= 0,				    \
+}
+#else
 #define INIT_THREAD  {				    \
     /*							        \
      * Saved main processor registers	\
@@ -163,6 +216,7 @@ struct thread_struct {
 	.error_code		= 0,				    \
 	.trap_no		= 0,				    \
 }
+#endif /*CONFIG_CPU_HAS_WATCH*/
 
 struct task_struct;
 

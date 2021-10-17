@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -29,12 +29,12 @@ int32 __rtl8954C_spi_init( rtl_spi_dev_t* pDev, uint32 gpioSCLK, uint32 gpioCS_,
 //#endif
 {
 	
-	pDev->gpioSCLK = gpioSCLK;
-	pDev->gpioCS_ = gpioCS_;
-	pDev->gpioSDI = gpioSDI;
-	pDev->gpioSDO = gpioSDO;
+	pDev->sw.gpioSCLK = gpioSCLK;
+	pDev->sw.gpioCS_ = gpioCS_;
+	pDev->sw.gpioSDI = gpioSDI;
+	pDev->sw.gpioSDO = gpioSDO;
 #ifdef CONFIG_RTK_VOIP_DECT_SPI_SUPPORT
-	pDev->gpioINT = gpioINT;
+	pDev->sw.gpioINT = gpioINT;
 #endif
 	//pDev->SClkDelayLoop = SysClock / maxSpeed;
 	

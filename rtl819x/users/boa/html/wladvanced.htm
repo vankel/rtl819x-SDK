@@ -1,5 +1,5 @@
 <html>
-<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<!-- Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. -->
 <head>
 <meta http-equiv="Content-Type" content="text/html">
 <% getIndex("no-cache"); %>
@@ -10,21 +10,12 @@
 <SCRIPT>
 	
 var band2G5GSupport=<% getIndex("Band2G5GSupport"); %> ;
-//### add by sen_liu 2011.3.30 TX Beamforming added to mib in 92D 
-//judge if current interface is 92d.On condition that when 92C+92D,92C 2.4G and 92D 5G
-var interface92d=<% getIndex("wlan_interface_92D");%> ;
-//### end
-	
-function validateNum(str)
-{
-  for (var i=0; i<str.length; i++) {
-   	if ( !(str.charAt(i) >='0' && str.charAt(i) <= '9')) {
-		alert("Invalid value. It should be in decimal number (0-9).");
-		return false;
-  	}
-  }
-  return true;
-}
+var mode2x2=<% getIndex("wlan_mode_2x2");%>;
+
+var enabled1X=<% getIndex("enable1X");%>;
+
+var wlan_mode = <% getIndex("wlanMode");%>;
+
 
 function saveChanges()
 {
@@ -61,6 +52,13 @@ function saveChanges()
 	return false;
 
   }
+
+  if (enabled1X != 1 && document.advanceSetup.elements["hs2"][0].checked == true) {
+  	alert('Set Security Type to 802.1x before turn on HS2 Daemon');
+	resetForm();
+	return false;
+  }
+  	
   return true;
 }
 
@@ -88,6 +86,8 @@ function wlan_adv_switch()
  	var checkid_shortgi;
  	var wlan_xTxR="<% getInfo("wlan_xTxR"); %>";
  	
+ 	//var ldpc_support = "<% getInfo("wlan_ldpc_support"); %>";
+ 	
  	checkid_aggregation=document.getElementById("Aggregation");
  	checkid_shortgi=document.getElementById("ShortGi");
  	//if(wlanband == "0"){
@@ -112,7 +112,7 @@ function wlan_adv_switch()
  		document.getElementById("stbctransmit").style.display = "none";
  		document.getElementById("coexist").style.display = "none"; 		
  	}
- 	
+
 	if(band2G5GSupport == 2) //2:5g
  	{
  		document.getElementById("preambleType").style.display = "none"; 		
@@ -124,7 +124,7 @@ function wlan_adv_switch()
  		document.getElementById("coexist").style.display = ""; 		
  	}
 	//### add by sen_liu 2011.3.29 TX Beamforming added to mib in 92D 
-	if(interface92d == 1)
+	if(mode2x2)
 	{				
  		document.getElementById("tx_beamforming").style.display = ""; 
 	}
@@ -133,6 +133,16 @@ function wlan_adv_switch()
 		document.getElementById("tx_beamforming").style.display = "none";
 	}
 	//### end
+	
+	//if(ldpc_support == 1)
+	//{				
+ 	//	document.getElementById("ldpctransmit").style.display = ""; 
+	//}
+	//else
+	//{
+	//	document.getElementById("ldpctransmit").style.display = "none";
+	//}
+	
 
 	if (<% getIndex("preamble"); %> == 0)
 		document.advanceSetup.elements["preamble"][0].checked = true;
@@ -144,6 +154,18 @@ function wlan_adv_switch()
 	else
 		document.advanceSetup.elements["iapp"][1].checked = true;
 
+	
+	if(<% getIndex("hs2Enabled"); %> == -2) 
+		document.getElementById("showHS2").style.display = "none";
+	else
+		document.getElementById("showHS2").style.display = "";
+	
+	if (<% getIndex("hs2Enabled"); %> == 1)
+		document.advanceSetup.elements["hs2"][0].checked = true;
+	else
+		document.advanceSetup.elements["hs2"][1].checked = true;
+	
+	
 	if (<% getIndex("protectionDisabled"); %> == 0)
 		document.advanceSetup.elements["11g_protection"][0].checked = true;
 	else
@@ -169,6 +191,14 @@ function wlan_adv_switch()
 	else
 		document.advanceSetup.elements["tx_stbc"][1].checked = true;
 
+	//if(ldpc_support == 1)
+	//{
+		if (<% getIndex("tx_ldpc"); %> == 1)
+			document.advanceSetup.elements["tx_ldpc"][0].checked = true;
+		else
+			document.advanceSetup.elements["tx_ldpc"][1].checked = true;
+	//}
+		
 	if (<% getIndex("coexist"); %> == 1)
 		document.advanceSetup.elements["coexist_"][0].checked = true;
 	else
@@ -178,7 +208,11 @@ function wlan_adv_switch()
 		document.advanceSetup.elements["beamforming_"][0].checked = true;
 	else
 		document.advanceSetup.elements["beamforming_"][1].checked = true;
-
+	if (<% getIndex("mc2u_disable"); %> == 0)
+		document.advanceSetup.elements["mc2u_"][0].checked = true;
+	else
+		document.advanceSetup.elements["mc2u_"][1].checked = true;
+	onclick_mc2u();
 	document.advanceSetup.elements["RFPower"][<% getIndex("RFPower"); %>].checked = true;
 }
 
@@ -190,7 +224,13 @@ function onClick_func(enable)
 		disableRadioGroup(document.advanceSetup.sideBand0);
 	
 }
-
+function onclick_mc2u()
+{
+	if(document.advanceSetup.elements["mc2u_"][0].checked == true)
+		get_by_id("mlcsttxrate").style.display = "none";
+	else
+		get_by_id("mlcsttxrate").style.display = "";
+}
 function resetForm()
 {
 	location=location; 
@@ -246,6 +286,12 @@ else
       <input type="radio" name="iapp" value="yes">Enabled&nbsp;&nbsp;
       <input type="radio" name="iapp" value="no">Disabled</td>
     </tr>
+    <tr id="showHS2" style="display:">
+      <td width="30%"><font size=2><b>HS2:</b></td>
+      <td width="70%"><font size=2>
+      <input type="radio" name="hs2" value="yes">Enabled&nbsp;&nbsp;
+      <input type="radio" name="hs2" value="no">Disabled</td>
+    </tr>
     <tr>
       <td width="30%"><font size=2><b>Protection:</b></td>
       <td width="70%"><font size=2>
@@ -279,7 +325,15 @@ else
       <td width="70%"><font size=2>
       <input type="radio" name="tx_stbc" value="enable">Enabled&nbsp;&nbsp;
       <input type="radio" name="tx_stbc" value="disable">Disabled</td>
-    </tr> 
+    </tr>
+
+	<tr id="ldpctransmit" style="display:">
+      <td width="30%"><font size=2><b>LDPC:</b></td>
+      <td width="70%"><font size=2>
+      <input type="radio" name="tx_ldpc" value="enable">Enabled&nbsp;&nbsp;
+      <input type="radio" name="tx_ldpc" value="disable">Disabled</td>
+    </tr>
+	
      <tr id="coexist" style="display:">
       <td width="30%"><font size=2><b>20/40MHz Coexist:</b></td>
       <td width="70%"><font size=2>
@@ -291,7 +345,81 @@ else
       <td width="70%"><font size=2>
       <input type="radio" name="beamforming_" value="enable">Enabled&nbsp;&nbsp;
       <input type="radio" name="beamforming_" value="disable">Disabled</td>
-    </tr> 
+    </tr>
+     <tr id="mc2u_disable" style="display:">
+      <td width="30%"><font size=2><b>Mutilcast to Unicast:</b></td>
+      <td width="70%"><font size=2>
+      <input type="radio" name="mc2u_" value="enable" onclick="onclick_mc2u()" >Enabled&nbsp;&nbsp;
+      <input type="radio" name="mc2u_" value="disable" onclick="onclick_mc2u()" >Disabled</td>
+    </tr>
+    <tr id="mlcsttxrate" style="display:">
+      <td width="26%"><font size=2><b>Mutilcast Rate:</b></td>
+      <td width="74%"><font size=2><select size="1" name="mlcstrate" onChange=""> 
+	 <SCRIPT>
+	var band   = <% getIndex("band"); %>;
+	var auto   = <% getIndex("rateAdaptiveEnabled"); %>;
+	var txrate = <% getIndex("lowestMlcstRate"); %>;
+	var rf_num = <% getIndex("rf_used"); %>;
+
+	var rate_mask = [15,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8];
+	var rate_name=["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", "MCS0", "MCS1",
+		"MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", "MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15"];
+	var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
+		"NSS1-MCS5","NSS1-MCS6","NSS1-MCS7","NSS1-MCS8","NSS1-MCS9",
+		"NSS2-MCS0","NSS2-MCS1","NSS2-MCS2","NSS2-MCS3","NSS2-MCS4",
+		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9"];
+	var mask=0;
+	var defidx=0;
+	var idx, i, rate;
+	var vht_num;
+	
+	if (band & 1)
+		mask |= 1;
+	if ((band&2) || (band&4))
+		mask |= 2;
+	if (band & 8) {
+		if (rf_num == 2)
+			mask |= 12;	
+		else
+			mask |= 4;
+	}	
+document.write('<option value="' + 0 + '">' + rate_name[0] + '\n');
+	for (idx=1, i=1; i<=28; i++) {
+		if (rate_mask[i] & mask) {
+				rate = (1 << (i-1));
+		 if(txrate == 0)
+            defidx = 0;
+		 else if (txrate == rate)
+				defidx = idx;
+			document.write('<option value="' + i + '">' + rate_name[i] + '\n');
+			idx++;
+		}
+	}
+	if(band & 64){
+		if(rf_num==1)
+			vht_num=9;
+		else
+			vht_num=19; 
+		for (idx=30, i=0; i<=vht_num; i++) {
+		
+				rate = ((1 << 31) + i);
+				
+				if (txrate == rate)
+				{
+					if(vht_num == 19)
+					defidx = idx-5;
+					else
+						defidx = idx-5-8;
+				}
+				document.write('<option value="' + (i+30) + '">' + vht_rate_name[i] + '\n');
+				idx++;
+		}
+	}
+	document.advanceSetup.elements["mlcstrate"].selectedIndex=defidx;
+	</SCRIPT>
+	</select>
+	</td>
+  </tr>
     <tr>
       <td width="30%"><font size=2><b>RF Output Power:</b></td>
       <td width="70%"><font size=2>
@@ -300,8 +428,7 @@ else
       <input type="radio" name="RFPower" value="2">50%&nbsp;&nbsp;
 	  <input type="radio" name="RFPower" value="3">35%&nbsp;&nbsp;
 	  <input type="radio" name="RFPower" value="4">15%</td>
-    </tr>      
-
+    </tr>
   </table>
   <p>
   <input type="submit" value="Apply Changes" name="save" onClick="return saveChanges()">&nbsp;&nbsp;

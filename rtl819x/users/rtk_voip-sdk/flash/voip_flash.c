@@ -110,6 +110,30 @@
 #define M_DEFAULT_PRECEDENACE_LIST		\
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
 
+#define DEFAULT_TONE_CUSTOMER_1			\
+	{0, 0, 1, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 2, 350, 440, 0, 0, 7, 7, 0, 0}
+
+#define DEFAULT_TONE_CUSTOMER_2			\
+	{0, 0, 2, 2000, 4000, 2000, 4000, 0, 0, 0, 0, 0, 2, 440, 480, 0, 0, 7, 7, 0, 0}
+
+#define DEFAULT_TONE_CUSTOMER_3			\
+	{0, 0, 2, 500, 500, 500, 500, 0, 0, 0, 0, 0, 2, 480, 620, 0, 0, 7, 7, 0, 0}
+
+#define DEFAULT_TONE_CUSTOMER_4			\
+	{0, 0, 3, 500, 500, 500, 500, 500, 8500, 0, 0, 0, 1, 440, 0, 0, 0, 7, 0, 0, 0}
+
+#define DEFAULT_TONE_CUSTOMER_5			\
+	{0, 0, 2, 100, 100, 100, 100, 0, 0, 0, 0, 0, 2, 350, 440, 0, 0, 7, 7, 0, 0}
+
+#define DEFAULT_TONE_CUSTOMER_6			\
+	{0, 0, 3, 100, 100, 100, 100, 100, 100, 0, 0, 0, 2, 350, 440, 0, 0, 7, 7, 0, 0}
+
+#define DEFAULT_TONE_CUSTOMER_7			\
+	{0, 0, 1, 240, 260, 0, 0, 0, 0, 0, 0, 0, 2, 480, 620, 0, 0, 7, 7, 0, 0}
+
+#define DEFAULT_TONE_CUSTOMER_8			\
+	{0, 0, 2, 1000, 1000, 1000, 1000, 0, 0, 0, 0, 0, 2, 1400, 2600, 0, 0, 7, 7, 0, 0}
+
 voipCfgParam_t voipCfgParamDefault =
 {
 	VOIP_FLASH_SIGNATURE,
@@ -124,7 +148,8 @@ voipCfgParam_t voipCfgParamDefault =
 	TONE_CUSTOMER_3,	// tone_of_custbusy
 	TONE_CUSTOMER_4,	// tone_of_custwaiting
 	TONE_CUSTOMER_1,	// tone_of_customize
-	{{0}},				// cust_tone_para
+	{DEFAULT_TONE_CUSTOMER_1, DEFAULT_TONE_CUSTOMER_2, DEFAULT_TONE_CUSTOMER_3, DEFAULT_TONE_CUSTOMER_4,
+	 DEFAULT_TONE_CUSTOMER_5, DEFAULT_TONE_CUSTOMER_6, DEFAULT_TONE_CUSTOMER_7, DEFAULT_TONE_CUSTOMER_8},	// cust_tone_para
 	DIS_CONNECT_TONE_1,	// disconnect tone detect number
 	DIS_CONNECT_TONE_FREQ_2,// disconnect tone 1 parm
 	480,
@@ -240,8 +265,8 @@ voipCfgParam_t voipCfgParamDefault =
 	0,				// bandwidth_LANPort2_Ingress
 	0,				// bandwidth_LANPort3_Ingress
 	0,				// bandwidth_WANPort_Ingress
-	7,				// daa_txVolumne
-	7,				// daa_rxVolumne
+	0,				// daa_txVolumne
+	0,				// daa_rxVolumne
 	8,				// rtpDscp
 	8,				// sipDscp
 	// ports[VOIP_PORTS]
@@ -283,7 +308,7 @@ voipCfgParam_t voipCfgParamDefault =
 			// advanced
 			DEF_SIP_LOCAL_PORT,	// sip_port
 			DEF_RTP_PORT,		// media_port
-			DTMF_INBAND,		// dtmf_mode
+			DTMF_RFC2833,		// dtmf_mode
 			96,					// DTMF RFC2833 payload_type
 			10,					// DTMF RFC2833 packet interval (msec)
 			1,					// Fax/Modem RFC2833 PT is the same to DTMF or not
@@ -333,8 +358,11 @@ voipCfgParam_t voipCfgParamDefault =
 
 			// RTP redundant
 			121,					// rtp_redundant_payload_type
+#ifdef SUPPORT_RTP_REDUNDANT_APP
 			0,						// rtp_redundant_codec
-
+#else
+			-1,						// rtp_redundant_codec
+#endif
 			// DSP
 			6,				// slic_txVolumne
 			6,				// slic_rxVolumne

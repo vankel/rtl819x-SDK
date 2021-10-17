@@ -13,6 +13,7 @@
 #include <linux/if_vlan.h>
 #include <asm/string.h>
 #include <net/rtl/rtk_vlan.h>
+#include <net/rtl/rtl_nic.h>
 
 
 //---------------------------------------------------------------------------
@@ -31,9 +32,21 @@
 #endif
 
 #if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+#define MAX_IFACE_VLAN_CONFIG 18
+#else
 #define MAX_IFACE_VLAN_CONFIG 17
+#endif
 #define WAN_IFACE_INDEX MAX_IFACE_VLAN_CONFIG-1
 #define VIRTUAL_IFACE_INDEX MAX_IFACE_VLAN_CONFIG-2
+
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+#define PASSTHRU_IFACE_INDEX (MAX_IFACE_VLAN_CONFIG-3)
+#define MAX_IFACE_INDEX		PASSTHRU_IFACE_INDEX
+#else
+#define MAX_IFACE_INDEX		VIRTUAL_IFACE_INDEX
+#endif
+
 static struct vlan_info_item vlan_info_items[MAX_IFACE_VLAN_CONFIG];
 static unsigned char wan_macaddr[6] = {0};
 unsigned char lan_macaddr[6] = {0};
@@ -57,11 +70,19 @@ struct net_device* rtl_get_virtual_dev_from_vlan_info(void)
 {
 	return vlan_info_items[VIRTUAL_IFACE_INDEX].dev;
 }
+
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)	
+struct net_device* rtl_get_passthru_dev_from_vlan_info(void)
+{
+	return vlan_info_items[PASSTHRU_IFACE_INDEX].dev;
+}
+
+#endif
 struct net_device *rtl_get_dev_bridged_with_wan(void)
 {
 	int index;
 
-	for(index=0 ;index<VIRTUAL_IFACE_INDEX ; index++) {
+	for(index=0 ;index<MAX_IFACE_INDEX ; index++) {
 		if( vlan_info_items[index].info.forwarding_rule == 1 )		/*forwarding_rule = 1 means dev bridged with wan dev*/
 			return vlan_info_items[index].dev;
 	}
@@ -74,8 +95,8 @@ struct vlan_info_item *rtl_get_vlan_info_item_by_vid(int vid)
 {
 	struct vlan_info_item *item = NULL;
 	int index;
-
-	for(index=0; index<VIRTUAL_IFACE_INDEX; index++) {
+	
+	for(index=0; index<MAX_IFACE_INDEX; index++) {
 		item = &vlan_info_items[index];
 		if( item->dev && item->info.id == vid )
 			return item;
@@ -141,7 +162,18 @@ int rtl_add_vlan_info(struct vlan_info *info, struct net_device *dev)
 		DEBUG_TRACE("Virtual port vlan id:%d, is LAN:%d, fowarding:%d\n",item->info.id,item->info.is_lan,item->info.forwarding_rule);
 		return 0;
 	}
+	
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)	
+	if( memcmp(dev->name,"peth",4) == 0 ){
+		item = &vlan_info_items[PASSTHRU_IFACE_INDEX];
 
+		memset(item, 0, sizeof(struct vlan_info_item));
+		memcpy(&item->info, info, sizeof(struct vlan_info));
+		item->dev = dev;
+		DEBUG_TRACE("passthru dev vlan id:%d, is LAN:%d, fowarding:%d\n",item->info.id,item->info.is_lan,item->info.forwarding_rule);
+		return 0;
+	}
+#endif	
 	if((item = rtl_get_vlan_info_item_by_dev(dev)) != NULL){
                 memcpy(&item->info, info, sizeof(struct vlan_info));
                 return 0;
@@ -358,7 +390,7 @@ int  rx_vlan_process(struct net_device *dev, struct vlan_info *info, struct sk_b
 			}
 
 	}
-
+	
 	return 0;
 }
 

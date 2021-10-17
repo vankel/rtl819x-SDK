@@ -93,6 +93,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+
+
 /* This is in netdevice.h. However, this compile will fail miserably if
    you attempt to include netdevice.h because it has so many references
    to __memcpy functions which it should not attempt to do. So, since I
@@ -442,6 +444,20 @@ int tty_establish_ppp (int tty_fd)
     return ret_fd;
 }
 
+static int get_ctl_fd(void)
+{
+    int fd;
+ 
+    fd = socket(PF_INET, SOCK_DGRAM, 0);
+    if (fd >= 0)
+        return fd;
+    fd = socket(PF_PACKET, SOCK_DGRAM, 0);
+    if (fd >= 0)
+        return fd;
+	return -1;
+   // return xsocket(PF_INET6, SOCK_DGRAM, 0);
+}
+
 /********************************************************************
  *
  * generic_establish_ppp - Turn the fd into a ppp interface.
@@ -521,6 +537,28 @@ int generic_establish_ppp (int fd)
 	}
     }
 
+	/*
+		set ppp0 device tx queue len
+	*/
+	#if 0
+	{
+	    struct ifreq ifr;
+	    int s;
+		char dev[]="ppp0";
+		#define qlen 64
+	    s = get_ctl_fd();
+		if(s>= 0){
+		    memset(&ifr, 0, sizeof(ifr));
+		    strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
+		    ifr.ifr_qlen = qlen;
+		    //xioctl(s, SIOCSIFTXQLEN, &ifr);
+		    ioctl(s, SIOCSIFTXQLEN, &ifr);
+		    close(s);
+		}
+	}
+	#endif
+	
+	
     /*
      * Enable debug in the driver if requested.
      */
@@ -1594,22 +1632,14 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 {
     struct rtentry rt;
 
-    if (defaultroute_exists(&rt) && strcmp(rt.rt_dev, ifname) != 0) 
-    {
-    	if(demand)
-    	{
-    		system("route del default");
-		}
-    	else
-    	{
-			if (rt.rt_flags & RTF_GATEWAY)
-			    error("not replacing existing default route via %I",
-				  SIN_ADDR(rt.rt_gateway));
-			else
-			    error("not replacing existing default route through %s",
-				  rt.rt_dev);
-			return 0;
-		}
+    if (defaultroute_exists(&rt) && strcmp(rt.rt_dev, ifname) != 0) {
+	if (rt.rt_flags & RTF_GATEWAY)
+	    error("not replacing existing default route via %I",
+		  SIN_ADDR(rt.rt_gateway));
+	else
+	    error("not replacing existing default route through %s",
+		  rt.rt_dev);
+	return 0;
     }
 
     memset (&rt, 0, sizeof (rt));

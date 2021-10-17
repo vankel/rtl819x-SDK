@@ -211,7 +211,7 @@
 #if 1 /*    __linux__ is only defined in RTL865x platform   */
 //#ifdef __linux__
  #ifdef __KERNEL__
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/ctype.h>
 #include <linux/module.h>
 #include <linux/string.h>

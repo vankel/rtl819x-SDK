@@ -51,6 +51,9 @@ typedef unsigned char DOT11_KEY_RSC[8];
 typedef enum{
         DOT11_KeyType_Group = 0,
         DOT11_KeyType_Pairwise = 1
+#ifdef CONFIG_IEEE80211W
+		,DOT11_KeyType_IGTK = 2
+#endif
 }DOT11_KEY_TYPE;
 
 typedef enum{
@@ -97,12 +100,17 @@ typedef enum{
 
 typedef enum{
 	DOT11_AuthKeyType_RSNReserved = 0,
-        DOT11_AuthKeyType_RSN = 1,
+	DOT11_AuthKeyType_RSN = 1,
 	DOT11_AuthKeyType_RSNPSK = 2,
 	DOT11_AuthKeyType_NonRSN802dot1x = 3,
+	DOT11_AuthKeyType_802_1X_SHA256 = 5,
+	DOT11_AuthKeyType_PSK_SHA256 = 6,
 	DOT11_AuthKeyType_PRERSN = 255,
 } DOT11_AUTHKEY_TYPE;
 
+#ifdef HS2_SUPPORT
+#define	WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256 1
+#endif
 
 typedef enum{
         DOT11_Ioctl_Query = 0,
@@ -116,6 +124,8 @@ typedef enum{
         DOT11_ENC_WRAP  = 3,
         DOT11_ENC_CCMP  = 4,
         DOT11_ENC_WEP104= 5,
+        DOT11_ENC_BIP   = 6,
+        DOT11_ENC_NOGA  = 7, //Group addressed traffic not allowed
 	DOT11_ENC_UNKNOWN = 255,
 } DOT11_ENC_ALGO;
 
@@ -196,6 +206,26 @@ typedef enum{
 	DOT11_EVENT_WSC_STEP_IND = 74,
 	DOT11_EVENT_WSC_OOB_IND = 75,
 #endif  //ifdef CONFIG_IWPRIV_INTF
+#endif	
+
+    DOT11_EVENT_WSC_RM_PBC_STA=106,
+#ifdef HS2_SUPPORT
+	DOT11_EVENT_WNM_NOTIFY = 109,
+	DOT11_EVENT_GAS_INIT_REQ = 110,
+	DOT11_EVENT_GAS_COMEBACK_REQ = 111,
+	DOT11_EVENT_HS2_SET_IE = 112,
+	DOT11_EVENT_HS2_GAS_RSP = 113,
+	DOT11_EVENT_HS2_GET_TSF = 114,
+	DOT11_EVENT_HS2_TSM_REQ = 115,
+	DOT11_EVENT_HS2_GET_RSN = 116,
+	DOT11_EVENT_HS2_GET_MMPDULIMIT=117,
+	DOT11_EVENT_WNM_DEAUTH_REQ = 118,
+	DOT11_EVENT_QOS_MAP_CONF = 119,
+#endif
+#ifdef CONFIG_IEEE80211W
+	DOT11_EVENT_SET_PMF = 120,
+	DOT11_EVENT_GET_IGTK_PN = 121,
+	DOT11_EVENT_INIT_PMF = 122,
 #endif
 
     DOT11_EVENT_MAX = 200,
@@ -237,9 +267,9 @@ typedef struct _DOT11_WPA_MULTICAST_CIPHER{
 typedef struct _DOT11_ASSOCIATION_IND{
         unsigned char   EventId;
         unsigned char   IsMoreEvent;
-        char            MACAddr[MacAddrLen];
+        unsigned char            MACAddr[MacAddrLen];
         unsigned short  RSNIELen;
-        char            RSNIE[MAXRSNIELEN];
+        unsigned char            RSNIE[MAXRSNIELEN];
 }DOT11_ASSOCIATION_IND;
 
 typedef struct _DOT11_ASSOCIATION_RSP{
@@ -300,6 +330,48 @@ typedef struct _DOT11_DISASSOCIATION_IND{
 	unsigned long   Reason;
 }DOT11_DISASSOCIATION_IND;
 
+#if	defined( CONFIG_IEEE80211W	) || 	defined( HS2_SUPPORT	)
+typedef struct _DOT11_WNM_NOTIFY{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+		unsigned char   macAddr[MacAddrLen];
+        unsigned char   remedSvrURL[2048];
+#if 1		
+		unsigned char   serverMethod;
+#endif
+}DOT11_WNM_NOTIFY;
+
+typedef struct _DOT11_WNM_DEAUTH_REQ{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+		unsigned char   macAddr[MacAddrLen];
+		unsigned char   reason;
+		unsigned short  reAuthDelay;
+        unsigned char   URL[2048];
+}DOT11_WNM_DEAUTH_REQ;
+
+typedef struct _DOT11_BSS_SessInfo_URL{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+		unsigned char   macAddr[MacAddrLen];
+		unsigned char   SWT;
+        unsigned char   URL[2048];
+}DOT11_BSS_SessInfo_URL;
+
+typedef struct _DOT11_INIT_11W_Flags {
+	unsigned char	EventId;
+	unsigned char	IsMoreEvent;
+	unsigned char   dot11IEEE80211W;
+    unsigned char   dot11EnableSHA256;
+}DOT11_INIT_11W_Flags;
+
+typedef struct _DOT11_SET_11W_Flags {
+	unsigned char	EventId;
+	unsigned char	IsMoreEvent;
+	unsigned char	macAddr[MacAddrLen];
+	unsigned char   isPMF;
+}DOT11_SET_11W_Flags;
+#endif
 
 typedef struct _DOT11_DISCONNECT_REQ{
         unsigned char   EventId;
@@ -326,8 +398,6 @@ typedef struct _DOT11_SET_KEY{
         unsigned char   MACAddr[MacAddrLen];
 	DOT11_KEY_RSC   KeyRSC;
 	unsigned char   KeyMaterial[64];
-
-
 }DOT11_SET_KEY;
 
 typedef struct _DOT11_SETPORT{

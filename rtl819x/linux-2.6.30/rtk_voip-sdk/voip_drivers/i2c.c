@@ -2,7 +2,7 @@
 #include <config.h>
 #endif
 #ifndef __BOOTCODE__
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -43,6 +43,15 @@
   #if defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V01 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 )
     #define _ALC5621_CLI_PROTECT	// 8972 share ALC PIN to other 
   #endif
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q)
+//----------------------- ALC5633Q codec ----------------------------------------------
+#define I2C_RATING_FACTOR	5	//Adjust I2C read and write rating.
+//There is an I2C protocal.
+#define _I2C_ALC5633Q_ 	//GPIO pin
+//cli() protection for kernel used. Don't define MACRO _WM8510_CLI_PROTECT in test program.
+  //#if defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V01 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 )
+    #define _ALC5633Q_CLI_PROTECT	// 8972 share ALC PIN to other 
+  //#endif
 #endif
 
 #ifdef __kernel_used__		// pkshih: If we use udelay, factor 1 should be work, doesn't it? 
@@ -57,6 +66,8 @@
   #endif
  #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621)
 	#define I2C_RATING_FACTOR	2
+ #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q)
+	#define I2C_RATING_FACTOR	5
  #else
 #define I2C_RATING_FACTOR	1
 #endif

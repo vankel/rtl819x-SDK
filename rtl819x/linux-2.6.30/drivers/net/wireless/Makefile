@@ -46,4 +46,3 @@ obj-$(CONFIG_IWLWIFI)	+= iwlwifi/
 
 
 obj-$(CONFIG_RTL8192CD)         += rtl8192cd/
-obj-$(CONFIG_WLAN_HAL_8192EE)         += rtl8192e/

@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -68,44 +68,6 @@ extern unsigned int pstn_ringing[];
 #endif
 #endif
 extern uint32 fax_modem_det_mode[]; /* fax modem det mode, 0:auto. 1:fax. 2:modem */
-
-//shlee move from pcm_interface.c due to host side doesnt include voip_driver folder.
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-/* Configure Cache at write allocate mode */
-void set_write_allocate( void )
-{
-	unsigned int  temp;
-__asm__ __volatile__ \
-("	;\n\t"
-	"mfc0	$8, $20		;\n\t"
-	"nop					;\n\t"
-	"or 		$8, $8, 0x80	;\n\t"
-	"nop					;\n\t"
-	"mtc0	$8, $20		;\n\t"
-	"nop					;\n\t"
-	"nop					;\n\t"
-	"mfc0	%0, $20		;\n\t"
-	:"=r" (temp)
-	:
-);
-	//printk("\r\nset_write_allocate : temp:%X", temp);
-
-}
-
-void read_write_allocate( void )
-{
-	unsigned int  temp;
-__asm__ __volatile__ \
-("	;\n\t"
-	"nop					;\n\t"
-	"mfc0	%0, $20		;\n\t"
-	:"=r" (temp)
-	:
-);
-	printk("\r\nread_write_allocate : temp:%X", temp);
-
-}
-#endif
 
 int announce_SIP_event( const char *ev_str )
 {

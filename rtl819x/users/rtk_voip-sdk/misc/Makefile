@@ -1,7 +1,7 @@
 include ../.linux_config
 
-EXES-$(CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST) += wait_dsp
-OBJS-$(CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST) += wait_dsp.o 
+EXES-$(CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST) += wait_dsp
+OBJS-$(CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST) += wait_dsp.o 
 
 CFLAGS = -g -Wall -I../includes 
 LDFLAGS = -L../voip_manager -lvoip_manager 

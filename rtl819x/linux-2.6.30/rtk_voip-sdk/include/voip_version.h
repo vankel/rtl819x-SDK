@@ -1,8 +1,5 @@
-#define SDK_VERSION "VoIP-1.6"
-
-#ifndef VOIP_VERSION 
-#define VOIP_VERSION "SDK-3.0-VoIP-1.6-R10439"
-#endif
+#include "dsp_version.h"
+#define SDK_VERSION "VoIP-1.6.5"
 
 #ifndef CONFIG_BOARD_CONFIG_MODEL 
 #define CONFIG_BOARD_CONFIG_MODEL ""

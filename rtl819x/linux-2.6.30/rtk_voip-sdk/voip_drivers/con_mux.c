@@ -1,6 +1,7 @@
 #include <linux/errno.h>
 #include "rtk_voip.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "con_register.h"
 #include "con_mux.h"
 
@@ -118,6 +119,62 @@ int pulse_dial_in_dch(uint32 dch, char input)
 #endif /* PULSE_DIAL_GEN */
 
 // ---------------------------------------------------------
+// Multi-Ring Cadence
+// ---------------------------------------------------------
+//#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+void MultiRingCadenceEnable(unsigned int cch, unsigned int enable, unsigned int on1, unsigned int off1, unsigned int on2, unsigned int off2,
+				unsigned int on3, unsigned int off3, unsigned int on4, unsigned int off4)
+{
+	extern void MultiRingCadenceEnable_con(const voip_con_t *p_con, unsigned int enable, 
+		unsigned int on1, unsigned int off1, unsigned int on2, unsigned int off2,
+		unsigned int on3, unsigned int off3, unsigned int on4, unsigned int off4);
+	MultiRingCadenceEnable_con( get_voip_con_ptr( cch ), enable, on1, off1, on2, off2, on3, off3, on4, off4);
+}
+
+unsigned int MultiRingCadenceEnableCheck(unsigned int cch)
+{
+	extern unsigned int MultiRingCadenceEnableCheck_con(const voip_con_t *p_con);
+	
+	return MultiRingCadenceEnableCheck_con( get_voip_con_ptr( cch ) );
+}
+
+void MultiRingStart(unsigned int cch)
+{
+	extern void MultiRingStart_con(const voip_con_t *p_con);
+	
+	MultiRingStart_con( get_voip_con_ptr( cch ) );
+}
+
+void MultiRingStop(unsigned int cch)
+{
+	extern void MultiRingStop_con(const voip_con_t *p_con);
+	
+	MultiRingStop_con( get_voip_con_ptr( cch ) );
+}
+
+uint32 MultiRingStatusCheck(unsigned int cch)
+{
+	extern uint32 MultiRingStatusCheck_con(const voip_con_t *p_con);
+	
+	return MultiRingStatusCheck_con( get_voip_con_ptr( cch ) );
+}
+
+uint32 MultiRingOffCheck(unsigned int cch)
+{
+	extern uint32 MultiRingOffCheck_con(const voip_con_t *p_con);
+	
+	return MultiRingOffCheck_con( get_voip_con_ptr( cch ) );
+}
+
+void MultiRingCadenceProcess(unsigned int cch)
+{
+	extern void MultiRingCadenceProcess_con(const voip_con_t *p_con);
+	
+	MultiRingCadenceProcess_con( get_voip_con_ptr( cch ) );
+}
+//#endif
+
+// ---------------------------------------------------------
 // IPC 
 // ---------------------------------------------------------
 
@@ -126,14 +183,18 @@ int pulse_dial_in_dch(uint32 dch, char input)
 int snd_locate_host_cch( uint32 cch )
 {
 	voip_con_t *p_con = get_voip_con_ptr( cch );
+	voip_snd_t *p_snd;
 	
 	if( p_con == NULL )
 		return 0;
 	
-	if( p_con ->snd_ptr )
-		return 1;
+	if( ( p_snd = p_con ->snd_ptr ) == NULL )
+		return 0;
 	
-	return 0;
+	if( p_snd ->snd_flags.b.shadow )
+		return 0;
+	
+	return 1;
 }
 
 int API_get_DSP_info( int cmd, int host_cch, uint32 *dsp_cpuid, uint32 *dsp_cch )
@@ -161,7 +222,7 @@ int API_get_DSP_info( int cmd, int host_cch, uint32 *dsp_cpuid, uint32 *dsp_cch 
 label_error:
 	printk( "cmd=%d host_cch=%d get dsp_cpuid/dsp_cch error\n", cmd, host_cch );
 	
-	return -1;
+	return -EVOIP_IOCTL_IPC_HOST_GET_DSP_INFO_ERR;
 }
 
 int API_get_DSP_ID( int cmd, int host_cch )
@@ -191,7 +252,7 @@ int API_get_Host_CH( uint32 dsp_cpuid, int dsp_cch )
 	host_cch = ipc_get_host_cch_from_invert_table( dsp_cpuid, dsp_cch );
 	
 	if( host_cch >= CON_CH_NUM )
-		return -1;
+		return -EVOIP_IOCTL_IPC_HOST_CHID_CHECK_ERR;
 	
 	return host_cch;
 }

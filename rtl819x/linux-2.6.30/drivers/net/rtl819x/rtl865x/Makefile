@@ -14,22 +14,6 @@ subdir-y := ../common
 obj-y += ../AsicDriver/built-in.o
 subdir-y += ../AsicDriver
 
-L4_SUPPORT= 
-ifdef CONFIG_RTL_8198
-L4_SUPPORT=1
-endif
-
-ifdef CONFIG_RTL_8196CT
-L4_SUPPORT=1
-endif
-
-ifdef CONFIG_RTL_8198T
-L4_SUPPORT=1
-endif
-
-ifdef CONFIG_RTL_819XDT
-L4_SUPPORT=1
-endif
 ifdef CONFIG_RTL_LAYERED_DRIVER
 	ifdef CONFIG_RTL_LAYERED_DRIVER_L2
                obj-y += ../l2Driver/built-in.o
@@ -61,11 +45,9 @@ else
 endif
 
 ifdef CONFIG_RTL_LAYERED_DRIVER
-	ifeq ($(L4_SUPPORT), 1)
 	ifdef CONFIG_RTL_LAYERED_DRIVER_L4
 		obj-y += ../l4Driver/built-in.o
 		subdir-y += ../l4Driver
-	endif
 	endif
 else
 	obj-y += ../l4Driver/built-in.o
@@ -80,6 +62,11 @@ endif
 ifdef CONFIG_8198_PORT5_RGMII
 	obj-y += ../RTL8370_RTL8367_API/built-in.o
 	subdir-y += ../RTL8370_RTL8367_API
+endif
+
+ifdef CONFIG_RTL_8367R_SUPPORT
+	obj-y += ../rtl8367r/built-in.o
+	subdir-y += ../rtl8367r
 endif
 
 EXTRA_CFLAGS += -O1 -DRTL_TBLDRV -D__linux__  -mno-memcpy -DRTL865X_OVER_KERNEL -DRTL865X_OVER_LINUX -Werror

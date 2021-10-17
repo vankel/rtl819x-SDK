@@ -43,47 +43,47 @@ int main(int argc, char *argv[])
 	switch (test_mode)
 	{
 	case 1:
-		rtk_Set_Voice_Gain(0, -32, -32);	// channel[0], Mute the speaker and the microphone	
+		rtk_SetVoiceGain(0, -32, -32);	// channel[0], Mute the speaker and the microphone	
 		sleep(10);												// duration: 10 seconds
-		rtk_Set_Voice_Gain(0, 0, 0);			// channel[0], restore the default volume level of the speaker and Mic
+		rtk_SetVoiceGain(0, 0, 0);			// channel[0], restore the default volume level of the speaker and Mic
 		break;
 	case 2:
-		rtk_Set_Voice_Gain(0, -6, -6);	// set the SPK and mic gain to -6dB (cut 6dB) in the channel 0		
+		rtk_SetVoiceGain(0, -6, -6);	// set the SPK and mic gain to -6dB (cut 6dB) in the channel 0		
 		sleep(10);											
-		rtk_Set_Voice_Gain(0, 0, 0);		// restore the SPK and mic gain to 0dB in the channel 0		
+		rtk_SetVoiceGain(0, 0, 0);		// restore the SPK and mic gain to 0dB in the channel 0		
 		break;
 	case 3:
-		rtk_Set_Voice_Gain(0, +6, +6);	// set the SPK and mic gain to 6dB (boost 6dB) in the channel 0		
+		rtk_SetVoiceGain(0, +6, +6);	// set the SPK and mic gain to 6dB (boost 6dB) in the channel 0		
 		sleep(10);
-		rtk_Set_Voice_Gain(0, 0, 0);		// restore the SPK and mic gain to 0dB in the channel 0		
+		rtk_SetVoiceGain(0, 0, 0);		// restore the SPK and mic gain to 0dB in the channel 0		
 		break;
 	case 4:
-		rtk_Set_SPK_AGC_LVL(0, 0); 		// set the AGC target level of the SPK to level 0  
-		rtk_Set_SPK_AGC_GUP(0, 4);  	// set the AGC gain-up of the SPK to level 4  
-		rtk_Set_SPK_AGC_GDOWN(0, 4);	// set the AGC gain-down of the SPK to level 4  
-		rtk_Set_SPK_AGC(0, 1, 55);				// Enable the speaker AGC in channel number 0
+		rtk_SetSpkAgcLvl(0, 0); 		// set the AGC target level of the SPK to level 0  
+		rtk_SetSpkAgcGup(0, 4);  	// set the AGC gain-up of the SPK to level 4  
+		rtk_SetSpkAgcGdown(0, 4);	// set the AGC gain-down of the SPK to level 4  
+		rtk_SetSpkAgc(0, 1, 55);				// Enable the speaker AGC in channel number 0
 		
-		rtk_Set_MIC_AGC_LVL(0, 0); 		// set the AGC target level of the mic to level 0
-		rtk_Set_MIC_AGC_GUP(0, 4); 		// set the AGC gain-up of the mic to level 4     
-		rtk_Set_MIC_AGC_GDOWN(0, 4);	// set the AGC gain-down of the mic to level 4   	 
-		rtk_Set_MIC_AGC(0, 1, 55); 				// Enable the mic AGC in channel number 0    		
+		rtk_SetMicAgcLvl(0, 0); 		// set the AGC target level of the mic to level 0
+		rtk_SetMicAgcGup(0, 4); 		// set the AGC gain-up of the mic to level 4     
+		rtk_SetMicAgcGdown(0, 4);	// set the AGC gain-down of the mic to level 4   	 
+		rtk_SetMicAgc(0, 1, 55); 				// Enable the mic AGC in channel number 0    		
 		sleep(20);
-		rtk_Set_SPK_AGC(0, 0, 55); 				// Disable the speaker AGC
-		rtk_Set_MIC_AGC(0, 0, 55);				// Disable the mic AGC
+		rtk_SetSpkAgc(0, 0, 55); 				// Disable the speaker AGC
+		rtk_SetMicAgc(0, 0, 55);				// Disable the mic AGC
 		break;
 	case 5:
-		rtk_Set_SPK_AGC_LVL(0, 4); 		// set the AGC target level of the SPK to level 4   
-		rtk_Set_SPK_AGC_GUP(0, 4); 		// set the AGC gain-up of the SPK to level 4        
-		rtk_Set_SPK_AGC_GDOWN(0, 4); 	// set the AGC gain-down of the SPK to level 4      	
-		rtk_Set_SPK_AGC(0, 1, 55);      	// Enable the speaker AGC in channel number 0       	
+		rtk_SetSpkAgcLvl(0, 4); 		// set the AGC target level of the SPK to level 4   
+		rtk_SetSpkAgcGup(0, 4); 		// set the AGC gain-up of the SPK to level 4        
+		rtk_SetSpkAgcGdown(0, 4); 	// set the AGC gain-down of the SPK to level 4      	
+		rtk_SetSpkAgc(0, 1, 55);      	// Enable the speaker AGC in channel number 0       	
 		                                                                                  
-		rtk_Set_MIC_AGC_LVL(0, 4); 		// set the AGC target level of the mic to level 4   	
-		rtk_Set_MIC_AGC_GUP(0, 4); 		// set the AGC gain-up of the mic to level 4        
-		rtk_Set_MIC_AGC_GDOWN(0, 4); 	// set the AGC gain-down of the mic to level 4   	  	
-		rtk_Set_MIC_AGC(0, 1, 55); 				// Enable the mic AGC in channel number 0    		    
+		rtk_SetMicAgcLvl(0, 4); 		// set the AGC target level of the mic to level 4   	
+		rtk_SetMicAgcGup(0, 4); 		// set the AGC gain-up of the mic to level 4        
+		rtk_SetMicAgcGdown(0, 4); 	// set the AGC gain-down of the mic to level 4   	  	
+		rtk_SetMicAgc(0, 1, 55); 				// Enable the mic AGC in channel number 0    		    
 		sleep(20);										                                                    	
-		rtk_Set_SPK_AGC(0, 0, 55);     		// Disable the speaker AGC                          	
-		rtk_Set_MIC_AGC(0, 0, 55);				// Disable the mic AGC                              	
+		rtk_SetSpkAgc(0, 0, 55);     		// Disable the speaker AGC                          	
+		rtk_SetMicAgc(0, 0, 55);				// Disable the mic AGC                              	
 
 	}
 

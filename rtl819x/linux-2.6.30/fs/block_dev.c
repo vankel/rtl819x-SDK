@@ -1094,12 +1094,22 @@ EXPORT_SYMBOL(revalidate_disk);
 int check_disk_change(struct block_device *bdev)
 {
 	struct gendisk *disk = bdev->bd_disk;
+#ifdef CONFIG_KERNEL_POLLING
+	const struct block_device_operations *bdops = disk->fops;
+	unsigned int events;
+
+	events = disk_clear_events(disk, DISK_EVENT_MEDIA_CHANGE |
+				   DISK_EVENT_EJECT_REQUEST);
+	if (!(events & DISK_EVENT_MEDIA_CHANGE))
+		return 0;
+#else
 	struct block_device_operations * bdops = disk->fops;
 
 	if (!bdops->media_changed)
 		return 0;
 	if (!bdops->media_changed(bdev->bd_disk))
 		return 0;
+#endif
 
 	flush_disk(bdev);
 	if (bdops->revalidate_disk)
@@ -1147,10 +1157,15 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 	/*
 	 * hooks: /n/, see "layering violations".
 	 */
-	ret = devcgroup_inode_permission(bdev->bd_inode, perm);
-	if (ret != 0) {
-		bdput(bdev);
-		return ret;
+#ifdef CONFIG_KERNEL_POLLING
+	if (!for_part)
+#endif
+	{
+		ret = devcgroup_inode_permission(bdev->bd_inode, perm);
+		if (ret != 0) {
+			bdput(bdev);
+			return ret;
+		}
 	}
 
 	lock_kernel();
@@ -1188,8 +1203,10 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 					mutex_unlock(&bdev->bd_mutex);
 					goto restart;
 				}
+#ifndef CONFIG_KERNEL_POLLING
 				if (ret)
 					goto out_clear;
+#endif
 			}
 			if (!bdev->bd_openers) {
 				bd_set_size(bdev,(loff_t)get_capacity(disk)<<9);
@@ -1198,8 +1215,19 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 					bdi = &default_backing_dev_info;
 				bdev->bd_inode->i_data.backing_dev_info = bdi;
 			}
+#ifdef CONFIG_KERNEL_POLLING
+			if (bdev->bd_invalidated) {
+				if (!ret)
+					rescan_partitions(disk, bdev);
+				else if (ret == -ENOMEDIUM)
+					invalidate_partitions(disk, bdev);
+			}
+			if (ret)
+				goto out_clear;
+#else
 			if (bdev->bd_invalidated)
 				rescan_partitions(disk, bdev);
+#endif
 		} else {
 			struct block_device *whole;
 			whole = bdget_disk(disk, 0);
@@ -1228,11 +1256,25 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 		if (bdev->bd_contains == bdev) {
 			if (bdev->bd_disk->fops->open) {
 				ret = bdev->bd_disk->fops->open(bdev, mode);
+#ifndef CONFIG_KERNEL_POLLING
 				if (ret)
 					goto out_unlock_bdev;
+#endif
 			}
+#ifdef CONFIG_KERNEL_POLLING
+			if (bdev->bd_invalidated)
+			{
+				if (!ret)
+					rescan_partitions(bdev->bd_disk, bdev);
+				else if (ret == -ENOMEDIUM)
+					invalidate_partitions(bdev->bd_disk, bdev);
+			}
+			if (ret)
+				goto out_unlock_bdev;
+#else
 			if (bdev->bd_invalidated)
 				rescan_partitions(bdev->bd_disk, bdev);
+#endif
 		}
 	}
 	bdev->bd_openers++;
@@ -1265,7 +1307,33 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 
 int blkdev_get(struct block_device *bdev, fmode_t mode)
 {
+#ifdef CONFIG_KERNEL_POLLING
+	int res;
+
+	res = __blkdev_get(bdev, mode, 0);
+
+	/* finish claiming */
+	mutex_lock(&bdev->bd_mutex);
+	
+	/*
+	 * Block event polling for write claims.  Any write
+	 * holder makes the write_holder state stick until all
+	 * are released.  This is good enough and tracking
+	 * individual writeable reference is too fragile given
+	 * the way @mode is used in blkdev_get/put().
+	 */
+	if (!res && (mode & FMODE_WRITE) && !bdev->bd_write_holder &&
+	    (bdev->bd_disk->flags & GENHD_FL_BLOCK_EVENTS_ON_EXCL_WRITE)) {
+		bdev->bd_write_holder = true;
+		disk_block_events(bdev->bd_disk);
+	}
+
+	mutex_unlock(&bdev->bd_mutex);
+
+	return res;
+#else
 	return __blkdev_get(bdev, mode, 0);
+#endif
 }
 EXPORT_SYMBOL(blkdev_get);
 
@@ -1354,6 +1422,46 @@ static int __blkdev_put(struct block_device *bdev, fmode_t mode, int for_part)
 
 int blkdev_put(struct block_device *bdev, fmode_t mode)
 {
+#ifdef CONFIG_KERNEL_POLLING
+	if (mode & FMODE_EXCL) {
+		bool bdev_free;
+
+		/*
+		 * Release a claim on the device.  The holder fields
+		 * are protected with bdev_lock.  bd_mutex is to
+		 * synchronize disk_holder unlinking.
+		 */
+		mutex_lock(&bdev->bd_mutex);
+		spin_lock(&bdev_lock);
+
+		WARN_ON_ONCE(--bdev->bd_holders < 0);
+		WARN_ON_ONCE(--bdev->bd_contains->bd_holders < 0);
+
+		/* bd_contains might point to self, check in a separate step */
+		if ((bdev_free = !bdev->bd_holders))
+			bdev->bd_holder = NULL;
+		if (!bdev->bd_contains->bd_holders)
+			bdev->bd_contains->bd_holder = NULL;
+
+		spin_unlock(&bdev_lock);
+
+		/*
+		 * If this was the last claim, remove holder link and
+		 * unblock evpoll if it was a write holder.
+		 */
+		if (bdev_free) {
+			if (bdev->bd_write_holder) {
+				disk_unblock_events(bdev->bd_disk);
+				bdev->bd_write_holder = false;
+			} else
+				disk_check_events(bdev->bd_disk);
+		}
+
+		mutex_unlock(&bdev->bd_mutex);
+	} else
+		disk_check_events(bdev->bd_disk);
+#endif
+
 	return __blkdev_put(bdev, mode, 0);
 }
 EXPORT_SYMBOL(blkdev_put);

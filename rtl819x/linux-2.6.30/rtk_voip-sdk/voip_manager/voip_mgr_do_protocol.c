@@ -6,7 +6,9 @@
 #define TYPEDEF_H //ALIGN(x) is the same name of kernel
 
 #include "rtk_voip.h"
+#include "voip_timer.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "voip_control.h"
 #include "voip_params.h"
 #include "voip_mgr_define.h"
@@ -63,6 +65,7 @@ extern struct RTK_TRAP_profile *filter[];
 extern unsigned int CurrentDtmfMode[];
 
 extern unsigned char RtcpOpen[];
+extern unsigned char Rtcp_Bye[];
 extern unsigned char RtpOpen[];
 
 extern int g_SIP_Info_play[];		/* 0: stop 1: start play */
@@ -113,6 +116,13 @@ int voip_mgr_set_rtp_1(TstVoipMgrRtpCfg stVoipMgrRtpCfg)
 #endif
 	unsigned long flags;
 	TstVoipMgrSession stVoipMgrSession;
+
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	if (stVoipMgrRtpCfg.ipv6 == 1)
+		PRINT_R("%s, line%d, IPv6 is not supported !\n", __FUNCTION__, __LINE__);
+	else
+		stVoipMgrSession.ipv6 = 0;
+#endif
 
 	stVoipMgrSession.ch_id = stVoipMgrRtpCfg.ch_id;
 	stVoipMgrSession.m_id = stVoipMgrRtpCfg.m_id;
@@ -469,6 +479,7 @@ int do_mgr_VOIP_MGR_SET_SESSION( int cmd, void *user, unsigned int len, unsigned
 
 	if(filter[s_id]!=0) {
 		PRINT_MSG("rtp: s_id %d in used, please unregister first\n", s_id);
+		restore_flags(flags);
 		return 0;
 	}
 	
@@ -506,7 +517,7 @@ int do_mgr_VOIP_MGR_SET_SESSION( int cmd, void *user, unsigned int len, unsigned
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipMgrSession.ch_id;
 	stVoipMgrSession.ch_id = API_get_DSP_CH(cmd, stVoipMgrSession.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipMgrSession, sizeof(TstVoipMgrSession));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipMgrSession, sizeof(TstVoipMgrSession), MF_NONE);
 	stVoipMgrSession.ch_id = mgr_chid;
 
 #else //! CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
@@ -550,6 +561,7 @@ int do_mgr_VOIP_MGR_SET_SESSION( int cmd, void *user, unsigned int len, unsigned
 
 	if(filter[s_id]!=0) {
 		PRINT_MSG("rtp: s_id %d in used, please unregister first\n", s_id);
+		restore_flags(flags);
 		return 0;
 	}
 
@@ -594,13 +606,23 @@ int do_mgr_VOIP_MGR_SET_SESSION( int cmd, void *user, unsigned int len, unsigned
 			/* If talk_flag > 0, DTMF detection threshold will be pulled to higt level. */
 			talk_flag[stVoipMgrSession.ch_id] = talk_flag[stVoipMgrSession.ch_id] + 1;
 		}
-	}                
-	rfc2833_dtmf_pt_local[s_id] = stVoipMgrSession.rfc2833_dtmf_pt_local;
+	}
+	
+	extern char dtmf_mode[];
+	if (dtmf_mode[stVoipMgrSession.ch_id] != 0) // Not RFC2833 mode
+	{
+		rfc2833_dtmf_pt_local[s_id] = 0;
+		rfc2833_fax_modem_pt_local[s_id] = 0;
+	}
+	else
+	{
+		rfc2833_dtmf_pt_local[s_id] = stVoipMgrSession.rfc2833_dtmf_pt_local;
+		rfc2833_fax_modem_pt_local[s_id] = stVoipMgrSession.rfc2833_fax_modem_pt_local;
+	}
+
 	rfc2833_dtmf_pt_remote[s_id] = stVoipMgrSession.rfc2833_dtmf_pt_remote;
-	
-	rfc2833_fax_modem_pt_local[s_id] = stVoipMgrSession.rfc2833_fax_modem_pt_local;
 	rfc2833_fax_modem_pt_remote[s_id] = stVoipMgrSession.rfc2833_fax_modem_pt_remote;
-	
+
 	//PRINT_MSG(" rfc2833_dtmf_pt_local[%d] = %d\n", s_id, rfc2833_dtmf_pt_local[s_id]);
 	//PRINT_MSG(" rfc2833_dtmf_pt_remote[%d] = %d\n", s_id, rfc2833_dtmf_pt_remote[s_id]);
 	//PRINT_MSG(" rfc2833_fax_modem_pt_local[%d] = %d\n", s_id, rfc2833_fax_modem_pt_local[s_id]);
@@ -657,6 +679,7 @@ int do_mgr_VOIP_MGR_SET_SESSION( int cmd, void *user, unsigned int len, unsigned
 			{
 				LoopBackInfo[s_id].isLoopBack = 0;
 				PRINT_R("Error: loop mode session count > 2.\n");
+				ret = -EVOIP_IOCTL_CONFIG_RANGE_ERR;
 			}
 		}
 		else
@@ -814,7 +837,7 @@ int do_mgr_VOIP_MGR_SET_SESSION( int cmd, void *user, unsigned int len, unsigned
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipMgrSession.ch_id;
 	stVoipMgrSession.ch_id = API_get_DSP_CH(cmd, stVoipMgrSession.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipMgrSession, sizeof(TstVoipMgrSession));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipMgrSession, sizeof(TstVoipMgrSession), MF_NONE);
 	stVoipMgrSession.ch_id = mgr_chid;
 	//stVoipMgrSession.ret_val = ret;
 
@@ -1005,7 +1028,7 @@ int do_mgr_VOIP_MGR_UNSET_SESSION( int cmd, void *user, unsigned int len, unsign
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipCfg.ch_id;
 	stVoipCfg.ch_id = API_get_DSP_CH(cmd, stVoipCfg.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg), MF_NONE);
 	stVoipCfg.ch_id = mgr_chid;
 	
 #else //!CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
@@ -1110,7 +1133,7 @@ int do_mgr_VOIP_MGR_UNSET_SESSION( int cmd, void *user, unsigned int len, unsign
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipCfg.ch_id;
 	stVoipCfg.ch_id = API_get_DSP_CH(cmd, stVoipCfg.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg), MF_NONE);
 	stVoipCfg.ch_id = mgr_chid;
 	//stVoipCfg.ret_val = ret;
 	
@@ -1831,81 +1854,148 @@ int do_mgr_VOIP_MGR_SETCONFERENCE( int cmd, void *user, unsigned int len, unsign
 /**
  * @ingroup VOIP_PROTOCOL_RTP
  * @brief Get RTP statistics 
- * @see VOIP_MGR_GET_RTP_STATISTICS TstVoipRtpStatistics 
+ * @see VOIP_MGR_GET_RTP_RTCP_STATISTICS TstRtpRtcpStatistics 
  */
 #if ! defined (AUDIOCODES_VOIP)
-int do_mgr_VOIP_MGR_GET_RTP_STATISTICS( int cmd, void *user, unsigned int len, unsigned short seq_no )
+int do_mgr_VOIP_MGR_GET_RTP_RTCP_STATISTICS( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-	extern void ResetRtpStatsCount( uint32 chid );
-	extern uint32 nRxRtpStatsCountByte[MAX_DSP_RTK_CH_NUM];
-	extern uint32 nRxRtpStatsCountPacket[MAX_DSP_RTK_CH_NUM];
+	extern void ResetRtpStatsCount( uint32 sid );
+	extern uint32 nRxRtpStatsCountByte[MAX_DSP_RTK_SS_NUM];
+	extern uint32 nRxRtpStatsCountPacket[MAX_DSP_RTK_SS_NUM];
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	extern uint32 nRxRtpStatsLostPacket[MAX_DSP_RTK_CH_NUM];
+	extern uint32 nRxRtpStatsLostPacket[MAX_DSP_RTK_SS_NUM];
 #endif
-	extern uint32 nTxRtpStatsCountByte[MAX_DSP_RTK_CH_NUM];
-	extern uint32 nTxRtpStatsCountPacket[MAX_DSP_RTK_CH_NUM];
+	extern uint32 nTxRtpStatsCountByte[MAX_DSP_RTK_SS_NUM];
+	extern uint32 nTxRtpStatsCountPacket[MAX_DSP_RTK_SS_NUM];
+	extern int RtcpTx_getLogger( uint32 sid, TstVoipRtcpLogger *pLogger );
+	extern int RtcpRx_getLogger( uint32 sid, TstVoipRtcpLogger *pLogger );
+	extern int RtcpTx_getReport( uint32 sid, TstVoipRtcpReport *pReport );
+	extern int RtcpRx_getMaxDeltaInterval( uint32 sid, uint32 *pMaxDeltaMs );
+	extern uint32 JbcDiscard_GetPackets( uint32 ssid );
+	extern uint32 JbcStatistics_GetEarlyPacket( uint32 ssid );
+	extern uint32 JbcStatistics_GetLatePacket( uint32 ssid );
 
-	uint32 ch_id;
-	TstVoipRtpStatistics stVoipRtpStatistics;
+	unsigned long flags;
+	uint32 ch_id, sid;
+	TstRtpRtcpStatistics stRtpRtcpStatistics;
+	TstVoipRtcpLogger stVoipRtcpLogger;
 	int ret = 0;
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	unsigned short dsp_id;
 	unsigned int mgr_chid;
 #endif
 	
-	COPY_FROM_USER(&stVoipRtpStatistics, (TstVoipRtpStatistics *)user, sizeof(TstVoipRtpStatistics));
+	COPY_FROM_USER(&stRtpRtcpStatistics, (TstRtpRtcpStatistics *)user, sizeof(TstRtpRtcpStatistics));
 
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	
-	if( ( ch_id = stVoipRtpStatistics.ch_id ) > DSP_RTK_CH_NUM )
+	sid = API_GetSid(stRtpRtcpStatistics.ch_id, stRtpRtcpStatistics.m_id);
+	if( sid  >= DSP_RTK_SS_NUM )
 	{
-		//stVoipRtpStatistics.ret_val = 0;
-		return COPY_TO_USER(user, &stVoipRtpStatistics, sizeof(TstVoipRtpStatistics), cmd, seq_no);
-		//return 0;	/* unexpected chid */
+		return COPY_TO_USER(user, &stRtpRtcpStatistics, sizeof(TstRtpRtcpStatistics), cmd, seq_no);
+		/* unexpected sid */
 	}
 
-	if( stVoipRtpStatistics.bResetStatistics )	/* reset statistics? */
-		ResetRtpStatsCount( ch_id );
+	if( stRtpRtcpStatistics.bResetStatistics )	/* reset statistics? */
+		ResetRtpStatsCount( sid );
 
 	// Send Control Packet and wait Response Packet
-	mgr_chid = stVoipRtpStatistics.ch_id;
-	stVoipRtpStatistics.ch_id = API_get_DSP_CH(cmd, stVoipRtpStatistics.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipRtpStatistics, sizeof(TstVoipRtpStatistics));
+	mgr_chid = stRtpRtcpStatistics.ch_id;
+	stRtpRtcpStatistics.ch_id = API_get_DSP_CH(cmd, stRtpRtcpStatistics.ch_id);	// convert to DSP chid
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stRtpRtcpStatistics, sizeof(TstRtpRtcpStatistics), MF_FETCH);
 	
 	// Ckeck Response Packet (need for copy_to_user)
-	ipcCheckRespPacket(cmd, &stVoipRtpStatistics, &dsp_id);
-	stVoipRtpStatistics.ch_id = API_get_Host_CH( dsp_id, stVoipRtpStatistics.ch_id);/* Get Host chid */
+	ipcCheckRespPacket(cmd, &stRtpRtcpStatistics, &dsp_id);
+	stRtpRtcpStatistics.ch_id = API_get_Host_CH( dsp_id, stRtpRtcpStatistics.ch_id);/* Get Host chid */
 
-	//stVoipRtpStatistics.nRxRtpStatsLostPacket info is from DSP
-	stVoipRtpStatistics.nRxRtpStatsCountByte 	= nRxRtpStatsCountByte[ ch_id ];	//info from Host
-	stVoipRtpStatistics.nRxRtpStatsCountPacket 	= nRxRtpStatsCountPacket[ ch_id ];	//info from Host
-	stVoipRtpStatistics.nTxRtpStatsCountByte 	= nTxRtpStatsCountByte[ ch_id ];	//info from Host
-	stVoipRtpStatistics.nTxRtpStatsCountPacket 	= nTxRtpStatsCountPacket[ ch_id ];	//info from Host
-	
+	save_flags(flags); cli();
+	stRtpRtcpStatistics.nRxBytes 	= nRxRtpStatsCountByte[ sid ];		//info from Host
+	stRtpRtcpStatistics.nRxPkts 	= nRxRtpStatsCountPacket[ sid ];	//info from Host
+	stRtpRtcpStatistics.nTxBytes 	= nTxRtpStatsCountByte[ sid ];		//info from Host
+	stRtpRtcpStatistics.nTxPkts 	= nTxRtpStatsCountPacket[ sid ];	//info from Host
+	//Others are got from DSP
+	restore_flags(flags);
 #else
+	sid = API_GetSid(stRtpRtcpStatistics.ch_id, stRtpRtcpStatistics.m_id);
 
-	if( ( ch_id = stVoipRtpStatistics.ch_id ) > DSP_RTK_CH_NUM )
-	{
-		return 0;	/* unexpected chid */
+	if( sid  >= DSP_RTK_SS_NUM ) {
+		return 0;	/* unexpected sid */
 	}
 	
-	if( stVoipRtpStatistics.bResetStatistics )	/* reset statistics? */
-		ResetRtpStatsCount( ch_id );
+	if( stRtpRtcpStatistics.bResetStatistics )	/* reset statistics? */
+		ResetRtpStatsCount( sid );
+
+	save_flags(flags); cli();	
 	
-	/* ok. copy statistics data */
-	stVoipRtpStatistics.nRxRtpStatsCountByte 	= nRxRtpStatsCountByte[ ch_id ];	//info from Host
-	stVoipRtpStatistics.nRxRtpStatsCountPacket 	= nRxRtpStatsCountPacket[ ch_id ];	//info from Host
-	stVoipRtpStatistics.nRxRtpStatsLostPacket 	= nRxRtpStatsLostPacket[ ch_id ];	//info from DSP
-	stVoipRtpStatistics.nTxRtpStatsCountByte 	= nTxRtpStatsCountByte[ ch_id ];	//info from Host
-	stVoipRtpStatistics.nTxRtpStatsCountPacket 	= nTxRtpStatsCountPacket[ ch_id ];	//info from Host
-	//stVoipRtpStatistics.ret_val = 0;
+	// RTP packet statistics is re-init by ResetRtpStatsCount()
+	stRtpRtcpStatistics.nRxBytes 	= nRxRtpStatsCountByte[ sid ];
+	stRtpRtcpStatistics.nRxPkts 	= nRxRtpStatsCountPacket[ sid ];
+	stRtpRtcpStatistics.nLost 	= nRxRtpStatsLostPacket[ sid ];
+	stRtpRtcpStatistics.nTxBytes 	= nTxRtpStatsCountByte[ sid ];
+	stRtpRtcpStatistics.nTxPkts 	= nTxRtpStatsCountPacket[ sid ];
+	
+	// Tx Logger is re-init when enable RTP/RTCP seesion 
+	RtcpTx_getLogger(sid, &stVoipRtcpLogger);
+	stRtpRtcpStatistics.nTxRtcpPkts = stVoipRtcpLogger.TX_packet_count;
+	stRtpRtcpStatistics.nTxRtcpXrPkts = stVoipRtcpLogger.TX_XR_packet_count;
+	stRtpRtcpStatistics.nMaxFractionLost = stVoipRtcpLogger.TX_loss_rate_max;
+	stRtpRtcpStatistics.nMinFractionLost = stVoipRtcpLogger.TX_loss_rate_min;
+	stRtpRtcpStatistics.nAvgFractionLost = stVoipRtcpLogger.TX_loss_rate_avg;
+	stRtpRtcpStatistics.nCurFractionLost = stVoipRtcpLogger.TX_loss_rate_cur;
+	stRtpRtcpStatistics.nMaxJitter = stVoipRtcpLogger.TX_jitter_max;
+	stRtpRtcpStatistics.nMinJitter = stVoipRtcpLogger.TX_jitter_min;
+	stRtpRtcpStatistics.nAvgJitter = stVoipRtcpLogger.TX_jitter_avg;
+	stRtpRtcpStatistics.nCurJitter = stVoipRtcpLogger.TX_jitter_cur;
+
+#if 0
+	// The result from RtcpTx_getReport() is the same, but it need RTCP TX add SR to update report.
+	// i.e. Report is updated every RTCP TX interval.
+
+	// Init when enable RTP/RTCP seesion 
+	TstVoipRtcpReport stVoipRtcpReport;
+	RtcpTx_getReport(sid, &stVoipRtcpReport);
+	
+	//printk("Lost: %d-%d\n", stRtpRtcpStatistics.nLost, stVoipRtcpReport.cumLost);
+	//printk("Fraction Lost: %d-%d\n", stRtpRtcpStatistics.nCurFractionLost, stVoipRtcpReport.fracLost);
+	//printk("Jitter: %d-%d\n", stRtpRtcpStatistics.nCurJitter, stVoipRtcpReport.jitter);
+	//printk("\n\n");
+
+	stRtpRtcpStatistics.nLost = stVoipRtcpReport.cumLost;
+	stRtpRtcpStatistics.nCurFractionLost = stVoipRtcpReport.fracLost;
+	stRtpRtcpStatistics.nCurJitter = stVoipRtcpReport.jitter;
 #endif
-	return COPY_TO_USER(user, &stVoipRtpStatistics, sizeof(TstVoipRtpStatistics), cmd, seq_no);
+
+	// Rx Logger is re-init when enable RTP/RTCP seesion 
+	RtcpRx_getLogger(sid, &stVoipRtcpLogger);
+	stRtpRtcpStatistics.nRxRtcpPkts = stVoipRtcpLogger.RX_packet_count;
+	stRtpRtcpStatistics.nRxRtcpXrPkts = stVoipRtcpLogger.RX_XR_packet_count;
+
+	// JBC statistics is re-init when DSP restart
+	stRtpRtcpStatistics.nDiscarded = JbcDiscard_GetPackets( sid );
+	stRtpRtcpStatistics.nOverRuns = JbcStatistics_GetEarlyPacket( sid );;
+	stRtpRtcpStatistics.nUnderRuns = JbcStatistics_GetLatePacket( sid );;
+	
+	// RTCP Max. delta time is re-init when enable RTP/RTCP seesion
+	RtcpRx_getMaxDeltaInterval(sid, &stRtpRtcpStatistics.nMaxRtcpTime);
+
+	restore_flags(flags);
+
+#if 0	
+	printk("Rx(byte) = %u\n", nRxRtpStatsCountByte[ sid ]);
+        printk("Rx(pkt) = %u\n", nRxRtpStatsCountPacket[ sid ]);
+        printk("Rx(lost pkt) = %u\n", nRxRtpStatsLostPacket[ sid ]);
+        printk("Tx(byte) = %u\n", nTxRtpStatsCountByte[ sid ]);
+        printk("Tx(pkt) = %u\n", nTxRtpStatsCountPacket[ sid ]);
+#endif
+
+	//stRtpRtcpStatistics.ret_val = 0;
+#endif
+	return COPY_TO_USER(user, &stRtpRtcpStatistics, sizeof(TstRtpRtcpStatistics), cmd, seq_no);
 	
 	return ret;
 }
 #else
-int do_mgr_VOIP_MGR_GET_RTP_STATISTICS( int cmd, void *user, unsigned int len, unsigned short seq_no )
+int do_mgr_VOIP_MGR_GET_RTP_RTCP_STATISTICS( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 	extern uint32 nRxRtpStatsCountByte[];
 	extern uint32 nRxRtpStatsCountPacket[];
@@ -1914,33 +2004,34 @@ int do_mgr_VOIP_MGR_GET_RTP_STATISTICS( int cmd, void *user, unsigned int len, u
 	extern uint32 nTxRtpStatsCountPacket[];
 	extern uint32 gRtcpStatsUpdOk[];
 
-	uint32 ch_id;
-	TstVoipRtpStatistics stVoipRtpStatistics;
+	uint32 ch_id, sid;
+	TstRtpRtcpStatistics stRtpRtcpStatistics;
 
-	COPY_FROM_USER(&stVoipRtpStatistics, (TstVoipRtpStatistics *)user, sizeof(TstVoipRtpStatistics));
+	COPY_FROM_USER(&stRtpRtcpStatistics, (TstRtpRtcpStatistics *)user, sizeof(TstRtpRtcpStatistics));
 
 //#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 #if 0
 
 	// Send Control Packet and wait Response Packet
-	mgr_chid = stVoipRtpStatistics.ch_id;
-	stVoipRtpStatistics.ch_id = API_get_DSP_CH(cmd, stVoipRtpStatistics.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipRtpStatistics, sizeof(TstVoipRtpStatistics));
+	mgr_chid = stRtpRtcpStatistics.ch_id;
+	stRtpRtcpStatistics.ch_id = API_get_DSP_CH(cmd, stRtpRtcpStatistics.ch_id);	// convert to DSP chid
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stRtpRtcpStatistics, sizeof(TstRtpRtcpStatistics), MF_FETCH);
 	
 	// Ckeck Response Packet (need for copy_to_user)
 	unsigned short dsp_id;
-	ipcCheckRespPacket(cmd, &stVoipRtpStatistics, &dsp_id);
-	stVoipRtpStatistics.ch_id = API_get_Host_CH( dsp_id, stVoipRtpStatistics.ch_id);/* Get Host chid */
+	ipcCheckRespPacket(cmd, &stRtpRtcpStatistics, &dsp_id);
+	stRtpRtcpStatistics.ch_id = API_get_Host_CH( dsp_id, stRtpRtcpStatistics.ch_id);/* Get Host chid */
 
-	//stVoipRtpStatistics.ret_val = ret; // update ret_val must after check response ack
+	//stRtpRtcpStatistics.ret_val = ret; // update ret_val must after check response ack
 #else
 	
-	if( ( ch_id = stVoipRtpStatistics.ch_id ) > DSP_AC_CH_NUM )
-	{
-		return 0;	/* unexpected chid */
+	sid = API_GetSid(stRtpRtcpStatistics.ch_id, stRtpRtcpStatistics.m_id);
+
+	if( sid  >= DSP_RTK_SS_NUM ) {
+		return 0;	/* unexpected sid */
 	}
 	
-	if( stVoipRtpStatistics.bResetStatistics )	/* reset statistics? */
+	if( stRtpRtcpStatistics.bResetStatistics )	/* reset statistics? */
 	{
 		RtkAc49xApiResetRtpStatistics(ch_id);
 	}
@@ -1955,18 +2046,18 @@ int do_mgr_VOIP_MGR_GET_RTP_STATISTICS( int cmd, void *user, unsigned int len, u
 	
 	
 	/* ok. copy statistics data */
-	stVoipRtpStatistics.nRxRtpStatsCountByte 	= nRxRtpStatsCountByte[ ch_id ];
-	stVoipRtpStatistics.nRxRtpStatsCountPacket 	= nRxRtpStatsCountPacket[ ch_id ];
-	stVoipRtpStatistics.nRxRtpStatsLostPacket 	= nRxRtpStatsLostPacket[ ch_id ];
-	stVoipRtpStatistics.nTxRtpStatsCountByte 	= nTxRtpStatsCountByte[ ch_id ];
-	stVoipRtpStatistics.nTxRtpStatsCountPacket 	= nTxRtpStatsCountPacket[ ch_id ];
+	stRtpRtcpStatistics.nRxBytes 	= nRxRtpStatsCountByte[ ch_id ];
+	stRtpRtcpStatistics.nRxPkts 	= nRxRtpStatsCountPacket[ ch_id ];
+	stRtpRtcpStatistics.nLost 	= nRxRtpStatsLostPacket[ ch_id ];
+	stRtpRtcpStatistics.nTxBytes 	= nTxRtpStatsCountByte[ ch_id ];
+	stRtpRtcpStatistics.nTxPkts 	= nTxRtpStatsCountPacket[ ch_id ];
 	
 	gRtcpStatsUpdOk[ch_id] = 0;
 	
 	//PRINT_MSG("CH%d-(%d, %d, %d, %d, %d)\n", stVoipValue.ch_id, nRxRtpStatsCountByte[stVoipValue.ch_id], nRxRtpStatsCountPacket[stVoipValue.ch_id],
 	// nRxRtpStatsLostPacket[stVoipValue.ch_id], nTxRtpStatsCountByte[stVoipValue.ch_id], nTxRtpStatsCountPacket[stVoipValue.ch_id]);
 #endif
-	return COPY_TO_USER(user, &stVoipRtpStatistics, sizeof(TstVoipRtpStatistics), cmd, seq_no);
+	return COPY_TO_USER(user, &stRtpRtcpStatistics, sizeof(TstRtpRtcpStatistics), cmd, seq_no);
 	
 	//return 0;
 }
@@ -2061,6 +2152,7 @@ int do_mgr_VOIP_MGR_SET_RTCP_SESSION( int cmd, void *user, unsigned int len, uns
 	unsigned long flags;
 	uint32 s_id;
 	TstVoipRtcpSession stVoipRtcpSession;
+	TstVoipMgrSession stVoipMgrSession;
 	int ret;
 	
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
@@ -2085,6 +2177,7 @@ int do_mgr_VOIP_MGR_SET_RTCP_SESSION( int cmd, void *user, unsigned int len, uns
 	
 	if(filter[s_id+ RTCP_SID_OFFSET]!=0) {
 		PRINT_MSG("rtcp: s_id %d in used, please unregister first\n", s_id+ RTCP_SID_OFFSET);
+		restore_flags(flags);
 		return 0;
 	}
 	
@@ -2108,7 +2201,20 @@ int do_mgr_VOIP_MGR_SET_RTCP_SESSION( int cmd, void *user, unsigned int len, uns
 		PRINT_MSG("865x register RTCP success\n");
 	}
 #else
-	stVoipRtcpSession.result = rtk_trap_register((TstVoipMgrSession * )&stVoipRtcpSession, stVoipRtcpSession.ch_id, stVoipRtcpSession.m_id, s_id+ RTCP_SID_OFFSET,  (int32(*)(uint8 , int32 , void *, uint32 , uint32 ))Host_pktRx);//register ok, return 0.
+	stVoipMgrSession.ch_id = stVoipRtcpSession.ch_id ;
+	stVoipMgrSession.m_id = stVoipRtcpSession.m_id ;
+	stVoipMgrSession.protocol = stVoipRtcpSession.protocol ;
+	stVoipMgrSession.ip_src_addr = stVoipRtcpSession.ip_src_addr ;
+	stVoipMgrSession.ip_dst_addr = stVoipRtcpSession.ip_dst_addr ;
+	stVoipMgrSession.udp_src_port = stVoipRtcpSession.rtcp_src_port ;
+	stVoipMgrSession.udp_dst_port = stVoipRtcpSession.rtcp_dst_port ;
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	stVoipMgrSession.ip6_src_addr = stVoipRtcpSession.ip6_src_addr ;
+	stVoipMgrSession.ip6_dst_addr = stVoipRtcpSession.ip6_dst_addr ;
+	stVoipMgrSession.ipv6 = stVoipRtcpSession.ipv6 ;
+#endif
+
+	stVoipRtcpSession.result = rtk_trap_register(&stVoipMgrSession, stVoipMgrSession.ch_id, stVoipMgrSession.m_id, s_id+ RTCP_SID_OFFSET,  (int32(*)(uint8 , int32 , void *, uint32 , uint32 ))Host_pktRx);//register ok, return 0.
 	
 	if(stVoipRtcpSession.result == -1)
 		PRINT_MSG("rtk_trap_register RTCP fail, sid=%d\n", s_id);
@@ -2120,7 +2226,7 @@ int do_mgr_VOIP_MGR_SET_RTCP_SESSION( int cmd, void *user, unsigned int len, uns
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipRtcpSession.ch_id;
 	stVoipRtcpSession.ch_id = API_get_DSP_CH(cmd, stVoipRtcpSession.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipRtcpSession, sizeof(TstVoipRtcpSession));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipRtcpSession, sizeof(TstVoipRtcpSession), MF_NONE);
 	stVoipRtcpSession.ch_id = mgr_chid;
 
 #else //!CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
@@ -2170,10 +2276,28 @@ int do_mgr_VOIP_MGR_SET_RTCP_SESSION( int cmd, void *user, unsigned int len, uns
 		RtcpOpen[s_id] = 1;
 	}
 #else
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
-	if (!rtk_trap_register((TstVoipMgrSession * )&stVoipRtcpSession, stVoipRtcpSession.ch_id, stVoipRtcpSession.m_id, s_id+ RTCP_SID_OFFSET,  (int32(*)(uint8 , int32 , void *, uint32 , uint32 ))DSP_pktRx))//register ok, return 0.
-		RtcpOpen[s_id] = 1;
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+	if(stVoipRtcpSession.result == 0) //register success (info from Host)
+#else
+	stVoipMgrSession.ch_id = stVoipRtcpSession.ch_id ;
+	stVoipMgrSession.m_id = stVoipRtcpSession.m_id ;
+	stVoipMgrSession.protocol = stVoipRtcpSession.protocol ;
+	stVoipMgrSession.ip_src_addr = stVoipRtcpSession.ip_src_addr ;
+	stVoipMgrSession.ip_dst_addr = stVoipRtcpSession.ip_dst_addr ;
+	stVoipMgrSession.udp_src_port = stVoipRtcpSession.rtcp_src_port ;
+	stVoipMgrSession.udp_dst_port = stVoipRtcpSession.rtcp_dst_port ;
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	stVoipMgrSession.ip6_src_addr = stVoipRtcpSession.ip6_src_addr ;
+	stVoipMgrSession.ip6_dst_addr = stVoipRtcpSession.ip6_dst_addr ;
+	stVoipMgrSession.ipv6 = stVoipRtcpSession.ipv6 ;
 #endif
+
+	if (!rtk_trap_register((TstVoipMgrSession * )&stVoipMgrSession, stVoipMgrSession.ch_id, stVoipMgrSession.m_id, s_id+ RTCP_SID_OFFSET,  (int32(*)(uint8 , int32 , void *, uint32 , uint32 ))DSP_pktRx))//register ok, return 0.
+#endif
+	{
+		RtcpOpen[s_id] = 1;
+	}
+
 #endif
 	restore_flags(flags);
 #endif
@@ -2196,7 +2320,7 @@ int do_mgr_VOIP_MGR_SET_RTCP_SESSION( int cmd, void *user, unsigned int len, uns
 		return ret;
 
 #ifdef SUPPORT_RTCP
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward 
 #else
 	save_flags(flags); cli();
@@ -2247,6 +2371,26 @@ int do_mgr_VOIP_MGR_UNSET_RTCP_SESSION( int cmd, void *user, unsigned int len, u
 	s_id = API_GetSid(stVoipCfg.ch_id, stVoipCfg.m_id);
 
 	PRINT_MSG("s_id = %d\n", s_id+ RTCP_SID_OFFSET);
+
+	// Send Control Packet and wait Response Packet
+	mgr_chid = stVoipCfg.ch_id;
+	stVoipCfg.ch_id = API_get_DSP_CH(cmd, stVoipCfg.ch_id);	// convert to DSP chid
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg), MF_NONE);
+	stVoipCfg.ch_id = mgr_chid;
+
+#if 1
+	// Add delay time to let RTCP GoodBye packet can be sent.
+	timetick_t timestamp;
+	timestamp = timetick + 10;
+	while(1)
+	{
+		if (timetick_after(timetick, timestamp) )
+			break;
+		else
+			schedule();
+	}
+#endif
+
 	save_flags(flags); cli();
 #if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_RX)
 	//thlin: need test for 8651
@@ -2263,19 +2407,14 @@ int do_mgr_VOIP_MGR_UNSET_RTCP_SESSION( int cmd, void *user, unsigned int len, u
 #endif
 	restore_flags(flags);
 
-	// Send Control Packet and wait Response Packet
-	mgr_chid = stVoipCfg.ch_id;
-	stVoipCfg.ch_id = API_get_DSP_CH(cmd, stVoipCfg.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg));
-	stVoipCfg.ch_id = mgr_chid;
-
 #else //!CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	s_id = API_GetSid(stVoipCfg.ch_id, stVoipCfg.m_id);
 	//extern unsigned short RtcpMeanTxInterval;
 	if (RtcpOpen[s_id] != 0)
 	{
 		//if (RtcpMeanTxInterval != 0)	// move to RtcpTx_transmitRTCPBYE() 
-			RtcpTx_transmitRTCPBYE(s_id);
+		//RtcpTx_transmitRTCPBYE(s_id);
+		Rtcp_Bye[s_id] = 1;
 	}
 	PRINT_MSG("s_id = %d\n", s_id+ RTCP_SID_OFFSET);
 	save_flags(flags); cli();
@@ -2293,10 +2432,8 @@ int do_mgr_VOIP_MGR_UNSET_RTCP_SESSION( int cmd, void *user, unsigned int len, u
 		RtcpOpen[s_id] = 0;
 #endif
 #else
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	rtk_trap_unregister(s_id+ RTCP_SID_OFFSET);
-#endif
-	RtcpOpen[s_id] = 0;
+	//rtk_trap_unregister(s_id+ RTCP_SID_OFFSET); // move to rtpterm.c RtpSession_processRTCP()
+	//RtcpOpen[s_id] = 0; // move to rtpterm.c RtpSession_processRTCP()
 #endif
 	restore_flags(flags);
 #endif
@@ -2396,7 +2533,7 @@ int do_mgr_VOIP_MGR_SET_RTCP_TX_INTERVAL( int cmd, void *user, unsigned int len,
 #if ! defined (AUDIOCODES_VOIP)
 int do_mgr_VOIP_MGR_GET_RTCP_LOGGER( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifndef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	extern int RtcpTx_getLogger( uint32 sid, TstVoipRtcpLogger *pLogger );
 	extern int RtcpRx_getLogger( uint32 sid, TstVoipRtcpLogger *pLogger );
 	

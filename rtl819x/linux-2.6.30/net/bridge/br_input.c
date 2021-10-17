@@ -30,7 +30,9 @@
 #include <net/rtl/rtl865x_igmpsnooping.h>
 #include <net/rtl/rtl865x_netif.h>
 #include <net/rtl/rtl_nic.h>
-
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+#include <net/rtl/rtl865x_multicast.h>
+#endif
 #if defined (CONFIG_RTL_IGMP_SNOOPING) && defined (CONFIG_NETFILTER)
 #include <linux/netfilter_ipv4/ip_tables.h>
 #endif
@@ -67,6 +69,10 @@ static char ICMPv6_check(struct sk_buff *skb , unsigned char *gmac);
 static char igmp_type_check(struct sk_buff *skb, unsigned char *gmac,unsigned int *gIndex,unsigned int *moreFlag);
 static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, struct net_bridge_port *p, unsigned char *gmac
 									,struct sk_buff *skb);
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+extern int rtl_get_brIgmpModueIndx(struct net_bridge *br);
+extern unsigned int rtl_get_brSwFwdPortMask(struct net_bridge *br);
+#endif
 #endif	//end of CONFIG_RTL_IGMP_SNOOPING
 
 #if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_RTL_ULINKER)
@@ -250,25 +256,29 @@ void check_listen_info(struct sk_buff *skb)
 
 #endif
 
-#if defined (CONFIG_RTK_MESH)
+#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 
 void br_signal_pathsel(struct net_bridge *br)
 {
 	struct task_struct *task;
+	int i=0;
+	
 	if(br==NULL)
 	{
 		return;
 	}
-	read_lock(&tasklist_lock);
-	task = find_task_by_vpid(br->mesh_pathsel_pid);
-	read_unlock(&tasklist_lock);
-	if(task)
-	{
-    	    	//printk("Send signal from kernel\n");
-		send_sig(SIGUSR2,task,0);
-	}
-	else {
-	//printk("Path selection daemon pid: %d does not exist\n", br->mesh_pathsel_pid);
+
+	while(i<2){
+		read_lock(&tasklist_lock);
+		task = find_task_by_vpid(br->mesh_pathsel_pid[i]);
+		read_unlock(&tasklist_lock);
+		if(task) {
+			//panic_printk("Send signal from kernel\n");
+			send_sig(SIGUSR2,task,0);
+		} else {
+		//panic_printk("Path selection daemon pid: %d does not exist\n", br->mesh_pathsel_pid);
+		}
+		i++;
 	}
 }
 
@@ -346,6 +356,34 @@ static void br_pass_frame_up(struct net_bridge *br, struct sk_buff *skb)
 	#endif	//end of IPV6_MCAST_TO_UNICAST
 	#endif
 #endif
+
+#ifdef CONFIG_RTK_GUEST_ZONE
+	skb->__unused = 0;
+	if (skb->dev->br_port->zone_type == ZONE_TYPE_GUEST) {
+		if (br->lock_client_num > 0) {
+			int i, found=0;
+			for (i=0; i<br->lock_client_num; i++) {
+				if (!memcmp(eth_hdr(skb)->h_source, br->lock_client_list[i], 6)) {
+					found = 1;
+					break;
+				}
+			}
+			if (!found) {
+#ifdef DEBUG_GUEST_ZONE
+				GZDEBUG("Drop because lock client list!!\n");
+#endif
+				kfree_skb(skb);
+				return;
+			}
+			skb->__unused = 0xe5;
+		}
+		else {
+			if (!memcmp(eth_hdr(skb)->h_dest, br->dev->dev_addr, 6))
+				skb->__unused = 0xe5;
+		}
+	}
+#endif
+
 	brdev->stats.rx_packets++;
 	brdev->stats.rx_bytes += skb->len;
 
@@ -528,6 +566,7 @@ int check_mldQueryExist(struct ipv6hdr* ipv6h)
 }
 
 #endif
+
 /* note: already called with rcu_read_lock (preempt_disabled) */
 int br_handle_frame_finish(struct sk_buff *skb)
 {
@@ -741,7 +780,16 @@ ap_hcm_out:
 		
 		struct rtl_multicastDataInfo multicastDataInfo;
 		struct rtl_multicastFwdInfo multicastFwdInfo;
-
+		#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+		unsigned igmpModuleIndex=0xFFFFFFFF;
+		unsigned int swFwdPortMask =0xFFFFFFFF;
+		igmpModuleIndex =rtl_get_brIgmpModueIndx(br);
+		swFwdPortMask = rtl_get_brSwFwdPortMask(br);
+		#endif
+		
+		#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+		rtl865x_tblDrv_mCast_t * existMulticastEntry;
+		#endif	
 		if ( !(br->dev->flags & IFF_PROMISC) 
 		 &&MULTICAST_MAC(dest) 
 		&& (eth_hdr(skb)->h_proto == ETH_P_IP))
@@ -751,7 +799,7 @@ ap_hcm_out:
 			#if defined(CONFIG_USB_UWIFI_HOST)
 				if(iph->daddr == 0xEFFFFFFA || iph->daddr == 0xE1010101)
 			#else
-				if(iph->daddr == 0xEFFFFFFA)
+				if(iph->daddr == 0xEFFFFFFA || iph->daddr == 0xE00000FB)
 			#endif
 			
 			{
@@ -816,6 +864,11 @@ ap_hcm_out:
 					}
 				}
 				#endif
+				
+				//panic_printk("br:%s,dev:%s,port:%x[%s]:[%d].\n",br->dev->name,skb->dev->name,p->port_no,__FUNCTION__,__LINE__);
+				#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+				rtl_igmpMldProcess(igmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);
+				#else
                 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 				if(!strcmp(br->dev->name,RTL_PS_BR1_DEV_NAME))
 				{
@@ -826,6 +879,8 @@ ap_hcm_out:
 				else
 				#endif
 				rtl_igmpMldProcess(brIgmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);
+				
+				#endif
 				br_multicast_forward(br, fwdPortMask, skb, 0);
 			}
 			else if(((proto ==IPPROTO_UDP) ||(proto ==IPPROTO_TCP)) && (reserved ==0))
@@ -836,6 +891,9 @@ ap_hcm_out:
 				multicastDataInfo.sourceIp[0]=  (uint32)(iph->saddr);
 				multicastDataInfo.groupAddr[0]=  (uint32)(iph->daddr);
 				
+				#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+				ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
+				#else
                 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 				if(!strcmp(br->dev->name,RTL_PS_BR1_DEV_NAME))
 				{
@@ -844,8 +902,31 @@ ap_hcm_out:
 				else
 				#endif
 				ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
+				#endif
+				
+				#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+				existMulticastEntry=rtl865x_findMCastEntry((uint32)(iph->daddr), (uint32)(iph->saddr), (unsigned short)srcVlanId, (unsigned short)srcPort);
+				if(existMulticastEntry!=NULL)
+				{
+					/*it's already in cache, only forward to wlan */
+					#if defined (CONFIG_RTL_MACCLONE_SWMCAST)
+					
+					#else
+					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+					multicastFwdInfo.fwdPortMask &= swFwdPortMask;
+					#else
+					multicastFwdInfo.fwdPortMask &= br0SwFwdPortMask;	
+					#endif
+					#endif
+				}
+				#endif
+				
 				br_multicast_forward(br, multicastFwdInfo.fwdPortMask, skb, 0);
-				if((ret==SUCCESS) && (multicastFwdInfo.cpuFlag==0))
+				if((ret==SUCCESS)
+				#if !(defined (CONFIG_RTL_HW_MCAST_WIFI))
+					&& (multicastFwdInfo.cpuFlag==0)
+				#endif	
+				)
 				{
 
 					#if defined  (CONFIG_RTL_HARDWARE_MULTICAST)
@@ -911,7 +992,13 @@ ap_hcm_out:
 
 					}
 					#endif
+					
+					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+					rtl_igmpMldProcess(igmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);
+					#else
 					rtl_igmpMldProcess(brIgmpModuleIndex, skb_mac_header(skb), p->port_no, &fwdPortMask);	
+					#endif
+					
 					br_multicast_forward(br, fwdPortMask, skb, 0);
 				}
 				else if ((proto ==IPPROTO_UDP) ||(proto ==IPPROTO_TCP))
@@ -919,7 +1006,13 @@ ap_hcm_out:
 					multicastDataInfo.ipVersion=6;
 					memcpy(&multicastDataInfo.sourceIp, &ipv6h->saddr, sizeof(struct in6_addr));
 					memcpy(&multicastDataInfo.groupAddr, &ipv6h->daddr, sizeof(struct in6_addr));	
+
+					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+					ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
+					#else
 					ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
+					#endif
+					
 					br_multicast_forward(br, multicastFwdInfo.fwdPortMask, skb, 0);
 				
 				}
@@ -1003,7 +1096,7 @@ struct sk_buff *br_handle_frame(struct net_bridge_port *p, struct sk_buff *skb)
 
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (!skb)
-		return NULL;
+		return NULL;	
 
 	if (unlikely(is_link_local(dest))) {
 		/* Pause frames shouldn't be passed up by driver anyway */
@@ -1051,22 +1144,19 @@ forward:
 		if (!compare_ether_addr(p->br->dev->dev_addr, dest))
 			skb->pkt_type = PACKET_HOST;
 
-#if defined (CONFIG_RTK_MESH)
-if (p->state == BR_STATE_FORWARDING) {
-		//brian modify for trigger portal-enable event
-		if(!strncmp(p->dev->name,RTL_PS_ETH_NAME, 3)){
-			if(p->br->mesh_pathsel_pid!= 0){
-				if( !(p->br->eth0_received) )
-				{
-					p->br->eth0_received = 1;
-					p->br->stp_enabled = 1;
-					br_signal_pathsel(p->br);
-					printk(KERN_INFO,"eth0 learning, event pathsel daemon \n");
-				}
+#if defined (CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
+		if (p->state == BR_STATE_FORWARDING) {
+				//brian modify for trigger portal-enable event
+				if(!strncmp(p->dev->name,RTL_PS_ETH_NAME, 3)){					
+						if( !(p->br->eth0_received) )
+						{
+							p->br->eth0_received = 1;
+							p->br->stp_enabled = 1;
+							br_signal_pathsel(p->br);
+							printk(KERN_INFO,"eth0 learning, event pathsel daemon \n");
+						}
 				
-				mod_timer(&p->br->eth0_monitor_timer, jiffies+p->br->eth0_monitor_interval);
-				
-			}
+						mod_timer(&p->br->eth0_monitor_timer, jiffies+p->br->eth0_monitor_interval);
 		}
 }
 #endif	//CONFIG_RTK_MESH
@@ -1347,7 +1437,7 @@ static char igmp_type_check(struct sk_buff *skb, unsigned char *gmac,unsigned in
 extern int chk_igmp_ext_entry(struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac);
 extern void add_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb , unsigned char *srcMac , unsigned char portComeIn);
 extern void update_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn);
-extern void del_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn );
+extern void del_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn , unsigned char expireFlag);
 
 static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, struct net_bridge_port *p, unsigned char *dest 
 										,struct sk_buff *skb)
@@ -1481,7 +1571,7 @@ static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, st
 		/*process wlan client leave --- start*/
 		if (p && p->dev && p->dev->name && !memcmp(p->dev->name, RTL_PS_WLAN_NAME, 4)) 
 		{ 			
-			#ifdef	MCAST_TO_UNICAST
+			#if 0//def	MCAST_TO_UNICAST
 			//struct net_device *dev = __dev_get_by_name(&init_net,RTL_PS_WLAN0_DEV_NAME);
 			struct net_device *dev=p->dev;
 			if (dev) 
@@ -1515,12 +1605,12 @@ static void br_update_igmp_snoop_fdb(unsigned char op, struct net_bridge *br, st
 		/*process wlan client leave --- end*/
 
 		/*process entry del , portlist update*/
-		del_igmp_ext_entry(dst , src ,port_comein);
+		del_igmp_ext_entry(dst , src ,port_comein,0);
 		
 		if (dst->portlist == 0)  // all joined sta are gone
 		{
-			DEBUG_PRINT("----all joined sta are gone,make it expired----\n");
-			dst->ageing_timer -=  300*HZ; // make it expired		
+			DEBUG_PRINT("----all joined sta are gone,make it expired after 10 seconds----\n");
+			dst->ageing_timer = jiffies -(300*HZ-M2U_DELAY_DELETE_TIME); // make it expired in 10s		
 		}
 		
 

@@ -85,6 +85,7 @@ int32 rtl_connCache_timer_update(struct nf_conn *ct);
 #if defined(CONFIG_RTL_HARDWARE_NAT)
 int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb);
 int rtl_hwnat_timer_update(struct nf_conn *ct);
+#define CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT 1
 #endif
 
 #if defined(IMPROVE_QOS) && (defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT))

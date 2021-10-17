@@ -1975,9 +1975,6 @@ ipcp_up(f)
 				sprintf(cmdBuffer, "/bin/connect.sh %s",ifname); 
 				printf("the command is :%s\n",cmdBuffer);
 		        system(cmdBuffer);
-				#ifdef PPPOE_DISC_FLOW_PATCH
-				system("flash set PPP_NORMAL_FINISH 0");
-				#endif
 			}
 	notice("local  IP address %I", go->ouraddr);
 	notice("remote IP address %I", ho->hisaddr);
@@ -2083,6 +2080,7 @@ ipcp_down(f)
 	np_down(f->unit, PPP_IP);
     }
     sifvjcomp(f->unit, 0, 0, 0);
+
     print_link_stats(); /* _after_ running the notifiers and ip_down_hook(),
 			 * because print_link_stats() sets link_stats_valid
 			 * to 0 (zero) */

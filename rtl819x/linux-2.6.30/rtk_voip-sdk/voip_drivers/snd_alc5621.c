@@ -54,7 +54,7 @@ static int __init voip_snd_alc5621_init( void )
 		snd_alc5621[ i ].TS1 = 0;
 		snd_alc5621[ i ].TS2 = 0;
   #ifdef CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621_WIDEBAND
-		snd_alc5621[ i ].band_mode_sup = BAND_MODE_16K;
+		snd_alc5621[ i ].band_mode_sup = BAND_MODE_16K | BAND_MODE_8K;
   #else
 		snd_alc5621[ i ].band_mode_sup = BAND_MODE_8K;
   #endif

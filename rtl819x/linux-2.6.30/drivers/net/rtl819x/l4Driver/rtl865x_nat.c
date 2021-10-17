@@ -1881,3 +1881,25 @@ errout:
 
 #endif
 
+#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+int rtl865x_check_hw_nat_by_ip(ipaddr_t ip)
+{
+	int i;
+	int ret = FAILED;
+	struct nat_entry *natEntryPtr;
+
+	for (i=0; i<RTL8651_TCPUDPTBL_SIZE; i++)
+	{
+		natEntryPtr = &nat_tbl.nat_bucket[i];
+		if (NAT_INUSE(natEntryPtr)) {
+			if ((ip == natEntryPtr->int_ip_) ||(ip == natEntryPtr->rem_ip_)) {
+				ret = SUCCESS;
+				break;
+			}
+		}
+	}
+
+	return ret;
+}
+#endif
+

@@ -72,6 +72,9 @@
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_nic.h>
 #endif
+#ifdef CONFIG_RTL8686_GMAC
+#include <net/rtl/rtl_types.h>
+#endif 
 #ifdef CONFIG_RTL8190_PRIV_SKB
 extern int is_rtl8190_priv_buf(unsigned char *head);
 extern void free_rtl8190_priv_buf(unsigned char *head);
@@ -562,9 +565,21 @@ static void skb_release_all(struct sk_buff *skb)
  *	Clean the state. This is an internal helper function. Users should
  *	always call kfree_skb
  */
-
+#ifdef CONFIG_RTL8686_GMAC
+atomic_t re8670_rxskb_num = ATOMIC_INIT(0);
+EXPORT_SYMBOL(re8670_rxskb_num);
+__IRAM_FWD
+#endif
 void __kfree_skb(struct sk_buff *skb)
 {
+#ifdef CONFIG_RTL8686_GMAC
+#ifndef CONFIG_RTL_ETH_PRIV_SKB
+        if (skb->src_port==IF_ETH) {
+           atomic_dec(&re8670_rxskb_num);
+           skb->src_port=0;
+        }
+#endif
+#endif
 	skb_release_all(skb);
 	kfree_skbmem(skb);
 }
@@ -700,6 +715,9 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 	new->dstPhyPort=old->dstPhyPort;
 #endif
 
+#ifdef CONFIG_RTL_819X
+	new->__unused=old->__unused;
+#endif
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 	new->inDev=old->inDev;
 #endif
@@ -754,7 +772,9 @@ static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb)
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 	C(inDev);
 #endif
-
+#ifdef CONFIG_RTL8686_GMAC
+	C(src_port);
+#endif
 #if defined(CONFIG_MAC80211) || defined(CONFIG_MAC80211_MODULE)
 	C(do_not_encrypt);
 	C(requeue);

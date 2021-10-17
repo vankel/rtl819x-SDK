@@ -998,6 +998,8 @@ int switchSendMessage ()
 
 	if ( sendMessage(MessageContent, 1) )
 		goto skip;
+	if ( sendMessage(MessageContent, 1) )
+		goto skip;
 
 	if (NeedResponse) {
 		SHOW_PROGRESS("Reading the response to the message (CSW) ...\n");

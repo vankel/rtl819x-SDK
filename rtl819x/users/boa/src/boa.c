@@ -87,9 +87,6 @@ int main(int argc, char *argv[])
 #ifdef SUPPORT_ASP
 	extern void asp_init(int argc,char **argv); // davidhsu
 	asp_init(argc,argv);
-#ifdef VOIP_SUPPORT
-	web_voip_init();
-#endif 
 #endif
 
     read_config_files();
@@ -132,6 +129,9 @@ int main(int argc, char *argv[])
     }
 
     boa_start = 1;
+#ifdef VOIP_SUPPORT
+	web_voip_init();
+#endif 
     init_signals(); //Brad move here
     drop_privs();
     /* main loop */
@@ -324,20 +324,3 @@ static void fixup_server_root()
         exit(EXIT_FAILURE);
     }
 }
-void print_64(char*name,void* data)
-{
-	int i=0;
-	if(!name)
-	{
-		printf("name is null!");
-		return;
-	}
-	printf("\n%s=0x",name);
-	for(i=0;i<2;i++)
-	{
-		printf("%08x_",((int*)data)[i]);
-	}
-	printf("\n");
-	return;
-}
-

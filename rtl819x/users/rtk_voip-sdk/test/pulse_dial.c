@@ -16,7 +16,7 @@ int pulse_dial_main(int argc, char *argv[])
 		{
 			if (argv[1][1] == 'm')
 			{
-				rtk_Set_Dail_Mode(atoi(argv[2]), atoi(argv[3]));
+				rtk_SetDailMode(atoi(argv[2]), atoi(argv[3]));
 	
 				if (atoi(argv[2]) == 1)
 					printf("Enable pulse dial gen for ch=%d\n", chid);
@@ -33,17 +33,17 @@ int pulse_dial_main(int argc, char *argv[])
 				chid = atoi(argv[2]);
 				len = strlen(argv[3]);
 	
-				rtk_FXO_offhook(chid);
+				rtk_FxoOffHook(chid);
 				sleep(2);
 				for (i=0; i < len; i++)
 				{
 					//printf("gen %d\n", argv[2][i] - '0');
-					rtk_Gen_Pulse_Dial(chid, argv[3][i] - '0');
+					rtk_GenPulseDial(chid, argv[3][i] - '0');
 					sum = sum + (argv[3][i] - '0');
 				}
 				usleep(100000*sum + 1000*800*(len-1));	// sleep enough time to make sure pulse dial gen finish, assume interdigit_duration = 800 ms
 				sleep(2);
-				rtk_FXO_onhook(chid);
+				rtk_FxoOnHook(chid);
 	
 				rtk_debug(3); //enable kernel debug message
 			}
@@ -51,7 +51,7 @@ int pulse_dial_main(int argc, char *argv[])
 		else if (argc == 5)
 		{
 
-			rtk_PulseDial_Gen_Cfg(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
+			rtk_PulseDialGenCfg(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
 			printf("Config pulse dial gen to %d pps, make: %d ms, interdigit duration:%d ms\n", atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
 		}
 		else
@@ -70,7 +70,7 @@ int pulse_dial_main(int argc, char *argv[])
 			min_break_ths = atoi(argv[5]);
 			max_break_ths = atoi(argv[6]);
 
-			rtk_Set_Pulse_Digit_Det(chid, enable, pause_time, min_break_ths, max_break_ths);
+			rtk_SetPulseDigitDet(chid, enable, pause_time, min_break_ths, max_break_ths);
 			if (enable == 1)
 			{
 				printf("Enable pulse dial det for ch= %d, ", chid); 

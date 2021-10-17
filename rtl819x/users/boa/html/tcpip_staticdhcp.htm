@@ -6,6 +6,7 @@
 <title>Static DHCP Setup</title>
 <script type="text/javascript" src="util_gw.js"> </script>
 <script>
+lan_ip="<% getInfo("ip-rom"); %>"
 function addClick()
 {
 	if(get_by_id("ip_addr").value == "" && get_by_id("mac_addr").value == "")
@@ -14,21 +15,23 @@ function addClick()
   var str = document.formStaticDHCPAdd.mac_addr.value;
    if ( checkIpAddr(document.formStaticDHCPAdd.ip_addr, 'Invalid IP address value! ') == false )
       	    return false;
+   if(lan_ip==document.formStaticDHCPAdd.ip_addr.value)
+   {
+	alert("Invalid IP address value! It is the same with lan ip!");
+	document.formStaticDHCPAdd.ip_addr.focus();
+	return false;
+   }
    if ( str.length < 12) {
 	alert("Input MAC address is not complete. It should be 12 digits in hex.");
 	document.formStaticDHCPAdd.mac_addr.focus();
 	return false;
   }
-  for (var i=0; i<str.length; i++) {
-    if ( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
-			(str.charAt(i) >= 'a' && str.charAt(i) <= 'f') ||
-			(str.charAt(i) >= 'A' && str.charAt(i) <= 'F') )
-			continue;
-
-	alert("Invalid MAC address. It should be in hex number (0-9 or a-f).");
-	document.formStaticDHCPAdd.mac_addr.focus();
-	return false;
-  }   	    
+   // add for "All MAC Address field can't reject 00:00:00:00:00:00/ff:ff:ff:ff:ff:ff MAC Address" issue
+  with(document.formStaticDHCPAdd)
+  {
+	if(!checkMacAddr(mac_addr,"mac address invalid!"))
+		return false;
+  }  	    
   
   
   return true;

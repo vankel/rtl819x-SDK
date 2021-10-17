@@ -27,7 +27,7 @@ int ram_main(int argc, char *argv[])
 			
 			while( reg_start <= reg_end ) {
 				printf("read: chid = %d, ram =%d, val = %x\n", 
-					chid, reg_start, rtk_Get_SLIC_Ram_Val(chid, reg_start));
+					chid, reg_start, rtk_GetSlicRamVal(chid, reg_start));
 				
 				reg_start ++;
 			}
@@ -41,7 +41,7 @@ int ram_main(int argc, char *argv[])
 		reg = atoi(argv[2]);
 		val = atoi(argv[3]);
 
-		rtk_Set_SLIC_Ram_Val(chid, reg, val);
+		rtk_SetSlicRamVal(chid, reg, val);
 		printf("write: chid = %d, ram = %d, val = %x\n", 
 			chid, reg, val);
 	}

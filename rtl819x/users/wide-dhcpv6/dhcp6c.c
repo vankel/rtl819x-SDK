@@ -219,9 +219,15 @@ main(argc, argv)
 		}
 		argv++;
 	}
+#ifdef TR181_SUPPORT
+			system("rm /var/dhcp6c_parse_fail 2>/dev/null");
+#endif
 
 	if (infreq_mode == 0 && (cfparse(conffile)) != 0) {
 		dprintf(LOG_ERR, FNAME, "failed to parse configuration file");
+#ifdef TR181_SUPPORT
+		system("echo 1>/var/dhcp6c_parse_fail");
+#endif
 		exit(1);
 	}
 
@@ -933,6 +939,10 @@ construct_confdata(ifp, ev)
 
 		memset(&iaparam, 0, sizeof(iaparam));
 		iaparam.iaid = iac->iaid;
+#ifdef SUGGESTED_T
+		iaparam.t1 = iac->t1;
+		iaparam.t2 = iac->t2;
+#endif
 		switch (iac->type) {
 		case IATYPE_PD:
 			ial = NULL;
@@ -1021,6 +1031,10 @@ construct_reqdata(ifp, optinfo, ev)
 
 		memset(&iaparam, 0, sizeof(iaparam));
 		iaparam.iaid = iac->iaid;
+#ifdef SUGGESTED_T
+		iaparam.t1 = iac->t1;
+		iaparam.t2 = iac->t2;
+#endif
 
 		ial = NULL;
 		evd = NULL;
@@ -1702,7 +1716,7 @@ client6_recvreply(ifp, dh6, len, optinfo)
 	struct dhcp6_listval *lv;
 	struct dhcp6_event *ev;
 	int state;
-
+	FILE *fp;
 	/* find the corresponding event based on the received xid */
 	ev = find_event_withid(ifp, ntohl(dh6->dh6_xid) & DH6_XIDMASK);
 	if (ev == NULL) {
@@ -1774,13 +1788,49 @@ client6_recvreply(ifp, dh6, len, optinfo)
 
 	if (!TAILQ_EMPTY(&optinfo->dns_list)) {
 		struct dhcp6_listval *d;
-		int i = 0;
+#if 1
+		int i = 0,j=0;
 
+		char bufOld[256]={0};
+		char bufNew[256]={0};
+		char bufTmp[128]={0};
+		
+		fp=fopen("/var/dns6.conf","r");
+		if(fp!=NULL)
+		{
+			fread(bufOld,1,sizeof(bufOld),fp); 	
+			fclose(fp);
+		}
+		dprintf(LOG_ERR, FNAME, "########%s:%d### bufOld=%s ########",__FILE__,__LINE__,bufOld);
+		
 		for (d = TAILQ_FIRST(&optinfo->dns_list); d;
 		     d = TAILQ_NEXT(d, link), i++) {
 			info_printf("nameserver[%d] %s",
-			    i, in6addr2str(&d->val_addr6, 0));
+			    i, in6addr2str(&d->val_addr6, 0));			
+				if(++j>2)//max 2 dns
+					break;
+				bzero(bufTmp,sizeof(bufTmp));
+				sprintf(bufTmp,"nameserver %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",d->val_addr6.s6_addr16[0],d->val_addr6.s6_addr16[1],d->val_addr6.s6_addr16[2],	
+				d->val_addr6.s6_addr16[3],d->val_addr6.s6_addr16[4],d->val_addr6.s6_addr16[5],	
+				d->val_addr6.s6_addr16[6],d->val_addr6.s6_addr16[7]);
+				strcat(bufNew,bufTmp);							
+			
 		}
+			 
+		dprintf(LOG_ERR, FNAME, "########%s:%d### bufNew=%s ########",__FILE__,__LINE__,bufNew);
+		if(strcmp(bufOld,bufNew)!=0)
+		{//need to update
+			fp = fopen("/var/dns6.conf", "w+");
+			if(fp!=NULL)
+			{
+				fprintf(fp,"%s",bufNew);				
+				fclose(fp);
+				system("echo \"not update\">/var/dhcp6_dns_need_update");
+				info_printf("echo 1>/var/dhcp6_dns_need_update");
+			}
+			
+		}
+#endif
 	}
 
 	if (!TAILQ_EMPTY(&optinfo->dnsname_list)) {
@@ -1825,6 +1875,14 @@ client6_recvreply(ifp, dh6, len, optinfo)
 			info_printf("SIP domain name[%d] %s",
 			    i, d->val_vbuf.dv_buf);
 		}
+	}
+
+	/* update stateful configuration information */
+	if (state != DHCP6S_RELEASE) {
+		update_ia(IATYPE_PD, &optinfo->iapd_list, ifp,
+		    &optinfo->serverID, ev->authparam);
+		update_ia(IATYPE_NA, &optinfo->iana_list, ifp,
+		    &optinfo->serverID, ev->authparam);
 	}
 
 	/*

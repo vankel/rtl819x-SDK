@@ -91,7 +91,7 @@ mib_table_entry_T mib_schedule_tbl[]={
 {0}
 };
 
-#if defined(CONFIG_RTL_8198_AP_ROOT)
+#if defined(VLAN_CONFIG_SUPPORTED)
 mib_table_entry_T mib_vlanconfig_tbl[]={
 #ifdef MIB_TLV
 #define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
@@ -110,6 +110,43 @@ mib_table_entry_T mib_vlanconfig_tbl[]={
 };
 #endif
 
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
+mib_table_entry_T mib_macredirect_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_MACREDIRECT_IMPORT
+#include "mibdef.h"
+#undef MIB_MACREDIRECT_IMPORT
+#undef MIBDEF
+{0}
+};
+#endif
+
+#if defined(CONFIG_APP_CLOUD)
+mib_table_entry_T mib_app_login_mac_time_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_APP_LOGIN_MAC_TIME_IMPORT
+#include "mibdef.h"
+#undef MIB_APP_LOGIN_MAC_TIME_IMPORT
+
+#undef MIBDEF
+{0}
+};	
+#endif/****CONFIG_RTL_MAC_BASED_HTTP_REDIRECT*****/
+
 #ifdef HOME_GATEWAY
 mib_table_entry_T mib_portfw_tbl[]={
 #ifdef MIB_TLV
@@ -127,6 +164,27 @@ mib_table_entry_T mib_portfw_tbl[]={
 #undef MIBDEF
 {0}
 };
+
+#if defined(WLAN_SUPPORT)
+mib_table_entry_T mib_cwmp_wlanconf_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_CWMP_WLANCONF_IMPORT
+#include "mibdef.h"
+#undef MIB_CWMP_WLANCONF_IMPORT
+
+#undef MIBDEF
+{0}
+};
+#endif //#if defined(WLAN_SUPPORT)
+
+
 
 mib_table_entry_T mib_ipfilter_tbl[]={
 #ifdef MIB_TLV
@@ -178,7 +236,23 @@ mib_table_entry_T mib_macfilter_tbl[]={
 #undef MIBDEF
 {0}
 };
-	
+
+mib_table_entry_T mib_nasfilter_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_NASFILTER_IMPORT
+#include "mibdef.h"
+#undef MIB_NASFILTER_IMPORT
+
+#undef MIBDEF
+{0}
+};	
 mib_table_entry_T mib_triggerport_tbl[]={
 #ifdef MIB_TLV
 #define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
@@ -213,24 +287,6 @@ mib_table_entry_T mib_urlfilter_tbl[]={
 {0}
 };
 
-#if defined(VLAN_CONFIG_SUPPORTED)
-mib_table_entry_T mib_vlanconfig_tbl[]={
-#ifdef MIB_TLV
-#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
-		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
-#else
-#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
-			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
-#endif
-
-#define MIB_VLAN_CONFIG_IMPORT
-#include "mibdef.h"
-#undef MIB_VLAN_CONFIG_IMPORT
-
-#undef MIBDEF
-{0}
-};
-#endif
 
 #ifdef ROUTE_SUPPORT
 mib_table_entry_T mib_staticroute_tbl[]={
@@ -323,6 +379,39 @@ mib_table_entry_T mib_qos_tbl[]={
 {0}
 };	
 #endif
+#if defined(TR181_SUPPORT)
+#ifdef CONFIG_IPV6
+mib_table_entry_T mib_ipv6DhcpcSendOpt_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_IPV6_DHCPC_SENDOPT_IMPORT
+#include "mibdef.h"
+#undef MIB_IPV6_DHCPC_SENDOPT_IMPORT
+{0}
+};	
+#endif
+mib_table_entry_T mib_dnsClientServer_tbl[]={
+#ifdef MIB_TLV
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+		{_MIBID_NAME(_mib_name), _mib_type, _OFFSET_SIZE_FIELD(_mib_parents_ctype, _cname), _UNIT_SIZE(_ctype), _default_value, _next_tbl},
+#else
+#define MIBDEF(_ctype,	_cname, _crepeat, _mib_name, _mib_type, _mib_parents_ctype, _default_value, _next_tbl ) \
+			{_MIBID_NAME(_mib_name), _mib_type, FIELD_OFFSET(_mib_parents_ctype, _cname), FIELD_SIZE(_mib_parents_ctype, _cname)},
+#endif
+
+#define MIB_DNS_CLIENT_SERVER_IMPORT
+#include "mibdef.h"
+#undef MIB_DNS_CLIENT_SERVER_IMPORT
+{0}
+};
+#endif
+
 
 #if defined(QOS_BY_BANDWIDTH)
 mib_table_entry_T mib_qos_tbl[]={

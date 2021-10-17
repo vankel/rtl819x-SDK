@@ -159,7 +159,7 @@
 #define BSP_I2S_RS          BSP_I2S_IRQ
 //#define BSP_I2S_RS          BSP_IRQ_CASCADE
 
-#define BSP_DIVISOR         1000
+#define BSP_DIVISOR         8000
 
 #if BSP_DIVISOR > (1 << 16)
 #error "Exceed the Maximum Value of DivFactor"

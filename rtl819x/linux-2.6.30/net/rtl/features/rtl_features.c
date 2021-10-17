@@ -65,6 +65,10 @@ extern int rtl865x_curOpMode;
 #include <net/rtl/fastpath/fast_br.h>
 #endif
 
+#if defined(CONFIG_BRIDGE)&&defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+#include <bridge/br_private.h>
+#endif
+
 #if defined(CONFIG_NET_SCHED)
 __DRAM_GEN int gQosEnabled;
 #endif
@@ -352,10 +356,14 @@ int get_dev_ip_mask(const char * name, unsigned int *ip, unsigned int *mask)
 }
 
 
-#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_WLAN_DOS_FILTER)
+#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_WLAN_DOS_FILTER) ||defined(CONFIG_RTL_BATTLENET_ALG) ||defined(CONFIG_RTL_USB_IP_HOST_SPEEDUP) || defined(CONFIG_HTTP_FILE_SERVER_SUPPORT) || defined(CONFIG_RTL_USB_UWIFI_HOST_SPEEDUP)
 unsigned int _br0_ip;
 unsigned int _br0_mask;
+#ifndef CONFIG_RTL8686_GMAC
 static void get_br0_ip_mask(void)
+#else
+void get_br0_ip_mask(void)
+#endif
 {
 
 	get_dev_ip_mask(RTL_PS_BR0_DEV_NAME, &_br0_ip, &_br0_mask);
@@ -611,13 +619,339 @@ static inline int32 rtl_addConnCheck(struct nf_conn *ct, struct iphdr *iph, stru
 	return create_conn;
 }
 
+#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+static int rtl_isWlanPkt(struct nf_conn *ct)
+{
+	int ret = FALSE;
+
+#if defined(CONFIG_BRIDGE)
+	struct net_device *lan_dev = __dev_get_by_name(&init_net, RTL_PS_BR0_DEV_NAME);
+	struct net_bridge *br = netdev_priv(lan_dev);
+	struct net_bridge_fdb_entry *dst;
+	unsigned char Mac[6];
+	__be32 intIp;
+
+	if(ct->status & IPS_SRC_NAT){
+		intIp = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip;
+	}else if(ct->status & IPS_DST_NAT){
+		intIp = ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip;
+	}
+
+	if((intIp & _br0_mask) == (_br0_ip & _br0_mask)){
+		if(arp_req_get_ha(intIp, lan_dev, Mac)==0){
+			if((dst = __br_fdb_get(br, Mac))!=NULL){
+				if(!memcmp(dst->dst->dev->name, "wlan", strlen("wlan")))
+							return TRUE;
+			}
+		}
+	}
+
+#endif
+
+	return ret;
+}
+
+
+static int rtl_checkLanIp(struct nf_conn *ct)
+{
+
+	__be32 lanIp=0;
+
+	if(ct->status & IPS_SRC_NAT)
+	{
+		lanIp = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip;
+	}
+	else if(ct->status & IPS_DST_NAT)
+	{
+		lanIp = ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip;
+	}
+	else
+	{
+		return FAILED;
+	}
+
+
+	if(rtl865x_isEthArp(lanIp)==TRUE)
+	{
+
+		return SUCCESS;
+	}
+
+
+	return FAILED;
+}
+
+#endif
+
+
+#ifdef CONFIG_FP_BYPASS_PACKET
+#define BYPASS_FAILED -1
+#define BYPASS_OK 0
+struct port_range{
+    unsigned int startport;
+	char separator;
+	unsigned int endport;
+};
+static unsigned int hw_nat_add = 1;
+static unsigned int tcp_bypass_port_num = 0;
+static unsigned int udp_bypass_port_num = 0;
+static struct port_range *packet_bypassed_tcpport_set=NULL;
+static unsigned char *packet_bypassed_tcpport_set_buffer=NULL;
+static struct port_range *packet_bypassed_udpport_set=NULL;
+static unsigned char *packet_bypassed_udpport_set_buffer=NULL;
+
+int proc_hwnat_packet_bypassed_tcpport_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len = 0;
+	int i = 0;
+	len += sprintf(page+len,"hwnat bypassed tcp port,tcp_bypass_port_num %d:\n",tcp_bypass_port_num);
+
+	/*
+	if(!packet_bypassed_tcpport_set)
+		return -EFAULT;
+    */
+
+	for( ; i < tcp_bypass_port_num;i++)
+		len += sprintf(page+len, "%d%c%d ",packet_bypassed_tcpport_set[i].startport,packet_bypassed_tcpport_set[i].separator,packet_bypassed_tcpport_set[i].endport);
+
+	len += sprintf(page+len,"\n");
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+}
+static unsigned int countArg_num(char *buffer,unsigned long count)
+{
+    int i = 0;
+	unsigned first = 1;
+	int arg_count = 0;
+
+	if(!buffer)
+		return 0;
+
+	/*
+	printk("[%s:] %d\n",__func__,__LINE__);
+	int j_p = 0;
+	for(; j_p < count;j_p++)
+	{
+      printk("%c",buffer[j_p]);
+	}
+	*/
+
+	while(i < count)
+	{
+		/*input rest arg*/
+        if(!first &&i>0 &&*(buffer+i)!=' ' &&*(buffer+i-1)==' '&&*(buffer+i)!='\n'&&*(buffer+i)!='\r')
+		{
+			arg_count++;
+		}
+
+		/*input first arg*/
+		if(*(buffer+i) != ' '&& first)
+		{
+		    first = 0;
+			arg_count++;
+		}
+		i++;
+	}
+	return arg_count;
+
+}
+static unsigned int fill_bypass_port_single_num(char *buffer,unsigned long count,unsigned int *udportcp_buffer)
+{
+    int i = 0;
+	unsigned first = 1;
+	int arg_count = 0;
+
+	if(!udportcp_buffer||!buffer)
+		return 0;
+
+	while(i < count)
+	{
+		/*input rest arg*/
+        if(!first &&i>0 &&*(buffer+i)!=' ' &&*(buffer+i-1)==' ' &&*(buffer+i)!='\n'&&*(buffer+i)!='\r')
+		{
+			sscanf((buffer + i), "%d", &(udportcp_buffer[arg_count]));
+			arg_count++;
+		}
+
+		/*input first arg*/
+		if(*(buffer+i) != ' '&& first)
+		{
+		    first = 0;
+			sscanf((buffer + i), "%d", &(udportcp_buffer[arg_count]));
+			arg_count++;
+		}
+		i++;
+	}
+	return arg_count;
+}
+
+static unsigned int fill_bypass_port(char *buffer,unsigned long count,struct port_range *udportcp_buffer)
+{
+    int i = 0;
+	unsigned first = 1;
+	int arg_count = 0;
+
+	if(!udportcp_buffer||!buffer)
+		return 0;
+
+	while(i < count)
+	{
+		/*input rest arg*/
+        if(!first &&i>0 &&*(buffer+i)!=' ' &&*(buffer+i-1)==' ' &&*(buffer+i)!='\n'&&*(buffer+i)!='\r')
+		{
+			sscanf((buffer + i), "%d%c%d", &((udportcp_buffer[arg_count]).startport),&((udportcp_buffer[arg_count]).separator),&((udportcp_buffer[arg_count]).endport));
+			if((udportcp_buffer[arg_count]).separator != ',')
+			{
+				printk("write failed : wrong separator should use ',' to separator port range \"startport,endport\"\n");
+				return BYPASS_FAILED;
+			}else if((udportcp_buffer[arg_count]).startport > (udportcp_buffer[arg_count]).endport)
+			{
+				printk("write failed : wrong port range the %d count portrange set error, should be startport < endport\n",arg_count);
+				return BYPASS_FAILED;
+			}
+			arg_count++;
+		}
+
+		/*input first arg*/
+		if(*(buffer+i) != ' '&& first)
+		{
+		    first = 0;
+			sscanf((buffer + i), "%d%c%d", &((udportcp_buffer[arg_count]).startport),&((udportcp_buffer[arg_count]).separator),&((udportcp_buffer[arg_count]).endport));
+			if((udportcp_buffer[arg_count]).separator != ',')
+			{
+				printk("write failed : wrong separator should use ',' to separator port range \"startport,endport\"\n");
+				return BYPASS_FAILED;
+			}else if((udportcp_buffer[arg_count]).startport > (udportcp_buffer[arg_count]).endport)
+			{
+				printk("write failed : wrong port range the %d count portrange set error, should be startport < endport\n",arg_count);
+				return BYPASS_FAILED;
+			}
+			arg_count++;
+		}
+		i++;
+	}
+	return arg_count;
+}
+
+int proc_hwnat_packet_bypassed_tcpport_write_proc(struct file *file, const char *buffer,
+		      unsigned long count, void *data)
+{
+    unsigned int arg_count = 0;
+	if (count < 1)
+		return -EFAULT;
+	packet_bypassed_tcpport_set_buffer = (unsigned char *)kmalloc(count,GFP_ATOMIC);
+	if(!packet_bypassed_tcpport_set_buffer )
+	{
+		printk("not enough memory\n");
+		return -ENOMEM;
+	}
+	memset(packet_bypassed_tcpport_set_buffer , 0, count);
+	if (buffer && !copy_from_user(packet_bypassed_tcpport_set_buffer , buffer, count)) {
+		tcp_bypass_port_num = countArg_num(packet_bypassed_tcpport_set_buffer ,count);
+		if(packet_bypassed_tcpport_set)
+		    kfree(packet_bypassed_tcpport_set);
+		packet_bypassed_tcpport_set = kmalloc(tcp_bypass_port_num * sizeof(struct port_range),GFP_ATOMIC);
+		if(!packet_bypassed_tcpport_set)
+		{
+		    printk("not enough memory\n");
+			return -ENOMEM;
+		}
+		memset(packet_bypassed_tcpport_set ,0,tcp_bypass_port_num * sizeof(struct port_range));
+		arg_count = fill_bypass_port(packet_bypassed_tcpport_set_buffer,count,packet_bypassed_tcpport_set);
+		if((arg_count == BYPASS_FAILED)|| (arg_count == 1 && packet_bypassed_tcpport_set[0].startport == 0&&packet_bypassed_tcpport_set[0].endport == 0))
+		{
+		    tcp_bypass_port_num = 0;
+			kfree(packet_bypassed_tcpport_set);
+			packet_bypassed_tcpport_set = NULL;
+		}
+		/*
+		if(arg_count != tcp_bypass_port_num )
+		{
+		    printk("arg_count != tcp_bypass_port_num error\n");
+			printk("arg_count = %d \n",arg_count);
+			printk("tcp_bypass_port_num = %d \n",tcp_bypass_port_num);
+		}
+		*/
+	}
+
+	/*
+	int i = 0;
+	for( ; i < tcp_bypass_port_num;i++)
+		printk("packet_bypassed_tcpport_set[%d] = %d\n",i,packet_bypassed_tcpport_set[i]);
+    */
+	kfree(packet_bypassed_tcpport_set_buffer);
+	return count;
+}
+
+int proc_hwnat_packet_bypassed_udpport_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len = 0;
+	int i = 0;
+	len += sprintf(page+len,"hwnat bypassed udp port,udp_bypass_port_num %d:\n",udp_bypass_port_num);
+
+	for( ; i < udp_bypass_port_num;i++)
+		len += sprintf(page+len, "%d%c%d ",packet_bypassed_udpport_set[i].startport,packet_bypassed_udpport_set[i].separator,packet_bypassed_udpport_set[i].endport);
+
+	len += sprintf(page+len, "\n");
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count) len = count;
+	if (len<0) len = 0;
+	return len;
+}
+
+int proc_hwnat_packet_bypassed_udpport_write_proc(struct file *file, const char *buffer,
+		      unsigned long count, void *data)
+{
+    unsigned int arg_count = 0;
+	if (count < 1)
+		return -EFAULT;
+	packet_bypassed_udpport_set_buffer = (unsigned char *)kmalloc(count,GFP_ATOMIC);
+	if(!packet_bypassed_udpport_set_buffer )
+	{
+		printk("not enough memory\n");
+		return -ENOMEM;
+	}
+	memset(packet_bypassed_udpport_set_buffer , 0, count);
+	if (buffer && !copy_from_user(packet_bypassed_udpport_set_buffer , buffer, count)) {
+		udp_bypass_port_num = countArg_num(packet_bypassed_udpport_set_buffer ,count);
+		if(packet_bypassed_udpport_set)
+		    kfree(packet_bypassed_udpport_set);
+		packet_bypassed_udpport_set = kmalloc(udp_bypass_port_num * sizeof(struct port_range),GFP_ATOMIC);
+		if(!packet_bypassed_udpport_set)
+		{
+		    printk("not enough memory\n");
+			return -ENOMEM;
+		}
+		memset(packet_bypassed_udpport_set,0,udp_bypass_port_num * sizeof(struct port_range));
+		arg_count = fill_bypass_port(packet_bypassed_udpport_set_buffer,count,packet_bypassed_udpport_set);
+		if((arg_count == BYPASS_FAILED)|| (arg_count == 1 && packet_bypassed_udpport_set[0].startport == 0&&packet_bypassed_udpport_set[0].endport == 0))
+		{
+		    udp_bypass_port_num = 0;
+			kfree(packet_bypassed_udpport_set);
+			packet_bypassed_udpport_set = NULL;
+		}
+	}
+	kfree(packet_bypassed_udpport_set_buffer);
+	return count;
+}
+#endif
 void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 {
 	int assured;
 	int create_conn;
 	struct iphdr *iph;
-	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_URL_PATCH)
 	enum NP_PROTOCOL protocol;
+	#endif
+	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 	rtl_fp_napt_entry rtlFpNaptEntry;
 	#endif
 
@@ -630,14 +964,14 @@ void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 					(test_bit(IPS_DST_NAT_DONE_BIT, &ct->status) ||
 					test_bit(IPS_SRC_NAT_DONE_BIT, &ct->status)));
 
-		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_URL_PATCH)
 		protocol = NP_TCP;
 		#endif
 	} else if (iph->protocol== IPPROTO_UDP) {
 		assured = (test_bit(IPS_DST_NAT_DONE_BIT, &ct->status) ||
 				test_bit(IPS_SRC_NAT_DONE_BIT, &ct->status));
 
-		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+		#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_URL_PATCH)
 		protocol = NP_UDP;
 		#endif
 	} else {
@@ -649,11 +983,47 @@ void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 	if((protocol == NP_TCP)&&(ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) == URL_PROTO_PORT)&&assured)
 		assured = 0;
 #endif
-
+#ifdef CONFIG_FP_BYPASS_PACKET
+	unsigned int count = 0;
+	hw_nat_add = 1; /*ensure hw_nat_add = 1*/
+	if(protocol == NP_TCP)
+	{
+		count = 0;
+		for( ;count < tcp_bypass_port_num; count++)
+		{
+		    if(ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) <= packet_bypassed_tcpport_set[count].endport&&
+		    (ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) >= packet_bypassed_tcpport_set[count].startport))
+			{
+				hw_nat_add = 0;
+				break;
+			}else
+				hw_nat_add = 1;
+		}
+	}else if(protocol == NP_UDP){
+		count = 0;
+		for( ;count < udp_bypass_port_num; count++)
+		{
+		    if(ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) <= packet_bypassed_tcpport_set[count].endport&&
+		    (ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all) >= packet_bypassed_tcpport_set[count].startport))
+			{
+				hw_nat_add = 0;
+				break;
+			}else
+				hw_nat_add = 1;
+		}
+	}
+#endif
 	if (!assured) {
 	        create_conn = rtl_addConnCheck(ct, iph, skb);
 	} else
 		create_conn = 0;
+
+#if defined(CONFIG_RTL_HW_NAT_BYPASS_PKT)
+	if (ct->count++ < RTL_HW_NAT_BYPASS_PKT_NUM) {
+		assured = 0;
+		create_conn = 0;
+	}
+#endif
 
 	#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
 	/*1.add "!(ct->helper)" to fix ftp-cmd type packet
@@ -721,7 +1091,24 @@ void rtl_addConnCache(struct nf_conn *ct, struct sk_buff *skb)
 	if (assured || create_conn)
 	#endif
 	{
+		#ifdef CONFIG_FP_BYPASS_PACKET
+		if(hw_nat_add)
+		{
+		#endif
+		#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+		//if(rtl_isWlanPkt(ct) == TRUE)
+		//	return;
+		if(rtl_checkLanIp(ct)==SUCCESS)
+		{
+			rtl865x_handle_nat(ct, 1, skb);
+		}
+		#else
 		rtl865x_handle_nat(ct, 1, skb);
+		#endif
+		#ifdef CONFIG_FP_BYPASS_PACKET
+		}
+		#endif
+
 	}
 	#endif
 }
@@ -1340,7 +1727,10 @@ int rtl865x_getDevIpAndNetmask(struct net_device * dev, unsigned int *ipAddr, un
 	if (in_dev != NULL) {
 		for (ifap=in_dev->ifa_list; ifap != NULL; ifap=ifap->ifa_next) {
 			if (strcmp(dev->name, ifap->ifa_label) == 0){
-				*ipAddr = ifap->ifa_address;
+				if (strncmp(dev->name, "ppp", strlen("ppp"))==0)
+					*ipAddr = ifap->ifa_local;
+				else
+					*ipAddr = ifap->ifa_address;
 				*netMask = ifap->ifa_mask;
 				return SUCCESS;
 			}
@@ -2552,7 +2942,11 @@ struct iphdr *rtl_new_gc_ip_hdr(struct sk_buff *skb)
 
 __be16 rtl_new_gc_get_skb_protocol(struct sk_buff *skb)
 {
-	return skb->protocol;
+	struct iphdr *iph;
+	iph = ip_hdr(skb);
+	
+	return iph->protocol;
+	//return skb->protocol;
 }
 
 unsigned long rtl_new_gc_get_ct_udp_status(void *ct_ptr)

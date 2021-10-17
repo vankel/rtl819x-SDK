@@ -1013,84 +1013,35 @@ int master_lookup(unsigned char *msg, int len)
 	    return (x->len);
 	}
     }
-#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 	else if (query.type == DNS_TYPE_4A) {
 		/* when DUT(client mode pocket AP) connected to another AP and domain name query is enabled, 
 			if one DNS is cached and PC send a 4A DNS query,
 			the DUT will response 'no such name' to PC and PC will not send a A DNS query again, 
 			then PC will think the DNS is unreachable*/
-		char *domain_token=NULL;
-		char tmpBuff_domainname[100];
-		unsigned int return_dut_domain=0;
-		FILE	*fp;
-		
-		if ((fp = fopen("/etc/hosts", "r")) == NULL) {
-			//log_msg(LOG_NOTICE, "can't open file: %s", filename);
-			return	0;
-		}
-		if(fgets(tmpBuff_domainname, sizeof(tmpBuff_domainname), fp) == NULL)
-		{
-			printf("read /etc/hosts error!!!\n");
-			return 0;
-		}
-		fclose(fp);
-		strlwr(tmpBuff_domainname);
-		domain_token = strtok (tmpBuff_domainname,"\\");
-		domain_token = strtok(NULL, "|");
 			
-		/*
-		while (domain_token != NULL)
-		{
-			//if (strcmp(query.name , domain_token) == 0)
-			if (memcmp(query.name, domain_token, strlen(query.name)) == 0)
-			{
-				return_dut_domain = 1;
-				break;
-			}
-		
-			domain_token = strtok (NULL, "|");
-		}
-		*/
+		if ((rec = name_lookup(query.name)) != NULL) {
+		    dnsheader_t *x;
+		    
+		    x = begin_assembly(&query);
+		    compile_objectname(x);
+		    compile_int(x, DNS_TYPE_A);
+		    compile_int(x, DNS_CLASS_INET);
+		    compile_long(x, DEFAULT_TTL);
+		    start_rdata(x);
+		    compile_long(x, rec->u.nameip.ipnum);
+		    end_rdata(x);
+		    
+		    compile_dnsrecords(x, query.name);
 
-		if (strcmp(query.name, domain_token) == 0)
-			return_dut_domain = 1;
-		else
-		{
-			domain_token = strtok(NULL, "|");
-			if(domain_token != NULL)
-			{
-				//the length read from /etc/hosts include the \n, the end of the token should decress 1, otherwise  4A .net won't return the DUT IP. 
-				if(memcmp(query.name, domain_token, (strlen(domain_token)-1)) == 0)
-					return_dut_domain = 1;
-			}
-		}
-			
-		if(return_dut_domain == 1)
-		{
-			if ((rec = name_lookup(query.name)) != NULL) {
-				    dnsheader_t *x;
-				    x = begin_assembly(&query);
-				    compile_objectname(x);
-				    compile_int(x, DNS_TYPE_A);
-				    compile_int(x, DNS_CLASS_INET);
-				    compile_long(x, DEFAULT_TTL);
-				    start_rdata(x);
-				    compile_long(x, rec->u.nameip.ipnum);
-				    end_rdata(x);
-				    
-				    compile_dnsrecords(x, query.name);
+		    x->ancount = 1;
+		    end_assembly(x);
 
-				    x->ancount = 1;
-				    end_assembly(x);
+		    dump_dnspacket("assembled", x->packet, x->len);
 
-				    dump_dnspacket("assembled", x->packet, x->len);
-
-				    memcpy(msg + 2, x->packet + 2, x->len - 2);
-				    return (x->len);
-			}
+		    memcpy(msg + 2, x->packet + 2, x->len - 2);
+		    return (x->len);
 		}
     }
-#endif
     else {
 	/*
 	 * Return here if this type of request isn't handled

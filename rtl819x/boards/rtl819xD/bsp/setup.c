@@ -91,10 +91,19 @@ static void shutdown_netdev(void)
 			rtnl_unlock();
 		}
       	}
-#if defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
+#if defined(CONFIG_RTL8192CD)
 	{
 		extern void force_stop_wlan_hw(void);
 		force_stop_wlan_hw();
+	}
+#endif
+#ifdef CONFIG_RTL_8367R_SUPPORT
+	// for boot code tftp feature after did the kernel reboot, of course rtk_vlan_init() can be moved to boot code, but the boot code size is near 24Kbytes
+	{	
+//	extern int rtk_vlan_init(void);
+//	rtk_vlan_init();
+	extern void rtl8367rb_reset(void);
+	rtl8367rb_reset();
 	}
 #endif
 	read_unlock(&dev_base_lock);
@@ -135,16 +144,12 @@ void __init bsp_setup(void)
 {
 	int ret= -1;
 	unsigned int version = 0;
-
-	REG32(0xb8000088)= (REG32(0xb8000088) & ( ~(3<<5)&~(0xF<<0)));
-printk("0xb8000088=%x\n",REG32(0xb8000088));
-REG32(0xb8000088) =(REG32(0xb8000088)|(1<<4));
-printk("0xb8000088=%x\n",REG32(0xb8000088));
-	REG32(0xb8000088) = REG32(0xb8000088) & (~(3<<7));
-
-printk("0xb8000088=%x\n",REG32(0xb8000088));
-
-
+	 if((REG32(0xb8000000)&0xf)<3)
+    {
+		REG32(0xb8000088)= (REG32(0xb8000088) & ( ~(3<<5)&~(0xF<<0)));
+		REG32(0xb8000088) =(REG32(0xb8000088)|(1<<4));
+		REG32(0xb8000088) = REG32(0xb8000088) & (~(3<<7));
+	}
 
 
     /* define io/mem region */

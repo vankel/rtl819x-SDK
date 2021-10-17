@@ -22,7 +22,7 @@
 
 #include "./8192cd_cfg.h"
 
-#ifdef WIFI_HAPD
+#if defined(WIFI_HAPD) || defined(RTK_NL80211)
 
 #ifdef __LINUX_2_6__
 #include <linux/initrd.h>
@@ -30,7 +30,6 @@
 #endif
 
 #include "./8192cd_debug.h"
-#include "./8192cd_net80211.h"
 #include "./8192cd_headers.h"
 
 #include <linux/if_arp.h>
@@ -39,6 +38,9 @@
 #include <net80211/ieee80211.h>
 #include <net80211/ieee80211_crypto.h>
 #include <net80211/ieee80211_ioctl.h>
+
+#include "./8192cd_net80211.h"
+
 
 //#define HAPD_DEBUG
 
@@ -74,6 +76,18 @@ static __inline__ void set_tmickeylen(struct Dot11EncryptKey *pEncryptKey, UINT8
 	pEncryptKey->dot11TMicKeyLen = len;
 }
 
+static __inline__ void set_tkip_key_for_wpas(struct Dot11EncryptKey *pEncryptKey, UINT8 *src)
+{
+	memcpy(pEncryptKey->dot11TTKey.skey, src, pEncryptKey->dot11TTKeyLen);
+
+	memcpy(pEncryptKey->dot11TMicKey2.skey, src + 16, pEncryptKey->dot11TMicKeyLen);
+	memcpy(pEncryptKey->dot11TMicKey1.skey, src + 24, pEncryptKey->dot11TMicKeyLen);
+
+	memcpy(src + 16, pEncryptKey->dot11TMicKey2.skey, pEncryptKey->dot11TMicKeyLen);
+	memcpy(src + 24, pEncryptKey->dot11TMicKey1.skey, pEncryptKey->dot11TMicKeyLen);
+
+	pEncryptKey->dot11TXPN48.val48 = 0;
+}
 
 static __inline__ void set_tkip_key(struct Dot11EncryptKey *pEncryptKey, UINT8 *src)
 {
@@ -141,9 +155,9 @@ static int HAPD_Process_Set_Port(struct net_device *dev, unsigned char *MACAddr,
 	return 0;
 }
 
-#ifdef WIFI_WPAS
+#if defined(WIFI_WPAS) || defined(RTK_NL80211)
 
-static int	rtl_wpas_join(struct rtl8192cd_priv *priv, int bss_num)
+int	rtl_wpas_join(struct rtl8192cd_priv *priv, int bss_num)
 {
 	char tmpbuf[33];
 
@@ -159,7 +173,7 @@ static int	rtl_wpas_join(struct rtl8192cd_priv *priv, int bss_num)
 		}
 
 	memcpy((void *)&(priv->pmib->dot11Bss) ,
-		(void *)&priv->site_survey.bss_backup[bss_num] , sizeof(struct bss_desc));
+		(void *)&priv->site_survey->bss_backup[bss_num] , sizeof(struct bss_desc));
 
 #ifdef WIFI_SIMPLE_CONFIG
 	//_Eric if (priv->pmib->wscEntry.wsc_enable && (priv->pmib->dot11Bss.bsstype&WIFI_WPS)) 
@@ -190,7 +204,8 @@ static int	rtl_wpas_join(struct rtl8192cd_priv *priv, int bss_num)
 
 	memcpy(tmpbuf, priv->pmib->dot11Bss.ssid, priv->pmib->dot11Bss.ssidlen);
 	tmpbuf[priv->pmib->dot11Bss.ssidlen] = '\0';
-	printk("going to join bss: %s\n", tmpbuf);
+
+	NDEBUG3("[%s %d]going to join bss: [%s]\n",__FUNCTION__,__LINE__, tmpbuf);
 
 	memcpy(SSID2SCAN, priv->pmib->dot11Bss.ssid, priv->pmib->dot11Bss.ssidlen);
 	SSID2SCAN_LEN = priv->pmib->dot11Bss.ssidlen;
@@ -207,6 +222,27 @@ static int	rtl_wpas_join(struct rtl8192cd_priv *priv, int bss_num)
 	priv->authModeRetry = 0;
 
 	//mod_timer(&priv->WPAS_timer, jiffies + 300);
+
+#ifdef RTK_NL80211
+	if(priv->pmib->dot11Bss.channel >=36)
+	{
+		if(GET_CHIP_VER(priv)==VERSION_8812E || GET_CHIP_VER(priv)==VERSION_8881A)
+			priv->pmib->dot11BssType.net_work_type = WIRELESS_11A|WIRELESS_11N|WIRELESS_11AC;
+		else
+			priv->pmib->dot11BssType.net_work_type = WIRELESS_11A|WIRELESS_11N;
+	}
+	else
+	{
+	    #ifdef P2P_SUPPORT
+        if(rtk_p2p_is_enabled(priv))
+    		priv->pmib->dot11BssType.net_work_type = WIRELESS_11G|WIRELESS_11N;        // p2p mode no included 11B        
+        else
+        #endif
+    		priv->pmib->dot11BssType.net_work_type = WIRELESS_11B|WIRELESS_11G|WIRELESS_11N;  
+
+	}
+#endif
+
 	start_clnt_join(priv);
 
 	return 0;
@@ -246,12 +282,12 @@ int rtl_net80211_setparam(struct net_device *dev, struct iw_request_info *info, 
 	int value = 0;		/* NB: most values are TYPE_INT */
 	int ret = 0;
 
-	memcpy(&value, wrqu->name+sizeof(value), sizeof(value));
-
 	int authtype = priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm; 
 	int encmode = priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm;
 	int pskenable = priv->pmib->dot1180211AuthEntry.dot11EnablePSK;
 	int dot11802_1x = priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm;
+
+	memcpy(&value, wrqu->name+sizeof(value), sizeof(value));
 
 	HAPD_MSG("rtl_net80211_setparam +++\n");
 	HAPD_MSG("rtl8192cd_net80211_ioctl, param = %d, value =%d\n", param, value);
@@ -352,7 +388,7 @@ int rtl_net80211_setparam(struct net_device *dev, struct iw_request_info *info, 
 
 			if(value & (1<<IEEE80211_CIPHER_TKIP))
 				{
-					if((!(priv->pmib->dot11BssType.net_work_type & WIRELESS_11N)) || (OPMODE & WIFI_STATION_STATE))
+					if(1)//((!(priv->pmib->dot11BssType.net_work_type & WIRELESS_11N)) || (OPMODE & WIFI_STATION_STATE))
 						{
 							priv->pmib->dot1180211AuthEntry.dot11WPACipher |= BIT(1);
 							priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher |= BIT(1);
@@ -416,7 +452,7 @@ int rtl_net80211_setparam(struct net_device *dev, struct iw_request_info *info, 
 			else if(value == IEEE80211_ROAMING_MANUAL)
 				priv->pmib->dot11StationConfigEntry.fastRoaming = 0;
 			else
-				return EINVAL;
+				return -EINVAL;
 #endif
 			break;
 		case IEEE80211_PARAM_PRIVACY:			/* privacy invoked */
@@ -445,7 +481,7 @@ int rtl_net80211_setparam(struct net_device *dev, struct iw_request_info *info, 
 					break;
 				}
 			else
-				return EINVAL;
+				return -EINVAL;
 		case IEEE80211_PARAM_RSNCAPS:			/* RSN capabilities */
 			break;
 		case IEEE80211_PARAM_INACT:			/* station inactivity timeout */
@@ -671,8 +707,8 @@ int rtl_net80211_setmlme(struct net_device *dev, struct iw_request_info *info, u
 				}
 				init_stainfo(priv, pstat);
 				pstat->state |= (WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE);
-			pstat->expire_to = priv->assoc_to;
-				list_add_tail(&(pstat->asoc_list), &(priv->asoc_list));	
+				pstat->expire_to = priv->assoc_to;
+				asoc_list_add(priv, pstat);
 			}
 
 			HAPD_Process_Set_Port(dev, mlme->im_macaddr ,DOT11_PortStatus_Authorized);
@@ -726,10 +762,8 @@ int rtl_net80211_setmlme(struct net_device *dev, struct iw_request_info *info, u
 					
 #endif
 
-
-			if (!list_empty(&pstat->asoc_list))
+			if (asoc_list_del(priv, pstat))
 			{
-				list_del_init(&pstat->asoc_list);
 				if (pstat->expire_to > 0)
 				{
 					cnt_assoc_num(priv, pstat, DECREASE, (char *)__FUNCTION__);
@@ -742,8 +776,7 @@ int rtl_net80211_setmlme(struct net_device *dev, struct iw_request_info *info, u
 			init_stainfo(priv, pstat);
 			pstat->state |= WIFI_AUTH_SUCCESS;
 			pstat->expire_to = priv->assoc_to;
-			list_add_tail(&(pstat->auth_list), &(priv->auth_list));
-
+			auth_list_add(priv, pstat);
 		}
 	else if(mlme->im_op == IEEE80211_MLME_DEAUTH)
 		{
@@ -755,9 +788,8 @@ int rtl_net80211_setmlme(struct net_device *dev, struct iw_request_info *info, u
 			if (pstat == NULL)
 			return -EINVAL;
 			
-			if (!list_empty(&pstat->asoc_list))
+			if (asoc_list_del(priv, pstat))
 			{
-				list_del_init(&pstat->asoc_list);
 				if (pstat->expire_to > 0)
 				{
 					cnt_assoc_num(priv, pstat, DECREASE, (char *)__FUNCTION__);
@@ -779,9 +811,9 @@ int rtl_net80211_setmlme(struct net_device *dev, struct iw_request_info *info, u
 					return -1;
 				}
 			
-			for(ix = 0 ; ix < priv->site_survey.count_backup ; ix++) //_Eric ?? will bss_backup be cleaned?? -> Not found in  codes
+			for(ix = 0 ; ix < priv->site_survey->count_backup ; ix++) //_Eric ?? will bss_backup be cleaned?? -> Not found in  codes
 			{	
-				if(!memcmp(priv->site_survey.bss_backup[ix].bssid , mlme->im_macaddr, 6))
+				if(!memcmp(priv->site_survey->bss_backup[ix].bssid , mlme->im_macaddr, 6))
 				{
 					found = 1;
 					break;
@@ -790,7 +822,7 @@ int rtl_net80211_setmlme(struct net_device *dev, struct iw_request_info *info, u
 
 			if(found == 0)
 			{	
-				printk("BSSID NOT Found !!\n");
+				printk("%s BSSID NOT Found !!\n",__func__);
 				return -EINVAL;
 			}
 			else
@@ -877,6 +909,10 @@ int rtl_net80211_setkey(struct net_device *dev, struct iw_request_info *info, un
 				return 0;
 		   	}
 #endif
+#ifdef RTK_NL80211
+			HAPD_MSG("set WEP Key for NL80211\n");
+			memcpy(&priv->pmib->dot11DefaultKeysTable.keytype[wk->ik_keyix].skey[0], wk->ik_keydata, wk->ik_keylen);
+#endif
 		   if(priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _WEP_40_PRIVACY_)
 		   	cipher = (DOT11_ENC_WEP40);
 		   else if(priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _WEP_104_PRIVACY_)
@@ -899,7 +935,7 @@ int rtl_net80211_setkey(struct net_device *dev, struct iw_request_info *info, un
 
 	if(group_key)
 	{
-		int set_gkey_to_cam = 1;
+		int set_gkey_to_cam = 0;
 		HAPD_MSG("set group key !!\n");
 
 #ifdef UNIVERSAL_REPEATER
@@ -942,6 +978,11 @@ int rtl_net80211_setkey(struct net_device *dev, struct iw_request_info *info, un
 		case DOT11_ENC_TKIP:
 			set_ttkeylen(pEncryptKey, 16);
 			set_tmickeylen(pEncryptKey, 8);
+#ifdef RTK_NL80211
+			if(OPMODE & WIFI_STATION_STATE)
+			set_tkip_key_for_wpas(pEncryptKey, wk->ik_keydata);
+			else
+#endif
 			set_tkip_key(pEncryptKey, wk->ik_keydata);
 
 			HAPD_MSG("going to set TKIP group key! id %X\n", (UINT)wk->ik_keyix);
@@ -1063,11 +1104,28 @@ int rtl_net80211_setkey(struct net_device *dev, struct iw_request_info *info, un
 			priv->pmib->dot11WdsInfo.wdsPrivacy = cipher;
 #endif
 
+#ifdef RTK_NL80211 //eric-ath
+		//printk(" +++ pstat->state=0x%x wps_join=%d \n", pstat->state, (pstat->state & WIFI_WPS_JOIN));
+
+		if(OPMODE & WIFI_STATION_STATE)
+		if(pstat->state & WIFI_WPS_JOIN)
+		{
+			//printk("REMOVE WIFI_WPS_JOIN State !!\n");
+			pstat->state &= (~(WIFI_WPS_JOIN));
+		}
+#endif
+
 		switch(cipher)
 		{
 		case DOT11_ENC_TKIP:
 			set_ttkeylen(pEncryptKey, 16);
 			set_tmickeylen(pEncryptKey, 8);
+			
+#ifdef RTK_NL80211
+			if(OPMODE & WIFI_STATION_STATE)
+			set_tkip_key_for_wpas(pEncryptKey, wk->ik_keydata);
+			else
+#endif
 			set_tkip_key(pEncryptKey, wk->ik_keydata);
 
 			HAPD_MSG("going to set TKIP Unicast key for sta %02X%02X%02X%02X%02X%02X, id=%d\n",
@@ -1197,7 +1255,12 @@ int rtl_net80211_delkey(struct net_device *dev, struct iw_request_info *info, un
 #else
 	struct rtl8192cd_priv	*priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
+
+#ifdef RTK_NL80211
+	struct ieee80211req_del_key *wk = (struct ieee80211req_del_key *)wrqu->data.pointer;
+#else
 	struct ieee80211req_del_key *wk = (struct ieee80211req_del_key *)wrqu->name;
+#endif
 	struct stat_info	*pstat = NULL;
 	struct wifi_mib 	*pmib = priv->pmib;
 
@@ -1317,7 +1380,7 @@ int rtl_net80211_getwpaie(struct net_device *dev, struct iw_request_info *info, 
 }
 
 
-#if	(defined(WIFI_HAPD) && defined(WDS)) && !defined(HAPD_DRV_PSK_WPS)
+#if	((defined(WIFI_HAPD) || defined(RTK_NL80211)) && defined(WDS)) && !defined(HAPD_DRV_PSK_WPS)
 int rtl_net80211_wdsaddmac(struct net_device *dev, struct iw_request_info *info, union iwreq_data *wrqu, char *extra)
 {
 #ifdef NETDEV_NO_PRIV
@@ -1681,6 +1744,18 @@ static void Construct_RSNIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, 
         pDot11RSNPairwiseSuite = &countSuite;
         memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
 		usSuitCount = 0;
+
+#ifdef RTK_NL80211
+		for (ulIndex=0; ulIndex<priv->wpa_global_info->NumOfUnicastCipher; ulIndex++)
+		{
+			int i = ulIndex<priv->wpa_global_info->NumOfUnicastCipher - ulIndex - 1;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x50;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xF2;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = priv->wpa_global_info->UnicastCipher[i];
+			usSuitCount++;
+		}
+#else
         for (ulIndex=0; ulIndex<priv->wpa_global_info->NumOfUnicastCipher; ulIndex++)
         {
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
@@ -1689,6 +1764,8 @@ static void Construct_RSNIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, 
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = priv->wpa_global_info->UnicastCipher[ulIndex];
 			usSuitCount++;
         }
+#endif
+
 		pDot11RSNPairwiseSuite->SuiteCount = cpu_to_le16(usSuitCount);
         ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
         ulIELength += ulPairwiseLength;
@@ -1758,6 +1835,18 @@ static void Construct_RSNIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, 
         pDot11RSNPairwiseSuite = &countSuite;
         memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
 		usSuitCount = 0;
+
+#ifdef RTK_NL80211
+		for (ulIndex=0; ulIndex<priv->wpa_global_info->NumOfUnicastCipherWPA2; ulIndex++)
+		{
+			int i = priv->wpa_global_info->NumOfUnicastCipherWPA2 - ulIndex - 1; 
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x0F;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xAC;
+			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = priv->wpa_global_info->UnicastCipherWPA2[i];
+			usSuitCount++;
+		}
+#else
 		for (ulIndex=0; ulIndex<priv->wpa_global_info->NumOfUnicastCipherWPA2; ulIndex++)
         {
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
@@ -1766,6 +1855,8 @@ static void Construct_RSNIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, 
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = priv->wpa_global_info->UnicastCipherWPA2[ulIndex];
 			usSuitCount++;
         }
+#endif
+
 		pDot11RSNPairwiseSuite->SuiteCount = cpu_to_le16(usSuitCount);
         ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
         ulIELength += ulPairwiseLength;
@@ -1794,6 +1885,13 @@ static void Construct_RSNIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, 
 
 		ulRSNCapabilityLength = sizeof(DOT11_RSN_CAPABILITY);
 		ulIELength += ulRSNCapabilityLength;
+
+#if (defined(WIFI_HAPD) & defined(WIFI_WMM))  || (defined(RTK_NL80211) & defined(WIFI_WMM)) //eric-eap
+		if(QOS_ENABLE){
+			/* 4 PTKSA replay counters when using WMM consistent with hostapd code*/
+			dot11RSNCapability.field.PtksaReplayCounter = 3;
+		}
+#endif
 
 		pucBlob = pucOut + *usOutLen;
 		pucBlob += sizeof(DOT11_WPA2_IE_HEADER);

@@ -1,118 +1,77 @@
-/* Declaration of functions and data types used for MD5 sum computing
-   library functions.
-   Copyright (C) 1995-1997,1999,2000,2001,2004,2005,2006,2008
-      Free Software Foundation, Inc.
-   This file is part of the GNU C Library.
-
-   This program is free software; you can redistribute it and/or modify it
-   under the terms of the GNU Lesser General Public License as published by the
-   Free Software Foundation; either version 2.1, or (at your option) any
-   later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU Lesser General Public License for more details.
-
-   You should have received a copy of the GNU Lesser General Public License
-   along with this program; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
-
-#ifndef _MD5_H
-#define _MD5_H 1
-
-#include <stdio.h>
-#include <stdint.h>
-
-#define MD5_DIGEST_SIZE 16
-#define MD5_BLOCK_SIZE 64
-
-#ifndef __GNUC_PREREQ
-# if defined __GNUC__ && defined __GNUC_MINOR__
-#  define __GNUC_PREREQ(maj, min)					\
-  ((__GNUC__ << 16) + __GNUC_MINOR__ >= ((maj) << 16) + (min))
-# else
-#  define __GNUC_PREREQ(maj, min) 0
-# endif
-#endif
-
-#ifndef __THROW
-# if defined __cplusplus && __GNUC_PREREQ (2,8)
-#  define __THROW	throw ()
-# else
-#  define __THROW
-# endif
-#endif
-
-#ifndef _LIBC
-# define __md5_buffer md5_buffer
-# define __md5_finish_ctx md5_finish_ctx
-# define __md5_init_ctx md5_init_ctx
-# define __md5_process_block md5_process_block
-# define __md5_process_bytes md5_process_bytes
-# define __md5_read_ctx md5_read_ctx
-# define __md5_stream md5_stream
-#endif
-
-/* Structure to save state of computation between the single steps.  */
-struct md5_ctx
-{
-  uint32_t A;
-  uint32_t B;
-  uint32_t C;
-  uint32_t D;
-
-  uint32_t total[2];
-  uint32_t buflen;
-  uint32_t buffer[32];
-};
-
-/*
- * The following three functions are build up the low level used in
- * the functions `md5_stream' and `md5_buffer'.
- */
-
-/* Initialize structure containing state of computation.
-   (RFC 1321, 3.3: Step 3)  */
-extern void __md5_init_ctx (struct md5_ctx *ctx) __THROW;
-
-/* Starting with the result of former calls of this function (or the
-   initialization function update the context for the next LEN bytes
-   starting at BUFFER.
-   It is necessary that LEN is a multiple of 64!!! */
-extern void __md5_process_block (const void *buffer, size_t len,
-				 struct md5_ctx *ctx) __THROW;
-
-/* Starting with the result of former calls of this function (or the
-   initialization function update the context for the next LEN bytes
-   starting at BUFFER.
-   It is NOT required that LEN is a multiple of 64.  */
-extern void __md5_process_bytes (const void *buffer, size_t len,
-				 struct md5_ctx *ctx) __THROW;
-
-/* Process the remaining bytes in the buffer and put result from CTX
-   in first 16 bytes following RESBUF.  The result is always in little
-   endian byte order, so that a byte-wise output yields to the wanted
-   ASCII representation of the message digest.  */
-extern void *__md5_finish_ctx (struct md5_ctx *ctx, void *resbuf) __THROW;
+/* MD5.H - header file for MD5C.C */
+/* Copyright (C) 1991-2, RSA Data Security, Inc. Created 1991. All
+rights reserved.
+License to copy and use this software is granted provided that it
+is identified as the "RSA Data Security, Inc. MD5 Message-Digest
+Algorithm" in all material mentioning or referencing this software
+or this function.
+License is also granted to make and use derivative works provided
+that such works are identified as "derived from the RSA Data
+Security, Inc. MD5 Message-Digest Algorithm" in all material
+mentioning or referencing the derived work.
+RSA Data Security, Inc. makes no representations concerning either
+the merchantability of this software or the suitability of this
+software for any particular purpose. It is provided "as is"
+without express or implied warranty of any kind.
+These notices must be retained in any copies of any part of this
+documentation and/or software. *//* MD5 context. */
 
 
-/* Put result from CTX in first 16 bytes following RESBUF.  The result is
-   always in little endian byte order, so that a byte-wise output yields
-   to the wanted ASCII representation of the message digest.  */
-extern void *__md5_read_ctx (const struct md5_ctx *ctx, void *resbuf) __THROW;
+typedef struct {
+  unsigned int state[4];                                   /* state (ABCD) */
+  unsigned int count[2];        /* number of bits, modulo 2^64 (lsb first) */
+  unsigned char buffer[64];                         /* input buffer */
+} MD5_CTX;
 
 
-/* Compute MD5 message digest for bytes read from STREAM.  The
-   resulting message digest number will be written into the 16 bytes
-   beginning at RESBLOCK.  */
-extern int __md5_stream (FILE *stream, void *resblock) __THROW;
+#include <string.h>
 
-/* Compute MD5 message digest for LEN bytes beginning at BUFFER.  The
-   result is always in little endian byte order, so that a byte-wise
-   output yields to the wanted ASCII representation of the message
-   digest.  */
-extern void *__md5_buffer (const char *buffer, size_t len,
-			   void *resblock) __THROW;
+/* Constants for MD5Transform routine. */
+#define S11 7
+#define S12 12
+#define S13 17
+#define S14 22
+#define S21 5
+#define S22 9
+#define S23 14
+#define S24 20
+#define S31 4
+#define S32 11
+#define S33 16
+#define S34 23
+#define S41 6
+#define S42 10
+#define S43 15
+#define S44 21
 
-#endif /* md5.h */
+#define MD_CTX MD5_CTX
+#define MDInit MD5Init
+#define MDUpdate MD5Update
+#define MDFinal MD5Final
+
+unsigned int KeyMD5Encode(unsigned char* szEncoded, const unsigned char* szData, unsigned int nSize, unsigned char* szKey, unsigned int nKeyLen);
+int MDString(unsigned char* str, unsigned int nLen, unsigned char* digest);
+
+static void MD5Transform (unsigned int [4], unsigned char [64]);
+static void Encode (unsigned char *, unsigned int *, unsigned int);
+static void Decode (unsigned int *, unsigned char *, unsigned int);
+static void MD5_memcpy (unsigned char *, unsigned char *, unsigned int);
+static void MD5_memset(unsigned char *, int, unsigned int);
+static unsigned char PADDING[64] = {
+  (char)0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+/* F, G, H and I are basic MD5 functions. */
+
+#define F(x, y, z) (((x) & (y)) | ((~x) & (z)))
+#define G(x, y, z) (((x) & (z)) | ((y) & (~z)))
+#define H(x, y, z) ((x) ^ (y) ^ (z))
+#define I(x, y, z) ((y) ^ ((x) | (~z)))
+/* ROTATE_LEFT rotates x left n bits. */
+#define ROTATE_LEFT(x, n) (((x) << (n)) | ((x) >> (32-(n))))
+/* FF, GG, HH, and II transformations for rounds 1, 2, 3, and 4.
+Rotation is separate from addition to prevent recomputation. */
+#define FF(a, b, c, d, x, s, ac) { (a) += F ((b), (c), (d)) + (x) + (unsigned int)(ac);  (a) = ROTATE_LEFT ((a), (s)); (a) += (b);  }
+#define GG(a, b, c, d, x, s, ac) { (a) += G ((b), (c), (d)) + (x) + (unsigned int)(ac);  (a) = ROTATE_LEFT ((a), (s)); (a) += (b);  }
+#define HH(a, b, c, d, x, s, ac) { (a) += H ((b), (c), (d)) + (x) + (unsigned int)(ac);  (a) = ROTATE_LEFT ((a), (s)); (a) += (b);  }
+#define II(a, b, c, d, x, s, ac) { (a) += I ((b), (c), (d)) + (x) + (unsigned int)(ac);  (a) = ROTATE_LEFT ((a), (s)); (a) += (b);  }

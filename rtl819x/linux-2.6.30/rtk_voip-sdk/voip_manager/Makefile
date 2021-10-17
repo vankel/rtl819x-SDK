@@ -4,6 +4,7 @@ voip-manager-mod-objs-y    += voip_mgr_do_protocol.o voip_mgr_do_dsp.o voip_mgr_
 voip-manager-mod-objs-y    += voip_mgr_do_misc.o voip_mgr_do_ipphone.o voip_mgr_do_debug.o
 
 voip-manager-mod-objs-y    += voip_mgr_transfer_id.o voip_mgr_events.o 
+voip-manager-mod-objs-$(CONFIG_RTK_VOIP_LOG_IOCTL) += voip_mgr_log.o
 
 voip-manager-mod-objs-$(CONFIG_REALTEK_VOIP) += voip_resource_check.o
 
@@ -16,6 +17,7 @@ voip-manager-mod-objs-y    += voip_mgr_help_dsp.o
 endif
 endif
 
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_manager
 EXTRA_CFLAGS += -I$(DIR_VOIP)/include
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/cp3
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/include

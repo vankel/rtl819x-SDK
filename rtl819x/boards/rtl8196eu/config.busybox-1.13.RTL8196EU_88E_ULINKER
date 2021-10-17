@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Busybox version: 1.13.4
-# Mon Jun 25 14:32:28 2012
+# Fri Feb 24 14:53:29 2012
 #
 CONFIG_HAVE_DOT_CONFIG=y
 
@@ -32,7 +32,7 @@ CONFIG_FEATURE_BUFFERS_USE_MALLOC=y
 # CONFIG_FEATURE_SUID_CONFIG_QUIET is not set
 # CONFIG_SELINUX is not set
 CONFIG_FEATURE_PREFER_APPLETS=y
-CONFIG_BUSYBOX_EXEC_PATH=""
+CONFIG_BUSYBOX_EXEC_PATH="/proc/self/exe"
 CONFIG_FEATURE_SYSLOG=y
 # CONFIG_FEATURE_HAVE_RPC is not set
 

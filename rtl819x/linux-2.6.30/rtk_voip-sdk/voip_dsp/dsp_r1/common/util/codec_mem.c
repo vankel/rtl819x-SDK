@@ -1,5 +1,5 @@
 #include <linux/interrupt.h>
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/types.h>
 #include "typedef.h"
 #include "rtk_voip.h"
@@ -8,6 +8,7 @@
 
 #include "../../../include/lec.h"
 #include "codec_descriptor.h"
+#include "utility.h"
 
 #ifdef CONFIG_RTK_VOIP_MODULE
 	#define DMEN_G726 0		/* DMEN for G.726, 1: enable  0: disable */
@@ -73,6 +74,15 @@ unsigned long sys_dmem_sp;
 
 int16_t* g711wb_TmpVct = (int16_t*) (&codec_dmem_area[G711WB_DMEM_SSIZE]);
 
+/* declare G.722 codec stacks */
+unsigned long g722_orig_sp;
+unsigned long g722_dmem_sp;
+ALIGN(8) int16_t* g722_TmpVct = (int16_t*) (&codec_dmem_area[G722_DMEM_SSIZE]);
+
+unsigned long amrwb_orig_sp;
+unsigned long amrwb_dmem_sp;
+int16_t* amrwb_TmpVct = (int16_t*) (&codec_dmem_area[AMR_WB_DMEM_SSIZE]);
+
 //unsigned long codec_dummy_topstack[CODEC_DUMMY_SSIZE] MEM_SECTION(".codec_dummy_topstack") ALIGN(8);
 unsigned long codec_dmem_area[DMEM_SIZE/4] MEM_SECTION(".codec_dmem_area") ALIGN(8);
 			//DMEM_SIZE is in byte, convert to long.
@@ -90,8 +100,10 @@ extern short g726_rate[];
 unsigned long* __imem_type;
 int imem_size = 0x1000;
 int dmem_size = 0x1000;
+unsigned long codec_dmem_start_sel = ( unsigned long )&__codec_dmem_4k_start;
 /* record the imem map codec. */
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672)  && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672)  && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 #ifndef CODEC_IMEM_SWAP_NEW
 static unsigned int imem_data =0;
 #endif
@@ -205,7 +217,8 @@ int set_system_imem(void)
 		while(*(volatile unsigned long *) IM_CTL & IM_CTL_START);
 		restore_flags(flags);
     #else
-	#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+	#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+		!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 		save_flags(flags);
 		cli();
 		set_and_fill_IMEM((unsigned long)__imem_type,(unsigned long)__imem_type+(imem_size-1));
@@ -265,6 +278,7 @@ void G722_set_codec_mem(int state, int g726_rate)
     #error "Out of consider !!??"
    #endif
   #else
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
 	set_common_imem();
   #endif
 }
@@ -273,7 +287,10 @@ void G722_set_codec_mem(int state, int g726_rate)
 #ifdef CONFIG_RTK_VOIP_G7111
 void G7111_set_codec_mem(int state, int g726_rate)
 {
-	set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	
+	
+	//set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
 	set_common_imem();
 }
 #endif /* CONFIG_RTK_VOIP_G7111 */
@@ -286,7 +303,8 @@ void G723_set_codec_mem(int state, int g726_rate)
 	//set_DMEM(&g7231_dmem_stack[1024], dmem_size-1);
 	//set_DMEM(&__g7231_dmem_start, dmem_size-1);
 	//set_DMEM((unsigned long)&__codec_dmem_start, (unsigned long)dmem_size-1);
-	set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	//set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
 	
 	if(state & DECODE)
 	{
@@ -306,7 +324,8 @@ void G729_set_codec_mem(int state, int g726_rate)
 
 	//set_DMEM(&__g729_dmem_start, dmem_size-1);
 	//set_DMEM((unsigned long)&__codec_dmem_start, (unsigned long)dmem_size-1);
-	set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	//set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
 
 	if(state & DECODE)
 	{
@@ -327,7 +346,8 @@ void G726_set_codec_mem(int state, int g726_rate)
    #if DMEN_G726
 	//set_DMEM(&__g726_dmem_start, dmem_size-1);
 	//set_DMEM((unsigned long)&__codec_dmem_start, (unsigned long)dmem_size-1);
-	set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	//set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
 
 	if(state & DECODE)
 	{
@@ -369,7 +389,8 @@ void GSMfr_set_codec_mem(int state, int g726_rate)
 
 	//set_DMEM(&__gsmfr_dmem_start, dmem_size-1);
 	//set_DMEM((unsigned long)&__codec_dmem_start, (unsigned long)dmem_size-1);
-	set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	//set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
 	set_common_imem();
 }
 #endif /* CONFIG_RTK_VOIP_GSMFR */
@@ -380,8 +401,10 @@ void iLBC_set_codec_mem(int state, int g726_rate)
 	/* case CODEC_TYPE_ILBC: */
 
 	//set_DMEM((unsigned long)&__codec_dmem_start, (unsigned long)dmem_size-1);
-	set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+	//set_DMEM((unsigned long)&__codec_dmem_4k_start, (unsigned long)dmem_size-1);
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 	if(state & DECODE)
 	{
     #if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY)
@@ -459,6 +482,14 @@ void AMR_NB_set_codec_mem(int state, int g726_rate)
 }
 #endif /* CONFIG_RTK_VOIP_AMR_NB */
 
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+void AMR_WB_set_codec_mem(int state, int g726_rate)
+{
+	set_DMEM(codec_dmem_start_sel, (unsigned long)dmem_size-1);
+	set_common_imem();
+}
+#endif /* CONFIG_RTK_VOIP_AMR_WB */
+
 #ifdef CONFIG_RTK_VOIP_T38
 void T38_set_codec_mem(int state, int g726_rate)
 {
@@ -499,7 +530,8 @@ int set_codec_mem(int type, int state, int g726_rate)
 #ifdef CONFIG_RTK_VOIP_G7231
 int set_g7231enc_imem()
 {
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672)  && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) 
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672)  && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) &&	\
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 #ifndef CODEC_IMEM_SWAP_NEW
 	long size_g7231enc = 0;
 	long size_g7231 = 0;
@@ -512,7 +544,7 @@ int set_g7231enc_imem()
 #if 0
 	memcpy((void*)&__imem_start, (void*)&__load_start_IMEM_G7231ENC, size_g7231enc);
 #else
-	memcpy64s((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G7231ENC, size_g7231enc>>1);
+	memcpy64((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G7231ENC, size_g7231enc>>1);
 #endif
 
 	if(imem_data != G7231_INSIDE)
@@ -524,7 +556,7 @@ int set_g7231enc_imem()
 #if 0
 		memcpy((void*)&__IMEM_G7231_START, (void*)&__load_start_IMEM_G7231, size_g7231);
 #else
-		memcpy64s((Word32*)&__IMEM_G7231_START, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
+		memcpy64((Word32*)&__IMEM_G7231_START, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
 #endif
 		imem_data = G7231_INSIDE;
 	}
@@ -577,7 +609,8 @@ int set_g7231enc_imem()
 int set_g7231dec_imem()
 {
 
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 #ifndef CODEC_IMEM_SWAP_NEW
 	long size_g7231dec = 0;
 	long size_g7231 = 0;
@@ -589,7 +622,7 @@ int set_g7231dec_imem()
 #if 0
 	memcpy((void*)&__imem_start, (void*)&__load_start_IMEM_G7231DEC, size_g7231dec);
 #else
-	memcpy64s((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G7231DEC, size_g7231dec>>1);
+	memcpy64((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G7231DEC, size_g7231dec>>1);
 #endif
 
 	if(imem_data != G7231_INSIDE)
@@ -601,7 +634,7 @@ int set_g7231dec_imem()
 #if 0
 		memcpy((void*)&__IMEM_G7231_START, (void*)&__load_start_IMEM_G7231, size_g7231);
 #else
-		memcpy64s((Word32*)&__IMEM_G7231_START, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
+		memcpy64((Word32*)&__IMEM_G7231_START, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
 #endif
 		imem_data = G7231_INSIDE;
 	}
@@ -653,7 +686,8 @@ int set_g7231dec_imem()
 int set_g729enc_imem()
 {
 
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 #ifndef CODEC_IMEM_SWAP_NEW
 	long size_g729enc = 0;
 	long size_g729 = 0;
@@ -665,7 +699,7 @@ int set_g729enc_imem()
 #if 0
 	memcpy((void*)&__imem_start, (void*)&__load_start_IMEM_G729ENC, size_g729enc);
 #else
-	memcpy64s((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G729ENC, size_g729enc>>1);
+	memcpy64((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G729ENC, size_g729enc>>1);
 #endif
 
 	if(imem_data != G729_INSIDE)
@@ -680,7 +714,7 @@ int set_g729enc_imem()
 #if 0
 		memcpy((void*)&__IMEM_G729_START, (void*)&__load_start_IMEM_G729, size_g729);
 #else
-		memcpy64s((Word32*)&__IMEM_G729_START, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
+		memcpy64((Word32*)&__IMEM_G729_START, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
 #endif
 		imem_data = G729_INSIDE;
 	}
@@ -734,7 +768,8 @@ int set_g729enc_imem()
 int set_g729dec_imem()
 {
 
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 #ifndef CODEC_IMEM_SWAP_NEW
 	long size_g729dec = 0;
 	long size_g729 = 0;
@@ -746,7 +781,7 @@ int set_g729dec_imem()
 #if 0
 	memcpy((void*)&__imem_start, (void*)&__load_start_IMEM_G729DEC, size_g729dec);
 #else
-	memcpy64s((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G729DEC, size_g729dec>>1);
+	memcpy64((Word32*)&__imem_start, (Word32*)&__load_start_IMEM_G729DEC, size_g729dec>>1);
 #endif
 
 	if(imem_data != G729_INSIDE)
@@ -761,7 +796,7 @@ int set_g729dec_imem()
 #if 0
 		memcpy((void*)&__IMEM_G729_START, (void*)&__load_start_IMEM_G729, size_g729);
 #else
-		memcpy64s((Word32*)&__IMEM_G729_START, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
+		memcpy64((Word32*)&__IMEM_G729_START, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
 #endif
 		imem_data = G729_INSIDE;
 	}
@@ -813,7 +848,8 @@ int set_g729dec_imem()
 
 static int set_common_imem()
 {
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
         set_and_fill_IMEM(&__imem_start,(unsigned long)&__imem_start+(imem_size-1));
         imem_data_internal = COMMON_INSIDE;
 #elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651)
@@ -862,7 +898,8 @@ static int set_common_imem()
 
 int init_codec_imem(void)
 {
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8651) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 	long size_g729 = 0;
 	long size_g7231 = 0;
 	long size_common = 0;
@@ -905,11 +942,11 @@ int init_codec_imem(void)
 	G729dec_common_load_start = (unsigned long)&__imem_common_start + 0x8000;
 
 
-	//memcpy64s((Word32*)G729enc_729common_load_start, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
-	memcpy64s((Word32*)G729dec_729common_load_start, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
+	//memcpy64((Word32*)G729enc_729common_load_start, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
+	memcpy64((Word32*)G729dec_729common_load_start, (Word32*)&__load_start_IMEM_G729, size_g729>>1);
 
-	memcpy64s((Word32*)G729enc_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
-	memcpy64s((Word32*)G729dec_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
+	memcpy64((Word32*)G729enc_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
+	memcpy64((Word32*)G729dec_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
 
 	size_g7231 = ((unsigned long)&__load_stop_IMEM_G7231)-((unsigned long)&__load_start_IMEM_G7231)+8;
 	if(size_g7231<0)
@@ -923,11 +960,11 @@ int init_codec_imem(void)
 	G7231dec_common_load_start = (unsigned long)&__imem_common_start + 0x10000 ;
 
 
-	//memcpy64s((Word32*)G7231enc_7231common_load_start, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
-	memcpy64s((Word32*)G7231dec_7231common_load_start, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
+	//memcpy64((Word32*)G7231enc_7231common_load_start, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
+	memcpy64((Word32*)G7231dec_7231common_load_start, (Word32*)&__load_start_IMEM_G7231, size_g7231>>1);
 
-	memcpy64s((Word32*)G7231enc_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
-	memcpy64s((Word32*)G7231dec_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
+	memcpy64((Word32*)G7231enc_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
+	memcpy64((Word32*)G7231dec_common_load_start, (Word32*)&__imem_common_start, size_common>>1);
 #endif
 
 #if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY)
@@ -942,5 +979,29 @@ int init_codec_imem(void)
 	printk("IMEM_init_OK\n");
 	return 0;
 
+}
+
+void set_DMEM(unsigned long start, unsigned long size)
+{
+	extern void set_DMEMs(unsigned long start, unsigned long size);
+	
+	if ((long)size > 0)
+		set_DMEMs(start, size);
+}
+
+void set_IMEM(unsigned long start, unsigned long end)
+{
+	extern void set_IMEMs(unsigned long start, unsigned long end);
+	
+	if ( (end - start) > 0 )
+		set_IMEMs(start, end);
+}
+
+void set_and_fill_IMEM(unsigned long start, unsigned long end)
+{
+	extern void set_and_fill_IMEMs(unsigned long start, unsigned long end);
+	
+	if ( (end - start) > 0 )
+		set_and_fill_IMEMs(start, end);
 }
 

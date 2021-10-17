@@ -213,6 +213,11 @@ int32_t dwc_otg_hcd_handle_sof_intr (dwc_otg_hcd_t *_hcd)
 	if (tr_type != DWC_OTG_TRANSACTION_NONE) {
 		dwc_otg_hcd_queue_transactions(_hcd, tr_type);
 	}
+	else
+	{
+		udelay(1);
+		//panic_printk("Scheduler returned no transactions but needed sched!");
+	}
 
 	/* Clear interrupt */
 	gintsts.b.sofintr = 1;
@@ -559,14 +564,17 @@ static uint32_t get_actual_xfer_length(dwc_hc_t *_hc,
  * @return 1 if the data transfer specified by the URB is completely finished,
  * 0 otherwise.
  */
-static int update_urb_state_xfer_comp(dwc_hc_t *_hc,
-				      dwc_otg_hc_regs_t *_hc_regs,
-				      struct urb *_urb,
-				      dwc_otg_qtd_t *_qtd)
+static int update_urb_state_xfer_comp(dwc_hc_t *hc,
+				      dwc_otg_hc_regs_t *hc_regs,
+				      struct urb *urb,
+				      dwc_otg_qtd_t *qtd)
 {
 	int 		xfer_done = 0;
 	int 		short_read = 0;
-
+	int		overflow_read=0;
+	uint32_t	len = 0;
+	int		max_packet;
+#if 0
 	_urb->actual_length += get_actual_xfer_length(_hc, _hc_regs, _qtd,
 						      DWC_OTG_HC_XFER_COMPLETE,
 						      &short_read);
@@ -585,8 +593,40 @@ static int update_urb_state_xfer_comp(dwc_hc_t *_hc,
 			_urb->status = 0;
 		}
 	}
+#else
+	len = get_actual_xfer_length(hc, hc_regs, qtd,
+				     DWC_OTG_HC_XFER_COMPLETE,
+				     &short_read);
 
-#ifdef DEBUG  //wei add
+	/* Data overflow case: by Steven */
+	if (len > urb->transfer_buffer_length) {
+	    len = urb->transfer_buffer_length;
+	    overflow_read = 1;
+	}
+
+	/* non DWORD-aligned buffer case handling. */
+	if (((uint32_t)hc->xfer_buff & 0x3) && len && hc->qh->dw_align_buf && hc->ep_is_in) {
+		memcpy(urb->transfer_buffer + urb->actual_length, hc->qh->dw_align_buf, len);
+	}
+	urb->actual_length +=len;
+
+	max_packet = usb_maxpacket(urb->dev, urb->pipe, !usb_pipein(urb->pipe));
+	if((len) && usb_pipebulk(urb->pipe) &&
+	   (urb->transfer_flags & URB_ZERO_PACKET) &&
+	   (urb->actual_length == urb->transfer_buffer_length) &&
+	   (!(urb->transfer_buffer_length % max_packet))) {
+	} else if (short_read || urb->actual_length == urb->transfer_buffer_length) {
+		xfer_done = 1;
+		if (short_read && (urb->transfer_flags & URB_SHORT_NOT_OK)) {
+			urb->status = -EREMOTEIO;
+		} else if (overflow_read) {
+			urb->status = -EOVERFLOW;
+		} else {
+			urb->status = 0;
+		}
+	}
+#endif
+#if 0//def DEBUG  //wei add
 //	int lvl = SET_DEBUG_LEVEL(DBG_HCDV);
 	{
 		hctsiz_data_t 	hctsiz;
@@ -701,7 +741,13 @@ update_isoc_urb_state(dwc_otg_hcd_t *_hcd,
 			get_actual_xfer_length(_hc, _hc_regs, _qtd,
 					       _halt_status, NULL);
 		
-		urb->actual_length+=frame_desc->actual_length ;  //avoid interrupt endpoint issue for web cam
+		/* non DWORD-aligned buffer case handling. */
+		if (frame_desc->actual_length && ((uint32_t)_hc->xfer_buff & 0x3) && 
+				_hc->qh->dw_align_buf && _hc->ep_is_in) {
+			memcpy(urb->transfer_buffer + frame_desc->offset + _qtd->isoc_split_offset, 
+				_hc->qh->dw_align_buf, frame_desc->actual_length);
+	
+		}
 		
 		break;
 	case DWC_OTG_HC_XFER_FRAME_OVERRUN:
@@ -724,6 +770,14 @@ update_isoc_urb_state(dwc_otg_hcd_t *_hcd,
 		frame_desc->actual_length =
 			get_actual_xfer_length(_hc, _hc_regs, _qtd,
 					       _halt_status, NULL);
+	/* non DWORD-aligned buffer case handling. */
+		if (frame_desc->actual_length && ((uint32_t)_hc->xfer_buff & 0x3) && 
+				_hc->qh->dw_align_buf && _hc->ep_is_in) {
+			memcpy(urb->transfer_buffer + frame_desc->offset + _qtd->isoc_split_offset, 
+				_hc->qh->dw_align_buf, frame_desc->actual_length);
+	
+		}
+		break;
 	default:
 		DWC_ERROR("%s: Unhandled _halt_status (%d)\n", __func__,
 			  _halt_status);

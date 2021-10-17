@@ -134,7 +134,7 @@ void eth_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 }
 //---------------------------------------------------------------------------------------
 
-#if !(defined( CONFIG_NFBI) || defined(CONFIG_NONE_FLASH))
+#if !(defined( CONFIG_NFBI) || defined(CONFIG_NONE_FLASH)|| defined(CONFIG_NAND_FLASH))
 void gethwmac(unsigned char *mac)
 {
 	unsigned char tmpbuf[6];
@@ -281,7 +281,7 @@ void eth_startup(int etherport)
 
 
 
-#if !(defined( CONFIG_NFBI) || defined(CONFIG_NONE_FLASH))
+#if !(defined( CONFIG_NFBI) || defined(CONFIG_NONE_FLASH)|| defined(CONFIG_NAND_FLASH))
 	/*try to figure out http mac and ip*/
 	getmacandip(eth0_mac_httpd,eth0_ip_httpd);
 #endif

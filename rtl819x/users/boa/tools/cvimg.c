@@ -15,8 +15,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#undef HOME_GATEWAY
-#define HOME_GATEWAY
+//#undef HOME_GATEWAY
+//#define HOME_GATEWAY
 
 #include "apmib.h"
 
@@ -166,11 +166,11 @@ int main(int argc, char** argv)
 		printf("Image flash start  addr          :0x%x\n", (unsigned int)CODE_IMAGE_OFFSET);
 		printf("Image flash end addr             :0x%x\n", (unsigned int)CODE_IMAGE_OFFSET+(unsigned int)status.st_size);
 
-#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
-		total_size = ROOT_IMAGE_OFFSET - CODE_IMAGE_OFFSET - CERT_SIZE;	// To reserve CERT_SIZE for 802.1x wlan client mode to store 802.1x certs
-#else
+//#ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
+//		total_size = ROOT_IMAGE_OFFSET - CODE_IMAGE_OFFSET - CERT_SIZE;	// To reserve CERT_SIZE for 802.1x wlan client mode to store 802.1x certs
+//#else
 		total_size = ROOT_IMAGE_OFFSET - CODE_IMAGE_OFFSET;
-#endif
+//#endif
 
 		if (status.st_size > (int)total_size)
 		{
@@ -231,8 +231,13 @@ int main(int argc, char** argv)
 	}
 	else if (!is_vmlinux) {
 		size = status.st_size + sizeof(IMG_HEADER_T) + sizeof(checksum);
+		#ifdef CONFIG_MTD_NAND
+		if (size%4)
+			size=size+(size%4); // pad
+		#else
 		if (size%2)
 			size++; // pad
+		#endif
 	}
 	else {
 		size = status.st_size + sizeof(padding_len) + sizeof(lchecksum);

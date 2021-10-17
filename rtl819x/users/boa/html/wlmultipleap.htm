@@ -18,6 +18,8 @@
 }
 </style>
 <script language="JavaScript" type="text/javascript">
+var MRepeaterMode = <% getIndex("repeaterEnabled"); %>;
+var MultiRepeater_deinfe = <% getIndex("multiRepeaterEnabled"); %>;
 var wlan_idx= <% getIndex("wlan_idx"); %> ;
 var WiFiTest=<% getIndex("WiFiTest"); %> ;
 var val;
@@ -110,11 +112,17 @@ var mssid_num=<%getIndex("wlan_mssid_num");%>;
 var rate_mask = [15,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8];
 var rate_name =["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", "MCS0", "MCS1"
 				, "MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", "MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15"];
+var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
+		"NSS1-MCS5","NSS1-MCS6","NSS1-MCS7","NSS1-MCS8","NSS1-MCS9",
+		"NSS2-MCS0","NSS2-MCS1","NSS2-MCS2","NSS2-MCS3","NSS2-MCS4",
+		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9"];
 
-function DisplayTxRate(v_index, band, auto, txrate, rf_num)
+function DisplayTxRate(v_index, band, auto, txrate, rf_num,bound)
 {
 	var mask, defidx, i, rate;
-	
+	var vht_num;
+	band = document.MultipleAP.elements["wl_band"+v_index].value;
+	band ++;
 	mask=0;
 	if (auto)
 		txrate=0;
@@ -139,6 +147,29 @@ function DisplayTxRate(v_index, band, auto, txrate, rf_num)
 				defidx = idx;
 			document.write('<option value="' + i + '">' + rate_name[i] + '\n');
 			idx++;
+		}
+	}
+	if(band & 64){
+		if(rf_num==1)
+			vht_num=9;
+		else
+			vht_num=19; 
+		for (idx=30, i=0; i<=vht_num; i++) {
+		
+				rate = ((1 << 31) + i);
+				
+				if (txrate == rate)
+				{		
+					if(vht_num == 19)
+					defidx = idx-5;
+					else
+						defidx = idx-5-8;
+				}
+				if(bound!=0 || (i!=9 && i!=19))//no MCS9 when 20M
+					document.write('<option value="' + (i+30) + '">' + vht_rate_name[i] + '\n');
+				if(bound==0 && i==9  )
+					idx--;
+				idx++;
 		}
 	}
 	document.MultipleAP.elements["TxRate"+v_index].selectedIndex=defidx;
@@ -178,13 +209,13 @@ function saveChanges(form, wlan_id)
 				tx_restrict.focus();
 				return false;
 			}
-			else if(tx_restrict.value >= 0 && tx_restrict.value <= 100)
+			else if(tx_restrict.value >= 0 && tx_restrict.value <= 1000)
 			{
 				
 			}
 			else
 			{
-				alert('tx_restrict value between 0 to 100!');
+				alert('tx_restrict value between 0 to 1000!');
 				tx_restrict.focus();
 				return false;
 			}
@@ -196,12 +227,12 @@ function saveChanges(form, wlan_id)
 				rx_restrict.focus();
 				return false;
 			}
-			else if(rx_restrict.value >= 0 && rx_restrict.value <= 100)
+			else if(rx_restrict.value >= 0 && rx_restrict.value <= 1000)
 			{
 			}
 			else
 			{
-				alert('rx_restrict value between 0 to 100!');
+				alert('rx_restrict value between 0 to 1000!');
 				rx_restrict.focus();
 				return false;
 			}	 
@@ -216,6 +247,7 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
   	var txrate_str;
 	var band, current_value, txrate_idx;
 	var rf_num= <% getIndex("rf_used"); %> ;
+	var bound = <% getIndex("ChannelBonding"); %>;
 
 	txrate_idx = form.elements["TxRate"+wlan_id].selectedIndex;
 	current_value = form.elements["TxRate"+wlan_id].options[txrate_idx].value;
@@ -230,7 +262,7 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
  		form.elements["TxRate"+wlan_id].options[idx++] = new Option("5.5M", "3", false, false);
  		form.elements["TxRate"+wlan_id].options[idx++] = new Option("11M", "4", false, false);
 	}
- 	if(band ==9 || band ==10 || band ==1 || band ==2){
+ 	if(band ==9 || band ==10 || band ==1 || band ==2 || band==3 || band==11 || band==75){
  		form.elements["TxRate"+wlan_id].options[idx++] = new Option("6M", "5", false, false);
 	 	form.elements["TxRate"+wlan_id].options[idx++] = new Option("9M", "6", false, false);
  		form.elements["TxRate"+wlan_id].options[idx++] = new Option("12M", "7", false, false);
@@ -240,27 +272,56 @@ function showtxrate_updated_virtual(form, wlan_id, original_wmm_enable)
  		form.elements["TxRate"+wlan_id].options[idx++] = new Option("48M", "11", false, false);
  		form.elements["TxRate"+wlan_id].options[idx++] = new Option("54M", "12", false, false);
 	}
- 	if(band ==7 || band ==9 || band ==10){
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS0", "13", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS1", "14", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS2", "15", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS3", "16", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS4", "17", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS5", "18", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS6", "19", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS7", "20", false, false);
- 		if(rf_num == 2)
- 		{
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS8", "21", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS9", "22", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS10", "23", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS11", "24", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS12", "25", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS13", "26", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS14", "27", false, false);
- 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS15", "28", false, false);
-	 	}
+ 	if(band ==7 || band ==9 || band ==10 || band==11 || band==63|| band==71|| band==75){
+			if(band ==7 || band ==9 || band ==10 || band==11 || band==71|| band==75){
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS0", "13", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS1", "14", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS2", "15", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS3", "16", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS4", "17", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS5", "18", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS6", "19", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS7", "20", false, false);
+		 		if(rf_num == 2)
+		 		{
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS8", "21", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS9", "22", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS10", "23", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS11", "24", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS12", "25", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS13", "26", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS14", "27", false, false);
+		 		form.elements["TxRate"+wlan_id].options[idx++] = new Option("MCS15", "28", false, false);
+		 	    }
+			}
+			if(band == 63 || band == 71 || band == 75){
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS0", "30", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS1", "31", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS2", "32", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS3", "33", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS4", "34", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS5", "35", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS6", "36", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS7", "37", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS8", "38", false, false);
+				 if(bound)//not 20M
+				 	form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS1-MCS9", "39", false, false);
+				 if(rf_num == 2){ //8812_1t1r
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS0", "40", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS1", "41", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS2", "42", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS3", "43", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS4", "44", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS5", "45", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS6", "46", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS7", "47", false, false);
+				 form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS8", "48", false, false);
+				 if(bound)//not 20M
+				 	form.elements["TxRate"+wlan_id].options[idx++] = new Option("NSS2-MCS9", "49", false, false);
+				 }
+			}
 
+	
 		form.elements["wl_wmm_capable"+wlan_id].selectedIndex = 1;
 		disableTextField(form.elements["wl_wmm_capable"+wlan_id]);
 	}
@@ -312,29 +373,50 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
 
   if(band_root ==0){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
-  }else if(band_root ==1){
-	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);
-  }else if(band_root ==2){
+  }else if(band_root ==1 || band_root ==2){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
-  }else if(band_root ==9){
-	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
-	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
-  }else if(band_root ==10){
+  }else if(band_root ==9 || band_root ==10){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
+	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G+N)", "10", false, false);
   }else if(band_root ==3){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
   }else if(band_root ==7){
-	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
-  }else if(band_root ==11){
+  	var Band2G5GSupport=<% getIndex("Band2G5GSupport"); %>;
+  	if(Band2G5GSupport==1)//2g
+  	{
+  		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B)", "0", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G)", "1", false, false);	
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (N)", "7", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("2.4 GHz (B+G+N)", "10", false, false);
+  	}
+  	else if(Band2G5GSupport==2)//5g
+  	{
+  		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
+		form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
+  	}
+  }
+  else if(band_root ==11 ){
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
+  }
+  else if(band_root ==75 || band_root ==63 || band_root ==71 || band_root ==67){
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+	//form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+AC)", "67", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (N+AC)", "71", false, false);
+	form.elements["wl_band"+index_id].options[idx++] = new Option("5 GHz (A+N+AC)", "75", false, false);
   }
 	
   for(i=0 ; i<idx ; i++)
@@ -344,7 +426,11 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
 			form.elements["wl_band"+index_id].selectedIndex = i;
 			break;
 		}				
-	}	
+	}
+  	if(i==idx)
+  	{
+  		form.elements["wl_band"+index_id].selectedIndex = idx-1;
+  	}
 }
 
 function enableVirtualWLAN(form, virtual_id)
@@ -363,6 +449,16 @@ function enableVirtualWLAN(form, virtual_id)
 		enableTextField(form.elements["wl_wmm_capable"+virtual_id]);
 	enableTextField(form.elements["wl_access"+virtual_id]);		
 	enableTextField(form.elements["aclient"+virtual_id]);
+
+	var i;
+    i = form.elements["wl_band"+virtual_id].selectedIndex;
+	band = form.elements["wl_band"+virtual_id].options[i].value;
+	if(band ==7 || band ==9 || band ==10 || band==11 || band==63|| band==71|| band==75)
+	{
+		form.elements["wl_wmm_capable"+virtual_id].selectedIndex = 1;
+		disableTextField(form.elements["wl_wmm_capable"+virtual_id]);
+	}
+
 	enableTextField(form.elements["tx_restrict"+virtual_id]);
 	enableTextField(form.elements["rx_restrict"+virtual_id]);
 }
@@ -386,6 +482,48 @@ function UpdateVirtualStatus(form, virtual_id)
 		disableVirtualWLAN(form, virtual_id);
 	else
 		enableVirtualWLAN(form, virtual_id);
+}
+
+function updateMultiRepeaterState(form, wlan_id)
+{   
+
+  if(form.elements["switch_multi_repeater"].checked)
+  { 
+
+	form.elements["wl_disable1"].checked=1;    
+	form.elements["wl_disable2"].checked=1;    
+	form.elements["wl_disable3"].checked=1;      
+	form.elements["wl_disable4"].checked=0;      	
+	//disableVirtualWLAN(form, 4);		
+	//UpdateVirtualStatus(form, 1);
+	//UpdateVirtualStatus(form, 2);	
+	//UpdateVirtualStatus(form, 3);
+	//UpdateVirtualStatus(form, 4);	
+	
+	enableTextField(form.elements["wl_ssid1"]);
+	enableTextField(form.elements["wl_ssid2"]);
+	enableTextField(form.elements["wl_ssid3"]);
+	
+	form.elements["vap1_wlan_mode"].value="AP";      	// vap1 mode str as AP
+	form.elements["vap2_wlan_mode"].value="STA";      	// vap2 mode str as STA
+	form.elements["vap3_wlan_mode"].value="STA";      	// vap3 mode str as STA     	
+	
+  }else{
+	form.elements["wl_disable1"].checked=0;    
+	form.elements["wl_disable2"].checked=0;    
+	form.elements["wl_disable3"].checked=0;      
+	form.elements["wl_disable4"].checked=0;      	
+	
+	UpdateVirtualStatus(form, 1);
+	UpdateVirtualStatus(form, 2);	
+	UpdateVirtualStatus(form, 3);	
+	UpdateVirtualStatus(form, 4);	
+	
+	form.elements["vap1_wlan_mode"].value="AP";      	// vap1 mode str as AP
+	form.elements["vap2_wlan_mode"].value="AP";      	// vap2 mode str as STA
+	form.elements["vap3_wlan_mode"].value="AP";      	// vap3 mode str as STA     	  
+	form.elements["vap4_wlan_mode"].value="AP";      	// vap3 mode str as STA     	  
+  }
 }
 
 </script>
@@ -416,7 +554,8 @@ function UpdateVirtualStatus(form, virtual_id)
    <td align="center"><font size=2><b>Access</b></td>   
    <td align="center"><font size=2><b>Tx Restrict(Mbps)</b></td>
    <td align="center"><font size=2><b>Rx Restrict(Mbps)</b></td>
-   <td align="center"><font size=2><b>Max Clients</b></td>
+   <td align="center"><font size=2><b>Active Client List</b></td>
+   <td align="center"><font size=2><b>WLAN mode</b></td>   
 </tr>
 
 <tr>
@@ -448,9 +587,10 @@ function UpdateVirtualStatus(form, virtual_id)
 	    				band = <% getVirtualIndex("band", "1"); %>;
 	    				auto = <% getVirtualIndex("rateAdaptiveEnabled", "1"); %>;
  	    				txrate = <% getVirtualIndex("fixTxRate", "1"); %>;
- 	    				rf_num = <% getIndex("rf_used"); %>;		
+ 	    				rf_num = <% getIndex("rf_used"); %>;
+						bound = <% getIndex("ChannelBonding"); %>;
 
-				DisplayTxRate(1, band, auto, txrate, rf_num);
+				DisplayTxRate(1, band, auto, txrate, rf_num,bound);
 			</script>
 		</select>
 	</td>
@@ -499,10 +639,15 @@ function UpdateVirtualStatus(form, virtual_id)
 	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
 		<input type="text" name="rx_restrict1" size="4" maxlength="3" value="<% getVirtualInfo("rx_restrict", "1"); %>">
 	</td>
-	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+	  <td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
 		<input type="hidden" value="1" name="vap">	
 		<input type="button" value="Show" name="aclient1" onClick="open_client_table(1);">
       </td>
+	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+		<input type="text" name="vap1_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "1"); %>">
+	</td>
+
+
 </tr>
 <script>
   if (mssid_num == 1) {
@@ -540,9 +685,10 @@ function UpdateVirtualStatus(form, virtual_id)
 				band = <% getVirtualIndex("band", "2"); %>;
 				auto = <% getVirtualIndex("rateAdaptiveEnabled", "2"); %>;
 				txrate = <% getVirtualIndex("fixTxRate", "2"); %>;
-				rf_num = <% getIndex("rf_used"); %>;			
+				rf_num = <% getIndex("rf_used"); %>;
+				bound = <% getIndex("ChannelBonding"); %>;
 
-				DisplayTxRate(2, band, auto, txrate, rf_num);
+				DisplayTxRate(2, band, auto, txrate, rf_num,bound);
 			</script>
 		</select>
 	</td>
@@ -592,6 +738,11 @@ function UpdateVirtualStatus(form, virtual_id)
 	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
 		<input type="button" value="Show" name="aclient2" onClick="open_client_table(2);">
       </td>
+	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+		<input type="text" name="vap2_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "2"); %>">
+	</td>
+	
+
 </tr>
 <tr>
 	<td height="25" bgcolor="#FFFFFF" align="center" class="MainTd">AP3</td>
@@ -622,9 +773,10 @@ function UpdateVirtualStatus(form, virtual_id)
 				band = <% getVirtualIndex("band", "3"); %>;
 				auto = <% getVirtualIndex("rateAdaptiveEnabled", "3"); %>;
 				txrate = <% getVirtualIndex("fixTxRate", "3"); %>;
-				rf_num = <% getIndex("rf_used"); %>;	
+				rf_num = <% getIndex("rf_used"); %>;
+				bound = <% getIndex("ChannelBonding"); %>;
 
-				DisplayTxRate(3, band, auto, txrate, rf_num);
+				DisplayTxRate(3, band, auto, txrate, rf_num,bound);
 			</script>
 		</select>
 	</td>
@@ -674,6 +826,11 @@ function UpdateVirtualStatus(form, virtual_id)
 	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
 		<input type="button" value="Show" name="aclient3" onClick="open_client_table(3);">
       </td>
+	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+		<input type="text" name="vap3_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "3"); %>">
+	</td>
+	
+	
 </tr>
 
 <tr>
@@ -705,9 +862,10 @@ function UpdateVirtualStatus(form, virtual_id)
 				band = <% getVirtualIndex("band", "4"); %>;
 				auto = <% getVirtualIndex("rateAdaptiveEnabled", "4"); %>;
 				txrate = <% getVirtualIndex("fixTxRate", "4"); %>;
-				rf_num = <% getIndex("rf_used"); %>;	
+				rf_num = <% getIndex("rf_used"); %>;
+				bound = <% getIndex("ChannelBonding"); %>;
 
-				DisplayTxRate(4, band, auto, txrate, rf_num);
+				DisplayTxRate(4, band, auto, txrate, rf_num,bound);
 			</script>
 		</select>
 	</td>
@@ -757,6 +915,10 @@ function UpdateVirtualStatus(form, virtual_id)
 	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
 		<input type="button" value="Show" name="aclient4" onClick="open_client_table(4);">
       </td>
+	<td height="25" align="center" bgcolor="#FFFFFF" class="MainTd">
+		<input type="text" name="vap4_wlan_mode" size="4" maxlength="3" value="<% getVirtualInfo("wlanModeByStr", "4"); %>">
+	</td>
+	
 </tr>
 
 <script>
@@ -772,7 +934,22 @@ function UpdateVirtualStatus(form, virtual_id)
 
 </table>									
 <p></p>
-<input type="hidden" value="/wlmultipleap.htm" name="submit-url">
+  <input type="hidden" value="/wlmultipleap.htm" name="submit-url">
+		
+	<script type="text/javascript">
+		if(MultiRepeater_deinfe==1){
+			if (MRepeaterMode == "2") {
+				document.write('<input type="checkbox" name="switch_multi_repeater" value="ON" ONCLICK="updateMultiRepeaterState(document.MultipleAP, wlan_idx)" checked="checked">');
+			}
+			else {
+				document.write('<input type="checkbox" name="switch_multi_repeater" value="ON" ONCLICK="updateMultiRepeaterState(document.MultipleAP, wlan_idx)">');			
+			}		
+			document.write('Enable Multiple Universal Repeater Mode (Acting as AP and client simultaneouly); root as AP, vxd be disable, vap1 as AP, vap2 as STA , vap3 as STA  ;root and vap2 at repeater1,vap1 and vap3 at repeater2 <br>');									
+		}
+	</script>	  
+         
+
+	<br>	  
   <input type="submit" value="Apply Changes" name="save" onClick="return saveChanges(document.MultipleAP, wlan_idx)">&nbsp;&nbsp;
   <input type="button" value="Reset" name="reset1" onClick="click_reset();">&nbsp;&nbsp;  
   <!-- <input type="button" value=" Close " name="close" onClick="javascript: window.close();"> -->

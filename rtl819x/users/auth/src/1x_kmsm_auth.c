@@ -16,8 +16,12 @@
 #include "1x_supp_pae.h"
 extern Dot1x_Client		RTLClient;
 #endif
-
+static u_long global_pmksa_aging = 0;
 //#define FOURWAY_DEBUG
+
+#define FOURWAY_DEBUG
+
+
 
 #define SOLVE_DUP_4_2
 //-------------------------------------------------------------
@@ -44,7 +48,78 @@ int  lib1x_akmsm_UpdateGK_proc(Dot1x_Authenticator *auth);
 //-------------------------------------------------------------
 void lib1x_akmsm_execute( Global_Params * global);
 
+#ifdef HS2_SUPPORT
+static int isFileExist(char *file_name)
+{
+    struct stat status;
 
+    if ( stat(file_name, &status) < 0)
+        return 0;
+
+    return 1;
+}
+static int hs2_check_dgaf_disable(unsigned char *ifname)
+{
+	unsigned char pfile[100];
+
+	if (!strcmp(ifname, "wlan0"))	{
+		sprintf(pfile, "tmp/dgaf_%s", ifname);
+	}
+	else if (!strcmp(ifname, "wlan0-va0"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan0-va1"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan0-va2"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan0-va3"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan1"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan1-va0"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan1-va1"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan1-va2"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }
+	else if (!strcmp(ifname, "wlan1-va3"))   {
+        sprintf(pfile, "tmp/dgaf_%s", ifname);
+    }    
+	else	{
+		printf("!!!unknown interface:[%s], check!!\n", ifname);
+		return 0;
+	}
+
+    if(isFileExist(pfile))
+    {
+        FILE *fp=NULL;
+        unsigned char tmp_str[10];
+
+        memset(tmp_str,0x00,sizeof(tmp_str));
+
+        fp=fopen(pfile, "r");
+        if(fp!=NULL)
+        {
+            fgets((char *)tmp_str,sizeof(tmp_str),fp);
+            fclose(fp);
+
+            if(strlen((char *)tmp_str) != 0)
+			{
+				if (tmp_str[0] == '1')
+					return 1;
+			}
+		}
+	}
+	return 0;
+}
+#endif
 
 inline void PRINT_GLOBAL_EVENTID(Global_Params * global)
 {
@@ -152,7 +227,9 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 	OCTET_STRING	IV, RSC, KeyID, MIC, KeyData;
 	lib1x_eapol_key *eapol_key;
 	u_short tmpKeyData_Length;
-
+#ifdef RTL_WPA2
+    struct _WPA2_PMKSA_Node* pmksa_node_eap=NULL;
+#endif
 	global->EAPOLMsgSend.Octet = global->theAuthenticator->sendBuffer;
 	global->EapolKeyMsgSend.Octet = global->EAPOLMsgSend.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN ;
 	eapol_key = (lib1x_eapol_key  * )global->EapolKeyMsgSend.Octet;
@@ -202,10 +279,30 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 #endif
 
 			if ( global->RSNVariable.WPA2Enabled ) {
+#ifdef HS2_SUPPORT				
+				if(global->auth->RSNVariable.bOSEN && global->AuthKeyMethod == WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256) 
+					global->KeyDescriptorVer = 0; 
+				else 
+#endif
+#ifdef CONFIG_IEEE80211W			
+				if (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256 )
+					global->KeyDescriptorVer = key_desc_ver3; 
+				else 
+#endif				
 				if ( global->RSNVariable.UnicastCipher == DOT11_ENC_CCMP )
-					global->KeyDescriptorVer = key_desc_ver2;
-				Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
+					global->KeyDescriptorVer = key_desc_ver2; 
+#ifdef HS2_SUPPORT
+				if(global->auth->RSNVariable.bOSEN)
+					Message_setDescType(global->EapolKeyMsgSend, 2); // for OSEN	
+				else	
+#endif					
+				    Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
 			} else {
+#ifdef CONFIG_IEEE80211W			
+				if (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)
+					global->KeyDescriptorVer = key_desc_ver3; 
+				else 
+#endif				
 				if ( global->RSNVariable.UnicastCipher == DOT11_ENC_CCMP )
 					global->KeyDescriptorVer = key_desc_ver2;
 				Message_setDescType(global->EapolKeyMsgSend, desc_type_RSN);
@@ -225,7 +322,6 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 			Message_setReserved(global->EapolKeyMsgSend, 0);
 
 			Message_setKeyLength(global->EapolKeyMsgSend, (global->RSNVariable.UnicastCipher  == DOT11_ENC_TKIP) ? 32:16);
-
 #ifdef RTL_WPA2
 			// make 4-1's ReplyCounter increased
 			Message_setReplayCounter(global->EapolKeyMsgSend, global->akm_sm->CurrentReplayCounter.field.HighPart, global->akm_sm->CurrentReplayCounter.field.LowPart);
@@ -252,14 +348,29 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 			memset(KeyID.Octet, 0, KeyID.Length);
 			Message_setKeyID(global->EapolKeyMsgSend, KeyID);
 #ifdef RTL_WPA2
-			// otherwise PMK cache
-			if ( global->RSNVariable.WPA2Enabled && (global->AuthKeyMethod == DOT11_AuthKeyType_RSNPSK || global->RSNVariable.PMKCached) ) {
+			if(global->RSNVariable.PMKCached){
+				pmksa_node_eap = find_pmksa_by_supp(global->theAuthenticator->supp_addr);
+				if(pmksa_node_eap) {
+					global->RSNVariable.cached_pmk_node = pmksa_node_eap;
+                    
+					// otherwise PMK cache
+					lib1x_message(MESS_DBG_KEY_MANAGE, "4-1, PMKSA %s", (global->RSNVariable.PMKCached)? "Cached, Carry it":"Not Cached");
+				} else {
+					lib1x_message(MESS_DBG_KEY_MANAGE, "4-1, PMKSA NOT Cached");
+				}
+			}
+		
+			if ( global->RSNVariable.WPA2Enabled && (global->AuthKeyMethod == DOT11_AuthKeyType_RSNPSK || pmksa_node_eap) ) {
 				static char PMKID_KDE_TYPE[] = { 0xDD, 0x14, 0x00, 0x0F, 0xAC, 0x04 };
 				Message_setKeyDataLength(global->EapolKeyMsgSend, 22);
 				memcpy(global->EapolKeyMsgSend.Octet + KeyDataPos,
 					PMKID_KDE_TYPE, sizeof(PMKID_KDE_TYPE));
-				memcpy(global->EapolKeyMsgSend.Octet+KeyDataPos+sizeof(PMKID_KDE_TYPE),
-					global->akm_sm->PMKID, PMKID_LEN);
+				if(pmksa_node_eap && !global->RSNVariable.PMKCached)
+					memcpy(global->EapolKeyMsgSend.Octet+KeyDataPos+sizeof(PMKID_KDE_TYPE),
+						&pmksa_node_eap->pmksa.pmkid, PMKID_LEN);
+				else
+					memcpy(global->EapolKeyMsgSend.Octet+KeyDataPos+sizeof(PMKID_KDE_TYPE),
+						global->akm_sm->PMKID, PMKID_LEN);
 			} else
 #endif
 			Message_setKeyDataLength(global->EapolKeyMsgSend, 0);
@@ -274,7 +385,7 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 #endif
 			global->EapolKeyMsgSend.Length = EAPOLMSG_HDRLEN ;
 
-			global->EAPOLMsgSend.Length = ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + global->EapolKeyMsgSend.Length;
+			global->EAPOLMsgSend.Length = ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + global->EapolKeyMsgSend.Length;			
 			break;
 
 		case akmsm_PTKINITNEGOTIATING:
@@ -368,9 +479,16 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 					Message_setKeyDescVer(global->EapolKeyMsgSend, key_desc_ver2);
 					Message_setKeyDataLength(global->EapolKeyMsgSend,
 					    	sizeof(GTK_KDE_TYPE) + ((8 + ((global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16)) ));
-				}
-				memcpy(key_data_pos, gkm_sm->GTK[gkm_sm->GN], (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
+				} 
+#ifdef CONFIG_IEEE80211W				
+				else if(global->KeyDescriptorVer == key_desc_ver3)
+				{
 
+					Message_setKeyDescVer(global->EapolKeyMsgSend, key_desc_ver3);
+					Message_setKeyDataLength(global->EapolKeyMsgSend, sizeof(GTK_KDE_TYPE) + (8 + 16) );
+				}		
+#endif						
+				memcpy(key_data_pos, gkm_sm->GTK[gkm_sm->GN], (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
 
 				EncGTK(global, global->akm_sm->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
 					key_data,
@@ -388,7 +506,12 @@ int lib1x_akmsm_SendEAPOL_proc(Global_Params * global)
 				Message_setKeyDataLength(global->EapolKeyMsgSend,
 				    	(8 + ((global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16) ));
 			}
-
+#ifdef CONFIG_IEEE80211W			
+			else if(global->KeyDescriptorVer == key_desc_ver3)
+			{
+				Message_setKeyDataLength(global->EapolKeyMsgSend, (8 + 16));
+			}
+#endif
 			EncGTK(global, global->akm_sm->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
 				gkm_sm->GTK[gkm_sm->GN],
 				(global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16,
@@ -518,9 +641,23 @@ Return Value:
 #endif
 					global->akm_sm->SNonce = Message_KeyNonce(global->EapolKeyMsgRecvd);
 
+                    int ISSHA256 = 0;
+
+                    #ifdef CONFIG_IEEE80211W
+                    ISSHA256 = (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256
+                      #ifdef HS2_SUPPORT                        
+					  || global->auth->RSNVariable.bOSEN
+                      #endif					  
+					  );
+                    #endif
+
 					CalcPTK(global->EAPOLMsgRecvd.Octet, global->EAPOLMsgRecvd.Octet + 6,
 					global->akm_sm->ANonce.Octet, global->akm_sm->SNonce.Octet,
-					global->akm_sm->PMK, PMK_LEN, global->akm_sm->PTK, PTK_LEN_TKIP);
+					global->akm_sm->PMK, PMK_LEN, global->akm_sm->PTK, (ISSHA256?48:PTK_LEN_TKIP)
+                    #ifdef CONFIG_IEEE80211W
+					, ISSHA256
+                    #endif				
+                     );
 
 #ifdef DBG_WPA_CLIENT
 					{
@@ -553,12 +690,14 @@ Return Value:
 
 						if (global->RSNVariable.PMKCached ) {
 							printf("\n%s:%d del_pmksa due to 4-2 ERROR_MIC_FAIL\n", __FUNCTION__, __LINE__);
-							global->RSNVariable.PMKCached = FALSE;
 							del_pmksa_by_spa(global->theAuthenticator->supp_addr);
+							if(is_pmksa_empty())
+								global->RSNVariable.PMKCached = FALSE;
 						}
 #endif
 						retVal = ERROR_MIC_FAIL;
-					}else
+					}
+                    else
 					{
 						//lib1x_control_AssocInfo(global, 0, &global->akm_sm->SuppInfoElement);
 						//if(!Message_EqualRSNIE(	Message_KeyData(global->EapolKeyMsgRecvd, Message_ReturnKeyDataLength(global->EapolKeyMsgRecvd)),
@@ -578,7 +717,13 @@ Return Value:
 							memset(global->EapolKeyMsgSend.Octet, 0, MAX_EAPOLKEYMSG_LEN);
 #ifdef RTL_WPA2
 							if ( global->RSNVariable.WPA2Enabled ) {
-								Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
+								
+#ifdef HS2_SUPPORT
+								if(global->auth->RSNVariable.bOSEN)
+									Message_setDescType(global->EapolKeyMsgSend, 2); // for OSEN	
+								else	
+#endif					
+								    Message_setDescType(global->EapolKeyMsgSend, desc_type_WPA2);
 							} else
 								Message_setDescType(global->EapolKeyMsgSend, desc_type_RSN);
 #else
@@ -612,10 +757,16 @@ Return Value:
 								unsigned char * key_data_pos = key_data;
 								int i;
 								unsigned char GTK_KDE_TYPE[] = {0xDD, 0x16, 0x00, 0x0F, 0xAC, 0x01, 0x01, 0x00 };
-
+#ifdef CONFIG_IEEE80211W
+								unsigned char IGTK_KDE_TYPE[] = {0xDD, 0x1C, 0x00, 0x0F, 0xAC, 0x09};
+#endif
 								global->EapolKeyMsgSend.Octet[1] = 0x13;
 
-								if(global->KeyDescriptorVer == key_desc_ver2 ) {
+								if(global->KeyDescriptorVer == key_desc_ver2 
+#ifdef CONFIG_IEEE80211W								
+									|| global->KeyDescriptorVer == key_desc_ver3
+#endif									
+								) { 
 									INCOctet32_INTEGER(&global->auth->Counter);
 									SetEAPOL_KEYIV(IV, global->auth->Counter);
 									//memset(IV.Octet, 0x0, IV.Length);
@@ -623,7 +774,17 @@ Return Value:
 								}
 
 								// RSN IE
-								//printf("%s: global->auth->RSNVariable.AuthInfoElement.Octet[0] = %02X\n", __FUNCTION__, global->auth->RSNVariable.AuthInfoElement.Octet[0]);
+								//HS2DEBUG("RSN IE[0]=[%02X]\n", global->auth->RSNVariable.AuthInfoElement.Octet[0]);
+#ifdef HS2_SUPPORT
+								if (global->auth->RSNVariable.bOSEN && global->auth->RSNVariable.AuthInfoElement.Octet[0] == 0xdd) {						
+									
+									int len = (unsigned char)global->auth->RSNVariable.AuthInfoElement.Octet[1] + 2;
+									printf("4.3 EAPOL-KEY, copy OSEN IE to key data, len=%d\n",len);
+									memcpy(key_data_pos, global->auth->RSNVariable.AuthInfoElement.Octet, len);
+									key_data_pos += len;
+								}
+								else
+#endif
 								if (global->auth->RSNVariable.AuthInfoElement.Octet[0] == WPA2_ELEMENT_ID) {
 									int len = (unsigned char)global->auth->RSNVariable.AuthInfoElement.Octet[1] + 2;
 									memcpy(key_data_pos, global->auth->RSNVariable.AuthInfoElement.Octet, len);
@@ -648,11 +809,42 @@ Return Value:
 
 
 								// FIX GROUPKEY ALL ZERO
-								global->auth->gk_sm->GInitAKeys = TRUE;
+								global->auth->gk_sm->GInitAKeys = TRUE;								
 								lib1x_akmsm_UpdateGK_proc(global->auth);
 								memcpy(key_data_pos, gkm_sm->GTK[gkm_sm->GN], (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
-
 								key_data_pos += (global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16;
+
+								//=================================================
+								// IGTK KDE
+#ifdef CONFIG_IEEE80211W
+								if(global->mgmt_frame_prot) {
+									memcpy(key_data_pos, IGTK_KDE_TYPE, sizeof(IGTK_KDE_TYPE));
+									key_data_pos += sizeof(IGTK_KDE_TYPE);
+									// Key ID
+									*(key_data_pos) = (unsigned char)gkm_sm->GN_igtk;
+									*(key_data_pos+1) = 0;
+									key_data_pos += 2;
+									// IPN
+									lib1x_control_GetIGTK_PN(global->auth);
+									*(key_data_pos++) = gkm_sm->IGTK_PN._byte_.TSC0;
+									*(key_data_pos++) = gkm_sm->IGTK_PN._byte_.TSC1;
+									*(key_data_pos++) = gkm_sm->IGTK_PN._byte_.TSC2;
+									*(key_data_pos++) = gkm_sm->IGTK_PN._byte_.TSC3;
+									*(key_data_pos++) = gkm_sm->IGTK_PN._byte_.TSC4;
+									*(key_data_pos++) = gkm_sm->IGTK_PN._byte_.TSC5;									
+									memcpy(key_data_pos, gkm_sm->IGTK[gkm_sm->GN_igtk-4], 16);
+									#if 0
+									printf("%s(%d)\n", __FUNCTION__, __LINE__);
+									printf("IGTK=");
+									for(i=0;i<16;i++)
+										printf("%x",gkm_sm->IGTK[gkm_sm->GN_igtk-4][i]);
+									printf("\n");
+									#endif
+									
+									key_data_pos += 16;
+								}
+#endif
+								// Padding
 								i = (key_data_pos - key_data) % 8;
 								if ( i != 0 ) {
 									*key_data_pos = 0xdd;
@@ -772,10 +964,23 @@ Return Value:
 					INCLargeInteger(&global->akm_sm->CurrentReplayCounter);
 #endif
 					global->akm_sm->SNonce = Message_KeyNonce(global->EapolKeyMsgRecvd);
+                    int ISSHA256 = 0;
 
+                    #ifdef CONFIG_IEEE80211W
+                    ISSHA256 = (global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256
+                    #ifdef HS2_SUPPORT                        
+					  || global->auth->RSNVariable.bOSEN
+                    #endif					  
+					  );
+                    #endif                    
 					CalcPTK(global->EAPOLMsgRecvd.Octet, global->EAPOLMsgRecvd.Octet + 6,
 					global->akm_sm->ANonce.Octet, global->akm_sm->SNonce.Octet,
-					global->akm_sm->PMK, PMK_LEN, global->akm_sm->PTK, PTK_LEN_TKIP);
+					global->akm_sm->PMK, PMK_LEN, global->akm_sm->PTK, 
+					ISSHA256?48:PTK_LEN_TKIP
+                    #ifdef CONFIG_IEEE80211W
+					, ISSHA256 					
+                    #endif
+                    );
 
 #ifdef DBG_WPA_CLIENT
 					{
@@ -808,8 +1013,9 @@ Return Value:
 
 						if (global->RSNVariable.PMKCached ) {
 							printf("\n%s:%d del_pmksa due to 4-2 ERROR_MIC_FAIL\n", __FUNCTION__, __LINE__);
-							global->RSNVariable.PMKCached = FALSE;
 							del_pmksa_by_spa(global->theAuthenticator->supp_addr);
+							if(is_pmksa_empty())
+								global->RSNVariable.PMKCached = FALSE;
 						}
 #endif
 						retVal = ERROR_MIC_FAIL;
@@ -1010,8 +1216,9 @@ Return Value:
 
 					if (global->RSNVariable.PMKCached ) {
 						printf("\n%s:%d del_pmksa due to 4-4 RSN_MIC_failure\n", __FUNCTION__, __LINE__);
-						global->RSNVariable.PMKCached = FALSE;
 						del_pmksa_by_spa(global->theAuthenticator->supp_addr);
+						if(is_pmksa_empty())
+							global->RSNVariable.PMKCached = FALSE;
 					}
 #endif
 
@@ -1126,6 +1333,18 @@ int lib1x_akmsm_UpdateGK_proc(Dot1x_Authenticator *auth)
 
 	lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_UpdateGK_proc\n");
 
+#ifdef HS2_SUPPORT
+	printf("au:%d,gtk:%d,initak:%d,initdone:%d\n", gkm_sm->GTKAuthenticator, gkm_sm->GTKRekey, gkm_sm->GInitAKeys, gkm_sm->GInitDone);
+
+	printf("interface=%s\n\n", auth->GlobalTxRx->device_wlan0);
+	if (hs2_check_dgaf_disable(auth->GlobalTxRx->device_wlan0))
+    {
+        printf("==>lib1x_akmsm_UpdateGK_proc:dgaf disable=enable\n");
+        gkm_sm->GInitDone = FALSE;
+    }
+    else
+        gkm_sm->GInitDone = TRUE;
+#endif
 
 	//------------------------------------------------------------
         // Execute Global Group key state machine
@@ -1141,8 +1360,7 @@ int lib1x_akmsm_UpdateGK_proc(Dot1x_Authenticator *auth)
 		if(!gkm_sm->GInitDone)
 			lib1x_message(MESS_DBG_KEY_MANAGE, "!gkm_sm->GInitDone = TRUE\n");
 
-
-		gkm_sm->GTKRekey = FALSE;
+		
 		if(!gkm_sm->GInitDone)
 		{
 			lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_UpdateGK_proc, Group key is first generated\n");
@@ -1167,9 +1385,15 @@ int lib1x_akmsm_UpdateGK_proc(Dot1x_Authenticator *auth)
 		// kenny:??? GNonce should be a random number ???
 		SetNonce(gkm_sm->GNonce , auth->Counter);
 		CalcGTK(auth->CurrentAddress, gkm_sm->GNonce.Octet,
-				gkm_sm->GMK, GMK_LEN, gkm_sm->GTK[gkm_sm->GN], GTK_LEN);
+				gkm_sm->GMK, GMK_LEN, gkm_sm->GTK[gkm_sm->GN], GTK_LEN,(u_char*)GMK_EXPANSION_CONST);
+
+#ifdef HS2_SUPPORT
+		if(gkm_sm->GTKRekey)
+#endif			
 		gkm_sm->GUpdateStationKeys = TRUE;
 		gkm_sm->GkeyReady = FALSE;
+
+		gkm_sm->GTKRekey = FALSE;
 
 		//---- In the case of updating GK to all STAs, only the STA that has finished
 		//---- 4-way handshake is needed to be sent with 2-way handshake
@@ -1185,6 +1409,12 @@ int lib1x_akmsm_UpdateGK_proc(Dot1x_Authenticator *auth)
 		lib1x_message(MESS_DBG_KEY_MANAGE, "GKeyDoneStations : Number of stations left to have their Group key updated = %d\n", gkm_sm->GKeyDoneStations);
 	}
 
+#ifdef CONFIG_IEEE80211W
+	if(auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) {
+		CalcGTK(auth->CurrentAddress, gkm_sm->GNonce.Octet,
+				gkm_sm->GMK, GMK_LEN, gkm_sm->IGTK[gkm_sm->GN_igtk-4], IGTK_LEN,(u_char*)IGMK_EXPANSION_CONST);
+	}		
+#endif // CONFIG_IEEE80211W
 
 	//------------------------------------------------------------
 	// Execute Group key state machine of each STA
@@ -1319,8 +1549,9 @@ void lib1x_akmsm_Timer_proc(Dot1x_Authenticator * auth)
 #ifdef RTL_WPA2
 					if (global->RSNVariable.PMKCached && (akm_sm->state == akmsm_PTKSTART || akm_sm->state == akmsm_PTKINITNEGOTIATING) ) {
 						printf("\n%s:%d del_pmksa due to 4-1 or 4-3 timeout\n", __FUNCTION__, __LINE__);
-						global->RSNVariable.PMKCached = FALSE;
 						del_pmksa_by_spa(global->theAuthenticator->supp_addr);
+						if(is_pmksa_empty())
+							global->RSNVariable.PMKCached = FALSE;
 					}
 #endif
 				}
@@ -1369,12 +1600,21 @@ void lib1x_akmsm_Timer_proc(Dot1x_Authenticator * auth)
 
 					if (global->auth->gk_sm->GKeyDoneStations == 0 && !global->auth->gk_sm->GkeyReady)
 	                {
+	                
                 	        if(lib1x_control_SetGTK(global) == 0)//success
 							{
 								printf("last node of group key unpdate expired!\n");
            	            		global->auth->gk_sm->GkeyReady = TRUE;
 								global->auth->gk_sm->GResetCounter = TRUE;
 							}
+						#ifdef CONFIG_IEEE80211W
+							if(lib1x_control_SetIGTK(global) != 0)//success
+							{
+								printf("Auth fail to install IGTK !\n");
+           	            		global->auth->gk_sm->GkeyReady = FALSE;
+								global->auth->gk_sm->GResetCounter = FALSE;
+							}
+						#endif	
 	                }		
 //--------------------------------------------------------- david+2006-04-06					
 				}
@@ -1511,37 +1751,32 @@ void lib1x_akmsm_EAPOLStart_Timer_proc(Dot1x_Authenticator * auth)
 int lib1x_akmsm_Update_Station_Status(Global_Params * global)
 {
 
-	int i;
+	int i, j;
 	Dot1x_Authenticator * auth = global->auth;
 	for(i=0 ;i < auth->MaxSupplicant ; i++)
 	{
-		if(global->auth->StaInfo[i].aid != 0)
+		if(global->auth->DrvStaInfo[i].aid != 0)
 		{
-			if(!memcmp(auth->StaInfo[i].addr, global->theAuthenticator->supp_addr, MacAddrLen))
+			for( j = 0; j <auth->MaxSupplicant ; j++)
 			{
-				if(auth->StaInfo[i].tx_packets > global->theAuthenticator->acct_sm->tx_packets
-				  || auth->StaInfo[i].rx_packets > global->theAuthenticator->acct_sm->rx_packets )
+				if( auth->Supp[j] && auth->Supp[j]->isEnable )
 				{
-					global->theAuthenticator->acct_sm->tx_packets = auth->StaInfo[i].tx_packets;
-					global->theAuthenticator->acct_sm->rx_packets = auth->StaInfo[i].rx_packets;
-					return akmsm_status_NotIdle;
-
-				}else
-				{
-					return akmsm_status_Idle;
+					if(!memcmp( auth->Supp[j]->addr, (global->auth->DrvStaInfo[i].addr),  ETHER_ADDRLEN)) {
+						auth->Supp[j]->tx_packets = global->auth->DrvStaInfo[i].tx_packets;
+						auth->Supp[j]->rx_packets = global->auth->DrvStaInfo[i].rx_packets;
+						break;
+					}
 				}
-
 			}
-
 		}
 	}
-	return akmsm_status_NotInDriverTable;
+	return 0;
 
 }
 
 void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 {
-	int	i;
+	int	i=-1, j=-1;
 	int	iStationStatus;
 
 	Global_Params *		global;
@@ -1550,11 +1785,7 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 	//Get All Station Info if there is any station in session
 
 	if(auth->IdleTimeoutEnabled)
-	{
-
 		lib1x_control_Query_All_Sta_Info(auth);
-
-	}
 
 	if(auth->AccountingEnabled)
 		lib1x_acctsm(auth->authGlobal->global);
@@ -1562,7 +1793,7 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 
 	//sc_yang
 	for(i = 0 ; i < auth->MaxSupplicant ; i++)
-        {
+	{
 // reduce pre-alloc memory size, david+2006-02-06       
 //		if(!auth->Supp[i]->isEnable)
 		if(auth->Supp[i]==NULL || !auth->Supp[i]->isEnable)
@@ -1576,32 +1807,81 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 		//----------------------------------
 		lib1x_acctsm( global);
 
-
 		//----------------------------------
 		// Process Session Timeout
 		//----------------------------------
 		if(auth->SessionTimeoutEnabled && global->akm_sm->SessionTimeoutEnabled)
 		{
-
-			//lib1x_PrintAddr(global->theAuthenticator->supp_addr);
-			//lib1x_message(MESS_DBG_KEY_MANAGE,"STA[%d] SessionTimeoutCounter = %d, akm_sm->SessionTimeout = %d\n",
-			//	global->index, akm_sm->SessionTimeoutCounter, auth->Supp[0]->global->akm_sm->SessionTimeout);
-
-			// kenny
-			//if(akm_sm->SessionTimeoutCounter <= akm_sm->SessionTimeout )
-			if(akm_sm->SessionTimeoutCounter < akm_sm->SessionTimeout )
+			if(auth->Supp[i]->SessionTimeoutCounter)
 			{
-				akm_sm->SessionTimeoutCounter++;
-				//lib1x_message(MESS_DBG_KEY_MANAGE, "======================================================\n");
-			}else
-			{
-				lib1x_message(MESS_DBG_KEY_MANAGE,"Kick of STATION because of session timeout\n");
-				global->akm_sm->ErrorRsn = session_timeout;
+				lib1x_message(MESS_DBG_RAD, "STA(%02x:%02x:%02x:%02x:%02x:%02x) session left:%d",
+					auth->Supp[i]->addr[0],auth->Supp[i]->addr[1],auth->Supp[i]->addr[2],
+					auth->Supp[i]->addr[3],auth->Supp[i]->addr[4],auth->Supp[i]->addr[5],auth->Supp[i]->SessionTimeoutCounter);
+				auth->Supp[i]->SessionTimeoutCounter--;
+			} else {
+				global->akm_sm->SessionTimeoutEnabled = FALSE;
 				global->EventId = akmsm_EVENT_Disconnect;
+				lib1x_message(MESS_DBG_RAD,"Kick STA(%02x:%02x:%02x:%02x:%02x:%02x) because session terminated",
+					auth->Supp[i]->addr[0],auth->Supp[i]->addr[1],auth->Supp[i]->addr[2],
+					auth->Supp[i]->addr[3],auth->Supp[i]->addr[4],auth->Supp[i]->addr[5]);
+				global->akm_sm->ErrorRsn = session_timeout;
 				lib1x_akmsm_Disconnect( global );
 			}
 		}
+        //----------------------------------
+		// Process Idle Timeout
+		//----------------------------------
+		if(auth->IdleTimeoutEnabled && global->akm_sm->IdleTimeoutEnabled)
+		{
+			if((auth->Supp[i]->IdleTimeoutCounter == auth->Supp[i]->IdleTimeout) && auth->Supp[i]->IdleTimeout) {
+				global->akm_sm->IdleTimeoutEnabled = FALSE;
+				global->akm_sm->ErrorRsn = inactivity;//Idle Time out
+				global->EventId = akmsm_EVENT_Disconnect;
+				lib1x_message(MESS_DBG_RAD,"Kick STA(%02x:%02x:%02x:%02x:%02x:%02x) because keep idle for %d seconds",
+					auth->Supp[i]->addr[0],auth->Supp[i]->addr[1],auth->Supp[i]->addr[2],
+					auth->Supp[i]->addr[3],auth->Supp[i]->addr[4],auth->Supp[i]->addr[5], auth->Supp[i]->IdleTimeout);
+				lib1x_akmsm_Disconnect( global );
+				if(auth->AccountingEnabled)
+					lib1x_acctsm_request(global, acctsm_Acct_Stop, LIB1X_ACCT_REASON_IDLE_TIMEOUT);
+				//ignore update procedure below
+				continue;
+			}
 
+			for(j=0 ;j < auth->MaxSupplicant ; j++)
+			{
+				if(global->auth->DrvStaInfo[j].aid != 0)
+				{
+					if(!memcmp( auth->Supp[i]->addr, &(global->auth->DrvStaInfo[j].addr),  ETHER_ADDRLEN)) {
+                        if(auth->Supp[i]->tx_packets == 0 && auth->Supp[i]->rx_packets == 0){
+			                //first tick update
+							auth->Supp[i]->tx_packets = global->auth->DrvStaInfo[j].tx_packets;
+							auth->Supp[i]->rx_packets = global->auth->DrvStaInfo[j].rx_packets;
+							lib1x_message(MESS_DBG_RAD, "Initialize STA's(%02x:%02x:%02x:%02x:%02x:%02x) traffic status TX packets = %d, RX packets = %d", 
+								auth->Supp[i]->addr[0],auth->Supp[i]->addr[1],auth->Supp[i]->addr[2],
+								auth->Supp[i]->addr[3],auth->Supp[i]->addr[4],auth->Supp[i]->addr[5],
+			                    auth->Supp[i]->tx_packets, auth->Supp[i]->rx_packets);
+						}
+
+						if( (auth->Supp[i]->tx_packets == global->auth->DrvStaInfo[j].tx_packets) &&
+			                (auth->Supp[i]->rx_packets == global->auth->DrvStaInfo[j].rx_packets)) {
+							auth->Supp[i]->IdleTimeoutCounter++;
+							lib1x_message(MESS_DBG_RAD, "STA(%02x:%02x:%02x:%02x:%02x:%02x) Is Idle, Counter = %d", 
+								auth->Supp[i]->addr[0],auth->Supp[i]->addr[1],auth->Supp[i]->addr[2],
+								auth->Supp[i]->addr[3],auth->Supp[i]->addr[4],auth->Supp[i]->addr[5],
+								auth->Supp[i]->IdleTimeoutCounter);
+						} else {
+							auth->Supp[i]->IdleTimeoutCounter = 0;
+							auth->Supp[i]->tx_packets = global->auth->DrvStaInfo[j].tx_packets;
+							auth->Supp[i]->rx_packets = global->auth->DrvStaInfo[j].rx_packets;
+							lib1x_message(MESS_DBG_RAD, "STA(%02x:%02x:%02x:%02x:%02x:%02x) Is Not Idle, Counter Reset", 
+								auth->Supp[i]->addr[0],auth->Supp[i]->addr[1],auth->Supp[i]->addr[2],
+								auth->Supp[i]->addr[3],auth->Supp[i]->addr[4],auth->Supp[i]->addr[5]);
+						}
+						break;
+					}
+				}
+			}
+		}
 		//----------------------------------
 		// Process Interim Update
 		//----------------------------------
@@ -1618,41 +1898,7 @@ void lib1x_akmsm_Account_Timer_proc(Dot1x_Authenticator * auth)
 			}else
 				akm_sm->InterimTimeoutCounter++;
 		}
-
-
-
 		global->theAuthenticator->acct_sm->elapsedSessionTime++;
-
-		//----------------------------------
-		// Process Idle Timeout
-		//----------------------------------
-		if(auth->IdleTimeoutEnabled && global->akm_sm->IdleTimeoutEnabled)
-		{
-
-			iStationStatus = lib1x_akmsm_Update_Station_Status(global);
-			if(iStationStatus == akmsm_status_Idle || iStationStatus == akmsm_status_NotInDriverTable)
-			{
-				global->akm_sm->IdleTimeoutCounter--;
-				//lib1x_message(MESS_DBG_KEY_MANAGE, "STA is Idle, global->akm_sm->IdleTimeoutCounter = %d\n", global->akm_sm->IdleTimeoutCounter);
-				if(global->akm_sm->IdleTimeoutCounter == 0)
-				{
-					global->akm_sm->ErrorRsn = inactivity;//Idle Time out
-					global->EventId = akmsm_EVENT_Disconnect;
-					lib1x_message(MESS_DBG_KEY_MANAGE,"Kick of STATION because of Idle Timeout\n");
-					lib1x_akmsm_Disconnect( global );
-					lib1x_acctsm_request(global, acctsm_Acct_Stop, LIB1X_ACCT_REASON_IDLE_TIMEOUT);
-
-				}
-
-
-			}else if(iStationStatus == akmsm_status_NotIdle)
-			{
-				//lib1x_message(MESS_DBG_KEY_MANAGE, "STA is not Idle, global->akm_sm->IdleTimeoutCounter = %d\n", global->akm_sm->IdleTimeoutCounter);
-				global->akm_sm->IdleTimeoutCounter = global->akm_sm->IdleTimeout;
-
-			}
-		}
-
 	}
 
 }
@@ -1707,10 +1953,26 @@ int lib1x_akmsm_AuthenticationRequest( Global_Params * global)
 		{
 			memcpy(akm_sm->PMK, global->PSK, sizeof(global->PSK));
 #ifdef RTL_WPA2
+#ifdef CONFIG_IEEE80211W
+			if(global->auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) {
+				CalcPMKID(	akm_sm->PMKID,
+						akm_sm->PMK,	 // PMK
+						global->theAuthenticator->global->TxRx->oursupp_addr,	// AA
+						global->theAuthenticator->supp_addr,			// SPA
+						(global->AuthKeyMethod==DOT11_AuthKeyType_802_1X_SHA256)); 
+			}
+			else
+#endif //CONFIG_IEEE80211W
+			{
 			CalcPMKID(	akm_sm->PMKID,
 					akm_sm->PMK, 	 // PMK
 					global->theAuthenticator->global->TxRx->oursupp_addr,   // AA
-					global->theAuthenticator->supp_addr); 			// SPA
+					global->theAuthenticator->supp_addr
+#ifdef CONFIG_IEEE80211W
+					,(global->AuthKeyMethod==DOT11_AuthKeyType_802_1X_SHA256)
+#endif
+					); 			// SPA
+			}
 #endif
 			akm_sm->state = akmsm_PTKSTART;
 
@@ -1718,19 +1980,33 @@ int lib1x_akmsm_AuthenticationRequest( Global_Params * global)
 			lib1x_akmsm_SendEAPOL_proc(global);
 		}
 	}
-	else if(global->AuthKeyMethod == DOT11_AuthKeyType_RSN)
+#ifdef HS2_SUPPORT	
+	else if(global->auth->RSNVariable.bOSEN && global->AuthKeyMethod == WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256)
+	{
+		// no PMKcache function in WFA client anonymous TLS
+		akm_sm->state = akmsm_AUTHENTICATION2;
+	}
+#endif	
+	else if(global->AuthKeyMethod == DOT11_AuthKeyType_RSN 
+#ifdef CONFIG_IEEE80211W			
+		|| global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256
+#endif
+		)
 	{
 #ifdef RTL_WPA2
 		if (!global->RSNVariable.isPreAuth
 		    && global->RSNVariable.PMKCached) {
 			memcpy(akm_sm->PMK, global->RSNVariable.cached_pmk_node->pmksa.pmk, PMK_LEN);
-			wpa2_hexdump("Cached PMKID", global->RSNVariable.cached_pmk_node->pmksa.pmkid, PMKID_LEN);
+			wpa2_hexdump("\nCached PMKID", global->RSNVariable.cached_pmk_node->pmksa.pmkid, PMKID_LEN);
 			//wpa2_hexdump("Cached PMK", akm_sm->PMK, PMK_LEN);
 			akm_sm->state = akmsm_PTKSTART;
 
+			if(global->RSNVariable.cached_pmk_node->pmksa.IdleTimeout > 0) {
+				global->akm_sm->IdleTimeoutEnabled = TRUE;
+				global->auth->Supp[global->index]->IdleTimeout = global->RSNVariable.cached_pmk_node->pmksa.IdleTimeout;
+			}
 			//send 1st message
 			lib1x_akmsm_SendEAPOL_proc(global);
-
 		} else {
 #endif
 		akm_sm->state = akmsm_AUTHENTICATION2;
@@ -1756,8 +2032,12 @@ int lib1x_akmsm_AuthenticationSuccess( Global_Params * global)
 
 	lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_AuthenticationSuccess");
 
-	if((global->AuthKeyMethod == DOT11_AuthKeyType_RSN || global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x) &&
-		global->authSuccess && akm_sm->state == akmsm_AUTHENTICATION2)
+	if((global->AuthKeyMethod == DOT11_AuthKeyType_RSN 
+		|| global->AuthKeyMethod == DOT11_AuthKeyType_NonRSN802dot1x
+#ifdef CONFIG_IEEE80211W		
+		|| global->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256 
+#endif
+		) && global->authSuccess && akm_sm->state == akmsm_AUTHENTICATION2)
 	{
 		//TODO*****ONLY FOR TEST*****
 		global->RadiusKey.Status = MPPE_SDRCKEY_AVALIABLE;
@@ -1765,33 +2045,65 @@ int lib1x_akmsm_AuthenticationSuccess( Global_Params * global)
 		if( global->RadiusKey.Status == MPPE_SDRCKEY_AVALIABLE)
 		{
 #ifdef RTL_WPA2
-                        struct _WPA2_PMKSA_Node* pmksa_node;
+			struct _WPA2_PMKSA_Node* pmksa_node;
 			pmksa_node = get_pmksa_node();
 #endif
 			lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_AuthenticationSuccess:Radius Key is Avaliable");
 			memcpy(akm_sm->PMK, global->RadiusKey.RecvKey.Octet, global->RadiusKey.RecvKey.Length);
 			//lib1x_control_AssociationRsp(global, DOT11_Association_Success);
 #ifdef RTL_WPA2
-			//printf("\n802.1x authentication done\n");
+			if(global->auth->RSNVariable.max_pmksa) {
+				//printf("\n802.1x authentication done\n");
+#ifdef HS2_SUPPORT
+			if(global->auth->RSNVariable.bOSEN && global->AuthKeyMethod == WFA_AKM_ANONYMOUS_CLI_802_1X_SHA256) {
+				memset(akm_sm->PMKID, 0, PMKID_LEN);
+			}
+			else
+#endif
+#ifdef CONFIG_IEEE80211W
+			if(global->auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) {
+				CalcPMKID(	akm_sm->PMKID,
+						akm_sm->PMK,	 // PMK
+						global->theAuthenticator->global->TxRx->oursupp_addr,	// AA
+						global->theAuthenticator->supp_addr,					// SPA
+						(global->AuthKeyMethod==DOT11_AuthKeyType_802_1X_SHA256)); 
+			}
+			else
+#endif //CONFIG_IEEE80211W
+			{
 			CalcPMKID(	akm_sm->PMKID,
 					akm_sm->PMK, 	 // PMK
 					global->theAuthenticator->global->TxRx->oursupp_addr,   // AA
-					global->theAuthenticator->supp_addr); 			// SPA
-			//printf("Before cache_pmk\n");
-			//dump_pmk_cache();
-			// Save this PMKSA
-			if (pmksa_node != NULL) {
-				memcpy(pmksa_node->pmksa.pmkid, akm_sm->PMKID, PMKID_LEN);
-				memcpy(pmksa_node->pmksa.pmk, akm_sm->PMK, PMK_LEN);
-				memcpy(pmksa_node->pmksa.spa, global->theAuthenticator->supp_addr, ETHER_ADDRLEN);
-				pmksa_node->pmksa.akmp = global->AuthKeyMethod;
-				cache_pmksa(pmksa_node);
-			} else {
-				printf("%s:%d, pmksa_node == NULL\n", __FUNCTION__, __LINE__);
-				exit(1);
+					global->theAuthenticator->supp_addr
+#ifdef CONFIG_IEEE80211W
+					,(global->AuthKeyMethod==DOT11_AuthKeyType_802_1X_SHA256)
+#endif
+					); 			// SPA
 			}
-			//printf("After cache_pmk\n");
-			//dump_pmk_cache();
+				//printf("Before cache_pmk\n");
+				//dump_pmk_cache();
+				// Save this PMKSA
+				if (pmksa_node != NULL) {
+					memcpy(pmksa_node->pmksa.pmkid, akm_sm->PMKID, PMKID_LEN);
+					memcpy(pmksa_node->pmksa.pmk, akm_sm->PMK, PMK_LEN);
+					memcpy(pmksa_node->pmksa.spa, global->theAuthenticator->supp_addr, ETHER_ADDRLEN);
+					pmksa_node->pmksa.akmp = global->AuthKeyMethod;
+					if(global_pmksa_aging == 0xffffffff)
+	                    global_pmksa_aging = 0;
+	                global_pmksa_aging++;
+	                pmksa_node->pmksa.aging = global_pmksa_aging;
+					if(global->akm_sm->SessionTimeout > 0)
+						pmksa_node->pmksa.SessionTimeout = global->akm_sm->SessionTimeout;
+					if(global->auth->Supp[global->index]->IdleTimeout > 0)
+						pmksa_node->pmksa.IdleTimeout = global->auth->Supp[global->index]->IdleTimeout;
+					cache_pmksa(pmksa_node);
+				} else {
+					printf("%s:%d, pmksa_node == NULL\n", __FUNCTION__, __LINE__);
+					exit(1);
+				}
+				//printf("After cache_pmk\n");
+				//dump_pmk_cache();
+			}
 
 			if ( global->RSNVariable.isPreAuth) {
 				wpa2_hexdump("PreAuth done: ", global->theAuthenticator->supp_addr, ETHER_ADDRLEN);
@@ -1803,7 +2115,6 @@ int lib1x_akmsm_AuthenticationSuccess( Global_Params * global)
 				//sleep(1);
 				lib1x_akmsm_SendEAPOL_proc(global);
 			}
-
 #else
 			akm_sm->state = akmsm_PTKSTART;
 			//send 1st message
@@ -1824,18 +2135,17 @@ int lib1x_akmsm_Disconnect( Global_Params * global)
 	APKeyManage_SM	*	akm_sm = global->akm_sm;
 	int retVal = TRUE;
 
-	lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_Disconnect(1)\n");
-
+	lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_Disconnect(1), global->theAuthenticator->supp_addr:%02x:%02x:%02x:%02x:%02x:%02x\n",
+		global->theAuthenticator->supp_addr[0],global->theAuthenticator->supp_addr[1],global->theAuthenticator->supp_addr[2],
+		global->theAuthenticator->supp_addr[3],global->theAuthenticator->supp_addr[4],global->theAuthenticator->supp_addr[5]);
 
 	//Disconnect is request from 1x daemon, Disassociate if indication from driver
 	if(global->EventId == akmsm_EVENT_Disconnect || global->EventId == akmsm_EVENT_Disassociate)
 	{
 		if(global->EventId == akmsm_EVENT_Disconnect)
-			lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_Disconnect(2) :\
-				       	Request from 802.1x daemon\n");
+			lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_Disconnect(2) :Request from 802.1x daemon\n");
 		else if(global->EventId == akmsm_EVENT_Disassociate)
-			lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_Disconnect(2) :\
-                                        Request from wlan driver\n");
+			lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_Disconnect(2) :Request from wlan driver\n");
 
 
 		if(global->auth->AccountingEnabled)
@@ -1928,7 +2238,6 @@ int lib1x_akmsm_Disconnect( Global_Params * global)
 		if(global->EventId != akmsm_EVENT_Disassociate) //sc_yang
 			lib1x_control_RemovePTK(global, DOT11_KeyType_Pairwise);
 
-
 	//---- Initialize 802.1x related variable ----
 
 	if(global->AuthKeyMethod == DOT11_AuthKeyType_RSN ||
@@ -1972,9 +2281,6 @@ int lib1x_akmsm_Disconnect( Global_Params * global)
 	global->akm_sm->SessionTimeoutCounter = 0;
 	global->akm_sm->IdleTimeoutCounter = 0;
 	global->akm_sm->InterimTimeoutCounter = LIB1X_DEFAULT_IDLE_TIMEOUT;
-
-
-
 
 	return retVal;
 }
@@ -2027,7 +2333,7 @@ int lib1x_akmsm_EAPOLKeyRecvd( Global_Params * global)
 				lib1x_message(MESS_DBG_KEY_MANAGE, "lib1x_akmsm_EAPOLKeyRecvd:Receive EAPOL-KEY and check [successfully] in akmsm_PTKINITNEGOTIATING state");
 				//if( akm_sm->Pair)
 				lib1x_control_SetPTK(global);
-				lib1x_control_SetPORT(global, DOT11_PortStatus_Authorized);
+				lib1x_control_SetPORT(global, DOT11_PortStatus_Authorized);				
 				global->auth->gk_sm->GInitAKeys = TRUE;
 				akm_sm->PInitAKeys = TRUE;
 				akm_sm->state = akmsm_PTKINITDONE;
@@ -2058,18 +2364,45 @@ int lib1x_akmsm_EAPOLKeyRecvd( Global_Params * global)
 
 
 					if( global->auth->gk_sm->GKeyDoneStations == 0 && !global->auth->gk_sm->GkeyReady)
-			                {
-		                	        if(lib1x_control_SetGTK(global) == 0)//success
+					{
+						if(lib1x_control_SetGTK(global) == 0)//success
 						{
-		                        		global->auth->gk_sm->GkeyReady = TRUE;
+							global->auth->gk_sm->GkeyReady = TRUE;
 							global->auth->gk_sm->GResetCounter = TRUE;
 						}
-			                }
-
+					#ifdef CONFIG_IEEE80211W
+						if(lib1x_control_SetIGTK(global) != 0)//Fail
+						{
+							printf("Auth fail to install IGTK !\n");	
+							global->auth->gk_sm->GkeyReady = FALSE;
+							global->auth->gk_sm->GResetCounter = FALSE;
+						}					
+					#endif
+					}
 					if (global->RSNVariable.PMKCached) {
+						global->portStatus = pst_Authorized;
 						global->RSNVariable.PMKCached = FALSE;  // reset
 					}
-
+#ifdef CONFIG_IEEE80211W
+					lib1x_control_SetPMF(global);
+#endif					
+#ifdef HS2_SUPPORT
+					if(global->isTriggerWNM) {
+						lib1x_control_WNM_NOTIFY(global,global->remed_URL, global->serverMethod);
+						global->isTriggerWNM = 0;
+					}
+					if(global->isTriggerWNM_DEAUTH) {
+						lib1x_control_WNM_DEAUTH_REQ(global, global->WNMDEAUTH_reason, global->WNMDEAUTH_reAuthDelay, global->WNMDEAUTH_URL);			
+						global->isTriggerWNM_DEAUTH = 0;
+					}
+					
+					if(global->isTriggerSessionInfo_URL) {
+						HS2DEBUG("\n");
+						lib1x_control_SessionInfo_URL(global, global->SWT, global->SessionInfo_URL);
+						global->isTriggerSessionInfo_URL = 0;
+					}
+					
+#endif
 					printf("WPA2: 4-way handshake done\n");
 					//printf("-----------------------------------------------------------------------------\n\n\n\n\n\n\n");
 
@@ -2233,93 +2566,93 @@ int lib1x_akmsm_trans(Global_Params * global)
 
 
 	if(global->AuthKeyMethod != DOT11_AuthKeyType_RSN &&
-	   global->AuthKeyMethod != DOT11_AuthKeyType_RSNPSK )
+	   global->AuthKeyMethod != DOT11_AuthKeyType_RSNPSK 
+#ifdef CONFIG_IEEE80211W	   
+	   && global->AuthKeyMethod != DOT11_AuthKeyType_802_1X_SHA256
+#endif
+	   )
 		return retVal;
 
-        switch(global->akm_sm->state)
-        {
+	switch(global->akm_sm->state)
+	{
         case akmsm_AUTHENTICATION2:
 		// Check global->theAuthenticator->rxRespId because when eapStart is set,
 		// the pae state machine enters into CONNECTING state which do not clear
 		// authSuccess to FALSE
-		switch(global->AuthKeyMethod)
-		{
-		case DOT11_AuthKeyType_RSN:
-			if(global->authSuccess && global->theAuthenticator->rxRespId ){
-				global->EventId = akmsm_EVENT_AuthenticationSuccess;
-				retVal = TRUE;
+			switch(global->AuthKeyMethod)
+			{
+				case DOT11_AuthKeyType_RSN:
+#ifdef CONFIG_IEEE80211W	   					
+				case DOT11_AuthKeyType_802_1X_SHA256:	
+#endif
+					if(global->authSuccess && global->theAuthenticator->rxRespId ){
+						global->EventId = akmsm_EVENT_AuthenticationSuccess;
+						retVal = TRUE;
+					}
+					break;
+				case DOT11_AuthKeyType_RSNPSK:
+					global->EventId = akmsm_EVENT_AuthenticationSuccess;
+					retVal = TRUE;
+					break;
+				case DOT11_AuthKeyType_NonRSN802dot1x:
+					break;
+				default:
+					printf("%s: Unknown AuthKeyMethod\n", __FUNCTION__);
+					break;
 			}
-			break;
-		case DOT11_AuthKeyType_RSNPSK:
-			global->EventId = akmsm_EVENT_AuthenticationSuccess;
-			retVal = TRUE;
-			break;
-		case DOT11_AuthKeyType_NonRSN802dot1x:
-			break;
-		default:
-			printf("%s: Unknown AuthKeyMethod\n", __FUNCTION__);
-			break;
-		}
 
                 break;
-	case akmsm_PTKSTART:
-	case akmsm_PTKINITNEGOTIATING:
-		switch(global->AuthKeyMethod)
-		{
-		case DOT11_AuthKeyType_RSN:
-		case DOT11_AuthKeyType_RSNPSK:
-			if(global->akm_sm->TimeoutEvt)
+		case akmsm_PTKSTART:
+		case akmsm_PTKINITNEGOTIATING:
+			switch(global->AuthKeyMethod)
 			{
+				case DOT11_AuthKeyType_RSN:
+				case DOT11_AuthKeyType_RSNPSK:
+					if(global->akm_sm->TimeoutEvt)
+					{
 
-				global->EventId = akmsm_EVENT_TimeOut;
-				retVal = TRUE;
+						global->EventId = akmsm_EVENT_TimeOut;
+						retVal = TRUE;
+					}
+					break;
+				case DOT11_AuthKeyType_NonRSN802dot1x:
+					break;
 			}
+		default:
 			break;
-		case DOT11_AuthKeyType_NonRSN802dot1x:
-			break;
-		}
-	default:
-		break;
-        /*
-        case akmsm_PTKSTART:
-        case akmsm_PTKINITNEGOTIATING:
-        case akmsm_PTKINITDONE:
-                global->EventId = akmsm_EVENT_EAPOLKeyRecvd;
-                retVal = TRUE;
-        */
-        }
+	        /*
+	        case akmsm_PTKSTART:
+	        case akmsm_PTKINITNEGOTIATING:
+	        case akmsm_PTKINITDONE:
+	                global->EventId = akmsm_EVENT_EAPOLKeyRecvd;
+	                retVal = TRUE;
+	        */
+	}
 
 	switch(global->akm_sm->gstate)
 	{
-	case gkmsm_REKEYNEGOTIATING:
-		switch(global->AuthKeyMethod)
-		{
-		case DOT11_AuthKeyType_RSN:
-		case DOT11_AuthKeyType_RSNPSK:
-			if(global->akm_sm->TimeoutEvt)
+		case gkmsm_REKEYNEGOTIATING:
+			switch(global->AuthKeyMethod)
 			{
-				global->EventId = akmsm_EVENT_TimeOut;
-				retVal = TRUE;
-			}
+				case DOT11_AuthKeyType_RSN:
+				case DOT11_AuthKeyType_RSNPSK:
+					if(global->akm_sm->TimeoutEvt)
+					{
+						global->EventId = akmsm_EVENT_TimeOut;
+						retVal = TRUE;
+					}
+					break;
+				case DOT11_AuthKeyType_NonRSN802dot1x:
+					break;
+			}//switch(global->AuthKeyMethod)
 			break;
-		case DOT11_AuthKeyType_NonRSN802dot1x:
-			break;
-		}//switch(global->AuthKeyMethod)
-		break;
 	}
-
-
 //	PRINT_GLOBAL_AKM_SM_STATE(global);
 //	PRINT_GLOBAL_AKM_SM_GSTATE(global);
 
 	//ToDo : Check out the order of this event
-
-
-
-
 	if( global->akm_sm->eapStart == TRUE)
 	{
-
 		if(global->akm_sm->state == akmsm_AUTHENTICATION2)
 		//The first time to do authentication
 		{
@@ -2341,35 +2674,34 @@ int lib1x_akmsm_trans(Global_Params * global)
 	//if Supplicnat send 802.11 authentication management
 	//To prevent from client not sending eapol start.
 	if( global->akm_sm->AuthenticationRequest == TRUE)
-        {
+    {
 		lib1x_message(MESS_DBG_KEY_MANAGE,"global->akm_sm->AuthenticationRequest == TRUE");
-                global->EventId = akmsm_EVENT_AuthenticationRequest;
-                global->akm_sm->AuthenticationRequest = FALSE;
-                retVal = TRUE;
-        }
-        else if(global->akm_sm->DeauthenticationRequest == TRUE)
-        {
-                global->EventId = akmsm_EVENT_DeauthenticationRequest;
-                global->akm_sm->DeauthenticationRequest = FALSE;
-                retVal = TRUE;
-        }
-        else if(global->akm_sm->Disconnect == TRUE )
-        {
+		global->EventId = akmsm_EVENT_AuthenticationRequest;
+		global->akm_sm->AuthenticationRequest = FALSE;
+		retVal = TRUE;
+    }
+    else if(global->akm_sm->DeauthenticationRequest == TRUE)
+    {
+		global->EventId = akmsm_EVENT_DeauthenticationRequest;
+		global->akm_sm->DeauthenticationRequest = FALSE;
+		retVal = TRUE;
+    }
+    else if(global->akm_sm->Disconnect == TRUE )
+    {
 #ifdef RTL_WPA2_PREAUTH
-		//printf("%s-%d: global->EventId = akmsm_EVENT_Disconnect\n", __FUNCTION__,__LINE__);
+	//printf("%s-%d: global->EventId = akmsm_EVENT_Disconnect\n", __FUNCTION__,__LINE__);
 #endif
-                global->EventId = akmsm_EVENT_Disconnect;
-                global->akm_sm->Disconnect = FALSE;
-                retVal = TRUE;
-        }
+		global->EventId = akmsm_EVENT_Disconnect;
+		global->akm_sm->Disconnect = FALSE;
+		retVal = TRUE;
+    }
 
 	if(retVal)
 		lib1x_akmsm_dump(global);
 
 //	PRINT_GLOBAL_EVENTID(global);
 
-        return retVal;
-
+	return retVal;
 }
 
 

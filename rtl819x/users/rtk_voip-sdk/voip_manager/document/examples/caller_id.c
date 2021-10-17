@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include "voip_manager.h"
 
 void ShowUsage(char *cmd)
@@ -22,7 +23,7 @@ void ShowUsage(char *cmd)
 		"  - FSK type => 1 is type-I, 2 is type-II\n"\
 		"  - DTMF mode[1:0]=> Start digit, 0:A, 1:B, 2:C, 3:D\n" \
 		"  - DTMF mode[3:2]=> End digit, 0:A, 1:B, 2:C, 3:D\n"	\
-		"  - DTMF mode[4]=> Auto start/end digit send, 0:suto mode 1:non-auto\n" \
+		"  - DTMF mode[4]=> Auto start/end digit send, 0:non-auto mode 1:auto mode\n" \
 		"	(non-auto mode: DSP send caller ID string only. If caller ID need start/end digits, developer should add them to caller ID strings.)\n" \
 		"  - DTMF mode[5]=> Auto Ring, 0: disable, 1: enable\n"	\
  		"  - DTMF mode[6]=> Before 1st Ring, 0: after 1st Ring, 1: before 1st Ring.\n"
@@ -38,8 +39,9 @@ static void CID_DTMF_predefined_verification( unsigned int test_set );
 
 int main(int argc, char *argv[])
 {
-	unsigned int mode, dtmf_mode, digit_on, digit_pause, fsk_type, fsk_area;
+	unsigned int mode, dtmf_mode, dtmf_mode2, digit_on, digit_pause, fsk_type, fsk_area;
 	unsigned int test_set = 0xFFFFFF;
+	DTMF_DIGIT dtmf_start, dtmf_end;
 
 	if (argc < 2)
 	{
@@ -60,20 +62,24 @@ int main(int argc, char *argv[])
 		// first ring by AP 
 		if( ( dtmf_mode & 0x20 ) == 0 && ( dtmf_mode & 0x40 ) == 0 ) {
 			// not auto ring, and DTMF after ring 
-			rtk_SetRingFXS( 0, 1 );
+			rtk_SetRingFxs( 0, 1 );
 			
 			// wait ring complete 
 			usleep( 2 * 1000 * 1000 );	// simple implement: delay 2 seconds 
 			
-			rtk_SetRingFXS( 0, 0 );
+			rtk_SetRingFxs( 0, 0 );
 		}
-		
-		rtk_Set_CID_DTMF_MODE(0, dtmf_mode, digit_on, digit_pause, 300, 300); //pre_silence = 300ms, end_silence = 300ms
-		rtk_Gen_Dtmf_CID(0, argv[2]);
+
+		dtmf_start = DTMF_DIGIT_A + (dtmf_mode&0x3);
+		dtmf_end = DTMF_DIGIT_A + ((dtmf_mode>>2)&0x3);
+		dtmf_mode2 = (dtmf_mode&0xf0)>>4;
+
+		rtk_SetDtmfCidParam(0, dtmf_start, dtmf_end, dtmf_mode2, digit_on, digit_pause, 300, 300); //pre_silence = 300ms, end_silence = 300ms
+		rtk_GenDtmfCid(0, argv[2]);
 		
 		// ring by AP
 		if( ( dtmf_mode & 0x20 ) == 0 ) {
-			rtk_SetRingFXS( 0, 1 );
+			rtk_SetRingFxs( 0, 1 );
 		}
 
 		break;
@@ -82,7 +88,7 @@ int main(int argc, char *argv[])
 		{
 			fsk_area = atoi(argv[3]);
 			
-			//rtk_Set_CID_FSK_GEN_MODE(0, 1);
+			//rtk_SetCidFskGenMode(0, 1);
 			
 			if ((fsk_area&7) > CID_DTMF)
 				printf("wrong FSK area => 0 BELLCORE, 1: ETSI, 2: BT, 3: NTT\n");
@@ -91,8 +97,8 @@ int main(int argc, char *argv[])
 			else
 			{	
 				fsk_type = atoi(argv[4])- 1 ;
-				rtk_Set_FSK_Area(0, fsk_area);
-				rtk_Gen_FSK_CID(0, argv[2], (void *) 0, (void *) 0, fsk_type/*FSK Type*/); // 
+				rtk_SetFskArea(0, fsk_area);
+				rtk_GenFskCid(0, argv[2], (void *) 0, (void *) 0, fsk_type/*FSK Type*/); // 
 			}
 		} else
 			goto label_show_usage;
@@ -113,10 +119,10 @@ label_show_usage:
 // DTMF caller ID predefined test set (mode=2)
 //
 typedef enum {
-	DTMF_DIGIT_A,
-	DTMF_DIGIT_B,
-	DTMF_DIGIT_C,
-	DTMF_DIGIT_D,
+	DTMF_DIGIT_a,
+	DTMF_DIGIT_b,
+	DTMF_DIGIT_c,
+	DTMF_DIGIT_d,
 } DTMF_DIGIT_t;
 
 typedef struct {
@@ -148,21 +154,22 @@ typedef struct {
 
 static void Run_CID_DTMF_verification( const CID_DTMF_verify_t *pCIDDTMF )
 {
-	unsigned int dtmf_mode;
+	unsigned int dtmf_mode, dtmf_mode2;
 	VoipEventID dsp_event;
 	char log_cmd[ 256 ];
 	static int log_seq = 0;
 	static int random;
 	SLICEVENT slic_event;
 	const uint32 chid = 0;
+	DTMF_DIGIT dtmf_start, dtmf_end;
 	
 	if( log_seq == 0 )
 		random = ( int )time( NULL );
 
 	// parameters for DSP 
 	dtmf_mode = 0;
-	dtmf_mode |= ( !pCIDDTMF ->mode.bAutoDigit ? 0x10 : 
-						0x00 | ( pCIDDTMF ->mode.nStartDigit ) | 
+	dtmf_mode |= ( !pCIDDTMF ->mode.bAutoDigit ? 0x00 : 
+						0x10 | ( pCIDDTMF ->mode.nStartDigit ) | 
 								( pCIDDTMF ->mode.nEndDigit << 2 ) );
 	dtmf_mode |= ( !pCIDDTMF ->mode.bAutoRing ? 0x00 :
 						0x20 | ( pCIDDTMF ->mode.bBeforeFirstRing << 6 ) );
@@ -225,34 +232,38 @@ static void Run_CID_DTMF_verification( const CID_DTMF_verify_t *pCIDDTMF )
 	system( log_cmd );
 	
 	// flush all events fifo 
-	rtk_Set_flush_fifo( chid );
+	rtk_SetFlushFifo( chid );
 	
 	// part 1: [ring] by AP (optional)
 	if( !pCIDDTMF ->mode.bAutoRing && !pCIDDTMF ->mode.bBeforeFirstRing ) {
 		// not auto ring && DTMF not before first ring 
 		// --> ring by AP && DTMF after first ring 
-		rtk_SetRingFXS( chid, 1 );
+		rtk_SetRingFxs( chid, 1 );
 		printf( "Turn on SLIC ring by AP\n" );
 		
 		// wait ring complete 
 		usleep( 2 * 1000 * 1000 );	// simple implement: delay 2 seconds 
 		
-		rtk_SetRingFXS( chid, 0 );
+		rtk_SetRingFxs( chid, 0 );
 		printf( "Turn off SLIC ring by AP\n" );
 	}
-	
+
+	dtmf_start = DTMF_DIGIT_A + (dtmf_mode&0x3);
+	dtmf_end = DTMF_DIGIT_A + ((dtmf_mode>>2)&0x3);
+	dtmf_mode2 = (dtmf_mode&0xf0)>>4;
+
 	// part 2: silence pre + DTMF start + DTMF ID + DTMF end + silence end
-	rtk_Set_CID_DTMF_MODE(chid, dtmf_mode, 
+	rtk_SetDtmfCidParam(chid, dtmf_start, dtmf_end, dtmf_mode2, 
 							pCIDDTMF ->duration.on, pCIDDTMF ->duration.pause, 
 							pCIDDTMF ->silence.pre, pCIDDTMF ->silence.end ); //pre_silence = 300ms, end_silence = 300ms
 	
 	if( pCIDDTMF ->mode.bAutoSlicAction )
-		rtk_Gen_Dtmf_CID( chid, pCIDDTMF ->id.string );
+		rtk_GenDtmfCid( chid, pCIDDTMF ->id.string );
 	else {
-		rtk_enablePCM( chid, 1 ); // enable PCM before generating dtmf caller id
-		
+		rtk_EnablePcm( chid, 1 ); // enable PCM before generating dtmf caller id
+		rtk_SetFxsOnHookTransPcmOn( chid ); // enable SLIC on-hook transmission to pass caller ID
 		// set cid CID String 
-		rtk_Set_Dtmf_CID_String( chid, pCIDDTMF ->id.string );	
+		rtk_SetDtmfCidString( chid, pCIDDTMF ->id.string );	
 	}
 	
 	// wait for DTMF complete, or off-hook event 
@@ -261,7 +272,7 @@ static void Run_CID_DTMF_verification( const CID_DTMF_verify_t *pCIDDTMF )
 	
 	while( 1 ) {
 		// DTMF complete? 
-		rtk_GetDspEvent( chid, 0, &dsp_event );
+		rtk_GetDspEvent( chid, 0, &dsp_event, NULL);
 		
 		if( dsp_event == VEID_DSP_DTMF_CLID_END ) {
 			printf( "complete!!\n" );
@@ -273,7 +284,7 @@ static void Run_CID_DTMF_verification( const CID_DTMF_verify_t *pCIDDTMF )
 			rtk_GetSlicEvent( chid, &slic_event );
 			
 			if( slic_event == SLICEVENT_OFFHOOK ) {
-				rtk_Stop_CID( chid, 2 );
+				rtk_StopCid( chid, 2 );
 				printf( "off-hook!!\n" );
 				break;	// stop CID!! we can't recv complete event 
 			}
@@ -283,12 +294,12 @@ static void Run_CID_DTMF_verification( const CID_DTMF_verify_t *pCIDDTMF )
 	}
 	
 	if( !pCIDDTMF ->mode.bAutoSlicAction ) {
-		rtk_enablePCM( chid, 0 ); // disable PCM after generating dtmf caller id	
+		rtk_EnablePcm( chid, 0 ); // disable PCM after generating dtmf caller id	
 	}
 	
 	// part 3: ring by AP (optional)
 	if( !pCIDDTMF ->mode.bAutoRing ) {
-		rtk_SetRingFXS( chid, 1 );
+		rtk_SetRingFxs( chid, 1 );
 		printf( "Turn on SLIC ring by AP\n" );
 	}
 	
@@ -300,7 +311,7 @@ static void Run_CID_DTMF_verification( const CID_DTMF_verify_t *pCIDDTMF )
 	printf( "Wait 5 seconds, and then turn off ring...\n" );
 	sleep( 5 );
 	
-	rtk_SetRingFXS( chid, 0 );
+	rtk_SetRingFxs( chid, 0 );
 	printf( "Turn off SLIC ring by AP.... complete test item\n------\n" );
 }
 
@@ -347,7 +358,7 @@ static void CID_DTMF_predefined_verification( unsigned int test_set )
 		goto label_auto_ring_test_set_done;
 	
 	// A0. ring + 'A' + '886852963741' + 'C' + ring 
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 1, 0 );
 	M_AUTO_SLIC_ACT( 1 );
 	M_DURATION( 80, 80 );
@@ -356,7 +367,7 @@ static void CID_DTMF_predefined_verification( unsigned int test_set )
 	Run_CID_DTMF_verification( &CID_DTMF );
 	
 	// A1. 'A' + '886852963741' + 'C' + ring 
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 1, 1 );
 	M_AUTO_SLIC_ACT( 1 );
 	M_DURATION( 80, 80 );
@@ -365,7 +376,7 @@ static void CID_DTMF_predefined_verification( unsigned int test_set )
 	Run_CID_DTMF_verification( &CID_DTMF );
 	
 	// A2. ring + 'A886852963741C' + ring 
-	M_AUTO_DIGIT( 0, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 0, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 1, 0 );
 	M_AUTO_SLIC_ACT( 1 );
 	M_DURATION( 80, 80 );
@@ -374,7 +385,7 @@ static void CID_DTMF_predefined_verification( unsigned int test_set )
 	Run_CID_DTMF_verification( &CID_DTMF );
 	
 	// A3. ring + '886852963741' + ring 
-	M_AUTO_DIGIT( 0, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 0, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 1, 0 );
 	M_AUTO_SLIC_ACT( 1 );
 	M_DURATION( 80, 80 );
@@ -384,7 +395,7 @@ static void CID_DTMF_predefined_verification( unsigned int test_set )
 	
 	// A4. ring + 'A' + '886852963741' + 'C' + ring 
 	// cmp with A0 - duration ( 150, 60 )
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 1, 0 );
 	M_AUTO_SLIC_ACT( 1 );
 	M_DURATION( 150, 60 );
@@ -394,7 +405,7 @@ static void CID_DTMF_predefined_verification( unsigned int test_set )
 
 	// A5. ring + 'A' + '886852963741' + 'C' + ring 
 	// cmp with A0 - silence ( 500, 200 )
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 1, 0 );
 	M_AUTO_SLIC_ACT( 1 );
 	M_DURATION( 80, 80 );
@@ -411,7 +422,7 @@ label_auto_ring_test_set_done:
 		goto label_AP_ring_test_set_done;
 	
 	// B0. ring + 'A' + '0088635780211' + 'C' + ring 
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 0, 0 );
 	M_AUTO_SLIC_ACT( 0 );
 	M_DURATION( 80, 80 );
@@ -420,7 +431,7 @@ label_auto_ring_test_set_done:
 	Run_CID_DTMF_verification( &CID_DTMF );
 	
 	// B1. 'A' + '0088635780211' + 'C' + ring 
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 0, 1 );
 	M_AUTO_SLIC_ACT( 0 );
 	M_DURATION( 80, 80 );
@@ -429,7 +440,7 @@ label_auto_ring_test_set_done:
 	Run_CID_DTMF_verification( &CID_DTMF );
 	
 	// B2. ring + 'A0088635780211C' + ring 
-	M_AUTO_DIGIT( 0, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 0, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 0, 0 );
 	M_AUTO_SLIC_ACT( 0 );
 	M_DURATION( 80, 80 );
@@ -438,7 +449,7 @@ label_auto_ring_test_set_done:
 	Run_CID_DTMF_verification( &CID_DTMF );
 
 	// B3. ring + '0088635780211' + ring 
-	M_AUTO_DIGIT( 0, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 0, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 0, 0 );
 	M_AUTO_SLIC_ACT( 0 );
 	M_DURATION( 80, 80 );
@@ -448,7 +459,7 @@ label_auto_ring_test_set_done:
 
 	// B4. ring + 'A' + '0088635780211' + 'C' + ring 
 	// cmp with B0 - duration ( 150, 60 )
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 0, 0 );
 	M_AUTO_SLIC_ACT( 0 );
 	M_DURATION( 150, 60 );
@@ -458,7 +469,7 @@ label_auto_ring_test_set_done:
 	
 	// B5. ring + 'A' + '0088635780211' + 'C' + ring 
 	// cmp with B0 - silence ( 500, 200 )
-	M_AUTO_DIGIT( 1, DTMF_DIGIT_A, DTMF_DIGIT_C );
+	M_AUTO_DIGIT( 1, DTMF_DIGIT_a, DTMF_DIGIT_c );
 	M_AUTO_RING( 0, 0 );
 	M_AUTO_SLIC_ACT( 0 );
 	M_DURATION( 80, 80 );

@@ -1,0 +1,53 @@
+
+config SND_RTL819XD_SOC_I2S
+	bool "SoC Audio for the Realtek rtl819XD chips"
+	depends on RTL_819XD
+	help
+	  Say Y if you want to add support for codecs attached to
+	  the RTL819XD I2S interfaces.
+
+
+choice
+	prompt "Audio codec select"
+	depends on SND_RTL819XD_SOC_I2S
+	default SND_RTL819XD_SOC_ALC5628
+	config SND_RTL819XD_SOC_ALC5628
+		bool "SoC I2S Audio support for RTL819XD - ALC5628"
+	config SND_RTL819XD_SOC_ALC5642
+		bool "SoC I2S Audio support for RTL819XD - ALC5642"
+	config SND_RTL819XD_SOC_ALC5633Q
+		bool "SoC I2S Audio support for RTL819XD - ALC5633Q"
+	config SND_RTL819XD_SOC_ALC5670
+		bool "SoC I2S Audio support for RTL819XD - ALC5670"	
+endchoice	  
+
+
+choice
+	prompt "I2S sampling rate select"
+	depends on SND_RTL819XD_SOC_I2S
+	default SND_RTL819XD_SOC_I2S_48KHZ
+	config  SND_RTL819XD_SOC_I2S_8KHZ
+		bool "RTL819XD  I2S sampling rate 8KHz"
+	config  SND_RTL819XD_SOC_I2S_16KHZ
+		bool "RTL819XD  I2S sampling rate 16KHz"
+	config  SND_RTL819XD_SOC_I2S_32KHZ
+		bool "RTL819XD  I2S sampling rate 32KHz"
+	config  SND_RTL819XD_SOC_I2S_48KHZ
+		bool "RTL819XD  I2S sampling rate 48KHz"
+endchoice
+
+
+config SND_CODEC_RT5628
+	bool
+	default y if SND_RTL819XD_SOC_ALC5628
+
+
+config SND_CODEC_RT5642
+	bool
+	default y if SND_RTL819XD_SOC_ALC5642
+	
+config SND_CODEC_RT5670
+	bool
+	default y if SND_RTL819XD_SOC_ALC5670
+
+

@@ -133,7 +133,11 @@ function show_wpa_settings()
 	if (dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked)
 	{
 		get_by_id("show_wpa_psk1").style.display = "";
-		get_by_id("show_wpa_psk2").style.display = "";		
+		get_by_id("show_wpa_psk2").style.display = "";
+		if(dF.pskFormat<% getIndex("wlan_idx"); %>.selectedIndex == 0)
+			dF.pskValue<% getIndex("wlan_idx"); %>.maxLength = "63";
+		else 
+			dF.pskValue<% getIndex("wlan_idx"); %>.maxLength = "64";
 	}
 	else{
 
@@ -199,6 +203,7 @@ function wizardHideDiv()
 	show_div(false, "top_div");
 	
 	show_div(false, "wlan_security_div");
+	show_div(false, "mesh_security_div");
 	show_div(false, "wep_div");
 	show_div(false, "wpa_div");
 	show_div(false, "show_8021x_eap_client");
@@ -219,24 +224,25 @@ function pocket_checkState(wlanIdx)
   get_by_id("show_wpa_cipher").style.display = "none";
   get_by_id("show_wpa2_cipher").style.display = "none";
 	
-  if(get_by_id("method"+wlanIdx).selectedIndex == 0){ //none
+  if(get_by_id("method"+wlanIdx).value == 0){ //none
   		show_div(false,("wpa_div"));	
 		show_div(false, "show_8021x_eap_client");
   		show_div(false,("wep_div"));	
   }
-  else if(get_by_id("method"+wlanIdx).selectedIndex == 1){ //wep
+  else if(get_by_id("method"+wlanIdx).value == 1){ //wep
   		show_div(false,("wpa_div"));	
 		show_div(false, "show_8021x_eap_client");
   		show_div(true,("wep_div"));	
+		setDefaultWEPKeyValue(document.wizardPocket,wlanIdx);
   }
-  else if((get_by_id("method"+wlanIdx).selectedIndex == 2) || (get_by_id("method"+wlanIdx).selectedIndex == 3)){ //wpa/wpa2
+  else if(get_by_id("method"+wlanIdx).value == 4 || get_by_id("method"+wlanIdx).value == 6){ //wpa/wpa2
   		show_div(true,("wpa_div"));	
-		if(get_by_id("method"+wlanIdx).selectedIndex == 2){//wpa
-			get_by_id("show_wpa_cipher").style.display = "";
-			get_by_id("show_wpa2_cipher").style.display = "none";
-		}
-		else if(get_by_id("method"+wlanIdx).selectedIndex == 3){//wpa2
+		if(get_by_id("method"+wlanIdx).value == 4){//wpa2
 			get_by_id("show_wpa_cipher").style.display = "none";
+			get_by_id("show_wpa2_cipher").style.display = "";
+		}
+		else if(get_by_id("method"+wlanIdx).value == 6){//wpa2-mixed
+			get_by_id("show_wpa_cipher").style.display = "";
 			get_by_id("show_wpa2_cipher").style.display = "";
 		}
 		else{
@@ -262,8 +268,82 @@ function pocket_checkState(wlanIdx)
 
 }
   
-function saveClickSSID()
+
+
+
+function checkMeshState(wlan_id)
+{
+  	if (document.getElementById("mesh_method"+<% getIndex("wlan_idx"); %>).selectedIndex==1) {
+  		enableTextField(document.getElementById("mesh_pskFormat"+<% getIndex("wlan_idx"); %>));
+		enableTextField(document.getElementById("mesh_pskValue"+<% getIndex("wlan_idx"); %>));
+  	}		
+  	else {
+		disableTextField(document.getElementById("mesh_pskFormat"+<% getIndex("wlan_idx"); %>));
+		disableTextField(document.getElementById("mesh_pskValue"+<% getIndex("wlan_idx"); %>));
+  	}	
+
+}
+
+function selectMeshSecurity()
 {		
+	wizardHideDiv();
+	show_div(true, ("mesh_security_div"));
+
+	var encrypt = <% getIndex("meshEncrypt"); %>;
+    var psk_format = <% getIndex("meshPskFormat"); %>;
+    
+    if( encrypt == 4 )
+        document.getElementById("mesh_method"+wlan_idx).selectedIndex=1
+    else
+        document.getElementById("mesh_method"+wlan_idx).selectedIndex=0
+
+    if( encrypt == 0 ){
+		disableTextField(document.getElementById("mesh_pskFormat"+wlan_idx));
+		disableTextField(document.getElementById("mesh_pskValue"+wlan_idx));
+    } else {
+  		enableTextField(document.getElementById("mesh_pskFormat"+wlan_idx));
+		enableTextField(document.getElementById("mesh_pskValue"+wlan_idx));
+    
+        document.getElementById("mesh_pskFormat"+wlan_idx).selectedIndex=psk_format;
+    }
+
+	enableButton(document.wizardPocket.connectMeshBtn);
+
+}
+function saveMeshSecurity(next)
+{
+	var ret = 1;
+	if(next)
+	{
+		get_by_id("method"+wlan_idx).value = get_by_id("mesh_method"+wlan_idx).value;
+		get_by_id("pskFormat"+wlan_idx).value = get_by_id("mesh_pskFormat"+wlan_idx).value;
+		get_by_id("pskValue"+wlan_idx).value = get_by_id("mesh_pskValue"+wlan_idx).value;
+		
+		if(get_by_id("mesh_method"+wlan_idx).selectedIndex == 1) {
+			ret = check_wpa_psk(document.wizardPocket, wlan_idx);
+		}	
+
+		if(ret) {
+			wizardHideDiv();
+			show_div(true, "wait_div");
+			document.wizardPocket.submit();
+		}			
+	}
+	else
+	{
+		wizardHideDiv();
+		show_div(true, ("top_div"));
+		
+	}
+}
+
+function saveClickSSID()
+{
+	if(document.getElementById("select_type").value == "mesh") { /*connect to  mesh node, jump to mesh security page*/
+		selectMeshSecurity();
+		return;
+	}
+
 	var dF=document.forms[0];
 	
 	wizardHideDiv();
@@ -273,32 +353,10 @@ function saveClickSSID()
 		get_by_id("method"+wlan_idx).selectedIndex = 0;
 	else if(document.getElementById("pocket_encrypt").value == "WEP")
 		get_by_id("method"+wlan_idx).selectedIndex = 1;
-	else if(document.getElementById("pocket_encrypt").value.indexOf("WPA2") != -1){
+	/*else if(document.getElementById("pocket_encrypt").value.indexOf("WPA-PSK") != -1){
 		get_by_id("method"+wlan_idx).selectedIndex = 3;
 
-		if((client_mode_support_1x==1)&&(document.getElementById("pocket_encrypt").value.indexOf("-1X") !=-1)){
-			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;
-			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=false;
-		}
-		else{
-			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=false;
-			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=true;
-		}
 
-		if(document.getElementById("pocket_wpa2_tkip_aes").value.indexOf("aes")!=-1){
-			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=false;
-			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
-		}
-		else if(document.getElementById("pocket_wpa2_tkip_aes").value.indexOf("tkip")!=-1){
-			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
-			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=false;
-		}
-		else{
-			alert("Error: not supported wpa2 cipher suite "+document.getElementById("pocket_wpa2_tkip_aes").value);//Added for test
-		}
-	}
-	else if(document.getElementById("pocket_encrypt").value.indexOf("WPA") != -1){
-		get_by_id("method"+wlan_idx).selectedIndex = 2;
 		if((client_mode_support_1x==1)&&(document.getElementById("pocket_encrypt").value.indexOf("-1X") !=-1)){
 			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;
 			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=false;
@@ -319,6 +377,58 @@ function saveClickSSID()
 		else{
 			alert("Error: not supported wpa cipher suite "+document.getElementById("pocket_wpa_tkip_aes").value);//Added for test
 		}
+		if(document.getElementById("pocket_wpa2_tkip_aes").value.indexOf("aes")!=-1){
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=false;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+		}
+		else if(document.getElementById("pocket_wpa2_tkip_aes").value.indexOf("tkip")!=-1){
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=false;
+		}
+		else{
+			alert("Error: not supported wpa2 cipher suite "+document.getElementById("pocket_wpa_tkip_aes").value);//Added for test
+		}
+	}
+		else if(document.getElementById("pocket_encrypt").value.indexOf("WPA2") != -1){
+		get_by_id("method"+wlan_idx).selectedIndex = 2;
+		if((client_mode_support_1x==1)&&(document.getElementById("pocket_encrypt").value.indexOf("-1X") !=-1)){
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=false;
+		}
+		else{
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=false;
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=true;
+		}
+		if(document.getElementById("pocket_wpa2_tkip_aes").value.indexOf("aes")!=-1){
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=false;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+		}
+		else if(document.getElementById("pocket_wpa2_tkip_aes").value.indexOf("tkip")!=-1){
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+			dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=false;
+		}
+		else{
+			alert("Error: not supported wpa cipher suite "+document.getElementById("pocket_wpa_tkip_aes").value);//Added for test
+		}
+	}*/
+	else if(document.getElementById("pocket_encrypt").value.indexOf("WPA") != -1){//wpa/wpa2/mixed
+		get_by_id("method"+wlan_idx).selectedIndex = 2;
+		if((client_mode_support_1x==1)&&(document.getElementById("pocket_encrypt").value.indexOf("-1X") !=-1)){
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=true;
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=false;
+		}
+		else{
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[0].checked=false;
+			dF.wpaAuth<% getIndex("wlan_idx"); %>[1].checked=true;
+		}
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+		dF.ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=true;
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked=true;
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].disabled=true;
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked=true;
+		dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].disabled=true;
 	}
 	else if((client_mode_support_wapi==1)&&(document.getElementById("pocket_encrypt").value == "WAPI"))
 		get_by_id("method"+wlan_idx).selectedIndex = 4;
@@ -357,6 +467,34 @@ function init()
 		disableTextField(get_by_id("next"));		
 }
 
+function wpa_suite_select(wpa,suite)
+{
+	var dF=document.forms[0];
+	var enc_mode = dF.method<% getIndex("wlan_idx"); %>.value;
+	if(enc_mode == 6)
+		return;
+	if(wpa == 0)//wpa
+	{
+		if(dF.ciphersuite<% getIndex("wlan_idx"); %>[suite].checked)
+		{
+			if(suite == 0)
+				dF.ciphersuite<% getIndex("wlan_idx"); %>[1].checked = false;
+			else
+				dF.ciphersuite<% getIndex("wlan_idx"); %>[0].checked = false;
+		}
+	}
+	else//wpa2
+	{
+		if(dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[suite].checked)
+		{
+			if(suite == 0)
+				dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[1].checked = false;
+			else
+				dF.wpa2ciphersuite<% getIndex("wlan_idx"); %>[0].checked = false;
+		}
+	}
+}
+
 </script>
 </head>
 <body onload="init();">
@@ -381,7 +519,8 @@ function init()
 <tr><hr size=1 noshade align=top></tr>
 </table>
 <form action=/boafrm/formWlSiteSurvey method=POST name="wizardPocket">
-<input type=hidden id="pocketAP_ssid" name="pocketAP_ssid" value=""> 
+<input type=hidden id="pocketAP_ssid" name="pocketAP_ssid" value="">
+<input type=hidden id="pocketAP_realssid" name="pocketAP_realssid" value="">
 <input type=hidden id="pocket_channel" name="pocket_channel" value="">
 <input type=hidden id="pocket_encrypt" name="pocket_encrypt" value="">
 <input type=hidden id="pocket_wpa_tkip_aes" name="pocket_wpa_tkip_aes" value="">
@@ -392,6 +531,7 @@ function init()
 <input type=hidden name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="aes">
 -->
 <input type=hidden id="select" name="select" value="">
+<input type=hidden id="select_type" name="select_type" value="">
 <input type=hidden name="wlan_idx" value="<% getIndex("wlan_idx"); %>"*1>
 <input type=hidden name="wlanif" value="wlan<% getIndex("wlan_idx"); %>">
 <input type=hidden name="band<% getIndex("wlan_idx"); %>" value="<% getIndex("band");	%>"*1-1> <!-- B+G+N -->
@@ -417,9 +557,11 @@ function init()
 <table border=0 width="500" cellspacing=4 cellpadding=0>  
 	<tr> <td colspan="2" align=right>
 		<SCRIPT>
-			if(wlanMode == 1 || wlanMode == 4 || wlanMode == 5 )
+			if(wlanMode == 1)
 				document.write('<input type="button" value="  Next>>" id="next" onClick="saveClickSSID()">');
-			else if(wlanMode == 0 && rpt_enabled == 1)
+			else if(wlanMode == 4 || wlanMode == 5) 
+				document.write('<input type="button" value="  Next>>" id="next" onClick="saveClickSSID()">');
+			else if((wlanMode == 0 || wlanMode == 3) && rpt_enabled == 1)
 				document.write('<input type="button" value="  Next>>" id="next" onClick="saveClickSSID()">');
 		</SCRIPT>
   </td> </tr>
@@ -438,9 +580,8 @@ function init()
         <select size="1" id=method<% getIndex("wlan_idx"); %> name=method<% getIndex("wlan_idx"); %> onChange=pocket_checkState(<% getIndex("wlan_idx"); %>)>
           <option  value="0">None</option>
           <option value="1">WEP</option>
-          <option value="2">WPA</option>
-	  <option value="4">WPA2</option>
-	  <% getInfo("wapiOption");%>
+	  	  <!--<option value="4">WPA2</option>-->
+	      <option value="6">WPA-MIXED</option>
         </select></font></td>
 	</tr>
 	
@@ -448,7 +589,7 @@ function init()
 
 <span id = "wep_div" class = "off" >
 <table border=0 width="500" cellspacing=4  cellpadding=0>
-	<tr>
+  <tr>
       <td width="15%"><font size=2><b>Key Type:</b></td>
       <td width="60%"><font size=2><select size="1" name=authType<% getIndex("wlan_idx"); %>>
       	<option value=open >Open</option>
@@ -458,14 +599,14 @@ function init()
   </tr>
   <tr>
       <td width="15%"><font size=2><b>Key Length:</b></td>
-      <td width="60%"><font size=2><select size="1" name=length<% getIndex("wlan_idx"); %> ONCHANGE="lengthClick(document.wizardPocket,0)">
+      <td width="60%"><font size=2><select size="1" name=length<% getIndex("wlan_idx"); %> ONCHANGE="setDefaultWEPKeyValue(document.wizardPocket,<% getIndex("wlan_idx"); %>)">
       			<option value=1 >64-bit</option>
 			<option value=2 >128-bit</option>
       </select></td>
   </tr>
   <tr>
       <td width="15%"><font size=2><b>Key Format:</b></td>
-      <td width="40%"><font size=2><select size="1" name=format<% getIndex("wlan_idx"); %> ONCHANGE="setDefaultWEPKeyValue(document.wizardPocket,0)">
+      <td width="40%"><font size=2><select size="1" name=format<% getIndex("wlan_idx"); %> ONCHANGE="setDefaultWEPKeyValue(document.wizardPocket,<% getIndex("wlan_idx"); %>)">
      	<option value=1>ASCII</option>
 	<option value=2>Hex</option>
        </select></td>
@@ -495,23 +636,23 @@ function init()
    <tr id="show_wpa_cipher" style="display:none">
 	<td width="35%"><font size="2"><b>WPA Cipher Suite:</b></font></td>
 	<td width="65%"><font size="2">
-		<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="tkip">TKIP&nbsp;
-		<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="aes">AES
+		<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="tkip" onClick="wpa_suite_select(0,0);">TKIP&nbsp;
+		<input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="aes" onClick="wpa_suite_select(0,1);">AES
 	</font>
    </td></tr> 
 	
    <tr id="show_wpa2_cipher" style="display:none">
 	<td width="35%"><font size="2"><b>WPA2 Cipher Suite:</b></font></td>
 	<td width="65%"><font size="2">
-		<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="tkip">TKIP&nbsp;
-		<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="aes">AES
+		<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="tkip" onClick="wpa_suite_select(1,0);">TKIP&nbsp;
+		<input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="aes" onClick="wpa_suite_select(1,1);">AES
 	</font>
    </td></tr>
 
    <tr id="show_wpa_psk1" style="display:none">				
 	<td width="35%"><font size="2"><b>Pre-Shared Key Format:</b></font></td>
 	<td width="65%">
-	<select id="psk_fmt" name="pskFormat<% getIndex("wlan_idx"); %>" onChange="">
+	<select id="psk_fmt" name="pskFormat<% getIndex("wlan_idx"); %>" onChange="pskFormatChange(wizardPocket,<% getIndex("wlan_idx"); %>)">
 		<option value="0">Passphrase</option>
 		<option value="1">HEX (64 characters)</option>
 		</select>
@@ -519,7 +660,7 @@ function init()
    
    <tr id="show_wpa_psk2" style="display:none">
 	<td width="35%"><font size="2"><b>Pre-Shared&nbsp;Key:</b></font></td>
-	<td width="65%"><input type="password" name="pskValue<% getIndex("wlan_idx"); %>" id="wpapsk" size="32" maxlength="64" value="">
+	<td width="65%"><input type="password" name="pskValue<% getIndex("wlan_idx"); %>" id="wpapsk"  size="32"  value="">
    </td></tr>
   </table>
 </span>
@@ -611,11 +752,54 @@ function init()
  	 
  	 if (wlanState=="Disabled")
      	 	disableButton(document.wizardPocket.refresh);
- 	 
+ 	 	 
 		disableButton(document.wizardPocket.connectBtn);
  </script>
 </span>
 
+
+
+
+<span id = "mesh_security_div" class = "off" >
+
+<br>
+
+<table width="550" border="0" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF">
+  <tr>
+  <td width="35%"><font size="2"><b>Encryption:&nbsp;</b></td>
+  <td width="65%"><font size="2"><select size="1" id="mesh_method<% getIndex("wlan_idx"); %>" name="mesh_method<% getIndex("wlan_idx"); %>" onChange="checkMeshState(wlan_idx)" >
+    <option value="0">None</option>
+    <option value="4">WPA2 (AES)</option>
+    </select></font></td>
+  </tr>
+  <tr>
+  <td width="35%"><font size="2"><b>Pre-Shared Key Format:</b></font> </td>
+  <td width="65%"><font size="2"><select size="1" id="mesh_pskFormat<% getIndex("wlan_idx"); %>" name="mesh_pskFormat<% getIndex("wlan_idx"); %>">
+    <option value="0">Passphrase</option>
+    <option value="1">Hex (64 characters)</option>
+    </select></font></td>
+  </tr>
+  <tr>
+    <td width="35%"><font size="2"><b>Pre-Shared Key:</b></font> </td>
+    <td width="65%"><font size="2"><input type="password" id="mesh_pskValue<% getIndex("wlan_idx"); %>" name="mesh_pskValue<% getIndex("wlan_idx"); %>" size="40" maxlength="64" value=<% getInfo("meshPskValue");%>></font></td>
+  </tr>
+</table>
+  
+  <input type="button" value="<<Back  " name="back" onClick="saveMeshSecurity(0)">
+  <input type="button" value="Connect" name="connectMeshBtn" onClick="saveMeshSecurity(1)">
+  <input type="hidden" value="connect" name="connect">
+  <input type="hidden" value="/wlsurvey.htm" name="submit-url">
+ <script>
+ 	var wlanState="<%getScheduleInfo("wlan_state");%>";
+	if ( <% getIndex("wlanDisabled") %> )
+		disableButton(document.formWlSiteSurvey.refresh);
+ 	 
+ 	 if (wlanState=="Disabled")
+     	 	disableButton(document.wizardPocket.refresh);
+ 	 	 
+		disableButton(document.wizardPocket.connectMeshBtn);
+ </script>
+</span>
 <span id = "wait_div" class = "off" >
 Please wait...
 </span>

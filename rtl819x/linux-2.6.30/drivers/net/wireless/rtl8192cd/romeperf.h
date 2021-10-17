@@ -18,13 +18,13 @@
 
 /*
 typedef unsigned long long	uint64;
-typedef long long		int64;
+typedef signed long long		int64;
 typedef unsigned int	uint32;
-typedef int			int32;
+typedef signed int		int32;
 typedef unsigned short	uint16;
-typedef short			int16;
+typedef signed short	int16;
 typedef unsigned char	uint8;
-typedef char			int8;
+typedef signed char		int8;
 */
 
 #ifndef NULL
@@ -45,6 +45,8 @@ typedef char			int8;
 #endif
 
 
+#define MAX_CP3_COUNTER 8
+
 #if defined(CONFIG_RTL865X_MODULE_ROMEDRV)
 #define	rtl8651_romeperfEnterPoint				module_internal_rtl8651_romeperfEnterPoint
 #define	rtl8651_romeperfExitPoint					module_internal_rtl8651_romeperfExitPoint
@@ -52,8 +54,18 @@ typedef char			int8;
 
 struct rtl8651_romeperf_stat_s {
 	char *desc;
+#ifdef PERF_DUMP_CP3_DUAL_COUNTER_EN
+	uint64 accCycle[8];
+	uint64 tempCycle[8];
+    unsigned char Counter[8];    
+    unsigned char Event[8];        
+    unsigned char numOfCount;
+    unsigned char bUsed;    
+#else
 	uint64 accCycle[4];
 	uint64 tempCycle[4];
+#endif // PERF_DUMP_CP3_DUAL_COUNTER_EN
+    uint32 reEnterIdx;    
 	uint32 executedNum;
 	uint32 hasTempCycle:1; /* true if tempCycle is valid. */
 };
@@ -61,6 +73,7 @@ typedef struct rtl8651_romeperf_stat_s rtl8651_romeperf_stat_t;
 
 
 /* for rtl8651_romeperfEnterPoint() and rtl8651_romeperfExitPoint() */
+#if (PERF_DUMP_INIT_SELECT == PERF_DUMP_INIT_ORI)
 #define ROMEPERF_INDEX_MIN 0
 #define ROMEPERF_INDEX_NAPT_ADD 0
 #define ROMEPERF_INDEX_NAPT_ADD_1 1
@@ -130,6 +143,95 @@ typedef struct rtl8651_romeperf_stat_s rtl8651_romeperf_stat_t;
 #define ROMEPERF_INDEX_MDCMDIO 69
 #define ROMEPERF_INDEX_MAX 70
 
+#elif (PERF_DUMP_INIT_SELECT == PERF_DUMP_INIT_WLAN_TRX)
+#define ROMEPERF_INDEX_MIN      0
+enum _ROMEPERF_INDEX_LIST_ {
+    //tx
+    ROMEPERF_INDEX_TX_PREWORK   = 0,
+    ROMEPERF_INDEX_TX_XMIT_OUT,
+    ROMEPERF_INDEX_TX_XMIT_OUT_2,
+
+    //Rx     
+    ROMEPERF_INDEX_RX_ONE_PKT,
+    ROMEPERF_INDEX_RX_ONE_PKT_2,
+    ROMEPERF_INDEX_TX_START_XMIT,
+    ROMEPERF_INDEX_TX_START_XMIT_2,
+    ROMEPERF_INDEX_TX_START_XMIT_3,    
+    ROMEPERF_INDEX_TX_START_XMIT_4,    
+    ROMEPERF_INDEX_TX_START_XMIT_5,        
+    ROMEPERF_INDEX_MAX
+};
+
+
+#else
+#error "PERF_DUMP_INIT_SELECT flag error"
+#endif
+
+
+#if (PERF_DUMP_CP3_SELECT == PERF_DUMP_CP3_OLD)
+enum CP3_COUNTER
+{
+	CP3CNT_CYCLES = 0,
+	CP3CNT_NEW_INST_FECTH,
+	CP3CNT_NEW_INST_FETCH_CACHE_MISS,
+	CP3CNT_NEW_INST_MISS_BUSY_CYCLE,
+	CP3CNT_DATA_STORE_INST,
+	CP3CNT_DATA_LOAD_INST,
+	CP3CNT_DATA_LOAD_OR_STORE_INST,
+	CP3CNT_EXACT_RETIRED_INST,
+	CP3CNT_RETIRED_INST_FOR_PIPE_A,
+	CP3CNT_RETIRED_INST_FOR_PIPE_B,
+	CP3CNT_DATA_LOAD_OR_STORE_CACHE_MISS,
+	CP3CNT_DATA_LOAD_OR_STORE_MISS_BUSY_CYCLE,
+	CP3CNT_RESERVED12,
+	CP3CNT_RESERVED13,
+	CP3CNT_RESERVED14,
+	CP3CNT_RESERVED15,
+};
+#elif (PERF_DUMP_CP3_SELECT == PERF_DUMP_CP3_NEW)
+enum CP3_COUNTER
+{
+    //0x0
+	CP3CNT_STOP_COUNT               = 0,
+	CP3CNT_INST_FECTH,                  
+	CP3CNT_ICACHE_MISS,
+	CP3CNT_ICACHE_MISS_CYCLE,
+	CP3CNT_STORE_INST,
+
+    //0x5
+	CP3CNT_LOAD_INST,
+	CP3CNT_LOAD_OR_STORE_INST,
+	CP3CNT_COMPLETE_INST,
+	CP3CNT_CYCLES,
+	CP3CNT_ICACHE_SOFT_MISS,
+	
+	//0xA
+	CP3CNT_DCACHE_MISS,
+	CP3CNT_DCACHE_MISS_CYCLES,
+	CP3CNT_L2CACHE_HIT,
+	CP3CNT_L2CACHE_HIT_CYCLES,
+	CP3CNT_L2CACHE_MISS,
+	CP3CNT_L2CACHE_MISS_CYCLES,
+
+    //0X10
+    CP3CNT_BRANCH_PREDICTION,
+    CP3CNT_BRANCH_PREDICTION_MISS,
+    // TODO: Filen, enumalation below should be added
+    
+    //0x15
+    //0x1A
+    //0x20
+    //0x25
+    //0x2A
+    //0x30
+
+    CP3_CNT_MAX = 0x34
+};
+
+#else
+#error "PERF_DUMP_CP3_SELECT flag error"
+#endif
+
 int32 rtl8651_romeperfInit( void );
 inline int32 rtl8651_romeperfStart(void);
 inline int32 rtl8651_romeperfStop(void);
@@ -140,6 +242,14 @@ int32 rtl8651_romeperfDump( int start, int end );
 int32 rtl8651_romeperfPause( void );
 int32 rtl8651_romeperfResume( void );
 int32 rtl8651_romeperfGet( uint64 *pGet );
+
+//int32 rtl_romeperfEnterPoint_dual(uint32 index, int cnt_num);
+int32 rtl_romeperfEnterPoint_dual(uint32 index, int cnt_num,char *event);
+int32 rtl_romeperfExitPoint_dual(uint32 index);
+int getEventIndex(int i);
+int getAvailableCnt(void);
+int setEvent(int counter,char evnet);
+
 
 extern rtl8651_romeperf_stat_t romePerfStat[ROMEPERF_INDEX_MAX];
 

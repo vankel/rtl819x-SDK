@@ -367,11 +367,37 @@ echo "/dev/sdp15     b 666 root root   8 255" >> squashfs-pf-list.txt
 
 
 fi
+if [ "$CONFIG_APP_ALSA_AUDIO" = "y" ]; then
+echo "/dev/snd/controlC0 c 666 root root 116 0" >> squashfs-pf-list.txt
+echo "/dev/snd/controlC1 c 666 root root 116 32" >> squashfs-pf-list.txt
+echo "/dev/snd/timer c 666 root root 116 33" >> squashfs-pf-list.txt
+echo "/dev/snd/pcmC0D0c c 666 root root 116 24" >> squashfs-pf-list.txt
+echo "/dev/snd/pcmC0D0p c 666 root root 116 16" >> squashfs-pf-list.txt
+echo "/dev/snd/pcmC1D0c c 666 root root 116 56" >> squashfs-pf-list.txt
+echo "/dev/snd/pcmC1D0p c 666 root root 116 48" >> squashfs-pf-list.txt
 
+
+echo "/dev/aloadC0 c 666 root root 116 0" >> squashfs-pf-list.txt
+echo "/dev/aloadSEQ c 666 root root 116 1" >> squashfs-pf-list.txt
+echo "/dev/aloadC1 c 666 root root 116 32" >> squashfs-pf-list.txt
+echo "/dev/aloadC2 c 666 root root 116 64" >> squashfs-pf-list.txt
+echo "/dev/aloadC3 c 666 root root 116 96" >> squashfs-pf-list.txt
+echo "/dev/aloadC4 c 666 root root 116 128" >> squashfs-pf-list.txt
+echo "/dev/aloadC5 c 666 root root 116 160" >> squashfs-pf-list.txt
+echo "/dev/aloadC6 c 666 root root 116 192" >> squashfs-pf-list.txt
+echo "/dev/aloadC7 c 666 root root 116 224" >> squashfs-pf-list.txt
+fi
 #DEVICES="$DEVICES  mtdblock1,b,31,1"
 echo "/dev/mtdblock1 b 666 root root  31  1" >> squashfs-pf-list.txt
 echo "/dev/mtdblock2 b 666 root root  31  2" >> squashfs-pf-list.txt
 echo "/dev/mtdblock3 b 666 root root  31  3" >> squashfs-pf-list.txt
+
+###for tr069
+echo "/dev/mtd0 c 666 root root  90  0" >> squashfs-pf-list.txt
+echo "/dev/mtd1 c 666 root root  90  1" >> squashfs-pf-list.txt
+echo "/dev/mtd2 c 666 root root  90  2" >> squashfs-pf-list.txt
+echo "/dev/mtd3 c 666 root root  90  3" >> squashfs-pf-list.txt
+echo "/dev/mtd4 c 666 root root  90  4" >> squashfs-pf-list.txt
 
 if [ "$GW_VPN" = 1  ];then
 #DEVICES="$DEVICES  random,c,1,8"
@@ -436,6 +462,15 @@ echo "/dev/voip/pcmtx1 c 666 root root 243 73" >> squashfs-pf-list.txt
 echo "/dev/voip/pcmrx1 c 666 root root 243 74" >> squashfs-pf-list.txt
 fi
 
+if [ "$CONFIG_RTK_VOIP" != "" ]; then
+echo "/dev/voip/dtmfdet0 c 666 root root 243 76" >> squashfs-pf-list.txt
+echo "/dev/voip/dtmfdet1 c 666 root root 243 77" >> squashfs-pf-list.txt
+fi
+
+#if [ "$CONFIG_RTL_USERSPACE_WTDOG" = "y" ]; then
+#echo "/dev/chr_watchdog c 666 root root 254 0" >> squashfs-pf-list.txt
+#fi
+
 ln -s /tmp/log $RAMFSDIR/dev/log
 
 #for dev in $DEVICES; do
@@ -457,6 +492,11 @@ DBG_SCRPT="ib iw idd irf ob ow od orf rssi acltd setmib getmib"
 for scrpt in $DBG_SCRPT ; do
 	cp $USERS_DIR/script/script_dbg/$scrpt $RAMFSDIR/bin
 done
+
+if [ "$CONFIG_YAFFS_FS" = "y" ]; then
+mkdir $RAMFSDIR/hw_setting
+chmod 777 $RAMFSDIR/hw_setting
+fi
 
 #find $RAMFSDIR/. -name ".svn" | xargs -r rm -rf
 

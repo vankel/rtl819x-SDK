@@ -41,8 +41,9 @@ void sighup(int);
 void sigint(int);
 void sigchld(int);
 void sigalrm(int);
-
-
+#ifdef 	CONFIG_RTL_ULINKER
+void siginit(int);
+#endif
 /*
  * Name: init_signals
  * Description: Sets up signal handlers for all our friends.
@@ -64,8 +65,9 @@ void init_signals(void)
     sigaddset(&sa.sa_mask, SIGCHLD);
     sigaddset(&sa.sa_mask, SIGALRM);
     sigaddset(&sa.sa_mask, SIGUSR1);
-//    sigaddset(&sa.sa_mask, SIGUSR2);
-
+#ifdef 	CONFIG_RTL_ULINKER
+    sigaddset(&sa.sa_mask, SIGUSR2);
+#endif
     sa.sa_handler = sigsegv;
     sigaction(SIGSEGV, &sa, NULL);
 
@@ -98,9 +100,10 @@ void init_signals(void)
 #endif
 #endif
     sigaction(SIGUSR1, &sa, NULL);
-
-//    sa.sa_handler = SIG_IGN;
-//    sigaction(SIGUSR2, &sa, NULL);
+#ifdef CONFIG_RTL_ULINKER
+    sa.sa_handler = siginit;
+    sigaction(SIGUSR2, &sa, NULL);
+#endif
 }
 
 void reset_signals(void)
@@ -120,8 +123,9 @@ void reset_signals(void)
     sigaddset(&sa.sa_mask, SIGCHLD);
     sigaddset(&sa.sa_mask, SIGALRM);
     sigaddset(&sa.sa_mask, SIGUSR1);
-//    sigaddset(&sa.sa_mask, SIGUSR2);
-
+#ifdef 	CONFIG_RTL_ULINKER
+    sigaddset(&sa.sa_mask, SIGUSR2);
+#endif
     sigaction(SIGSEGV, &sa, NULL);
     sigaction(SIGBUS, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
@@ -131,7 +135,9 @@ void reset_signals(void)
     sigaction(SIGCHLD, &sa, NULL);
     sigaction(SIGALRM, &sa, NULL);
     sigaction(SIGUSR1, &sa, NULL);
-//    sigaction(SIGUSR2, &sa, NULL);
+#ifdef 	CONFIG_RTL_ULINKER
+    sigaction(SIGUSR2, &sa, NULL);
+#endif
 }
 
 void sigsegv(int dummy)
@@ -268,7 +274,13 @@ void sigalrm(int dummy)
 {
     sigalrm_flag = 1;
 }
-
+#ifdef 	CONFIG_RTL_ULINKER
+extern int wait_reinit;
+void siginit(int dummy)
+{
+	wait_reinit = 30;
+}
+#endif
 /*
 void sigalrm_run(void)
 {
@@ -280,9 +292,14 @@ void sigalrm_run(void)
     sigalrm_flag = 0;
 }
 */
-
+#define TIME_SLOT_1M	60
+#define TIME_SLOT_1H	3600
+	
 void sigalrm_run(void)
 {
+	static unsigned int count=0;
+	
+	count++;
 	sigalrm_flag = 0;
 #if defined(CONFIG_RTL_ULINKER)
 		ulinker_process();
@@ -314,6 +331,5 @@ void sigalrm_run(void)
 		}
 	}
 #endif
-	
 	alarm(1);
 }

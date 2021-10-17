@@ -159,21 +159,23 @@ typedef struct
     //BOOL					bPLC;				// packet loss concealment	
     uint32					nJitterDelay;		// jitter delay configuration in unit of 10ms
     uint32					nMaxDelay;			// max delay configuration in unit of 10ms
+    uint32					nMaxStrictDelay;	// max strict delay configuration in unit of 10ms 
     uint32					nJitterFactor;		// optimization factor of jitter delay 
 }CDspcodecConfig;
 
 // initialization parameter passed to RISC1
 typedef struct 
 {
-    DSPCODEC_ALGORITHM       uCodingAlgorithm;    // which coding algorism used: G711u, G711a, G723.1a53, G723.1a63, G729
+    DSPCODEC_ALGORITHM       uTranCodingAlgorithm;    // which coding algorism used: G711u, G711a, G723.1a53, G723.1a63, G729
+    DSPCODEC_ALGORITHM       uRecvCodingAlgorithm;    // which coding algorism used: G711u, G711a, G723.1a53, G723.1a63, G729
     CDspcodecConfig         xConfig;
 }CDspcodecInitializeParm;
 
 // config parameter passed to RISC1
-typedef struct 
-{
-    CDspcodecConfig         xConfig;
-}CDspcodecSetConfigParm;
+//typedef struct 
+//{
+//    CDspcodecConfig         xConfig;
+//}CDspcodecSetConfigParm;
 
 // start parameter passed to RISC1
 typedef struct 

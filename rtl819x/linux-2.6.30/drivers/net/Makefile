@@ -273,11 +273,15 @@ obj-$(CONFIG_SFC) += sfc/
 
 obj-$(CONFIG_WIMAX) += wimax/
 
+obj-$(CONFIG_RTL8686_GMAC) += apollo/
+
 obj-$(CONFIG_RTL_819X_SWCORE) += rtl819x/built-in.o
 subdir-$(CONFIG_RTL_819X_SWCORE) += rtl819x
 
 obj-$(CONFIG_RTK_VLAN_SUPPORT) += rtk_vlan.o
 obj-$(CONFIG_R8198EP) += r8198ep/
+
+obj-$(CONFIG_RTL8686_GMAC) += re8686.o
 
 #DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
 #EXTRA_CFLAGS += -I$(DIR_RTLASIC)

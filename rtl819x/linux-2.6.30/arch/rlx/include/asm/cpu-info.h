@@ -59,6 +59,14 @@ struct cpuinfo_mips {
 	int	        		srsets;	/* Shadow register sets */
 	int		        	core;	/* physical core number */
 	void 		       	*data;	/* Additional data */
+#ifdef CONFIG_CPU_HAS_WATCH
+	unsigned int		watch_reg_count;   /* Number that exist */
+	unsigned int		watch_reg_use_cnt; /* Usable by ptrace */
+#define NUM_WATCH_REGS 4
+	u16			watch_reg_masks[NUM_WATCH_REGS];
+	unsigned int		watch_mode;	/* WMPCTL:mode_switch */
+	unsigned int		watch_kernel;	/* WMPCTL:kernel_enable */
+#endif
 } __attribute__((aligned(L1_CACHE_BYTES)));
 
 extern struct cpuinfo_mips cpu_data[];

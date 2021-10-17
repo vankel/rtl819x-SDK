@@ -11,7 +11,7 @@
 
 #ifdef FEATURE_C_MODEL
 #else
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>

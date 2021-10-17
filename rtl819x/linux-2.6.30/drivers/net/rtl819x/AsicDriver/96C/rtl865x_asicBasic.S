@@ -631,7 +631,7 @@ _rtl8651_asicTableAccessForward:
 	lui	$5,%hi($LC2)
 	addiu	$5,$5,%lo($LC2)
 	jal	panic_printk
-	li	$6,324			# 0x144
+	li	$6,368			# 0x170
 
 $L72:
 	j	$L72
@@ -1060,7 +1060,7 @@ _rtl8651_readAsicEntry:
 	lui	$5,%hi($LC2)
 	addiu	$5,$5,%lo($LC2)
 	jal	panic_printk
-	li	$6,462			# 0x1ce
+	li	$6,506			# 0x1fa
 
 $L128:
 	j	$L128
@@ -1236,7 +1236,7 @@ _rtl8651_readAsicEntryStopTLU:
 	lui	$5,%hi($LC2)
 	addiu	$5,$5,%lo($LC2)
 	jal	panic_printk
-	li	$6,557			# 0x22d
+	li	$6,601			# 0x259
 
 $L166:
 	j	$L166

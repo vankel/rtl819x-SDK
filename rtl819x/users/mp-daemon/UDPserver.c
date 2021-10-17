@@ -26,6 +26,7 @@
 
 #define MYPORT 9034                    // the port users will be connecting to
 #define BUFLEN 1024                      // length of the buffer
+#define BUFFLEN_MAX		1500
 #define MP_TX_PACKET 0x8B71
 #define MP_BRX_PACKET 0x8B73
 #define MP_QUERY_STATS 	0x8B6D
@@ -54,6 +55,11 @@ typedef struct param_header {
 } PARAM_HEADER_T, *PARAM_HEADER_Tp;
 PARAM_HEADER_T hsHeader;
 #endif
+char strread[]="wlan0     read_reg:\n";
+char strreadrf[]="wlan0     read_rf:\n";
+char strpsd[]="wlan0     mp_psd:\n";
+char strpsd1[]="wlan1     mp_psd:\n";
+
 #if 0
 /* Do checksum and verification for configuration data */
 #ifndef WIN32
@@ -245,9 +251,8 @@ int main(void) {
 	struct sockaddr_in their_addr;  			// connector¡¦s address information
 	int addr_len, numbytes;
 	FILE *fp;
-	char buf[BUFLEN], buf_tmp[BUFLEN], 
-	pre_result[BUFLEN];				// buffer that stores message
-	static char cmdWrap[500];
+	static char buf[BUFLEN], buf_tmp[BUFLEN], pre_result[BUFLEN];				// buffer that stores message
+	static char cmdWrap[BUFFLEN_MAX];
 	static int rwHW=0;
 	static int ret_value=0;
 	// create a socket
@@ -283,7 +288,7 @@ int main(void) {
 	while (1) {
 		//receive the command from the client
 		memset(buf, 0, BUFLEN);
-		memset(cmdWrap, 0, 500);
+		memset(cmdWrap, 0, BUFFLEN_MAX);
 		rwHW = 0;
 		if ((numbytes = recvfrom(sockfd, buf, BUFLEN, 0,
 			(struct sockaddr *)&their_addr, &addr_len)) == -1) {
@@ -292,7 +297,7 @@ int main(void) {
 			exit(1);
 		}
 		
-		//printf("received command (%s) from IP:%s\n", buf, inet_ntoa(their_addr.sin_addr));
+		//fprintf(stderr,"received command (%s) from IP:%s\n", buf, inet_ntoa(their_addr.sin_addr));
 
 		if(!memcmp(buf, "orf", 3)){
                         strcat(buf, " > /tmp/MP.txt");
@@ -380,9 +385,7 @@ int main(void) {
 				fgets(buf, BUFLEN, fp);
 					buf[BUFLEN-1] = '\0';
 					{	//fix read_reg bug
-						char strread[]="wlan0     read_reg:\n";
-						char strreadrf[]="wlan0     read_rf:\n";
-						char strpsd[]="wlan0     mp_psd:\n";
+							int idx=0;
 						if( strncmp(buf,strread,strlen(strread))==0 )
 							get_read_reg_value( fp, buf, BUFLEN );
 						if( strncmp(buf,strreadrf,strlen(strreadrf))==0 )
@@ -390,9 +393,14 @@ int main(void) {
 						if( strncmp(buf,strpsd,strlen(strpsd))==0 ) {
 							get_read_reg_value( fp, buf, BUFLEN );
 						}
+						if( strncmp(buf,strpsd1,strlen(strpsd1))==0 ) {
+							get_read_reg_value( fp, buf, BUFLEN );
+						}
+
 					}
 					fclose(fp);
 				}	
+				printf("data");
 				sprintf(pre_result, "data:%s", buf);
 			}
 			//ack to the client
@@ -418,6 +426,16 @@ int main(void) {
 				strcpy(buf, buf_tmp);;
 			}
 			else if(!memcmp(buf, "iwpriv wlan0 read_reg", 21)){
+				strcat(buf, " > /tmp/MP.txt");
+				system(buf);
+				
+			}
+			else if(!memcmp(buf, "iwpriv wlan0 read_rf", 20)){
+				strcat(buf, " > /tmp/MP.txt");
+				system(buf);
+				
+			}			
+			else if(!memcmp(buf, "iwpriv wlan1 read_rf", 20)){
 				strcat(buf, " > /tmp/MP.txt");
 				system(buf);
 				
@@ -471,7 +489,11 @@ int main(void) {
 				strcat(buf, " > /tmp/MP.txt");
 				system(buf);		
 			} 	
-			else if(!memcmp(buf, "iwpriv wlan1 efuse_sync", 23)){
+		else if(!memcmp(buf, "iwpriv wlan1 mp_psd", 19)){
+				strcat(buf, " > /tmp/MP.txt");
+				system(buf);		
+			} 	
+		else if(!memcmp(buf, "iwpriv wlan1 efuse_sync", 23)){
                                 strcat(buf, " > /tmp/MP.txt");
                                 system(buf);
             		}
@@ -515,7 +537,8 @@ int main(void) {
 				if(rwHW == 1){
 					system(cmdWrap);
 				}else{
-					system(buf);
+					if (memcmp(buf, "wlan0     read_reg", 18) && memcmp(buf, "wlan0     read_rf", 17) && memcmp(buf, "wlan1     read_reg", 18) && memcmp(buf, "wlan1     read_rf", 17))
+					    system(buf);
 				}
 				
 				//delay

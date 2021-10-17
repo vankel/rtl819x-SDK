@@ -216,19 +216,23 @@ static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, char *buf, cha
 	PRINT_ARRAY_ARG("    hwaddr: ",	pstat->hwaddr, "%02x", MACADDRLEN);
 	if( !(network&(~WIRELESS_11B)) )
 	{
-		PRINT_ONE("    mode: 11b","%s",1);
+		PRINT_ONE("    mode: B","%s",1);
 	}
 	else if( !(network&(~(WIRELESS_11G|WIRELESS_11B))) )
 	{
-		PRINT_ONE("    mode: 11g","%s",1);
+		PRINT_ONE("    mode: B+G","%s",1);
 	}
 	else if( !(network&(~(WIRELESS_11N|WIRELESS_11G|WIRELESS_11B))) )
 	{
-		PRINT_ONE("    mode: 11n","%s",1);
+		PRINT_ONE("    mode: B+G+N","%s",1);
+	}
+	else if( !(network&(~(WIRELESS_11N|WIRELESS_11A))) )
+	{
+		PRINT_ONE("    mode: A+N","%s",1);
 	}
 	else
 	{
-		PRINT_ONE("    mode: 11a","%s",1);
+		PRINT_ONE("    mode: A","%s",1);
 	}
 
 	PRINT_SINGL_ARG("    Tx Packets: ", pstat->tx_pkts, "%u");
@@ -250,9 +254,17 @@ static int dump_mesh_one_mpinfo(int num, struct stat_info *pstat, char *buf, cha
 	}
 	PRINT_SINGL_ARG("    Ept: ", pstat->mesh_neighbor_TBL.ept, "%u");
 	PRINT_SINGL_ARG("    rssi: ", pstat->mesh_neighbor_TBL.Q, "%u");
+#if defined(RTK_MESH_MANUALMETRIC)
+	if(pstat->mesh_neighbor_TBL.manual_metric) {
+		PRINT_SINGL_ARG("    manual matric: ", pstat->mesh_neighbor_TBL.manual_metric, "%lu");
+	} else
+#endif
+	{
+		PRINT_SINGL_ARG("    matric: ", pstat->mesh_neighbor_TBL.metric, "%lu");
+	}
 	PRINT_SINGL_ARG("    expire_Establish(jiffies): ", (pstat->mesh_neighbor_TBL.expire - jiffies), "%ld");		// %lu=unsigned long
 	//PRINT_SINGL_ARG("                    (mSec): ", ((pstat->mesh_neighbor_TBL.expire - jiffies)*(1000/HZ)), "%ld");
-	PRINT_SINGL_ARG("                    (Sec): ", ((pstat->mesh_neighbor_TBL.expire - jiffies)/100), "%ld");
+	PRINT_SINGL_ARG("                    (Sec): ", ((pstat->mesh_neighbor_TBL.expire - jiffies)/1000), "%ld");
 	PRINT_SINGL_ARG("    expire_BootSeq & LLSA(jiffies): ", tmp, "%ld");		// %lu=unsigned long
 	PRINT_SINGL_ARG("                         (mSec): ", ((tmp)*(1000/HZ)), "%ld");
 	PRINT_SINGL_ARG("    retry: ", pstat->mesh_neighbor_TBL.retry, "%d");
@@ -629,6 +641,7 @@ int mesh_stats(char *buf, char **start, off_t offset, int length, int *eof, void
 
 		PRINT_ONE("  WLAN Mesh Capability...", "%s", 1);	
 		PRINT_SINGL_ARG("    Version:          ", priv->mesh_Version, "%u");
+        PRINT_SINGL_ARG("    PathSelectProtocolID:          ", priv->mesh_profile[0].PathSelectProtocolID.value, "%u");        
 		PRINT_ONE("    Peer_CAP:", "%s", 1);
 		PRINT_SINGL_ARG("      Capacity:       ", MESH_PEER_LINK_CAP_NUM(priv), "%hd");
 		PRINT_SINGL_ARG("      Flags:          ", (priv->mesh_PeerCAP_flags & MESH_PEER_LINK_CAP_FLAGS_MASK), "%hX");
@@ -651,117 +664,127 @@ int mesh_stats(char *buf, char **start, off_t offset, int length, int *eof, void
 
 int mesh_pathsel_routetable_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
 {
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
-	int len = 0;
-	off_t begin = 0;
-	off_t pos = 0;
-	struct path_sel_entry * ptable;
-	int i=0, portal_n=0, j=0;
-	
-	struct pann_mpp_tb_entry * mpptable;
-	
-	//chuangch 2007.09.14
-	//ptable = get_g_pathtable();
-	int num = 1;
-	
-	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-		// sprintf(buf, "-- Mesh Pathselection Route info table -- \n");
-		buf[0] = 0;
-		if (!netif_running(dev) )
-			goto _ret;
-	
-		//by brian, show the mp itself
-		PRINT_ONE(num,  " %d: Mesh route table info...", num++);
-		PRINT_ONE("    destMAC: My-self", "%s", 1);
-		PRINT_ONE("    nexthopMAC: ---", "%s", 1);
+    struct net_device *dev = (struct net_device *)data;
+    DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+    int len = 0;
+    off_t begin = 0;
+    off_t pos = 0;
+    struct path_sel_entry * ptable;
+    int i=0, j=0;
 
-		if( priv->pmib->dot1180211sInfo.mesh_portal_enable )
-		{
-		  PRINT_ONE("    portal enable: yes", "%s", 1);
-    }
-		else
-		{
-		  PRINT_ONE("    portal enable: no", "%s", 1);
-    }
-	
-		PRINT_ONE("    dsn: ---", "%s", 1);
-		PRINT_ONE("    metric: ---", "%s", 1);
-		PRINT_ONE("    hopcount: ---", "%s", 1);
-	
-		PRINT_ONE("    start: ---", "%s" ,1);
-		PRINT_ONE("    end: ---", "%s", 1);
-		PRINT_ONE("    diff: ---", "%s", 1);
-		PRINT_ONE("    flag: ---", "%s", 1);
-			
-		PRINT_ONE("", "%s", 1);
-				
-		mpptable = (struct pann_mpp_tb_entry *) &(priv->pann_mpp_tb->pann_mpp_pool);
-		
-		ptable = (struct path_sel_entry*)priv->pathsel_table->entry_array[i].data;
-		for(i=0;i<(1 << priv->pathsel_table->table_size_power);i++)
-		{
-		  int isPortal=0;
-			if(priv->pathsel_table->entry_array[i].dirty != 0)
-			{			
-				ptable = (struct path_sel_entry*)priv->pathsel_table->entry_array[i].data;
-				PRINT_ONE(num,  " %d: Mesh route table info...", num++);
-//				PRINT_SINGL_ARG("    isvalid: ", ptable->isvalid, "%x");
-				PRINT_ARRAY_ARG("    destMAC: ",	ptable->destMAC, "%02x", MACADDRLEN);
-				PRINT_ARRAY_ARG("    nexthopMAC: ",	ptable->nexthopMAC, "%02x", MACADDRLEN);
-			
-				for( j=0; j<MAX_MPP_NUM ;j++ )
-				{
-				  if( mpptable[j].flag && !memcmp(mpptable[j].mac, ptable->destMAC, MACADDRLEN) )
-				  {
-				    isPortal = 1;
-				    break;
-          }
-        }
-        if( isPortal )
+    struct pann_mpp_tb_entry * mpptable;
+#ifdef __LINUX_2_6__
+    struct timespec now = xtime;
+#else
+    struct timeval now = xtime;
+#endif	
+    //chuangch 2007.09.14
+    //ptable = get_g_pathtable();
+    int num = 1;
+
+    if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
+        // sprintf(buf, "-- Mesh Pathselection Route info table -- \n");
+        buf[0] = 0;
+        if (!netif_running(dev) )
+        goto _ret;
+
+        //by brian, show the mp itself
+        PRINT_ONE(num,  " %d: Mesh route table info...", num++);
+        PRINT_ONE("    destMAC: My-self", "%s", 1);
+        PRINT_ONE("    nexthopMAC: ---", "%s", 1);
+
+        if( priv->pmib->dot1180211sInfo.mesh_portal_enable )
         {
-          PRINT_ONE("    portal enable: yes", "%s", 1);
+            PRINT_ONE("    portal enable: yes", "%s", 1);
         }
         else
         {
-          PRINT_ONE("    portal enable: no", "%s", 1);
-        } 
+            PRINT_ONE("    portal enable: no", "%s", 1);
+        }
+	
+        PRINT_ONE("    dsn: ---", "%s", 1);
+        PRINT_ONE("    metric: ---", "%s", 1);
+        PRINT_ONE("    hopcount: ---", "%s", 1);
+
+        PRINT_ONE("    start: ---", "%s" ,1);
+        PRINT_ONE("    end: ---", "%s", 1);
+        PRINT_ONE("    diff: ---", "%s", 1);
+        PRINT_ONE("    flag: ---", "%s", 1);
+        	
+        PRINT_ONE("", "%s", 1);
+       
+        priv = (DRV_PRIV *)priv->mesh_priv_first;             
+        mpptable = (struct pann_mpp_tb_entry *) &(priv->pann_mpp_tb->pann_mpp_pool);        
+
+        ptable = (struct path_sel_entry*)priv->pathsel_table->entry_array[i].data;
+        for(i=0;i<(1 << priv->pathsel_table->table_size_power);i++)
+        {
+            int isPortal=0;
+            if(priv->pathsel_table->entry_array[i].dirty != 0)
+            {			
+                ptable = (struct path_sel_entry*)priv->pathsel_table->entry_array[i].data;
+                PRINT_ONE(num,  " %d: Mesh route table info...", num++);
+                //				PRINT_SINGL_ARG("    isvalid: ", ptable->isvalid, "%x");
+                PRINT_ARRAY_ARG("    destMAC: ",	ptable->destMAC, "%02x", MACADDRLEN);
+                PRINT_ARRAY_ARG("    nexthopMAC: ",	ptable->nexthopMAC, "%02x", MACADDRLEN);
+
+                for( j=0; j<MAX_MPP_NUM ;j++ )
+                {
+                    if( mpptable[j].flag && !memcmp(mpptable[j].mac, ptable->destMAC, MACADDRLEN) )
+                    {
+                        isPortal = 1;
+                        break;
+                    }
+                }
+                if( isPortal )
+                {
+                  PRINT_ONE("    portal enable: yes", "%s", 1);
+                }
+                else
+                {
+                  PRINT_ONE("    portal enable: no", "%s", 1);
+                } 
+    			
+                PRINT_SINGL_ARG("    dsn: ", ptable->dsn, "%u");	// %lu=unsigned long
+                PRINT_SINGL_ARG("    metric: ", ptable->metric, "%u");
+                PRINT_SINGL_ARG("    hopcount: ", ptable->hopcount, "%u");		// %lu=unsigned long
+                //				PRINT_SINGL_ARG("    modify_time: ", ptable->modify_time, "%u");
+
+                PRINT_SINGL_ARG("    start: ", ptable->start, "%u");
+                PRINT_SINGL_ARG("    end: ", ptable->end, "%u");
+                PRINT_SINGL_ARG("    diff: ", ptable->end-ptable->start, "%u");
+                PRINT_SINGL_ARG("    flag: ", ptable->flag, "%d");
+                PRINT_SINGL_ARG("    update_time: ", (int)(now.tv_sec - ptable->update_time.tv_sec), "%d");
+#ifdef MESH_ROUTE_MAINTENANCE
+                PRINT_SINGL_ARG("    routeMaintain: ", (int)(now.tv_sec - ptable->routeMaintain.tv_sec), "%d");
+#endif
+                PRINT_SINGL_ARG("    interface: ", ptable->priv->dev->name, "%s");
 			
-				PRINT_SINGL_ARG("    dsn: ", ptable->dsn, "%u");	// %lu=unsigned long
-				PRINT_SINGL_ARG("    metric: ", ptable->metric, "%u");
-				PRINT_SINGL_ARG("    hopcount: ", ptable->hopcount, "%u");		// %lu=unsigned long
-//				PRINT_SINGL_ARG("    modify_time: ", ptable->modify_time, "%u");
-			
-				PRINT_SINGL_ARG("    start: ", ptable->start, "%u");
-				PRINT_SINGL_ARG("    end: ", ptable->end, "%u");
-				PRINT_SINGL_ARG("    diff: ", ptable->end-ptable->start, "%u");
-				PRINT_SINGL_ARG("    flag: ", ptable->flag, "%d");
-			
-				PRINT_ONE("", "%s", 1);
+                PRINT_ONE("", "%s", 1);
 #if 0 // stanley
 				{
 					unsigned char *p = ptable->destMAC;
 					printk("path to: %02X%02X%02X%02X%02X%02X\n", *(p), *(p+1), *(p+2), *(p+3), *(p+4), *(p+5));
 				}
 #endif
-			}	
-		}	
-	} else
-		PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
-	
-	*eof = 1;
+            }	
+        }	
+    } else
+    PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+
+    *eof = 1;
 
 _ret:
-	
-	*start = buf + (offset - begin);	/* Start of wanted data */
 
-	len = strlen(buf);
+    *start = buf + (offset - begin);	/* Start of wanted data */
 
-	len -= (offset - begin);	/* Start slop */
-	if (len > length)
-		len = length;	/* Ending slop */
+    len = strlen(buf);
 
-	return len;
+    len -= (offset - begin);	/* Start slop */
+    if (len > length)
+        len = length;	/* Ending slop */
+
+    return len;
 }
 
 /*
@@ -774,49 +797,52 @@ _ret:
 int mesh_proxy_table_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
 {
 
-	struct net_device *dev = (struct net_device *)data;
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
-	int len = 0;
-	off_t begin = 0;
-	off_t pos = 0;
-	struct proxy_table_entry * ptable_entry;
-	int i=0;
+    struct net_device *dev = (struct net_device *)data;
+    DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+    int len = 0;
+    off_t begin = 0;
+    off_t pos = 0;
+    struct proxy_table_entry * ptable_entry;
+    int i=0;
+    int num;
 
-	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
-		// sprintf(buf, "-- Mesh Proxy info -- \n");
-		buf[0] = 0;
-		if (!netif_running(dev) )
-			goto _ret;
-	
-		//ptable = get_g_pathtable();
-		int num = 1;
-		for(i = 0; i < (1 << priv->proxy_table->table_size_power); i++)
-		{
-			if(priv->proxy_table->entry_array[i].dirty != 0)
-			{
-				ptable_entry = (struct proxy_table_entry*)priv->proxy_table->entry_array[i].data;
-				PRINT_ONE(num,  " %d: Mesh proxy table info...", num++);
-				
-				PRINT_ARRAY_ARG("    STA_MAC: ",	ptable_entry->sta, "%02x", MACADDRLEN);
-				PRINT_ARRAY_ARG("    OWNER_MAC: ",	ptable_entry->owner, "%02x", MACADDRLEN);				
-			}
-		}	
-	} else
-		PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
-	
-	*eof = 1;
+    if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
+        // sprintf(buf, "-- Mesh Proxy info -- \n");
+        buf[0] = 0;
+        if (!netif_running(dev) )
+            goto _ret;
+
+        //ptable = get_g_pathtable();
+        num = 1;
+        priv = (DRV_PRIV *)priv->mesh_priv_first;
+        for(i = 0; i < (1 << priv->proxy_table->table_size_power); i++)
+        {
+            if(priv->proxy_table->entry_array[i].dirty != 0)
+            {
+                ptable_entry = (struct proxy_table_entry*)priv->proxy_table->entry_array[i].data;
+                PRINT_ONE(num,  " %d: Mesh proxy table info...", num++);
+
+                PRINT_ARRAY_ARG("    STA_MAC: ",	ptable_entry->sta, "%02x", MACADDRLEN);
+                PRINT_ARRAY_ARG("    OWNER_MAC: ",	ptable_entry->owner, "%02x", MACADDRLEN);
+                PRINT_ONE(ptable_entry->aging_time,  "    Aging time: %d", 1);
+            }
+        }	
+    } else
+        PRINT_ONE("  Mesh mode DISABLE !!", "%s", 1);
+
+    *eof = 1;
 
 _ret:
-	
-	*start = buf + (offset - begin);	// Start of wanted data
 
-	len = strlen(buf);
+    *start = buf + (offset - begin);	// Start of wanted data
 
-	len -= (offset - begin);	// Start slop 
-	if (len > length)
-		len = length;	// Ending slop
+    len = strlen(buf);
 
-	return len;
+    len -= (offset - begin);	// Start slop 
+    if (len > length)
+        len = length;	// Ending slop
+
+    return len;
 }
 
 
@@ -861,6 +887,31 @@ _ret:
 	return len;
 }
 
+int mesh_vlan_info(char *buf, char **start, off_t offset, int length, int *eof, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+	int pos = 0;
+
+	PRINT_ONE("  vlan setting...", "%s", 1);
+	PRINT_SINGL_ARG("    global_vlan: ", priv->mesh_vlan.global_vlan, "%d");
+	PRINT_SINGL_ARG("    is_lan: ", priv->mesh_vlan.is_lan, "%d");
+	PRINT_SINGL_ARG("    vlan_enable: ", priv->mesh_vlan.vlan, "%d");
+	PRINT_SINGL_ARG("    vlan_tag: ", priv->mesh_vlan.tag, "%d");
+	PRINT_SINGL_ARG("    vlan_id: ", priv->mesh_vlan.id, "%d");
+	PRINT_SINGL_ARG("    vlan_pri: ", priv->mesh_vlan.pri, "%d");
+	PRINT_SINGL_ARG("    vlan_cfi: ", priv->mesh_vlan.cfi, "%d");
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	PRINT_SINGL_ARG("    vlan_forwarding_rule: ", priv->mesh_vlan.forwarding_rule, "%d");
+#endif
+
+	return pos;
+}
+
 /*
  *	@brief	Printout 802.11s pathselection portal  table value
  *
@@ -877,15 +928,17 @@ int mesh_portal_table_info(char *buf, char **start, off_t offset, int length, in
 	off_t pos = 0;
 	struct pann_mpp_tb_entry * ptable;
 	int i=0;
-	
+	int num;
+    
 	if (1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) {
 		// sprintf(buf, "-- Mesh Portal info table -- \n");
 		buf[0] = 0;
 		if (!netif_running(dev) )
 			goto _ret;
-	
+        
+        priv = (DRV_PRIV *)priv->mesh_priv_first;        	
 		ptable = (struct pann_mpp_tb_entry *) &(priv->pann_mpp_tb->pann_mpp_pool);
-		int num = 1;
+		num = 1;
 
 		PRINT_SINGL_ARG("Portal enable: ", priv->pmib->dot1180211sInfo.mesh_portal_enable, "%u");
 
@@ -977,31 +1030,31 @@ int mesh_metric_r(char *buffer, char **buffer_location, off_t offset, int buffer
 int g_nctu_mesh_dbg = 0;
 int mesh_setDebugLevel (struct file *file, const char *buffer, unsigned long count, void *data)
 {
-	unsigned char x[10];
-	unsigned char local_buf[19];
-	if ( copy_from_user((void *)local_buf, (const void *)buffer, count) ) {
-		return count;
-	}
+    unsigned char x[10];
+    unsigned char local_buf[19];
+    if ( copy_from_user((void *)local_buf, (const void *)buffer, count) ) {
+        return count;
+    }
 
-	if(count>0)
-	{
-		memset(x, 0, sizeof(x));
-		memcpy(x, local_buf, (count>(sizeof(x)-1))?sizeof(x)-1:count);
+    if(count>0)
+    {
+        int len,i;
+        memset(x, 0, sizeof(x));
+        memcpy(x, local_buf, (count>(sizeof(x)-1))?sizeof(x)-1:count);
 
-		int len = strlen(x);
-		int i;
+        len = strlen(x);
 
-		g_nctu_mesh_dbg = 0;
-		for(i=0;i<len;i++)
-		{
-			if((*(x+i)>'9') || (*(x+i)<'0'))
-				continue;
-			g_nctu_mesh_dbg = g_nctu_mesh_dbg*10 + (*(x+i)-'0');
-		}
-	}
-	printk("@@@ debug level: %d\n", g_nctu_mesh_dbg);
+        g_nctu_mesh_dbg = 0;
+        for(i=0;i<len;i++)
+        {
+            if((*(x+i)>'9') || (*(x+i)<'0'))
+                continue;
+            g_nctu_mesh_dbg = g_nctu_mesh_dbg*10 + (*(x+i)-'0');
+        }
+    }
+    printk("@@@ debug level: %d\n", g_nctu_mesh_dbg);
 
-	return count;
+    return count;
 }
 
 /*
@@ -1309,7 +1362,7 @@ static int mesh_proc_openConnect(char *buf, char **start, off_t offset, int leng
 		PRINT_ARRAY_ARG("I will Active peer link MAC:", mesh_proc_MAC, "%02x", MACADDRLEN);
 		pfrinfo.sa = mesh_proc_MAC;
 		pfrinfo.rssi = priv->mesh_fake_mib.establish_rssi_threshold + 1;	// +1: Ensure connect
-		start_MeshPeerLink(priv, &pfrinfo, NULL, 1, priv->pmib->dot11RFEntry.dot11channel);
+		start_MeshPeerLink(priv, &pfrinfo, NULL, 1);
 		pstat = get_stainfo(priv, mesh_proc_MAC);
 		
 		if (NULL != pstat)

@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 			}
 
 			if(WanType==4){
-				if(isFileExist("/var/disc")==0){
+				if(isFileExist("/var/disc")==0 && isFileExist("/etc/ppp/link")==0){
 					RunSystemCmd(PPP_CONNECT_FILE, "echo", "pass", NULL_STR);
 					system("pppd call rpptp &");
 				}

@@ -148,6 +148,8 @@
 int isUsbIp_Reserved(struct sk_buff *skb, unsigned int hooknum, int direction);
 unsigned int _lan_ip=0xC0A801FE;
 unsigned int _lan_mask=0xFFFFFF00;
+extern unsigned int _br0_ip;
+extern unsigned int _br0_mask;
 #define USBIP_PORT_NUM 445
 #define USBIP_PORT_NUM_1 139
 #define HTTP_PORT_NUM 80
@@ -166,56 +168,64 @@ int isUsbIp_Reserved(struct sk_buff *skb, unsigned int hooknum, int direction)
 	struct iphdr *iph;
 	struct tcphdr *th;
 	int ret=0;	
-	struct net_device       *Indev;
-	struct net_device       *Outdev;
+	//struct net_device       *Indev;
+	//struct net_device       *Outdev;
 
-	Indev = skb->dev;
+	//Indev = skb->dev;
 	iph = ip_hdr(skb);
 	if (iph->frag_off & 0x3fff) /* Ignore fragment */
 		 return 0;	
 	if(iph->protocol ==IPPROTO_TCP){
 		th=(void *) iph + iph->ihl*4;
 		if(hooknum==	_POST_ROUTING){
-			Outdev = skb->dst->dev;
-			if(strcmp(Indev->name , Outdev->name)){
+		#if 0
+			//Outdev = skb_dst(skb)->dev;///skb->dst->dev;
+			//if(strcmp(Indev->name , Outdev->name))
+			if (iph->saddr != _br0_ip)		//fix jwj
+			{
 				return 0;
 			}
+		#else
+			if ((iph->daddr & _br0_mask) != (_br0_ip & _br0_mask)) {
+				return 0;
+			}
+		#endif
 		}
 		if(hooknum==	_PRE_ROUTING){
-			if(iph->daddr != _lan_ip){
+			if(iph->daddr != _br0_ip){
 				return 0;	
 			}
 		}
 #if !defined(CONFIG_HTTP_FILE_SERVER_SUPPORT)			
 		if(direction==0){ //rx we check dest port
-			if(_lan_ip != 0 && th->dest==USBIP_PORT_NUM && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && th->dest==USBIP_PORT_NUM && skb->pkt_type== PACKET_HOST)
 				ret=1;
-			if(_lan_ip != 0 && th->dest==USBIP_PORT_NUM_1 && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && th->dest==USBIP_PORT_NUM_1 && skb->pkt_type== PACKET_HOST)
 				ret=1;
-			if(_lan_ip != 0 && th->dest==UWIFI_PORT_NUM && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && th->dest==UWIFI_PORT_NUM && skb->pkt_type== PACKET_HOST)
 				ret=1;	
 
 		}
 		if(direction==1){ //tx we check src port
-			if(_lan_ip != 0 && th->source==USBIP_PORT_NUM && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && th->source==USBIP_PORT_NUM && skb->pkt_type== PACKET_HOST)
 				ret=1;
-			if(_lan_ip != 0 && th->source==USBIP_PORT_NUM_1 && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && th->source==USBIP_PORT_NUM_1 && skb->pkt_type== PACKET_HOST)
 				ret=1;
-			if(_lan_ip != 0 && th->source==UWIFI_PORT_NUM && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && th->source==UWIFI_PORT_NUM && skb->pkt_type== PACKET_HOST)
 				ret=1;	
 
 		}
 #else
 		if(direction==0){ //rx we check dest port
-			if(_lan_ip != 0 && (th->dest==USBIP_PORT_NUM || th->dest==HTTP_PORT_NUM) && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && (th->dest==USBIP_PORT_NUM || th->dest==HTTP_PORT_NUM) && skb->pkt_type== PACKET_HOST)
 				ret=1;
-			if(_lan_ip != 0 && (th->dest==USBIP_PORT_NUM_1 || th->dest==UWIFI_PORT_NUM) && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && (th->dest==USBIP_PORT_NUM_1 || th->dest==UWIFI_PORT_NUM) && skb->pkt_type== PACKET_HOST)
 				ret=1;
 		}
 		if(direction==1){ //tx we check src port
-			if(_lan_ip != 0 && (th->source==USBIP_PORT_NUM || th->source==HTTP_PORT_NUM) && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && (th->source==USBIP_PORT_NUM || th->source==HTTP_PORT_NUM) && skb->pkt_type== PACKET_HOST)
 				ret=1;
-			if(_lan_ip != 0 && (th->source==USBIP_PORT_NUM_1 || th->source==UWIFI_PORT_NUM) && skb->pkt_type== PACKET_HOST)
+			if(_br0_ip != 0 && (th->source==USBIP_PORT_NUM_1 || th->source==UWIFI_PORT_NUM) && skb->pkt_type== PACKET_HOST)
 				ret=1;	
 		}
 #endif

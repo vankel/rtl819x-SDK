@@ -70,6 +70,7 @@ typedef enum
 
 }TdtmfPowerLevel;
 
+#if 0
 typedef enum
 {
 	DTMF_TWIST_1DB = 0x65810624,		//0x80000000*0.793
@@ -87,10 +88,32 @@ typedef enum
 	DTMF_TWIST_13DB = 0x06666666,           //0x80000000*0.05  
 	DTMF_TWIST_14DB	= 0x04FDF3B6,           //0x80000000*0.039  
 	DTMF_TWIST_15DB = 0x040B7803,           //0x80000000*0.0316  
-	DTMF_TWIST_16DB	= 0x03333333	        //0x80000000*0.025  
+	DTMF_TWIST_16DB	= 0x03333333,	        //0x80000000*0.025
+	DTMF_TWIST_ERR = 0
 
 }TdtmfTwistLevel;
-
+#else
+typedef enum
+{
+	DTMF_TWIST_1DB = 0x5A7EF9DB,		//0x80000000*0.707 (1.5dB)
+	DTMF_TWIST_2DB = 0x47EF9DB2,		//0x80000000*0.562 (2.5dB)
+	DTMF_TWIST_3DB = 0x3916872B,		//0x80000000*0.446 (3.5dB)
+	DTMF_TWIST_4DB = 0x2DB22D0E,		//0x80000000*0.357
+	DTMF_TWIST_5DB = 0x24189374,		//0x80000000*0.282
+	DTMF_TWIST_6DB = 0x1C8B4395,		//0x80000000*0.223
+	DTMF_TWIST_7DB = 0x16D5CFAA,		//0x80000000*0.1784
+	DTMF_TWIST_8DB = 0x12161E4F,		//0x80000000*0.1413
+	DTMF_TWIST_9DB = 0xE45A1CA,			//0x80000000*0.1115  
+	DTMF_TWIST_10DB = 0xB6AE7D5,		//0x80000000*0.0892
+	DTMF_TWIST_11DB = 0x90CB295,		//0x80000000*0.0707
+	DTMF_TWIST_12DB	= 0x7318FC5,		//0x80000000*0.0562
+	DTMF_TWIST_13DB = 0x5B573EA,		//0x80000000*0.0446
+	DTMF_TWIST_14DB	= 0x474538E,		//0x80000000*0.0348 
+	DTMF_TWIST_15DB = 0x39C0EBE,		//0x80000000*0.0282
+	DTMF_TWIST_16DB	= 0x2DAB9F5,		//0x80000000*0.0223
+	DTMF_TWIST_ERR = 0
+}TdtmfTwistLevel;
+#endif
 
 /* larger percent, more strict DTMF detection */
 typedef enum
@@ -277,15 +300,26 @@ TstVoipFaxV21;//For fax v21 data
 #define HS_FAX_V21_CH2_HEADER	0x6602
 
 extern TstVoipFaxV21 stVoipFaxV21[];
-extern unsigned char dtmf_chid[MAX_DSP_RTK_CH_NUM][2];
+extern unsigned char dtmf_chid[MAX_DSP_RTK_CH_NUM][DTMF_DIR_SIZE];
 
 void init_fax_v21(unsigned int chid);
 void exit_fax_v21(unsigned int chid);
 void fax_v21_time_power_ths_set(int power);
 
+extern long coef_acu_fra[];
+#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+extern long* coef_tbl[];
+#endif
+
 /* dtmf_dec.c function prototype */
 
-Dtmf_det_out dtmf_dec(unsigned char *adr, uint32 page_size, unsigned char CH, long dtmf_pwr_level, unsigned char dir);
+Dtmf_det_out dtmf_decoder(unsigned char chid, unsigned char dir, unsigned char *pBuf, long dtmf_pwr_level);
+
+//#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+//Dtmf_det_out dtmf_dec(unsigned char *adr, uint32 page_size, unsigned char CH, long dtmf_pwr_level, unsigned char dir, long* p_accu_coef_in, unsigned char buf_update);
+//#else
+//Dtmf_det_out dtmf_dec(unsigned char *adr, uint32 page_size, unsigned char CH, long dtmf_pwr_level, unsigned char dir, long* p_accu_coef_in);
+//#endif
 void dtmf_start(unsigned char CH, unsigned int dir);
 void dtmf_stop(unsigned char CH, unsigned int dir);
 //void dtmf_cid_det(unsigned char *adr, uint32 page_size, unsigned char daa_chid, long level);
@@ -323,9 +357,24 @@ void dtmf_det_on_time_set(int chid, unsigned int dir, unsigned int on_time_10ms)
 /* get the dtmf detection minium on time unit: 10ms */
 unsigned int dtmf_det_on_time_get(int chid, unsigned int dir);
 
+unsigned char dtmf_det_get_index(unsigned int chid, unsigned dir);
+
 #ifdef DTMF_DET_DURATION_HIGH_ACCURACY
 /* get more accuracy DTMF detected duration */
-unsigned int dtmf_det_duration_get(unsigned int chid, unsigned dir, unsigned int* pDuration);
+unsigned int dtmf_det_duration_get(unsigned int chid, unsigned dir, unsigned int* pDuration, int coef_index);
+#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+Dtmf_det_out dtmf_decoder_v2(unsigned char chid, unsigned char dir, unsigned char *pBuf, long dtmf_pwr_level);
+/* get current DTMF detected M value */
+unsigned int get_cur_Mval(unsigned char chid, unsigned int dir);
+/* Set and get the DTMF detection with freq. offset */
+// Fellow ETSI. ITU-T Q.24 freq. offset standard
+// ETSI: +-(1.5% + 2Hz) must be detected
+// Q.24: within +-1.8% must be detected, over +-3% must be not detected
+int dtmf_freq_offset_det_set(unsigned char chid, unsigned int dir, unsigned int val);
+unsigned int dtmf_freq_offset_det_get(unsigned char chid, unsigned int dir);
 #endif
+void dtmf_det_set_index(unsigned int chid, unsigned dir, unsigned char index);
+#endif // DTMF_DET_DURATION_HIGH_ACCURACY
 
-#endif
+#endif // DTMF_DEC_H
+

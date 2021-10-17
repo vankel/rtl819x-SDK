@@ -11,103 +11,43 @@
 #ifndef _PCM_INTERFACE
 #define _PCM_INTERFACE
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/sched.h>
 #include "rtk_voip.h"
 #include "voip_types.h"
 
-
-
-
-/*******************  PCM FIFO interface ********************/
-//#ifdef SUPPORT_PCM_FIFO
-/*
- * read/write one 160-byte pcm data from/to RX/TX FIFO
- * On sucess, 0 is returned. 
- * On error, -1 is returned. 
+// ========================================================//
+/* PCM version definition 
+ *   v1.0: old/unknwon version 
+ *   v2.0: support 8 channels 
+ *   v2.2: (8972B) 
+ *   v2.3: add frame cnt (8954C)
+ *   v3.0: support 16 channels 
+ *   v3.1: wideband ch0~7
+ *   v3.3: move COILBE to PCMCR 
+ *   v4.0: Add ISI/ZSI loopback mode (Implement 8 channel narrow/wideband only) 
  */
-//int pcm_read_rx_fifo(unsigned int chid, void* dst);
-//int pcm_write_rx_fifo(unsigned int chid, void* src);
-//int pcm_read_tx_fifo(unsigned int chid, void* dst);
-//int pcm_write_tx_fifo(unsigned int chid, void* src);
-
-//int pcm_get_read_rx_fifo_addr(unsigned int chid, void** addr);
-//int pcm_read_rx_fifo_done(unsigned int chid);
-//int pcm_get_write_tx_fifo_addr(unsigned int chid, void** addr);
-//int pcm_write_tx_fifo_done(unsigned int chid);
-//#else
-/*
- * get pcm RX/TX Buffer address
- */
-//unsigned char* pcm_get_rx_buf_addr(unsigned int chid);
-//unsigned char* pcm_get_tx_buf_addr(unsigned int chid);
-//#endif // SUPPORT_PCM_FIFO
-
-
-/*******************  Function Prototype ********************/
-//void PCM_init(void);
-//void PCM_shutdown(void);
-//void PCM_restart(unsigned int chid);
-//void pcm_enableChan(unsigned int chid);
-//void pcm_disableChan(unsigned int chid);
-
-/* Set Tx, Rx own bit to PCM Controller. pageindex = 0 ~ 1. */
-//void pcm_set_tx_own_bit(unsigned int chid, unsigned int pageindex);
-//void pcm_set_rx_own_bit(unsigned int chid, unsigned int pageindex);
-
-/* clean interrupt pending bits */
-//void pcm_clean_isr(unsigned int statusval);
-
-/* Get the Tx, Rx base address */
-//unsigned int pcm_get_tx_base_addr(unsigned int chid);
-//unsigned int pcm_get_rx_base_addr(unsigned int chid);
-
-//void pcm_enable(void);
-//void pcm_disable(void);
-
-//void pcm_tx_enable(unsigned int chid);
-//void pcm_tx_disable(unsigned int chid);
-//void pcm_rx_enable(unsigned int chid);
-//void pcm_rx_disable(unsigned int chid);
-
-//void pcm_imr_enable(unsigned int chid, unsigned char type);
-//void pcm_imr_disable(unsigned int chid, unsigned char type);
-//void print_pcm(void);
-//int voip_mgr_daa_off_hook(char chid);
-//void voip_mgr_daa_on_hook(char chid);
-//void pcm_channel_slot(int pcm_mode);
-//void pcm_set_tx_mute(unsigned char chid, int enable);
-//void pcm_set_rx_mute(unsigned char chid, int enable);
-//void pcm_clean_tx_fifo(unsigned int chid);
-//void pcm_clean_rx_fifo(unsigned int chid);
-//void pcm_Hold_DAA(unsigned char chid);
-//void pcm_UnHold_DAA(unsigned char chid);
-//#ifdef PCM_LOOP_MODE_DRIVER
-//int pcm_set_LoopMode(unsigned char group, unsigned int mode, unsigned char main_chid, unsigned char mate_chid);
-//int pcm_get_LoopMode(unsigned char group);
-//stPcmLoopModeChState pcm_get_If_In_LoopMode(unsigned char chid);
-//int pcm_check_If_In_LoopMode(unsigned char chid);
-//#endif
-//void pcm_ch_attribute_init(void);
-//int PCM_Check_Any_ChanEnabled(void);
-
-//void DisableDspInPcmIsr(uint32 chid);
-//void RestoreDspInPcmIsr(uint32 chid);
-//int pcm_get_rx_PCM_FIFO_SIZE(unsigned int chid);
+#ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8651
+#define PCM_VERSION		0x0100		// 1.0 
+#elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM8186)
+#define PCM_VERSION		0x0100		// 1.0 
+#elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM8671) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676)
+#define PCM_VERSION		0x0202		// 2.2 
+#elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM865xC)
+#define PCM_VERSION		0x0100		// 1.0 
+#elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY)
+#define PCM_VERSION		0x0202		// 2.2 
+#elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
+#define PCM_VERSION		0x0203		// 2.3 
+#elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#define PCM_VERSION		0x0203		// 2.3
+#elif defined (CONFIG_RTK_VOIP_PLATFORM_8686)
+#define PCM_VERSION		0x0400		// 4.0 
+#else
+#error "Unknown PCM version!!"
+#endif
 
 /********************************************************************/
-#if 0//def CONFIG_RTK_VOIP_DRIVERS_SI3050
-extern unsigned int DAA_ISR_FLOW[];
-
-#define DRIVER_FLOW_NORMAL		0
-#define DRIVER_FLOW_PSTN_3WAY		1
-#define DRIVER_FLOW_PSTN_FORWARD	2
-#define DRIVER_FLOW_PSTN_COUPLE		3
-#endif
-
-#if 0 // use rtk_voip.h's SLIC_CH_NUM instead
-#define PCM_DEVS 2	/* Set here to determine SLIC device number */
-#endif
 #define MAXCH	4
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8651
@@ -138,17 +78,12 @@ extern unsigned int DAA_ISR_FLOW[];
 #else
 #define PCM_IRQ	6
 #endif
+#elif defined( CONFIG_RTK_VOIP_PLATFORM_8686 )
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_DSP_IN_DUAL_LINUX
+#define PCM_IRQ 17
+#else
+#define PCM_IRQ 19	// should match with linux_wrapper 
 #endif
-
-#define Linear	0
-#define A_law	1
-#define U_law	2
-
-#define TRUE	1
-#define FALSE	0
-
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SI3050
-#define PCM_SAMPLE_DAA	80
 #endif
 
 /*  Interrupt Status Type */
@@ -198,6 +133,8 @@ extern unsigned int DAA_ISR_FLOW[];
 #define PCM_BASE (0xb8008000)
 #elif defined CONFIG_RTK_VOIP_DRIVERS_PCM8672 || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676)
 #define PCM_BASE (0xb8008000)
+#elif defined( CONFIG_RTK_VOIP_PLATFORM_8686 )
+#define PCM_BASE (0xb8008000)
 #endif
 
 #define PCMCR		(PCM_BASE + 0x00)	//Interface Control Register
@@ -227,6 +164,41 @@ extern unsigned int DAA_ISR_FLOW[];
 #define	CH7RXBSA	(PCM_BASE + 0x60)	//Channel 7 RX buffer starting address pointer
 #define	PCMIMR47	(PCM_BASE + 0x64)	//Channel 4-7 Interrupt Mask Register
 #define	PCMISR47	(PCM_BASE + 0x68)	//Channel 4-7 Interrupt Status Register
+#if PCM_VERSION == 0x0400
+// 8-11
+#define PCMCHCNR811	(PCM_BASE + 0x6c)	//Channel 8-11 specific Control Register
+#define PCMTSR811	(PCM_BASE + 0x70)	//Channel 8-11 Time Slot Assignment Register
+#define PCMBSIZE811	(PCM_BASE + 0x74)	//Channel 8-11 Buffer Size register
+#define	CH8TXBSA	(PCM_BASE + 0x78)	//Channel 8 TX buffer starting address pointer
+#define	CH9TXBSA	(PCM_BASE + 0x7c)	//Channel 9 TX buffer starting address pointer
+#define	CH10TXBSA	(PCM_BASE + 0x80)	//Channel 10 TX buffer starting address pointer
+#define	CH11TXBSA	(PCM_BASE + 0x84)	//Channel 11 TX buffer starting address pointer
+#define	CH8RXBSA	(PCM_BASE + 0x88)	//Channel 8 RX buffer starting address pointer
+#define	CH9RXBSA	(PCM_BASE + 0x8c)	//Channel 9 RX buffer starting address pointer
+#define	CH10RXBSA	(PCM_BASE + 0x90)	//Channel 10 RX buffer starting address pointer
+#define	CH11RXBSA	(PCM_BASE + 0x94)	//Channel 11 RX buffer starting address pointer
+#define	PCMIMR811	(PCM_BASE + 0x98)	//Channel 8-11 Interrupt Mask Register
+#define	PCMISR811	(PCM_BASE + 0x9c)	//Channel 8-11 Interrupt Status Register
+// 12-15
+#define PCMCHCNR1215	(PCM_BASE + 0xa0)	//Channel 12-15 specific Control Register
+#define PCMTSR1215		(PCM_BASE + 0xa4)	//Channel 12-15 Time Slot Assignment Register
+#define PCMBSIZE1215	(PCM_BASE + 0xa8)	//Channel 12-15 Buffer Size register
+#define	CH12TXBSA	(PCM_BASE + 0xac)	//Channel 12 TX buffer starting address pointer
+#define	CH13TXBSA	(PCM_BASE + 0xb0)	//Channel 13 TX buffer starting address pointer
+#define	CH14TXBSA	(PCM_BASE + 0xb4)	//Channel 14 TX buffer starting address pointer
+#define	CH15TXBSA	(PCM_BASE + 0xb8)	//Channel 15 TX buffer starting address pointer
+#define	CH12RXBSA	(PCM_BASE + 0xbc)	//Channel 12 RX buffer starting address pointer
+#define	CH13RXBSA	(PCM_BASE + 0xc0)	//Channel 13 RX buffer starting address pointer
+#define	CH14RXBSA	(PCM_BASE + 0xc4)	//Channel 14 RX buffer starting address pointer
+#define	CH15RXBSA	(PCM_BASE + 0xc8)	//Channel 15 RX buffer starting address pointer
+#define	PCMIMR1215	(PCM_BASE + 0xcc)	//Channel 12-15 Interrupt Mask Register
+#define	PCMISR1215	(PCM_BASE + 0xd0)	//Channel 12-15 Interrupt Status Register
+// others 
+#define PCMINTMAP	(PCM_BASE + 0xd4)	//Interrupt mapping 
+#define PCMWTSR03	(PCM_BASE + 0xd8)	// Channel 0-3 wideband time slot assignment 
+#define PCMWTSR47	(PCM_BASE + 0xdc)	// Channel 4-7 wideband time slot assignment 
+#define PCMBUFOWCHK	(PCM_BASE + 0xe0)	// RX buffer data overwrite indicate 
+#endif // PCM_VERSION == 0x0400
 
 #define TX_BSA(channel)	(CH0TXBSA + 4*(channel))
 #define RX_BSA(channel)	(CH0RXBSA + 4*(channel))
@@ -235,21 +207,28 @@ extern unsigned int DAA_ISR_FLOW[];
 
 
 //PCMCR
-#if defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676)
-#define PCML			BIT(13)	// PCM linear mode enable
-#define PCME			BIT(12)
-#define PCMCLK			BIT(11)
-#define FSINV		BIT(9)
-#define PCM_ENABLE		(PCME | PCMCLK) 
-#else
-#define PCMLM			BIT(13)	// PCM linear mode enable
-#define PCME			BIT(12)
+#if PCM_VERSION == 0x0400
+#define ISILBE		BIT(16)
+#define ZSILBE		BIT(15)
+#define C0ILBE		BIT(14)
+#endif
+#define PCMLM		BIT(13)	// PCM linear mode enable
+#define PCME		BIT(12)
+#if PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
+#define PCMCLK		BIT(11)
+#elif PCM_VERSION == 0x0100	// 1.0 
 #define CKDIR		BIT(11)
+#endif
+#if PCM_VERSION == 0x0100	// 1.0 
 #define PXDSE		BIT(10)
+#endif
 #define FSINV		BIT(9)
 
+#if PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
+#define PCM_ENABLE		(PCME | PCMCLK) 
+#elif PCM_VERSION == 0x0100	// 1.0 
 #define PCM_ENABLE		(PCME | CKDIR)
-#endif //fix for 8672 iad 
+#endif 
 
 //PCMCHCNR
 #define CH3RE		BIT(0)
@@ -271,9 +250,11 @@ extern unsigned int DAA_ISR_FLOW[];
 #define CH0TE		BIT(25)
 #define CH0UA		BIT(26)
 #define C0CMPE		BIT(27)
+#if PCM_VERSION < 0x0400
 #define C0ILBE		BIT(28)
+#endif
 
-#if defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676)
+#if PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
 #define CH0TXP0IP 	BIT(31)
 #define CH0TXP1IP 	BIT(30)
 #define CH0RXP0IP 	BIT(29)
@@ -282,12 +263,6 @@ extern unsigned int DAA_ISR_FLOW[];
 #define CH0TXP1UA 	BIT(26)
 #define CH0RXP0UA 	BIT(25)
 #define CH0RXP1UA 	BIT(24)
-
-// backward compatible
-#define CH0P0OKIE	(CH0TXP0IP | CH0TXP1IP)
-#define CH0P1OKIE	(CH0RXP0IP |CH0RXP1P)
-#define CH0TBUAIE 	(CH0TXP0UA | CH0TXP1UA)
-#define CH0RBUAIE    (CH0RXP0UA |CH0RXP1UA)
 
 #define CH1TXP0IP 	BIT(23)
 #define CH1TXP1IP 	BIT(22)
@@ -298,12 +273,6 @@ extern unsigned int DAA_ISR_FLOW[];
 #define CH1RXP0UA 	BIT(17)
 #define CH1RXP1UA 	BIT(16)
 
-// backward compatible
-#define CH1P0OKIE	(CH1TXP0IP | CH1TXP1IP)
-#define CH1P1OKIE	(CH1RXP0IP | CH1RXP1P)
-#define CH1TBUAIE 	(CH1TXP0UA |CH1TXP1UA)
-#define CH1RBUAIE    (CH1RXP0UA | CH1RXP1UA)
-
 #define CH2TXP0IP 	BIT(15)
 #define CH2TXP1IP 	BIT(14)
 #define CH2RXP0IP 	BIT(13)
@@ -312,13 +281,6 @@ extern unsigned int DAA_ISR_FLOW[];
 #define CH2TXP1UA 	BIT(10)
 #define CH2RXP0UA 	BIT(9)
 #define CH2RXP1UA 	BIT(8)
-
-// backward compatible
-#define CH2P0OKIE	(CH2TXP0IP | CH2TXP1IP)
-#define CH2P1OKIE	(CH2RXP0IP | CH2RXP1P)
-#define CH2TBUAIE 	(CH2TXP0UA |CH2TXP1UA)
-#define CH2RBUAIE    (CH2RXP0UA | CH2RXP1UA)
-
 
 #define CH3TXP0IP 	BIT(7)
 #define CH3TXP1IP 	BIT(6)
@@ -329,13 +291,7 @@ extern unsigned int DAA_ISR_FLOW[];
 #define CH3RXP0UA 	BIT(1)
 #define CH3RXP1UA 	BIT(0)
 
-// backward compatible
-#define CH3P0OKIE	(CH3TXP0IP | CH3TXP1IP)
-#define CH3P1OKIE	(CH3RXP0IP | CH3RXP1P)
-#define CH3TBUAIE 	(CH3TXP0UA |CH3TXP1UA)
-#define CH3RBUAIE    (CH3RXP0UA | CH3RXP1UA)
-
-#else 
+#elif PCM_VERSION == 0x0100	// 1.0  
 //PCMIMR
 #define CH0P0OKIE 	BIT(15)
 #define CH0P1OKIE 	BIT(14)
@@ -357,6 +313,7 @@ extern unsigned int DAA_ISR_FLOW[];
 #define CH3TBUAIE 	BIT(1)
 #define CH3RBUAIE 	BIT(0)
 #endif 
+
 //PCMISR
 #define CH3P1RBU	BIT(0)
 #define CH3P0RBU	BIT(1)
@@ -465,16 +422,19 @@ extern unsigned int DAA_ISR_FLOW[];
 //#define BOOL	unsigned char
 
 struct pcm_priv{
-        unsigned int chidannel;
+#if 0
+	unsigned int chidannel;
 	unsigned int txpindex;		//tx page index.
 	unsigned int rxpindex;		//rx page index
 	unsigned int rx_pagepointer;	//used for read. use this to move in the circular buffer page
 	unsigned int tx_pagepointer;	//used for write.
+#endif
 	char name[NAME_SIZE];
 	unsigned char* tx_buffer;	//buffer address of non-cached address
 	unsigned char* rx_buffer;	//buffer address of non-cached address
 	unsigned char* tx_allocated;	//buffer for tx - virtual address
 	unsigned char* rx_allocated;	//buffer for rx - virtual address
+#if 0
 	unsigned char* rx_circular;	//rx circular buffer.
 	unsigned char* tx_circular;	//tx circular buffer.
 
@@ -502,8 +462,13 @@ struct pcm_priv{
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8186
 	struct fasync_struct *pcm_fasync;    // asynch notification
 #endif
+#endif
+
+	// cache. provide quick access 
+	uint32 page_size;
 };
 
+typedef struct pcm_priv pcm_priv_t;
 
 
 //---------------------------------------------------------------------------------------------
@@ -522,11 +487,5 @@ struct pcm_priv{
 
 
 #define PERR(fmt, args...)	printk(KERN_ERR "PCM - " fmt, ## args)
-
-#define PERR(fmt, args...)	printk(KERN_ERR "PCM - " fmt, ## args)
-
-
-
-
 
 #endif

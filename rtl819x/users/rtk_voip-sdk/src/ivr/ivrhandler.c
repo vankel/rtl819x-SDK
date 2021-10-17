@@ -1,7 +1,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h> 
 #include <stdarg.h>
-#include <linux/in.h>
+//#include <linux/in.h>
 #include "voip_manager.h"
 #include "ivrnetcfg.h"
 #include "ivrhandler.h"
@@ -17,7 +17,8 @@ extern int g_nMaxCodec;;
 #elif CONFIG_RTK_VOIP_PACKAGE_867X
 	#define FIRMWARE_VERSION "1.3.7-0111"
 #else
-	#include "../../../goahead-2.1.1/LINUX/version.c"	/* reference to fwVersion */
+	//#include "../../../goahead-2.1.1/LINUX/version.c"	/* reference to fwVersion */
+	#include "../../../boa/src/version.c"	
 	#define FIRMWARE_VERSION	fwVersion
 #endif
 
@@ -105,7 +106,7 @@ static void IvrPlaySpeechFormat( unsigned int chid, const unsigned char *format,
 	
 	vsprintf( buffer, format, va_ivr );
 		
-	rtk_IvrStartPlaying( chid, IVR_DIR_LOCAL, buffer );
+	rtk_IvrStartPlaying( chid, 0, IVR_DIR_LOCAL, buffer );
 }
 
 static int IvrPlayEthInfoSpeech( unsigned int chid, eth_req_t req )

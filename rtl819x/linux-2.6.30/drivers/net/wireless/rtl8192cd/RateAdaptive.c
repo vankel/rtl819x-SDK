@@ -16,9 +16,9 @@ Major Change History:
 #ifdef __ECOS
 #include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
 #endif
-
-#ifdef CONFIG_RTL_88E_SUPPORT
 #include "8192cd_cfg.h"
+#ifdef CONFIG_RTL_88E_SUPPORT
+
 
 #ifdef TXREPORT
 #include "8192cd.h"
@@ -194,7 +194,7 @@ int RateAdaptiveInfoInit(PSTATION_RA_INFO  pRaInfo)
 		pRaInfo->TryingState=0;
 		pRaInfo->RateBeforeTrying=0x13;
 #endif
-#ifdef POWER_TRAINING_ACTIVE
+#if 0 //def POWER_TRAINING_ACTIVE
 		pRaInfo->PTTryState=0;
 		pRaInfo->PTStage=0;
 		pRaInfo->PTStopCount=0;
@@ -213,7 +213,11 @@ int ARFBRefresh(struct rtl8192cd_priv *priv, PSTATION_RA_INFO  pRaInfo)
 	int i;
 
 	// Test for Wilson
+#if defined(CONFIG_PCI_HCI)
 	RTL_W16(REG_88E_TXRPT_TIM, DefaultTxRPTTiming);  //200ms
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	notify_tx_report_interval_change(priv, DefaultTxRPTTiming);
+#endif
 	RTL_W32(DARFRC, 0x04020100);
 	RTL_W32(DARFRC+4, 0x0a080706);
 

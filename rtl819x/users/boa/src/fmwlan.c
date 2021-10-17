@@ -32,10 +32,22 @@
 #include "web_voip.h"
 #endif
 
+//#define SDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#define SDEBUG(fmt, args...) {}
+//#define P2P_DEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#define P2P_DEBUG(fmt, args...) {}
+
 #if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 extern void Stop_Domain_Query_Process(void);
 extern void Reset_Domain_Query_Setting(void);
 extern int Start_Domain_Query_Process;
+#endif
+
+#ifdef  CONFIG_RTL_P2P_SUPPORT
+/*it indicate which interface we need to query P2P state 
+   or no interface need to query(no any interface under P2P mode)
+   when wifi mode change then refill it to 255*/
+static int p2p_query_which_interface=255;
 #endif
 
 #ifdef WLAN_EASY_CONFIG
@@ -49,21 +61,12 @@ static int wait_config = CONFIG_SUCCESS;
 static SS_STATUS_Tp pStatus=NULL;
 
 #ifdef CONFIG_RTK_MESH
-#ifndef __mips__
         #define _FILE_MESH_ASSOC "mesh_assoc_mpinfo"
         #define _FILE_MESH_ROUTE "mesh_pathsel_routetable"
 		#define _FILE_MESH_ROOT  "mesh_root_info"
 		#define _FILE_MESH_PROXY "mesh_proxy_table"
 		#define _FILE_MESH_PORTAL "mesh_portal_table"		
 		#define _FILE_MESHSTATS  "mesh_stats"
-#else
-        #define _FILE_MESH_ASSOC "/proc/wlan0/mesh_assoc_mpinfo"
-        #define _FILE_MESH_ROUTE "/proc/wlan0/mesh_pathsel_routetable"
-		#define _FILE_MESH_ROOT  "/proc/wlan0/mesh_root_info"
-		#define _FILE_MESH_PROXY "/proc/wlan0/mesh_proxy_table"	
-		#define _FILE_MESH_PORTAL "/proc/wlan0/mesh_portal_table"
-		#define _FILE_MESHSTATS  "/proc/wlan0/mesh_stats"
-#endif
 #endif // CONFIG_RTK_MESH
 
 #ifdef WIFI_SIMPLE_CONFIG
@@ -229,8 +232,43 @@ WLAN_RATE_T tx_fixed_rate[]={
 	{(1<<25), 	"MCS13"},
 	{(1<<26), 	"MCS14"},
 	{(1<<27), 	"MCS15"},
+	{((1<<31)+0), 	"NSS1-MCS0"},
+	{((1<<31)+1), 	"NSS1-MCS1"},
+	{((1<<31)+2), 	"NSS1-MCS2"},
+	{((1<<31)+3), 	"NSS1-MCS3"},
+	{((1<<31)+4), 	"NSS1-MCS4"},
+	{((1<<31)+5), 	"NSS1-MCS5"},
+	{((1<<31)+6), 	"NSS1-MCS6"},
+	{((1<<31)+7), 	"NSS1-MCS7"},
+	{((1<<31)+8), 	"NSS1-MCS8"},
+	{((1<<31)+9), 	"NSS1-MCS9"},
+	{((1<<31)+10), 	"NSS2-MCS0"},
+	{((1<<31)+11), 	"NSS2-MCS1"},
+	{((1<<31)+12), 	"NSS2-MCS2"},
+	{((1<<31)+13), 	"NSS2-MCS3"},
+	{((1<<31)+14), 	"NSS2-MCS4"},
+	{((1<<31)+15), 	"NSS2-MCS5"},
+	{((1<<31)+16), 	"NSS2-MCS6"},
+	{((1<<31)+17), 	"NSS2-MCS7"},
+	{((1<<31)+18), 	"NSS2-MCS8"},
+	{((1<<31)+19), 	"NSS2-MCS9"},
 	{0}
 };
+//changes in following table should be synced to VHT_MCS_DATA_RATE[] in 8812_vht_gen.c
+const unsigned short VHT_MCS_DATA_RATE[3][2][20] = 
+	{	{	{13, 26, 39, 52, 78, 104, 117, 130, 156, 156,
+			 26, 52, 78, 104, 156, 208, 234, 260, 312, 312},			// Long GI, 20MHz
+			{14, 29, 43, 58, 87, 116, 130, 144, 173, 173,
+			29, 58, 87, 116, 173, 231, 260, 289, 347, 347}	},		// Short GI, 20MHz
+		{	{27, 54, 81, 108, 162, 216, 243, 270, 324, 360, 
+			54, 108, 162, 216, 324, 432, 486, 540, 648, 720}, 		// Long GI, 40MHz
+			{30, 60, 90, 120, 180, 240, 270, 300,360, 400, 
+			60, 120, 180, 240, 360, 480, 540, 600, 720, 800}},		// Short GI, 40MHz
+		{	{59, 117,  176, 234, 351, 468, 527, 585, 702, 780,
+			117, 234, 351, 468, 702, 936, 1053, 1170, 1404, 1560}, 	// Long GI, 80MHz
+			{65, 130, 195, 260, 390, 520, 585, 650, 780, 867, 
+			130, 260, 390, 520, 780, 1040, 1170, 1300, 1560,1733}	}	// Short GI, 80MHz
+	};
 
 /////////////////////////////////////////////////////////////////////////////
 #ifndef NO_ACTION
@@ -258,12 +296,22 @@ void killSomeDaemon(void)
 	system("killall -9 auth 2> /dev/null");
 	system("killall -9 disc_server 2> /dev/null");
 	system("killall -9 igmpproxy 2> /dev/null");
-	system("echo 1,0 > /proc/br_mCastFastFwd");
+	system("echo 1,1 > /proc/br_mCastFastFwd");
 	system("killall -9 syslogd 2> /dev/null");
 	system("killall -9 klogd 2> /dev/null");
 	
 	system("killall -9 ppp_inet 2> /dev/null");
-	
+#ifdef WLAN_HS2_CONFIG	
+	system("killall -9 hs2 2> /dev/null");	
+#endif
+#ifdef CONFIG_IPV6
+	system("killall -9 dhcp6c 2> /dev/null");
+	system("killall -9 dhcp6s 2> /dev/null");
+	system("killall -9 radvd 2> /dev/null");
+	system("killall -9 ecmh 2> /dev/null");
+	//kill mldproxy
+	system("killall -9 mldproxy 2> /dev/null");
+#endif
 #ifdef CONFIG_SNMP
 	system("killall -9 snmpd 2> /dev/null");
 	system("rm -f /var/run/snmpd.pid");
@@ -792,19 +840,31 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 {
 	char *tmpStr;
 	char varName[20];
+	int auth;
 
-//printf("\r\n wlan_idx=[%d],vwlan_idx=[%d],__[%s-%u]\r\n",wlan_idx,vwlan_idx,__FILE__,__LINE__);	
+	int add_to_profile = 0;
+	
+	if(!memcmp(tmpBuf, "wps_client_profile", 18))
+	{
+		add_to_profile=1;
+	}
 
+	if(add_to_profile == 0)
+	{
 	sprintf(varName, "wizardAddProfile%d", wlan_id);
 	tmpStr = req_get_cstream_var(wp, varName, "");
 	if(tmpStr[0])
+			add_to_profile = 1;
+	}
+	
+	if(add_to_profile == 1)
 	{
 		int profile_num_id, profile_tbl_id, profile_add_id, profile_delall_id;
 		WLAN_PROFILE_T entry;
 		char strSSID[64]={0};
 		int encryptVal;
 		int entryNum;
-//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);
+
 		if(wlan_id == 0)
 		{
 			profile_num_id = MIB_PROFILE_NUM1;
@@ -836,8 +896,6 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 		strcpy(entry.ssid, strSSID);
 
 		apmib_get(MIB_WLAN_ENCRYPT, (void *)&encryptVal);
-
-//printf("\r\n encryptVal=[%d],__[%s-%u]\r\n",encryptVal,__FILE__,__LINE__);	
 
 		if(encryptVal == ENCRYPT_WEP)
 		{
@@ -923,6 +981,14 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 			else
 				entry.wpa_cipher = 8;
 
+			apmib_get( MIB_WLAN_WPA_AUTH, (void *)&auth);
+            if(auth == WPA_AUTH_AUTO){//==1 radius
+                    entry.auth = 1;
+            }
+            else{//==2  psk
+                    entry.auth = 2;
+            }
+						
 			apmib_get( MIB_WLAN_PSK_FORMAT, (void *)&pskFormat);
 			entry.wpaPSKFormat = pskFormat;
 
@@ -945,9 +1011,6 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 			memset(oriEntry+roop, 0x00, sizeof(WLAN_PROFILE_T));
 			*((char *)(oriEntry+roop)) = (char)(roop+1);
 			apmib_get(profile_tbl_id, (void *)(oriEntry+roop));
-
-//printf("\r\n oriEntry[roop].ssid=[%s],__[%s-%u]\r\n",oriEntry[roop].ssid,__FILE__,__LINE__);
-
 		}
 
 		apmib_set(profile_delall_id, (void *)&entry);
@@ -962,13 +1025,15 @@ int addWlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 #if defined(PROFILE_BOTTOM_UP)
 		for(roop=0 ; roop<entryNum; roop++)
 		{
+			if(!memcmp((oriEntry[roop]).ssid, entry.ssid, strlen(entry.ssid)))
+			{
+				printf("this profile is exist, replace it with new configuration\n");
+				continue;
+			}
+			else
 			apmib_set(profile_add_id, (void *)(oriEntry+roop));
 		}
 #endif
-
-
-
-		
 
 	}
 
@@ -993,7 +1058,6 @@ static int wlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 	int val;
 	
 //displayPostDate(wp->post_data);
-
 	sprintf(varName, "mode%d", wlan_id);
 	strVal = req_get_cstream_var(wp, varName, "");
 
@@ -1100,6 +1164,9 @@ static int wlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 	/* Add entry */
 	if (strAddWlProfile[0]) 
 	{
+		strcpy(tmpBuf,"wps_client_profile");
+		addWlProfileHandler(NULL, tmpBuf, wlan_idx);
+#if 0
 		int del_ret; 
 
 		memset(&entry,0x00, sizeof(WLAN_PROFILE_T));
@@ -1168,11 +1235,20 @@ static int wlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 					goto setErr_wlan;
 			}
 		}
+#endif		
 
 	}
 
 	if (strAddRptProfile[0]) 
 	{
+		unsigned char wlan_iface_name[16];
+		sprintf(wlan_iface_name, "wlan%d-vxd", wlan_idx);
+		SetWlan_idx(wlan_iface_name);
+		strcpy(tmpBuf,"wps_client_profile");
+		addWlProfileHandler(NULL, tmpBuf, wlan_idx);
+		sprintf(wlan_iface_name, "wlan%d", wlan_idx);
+		SetWlan_idx(wlan_iface_name);
+#if 0	
 		int id, rpt_enabled;
 		int del_ret; 
 
@@ -1227,7 +1303,6 @@ static int wlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 			strcpy(tmpBuf, ("Add Profile duplicately!"));
 			goto setErr_wlan;
 		}
-		
 		sprintf(varName, "repeaterEnabled%d", wlan_id);
 
 		
@@ -1267,6 +1342,7 @@ static int wlProfileHandler(request *wp, char *tmpBuf, int wlan_id)
 				setRepeaterSsid(wlan_id, id, strVal);
 			}
 		}
+#endif
 
 	}
 
@@ -1322,9 +1398,50 @@ setErr_wlan:
 
 #endif //#if defined(WLAN_PROFILE)
 
+#ifdef  CONFIG_RTL_P2P_SUPPORT
+void generate_random_str(unsigned char *data,int len)
+{
+	char *String0Z="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	int idx;	
+	srand(time(0));   
+	for(idx=0;idx<len;idx++){
+		data[idx] = String0Z[ rand() % strlen(String0Z)];
+	}
+	data[len]='\0';
+}
+
+void generate_GO_ssid(void)
+
+{
+    unsigned char SSIDStr[33];    
+	unsigned char tmpstr[3];
+    int idx;
+
+    for(idx=0;idx<33;idx++)
+        memset(SSIDStr,'\0',33);
+    
+	generate_random_str(tmpstr,2);
+    tmpstr[2]='\0';
+    sprintf(SSIDStr,"DIRECT-%s-RTK",tmpstr);
+    apmib_set(MIB_WLAN_SSID, (void *)SSIDStr);    
+	SDEBUG("set SSID=[%s]\n",SSIDStr);	    
+}
+void generate_GO_PSK(void)
+
+{
+	unsigned char tmpstr[65];
+	generate_random_str(tmpstr,8);
+    tmpstr[8]='\0';
+    apmib_set( MIB_WLAN_WPA_PSK, (void *)tmpstr);		    
+    apmib_set( MIB_WLAN_WSC_PSK, (void *)tmpstr);		        
+
+	SDEBUG("set PSK=[%s]\n",tmpstr);	
+}	
+
+#endif
 int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 {
-  char *strSSID, *strChan, *strDisabled, *strVal, strtmp[80];
+    char *strSSID, *strChan, *strDisabled, *strVal, strtmp[80];
 	int chan, disabled ;
 	NETWORK_TYPE_T net;
 	char *strRate;
@@ -1332,8 +1449,10 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 	char varName[20];
 	int band_no=0;
 	int cur_band=0;
-	
-//displayPostDate(wp->post_data);
+    #ifdef  CONFIG_RTL_P2P_SUPPORT
+    p2p_query_which_interface=255;	
+    #endif    
+    //displayPostDate(wp->post_data);
 	
 	sprintf(varName, "wlanDisabled%d", wlan_id);
 	strDisabled = req_get_cstream_var(wp, varName, "");
@@ -1485,7 +1604,7 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 	}
 
 	sprintf(varName, "ssid%d", wlan_id);
-   	strSSID = req_get_cstream_var(wp, varName, "");
+   	strSSID = req_get_cstream_var(wp, varName, "");	
 	if ( strSSID[0] ) {
 		if ( apmib_set(MIB_WLAN_SSID, (void *)strSSID) == 0) {
    	 			strcpy(tmpBuf, ("Set SSID error!"));
@@ -1540,7 +1659,7 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 		apmib_get( MIB_WLAN_11N_ONOFF_TKIP, (void *)&wlan_onoff_tkip);
 				
 		band_no = strtol( strVal, (char **)NULL, 10);
-		if (band_no < 0 || band_no > 19) {
+		if (band_no < 0 || band_no > 78) { //8812 //ac2g
   			strcpy(tmpBuf, ("Invalid band value!"));
 			goto setErr_wlan;
 		}
@@ -1551,25 +1670,29 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 			int wpa2Cipher;
 			int wdsEncrypt;
 			int wlan_encrypt=0;
+			int encrypt;
 			
 			apmib_get( MIB_WLAN_ENCRYPT, (void *)&wlan_encrypt);
 			apmib_get(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
 			apmib_get(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
 			apmib_get( MIB_WLAN_WDS_ENCRYPT, (void *)&wdsEncrypt);
 			
-			if(*mode != CLIENT_MODE && (band_no == 7 || band_no == 9 || band_no == 10 || band_no == 11)) //7:n; 9:gn; 10:bgn 11:5g_an
+			if(*mode != CLIENT_MODE && (band_no == 7 || band_no == 9 || band_no == 10 || band_no == 11 || band_no == 63 || band_no == 71 || band_no == 75)) //7:n; 9:gn; 10:bgn 11:5g_an
 			{
 				
 				if(wlan_encrypt ==ENCRYPT_WPA || wlan_encrypt ==ENCRYPT_WPA2){
 				wpaCipher &= ~WPA_CIPHER_TKIP;
 					if(wpaCipher== 0)
 						wpaCipher =  WPA_CIPHER_AES;
-				apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
+				//apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
 				
 				wpa2Cipher &= ~WPA_CIPHER_TKIP;
 					if(wpa2Cipher== 0)
 						wpa2Cipher =  WPA_CIPHER_AES;
 				apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
+
+				encrypt=WSC_ENCRYPT_AES;
+				apmib_set(MIB_WLAN_WSC_ENC, (void *)&encrypt);
 				}
 				if(wdsEncrypt == WDS_ENCRYPT_TKIP)
 				{
@@ -1582,7 +1705,82 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 		if ( apmib_set( MIB_WLAN_BAND, (void *)&val) == 0) {
    			strcpy(tmpBuf, ("Set band error!"));
 			goto setErr_wlan;
-		}		
+		}
+		//change vap band when root ap band not include vap band
+		int root_ap_band = val;
+		int vap_idx,vap_val,tmp_i;
+		int old_vwlan_idx = vwlan_idx;
+
+		for (vap_idx=1; vap_idx<=4; vap_idx++) {
+            vwlan_idx = vap_idx; 
+			apmib_get(MIB_WLAN_WLAN_DISABLED, (void *)&vap_val);
+			if(!vap_val)//ON
+			{
+				apmib_get(MIB_WLAN_BAND, (void *)&vap_val);
+				if(((vap_val&1) && (!(root_ap_band&1))) || ((vap_val&2) && (!(root_ap_band&2))) || ((vap_val&8) && (!(root_ap_band&8))) || ((vap_val&4) && (!(root_ap_band&4))) || ((vap_val&64) && (!(root_ap_band&64))))
+				{
+					apmib_set(MIB_WLAN_BAND, (void *)&root_ap_band);
+					vap_val = 0;
+					apmib_set(MIB_WLAN_BASIC_RATES, (void *)&vap_val);		
+					apmib_set(MIB_WLAN_SUPPORTED_RATES, (void *)&vap_val);
+					if(root_ap_band&8)//11N, no TKIP
+					{
+						int wpaCipher;
+						int wpa2Cipher;
+						int wlan_encrypt;
+						apmib_get(MIB_WLAN_ENCRYPT, (void *)&wlan_encrypt);
+						apmib_get(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
+						apmib_get(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
+						if(wlan_encrypt ==ENCRYPT_WPA || wlan_encrypt ==ENCRYPT_WPA2 || wlan_encrypt == ENCRYPT_WPA2_MIXED){
+							wpaCipher &= ~WPA_CIPHER_TKIP;
+							if(wpaCipher== 0)
+								wpaCipher =  WPA_CIPHER_AES;
+							//apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
+							
+							wpa2Cipher &= ~WPA_CIPHER_TKIP;
+							if(wpa2Cipher== 0)
+								wpa2Cipher =  WPA_CIPHER_AES;
+							apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
+						}
+					}
+				}
+			}
+		}
+		vwlan_idx = old_vwlan_idx;
+		
+#if defined(CONFIG_RTL_8812_SUPPORT)
+		{
+			int band2G5GSelect = 0;
+			strVal = req_get_cstream_var(wp, "Band2G5GSupport", ""); //wlan0 PHYBAND_TYPE
+			if(strVal[0] != 0)
+			{
+				band2G5GSelect = atoi(strVal);
+				printf("band2G5GSelect = %d\n", band2G5GSelect);
+			}
+			sprintf(varName,"wlan%d_phyband",wlan_id+1);
+			strVal = req_get_cstream_var(wp, varName, "");
+
+			if(band_no==3 || band_no==11 || band_no==63 || band_no==71 || band_no==75)
+				val = 2;
+			else if(band_no==7)
+			{
+				if(strVal[0] != 0)// from wizard
+					if(memcmp(strVal,"5GHz",4) == 0)
+						val = 2;
+					else
+						val = 1;
+				else
+				val = band2G5GSelect;
+			}
+			else
+				val = 1;
+
+			if ( apmib_set( MIB_WLAN_PHY_BAND_SELECT, (void *)&val) == 0) {
+				strcpy(tmpBuf, ("Set band error!"));
+					goto setErr_wlan;
+			}
+		}
+#endif
 	}
 
 	// set tx rate
@@ -1603,7 +1801,12 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 				goto setErr_wlan;
 			}  
 			val = atoi(strRate);
+
+			if(val<30)
 			val = 1 << (val-1);
+			else
+				val = ((1<<31) + (val -30));
+			
 			if ( apmib_set(MIB_WLAN_FIX_RATE, (void *)&val) == 0) {
 				strcpy(tmpBuf, ("Set fix rate failed!"));
 				goto setErr_wlan;
@@ -1682,6 +1885,10 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 			val = 0;
 		else if (strVal[0] == '1')
 			val = 1;
+		else if (strVal[0] == '2') //8812
+		{
+			val = 2;
+		}
 		else {
 			strcpy(tmpBuf, ("Error! Invalid Channel Bonding."));
 			goto setErr_wlan;
@@ -1733,126 +1940,159 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 	}	//do twice ??
 
 #ifdef UNIVERSAL_REPEATER
-#ifdef CONFIG_RTK_MESH
-	if( *mode >= 4 && *mode <=7)
-	{
-		val=0;
-		apmib_set(MIB_REPEATER_ENABLED1, (void *)&val);
-		apmib_set(MIB_REPEATER_ENABLED2, (void *)&val);
-	}
-	else
+#ifdef CONFIG_RTL_P2P_SUPPORT
+    if( *mode == 8)
+    {
+        SDEBUG("\n");    
+        val=0;
+        apmib_set(MIB_REPEATER_ENABLED1, (void *)&val);
+        apmib_set(MIB_REPEATER_ENABLED2, (void *)&val);
+    }
+    else
 #endif
-{	int id;
-	sprintf(varName, "repeaterEnabled%d", wlan_id);
-	strVal = req_get_cstream_var(wp, ("lan_ip"), "");
+    {	
+        int id;
+    	sprintf(varName, "repeaterEnabled%d", wlan_id);
+    	strVal = req_get_cstream_var(wp, ("lan_ip"), "");
 	
-	if ((strVal==NULL || strVal[0]==0)   // not called from wizard	
-			//&& (*mode != WDS_MODE)	&& (*mode != CLIENT_MODE)
-		) 
-		{
-		int rpt_enabled;
+    	if ((strVal==NULL || strVal[0]==0)   // not called from wizard	
+    			//&& (*mode != WDS_MODE)	&& (*mode != CLIENT_MODE)
+    		) 
+    		{
+    		int rpt_enabled;
 		
-		strVal = req_get_cstream_var(wp, varName, "");
-		if ( !strcmp(strVal, "ON"))
-			val = 1 ;
-		else
-			val = 0 ;
+    		strVal = req_get_cstream_var(wp, varName, "");
+    		if ( !strcmp(strVal, "ON")){
+    			val = 1 ;
+    		}else{
+#ifdef  RTL_MULTI_REPEATER_MODE_SUPPORT		
+                if (wlan_id == 0)
+                    id = MIB_REPEATER_ENABLED1;
+                else
+                    id = MIB_REPEATER_ENABLED2;
+
+                apmib_get(id, (void *)&rpt_enabled);
+
+                if(rpt_enabled==2){
+                    val = 2 ;
+                }else
+#endif
+                {
+                    val = 0 ;
+                }
+
+            }
 			
 #if defined(CONFIG_RTL_ULINKER)
-		if (wlan_id == 0)
-			id = MIB_REPEATER_ENABLED1;
-		else
-			id = MIB_REPEATER_ENABLED2;
-		apmib_get(id, (void *)&rpt_enabled);
-		if(*mode == AP_MODE && rpt_enabled == 1) //ulinker repeater mode
-		{
-			val = 1;
-		}
+    		if (wlan_id == 0)
+    			id = MIB_REPEATER_ENABLED1;
+    		else
+    			id = MIB_REPEATER_ENABLED2;
+    		apmib_get(id, (void *)&rpt_enabled);
+    		if(*mode == AP_MODE && rpt_enabled == 1) //ulinker repeater mode
+    		{
+    			val = 1;
+    		}
 #endif
 			
-		if (wlan_id == 0)
-			id = MIB_REPEATER_ENABLED1;
-		else
-			id = MIB_REPEATER_ENABLED2;
-		apmib_set(id, (void *)&val);
+    		if (wlan_id == 0)
+    			id = MIB_REPEATER_ENABLED1;
+    		else
+    			id = MIB_REPEATER_ENABLED2;
+    		apmib_set(id, (void *)&val);
 
-		if (val == 1) {
-			sprintf(varName, "repeaterSSID%d", wlan_id);
-			strVal = req_get_cstream_var(wp, varName, NULL);
-			if (strVal){
-				if (wlan_id == 0)
-					id = MIB_REPEATER_SSID1;
-				else
-					id = MIB_REPEATER_SSID2;
-					
-				setRepeaterSsid(wlan_id, id, strVal);
-			}
-		}
+    		if (val == 1) {
+    			sprintf(varName, "repeaterSSID%d", wlan_id);
+    			strVal = req_get_cstream_var(wp, varName, NULL);
+    			if (strVal){
+    				if (wlan_id == 0)
+    					id = MIB_REPEATER_SSID1;
+    				else
+    					id = MIB_REPEATER_SSID2;
+    				setRepeaterSsid(wlan_id, id, strVal);
+    			}
+    		}
 
 #ifdef MBSSID
-		int old_idx = vwlan_idx;
-		vwlan_idx = NUM_VWLAN_INTERFACE; // repeater interface
-		int disable;
-		if (val)
-			disable = 0;
-		else
-			disable = 1;		
-		apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&disable);
+    		int old_idx = vwlan_idx;
+    		vwlan_idx = NUM_VWLAN_INTERFACE; // repeater interface
+    		int disable;
+    		if (val)
+    			disable = 0;
+    		else
+    			disable = 1;		
+    		apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&disable);
 
-		if (!disable) {
-			if (*mode == CLIENT_MODE)
-				val = AP_MODE;
-			else
-				val = CLIENT_MODE;
-			apmib_set(MIB_WLAN_MODE, (void *)&val);			
-			apmib_set(MIB_WLAN_SSID, (void *)strVal);			
-		}
+    		if (!disable) {
+    			if (*mode == CLIENT_MODE)
+    				val = AP_MODE;
+    			else
+    				val = CLIENT_MODE;
+    			apmib_set(MIB_WLAN_MODE, (void *)&val);			
+    			apmib_set(MIB_WLAN_SSID, (void *)strVal);			
+    		}
 
-		if (val == CLIENT_MODE) {
-			// if client mode, check if Radius or mixed mode encryption is used
-			apmib_get(MIB_WLAN_ENCRYPT, (void *)&val);
+    		if (val == CLIENT_MODE) {
+    			// if client mode, check if Radius or mixed mode encryption is used
+    			apmib_get(MIB_WLAN_ENCRYPT, (void *)&val);
 
-			if (val <= ENCRYPT_WEP) {				
-				apmib_get( MIB_WLAN_ENABLE_1X, (void *)&val);
-				if (val != 0) {
-					val = 0;
-					apmib_set( MIB_WLAN_ENABLE_1X, (void *)&val);				
-				}
-			}	
-			else if (val == ENCRYPT_WPA2_MIXED) {				
-				val = ENCRYPT_DISABLED;
-				apmib_set(MIB_WLAN_ENCRYPT, (void *)&val);
-			}
-			else if (val == ENCRYPT_WPA) {	
-				apmib_get(MIB_WLAN_WPA_AUTH, (void *)&val);
-				if ((val == 0) || (val & 1)) { // if no or radius, force to psk
-					val = 2;
-					apmib_set(MIB_WLAN_WPA_AUTH, (void *)&val);
-				}				
-				apmib_get(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&val);
-				if ((val == 0) || (val == WPA_CIPHER_MIXED)) {
-					val = WPA_CIPHER_AES;
-					apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&val);					
-				}
-			}
-			else if (val == ENCRYPT_WPA2) {	
-				apmib_get(MIB_WLAN_WPA_AUTH, (void *)&val);
-				if ((val == 0) || (val & 1)) { // if no or radius, force to psk
-					val = 2;
-					apmib_set(MIB_WLAN_WPA_AUTH, (void *)&val);
-				}				
-				apmib_get(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&val);
-				if ((val == 0) || (val == WPA_CIPHER_MIXED)) {
-					val = WPA_CIPHER_AES;
-					apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&val);					
-				}
-			}	
-		}
+    			if (val <= ENCRYPT_WEP) {				
+    				apmib_get( MIB_WLAN_ENABLE_1X, (void *)&val);
+    				if (val != 0) {
+    					val = 0;
+    					apmib_set( MIB_WLAN_ENABLE_1X, (void *)&val);				
+    				}
+    			}	
+    			else if (val == ENCRYPT_WPA2_MIXED) {				
+    				apmib_get(MIB_WLAN_WPA_AUTH, (void *)&val);
+    				if ((val == 0) || (val & 1)) { // if no or radius, force to psk
+    					val = 2;
+    					apmib_set(MIB_WLAN_WPA_AUTH, (void *)&val);
+    				}
+					val = WPA_CIPHER_MIXED;
+					apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&val);	
+					apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&val);	
+    			}
+    			else if (val == ENCRYPT_WPA) {	
+    				apmib_get(MIB_WLAN_WPA_AUTH, (void *)&val);
+    				if ((val == 0) || (val & 1)) { // if no or radius, force to psk
+    					val = 2;
+    					apmib_set(MIB_WLAN_WPA_AUTH, (void *)&val);
+    				}				
+    				apmib_get(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&val);
+    				if ((val == 0) || (val == WPA_CIPHER_MIXED)) {
+    					val = WPA_CIPHER_AES;
+    					//apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&val);					
+    				}
+    			}
+    			else if (val == ENCRYPT_WPA2) {	
+    				apmib_get(MIB_WLAN_WPA_AUTH, (void *)&val);
+    				if ((val == 0) || (val & 1)) { // if no or radius, force to psk
+    					val = 2;
+    					apmib_set(MIB_WLAN_WPA_AUTH, (void *)&val);
+    				}				
+    				apmib_get(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&val);
+    				if ((val == 0) || (val == WPA_CIPHER_MIXED)) {
+    					val = WPA_CIPHER_AES;
+    					apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&val);					
+    				}
+    			}	
+    		}
 
-		vwlan_idx = old_idx;
+    		vwlan_idx = old_idx;
 #endif	
-	}
-}
+    	}
+    	else{ //call from wizard
+    		if(*mode == WDS_MODE || *mode == CLIENT_MODE){
+    			if (wlan_id == 0)
+    				id = MIB_REPEATER_ENABLED1;
+    			else
+    				id = MIB_REPEATER_ENABLED2;
+    			val = 0;
+    			apmib_set(id, (void *)&val);
+    		}
+    	}
+    }
 #endif
 
 #ifdef WIFI_SIMPLE_CONFIG
@@ -1863,6 +2103,58 @@ int wlanHandler(request *wp, char *tmpBuf, int *mode, int wlan_id)
 		val = atoi(strVal);
 	update_wps_configured(val);
 #endif
+#ifdef  CONFIG_RTL_P2P_SUPPORT
+        if(*mode == P2P_SUPPORT_MODE){
+            unsigned char WPA2PSKstr[65];
+            int p2p_type = 0;            
+            int val2 ;
+        
+            p2p_type = P2P_DEVICE;            // default p2p dev
+            apmib_set( MIB_WLAN_P2P_TYPE, (void *)&p2p_type);// default as GO            
+
+            /*disabled DHCP*/
+            val2=0;
+            apmib_set( MIB_DHCP, (void *)&val2);
+
+            if(p2p_type == P2P_TMP_GO){
+                /*if P2P type is GO, prepare GO's SSID*/                
+                sprintf(varName, "ssid%d", wlan_id);
+                strSSID = req_get_cstream_var(wp, varName, ""); 
+                if ( strSSID[0] ) {
+                    if(strncmp(strSSID,"DIRECT-",7) || strlen(strSSID)<9){
+                        SDEBUG("\n");                    
+                        generate_GO_ssid();
+                    }
+                }else{
+                    SDEBUG("\n");
+                    generate_GO_ssid();
+                }            
+
+                 /*if P2P type is GO, WPA2-AES,and PSK*/                                
+                val2=4;
+                apmib_set( MIB_WLAN_ENCRYPT, (void *)&val2);                
+                val2=2;            
+                apmib_set( MIB_WLAN_AUTH_TYPE, (void *)&val2);
+                val2=2;
+                apmib_set( MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&val2);
+
+                /*MIB_WLAN_WPA_PSK ;MIB_WLAN_WSC_PSK */            
+
+
+                apmib_get( MIB_WLAN_WPA_PSK, (void *)WPA2PSKstr);		                    
+                if(strlen(WPA2PSKstr)<8)
+                    generate_GO_PSK();
+
+                val2=1;
+                apmib_set( MIB_WLAN_WSC_CONFIGURED, (void *)&val2);                
+                val2=32;            
+                apmib_set( MIB_WLAN_WSC_AUTH, (void *)&val2);                
+                val2=8;            
+                apmib_set( MIB_WLAN_WSC_ENC, (void *)&val2);                                         
+
+            }
+      }                
+#endif //end of CONFIG_RTL_P2P_SUPPORT
 
 	return  0;
 setErr_wlan:
@@ -1892,8 +2184,8 @@ int meshWpaHandler(request *wp, char *tmpBuf, int wlan_id)
 		goto setErr_mEncrypt;
 	}
 
-	if (apmib_set( MIB_MESH_ENCRYPT, (void *)&encrypt) == 0) {
-  		strcpy(tmpBuf, ("Set MIB_MESH_ENCRYPT mib error!"));
+	if (apmib_set( MIB_WLAN_MESH_ENCRYPT, (void *)&encrypt) == 0) {
+  		strcpy(tmpBuf, ("Set MIB_WLAN_MESH_ENCRYPT mib error!"));
 		goto setErr_mEncrypt;
 	}
 
@@ -1901,15 +2193,15 @@ int meshWpaHandler(request *wp, char *tmpBuf, int wlan_id)
 	{
 		// WPA authentication  ( RADIU / Pre-Shared Key )
 		intVal = WPA_AUTH_PSK;		
-		if ( apmib_set(MIB_MESH_WPA_AUTH, (void *)&intVal) == 0) {
-				strcpy(tmpBuf, ("Set MIB_MESH_AUTH_TYPE failed!"));
+		if ( apmib_set(MIB_WLAN_MESH_WPA_AUTH, (void *)&intVal) == 0) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_MESH_AUTH_TYPE failed!"));
 				goto setErr_mEncrypt;
 		}
 
 		// cipher suite	 (TKIP / AES)
 		intVal =   WPA_CIPHER_AES ;		
-		if ( apmib_set(MIB_MESH_WPA2_CIPHER_SUITE, (void *)&intVal) == 0) {
-				strcpy(tmpBuf, ("Set MIB_MESH_WPA2_UNICIPHER failed!"));
+		if ( apmib_set(MIB_WLAN_MESH_WPA2_CIPHER_SUITE, (void *)&intVal) == 0) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_MESH_WPA2_UNICIPHER failed!"));
 				goto setErr_mEncrypt;
 		}
 
@@ -1930,8 +2222,8 @@ int meshWpaHandler(request *wp, char *tmpBuf, int wlan_id)
 			}
 
 			// remember current psk format and length to compare to default case "****"
-			apmib_get(MIB_MESH_PSK_FORMAT, (void *)&oldFormat);
-			apmib_get(MIB_MESH_WPA_PSK, (void *)tmpBuf);
+			apmib_get(MIB_WLAN_MESH_PSK_FORMAT, (void *)&oldFormat);
+			apmib_get(MIB_WLAN_MESH_WPA_PSK, (void *)tmpBuf);
 			oldPskLen = strlen(tmpBuf);
 
 			sprintf(varName, "pskValue%d", wlan_id);
@@ -1947,8 +2239,8 @@ int meshWpaHandler(request *wp, char *tmpBuf, int wlan_id)
 					goto mRekey_time;
 			}
 
-			if ( apmib_set(MIB_MESH_PSK_FORMAT, (void *)&intVal) == 0) {
-				strcpy(tmpBuf, ("Set MIB_MESH_PSK_FORMAT failed!"));
+			if ( apmib_set(MIB_WLAN_MESH_PSK_FORMAT, (void *)&intVal) == 0) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_MESH_PSK_FORMAT failed!"));
 				goto setErr_mEncrypt;
 			}
 
@@ -1964,8 +2256,8 @@ int meshWpaHandler(request *wp, char *tmpBuf, int wlan_id)
 					goto setErr_mEncrypt;
 				}
 			}
-			if ( !apmib_set(MIB_MESH_WPA_PSK, (void *)strVal)) {
-				strcpy(tmpBuf, ("Set MIB_MESH_WPA_PSK error!"));
+			if ( !apmib_set(MIB_WLAN_MESH_WPA_PSK, (void *)strVal)) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_MESH_WPA_PSK error!"));
 				goto setErr_mEncrypt;
 			}
 		}	
@@ -1987,105 +2279,105 @@ void formEngineeringMode(request *wp, char *path, char *query)
 	//
 	param = req_get_cstream_var(wp, "param1", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM1, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM1, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved1=%d", val);
 	system(tmpBuf);
 	
 	param = req_get_cstream_var(wp, "param2", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM2, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM2, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved2=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "param3", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM3, (void *)&val)==0 )	
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM3, (void *)&val)==0 )	
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved3=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "param4", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM4, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM4, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved4=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "param5", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM5, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM5, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved5=%d", val);
 	system(tmpBuf);
 	
 	param = req_get_cstream_var(wp, "param6", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM6, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM6, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved6=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "param7", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM7, (void *)&val)==0 )	
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM7, (void *)&val)==0 )	
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved7=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "param8", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM8, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM8, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved8=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "param9", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAM9, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAM9, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserved9=%d", val);
 	system(tmpBuf);
 	
 	param = req_get_cstream_var(wp, "parama", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAMA, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAMA, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reserveda=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "paramb", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAMB, (void *)&val)==0 )	
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAMB, (void *)&val)==0 )	
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reservedb=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "paramc", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAMC, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAMC, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reservedc=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "paramd", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAMD, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAMD, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reservedd=%d", val);
 	system(tmpBuf);
 	
 	param = req_get_cstream_var(wp, "parame", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAME, (void *)&val)==0 )
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAME, (void *)&val)==0 )
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reservede=%d", val);
 	system(tmpBuf);
 
 	param = req_get_cstream_var(wp, "paramf", "");
 	string_to_dec(param , &val);
-	if ( apmib_set(MIB_MESH_TEST_PARAMF, (void *)&val)==0 )	
+	if ( apmib_set(MIB_WLAN_MESH_TEST_PARAMF, (void *)&val)==0 )	
 		goto setErr_meshTest;
 	sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reservedf=%d", val);
 	system(tmpBuf);
@@ -2096,7 +2388,7 @@ void formEngineeringMode(request *wp, char *path, char *query)
             if (strlen(param)>16) 
                   goto setErr_meshTest;
 
-            if ( apmib_set(MIB_MESH_TEST_PARAMSTR1, (void *)param) == 0)
+            if ( apmib_set(MIB_WLAN_MESH_TEST_PARAMSTR1, (void *)param) == 0)
                     goto setErr_meshTest;
 			sprintf(tmpBuf, "iwpriv wlan0 set_mib mesh_reservedstr1='%s'", param);
 			system(tmpBuf);			
@@ -2138,8 +2430,8 @@ int wlMeshAcList(request *wp, int argc, char **argv)
 	MACFILTER_T entry;
 	char tmpBuf[MAX_MSG_BUFFER_SIZE]={0};
 
-	if ( !apmib_get(MIB_MESH_ACL_NUM, (void *)&entryNum)) {
-  		fprintf(stderr, "Get MIB_MESH_ACL_NUM table entry error!\n");
+	if ( !apmib_get(MIB_WLAN_MESH_ACL_NUM, (void *)&entryNum)) {
+  		fprintf(stderr, "Get MIB_WLAN_MESH_ACL_NUM table entry error!\n");
 		return -1;
 	}
 
@@ -2150,7 +2442,7 @@ int wlMeshAcList(request *wp, int argc, char **argv)
 
 	for (i=1; i<=entryNum; i++) {
 		*((char *)&entry) = (char)i;
-		if ( !apmib_get(MIB_MESH_ACL_ADDR, (void *)&entry))
+		if ( !apmib_get(MIB_WLAN_MESH_ACL_ADDR, (void *)&entry))
 			return -1;
 
 		snprintf(tmpBuf, MAX_MSG_BUFFER_SIZE, ("%02x:%02x:%02x:%02x:%02x:%02x"),
@@ -2186,7 +2478,7 @@ void formMeshACLSetup(request *wp, char *path, char *query)
 		else
 			enabled = 0; */ //by sc_yang
 		 enabled = strEnabled[0] - '0';
-		if ( apmib_set( MIB_MESH_ACL_ENABLED, (void *)&enabled) == 0) {
+		if ( apmib_set( MIB_WLAN_MESH_ACL_ENABLED, (void *)&enabled) == 0) {
   			strcpy(tmpBuf, ("Set enabled flag error!"));
 			goto setErr_meshACL;
 		}
@@ -2212,7 +2504,7 @@ void formMeshACLSetup(request *wp, char *path, char *query)
 		else
 			macEntry.comment[0] = '\0';
 
-		if ( !apmib_get(MIB_MESH_ACL_NUM, (void *)&entryNum)) {
+		if ( !apmib_get(MIB_WLAN_MESH_ACL_NUM, (void *)&entryNum)) {
 			strcpy(tmpBuf, ("Get entry number error!"));
 			goto setErr_meshACL;
 		}
@@ -2222,8 +2514,8 @@ void formMeshACLSetup(request *wp, char *path, char *query)
 		}
 
 		// set to MIB. try to delete it first to avoid duplicate case
-		apmib_set(MIB_MESH_ACL_ADDR_DEL, (void *)&macEntry);
-		if ( apmib_set(MIB_MESH_ACL_ADDR_ADD, (void *)&macEntry) == 0) {
+		apmib_set(MIB_WLAN_MESH_ACL_ADDR_DEL, (void *)&macEntry);
+		if ( apmib_set(MIB_WLAN_MESH_ACL_ADDR_ADD, (void *)&macEntry) == 0) {
 			strcpy(tmpBuf, ("Add table entry error!"));
 			goto setErr_meshACL;
 		}
@@ -2232,7 +2524,7 @@ void formMeshACLSetup(request *wp, char *path, char *query)
 
 	/* Delete entry */
 	if (strDelMac[0]) {
-		if ( !apmib_get(MIB_MESH_ACL_NUM, (void *)&entryNum)) {
+		if ( !apmib_get(MIB_WLAN_MESH_ACL_NUM, (void *)&entryNum)) {
 			strcpy(tmpBuf, ("Get entry number error!"));
 			goto setErr_meshACL;
 		}
@@ -2243,11 +2535,11 @@ void formMeshACLSetup(request *wp, char *path, char *query)
 			if ( !strcmp(strVal, "ON") ) {
 
 				*((char *)&macEntry) = (char)i;
-				if ( !apmib_get(MIB_MESH_ACL_ADDR, (void *)&macEntry)) {
+				if ( !apmib_get(MIB_WLAN_MESH_ACL_ADDR, (void *)&macEntry)) {
 					strcpy(tmpBuf, ("Get table entry error!"));
 					goto setErr_meshACL;
 				}
-				if ( !apmib_set(MIB_MESH_ACL_ADDR_DEL, (void *)&macEntry)) {
+				if ( !apmib_set(MIB_WLAN_MESH_ACL_ADDR_DEL, (void *)&macEntry)) {
 					strcpy(tmpBuf, ("Delete table entry error!"));
 					goto setErr_meshACL;
 				}
@@ -2258,7 +2550,7 @@ void formMeshACLSetup(request *wp, char *path, char *query)
 
 	/* Delete all entry */
 	if ( strDelAllMac[0]) {
-		if ( !apmib_set(MIB_MESH_ACL_ADDR_DELALL, (void *)&macEntry)) {
+		if ( !apmib_set(MIB_WLAN_MESH_ACL_ADDR_DELALL, (void *)&macEntry)) {
 			strcpy(tmpBuf, ("Delete all table error!"));
 			goto setErr_meshACL;
 		}
@@ -2368,10 +2660,11 @@ void formMeshProxy(request *wp, char *path, char *query)
 		//"<td align=center width=\"50%%\"><font size=\"2\"><b>MP MAC Address</b></font></td>\n"
 		"<td align=center><font size=\"2\"><b>Client MAC Address</b></font></td></tr>\n"));
 		
-		fh = fopen(_FILE_MESH_PROXY , "r");
+		sprintf(buf,"/proc/wlan%d/%s",wlan_idx,_FILE_MESH_PROXY);
+        fh = fopen(buf, "r");
 		if (!fh)
 		{
-				printf("Warning: cannot open %s\n",_FILE_MESH_PROXY );
+				printf("Warning: cannot open %s\n",buf );
 				return -1;
 		}
 		
@@ -2441,7 +2734,7 @@ void formMeshSetup(request *wp, char *path, char *query)
 		else
 			meshenable = 0;
 
-		if ( apmib_set(MIB_MESH_ENABLE, (void *)&meshenable) == 0)
+		if ( apmib_set(MIB_WLAN_MESH_ENABLE, (void *)&meshenable) == 0)
         {
                 strcpy( tmpBuf, ("Set mesh enable error!"));
                 goto setErr_mesh;
@@ -2466,7 +2759,7 @@ void formMeshSetup(request *wp, char *path, char *query)
         else
                 enabled = 0 ;
 #endif
-        if ( apmib_set(MIB_MESH_ROOT_ENABLE, (void *)&enabled) == 0)
+        if ( apmib_set(MIB_WLAN_MESH_ROOT_ENABLE, (void *)&enabled) == 0)
         {
                 strcpy( tmpBuf, ("Set mesh Root enable error!"));
                 goto setErr_mesh;
@@ -2479,9 +2772,9 @@ void formMeshSetup(request *wp, char *path, char *query)
                         strcpy(tmpBuf, ("Error! Invalid Mesh ID."));
                         goto setErr_mesh;
                 }
-                if ( apmib_set(MIB_MESH_ID, (void *)strMeshID) == 0)
+                if ( apmib_set(MIB_WLAN_MESH_ID, (void *)strMeshID) == 0)
                 {
-                        strcpy(tmpBuf, ("Set MIB_MESH_ID error!"));
+                        strcpy(tmpBuf, ("Set MIB_WLAN_MESH_ID error!"));
                         goto setErr_mesh;
                 }
         }
@@ -2512,7 +2805,7 @@ setErr_mesh:
 #endif // CONFIG_RTK_MESH
 
 /////////////////////////////////////////////////////////////////////////////
-#if defined(CONFIG_RTL_92D_SUPPORT)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8881A_SELECTIVE)
 
 #if 0
 void swapWlanMibSetting(unsigned char wlanifNumA, unsigned char wlanifNumB)
@@ -2622,7 +2915,11 @@ void formWlanBand2G5G(request *wp, char *path, char *query)
 		if(SetWlan_idx(wlanif))
 		{
 			int intVal;
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_92D_DMDP) && !defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)
 			intVal = DMACDPHY;
+#else	
+			intVal = SMACSPHY;
+#endif
 			apmib_set(MIB_WLAN_MAC_PHY_MODE, (void *)&intVal);
 			intVal = 1;
 			apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
@@ -2699,7 +2996,11 @@ void formWlanBand2G5G(request *wp, char *path, char *query)
 			if(SetWlan_idx(wlanif))
 			{
 				int intVal;
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_92D_DMDP) && !defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)
 				intVal = DMACDPHY;
+#else
+				intVal = SMACSPHY;
+#endif
 				apmib_set(MIB_WLAN_MAC_PHY_MODE, (void *)&intVal);
 				intVal = 0;
 				apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
@@ -2735,11 +3036,11 @@ void formWlanBand2G5G(request *wp, char *path, char *query)
 		SetWlan_idx("wlan0");
 		intVal = 0;
 		apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
-
+#ifndef CONFIG_RTL_8881A_SELECTIVE
 		SetWlan_idx("wlan1");
 		intVal = 1;
 		apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
-		
+#endif		
 		intVal=0;
 		apmib_set(MIB_WISP_WAN_ID, (void *)&intVal);
 	}							
@@ -2803,11 +3104,9 @@ void formWlanSetup(request *wp, char *path, char *query)
 
 				val = 1;
 				apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&val); //close original interface
-
-//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);				
+				
 				swapWlanMibSetting(0,wlanif);
-//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);
-
+				
 				val = 0;
 				apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&val); //enable after interface
 				//apmib_update_web(CURRENT_SETTING);
@@ -2851,23 +3150,44 @@ void formWlanSetup(request *wp, char *path, char *query)
 #endif //#if defined(CONFIG_RTL_92D_SUPPORT)
 
 //printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);
-#if defined(WLAN_PROFILE)
-	if(wlProfileHandler(wp, tmpBuf, wlan_idx) < 0)
-	{
-//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);	
-		goto setErr_wlan;
-	}
 
-#endif //#if defined(WLAN_PROFILE)	
 
 	if(wlanHandler(wp, tmpBuf, &mode, wlan_idx) < 0)
 		goto setErr_wlan ;
+#if defined(WLAN_PROFILE)
+	if(wlProfileHandler(wp, tmpBuf, wlan_idx) < 0)
+	{
+        //printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);	
+		goto setErr_wlan;
+	}
+	
+#endif //#if defined(WLAN_PROFILE)	
+
 	if (mode == 1) { // not AP mode
 		//set cipher suit to AES and encryption to wpa2 only if wpa2 mixed mode is set
 		ENCRYPT_T encrypt;
 		int intVal;
 		apmib_get( MIB_WLAN_ENCRYPT, (void *)&encrypt);
 		if(encrypt == ENCRYPT_WPA2_MIXED){
+			intVal =   WPA_CIPHER_MIXED ;
+			if ( apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&intVal) == 0) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_WPA2_UNICIPHER failed!"));
+				goto setErr_wlan;
+			}
+
+			intVal =   WPA_CIPHER_MIXED;
+			if ( apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&intVal) == 0) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_WPA_CIPHER_SUITE failed!"));
+				goto setErr_wlan;
+			}
+		}
+	}
+	if (mode != 1) { // AP mode
+		//set wpa2-aes  if wpa mode is set
+		ENCRYPT_T encrypt;
+		int intVal;
+		apmib_get( MIB_WLAN_ENCRYPT, (void *)&encrypt);
+		if(encrypt == ENCRYPT_WPA){
 			intVal =   WPA_CIPHER_AES ;
 			if ( apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&intVal) == 0) {
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA2_UNICIPHER failed!"));
@@ -2878,13 +3198,7 @@ void formWlanSetup(request *wp, char *path, char *query)
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA2_UNICIPHER failed!"));
 				goto setErr_wlan;
 			}
-
-			intVal =   0;
-			if ( apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&intVal) == 0) {
-				strcpy(tmpBuf, ("Set MIB_WLAN_WPA_CIPHER_SUITE failed!"));
-				goto setErr_wlan;
-			}
-			strcpy(tmpBuf, ("Warning! WPA2 Mixed encryption is not supported in client Mode. <BR> Change to WPA2 Encryption."));
+			strcpy(tmpBuf, ("Warning! WPA encryption is only supported in client Mode. <BR> Change to WPA2 Encryption."));
 			warn = 1;
 		}
 	}
@@ -3354,7 +3668,14 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 		}
 		else
 			intVal = 0;
-
+#ifdef WLAN_HS2_CONFIG
+		if(!enableRS) {
+			if ( apmib_set( MIB_WLAN_HS2_ENABLE, (void *)&intVal) == 0) {
+	  			strcpy(tmpBuf, ("Set hs2 enable flag error!"));
+				goto setErr_encrypt;
+			}
+		}
+#endif		
 		if ( apmib_set( MIB_WLAN_ENABLE_1X, (void *)&intVal) == 0) {
   			strcpy(tmpBuf, ("Set 1x enable flag error!"));
 			goto setErr_encrypt;
@@ -3484,7 +3805,7 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 				}
 			}
 			else { // passphras
-				if (len==0 || len > (MAX_PSK_LEN-1) ) {
+				if (len==0 || len > (MAX_PSK_LEN-1)|| len < MIN_PSK_LEN ) {
 	 				strcpy(tmpBuf, ("Error! invalid psk value."));
 					goto setErr_encrypt;
 				}
@@ -3660,29 +3981,82 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 				}
 			}
 			else{
-				int band_value=0;
-				 apmib_get( MIB_WLAN_BAND, (void *)&band_value);
-				 if(band_value == 10 || band_value ==11)
-				 	intVal = WPA_CIPHER_AES;	
-				 else
-					intVal = WPA_CIPHER_TKIP;	
+					intVal = WPA_CIPHER_MIXED;	
 			}
 
 			// check if both TKIP and AES cipher are selected in client mode
-			apmib_get(MIB_WLAN_MODE, (void *)&val);
+			/*apmib_get(MIB_WLAN_MODE, (void *)&val);
 			if (val == CLIENT_MODE) {
 				apmib_get(MIB_WLAN_NETWORK_TYPE, &val);
 				if (val == INFRASTRUCTURE && intVal == WPA_CIPHER_MIXED) {
 					strcpy(tmpBuf, ("Error! Can't set cipher to TKIP + AES when device is set to client mode."));
 					goto setErr_encrypt;							
 				}
-			}	// david+2006-1-11
+			}*/	// david+2006-1-11
 					
 			if ( apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&intVal) == 0) {
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA_CIPHER_SUITE failed!"));
 				goto setErr_encrypt;							
 			}				
-		}		
+		}	
+#ifdef CONFIG_IEEE80211W
+		{
+		
+			sprintf(varName, "wpa11w%d", wlan_id);
+			strVal = req_get_cstream_var(wp, varName, "");	 	
+			printf("wpa11w, strVar=%s\n",strVal);
+			if (strVal[0]) {			
+				if ( strstr(strVal, ("none"))) 
+					intVal = NO_MGMT_FRAME_PROTECTION;
+				else if ( strstr(strVal, ("capable"))) 
+					intVal = MGMT_FRAME_PROTECTION_OPTIONAL;
+				else if ( strstr(strVal, ("required"))) 
+					intVal = MGMT_FRAME_PROTECTION_REQUIRED;
+				else {
+					intVal = NO_MGMT_FRAME_PROTECTION;
+					strcpy(tmpBuf, ("Invalid value of IEEE80211w!"));
+					goto setErr_encrypt;
+				}
+			}
+			else
+				intVal = NO_MGMT_FRAME_PROTECTION;			
+					
+			if ( apmib_set(MIB_WLAN_IEEE80211W, (void *)&intVal) == 0) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_IEEE80211W failed!"));
+				goto setErr_encrypt;							
+			}
+		}
+		{
+			//int intVal1;
+			//apmib_get(MIB_WLAN_IEEE80211W,(void *)&intVal1);
+			sprintf(varName, "wpa2EnableSHA256%d", wlan_id);
+			strVal = req_get_cstream_var(wp, varName, "");	 	
+			printf("wpa2EnableSHA256, strVar=%s\n",strVal);
+
+			//if(intVal1 == MGMT_FRAME_PROTECTION_REQUIRED)
+			//	intVal = 1;
+			//else{
+				if (strVal[0]) {			
+					if ( strstr(strVal, ("disable"))) 
+						intVal = 0;
+					else if ( strstr(strVal, ("enable"))) 
+						intVal = 1;
+					else {
+						intVal = 0;
+						strcpy(tmpBuf, ("Invalid value of wpa2EnableSHA256!"));
+						goto setErr_encrypt;
+					}
+				}
+				else
+					intVal = 0;
+			//}
+
+			if ( apmib_set(MIB_WLAN_SHA256_ENABLE, (void *)&intVal) == 0) {
+				strcpy(tmpBuf, ("Set MIB_WLAN_SHA256_ENABLE failed!"));
+				goto setErr_encrypt;							
+			}
+		}
+#endif	
 		//if ((encrypt == ENCRYPT_WPA2) || (encrypt == ENCRYPT_WPA2_MIXED)) 
 		{
 			sprintf(varName, "wpa2ciphersuite%d", wlan_id);
@@ -3699,17 +4073,17 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 				}
 			}
 			else
-				intVal = WPA_CIPHER_AES;			
+				intVal = WPA_CIPHER_MIXED;			
 
 			// check if both TKIP and AES cipher are selected in client mode
-			apmib_get(MIB_WLAN_MODE, (void *)&val);
+			/*apmib_get(MIB_WLAN_MODE, (void *)&val);
 			if (val == CLIENT_MODE) {
 				apmib_get(MIB_WLAN_NETWORK_TYPE, &val);
 				if (val == INFRASTRUCTURE && intVal == WPA_CIPHER_MIXED) {
 					strcpy(tmpBuf, ("Error! Can't set cipher to TKIP + AES when device is set to client mode."));
 					goto setErr_encrypt;							
 				}
-			}	// david+2006-1-11
+			}*/	// david+2006-1-11
 				
 			if ( apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&intVal) == 0) {
 				strcpy(tmpBuf, ("Set MIB_WLAN_WPA2_CIPHER_SUITE failed!"));
@@ -3778,7 +4152,7 @@ int wpaHandler(request *wp, char *tmpBuf, int wlan_id)
 				}
 			}
 			else { // passphras
-				if (len==0 || len > (MAX_PSK_LEN-1) ) {
+				if (len==0 || len > (MAX_PSK_LEN-1)|| len < MIN_PSK_LEN ) {
 	 				strcpy(tmpBuf, ("Error! invalid psk value."));
 					goto setErr_encrypt;
 				}
@@ -4486,24 +4860,28 @@ int wlanProfileEncryptHandler(request *wp, char *tmpBuf)
 
 		sprintf(varName, "ciphersuite%d", wlan_idx);
 		strCipherSuite = req_get_cstream_var(wp, varName, "");	 	
-		if (strCipherSuite[0]) {
-			cipherSuite = 0;				
-			if ( strstr(strCipherSuite, ("tkip"))) 
-				cipherSuite |= WPA_CIPHER_TKIP;
-			if ( strstr(strCipherSuite, ("aes"))) 
-				cipherSuite |= WPA_CIPHER_AES;
-			if (cipherSuite == 0 || cipherSuite == WPA_CIPHER_MIXED) //check if both TKIP and AES cipher are selected in client mode
-			{
-				strcpy(tmpBuf, ("Invalid value of cipher suite!"));
-				goto setErr_wlan;
-			}
+		if(encrypt == ENCRYPT_WPA)
+		{
+			if (strCipherSuite[0]) {
+				cipherSuite = 0;				
+				if ( strstr(strCipherSuite, ("tkip"))) 
+					cipherSuite |= WPA_CIPHER_TKIP;
+				if ( strstr(strCipherSuite, ("aes"))) 
+					cipherSuite |= WPA_CIPHER_AES;
+				if (cipherSuite == 0 || cipherSuite == WPA_CIPHER_MIXED) //check if both TKIP and AES cipher are selected in client mode
+				{
+					strcpy(tmpBuf, ("Invalid value of cipher suite!"));
+					goto setErr_wlan;
+				}
 
-			if(cipherSuite == WPA_CIPHER_TKIP)
-				entry.wpa_cipher = 2;
-			else
-				entry.wpa_cipher = 8;
+				if(cipherSuite == WPA_CIPHER_TKIP)
+					entry.wpa_cipher = 2;
+				else
+					entry.wpa_cipher = 8;
 			
-		}		
+			}		
+		}
+		else if(encrypt == ENCRYPT_WPA2)		
 		{
 			sprintf(varName, "wpa2ciphersuite%d", wlan_idx);
 			strCipherSuite = req_get_cstream_var(wp, varName, "");	 	
@@ -4738,10 +5116,11 @@ int wlMeshNeighborTable(request *wp, int argc, char **argv)
 #endif
 	));
 
-        fh = fopen(_FILE_MESH_ASSOC, "r");
+		sprintf(buf,"/proc/wlan%d/%s",wlan_idx,_FILE_MESH_ASSOC);
+        fh = fopen(buf, "r");
         if (!fh)
         {
-		printf("Warning: cannot open %s\n",_FILE_MESH_ASSOC);
+		printf("Warning: cannot open %s\n",buf);
                 return -1;
         }
 
@@ -4864,7 +5243,6 @@ int wlMeshRoutingTable(request *wp, int argc, char **argv)
         //"<td align=center width=\"10%%\"><font size=\"2\"><b>DSN</b></font></td>\n"
         "<td align=center width=\"10%%\"><font size=\"2\"><b>Metric</b></font></td>\n"
         "<td align=center width=\"10%%\"><font size=\"2\"><b>Hop Count</b></font></td>\n"
-	"<td align=center width=\"10%%\"><font size=\"2\"><b>Active Clients List</b></font></td>\n"
 #if defined(_11s_TEST_MODE_)
         "<td align=center width=\"10%%\"><font size=\"2\"><b>Gen PREQ</b></font></td>\n"
         "<td align=center width=\"10%%\"><font size=\"2\"><b>Rev PREP</b></font></td>\n"
@@ -4873,10 +5251,11 @@ int wlMeshRoutingTable(request *wp, int argc, char **argv)
 #endif
 	));
 
-        fh = fopen(_FILE_MESH_ROUTE, "r");
+        sprintf(buf,"/proc/wlan%d/%s",wlan_idx,_FILE_MESH_ROUTE);
+        fh = fopen(buf, "r");
         if (!fh)
         {
-                printf("Warning: cannot open %s\n",_FILE_MESH_ROUTE );
+                printf("Warning: cannot open %s\n",buf );
                 return -1;
         }
 
@@ -4961,7 +5340,7 @@ int wlMeshRoutingTable(request *wp, int argc, char **argv)
                         "<td align=center width=\"10%%\"><font size=\"2\">---</td>\n"
                         "<td align=center width=\"10%%\"><font size=\"2\">---</td>\n"
 #endif
-			"<td align=center width=\"10%%\"><font size=\"2\">---</td>\n"
+			"<font size=\"2\">---</td>\n"
 			));
         } else {
 			
@@ -4988,8 +5367,6 @@ int wlMeshRoutingTable(request *wp, int argc, char **argv)
 								"<td align=center width=\"10%%\"><font size=\"2\">%s</td>\n"
 								"<td align=center width=\"10%%\"><font size=\"2\">%s</td>\n"
 #endif
-
-					"<td align=center width=\"10%%\"><input type=\"button\" value=\"Show\" size=\"2\" onClick=\"showProxiedMAC(\'%s\')\"></td>\n"
 							   ), p->destMac,p->nexthopMac,p->isPortal,p->metric,p->hopcount,putstr
 #if defined(_11s_TEST_MODE_)
 					, p->start, p->end, p->diff, p->flag
@@ -5019,10 +5396,11 @@ int wlMeshPortalTable(request *wp, int argc, char **argv)
 #endif
 	));
 
-        fh = fopen(_FILE_MESH_PORTAL, "r");
+		sprintf(buf,"/proc/wlan%d/%s",wlan_idx,_FILE_MESH_PORTAL);
+        fh = fopen(buf, "r");
         if (!fh)
         {
-                printf("Warning: cannot open %s\n",_FILE_MESH_PORTAL );
+                printf("Warning: cannot open %s\n",buf );
                 return -1;
         }
 
@@ -5080,10 +5458,11 @@ int wlMeshProxyTable(request *wp, int argc, char **argv)
         "<td align=center width=\"50%%\"><font size=\"2\"><b>Owner</b></font></td>\n"
         "<td align=center width=\"50%%\"><font size=\"2\"><b>Client</b></font></td></tr>\n"));
 
-        fh = fopen(_FILE_MESH_PROXY , "r");
+		sprintf(buf,"/proc/wlan%d/%s",wlan_idx,_FILE_MESH_PROXY);
+        fh = fopen(buf, "r");
         if (!fh)
         {
-                printf("Warning: cannot open %s\n",_FILE_MESH_PROXY );
+                printf("Warning: cannot open %s\n",buf );
                 return -1;
         }
 
@@ -5134,10 +5513,11 @@ int wlRxStatics(request *wp, int argc, char **argv)
         "<td align=center width=\"10%%\"><font size=\"2\"><b>rx_crc_errors</b></font></td>\n"));
 
 
-        fh = fopen(_FILE_MESHSTATS , "r");
+		sprintf(buf,"/proc/wlan%d/%s",wlan_idx,_FILE_MESHSTATS);
+        fh = fopen(buf, "r");
         if (!fh)
         {
-                printf("Warning: cannot open %s\n",_FILE_MESHSTATS );
+                printf("Warning: cannot open %s\n",buf );
                 return -1;
         }
 
@@ -5179,13 +5559,14 @@ int wlMeshRootInfo(request *wp, int argc, char **argv)
 {
         int nBytesSent=0;
         FILE *fh;
-        char rootmac[100];
+        char rootmac[100],buf[100];
 		char z12[]= "000000000000";
 		
-        fh = fopen(_FILE_MESH_ROOT , "r");
+		sprintf(buf,"/proc/wlan%d/%s",wlan_idx,_FILE_MESH_ROOT);
+        fh = fopen(buf, "r");
         if (!fh)
         {
-                printf("Warning: cannot open %s\n",_FILE_MESH_ROOT );
+                printf("Warning: cannot open %s\n",buf );
                 return -1;
         }
 	
@@ -5350,9 +5731,10 @@ setErr_ac:
 int advanceHander(request *wp ,char *tmpBuf)
 {
 	char *strAuth, *strFragTh, *strRtsTh, *strBeacon, *strPreamble, *strAckTimeout;
-	char *strRate, /* *strHiddenSSID, */ *strDtim, *strIapp, *strProtection;
+	char *strRate, /* *strHiddenSSID, */ *strDtim, *strIapp, *strHs2, *strProtection;
 	char *strTurbo, *strPower;
 	char *strValue;
+	char *strMc2u,*strMlcstRate;
 	AUTH_TYPE_T authType;
 	PREAMBLE_T preamble;
 	int val;
@@ -5620,6 +6002,26 @@ skip_rate_setting:
 			goto setErr_advance;
 		}
 	}
+#ifdef WLAN_HS2_CONFIG	
+
+	strHs2 = req_get_cstream_var(wp, ("hs2"), "");
+	if (strHs2[0]) {
+		if (!strcmp(strHs2, ("no")))
+			val = 0;
+		else if (!strcmp(strHs2, ("yes")))
+			val = 1;
+		else {
+			strcpy(tmpBuf, ("Error! Invalid HS2 value."));
+			goto setErr_advance;
+		}
+		
+		if ( apmib_set(MIB_WLAN_HS2_ENABLE, (void *)&val) == 0) {
+			strcpy(tmpBuf, ("Set MIB_WLAN_HS2_ENABLED failed!"));
+			goto setErr_advance;
+		}
+	}
+#endif			
+
 	strProtection= req_get_cstream_var(wp, ("11g_protection"), "");
 	if (strProtection[0]) {
 		if (!strcmp(strProtection, ("no")))
@@ -5781,6 +6183,25 @@ skip_rate_setting:
 
 
 		}
+
+	strValue = req_get_cstream_var(wp, ("tx_ldpc"), "");
+		if (strValue[0]) {
+			if (!strcmp(strValue, ("enable")))
+				val = 1;
+			else
+				val = 0;	
+			apmib_set(MIB_WLAN_LDPC_ENABLED, (void *)&val);	
+		}
+		else
+		{		
+			int chipVersion = getWLAN_ChipVersion();
+			if(chipVersion == 1)
+			{
+				val = 0;	
+				apmib_set(MIB_WLAN_LDPC_ENABLED, (void *)&val);	
+			}
+		}
+		
 	strValue = req_get_cstream_var(wp, ("coexist_"), "");
 		if (strValue[0]) {
 			if (!strcmp(strValue, ("enable")))
@@ -5800,6 +6221,30 @@ skip_rate_setting:
 			apmib_set(MIB_WLAN_TX_BEAMFORMING, (void *)&val);	
 		}
 		//### end
+	strMc2u= req_get_cstream_var(wp, ("mc2u_"), "");
+		if (strValue[0]) {
+			if (!strcmp(strMc2u, ("enable")))
+				val = 0;
+			else
+				val = 1;	
+			apmib_set(MIB_WLAN_MC2U_DISABLED, (void *)&val);	
+		}
+	strMlcstRate = req_get_cstream_var(wp, "mlcstrate", "");
+	if ( strMlcstRate[0] ) {
+		if ( strMlcstRate[0] == '0' ) { // auto
+			val = 0;	 
+		}
+		else  {
+			val = 0; 
+			val = atoi(strMlcstRate);
+
+			if(val<30)
+			val = 1 << (val-1);
+			else
+				val = ((1<<31) + (val -30));
+		}
+		apmib_set(MIB_WLAN_LOWEST_MLCST_RATE, (void *)&val);
+	}
 #ifdef WIFI_SIMPLE_CONFIG
 	update_wps_configured(1);
 #endif
@@ -5833,6 +6278,28 @@ setErr_end:
 	ERR_MSG(tmpBuf);
 }
 
+void set_11ac_txrate(WLAN_STA_INFO_Tp pInfo,char* txrate)
+{
+	char channelWidth=0;//20M 0,40M 1,80M 2
+	char shortGi=0;
+	char rate_idx=pInfo->txOperaRates-0x90;
+	if(!txrate)return;
+/*
+	TX_USE_40M_MODE		= BIT(0),
+	TX_USE_SHORT_GI		= BIT(1),
+	TX_USE_80M_MODE		= BIT(2)
+*/
+	if(pInfo->ht_info & 0x4)
+		channelWidth=2;
+	else if(pInfo->ht_info & 0x1)
+		channelWidth=1;
+	else
+		channelWidth=0;
+	if(pInfo->ht_info & 0x2)
+		shortGi=1;
+
+	sprintf(txrate, "%d", VHT_MCS_DATA_RATE[channelWidth][shortGi][rate_idx]>>1);
+}
 /////////////////////////////////////////////////////////////////////////////
 int wirelessClientList(request *wp, int argc, char **argv)
 {
@@ -5887,7 +6354,9 @@ int wirelessClientList(request *wp, int argc, char **argv)
 		pInfo = (WLAN_STA_INFO_Tp)&buff[i*sizeof(WLAN_STA_INFO_T)];
 		if (pInfo->aid && (pInfo->flag & STA_INFO_FLAG_ASOC)) {
 			
-		if(pInfo->network & BAND_11N)
+		if(pInfo->network& BAND_5G_11AC)
+			sprintf(mode_buf, "%s", (" 11ac"));
+		else if(pInfo->network & BAND_11N)
 			sprintf(mode_buf, "%s", (" 11n"));
 		else if (pInfo->network & BAND_11G)
 			sprintf(mode_buf,"%s",  (" 11g"));	
@@ -5898,10 +6367,11 @@ int wirelessClientList(request *wp, int argc, char **argv)
 		else
 			sprintf(mode_buf, "%s", (" ---"));	
 		
-		//printf("\n\nthe sta txrate=%d\n\n\n", pInfo->txOperaRates);
-		
-			
-		if((pInfo->txOperaRates & 0x80) != 0x80){	
+	
+		if(pInfo->txOperaRates >= 0x90) {
+			//sprintf(txrate, "%d", pInfo->acTxOperaRate); 
+			set_11ac_txrate(pInfo, txrate);
+		} else if((pInfo->txOperaRates & 0x80) != 0x80){	
 			if(pInfo->txOperaRates%2){
 				sprintf(txrate, "%d%s",pInfo->txOperaRates/2, ".5"); 
 			}else{
@@ -5996,12 +6466,91 @@ void formWlanMultipleAP(request *wp, char *path, char *query)
 {
 	char *strVal, *submitUrl;
 	int idx, disabled, old_vwlan_idx, band_no, val;
+    int repeater_enabled=0;
+    int valTmp=0;
 	char varName[20];
 	char redirectUrl[200];
 
-//displayPostDate(wp->post_data);	
+    //displayPostDate(wp->post_data);	
 
 	old_vwlan_idx = vwlan_idx;
+
+
+     SDEBUG("wlan_idx=[%d]\n",wlan_idx);
+     SDEBUG("vwlan_idx=[%d]\n",vwlan_idx);
+
+#ifdef RTL_MULTI_REPEATER_MODE_SUPPORT         
+    sprintf(varName, "switch_multi_repeater");
+    strVal= req_get_cstream_var(wp, varName, "");
+    if ( !strcmp(strVal, "ON")){
+        
+        repeater_enabled = 2;
+
+
+        /*let root  interface under AP mode ; need make sure vwlan_idx==0*/ 
+        valTmp=AP_MODE;
+        apmib_set(MIB_WLAN_MODE, (void *)&valTmp);          // set to 0     (AP mode)
+        apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&valTmp);  // set to 0   (disabled is false)    
+        /*let root  interface under AP mode ; need make sure vwlan_idx==0*/ 
+
+		valTmp = 0; // disable AP Profile
+        if(wlan_idx == 0) {
+			apmib_set(MIB_PROFILE_ENABLED1, (void *)&valTmp);
+		} else {
+			apmib_set(MIB_PROFILE_ENABLED2, (void *)&valTmp);
+		}
+
+        /*let vxd interface be disabled*/ 
+        
+        vwlan_idx = NUM_VWLAN_INTERFACE; 
+        valTmp=1;
+        apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&valTmp);  // set to 1   (disabled is tue)            
+         SDEBUG("set vxd (vwlan_idx=[%d]) wlan disabled to true\n",vwlan_idx);        
+        /*let vxd interface be disabled*/         
+
+
+        for (idx=1; idx<=4; idx++) {
+            vwlan_idx = idx; 
+            if(idx==1)
+                valTmp=AP_MODE;
+            if(idx==2||idx==3)
+                valTmp=CLIENT_MODE;            
+    		apmib_set(MIB_WLAN_MODE, (void *)&valTmp);        
+
+#ifdef RTL_MULTI_CLONE_SUPPORT    
+            // let wlanx-va1; wlanx-va2 default enabled its macclone
+            if(idx==2 || idx==3){
+                valTmp=1;
+                apmib_set(MIB_WLAN_MACCLONE_ENABLED, (void *)&valTmp);  // set to 1   (disabled is tue)            
+            }
+#endif
+            /*let  4 th vap interface be disabled*/                     
+            if(idx==4){
+                valTmp=1;
+                apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&valTmp);  // set to 1   (disabled is tue)            
+            }
+        }        
+        
+    }
+    else{
+        repeater_enabled = 0;   
+        for (idx=1; idx<=3; idx++) {
+            vwlan_idx = idx; 
+            valTmp=AP_MODE;
+    		apmib_set(MIB_WLAN_MODE, (void *)&valTmp);        
+        }
+    }
+
+    /*let vxd interface be disabled*/ 
+    if(wlan_idx==0){
+        apmib_set(MIB_REPEATER_ENABLED1, (void *)&repeater_enabled);
+        SDEBUG("MIB_REPEATER_ENABLED1 mode set to [%d]\n",repeater_enabled);
+    }else{
+        apmib_set(MIB_REPEATER_ENABLED2, (void *)&repeater_enabled);
+        SDEBUG("MIB_REPEATER_ENABLED2 mode set to [%d]\n",repeater_enabled);
+
+    }            
+#endif        
 
 	for (idx=1; idx<=4; idx++) {
 		vwlan_idx = idx;		
@@ -6023,12 +6572,33 @@ void formWlanMultipleAP(request *wp, char *path, char *query)
 			band_no = strtol( strVal, (char **)NULL, 10);
 			val = (band_no + 1);
 			apmib_set(MIB_WLAN_BAND, (void *)&val);
+			//change vap cipher value when vap band changed
+			if(val&8) {//11N, no TKIP
+				int wpaCipher;
+				int wpa2Cipher;
+				int wlan_encrypt;
+				apmib_get(MIB_WLAN_ENCRYPT, (void *)&wlan_encrypt);
+				apmib_get(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
+				apmib_get(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
+				if(wlan_encrypt ==ENCRYPT_WPA || wlan_encrypt ==ENCRYPT_WPA2 || wlan_encrypt == ENCRYPT_WPA2_MIXED){
+					wpaCipher &= ~WPA_CIPHER_TKIP;
+					if(wpaCipher== 0)
+						wpaCipher =  WPA_CIPHER_AES;
+					apmib_set(MIB_WLAN_WPA_CIPHER_SUITE, (void *)&wpaCipher);
+					
+					wpa2Cipher &= ~WPA_CIPHER_TKIP;
+					if(wpa2Cipher== 0)
+						wpa2Cipher =  WPA_CIPHER_AES;
+					apmib_set(MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&wpa2Cipher);
+				}
+			}
 		}
 
 		sprintf(varName, "wl_ssid%d", idx);
 		strVal = req_get_cstream_var(wp, varName, "");
-		if (strVal[0]) 
-			apmib_set( MIB_WLAN_SSID, (void *)strVal);			
+		if (strVal[0]) {
+			apmib_set( MIB_WLAN_SSID, (void *)strVal);		
+		}	
 	
 		sprintf(varName, "TxRate%d", idx);
 		strVal = req_get_cstream_var(wp, varName, "");
@@ -6041,7 +6611,12 @@ void formWlanMultipleAP(request *wp, char *path, char *query)
 				val = 0;
 				apmib_set(MIB_WLAN_RATE_ADAPTIVE_ENABLED, (void *)&val);
 				val = atoi(strVal);
+				
+				if(val<30)
 				val = 1 << (val-1);
+				else
+					val = ((1<<31) + (val -30));				
+
 				apmib_set(MIB_WLAN_FIX_RATE, (void *)&val);
 			}
 		}
@@ -6126,29 +6701,50 @@ void formWlanMultipleAP(request *wp, char *path, char *query)
 /////////////////////////////////////////////////////////////////////////////
 void formWlSiteSurvey(request *wp, char *path, char *query)
 {
- 	char *submitUrl, *refresh, *connect, *strSel, *strVal;
-	int status, idx, encrypt;
+    char *submitUrl, *refresh, *connect, *strSel, *strVal;
+    int status, idx, encrypt;
+    BssDscr *pBss=NULL;
+    char ssidbuf[33];
+    int k;
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
-	int wpaPSK;	// For wpa/wpa2
+    int wpaPSK;	// For wpa/wpa2
 #endif
-	unsigned char res, *pMsg=NULL;
-	int wait_time, max_wait_time=5;
-	char tmpBuf[MAX_MSG_BUFFER_SIZE]={0};
+    unsigned char res, *pMsg=NULL;
+    int wait_time, max_wait_time=5;
+    char tmpBuf[MAX_MSG_BUFFER_SIZE]={0};
 #if defined(WLAN_PROFILE)
-	int profile_enabled_id, profileEnabledVal, oriProfileEnabledVal;
+    int profile_enabled_id, profileEnabledVal, oriProfileEnabledVal;
 #endif
-	int isWizard=0;
+    int isWizard=0;
 #ifdef CONFIG_RTK_MESH 
-// ==== inserted by GANTOE for site survey 2008/12/26 ==== 
-	int mesh_enable=0; 
-// fixed by Joule 2009.01.10
-	if(apmib_get(MIB_WLAN_MODE, (void *)&mesh_enable) == 0 || mesh_enable < 4) 
-		mesh_enable = 0; 	
+    int mesh_enable = 0; 
+    int mesh_connect = 0;
+    WLAN_MODE_T mode;
+    if ( !apmib_get( MIB_WLAN_MODE, (void *)&mode) ) {
+        goto ss_err; 
+    }
+
+    if(mode == AP_MESH_MODE || mode == MESH_MODE) {
+        if( !apmib_get( MIB_WLAN_MESH_ENABLE, (void *)&mesh_enable) ) {
+            goto ss_err; 
+        }
+    }    
+
+    if(mesh_enable) {
+        strVal = req_get_cstream_var(wp, "select_type", "");
+        if(strVal[0]) {
+            if(strcmp(strVal, "mesh") == 0)
+            {
+                mesh_connect = 1;
+            }
+        }
+    }
 #endif 
 
+	int vxd_wisp_wan=0;
+	char wlanifp_bak[32];
 
 //displayPostDate(wp->post_data);
-
 
 
 	submitUrl = req_get_cstream_var(wp, ("submit-url"), "");
@@ -6168,14 +6764,14 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 			switch(getWlSiteSurveyRequest(WLAN_IF, &status)) 
 			{ 
 				case -2: 
-					printf("-2\n"); 
+					printf("Auto scan running!!\n"); 
 					strcpy(tmpBuf, ("Auto scan running!!please wait...")); 
-					goto ss_err; 
+					//goto ss_err; 
 					break; 
 				case -1: 
-					printf("-2\n"); 
+					printf("Site-survey request failed!\n"); 
 					strcpy(tmpBuf, ("Site-survey request failed!")); 
-					goto ss_err; 
+					//goto ss_err; 
 					break; 
 				default: 
 					break; 
@@ -6188,7 +6784,8 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 			}
 */
 			if (status != 0) {	// not ready
-				if (wait_time++ > 5) {
+				if (wait_time++ > 15) {
+					//enlarge wait time for root can't scan when vxd is do site survey. wait until vxd finish scan
 					strcpy(tmpBuf, ("scan request timeout!"));
 					goto ss_err;
 				}
@@ -6214,11 +6811,11 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 				goto ss_err;
 			}
 			if (res == 0xff) {   // in progress
-			#if defined (CONFIG_RTL_92D_SUPPORT)  && defined (CONFIG_POCKET_ROUTER_SUPPORT)
+			#if (defined(CONFIG_RTL_92D_SUPPORT) && defined (CONFIG_POCKET_ROUTER_SUPPORT)) || defined(CONFIG_RTL_DFS_SUPPORT)
 				/*prolong wait time due to scan both 2.4G and 5G */
 				if (wait_time++ > 20) 
 			#else
-				if (wait_time++ > 10) 
+				if (wait_time++ > 20) 
 			#endif		
 			{
 					strcpy(tmpBuf, ("scan timeout!"));
@@ -6238,55 +6835,62 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 		return;
 	}
 
-	connect = req_get_cstream_var(wp, ("connect"), "");
-	if ( connect[0] ) 
-	{
-		char *wlanifp, *strSSID;
-		int rptEnabled=0;
-		int wlan_mode=0;
-		int wlanvxd_mode=0;
-		char *strChannel;
-		int channelIdx;
+    connect = req_get_cstream_var(wp, ("connect"), "");
+    if ( connect[0] ) 
+    {
+        char *wlanifp, *strSSID;
+        int rptEnabled=0;
+        int wlan_mode=0;
+        int wlanvxd_mode=0;
+        char *strChannel;
+        int channelIdx;
 
 #if defined(WLAN_PROFILE)
-	/* disable wireless profile first */
-	if(wlan_idx == 0)
-	{
-		profile_enabled_id = MIB_PROFILE_ENABLED1;
-	}
-	else
-	{
-		profile_enabled_id = MIB_PROFILE_ENABLED2;
-	}
-	profileEnabledVal = 0;
-	
-	apmib_get(profile_enabled_id, (void *)&oriProfileEnabledVal);
+        /* disable wireless profile first */
+        if(wlan_idx == 0)
+        {
+            profile_enabled_id = MIB_PROFILE_ENABLED1;
+        }
+        else
+        {
+            profile_enabled_id = MIB_PROFILE_ENABLED2;
+        }
+        profileEnabledVal = 0;
 
-//printf("\r\n oriProfileEnabledVal=[%d],__[%s-%u]\r\n",oriProfileEnabledVal,__FILE__,__LINE__);
+        apmib_get(profile_enabled_id, (void *)&oriProfileEnabledVal);
 
-	apmib_set(profile_enabled_id, (void *)&profileEnabledVal);
+        //printf("\r\n oriProfileEnabledVal=[%d],__[%s-%u]\r\n",oriProfileEnabledVal,__FILE__,__LINE__);
+
+        apmib_set(profile_enabled_id, (void *)&profileEnabledVal);
 
 #endif //#if defined(WLAN_PROFILE)
 
-#if 1//defined(CONFIG_RTL_ULINKER)
-		if(wlan_idx == 0)
-			apmib_get(MIB_REPEATER_ENABLED1, (void *)&rptEnabled);
-		else
-			apmib_get(MIB_REPEATER_ENABLED2, (void *)&rptEnabled);
-#endif
-		
-#if 1//defined(CONFIG_SMART_REPEATER)
-		int opmode=0;
-		int vxd_wisp_wan=0;
-		char wlanifp_bak[32];
-		apmib_get(MIB_WLAN_MODE, (void *)&wlan_mode);
-		apmib_get(MIB_OP_MODE, (void *)&opmode);
 
-		if( (wlan_mode == AP_MODE) && (rptEnabled == 1)
-			//&&(opmode == WISP_MODE) 
-		)
-			vxd_wisp_wan = 1;
+#ifdef CONFIG_RTK_MESH 		
+        if(mesh_connect == 0) 
 #endif
+        {
+#if 1//defined(CONFIG_RTL_ULINKER)
+            if(wlan_idx == 0)
+                apmib_get(MIB_REPEATER_ENABLED1, (void *)&rptEnabled);
+            else
+                apmib_get(MIB_REPEATER_ENABLED2, (void *)&rptEnabled);
+#endif
+
+#if 1//defined(CONFIG_SMART_REPEATER)
+            int opmode=0;
+            apmib_get(MIB_WLAN_MODE, (void *)&wlan_mode);
+            apmib_get(MIB_OP_MODE, (void *)&opmode);
+
+            if((rptEnabled == 1) && 
+               (wlan_mode == AP_MODE || wlan_mode == AP_WDS_MODE || wlan_mode == AP_MESH_MODE || wlan_mode == MESH_MODE)            
+               //&&(opmode == WISP_MODE) 
+            )
+            {
+                vxd_wisp_wan = 1;
+            }
+#endif
+        }
 
 #if defined(CONFIG_RTL_92D_SUPPORT)		
 		int phyBand;
@@ -6361,7 +6965,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 		wlanifp = req_get_cstream_var(wp, ("wlanif"), "");
 		
 //printf("\r\n ++++++++++++wlanifp=[%s],__[%s-%u]\r\n",wlanifp,__FILE__,__LINE__);
-#if 0//defined(CONFIG_RTL_ULINKER)
+#if defined(CONFIG_RTL_ULINKER)
 		//in ulinker project, we save settings to root interface, than clone to rpt interface
 #else
 		if(vxd_wisp_wan== 1)
@@ -6373,18 +6977,41 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 		
 		SetWlan_idx(wlanifp);
 		
-		strSSID = req_get_cstream_var(wp, ("pocketAP_ssid"), "");
-		apmib_set(MIB_WLAN_SSID, (void *)strSSID);
+#ifdef CONFIG_RTK_MESH 		
+        if(mesh_connect == 0) 
+#endif
+        {                
+            strSSID = req_get_cstream_var(wp, ("pocketAP_ssid"), "");	
+            //strSSID is BSSID, below transfer it to SSID. This fix the issue of AP ssid contains "		
+            for (k=0; k<pStatus->number && pStatus->number!=0xff; k++) 
+            {
+                pBss = &pStatus->bssdb[k];
+                snprintf(tmpBuf, 200, ("%02x:%02x:%02x:%02x:%02x:%02x"),
+                    pBss->bdBssId[0], pBss->bdBssId[1], pBss->bdBssId[2],
+                    pBss->bdBssId[3], pBss->bdBssId[4], pBss->bdBssId[5]);
+
+                if(strcmp(strSSID, tmpBuf)==0)
+                {
+                    memcpy(ssidbuf, pBss->bdSsIdBuf, pBss->bdSsId.Length);
+                    ssidbuf[pBss->bdSsId.Length] = '\0';	
+                    break;
+                }		
+            }
+            apmib_set(MIB_WLAN_SSID, (void *)ssidbuf);
+
 
 #if 1//def CONFIG_SMART_REPEATER
-		if(vxd_wisp_wan== 1)
-			if(wlan_idx == 0)
-				apmib_set(MIB_REPEATER_SSID1, (void *)strSSID);
-			else
-				apmib_set(MIB_REPEATER_SSID2, (void *)strSSID);
-
+            if(vxd_wisp_wan== 1) {
+                if(wlan_idx == 0)
+                    apmib_set(MIB_REPEATER_SSID1, (void *)ssidbuf);
+                else
+                    apmib_set(MIB_REPEATER_SSID2, (void *)ssidbuf);
+            }
 #endif
-		apmib_update(CURRENT_SETTING);
+
+
+        }
+        apmib_update(CURRENT_SETTING);
 
 #if defined(CONFIG_RTL_ULINKER)								
 		strChannel = req_get_cstream_var(wp, ("pocket_channel"), "");
@@ -6417,36 +7044,33 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 			}
 #ifdef CONFIG_RTK_MESH 
 // ==== inserted by GANTOE for site survey 2008/12/26 ==== 
-			if(mesh_enable) 
+			if(mesh_connect) 
 			{ 
-				int i, mesh_index, tmp_index; 
-				char original_mesh_id[MESHID_LEN];
+				int i;
+				unsigned char original_mesh_id[MESHID_LEN];
 				int original_channel = 0;
-				
+                int offset;
+				status = 1;
 				// backup related info. 
-				strcpy(original_mesh_id, "channel");
-				if(getWlMib(WLAN_IF, original_mesh_id, strlen(original_mesh_id)) < 0)
+                if ( !apmib_get( MIB_WLAN_CHANNEL,  (void *)&original_channel) ) {
+			        goto ss_err;
+                }
+				
+				if(apmib_get(MIB_WLAN_MESH_ID, (void*)original_mesh_id) == 0)
 				{
-					strcpy(tmpBuf, ("get MIB_CHANNEL error!"));
-					goto ss_err;
-				}
-				else
-				{
-					original_channel = *(int*)original_mesh_id;
-				}
-				if(apmib_get(MIB_MESH_ID, (void*)original_mesh_id) == 0)
-				{
-					strcpy(tmpBuf, ("get MIB_MESH_ID error!"));
+					strcpy(tmpBuf, ("get MIB_WLAN_MESH_ID error!"));
 					goto ss_err;
 				}
 				
-				// send connect request to the driver
-				for(tmp_index = 0, mesh_index = 0; tmp_index < pStatus->number && pStatus->number != 0xff; tmp_index++) 
-				if(pStatus->bssdb[idx].bdMeshId.Length > 0 && mesh_index++ == idx) 
-					break; 
-				idx = tmp_index;
-				pMsg = "Connect failed 2!!";
-				if(!setWlJoinMesh(WLAN_IF, pStatus->bssdb[idx].bdMeshIdBuf - 2, pStatus->bssdb[idx].bdMeshId.Length, pStatus->bssdb[idx].ChannelNumber, 0)) // the problem of padding still exists 
+ 				pMsg = "Connect failed 2!!";
+
+
+				if (pStatus->bssdb[idx].bdTstamp[1] & 0x00000004)
+					offset = 1;/*HT_2NDCH_OFFSET_BELOW*/
+				else
+					offset = 2;/*HT_2NDCH_OFFSET_ABOVE*/
+                                    
+				if(!setWlJoinMesh(WLAN_IF, pStatus->bssdb[idx].bdMeshIdBuf - 2, pStatus->bssdb[idx].bdMeshId.Length, pStatus->bssdb[idx].ChannelNumber, offset, 0)) // the problem of padding still exists 
 				{ 
 					// check whether the link has established
 					for(i = 0; i < 10; i++)	// This block might be removed when the mesh peerlink precedure has been completed
@@ -6457,7 +7081,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 							int channel; 
 							memcpy(tmp, pStatus->bssdb[idx].bdMeshIdBuf - 2, pStatus->bssdb[idx].bdMeshId.Length); // the problem of padding still exists 
 							tmp[pStatus->bssdb[idx].bdMeshId.Length] = '\0'; 
-							if ( apmib_set(MIB_MESH_ID, (void *)tmp) == 0)
+							if ( apmib_set(MIB_WLAN_MESH_ID, (void *)tmp) == 0)
 							{ 
 								strcpy(tmpBuf, ("Set MeshID error!")); 
 								goto ss_err; 
@@ -6469,8 +7093,21 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 								strcpy(tmpBuf, ("Set Channel error!")); 
 								goto ss_err; 
 							} 
+                                    
+                            if(meshWpaHandler(wp, tmpBuf, wlan_idx) < 0) {
+                                strcpy(tmpBuf, ("Set WPA error!"));
+                                goto ss_err;                             
+                            }    
+
 							apmib_update_web(CURRENT_SETTING); 
+                            apmib_update(CURRENT_SETTING);
+
+                            #ifndef NO_ACTION
+                            run_init_script("bridge");
+                            #endif
+                            
 							pMsg = "Connect successfully!!"; 
+                            status = 0;
 							break;
 						}
 						usleep(3000000);
@@ -6479,7 +7116,9 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 				// if failed, reset to the original channel
 				if(strcmp(pMsg, "Connect successfully!!"))
 				{
-					setWlJoinMesh(WLAN_IF, original_mesh_id, strlen(original_mesh_id), original_channel, 1);
+					setWlJoinMesh(WLAN_IF, original_mesh_id, strlen((char *)original_mesh_id), original_channel, 0, 1);
+                    strcpy(tmpBuf, ("Connect failed 3!!"));
+                    goto ss_err; 
 				}
 			} 
 			else 
@@ -6493,14 +7132,11 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
                                 char varName[20];
                                 unsigned int i,val;
                                 wlanif = req_get_cstream_var(wp, ("wlanif"), "");
-
                                 //SetWlan_idx(tmpStr);
  
                                 tmpStr = req_get_cstream_var(wp, ("wlan_idx"), "");
                                 if(tmpStr[0])
-                                {
                                         wlan_idx = atoi(tmpStr);
-                                }
  
                                 sprintf(varName, "method%d", wlan_idx);
  
@@ -6661,11 +7297,43 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
    					strcpy(tmpBuf, ("Set channel number error!"));
 					goto ss_err;
 				}
-				int is_40m_bw = (pStatus->bssdb[idx].bdTstamp[1] & 2) ? 1 : 0;				
+				int is_40m_bw ;// = (pStatus->bssdb[idx].bdTstamp[1] & 2) ? 1 : 0;
+				if(pStatus->bssdb[idx].bdTstamp[1] & 64)
+					is_40m_bw = 2;
+				else if(pStatus->bssdb[idx].bdTstamp[1] & 2)
+					is_40m_bw = 1;
+				else
+					is_40m_bw = 0;				
 				apmib_set(MIB_WLAN_CHANNEL_BONDING, (void *)&is_40m_bw);				
+			} else if (vxd_wisp_wan) {
+
+                #ifdef CONFIG_RTK_MESH /*in mesh mode, keep the original channel*/
+                if(mode != AP_MESH_MODE && mode != MESH_MODE) 
+                #endif    
+                {
+    				//switch to flash of root interface
+    				SetWlan_idx(wlanif);
+    				chan = pStatus->bssdb[idx].ChannelNumber;
+    				if ( apmib_set( MIB_WLAN_CHANNEL, (void *)&chan) == 0) {
+    					strcpy(tmpBuf, ("Set channel number error!"));
+    					goto ss_err;
+    				}
+					int sideband;
+					if (pStatus->bssdb[idx].bdTstamp[1] & 0x00000004)
+						sideband = 0;/*HT_2NDCH_OFFSET_BELOW*/
+					else
+						sideband = 1;/*HT_2NDCH_OFFSET_ABOVE*/
+					apmib_set( MIB_WLAN_CONTROL_SIDEBAND, (void *)&sideband);
+					if ((chan<=4 && sideband==0) || (chan>=10 && sideband==1)){
+						sideband = ((sideband + 1) & 0x1);
+						apmib_set( MIB_WLAN_CONTROL_SIDEBAND, (void *)&sideband);
+					}
+    				//switch back to flash of vxd interface
+    				SetWlan_idx(wlanifp);
+                }
 			}
 
-#if 0//defined(CONFIG_RTL_ULINKER) //repeater mode: clone wlan setting to wlan-vxd and modify wlan ssid
+#if defined(CONFIG_RTL_ULINKER) //repeater mode: clone wlan setting to wlan-vxd and modify wlan ssid
 
 		if(wlan_mode != CLIENT_MODE && wlan_mode != WDS_MODE && rptEnabled == 1)
 		{
@@ -6708,6 +7376,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 		}
 #endif
 
+
 			apmib_update_web(CURRENT_SETTING);
 
 #if 1 //reinit wlan interface and mib
@@ -6718,7 +7387,6 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
                         	system(command);
                         }
 #endif
-
                         sprintf(command,"ifconfig %s down",wlanif);
                         system(command);
                         sprintf(command,"flash set_mib %s",wlanif);
@@ -6830,6 +7498,11 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 #else
 			{
 				wait_time = 0;
+			#if defined(CONFIG_RTL_ULINKER)
+				max_wait_time = 80;
+			#else
+				max_wait_time = 30;
+			#endif
 				while (1) 
 					{
 
@@ -6851,7 +7524,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 					}
 					else
 					{
-						if (wait_time++ > 10) {
+						if (wait_time++ > max_wait_time) {
 							strcpy(tmpBuf, ("connect timeout!"));
 							goto ss_err;
 						}
@@ -6867,12 +7540,15 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 					apmib_get( MIB_WLAN_ENCRYPT, (void *)&encrypt);
 					
 					//if (encrypt == ENCRYPT_WPA || encrypt == ENCRYPT_WPA2) {
-					if (encrypt == ENCRYPT_WPA || encrypt == ENCRYPT_WPA2 || encrypt == ENCRYPT_WAPI) {
+					if (encrypt == ENCRYPT_WPA || encrypt == ENCRYPT_WPA2 || encrypt == ENCRYPT_WPA2_MIXED || encrypt == ENCRYPT_WAPI) {
 						bss_info bss;
 						wait_time = 0;
 						
-						max_wait_time=15;	//Need more test, especially for 802.1x client mode
-						
+				#if defined(CONFIG_RTL_ULINKER)
+						max_wait_time = 80;
+				#else
+						max_wait_time = 15;	//Need more test, especially for 802.1x client mode
+				#endif
 						while (wait_time++ < max_wait_time) {
 							getWlBssInfo(WLAN_IF, &bss);
 							if (bss.state == STATE_CONNECTED){
@@ -6885,7 +7561,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 					}
 
 					if (status)
-						pMsg =  (unsigned char *)"Connect failed 5!";
+						pMsg =  (unsigned char *)"connect timeout!";//"Connect failed 5!";//Input negative AES password can trigger here
 					else
 						pMsg =  (unsigned char *)"Connect successfully!";
 
@@ -6924,7 +7600,7 @@ void formWlSiteSurvey(request *wp, char *path, char *query)
 				sleep(2);
 				system("reboot");
 			} 
-#elif defined(CONFIG_POCKET_ROUTER_SUPPORT)// || defined(CONFIG_RTL_ULINKER)
+#elif defined(CONFIG_POCKET_ROUTER_SUPPORT) || defined(CONFIG_RTL_ULINKER)
 			{
 #ifndef NO_ACTION
 				run_init_script("all");
@@ -6970,7 +7646,20 @@ ss_err:
 
 	apmib_update_web(CURRENT_SETTING);
 
-#endif //#if defined(WLAN_PROFILE)	
+#endif //#if defined(WLAN_PROFILE)
+
+#if 1//defined(CONFIG_SMART_REPEATER)
+	if(vxd_wisp_wan)
+	{
+		char*ptmp;
+		SetWlan_idx(wlanifp_bak);
+		ptmp=strstr(WLAN_IF,"-vxd");
+		if(ptmp)
+			memset(ptmp,0,sizeof(char)*strlen("-vxd"));
+	}
+#endif
+
+
 	ERR_MSG(tmpBuf);
 }
 
@@ -6979,16 +7668,11 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 {
 	int nBytesSent=0, i;
 #ifdef CONFIG_RTK_MESH 
-// ==== inserted by GANTOE for site survey 2008/12/26 ==== 
-	int mesh_enable; 
+	int mesh_enable = 0; 
+    char meshidbuf[40];
 #endif 
 	BssDscr *pBss;
-	char tmpBuf[MAX_MSG_BUFFER_SIZE], ssidbuf[40], tmp1Buf[10], tmp2Buf[20], wpa_tkip_aes[20],wpa2_tkip_aes[20];
-#ifdef CONFIG_RTK_MESH 
-// ==== inserted by GANTOE for site survey 2008/12/26 ==== 
-	char meshidbuf[40] ;
-#endif 
-
+	char tmpBuf[MAX_MSG_BUFFER_SIZE], ssidbuf[40], tmp1Buf[10], tmp2Buf[20], wpa_tkip_aes[20],wpa2_tkip_aes[20], ssidHtmlBuf[128]={0};
 	WLAN_MODE_T mode;
 	bss_info bss;
 
@@ -7015,8 +7699,11 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 		return 0;
 	}
 #ifdef CONFIG_RTK_MESH
-// ==== inserted by GANTOE for site survey 2008/12/26 ====
-	mesh_enable = mode > 3 ? 1 : 0;	// Might to be corrected after the code refinement
+    if(mode == AP_MESH_MODE || mode == MESH_MODE) {
+        if( !apmib_get( MIB_WLAN_MESH_ENABLE, (void *)&mesh_enable) ) {
+    		return 0;
+    	}
+    }
 #endif
 	if ( getWlBssInfo(WLAN_IF, &bss) < 0) {
 		printf("Get bssinfo failed!");
@@ -7082,10 +7769,10 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 	"<td align=center width=\"10%%\" bgcolor=\"#808080\"><font size=\"2\"><b>Signal</b></font></td>\n"));
 	if( (mode == CLIENT_MODE )
 #if defined(CONFIG_RTL_ULINKER)
-		|| (mode == AP_MODE && rptEnabled == 1)
+		|| ((mode == AP_MODE || mode == AP_WDS_MODE) && rptEnabled == 1)
 #endif
 #if defined(CONFIG_SMART_REPEATER)
-		||( (mode == AP_MODE) && (rptEnabled == 1) 
+		||( ((mode == AP_MODE) || mode == AP_WDS_MODE || mode == AP_MESH_MODE || mode == MESH_MODE) && (rptEnabled == 1) 
 		//&& (opmode == WISP_MODE)
 	)
 #endif
@@ -7104,15 +7791,14 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 
 		memcpy(ssidbuf, pBss->bdSsIdBuf, pBss->bdSsId.Length);
 		ssidbuf[pBss->bdSsId.Length] = '\0';
+		htmlSpecialCharReplace(ssidbuf,ssidHtmlBuf,sizeof(ssidHtmlBuf));
 
 #if defined(CONFIG_RTK_MESH)
-		if( pBss->bdMeshId.Length )
-		{
-			memcpy(meshidbuf, pBss->bdMeshIdBuf - 2, pBss->bdMeshId.Length);	// the problem of padding still exists
-
-			if( !memcmp(ssidbuf, meshidbuf,pBss->bdMeshId.Length-1) )
-				continue;
-		}
+        if(mesh_enable) {
+            if(pBss->bdSsId.Length == 0) {
+                continue;
+            }        
+        }
 #endif
 
 
@@ -7132,6 +7818,12 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 			strcpy(tmp1Buf, (" (A)"));
 		else if(pBss->network== (BAND_11A | BAND_11N))
 			strcpy(tmp1Buf, (" (A+N)"));	
+		else if(pBss->network== (BAND_5G_11AC | BAND_11N))
+			strcpy(tmp1Buf, (" (AC+N)"));	
+		else if(pBss->network== (BAND_11A | BAND_5G_11AC))
+			strcpy(tmp1Buf, (" (A+AC)"));							
+		else if(pBss->network== (BAND_11A |BAND_11N | BAND_5G_11AC))
+			strcpy(tmp1Buf, (" (A+N+AC)"));				
 		else
 			sprintf(tmp1Buf, (" -%d-"),pBss->network);
 
@@ -7205,25 +7897,29 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
       			"<td align=center width=\"20%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
 			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%s</td>\n"
 			"<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><font size=\"2\">%d</td>\n"),
-			ssidbuf, tmpBuf, pBss->ChannelNumber, tmp1Buf,
+			ssidHtmlBuf, tmpBuf, pBss->ChannelNumber, tmp1Buf,
 			((pBss->bdCap & cIBSS) ? "Ad hoc" : "AP"), tmp2Buf, pBss->rssi);
 		}
 
 		if( ( mode == CLIENT_MODE )
 #if defined(CONFIG_RTL_ULINKER)
-		|| (mode == AP_MODE && rptEnabled == 1)
+		|| ((mode == AP_MODE || mode == AP_WDS_MODE) && rptEnabled == 1)
 #endif
 #if defined(CONFIG_SMART_REPEATER)
-		||( (mode == AP_MODE) && (rptEnabled == 1) 
+		||((mode == AP_MODE || mode == AP_WDS_MODE || mode == AP_MESH_MODE || mode == MESH_MODE) && (rptEnabled == 1) 
 		//&& (opmode == WISP_MODE)
 		)
 #endif
 
 		)
 		{
+			//use bssid, not ssid, and we will transfer bssid to ssid in formWlSiteSurvey()
+			//because if ssid contains ", getElementById() will cut off the string after "
 			nBytesSent += req_format_write(wp,
-			("<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"> <input type=\"hidden\" id=\"selSSID_%d\" value=\"%s\" > <input type=\"hidden\" id=\"selChannel_%d\" value=\"%d\" > <input type=\"hidden\" id=\"selEncrypt_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa_tkip_aes_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa2_tkip_aes_%d\" value=\"%s\" > <input type=\"radio\" name="
-			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d)\"></td></tr>\n"), i,ssidbuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);
+			("<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"> <input type=\"hidden\" id=\"realSSID_%d\" value=\"%s\" > <input type=\"hidden\" id=\"selSSID_%d\" value=\"%s\" > <input type=\"hidden\" id=\"selChannel_%d\" value=\"%d\" > <input type=\"hidden\" id=\"selEncrypt_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa_tkip_aes_%d\" value=\"%s\" > <input type=\"hidden\" id=\"wpa2_tkip_aes_%d\" value=\"%s\" > <input type=\"radio\" name="
+//			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 0)\"></td></tr>\n"), i,ssidbuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);			
+//			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 0)\"></td></tr>\n"), i,tmpBuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);
+			"\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 0)\"></td></tr>\n"), i,ssidHtmlBuf, i,tmpBuf,i,pBss->ChannelNumber,i,tmp2Buf,i,wpa_tkip_aes,i,wpa2_tkip_aes ,i,i);
 		}
 		else
 			nBytesSent += req_format_write(wp, ("</tr>\n"));
@@ -7233,10 +7929,10 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 	{
 		if (( mode == CLIENT_MODE )
 #if defined(CONFIG_RTL_ULINKER)
-		|| (mode == AP_MODE && rptEnabled == 1)
+		|| ((mode == AP_MODE || mode == AP_WDS_MODE)&& rptEnabled == 1)
 #endif
 #if defined(CONFIG_SMART_REPEATER)
-		||( (mode == AP_MODE) && (rptEnabled == 1) 
+		||( (mode == AP_MODE  || mode == AP_WDS_MODE) && (rptEnabled == 1) 
 		//&& (opmode == WISP_MODE)
 		)
 #endif
@@ -7300,8 +7996,12 @@ int wlSiteSurveyTbl(request *wp, int argc, char **argv)
 				meshidbuf, tmpBuf, pBss->ChannelNumber); 
             
 			nBytesSent += req_format_write(wp, 
-			("<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\"><input type=\"radio\" name=" 
-				"\"select\" value=\"sel%d\" onClick=\"enableConnect()\"></td></tr>\n"), i); 
+			("<td align=center width=\"10%%\" bgcolor=\"#C0C0C0\">"
+             "<input type=\"hidden\" id=\"selSSID_%d\" value=\"%s\" >"
+             "<input type=\"hidden\" id=\"selEncrypt_%d\" value=\"%s\" >"
+             "<input type=\"hidden\" id=\"selChannel_%d\" value=\"%d\" >"
+			 "<input type=\"radio\" name=\"select\" value=\"sel%d\" onClick=\"enableConnect(%d, 1)\">"              
+             "</td></tr>\n"),i, ssidbuf,  i, "no", i, pBss->ChannelNumber, i, i); 
 		}
 		if( mesh_count == 0 )
 		{
@@ -7490,7 +8190,14 @@ void formWlWds(request *wp, char *path, char *query)
 				macEntry.fixedTxRate =0;
 			}else  {
 				val = atoi(strRate);
+
+				printf("\n\nwds txRate val=%d\n\n", val);
+
+				if(val < 30)
 				val = 1 << (val-1);
+				else
+					val = ((1 <<31) + (val-30) ); 
+					
 				macEntry.fixedTxRate = val;
 			}
 		}
@@ -7735,7 +8442,7 @@ int wlWdsList(request *wp, int argc, char **argv)
 		if(entry.fixedTxRate == 0){	
 				sprintf(txrate, "%s","Auto"); 
 		}else{
-			for(rateid=0; rateid<28;rateid++){
+			for(rateid=0; rateid<48;rateid++){
 				if(tx_fixed_rate[rateid].id == entry.fixedTxRate){
 					sprintf(txrate, "%s", tx_fixed_rate[rateid].rate);
 					break;
@@ -8334,6 +9041,24 @@ void sigHandler_autoconf(int signo)
 #if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 	Start_Domain_Query_Process=0;
 #endif
+#if defined(WLAN_PROFILE)
+	int profile_enabled_id, profileEnabledVal, wlan_mode;
+	if(wlan_idx == 0)
+		profile_enabled_id = MIB_PROFILE_ENABLED1;
+	else
+		profile_enabled_id = MIB_PROFILE_ENABLED2;
+
+	apmib_get( profile_enabled_id, (void *)&profileEnabledVal);
+	apmib_get(MIB_WLAN_MODE, (void *)&wlan_mode);
+	if((profileEnabledVal == 1) && (wlan_mode == CLIENT_MODE))
+	{
+		char tmpBuf[128]="wps_client_profile";
+		request *wp=NULL;
+		addWlProfileHandler(wp, tmpBuf, wlan_idx);
+		apmib_update(CURRENT_SETTING);
+	}
+#endif
+
 #ifndef NO_ACTION
 		run_init_script("all");
 #endif		
@@ -8722,7 +9447,15 @@ void formWsc(request *wp, char *path, char *query)
 #else
 //		wlanIf = req_get_cstream_var(wp, ("wlanIf"), "");
 //		if(wlanIf[0])
+#ifdef CONFIG_RTL_8881A_SELECTIVE
+		mode=pMib->wlan[0][0].wlanMode;
+		tmpint=pMib->wlan[0][0].wlanBand;
+#endif
 		apmib_reset_wlan_to_default((unsigned char *)"wlan0");
+#ifdef CONFIG_RTL_8881A_SELECTIVE
+		pMib->wlan[0][0].wlanMode=mode;
+		pMib->wlan[0][0].wlanBand=tmpint;
+#endif
 //		else
 //			printf("Reset wlan to default fail!! No wlan name. %s,%d\n",__FUNCTION__ , __LINE__);
 #endif
@@ -8830,7 +9563,7 @@ void formWsc(request *wp, char *path, char *query)
 		}
 		else {		
 #ifndef NO_ACTION		
-			sprintf(tmpbuf, "%s -sig_pbc wlan%d-vxd", _WSC_DAEMON_PROG,wlan_idx);
+			sprintf(tmpbuf, "%s -sig_pbc wlan%d-vxd", _WSC_DAEMON_PROG,wlan_idx);			
 			system(tmpbuf);
 #endif
 		}
@@ -9228,6 +9961,8 @@ setErr_rekey:
 #define CA4AP_CERT "/var/myca/ca4ap.cert"		//From local AS
 #define CERT_START "-----BEGIN CERTIFICATE-----"
 #define CERT_END "-----END CERTIFICATE-----"
+#define PRIV_KEY_START "-----BEGIN EC PRIVATE KEY-----"
+#define PRIV_KEY_END "-----END EC PRIVATE KEY-----"
 #define CA_PRIV_KEY	"/var/myca/CA.key"
 
 
@@ -9242,59 +9977,254 @@ setErr_rekey:
 #define ASU_CERT_AS1"/var/myca/asu_as1.cert"
 
 #define CERT_VERIFY_RESULT "/var/myca/certVerifyResult"
+#define TMP_USER_CERT_DER "/var/tmp/user.der"
+#define TMP_CA_CERT_DER     "/var/tmp/ca.der"
+#define TMP_CA_CERT_PEM     "/var/tmp/ca.cert"
 
-//Add for verify user certificate
-int verifyUserCertificate(char *ca_filename, char *user_filename)
+#define TMP_MSG 				"/var/tmp/msg.txt"			//source data
+#define TMP_SIG					"/var/tmp/sig.txt"				//signature(input)
+#define TMP_SIG_OUT				"/var/tmp/sig_out.txt"				//signature(output)
+#define TMP_SIG_VERIFY_RES		"/var/tmp/sigVerifyRes.txt"		//signature verify result: if this file exist, verify OK; else verify wrong.
+//Add for verify CA signature
+#if 1  //for debug
+static void outPut(unsigned char *buf, int len)
 {
-	int retval,fd_res,size;	
-	char tmpBuf[MAX_MSG_BUFFER_SIZE]={0};
-	unsigned char buffer[2];
+	if(buf==NULL || len<1)
+	{
+		printf("%s:%d invalid!\n", __FUNCTION__,__LINE__);
+		return;
+	}
+	int i;
+	for(i=0; i<len; i++)
+	{
+		if(i!=0 && i%16==0)
+			printf("\n");
+
+		printf("%02x ", buf[i]);
+	}
+	printf("\n");
+}
+#endif
+static int readFile2Str(unsigned char *str, int *strLen, const char *tmpFile)
+{
+	int fd, ret, toRet;	
+	fd=-1;
+
+	if(tmpFile==NULL || str==NULL || strLen==NULL)
+	{
+		printf("%s(%d)\n",__FUNCTION__,__LINE__);//Added for test
+		toRet=-1;
+		goto err;
+	}
+	
+	if((fd=open(tmpFile, O_RDONLY))<0)
+	{
+		printf("open %s error.\n", tmpFile);//Added for test
+		toRet=-1;
+		goto err;
+	}
+
+	if((ret=read(fd, (void *)str, 1200))<0)
+	{
+		printf("%s(%d),error: read file failed.\n",__FUNCTION__,__LINE__);//Added for test
+		toRet=-1;
+		goto err;
+	}
+
+	*strLen=ret;
+
+	toRet=0;
+
+err:
+	if(fd!=-1)
+		close(fd);
+	
+	return toRet;
+}
+
+static int storeStr2File(const char * tmpFile, const unsigned char * str, const int strLen)
+{
+	int fd=-1;
+	int ret, toRet;
+
+	if(tmpFile==NULL  || str==NULL)
+	{
+		printf("%s(%d)\n",__FUNCTION__,__LINE__);//Added for test
+		toRet=-1;
+		goto err;
+	}	
+	
+	if((fd=open(tmpFile, O_WRONLY | O_CREAT | O_TRUNC))<0)
+	{
+		printf("open %s error.\n", tmpFile);//Added for test
+		toRet=-1;
+		goto err;
+	}
+
+	ret=write(fd, (void *)str, strLen);
+	if((ret==-1)||(ret< strLen))
+	{
+		printf("%s(%d), error: write file failed.\n",__FUNCTION__,__LINE__);//Added for test
+		toRet=-1;
+		goto err;
+	}
+
+	toRet=0;
+err:
+	if(fd!=-1)
+		close(fd);	
+	return toRet;
+}
+
+static int verifyMsgSignature(char *msg, int msgLen, char *msgSig, int msgSigLen, char *pubKeyFile, char *verifyOK)
+{
+	int ret, toRet=-1;
+	unsigned char tmpBuf[256];
+
+	* verifyOK=0;//Initial
+	
+	ret=storeStr2File(TMP_MSG, msg, msgLen);
+	if(ret<0)
+	{
+		printf("%s(%d),storeStr2File failed.\n",__FUNCTION__,__LINE__);//Added for test
+		toRet=-1;
+		goto err;
+	}
+	ret=storeStr2File(TMP_SIG, msgSig, msgSigLen);
+	if(ret<0)
+	{
+		printf("%s(%d),storeStr2File failed.\n",__FUNCTION__,__LINE__);//Added for test
+		toRet=-1;
+		goto err;
+	}
+
+	//ecdsatest -verify -m TMP_MSG -s TMP_SIG -k pubKeyFile
+	sprintf(tmpBuf, "ecdsatest -verify -m %s -s %s -k %s", TMP_MSG, TMP_SIG, pubKeyFile);
+	system(tmpBuf);
+
+	if(isFileExist(TMP_SIG_VERIFY_RES)==1)
+	{
+		*verifyOK=1;	//signature verify OK
+		system("rm -f /var/tmp/sigVerifyRes.txt > /dev/null 2>&1");
+		toRet=0;
+	}	
+err:	
+	return toRet;		
+}
+
+int verifyCaSignature(char *ca_filename, char *user_filename)
+{
+	int retval, bufX509CertLen, ret, tempLen, xLen, yLen;
+	unsigned char tmpBuf[256], bufX509Cert[1200];
+	unsigned char baseCertData[1200], inSignValue[256], certData[1200];
+	int getLength=0;
+	unsigned short baseCerDataLen=0;
+	char verifyRes;
+	int offset=0;
 	if(isFileExist(ca_filename)!=1)
 	{		
-		//sprintf(tmpBuf,"the %s is not exist,please upload it firstly!",ca_filename);
 		printf("the %s is not exist!\n",ca_filename);
 		retval=-1;
 		goto check_ERR;
 	}
 	if(isFileExist(user_filename)!=1)
 	{		
-		//sprintf(tmpBuf,"the %s is not exist,please upload it firstly!",ca_filename);
 		printf("the %s is not exist!\n",user_filename);
 		retval=-1;
 		goto check_ERR;
-	}
-	sprintf(tmpBuf, "openssl verify -CAfile %s %s > /dev/null 2>&1", ca_filename,user_filename); 
+	}	
+	
+	sprintf(tmpBuf, "ecdsatest -pem2der -in %s -out %s", user_filename, TMP_USER_CERT_DER);
 	system(tmpBuf);
 
-	fd_res=open(CERT_VERIFY_RESULT, O_RDONLY);
-	if (fd_res== -1 ) 
-	{		
-		//sprintf(tmpBuf,"can not open file %s!", CERT_VERIFY_RESULT);//Added for test
-		printf("can not open file %s!\n", CERT_VERIFY_RESULT);
-		retval=-2;
+	ret=readFile2Str(bufX509Cert, &bufX509CertLen, TMP_USER_CERT_DER);
+
+	if(ret<0)
+	{
+		printf("%s:%d read file %s fails!\n",__FUNCTION__, __LINE__, TMP_USER_CERT_DER);
+		retval=-1;
 		goto check_ERR;
 	}
-	memset(buffer, 0, sizeof(buffer));
-	size=read(fd_res, (void *)buffer, sizeof(buffer));
-	if(size==-1)
-	{		
-		//sprintf(tmpBuf,"read file %s failure!", CERT_VERIFY_RESULT);//Added for test
-		printf("read file %s failure!\n", CERT_VERIFY_RESULT);
-		retval=-2;
-		goto check_ERR;
-	}
-	if(buffer[0]!='0')
-	{		
-		//sprintf(tmpBuf,"user catificate %s is invalid!", user_filename);//Added for test
-		retval=0;
-		goto check_ERR;
-	}
-	retval=1;
-	return retval;
+
+//	printf("############%s:%d User Cert:\n", __FUNCTION__,__LINE__);
+//	outPut(bufX509Cert, bufX509CertLen);	
+//	printf("##################\n");
 	
-	check_ERR:		
-		return retval;	
-		 
+	//skip first length
+	getLength++;
+	if((bufX509Cert[getLength] & 0x80) == 0x80)
+		tempLen = (bufX509Cert[getLength] & 0x7f);
+	else
+		tempLen = bufX509Cert[getLength];
+
+	getLength += 1 + tempLen;
+
+	//get second length
+	getLength++;
+	if((bufX509Cert[getLength] & 0x80) == 0x80)
+		tempLen = bufX509Cert[getLength] & 0x7f;
+	else
+		tempLen = bufX509Cert[getLength];
+
+	memcpy(&baseCerDataLen, bufX509Cert+getLength+1, tempLen);
+	getLength += 1 + tempLen;
+	
+	memcpy(baseCertData, bufX509Cert+4, baseCerDataLen+4);
+	
+//	printf("############%s:%d baseCertData:\n", __FUNCTION__,__LINE__);
+//	outPut(baseCertData, baseCerDataLen+4);
+//	printf("#######################\n");
+	
+	//skip base Cert field 
+	getLength+=baseCerDataLen;
+
+	//skip signAlg field
+	getLength++;
+	tempLen=bufX509Cert[getLength];
+//	printf("\n tempLen=%d\n", tempLen);
+	getLength+=1+tempLen;
+
+	//get X signature value
+	getLength+=6;
+	xLen=tempLen=bufX509Cert[getLength];
+	if(xLen==0x19 && bufX509Cert[getLength+1]==0)
+	{
+		offset=1;
+		xLen-=offset;
+	}
+
+//	printf("\n xLen=%d\n", xLen);
+	
+	memcpy(inSignValue, bufX509Cert+getLength+1+offset, xLen);
+	getLength+=1+tempLen;
+
+	//get Y signature value 
+	getLength++;
+	yLen=tempLen=bufX509Cert[getLength];
+	if(yLen==0x19 && bufX509Cert[getLength+1]==0)
+	{
+		offset=1;
+		yLen-=offset;
+	}
+	
+//	printf("\n yLen=%d\n", yLen);	
+	memcpy(inSignValue+xLen, bufX509Cert+getLength+1+offset, yLen);
+
+//	printf("############%s:%d inSignValue:\n", __FUNCTION__,__LINE__);
+//	outPut(inSignValue, xLen+yLen);
+//	printf("#######################\n");
+	
+	ret=verifyMsgSignature(baseCertData, baseCerDataLen+4, inSignValue, xLen+yLen, ca_filename, &verifyRes);
+	if(ret<0  || verifyRes!=1) 
+	{
+		printf("%s(%d),signMsg failed!\n",__FUNCTION__,__LINE__);
+		retval=-1;
+		goto check_ERR;
+	}		
+	retval=0;
+	
+check_ERR:
+	return retval;	
 }
 void formUploadWapiCert(request *wp, char * path, char * query)	// Only for Local AS
 {
@@ -9313,6 +10243,8 @@ void formUploadWapiCert(request *wp, char * path, char * query)	// Only for Loca
 	submitUrl = req_get_cstream_var_in_mime(wp, ("submit-url"), "",NULL);   // hidden page
 	strVal = req_get_cstream_var_in_mime(wp, ("uploadcerttype"), "",NULL);
 
+	int cert_sel=1;
+	apmib_set(MIB_WLAN_WAPI_CERT_SEL, (void*)&cert_sel);
 	if(!strcmp(auth_mode,"three_certification"))
 	{
 	//printf("val =3\n");
@@ -9367,14 +10299,10 @@ void formUploadWapiCert(request *wp, char * path, char * query)	// Only for Loca
 			system(cmd);
 			if(val==3)
 			{
-				check_res=verifyUserCertificate(CA4AP_CERT,AP_CERT);
-				if(check_res!=1)
+				check_res=verifyCaSignature(CA4AP_CERT,AP_CERT);	
+				if(check_res<0)
 				{
-					if(check_res==0)
-						sprintf(tmpBuf,"user catificate %s is invalid!", AP_CERT);//Added for test
-					else if(check_res==-1)					
-						sprintf(tmpBuf,"the %s is not exist,please upload it firstly!",CA4AP_CERT);
-
+					sprintf(tmpBuf,"Maybe this cert is valid! First, make sure you have installed CA cert; Second, try to install this cert three times!");//Added for test
 					system("rm -f /var/myca/ap.cert"); //rm AP_CERT
 					goto upload_ERR;
 				}
@@ -9395,14 +10323,10 @@ void formUploadWapiCert(request *wp, char * path, char * query)	// Only for Loca
 			//Add for check asu certificate
 			if(val==3)
 			{
-				check_res=verifyUserCertificate(CA4AP_CERT,ASU_CERT);
-				if(check_res!=1)
+				check_res=verifyCaSignature(CA4AP_CERT,ASU_CERT);
+				if(check_res<0)
 				{
-					if(check_res==0 || check_res==-2)
-						sprintf(tmpBuf,"user catificate %s is invalid!", ASU_CERT);//Added for test
-					else if(check_res==-1)					
-						sprintf(tmpBuf,"the %s is not exist,please upload it firstly!",CA4AP_CERT);
-
+					sprintf(tmpBuf,"Maybe this cert is valid! First, make sure you have installed CA cert; Second, try to install this cert three times!");//Added for test
 					system("rm -f /var/myca/asu.cert"); //rm AP_CERT
 					goto upload_ERR;
 				}
@@ -9417,9 +10341,9 @@ void formUploadWapiCert(request *wp, char * path, char * query)	// Only for Loca
 			system("storeWapiFiles -ca4apCert");
 			if(val==2)
 			{
-				/*if local AS and 2 cert mode, append private key to aus cert*/
+				/*if local as .copy private key for ASU*/
 				sprintf(tmpBuf,"cp %s %s ; cat %s >> %s",CA4AP_CERT,ASU_CERT,CA_PRIV_KEY,ASU_CERT);
- //				sprintf(tmpBuf,"cp %s %s",CA4AP_CERT,ASU_CERT);
+ 				//sprintf(tmpBuf,"cp %s %s",CA4AP_CERT,ASU_CERT);
 
 				system(tmpBuf);			
 				
@@ -9453,6 +10377,8 @@ void formUploadWapiCertAS0(request *wp, char * path, char * query)	// Only for R
 	submitUrl = req_get_cstream_var_in_mime(wp, ("submit-url"), "",NULL);   // hidden page
 	strVal = req_get_cstream_var_in_mime(wp, ("uploadcerttype"), "",NULL);
 
+	int cert_sel=0;
+	apmib_set(MIB_WLAN_WAPI_CERT_SEL, (void*)&cert_sel);	
 	if(!strcmp(auth_mode,"three_certification"))
 	{
 	//printf("val =3\n");
@@ -9495,7 +10421,7 @@ void formUploadWapiCertAS0(request *wp, char * path, char * query)	// Only for R
 		{
 			strcpy(tmpBuf,"Unknown Cert File!");
 			goto upload_ERR;
-		}
+		}		
 		fwrite(CertStart,CertLength,0x1,fp);
 		fclose(fp);
 		strcpy(cmd,"cp ");
@@ -9507,19 +10433,15 @@ void formUploadWapiCertAS0(request *wp, char * path, char * query)	// Only for R
 			system(cmd);
 			if(val==3)
 			{
-				check_res=verifyUserCertificate(CA4AP_CERT_AS0,AP_CERT_AS0);
-				if(check_res!=1)
-				{	
-					if(check_res==0)
-						sprintf(tmpBuf,"user catificate %s is invalid!", AP_CERT_AS0); 
-					else if(check_res==-1)					
-						sprintf(tmpBuf,"the %s is not exist,please upload it firstly!",CA4AP_CERT_AS0);
-				
-					system("rm -f /var/myca/ap_as0.cert"); //rm AP_CERT
+				check_res=verifyCaSignature(CA4AP_CERT_AS0, AP_CERT_AS0);	
+				if(check_res<0)
+				{
+					sprintf(tmpBuf,"Maybe this cert is valid! First, make sure you have installed CA cert; Second, try to install this cert three times!");//Added for test
+					system("rm -f /var/myca/ap.cert"); //rm AP_CERT
 					goto upload_ERR;
 				}
 			}
-			system("storeWapiFiles -apCert");
+			system("storeWapiFiles -apCertAS0");
 //			system("storeWapiFiles -oneUser");
 		}else
 		if(!strcmp(strVal,"asu"))
@@ -9574,6 +10496,8 @@ void formUploadWapiCertAS1(request *wp, char * path, char * query)	// Only for R
 	submitUrl = req_get_cstream_var_in_mime(wp, ("submit-url"), "",NULL);   // hidden page
 	strVal = req_get_cstream_var_in_mime(wp, ("uploadcerttype"), "",NULL);
 
+	int cert_sel=0;
+	apmib_set(MIB_WLAN_WAPI_CERT_SEL, (void*)&cert_sel);
 	if(!strcmp(auth_mode,"three_certification"))
 	{
 	//printf("val =3\n");
@@ -9630,19 +10554,14 @@ void formUploadWapiCertAS1(request *wp, char * path, char * query)	// Only for R
 			//Add for check user certificate
 			if(val==3)
 			{
-				check_res=verifyUserCertificate(CA4AP_CERT_AS1,AP_CERT_AS1);
-				
-				if(check_res!=1)
+				check_res=verifyCaSignature(CA4AP_CERT_AS1, AP_CERT_AS1);	
+				if(check_res<0)
 				{
-					if(check_res==0)
-						sprintf(tmpBuf,"user catificate %s is invalid!", AP_CERT_AS1);//Added for test
-					else if(check_res==-1)					
-						sprintf(tmpBuf,"the %s is not exist,please upload it firstly!",CA4AP_CERT_AS1);
-				
-					system("rm -f /var/myca/ap_as1.cert"); //rm AP_CERT
+					sprintf(tmpBuf,"Maybe this cert is valid! First, make sure you have installed CA cert; Second, try to install this cert three times!");//Added for test
+					system("rm -f /var/myca/ap.cert"); //rm AP_CERT
 					goto upload_ERR;
-				}
-			}
+				}		
+			}			
 			
 			system("storeWapiFiles -apCertAS1");
 		}
@@ -9808,10 +10727,11 @@ extern void log_boaform(char *form);
 #define WAPI_USER_CERT  "/var/myca/user.cert"
 void formWapiCertDistribute(request *wp, char * path, char * query)
 {
-	char *strVal, *strName,*strTime, *webpage;
+	char *strVal, *strName,*strTime, *webpage, *certSubType;
 	int count=0;
-	char tmpbuf[200];
+	char tmpbuf[200], certNameBuf[128];
 	struct stat status;
+	int index;
 	
 	/*only 40 actived cert allowed*/
 	CERTS_DB_ENTRY_Tp cert=(CERTS_DB_ENTRY_Tp)malloc(128*sizeof(CERTS_DB_ENTRY_T));
@@ -9828,6 +10748,18 @@ void formWapiCertDistribute(request *wp, char * path, char * query)
 //	printf("cert_type %s\n",strVal);
 	strName=req_get_cstream_var(wp,("cert_name"),"");
 //	printf("cert_name %s\n",strName);
+	strcpy(certNameBuf, strName);
+
+	certSubType=req_get_cstream_var(wp,("cert_subtype"),"");
+//	printf("cert_subtype %s\n",certSubType);
+	index=atoi(certSubType);
+	if(index==0)
+		strcat(certNameBuf, "@ASU");
+	else if(index==1)
+		strcat(certNameBuf, "@AE");
+	else
+		strcat(certNameBuf, "@ASUE");
+//	printf("cert_name %s\n",certNameBuf);
 	strTime=req_get_cstream_var(wp,("certPeriod"),"");
 //	printf("certPeriod %s\n",strTime);
 	strVal=req_get_cstream_var(wp,("time_unit"),"");
@@ -9839,7 +10771,8 @@ void formWapiCertDistribute(request *wp, char * path, char * query)
 
 	/*To generate user.cert*/
 	strcpy(tmpbuf,"genUserCert.sh ");
-	strcat(tmpbuf,strName);
+//	strcat(tmpbuf,strName);
+	strcat(tmpbuf,certNameBuf); 
 	strcat(tmpbuf," ");
 	strcat(tmpbuf,strTime);
 //	printf("tmpbuf :%s\n",tmpbuf);
@@ -9880,7 +10813,7 @@ void formWapiCertDistribute(request *wp, char * path, char * query)
 	
 		
 	send_redirect_perm(wp, webpage);
-#ifdef ASP_SECURITY_PATCH
+#ifdef CSRF_SECURITY_PATCH
 	log_boaform("formWapiCertDistribute");	//To set formWapiCertDistribute valid at security_tbl
 #endif
 	return;
@@ -10786,10 +11719,11 @@ int getWifiP2PState(request *wp, int argc, char **argv)
 		}
 	}
 	
-	sprintf(WLAN_IF,"wlan0");
+    //P2P_DEBUG("wlan_idx=[%d]\n",wlan_idx);	    
+	sprintf(WLAN_IF,"wlan%d",wlan_idx);
 	if ( getWlP2PStateEvent(WLAN_IF, pP2PStatus) < 0)
 	{
-		printf("\r\n getWlP2PStateEvent fail,__[%s-%u]\r\n",__FILE__,__LINE__);
+		SDEBUG("getWlP2PStateEvent fail\n");
 		nBytesSent += req_format_write(wp,("None"));
 	}
 	else
@@ -10822,7 +11756,7 @@ void formWiFiDirect(request *wp, char *path, char *query)
 	int needapply = 0;
 	
 	//displayPostDate(wp->post_data);	
-	
+#if 0	
 	strTmp= req_get_cstream_var(wp, ("p2p_op_channel"), "");
 	if(strTmp[0])
 	{
@@ -10862,11 +11796,11 @@ void formWiFiDirect(request *wp, char *path, char *query)
 #endif //#if defined(CONFIG_RTL_92D_SUPPORT)
 			
 		apmib_set(MIB_WLAN_P2P_OPERATION_CHANNEL, (void *)&valTmp); 				
-		sprintf(syscmd,"iwpriv wlan0 p2pcmd opchannel,%d",valTmp);
+		sprintf(syscmd,"iwpriv wlan%d p2pcmd opch,%d",wlan_idx,valTmp);
 		system(syscmd);
 		needapply = 1;
 	}
-	
+#endif	
 	strTmp= req_get_cstream_var(wp, ("p2p_type"), "");
 	if(strTmp[0])
 	{
@@ -10880,15 +11814,15 @@ void formWiFiDirect(request *wp, char *path, char *query)
 		//apmib_set(MIB_WLAN_P2P_TYPE, (void *)&valTmp);
 		if(valTmp == P2P_TMP_GO)
 		{
-			sprintf(syscmd,"iwpriv wlan0 p2pcmd asgo");
-			P2P_DEBUG("\n\n%s\n",syscmd);
+			sprintf(syscmd,"iwpriv wlan%d p2pcmd asgo",wlan_idx );
+			//P2P_DEBUG("%s\n",syscmd);
 			system(syscmd);
 		}
 		else
 		{
 			//apmib_set(MIB_WLAN_SSID, "");
-			sprintf(syscmd,"iwpriv wlan0 p2pcmd bakdev");
-			P2P_DEBUG("\n\n%s\n",syscmd);			
+			sprintf(syscmd,"iwpriv wlan%d p2pcmd bakdev",wlan_idx );
+			//P2P_DEBUG("%s\n",syscmd);			
 			system(syscmd);
 		}
 
@@ -10900,7 +11834,7 @@ void formWiFiDirect(request *wp, char *path, char *query)
 	{
 		valTmp = atoi(strTmp);			
 		apmib_set(MIB_WLAN_P2P_INTENT, (void *)&valTmp); 		
-		sprintf(syscmd,"iwpriv wlan0 p2pcmd intent,%d",valTmp);
+		sprintf(syscmd,"iwpriv wlan%d p2pcmd intent,%d",wlan_idx ,valTmp);
 		system(syscmd);
 		needapply = 1;		
 	}
@@ -10911,7 +11845,7 @@ void formWiFiDirect(request *wp, char *path, char *query)
 		valTmp = atoi(strTmp);
 			
 		apmib_set(MIB_WLAN_P2P_LISTEN_CHANNEL, (void *)&valTmp); 
-		sprintf(syscmd,"iwpriv wlan0 p2pcmd channel,%d",valTmp);
+		sprintf(syscmd,"iwpriv wlan%d p2pcmd dwellch,%d",wlan_idx ,valTmp);
 		system(syscmd);
 		needapply = 1;		
 	}
@@ -10920,20 +11854,32 @@ void formWiFiDirect(request *wp, char *path, char *query)
 	if(strTmp[0])
 	{					
 		apmib_set(MIB_DEVICE_NAME, (void *)strTmp); 				
-		sprintf(syscmd,"iwpriv wlan0 p2pcmd devname,%s",strTmp);
+		char device_name[64];
+		char *space;
+		char *p_dev_name = device_name;
+		strcpy(device_name,strTmp);
+		while(space = strchr(p_dev_name,' '))
+		{
+			char tmp_name[64];
+			strcpy(tmp_name,space);
+			strcpy(space+1,tmp_name);
+			*space = '\\';
+			p_dev_name = space+2;
+		}
+		sprintf(syscmd,"iwpriv wlan%d p2pcmd devname,%s",wlan_idx ,device_name);
 		system(syscmd);
 		needapply = 1;		
 	}
 
 
 	if(	needapply == 1){
-		sprintf(syscmd,"iwpriv wlan0 p2pcmd apply");
+		sprintf(syscmd,"iwpriv wlan%d p2pcmd apply",wlan_idx );
 		system(syscmd);
 	}
 
 
 	
-	strTmp= req_get_cstream_var(wp, ("action"), "");
+	strTmp= req_get_cstream_var(wp, ("p2p_action"), "");
 	if(strTmp[0])
 	{
 		
@@ -10942,18 +11888,11 @@ void formWiFiDirect(request *wp, char *path, char *query)
 		{
 			int valTmp = P2P_DEVICE;
 			int valTmp2 = 0;
-			int tmpint,tmpint2;
 			
 			unsigned char ssidstr[33];
 
-
-			tmpint = wlan_idx ;
-			tmpint2 = vwlan_idx ;		
 			strcpy(ssidstr,"");
-
-			vwlan_idx = 0;
-			wlan_idx=0;
-			
+		
 			apmib_set( MIB_WLAN_P2P_TYPE, (void *)&valTmp);		
 			apmib_set( MIB_WLAN_SSID, (void *)ssidstr);
 			apmib_set( MIB_WLAN_WPA_PSK, (void *)ssidstr);		
@@ -10963,13 +11902,9 @@ void formWiFiDirect(request *wp, char *path, char *query)
 			apmib_set( MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&valTmp2);
 			apmib_set( MIB_WLAN_WSC_CONFIGURED, (void *)&valTmp2);		
 			apmib_update_web(CURRENT_SETTING);	// update to flash					
-			wlan_idx = tmpint ;		
-			vwlan_idx = tmpint2 ;
 
-
-
-			sprintf(syscmd,"iwpriv wlan0 p2pcmd bakdev");
-			//printf("%s %d : %s\n",__FUNCTION__,__LINE__,syscmd);
+			sprintf(syscmd,"iwpriv wlan%d p2pcmd bakdev",wlan_idx );
+			//P2P_DEBUG("cmd[%s]\n",syscmd);
 			system(syscmd);
 
 
@@ -11013,11 +11948,11 @@ void formWiFiDirect(request *wp, char *path, char *query)
 				p2pProvisionComm.channel = atoi(strTmp);				
 			}
 			
-			sprintf(WLAN_IF,"wlan0");
+			sprintf(WLAN_IF,"wlan%d",wlan_idx);
 			
 			if ( sendP2PProvisionCommInfo(WLAN_IF, &p2pProvisionComm) < 0)
 			{
-				printf("\r\n sendP2PProvisionCommInfo fail,__[%s-%u]\r\n",__FILE__,__LINE__);
+				P2P_DEBUG("SendP2PProvisionCommInfo fail\n");
 			}
 			
 			
@@ -11063,10 +11998,10 @@ void formWiFiDirect(request *wp, char *path, char *query)
 
 			}
 			
-			sprintf(WLAN_IF,"wlan0");
+			sprintf(WLAN_IF,"wlan%d",wlan_idx);
 			if ( sendP2PWscConfirm(WLAN_IF, &p2pWscConfirm) < 0)
 			{
-				printf("\r\n sendP2PWscConfirm fail,__[%s-%u]\r\n",__FILE__,__LINE__);
+				P2P_DEBUG("SendP2PWscConfirm fail\n");
 			}
 			
 			return;
@@ -11126,14 +12061,16 @@ void formWlP2PScan(request *wp, char *path, char *query)
 	refresh = req_get_cstream_var(wp, ("refresh"), "");
 	if ( refresh[0] ) {
 		// issue scan request
+        strVal = req_get_cstream_var(wp, ("ifname"), "");
+        if(strVal[0])
+        {
+            sprintf(WLAN_IF,"%s",strVal);               
+        }
+
+        P2P_DEBUG("WLAN_IF=[%s]\n",WLAN_IF);        
 		wait_time = 0;
 		while (1) 
 		{
-			strVal = req_get_cstream_var(wp, ("ifname"), "");
-			if(strVal[0])
-			{
-				sprintf(WLAN_IF,"%s",strVal);				
-			}
 			 
 			switch(getWlP2PScanRequest(WLAN_IF, &status)) 
 			{ 
@@ -11158,7 +12095,7 @@ void formWlP2PScan(request *wp, char *path, char *query)
 				if (wait_time++ > 5) 
 				{
 					strcpy(tmpBuf, ("scan request timeout!"));
-					printf("\r\n scan request timeout,__[%s-%u]\r\n",__FILE__,__LINE__);
+					P2P_DEBUG("Scan request timeout\n");
 					goto ss_err;
 				}
 				sleep(1);
@@ -11317,65 +12254,111 @@ int wlP2PScanTbl(request *wp, int argc, char **argv)
 
 void p2p_dhcp_process(void)
 {
-	int Ret = 0;
-	Ret = getClientConnectState();		
+
+    int Ret = 0;
+
+    /*no any interface need to query P2P state*/
+    if(p2p_query_which_interface==0){    
+       // SDEBUG("\n");
+        return;
+    }
+    
+    /*after wlan mode be changed execue once , check which interface we should check; expect just run once */
+    if(p2p_query_which_interface==255){
+        //SDEBUG("once\n");
+
+        int wlan0_mode=0;
+        int wlan1_mode=0;        
+        int wlan_idx_backup=0;            
+
+        p2p_query_which_interface=0;
+            
+        wlan_idx_backup = wlan_idx;        
+        wlan_idx=0;
+      	apmib_get(MIB_WLAN_MODE,(void *)&wlan0_mode);
+        #ifdef FOR_DUAL_BAND
+        wlan_idx=1;
+      	apmib_get(MIB_WLAN_MODE,(void *)&wlan1_mode);    
+        #endif      
+        wlan_idx = wlan_idx_backup;
+
+        if(wlan0_mode==P2P_SUPPORT_MODE){
+            p2p_query_which_interface=1; //wlan0
+        }
+        if(wlan1_mode==P2P_SUPPORT_MODE){
+            p2p_query_which_interface=2; //wlan1
+        }        
+        if((wlan0_mode==P2P_SUPPORT_MODE) && (wlan1_mode==P2P_SUPPORT_MODE)){
+            printf("[%s %d] !!!both interface P2P are enabled!!!",__FUNCTION__,__LINE__);
+        }
+
+    }
+    /*after wlan mode be changed execue once , check which interface we should check; expect just run once */
+
+    
+    
+    if(p2p_query_which_interface==1){           
+        //SDEBUG("query[wlan%d]\n",p2p_query_which_interface-1);                
+    	Ret = getClientConnectState("wlan0");		
+    }else if(p2p_query_which_interface==2){       
+        //SDEBUG("query[wlan%d]\n",p2p_query_which_interface-1);        
+    	Ret = getClientConnectState("wlan1");		        
+    }else{
+        return;
+    }
+   
+    
 	if(Ret == P2P_S_CLIENT_CONNECTED_DHCPC)
-	{
-
-		P2P_DEBUG("Web server start udhcpc !!!\n");
-		set_lan_dhcpc("br0");
-	
-	}else if(Ret == P2P_S_preGO2GO_DHCPD){
-
-		P2P_DEBUG("Web server start udhcpd !!!\n");	
-		set_lan_dhcpd("br0", 2);
-		
+	{	
+        system("killall -9 udhcpd 2> /dev/null");
+        system("killall -9 udhcpc 2> /dev/null");
+		P2P_DEBUG(" ... Web server start udhcpc ...\n");
+		set_lan_dhcpc("br0");	
+        
+	}else if(Ret == P2P_S_preGO2GO_DHCPD){	
+        system("killall -9 udhcpd 2> /dev/null");
+        system("killall -9 udhcpc 2> /dev/null");
+		P2P_DEBUG(" ...Web server start udhcpd ...\n");	
+		set_lan_dhcpd("br0", 2);		
+        
 	}else if(Ret == P2P_S_back2dev){
-	
-		#if 1
-			int valTmp = P2P_DEVICE;
-			int valTmp2 = 0;
-			int tmpint,tmpint2;
-			
-			unsigned char ssidstr[33];
-			unsigned char syscmd[50];
+		int valTmp = P2P_DEVICE;
+		int valTmp2 = 0;
+		int tmpint,tmpint2;		
+		unsigned char ssidstr[33];
+		unsigned char syscmd[50];
+		tmpint = wlan_idx ;
+		tmpint2 = vwlan_idx ;		
+		strcpy(ssidstr,"");
+		vwlan_idx = 0;
 
-			tmpint = wlan_idx ;
-			tmpint2 = vwlan_idx ;		
-			strcpy(ssidstr,"");
-
-			vwlan_idx = 0;
-			wlan_idx=0;
-			
-			apmib_set( MIB_WLAN_P2P_TYPE, (void *)&valTmp);		
-			apmib_set( MIB_WLAN_SSID, (void *)ssidstr);
-			apmib_set( MIB_WLAN_WPA_PSK, (void *)ssidstr);		
-			apmib_set( MIB_WLAN_AUTH_TYPE, (void *)&valTmp2);
-			apmib_set( MIB_WLAN_ENCRYPT, (void *)&valTmp2);
-			apmib_set( MIB_WLAN_WPA_CIPHER_SUITE, (void *)&valTmp2);
-			apmib_set( MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&valTmp2);
-			apmib_set( MIB_WLAN_WSC_CONFIGURED, (void *)&valTmp2);		
-			apmib_update_web(CURRENT_SETTING);	// update to flash					
-			wlan_idx = tmpint ;		
-			vwlan_idx = tmpint2 ;
+        if(p2p_query_which_interface==1){           
+            wlan_idx=0;	
+        }else if(p2p_query_which_interface==2){       
+            wlan_idx=1;	        
+        }      
+					
+		apmib_set( MIB_WLAN_P2P_TYPE, (void *)&valTmp);		
+		apmib_set( MIB_WLAN_SSID, (void *)ssidstr);
+		apmib_set( MIB_WLAN_WPA_PSK, (void *)ssidstr);		
+		apmib_set( MIB_WLAN_AUTH_TYPE, (void *)&valTmp2);
+		apmib_set( MIB_WLAN_ENCRYPT, (void *)&valTmp2);
+		apmib_set( MIB_WLAN_WPA_CIPHER_SUITE, (void *)&valTmp2);
+		apmib_set( MIB_WLAN_WPA2_CIPHER_SUITE, (void *)&valTmp2);
+		apmib_set( MIB_WLAN_WSC_CONFIGURED, (void *)&valTmp2);		
+		apmib_update_web(CURRENT_SETTING);	// update to flash					
 
 
 
-			sprintf(syscmd,"iwpriv wlan0 p2pcmd bakdev");
-			//printf("%s %d : %s\n",__FUNCTION__,__LINE__,syscmd);
-			system(syscmd);	
 
-		#else		
-		system("flash set WLAN0_P2P_TYPE 1");
-		system("flash set WLAN0_SSID \"\"");
-		system("flash set WLAN0_AUTH_TYPE 0");
-		system("flash set WLAN0_ENCRYPT 0");
-		system("flash set WLAN0_WSC_CONFIGURED 0");		
-		system("init.sh gw all");		
-		#endif	
+		sprintf(syscmd,"iwpriv wlan%d p2pcmd bakdev",wlan_idx);  
+
+        wlan_idx = tmpint ;		
+		vwlan_idx = tmpint2 ;
+		P2P_DEBUG("syscmd=[%s]\n",syscmd);
+		system(syscmd);		
 	}
 	
-	return ;
 }
 
 
@@ -11390,7 +12373,7 @@ void getWlProfileInfo(request *wp, int argc, char **argv)
 	int entryNum;
 	WLAN_PROFILE_T entry;
 	int wlProfileEnabled;
-
+	int buffer[64];
 	name = argv[0];
 	idx = atoi(argv[1]);
 	
@@ -11441,7 +12424,9 @@ void getWlProfileInfo(request *wp, int argc, char **argv)
 	}
 	else if(!strcmp(name,"wlProfileSSID"))
 	{
-		req_format_write(wp,"%s",entry.ssid);
+		sprintf(buffer,"%s",entry.ssid);
+		translate_control_code(buffer);
+		req_format_write(wp,"%s",buffer);
 		return 0;
 	}
 	

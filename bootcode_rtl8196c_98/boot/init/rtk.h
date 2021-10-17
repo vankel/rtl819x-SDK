@@ -31,12 +31,16 @@
 
 #if defined(RTL8196B) && !defined(RTL8196C)
 #define WEB_SIGNATURE		((char *)"w6bp")
+#define WEB_JFFS2_SIGNATURE	((char *)"jw6b")
 #elif defined(RTL8196B) && defined(RTL8196C)
 #define WEB_SIGNATURE		((char *)"w6cp")
+#define WEB_JFFS2_SIGNATURE	((char *)"jw6c")
 #elif defined(RTL8198)
 #define WEB_SIGNATURE		((char *)"w6cp")
+#define WEB_JFFS2_SIGNATURE	((char *)"jw6c")
 #else
 #define WEB_SIGNATURE		((char *)"webp")
+#define WEB_JFFS2_SIGNATURE	((char *)"jweb")
 #endif
 
 #define BOOT_SIGNATURE		((char *)"boot")

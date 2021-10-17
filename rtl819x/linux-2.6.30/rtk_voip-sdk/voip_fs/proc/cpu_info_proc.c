@@ -65,6 +65,7 @@ static int voip_cpu_info_read_proc( char *buf, char **start, off_t off, int coun
 	
 	n += sprintf( buf + n, "B8000000 = %08lX\n", *( ( unsigned long * )0xb8000000 ) );
 	n += sprintf( buf + n, "B8000040 = %08lX\n", *( ( unsigned long * )0xb8000040 ) );
+	n += sprintf( buf + n, "B8000044 = %08lX\n", *( ( unsigned long * )0xb8000044 ) );
 	
 	for( i = 0; i < 8; i ++ )
 		n += sprintf( buf + n, "%s = %08lx\n", names[ i ], mfc3_c( i ) | ( ( i & 0x01 ) ? OR_MEM_BITS : 0 ) );

@@ -1,0 +1,32 @@
+
+comment "rtl89xxD"
+choice
+prompt "Selected Board Configuration"
+default MODEL_RTL89xxD_V100_SQUASHFS_VE890HV_2S_92C_SAMBA
+
+config MODEL_RTL89xxD_V100_SQUASHFS_NO_VOIP_92C_SAMBA
+        bool "V100_Squashfs    + No VoIP + 92C + SAMBA"
+
+config MODEL_RTL89xxD_V100_SQUASHFS_VE890HV_2S1O
+        bool "V100_Squashfs    + VE890HV_2S1O"
+
+config MODEL_RTL89xxD_V100_SQUASHFS_VE890HV_2S1O_92C_SAMBA
+        bool "V100_Squashfs    + VE890HV_2S1O + 92C + SAMBA"
+
+config MODEL_RTL89xxD_V100_SQUASHFS_VE890HV_2S1O_92D_SAMBA
+        bool "V100_Squashfs    + VE890HV_2S1O + 92D + SAMBA"
+
+config MODEL_RTL89xxD_V100_SQUASHFS_VE890HV_2S1O_92E_SAMBA
+        bool "V100_Squashfs    + VE890HV_2S1O + 92E + SAMBA"
+
+config MODEL_RTL89xxD_V100_SQUASHFS_VE890HV_2S1O_92E_SAMBA_TR069
+        bool "V100_Squashfs    + VE890HV_2S1O + 92E + SAMBA + TR069"
+
+config MODEL_RTL89xxD_V100_SQUASHFS_VE890HV_2S_92C_SAMBA
+        bool "V100_Squashfs    + VE890HV_2S + 92C + SAMBA"
+
+config MODEL_RTL89xxD_V100_SQUASHFS_VE880_2S_92C_SAMBA
+        bool "V100_Squashfs    + VE880_2S + 92C + SAMBA"
+
+
+endchoice

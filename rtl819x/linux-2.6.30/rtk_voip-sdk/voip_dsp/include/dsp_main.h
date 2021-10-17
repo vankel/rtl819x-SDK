@@ -41,12 +41,41 @@ typedef struct _rtcp_config_s rtcp_config_t;
 
 #endif
 
+typedef struct
+{
+	unsigned char support_lec_g168_bak;		// EC on/off config
+	unsigned char lec_g168_nlp_bak;			// EC NLP config
+	unsigned char lec_g168_cng_flag_bak;	// EC CNG config
+	short Attack_Stepsize_bak;				// NLP smoothing config
+	short Release_Stepsize_bak;				// NLP smoothing config
+	
+}EcCfgBak_t;
+
+typedef struct
+{
+	EcCfgBak_t ecBak;			// EC config
+
+}DspChCfgBak_t;		// by channel
+
+typedef struct
+{
+	int jbc_disable_wsola_bak;	// Wsola on/off config
+	int fUsePLC_bak;			// PLC on/off config
+}DspSessCfgBak_t;	// by session
+
+extern DspChCfgBak_t		nDspChCfgBak[MAX_DSP_RTK_CH_NUM];
+extern DspSessCfgBak_t		nDspSessCfgBak[MAX_DSP_RTK_SS_NUM];
+
 int DSP_init( void );
 int32 DSP_rtpWrite( RtpPacket* pst );
 int32 DSP_Read(uint32 chid, uint32 sid, uint8* pBuf, int32 nSize);
 int32 DSP_Write(uint32 chid, uint32 sid, uint8* pBuf, int32 nSize,
 				int bRedundancyPacket);
-int32 DSP_CodecRestart(uint32 chid, uint32 sid, RtpPayloadType uPktFormat, uint32 nFramePerPacket, int32 nG723Type, bool bVAD, bool bPLC, uint32 nJitterDelay, uint32 nMaxDelay, uint32 nJitterFactor, uint32 G726Packing, uint32 nG7111Mode, uint32 nPcmMode);
+int32 DSP_CodecRestart(uint32 chid, uint32 sid, 
+						RtpPayloadType uLocalPktFormat, RtpPayloadType uRemotePktFormat, uint32 nLocalFramePerPacket, uint32 nRemoteFramePerPacket, 
+						int32 nG723Type, bool bVAD, bool bPLC, 
+						uint32 nJitterDelay, uint32 nMaxDelay, uint32 nMaxStrictDelay,  uint32 nJitterFactor, 
+						uint32 nG726Packing, uint32 nG7111Mode, uint32 nPcmMode);
 void hc_SetPlayTone(uint32 chid, uint32 sid, uint32 nTone, uint bFlag, uint path);
 uint32 API_OpenSid(uint32 chid, uint32 mid);
 uint32 API_GetSid(uint32 chid, uint32 mid);
@@ -77,4 +106,5 @@ int32 DSP_pktRx( uint32 chid, uint32 mid, const void* packet, uint32 pktLen, uin
 int32 Host_pktRx( uint32 chid, uint32 mid, void* packet, uint32 pktLen, uint32 flags );
 unsigned int Dsp_T38Tx( unsigned int chid, unsigned int sid, void* packet, unsigned int pktLen);
 #endif
+void DspDecodercAutoSync(uint32 chid, uint32 sid, uint32 remote_pktFormat);
 #endif		//_DSP_MAIN_H

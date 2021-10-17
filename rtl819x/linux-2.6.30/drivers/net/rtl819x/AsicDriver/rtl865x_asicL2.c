@@ -1276,28 +1276,27 @@ void set_gray_code_by_port(int port)
         uint32 val;
 
         rtl8651_setAsicEthernetPHYReg( 4, 31, 1  );
-
         rtl8651_getAsicEthernetPHYReg( 4, 20, &val  );
         rtl8651_setAsicEthernetPHYReg( 4, 20, val + (0x1 << port)  );
-
+        rtl8651_setAsicEthernetPHYReg( 4, 31, 0  );
+ 
         rtl8651_setAsicEthernetPHYReg( port, 31, 1  );
-
         rtl8651_setAsicEthernetPHYReg( port, 19,  0x5400 );
         if (port<4) rtl8651_setAsicEthernetPHYReg( port, 19,  0x5440 );
         if (port<3) rtl8651_setAsicEthernetPHYReg( port, 19,  0x54c0 );
         if (port<2) rtl8651_setAsicEthernetPHYReg( port, 19,  0x5480 );
         if (port<1) rtl8651_setAsicEthernetPHYReg( port, 19,  0x5580 );
+        rtl8651_setAsicEthernetPHYReg( port, 31, 0  );
 
+        rtl8651_setAsicEthernetPHYReg( 4, 31, 1  );
         rtl8651_setAsicEthernetPHYReg( 4, 20, 0xb20  );
-       rtl8651_setAsicEthernetPHYReg( port, 31, 0  );
-
         rtl8651_setAsicEthernetPHYReg( 4, 31, 0  );
 }
 #endif
 
 void Setting_RTL8196C_PHY(void)
 {
-	int i=0;
+	int i, j;
 	for(i=0; i<5; i++)
 		REG32(PCRP0+i*4) |= (EnForceMode);
 
@@ -1405,14 +1404,18 @@ void Setting_RTL8196C_PHY(void)
 	// for "DSP recovery fail when link partner = force 100F"
 	Set_GPHYWB(999, 4, 26, 0xffff-(0xfff<<4), 0xff8<<4);
 
+	// fix unlink IOT issue
+	Set_GPHYWB(999, 0, 26, 0xffff-(0x1<<14), 0x0<<14);
+
+#ifdef CONFIG_RTL8196C_ETH_IOT
+        for(j=0; j<5; j++) {
+                set_gray_code_by_port(j);
+        }
+#endif
+
 	for(i=0; i<5; i++)
 		REG32(PCRP0+i*4) &= ~(EnForceMode);
 
-#ifdef CONFIG_RTL8196C_ETH_IOT
-        for(i=0; i<5; i++) {
-                set_gray_code_by_port(i);
-        }
-#endif
 	printk("  Set 8196C PHY Patch OK\n");
 
 }
@@ -4039,9 +4042,7 @@ unsigned int Get_P0_PhyMode(void)
 	#define RANG3  7
 	#define RANG4 0xf
 
-	#define SYS_HW_STRAP   (0xb8000000 +0x08)
-
-	unsigned int v=REG32(SYS_HW_STRAP);
+	unsigned int v=REG32(HW_STRAP);
 	unsigned int mode=GET_BITVAL(v, 6, RANG1) *2 + GET_BITVAL(v, 7, RANG1);
 
 	return (mode&3);
@@ -4061,9 +4062,7 @@ unsigned int Get_P0_MiiMode(void)
 	#define RANG3  7
 	#define RANG4 0xf
 
-	#define SYS_HW_STRAP   (0xb8000000 +0x08)
-
-	unsigned int v=REG32(SYS_HW_STRAP);
+	unsigned int v=REG32(HW_STRAP);
 	unsigned int mode=GET_BITVAL(v, 27, RANG2);
 
 	return mode;
@@ -4077,9 +4076,7 @@ unsigned int Get_P0_RxDelay(void)
 	#define RANG3  7
 	#define RANG4 0xf
 
-	#define SYS_HW_STRAP   (0xb8000000 +0x08)
-
-	unsigned int v=REG32(SYS_HW_STRAP);
+	unsigned int v=REG32(HW_STRAP);
 	unsigned int val=GET_BITVAL(v, 29, RANG3);
 	return val;
 }
@@ -4092,9 +4089,7 @@ unsigned int Get_P0_TxDelay(void)
 	#define RANG3  7
 	#define RANG4 0xf
 
-	#define SYS_HW_STRAP   (0xb8000000 +0x08)
-
-	unsigned int v=REG32(SYS_HW_STRAP);
+	unsigned int v=REG32(HW_STRAP);
 	unsigned int val=GET_BITVAL(v, 17, RANG1);
 	return val;
 }
@@ -4140,6 +4135,9 @@ int Setting_RTL8197D_PHY(void)
 		Set_GPHYWB(999, 4, 25, 0, 0x0730);	 // turn off tx/rx pwr at LPI state
 	}
 
+	// fix unlink IOT issue
+	Set_GPHYWB(999, 0, 26, 0xffff-(0x1<<14), 0x0<<14);
+
 	/* fine tune port on/off threshold to 160/148 */
 	REG32(PBFCR0) = 0x009400A0;
 	REG32(PBFCR1) = 0x009400A0;
@@ -4152,8 +4150,14 @@ int Setting_RTL8197D_PHY(void)
 	REG32(ELBPCR) = 0x0000400B;
 	REG32(ELBTTCR) = 0x000000C0;
 
-	/* Fine tune minRx IPG from 6 to 5 byte */
-	REG32(MACCR) = 0x80420185;
+	/* 100M half duplex enhancement */
+	/* fix SmartBits half duplex backpressure IOT issue */
+ 	REG32(MACCR)= (REG32(MACCR) & ~(CF_RXIPG_MASK | SELIPG_MASK)) | (0x05 | SELIPG_11); 
+
+	/* enlarge "Flow control DSC tolerance" from 24 pages to 48 pages
+	    to prevent the hardware may drop incoming packets
+	    after flow control triggered and Pause frame sent */
+ 	REG32(MACCR)= (REG32(MACCR) & ~CF_FCDSC_MASK) | (0x30 << CF_FCDSC_OFFSET);
 
 	/* default enable MAC EEE */
 	REG32(EEECR) = 0x28739ce7;
@@ -4193,16 +4197,137 @@ int Setting_RTL8196E_PHY(void)
 		Set_GPHYWB(999, 1, 19, 0xffff-(0x1<<0), 0x0<<0);
 		Set_GPHYWB(999, 0, 22, 0xffff-(0x1<<3), 0x0<<3);
 	}
-	
+
 	// fix Ethernet IOT issue
-	if ((REG32(BOND_OPTION) & BOND_ID_MASK) != BOND_8196ES) {
+	if ( ((REG32(BOND_OPTION) & BOND_ID_MASK) != BOND_8196ES)  &&
+		((REG32(BOND_OPTION) & BOND_ID_MASK) != BOND_8196ES1)  &&
+		((REG32(BOND_OPTION) & BOND_ID_MASK) != BOND_8196ES2)  &&
+		((REG32(BOND_OPTION) & BOND_ID_MASK) != BOND_8196ES3)  )
+	{
 		Set_GPHYWB(999, 0, 26, 0xffff-(0x1<<14), 0x0<<14);
 		Set_GPHYWB(999, 0, 17, 0xffff-(0xf<<8), 0xe<<8);
 	}
-	
+
 	/* 100M half duplex enhancement */
 	/* fix SmartBits half duplex backpressure IOT issue */
  	REG32(MACCR)= (REG32(MACCR) & ~(CF_RXIPG_MASK | SELIPG_MASK)) | (0x05 | SELIPG_11); 
+
+	/* enlarge "Flow control DSC tolerance" from 24 pages to 48 pages
+	    to prevent the hardware may drop incoming packets
+	    after flow control triggered and Pause frame sent */
+ 	REG32(MACCR)= (REG32(MACCR) & ~CF_FCDSC_MASK) | (0x30 << CF_FCDSC_OFFSET);
+	
+	for(i=0; i<5; i++)
+		REG32(PCRP0+i*4) &= ~(EnForceMode);
+
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_RTL_8881A)
+int Setting_RTL8881A_PHY(void)
+{
+	int i;
+
+	for(i=0; i<5; i++)
+		REG32(PCRP0+i*4) |= (EnForceMode);
+#if 0
+		// Page1, Reg23, Vref[7:6] 10
+		Set_GPHYWB(999, 1, 23, 0xffff-(3<<6), 2<<6);
+
+		// Page1, Reg16, cf1[6:4] 110->001
+		Set_GPHYWB(999, 1, 16, 0xffff-((7<<4)), ((1<<4)));
+
+        Set_GPHYWB(999,1, 29, 0xFFFE, 0x0);
+		mdelay(1);
+		Set_GPHYWB(999,0, 0, 0xffff, 0x200);
+		mdelay(1);
+        Set_GPHYWB(999,1, 29, 0xffff, 0x1);
+	    mdelay(1);	
+		Set_GPHYWB(999,0, 21, 0xff00, (1<<1|1<<4|1<<5));
+		mdelay(1);
+#else
+if(((REG32(0xb8000000)&0xff)>0))
+{
+	#define PLL2 0xb8000058
+	REG32(PLL2 )|=(5<<6);//20120906:Set RBG_L[8:6]=101 from RDC suggestion
+
+	Set_GPHYWB(999, 1, 23, 0xffff-(3<<6), 2<<6);//SwitchPatch #2 Page1,Reg.23[7:6] = 10
+    mdelay(1);
+	Set_GPHYWB(999, 1, 16, 0xffff-(7<<4), 1<<4);//SwitchPatch #3 Page1,Reg.16[6:4] = 001
+    mdelay(1);
+	//Set_GPHYWB(999, 1, 29, 0xffff-(1<<0), 0<<0);//SwitchPatch #4 Page1,Reg.29[0] = 0 //A cut don't need it
+	//Set_GPHYWB(999, 0, 0, 0xffff-(1<<9), 1<<9);//SwitchPatch #4 Page0,Reg.0[9] = 1 //A cut don't need it
+	//Set_GPHYWB(999, 1, 29, 0xffff-(1<<0), 1<<0);//SwitchPatch #4 Page1.Reg.29[0] =1 //A cut don't need it
+
+	//write page 31 = reg4 to check the PHY parameter
+
+	Set_GPHYWB(999, 4, 16, 0, 0x4077);//SwitchPatch #5 Page4,Reg.16 = 0x4077
+    mdelay(1);
+	Set_GPHYWB(999, 4, 24, 0, 0xc0f3);//SwitchPatch #6 Page4,Reg.24 = 0xc0f3
+    mdelay(1);
+	Set_GPHYWB(999, 4, 25, 0, 0x7630);//SwitchPatch #7 Page4,Reg.25 = 0x7630
+    mdelay(1);
+	//REG32( 0xBB804160)=0x0E739CE7 ;//SwitchPatch #8 BB804160 = 0x0E739CE7 ,Set EEE MAC register
+	REG32( 0xBB804160)=0x0 ;//SwitchPatch #8 BB804160 = 0x0E739CE7 ,Set EEE MAC register
+    mdelay(1);
+	Set_GPHYWB(999, 0, 21, 0xffff-(15<<4), 2<<4);//Patch #9 Page0,Reg.21[7:4]=0010  ,Set Green ethernet
+    mdelay(1);
+	Set_GPHYWB(999, 0, 21, 0xffff-(15<<0), 1<<0);//Patch #10 Page0,Reg.21[3:0]=0001  ,Set Green ethernet
+    mdelay(1);
+	Set_GPHYWB(999, 1, 19, 0xffff-(3<<3), 1<<3);//Patch #11 Page1,Reg.19[4:3]=01  ,....corner internetl SWR Pass 1.12V
+    mdelay(1);
+	Set_GPHYWB(999, 1, 17, 0xffff-(1<<14), 1<<14);//Patch #12 Page1,Reg.17[14]=1  ,Fix Low SNR issue.
+    mdelay(1);
+	Set_GPHYWB(999, 1, 16, 0xffff-(3<<12), 0<<0);//Patch #13 Page1,Reg.16[13:12]=00  ,IOL For 10M MAU
+    mdelay(1);
+}
+else
+{
+	Set_GPHYWB(999, 1, 23, 0xffff-(3<<6), 2<<6);//SwitchPatch #2 Page1,Reg.23[7:6] = 10
+    mdelay(1);
+	Set_GPHYWB(999, 1, 16, 0xffff-(7<<4), 1<<4);//SwitchPatch #3 Page1,Reg.16[6:4] = 001
+    mdelay(1);
+	Set_GPHYWB(999, 1, 29, 0xffff-(1<<0), 0<<0);//SwitchPatch #4 Page1,Reg.29[0] = 0 //A cut don't need it
+	mdelay(1);
+	Set_GPHYWB(999, 0, 0, 0xffff-(1<<9), 1<<9);//SwitchPatch #4 Page0,Reg.0[9] = 1 //A cut don't need it
+	mdelay(1);
+	Set_GPHYWB(999, 1, 29, 0xffff-(1<<0), 1<<0);//SwitchPatch #4 Page1.Reg.29[0] =1 //A cut don't need it
+	mdelay(1);
+
+	//write page 31 = reg4 to check the PHY parameter
+
+	Set_GPHYWB(999, 4, 16, 0, 0x7377);//SwitchPatch #5 Page4,Reg.16 = 0x7377
+    mdelay(1);
+	Set_GPHYWB(999, 4, 24, 0, 0xc0f3);//SwitchPatch #6 Page4,Reg.24 = 0xc0f3
+    mdelay(1);
+	Set_GPHYWB(999, 4, 25, 0, 0x7630);//SwitchPatch #7 Page4,Reg.25 = 0x7630
+    mdelay(1);
+	REG32( 0xBB804160)=0x0E739CE7 ;//SwitchPatch #8 BB804160 = 0x0E739CE7 ,Set EEE MAC register
+    mdelay(1);
+	Set_GPHYWB(999, 0, 21, 0xffff-(15<<4), 3<<4);//Patch #9 Page0,Reg.21[7:4]=0011  ,Set Green ethernet
+    mdelay(1);
+	Set_GPHYWB(999, 0, 21, 0xffff-(15<<0), 2<<0);//Patch #10 Page0,Reg.21[3:0]=0010  ,Set Green ethernet
+	mdelay(1);
+}
+#endif		
+		
+	// refine for B-cut and later
+	{
+	unsigned int val= REG32(0xb80000dc);
+	if ((val & 0x3) != 0x3)
+		REG32(0xb80000dc) |= 0x3; // wlanmac_control, set active_wlanmac_sys and active_wlanmac_lx for RF revision ID
+
+	if ((REG32(0xb86400f0) & 0x0000f000) >= 0x00001000)
+		Set_GPHYWB(999, 1, 16, 0xffff-(7<<4), 4<<4); // fix 100M IOL overshoot issue
+
+	REG32(0xb80000dc) = val; // restore value.
+	}
+
+	/* enlarge "Flow control DSC tolerance" from 24 pages to 48 pages
+	    to prevent the hardware may drop incoming packets
+	    after flow control triggered and Pause frame sent */
+ 	REG32(MACCR)= (REG32(MACCR) & ~CF_FCDSC_MASK) | (0x30 << CF_FCDSC_OFFSET);
 	
 	for(i=0; i<5; i++)
 		REG32(PCRP0+i*4) &= ~(EnForceMode);
@@ -4213,7 +4338,13 @@ int Setting_RTL8196E_PHY(void)
 
 void enable_EEE(void)
 {
-#if defined(CONFIG_RTL_8198)
+#ifdef CONFIG_RTL_8367R_SUPPORT
+	int i;
+	extern int rtk_eee_portEnable_set(uint32 port, uint32 enable);
+	for (i=0;i<5;i++) {
+		rtk_eee_portEnable_set(i, 1);
+	}
+#elif defined(CONFIG_RTL_8198)
 	eee_phy_enable_98();
 #else
 
@@ -4221,8 +4352,16 @@ void enable_EEE(void)
 
 	for(i=0; i<RTL8651_PHY_NUMBER; i++)
 		REG32(PCRP0+i*4) |= (EnForceMode);
+#if defined(CONFIG_RTL_8881A)
+		Set_GPHYWB(999,4, 16, 0xffff, 0x7377);
+        mdelay(1);
+		Set_GPHYWB(999,4, 24, 0xffff, 0xc0f3);
+        mdelay(1);
+        Set_GPHYWB(999,4, 25, 0xffff, 0x7630);
+        //enable MAC EEE
+        REG32(EEECR) = 0x0E739CE7;
 
-#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_819XD)
+#elif defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_819XD)
 	//enable 100M EEE and 10M EEE
 	Set_GPHYWB(999, 4, 16, 0xffff-(0x3<<12), 0x3<<12);
 
@@ -4259,7 +4398,13 @@ void enable_EEE(void)
 
 void disable_EEE(void)
 {
-#if defined(CONFIG_RTL_8198)
+#ifdef CONFIG_RTL_8367R_SUPPORT
+	int i;
+	extern int rtk_eee_portEnable_set(uint32 port, uint32 enable);
+	for (i=0;i<5;i++) {
+		rtk_eee_portEnable_set(i, 0);
+	}
+#elif defined(CONFIG_RTL_8198)
 	eee_phy_disable_98();
 
 #else
@@ -4280,9 +4425,166 @@ void disable_EEE(void)
 #endif
 }
 
+
+
+#ifdef CONFIG_RTL_8367R_SUPPORT
+extern int32 smi_init(uint32 port, uint32 pinSCK, uint32 pinSDA);
+extern int RTL8367R_init(void);
+extern int rtk_vlan_init(void);
+#if defined(CONFIG_RTK_VLAN_SUPPORT)
+extern int rtk_filter_igrAcl_init(void);
+#endif
+
+// for linking issue of \linux-2.6.30\net\rtl\fastpath\9xD\filter.S 
+#if !defined(CONFIG_RTL_IGMP_SNOOPING)
+int igmp_delete_init_netlink(void) { return 0; }
+#endif
+
+	#define REG_IOCFG_GPIO		0x00000018
+	
+	/* define GPIO port */
+	enum GPIO_PORT
+	{
+	GPIO_PORT_A = 0,
+	GPIO_PORT_B,
+	GPIO_PORT_C,
+	GPIO_PORT_D,
+	GPIO_PORT_E,
+	GPIO_PORT_F,
+	GPIO_PORT_G,
+	GPIO_PORT_H,
+	GPIO_PORT_I,
+	GPIO_PORT_MAX,
+	};
+
+void init_8367r(void)
+{
+#ifdef CONFIG_RTL_8881A
+int i=0;
+int ret=0;
+	REG32(0xb8000044) |=  (3<<12); // reg_iocfg_fcs1, set to GPIO mode
+	REG32(PABCD_CNR) &= (~(0x00004000)); //set GPIO pin, A1
+	REG32(PABCD_DIR) |= (0x00004000); //output pin
+
+	for (i=0; i<3; i++) 
+	{
+#if 1
+	// for 8367r h/w reset pin
+		{
+		REG32(PABCD_DAT) &= (~(0x00004000)); 
+		mdelay(1000);
+		REG32(PABCD_DAT) |= (0x00004000); 
+		mdelay(1000);
+		}
+#endif	
+		// set to GPIO mode
+		#ifndef CONFIG_MTD_NAND 
+		REG32(PIN_MUX_SEL)=0xc;// ((REG32(PIN_MUX_SEL)&(~(7<<2))|0x3<<2));
+
+		// MDC: F5, MDIO: F6
+		WRITE_MEM32(PEFGH_CNR, READ_MEM32(PEFGH_CNR) & (~(0x00006000)));	//set GPIO pin, F5 and F6
+		WRITE_MEM32(PEFGH_DIR, READ_MEM32(PEFGH_DIR) | ((0x00006000))); //output pin
+
+		//smi_init(GPIO_PORT_A, 3, 2);
+		smi_init(GPIO_PORT_F, 5, 6);
+		#else
+		REG32(PIN_MUX_SEL2) = (REG32(PIN_MUX_SEL2)&(~(0xe38))) | (0x618);
+		WRITE_MEM32(PABCD_CNR, READ_MEM32(PABCD_CNR) & (~(0x00002800)));
+		WRITE_MEM32(PABCD_DIR, READ_MEM32(PABCD_DIR) | ((0x00002800)));
+		smi_init(GPIO_PORT_B, 5, 3);
+
+		#endif
+		mdelay(1000);
+		ret = RTL8367R_init();
+		if (ret == 0) 
+			break;
+	}
+#else	
+	int ret, i;
+
+	for (i=0; i<3; i++) {
+		// for 8367r h/w reset pin
+		REG32(PABCD_DAT) &= ~(0x00000002); 
+		mdelay(1000);
+
+		REG32(PABCD_DAT) |= (0x00000002); 
+		mdelay(1000);
+
+		// set to GPIO mode
+		REG32(PIN_MUX_SEL) |= (REG_IOCFG_GPIO);
+
+		// MDC: F5, MDIO: F6
+		WRITE_MEM32(PEFGH_CNR, READ_MEM32(PEFGH_CNR) & (~(0x00006000)));	//set GPIO pin, F5 and F6
+		WRITE_MEM32(PEFGH_DIR, READ_MEM32(PEFGH_DIR) | ((0x00006000))); //output pin
+
+		smi_init(GPIO_PORT_F, 5, 6);
+	
+		ret = RTL8367R_init();
+		if (ret == 0) 
+			break;
+	}
+#endif
+	// 8367_VLAN
+	rtk_vlan_init();
+
+	// clear mib counter
+	rtk_stat_global_reset();
+
+	RTL8367R_vlan_set();
+	RTL8367R_cpu_tag(1);
+#if defined(CONFIG_RTK_VLAN_SUPPORT)
+	rtk_filter_igrAcl_init();
+#endif
+}
+#endif
+
+#if defined(CONFIG_RTL_8211F_SUPPORT)
+
+#if defined(CONFIG_RTL_8881A)
+#define GPIO_RESET		17		// GPIO_G1
+#elif defined(CONFIG_RTL_819XD)
+#define GPIO_RESET		18		// GPIO_G2
+#endif
+
+int init_p0(void)
+{
+	unsigned int data;
+
+	REG32(PCRP0) |=  (0x5 << ExtPHYID_OFFSET) | MIIcfg_RXER |  EnablePHYIf | MacSwReset;	
+	REG32(MACCR) |= (1<<12);
+	REG32(P0GMIICR) = (REG32(P0GMIICR) & ~((1<<4)|(7<<0))) | ((1<<4) | (3<<0));
+
+	// 0xb8000040 bit [4:2] Configure P0 mdc/mdio PAD as P0-MDIO (3'b100)
+	// 0xb8000040 bit [9:7] Configure P0 PAD as P0-MII (3'b000)
+	REG32(PIN_MUX_SEL) = (REG32(PIN_MUX_SEL) & ~((7<<7) | (7<<2))) | (4<<2);
+
+	// Reset 8211F
+	REG32(PIN_MUX_SEL) |= (3<<10);
+	REG32(PEFGH_CNR) &= ~(1<<GPIO_RESET);
+	REG32(PEFGH_DIR) |= (1<<GPIO_RESET);
+	REG32(PEFGH_DAT) &= ~(1<<GPIO_RESET);
+	mdelay(500);
+	REG32(PEFGH_DAT) |= (1<<GPIO_RESET);
+	mdelay(300);
+
+	REG32(PITCR) |= (1<<0);
+	REG32(P0GMIICR) |=(Conf_done);
+
+	rtl8651_getAsicEthernetPHYReg(5, 4, &data );
+	// Advertise support of asymmetric pause 
+	// Advertise support of pause frames
+	rtl8651_setAsicEthernetPHYReg(5, 4, (data | 0xC00));
+
+	//panic_printk(" --> config port 0 done.\n");
+	return 0;
+}
+#endif
+
 /*patch for LED showing*/
 #define BICOLOR_LED 1
+
 #define REG32_ANDOR(x,y,z)   (REG32(x)=(REG32(x)& (y))|(z))
+
 /*=========================================
   * init Layer2 Asic
   * rtl865x_initAsicL2 mainly configure basic&L2 Asic.
@@ -4296,6 +4598,10 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 #else
 	unsigned int hw_val;
 #endif
+#endif
+
+#if (defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && !(defined(CONFIG_RTL_8211F_SUPPORT))
+	unsigned int P0phymode, P0miimode, P0txdly, P0rxdly;
 #endif
 
 #ifdef CONFIG_RTL8196C_ETH_IOT
@@ -4421,6 +4727,10 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 
 #elif defined(CONFIG_RTL_8196E)
 	Setting_RTL8196E_PHY();
+#elif defined(CONFIG_RTL_8881A)
+
+	Setting_RTL8881A_PHY();
+
 
 #elif defined(CONFIG_RTL_819XD)
 	Setting_RTL8197D_PHY();
@@ -4466,6 +4776,10 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 
 	RTL8370_init();
 	}
+#endif
+
+#ifdef CONFIG_RTL_8367R_SUPPORT
+	init_8367r();
 #endif
 
 	/* 	2006.12.12
@@ -4554,6 +4868,18 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
     REG32(PIN_MUX_SEL) =0x0fffff80;/*For Belkin_n board, not for demo board*/
     REG32(LEDCREG)=0;
 
+#elif defined(CONFIG_RTL_8881A)
+
+	#if defined(CONFIG_RTL_8367R_SUPPORT)
+	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (1<<15) );
+	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (7<<15) );  //S0-S3, P0-P1
+	
+	#else
+	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
+	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+	#endif
+	REG32(LEDCREG)  = (2<<20) | (0<<18) | (0<<16) | (0<<14) | (0<<12) | (0<<10) | (0<<8);  //P0-P5
+
 #elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	/*
 		#LED = direct mode
@@ -4564,9 +4890,33 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	//for GMII/RGMII
 	//REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
 	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) );  //LED0~LED4
-	#else
-	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
+
+	#elif defined(CONFIG_RTL_8367R_SUPPORT)
+	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (1<<15) );
 	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+	
+	#else
+	#ifndef CONFIG_MTD_NAND
+	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
+	#endif
+	#if defined(CONFIG_RTL_8196E) && defined(CONFIG_APPLE_MFI_SUPPORT)
+		if (((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196E3))
+		{
+			REG32(PIN_MUX_SEL2) &= ~ ((3<<12) | (7<<15) );  //P4
+		}
+		else if (((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196EU3))
+		{
+			REG32(PIN_MUX_SEL2) &= ~ ((7<<15)); 
+		}
+		else
+			REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+	#else
+#if defined(CONFIG_RTL_96E_GPIOB5_RESET)
+	REG32(PIN_MUX_SEL2) &= ~ ((3<<12));  
+#else
+	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+#endif
+#endif
 	#endif
 	REG32(LEDCREG)  = (2<<20) | (0<<18) | (0<<16) | (0<<14) | (0<<12) | (0<<10) | (0<<8);  //P0-P5
 
@@ -4808,7 +5158,7 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	else {
 		disable_EEE();
 	}
-
+		
 	/* ===============================
 	 	(1) Handling port 0.
 	    =============================== */
@@ -4998,7 +5348,7 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
        #endif
 	//WRITE_MEM32(PIN_MUX_SEL_2, 0);
 
-#ifdef CONFIG_RTK_VOIP_GIGABYTE_PHY_LINK_MODE_100 // use 10/100 only
+#ifdef CONFIG_GIGABYTE_PHY_LINK_MODE_10_100 // use 10/100 only
        WRITE_MEM32(PCRP0, READ_MEM32(PCRP0) & ~(1<<22));
        WRITE_MEM32(PCRP1, READ_MEM32(PCRP1) & ~(1<<22));
        WRITE_MEM32(PCRP2, READ_MEM32(PCRP2) & ~(1<<22));
@@ -5055,54 +5405,65 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	Set_GPHYWB(999, 0, 9, 0, 0);
 #endif
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-	{
-	#define REG32_ANDOR(x,y,z)   (REG32(x)=(REG32(x)& (y))|(z))
+#if defined(CONFIG_RTL_8211F_SUPPORT)
+	init_p0();
 
+#elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	{
 #if defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
 	int i;
 	uint32 reg_tmp=0;
 #endif
 
-	//unsigned int rtl96d_P0phymode=Get_P0_PhyMode();
-	unsigned int rtl96d_P0phymode=1;
+	P0phymode=1;
 
-#if defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
-	rtl96d_P0phymode = 3;
+#if (defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)) || defined(CONFIG_RTL_8367R_SUPPORT)
+	P0phymode = 3;
 
-#elif defined(CONFIG_RTL_8196E) //mark_es
-	if ((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES) 
-		rtl96d_P0phymode=Get_P0_PhyMode();	
+#elif defined(CONFIG_RTL_8196E)
+	if ( ((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES)  ||
+		((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES1)  ||
+		((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES2)  ||
+		((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES3)  )
+	{
+		P0phymode=Get_P0_PhyMode();
+	}
 #endif
 
-	if(rtl96d_P0phymode==1)  //embedded phy
+	if(P0phymode==1)  //embedded phy
 	{
 		REG32(PCRP0) |=  (0 << ExtPHYID_OFFSET) | EnablePHYIf | MacSwReset;	//emabedded
 	}
 	else //external phy
 	{
-		unsigned int rtl96d_P0miimode=Get_P0_MiiMode();
+		P0miimode=Get_P0_MiiMode();
 
-	#if defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
-		rtl96d_P0miimode = 3;
+	#if (defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D))  || defined(CONFIG_RTL_8367R_SUPPORT)
+		P0miimode = 3;
 	#endif
 
-		REG32(PCRP0) |=  (0x10 << ExtPHYID_OFFSET) | MIIcfg_RXER |  EnablePHYIf | MacSwReset;	//external
+		REG32(PCRP0) |=  (0x06 << ExtPHYID_OFFSET) | MIIcfg_RXER |  EnablePHYIf | MacSwReset;	//external
 
-		if(rtl96d_P0miimode==0)
+		if(P0miimode==0)
 			REG32_ANDOR(P0GMIICR, ~(3<<23)  , LINK_MII_PHY<<23);
-		else if(rtl96d_P0miimode==1)
+		else if(P0miimode==1)
 			REG32_ANDOR(P0GMIICR, ~(3<<23)  , LINK_MII_MAC<<23);
-		else if(rtl96d_P0miimode==2)
+		else if(P0miimode==2)
 			REG32_ANDOR(P0GMIICR, ~(3<<23)  , LINK_MII_MAC<<23);  //GMII
-		else if(rtl96d_P0miimode==3)
+		else if(P0miimode==3)
 			REG32_ANDOR(P0GMIICR, ~(3<<23)  , LINK_RGMII<<23);
 
-		if(rtl96d_P0miimode==3)
+		if(P0miimode==3)
 		{
-			unsigned int rtl96d_P0txdly=Get_P0_TxDelay();
-			unsigned int rtl96d_P0rxdly=Get_P0_RxDelay();
-			REG32_ANDOR(P0GMIICR, ~((1<<4)|(3<<0)) , (rtl96d_P0txdly<<4) | (rtl96d_P0rxdly<<0) );
+			P0txdly=Get_P0_TxDelay();
+			P0rxdly=Get_P0_RxDelay();
+
+			#if defined(CONFIG_RTL_8367R_SUPPORT)
+			P0txdly = 1;
+			P0rxdly = 5;
+			#endif
+
+			REG32_ANDOR(P0GMIICR, ~((1<<4)|(3<<0)) , (P0txdly<<4) | (P0rxdly<<0) );
 
 			#if defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
 				//Set GPIOC0 to PHY reset.
@@ -5130,26 +5491,39 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 			#endif
 		}
 
-		if(rtl96d_P0miimode==0)
+#if defined(CONFIG_RTL_8367R_SUPPORT)
+		REG32(P0GMIICR) |= (CFG_CPUC_TAG|CFG_TX_CPUC_TAG);
+
+		// enable port 0 router mode
+		REG32(MACCR1) |= PORT0_ROUTER_MODE;        	
+#endif
+
+		if(P0miimode==0)
 			REG32_ANDOR(PCRP0, ~AutoNegoSts_MASK, EnForceMode| ForceLink|ForceSpeed100M |ForceDuplex) ;
-		else if(rtl96d_P0miimode==1)
+		else if(P0miimode==1)
 			REG32_ANDOR(PCRP0, ~AutoNegoSts_MASK, EnForceMode| ForceLink|ForceSpeed100M |ForceDuplex) ;
-		else if(rtl96d_P0miimode==2)
+		else if(P0miimode==2)
 			REG32_ANDOR(PCRP0, ~AutoNegoSts_MASK, EnForceMode| ForceLink|ForceSpeed1000M |ForceDuplex );
 		#if !defined(CONFIG_RTL_8211DS_SUPPORT)
-		else if(rtl96d_P0miimode==3)
+		else if(P0miimode==3)
 			REG32_ANDOR(PCRP0, ~AutoNegoSts_MASK, EnForceMode| ForceLink|ForceSpeed1000M |ForceDuplex );
 		#endif
 
-		//REG32(P0GMIICR) |=(Conf_done); //mark_es
 		REG32(PITCR) |= (1<<0);   //00: embedded , 01L GMII/MII/RGMII
 
-		if((rtl96d_P0miimode==2)  ||(rtl96d_P0miimode==3)) {
+		if((P0miimode==2)  ||(P0miimode==3)) {
 			REG32(MACCR) |= (1<<12);   //giga link
 		}
-		REG32(P0GMIICR) |=(Conf_done); //mark_es
+		REG32(P0GMIICR) |=(Conf_done);
 	}
 	}
+#endif
+
+#if defined(CONFIG_RTL_8881A)
+	// MACCR b.13-b.12 System clock selection, 2'b00: 50MHz, 2'b01: 100MHz
+	REG32(MACCR) |= (1<<12);
+	// MAC Configuration Register 1, b.0, Cport MAC clock selection with NIC interface, 1: lx_clk, 0: lx_clk/2
+	REG32(0xbb805100) |= 1;
 #endif
 
 #elif defined(CONFIG_RTL_8196C)
@@ -5239,7 +5613,9 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	// Configure LED-SIG0/LED-SIG1/LED-SIG2/LED-SIG3/LED-PHASE0/LED-PHASE1/LED-PHASE2/LED-PHASE3 PAD as LED-SW
 
 #ifndef CONFIG_POCKET_ROUTER_SUPPORT
+	#ifndef CONFIG_MTD_NAND
 	REG32(PIN_MUX_SEL) &= ~(0xFFFF);
+	#endif
 #endif
 
 #if defined(PATCH_GPIO_FOR_LED)
@@ -5270,7 +5646,10 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 	}
 #endif
 #if  defined(CONFIG_RTL_8196E) //mark_es
-	if ((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES) 
+	if ( ((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES)  ||
+		((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES1)  ||
+		((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES2)  ||
+		((REG32(BOND_OPTION) & BOND_ID_MASK) == BOND_8196ES3)  )
 	{
 		uint32 statCtrlReg0;
 
@@ -5285,12 +5664,21 @@ int32 rtl865x_initAsicL2(rtl8651_tblAsic_InitPara_t *para)
 		rtl8651_setAsicEthernetPHYReg( index, 0, statCtrlReg0 );              
 		}
 	}
-#endif	
-
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-#if defined(PATCH_GPIO_FOR_LED)
-	REG32(PIN_MUX_SEL2) |= (0x3FFF);
 #endif
+
+#if defined(CONFIG_RTL_8881A)
+	#if !defined(CONFIG_RTL_8367R_SUPPORT) && !defined(CONFIG_RTL_8211F_SUPPORT)
+	REG32(PIN_MUX_SEL) |= 0x180;
+	#endif
+
+	#if defined(PATCH_GPIO_FOR_LED)
+	REG32(PIN_MUX_SEL2) = (REG32(PIN_MUX_SEL2) & ~(0x3FFF)) | (0x36DB);
+	#endif
+	
+#elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	#if defined(PATCH_GPIO_FOR_LED)
+	REG32(PIN_MUX_SEL2) |= (0x3FFF);
+	#endif
 #endif
 
 	return SUCCESS;
@@ -5675,12 +6063,15 @@ int32 rtl8651_setAsicEthernetPHYPowerDown( uint32 port, uint32 pwrDown )
 		statCtrlReg0 |= POWER_DOWN;
 	}
 	else{
-		REG32(PCRP0+port*4) &= ~EnForceMode;
+		//REG32(PCRP0+port*4) &= ~EnForceMode;
 		statCtrlReg0 &= ~POWER_DOWN;
 	}
 	/* write PHY reg 0 */
 	rtl8651_setAsicEthernetPHYReg( phyid, 0, statCtrlReg0 );
 
+	if ( !pwrDown ){
+		REG32(PCRP0+port*4) &= ~EnForceMode;
+	}
 	return SUCCESS;
 
 }
@@ -6930,15 +7321,14 @@ static int32 _rtl865xC_QM_init( void )
 	 */
 	WRITE_MEM32( SIRR, READ_MEM32(SIRR)| TRXRDY );
  	rtl865xC_lockSWCore();
-
-	_rtl865xC_QM_orgDescUsage = 0;	/* by default, set it to 0 */
+	cnt = 0;
 
 	do
 	{
 		int32 idx;
 
 		originalDescGetReady = TRUE;	/* by default, set it to TRUE */
-		cnt = 0;
+		_rtl865xC_QM_orgDescUsage = 0;	/* by default, set it to 0 */
 
 		for ( idx = 0 ; idx < RTL865XC_QM_DESC_READROBUSTPARAMETER ; idx ++ )
 		{
@@ -7412,10 +7802,12 @@ int32 rtl865xC_setAsicEthernetForceModeRegs(uint32 port, uint32 enForceMode, uin
 		if ( forceDuplex )
 			PCR |= ForceDuplex;
 	}
+	else {
+		PCR = (PCR & ~(PollLinkStatus)) | (ForceLink | AutoNegoSts_MASK);
+	}
 
 	WRITE_MEM32( PCRP0 + offset, PCR );
 	mdelay(10);
-	TOGGLE_BIT_IN_REG_TWICE(PCRP0 + offset,EnForceMode);
 	return SUCCESS;
 
 }

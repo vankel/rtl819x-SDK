@@ -27,8 +27,24 @@
 #ifdef SUPPORT_LEC_G168_ISR
 #include "lec.h"
 #endif//SUPPORT_LEC_G168_ISR
+#ifdef SUPPORT_SILAB_FXO_TUNE
+#include "fxo_tune.h"
+#endif
+
+#if DMEN_STACK_LEC
+#include "../dsp_r1/common/util/codec_mem.h"
+#endif
+
+#if DMEN_LEC
+extern void LEC_dmem_save(unsigned char chid);
+extern void LEC_dmem_load(unsigned char chid);
+#endif
 
 #include "../voip_manager/voip_mgr_events.h"
+#include "utility.h"
+#ifdef T_TYPE_ECHO_CAN
+#include "radiax_mmd.h"
+#endif
 
 static int caller_id_det[MAX_DSP_RTK_CH_NUM] = {[0 ... MAX_DSP_RTK_CH_NUM-1]=1};
 static int fax_modem_det[MAX_DSP_RTK_CH_NUM] = {[0 ... MAX_DSP_RTK_CH_NUM-1]=1};
@@ -63,8 +79,8 @@ Word16 det_buff_daa[RX_BUF_SIZE/2] __attribute__((aligned(8)));
 char dtmf_mode[MAX_DSP_RTK_CH_NUM] = {[0 ... MAX_DSP_RTK_CH_NUM-1] = 2};
 
 #ifdef DTMF_REMOVAL_ISR
-unsigned char dtmf_removal[MAX_DSP_RTK_CH_NUM][2/*dir*/] = {[0 ... MAX_DSP_RTK_CH_NUM-1] = {0, 0}};// declare for dtmf removal, 0: disable  1: enable (value is assigned to 1 when dtmf tone is detected, otherwise, 0!)
-unsigned char dtmf_removal_flag[MAX_DSP_RTK_CH_NUM] = {0};
+unsigned char dtmf_removal[MAX_DSP_RTK_CH_NUM][DTMF_DIR_SIZE] = {[0 ... MAX_DSP_RTK_CH_NUM-1] = {0, 0}};// declare for dtmf removal, 0: disable  1: enable (value is assigned to 1 when dtmf tone is detected, otherwise, 0!)
+unsigned char dtmf_removal_flag[MAX_DSP_RTK_CH_NUM] = {[0 ... MAX_DSP_RTK_CH_NUM-1] = 0};
 unsigned char dtmf_removal_cnt[MAX_DSP_RTK_CH_NUM] = {[0 ... MAX_DSP_RTK_CH_NUM-1]=3};
 //extern char dtmf_mode[]; /* 0:rfc2833  1: sip info  2: inband  3: delete */
 extern int send_2833_by_ap[];
@@ -74,9 +90,12 @@ int clean_forward[MAX_DSP_RTK_CH_NUM] = {[0 ... MAX_DSP_RTK_CH_NUM-1]=1};
 #ifdef SEND_RFC2833_ISR
 #include "dsp_main.h"
 extern unsigned char RtpOpen[];
+extern uint32 rtpConfigOK[];
+extern uint32 rtpHold[];
+extern int32 isTranMode(uint32 sid);
 extern int RtpTx_transmitEvent_ISR( uint32 chid, uint32 sid, int event);
 int send_dtmf_flag[MAX_DSP_RTK_SS_NUM] = {0};
-int g_digit[MAX_DSP_RTK_CH_NUM]={0};
+int g_digit[MAX_DSP_RTK_SS_NUM]={[0 ... MAX_DSP_RTK_SS_NUM-1] = -1};
 #endif
 
 #ifdef SUPPORT_FAX_PASS_ISR
@@ -88,8 +107,6 @@ extern void modem_det(unsigned int chid, unsigned short* page_addr);
 extern void DisableDspFunctionsIfModemOrFaxIsDetected( int sid );
 #endif
 extern void answer_tone_det(unsigned int chid, unsigned short* page_addr, int dir);
-
-extern unsigned char support_lec_g168[] ;	// 0: LEC disable  1: LEC enable
 
 extern int pcm_check_If_In_LoopMode(unsigned char chid);
 
@@ -113,6 +130,9 @@ extern long voice_gain_spk[];//0 is mute, 1 is -31dB ~~~ 32 is 0dB , 33 is 1dB ~
 // to reduce stack, we define this temporal variable. 
 // Due to a temporal variable, just use it as a local variable. 
 uint32 rxBuf_NB[ PCM_PERIOD_10MS_SIZE / 4 ] __attribute__((aligned(8))); 
+#ifdef DTMF_ECHO_SUPPRESS
+uint32 lec_ref_NB[ PCM_PERIOD_10MS_SIZE / 4 ] __attribute__((aligned(8))); 
+#endif
 #endif
 
 #ifdef RTK_VOICE_RECORD
@@ -151,9 +171,7 @@ const codec_type_desc_t *FindStartCodecTypeDesc( uint32 chid );
 #define DSIL  		16	// silence
 static char dtmf_conv_table[]={'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '#', 'A', 'B', 'C', 'D'};
 
-extern unsigned int ec_select;
 extern unsigned int add_delayed_echo;
-void AEC_g168(unsigned int chid, const int16_t *pRin, int16_t *pSin, int16_t *pEx);
 //#define DELAY_ECHO_TEST 1
 #if defined(DELAY_ECHO_TEST)
 Word16 delayedecho_buf[MAX_DSP_RTK_CH_NUM][1024+80];
@@ -165,6 +183,7 @@ short dtmf_on_cnt_10ms[MAX_DSP_RTK_CH_NUM][2];
 short dtmf_on_flag[MAX_DSP_RTK_CH_NUM][2];
 #endif
 
+//#define FSK_TYPE2_DEBUG	// for type 2 debug
 // --------------------------------------------------------
 // separator of declare and implement 
 // --------------------------------------------------------
@@ -194,7 +213,7 @@ void isr_bus_tx_process( voip_dsp_t *this, uint16 *pcm_tx )
 #ifdef RTK_VOICE_PLAY
 	if ( (stVoipdataput[dch].write_enable&2)
     #ifdef RTK_VOICE_PLAY_WAIT_CODEC_START		
-		  && ( FindStartCodecTypeDesc( dch ) != NULL )
+		  && ( FindStartRecvCodecTypeDesc( dch ) != NULL )
     #endif
 	) {
 
@@ -214,7 +233,7 @@ void isr_bus_tx_process( voip_dsp_t *this, uint16 *pcm_tx )
 			{
 				extern short dtmf_d_table[];
 #ifdef USE_MEM64_OP
-				memcpy64s(pcm_tx, &dtmf_d_table[stVoipFskT2Cid_det[dch].d_play_cnt*80], PCM_PERIOD_10MS_SIZE/2);
+				memcpy64(pcm_tx, &dtmf_d_table[stVoipFskT2Cid_det[dch].d_play_cnt*80], PCM_PERIOD_10MS_SIZE/2);
 #else
 				memcpy(pcm_tx, &dtmf_d_table[stVoipFskT2Cid_det[dch].d_play_cnt*80], PCM_PERIOD_10MS_SIZE);
 #endif
@@ -308,7 +327,8 @@ void isr_bus_rx_process( voip_dsp_t *this, uint16 *pcm_rx, const uint16 *lec_ref
 // older function   
 // --------------------------------------------------------
 
-extern const codec_type_desc_t *ppStartCodecTypeDesc[MAX_DSP_RTK_SS_NUM];
+extern const codec_type_desc_t *ppStartTranCodecTypeDesc[MAX_DSP_RTK_SS_NUM];
+extern const codec_type_desc_t *ppStartRecvCodecTypeDesc[MAX_DSP_RTK_SS_NUM];
 
 
 
@@ -317,7 +337,7 @@ extern const codec_type_desc_t *ppStartCodecTypeDesc[MAX_DSP_RTK_SS_NUM];
 extern st_CP3_VoIP_param cp3_voip_param;
 #endif
 
-const codec_type_desc_t *FindStartCodecTypeDesc( uint32 chid )
+const codec_type_desc_t *FindStartTranCodecTypeDesc( uint32 chid )
 {
 	int j, SessNum;
 	uint32 ssid;
@@ -327,8 +347,25 @@ const codec_type_desc_t *FindStartCodecTypeDesc( uint32 chid )
 	{
 		ssid = chanInfo_GetRegSessionID(chid, j);
 
-		if( ppStartCodecTypeDesc[ ssid ] )
-			return ppStartCodecTypeDesc[ ssid ];
+		if( ppStartTranCodecTypeDesc[ ssid ] )
+			return ppStartTranCodecTypeDesc[ ssid ];
+	}
+	
+	return NULL;
+}
+
+const codec_type_desc_t *FindStartRecvCodecTypeDesc( uint32 chid )
+{
+	int j, SessNum;
+	uint32 ssid;
+
+	SessNum = chanInfo_GetRegSessionNum(chid);
+	for (j=0; j < SessNum; j++)
+	{
+		ssid = chanInfo_GetRegSessionID(chid, j);
+
+		if( ppStartRecvCodecTypeDesc[ ssid ] )
+			return ppStartRecvCodecTypeDesc[ ssid ];
 	}
 	
 	return NULL;
@@ -347,7 +384,7 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 #endif
 	uint32 *pRxFifoCurWriting;
 	extern void fax_v21_dec(unsigned short* page_addr, unsigned int chid);
-	extern char get_dtmf_dBFS(int chid, int dir, int reset);
+	extern char get_dtmf_dBFS(int chid, int dir, int reset, unsigned char coef_idx);
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
  	extern void NLP_g168(unsigned int chid, int16_t *pRin, int16_t *pSin, int16_t *pEx);
 #endif
@@ -378,8 +415,13 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 	//int err;
 #endif
 
+#ifdef DTMF_ECHO_SUPPRESS
+	static int dtmf_echo_suppress[MAX_DSP_RTK_CH_NUM] = {[ 0 ... MAX_DSP_RTK_CH_NUM-1] = 0};
+#endif
+
 #ifdef FSK_TYPE2_ACK_CHECK
 	extern unsigned int fsk_cid_type2_ack[];
+	extern unsigned int fsk_cid_type2_ack_end[];
 	extern volatile char fsk_alert_done[];
 #endif
 
@@ -426,7 +468,7 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 #ifdef SUPPORT_LEC_G168_ISR
 #if DMEN_LEC || DMEN_STACK_LEC
 	extern int dmem_size;
-	set_DMEM(&__lec_dmem_start, dmem_size-1);
+	set_DMEM((unsigned long)&__lec_dmem_start, (unsigned long)(dmem_size-1));
 #endif
 #if DMEN_LEC
 	LEC_dmem_load(chid);	
@@ -464,12 +506,42 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 		//	break;
 		//}
 
-		if( chid == 0 )
-			ddinst_rw_auto( VOIP_DEV_PCM0_RX, ( char * )rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2), 160 );
-		else if( chid == 1 )
-			ddinst_rw_auto( VOIP_DEV_PCM1_RX, ( char * )rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2), 160 );
+#ifdef SUPPORT_SILAB_FXO_TUNE
+		int tmp, tmp1, dB, test_cntr, test_duration;
 
-#if 1
+		test_duration = FXO_tune_test_duration_get(chid);
+
+		if (test_duration > 900)
+			test_duration = 900;			// test tone duration > 900ms
+		else
+			test_duration = test_duration - 50;	// test tone duration must < 900ms
+							
+		if (FXO_tune_test_flag_get(chid))
+		{
+			tmp = FXO_tune_test_tone_pwr_get(chid);
+			tmp1 = tone_analysis(chid, (unsigned short*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), 80 );
+			//printk("%x, %x\n", tmp, tmp1);
+			test_cntr = FXO_tune_test_tone_cntr_get(chid);
+
+			if ( test_cntr > 5 ) // > 50ms
+			{
+				dB = dBloss(chid, tmp, tmp1);
+
+				if (test_cntr == (test_duration/10))
+				{
+					FXO_tune_ERL_save(chid, dB);
+				}
+			}
+			//printk("%d ", dB);
+		}
+#endif
+
+		if( chid == 0 )
+			ddinst_rw_auto( VOIP_DEV_PCM0_RX, ( char * )rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2), 160 * nWidebandFactor );
+		else if( chid == 1 )
+			ddinst_rw_auto( VOIP_DEV_PCM1_RX, ( char * )rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2), 160 * nWidebandFactor );
+
+#if 0 //Move to PCM_handler() because we need to play ivr to inactive session
 		MixIvrSpeechWaveToPlayoutBuffer_Remote( chid, rxBuf+(nWidebandFactor*i*PCM_PERIOD_10MS_SIZE>>2) );
 #endif
 
@@ -518,12 +590,13 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 #endif
 
 #ifdef T_TYPE_ECHO_CAN
+#if 0 // jwsyu 20121224 temp disable
 		int mmd_backup;
-		mmd_backup = read_32bit_radiax_register(RADIAX_MMD);
-		write_32bit_radiax_register(RADIAX_MMD, SET_MMD_MS);
+		mmd_backup = radiax_MMD_set_backup(RADIAX_MMD_MS);
 		highpass_process(chid, rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2), 80);
-		write_32bit_radiax_register(RADIAX_MMD, mmd_backup);
-#endif
+		radiax_MMD_restore(mmd_backup);
+#endif /* 0 */
+#endif /* T_TYPE_ECHO_CAN */
 #ifdef RTK_VOICE_RECORD
 		if ((stVoipdataget[chid].write_enable&4)||(stVoipdataget[chid].write_enable==2))
 		{
@@ -680,7 +753,7 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 		
 		dtmf_det_threshold_current = dtmf_det_threshold[chid];
 		
-		if (talk_flag[chid] == 1)
+		if (talk_flag[chid] > 0)
 		{
 			// when talking using high level in order to avoid to detect the echo dtmf.
 			if (dtmf_det_threshold_dBm_get(chid, 0) > 16 ) /* threshold < -16dBm */
@@ -689,24 +762,64 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 			}
 		}
 
-		
+#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+
+		// DTMF det with freq. offset is supported.
+		if (dtmf_freq_offset_det_get(chid, 0) != 0)
+		{
+			#ifdef SUPPORT_SLIC_GAIN_CFG	
+				dtmf_digit = dtmf_decoder_v2(chid, 0, det_buff[chid], dtmf_det_threshold_current);
+			#else	
+			  #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
+				rxBuf_tmp = ( bWideband ? rxBuf_NB : rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2) );
+				dtmf_digit = dtmf_decoder_v2(chid, 0, (char *)(rxBuf_tmp), dtmf_det_threshold_current);
+			  #else
+				dtmf_digit = dtmf_decoder_v2(chid, 0, (char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), dtmf_det_threshold_current);
+			  #endif
+			#endif
+		}
+		else
+		{
+			#ifdef SUPPORT_SLIC_GAIN_CFG	
+				dtmf_digit = dtmf_decoder(chid, 0, det_buff[chid], dtmf_det_threshold_current);
+			#else	
+			  #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
+				rxBuf_tmp = ( bWideband ? rxBuf_NB : rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2) );
+				dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf_tmp), dtmf_det_threshold_current);
+			  #else
+				dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), dtmf_det_threshold_current);
+			  #endif
+			#endif
+		}
+#else
+
 		#ifdef SUPPORT_SLIC_GAIN_CFG	
-			dtmf_digit = dtmf_dec(det_buff[chid], PCM_PERIOD_10MS_SIZE, chid, dtmf_det_threshold_current, 0);
+			dtmf_digit = dtmf_decoder(chid, 0, det_buff[chid], dtmf_det_threshold_current);
 		#else	
 		  #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
 			rxBuf_tmp = ( bWideband ? rxBuf_NB : rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2) );
-			dtmf_digit = dtmf_dec((char *)(rxBuf_tmp), PCM_PERIOD_10MS_SIZE, chid, dtmf_det_threshold_current, 0);
+			dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf_tmp), dtmf_det_threshold_current);
 		  #else
-			dtmf_digit = dtmf_dec((char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), PCM_PERIOD_10MS_SIZE, chid, dtmf_det_threshold_current, 0);
+			dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), dtmf_det_threshold_current);
 		  #endif
 		#endif
+
+#endif //DTMF_DET_FREQ_OFFSET_REFINE
 
 #ifdef FSK_TYPE2_ACK_CHECK
 		if ( (fsk_alert_done[chid] == 1) && (dtmf_digit.digit == gFskType2AckTone[chid]))
 		{
 			fsk_cid_type2_ack[chid] = 1;	// Get Type2 FSK Ack
 			PRINT_MSG("Get Type2 FSK Ack %c-tone, ch=%d\n", dtmf_digit.digit, chid);
+#ifdef FSK_TYPE2_DEBUG			
+			printk("%c-tone\n ", dtmf_digit.digit);
+#endif			
 		}
+
+		if ((fsk_cid_type2_ack[chid] == 1) && (dtmf_digit.digitOnOff == DSIL))
+		{
+			fsk_cid_type2_ack_end[chid] = 1;
+		}		
 #endif
 #ifdef CUSTOMIZE_DTMF_MINIMUM_ON_TIME
 		extern char dtmf_pre_stat[][2];
@@ -723,17 +836,15 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 		} else {
 #ifdef DTMF_DET_DURATION_HIGH_ACCURACY
 			unsigned int duration;
-			if ( 1 == dtmf_det_duration_get(chid, 0, &duration))
-			{
-				voip_event_dtmf_in(chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1), duration);
-				get_dtmf_dBFS(chid, 0, 1);
-				dtmf_on_cnt_10ms[chid][0]=0;
-				dtmf_on_flag[chid][0]=0;
-			}
+			if (( 1 == dtmf_on_flag[chid][0] ) && ( 1 == dtmf_det_duration_get(chid, 0, &duration, dtmf_det_get_index(chid, 0))))
+				voip_event_dtmf_in(chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0)), duration);
+			get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0));
+			dtmf_on_cnt_10ms[chid][0]=0;
+			dtmf_on_flag[chid][0]=0;
 #else
 			if (dtmf_on_flag[chid][0])
-				voip_event_dtmf_in(chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1), 10*dtmf_on_cnt_10ms[chid][0]);
-			get_dtmf_dBFS(chid, 0, 1);
+				voip_event_dtmf_in(chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0)), 10*dtmf_on_cnt_10ms[chid][0]);
+			get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0));
 			dtmf_on_cnt_10ms[chid][0]=0;
 			dtmf_on_flag[chid][0]=0;
 #endif
@@ -834,7 +945,7 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 #ifdef SUPPORT_FAX_PASS_ISR
 
 	/* callee should detect CED, when it is off-hook instead of codec start. */
-	//if ( ( FindStartCodecTypeDesc( chid ) != NULL ) )  /* 0:stop, 1:G711, 2:G7231, 3:G729, 4:G726 */
+	//if ( ( FindStartTranCodecTypeDesc( chid ) != NULL ) && ( FindStartRecvCodecTypeDesc( chid ) != NULL ))  /* 0:stop, 1:G711, 2:G7231, 3:G729, 4:G726 */
 	if (fax_modem_det[chid] == 1)
 	{
 	#ifdef ANSTONE_DET_PRIOR_LEC
@@ -895,12 +1006,13 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 		 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 
-		//if ( support_lec_g168[chid] && ( FindStartCodecTypeDesc( chid ) != NULL ) && (pcm_ch_for_DAA == 0))
-		if ( support_lec_g168[chid] && ( FindStartCodecTypeDesc( chid ) != NULL ))
+		//if ( support_lec_g168[chid] && ( FindStartTranCodecTypeDesc( chid ) != NULL ) && ( FindStartRecvCodecTypeDesc( chid ) != NULL ) && (pcm_ch_for_DAA == 0))
+		//if ( support_lec_g168[chid] && ( FindStartTranCodecTypeDesc( chid ) != NULL ) && ( FindStartRecvCodecTypeDesc( chid ) != NULL ))
+		if ( EC168_OnOffCheck(chid) )
 		{
 			if(0) {//rx_mute[chid] == 1)	// bus fifo do it 
 #ifdef USE_MEM64_OP
-                                //memset64s(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2); 
+                                //memset64(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2); 
 #else			
                                 //memset(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE); 
 #endif
@@ -919,12 +1031,10 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 							//(Word16*)(rx_fifo[chid][rx_fifo_cnt_w[chid]]));
 							(Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)));
 #else
-					if (ec_select)
-						AEC_g168( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
-						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)),
-						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)) );
+					if( RtkEcObj[chid].EC_G168Process == NULL ) 
+						PRINT_R("Error !!! %s not supported !!!\n", RtkEcObj[chid].EC_G168Process);
 					else
-						LEC_g168( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
+						RtkEcObj[chid]. EC_G168Process( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
 						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)),
 						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)) );
 #endif
@@ -951,16 +1061,12 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 #endif
 
 #else
-
-					if (ec_select)
-						AEC_g168( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
-						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)),
-						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)) );
+					if( RtkEcObj[chid].EC_G168Process == NULL ) 
+						PRINT_R("Error !!! %s not supported !!!\n", RtkEcObj[chid].EC_G168Process);
 					else
-						LEC_g168( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
+						RtkEcObj[chid]. EC_G168Process( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
 						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)),
 						          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)) );
-
 #endif
 
                                 }
@@ -977,7 +1083,8 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 #elif defined (SUPPORT_LEC_G168_ISR)
 
 
-		if ( (support_lec_g168[chid] && ( FindStartCodecTypeDesc( chid ) != NULL )  )
+		//if ( (support_lec_g168[chid] && ( FindStartTranCodecTypeDesc( chid ) != NULL ) && ( FindStartRecvCodecTypeDesc( chid ) != NULL ) )
+		if ( EC168_OnOffCheck(chid) 
 #ifdef PCM_LOOP_MODE_DRIVER
 			|| pcm_check_If_In_LoopMode(chid)
 #endif
@@ -986,23 +1093,28 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 			if(0)//rx_mute[chid] == 1)	// bus_fifo do it 
 			{
 #ifdef USE_MEM64_OP
-                                //memset64s(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2); 
+                                //memset64(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2); 
 #else			
                                 //memset(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE); 
 #endif                                
 			} else
 			{	
 #ifdef EXPER_AEC
+#if 0
 #ifndef LEC_USE_CIRC_BUF
 				AEC_g168( chid, lec_ref/*(Word16*)&LEC_RinBuf[chid][80*PCM_PERIOD*(FSIZE-sync_point[chid])+i*PCM_PERIOD_10MS_SIZE/2-sync_sample[chid]]*/, 
 #else
 				AEC_g168( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2]*/, 
 #endif
+#else
+				RtkEcObj[chid]. EC_G168Process( chid, lec_ref, 
+#endif		
 				   		(Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)),
                                                 (Word16*)(rx_fifo[chid][rx_fifo_cnt_w[chid]]));
 #else
 #ifndef LEC_USE_CIRC_BUF
-				LEC_g168( chid, lec_ref/*(Word16*)&LEC_RinBuf[chid][80*PCM_PERIOD*(FSIZE-sync_point[chid])+i*PCM_PERIOD_10MS_SIZE/2-sync_sample[chid]]*/, 
+				//LEC_g168( chid, lec_ref/*(Word16*)&LEC_RinBuf[chid][80*PCM_PERIOD*(FSIZE-sync_point[chid])+i*PCM_PERIOD_10MS_SIZE/2-sync_sample[chid]]*/, 
+				RtkEcObj[chid]. EC_G168Process( chid, lec_ref/*(Word16*)&LEC_RinBuf[chid][80*PCM_PERIOD*(FSIZE-sync_point[chid])+i*PCM_PERIOD_10MS_SIZE/2-sync_sample[chid]]*/, 
 #else
 	#if 1
 		#ifdef DELAY_ECHO_TEST
@@ -1037,15 +1149,18 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 					}
 				}
 		#endif
-				
-				if (ec_select)	
-					AEC_g168( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
-				   		(Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)),
-                                                (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)) );
-				else
-					LEC_g168( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
+			
+ 					if( RtkEcObj[chid].EC_G168Process == NULL ) 
+						PRINT_R("Error !!! %s not supported !!!\n", RtkEcObj[chid].EC_G168Process);
+					else
+						RtkEcObj[chid].EC_G168Process( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
 					          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)),
 					          (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)) );
+					
+#ifdef EXPER_NR
+					extern void NR(unsigned int chid, int16_t *p_output, int16_t *p_input);
+					NR(chid, (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)));
+#endif
 	#else
 					frequency_echo_cancellation( chid, lec_ref/*(Word16*)&LEC_Rin_CircBuf[chid][80*PCM_PERIOD*LEC_buf_rindex[chid] +i*PCM_PERIOD_10MS_SIZE/2+sync_sample_offset_daa[chid]]*/,
 //					( bWideband ? rxBuf_NB : (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)) ),
@@ -1067,9 +1182,12 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 #endif
 
 #ifdef EXPER_NR
+#ifdef CONFIG_RTK_VOIP_IP_PHONE
 				extern int iphone_handfree;
 				if(iphone_handfree==1)
-					NR( chid, (Word16*)(rx_fifo[chid][rx_fifo_cnt_w[chid]]), (Word16*)(rx_fifo[chid][rx_fifo_cnt_w[chid]]));
+#endif
+					NR(chid, (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), (Word16*)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)));
+					//NR( chid, (Word16*)(rx_fifo[chid][rx_fifo_cnt_w[chid]]), (Word16*)(rx_fifo[chid][rx_fifo_cnt_w[chid]]));
 #endif
 
 			}
@@ -1081,7 +1199,7 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 			if(rx_mute[chid] == 1)
 			{
 #ifdef USE_MEM64_OP
-                                memset64s(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2);
+                                memset64(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2);
 #else                                
                                 memset(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE);
 #endif                                
@@ -1090,7 +1208,7 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 				// do nothing
 #else
 #ifdef USE_MEM64_OP
-                                memcpy64s(rx_fifo[chid][rx_fifo_cnt_w[chid]], rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2),  PCM_PERIOD_10MS_SIZE/2);
+                                memcpy64(rx_fifo[chid][rx_fifo_cnt_w[chid]], rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2),  PCM_PERIOD_10MS_SIZE/2);
 #else                                
                                 memcpy(rx_fifo[chid][rx_fifo_cnt_w[chid]], rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2),  PCM_PERIOD_10MS_SIZE);
 #endif                                
@@ -1118,7 +1236,7 @@ static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 		if (!bWideband && pcm_ch_for_DAA == 1)
 		{
 		
-		if ((support_AES[chid] == 0) || (FindStartCodecTypeDesc(chid) == NULL ) || (aes_do_cnt[chid] == aes_do_times[chid]))
+		if ((support_AES[chid] == 0) || ( FindStartTranCodecTypeDesc( chid ) != NULL ) || (FindStartRecvCodecTypeDesc(chid) == NULL ) || (aes_do_cnt[chid] == aes_do_times[chid]))
 		{
 			goto SKIP_AES;
 		}
@@ -1181,6 +1299,8 @@ SKIP_AES:
 		{
 	#ifndef ANSTONE_DET_PRIOR_LEC
 	    #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
+	    #if 0
+	    	// rxBuf_NB have been down sampled at PCMRX_RESAMPLER_OFFSET
 			if( bWideband ) {
 				resampler_process_int_ex(pResampler_down_st, 
 					PCMRX_LEC_RESAMPLER_OFFSET + chid, // see MAX_NB_CHANNELS to know detail  
@@ -1188,6 +1308,7 @@ SKIP_AES:
 					rxBuf_NB, PCM_PERIOD_10MS_SIZE/2,
 					"PCM-RX-post-LEC down error = %d\n" );
 			}
+		#endif
 			rxBuf_tmp = ( bWideband ? rxBuf_NB : rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2) );
 			answer_tone_det(chid, (short*)(rxBuf_tmp), 0);
 	    #else
@@ -1250,8 +1371,9 @@ SKIP_AES:
 		
 
 			dtmf_det_threshold_current = dtmf_det_threshold[chid][0];
-			
-			if (talk_flag[chid] == 1)
+
+#if 0	// disable for DTMF det after LEC			
+			if (talk_flag[chid] > 0)
 			{
 				// when talking using high level in order to avoid to detect the echo dtmf.
 				if (dtmf_det_threshold_dBm_get(chid, 0) > 16 ) /* threshold < -16dBm */
@@ -1259,18 +1381,150 @@ SKIP_AES:
 					dtmf_det_threshold_current  = dtmf_det_threshold_dBm2Hex(DTMF_POWER_LEVEL_MINUS_16DBM);
 				}
 			}
+#endif
 
-		
+#ifdef DTMF_ECHO_SUPPRESS //Prevent DTMF echo to be detect a DTMF event
+
+			#define LEC_REF_DIR	2
+
+			unsigned int dur;
+			uint16* lec_ref_tmp;
+			Dtmf_det_out lec_ref_dtmf;
+			static char lec_ref_digit[MAX_DSP_RTK_CH_NUM] = {[ 0 ... MAX_DSP_RTK_CH_NUM-1] = 16};
+			static char lec_ref_digit2[MAX_DSP_RTK_CH_NUM] = {[ 0 ... MAX_DSP_RTK_CH_NUM-1] = 'Z'};
+
+			if (dtmf_chid[chid][LEC_REF_DIR] == 1)
+			{
+				//ProfileEnterPoint(PROFILE_INDEX_DTMFDEC);
+#ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
+				// WB support, down sampling for lec_ref
+	
+				if( bWideband )
+				{
+					resampler_process_int_ex(pResampler_down_st, 
+						PCMRX_LEC_REF_OFFSET + chid, // see MAX_NB_CHANNELS to know detail  
+						lec_ref, PCM_PERIOD_10MS_SIZE/2*2, 
+						lec_ref_NB, PCM_PERIOD_10MS_SIZE/2,
+						"PCMRX-LEC-ref down error = %d\n" );
+				}
+				lec_ref_tmp = ( bWideband ? lec_ref_NB : lec_ref );
+#endif
+
+#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+
+				if (dtmf_freq_offset_det_get(chid, LEC_REF_DIR) != 0)
+				{
+					lec_ref_dtmf = dtmf_decoder_v2(chid, LEC_REF_DIR, (char *)(lec_ref_tmp), dtmf_det_threshold_current);
+				}
+				else
+				{
+					lec_ref_dtmf = dtmf_decoder(chid, LEC_REF_DIR, (char *)(lec_ref_tmp), dtmf_det_threshold_current);
+				}
+#else
+				lec_ref_dtmf = dtmf_decoder(chid, LEC_REF_DIR, (char *)(lec_ref_tmp), dtmf_det_threshold_current);
+#endif
+					
+				if (lec_ref_dtmf.digit != 'Z')
+				{
+					//PRINT_R("%c-", lec_ref_dtmf.digit);
+					//lec_ref_digit[chid] = lec_ref_dtmf.digit;
+					
+					lec_ref_digit2[chid] = lec_ref_dtmf.digit;
+	
+					if ((lec_ref_dtmf.digit>='0') && (lec_ref_dtmf.digit<='9'))
+						lec_ref_digit[chid] = lec_ref_dtmf.digit-48; // 0~9
+					else if ((lec_ref_dtmf.digit>='A') && (lec_ref_dtmf.digit<='D'))
+						lec_ref_digit[chid] = lec_ref_dtmf.digit-53; // A~D
+					else if (lec_ref_dtmf.digit=='*')
+						lec_ref_digit[chid] = 10;			   // *
+					else if (lec_ref_dtmf.digit=='#')
+						lec_ref_digit[chid] = 11;			   // #
+					else
+					{
+						lec_ref_digit[chid] = 16;
+						PRINT_R("ERR. in %s, line%d\n", __FUNCTION__, __LINE__);
+					}
+	
+				}
+				
+				if (1 == dtmf_det_duration_get(chid, LEC_REF_DIR, &dur, dtmf_det_get_index(chid, LEC_REF_DIR)))
+				{
+					lec_ref_digit[chid] = 16;
+					lec_ref_digit2[chid] = 'Z';
+					//PRINT_R("%d-E\n", dur);
+				}
+			}
+			else
+			{
+				lec_ref_digit[chid] = 16;
+			}
+
+			//ProfileExitPoint(PROFILE_INDEX_DTMFDEC);
+			//ProfilePerDump(PROFILE_INDEX_DTMFDEC, 300);
+
+#endif //DTMF_ECHO_SUPPRESS
+
+#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+
+			// DTMF det with freq. offset is supported.
+			if (dtmf_freq_offset_det_get(chid, 0) != 0)
+			{
+			#ifdef SUPPORT_SLIC_GAIN_CFG	
+				dtmf_digit = dtmf_decoder_v2(chid, 0, det_buff[chid], dtmf_det_threshold_current);
+			#else	
+			  #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
+				rxBuf_tmp = ( bWideband ? rxBuf_NB : rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2) );
+				dtmf_digit = dtmf_decoder_v2(chid, 0, (char *)(rxBuf_tmp), dtmf_det_threshold_current);
+			  #else
+				dtmf_digit = dtmf_decoder_v2(chid, 0, (char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), dtmf_det_threshold_current);
+			  #endif
+			#endif
+			}
+			else
+			{
+			#ifdef SUPPORT_SLIC_GAIN_CFG	
+				dtmf_digit = dtmf_decoder(chid, 0, det_buff[chid], dtmf_det_threshold_current);
+			#else	
+			  #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
+				rxBuf_tmp = ( bWideband ? rxBuf_NB : rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2) );
+				dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf_tmp), dtmf_det_threshold_current);
+			  #else
+				dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), dtmf_det_threshold_current);
+			  #endif
+			#endif
+			}
+
+#else
+
 		#ifdef SUPPORT_SLIC_GAIN_CFG	
-			dtmf_digit = dtmf_dec(det_buff[chid], PCM_PERIOD_10MS_SIZE, chid, dtmf_det_threshold_current, 0);
+			dtmf_digit = dtmf_decoder(chid, 0, det_buff[chid], dtmf_det_threshold_current);
 		#else	
 		  #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
 			rxBuf_tmp = ( bWideband ? rxBuf_NB : rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2) );
-			dtmf_digit = dtmf_dec((char *)(rxBuf_tmp), PCM_PERIOD_10MS_SIZE, chid, dtmf_det_threshold_current, 0);
+			dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf_tmp), dtmf_det_threshold_current);
 		  #else
-			dtmf_digit = dtmf_dec((char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), PCM_PERIOD_10MS_SIZE, chid, dtmf_det_threshold_current, 0);
+			dtmf_digit = dtmf_decoder(chid, 0, (char *)(rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2)), dtmf_det_threshold_current);
 		  #endif
 		#endif
+
+#endif //DTMF_DET_FREQ_OFFSET_REFINE
+
+#ifdef DTMF_ECHO_SUPPRESS
+		if (dtmf_chid[chid][LEC_REF_DIR] == 1)
+		{
+			if (dtmf_digit.digit != 'Z') 
+			{
+				//PRINT_G("%c-%c\n", lec_ref_digit2[chid], dtmf_digit.digit);
+
+				if (lec_ref_digit2[chid] == dtmf_digit.digit)
+				{
+					// suppress DTMF echo event: earlier suppression
+					//PRINT_R("e-sup\n");
+					dtmf_echo_suppress[chid] = 1;
+				}
+			}
+		}
+#endif
 
 #ifdef FSK_TYPE2_ACK_CHECK
 		extern unsigned int gtype2_waiting_for_ack_time[];
@@ -1280,7 +1534,15 @@ SKIP_AES:
 			fsk_cid_type2_ack[chid] = 1;	// Get Type2 FSK Ack
 			gtype2_waiting_for_ack_time[ chid ] = timetick - gtype2_waiting_for_ack_time[ chid ];
 			PRINT_MSG("Get Type2 FSK Ack %c-tone, ch=%d\n", dtmf_digit.digit, chid);
+#ifdef FSK_TYPE2_DEBUG
+			printk("%c-tone timetick=%d\n ", dtmf_digit.digit,timetick);
+#endif			
 		}
+		if ((fsk_cid_type2_ack[chid] == 1) && (dtmf_digit.digitOnOff == DSIL))
+		{
+			fsk_cid_type2_ack_end[chid] = 1;
+			//PRINT_R("ack end\n");
+		}	
 #endif
 #ifdef CUSTOMIZE_DTMF_MINIMUM_ON_TIME
 		extern char dtmf_pre_stat[][2];
@@ -1289,25 +1551,48 @@ SKIP_AES:
 		if (dtmf_digit.digitOnOff!=DSIL) {
 			dtmf_on_cnt_10ms[chid][0]++;
 			if (dtmf_on_cnt_10ms[chid][0]==dtmf_det_on_time_get(chid, 0)) {
+#ifdef DTMF_ECHO_SUPPRESS
+				if (lec_ref_digit[chid] != dtmf_digit.digitOnOff)
+				{
+					voip_event_dtmf_in( chid, dtmf_conv_table[dtmf_digit.digitOnOff], 0, 0, 0 );
+					dtmf_on_flag[chid][0]=1;
+				}
+				else
+				{
+					// suppress DTMF echo event: later suppression
+					dtmf_echo_suppress[chid] = 1;
+					dtmf_on_flag[chid][0]=1;
+					//dtmf_on_cnt_10ms[chid][0]=0;
+					//PRINT_R("ED\n");
+				}
+#else
 				voip_event_dtmf_in( chid, dtmf_conv_table[dtmf_digit.digitOnOff], 0, 0, 0 );
 				dtmf_on_flag[chid][0]=1;
+#endif
 			}
 		} else if (dtmf_pre_stat[chid][0]!=DSIL) {
 
 		} else {
 #ifdef DTMF_DET_DURATION_HIGH_ACCURACY
 			unsigned int duration;
-			if ( 1 == dtmf_det_duration_get(chid, 0, &duration))
+			if (( 1 == dtmf_on_flag[chid][0] ) && ( 1 == dtmf_det_duration_get(chid, 0, &duration, dtmf_det_get_index(chid, 0))))
+#ifdef DTMF_ECHO_SUPPRESS
 			{
-				voip_event_dtmf_in( chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1), duration );
-				get_dtmf_dBFS(chid, 0, 1);
-				dtmf_on_cnt_10ms[chid][0]=0;
-				dtmf_on_flag[chid][0]=0;
+				if (dtmf_echo_suppress[chid] == 1)
+					dtmf_echo_suppress[chid] = 0;
+				else
+					voip_event_dtmf_in( chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0)), duration );
 			}
 #else
+				voip_event_dtmf_in( chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0)), duration );
+#endif
+			get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0));
+			dtmf_on_cnt_10ms[chid][0]=0;
+			dtmf_on_flag[chid][0]=0;
+#else
 			if (dtmf_on_flag[chid][0])
-				voip_event_dtmf_in(chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1), 10*dtmf_on_cnt_10ms[chid][0]);
-			get_dtmf_dBFS(chid, 0, 1);
+				voip_event_dtmf_in(chid, 'E', 0, get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0)), 10*dtmf_on_cnt_10ms[chid][0]);
+			get_dtmf_dBFS(chid, 0, 1, dtmf_det_get_index(chid, 0));
 			dtmf_on_cnt_10ms[chid][0]=0;
 			dtmf_on_flag[chid][0]=0;
 #endif
@@ -1383,14 +1668,14 @@ SKIP_AES:
 		isConference = chanInfo_IsConference(chid);
 		chanInfo_GetRegSessionRank(chid, pSessRank);
 		
-		if (isConference)
+		//if (isConference)
 			SessNum = chanInfo_GetRegSessionNum(chid);
-		else
-			SessNum = 1;
+		//else
+		//	SessNum = 1;
 			
 		for (j=0; j < SessNum; j++)
 		{
-			if( ppStartCodecTypeDesc[pSessRank[j]] == NULL )
+			if( ppStartTranCodecTypeDesc[pSessRank[j]] == NULL )
 				continue;
 				
 			if( pSessRank[j] == SESSION_NULL )
@@ -1401,8 +1686,17 @@ SKIP_AES:
 
 			if (rfc2833_dtmf_pt_local[pSessRank[j]]!=0 && rfc2833_dtmf_pt_remote[pSessRank[j]]!=0)//Not DTMF Inband
 			{
-				send_2833_flag_ss = 1;
-				send_2833_flag_ch = 1;	// flag set means at least 1 session of this channel send 2833
+#ifdef DTMF_ECHO_SUPPRESS
+				if (dtmf_echo_suppress[chid] == 1)
+				{
+					send_2833_flag_ss = 0;
+				}
+				else
+#endif
+				{
+					send_2833_flag_ss = 1;
+					send_2833_flag_ch = 1;	// flag set means at least 1 session of this channel send 2833
+				}
 			}
 			else
 			{
@@ -1428,47 +1722,67 @@ SKIP_AES:
 						if (dtmf_digit.digit >= 48 && dtmf_digit.digit <= 57 && send_dtmf_flag[pSessRank[j]] == 0)	/* 0 to 9  */
 						{
 							send_dtmf_flag[pSessRank[j]] = 1;
-							g_digit[chid] = dtmf_digit.digit-48;
-							//printk("->%d\n",g_digit[chid]);
+							g_digit[pSessRank[j]] = dtmf_digit.digit-48;
+							//PRINT_G("->%d\n",g_digit[pSessRank[j]]);
 						}
 						else if (dtmf_digit.digit >= 65 && dtmf_digit.digit <= 68 && send_dtmf_flag[pSessRank[j]] == 0)	/* A to D  */
 						{
 							send_dtmf_flag[pSessRank[j]] = 1;
-							g_digit[chid] = dtmf_digit.digit-65+12;
-							//printk("->%d\n",g_digit[chid]);
+							g_digit[pSessRank[j]] = dtmf_digit.digit-65+12;
+							//PRINT_G("->%d\n",g_digit[pSessRank[j]]);
 						}
 						else if (dtmf_digit.digit == 42 && send_dtmf_flag[pSessRank[j]] == 0)	/* (*) */
 						{
 							send_dtmf_flag[pSessRank[j]] = 1;
-							g_digit[chid] = dtmf_digit.digit-42+10;
-							//printk("->%d\n",g_digit[chid]);
+							g_digit[pSessRank[j]] = dtmf_digit.digit-42+10;
+							//PRINT_G("->%d\n",g_digit[pSessRank[j]]);
 						}
 						else if (dtmf_digit.digit == 35 && send_dtmf_flag[pSessRank[j]] == 0)	/* (#) */
 						{
 							send_dtmf_flag[pSessRank[j]] = 1;
-							g_digit[chid] = dtmf_digit.digit-35+11;
-							//printk("->%d\n",g_digit[chid]);
+							g_digit[pSessRank[j]] = dtmf_digit.digit-35+11;
+							//PRINT_G("->%d\n",g_digit[pSessRank[j]]);
 						}
 						else if (dtmf_digit.digit == 'Z' && send_dtmf_flag[pSessRank[j]] == 0)
 						{
-							g_digit[chid] = -1;
+							g_digit[pSessRank[j]] = -1;
+							//PRINT_R("->%d\n",g_digit[pSessRank[j]]);
 						}
 					}
 	
-					if (send_dtmf_flag[pSessRank[j]] == 1 && (i%PCM_PERIOD) == 0 && (g_digit[chid] != -1))
+					if (send_dtmf_flag[pSessRank[j]] == 1 && (i%PCM_PERIOD) == 0 && (g_digit[pSessRank[j]] != -1))
 					{
 						//bypass_2833_chid_limit = 1;
 						
 label_send_2833_now:
-						//printk("%d ", pSessRank[j]);
+						//PRINT_Y("%d-%d-%d\n", pSessRank[j], dtmf_removal[chid][0], dtmf_removal_pre[chid]);
 						
+
+						if (RtpOpen[pSessRank[j]] == 0)			// Check RTP session opened or not 
+						{
+							send_dtmf_flag[pSessRank[j]] = 0;
+							continue;
+						}
+
+						if ((rtpConfigOK[pSessRank[j]]) == 0)	// Check RTP session enable and hold
+						{
+							send_dtmf_flag[pSessRank[j]] = 0;
+							continue;
+						}
+
+						if (isTranMode(pSessRank[j]) == 0)	// Check RTP session state if TX available
+						{
+							send_dtmf_flag[pSessRank[j]] = 0;
+							continue;
+						}
+							
+
 						if ((dtmf_removal[chid][0] == 1) && (dtmf_removal_pre[chid] == 0))
 							rfc2833_count_add(pSessRank[j], 2); // add 20ms 
 						else if ((dtmf_removal[chid][0] == 1) && (dtmf_removal_pre[chid] == 1))
 							rfc2833_count_add(pSessRank[j], 1); // add 10ms 
 	
-						if (RtpOpen[pSessRank[j]])
-							RtpTx_transmitEvent_ISR(chid, pSessRank[j], g_digit[chid]);
+						RtpTx_transmitEvent_ISR(chid, pSessRank[j], g_digit[pSessRank[j]]);
 					}
 				}
 
@@ -1485,7 +1799,7 @@ label_send_2833_now:
 			{
 				for (j=0; j < SessNum; j++)
 				{
-					if( ppStartCodecTypeDesc[pSessRank[j]] == NULL )
+					if( ppStartTranCodecTypeDesc[pSessRank[j]] == NULL )
 						continue;
 						
 					if( pSessRank[j] == SESSION_NULL )
@@ -1535,7 +1849,7 @@ label_send_2833_now:
 		
 #ifdef DTMF_REMOVAL_ISR
 
-		if ( FindStartCodecTypeDesc( chid ) != NULL )
+		if ( FindStartTranCodecTypeDesc( chid ) != NULL )
 		{
 			if ((send_2833_flag_ch == 1) 
 				|| (dtmf_mode[chid] == 1 /*SIP INFO*/)
@@ -1559,7 +1873,7 @@ label_send_2833_now:
 								break;
 							
 #ifdef USE_MEM64_OP
-							memset64s(rx, 0, PCM_PERIOD_10MS_SIZE/2*nWidebandFactor);
+							memset64(rx, 0, PCM_PERIOD_10MS_SIZE/2*nWidebandFactor);
 #else
 							memset(rx, 0, PCM_PERIOD_10MS_SIZE*nWidebandFactor);
 #endif
@@ -1571,7 +1885,7 @@ label_send_2833_now:
 							if (rx_fifo_cnt_w[chid]-j >= 0)
 							{
 #ifdef USE_MEM64_OP
-								memset64s(rx_fifo[chid][(rx_fifo_cnt_w[chid]-j)], 0, PCM_PERIOD_10MS_SIZE/2);
+								memset64(rx_fifo[chid][(rx_fifo_cnt_w[chid]-j)], 0, PCM_PERIOD_10MS_SIZE/2);
 #else
 								memset(rx_fifo[chid][(rx_fifo_cnt_w[chid]-j)], 0, PCM_PERIOD_10MS_SIZE);
 #endif
@@ -1580,7 +1894,7 @@ label_send_2833_now:
 							else
 							{
 #ifdef USE_MEM64_OP
-								memset64s(rx_fifo[chid][(PCM_FIFO_SIZE-j+rx_fifo_cnt_w[chid])], 0, PCM_PERIOD_10MS_SIZE/2);
+								memset64(rx_fifo[chid][(PCM_FIFO_SIZE-j+rx_fifo_cnt_w[chid])], 0, PCM_PERIOD_10MS_SIZE/2);
 #else                                                                
 								memset(rx_fifo[chid][(PCM_FIFO_SIZE-j+rx_fifo_cnt_w[chid])], 0, PCM_PERIOD_10MS_SIZE);
 #endif                                                                
@@ -1600,7 +1914,7 @@ label_send_2833_now:
 						memset(rxBuf, 0, PCM_PERIOD_10MS_SIZE*nWidebandFactor);
 #else
 #ifdef USE_MEM64_OP
-					memset64s(rxBuf, 0, PCM_PERIOD_10MS_SIZE/2);
+					memset64(rxBuf, 0, PCM_PERIOD_10MS_SIZE/2);
 #else                                        
 					memset(rxBuf, 0, PCM_PERIOD_10MS_SIZE);
 #endif                                        
@@ -1622,7 +1936,7 @@ label_send_2833_now:
 							memset(rxBuf, 0, PCM_PERIOD_10MS_SIZE * nWidebandFactor);
 #else
 #ifdef USE_MEM64_OP
-						memset64s(rxBuf, 0, PCM_PERIOD_10MS_SIZE/2);
+						memset64(rxBuf, 0, PCM_PERIOD_10MS_SIZE/2);
 #else
 						memset(rxBuf, 0, PCM_PERIOD_10MS_SIZE);
 #endif                                                
@@ -1665,7 +1979,7 @@ label_send_2833_now:
 			
 			/* clean CED and its gap while switching codec */
 #ifdef USE_MEM64_OP
-			memset64s(pRxFifoCurWriting, 0, PCM_PERIOD_10MS_SIZE/2 * nWidebandFactor);
+			memset64(pRxFifoCurWriting, 0, PCM_PERIOD_10MS_SIZE/2 * nWidebandFactor);
 #else			
 			memset(pRxFifoCurWriting, 0, PCM_PERIOD_10MS_SIZE * nWidebandFactor);
 #endif			
@@ -1685,7 +1999,7 @@ label_send_2833_now:
 				memset(rxBuf, 0, PCM_PERIOD_10MS_SIZE * nWidebandFactor);
 #else
 #ifdef USE_MEM64_OP
-			memset64s(rxBuf, 0, PCM_PERIOD_10MS_SIZE/2);
+			memset64(rxBuf, 0, PCM_PERIOD_10MS_SIZE/2);
 #else
 			memset(rxBuf, 0, PCM_PERIOD_10MS_SIZE);
 #endif
@@ -1762,14 +2076,14 @@ void DisableDspInPcmIsr( voip_dsp_t *this )
 	const uint32 chid = this ->dch;
 	
 	// backup
-	lec_flag_bak[chid] = support_lec_g168[chid];
+	lec_flag_bak[chid] = EC168_GetFlag(chid);
 	fax_modem_flag_bak[chid] = fax_modem_det[chid];
 	//dtmf_flag_bak[chid] = dtmf_chid[chid];
 	cid_det_flag_bak[chid] = caller_id_det[chid];
 	tone_det_flag_bak[chid] = tone_det[chid];
 	
 	// FXS
-	support_lec_g168[chid] = 0;	// lec
+	RtkEcObj[chid].EC_G168Disable(chid);	// lec
 	fax_modem_det[chid] = 0;	// fax/modem
 	//dtmf_chid[chid] = 0;		// dtmf det
 	
@@ -1783,7 +2097,7 @@ void RestoreDspInPcmIsr( voip_dsp_t *this )
 {
 	const uint32 chid = this ->dch;
 	
-	support_lec_g168[chid] = lec_flag_bak[chid];
+	EC168_RestoreFlag(chid, lec_flag_bak[chid]);
 	fax_modem_det[chid] = fax_modem_flag_bak[chid];
 	//dtmf_chid[chid] = dtmf_flag_bak[chid];
 	caller_id_det[chid] = cid_det_flag_bak[chid];
@@ -1811,7 +2125,7 @@ void dsp_rtk_isr_init_var( void )
 		{
 			caller_id_det[i] = 1;
 			tone_det[i] = 1;
-			fax_modem_det[i] = 0;
+			fax_modem_det[i] = 1;
 		}
 		else	// SLIC
 		{
@@ -1819,6 +2133,12 @@ void dsp_rtk_isr_init_var( void )
 			tone_det[i] = 0;
 			fax_modem_det[i] = 1;
 		}
+
+#if (CONFIG_DEFAULT_NEW_EC128)
+		RtkEcObj[i] = LecFreqDomainObj;
+#else
+		RtkEcObj[i] = LecTimeDomainObj;
+#endif
 		
 		// init for DSP backup flag
 		//DisableDspInPcmIsr_dch(i);

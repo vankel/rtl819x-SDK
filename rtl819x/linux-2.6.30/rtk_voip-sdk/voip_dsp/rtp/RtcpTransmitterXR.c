@@ -324,23 +324,25 @@ static int RtcpTx_addXR_VoIPMetrics(uint32 sid, RtcpPacket* p, int npadSize)
 {
 	// rtcpXRBT_VoIPMetrics = 7
 	extern int tx_jit_buf_high_threshold[MAX_DSP_RTK_SS_NUM];
-	extern uint32 GetSessionFramePeriod( uint32 ssid );
+	extern uint32 GetTranSessionFramePeriod( uint32 ssid );
 	extern int JbcRtcpXR_GetNominalDelay( uint32 ssid );
 	extern uint32 JbcStatistics_GetPlayoutDelay( uint32 ssid );
-	extern unsigned char MFFrameNo[MAX_DSP_RTK_SS_NUM];
+	extern unsigned char MFLocalFrameNo[MAX_DSP_RTK_SS_NUM];
+	extern unsigned char MFRemoteFrameNo[MAX_DSP_RTK_SS_NUM];
 	extern int RtcpRx_getAvgRoundTripDelay(uint32 sid);
 	extern uint32 chanInfo_GetChannelbySession(uint32 sid);
-	extern const codec_algo_desc_t *ppNowCodecAlgorithmDesc[MAX_DSP_RTK_SS_NUM];
+	extern const codec_algo_desc_t *ppNowTranCodecAlgorithmDesc[MAX_DSP_RTK_SS_NUM];
 	extern uint32 JbcStatistics_GetMosFactor( uint32 ssid );
 	extern RtcpTransmitter* RtcpTx_getInfo (uint32 sid);
 	extern void rtcp_logger_unit_new_data( RtcpStatisticsUnit *pUnit,
 								unsigned long data );
 	extern int32 get_energy_det_max( int chid );
+	extern EcObj_t RtkEcObj[];
 	
 	RtcpXRReportVoIPMetrics *pMetrics = ( RtcpXRReportVoIPMetrics * )(RtcpPkt_freeData(p));
 	RtpReceiver * const rtpReceiver = RtpRx_getInfo( sid );
 	RtpReceiverXR * const rtpReceiverXR = &rtpReceiver ->xr;
-	const uint32 frame_period = GetSessionFramePeriod( sid );
+	const uint32 frame_period = GetTranSessionFramePeriod( sid );
 	NtpTime nowNtp;
 	uint32 delta;
 	int t;
@@ -348,7 +350,7 @@ static int RtcpTx_addXR_VoIPMetrics(uint32 sid, RtcpPacket* p, int npadSize)
 	unsigned long MOS_LQ_x10 = 100;	// 1.0
 	
 	uint32 chid = chanInfo_GetChannelbySession( sid );
-	const codec_algo_desc_t * const pCodecAlgoDesc = ppNowCodecAlgorithmDesc[ sid ];
+	const codec_algo_desc_t * const pCodecAlgoDesc = ppNowTranCodecAlgorithmDesc[ sid ];
 	//uint32 delta_seq;
 	RtcpTransmitter * pTxInfo = RtcpTx_getInfo( sid );
 	
@@ -384,7 +386,7 @@ static int RtcpTx_addXR_VoIPMetrics(uint32 sid, RtcpPacket* p, int npadSize)
 	pMetrics ->endSystemDelay = 
 		PCM_PERIOD * 10 * 3 / 2 +
 		1 * frame_period +
-		MFFrameNo[ sid ] * frame_period +
+		MFLocalFrameNo[ sid ] * frame_period +
 		PCM_PERIOD * 10 * 3 / 2 +
 		JbcStatistics_GetPlayoutDelay( sid ) * frame_period / 10 +
 		1 * frame_period +
@@ -418,7 +420,7 @@ static int RtcpTx_addXR_VoIPMetrics(uint32 sid, RtcpPacket* p, int npadSize)
 #if 0//def CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
 	pMetrics ->RERL = 127; // TODO not support yet
 #else
-	pMetrics ->RERL = LEC_g168_Get_ERLE( chid ) + 12;
+	pMetrics ->RERL = RtkEcObj[chid].EC_G168GetErle( chid ) + 12;
 #endif
 	
 	// call quality or transmission quality metrics (not implement)
@@ -579,10 +581,10 @@ int RtcpTx_addXR (uint32 sid, RtcpPacket* p, int npadSize)
 
 int rtcp_tx_logger_MOSLQ_string( char *buff, uint32 sid )
 {
-	extern const codec_algo_desc_t *ppNowCodecAlgorithmDesc[MAX_DSP_RTK_SS_NUM];
+	extern const codec_algo_desc_t *ppNowTranCodecAlgorithmDesc[MAX_DSP_RTK_SS_NUM];
 	extern uint32 JbcStatistics_GetMosFactor( uint32 ssid );
 	
-	const codec_algo_desc_t * const pCodecAlgoDesc = ppNowCodecAlgorithmDesc[ sid ];
+	const codec_algo_desc_t * const pCodecAlgoDesc = ppNowTranCodecAlgorithmDesc[ sid ];
 	uint32 factor = JbcStatistics_GetMosFactor( sid );	// Q15 
 	int32 signal_energy, noise_energy, dec_signal, dec_noise;
 	uint32 MOS_LQ_x10;

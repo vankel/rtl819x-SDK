@@ -10,7 +10,8 @@
 #define OPTIMIZE_GET_CODEC_DESC		/* make it to be more efficient. */
 
 #ifdef SUPPORT_MULTI_FRAME
-extern unsigned char MFFrameNo[MAX_DSP_RTK_SS_NUM];
+extern unsigned char MFLocalFrameNo[MAX_DSP_RTK_SS_NUM];
+extern unsigned char MFRemoteFrameNo[MAX_DSP_RTK_SS_NUM];
 #endif
 
 #ifdef OPTIMIZE_GET_CODEC_DESC
@@ -88,7 +89,8 @@ const codec_payload_desc_t *GetCodecPayloadDesc( RtpPayloadType payloadType )
 
 void rtp_main(void)
 {
-	const codec_payload_desc_t *pCodecPayloadDesc;
+	const codec_payload_desc_t *pRecvCodecPayloadDesc;
+	const codec_payload_desc_t *pTranCodecPayloadDesc;
 
 	int i;
 	CRtpConfig Config;
@@ -105,16 +107,17 @@ void rtp_main(void)
 	ConstructCodecPayloadDescMapTable();
 #endif
 
-	Config.m_uPktFormat = rtpPayloadPCMU;
+	Config.m_uRecvPktFormat = rtpPayloadPCMU;
+	Config.m_uTranPktFormat = rtpPayloadPCMU;
 
-	pCodecPayloadDesc = GetCodecPayloadDesc( Config.m_uPktFormat );
+	pTranCodecPayloadDesc = GetCodecPayloadDesc( Config.m_uTranPktFormat );
+	pRecvCodecPayloadDesc = GetCodecPayloadDesc( Config.m_uRecvPktFormat );
 
-	if( pCodecPayloadDesc ) {
-		Config.m_nRecvFrameRate = pCodecPayloadDesc ->nRecvFrameRate;
-		Config.m_nTranFrameRate = pCodecPayloadDesc ->nTranFrameRate;
+	if( pTranCodecPayloadDesc ) {
+		Config.m_nTranFrameRate = pTranCodecPayloadDesc ->nTranFrameRate;
 	} else {
 		/* unknown frame type */
-		printk("[%s] Unknown frame type %d\n", __FUNCTION__, Config.m_uPktFormat);
+		printk("[%s] Unknown tran frame type %d\n", __FUNCTION__, Config.m_uTranPktFormat);
 		assert(0);
 	}
 	
@@ -125,48 +128,84 @@ void rtp_main(void)
 
 }
 
-void rtp_SetConfig(uint32 chid, uint32 sid, RtpPayloadType uPktFormat, uint32 nFramePerPacket)
+void rtp_SetConfig(
+	uint32 chid, 
+	uint32 sid, 
+	RtpPayloadType uLocalPktFormat, 
+	RtpPayloadType uRemotePktFormat, 
+	uint32 nLocalFramePerPacket,
+	uint32 nRemoteFramePerPacket
+	)
 {
 	extern void RtcpTx_reset( uint32 chid, uint32 sid );
-	const codec_payload_desc_t *pCodecPayloadDesc;
+	const codec_payload_desc_t *pLocalCodecPayloadDesc;
+	const codec_payload_desc_t *pRemoteCodecPayloadDesc;
 	CRtpConfig Config;
 	//RtpTerminal_GetConfig(sid, &Config);
-	Config.m_uPktFormat = uPktFormat;
+	Config.m_uTranPktFormat = uLocalPktFormat;
+	Config.m_uRecvPktFormat = uRemotePktFormat;
 
-	pCodecPayloadDesc = GetCodecPayloadDesc( uPktFormat );
+	pLocalCodecPayloadDesc = GetCodecPayloadDesc( uLocalPktFormat );
 
-	if( pCodecPayloadDesc == NULL ) {
-		printk("Rtpterm: Unknow frame type\n");
+	if( pLocalCodecPayloadDesc == NULL ) {
+		printk("Rtpterm: Unknow Local frame type\n");
+		assert(0);
+		return;
+	}
+	pRemoteCodecPayloadDesc = GetCodecPayloadDesc( uRemotePktFormat );
+
+	if( pRemoteCodecPayloadDesc == NULL ) {
+		printk("Rtpterm: Unknow Remote frame type\n");
 		assert(0);
 		return;
 	}
 
-	PRINT_MSG("%s", pCodecPayloadDesc ->pszSetCodecPrompt );
+	PRINT_MSG("TX %s", pLocalCodecPayloadDesc ->pszSetCodecPrompt );
+	PRINT_MSG("RX %s", pRemoteCodecPayloadDesc ->pszSetCodecPrompt );
 
 #ifdef SUPPORT_MULTI_FRAME
-	if(nFramePerPacket == 0)
-		nFramePerPacket = MFFrameNo[sid];
+	if(nLocalFramePerPacket == 0)
+		nLocalFramePerPacket = MFLocalFrameNo[sid];
+
+	if(nRemoteFramePerPacket == 0)
+		nRemoteFramePerPacket = MFRemoteFrameNo[sid];
 #endif
 
 	/* pCodecPayloadDesc point to payload descriptor of the codec. */
 	/* SUPPORT_BASEFRAME_10MS has been considered in descriptor. */
  #ifdef SUPPORT_BASEFRAME_10MS
-	Config.m_nRecvFrameRate = pCodecPayloadDesc ->nRecvFrameRate;
-	Config.m_nTranFrameRate = pCodecPayloadDesc ->nTranFrameRate;
+	Config.m_nRecvFrameRate = pRemoteCodecPayloadDesc ->nRecvFrameRate;
+	Config.m_nTranFrameRate = pLocalCodecPayloadDesc ->nTranFrameRate;
 	
- 	if( nFramePerPacket <= 
- 		( MULTI_FRAME_BUFFER_SIZE / pCodecPayloadDesc ->nFrameBytes ) )
+ 	if( nLocalFramePerPacket <= 
+ 		( MULTI_FRAME_BUFFER_SIZE / pLocalCodecPayloadDesc ->nFrameBytes ) )
  	{
-		MFFrameNo[sid] = nFramePerPacket;
+		MFLocalFrameNo[sid] = nLocalFramePerPacket;
 	}
- #else
-	Config.m_nRecvFrameRate = nFramePerPacket * 
-							  pCodecPayloadDesc ->nRecvFrameRate;
-	Config.m_nTranFrameRate = nFramePerPacket *
-							  pCodecPayloadDesc ->nTranFrameRate;
+	else
+		PRINT_G("%s, line%d, nLocalFramePerPacket(%d) is too large. Set to default 1\n", __FUNCTION__, __LINE__, nLocalFramePerPacket);
 
- 	if( nFramePerPacket <= pCodecPayloadDesc ->nHThresTxFramePerPacket )
- 		MFFrameNo[sid] = nFramePerPacket;
+ 	if( nRemoteFramePerPacket <= 
+ 		( MULTI_FRAME_BUFFER_SIZE / pRemoteCodecPayloadDesc ->nFrameBytes ) )
+ 	{
+		MFRemoteFrameNo[sid] = nRemoteFramePerPacket;
+	}
+	else
+		PRINT_G("%s, line%d, nRemoteFramePerPacket(%d) is too large. Set to default 1\n", __FUNCTION__, __LINE__, nRemoteFramePerPacket);
+ #else
+	Config.m_nRecvFrameRate = nLocalFramePerPacket * 
+							  pRemoteCodecPayloadDesc ->nRecvFrameRate;
+
+	Config.m_nTranFrameRate = nRemoteFramePerPacket *
+							  pLocalCodecPayloadDesc ->nTranFrameRate;
+
+ 	if( nLocalFramePerPacket <= pCodecPayloadDesc ->nHThresTxFramePerPacket ) {
+ 		MFLocalFrameNo[sid] = nLocalFramePerPacket;
+	}
+
+ 	if( nRemoteFramePerPacket <= pCodecPayloadDesc ->nHThresTxFramePerPacket ) {
+ 		MFRemoteFrameNo[sid] = nRemoteFramePerPacket;
+	}
  #endif	
 	
 	Config.m_uTRMode = rtp_session_unchange;	// don't change previous setting 

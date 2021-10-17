@@ -28,9 +28,9 @@ int SetVolumeOfDAC( unsigned char volmic, unsigned char volspk )
 	 * 63: 31dB
 	 */
 	// TODO: In final version, we adjust speaker volume only. 
-	//return rtk_Set_Voice_Gain( IP_CHID, ( int )volume - 32, ( int )volume - 32 );
-	//return rtk_Set_Voice_Gain( IP_CHID, 0, ( int )volume - 32 );
-	return rtk_Set_Voice_Gain( IP_CHID, ( int )volspk - 32, ( int )volmic - 32 );
+	//return rtk_SetVoiceGain( IP_CHID, ( int )volume - 32, ( int )volume - 32 );
+	//return rtk_SetVoiceGain( IP_CHID, 0, ( int )volume - 32 );
+	return rtk_SetVoiceGain( IP_CHID, ( int )volspk - 32, ( int )volmic - 32 );
 #else
 	/* 
 	 * 0000 0000: mute

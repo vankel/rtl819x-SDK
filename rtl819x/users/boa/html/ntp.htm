@@ -73,13 +73,17 @@ function updateState(form)
 {
 	if(form.enabled.checked){
 		enableTextField(form.ntpServerIp1);
-		form.dlenabled.disabled=false;
+		//form.dlenabled.disabled=false;
+		form.ntpServerId[0].disabled=false;
+		form.ntpServerId[1].disabled=false;
 		if(form.ntpServerIp2 != null)
 			enableTextField(form.ntpServerIp2);
 	}
 	else{
 		disableTextField(form.ntpServerIp1);
-		form.dlenabled.disabled=true;
+		//form.dlenabled.disabled=true;
+		form.ntpServerId[0].disabled=true;
+		form.ntpServerId[1].disabled=true;
 		if(form.ntpServerIp2 != null)
 			disableTextField(form.ntpServerIp2);
 	}
@@ -170,6 +174,11 @@ function init()
             </select>
 	    </td>
 	</tr>	
+	<tr><td colspan="2"><font size=2><b>
+		<input type="checkbox" name="dlenabled" value="ON">
+		&nbsp;Automatically Adjust Daylight Saving </b><br>
+	    </td>
+	</tr>
 	<tr ><td height=10> </td> </tr>
 
 	<tr><td colspan="2"><font size=2><b>
@@ -177,11 +186,7 @@ function init()
 		ONCLICK=updateState(document.time)>&nbsp;&nbsp;Enable NTP client update </b><br>
 	    </td>
 	</tr>
-	<tr><td colspan="2"><font size=2><b>
-		<input type="checkbox" name="dlenabled" value="ON">
-		&nbsp;Automatically Adjust Daylight Saving </b><br>
-	    </td>
-	</tr>
+	
 	<tr>
 	<td width ="25%">
 	<font size=2> <b> NTP server : </b> </font>
@@ -189,12 +194,8 @@ function init()
 	<td width ="75%">
 		<input type="radio" value="0" name="ntpServerId"></input>
 		<select name="ntpServerIp1">
-			<option value="192.5.41.41">192.5.41.41    - North America</option>
-			<option value="192.5.41.209">192.5.41.209   - North America</option>
-			<option value="208.184.49.9">208.184.49.9   - North America</option>
 			<option value="131.188.3.220">131.188.3.220  - Europe</option>
 			<option value="130.149.17.8">130.149.17.8   - Europe</option>
-			<option value="203.60.1.2"> 203.60.1.2  - Australia</option>
 			<option value="203.117.180.36"> 203.117.180.36 - Asia Pacific</option>
 			</select>
 		</td>

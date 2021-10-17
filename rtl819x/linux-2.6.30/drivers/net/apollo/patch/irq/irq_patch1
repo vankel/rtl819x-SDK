@@ -1,0 +1,23 @@
+--- bsp_rtl8686/irq.c	2012-05-09 16:12:46.492398317 +0800
++++ bsp_rtl8686/irq_new.c	2012-05-09 16:13:22.880393568 +0800
+@@ -231,9 +231,10 @@
+ 				return;
+ 
+ 				if ((extint1_ip & 1) && (dispatch_table[tmp1+IRQ_HI_BOUND+1] >= 0)) {
+-					if((tmp1+IRQ_HI_BOUND+1) != 49 && (tmp1+IRQ_HI_BOUND+1) !=43){
++					/*if((tmp1+IRQ_HI_BOUND+1) != 49 && (tmp1+IRQ_HI_BOUND+1) !=43){
+ 					prom_printf("tmp=%d, interrupt pin is %d\n",tmp,tmp1+IRQ_HI_BOUND+1);
+ 					}
++					*/
+ 					do_IRQ(dispatch_table[tmp1+IRQ_HI_BOUND+1]);
+ 				}
+ 		
+@@ -255,7 +256,7 @@
+ 			}
+ 		}
+ 		else if((extint0_ip & 1) && (dispatch_table[tmp] >= 0)) {
+-			prom_printf("tmp=%d, interrupt pin is %d\n",tmp,tmp);
++			/*prom_printf("tmp=%d, interrupt pin is %d\n",tmp,tmp);*/
+ 			do_IRQ(dispatch_table[tmp]);
+ 		}
+ 

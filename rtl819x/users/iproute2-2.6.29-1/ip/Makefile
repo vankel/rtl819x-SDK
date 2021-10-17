@@ -23,6 +23,9 @@ install: all
 clean:
 	rm -f $(ALLOBJ) $(TARGETS)
 
+romfs:
+	$(ROMFSINST) ip /bin/ip
+
 LDLIBS += -ldl
 
 LDFLAGS += -Wl,-export-dynamic

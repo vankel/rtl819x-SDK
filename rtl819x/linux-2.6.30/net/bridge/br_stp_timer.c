@@ -22,7 +22,7 @@
 #include <net/rtl/rtk_stp.h>
 #endif
 
-#if defined (CONFIG_RTK_MESH)
+#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 //static void br_eth_disable_timer_expired(unsigned long arg);
 static void br_eth0_monitor_timer_expired(unsigned long arg);
 //static void br_eth0_autostp_timer_expired(unsigned long arg);
@@ -328,7 +328,7 @@ void br_stp_timer_init(struct net_bridge *br)
 
 	setup_timer(&br->gc_timer, br_fdb_cleanup, (unsigned long) br);
 
-	#if defined (CONFIG_RTK_MESH)
+	#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 	setup_timer(&br->eth0_monitor_timer,
 		      br_eth0_monitor_timer_expired,
 		      (unsigned long) br);
@@ -342,7 +342,7 @@ void br_stp_timer_init(struct net_bridge *br)
 	#endif
 }
 
-#if defined (CONFIG_RTK_MESH)
+#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 static void br_eth0_monitor_timer_expired(unsigned long arg)
 {
 	struct net_bridge *br = (struct net_bridge *) arg;

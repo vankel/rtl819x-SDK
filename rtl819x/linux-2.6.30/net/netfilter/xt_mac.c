@@ -81,7 +81,7 @@ static bool mac_mt(const struct sk_buff *skb, const struct xt_match_param *par)
 	    	}
 	}
 
-	if (info->flags & MAC_DST) {
+	if (info->flags & MAC_DST) {		
 	     /* Is mac pointer valid? */
 	    if( (skb_mac_header(skb) >= skb->head
 		    && (skb_mac_header(skb) + ETH_HLEN) <= skb->data

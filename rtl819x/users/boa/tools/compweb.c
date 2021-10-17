@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include "apmib.h"
 
-#define MAXFNAME	60
+#define MAXFNAME	256
 
 #undef WEB_PAGE_OFFSET
 
@@ -133,14 +133,14 @@ static void strip_dirpath(char *file, char *dirpath)
 /////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
 {
-	FILE *fpList;
+	FILE *fpList=NULL;
 	char *outFile, *fileList;
 	char *platform, *tag;
 	struct stat fst;
 	char buf[512], dirpath[100], file[MAXFNAME], tmpFile[100];
 	FILE_ENTRY_T entry;
 	unsigned char	*p;
-	int i, len, fd, fh, filenum=0, is_web=1, pad=0;
+	int i, len, fd=-1, fh=-1, filenum=0, is_web=1, pad=0;
 	IMG_HEADER_T head;
 
 	platform = argv[1];
@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
 	if(!strcmp(platform, "vpn"))
 #if defined(CONFIG_RTL_8196B)
 		tag = "w6bv";
-#elif defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#elif defined(CONFIG_RTL_8198C) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
                 tag = "w6cv";
 #else		
 		tag = "webv";
@@ -160,7 +160,7 @@ int main(int argc, char* argv[])
 	else if(!strcmp(platform, "gw"))
 #if defined(CONFIG_RTL_8196B)
 		tag = "w6bg";
-#elif defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#elif defined(CONFIG_RTL_8198C) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
                 tag = "w6cg";
 #else		
 		tag = "webg";
@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
 	else if(!strcmp(platform, "ap"))
 #if defined(CONFIG_RTL_8196B)
 		tag = "w6ba";
-#elif defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#elif defined(CONFIG_RTL_8198C) ||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
                 tag = "w6ca";
 #else
 		tag = "weba";
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 	else if(!strcmp(platform, "cl"))
 #if defined(CONFIG_RTL_8196B)
 		tag = "w6bc";
-#elif defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#elif defined(CONFIG_RTL_8198C) ||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
                 tag = "w6cc";
 #else		
 		tag = "webc";
@@ -185,22 +185,23 @@ int main(int argc, char* argv[])
 		printf("unknow platform!\n");	
 		return 0;
 	}
-		
+
+	if(fh>0) { close(fh);fh=-1;}
 	fh = open(outFile, O_RDWR|O_CREAT|O_TRUNC);
 	if (fh == -1) {
 		printf("Create output file error %s!\n", outFile );
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 	lseek(fh, 0L, SEEK_SET);
-
+	
+	if(fpList) {fclose(fpList);fpList=NULL;}
 	if ((fpList = fopen(fileList, "r")) == NULL) {
 		printf("Can't open file list %s\n!", fileList);
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 	if (lookfor_homepage_dir(fpList, dirpath, is_web)<0) {
 		printf("Can't find home.asp or home.htm page\n");
-		fclose(fpList);
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 
 	fseek(fpList, 0L, SEEK_SET);
@@ -227,9 +228,10 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
+		if(fd>0) {close(fd);fd=-1;}
 		if ((fd = open(file, O_RDONLY)) < 0) {
 			printf("Can't open file %s\n", file);
-			exit(1);
+			goto EXIT_COMWEB;
 		}
 		lseek(fd, 0L, SEEK_SET);
 
@@ -240,18 +242,19 @@ int main(int argc, char* argv[])
 
 		if ( write(fh, (const void *)&entry, sizeof(entry))!=sizeof(entry) ) {
 			printf("Write file failed!\n");
-			exit(1);
+			goto EXIT_COMWEB;
 		}
 
 		i = 0;
 		while ((len = read(fd, buf, sizeof(buf))) > 0) {
 			if ( write(fh, (const void *)buf, len)!=len ) {
 				printf("Write file failed!\n");
-				exit(1);
+				goto EXIT_COMWEB;
 			}
 			i += len;
 		}
 		close(fd);
+		fd=-1;
 		if ( i != fst.st_size ) {
 			printf("Size mismatch in file %s!\n", file );
 		}
@@ -262,7 +265,9 @@ int main(int argc, char* argv[])
 	}
 
 	fclose(fpList);
+	fpList=NULL;
 	close(fh);
+	fh=-1;
 	sync();
 
 // for debug -------------
@@ -277,13 +282,13 @@ system(tmpFile);
 
 	if ( compress(outFile, tmpFile) < 0) {
 		printf("compress file error!\n");
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 
 	// append header
 	if (stat(tmpFile, &fst) != 0) {
 		printf("Create file error!\n");
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 	if((fst.st_size+1)%2)
 		pad = 1;
@@ -291,45 +296,58 @@ system(tmpFile);
 	memset(p, 0 , fst.st_size + 1);
 	if ( p == NULL ) {
 		printf("allocate buffer failed!\n");
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 
 	memcpy(head.signature, tag, 4);
 	head.len = fst.st_size + 1 + pad;
+	printf("%s:%d len=%d leftLen=%d\n",__FILE__,__LINE__,head.len+sizeof(IMG_HEADER_T),CODE_IMAGE_OFFSET-WEB_PAGE_OFFSET);
+	if(CODE_IMAGE_OFFSET-WEB_PAGE_OFFSET<head.len+sizeof(IMG_HEADER_T))
+	{
+		printf("webpage over size!!!!!Please remove some unused html files!\n");
+		free(p);
+		unlink(tmpFile);		
+		return -1;
+	}
 	head.len = DWORD_SWAP(head.len);
 	head.startAddr = DWORD_SWAP(WEB_PAGE_OFFSET);
 	head.burnAddr = DWORD_SWAP(WEB_PAGE_OFFSET);
 
+	if(fd>0) {close(fd);fd=-1;}
 	if ((fd = open(tmpFile, O_RDONLY)) < 0) {
 		printf("Can't open file %s\n", tmpFile);
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 	lseek(fd, 0L, SEEK_SET);
 	if ( read(fd, p, fst.st_size) != fst.st_size ) {
 		printf("read file error!\n");
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 	close(fd);
+	fd=-1;
 
 	p[fst.st_size + pad] = CHECKSUM(p, (fst.st_size+pad));
 
+	if(fh>0) {close(fh);fh=-1;}
 	fh = open(outFile, O_RDWR|O_CREAT|O_TRUNC);
 	if (fh == -1) {
 		printf("Create output file error %s!\n", outFile );
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 
 	if ( write(fh, &head, sizeof(head)) != sizeof(head)) {
 		printf("write header failed!\n");
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 
 	if ( write(fh, p, (fst.st_size+1+pad) ) != (fst.st_size+1+pad)) {
 		printf("write data failed!\n");
-		exit(1);
+		goto EXIT_COMWEB;
 	}
 
-	close(fh);
+	if(fh>0) close(fh);
+	if(fd>0) close(fd);
+	if(fpList!=NULL) fclose(fpList);
 	chmod(outFile,  DEFFILEMODE);
 
 	sync();
@@ -338,4 +356,9 @@ system(tmpFile);
 	unlink(tmpFile);
 
 	return 0;
+EXIT_COMWEB:
+	if(fh>0) close(fh);
+	if(fd>0) close(fd);
+	if(fpList!=NULL) fclose(fpList);
+	exit(1);
 }

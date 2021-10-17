@@ -26,7 +26,7 @@ obj-$(CONFIG_USB_SEVSEG)	+= usbsevseg.o
 obj-$(CONFIG_USB_VST)		+= vstusb.o
 
 obj-$(CONFIG_USB_SISUSBVGA)	+= sisusbvga/
-#obj-$(CONFIG_RTS5139)		+= rts51xx/
+obj-$(CONFIG_RTS5139)		+= rts51xx/
 
 ifeq ($(CONFIG_USB_DEBUG),y)
 EXTRA_CFLAGS += -DDEBUG

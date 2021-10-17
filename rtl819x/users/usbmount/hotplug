@@ -14,3 +14,12 @@ if [ -e $PID_FILE ]; then
         PID=`cat $PID_FILE`
         kill -USR1 $PID
 fi      
+
+killall -9 minidlna
+minidlna -R -f etc/minidlna.conf
+
+
+
+
+
+

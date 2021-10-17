@@ -138,7 +138,7 @@ void RtpRx_FillBurstPacketLossCalc( uint32 sid,
 #define SDIV( x, y )	( ( y ) ? ( ( x ) / ( y ) ) : 0 )
 
 	extern unsigned short rx_frames_per_packet[MAX_DSP_RTK_SS_NUM];
-	extern uint32 GetSessionFramePeriod( uint32 ssid );
+	extern uint32 GetRecvSessionFramePeriod( uint32 ssid );
 	
 	uint32 ctotal;
 	uint32 p32_q8, p23_q8;
@@ -188,7 +188,7 @@ void RtpRx_FillBurstPacketLossCalc( uint32 sid,
 	// Calculate burst and gap durations in ms
 	//m = frameDuration_in_ms * framesPerRTPPkt;
 	//m = 10 * 1; 
-	m = GetSessionFramePeriod( sid ) * rx_frames_per_packet[ sid ];
+	m = GetRecvSessionFramePeriod( sid ) * rx_frames_per_packet[ sid ];
 	gap_length = SDIV( (pInfoXR ->A2_c11 + pInfoXR ->A2_c14 + pInfoXR ->A2_c13) * m, pInfoXR ->A2_c13 );
 	burst_length = SDIV( ctotal * m, pInfoXR ->A2_c13 ) - gap_length/*lgap*/;
 	
@@ -402,38 +402,41 @@ void RtpRx_IncDiscard( uint32 sid )
 void RtcpXR_FillSummaryBlock( RtcpXRReportStatisticsSummary *pReport, 
 					const RtpReceiverXR *pInfoXR )
 {
+#define SDIV( x, y )	( ( y ) ? ( ( x ) / ( y ) ) : 0 )
+
 	uint16 delta_seq = pInfoXR ->end_seq - pInfoXR ->begin_seq;
 	uint32 mean, t;
-	
+
 	// loss
 	pReport ->lost_packets = pInfoXR ->loss_count;
 	
 	// dup 
-	pReport ->dup_packets = pInfoXR ->dup_count;	
+	pReport ->dup_packets = pInfoXR ->dup_count;
 	
 	// jitter 
 	pReport ->min_jitter = pInfoXR ->min_jitter;
 	pReport ->max_jitter = pInfoXR ->max_jitter;
 	
-	mean = pInfoXR ->sum_jitter / delta_seq;
+	mean = SDIV( pInfoXR ->sum_jitter, delta_seq);
 	pReport ->mean_jitter = mean;
-	
-	t = pInfoXR ->squ_jitter / delta_seq - mean * mean;
+
+	t = SDIV( pInfoXR ->squ_jitter, delta_seq) - mean * mean;
 	pReport ->dev_jitter = NaturalSqrt( t );
 	
 	// ttl
 	pReport ->min_ttl_or_hl = pInfoXR ->min_ttl;
 	pReport ->max_ttl_or_hl = pInfoXR ->max_ttl;
-	
-	mean = pInfoXR ->sum_ttl / delta_seq;
+
+	mean = SDIV( pInfoXR ->sum_ttl, delta_seq);
 	pReport ->mean_ttl_or_hl = mean;
-	
+
 	if( pReport ->min_ttl_or_hl == pReport ->max_ttl_or_hl )
 		pReport ->dev_ttl_or_hl = 0;
 	else 
 	{
-		t = pInfoXR ->squ_ttl / delta_seq - mean * mean;
+		t = SDIV( pInfoXR ->squ_ttl, delta_seq) - mean * mean;
 		pReport ->dev_ttl_or_hl = NaturalSqrt( t );
 	}
+#undef SDIV
 }
 

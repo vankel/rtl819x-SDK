@@ -178,6 +178,13 @@ extern int8						*pVirtualSWTable;
 #define PIN_MUX_SEL_2                           (SYSTEM_BASE + 0x0044)
 #endif
 
+#define RTL8197D_RGMII_PORT	0
+#if defined(CONFIG_RTL_EXCHANGE_PORTMASK)
+#define RTL8367R_WAN			0		// WAN port is set to 8367R port 0
+#else
+#define RTL8367R_WAN			4		// WAN port is set to 8367R port 4
+#endif
+
 #ifndef REVR
 #define REVR                 			(SYSTEM_BASE + 0x00000000)
 #endif
@@ -1501,7 +1508,10 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define MGFCR_E3R1				(0x54+ALE_BASE)       /*L2 MAC Group Forwarding Control Register Entry_1 R1 */
 #define MGFCR_E3R2				(0x58+ALE_BASE)       /*L2 MAC Group Forwarding Control Register Entry_2 R2 */
 #define OCR						L4TOCR				/* Alias Name */
-
+#if defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8881A) || defined(CONFIG_RTL_8198C)
+#define IPMCMCR0					(0x5C+ALE_BASE)			/*IPM Clone Mac Configuration register 0 */
+#define IPMCMCR1					(0x60+ALE_BASE)			/*IPM Clone Mac Configuration register 1 */
+#endif
 
 /* TEACR - Table Entry Aging Control Register */
 #define EnRateLimitTbAging                  (1<<6)                /* Enable Rate Limit table hardware aging function. */
@@ -1656,6 +1666,8 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define ACLO_EDA_MASK				(0x7f<<ACLO_EDA_OFFSET)
 
 /* FFCR - Frame Forwarding Configuration Register */
+#define CF_IPMMAC_CLONE_EN                (1<<7)      /* Configure to clone the IP multicast mac from register */
+#define CF_IPMMAC_CLONE_EN_OFFSET         (7)      /* Configure to clone the IP multicast mac from register */
 #define IPMltCstCtrl_OFFSET                 (3)         /* IP Multicast Forwarding Control */
 #define IPMltCstCtrl_MASK                   (3<<3)      /* IP Multicast Forwarding Control */
 #define IPMltCstCtrl_Disable                (0<<3)      /* Disable IP Multicast table lookup (just follow L2 Multicast packet procedure) */
@@ -2946,6 +2958,12 @@ enum FDB_FLAGS
 #define IRR1                                (0x00C + GICR_BASE)       /* Interrupt routing */
 #define IRR2                                (0x010 + GICR_BASE)       /* Interrupt routing */
 #define IRR3                                (0x014 + GICR_BASE)       /* Interrupt routing */
+#define GIMR2                                (0x020 + GICR_BASE)       /* Global interrupt mask 2 */
+#define GISR2                                (0x024 + GICR_BASE)       /* Global interrupt status 2 */
+
+/* Global interrupt status 2 */
+#define LX1_BTRDY_IP                   (1 << 27)       /* LBC 1 bus time ready time-out interrupt pending flag */
+
 /* Global interrupt mask register field definitions 
 */
 #define TCIE                                (1 << 29)       /* Timer/Counter interrupt enable */
@@ -3527,10 +3545,21 @@ void rtl865x_wireCompBlinkAmber(void);
 #define 	HW_STRAP		(SYSTEM_BASE+0x0008)
 #define 	BOND_OPTION	(SYSTEM_BASE+0x000C)
 
-#define 	BOND_ID_MASK	(0xF)
-#define 	BOND_8196E		(0xF)
-#define 	BOND_8196EU	(0xC)
-#define 	BOND_8196ES	(0xD)
+#define 	BOND_ID_MASK		(0xF)
+
+#define 	BOND_8196EU1		(0x0)
+#define 	BOND_8196ES1		(0x1)
+#define 	BOND_8196E1		(0x3)
+#define 	BOND_8196EU3		(0x4)
+#define 	BOND_8196ES3		(0x5)
+#define 	BOND_8196E3		(0x7)
+#define 	BOND_8196EU2		(0x8)
+#define 	BOND_8196ES2		(0x9)
+#define 	BOND_8196E2		(0xB)
+#define 	BOND_8196EU		(0xC)
+#define 	BOND_8196ES		(0xD)
+#define 	BOND_8196ET		(0xE)
+#define 	BOND_8196E			(0xF)
 
 #endif   /* _ASICREGS_H */
 

@@ -6,6 +6,7 @@
 
 #include "rtk_voip.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "voip_control.h"
 #include "voip_params.h"
 #include "voip_mgr_define.h"
@@ -14,13 +15,16 @@
 #include "voip_mgr_do_debug.h"
 #endif
 
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
   #if defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_WM8510)
     #include "../voip_drivers/iphone/WM8510.h"	/* for type of AI_AO_select() */
     #include "../voip_drivers/iphone/base_i2c_WM8510.h"
   #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621)
     #include "../voip_drivers/iphone/ALC5621.h"
     #include "../voip_drivers/iphone/base_i2c_ALC5621.h"
+  #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q)
+    #include "../voip_drivers/iphone/ALC5633Q.h"
+    #include "../voip_drivers/iphone/base_i2c_ALC5633Q.h"
   #endif
   #if defined( CONFIG_RTK_VOIP_GPIO_IPP_100 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_101 )
   #elif defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V01 ) 
@@ -32,6 +36,7 @@
 
 int dsp_init_first = ( int )NULL;
 int g_voip_debug = 0;
+int g_voip_debug5 = 0;
 
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH
 #ifdef RTK_VOICE_RECORD
@@ -72,6 +77,375 @@ int g_force_vad = -1;
 int g_force_ptime = -1;
 int g_force_PcmMode = -1;
 int g_force_g7111mode = -1;
+
+extern int g_disable_1st_no_sig_packet;
+extern void dump_codec_state();
+void do_voip_debug_translation( void )
+{
+	// set 'g_voip_debug' before calling this function 
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+
+	extern int g_enable_fax_dis;
+	extern int g_disable_announce_fax;
+	extern int g_disable_report_fax;
+
+	
+#if 0
+	extern short test1(void);
+	extern short test2(void);
+	extern short test2_1(void);
+	extern short test2_2(void);
+	short w, x, y, z;
+
+	if (g_voip_debug == 73)
+	{
+		w = test1();
+		x = test2();
+		y = test2_1();
+		z = test2_2();
+
+		printk(" %d, %d, %d, %d\n", w, x, y, z);
+
+	}
+#endif
+	
+	/* Force codec control */
+
+	if (g_voip_debug == 112) {
+		g_enable_fax_dis=0;
+		printk("g_enable_fax_dis=0\n");
+	} else if (g_voip_debug == 113) {
+		g_enable_fax_dis=1;
+		printk("g_enable_fax_dis=1\n");
+	}
+
+	if (g_voip_debug == 114) {
+		g_disable_announce_fax=0;
+		printk("g_disable_announce_fax=0\n");
+	} else if (g_voip_debug == 115) {
+		g_disable_announce_fax=1;
+		printk("g_disable_announce_fax=1\n");
+	}
+
+	if (g_voip_debug == 116) {
+		g_disable_report_fax=0;
+		printk("g_disable_report_fax=0\n");
+	} else if (g_voip_debug == 117) {
+		g_disable_report_fax=1;
+		printk("g_disable_report_fax=1\n");
+	}
+
+	if (g_voip_debug == 118) {
+	} else if (g_voip_debug == 119) {
+	}
+
+
+	if (g_voip_debug == 11)
+		g_force_codec = rtpPayloadPCMU;
+	else if (g_voip_debug == 23)	// force codec to G.723
+		g_force_codec = rtpPayloadG723;
+	else if (g_voip_debug == 22)	// force codec to G.722
+		g_force_codec = rtpPayloadG722;
+	else if (g_voip_debug == 26)	// force codec to G.726-32K
+		g_force_codec = rtpPayloadG726_32;
+	else if (g_voip_debug == 29)	// force codec to G.729
+		g_force_codec = rtpPayloadG729;
+	else if (g_voip_debug == 100)	// force codec to Silence
+		g_force_codec = rtpPayloadSilence;
+	else if (g_voip_debug == 38)	// force codec to T.38
+		g_force_codec = rtpPayloadT38_Virtual;
+	else if (g_voip_debug == 74)	// force codec to GSM-FR
+		g_force_codec = rtpPayloadGSM;
+	else if (g_voip_debug == 77)	// force codec to AMR-WB m0
+		g_force_codec = rtpPayload_AMR_WB_RATE6P6;
+	else if (g_voip_debug == 78)	// force codec to AMR-WB m1
+		g_force_codec = rtpPayload_AMR_WB_RATE8P85;
+	else if (g_voip_debug == 79)	// force codec to AMR-WB m2
+		g_force_codec = rtpPayload_AMR_WB_RATE12P65;
+	else if (g_voip_debug == 80)	// force codec to AMR-WB m3
+		g_force_codec = rtpPayload_AMR_WB_RATE14P25;
+	else if (g_voip_debug == 81)	// force codec to AMR-WB m4
+		g_force_codec = rtpPayload_AMR_WB_RATE15P85;
+	else if (g_voip_debug == 82)	// force codec to AMR-WB m5
+		g_force_codec = rtpPayload_AMR_WB_RATE18P25;
+	else if (g_voip_debug == 83)	// force codec to AMR-WB m6
+		g_force_codec = rtpPayload_AMR_WB_RATE19P85;
+	else if (g_voip_debug == 84)	// force codec to AMR-WB m7
+		g_force_codec = rtpPayload_AMR_WB_RATE23P05;
+	else if (g_voip_debug == 85)	// force codec to AMR-WB m8
+		g_force_codec = rtpPayload_AMR_WB_RATE23P85;
+
+	else if (g_voip_debug == 86)	// force codec to AMR-NB m0
+		g_force_codec = rtpPayload_AMR_NB_RATE4P75;
+	else if (g_voip_debug == 87)	// force codec to AMR-NB m1
+		g_force_codec = rtpPayload_AMR_NB_RATE5P15;
+	else if (g_voip_debug == 88)	// force codec to AMR-NB m2
+		g_force_codec = rtpPayload_AMR_NB_RATE5P90;
+	else if (g_voip_debug == 89)	// force codec to AMR-NB m3
+		g_force_codec = rtpPayload_AMR_NB_RATE6P70;
+	else if (g_voip_debug == 90)	// force codec to AMR-NB m4
+		g_force_codec = rtpPayload_AMR_NB_RATE7P40;
+	else if (g_voip_debug == 91)	// force codec to AMR-NB m5
+		g_force_codec = rtpPayload_AMR_NB_RATE7P95;
+	else if (g_voip_debug == 92)	// force codec to AMR-NB m6
+		g_force_codec = rtpPayload_AMR_NB_RATE10P2;
+	else if (g_voip_debug == 93)	// force codec to AMR-NB m7
+		g_force_codec = rtpPayload_AMR_NB_RATE12P2;
+
+#ifdef CONFIG_RTK_VOIP_PCM_LINEAR_8K
+	else if (g_voip_debug == 8)	//PCM_Linear_8K
+		g_force_codec = rtpPayload_PCM_Linear_8K;
+#endif
+#ifdef CONFIG_RTK_VOIP_PCM_LINEAR_16K
+	else if (g_voip_debug == 16)	//PCM_Linear_16K
+		g_force_codec = rtpPayload_PCM_Linear_16K;
+#endif
+	
+
+	else if (g_voip_debug == 111)
+		g_force_codec = rtpPayloadPCMU_WB;	// force codec to G.7111-U
+	else if (g_voip_debug == 112)
+		g_force_codec = rtpPayloadPCMA_WB;	// force codec to G.7111-A
+		
+	else if (g_voip_debug == 101)
+		g_force_g7111mode = 1;	// force G.711.1 to R1 mode
+	else if (g_voip_debug == 102)
+		g_force_g7111mode = 2;	// force G.711.1 to R2a mode
+	else if (g_voip_debug == 103)
+		g_force_g7111mode = 3;	// force G.711.1 to R2b mode
+	else if (g_voip_debug == 104)
+		g_force_g7111mode = 4;	// force G.711.1 to R3 mode
+
+	/* Force PCM mode control */
+	if (g_voip_debug == 105)
+		g_force_PcmMode = 0;	// force PCM mode to no action
+	else if (g_voip_debug == 106)
+		g_force_PcmMode = 1;	// force PCM mode to DSP auto mode
+	else if (g_voip_debug == 107)
+		g_force_PcmMode = 2;	// force PCM mode to NB mode
+	else if (g_voip_debug == 108)
+		g_force_PcmMode = 3;	// force PCM mode to WB auto mode
+
+	/* Force VAD control */
+	else if (g_voip_debug == 120)
+		g_force_vad = 0;	// force VAD disable
+	else if (g_voip_debug == 121)
+		g_force_vad = 1;	// force VAD enable
+
+	/* Force Packet Time control */
+	else if (g_voip_debug == 10)
+		g_force_ptime = 1;	// force frame per packet to 1
+	else if (g_voip_debug == 20)
+		g_force_ptime = 2;	// force frame per packet to 2
+	else if (g_voip_debug == 30)
+		g_force_ptime = 3;	// force frame per packet to 3
+	else if (g_voip_debug == 40)
+		g_force_ptime = 4;	// force frame per packet to 4
+	else if (g_voip_debug == 50)
+		g_force_ptime = 5;	// force frame per packet to 5
+	else if (g_voip_debug == 60)
+		g_force_ptime = 6;	// force frame per packet to 6
+	else if (g_voip_debug == 70)
+		g_force_ptime = 20;	// force frame per packet to 20
+
+	if ( g_voip_debug == 90 /* 0x5A */) { // jwsyu debug control
+#ifdef CONFIG_RTK_VOIP_T38
+		if ( g_voip_debug5 == 800)
+			g_disable_1st_no_sig_packet = 0;
+		else if ( g_voip_debug5 == 801)
+			g_disable_1st_no_sig_packet = 1;
+#endif /* CONFIG_RTK_VOIP_T38 */
+	} /* g_voip_debug == 90 */
+
+
+#ifdef CONFIG_RTK_VOIP_QOS
+	if(g_voip_debug == 75)//egress = 160 *64Kbps
+	{
+		extern int wan_port_check(int port);
+		extern int32 rtl8651_setAsicPortEgressBandwidth( uint32 port, uint32 bandwidth );
+		int i = 0;
+		for(i=0; i < 5; i++){
+		    if(wan_port_check(i))
+		    {
+		    	printk("Set WAN port(%d) bandwidth 160*16kbps \n",i);
+			rtl8651_setAsicPortEgressBandwidth(i,160);
+		    }
+		    //else
+			//printk("LAN port(%d) \n",i);
+		}
+	}
+	if(g_voip_debug == 76)//egress no limit
+	{
+		int i = 0;
+		extern int32 rtl8651_setAsicPortEgressBandwidth( uint32 port, uint32 bandwidth );
+		for(i=0;  i < 5 ; i++)
+		{
+			rtl8651_setAsicPortEgressBandwidth(i,0x3fff);
+		}
+	}
+#endif
+
+
+	if(g_voip_debug == 99)//egress no limit
+	{
+		// Need to disable the system watch dog to avoid reboot
+		unsigned long flags;
+		save_flags(flags); cli();
+#if 0
+		// G.729 test
+		extern void test_g729main(void);
+		test_g729main();
+#endif
+#if 0
+		// for g.722 appendix II test
+		extern void g722_appendix_II_test(void);
+		g722_appendix_II_test();
+#endif
+#if 0
+		//AMR-NB
+		extern int amr_enc_main ();
+		extern int amr_dec_main ();
+		amr_enc_main();
+		amr_dec_main();
+#endif
+#if 0		//AMR-NB 3GPP TS 26.074 
+		extern int AMRNB_3gppTest (void);
+		AMRNB_3gppTest();
+#endif
+#if 0
+		//AMR-WB Annex C
+		extern void test_g7222_itu_main( void );
+		test_g7222_itu_main();
+#endif
+#if 0
+		// AMR-WB Annex D
+		extern int G7222AnnexDTest(void);
+		G7222AnnexDTest();
+#endif
+
+#if 0	// AMR-WB CP3 profiling
+		extern void test_g7222_cp3_main( void );
+		test_g7222_cp3_main();
+#endif
+		restore_flags(flags);
+	}
+
+	/* Disable all force control */
+	if (g_voip_debug == 127)
+	{
+		g_force_codec = -1;
+		g_force_vad = -1;
+		g_force_ptime = -1;
+		g_force_PcmMode = -1;
+		g_force_g7111mode = -1;
+	
+
+		dump_codec_state();
+	}
+
+	if (g_voip_debug == 80)
+	{
+		extern char ModemFlag[];
+		extern char FaxFlag[];
+		printk("M=%d, F=%d\n", ModemFlag[0], FaxFlag[0]);
+	}
+		
+#ifdef CONFIG_CRYPTO_DEV_REALTEK_TEST
+	if (g_voip_debug >= 10 && g_voip_debug <= 99)
+	{
+		extern void rtl_ipsec_test();
+		rtl_ipsec_test(g_voip_debug);
+	}
+#endif
+
+#if 0
+	if (g_voip_debug == 20)
+	{
+	// test 8306 led
+	#define rtl8306_page_select(page)	do { int pagenumber; pagenumber = (page + 2) & 0x03; \
+		MII_write(0,16,(MII_read(0,16,0)&0x7ffd)|(pagenumber&0x02)|((pagenumber&0x01)<<15),0); } while (0)
+		int port, flag, val;
+
+		// LED controlled by CPU
+        rtl8306_page_select(3);
+	    MII_write(2, 21, MII_read(2 ,21, 0)|0x780, 0);
+
+		flag = 0; // disable_led
+		while (flag < 2)
+		{
+			for (port=0; port<5; port++)
+			{
+				val = (1 << port) | (1 << (port + 5));
+				if (flag == 0)	
+					MII_write(3, 24, MII_read(3 ,24, 0)&~val, 0); 
+				else
+					MII_write(3, 24, MII_read(3 ,24, 0)|val, 0); 
+
+				MII_read(4, 0, 0); // switch to MII to wan port to fix Eth auto link issue
+				mdelay(300);
+			}
+				
+			flag++;	// enable_led
+			mdelay(1000);
+		}
+
+		// LED controlled by 8306
+        rtl8306_page_select(3);
+	    MII_write(2, 21, MII_read(2 ,21, 0) & (~0x780), 0);
+	}
+		
+	if (g_voip_debug == 21)
+	{
+	// test wlan led
+	#define _9346CR_		0x50
+	#define _CFG0_			0x51
+	#define _PSR_			0x5e
+	#define WLAN_CTRL(reg)	(*(volatile unsigned char *)((unsigned int)(reg + 0xbd400000)))
+
+		// enable sw led
+		WLAN_CTRL(_9346CR_) = 0xc0;	// enable config register write
+		WLAN_CTRL(_CFG0_) = WLAN_CTRL(_CFG0_) | 0x10;	// turn off HW led control
+		// led test
+		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) & (~BIT(4));	// LED0 on
+		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) & (~BIT(5));	// LED1 on
+		mdelay(1000);
+		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) | BIT(4);	// LED0 off
+		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) | BIT(5);	// LED1 off
+		// disable sw led
+		WLAN_CTRL(_9346CR_) = 0xc0;	// enable config register write
+		WLAN_CTRL(_CFG0_) = WLAN_CTRL(_CFG0_) & (~0x10);	// turn on HW led control
+	}
+#endif
+		
+#ifdef TEST_UNALIGN
+	if (g_voip_debug == 1)
+	{
+		test_p = (int *)(test_data + 3);
+		printk("data = %p, p = %p\n", test_data, test_p);
+		printk("*p = %d\n", *test_p);
+	}
+	else if (g_voip_debug == 2)
+	{
+		extern void set_DMEM(unsigned long start, unsigned long size);
+
+		save_flags(flags); cli();
+		set_DMEM(&__sys_dmem_start, SYS_DMEM_SSIZE);
+		sys_dmem_sp = &(sys_dmem_stack[SYS_DMEM_SSIZE]);
+		entry_dmem_stack(&sys_orig_sp, &sys_dmem_sp);
+		printk("enter: sys_orig_sp = %x\n", sys_orig_sp);
+
+		test_p = (int *)(test_data + 3);
+		printk("data = %p, p = %p\n", test_data, test_p);
+		printk("*p = %d\n", *test_p);
+
+		leave_dmem_stack(&sys_orig_sp);
+		printk("leave1: sys_orig_sp = %x\n", sys_orig_sp);
+		restore_flags(flags);
+	}
+#endif	
+
+#endif // !CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST 	
+}
 
 //----- below IO Ctrl is for test -------//
 int do_mgr_VOIP_MGR_INIT_GNET( int cmd, void *user, unsigned int len, unsigned short seq_no )
@@ -192,9 +566,6 @@ int do_mgr_VOIP_MGR_DEBUG( int cmd, void *user, unsigned int len, unsigned short
 	unsigned long flags;
 	TstVoipValue stVoipValue;
 	int ret = 0;
-	extern int g_disable_report_fax;
-	extern int g_disable_announce_fax;
-	extern int g_enable_fax_dis;
 
 	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
@@ -203,12 +574,14 @@ int do_mgr_VOIP_MGR_DEBUG( int cmd, void *user, unsigned int len, unsigned short
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	//int ret;
 	// Send Control Packet and wait Response Packet (global setting for every DSP)
-	ret = ipcSentControlPacketNoChannel(cmd, &stVoipValue, sizeof(TstVoipValue));
+	ret = ipcSentControlPacketNoChannel(cmd, &stVoipValue, sizeof(TstVoipValue), MF_NONE);
 	
 	PRINT_MSG("VOIP_MGR_DEBUG: dbg=%d\n", stVoipValue.value);
 	save_flags(flags); cli();
-	rtk_dbg_level = stVoipValue.value;
+	if ((stVoipValue.value<=RTK_DBG_MAX) || (stVoipValue.value==99))
+		rtk_dbg_level = stVoipValue.value;
 	g_voip_debug = stVoipValue.value;
+	g_voip_debug5 = stVoipValue.value5;
 	//gpio_debug = stVoipValue.value;
 	restore_flags(flags);
 	
@@ -217,8 +590,10 @@ int do_mgr_VOIP_MGR_DEBUG( int cmd, void *user, unsigned int len, unsigned short
 
 	PRINT_MSG("VOIP_MGR_DEBUG: dbg=%d,watchdog=%d\n", stVoipValue.value,stVoipValue.value1);
 	save_flags(flags); cli();
-	rtk_dbg_level = stVoipValue.value;
+	if ((stVoipValue.value<=RTK_DBG_MAX) || (stVoipValue.value==99))
+		rtk_dbg_level = stVoipValue.value;
 	g_voip_debug = stVoipValue.value;
+	g_voip_debug5 = stVoipValue.value5;
 	//gpio_debug = stVoipValue.value;
   #if 0 // ec128 test mode code
 		stVoipdataget[0].write_enable=0;
@@ -259,238 +634,9 @@ int do_mgr_VOIP_MGR_DEBUG( int cmd, void *user, unsigned int len, unsigned short
 #else
 	PRINT_MSG("CONFIG_RTL865X_WTDOG is undefined\n");
 #endif
-
-#if 0
-	extern short test1(void);
-	extern short test2(void);
-	extern short test2_1(void);
-	extern short test2_2(void);
-	short w, x, y, z;
-
-	if (g_voip_debug == 73)
-	{
-		w = test1();
-		x = test2();
-		y = test2_1();
-		z = test2_2();
-
-		printk(" %d, %d, %d, %d\n", w, x, y, z);
-
-	}
-#endif
 	
-	/* Force codec control */
+	do_voip_debug_translation();
 
-	if (g_voip_debug == 112) {
-		g_enable_fax_dis=0;
-		printk("g_enable_fax_dis=0\n");
-	} else if (g_voip_debug == 113) {
-		g_enable_fax_dis=1;
-		printk("g_enable_fax_dis=1\n");
-	}
-
-	if (g_voip_debug == 114) {
-		g_disable_announce_fax=0;
-		printk("g_disable_announce_fax=0\n");
-	} else if (g_voip_debug == 115) {
-		g_disable_announce_fax=1;
-		printk("g_disable_announce_fax=1\n");
-	}
-
-	if (g_voip_debug == 116) {
-		g_disable_report_fax=0;
-		printk("g_disable_report_fax=0\n");
-	} else if (g_voip_debug == 117) {
-		g_disable_report_fax=1;
-		printk("g_disable_report_fax=1\n");
-	}
-
-	if (g_voip_debug == 118) {
-	} else if (g_voip_debug == 119) {
-	}
-
-
-	if (g_voip_debug == 11)
-		g_force_codec = 8;
-	else if (g_voip_debug == 23)	// force codec to G.723
-		g_force_codec = 4;
-	else if (g_voip_debug == 22)	// force codec to G.722
-		g_force_codec = 9;
-	else if (g_voip_debug == 29)	// force codec to G.729
-		g_force_codec = 18;
-	else if (g_voip_debug == 100)	// force codec to Silence
-		g_force_codec = 35;
-	else if (g_voip_debug == 38)	// force codec to T.38
-		g_force_codec = 110;
-	else if (g_voip_debug == 123)	// force codec to AMR-NB
-		g_force_codec = 123;
-#ifdef CONFIG_RTK_VOIP_PCM_LINEAR_8K
-	else if (g_voip_debug == 8)	//PCM_Linear_8K
-		g_force_codec = 119;
-#endif
-#ifdef CONFIG_RTK_VOIP_PCM_LINEAR_16K
-	else if (g_voip_debug == 16)	//PCM_Linear_16K
-		g_force_codec = 120;
-#endif
-	
-
-	else if (g_voip_debug == 111)
-		g_force_codec = 102;	// force codec to G.7111-U
-	else if (g_voip_debug == 112)
-		g_force_codec = 103;	// force codec to G.7111-A
-		
-	else if (g_voip_debug == 101)
-		g_force_g7111mode = 1;	// force G.711.1 to R1 mode
-	else if (g_voip_debug == 102)
-		g_force_g7111mode = 2;	// force G.711.1 to R2a mode
-	else if (g_voip_debug == 103)
-		g_force_g7111mode = 3;	// force G.711.1 to R2b mode
-	else if (g_voip_debug == 104)
-		g_force_g7111mode = 4;	// force G.711.1 to R3 mode
-
-	/* Force PCM mode control */
-	if (g_voip_debug == 105)
-		g_force_PcmMode = 0;	// force PCM mode to no action
-	else if (g_voip_debug == 106)
-		g_force_PcmMode = 1;	// force PCM mode to DSP auto mode
-	else if (g_voip_debug == 107)
-		g_force_PcmMode = 2;	// force PCM mode to NB mode
-	else if (g_voip_debug == 108)
-		g_force_PcmMode = 3;	// force PCM mode to WB auto mode
-
-	/* Force VAD control */
-	else if (g_voip_debug == 120)
-		g_force_vad = 0;	// force VAD disable
-	else if (g_voip_debug == 121)
-		g_force_vad = 1;	// force VAD enable
-
-	/* Force Packet Time control */
-	else if (g_voip_debug == 10)
-		g_force_ptime = 1;	// force frame per packet to 1
-	else if (g_voip_debug == 20)
-		g_force_ptime = 2;	// force frame per packet to 2
-	else if (g_voip_debug == 30)
-		g_force_ptime = 3;	// force frame per packet to 3
-	else if (g_voip_debug == 40)
-		g_force_ptime = 4;	// force frame per packet to 4
-	else if (g_voip_debug == 50)
-		g_force_ptime = 5;	// force frame per packet to 5
-	else if (g_voip_debug == 60)
-		g_force_ptime = 6;	// force frame per packet to 6
-	else if (g_voip_debug == 70)
-		g_force_ptime = 20;	// force frame per packet to 20
-
-
-	/* Disable all force control */
-	if (g_voip_debug == 127)
-	{
-		g_force_codec = -1;
-		g_force_vad = -1;
-		g_force_ptime = -1;
-		g_force_PcmMode = -1;
-		g_force_g7111mode = -1;
-	}
-
-	if (g_voip_debug == 77)
-	{
-		extern char ModemFlag[];
-		extern char FaxFlag[];
-		printk("M=%d, F=%d\n", ModemFlag[0], FaxFlag[0]);
-	}
-		
-#ifdef CONFIG_CRYPTO_DEV_REALTEK_TEST
-	if (g_voip_debug >= 10 && g_voip_debug <= 99)
-	{
-		extern void rtl_ipsec_test();
-		rtl_ipsec_test(g_voip_debug);
-	}
-#endif
-
-#if 0
-	if (g_voip_debug == 20)
-	{
-	// test 8306 led
-	#define rtl8306_page_select(page)	do { int pagenumber; pagenumber = (page + 2) & 0x03; \
-		MII_write(0,16,(MII_read(0,16,0)&0x7ffd)|(pagenumber&0x02)|((pagenumber&0x01)<<15),0); } while (0)
-		int port, flag, val;
-
-		// LED controlled by CPU
-        rtl8306_page_select(3);
-	    MII_write(2, 21, MII_read(2 ,21, 0)|0x780, 0);
-
-		flag = 0; // disable_led
-		while (flag < 2)
-		{
-			for (port=0; port<5; port++)
-			{
-				val = (1 << port) | (1 << (port + 5));
-				if (flag == 0)	
-					MII_write(3, 24, MII_read(3 ,24, 0)&~val, 0); 
-				else
-					MII_write(3, 24, MII_read(3 ,24, 0)|val, 0); 
-
-				MII_read(4, 0, 0); // switch to MII to wan port to fix Eth auto link issue
-				mdelay(300);
-			}
-				
-			flag++;	// enable_led
-			mdelay(1000);
-		}
-
-		// LED controlled by 8306
-        rtl8306_page_select(3);
-	    MII_write(2, 21, MII_read(2 ,21, 0) & (~0x780), 0);
-	}
-		
-	if (g_voip_debug == 21)
-	{
-	// test wlan led
-	#define _9346CR_		0x50
-	#define _CFG0_			0x51
-	#define _PSR_			0x5e
-	#define WLAN_CTRL(reg)	(*(volatile unsigned char *)((unsigned int)(reg + 0xbd400000)))
-
-		// enable sw led
-		WLAN_CTRL(_9346CR_) = 0xc0;	// enable config register write
-		WLAN_CTRL(_CFG0_) = WLAN_CTRL(_CFG0_) | 0x10;	// turn off HW led control
-		// led test
-		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) & (~BIT(4));	// LED0 on
-		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) & (~BIT(5));	// LED1 on
-		mdelay(1000);
-		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) | BIT(4);	// LED0 off
-		WLAN_CTRL(_PSR_) = WLAN_CTRL(_PSR_) | BIT(5);	// LED1 off
-		// disable sw led
-		WLAN_CTRL(_9346CR_) = 0xc0;	// enable config register write
-		WLAN_CTRL(_CFG0_) = WLAN_CTRL(_CFG0_) & (~0x10);	// turn on HW led control
-	}
-#endif
-		
-#ifdef TEST_UNALIGN
-	if (g_voip_debug == 1)
-	{
-		test_p = (int *)(test_data + 3);
-		printk("data = %p, p = %p\n", test_data, test_p);
-		printk("*p = %d\n", *test_p);
-	}
-	else if (g_voip_debug == 2)
-	{
-		extern void set_DMEM(unsigned long start, unsigned long size);
-
-		save_flags(flags); cli();
-		set_DMEM(&__sys_dmem_start, SYS_DMEM_SSIZE);
-		sys_dmem_sp = &(sys_dmem_stack[SYS_DMEM_SSIZE]);
-		entry_dmem_stack(&sys_orig_sp, &sys_dmem_sp);
-		printk("enter: sys_orig_sp = %x\n", sys_orig_sp);
-
-		test_p = (int *)(test_data + 3);
-		printk("data = %p, p = %p\n", test_data, test_p);
-		printk("*p = %d\n", *test_p);
-
-		leave_dmem_stack(&sys_orig_sp);
-		printk("leave1: sys_orig_sp = %x\n", sys_orig_sp);
-		restore_flags(flags);
-	}
-#endif
 #endif
 	return ret;
 }
@@ -572,7 +718,7 @@ int do_mgr_VOIP_MGR_SET_GETDATA_MODE( int cmd, void *user, unsigned int len, uns
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipdataget_o.ch_id;
 	stVoipdataget_o.ch_id = API_get_DSP_CH(cmd, stVoipdataget_o.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipdataget_o, sizeof(TstVoipdataget_o));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipdataget_o, sizeof(TstVoipdataget_o), MF_FETCH);
 	
 	// Ckeck Response Packet (need for copy_to_user)
 	unsigned short dsp_id;
@@ -692,6 +838,7 @@ int do_mgr_VOIP_MGR_SET_GETDATA_MODE( int cmd, void *user, unsigned int len, uns
  */
 int do_mgr_VOIP_MGR_VOICE_PLAY( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
+	int ret = 0;
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH
 #ifdef RTK_VOICE_PLAY
 	COPY_FROM_USER(&stVoipdataput_o, (TstVoipdataput_o *)user, sizeof(TstVoipdataput_o));
@@ -727,15 +874,21 @@ int do_mgr_VOIP_MGR_VOICE_PLAY( int cmd, void *user, unsigned int len, unsigned 
 		stVoipdataput[stVoipdataput_o.ch_id].writeindex=temp_writeindex;
 	}
 	
-	COPY_TO_USER(user, &stVoipdataput_o, sizeof(TstVoipdataput_o)-EACH_DATAPUTBUFSIZE, cmd, seq_no);
+	return COPY_TO_USER(user, &stVoipdataput_o, sizeof(TstVoipdataput_o)-EACH_DATAPUTBUFSIZE, cmd, seq_no);
 #else
-	
-	PRINT_MSG("please define RTK_VOICE_PLAY in rtk_voip.h\n");
+	PRINT_R("please define RTK_VOICE_PLAY in rtk_voip.h\n");
+	ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
+	return ret; //NO_COPY_TO_USER( cmd, seq_no );
 #endif //#ifdef RTK_VOICE_PLAY
 #else
-	PRINT_R("Not support, %s\n", __FUNCTION__);
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	PRINT_R("please define RTK_VOICE_PLAY in rtk_voip.h\n");
+	ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
+	return ret; 
+#else
+	return NO_COPY_TO_USER( cmd, seq_no );
 #endif
-	return 0;
+#endif
 }
 
 /**
@@ -749,21 +902,32 @@ int do_mgr_VOIP_MGR_IPHONE_TEST( int cmd, void *user, unsigned int len, unsigned
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 	unsigned long flags;
 	IPhone_test iphone;
+	int ret = 0;
 
 	COPY_FROM_USER(&iphone, (IPhone_test *)user, sizeof(IPhone_test));
-	NO_COPY_TO_USER( cmd, seq_no );
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
 	save_flags(flags); cli();
 	if (iphone.function_type == 0) {
 #if defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_WM8510)
 		write_WM8510(iphone.reg, iphone.value);
 #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621)
 		write_ALC5621(iphone.reg, iphone.value);
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q)
+		write_ALC5633Q(iphone.reg, iphone.value);
 #endif
 	} else if (iphone.function_type == 1) {
 #if defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_WM8510)
 		WM8510_fake_read(iphone.reg);
 #elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621)
 		ALC5621_fake_read(iphone.reg);
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q)
+		extern void dump_all_codec_reg(void);
+		if (iphone.reg == 255) {
+			restore_flags(flags);
+			dump_all_codec_reg();
+		} else
+			ALC5633Q_fake_read(iphone.reg);
 #endif
 	} else if (iphone.function_type == 2) {
 #if defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_WM8510)
@@ -784,6 +948,10 @@ int do_mgr_VOIP_MGR_IPHONE_TEST( int cmd, void *user, unsigned int len, unsigned
 		pt6961_SetDisplay( iphone.reg );
 #elif defined( CONFIG_RTK_VOIP_GPIO_IPP_8952_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V00 )
 		LED_DirectGPIO_SetDisplay( iphone.reg );
+#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXC_V00 )
+		//todo jwsyu 20120509 ip phone
+#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXD_CODEC )
+		//todo jwsyu 20120509 ip phone
 #endif
 	}
 	restore_flags(flags);
@@ -808,11 +976,8 @@ int do_mgr_VOIP_MGR_PRINT( int cmd, void *user, unsigned int len, unsigned short
 		return -EFAULT;
 	}
 
-	if (COPY_FROM_USER(&cfg, user, len))
-	{
-		DBG_ERROR("%s", "copy_from_user failed\n");
-		return -EFAULT;
-	}
+	COPY_FROM_USER(&cfg, user, len);
+
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
 
@@ -837,15 +1002,16 @@ int do_mgr_VOIP_MGR_PRINT( int cmd, void *user, unsigned int len, unsigned short
 int do_mgr_VOIP_MGR_COP3_CONIFG( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifdef CONFIG_VOIP_COP3_PROFILE
-
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	// Host auto forward 
-#else
 	int ret;
 
 	COPY_FROM_USER(&cp3_voip_param, user, len);
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Send Control Packet and wait Response Packet (global setting for every DSP)
+	ret = ipcSentControlPacketNoChannel(cmd, &cp3_voip_param, sizeof(st_CP3_VoIP_param), MF_NONE);
+#endif
 
 #ifdef CONFIG_ARCH_CPU_RLX5281
 	gCp3Params = /* Counter0 */((cp3_voip_param.cp3_counter1)<< 0) |
@@ -864,8 +1030,6 @@ int do_mgr_VOIP_MGR_COP3_CONIFG( int cmd, void *user, unsigned int len, unsigned
 	PRINT_MSG(" - counter3: %d\n", cp3_voip_param.cp3_counter3);
 	PRINT_MSG(" - counter4: %d\n", cp3_voip_param.cp3_counter4);
 	PRINT_MSG(" - dump period: %d\n", cp3_voip_param.cp3_dump_period);
-
-#endif
 
 #endif
 	return 0;

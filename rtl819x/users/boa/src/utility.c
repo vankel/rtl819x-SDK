@@ -60,6 +60,70 @@
 static int get_dev_fields(int type, char *bp, struct user_net_device_stats *pStats);
 static char *get_name(char *name, char *p);
 
+
+
+
+
+
+
+
+
+
+#if defined(CONFIG_APP_TR069)
+#if defined(_PRMT_TR143_)
+
+char *strItf[]=
+{
+	"",		//ITF_ALL
+	"",		//ITF_WAN
+    ALIASNAME_BR0,		//ITF_LAN
+
+	ALIASNAME_ETH0,		//ITF_ETH0
+	ALIASNAME_ETH0_SW0,	//ITF_ETH0_SW0
+	ALIASNAME_ETH0_SW1,	//ITF_ETH0_SW1
+	ALIASNAME_ETH0_SW2,	//ITF_ETH0_SW2
+	ALIASNAME_ETH0_SW3,	//ITF_ETH0_SW3
+
+	ALIASNAME_WLAN0,	//ITF_WLAN0
+	ALIASNAME_WLAN0_VAP0,	//ITF_WLAN0_VAP0
+	ALIASNAME_WLAN0_VAP1,	//ITF_WLAN0_VAP1
+	ALIASNAME_WLAN0_VAP2,	//ITF_WLAN0_VAP2
+	ALIASNAME_WLAN0_VAP3,	//ITF_WLAN0_VAP3
+
+	ALIASNAME_WLAN1,	//ITF_WLAN0
+	ALIASNAME_WLAN1_VAP0,	//ITF_WLAN0_VAP0
+	ALIASNAME_WLAN1_VAP1,	//ITF_WLAN0_VAP1
+	ALIASNAME_WLAN1_VAP2,	//ITF_WLAN0_VAP2
+	ALIASNAME_WLAN1_VAP3,	//ITF_WLAN0_VAP3
+
+/*
+	"br0",		//ITF_LAN
+
+	"eth0",		//ITF_ETH0
+	"eth0_sw0",	//ITF_ETH0_SW0
+	"eth0_sw1",	//ITF_ETH0_SW1
+	"eth0_sw2",	//ITF_ETH0_SW2
+	"eth0_sw3",	//ITF_ETH0_SW3
+
+	"wlan0",	//ITF_WLAN0
+	"wlan0-vap0",	//ITF_WLAN0_VAP0
+	"wlan0-vap1",	//ITF_WLAN0_VAP1
+	"wlan0-vap2",	//ITF_WLAN0_VAP2
+	"wlan0-vap3",	//ITF_WLAN0_VAP3
+
+	"wlan1",	//ITF_WLAN0
+	"wlan1-vap0",	//ITF_WLAN0_VAP0
+	"wlan1-vap1",	//ITF_WLAN0_VAP1
+	"wlan1-vap2",	//ITF_WLAN0_VAP2
+	"wlan1-vap3",	//ITF_WLAN0_VAP3
+*/
+
+	"usb0",		//ITF_USB0
+
+	""		//ITF_END
+};
+#endif
+#endif
 /***************************************************BT********/
 #ifdef CONFIG_RTL_BT_CLIENT
 static const char* const GCOMMANDS[] = {"GET","GETCLIENTSINFO","POST", "AUTH", "SETLIMITS", "GETLIMITS", "CLIENTQUIT", "CLIENTUPDATE", "CLIENTPAUSE", "GETTORRENTS", "TORRENTSTART", "TORRENTDELETE", "GETDETAILS", "SUBMITURL", "GETSTATS", "SETFILES", "GETTDETAILS", "SUBMITWDOWNLOAD", "GETWGETS", "STOPWGET", "STARTWGET", "GETWDETAILS", "WGETDELETE"};
@@ -651,6 +715,32 @@ iw_get_ext(int                  skfd,           /* Socket to the kernel */
 
 
 /////////////////////////////////////////////////////////////////////////////
+int check_wlan_downup(char wlanIndex)
+{
+       int sock=0,flags=0;
+       struct  ifreq   ifr={0};
+	   snprintf(ifr.ifr_name,sizeof(ifr.ifr_name),"wlan%d",wlanIndex);
+       sock = socket(AF_INET, SOCK_DGRAM, 0);
+       if (sock < 0) {
+               printf("socket error!\n");
+               return -1;
+       }
+       if (ioctl(sock, SIOCGIFFLAGS, (caddr_t)&ifr) < 0) 
+       {
+               printf("SIOCGIFFLAGS error!\n");
+               close(sock);
+               return (-1);
+       }
+       close(sock);
+       if((ifr.ifr_flags & IFF_UP) != 0)
+       {
+               return 1;
+       }
+       return 0;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 int getWlStaNum( char *interface, int *num )
 {
 #ifndef NO_ACTION
@@ -1104,36 +1194,37 @@ int getWlStaInfo( char *interface,  WLAN_STA_INFO_Tp pInfo )
 
 // ==== inserted by GANTOE for site survey 2008/12/26 ==== 
 #ifdef CONFIG_RTK_MESH 
-int setWlJoinMesh (char *interface, unsigned char* MeshId, int MeshId_Len, int Channel, int Reset) 
+int setWlJoinMesh (char *interface, unsigned char* MeshId, int MeshId_Len, int Channel, int offset, int Reset) 
 { 
-	int skfd; 
-	struct iwreq wrq; 
-	struct 
-	{
-		unsigned char *meshid;
-		int meshid_len, channel, reset; 
-	}mesh_identifier; 
+    int skfd; 
+    struct iwreq wrq; 
+    struct 
+    {
+        unsigned char *meshid;
+        int meshid_len, channel, offset, reset; 
+    }mesh_identifier; 
   
-	skfd = socket(AF_INET, SOCK_DGRAM, 0); 
+    skfd = socket(AF_INET, SOCK_DGRAM, 0); 
     
-	/* Get wireless name */ 
-	if ( iw_get_ext(skfd, interface, SIOCGIWNAME, &wrq) < 0) 
-	/* If no wireless name : no wireless extensions */ 
-		return -1; 
+    /* Get wireless name */ 
+    if ( iw_get_ext(skfd, interface, SIOCGIWNAME, &wrq) < 0) 
+    /* If no wireless name : no wireless extensions */ 
+        return -1; 
 
-	mesh_identifier.meshid = MeshId; 
-	mesh_identifier.meshid_len = MeshId_Len; 
-	mesh_identifier.channel = Channel;
-	mesh_identifier.reset = Reset;
-	wrq.u.data.pointer = (caddr_t)&mesh_identifier; 
-	wrq.u.data.length = sizeof(mesh_identifier); 
+    mesh_identifier.meshid = MeshId; 
+    mesh_identifier.meshid_len = MeshId_Len; 
+    mesh_identifier.channel = Channel;
+    mesh_identifier.offset = offset;    
+    mesh_identifier.reset = Reset;
+    wrq.u.data.pointer = (caddr_t)&mesh_identifier; 
+    wrq.u.data.length = sizeof(mesh_identifier); 
 
-	if (iw_get_ext(skfd, interface, SIOCJOINMESH, &wrq) < 0) 
-		return -1; 
+    if (iw_get_ext(skfd, interface, SIOCJOINMESH, &wrq) < 0) 
+        return -1; 
 
-	close( skfd ); 
+    close( skfd ); 
 
-	return 0; 
+    return 0; 
 } 
 
 // This function might be removed when the mesh peerlink precedure has been completed
@@ -1160,28 +1251,6 @@ int getWlMeshLink (char *interface, unsigned char* MacAddr, int MacAddr_Len)
 	return 0; 
 } 
 
-// This function might be removed when the mesh peerlink precedure has been completed
-int getWlMib (char *interface, unsigned char* Oid, int Oid_Len) 
-{ 
-	int skfd, ret = -1; 
-	struct iwreq wrq; 
-  
-	skfd = socket(AF_INET, SOCK_DGRAM, 0); 
-    
-	/* Get wireless name */ 
-	if ( iw_get_ext(skfd, interface, SIOCGIWNAME, &wrq) < 0) 
-	/* If no wireless name : no wireless extensions */ 
-		return -1; 
-
-	wrq.u.data.pointer = (caddr_t)Oid; 
-	wrq.u.data.length = Oid_Len; 
-	ret = iw_get_ext(skfd, interface, RTL8190_IOCTL_GET_MIB, &wrq);
-
-	close( skfd ); 
-	if(ret < 0)
-		return -1;
-	return ret; 
-} 
 #endif 
 // ==== GANTOE ==== 
 /////////////////////////////////////////////////////////////////////////////
@@ -1300,8 +1369,8 @@ int getWlSiteSurveyRequest(char *interface, int *pStatus)
     wrq.u.data.length = sizeof(result);
 
     if (iw_get_ext(skfd, interface, SIOCGIWRTLSCANREQ, &wrq) < 0){
-    	close( skfd );
-	return -1;
+    	//close( skfd );
+		//return -1;
 	}
     close( skfd );
 
@@ -1334,19 +1403,11 @@ int getWlBssInfo(char *interface, bss_info *pInfo)
 		return -1;
     /* Get wireless name */
     if ( iw_get_ext(skfd, interface, SIOCGIWNAME, &wrq) < 0)
-#ifdef VOIP_SUPPORT 
-	{
-		// rock: avoid status page error if no wlan interface
-		memset(pInfo, 0, sizeof(bss_info));
-        return 0;
-	}
-#else
       /* If no wireless name : no wireless extensions */
       {
       	 close( skfd );
         return -1;
       }
-#endif
 
     wrq.u.data.pointer = (caddr_t)pInfo;
     wrq.u.data.length = sizeof(bss_info);
@@ -1411,7 +1472,11 @@ extern pid_t find_pid_by_name( char* pidName)
 {
 	DIR *dir;
 	struct dirent *next;
-
+	pid_t pid;
+	
+	if ( strcmp(pidName, "init")==0)
+		return 1;
+	
 	dir = opendir("/proc");
 	if (!dir) {
 		printf("Cannot open /proc");
@@ -1446,13 +1511,12 @@ extern pid_t find_pid_by_name( char* pidName)
 		sscanf(buffer, "%*s %s", name);
 		if (strcmp(name, pidName) == 0) {
 		//	pidList=xrealloc( pidList, sizeof(pid_t) * (i+2));
-			return((pid_t)strtol(next->d_name, NULL, 0));
-
+			pid=(pid_t)strtol(next->d_name, NULL, 0);
+			closedir(dir);
+			return pid;
 		}
-	}
-	if ( strcmp(pidName, "init")==0)
-		return 1;
-
+	}	
+	closedir(dir);
 	return 0;
 }
 
@@ -1829,7 +1893,7 @@ static int re865xIoctl(char *name, unsigned int arg0, unsigned int arg1, unsigne
   return 0;
 } /* end re865xIoctl */
 
-#ifdef HOME_GATEWAY
+
 #ifdef CONFIG_SMART_REPEATER
 int getWispRptIface(char**pIface,int wlanId)
 {
@@ -1849,7 +1913,7 @@ int getWispRptIface(char**pIface,int wlanId)
 	SetWlan_idx(wlan_wanIfName);
 	//for wisp rpt mode,only care root ap
 	apmib_get(MIB_WLAN_MODE, (void *)&wlanMode);
-	if(AP_MODE==wlanMode && rptEnabled)
+	if((AP_MODE==wlanMode || AP_MESH_MODE==wlanMode || MESH_MODE==wlanMode) && rptEnabled)
 	{
 		if(wlanId == 0)
 			*pIface = "wlan0-vxd";
@@ -1865,8 +1929,8 @@ int getWispRptIface(char**pIface,int wlanId)
 	apmib_recov_wlanIdx();
 	return 0;
 }
-
 #endif
+#ifdef HOME_GATEWAY
 int getWanInfo(char *pWanIP, char *pWanMask, char *pWanDefIP, char *pWanHWAddr)
 {
 	DHCP_T dhcp;
@@ -1876,7 +1940,7 @@ int getWanInfo(char *pWanIP, char *pWanMask, char *pWanDefIP, char *pWanHWAddr)
 	struct in_addr	intaddr;
 	struct sockaddr hwaddr;
 	unsigned char *pMacAddr;
-	
+	int isWanPhyLink = 0;	
 	if ( !apmib_get( MIB_WAN_DHCP, (void *)&dhcp) )
 		return -1;
   
@@ -1885,7 +1949,7 @@ int getWanInfo(char *pWanIP, char *pWanMask, char *pWanDefIP, char *pWanHWAddr)
 
 	if( !apmib_get(MIB_WISP_WAN_ID, (void *)&wispWanId))
 		return -1;
-	
+
 	if ( dhcp == PPPOE || dhcp == PPTP || dhcp == L2TP || dhcp == USB3G ) { /* # keith: add l2tp support. 20080515 */
 #ifdef MULTI_PPPOE
 	if(dhcp == PPPOE){
@@ -1915,23 +1979,23 @@ int getWanInfo(char *pWanIP, char *pWanMask, char *pWanDefIP, char *pWanHWAddr)
 	if(opmode != WISP_MODE)
 	{
 		if(iface){
-			if(getWanLink("eth1") < 0){
+			if((isWanPhyLink = getWanLink("eth1")) < 0){
 				sprintf(pWanIP,"%s","0.0.0.0");
 			}
 		}	
 	}
 	
-	if ( iface && getInAddr(iface, IP_ADDR, (void *)&intaddr ) )
+	if ( iface && getInAddr(iface, IP_ADDR, (void *)&intaddr ) && ((isWanPhyLink >= 0)) )
 		sprintf(pWanIP,"%s",inet_ntoa(intaddr));
 	else
 		sprintf(pWanIP,"%s","0.0.0.0");
 
-	if ( iface && getInAddr(iface, SUBNET_MASK, (void *)&intaddr ) )
+	if ( iface && getInAddr(iface, SUBNET_MASK, (void *)&intaddr ) && ((isWanPhyLink >= 0) ))
 		sprintf(pWanMask,"%s",inet_ntoa(intaddr));
 	else
 		sprintf(pWanMask,"%s","0.0.0.0");
 	
-	if ( iface && getDefaultRoute(iface, &intaddr) )
+	if ( iface && getDefaultRoute(iface, &intaddr) && ((isWanPhyLink >= 0) ))
 		sprintf(pWanDefIP,"%s",inet_ntoa(intaddr));
 	else
 		sprintf(pWanDefIP,"%s","0.0.0.0");	
@@ -2049,7 +2113,7 @@ int isVxdInterfaceExist(char *interface)
 }
 #endif // UNIVERSAL_REPEATER
 
-#if 1
+#if 0
 int displayPostDate(char *postDate)
 {
 	char *strP;
@@ -2149,42 +2213,8 @@ void killDaemon(int wait)
     	return;
 
     daemonKilled = 1;
-#if 1   
-    FILE *stream;
-    system("ps > /var/alive_daemons");
-    stream = fopen ( "/var/alive_daemons", "r" );
-    if ( stream != NULL ) {
-        char *strtmp, *pid_token=NULL;
-        char line[100], cmdBuf[50];
 
-        while (fgets(line, sizeof(line), stream))
-        {
-            strtmp = line;
-            while(*strtmp == ' ')
-                strtmp++;
-            if(	(strstr(strtmp,"boa") != 0) 
-            		|| (strstr(strtmp,"/bin/sh") != 0) 
-            		|| (strstr(strtmp,"ps") != 0) 
-            		|| (strstr(strtmp, "root") == 0)
-#if defined(CONFIG_APP_FWD) // fwd is daemon to write firmware in flash at last.
-            		|| (strstr(strtmp, "fwd") != 0)
-#endif            		
-            )
-                continue;
-            else
-            {
-                pid_token = strtok(strtmp, " ");
-                if((pid_token != NULL) && (strlen(pid_token) >= 3))
-                {
-                    sprintf(cmdBuf,"kill -9 %s > /dev/null", pid_token);
-                    system(cmdBuf);
-                }
-            }
-        }
-        fclose(stream);
-    }
-    system("rm -rf /var/alive_daemons");
-#elif WIFI_SIMPLE_CONFIG
+#ifdef WIFI_SIMPLE_CONFIG
 
 	system("killall -9 sleep 2> /dev/null");
 	system("killsh.sh");	// kill all running script	
@@ -2207,7 +2237,9 @@ void killDaemon(int wait)
 	system("killall -9 auth 2> /dev/null");
 	system("killall -9 disc_server 2> /dev/null");
 	system("killall -9 igmpproxy 2> /dev/null");
-	system("echo 1,0 > /proc/br_mCastFastFwd ");
+	//kill mldproxy
+	system("killall -9 mldproxy 2> /dev/null");
+	system("echo 1,1 > /proc/br_mCastFastFwd ");
 	system("killall -9 syslogd 2> /dev/null");
 	system("killall -9 klogd 2> /dev/null");
 	system("killall -9 ntfs-3g 2> /dev/null");
@@ -2879,6 +2911,10 @@ int getWlanBssInfo(int wlanRootIndex, int wlanValIndex, void *bss)
 static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType, int *pStatus)
 {
 	int len=0, status=1, type=0, ver, force;
+#ifdef HEADER_LEN_INT
+		HW_PARAM_HEADER_Tp phwHeader;
+		int isHdware=0;
+#endif
 	PARAM_HEADER_Tp pHeader;
 #ifdef COMPRESS_MIB_SETTING
 	COMPRESS_MIB_HEADER_Tp pCompHeader;
@@ -2904,12 +2940,37 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 		}
 		expandLen = Decode(data+complen+sizeof(COMPRESS_MIB_HEADER_T), pCompHeader->compLen, expFile);
 		pHeader = (PARAM_HEADER_Tp)expFile;
+#ifdef HEADER_LEN_INT
+
+		if (memcmp(pHeader->signature, HW_SETTING_HEADER_TAG, TAG_LEN)==0 ||
+			memcmp(pHeader->signature, HW_SETTING_HEADER_FORCE_TAG, TAG_LEN)==0 ||
+			memcmp(pHeader->signature, HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN)==0 )
+			{
+				isHdware=1;
+				phwHeader=(HW_PARAM_HEADER_Tp)expFile;
+			}			
+#endif
 #else
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader=(HW_PARAM_HEADER_Tp)&data[len];
+		else
+#endif
 		pHeader = (PARAM_HEADER_Tp)&data[len];
 #endif
 		
 #ifdef _LITTLE_ENDIAN_
-		pHeader->len = WORD_SWAP(pHeader->len);
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader->len = WORD_SWAP(phwHeader->len);
+		else
+#endif
+		pHeader->len = HEADER_SWAP(pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			len += sizeof(HW_PARAM_HEADER_T);
+		else
 #endif
 		len += sizeof(PARAM_HEADER_T);
 
@@ -2934,6 +2995,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				ptr = expFile+sizeof(HW_PARAM_HEADER_T);
+			else
+#endif
 			ptr = expFile+sizeof(PARAM_HEADER_T);
 #else
 			ptr = &data[len];
@@ -2941,7 +3007,23 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 #ifdef COMPRESS_MIB_SETTING
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				DECODE_DATA(ptr, phwHeader->len);
+			else
+#endif
 			DECODE_DATA(ptr, pHeader->len);
+#endif
+			
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+			{
+				if ( !CHECKSUM_OK(ptr, phwHeader->len)) {
+				status = 0;
+				break;
+				}
+			}
+			else
 #endif
 			if ( !CHECKSUM_OK(ptr, pHeader->len)) {
 				status = 0;
@@ -2953,12 +3035,19 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 // added by rock /////////////////////////////////////////
 #ifdef VOIP_SUPPORT
+		#ifndef VOIP_SUPPORT_TLV_CFG
 			flash_voip_import_fix(&((APMIB_Tp)ptr)->voipCfgParam, &pMib->voipCfgParam);
+#endif
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
 			apmib_updateFlash(CURRENT_SETTING, &data[complen], pCompHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T), force, ver);
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				apmib_updateFlash(CURRENT_SETTING, ptr, phwHeader->len-1, force, ver);
+			else
+#endif
 			apmib_updateFlash(CURRENT_SETTING, ptr, pHeader->len-1, force, ver);
 #endif
 
@@ -2970,6 +3059,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 				expFile=NULL;
 			}
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				len += phwHeader->len;
+			else
+#endif
 			len += pHeader->len;
 #endif
 			type |= CURRENT_SETTING;
@@ -2994,6 +3088,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				ptr = expFile+sizeof(HW_PARAM_HEADER_T);
+			else
+#endif
 			ptr = expFile+sizeof(PARAM_HEADER_T);
 #else
 			ptr = &data[len];
@@ -3001,7 +3100,22 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 #ifdef COMPRESS_MIB_SETTING
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				DECODE_DATA(ptr, phwHeader->len);
+			else
+#endif
 			DECODE_DATA(ptr, pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+			{
+				if ( !CHECKSUM_OK(ptr, phwHeader->len)) {
+				status = 0;
+				break;
+				}
+			}
+			else
 #endif
 			if ( !CHECKSUM_OK(ptr, pHeader->len)) {
 				status = 0;
@@ -3014,12 +3128,19 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 // added by rock /////////////////////////////////////////
 #ifdef VOIP_SUPPORT
+		#ifndef VOIP_SUPPORT_TLV_CFG
 			flash_voip_import_fix(&((APMIB_Tp)ptr)->voipCfgParam, &pMibDef->voipCfgParam);
+#endif
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
 			apmib_updateFlash(DEFAULT_SETTING, &data[complen], pCompHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T), force, ver);
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				apmib_updateFlash(DEFAULT_SETTING, ptr, phwHeader->len-1, force, ver);
+			else
+#endif
 			apmib_updateFlash(DEFAULT_SETTING, ptr, pHeader->len-1, force, ver);
 #endif
 
@@ -3031,6 +3152,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 				expFile=NULL;
 			}	
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				len += phwHeader->len;
+			else
+#endif
 			len += pHeader->len;
 #endif
 			type |= DEFAULT_SETTING;
@@ -3053,6 +3179,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 			}
 #endif
 #ifdef COMPRESS_MIB_SETTING
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				ptr = expFile+sizeof(HW_PARAM_HEADER_T);
+			else
+#endif
 			ptr = expFile+sizeof(PARAM_HEADER_T);
 #else
 			ptr = &data[len];
@@ -3061,7 +3192,22 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 #ifdef COMPRESS_MIB_SETTING
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				DECODE_DATA(ptr, phwHeader->len);
+			else
+#endif
 			DECODE_DATA(ptr, pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+			{
+				if ( !CHECKSUM_OK(ptr, phwHeader->len)) {
+				status = 0;
+				break;
+				}
+			}
+			else
 #endif
 			if ( !CHECKSUM_OK(ptr, pHeader->len)) {
 				status = 0;
@@ -3070,6 +3216,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #ifdef COMPRESS_MIB_SETTING
 			apmib_updateFlash(HW_SETTING, &data[complen], pCompHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T), force, ver);
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				apmib_updateFlash(HW_SETTING, ptr, phwHeader->len-1, force, ver);
+			else
+#endif
 			apmib_updateFlash(HW_SETTING, ptr, pHeader->len-1, force, ver);
 #endif
 
@@ -3081,6 +3232,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 				expFile=NULL;
 			}
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				len += phwHeader->len;
+			else
+#endif
 			len += pHeader->len;
 #endif
 
@@ -3394,7 +3550,7 @@ int getInFlags(char *interface, int *flags)
 #endif
 
 #endif //#ifdef CONFIG_APP_TR069
-
+#if 0
 unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned char symbol)
 {
 	static char tmp[50];
@@ -3438,12 +3594,59 @@ unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned cha
 		
 	return (unsigned char *)tmp;
 }
+#endif
+
+int htmlSpecialCharReplace(char*input,char* output,int bufLen)
+{
+	int i=0,j=0;
+	bzero(output,bufLen);
+	for(i=0;i<bufLen;i++)
+	{
+		switch(input[i])
+		{
+			case '\0':
+				output[j]='\0';
+				return 0;
+			case '<'://&lt;
+				if(j+5>=bufLen)
+					return -1;
+				strcpy(output+j,"&lt;");
+				j+=strlen("&lt;");
+				break;
+			case '>'://&gt;
+				if(j+5>=bufLen)
+					return -1;
+				strcpy(output+j,"&gt;");
+				j+=strlen("&gt;");
+				break;
+			case '"'://&quot;
+				if(j+7>=bufLen)
+					return -1;
+				strcpy(output+j,"&quot;");
+				j+=strlen("&quot;");
+				break;
+#if 0
+			case ' '://&nbsp;
+				if(j+7>=bufLen)
+					return -1;
+				strcpy(output+j,"&nbsp;");
+				j+=strlen("&nbsp;");
+				break;
+#endif
+			default:
+				if(j+2>=bufLen) return -1;
+				output[j++]=input[i];
+				break;
+		}
+	}
+	return -1;
+}
 
 unsigned int getWLAN_ChipVersion()
 {
 	FILE *stream;
 	char buffer[128];
-	typedef enum { CHIP_UNKNOWN=0, CHIP_RTL8188C=1, CHIP_RTL8192C=2, CHIP_RTL8192D=3} CHIP_VERSION_T;
+	
 	CHIP_VERSION_T chipVersion = CHIP_UNKNOWN;	
 
 	sprintf(buffer,"/proc/wlan%d/mib_rf",wlan_idx);
@@ -3467,9 +3670,13 @@ unsigned int getWLAN_ChipVersion()
 			{
 				chipVersion = CHIP_UNKNOWN;
 			}
-			else if(strstr(strtmp,"RTL8188C") != 0)
+			else if(strstr(strtmp,"RTL8188C") != 0||strstr(strtmp,"RTL8188R") != 0|| strstr(strtmp,"RTL6195B") != 0)
 			{
 				chipVersion = CHIP_RTL8188C;
+			}
+			else if(strstr(strtmp,"RTL8188E") != 0)
+			{
+				chipVersion = CHIP_RTL8188E;
 			}
 			else if(strstr(strtmp,"RTL8192C") != 0)
 			{
@@ -3478,6 +3685,14 @@ unsigned int getWLAN_ChipVersion()
 			else if(strstr(strtmp,"RTL8192D") !=0)
 			{
 				chipVersion = CHIP_RTL8192D;
+			}
+			else if(strstr(strtmp,"RTL8812") !=0)
+			{
+				chipVersion = CHIP_RTL8192C;
+			}		
+			else if(strstr(strtmp,"RTL8192E") !=0)
+			{
+				chipVersion = CHIP_RTL8192E;
 			}
 		}			
 		fclose ( stream );
@@ -3572,13 +3787,9 @@ void swapWlanMibSetting(unsigned char wlanifNumA, unsigned char wlanifNumB)
 	unsigned char *wlanMibBuf=NULL;
 	unsigned int totalSize = sizeof(CONFIG_WLAN_SETTING_T)*(NUM_VWLAN_INTERFACE+1); // 4vap+1rpt+1root
 
-//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);
-
 #if CONFIG_APMIB_SHARED_MEMORY == 1
 	apmib_sem_lock();
 #endif
-
-//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);
 
 	wlanMibBuf = malloc(totalSize); 
 #if 0	
@@ -3608,7 +3819,7 @@ void swapWlanMibSetting(unsigned char wlanifNumA, unsigned char wlanifNumB)
 #if CONFIG_APMIB_SHARED_MEMORY == 1
 		apmib_sem_unlock();
 #endif
-
+	
 #if defined(WLAN_PROFILE)
 	int profile_enabled_id1, profile_enabled_id2;
 	int profile_num_id1, profile_num_id2;
@@ -3674,8 +3885,6 @@ void swapWlanMibSetting(unsigned char wlanifNumA, unsigned char wlanifNumB)
 #if CONFIG_APMIB_SHARED_MEMORY == 1
 	apmib_sem_lock();
 #endif
-
-//printf("\r\n __[%s-%u]\r\n",__FILE__,__LINE__);
 
 	vlanMibBuf = malloc(totalSize);
 	if(vlanMibBuf != NULL)
@@ -3895,7 +4104,7 @@ int getWlP2PStateEvent( char *interface, P2P_SS_STATUS_Tp pP2PStatus)
 }
 
 
-int getClientConnectState(void)
+int getClientConnectState(char* wlan_interface_name)
 {
 
 	static struct __p2p_state_event P2PStatus_t;
@@ -3907,18 +4116,19 @@ int getClientConnectState(void)
 	skfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if(skfd==-1)
 		return 0;
-	
+	#if 0
 	/* Get wireless name */
-	if ( iw_get_ext(skfd, "wlan0", SIOCGIWNAME, &wrq) < 0){
+	if ( iw_get_ext(skfd, wlan_interface_name, SIOCGIWNAME, &wrq) < 0){
 	    /* If no wireless name : no wireless extensions */
 	    close( skfd );
 	    return 0;
 	}
-
+    #endif
+    
 	wrq.u.data.pointer = (caddr_t)&P2PStatus_t;
 	wrq.u.data.length = sizeof(struct __p2p_state_event);
 
-	if (iw_get_ext(skfd, "wlan0", SIOCP2P_REPORT_CLIENT_STATE, &wrq) < 0){
+	if (iw_get_ext(skfd, wlan_interface_name, SIOCP2P_REPORT_CLIENT_STATE, &wrq) < 0){
   		close( skfd );  	 
 		return 0;
 	}     
@@ -3997,93 +4207,33 @@ int sendP2PWscConfirm( char *interface, P2P_WSC_CONFIRM_Tp pP2PWscConfirm)
 }
 #endif
 
-int rmFile(char * path)
-{
-	struct stat sbuf;
-
-	if(!path)
-	{
-		printf("%s:%d input path null!\n",__FUNCTION__,__LINE__);
-		return -1;
-	}
-	bzero(&sbuf,sizeof(stat));
-	if (stat(path, &sbuf)!=0)
-	{
-		printf("%s:%d can't stat '%s'\n",__FUNCTION__,__LINE__,path);
-		return -1;
-	}
-	
-	if(sbuf.st_mode & S_IFDIR)
-	{
-		DIR* pdir=opendir(path);		
-		struct dirent *pdirItem=NULL;
-		if(pdir==NULL)
-		{	
-			printf("%s:%d can't open dir '%s'\n",__FUNCTION__,__LINE__,path);
-			return -1;
-		}
-		while((pdirItem=readdir(pdir))!=NULL)
-		{
-			char* tobeRmName = NULL;
-			if(!strcmp(pdirItem->d_name,".")||!strcmp(pdirItem->d_name,".."))
-			{
-				continue;
-			}
-			tobeRmName= malloc(strlen(path)+strlen(pdirItem->d_name)+2);
-			if(!tobeRmName) return;
-			bzero(tobeRmName,(strlen(path)+strlen(pdirItem->d_name)+2));
-			sprintf(tobeRmName,"%s/%s",path,pdirItem->d_name);
-			if(rmFile(tobeRmName)<0)
-			{
-				printf("%s:%d rm %s fail\n",__FUNCTION__,__LINE__,tobeRmName);
-				return -1;
-			}
-			if(tobeRmName) free(tobeRmName);
-		}
-		closedir(pdir);
-		if(remove(path)<0)
-		{			
-			printf("%s:%d rm %s fail!\n",__FUNCTION__,__LINE__,path);
-			return -1;
-		}
-	}else
-	{
-		if(remove(path)<0)
-		{			
-			printf("%s:%d rm %s fail!\n",__FUNCTION__,__LINE__,path);
-			return -1;
-		}
-	}
-	return 0;
-}
-
 int write_line_to_file(char *filename, int mode, char *line_data)
 {
-	unsigned char tmpbuf[512];
-	int fh=0;
+    unsigned char tmpbuf[512];
+    int fh=0;
 
-	if(mode == 1) {/* write line datato file */
-		
-		fh = open(filename, O_RDWR|O_CREAT|O_TRUNC);
-		
-	}else if(mode == 2){/*append line data to file*/
-		
-		fh = open(filename, O_RDWR|O_APPEND);	
-	}
-	
-	
-	if (fh < 0) {
-		fprintf(stderr, "Create %s error!\n", filename);
-		return 0;
-	}
+    if(mode == 1) {/* write line datato file */
+
+        fh = open(filename, O_RDWR|O_CREAT|O_TRUNC);
+
+    }else if(mode == 2){/*append line data to file*/
+
+        fh = open(filename, O_RDWR|O_APPEND);
+    }
 
 
-	sprintf(tmpbuf, "%s", line_data);
-	write(fh, tmpbuf, strlen(tmpbuf));
+    if (fh < 0) {
+        fprintf(stderr, "Create %s error!\n", filename);
+        return 0;
+    }
+
+
+    sprintf(tmpbuf, "%s", line_data);
+    write(fh, tmpbuf, strlen(tmpbuf));
 
 
 
-	close(fh);
-	return 1;
+    close(fh);
+    return 1;
 }
 

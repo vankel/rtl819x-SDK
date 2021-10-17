@@ -8,6 +8,9 @@ config RTL_8198
 #config RTL_8196B
 #	def_bool y
 
+config RTL_8198T
+	bool 
+	default y if RTL_8198_GW
 #
 # Processor Config
 #
@@ -74,6 +77,11 @@ config ARCH_BUS_PCI
 config ARCH_BUS_PCI_MSI
   bool
   default n
+
+config ARCH_CPU_WMPU
+  bool 
+  default n
+	
 config RTL8198_REVISION_B
         bool
         default y
@@ -122,6 +130,10 @@ config RTL_8198_INBAND_AP
         help
           This enables support for Realtek RTL8198 AP with inband control
 endchoice
+
+config RTL_AP_PACKAGE
+	bool
+	default y if RTL_8198_AP_ROOT
 
 config FPGA_PLATFORM
 	bool
@@ -314,6 +326,15 @@ config RTL_ROOT_IMAGE_OFFSET
         default "0xF0000"
         help
 	  root image store in flash from the offset.
+	  
+comment "Flatfs image offset,should be 128K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_FLATFS_IMAGE_OFFSET
+        hex "FLATFS image offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x3E0000"
+        help
+	  flatfs image store in flash from the offset.
 
 # KERNE_STACK_SIZE = PAGE_SIZE<<KERNEL_STACK_SIZE_ORDER
 config KERNEL_STACK_SIZE_ORDER

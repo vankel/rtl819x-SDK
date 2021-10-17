@@ -783,10 +783,104 @@ static int sd_ioctl(struct block_device *bdev, fmode_t mode,
 
 static void set_media_not_present(struct scsi_disk *sdkp)
 {
+#ifdef CONFIG_KERNEL_POLLING
+	if (sdkp->media_present)
+		sdkp->device->changed = 1;
+
+	if (sdkp->device->removable) {
+		sdkp->media_present = 0;
+		sdkp->capacity = 0;
+	}
+#else
 	sdkp->media_present = 0;
 	sdkp->capacity = 0;
 	sdkp->device->changed = 1;
+#endif
 }
+
+#ifdef CONFIG_KERNEL_POLLING
+static int media_not_present(struct scsi_disk *sdkp,
+			     struct scsi_sense_hdr *sshdr);
+
+/**
+ *	sd_check_events - check media events
+ *	@disk: kernel device descriptor
+ *	@clearing: disk events currently being cleared
+ *
+ *	Returns mask of DISK_EVENT_*.
+ *
+ *	Note: this function is invoked from the block subsystem.
+ **/
+static unsigned int sd_check_events(struct gendisk *disk, unsigned int clearing)
+{
+	struct scsi_disk *sdkp = scsi_disk(disk);
+	struct scsi_device *sdp = sdkp->device;
+	struct scsi_sense_hdr *sshdr = NULL;
+	int retval;
+
+	SCSI_LOG_HLQUEUE(3, sd_printk(KERN_INFO, sdkp, "sd_check_events\n"));
+//	printk("%s %d sdp->changed %d\n",__FUNCTION__,__LINE__,sdp->changed);
+
+	/*
+	 * If the device is offline, don't send any commands - just pretend as
+	 * if the command failed.  If the device ever comes back online, we
+	 * can deal with it then.  It is only because of unrecoverable errors
+	 * that we would ever take a device offline in the first place.
+	 */
+	if (!scsi_device_online(sdp)) {
+		set_media_not_present(sdkp);
+		goto out;
+	}
+
+	/*
+	 * Using TEST_UNIT_READY enables differentiation between drive with
+	 * no cartridge loaded - NOT READY, drive with changed cartridge -
+	 * UNIT ATTENTION, or with same cartridge - GOOD STATUS.
+	 *
+	 * Drives that auto spin down. eg iomega jaz 1G, will be started
+	 * by sd_spinup_disk() from sd_revalidate_disk(), which happens whenever
+	 * sd_revalidate() is called.
+	 */
+	retval = -ENODEV;
+
+	if (scsi_block_when_processing_errors(sdp)) {
+		sshdr  = kzalloc(sizeof(*sshdr), GFP_KERNEL);
+		retval = scsi_test_unit_ready(sdp, SD_TIMEOUT, SD_MAX_RETRIES,
+					      sshdr);
+	}
+
+	/* failed to execute TUR, assume media not present */
+	if (host_byte(retval)) {		
+		set_media_not_present(sdkp);
+		goto out;
+	}
+
+	if (media_not_present(sdkp, sshdr)) {
+		goto out;
+	}
+
+	/*
+	 * For removable scsi disk we have to recognise the presence
+	 * of a disk in the drive.
+	 */
+	if (!sdkp->media_present)
+		sdp->changed = 1;
+	sdkp->media_present = 1;
+	
+out:
+	/*
+	 * sdp->changed is set under the following conditions:
+	 *
+	 *	Medium present state has changed in either direction.
+	 *	Device has indicated UNIT_ATTENTION.
+	 */
+	 
+	kfree(sshdr);
+	retval = sdp->changed ? DISK_EVENT_MEDIA_CHANGE : 0;
+	sdp->changed = 0;
+	return retval;
+}
+#endif
 
 /**
  *	sd_media_changed - check if our medium changed
@@ -964,6 +1058,9 @@ static struct block_device_operations sd_fops = {
 	.getgeo			= sd_getgeo,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl		= sd_compat_ioctl,
+#endif
+#ifdef CONFIG_KERNEL_POLLING
+	.check_events		= sd_check_events,
 #endif
 	.media_changed		= sd_media_changed,
 	.revalidate_disk	= sd_revalidate_disk,
@@ -1927,8 +2024,12 @@ static void sd_probe_async(void *data, async_cookie_t cookie)
 
 	gd->driverfs_dev = &sdp->sdev_gendev;
 	gd->flags = GENHD_FL_EXT_DEVT | GENHD_FL_DRIVERFS;
-	if (sdp->removable)
+	if (sdp->removable) {
 		gd->flags |= GENHD_FL_REMOVABLE;
+#ifdef CONFIG_KERNEL_POLLING
+		gd->events |= DISK_EVENT_MEDIA_CHANGE;
+#endif
+	}
 
 	dev_set_drvdata(dev, sdkp);
 	add_disk(gd);

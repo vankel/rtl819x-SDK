@@ -34,6 +34,17 @@
 #define  LIB1X_RAD_ACCCHL	11	// Access Challenge
 #define  LIB1X_RAD_ACCTREQ	4	// Account Request
 #define  LIB1X_RAD_ACCTRSP	5	// Account Respond
+/*HS2 SUPPORT*/
+#define  LIB1X_RAD_DISCONNECT_REQ	40	// Disconnect Request
+#define  LIB1X_RAD_DISCONNECT_ACK	41	// Disconnect ACK
+#define  LIB1X_RAD_DISCONNECT_NACK	42	// Disconnect NACK
+
+#define  LIB1X_RAD_COA_REQ	43	// COA (Change-of-Authorization) Request
+#define  LIB1X_RAD_COA_ACK	44	// COA ACK
+#define  LIB1X_RAD_COA_NACK	45	// COA NACK
+
+/*HS2 SUPPORT*/
+
 
 #define  LIB1X_LIL_ENDIAN
 
@@ -75,8 +86,12 @@
 #define LIB1X_RAD_ACCT_TERMINATE_CAUSE	 49
 #define	LIB1X_RAD_ACCT_INPUT_GIGAWORDS	 52
 #define	LIB1X_RAD_ACCT_OUTPUT_GIGAWORDS	 53
+//HS2 SUPPORT
+#define	LIB1X_RAD_ACCT_EVT_TIMESTAMP	 55
 #define LIB1X_RAD_ACCT_INTERIM_TIMEOUT	 85
 
+//HS2 SUPPORT
+#define LIB1X_RAD_ACCT_CHARGEABLE_USER_ID	 89
 /* Radius vendor specific definition from RFC 2548
    Microsoft Vendor-specific RADIUS attributes   */
 #define LIB1X_RADVENDOR_MS			  311 // 0x00000137
@@ -85,6 +100,19 @@
 #define LIB1X_RADVENDOR_MS_MPPE_ENCRYPTION_POLICY 7
 #define LIB1X_RADVENDOR_MS_MPPE_ENCRYPTION_TYPES  8
 
+/*HS2_SUPPORT*/
+#ifdef HS2_SUPPORT
+/* Radius vendor specific definition 
+   WFA Vendor-specific RADIUS attributes   */
+#define LIB1X_RADVENDOR_WFA			  40808
+// Hotspot 2.0 Subtype
+#define LIB1X_RADVENDOR_WFA_ST_SUB_RED_SVR 1// Hotspot 2.0 subscription remediation needed
+#define LIB1X_RADVENDOR_WFA_ST_AP_VER 2 // Hotspot 2.0 AP version
+#define LIB1X_RADVENDOR_WFA_ST_STA_VER 3 // Hotspot 2.0 STA version
+#define LIB1X_RADVENDOR_WFA_ST_DEAUTH_REQ 4 // Hotspot 2.0 deauthentication request
+#define LIB1X_RADVENDOR_WFA_ST_SESSION_URL 5 // Hotspot 2.0 Session Information URL
+#endif
+/*HS2_SUPPORT*/
 
 /* Accounting related Attribute */
 #define LIB1X_RADACCT_STATUS_TYPE_START		  1
@@ -157,6 +185,18 @@ struct lib1x_radiushdr
 
 };
 
+/*HS2_SUPPORT*/
+struct lib1x_radius_das_attr
+{
+	u_char *sta_addr;
+	u_char *user_name;
+	int		user_name_len;
+	u_char *acct_session_id;
+	int     acct_session_id_len;
+	u_char *cui;
+	int    cui_len;
+};
+/*HS2_SUPPORT*/
 struct lib1x_radiusattr
 {
 	u_char  type;

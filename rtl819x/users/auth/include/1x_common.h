@@ -44,6 +44,11 @@
 
 #ifdef RTL_WPA2	
 #include "1x_list.h"
+typedef struct pmksa_list_t
+{
+	u_long quota;
+	struct list_head pmk_cache;
+} PMKSA_LIST;
 #endif 
 
 #if defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
@@ -56,6 +61,22 @@
 	system(tmpbuf); \
 }
 #endif
+
+union PN48 {
+	unsigned long long val48;
+
+	struct {
+		unsigned char TSC7;
+		unsigned char TSC6;
+		unsigned char TSC5;
+		unsigned char TSC4;
+		unsigned char TSC3;
+		unsigned char TSC2;
+		unsigned char TSC1;
+		unsigned char TSC0;
+	} _byte_;
+};
+
 
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
 typedef enum { EAP_MD5=0, EAP_TLS=1, EAP_PEAP=2 } EAP_TYPE_T;
@@ -107,7 +128,7 @@ typedef enum { PHYBAND_OFF=0, PHYBAND_2G=1, PHYBAND_5G=2 } PHYBAND_TYPE_T;
 #define MESS_DBG_FIFO		24
 
 
-#define  MAX_SUPPLICANT     	32
+#define MAX_SUPPLICANT		64
 #define	MAX_RCV_FIFO		2048
 //#define  LIB1X_RAD_SHARED	100
 
@@ -183,33 +204,45 @@ typedef struct _DOT11_AlgoSuit
 
 typedef struct _DOT11_RSN_AUTHENTICATOR_VARIABLE
 {
-
-        //RSN related variable
+	//RSN related variable
 	OCTET_STRING                    AuthInfoElement;
-        BOOLEAN                         isSupportUnicastCipher;
-        BOOLEAN                         isSupportMulticastCipher;
-        BOOLEAN                         isSupportPreAuthentication;
-        BOOLEAN                         isSupportPairwiseAsDefaultKey;
+	BOOLEAN                         isSupportUnicastCipher;
+	BOOLEAN                         isSupportMulticastCipher;
+	BOOLEAN                         isSupportPreAuthentication;
+	BOOLEAN                         isSupportPairwiseAsDefaultKey;
 	BOOLEAN				Dot1xEnabled;
 	BOOLEAN				MacAuthEnabled;
-        BOOLEAN                         RSNEnabled;
+	BOOLEAN                         RSNEnabled;
 #ifdef RTL_WPA2        
 	BOOLEAN				WPAEnabled;
 	BOOLEAN				WPA2Enabled;
+	int 				max_pmksa;
 #endif
 	BOOLEAN				TSNEnabled;
 	int				WepMode;
-        int                             NumOfUnicastCipher;
-        int                             NumOfAuthCipher;
-        DOT11_AlgoSuit                  UniCastCipherSuit;
+	int                             NumOfUnicastCipher;
+	int                             NumOfAuthCipher;
+	DOT11_AlgoSuit                  UniCastCipherSuit;
 #ifdef RTL_WPA2        
-        DOT11_AlgoSuit                  WPA2UniCastCipherSuit;
+    DOT11_AlgoSuit                  WPA2UniCastCipherSuit;
 #endif
-        DOT11_AlgoSuit                  MulticastCipherSuit;
-        DOT11_AlgoSuit                  AuthenticationSuit;
-        u_char                          NumOfRxTSC;
-        u_char                          MulticastCipher;
+	DOT11_AlgoSuit                  MulticastCipherSuit;
+	DOT11_AlgoSuit                  AuthenticationSuit;
+	u_char                          NumOfRxTSC;
+	u_char                          MulticastCipher;
 	u_char                          AuthKeyMethod;
+#if defined( CONFIG_IEEE80211W) || defined(HS2_SUPPORT)
+	enum mfp_options ieee80211w;
+    unsigned sha256;	/*HS2_SUPPORT*/
+	/* dot11AssociationSAQueryMaximumTimeout (in TUs) */
+	unsigned int assoc_sa_query_max_timeout;
+	/* dot11AssociationSAQueryRetryTimeout (in TUs) */
+	int assoc_sa_query_retry_timeout;
+#endif /* CONFIG_IEEE80211W */
+#ifdef HS2_SUPPORT
+	unsigned char bOSEN; // OSU Server-Only Authenticated L2 Encryption Network 
+#endif
+
 	u_char				PassPhrase[64];
 // size is not enough because in PasswordHash(), it will use 40 bytes long. 2005-8-8 david
 //	u_char				PassPhraseKey[32];
@@ -234,10 +267,11 @@ typedef struct _DOT11_RSN_SUPPLICANT_VARIABLE{
 	BOOLEAN				WPAEnabled;
 	BOOLEAN				WPA2Enabled;
 	BOOLEAN				PMKCached;
-        struct _WPA2_PMKSA_Node*         cached_pmk_node;
+	struct _WPA2_PMKSA_Node*         cached_pmk_node;
 #endif        
         u_char                          UnicastCipher;
         u_char                          MulticastCipher;
+		u_char							mgmt_group_cipher;
         u_char                          NumOfRxTSC;
         DOT11_AlgoSuit                  AuthSupportUnicastCipherSuit;
         DOT11_AlgoSuit                  AuthSupportAuthenticationCipherSuit;
@@ -341,15 +375,29 @@ typedef struct Global_Params_tag
 #else        
         u_char                          PSK[PMK_LEN * 2];
 #endif        
-        u_char                          MaxRetryCounts;
-        u_char                          EventId;
-        BOOLEAN                         portSecure;
-        u_char                          DescriptorType; //initialize to 254 in RSN
-	u_char				KeyDescriptorVer;
-        u_char                          CurrentAddress[ETHER_ADDRLEN];
-	BOOLEAN				bMacAuthEnabled;
-
-
+	u_char                          MaxRetryCounts;
+	u_char                          EventId;
+	BOOLEAN                         portSecure;
+	u_char                          DescriptorType; //initialize to 254 in RSN
+	u_char							KeyDescriptorVer;
+	u_char                          CurrentAddress[ETHER_ADDRLEN];
+	BOOLEAN							bMacAuthEnabled;
+#ifdef CONFIG_IEEE80211W
+	BOOLEAN 		mgmt_frame_prot;
+#endif
+#ifdef HS2_SUPPORT
+	unsigned char   remed_URL[256];
+	unsigned char   serverMethod;
+	unsigned char   isTriggerWNM;
+	unsigned char   isTriggerWNM_DEAUTH;
+	u_char WNMDEAUTH_reason;
+	u_short WNMDEAUTH_reAuthDelay;
+	u_char WNMDEAUTH_URL[256];	
+	unsigned char   isTriggerSessionInfo_URL;
+	u_char SWT;
+	u_char SessionInfo_URL[256]; // BSS Transition Management URL
+	
+#endif
 	//RSNIE related variable
 	struct _DOT11_RSN_SUPPLICANT_VARIABLE   RSNVariable;
 	Dot11RSNConfigEntry		Dot11RSNConfig;
@@ -416,11 +464,16 @@ typedef enum { DISABLE, 	ENABLE } Switch;
 
 typedef struct  _Dot1x_Supplicant
 {
- 	int             index;
-        BOOLEAN		isEnable;
-	BOOLEAN		isEAPCapable;
-        //unsigned char   addr[ETHER_ADDRLEN];
-        Global_Params   *global;
+	int				index;
+	BOOLEAN			isEnable;
+	BOOLEAN			isEAPCapable;
+	unsigned char	addr[ETHER_ADDRLEN];
+	u_long			SessionTimeoutCounter;
+	u_long			IdleTimeout;
+	u_long			IdleTimeoutCounter;
+	u_long			tx_packets;
+	u_long			rx_packets;
+	Global_Params	*global;
 } Dot1x_Supplicant;
 
 
@@ -453,7 +506,23 @@ typedef struct _sta_info_2_web {
 	unsigned long	tx_fail;
 	unsigned long	tx_bytes;
 	unsigned long	rx_bytes;
-	unsigned char 	resv[8];
+	//CBN20130225 josh add start
+	unsigned long	tx_bytes_1s;
+	unsigned long	rx_bytes_1s;
+	unsigned long	tx_pkts_1s;
+	unsigned long	rx_pkts_1s;
+	//CBN20130225 josh add end
+	unsigned char	network;
+	unsigned char	ht_info;		// bit0: 0=20M mode, 1=40M mode; bit1: 0=longGI, 1=shortGI
+//#ifdef TLN_STATS
+#if 1
+	unsigned char	RxOperaRate;
+	unsigned char	auth_type;
+	unsigned char	enc_type;
+	unsigned char 	resv[3];
+#else
+	unsigned char 	resv[6];
+#endif
 } sta_info_2_web;
 
 #define RTL_STA_INFO sta_info_2_web
@@ -512,7 +581,7 @@ typedef struct  _Dot1x_Authenticator
 // david, fix to 128. If support sta is greater than 128 in wlan driver,
 // this value need be modified.
 //	RTL_STA_INFO				StaInfo[MAX_SUPPLICANT+1];
-	RTL_STA_INFO			StaInfo[128+1];
+	RTL_STA_INFO			DrvStaInfo[128+1];
 //-------------------------------------------------------------------------
 
 	//Server config
@@ -527,7 +596,7 @@ typedef struct  _Dot1x_Authenticator
 #endif
 
 #ifdef RTL_WPA2
-	struct list_head		pmk_cache;
+	struct pmksa_list_t		pmksa_list;
 #endif
 
 #ifdef CONFIG_RTL_802_1X_CLIENT_SUPPORT
@@ -565,6 +634,10 @@ void DUMP_GLOBAL_PARAMS( Global_Params *g, u_char *exp );
 #define lib1x_PrintAddr(a)  do{}while(0)
 #define DUMP_GLOBAL_PARAMS(a, b)  do{}while(0)
 #endif
+
+
+
+
 
 //sc_yang
 extern void * lib1x_global_signal_info;
@@ -625,13 +698,15 @@ int PasswordHash (
 
 struct _WPA2_PMKSA
 {
- 	u_char          pmkid[PMKID_LEN];
-// 	u_char          aa[6];	// Authenticator MAC Address 
- 	u_char          pmk[PMK_LEN];
+	u_long		SessionTimeout;
+	u_long		IdleTimeout;
+ 	u_char		pmkid[PMKID_LEN];
+// 	u_char		aa[6];	// Authenticator MAC Address 
+ 	u_char		pmk[PMK_LEN];
  //	u_long		lifetime;
+ 	u_long		aging;
  	u_char		akmp;
-  	u_char          spa[ETHER_ADDRLEN];	// Supplicant MAC Address 
-	
+  	u_char		spa[ETHER_ADDRLEN];	// Supplicant MAC Address 	
 };
 
 struct _WPA2_PMKSA_Node
@@ -640,6 +715,31 @@ struct _WPA2_PMKSA_Node
         struct _WPA2_PMKSA pmksa;
 };
 
+
+
+
+#define GDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+
+#define AUTH_DEBUGMSG
+#ifdef PMF_DEBUGMSG
+#define AUTHDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#else
+#define AUTHDEBUG(fmt, args...) {}
+#endif
+
+#define PMF_DEBUGMSG
+#ifdef PMF_DEBUGMSG
+#define PMFDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#else
+#define PMFDEBUG(fmt, args...) {}
+#endif
+
+#define HS2_DEBUGMSG
+#ifdef HS2_DEBUGMSG
+#define HS2DEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#else
+#define HS2DEBUG(fmt, args...) {}
+#endif
 
 
 #endif /* RTL_WPA2 */

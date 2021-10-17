@@ -25,6 +25,8 @@
 //#define CONFIG_MTD_DEBUG
 #define CONFIG_MTD_DEBUG_VERBOSE 3
 
+#define DISABLE_SCHEDULE
+
 
 #ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
 int flash_write_flag=0;		// 1: hw setting 2: default setting, 4: current setting, 8: system image
@@ -69,8 +71,10 @@ static int erase_write (struct mtd_info *mtd, unsigned long pos,
 			int len, const char *buf)
 {
 	struct erase_info erase;
+#ifndef DISABLE_SCHEDULE	
 	DECLARE_WAITQUEUE(wait, current);
 	wait_queue_head_t wait_q;
+#endif	
 	size_t retlen;
 	int ret;
 
@@ -78,28 +82,41 @@ static int erase_write (struct mtd_info *mtd, unsigned long pos,
 	 * First, let's erase the flash block.
 	 */
 
+#ifndef DISABLE_SCHEDULE	
 	init_waitqueue_head(&wait_q);
+#endif
 	erase.mtd = mtd;
+#ifndef DISABLE_SCHEDULE	
 	erase.callback = erase_callback;
+#else
+	erase.callback = NULL;
+#endif
 	erase.addr = pos;
 	erase.len = len;
+
+#ifndef DISABLE_SCHEDULE		
 	erase.priv = (u_long)&wait_q;
 
 	set_current_state(TASK_INTERRUPTIBLE);
 	add_wait_queue(&wait_q, &wait);
+#endif	
 
 	ret = mtd->erase(mtd, &erase);
 	if (ret) {
+#ifndef DISABLE_SCHEDULE	
 		set_current_state(TASK_RUNNING);
 		remove_wait_queue(&wait_q, &wait);
+#endif		
 		printk (KERN_WARNING "mtdblock: erase of region [0x%lx, 0x%x] "
 				     "on \"%s\" failed\n",
 			pos, len, mtd->name);
 		return ret;
 	}
 
+#ifndef DISABLE_SCHEDULE	
 	schedule();  /* Wait for erase to finish. */
 	remove_wait_queue(&wait_q, &wait);
+#endif
 
 	/*
 	 * Next, writhe data to flash.

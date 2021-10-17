@@ -15,10 +15,12 @@ enum {
 	IPC_PROT_ACK,					// b) host --> dsp 
 	IPC_PROT_T38_TO_DSP,			//    host --> dsp 
 	IPC_PROT_T38_TO_HOST,			//    host <-- dsp 
-	IPC_PROT_MIRROR,				// c) host <-- dsp
-	IPC_PROT_MIRROR_ACK,			// c) host --> dsp
+	IPC_PROT_MIRROR,				// c) host --> dsp
+	IPC_PROT_MIRROR_ACK,			// c) host <-- dsp
 	IPC_PROT_RPC,					// d) host <-- dsp
 	IPC_PROT_RPC_ACK,				// d) host --> dsp	
+	IPC_PROT_DDD_H2D,				// e) host --> dsp 
+	IPC_PROT_DDD_D2H,				// e) host <-- dsp 
 };
 
 // IPC category  
@@ -34,6 +36,14 @@ enum {	// Its domain is the same with VOIP_MGR_xxx
 	IPC_RPC_SLIC = 3300,
 	IPC_RPC_DAA,
 	
+	// protocol = IPC_PROT_DDD_H2D / IPC_PROT_DDD_D2H
+	IPC_DDD_H2D_OPEN_RDMODE = 3400, 
+	IPC_DDD_H2D_OPEN_WRMODE, 
+	IPC_DDD_H2D_CLOSE, 
+	IPC_DDD_H2D_WRITE, 
+	IPC_DDD_D2H_WRITE_PAUSE, 
+	IPC_DDD_D2H_WRITE_RESUME, 
+	IPC_DDD_D2H_READ, 
 };
 
 #pragma pack( 1 )
@@ -46,9 +56,9 @@ typedef struct {
 	uint16	dsp_cpuid;		// 14 = cpu ID 
 	uint16	dummy;			// 16
 	uint8	protocol;		// 18 = ipc type (ctrl = IPC_PROT_CTRL/IPC_PROT_RESP/IPC_PROT_EVENT/IPC_PROT_ACK)
-	uint8	voip_ver;		// 19            (ctrl = IPC_PROT_MIRROR/IPC_PROT_MIRROR_ACK)
+	uint8	voip_ver;		// 19            (ctrl = IPC_PROT_MIRROR/IPC_PROT_MIRROR_ACK/IPC_PROT_DDD_xxx)
 	// --------------------
-	uint16	category;		// 20 = VOIP_MGR_ / IPC_EVT_ / IPC_MIR_ / IPC_RPC_
+	uint16	category;		// 20 = VOIP_MGR_ / IPC_EVT_ / IPC_MIR_ / IPC_RPC_ / IPC_DDD_
 	uint16	sequence;		// 22
 	uint16	cont_len;		// 24
 	uint8	content[ 2 ];	// 26 (content[2] has no special meaning) 
@@ -92,6 +102,12 @@ typedef struct {	// when protocol = IPC_PROT_RPC
 	uint8  data[ 1 ];	// explain by send/recv function 
 } rpc_content_t;	// union with ipc_ctrl_pkt_t ->content
 
+typedef struct {	// when protocol = IPC_PROT_DDD_H2D / IPC_PROT_DDD_D2H
+	uint16 minor;		// dev minor number 
+	uint16 offset;		// use offset to check loss 
+	uint8  data[ 1 ];
+} ddd_content_t;
+
 #pragma pack( )
 
 // get size from the field of DSP_ID to specified one (included)
@@ -122,6 +138,12 @@ typedef struct {	// when protocol = IPC_PROT_RPC
 #define SIZE_OF_MIRROR_CONT_PLUS_HEADER						\
 	(														\
 	( uint32 )&( ( ( mirror_all_content_t * )0 ) ->data )	\
+	)
+
+// get DDD basic data size 
+#define SIZEOF_DDD_BASIC_CONT								\
+	(														\
+	( uint32 )&( ( ( ddd_content_t * )0 ) ->data )			\
 	)
 
 typedef struct

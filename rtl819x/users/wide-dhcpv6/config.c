@@ -125,6 +125,9 @@ extern char *configfilename;
 
 static struct keyinfo *find_keybyname __P((struct keyinfo *, char *));
 static int add_pd_pif __P((struct iapd_conf *, struct cf_list *));
+#ifdef SUGGESTED_T
+static int add_suggest_t __P((struct ia_conf *, struct cf_list *));
+#endif
 static int add_options __P((int, struct dhcp6_ifconf *, struct cf_list *));
 static int add_prefix __P((struct dhcp6_list *, char *, int,
     struct dhcp6_prefix *));
@@ -378,6 +381,12 @@ configure_ia(ialist, iatype)
 			switch (iatype) {
 			case IATYPE_PD:
 				switch(cfl->type) {
+#ifdef SUGGESTED_T
+				case IASUGGEST_T:
+					if (add_suggest_t(iac, cfl))
+						goto bad;
+					break;
+#endif
 				case IACONF_PIF:
 					if (add_pd_pif(pdp, cfl))
 						goto bad;
@@ -400,6 +409,12 @@ configure_ia(ialist, iatype)
 				break;
 			case IATYPE_NA:
 				switch(cfl->type) {
+#ifdef SUGGESTED_T
+				case IASUGGEST_T:
+					if (add_suggest_t(iac, cfl))
+						goto bad;
+					break;
+#endif
 				case IACONF_ADDR:
 					if (add_prefix(&nap->iana_address_list,
 					    "IANA", DHCP6_LISTVAL_STATEFULADDR6,
@@ -430,6 +445,40 @@ configure_ia(ialist, iatype)
   bad:
 	return (-1);
 }
+
+#ifdef SUGGESTED_T
+static int
+add_suggest_t(iac, cfl0)
+	struct ia_conf *iac;
+	struct cf_list *cfl0;
+{
+	struct cf_list *cfl;
+
+	iac->t1 = 0;
+	iac->t2 = 0;
+
+	for (cfl = cfl0->list; cfl; cfl = cfl->next) {
+		switch(cfl->type) {
+		case IAPARAM_T1:
+			iac->t1 = (u_int32_t)cfl->num;
+			break;
+		case IAPARAM_T2:
+			iac->t2 = (u_int32_t)cfl->num;
+			break;
+		default:
+			dprintf(LOG_ERR, FNAME, "%s:%d internal error: "
+			    "invalid configuration",
+			    configfilename, cfl->line);
+			goto bad;
+		}
+	}
+
+	return (0);
+
+  bad:
+	return (-1);
+}
+#endif
 
 static int
 add_pd_pif(iapdc, cfl0)

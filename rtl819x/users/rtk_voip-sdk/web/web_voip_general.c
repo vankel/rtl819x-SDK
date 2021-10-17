@@ -444,10 +444,10 @@ void asp_jitterDelay(webs_t wp, int nJitterDelay)
 {
 	int i;
 
-	if( nJitterDelay < 4 || nJitterDelay > 40 )
-		nJitterDelay = 4;
+	if( nJitterDelay < 2 || nJitterDelay > 40 )
+		nJitterDelay = 2;
 
-	for( i = 4; i <= 40; i ++ ) {
+	for( i = 2; i <= 40; i ++ ) {
 		if( i == nJitterDelay )
 			websWrite(wp, "<option value=%d selected>%d</option>", i, i * 10);
 		else
@@ -1186,6 +1186,34 @@ int asp_voip_GeneralGet(int ejid, webs_t wp, int argc, char_t **argv)
 		websWrite(wp, "%s", (pCfg->anstone&0x10000) ? T("checked") : T(""));
 	else if (strcmp(argv[0], "useANSTONE_V21flag_IP")==0)
 		websWrite(wp, "%s", (pCfg->anstone&0x20000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21DIS_TDM")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x40000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21DIS_IP")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x80000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21DCN_TDM")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x100000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21DCN_IP")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x200000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21CH2_TDM")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x400000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21CH2_IP")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x800000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21CH1_TDM")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x1000000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V21CH1_IP")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x2000000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V23_TDM")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x4000000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_V23_IP")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x8000000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_BELL202_AP_TDM")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x10000000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_BELL202_AP_IP")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x20000000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_BELL202_CP_TDM")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x40000000) ? T("checked") : T(""));
+	else if (strcmp(argv[0], "useANSTONE_BELL202_CP_IP")==0)
+		websWrite(wp, "%s", (pCfg->anstone&0x80000000) ? T("checked") : T(""));
 	else if (strcmp(argv[0], "useRTCP")==0)
 		websWrite(wp, "%s", (pCfg->RTCP_Interval) ? T("checked") : T(""));
 	else if (strcmp(argv[0], "RTCPInterval")==0)
@@ -1430,7 +1458,7 @@ int asp_voip_GeneralGet(int ejid, webs_t wp, int argc, char_t **argv)
 		}
 	}
 	// RTP Redundant
-#ifdef SUPPORT_RTP_REDUNDANT
+#if defined(SUPPORT_RTP_REDUNDANT_APP)
 	else if(strcmp(argv[0], "RTP_RED_BUILD") == 0)
 		websWrite(wp, "");
 	else if(strcmp(argv[0], "rtp_redundant_codec_options") == 0) {
@@ -1455,8 +1483,9 @@ int asp_voip_GeneralGet(int ejid, webs_t wp, int argc, char_t **argv)
 	else if(strcmp(argv[0], "rtp_redundant_codec_options") == 0)
 		websWrite(wp, "");
 	else if(strcmp(argv[0], "rtp_redundant_payload_type") == 0)
-		websWrite(wp, "");
-#endif /* CONFIG_RTK_VOIP_SRTP */
+		websWrite(wp, "%d", pCfg->rtp_redundant_payload_type);
+		//websWrite(wp, "");
+#endif /* SUPPORT_RTP_REDUNDANT_APP */
 
 	// V.152
 	else if(strcmp(argv[0], "useV152")==0)
@@ -1833,7 +1862,7 @@ void asp_voip_GeneralSet(webs_t wp, char_t *path, char_t *query)
 	/*
 	 * RTP Redundant
 	 */
-#ifdef SUPPORT_RTP_REDUNDANT
+#ifdef SUPPORT_RTP_REDUNDANT_APP
 	pCfg->rtp_redundant_codec = atoi( websGetVar(wp, T("rtp_redundant_codec"), T("-1")));
 	pCfg->rtp_redundant_payload_type = atoi( websGetVar(wp, T("rtp_redundant_payload_type"), T("121")));
 #endif
@@ -1871,6 +1900,20 @@ void asp_voip_GeneralSet(webs_t wp, char_t *path, char_t *query)
 	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V8bis_Cre_IP"), T("")), "on"))?0x8000:0;
 	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21flag_TDM"), T("")), "on"))?0x10000:0;
 	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21flag_IP"), T("")), "on"))?0x20000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21DIS_TDM"), T("")), "on"))?0x40000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21DIS_IP"), T("")), "on"))?0x80000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21DCN_TDM"), T("")), "on"))?0x100000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21DCN_IP"), T("")), "on"))?0x200000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21CH2_TDM"), T("")), "on"))?0x400000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21CH2_IP"), T("")), "on"))?0x800000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21CH1_TDM"), T("")), "on"))?0x1000000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V21CH1_IP"), T("")), "on"))?0x2000000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V23_TDM"), T("")), "on"))?0x4000000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_V23_IP"), T("")), "on"))?0x8000000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_BELL202_AP_TDM"), T("")), "on"))?0x10000000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_BELL202_AP_IP"), T("")), "on"))?0x20000000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_BELL202_CP_TDM"), T("")), "on"))?0x40000000:0;
+	i|= (!gstrcmp(websGetVar(wp, T("useANSTONE_BELL202_CP_IP"), T("")), "on"))?0x80000000:0;
 	pCfg->anstone=i;
 	if( !gstrcmp(websGetVar(wp, T("useRTCP"), T("")), "on") ) {
 		pCfg->RTCP_Interval = atoi( websGetVar(wp, T("RTCPInterval"), T("0")) );

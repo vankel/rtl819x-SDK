@@ -17,7 +17,8 @@ endif
  
 CFLAGS += -I../ -I../includes/  $(MIB_INCLUDE) -Wall -O 
 CFLAGS += -I$(CWMP_ROOT)/cwmpClient/ -I$(CWMP_ROOT)/include/
-CFLAGS += -I$(CWMP_ROOT)/../goahead-2.1.1/LINUX
+#CFLAGS += -I$(CWMP_ROOT)/../goahead-2.1.1/LINUX
+CFLAGS += -I$(CWMP_ROOT)/../boa/apmib/
 
 ifeq ($(CONFIG_RTK_VOIP_IP_PHONE), y)
 CFLAGS      +=  -I../ui/include/

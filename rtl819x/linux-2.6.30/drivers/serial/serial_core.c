@@ -2351,7 +2351,7 @@ int uart_register_driver(struct uart_driver *drv)
 	normal->type		= TTY_DRIVER_TYPE_SERIAL;
 	normal->subtype		= SERIAL_TYPE_NORMAL;
 	normal->init_termios	= tty_std_termios;
-#if defined(CONFIG_SERIAL_SC16IS7X0) || defined(CONFIG_SERIAL_RTL8198_UART1)
+#if defined(CONFIG_SERIAL_SC16IS7X0) || defined(CONFIG_SERIAL_RTL_UART1)
 	normal->init_termios.c_cflag = B38400 | CS8 | CREAD | HUPCL | CLOCAL;
 	normal->init_termios.c_ispeed = normal->init_termios.c_ospeed = 38400;
 #else

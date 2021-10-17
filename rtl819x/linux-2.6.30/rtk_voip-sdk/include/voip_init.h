@@ -3,7 +3,7 @@
 
 #include <linux/init.h>
 
-#if defined(CONFIG_DEFAULTS_KERNEL_2_6) && !defined(MODULE)
+#if ( defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4) ) && !defined(MODULE)
 
 /*
  * Execution precedence: 

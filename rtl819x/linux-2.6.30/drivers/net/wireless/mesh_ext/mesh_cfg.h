@@ -3,11 +3,11 @@
 
 #ifdef CONFIG_RTK_MESH 
 
-#define PU_A4A6 // use A4/A6 to update proxy table
 #define PU_STANDARD // use proxy update protocol
 
 #ifdef PU_STANDARD
-#define PU_STANDARD_RX // send proxy update message when receving a data frame
+//#define PU_A4A6 // use A4/A6 to update proxy table
+//#define PU_STANDARD_RX // send proxy update message when receving a data frame
 #define PU_STANDARD_SME // send proxy update message when assoc
 #endif
 
@@ -17,6 +17,8 @@
 #define MESH_METRIC_MAX_RETRY  3
 #define MESH_METRIC_UNSPECIFIED 20000 // if metric = 0, response this value; if exceeding MAX_RETRY, update with this value
 #endif
+
+//#define MESH_ROUTE_MAINTENANCE
 
 // TEST and DEBUG sub-section
 //

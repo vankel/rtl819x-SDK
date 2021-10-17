@@ -432,7 +432,7 @@ static void do_wps_event(struct network_info_t *info, char *data,int data_len)
 
 	if (fd < 0)	{
 		printf("Cannot Open file %s!\n", wps_config);
-		return -1;
+		return ;
 	}
 
 	write( fd, data, data_len); 

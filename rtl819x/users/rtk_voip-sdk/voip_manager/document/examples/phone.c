@@ -12,9 +12,9 @@ int main(void)
 		if( !RTK_VOIP_IS_SLIC_CH( i, g_VoIP_Feature ) )
 			continue;
 			
-		rtk_Set_Voice_Gain(i, 0, 0);
-		rtk_Set_Flash_Hook_Time(i, 0, 300);
-		rtk_Set_flush_fifo(i);					// flush kernel fifo before app run
+		rtk_SetVoiceGain(i, 0, 0);
+		rtk_SetFlashHookTime(i, 0, 300);
+		rtk_SetFlushFifo(i);					// flush kernel fifo before app run
 	}
 
 main_loop:
@@ -43,10 +43,10 @@ main_loop:
 			break;
 		case SIGN_ONHOOK:
 			rtk_SetPlayTone(i, 0, DSPCODEC_TONE_HOLD, 0, DSPCODEC_TONEDIRECTION_LOCAL);
-			rtk_Onhook_Action(i);
+			rtk_OnHookAction(i);
 			break;
 		case SIGN_OFFHOOK:
-			rtk_Offhook_Action(i);
+			rtk_OffHookAction(i);
 			rtk_SetPlayTone(i, 0, DSPCODEC_TONE_DIAL, 1, DSPCODEC_TONEDIRECTION_LOCAL);
 			break;
 		case SIGN_FLASHHOOK:

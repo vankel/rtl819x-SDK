@@ -22,46 +22,52 @@ function opera()
 }
 
 
-function enableConnect(selId)
+function enableConnect(selId, isMesh)
 { 	
 	if(parent.document.getElementById("select"))
 		parent.document.getElementById("select").value = "sel"+selId;
-				
+
+	if(isMesh) {
+		parent.document.getElementById("select_type").value = "mesh";
+	}
+
 	if(parent.document.getElementById("next"))
 		enableTextField(parent.document.getElementById("next"));
-		
+
 	if(parent.document.getElementById("pocket_ssid"))		
-  parent.document.getElementById("pocket_ssid").value = document.getElementById("selSSID_"+selId).value;
-  
-  parent.document.getElementById("pocket_channel").value = document.getElementById("selChannel_"+selId).value;
-  
-//alert("pocket_channel="+parent.document.getElementById("pocket_channel").value);  
+		//parent.document.getElementById("pocket_ssid").value = document.getElementById("selSSID_"+selId).value;
+		parent.document.getElementById("pocket_ssid").value = document.getElementById("realSSID_"+selId).value; //selSSID_x is bssid
 
-  parent.document.getElementById("pocketAP_ssid").value = document.getElementById("selSSID_"+selId).value;
-  parent.document.getElementById("pocket_encrypt").value = document.getElementById("selEncrypt_"+selId).value;
-  
-  if(parent.document.getElementById("pocket_wpa_tkip_aes"))
-  parent.document.getElementById("pocket_wpa_tkip_aes").value = document.getElementById("wpa_tkip_aes_"+selId).value;
-  
-  if(parent.document.getElementById("pocket_wpa2_tkip_aes"))	
-  parent.document.getElementById("pocket_wpa2_tkip_aes").value = document.getElementById("wpa2_tkip_aes_"+selId).value;
+	parent.document.getElementById("pocket_channel").value = document.getElementById("selChannel_"+selId).value;
 
-  if(parent.document.wizardPocketGW)
-  {
-	  if(document.getElementById("wpa_tkip_aes_"+selId).value == "aes/tkip")
-	  	parent.document.wizardPocketGW.elements["ciphersuite0"].value = "aes";
-	  else if(document.getElementById("wpa_tkip_aes_"+selId).value == "tkip")
-	  	parent.document.wizardPocketGW.elements["ciphersuite0"].value = "tkip";
-	  else if(document.getElementById("wpa_tkip_aes_"+selId).value == "aes")
-	  	parent.document.wizardPocketGW.elements["ciphersuite0"].value = "aes";
-	  	
-	  if(document.getElementById("wpa2_tkip_aes_"+selId).value == "aes/tkip")
-	  	parent.document.wizardPocketGW.elements["wpa2ciphersuite0"].value = "aes";
-	  else if(document.getElementById("wpa2_tkip_aes_"+selId).value == "tkip")
-	  	parent.document.wizardPocketGW.elements["wpa2ciphersuite0"].value = "tkip";
-	  else if(document.getElementById("wpa2_tkip_aes_"+selId).value == "aes")
-	  	parent.document.wizardPocketGW.elements["wpa2ciphersuite0"].value = "aes";
-  }
+	//alert("pocket_channel="+parent.document.getElementById("pocket_channel").value);  
+
+	parent.document.getElementById("pocketAP_ssid").value = document.getElementById("selSSID_"+selId).value;
+	parent.document.getElementById("pocketAP_realssid").value = document.getElementById("realSSID_"+selId).value;
+	parent.document.getElementById("pocket_encrypt").value = document.getElementById("selEncrypt_"+selId).value;
+
+	if(parent.document.getElementById("pocket_wpa_tkip_aes"))
+		parent.document.getElementById("pocket_wpa_tkip_aes").value = document.getElementById("wpa_tkip_aes_"+selId).value;
+
+	if(parent.document.getElementById("pocket_wpa2_tkip_aes"))	
+		parent.document.getElementById("pocket_wpa2_tkip_aes").value = document.getElementById("wpa2_tkip_aes_"+selId).value;
+
+	if(parent.document.wizardPocketGW)
+	{
+		if(document.getElementById("wpa_tkip_aes_"+selId).value == "aes/tkip")
+			parent.document.wizardPocketGW.elements["ciphersuite0"].value = "aes";
+		else if(document.getElementById("wpa_tkip_aes_"+selId).value == "tkip")
+			parent.document.wizardPocketGW.elements["ciphersuite0"].value = "tkip";
+		else if(document.getElementById("wpa_tkip_aes_"+selId).value == "aes")
+			parent.document.wizardPocketGW.elements["ciphersuite0"].value = "aes";
+
+		if(document.getElementById("wpa2_tkip_aes_"+selId).value == "aes/tkip")
+			parent.document.wizardPocketGW.elements["wpa2ciphersuite0"].value = "aes";
+		else if(document.getElementById("wpa2_tkip_aes_"+selId).value == "tkip")
+			parent.document.wizardPocketGW.elements["wpa2ciphersuite0"].value = "tkip";
+		else if(document.getElementById("wpa2_tkip_aes_"+selId).value == "aes")
+			parent.document.wizardPocketGW.elements["wpa2ciphersuite0"].value = "aes";
+	}
 }
 
 function siteSurvey(ifname)  

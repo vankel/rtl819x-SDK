@@ -4,28 +4,33 @@ obj-y    :=
 #CONFIG_VOIP_SDK=y
 
 ifeq ($(CONFIG_VOIP_SDK),y)
-obj-y += ivr.obj 
+#obj-y += ivr.obj 
 ifeq ($(CONFIG_RTK_VOIP_IVR_DEV),y)
-obj-y += ivr_dev.obj
+#obj-y += ivr_dev.obj
 endif
 ifeq ($(CONFIG_RTK_VOIP_G7231),y)
 ifneq ($(CONFIG_AUDIOCODES_VOIP),y)
-obj-y += ivr_g723sup.obj 
+#obj-y += ivr_g723sup.obj 
 endif
 endif
 ifeq ($(CONFIG_RTK_VOIP_G729AB),y)
 ifneq ($(CONFIG_AUDIOCODES_VOIP),y)
-obj-y += ivr_g729sup.obj 
+#obj-y += ivr_g729sup.obj 
 endif
 endif
 ifneq ($(CONFIG_AUDIOCODES_VOIP),y)
-obj-y += ivr_g711sup.obj 
+#obj-y += ivr_g711sup.obj 
 endif
 ifeq ($(CONFIG_RTK_VOIP_IVR_LINEAR_8K),y)
-obj-y += ivr_linear8ksup.obj
+#obj-y += ivr_linear8ksup.obj
 endif
 ifeq ($(CONFIG_RTK_VOIP_IVR_LINEAR_16K),y)
-obj-y += ivr_linear16ksup.obj
+#obj-y += ivr_linear16ksup.obj
+endif
+ifeq ($(CONFIG_RTK_VOIP_G722),y)
+ifneq ($(CONFIG_AUDIOCODES_VOIP),y)
+#obj-y += ivr_g722sup.obj 
+endif
 endif
 else
 obj-y += ivr.o 
@@ -51,6 +56,11 @@ endif
 ifeq ($(CONFIG_RTK_VOIP_IVR_LINEAR_16K),y)
 obj-y += ivr_linear16ksup.o
 endif
+ifeq ($(CONFIG_RTK_VOIP_G722),y)
+ifneq ($(CONFIG_AUDIOCODES_VOIP),y)
+obj-y += ivr_g722sup.o 
+endif
+endif
 endif
 
 
@@ -66,6 +76,7 @@ ifneq ($(CONFIG_AUDIOCODES_VOIP),y)
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/include
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/dsp_r1
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/dsp_r1/include
+EXTRA_CFLAGS+=-I$(DIR_VOIP)/voip_dsp/dsp_r1/g729/include
 
 
 ifeq ($(CONFIG_RTK_VOIP_G729AB),y)

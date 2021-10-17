@@ -1025,7 +1025,11 @@ static int __init usb_init(void)
 		pr_info("%s: USB support disabled\n", usbcore_name);
 		return 0;
 	}
+	
+#ifndef CONFIG_RTL_8881A
 	usb_led_init();
+#endif
+
 	retval = ksuspend_usb_init();
 	if (retval)
 		goto out;

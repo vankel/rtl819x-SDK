@@ -168,6 +168,19 @@ int read_opt_from_isp(char *data){
 #endif
 
 #ifdef STATIC_LEASE
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+static void read_port(const char *line, int *port_id)
+{
+	char *ptoken=NULL;
+	char str_port[4];
+	memset(str_port, 0, sizeof(str_port));
+	if((ptoken=strchr(line, ' '))!=NULL)
+	{
+		strncpy(str_port, line, ptoken-line);
+		*port_id=atoi(str_port);
+	}	
+}
+#endif
 static int read_mac(const char *line, void *arg)
 {
 	unsigned char *mac_bytes = arg;
@@ -189,19 +202,28 @@ static int read_staticlease(char *const_line, void *arg)
 	char *line;
 //	char *mac_string;
 	char *ip_string;
-	unsigned char *mac_bytes;
-	u_int32_t *ip;
+	unsigned char *mac_bytes=NULL;
+	u_int32_t *ip=NULL;
 	char *host_str, *host=NULL;
 
 
 	/* Allocate memory for addresses */
-	mac_bytes = xmalloc(sizeof(unsigned char) * 8);
+//	mac_bytes = xmalloc(sizeof(unsigned char) * 8);
 	ip = xmalloc(sizeof(u_int32_t));
 
 	/* Read mac */
 	line = (char *) const_line;
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+	unsigned int port_id=0;
+	ip_string = strchr(line, ' ');
+	if(ip_string-line<4)
+		read_port(line, &port_id);
+	else		
+#endif
+	{		
+		mac_bytes = xmalloc(sizeof(unsigned char) * 8);
 	read_mac(line, mac_bytes);
-
+	}
 	/* Read ip */
 	ip_string = strstr(line, " ");
 	ip_string = ip_string + strspn(ip_string, " ");	
@@ -214,6 +236,11 @@ static int read_staticlease(char *const_line, void *arg)
 		host = xmalloc(strlen(host_str)+1);
 		strcpy(host, host_str);
 	}
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+	if(port_id>0)
+		addStaticLeaseWithPort(arg, port_id, ip, host);
+	else
+#endif
 	addStaticLease(arg, mac_bytes, ip, host);
 
 #ifdef UDHCP_DEBUG

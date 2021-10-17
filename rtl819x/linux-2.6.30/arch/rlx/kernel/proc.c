@@ -18,7 +18,9 @@
 static int show_cpuinfo(struct seq_file *m, void *v)
 {
 	unsigned long n = (unsigned long) v - 1;
-
+#ifdef CONFIG_CPU_HAS_WATCH
+	int i;
+#endif
 	/*
 	 * For the first processor also print the system type
 	 */
@@ -30,7 +32,18 @@ static int show_cpuinfo(struct seq_file *m, void *v)
     seq_printf(m, "BogoMIPS\t\t: %d.%02d\n",
                cpu_data[n].udelay_val / (500000/HZ),
                (cpu_data[n].udelay_val / (5000/HZ)) % 100);
-
+    seq_printf(m, "hardware watchpoint\t: %s",
+		   cpu_has_watch ? "yes, " : "no\n");
+#ifdef CONFIG_CPU_HAS_WATCH
+    if (cpu_has_watch) {
+		seq_printf(m, "count: %d, address/irw mask: [",
+			   cpu_data[n].watch_reg_count);
+		for (i = 0; i < cpu_data[n].watch_reg_count; i++)
+			seq_printf(m, "%s0x%04x", i ? ", " : "" ,
+				   cpu_data[n].watch_reg_masks[i]);
+		seq_printf(m, "]\n");
+	}
+#endif
 	seq_printf(m, "tlb_entries\t\t: %d\n", cpu_data[n].tlbsize);
     seq_printf(m, "mips16 implemented\t: yes\n");
 

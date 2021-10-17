@@ -1,0 +1,29 @@
+--- Makefile	2012-05-11 10:57:01.806449905 +0800
++++ Makefile_new	2012-05-11 10:43:57.874593797 +0800
+@@ -93,6 +93,8 @@
+ VENDDIR = $(ROOTDIR)/vendors/$(CONFIG_VENDOR)/$(CONFIG_PRODUCT)/.
+ 
+ SDKDIR    = $(ROOTDIR)/$(LINUXDIR)/drivers/net/apollo/sdk
++DIAGDIR	= $(ROOTDIR)/$(LINUXDIR)/drivers/net/apollo/internal/apollo/diagShellCygwin
++DIAGSHELLDIR = $(ROOTDIR)/user/diagshell
+ 
+ export VENDOR PRODUCT ROOTDIR LINUXDIR HOSTCC CONFIG_SHELL
+ export CONFIG_CONFIG LINUX_CONFIG ROMFSDIR SCRIPTSDIR
+@@ -473,9 +475,17 @@
+ #	$(MAKE) -C $(SDK_RTCOREDIR) clean; \
+ #	$(MAKE) -C $(SDK_RTKDIR) clean;
+ 
++.PHONY: sdk.shell_tree sdk.diag 
+ sdk.clean:
+ 	$(MAKE) -C $(SDKDIR) clean
+ 
++sdk.shell_tree:
++	$(MAKE) -C $(DIAGDIR) shell_tree
++
++sdk.diag:
++	$(MAKE) -C $(DIAGSHELLDIR) diag
++	$(MAKE) romfs image
++
+ clean: modules_clean sdk.clean
+ 	#for dir in $(LINUXDIR) $(DIRS); do $(MAKEARCH) -C $$dir clean ; done
+ 	for dir in  $(DIRS); do $(MAKEARCH) -C $$dir clean ; done

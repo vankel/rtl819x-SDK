@@ -167,6 +167,7 @@ enum GPIO_PORT
 	GPIO_PORT_A = 0,
 	GPIO_PORT_B,
 	GPIO_PORT_MAX,
+	GPIO_PORT_UNDEF,
 };
 
 
@@ -203,7 +204,7 @@ enum GPIO_INTERRUPT_TYPE
 
 /*********************  Function Prototype in gpio.c  ***********************/
 //int32 _rtl867x_initGpioPin( uint32 gpioId, enum GPIO_DIRECTION direction, enum GPIO_INTERRUPT_TYPE interruptEnable );
-//int32 _rtl867x_initGpioPin( uint32 gpioId, unsigned char func );
+int32 _rtl867x_initGpioPin( uint32 gpioId, unsigned char func );
 int32 _rtl867x_getGpioDataBit( uint32 gpioId, uint32* pData );
 int32 _rtl867x_setGpioDataBit( uint32 gpioId, uint32 data );
 

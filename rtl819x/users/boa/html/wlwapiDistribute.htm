@@ -160,7 +160,7 @@ function saveClick(url)
 <body>
 <blockquote>
 <h2><font color="#0000FF">Save/Reload Settings</font></h2>
-  <table border="0" cellspacing="4" width="500">
+  <table border="0" cellspacing="4" width="650">
   <tr><font size=2>
  This page allows you save current settings to a file or reload the settings
  from the file which was saved previously. Besides, you could reset the current
@@ -176,12 +176,17 @@ function saveClick(url)
 	<input name="text_gbw" id="Text_gbw" tabindex="0" style="display:none" value="GBW" size="8" readonly></td> 
   </tr> 
   <tr>
-  <td align=center height="18" width="346" colspan="2"><hr></td> 
+  <td align=center height="18" width="550" colspan="2"><hr></td> 
   </tr> 
   <tr>
-  	<td align=left height="39" width="256">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;User Name</td>
-	<td align=left height="39" width="225">
-	<input type="text" name="cert_name" size="26" class="mytxt" maxlength="32" tabindex="0" style="ime-mode:Disabled"></td> 
+  	<td align=left height="39" width="500">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;User Name</td>
+	<td align=left height="39" width="500">
+	<input type="text" name="cert_name" size="26" class="mytxt" maxlength="32" tabindex="0" style="ime-mode:Disabled">@
+	<select size="1" name="cert_subtype" style="width =60; border-style: outset; border-width: 1" class="mytxt" tabindex="0"> 
+       <option value="0">ASU</option> 
+       <option value="1">AE</option> 
+       <option value="2">ASUE</option> 
+       </select></td>
   </tr>
    <tr>
    <td align=left height="50" width="256">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Valid Time</td>

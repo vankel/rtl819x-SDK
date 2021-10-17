@@ -38,18 +38,26 @@ int get_shm_id()
 {
 	return shm_id;
 }
+int set_shm_id(int id)
+{
+	 shm_id=id;
+}
 
 int clear_fwupload_shm(int shmid)
 {
-	shm_memory = (char *)shmat(shmid, NULL, 0);
-	if (shmdt(shm_memory) == -1) {
-      fprintf(stderr, "shmdt failed\n");
-  }
+	//shm_memory = (char *)shmat(shmid, NULL, 0);
+	if(shm_memory){
+		if (shmdt(shm_memory) == -1) {
+      		fprintf(stderr, "shmdt failed\n");
+  		}
+  	}
 
-  if (shmctl(shm_id, IPC_RMID, 0) == -1) {
-      fprintf(stderr, "shmctl(IPC_RMID) failed\n");
-  }
+	if (shm_id != 0) {
+		if(shmctl(shm_id, IPC_RMID, 0) == -1)
+			fprintf(stderr, "shmctl(IPC_RMID) failed\n");
+	}
 	shm_id = 0;
+	shm_memory = NULL;
 }
 //keith_fwd
 #endif //#if defined(CONFIG_APP_FWD)
@@ -97,11 +105,6 @@ int read_header(request * req)
          * We accept tab but don't do anything special with it.
          */
         uc = *check;
-#ifndef HTTP_FILE_SERVER_SUPPORTED    
-/*
- * for fix http file can't open unicode character dir
- *
- */
 	if (uc != '\r' && uc != '\n' && uc != '\t' &&
 	    (uc < 32 || uc > 127)) {
             log_error_doc(req);
@@ -111,7 +114,6 @@ int read_header(request * req)
             send_r_bad_request(req);
             return 0;
         }
-#endif        
         switch (req->status) {
         case READ_HEADER:
             if (uc == '\r') {
@@ -227,7 +229,7 @@ int read_header(request * req)
 
                 if (req->content_length) {
 #if defined(ENABLE_LFS)
-                    long long content_length;
+                    off64_t content_length;
 #else
                     int content_length;
 #endif                    
@@ -371,8 +373,13 @@ int read_header(request * req)
 
 int read_body(request * req)
 {
+#if defined(ENABLE_LFS) 
+		off64_t bytes_read;
+		off64_t bytes_to_read, bytes_free;
+#else
     int bytes_read;
     unsigned int bytes_to_read, bytes_free;
+#endif
 
     bytes_free = BUFFER_SIZE - (req->header_end - req->header_line);
     bytes_to_read = req->filesize - req->filepos;
@@ -429,14 +436,26 @@ int read_body(request * req)
 
 int write_body(request * req)
 {
+#if defined(ENABLE_LFS) 
+			off64_t bytes_written;
+			off64_t bytes_to_write = req->header_end - req->header_line;
+#else
+
     int bytes_written;
     unsigned int bytes_to_write = req->header_end - req->header_line;
-
+#endif
 
 #if defined(CONFIG_APP_FWD)
     int content_length = boa_atoi(req->content_length);
-#endif		
-		
+    if(content_length<0)
+        return -1;
+//    printf("%s:%d content_length=%d\n",__FUNCTION__,__LINE__,content_length);
+#ifdef CONFIG_RTL_WAPI_SUPPORT  //and cbo --when upload wapi certs, don't kill daemon
+	if(content_length>0 && content_length<2000)
+		req->daemon_killed=1;		
+#endif
+#endif
+
 
     if (req->filepos + bytes_to_write > req->filesize)
         bytes_to_write = req->filesize - req->filepos;
@@ -459,7 +478,6 @@ int write_body(request * req)
 // davidhsu -------------------
 #ifdef SUPPORT_ASP
 //keith_fwd
-
 
 #if defined(CONFIG_APP_FWD)
 		if (req->upload_data) {
@@ -487,8 +505,12 @@ int write_body(request * req)
 					return -2;
 				}
 				/* Attach the shared memory segment */
-				shm_memory = (char *)shmat(shm_id, NULL, 0);
 				
+				shm_memory = (char *)shmat(shm_id, NULL, 0);
+				if(req->upload_data !=NULL )
+				{
+					free(req->upload_data);
+				}
 				req->upload_data = shm_memory;
 			}
 			
@@ -497,7 +519,7 @@ int write_body(request * req)
 			req->upload_len += bytes_to_write;
 			req->header_line += bytes_to_write;
 			req->filepos += bytes_to_write;
-
+			
 			return 1;
 		}
 		

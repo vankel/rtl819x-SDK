@@ -6,6 +6,7 @@
 #include "voip_params.h"
 #include "voip_control.h"
 #include "con_register.h"
+#include "con_ring.h"
 #include "con_mux.h"
 #include "snd_define.h"
 
@@ -467,6 +468,7 @@ static void ENTRY_SLIC_Hook_Polling(
 			voip_event_hook_in( cch, VEID_HOOK_FXO_ON_HOOK );
 		} else {
 			voip_event_hook_in( cch, VEID_HOOK_PHONE_ON_HOOK );
+			p_snd ->fxs_ops ->SLIC_Set_Power_Save_Mode( p_snd );
 		}
 		//printk("hook_in: ON\n");
 	}
@@ -482,6 +484,7 @@ static void ENTRY_SLIC_Hook_Polling(
 #endif
 
 			voip_event_hook_in( cch, VEID_HOOK_PHONE_OFF_HOOK );
+			p_snd ->fxs_ops ->OnHookLineReversal( p_snd, 0 );
 			//printk("hook_in: OFF\n");
 
 #ifndef CONFIG_AUDIOCODES_VOIP
@@ -493,6 +496,8 @@ static void ENTRY_SLIC_Hook_Polling(
 			}	
 #endif
 #endif
+			//MultiRingStop(cch);
+			MultiRingStop_con(p_con);
 		}
 	}
 	else if ( (&hook_res)->hook_status == PHONE_FLASH_HOOK)
@@ -518,6 +523,9 @@ static void ENTRY_SLIC_Hook_Polling(
 		}
 #endif
 	}
+	
+	//MultiRingCadenceProcess(cch);
+	MultiRingCadenceProcess_con(p_con);
 
 }
 
@@ -1013,7 +1021,7 @@ static void ENTRY_DAA_Status_Polling(
 // Polling job - DTMF caller ID 
 // --------------------------------------------------------
 
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 static void ENTRY_DTMF_CID_Hook_Polling( 
 						const voip_con_t *p_con, 
 						voip_snd_t * const p_snd )
@@ -1420,7 +1428,7 @@ void START_Event_Polling_Use_Timer(unsigned long data)
 			break;
 #endif
 		case SND_TYPE_FXS:
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 			// FXS not running: .1165
 			ENTRY_DTMF_CID_Hook_Polling( p_con, p_snd );
 #endif
@@ -1445,7 +1453,7 @@ void START_Event_Polling_Use_Timer(unsigned long data)
 //#ifndef AUDIOCODES_VOIP
 
 #ifndef AUDIOCODES_VOIP
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 	{
 		extern void DTMF_CID_process( void );
 		

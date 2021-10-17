@@ -11,6 +11,14 @@ include $(DIR_USERS)/.config
 endif
 
 ifdef CONFIG_RTL_8198_AP_ROOT
+CONFIG_RTL_AP = CONFIG_RTL_8198_AP_ROOT
+endif
+
+ifdef CONFIG_RTL_8197D_AP
+CONFIG_RTL_AP = CONFIG_RTL_8197D_AP
+endif
+
+ifdef CONFIG_RTL_AP
 AP=1
 SKUTAG=ap
 else
@@ -74,6 +82,10 @@ SOURCES += fwd.c
 # targets
 #------------------------------------------------------------------------------
 all: depend flash fwd
+
+#ifeq ($(CONFIG_RTL_11W_SUPPORT),y)
+#CFLAGS += -DCONFIG_IEEE80211W
+#endif
 
 ifeq ($(CONFIG_RTL_COMAPI_CFGFILE),y)
 flash: Makefile flash.o comapi.o $(APMIB_DIR)/$(APMIB_LIB)

@@ -5,7 +5,7 @@
 *
 *
 *****************************************************************************/
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -152,6 +152,7 @@ extern spinlock_t spi_lock;
 /*---------------- External Function Prototypes -----------------*/
 extern void gpioConfig (int gpio_num, int gpio_func);
 extern void gpioSet(int gpio_num);
+extern void gpioClear(int gpio_num);
 
 #ifdef  SPI_8672_DEBUG
 /*---------------------------------------------------------
@@ -448,7 +449,8 @@ unsigned int  rtl8672_share_spi_read(unsigned int ch, unsigned int uses_daisy, u
 *	Ouput:	none
 *	Return:	none
 *--------------------------------------------------------*/
-void init_spi(int ch_spi)
+//void init_spi(int ch_spi)
+void __rtl867x_spi_init(int ch_spi)
 {
 	rtl_8672_reg_t	*spi_reg;
 	unsigned int		val,i;
@@ -658,10 +660,12 @@ __inline__ void __nsdelay(unsigned long nssecs, unsigned long lpj)
     __delay(nssecs);
 }
 
+#if 0
 __inline__ void spi_nsdelay( unsigned long delay )
 {
 	__nsdelay( delay, __udelay_val );	// __udelay_val defined in linux-2.4.18/include/asm-mips/delay.h
 }
+#endif
 
 #if 0
 

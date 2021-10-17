@@ -273,8 +273,8 @@ static int32 _rtl865x_eventHandle_delL2Fdb(void * param)
 	entry = rtl865x_pppTable;
 	for(i = 0; i < PPP_NUMBER; i++,entry++)
 	{
-		if((entry->valid) && memcmp(&entry->server_mac,&fdbEntry->macAddr,sizeof(ether_addr_t)) == 0)
-			printk("%s(%d): BUG....deleted l2 fdb is referenced by ppp table!\n",__FUNCTION__,__LINE__);
+		//if((entry->valid) && memcmp(&entry->server_mac,&fdbEntry->macAddr,sizeof(ether_addr_t)) == 0)
+			//printk("%s(%d): BUG....deleted l2 fdb is referenced by ppp table!\n",__FUNCTION__,__LINE__);
 	}
 	
 	return EVENT_CONTINUE_EXECUTE;

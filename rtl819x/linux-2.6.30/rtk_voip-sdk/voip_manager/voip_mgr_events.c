@@ -398,7 +398,7 @@ label_out_error:
 	return ret;
 }
 
-int voip_mgr_event_flush( TstFlushVoipEvent *pFlushVoipEvent )
+int voip_mgr_event_flush( const TstFlushVoipEvent *pFlushVoipEvent )
 {
 	extern void Reset_Fax_Check_Flags( uint32 ch_id );
 	
@@ -438,7 +438,7 @@ static int extra_process_event_out_hook( voip_event_queue_t *queue, TstVoipEvent
 {
 #ifndef AUDIOCODES_VOIP
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 	extern void cid_dtmf_gen_init(int32 chid);
 #endif
 #endif
@@ -512,7 +512,7 @@ static int extra_process_event_out_hook( voip_event_queue_t *queue, TstVoipEvent
 		PRINT_MSG("PHONE_OFF_HOOK(%d)\n", pVoipEvent ->ch_id);
 #ifndef AUDIOCODES_VOIP
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 		cid_dtmf_gen_init( pVoipEvent ->ch_id );
 #endif
 #endif

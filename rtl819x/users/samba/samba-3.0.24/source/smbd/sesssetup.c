@@ -1160,9 +1160,8 @@ int reply_sesssetup_and_X(connection_struct *conn, char *inbuf,char *outbuf,
 	SSVAL(outbuf,smb_uid,sess_vuid);
 	SSVAL(inbuf,smb_uid,sess_vuid);
 
-	if(smb_bufsize == 0){
+	if(smb_bufsize == 0)
 		smb_bufsize = 61440;
-	}
 	
 	if (!done_sesssetup)
 		max_send = MIN(max_send,smb_bufsize);

@@ -1,0 +1,27 @@
+#check rt5628 codec reg
+mount -t sysfs none /sys
+cat /sys/devices/platform/soc-audio/codec_reg
+
+#use aplay to play music
+
+Play music once:
+aplay -x 1 -f S16_LE -c 2 -r 16000  -D default /bin/audio_src_16k_le.wav
+aplay -x 1 -f S16_BE -c 2 -r 16000  -D default /bin/audio_src_16k_be.pcm
+
+Play music repeatedly:
+aplay -x 0 -f S16_LE -c 2 -r 16000  -D default /bin/audio_src_16k_le.wav
+aplay -x 0 -f S16_BE -c 2 -r 16000  -D default /bin/audio_src_16k_be.pcm
+
+///16KHz
+aplay -x 1 -f S16_LE -c 2 -r 44100  -D format_convert16 /var/tmp/usb/sda1/audio_src/HumptyDumpty_44100.wav &
+arecord -x 1 -f S16_LE -r 16000 -c 2 -D format_convert16 -d 30 /var/test.wav
+aplay -x 1 -f S16_LE -c 2 -r 16000  -D format_convert16 /var/test.wav
+
+///48KHz
+aplay -x 1 -f S16_LE -c 2 -r 44100  -D format_convert48 /var/tmp/usb/sda1/audio_src/HumptyDumpty_44100.wav &
+arecord -x 1 -f S16_LE -r 48000 -c 2 -D format_convert48 -d 30 /var/test.wav
+aplay -x 1 -f S16_LE -c 2 -r 48000  -D format_convert48 /var/test.wav
+
+ 
+
+

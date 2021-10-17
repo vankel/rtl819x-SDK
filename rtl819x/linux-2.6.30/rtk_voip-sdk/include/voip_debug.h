@@ -17,6 +17,8 @@
 #define AC_FORE_GREEN		"\x1B[32m"	/* foreground green */
 #define AC_FORE_YELLOW		"\x1B[33m"	/* foreground yellow */
 #define AC_FORE_BlUE		"\x1B[34m"	/* foreground blue */
+#define AC_FORE_PURPLE		"\x1B[35m"	/* foreground purple */
+#define AC_FORE_CYAN		"\x1B[36m"	/* foreground cyan */
 
 #define PRINT_R(fmt, args...)		printk("\x1B[31m" fmt "\x1B[0m", ## args)
 #define PRINT_G(fmt, args...)		printk("\x1B[32m" fmt "\x1B[0m", ## args)
@@ -137,6 +139,8 @@ typedef struct {
 	int bCp3Count_G7111NBDec;
 	int bCp3Count_G7111WBEnc;
 	int bCp3Count_G7111WBDec;
+	int bCp3Count_G7222Enc;//g.722.2 amr-wb encode
+	int bCp3Count_G7222Dec;//g.722.2 amr-wb decode
 	int bCp3Count_Temp200;
 	int bCp3Count_Temp201;
 	int bCp3Count_Temp202;

@@ -68,11 +68,11 @@ extern int voip_mgr_event_in( uint32 chid, VoipEventQueueIdx idx, VoipEventMask 
 					VEID_RFC2833_RX_WILDCARD | ( ( uint32 )( rfc2833_event ) & 0x00FF ), 	\
 					0, 0 )
 
-#define voip_event_dsp_in( chid, sid, dsp_event )				\
+#define voip_event_dsp_in( chid, sid, dsp_event, p0 )			\
 			voip_mgr_event_in( chid,							\
 					( chid == sid ? VOIP_EVENT_IDX_DSP_MID0 : VOIP_EVENT_IDX_DSP_MID1 ),	\
 					( chid == sid ? VEM_MID0 : VEM_MID1 ),		\
-					dsp_event, 0, 0 )
+					dsp_event, p0, 0 )
 
 extern int voip_mgr_event_in_packed( const TstVoipEvent *pVoipEvent );
 
@@ -82,7 +82,7 @@ extern int voip_mgr_event_out( TstVoipEvent *pVoipEvent );
 
 // ------------------------------------ 
 // event flush (for users ioctl or kernel) 
-extern int voip_mgr_event_flush( TstFlushVoipEvent *pFlushVoipEvent );
+extern int voip_mgr_event_flush( const TstFlushVoipEvent *pFlushVoipEvent );
 
 #define voip_event_flush_dtmf_fifo( chid, dir )								\
 			{																\

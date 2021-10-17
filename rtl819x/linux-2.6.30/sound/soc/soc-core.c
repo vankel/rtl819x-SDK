@@ -304,7 +304,48 @@ static void close_delayed_work(struct work_struct *work)
 	}
 	mutex_unlock(&pcm_mutex);
 }
+#if defined(CONFIG_SND_RTL819X_SOC) 
+static void close_work(struct snd_soc_device *socdev)
+{
+	struct snd_soc_card *card = socdev->card;
+	struct snd_soc_codec *codec = card->codec;
+	struct snd_soc_dai *codec_dai;
+	int i;
+	for (i = 0; i < codec->num_dai; i++) {
+		codec_dai = &codec->dai[i];
 
+		pr_debug("pop wq checking: %s status: %s waiting: %s\n",
+			 codec_dai->playback.stream_name,
+			 codec_dai->playback.active ? "active" : "inactive",
+			 codec_dai->pop_wait ? "yes" : "no");
+
+		/* are we waiting on this codec DAI stream */
+		if (codec_dai->pop_wait == 1) {
+
+			/* Reduce power if no longer active */
+			if (codec->active == 0) {
+				pr_debug("pop wq D1 %s %s\n", codec->name,
+					 codec_dai->playback.stream_name);
+				snd_soc_dapm_set_bias_level(socdev,
+					SND_SOC_BIAS_PREPARE);
+			}
+
+			codec_dai->pop_wait = 0;
+			snd_soc_dapm_stream_event(codec,
+				codec_dai->playback.stream_name,
+				SND_SOC_DAPM_STREAM_STOP);
+
+			/* Fall into standby if no longer active */
+			if (codec->active == 0) {
+				pr_debug("pop wq D3 %s %s\n", codec->name,
+					 codec_dai->playback.stream_name);
+				snd_soc_dapm_set_bias_level(socdev,
+					SND_SOC_BIAS_STANDBY);
+			}
+		}
+	}
+}
+#endif
 /*
  * Called by ALSA when a PCM substream is closed. Private data can be
  * freed here. The cpu DAI, codec DAI, machine and platform are also
@@ -356,8 +397,12 @@ static int soc_codec_close(struct snd_pcm_substream *substream)
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		/* start delayed pop wq here for playback streams */
 		codec_dai->pop_wait = 1;
-		schedule_delayed_work(&card->delayed_work,
-			msecs_to_jiffies(pmdown_time));
+#if defined(CONFIG_SND_RTL819X_SOC) 
+		close_work(socdev);
+#else	
+		schedule_delayed_work(&card->delayed_work,msecs_to_jiffies(pmdown_time)); 
+#endif		
+
 	} else {
 		/* capture streams can be powered down now */
 		snd_soc_dapm_stream_event(codec,

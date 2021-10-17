@@ -75,6 +75,9 @@ FEXPORT(syscall_exit)
 
 FEXPORT(restore_all)			# restore full frame
 	.set	noat
+#ifdef CONFIG_CPU_HAS_RADIAX
+	RESTORE_RADIAX
+#endif
 	RESTORE_TEMP
 	RESTORE_AT
 	RESTORE_STATIC

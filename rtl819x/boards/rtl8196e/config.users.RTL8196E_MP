@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # RLX Linux builder
-# Mon Nov 19 16:11:39 2012
+# Tue Nov 20 14:36:10 2012
 #
 
 #
@@ -20,11 +20,14 @@ CONFIG_APP_BUSYBOX=y
 # CONFIG_APP_DOSFSCK is not set
 # CONFIG_APP_GDBSERVER is not set
 CONFIG_APP_BOA=y
+# CONFIG_APP_BOA_IPV6_SUPPORT is not set
 # CONFIG_APP_UWIFI is not set
+# CONFIG_APP_ALSA_AUDIO is not set
 # CONFIG_APP_GPROXY is not set
 # CONFIG_APP_MULTIPPPOE is not set
 # CONFIG_APP_IAPP is not set
 # CONFIG_APP_IGMPPROXY is not set
+# CONFIG_APP_MLDPROXY is not set
 # CONFIG_APP_IPROUTE is not set
 # CONFIG_APP_IPTABLES is not set
 CONFIG_APP_IWCONTROL=y
@@ -106,4 +109,6 @@ CONFIG_APP_WIRELESSTOOLS=y
 # CONFIG_APP_LTP is not set
 # CONFIG_APP_EXAMPLE is not set
 # CONFIG_APP_DLNA_DMS is not set
+# CONFIG_APP_MINIDLNA is not set
 # CONFIG_APP_MT_DAAPD is not set
+# CONFIG_APP_SIGMA_UTILS is not set

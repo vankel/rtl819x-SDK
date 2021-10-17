@@ -400,6 +400,14 @@ option_t auth_options[] = {
     { NULL }
 };
 
+/*dzh add for fast clear ppp kernel info!!!*/
+void clear_ppp_info(void)
+{
+	 extern int ppp_dev_fd;
+	 extern int req_unit;
+	 #define PPPIOCDETACH _IOW('t', 60, int) /* detach from ppp unit/chan */
+	 ioctl(ppp_dev_fd, PPPIOCDETACH, &req_unit);
+}
 /*
  * setupapfile - specifies UPAP info for authenticating with peer.
  */
@@ -633,15 +641,13 @@ void rtl_ppp_disconnect()
 		system("/bin/disconnect.sh option");
 #endif
 	    notice("Connection terminated.");		
-	}	
-	#ifdef PPPOE_DISC_FLOW_PATCH
-	{		
-    	system("flash set PPP_NORMAL_FINISH 1");
-		system("flash set PPP_SESSION_NUM 0");
-		system("flash set PPP_SERVER_MAC 000000000000");
+		{
+		 extern int ppp_dev_fd;
+		 extern int req_unit;
+	 	 #define PPPIOCDETACH _IOW('t', 60, int) /* detach from ppp unit/chan */
+		 ioctl(ppp_dev_fd, PPPIOCDETACH, &req_unit);
+		}
 	}
-	#endif
-	
 }
 
 /*
@@ -655,6 +661,7 @@ link_terminated(unit)
     if (phase == PHASE_DEAD || phase == PHASE_MASTER)
 	return;
     new_phase(PHASE_DISCONNECT);
+
     if (pap_logout_hook) {
 	pap_logout_hook();
     } else {
@@ -714,7 +721,6 @@ link_terminated(unit)
 	new_phase(PHASE_DEAD);
 	rtl_ppp_disconnect();//mark_test, sync from rtl865x
     }
-	
 }
 
 /*
@@ -724,7 +730,6 @@ void
 link_down(unit)
     int unit;
 {
-
     if (auth_state != s_down) {
 	notify(link_down_notifier, 0);
 	auth_state = s_down;
@@ -747,7 +752,7 @@ void upper_layers_down(int unit)
 {
     int i;
     struct protent *protp;
-	
+
     for (i = 0; (protp = protocols[i]) != NULL; ++i) {
 	if (!protp->enabled_flag)
 	    continue;
@@ -1087,6 +1092,7 @@ auth_withpeer_success(unit, protocol, prot_flavor)
 
     notice("%s authentication succeeded", prot);
 
+    system("echo 0 > /var/ppp_error");
     /* Save the authentication method for later. */
     auth_done[unit] |= bit;
 

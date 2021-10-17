@@ -8,19 +8,6 @@
 </script>
 <% language=javascript %>
 <SCRIPT>
-function checkString(str)
-{
-          for (var i=0; i<str.length; i++) {
-                   //if ((str.charAt(i) >= '0' && str.charAt(i) <= '9') || (str.charAt(i) >= 'A' && str.charAt(i) <= 'Z') || (str.charAt(i) >= 'a' && str.charAt(i) <= 'z') ||
-                   //   (str.charAt(i) == '.') || (str.charAt(i) == ':') || (str.charAt(i) == '-') || (str.charAt(i) == '_') || (str.charAt(i) == ' ') || (str.charAt(i) == '/') || (str.charAt(i) == '@'))
-                   if((str.charAt(i) >= ' ') && (str.charAt(i) <= '~'))
-                             continue;
-                   return 0;
-          }
-          return 1;
-}
-
-
 function resetClick()
 {
    document.tr069.reset;

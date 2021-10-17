@@ -26,15 +26,8 @@ void gen_setup_ini(void)
 			"Installcmd=\"/i /8188cu /F rtrndis.inf /HWID \"USB\\VID_%04X&PID_%04X\"\"\n"
 			"UnInstallcmd=\"/u /8188cu /F rtrndis.inf /HWID \"USB\\VID_%04X&PID_%04X\"\"\n"
 			"\n"
-			"ServiceName = RtkDevSvc\n"
-			"ServiceDescription = \"Realtek Device Service\"\n"
-			"AppName = RtkDevSvc.exe\n"
-			"AppParam = *\n"
 			"StorageVID=\"%04X\"\n"
-			"StoragePID=\"%04X\"\n"
-			"\n"
-			"RNdisVID=\"%04X\"\n"
-			"RNdisPID=\"%04X\"\n",
+			"StoragePID=\"%04X\"\n",
 			ULINKER_WINTOOLS_GUID,
 			ULINKER_WINTOOLS_DISPLAY_NAME,
 			ULINKER_WINTOOLS_CONTACT,
@@ -46,9 +39,7 @@ void gen_setup_ini(void)
 			eth_vid, eth_pid,
 			eth_vid, eth_pid,
 			fsg_vid,
-			fsg_pid,
-			eth_vid,
-			eth_pid);
+			fsg_pid);
 	fclose(fp);
 }
 
@@ -61,8 +52,7 @@ int main(int argc, char *argv[])
 	ret = system("rm -fr mount_img > /dev/null 2>&1");
 	ret = system("mkdir files");
 	ret = system("mkdir mount_img");
-	//ret = system("cp -fr autorun_files/* files/");
-	ret = system("rsync -r --exclude=.svn  autorun_files/ files/");
+	ret = system("cp -fr autorun_files/* files/");
 	ret = system("sudo mount -o loop autorun.img mount_img");
 	ret = system("sudo rm -fr mount_img/*");
 	ret = system("sudo mv Setup.ini files/");

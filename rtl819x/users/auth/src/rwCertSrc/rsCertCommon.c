@@ -45,7 +45,8 @@ int isFileExist(char *file_name)
 	return 1;
 }
 
-
+/* don't need to check kernel image oversize anymore */
+#if 0
 /*
 *  check kernel image is oversize or not
 *  return 1: kernel image is oversize
@@ -101,6 +102,7 @@ err:
 	
 	return toRet;
 }
+#endif
 
 /*
 *  function description: update cert area header at flash

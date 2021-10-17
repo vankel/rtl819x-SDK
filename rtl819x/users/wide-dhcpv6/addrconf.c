@@ -387,7 +387,11 @@ na_ifaddrconf(cmd, sa)
 	sin6.sin6_len = sizeof(sin6);
 #endif
 	sin6.sin6_addr = addr->addr;
-
+#ifdef RTK_AP_IPV6
+	return (ifaddrconf(cmd, sa->dhcpif->ifname, &sin6, 64,
+	    addr->pltime, addr->vltime));
+#else
 	return (ifaddrconf(cmd, sa->dhcpif->ifname, &sin6, 128,
 	    addr->pltime, addr->vltime));
+#endif
 }

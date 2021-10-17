@@ -114,6 +114,15 @@ struct hd_struct {
 #define GENHD_FL_SUPPRESS_PARTITION_INFO	32
 #define GENHD_FL_EXT_DEVT			64 /* allow extended devt */
 
+#ifdef CONFIG_KERNEL_POLLING
+#define GENHD_FL_BLOCK_EVENTS_ON_EXCL_WRITE     256
+
+enum {
+	DISK_EVENT_MEDIA_CHANGE			= 1 << 0, /* media changed */
+	DISK_EVENT_EJECT_REQUEST		= 1 << 1, /* eject requested */
+};
+#endif
+
 #define BLK_SCSI_MAX_CMDS	(256)
 #define BLK_SCSI_CMD_PER_LONG	(BLK_SCSI_MAX_CMDS / (sizeof(long) * 8))
 
@@ -130,6 +139,10 @@ struct disk_part_tbl {
 	struct hd_struct *part[];
 };
 
+#ifdef CONFIG_KERNEL_POLLING
+struct disk_events;
+#endif
+
 struct gendisk {
 	/* major, first_minor and minors are input parameters only,
 	 * don't use directly.  Use disk_devt() and disk_max_parts().
@@ -140,6 +153,11 @@ struct gendisk {
                                          * disks that can't be partitioned. */
 
 	char disk_name[DISK_NAME_LEN];	/* name of major driver */
+
+#ifdef CONFIG_KERNEL_POLLING
+	unsigned int events;		/* supported events */
+	unsigned int async_events;	/* async events, subset of all */
+#endif
 
 	/* Array of pointers to partitions indexed by partno.
 	 * Protected with matching bdev lock but stat and other
@@ -161,6 +179,9 @@ struct gendisk {
 
 	atomic_t sync_io;		/* RAID */
 	struct work_struct async_notify;
+#ifdef CONFIG_KERNEL_POLLING
+	struct disk_events *ev;
+#endif
 #ifdef  CONFIG_BLK_DEV_INTEGRITY
 	struct blk_integrity *integrity;
 #endif
@@ -352,6 +373,13 @@ static inline int get_disk_ro(struct gendisk *disk)
 	return disk->part0.policy;
 }
 
+#ifdef CONFIG_KERNEL_POLLING
+extern void disk_block_events(struct gendisk *disk);
+extern void disk_unblock_events(struct gendisk *disk);
+extern void disk_check_events(struct gendisk *disk);
+extern unsigned int disk_clear_events(struct gendisk *disk, unsigned int mask);
+#endif
+
 /* drivers/char/random.c */
 extern void add_disk_randomness(struct gendisk *disk);
 extern void rand_initialize_disk(struct gendisk *disk);
@@ -523,6 +551,9 @@ extern char *disk_name (struct gendisk *hd, int partno, char *buf);
 
 extern int disk_expand_part_tbl(struct gendisk *disk, int target);
 extern int rescan_partitions(struct gendisk *disk, struct block_device *bdev);
+#ifdef CONFIG_KERNEL_POLLING
+extern int invalidate_partitions(struct gendisk *disk, struct block_device *bdev);
+#endif
 extern struct hd_struct * __must_check add_partition(struct gendisk *disk,
 						     int partno, sector_t start,
 						     sector_t len, int flags);

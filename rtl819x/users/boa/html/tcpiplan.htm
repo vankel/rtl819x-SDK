@@ -14,12 +14,6 @@ function checkMode()
 
 	if( opmode > 3 )
 		disableTextField(document.tcpip.stp);
-
-	var choice = <% getIndex("stp"); %>
-	if ( choice == 0 )
-		document.tcpip.elements["stp"][0].checked = true;
-	else
-		document.tcpip.elements["stp"][1].checked = true;
 }
 
 function dhcpChange(index)
@@ -137,14 +131,32 @@ function saveChanges()
   var str = document.tcpip.lan_macAddr.value;
    if(str.length ==0){
   	document.tcpip.lan_macAddr.value = "000000000000";
-  	return true;
+ // 	return true;
   }
+
   if ( str.length > 0 && str.length < 12) {
 	alert("Input MAC address is not complete. It should be 12 digits in hex.");
 	document.tcpip.lan_macAddr.focus();
 	return false;
   }
+  // add for "All MAC Address field can't reject 00:00:00:00:00:00/ff:ff:ff:ff:ff:ff MAC Address" issue
+  if(str == "ffffffffffff")
+  {
+	alert("Invalid MAC address. It should not be ff:ff:ff:ff:ff:ff.");
+	document.tcpip.lan_macAddr.focus();
+	return false;
+  }
 
+  //var reg = /01005[eE][0-7][0-9a-fA-F]{5}/;
+  //if(reg.exec(str))
+  if(parseInt(str.substr(0, 2), 16) & 0x01 != 0)
+  {
+	document.tcpip.lan_macAddr.value = document.tcpip.lan_macAddr.defaultValue;
+	document.tcpip.lan_macAddr.focus();
+	alert("Invalid MAC address. It should not be multicast mac address.");
+	return false;
+  }
+  
   for (var i=0; i<str.length; i++) {
     if ( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
 			(str.charAt(i) >= 'a' && str.charAt(i) <= 'f') ||
@@ -154,11 +166,38 @@ function saveChanges()
 	document.tcpip.lan_macAddr.focus();
 	return false;
   }
-  if(document.tcpip.dhcpLeaseTime.value*1 <= 0 || document.tcpip.dhcpLeaseTime.value*1 > 10080)
-  {
-        alert("Invalid value. It should be in range (1 ~ 10080).");
-        document.tcpip.dhcpLeaseTime.focus();
-        return false;
+  if(!checkFieldDigitRange(document.tcpip.dhcpLeaseTime,1,10080,"dhcp lease time invalid!"))
+  	return false;  
+
+  var str = document.tcpip.domainName.value;
+  if(str.length == 0){
+  	document.tcpip.domainName.value = "Realtek";
+//	return true;
+  }
+
+  if(str.length > 63){
+  	alert("Invalid Domain Name! Length of Domain Name shoule not more than 63");
+	document.tcpip.domainName.focus();
+	return false;
+  }
+
+  for(var i=0; i<str.length; i++){
+  	if( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
+			(str.charAt(i) >= 'a' && str.charAt(i) <= 'z') ||
+			(str.charAt(i) >= 'A' && str.charAt(i) <= 'Z') ||
+			str.charAt(i) == '-')
+			continue;
+	alert("Invalid Domain Name! Please enter characters in A(a)~Z(z) or 0-9 or - without spacing.");
+	document.tcpip.domainName.focus();
+	return false;
+  	}
+
+  if((str.charAt(0) >='0' && str.charAt(0) <= '9') ||
+  	str.charAt(0)	== '-' || 
+  	str.charAt(str.length - 1) == '-'){
+  	alert("Invalid Domain Name! Domain name should a letter, end with a letter or digit");
+	document.tcpip.domainName.focus();
+	return false;		
   }
   return true;
 }
@@ -250,8 +289,18 @@ function staticdhcpTblClick(url) {
   <tr>
       <td width="30%"><font size=2><b>802.1d Spanning Tree:</b></td>
       <td width="70%"><select size="1" name="stp">
-     	  	<option value="0">Disabled</option>
-   	  		<option value="1">Enabled</option>
+      <SCRIPT>
+      	if(<% getIndex("stp"); %>)      	
+      		document.write("\
+				<option value=\"0\" >Disabled</option>\
+				<option value=\"1\" selected>Enabled</option>");
+      	else
+			document.write("\
+				<option value=\"0\" selected>Disabled</option>\
+				<option value=\"1\" >Enabled</option>");
+     	  	
+   	  		
+   	  </SCRIPT>
 	    </select>
       </td>
   </tr>

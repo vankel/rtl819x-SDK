@@ -17,6 +17,13 @@
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
 
+#if defined(SUPPORT_UCFGING_LED) 
+struct timer_list	LED_TimerCFGING;
+unsigned int		LED_CFGING_Interval;
+unsigned char		LED_CFGING_Toggle;
+unsigned char		LED_CFGING_ToggleStart;
+unsigned int 		LED_Configuring=0;
+#endif
 
 // for SW LED ----------------------------------------------------
 #ifdef RTL8190_SWGPIO_LED
@@ -60,19 +67,38 @@ static void set_sw_LED0(struct rtl8192cd_priv *priv, int flag)
 #ifdef RTL8190_SWGPIO_LED
 	if (LED_ROUTE)
 		set_swGpio_LED(priv, 0, flag);
-#else
-
-#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+#elif defined(CONFIG_RTL8672) || defined(NOT_RTK_BSP)
 	if (flag)
 		RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfffffff0) | LED0SV);
 	else
 		RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfffffff0);
-#elif defined(CONFIG_RTL_88E_SUPPORT)
-	if (flag)
-		RTLWIFINIC_GPIO_write(5, 0);
-	else
-		RTLWIFINIC_GPIO_write(5, 1);
+#else
+	if ((GET_CHIP_VER(priv) == VERSION_8188E)||(GET_CHIP_VER(priv) == VERSION_8192E)) {
+#ifdef RTLWIFINIC_GPIO_CONTROL
+		if (flag)
+			RTLWIFINIC_GPIO_write(5, 0);
+		else
+			RTLWIFINIC_GPIO_write(5, 1);
 #endif
+	}
+	else if ((GET_CHIP_VER(priv) == VERSION_8812E)) {
+		if (flag)
+			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfffff0ff) | LED1SV);
+		else
+			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfffff0ff);
+	}
+	else if (GET_CHIP_VER(priv) == VERSION_8881A) {
+		if (flag)
+			writel(readl(IO_TYPE_CAST(0xb800350c)) | BIT(24), IO_TYPE_CAST(0xb800350c));
+		else
+			writel(readl(IO_TYPE_CAST(0xb800350c)) & ~BIT(24), IO_TYPE_CAST(0xb800350c));
+	}
+	else {
+		if (flag)
+			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfffffff0) | LED0SV);
+		else
+			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfffffff0);
+	}
 #endif
 }
 
@@ -82,24 +108,34 @@ static void set_sw_LED1(struct rtl8192cd_priv *priv, int flag)
 #ifdef RTL8190_SWGPIO_LED
 	if (LED_ROUTE)
 		set_swGpio_LED(priv, 1, flag);
+#elif defined(CONFIG_RTL8672) || defined(NOT_RTK_BSP)
+	if (flag)
+		RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfffff0ff) | LED1SV);
+	else
+		RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfffff0ff);
 #else
-
-#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
-#ifdef CONFIG_RTL_92D_SUPPORT
-	if (GET_CHIP_VER(priv) == VERSION_8192D) {
+	if ((GET_CHIP_VER(priv) == VERSION_8188E)||(GET_CHIP_VER(priv) == VERSION_8192E)) {
+#ifdef RTLWIFINIC_GPIO_CONTROL
+		if (flag)
+			RTLWIFINIC_GPIO_write(5, 0);
+		else
+			RTLWIFINIC_GPIO_write(5, 1);
+#endif		
+	}
+#if defined(CONFIG_RTL_92D_SUPPORT)
+	else if (GET_CHIP_VER(priv) == VERSION_8192D) {
 		if (flag)
 			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfffff0ff) | LED1SV_92D);
 		else
 			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfffff0ff);
-	} else
-#endif
-	{
+	}
+#endif	
+	else if (GET_CHIP_VER(priv) == VERSION_8192C){
 		if (flag)
 			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfffff0ff) | LED1SV);
 		else
 			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfffff0ff);
 	}
-#endif
 #endif
 }
 
@@ -109,31 +145,39 @@ static void set_sw_LED2(struct rtl8192cd_priv *priv, int flag)
 #ifdef RTL8190_SWGPIO_LED
 	if (LED_ROUTE)
 		set_swGpio_LED(priv, 2, flag);
-#else
-
-#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
-#ifdef CONFIG_RTL_92D_SUPPORT
-	if (GET_CHIP_VER(priv) == VERSION_8192D) {
-		if (flag)
-			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfff0ffff) | LED2SV_92D);
-		else
-			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfff0ffff);
-	} else
-#endif
+#elif defined(CONFIG_RTL8672) || defined(NOT_RTK_BSP)
 	if (flag)
 		RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfff0ffff) | LED2SV);
 	else
 		RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfff0ffff);
-#endif
+#else
+
+	if ((GET_CHIP_VER(priv) == VERSION_8188E)||(GET_CHIP_VER(priv) == VERSION_8192E)) {
+#ifdef RTLWIFINIC_GPIO_CONTROL
+		if (flag)
+			RTLWIFINIC_GPIO_write(5, 0);
+		else
+			RTLWIFINIC_GPIO_write(5, 1);
+#endif		
+	}
+#if defined(CONFIG_RTL_92D_SUPPORT)
+	else if (GET_CHIP_VER(priv) == VERSION_8192D) {
+		if (flag)
+			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfff0ffff) | LED2SV_92D);
+		else
+			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfff0ffff);
+	}
+#endif	
+	else if (GET_CHIP_VER(priv) == VERSION_8192C){
+		if (flag)
+			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfff0ffff) | LED2SV);
+		else
+			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfff0ffff);
+	}
 #endif
 }
 
-
-#ifdef __KERNEL__
 static void LED_Interval_timeout(unsigned long task_priv)
-#elif defined(__ECOS)
-static void LED_Interval_timeout(void *task_priv)
-#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	int led_on_time= LED_ON_TIME;
@@ -145,36 +189,54 @@ static void LED_Interval_timeout(void *task_priv)
 	if ((priv->pwr_state != L1) && (priv->pwr_state != L2))
 #endif
 	{
-		if ((LED_TYPE == LEDTYPE_SW_LINKTXRX) ||
-			(LED_TYPE == LEDTYPE_SW_LINKTXRXDATA) ||
-			(LED_TYPE == LEDTYPE_SW_ENABLETXRXDATA) ||
-			((LED_TYPE == LEDTYPE_SW_ADATA_GDATA) && (priv->pshare->curr_band == BAND_5G)) ||
-			(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRX) ||
-			(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA) ||
-			(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX) ||
-			(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRXDATA) ||
-			(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA) ||  
-			(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA) || 
-			(LED_TYPE == LEDTYPE_SW_LED1_GPIO9_LINKTXRX_92D) ||
-			(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX_92D))
-		{
-			if (!priv->pshare->set_led_in_progress) {
+		if (!priv->pshare->set_led_in_progress) {
+#if defined(CONFIG_RTL8672) || defined(NOT_RTK_BSP)
+#ifdef CONFIG_RTL_88E_SUPPORT
+			if (GET_CHIP_VER(priv) == VERSION_8188E)
+				set_sw_LED2(priv, priv->pshare->LED_Toggle);
+			else
+#endif
+#ifdef CONFIG_WLAN_HAL_8192EE
+			if (GET_CHIP_VER(priv) == VERSION_8192E)
+				set_sw_LED0(priv, priv->pshare->LED_Toggle);
+			else
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+			if (GET_CHIP_VER(priv) == VERSION_8812E)
+				set_sw_LED1(priv, priv->pshare->LED_Toggle);
+			else
+#endif
+#endif // CONFIG_RTL8672 || NOT_RTK_BSP
+			if ((LED_TYPE == LEDTYPE_SW_LINKTXRX) ||
+				(LED_TYPE == LEDTYPE_SW_LINKTXRXDATA) ||
+				(LED_TYPE == LEDTYPE_SW_ENABLETXRXDATA) ||
+				((LED_TYPE == LEDTYPE_SW_ADATA_GDATA) && (priv->pshare->curr_band == BAND_5G)) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRX) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRXDATA) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA_92D) ||
+				(LED_TYPE == LEDTYPE_SW_LED1_GPIO9_LINKTXRX_92D) ||
+				(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX_92D))
+			{
 				if ((LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRX) ||
 					(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA) ||
 					(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX) ||
 					(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRXDATA) ||
 					(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA) ||
-					(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA) || 
+					(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA) ||
+					(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA_92D) ||
 					(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX_92D))
 					set_sw_LED2(priv, priv->pshare->LED_Toggle);
 				else if (LED_TYPE == LEDTYPE_SW_LED1_GPIO9_LINKTXRX_92D)
 					set_sw_LED1(priv, priv->pshare->LED_Toggle);
 				else
 					set_sw_LED0(priv, priv->pshare->LED_Toggle);
-			}
-		} else {
-			if (!priv->pshare->set_led_in_progress)
+			} else {
 				set_sw_LED1(priv, priv->pshare->LED_Toggle);
+			}
 		}
 	}
 
@@ -199,7 +261,14 @@ static void LED_Interval_timeout(void *task_priv)
 
 void enable_sw_LED(struct rtl8192cd_priv *priv, int init)
 {
-#if defined(HW_ANT_SWITCH) || defined(SW_ANT_SWITCH)
+#if defined(SUPPORT_UCFGING_LED) 
+
+	if(init){
+		if(LED_Configuring ==1)
+			return;
+	}
+#endif	
+#if (defined(HW_ANT_SWITCH) || defined(SW_ANT_SWITCH))&&( defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 		int b23 = RTL_R32(LEDCFG) & BIT(23);
 #endif
 
@@ -208,26 +277,60 @@ void enable_sw_LED(struct rtl8192cd_priv *priv, int init)
 			LED_TYPE = LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA ;  
 	     
 	// configure mac to use SW LED
-#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
-	if (LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX)
+#if defined(CONFIG_RTL8672) || defined(NOT_RTK_BSP)
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E)
+		RTL_W32(LEDCFG, (RTL_R32(LEDCFG)&0xFF00FFFF) | LED2EN | LED2SV);
+	else
+#endif
+#ifdef CONFIG_WLAN_HAL_8192EE
+	if (GET_CHIP_VER(priv) == VERSION_8192E)
+		RTL_W32(LEDCFG, (RTL_R32(LEDCFG)&0xFFFFFF00) | LED0SV);
+	else
+#endif
+#else // !CONFIG_RTL8672 && !NOT_RTK_BSP
+
+#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) //mark_ecos	
+	if ((GET_CHIP_VER(priv) == VERSION_8188E)||(GET_CHIP_VER(priv) == VERSION_8192E))
+	{
+#ifdef RTLWIFINIC_GPIO_CONTROL
+		RTLWIFINIC_GPIO_config(5, 0x10);
+#endif
+	}
+	else 
+#endif
+#endif // CONFIG_RTL8672 || NOT_RTK_BSP
+	if (GET_CHIP_VER(priv) == VERSION_8812E)
+		RTL_W32(LEDCFG, BIT(13) | LED1SV);
+	else
+#ifdef CONFIG_WLAN_HAL_8881A
+	if (GET_CHIP_VER(priv) == VERSION_8881A) {
+		writel(readl(IO_TYPE_CAST(0xb8000044)) | BIT(15) | BIT(16), IO_TYPE_CAST(0xb8000044));
+		writel(readl(IO_TYPE_CAST(0xb8003500)) & ~BIT(24), IO_TYPE_CAST(0xb8003500));
+		writel(readl(IO_TYPE_CAST(0xb8003508)) | BIT(24), IO_TYPE_CAST(0xb8003508));
+		writel(readl(IO_TYPE_CAST(0xb800350c)) | BIT(24), IO_TYPE_CAST(0xb800350c));
+	} else
+#endif
+	{
+		if (LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX)
+			RTL_W32(LEDCFG, (RTL_R32(LEDCFG)&0xFF00FFFF) | LED2EN | LED2SV);
+	else if (LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA)
 		RTL_W32(LEDCFG, (RTL_R32(LEDCFG)&0xFF00FFFF) | LED2EN | LED2SV);
 #ifdef CONFIG_RTL_92D_SUPPORT
 	else if ((LED_TYPE == LEDTYPE_SW_LED2_GPIO10_LINKTXRX_92D) ||
-		(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA))
-		RTL_W32(LEDCFG, LED2DIS_92D | LED2SV_92D);
-	else if (LED_TYPE == LEDTYPE_SW_LED1_GPIO9_LINKTXRX_92D)
-		RTL_W32(LEDCFG, LED1DIS_92D | LED1SV_92D);
+		(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA_92D))
+			RTL_W32(LEDCFG,(RTL_R32(LEDCFG)&0xFF00FFFF)| LED2DIS_92D | LED2SV_92D);
+		else if (LED_TYPE == LEDTYPE_SW_LED1_GPIO9_LINKTXRX_92D)
+			RTL_W32(LEDCFG, (RTL_R32(LEDCFG)&0xFFFF00FF)|LED1DIS_92D | LED1SV_92D); 	
 #endif
-	else if ((LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRX) ||
-		(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA) ||
-		(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA) || 	
-		(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRXDATA))
-		RTL_W32(LEDCFG, (RTL_R32(LEDCFG)&0xFF00FFFF) | GP8_LED | LED2EN | LED2SV);
-	else
-		RTL_W32(LEDCFG, LED2SV | LED1SV | LED0SV);
-#elif defined(CONFIG_RTL_88E_SUPPORT)
-	RTLWIFINIC_GPIO_config(5, 0x10);
-#endif
+		else if ((LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRX) ||
+			(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA) ||
+			(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA) || 	
+			(LED_TYPE == LEDTYPE_SW_LED2_GPIO8_LINKTXRXDATA))
+			RTL_W32(LEDCFG, (RTL_R32(LEDCFG)&0xFF00FFFF) | GP8_LED | LED2EN | LED2SV);
+		else
+			RTL_W32(LEDCFG, LED2SV | LED1SV | LED0SV);
+	}
 
 	priv->pshare->LED_Interval = LED_INTERVAL_TIME;
 	priv->pshare->LED_Toggle = 0;
@@ -244,7 +347,8 @@ void enable_sw_LED(struct rtl8192cd_priv *priv, int init)
 
 		if (LED_TYPE == LEDTYPE_SW_ENABLETXRXDATA)
 			priv->pshare->LED_ToggleStart = LED_ON;
-	} else if (LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA) {
+	} else if ((LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA) ||
+		(LED_TYPE == LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA_92D)) {
 		set_sw_LED2(priv, LED_ON);
 		priv->pshare->LED_ToggleStart = LED_ON;
 	} else if (LED_TYPE == LEDTYPE_SW_ADATA_GDATA) {
@@ -279,23 +383,49 @@ void enable_sw_LED(struct rtl8192cd_priv *priv, int init)
 		set_sw_LED2(priv, LED_OFF);
 	}
 
-#if defined(HW_ANT_SWITCH) || defined(SW_ANT_SWITCH)
+#if (defined(HW_ANT_SWITCH) || defined(SW_ANT_SWITCH))&&( defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 	RTL_W32(LEDCFG, b23 | RTL_R32(LEDCFG));
 #endif
 
 	if (init) {
-#ifdef __KERNEL__
 		init_timer(&priv->pshare->LED_Timer);
-		priv->pshare->LED_Timer.expires = jiffies + priv->pshare->LED_Interval;
+#if defined(CONFIG_PCI_HCI)
 		priv->pshare->LED_Timer.data = (unsigned long) priv;
 		priv->pshare->LED_Timer.function = &LED_Interval_timeout;
-#elif defined(__ECOS)
-		init_timer(&priv->pshare->LED_Timer, (unsigned long)priv, LED_Interval_timeout);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+		priv->pshare->LED_Timer.data = (unsigned long) &priv->pshare->LED_Timer_event;
+		priv->pshare->LED_Timer.function = timer_event_timer_fn;
+		INIT_TIMER_EVENT_ENTRY(&priv->pshare->LED_Timer_event,
+			LED_Interval_timeout, (unsigned long)priv);
 #endif
+
 		mod_timer(&priv->pshare->LED_Timer, jiffies + priv->pshare->LED_Interval);
 	}
 }
 
+#if defined(SUPPORT_UCFGING_LED) 
+void LED_Interval_timeout2(unsigned long task_priv)
+{
+
+#ifdef RTLWIFINIC_GPIO_CONTROL
+		RTLWIFINIC_GPIO_write(5, LED_CFGING_Toggle);
+#endif		
+	mod_timer(&LED_TimerCFGING, jiffies + LED_UCFGING_TIME); 
+	LED_CFGING_Toggle = (LED_CFGING_Toggle + 1) % 2;		
+}
+
+void StartCFGINGTimer(void )
+{
+	
+	init_timer(&LED_TimerCFGING);
+	LED_TimerCFGING.data = 0;
+	LED_TimerCFGING.function = &LED_Interval_timeout2;
+	LED_CFGING_Interval = LED_UCFGING_TIME;
+	LED_CFGING_Toggle = 0;
+	LED_CFGING_ToggleStart = LED_OFF;
+	mod_timer(&LED_TimerCFGING, jiffies + LED_CFGING_Interval);
+}
+#endif
 
 void disable_sw_LED(struct rtl8192cd_priv *priv)
 {
@@ -322,6 +452,11 @@ void calculate_sw_LED_interval(struct rtl8192cd_priv *priv)
 
 	if (priv->pshare->set_led_in_progress)
 		return;
+
+#if defined(SUPPORT_UCFGING_LED) 
+	if(LED_Configuring ==1)
+			return;
+#endif	
 
 	if( (LED_TYPE == LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA) && 
 	    (!(OPMODE & WIFI_ASOC_STATE)))  //client not assco  , mark_led
@@ -518,6 +653,26 @@ void control_wireless_led(struct rtl8192cd_priv *priv, int enable)
 		set_sw_LED2(priv, priv->pshare->LED_ToggleStart);
 		priv->pshare->set_led_in_progress = 0;
 	}
+#if defined(__ECOS) && (defined(CONFIG_CUTE_MAHJONG) || defined(CONFIG_RTL_ULINKER))
+	else if (enable == 3) {
+		unsigned int saved_led_in_progress=priv->pshare->set_led_in_progress;
+		priv->pshare->set_led_in_progress = 1;
+		
+		writel(readl(IO_TYPE_CAST(0xb8000044)) & (~(BIT(15) | BIT(16))), IO_TYPE_CAST(0xb8000044));
+	
+		//switch to hw led
+		priv->pshare->set_led_in_progress = saved_led_in_progress;		
+	}
+	else if (enable == 4) {
+		unsigned int saved_led_in_progress=priv->pshare->set_led_in_progress; 
+		priv->pshare->set_led_in_progress = 1;
+		writel(readl(IO_TYPE_CAST(0xb8000044)) | BIT(15) | BIT(16), IO_TYPE_CAST(0xb8000044));
+		writel(readl(IO_TYPE_CAST(0xb8003500)) & (~BIT(24)), IO_TYPE_CAST(0xb8003500));	
+ 		writel(readl(IO_TYPE_CAST(0xb8003508)) | BIT(24), IO_TYPE_CAST(0xb8003508)); 
+		//switch to sw led
+		priv->pshare->set_led_in_progress = saved_led_in_progress;
+	}			
+#endif
 }
 
 
@@ -526,7 +681,9 @@ static struct rtl8192cd_priv *root_priv = NULL;
 
 void enable_sys_LED(struct rtl8192cd_priv *priv)
 {
+#ifdef RTLWIFINIC_GPIO_CONTROL
 	RTLWIFINIC_GPIO_config(4, 0x10);
+#endif
 	root_priv = priv;
 }
 

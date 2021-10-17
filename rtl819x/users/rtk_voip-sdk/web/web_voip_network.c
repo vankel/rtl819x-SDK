@@ -302,14 +302,9 @@ int asp_voip_NetGet(int ejid, webs_t wp, int argc, char_t **argv)
 				websWrite(wp, "<option>%s</option>", hwnat[index]);	
 		}
 	}
-#if defined (CONFIG_RTL865XC) || defined(CONFIG_RTL_819X)
-	else if (strcmp(argv[0], "display_bandwidth_mgr")==0)
-		websWrite(wp, "%s", "");
-#else
+	//default disable webpage
 	else if (strcmp(argv[0], "display_bandwidth_mgr")==0)
 		websWrite(wp, "%s", "style=\"display:none\"");
-#endif
-	
 	else if (strcmp(argv[0], "LANPort0_Bandwidth_out")==0)
 		websWrite(wp, "%d", pVoIPCfg->bandwidth_LANPort0_Egress);
 	else if (strcmp(argv[0], "LANPort1_Bandwidth_out")==0)

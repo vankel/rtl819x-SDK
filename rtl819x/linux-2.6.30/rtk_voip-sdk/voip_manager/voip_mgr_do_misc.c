@@ -5,6 +5,7 @@
 #include "rtk_voip.h"
 #include "voip_feature.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "voip_control.h"
 #include "voip_params.h"
 #include "voip_mgr_define.h"
@@ -176,7 +177,8 @@ int do_mgr_VOIP_MGR_VOIP_RESOURCE_CHECK( int cmd, void *user, unsigned int len, 
 int do_mgr_VOIP_MGR_SET_FW_UPDATE( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 	//add by timlee 20081118
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) &&  !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && \
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
 	int Reboot_Wait;
 	int ret;
 
@@ -202,7 +204,7 @@ int do_mgr_VOIP_MGR_SET_FW_UPDATE( int cmd, void *user, unsigned int len, unsign
 int do_mgr_VOIP_MGR_SET_DSP_ID_TO_DSP( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP
+#if defined (CONFIG_RTK_VOIP_ETHERNET_DSP) && defined (CONFIG_NFBI_HOST)
 	extern void SetCurrentPhyId(unsigned char phy_id);
 	extern unsigned char SetDspIdToDsp(int dsp_id);
 
@@ -230,7 +232,7 @@ int do_mgr_VOIP_MGR_SET_DSP_ID_TO_DSP( int cmd, void *user, unsigned int len, un
 int do_mgr_VOIP_MGR_SET_DSP_PHY_ID( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP
+#if defined (CONFIG_RTK_VOIP_ETHERNET_DSP) && defined (CONFIG_NFBI_HOST)
 	extern void SetCurrentPhyId(unsigned char phy_id);
 	
 	TstVoipValue stVoipValue;
@@ -257,19 +259,20 @@ int do_mgr_VOIP_MGR_SET_DSP_PHY_ID( int cmd, void *user, unsigned int len, unsig
 int do_mgr_VOIP_MGR_CHECK_DSP_ALL_SW_READY( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP
+#if ( defined (CONFIG_RTK_VOIP_ETHERNET_DSP) && defined (CONFIG_NFBI_HOST) )  ||	\
+	( defined( CONFIG_RTK_VOIP_COPROCESS_DSP ) )
 	extern void SetCurrentPhyId(unsigned char phy_id);
 	extern unsigned short CheckDspIfAllSoftwareReady(void);
 	
 	TstVoipValue stVoipValue;
-	int ret;
 
 	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
 	//PRINT_MSG("VOIP_MGR_CHECK_DSP_ALL_SW_READY, Phy ID=%d\n", stVoipValue.value);
+#if ( defined (CONFIG_RTK_VOIP_ETHERNET_DSP) && defined (CONFIG_NFBI_HOST) )
 	SetCurrentPhyId(stVoipValue.value);
+#endif
 	stVoipValue.value1 = CheckDspIfAllSoftwareReady();
-	ret = COPY_TO_USER(user, &stVoipValue, sizeof(TstVoipValue), cmd, seq_no);	
-	return ret;
+	return COPY_TO_USER(user, &stVoipValue, sizeof(TstVoipValue), cmd, seq_no);	
 #endif
 #endif		
 	return 0;

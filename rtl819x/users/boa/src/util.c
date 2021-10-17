@@ -522,7 +522,6 @@ char *simple_itoa(unsigned int i)
     return p;
 }
 #if defined(ENABLE_LFS)
-
 char * simple_off64Toa(off64_t i)
 {
 	static char local[22]={0};
@@ -540,34 +539,40 @@ char * simple_off64Toa(off64_t i)
  */
 
 #if defined(ENABLE_LFS)
-long long boa_atoi(const char *s)
+off64_t boa_atoi(const char *s)
 #else
 int boa_atoi(const char *s)
 #endif
 {
 #if defined(ENABLE_LFS)
-		long long retval=0;
+	off64_t retval=0;
+	char reconv[64]={0};
 #else			
     int retval=0;
+    char *reconv;
 #endif    
-    //char *reconv;
+   if(!s) return -1; 
 
-  //  if (!isdigit(*s))
-    //    return -1;
-
+    if (!isdigit(*s)){
+        return -1;
+	}
 #if defined(ENABLE_LFS)
     retval = atoll(s);
 #else    
     retval = atoi(s);
 #endif    
-    
-   // if (retval < 0)
-  //      return -1;
+    if (retval < 0){
+        return -1;
+	}
+#if defined(ENABLE_LFS)	
+	sprintf(reconv, "%llu", retval);
+#else
+	reconv = simple_itoa((unsigned int) retval);
+#endif    
 
- //   reconv = simple_itoa((unsigned int) retval);
- //   if (memcmp(s, reconv, strlen(s)) != 0) {
-  //      return -1;
- //   }
+    if (memcmp(s, reconv, strlen(s)) != 0) {
+        return -1;
+    }
     return retval;
 }
 
@@ -765,7 +770,11 @@ void print_debug_usage(void)
 
 void parse_debug(char *foo)
 {
-    int i;
+#if defined(ENABLE_LFS)	
+    off64_t i;
+#else
+	 int i;
+#endif
     struct dbg *p;
 
     if (!foo)

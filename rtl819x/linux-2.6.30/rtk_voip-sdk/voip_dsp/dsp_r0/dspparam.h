@@ -5,19 +5,21 @@
 
 #ifndef _DSPPARAM_H_
 #define _DSPPARAM_H_
-
+#ifndef PLAYTONE_UNITTEST
 #include "voip_types.h"
 #include "rtk_voip.h"
-
+#endif
 // tone types
 #define ADDITIVE		0
 #define MODULATED		1
 #define SUCC			2
 #define SUCC_ADD		3
 
-#define FOUR_FREQ		6
+#define FOUR_FREQ		6		// support 32 cadence
+#define STEP_INC		7		// step increase gain, two_tone
+#define TWO_STEP		8		// constant gain, two_tone
 
-#define MAX_CAD_NUM		4		// max candence number
+#define MAX_CAD_NUM		32		// max candence number
 #define MAX_FREQUENCY		4		// max Frequency number
 
 /* ToneTable index enumerator */
@@ -636,6 +638,11 @@ typedef enum
 //	RESERVE_CLASS2SAS_CAS2,			// 
 //	RESERVE_CLASS2SAS_CAS3,			// 
 //	RESERVE_CLASS2SAS_CAS4,			// 
+	RESERVE_EXTEND_1,				//
+	RESERVE_EXTEND_2,				//
+	RESERVE_EXTEND_3,				//
+	RESERVE_EXTEND_4,				//
+	RESERVE_EXTEND_5,				//
 	RESERVE_INGRESS_RINGBACK,			// 440+480+100 (2.0 - 4.0)
 #endif
 
@@ -663,6 +670,11 @@ typedef enum
 //	CUSTOM_CLASS2SAS_CAS2,			// 
 //	CUSTOM_CLASS2SAS_CAS3,			// 
 //	CUSTOM_CLASS2SAS_CAS4,			// 
+	CUSTOM_EXTEND_1,				//
+	CUSTOM_EXTEND_2,				//
+	CUSTOM_EXTEND_3,				//
+	CUSTOM_EXTEND_4,				//
+	CUSTOM_EXTEND_5,				//
 	CUSTOM_INGRESS_RINGBACK,		// 440+480+100 (2.0 - 4.0)
 
 #else
@@ -873,7 +885,8 @@ typedef struct __ToneCfgParam
 	Word16 PatternOff;
 	Word16 ToneNUM;
 
-	Word16 Freq0;
+	Word16 Freq0;	//orignial used in ADDITIVE, MODULATED, SUCC, SUCC_ADD.
+			// and used as cadence 0 of FOUR_FREQ, STEP_INC, TWO_STEP
 	Word16 Freq1;
 	Word16 Freq2;
 	Word16 Freq3;
@@ -882,33 +895,348 @@ typedef struct __ToneCfgParam
 	Word16 Gain2;
 	Word16 Gain3;
 
-	Word16 Freq4;
-	Word16 Freq5;
-	Word16 Freq6;
-	Word16 Freq7;
-	Word16 Gain4;
-	Word16 Gain5;
-	Word16 Gain6;
-	Word16 Gain7;
+	Word16 C1_Freq0;
+	Word16 C1_Freq1;
+	Word16 C1_Freq2;
+	Word16 C1_Freq3;
+	Word16 C1_Gain0;
+	Word16 C1_Gain1;
+	Word16 C1_Gain2;
+	Word16 C1_Gain3;
 
-	Word16 Freq8;
-	Word16 Freq9;
-	Word16 Freq10;
-	Word16 Freq11;
-	Word16 Gain8;
-	Word16 Gain9;
-	Word16 Gain10;
-	Word16 Gain11;
+	Word16 C2_Freq0;
+	Word16 C2_Freq1;
+	Word16 C2_Freq2;
+	Word16 C2_Freq3;
+	Word16 C2_Gain0;
+	Word16 C2_Gain1;
+	Word16 C2_Gain2;
+	Word16 C2_Gain3;
 
-	Word16 Freq12;
-	Word16 Freq13;
-	Word16 Freq14;
-	Word16 Freq15;
-	Word16 Gain12;
-	Word16 Gain13;
-	Word16 Gain14;
-	Word16 Gain15;
+	Word16 C3_Freq0;
+	Word16 C3_Freq1;
+	Word16 C3_Freq2;
+	Word16 C3_Freq3;
+	Word16 C3_Gain0;
+	Word16 C3_Gain1;
+	Word16 C3_Gain2;
+	Word16 C3_Gain3;
 	
+	Word16	CadOn4;
+	Word16	CadOff4;
+	Word16	CadOn5;
+	Word16	CadOff5;
+	Word16	CadOn6;
+	Word16	CadOff6;
+	Word16	CadOn7;
+	Word16	CadOff7;
+
+	Word16 C4_Freq0;
+	Word16 C4_Freq1;
+	Word16 C4_Freq2;
+	Word16 C4_Freq3;
+	Word16 C4_Gain0;
+	Word16 C4_Gain1;
+	Word16 C4_Gain2;
+	Word16 C4_Gain3;
+
+	Word16 C5_Freq0;
+	Word16 C5_Freq1;
+	Word16 C5_Freq2;
+	Word16 C5_Freq3;
+	Word16 C5_Gain0;
+	Word16 C5_Gain1;
+	Word16 C5_Gain2;
+	Word16 C5_Gain3;
+
+	Word16 C6_Freq0;
+	Word16 C6_Freq1;
+	Word16 C6_Freq2;
+	Word16 C6_Freq3;
+	Word16 C6_Gain0;
+	Word16 C6_Gain1;
+	Word16 C6_Gain2;
+	Word16 C6_Gain3;
+
+	Word16 C7_Freq0;
+	Word16 C7_Freq1;
+	Word16 C7_Freq2;
+	Word16 C7_Freq3;
+	Word16 C7_Gain0;
+	Word16 C7_Gain1;
+	Word16 C7_Gain2;
+	Word16 C7_Gain3;
+	
+	Word16	CadOn8;
+	Word16	CadOff8;
+	Word16	CadOn9;
+	Word16	CadOff9;
+	Word16	CadOn10;
+	Word16	CadOff10;
+	Word16	CadOn11;
+	Word16	CadOff11;
+
+	Word16 C8_Freq0;
+	Word16 C8_Freq1;
+	Word16 C8_Freq2;
+	Word16 C8_Freq3;
+	Word16 C8_Gain0;
+	Word16 C8_Gain1;
+	Word16 C8_Gain2;
+	Word16 C8_Gain3;
+
+	Word16 C9_Freq0;
+	Word16 C9_Freq1;
+	Word16 C9_Freq2;
+	Word16 C9_Freq3;
+	Word16 C9_Gain0;
+	Word16 C9_Gain1;
+	Word16 C9_Gain2;
+	Word16 C9_Gain3;
+
+	Word16 C10_Freq0;
+	Word16 C10_Freq1;
+	Word16 C10_Freq2;
+	Word16 C10_Freq3;
+	Word16 C10_Gain0;
+	Word16 C10_Gain1;
+	Word16 C10_Gain2;
+	Word16 C10_Gain3;
+
+	Word16 C11_Freq0;
+	Word16 C11_Freq1;
+	Word16 C11_Freq2;
+	Word16 C11_Freq3;
+	Word16 C11_Gain0;
+	Word16 C11_Gain1;
+	Word16 C11_Gain2;
+	Word16 C11_Gain3;
+	
+	Word16	CadOn12;
+	Word16	CadOff12;
+	Word16	CadOn13;
+	Word16	CadOff13;
+	Word16	CadOn14;
+	Word16	CadOff14;
+	Word16	CadOn15;
+	Word16	CadOff15;
+
+	Word16 C12_Freq0;
+	Word16 C12_Freq1;
+	Word16 C12_Freq2;
+	Word16 C12_Freq3;
+	Word16 C12_Gain0;
+	Word16 C12_Gain1;
+	Word16 C12_Gain2;
+	Word16 C12_Gain3;
+
+	Word16 C13_Freq0;
+	Word16 C13_Freq1;
+	Word16 C13_Freq2;
+	Word16 C13_Freq3;
+	Word16 C13_Gain0;
+	Word16 C13_Gain1;
+	Word16 C13_Gain2;
+	Word16 C13_Gain3;
+
+	Word16 C14_Freq0;
+	Word16 C14_Freq1;
+	Word16 C14_Freq2;
+	Word16 C14_Freq3;
+	Word16 C14_Gain0;
+	Word16 C14_Gain1;
+	Word16 C14_Gain2;
+	Word16 C14_Gain3;
+
+	Word16 C15_Freq0;
+	Word16 C15_Freq1;
+	Word16 C15_Freq2;
+	Word16 C15_Freq3;
+	Word16 C15_Gain0;
+	Word16 C15_Gain1;
+	Word16 C15_Gain2;
+	Word16 C15_Gain3;
+	
+	Word16	CadOn16;
+	Word16	CadOff16;
+	Word16	CadOn17;
+	Word16	CadOff17;
+	Word16	CadOn18;
+	Word16	CadOff18;
+	Word16	CadOn19;
+	Word16	CadOff19;
+
+	Word16 C16_Freq0;
+	Word16 C16_Freq1;
+	Word16 C16_Freq2;
+	Word16 C16_Freq3;
+	Word16 C16_Gain0;
+	Word16 C16_Gain1;
+	Word16 C16_Gain2;
+	Word16 C16_Gain3;
+
+	Word16 C17_Freq0;
+	Word16 C17_Freq1;
+	Word16 C17_Freq2;
+	Word16 C17_Freq3;
+	Word16 C17_Gain0;
+	Word16 C17_Gain1;
+	Word16 C17_Gain2;
+	Word16 C17_Gain3;
+
+	Word16 C18_Freq0;
+	Word16 C18_Freq1;
+	Word16 C18_Freq2;
+	Word16 C18_Freq3;
+	Word16 C18_Gain0;
+	Word16 C18_Gain1;
+	Word16 C18_Gain2;
+	Word16 C18_Gain3;
+
+	Word16 C19_Freq0;
+	Word16 C19_Freq1;
+	Word16 C19_Freq2;
+	Word16 C19_Freq3;
+	Word16 C19_Gain0;
+	Word16 C19_Gain1;
+	Word16 C19_Gain2;
+	Word16 C19_Gain3;
+	
+	Word16	CadOn20;
+	Word16	CadOff20;
+	Word16	CadOn21;
+	Word16	CadOff21;
+	Word16	CadOn22;
+	Word16	CadOff22;
+	Word16	CadOn23;
+	Word16	CadOff23;
+
+	Word16 C20_Freq0;
+	Word16 C20_Freq1;
+	Word16 C20_Freq2;
+	Word16 C20_Freq3;
+	Word16 C20_Gain0;
+	Word16 C20_Gain1;
+	Word16 C20_Gain2;
+	Word16 C20_Gain3;
+
+	Word16 C21_Freq0;
+	Word16 C21_Freq1;
+	Word16 C21_Freq2;
+	Word16 C21_Freq3;
+	Word16 C21_Gain0;
+	Word16 C21_Gain1;
+	Word16 C21_Gain2;
+	Word16 C21_Gain3;
+
+	Word16 C22_Freq0;
+	Word16 C22_Freq1;
+	Word16 C22_Freq2;
+	Word16 C22_Freq3;
+	Word16 C22_Gain0;
+	Word16 C22_Gain1;
+	Word16 C22_Gain2;
+	Word16 C22_Gain3;
+
+	Word16 C23_Freq0;
+	Word16 C23_Freq1;
+	Word16 C23_Freq2;
+	Word16 C23_Freq3;
+	Word16 C23_Gain0;
+	Word16 C23_Gain1;
+	Word16 C23_Gain2;
+	Word16 C23_Gain3;
+	
+	Word16	CadOn24;
+	Word16	CadOff24;
+	Word16	CadOn25;
+	Word16	CadOff25;
+	Word16	CadOn26;
+	Word16	CadOff26;
+	Word16	CadOn27;
+	Word16	CadOff27;
+
+	Word16 C24_Freq0;
+	Word16 C24_Freq1;
+	Word16 C24_Freq2;
+	Word16 C24_Freq3;
+	Word16 C24_Gain0;
+	Word16 C24_Gain1;
+	Word16 C24_Gain2;
+	Word16 C24_Gain3;
+
+	Word16 C25_Freq0;
+	Word16 C25_Freq1;
+	Word16 C25_Freq2;
+	Word16 C25_Freq3;
+	Word16 C25_Gain0;
+	Word16 C25_Gain1;
+	Word16 C25_Gain2;
+	Word16 C25_Gain3;
+
+	Word16 C26_Freq0;
+	Word16 C26_Freq1;
+	Word16 C26_Freq2;
+	Word16 C26_Freq3;
+	Word16 C26_Gain0;
+	Word16 C26_Gain1;
+	Word16 C26_Gain2;
+	Word16 C26_Gain3;
+
+	Word16 C27_Freq0;
+	Word16 C27_Freq1;
+	Word16 C27_Freq2;
+	Word16 C27_Freq3;
+	Word16 C27_Gain0;
+	Word16 C27_Gain1;
+	Word16 C27_Gain2;
+	Word16 C27_Gain3;
+	
+	Word16	CadOn28;
+	Word16	CadOff28;
+	Word16	CadOn29;
+	Word16	CadOff29;
+	Word16	CadOn30;
+	Word16	CadOff30;
+	Word16	CadOn31;
+	Word16	CadOff31;
+
+	Word16 C28_Freq0;
+	Word16 C28_Freq1;
+	Word16 C28_Freq2;
+	Word16 C28_Freq3;
+	Word16 C28_Gain0;
+	Word16 C28_Gain1;
+	Word16 C28_Gain2;
+	Word16 C28_Gain3;
+
+	Word16 C29_Freq0;
+	Word16 C29_Freq1;
+	Word16 C29_Freq2;
+	Word16 C29_Freq3;
+	Word16 C29_Gain0;
+	Word16 C29_Gain1;
+	Word16 C29_Gain2;
+	Word16 C29_Gain3;
+
+	Word16 C30_Freq0;
+	Word16 C30_Freq1;
+	Word16 C30_Freq2;
+	Word16 C30_Freq3;
+	Word16 C30_Gain0;
+	Word16 C30_Gain1;
+	Word16 C30_Gain2;
+	Word16 C30_Gain3;
+
+	Word16 C31_Freq0;
+	Word16 C31_Freq1;
+	Word16 C31_Freq2;
+	Word16 C31_Freq3;
+	Word16 C31_Gain0;
+	Word16 C31_Gain1;
+	Word16 C31_Gain2;
+	Word16 C31_Gain3;
+
 } ToneCfgParam_t;
 #endif	// #ifdef SUPPORT_TONE_PROFILE
 

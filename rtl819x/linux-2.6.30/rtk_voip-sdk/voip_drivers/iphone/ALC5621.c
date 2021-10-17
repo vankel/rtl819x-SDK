@@ -3,7 +3,7 @@
  *
  */
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>  	// udelay
 #include "ALC5621.h"
@@ -16,7 +16,7 @@
 #if defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972_V01 )
   #define RIGHT_PHASE
   #define HANDSET_MIC2
-#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_8952_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 )
+#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXD_CODEC ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXC_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8952_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 )
   #define LEFT_PHASE
   #define HANDSET_MIC1
 #else

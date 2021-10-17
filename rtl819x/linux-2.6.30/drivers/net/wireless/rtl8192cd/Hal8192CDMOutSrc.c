@@ -43,13 +43,11 @@
 #endif
 
 #if defined(CONFIG_RTL_819X) && defined(USE_RLX_BSP)
+#if defined(CONFIG_OPENWRT_SDK) && !defined(CONFIG_ARCH_CPU_RLX)
+#include <asm/mach-realtek/bspchip.h>
+#else
 #include <bsp/bspchip.h>
-#endif
-
-#ifndef CONFIG_RTL_8198B
-#ifndef BSP_WDTCNR
-        #define BSP_WDTCNR 0xB800311C
-#endif
+#endif //CONFIG_OPENWRT_SDK
 #endif
 
 
@@ -63,7 +61,7 @@
 // Global var
 //============================================================
 
-
+#if !defined(USE_OUT_SRC) || defined(_OUTSRC_COEXIST)
 unsigned int OFDMSwingTable[] = {
 	0x7f8001fe, // 0, +6.0dB
 	0x788001e2, // 1, +5.5dB
@@ -103,6 +101,7 @@ unsigned int OFDMSwingTable[] = {
 	0x11000044, // 35, -11.5dB
 	0x10000040, // 36, -12.0dB
 };
+
 
 unsigned int TxPwrTrk_OFDM_SwingTbl[TxPwrTrk_OFDM_SwingTbl_Len] = {
 	/*  +6.0dB */ 0x7f8001fe,
@@ -196,6 +195,8 @@ unsigned char TxPwrTrk_CCK_SwingTbl_CH14[TxPwrTrk_CCK_SwingTbl_Len][8] = {
 	/*  11.0dB */ {0x0f, 0x0f, 0x0d, 0x08, 0x00, 0x00, 0x00, 0x00}
 };
 
+//#ifndef USE_OUT_SRC
+
 unsigned char CCKSwingTable_Ch1_Ch13[][8] = {
 {0x36, 0x35, 0x2e, 0x25, 0x1c, 0x12, 0x09, 0x04},	// 0, +0dB
 {0x33, 0x32, 0x2b, 0x23, 0x1a, 0x11, 0x08, 0x04},	// 1, -0.5dB
@@ -268,8 +269,13 @@ unsigned char CCKSwingTable_Ch14 [][8]= {
 {0x09, 0x08, 0x07, 0x04, 0x00, 0x00, 0x00, 0x00}	// 32, -16.0dB
 };
 
+#endif
+
+//#if defined(_OUTSRC_COEXIST)
+#if !defined(USE_OUT_SRC) || defined(_OUTSRC_COEXIST)
 const int OFDM_TABLE_SIZE= sizeof(OFDMSwingTable)/sizeof(int);
 const int CCK_TABLE_SIZE= sizeof(CCKSwingTable_Ch1_Ch13) >>3;
+#endif
 
 
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -476,6 +482,60 @@ void set_DIG_state(struct rtl8192cd_priv *priv, int state)
 }
 #endif
 
+#ifdef CONFIG_RTL_92D_SUPPORT
+void MP_DIG_process(unsigned long task_priv)
+{
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+	u4Byte						RXOK_cal, RxPWDBAve;
+	//unsigned int	FA_cnt_ofdm = priv->pshare->ofdm_FA_cnt1 + priv->pshare->ofdm_FA_cnt2 +
+	//                             priv->pshare->ofdm_FA_cnt3 + priv->pshare->ofdm_FA_cnt4;
+	//unsigned int	FA_cnt_cck = priv->pshare->cck_FA_cnt;
+	
+	if (!(priv->drv_state & DRV_STATE_OPEN))
+		return;
+	
+	if (!(priv->pshare->rf_ft_var.mp_specific && priv->pshare->mp_dig_on))
+		return;
+	
+	//printk("===> %s, pBandType = %d\n", __FUNCTION__, priv->pmib->dot11RFEntry.phyBandSelect);
+
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) {
+
+		FA_statistic(priv);
+	
+		priv->pshare->LastNumQryPhyStatusAll = priv->pshare->NumQryPhyStatus;	
+		priv->pshare->NumQryPhyStatus = priv->pshare->NumQryPhyStatusCCK + priv->pshare->NumQryPhyStatusOFDM; 
+		RXOK_cal = priv->pshare->NumQryPhyStatus - priv->pshare->LastNumQryPhyStatusAll;
+	
+		if (RXOK_cal == 0)
+			RxPWDBAve = 0;
+		else
+			RxPWDBAve = priv->pshare->RxPWDBAve/RXOK_cal;
+
+		priv->pshare->RxPWDBAve= 0;
+				
+		//printk("RX OK = %d\n", RXOK_cal);
+		//printk("RSSI = %d\n", RxPWDBAve);
+		//printk("DIG = (%x, %x), Cnt_all = %d, Cnt_Ofdm_fail = %d, Cnt_Cck_fail = %d\n", RTL_R8(0xc50), RTL_R8(0xc58), priv->pshare->FA_total_cnt, FA_cnt_ofdm, FA_cnt_cck);
+				
+		if (RXOK_cal >= 70)  {
+			if (RxPWDBAve <= 40) {
+				RTL_W8(0xc50, 0x1C);
+				RTL_W8(0xc58, 0x1C);
+			} else if (RxPWDBAve > 45) {
+				RTL_W8(0xc50, 0x20);
+				RTL_W8(0xc58, 0x20);
+			} 
+		}
+		else {
+			RTL_W8(0xc50, 0x20);
+			RTL_W8(0xc58, 0x20);
+		}
+	} 
+	mod_timer(&priv->pshare->MP_DIGTimer, RTL_MILISECONDS_TO_JIFFIES(700));
+}
+#endif
+
 void DIG_process(struct rtl8192cd_priv *priv)
 {
 	#define DEAD_POINT_TH		10000
@@ -484,20 +544,26 @@ void DIG_process(struct rtl8192cd_priv *priv)
 
 	unsigned char value_IGI;
 	signed char value8;
-
+	unsigned int IGI_target;
+	unsigned char Adap_IGI_Upper; 
 #ifdef INTERFERENCE_CONTROL
 	unsigned short thd0 = priv->pshare->threshold0;
 	unsigned short thd1 = priv->pshare->threshold1;
 	unsigned short thd2 = priv->pshare->threshold2;
 #endif
+	if(priv->pshare->rf_ft_var.adaptivity_flag == TRUE)
+		Adap_IGI_Upper = priv->pshare->rf_ft_var.Adaptivity_IGI_upper;
 
 	if (priv->pshare->DIG_on == 1)
 	{
+#ifdef HIGH_POWER_EXT_LNA
 		if (priv->pshare->rf_ft_var.use_ext_lna == 1) {
 //			priv->pshare->FA_upper = 0x42;
 			priv->pshare->FA_upper = MIN_NUM(0x42, priv->pshare->rssi_min+36);
 			priv->pshare->FA_lower = 0x30;
-		} else {
+		} else 
+#endif
+		{
 			// Reset initial gain upper & lower bounds
 #ifdef DFS
 			if (!priv->pmib->dot11DFSEntry.disable_DFS &&
@@ -505,8 +571,10 @@ void DIG_process(struct rtl8192cd_priv *priv)
 				(((priv->pmib->dot11RFEntry.dot11channel >= 52) &&
 				(priv->pmib->dot11RFEntry.dot11channel <= 64)) ||
 				((priv->pmib->dot11RFEntry.dot11channel >= 100) &&
-				(priv->pmib->dot11RFEntry.dot11channel <= 140))))
+				(priv->pmib->dot11RFEntry.dot11channel <= 140)))){
 				priv->pshare->FA_upper = 0x24;
+				priv->pshare->FA_lower = 0x20;
+			}
 			else
 #endif
 			{
@@ -538,12 +606,12 @@ void DIG_process(struct rtl8192cd_priv *priv)
 #else
 				if (priv->pmib->dot11RFEntry.tx2path) {
 					if (priv->pmib->dot11BssType.net_work_type == WIRELESS_11B)
-						priv->pshare->FA_upper = MIN_NUM(0x2A, priv->pshare->rssi_min+20);
+						priv->pshare->FA_upper = MIN_NUM(0x2A, priv->pshare->rssi_min+10);
 					else
-						priv->pshare->FA_upper = MIN_NUM(0x3E, priv->pshare->rssi_min+20);
+						priv->pshare->FA_upper = MIN_NUM(0x3E, priv->pshare->rssi_min+10);
 				}
 				else
-					priv->pshare->FA_upper = MIN_NUM(0x3E, priv->pshare->rssi_min+20);
+					priv->pshare->FA_upper = MIN_NUM(0x3E, priv->pshare->rssi_min+10);
 				priv->pshare->FA_lower = 0x20;
 
 				if (priv->pshare->rssi_min > 30)
@@ -579,6 +647,7 @@ void DIG_process(struct rtl8192cd_priv *priv)
 	if(priv->pshare->rf_ft_var.dnc_enable)
 	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
 		unsigned long tp_now = (priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage)>>17;
+#ifdef HIGH_POWER_EXT_LNA
 		if(priv->pshare->rf_ft_var.use_ext_lna) {
 			if( (priv->pshare->rssi_min > 50)  )  {
 				if((!priv->pshare->DNC_on) && (value_IGI >= priv->pshare->FA_upper) && (priv->pshare->FA_total_cnt > priv->pshare->threshold2)) {
@@ -620,7 +689,9 @@ void DIG_process(struct rtl8192cd_priv *priv)
 			else
 				PHY_SetBBReg(priv, 0x870, bMaskDWord, RTL_R32(0x870)&  ~(BIT(5)|BIT(6)|BIT(21)|BIT(22)));
 
-		} else {
+		} else 
+#endif
+		{
 			if( (priv->pshare->rssi_min > 40) && (value_IGI >= priv->pshare->FA_upper) )  {
 //				unsigned long tp_now = (priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage)>>17;
 				if((!priv->pshare->DNC_on) && (priv->pshare->FA_total_cnt > priv->pshare->threshold2)) {
@@ -711,6 +782,11 @@ void DIG_process(struct rtl8192cd_priv *priv)
 			value_IGI = priv->pshare->FA_upper;
 		else if (value_IGI < priv->pshare->FA_lower)
 			value_IGI = priv->pshare->FA_lower;
+		if (priv->pshare->rf_ft_var.adaptivity_enable && priv->pshare->rf_ft_var.adaptivity_flag == TRUE)
+		{	
+			if(value_IGI > Adap_IGI_Upper)
+				value_IGI = Adap_IGI_Upper;
+		}
 
 #if defined(HW_ANT_SWITCH)
 		// wirte new initial gain index into regC50/C58
@@ -899,7 +975,8 @@ void DIG_for_site_survey(struct rtl8192cd_priv *priv, int do_ss)
 }
 #endif
 
-#ifdef INTERFERENCE_CONTROL
+#if 0
+//#ifdef INTERFERENCE_CONTROL
 void check_NBI_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength)
 {
 	if (OPMODE & WIFI_SITE_MONITOR)
@@ -993,7 +1070,9 @@ void CCK_CCA_dynamic_enhance(struct rtl8192cd_priv *priv, unsigned char rssi_str
 #ifdef HIGH_POWER_EXT_PA
 void tx_power_control(struct rtl8192cd_priv *priv)
 {
+#ifndef SMP_SYNC
 	unsigned long x;
+#endif
 
 	int pwr_value = 0x10101010;
 	if( priv->pshare->phw->signal_strength == 3 && priv->pshare->phw->lower_tx_power== 0) {
@@ -1167,59 +1246,6 @@ unsigned char getThermalValue(struct rtl8192cd_priv *priv)
 }
 
 
-
-#ifdef _TRACKING_TABLE_FILE
-int get_tx_tracking_index(struct rtl8192cd_priv *priv, int channel, int i, int delta, int is_decrease, int is_CCK)
-{
-	int index = 0;
-
-	if(delta == 0)
-		return 0; 
-
-	if(delta > index_mapping_NUM_MAX)
-		delta = index_mapping_NUM_MAX;
-
-	printk("\n\n_eric_tracking +++ channel = %d, i = %d, delta = %d, is_decrease = %d, is_CCK = %d\n", 
-					channel, i, delta, is_decrease, is_CCK);
-
-	delta = delta - 1;
-
-	if (channel > 14)
-	{
-		if(channel <= 99)
-		{
-			index = priv->pshare->txpwr_tracking_5GL[(i*2)+ is_decrease][delta];
-		}
-		else if(channel <= 140)
-		{
-
-			index = priv->pshare->txpwr_tracking_5GM[(i*2)+ is_decrease][delta];
-		}
-		else
-		{
-			index = priv->pshare->txpwr_tracking_5GH[(i*2)+ is_decrease][delta];
-		}
-	}
-	else
-	{
-		if(is_CCK)
-		{
-			index = priv->pshare->txpwr_tracking_2G_CCK[(i*2)+ is_decrease][delta];
-		}
-		else
-		{
-			index = priv->pshare->txpwr_tracking_2G_OFDM[(i*2)+ is_decrease][delta];
-		}
-	}
-
-	printk("_eric_tracking +++ offset = %d\n\n", index);
-
-	return index; 
-
-}
-#endif
-
-
 #ifdef CONFIG_RTL_92C_SUPPORT	
 
 #ifdef HIGH_POWER_EXT_PA
@@ -1277,6 +1303,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 	char			is2T = ((GET_CHIP_VER(priv) == VERSION_8192C) ?1 :0);
 	unsigned char		TxPwrLevel[2];
 	unsigned char 		channel, OFDM_min_index = 6, rf=1; //OFDM BB Swing should be less than +3.0dB, which is required by Arthur
+#ifdef POWER_PERCENT_ADJUSTMENT
+	char pwrdiff_percent;
+#endif
 #ifdef MP_TEST
 	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
 		channel=priv->pshare->working_channel;
@@ -1291,7 +1320,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 	ThermalValue = getThermalValue(priv);
 
 	rf += is2T;
-	if (ThermalValue)	{
+	if(ThermalValue)	{
 
 		if(!priv->pshare->ThermalValue)	{
 			priv->pshare->ThermalValue = priv->pmib->dot11RFEntry.ther;
@@ -1328,8 +1357,8 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 		delta_LCK = RTL_ABS(ThermalValue, priv->pshare->ThermalValue_LCK);
 		delta_IQK = RTL_ABS(ThermalValue, priv->pshare->ThermalValue_IQK);
 
-		printk("Readback Thermal Meter = 0x%lx pre thermal meter 0x%lx EEPROMthermalmeter 0x%lx delta 0x%lx delta_LCK 0x%lx delta_IQK 0x%lx\n",
-			ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther, delta, delta_LCK, delta_IQK);
+//		printk("Readback Thermal Meter = 0x%lx pre thermal meter 0x%lx EEPROMthermalmeter 0x%lx delta 0x%lx delta_LCK 0x%lx delta_IQK 0x%lx\n",
+//			ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther, delta, delta_LCK, delta_IQK);
 
 		if(delta_LCK > 1)	{
 			priv->pshare->ThermalValue_LCK = ThermalValue;
@@ -1381,6 +1410,11 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					offset = ((priv->pmib->dot11RFEntry.pwrdiffOFDM[channel-1] & 0xf0) >> 4);
 					TxPwrLevel[1] = COUNT_SIGN_OFFSET(TxPwrLevel[1], offset);
 				}
+#ifdef POWER_PERCENT_ADJUSTMENT				
+				pwrdiff_percent = PwrPercent2PwrLevel(priv->pmib->dot11RFEntry.power_percent);
+				TxPwrLevel[0] = POWER_RANGE_CHECK(TxPwrLevel[0]+pwrdiff_percent);
+				TxPwrLevel[1] = POWER_RANGE_CHECK(TxPwrLevel[1]+pwrdiff_percent);
+#endif
 			}
 
 //			printk("TxPwrLevel[0]=%d, TxPwrLevel[1]=%d\n", TxPwrLevel[0], TxPwrLevel[1]);
@@ -1404,7 +1438,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 				}
 
 #ifdef _TRACKING_TABLE_FILE
-
+				if (priv->pshare->rf_ft_var.pwr_track_file)
 				{
 					int d = 0; 
 					
@@ -1421,9 +1455,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					}
 
 				}
-
-
-#else
+				else
+#endif
+				{
 #ifdef HIGH_POWER_EXT_PA
 				if (priv->pshare->rf_ft_var.use_ext_pa) {
 					OFDM_index[i] = priv->pshare->OFDM_index[i];
@@ -1431,7 +1465,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					//swingIndexRemap(&OFDM_index[i], priv->pshare->OFDM_index0[i]);
 				}
 #endif
-#endif
+				}
 				if(OFDM_index[i] > OFDM_TABLE_SIZE-1)
 					OFDM_index[i] = OFDM_TABLE_SIZE-1;
 				else if (OFDM_index[i] < OFDM_min_index)
@@ -1458,6 +1492,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 				}
 
 #ifdef _TRACKING_TABLE_FILE
+				 if (priv->pshare->rf_ft_var.pwr_track_file)
 				 {
 					int d = 0; 
 					
@@ -1474,7 +1509,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					}
 
 				}
-#else
+				 else
+#endif
+				{
 #ifdef HIGH_POWER_EXT_PA
 				if (priv->pshare->rf_ft_var.use_ext_pa) {
 					CCK_index = priv->pshare->CCK_index;
@@ -1482,7 +1519,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					//swingIndexRemap( &CCK_index, priv->pshare->CCK_index0);
 				}
 #endif
-#endif
+				}
 				if(CCK_index > CCK_TABLE_SIZE-1)
 					CCK_index = CCK_TABLE_SIZE-1;
 				else if (CCK_index < 0)
@@ -1614,7 +1651,7 @@ static void rx_gain_tracking_92D(struct rtl8192cd_priv *priv)
 void ODM_ResetIQKResult(struct rtl8192cd_priv *priv)
 {
 /*
-#if (DM_ODM_SUPPORT_TYPE == ODM_MP || DM_ODM_SUPPORT_TYPE == ODM_CE)
+#if (DM_ODM_SUPPORT_TYPE == ODM_WIN || DM_ODM_SUPPORT_TYPE == ODM_CE)
 	PADAPTER	Adapter = pDM_Odm->Adapter;
 	u1Byte		i;
 
@@ -2060,7 +2097,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 			ODM_ResetIQKResult(priv);		
 
 /*
-#if(DM_ODM_SUPPORT_TYPE  & ODM_MP)
+#if(DM_ODM_SUPPORT_TYPE  & ODM_WIN)
 #if (DEV_BUS_TYPE == RT_PCI_INTERFACE)	
 #if USE_WORKITEM
 			PlatformAcquireMutex(&pHalData->mxChnlBwControl);
@@ -2076,7 +2113,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 			PHY_IQCalibrate_8188E(priv, FALSE);
 
 /*
-#if(DM_ODM_SUPPORT_TYPE  & ODM_MP)
+#if(DM_ODM_SUPPORT_TYPE  & ODM_WIN)
 #if (DEV_BUS_TYPE == RT_PCI_INTERFACE)	
 #if USE_WORKITEM
 			PlatformReleaseMutex(&pHalData->mxChnlBwControl);
@@ -2271,14 +2308,17 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 	{
 		channel = (priv->pmib->dot11RFEntry.dot11channel);
 	}
-
+#if 0
 	if (priv->pshare->pwr_trk_ongoing==0) {
 		PHY_SetRFReg(priv, RF92CD_PATH_A, RF_T_METER_92D, bMask20Bits, 0x30000);
 		priv->pshare->pwr_trk_ongoing = 1;
 		return;
-	}else{
+	}
+	else
+#endif		
+	{
 		ThermalValue =(unsigned char)PHY_QueryRFReg(priv, RF92CD_PATH_A, RF_T_METER_92D, 0xf800, 1);
-		priv->pshare->pwr_trk_ongoing = 0;
+//		priv->pshare->pwr_trk_ongoing = 0;
 #ifdef DPK_92D
 		priv->pshare->ThermalValue_DPKtrack = ThermalValue;
 #endif
@@ -2423,6 +2463,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 				if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G){
 
 #ifdef _TRACKING_TABLE_FILE
+				if (priv->pshare->rf_ft_var.pwr_track_file) {
 				if(ThermalValue > priv->pmib->dot11RFEntry.ther)
 				{
 					for(i = 0; i < rf; i++)
@@ -2437,8 +2478,10 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 					
 					CCK_index = priv->pshare->CCK_index + get_tx_tracking_index(priv, channel, i, delta, 1, 1);
 				}
-
-#else
+				}
+				else
+#endif
+				{
 					offset = 4;
 
 					if(delta > index_mapping_NUM-1)
@@ -2456,7 +2499,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 							OFDM_index[i] = priv->pshare->OFDM_index[i] + index[0];
 						CCK_index = priv->pshare->CCK_index + index[0];
 					}
-#endif
+				}
 				} else if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) {
 					for(i = 0; i < rf; i++){
 
@@ -2527,15 +2570,16 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 
 
 #ifdef _TRACKING_TABLE_FILE
+						if (priv->pshare->rf_ft_var.pwr_track_file)
 						{
 							if(ThermalValue > priv->pmib->dot11RFEntry.ther)
 								index[i] = get_tx_tracking_index(priv, channel, i, delta, 0, 0);	
 							else
 								index[i] = get_tx_tracking_index(priv, channel, i, delta, 1, 0);
 						}
-
-#else
-
+						else
+#endif
+						{
 #ifdef HIGH_POWER_EXT_PA //Modify HP tracking table, from Arthur 2012.02.13
   						{
 							if(delta > index_mapping_NUM-1)
@@ -2547,8 +2591,8 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 							//printk("index[%d]= %d\n\n", i, index[i]);
 						}
 #endif
+						}
 
-#endif
 
 
 						if(ThermalValue > priv->pmib->dot11RFEntry.ther) //set larger Tx power
@@ -2631,7 +2675,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 			//Config by SwingTable
 			{
 				//Adujst OFDM Ant_A according to IQK result
-				ele_D = (OFDMSwingTable_92D[OFDM_index[0]] & 0xFFC00000)>>22;
+				ele_D = (OFDMSwingTable_92D[(unsigned int)OFDM_index[0]] & 0xFFC00000)>>22;
 				X = priv->pshare->RegE94;
 				Y = priv->pshare->RegE9C;
 
@@ -2658,7 +2702,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 				}
 				else
 				{
-					PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord, OFDMSwingTable_92D[OFDM_index[0]]);
+					PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord, OFDMSwingTable_92D[(unsigned int)OFDM_index[0]]);
 					PHY_SetBBReg(priv, rOFDM0_XCTxAFE, bMaskH4Bits, 0x00);
 					PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(24), 0x00);
 #ifdef MP_TEST
@@ -2681,7 +2725,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 
 				if(is2T)
 				{
-					ele_D = (OFDMSwingTable_92D[OFDM_index[1]] & 0xFFC00000)>>22;
+					ele_D = (OFDMSwingTable_92D[(unsigned int)OFDM_index[1]] & 0xFFC00000)>>22;
 
 					//new element A = element D x X
 					X = priv->pshare->RegEB4;
@@ -2709,7 +2753,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 
 					}
 					else{
-						PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord, OFDMSwingTable_92D[OFDM_index[1]]);
+						PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord, OFDMSwingTable_92D[(unsigned int)OFDM_index[1]]);
 						PHY_SetBBReg(priv, rOFDM0_XDTxAFE, bMaskH4Bits, 0x00);
 						PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(28), 0x00);
 #ifdef MP_TEST
@@ -2892,6 +2936,22 @@ void init_EDCA_para(struct rtl8192cd_priv *priv, int mode)
 
 void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
+	int i, assoc_num = GET_ROOT(priv)->assoc_num;
+#ifdef MBSSID
+		if (GET_ROOT(priv)->pmib->miscEntry.vap_enable){
+			for (i=0; i<RTL8192CD_NUM_VWLAN; ++i)
+				assoc_num += GET_ROOT(priv)->pvap_priv[i]-> assoc_num;
+		}
+#endif	
+#ifdef UNIVERSAL_REPEATER
+		if (IS_DRV_OPEN(GET_VXD_PRIV(GET_ROOT(priv))))
+			assoc_num += GET_VXD_PRIV(GET_ROOT(priv))-> assoc_num;
+#endif
+#ifdef WDS
+		 if(GET_ROOT(priv)->pmib->dot11WdsInfo.wdsEnabled)
+		 	assoc_num ++;
+#endif
+
 	if (priv->pshare->rf_ft_var.low_tp_no_aggr) {
 		unsigned long sta_tp = (pstat->current_tx_bytes + pstat->current_rx_bytes) >> 17;
 		if  (!pstat->low_tp_disable_ampdu && sta_tp <= 2) 
@@ -2910,7 +2970,7 @@ void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 		pstat->current_rx_bytes += pstat->rx_byte_cnt;
 
 		if (total_sum != 0) {
-			if (total_sum <= 100) {
+			if (total_sum <= 1000000) {
 				tx_2s_avg = (unsigned int)((pstat->current_tx_bytes*100) / total_sum);
 				rx_2s_avg = (unsigned int)((pstat->current_rx_bytes*100) / total_sum);
 			} else {
@@ -2921,8 +2981,11 @@ void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 		for(i=0; i<8; i++)
 			aggReady += (pstat->ADDBA_ready[i]);
-		if ((pstat->ht_cap_len && aggReady) || (pstat->is_intel_sta)) {
-			if ((tx_2s_avg + rx_2s_avg >= 50)) {
+
+		if( (pstat->IOTPeer==HT_IOT_PEER_INTEL)
+			|| (pstat->ht_cap_len && aggReady))	 {
+		
+			if ((assoc_num==1) || (tx_2s_avg + rx_2s_avg >= 25)) {
 				priv->pshare->highTP_found_pstat = pstat;
 			}	/*this STA's TXRX packet very close AP's total TXRX packet then let it as highTP_found_pstat*/
 			else if(RTL_ABS((pstat->current_tx_bytes + pstat->current_rx_bytes) , total_sum)<50){
@@ -2930,7 +2993,8 @@ void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			}
 #ifdef CLIENT_MODE
 			if (OPMODE & WIFI_STATION_STATE) {
-				if(pstat->is_ralink_sta && ((tx_2s_avg + rx_2s_avg) >= 45))
+//				if(pstat->is_ralink_sta && ((tx_2s_avg + rx_2s_avg) >= 45))
+				if(pstat->IOTPeer == HT_IOT_PEER_RALINK && ((tx_2s_avg + rx_2s_avg) >= 45))
 					priv->pshare->highTP_found_pstat = pstat;
 			}	
 #endif				
@@ -2951,22 +3015,27 @@ void rxBB_dm(struct rtl8192cd_priv *priv)
 				// for DIG checking
 				check_DIG_by_rssi(priv, priv->pshare->rssi_min);
 			}
-#ifdef INTERFERENCE_CONTROL
+//#ifdef INTERFERENCE_CONTROL
 			if (priv->pshare->rf_ft_var.nbi_filter_enable) {
 				check_NBI_by_rssi(priv, priv->pshare->rssi_min);
 			}
-#endif
+//#endif
 		}
-
-		check_EDCCA(priv, priv->pshare->rssi_min);
 
 #ifdef MP_TEST
 		if (!((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific))
 #endif
 		{
+#ifdef HIGH_POWER_EXT_LNA
 			if (!priv->pshare->rf_ft_var.use_ext_lna)
-				CCK_CCA_dynamic_enhance(priv, priv->pshare->rssi_min);
+#endif				
+				CCK_CCA_dynamic_enhance(priv, priv->pshare->rssi_min);			
 		}
+	}
+	if (priv->pshare->rf_ft_var.adaptivity_enable){
+		unsigned char IGI;
+		IGI = RTL_R8(0xc50);
+		priv->pshare->rf_ft_var.bAdaOn = rtl8192cd_Adaptivity(priv,IGI);		
 	}
 }
 
@@ -2978,11 +3047,32 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 #ifdef WIFI_WMM
 	unsigned int switch_turbo = 0;
 #endif
+	int assoc_num = priv->assoc_num;
 	struct stat_info *pstat = priv->pshare->highTP_found_pstat;
 
+	if(pstat) {
+		if((pstat->tx_avarage + pstat->rx_avarage) < (1<<17))		// 1M bps
+			pstat = NULL;
+	}	
 #if defined(RTL_MANUAL_EDCA) && defined(WIFI_WMM)
 	if(priv->pmib->dot11QosEntry.ManualEDCA)
 		return ;
+#endif
+
+#ifdef MBSSID
+	int i = 0;
+	if (GET_ROOT(priv)->pmib->miscEntry.vap_enable){
+		for (i=0; i<RTL8192CD_NUM_VWLAN; ++i)
+			assoc_num += GET_ROOT(priv)->pvap_priv[i]-> assoc_num;
+	}
+#endif	
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(GET_ROOT(priv))))
+		assoc_num += GET_VXD_PRIV(GET_ROOT(priv))-> assoc_num;
+#endif
+#ifdef WDS
+	if(GET_ROOT(priv)->pmib->dot11WdsInfo.wdsEnabled)
+		assoc_num ++;
 #endif
 
 #ifdef WIFI_WMM
@@ -3032,9 +3122,11 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 				if (!priv->pshare->iot_mode_BK_exist && (priv->pshare->phw->BK_pkt_count > 250)) {
 					priv->pshare->iot_mode_BK_exist++;
 					switch_turbo++;
+					EDEBUG("switch_turbo++\n");					
 				} else if (priv->pshare->iot_mode_BE_exist && (priv->pshare->phw->BK_pkt_count < 250)) {
 					priv->pshare->iot_mode_BK_exist = 0;
 					switch_turbo++;
+					EDEBUG("switch_turbo++\n");					
 				}
 			}
 #endif
@@ -3113,7 +3205,12 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 			)) {
 			if (pstat && pstat->rssi >= priv->pshare->rf_ft_var.txop_enlarge_upper) {
 #ifdef LOW_TP_TXOP
-				if (pstat->is_intel_sta) {
+				
+
+				if (pstat->IOTPeer==HT_IOT_PEER_INTEL)
+
+				{
+				
 					if (priv->pshare->txop_enlarge != 0xe) {
 						priv->pshare->txop_enlarge = 0xe;
 						if (priv->pshare->iot_mode_enable)
@@ -3124,19 +3221,25 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 					if (priv->pshare->iot_mode_enable)
 						switch_turbo++;
 				}
-#else
+#else //LOW_TP_TXOP
+
 				if (priv->pshare->txop_enlarge != 2) {
-					if (pstat->is_intel_sta)
+
+
+				{
+					if (pstat->IOTPeer==HT_IOT_PEER_INTEL)
 						priv->pshare->txop_enlarge = 0xe;						
-					else if (pstat->is_ralink_sta)
+					else if (pstat->IOTPeer==HT_IOT_PEER_RALINK)
 						priv->pshare->txop_enlarge = 0xd;						
 					else
 						priv->pshare->txop_enlarge = 2;
+					
+				}
 
 					if (priv->pshare->iot_mode_enable)
 						switch_turbo++;
 				}
-#endif
+#endif //LOW_TP_TXOP
 			} else if (!pstat || pstat->rssi < priv->pshare->rf_ft_var.txop_enlarge_lower) {
 				if (priv->pshare->txop_enlarge) {
 					priv->pshare->txop_enlarge = 0;
@@ -3146,8 +3249,12 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 			}
 #ifdef LOW_TP_TXOP
 			// for Intel IOT, need to enlarge CW MAX from 6 to 10
-			if (pstat && pstat->is_intel_sta && (((pstat->tx_avarage+pstat->rx_avarage)>>10) < 
-					priv->pshare->rf_ft_var.cwmax_enhance_thd)) {
+
+
+			if (pstat && pstat->IOTPeer==HT_IOT_PEER_INTEL && (((pstat->tx_avarage+pstat->rx_avarage)>>10) < 
+				priv->pshare->rf_ft_var.cwmax_enhance_thd))
+
+			{
 				if (!priv->pshare->BE_cwmax_enhance && priv->pshare->iot_mode_enable) {
 					priv->pshare->BE_cwmax_enhance = 1;
 					switch_turbo++;
@@ -3167,21 +3274,21 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 	}
 
 #ifdef SW_TX_QUEUE
-	if ((priv->assoc_num > 1) && (AMPDU_ENABLE))
+	if ((assoc_num > 1) && (AMPDU_ENABLE))
 	{
 		unsigned int total_tp = (unsigned int)(priv->ext_stats.tx_avarage>>17)+(unsigned int)(priv->ext_stats.rx_avarage>>17);
 		if(total_tp > 0) {
 		        if (((unsigned int)(priv->ext_stats.tx_avarage>>17) * 100/total_tp) > 30)
 	        	{
-	       			if (priv->swq_txmac_chg >= priv->pshare->rf_ft_var.swq_en_highthd)
+	       			if (priv->pshare->swq_txmac_chg >= priv->pshare->rf_ft_var.swq_en_highthd)
 		        	{
-					if ((priv->swq_en == 0))
+					if ((priv->pshare->swq_en == 0))
 					{
 						switch_turbo++;
 						if (priv->pshare->txop_enlarge == 0)
 							priv->pshare->txop_enlarge = 2;
-						priv->swq_en = 1;
-						priv->swqen_keeptime = priv->up_time;
+						priv->pshare->swq_en = 1;
+						priv->pshare->swqen_keeptime = priv->up_time;
 					}
 					else
 					{
@@ -3192,12 +3299,12 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 						}
 					}
 				}
-				else if(priv->swq_txmac_chg <= priv->pshare->rf_ft_var.swq_dis_lowthd)
+				else if(priv->pshare->swq_txmac_chg <= priv->pshare->rf_ft_var.swq_dis_lowthd)
 				{
-					priv->swq_en = 0;
-					priv->swqen_keeptime = 0;
+					priv->pshare->swq_en = 0;
+					priv->pshare->swqen_keeptime = 0;
 				}
-				else if ((priv->swq_en == 1) && (switch_turbo > 0) && (priv->pshare->txop_enlarge == 0) && (priv->pshare->iot_mode_enable != 0))
+				else if ((priv->pshare->swq_en == 1) && (switch_turbo > 0) && (priv->pshare->txop_enlarge == 0) && (priv->pshare->iot_mode_enable != 0))
 				{
 					priv->pshare->txop_enlarge = 2;
 					switch_turbo--;
@@ -3205,32 +3312,33 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 			}
 			else if (((unsigned int)(priv->ext_stats.tx_avarage>>17) * 100/total_tp) < 20)
 			{
-				priv->swq_en = 0;
-				priv->swqen_keeptime = 0;
+				priv->pshare->swq_en = 0;
+				priv->pshare->swqen_keeptime = 0;
 			}
 		}
 		//debug msg	
-		//printk("swq=%d,sw=%d,en=%d,mode=%d\n", priv->swq_en, switch_turbo, priv->pshare->txop_enlarge, priv->pshare->iot_mode_enable);
+		//printk("swq=%d,sw=%d,en=%d,mode=%d\n", priv->pshare->swq_en, switch_turbo, priv->pshare->txop_enlarge, priv->pshare->iot_mode_enable);
     }
 #if 1//defined(CONFIG_RTL_819XD)
-    else if( (priv->assoc_num == 1) && (AMPDU_ENABLE)) {		
+    else if( (assoc_num == 1) && (priv->up_time % 2)== 0 && (AMPDU_ENABLE) ) {		
         //if (pstat) {
-        if ((pstat) && pstat->is_intel_sta) {
-			int en_thd = 14417920>>(priv->up_time % 2);
-            //if ((priv->swq_en == 0) && (pstat->current_tx_bytes > en_thd) && (pstat->current_rx_bytes > en_thd) )  { //50Mbps
-            	if ((pstat->current_tx_bytes > 14417920) && (priv->swq_en == 0)) { // && (pstat->current_rx_bytes > 14417920) && (priv->swq_en == 0))  { //55Mbps
-                	priv->swq_en = 1;
-			priv->swqen_keeptime = priv->up_time;
+//        if ((pstat) && pstat->is_intel_sta) {
+        if ((pstat) && pstat->IOTPeer == HT_IOT_PEER_INTEL) {
+//			int en_thd = 14417920;
+            //if ((priv->pshare->swq_en == 0) && (pstat->current_tx_bytes > en_thd) && (pstat->current_rx_bytes > en_thd) )  { //50Mbps
+            	if ((pstat->current_tx_bytes > 14417920) && (priv->pshare->swq_en == 0)) { // && (pstat->current_rx_bytes > 14417920) && (priv->pshare->swq_en == 0))  { //55Mbps
+                	priv->pshare->swq_en = 1;
+			priv->pshare->swqen_keeptime = priv->up_time;
 		} 	
-        	//else if ((priv->swq_en == 1) && ((pstat->tx_avarage < 4587520) || (pstat->rx_avarage < 4587520))) { //35Mbps
-		else if ((pstat->tx_avarage < 9175040) && (priv->swq_en == 1)) { //35Mbps
-			priv->swq_en = 0;
-			priv->swqen_keeptime = 0;
+        	//else if ((priv->pshare->swq_en == 1) && ((pstat->tx_avarage < 4587520) || (pstat->rx_avarage < 4587520))) { //35Mbps
+		else if ((pstat->tx_avarage < 9175040) && (priv->pshare->swq_en == 1)) { //35Mbps
+			priv->pshare->swq_en = 0;
+			priv->pshare->swqen_keeptime = 0;
             	}
         }
         else {
-            priv->swq_en = 0;
-			priv->swqen_keeptime = 0;
+            priv->pshare->swq_en = 0;
+			priv->pshare->swqen_keeptime = 0;
         }
     }
 #endif
@@ -3259,6 +3367,18 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 					thd_tp = priv->pshare->rf_ft_var.low_tp_txop_thd_g;
 
 				// Determine to close txop.
+#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
+				if(pstat && pstat->expire_to) 
+				{	
+					struct rtl8192cd_priv *tmppriv;
+					struct aid_obj *aidarray;	
+					aidarray = container_of(pstat, struct aid_obj, station);
+					tmppriv = aidarray->priv;
+
+					curr_tp = (unsigned int)(tmppriv->ext_stats.tx_avarage>>17) + (unsigned int)(tmppriv->ext_stats.rx_avarage>>17);
+				} 
+				else 
+#endif				
 				curr_tp = (unsigned int)(priv->ext_stats.tx_avarage>>17) + (unsigned int)(priv->ext_stats.rx_avarage>>17);
 				if (curr_tp <= thd_tp && curr_tp >= priv->pshare->rf_ft_var.low_tp_txop_thd_low)
 					under_thd = 1;
@@ -3317,14 +3437,14 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 		))
 		sifs_time = 16;
 
-	if ((mode & WIRELESS_11N) || (mode & WIRELESS_11G)) {
+	if (mode & (WIRELESS_11G | WIRELESS_11N)) {
 		slot_time = 9;
 	} else {
 		BE_TXOP = 94;
 		VI_TXOP = 188;
 	}
 
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 	if (priv->pshare->is_40m_bw)
 	{
 		BE_TXOP = 23;
@@ -3371,7 +3491,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 					RTL_W32(EDCA_BE_PARA, (6 << 12) | (4 << 8) | (sifs_time + 3 * slot_time));
 			} else
 #endif
-			RTL_W32(EDCA_BE_PARA, (10 << 12) | (4 << 8) | 0x4f);
+				RTL_W32(EDCA_BE_PARA, (10 << 12) | (4 << 8) | 0x4f);
 		} else {
 			RTL_W32(EDCA_BE_PARA, (((OPMODE & WIFI_AP_STATE)?6:10) << 12) | (4 << 8)
 					| (sifs_time + 3 * slot_time));
@@ -3405,16 +3525,15 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 			if (priv->pshare->txop_enlarge == 0xe) {
 #ifndef LOW_TP_TXOP
 				// is intel client, use a different edca value
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 				RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (5 << 8) | 0x1f);
 #else
 				//RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (4 << 8) | 0x1f);
 				if (get_rf_mimo_mode(priv) == MIMO_1T1R)
-					//RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (5 << 12) | (3 << 8) | 0x1f);
 					RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (5 << 8) | 0x1f);
 				else	
 					RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (8 << 12) | (5 << 8) | 0x1f);
-				 
+					
 				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) & ~(DIS_TXOP_CFE));
 #endif
 				priv->pshare->txop_enlarge = 2;
@@ -3427,7 +3546,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 					RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) | DIS_TXOP_CFE);
 					
 				if (get_rf_mimo_mode(priv) == MIMO_2T2R)
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 					RTL_W32(EDCA_BE_PARA, ((BE_TXOP*priv->pshare->txop_enlarge) << 16) |
                             (6 << 12) | (5 << 8) | (sifs_time + 3 * slot_time));
 #else
@@ -3435,7 +3554,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 							(6 << 12) | (4 << 8) | (sifs_time + 3 * slot_time));
 #endif
 				else
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 					RTL_W32(EDCA_BE_PARA, ((BE_TXOP*priv->pshare->txop_enlarge) << 16) |
                             (5 << 12) | (4 << 8) | (sifs_time + 2 * slot_time));
 #else
@@ -3471,7 +3590,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 			if (priv->pshare->txop_enlarge == 0xe)
 				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) & ~(DIS_TXOP_CFE));
 			else
-				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) | DIS_TXOP_CFE);	
+				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) | DIS_TXOP_CFE);
 #endif
 		}
 /*
@@ -3484,6 +3603,8 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 	}
 }
 
+//end of IOT_EDCA_switch
+//========================================================================================================
 
 #if 0
 void check_NAV_prot_len(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned int disassoc)
@@ -3491,54 +3612,16 @@ void check_NAV_prot_len(struct rtl8192cd_priv *priv, struct stat_info *pstat, un
 	if ((priv->pmib->dot11BssType.net_work_type & WIRELESS_11N) && pstat
 		&& pstat->ht_cap_len && pstat->is_intel_sta) {
 		if (!disassoc && (pstat->MIMO_ps & _HT_MIMO_PS_DYNAMIC_)) {
-#ifdef STA_EXT
-			if (pstat->aid <= FW_NUM_STAT)
-				priv->pshare->mimo_ps_dynamic_sta |= BIT(pstat->aid - 1);
-			else
-				priv->pshare->mimo_ps_dynamic_sta_ext |= BIT(pstat->aid - 1 - FW_NUM_STAT);
-#else
-#ifdef CONFIG_RTL_88E_SUPPORT
-			if (GET_CHIP_VER(priv) == VERSION_8188E) {
-				if (pstat->aid <= 32)
-					priv->pshare->mimo_ps_dynamic_sta |= BIT(pstat->aid - 1);
-				else
-					priv->pshare->mimo_ps_dynamic_sta_88e_hw_ext |= BIT(pstat->aid - 1 - 32);
-			} else
-#endif
-			{
-				priv->pshare->mimo_ps_dynamic_sta |= BIT(pstat->aid -1);
-			}
-#endif
+            setSTABitMap(&priv->pshare->mimo_ps_dynamic_sta, pstat->aid);
 		} else {
-#ifdef STA_EXT
-			if (pstat->aid <= FW_NUM_STAT)
-				priv->pshare->mimo_ps_dynamic_sta &= ~BIT(pstat->aid - 1);
-			else
-				priv->pshare->mimo_ps_dynamic_sta_ext &= ~BIT(pstat->aid - 1 - FW_NUM_STAT);
-#else
-#ifdef CONFIG_RTL_88E_SUPPORT
-			if (GET_CHIP_VER(priv) == VERSION_8188E) {
-				if (pstat->aid <= 32)
-					priv->pshare->mimo_ps_dynamic_sta &= ~BIT(pstat->aid - 1);
-				else
-					priv->pshare->mimo_ps_dynamic_sta_88e_hw_ext &= ~BIT(pstat->aid - 1 - 32);
-			} else
-#endif
-			{
-				priv->pshare->mimo_ps_dynamic_sta &= ~BIT(pstat->aid -1);
-			}
-#endif
+            clearSTABitMap(&priv->pshare->mimo_ps_dynamic_sta, pstat->aid);
 		}
 
 #ifdef CONFIG_RTL_88E_SUPPORT
 		if (GET_CHIP_VER(priv) != VERSION_8188E)
 #endif
 		{
-			if (priv->pshare->mimo_ps_dynamic_sta
-#ifdef STA_EXT
-				|| priv->pshare->mimo_ps_dynamic_sta_ext
-#endif
-				) {
+            if (orSTABitMap(&priv->pshare->mimo_ps_dynamic_sta) {
 				RTL_W8(NAV_PROT_LEN, 0x40);
 			} else {
 				RTL_W8(NAV_PROT_LEN, 0x20);
@@ -3571,20 +3654,7 @@ void reset_FA_reg(struct rtl8192cd_priv *priv)
 	RTL_W8(0xa2d, value8 & 0x3F);	// regA2D[7:6]=00 to disable counting
 	value8 = RTL_R8(0xa2d);
 	RTL_W8(0xa2d, value8 | 0x80);	// regA2D[7:6]=10 to enable counting
-
-#ifdef INTERFERENCE_CONTROL
-	// do BB reset to clear Reg0xCF0 & Reg0xCF2
-	RTL_W8(TXPAUSE, 0xff);
-	value8 = RTL_R8(SYS_FUNC_EN);
-	RTL_W8(SYS_FUNC_EN, value8 & ~FEN_BBRSTB);
-	RTL_W8(SYS_FUNC_EN, value8 | FEN_BBRSTB);
-	RTL_W8(TXPAUSE, 0x00);
-#endif
 #else
-#ifdef INTERFERENCE_CONTROL
-	unsigned char value8;
-#endif
-
 	/* cck CCA */
 	PHY_SetBBReg(priv, 0xa2c, BIT(13) | BIT(12), 0);
 	PHY_SetBBReg(priv, 0xa2c, BIT(13) | BIT(12), 2);
@@ -3594,15 +3664,6 @@ void reset_FA_reg(struct rtl8192cd_priv *priv)
 	/* ofdm */
 	PHY_SetBBReg(priv, 0xd00, BIT(27), 1);
 	PHY_SetBBReg(priv, 0xd00, BIT(27), 0);
-
-#ifdef INTERFERENCE_CONTROL
-	// do BB reset to clear Reg0xCF0 & Reg0xCF2
-	RTL_W8(TXPAUSE, 0xff);
-	value8 = RTL_R8(SYS_FUNC_EN);
-	RTL_W8(SYS_FUNC_EN, value8 & ~FEN_BBRSTB);
-	RTL_W8(SYS_FUNC_EN, value8 | FEN_BBRSTB);
-	RTL_W8(TXPAUSE, 0x00);
-#endif
 #endif
 
 #if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
@@ -3873,21 +3934,12 @@ void check_txrate_by_reg(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	unsigned char initial_rate = 0x7f;
 	unsigned char legacyRA =0 ;
 
-	if( should_restrict_Nrate(priv, pstat) && is_fixedMCSTxRate(priv))
+	if( should_restrict_Nrate(priv, pstat) && is_fixedMCSTxRate(priv, pstat))
 		legacyRA = 1;
 	
-#ifdef STA_EXT
-	if (pstat->remapped_aid && (pstat->remapped_aid < FW_NUM_STAT-1))
-#else
-	if (pstat->aid && (pstat->aid < 32))
-#endif
+	if (pstat->sta_in_firmware == 1)
 	{
-#ifdef WDS
-		if (((pstat->state & WIFI_WDS) && (priv->pmib->dot11WdsInfo.entry[pstat->wds_idx].txRate == 0)) ||
-			(!(pstat->state & WIFI_WDS) && (priv->pmib->dot11StationConfigEntry.autoRate)) || legacyRA)
-#else
-		if (priv->pmib->dot11StationConfigEntry.autoRate || legacyRA)
-#endif
+		if (is_auto_rate(priv , pstat) || legacyRA)
 		{
 			initial_rate = RTL_R8(INIDATA_RATE_SEL + REMAP_AID(pstat)) & 0x7f;
 			if (initial_rate == 0x7f)
@@ -3897,7 +3949,7 @@ void check_txrate_by_reg(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 				pstat->current_tx_rate = dot11_rate_table[initial_rate&0x3f];
 				pstat->ht_current_tx_info &= ~TX_USE_SHORT_GI;				
 			} else {
-				pstat->current_tx_rate = 0x80|((initial_rate&0x3f) -12);
+				pstat->current_tx_rate = HT_RATE_ID + ((initial_rate&0x3f) -12);
 				if (initial_rate & BIT(6))
 					pstat->ht_current_tx_info |= TX_USE_SHORT_GI;
 				else
@@ -3912,13 +3964,7 @@ void check_txrate_by_reg(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			if (priv->pshare->is_40m_bw && (pstat->tx_bw == HT_CHANNEL_WIDTH_20_40)
 #ifdef WIFI_11N_2040_COEXIST
 				&& !((OPMODE & WIFI_AP_STATE) && priv->pmib->dot11nConfigEntry.dot11nCoexist &&
-				(priv->bg_ap_timeout || priv->force_20_sta || priv->switch_20_sta
-#ifdef CONFIG_RTL_88E_SUPPORT
-				|| ((GET_CHIP_VER(priv) == VERSION_8188E)?(priv->force_20_sta_88e_hw_ext || priv->switch_20_sta_88e_hw_ext):0)
-#endif
-#ifdef STA_EXT
-				|| priv->force_20_sta_ext || priv->switch_20_sta_ext
-#endif
+				(priv->bg_ap_timeout || orForce20_Switch20Map(priv)
 				))
 #endif
 			) {
@@ -3983,13 +4029,7 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 		if (priv->pshare->is_40m_bw && (pstat->tx_bw == HT_CHANNEL_WIDTH_20_40)
 #ifdef WIFI_11N_2040_COEXIST
 			&& !((OPMODE & WIFI_AP_STATE) && priv->pmib->dot11nConfigEntry.dot11nCoexist &&
-			(priv->bg_ap_timeout || priv->force_20_sta || priv->switch_20_sta
-#ifdef CONFIG_RTL_88E_SUPPORT
-				|| ((GET_CHIP_VER(priv) == VERSION_8188E)?(priv->force_20_sta_88e_hw_ext || priv->switch_20_sta_88e_hw_ext):0)
-#endif
-#ifdef STA_EXT
-			|| priv->force_20_sta_ext || priv->switch_20_sta_ext
-#endif
+			(priv->bg_ap_timeout || orForce20_Switch20Map(priv)
 			))
 #endif
 			) {
@@ -4118,33 +4158,7 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 		pstat->tx_ra_bitmap &= USB_RA_MASK;
 #endif
 
-#ifdef STA_EXT
-	//update STA_map
-	{
-		int remapped_aid = 0;
-		remapped_aid = find_reampped_aid(priv, pstat->aid);
-		if(remapped_aid == 0) {
-			/*WARNING:  THIS SHOULD NOT HAPPEN*/
-			printk("add AID fail!!\n");
-			BUG();
-		}
-		if(remapped_aid >= (FW_NUM_STAT-1)){// no room for the STA
-//			priv->STA_map |= (1<< pstat->aid) ;
-			pstat->remapped_aid = FW_NUM_STAT-1;
-			pstat->sta_in_firmware = 0; // this value will updated in expire_timer
-		} else if(priv->pshare->remapped_aidarray[remapped_aid]  == 0) { // if not 0, it should have been added before
-			//we got a room
-			//clear STA_map
-//			priv->STA_map &= ~(BIT(pstat->aid));
-			pstat->remapped_aid = remapped_aid;
-			priv->pshare->remapped_aidarray[remapped_aid] = pstat->aid;
-			pstat->sta_in_firmware = 1; // this value will updated in expire_timer
-			priv->pshare->fw_free_space --;
-		} else {// added before
-			pstat->sta_in_firmware = 1;
-		}
-	}
-#endif// STA_EXT
+    update_remapAid(priv, pstat);
 
 #if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
 	if (GET_CHIP_VER(priv)==VERSION_8188E) {
@@ -4180,11 +4194,8 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 #endif
 #if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 	{
-#ifdef STA_EXT
-		if (REMAP_AID(pstat) < FW_NUM_STAT-1)
-#else
-		if (REMAP_AID(pstat) < 32)
-#endif
+
+		if (pstat->sta_in_firmware == 1)
 		{
 #ifdef CONFIG_RTL_92D_SUPPORT
 			if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) 
@@ -4233,30 +4244,26 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			 */
 			if (update_reg) {
 				if (!pstat->check_init_tx_rate && (pstat->rssi > 55)) {
-					RTL_W8(INIDATA_RATE_SEL + REMAP_AID(pstat), 0x1b);
 					pstat->check_init_tx_rate = 1;
 				}
 			}
 			DEBUG_INFO("Add id %d val %08x to ratr\n", pstat->aid, pstat->tx_ra_bitmap);
 		} else {
-#ifdef STA_EXT
 #ifdef CONFIG_RTL_92D_SUPPORT
 			if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) {
 				if (priv->pshare->is_40m_bw)
-					set_RATid_cmd(priv, (FW_NUM_STAT-1), ARFR_2T_Band_A_40M, 0x1ffffff0);
+					set_RATid_cmd(priv, priv->pshare->fw_support_sta_num, ARFR_2T_Band_A_40M, 0x1ffffff0);
 				else
-					set_RATid_cmd(priv, (FW_NUM_STAT-1), ARFR_2T_Band_A_20M, 0x1ffffff0);
+					set_RATid_cmd(priv, priv->pshare->fw_support_sta_num, ARFR_2T_Band_A_20M, 0x1ffffff0);
 			} else
 #endif
 			{
 				if (priv->pshare->is_40m_bw)
-					set_RATid_cmd(priv, (FW_NUM_STAT-1), ARFR_2T_40M, 0x1fffffff);
+					set_RATid_cmd(priv, priv->pshare->fw_support_sta_num, ARFR_2T_40M, 0x1fffffff);
 				else
-					set_RATid_cmd(priv, (FW_NUM_STAT-1), ARFR_2T_20M, 0x1fffffff);
+					set_RATid_cmd(priv, priv->pshare->fw_support_sta_num, ARFR_2T_20M, 0x1fffffff);
 			}
-#else
-			DEBUG_ERR("station aid %d exceed the max number\n", pstat->aid);
-#endif
+
 		}
 	}
 #endif
@@ -4267,7 +4274,9 @@ void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 void set_rssi_cmd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 	unsigned int content = 0;
 
 	int rssi = pstat->rssi;
@@ -4312,17 +4321,13 @@ void set_rssi_cmd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 }
 
 #if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
-
-#ifdef __KERNEL__
+#ifdef CONFIG_PCI_HCI
 void add_rssi_timer(unsigned long task_priv)
-#elif defined(__ECOS)
-void add_rssi_timer(void *task_priv)
-#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	struct stat_info *pstat = NULL;
 	unsigned int set_timer = 0;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
@@ -4364,7 +4369,9 @@ void add_rssi_timer(void *task_priv)
 
 void add_update_rssi(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if (is_h2c_buf_occupy(priv)) {
 		if (list_empty(&pstat->addrssi_list)) {
@@ -4379,13 +4386,26 @@ void add_update_rssi(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 		set_rssi_cmd(priv, pstat);
 	}
 }
-#endif
+#endif // CONFIG_PCI_HCI
+
+#ifdef CONFIG_USB_HCI
+void add_update_rssi(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+	notify_update_sta_rssi(priv, pstat);
+}
+#endif // CONFIG_USB_HCI
+#endif // CONFIG_RTL_92D_SUPPORT || CONFIG_RTL_92C_SUPPORT
 
 
 void set_RATid_cmd(struct rtl8192cd_priv *priv, unsigned int macid, unsigned int rateid, unsigned int ratemask)
 {
 	unsigned int content = 0;
 	unsigned short ext_content = 0;
+
+//#ifdef CONFIG_RTL_8812_SUPPORT
+	if(! CHIP_VER_92X_SERIES(priv))
+		return;
+//#endif
 
 	/*
 	 * set ratemask
@@ -4747,7 +4767,7 @@ void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
 
 //1 4.Change TRX antenna
 	if(nextAntenna != priv->pshare->DM_SWAT_Table.CurAntenna) {
-
+#if defined(CONFIG_PCI_HCI)
 #ifdef GPIO_ANT_SWITCH
 		PHY_SetBBReg(priv, GPIO_PIN_CTRL, 0x3000, nextAntenna);	
 #else		
@@ -4756,10 +4776,13 @@ void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
 		else
 			PHY_SetBBReg(priv, rFPGA0_XB_RFInterfaceOE, 0x300, nextAntenna);
 #endif
-	}
 
 //1 5.Reset Statistics
-	priv->pshare->DM_SWAT_Table.CurAntenna = nextAntenna;
+		priv->pshare->DM_SWAT_Table.CurAntenna = nextAntenna;
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+		notify_antenna_switch(priv, nextAntenna);
+#endif
+	}
 
 //1 6.Set next timer
 
@@ -4768,7 +4791,7 @@ void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
 	}
 
 	if(priv->pshare->DM_SWAT_Table.TestMode == RSSI_MODE)	{
-		mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies +40);		// 400 ms
+		mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(400));		// 400 ms
 	} else if(priv->pshare->DM_SWAT_Table.TestMode == TP_MODE)	{
 
 		if(priv->pshare->TrafficLoad == TRAFFIC_HIGH)	{
@@ -4791,7 +4814,12 @@ void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
 void dm_SW_AntennaSwitchCallback(unsigned long task_priv)
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv*)task_priv;
-	unsigned long flags;
+#ifndef SMP_SYNC
+	unsigned long flags = 0;
+#endif
+	if (!(priv->drv_state & DRV_STATE_OPEN))
+		return;
+
 	SAVE_INT_AND_CLI(flags);
 	dm_SW_AntennaSwitch(priv, SWAW_STEP_DETERMINE);
 	RESTORE_INT(flags);
@@ -4997,15 +5025,22 @@ void dm_HW_IdleAntennaSelect(struct rtl8192cd_priv *priv)
 	struct stat_info	*pstat, *pstat_min=NULL;
 	struct list_head	*phead, *plist;
 	int rssi_min= 0xff, i;
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
 
 	if(priv->pshare->rf_ft_var.CurAntenna & 0x80)
 		return;
 
 	phead = &priv->asoc_list;
+	
+	SMP_LOCK_ASOC_LIST(flags);
+	
 	plist = phead->next;
-
 	while(plist != phead)	{
 		pstat = list_entry(plist, struct stat_info, asoc_list);
+		plist = plist->next;
+		
 		if((pstat->expire_to) && (pstat->AntRSSI[0] || pstat->AntRSSI[1])) {
 			int rssi = (pstat->AntRSSI[0] < pstat->AntRSSI[1]) ? pstat->AntRSSI[0] : pstat->AntRSSI[1];
 			if((!pstat_min) || ( rssi < rssi_min) ) {
@@ -5013,10 +5048,9 @@ void dm_HW_IdleAntennaSelect(struct rtl8192cd_priv *priv)
 				rssi_min = rssi;
 			}
 		}
-		if (plist == plist->next)
-			break;
-		plist = plist->next;
 	};
+	
+	SMP_UNLOCK_ASOC_LIST(flags);
 
 	if(pstat_min)
 		setRxIdleAnt(priv, pstat_min->CurAntenna);
@@ -5024,26 +5058,30 @@ void dm_HW_IdleAntennaSelect(struct rtl8192cd_priv *priv)
 
 #ifdef TX_SHORTCUT
 	if (!priv->pmib->dot11OperationEntry.disable_txsc) {
+		SMP_LOCK_ASOC_LIST(flags);
+		
 		plist = phead->next;
 		while(plist != phead)	{
 			pstat = list_entry(plist, struct stat_info, asoc_list);
+			plist = plist->next;
+			
 			if(pstat->expire_to) {
 				for (i=0; i<TX_SC_ENTRY_NUM; i++) {
 					struct tx_desc *pdesc= &(pstat->tx_sc_ent[i].hwdesc1);	
 					pdesc->Dword2 &= set_desc(~ (BIT(24)|BIT(25)));
 					if((pstat->CurAntenna^priv->pshare->rf_ft_var.CurAntenna)&1)
 						pdesc->Dword2 |= set_desc(BIT(24)|BIT(25));
+	#ifdef CONFIG_PCI_HCI
 					pdesc= &(pstat->tx_sc_ent[i].hwdesc2);	
 					pdesc->Dword2 &= set_desc(~ (BIT(24)|BIT(25)));
 					if((pstat->CurAntenna^priv->pshare->rf_ft_var.CurAntenna)&1)
-						pdesc->Dword2 |= set_desc(BIT(24)|BIT(25));					
+						pdesc->Dword2 |= set_desc(BIT(24)|BIT(25));
+	#endif
 				}
-			}		
-
-			if (plist == plist->next)
-				break;
-			plist = plist->next;
+			}
 		};
+		
+		SMP_UNLOCK_ASOC_LIST(flags);
 	}
 #endif	
 
@@ -5217,8 +5255,8 @@ void dnc_timer(unsigned long task_priv)
 //3 ============================================================
 //3 Leaving STA check
 //3 ============================================================
-
-#if defined(DETECT_STA_EXISTANCE) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
+#if 0
+//#if defined(DETECT_STA_EXISTANCE) //&& (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 // Check for STA existance. If STA disappears, disconnect it. Added by Annie, 2010-08-10.
 void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, struct stat_info *pstat)
 {
@@ -5249,9 +5287,11 @@ void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, stru
 		pstat->tx_conti_fail_cnt += report->txfail;
 		DEBUG_WARN( "detect: txfail=%d, tx_conti_fail_cnt=%d\n", report->txfail, pstat->tx_conti_fail_cnt );
 
-		if(	priv->up_time >= (pstat->tx_last_good_time+TFRL_SetTime) &&
+		if(	CHIP_VER_92X_SERIES(priv) && (priv->up_time >= (pstat->tx_last_good_time+TFRL_SetTime)) &&
 			pstat->tx_conti_fail_cnt >= TFRL_FailCnt && 
-			//!pstat->ht_cap_len && // legacy rate only
+		#if defined(CONFIG_RTL8672) || defined (NOT_RTK_BSP) 
+			!pstat->ht_cap_len && // legacy rate only
+		#endif
 			!priv->pshare->bRLShortened )
 		{ // Shorten retry limit, because AP spending too much time to send out g mode STA pending packets in HW queue.
 			RTL_W16(RL, (TFRL&SRL_Mask)<<SRL_SHIFT|(TFRL&LRL_Mask)<<LRL_SHIFT);
@@ -5272,9 +5312,11 @@ void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, stru
 //			del_sta(priv, tmpbuf);
 			++(pstat->leave);
 
+			if(CHIP_VER_92X_SERIES(priv) {
 			if (timer_pending(&priv->pshare->rl_recover_timer))
 				del_timer_sync (&priv->pshare->rl_recover_timer);
 			mod_timer(&priv->pshare->rl_recover_timer, jiffies + EXPIRE_TO*TFRL_RcvTime);
+			}
 
 			// Reset Counter
 			pstat->tx_conti_fail_cnt = 0;
@@ -5293,7 +5335,7 @@ void RetryLimitRecovery(void *task_priv)
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	if( priv->pshare->bRLShortened )
 	{
-		RTL_W16(RL, (priv->pshare->RLShort&SRL_Mask)<<SRL_SHIFT|(priv->pshare->RLLong&LRL_Mask)<<LRL_SHIFT);
+		RTL_W16(RL, priv->pshare->RL_setting);
 		priv->pshare->bRLShortened = FALSE;
 		DEBUG_WARN( "== Recover RetryLimit to 0x%04X ==\n", RTL_R16(RL) );
 	}
@@ -5532,7 +5574,7 @@ void APK_MAIN(struct rtl8192cd_priv *priv, unsigned int is2T)
 			/*
 			 *	page-B1
 			 */
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x40000000);
+			PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x400000);
 
 			/*
 			 *path A
@@ -5542,7 +5584,7 @@ void APK_MAIN(struct rtl8192cd_priv *priv, unsigned int is2T)
 				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_2[index]);
 				offset += 0x04;
 			}
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);
+			PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 		} else if(path == RF92CD_PATH_B) {
 			/*
 			 *	path B APK
@@ -5568,7 +5610,7 @@ void APK_MAIN(struct rtl8192cd_priv *priv, unsigned int is2T)
 			/*
 			 *	page-B1
 			 */
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x40000000);
+			PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x400000);
 
 			/*
 			 *	path B
@@ -5578,7 +5620,7 @@ void APK_MAIN(struct rtl8192cd_priv *priv, unsigned int is2T)
 				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_2[index]);
 				offset += 0x04;
 			}
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);
+			PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 		}
 
 		if(!newVerAPK) {
@@ -5691,12 +5733,12 @@ void APK_MAIN(struct rtl8192cd_priv *priv, unsigned int is2T)
 			 */
 			i = 0;
 			do {
-				PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80000000);
+				PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x800000);
 				PHY_SetBBReg(priv, APK_offset[path], bMaskDWord, APK_value[0]);
 				delay_ms(3);
 				PHY_SetBBReg(priv, APK_offset[path], bMaskDWord, APK_value[1]);
 				delay_ms(20);
-				PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);
+				PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 
 				if(!newVerAPK) {
 				tmpReg = PHY_QueryRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xb, bMaskDWord, 1);
@@ -5868,22 +5910,44 @@ unsigned char _PHY_PathA_IQK(struct rtl8192cd_priv *priv, char	configPathB)
 	unsigned int regEAC, regE94, regE9C, regEA4;
 	unsigned char result = 0x00;
 
+	
+	//	RTPRINT(FINIT, INIT_IQK, ("Path-A IQK setting!\n"));
+#if defined(HIGH_POWER_EXT_PA) && defined(CONFIG_RTL_92C_SUPPORT)
+	if (priv->pshare->rf_ft_var.use_ext_pa){
+
 	//path-A IQK setting
-//	RTPRINT(FINIT, INIT_IQK, ("Path-A IQK setting!\n"));
+	PHY_SetBBReg(priv, 0xe30, bMaskDWord, 0x18008c1f);
+	PHY_SetBBReg(priv, 0xe34, bMaskDWord, 0x18008c1f);
+	PHY_SetBBReg(priv, 0xe38, bMaskDWord, 0x82140102);
+	PHY_SetBBReg(priv, 0xe3c, bMaskDWord, 0x28160804);
+
+	//path-B IQK setting
+	if(configPathB) {
+		PHY_SetBBReg(priv, 0xe50, bMaskDWord, 0x18008c22);
+		PHY_SetBBReg(priv, 0xe54, bMaskDWord, 0x18008c22);
+		PHY_SetBBReg(priv, 0xe58, bMaskDWord, 0x82140102);
+		PHY_SetBBReg(priv, 0xe5c, bMaskDWord, 0x28160804);
+	}
+}else
+#endif
+{
+	//path-A IQK setting
 	PHY_SetBBReg(priv, 0xe30, bMaskDWord, 0x10008c1f);
 	PHY_SetBBReg(priv, 0xe34, bMaskDWord, 0x10008c1f);
 	PHY_SetBBReg(priv, 0xe38, bMaskDWord, 0x82140102);
 	PHY_SetBBReg(priv, 0xe3c, bMaskDWord, ((configPathB |IS_UMC_B_CUT_88C(priv)) ? 0x28160202 : 0x28160502));
 
-#if 1
 	//path-B IQK setting
-	if(configPathB)	{
+	if(configPathB) {
 		PHY_SetBBReg(priv, 0xe50, bMaskDWord, 0x10008c22);
 		PHY_SetBBReg(priv, 0xe54, bMaskDWord, 0x10008c22);
 		PHY_SetBBReg(priv, 0xe58, bMaskDWord, 0x82140102);
 		PHY_SetBBReg(priv, 0xe5c, bMaskDWord, 0x28160202);
 	}
-#endif
+}
+
+
+
 	//LO calibration setting
 	PHY_SetBBReg(priv, 0xe4c, bMaskDWord, 0x001028d1);
 
@@ -6057,9 +6121,9 @@ void _PHY_PathBFillIQKMatrix(struct rtl8192cd_priv *priv, char bIQKOK, int	resul
 
 void _PHY_PathAStandBy(struct rtl8192cd_priv *priv)
 {
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 	PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00010000);
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80800000);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 }
 
 void _PHY_IQCalibrate(struct rtl8192cd_priv *priv, int result[][8], unsigned char t, char is2T)
@@ -6095,7 +6159,11 @@ void _PHY_IQCalibrate(struct rtl8192cd_priv *priv, int result[][8], unsigned cha
 	 	priv->pshare->Reg874 = PHY_QueryBBReg(priv, 0x874, bMaskDWord);
 	}
 
-	PHY_SetBBReg(priv, 0x800, bMaskDWord, (PHY_QueryBBReg(priv, 0x800, bMaskDWord)& ~ BIT(24)));
+	//MAC settings
+	_PHY_MACSettingCalibration(priv, IQK_MAC_REG, priv->pshare->IQK_MAC_backup);
+
+	//PHY_SetBBReg(priv, 0x800, bMaskDWord, (PHY_QueryBBReg(priv, 0x800, bMaskDWord)& ~ BIT(24)));
+	PHY_SetBBReg(priv, 0xa04, bMaskDWord, (0x0f000000 | (PHY_QueryBBReg(priv, 0xa04, bMaskDWord))) );
 	PHY_SetBBReg(priv, 0xc04, bMaskDWord, 0x03a05600);
 	PHY_SetBBReg(priv, 0xc08, bMaskDWord, 0x000800e4);
 	PHY_SetBBReg(priv, 0x874, bMaskDWord, 0x22204000);
@@ -6105,13 +6173,18 @@ void _PHY_IQCalibrate(struct rtl8192cd_priv *priv, int result[][8], unsigned cha
 	PHY_SetBBReg(priv, 0x860, BIT(10), 0);
 	PHY_SetBBReg(priv, 0x864, BIT(10), 0);
 
+#if defined(HIGH_POWER_EXT_PA) && defined(CONFIG_RTL_92C_SUPPORT)
+		//Allen TRSW to TX for external PA
+		PHY_SetBBReg(priv, 0x870, 0x60, 3);
+		PHY_SetBBReg(priv, 0x870, 0x600000, 3);
+		PHY_SetBBReg(priv, 0x860, 0x60, 1);
+		PHY_SetBBReg(priv, 0x864, 0x60, 1);
+#endif
+
 	if(is2T) {
 		PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00010000);
 		PHY_SetBBReg(priv, 0x844, bMaskDWord, 0x00010000);
 	}
-
-	//MAC settings
-	_PHY_MACSettingCalibration(priv, IQK_MAC_REG, priv->pshare->IQK_MAC_backup);
 
 	//Page B init
 	if(isNormal)
@@ -6127,7 +6200,7 @@ void _PHY_IQCalibrate(struct rtl8192cd_priv *priv, int result[][8], unsigned cha
 	}
 
 	// IQ calibration setting
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80800000);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 	PHY_SetBBReg(priv, 0xe40, bMaskDWord, 0x01007c00);
 	PHY_SetBBReg(priv, 0xe44, bMaskDWord, 0x01004800);
 
@@ -6186,7 +6259,7 @@ void _PHY_IQCalibrate(struct rtl8192cd_priv *priv, int result[][8], unsigned cha
 	PHY_SetBBReg(priv, 0x874, bMaskDWord, priv->pshare->Reg874);
 	PHY_SetBBReg(priv, 0xc08, bMaskDWord, priv->pshare->RegC08);
 
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 
 	// Restore RX initial gain
 	PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00032ed3);
@@ -6211,7 +6284,7 @@ void PHY_IQCalibrate_92C(struct rtl8192cd_priv *priv)
 	char			bPathAOK, bPathBOK;
 	int				RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC, RegTmp = 0;
 	char			is12simular, is13simular, is23simular;
-	unsigned int 	temp_870, temp_860, temp_864, temp_800;
+	unsigned int 	temp_870, temp_860, temp_864, temp_a04;
 
 #ifdef MP_TEST
 	if (!priv->pshare->rf_ft_var.mp_specific)
@@ -6222,10 +6295,13 @@ void PHY_IQCalibrate_92C(struct rtl8192cd_priv *priv)
 		priv->pshare->iqk_2g_done = 1;
 	}
 
+	priv->pshare->IQK_total_cnt++;
+
 	temp_870 = PHY_QueryBBReg(priv, 0x870, bMaskDWord);
 	temp_860 = PHY_QueryBBReg(priv, 0x860, bMaskDWord);
 	temp_864 = PHY_QueryBBReg(priv, 0x864, bMaskDWord);
-	temp_800 = PHY_QueryBBReg(priv, 0x800, bMaskDWord);
+	//temp_800 = PHY_QueryBBReg(priv, 0x800, bMaskDWord);
+	temp_a04 = PHY_QueryBBReg(priv, 0xa04, bMaskDWord);
 
 	memset(result, 0, sizeof(result));
 
@@ -6274,7 +6350,8 @@ void PHY_IQCalibrate_92C(struct rtl8192cd_priv *priv)
 	RTL_W32(0x870, temp_870);
 	RTL_W32(0x860, temp_860);
 	RTL_W32(0x864, temp_864);
-	RTL_W32(0x800, temp_800);
+	//RTL_W32(0x800, temp_800);
+	RTL_W32(0xa04, temp_a04);
 
 	//load 0xe30 IQC default value
 	if(GET_CHIP_VER(priv) == VERSION_8188C) {
@@ -6291,7 +6368,7 @@ void PHY_IQCalibrate_92C(struct rtl8192cd_priv *priv)
 		RegEBC = result[i][5];
 		RegEC4 = result[i][6];
 		RegECC = result[i][7];
-		DEBUG_INFO("IQK: RegE94=%lx RegE9C=%lx RegEA4=%lx RegEAC=%lx RegEB4=%lx RegEBC=%lx RegEC4=%lx RegECC=%lx\n ", RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC);
+		DEBUG_INFO("IQK: RegE94=%x RegE9C=%x RegEA4=%x RegEAC=%x RegEB4=%x RegEBC=%x RegEC4=%x RegECC=%x\n ", RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC);
 	}
 
 	if(final_candidate != 0xff)	{
@@ -6304,12 +6381,13 @@ void PHY_IQCalibrate_92C(struct rtl8192cd_priv *priv)
 		RegEC4 = result[final_candidate][6];
 		RegECC = result[final_candidate][7];
 		DEBUG_INFO ("IQK: final_candidate is %x\n",final_candidate);
-		DEBUG_INFO ("IQK: RegE94=%lx RegE9C=%lx RegEA4=%lx RegEAC=%lx RegEB4=%lx RegEBC=%lx RegEC4=%lx RegECC=%lx\n ", RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC);
+		DEBUG_INFO ("IQK: RegE94=%x RegE9C=%x RegEA4=%x RegEAC=%x RegEB4=%x RegEBC=%x RegEC4=%x RegECC=%x\n ", RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC);
 		bPathAOK = bPathBOK = TRUE;
 	}
 	else 	{
 		priv->pshare->RegE94 = priv->pshare->RegEB4 = 0x100;	//X default value
 		priv->pshare->RegE9C = priv->pshare->RegEBC = 0x0;		//Y default value
+		priv->pshare->IQK_fail_cnt++;
 	}
 
 	if((RegE94 != 0)/*&&(RegEA4 != 0)*/)
@@ -6327,12 +6405,12 @@ void PHY_IQCalibrate_92C(struct rtl8192cd_priv *priv)
 #ifdef CONFIG_RTL_92D_SUPPORT
 void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 {
-	unsigned int temp_800, temp_c04, temp_874, temp_c08, temp_870,
+	unsigned int temp_a04, temp_c04, temp_874, temp_c08, temp_870,
 				temp_860, temp_864, temp_88c, temp_c50, temp_c58, temp_b30,
 				switch2PI=0, X, reg; //Oldval_0, Oldval_1, TX0_A, TX1_A;
 	u8 temp_522, temp_550, temp_551;
 	unsigned int cal_num=0, cal_retry=0, ADDA_backup[IQK_ADDA_REG_NUM];
-	int Y, result[8][3], result_final[8]; //TX0_C, TX1_C;
+	int Y, result[8][3], result_final[8]={0,0,0,0,0,0,0,0}; //TX0_C, TX1_C;
 
 	unsigned int i, RX0REG0xe40[3], RX0REG0xe40_final=0, REG0xe40, REG0xe94, REG0xe9c, delay_count;
 	unsigned int REG0xeac, RX1REG0xe40[3], RX1REG0xe40_final=0, REG0xeb4, REG0xea4,REG0xec4;
@@ -6358,11 +6436,9 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 	}
 
 	printk(">> %s \n",__FUNCTION__);
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-	REG32(BSP_WDTCNR) |=  1 << 23;
-#elif defined(CONFIG_RTL_8198B)
-	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
-#endif
+
+	watchdog_kick();
+
 	/*
 	 * Save MAC default value
 	 */
@@ -6373,7 +6449,7 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 	/*
 	 *	Save BB Parameter
 	 */
-	temp_800 = RTL_R32(0x800);
+	temp_a04 = RTL_R32(0xa04);//RTL_R32(0x800);
 	temp_c04 = RTL_R32(0xc04);
 	temp_874 = RTL_R32(0x874);
 	temp_c08 = RTL_R32(0xc08);
@@ -6422,7 +6498,8 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 		/*
 		 *	BB setting
 		 */
-		PHY_SetBBReg(priv, 0x800, BIT(24), 0);
+		//PHY_SetBBReg(priv, 0x800, BIT(24), 0);
+		PHY_SetBBReg(priv, 0xa04, bMaskDWord, (0x0f000000 | temp_a04) );
 		PHY_SetBBReg(priv, 0xc04, bMaskDWord, 0x03a05600);
 		PHY_SetBBReg(priv, 0xc08, bMaskDWord, 0x000800e4);
 		PHY_SetBBReg(priv, 0x874, bMaskDWord, 0x22208000);
@@ -6447,7 +6524,7 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 		/*
 		 *	IQK global setting
 		 */
-		PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80800000);
+		PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 		PHY_SetBBReg(priv, 0xe40, bMaskDWord, 0x10007c00);
 		PHY_SetBBReg(priv, 0xe44, bMaskDWord, 0x01004800);
 
@@ -6822,11 +6899,12 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 	/*
 	 *	Exit IQK mode
 	 */
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 	PHY_SetBBReg(priv, 0xc04, bMaskDWord, temp_c04);
 	PHY_SetBBReg(priv, 0xc08, bMaskDWord, temp_c08);
 	PHY_SetBBReg(priv, 0x874, bMaskDWord, temp_874);
-	PHY_SetBBReg(priv, 0x800, bMaskDWord, temp_800);
+	//PHY_SetBBReg(priv, 0x800, bMaskDWord, temp_800);
+	PHY_SetBBReg(priv, 0xa04, bMaskDWord, temp_a04);
 	PHY_SetBBReg(priv, 0x88c, bMaskDWord, temp_88c);
 	PHY_SetBBReg(priv, 0xb30, bMaskDWord, temp_b30);	// 03/03/2011 update
 	//PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00032fff);		// 01/11/2011 update
@@ -6871,7 +6949,8 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 		clnt_save_IQK_res(priv);
 #endif
 
-
+	if (!TX0IQKOK && !TX1IQKOK)
+		priv->pshare->IQK_fail_cnt++;
 }
 
 
@@ -6884,8 +6963,9 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 												0xe88, 0xe8c, 0xed0, 0xed4, 0xed8, 0xedc, 0xee0, 0xeec};
 	unsigned int ADDA_backup[IQK_ADDA_REG_NUM], i;
 	u8 temp_522, temp_550, temp_551;
-	u32 temp_040, temp_800, temp_870, temp_860, temp_864, temp_88c;
+	u32 temp_040, temp_a04, temp_870, temp_860, temp_864, temp_88c;
 	u8 switch2PI = 0;
+	unsigned char IQKOK = 0;
 
 #ifdef CONFIG_RTL_92D_DMDP
 	if (priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY)
@@ -6919,7 +6999,7 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 	temp_040 = RTL_R32(0x40);
 
 	// Save BB default
-	temp_800 = RTL_R32(0x800);
+	temp_a04 = RTL_R32(0xa04);//RTL_R32(0x800);
 	temp_870 = RTL_R32(0x870);
 	temp_860 = RTL_R32(0x860);
 	temp_864 = RTL_R32(0x864);
@@ -6937,11 +7017,18 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 		switch2PI++;
 	}
 
+	//MAC register setting
+	RTL_W8(0x522, 0x3f);
+	RTL_W8(0x550, RTL_R8(0x550)& (~BIT(3)));
+	RTL_W8(0x551, RTL_R8(0x551)& (~BIT(3)));
+	RTL_W32(0x40, 0);
+
 	//BB setting
 	temp_c04 = RTL_R32(0xc04);
 	temp_c08 = RTL_R32(0xc08);
 	temp_874 = RTL_R32(0x874);
-	PHY_SetBBReg(priv,0x800,BIT(24),0);
+	//PHY_SetBBReg(priv,0x800,BIT(24),0);
+	PHY_SetBBReg(priv, 0xa04, bMaskDWord, (0x0f000000 | temp_a04) );
 	RTL_W32(0xc04, 0x03a05600);
 	RTL_W32(0xc08, 0x000800e4);
 	RTL_W32(0x874, 0x22204000);
@@ -6955,18 +7042,12 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 	RTL_W32(0x840, 0x00010000);
 	RTL_W32(0x844, 0x00010000);
 
-	//MAC register setting
-	RTL_W8(0x522, 0x3f);
-	RTL_W8(0x550, RTL_R8(0x550)& (~BIT(3)));
-	RTL_W8(0x551, RTL_R8(0x551)& (~BIT(3)));
-	RTL_W32(0x40, 0);
-
 	//AP or IQK
 	RTL_W32(0xb68 , 0x0f600000);
 	RTL_W32(0xb6c , 0x0f600000);
 
 	// IQK setting
-	RTL_W32(0xe28, 0x80800000);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 	RTL_W32(0xe40, 0x01007c00);
 	RTL_W32(0xe44, 0x01004800);
 	// path-A IQK setting
@@ -7043,14 +7124,15 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 
 		PHY_SetBBReg(priv, 0xca0, 0xf0000000, (cal_eac >> 6) & 0xf);
 	}else {
+		IQKOK++;
 		priv->pshare->RegE94=0x100;
 		priv->pshare->RegE9C=0x00;
 	}
 
 	// step 5: Path-A standby mode
-	RTL_W32(0xe28, 0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 	RTL_W32(0x840, 0x00010000);
-	RTL_W32(0xe28, 0x80800000);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 
 	// step 6: Path-B ADDA all on
 	for( i = 0 ; i < IQK_ADDA_REG_NUM ; i++)
@@ -7116,16 +7198,18 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 
 		PHY_SetBBReg(priv, 0xc78, 0xf000, (cal_ecc >> 6) & 0xf);
 	}else {
+		IQKOK++;
 		priv->pshare->RegEB4=0x100;
 		priv->pshare->RegEBC=0x00;
 	}
 
 	// step 8: back to BB mode, load original values
-	RTL_W32(0xe28, 0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 	RTL_W32(0xc04, temp_c04);
 	RTL_W32(0xc08, temp_c08);
 	RTL_W32(0x874, temp_874);
-	RTL_W32(0x800, temp_800);
+	//RTL_W32(0x800, temp_800);
+	RTL_W32(0xa04, temp_a04);
 	RTL_W32(0x88c, temp_88c);
 	RTL_W32(0x840, 0x32fff);
 	RTL_W32(0x844, 0x32fff);
@@ -7141,11 +7225,7 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 		PHY_SetBBReg(priv, 0x828, bMaskDWord, 0x01000000);
 	}
 
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-	REG32(BSP_WDTCNR) |=  1 << 23;
-#elif defined(CONFIG_RTL_8198B)
-	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
-#endif
+	watchdog_kick();
 
 	/*
 	 *	Reload ADDA power saving parameters
@@ -7165,7 +7245,8 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 #if 0 //def CLIENT_MODE
 	clnt_save_IQK_res(priv);
 #endif
-
+	if (!IQKOK)
+		priv->pshare->IQK_fail_cnt++;
 }
 #ifdef CONFIG_RTL_92D_DMDP
 
@@ -7178,9 +7259,9 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 												0xe88, 0xe8c, 0xed0, 0xed4, 0xed8, 0xedc, 0xee0, 0xeec};
 	unsigned int ADDA_backup[IQK_ADDA_REG_NUM], i;
 	u8 temp_522, temp_550, temp_551;
-	u32 temp_040, temp_870, temp_860, temp_864, temp_800, temp_88c;
+	u32 temp_040, temp_870, temp_860, temp_864, temp_a04, temp_88c;
 	u8 switch2PI = 0;
-
+	unsigned char IQKOK = 0;
 
 #ifdef MP_TEST
 	if (!priv->pshare->rf_ft_var.mp_specific)
@@ -7206,7 +7287,7 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 	temp_040 = RTL_R32(0x40);
 
 	// Save BB default
-	temp_800 = RTL_R32(0x800);
+	temp_a04 = RTL_R32(0xa04);//RTL_R32(0x800);
 	temp_870 = RTL_R32(0x870);
 	temp_860 = RTL_R32(0x860);
 	temp_864 = RTL_R32(0x864);
@@ -7234,11 +7315,18 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 		switch2PI++;
 	}
 
+	//MAC register setting
+	RTL_W8(0x522, 0x3f);
+	RTL_W8(0x550, RTL_R8(0x550)& (~BIT(3)));
+	RTL_W8(0x551, RTL_R8(0x551)& (~BIT(3)));
+	RTL_W32(0x40, 0);
+
 	//BB setting
 	temp_c04 = RTL_R32(0xc04);
 	temp_c08 = RTL_R32(0xc08);
 	temp_874 = RTL_R32(0x874);
-	PHY_SetBBReg(priv, 0x800, BIT(24), 0);
+	//PHY_SetBBReg(priv, 0x800, BIT(24), 0);
+	PHY_SetBBReg(priv, 0xa04, bMaskDWord, (0x0f000000 | temp_a04) );
 	RTL_W32(0xc04, 0x03a05600);
 	RTL_W32(0xc08, 0x000800e4);
 	RTL_W32(0x874, 0x22204000);
@@ -7252,18 +7340,12 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 
 	RTL_W32(0x840, 0x00010000);
 
-	//MAC register setting
-	RTL_W8(0x522, 0x3f);
-	RTL_W8(0x550, RTL_R8(0x550)& (~BIT(3)));
-	RTL_W8(0x551, RTL_R8(0x551)& (~BIT(3)));
-	RTL_W32(0x40, 0);
-
 	//AP or IQK
 	RTL_W32(0xb68 , 0x0f600000);
 	RTL_W32(0xb6c , 0x0f600000);
 
 	// IQK setting
-	RTL_W32(0xe28, 0x80800000);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 	RTL_W32(0xe40, 0x01007c00);
 	RTL_W32(0xe44, 0x01004800);
 
@@ -7337,16 +7419,18 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 
 		PHY_SetBBReg(priv, 0xca0, 0xf0000000, (cal_eac >> 6) & 0xf);
 	}else {
+		IQKOK++;
 		priv->pshare->RegE94=0x100;
 		priv->pshare->RegE9C=0x00;
 	}
 
 	// back to BB mode, load original values
-	RTL_W32(0xe28, 0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 	RTL_W32(0xc04, temp_c04);
 	RTL_W32(0xc08, temp_c08);
 	RTL_W32(0x874, temp_874);
-	RTL_W32(0x800, temp_800);
+	//RTL_W32(0x800, temp_800);
+	RTL_W32(0xa04, temp_a04);
 
 	RTL_W32(0x88c, temp_88c);
 	RTL_W32(0x840, 0x32fff);
@@ -7360,11 +7444,7 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 		RTL_W32(0x828, 0x01000000);
 	}
 
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-	REG32(BSP_WDTCNR) |=  1 << 23;
-#elif defined(CONFIG_RTL_8198B)
-	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
-#endif
+	watchdog_kick();
 
 	/*
 	 *	Reload ADDA power saving parameters
@@ -7379,17 +7459,19 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 	RTL_W8(0x551, temp_551);
 	RTL_W32(0x40, temp_040);
 	RTL_W8(0x522, temp_522);
-
+	
+	if (!IQKOK)
+		priv->pshare->IQK_fail_cnt++;
 }
 
 
 void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 {
-	unsigned int temp_800, temp_c04, temp_874, temp_c08, temp_870, temp_860, temp_88c, temp_c50, temp_b30,
+	unsigned int temp_a04, temp_c04, temp_874, temp_c08, temp_870, temp_860, temp_88c, temp_c50, temp_b30,
 				switch2PI=0, X, reg; //, Oldval_0, TX0_A;
 	u8 temp_522, temp_550, temp_551;
 	unsigned int cal_num=0, cal_retry=0, ADDA_backup[IQK_ADDA_REG_NUM];
-	int Y, result[8][3], result_final[8]; //, TX0_C;
+	int Y, result[8][3], result_final[8]={0,0,0,0,0,0,0,0}; //, TX0_C;
 
 	unsigned int i, RX0REG0xe40[3], RX0REG0xe40_final=0, REG0xe40, REG0xe94, REG0xe9c, delay_count;
 	unsigned int REG0xeac, REG0xea4;
@@ -7408,11 +7490,9 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 	}
 
 	printk(">> %s \n",__FUNCTION__);
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-	REG32(BSP_WDTCNR) |=  1 << 23;
-#elif defined(CONFIG_RTL_8198B)
-	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
-#endif
+
+	watchdog_kick();
+
 	/*
 	 * Save MAC default value
 	 */
@@ -7423,7 +7503,7 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 	/*
 	 *	Save BB Parameter
 	 */
-	temp_800 = RTL_R32(0x800);
+	temp_a04 = RTL_R32(0xa04);//RTL_R32(0x800);
 	temp_c04 = RTL_R32(0xc04);
 	temp_874 = RTL_R32(0x874);
 	temp_c08 = RTL_R32(0xc08);
@@ -7476,7 +7556,8 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 		/*
 		 *	BB setting
 		 */
-		PHY_SetBBReg(priv, 0x800, BIT(24), 0);
+		//PHY_SetBBReg(priv, 0x800, BIT(24), 0);
+		PHY_SetBBReg(priv, 0xa04, bMaskDWord, (0x0f000000 | temp_a04) );
 		PHY_SetBBReg(priv, 0xc04, bMaskDWord, 0x03a05600);
 		PHY_SetBBReg(priv, 0xc08, bMaskDWord, 0x000800e4);
 		PHY_SetBBReg(priv, 0x874, bMaskDWord, 0x22208000);
@@ -7496,7 +7577,7 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 		/*
 		 *	IQK global setting
 		 */
-		PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80800000);
+		PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 		PHY_SetBBReg(priv, 0xe40, bMaskDWord, 0x10007c00);
 		PHY_SetBBReg(priv, 0xe44, bMaskDWord, 0x01004800);
 
@@ -7674,11 +7755,12 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 	/*
 	 *	Exit IQK mode
 	 */
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 	PHY_SetBBReg(priv, 0xc04, bMaskDWord, temp_c04);
 	PHY_SetBBReg(priv, 0xc08, bMaskDWord, temp_c08);
 	PHY_SetBBReg(priv, 0x874, bMaskDWord, temp_874);
-	PHY_SetBBReg(priv, 0x800, bMaskDWord, temp_800);
+	//PHY_SetBBReg(priv, 0x800, bMaskDWord, temp_800);
+	PHY_SetBBReg(priv, 0xa04, bMaskDWord, temp_a04);
 	PHY_SetBBReg(priv, 0x88c, bMaskDWord, temp_88c);
 	PHY_SetBBReg(priv, 0xb30, bMaskDWord, temp_b30);	// 03/03/2011 update
 	//PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00032fff);	// 01/11/2011 update
@@ -7709,6 +7791,9 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 	 */
 	for(i = 0 ; i < IQK_ADDA_REG_NUM ; i++)
 		PHY_SetBBReg(priv, ADDA_REG[i], bMaskDWord, ADDA_backup[i]);
+
+	if (!TX0IQKOK)
+		priv->pshare->IQK_fail_cnt++;
 }
 #endif
 
@@ -8013,11 +8098,7 @@ static void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv)
 		PHY_SetRFReg(priv, eRFPath, 0x18, 0x08000, 0x01);
 	}
 
-#if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
-	REG32(BSP_WDTCNR) |=  1 << 23;
-#elif defined(CONFIG_RTL_8198B) && defined(CONFIG_RTL_92D_SUPPORT)
-	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
-#endif
+	watchdog_kick();
 
 	for(eRFPath = RF92CD_PATH_A; eRFPath < curMaxRFPath; eRFPath++) {
 		while(!(PHY_QueryRFReg(priv, eRFPath, 0x2A, BIT(11), 1) &&
@@ -8060,7 +8141,7 @@ static void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv)
 #define		RF_MODE1					0x10	 
 #define		RF_MODE2					0x11	
 
-#define		rTxAGC_B_CCK11_A_CCK2_11	0x86c
+#define		rTxAGC_A_CCK11_2_B_CCK11	0x86c
 
 #define		RF_TX_G3					0x22
 
@@ -8093,7 +8174,7 @@ static void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv)
 #define		DP_gain_loss				1
 #define		DP_PA_BIAS_NUM				4
 
-#define		rTxAGC_B_CCK1_55_Mcs32		0x838
+#define		rTxAGC_B_CCK5_1_Mcs32		0x838
 
 #define		RF_TXBIAS					0x16
 #endif
@@ -8129,7 +8210,7 @@ static void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv)
 #define		DP_GAIN_LOSS_BOUND_NUM	8
 #endif
 #define		DP_OFFSET_NUM		9
-#define		DP_AP_CUREVE_SELECT_NUM		2	// 3
+//#define		DP_AP_CUREVE_SELECT_NUM		2	// 3
 #define		DP_gain_loss	1
 
 
@@ -8473,24 +8554,24 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 {
 	char	is2T = ((priv->pmib->dot11RFEntry.macPhyMode != DUALMAC_DUALPHY) ?1 :0);
 
-	unsigned int	tmpReg, value32, checkbit;					
+	unsigned int	tmpReg, value32/*, checkbit*/;					
 	unsigned int	AFE_backup[IQK_ADDA_REG_NUM];
-	unsigned int	AFE_REG[IQK_ADDA_REG_NUM] = {	
+	static unsigned int	AFE_REG[IQK_ADDA_REG_NUM] = {	
 						rFPGA0_XCD_SwitchControl, 0xe6c, 0xe70, 0xe74, 0xe78, 
 						0xe7c, 0xe80, 0xe84, 0xe88, 0xe8c, 
 						0xed0, 0xed4, 0xed8, 0xedc, 0xee0,
 						0xeec};
 
-	unsigned int	BB_backup[DP_BB_REG_NUM];	
-	unsigned int	BB_REG[DP_BB_REG_NUM] = {
+	static unsigned int	BB_backup[DP_BB_REG_NUM];	
+	static unsigned int	BB_REG[DP_BB_REG_NUM] = {
 						rOFDM0_TRxPathEnable, rFPGA0_RFMOD, 
 						rOFDM0_TRMuxPar, rFPGA0_XCD_RFInterfaceSW,
 						rFPGA0_AnalogParameter4, rFPGA0_XAB_RFInterfaceSW, 
 						rTxAGC_B_CCK11_A_CCK2_11
 						};
 
-	unsigned int	BB_backup_A[DP_BB_REG_NUM_A];	
-	unsigned int	BB_REG_A[DP_BB_REG_NUM_A] = {
+	static unsigned int	BB_backup_A[DP_BB_REG_NUM_A];	
+	static unsigned int	BB_REG_A[DP_BB_REG_NUM_A] = {
 						rFPGA0_XA_RFInterfaceOE,	rTxAGC_A_Rate18_06, 
 						rTxAGC_A_Rate54_24,		rTxAGC_A_CCK1_Mcs32, 
 						0xe0c, 					rTxAGC_A_Mcs03_Mcs00, 
@@ -8500,8 +8581,8 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						};
 
 	
-	unsigned int	BB_backup_B[DP_BB_REG_NUM_B];	
-	unsigned int	BB_REG_B[DP_BB_REG_NUM_B] = {
+	static unsigned int	BB_backup_B[DP_BB_REG_NUM_B];	
+	static unsigned int	BB_REG_B[DP_BB_REG_NUM_B] = {
 						rFPGA0_XB_RFInterfaceOE,	rTxAGC_B_Rate18_06, 
 						rTxAGC_B_Rate54_24,		rTxAGC_B_CCK1_55_Mcs32, 
 						rTxAGC_B_Mcs03_Mcs00, 	rTxAGC_B_Mcs07_Mcs04, 
@@ -8509,11 +8590,11 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						rOFDM0_XBAGCCore1 /*, rBndB*/
 						};
 	
-	unsigned int	BB_settings[DP_BB_REG_NUM_settings] = {
+	static unsigned int	BB_settings[DP_BB_REG_NUM_settings] = {
 						0x00a05430, 0x02040000, 0x000800e4, 0x22208000, 
 						0xccf000c0/*,	0x07600760*/};
 						
-	unsigned int	BB_REG_loop[DP_PATH_NUM][DP_BB_REG_NUM_loop] = {
+	static unsigned int	BB_REG_loop[DP_PATH_NUM][DP_BB_REG_NUM_loop] = {
 						{0xb00, 0xb04, 0xb28, 0xb68, 
 						0xb08, 0xb0c, 0xb10, 0xb14, 
 						0xb18, 0xb1c, 0xb20, 0xb24,   
@@ -8532,7 +8613,7 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						0xb9c, 0xe28} 						
 						};			
 
-	unsigned int	BB_settings_loop[DP_BB_REG_NUM_loop] = {
+	static unsigned int	BB_settings_loop[DP_BB_REG_NUM_loop] = {
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x41382e21,	0x5b554f48, 0x6f6b6661, 0x817d7874,
 						0x908c8884, 0x9d9a9793, 0xaaa7a4a1, 0xb6b3b0ad,
@@ -8543,7 +8624,7 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						0x7f4b7f48, 0x00000000 
 						};
 
-	unsigned int	BB_settings_loop_3db[DP_BB_REG_NUM_loop] = {
+	static unsigned int	BB_settings_loop_3db[DP_BB_REG_NUM_loop] = {
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x5b4e402e,	0x7f776f65, 0x9c968f88, 0xb5afa8a3,
 						0xcac4bfb9, 0xdcd8d4ce, 0xeeeae6e2, 0xfffbf7f2,
@@ -8554,7 +8635,7 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						0x7f7f7f7d, 0x00000000 
 						};	
 	
-	unsigned int	BB_settings_loop_tx[DP_BB_REG_NUM_loop] = {	
+	static unsigned int	BB_settings_loop_tx[DP_BB_REG_NUM_loop] = {	
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x21212121, 0x21212121, 0x21212121, 0x21212121,
 						0x21212121, 0x21212121, 0x21212121, 0x21212121,
@@ -8565,7 +8646,7 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						0x7c187c18, 0x00000000 
 						};	
 
-	unsigned int	BB_settings_loop_tx_3db[DP_BB_REG_NUM_loop] = { 
+	static unsigned int	BB_settings_loop_tx_3db[DP_BB_REG_NUM_loop] = { 
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x2e2e2e2e, 0x2e2e2e2e, 0x2e2e2e2e, 0x2e2e2e2e,
 						0x2e2e2e2e, 0x2e2e2e2e, 0x2e2e2e2e, 0x2e2e2e2e,
@@ -8578,7 +8659,7 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 
 
 					//for find 2dB loss point
-	unsigned int	BB_settings_loop_tx_2[DP_BB_REG_NUM_loop] = { 
+	static unsigned int	BB_settings_loop_tx_2[DP_BB_REG_NUM_loop] = { 
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x41382e21, 0x5b554f48, 0x6f6b6661, 0x817d7874,
 						0x908c8884, 0x9d9a9793, 0xaaa7a4a1, 0xb6b3b0ad,
@@ -8590,7 +8671,7 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						};
 
 					//for find 2dB loss point
-	unsigned int	BB_settings_loop_tx_2_3db[DP_BB_REG_NUM_loop] = { 
+	static unsigned int	BB_settings_loop_tx_2_3db[DP_BB_REG_NUM_loop] = { 
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x5b4e402e, 0x7f776f65, 0x9c968f88, 0xb5afa8a3,
 						0xcac4bfb9, 0xdcd8d4ce, 0xeeeae6e2, 0xfffbf7f2,
@@ -8602,27 +8683,27 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						};					
 
 
-	unsigned int	BB_settings_loop_rx[DP_BB_REG_NUM_loop_rx] = {
+	static unsigned int	BB_settings_loop_rx[DP_BB_REG_NUM_loop_rx] = {
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x21212121,	0x40000000, 0x7c187c18, 0x00000000
 						};	
 
-	unsigned int	BB_settings_loop_rx_3db[DP_BB_REG_NUM_loop_rx] = {
+	static unsigned int	BB_settings_loop_rx_3db[DP_BB_REG_NUM_loop_rx] = {
 						0x01017e18, 0xf76d9f84, 0x00080000, 0x11880000, 
 						0x2e2e2e2e,	0x40000000, 0x7d327d32, 0x00000000
 						};	
 
-	unsigned int	BB_settings_loop_pa[DP_BB_REG_NUM_loop_pa] = {
+	static unsigned int	BB_settings_loop_pa[DP_BB_REG_NUM_loop_pa] = {
 						0x02096eb8, 0xf76d9f84, 0x00044499, 0x02880140  
 						};	
 
-	unsigned int	BB_settings_loop_dp[DP_BB_REG_NUM_loop_pa] = {
+	static unsigned int	BB_settings_loop_dp[DP_BB_REG_NUM_loop_pa] = {
 						0x01017098, 0x776d9f84, 0x00000000, 0x08080000  
 						};	
 
 	unsigned int	*BB_settings_temp;
 
-	unsigned char	Sram_db_settings[DP_SRAM_NUM_db] = {
+	static unsigned char	Sram_db_settings[DP_SRAM_NUM_db] = {
 						0xfe,	0xf0,	0xe3,	0xd6,	0xca,	
 						0xbf,	0xb4,	0xaa,	0xa0,	0x97,
 						0x8f,	0x87,	0x7f,	0x78,	0x71,
@@ -8645,7 +8726,7 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 
 	//unsigned int	pwsf[DP_SRAM_NUM];
 
-	unsigned int	offset[2][DP_OFFSET_NUM] = {{		//path, offset
+	static unsigned int	offset[2][DP_OFFSET_NUM] = {{		//path, offset
 						0xe34,	0xb28, 	0xb00,	0xbdc,	0xbc0,
 						0xbe8,	rOFDM0_XATxIQImbalance,	rBndA,	
 						0xb68},{
@@ -8653,20 +8734,20 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 						0xbf8,	rOFDM0_XBTxIQImbalance,	rBndB,
 						0xb6c}};
 						
-	unsigned char	OFDM_min_index = 6, OFDM_min_index_internalPA = 3;
+	//unsigned char	OFDM_min_index = 6, OFDM_min_index_internalPA = 3;
 	unsigned char	OFDM_index[2];
-	unsigned char	retrycount = 0, retrybound = 1;
+	//unsigned char	retrycount = 0, retrybound = 1;
 
 	unsigned int	RF_backup[DP_PATH_NUM][DP_RF_REG_NUM];
-	unsigned int	RF_REG[DP_RF_REG_NUM] = {
+	static unsigned int	RF_REG[DP_RF_REG_NUM] = {
 						RF_TX_G3,	RF_TXPA_A4,	RF_RXRF_A3,	
 						RF_BS_PA_APSET_G1_G4/*,	RF_BS_PA_APSET_G5_G8,
 						RF_BS_PA_APSET_G9_G11*/};
 
-	unsigned int	RF_AP_curve_select[DP_AP_CUREVE_SELECT_NUM] = {
+	static unsigned int	RF_AP_curve_select[DP_AP_CUREVE_SELECT_NUM] = {
 						0x7bdef,	0x94a52,	0xa5294/*,	0xb5ad6*/	};	
 
-	unsigned int	RF_PA_BIAS[3][DP_PA_BIAS_NUM] = {{	//40MHz / 20MHz, original
+	static unsigned int	RF_PA_BIAS[3][DP_PA_BIAS_NUM] = {{	//40MHz / 20MHz, original
 						0xe189f,	0xa189f,	0x6189f,	0x2189f	},{
 						0xe087f,	0xa087f,	0x6087f,	0x2087f	},{
 						0xe1874,	0xa1874,	0x61874,	0x21874}};
@@ -8681,13 +8762,13 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 
 	int				gain_loss_backup[DP_PATH_NUM][DP_PA_MODEL_NUM];	//I,Q
 
-	unsigned int	gain_loss_bound[DP_GAIN_LOSS_BOUND_NUM] = {						
+	static unsigned int	gain_loss_bound[DP_GAIN_LOSS_BOUND_NUM] = {						
 						63676,	60114 ,	56751 ,	53577 ,	49145,	
 						47750, 	45079 ,	42557 ,	40177 ,	37929 ,
 						35807 ,	33804 ,	31913,	30128  		
 					};	
 
-	int				gain_loss_coef[DP_GAIN_LOSS_BOUND_NUM+1] = { 					
+	static int				gain_loss_coef[DP_GAIN_LOSS_BOUND_NUM+1] = { 					
 						512,	527,	543, 	558, 	573, 	
 						589,	609,	625, 	645, 	666, 	
 						681,	701, 	722, 	742,	768
@@ -8697,32 +8778,43 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 //	unsigned char	index_for_zero_db = 24, AP_curve_index = 0;
 	unsigned char	GainLossIndex = 0; //0db, 0x40
 	char			SramIndex = 24;
-	unsigned char	index_for_zero_db = 6, AP_curve_index = 0;
+	unsigned char	/*index_for_zero_db = 6,*/ AP_curve_index = 0;
 
 #else
 
 	unsigned char	index_for_zero_db = 6, AP_curve_index = 0;
 	int				power_I, power_Q;
-	unsigned int	gain_loss_bound[DP_GAIN_LOSS_BOUND_NUM] = {						
+	static unsigned int	gain_loss_bound[DP_GAIN_LOSS_BOUND_NUM] = {						
 						61870,	55142,	49145,	43801,	39037,
 						34792,	31008,	27636		
 					};		
 #endif
 	
 	unsigned int	MAC_backup[IQK_MAC_REG_NUM];
-	unsigned int	MAC_REG[IQK_MAC_REG_NUM] = {
+	static unsigned int	MAC_REG[IQK_MAC_REG_NUM] = {
 						0x522,	0x550, 	0x551, 	0x040};		
 
-	unsigned int	AFE_on_off[PATH_NUM] = {
-					0x04db25a4, 0x0b1b25a4};	//path A on path B path A off path B on
+	//unsigned int	AFE_on_off[PATH_NUM] = {
+	//				0x04db25a4, 0x0b1b25a4};	//path A on path B path A off path B on
 
-	unsigned char	path_num, path_bound, path = RF92CD_PATH_A, i, j, tx_index, rx_index;
+	unsigned char	path_num, /*path_bound,*/ path = RF92CD_PATH_A, i, j, tx_index, rx_index;
 	int				index, index_1, index_repeat;
 
-	char			bInternalPA = FALSE, SkipStep5 = FALSE;
+	char			bInternalPA = FALSE;
+#if (DP_gain_loss != 1)
+	char			SkipStep5 = FALSE;
+#endif
 	char			bPlus3db = FALSE, bDecreaseTxIndex = FALSE, bDecreaseTxIndexWithRx = FALSE;
 
-	
+#ifdef DFS
+	if ((priv->pshare->rf_ft_var.dfsdelayiqk) &&
+			(OPMODE & WIFI_AP_STATE) &&
+			!priv->pmib->dot11DFSEntry.disable_DFS &&
+			(timer_pending(&priv->ch_avail_chk_timer) ||
+			 priv->pmib->dot11DFSEntry.disable_tx))
+		return;
+#endif
+
 	DPK_DEBUG("==>_PHY_DigitalPredistortion() interface index %d is2T = %d\n", priv->pshare->wlandev_idx, is2T); //anchin
 	
 	DPK_DEBUG("_PHY_DigitalPredistortion for %s\n", (is2T ? "2T2R" : "1T1R"));
@@ -9165,24 +9257,24 @@ Step1:
 		}		
 
 		// SRAM boundary setting
-		PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x40000000);	
+		PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x400000);
 
 		if(priv->pshare->phw->bNewTxGainTable)
 			PHY_SetBBReg(priv, offset[path][4], bMaskDWord, 0x0008421f);	//0xbc0, 0xbc4	
 		else	
 			PHY_SetBBReg(priv, offset[path][4], bMaskDWord, 0x0009ce7f);	//0xbc0, 0xbc4	
 
-		PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);	
+		PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 
 		_PHY_SetADDARegisters(priv, BB_REG_loop[path], BB_settings_loop_pa, DP_BB_REG_NUM_loop_pa);
 		
 		// fill PA model to page B1 registers
-		PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x40000000);	
+		PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x400000);
 		for(index = 0; index < (DP_PA_MODEL_NUM/2); index++){	//path A = 0xb00, path B = 0xb60
 			PHY_SetBBReg(priv, 0xb00+index*4+path*0x60, bMaskDWord, 
 			(PA_model_backup[path][index*2+1] << 16) | PA_model_backup[path][index*2]); 
 		}
-		PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);	
+		PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0);
 
 		//one shot	
 		PHY_SetBBReg(priv, offset[path][1], bMaskDWord, 0x80044499);	//0xb28, 0xb98

@@ -533,7 +533,7 @@ static int32 _rtl865x_qosArrangeQueue(rtl865x_qos_t *qosInfo)
 				{
 					while(i>nStart)
 					{
-						if(rtl865x_compFunc(outputQueue, &outputQueue[queueOrder[i-1]])>0)
+						if(rtl865x_compFunc(outputQueue, &qosInfo[queueOrder[i-1]])>0)
 						{
 							queueOrder[i] = queueOrder[i-1];
 							i--;
@@ -551,7 +551,7 @@ static int32 _rtl865x_qosArrangeQueue(rtl865x_qos_t *qosInfo)
 			{
 				while(i>mStart)
 				{
-					if (rtl865x_compFunc(outputQueue, &outputQueue[queueOrder[i-1]])>0)
+					if (rtl865x_compFunc(outputQueue, &qosInfo[queueOrder[i-1]])>0)
 					{
 						queueOrder[i] = queueOrder[i-1];
 						i--;

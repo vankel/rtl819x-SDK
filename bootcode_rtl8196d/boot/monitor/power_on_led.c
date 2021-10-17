@@ -367,7 +367,11 @@ int rtl8196e_get_gpio_sw_in(void)
 		return (!((*(volatile u32 *)(gpio_pin_ctrl_reg + 0x44)) & (1<<0)));
 	}
 	else {
+#if defined(CONFIG_RTL8196E_GPIOB5_RESET)
+		return (!((REG32(PABCDDAT_REG) & (1<<13))>>13) ); //return 0 if non-press
+#else
 		return (!((REG32(PABCDDAT_REG) & (1<<5))>>5) ); //return 0 if non-press
+#endif
 	}
 }
 
@@ -383,7 +387,8 @@ void rtl8196e_gpio_init(void)
 		(*(volatile u32 *)(gpio_pin_ctrl_reg + 0x44)) = 0x0;
 	}
 }
-#else
+#endif
+#ifdef CONFIG_RTL8196E_ULINKER_BOOT_LED
 void power_on_led(void)
 {
 	char *arg_v[] = {"hinit", "0"};

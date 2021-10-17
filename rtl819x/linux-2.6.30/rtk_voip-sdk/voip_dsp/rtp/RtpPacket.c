@@ -138,6 +138,7 @@ void RtpPacket_Init (RtpPacket* pst, int newpayloadSize, int npadSize, int csrc_
 	pst->EventPktBody = FALSE;
 	pst->EventPktEdge = FALSE;
 	pst->EventPktDuration = FALSE;
+	pst->bEventPktLongDuration = FALSE;
 }
 
 

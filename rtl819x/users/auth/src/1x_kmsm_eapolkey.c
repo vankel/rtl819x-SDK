@@ -108,7 +108,7 @@ int	CheckMIC(OCTET_STRING EAPOLMsgRecvd, u_char *key, int keylen)
 LIB1X_EAPOL_HDRLEN);
 	memset(tmpeapolkey->key_mic, 0, KEY_MIC_LEN);
 
-
+	AUTHDEBUG("unicast key mic Algo=[%d]\n",ucAlgo);
 	if(ucAlgo == key_desc_ver1)
 	{
 		hmac_md5((u_char*)tmpeapol, EAPOLMsgRecvd.Length - ETHER_HDRLEN ,
@@ -133,6 +133,14 @@ KEY_MIC_LEN))
 		if(!memcmp(sha1digest, EapolKeyMsgRecvd.Octet + KeyMICPos, KEY_MIC_LEN))
 			retVal = 1;
 	}
+#ifdef CONFIG_IEEE80211W
+	else if(ucAlgo == key_desc_ver3 || ucAlgo == 0)		/*HS2_SUPPORT  ; || ucAlgo == 0*/
+	{
+		omac1_aes_128(key, (u_char*)tmpeapol, EAPOLMsgRecvd.Length - ETHER_HDRLEN, tmpeapolkey->key_mic);
+		if(!memcmp(tmpeapolkey->key_mic, EapolKeyMsgRecvd.Octet + KeyMICPos, KEY_MIC_LEN))
+			retVal = 1;
+	}
+#endif
 
 	free(tmp.Octet); // david+2006-03-31, fix memory leak
 	return retVal;
@@ -141,7 +149,11 @@ KEY_MIC_LEN))
 }
 
 #ifdef RTL_WPA2
-void CalcPMKID(char* pmkid, char* pmk, char* aa, char* spa)
+void CalcPMKID(char* pmkid, char* pmk, char* aa, char* spa
+#ifdef CONFIG_IEEE80211W
+, int use_sha256
+#endif
+)
 {
 	//u_char data[sizeof(PMKID_NAME_CONST) + 2*ETHER_ADDRLEN];
 	u_char data[PMKID_NAME_CONST_SIZE + 2*ETHER_ADDRLEN];
@@ -155,8 +167,12 @@ void CalcPMKID(char* pmkid, char* pmk, char* aa, char* spa)
 	//wpa2_hexdump("SPA", spa, ETHER_ADDRLEN);
 	//wpa2_hexdump("PMK", pmk, PMK_LEN);
 	//wpa2_hexdump("DATA", data, sizeof(data));
-
-	hmac_sha1((u_char*)data, sizeof(data), pmk, PMK_LEN, sha1digest);
+#ifdef CONFIG_IEEE80211W
+	if(use_sha256)
+		hmac_sha256((u_char*)data, sizeof(data), pmk, PMK_LEN, sha1digest);
+	else
+#endif
+		hmac_sha1((u_char*)data, sizeof(data), pmk, PMK_LEN, sha1digest);
 	memcpy(pmkid, sha1digest, PMKID_LEN);
 	//wpa2_hexdump("PMKID", pmkid, PMKID_LEN);
 
@@ -193,7 +209,9 @@ void CalcMIC(OCTET_STRING EAPOLMsgSend, int algo, u_char *key, int keylen)
 					key, keylen, sha1digest);
 		memcpy(eapolkey->key_mic, sha1digest, KEY_MIC_LEN);
 	}
-
+	else if (algo == key_desc_ver3 || algo == 0) {				/*HS2_SUPPORT  ; || ucAlgo == 0*/
+		omac1_aes_128(key, (unsigned char*)eapol, EAPOLMsgSend.Length - ETHER_HDRLEN, eapolkey->key_mic);
+	}
 	// kenny
 //	lib1x_hexdump2(MESS_DBG_KEY_MANAGE, "CalcMIC(3)", eapolkey->key_mic, KEY_MIC_LEN, "MIC");
 
@@ -201,7 +219,11 @@ void CalcMIC(OCTET_STRING EAPOLMsgSend, int algo, u_char *key, int keylen)
 
 void CalcPTK(u_char *addr1, u_char *addr2, u_char *nonce1, u_char *nonce2,
 			 u_char * keyin, int keyinlen,
-			 u_char * keyout, int keyoutlen)
+			 u_char * keyout, int keyoutlen
+#ifdef CONFIG_IEEE80211W
+  			 ,int use_sha256
+#endif			 
+			 )
 {
 	u_char data[2*ETHER_ADDRLEN + 2*KEY_NONCE_LEN], tmpPTK[128];
 
@@ -223,6 +245,14 @@ void CalcPTK(u_char *addr1, u_char *addr2, u_char *nonce1, u_char *nonce2,
 		memcpy(data + 2*ETHER_ADDRLEN, nonce2, KEY_NONCE_LEN);
 		memcpy(data + 2*ETHER_ADDRLEN + KEY_NONCE_LEN, nonce1, KEY_NONCE_LEN);
 	}
+
+#ifdef CONFIG_IEEE80211W		
+	if (use_sha256) {
+		sha256_prf(keyin, keyinlen, (unsigned char*)PMK_EXPANSION_CONST, data, sizeof(data),
+			   tmpPTK, keyoutlen);
+	}
+	else
+#endif
 
 	i_PRF(keyin, keyinlen, (u_char*)PMK_EXPANSION_CONST,
 						PMK_EXPANSION_CONST_SIZE, data,sizeof(data),
@@ -265,7 +295,8 @@ void GenNonce(u_char * nonce, u_char * addr)
 */
 void CalcGTK(u_char *addr, u_char *nonce,
 			 u_char * keyin, int keyinlen,
-			 u_char * keyout, int keyoutlen)
+			 u_char * keyout, int keyoutlen,
+			 u_char * label	 )
 {
 	u_char data[ETHER_ADDRLEN + KEY_NONCE_LEN], tmp[64];
 
@@ -273,10 +304,14 @@ void CalcGTK(u_char *addr, u_char *nonce,
 	memcpy(data, addr, ETHER_ADDRLEN);
 	memcpy(data + ETHER_ADDRLEN, nonce, KEY_NONCE_LEN);
 
-
-	i_PRF(keyin, keyinlen, (u_char*)GMK_EXPANSION_CONST,
+#ifdef CONFIG_IEEE80211W
+	sha256_prf(keyin, keyinlen, label, data, sizeof(data), tmp, keyoutlen);
+#else
+	
+	i_PRF(keyin, keyinlen, label,
 						GMK_EXPANSION_CONST_SIZE, data, sizeof(data),
 						tmp, keyoutlen);
+#endif
 	memcpy(keyout, tmp, keyoutlen);
 
 }
@@ -310,6 +345,12 @@ void EncGTK(Global_Params * global, u_char *kek, int keklen, u_char *key,
 // should refer tx packet, david+2006-04-06
 //	}else if(Message_KeyDescVer(global->EapolKeyMsgRecvd) == key_desc_ver2)
 	}else if(Message_KeyDescVer(global->EapolKeyMsgSend) == key_desc_ver2)
+	{
+			//according to p75 of 11i/D3.0, the IV should be put in the least significant octecs of
+			//KeyIV field which shall be padded with 0, so eapolkey->key_iv + 8
+			AES_WRAP(key, keylen, default_key_iv, 8, kek, keklen, out, outlen);
+	}else if(Message_KeyDescVer(global->EapolKeyMsgSend) == key_desc_ver3 
+	|| Message_KeyDescVer(global->EapolKeyMsgSend) == 0)  /*HS2_SUPPORT  ; || Message_KeyDescVer(global->EapolKeyMsgSend) == 0 */
 	{
 			//according to p75 of 11i/D3.0, the IV should be put in the least significant octecs of
 			//KeyIV field which shall be padded with 0, so eapolkey->key_iv + 8

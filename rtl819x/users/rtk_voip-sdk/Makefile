@@ -6,6 +6,8 @@ ifndef DIR_TOOLS
 DIR_TOOLS=$(DIR_LINUX)/../AP
 endif
 
+RC_LEVEL=/etc/init.d/rc28
+
 all:
 	make -C flash
 ifdef CONFIG_RTK_VOIP_DECT_SITEL_SUPPORT
@@ -72,6 +74,13 @@ ifneq ($(RCSCONFIG),)
 	make rcsconf
 endif
 
+.PHONY: rcX
+rcX:
+	$(ROMFSINST) rc_dev_voip               /etc/scripts/rc_dev_voip
+	$(ROMFSINST) -a "/etc/scripts/rc_dev_voip"     $(RC_LEVEL)
+	$(ROMFSINST) rc_voip.aipc              /etc/scripts/rc_voip
+	$(ROMFSINST) -a "/etc/scripts/rc_voip&"        $(RC_LEVEL)
+
 clean:
 ifdef CONFIG_RTK_VOIP_IP_PHONE
 	make -C ui clean
@@ -92,6 +101,7 @@ endif
 else
 	make -C src clean
 endif
+	make -C misc clean
 	make -C test clean
 	make -C flash clean
 
@@ -104,9 +114,15 @@ rcsconf:
 	echo "CONFIG_APP_RTK_VOIP=$(CONFIG_RTK_VOIP)" >> $(RCSCONFIG)
 
 _prepare:
+ifeq ($(CONFIG_DEFAULTS_KERNEL_2_6),y)
 	ln -fs $(DIR_LINUX)/include/linux/autoconf.h includes/kernel_config.h
+else
+ifeq ($(CONFIG_DEFAULTS_KERNEL_3_4),y)
+	ln -fs $(DIR_LINUX)/include/generated/autoconf.h includes/kernel_config.h
+endif
+endif
 	ln -fs $(DIR_LINUX)/rtk_voip/include/rtk_voip.h includes/rtk_voip.h
-	ln -fs $(DIR_LINUX)/rtk_voip/include/voip_version.h includes/voip_version.h
+	#ln -fs $(DIR_LINUX)/rtk_voip/include/voip_version.h includes/voip_version.h
 	ln -fs $(DIR_LINUX)/rtk_voip/include/voip_control.h includes/voip_control.h
 	ln -fs $(DIR_LINUX)/rtk_voip/include/voip_params.h includes/voip_params.h
 	ln -fs $(DIR_LINUX)/rtk_voip/include/voip_feature.h includes/voip_feature.h
@@ -121,9 +137,7 @@ _prepare:
 	#tar -zxvf var.tgz
 
 prepare:
-	@if [ ! -e includes/kernel_config.h ]; then	\
-		make _prepare;	\
-	fi
+	make _prepare
 
 
 ifdef CONFIG_RTK_VOIP_IP_PHONE

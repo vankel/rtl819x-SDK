@@ -468,8 +468,11 @@ static inline int tcrypt_test(const char *alg)
 {
 	return alg_test(alg, alg, 0, 0);
 }
-
+#if defined(CONFIG_CRYPTO_DEV_REALTEK_LINUX_SELFTEST)
+int do_test(int m)
+#else	
 static void do_test(int m)
+#endif
 {
 	int i;
 
@@ -585,8 +588,10 @@ static void do_test(int m)
 	case 10:
 		tcrypt_test("ecb(aes)");
 		tcrypt_test("cbc(aes)");
+		#if !defined(CONFIG_CRYPTO_DEV_REALTEK_LINUX_SELFTEST)
 		tcrypt_test("lrw(aes)");
 		tcrypt_test("xts(aes)");
+		#endif
 		tcrypt_test("ctr(aes)");
 		tcrypt_test("rfc3686(ctr(aes))");
 		break;
@@ -938,8 +943,9 @@ static int __init tcrypt_mod_init(void)
 		if (!tvmem[i])
 			goto err_free_tv;
 	}
-
+	#if !defined(CONFIG_CRYPTO_DEV_REALTEK_LINUX_SELFTEST)
 	do_test(mode);
+	#endif
 
 	/* We intentionaly return -EAGAIN to prevent keeping
 	 * the module. It does all its work from init()

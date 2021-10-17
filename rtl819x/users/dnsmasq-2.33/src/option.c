@@ -49,7 +49,8 @@ static const struct myoption opts[] =
     {"dhcp-lease", 1, 0, 'l' },
     {"dhcp-host", 1, 0, 'G'},
     {"dhcp-range", 1, 0, 'F'},
-    {"dhcp-option", 1, 0, 'O'},
+//    {"dhcp-option", 1, 0, 'O'},
+    {"wan-ifname", 1, 0, 'O'},
     {"dhcp-boot", 1, 0, 'M'},
     {"domain", 1, 0, 's'},
     {"domain-suffix", 1, 0, 's'},
@@ -167,7 +168,8 @@ static const struct {
   { "-n, --no-poll", gettext_noop("Do NOT poll %s file, reload only on SIGHUP."), RESOLVFILE }, 
   { "-N, --no-negcache", gettext_noop("Do NOT cache failed search results."), NULL },
   { "-o, --strict-order", gettext_noop("Use nameservers strictly in the order given in %s."), RESOLVFILE },
-  { "-O, --dhcp-option=<optspec>", gettext_noop("Set extra options to be set to DHCP clients."), NULL },
+//  { "-O, --dhcp-option=<optspec>", gettext_noop("Set extra options to be set to DHCP clients."), NULL },
+  { "-O, --wan-ifname=<wan interface name>", gettext_noop("Set wan interface name"), NULL },
   { "-p, --port=number", gettext_noop("Specify port to listen for DNS requests on (defaults to 53)."), NULL },
   { "-P, --edns-packet-max=<size>", gettext_noop("Maximum supported UDP packet size for EDNS.0 (defaults to %s)."), "*" },
   { "-q, --log-queries", gettext_noop("Log queries."), NULL },
@@ -1144,6 +1146,8 @@ static char *one_opt(struct daemon *daemon, int option, char *arg, char *problem
       
     case 'O':
       {
+
+#if 0
 	struct dhcp_opt *new = safe_malloc(sizeof(struct dhcp_opt));
 	char lenchar = 0, *cp;
 	int addrs, digs, is_addr, is_hex, is_dec;
@@ -1399,6 +1403,7 @@ static char *one_opt(struct daemon *daemon, int option, char *arg, char *problem
 	    new->next = daemon->dhcp_opts;
 	    daemon->dhcp_opts = new;
 	  }
+#endif
 		break;
       }
       
@@ -1840,7 +1845,9 @@ struct daemon *read_opts(int argc, char **argv, char *compile_opts)
   daemon->runfile =  RUNFILE;
   daemon->dhcp_max = MAXLEASES;
   daemon->edns_pktsz = EDNS_PKTSZ;
-  daemon->log_fac = -1;
+  daemon->log_fac = -1;  
+  daemon->wan_ifname=NULL;
+  
   add_txt(daemon, "version.bind", "dnsmasq-" VERSION );
   add_txt(daemon, "authors.bind", "Simon Kelley");
   add_txt(daemon, "copyright.bind", COPYRIGHT);
@@ -1885,6 +1892,11 @@ struct daemon *read_opts(int argc, char **argv, char *compile_opts)
 	{
 	  conffile = safe_string_alloc(arg);
 	  nest++;
+	}
+	else if (option == 'O')
+	{
+	  daemon->wan_ifname = safe_string_alloc(arg);
+//	  printf("%s:%d--daemon->wan_ifname=%s\n", __FUNCTION__,__LINE__,daemon->wan_ifname);
 	}
       else
 	{

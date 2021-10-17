@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 104
+/svn/CN/jungle/!svn/ver/21699/branches/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/rtk_voip-sdk/voip_fs/debug
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 113
+/svn/CN/jungle/!svn/ver/21699/branches/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/rtk_voip-sdk/voip_fs/debug/Makefile
+END
+voip_time_measure.c
+K 25
+svn:wc:ra_dav:version-url
+V 124
+/svn/CN/jungle/!svn/ver/21699/branches/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/rtk_voip-sdk/voip_fs/debug/voip_time_measure.c
+END

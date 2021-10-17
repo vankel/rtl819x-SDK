@@ -17,6 +17,9 @@ struct timer_list {
 	unsigned long data;
 
 	struct tvec_base *base;
+#ifdef CONFIG_KERNEL_POLLING
+	int slack;
+#endif
 #ifdef CONFIG_TIMER_STATS
 	void *start_site;
 	char start_comm[16];
@@ -163,7 +166,9 @@ extern void add_timer_on(struct timer_list *timer, int cpu);
 extern int del_timer(struct timer_list * timer);
 extern int mod_timer(struct timer_list *timer, unsigned long expires);
 extern int mod_timer_pending(struct timer_list *timer, unsigned long expires);
-
+#ifdef CONFIG_KERNEL_POLLING
+extern void set_timer_slack(struct timer_list *time, int slack_hz);
+#endif
 /*
  * The jiffies value which is added to now, when there is no timer
  * in the timer wheel:

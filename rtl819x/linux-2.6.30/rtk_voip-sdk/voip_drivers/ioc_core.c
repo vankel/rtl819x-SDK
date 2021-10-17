@@ -1,3 +1,4 @@
+#include <linux/interrupt.h>
 #include "con_register.h"
 #include "voip_init.h"
 #include "voip_timer.h"

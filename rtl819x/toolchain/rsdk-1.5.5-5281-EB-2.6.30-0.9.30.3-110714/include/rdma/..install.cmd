@@ -1,0 +1,1 @@
+cmd_/tmp/include/rdma/.install := perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/rdma /tmp/include/rdma rlx ib_user_mad.h; perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/rdma /tmp/include/rdma rlx ; touch /tmp/include/rdma/.install

@@ -10,8 +10,20 @@
 #ifndef INCLUDE_WSC_H
 #define INCLUDE_WSC_H
 
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+#include <cyg/kernel/kapi.h>
+#include "wps_def.h" //export some definitions
+#endif
+
 /*================================================================*/
 /* Define Flags */
+#ifdef __ECOS
+#define USE_MINI_UPNP
+#define STAND_ALONE_MINIUPNP
+#define NO_IWCONTROL
+#define USE_PORTING_OPENSSL
+#endif
+
 //#define OUTPUT_LOG		// output debug message to log file /var/log/messages
 
 //#define DEBUG
@@ -23,7 +35,7 @@
 #define SUPPORT_REGISTRAR
 #define SUPPORT_UPNP
 #define WIFI_SIMPLE_CONFIG		// must define
-#define CLIENT_MODE
+#define WSC_CLIENT_MODE
 #define MUL_PBC_DETECTTION
 //#define TEST_FOR_MULTIPLE_CREDENTIAL
 #define PREVENT_PROBE_DEADLOCK
@@ -39,6 +51,15 @@
 #define FOR_DUAL_BAND
 #endif
 
+//define CONFIG_RTL_REPEATER_WPS_SUPPORT for use one wscd binary
+#ifndef CONFIG_RTL_REPEATER_WPS_SUPPORT
+#define CONFIG_RTL_REPEATER_WPS_SUPPORT
+#endif
+
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+#undef FOR_DUAL_BAND
+#undef CONFIG_RTL_REPEATER_WPS_SUPPORT
+#endif
 
 #ifdef WPS2DOTX
 #define V2VERSION	0x20
@@ -81,8 +102,7 @@
 
 #ifdef DEBUG
 
-extern void debug_out(unsigned char *label, unsigned char *data, int data_length);
-
+extern void wsc_debug_out(char *label, unsigned char *data, int data_length);
 
 #ifdef OUTPUT_LOG
 #define LOG_PATH "/var/log/messages"
@@ -204,9 +224,6 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 									fmt[0],fmt[1],fmt[2],fmt[3],fmt[4],fmt[5]\
 									,fmt[6],fmt[7],fmt[8],fmt[9],fmt[10],fmt[11],\
 									fmt[12],fmt[13],fmt[14],fmt[15])
-
-
-
 #endif	// end of OUTPUT_LOG
 
 
@@ -216,7 +233,7 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define DEBUG_PRINT(fmt, args...)
 #define DEBUG_PRINT2(fmt, args...)
 #define _DEBUG_PRINT(fmt, args...)
-#define debug_out(fmt, args...)
+#define wsc_debug_out(fmt, args...)
 
 #define WSC_DEBUG(fmt, args...) 
 #define RX_DEBUG(fmt, args...) 
@@ -267,7 +284,6 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define REINIT_VIA_RELOAD_DAEMON
 #endif
 
-//#define VAP_WPS
 
 #ifdef DET_WPS_SPEC
 
@@ -299,15 +315,15 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 	//#ifdef MUL_PBC_DETECTTION
 		//#undef MUL_PBC_DETECTTION
 	//#endif
-	#ifdef CLIENT_MODE
-		#undef CLIENT_MODE
+	#ifdef WSC_CLIENT_MODE
+		#undef WSC_CLIENT_MODE
 	#endif		
 #endif
 
 /*============Customization====================*/
 
-//#define CLIENT_ONLY
-#ifdef CLIENT_ONLY
+//#define WSC_CLIENT_ONLY
+#ifdef WSC_CLIENT_ONLY
 //#undef SUPPORT_REGISTRAR
 //#undef BLOCKED_ROGUE_STA
 #undef SUPPORT_UPNP
@@ -338,11 +354,18 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef __ECOS
 #include <linux/if_packet.h>
+#endif
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
+#ifndef __ECOS
 #include <linux/wireless.h>
 #include <sys/sysinfo.h>
+#else
+#include <net/if.h>			/* for IFNAMSIZ and co... */
+#include <cyg/io/eth/rltk/819x/wrapper/wireless.h>
+#endif
 #ifdef USE_MUTEX
 	#include <pthread.h> 
 #endif
@@ -352,12 +375,16 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #include <openssl/dh.h>
 #include <openssl/rand.h>
 
+#ifndef __ECOS
 #include "built_time"
+#endif
 
 #ifdef SUPPORT_UPNP
 	#include "simplecfg_upnp.h"
 	#ifdef USE_MINI_UPNP
+	#ifndef __ECOS
 		#include <syslog.h>
+	#endif
 		#include "mini_upnp.h"
 		#include "upnphttp.h"
 		#include "upnpsoap.h"
@@ -405,11 +432,30 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #if defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196C_EC)
 #define SET_LED_ON_FOR_10S() { \
 	char tmpbuf[100]; \
-	wlioctl_set_led(pCtx->wlan_interface_name, LED_WSC_OK); \
+	wlioctl_set_led(LED_WSC_OK); \
 	sprintf(tmpbuf, "echo 1 > %s", LED_ON_10S_FILE); \
 	system(tmpbuf); \
 }
 #endif
+
+#ifdef FOR_DUAL_BAND
+#define GET_CURRENT_ADDRESS ((pCtx->InterFaceComeIn == COME_FROM_WLAN1)?pCtx->our_addr2:pCtx->our_addr)
+#else
+#define GET_CURRENT_ADDRESS (pCtx->our_addr)
+#endif
+
+#ifdef FOR_DUAL_BAND
+#define GET_CURRENT_INTERFACE ((pCtx->InterFaceComeIn == COME_FROM_WLAN1)?pCtx->wlan_interface_name2:pCtx->wlan_interface_name)
+#else
+#define GET_CURRENT_INTERFACE (pCtx->wlan_interface_name)
+#endif
+
+#ifdef FOR_DUAL_BAND
+#define GET_CURRENT_SOCKET ((pCtx->InterFaceComeIn == COME_FROM_WLAN1)?pCtx->socket2:pCtx->socket)
+#else
+#define GET_CURRENT_SOCKET (pCtx->socket)
+#endif
+
 
 /*================================================================*/
 /* Constant Definitions */
@@ -417,11 +463,19 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define PROGRAM_NAME				"wscd"
 
 #ifdef WPS2DOTX
-#define VERSION_STR					"v2.11-wps2.0"
+#define VERSION_STR					"v2.17-wps2.0"
 #else
-#define VERSION_STR					"v2.11-wps1.0"
+#define VERSION_STR					"v2.17-wps1.0"
 #endif
 
+#ifdef __ECOS
+#define DEFAULT_LAN_INTERFACE		("eth0")
+extern char wscd_config[];			// "/tmp/wscd_config"
+extern int wscd_status;			// "/tmp/wscd_status"
+extern int wps_start_interface0;	// "/var/wps_start_interface0"
+extern int wps_start_interface1;	// "/var/wps_start_interface1"
+extern int wps_done;			// "/var/wps_done"
+#else
 #define DEFAULT_CONFIG_FILENAME		("/var/"PROGRAM_NAME".conf")
 #define DEFAULT_PID_FILENAME		("/var/run/"PROGRAM_NAME)
 #ifdef CONFIG_IWPRIV_INTF
@@ -444,7 +498,6 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define WSCD_CANCEL_PROTOCOL		("/tmp/wscd_cancel")
 #define WSCD_LAST_SUCCESS_ENROLLEE	("/tmp/wscd_enrollee")	// 2011-0830 ; add for recored last success enrollee
 
-
 #define WSCD_IND_ONLY_INTERFACE0  ("/var/wps_start_interface0")
 #define WSCD_IND_ONLY_INTERFACE1  ("/var/wps_start_interface1")
 
@@ -455,7 +508,11 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #ifdef AUTO_LOCK_DOWN
 #define WSCD_LOCK_STAT		("/tmp/wscd_lock_stat")
 #endif
+#endif //__ECOS
+
+#ifndef _WPS_DEF_H_
 #define PIN_LEN						8
+#endif
 #define ETHER_ADDRLEN				6
 #define ETHER_HDRLEN				14
 #define TX_BUFFER_SIZE				1512
@@ -465,17 +522,18 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define UUID_LEN					16
 #define NONCE_LEN					16
 #define PUBLIC_KEY_LEN				192
+#ifndef _WPS_DEF_H_
 #define MAX_MANUFACT_LEN			64
 #define MAX_MODEL_NAME_LEN			32
 #define MAX_MODEL_NUM_LEN			32
 #define MAX_SERIAL_NUM_LEN			32
 #define MAX_DEVICE_NAME_LEN			32
-#define MAX_SSID_LEN				32
-
+#define WSC_MAX_SSID_LEN			32
+#define MAX_WEP_KEY_LEN				26
 #define MAX_NETWORK_KEY_LEN			64
+#endif
 #define MIN_NETWORK_KEY_LEN			8
 
-#define MAX_WEP_KEY_LEN			26
 #define OUI_LEN						4
 #define BYTE_LEN_64B				(64/8)
 #define BYTE_LEN_128B				(128/8)
@@ -512,9 +570,14 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define EAP_TYPE_IDENTITY			1
 #define EAP_TYPE_EXPANDED			254
 
+#ifdef __ECOS
+// force pCtx->rx_buffer + FIFO_HEADER_LEN to be 4-byte alignment
+#define FIFO_HEADER_LEN			8
+#else
 #define FIFO_HEADER_LEN				5
+#endif
 
-#define MAX_STA_NUM					10
+#define WSC_MAX_STA_NUM				10
 #define MAX_EXTERNAL_REGISTRAR_NUM	3
 #define MAX_BLOCKED_STA_NUM			10
 
@@ -695,6 +758,7 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define TAG_REQ_DEV_TYPE				0x106A	// Requested Device Type
 
 #define TAG_FOR_TEST_EXTEN				0x1090	// for test plan 4.2.8 Protocol extensibility
+#define TAG_FOR_BOTH_BAND_CRED			0x10FF	// for both band credential
 
 
 //======================================================================
@@ -731,6 +795,8 @@ extern void debug_out(unsigned char *label, unsigned char *data, int data_length
 #define SIOCGIWRTLJOINREQSTATUS		0x8B36	// get status of join request
 // for P2P P2P_SUPPORT
 #define SIOCP2P_WSC_REPORT_STATE	0x8BD7
+#define SIOCP2P_WSC_FAST_CONNECT	0x8BD9
+
 
 #define FIFO_MODE					(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 #if defined(CONFIG_RTL8196C_AP_HCM) || defined(INBAND_WPS_OVER_HOST)
@@ -872,8 +938,8 @@ typedef enum{
 	DOT11_EVENT_WSC_SET_MY_PIN = 102,		// for WPS2DOTX
 	DOT11_EVENT_WSC_SPEC_SSID = 103,
 	DOT11_EVENT_WSC_SPEC_MAC_IND = 104,
-	DOT11_EVENT_WSC_CHANGE_MODE = 105	
-
+	DOT11_EVENT_WSC_CHANGE_MODE = 105,	
+	DOT11_EVENT_WSC_RM_PBC_STA = 106
 } DOT11_EVENT;
 
 
@@ -885,6 +951,7 @@ typedef enum{
 enum { PROXY=0, ENROLLEE=1, REGISTRAR=2 };
 enum { METHOD_PIN=1, METHOD_PBC=2 };
 //	do modify  for wps2.x
+#ifndef _WPS_DEF_H_
 enum { 
 	CONFIG_METHOD_ETH=0x2, 
 	CONFIG_METHOD_PIN=0x4, 
@@ -896,6 +963,7 @@ enum {
 	CONFIG_METHOD_VIRTUAL_PIN=0x2008,
 	CONFIG_METHOD_PHYSICAL_PIN=0x4008
 };
+#endif
 
 #ifdef P2P_SUPPORT
 
@@ -924,6 +992,7 @@ enum {
 
 #endif
 
+#ifndef _WPS_DEF_H_
 enum { 
 		MODE_AP_UNCONFIG=1, 			// AP unconfigured (enrollee)
 		MODE_CLIENT_UNCONFIG=2, 		// client unconfigured (enrollee) 
@@ -932,8 +1001,13 @@ enum {
 		MODE_AP_PROXY_REGISTRAR=5,		// AP configured (proxy and registrar)
 		MODE_CLIENT_UNCONFIG_REGISTRAR=6		// client unconfigured (registrar)
 };
-enum { AUTH_OPEN=1, AUTH_WPAPSK=2, AUTH_SHARED=4, AUTH_WPA=8, AUTH_WPA2=0x10, AUTH_WPA2PSK=0x20, AUTH_WPA2PSKMIXED=0x22 };
-enum { ENCRYPT_NONE=1, ENCRYPT_WEP=2, ENCRYPT_TKIP=4, ENCRYPT_AES=8, ENCRYPT_TKIPAES=12 };
+#endif
+
+#ifndef _WPS_DEF_H_
+enum { WSC_AUTH_OPEN=1, WSC_AUTH_WPAPSK=2, WSC_AUTH_SHARED=4, WSC_AUTH_WPA=8, WSC_AUTH_WPA2=0x10, WSC_AUTH_WPA2PSK=0x20, WSC_AUTH_WPA2PSKMIXED=0x22 };
+enum { WSC_ENCRYPT_NONE=1, WSC_ENCRYPT_WEP=2, WSC_ENCRYPT_TKIP=4, WSC_ENCRYPT_AES=8, WSC_ENCRYPT_TKIPAES=12 };
+#endif
+
 enum { CONNECT_TYPE_BSS=1, CONNECT_TYPE_IBSS=2 };
 enum { 
 	EV_START, 
@@ -953,7 +1027,8 @@ enum {
     EV_CHANGE_MY_PIN,
     EV_SPEC_SSID,
     EV_SET_SPEC_CONNECT_MAC,
-	EV_CHANGE_MODE    
+	EV_CHANGE_MODE,
+	EV_RM_PBC_STA	
     
 };
 
@@ -961,7 +1036,9 @@ enum {
 enum { ASSOC_STATE_NOT_ASSOC, ASSOC_STATE_CONNECT_SUCCESS,
 		ASSOC_STATE_CONFIG_FAIL, ASSOC_STATE_ASSOC_FAIL, ASSOC_STATE_IP_FAIL};
 enum { CONFIG_STATE_UNCONFIGURED=1, CONFIG_STATE_CONFIGURED=2};
+#ifndef _WPS_DEF_H_
 enum { CONFIG_BY_INTERNAL_REGISTRAR=1, CONFIG_BY_EXTERNAL_REGISTRAR=2, MANUAL_SETTING_TO_ENROLLEE=3};
+#endif
 enum { ST_ENROLLE=0x80000000, ST_INT_REG=0x40000000, ST_EXT_REG=0x20000000 };
 
 enum { ST_IDLE, ST_WAIT_REQ_ID, ST_WAIT_RSP_ID, ST_WAIT_START, ST_WAIT_M1,
@@ -993,8 +1070,10 @@ enum {CONFIG_ERR_NO_ERR=0, CONFIG_ERR_OOB_INTERFACE_READ_ERR=1,
 		CONFIG_ERR_DEV_BUSY=14, CONFIG_ERR_SETUP_LOCKED=15,
 		CONFIG_ERR_MESSAGE_TIMEOUT=16, CONFIG_ERR_REG_SESSION_TIMEOUT=17,
 		CONFIG_ERR_DEV_PASS_AUTH_FAIL=18};
+#ifndef _WPS_DEF_H_
 enum { WEP_DISABLED=0, WEP64=1, WEP128=2 };
 enum { KEY_ASCII=0, KEY_HEX=1 };
+#endif
 
 #ifdef CONFIG_RTL865X_KLD
 enum { PROTOCOL_START=99, PROTOCOL_PBC_OVERLAPPING=11,
@@ -1019,6 +1098,7 @@ enum {  PROTOCOL_START=0	,
 //#elif defined(CONFIG_IWPRIV_INTF)
 */
 #else
+#ifndef _WPS_DEF_H_
 enum {  NOT_USED=-1, 
 		PROTOCOL_START=0, PROTOCOL_PBC_OVERLAPPING=1,
 		PROTOCOL_TIMEOUT=2, PROTOCOL_SUCCESS=3 ,
@@ -1039,13 +1119,14 @@ enum {  NOT_USED=-1,
 //enum { PROTOCOL_START=0, PROTOCOL_PBC_OVERLAPPING=1,
 //		PROTOCOL_TIMEOUT=2, PROTOCOL_SUCCESS=3 };
 #endif
+#endif
 
-
+#ifndef _WPS_DEF_H_
 #define WSC_WPA_TKIP		1
 #define WSC_WPA_AES			2
 #define WSC_WPA2_TKIP		4
 #define WSC_WPA2_AES		8
-
+#endif
 
 enum { wsc_mode, wsc_upnp, wsc_config_methods, wsc_auth_type, 
         wsc_encrypt, wsc_connection_type, wsc_manual, wsc_key,
@@ -1089,18 +1170,18 @@ struct wsc_parms_t {
 typedef struct _DOT11_WSC_ASSOC_IND{
         unsigned char   EventId;
         unsigned char   IsMoreEvent;
-        char            MACAddr[ETHER_ADDRLEN];
+        unsigned char   MACAddr[ETHER_ADDRLEN];
         unsigned short  AssocIELen;
-        char            AssocIE[PROBEIELEN];
-	  unsigned char wscIE_included;
+        unsigned char   AssocIE[PROBEIELEN];
+	 	unsigned char 	wscIE_included;
 }DOT11_WSC_ASSOC_IND;
 
 typedef struct _DOT11_PROBE_REQUEST_IND{
         unsigned char   EventId;
         unsigned char   IsMoreEvent;
-        char            MACAddr[6];
+        unsigned char   MACAddr[6];
         unsigned short  ProbeIELen;
-        char            ProbeIE[PROBEIELEN];
+        unsigned char   ProbeIE[PROBEIELEN];
 }DOT11_PROBE_REQUEST_IND;
 
 typedef struct _DOT11_EAP_PACKET{
@@ -1113,7 +1194,7 @@ typedef struct _DOT11_EAP_PACKET{
 typedef struct _DOT11_WSC_PIN_IND{
 	unsigned char	EventId;
 	unsigned char	IsMoreEvent;
-	unsigned char	code[256];
+	char	code[256];
 } DOT11_WSC_PIN_IND;
 typedef struct _DOT11_WSC_IND{
 	unsigned char EventId;
@@ -1165,10 +1246,12 @@ typedef struct _DOT11_DISCONNECT_REQ{
         char            MACAddr[ETHER_ADDRLEN];
 }DOT11_DISCONNECT_REQ;
 
-#ifdef CLIENT_MODE
+#ifdef WSC_CLIENT_MODE
 #define	WIFI_WPS		0x01000000
 
+#ifndef _WPS_DEF_H_
 typedef enum { BAND_11B=1, BAND_11G=2, BAND_11BG=3, BAND_11A=4, BAND_11N=8 } BAND_TYPE_T;
+#endif
 
 typedef enum _Capability {
     cESS 		= 0x01,
@@ -1212,7 +1295,7 @@ typedef struct _bss_info {
     unsigned char txRate;
     unsigned char bssid[6];
     unsigned char rssi, sq;	// RSSI  and signal strength
-    unsigned char ssid[MAX_SSID_LEN+1];
+    unsigned char ssid[WSC_MAX_SSID_LEN+1];
 } bss_info;
 
 
@@ -1242,21 +1325,12 @@ struct bss_desc {
 */
 typedef struct _BssDscr {
     unsigned char bdBssId[6];
-    unsigned char bdSsIdBuf[MAX_SSID_LEN];
+    char bdSsIdBuf[WSC_MAX_SSID_LEN];
     OCTET_STRING  bdSsId;
-
-#if defined(CONFIG_RTL8196C) || defined(CONFIG_RTL_819X) || defined(CONFIG_RTL8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+//Do not use define flag in this structure, it will cause mismatch with wlan driver!
 	unsigned char meshid[32]; 
 	unsigned char *meshidptr; // unused, for backward compatible 
 	unsigned short meshidlen; 	
-#else
-	// 96B need check 	CONFIG_RTK_MESH
-	#ifdef CONFIG_RTK_MESH 		
-	unsigned char meshid[32]; 
-	unsigned char *meshidptr; // unused, for backward compatible 
-	unsigned short meshidlen; 
-	#endif
-#endif
 
     BssType bdType;
     unsigned short bdBcnPer;			// beacon period in Time Units
@@ -1271,13 +1345,12 @@ typedef struct _BssDscr {
     unsigned char rssi, sq;			// RSSI and signal strength
     unsigned char network;			//BAND_11B=1, BAND_11G=2, BAND_11BG=3, BAND_11A=4, BAND_11N=8
 	/* P2P_SUPPORT */
-	
 	unsigned char	p2pdevname[33];		
 	unsigned char	p2prole;	
 	unsigned short	p2pwscconfig;		
-	unsigned char	p2paddress[MACADDRLEN];	    	
-	
-
+	unsigned char	p2paddress[MACADDRLEN];	 
+    /* multi-stage 2.3.0 */
+    unsigned char	stage;	    
     
 } BssDscr, *pBssDscr;
 
@@ -1287,9 +1360,17 @@ typedef struct _sitesurvey_status {
     BssDscr bssdb[MAX_BSS_DESC];
 } SS_STATUS_T, *SS_STATUS_Tp;
 
+#if 0   // replaced by following ; for sync with wlan driver
 struct wps_ie_info {
 	unsigned char rssi;
 	unsigned char data[MAX_WSC_IE_LEN];	
+};
+#endif
+struct wps_ie_info {
+	unsigned char rssi;
+    unsigned int wps_ie_len;
+	unsigned char data[MAX_WSC_IE_LEN];
+    char ssid[33];
 };
 
 typedef struct _sitesurvey_ie {
@@ -1298,7 +1379,7 @@ typedef struct _sitesurvey_ie {
     struct wps_ie_info ie[MAX_BSS_DESC];
 } SS_IE_T, *SS_IE_Tp;
 
-#endif // CLIENT_MODE
+#endif // WSC_CLIENT_MODE
 
 
 #define EAP_FRAMENT_LEN 1024
@@ -1376,12 +1457,11 @@ typedef struct sta_ctx
 	unsigned char blocked;
 #endif
 	unsigned char ap_role;
-#if defined(CLIENT_MODE) && defined(SUPPORT_REGISTRAR)
+#if defined(WSC_CLIENT_MODE) && defined(SUPPORT_REGISTRAR)
 	unsigned char config_state;
 #endif
 	unsigned char do_not_rescan;
 	unsigned char allow_reconnect_count;
-
 } STA_CTX, *STA_CTX_Tp;
 
 typedef struct pbc_node_context *pbc_node_ptr;
@@ -1397,7 +1477,7 @@ struct probe_node {
 	unsigned char used;
 	char ProbeIE[PROBEIELEN];
 	int ProbeIELen;
-	char ProbeMACAddr[6];
+	unsigned char ProbeMACAddr[6];
 	time_t time_stamp;
 	unsigned char sent;
 };
@@ -1409,7 +1489,6 @@ struct blocked_sta {
 	unsigned char addr[ETHER_ADDRLEN];
 };
 
-
 #ifdef CONNECT_PROXY_AP
 
 struct blocked_ap {
@@ -1420,9 +1499,19 @@ struct blocked_ap {
 
 #endif
 
-
 #pragma pack(push, 4)
-typedef struct context {
+typedef struct context 
+{
+#ifdef __ECOS
+	int kill_wsc_upnp;
+	cyg_flag_t wsc_upnp_flag;
+	cyg_handle_t *wsc_upnp_thread;
+#ifdef CONFIG_SDIO_HCI
+	wsc_flash_param_cb_func_t	*wsc_flash_param_cb_func;
+	wsc_event_cb_func_t	*wsc_event_cb_func;
+#endif
+#endif
+
 #ifdef BLOCKED_ROGUE_STA
 	unsigned char blocked_expired_time;
 	struct blocked_sta blocked_sta_list[MAX_BLOCKED_STA_NUM];
@@ -1437,8 +1526,10 @@ typedef struct context {
 	//int wlan_inter_num; // remove 20110328
 	int mode_switch;	
 #ifdef P2P_SUPPORT
-	int wsc_p2p_mode;	
+
 	int p2p_trigger_type;	
+	unsigned char p2p_peers_ssid[WSC_MAX_SSID_LEN+1];
+	unsigned char p2p_peers_psk[MAX_NETWORK_KEY_LEN+1];    
 #endif
 
 	int wlan0_wsc_disabled;/* FOR_DUAL_BAND  */
@@ -1448,8 +1539,11 @@ typedef struct context {
 	char wlan_interface_name2[40];
 	int InterFaceComeIn;
 	unsigned char our_addr2[ETHER_ADDRLEN];
+    unsigned char prefer_band; /*for used by dual band client mode: 0: 5G, 1: 2G*/
+#ifndef __ECOS
 	char fifo_name2[50];
-	char SSID2[MAX_SSID_LEN+1];
+#endif
+	char SSID2[WSC_MAX_SSID_LEN+1];
 	int auth_type2;			
 	int auth_type_flash2;	
 	int encrypt_type2;		
@@ -1459,14 +1553,16 @@ typedef struct context {
 	
 	unsigned char inter0only;
 	unsigned char inter1only;
+	unsigned char both_band_credential;    
 #endif	
 
-	int both_band_ap;
 	int button_hold_time_for_first_if;
 	
 	int socket;	
 	char wlan_interface_name[40];
+#ifndef __ECOS
 	char fifo_name[50];
+#endif
 	unsigned char our_addr[ETHER_ADDRLEN];
 	int STAmodeNegoWith;	
 	
@@ -1506,7 +1602,7 @@ typedef struct context {
 	int use_ie;
 	int config_state;
 	int config_method;
-	char SSID[MAX_SSID_LEN+1];	
+	char SSID[WSC_MAX_SSID_LEN+1];	
 
 	int auth_type;
 	int auth_type_flags;	
@@ -1562,18 +1658,23 @@ typedef struct context {
 #endif
 #endif
 
+#ifndef __ECOS
 #ifdef NO_IWCONTROL
 	int wl_chr_fd;
 #else
 	int	fifo;
-
+#endif
 #endif
 
-#ifdef CLIENT_MODE	
+#ifdef WSC_CLIENT_MODE	
 	int join_idx;
 	int connect_fail;
 	int connect_method;
+#ifdef __ECOS
+	time_t start_time;
+#else
 	unsigned long start_time;
+#endif
 	//int wait_assoc_ind;
 	int STAmodeSuccess;
 	SS_STATUS_T ss_status;
@@ -1581,10 +1682,16 @@ typedef struct context {
 	STA_CTX_Tp sta_to_clear;
 	/* support  Assigned MAC Addr, 2011-0505 */		 	
 	unsigned char SPEC_MAC[6];
-	unsigned char SPEC_SSID[33];	
-	/* support  Assigned SSID, 2011-0505 */		 		
-#endif
+	char SPEC_SSID[33];	
+	/* support  Assigned SSID, 2011-0505 */		
 
+#ifdef FOR_DUAL_BAND	
+    int join_band; /*the band of join_idx,  0:wlan0, 1:wlan1*/
+    SS_STATUS_T ss_status2;
+    SS_IE_T ss_ie2;
+#endif
+    
+#endif
 
 #ifdef MUL_PBC_DETECTTION
 	int SessionOverlapTimeout;
@@ -1596,12 +1703,10 @@ typedef struct context {
 	int WPS_PBC_overlapping_GPIO_number;
 #endif
 
-
 #ifdef PREVENT_PROBE_DEADLOCK
 	unsigned int probe_list_count;
 	struct probe_node probe_list[MAX_WSC_PROBE_STA];
 #endif
-
 		
 #ifdef TEST
 	int	test;
@@ -1612,12 +1717,12 @@ typedef struct context {
 	int debug2;
 	char cfg_filename[100];
 
-
-	
 	char pin_code[PIN_LEN+1];
 	char original_pin_code[PIN_LEN+1]; 
 	char peer_pin_code[PIN_LEN+1];
+#ifndef __ECOS
 	char pid_filename[100];
+#endif
 	unsigned char uuid[UUID_LEN];
 	char manufacturer[MAX_MANUFACT_LEN+1];
 	char model_name[MAX_MODEL_NAME_LEN+1];
@@ -1631,9 +1736,8 @@ typedef struct context {
 	char device_name[MAX_DEVICE_NAME_LEN+1];
 	unsigned char rx_buffer[RX_BUFFER_SIZE*2];
 
-
 	/*for support read ssid prefix from config file*/
-	char ssid_prefix[MAX_SSID_LEN+1] ; 
+	char ssid_prefix[WSC_MAX_SSID_LEN+1];
 	unsigned char network_key[MAX_NETWORK_KEY_LEN+1];
 	unsigned char wep_key2[MAX_NETWORK_KEY_LEN+1];
 	unsigned char wep_key3[MAX_NETWORK_KEY_LEN+1];
@@ -1650,22 +1754,38 @@ typedef struct context {
 	unsigned char wep_transmit_key2;
 	int network_key_len2;	
 #endif	
-
 	
 	unsigned char nonce_enrollee[NONCE_LEN];	
-	unsigned char assigned_ssid[MAX_SSID_LEN+1];
-	unsigned char assigned_network_key[MAX_NETWORK_KEY_LEN+1];
-	unsigned char assigned_wep_key_1[MAX_WEP_KEY_LEN+1];
-	unsigned char assigned_wep_key_2[MAX_WEP_KEY_LEN+1];
-	unsigned char assigned_wep_key_3[MAX_WEP_KEY_LEN+1];
-	unsigned char assigned_wep_key_4[MAX_WEP_KEY_LEN+1];
+	char assigned_ssid[WSC_MAX_SSID_LEN+1];
+	char assigned_network_key[MAX_NETWORK_KEY_LEN+1];
+	char assigned_wep_key_1[MAX_WEP_KEY_LEN+1];
+	char assigned_wep_key_2[MAX_WEP_KEY_LEN+1];
+	char assigned_wep_key_3[MAX_WEP_KEY_LEN+1];
+	char assigned_wep_key_4[MAX_WEP_KEY_LEN+1];
 	unsigned char assigned_wep_transmit_key;
 	unsigned char assigned_wep_key_len;
 	unsigned char assigned_wep_key_format;
-	STA_CTX *sta[MAX_STA_NUM];
+
+
+	int assigned_valid_2;	
+	int assigned_auth_type_2;
+	int assigned_encrypt_type_2;
+	char assigned_ssid_2[WSC_MAX_SSID_LEN+1];
+	char assigned_network_key_2[MAX_NETWORK_KEY_LEN+1];
+	char assigned_wep_key_1_2[MAX_WEP_KEY_LEN+1];
+	char assigned_wep_key_2_2[MAX_WEP_KEY_LEN+1];
+	char assigned_wep_key_3_2[MAX_WEP_KEY_LEN+1];
+	char assigned_wep_key_4_2[MAX_WEP_KEY_LEN+1];
+	unsigned char assigned_wep_transmit_key_2;
+	unsigned char assigned_wep_key_len_2;
+	unsigned char assigned_wep_key_format_2;
+	
+	STA_CTX *sta[WSC_MAX_STA_NUM];
 	//STA_comeFrom staComeFromList[MAX_STA_NUM];	
 	unsigned char registration_on; 
+#ifndef __ECOS
 	WSC_pthread_mutex_t RegMutex;
+#endif
 	STA_CTX_Tp sta_invoke_reg;
 	int disable_configured_by_exReg;
 	int WPS_START_LED_GPIO_number;
@@ -1673,26 +1793,23 @@ typedef struct context {
 	int WPS_END_LED_config_GPIO_number;
 	int No_ifname_for_flash_set;
 
-
 	int LedTimeout;
 	int WPS_ERROR_LED_time_out;
 	int WPS_ERROR_LED_GPIO_number;
 	int WPS_SUCCESS_LED_time_out;
 	int WPS_SUCCESS_LED_GPIO_number;
 
-
 	int daemon; 				// run as daemon
 	int disable_disconnect;		// disable disconnect after WPS is done
 	int disable_auto_gen_ssid; // disable auto generate SSID		
 	int manual_key_type; 		// auto generated encryption type, 0: disable, 1: WPA-TKIP, 2: WPA2-AES, 3: both	
-	unsigned char manual_key[MAX_NETWORK_KEY_LEN+1];
+	char manual_key[MAX_NETWORK_KEY_LEN+1];
 	int disable_hidden_ap;
 	int button_hold_time;
 	
 #ifdef	AUTO_LOCK_DOWN
 	/*at auto_lock_down time PIN will be disabled 
 	that is mean "don't accept configurated from external registrar"*/
-	
 
 	int auto_lock_down ; 
 
@@ -1704,9 +1821,9 @@ typedef struct context {
 	time_t ald_timestamp[AUTH_FAIL_TIMES];//ald_authfail_timestamp
 	int ald_h;	// head
 	int ald_t;	// tail
-	
 #endif	
 #endif
+
 #if defined(DET_WPS_SPEC) || defined(CONFIG_IWPRIV_INTF) 
 
 	int current_config_mode;
@@ -1731,15 +1848,14 @@ typedef struct context {
 	unsigned char waitReScanMode;	
 #endif
 	unsigned char ProfileDontBothApply;
-#ifdef CLIENT_MODE	
+#ifdef WSC_CLIENT_MODE
 	/*for correctly handle multi-credentials,test plan 5.1.1 ;2012-03-09*/
-	unsigned char negoApSSID[33];
+	char negoApSSID[33];
 	unsigned char negoAPConfigStat;
 #endif
 } CTX_T, *CTX_Tp;
 
 #pragma pack(pop)
-
 
 #if defined(SUPPORT_UPNP) && !defined(USE_MINI_UPNP)
 typedef struct _IPCon {
@@ -1752,7 +1868,15 @@ typedef struct _IPCon *IPCon;
 
 /*================================================================*/
 // Macro definitions
+#ifdef __ECOS
+#define DISABLE_HIDDEN_AP(pCtx, tmpbuf) { \
+	RunSystemCmd(NULL_FILE, "iwpriv", pCtx->wlan_interface_name, "set_mib", "wsc_enable=4", NULL_STR); \
+}
 
+#define RESTORE_HIDDEN_AP(pCtx, tmpbuf) { \
+	RunSystemCmd(NULL_FILE, "iwpriv", pCtx->wlan_interface_name, "set_mib", "wsc_enable=5", NULL_STR); \
+}
+#else
 #ifdef INBAND_WPS_OVER_HOST
 #define DISABLE_HIDDEN_AP(pCtx, tmpbuf) { \
         	sprintf(tmpbuf,"iwpriv %s set_mib wsc_enable=4", pCtx->wlan_interface_name); \
@@ -1773,7 +1897,7 @@ typedef struct _IPCon *IPCon;
 	system(tmpbuf); \
 }
 #endif	//INBAND_WPS_OVER_HOST
-
+#endif  //__ECOS
 
 /*================================================================*/
 
@@ -1784,12 +1908,12 @@ extern int init_wlan(CTX_Tp pCtx, int reinit);
 #ifdef AUTO_LOCK_DOWN
 extern void InOut_auto_lock_down(CTX_Tp pCtx , int enter);
 #endif
-#ifdef CLIENT_MODE
+#ifdef WSC_CLIENT_MODE
 extern int issue_scan_req(CTX_Tp pCtx, int method);
 #endif
 #ifdef FULL_SECURITY_CLONE
 
-extern void APConfigStateChk(CTX_Tp pCtx , int i3);
+extern void APConfigStateChk(CTX_Tp pCtx);
 extern void waitingClonedAP(CTX_Tp pCtx);
 #endif
 
@@ -1848,6 +1972,10 @@ extern unsigned char WSC_VENDOR_V2[6];
 extern unsigned char WSC_VENDOR_V57[6] ;
 extern unsigned char EXT_ATTRI_TEST[6] ;
 
+#ifdef __ECOS
+extern int interface_down(const char *intf);
+extern int interface_up(const char *intf);
+#endif
 
 extern void registrar_remove_authorized_mac(CTX_Tp pCtx,const unsigned char *addr);
 extern void registrar_remove_all_authorized_mac(CTX_Tp pCtx);
@@ -1863,22 +1991,25 @@ extern void func_off_wlan_acl(CTX_Tp pCtx, unsigned char *interfacename);
 extern CTX_Tp pGlobalCtx;
 extern int wlioctl_get_mib(	char *interfacename , char* mibname ,int *result );
 #ifdef DEBUG
-void debug_out(unsigned char *label, unsigned char *data, int data_length);
+void wsc_debug_out(char *label, unsigned char *data, int data_length);
 #endif
 extern void convert_bin_to_str(unsigned char *bin, int len, char *out);
 extern unsigned char *add_tlv(unsigned char *data, unsigned short id, int len, void *val);
 extern unsigned char *append(unsigned char *src, unsigned char *data, int data_len);
-extern int wlioctl_set_led(char *interface, int flag);
-extern int wlioctl_set_wsc_ie(char *interface, char *data, int len, int id, int flag);
-extern int wlioctl_get_button_state(char *interface, int *pState);
+extern int wlioctl_set_led(int flag);
+extern int __wlioctl_set_wsc_ie(char *interface, unsigned char *data, int len, int id, int flag);
+extern int wlioctl_set_wsc_ie(unsigned char *data, int len, int id, int flag);
+extern int wlioctl_get_button_state(int *pState);
 extern int derive_key(CTX_Tp pCtx, STA_CTX_Tp pSta);
 extern void write_param_to_tmpfile(char *msg);
 extern int write_param_to_flash(CTX_Tp pCtx, int is_local);
 extern int write_param_to_flash2(CTX_Tp pCtx, int is_local); // 1001
+extern int write_param_to_flash_both_band(CTX_Tp pCtx, int is_local, int cred_idx, int intface);
 extern void signal_webs(int condition);
-extern int get_hidden_mib(CTX_Tp pCtx , unsigned char *interfacename);
-extern void func_off_wlan_tx(CTX_Tp pCtx , unsigned char *interfacename);
-extern void func_on_wlan_tx(CTX_Tp pCtx , unsigned char *interfacename);
+extern int get_hidden_mib(CTX_Tp pCtx , char *interfacename);
+extern int get_both_band_cred_mib(CTX_Tp pCtx , char *interfacename);
+extern void func_off_wlan_tx(CTX_Tp pCtx , char *interfacename);
+extern void func_on_wlan_tx(CTX_Tp pCtx , char *interfacename);
 
 extern int validate_pin_code(unsigned long code);
 extern DH *generate_dh_parameters(int prime_len, unsigned char *data, int generator);
@@ -1903,14 +2034,15 @@ extern int build_probe_rsp_ie(CTX_Tp pCtx, unsigned char selected, unsigned shor
 extern int build_assoc_response_ie(CTX_Tp pCtx, unsigned char *data);
 extern int build_provisioning_service_ie(unsigned char *data);
 extern unsigned char *search_tag(unsigned char *data, unsigned short id, int len, int *out_len);
-extern int IssueDisconnect(char *interface, unsigned char *pucMacAddr, unsigned short reason);
+extern int IssueDisconnect(unsigned char *pucMacAddr, unsigned short reason);
+#ifdef P2P_SUPPORT
+extern int wlioctl_report_ssid_psk(char *interface, char* SSID_in, char* psk_in);
+#endif
 
-#ifdef CLIENT_MODE
+#ifdef WSC_CLIENT_MODE
 extern int wlioctl_scan_reqest(char *interface, int *pStatus);
 extern int wlioctl_scan_result(char *interface, SS_STATUS_Tp pStatus);
-extern int build_probe_request_ie(CTX_Tp pCtx, unsigned short passid, 
-				unsigned char *data);
-extern int build_assoc_request_ie(CTX_Tp pCtx, unsigned char *data);
+extern void update_ie_client(CTX_Tp pCtx, unsigned short passid);
 extern int getWlJoinRequest(char *interface, pBssDscr pBss, unsigned char *res);
 extern int getWlJoinResult(char *interface, unsigned char *res);
 #endif
@@ -1932,7 +2064,7 @@ extern void clear_SetSelectedRegistrar_flag(CTX_Tp pCtx);
 extern int check_wep_key_format(unsigned char *msg, int msg_len, unsigned char *key_format, unsigned char *key_len, unsigned char *msg_out, int *msg_out_len);
 #ifdef MUL_PBC_DETECTTION
 extern void search_active_pbc_sta(CTX_Tp pCtx, unsigned char *addr, unsigned char *uuid);
-extern void remove_active_pbc_sta(CTX_Tp pCtx, STA_CTX_Tp pSta, unsigned char mode);
+extern void remove_active_pbc_sta(CTX_Tp pCtx, unsigned char* staAddr, unsigned char mode);
 extern void SwitchSessionOverlap_LED_On(CTX_Tp pCtx);
 #endif // MUL_PBC_DETECTTION
 #ifdef BLOCKED_ROGUE_STA
@@ -1969,9 +2101,7 @@ extern unsigned char StringbufferOut[80];
 //extern unsigned char cmdstring[80];
 #endif
 
-
 extern void show_auth_encry_help(void);
-
 
 #endif // INCLUDE_WSC_H
 

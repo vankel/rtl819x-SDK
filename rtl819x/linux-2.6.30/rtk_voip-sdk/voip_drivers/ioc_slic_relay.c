@@ -10,6 +10,8 @@ static const uint32 relay_gpio_id[] = {
 	PIN_RELAY1, 
 #elif defined (CONFIG_RTK_VOIP_GPIO_8672_VQD01)
 	PIN_RELAY,
+#elif defined (CONFIG_RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD)
+	PIN_RELAY,
 #endif
 };
 

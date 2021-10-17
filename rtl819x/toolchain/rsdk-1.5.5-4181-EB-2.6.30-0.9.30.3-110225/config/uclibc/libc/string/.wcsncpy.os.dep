@@ -1,0 +1,83 @@
+libc/string/wcsncpy.os: libc/string/wcsncpy.c include/libc-symbols.h \
+ include/bits/uClibc_arch_features.h libc/string/strncpy.c \
+ libc/string/_string.h include/features.h include/bits/uClibc_config.h \
+ include/sys/cdefs.h include/libc-internal.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h \
+ include/bits/stackinfo.h include/string.h include/limits.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed/limits.h \
+ include/bits/posix1_lim.h include/bits/local_lim.h \
+ ../kernel/linux/limits.h include/bits/uClibc_local_lim.h \
+ include/bits/posix2_lim.h include/bits/xopen_lim.h \
+ include/bits/stdio_lim.h include/stdint.h include/bits/wchar.h \
+ include/bits/wordsize.h include/wchar.h include/stdio.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h \
+ include/wctype.h include/bits/types.h include/bits/kernel_types.h \
+ include/bits/typesizes.h include/bits/pthreadtypes.h \
+ include/bits/sched.h include/bits/uClibc_uwchar.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+libc/string/strncpy.c:
+
+libc/string/_string.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/sys/cdefs.h:
+
+include/libc-internal.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h:
+
+include/bits/stackinfo.h:
+
+include/string.h:
+
+include/limits.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed/limits.h:
+
+include/bits/posix1_lim.h:
+
+include/bits/local_lim.h:
+
+../kernel/linux/limits.h:
+
+include/bits/uClibc_local_lim.h:
+
+include/bits/posix2_lim.h:
+
+include/bits/xopen_lim.h:
+
+include/bits/stdio_lim.h:
+
+include/stdint.h:
+
+include/bits/wchar.h:
+
+include/bits/wordsize.h:
+
+include/wchar.h:
+
+include/stdio.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h:
+
+include/wctype.h:
+
+include/bits/types.h:
+
+include/bits/kernel_types.h:
+
+include/bits/typesizes.h:
+
+include/bits/pthreadtypes.h:
+
+include/bits/sched.h:
+
+include/bits/uClibc_uwchar.h:
+cmd_libc_string_wcsncpy.os := mips-linux-gcc -c libc/string/wcsncpy.c -o libc/string/wcsncpy.os -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -fPIC -MT libc/string/wcsncpy.os -MD -MP -MF libc/string/.wcsncpy.os.dep

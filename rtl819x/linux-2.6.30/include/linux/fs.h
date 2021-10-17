@@ -642,8 +642,14 @@ struct block_device {
 	struct mutex		bd_mutex;	/* open/close mutex */
 	struct semaphore	bd_mount_sem;
 	struct list_head	bd_inodes;
+#ifdef CONFIG_KERNEL_POLLING
+	void *			bd_claiming;
+#endif
 	void *			bd_holder;
 	int			bd_holders;
+#ifdef CONFIG_KERNEL_POLLING
+	bool			bd_write_holder;
+#endif
 #ifdef CONFIG_SYSFS
 	struct list_head	bd_holder_list;
 #endif

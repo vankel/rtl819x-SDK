@@ -90,9 +90,7 @@ if [ "$CFG_MODE" = "1" ] || [ "$CFG_MODE" = "2" ] || [ "$CFG_MODE" = "3" ]; then
 				init.sh gw all
 			fi
 			# import ok, restart webs & solar
-			killall webs
-			webs &
-			solar &
+			killall solar
 		fi
 
 		echo "=> auto config info: completed"

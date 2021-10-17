@@ -105,6 +105,12 @@ int rtk_read_ecc_page (unsigned long flash_address, unsigned char *image_addr,
 unsigned int image_size);
 int rtk_write_ecc_page (unsigned long flash_address, unsigned char *image_addr,
 unsigned int image_size);
+int CmdNANDBadBlockDetect(int argc, char* argv[]);
+int CmdNAND_PIO_SINGLE_PAGE_READ(int argc, char* argv[]);
+#endif
+#if defined(SUPPORT_TFTP_CLIENT)
+int CmdTFTPC(int argc, char* argv[]);
+int check_tftp_client_state();
 #endif
 
 
@@ -280,9 +286,14 @@ COMMAND_TABLE	MainCmdTable[] =
     { "NANDBE",3, CmdNANDBE, "NANDBE:<Block start cnt><Block end cnt>"},
     { "NANDR",3, CmdNANDR, "NANDR:<flash_Paddress><image_addr><image_size>"},
     { "NANDW",3, CmdNANDW, "NANDW:<flash_Paddress><image_addr><image_size>"},
+    { "NANDBBD",3, CmdNANDBadBlockDetect, "NANDBBD:<block_test_start_cnt><dram_src_address><block_test_end_cnt>"},
+    { "NANDPIOR",2,  CmdNAND_PIO_SINGLE_PAGE_READ, "NANDPIOR:<flash_Paddress><enable_page_content><report_bad_block>"},
 #ifdef WRAPPER
 	  {"NWB", 1, CmdNWB, "NWB <NWB cnt#> (<0>=1st_chip,<1>=2nd_chip): NAND Flash WriteBack "},	
 #endif	
+#endif
+#if defined(SUPPORT_TFTP_CLIENT)
+    {"TFTP", 2, CmdTFTPC, "tftp <memoryaddress> <filename>  "},
 #endif
 
 
@@ -397,7 +408,7 @@ __delay(unsigned long loops)
 */
 
 //---------------------------------------------------------------------------
-static unsigned long loops_per_jiffy = (1<<12);
+unsigned long loops_per_jiffy = (1<<12);
 #define LPS_PREC 8
 #define HZ 100
 #ifdef RTL8198
@@ -462,6 +473,14 @@ int check_cpu_speed(void)
 ;				Monitor
 ---------------------------------------------------------------------------
 */
+#ifdef CONFIG_NEW_CONSOLE_SUPPORT
+extern void monitor_real(unsigned int table_count);
+void monitor(void)
+{
+    unsigned int table_count = (sizeof(MainCmdTable) / sizeof(COMMAND_TABLE));
+	monitor_real(table_count);
+}
+#else
 extern char** GetArgv(const char* string);
 
 void monitor(void)
@@ -503,6 +522,7 @@ void monitor(void)
 		if(i==sizeof(MainCmdTable) / sizeof(COMMAND_TABLE)) printf("Unknown command !\r\n");
 	}
 }
+#endif
 
 
 //---------------------------------------------------------------------------------------
@@ -589,6 +609,72 @@ int CmdNWB(int argc, char* argv[])
     }
 }
 #endif
+#endif
+
+#if defined(SUPPORT_TFTP_CLIENT)
+unsigned int tftp_from_command = 0;
+char tftpfilename[128];
+char errmsg[512];
+unsigned short errcode = 0;
+unsigned int tftp_client_recvdone = 0;
+extern int retry_cnt;
+extern int jump_to_test;
+extern volatile unsigned int last_sent_time;
+int CmdTFTPC(int argc, char* argv[])
+{
+    if(argc != 2)
+	{
+		dprintf("[usage:] tftp <memroyaddress> <filename>\n");
+		tftpd_entry(0);
+		return 0;
+	}
+	unsigned int  address=strtoul((const char*)(argv[0]), (char **)NULL, 16);
+	unsigned int len = 0;
+	image_address = address;
+	memset(tftpfilename,0,128);
+	len = strlen(tftpfilename);
+	if(len+1 > 128)
+	{
+		dprintf("filename too long\n");
+		return 0;
+	}
+	memset(errmsg,0,512);
+	errcode = 0;
+    jump_to_test = 0;
+    retry_cnt = 0;
+    last_sent_time = 0;
+	tftp_client_recvdone = 0;
+	strcpy(tftpfilename,(char*)(argv[1]));
+	tftpd_entry(1);
+	int tickStart = 0;
+	int ret = 0;
+
+	tftp_from_command = 1;
+	tickStart=get_timer_jiffies();
+	do 
+    {
+		ret=pollingDownModeKeyword(ESC);
+		if(ret == 1) break;
+	}
+	while (
+    (!tftp_client_recvdone)&&
+    (check_tftp_client_state() >= 0
+	||(get_timer_jiffies() - tickStart) < 2000)//20s
+	);
+
+	if(!tftp_client_recvdone)
+	{
+        if(ret == 1)
+            dprintf("canceled by user ESC\n");
+        else
+            dprintf("TFTP timeout\n");
+	}
+	tftpd_entry(0);
+	retry_cnt = 0;
+	tftp_from_command = 0;
+	tftp_client_recvdone = 0;
+	return 0;
+}
 #endif
 /*/
 ---------------------------------------------------------------------------
@@ -2268,6 +2354,74 @@ static int CmdSetLpbk(int argc, char* argv[])
 }
 #endif
 
+#ifdef CONFIG_NAND_FLASH
+
+int  CmdNANDBadBlockDetect(int argc, char* argv[])
+{
+	 if(argc < 2 )
+    {
+        prom_printf("Parameters not enough!\n");
+        return 1;
+    }
+
+    //unsigned long flash_address= strtoul((const char*)(argv[0]), (char **)NULL, 16);
+    //unsigned char *image_addr = strtoul((const char*)(argv[1]), (char **)NULL, 16);
+    //unsigned int image_size= strtoul((const char*)(argv[2]), (char **)NULL, 16);
+
+   unsigned int block_start_cnt= strtoul((const char*)(argv[0]), (char **)NULL, 16);
+
+   unsigned int block_end_cnt= strtoul((const char*)(argv[1]), (char **)NULL, 16);
+
+    prom_printf("NAND flash bad block detect from block:0x%X to block:0x%X ?\n",block_start_cnt,block_end_cnt);
+    prom_printf("(Y)es, (N)o->");
+   if (YesOrNo())
+    {
+        isBadBlock(block_start_cnt,block_end_cnt);     
+    }
+    else
+    {
+        prom_printf("Abort!\n");
+    }
+
+}
+
+int CmdNAND_PIO_SINGLE_PAGE_READ(int argc, char* argv[])
+{
+   if(argc< 3)
+   {	 		
+		prom_printf("ex:NANDPIOR:<flash_Paddress><enable_page_content>\r\n");
+		prom_printf("<flash_Paddress>:NAND Flash's physical address\r\n");
+		prom_printf("<enable_page_content>:<1:show page content><0:show nothing>\r\n");
+		prom_printf("<report_bad_block>:<1:report bad block><0:report nothing>\r\n");
+		
+	    
+		return;	
+   }  
+
+
+    unsigned int flash_Paddress_start= strtoul((const char*)(argv[0]), (char **)NULL, 16);
+    unsigned int enable_page_content= strtoul((const char*)(argv[1]), (char **)NULL, 16);
+    unsigned int report_bad_block= strtoul((const char*)(argv[2]), (char **)NULL, 16);
+ 
+    //unsigned int length= strtoul((const char*)(argv[1]), (char **)NULL, 16); 
+
+
+    prom_printf("NAND flash PIO read from flash_Paddress 0x%X \n",flash_Paddress_start);
+   // prom_printf("(Y)es, (N)o->");
+//   if (YesOrNo())
+   //{                
+   //NAND_Erase_Block_times=block_end_num-block_start_num;
+#if (defined(CONFIG_NAND_Flash_Small_Page_32MB_3cycles) || defined(CONFIG_NAND_Flash_Small_Page_64MB_4cycles))
+       rtk_PIO_read_page (flash_Paddress_start,enable_page_content,report_bad_block);   //JSW 1block= 32(0x20) pages
+#else
+       rtk_PIO_read_page (flash_Paddress_start,enable_page_content,report_bad_block);   //JSW 1block= 64(0x40) pages
+#endif   
+//   }
+
+              
+}
+
+#endif  /*  */
 
 
 //=====================================================================

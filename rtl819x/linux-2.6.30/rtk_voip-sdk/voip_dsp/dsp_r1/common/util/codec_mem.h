@@ -44,6 +44,18 @@
 #define DMEM_SIZE	0x01000
 #endif
 
+#ifdef CONFIG_RTK_VOIP_PLATFORM_8686
+#if defined( CONFIG_RTK_VOIP_SOC_8686_CPU0 )
+#define IMEM_SIZE	0x04000	// 16k + 16k 
+#define DMEM_SIZE	0x04000	// 16k + 16k 
+#elif defined( CONFIG_RTK_VOIP_SOC_8686_CPU1 )
+#define IMEM_SIZE	0x08000	// 32k
+//#define DMEM_SIZE	0x01000	// only use 4k (ok)
+#define DMEM_SIZE	0x02000	// only use 8k (ok, but cycle almost equal to 4k)
+//#define DMEM_SIZE	0x04000	// 16k (not implement) 
+#endif
+#endif
+
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxD
 #define IMEM_SIZE	0x01000
 #define DMEM_SIZE	0x01000
@@ -90,12 +102,15 @@ extern unsigned long __g726_dmem_start;
 /* gsm-fr dmem */
 extern const unsigned long __gsmfr_dmem_start;
 
+/* amr-wb dmem */
+extern const unsigned long __amrwb_dmem_start;
+
 /* lec dmem */
 extern unsigned long __lec_dmem_start;
 
 extern int set_codec_mem(int type, int state, int g726_rate);
 extern void set_DMEM(unsigned long start, unsigned long size);
-extern void set_IMEM(unsigned long start, unsigned long size);
+extern void set_IMEM(unsigned long start, unsigned long end);
 
 extern void set_and_fill_IMEM(unsigned long start, unsigned long end);
 
@@ -162,19 +177,21 @@ extern unsigned long gsmfr_dmem_sp;
 #define ILBC_DUMMY_SSIZE 1024
 #if DMEM_SIZE == 0x2000 // use 8K DMEM ok.
 #define ILBC_DMEM_SSIZE 1024
-#define ILBCENC_SSIZE (1024-64)
-#define ILBCDEC_SSIZE (1024-64)
 #else // if codec can be interrupted, DMEM section must be at odd page. e.g. 0xXXX1000, 0xXXX3000
 #define ILBC_DMEM_SSIZE 1000
-#define ILBCENC_SSIZE 1000-64
-#define ILBCDEC_SSIZE 1000-64
 #endif
+
+#define ILBCENC_SSIZE	(ILBC_DMEM_SSIZE - 64)
+#define ILBCDEC_SSIZE	(ILBC_DMEM_SSIZE - 64)
+
 //extern unsigned long iLBC_dmem_stack[ILBC_DMEM_SSIZE];
 extern unsigned long iLBC_orig_sp;
 extern unsigned long iLBC_dmem_sp;
-extern unsigned long codec_dmem_area[DMEM_SIZE/4] ;
+//extern unsigned long codec_dmem_area[DMEM_SIZE/4] ;
+extern unsigned long codec_dmem_area[] ;
 extern unsigned long __codec_dmem_start;
 extern unsigned long __codec_dmem_4k_start;
+extern unsigned long codec_dmem_start_sel;
 
 /* lec stack size */
 #define LEC_DUMMY_SSIZE 1948//1984
@@ -184,6 +201,31 @@ extern unsigned long __codec_dmem_4k_start;
 /* G711WB */
 #define G711WB_DMEM_SSIZE 480	/* the size need 2 word align, or 8btye align */
 extern int16_t* g711wb_TmpVct;
+
+/* g.722 stack size */
+//#define G722_DMEM_SSIZE 	(256)	// 192 words for autocorrlation, 200*2 words
+#define G722_DMEM_SSIZE 	(768)	// reserved 3KB for stack, 1KB for temp buffer
+extern unsigned long g722_orig_sp;
+extern unsigned long g722_dmem_sp;
+#define G722ENC_SSIZE	(G722_DMEM_SSIZE - 96)  // (176)
+#define G722DEC_SSIZE	(G722_DMEM_SSIZE - 96)  //(176)
+extern int16_t* g722_TmpVct;
+
+/* AMR-WB stack size */
+#if DMEM_SIZE == 0x2000 // use 8K DMEM ok. 4K for Stack + 4K for variables
+#define AMR_WB_DMEM_SSIZE 64
+#define AMR_WB_ENC_SSIZE (64-64)
+#define AMR_WB_DEC_SSIZE (64-64)
+#else // if codec can be interrupted, DMEM section must be at odd page. e.g. 0xXXX1000, 0xXXX3000
+// Almost 4K DMEM for stack used
+#define AMR_WB_DMEM_SSIZE 1023
+#define AMR_WB_ENC_SSIZE (1024-64) /* (1024-64)*4 bytes */
+#define AMR_WB_DEC_SSIZE (1024-64) /* (1024-64)*4 bytes */
+#endif
+extern int16_t* amrwb_TmpVct;
+extern unsigned long amrwb_orig_sp;
+extern unsigned long amrwb_dmem_sp;
+
 
 extern unsigned long lec_dmem_stack[LEC_DMEM_SSIZE];
 extern unsigned long lec_orig_sp;

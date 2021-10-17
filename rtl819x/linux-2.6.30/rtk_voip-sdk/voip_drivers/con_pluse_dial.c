@@ -530,7 +530,8 @@ void DAA_PulseGenKill(unsigned int chid)
 
 #ifdef CONFIG_RTK_VOIP_PULSE_DIAL_GEN_TIMER
 #if defined (CONFIG_RTK_VOIP_DRIVERS_PCM865xC) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
+//#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
 static irqreturn_t timer1_interrupt(int32 irq, void *dev_instance)
 #else
 static void timer1_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
@@ -548,7 +549,7 @@ static void timer1_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs
 	        DAA_PulseGenProcess_msec();
    	}
    	
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
 	return IRQ_HANDLED;
 #endif
 }

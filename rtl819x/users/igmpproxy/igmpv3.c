@@ -546,6 +546,8 @@ void handle_igmpv3_isex( __u32 group, __u32 src, int srcnum, __u32 *grec_src )
 				mymcp->filter_mode = MCAST_EXCLUDE;
 				igmp_set_srcfilter( mymcp );
 			}
+		
+			printf("handle_igmpv3_isex: MCAST_INCLUDE success.\n\n");
 			break;
 		case MCAST_EXCLUDE:
 			{
@@ -592,7 +594,7 @@ void handle_igmpv3_isex( __u32 group, __u32 src, int srcnum, __u32 *grec_src )
 				//Group Timer=GMI
 				mymcp->timer.lefttime = MEMBER_QUERY_INTERVAL;
 				mymcp->timer.retry_left = MEMBER_QUERY_COUNT;
-				//printf("grp_addr:%s.mymcp->timer.lefttime=%d,mymcp->timer.retry_left=%d,[%s]:[%d].\n",inet_ntoa(group),mymcp->timer.lefttime,mymcp->timer.retry_left,__FUNCTION__,__LINE__);
+
 				//set the new state
 				mymcp->filter_mode = MCAST_EXCLUDE;
 				igmp_set_srcfilter( mymcp );
@@ -1205,9 +1207,7 @@ void handle_igmpv3_block( __u32 group, __u32 src, int srcnum, __u32 *grec_src )
 						{
 							s->timer.lefttime = mymcp->timer.lefttime;
 							s->timer.retry_left = MEMBER_QUERY_COUNT;
-							
-						  	igmp_add_mr( mymcp->grp_addr, s->srcaddr, 1 );
-							
+							igmp_add_mr( mymcp->grp_addr, s->srcaddr, 1 );
 						}
 					}
 				}
@@ -1246,6 +1246,9 @@ void handle_igmpv3_block( __u32 group, __u32 src, int srcnum, __u32 *grec_src )
 		}
 	}
 }
+#if defined (CONFIG_QUERIER_SELECTION)
+extern int querierSelectionResult;
+#endif
 
 int igmpv3_query( struct mcft_entry *entry, int srcnum, __u32 *srcfilter )
 {
@@ -1257,6 +1260,13 @@ int igmpv3_query( struct mcft_entry *entry, int srcnum, __u32 *srcfilter )
 	
 	if(dp==NULL)
 		return;
+#if defined (CONFIG_QUERIER_SELECTION)
+	if(querierSelectionResult==QUERIER_IS_OTHER)
+	{
+		return 0;
+	}
+#endif
+
     if(entry) grp=entry->grp_addr;
     	
     igmpv3            = (struct igmpv3_query *)send_buf;
@@ -1609,6 +1619,10 @@ int igmpv3_accept(int recvlen, struct IfDesc *dp)
 	switch (igmp->type) {
 		case IGMP_HOST_MEMBERSHIP_QUERY:
 			/* Linux Kernel will process local member query, it wont reach here */
+			
+			#if defined (CONFIG_QUERIER_SELECTION)
+				querierSelection(dp->Name,ip,igmp);
+			#endif
 			break;
 	
 		case IGMP_HOST_MEMBERSHIP_REPORT:
@@ -1652,7 +1666,7 @@ int igmpv3_accept(int recvlen, struct IfDesc *dp)
 			igmpv3 = (struct igmpv3_report *)igmp;
 			//printf( "recv IGMP_HOST_V3_MEMBERSHIP_REPORT\n" );
 			//printf( "igmpv3->type:0x%x\n", igmpv3->type );
-			//printf( "igmpv3->ngrec:0x%x\n\n", ntohs(igmpv3->ngrec) );
+			//printf( "igmpv3->ngrec:0x%x\n", ntohs(igmpv3->ngrec) );
 		
 			rec_id=0;
 			igmpv3grec =  &igmpv3->grec[0];
@@ -1666,6 +1680,9 @@ int igmpv3_accept(int recvlen, struct IfDesc *dp)
 			
 				group = igmpv3grec->grec_mca;
 				srcnum = ntohs(igmpv3grec->grec_nsrcs);
+				
+				if(group == ALL_PRINTER)	/* It's MS-Windows UPNP all printers notify */
+					goto nextgrec;
 				
 				switch( igmpv3grec->grec_type )
 				{
@@ -1697,7 +1714,8 @@ int igmpv3_accept(int recvlen, struct IfDesc *dp)
 					IGMPV3LOG("%s> Unknown Group Record Types [%x]\n", __FUNCTION__, igmpv3grec->grec_type );
 					break;
 				}
-			
+				
+			nextgrec:
 				rec_id++;
 				//printf( "count next: 0x%x %d %d %d %d\n", igmpv3grec, sizeof( struct igmpv3_grec ), igmpv3grec->grec_auxwords, ntohs(igmpv3grec->grec_nsrcs), sizeof( __u32 ) );
 				igmpv3grec = (struct igmpv3_grec *)( (char*)igmpv3grec + sizeof( struct igmpv3_grec ) + (igmpv3grec->grec_auxwords+ntohs(igmpv3grec->grec_nsrcs))*sizeof( __u32 ) );

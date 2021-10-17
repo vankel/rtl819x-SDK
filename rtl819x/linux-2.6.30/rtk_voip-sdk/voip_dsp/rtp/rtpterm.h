@@ -22,7 +22,8 @@ typedef struct CRtpConfig_T
 	//uint32 m_nRtpLocalPort;					// the RTP port of local host. Get from TSP
 	//uint32 m_nRtcpRemotePort;					// the RTCP port of remote host. Get from TSP
 	//uint32 m_nRtcpLocalPort;					// the RTCP port of local host. Get from TSP
-	RtpPayloadType m_uPktFormat;			// the frame type. Get from TSP
+	RtpPayloadType m_uRecvPktFormat;			// the receiving frame type. Get from TSP
+	RtpPayloadType m_uTranPktFormat;			// the transmitting frame type. Get from TSP
 	int m_nRecvFrameRate;					// the receiving rate of RTP frame. Get from TSP
 	int m_nTranFrameRate;					// the transmitting rate of RTP frame. Get from TSP
 	RtpSessionState m_uTRMode;			// sending or receiving mode

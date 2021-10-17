@@ -104,6 +104,7 @@ static void cleanup_cflist __P((struct cf_list *));
 %token INTERFACE IFNAME
 %token PREFIX_INTERFACE SLA_ID SLA_LEN DUID_ID
 %token ID_ASSOC IA_PD IAID IA_NA
+%token T1 T2 SUGGEST_T
 %token ADDRESS
 %token REQUEST SEND ALLOW PREFERENCE
 %token HOST HOSTNAME DUID
@@ -139,6 +140,7 @@ static void cleanup_cflist __P((struct cf_list *));
 %type <list> address_list address_list_ent dhcpoption_list
 %type <list> iapdconf_list iapdconf prefix_interface
 %type <list> ianaconf_list ianaconf
+%type <list> suggest_t iats iat
 %type <list> authparam_list authparam
 %type <list> keyparam_list keyparam
 %type <prefix> addressparam prefixparam
@@ -984,13 +986,62 @@ iapdconf_list:
 	;
 
 iapdconf:
-		prefix_interface { $$ = $1; }
+		suggest_t { $$ = $1; } 
+	|	prefix_interface { $$ = $1; }
 	|	PREFIX prefixparam EOS
 		{
 			struct cf_list *l;
 
 			MAKE_CFLIST(l, IACONF_PREFIX, $2, NULL);
 
+			$$ = l;
+		}
+	;
+
+suggest_t:
+	SUGGEST_T BCL iats ECL EOS
+	{
+		struct cf_list *ifl;
+
+		MAKE_CFLIST(ifl, IASUGGEST_T, NULL, $3);
+		$$ = ifl;
+	}
+	;
+
+iats:
+		{ $$ = NULL; }
+	|	iats iat
+		{
+			struct cf_list *head;
+
+			if ((head = $1) == NULL) {
+				$2->next = NULL;
+				$2->tail = $2;
+				head = $2;
+			} else {
+				head->tail->next = $2;
+				head->tail = $2->tail;
+			}
+
+			$$ = head;
+		}
+	;
+
+iat:
+		T1 NUMBER EOS
+		{
+			struct cf_list *l;
+
+			MAKE_CFLIST(l, IAPARAM_T1, NULL, NULL);
+			l->num = $2;
+			$$ = l;
+		}
+	|	T2 NUMBER EOS
+		{
+			struct cf_list *l;
+
+			MAKE_CFLIST(l, IAPARAM_T2, NULL, NULL);
+			l->num = $2;
 			$$ = l;
 		}
 	;
@@ -1063,7 +1114,8 @@ ianaconf_list:
 	;
 
 ianaconf:
-	 	ADDRESS addressparam EOS
+		suggest_t { $$ = $1; } 
+	 |	ADDRESS addressparam EOS
 		{
 			struct cf_list *l;
 

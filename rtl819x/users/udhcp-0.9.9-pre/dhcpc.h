@@ -37,6 +37,9 @@ struct client_config_t {
 	int Inform;
 	int broadcast_flag;
 #endif
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	unsigned char max_msg_size[4];
+#endif
 };
 
 extern struct client_config_t client_config;

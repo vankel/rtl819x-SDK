@@ -1,0 +1,14 @@
+prefix=/home/sen_liu/branch/branch-rtl819x-sdk-v3.4/users/minidlna/tmp
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: libswscale
+Description: FFmpeg image rescaling library
+Version: 0.7.1
+Requires: libavcodec = 52.20.1
+Requires.private: 
+Conflicts:
+Libs:
+Libs.private: 
+Cflags: -I${includedir}

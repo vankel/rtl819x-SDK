@@ -42,7 +42,7 @@ void lib1x_bauthsm_init( Bauth_SM * bauth_sm, int maxReq, int aWhile )
 {
 	assert( bauth_sm != NULL );
 
-        bauth_sm->state = basm_Initialize;
+	bauth_sm->state = basm_Initialize;
 	bauth_sm->reqCount = 0;
 	bauth_sm->rxResp = FALSE;
 	bauth_sm->aSuccess = FALSE;
@@ -226,7 +226,6 @@ void lib1x_exec_bauthsm_request( Auth_Pae * auth_pae, Global_Params * global, Ba
 	lib1x_bauthsm_txReq( global, global->currentId ); // TODO
 	global->timers->aWhile = bauth_sm->suppTimeout;
 	bauth_sm->reqCount ++;
-
 }
 
 

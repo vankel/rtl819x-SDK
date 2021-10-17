@@ -194,6 +194,33 @@ struct l2tp_ext_hdr
 	__u16 protocol;
 };
 
+#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
+struct Rus_l2tp_ext_hdr
+{
+	//udp header
+	__u16 source;
+	__u16 dest;
+	__u16 len;
+	__u16 checksum;
+
+	//l2tp header
+	__u16 type;
+	__u16 tid;
+	__u16 cid;
+	
+	//ppp header
+	__u16 addr_control;
+	__u16 protocol;
+
+	// Lcp reply header
+	unsigned char code;
+	unsigned char id;
+	__u16 lcp_length;
+	unsigned int imagicNumber;
+	unsigned int message;
+};
+#endif
+
 struct avp_info
 {
 	__u16 length;
@@ -367,7 +394,12 @@ void unregister_customRspStr(void);
 	extern int __init fast_l2tp_init(void);
 	extern void __exit fast_l2tp_exit(void);
 	extern int fast_l2tp_to_wan(void *skb);
-	extern void fast_l2tp_rx(void *skb);
+	
+//#ifdef CONFIG_SUPPORT_RUSSIA_FEATURES
+	extern int fast_l2tp_rx(void *skb);
+//#else
+//	extern void fast_l2tp_rx(void *skb);
+//#endif
 	extern void l2tp_tx_id(void *skb);
 	extern int fast_l2tp_fw;
 #endif
@@ -392,9 +424,9 @@ void unregister_customRspStr(void);
 #define	NAPT_TABLE_ENTRY_MAX	4096
 #define	PATH_TABLE_LIST_MAX	4096
 #else
-#define	NAPT_TABLE_LIST_MAX	1024
-#define	NAPT_TABLE_ENTRY_MAX	1024
-#define	PATH_TABLE_LIST_MAX	1024
+#define	NAPT_TABLE_LIST_MAX	768		
+#define	NAPT_TABLE_ENTRY_MAX	768	
+#define	PATH_TABLE_LIST_MAX		768
 #endif
 #endif
 
@@ -894,12 +926,12 @@ void rtl_skb_set_transport_header(struct sk_buff * skb,const int offset);
 void rtl_skb_reset_transport_header(struct sk_buff *skb);
 void rtl_set_skb_transport_header(struct sk_buff * skb, unsigned char *transport_header);
 
-
 unsigned int rtl_get_skb_pppoe_flag(struct sk_buff * skb);
 void rtl_set_skb_pppoe_flag(struct sk_buff * skb,unsigned int pppoe_flag);
 
 unsigned char *rtl_skb_pull(struct sk_buff *skb, unsigned int len);
 unsigned char *rtl_skb_push(struct sk_buff *skb, unsigned int len);
+
 
 int rtl_ppp_proto_check(struct sk_buff *skb, unsigned char* ppp_proto);
 unsigned int rtl_ipt_do_table(struct sk_buff * skb, unsigned int hook, void *in, void *out);
@@ -908,12 +940,15 @@ int rtl_skb_dst_check(struct sk_buff *skb);
 void rtl_set_skb_ip_summed(struct sk_buff *skb, int value);
 void rtl_dst_release(struct sk_buff *skb);
 
+
+
 __u32 rtl_get_skb_mark(struct sk_buff *skb);
 void rtl_set_skb_mark(struct sk_buff *skb, unsigned int value);
 void rtl_store_skb_dst(struct sk_buff *skb);
 void rtl_set_skb_dst(struct sk_buff *skb);
 int rtl_tcp_get_timeouts(void *ptr);
 int rtl_arp_req_get_ha(__be32 queryIP, void *device, unsigned char * resHwAddr);
+
 
 
 u_int8_t rtl_get_ct_protonum(void *ct_ptr, enum ip_conntrack_dir dir);

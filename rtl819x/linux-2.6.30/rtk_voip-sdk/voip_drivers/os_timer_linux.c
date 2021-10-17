@@ -1,4 +1,5 @@
 #include <linux/timer.h>
+#include <linux/jiffies.h>
 #include "os_timer_core.h"
 
 #if ( 1000 % HZ ) != 0 

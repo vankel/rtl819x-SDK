@@ -281,6 +281,9 @@ void call_close (struct call *c)
 		system("disconnect.sh option_l2tp");
 //---------------------
 
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+		system("script_check_l2tp_status.sh > /dev/null 2>&1");
+#endif
             return;
         }
 
@@ -331,6 +334,9 @@ void call_close (struct call *c)
              c->container->tid,
              IPADDY (c->container->peer.sin_addr),
              ntohs (c->container->peer.sin_port), c->errormsg);
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	system("script_check_l2tp_status.sh > /dev/null 2>&1");
+#endif
     }
     else
     {
@@ -357,6 +363,9 @@ void call_close (struct call *c)
 		lac_disconnect (c->container);
 		system("disconnect.sh option_l2tp");
 //--------------------
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	system("script_check_l2tp_status.sh > /dev/null 2>&1");
+#endif
 
             return;
         }
@@ -408,7 +417,9 @@ void call_close (struct call *c)
 	destroy_call (c);
 	system("disconnect.sh option_l2tp");
 //----------------------------	
-
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	system("script_check_l2tp_status.sh > /dev/null 2>&1");
+#endif		
 		
     }
     /*

@@ -58,12 +58,13 @@ char *help_message =
 "\tclone\t\t<bridge> <ptFr> <ptTo>\tturn MAC clone on\n"
 #endif
 #ifdef GUEST_ZONE
-"\tsetzone\t\t<bridge> <device> <val>\tset zone type (0: host, 1: guest) for interface\n"
+"\tsetzone\t\t<bridge> <device> <val>\tset zone type (0: host, 1: guest, 2: gateway) for interface\n"
 "\tsetzoneisolate\t<bridge> <value>\tset zone isolation (0: no, 1: yes)\n"
 "\tsetguestisolate\t<bridge> <value>\tset guest isolation (0: no, 1: yes)\n"
 "\tchkguestmac\t<bridge> <verb> <mac>\tcheck if mac addrs of client is come from guest zone\n"
 "\tsetlockclient\t<bridge> <mac>\t\tset mac addrs of locked client list\n"
 "\tshowguestinfo\t<bridge>\t\tshow zone and locked client info\n"
+"\tsetgatewaymac\t<bridge> <mac>\t\tset mac addr of gateway\n"
 #endif
 ;
 

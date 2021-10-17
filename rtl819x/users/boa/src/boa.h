@@ -194,9 +194,12 @@ void clean_pathname(char *pathname);
 char *get_commonlog_time(void);
 void rfc822_time_buf(char *buf, time_t s);
 char *simple_itoa(unsigned int i);
+#if defined(ENABLE_LFS)
+char * simple_off64Toa(off64_t i);
+#endif
 
 #if defined(ENABLE_LFS)
-off_t boa_atoi(const char *s);
+off64_t boa_atoi(const char *s);
 #else
 int boa_atoi(const char *s);
 #endif
@@ -259,5 +262,4 @@ void range_pool_empty(void);
 void range_pool_push(Range * r);
 int ranges_fixup(request * req);
 int range_parse(request * req, const char *str);
-void print_64(char* name,void* data);
 #endif

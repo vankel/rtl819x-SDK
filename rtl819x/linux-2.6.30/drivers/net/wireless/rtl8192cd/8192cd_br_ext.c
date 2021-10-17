@@ -19,11 +19,13 @@
 #include <linux/atalk.h>
 #include <linux/udp.h>
 #include <linux/if_pppox.h>
+typedef struct udphdr udphdr;
 #elif defined(__ECOS)
 //#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
 #include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
 #include <cyg/io/eth/rltk/819x/wrapper/timer.h>
 #include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
+typedef struct udp_hdr udphdr;
 #endif
 
 #include "./8192cd_cfg.h"
@@ -66,6 +68,33 @@
 #define MAGIC_CODE		0x8186
 #define MAGIC_CODE_LEN	2
 #define WAIT_TIME_PPPOE	5	// waiting time for pppoe server in sec
+
+
+
+static const unsigned short nat25_filter_ethtype[] = {
+    0x0800, /*IPv4*/
+    0x0806, /*ARP*/
+    0x8137, /*IPX*/
+    0x86DD, /*IPv6*/
+    0x8863, /*PPPoE discovery stage*/
+    0x8864, /*PPPoE session stage*/
+};
+
+static const unsigned char nat25_filter_ipproto[] = {
+    0x01, /*ICMP*/
+    0x02, /*IGMP*/
+    0x04, /*IP*/
+    0x06, /*TCP*/ 
+    0x11, /*UDP (17)*/
+    0x29, /*IPv6 (41)*/
+    0x2C, /*IPv6-Frag (44)*/
+    0x2F, /*GRE (47)*/
+    0x32, /*ESP (50)*/
+    0x3A, /*IPv6-ICMP (58)*/ 
+    0x73, /* L2TP (115)*/ 
+    
+};
+
 
 #ifdef __ECOS
 #ifdef CL_IPV6_PASS
@@ -657,7 +686,7 @@ static void __nat25_db_network_insert(struct rtl8192cd_priv *priv,
 }
 
 
-
+#ifdef  CONFIG_RTL_ULINKER	
 int __nat25_db_query(struct rtl8192cd_priv *priv , unsigned char* MacAddr)
 {
 
@@ -665,10 +694,11 @@ int __nat25_db_query(struct rtl8192cd_priv *priv , unsigned char* MacAddr)
 	int i, j , retVal;
 	struct nat25_network_db_entry *db;
 	retVal=0;
-	
+
 	counter++;
-	if((counter % 16) != 0)
+	if((counter <16))
 		return 0;
+
 
 	for(i=0, j=0; i<NAT25_HASH_SIZE; i++)
 	{
@@ -685,6 +715,7 @@ int __nat25_db_query(struct rtl8192cd_priv *priv , unsigned char* MacAddr)
 
 	return 0;
 }
+#endif
 
 static void __nat25_db_print(struct rtl8192cd_priv *priv)
 {
@@ -894,11 +925,16 @@ static int checkIPMcAndReplace(struct rtl8192cd_priv *priv, struct sk_buff *skb,
 {
 	struct stat_info	*pstat;
 	struct list_head	*phead, *plist;
-	int i;
+	int i, result = 0;
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
 
 	phead = &priv->asoc_list;
-	plist = phead->next;
 
+	SMP_LOCK_ASOC_LIST(flags);
+
+	plist = phead->next;
 	while (plist != phead) {
 		pstat = list_entry(plist, struct stat_info, asoc_list);
 		plist = plist->next;
@@ -909,14 +945,35 @@ static int checkIPMcAndReplace(struct rtl8192cd_priv *priv, struct sk_buff *skb,
 		for (i=0; i<MAX_IP_MC_ENTRY; i++) {
 			if (pstat->ipmc[i].used && !memcmp(&pstat->ipmc[i].mcmac[3], ((unsigned char *)dst_ip)+1, 3)) {
 				memcpy(skb->data, pstat->ipmc[i].mcmac, ETH_ALEN);
-				return 1;
+				result = 1;
+				goto exit;
 			}
 		}
 	}
-	return 0;
+
+exit:
+	SMP_UNLOCK_ASOC_LIST(flags);
+
+	return result;
 }
 #endif
 
+#ifdef MULTI_MAC_CLONE
+// return 0: not replaced
+//        1: dst mac replaced
+int mclone_checkMacAndReplace(struct rtl8192cd_priv *priv, struct sk_buff *skb)
+{
+	unsigned char *da=skb->data;
+	int id = mclone_find_address(priv, da, NULL, MAC_CLONE_NOCARE_FIND);
+
+	if (id > 0) {
+		memcpy(skb->data, priv->pshare->mclone_sta[id-1].sa_addr, ETH_ALEN);
+		return 1;
+	}
+
+	return 0;
+}
+#endif
 
 int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method)
 {
@@ -952,7 +1009,10 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 		switch(method)
 		{
 			case NAT25_CHECK:
-				return -1;
+				if (IS_MCAST(skb->data))
+					return 0;
+				else
+					return -1;
 
 			case NAT25_INSERT:
 				{
@@ -972,6 +1032,11 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 				{
 					DEBUG_INFO("NAT25: Lookup IP, SA=%08x, DA=%08x\n", iph->saddr, iph->daddr);
 #ifdef SUPPORT_TX_MCAST2UNI
+#ifdef MULTI_MAC_CLONE
+					if (mclone_checkMacAndReplace(priv, skb))
+						;
+					else
+#endif
 					if (priv->pshare->rf_ft_var.mc2u_disable ||
 							((((OPMODE & (WIFI_STATION_STATE|WIFI_ASOC_STATE))
 							   == (WIFI_STATION_STATE|WIFI_ASOC_STATE)) &&
@@ -1004,8 +1069,10 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 							}
 						}
 					}
+#ifdef MULTI_MAC_CLONE
+					mclone_dhcp_caddr(priv, skb);
+#endif
 					dhcp_dst_bcast(priv, skb);
-
 				}
 				return 0;
 
@@ -1497,7 +1564,7 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 #else
 						pMagic = (unsigned short *)tag->tag_data;
 #endif
-						if (ntohs(*pMagic) != MAGIC_CODE) {
+						if (*pMagic != htons(MAGIC_CODE)) {
 							DEBUG_ERR("Can't find MAGIC_CODE in %s packet!\n",
 									(ph->code == PADO_CODE ? "PADO" : "PADS"));
 							return -1;
@@ -1630,9 +1697,10 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 		switch(method)
 		{
 			case NAT25_CHECK:
-				if (skb->data[0] & 1)
+				if (IS_MCAST(skb->data))
 					return 0;
-				return -1;
+				else
+					return -1;
 
 			case NAT25_INSERT:
 				{
@@ -1669,11 +1737,12 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 							if (update_nd_link_layer_addr(skb->data + ETH_HLEN + sizeof(*iph),
 										skb->len - ETH_HLEN - sizeof(*iph), GET_MY_HWADDR)) {
 								struct icmp6hdr  *hdr = (struct icmp6hdr *)(skb->data + ETH_HLEN + sizeof(*iph));
+								int len = ntohs(iph->payload_len);
 								hdr->icmp6_cksum = 0;
 								hdr->icmp6_cksum = csum_ipv6_magic(&iph->saddr, &iph->daddr,
-										iph->payload_len,
+										len,
 										IPPROTO_ICMPV6,
-										csum_partial((__u8 *)hdr, iph->payload_len, 0));
+										csum_partial((__u8 *)hdr, len, 0));
 							}
 #endif
 						}
@@ -1717,7 +1786,10 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 		switch(method)
 		{
 			case NAT25_CHECK:
-				return -1;
+				if (IS_MCAST(skb->data))
+					return 0;
+				else
+					return -1;
 
 			case NAT25_INSERT:
 				if (memcmp(skb->data+ETH_ALEN, GET_MY_HWADDR, ETH_ALEN) &&
@@ -1752,6 +1824,11 @@ int nat25_db_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb, int method
 
 int nat25_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 {
+#ifdef NOT_RTK_BSP
+	/* not check EAPOL key because it is not inserted into DB */
+	if ( (*((unsigned short *)(skb->data+ETH_ALEN*2)) == __constant_htons(0x888e)) )
+		return 0;
+#endif
 #ifdef BR_EXT_DEBUG
 	if((!priv->pmib->ethBrExtInfo.nat25_disable) && (!(skb->data[0] & 1)))
 	{
@@ -1784,7 +1861,11 @@ int nat25_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 			skb_pull(skb, 4);
 		}
 
-		if (!priv->pmib->ethBrExtInfo.nat25_disable)
+		if (!priv->pmib->ethBrExtInfo.nat25_disable
+#ifdef MULTI_MAC_CLONE
+			&& ((ACTIVE_ID == 0) || (ACTIVE_ID > 0 && priv->pshare->mclone_sta[ACTIVE_ID-1].usedStaAddrId != 0xff))
+#endif
+			)
 		{
 			/*
 			 *	This function look up the destination network address from
@@ -1795,6 +1876,9 @@ int nat25_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 					(*((unsigned short *)(skb->data+ETH_ALEN*2)) == __constant_htons(ETH_P_IP)) &&
 					!memcmp(priv->scdb_ip, skb->data+ETH_HLEN+16, 4)) {
 				memcpy(skb->data, priv->scdb_mac, ETH_ALEN);
+#ifdef MULTI_MAC_CLONE
+				mclone_dhcp_caddr(priv, skb);
+#endif
 			}
 			else
 				retval = nat25_db_handle(priv, skb, NAT25_LOOKUP);
@@ -1822,6 +1906,11 @@ int nat25_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 			return -1;
 		}
 	}
+#ifdef MULTI_MAC_CLONE
+	else if ((skb!=NULL) && (skb->data[0]==0xff) 
+		&& (*((unsigned short *)(skb->data+ETH_ALEN*2))==__constant_htons(ETH_P_IP)))
+			mclone_dhcp_caddr(priv, skb);
+#endif
 
 	return 0;
 }
@@ -1843,31 +1932,258 @@ void mac_clone(struct rtl8192cd_priv *priv, unsigned char *addr)
 #endif
 }
 
+#ifdef MULTI_MAC_CLONE
+unsigned char mclone_find_staFixedAddr(struct rtl8192cd_priv *priv)
+{
+	unsigned char i;
+
+	for (i=0; i<MCLONE_NUM; i++) {
+		if (priv->pshare->mclone_sta_fixed_addr[i].used == 0) 
+			return i;						
+	}
+	return 0xff;
+}
+
+unsigned char FindWiFiSta(struct rtl8192cd_priv *inPriv, unsigned char *addr)
+{
+    struct rtl8192cd_priv *priv;
+    struct list_head	*phead, *plist;
+    struct stat_info	*pstat;
+    unsigned char idx=0;
+    
+    if (inPriv ==NULL){
+        return 0;   
+    }
+    
+    priv = GET_ROOT(inPriv);
+    
+    phead = &priv->asoc_list;
+	plist = phead->next;
+	
+	for (idx=0; idx<=RTL8192CD_NUM_VWLAN; idx++) {
+	    while( ( (((GET_MIB(priv))->dot11OperationEntry.opmode) & WIFI_AP_STATE) == WIFI_AP_STATE ) && (plist != phead))
+	    {
+		    pstat = list_entry(plist, struct stat_info, asoc_list);
+		    plist = plist->next;
+            if (pstat && (!memcmp(addr, pstat->hwaddr, ETH_ALEN)) ){
+                return 1;
+            }
+        }
+#ifdef MBSSID
+        priv = GET_VAP_PRIV(GET_ROOT(priv), idx);
+        phead = &priv->asoc_list;
+	    plist = phead->next;
+#else
+        break;
+#endif
+	}
+	
+    return 0;    
+}
+
+int mclone_find_unused_id(struct rtl8192cd_priv *priv)
+{
+    int i=0;
+    for (i=0; i<MAX_MAC_CLONE_NUM; i++) {
+		if (priv->pshare->mclone_sta[i].priv == NULL) 
+			return i+1;
+	}
+	return -1;
+}
+
+//direction-- SA:1, DA:2, donotcare:0
+int mclone_find_address(struct rtl8192cd_priv *priv, unsigned char *addr, struct sk_buff *pskb, unsigned char direction)
+{
+	int i;
+
+	if (direction == MAC_CLONE_SA_FIND){
+	    if ((pskb == NULL) || 
+            #ifdef __ECOS
+            (pskb && *(unsigned int *)&(pskb->cb[8]) == 0x86518190)
+            #else
+            (pskb && *(unsigned int *)&(pskb->cb[40]) == 0x86518192)
+            #endif
+            ) {
+			// from wifi, src MAC A1 -> A1'
+		    // compare with mclone_sta[].sa_addr
+			for (i=0; i<MAX_MAC_CLONE_NUM; i++) {
+				if ((priv->pshare->mclone_sta[i].priv) && priv->pshare->mclone_sta[i].usedStaAddrId!=0xff
+				        && (!memcmp(addr, priv->pshare->mclone_sta[i].sa_addr, ETH_ALEN))) {
+					return i+1;						
+				}
+			}
+		}else{
+			// from ethernet, src MAC A1 -> A1
+			// compare with mclone_sta[].hwaddr
+			// printk("it does not come from wifi%02x%02x%02x%02x%02x%02x\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+		}
+	}else if (direction == MAC_CLONE_MSA_FIND && pskb){
+		for (i=0; i<MAX_MAC_CLONE_NUM; i++) {
+			if (priv->pshare->mclone_sta[i].usedStaAddrId!=0xff && 
+				!memcmp(addr, priv->pshare->mclone_sta[i].hwaddr, ETH_ALEN)) 
+				return i+1;						
+		}
+	}else if (direction == MAC_CLONE_DA_FIND && pskb){
+	}
+
+	if (!memcmp(addr, priv->pmib->dot11OperationEntry.hwaddr, ETH_ALEN)) 
+		return 0;
+
+	for (i=0; i<MAX_MAC_CLONE_NUM; i++) {
+		if ( (priv->pshare->mclone_sta[i].priv) && (!memcmp(addr, priv->pshare->mclone_sta[i].hwaddr, ETH_ALEN)) ) 
+			return i+1;						
+	}
+	
+	return -1;
+}
+#endif
 
 int mac_clone_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 {
+	struct stat_info	*pstat=NULL;	
 	if(priv->pmib->ethBrExtInfo.macclone_enable && !priv->macclone_completed)
 	{
 		if(!(skb->data[ETH_ALEN] & 1))	//// check any other particular MAC add
 		{
+#ifdef MULTI_MAC_CLONE
+        #ifdef __ECOS
+            struct net_device* eth0_dev=rtl_getDevByName("eth0");
+            memcpy(priv->br_mac,eth0_dev->dev_addr,6); 
+            STADEBUG("macclone_completed =1 \n\n");
+            priv->macclone_completed = 1;
+	    #else
+	       #ifdef __KERNEL__
+			struct net_bridge_port *br_port = GET_BR_PORT(priv->dev);
+
+			if (br_port) {
+				memcpy(priv->br_mac, br_port->br->dev->dev_addr, MACADDRLEN);
+				STADEBUG("br mac=[%02X%02X%02X:%02X%02X%02X]\n",
+				priv->br_mac[0],priv->br_mac[1],priv->br_mac[2],priv->br_mac[3],priv->br_mac[4],priv->br_mac[5]);
+			}
+			STADEBUG("macclone_completed =1 \n\n");
+			priv->macclone_completed = 1;
+	      #endif
+       #endif
+#else // !MULTI_MAC_CLONE		
+			pstat = get_stainfo(priv, skb->data+ETH_ALEN);
 			if(memcmp(skb->data+ETH_ALEN, GET_MY_HWADDR, ETH_ALEN) && (
-#ifdef __KERNEL__
-				(priv->dev->br_port) &&
-#endif
-				 memcmp(skb->data+ETH_ALEN, priv->br_mac, ETH_ALEN)))
+                #ifdef __KERNEL__
+				GET_BR_PORT(priv->dev) &&
+                #endif
+				 memcmp(skb->data+ETH_ALEN, priv->br_mac, ETH_ALEN) && 
+				 (pstat==NULL)))
 			{
-#ifdef __KERNEL__
+                #ifdef __KERNEL__
+                #ifdef  CONFIG_RTL_ULINKER
 				if(__nat25_db_query(priv , priv->br_mac))
-#endif
+                #endif                    
+                #endif
 				{
 					//found nat25 entry of br0
 					mac_clone(priv, skb->data+ETH_ALEN);
 					priv->macclone_completed = 1;
 				}
 			}
+#endif // MULTI_MAC_CLONE
 		}
 	}
 
+#ifdef MULTI_MAC_CLONE
+	if (ACTIVE_ID == 0 && priv->pmib->ethBrExtInfo.macclone_enable) 
+	{
+		int id;
+		struct net_bridge_port *br_port;
+
+#ifdef NETDEV_NO_PRIV
+		priv = ((struct rtl8192cd_priv *)netdev_priv(skb->dev))->wlan_priv;
+#else
+		priv = (struct rtl8192cd_priv *)skb->dev->priv;
+#endif
+		if (!memcmp(&skb->data[ETH_ALEN], GET_MY_HWADDR, ETH_ALEN))
+			return 0;			
+
+		if ((skb->data[ETH_ALEN] & 1) || !memcmp(&skb->data[ETH_ALEN], NULL_MAC_ADDR, ETH_ALEN))
+			return 0;
+		
+		#ifndef __ECOS
+		br_port = GET_BR_PORT(priv->dev);
+		#endif
+		//from br but not br mac
+		if (
+            #ifdef __ECOS
+             (((Rltk819x_t *)(skb->dev->info))->sc->sc_arpcom.ac_if.if_bridge) && 
+            #else
+             br_port && 
+            #endif
+            memcmp(skb->data+ETH_ALEN, priv->br_mac, ETH_ALEN))  
+		{
+			if (MCLONE_NUM >= MAX_MAC_CLONE_NUM)
+				return 1;
+
+			if ((*(unsigned short *)(skb->data+ETH_ALEN*2)) == 0x0008)
+				return 1; // skip this packet
+
+			id = mclone_find_unused_id(priv);
+			
+			if (id == -1)
+			    return 1;
+			
+			if (((skb->data+ETH_ALEN)[0] & BIT1) && (priv->pmib->ethBrExtInfo.macclone_method == 1)){
+				return 1;
+			}
+			MCLONE_NUM++;
+
+            if (
+                #ifdef __ECOS
+                *(unsigned int *)&(skb->cb[8]) == 0x86518190 
+                #else
+                *(unsigned int *)&(skb->cb[40]) == 0x86518192
+                #endif
+                )
+            { //from wifi AP
+			    unsigned char usedID=0xff;
+			    
+				memcpy(priv->pshare->mclone_sta[id-1].sa_addr, skb->data+ETH_ALEN, ETH_ALEN);//wifi sta addr
+
+				usedID = mclone_find_staFixedAddr(priv);//should always have free entry
+				if (usedID == 0xff){
+				    panic_printk("clone mac -- should always have value for wifi sta addr, err!!!!\n");
+				} else {
+				    panic_printk("clone mac -- wifi sta addr useID: %d \n", usedID);
+				    priv->pshare->mclone_sta_fixed_addr[usedID].used  =1;
+				}
+				if (priv->pmib->ethBrExtInfo.macclone_method == 1){
+					memcpy(priv->pshare->mclone_sta_fixed_addr[usedID].clone_addr,skb->data+ETH_ALEN, ETH_ALEN);//wifi sta addr
+					priv->pshare->mclone_sta_fixed_addr[usedID].clone_addr[0] = priv->pshare->mclone_sta_fixed_addr[usedID].clone_addr[0] | BIT1;					
+					memcpy(priv->pshare->mclone_sta[id-1].hwaddr, priv->pshare->mclone_sta_fixed_addr[usedID].clone_addr, ETH_ALEN);//wifi sta addr
+				}else
+				memcpy(priv->pshare->mclone_sta[id-1].hwaddr, priv->pshare->mclone_sta_fixed_addr[usedID].clone_addr, ETH_ALEN);//wifi sta addr
+				priv->pshare->mclone_sta[id-1].usedStaAddrId = usedID;
+				//memcpy(skb->data+ETH_ALEN, priv->pshare->mclone_sta[id-1].hwaddr, MACADDRLEN);//replace the src mac
+			} else {
+				memcpy(priv->pshare->mclone_sta[id-1].hwaddr, skb->data+ETH_ALEN, ETH_ALEN);
+			}
+
+			priv->pshare->mclone_sta[id-1].priv = priv;
+			
+			#ifdef  CONFIG_WLAN_HAL
+				if (IS_HAL_CHIP(priv))
+            	GET_HAL_INTERFACE(priv)->McloneSetMBSSIDHandler(priv, priv->pshare->mclone_sta[id-1].hwaddr, (id-1));
+				else
+			#endif
+				mclone_set_mbssid(priv, priv->pshare->mclone_sta[id-1].hwaddr);
+			
+			ACTIVE_ID = id;
+	
+			panic_printk("clone mac - %02x:%02x:%02x:%02x:%02x:%02x\n", 
+					*GET_MY_HWADDR, *(GET_MY_HWADDR+1), *(GET_MY_HWADDR+2),
+				 	*(GET_MY_HWADDR+3), *(GET_MY_HWADDR+4), *(GET_MY_HWADDR+5));
+			
+			start_clnt_join(priv);
+		}
+	}
+#endif
+	
 	return 0;
 }
 
@@ -1885,10 +2201,11 @@ int mac_clone_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 #define SNAME_FIELD	2
 
 /* DHCP option codes (partial list) */
-#define DHCP_PADDING            0x00
-#define DHCP_REQUESTED_IP       0x32
+#define DHCP_PADDING		0x00
+#define DHCP_REQUESTED_IP	0x32
 #define DHCP_OPTION_OVER	0x34
-#define DHCP_END		0xFF
+#define DHCP_CLIENT_ID		0x3d
+#define DHCP_END			0xFF
 
 struct dhcpMessage {
 	u_int8_t op;
@@ -1978,8 +2295,8 @@ unsigned char *get_dhcp_option(struct dhcpMessage *packet, int code)
 void dhcp_add_reqip_option(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 {
 	struct iphdr* iph = (struct iphdr *)(skb->data + ETH_HLEN);
-	struct udphdr *udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
-	struct dhcpMessage *dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+	udphdr *udph = (udphdr *)((unsigned long)iph + (iph->ihl << 2));
+	struct dhcpMessage *dhcph = (struct dhcpMessage *)((unsigned long)udph + sizeof(udphdr));
 	unsigned char opt[6] = {0};
 	unsigned char *opt_end;
 	unsigned int end_offset;
@@ -1989,8 +2306,13 @@ void dhcp_add_reqip_option(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 
 	opt[0] = (unsigned char)DHCP_REQUESTED_IP;
 	opt[1] = (unsigned char)4;
+#ifdef __ECOS
+	rtk_put_unaligned_u32(rtk_get_unaligned_u32((char *)&dhcph->ciaddr), (char *)&opt[2]);
+	rtk_put_unaligned_u32(0, (char *)&dhcph->ciaddr);
+#else
 	memcpy(&opt[2], &(dhcph->ciaddr), 4);
 	dhcph->ciaddr = 0;
+#endif
 
 	skb_put(skb, 6);
 
@@ -2014,7 +2336,7 @@ void dhcp_flag_bcast(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 	unsigned int ip_check_recalc = 0;
 	unsigned int udp_check_recalc = 0;
 	struct iphdr* iph=NULL;
-	struct udphdr *udph=NULL;
+	udphdr *udph=NULL;
 	struct dhcpMessage *dhcph=NULL;
 
 	if(skb == NULL)
@@ -2027,12 +2349,17 @@ void dhcp_flag_bcast(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 			iph = (struct iphdr *)(skb->data + ETH_HLEN);
 
 			if(iph->protocol == IPPROTO_UDP) {
-				udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
+				udph = (udphdr *)((unsigned long)iph + (iph->ihl << 2));
 
 				if((udph->source == __constant_htons(CLIENT_PORT)) && (udph->dest == __constant_htons(SERVER_PORT))) {// DHCP request
-					dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+					dhcph = (struct dhcpMessage *)((unsigned long)udph + sizeof(udphdr));
 
-					if(dhcph->cookie == __constant_htonl(DHCP_MAGIC)) {
+#ifdef __ECOS
+					if(rtk_get_unaligned_u32((char *)&dhcph->cookie) == __constant_htonl(DHCP_MAGIC))
+#else
+					if(dhcph->cookie == __constant_htonl(DHCP_MAGIC))
+#endif
+					{
 						if(!(dhcph->flags & htons(BROADCAST_FLAG))) {
 							DEBUG_INFO("DHCP: change flag of DHCP request to broadcast.\n");
 							// or BROADCAST flag
@@ -2040,13 +2367,22 @@ void dhcp_flag_bcast(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 							udp_check_recalc++;
 						}
 
-						if (dhcph->ciaddr && memcmp(dhcph->chaddr, GET_MY_HWADDR, MACADDRLEN)) {
+#ifdef __ECOS
+						if (rtk_get_unaligned_u32((char *)&dhcph->ciaddr) && memcmp(dhcph->chaddr, GET_MY_HWADDR, MACADDRLEN))
+#else
+						if (dhcph->ciaddr && memcmp(dhcph->chaddr, GET_MY_HWADDR, MACADDRLEN))
+#endif
+						{
 							if (!get_dhcp_option(dhcph, DHCP_REQUESTED_IP)) {
 								dhcp_add_reqip_option(priv, skb);
 								udp_check_recalc++;
 								ip_check_recalc++;
 							} else {
+#ifdef __ECOS
+								rtk_put_unaligned_u32(0, (char *)&dhcph->ciaddr);
+#else
 								dhcph->ciaddr = 0;
+#endif
 								udp_check_recalc++;
 							}
 						}
@@ -2058,9 +2394,9 @@ void dhcp_flag_bcast(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 					ADJUST_CHKSUM(dhcph->flags, (dhcph->flags&(~htons(BROADCAST_FLAG))), udph->check);
 #else
 					udph->check = 0;
-					udph->check = csum_tcpudp_magic(iph->saddr, iph->daddr,
-						udph->len, IPPROTO_UDP,
-						csum_partial((char *)udph, udph->len, 0));
+					udph->check = csum_tcpudp_magic(cpu_to_be32(iph->saddr), cpu_to_be32(iph->daddr),
+						cpu_to_be16(udph->len), IPPROTO_UDP,
+						csum_partial((void *)udph, cpu_to_be16(udph->len), 0));
 #endif
 				}
 			}
@@ -2083,7 +2419,7 @@ void dhcp_dst_bcast(struct rtl8192cd_priv * priv,struct sk_buff * skb)
 	unsigned int ip_check_recalc = 0;
 	unsigned int udp_check_recalc = 0;
 	struct iphdr* iph=NULL;
-	struct udphdr *udph=NULL;
+	udphdr *udph=NULL;
 	struct dhcpMessage *dhcph=NULL;
 
 	if(skb == NULL)
@@ -2093,12 +2429,17 @@ void dhcp_dst_bcast(struct rtl8192cd_priv * priv,struct sk_buff * skb)
 		iph = (struct iphdr *)(skb->data + ETH_HLEN);
 
 		if(iph->protocol == IPPROTO_UDP) {
-			udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
+			udph = (udphdr *)((unsigned long)iph + (iph->ihl << 2));
 
 			if((udph->source == __constant_htons(SERVER_PORT)) && (udph->dest == __constant_htons(CLIENT_PORT))) {// DHCP request
-				dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+				dhcph = (struct dhcpMessage *)((unsigned long)udph + sizeof(udphdr));
 
-				if(dhcph->cookie == __constant_htonl(DHCP_MAGIC)) {
+#ifdef __ECOS
+				if(rtk_get_unaligned_u32((char *)&dhcph->cookie) == __constant_htonl(DHCP_MAGIC))
+#else
+				if(dhcph->cookie == __constant_htonl(DHCP_MAGIC))
+#endif
+				{
 
 					unsigned char *daddr = (unsigned char *)&(iph->daddr);
 					if((daddr[0] != 0xff))
@@ -2130,9 +2471,9 @@ void dhcp_dst_bcast(struct rtl8192cd_priv * priv,struct sk_buff * skb)
 				ADJUST_CHKSUM(dhcph->flags, (dhcph->flags&(~htons(BROADCAST_FLAG))), udph->check);
 #else
 				udph->check = 0;
-				udph->check = csum_tcpudp_magic(iph->saddr, iph->daddr,
-					udph->len, IPPROTO_UDP,
-					csum_partial((char *)udph, udph->len, 0));
+				udph->check = csum_tcpudp_magic(cpu_to_be32(iph->saddr), cpu_to_be32(iph->daddr),
+					cpu_to_be16(udph->len), IPPROTO_UDP,
+					csum_partial((void *)udph, cpu_to_be16(udph->len), 0));
 #endif
 			}
 
@@ -2147,6 +2488,122 @@ void dhcp_dst_bcast(struct rtl8192cd_priv * priv,struct sk_buff * skb)
 		}
 	}
 }
+
+
+#ifdef MULTI_MAC_CLONE
+int mclone_dhcp_caddr(struct rtl8192cd_priv *priv, struct sk_buff *skb)
+{
+    unsigned short protocol;
+    unsigned char *dhcpopt=NULL;
+    struct iphdr *iph;
+    udphdr *udph;
+    struct dhcpMessage *dhcph;
+    int active_id;
+    unsigned int udp_check_recalc = 0;
+    unsigned int opt61changed =0,posOdd=0;
+    unsigned char *caddr, *opt61;
+    unsigned char oldchaddr[ETH_ALEN],oldopt61[ETH_ALEN+2];
+
+
+	if(skb == NULL)
+		return 0;
+
+	iph = (struct iphdr *)(skb->data + ETH_HLEN);
+
+	if(iph->protocol == IPPROTO_UDP)
+	{
+		udph = (udphdr *)((unsigned int)iph + (iph->ihl << 2));
+		if((udph->source == __constant_htons(CLIENT_PORT))
+			&& (udph->dest == __constant_htons(SERVER_PORT))) // BootP request
+		{
+			dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(udphdr));
+			if(dhcph->cookie == __constant_htonl(DHCP_MAGIC))
+			{
+				active_id = mclone_find_address(priv, dhcph->chaddr, skb, MAC_CLONE_SA_FIND);
+				if ((active_id>0) && (priv->pshare->mclone_sta[active_id-1].usedStaAddrId!=0xff)) {
+					caddr = priv->pshare->mclone_sta[active_id-1].hwaddr;
+					udp_check_recalc++;
+				}
+				else if (!memcmp(dhcph->chaddr, priv->br_mac, ETH_ALEN)) {
+					caddr = GET_MY_HWADDR;
+					udp_check_recalc++;
+				}
+				DEBUG_INFO("BootP Request: %02x:%02x:%02x:%02x:%02x:%02x => %02x:%02x:%02x:%02x:%02x:%02x\n",
+					dhcph->chaddr[0], dhcph->chaddr[1], dhcph->chaddr[2], dhcph->chaddr[3], dhcph->chaddr[4], dhcph->chaddr[5],
+					caddr[0], caddr[1], caddr[2], caddr[3], caddr[4], caddr[5]);
+			}
+		}
+		else if((udph->source == __constant_htons(SERVER_PORT))
+			&& (udph->dest == __constant_htons(CLIENT_PORT))) // BootP reply
+		{
+			dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(udphdr));
+			if(dhcph->cookie == __constant_htonl(DHCP_MAGIC))
+			{
+				active_id = mclone_find_address(priv, dhcph->chaddr, skb, MAC_CLONE_SA_FIND);
+				if ((active_id>0) && (priv->pshare->mclone_sta[active_id-1].usedStaAddrId!=0xff)) {
+					caddr = priv->pshare->mclone_sta[active_id-1].sa_addr;
+					udp_check_recalc++;
+				}
+				else if (!memcmp(dhcph->chaddr, GET_MY_HWADDR, ETH_ALEN) && memcmp(priv->br_mac, NULL_MAC_ADDR, ETH_ALEN)) {
+					caddr = priv->br_mac;
+					udp_check_recalc++;
+				}
+				DEBUG_INFO("BootP Response: %02x:%02x:%02x:%02x:%02x:%02x\n",
+					dhcph->chaddr[0], dhcph->chaddr[1], dhcph->chaddr[2], dhcph->chaddr[3], dhcph->chaddr[4], dhcph->chaddr[5],
+					caddr[0], caddr[1], caddr[2], caddr[3], caddr[4], caddr[5]);
+			}
+		}
+
+		if (udp_check_recalc) {
+
+                memcpy(oldchaddr,dhcph->chaddr,ETH_ALEN);
+                memcpy(dhcph->chaddr, caddr, ETH_ALEN);
+                if (((opt61=get_dhcp_option(dhcph, DHCP_CLIENT_ID))!=NULL)
+                	&& (*(unsigned char *)(opt61-1)==7) && (opt61[0]==1)) {
+                	DEBUG_INFO("DHCP opt61: %d %02x:%02x:%02x:%02x:%02x:%02x\n", opt61[0], opt61[1], opt61[2], opt61[3], opt61[4], opt61[5], opt61[6]);
+
+                	if(0 != ((opt61+1-dhcph->options)%2))
+                		 posOdd=1;
+                	if(posOdd)
+                		memcpy(oldopt61, opt61, ETH_ALEN+2);
+                	else
+                		memcpy(oldopt61, opt61+1, ETH_ALEN);
+                	
+                	memcpy(opt61+1, caddr, ETH_ALEN);
+                	opt61changed =1;
+			}
+			if (udph->check) {
+          #ifdef __ECOS
+                u16 *p1 = (u16 *)dhcph->chaddr;
+                u16 *p2 = (u16 *)oldchaddr;
+                ADJUST_CHKSUM(*p1++, *p2++, udph->check);
+                ADJUST_CHKSUM(*p1++, *p2++, udph->check);
+                ADJUST_CHKSUM(*p1, *p2, udph->check);
+
+                if(1==opt61changed)  {
+                	if(posOdd)
+                		p1 = (u16 *) opt61;
+                	else
+                		p1 = (u16 *) (opt61+1);
+                	p2 = (u16 *)oldopt61;
+                	ADJUST_CHKSUM(*p1++, *p2++, udph->check);
+                	ADJUST_CHKSUM(*p1++, *p2++, udph->check);
+                	if(posOdd) ADJUST_CHKSUM(*p1++, *p2++, udph->check);
+                	ADJUST_CHKSUM(*p1, *p2, udph->check);
+			    }
+          #else
+				udph->check = 0;
+				udph->check = csum_tcpudp_magic(cpu_to_be32(iph->saddr), cpu_to_be32(iph->daddr),
+				cpu_to_be16(udph->len), IPPROTO_UDP,
+				csum_partial((char *)udph, cpu_to_be16(udph->len), 0));
+          #endif
+			}
+		}
+	}
+
+	return 1;
+}
+#endif
 
 
 void *scdb_findEntry(struct rtl8192cd_priv *priv, unsigned char *macAddr,
@@ -2171,6 +2628,80 @@ void *scdb_findEntry(struct rtl8192cd_priv *priv, unsigned char *macAddr,
 		db = db->next_hash;
 	}
 	return NULL;
+}
+
+
+void nat25_filter_default(struct rtl8192cd_priv *priv) {
+    int i;
+    int num;
+    priv->nat25_filter = 0;
+
+    memset(priv->nat25_filter_ethlist, 0xFF, sizeof(priv->nat25_filter_ethlist));
+    memset(priv->nat25_filter_ipprotolist, 0xFF, sizeof(priv->nat25_filter_ipprotolist));
+    
+    num = sizeof(nat25_filter_ethtype) / sizeof(unsigned short);
+    for(i = 0; i < NAT25_FILTER_ETH_NUM && i < num; i++) {
+        priv->nat25_filter_ethlist[i] = nat25_filter_ethtype[i];
+    }
+
+    num = sizeof(nat25_filter_ipproto);
+    for(i = 0; i < NAT25_FILTER_IPPROTO_NUM && i < num; i++) {
+        priv->nat25_filter_ipprotolist[i] = nat25_filter_ipproto[i];
+    }
+
+}
+
+
+/*return value: 1: filter out, 0: continue to process*/
+unsigned char nat25_filter(struct rtl8192cd_priv *priv, struct sk_buff *skb) {
+    int i;
+    int found = 0;
+    unsigned char ipproto = 0xFF;
+    unsigned short ethtype = *((unsigned short *)(skb->data+MACADDRLEN*2));
+    unsigned char * sa = skb->data+MACADDRLEN;
+    if(!memcmp(sa, GET_MY_HWADDR, MACADDRLEN) || !memcmp(sa, priv->br_mac, MACADDRLEN)) {
+        return 0;
+    }
+        
+    
+    for(i = 0; i < NAT25_FILTER_ETH_NUM; i++) {
+        if(priv->nat25_filter_ethlist[i] == 0xFFFF)
+            break;
+        if(priv->nat25_filter_ethlist[i] == ethtype) {
+            found = 1;
+            break;
+        }
+    }
+
+    if(found) {
+        if(ethtype == __constant_htons(ETH_P_IP)) {
+            ipproto = *((unsigned char *)skb->data+WLAN_ETHHDR_LEN+9);
+        }
+        else if(ethtype == __constant_htons(ETH_P_IPV6)) {
+            ipproto = *((unsigned char *)skb->data+WLAN_ETHHDR_LEN+6);
+        }
+
+        if(ipproto != 0xFF) {            
+            found = 0;
+            for(i = 0; i < NAT25_FILTER_IPPROTO_NUM; i++) {
+                if(priv->nat25_filter_ipprotolist[i] == 0xFF)
+                    break;
+                if(priv->nat25_filter_ipprotolist[i] == ipproto) {
+                    found = 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    if(found && priv->nat25_filter == 2) { /* match deny list*/
+        return 1;
+    }
+    else if(found == 0 && priv->nat25_filter == 1) { /*do not match accept list*/
+        return 1;
+    }
+    return 0;
+
 }
 
 #endif // RTK_BR_EXT

@@ -11,6 +11,14 @@ $(error COMMON_CFLAGS is not defined)
 endif
 
 ifdef CONFIG_RTL_8198_AP_ROOT
+CONFIG_RTL_AP = CONFIG_RTL_8198_AP_ROOT
+endif
+
+ifdef CONFIG_RTL_8197D_AP
+CONFIG_RTL_AP = CONFIG_RTL_8197D_AP
+endif
+
+ifdef CONFIG_RTL_AP
 all: compweb cvcfg-ap cvimg mgbin mkramdisk
 else
 all: compweb cvcfg-gw cvcfg-ap cvimg mgbin mkramdisk cvcfg-ap-8m cvcfg-vpn cvcfg-8m
@@ -34,7 +42,7 @@ endif
 
 SUPP = -DUNIVERSAL_REPEATER
 SUPP += -DWIFI_SIMPLE_CONFIG
-ifdef CONFIG_RTL_8198_AP_ROOT
+ifdef CONFIG_RTL_AP
 else
 SUPP += -DROUTE_SUPPORT
 endif
@@ -67,6 +75,10 @@ ifeq ($(CONFIG_RTL_8198_INBAND_AP),y)
         SUPP += -DCONFIG_RTL_8198
 endif
 
+ifeq ($(CONFIG_RTL_8197D_AP),y)
+	SUPP += -DCONFIG_RTL_8197D_AP
+endif
+
 ifeq ($(CONFIG_RTL_819XD),y)
         SUPP += -DCONFIG_RTL_819XD
 endif
@@ -74,7 +86,11 @@ endif
 ifeq ($(CONFIG_RTL_8196E),y)
         SUPP += -DCONFIG_RTL_8196E
 endif
- 
+
+ifeq ($(CONFIG_RTL_8198B_GW),y)
+        SUPP += -DCONFIG_RTL_8198B
+endif
+
 ifeq ($(CONFIG_RTL8196B_GW_8M),y)
 	SUPP += -DCONFIG_RTL8196B_GW_8M
 endif
@@ -91,8 +107,15 @@ ifeq ($(CONFIG_RTL_92D_SUPPORT),y)
 SUPP +=-DCONFIG_RTL_92D_SUPPORT
 endif
 
-ifeq ($(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN),y)
+#ifeq ($(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN),y)
+ifeq ($(CONFIG_USE_PCIE_SLOT_0),y)
+ifeq ($(CONFIG_USE_PCIE_SLOT_1),y)
+ifeq ($(CONFIG_SLOT_0_92C),y)
+ifeq ($(CONFIG_SLOT_1_92C),y)
 SUPP +=-DCONFIG_RTL_DUAL_PCIESLOT_BIWLAN
+endif
+endif
+endif
 endif
 
 # for 802.11s

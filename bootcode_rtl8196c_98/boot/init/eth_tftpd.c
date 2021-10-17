@@ -29,6 +29,13 @@ struct arptable_t  arptable_tftp[3];
 	#define FILESTART JUMP_ADDR
 #endif
 
+//added by winfred_wang,param passing and nfjrom run in ram used
+#ifdef CONFIG_PARAM_PASSING_ENABLE
+#ifdef CONFIG_NFJROM_RUN_IN_RAM_ENABLE
+unsigned long rootfs_start_addr,rootfs_end_addr;
+#endif
+#endif
+
 
 /*Cyrus Tsai for vm_test.*/
 #define TEST_FILENAME	((char *)"nfjrom")	
@@ -54,6 +61,23 @@ int get_flr_bin = 0;
 #endif
 
 #define BOOTSTART 0x80000000
+
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)
+#define COMP_SIGNATURE_LEN			6
+#define COMP_HS_SIGNATURE			"COMPHS"
+#define COMP_CS_SIGNATURE			"COMPCS"
+#define COMP_DS_SIGNATURE			"COMPDS"
+
+#define COMP_HS_FLASH_ADDR			0x6000
+#define COMP_DS_FLASH_ADDR			0x8000
+#define COMP_CS_FLASH_ADDR			0xc000
+
+struct compress_mib_header {
+	unsigned char signature[COMP_SIGNATURE_LEN];
+	unsigned short compRate;
+	unsigned int compLen;
+};
+#endif
 
 #define prom_printf dprintf
 
@@ -503,6 +527,7 @@ SIGN_T sign_tbl[]={ //  sigature, name, skip_header, max_len, reboot
         {FW_SIGNATURE, "Linux kernel", SIG_LEN, 0, 0x2C0000 ,1},
         {FW_SIGNATURE_WITH_ROOT, "Linux kernel (root-fs)", SIG_LEN, 0, 0x2C0000 ,1},
         {WEB_SIGNATURE, "Webpages", 3, 0, 0x20000, 0},
+        {WEB_JFFS2_SIGNATURE, "JFFS2 web", 4, 1, 0x50000, 0},
         {ROOT_SIGNATURE, "Root filesystem", SIG_LEN, 1, 0x100000, 0},
         {BOOT_SIGNATURE, "Boot code", SIG_LEN, 1, 0x10000, 1},
         {ALL1_SIGNATURE, "Total Image", SIG_LEN, 1, 0x200000, 1},
@@ -679,17 +704,117 @@ void checkAutoFlashing(unsigned long startAddr, int len)
 	IMG_HEADER_T Header ; //avoid unalign problem
 	int skip_check_signature=0;
 	unsigned long burn_offset =0; //mark_dual
+
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)
+	struct compress_mib_header compHeader;
+	int		config_reboot = 0;
+	int		in_config = 0;
+	int		config_trueorfalse = 0;
+	int		config_burnLen;
+#endif
 	
 #ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE	
 	check_dualbank_setting(0); //must do check image to get current boot_bank.......
-#endif		
+#endif
+
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)		
+	memcpy(&compHeader,(char*)startAddr+ head_offset,sizeof(struct compress_mib_header));
+	if(!memcmp(compHeader.signature,(char*)COMP_HS_SIGNATURE,COMP_SIGNATURE_LEN)
+		|| !memcmp(compHeader.signature,(char*)COMP_CS_SIGNATURE,COMP_SIGNATURE_LEN)
+		|| !memcmp(compHeader.signature,(char*)COMP_DS_SIGNATURE,COMP_SIGNATURE_LEN)
+		){
+		while((head_offset + sizeof(struct compress_mib_header)) < len){
+			memcpy(&compHeader, ((char *)startAddr + head_offset), sizeof(struct compress_mib_header));
+			config_reboot = 1;
+			in_config = 0;
+
+			if(!memcmp(compHeader.signature,(char*)COMP_HS_SIGNATURE,COMP_SIGNATURE_LEN)){
+				config_burnLen = compHeader.compLen+sizeof(struct compress_mib_header);
+#ifdef CONFIG_SPI_FLASH
+#ifdef SUPPORT_SPI_MIO_8198_8196C
+                if((COMP_HS_FLASH_ADDR+config_burnLen) > spi_flash_info[0].chip_size)
+				{
+					if(spi_flw_image_mio_8198(0,COMP_HS_FLASH_ADDR, startAddr+head_offset, spi_flash_info[0].chip_size-COMP_HS_FLASH_ADDR)&&
+						spi_flw_image_mio_8198(1,0, startAddr+head_offset+spi_flash_info[0].chip_size-COMP_HS_FLASH_ADDR, COMP_HS_FLASH_ADDR+config_burnLen-spi_flash_info[0].chip_size))
+							config_trueorfalse = 1;
+				}
+				else
+					if(spi_flw_image_mio_8198(0,COMP_HS_FLASH_ADDR, startAddr+head_offset, config_burnLen))
+						config_trueorfalse = 1;
+#else
+				spi_flw_image(0,COMP_HS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+#else
+                flashwrite(COMP_HS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+				head_offset += config_burnLen;
+				prom_printf("Update Hardware Setting Success\n");
+				in_config = 1;
+			}
+			if(!memcmp(compHeader.signature,(char*)COMP_CS_SIGNATURE,COMP_SIGNATURE_LEN)){
+				config_burnLen = compHeader.compLen+sizeof(struct compress_mib_header);
+#ifdef CONFIG_SPI_FLASH
+#ifdef SUPPORT_SPI_MIO_8198_8196C
+				if((COMP_CS_FLASH_ADDR+config_burnLen) > spi_flash_info[0].chip_size)
+				{
+					if(spi_flw_image_mio_8198(0,COMP_CS_FLASH_ADDR, startAddr+head_offset, spi_flash_info[0].chip_size-COMP_CS_FLASH_ADDR)&&
+						spi_flw_image_mio_8198(1,0, startAddr+head_offset+spi_flash_info[0].chip_size-COMP_CS_FLASH_ADDR, COMP_CS_FLASH_ADDR+config_burnLen-spi_flash_info[0].chip_size))
+							config_trueorfalse = 1;
+					}
+					else
+						if(spi_flw_image_mio_8198(0,COMP_CS_FLASH_ADDR, startAddr+head_offset, config_burnLen)){
+							config_trueorfalse = 1;
+						}
+#else
+				spi_flw_image(0,COMP_CS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+#else
+                flashwrite(COMP_CS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+
+				prom_printf("Update Current Setting Success\n");
+				head_offset += config_burnLen;
+				
+				in_config = 1;
+			}
+			if(!memcmp(compHeader.signature,(char*)COMP_DS_SIGNATURE,COMP_SIGNATURE_LEN)){
+				config_burnLen = compHeader.compLen+sizeof(struct compress_mib_header);
+#ifdef CONFIG_SPI_FLASH
+#ifdef SUPPORT_SPI_MIO_8198_8196C
+				if((COMP_DS_FLASH_ADDR+config_burnLen) > spi_flash_info[0].chip_size)
+				{
+					if(spi_flw_image_mio_8198(0,COMP_DS_FLASH_ADDR, startAddr+head_offset, spi_flash_info[0].chip_size-COMP_DS_FLASH_ADDR)&&
+						spi_flw_image_mio_8198(1,0, startAddr+head_offset+spi_flash_info[0].chip_size-COMP_DS_FLASH_ADDR, COMP_DS_FLASH_ADDR+config_burnLen-spi_flash_info[0].chip_size))
+							config_trueorfalse = 1;
+				}
+				else
+						if(spi_flw_image_mio_8198(0,COMP_DS_FLASH_ADDR, startAddr+head_offset, config_burnLen)){
+							config_trueorfalse = 1;
+						}
+#else
+                spi_flw_image(0,COMP_DS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+#else
+                flashwrite(COMP_DS_FLASH_ADDR, startAddr+head_offset, config_burnLen);
+#endif
+
+				prom_printf("Update Default Setting Success\n");
+				head_offset += config_burnLen;
+				in_config = 1;
+			}
+			
+			if(in_config == 0)
+				break;
+		}	
+	}
+#endif
+
 	while( (head_offset + sizeof(IMG_HEADER_T)) <  len){
 		sum=0; sum1=0;
 		memcpy(&Header, ((char *)startAddr + head_offset), sizeof(IMG_HEADER_T));
 		
 		if (!skip_check_signature) {
 			for(i=0 ;i < MAX_SIG_TBL ; i++) {
-			
 				if(!memcmp(Header.signature, (char *)sign_tbl[i].signature, sign_tbl[i].sig_len))
 					break;			
 				
@@ -746,8 +871,10 @@ void checkAutoFlashing(unsigned long startAddr, int len)
 			}			
 		}		
 
-		if(skip_check_signature || 
-			memcmp(Header.signature, WEB_SIGNATURE, 3)){
+		if(skip_check_signature || (
+			memcmp(Header.signature, WEB_SIGNATURE, 3)&&
+			memcmp(Header.signature, WEB_JFFS2_SIGNATURE,4))
+			){
 			//calculate checksum
 			if(!memcmp(Header.signature, ALL1_SIGNATURE, SIG_LEN) ||
 					!memcmp(Header.signature, ALL2_SIGNATURE, SIG_LEN)) {										
@@ -852,7 +979,11 @@ int trueorfaulse = 0;
 
 		head_offset += Header.len + sizeof(IMG_HEADER_T);
 	} //while
+#if defined(CONFIG_CONFIG_UPGRADE_ENABLED)
+	if(reboot || config_reboot){
+#else
 	if(reboot){
+#endif
 	    	autoreboot();
 	}
 		
@@ -965,6 +1096,15 @@ static void prepareACK(void)
 				 
 				/*reset the file position*/
 				//image_address=FILESTART;
+
+				//added by winfred_wang,param transmit used
+				#ifdef CONFIG_PARAM_PASSING_ENABLE
+				#ifdef CONFIG_NFJROM_RUN_IN_RAM_ENABLE
+				rootfs_end_addr = (unsigned long)address_to_store;
+				rootfs_start_addr = (unsigned long)image_address;				
+				#endif
+				#endif
+				
 				address_to_store=image_address;
 				file_length_to_client=file_length_to_server;
 				/*file_length_to_server can not be reset,only when another WRQ */
@@ -1011,8 +1151,15 @@ static void prepareACK(void)
 					cli();
 
 					dprintf("Jump to 0x%x\n", image_address);
-					flush_cache(); 
+					flush_cache();
+
+					#ifdef CONFIG_PARAM_PASSING_ENABLE
+					#ifndef CONFIG_NFJROM_RUN_IN_RAM_ENABLE
 					jumpF();	
+					#endif
+					#else
+					jumpF();
+					#endif
 				}
 #ifndef CONFIG_NFBI
 				else if(autoBurn)

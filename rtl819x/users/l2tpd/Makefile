@@ -64,10 +64,11 @@ CFLAGS += $(EXTRA_CFLAGS)
 #reduce code size
 CFLAGS += -Os
 
-#dzh add for L2VP v3 support
-CFLAGS += -DL2TP_V3_SUPPORT
-CFLAGS += -DL2TP_v3_DEBUG
-#end
+include ../../linux-2.6.30/.config
+
+ifeq ($(CONFIG_SUPPORT_RUSSIA_FEATURES),y)
+CFLAGS += -DSUPPORT_ZIONCOM_RUSSIA
+endif
 
 HDRS=l2tp.h avp.h misc.h control.h call.h scheduler.h file.h aaa.h md5.h
 OBJS=l2tpd.o pty.o misc.o control.o avp.o call.o network.o avpsend.o scheduler.o file.o aaa.o md5.o
@@ -85,4 +86,5 @@ $(EXEC): $(OBJS) $(HDRS)
 
 romfs:
 	$(ROMFSINST) /bin/$(EXEC)
+	cp ./script_check_l2tp_status.sh $(DIR_ROMFS)/bin/
 

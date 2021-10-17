@@ -6,6 +6,14 @@
 include ../.config
 CROSS= mips-linux-
 CC	= $(CROSS)gcc
+
+LD_SCRIPT=
+ifeq ($(CONFIG_NAND_FLASH),y)
+LD_SCRIPT=ld.nand_script
+else
+LD_SCRIPT=ld.script
+endif
+
 ifeq ($(CONFIG_LZMA_ENABLE),y)
 LZMA= 1
 else
@@ -43,7 +51,7 @@ endif
 ifeq ($(CONFIG_RTL8196E),y)
 MARCH_FLAG = -march=4181 -Os
 else
-MARCH_FLAG = -march=5281
+MARCH_FLAG = -march=5281 -Os
 endif
 
 
@@ -70,7 +78,11 @@ bootload:	bootload.c start.S LzmaDecode.c piggy.S
 ifeq ($(CONFIG_NFBI),y)
 	$(CROSS)ld -X -nostdlib -Tld-nfbi.script start.o -o boot.elf
 else
-	$(CROSS)ld -X -nostdlib -Tld.script start.o -o boot.elf
+ifeq ($(CONFIG_NAND_FLASH),y)
+	$(CROSS)ld -X -nostdlib -T$(LD_SCRIPT) start.o -o boot.elf
+else
+	$(CROSS)ld -X -nostdlib -T$(LD_SCRIPT) start.o -o boot.elf
+endif
 endif
 	$(CROSS)objcopy -Obinary boot.elf boot
 	cp boot ../boot/Output/boot -f 			#sync 
@@ -97,10 +109,18 @@ bootload:	bootload.c start.S gunzip.c piggy.S
 	$(CROSS)objdump -h -S piggy.elf > piggy.elf.txt
 
 	$(CC) $(MARCH_FLAG) -I../boot/include -fno-pic -mno-abicalls -Os -fomit-frame-pointer -D__KERNEL__ $(EXTRA_CFLAGS) -c start.S -o start.o 
-	$(CC) $(MARCH_FLAG) -g  -fomit-frame-pointer -nostdinc -fno-pic -mno-abicalls -D__KERNEL__ $(EXTRA_CFLAGS) -c start_c.c -o start_c.o 
+ifeq ($(CONFIG_NAND_FLASH),y)
+else
 
+	$(CC) $(MARCH_FLAG) -g  -fomit-frame-pointer -nostdinc -fno-pic -mno-abicalls -D__KERNEL__ $(EXTRA_CFLAGS) -c start_c.c -o start_c.o 
+endif
 	$(CROSS)objcopy --add-section .initrd=piggy.bin start.o	# Compress
-	$(CROSS)ld -X -nostdlib -Tld.script start.o start_c.o -o boot.elf
+ifeq ($(CONFIG_NAND_FLASH),y)
+	$(CROSS)ld -X -nostdlib -T$(LD_SCRIPT) start.o -o boot.elf #JSW:No start.c
+else
+	$(CROSS)ld -X -nostdlib -T$(LD_SCRIPT) start.o start_c.o -o boot.elf
+endif	
+	
 	$(CROSS)objcopy -Obinary boot.elf boot
 	cp boot ../boot/Output/boot -f 			#sync 
 	$(CROSS)objdump -h -S   boot.elf > boot.elf.txt 

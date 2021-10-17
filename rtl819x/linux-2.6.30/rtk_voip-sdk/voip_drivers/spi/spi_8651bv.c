@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -25,10 +25,10 @@ extern rtl_spi_dev_t spi_dev[SPI_DEV_NUM];
 */
 int32 _rtl865x_spi_init( rtl_spi_dev_t* pDev, uint32 gpioSCLK, uint32 gpioCS_, uint32 gpioSDI, uint32 gpioSDO)
 {
-	pDev->gpioSCLK = gpioSCLK;
-	pDev->gpioCS_ = gpioCS_;
-	pDev->gpioSDI = gpioSDI;
-	pDev->gpioSDO = gpioSDO;
+	pDev->sw.gpioSCLK = gpioSCLK;
+	pDev->sw.gpioCS_ = gpioCS_;
+	pDev->sw.gpioSDI = gpioSDI;
+	pDev->sw.gpioSDO = gpioSDO;
 
 	_rtl865x_initGpioPin( gpioSCLK, GPIO_PERI_GPIO, GPIO_DIR_OUT, GPIO_INT_DISABLE );
 	_rtl865x_initGpioPin( gpioCS_, GPIO_PERI_GPIO, GPIO_DIR_OUT, GPIO_INT_DISABLE );

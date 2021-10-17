@@ -30,9 +30,9 @@ int main(void)
 		if( !RTK_VOIP_IS_SLIC_CH( i, g_VoIP_Feature ) )
 			continue;
 		
-		rtk_Set_Voice_Gain(i, 0, 0);
-		rtk_Set_Flash_Hook_Time(i, 0, 300);
-		rtk_Set_flush_fifo(i);					// flush kernel fifo before app run
+		rtk_SetVoiceGain(i, 0, 0);
+		rtk_SetFlashHookTime(i, 0, 300);
+		rtk_SetFlushFifo(i);					// flush kernel fifo before app run
 	}
 
 main_loop:
@@ -63,10 +63,10 @@ main_loop:
 			break;
 		case SIGN_ONHOOK:
 			rtk_SetPlayTone(i, 0, DSPCODEC_TONE_HOLD, 0, DSPCODEC_TONEDIRECTION_LOCAL);
-			rtk_Onhook_Action(i);
+			rtk_OnHookAction(i);
 			break;
 		case SIGN_OFFHOOK:
-			rtk_Offhook_Action(i);
+			rtk_OffHookAction(i);
 			break;
 		case SIGN_FLASHHOOK:
 			rtk_SetPlayTone(i, 0, DSPCODEC_TONE_HOLD, 1, DSPCODEC_TONEDIRECTION_LOCAL);
@@ -100,7 +100,7 @@ void SetCustomTone()
 	
 	for (cust_idx=0; cust_idx < TONE_CUSTOMER_MAX; cust_idx++)
 	{
-		rtk_Set_Custom_Tone(cust_idx, &custom_tone[cust_idx]);
+		rtk_SetCustomTone(cust_idx, &custom_tone[cust_idx]);
 	}	
 	
 	VoIPCfg.tone_of_country = 13; //Custom
@@ -109,5 +109,5 @@ void SetCustomTone()
 	VoIPCfg.tone_of_custbusy = 2;
 	VoIPCfg.tone_of_custwaiting = 3;
 	
-	rtk_Set_Country(&VoIPCfg);
+	rtk_SetCountry(&VoIPCfg);
 }

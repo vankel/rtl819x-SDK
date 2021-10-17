@@ -13,6 +13,18 @@ config BT_HCIBTUSB
 	  Say Y here to compile support for Bluetooth USB devices into the
 	  kernel or say M to compile it as module (btusb).
 
+
+config BT_RTK_HCIBTUSB
+        tristate "RTK HCI USB driver"
+        depends on USB
+        help
+          RTK Bluetooth HCI USB driver.
+          This driver is required if you want to use Bluetooth devices with
+          USB interface.
+
+          Say Y here to compile support for Bluetooth USB devices into the
+          kernel or say M to compile it as module (btusb).
+
 config BT_HCIBTSDIO
 	tristate "HCI SDIO driver"
 	depends on MMC
@@ -57,6 +69,16 @@ config BT_HCIUART_BCSP
 	  CF cards.
 
 	  Say Y here to compile support for HCI BCSP protocol.
+
+config BT_HCIUART_RTKH5
+	bool "Realtek H5 protocol support"
+	depends on BT_HCIUART
+	help
+	  Realtek H5 is serial protocol for communication 
+	  between Realtek Bluetooth device and host. This protocol is required for 
+	  Realtek uart h5 bluetooth controller
+
+	  Say Y here to compile support for Realtek HCI H5 protocol.
 
 config BT_HCIUART_LL
 	bool "HCILL protocol support"

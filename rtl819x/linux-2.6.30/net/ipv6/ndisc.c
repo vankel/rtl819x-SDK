@@ -711,6 +711,8 @@ static int pndisc_is_router(const void *pkey,
 		ret = !!(n->flags & NTF_ROUTER);
 	read_unlock_bh(&nd_tbl.lock);
 
+	printk("%s %d ret %d\n", __FUNCTION__, __LINE__, ret);
+
 	return ret;
 }
 
@@ -853,6 +855,9 @@ static void ndisc_recv_ns(struct sk_buff *skb)
 
 	if (is_router < 0)
 		is_router = !!idev->cnf.forwarding;
+	printk("%s %d %s forward %d\n", __FUNCTION__, __LINE__, idev->dev->name, idev->cnf.forwarding);
+
+	printk("%s %d cnf.forwarding is %d, is_router is %d\n", __FUNCTION__, __LINE__, idev->cnf.forwarding, is_router);
 
 	if (dad) {
 		ndisc_send_na(dev, NULL, &in6addr_linklocal_allnodes, &msg->target,

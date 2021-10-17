@@ -27,6 +27,7 @@
 
 #define RTL_L2TP_POWEROFF_PATCH 1
 
+#define PKTNUM_THRESHOLD_PERMIN 3000 //60*50 
 
 _u16 ppp_crc16_table[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
@@ -83,7 +84,8 @@ struct buffer *new_outgoing (struct tunnel *t)
 		tmp->receiving	  = 0;
 		tmp->transmitted  = 0;
 		tmp->transmitting = 0;
-		tmp->send_count   = HELLO_DELAY;
+//		tmp->send_count   = HELLO_DELAY;
+	       tmp->send_count   = gconfig.hello_interval;
 #endif
     return tmp;
 }
@@ -132,14 +134,113 @@ void add_control_hdr (struct tunnel *t, struct call *c, struct buffer *buf)
 
 }
 
+int checkServerActive(struct tunnel *t)
+{
+
+#ifdef SUPPORT_ZIONCOM_RUSSIA 
+	if(gconfig.check_ack==0)
+		return 0;
+#endif
+		
+	if(gconfig.hello_count<gconfig.hello_num)
+		return 0;
+	
+	if(!t)
+	  	return 0;	
+	
+	struct call *sc=t->call_head, *tmpsc=NULL;
+	while(sc)
+	{
+		tmpsc=sc->next;
+		call_close(sc);
+		sc=tmpsc;
+	}
+	
+	return 1;
+}
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+static void get_ppp_pktnum()
+{
+	FILE *fp;
+	int unit;
+	unsigned long rxb, rxnr, rx_errs;
+	unsigned long drop, fifo, frame, compressed, multicast;
+	unsigned long txb, txnr;
+
+	char buf[512];
+	char ifname[]="ppp0";
+	int matched = 0;
+
+	fp = fopen("/proc/net/dev", "r");
+	if (!fp)
+		return;
+	while (NULL != fgets(buf, sizeof(buf), fp)) 
+	{
+		if (strstr(buf, ifname)) 
+		{
+			matched = sscanf(buf, " ppp%d: %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+			&unit, &rxb, &rxnr, &rx_errs,
+			&drop, &fifo, &frame, &compressed, &multicast, &txb, &txnr);
+			
+			fclose(fp);
+			if (matched >= 3) 
+			{
+				gconfig.rx_pktnum = rxnr;
+				gconfig.tx_pktnum = txnr;				
+				return;
+			}
+			else
+				return;
+		}
+	}
+	fclose(fp);
+	return;
+}
+#endif
 void hello (void *tun)
 {
     struct buffer *buf;
     struct tunnel *t;
     struct timeval tv;
-    tv.tv_sec = HELLO_DELAY;
+//    tv.tv_sec = HELLO_DELAY;
+    tv.tv_sec = gconfig.hello_interval;
     tv.tv_usec = 0;
     t = (struct tunnel *) tun;
+#ifdef SUPPORT_ZIONCOM_RUSSIA    
+    {
+    		unsigned long tmp_rx_pktnum, tmp_tx_pktnum;
+		unsigned long rx_pkt_permin, tx_pkt_permin;
+		
+		tmp_rx_pktnum=gconfig.rx_pktnum;
+		tmp_tx_pktnum=gconfig.tx_pktnum;
+		
+    		get_ppp_pktnum();		
+			
+		rx_pkt_permin=gconfig.rx_pktnum-tmp_rx_pktnum;
+		tx_pkt_permin=gconfig.tx_pktnum-tmp_tx_pktnum;
+
+//		fprintf(stderr, "gconfig.rx_pktnum=%u, gconfig.tx_pktnum=%u, rx_pkt_permin=%u, tx_pkt_permin=%u\n", 
+//			gconfig.rx_pktnum, gconfig.tx_pktnum, rx_pkt_permin, tx_pkt_permin);
+		
+		if(rx_pkt_permin>PKTNUM_THRESHOLD_PERMIN || tx_pkt_permin>PKTNUM_THRESHOLD_PERMIN)
+			gconfig.check_ack=0;
+		else
+			gconfig.check_ack=1;	
+    } 
+#endif
+    if(!checkServerActive(t))    
+    {
+	    gconfig.hello_ns=t->control_seq_num;
+    	    gconfig.hello_nr=t->control_rec_seq_num;
+			
+	    if(gconfig.check_ack)
+	    		gconfig.hello_count++;
+    }
+    else
+    {
+	  log (LOG_DEBUG, "%s:%d Server is not active!\n", __FUNCTION__,__LINE__);
+	  return;
+    }
     buf = new_outgoing (t);
     add_message_type_avp (buf, Hello);
     add_control_hdr (t, t->self, buf);
@@ -148,7 +249,9 @@ void hello (void *tun)
 #ifdef DEBUG_HELLO
     log (LOG_DEBUG, "%s: sending Hello on %d\n", __FUNCTION__, t->ourtid);
 #endif
-    control_xmit (buf);
+//    control_xmit (buf);
+	udp_xmit (buf);
+	toss(buf);
 #if defined(RTL_L2TP_POWEROFF_PATCH)  //patch for l2tp by jiawenjain
 	unsigned short l2tp_ns;
 	unsigned char l2tp_cmdBuf[50];
@@ -180,6 +283,7 @@ void control_zlb (struct buffer *buf, struct tunnel *t, struct call *c)
          t->tid);
 #endif
     udp_xmit (buf);
+	toss(buf);
 }
 
 int control_finish (struct tunnel *t, struct call *c)
@@ -287,6 +391,9 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
                 log (LOG_DEBUG, "%s: sending SCCRQ\n",
                      __FUNCTION__);
             control_xmit (buf);
+	     gconfig.hello_count=0;
+	     gconfig.rx_pktnum=0;
+	     gconfig.tx_pktnum=0;
         }
         else
         {
@@ -327,7 +434,11 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
                     do_packet_dump (buf);
                 if (gconfig.debug_state)
                     log (LOG_DEBUG, "%s: sending ICRQ\n", __FUNCTION__);
-                control_xmit (buf);
+//		  system("echo 0 >/proc/fast_l2tp");  
+//                system("echo 1 >/proc/fast_l2tp"); 
+//			control_xmit (buf);
+			udp_xmit (buf);
+			toss(buf);
             }
             else
             {                   /* jz: sending a OCRQ */
@@ -623,9 +734,12 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
         c->cnu = 0;
         if (gconfig.debug_state)
             log (LOG_DEBUG, "%s: sending SCCCN\n", __FUNCTION__);
-        control_xmit (buf);
+//        control_xmit (buf);
+		udp_xmit (buf);
+		toss(buf);
         /* Schedule a HELLO */
-        tv.tv_sec = HELLO_DELAY;
+//        tv.tv_sec = HELLO_DELAY;
+	 tv.tv_sec =gconfig.hello_interval;
         tv.tv_usec = 0;
 #ifdef DEBUG_HELLO
         log (LOG_DEBUG, "%s: scheduling initial HELLO on %d\n", __FUNCTION__,
@@ -673,7 +787,8 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
              IPADDY (t->peer.sin_addr),
              ntohs (t->peer.sin_port), t->ourtid, t->tid, t->lns->entname);
         /* Schedule a HELLO */
-        tv.tv_sec = HELLO_DELAY;
+//        tv.tv_sec = HELLO_DELAY;
+	 tv.tv_sec =gconfig.hello_interval;
         tv.tv_usec = 0;
 #ifdef DEBUG_HELLO
         log (LOG_DEBUG, "%s: scheduling initial HELLO on %d\n", __FUNCTION__,
@@ -869,11 +984,13 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
              "Call established with %s, Local: %d, Remote: %d, Serial: %d\n",
              IPADDY (t->peer.sin_addr), c->ourcid, c->cid,
              c->serno);
-        control_xmit (buf);
+//        control_xmit (buf);
+	    udp_xmit (buf);
 
+	    toss(buf);
 #if defined(RTL_L2TP_POWEROFF_PATCH)  //Patch for l2tp re-connet to server(winxp) after power off/on by jiawenjian
 	{
-		char *myMsg[]={"AP power off/on."};
+		char myMsg[]="AP power off/on.";
 		unsigned char *l2tp_payload;
 		unsigned short l2tp_ns_icrp;
 		int tmp_int[100];
@@ -1167,8 +1284,24 @@ log(LOG_DEBUG,"%s(%d):control->msgType(%d)\n",__FUNCTION__,__LINE__,c->msgtype);
         c->closing = -1;
         break;
     case Hello:
+//	t->state = ACK;
+        buf = new_outgoing (t);
+//        add_message_type_avp (buf, ACK);
+        add_control_hdr (t, c, buf);		
+	t->control_seq_num--;	
+	
+        if (gconfig.packet_dump)
+            do_packet_dump (buf);
+        c->cnu = 0;
+        if (gconfig.debug_state)
+            log (LOG_DEBUG, "%s: sending ACK\n", __FUNCTION__);
+        udp_xmit (buf);
+        toss(buf);
         break;
     case SLI:
+        break;
+    case ACK:
+	c->cnu = 0;
         break;
     default:
         log (LOG_DEBUG,
@@ -1238,8 +1371,8 @@ inline int check_control (const struct buffer *buf, struct tunnel *t,
 #endif
             zlb = new_outgoing (t);
             control_zlb (zlb, t, c);
-            udp_xmit (zlb);
-            toss (zlb);
+//            udp_xmit (zlb);
+//            toss (zlb);
         }
         else if (!t->control_rec_seq_num && (t->tid == -1))
         {
@@ -1755,10 +1888,11 @@ void handle_special (struct buffer *buf, struct call *c, _u16 call)
         /* Make a packet with the specified call number */
         outgoing = new_outgoing (t);
         /* FIXME: If I'm not a CDN, I need to send a CDN */
-        control_zlb (buf, t, c);
+//        control_zlb (buf, t, c);
+	control_zlb (outgoing, t, c);
         c->cid = 0;
-        udp_xmit (buf);
-        toss (buf);
+//        udp_xmit (buf);
+//        toss (buf);
     }
     else
     {
@@ -1768,6 +1902,15 @@ void handle_special (struct buffer *buf, struct call *c, _u16 call)
     }
 }
 
+void checkIsHelloAck(struct buffer *buf)
+{	
+		struct control_hdr *ctrl_hdr=NULL;
+		ctrl_hdr=(struct control_hdr *)buf->start;
+		if(ctrl_hdr->Ns==gconfig.hello_nr && ctrl_hdr->Nr==gconfig.hello_ns+1)
+		{
+			gconfig.hello_count=0;
+		}
+}
 inline int handle_packet (struct buffer *buf, struct tunnel *t,
                           struct call *c)
 {
@@ -1786,6 +1929,7 @@ inline int handle_packet (struct buffer *buf, struct tunnel *t,
 #ifdef DEBUG_ZLB
                 log (LOG_DEBUG, "%s: control ZLB received\n", __FUNCTION__);
 #endif
+		  checkIsHelloAck(buf);
                 t->control_rec_seq_num--;
                 c->cnu = 0;
                 if (c->needclose && c->closing)

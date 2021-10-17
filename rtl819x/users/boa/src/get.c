@@ -127,6 +127,23 @@ int init_get2(request * req)
 
 	complete_env(req);
 
+#if defined(CONFIG_APP_FWD)
+{ /* if countDownPage.htm had been sent to browser, don't allow browser to get other page(br0 down) */
+	extern int isCountDown;
+	extern int isFWUPGRADE;
+	if (isFWUPGRADE == 2) {
+		if (strstr(req->pathname, "countDownPage.htm")) {
+			isCountDown = 1;
+		}
+		else if (isCountDown == 1) {
+			isCountDown = 2;
+			system("ifconfig br0 down");
+			sleep(1);
+		}
+	}
+}
+#endif
+
 	middle_segment=0;
 	req->cgi_env[req->cgi_env_index] = NULL;     /* terminate cgi env */
 	if ((strstr(req->request_uri,".htm")==NULL) &&
@@ -328,7 +345,31 @@ int init_get2(request * req)
 		memmove((content_length_orig2-byte_shift), content_length_orig2, total_length_shift);
 		memcpy(content_length_orig1, simple_itoa(exact_size),exact_char_length); 
 		req->buffer_end = req->buffer_end-byte_shift;  
-	}	
+	}
+	
+#ifdef CSRF_SECURITY_PATCH
+	{
+		char *last = content_length_orig1;
+		char *nextp, char_save;
+		extern void log_boaform(char *form);
+		while (1) {		
+			nextp = strstr(last, "boafrm/");
+			if (nextp) {			
+				last = nextp + 7;
+				nextp = last;
+				while (*nextp && !isspace(*nextp) && (*nextp!='"'))
+					nextp++;	
+				char_save = *nextp;
+				*nextp = '\0';
+				log_boaform(last);						
+				*nextp = char_save;	
+			}
+			else
+				break;
+		}
+	}
+#endif
+	
 //Brad add end for update content length
 	if (req->filepos == req->filesize) {
 //		req->status = CLOSE;
@@ -1045,7 +1086,27 @@ static int index_directory(request * req, char *dest_filename)
     }
 
 #ifdef HTTP_FILE_SERVER_SUPPORTED
+#ifdef HTTP_FILE_SERVER_HTM_UI
+		if(req->pathname &&
+			strcmp(req->pathname,"/web/")!=0 &&
+			req->pathname[strlen(req->pathname) - 1] == '/')
+		{
+			extern void formHttpFilePathRedirect(request *wp,char* http_C,char* http_O);
+			char* http_C=NULL,*http_O=NULL;
+			char * ptr=NULL;
+			if(ptr=strstr(req->client_stream,"C="))
+				http_C=ptr+strlen("C=");
+			if(ptr=strstr(req->client_stream,"O="))
+				http_O=ptr+strlen("O=");
+//			printf("%s:%d req->pathname=%s req->client_stream=%s http_C=%s http_O=%s\n",
+//		__FUNCTION__,__LINE__,req->pathname,req->client_stream,http_C,http_O);
+			formHttpFilePathRedirect(req,http_C,http_O);
+			chdir(server_root);
+			return 0;
+		}
+#else
     bytes = generate_directory_page(req, dest_filename);
+#endif
 #else
     request_dir = opendir(".");
     if (request_dir == NULL) {

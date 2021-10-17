@@ -47,6 +47,11 @@
 #include "dhcpc.h"
 #include "debug.h"
 
+#ifdef TR069_ANNEX_F
+#include "apmib.h"
+#include "mibtbl.h"
+#endif
+
 
 /* Create a random xid */
 unsigned long random_xid(void)
@@ -82,9 +87,14 @@ static void init_packet(struct dhcpMessage *packet, char type)
 	memcpy(packet->chaddr, client_config.arp, 6);
 	add_option_string(packet->options, client_config.clientid);
 	if (client_config.hostname) add_option_string(packet->options, client_config.hostname);
+	if(type!=DHCPDECLINE && type!=DHCPRELEASE)
 	add_option_string(packet->options, (unsigned char *) &vendor_id);
 #ifdef CONFIG_RTL865X_KLD
 	if (client_config.broadcast_flag) packet->flags |= BROADCAST_FLAG;
+#endif
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	if(type==DHCPDISCOVER || type==DHCPREQUEST)
+		add_option_string(packet->options, client_config.max_msg_size);
 #endif
 }
 
@@ -106,6 +116,69 @@ static void add_requests(struct dhcpMessage *packet)
 
 }
 
+#ifdef TR069_ANNEX_F
+static void add_option_125(unsigned char *optionptr)
+{
+	char tmp[512];
+	unsigned char optionStr[300] = {0};
+	unsigned char serialNum[256] = {0};
+	
+	int ouiLen, serialNumLen, prodClsLen, subCodeLen, option125Len;
+	int i;
+
+	memset(optionStr, 0, sizeof(optionStr));
+	
+	// option 125
+	optionStr[0] = 0x7d;
+
+	// Enterprise Number: 3561 for "Broadband Forum"
+	optionStr[2] = 0x00;
+	optionStr[3] = 0x00;
+	optionStr[4] = 0x0d;
+	optionStr[5] = 0xe9;
+	
+	if (apmib_init())
+	{
+		apmib_get(MIB_HW_NIC1_ADDR, (void *)tmp);
+		sprintf(serialNum, "%02x%02x%02x%02x%02x%02x",
+			(unsigned char)tmp[0], (unsigned char)tmp[1], (unsigned char)tmp[2],
+			(unsigned char)tmp[3], (unsigned char)tmp[4], (unsigned char)tmp[5]);
+
+		ouiLen = strlen(MANUFACTURER_OUI);
+		serialNumLen = strlen(serialNum);
+		prodClsLen = strlen(PRODUCT_CLASS_DEVICE);
+
+		subCodeLen = ouiLen + serialNumLen + prodClsLen + 6;
+		option125Len = subCodeLen + 5;
+
+		optionStr[1] = option125Len;
+		optionStr[6] = subCodeLen;
+		optionStr[7] = 0x01; // DeviceManufacturerOUI
+		optionStr[8] = ouiLen;
+		sprintf(&optionStr[9], "%s", MANUFACTURER_OUI);
+		optionStr[8+ouiLen+1] = 0x02; // DeviceSerialNumber
+		optionStr[8+ouiLen+2] = serialNumLen;
+		sprintf(&optionStr[8+ouiLen+3], "%s", serialNum);
+		optionStr[8+ouiLen+3+serialNumLen] = 0x03; // DeviceProductClass
+		optionStr[8+ouiLen+3+serialNumLen+1] = prodClsLen;
+		sprintf(&optionStr[8+ouiLen+3+serialNumLen+2], "%s", PRODUCT_CLASS_DEVICE);
+		
+#if 0
+		printf("oui %d serial %d prod %d subcode %d optionlen %d\n", 
+			ouiLen, serialNumLen, prodClsLen, subCodeLen, option125Len);
+		
+		for (i=0; i<300; i++) {
+			printf("%02x ", optionStr[i]);
+
+			if (i%15 == 0)
+				printf("\n\n");
+		}
+#endif
+
+		add_option_string(optionptr, optionStr);
+	}
+}
+#endif
 
 /* Broadcast a DHCP discover packet to the network, with an optionally requested IP */
 int send_discover(unsigned long xid, unsigned long requested)
@@ -116,6 +189,27 @@ int send_discover(unsigned long xid, unsigned long requested)
 	packet.xid = xid;
 	if (requested)
 		add_simple_option(packet.options, DHCP_REQUESTED_IP, requested);
+
+#ifdef TR069_ANNEX_F
+#if 0
+	{
+		unsigned char testbuf[] = {
+			0x7d , // option 125
+			0x32 , // len
+			0x00 , 0x00 , 0x0d , 0xe9 , // Enterprise Number: 3561 for "ADSL Forum"
+			0x2d , // len
+			0x01 , 0x06 , 0x30 , 0x30 , 0x30, 0x31 , 0x30 , 0x32 , // subcode, len, data
+			0x02 , 0x10 , 0x30 , 0x30 , 0x30 , 0x31 , 0x30 , 0x32 , 0x2d , 0x34 , 0x32 , 0x38 , 0x32, // subcode, len, data
+			0x38 , 0x38 , 0x38 , 0x32 , 0x39 , 
+			0x03 , 0x11 , 0x43 , 0x44 , 0x52 , 0x6f , 0x75 , 0x74 , 0x65 , 0x72 , 0x20, // subcode, len, data
+			0x56 , 0x6f , 0x49 , 0x50 , 0x20 , 0x41 , 0x54 , 0x41 };
+	
+		add_option_string(packet.options, testbuf);
+	}
+#else
+	add_option_125(packet.options);
+#endif
+#endif
 
 	add_requests(&packet);
 // david, disable message. 2003-5-21	
@@ -136,6 +230,10 @@ int send_selecting(unsigned long xid, unsigned long server, unsigned long reques
 
 	add_simple_option(packet.options, DHCP_REQUESTED_IP, requested);
 	add_simple_option(packet.options, DHCP_SERVER_ID, server);
+
+#ifdef TR069_ANNEX_F
+	add_option_125(packet.options);
+#endif
 	
 	add_requests(&packet);
 	addr.s_addr = requested;
@@ -155,14 +253,25 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
 	packet.xid = xid;
 	packet.ciaddr = ciaddr;
 
+	add_simple_option(packet.options, DHCP_REQUESTED_IP, ciaddr);
+	
+#ifdef TR069_ANNEX_F
+	add_option_125(packet.options);
+#endif
+
 	add_requests(&packet);
 	LOG(LOG_DEBUG, "Sending renew...");
 	if (server) 
 		ret = kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
-//	else ret = raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
+	else 
+//		ret = raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
 //				SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
-	else ret = raw_packet(&packet, ciaddr, CLIENT_PORT, INADDR_BROADCAST,
+		ret = raw_packet(&packet, ciaddr, CLIENT_PORT, INADDR_BROADCAST,
 				SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
+#ifdef TR069_ANNEX_F
+	if (ret > 0)
+		unlink(TR069_ANNEX_F_FILE);
+#endif
 	return ret;
 }	
 
@@ -171,6 +280,9 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
 int send_release(unsigned long server, unsigned long ciaddr)
 {
 	struct dhcpMessage packet;
+#ifdef TR069_ANNEX_F
+	int ret = 0;
+#endif
 
 	init_packet(&packet, DHCPRELEASE);
 	packet.xid = random_xid();
@@ -180,9 +292,29 @@ int send_release(unsigned long server, unsigned long ciaddr)
 	add_simple_option(packet.options, DHCP_SERVER_ID, server);
 
 	LOG(LOG_DEBUG, "Sending release...");
+#ifdef TR069_ANNEX_F
+	ret = kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
+	if (ret > 0)
+		unlink(TR069_ANNEX_F_FILE);
+#else
 	return kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
+#endif
 }
 
+int send_decline(uint32_t server, uint32_t requested)
+{
+	struct dhcpMessage packet;
+
+	init_packet(&packet, DHCPDECLINE);
+	packet.xid = random_xid();
+	add_simple_option(packet.options, DHCP_REQUESTED_IP, requested);
+	add_simple_option(packet.options, DHCP_SERVER_ID, server);
+
+	LOG(LOG_DEBUG, "Sending decline...");
+	
+	return raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST, 
+				SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);	
+}
 
 /* return -1 on errors that are fatal for the socket, -2 for those that aren't */
 int get_raw_packet(struct dhcpMessage *payload, int fd)

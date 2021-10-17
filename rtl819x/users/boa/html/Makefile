@@ -12,6 +12,14 @@ endif
 
 #------------------------------------------------------------------------------
 ifdef CONFIG_RTL_8198_AP_ROOT
+CONFIG_RTL_AP = CONFIG_RTL_8198_AP_ROOT
+endif
+
+ifdef CONFIG_RTL_8197D_AP
+CONFIG_RTL_AP = CONFIG_RTL_8197D_AP
+endif
+
+ifdef CONFIG_RTL_AP
 AP=1
 SKUTAG=ap
 else
@@ -40,6 +48,11 @@ ifneq ($(CONFIG_APP_ROUTED),y)
 EXCLUDE_FILES += ! -name route.htm ! -name routetbl.htm
 endif
 
+# boa cgi support
+ifneq ($(BOA_CGI_SUPPORT),y)
+EXCLUDE_FILES += ! -name test.cgi ! -name nph-test.cgi
+endif
+
 #for 11s mesh
 ifneq ($(CONFIG_RTL_MESH_SUPPORT),y)
 EXCLUDE_FILES += ! -name buffalo.htm ! -name bull.htm ! -name wlmesh.htm ! -name wlmeshinfo.htm ! -name wlmeshACL.htm
@@ -64,6 +77,7 @@ ifneq ($(CONFIG_HTTP_FILE_SERVER_SUPPORT),y)
 EXCLUDE_FILES += ! -name http_files.htm
 EXCLUDE_FILES += ! -name http_files.htm
 EXCLUDE_FILES += ! -name usb_conninfo.htm
+EXCLUDE_FILES += ! -name http_files_dir.htm
 endif
 
 ifneq ($(CONFIG_RTL_P2P_SUPPORT),y)
@@ -86,8 +100,18 @@ ifeq ($(CONFIG_IPV6),y)
 EXCLUDE_FILES += ! -name ipfilter.htm ! -name portfilter.htm ! -name ip_qos.htm
 endif
 
-
-
+ifneq ($(CONFIG_RTL_802_1X_CLIENT_SUPPORT),y)
+EXCLUDE_FILES += ! -name rsCertInstall.htm
+endif
+ifneq ($(CONFIG_APP_SNMP),y)
+EXCLUDE_FILES += ! -name snmp.htm
+endif
+ifneq ($(CONFIG_HTTP_FILE_SERVER_SUPPORT),y)
+EXCLUDE_FILES += ! -name usb_fileinfo.htm
+endif
+ifeq ($(SKUTAG),ap)
+EXCLUDE_FILES += ! -name portfilter.htm ! -name ipfilter.htm ! -name macfilter.htm ! -name portfw.htm ! -name urlfilter.htm ! -name dmz.htm ! -name vlan.htm ! -name ip_qos.htm ! -name tcpipwan.htm ! -name ddns.htm ! -name dos.htm ! -name opmode.htm
+endif
 ifeq ($(CONFIG_RTL_WAPI_SUPPORT),y)
 ifneq ($(CONFIG_RTL_WAPI_LOCAL_AS_SUPPORT),y)
 EXCLUDE_FILES += ! -name wlwapiCertManagement.htm ! -name  wlwapiDistribute.htm
@@ -109,13 +133,11 @@ ifneq ($(CONFIG_APP_TR069),y)
 EXCLUDE_FILES += ! -name share.js ! -name tr069config.htm
 endif
 
-ifeq ($(CONFIG_APP_RTK_VOIP),y)
-	EXCLUDE_FILES += ! -name vlan.htm
-	EXCLUDE_FILES += ! -name route.htm ! -name routetbl.htm
-	EXCLUDE_FILES += ! -name ip_qos.htm
-endif
 ifneq ($(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT),y)
 EXCLUDE_FILES += ! -name vlan_wan.htm
+endif
+ifneq ($(CONFIG_APP_CPU_UTILIZATION), y)
+EXCLUDE_FILES += ! -name cpuShow.htm ! -name right.gif ! -name left.gif
 endif
 #------------------------------------------------------------------------------
 all:
@@ -126,6 +148,8 @@ ifeq ($(CONFIG_APP_RTK_VOIP),y)
 	cp $(VOIP_APP)/web/voip*.js .
 	sed -i "s/goform/boafrm/g" voip*.asp
 	sed -i "s/method=\"get\"/method=\"post\"/g" voip*.asp
+else
+	rm -f voip*.asp voip*.js
 endif
 	find ./ -type f $(EXCLUDE_FILES) -name "*.*" > www_files
 ifdef CONFIG_RTL_WEBPAGES_IN_ROOTFS

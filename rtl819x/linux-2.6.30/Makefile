@@ -462,6 +462,9 @@ endif
 ifeq ($(CONFIG_USB_UWIFI_HOST),y)
 UWIFI_INCLUDED = 1
 endif
+ifeq ($(CONFIG_RTL_USB_ISOCHRONOUS_WEIGHT),y)
+UWIFI_INCLUDED = 1
+endif
 endif # KBUILD_EXTMOD
 
 ifeq ($(dot-config),1)
@@ -956,6 +959,26 @@ ifneq ($(KBUILD_SRC),)
 	    mkdir -p include2;                                          \
 	    ln -fsn $(srctree)/include/asm-$(SRCARCH) include2/asm;     \
 	fi
+endif
+ifeq ($(CONFIG_RTL_SIMPLE_CONFIG), y)
+	echo "the toolchain is $(CONFIG_RSDKDIR)" 
+	rm -f .toolchain_*; 
+	egrep "^CONFIG_RSDKDIR=toolchain/rsdk-1.5.5-4181-EB-2.6.30-0.9.30.3-110225" ../.config > .toolchain_5.5_4181;\
+	if [ -s .toolchain_5.5_4181 ];	then \
+	cp ./drivers/net/wireless/rtl8192cd_sc/5.5_4181 ./drivers/net/wireless/rtl8192cd/8192cd_profile.S; \
+	fi; 
+	egrep "^CONFIG_RSDKDIR=toolchain/rsdk-1.5.5-5281-EB-2.6.30-0.9.30.3-110714" ../.config > .toolchain_5.5_5281;\
+	if [ -s .toolchain_5.5_5281 ]; then \
+		cp ./drivers/net/wireless/rtl8192cd_sc/5.5_5281 ./drivers/net/wireless/rtl8192cd/8192cd_profile.S; \
+	fi; 
+	egrep "^CONFIG_RSDKDIR=toolchain/rsdk-1.3.6-4181-EB-2.6.30-0.9.30" ../.config > .toolchain_3.6_4181;\
+	if [ -s .toolchain_3.6_4181 ]; then \
+		cp ./drivers/net/wireless/rtl8192cd_sc/3.6_4181 ./drivers/net/wireless/rtl8192cd/8192cd_profile.S; \
+	fi; 
+	egrep "^CONFIG_RSDKDIR=toolchain/rsdk-1.3.6-5281-EB-2.6.30-0.9.30" ../.config > .toolchain_3.6_5281;\
+	if [ -s .toolchain_3.6_5281 ]; then \
+		cp ./drivers/net/wireless/rtl8192cd_sc/3.6_5281 ./drivers/net/wireless/rtl8192cd/8192cd_profile.S; \
+	fi; 
 endif
 
 # prepare2 creates a makefile if using a separate output directory

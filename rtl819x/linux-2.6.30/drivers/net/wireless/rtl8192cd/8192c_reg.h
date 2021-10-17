@@ -13,6 +13,9 @@
 #ifndef _8192C_REG_H_
 #define _8192C_REG_H_
 
+#ifndef WLAN_HAL_INTERNAL_USED
+
+
 //============================================================
 //       8192C Regsiter offset definition
 //============================================================
@@ -199,6 +202,7 @@
 #define		ARFR3				0x450	// Auto Rate Fallback 3.
 #define		AGGLEN_LMT		0x458	// Aggregation Length.
 #define		AMPDU_MIN_SPACE	0x45C	// AMPDU Min Space.
+#define		TXPKTBUF_WMAC_LBK_BF_HD	0x45D	// LBK Buffer Head Page
 #define		FAST_EDCA_CTRL	0x460	// Fast EDCA Mode.
 #define		RD_RESP_PKT_TH	0x463	// RD Responder Packet Threshold.
 #define		INIRTS_RATE_SEL	0x480	// Initial RTS Rate SEL.
@@ -233,12 +237,16 @@
 #define		TXPAUSE			0x522	// Transmission Pause.
 #define		DIS_TXREQ_CLR		0x523	// Disable TX Request Clear Function.
 #define		RD_CTRL			0x524	// RD Control.
+#define		REG_MBSSID_CTRL		0x526   // MBSSID  Control.
+
 #define		TBTT_PROHIBIT		0x540	// TBTT Prohibit.
 #define		RD_NAV_NXT		0x544	// RD NAV Protect Next Time.
 #define		NAV_PROT_LEN		0x546	// NAV Protection Length.
 #define		BCN_CTRL			0x550	// Bcnq Control.
+#define		BCN_CTRL1			0x551
 #define		USTIME_TSF			0x551	// US Time Tuning for TSF.
 #define		MBID_NUM			0x552	// MBSSID Beacon Number.
+#define		DUAL_TSF_RST		0x553
 #define		MBSSID_BCN_SPACE	0x554	// MBSSID Beacon Space.
 #define		DRVERLYINT			0x558	// Beacon Driver Early Interrupt.
 #define		BCNDMATIM			0x559	// BCN DMA and ATIM INT Time.-----------------???
@@ -248,6 +256,7 @@
 #define		RXTSF_OFFSET_OFDM	0x55F	// OFDM BCN OFFSET.
 #define		TSFTR				0x560	// TSF Timer.
 #define		INIT_TSFTR			0x564	// TSF Timer Initial Value.
+#define		TSFTR1				0x568	// TSF Timer1.
 #define		PSTIMER			0x580	// PS TIMER and Timeout INT.
 #define		TIMER0				0x584	// TIMER0 INT.
 #define		TIMER1				0x588	// TIMER1 INT.
@@ -326,6 +335,52 @@
 #define		PKT_MON_CTRL		0x6B4	// Packet Monitor Control.
 #define		BT_COEX_TABLE		0x6C0	// BT-Coexistence Control.
 #define		WMAC_RESP_TXINFO	0x6D8	// Response TXINFO.
+
+#define         BSSIDR1                 0x708
+
+//-----------------------------------------------------
+//
+//	0xFE00h ~ 0xFE55h	USB Configuration
+//
+//-----------------------------------------------------
+#define REG_USB_INFO				0xFE17
+#define REG_USB_SPECIAL_OPTION	0xFE55
+#define REG_USB_DMA_AGG_TO		0xFE5B
+#define REG_USB_AGG_TO				0xFE5C
+#define REG_USB_AGG_TH				0xFE5D
+
+#define REG_USB_VID					0xFE60
+#define REG_USB_PID					0xFE62
+#define REG_USB_OPTIONAL			0xFE64
+#define REG_USB_CHIRP_K			0xFE65
+#define REG_USB_PHY					0xFE66
+#define REG_USB_MAC_ADDR			0xFE70
+
+#define REG_USB_HRPWM				0xFE58
+#define REG_USB_HCPWM				0xFE57
+
+// For test chip
+#define REG_TEST_USB_TXQS			0xFE48
+#define REG_TEST_SIE_VID			0xFE60		// 0xFE60~0xFE61
+#define REG_TEST_SIE_PID			0xFE62		// 0xFE62~0xFE63
+#define REG_TEST_SIE_OPTIONAL		0xFE64
+#define REG_TEST_SIE_CHIRP_K		0xFE65
+#define REG_TEST_SIE_PHY			0xFE66		// 0xFE66~0xFE6B
+#define REG_TEST_SIE_MAC_ADDR		0xFE70		// 0xFE70~0xFE75
+#define REG_TEST_SIE_STRING		0xFE80		// 0xFE80~0xFEB9
+
+
+// For normal chip
+#define REG_NORMAL_SIE_VID			0xFE60		// 0xFE60~0xFE61
+#define REG_NORMAL_SIE_PID			0xFE62		// 0xFE62~0xFE63
+#define REG_NORMAL_SIE_OPTIONAL	0xFE64
+#define REG_NORMAL_SIE_EP			0xFE65		// 0xFE65~0xFE67
+#define REG_NORMAL_SIE_PHY		0xFE68		// 0xFE68~0xFE6B
+#define REG_NORMAL_SIE_OPTIONAL2	0xFE6C
+#define REG_NORMAL_SIE_GPS_EP		0xFE6D		// 0xFE6D, for RTL8723 only.
+#define REG_NORMAL_SIE_MAC_ADDR	0xFE70		// 0xFE70~0xFE75
+#define REG_NORMAL_SIE_STRING		0xFE80		// 0xFE80~0xFEDF
+
 
 
 //============================================================================
@@ -447,16 +502,60 @@
 
 #ifdef CONFIG_RTL_92C_SUPPORT
 
+#ifdef CONFIG_PCI_HCI
+#define EEPROM_VID					0x0A // SE Vendor ID.A-B
+#define EEPROM_DID					0x0C // SE Device ID. C-D
+#define EEPROM_SVID					0x0E // SE Vendor ID.E-F
+#define EEPROM_SMID					0x10 // SE PCI Subsystem ID. 10-11
+#endif
 #define EEPROM_TxPowerCCK			0x5A // CCK Tx Power base
-#define	EEPROM_TxPowerHT40_1S		0x60 // HT40 Tx Power base
-#define	EEPROM_TxPowerHT40_2SDiff	0x66 // HT40 Tx Power diff
+#define EEPROM_TxPowerHT40_1S		0x60 // HT40 Tx Power base
+#define EEPROM_TxPowerHT40_2SDiff	0x66 // HT40 Tx Power diff
 #define EEPROM_TxPowerHT20Diff		0x69 // HT20 Tx Power diff
 #define EEPROM_TxPowerOFDMDiff		0x6C // OFDM Tx Power diff
-#define EEPROM_MACADDRESS			0x16 // OFDM Tx Power diff
-#define EEPROM_THERMAL_METER		0x78 //[4:0]
-#endif
+#define EEPROM_MACADDRESS			0x16
 
-#endif
+#define EEPROM_CHANNEL_PLAN		0x75
+#define EEPROM_TSSI_A				0x76
+#define EEPROM_TSSI_B				0x77
+#define EEPROM_THERMAL_METER		0x78 //[4:0]
+#define EEPROM_RF_OPT1				0x79
+#define EEPROM_RF_OPT2				0x7A
+#define EEPROM_RF_OPT3				0x7B
+#define EEPROM_RF_OPT4				0x7C
+#define EEPROM_VERSION				0x7E
+#define EEPROM_CUSTOMER_ID			0x7F
+
+#define EEPROM_NORMAL_BoardType	EEPROM_RF_OPT1	//[7:5]
+
+#ifdef CONFIG_USB_HCI
+
+#define EEPROM_VID								0x0A
+#define EEPROM_PID								0x0C
+#define EEPROM_SUBCUSTOMER_ID					0x59
+
+//should be renamed and moved to another file
+typedef enum _BOARD_TYPE_8192CUSB{
+	BOARD_USB_DONGLE 			= 0,		// USB dongle
+	BOARD_USB_High_PA 		= 1,		// USB dongle with high power PA
+	BOARD_MINICARD		  	= 2,		// Minicard
+	BOARD_USB_SOLO 		 	= 3,		// USB solo-Slim module
+	BOARD_USB_COMBO			= 4,		// USB Combo-Slim module
+} BOARD_TYPE_8192CUSB, *PBOARD_TYPE_8192CUSB;
+
+#endif // CONFIG_USB_HCI
+#endif // CONFIG_RTL_92C_SUPPORT
+
+#ifdef CONFIG_USB_HCI
+#define BOARD_TYPE_NORMAL_MASK		0xE0
+
+#define EEPROM_Default_PID				0x1234
+#define EEPROM_Default_VID				0x5678
+#define EEPROM_Default_CustomerID			0xAB
+#define EEPROM_Default_SubCustomerID		0xCD
+#endif // CONFIG_USB_HCI
+
+#endif // EN_EFUSE
 
 
 //----------------------------------------------------------------------------
@@ -978,7 +1077,9 @@
 #define		LBMODE_SHIFT		24	// Loopback mode.
 #define		LBMODE_Mask		0x0F
 #define		NETYPE_SHIFT		16	// Network Type.
+#define		NETYPE_SHIFT1		18
 #define		NETYPE_Mask		0x03
+#define		CALTMR_EN			BIT(10)	// for 8723 & 88E only
 #define		MAC_SEC_EN		BIT(9)	// Enable MAC security engine.
 #define		ENSWBCN			BIT(8)	// Enable SW TX beacon.
 #define		MACRXEN			BIT(7)	// MAC Receiver Enable.
@@ -1031,6 +1132,18 @@
 #define		HPQ_SEL_BKQ		BIT(3)
 #define		HPQ_SEL_MGQ		BIT(4)
 #define		HPQ_SEL_HIQ		BIT(5)
+
+// For normal driver, 0x10C
+#define _TXDMA_HIQ_MAP(x) 	 		(((x)&0x3) << 14)
+#define _TXDMA_MGQ_MAP(x) 	 		(((x)&0x3) << 12)
+#define _TXDMA_BKQ_MAP(x) 	 		(((x)&0x3) << 10)
+#define _TXDMA_BEQ_MAP(x) 	 		(((x)&0x3) << 8 )
+#define _TXDMA_VIQ_MAP(x) 	 		(((x)&0x3) << 6 )
+#define _TXDMA_VOQ_MAP(x) 	 		(((x)&0x3) << 4 )
+
+#define QUEUE_LOW					1
+#define QUEUE_NORMAL				2
+#define QUEUE_HIGH					3
 
 //----------------------------------------------------------------------------
 //       8192C TRXFF_BNDY bits				(Offset 0x114-117, 32 bits)
@@ -1307,6 +1420,12 @@
 #define		LPQ_Mask			0x0FF
 #define		HPQ_SHIFT			0	// High Priority Queue Reserved Page Number.
 #define		HPQ_Mask			0x0FF
+
+#define _HPQ(x)			((x) & HPQ_Mask)
+#define _LPQ(x)			(((x) & LPQ_Mask) << LPQ_SHIFT)
+#define _PUBQ(x)			(((x) & PUBQ_Mask) << PUBQ_SHIFT)
+#define _NPQ(x)			((x) & 0xFF)			// NOTE: in RQPN_NPQ register
+
 
 //----------------------------------------------------------------------------
 //       8192C FIFOPAGE bits					(Offset 0x204-207, 32 bits)
@@ -1819,13 +1938,13 @@
 //----------------------------------------------------------------------------
 //       8192C TXPAUSE bits						(Offset 0x522, 8 bits)
 //----------------------------------------------------------------------------
-#define		STOP_BCN			BIT(6)	// Stop BCNQ Queue.
+#define		STOP_BCN		BIT(6)	// Stop BCNQ Queue.
 #define		STOP_HI			BIT(5)	// Stop High Queue.
-#define		STOP_MGT			BIT(4)	// Stop Management Queue.
-#define		STOP_VO			BIT(3)	// Stop VO Queue.
-#define		STOP_VI				BIT(2)	// Stop VI Queue.
-#define		STOP_BE			BIT(1)	// Stop BE Queue.
-#define		STOP_BK			BIT(0)	// Stop BK Queue.
+#define		STOP_MGT		BIT(4)	// Stop Management Queue.
+#define		STOP_BK			BIT(3)	// Stop BK Queue.
+#define		STOP_BE			BIT(2)	// Stop BE Queue.
+#define		STOP_VI			BIT(1)	// Stop VI Queue.
+#define		STOP_VO			BIT(0)	// Stop VO Queue.
 
 //----------------------------------------------------------------------------
 //       8192C DIS_TXREQ_CLR bits				(Offset 0x523, 8 bits)
@@ -2282,6 +2401,37 @@
 #define		RESP_TXANT_HT_SHIFT	0	//
 #define		RESP_TXANT_HT_Mask	0x03
 
+//========================================================
+// General definitions
+//========================================================
+
+#define LAST_ENTRY_OF_TX_PKT_BUFFER	255
+
+//-----------------------------------------------------
+//
+//	0xFE00h ~ 0xFE55h	USB Configuration
+//
+//-----------------------------------------------------
+
+//2 USB Information (0xFE17)
+#define USB_IS_HIGH_SPEED				0
+#define USB_IS_FULL_SPEED				1
+#define USB_SPEED_MASK					BIT(5)
+
+#define USB_NORMAL_SIE_EP_MASK		0xF
+#define USB_NORMAL_SIE_EP_SHIFT		4
+
+#define USB_TEST_EP_MASK				0x30
+#define USB_TEST_EP_SHIFT				4
+
+//2 Special Option
+#define USB_AGG_EN						BIT(3)
+
+
+//2REG_C2HEVT_CLEAR
+#define C2H_EVT_HOST_CLOSE		0x00	// Set by driver and notify FW that the driver has read the C2H command message
+#define C2H_EVT_FW_CLOSE		0xFF	// Set by FW indicating that FW had set the C2H command message and it's not yet read by driver.
+
 /*
 //----------------------------------------------------------------------------
 //       8192C Rate Definition
@@ -2327,6 +2477,8 @@
 #define	RATE_ALL_OFDM_2SS			RATR_MCS8|RATR_MCS9	|RATR_MCS10|RATR_MCS11|\
 									RATR_MCS12|RATR_MCS13|RATR_MCS14|RATR_MCS15
 */
+
+#endif  //WLAN_HAL_INTERNAL_USED
 
 #endif // #ifndef __INC_HAL8192SEREG_H
 

@@ -90,17 +90,17 @@ enum KA_STATUS { KA_INACTIVE, KA_ACTIVE, KA_STOPPED };
 enum CGI_STATUS { CGI_PARSE, CGI_BUFFER, CGI_DONE };
 
 /************** CGI TYPE (req->is_cgi) ******************/
-enum CGI_TYPE { NPH = 1, CGI };
+enum CGI_TYPE { NPH = 1, CGI, ASP };
 
 /**************** STRUCTURES ****************************/
 struct range {
 #if defined(ENABLE_LFS)
 	off64_t start;
-    off64_t stop;
-#else
+    	off64_t stop;
+#else	
     unsigned long start;
     unsigned long stop;
-#endif
+#endif    
     struct range *next;
 };
 
@@ -114,7 +114,7 @@ struct mmap_entry {
 #if defined(ENABLE_LFS)        
     off64_t len;
 #else
-		off_t len;
+    off_t len;
 #endif		    
 };
 
@@ -241,8 +241,10 @@ struct request {                /* pending requests */
 	int req_sort_order;
 #if defined(ENABLE_LFS)	
 	off64_t lenFileData;        /* upload file data length */
+	off64_t TotalContentLen;
 #else	
 	int lenFileData;        /* upload file data length */
+	int TotalContentLen;
 #endif	
 	int re_set_req_timeout;
 	char *destpath;		/* dsetpath for file upload*/
@@ -250,6 +252,8 @@ struct request {                /* pending requests */
 	int FileUploadAct;      /* upload file action */
 	int req_timeout_count;
 	int req_error_state;
+	char MagicKey[32];
+	char 	UserBrowser[32];
 #if defined(ENABLE_LFS)		
 	off64_t clen;
 #else	

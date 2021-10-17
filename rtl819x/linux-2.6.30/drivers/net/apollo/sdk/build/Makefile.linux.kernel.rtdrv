@@ -1,0 +1,25 @@
+#
+# Copyright (C) 2009 Realtek Semiconductor Corp.
+#
+# Makefile for SDK Linux Rtdrv Kernel Module
+#
+
+include $(SDKDIR)/../Compiler_Flag
+
+EXTRA_CFLAGS += -I$(SDK_INCLUDE) -I$(SYS_INCLUDE) -I$(DRV_INCLUDE)
+EXTRA_CFLAGS += -I$(SDKDIR)/../..
+
+ifneq ($(CONFIG_SDK_DRIVER_TEST),)
+EXTRA_CFLAGS += -I$(UT_INCLUDE)
+endif
+
+ifeq ($(CONFIG_SDK_DRIVER_RTDRV),m)
+CFLAGS += -mlong-calls -fno-pic -mno-abicalls
+CFLAGS += -D__RTDRV_MODULE__
+endif
+
+TARGET = rtdrv
+
+obj-y += $(TARGET).o
+$(TARGET)-objs := rtdrv_netfilter.o
+

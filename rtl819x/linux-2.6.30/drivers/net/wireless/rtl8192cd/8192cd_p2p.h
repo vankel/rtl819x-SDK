@@ -15,6 +15,15 @@
 
 #include "./8192cd_cfg.h"
 #include "./8192cd.h"
+#if defined(CONFIG_P2P_RTK_SUPPORT) && defined(CONFIG_OPENWRT_SDK)
+#include <net/cfg80211.h>
+#endif
+
+//#define P2PMODE				((GET_MIB(priv))->p2p_mib.p2p_role)
+//#define P2P_STATE				((GET_MIB(priv))->p2p_mib.p2p_state)
+#define P2P_EVENT_INDICATE		(priv->p2pPtr->p2p_event_indiate)
+#define P2P_PRE_MODE			(priv->p2pPtr->p2p_pre_role)
+#define P2P_DISCOVERY		    (priv->p2pPtr->p2p_on_discovery)
 //#include "./wps/wsc.h"
 /*============== will redeclare  with wsc.h ==================*/ 
 
@@ -48,11 +57,12 @@
 
 #define WFA_OUI_LEN	3
 #define WFA_OUI_PLUS_TYPE_LEN	4
+#define WFD_OUI_PLUS_TYPE_LEN   4
 
 #define MAX_NOA_DESC_MUN 6
 #define MAX_P2P_CLIENT_MUN 5
 #define CLIENT_MODE_WAIT_TIME	30
-#define WSC_MODE_WAIT_TIME	60
+#define WSC_MODE_WAIT_TIME	30
 
 #define P2P_CLIENT_ASSOC_EXPIRE 120
 
@@ -155,6 +165,15 @@ enum p2p_role_s {
 	R_P2P_CLIENT =3  
 };
 
+
+/*note , 20140325 , cfg p2p
+
+under PROPERTY_P2P  case, P2P_PRE_CLIENT,P2P_PRE_GO ,used for change the mode if FORMATION FAILURE  
+
+under CFG80211_P2P case, seem don't care  P2P_PRE_CLIENT,P2P_PRE_GO 
+
+
+*/
 enum p2p_role_more{ 
 	P2P_DEVICE=1, 
 	P2P_PRE_CLIENT=2,
@@ -505,43 +524,69 @@ struct noa_list
 	unsigned int p2p_txpause_flag;
 };
 
+#define MAX_P2P_IE_LEN 128
 struct p2p_context {
+	struct timer_list		p2p_search_timer_t;
+	struct timer_list		p2p_find_timer_t;
 
-	unsigned int  Status;	
+	 //unsigned int   p2p_type; rename to role
+     //int p2p_role;	
+	 int p2p_state;
+	 int p2p_on_discovery;
+     int p2p_event_indiate;
+     u8  use_6m_rate;
+
+     /*=========remain on channel  related========*/    
+     int pre_p2p_role;        // keep pre p2p role    20140306 add
+     int pre_p2p_state;        // keep pre p2p role    20140306 add    
+  
+#ifdef CONFIG_P2P_RTK_SUPPORT
+      /*=========remain on channel  related========*/      
+      struct timer_list           remain_on_ch_timer;     
+      u8  restore_channel;    
+      struct ieee80211_channel    remain_on_ch_channel;           
+      u64 remain_on_ch_cookie;
+  
+      /*=========remain on channel  related========*/
+      struct timer_list  scan_deny_timer; 
+      u64 send_action_id;
+      //struct cfg80211_wifidirect_info   cfg80211_wdinfo;
+#endif
+	//unsigned int  Status;	
 	
-	unsigned char wsc_ie_rsp[200]; 	 // full size maybe 32 + 8 + 8
+	unsigned char wsc_ie_rsp[MAX_P2P_IE_LEN]; 	 // full size maybe 32 + 8 + 8
 	unsigned char wsc_ie_rsp_mun; 	 // use for action frame (eg nego rsp)	
 
-	unsigned char wsc_ie_req[200]; 	 // full size maybe 32 + 8 + 8
+	unsigned char wsc_ie_req[MAX_P2P_IE_LEN]; 	 // full size maybe 32 + 8 + 8
 	unsigned char wsc_ie_req_mun; 	 // use for action frame (eg nego rsp)	
 	
-	unsigned char p2p_probe_req_ie[256];		
-	unsigned int  p2p_probe_req_ie_len;		
+	unsigned char p2p_probe_req_ie[MAX_P2P_IE_LEN];		
+	unsigned char  p2p_probe_req_ie_len;		
 
-	unsigned char p2p_probe_rsp_ie[256];		
-	unsigned int  p2p_probe_rsp_ie_len;		
+	unsigned char p2p_probe_rsp_ie[MAX_P2P_IE_LEN];		
+	unsigned char  p2p_probe_rsp_ie_len;		
 
-	unsigned char p2p_beacon_ie[64];		
-	unsigned int  p2p_beacon_ie_len;		
+	unsigned char p2p_beacon_ie[MAX_P2P_IE_LEN];		
+	unsigned char  p2p_beacon_ie_len;		
 
-	unsigned char p2p_assocReq_ie[128];
-	unsigned int  p2p_assocReq_ie_len;
+	unsigned char p2p_assocReq_ie[MAX_P2P_IE_LEN];
+	unsigned char  p2p_assocReq_ie_len;
 
-	unsigned char p2p_assoc_RspIe[32];
-	unsigned int  p2p_assoc_RspIe_len;
+	unsigned char p2p_assoc_RspIe[MAX_P2P_IE_LEN];
+	unsigned char  p2p_assoc_RspIe_len;
+
+	unsigned char p2p_disass_ie[MAX_P2P_IE_LEN];		
+	unsigned char  p2p_disass_ie_len;		
+
+	unsigned char wfd_probe_req_ie[MAX_P2P_IE_LEN];		
+	unsigned char  wfd_probe_req_ie_len;		
 
 
-	unsigned char p2p_disass_ie[64];		
-	unsigned int  p2p_disass_ie_len;		
-
-
-	int wait2listenState;
+	unsigned char wait2listenState;
 	
 
-	unsigned int  collect_type;		// 1:from beacon   ; 2:from probe_rsp
+	unsigned char  collect_type;		// 1:from beacon   ; 2:from probe_rsp
 
-	unsigned int  rdyinit;
-	
 	/*when i am GO and some p2p client assoc to me ; recored here*/
 	struct assoc_peer assocPeers[MAX_P2P_CLIENT_MUN];
 
@@ -637,11 +682,17 @@ struct p2p_context {
 	struct p2p_device_peer others_nego_tar_device; 
 
 	unsigned char clientmode_try_connect;
-	
+	int backup_orig_use40M;
+	int backup_orig_2ndchoffset;    
 };
 
+typedef struct android_wifi_priv_cmd {
+	char *buf;
+	int used_len;
+	int total_len;
+} android_wifi_priv_cmd_t;
 
-
-
+#define CFG80211_P2P 1
+#define PROPERTY_P2P 2
 #endif
 

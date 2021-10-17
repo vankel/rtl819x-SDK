@@ -26,7 +26,7 @@
 __inline__ void ini_txinsn(struct tx_insn* txcfg, DRV_PRIV *priv)
 {
 	txcfg->is_11s = 1;
-	txcfg->mesh_header.mesh_flag= 0;
+	txcfg->mesh_header.mesh_flag= 1;
 	txcfg->mesh_header.TTL = _MESH_HEADER_TTL_;
 	txcfg->mesh_header.segNum = getMeshSeq(priv);		
 }
@@ -35,7 +35,11 @@ __inline__ void ini_txinsn(struct tx_insn* txcfg, DRV_PRIV *priv)
 				 
 int fire_data_frame(struct sk_buff *skb, struct net_device *dev, struct tx_insn* txinsn) 
 {
+#ifdef NETDEV_NO_PRIV
+	DRV_PRIV priv = ((DRV_PRIV *)netdev_priv(dev))->wlan_priv;
+#else
 	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
+#endif
 	unsigned long		flags;
 	txinsn->q_num = BE_QUEUE;        // using low queue for data queue
 	skb->cb[1] = 0;
@@ -122,79 +126,75 @@ stop_proc:
 
 int notify_path_found(unsigned char *destaddr, DRV_PRIV *priv) 
 {
-	struct sk_buff *pskb;
-	struct mesh_rreq_retry_entry * retryEntry;
-  
-	struct sk_buff * buf [NUM_TXPKT_QUEUE]; // To record the ALL popped-up skbs at one time, because we don't want enable spinlock for dev_queue_xmit
-	unsigned long flags;
-	int i=0;
-	
-	for(;i<NUM_TXPKT_QUEUE;i++)
-		buf[i] = NULL;
+    struct sk_buff *pskb;
+    struct mesh_rreq_retry_entry * retryEntry;
+    struct sk_buff * buf [NUM_TXPKT_QUEUE]; // To record the ALL popped-up skbs at one time, because we don't want enable spinlock for dev_queue_xmit
+    struct path_sel_entry *pEntry;	
+    int i=0;
+    struct stat_info* pstat;
+    DECLARE_TXINSN(txinsn);
 		
-	MESH_LOCK(lock_Rreq, flags);
+		
+    //MESH_LOCK(lock_Rreq, flags);
+    if(MESH_SPINLOCK(lock_Rreq)) {
+        retryEntry= (struct mesh_rreq_retry_entry*) priv->mesh_rreq_retry_queue->search_entry(priv->mesh_rreq_retry_queue,destaddr);
+        if(retryEntry == NULL) { // aodv_expire tx it
+            //MESH_UNLOCK(lock_Rreq, flags);
+            MESH_SPINUNLOCK(lock_Rreq);
+                return 0;
+        }
+            
+        pEntry = pathsel_query_table( priv, destaddr );
+        if( pEntry == (struct path_sel_entry *)-1) 
+        {
+            struct proxy_table_entry*	pProxyEntry;
+            pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, destaddr);
+            if(pProxyEntry != NULL)
+                pEntry = pathsel_query_table( priv, pProxyEntry->owner );
+        }
+        
+        if(pEntry != (struct path_sel_entry *)-1)
+        {
+            pEntry->start = retryEntry->createTime;
+            pEntry->end = jiffies;
+            mesh_route_debug("Path to %02x:%02x:%02x:%02x:%02x:%02x found through AODV, next hop %02x:%02x:%02x:%02x:%02x:%02x\n",
+            destaddr[0],destaddr[1],destaddr[2],destaddr[3],destaddr[4],destaddr[5],
+            pEntry->nexthopMAC[0],pEntry->nexthopMAC[1],pEntry->nexthopMAC[2],pEntry->nexthopMAC[3],pEntry->nexthopMAC[4],pEntry->nexthopMAC[5]);
+        }
+        
 
-	retryEntry= (struct mesh_rreq_retry_entry*) priv->mesh_rreq_retry_queue->search_entry(priv->mesh_rreq_retry_queue,destaddr);
-	if(retryEntry == NULL) { // aodv_expire tx it
-		MESH_UNLOCK(lock_Rreq, flags);
-		return 0;
-	}
-	
-	{
-		struct path_sel_entry *pEntry;	
-		pEntry = pathsel_query_table( priv, destaddr );
-		if( pEntry == (struct path_sel_entry *)-1) 
-		{
-			struct proxy_table_entry*	pProxyEntry;
-			pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, destaddr);
-			if(pProxyEntry != NULL)
-				pEntry = pathsel_query_table( priv, pProxyEntry->owner );
-		}		
-		if(pEntry != (struct path_sel_entry *)-1)
-		{
-			pEntry->start = retryEntry->createTime;
-			pEntry->end = jiffies;
-		}
-	}
-	
-	pskb = (struct sk_buff*)deque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE);
-
-#if 0 
-	if (pskb) {
-		//to be deal of getting data from skb queue, and send to all portals
-		LOG_MESH_MSG("found path to:%02X:%02X:%02X:%02X:%02X:%02X\n",
-			destaddr[0], destaddr[1], destaddr[2], destaddr[3], destaddr[4], destaddr[5]);	
-	}
-#endif    
-
-	//printk("Notified found ->>>>>> %ld \n", jiffies);
-
-	i=0;
-	while (pskb != NULL) {     //time out and it will clean up hashtable and send data to all portals.
-		buf[i++] = pskb;
-		pskb = (struct sk_buff*)deque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE);
-	}
-	priv->mesh_rreq_retry_queue->delete_entry(priv->mesh_rreq_retry_queue,retryEntry->MACAddr);
+        i = 0;
+        do {            
+            pskb = (struct sk_buff*)deque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE);
+            buf[i++] = pskb;            
+        }while(pskb != NULL);
+		priv->mesh_rreq_retry_queue->delete_entry(priv->mesh_rreq_retry_queue,retryEntry->MACAddr);
     
-	MESH_UNLOCK(lock_Rreq, flags);
+        //MESH_UNLOCK(lock_Rreq, flags);
+        MESH_SPINUNLOCK(lock_Rreq);
 
-	for(i=0;i<NUM_TXPKT_QUEUE;i++) {
-		pskb = buf[i];
-		if(pskb == NULL)
-			break;
-// Gakki 
-		{
-			DECLARE_TXINSN(txinsn);
-			// the data which transfer in mesh don't need update in proxy table
-			if(dot11s_datapath_decision(pskb, /*priv->mesh_dev,*/ &txinsn,0))
-				fire_data_frame(pskb, priv->mesh_dev, &txinsn);
-		}
-	}
 
-	return 0;
+        for(i=0;i<NUM_TXPKT_QUEUE;i++) {
+            pskb = buf[i];
+            if(pskb == NULL)
+                break;
+
+            // the data which transfer in mesh don't need update in proxy table     
+            if(dot11s_datapath_decision(pskb, &txinsn, 0)) {
+                pstat = get_stainfo(txinsn.priv, txinsn.nhop_11s);
+                pskb->dev = priv->mesh_dev;
+                __rtl8192cd_start_xmit_out(pskb, pstat, &txinsn);
+            }    
+        }
+    } 
+    else {
+        panic_printk("%s suffer racing issue\n",__func__);
+    }
+   
+    return 0;
 }
 
-
+#if 0 //defined(Q_TX_AFTER_ONE_AODV_RETRY)
 void toAllPortal(struct sk_buff *pskb, DRV_PRIV *priv)
 {	
 	struct net_device		*dev = priv->mesh_dev;
@@ -217,7 +217,7 @@ void toAllPortal(struct sk_buff *pskb, DRV_PRIV *priv)
 
 	memcpy(txinsn.mesh_header.DestMACAddr, pskb->data, MACADDRLEN);
 	memcpy(txinsn.mesh_header.SrcMACAddr, pskb->data+MACADDRLEN, MACADDRLEN);
-	txinsn.mesh_header.mesh_flag = 0x01;
+
 
 	// rule of A4/A6:
 	// if there is an entry containing eth_src in Proxy Table,  A4=proxy.owner, A6=eth_src
@@ -228,7 +228,7 @@ void toAllPortal(struct sk_buff *pskb, DRV_PRIV *priv)
 	eth_src = pskb->data+MACADDRLEN;
 	pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, eth_src);
 	if(pProxyEntry != NULL) {
-		pProxyEntry->update_time = xtime;
+		pProxyEntry->aging_time = 0;
 		memcpy(eth_src, pProxyEntry->owner, MACADDRLEN);
 	}
 	
@@ -268,6 +268,7 @@ void toAllPortal(struct sk_buff *pskb, DRV_PRIV *priv)
 
 	return;
 }
+#endif
 
 #ifdef	_11s_TEST_MODE_
 unsigned char *get_galileo_from_poll(DRV_PRIV *priv)
@@ -291,7 +292,6 @@ void issue_test_traffic(struct sk_buff *skb)
 	skb_pull(skb, 14);	
 	memcpy(ptxinsn->nhop_11s, skb->data, WLAN_ADDR_LEN);
 	memcpy(skb->data+MACADDRLEN, GET_MY_HWADDR,MACADDRLEN);
-	chkMeshSeq(priv, skb->data+MACADDRLEN, ptxinsn->mesh_header.segNum);
 	memcpy(skb->data+14+26, (void*)(&jiffies), sizeof(long));
 	if( skb->len > 80)
 		memcpy(skb->data+48, (void*)&priv->pmib->dot1180211sInfo.mesh_reserved1, 30 );
@@ -532,19 +532,17 @@ void signin_txdesc_galileo(DRV_PRIV *priv, struct tx_insn* txcfg)
 
 
 
-int issue_11s_mesh_action(struct sk_buff *skb, struct net_device *dev)
-{
-	DRV_PRIV *priv = (DRV_PRIV *)dev->priv;
-	DECLARE_TXINSN(txinsn);
-	
+static int issue_11s_mesh_action(DRV_PRIV * priv, struct sk_buff *skb, struct net_device *dev)
+{	
 	unsigned char *pframe = skb->data+14, *pbuf = NULL;
 //	struct stat_info	*pstat;
 	int len;
+    DECLARE_TXINSN(txinsn);   
 	txinsn.q_num = MANAGE_QUE_NUM;
 	txinsn.fr_type = _PRE_ALLOCMEM_;	
 	txinsn.is_11s = 1;
 	txinsn.fixed_rate = 1;	
-	
+    
 // chkMeshSeq ??    
 
 	// construct mesh_header of txinsn
@@ -593,12 +591,10 @@ issue_11s_mesh_actio_FAIL:
 		
 		if (txinsn.pframe)
 			release_mgtbuf_to_poll(priv, txinsn.pframe);
-		
+
 		return 0;
 	}
 
-	dev_kfree_skb_any(skb);
-	
 #ifdef __KERNEL__
 	dev->trans_start = jiffies;
 #endif
@@ -608,61 +604,64 @@ issue_11s_mesh_actio_FAIL:
 
 void do_aodv_routing(DRV_PRIV *priv, struct sk_buff *skb, unsigned char *Mesh_dest)
 {
-	unsigned long		flags ;
-	struct mesh_rreq_retry_entry *retryEntry;
-	int result=0;
-	
-	MESH_LOCK(lock_Rreq, flags);
-					
-	retryEntry= (struct mesh_rreq_retry_entry*) priv->mesh_rreq_retry_queue->search_entry(priv->mesh_rreq_retry_queue,Mesh_dest);
-				
-	// with buffer mechanism and AODV timeout flow
-	if (retryEntry == NULL) // new AODV path
-	{
-		GEN_PREQ_PACKET(Mesh_dest, priv, 1);
-		retryEntry= (struct mesh_rreq_retry_entry*) priv->mesh_rreq_retry_queue->search_entry(priv->mesh_rreq_retry_queue,Mesh_dest);
-		if(retryEntry==NULL )
-		{
-			MESH_UNLOCK(lock_Rreq, flags);
-			dev_kfree_skb_any(skb);
-			return;
-		}
-			
-		result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail), (unsigned int)retryEntry->ptr->pSkb, NUM_TXPKT_QUEUE,(void*)skb);
+    struct mesh_rreq_retry_entry *retryEntry;
+    struct sk_buff *poldskb;
+    int result=0;
 
-		if(result == FALSE)
-		{
-			struct sk_buff *poldskb;
-					
-			poldskb = (struct sk_buff*)deque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE);
-			if(poldskb)
-				dev_kfree_skb_any(poldskb);
+    if(MESH_SPINLOCK(lock_Rreq)) {
+        retryEntry= (struct mesh_rreq_retry_entry*) priv->mesh_rreq_retry_queue->search_entry(priv->mesh_rreq_retry_queue,Mesh_dest);
+    			
+        // with buffer mechanism and AODV timeout flow
+        if (retryEntry == NULL) // new AODV path
+        {
+            GEN_PREQ_PACKET(Mesh_dest, priv, 1);
+            mesh_route_debug("Send PREQ to find %02x:%02x:%02x:%02x:%02x:%02x at %lu\n",
+            Mesh_dest[0],Mesh_dest[1],Mesh_dest[2],Mesh_dest[3],Mesh_dest[4],Mesh_dest[5],jiffies);
+            retryEntry= (struct mesh_rreq_retry_entry*) priv->mesh_rreq_retry_queue->search_entry(priv->mesh_rreq_retry_queue,Mesh_dest);
+            if(retryEntry==NULL )
+            {
+                MESH_SPINUNLOCK(lock_Rreq);
+                dev_kfree_skb_any(skb);
+                return;
+            }
+ 
+            result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail), (unsigned int)retryEntry->ptr->pSkb, NUM_TXPKT_QUEUE,(void*)skb);
+
+            if(result == FALSE)
+            {               
+                poldskb = (struct sk_buff*)deque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE);
+                if(poldskb)
+                    dev_kfree_skb_any(poldskb);
+
+                result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE,(void*)skb);
+                if(result == FALSE)
+                    dev_kfree_skb_any(skb);
+            }
 				
-			result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE,(void*)skb);
-			if(result == FALSE)
-				dev_kfree_skb_any(skb);
-		}
+        }
+        else { 
+            mesh_route_debug("PREQ to find %02x:%02x:%02x:%02x:%02x:%02x already in retry list,at %lu\n",
+            Mesh_dest[0],Mesh_dest[1],Mesh_dest[2],Mesh_dest[3],Mesh_dest[4],Mesh_dest[5],jiffies);      
+            result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail), (unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE,(void*)skb);
+            if(result == FALSE)
+            {
+                poldskb = (struct sk_buff*)deque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE);
+
+                if(poldskb)
+                    dev_kfree_skb_any(poldskb);
+
+                result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE,(void*)skb);
+                if(result == FALSE)
+                    dev_kfree_skb_any(skb);
+            }
+        }
 			
-	}
-	else { 
-		result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail), (unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE,(void*)skb);
-		if(result == FALSE)
-		{
-			struct sk_buff *poldskb;
-			
-			poldskb = (struct sk_buff*)deque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE);
-			
-			if(poldskb)
-				dev_kfree_skb_any(poldskb);
-				
-			result = enque(priv,&(retryEntry->ptr->head),&(retryEntry->ptr->tail),(unsigned int)retryEntry->ptr->pSkb,NUM_TXPKT_QUEUE,(void*)skb);
-			if(result == FALSE)
-				dev_kfree_skb_any(skb);
-		}
-	}
-		
-	MESH_UNLOCK(lock_Rreq, flags);
-	return;
+        MESH_SPINUNLOCK(lock_Rreq);
+    } 
+    else {
+        panic_printk("%s suffer racing issue\n",__func__);
+    }
+    return;
 }
 
 
@@ -671,145 +670,229 @@ void do_aodv_routing(DRV_PRIV *priv, struct sk_buff *skb, unsigned char *Mesh_de
 	pfrinfo->is_11s =1  => 802.11 header
 	pfrinfo->is_11s =8  => 802.3  header + mesh header
 */
-int relay_11s_dataframe(struct sk_buff *skb, /*struct net_device *dev,*/ int privacy, struct rx_frinfo *pfrinfo)
+int relay_11s_dataframe(DRV_PRIV *priv, struct sk_buff *skb, int privacy, struct rx_frinfo *pfrinfo)
 {	
-	DRV_PRIV *priv = (DRV_PRIV *)skb->dev->priv;
-#ifdef RX_RL_SHORTCUT	
-	struct stat_info	*pstat = get_stainfo(priv, GetAddr2Ptr(skb->data));
-#endif
-	
-	DECLARE_TXINSN(txinsn);
+    struct list_head *phead, *plist;
+    struct stat_info *pstat;
+    struct sk_buff *pnewskb = NULL, *pnewskb_send = NULL;
+    unsigned char prehop[MACADDRLEN];
+    unsigned char force_m2u = 0, sta_count = 0;
+    struct path_sel_entry* pPathEntry;    
+    struct tx_insn tx_insn;
+    DRV_PRIV *xmit_priv;
+    UINT16 seqNum;  
+    int i,j,ret = 0;
 
-// Gakki 
-	if (IS_MCAST(pfrinfo->da)) {
-		memcpy(txinsn.nhop_11s, pfrinfo->da, MACADDRLEN);		
-#ifdef	_11s_TEST_MODE_
-		memcpy(txinsn.prehop_11s, pfrinfo->prehop_11s, MACADDRLEN);
+    if(1 > pfrinfo->mesh_header.TTL) {
+        return 1;
+    }
+
+    if (IS_MCAST(pfrinfo->da)) {          
+        memcpy(prehop, GetAddr2Ptr(skb->data), MACADDRLEN);
+        pnewskb = skb_copy(skb, GFP_ATOMIC);
+        if(skb_p80211_to_ether(skb->dev, privacy, pfrinfo) == FAIL){ // for e.g., CISCO CDP which has unsupported LLC's vendor ID
+            DEBUG_ERR("RX DROP: skb_p80211_to_ether fail!\n");
+            ret = -1;  
+            goto relay_end;
+        } 
+       
+        if (pnewskb) {  
+            get_pskb(pfrinfo) = pnewskb;
+            pnewskb->cb[2] = (char)0xff; // do not aggregation
+            pfrinfo->is_11s = 2;/*replace wlan_header with eth_header, but keep the mesh header*/
+            if(skb_p80211_to_ether(pnewskb->dev, privacy, pfrinfo) == FAIL){ // for e.g., CISCO CDP which has unsupported LLC's vendor ID                
+                goto relay_end;
+            }    
+        }
+        else {           
+            goto relay_end;
+        }         
+
+               
+        if (IP_MCAST_MAC(skb->data)
+#ifdef  TX_SUPPORT_IPV6_MCAST2UNI
+            || IPV6_MCAST_MAC(skb->data)
 #endif
+        )
+        {
+            // all multicast managment packet try do m2u
+            if( isSpecialFloodMac(priv,skb) || IS_MDNSV4_MAC(skb->data)||IS_MDNSV6_MAC(skb->data)||IS_IGMP_PROTO(skb->data) || isICMPv6Mng(skb) || IS_ICMPV6_PROTO(skb->data)|| isMDNS(skb->data))
+            {
+                force_m2u = 1;
+            }    
+        }
+        else {
+            force_m2u = 1;
+        }     
+
+
+        sta_count = 0;
+        if(force_m2u == 0) {/* if it is not a multicast management or broadcast frame, check if it is a video  frame need to be multicasted*/                        
+            for(j = 0 ; j < 2; j++) {
+                if(j == 1) {
+                    #if !defined(CONFIG_RTL_MESH_CROSSBAND)
+                    if(priv->mesh_priv_sc && GET_MIB(priv->mesh_priv_sc)->dot1180211sInfo.mesh_enable) {
+                        xmit_priv = priv->mesh_priv_sc;
+                    }
+                    else 
+                    #endif
+                        break;
+                }
+                else {
+                    xmit_priv = priv;
+                }
+                
+                phead = &xmit_priv->asoc_list;
+                plist = phead->next;
+                while (phead && (plist != phead)) {
+                    pstat = list_entry(plist, struct stat_info, asoc_list);
+                    plist = plist->next;   
+                    if(!isMeshPoint(pstat)) {
+                        continue;
+                    }
+
+                    if(memcmp(pstat->hwaddr, prehop, MACADDRLEN) == 0) {
+                        continue;
+                    }                   
+                    
+                    for (i=0; i<MAX_IP_MC_ENTRY; i++) {
+                        if (pstat->ipmc[i].used && !memcmp(&pstat->ipmc[i].mcmac[0], skb->data, 6)) {
+                            pnewskb_send = skb_copy(pnewskb, GFP_ATOMIC);
+                            if(pnewskb_send == NULL) {
+                                goto relay_end;
+                            }
+                            sta_count++;
+                            tx_insn.is_11s = RELAY_11S;
+                            tx_insn.priv = xmit_priv;  
+                            pnewskb_send->dev = xmit_priv->mesh_dev;
+                            __rtl8192cd_start_xmit_out(pnewskb_send, pstat, &tx_insn);  
+                            break;
+                        }
+                  }                                        
+                }
+            }
+        }
+
+
+        if(force_m2u == 1 || (sta_count == 0 && !priv->pshare->rf_ft_var.mc2u_drop_unknown)) 
+        {
+            /*forward to every mesh nodes*/
+            seqNum = getMeshMulticastSeq(priv);
+            j = 1 << priv->pathsel_table->table_size_power;
+            for (i = 0; i < j; i++) {
+                if (priv->pathsel_table->entry_array[i].dirty) 
+                { 
+                    pPathEntry = ((struct path_sel_entry*)priv->pathsel_table->entry_array[i].data);
+
+                    if(memcmp(pPathEntry->destMAC, pfrinfo->sa, MACADDRLEN) == 0) {
+                        continue;
+                    }     
+                    
+                    if(memcmp(pPathEntry->nexthopMAC, prehop, MACADDRLEN) == 0) {
+                        continue;
+                    }     
+
+                    if(memcmp(pPathEntry->nexthopMAC, pfrinfo->sa, MACADDRLEN) == 0) {
+                        continue;
+                    }     
+
+
+
+                    pstat = get_stainfo(pPathEntry->priv, pPathEntry->nexthopMAC);
+                    if(pstat && pstat->mesh_neighbor_TBL.seqNum != seqNum) {
+                        pstat->mesh_neighbor_TBL.seqNum = seqNum;
+
+                        pnewskb_send = skb_copy(pnewskb, GFP_ATOMIC);
+                        if(pnewskb_send == NULL) {
+                            goto relay_end;
+                        }                            
+                        tx_insn.is_11s = RELAY_11S;
+                        tx_insn.priv = pPathEntry->priv;  
+                        pnewskb_send->dev = priv->mesh_dev;
+                        __rtl8192cd_start_xmit_out(pnewskb_send, pstat, &tx_insn);
+                    }                                       
+                }
+            }
+        }
+         
+relay_end:
+         if(pnewskb) {
+            dev_kfree_skb_any(pnewskb);
+         }
+         /*roll back to original value*/
+         get_pskb(pfrinfo) = skb;
+         pfrinfo->is_11s = 1;
+         return ret;
+        
   	} 
-	else 
+    else 
   	{
-		unsigned char *destaddr= pfrinfo->da;
-		struct path_sel_entry *pEntry;	
-/*
+
+        struct path_sel_entry *pEntry;	
+        /*
 #ifndef MESH_AMSDU	
-		unsigned char *prehopaddr[MACADDRLEN];
-		memcpy(prehopaddr, GetAddr2Ptr(skb->data), MACADDRLEN);
-		memcpy(GetAddr2Ptr(skb->data),GET_MY_HWADDR,MACADDRLEN);
+        unsigned char *prehopaddr[MACADDRLEN];
+        memcpy(prehopaddr, GetAddr2Ptr(skb->data), MACADDRLEN);
+        memcpy(GetAddr2Ptr(skb->data),GET_MY_HWADDR,MACADDRLEN);
 #endif
-*/
-		pEntry = pathsel_query_table( priv, destaddr );		
-		if(pEntry == (struct path_sel_entry *)-1) // not have valid route path
-		{
-			DOT11s_GEN_RERR_PACKET rerr_event;			
-			memset((void*)&rerr_event, 0x0, sizeof(DOT11s_GEN_RERR_PACKET));
-			rerr_event.EventId = DOT11_EVENT_PATHSEL_GEN_RERR;
-			rerr_event.IsMoreEvent = 0;
-			memcpy(rerr_event.MyMACAddr,  GET_MY_HWADDR ,MACADDRLEN); 
-			memcpy(rerr_event.SorNMACAddr,  pfrinfo->da ,MACADDRLEN);
-			memcpy(rerr_event.DataDestMAC,  pfrinfo->sa ,MACADDRLEN);
+        */
+        pEntry = pathsel_query_table( priv, pfrinfo->da );		
+        if(pEntry == (struct path_sel_entry *)-1) // not have valid route path
+        {
+            DOT11s_GEN_RERR_PACKET rerr_event;			
+            memset((void*)&rerr_event, 0x0, sizeof(DOT11s_GEN_RERR_PACKET));
+            rerr_event.EventId = DOT11_EVENT_PATHSEL_GEN_RERR;
+            rerr_event.IsMoreEvent = 0;
+            memcpy(rerr_event.MyMACAddr,  GET_MY_HWADDR ,MACADDRLEN); 
+            memcpy(rerr_event.SorNMACAddr,  pfrinfo->da ,MACADDRLEN);
+            memcpy(rerr_event.DataDestMAC,  pfrinfo->sa ,MACADDRLEN);
 
-			// this field will be used by Path Selection daemon for the following case 
-			// when MP want to generate RERR to data source but no path to the data source now, it will send the RERR which set Addr2 = Prehop.
+            // this field will be used by Path Selection daemon for the following case 
+            // when MP want to generate RERR to data source but no path to the data source now, it will send the RERR which set Addr2 = Prehop.
 
-//#ifdef MESH_AMSDU
-			memcpy(rerr_event.PrehopMAC, pfrinfo->prehop_11s, MACADDRLEN);
-/*#else
-			memcpy(rerr_event.PrehopMAC, prehopaddr, MACADDRLEN);
+            //#ifdef MESH_AMSDU
+            memcpy(rerr_event.PrehopMAC, pfrinfo->prehop_11s, MACADDRLEN);
+            /*#else
+            memcpy(rerr_event.PrehopMAC, prehopaddr, MACADDRLEN);
 #endif*/
-			rerr_event.TTL = _MESH_HEADER_TTL_;
-			rerr_event.Seq_num = getMeshSeq(priv);
-			rerr_event.Flag = 2;// flag = 2 means this MP doesn't have the nexthop information for the destination in pathseleciton table
-			{ // only record the different ones
-				static u8 chd[6] = {0};
-				if(memcmp(chd, destaddr, 6)) {
-					// printk("tx relay, fire AODV to find:%02X:%02X:%02X:%02X:%02X:%02X!\n",
-#if 0
-					LOG_MESH_MSG("tx relay, fire AODV to find:%02X:%02X:%02X:%02X:%02X:%02X!\n",
-						destaddr[0],destaddr[1],destaddr[2],destaddr[3],destaddr[4],destaddr[5]);
-#endif						
-					memcpy(chd, destaddr,6);
-				}
-			}
-			DOT11_EnQueue2((unsigned long)priv, priv->pathsel_queue, (unsigned char*)&rerr_event, sizeof(DOT11s_GEN_RERR_PACKET));
-			notifyPathSelection();
-			return 1;
+            rerr_event.TTL = _MESH_HEADER_TTL_;
+            rerr_event.Seq_num = getMeshSeq(priv);
+            rerr_event.Flag = 2;// flag = 2 means this MP doesn't have the nexthop information for the destination in pathseleciton table
+            DOT11_EnQueue2((unsigned long)priv, priv->pathsel_queue, (unsigned char*)&rerr_event, sizeof(DOT11s_GEN_RERR_PACKET));
+            notifyPathSelection(priv);
+            return 1;
 
-		} // if(pEntry == (struct path_sel_entry *)-1)
-		else
-		{
-			memcpy(txinsn.nhop_11s, pEntry->nexthopMAC, MACADDRLEN);
-		}
-	} // unicast packet
-	
+        } // if(pEntry == (struct path_sel_entry *)-1)
 
-// Gakki
 #ifdef MESH_AMSDU
-	if(pfrinfo->is_11s&1) 
+        if(pfrinfo->is_11s&1) 
 #endif
-	{
-		//unsigned char Mesh_dest[MACADDRLEN<<1];
-		//memcpy(Mesh_dest, pfrinfo->da, MACADDRLEN);
-		//memcpy(Mesh_dest + MACADDRLEN, pfrinfo->sa, MACADDRLEN);	
-		pfrinfo->is_11s = 2;
-		if(skb_p80211_to_ether(skb->dev, privacy, pfrinfo) == FAIL) // for e.g., CISCO CDP which has unsupported LLC's vendor ID
-			return 1;
+        {
+            pfrinfo->is_11s = 2;
+            if(skb_p80211_to_ether(skb->dev, privacy, pfrinfo) == FAIL) // for e.g., CISCO CDP which has unsupported LLC's vendor ID
+                return 1;
+        }
 
-		if( pfrinfo->mesh_header.mesh_flag & 0x01 ) {
-			//memcpy(skb->data, Mesh_dest, MACADDRLEN<<1);
-#if defined(RX_SHORTCUT) && defined(RX_RL_SHORTCUT)		
-			if (!IS_MCAST(pfrinfo->da) && !priv->pmib->dot11OperationEntry.disable_rxsc && pstat) {
-				//memcpy(pstat->rxsc_nexthopMAC, txinsn.nhop_11s, MACADDRLEN);
-				//memcpy(&(pstat->rx_ethhdr),Mesh_dest, MACADDRLEN<<1);
-				memcpy(&(pstat->rx_ethhdr),skb->data, MACADDRLEN<<1);
-		
-				//memcpy((void *)&pstat->rx_wlanhdr.wlanhdr.meshhdr.DestMACAddr, (const void *)pfrinfo->mesh_header.DestMACAddr, WLAN_ETHADDR_LEN);
-				//memcpy((void *)&pstat->rx_wlanhdr.wlanhdr.meshhdr.SrcMACAddr, (const void *)pfrinfo->mesh_header.SrcMACAddr, WLAN_ETHADDR_LEN);
+        pstat = get_stainfo(pEntry->priv, pEntry->nexthopMAC);
+        tx_insn.is_11s = RELAY_11S;
+        tx_insn.priv = pEntry->priv;  
+        skb->dev = priv->mesh_dev;
+        __rtl8192cd_start_xmit_out(skb, pstat, &tx_insn);
 
-			}
-#endif
-		}
-	}
+        return 0;
+    }
 
-	//memcpy( &(txinsn.mesh_header), &(pfrinfo->mesh_header), sizeof(struct MESH_HDR));
 
-#ifdef	_11s_TEST_MODE_	
-
-	if(!memcmp("RLY", priv->pmib->dot1180211sInfo.mesh_reservedstr1, 3) )
-	{
-		unsigned char destMAC[6]= { 0 }, *m1= pfrinfo->mesh_header.DestMACAddr;
-		mac12_to_6(priv->pmib->dot1180211sInfo.mesh_reservedstr1+3, destMAC );
-		
-		if( m1[-4] && !(memcmp(m1, destMAC, 6) & memcmp(m1+6, destMAC, 6)) )
-		{
-			LOG_MESH_MSG("relay: %02X %02X %02X %02X [%02X %02X %02X %02X %02X %02X]%02X %02X %02X %02X %02X %02X\n",
-			m1[-4]&0xff, m1[-3]&0xff, m1[-2]&0xff, m1[-1]&0xff,
-			m1[0]&0xff, m1[1]&0xff, m1[2]&0xff, m1[3]&0xff, m1[4]&0xff, m1[5]&0xff,
-			m1[6]&0xff, m1[7]&0xff, m1[8]&0xff, m1[9]&0xff, m1[10]&0xff, m1[11]&0xff 	);	
-		}
-	}
-#endif
-
-	//txinsn.is_11s = pfrinfo->is_11s;
-	txinsn.is_11s = RELAY_11S;
-
-	fire_data_frame(skb, priv->mesh_dev, &txinsn);
-
-#ifdef __KERNEL__
-	priv->mesh_dev->trans_start = jiffies;
-#endif
-	return 0;
 }
 
 #if defined(MESH_TX_SHORTCUT)
 int mesh_txsc_decision(struct tx_insn* cfgNew, struct tx_insn* cfgOld)
 {
 	//cfgOld&1 to confirm no amsdu last time
-	if( (cfgOld->is_11s & 1) && (cfgNew->mesh_header.mesh_flag&1) &&	
-		(cfgNew->mesh_header.mesh_flag == cfgOld->mesh_header.mesh_flag) &&
-		!memcmp(cfgNew->mesh_header.DestMACAddr, cfgOld->mesh_header.DestMACAddr, MACADDRLEN)   )
+	if( cfgOld->is_11s &&			
+		!memcmp(cfgNew->mesh_header.DestMACAddr, cfgOld->mesh_header.DestMACAddr, MACADDRLEN) &&
+		!memcmp(cfgNew->mesh_header.SrcMACAddr, cfgOld->mesh_header.SrcMACAddr, MACADDRLEN))
 	{
-		cfgOld->mesh_header.segNum = cfgNew->mesh_header.segNum;
 		return 1;
 	}
 	else
@@ -817,197 +900,491 @@ int mesh_txsc_decision(struct tx_insn* cfgNew, struct tx_insn* cfgOld)
 }
 #endif
 
+#if defined(RTL_MESH_TXCACHE)
+int expire_mesh_txcache(struct rtl8192cd_priv *priv, unsigned char *da)
+{
+    int ret = 0;
+
+    if(priv->mesh_txcache.dirty == 1) { /*if the tx cache is valid*/
+        if(!memcmp(da, priv->mesh_txcache.da_proxy->owner,MACADDRLEN)) {
+            mesh_tx_debug("TX cache of %02X:%02X:%02X:%02X:%02X:%02X expired\n", 
+                    priv->mesh_txcache.da_proxy->owner[0], priv->mesh_txcache.da_proxy->owner[1], priv->mesh_txcache.da_proxy->owner[2],
+                    priv->mesh_txcache.da_proxy->owner[3], priv->mesh_txcache.da_proxy->owner[4], priv->mesh_txcache.da_proxy->owner[5]);
+            priv->mesh_txcache.dirty = 0;
+            ret = 1;
+        }      
+    }
+
+    return ret;
+}
+
+int match_tx_cache(struct rtl8192cd_priv *priv,struct sk_buff *skb,struct tx_insn* ptxinsn)
+{
+    int ret=0;
+    if((priv->mesh_txcache.dirty == 1) && !memcmp(priv->mesh_txcache.ether_da,skb->data,MACADDRLEN) && !memcmp(priv->mesh_txcache.ether_sa,skb->data+MACADDRLEN,MACADDRLEN)) {
+
+        memcpy(skb->data,priv->mesh_txcache.da_proxy->owner,MACADDRLEN);
+        memcpy(skb->data+MACADDRLEN, GET_MY_HWADDR, MACADDRLEN);
+        memcpy(ptxinsn,&(priv->mesh_txcache.txcfg),sizeof(*ptxinsn));
+        priv->mesh_txcache.da_proxy->aging_time = 0;
+
+        ret = 1;
+
+        mesh_txsc_debug("%s %d %02x:%02x:%02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x:%02x:%02x match cache\n",__func__,__LINE__,
+                priv->mesh_txcache.ether_da[0],priv->mesh_txcache.ether_da[1],priv->mesh_txcache.ether_da[2],
+                priv->mesh_txcache.ether_da[3],priv->mesh_txcache.ether_da[4],priv->mesh_txcache.ether_da[5],
+                priv->mesh_txcache.ether_sa[0],priv->mesh_txcache.ether_sa[1],priv->mesh_txcache.ether_sa[2],
+                priv->mesh_txcache.ether_sa[3],priv->mesh_txcache.ether_sa[4],priv->mesh_txcache.ether_sa[5]);
+    }
+    return ret;
+}
+#endif
+
+
 int dot11s_datapath_decision(struct sk_buff *skb, /*struct net_device *dev,*/ struct tx_insn* ptxinsn, int isUpdateProxyTable)
 {
-	DRV_PRIV *priv = (DRV_PRIV *)skb->dev->priv;
-	ini_txinsn(ptxinsn, priv);
+    DRV_PRIV *priv = (DRV_PRIV *)skb->dev->priv;
+    struct proxy_table_entry*   pProxyEntry;
+    struct path_sel_entry* pPathEntry;
+    struct list_head *phead, *plist;
+    struct stat_info *pstat;
+    struct sk_buff *newskb;
+    unsigned char force_m2u = 0;
+    unsigned char sta_count = 0;
+    int i, j;
+    UINT16 seqNum;
+    DRV_PRIV * xmit_priv;
+    
+    if(ptxinsn)
+        ini_txinsn(ptxinsn, priv);
+    else {
+        dev_kfree_skb_any(skb);
+        return 0;
+    }    
 
-	//hex_dump(skb->data,32);
 
-	if(isUpdateProxyTable == 1) {
-		unsigned char *Eth_src = skb->data+MACADDRLEN;
-		if((!IS_MCAST(Eth_src)) && memcmp(Eth_src, GET_MY_HWADDR, MACADDRLEN)) { // the entry briged by me
-			struct proxy_table_entry	Entry;
-			memcpy(Entry.sta, Eth_src, MACADDRLEN);
-			memcpy(Entry.owner, GET_MY_HWADDR, MACADDRLEN);
-			Entry.update_time = xtime;
-			HASH_INSERT(priv->proxy_table, Entry.sta, &Entry);
-			proxy_debug("%s %d Insert Proxy table: %02x:%02x:%02x:%02x:%02x:%02x/%02x:%02x:%02x:%02x:%02x:%02x\n",
-						__FUNCTION__,__LINE__,Entry.owner[0],Entry.owner[1],Entry.owner[2],Entry.owner[3],Entry.owner[4],Entry.owner[5],
-						Entry.sta[0],Entry.sta[1],Entry.sta[2],Entry.sta[3],Entry.sta[4],Entry.sta[5]);
+#if defined(RTL_MESH_TXCACHE)
+    if(!IS_MCAST(skb->data)){            
+        if(match_tx_cache(priv,skb,ptxinsn)) {
+                goto dot11s_datapath_decision_end;
+        }     
+        mesh_tx_debug("%s %d %02x:%02x:%02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x:%02x:%02x not match to mesh_txcache\n"
+            ,__func__,__LINE__,*(unsigned char *)skb->data,*(unsigned char *)(skb->data+1),*(unsigned char *)(skb->data+2)
+            ,*(unsigned char *)(skb->data+3),*(unsigned char *)(skb->data+4),*(unsigned char *)(skb->data+5)
+            ,*(unsigned char *)(skb->data+6),*(unsigned char *)(skb->data+7),*(unsigned char *)(skb->data+8)
+            ,*(unsigned char *)(skb->data+9),*(unsigned char *)(skb->data+10),*(unsigned char *)(skb->data+11));
+    }
+#endif
+
+    if(isUpdateProxyTable == 1) {
+        //update proxy table from packets 1.Unicast from bridge 2.Broadcast ARP
+        unsigned char *Eth_src = skb->data+MACADDRLEN;           
+        if(memcmp(Eth_src, GET_MY_HWADDR, MACADDRLEN)) { // the entry briged by me
+            struct proxy_table_entry	Entry, *pEntry;
+            pEntry = (struct proxy_table_entry *)HASH_SEARCH(priv->proxy_table,Eth_src);
+            if(pEntry == NULL) {
+                memcpy(Entry.sta, Eth_src, MACADDRLEN);
+                memcpy(Entry.owner, GET_MY_HWADDR, MACADDRLEN);
+                Entry.aging_time = -1; /*never timeout*/
+                HASH_INSERT(priv->proxy_table, Entry.sta, &Entry);
+                mesh_proxy_debug("[Locally forwardding]Insert Proxy table: %02x:%02x:%02x:%02x:%02x:%02x/%02x:%02x:%02x:%02x:%02x:%02x\n",
+                                    Entry.owner[0],Entry.owner[1],Entry.owner[2],Entry.owner[3],Entry.owner[4],Entry.owner[5],
+                                    Entry.sta[0],Entry.sta[1],Entry.sta[2],Entry.sta[3],Entry.sta[4],Entry.sta[5]);
+#if defined(CONFIG_RTL_MESH_CROSSBAND) 
+                if(sync_proxy_info(priv->mesh_priv_sc,Eth_src, 1)) //insert proxy info
+                    mesh_proxy_debug("Sync proxy information to %s failed\n",priv->mesh_priv_sc->dev->name);
+#endif
+
+
+#if defined(PU_STANDARD)  
+                issue_proxyupdate_ADD(priv, Entry.sta);
+#endif
+            }
+            else if(memcmp(pEntry->owner,GET_MY_HWADDR,MACADDRLEN)) {
+                mesh_proxy_debug("[Locally forwardding]Update owner from %02x:%02x:%02x:%02x:%02x:%02x to %02x:%02x:%02x:%02x:%02x:%02x/%02x:%02x:%02x:%02x:%02x:%02x",
+                                    pEntry->owner[0],pEntry->owner[1],pEntry->owner[2],pEntry->owner[3],pEntry->owner[4],pEntry->owner[5],
+                                    GET_MY_HWADDR[0],GET_MY_HWADDR[1],GET_MY_HWADDR[2],GET_MY_HWADDR[3],GET_MY_HWADDR[4],GET_MY_HWADDR[5],
+                                    pEntry->sta[0],pEntry->sta[1],pEntry->sta[2],pEntry->sta[3],pEntry->sta[4],pEntry->sta[5]);                      
+                memcpy(pEntry->owner,GET_MY_HWADDR,MACADDRLEN);
+                pEntry->aging_time = -1; /*never timeout*/
+
+#if defined(CONFIG_RTL_MESH_CROSSBAND) 
+                if(sync_proxy_info(priv->mesh_priv_sc,Eth_src, 1)) //insert proxy info
+                    mesh_proxy_debug("Sync proxy information to %s failed\n",priv->mesh_priv_sc->dev->name);
+#endif
+
+#if defined(PU_STANDARD)  
+                issue_proxyupdate_ADD(priv, Eth_src);
+#endif
+            }
 		}
 	}
 
-	if (IS_MCAST(skb->data))
-	{		
-		// Note that Addr4 of an 11s broadcast frame is the original packet issuer (i.e., skb->data+MACADDRLEN)
-		// When rx receives an 11s broadcast frame, it also check mssh seq by using Addr4 as the search key
-		chkMeshSeq(priv, skb->data+MACADDRLEN,ptxinsn->mesh_header.segNum);
-		memcpy(ptxinsn->nhop_11s, skb->data, MACADDRLEN);
-	}
-	else // unicast
-	{
-		struct path_sel_entry *pEntry;
-		struct proxy_table_entry*	pProxyEntry;
+    if (IS_MCAST(skb->data))
+    {        
+
+        // Note that Addr4 of an 11s broadcast frame is the original packet issuer (i.e., skb->data+MACADDRLEN)
+        // When rx receives an 11s broadcast frame, it also check mssh seq by using Addr4 as the search key
+        // Transfer multicast to unicast and then send to each mesh neighbor
+
+        if (IP_MCAST_MAC(skb->data)
+    #ifdef  TX_SUPPORT_IPV6_MCAST2UNI
+            || IPV6_MCAST_MAC(skb->data)
+    #endif
+            )
+        {
+            // all multicast managment packet try do m2u
+            if( isSpecialFloodMac(priv,skb) || IS_MDNSV4_MAC(skb->data)||IS_MDNSV6_MAC(skb->data)||IS_IGMP_PROTO(skb->data) || isICMPv6Mng(skb) || IS_ICMPV6_PROTO(skb->data)|| isMDNS(skb->data))
+            {
+                force_m2u = 1;
+            }    
+        }
+        else {
+            force_m2u = 1;
+        }
+
+        memcpy(ptxinsn->mesh_header.DestMACAddr, skb->data, MACADDRLEN);
+        memcpy(ptxinsn->mesh_header.SrcMACAddr,  skb->data+MACADDRLEN, MACADDRLEN);        
+        sta_count = 0;
+
+        if(force_m2u == 0) {/* if it is not a multicast management or broadcast frame, check if it is a video  frame need to be multicasted*/                        
+            for(j = 0 ; j < 2; j++) {
+                if(j == 1) {
+                    #if !defined(CONFIG_RTL_MESH_CROSSBAND)
+                    if(priv->mesh_priv_sc && GET_MIB(priv->mesh_priv_sc)->dot1180211sInfo.mesh_enable) {
+                        xmit_priv = priv->mesh_priv_sc;
+                    }
+                    else 
+                    #endif
+                        break;
+                }
+                else {
+                    xmit_priv = priv;
+                }
+                
+                phead = &xmit_priv->asoc_list;
+                plist = phead->next;
+                while (phead && (plist != phead)) {
+                    pstat = list_entry(plist, struct stat_info, asoc_list);
+                    plist = plist->next;                
+                    if(!isMeshPoint(pstat)) {
+                        continue;
+                    }
+                    
+                    
+                    for (i=0; i<MAX_IP_MC_ENTRY; i++) {
+                        if (pstat->ipmc[i].used && !memcmp(&pstat->ipmc[i].mcmac[0], skb->data, 6)) {
+                            memcpy(ptxinsn->nhop_11s, pstat->hwaddr, MACADDRLEN);   
+                            newskb = skb_copy(skb, GFP_ATOMIC);
+                            if (newskb) {     
+                                sta_count++;
+                                memcpy(newskb->data+MACADDRLEN, GET_MY_HWADDR, MACADDRLEN);
+                                newskb->cb[2] = (char)0xff;         // not do aggregation
+                                ptxinsn->priv = xmit_priv;
+                                newskb->dev = priv->mesh_dev;
+                                __rtl8192cd_start_xmit_out(newskb, pstat, ptxinsn);
+                            }
+                            else {                
+                                dev_kfree_skb_any(skb);
+                                return 0;
+                            }
+                            break;
+                        }
+                  }                                        
+                }
+            }
+        }
+
+
+        if(force_m2u == 1 || (sta_count == 0 && !priv->pshare->rf_ft_var.mc2u_drop_unknown)) 
+        {
+            /*forward to every mesh nodes*/
+            seqNum = getMeshMulticastSeq(priv);            
+            j = 1 << priv->pathsel_table->table_size_power;
+        	for (i = 0; i < j; i++) {
+                
+                if (priv->pathsel_table->entry_array[i].dirty) 
+        		{ 
+        			pPathEntry = ((struct path_sel_entry*)priv->pathsel_table->entry_array[i].data);        			
+                    pstat = get_stainfo(pPathEntry->priv, pPathEntry->nexthopMAC);
+                    if(pstat && pstat->mesh_neighbor_TBL.seqNum != seqNum) {
+                        pstat->mesh_neighbor_TBL.seqNum = seqNum;
+                        memcpy(ptxinsn->nhop_11s, pstat->hwaddr, MACADDRLEN);   
+                        newskb = skb_copy(skb, GFP_ATOMIC);
+                        if (newskb) {     
+                            memcpy(newskb->data+MACADDRLEN, GET_MY_HWADDR, MACADDRLEN);
+                            newskb->cb[2] = (char)0xff;         // not do aggregation
+                            ptxinsn->priv = pPathEntry->priv;
+                            newskb->dev = priv->mesh_dev;
+                            __rtl8192cd_start_xmit_out(newskb, pstat, ptxinsn);
+                        }
+                        else {                
+                            dev_kfree_skb_any(skb);
+                            return 0;
+                        }
+                    }                       			
+        		}
+            }
+        }
+
+        dev_kfree_skb_any(skb);
+        return 0;
+    }
+    else // unicast
+    {
+        struct path_sel_entry *pEntry;
+        
+        memcpy(ptxinsn->mesh_header.DestMACAddr, skb->data, MACADDRLEN);
+        memcpy(ptxinsn->mesh_header.SrcMACAddr,  skb->data+MACADDRLEN, MACADDRLEN);
+        memcpy(skb->data+MACADDRLEN, GET_MY_HWADDR, MACADDRLEN);
 		
-		memcpy(ptxinsn->mesh_header.DestMACAddr, skb->data, MACADDRLEN);
-		memcpy(ptxinsn->mesh_header.SrcMACAddr,  skb->data+MACADDRLEN, MACADDRLEN);
-
-		// search proxy table for dest addr
-		pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, ptxinsn->mesh_header.DestMACAddr);
-		txsc_debug("Search MAC:%02x%02x%02x%02x%02x%02x from proxy table\n",
-			ptxinsn->mesh_header.DestMACAddr[0],ptxinsn->mesh_header.DestMACAddr[1],ptxinsn->mesh_header.DestMACAddr[2],
-			ptxinsn->mesh_header.DestMACAddr[3],ptxinsn->mesh_header.DestMACAddr[4],ptxinsn->mesh_header.DestMACAddr[5]);
-		if(pProxyEntry != NULL) // src isn't me or dest can find in proxy table
-		{
-			// e.g., bridge table had expired (would it happen?)
-			if(memcmp(pProxyEntry->owner, GET_MY_HWADDR, MACADDRLEN) == 0) {
-				//chris -- clean the entry
-				HASH_DELETE(priv->proxy_table, ptxinsn->mesh_header.DestMACAddr);
-				dev_kfree_skb_any(skb);
-				return 0;
-			}
-			// The code is important for uni-directional traffic (how often?) to maintain a proxy entry.
-			// However, its side effect is to forcedly occupy a proxy entry during the duration of the traffic.
-			// pProxyEntry->update_time = xtime;
-
-			ptxinsn->mesh_header.mesh_flag = 0x01;
-			memcpy(skb->data, pProxyEntry->owner, MACADDRLEN);
-			txsc_debug("found, owner is %02x%02x%02x%02x%02x%02x\n",
-				pProxyEntry->owner[0],pProxyEntry->owner[1],pProxyEntry->owner[2],
-				pProxyEntry->owner[3],pProxyEntry->owner[4],pProxyEntry->owner[5]);
-		}
-		
-		if(memcmp(ptxinsn->mesh_header.SrcMACAddr, GET_MY_HWADDR, MACADDRLEN)) {
-			ptxinsn->mesh_header.mesh_flag = 0x01;
-
-			if(isUpdateProxyTable == 1) {
-				struct proxy_table_entry Entry;
-				memcpy(Entry.sta, skb->data+MACADDRLEN, MACADDRLEN);
-				memcpy(Entry.owner, GET_MY_HWADDR, MACADDRLEN);
-				Entry.update_time = xtime;
-				//priv->proxy_table->insert_entry (priv->proxy_table, Entry.sta, &Entry); //insert/update proxy table
-				//pepsi
-				HASH_INSERT(priv->proxy_table, Entry.sta, &Entry);
-				proxy_debug("%s %d Insert Proxy table: %02x:%02x:%02x:%02x:%02x:%02x/%02x:%02x:%02x:%02x:%02x:%02x\n",
-						__FUNCTION__,__LINE__,Entry.owner[0],Entry.owner[1],Entry.owner[2],Entry.owner[3],Entry.owner[4],Entry.owner[5],
-						Entry.sta[0],Entry.sta[1],Entry.sta[2],Entry.sta[3],Entry.sta[4],Entry.sta[5]);
-				/*
-				//D1.09 Proxy Update Protocol
-				//		1. Inform destination MP					
-				// *puEntry.PUflag = PU_add;
-				puEntry.PUSN = getPUSeq(priv);
-				puEntry.STAcount = 0x0001;
-				memcpy(puEntry.proxymac, GET_MY_HWADDR, MACADDRLEN);
-				memcpy(puEntry.proxiedmac, skb->data+MACADDRLEN, MACADDRLEN);
-				memcpy(puEntry.destproxymac, Mesh_dest, MACADDRLEN);* //
-				//the rest infomation is finished only if path is valid
-				*/
-			}
-			
-			// if end point src is recorded sta, addr4 should be its owner
-			pProxyEntry =(struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, ptxinsn->mesh_header.SrcMACAddr);
-			if( pProxyEntry != NULL )	 {	
-				pProxyEntry->update_time = xtime;
-				memcpy(skb->data+MACADDRLEN, pProxyEntry->owner, MACADDRLEN);
-			} 
-/*			
-			else {
-				if(pathsel_query_table( priv, ptxinsn->mesh_header.SrcMACAddr ) == (struct path_sel_entry *)-1)
-					memcpy(skb->data+MACADDRLEN, GET_MY_HWADDR, MACADDRLEN);
-			}
-*/
-
-		} // memcmp(Eth_src,GET_MY_HWADDR,MACADDRLEN) <> 0
-
-		pEntry = pathsel_query_table( priv, skb->data );
-		if(pEntry != (struct path_sel_entry *)-1) {// has valid route path 
-			memcpy(ptxinsn->nhop_11s, pEntry->nexthopMAC, MACADDRLEN);
-			{
-				static struct path_sel_entry *lst = NULL;
-				if(lst != pEntry) {
-// 2008.08.12 totti test
-/*
-					unsigned char *Eth_dest = ptxinsn->mesh_header.DestMACAddr;
-					LOG_MESH_MSG("TX send pkt to %02X:%02X:%02X:%02X:%02X:%02X DIRECTLY\n",
-								Eth_dest[0],Eth_dest[1],Eth_dest[2],Eth_dest[3],Eth_dest[4],Eth_dest[5]);
-*/								
-					lst = pEntry;
-				}
-			}
-				//finish insert information of PU
-				/*puEntry.isMultihop = pEntry->hopcount;
-				puEntry.update_time = xtime;
-				memcpy(puEntry.nexthopmac, pEntry->nexthopMAC, MACADDRLEN);
-				HASH_INSERT(priv->proxyupdate_table, &puEntry.PUSN, &puEntry);
-				issue_proxyupdate_MP(priv, &puEntry);*/
-		} 
-		else {// not have valid route path 
-			static unsigned char zeroAddr[MACADDRLEN] = { 0 };      // fix: 0000072 2008/02/01
-			unsigned char Mesh_dest[MACADDRLEN];
-			memcpy(Mesh_dest, skb->data, MACADDRLEN);
-			memcpy(skb->data, ptxinsn->mesh_header.DestMACAddr, MACADDRLEN);
-			memcpy(skb->data+MACADDRLEN, ptxinsn->mesh_header.SrcMACAddr,MACADDRLEN);
-			//hex_dump(&ptxinsn->mesh_header,sizeof(ptxinsn->mesh_header));
-		
-			if(memcmp(priv->root_mac, zeroAddr, MACADDRLEN) == 0) // doesn't has root info, run AODV routing protocol
-			{
-				static u8 chd[6] = {0};
-				if(memcmp(chd, Mesh_dest, 6)) {
-#if 0
-					LOG_MESH_MSG("TX, no root info. run AODV to find %02X:%02X:%02X:%02X:%02X:%02X\n",
-						Mesh_dest[0], Mesh_dest[1], Mesh_dest[2], Mesh_dest[3], Mesh_dest[4], Mesh_dest[5]);
-#endif						
-					memcpy(chd, Mesh_dest, 6);
-				}
-				do_aodv_routing(priv,skb, Mesh_dest);
-				return 0;
-			}
-			else if(memcmp(priv->root_mac, GET_MY_HWADDR, MACADDRLEN) == 0) // i am root, but no path, fire aodv
-			{
-				static u8 chd[6] = {0};
-				if(memcmp(chd, Mesh_dest, 6))
-				{
-#if 0	
-					LOG_MESH_MSG("TX, root fire AODV to find %02X:%02X:%02X:%02X:%02X:%02X\n",
-						Mesh_dest[0], Mesh_dest[1], Mesh_dest[2], Mesh_dest[3], Mesh_dest[4], Mesh_dest[5]);
+#if defined(RTL_MESH_TXCACHE)
+        priv->mesh_txcache.dirty = 0; //clear tx cache first
+        memcpy(priv->mesh_txcache.ether_sa,ptxinsn->mesh_header.SrcMACAddr,MACADDRLEN);
 #endif
-					memcpy(chd, Mesh_dest, 6);
-				}
-				do_aodv_routing(priv, skb, Mesh_dest);
-				return 0;
-			} 
-			else  // send to root
-			{
-				pEntry = pathsel_query_table( priv, priv->root_mac );
-	  			if(pEntry != (struct path_sel_entry *)-1) { // has valid route path 
-	  				memcpy(ptxinsn->nhop_11s, pEntry->nexthopMAC, MACADDRLEN);
-	  				memcpy(skb->data, priv->root_mac, MACADDRLEN);
-	  				memcpy(skb->data+MACADDRLEN, GET_MY_HWADDR, MACADDRLEN);
-	  				ptxinsn->mesh_header.mesh_flag = 0x01;
-					{
-						static struct path_sel_entry *lst = NULL;
-						if(lst != pEntry) {
-#if 0
-							unsigned char *Eth_dest = ptxinsn->mesh_header.DestMACAddr;
-							LOG_MESH_MSG("TX utilize root to send pkt to %02X:%02X:%02X:%02X:%02X:%02X\n",
-								Eth_dest[0], Eth_dest[1], Eth_dest[2], Eth_dest[3], Eth_dest[4], Eth_dest[5]);
-#endif
-							lst = pEntry;
-						}
-					}
-				} else {// have no valid route path to root
-//					LOG_MESH_MSG("TX tree-based routing error- doesn't know root path\n");
-					dev_kfree_skb_any(skb);
-					return 0;
-				}
-			}
-		} // end of else (not have valid route path)
-	} // end unicast
 
+
+        // search proxy table for dest addr
+        pProxyEntry = (struct proxy_table_entry*) HASH_SEARCH(priv->proxy_table, ptxinsn->mesh_header.DestMACAddr);
+        mesh_tx_debug("Search Dest:%02x%02x%02x%02x%02x%02x from proxy table\n",
+                ptxinsn->mesh_header.DestMACAddr[0],ptxinsn->mesh_header.DestMACAddr[1],ptxinsn->mesh_header.DestMACAddr[2],
+                ptxinsn->mesh_header.DestMACAddr[3],ptxinsn->mesh_header.DestMACAddr[4],ptxinsn->mesh_header.DestMACAddr[5]);       
+        if(pProxyEntry != NULL) // src isn't me or dest can find in proxy table
+        {
+            // e.g., bridge table had expired (would it happen?)
+            if(memcmp(pProxyEntry->owner, GET_MY_HWADDR, MACADDRLEN) == 0) {                    
+                HASH_DELETE(priv->proxy_table, ptxinsn->mesh_header.DestMACAddr);
+                mesh_proxy_debug("[%s %d]Delete Proxy entry of %02x:%02x:%02x:%02x:%02x:%02x\n",
+                            __func__,__LINE__,ptxinsn->mesh_header.DestMACAddr[0],ptxinsn->mesh_header.DestMACAddr[1],ptxinsn->mesh_header.DestMACAddr[2],ptxinsn->mesh_header.DestMACAddr[3],ptxinsn->mesh_header.DestMACAddr[4],ptxinsn->mesh_header.DestMACAddr[5]);
+                dev_kfree_skb_any(skb);
+                return 0;
+            }
+            // The code is important for uni-directional traffic (how often?) to maintain a proxy entry.
+            // However, its side effect is to forcedly occupy a proxy entry during the duration of the traffic.
+            // pProxyEntry->update_time = xtime;
+            pProxyEntry->aging_time = 0;
+            
+            memcpy(skb->data, pProxyEntry->owner, MACADDRLEN);             
+            mesh_tx_debug("found, owner is %02x%02x%02x%02x%02x%02x\n",
+                            pProxyEntry->owner[0],pProxyEntry->owner[1],pProxyEntry->owner[2],
+                            pProxyEntry->owner[3],pProxyEntry->owner[4],pProxyEntry->owner[5]);
+
+#if defined(RTL_MESH_TXCACHE)
+            memcpy(priv->mesh_txcache.ether_da,ptxinsn->mesh_header.DestMACAddr,MACADDRLEN);
+            priv->mesh_txcache.da_proxy = pProxyEntry;
+#endif
+        }
+        else {
+            priv->mesh_txcache.da_proxy = NULL;
+        }
+
+        
+		
+        pEntry = pathsel_query_table( priv, skb->data );
+        if(pEntry != (struct path_sel_entry *)-1) {// has valid route path 
+            mesh_tx_debug("Path to %02x:%02x:%02x:%02x:%02x:%02x exist, next-hop %02x:%02x:%02x:%02x:%02x:%02x\n",
+                    *(unsigned char *)skb->data,*(unsigned char *)(skb->data+1),*(unsigned char *)(skb->data+2),
+                    *(unsigned char *)(skb->data+3),*(unsigned char *)(skb->data+4),*(unsigned char *)(skb->data+5),
+                    pEntry->nexthopMAC[0],pEntry->nexthopMAC[1],pEntry->nexthopMAC[2],pEntry->nexthopMAC[3],pEntry->nexthopMAC[4],pEntry->nexthopMAC[5]);
+            memcpy(ptxinsn->nhop_11s, pEntry->nexthopMAC, MACADDRLEN);
+            ptxinsn->priv = pEntry->priv;
+#if defined(RTL_MESH_TXCACHE)
+            if(priv->mesh_txcache.da_proxy) {
+                memcpy(&(priv->mesh_txcache.txcfg),ptxinsn,sizeof(*ptxinsn));
+                priv->mesh_txcache.dirty = 1; /*fire tx cache*/
+            }
+#endif
+        } 
+        else {// not have valid route path 
+            //static unsigned char zeroAddr[MACADDRLEN] = { 0 };      // fix: 0000072 2008/02/01
+            unsigned char Mesh_dest[MACADDRLEN];
+            memcpy(Mesh_dest, skb->data, MACADDRLEN);
+            memcpy(skb->data, ptxinsn->mesh_header.DestMACAddr, MACADDRLEN);
+            memcpy(skb->data+MACADDRLEN, ptxinsn->mesh_header.SrcMACAddr,MACADDRLEN);
+
+
+#if 0            
+            if(memcmp(priv->root_mac, zeroAddr, MACADDRLEN) == 0) // doesn't has root info, run AODV routing protocol
+            {
+                mesh_tx_debug("Path to %02x:%02x:%02x:%02x:%02x:%02x not exist, find through AODV\n",
+                    Mesh_dest[0],Mesh_dest[1],Mesh_dest[2],Mesh_dest[3],Mesh_dest[4],Mesh_dest[5]);
+                do_aodv_routing(priv,skb, Mesh_dest);
+                return 0;
+            }
+            else if(memcmp(priv->root_mac, GET_MY_HWADDR, MACADDRLEN) == 0) // i am root, but no path, fire aodv
+            {
+                mesh_tx_debug("Path to %02x:%02x:%02x:%02x:%02x:%02x not exist, find through AODV becoz I'm root\n",
+                        *(unsigned char *)skb->data,*(unsigned char *)(skb->data+1),*(unsigned char *)(skb->data+2),
+                        *(unsigned char *)(skb->data+3),*(unsigned char *)(skb->data+4),*(unsigned char *)(skb->data+5));
+                do_aodv_routing(priv, skb, Mesh_dest);
+                return 0;
+            } 
+            else  // send to root
+#endif                
+            {
+#if defined(RTK_MESH_REDIRECT_TO_ROOT)
+                pEntry = pathsel_query_table( priv, priv->root_mac );
+                if(pEntry != (struct path_sel_entry *)-1) { // has valid route path 
+                    memcpy(ptxinsn->nhop_11s, pEntry->nexthopMAC, MACADDRLEN);
+                    memcpy(skb->data, priv->root_mac, MACADDRLEN);
+                    memcpy(skb->data+MACADDRLEN, GET_MY_HWADDR, MACADDRLEN);
+                    ptxinsn->mesh_header.mesh_flag = 0x01;
+
+                    mesh_tx_debug("Path to %02x:%02x:%02x:%02x:%02x:%02x not exist, redirect to Root, next hop:%02x:%02x:%02x:%02x:%02x:%02x\n",
+                                *(unsigned char *)skb->data,*(unsigned char *)(skb->data+1),*(unsigned char *)(skb->data+2),
+                                *(unsigned char *)(skb->data+3),*(unsigned char *)(skb->data+4),*(unsigned char *)(skb->data+5),
+                    pEntry->nexthopMAC[0],pEntry->nexthopMAC[1],pEntry->nexthopMAC[2],pEntry->nexthopMAC[3],pEntry->nexthopMAC[4],pEntry->nexthopMAC[5]);
+                }
+#endif	//RTK_MESH_REDIRECT_TO_ROOT
+                mesh_tx_debug("Path to %02x:%02x:%02x:%02x:%02x:%02x not exist, do AODV\n",
+                                    *(unsigned char *)skb->data,*(unsigned char *)(skb->data+1),*(unsigned char *)(skb->data+2),
+                                    *(unsigned char *)(skb->data+3),*(unsigned char *)(skb->data+4),*(unsigned char *)(skb->data+5));
+                do_aodv_routing(priv, skb, Mesh_dest);
+
+                return 0;
+            }
+        } // end of else (not have valid route path)
+    } // end unicast
+#if defined(RTL_MESH_TXCACHE)
+dot11s_datapath_decision_end:
+#endif
 //txsc_path:
-	return 1;
+    return 1;
 }
+
+__IRAM_IN_865X
+int mesh_start_xmit(struct sk_buff *skb, struct net_device *dev)
+{
+    struct stat_info	*pstat=NULL;
+	unsigned long x;
+	int ret = 0;
+    unsigned char zero14[14] = {0};
+    struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;   
+    struct tx_insn tx_insn;
+    struct path_sel_entry * pEntry;
+    
+	SAVE_INT_AND_CLI(x);
+	SMP_LOCK_XMIT(x);
+
+
+    if (skb->len < 15)
+    {
+        _DEBUG_ERR("TX DROP: SKB len small:%d\n", skb->len);
+        dev_kfree_skb_any(skb);
+        goto end;
+    }
+   
+    skb->cb[2] = 0; // allow aggregation
+    skb->cb[0] = '\0';
+
+
+
+    // 11s action, send by pathsel daemon
+    // the first 14 bytes is zero: 802.3: 6 bytes (src) + 6 bytes (dst) + 2 bytes (protocol)
+    if(memcmp(skb->data, zero14, sizeof(zero14))==0) 
+    {
+        #ifdef CONFIG_RTL_MESH_CROSSBAND
+        if(memcmp(GetAddr2Ptr(skb->data+14), GET_MY_HWADDR, MACADDRLEN)) {
+            priv = priv->mesh_priv_sc;
+        }
+        #endif
+    
+        if(IS_MCAST(GetAddr1Ptr(skb->data+14))) { 
+            if (!IS_DRV_OPEN(priv)){
+                dev_kfree_skb_any(skb);
+                goto end;
+            }
+            issue_11s_mesh_action(priv, skb, dev);    
+            
+            #if !defined(CONFIG_RTL_MESH_CROSSBAND)
+            if(priv->mesh_priv_sc && GET_MIB(priv->mesh_priv_sc)->dot1180211sInfo.mesh_enable ) { /*send to other band's mesh if exists*/
+                if (!IS_DRV_OPEN(priv->mesh_priv_sc)){
+                    dev_kfree_skb_any(skb);
+                    goto end;
+                }
+                memcpy(GetAddr2Ptr(skb->data+14), GET_MIB(priv->mesh_priv_sc)->dot11OperationEntry.hwaddr, MACADDRLEN);
+                issue_11s_mesh_action(priv->mesh_priv_sc, skb, dev);           
+            }    
+            #endif            
+        }
+        else { 
+            pEntry = pathsel_query_table( priv, GetAddr3Ptr(skb->data+14) );
+            if(pEntry != (struct path_sel_entry *)-1) {// has valid route path 
+                if (!IS_DRV_OPEN(pEntry->priv)){
+                    dev_kfree_skb_any(skb);
+                    goto end;
+                }            
+                memcpy(GetAddr1Ptr(skb->data+14), pEntry->nexthopMAC, MACADDRLEN);
+                memcpy(GetAddr2Ptr(skb->data+14), GET_MIB(pEntry->priv)->dot11OperationEntry.hwaddr, MACADDRLEN);
+                issue_11s_mesh_action(pEntry->priv, skb, dev);
+            }            
+        }
+        dev_kfree_skb_any(skb);
+    }
+    else {
+
+
+        #ifdef CONFIG_RTL_MESH_CROSSBAND
+        /*if this packet is from a 5G sta, transmit use 2g mesh, otherwise, use 5g mesh*/
+        pstat = get_stainfo(priv, skb->data + MACADDRLEN);
+        if(pstat) {
+            if(GET_MIB(priv->mesh_priv_sc)->dot1180211sInfo.mesh_enable) {
+                priv = priv->mesh_priv_sc;
+            }
+        }
+        #endif
+        
+
+        // drop any packet which has dest to STA but go throu MSH        
+        pstat = get_stainfo(priv, skb->data);
+        if(pstat!=0 && isSTA(pstat))
+        {
+            dev_kfree_skb_any(skb);
+            goto end;
+        }
+
+        /*check another band, too*/
+        if(priv->mesh_priv_sc) { 
+            pstat = get_stainfo(priv->mesh_priv_sc, skb->data);
+            if(pstat!=0 && isSTA(pstat))
+            {
+                dev_kfree_skb_any(skb);
+                goto end;
+            }
+        }
+        
+        DECLARE_TXCFG(txcfg, tx_insn);
+        skb->dev = priv->dev;
+        if(!dot11s_datapath_decision(skb, txcfg, 1)) {//the dest form bridge need be update to proxy table
+            goto end;
+        }            
+
+        if (!IS_DRV_OPEN(txcfg->priv)){
+            dev_kfree_skb_any(skb);
+            goto end;
+        } 
+        pstat = get_stainfo(txcfg->priv, txcfg->nhop_11s);
+
+        #ifdef DETECT_STA_EXISTANCE
+        if(pstat && pstat->leave)	{
+            txcfg->priv->ext_stats.tx_drops++;
+            DEBUG_WARN("TX DROP: sta may leave! %02x%02x%02x%02x%02x%02x\n", pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5]);
+            dev_kfree_skb_any(skb);
+            goto end;
+        }
+        #endif
+
+        skb->dev = priv->mesh_dev;
+	    ret = __rtl8192cd_start_xmit_out(skb, pstat, txcfg);
+    }
+    
+end:    
+	RESTORE_INT(x);
+	SMP_UNLOCK_XMIT(x);
+	return ret;
+}
+
+
 
 #ifdef  _11s_TEST_MODE_
 int mesh_debug_tx1(struct net_device *dev, DRV_PRIV *priv, struct sk_buff *skb)

@@ -8,13 +8,21 @@ menu "RTK VoIP Suite"
 	depends on RTL_89xxB || RTL_89xxC || RTL8672 || RTL_89xxD
 
 	# rock: for Makefile to distinguish 2.4/2.6
-	config DEFAULTS_KERNEL_2_6
-		depends on !RTL_89xxB
-	def_bool y
+	#config DEFAULTS_KERNEL_2_6
+	#	depends on !RTL_89xxB
+	#def_bool y
 
 	config VOIP_COP3_PROFILE
 		bool
 		default y
+	
+	config USE_ROMCODE
+		bool
+		default n
+	
+	config GIGABYTE_PHY_LINK_MODE_10_100
+		bool 
+		default n
 	
 	config VOIP_SDK
 		bool
@@ -43,6 +51,8 @@ menu "RTK VoIP Suite"
 			depends on REALTEK_VOIP
 			default y
 	
+		# ---------------------------------------------------------------------
+		# Software package 
 		config RTK_VOIP_PACKAGE_865X
 			bool
 		config RTK_VOIP_PACKAGE_867X
@@ -77,6 +87,12 @@ menu "RTK VoIP Suite"
 				select RTK_VOIP_RX
 				select RTK_VOIP_TX
 				select RTK_VOIP_PACKAGE_8186
+
+			config RTK_VOIP_PLATFORM_8686
+				bool "Platform(RTL8686)"
+				select RTK_VOIP_RX
+				select RTK_VOIP_TX
+				select RTK_VOIP_PACKAGE_867X
 			
 			config	RTK_VOIP_DRIVERS_PCM8671
 				bool "Realtek 8671 board support PCM8671"
@@ -95,9 +111,21 @@ menu "RTK VoIP Suite"
 			config RTK_VOIP_DRIVERS_PCM8676
 				bool "Platform(RTL8676)"
 				depends on !RTL8196B && !RTL_8198
-                                select RTK_VOIP_RX
-                                select RTK_VOIP_TX
-                                select RTK_VOIP_PACKAGE_867X
+				select RTK_VOIP_RX
+				select RTK_VOIP_TX
+				select RTK_VOIP_PACKAGE_867X
+		endchoice
+		
+		# ---------------------------------------------------------------------
+		# Supported Linux Version 
+		choice
+			prompt "Supported Linux Version"
+			default DEFAULTS_KERNEL_2_6
+			config DEFAULTS_KERNEL_2_6
+				bool "Linux 2.6.30"
+			config DEFAULTS_KERNEL_3_4
+				depends on RTK_VOIP_PLATFORM_8686
+				bool "Linux 3.4"
 		endchoice
 		
 		choice
@@ -126,18 +154,18 @@ menu "RTK VoIP Suite"
 				bool "Real SPI"
 		endchoice
 
-		if RTK_VOIP_GPIO_8676P_IAD_2LAYER_DEMO_BOARD_V01A || RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01
+		if (RTK_VOIP_GPIO_8676P_IAD_2LAYER_DEMO_BOARD_V01A || RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01 || RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD)
 		choice
-                        prompt "GPIO Pin Definition Select"
-                        depends on RTK_VOIP_DRIVERS_PCM8676
-                        default 8676_IAD_SILAB3217X
-                        config  8676_IAD_SILAB3217X
-                                bool "RTL8676 with Silab Si3217x Pin Definition"
-                                depends on RTK_VOIP_DRIVERS_SLIC_SILAB
-                        config  8676_IAD_ZARLINK
-                                bool "RTL8676 with Zarlink V890 Pin Definition"
-                                depends on RTK_VOIP_DRIVERS_SLIC_ZARLINK
-                endchoice
+			prompt "GPIO Pin Definition Select"
+			depends on RTK_VOIP_DRIVERS_PCM8676
+			default 8676_IAD_SILAB3217X
+			config  8676_IAD_SILAB3217X
+					bool "RTL8676 with Silab Si3217x Pin Definition"
+					depends on RTK_VOIP_DRIVERS_SLIC_SILAB
+			config  8676_IAD_ZARLINK
+					bool "RTL8676 with Zarlink V890 Pin Definition"
+					depends on RTK_VOIP_DRIVERS_SLIC_ZARLINK
+		endchoice
 
 		choice
 			prompt "SPI selection"
@@ -164,7 +192,8 @@ menu "RTK VoIP Suite"
 		choice
 			prompt "SoC type"
 			default RTK_VOIP_DRIVERS_PCM8972B_
-			depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC || RTK_VOIP_DRIVERS_PCM8672 || RTK_VOIP_DRIVERS_PCM89xxD
+			depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC || RTK_VOIP_DRIVERS_PCM8672 || RTK_VOIP_DRIVERS_PCM89xxD || \
+						RTK_VOIP_PLATFORM_8686
 		
 			config RTK_VOIP_DRIVERS_PCM8972B_
 				depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY
@@ -181,10 +210,23 @@ menu "RTK VoIP Suite"
 			config RTK_VOIP_DRIVERS_PCM8984B_
 				depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY
 				bool "RTL8984B"
-		
-			config RTK_VOIP_DRIVERS_PCM8954C_
+			
+			config RTK_VOIP_SOC_8686_CPU0
+				depends on RTK_VOIP_PLATFORM_8686
+				bool "RTL8686 (CPU0)"
+				
+			config RTK_VOIP_SOC_8686_CPU1
+				depends on RTK_VOIP_PLATFORM_8686
+				bool "RTL8686 (CPU1)"
+			
+			config RTK_VOIP_DRIVERS_PCM8954C
 				depends on RTK_VOIP_DRIVERS_PCM89xxC
 				bool "RTL8954C"
+
+			config RTK_VOIP_DRIVERS_PCM8972C_
+				depends on RTK_VOIP_DRIVERS_PCM89xxC
+				bool "RTL8972C"
+				select GIGABYTE_PHY_LINK_MODE_10_100
 
 			config RTK_VOIP_DRIVERS_PCM8961C_
 				depends on RTK_VOIP_DRIVERS_PCM89xxC
@@ -218,13 +260,17 @@ menu "RTK VoIP Suite"
 				depends on RTK_VOIP_DRIVERS_PCM89xxD
 				bool "RTL8972D"
 		endchoice
+		config RTK_VOIP_DRIVERS_PCM8954C_
+			bool
+			default y if ( RTK_VOIP_DRIVERS_PCM8954C || RTK_VOIP_DRIVERS_PCM8972C_ )
 
 		# ---------------------------------------------------------------------
 		# GPIO selection 
 		
-		comment "EV_Board GPIO Pin Selection"
+		comment "EV_Board GPIO Pin Definition Selection"
 		choice
 			prompt "EV_Board version"
+			depends on !RTK_VOIP_DRIVERS_IP_PHONE
 			#depends on RTK_VOIP_DRIVERS_ATA_SLIC || RTK_VOIP_DRIVERS_ATA_DECT || \
 			#			RTK_VOIP_ETHERNET_DSP_IS_HOST
 			default RTK_VOIP_GPIO_8954C_V400
@@ -234,6 +280,9 @@ menu "RTK VoIP Suite"
                                 depends on RTK_VOIP_DRIVERS_PCM8676	
 			config  RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01
 				bool "8676PN_IAD_2LAYER_DEMO_BOARD_V01(SLIC Card)"
+                                depends on RTK_VOIP_DRIVERS_PCM8676	
+			config  RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD
+				bool "8676P_EWN_IAD_BOARD"
                                 depends on RTK_VOIP_DRIVERS_PCM8676	
 			config	RTK_VOIP_GPIO_8672_VQD01
 				bool "8672_VQD01"
@@ -269,43 +318,49 @@ menu "RTK VoIP Suite"
 				#select RTK_VOIP_WAN_VLAN
 			config	RTK_VOIP_GPIO_8964C_QA
 				bool "RTL8964C_QA"
-				depends on RTK_VOIP_DRIVERS_PCM89xxC
+				depends on RTK_VOIP_DRIVERS_PCM8964C_
 				#select RTK_VOIP_865xC_QOS
 				#select RTK_VOIP_WAN_VLAN
 			config RTK_VOIP_GPIO_8954C_V100
 				bool "RTL8954C_V100"
-				depends on RTK_VOIP_DRIVERS_PCM89xxC
+				depends on RTK_VOIP_DRIVERS_PCM8954C
 				#select RTK_VOIP_QOS
 				#select RTK_VOIP_WAN_VLAN
 			config RTK_VOIP_GPIO_8954C_V200
 				bool "RTL8954C_V200"
-				depends on RTK_VOIP_DRIVERS_PCM89xxC
+				depends on RTK_VOIP_DRIVERS_PCM8954C
 				#select RTK_VOIP_QOS
 			config RTK_VOIP_GPIO_8954C_V400
 				bool "RTL8954C_V400"
-				depends on RTK_VOIP_DRIVERS_PCM89xxC
+				depends on RTK_VOIP_DRIVERS_PCM8954C
 				#select RTK_VOIP_QOS
 			config RTK_VOIP_GPIO_8954C_PMC
-                                bool "RTL8954C_PMC"
-                                depends on RTK_VOIP_DRIVERS_PCM89xxC
-                                #select RTK_VOIP_QOS
-			config RTK_VOIP_GPIO_8954C_SOUNDWIN_XVN1420
-                                bool "RTL8954C_SOUNDWIN_XVN1420"
-                                depends on RTK_VOIP_DRIVERS_PCM89xxC
-                                #select RTK_VOIP_QOS
+				bool "RTL8954C_PMC"
+				depends on RTK_VOIP_DRIVERS_PCM8954C
+				#select RTK_VOIP_QOS
+			config RTK_VOIP_GPIO_8954C_SOUNDWIN_XVN1420_
+				bool "RTL8954C_SOUNDWIN_XVN1420"
+				depends on RTK_VOIP_DRIVERS_PCM8954C
+			config RTK_VOIP_GPIO_8972C_SOUNDWIN_XVN1420_
+				bool "RTL8972C_SOUNDWIN_XVN1420"
+				depends on RTK_VOIP_DRIVERS_PCM8972C_
 			config RTK_VOIP_GPIO_8972D_V100
 				bool "RTL8972D_V100"
 				depends on RTK_VOIP_DRIVERS_PCM89xxD
+			config RTK_VOIP_GPIO_NOT_DEFINED_
+				bool "GPIO not defined"
 		endchoice
 		
+        	config RTK_VOIP_GPIO_8954C_SOUNDWIN_XVN1420
+            	bool
+            	default y if ( RTK_VOIP_GPIO_8954C_SOUNDWIN_XVN1420_ || RTK_VOIP_GPIO_8972C_SOUNDWIN_XVN1420_ )
 		choice
 			prompt "EV_Board version"
 			depends on RTK_VOIP_DRIVERS_IP_PHONE
-			default RTK_VOIP_GPIO_IPP_8972B_V00
 		
 			config RTK_VOIP_GPIO_IPP_100
 				bool "IPP_100"
-				depends on !RTK_VOIP_DRIVERS_PCM8972B_FAMILY
+				depends on RTK_VOIP_DRIVERS_PCM8186
 			
 			config RTK_VOIP_GPIO_IPP_8972B_V00
 				bool "IPP_8972B_V00"
@@ -318,10 +373,22 @@ menu "RTK VoIP Suite"
 				depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY
 				select RTK_VOIP_QOS
 				select RTK_VOIP_QOS_HEAVYLOAD
+
+			config RTK_VOIP_GPIO_IPP_89XXC_V00
+				bool "IPP_89xxC_V00"
+				depends on RTK_VOIP_DRIVERS_PCM89xxC
+
+			config RTK_VOIP_GPIO_IPP_89XXD_CODEC
+				bool "RTL8972D_IP-PHONE_ONLY_CODEC"
+				depends on RTK_VOIP_DRIVERS_PCM89xxD
 		endchoice
 		
 		# ---------------------------------------------------------------------
 		# GPIO selection - induce options 
+		
+		config RTK_VOIP_GPIO_DEFINED
+			bool
+			default y if !RTK_VOIP_GPIO_NOT_DEFINED_
 		
 		config RTK_VOIP_8954C_TEST_CHIP
 			bool
@@ -343,6 +410,7 @@ menu "RTK VoIP Suite"
 
 
 	if RTK_VOIP
+	
 		# ---------------------------------------------------------------------
 		# System architecture - Standalone / IPC: Ethernet DSP / IPC: coprocessor 
 		comment "System architecture"
@@ -356,12 +424,12 @@ menu "RTK VoIP Suite"
 			
 			config RTK_VOIP_ETHERNET_DSP
 				bool "IPC: Ethernet DSP"
-				depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC
+				depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC || RTK_VOIP_DRIVERS_PCM8676 || RTK_VOIP_DRIVERS_PCM89xxD
 				select RTK_VOIP_IPC_ARCH
 			
 			config RTK_VOIP_COPROCESS_DSP
 				bool "IPC: Coprocessor DSP"
-				depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC
+				depends on RTK_VOIP_PLATFORM_8686
 				select RTK_VOIP_IPC_ARCH
 		
 		endchoice
@@ -379,6 +447,42 @@ menu "RTK VoIP Suite"
 				
 		endchoice
 
+		config RTK_VOIP_IPC_ARCH_DSP_IN_DUAL_LINUX
+			bool
+			default y
+			depends on RTL8686_IPC_DUAL_LINUX && RTK_VOIP_IPC_ARCH_IS_DSP
+
+		choice 
+			prompt "ETHERNET DSP Interface"
+			depends on RTK_VOIP_ETHERNET_DSP
+			default RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH0
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH0
+				bool "eth0"
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH01
+				bool "eth0.1"
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH02
+				bool "eth0.2"
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH03
+				bool "eth0.3"
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH04
+				bool "eth0.4"
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH05
+				bool "eth0.5"
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH1
+				bool "eth1"
+
+			config RTK_VOIP_ETHERNET_DSP_INTERFACE_ETH2
+				bool "eth2"
+
+		endchoice
+
 		config RTK_VOIP_IPC_ARCH
 			bool
 			default n 
@@ -392,7 +496,7 @@ menu "RTK VoIP Suite"
 			depends on ( RTK_VOIP_ETHERNET_DSP && RTK_VOIP_IPC_ARCH_IS_DSP )
 			bool
 			default y 
-			select RTL_NFBI_MDIO
+			#select RTL_NFBI_MDIO
 		
 		config RTK_VOIP_COPROCESS_DSP_IS_HOST
 			depends on ( RTK_VOIP_COPROCESS_DSP && RTK_VOIP_IPC_ARCH_IS_HOST )
@@ -410,7 +514,10 @@ menu "RTK VoIP Suite"
 			depends on RTK_VOIP_ETHERNET_DSP_IS_HOST && RTK_VOIP_DRIVERS_PCM89xxC 
 			
 		config RTL_NFBI_MDIO
-			bool
+			bool "NFBI DSP Driver"
+			default n if (RTK_VOIP_DRIVERS_PCM8676)
+			default y if (!RTK_VOIP_DRIVERS_PCM8676)
+			depends on RTK_VOIP_ETHERNET_DSP_IS_DSP
 		
 		config RTK_VOIP_DSP_DEVICE_NR
 			int "Number of DSP Device"
@@ -447,6 +554,34 @@ menu "RTK VoIP Suite"
 			select RTK_VOIP_DRIVERS_DAA_SUPPORT	
 			select RTK_VOIP_PULSE_DIAL_GEN_TIMER
 		
+		config RTK_VOIP_IPC_ARCH_RESEND_CTRL
+			bool
+			depends on RTK_VOIP_IPC_ARCH
+			default y if !RTK_VOIP_COPROCESS_DSP
+			default n if RTK_VOIP_COPROCESS_DSP
+			help
+				Enable/disable to re-send control commands where mgr and event are included, but 
+				mirror and rpc are excluded. 
+		
+		config RTK_VOIP_IPC_ARCH_ISSUE_TRIVIAL_ACK
+			bool
+			depends on RTK_VOIP_IPC_ARCH
+			default y if !RTK_VOIP_COPROCESS_DSP
+			default n if RTK_VOIP_COPROCESS_DSP
+			help
+				Normally, we issue ACK for every CTRL, but it can ignore trivial ACK if CTRL is 
+				guaranteed. 
+		
+		# ---------------------------------------------------------------------
+		# SoC options  
+		config RTK_VOIP_2_PHYSICAL_OFFSET
+			hex "Logical to physical offset"
+			default 0x0 if !RTK_VOIP_SOC_8686_CPU1
+			default 0x03000000 if RTK_VOIP_SOC_8686_CPU1
+			help
+				Normally, we set this value to zero. 
+				Otherwise it may be 32M(0x02000000) or 48M(0x03000000). 
+		
 		# ---------------------------------------------------------------------
 		# GPIO selection - on/off options 
 		comment "GPIO options"
@@ -455,14 +590,28 @@ menu "RTK VoIP Suite"
 			bool "Support FXS/FXO LED (GPIO)"
 			default y 
 			depends on ( RTK_VOIP_DRIVERS_PCM8186 || RTK_VOIP_GPIO_8962 || RTK_VOIP_DRIVERS_PCM8671 || RTK_VOIP_GPIO_8972B || 	\
-						RTK_VOIP_GPIO_8954C_V100 || RTK_VOIP_GPIO_8954C_V200 || RTK_VOIP_GPIO_8954C_V400 || RTK_VOIP_GPIO_8954C_SOUNDWIN_XVN1420 || \
-						RTK_VOIP_GPIO_8954C_PMC || RTK_VOIP_DRIVERS_PCM8676) && !RTK_VOIP_DRIVERS_IP_PHONE || RTK_VOIP_GPIO_8972D_V100
+						RTK_VOIP_GPIO_8954C_V100 || RTK_VOIP_GPIO_8954C_V200 || RTK_VOIP_GPIO_8954C_V400 || RTK_VOIP_GPIO_8954C_SOUNDWIN_XVN1420 || RTK_VOIP_GPIO_8972C_SOUNDWIN_XVN1420 || \
+						RTK_VOIP_GPIO_8954C_PMC || RTK_VOIP_DRIVERS_PCM8676 || RTK_VOIP_PLATFORM_8686 ) && !RTK_VOIP_DRIVERS_IP_PHONE || RTK_VOIP_GPIO_8972D_V100
 		
 		config RTK_VOIP_IOC_SLIC_RELAY
 			bool "Support SLIC relay (GPIO)"
 			default y
 			depends on ( RTK_VOIP_DRIVERS_ATA_SLIC ) && ( !RTK_VOIP_GPIO_8954C_V400 )
-
+		
+		# ---------------------------------------------------------------------
+		# SPI support 
+		comment "SPI options"
+		
+		config RTK_VOIP_HARDWARE_SPI
+			bool "Hardware SPI"
+			default y
+			depends on RTK_VOIP_PLATFORM_8686
+		
+		config RTK_VOIP_SOFTWARE_SPI
+			bool "Software SPI (GPIO)"
+			default y
+			depends on !RTK_VOIP_PLATFORM_8686
+	
 	if !RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
 		# ---------------------------------------------------------------------
 		# Sound category - ATA (option)
@@ -476,7 +625,7 @@ menu "RTK VoIP Suite"
 		config RTK_VOIP_DEFER_SNDDEV_INIT
 			bool
 			default y
-			depends on RTK_VOIP_ETHERNET_DSP_IS_HOST && !RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+			depends on RTK_VOIP_IPC_ARCH_IS_HOST && !RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
 			help
 				PCM locate on DSP side, but host side control SND. 
 				We bring up SND device and polling timer after DSP boot up completely. 
@@ -516,7 +665,7 @@ menu "RTK VoIP Suite"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
 		
 		choice
-			prompt "SI3217x"
+			prompt "SI3217x BOM"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
 			default RTK_VOIP_DRIVERS_SLIC_SI3217x_BB
 			
@@ -524,6 +673,8 @@ menu "RTK VoIP Suite"
 			        bool "Buck Boost"
 			config RTK_VOIP_DRIVERS_SLIC_SI3217x_FB
 			        bool "Fly Back"
+			config RTK_VOIP_DRIVERS_SLIC_SI3217x_PBB
+			        bool "PMOS Buck Boost"
 		endchoice
 		
 		config	RTK_VOIP_DRIVERS_SLIC_SI3217x_WIDEBAND
@@ -537,6 +688,20 @@ menu "RTK VoIP Suite"
 			bool "SI32176 (Daisy Chain)"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
 
+		choice
+			prompt "SI32176 use SPI type"
+			depends on RTK_VOIP_SLIC_SI32176
+			default RTK_VOIP_SLIC_SI32176_PIN_CS_USE_SW
+			
+			config RTK_VOIP_SLIC_SI32176_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_SLIC_SI32176_PIN_CS_USE_HW
+				bool "Hardware"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+
 		config RTK_VOIP_SLIC_SI32176_NR
 			int "SI32176 number"
 			range 1 16
@@ -544,29 +709,61 @@ menu "RTK VoIP Suite"
 		
 		config RTK_VOIP_SLIC_SI32176_PIN_CS
 			int "SI32176 use PIN_CS#"
-			range 1 4
-			default 1
+			range 1 4 if RTK_VOIP_SLIC_SI32176_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_SLIC_SI32176_PIN_CS_USE_SW
+			range 0 4 if RTK_VOIP_SLIC_SI32176_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_SLIC_SI32176_PIN_CS_USE_HW
 			depends on RTK_VOIP_SLIC_SI32176 
 		
 		config	RTK_VOIP_SLIC_SI32176_CS
 			bool "SI32176 (Chip Select)"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
 
+		choice
+			prompt "SI32176 use SPI type"
+			depends on RTK_VOIP_SLIC_SI32176_CS
+			default RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+			
+			config RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
+				bool "Hardware"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+
 		config RTK_VOIP_SLIC_SI32176_CS_NR
 			int "SI32176 number (Chip Select)"
 			range 1 16
 			depends on RTK_VOIP_SLIC_SI32176_CS 
-		
+
 		config RTK_VOIP_SLIC_SI32176_CS_PIN_CS
 			int "SI32176 use PIN_CS# (Chip Select)"
-			range 1 4
-			default 1
+			range 1 4 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+			range 0 4 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_HW
 			depends on RTK_VOIP_SLIC_SI32176_CS 
 	
 		config	RTK_VOIP_SLIC_SI32178
 			bool "SI32178 (Chip Select)"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
-		
+
+		choice
+			prompt "SI32178 use SPI type"
+			depends on RTK_VOIP_SLIC_SI32178
+			default RTK_VOIP_SLIC_SI32178_PIN_CS_USE_SW
+			
+			config RTK_VOIP_SLIC_SI32178_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_SLIC_SI32178_PIN_CS_USE_HW
+				bool "Hardware"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+
 		config RTK_VOIP_SLIC_SI32178_NR
 			int "SI32178 number"
 			range 1 16
@@ -574,30 +771,48 @@ menu "RTK VoIP Suite"
 		
 		config RTK_VOIP_SLIC_SI32178_PIN_CS
 			int "SI32178 use PIN_CS#"
-			range 1 4
-			default 1
+			range 1 4 if RTK_VOIP_SLIC_SI32178_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_SLIC_SI32178_PIN_CS_USE_SW
+			range 0 4 if RTK_VOIP_SLIC_SI32178_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_SLIC_SI32178_PIN_CS_USE_HW
 			depends on RTK_VOIP_SLIC_SI32178 
 			
 		config	RTK_VOIP_SLIC_SI32176_SI32178
 			bool "multiple SI32176 + single SI32178 (Daisy Chain)"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3217x
-		
+
+		choice
+			prompt "SI3217x use SPI type"
+			depends on RTK_VOIP_SLIC_SI32176_SI32178
+			default RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_SW
+			
+			config RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_HW
+				bool "Hardware"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+
 		config	RTK_VOIP_SLIC_SI32176_SI32178_NR
 			int "32176 number among multiple SI32176 + single SI32178"
 			range 1 16
 			depends on RTK_VOIP_SLIC_SI32176_SI32178
-		
+
 		config	RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS
 			int "multiple SI32176 + single SI32178 use PIN_CS#"
-			range 1 4
-			default 1
+			range 1 4 if RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_SW
+			range 0 5 if RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_HW
 			depends on RTK_VOIP_SLIC_SI32176_SI32178
 		
 		# ---------------------------------------------------------------------
 		# Sound category - ATA - silab - si3226
 		
 		config	RTK_VOIP_DRIVERS_SLIC_SI3226
-			bool "SI3226(BB)"
+			bool "SI3226(QCUK)"
 			depends on RTK_VOIP_DRIVERS_SLIC_SILAB
 		
 		config	RTK_VOIP_DRIVERS_SLIC_SI3226_WIDEBAND
@@ -623,6 +838,22 @@ menu "RTK VoIP Suite"
 			bool "SI3226x(FB)"
 			depends on RTK_VOIP_DRIVERS_SLIC_SILAB
 		
+		comment "SI3226x options"
+			depends on RTK_VOIP_DRIVERS_SLIC_SI3226x
+
+		choice
+			prompt "SI3226x"
+			depends on RTK_VOIP_DRIVERS_SLIC_SI3226x
+			default RTK_VOIP_DRIVERS_SLIC_SI3226x_FB
+			
+			config RTK_VOIP_DRIVERS_SLIC_SI3226x_FB
+			        bool "Fly Back"
+			config RTK_VOIP_DRIVERS_SLIC_SI3226x_QCUK
+			        bool "QUCK"
+			config RTK_VOIP_DRIVERS_SLIC_SI3226x_PBB
+			        bool "PMOS Buck Boost"
+		endchoice
+		
 		config	RTK_VOIP_SLIC_SI3226x_WIDEBAND
 			bool "SI3226x support wideband"
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3226x
@@ -631,11 +862,27 @@ menu "RTK VoIP Suite"
 			int "SI3226x number"
 			default 1
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3226x
-
+		
+		choice
+			prompt "SI3226x use SPI type"
+			depends on RTK_VOIP_DRIVERS_SLIC_SI3226x
+			default RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_SW
+			
+			config RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_HW
+				bool "Hardware"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+		
 		config	RTK_VOIP_SLIC_SI3226x_PIN_CS
 			int "SI3226x use PIN_CS#"
-			range 1 4
-			default 1
+			range 1 4 if RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_SW
+			range 0 5 if RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_SLIC_SI3226x_PIN_CS_USE_HW
 			depends on RTK_VOIP_DRIVERS_SLIC_SI3226x
 
 		# ---------------------------------------------------------------------
@@ -652,7 +899,7 @@ menu "RTK VoIP Suite"
 		config  8676_IAD_SILAB3217X		
 			bool
                         default y
-                        depends on RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01 && \
+                        depends on (RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01 || RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD) && \
 						( RTK_VOIP_SLIC_SI32176 || RTK_VOIP_SLIC_SI32178 || RTK_VOIP_SLIC_SI32176_SI32178 )
 		
 		config RTK_VOIP_DRIVERS_SILAB_O_OPTION_
@@ -725,6 +972,10 @@ menu "RTK VoIP Suite"
 			bool "LE89116"
 			depends on RTK_VOIP_DRIVERS_SLIC_ZARLINK
 		
+		config BOARD_LE89156
+			bool "Use LE89156 Board"
+			depends on RTK_VOIP_DRIVERS_SLIC_LE89116
+		
 		config	RTK_VOIP_DRIVERS_SLIC_LE89116_WIDEBAND
 			bool "LE89116 support wideband"
 			depends on RTK_VOIP_DRIVERS_SLIC_LE89116
@@ -734,10 +985,32 @@ menu "RTK VoIP Suite"
 			range 1 16
 			depends on RTK_VOIP_DRIVERS_SLIC_LE89116
 		
+		choice
+			prompt "LE89116 use SPI type"
+			depends on RTK_VOIP_DRIVERS_SLIC_LE89116
+			default RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_SW
+			
+			config RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW
+				bool "Hardware (Normal CS Mode)"
+				depends on RTK_VOIP_HARDWARE_SPI
+			
+			config RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW3
+				bool "Hardware (Special CS Mode)"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+		
 		config	RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS
 			int "LE89116 use PIN_CS#"
-			range 1 4
-			default 1
+			range 1 4 if RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_SW
+			range 0 5 if RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW
+			range 0 5 if RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW3
+			default 0 if RTK_VOIP_DRIVERS_SLIC_LE89116_PIN_CS_USE_HW3
 			depends on RTK_VOIP_DRIVERS_SLIC_LE89116
 		
 		config	RTK_VOIP_DRIVERS_SLIC_LE89116_IO
@@ -774,10 +1047,32 @@ menu "RTK VoIP Suite"
 			range 1 16
 			depends on RTK_VOIP_DRIVERS_SLIC_LE89316
 		
+		choice
+			prompt "LE89316 use SPI type"
+			depends on RTK_VOIP_DRIVERS_SLIC_LE89316
+			default RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_SW
+			
+			config RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_SW
+				bool "Software"
+				depends on RTK_VOIP_SOFTWARE_SPI
+				
+			config RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_HW
+				bool "Hardware (Normal CS Mode)"
+				depends on RTK_VOIP_HARDWARE_SPI
+			
+			config RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_HW3
+				bool "Hardware (Special CS Mode)"
+				depends on RTK_VOIP_HARDWARE_SPI
+		endchoice
+		
 		config	RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS
 			int "LE89316 use PIN_CS#"
-			range 1 4
-			default 1
+			range 1 4 if RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_SW
+			default 1 if RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_SW
+			range 0 5 if RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_HW
+			default 0 if RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_HW
+			range 0 5 if RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_HW3
+			default 0 if RTK_VOIP_DRIVERS_SLIC_LE89316_PIN_CS_USE_HW3
 			depends on RTK_VOIP_DRIVERS_SLIC_LE89316
 		
 		choice
@@ -801,10 +1096,10 @@ menu "RTK VoIP Suite"
 			depends on RTK_VOIP_GPIO_8672_VQD01 &&	\
 						( RTK_VOIP_DRIVERS_SLIC_LE89316 )
 		config  8676_IAD_ZARLINK
-                        bool
-                        default y
-                        depends on (RTK_VOIP_GPIO_8676P_IAD_2LAYER_DEMO_BOARD_V01A || RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01) &&  \
-                                                ( RTK_VOIP_DRIVERS_SLIC_LE89116 || RTK_VOIP_DRIVERS_SLIC_LE89316 || RTK_VOIP_DRIVERS_SLIC_LE88221)		
+			bool
+			default y
+			depends on (RTK_VOIP_GPIO_8676P_IAD_2LAYER_DEMO_BOARD_V01A || RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01) &&  \
+						( RTK_VOIP_DRIVERS_SLIC_LE89116 || RTK_VOIP_DRIVERS_SLIC_LE89316 || RTK_VOIP_DRIVERS_SLIC_LE88221)		
 		
 		config RTK_VOIP_SLIC_ZARLINK_890_SERIES	
 			bool
@@ -848,9 +1143,12 @@ menu "RTK VoIP Suite"
 		# Sound category - ATA - Mirror  
 		
 		config RTK_VOIP_DRIVERS_MIRROR
-			depends on RTK_VOIP_IPC_ARCH_IS_DSP && RTK_VOIP_DRIVERS_ATA_SLIC
-			#depends on RTK_VOIP_DRIVERS_ATA_SLIC
-			bool "Mirror in DSP side"
+			depends on RTK_VOIP_DRIVERS_ATA_SLIC
+			bool "Mirror SLIC/DAA" 
+			help 
+				Mirror SLIC/DAA has two types decided by source code.  
+				Type 1 if RTK_VOIP_IPC_ARCH_IS_DSP, and it has context and RPC. 
+				Type 2 if !RTK_VOIP_IPC_ARCH || RTK_VOIP_IPC_ARCH_IS_HOST, and it has context only. 
 		
 		config RTK_VOIP_DRIVERS_MIRROR_SLIC
 			depends on RTK_VOIP_DRIVERS_MIRROR 
@@ -908,6 +1206,9 @@ menu "RTK VoIP Suite"
 			config RTK_VOIP_DRIVERS_CODEC_ALC5621
 				bool "Realtek ALC5621"
 			
+			config RTK_VOIP_DRIVERS_CODEC_ALC5633Q
+				bool "Realtek ALC5633Q"
+			
 			#config RTK_VOIP_DRIVERS_CODEC_WM8510
 			#	bool "Wolfson WM8510"
 		endchoice
@@ -916,9 +1217,14 @@ menu "RTK VoIP Suite"
 			bool "Realtek ALC5621 support wideband"
 			depends on RTK_VOIP_DRIVERS_CODEC_ALC5621 && RTK_VOIP_DRIVERS_IIS
 			
+		config RTK_VOIP_DRIVERS_CODEC_ALC5633Q_WIDEBAND
+			bool "Realtek ALC5633Q support wideband"
+			depends on RTK_VOIP_DRIVERS_CODEC_ALC5633Q && RTK_VOIP_DRIVERS_IIS
+			
 		config RTK_VOIP_IP_PHONE
 			bool
 			depends on RTK_VOIP_DRIVERS_IP_PHONE
+			depends on !RTK_VOIP_GPIO_IPP_89XXC_V00 && !RTK_VOIP_GPIO_IPP_89XXD_CODEC
 			default y
 		
 		config RTK_VOIP_IP_PHONE_CH_NR
@@ -1057,7 +1363,7 @@ menu "RTK VoIP Suite"
 		
 		config RTK_VOIP_DRIVERS_IIS
 			bool "Support IIS bus"
-			depends on !RTK_VOIP_IPC_ARCH_IS_HOST && ( RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC )
+			depends on !RTK_VOIP_IPC_ARCH_IS_HOST && ( RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC || RTK_VOIP_DRIVERS_PCM89xxD )
 		
 		config RTK_VOIP_BUS_IIS_CH_NUM
 			#int "IIS bus channel number"
@@ -1068,7 +1374,7 @@ menu "RTK VoIP Suite"
 		
 		choice
 			prompt "IIS mode" 
-			default RTK_VOIP_DRIVERS_IIS_NARROWBAND
+			default RTK_VOIP_DRIVERS_IIS_WIDEBAND
 			depends on RTK_VOIP_DRIVERS_IIS
 			
 			config RTK_VOIP_DRIVERS_IIS_NARROWBAND
@@ -1108,103 +1414,9 @@ menu "RTK VoIP Suite"
 			depends on !RTK_VOIP_IPC_ARCH_IS_HOST
 			help
 				Enable polling for SLIC hook status, caller ID, and so on. 
-		
-		# ---------------------------------------------------------------------
-		# DSP
-		
-		comment "DSP options"
-		
-		config AUDIOCODES_VOIP_
-			bool 
-			default y
-			depends on RTK_VOIP_DRIVERS_PCM8981B_ || RTK_VOIP_DRIVERS_PCM8982B_ || RTK_VOIP_DRIVERS_PCM8984B_ ||	\
-					RTK_VOIP_DRIVERS_PCM8961C_ || RTK_VOIP_DRIVERS_PCM8962C_ || RTK_VOIP_DRIVERS_PCM8964C_ ||	\
-					RTK_VOIP_DRIVERS_PCM8672 || RTK_VOIP_DRIVERS_PCM8676
-		
-		choice
-			prompt "DSP package" 
-			default AUDIOCODES_VOIP if AUDIOCODES_VOIP_
-		
-			config REALTEK_VOIP
-				bool "Realtek"
-			
-			config AUDIOCODES_VOIP
-				bool "Audiocodes"
-				depends on AUDIOCODES_VOIP_
-		endchoice
 
-		config AUDIOCODES_VOIP_RELEASE
-			bool
-			default y
-			depends on AUDIOCODES_VOIP
-		
-		config	RTK_VOIP_IVR
-			bool "IVR instructions"
-			select RTK_VOIP_IVR_TEXT
-			select RTK_VOIP_IVR_LINEAR_8K
-			select RTK_VOIP_IVR_DEV
-		config	RTK_VOIP_IVR_DEV
-			bool 
-		config	RTK_VOIP_IVR_TEXT
-			bool 
-		config	RTK_VOIP_IVR_LINEAR_8K
-			bool 
-		#config	RTK_VOIP_IVR_LINEAR_16K
-		#	bool "Linear 16kHz"
+		source "rtk_voip/Kconfig.DSP"
 
-		# ---------------------------------------------------------------------
-		# DSP - codec  
-		
-		comment "Speech CODECs"
-		config	RTK_VOIP_G729AB
-			bool "G.729AB"
-		config	RTK_VOIP_G7231
-			bool "G.723.1"
-		config	RTK_VOIP_AMR_NB
-			bool "AMR-NB"
-			depends on REALTEK_VOIP
-		config	RTK_VOIP_RTK_VOIP_SPEEX_NB
-			bool "SPEEX-NB"
-			depends on REALTEK_VOIP
-		config 	RTK_VOIP_G726
-			bool "G.726"
-			depends on REALTEK_VOIP
-		config	RTK_VOIP_GSMFR
-			bool "GSM-FR"
-			depends on REALTEK_VOIP
-		config  RTK_VOIP_ILBC
-			bool 'iLBC' 
-			depends on REALTEK_VOIP
-		config	RTK_VOIP_G722
-			bool "G.722"
-			depends on REALTEK_VOIP
-		config	RTK_VOIP_G7111
-			bool "G.711.1"
-			depends on REALTEK_VOIP
-		config	RTK_VOIP_T38
-			bool "T.38 (FAX)"
-		
-		config	RTK_VOIP_PCM_LINEAR_8K
-			bool
-			default n
-		
-		config	RTK_VOIP_PCM_LINEAR_16K
-			bool
-			default n
-		
-		config	RTK_VOIP_SILENCE
-			bool
-			default y
-
-		config RTK_VOIP_USE_ITUT_G7111_BASOP
-			bool
-			default n
-			depends on RTK_VOIP_G7111
-
-		config RTK_VOIP_USE_ITU_G722_BASOP
-			bool
-			default n
-			depends on RTK_VOIP_G722
 		# ---------------------------------------------------------------------
 		# Protocol and Security 
 		
@@ -1220,27 +1432,36 @@ menu "RTK VoIP Suite"
 		config RTK_VOIP_SIP_TLS
 			bool "Enable SIP TLS"
 	
+		config RTK_VOIP_RTP_REDUNDANT
+			bool "Enable RTP REDUNDANT"
+			default y
+
 		# ---------------------------------------------------------------------
 		# Network 
-		
+
 		comment "Network"
+
+		choice
+			prompt "VoIP Receive Method" 
+			default RTK_VOIP_RX_NETFILTER_HOOK
+			depends on RTK_VOIP_RX
+
+			config RTK_VOIP_RX_LINUX_UDP_TRAP
+				bool "Linux Kernel UDP Trap"
+		
+			config RTK_VOIP_RX_NETFILTER_HOOK
+				bool "Netfilter Hook"
+		endchoice
+		
+		config RTK_VOIP_IPV6_SUPPORT
+			bool "VoIP IPv6 Support"
+
 		config RTK_VOIP_PORT_LINK
 			bool "Port Link Monitor"
 
-		choice
-			prompt "Gigabyte Phy Link Mode"
-			depends on RTK_VOIP_DRIVERS_PCM89xxC
-			default RTK_VOIP_GIGABYTE_PHY_LINK_MODE_NORMAL
-
-			config RTK_VOIP_GIGABYTE_PHY_LINK_MODE_NORMAL
-				bool "10/100/1000"
-			config RTK_VOIP_GIGABYTE_PHY_LINK_MODE_100
-				bool "10/100"
-		endchoice
-	
 		config RTK_VOIP_QOS
 			bool "Enable QoS for VoIP"
-			depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTK_VOIP_DRIVERS_PCM89xxC
+			depends on RTK_VOIP_DRIVERS_PCM8972B_FAMILY || RTL_819X_SWCORE
 
 		config RTK_VOIP_865xC_QOS
 			bool
@@ -1250,6 +1471,44 @@ menu "RTK VoIP Suite"
 			bool
 		config RTK_VOIP_QOS_HEAVYLOAD
 			bool
+
+		# ---------------------------------------------------------------------
+		# Debug  
+		
+		comment "Debug"
+		
+		config RTK_VOIP_CIRCULAR_LOG_DEV
+			bool
+			default n
+			help
+				Use circular buffer to log data, and currently it is used to log IOCTL. 
+
+		# ---------------------------------------------------------------------
+		# Debug - log IOCTL  
+		
+		config RTK_VOIP_LOG_IOCTL
+			bool "log IOCTL"
+			depends on RTK_VOIP_STANDALONE_ARCH || RTK_VOIP_IPC_ARCH_IS_HOST
+			select RTK_VOIP_CIRCULAR_LOG_DEV
+			help
+				Log all IOCTL information into '/dev/voip/log_ioctl'  
+		
+		config RTK_VOIP_LOG_IOCTL_SIZE
+			hex "log IOCTL buffer size"
+			default 0x8000
+			depends on RTK_VOIP_LOG_IOCTL
+		
+		choice
+			prompt "log IOTCL type"
+			default RTK_VOIP_LOG_IOCTL_TYPE_TEXT
+			depends on RTK_VOIP_LOG_IOCTL
+			
+			config RTK_VOIP_LOG_IOCTL_TYPE_TEXT
+			bool "Text"
+			
+			#config RTK_VOIP_LOG_IOCTL_TYPE_BINARY
+			#bool "Binary"
+		endchoice
 		
 	endif	
 endmenu

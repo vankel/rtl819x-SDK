@@ -75,12 +75,22 @@
 
 #ifdef CONFIG_RTK_VOIP_AMR_NB
 #define NUM_AMR_NB_CODEC_TYPE		1
-#define NUM_AMR_NB_CODEC_ALGO		1
-#define NUM_AMR_NB_CODEC_PAYLOAD	1
+#define NUM_AMR_NB_CODEC_ALGO		8
+#define NUM_AMR_NB_CODEC_PAYLOAD	8
 #else
 #define NUM_AMR_NB_CODEC_TYPE		0
 #define NUM_AMR_NB_CODEC_ALGO		0
 #define NUM_AMR_NB_CODEC_PAYLOAD	0
+#endif
+
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+#define NUM_AMR_WB_CODEC_TYPE		1
+#define NUM_AMR_WB_CODEC_ALGO		9
+#define NUM_AMR_WB_CODEC_PAYLOAD	9
+#else
+#define NUM_AMR_WB_CODEC_TYPE		0
+#define NUM_AMR_WB_CODEC_ALGO		0
+#define NUM_AMR_WB_CODEC_PAYLOAD	0
 #endif
 
 #ifdef CONFIG_RTK_VOIP_T38
@@ -145,7 +155,7 @@
 #define NUM_OF_ALGO_CODEC_DESC		( 2 /* G711 a/u-law */ + 						\
 									  NUM_G722_CODEC_ALGO + NUM_G723_CODEC_ALGO + NUM_G729_CODEC_ALGO +	\
 									  NUM_G726_CODEC_ALGO + NUM_GSMFR_CODEC_ALGO + NUM_ILBC_CODEC_ALGO+	\
-									  NUM_AMR_NB_CODEC_ALGO + NUM_SPEEX_NB_CODEC_ALGO +	\
+									  NUM_AMR_NB_CODEC_ALGO + NUM_AMR_WB_CODEC_ALGO + NUM_SPEEX_NB_CODEC_ALGO +	\
 									  NUM_T38_CODEC_ALGO + NUM_G7111_CODEC_ALGO + NUM_SILENCE_CODEC_ALGO +	\
 									  NUM_PCM_LINEAR_8K_CODEC_ALGO + NUM_PCM_LINEAR_16K_CODEC_ALGO )
 
@@ -198,7 +208,7 @@ extern const codec_algo_desc_t g_codecAlgoDesc[];
 #define NUM_OF_CODEC_TYPE_DESC		( 1 /* G711 */ + 								\
 									  NUM_G722_CODEC_TYPE + NUM_G723_CODEC_TYPE + NUM_G729_CODEC_TYPE +	\
 									  NUM_G726_CODEC_TYPE +	NUM_GSMFR_CODEC_TYPE + NUM_ILBC_CODEC_TYPE +	\
-									  NUM_AMR_NB_CODEC_TYPE + NUM_SPEEX_NB_CODEC_TYPE +	\
+									  NUM_AMR_NB_CODEC_TYPE + NUM_AMR_WB_CODEC_TYPE + NUM_SPEEX_NB_CODEC_TYPE +	\
 									  NUM_T38_CODEC_TYPE + NUM_G7111_CODEC_TYPE + NUM_SILENCE_CODEC_TYPE +	\
 									  NUM_PCM_LINEAR_8K_CODEC_TYPE + NUM_PCM_LINEAR_16K_CODEC_TYPE )
 
@@ -234,7 +244,8 @@ typedef struct codec_type_desc_s {
 	enum CODEC_STATE *pCodecState;
 	FN_CodecDecPhase fnCodecDecPhase;
 	FN_CodecEncPhase fnCodecEncPhase;
-	FN_AddDecPlaytoneBuffer fnAddDecPlaytoneBuffer;
+	FN_AddDecPlaytoneBuffer fnAddDecPlaytoneBuffer; // This call-back function MUST return "narrowband" frame length
+	// (if  NEW_LOCAL_TONE_ENTRY is NOT defined, DSP will use this frame length)
 	FN_HighPassFiltering fnHighPassFiltering;
 	uint16 nNarrowBandToneBudgetSize;
 	/* R1: CmdParser */
@@ -253,6 +264,8 @@ typedef struct codec_type_desc_s {
 	UdpCarryType_t nUdpCarryType;
 	/* sampling rate */
 	SampleRate_t CodecSampleRate;
+	/* RTP timestamp for each consecutive frame */
+	uint32 nRtpTimeStamp;
 } codec_type_desc_t;
 
 extern const codec_type_desc_t g_codecTypeDesc[];
@@ -264,7 +277,7 @@ extern const codec_type_desc_t g_codecTypeDesc[];
 #define NUM_OF_CODEC_PAYLOAD_DESC	( 2 /* G711 a/u */ + 								\
 									  NUM_G722_CODEC_PAYLOAD + NUM_G723_CODEC_PAYLOAD + NUM_G729_CODEC_PAYLOAD +	\
 									  NUM_G726_CODEC_PAYLOAD + NUM_GSMFR_CODEC_PAYLOAD + NUM_ILBC_CODEC_PAYLOAD	+\
-									  NUM_AMR_NB_CODEC_PAYLOAD + NUM_SPEEX_NB_CODEC_PAYLOAD +	\
+									  NUM_AMR_NB_CODEC_PAYLOAD + NUM_AMR_WB_CODEC_PAYLOAD + NUM_SPEEX_NB_CODEC_PAYLOAD +	\
 									  NUM_T38_CODEC_PAYLOAD + NUM_G7111_CODEC_PAYLOAD + NUM_SILENCE_CODEC_PAYLOAD +	\
 									  NUM_PCM_LINEAR_8K_CODEC_PAYLOAD + NUM_PCM_LINEAR_16K_CODEC_PAYLOAD )
 
@@ -305,12 +318,13 @@ extern const codec_payload_desc_t g_codecPayloadDesc[];
 /* Check functions */
 extern int IsAnyCodecDecodeState( uint32 sid );
 extern int IsJbcSidFrameOfThisCodec( uint32 sid, uint32 nSize );
-extern enum START_CODEC_TYPE GetGlobalStartCodecType( uint32 sid );
-extern int CheckG711StartCodecType( uint32 sid );
-extern int CheckG722StartCodecType( uint32 sid );
-extern int CheckG723StartCodecType( uint32 sid );
-extern int CheckG729StartCodecType( uint32 sid );
-extern int Check_AMR_NB_StartCodecType( uint32 sid );	//@@-amr, need?
+extern enum START_CODEC_TYPE GetGlobalStartRecvCodecType( uint32 sid );
+extern int CheckG711StartRecvCodecType( uint32 sid );
+extern int CheckG722StartRecvCodecType( uint32 sid );
+extern int CheckG723StartRecvCodecType( uint32 sid );
+extern int CheckG729StartRecvCodecType( uint32 sid );
+extern int Check_AMR_NB_StartRecvCodecType( uint32 sid );
+extern int Check_AMR_WB_StartRecvCodecType( uint32 sid );
 
 /* ---------------- Get codec type functions ---------------- */
 extern const enum START_CODEC_TYPE nCodecTypeID_G711;
@@ -324,6 +338,7 @@ extern const enum START_CODEC_TYPE nCodecTypeID_GSMfr;
 extern const enum START_CODEC_TYPE nCodecTypeID_iLBC30ms;
 extern const enum START_CODEC_TYPE nCodecTypeID_iLBC20ms;
 extern const enum START_CODEC_TYPE nCodecTypeID_AMR_NB;
+extern const enum START_CODEC_TYPE nCodecTypeID_AMR_WB;
 extern const enum START_CODEC_TYPE nCodecTypeID_T38;
 extern const enum START_CODEC_TYPE nCodecTypeID_SPEEX_NB;
 extern const enum START_CODEC_TYPE nCodecTypeID_PcmLinear8k;
@@ -331,12 +346,21 @@ extern const enum START_CODEC_TYPE nCodecTypeID_PcmLinear16k;
 extern const enum START_CODEC_TYPE nCodecTypeID_Silence;
 
 /* ---------------- codec algorithm ID declare ---------------- */
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G711U;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G711A;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7231A53;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7231A63;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72264;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72256;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72248;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72616;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72624;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72632;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G72640;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G729;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_GSMFR;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_ILBC30MS;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_ILBC20MS;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7111R1U;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7111R2aU;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_G7111R2bU;
@@ -353,6 +377,17 @@ extern const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_15;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_18P2;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_24P6;
 extern const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_3P95;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_6P6;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_8P85;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_12P65;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_14P25;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_15P85;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_18P25;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_19P85;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_23P05;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_23P85;
+extern const DSPCODEC_ALGORITHM nCodecAlgorithm_T38;
 
 /* Get descriptor functions */
 extern const codec_payload_desc_t *GetCodecPayloadDesc( RtpPayloadType payloadType );

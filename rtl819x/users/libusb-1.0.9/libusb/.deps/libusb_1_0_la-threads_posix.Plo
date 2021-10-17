@@ -1,0 +1,63 @@
+libusb_1_0_la-threads_posix.lo: os/threads_posix.c os/threads_posix.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/pthread.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/features.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/uClibc_config.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/uClibc_arch_features.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/sys/cdefs.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/sched.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/types.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/wordsize.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/include/stddef.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/kernel_types.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/typesizes.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/pthreadtypes.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/sched.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/time.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/time.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/uClibc_clk_tck.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/signal.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/sigset.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/initspin.h \
+ /home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/sigthread.h
+
+os/threads_posix.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/pthread.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/features.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/uClibc_config.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/uClibc_arch_features.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/sys/cdefs.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/sched.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/types.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/wordsize.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/include/stddef.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/kernel_types.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/typesizes.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/pthreadtypes.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/sched.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/time.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/time.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/uClibc_clk_tck.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/signal.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/sigset.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/initspin.h:
+
+/home/hf_shi/release-rtl819x-sdk-v3.4.6.4-23202-20140402/toolchain/rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129/bin/../lib/gcc/mips-linux-uclibc/4.4.7/../../../../mips-linux-uclibc/include/bits/sigthread.h:

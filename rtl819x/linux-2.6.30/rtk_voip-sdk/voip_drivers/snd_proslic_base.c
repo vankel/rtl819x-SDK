@@ -7,9 +7,11 @@
 #endif
 #include "snd_define.h"
 #include "con_register.h"
+#include "con_ring.h"
 
 #include "rtk_voip.h"
 #include "spi.h"
+#include "voip_debug.h"
 #include "voip_types.h"
 #include "voip_control.h"
 
@@ -180,6 +182,11 @@ static int proslic_initializeDAA( const voip_snd_t p_snds[],
 		Vdaa_setSWDebugMode (port[i],TRUE);
 
 	//}
+	if (ProSLIC_Init(port,1/*NUM_OF_DAA*/))	/*It is must for V6.4.0 to update some DAA info,etc. such channeltype. */
+	{
+		PRINT_R("ERROR: Initialization failed\n");
+		return 1;
+	}
 	if (Vdaa_Init(port,1/*NUM_OF_DAA*/))
 	{
 		PRINT_R("ERROR: Initialization failed\n");
@@ -200,15 +207,15 @@ static int proslic_initializeDAA( const voip_snd_t p_snds[],
 		switch(pcm_mode)
 		{
 			case 0:// linear
-			case 3:
+			case 3:// WB linear
 				Vdaa_PCMSetup(port[i], 2, 1/* enable PCM */);
 				break;
 			case 1:// a-law
-			case 4:
+			case 4:// WB a-law
 				Vdaa_PCMSetup(port[i], 0, 1/* enable PCM */);
 				break;
 			case 2:// u-law
-			case 5:
+			case 5:// WB u-law
 				Vdaa_PCMSetup(port[i], 1, 1/* enable PCM */);
 				break;
 			default:// a-law
@@ -257,6 +264,9 @@ void proslic_init( const voip_snd_t p_snds[],
 	
 	proslicChanType_ptr arrayOfProslicChans[ prochan_num /*TOTAL_NUM_OF_CH*/ ];
 	proslicChanType *pSlic;
+
+	int dbg_level_backup = rtk_dbg_level;
+	rtk_dbg_level = RTK_DBG_INFO;
 	
 	printk("Start SLIC init....\n");
 	SPI_Init (spiGciObj);	// Initialize SPI interface(including SLIC reset)
@@ -287,8 +297,8 @@ void proslic_init( const voip_snd_t p_snds[],
 		proslicChanType * const ProObj = container[ i ].ProObj;
 
 		arrayOfProslicChans[i] = ProObj;		//create array of channel pointers (for init)		
-		ProSLIC_setSWDebugMode (ProObj, FALSE);	// turn off debug message
-		//ProSLIC_setSWDebugMode (ProObj, TRUE);	// turn off debug message
+		//ProSLIC_setSWDebugMode (ProObj, FALSE);	// turn off debug message
+		ProSLIC_setSWDebugMode (ProObj, TRUE);	// turn on debug message
 	}
 
 	/*** Always wirte ram 1571 first before any SPI access if PFD is enabled. ***/
@@ -440,6 +450,8 @@ label_skip_init_daa:
 			continue;
 		
 		p_snd ->daa_ops ->DAA_OnHook_Line_Monitor_Enable( p_snd );
+		p_snd ->daa_ops ->DAA_Set_Rx_Gain( p_snd, 0 /*dB*/);
+		p_snd ->daa_ops ->DAA_Set_Tx_Gain( p_snd, 0 /*dB*/);
 	}
 	
 	printk("Init OK!\n");
@@ -448,8 +460,11 @@ label_skip_init_daa:
 #endif
 	//printk("<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>\n\n");
 
+	rtk_dbg_level = dbg_level_backup;
+
 	return;
 proslic_err:
+	rtk_dbg_level = dbg_level_backup;
 	PRINT_R("Init error!\n");
 	mdelay(3000);
 }
@@ -462,26 +477,67 @@ static void FXS_Ring_proslic(voip_snd_t *this, unsigned char ringset )
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	proslicChanType * const pSlic = container ->ProObj;
+	uint32 const chid = this->sch;
 	//pSlic = ports[chid].ProObj;
-	if (ringset)
+	if (ringset == 1)
+	{
 		ProSLIC_RingStart(pSlic);
-	else
+		MultiRingStart(chid);
+	}
+	else if (ringset == 0)
+	{
 		ProSLIC_RingStop(pSlic);
+		MultiRingStop(chid);
+	}
+	
+	if (ringset == (1+MRC_RING_CTRL_OFFSET)) // Only FOR Multi-Ring Cadence
+	{
+		ProSLIC_RingStart(pSlic);
+	}
+	else if (ringset == (0+MRC_RING_CTRL_OFFSET))  // Only FOR Multi-Ring Cadence
+	{
+		ProSLIC_RingStop(pSlic);
+	}
 }
 
 static unsigned char FXS_Check_Ring_proslic(voip_snd_t *this)
 {
 	unsigned char ringer; //0: ring off, 1: ring on
+	unsigned char tmp = 0;
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	proslicChanType * const pSlic = container ->ProObj;
+	uint32 const chid = this->sch;
 
 	//pSlic = ports[chid].ProObj;
 	ProSLIC_GetLinefeedStatus(pSlic, &ringer);
 	if ((ringer&0x70)==0x40)
-		ringer = 1;
+		ringer = 1;	// bit0: SLIC ring status
 	else
 		ringer = 0;
 
+	if ( MultiRingCadenceEnableCheck(chid) && MultiRingStatusCheck(chid) )
+	{
+		tmp |= 0x2;	// bit1: multi-ring flag
+		
+		if ( (MultiRingOffCheck(chid) == 1) && (ringer == 0))
+		{
+			tmp |= 0x4;	// bit2: multi-ring pattern off flag
+		}
+	}
+
+	ringer += tmp;
+	
+	if ((ringer == 4)||(ringer == 5)||(ringer == 7))
+		PRINT_R("error in %s, line%d\n", __FUNCTION__, __LINE__);
+	
+	// 0: MRC off false + MRC off + SLIC Ring off
+	// 1: MRC off false + MRC off + SLIC Ring on
+	// 2: MRC off false + MRC on + SCIC Ring on
+	// 3: MRC off false + MRC on + SLIC Ring off
+	// 4: MRC off true + MRC off + SLIC Ring off (impossible case)
+	// 5: MRC off true + MRC off + SLIC Ring on (impossible case)
+	// 6: MRC off true + MRC on + SLIC Ring off
+	// 7: MRC off true + MRC on + SLIC Ring on (impossible case)
 	return ringer;
 }
 
@@ -499,11 +555,25 @@ static void SLIC_Set_Ring_Cadence_proslic(voip_snd_t *this, unsigned short OnMse
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	proslicChanType * const pSlic = container ->ProObj;
+	uint32 const chid = this->sch;
 	
 	//pSlic = ports[chid].ProObj;
-	ProSLIC_Set_Ring_Cadence_ON(pSlic, OnMsec);
-	ProSLIC_Set_Ring_Cadence_OFF(pSlic, OffMsec);
+	ProSLIC_Set_Ring_Cadence_ON(pSlic, OnMsec, 1);
+	ProSLIC_Set_Ring_Cadence_OFF(pSlic, OffMsec, 1);
+	MultiRingCadenceEnable(chid, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
+}
+
+static void SLIC_Set_Multi_Ring_Cadence_proslic(voip_snd_t *this, unsigned short OnMsec1, unsigned short OffMsec1, unsigned short OnMsec2, unsigned short OffMsec2, unsigned short OnMsec3, unsigned short OffMsec3, unsigned short OnMsec4, unsigned short OffMsec4)
+{
+	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
+	proslicChanType * const pSlic = container ->ProObj;
+	uint32 const chid = this->sch;
+	
+	//pSlic = ports[chid].ProObj;
+	ProSLIC_Set_Ring_Cadence_ON(pSlic, OnMsec1, 0);
+	ProSLIC_Set_Ring_Cadence_OFF(pSlic, OffMsec1, 0);
+	MultiRingCadenceEnable(chid, 1, OnMsec1, OffMsec1, OnMsec2, OffMsec2, OnMsec3, OffMsec3, OnMsec4, OffMsec4);
 }
 
 static void SLIC_Set_Ring_Freq_Amp_proslic(voip_snd_t *this, char preset)
@@ -912,6 +982,56 @@ static unsigned char SLIC_Get_Hook_Status_proslic(voip_snd_t *this, int directly
 	return status;
 }
 
+static void SLIC_Set_Power_Save_Mode_proslic(voip_snd_t *this)
+{
+	PRINT_R("%s, line%d, this SLIC api is not implement for this SLIC.\n", __FUNCTION__, __LINE__);
+}
+
+/* state: 
+	0: line in-active state
+	1: line active state
+	2: power save state
+	3: OHT
+	4: OHT polrev
+	5: Ring
+*/
+static void SLIC_Set_FXS_Line_State_proslic(voip_snd_t *this, int state)
+{
+	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
+	proslicChanType * const pSlic = container ->ProObj;
+	//pSlic = ports[chid].ProObj;
+
+	switch (state)
+	{
+		case 0:
+			state = LF_OPEN;
+			break;
+		case 1:
+			state = LF_FWD_ACTIVE;
+			break;
+		case 2:
+			printk("Warnning! Not support power save mode, set to OHT. In %s, line%d\n", __FUNCTION__, __LINE__);
+			state = LF_FWD_OHT;
+			break;
+		case 3:
+			state = LF_FWD_OHT;
+			break;
+		case 4:
+			state = LF_REV_OHT;
+			break;
+		case 5:
+			state = LF_RINGING;
+			break;
+		default:
+			printk("Warnning! Error case, set to OHT state. In %s, line%d\n", __FUNCTION__, __LINE__);
+			state = LF_FWD_OHT;
+			break;
+	}
+
+	ProSLIC_SetLinefeedStatus(pSlic, state);
+
+}
+
 static void SLIC_read_reg_proslic(voip_snd_t *this, unsigned int num, unsigned char *len, unsigned char *val)
 {
 	extern unsigned char R_reg_dev(rtl_spi_dev_t *pdev,unsigned char chid, unsigned char regaddr);
@@ -1044,7 +1164,6 @@ static int enable_proslic( voip_snd_t *this, int enable )
 	return 0;
 }
 
-
 // --------------------------------------------------------
 // channel mapping architecture 
 // --------------------------------------------------------
@@ -1060,10 +1179,13 @@ const snd_ops_fxs_t snd_proslic_fxs_ops = {
 	.FXS_Line_Check = FXS_Line_Check_proslic,	// Note: this API may cause watch dog timeout. Should it disable WTD?
 	.SLIC_Set_PCM_state = SLIC_Set_PCM_state_proslic,
 	.SLIC_Get_Hook_Status = SLIC_Get_Hook_Status_proslic,
+	.SLIC_Set_Power_Save_Mode = SLIC_Set_Power_Save_Mode_proslic,
+	.SLIC_Set_FXS_Line_State = SLIC_Set_FXS_Line_State_proslic,
 	
 	.Set_SLIC_Tx_Gain = Set_SLIC_Tx_Gain_proslic,
 	.Set_SLIC_Rx_Gain = Set_SLIC_Rx_Gain_proslic,
 	.SLIC_Set_Ring_Cadence = SLIC_Set_Ring_Cadence_proslic,
+	.SLIC_Set_Multi_Ring_Cadence = SLIC_Set_Multi_Ring_Cadence_proslic,
 	.SLIC_Set_Ring_Freq_Amp = SLIC_Set_Ring_Freq_Amp_proslic,
 	.SLIC_Set_Impendance_Country = SLIC_Set_Impendance_Country_proslic, 
 	.SLIC_Set_Impendance = SLIC_Set_Impendance_proslic,

@@ -121,14 +121,27 @@ static int crypto_cbc_encrypt(struct blkcipher_desc *desc,
 #ifdef CONFIG_CRYPTO_DEV_REALTEK
 		if (ctx->rtl_ctx.mode >= 0)
 		{
+			int bsize = crypto_cipher_blocksize(child);
 			nbytes = rtl_cipher_crypt(child, 1,
 				&ctx->rtl_ctx, walk.src.virt.addr, nbytes,
 				walk.iv, walk.dst.virt.addr);
 
 			// cbc mode update
-			memcpy(walk.iv, walk.dst.virt.addr,
-				crypto_cipher_blocksize(child));
-
+			//memcpy(walk.iv, walk.dst.virt.addr,
+				//crypto_cipher_blocksize(child));
+			
+			if (walk.src.virt.addr == walk.dst.virt.addr)
+			{
+				walk.src.virt.addr += (walk.nbytes - nbytes);
+				memcpy(walk.iv, walk.src.virt.addr - bsize ,bsize);
+			}
+			else
+			{
+				walk.src.virt.addr += (walk.nbytes - nbytes);
+				walk.dst.virt.addr += (walk.nbytes - nbytes);
+				memcpy(walk.iv, walk.dst.virt.addr - bsize ,bsize);
+			}
+			//printk("%s %d (walk.nbytes - nbytes)=%d \n", __FUNCTION__, __LINE__, (walk.nbytes - nbytes));
 			err = blkcipher_walk_done(desc, &walk, nbytes);
 			continue;
 		}
@@ -212,17 +225,40 @@ static int crypto_cbc_decrypt(struct blkcipher_desc *desc,
 	err = blkcipher_walk_virt(desc, &walk);
 
 	while ((nbytes = walk.nbytes)) {
+#ifdef CONFIG_CRYPTO_DEV_REALTEK_DBG
+		printk("%s %d: total=%d, walk=%d, blk=%d, src=%p, dst=%p ctx->rtl_ctx.mode=%d \n", __FUNCTION__,__LINE__,
+			walk.total, walk.nbytes, crypto_cipher_blocksize(child),
+			walk.src.virt.addr, walk.dst.virt.addr, ctx->rtl_ctx.mode
+		);
+#endif
 #ifdef CONFIG_CRYPTO_DEV_REALTEK
 		if (ctx->rtl_ctx.mode >= 0)
 		{
+			int bsize = crypto_cipher_blocksize(child);
+			int offset = 0;
+			u8 last_iv[bsize];
+			if (walk.src.virt.addr == walk.dst.virt.addr)
+			{
+				
+				offset = (nbytes - (nbytes & (bsize - 1)) - bsize);
+				memcpy(last_iv, walk.src.virt.addr + offset, bsize);
+			}
 			nbytes = rtl_cipher_crypt(child, 0,
 				&ctx->rtl_ctx, walk.src.virt.addr, nbytes,
 				walk.iv, walk.dst.virt.addr);
-
-			// cbc mode update
-			memcpy(walk.iv, walk.dst.virt.addr,
-				crypto_cipher_blocksize(child));
-
+			
+			// cbc mode update			
+			if (walk.src.virt.addr == walk.dst.virt.addr)
+			{
+				walk.src.virt.addr -= (walk.nbytes - nbytes);				
+				memcpy(walk.iv, last_iv, bsize);
+			}
+			else
+			{
+				walk.src.virt.addr += (walk.nbytes - nbytes);
+				walk.dst.virt.addr += (walk.nbytes - nbytes);
+				memcpy(walk.iv, walk.src.virt.addr - bsize, bsize);
+			}
 			err = blkcipher_walk_done(desc, &walk, nbytes);
 			continue;
 		}

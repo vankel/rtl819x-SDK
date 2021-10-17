@@ -42,15 +42,17 @@ static void bind_core( voip_con_t *p_con, voip_snd_t *p_snd,
 	//p_bus ->TS1_var = p_snd ->TS1;
 	//p_bus ->TS2_var = p_snd ->TS2;
 	if( p_bus2 == NULL ) {
-		p_bus ->bus_ops ->set_timeslot( p_bus, p_snd ->TS1, p_snd ->TS2 );
 		p_bus ->role_bind = BUS_ROLE_SINGLE;
 		p_bus ->role_var = BUS_ROLE_SINGLE;	// give init value, enable() will modify this again 
 		p_bus ->band_mode_bind = band_mode;
+		
+		p_bus ->bus_ops ->set_timeslot( p_bus, p_snd ->TS1, p_snd ->TS2 );
 	} else {
-		p_bus ->bus_ops ->set_timeslot( p_bus, p_snd ->TS1, 0 );
 		p_bus ->role_bind = BUS_ROLE_MAIN;
 		p_bus ->role_var = BUS_ROLE_MAIN;	// give init value, enable() will modify this again 
 		p_bus ->band_mode_bind = BAND_MODE_8K;		
+		
+		p_bus ->bus_ops ->set_timeslot( p_bus, p_snd ->TS1, 0 );
 	}
 	
 	p_bus ->con_ptr = p_con;
@@ -60,13 +62,14 @@ label_bus_done:
 	
 	// bus2 
 	if( p_bus2 ) {
-		p_bus2 ->bus_ops ->set_timeslot( p_bus2, p_snd ->TS2, 0 );
 		p_bus2 ->role_bind = BUS_ROLE_MATE;
 		p_bus2 ->role_var = BUS_ROLE_MATE;	// give init value, enable() will modify this again 
 		p_bus2 ->band_mode_bind = BAND_MODE_8K;	
 		
 		p_bus2 ->con_ptr = p_con;
 		p_bus2 ->bus_partner_ptr = p_bus;			
+		
+		p_bus2 ->bus_ops ->set_timeslot( p_bus2, p_snd ->TS2, 0 );
 	}
 	
 	// dsp
@@ -221,10 +224,10 @@ static int policy_single_type_only( voip_con_t voip_con[], int num,
 		if( !band_mode )
 			break;
 		
-		if( band_mode & BAND_MODE_8K )
-			band_mode = BAND_MODE_8K;
-		else if( band_mode & BAND_MODE_16K )
-			band_mode = BAND_MODE_16K;
+		//if( band_mode & BAND_MODE_8K )
+		//	band_mode = BAND_MODE_8K;
+		//else if( band_mode & BAND_MODE_16K )
+		//	band_mode = BAND_MODE_16K;
 		
 		// find dsp
 		p_dsp = find_dsp_with_band_mode( band_mode );

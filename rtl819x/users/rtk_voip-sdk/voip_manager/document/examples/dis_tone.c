@@ -33,7 +33,7 @@ int main(void)
 	voip_ptr.d2OFFup = 54;
 	voip_ptr.d2OFFlow = 46;
 
-	rtk_Set_Dis_Tone_Para(&voip_ptr);
+	rtk_SetDisTonePara(&voip_ptr);
 	return 0;
 }
 

@@ -8,6 +8,21 @@
 
 #include "snd_mirror_define.h"
 
+/* mirror has two types: 
+ * - type 1: Support context + RPC, so it can do not only storing real SLIC
+ *           context but also RPC to real SLIC. 
+ * - type 2: Support context only, so it is normally used to be a 'fake' SLIC. 
+ */        
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+#define MIRROR_DAA_TYPE	1
+#else
+#define MIRROR_DAA_TYPE	2
+#endif
+#else
+#define MIRROR_DAA_TYPE	2
+#endif
+
 static mirror_daa_priv_t mirror_daa_priv[ CONFIG_RTK_VOIP_DRIVERS_MIRROR_DAA_NR ];
 static voip_snd_t snd_mirror_daa[ CONFIG_RTK_VOIP_DRIVERS_MIRROR_DAA_NR ];
 
@@ -140,7 +155,7 @@ static unsigned short DAA_Get_Line_Voltage_mirror_daa( struct voip_snd_s *this )
 
 static void DAA_OnHook_Line_Monitor_Enable_mirror_daa( struct voip_snd_s *this )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_DAA_TYPE == 1
 	DECLARE_DAA_RPC_VARS( DAA_OnHook_Line_Monitor_Enable, 0 );
 	
 	*( ( unsigned int * )p_data ) = *( ( unsigned int * )p_data );	// avoid compiler warning 
@@ -154,7 +169,7 @@ static void DAA_OnHook_Line_Monitor_Enable_mirror_daa( struct voip_snd_s *this )
 
 static void DAA_Set_PulseDial_mirror_daa( struct voip_snd_s *this, unsigned int pulse_enable )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_DAA_TYPE == 1
 	DECLARE_DAA_RPC_VARS( DAA_Set_PulseDial, sizeof( pulse_enable ) );
 	
 	*( ( unsigned int * )p_data ) = pulse_enable;
@@ -164,6 +179,11 @@ static void DAA_Set_PulseDial_mirror_daa( struct voip_snd_s *this, unsigned int 
 #else	
 	PRINT_Y_LV1( "DAA_Set_PulseDial_mirror_daa\n" );
 #endif
+}
+
+static void DAA_Set_Country_mirror_daa( struct voip_snd_s *this, unsigned int country )
+{
+	PRINT_Y_LV1( "DAA_Set_Country_mirror_daa\n" );
 }
 
 // read/write register/ram
@@ -253,7 +273,7 @@ static void DAA_dump_ram_mirror_daa( struct voip_snd_s *this )
 
 static int enable_mirror_daa( struct voip_snd_s *this, int enable )
 {
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH
+#if MIRROR_DAA_TYPE == 1
 	DECLARE_DAA_RPC_VARS( enable, sizeof( enable ) );
 	
 	*( ( int * )p_data ) = enable;
@@ -290,6 +310,7 @@ static const snd_ops_daa_t snd_mirror_daa_ops = {
 	.DAA_Get_Line_Voltage = DAA_Get_Line_Voltage_mirror_daa,
 	.DAA_OnHook_Line_Monitor_Enable = DAA_OnHook_Line_Monitor_Enable_mirror_daa,
 	.DAA_Set_PulseDial = DAA_Set_PulseDial_mirror_daa,
+	.DAA_Set_Country = DAA_Set_Country_mirror_daa,
 	
 	// read/write register/ram
 	.DAA_read_reg = DAA_read_reg_mirror_daa,

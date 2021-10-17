@@ -55,7 +55,6 @@ extern void ACMWLEC_g168(char chid, short *pRin, short *pSin, short *pEx);
 
 __pcmIsr02 static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref)
 {
-	extern unsigned char support_lec_g168[];
 	int /*i,*/ ii, j, SessNum;
 	uint32 rx_rp, ssid;
 	unsigned int stmp;
@@ -107,7 +106,7 @@ __pcmIsr02 static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref
 		 * 	Line Echo Canceller	      *
 		 *                                    *
 		 ****************************************************/
-		if (support_lec_g168[chid] == 1)
+		if (EC168_GetFlag(chid) == 1)
 		{
 			if( 0 ) {//rx_mute[chid] == 1)	// bus_fifo do it 
 #ifdef USE_MEM64_OP
@@ -168,13 +167,13 @@ __pcmIsr02 static int32 PCM_RX(uint32 chid, uint32 *rxBuf, const uint16 *lec_ref
 #if 0
 			if(rx_mute[chid] == 1)
 #ifdef USE_MEM64_OP
-				memset64s(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2); 
+				memset64(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE/2); 
 #else
 				memset(rx_fifo[chid][rx_fifo_cnt_w[chid]], 0,  PCM_PERIOD_10MS_SIZE); 
 #endif				
 			else
 #ifdef USE_MEM64_OP
-				memcpy64s(rx_fifo[chid][rx_fifo_cnt_w[chid]], rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2),  PCM_PERIOD_10MS_SIZE/2);
+				memcpy64(rx_fifo[chid][rx_fifo_cnt_w[chid]], rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2),  PCM_PERIOD_10MS_SIZE/2);
 #else
 				memcpy(rx_fifo[chid][rx_fifo_cnt_w[chid]], rxBuf+(i*PCM_PERIOD_10MS_SIZE>>2),  PCM_PERIOD_10MS_SIZE);
 #endif				

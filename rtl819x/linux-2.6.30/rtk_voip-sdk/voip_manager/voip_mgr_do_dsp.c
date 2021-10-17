@@ -5,6 +5,7 @@
 
 #include "rtk_voip.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "voip_control.h"
 #include "voip_params.h"
 #include "voip_mgr_define.h"
@@ -13,6 +14,7 @@
 #ifndef CONFIG_DEFAULTS_KERNEL_2_6
 #include "voip_mgr_do_dsp.h"
 #endif
+#include "dsp_main.h"
 
 #ifdef T38_STAND_ALONE_HANDLER
 #include "../voip_drivers/t38_handler.h"
@@ -25,7 +27,7 @@
 #ifndef AUDIOCODES_VOIP
 #include "../voip_dsp/include/fskcid_gen.h"
 #endif
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 #include "../voip_drivers/dsp_rtk_caller.h"
 #endif
 #ifdef CONFIG_RTK_VOIP_LED
@@ -116,6 +118,8 @@ extern int g_SIP_Info_buf_w[];
 extern int g_SIP_Info_buf_r[];
 
 extern uint32 cust;
+int update_country;
+int update_tone;
 
 extern int Is_DAA_Channel(int chid);
 extern void init_softfskcidGen(uint32_t chid);
@@ -128,7 +132,7 @@ uint32 fax_modem_det_mode[MAX_DSP_CH_NUM] = {[0 ... MAX_DSP_CH_NUM-1] = 3}; /* f
 //-------------- For FAX Detection -------------
 extern unsigned char fax_offhook[];
 //----------- For dtmf cid generation ----------
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 extern char dtmf_cid_state[];
 extern char cid_str[];
 #endif
@@ -293,8 +297,6 @@ int SaveCustomTone(TstVoipToneCfg *pToneCfg)
 int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 	extern void Init_CED_Det(unsigned char CH);	//thlin+ 2006-02-08
-	extern void AEC_re_init(unsigned int chid);
-	extern void NLP_g168_init(unsigned int chid);
 	extern void NR_re_init(unsigned int chid);
 	extern int reinit_answer_tone_det(unsigned int chid);
 
@@ -325,17 +327,11 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	reinit_answer_tone_det(stVoipCfg.ch_id);
 
 #ifdef SUPPORT_LEC_G168_ISR
-	LEC_re_init(stVoipCfg.ch_id);
-#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-#ifdef T_TYPE_ECHO_CAN
-	LEC_re_init(3);
+	RtkEcObj[stVoipCfg.ch_id].EC_G168ReInit(stVoipCfg.ch_id);
+#if ( defined (CONFIG_RTK_VOIP_DRIVERS_IP_PHONE) && defined  (T_TYPE_ECHO_CAN) )
+	RtkEcObj[3].EC_G168ReInit(3);
 #endif
 #endif
-#endif
-
-//#ifdef EXPER_AEC
-	AEC_re_init(stVoipCfg.ch_id);
-//#endif
 
 #ifdef RTK_VOICE_RECORD
 	extern int ec128_pattern_index;
@@ -351,8 +347,10 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	frequency_echo_state_reset(stVoipCfg.ch_id);
 #endif
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-	AEC_re_init(stVoipCfg.ch_id);
-	NLP_g168_init(stVoipCfg.ch_id);
+	RtkEcObj[stVoipCfg.ch_id].EC_G168ReInit(stVoipCfg.ch_id);
+	RtkEcObj[stVoipCfg.ch_id].EC_G168NlpInit( stVoipCfg.ch_id, nDspChCfgBak[stVoipCfg.ch_id].ecBak.Attack_Stepsize_bak,
+								nDspChCfgBak[stVoipCfg.ch_id].ecBak.Release_Stepsize_bak,
+								nDspChCfgBak[stVoipCfg.ch_id].ecBak.lec_g168_cng_flag_bak );
 	NR_re_init(stVoipCfg.ch_id);
 #endif
 
@@ -376,8 +374,8 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	fax_end_flag[stVoipCfg.ch_id]=0;
 
 	// restore LEC setting
-	extern unsigned char support_lec_g168[], support_lec_g168_bk[];
-	support_lec_g168[stVoipCfg.ch_id] = support_lec_g168_bk[stVoipCfg.ch_id];
+	EC168_RestoreFlag(stVoipCfg.ch_id, nDspChCfgBak[stVoipCfg.ch_id].ecBak.support_lec_g168_bak);
+
 #ifdef FXO_CALLER_ID_DET
 	dmtf_cid_det_init(stVoipCfg.ch_id);
 	init_cid_det_si3500(stVoipCfg.ch_id);
@@ -431,8 +429,7 @@ int do_mgr_VOIP_MGR_ON_HOOK_RE_INIT( int cmd, void *user, unsigned int len, unsi
 	//add reset t.38 detect fax end flag when oh-hook
 	fax_end_flag[stVoipCfg.ch_id]=0;
 	// restore LEC setting
-	extern unsigned char support_lec_g168[], support_lec_g168_bk[];
-	support_lec_g168[stVoipCfg.ch_id] = support_lec_g168_bk[stVoipCfg.ch_id];
+	EC168_RestoreFlag(stVoipCfg.ch_id, nDspChCfgBak[stVoipCfg.ch_id].ecBak.support_lec_g168_bak);
 
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	voip_event_flush_fax_modem_fifo(stVoipCfg.ch_id, 0);
@@ -579,7 +576,7 @@ int do_mgr_VOIP_MGR_GET_VOIP_EVENT( int cmd, void *user, unsigned int len, unsig
 	
 	COPY_FROM_USER(&stVoipEvent, (TstVoipEvent *)user, sizeof(TstVoipEvent));
 	
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_DSP
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
 	// Host only 
 #else
 	save_flags(flags); cli();
@@ -604,16 +601,20 @@ int do_mgr_VOIP_MGR_FLUSH_VOIP_EVENT( int cmd, void *user, unsigned int len, uns
 {
 	unsigned long flags;
 	TstFlushVoipEvent stFlushVoipEvent;
+	int ret;
 	
 	COPY_FROM_USER(&stFlushVoipEvent, (TstFlushVoipEvent *)user, sizeof(TstFlushVoipEvent));
 	
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+		
 	save_flags(flags); cli();
 	
 	voip_mgr_event_flush( &stFlushVoipEvent );
 	
 	restore_flags(flags);
 	
-	return COPY_TO_USER(user, &stFlushVoipEvent, sizeof(TstFlushVoipEvent), cmd, seq_no);
+	return ret;
 }
 
 /**
@@ -654,7 +655,7 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 
 #ifdef T38_STAND_ALONE_HANDLER
-	if( stVoipPayLoadTypeConfig.uPktFormat == rtpPayloadT38_Virtual )
+	if( stVoipPayLoadTypeConfig.uLocalPktFormat == rtpPayloadT38_Virtual )
 	{
 		//T38_API_Initialize( ch_id, NULL );
 		PRINT_MSG("MGR: Initialize T38(%d)\n", stVoipPayLoadTypeConfig.ch_id);
@@ -672,7 +673,7 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipPayLoadTypeConfig.ch_id;
 	stVoipPayLoadTypeConfig.ch_id = API_get_DSP_CH(cmd, stVoipPayLoadTypeConfig.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipPayLoadTypeConfig, sizeof(TstVoipPayLoadTypeConfig));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipPayLoadTypeConfig, sizeof(TstVoipPayLoadTypeConfig), MF_NONE);
 	stVoipPayLoadTypeConfig.ch_id = mgr_chid;
 #else
 
@@ -682,7 +683,8 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 #ifdef PCM_LOOP_MODE_CONTROL
 	if(LoopBackInfo[s_id].isLoopBack == 1) {
  #ifdef CONFIG_RTK_VOIP_SILENCE
-		stVoipPayLoadTypeConfig.uPktFormat = rtpPayloadSilence;
+		stVoipPayLoadTypeConfig.uLocalPktFormat = rtpPayloadSilence;
+		stVoipPayLoadTypeConfig.uRemotePktFormat = rtpPayloadSilence;
  #else
 		return 0;
  #endif
@@ -690,11 +692,15 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 #endif
 
 #ifdef VOIP_RESOURCE_CHECK
-	pltype = stVoipPayLoadTypeConfig.uPktFormat;
+	int plLocaltype;
+	int plRemotetype;
+	plLocaltype = stVoipPayLoadTypeConfig.uLocalPktFormat;
+	plRemotetype = stVoipPayLoadTypeConfig.uRemotePktFormat;
 
-	if ( 1 == GetCurrentVoipResourceStatus(pltype))//VOIP_RESOURCE_AVAILABLE
+	/* Check Local(TX) codec */
+	if ( 1 == GetCurrentVoipResourceStatus(plLocaltype))//VOIP_RESOURCE_AVAILABLE
 	{
-		SetVoipResourceWeight( s_id, pltype );
+		SetVoipResourceWeight( s_id, plLocaltype );
 	}
 	else //VOIP_RESOURCE_UNAVAILABLE
 	{
@@ -708,41 +714,59 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 #endif
 		hc_SetPlayTone(ch_id, s_id, DSPCODEC_TONE_SIT_NOCIRCUIT, true, DSPCODEC_TONEDIRECTION_LOCAL);
 
-		stVoipPayLoadTypeConfig.uPktFormat = rtpPayloadSilence;
+		stVoipPayLoadTypeConfig.uLocalPktFormat = rtpPayloadSilence;
+		stVoipPayLoadTypeConfig.uRemotePktFormat = rtpPayloadSilence;
 		resource_weight[s_id] = DEFAULT_WEIGHT;
 	}
 
 
 #endif
 
-#if 0
-	PRINT_MSG("ch_id = %d\n",ch_id);
-	PRINT_MSG("m_id = %d\n",m_id);
-	PRINT_MSG("s_id = %d\n",s_id);
-	PRINT_MSG("uPktFormat = %d\n",stVoipPayLoadTypeConfig.uPktFormat);
-	PRINT_MSG("nFramePerPacket= %d\n",stVoipPayLoadTypeConfig.nFramePerPacket);
-	PRINT_MSG("nG723Type = %d\n",stVoipPayLoadTypeConfig.nG723Type);
-	PRINT_MSG("bVAD = %d\n",stVoipPayLoadTypeConfig.bVAD);
-	PRINT_MSG("nG726Packing = %d\n",stVoipPayLoadTypeConfig.nG726Packing);
-	PRINT_MSG("nG7111Mode = %d\n",stVoipPayLoadTypeConfig.nG7111Mode);
-	PRINT_MSG("nPcmMode = %d\n",stVoipPayLoadTypeConfig.nPcmMode);
+
+#if 0	// hard code AMR-WB mode in kernel
+	if ( stVoipPayLoadTypeConfig.uLocalPktFormat == rtpPayload_AMR_WB_RATE12P65)
+	{
+		stVoipPayLoadTypeConfig.uLocalPktFormat = rtpPayload_AMR_WB_RATE6P6;		// mode 0
+		//stVoipPayLoadTypeConfig.uLocalPktFormat = rtpPayload_AMR_WB_RATE23P85;	// mode 8
+	}
+	
+	if ( stVoipPayLoadTypeConfig.uRemotePktFormat == rtpPayload_AMR_WB_RATE12P65)
+	{
+		stVoipPayLoadTypeConfig.uRemotePktFormat = rtpPayload_AMR_WB_RATE6P6;		// mode 0
+		//stVoipPayLoadTypeConfig.uRemotePktFormat = rtpPayload_AMR_WB_RATE23P85;	// mode 8
+	}
 #endif
 
+
 #if 0 // hard code to set G.729
-	stVoipPayLoadTypeConfig.uPktFormat = 18;
+	stVoipPayLoadTypeConfig.uLocalPktFormat = 18;
+	stVoipPayLoadTypeConfig.uRemotePktFormat = 18;
 	g_dynamic_pt_remote[s_id] = 18;
 	g_dynamic_pt_local[s_id] = 18;
 	PRINT_MSG("remote pt=%d, locat_pt=%d, sid=%d\n",
-		g_dynamic_pt_remote[s_id], g_dynamic_pt_local[s_id], s_id);
+		g_dynamic_pt_remote[s_id], g_dynamic_pt_remote[s_id], s_id);
 #else
 	// force codec
 	if (g_force_codec != -1)
 	{
-		stVoipPayLoadTypeConfig.uPktFormat = g_force_codec;
-		stVoipPayLoadTypeConfig.remote_pt = g_force_codec;
-		stVoipPayLoadTypeConfig.local_pt = g_force_codec;
+		stVoipPayLoadTypeConfig.uLocalPktFormat = g_force_codec;
+		stVoipPayLoadTypeConfig.uRemotePktFormat = g_force_codec;
+		if ((g_force_codec >= rtpPayload_AMR_WB_RATE6P6) && 
+			(g_force_codec <= rtpPayload_AMR_WB_RATE23P85))
+		{
+			// AMR-WB PT hard code to 117
+			stVoipPayLoadTypeConfig.remote_pt = 117;
+			stVoipPayLoadTypeConfig.local_pt = 117;
+		}
+		else
+		{
+			stVoipPayLoadTypeConfig.remote_pt = g_force_codec;
+			stVoipPayLoadTypeConfig.local_pt = g_force_codec;
+		}
 #ifdef CONFIG_RTK_VOIP_PCM_LINEAR_16K
-		if (stVoipPayLoadTypeConfig.uPktFormat == 120)
+		//Higgsboson: TODO check stVoipPayLoadTypeConfig.nPcmMode 
+		if ((stVoipPayLoadTypeConfig.uLocalPktFormat == rtpPayload_PCM_Linear_16K) ||
+			(stVoipPayLoadTypeConfig.uRemotePktFormat == rtpPayload_PCM_Linear_16K))
 		{
 			stVoipPayLoadTypeConfig.nPcmMode = 3; //WB for PCM Linear 16K
 		}
@@ -751,7 +775,7 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 
 	g_dynamic_pt_remote[s_id] = stVoipPayLoadTypeConfig.remote_pt;
 	g_dynamic_pt_local[s_id] = stVoipPayLoadTypeConfig.local_pt;
-	PRINT_MSG("remote pt=%d, locat_pt=%d, sid=%d\n",
+	PRINT_MSG("remote_pt=%d, locat_pt=%d, sid=%d\n",
 		g_dynamic_pt_remote[s_id], g_dynamic_pt_local[s_id], s_id);
 
 	// force vad
@@ -759,8 +783,10 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 		stVoipPayLoadTypeConfig.bVAD = g_force_vad;
 
 	// force pktime
-	if (g_force_ptime != -1)
-		stVoipPayLoadTypeConfig.nFramePerPacket = g_force_ptime;
+	if (g_force_ptime != -1) {
+		stVoipPayLoadTypeConfig.nLocalFramePerPacket = g_force_ptime;
+		stVoipPayLoadTypeConfig.nRemoteFramePerPacket = g_force_ptime;
+	}
 
 	// force PCM mode (0: no action, 1: DSP auto, 2: NB, 3:WB)
 	if (g_force_PcmMode != -1)
@@ -804,15 +830,36 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 		( stVoipPayLoadTypeConfig.uPktFormat_vbd != rtpPayloadUndefined ) );
 #endif
 
+
+#if 1
+	PRINT_MSG("ch_id = %d\n",ch_id);
+	PRINT_MSG("m_id = %d\n",m_id);
+	PRINT_MSG("s_id = %d\n",s_id);
+	PRINT_MSG("local PT = %d\n",stVoipPayLoadTypeConfig.local_pt);
+	PRINT_MSG("remote PT = %d\n",stVoipPayLoadTypeConfig.remote_pt);
+	PRINT_MSG("uLocalPktFormat = %d\n",stVoipPayLoadTypeConfig.uLocalPktFormat);
+	PRINT_MSG("uRemotePktFormat = %d\n",stVoipPayLoadTypeConfig.uRemotePktFormat);
+	PRINT_MSG("nLocalFramePerPacke t= %d\n",stVoipPayLoadTypeConfig.nLocalFramePerPacket);
+	PRINT_MSG("nRemoteFramePerPacke t= %d\n",stVoipPayLoadTypeConfig.nRemoteFramePerPacket);
+	PRINT_MSG("nG723Type = %d\n",stVoipPayLoadTypeConfig.nG723Type);
+	PRINT_MSG("bVAD = %d\n",stVoipPayLoadTypeConfig.bVAD);
+	PRINT_MSG("nG726Packing = %d\n",stVoipPayLoadTypeConfig.nG726Packing);
+	PRINT_MSG("nG7111Mode = %d\n",stVoipPayLoadTypeConfig.nG7111Mode);
+	PRINT_MSG("nPcmMode = %d\n",stVoipPayLoadTypeConfig.nPcmMode);
+#endif
+
 	save_flags(flags); cli();
 	DSP_CodecRestart(ch_id, s_id,
-					 stVoipPayLoadTypeConfig.uPktFormat,
-					 stVoipPayLoadTypeConfig.nFramePerPacket,
+					 stVoipPayLoadTypeConfig.uLocalPktFormat,
+					 stVoipPayLoadTypeConfig.uRemotePktFormat,
+					 stVoipPayLoadTypeConfig.nLocalFramePerPacket,
+					 stVoipPayLoadTypeConfig.nRemoteFramePerPacket,
 					 stVoipPayLoadTypeConfig.nG723Type,
 					 stVoipPayLoadTypeConfig.bVAD,
 					 stVoipPayLoadTypeConfig.bPLC,
 					 stVoipPayLoadTypeConfig.nJitterDelay,
 					 stVoipPayLoadTypeConfig.nMaxDelay,
+					 stVoipPayLoadTypeConfig.nMaxStrictDelay,
 					 stVoipPayLoadTypeConfig.nJitterFactor,
 					 stVoipPayLoadTypeConfig.nG726Packing,
 					 stVoipPayLoadTypeConfig.nG7111Mode,
@@ -820,7 +867,7 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 	restore_flags(flags);
 
 #ifdef T38_STAND_ALONE_HANDLER
-	if( stVoipPayLoadTypeConfig.uPktFormat == rtpPayloadT38_Virtual ) {
+	if( stVoipPayLoadTypeConfig.uLocalPktFormat == rtpPayloadT38_Virtual ) {
 		t38Param_t t38Param = T38_DEFAULT_PARAM_LIST();
 		if( stVoipPayLoadTypeConfig.bT38ParamEnable ) {
 			t38Param.nMaxBuffer = stVoipPayLoadTypeConfig.nT38MaxBuffer;
@@ -833,12 +880,13 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 			t38Param.nDuplicateNum = ( stVoipPayLoadTypeConfig.nT38DuplicateNum > 2 ? 2 : stVoipPayLoadTypeConfig.nT38DuplicateNum );
 		}
 		T38_API_Initialize( ch_id, &t38Param );
-		PRINT_MSG("MGR: Initialize T38\n");
 		t38RunningState[ ch_id ] = T38_START;
+		PRINT_MSG("MGR: Initialize T38(ch%d)\n", ch_id);
 		enable_silence_det( ch_id, 1 );
 	} else {
 		enable_silence_det( ch_id, 0 );
 		t38RunningState[ ch_id ] = T38_STOP;
+		PRINT_MSG("MGR: Stop T38(ch%d)\n", ch_id);
 	}
 #endif
 #endif
@@ -871,7 +919,7 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipPayLoadTypeConfig.ch_id;
 	stVoipPayLoadTypeConfig.ch_id = API_get_DSP_CH(cmd, stVoipPayLoadTypeConfig.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipPayLoadTypeConfig, sizeof(TstVoipPayLoadTypeConfig));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipPayLoadTypeConfig, sizeof(TstVoipPayLoadTypeConfig), MF_NONE);
 	stVoipPayLoadTypeConfig.ch_id = mgr_chid;
 
 #else
@@ -879,7 +927,7 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 	s_id = (2*stVoipPayLoadTypeConfig.ch_id + PROTOCOL__RTP - 1);
 	save_flags(flags); cli();
 	#ifdef T38_STAND_ALONE_HANDLER
-	if( stVoipPayLoadTypeConfig.uPktFormat == rtpPayloadT38_Virtual )
+	if( stVoipPayLoadTypeConfig.uLocalPktFormat == rtpPayloadT38_Virtual )
 	{
 		t38Param_t t38Param = T38_DEFAULT_PARAM_LIST();
 		if( stVoipPayLoadTypeConfig.bT38ParamEnable ) {
@@ -908,7 +956,8 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 	#endif
 
 #if 0 // hard code to set G.729
-	stVoipPayLoadTypeConfig.uPktFormat = 4;//18;
+	stVoipPayLoadTypeConfig.uLocalPktFormat = 4;//18;
+	stVoipPayLoadTypeConfig.uRemotePktFormat = 4;//18;
 	g_dynamic_pt_remote[s_id] = 4;//18;
 	g_dynamic_pt_local[s_id] = 4;//18;
 	PRINT_MSG("remote pt=%d, locat_pt=%d, sid=%d\n",
@@ -916,7 +965,7 @@ int do_mgr_VOIP_MGR_SETRTPPAYLOADTYPE( int cmd, void *user, unsigned int len, un
 #else
 	dynamic_pt_remote = stVoipPayLoadTypeConfig.remote_pt;
 	dynamic_pt_local = stVoipPayLoadTypeConfig.local_pt;
-	PRINT_MSG("remote pt=%d, locat_pt=%d, sid=%d\n",
+	PRINT_MSG("remote_pt=%d, locat_pt=%d, sid=%d\n",
 		dynamic_pt_remote, dynamic_pt_local, s_id);
 #endif
 
@@ -994,7 +1043,7 @@ int do_mgr_VOIP_MGR_DSPCODECSTOP( int cmd, void *user, unsigned int len, unsigne
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipValue.ch_id;
 	stVoipValue.ch_id = API_get_DSP_CH(cmd, stVoipValue.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipValue, sizeof(TstVoipValue));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipValue, sizeof(TstVoipValue), MF_NONE);
 	stVoipValue.ch_id = mgr_chid;
 
 #else
@@ -1041,7 +1090,7 @@ int do_mgr_VOIP_MGR_DSPCODECSTOP( int cmd, void *user, unsigned int len, unsigne
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipValue.ch_id;
 	stVoipValue.ch_id = API_get_DSP_CH(cmd, stVoipValue.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipValue, sizeof(TstVoipValue));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipValue, sizeof(TstVoipValue), MF_NONE);
 	stVoipValue.ch_id = mgr_chid;
 
 #else
@@ -1069,19 +1118,23 @@ int do_mgr_VOIP_MGR_DSPCODECSTOP( int cmd, void *user, unsigned int len, unsigne
 #if ! defined (AUDIOCODES_VOIP)
 int do_mgr_VOIP_MGR_SET_VAD_CNG_THRESHOLD( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifndef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	extern int G711_SetThresholdVADCNG( int32 sid, int VADthres, int CNGthres, int32 SIDmode, int32 SIDlevel, int32 SIDgain );
 	uint32 s_id;
 	TstVoipThresVadCngConfig stVoipThresVadCngConfig;
+	int ret;
 
 	COPY_FROM_USER(&stVoipThresVadCngConfig, (TstVoipThresVadCngConfig *)user, sizeof(TstVoipThresVadCngConfig));
 
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+	
 	s_id = API_GetSid(stVoipThresVadCngConfig.ch_id, stVoipThresVadCngConfig.m_id);
 
 	G711_SetThresholdVADCNG( s_id, stVoipThresVadCngConfig.nThresVAD, stVoipThresVadCngConfig.nThresCNG,
 				  stVoipThresVadCngConfig.nSIDMode, stVoipThresVadCngConfig.nSIDLevel, stVoipThresVadCngConfig.nSIDGain );
 	
-	return COPY_TO_USER(user, &stVoipThresVadCngConfig, sizeof(TstVoipThresVadCngConfig), cmd, seq_no);
+	return ret;
 #else
 	//Host auto forward
 	return 0;
@@ -1205,7 +1258,8 @@ int do_mgr_VOIP_MGR_SET_FAX_MODEM_DET( int cmd, void *user, unsigned int len, un
  * @ingroup VOIP_DSP_FAXMODEM
  * @brief Set answer tone detect
  * @param TstVoipCfg.ch_id Channel ID
- * @param TstVoipCfg.cfg CNG, ANS, ANSAM, ANSBAR, ANSAMBAR, BELLANS, V22, V8bisCre, V21flag tone detection
+ * @param TstVoipCfg.cfg CNG, ANS, ANSAM, ANSBAR, ANSAMBAR, BELLANS, V22, V8bisCre, V21flag, V21DIS, V21DCN, V21Channel_2, V21Channel_1, V23, BELL202ANS, BELL202CP tone detection
+ * @param TstVoipCfg.cfg2 The answer tone detecting threshold.
  * @see VOIP_MGR_SET_ANSWERTONE_DET TstVoipCfg
  */
 #if ! defined (AUDIOCODES_VOIP)
@@ -1219,13 +1273,14 @@ int do_mgr_VOIP_MGR_SET_ANSWERTONE_DET( int cmd, void *user, unsigned int len, u
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
 
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
-	extern int set_answer_tone_det(unsigned int chid, unsigned int config);
-	set_answer_tone_det(stVoipCfg.ch_id, stVoipCfg.cfg);
+	extern int set_answer_tone_det(unsigned int chid, unsigned int config1, unsigned int config2);
 	extern int set_answer_tone_threshold(unsigned int chid, int threshold);
-	set_answer_tone_threshold(stVoipCfg.ch_id, stVoipCfg.cfg2);
+	
+	set_answer_tone_det(stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2);	
+	set_answer_tone_threshold(stVoipCfg.ch_id, stVoipCfg.cfg3);
 #endif
 	PRINT_MSG("VOIP_MGR_SET_ANSWERTONE_DET = %x\n", stVoipCfg.cfg);
 	return 0;
@@ -1254,7 +1309,7 @@ int do_mgr_VOIP_MGR_SET_FAX_SILENCE_DET( int cmd, void *user, unsigned int len, 
 {
 	TstVoipCfg stVoipCfg;
 	int ret;
-#ifndef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	uint32 s_id;
 #endif
 	
@@ -1263,7 +1318,7 @@ int do_mgr_VOIP_MGR_SET_FAX_SILENCE_DET( int cmd, void *user, unsigned int len, 
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
 
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward 
 #else
 	s_id = API_GetSid(stVoipCfg.ch_id, stVoipCfg.m_id);
@@ -1351,7 +1406,7 @@ int do_mgr_VOIP_MGR_FAX_DIS_TX_DETECT( int cmd, void *user, unsigned int len, un
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipCfg.ch_id;
 	stVoipCfg.ch_id = API_get_DSP_CH(cmd, stVoipCfg.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg), MF_FETCH);
 
 	if( ret < 0 )
 		return ret;
@@ -1409,7 +1464,7 @@ int do_mgr_VOIP_MGR_FAX_DIS_RX_DETECT( int cmd, void *user, unsigned int len, un
 	// Send Control Packet and wait Response Packet
 	mgr_chid = stVoipCfg.ch_id;
 	stVoipCfg.ch_id = API_get_DSP_CH(cmd, stVoipCfg.ch_id);	// convert to DSP chid
-	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg));
+	ret = ipcSentControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg), MF_FETCH);
 
 	if( ret < 0 )
 		return ret;
@@ -1564,20 +1619,28 @@ int do_mgr_VOIP_MGR_FAX_DCN_RX_DETECT( int cmd, void *user, unsigned int len, un
  * @ingroup VOIP_DSP_LEC
  * @brief Set tail length of LEC 
  * @param TstVoipValue.ch_id Channel ID 
- * @param TstVoipValue.value Tail length (ms) 
+ * @param TstVoipValue.value6 EC selection 0: DSP default, 1: EC-32, 2: EC-128
+ * @param TstVoipValue.value5 Tail length (ms) 
  * @param TstVoipValue.value1 Non-linear Processor Mode 0: NLP off, 1: NLP_mute, 2: NLP_shift, 3: NLP_cng 
+ * @param TstVoipValue.value2 NLP Attack time stepsize 
+ *         	   (resolution 0.001)
+ * @param TstVoipValue.value3 NLP Release time stepsize 
+ *         	   (resolution 0.001)
+ * @param TstVoipValue.value4 CNG switch 0: CNG off, 1: CNG on
  * @see VOIP_MGR_SET_ECHO_TAIL_LENGTH TstVoipValue 
  */
 #if ! defined (AUDIOCODES_VOIP)
 int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	extern void AEC_g168_set_TailLength(unsigned int chid, unsigned int tail_length);
-	extern void AEC_g168_init(unsigned int chid, unsigned char type);
+	extern const EcObj_t LecFreqDomainObj;
+	extern const EcObj_t LecTimeDomainObj;
 #endif
 
 	TstVoipValue stVoipValue;
 	unsigned char nlp = 0, nlp_mode = 0;
+	unsigned long flags;
+	unsigned char no_tail_len_update = 0;
 	int ret;
 
 	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
@@ -1588,6 +1651,24 @@ int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len,
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
+	save_flags(flags); cli();
+	
+	switch (stVoipValue.value6)
+	{
+		case 1:	// EC-32
+			RtkEcObj[stVoipValue.ch_id].ec_select = 0;
+			RtkEcObj[stVoipValue.ch_id] = LecTimeDomainObj;
+			break;
+		case 2: // EC-128
+			RtkEcObj[stVoipValue.ch_id].ec_select = 1;
+			RtkEcObj[stVoipValue.ch_id] = LecFreqDomainObj;
+			break;
+		case 0:
+		default:
+			// DSP default, do nothing
+			break;
+	}
+
 	if (stVoipValue.value1 != 0) //NLP on
 	{
 		nlp = LEC_NLP;
@@ -1613,51 +1694,76 @@ int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len,
 		nlp = 0;
 		nlp_mode = LEC_NLP_SHIFT;
 	}
-	//stVoipValue.value : unit is ms
+	
+	if( ( stVoipValue.value2 >= 50 ) || ( stVoipValue.value2 <= 0 ) )
+		stVoipValue.value2 = 5;
+	if( ( stVoipValue.value3 >= 50 ) || ( stVoipValue.value3 <= 0 ) )
+		stVoipValue.value3 = 5;	
+		
+	//stVoipValue.value5 : unit is ms
+	if ( stVoipValue.value5 <= 0 )
+	{
+		// If tail length is NULL, just update NLP setting 
+		no_tail_len_update = 1;
+	}
 //#ifdef EXPER_AEC
-	if (stVoipValue.value<32) {
-		PRINT_MSG("NEW ec128 using 32ms length\n");
-		AEC_g168_set_TailLength(stVoipValue.ch_id, 32);
+	if ( (stVoipValue.value5 < 32) && (RtkEcObj[stVoipValue.ch_id].ec_select) )	{	// tail length of 128ms lec min. value is 32
+		PRINT_Y("Warning: ec128 tail length support min. 32ms tail length, ch%d\n", stVoipValue.ch_id);
+		RtkEcObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, 32);
 	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-		AEC_g168_set_TailLength(3, 32);// for handset.
+		RtkEcObj[3].EC_G168SetTailLength(3, 32);// for handset.
 	#endif
 	} else {
-		AEC_g168_set_TailLength(stVoipValue.ch_id, stVoipValue.value);
+		if ( stVoipValue.value5 <= 0 )
+			stVoipValue.value5 = 2;
+		RtkEcObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, stVoipValue.value5);
 	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-		AEC_g168_set_TailLength(3, stVoipValue.value);// for handset.
+		RtkEcObj[3].EC_G168SetTailLength(3, stVoipValue.value5);// for handset.
 	#endif
 	}
-	AEC_g168_init(stVoipValue.ch_id, LEC|LEC_NLP);
-	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-	AEC_g168_init(3, LEC|LEC_NLP);// for handset.
-	#endif
+	RtkEcObj[stVoipValue.ch_id].EC_G168NlpInit(stVoipValue.ch_id, stVoipValue.value2, stVoipValue.value3, stVoipValue.value4);
+	
 //#endif
+
 #ifdef SUPPORT_LEC_G168_ISR
 	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-	LEC_g168_set_TailLength(stVoipValue.ch_id, 16);
-	//printk("ippohne_lec_tail\n");
-		#ifdef T_TYPE_ECHO_CAN
-	LEC_g168_set_TailLength(3, 16);// for handset.
-	LEC_g168_init(3, LEC|nlp|nlp_mode);// for handset
-		#endif
-	#else
-	LEC_g168_set_TailLength(stVoipValue.ch_id, stVoipValue.value);
-	#endif
+	RtkEcObj[stVoipValue.ch_id].EC_G168SetTailLength(stVoipValue.ch_id, 16);
 
-	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 		#ifdef T_TYPE_ECHO_CAN
-	LEC_g168_init(stVoipValue.ch_id, LEC|nlp|nlp_mode);
-		#else
-	LEC_g168_init(stVoipValue.ch_id, LEC|nlp|LEC_NLP_CNG);
-		#endif
-	#else
-	LEC_g168_init(stVoipValue.ch_id, LEC|nlp|nlp_mode);
-	#endif
-	extern unsigned char lec_g168_nlp_bk[];
-	lec_g168_nlp_bk[stVoipValue.ch_id] = LEC|nlp|nlp_mode;
+	if (no_tail_len_update == 1)
+		RtkEcObj[stVoipValue.ch_id].EC_G168SetNlp(stVoipValue.ch_id, LEC|nlp|nlp_mode);	// for handfree channel
+	else
+		RtkEcObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|nlp_mode);	// for handfree channel
+
+	RtkEcObj[3].EC_G168SetTailLength(3, 16);	// for handset's echo path channel
+
+	if (no_tail_len_update == 1)
+		RtkEcObj[3].EC_G168SetNlp(3, LEC|nlp|nlp_mode);	// for handset
+	else
+		RtkEcObj[3].EC_G168Init(3, LEC|nlp|nlp_mode);	// for handset
+
+#else //!T_TYPE_ECHO_CAN	
+	if (no_tail_len_update == 1)
+		RtkEcObj[stVoipValue.ch_id].EC_G168SetNlp(stVoipValue.ch_id, LEC|nlp|LEC_NLP_CNG);
+	else
+		RtkEcObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|LEC_NLP_CNG);
+#endif //T_TYPE_ECHO_CAN
+
+#else  //!CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
+	if (no_tail_len_update == 1)
+		RtkEcObj[stVoipValue.ch_id].EC_G168SetNlp(stVoipValue.ch_id, LEC|nlp|nlp_mode);
+	else
+		RtkEcObj[stVoipValue.ch_id].EC_G168Init(stVoipValue.ch_id, LEC|nlp|nlp_mode);
+#endif //CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
+
+	nDspChCfgBak[ stVoipValue.ch_id ].ecBak.lec_g168_nlp_bak = LEC|nlp|nlp_mode;
+	nDspChCfgBak[ stVoipValue.ch_id ].ecBak.Attack_Stepsize_bak = stVoipValue.value2;
+	nDspChCfgBak[ stVoipValue.ch_id ].ecBak.Release_Stepsize_bak = stVoipValue.value3;
+	nDspChCfgBak[ stVoipValue.ch_id ].ecBak.lec_g168_cng_flag_bak = stVoipValue.value4;	
 #endif
+ 	restore_flags(flags);
 #endif
-	PRINT_MSG("Set CH%d Echo Tail Length = %dms, NLP=%d\n", stVoipValue.ch_id, stVoipValue.value, stVoipValue.value1);
+	PRINT_MSG("Set CH%d Echo Tail Length = %dms, NLP=%d\n", stVoipValue.ch_id, stVoipValue.value5, stVoipValue.value1);
 	return 0;
 }
 #else
@@ -1677,20 +1783,20 @@ int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len,
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
-	if (stVoipValue.value == 4) //stVoipValue.value : unit is ms
+	if (stVoipValue.value5 == 4) //stVoipValue.value : unit is ms
 		ec_length = ECHO_CANCELER_LENGTH__4_MSEC;
-	else if (stVoipValue.value == 8)
+	else if (stVoipValue.value5 == 8)
 		ec_length = ECHO_CANCELER_LENGTH__8_MSEC;
-	else if (stVoipValue.value == 16)
+	else if (stVoipValue.value5 == 16)
 		ec_length = ECHO_CANCELER_LENGTH__16_MSEC;
-	else if (stVoipValue.value == 24)
+	else if (stVoipValue.value5 == 24)
 		ec_length = ECHO_CANCELER_LENGTH__24_MSEC;
-	else if (stVoipValue.value == 32)
+	else if (stVoipValue.value5 == 32)
 		ec_length = ECHO_CANCELER_LENGTH__32_MSEC;
 	else
 	{
 		ec_length = ECHO_CANCELER_LENGTH__4_MSEC;
-		PRINT_G("Warning: LEC tail length %d isn't supported. Use default length = %d msec\n", stVoipValue.value, 4*(ec_length+1));
+		PRINT_G("Warning: LEC tail length %d isn't supported. Use default length = %d msec\n", stVoipValue.value5, 4*(ec_length+1));
 	}
 	RtkAc49xApiUpdateEchoCancellerLength(stVoipValue.ch_id, ec_length);
 #endif
@@ -1700,11 +1806,10 @@ int do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH( int cmd, void *user, unsigned int len,
 
 /**
  * @ingroup VOIP_DSP_LEC
- * @brief Turn on or off LEC 
+ * @brief Turn on or off EC 
  * @param TstVoipCfg.ch_id Channel ID 
- * @param TstVoipCfg.enable Turn on (1) or off (0) LEC 
- * @param TstVoipCfg.cfg Turn on (1) or off (0) VBD Auto LEC Change, (255) is no action
- * @param TstVoipCfg.cfg2 LEC restore value for VBD Auto LEC mode is enable
+ * @param TstVoipCfg.enable 0: Turn off LEC, 1: Turn on LEC, 4: CNG and NLP smoothing gain threshold config
+ * @param TstVoipCfg.cfg EC is on when 0: TDM active , 1: Media active
  * @see VOIP_MGR_SET_G168_LEC_CFG TstVoipCfg 
  */
 #if ! defined (AUDIOCODES_VOIP)
@@ -1726,22 +1831,45 @@ int do_mgr_VOIP_MGR_SET_G168_LEC_CFG( int cmd, void *user, unsigned int len, uns
 	if (stVoipCfg.enable == 1)
 #ifdef SUPPORT_LEC_G168_ISR
 	{
-		LEC_g168_enable(stVoipCfg.ch_id);
+		RtkEcObj[stVoipCfg.ch_id].EC_G168Enable(stVoipCfg.ch_id);
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 		#ifdef T_TYPE_ECHO_CAN
-		LEC_g168_enable(3);// for handset.
+		RtkEcObj[3].EC_G168Enable(3);// for handset.
 		#endif
 #endif
 	}
 	else if (stVoipCfg.enable == 0)
 	{
-		LEC_g168_disable(stVoipCfg.ch_id);
+		RtkEcObj[stVoipCfg.ch_id].EC_G168Disable(stVoipCfg.ch_id);
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 		#ifdef T_TYPE_ECHO_CAN
-		LEC_g168_disable(3);// for handset.
+		RtkEcObj[3].EC_G168Disable(3);// for handset.
 		#endif
 #endif
+	} else if (stVoipCfg.enable == 4) {	// set the CNG noise level and smoothing gain threshold
+		/*
+		* Frequency domain 
+		* AEC Comfort noise level and NLP smoothing gain threshold configuration
+		* [ cfg ]
+		* cng_level: 0(softer) ~ 15 (louder), if over the range will be set to 0, default=2
+		* [ cfg2 ]
+		* smooth_gain_threshold: When NLP active and work, smoothing ramp down touch this threshold 
+		*			 ( residual < threshold ), the gain facor will set to this threshold
+		*			 Finally, residual echo*gain factor
+		*			 Avaiable range: 0~0x7FFF, but NOT recommended it set to large value
+		*			 Setting Criteria: More high more echo, but full duplex more
+		*			 Recommended value: 0x50
+		*/
+		
+		/* Time-domain
+		*  [ cfg ]
+		*	cng_level: 0(softer) ~ 17 (louder), if over the range will be set to 0, default=1
+		*  [ cfg2 ]
+		* 	smoothing gain threshold, recommended value=0x50
+		*/
+		RtkEcObj[stVoipCfg.ch_id].EC_G168NlpCngSmoothConfig( stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2 );
 	}
+	EC168_SetOnState(stVoipCfg.ch_id, stVoipCfg.cfg);
 	
 #endif
 #endif
@@ -1795,11 +1923,10 @@ int do_mgr_VOIP_MGR_SET_VBD_EC( int cmd, void *user, unsigned int len, unsigned 
 
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward 
 #else
-	extern int LEC_g168_vbd_auto(char chid, int vbd_high, int vbd_low, int lec_bk);
-	LEC_g168_vbd_auto(stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2, stVoipCfg.cfg3);
+	RtkEcObj[stVoipCfg.ch_id].EC_G168VbdAuto(stVoipCfg.ch_id, stVoipCfg.cfg, stVoipCfg.cfg2, stVoipCfg.cfg3);
 #endif
 	return 0;
 }
@@ -1821,11 +1948,7 @@ int do_mgr_VOIP_MGR_SET_VBD_EC( int cmd, void *user, unsigned int len, unsigned 
 #include "cp3_profile.h"
 
 #if ! defined (AUDIOCODES_VOIP)
-void AEC_g168(unsigned int chid, const int16_t *pRin, int16_t *pSin, int16_t *pEx);
 void aec_process_block_10ms(unsigned int chid, int16_t *output, int16_t *est_echo_out, const int16_t *input, const int16_t *echo);
-void AEC_g168_set_TailLength(unsigned int chid, unsigned int tail_length);
-void AEC_g168_init(unsigned int chid, unsigned char type);
-void AEC_re_init(unsigned int chid);
 void ec128_clear_h_register(unsigned int chid);
 void ec128_set_adaption_mode(unsigned int chid, unsigned int adaption_mode);
 
@@ -1833,16 +1956,13 @@ void ec128_set_adaption_mode(unsigned int chid, unsigned int adaption_mode);
 #define INIT_MODE_CLEAN_H_REGISTER      0x8
 #define INIT_MODE_ADAPT_CONFIG          0x4
 
-void LEC_g168(char chid, const Word16 *pRin, Word16 *pSin, Word16 *pEx);
-void LEC_g168_set_TailLength(unsigned int chid, unsigned int tail_length);
-void LEC_g168_init(unsigned char chid, unsigned char type);
-
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 static int ec_test_mode;
 #endif
 
 int do_mgr_VOIP_MGR_GET_EC_DEBUG( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
+	int ret = 0;
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// standalone cmd
 #else
@@ -1860,13 +1980,19 @@ int do_mgr_VOIP_MGR_GET_EC_DEBUG( int cmd, void *user, unsigned int len, unsigne
 		if (ec_test_mode==2) {
 #ifdef AEC_TEST
 			ProfileEnterPoint(PROFILE_INDEX_LEC);
-			AEC_g168( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1)
+			RtkEcObj[3].EC_G168Process( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1)
 			ProfileExitPoint(PROFILE_INDEX_LEC);
 			ProfilePerDump(PROFILE_INDEX_LEC, 1024);;
 #endif
 			//aec_process_block_10ms(3, stVoipEcDebug.buf1, est_echo, input, stVoipEcDebug.buf2);
 		} else {
-			LEC_g168( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1);
+			if( RtkEcObj[3].EC_G168Process == NULL )
+			{
+				PRINT_R("Error !!! %s not supported !!!\n", RtkEcObj[3].EC_G168Process);
+				ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
+			}
+			else
+				RtkEcObj[3]. EC_G168Process( 3, input, stVoipEcDebug.buf2, stVoipEcDebug.buf1 );			
 		//
 		}
 		restore_flags(flags);
@@ -1878,20 +2004,19 @@ int do_mgr_VOIP_MGR_GET_EC_DEBUG( int cmd, void *user, unsigned int len, unsigne
 		else if (stVoipEcDebug.mode&INIT_MODE_ADAPT_CONFIG) {
 			ec128_set_adaption_mode(3, (stVoipEcDebug.mode>>4)&7);
 		} else {
-			AEC_g168_set_TailLength(3, 128);
-			//AEC_g168_set_TailLength(3, 64);
-			AEC_g168_init(3, 1);
-			AEC_re_init(3);
+			RtkEcObj[3].EC_G168SetTailLength(3, 128);
+			RtkEcObj[3].EC_G168Init(3, 1);
+			RtkEcObj[3].EC_G168ReInit(3);
 		}
     #endif
 		ec_test_mode = 2;
 	} else {//stVoipEcDebug.mode = 0, do ec init
-		LEC_g168_set_TailLength(3, 16);
-		LEC_g168_init( 3, LEC|LEC_NLP|LEC_NLP_MUTE);
-		ec_test_mode = 0;
+		RtkEcObj[3].EC_G168SetTailLength(3, 16);
+		RtkEcObj[3].EC_G168Init( 3, LEC|LEC_NLP|LEC_NLP_MUTE);
+		RtkEcObj[3].EC_G168Init = 0;
 	}
 #endif
-	return 0;
+	return ret;
 }
 #else
 
@@ -1911,6 +2036,7 @@ int do_mgr_VOIP_MGR_GET_EC_DEBUG( int cmd, void *user, unsigned int len, unsigne
  * @param TstDtmfDetPara.on_time DTMF detection minimum on time, on_time_10ms (unit 10ms)
  * @param TstDtmfDetPara.fortwist DTMF detection acceptable fore-twist (dB)
  * @param TstDtmfDetPara.revtwist DTMF detection acceptable rev-twist (dB)
+ * @param TstDtmfDetPara.freq_offset DTMF detection freq. offset support flag
  * @see VOIP_MGR_DTMF_DET_PARAM TstDtmfDetPara
  */
 #if ! defined (AUDIOCODES_VOIP)
@@ -1930,9 +2056,18 @@ int do_mgr_VOIP_MGR_DTMF_DET_PARAM( int cmd, void *user, unsigned int len, unsig
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
-	dtmf_det_threshold_set(stDtmfDetPara.ch_id, stDtmfDetPara.thres, stDtmfDetPara.dir);
-	dtmf_det_on_time_set(stDtmfDetPara.ch_id, stDtmfDetPara.dir, stDtmfDetPara.on_time);
-	dtmf_det_twist_dB_set(stDtmfDetPara.ch_id, stDtmfDetPara.fore_twist, stDtmfDetPara.rev_twist, stDtmfDetPara.dir);
+	if (stDtmfDetPara.thres_upd == 1)
+		dtmf_det_threshold_set(stDtmfDetPara.ch_id, stDtmfDetPara.thres, stDtmfDetPara.dir);
+	if (stDtmfDetPara.on_time_upd == 1)
+		dtmf_det_on_time_set(stDtmfDetPara.ch_id, stDtmfDetPara.dir, stDtmfDetPara.on_time);
+	if (stDtmfDetPara.twist_upd == 1)
+		dtmf_det_twist_dB_set(stDtmfDetPara.ch_id, stDtmfDetPara.fore_twist, stDtmfDetPara.rev_twist, stDtmfDetPara.dir);
+	if (stDtmfDetPara.freq_offset_upd == 1)
+#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+		dtmf_freq_offset_det_set(stDtmfDetPara.ch_id, stDtmfDetPara.dir, stDtmfDetPara.freq_offset);
+#else
+		PRINT_R("DTMF freq. offset is not supported.\n");
+#endif
 #endif
 	return 0;
 }
@@ -2125,7 +2260,7 @@ int do_mgr_VOIP_MGR_SEND_RFC2833_PKT_CFG( int cmd, void *user, unsigned int len,
 #ifdef SUPPORT_RFC_2833
 
 	#ifdef SEND_RFC2833_ISR
-	#ifdef CONFIG_RTK_VOIP_IP_PHONE
+	#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 	send_2833_by_ap[stRFC2833.ch_id] = 1;
 	#endif
 	if (send_2833_by_ap[stRFC2833.ch_id] == 1)
@@ -2137,9 +2272,9 @@ int do_mgr_VOIP_MGR_SEND_RFC2833_PKT_CFG( int cmd, void *user, unsigned int len,
 		s_id = API_GetSid(stRFC2833.ch_id, stRFC2833.m_id);
 
 		send_dtmf_flag[ s_id ] = 1;
-		g_digit[ stRFC2833.ch_id ] = stRFC2833.digit;
+		g_digit[ s_id ] = stRFC2833.digit;
 		send_2833_count_down[ s_id ] = stRFC2833.duration / ( PCM_PERIOD * 10 );
-		PRINT_R("set send_2833_count_down[%d] to %d\n", s_id, send_2833_count_down[ s_id ]);
+		PRINT_MSG("set send_2833_count_down[%d] to %d\n", s_id, send_2833_count_down[ s_id ]);
 		// = 100 / ( PCM_PERIOD * 10 );	/* 100ms */
 	}
 	#endif
@@ -2219,7 +2354,7 @@ int do_mgr_VOIP_MGR_SET_RFC2833_TX_VOLUME( int cmd, void *user, unsigned int len
 #endif
 
 	TstVoip2833 stRFC2833;
-	int ret;
+	int ret = 0;
 
 	COPY_FROM_USER(&stRFC2833, (TstVoip2833 *)user, sizeof(TstVoip2833));
 
@@ -2241,6 +2376,7 @@ int do_mgr_VOIP_MGR_SET_RFC2833_TX_VOLUME( int cmd, void *user, unsigned int len
 			{
 				gRfc2833_volume_dsp_auto[sid] = 0;
 				PRINT_R("VOIP_MGR_SET_RFC2833_TX_VOLUME: invalid setting. RFC2833 TX mode is AP mode, but volume is DSP auto. sid=%d\n", sid);
+				ret = -EVOIP_IOCTL_PROCESS_ERR;
 			}
 			else
 				gRfc2833_volume_dsp_auto[sid] = 1;
@@ -2255,7 +2391,7 @@ int do_mgr_VOIP_MGR_SET_RFC2833_TX_VOLUME( int cmd, void *user, unsigned int len
 
 	//stRFC2833.ret_val = 0;
 #endif
-	return 0;
+	return ret;
 }
 #else
 int do_mgr_VOIP_MGR_SET_RFC2833_TX_VOLUME( int cmd, void *user, unsigned int len, unsigned short seq_no )
@@ -2291,7 +2427,7 @@ int do_mgr_VOIP_MGR_LIMIT_MAX_RFC2833_DTMF_DURATION( int cmd, void *user, unsign
 #endif
 
 	TstVoip2833 stRFC2833;
-	int ret;
+	int ret = 0;
 
 	COPY_FROM_USER(&stRFC2833, (TstVoip2833 *)user, sizeof(TstVoip2833));
 
@@ -2314,8 +2450,9 @@ int do_mgr_VOIP_MGR_LIMIT_MAX_RFC2833_DTMF_DURATION( int cmd, void *user, unsign
 #endif
 #else
 	PRINT_R("VOIP_MGR_LIMIT_MAX_RFC2833_DTMF_DURATION is not supported.\n");
+	ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
 #endif
-	return 0;
+	return ret;
 }
 #else
 int do_mgr_VOIP_MGR_LIMIT_MAX_RFC2833_DTMF_DURATION( int cmd, void *user, unsigned int len, unsigned short seq_no )
@@ -2350,7 +2487,7 @@ int do_mgr_VOIP_MGR_FAX_MODEM_RFC2833_CFG( int cmd, void *user, unsigned int len
 
 	//PRINT_MSG( "VOIP_MGR_SEND_RFC2833_BY_AP:chid=%d\n", stVoipCfg.ch_id);
 
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
 	extern void answer_tone_set_rfc2833_relay(unsigned int chid, unsigned int flag);
@@ -2389,7 +2526,7 @@ int do_mgr_VOIP_MGR_RFC2833_PKT_INTERVAL_CFG( int cmd, void *user, unsigned int 
 {
 	TstVoipCfg stVoipCfg;
 	uint32 s_id;
-	int ret;
+	int ret = 0;
 
 	COPY_FROM_USER(&stVoipCfg, (TstVoipCfg *)user, sizeof(TstVoipCfg));
 
@@ -2398,7 +2535,7 @@ int do_mgr_VOIP_MGR_RFC2833_PKT_INTERVAL_CFG( int cmd, void *user, unsigned int 
 
 	//PRINT_MSG( "VOIP_MGR_SEND_RFC2833_BY_AP:chid=%d\n", stVoipCfg.ch_id);
 
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
 	extern void SetDtmfRfc2833PktInterval(unsigned int sid, unsigned int interval);
@@ -2414,9 +2551,12 @@ int do_mgr_VOIP_MGR_RFC2833_PKT_INTERVAL_CFG( int cmd, void *user, unsigned int 
 	else if (stVoipCfg.cfg == 1)
 		SetFaxModemRfc2833PktInterval(s_id, stVoipCfg.cfg2);
 	else
+	{
 		PRINT_R("Error type=%d in %s.\n", stVoipCfg.cfg, __FUNCTION__);
+		ret = -EVOIP_IOCTL_PROCESS_ERR;
+	}
 #endif
-	return 0;
+	return ret;
 }
 #else
 int do_mgr_VOIP_MGR_RFC2833_PKT_INTERVAL_CFG( int cmd, void *user, unsigned int len, unsigned short seq_no )
@@ -2513,7 +2653,7 @@ int do_mgr_VOIP_MGR_PLAY_SIP_INFO( int cmd, void *user, unsigned int len, unsign
 #if ! defined (AUDIOCODES_VOIP)
 int do_mgr_VOIP_MGR_DTMF_CID_GEN_CFG( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	extern unsigned char ioctrl_ring_set[];
 #ifdef CONFIG_RTK_VOIP_LED
@@ -2526,7 +2666,7 @@ int do_mgr_VOIP_MGR_DTMF_CID_GEN_CFG( int cmd, void *user, unsigned int len, uns
 	TstVoipCID stCIDstr;
 	int ret;
 
-#ifdef SW_DTMF_CID
+#if 1 //def SW_DTMF_CID, always enable
 	COPY_FROM_USER(&stCIDstr, (TstVoipCID *)user, sizeof(TstVoipCID));
 
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
@@ -2592,9 +2732,9 @@ int do_mgr_VOIP_MGR_DTMF_CID_GEN_CFG( int cmd, void *user, unsigned int len, uns
 		PRINT_MSG("Not Support 'Private' DTMF Caller ID(ch=%d).\n", stCIDstr.ch_id);
 	}
 #endif
-#else
+#else /* !SW_DTMF_CID */
 	return NO_COPY_TO_USER( cmd, seq_no );
-#endif
+#endif /* SW_DTMF_CID */
 	return 0;
 }
 #else
@@ -2953,20 +3093,17 @@ int do_mgr_VOIP_MGR_FSK_CID_MDMF_GEN( int cmd, void *user, unsigned int len, uns
  * @brief Generate FSK VMWI
  * @param TstVoipCID.ch_id Channel ID
  * @param TstVoipCID.string Caller ID - Phonenumber
- * @see VOIP_MGR_SET_FSK_VMWI_STATE TstVoipCID
+ * @see VOIP_MGR_SET_FSK_VMWI_STATE TstFskClid
  */
 #if ! defined (AUDIOCODES_VOIP)
 int do_mgr_VOIP_MGR_SET_FSK_VMWI_STATE( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-	TstVoipCID stCIDstr;
+	TstFskClid stFskClid;
 	int ret;
 
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	TstFskClidData cid_data[FSK_MDMF_SIZE];
-#endif
 
 	// thlin +
-	COPY_FROM_USER(&stCIDstr, (TstVoipCID *)user, sizeof(TstVoipCID));
+	COPY_FROM_USER(&stFskClid, (TstFskClid *)user, sizeof(TstFskClid));
 
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
@@ -2974,19 +3111,13 @@ int do_mgr_VOIP_MGR_SET_FSK_VMWI_STATE( int cmd, void *user, unsigned int len, u
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
-	if ( 1 == Is_DAA_Channel(stCIDstr.ch_id))
+	if ( 1 == Is_DAA_Channel(stFskClid.ch_id))
 	{
 		//printk("chid%d is not for SLIC, can not gen FSK caller ID!\n", stCIDstr.ch_id);
 		return 0;
 	}
 
-	cid_data[0].type = FSK_PARAM_MW;
-	strcpy(cid_data[0].data, stCIDstr.string);
-
-	cid_data[1].type = FSK_PARAM_NULL;
-	cid_data[1].data[0] = 0;
-
-	SLIC_gen_VMWI(stCIDstr.ch_id, cid_data);
+	SLIC_gen_FSK_CID(stFskClid.ch_id, stFskClid.service_type, FSK_MSG_MWSETUP , ( TstFskClidData * )stFskClid.cid_data);
 
 #endif
 	return 0;
@@ -3154,7 +3285,8 @@ int do_mgr_VOIP_MGR_SET_FSK_CLID_PARA( int cmd, void *user, unsigned int len, un
 	clid_para.ack_waiting_time = stVoipFskPara.ack_waiting_time;
 	clid_para.delay_after_ack_recv = stVoipFskPara.delay_after_ack_recv;
 	clid_para.delay_after_type2_fsk = stVoipFskPara.delay_after_type2_fsk;
-
+	clid_para.RPAS_Duration = stVoipFskPara.RPAS_Duration;
+	clid_para.RPAS2FSK_Period = stVoipFskPara.RPAS2FSK_Period;
 	fsk_cid_para_set(stVoipFskPara.ch_id, stVoipFskPara.area, &clid_para);
 #endif
 	return 0;
@@ -3205,6 +3337,8 @@ int do_mgr_VOIP_MGR_GET_FSK_CLID_PARA( int cmd, void *user, unsigned int len, un
 	stVoipFskPara.ack_waiting_time = para.ack_waiting_time;
 	stVoipFskPara.delay_after_ack_recv = para.delay_after_ack_recv;
 	stVoipFskPara.delay_after_type2_fsk = para.delay_after_type2_fsk;
+	stVoipFskPara.RPAS_Duration = para.RPAS_Duration;
+	stVoipFskPara.RPAS2FSK_Period = para.RPAS2FSK_Period;
 #endif
 
 	return COPY_TO_USER(user, &stVoipFskPara, sizeof(TstVoipFskPara), cmd, seq_no);
@@ -3282,7 +3416,7 @@ int do_mgr_VOIP_MGR_STOP_CID( int cmd, void *user, unsigned int len, unsigned sh
 	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
 		return ret;
 
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward 
 #else
 	if (stVoipCfg.cfg == 0) // DTMF
@@ -3317,17 +3451,10 @@ int do_mgr_VOIP_MGR_STOP_CID( int cmd, void *user, unsigned int len, unsigned sh
 /**
  * @ingroup VOIP_DSP_CALLERID
  * @brief Set DTMF mode of caller ID
- * @param TstVoipCID.ch_id Channel ID
- * @param TstVoipCID.cid_mode Caller ID mode <br>
- *        bit0-2: FSK Type <br>
- *        bit 3: Normal Ring <br>
- *        bit 4: Fsk Alert Tone <br>
- *        bit 5: Short Ring <br>
- *        bit 6: Line Reverse <br>
- *        bit 7: Date, Time Sync and Name <br>
- * @param TstVoipCID.cid_dtmf_mode Caller ID in DTMF mode. <br>
- *        0-1 bits for starting digit, and 2-3 bits for ending digit. <br>
- *        00: A, 01: B, 02: C, 03: D
+ * @param stVoipCID.ch_id Channel ID
+ * @param stVoipCID.cid_dtmf_start DMTF Caller ID start digit
+ * @param stVoipCID.cid_dtmf_end DMTF Caller ID end digit
+ * @param stVoipCID.cid_dtmf_auto DTMF Caller ID auto control
  * @see VOIP_MGR_SET_CID_DTMF_MODE TstVoipCID
  */
 #if ! defined (AUDIOCODES_VOIP)
@@ -3352,13 +3479,13 @@ int do_mgr_VOIP_MGR_SET_CID_DTMF_MODE( int cmd, void *user, unsigned int len, un
 	//printk("on=%d, off=%d\n", stCIDstr.cid_dtmf_on_ms, stCIDstr.cid_dtmf_pause_ms);
 	
 
-	//PRINT_G("cid_dtmf_mode[%d]=0x%x", stCIDstr.ch_id, stCIDstr.cid_dtmf_mode);
-	dtmf_cid_info[stCIDstr.ch_id].bAuto_Ring = (stCIDstr.cid_dtmf_mode&0x20)>>5;
-	dtmf_cid_info[stCIDstr.ch_id].bAuto_SLIC_action = (stCIDstr.cid_dtmf_mode&0x80)>>7;
-	dtmf_cid_info[stCIDstr.ch_id].bBefore1stRing = (stCIDstr.cid_dtmf_mode&0x40)>>6; 	/* set the before ring or after ring send cid */
-	dtmf_cid_info[stCIDstr.ch_id].bAuto_StartEnd = (stCIDstr.cid_dtmf_mode&0x10)>>4;
-	dtmf_cid_info[stCIDstr.ch_id].start_digit =  stCIDstr.cid_dtmf_mode&0x03;
-	dtmf_cid_info[stCIDstr.ch_id].end_digit =  (stCIDstr.cid_dtmf_mode&0xC)>>2;
+	//PRINT_G("cid_dtmf_auto[%d]=0x%x", stCIDstr.ch_id, stCIDstr.cid_dtmf_auto);
+	dtmf_cid_info[stCIDstr.ch_id].bAuto_StartEnd = stCIDstr.cid_dtmf_auto & 0x01;
+	dtmf_cid_info[stCIDstr.ch_id].bAuto_Ring = (stCIDstr.cid_dtmf_auto & 0x02)>>1;
+	dtmf_cid_info[stCIDstr.ch_id].bBefore1stRing = (stCIDstr.cid_dtmf_auto & 0x04)>>2; 	/* set the before ring or after ring send cid */
+	dtmf_cid_info[stCIDstr.ch_id].bAuto_SLIC_action = (stCIDstr.cid_dtmf_auto & 0x08)>>3;
+	dtmf_cid_info[stCIDstr.ch_id].start_digit =  stCIDstr.cid_dtmf_start;
+	dtmf_cid_info[stCIDstr.ch_id].end_digit =  stCIDstr.cid_dtmf_end;
 	
 	if ( 1 == Is_DAA_Channel(stCIDstr.ch_id))
 	{
@@ -3369,7 +3496,7 @@ int do_mgr_VOIP_MGR_SET_CID_DTMF_MODE( int cmd, void *user, unsigned int len, un
 	}
 #endif
 	//PRINT_MSG("fsk_spec_areas[%d]=0x%x\n", stCIDstr.ch_id, stCIDstr.cid_mode);
-	//PRINT_MSG("cid_dtmf_mode[%d]=0x%x", stCIDstr.ch_id, stCIDstr.cid_dtmf_mode);
+	//PRINT_MSG("cid_dtmf_auto[%d]=0x%x", stCIDstr.ch_id, stCIDstr.cid_dtmf_auto);
 	return 0;
 }
 #else
@@ -3386,10 +3513,10 @@ int do_mgr_VOIP_MGR_SET_CID_DTMF_MODE( int cmd, void *user, unsigned int len, un
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
 #else
-	dtmf_cid_info[stCIDstr.ch_id].bBefore1stRing = (stCIDstr.cid_dtmf_mode&0x08)>>3;	/* set the before ring or after ring send cid */
-	dtmf_cid_info[stCIDstr.ch_id].bAuto_StartEnd = (stCIDstr.cid_dtmf_mode&0x10)>>4;
-	dtmf_cid_info[stCIDstr.ch_id].start_digit =  stCIDstr.cid_dtmf_mode&0x3;
-	dtmf_cid_info[stCIDstr.ch_id].end_digit =  (stCIDstr.cid_dtmf_mode&0xC)>>2;
+	dtmf_cid_info[stCIDstr.ch_id].bBefore1stRing = (stCIDstr.cid_dtmf_auto&0x08)>>3;	/* set the before ring or after ring send cid */
+	dtmf_cid_info[stCIDstr.ch_id].bAuto_StartEnd = (stCIDstr.cid_dtmf_auto&0x10)>>4;
+	dtmf_cid_info[stCIDstr.ch_id].start_digit =  stCIDstr.cid_dtmf_auto&0x3;
+	dtmf_cid_info[stCIDstr.ch_id].end_digit =  (stCIDstr.cid_dtmf_auto&0xC)>>2;
 
 	if ( 1 == Is_DAA_Channel(stCIDstr.ch_id))
 	{
@@ -3630,11 +3757,13 @@ int do_mgr_VOIP_MGR_FSK_CID_VMWI_GEN_CFG( int cmd, void *user, unsigned int len,
 
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward
+	PRINT_R("Need implement for do_mgr_VOIP_MGR_FSK_CID_VMWI_GEN_CFG\n");
+	ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
 #else
 #if 1
 	PRINT_R("Need implement for do_mgr_VOIP_MGR_FSK_CID_VMWI_GEN_CFG\n");
 	//stCIDstr.ret_val = -1;
-	ret = -1;
+	ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
 #else
 	fsk_cid_state[stCIDstr.ch_id]=1;
 	// remember set slic in transmit mode, enable DSP pcm.
@@ -3643,7 +3772,6 @@ int do_mgr_VOIP_MGR_FSK_CID_VMWI_GEN_CFG( int cmd, void *user, unsigned int len,
 	//stCIDstr.ret_val = 0;
 
 #endif
-	PRINT_R("Need implement for do_mgr_VOIP_MGR_FSK_CID_VMWI_GEN_CFG\n");
 #endif
 	return ret;
 }
@@ -3788,6 +3916,351 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 	TstVoipValue stVoipValue;
 	int ret;
 
+	uint32 chid;
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	uint32 sid;
+#endif
+
+#ifdef FXO_BUSY_TONE_DET
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	extern void ring_tone_det_cfg_apply( void );
+	extern ToneCfgParam_t ToneTable[];
+	int cad_on, cad_off, er_on, er_off;
+#endif
+#endif
+
+	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+	// Host auto forward
+#else
+
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	for(sid=0; sid<DSP_RTK_SS_NUM; sid++)	//Set the same country for each session.
+		DspcodecSetCountry( sid, /*country*/stVoipValue.value);
+#endif
+
+	//for (chid=0; chid<SLIC_CH_NUM; chid++)
+	for (chid=0; chid<CON_CH_NUM; chid++) {
+		if( get_snd_type_cch( chid ) == SND_TYPE_FXS )
+			SLIC_Set_Impendance_Country(chid, stVoipValue.value /*country*/, 0 /* impedance value: reserved */);
+		else if ( get_snd_type_cch( chid ) == SND_TYPE_DAA)
+			DAA_Set_Country(chid, stVoipValue.value /*country*/);
+		else
+			continue;
+	}
+
+#ifdef FXO_BUSY_TONE_DET
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	switch (stVoipValue.value)
+	{
+		case DSPCODEC_COUNTRY_USA://USA
+		case DSPCODEC_COUNTRY_HK://HK
+		case DSPCODEC_COUNTRY_TW://Taiwan
+			det_freq[0] = FREQ_480HZ;
+			det_freq[1] = FREQ_620HZ;
+			break;
+		case DSPCODEC_COUNTRY_FR://France
+		case DSPCODEC_COUNTRY_BE://Belgium
+			det_freq[0] = FREQ_440HZ;
+			det_freq[1] = FREQ_NA;
+			break;
+		case DSPCODEC_COUNTRY_UK://UK
+		case DSPCODEC_COUNTRY_AUSTRALIA://Australia
+		case DSPCODEC_COUNTRY_JP://Japan
+			det_freq[0] = FREQ_400HZ;
+			det_freq[1] = FREQ_NA;
+			break;
+		case DSPCODEC_COUNTRY_SE://Sweden
+		case DSPCODEC_COUNTRY_GR://Germany
+		case DSPCODEC_COUNTRY_FL://Finland
+		case DSPCODEC_COUNTRY_IT://Italy
+			det_freq[0] = FREQ_425HZ;
+			det_freq[1] = FREQ_NA;
+			break;
+		case DSPCODEC_COUNTRY_CN://China
+			det_freq[0] = FREQ_450HZ;
+			det_freq[1] = FREQ_NA;
+			break;
+#ifdef COUNTRY_TONE_RESERVED
+		case DSPCODEC_COUNTRY_RESERVE:
+#endif
+		case DSPCODEC_COUNTRY_EX1:
+		case DSPCODEC_COUNTRY_EX2:
+		case DSPCODEC_COUNTRY_EX3:
+		case DSPCODEC_COUNTRY_EX4:
+		case DSPCODEC_COUNTRY_CUSTOME://Customer
+			//det_freq[0] = FREQ_450HZ;
+			//det_freq[1] = FREQ_NA;
+			break;
+
+		default://USA
+			det_freq[0] = FREQ_480HZ;
+			det_freq[1] = FREQ_620HZ;
+			break;
+	}
+
+	stVoiptonedet_parm.frequency1 = ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 6].Freq0;
+	stVoiptonedet_parm.frequency2 = ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 6].Freq1;
+
+	cad_on = ( ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 6].CadOn0 )/10;
+	cad_off = ( ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 6].CadOff0 )/10;
+	/* 12.5% inaccuracy */
+	er_on = ( cad_on >> 3 );
+	er_off = ( cad_off >> 3 );
+
+	stVoiptonedet_parm.busytone_on_low_limit = cad_on - er_on;
+	stVoiptonedet_parm.busytone_on_up_limit = cad_on + er_on;
+	stVoiptonedet_parm.busytone_off_low_limit = cad_off - er_off;
+	stVoiptonedet_parm.busytone_off_up_limit = cad_off + er_off;
+
+	busy_tone_det_cfg_apply();
+
+    //printk("%s(%d)country=%d, busy freq1=%d, freq2=%d\n",
+    //	__FUNCTION__,__LINE__,stVoipValue.value,stVoiptonedet_parm.frequency1, stVoiptonedet_parm.frequency2);
+
+	stVoiptonedet_parm.frequency1 = ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 5].Freq0;
+	stVoiptonedet_parm.frequency2 = ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 5].Freq1;
+
+	cad_on = ( ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 5].CadOn0 )/10;
+	cad_off = ( ToneTable[ (USA_DIAL-1) + 25*stVoipValue.value + 5].CadOff0 )/10;
+	/* 12.5% inaccuracy */
+	er_on = ( cad_on >> 3 );
+	er_off = ( cad_off >> 3 );
+
+	stVoiptonedet_parm.busytone_on_low_limit = cad_on - er_on;
+	stVoiptonedet_parm.busytone_on_up_limit = cad_on + er_on;
+	stVoiptonedet_parm.busytone_off_low_limit = cad_off - er_off;
+	stVoiptonedet_parm.busytone_off_up_limit = cad_off + er_off;
+
+	ring_tone_det_cfg_apply();
+
+    //printk("%s(%d)country=%d, ring freq1=%d, freq2=%d\n",
+    //  __FUNCTION__,__LINE__,stVoipValue.value,stVoiptonedet_parm.frequency1, stVoiptonedet_parm.frequency2);
+
+#endif
+#endif
+
+	switch (stVoipValue.value)
+	{
+		case DSPCODEC_COUNTRY_USA://USA
+			PRINT_MSG("Set Tone of Country to USA\n");
+			break;
+		case DSPCODEC_COUNTRY_UK://UK
+			PRINT_MSG("Set Tone of Country to UK\n");
+			break;
+		case DSPCODEC_COUNTRY_AUSTRALIA://Australia
+			PRINT_MSG("Set Tone of Country to AUSTRALIA\n");
+			break;
+		case DSPCODEC_COUNTRY_HK://HK
+			PRINT_MSG("Set Tone of Country to HONG KONG\n");
+			break;
+		case DSPCODEC_COUNTRY_JP://Japan
+			PRINT_MSG("Set Tone of Country to JAPAN\n");
+			break;
+		case DSPCODEC_COUNTRY_SE://Sweden
+			PRINT_MSG("Set Tone of Country to SWEDEN\n");
+			break;
+		case DSPCODEC_COUNTRY_GR://Germany
+			PRINT_MSG("Set Tone of Country to GERMANY\n");
+			break;
+		case DSPCODEC_COUNTRY_FR://France
+			PRINT_MSG("Set Tone of Country to FRANCE\n");
+			break;
+		case DSPCODEC_COUNTRY_TW://Taiawn
+		//case DSPCODEC_COUNTRY_TR://TR57
+			//PRINT_MSG("Set Tone of Country to TR57\n");
+			PRINT_MSG("Set Tone of Country to TAIWAN\n");
+			break;
+		case DSPCODEC_COUNTRY_BE://Belgium
+			PRINT_MSG("Set Tone of Country to BELGIUM\n");
+			break;
+		case DSPCODEC_COUNTRY_FL://Finland
+			PRINT_MSG("Set Tone of Country to FINLAND\n");
+			break;
+		case DSPCODEC_COUNTRY_IT://Italy
+			PRINT_MSG("Set Tone of Country to ITALY\n");
+			break;
+		case DSPCODEC_COUNTRY_CN://China
+			PRINT_MSG("Set Tone of Country to CHINA\n");
+			break;
+		case DSPCODEC_COUNTRY_EX1://extend #1
+			PRINT_MSG("Set Tone of Country to extend #1\n");
+			break;
+		case DSPCODEC_COUNTRY_EX2://extend #2
+			PRINT_MSG("Set Tone of Country to extend #2\n");
+			break;
+		case DSPCODEC_COUNTRY_EX3://extend #3
+			PRINT_MSG("Set Tone of Country to extend #3\n");
+			break;
+		case DSPCODEC_COUNTRY_EX4://extend #4
+			PRINT_MSG("Set Tone of Country to extend #4\n");
+			break;
+#ifdef COUNTRY_TONE_RESERVED
+		case DSPCODEC_COUNTRY_RESERVE:
+			PRINT_MSG("Set Tone of Country to Reserve\n");
+			break;
+#endif
+		case DSPCODEC_COUNTRY_CUSTOME://Customer
+			PRINT_MSG("Set Tone of Country to CUSTOMER\n");
+			break;
+		default:
+			PRINT_MSG("The tone you select is not support!\n");
+			break;
+	}
+
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	if (stVoipValue.value == DSPCODEC_COUNTRY_JP) // Japan
+	{
+		for (chid=0; chid<CON_CH_NUM; chid++) {
+			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
+				continue;
+#if defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3210 ) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3215 )
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
+#elif defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x ) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
+#elif defined CONFIG_RTK_VOIP_DRIVERS_SLIC_W682388
+		#error "Need to do NTT echo test for SLIC W682388"
+#endif
+		}
+	}
+	else
+	{
+		for (chid=0; chid<CON_CH_NUM; chid++) {
+			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
+				continue;
+#if defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x ) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 18);
+#else
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 21);
+#endif
+		}
+	}
+#endif
+#endif
+	return 0;
+}
+#else
+int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipValue stVoipValue;
+	int ret;
+
+	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward
+#else
+	if ( DSPCODEC_COUNTRY_CUSTOME != stVoipValue.value)
+	{
+		uint32 chid;
+
+		RtkAc49xApiSetCountryTone(stVoipValue.value);
+		for (chid=0; chid<CON_CH_NUM; chid++) {
+			if( get_snd_type_cch( chid ) == SND_TYPE_FXS )
+				SLIC_Set_Impendance_Country(chid, stVoipValue.value /*country*/, 0 /* impedance value: reserved */);
+			else if ( get_snd_type_cch( chid ) == SND_TYPE_DAA)
+				DAA_Set_Country(chid, stVoipValue.value /*country*/);
+			else
+				continue;
+		}
+	}
+#endif
+	return 0;
+}
+#endif
+
+/**
+ * @ingroup VOIP_FXS
+ * @brief Set the impedance of country
+ * @param TstVoipValue.value Country
+ *        - 0: USA
+ *        - 1: UK
+ *        - 2: Australia
+ *        - 3: HK
+ *        - 4: Japan
+ *        - 5: Sweden
+ *        - 6: Germany
+ *        - 7: France
+ *        - 8: Taiwan
+ *        - 9: Belgium
+ *        - 10: Finland
+ *        - 11: Italy
+ *        - 12: China
+ *        - 13: Extend #1
+ *        - 14: Extend #2
+ *        - 15: Extend #3
+ *        - 16: Extend #4
+ *        - 17: Customer
+ * @see VOIP_MGR_SET_COUNTRY_IMPEDANCE TstVoipValue
+ */
+int do_mgr_VOIP_MGR_SET_COUNTRY_IMPEDANCE( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipValue stVoipValue;
+	int ret;
+
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+	uint32 chid;
+#endif
+
+	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+	// Host auto forward, and run this body
+#else
+	//for (chid=0; chid<SLIC_CH_NUM; chid++)
+	for (chid=0; chid<CON_CH_NUM; chid++) {
+		if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
+			SLIC_Set_Impendance_Country(chid, stVoipValue.value /*country*/, 0 /* impedance value: reserved */);
+		else if ( get_snd_type_cch( chid ) == SND_TYPE_DAA)
+			DAA_Set_Country(chid, stVoipValue.value /*country*/);
+		else
+			continue;
+	}
+#endif
+	return 0;
+}
+
+
+/**
+ * @ingroup VOIP_DSP_TONE
+ * @brief Set tone of country
+ * @param TstVoipValue.value Country
+ *        - 0: USA
+ *        - 1: UK
+ *        - 2: Australia
+ *        - 3: HK
+ *        - 4: Japan
+ *        - 5: Sweden
+ *        - 6: Germany
+ *        - 7: France
+ *        - 8: Taiwan
+ *        - 9: Belgium
+ *        - 10: Finland
+ *        - 11: Italy
+ *        - 12: China
+ *        - 13: Extend #1
+ *        - 14: Extend #2
+ *        - 15: Extend #3
+ *        - 16: Extend #4
+ *        - 17: Customer
+ * @see VOIP_MGR_SET_COUNTRY_TONE TstVoipValue
+ */
+#if ! defined (AUDIOCODES_VOIP)
+int do_mgr_VOIP_MGR_SET_COUNTRY_TONE( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipValue stVoipValue;
+	int ret;
+
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	uint32 sid, chid;
 #endif
@@ -3796,7 +4269,6 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	extern void ring_tone_det_cfg_apply( void );
 	extern ToneCfgParam_t ToneTable[];
-
 	int cad_on, cad_off, er_on, er_off;
 #endif
 #endif
@@ -3811,12 +4283,6 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
 #else
 	for(sid=0; sid<DSP_RTK_SS_NUM; sid++)	//Set the same country for each session.
 		DspcodecSetCountry( sid, /*country*/stVoipValue.value);
-	//for (chid=0; chid<SLIC_CH_NUM; chid++)
-	for (chid=0; chid<CON_CH_NUM; chid++) {
-		if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
-			continue;
-		SLIC_Set_Impendance_Country(chid, stVoipValue.value /*country*/, 0 /* impedance value: reserved */);
-	}
 
 #ifdef FXO_BUSY_TONE_DET
 	switch (stVoipValue.value)
@@ -3906,224 +4372,6 @@ int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned
     //  __FUNCTION__,__LINE__,stVoipValue.value,stVoiptonedet_parm.frequency1, stVoiptonedet_parm.frequency2);
 
 #endif
-	switch (stVoipValue.value)
-	{
-		case DSPCODEC_COUNTRY_USA://USA
-			PRINT_MSG("Set Tone of Country to USA\n");
-			break;
-		case DSPCODEC_COUNTRY_UK://UK
-			PRINT_MSG("Set Tone of Country to UK\n");
-			break;
-		case DSPCODEC_COUNTRY_AUSTRALIA://Australia
-			PRINT_MSG("Set Tone of Country to AUSTRALIA\n");
-			break;
-		case DSPCODEC_COUNTRY_HK://HK
-			PRINT_MSG("Set Tone of Country to HONG KONG\n");
-			break;
-		case DSPCODEC_COUNTRY_JP://Japan
-			PRINT_MSG("Set Tone of Country to JAPAN\n");
-			break;
-		case DSPCODEC_COUNTRY_SE://Sweden
-			PRINT_MSG("Set Tone of Country to SWEDEN\n");
-			break;
-		case DSPCODEC_COUNTRY_GR://Germany
-			PRINT_MSG("Set Tone of Country to GERMANY\n");
-			break;
-		case DSPCODEC_COUNTRY_FR://France
-			PRINT_MSG("Set Tone of Country to FRANCE\n");
-			break;
-		case DSPCODEC_COUNTRY_TW://Taiawn
-		//case DSPCODEC_COUNTRY_TR://TR57
-			//PRINT_MSG("Set Tone of Country to TR57\n");
-			PRINT_MSG("Set Tone of Country to TAIWAN\n");
-			break;
-		case DSPCODEC_COUNTRY_BE://Belgium
-			PRINT_MSG("Set Tone of Country to BELGIUM\n");
-			break;
-		case DSPCODEC_COUNTRY_FL://Finland
-			PRINT_MSG("Set Tone of Country to FINLAND\n");
-			break;
-		case DSPCODEC_COUNTRY_IT://Italy
-			PRINT_MSG("Set Tone of Country to ITALY\n");
-			break;
-		case DSPCODEC_COUNTRY_CN://China
-			PRINT_MSG("Set Tone of Country to CHINA\n");
-			break;
-		case DSPCODEC_COUNTRY_EX1://extend #1
-			PRINT_MSG("Set Tone of Country to extend #1\n");
-			break;
-		case DSPCODEC_COUNTRY_EX2://extend #2
-			PRINT_MSG("Set Tone of Country to extend #2\n");
-			break;
-		case DSPCODEC_COUNTRY_EX3://extend #3
-			PRINT_MSG("Set Tone of Country to extend #3\n");
-			break;
-		case DSPCODEC_COUNTRY_EX4://extend #4
-			PRINT_MSG("Set Tone of Country to extend #4\n");
-			break;
-#ifdef COUNTRY_TONE_RESERVED
-		case DSPCODEC_COUNTRY_RESERVE:
-			PRINT_MSG("Set Tone of Country to Reserve\n");
-			break;
-#endif
-		case DSPCODEC_COUNTRY_CUSTOME://Customer
-			PRINT_MSG("Set Tone of Country to CUSTOMER\n");
-			break;
-		default:
-			PRINT_MSG("The tone you select is not support!\n");
-			break;
-	}
-
-	if (stVoipValue.value == DSPCODEC_COUNTRY_JP) // Japan
-	{
-#if defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3210 ) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3215 )
-		LEC_NLP_Config(2);
-#elif defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x ) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-		LEC_NLP_Config(2);
-#elif defined CONFIG_RTK_VOIP_DRIVERS_SLIC_W682388
-		#error "Need to do NTT echo test for SLIC W682388"
-#endif
-	}
-	else
-	{
-#if defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x ) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-		LEC_NLP_Config(5);
-#else
-		LEC_NLP_Config(6);
-#endif
-	}
-#endif
-	return 0;
-}
-#else
-int do_mgr_VOIP_MGR_SET_COUNTRY( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-	TstVoipValue stVoipValue;
-	int ret;
-
-	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
-
-	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
-		return ret;
-
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	// Host auto forward
-#else
-	if ( DSPCODEC_COUNTRY_CUSTOME != stVoipValue.value)
-	{
-		uint32 chid;
-
-		RtkAc49xApiSetCountryTone(stVoipValue.value);
-		for (chid=0; chid<CON_CH_NUM; chid++) {
-			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
-				continue;
-
-			SLIC_Set_Impendance_Country(chid, stVoipValue.value /*country*/, 0 /* impedance value: reserved */);
-		}
-	}
-#endif
-	return 0;
-}
-#endif
-
-/**
- * @ingroup VOIP_FXS
- * @brief Set the impedance of country
- * @param TstVoipValue.value Country
- *        - 0: USA
- *        - 1: UK
- *        - 2: Australia
- *        - 3: HK
- *        - 4: Japan
- *        - 5: Sweden
- *        - 6: Germany
- *        - 7: France
- *        - 8: Taiwan
- *        - 9: Belgium
- *        - 10: Finland
- *        - 11: Italy
- *        - 12: China
- *        - 13: Extend #1
- *        - 14: Extend #2
- *        - 15: Extend #3
- *        - 16: Extend #4
- *        - 17: Customer
- * @see VOIP_MGR_SET_COUNTRY_IMPEDANCE TstVoipValue
- */
-int do_mgr_VOIP_MGR_SET_COUNTRY_IMPEDANCE( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-	TstVoipValue stVoipValue;
-	int ret;
-
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
-	uint32 chid;
-#endif
-
-	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
-
-	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
-		return ret;
-
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
-	// Host auto forward, and run this body
-#else
-	//for (chid=0; chid<SLIC_CH_NUM; chid++)
-	for (chid=0; chid<CON_CH_NUM; chid++) {
-		if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
-			continue;
-
-		SLIC_Set_Impendance_Country(chid, stVoipValue.value /*country*/, 0 /* impedance value: reserved */);
-	}
-
-#endif
-	return 0;
-}
-
-
-/**
- * @ingroup VOIP_DSP_TONE
- * @brief Set tone of country
- * @param TstVoipValue.value Country
- *        - 0: USA
- *        - 1: UK
- *        - 2: Australia
- *        - 3: HK
- *        - 4: Japan
- *        - 5: Sweden
- *        - 6: Germany
- *        - 7: France
- *        - 8: Taiwan
- *        - 9: Belgium
- *        - 10: Finland
- *        - 11: Italy
- *        - 12: China
- *        - 13: Extend #1
- *        - 14: Extend #2
- *        - 15: Extend #3
- *        - 16: Extend #4
- *        - 17: Customer
- * @see VOIP_MGR_SET_COUNTRY_TONE TstVoipValue
- */
-#if ! defined (AUDIOCODES_VOIP)
-int do_mgr_VOIP_MGR_SET_COUNTRY_TONE( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-	TstVoipValue stVoipValue;
-	int ret;
-
-#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	uint32 sid;
-#endif
-
-	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
-
-	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
-		return ret;
-
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
-	// Host auto forward
-#else
-	for(sid=0; sid<DSP_RTK_SS_NUM; sid++)	//Set the same country for each session.
-		DspcodecSetCountry( sid, /*country*/stVoipValue.value);
 
 	switch (stVoipValue.value)
 	{
@@ -4195,21 +4443,29 @@ int do_mgr_VOIP_MGR_SET_COUNTRY_TONE( int cmd, void *user, unsigned int len, uns
 
 	if (stVoipValue.value == 4) // Japan
 	{
+		for (chid=0; chid<CON_CH_NUM; chid++) {
+			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
+				continue;
 #if defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3210 ) || defined( CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3215 )
-		LEC_NLP_Config(2);
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
 #elif defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-		LEC_NLP_Config(2);
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 5);
 #elif defined CONFIG_RTK_VOIP_DRIVERS_SLIC_W682388
 		#error "Need to do NTT echo test for SLIC W682388"
 #endif
+		}
 	}
 	else
 	{
+		for (chid=0; chid<CON_CH_NUM; chid++) {
+			if( get_snd_type_cch( chid ) != SND_TYPE_FXS )
+				continue;
 #if defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226) || defined (CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x)
-		LEC_NLP_Config(5);
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 18);
 #else
-		LEC_NLP_Config(6);
+			RtkEcObj[chid].EC_G168NlpConfig(chid, 21);
 #endif
+		}
 	}
 #endif
 	return 0;
@@ -4339,16 +4595,183 @@ int do_mgr_VOIP_MGR_SET_CUST_TONE_PARAM( int cmd, void *user, unsigned int len, 
 		stVoipToneCfg.Gain3 = (-1)*stVoipToneCfg.Gain3;
 		stVoipToneCfg.Gain4 = (-1)*stVoipToneCfg.Gain4;
 	}
-#else
+#else /* !0 */
+	if (stVoipToneCfg.toneType > 3)
+		stVoipToneCfg.toneType+=2;
+	/*
+	 * from voip_flash.h to dspparam.h
+	 * convert TONE_TYPE_FOUR_FREQ(4) to FOUR_FREQ(6)
+	 * convert TONE_TYPE_STEP_INC(5) to STEP_INC(7)
+	 * convert TONE_TYPE_TWO_STEP(6) to TWO_STEP(8)
+	 */
+
 	//web setting unit is (-dBm)
+	stVoipToneCfg.Gain0 = (-1)*stVoipToneCfg.Gain0;
 	stVoipToneCfg.Gain1 = (-1)*stVoipToneCfg.Gain1;
 	stVoipToneCfg.Gain2 = (-1)*stVoipToneCfg.Gain2;
 	stVoipToneCfg.Gain3 = (-1)*stVoipToneCfg.Gain3;
-	stVoipToneCfg.Gain4 = (-1)*stVoipToneCfg.Gain4;
 
-#endif
-	setTone( ( aspToneCfgParam_t * )&stVoipToneCfg);
-#endif
+	//gain C1_Gain0 ~ C31_Gain3 is used in FOUR_FREQ_TONE_MODE
+	//gain C1_Gain0 ~ C1_Gain3 is used in STEP_INC_TONE_MODE and TWO_STEP_TONE_MODE
+	stVoipToneCfg.C1_Gain0 = (-1)*stVoipToneCfg.C1_Gain0;
+	stVoipToneCfg.C1_Gain1 = (-1)*stVoipToneCfg.C1_Gain1;
+	stVoipToneCfg.C1_Gain2 = (-1)*stVoipToneCfg.C1_Gain2;
+	stVoipToneCfg.C1_Gain3 = (-1)*stVoipToneCfg.C1_Gain3;
+
+	stVoipToneCfg.C2_Gain0 = (-1)*stVoipToneCfg.C2_Gain0;
+	stVoipToneCfg.C2_Gain1 = (-1)*stVoipToneCfg.C2_Gain1;
+	stVoipToneCfg.C2_Gain2 = (-1)*stVoipToneCfg.C2_Gain2;
+	stVoipToneCfg.C2_Gain3 = (-1)*stVoipToneCfg.C2_Gain3;
+
+	stVoipToneCfg.C3_Gain0 = (-1)*stVoipToneCfg.C3_Gain0;
+	stVoipToneCfg.C3_Gain1 = (-1)*stVoipToneCfg.C3_Gain1;
+	stVoipToneCfg.C3_Gain2 = (-1)*stVoipToneCfg.C3_Gain2;
+	stVoipToneCfg.C3_Gain3 = (-1)*stVoipToneCfg.C3_Gain3;
+
+	stVoipToneCfg.C4_Gain0 = (-1)*stVoipToneCfg.C4_Gain0;
+	stVoipToneCfg.C4_Gain1 = (-1)*stVoipToneCfg.C4_Gain1;
+	stVoipToneCfg.C4_Gain2 = (-1)*stVoipToneCfg.C4_Gain2;
+	stVoipToneCfg.C4_Gain3 = (-1)*stVoipToneCfg.C4_Gain3;
+
+	stVoipToneCfg.C5_Gain0 = (-1)*stVoipToneCfg.C5_Gain0;
+	stVoipToneCfg.C5_Gain1 = (-1)*stVoipToneCfg.C5_Gain1;
+	stVoipToneCfg.C5_Gain2 = (-1)*stVoipToneCfg.C5_Gain2;
+	stVoipToneCfg.C5_Gain3 = (-1)*stVoipToneCfg.C5_Gain3;
+
+	stVoipToneCfg.C6_Gain0 = (-1)*stVoipToneCfg.C6_Gain0;
+	stVoipToneCfg.C6_Gain1 = (-1)*stVoipToneCfg.C6_Gain1;
+	stVoipToneCfg.C6_Gain2 = (-1)*stVoipToneCfg.C6_Gain2;
+	stVoipToneCfg.C6_Gain3 = (-1)*stVoipToneCfg.C6_Gain3;
+
+	stVoipToneCfg.C7_Gain0 = (-1)*stVoipToneCfg.C7_Gain0;
+	stVoipToneCfg.C7_Gain1 = (-1)*stVoipToneCfg.C7_Gain1;
+	stVoipToneCfg.C7_Gain2 = (-1)*stVoipToneCfg.C7_Gain2;
+	stVoipToneCfg.C7_Gain3 = (-1)*stVoipToneCfg.C7_Gain3;
+
+	stVoipToneCfg.C8_Gain0 = (-1)*stVoipToneCfg.C8_Gain0;
+	stVoipToneCfg.C8_Gain1 = (-1)*stVoipToneCfg.C8_Gain1;
+	stVoipToneCfg.C8_Gain2 = (-1)*stVoipToneCfg.C8_Gain2;
+	stVoipToneCfg.C8_Gain3 = (-1)*stVoipToneCfg.C8_Gain3;
+
+	stVoipToneCfg.C9_Gain0 = (-1)*stVoipToneCfg.C9_Gain0;
+	stVoipToneCfg.C9_Gain1 = (-1)*stVoipToneCfg.C9_Gain1;
+	stVoipToneCfg.C9_Gain2 = (-1)*stVoipToneCfg.C9_Gain2;
+	stVoipToneCfg.C9_Gain3 = (-1)*stVoipToneCfg.C9_Gain3;
+
+	stVoipToneCfg.C10_Gain0 = (-1)*stVoipToneCfg.C10_Gain0;
+	stVoipToneCfg.C10_Gain1 = (-1)*stVoipToneCfg.C10_Gain1;
+	stVoipToneCfg.C10_Gain2 = (-1)*stVoipToneCfg.C10_Gain2;
+	stVoipToneCfg.C10_Gain3 = (-1)*stVoipToneCfg.C10_Gain3;
+
+	stVoipToneCfg.C11_Gain0 = (-1)*stVoipToneCfg.C11_Gain0;
+	stVoipToneCfg.C11_Gain1 = (-1)*stVoipToneCfg.C11_Gain1;
+	stVoipToneCfg.C11_Gain2 = (-1)*stVoipToneCfg.C11_Gain2;
+	stVoipToneCfg.C11_Gain3 = (-1)*stVoipToneCfg.C11_Gain3;
+
+	stVoipToneCfg.C12_Gain0 = (-1)*stVoipToneCfg.C12_Gain0;
+	stVoipToneCfg.C12_Gain1 = (-1)*stVoipToneCfg.C12_Gain1;
+	stVoipToneCfg.C12_Gain2 = (-1)*stVoipToneCfg.C12_Gain2;
+	stVoipToneCfg.C12_Gain3 = (-1)*stVoipToneCfg.C12_Gain3;
+
+	stVoipToneCfg.C13_Gain0 = (-1)*stVoipToneCfg.C13_Gain0;
+	stVoipToneCfg.C13_Gain1 = (-1)*stVoipToneCfg.C13_Gain1;
+	stVoipToneCfg.C13_Gain2 = (-1)*stVoipToneCfg.C13_Gain2;
+	stVoipToneCfg.C13_Gain3 = (-1)*stVoipToneCfg.C13_Gain3;
+
+	stVoipToneCfg.C14_Gain0 = (-1)*stVoipToneCfg.C14_Gain0;
+	stVoipToneCfg.C14_Gain1 = (-1)*stVoipToneCfg.C14_Gain1;
+	stVoipToneCfg.C14_Gain2 = (-1)*stVoipToneCfg.C14_Gain2;
+	stVoipToneCfg.C14_Gain3 = (-1)*stVoipToneCfg.C14_Gain3;
+
+	stVoipToneCfg.C15_Gain0 = (-1)*stVoipToneCfg.C15_Gain0;
+	stVoipToneCfg.C15_Gain1 = (-1)*stVoipToneCfg.C15_Gain1;
+	stVoipToneCfg.C15_Gain2 = (-1)*stVoipToneCfg.C15_Gain2;
+	stVoipToneCfg.C15_Gain3 = (-1)*stVoipToneCfg.C15_Gain3;
+
+	stVoipToneCfg.C16_Gain0 = (-1)*stVoipToneCfg.C16_Gain0;
+	stVoipToneCfg.C16_Gain1 = (-1)*stVoipToneCfg.C16_Gain1;
+	stVoipToneCfg.C16_Gain2 = (-1)*stVoipToneCfg.C16_Gain2;
+	stVoipToneCfg.C16_Gain3 = (-1)*stVoipToneCfg.C16_Gain3;
+
+	stVoipToneCfg.C17_Gain0 = (-1)*stVoipToneCfg.C17_Gain0;
+	stVoipToneCfg.C17_Gain1 = (-1)*stVoipToneCfg.C17_Gain1;
+	stVoipToneCfg.C17_Gain2 = (-1)*stVoipToneCfg.C17_Gain2;
+	stVoipToneCfg.C17_Gain3 = (-1)*stVoipToneCfg.C17_Gain3;
+
+	stVoipToneCfg.C18_Gain0 = (-1)*stVoipToneCfg.C18_Gain0;
+	stVoipToneCfg.C18_Gain1 = (-1)*stVoipToneCfg.C18_Gain1;
+	stVoipToneCfg.C18_Gain2 = (-1)*stVoipToneCfg.C18_Gain2;
+	stVoipToneCfg.C18_Gain3 = (-1)*stVoipToneCfg.C18_Gain3;
+
+	stVoipToneCfg.C19_Gain0 = (-1)*stVoipToneCfg.C19_Gain0;
+	stVoipToneCfg.C19_Gain1 = (-1)*stVoipToneCfg.C19_Gain1;
+	stVoipToneCfg.C19_Gain2 = (-1)*stVoipToneCfg.C19_Gain2;
+	stVoipToneCfg.C19_Gain3 = (-1)*stVoipToneCfg.C19_Gain3;
+
+	stVoipToneCfg.C20_Gain0 = (-1)*stVoipToneCfg.C20_Gain0;
+	stVoipToneCfg.C20_Gain1 = (-1)*stVoipToneCfg.C20_Gain1;
+	stVoipToneCfg.C20_Gain2 = (-1)*stVoipToneCfg.C20_Gain2;
+	stVoipToneCfg.C20_Gain3 = (-1)*stVoipToneCfg.C20_Gain3;
+
+	stVoipToneCfg.C21_Gain0 = (-1)*stVoipToneCfg.C21_Gain0;
+	stVoipToneCfg.C21_Gain1 = (-1)*stVoipToneCfg.C21_Gain1;
+	stVoipToneCfg.C21_Gain2 = (-1)*stVoipToneCfg.C21_Gain2;
+	stVoipToneCfg.C21_Gain3 = (-1)*stVoipToneCfg.C21_Gain3;
+
+	stVoipToneCfg.C22_Gain0 = (-1)*stVoipToneCfg.C22_Gain0;
+	stVoipToneCfg.C22_Gain1 = (-1)*stVoipToneCfg.C22_Gain1;
+	stVoipToneCfg.C22_Gain2 = (-1)*stVoipToneCfg.C22_Gain2;
+	stVoipToneCfg.C22_Gain3 = (-1)*stVoipToneCfg.C22_Gain3;
+
+	stVoipToneCfg.C23_Gain0 = (-1)*stVoipToneCfg.C23_Gain0;
+	stVoipToneCfg.C23_Gain1 = (-1)*stVoipToneCfg.C23_Gain1;
+	stVoipToneCfg.C23_Gain2 = (-1)*stVoipToneCfg.C23_Gain2;
+	stVoipToneCfg.C23_Gain3 = (-1)*stVoipToneCfg.C23_Gain3;
+
+	stVoipToneCfg.C24_Gain0 = (-1)*stVoipToneCfg.C24_Gain0;
+	stVoipToneCfg.C24_Gain1 = (-1)*stVoipToneCfg.C24_Gain1;
+	stVoipToneCfg.C24_Gain2 = (-1)*stVoipToneCfg.C24_Gain2;
+	stVoipToneCfg.C24_Gain3 = (-1)*stVoipToneCfg.C24_Gain3;
+
+	stVoipToneCfg.C25_Gain0 = (-1)*stVoipToneCfg.C25_Gain0;
+	stVoipToneCfg.C25_Gain1 = (-1)*stVoipToneCfg.C25_Gain1;
+	stVoipToneCfg.C25_Gain2 = (-1)*stVoipToneCfg.C25_Gain2;
+	stVoipToneCfg.C25_Gain3 = (-1)*stVoipToneCfg.C25_Gain3;
+
+	stVoipToneCfg.C26_Gain0 = (-1)*stVoipToneCfg.C26_Gain0;
+	stVoipToneCfg.C26_Gain1 = (-1)*stVoipToneCfg.C26_Gain1;
+	stVoipToneCfg.C26_Gain2 = (-1)*stVoipToneCfg.C26_Gain2;
+	stVoipToneCfg.C26_Gain3 = (-1)*stVoipToneCfg.C26_Gain3;
+
+	stVoipToneCfg.C27_Gain0 = (-1)*stVoipToneCfg.C27_Gain0;
+	stVoipToneCfg.C27_Gain1 = (-1)*stVoipToneCfg.C27_Gain1;
+	stVoipToneCfg.C27_Gain2 = (-1)*stVoipToneCfg.C27_Gain2;
+	stVoipToneCfg.C27_Gain3 = (-1)*stVoipToneCfg.C27_Gain3;
+
+	stVoipToneCfg.C28_Gain0 = (-1)*stVoipToneCfg.C28_Gain0;
+	stVoipToneCfg.C28_Gain1 = (-1)*stVoipToneCfg.C28_Gain1;
+	stVoipToneCfg.C28_Gain2 = (-1)*stVoipToneCfg.C28_Gain2;
+	stVoipToneCfg.C28_Gain3 = (-1)*stVoipToneCfg.C28_Gain3;
+
+	stVoipToneCfg.C29_Gain0 = (-1)*stVoipToneCfg.C29_Gain0;
+	stVoipToneCfg.C29_Gain1 = (-1)*stVoipToneCfg.C29_Gain1;
+	stVoipToneCfg.C29_Gain2 = (-1)*stVoipToneCfg.C29_Gain2;
+	stVoipToneCfg.C29_Gain3 = (-1)*stVoipToneCfg.C29_Gain3;
+
+	stVoipToneCfg.C30_Gain0 = (-1)*stVoipToneCfg.C30_Gain0;
+	stVoipToneCfg.C30_Gain1 = (-1)*stVoipToneCfg.C30_Gain1;
+	stVoipToneCfg.C30_Gain2 = (-1)*stVoipToneCfg.C30_Gain2;
+	stVoipToneCfg.C30_Gain3 = (-1)*stVoipToneCfg.C30_Gain3;
+
+	stVoipToneCfg.C31_Gain0 = (-1)*stVoipToneCfg.C31_Gain0;
+	stVoipToneCfg.C31_Gain1 = (-1)*stVoipToneCfg.C31_Gain1;
+	stVoipToneCfg.C31_Gain2 = (-1)*stVoipToneCfg.C31_Gain2;
+	stVoipToneCfg.C31_Gain3 = (-1)*stVoipToneCfg.C31_Gain3;
+
+
+#endif /* 0 */
+	setTone( DSPCODEC_COUNTRY_USA, DSPCODEC_TONE_CUSTOM_TONE1+cust, ( aspToneCfgParam_t * )&stVoipToneCfg);
+#endif /* CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST */
 	return 0;
 }
 #else
@@ -4431,6 +4854,311 @@ int do_mgr_VOIP_MGR_USE_CUST_TONE( int cmd, void *user, unsigned int len, unsign
 #else
 
 	RtkAc49xApiSetCustomTone(&stVoipValue);
+#endif
+	return 0;
+}
+#endif
+
+/**
+ * @ingroup VOIP_DSP_TONE
+ * @brief Set update tone
+ * @param TstVoipValue.value which DSPCODEC_COUNTRY to update
+ * @param TstVoipValue.value1 which DSPCODEC_TONE to update
+ * @see VOIP_MGR_SET_TONE_OF_UPDATE TstVoipValue
+ */
+#if ! defined (AUDIOCODES_VOIP)
+int do_mgr_VOIP_MGR_SET_TONE_OF_UPDATE( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipValue stVoipValue;
+	int ret;
+
+	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward
+#else
+	update_country = stVoipValue.value;
+	update_tone = stVoipValue.value1;
+#endif
+	return 0;
+}
+#else
+int do_mgr_VOIP_MGR_SET_TONE_OF_UPDATE( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipValue stVoipValue;
+	int ret;
+
+	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward
+#else
+	#error "todo ac version"
+	//tone_idx = stVoipValue.value;
+#endif
+	return 0;
+}
+#endif
+
+/**
+ * @ingroup VOIP_DSP_TONE
+ * @brief Set update tone parameters
+ * @see VOIP_MGR_SET_UPDATE_TONE_PARAM TstVoipToneCfg
+ */
+#if ! defined (AUDIOCODES_VOIP)
+int do_mgr_VOIP_MGR_SET_UPDATE_TONE_PARAM( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipToneCfg stVoipToneCfg;
+	int ret;
+
+	COPY_FROM_USER(&stVoipToneCfg, (TstVoipToneCfg *)user, sizeof(TstVoipToneCfg));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward
+#else
+
+#if 0
+	/*
+	Because AudioCodes doesn't support play tone with fixd cycle, RTK could.
+	To be identical, when RTK get cycle=2,
+	change it to 0(continuous play tone with cadence)
+	*/
+	if (stVoipToneCfg.cycle == 0)	//Continuous
+	{
+		//set CadOn0 to non-zero value to ensure play continuous tone
+		stVoipToneCfg.CadOn0 = 100;
+		// set other CadOn/Off to zero to ensure not enter cadence tone
+		stVoipToneCfg.CadOff0 = 0;
+		stVoipToneCfg.CadOn1 = 0;
+		stVoipToneCfg.CadOff1 = 0;
+		stVoipToneCfg.CadOn2 = 0;
+		stVoipToneCfg.CadOff2 = 0;
+		stVoipToneCfg.CadOn3 = 0;
+		stVoipToneCfg.CadOff3 = 0;
+	}
+	else if (stVoipToneCfg.cycle == 2)	//Cadence
+		stVoipToneCfg.cycle = 0;	//Continuous
+
+	//web setting unit is (-dBm)
+	stVoipToneCfg.Gain1 = (-1)*stVoipToneCfg.Gain1;
+
+	// if tone type is succeed, use the Gain1 value as the gain of other frequency.
+	if (stVoipToneCfg.toneType == 2)//SUCC
+	{
+		stVoipToneCfg.Gain2 = stVoipToneCfg.Gain1;
+		stVoipToneCfg.Gain3 = stVoipToneCfg.Gain1;
+		stVoipToneCfg.Gain4 = stVoipToneCfg.Gain1;
+	}
+	else
+	{
+		stVoipToneCfg.Gain2 = (-1)*stVoipToneCfg.Gain2;
+		stVoipToneCfg.Gain3 = (-1)*stVoipToneCfg.Gain3;
+		stVoipToneCfg.Gain4 = (-1)*stVoipToneCfg.Gain4;
+	}
+#else /* !0 */
+	if (stVoipToneCfg.toneType > 3)
+		stVoipToneCfg.toneType+=2;
+	/*
+	 * from voip_flash.h to dspparam.h
+	 * convert TONE_TYPE_FOUR_FREQ(4) to FOUR_FREQ(6)
+	 * convert TONE_TYPE_STEP_INC(5) to STEP_INC(7)
+	 * convert TONE_TYPE_TWO_STEP(6) to TWO_STEP(8)
+	 */
+
+	//web setting unit is (-dBm)
+	stVoipToneCfg.Gain0 = (-1)*stVoipToneCfg.Gain0;
+	stVoipToneCfg.Gain1 = (-1)*stVoipToneCfg.Gain1;
+	stVoipToneCfg.Gain2 = (-1)*stVoipToneCfg.Gain2;
+	stVoipToneCfg.Gain3 = (-1)*stVoipToneCfg.Gain3;
+
+	//gain C1_Gain0 ~ C31_Gain3 is used in FOUR_FREQ_TONE_MODE
+	//gain C1_Gain0 ~ C1_Gain3 is used in STEP_INC_TONE_MODE and TWO_STEP_TONE_MODE
+	stVoipToneCfg.C1_Gain0 = (-1)*stVoipToneCfg.C1_Gain0;
+	stVoipToneCfg.C1_Gain1 = (-1)*stVoipToneCfg.C1_Gain1;
+	stVoipToneCfg.C1_Gain2 = (-1)*stVoipToneCfg.C1_Gain2;
+	stVoipToneCfg.C1_Gain3 = (-1)*stVoipToneCfg.C1_Gain3;
+
+	stVoipToneCfg.C2_Gain0 = (-1)*stVoipToneCfg.C2_Gain0;
+	stVoipToneCfg.C2_Gain1 = (-1)*stVoipToneCfg.C2_Gain1;
+	stVoipToneCfg.C2_Gain2 = (-1)*stVoipToneCfg.C2_Gain2;
+	stVoipToneCfg.C2_Gain3 = (-1)*stVoipToneCfg.C2_Gain3;
+
+	stVoipToneCfg.C3_Gain0 = (-1)*stVoipToneCfg.C3_Gain0;
+	stVoipToneCfg.C3_Gain1 = (-1)*stVoipToneCfg.C3_Gain1;
+	stVoipToneCfg.C3_Gain2 = (-1)*stVoipToneCfg.C3_Gain2;
+	stVoipToneCfg.C3_Gain3 = (-1)*stVoipToneCfg.C3_Gain3;
+
+	stVoipToneCfg.C4_Gain0 = (-1)*stVoipToneCfg.C4_Gain0;
+	stVoipToneCfg.C4_Gain1 = (-1)*stVoipToneCfg.C4_Gain1;
+	stVoipToneCfg.C4_Gain2 = (-1)*stVoipToneCfg.C4_Gain2;
+	stVoipToneCfg.C4_Gain3 = (-1)*stVoipToneCfg.C4_Gain3;
+
+	stVoipToneCfg.C5_Gain0 = (-1)*stVoipToneCfg.C5_Gain0;
+	stVoipToneCfg.C5_Gain1 = (-1)*stVoipToneCfg.C5_Gain1;
+	stVoipToneCfg.C5_Gain2 = (-1)*stVoipToneCfg.C5_Gain2;
+	stVoipToneCfg.C5_Gain3 = (-1)*stVoipToneCfg.C5_Gain3;
+
+	stVoipToneCfg.C6_Gain0 = (-1)*stVoipToneCfg.C6_Gain0;
+	stVoipToneCfg.C6_Gain1 = (-1)*stVoipToneCfg.C6_Gain1;
+	stVoipToneCfg.C6_Gain2 = (-1)*stVoipToneCfg.C6_Gain2;
+	stVoipToneCfg.C6_Gain3 = (-1)*stVoipToneCfg.C6_Gain3;
+
+	stVoipToneCfg.C7_Gain0 = (-1)*stVoipToneCfg.C7_Gain0;
+	stVoipToneCfg.C7_Gain1 = (-1)*stVoipToneCfg.C7_Gain1;
+	stVoipToneCfg.C7_Gain2 = (-1)*stVoipToneCfg.C7_Gain2;
+	stVoipToneCfg.C7_Gain3 = (-1)*stVoipToneCfg.C7_Gain3;
+
+	stVoipToneCfg.C8_Gain0 = (-1)*stVoipToneCfg.C8_Gain0;
+	stVoipToneCfg.C8_Gain1 = (-1)*stVoipToneCfg.C8_Gain1;
+	stVoipToneCfg.C8_Gain2 = (-1)*stVoipToneCfg.C8_Gain2;
+	stVoipToneCfg.C8_Gain3 = (-1)*stVoipToneCfg.C8_Gain3;
+
+	stVoipToneCfg.C9_Gain0 = (-1)*stVoipToneCfg.C9_Gain0;
+	stVoipToneCfg.C9_Gain1 = (-1)*stVoipToneCfg.C9_Gain1;
+	stVoipToneCfg.C9_Gain2 = (-1)*stVoipToneCfg.C9_Gain2;
+	stVoipToneCfg.C9_Gain3 = (-1)*stVoipToneCfg.C9_Gain3;
+
+	stVoipToneCfg.C10_Gain0 = (-1)*stVoipToneCfg.C10_Gain0;
+	stVoipToneCfg.C10_Gain1 = (-1)*stVoipToneCfg.C10_Gain1;
+	stVoipToneCfg.C10_Gain2 = (-1)*stVoipToneCfg.C10_Gain2;
+	stVoipToneCfg.C10_Gain3 = (-1)*stVoipToneCfg.C10_Gain3;
+
+	stVoipToneCfg.C11_Gain0 = (-1)*stVoipToneCfg.C11_Gain0;
+	stVoipToneCfg.C11_Gain1 = (-1)*stVoipToneCfg.C11_Gain1;
+	stVoipToneCfg.C11_Gain2 = (-1)*stVoipToneCfg.C11_Gain2;
+	stVoipToneCfg.C11_Gain3 = (-1)*stVoipToneCfg.C11_Gain3;
+
+	stVoipToneCfg.C12_Gain0 = (-1)*stVoipToneCfg.C12_Gain0;
+	stVoipToneCfg.C12_Gain1 = (-1)*stVoipToneCfg.C12_Gain1;
+	stVoipToneCfg.C12_Gain2 = (-1)*stVoipToneCfg.C12_Gain2;
+	stVoipToneCfg.C12_Gain3 = (-1)*stVoipToneCfg.C12_Gain3;
+
+	stVoipToneCfg.C13_Gain0 = (-1)*stVoipToneCfg.C13_Gain0;
+	stVoipToneCfg.C13_Gain1 = (-1)*stVoipToneCfg.C13_Gain1;
+	stVoipToneCfg.C13_Gain2 = (-1)*stVoipToneCfg.C13_Gain2;
+	stVoipToneCfg.C13_Gain3 = (-1)*stVoipToneCfg.C13_Gain3;
+
+	stVoipToneCfg.C14_Gain0 = (-1)*stVoipToneCfg.C14_Gain0;
+	stVoipToneCfg.C14_Gain1 = (-1)*stVoipToneCfg.C14_Gain1;
+	stVoipToneCfg.C14_Gain2 = (-1)*stVoipToneCfg.C14_Gain2;
+	stVoipToneCfg.C14_Gain3 = (-1)*stVoipToneCfg.C14_Gain3;
+
+	stVoipToneCfg.C15_Gain0 = (-1)*stVoipToneCfg.C15_Gain0;
+	stVoipToneCfg.C15_Gain1 = (-1)*stVoipToneCfg.C15_Gain1;
+	stVoipToneCfg.C15_Gain2 = (-1)*stVoipToneCfg.C15_Gain2;
+	stVoipToneCfg.C15_Gain3 = (-1)*stVoipToneCfg.C15_Gain3;
+
+	stVoipToneCfg.C16_Gain0 = (-1)*stVoipToneCfg.C16_Gain0;
+	stVoipToneCfg.C16_Gain1 = (-1)*stVoipToneCfg.C16_Gain1;
+	stVoipToneCfg.C16_Gain2 = (-1)*stVoipToneCfg.C16_Gain2;
+	stVoipToneCfg.C16_Gain3 = (-1)*stVoipToneCfg.C16_Gain3;
+
+	stVoipToneCfg.C17_Gain0 = (-1)*stVoipToneCfg.C17_Gain0;
+	stVoipToneCfg.C17_Gain1 = (-1)*stVoipToneCfg.C17_Gain1;
+	stVoipToneCfg.C17_Gain2 = (-1)*stVoipToneCfg.C17_Gain2;
+	stVoipToneCfg.C17_Gain3 = (-1)*stVoipToneCfg.C17_Gain3;
+
+	stVoipToneCfg.C18_Gain0 = (-1)*stVoipToneCfg.C18_Gain0;
+	stVoipToneCfg.C18_Gain1 = (-1)*stVoipToneCfg.C18_Gain1;
+	stVoipToneCfg.C18_Gain2 = (-1)*stVoipToneCfg.C18_Gain2;
+	stVoipToneCfg.C18_Gain3 = (-1)*stVoipToneCfg.C18_Gain3;
+
+	stVoipToneCfg.C19_Gain0 = (-1)*stVoipToneCfg.C19_Gain0;
+	stVoipToneCfg.C19_Gain1 = (-1)*stVoipToneCfg.C19_Gain1;
+	stVoipToneCfg.C19_Gain2 = (-1)*stVoipToneCfg.C19_Gain2;
+	stVoipToneCfg.C19_Gain3 = (-1)*stVoipToneCfg.C19_Gain3;
+
+	stVoipToneCfg.C20_Gain0 = (-1)*stVoipToneCfg.C20_Gain0;
+	stVoipToneCfg.C20_Gain1 = (-1)*stVoipToneCfg.C20_Gain1;
+	stVoipToneCfg.C20_Gain2 = (-1)*stVoipToneCfg.C20_Gain2;
+	stVoipToneCfg.C20_Gain3 = (-1)*stVoipToneCfg.C20_Gain3;
+
+	stVoipToneCfg.C21_Gain0 = (-1)*stVoipToneCfg.C21_Gain0;
+	stVoipToneCfg.C21_Gain1 = (-1)*stVoipToneCfg.C21_Gain1;
+	stVoipToneCfg.C21_Gain2 = (-1)*stVoipToneCfg.C21_Gain2;
+	stVoipToneCfg.C21_Gain3 = (-1)*stVoipToneCfg.C21_Gain3;
+
+	stVoipToneCfg.C22_Gain0 = (-1)*stVoipToneCfg.C22_Gain0;
+	stVoipToneCfg.C22_Gain1 = (-1)*stVoipToneCfg.C22_Gain1;
+	stVoipToneCfg.C22_Gain2 = (-1)*stVoipToneCfg.C22_Gain2;
+	stVoipToneCfg.C22_Gain3 = (-1)*stVoipToneCfg.C22_Gain3;
+
+	stVoipToneCfg.C23_Gain0 = (-1)*stVoipToneCfg.C23_Gain0;
+	stVoipToneCfg.C23_Gain1 = (-1)*stVoipToneCfg.C23_Gain1;
+	stVoipToneCfg.C23_Gain2 = (-1)*stVoipToneCfg.C23_Gain2;
+	stVoipToneCfg.C23_Gain3 = (-1)*stVoipToneCfg.C23_Gain3;
+
+	stVoipToneCfg.C24_Gain0 = (-1)*stVoipToneCfg.C24_Gain0;
+	stVoipToneCfg.C24_Gain1 = (-1)*stVoipToneCfg.C24_Gain1;
+	stVoipToneCfg.C24_Gain2 = (-1)*stVoipToneCfg.C24_Gain2;
+	stVoipToneCfg.C24_Gain3 = (-1)*stVoipToneCfg.C24_Gain3;
+
+	stVoipToneCfg.C25_Gain0 = (-1)*stVoipToneCfg.C25_Gain0;
+	stVoipToneCfg.C25_Gain1 = (-1)*stVoipToneCfg.C25_Gain1;
+	stVoipToneCfg.C25_Gain2 = (-1)*stVoipToneCfg.C25_Gain2;
+	stVoipToneCfg.C25_Gain3 = (-1)*stVoipToneCfg.C25_Gain3;
+
+	stVoipToneCfg.C26_Gain0 = (-1)*stVoipToneCfg.C26_Gain0;
+	stVoipToneCfg.C26_Gain1 = (-1)*stVoipToneCfg.C26_Gain1;
+	stVoipToneCfg.C26_Gain2 = (-1)*stVoipToneCfg.C26_Gain2;
+	stVoipToneCfg.C26_Gain3 = (-1)*stVoipToneCfg.C26_Gain3;
+
+	stVoipToneCfg.C27_Gain0 = (-1)*stVoipToneCfg.C27_Gain0;
+	stVoipToneCfg.C27_Gain1 = (-1)*stVoipToneCfg.C27_Gain1;
+	stVoipToneCfg.C27_Gain2 = (-1)*stVoipToneCfg.C27_Gain2;
+	stVoipToneCfg.C27_Gain3 = (-1)*stVoipToneCfg.C27_Gain3;
+
+	stVoipToneCfg.C28_Gain0 = (-1)*stVoipToneCfg.C28_Gain0;
+	stVoipToneCfg.C28_Gain1 = (-1)*stVoipToneCfg.C28_Gain1;
+	stVoipToneCfg.C28_Gain2 = (-1)*stVoipToneCfg.C28_Gain2;
+	stVoipToneCfg.C28_Gain3 = (-1)*stVoipToneCfg.C28_Gain3;
+
+	stVoipToneCfg.C29_Gain0 = (-1)*stVoipToneCfg.C29_Gain0;
+	stVoipToneCfg.C29_Gain1 = (-1)*stVoipToneCfg.C29_Gain1;
+	stVoipToneCfg.C29_Gain2 = (-1)*stVoipToneCfg.C29_Gain2;
+	stVoipToneCfg.C29_Gain3 = (-1)*stVoipToneCfg.C29_Gain3;
+
+	stVoipToneCfg.C30_Gain0 = (-1)*stVoipToneCfg.C30_Gain0;
+	stVoipToneCfg.C30_Gain1 = (-1)*stVoipToneCfg.C30_Gain1;
+	stVoipToneCfg.C30_Gain2 = (-1)*stVoipToneCfg.C30_Gain2;
+	stVoipToneCfg.C30_Gain3 = (-1)*stVoipToneCfg.C30_Gain3;
+
+	stVoipToneCfg.C31_Gain0 = (-1)*stVoipToneCfg.C31_Gain0;
+	stVoipToneCfg.C31_Gain1 = (-1)*stVoipToneCfg.C31_Gain1;
+	stVoipToneCfg.C31_Gain2 = (-1)*stVoipToneCfg.C31_Gain2;
+	stVoipToneCfg.C31_Gain3 = (-1)*stVoipToneCfg.C31_Gain3;
+
+
+#endif /* 0 */
+	setTone( update_country, update_tone, ( aspToneCfgParam_t * )&stVoipToneCfg);
+#endif /* CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST */
+	return 0;
+}
+#else
+int do_mgr_VOIP_MGR_SET_UPDATE_TONE_PARAM( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipToneCfg stVoipToneCfg;
+	int ret;
+
+	COPY_FROM_USER(&stVoipToneCfg, (TstVoipToneCfg *)user, sizeof(TstVoipToneCfg));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward
+#else
+	#error "todo ac version"
+	//SaveCustomTone(&stVoipToneCfg);
 #endif
 	return 0;
 }
@@ -5032,10 +5760,13 @@ int do_mgr_VOIP_MGR_GEN_PULSE_DIAL( int cmd, void *user, unsigned int len, unsig
 
 /**
  * @ingroup VOIP_DSP_IVR
- * @brief Play textual, G.711, G.729 and G.723 IVR
+ * @brief Play textual, G.711, G.729, G.722 and G.723 IVR
  * @note This function can play four kinds of IVR, and echo of them
  *       use its structure.
- * @see VOIP_MGR_PLAY_IVR TstVoipPlayIVR_Header TstVoipPlayIVR_G711 TstVoipPlayIVR_G729 TstVoipPlayIVR_G72363 TstVoipPlayIVR_Text
+ * @see VOIP_MGR_PLAY_IVR TstVoipPlayIVR_Header 
+ *      TstVoipPlayIVR_G711 TstVoipPlayIVR_G722
+ *      TstVoipPlayIVR_G729 TstVoipPlayIVR_G72363
+ *      TstVoipPlayIVR_Text
  */
 #if ! defined (AUDIOCODES_VOIP)
 int do_mgr_VOIP_MGR_PLAY_IVR( int cmd, void *user, unsigned int len, unsigned short seq_no )
@@ -5048,9 +5779,8 @@ int do_mgr_VOIP_MGR_PLAY_IVR( int cmd, void *user, unsigned int len, unsigned sh
 	COPY_FROM_USER(&stVoipPlayIVR_Header, (TstVoipPlayIVR_Header *)user, sizeof(TstVoipPlayIVR_Header));
 	PlayIvrDispatcher( &stVoipPlayIVR_Header, user );
 #endif
-	COPY_TO_USER(user, &stVoipPlayIVR_Header, sizeof(TstVoipPlayIVR_Header), cmd, seq_no);
-
-	return 0;
+	return COPY_TO_USER(user, &stVoipPlayIVR_Header, sizeof(TstVoipPlayIVR_Header), cmd, seq_no);
+	//return 0;
 }
 #else
 int do_mgr_VOIP_MGR_PLAY_IVR( int cmd, void *user, unsigned int len, unsigned short seq_no )
@@ -5070,12 +5800,14 @@ int do_mgr_VOIP_MGR_PLAY_IVR( int cmd, void *user, unsigned int len, unsigned sh
 			TstVoipPlayIVR_G72363	stVoipPlayIVR_G72363;
 			TstVoipPlayIVR_G729	stVoipPlayIVR_G729;
 			TstVoipPlayIVR_G711	stVoipPlayIVR_G711;
+			TstVoipPlayIVR_G722	stVoipPlayIVR_G722;			
 		} save;
 
 		TstVoipPlayIVR_Header * const pHeader = &stVoipPlayIVR_Header;
 		TstVoipPlayIVR_G72363 * const pHeaderG723 = ( TstVoipPlayIVR_G72363 * )&stVoipPlayIVR_Header;
 		TstVoipPlayIVR_G729 * const pHeaderG729 = ( TstVoipPlayIVR_G729 * )&stVoipPlayIVR_Header;
 		TstVoipPlayIVR_G711 * const pHeaderG711 = ( TstVoipPlayIVR_G711 * )&stVoipPlayIVR_Header;
+		TstVoipPlayIVR_G722 * const pHeaderG722 = ( TstVoipPlayIVR_G722 * )&stVoipPlayIVR_Header;
 		COPY_FROM_USER(pHeader, (TstVoipPlayIVR_Header *)user, sizeof(TstVoipPlayIVR_Header));
 
 		switch( pHeader ->type )
@@ -5144,6 +5876,25 @@ int do_mgr_VOIP_MGR_PLAY_IVR( int cmd, void *user, unsigned int len, unsigned sh
 				break;
 			}
 
+			case IVR_PLAY_TYPE_G722:
+			{
+				COPY_FROM_USER(&save.stVoipPlayIVR_G722, (TstVoipPlayIVR_G722 *)user, sizeof(TstVoipPlayIVR_G722));
+				unsigned int ch = save.stVoipPlayIVR_G722.ch_id;
+				extern int play_g722_flag[];
+
+				pHeaderG722->nRetCopiedFrames = IvrPlayBufWrite(ch, (char*)save.stVoipPlayIVR_G722.data, save.stVoipPlayIVR_G722.nFramesCount, G722_FRAME_SIZE);
+				//PRINT_R("[%d]\n", pHeaderG722->nRetCopiedFrames);// The length which write to play buf
+
+				if (play_g722_flag[ch] == 0)
+				{
+					play_g722_flag[ch] = 1;
+					RtkAc49xApiPlayIvrTdmStart(ch, CODER__G722);
+					PRINT_MSG("Play G722 File Start!\n");
+				}
+
+				break;
+			}
+
 			default:
 				break;
 		}
@@ -5171,7 +5922,7 @@ int do_mgr_VOIP_MGR_POLL_IVR( int cmd, void *user, unsigned int len, unsigned sh
 
 	COPY_FROM_USER(&stVoipPollIVR, (TstVoipPollIVR *)user, sizeof(TstVoipPollIVR));
 	stVoipPollIVR.bPlaying =
-			PollIvrPlaying( stVoipPollIVR.ch_id );
+			PollIvrPlaying( API_GetSid(stVoipPollIVR.ch_id, stVoipPollIVR.m_id) );
 #endif
 	return COPY_TO_USER(user, &stVoipPollIVR, sizeof(TstVoipPollIVR), cmd, seq_no);
 
@@ -5247,4 +5998,50 @@ int do_mgr_VOIP_MGR_STOP_IVR( int cmd, void *user, unsigned int len, unsigned sh
 }
 #endif
 
+/**
+ * @ingroup VOIP_DSP_GENERAL
+ * @brief Set RTP PT Checker
+ * @param TstVoipValue.enable Enable RTP PT checker <br> 
+ * @param TstVoipValue.cfg When RTP checker found PT is mis-matched, DSP docoder auto sync. <br> 
+ * @param TstVoipValue.cfg2 When RTP checker found PT is mis-matched, report to user space <br> 
+ * @param TstVoipValue.cfg3 The mis-match PT packet count threshold for RTP checker <br> 
+ * @see VOIP_MGR_SET_RTP_PT_CHECKER TstVoipCfg 
+ */
+#if ! defined (AUDIOCODES_VOIP)
+int do_mgr_VOIP_MGR_SET_RTP_PT_CHECKER( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipCfg stVoipCfg;
+	int ret;
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	extern void RtpPtChecker_Set(uint32 sid, uint32 enable, uint32 sync, uint32 report, uint32 pktCntThres);
+#endif
+
+	COPY_FROM_USER(&stVoipCfg, (TstVoipCfg *)user, sizeof(TstVoipCfg));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward 
+#else
+	RtpPtChecker_Set(stVoipCfg.ch_id, stVoipCfg.enable, stVoipCfg.cfg, stVoipCfg.cfg2, stVoipCfg.cfg3);
+#endif
+	//copy_to_user(user, &stVoipValue, sizeof(TstVoipValue));
+	return 0;
+}
+#else
+int do_mgr_VOIP_MGR_SET_RTP_PT_CHECKER( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipCfg stVoipCfg;
+	int ret;
+
+	COPY_FROM_USER(&stVoipCfg, (TstVoipCfg *)user, sizeof(TstVoipCfg));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+	//copy_to_user(user, &stVoipValue, sizeof(TstVoipValue));
+	return 0;
+}
+#endif
 

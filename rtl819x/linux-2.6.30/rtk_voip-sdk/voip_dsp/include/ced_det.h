@@ -23,7 +23,14 @@ typedef struct
 	unsigned v21flag_det_local_on:1;
 	unsigned v21dis_det_local_on:1;
 	unsigned v21dcn_det_local_on:1;
-
+	unsigned v21ecm_ppsmps_det_local_on:1;
+	unsigned v21ecm_ppseop_det_local_on:1;
+	unsigned v21ecm_rnr_det_local_on:1;
+	unsigned v21channel_2_det_local_on:1;
+	unsigned v21channel_1_det_local_on:1;
+	unsigned v23_det_local_on:1;
+	unsigned bell202ans_det_local_on:1;
+	unsigned bell202cp_det_local_on:1;
 
 	unsigned cng_det_remote_on:1;
 	unsigned ans_det_remote_on:1;
@@ -36,6 +43,14 @@ typedef struct
 	unsigned v21flag_det_remote_on:1;
 	unsigned v21dis_det_remote_on:1;
 	unsigned v21dcn_det_remote_on:1;
+	unsigned v21ecm_ppsmps_det_remote_on:1;
+	unsigned v21ecm_ppseop_det_remote_on:1;
+	unsigned v21ecm_rnr_det_remote_on:1;
+	unsigned v21channel_2_det_remote_on:1;
+	unsigned v21channel_1_det_remote_on:1;
+	unsigned v23_det_remote_on:1;
+	unsigned bell202ans_det_remote_on:1;
+	unsigned bell202cp_det_remote_on:1;
 
 	//TstVoIPAnsDetStat stVoIPAnsDetStat[2];
 }TstVoipAnsDetCtrl;//answer tone detection control
@@ -70,7 +85,31 @@ extern TstVoipAnsDetCtrl stVoipAnsDetCtrl[];
 #define ANSWER_TONE_LOCAL_V21DCN 0x100000
 #define ANSWER_TONE_REMOTE_V21DCN 0x200000
 
-int set_answer_tone_det(unsigned int chid, unsigned int config);
+#define ANSWER_TONE_LOCAL_V21CHANNEL_2 0x400000
+#define ANSWER_TONE_REMOTE_V21CHANNEL_2 0x800000
+
+#define ANSWER_TONE_LOCAL_V21CHANNEL_1 0x1000000
+#define ANSWER_TONE_REMOTE_V21CHANNEL_1 0x2000000
+
+#define ANSWER_TONE_LOCAL_V23 0x4000000
+#define ANSWER_TONE_REMOTE_V23 0x8000000
+
+#define ANSWER_TONE_LOCAL_BELL202ANS 0x10000000
+#define ANSWER_TONE_REMOTE_BELL202ANS 0x20000000
+
+#define ANSWER_TONE_LOCAL_BELL202CP 0x40000000
+#define ANSWER_TONE_REMOTE_BELL202CP 0x80000000
+//====================================================
+// config 2 for ECM and others
+//====================================================
+#define ANSWER_TONE_LOCAL_ECM_PPSMPS 	0x1
+#define ANSWER_TONE_REMOTE_ECM_PPSMPS 	0x2
+#define ANSWER_TONE_LOCAL_ECM_PPSEOP 	0x4
+#define ANSWER_TONE_REMOTE_ECM_PPSEOP 	0x8
+#define ANSWER_TONE_LOCAL_ECM_RNR 	0x10
+#define ANSWER_TONE_REMOTE_ECM_RNR 	0x20
+
+int set_answer_tone_det(unsigned int chid, unsigned int config1, unsigned int config2);
 void answer_tone_det(unsigned int chid, unsigned short* page_addr, int dir);
 int reinit_answer_tone_det(unsigned int chid);
 

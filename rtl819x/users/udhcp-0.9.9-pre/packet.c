@@ -28,6 +28,7 @@ void init_header(struct dhcpMessage *packet, char type)
 	case DHCPREQUEST:
 	case DHCPRELEASE:
 	case DHCPINFORM:
+	case DHCPDECLINE:
 		packet->op = BOOTREQUEST;
 		break;
 	case DHCPOFFER:

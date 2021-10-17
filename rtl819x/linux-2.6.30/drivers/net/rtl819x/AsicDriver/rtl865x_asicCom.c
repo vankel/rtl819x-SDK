@@ -89,6 +89,7 @@ static int rtl8651_getAsicVlanIndex(rtl865xc_tblAsic_vlanTable_t *entry, uint16 
 	return ret;
 }
 #endif
+
 /*=========================================
   * ASIC DRIVER API: VLAN TABLE
   *=========================================*/
@@ -2013,7 +2014,7 @@ void FullAndSemiReset( void )
 	REG32(SYS_CLK_MAG) |= CM_ACTIVE_SWCORE;
 	REG32(SYS_CLK_MAG) &= ~CM_PROTECT;
 	mdelay(50);
-
+	
 #elif defined(CONFIG_RTL8198_REVISION_B) 
  	if (REG32(BSP_REVR) >= BSP_RTL8198_REVISION_B)
 	{

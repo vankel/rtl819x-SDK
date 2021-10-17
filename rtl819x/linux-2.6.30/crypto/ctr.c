@@ -148,15 +148,81 @@ static int crypto_ctr_crypt(struct blkcipher_desc *desc,
 #ifdef CONFIG_CRYPTO_DEV_REALTEK
 		if (ctx->rtl_ctx.mode >= 0)
 		{
-			int i;
-
-			nbytes = rtl_cipher_crypt(child, 1,
-				&ctx->rtl_ctx, walk.src.virt.addr, walk.nbytes,
-				walk.iv, walk.dst.virt.addr);
-
-			/* increment counter in counterblock */
+			int i, over_flag = 0;
+			unsigned int one = 0, len = 0;			
+			u8 over_iv[32] = {0};
+			u8 *src = walk.src.virt.addr;
+			u8 *dst = walk.dst.virt.addr;
+			/* hw CTRBLK overflow handle different with linux kernel
+			 *  hw engine: CTRBLK := NONCE || IV || ONE,  NONCE 4 bytes, IV 8bytes, ONE 4bytes 
+			 *  hw engine only the ONE(4bytes) is treated as counter bytes
+			 *  linux kernel uses the second method, which means the entire byte block is treated as counter bytes
+			 */
+			over_flag = 0;
+			one = *((unsigned int *)(walk.iv + bsize - 4));
 			for (i = 0; i < (walk.nbytes / bsize); i++)
-				crypto_inc(walk.iv, bsize);
+			{					
+				if (one == 0xffffffff)
+				{
+					//printk("%s %d i=%d one=%u\n", __FUNCTION__, __LINE__, i, one);
+					over_flag = 1;
+					break;
+				}
+				one++;
+			}
+			if (over_flag)
+			{
+				//before ONE overflow 
+				len = bsize*(i+1);
+				nbytes = rtl_cipher_crypt(child, 1,
+				&ctx->rtl_ctx, walk.src.virt.addr, len,
+				walk.iv, walk.dst.virt.addr);
+				//printk("%s %d len=%u nbytes=%u \n", __FUNCTION__, __LINE__, len, nbytes);
+				src += (len - nbytes);
+				dst += (len - nbytes);
+								
+				//after ONE overflow,update IV
+				memcpy(over_iv, walk.iv, bsize - 4);
+				crypto_inc(over_iv, bsize-4);
+				memcpy(walk.iv, over_iv, bsize);
+				
+				nbytes = rtl_cipher_crypt(child, 1,
+				&ctx->rtl_ctx, src, walk.nbytes -len,
+				walk.iv, dst);
+				
+				/* increment counter in counterblock */
+				for (i = 0; i < ((walk.nbytes -len) / bsize); i++)
+					crypto_inc(walk.iv, bsize);
+				
+				if (walk.src.virt.addr == walk.dst.virt.addr)
+				{
+					src += ((walk.nbytes -len) - nbytes);
+				}
+				else
+				{
+					src += ((walk.nbytes -len) - nbytes);
+					dst += ((walk.nbytes -len) - nbytes);
+				}
+				
+			}
+			else
+			{
+				nbytes = rtl_cipher_crypt(child, 1,
+					&ctx->rtl_ctx, walk.src.virt.addr, walk.nbytes,
+					walk.iv, walk.dst.virt.addr);		
+				if (walk.src.virt.addr == walk.dst.virt.addr)
+				{
+					walk.src.virt.addr += (walk.nbytes - nbytes);
+				}
+				else
+				{
+					walk.dst.virt.addr += (walk.nbytes - nbytes);
+					walk.dst.virt.addr += (walk.nbytes - nbytes);
+				}
+				/* increment counter in counterblock */
+				for (i = 0; i < (walk.nbytes / bsize); i++)
+					crypto_inc(walk.iv, bsize);
+			}
 
 			err = blkcipher_walk_done(desc, &walk, nbytes);
 			continue;

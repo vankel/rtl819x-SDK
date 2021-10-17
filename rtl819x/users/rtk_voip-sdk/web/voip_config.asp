@@ -55,6 +55,7 @@ function InitConfig()
 <body bgcolor="#ffffff" text="#000000" onload="InitConfig()" >
 
 <p>
+<p style="display:none">
 <b>VoIP Save/Reload Setting</b>
 <table cellSpacing=1 cellPadding=2 border=0 width=375>
 <form method="post" action=/goform/voip_config_set name="setting_save_form">

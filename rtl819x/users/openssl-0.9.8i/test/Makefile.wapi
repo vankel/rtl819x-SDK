@@ -55,7 +55,7 @@ ECDSATEST=	ecdsatest
 #DSATEST=	dsatest
 #METHTEST=	methtest
 #SSLTEST=	ssltest
-#RSATEST=	rsa_test
+RSATEST=	rsa_test
 #ENGINETEST=	enginetest
 #EVPTEST=	evp_test
 

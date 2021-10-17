@@ -905,7 +905,7 @@ int tls_funcs_load_user_cert(struct generic_eap_data *thisint,
 {
   struct tls_vars *mytls_vars;
 
-  if ((!thisint) || (!client_cert) || (!key_file))
+  if ((!thisint) || (!client_cert) || (!key_file) || (!password))
     {
       debug_printf(DEBUG_NORMAL, "Invalid state in tls_funcs_load_user_cert()!\n");
       return XENOUSERDATA;
@@ -918,7 +918,10 @@ int tls_funcs_load_user_cert(struct generic_eap_data *thisint,
     }
 
   mytls_vars = (struct tls_vars *)thisint->eap_data;
-  	
+  if(mytls_vars->ctx == NULL){
+  	debug_printf(DEBUG_NORMAL, "Invalid state in tls_funcs_load_user_cert()!\n");
+    return XENOUSERDATA;
+  }	
   SSL_CTX_set_default_passwd_cb_userdata(mytls_vars->ctx, password);
   SSL_CTX_set_default_passwd_cb(mytls_vars->ctx, return_password);
 
@@ -930,6 +933,7 @@ int tls_funcs_load_user_cert(struct generic_eap_data *thisint,
       debug_printf(DEBUG_NORMAL, "Couldn't load client certificate data!\n");
       if(mytls_vars->ctx)
 	{
+	if(mytls_vars->ctx->references>0)
 	  SSL_CTX_free(mytls_vars->ctx);
 	  mytls_vars->ctx = NULL;
 	}
@@ -945,6 +949,7 @@ int tls_funcs_load_user_cert(struct generic_eap_data *thisint,
     {
       if(mytls_vars->ctx)
 	{
+	  if(mytls_vars->ctx->references>0)
 	  SSL_CTX_free(mytls_vars->ctx);
 	  mytls_vars->ctx = NULL;
 	}
@@ -1047,7 +1052,11 @@ int tls_funcs_cleanup(struct generic_eap_data *thisint)
       mytls_vars->ssl = NULL;
   }
   if(mytls_vars->ssl_in) {
-      BIO_free(mytls_vars->ssl_in);
+
+	if(mytls_vars->ssl_in->references>0)
+      		BIO_free(mytls_vars->ssl_in);
+	//else
+	//	printf("%s:%d ssl_in->references=%d\n",__FUNCTION__,__LINE__,mytls_vars->ssl_in->references);
       mytls_vars->ssl_in = NULL;
   }
 

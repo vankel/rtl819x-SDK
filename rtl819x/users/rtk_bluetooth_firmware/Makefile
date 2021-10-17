@@ -1,0 +1,65 @@
+# copy firmware
+ifeq ($(wildcard $(DIR_USERS)/.config),)
+include ../.config
+else
+include $(DIR_USERS)/.config
+endif
+
+RTL8723A_FW=rtl8723a_fw
+RTL8723B_FW=rtl8723b_fw
+RTL8761A_FW=rtl8761a_fw
+RTL8821A_FW=rtl8821a_fw
+RTL8723A_CFG=rtl8723a_config
+RTL8723B_CFG=rtl8723b_config
+RTL8761A_CFG=rtl8761a_config
+RTL8821A_CFG=rtl8821a__config
+RTK_SERAIL_FW=rtlbt_fw
+RTK_SERAIL_CFG=rtlbt_config
+
+RTL_SERAIL_FW_PATH=/lib/firmware/rtlbt
+RTL_USB_FW_PATH=/lib/firmware
+RTL_SERAIL_FW_LOCAL_PATH=./serial
+RTL_USB_FW_LOCAL_PATH=./usb
+
+all:
+	@echo "done"
+
+romfs:
+	[ -e $(DIR_ROMFS)/lib/firmware ] || mkdir -p $(DIR_ROMFS)/lib/firmware
+	if [ y$(CONFIG_SERIAL_BLUETOOTH) = yy ]; then \
+		[ -e $(DIR_ROMFS)/lib/firmware/rtlbt ] || mkdir -p $(DIR_ROMFS)/lib/firmware/rtlbt; \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8723A_S) = yy ]; then \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8723a/$(RTL8723A_FW) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_FW); \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8723a/$(RTL8723A_CFG) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_CFG); \
+		fi; \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8723B_S) = yy ]; then \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8723b/$(RTL8723B_FW) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_FW); \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8723b/$(RTL8723B_CFG) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_CFG); \
+		fi; \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8761A_S) = yy ]; then \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8761a/$(RTL8761A_FW) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_FW); \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8761a/$(RTL8761A_CFG) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_CFG); \
+		fi; \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8821A_S) = yy ]; then \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8821a/$(RTL8821A_FW) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_FW); \
+			$(ROMFSINST) $(RTL_SERAIL_FW_LOCAL_PATH)/rtl8821a/$(RTL8821A_CFG) $(RTL_SERAIL_FW_PATH)/$(RTK_SERAIL_CFG); \
+		fi; \
+	fi;
+	if [ y$(CONFIG_USB_BLUETOOTH) = yy ]; then \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8723A_U) = yy ]; then \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8723A/$(RTL8723A_FW) $(RTL_USB_FW_PATH)/$(RTL8723A_FW); \
+		fi; \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8723B_U) = yy ]; then \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8723B/$(RTL8723B_FW) $(RTL_USB_FW_PATH)/$(RTL8723B_FW); \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8723B/$(RTL8723B_CFG) $(RTL_USB_FW_PATH)/$(RTL8723B_CFG); \
+		fi; \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8761A_U) = yy ]; then \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8761A/rtl8761au8192ee_fw $(RTL_USB_FW_PATH)/rtl8761au8192ee_fw; \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8761A/rtl8761au8812ae_fw $(RTL_USB_FW_PATH)/rtl8761au8812ae_fw; \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8761A/rtl8761au_fw $(RTL_USB_FW_PATH)/rtl8761au_fw; \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8761A/rtl8761aw8192eu_fw $(RTL_USB_FW_PATH)/rtl8761aw8192eu_fw; \
+		fi; \
+		if [ y$(CONFIG_RTK_BLUETOOTH_HW_RTL8821A_U) = yy ]; then \
+			$(ROMFSINST) $(RTL_USB_FW_LOCAL_PATH)/8821A/$(RTL8821A_FW) $(RTL_USB_FW_PATH)/$(RTL8821A_FW); \
+		fi; \
+	fi;

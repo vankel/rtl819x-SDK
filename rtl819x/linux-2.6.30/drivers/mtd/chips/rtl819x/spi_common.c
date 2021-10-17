@@ -244,6 +244,15 @@
 /* Atmel Flash */
 #define AT25DF161		0x001f4602
 
+/* ESMT Flash */
+#define ESMTDEVICE		0x008c0000		/*factory_id*/
+#define ESMT_Q			0x008c4000		/*memory_type*/
+#define F25L08			0x008c4014  /*Supposed OK , 8Mb*/
+#define F25L16			0x008c4015  /*Supposed OK , 16Mb*/
+#define F25L32			0x008c4116  /*20130708 Bootcode Verified OK 32Mb*/
+#define F25L64			0x008c4117 /*20130708 Bootcode Verified OK 64Mb*/
+#define F25L128			0x008c4118  /*No sample ,Supposed OK*/
+
 #define SIZE2N_128K	0x11
 #define SIZE2N_256K	0x12
 #define SIZE2N_512K	0x13
@@ -415,6 +424,14 @@ struct spi_flash_known spi_flash_registed[] = {
 , 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
+//#define EN25Q64         0x001c3017
+{0x001c3017, 0x00, SIZE2N_08MB, SIZE_064K, SIZE_004K, SIZE_256B, "EN25Q64"
+#if (SPI_DRIVER_MODE == 1)
+, 50, ComSrlCmd_SE, SpiRead_1443EB, ComSrlCmd_NoneQeBit, PageWrite_111002
+#else
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
 /****************************************** SST Flash ******************************************/
 //#define SST25VF032B		0x00BF254A (clock 80 down to 40)
 {0x00BF254A, 0x00, SIZE2N_04MB, SIZE_064K, SIZE_004K, SIZE_256B, "SST25VF032B"
@@ -540,7 +557,48 @@ struct spi_flash_known spi_flash_registed[] = {
 #else
 , 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
-}
+},
+/****************************************** ESMT Flash ******************************************/
+//#define F25L08		0x008c4014
+{0x008c4014, 0x00, SIZE2N_01MB, SIZE_064K, SIZE_004K, SIZE_256B, "F25L08"
+#if (SPI_DRIVER_MODE == 1)
+, 80, ComSrlCmd_SE,  SpiRead_1443EB, mxic_spi_setQEBit,  PageWrite_144038
+#else
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
+//#define F25L16		0x008c4015
+{0x008c4015, 0x00, SIZE2N_02MB, SIZE_064K, SIZE_004K, SIZE_256B, "F25L16"
+#if (SPI_DRIVER_MODE == 1)
+, 80, ComSrlCmd_SE,  SpiRead_1443EB, mxic_spi_setQEBit,  PageWrite_144038
+#else
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
+//#define F25L32		0x008c4116
+{0x008c4116, 0x00, SIZE2N_04MB, SIZE_064K, SIZE_004K, SIZE_256B, "F25L32"
+#if (SPI_DRIVER_MODE == 1)
+, 80, ComSrlCmd_SE,  SpiRead_1443EB, mxic_spi_setQEBit,  PageWrite_144038
+#else
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
+//#define F25L64		0x008c4117
+{0x008c4117, 0x00, SIZE2N_08MB, SIZE_064K, SIZE_004K, SIZE_256B, "F25L64"
+#if (SPI_DRIVER_MODE == 1)
+, 80, ComSrlCmd_SE,  SpiRead_1443EB, mxic_spi_setQEBit,  PageWrite_144038
+#else
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
+//#define F25L128		0x008c4118
+{0x008c4118, 0x00, SIZE2N_16MB, SIZE_064K, SIZE_004K, SIZE_256B, "F25L128"
+#if (SPI_DRIVER_MODE == 1)
+, 80, ComSrlCmd_SE,  SpiRead_1443EB, mxic_spi_setQEBit,  PageWrite_144038
+#else
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
 };
 
 // spi flash probe

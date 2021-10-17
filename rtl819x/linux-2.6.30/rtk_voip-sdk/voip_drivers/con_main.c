@@ -13,6 +13,7 @@
 #include "con_ipc_mirror_host.h"
 #include "con_ipc_help_host.h"
 #include "con_defer_init.h"
+#include "con_ring.h"
 
 // --------------------------------------------------------
 // global variables for reference 
@@ -364,6 +365,9 @@ static int __init voip_con_main_init( void )
 	// init FXS / FXS variables for polling 
 	FXS_FXO_functionality_init_all( &voip_con[ 0 ] );
 #endif
+
+	// multi-ring cadence init
+	mrc_cch_init( voip_con, i );
 	
 	return 0;
 }

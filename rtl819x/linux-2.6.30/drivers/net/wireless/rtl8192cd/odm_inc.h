@@ -10,8 +10,24 @@
 #define __AP_PRECOMP_H__
 
 #define		DM_ODM_SUPPORT_TYPE						ODM_AP
+#if defined(CONFIG_PCI_HCI)
 #define		DEV_BUS_TYPE 							RT_PCI_INTERFACE
-#define 	DBG										0
+#elif defined(CONFIG_USB_HCI)
+#define DEV_BUS_TYPE		RT_USB_INTERFACE
+#elif defined(CONFIG_SDIO_HCI)
+#define DEV_BUS_TYPE		RT_SDIO_INTERFACE
+#endif
+#define 	DBG										1
+
+//-----------------------------------------------------------------------------------------
+// Use one of the following value to define the flag, RT_PLATFORM.
+//-----------------------------------------------------------------------------------------
+#define PLATFORM_WINDOWS		0
+#define PLATFORM_LINUX			1
+#define PLATFORM_FREEBSD		3
+#define PLATFORM_MACOSX			4
+
+#define	RT_PLATFORM				PLATFORM_LINUX
 
 
 //2 [HAL\HWIMG\HalHWImg.h]
@@ -29,17 +45,20 @@
 #ifdef CONFIG_RTL_88E_SUPPORT
 #define		RTL8188E_SUPPORT						1
 #define 	RTL8188ES_HWIMG_SUPPORT					1
+#define		RATE_ADAPTIVE_SUPPORT					1
 
 #if !(DM_ODM_SUPPORT_TYPE & ODM_AP) || defined(RATEADAPTIVE_BY_ODM)
 #define 	RATE_ADAPTIVE_SUPPORT					1
 #endif
+#define		RTL8188E_FOR_TEST_CHIP					0
 
 #else
 #define		RTL8188E_SUPPORT						0
 #define 	RTL8188ES_HWIMG_SUPPORT					0
+#define		RATE_ADAPTIVE_SUPPORT					0
 #endif
 
-#ifdef CONFIG_RTL_92C_SUPPORT
+#if defined(CONFIG_RTL_92C_SUPPORT) && !defined(_OUTSRC_COEXIST)
 #define		RTL8192C_SUPPORT						1
 #define		RTL8192C_HWIMG_SUPPORT					1
 #define		RTL8192CE_HWIMG_SUPPORT					1
@@ -51,14 +70,44 @@
 #define		RTL8192CE_TEST_HWIMG_SUPPORT			0
 #endif
 
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(CONFIG_RTL_92D_SUPPORT) && !defined(_OUTSRC_COEXIST)
 #define 	RTL8192D_SUPPORT						1
 #else
 #define 	RTL8192D_SUPPORT						0
 #endif
 
+#ifdef CONFIG_RTL_8812_SUPPORT //FOR_8812_IQK
+#define		RTL8812E_SUPPORT						1
+#define		RTL8812A_SUPPORT						1
+
+#else
+#define		RTL8812E_SUPPORT						0
+#define		RTL8812A_SUPPORT						0
+#endif
+
+#ifdef CONFIG_WLAN_HAL_8881A
+#define		RTL8881A_SUPPORT						1
+#else
+#define		RTL8881A_SUPPORT						0
+#endif
+
+#ifdef CONFIG_WLAN_HAL_8192EE
+#define		RTL8192E_SUPPORT						1
+#else
+#define		RTL8192E_SUPPORT						0
+#endif
+
+#ifdef CONFIG_WLAN_HAL_8813AE
+#define		RTL8813A_SUPPORT						1
+#else
+#define		RTL8813A_SUPPORT						0
+#endif
+
+
+
 
 #define		RTL8723A_SUPPORT						0
+#define		BT_30_SUPPORT							0
 
 //2 [HEADER\TypeDef.h]
 
@@ -68,8 +117,8 @@
 //#define	TRUE		1
 //#define	FALSE		0
 
-#define TxPwrTrk_OFDM_SwingTbl_Len					37
-#define TxPwrTrk_CCK_SwingTbl_Len					23
+#define TxPwrTrk_OFDM_SwingTbl_Len						37
+#define TxPwrTrk_CCK_SwingTbl_Len						23
 #define TxPwrTrk_E_Val								3
 
 #define IQK_MAC_REG_NUM								4
@@ -78,15 +127,15 @@
 #define HP_THERMAL_NUM								8
 #define	DM_Type_ByFW								0
 #define	DM_Type_ByDriver							1
-
+#define MAX_TX_COUNT								4
 #define index_mapping_NUM							13
-#define index_mapping_DPK_NUM						15
-#define Rx_index_mapping_NUM						15
+#define index_mapping_DPK_NUM							15
+#define Rx_index_mapping_NUM							15
 #define CCK_TABLE_SIZE_92D 							33
 
 
 #define RT_MEM_SIZE_LEVEL							2		// ?
-#define RT_MEM_SIZE_MINIMUM 						3		// ?
+#define RT_MEM_SIZE_MINIMUM 							3		// ?
 
 #define USE_WORKITEM 								0
 
@@ -154,21 +203,21 @@ typedef enum _RF_RADIO_PATH{
 // Rx smooth factor
 #define	Rx_Smooth_Factor				20
 
-
 typedef		struct _HAL_DATA_TYPE{
 	u1Byte		temp;
 } HAL_DATA_TYPE;
+
+#define GET_HAL_DATA(pa)		(pa->temp2)
 
 typedef		struct _RFD {
 	u1Byte		temp;
 } RFD, *PRT_RFD;
 
-#define GET_HAL_DATA(pa)		(pa->temp2)
-
 typedef struct _RSSI_STA{
 	s4Byte	UndecoratedSmoothedPWDB;
 	s4Byte	UndecoratedSmoothedCCK;
 	s4Byte	UndecoratedSmoothedOFDM;
+	u4Byte	OFDM_pkt;
 	u8Byte	PacketMap;
 	u1Byte	ValidBit;
 }RSSI_STA, *PRSSI_STA;
@@ -249,13 +298,14 @@ typedef enum _RT_STATUS{
 
 #define		PlatformStallExecution					ODM_StallExecution
 
+#ifndef WLAN_HAL_INTERNAL_USED
 #define		REG_ARFR0		ARFR0
 #define		REG_ARFR1		ARFR1
 #define		REG_ARFR2		ARFR2
 #define		REG_ARFR3		ARFR3
 
 #define		REG_TX_RPT_TIME		REG_88E_TXRPT_TIM
-
+#endif //#ifndef WLAN_HAL_INTERNAL_USED
 
 
 

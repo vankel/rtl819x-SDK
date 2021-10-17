@@ -952,11 +952,6 @@ static int rndis_reset_response (int configNr, rndis_reset_msg_type *buf)
 		rndis_per_dev_params [configNr].ack (
 			rndis_per_dev_params [configNr].dev);
 
-{
-	extern int rndis_reset;
-	rndis_reset = 1;
-}
-
 	return 0;
 }
 

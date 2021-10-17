@@ -17,12 +17,14 @@
 
 #ifndef NO_SPECIAL_ADDRSPACE
 
+extern unsigned long physical_addr_offset;
+
 #define Virtual2Logical(x)		(((unsigned long)x) & 0x1fffffff)
 #define Logical2Virtual(x)		(((unsigned long)x) | 0x80000000)
 #define Logical2NonCache(x)		(((unsigned long)x) | 0xa0000000)
 
-#define Logical2Physical(x)		(((unsigned long)x) + CONFIG_RTK_VOIP_2_PHYSICAL_OFFSET)
-#define Physical2Logical(x)		(((unsigned long)x) - CONFIG_RTK_VOIP_2_PHYSICAL_OFFSET)
+#define Logical2Physical(x)		(((unsigned long)x) + physical_addr_offset)
+#define Physical2Logical(x)		(((unsigned long)x) - physical_addr_offset)
 
 #define Virtual2Physical(x)		Logical2Physical(Virtual2Logical(x))
 #define Physical2Virtual(x)		Logical2Virtual(Physical2Logical(x))

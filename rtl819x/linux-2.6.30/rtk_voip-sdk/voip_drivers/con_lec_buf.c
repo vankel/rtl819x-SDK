@@ -102,6 +102,20 @@
 #endif
 #endif
 
+#ifdef CONFIG_RTK_VOIP_PLATFORM_8686
+#ifdef AUDIOCODES_VOIP
+#define SYNC_POINT 3
+#define SYNC_SAMPLE 4	
+#define SYNC_POINT_DAA 3
+#define SYNC_SAMPLE_DAA 4
+#else
+#define SYNC_POINT 3
+#define SYNC_SAMPLE 8	
+#define SYNC_POINT_DAA 3
+#define SYNC_SAMPLE_DAA 8
+#endif
+#endif
+
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxD
 #ifdef AUDIOCODES_VOIP
 #define SYNC_POINT 3
@@ -120,6 +134,8 @@
   #ifdef CONFIG_RTK_VOIP_DRIVERS_CODEC_WM8510
   #define CODEC_GROUP_DELAY 40
   #elif defined( CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621 )
+  #define CODEC_GROUP_DELAY 10
+  #elif defined( CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q )
   #define CODEC_GROUP_DELAY 10
   #endif
 #else
@@ -202,7 +218,7 @@ void isr_lec_buf_shift_frame( voip_con_t *this )
 	for (fi =0; fi < FSIZE-1; fi++)	
     	{
 #ifdef USE_MEM64_OP
-    		memcpy64s(&LEC_RinBuf[cch][80*PCM_PERIOD*fi * this ->band_factor_var], &LEC_RinBuf[cch][80*PCM_PERIOD*(fi+1) * this ->band_factor_var], 80*PCM_PERIOD * this ->band_factor_var /*2-byte*/);
+    		memcpy64(&LEC_RinBuf[cch][80*PCM_PERIOD*fi * this ->band_factor_var], &LEC_RinBuf[cch][80*PCM_PERIOD*(fi+1) * this ->band_factor_var], 80*PCM_PERIOD * this ->band_factor_var /*2-byte*/);
 #else
     		memcpy(&LEC_RinBuf[cch][80*PCM_PERIOD*fi * this ->band_factor_var], &LEC_RinBuf[cch][80*PCM_PERIOD*(fi+1) * this ->band_factor_var], 80*PCM_PERIOD*2 * this ->band_factor_var /*byte*/);
 #endif		
@@ -246,7 +262,7 @@ void isr_lec_buf_tx_process( voip_con_t *this, uint16 *pcm_tx, uint32 step )
         #ifndef LEC_USE_CIRC_BUF
 		/* update the tx pcm data to LEC_RinBuf */
 #ifdef USE_MEM64_OP
-		memcpy64s(&LEC_RinBuf[cch][80*PCM_PERIOD*(FSIZE-1) * this ->band_factor_var + i*PCM_PERIOD_10MS_SIZE/2], 
+		memcpy64(&LEC_RinBuf[cch][80*PCM_PERIOD*(FSIZE-1) * this ->band_factor_var + i*PCM_PERIOD_10MS_SIZE/2], 
 			pcm_tx, PCM_PERIOD_10MS_SIZE/2 * this ->band_factor_var);
                         //tx_fifo[chid][tx_fifo_cnt_r[chid]], PCM_PERIOD_10MS_SIZE/2);
 #else

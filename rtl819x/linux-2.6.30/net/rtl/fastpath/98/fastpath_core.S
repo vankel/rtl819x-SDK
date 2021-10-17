@@ -68,6 +68,82 @@
 	.endm							
 
 #NO_APP
+	.globl	rtl_check_bypass_packet_hook
+	.data
+	.align	2
+	.type	rtl_check_bypass_packet_hook, @object
+	.size	rtl_check_bypass_packet_hook, 4
+rtl_check_bypass_packet_hook:
+	.word	0
+	.globl	rtl_init_bypass_packet_hook
+	.align	2
+	.type	rtl_init_bypass_packet_hook, @object
+	.size	rtl_init_bypass_packet_hook, 4
+rtl_init_bypass_packet_hook:
+	.word	0
+	.globl	fastpath_packet_bypassed_num
+	.align	2
+	.type	fastpath_packet_bypassed_num, @object
+	.size	fastpath_packet_bypassed_num, 4
+fastpath_packet_bypassed_num:
+	.word	10
+	.section	.text.rtl_init_bypass_packet,"ax",@progbits
+	.align	2
+	.globl	rtl_init_bypass_packet
+	.ent	rtl_init_bypass_packet
+	.type	rtl_init_bypass_packet, @function
+rtl_init_bypass_packet:
+	.set	nomips16
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	sw	$0,64($4)
+	j	$31
+	sw	$0,68($4)
+
+	.set	macro
+	.set	reorder
+	.end	rtl_init_bypass_packet
+	.section	.text.rtl_check_bypass_packet,"ax",@progbits
+	.align	2
+	.globl	rtl_check_bypass_packet
+	.ent	rtl_check_bypass_packet
+	.type	rtl_check_bypass_packet, @function
+rtl_check_bypass_packet:
+	.set	nomips16
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$2,68($4)
+	bne	$2,$0,$L4
+	li	$5,1			# 0x1
+
+	lw	$2,64($4)
+	lui	$3,%hi(fastpath_packet_bypassed_num)
+	addiu	$2,$2,1
+	sw	$2,64($4)
+	lw	$3,%lo(fastpath_packet_bypassed_num)($3)
+	sltu	$3,$3,$2
+	beq	$3,$0,$L2
+	nop
+
+$L4:
+	li	$2,1			# 0x1
+	move	$5,$0
+	sw	$2,68($4)
+$L2:
+	j	$31
+	move	$2,$5
+
+	.set	macro
+	.set	reorder
+	.end	rtl_check_bypass_packet
 	.section	.text.cache_timeout,"ax",@progbits
 	.align	2
 	.ent	cache_timeout
@@ -81,7 +157,7 @@ cache_timeout:
 	.set	nomacro
 	
 	lbu	$2,0($4)
-	beq	$2,$0,$L9
+	beq	$2,$0,$L13
 	move	$7,$4
 
 	lw	$2,8($4)
@@ -104,19 +180,19 @@ cache_timeout:
 	addu	$2,$2,$4
 	sb	$0,0($7)
 	lw	$3,44($7)
-	beq	$6,$0,$L5
+	beq	$6,$0,$L9
 	sll	$5,$2,2
 
-	j	$L6
+	j	$L10
 	sw	$3,44($6)
 
-$L5:
+$L9:
 	lui	$2,%hi(udp_cache_table)
 	lw	$2,%lo(udp_cache_table)($2)
 	lw	$2,0($2)
 	addu	$2,$5,$2
 	sw	$3,4($2)
-$L6:
+$L10:
 	lw	$2,40($7)
 	sll	$3,$4,1
 	lw	$5,44($7)
@@ -142,7 +218,7 @@ $L6:
 	sw	$6,4($4)
 	addiu	$2,$2,1
 	sw	$2,8($4)
-$L9:
+$L13:
 	j	$31
 	nop
 
@@ -162,8 +238,8 @@ udp_fragCache_init:
 	.set	noreorder
 	.set	nomacro
 	
-$L15:
-$L56:
+$L19:
+$L60:
 	addiu	$sp,$sp,-56
 	lui	$2,%hi(malloc_sizes+4)
 	sw	$19,44($sp)
@@ -181,11 +257,11 @@ $L56:
 
 	move	$3,$0
 	move	$17,$2
-	beq	$2,$0,$L10
+	beq	$2,$0,$L14
 	sw	$2,%lo(udp_cache_table)($16)
 
-$L65:
-$L106:
+$L69:
+$L110:
 	lui	$20,%hi(udp_cache_list_free)
 	sll	$4,$19,1
 	addiu	$3,$20,%lo(udp_cache_list_free)
@@ -202,22 +278,22 @@ $L106:
 	sw	$2,0($17)
 	lw	$2,%lo(udp_cache_table)($16)
 	lw	$2,0($2)
-	beq	$2,$0,$L10
+	beq	$2,$0,$L14
 	li	$3,-1			# 0xffffffff
 
-	j	$L109
+	j	$L113
 	slt	$5,$0,$19
 
-$L173:
-	j	$L10
+$L177:
+	j	$L14
 	move	$3,$0
 
-$L109:
-	beq	$5,$0,$L172
+$L113:
+	beq	$5,$0,$L176
 	move	$17,$0
 
 	move	$4,$0
-$L114:
+$L118:
 	lw	$2,%lo(udp_cache_table)($18)
 	addiu	$17,$17,1
 	slt	$3,$17,$19
@@ -232,16 +308,16 @@ $L114:
 	lw	$2,0($2)
 	addu	$2,$4,$2
 	addiu	$4,$4,12
-	bne	$3,$0,$L114
+	bne	$3,$0,$L118
 	sw	$2,4($2)
 
 	move	$17,$0
-$L174:
-	beq	$5,$0,$L172
+$L178:
+	beq	$5,$0,$L176
 	lui	$2,%hi(malloc_sizes+12)
 
-$L122:
-$L163:
+$L126:
+$L167:
 	li	$5,32			# 0x20
 	lw	$4,%lo(malloc_sizes+12)($2)
 	jal	kmem_cache_alloc
@@ -250,7 +326,7 @@ $L163:
 	move	$5,$0
 	move	$16,$2
 	addiu	$4,$2,16
-	beq	$2,$0,$L173
+	beq	$2,$0,$L177
 	move	$6,$0
 
 	jal	init_timer_key
@@ -271,12 +347,12 @@ $L163:
 	lw	$2,8($3)
 	sw	$4,4($3)
 	addiu	$2,$2,1
-	j	$L174
+	j	$L178
 	sw	$2,8($3)
 
-$L172:
+$L176:
 	li	$3,1			# 0x1
-$L10:
+$L14:
 	lw	$31,52($sp)
 	move	$2,$3
 	lw	$20,48($sp)
@@ -290,6 +366,191 @@ $L10:
 	.set	macro
 	.set	reorder
 	.end	udp_fragCache_init
+	.section	.text.negative_cache_timeout,"ax",@progbits
+	.align	2
+	.ent	negative_cache_timeout
+	.type	negative_cache_timeout, @function
+negative_cache_timeout:
+	.set	nomips16
+	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
+	.mask	0x00000000,0
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	lw	$2,8($4)
+	move	$7,$4
+	lw	$3,4($4)
+	lhu	$4,2($4)
+	xor	$3,$3,$2
+	srl	$2,$3,16
+	xor	$2,$2,$4
+	xor	$3,$3,$2
+	lui	$2,%hi(max_udp_frag_entry)
+	lbu	$5,1($7)
+	srl	$4,$3,8
+	lw	$2,%lo(max_udp_frag_entry)($2)
+	xor	$4,$4,$5
+	xor	$3,$3,$4
+	addiu	$2,$2,-1
+	and	$4,$3,$2
+	sll	$2,$4,1
+	lw	$6,36($7)
+	addu	$2,$2,$4
+	sb	$0,0($7)
+	lw	$3,40($7)
+	beq	$6,$0,$L182
+	sll	$5,$2,2
+
+	j	$L183
+	sw	$3,40($6)
+
+$L182:
+	lui	$2,%hi(negative_cache_table)
+	lw	$2,%lo(negative_cache_table)($2)
+	addu	$2,$5,$2
+	sw	$3,4($2)
+$L183:
+	lw	$2,36($7)
+	sll	$3,$4,1
+	lw	$5,40($7)
+	addu	$3,$3,$4
+	sll	$3,$3,2
+	lui	$4,%hi(negative_cache_list_free)
+	sw	$2,0($5)
+	lui	$2,%hi(negative_cache_table)
+	lw	$2,%lo(negative_cache_table)($2)
+	addiu	$4,$4,%lo(negative_cache_list_free)
+	addiu	$6,$7,44
+	addu	$3,$3,$2
+	lw	$2,8($3)
+	addiu	$2,$2,-1
+	sw	$2,8($3)
+	sw	$0,44($7)
+	lw	$2,4($4)
+	sw	$2,48($7)
+	lw	$2,4($4)
+	sw	$7,0($2)
+	lw	$2,8($4)
+	sw	$6,4($4)
+	addiu	$2,$2,1
+	j	$31
+	sw	$2,8($4)
+
+	.set	macro
+	.set	reorder
+	.end	negative_cache_timeout
+	.section	.text.negative_fragCache_init,"ax",@progbits
+	.align	2
+	.globl	negative_fragCache_init
+	.ent	negative_fragCache_init
+	.type	negative_fragCache_init, @function
+negative_fragCache_init:
+	.set	nomips16
+	.frame	$sp,56,$31		# vars= 16, regs= 5/0, args= 16, gp= 0
+	.mask	0x800f0000,-8
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+$L191:
+$L232:
+	addiu	$sp,$sp,-56
+	li	$5,32			# 0x20
+	sw	$19,44($sp)
+	lui	$19,%hi(malloc_sizes)
+	sw	$16,32($sp)
+	addiu	$2,$19,%lo(malloc_sizes)
+	sw	$31,48($sp)
+	sw	$18,40($sp)
+	sw	$17,36($sp)
+	lw	$4,60($2)
+	jal	kmem_cache_alloc
+	lui	$16,%hi(negative_cache_table)
+
+	move	$4,$16
+	sw	$2,%lo(negative_cache_table)($16)
+	beq	$2,$0,$L186
+	move	$3,$0
+
+	j	$L301
+	lui	$18,%hi(negative_cache_list_free)
+
+$L300:
+	j	$L186
+	move	$3,$0
+
+$L301:
+	addiu	$2,$18,%lo(negative_cache_list_free)
+	li	$17,63			# 0x3f
+	sw	$2,4($2)
+	sw	$0,8($2)
+	sw	$0,%lo(negative_cache_list_free)($18)
+$L241:
+	lw	$2,%lo(negative_cache_table)($4)
+	addiu	$17,$17,-1
+	addu	$2,$3,$2
+	sw	$0,8($2)
+	lw	$2,%lo(negative_cache_table)($4)
+	addu	$2,$3,$2
+	sw	$0,0($2)
+	lw	$2,%lo(negative_cache_table)($4)
+	addu	$2,$3,$2
+	addiu	$3,$3,12
+	bgez	$17,$L241
+	sw	$2,4($2)
+
+	move	$17,$0
+$L295:
+$L249:
+$L290:
+	addiu	$2,$19,%lo(malloc_sizes)
+	li	$5,32			# 0x20
+	lw	$4,12($2)
+	jal	kmem_cache_alloc
+	addiu	$17,$17,1
+
+	move	$5,$0
+	move	$16,$2
+	addiu	$4,$2,12
+	beq	$2,$0,$L300
+	move	$6,$0
+
+	jal	init_timer_key
+	nop
+
+	lui	$2,%hi(negative_cache_timeout)
+	addiu	$2,$2,%lo(negative_cache_timeout)
+	addiu	$3,$18,%lo(negative_cache_list_free)
+	sw	$2,24($16)
+	addiu	$4,$16,44
+	sw	$16,28($16)
+	slt	$5,$17,64
+	sw	$0,44($16)
+	lw	$2,4($3)
+	sw	$2,48($16)
+	lw	$2,4($3)
+	sw	$16,0($2)
+	lw	$2,8($3)
+	sw	$4,4($3)
+	addiu	$2,$2,1
+	bne	$5,$0,$L295
+	sw	$2,8($3)
+
+	li	$3,1			# 0x1
+$L186:
+	lw	$31,48($sp)
+	move	$2,$3
+	lw	$19,44($sp)
+	lw	$18,40($sp)
+	lw	$17,36($sp)
+	lw	$16,32($sp)
+	j	$31
+	addiu	$sp,$sp,56
+
+	.set	macro
+	.set	reorder
+	.end	negative_fragCache_init
 	.section	.text.FastPath_Hash_NAPT_Entry,"ax",@progbits
 	.align	2
 	.ent	FastPath_Hash_NAPT_Entry
@@ -491,27 +752,27 @@ FastPath_Route:
 	move	$8,$0
 	lw	$3,%lo(route_list_inuse)($2)
 	move	$7,$0
-$L192:
-	beq	$3,$0,$L191
+$L319:
+	beq	$3,$0,$L318
 	nop
 
 	lw	$5,8($3)
 	sltu	$2,$5,$7
-	bne	$2,$0,$L187
+	bne	$2,$0,$L314
 	and	$6,$4,$5
 
 	lw	$2,4($3)
-	bne	$6,$2,$L187
+	bne	$6,$2,$L314
 	nop
 
 	move	$7,$5
 	addiu	$8,$3,16
-$L187:
+$L314:
 	lw	$3,44($3)
-	j	$L192
+	j	$L319
 	nop
 
-$L191:
+$L318:
 	j	$31
 	move	$2,$8
 
@@ -545,7 +806,7 @@ rtk_addNaptConnection:
 	sw	$16,112($sp)
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L193
+	beq	$5,$0,$L320
 	sw	$6,160($sp)
 	.set	macro
 	.set	reorder
@@ -559,7 +820,7 @@ rtk_addNaptConnection:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L193
+	beq	$2,$0,$L320
 	li	$3,-1			# 0xffffffff
 	.set	macro
 	.set	reorder
@@ -606,30 +867,30 @@ rtk_addNaptConnection:
 	sll	$2,$2,2
 	addu	$2,$2,$3
 	lw	$4,0($2)
-$L294:
+$L423:
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L293
+	beq	$4,$0,$L422
 	lui	$5,%hi(napt_list_free)
 	.set	macro
 	.set	reorder
 
 	lw	$2,4($4)
-	bne	$2,$22,$L201
+	bne	$2,$22,$L328
 	lw	$2,8($4)
-	bne	$2,$21,$L201
+	bne	$2,$21,$L328
 	lw	$2,12($4)
-	bne	$2,$20,$L201
+	bne	$2,$20,$L328
 	lw	$3,16($4)
 	lw	$2,12($18)
-	bne	$3,$2,$L201
+	bne	$3,$2,$L328
 	lw	$3,20($4)
 	lw	$2,16($18)
-	bne	$3,$2,$L201
+	bne	$3,$2,$L328
 	lw	$2,24($4)
-	bne	$2,$17,$L201
+	bne	$2,$17,$L328
 	lw	$2,28($4)
-	bne	$2,$16,$L201
+	bne	$2,$16,$L328
 	lw	$4,160($sp)
 	lw	$5,76($sp)
 	.set	noreorder
@@ -644,17 +905,17 @@ $L294:
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	j	$L193
+	j	$L320
 	move	$3,$0
 	.set	macro
 	.set	reorder
 
-$L201:
+$L328:
 	lw	$4,36($4)
-	j	$L294
-$L293:
+	j	$L423
+$L422:
 	lw	$8,%lo(napt_list_free)($5)
-	beq	$8,$0,$L210
+	beq	$8,$0,$L337
 	lw	$2,0($18)
 	lw	$4,44($8)
 	sw	$2,4($8)
@@ -675,22 +936,22 @@ $L293:
 	li	$2,-1
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L212
+	beq	$4,$0,$L339
 	sb	$2,0($8)
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L213
+	j	$L340
 	sw	$3,48($4)
 	.set	macro
 	.set	reorder
 
-$L212:
+$L339:
 	addiu	$2,$5,%lo(napt_list_free)
 	sw	$3,4($2)
-$L213:
+$L340:
 	lw	$4,48($8)
 	addiu	$5,$5,%lo(napt_list_free)
 	lw	$2,44($8)
@@ -857,7 +1118,7 @@ $L213:
 	and	$3,$3,$2
 	.set	noreorder
 	.set	nomacro
-	beq	$16,$0,$L217
+	beq	$16,$0,$L344
 	sw	$3,72($sp)
 	.set	macro
 	.set	reorder
@@ -888,28 +1149,35 @@ $L213:
 
 	sw	$2,44($16)
 	li	$2,1
-	lw	$4,16($16)
-	lw	$3,24($16)
 	sb	$2,2($16)
 	li	$2,-1
 	sb	$2,0($16)
+	lui	$2,%hi(rtl_init_bypass_packet_hook)
+	sb	$0,1($16)
+	lw	$2,%lo(rtl_init_bypass_packet_hook)($2)
+	beq	$2,$0,$L345
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$3,$L218
-	sb	$0,1($16)
+	jal	$2
+	move	$4,$16
 	.set	macro
 	.set	reorder
 
-	li	$2,1			# 0x1
+$L345:
+	lw	$3,16($16)
+	lw	$2,24($16)
+	beq	$3,$2,$L346
+	lbu	$2,1($16)
+	ori	$2,$2,0x1
 	sb	$2,1($16)
-$L218:
+$L346:
 	lw	$3,12($16)
 	lw	$2,28($16)
-	beq	$3,$2,$L219
+	beq	$3,$2,$L347
 	lbu	$2,1($16)
 	ori	$2,$2,0x2
 	sb	$2,1($16)
-$L219:
+$L347:
 	sw	$0,48($16)
 	addiu	$22,$sp,40
 	sw	$0,52($16)
@@ -939,7 +1207,7 @@ $L219:
 	.set	macro
 	.set	reorder
 
-	beq	$20,$0,$L220
+	beq	$20,$0,$L348
 	lw	$4,4($18)
 	move	$5,$20
 	.set	noreorder
@@ -951,7 +1219,7 @@ $L219:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L220
+	bne	$2,$0,$L348
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -965,7 +1233,7 @@ $L219:
 
 	move	$17,$2
 	li	$2,1			# 0x1
-	bne	$17,$2,$L221
+	bne	$17,$2,$L349
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_skb_mac_header_was_set
@@ -973,7 +1241,7 @@ $L219:
 	.set	macro
 	.set	reorder
 
-	bne	$2,$17,$L221
+	bne	$2,$17,$L349
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -988,7 +1256,7 @@ $L219:
 	li	$3,2048			# 0x800
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L221
+	beq	$2,$3,$L349
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1000,7 +1268,7 @@ $L219:
 	.set	macro
 	.set	reorder
 
-$L221:
+$L349:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1029,7 +1297,7 @@ $L221:
 	lw	$3,100($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L220
+	bne	$3,$2,$L348
 	lui	$2,%hi(nf_hooks+128)
 	.set	macro
 	.set	reorder
@@ -1038,7 +1306,7 @@ $L221:
 	addiu	$2,$2,%lo(nf_hooks+128)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L224
+	beq	$3,$2,$L352
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1052,7 +1320,7 @@ $L221:
 	.set	macro
 	.set	reorder
 
-$L224:
+$L352:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1060,7 +1328,7 @@ $L224:
 	.set	macro
 	.set	reorder
 
-	beq	$2,$0,$L226
+	beq	$2,$0,$L354
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1070,21 +1338,21 @@ $L224:
 
 	.set	noreorder
 	.set	nomacro
-	j	$L298
+	j	$L427
 	sw	$2,48($16)
 	.set	macro
 	.set	reorder
 
-$L226:
+$L354:
 	lw	$2,48($16)
 	sw	$2,48($16)
-$L298:
+$L427:
 	lui	$2,%hi(nf_hooks+160)
 	lw	$3,%lo(nf_hooks+160)($2)
 	addiu	$2,$2,%lo(nf_hooks+160)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L229
+	beq	$3,$2,$L357
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1098,7 +1366,7 @@ $L298:
 	.set	macro
 	.set	reorder
 
-$L229:
+$L357:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1106,7 +1374,7 @@ $L229:
 	.set	macro
 	.set	reorder
 
-	beq	$2,$0,$L231
+	beq	$2,$0,$L359
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1116,15 +1384,15 @@ $L229:
 
 	.set	noreorder
 	.set	nomacro
-	j	$L220
+	j	$L348
 	sw	$2,52($16)
 	.set	macro
 	.set	reorder
 
-$L231:
+$L359:
 	lw	$2,52($16)
 	sw	$2,52($16)
-$L220:
+$L348:
 	lw	$2,12($18)
 	addiu	$22,$sp,40
 	move	$4,$22
@@ -1154,7 +1422,7 @@ $L220:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$21,$0,$L233
+	beq	$21,$0,$L361
 	move	$5,$21
 	.set	macro
 	.set	reorder
@@ -1169,7 +1437,7 @@ $L220:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L233
+	bne	$2,$0,$L361
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1183,7 +1451,7 @@ $L220:
 
 	move	$17,$2
 	li	$2,1			# 0x1
-	bne	$17,$2,$L234
+	bne	$17,$2,$L362
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_skb_mac_header_was_set
@@ -1191,7 +1459,7 @@ $L220:
 	.set	macro
 	.set	reorder
 
-	bne	$2,$17,$L234
+	bne	$2,$17,$L362
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1206,7 +1474,7 @@ $L220:
 	li	$3,2048			# 0x800
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L234
+	beq	$2,$3,$L362
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1218,7 +1486,7 @@ $L220:
 	.set	macro
 	.set	reorder
 
-$L234:
+$L362:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1247,7 +1515,7 @@ $L234:
 	lw	$9,100($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$9,$2,$L233
+	bne	$9,$2,$L361
 	lui	$2,%hi(nf_hooks+160)
 	.set	macro
 	.set	reorder
@@ -1256,7 +1524,7 @@ $L234:
 	addiu	$2,$2,%lo(nf_hooks+160)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L237
+	beq	$3,$2,$L365
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1270,7 +1538,7 @@ $L234:
 	.set	macro
 	.set	reorder
 
-$L237:
+$L365:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1278,7 +1546,7 @@ $L237:
 	.set	macro
 	.set	reorder
 
-	beq	$2,$0,$L239
+	beq	$2,$0,$L367
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1288,20 +1556,20 @@ $L237:
 
 	.set	noreorder
 	.set	nomacro
-	j	$L233
+	j	$L361
 	sw	$2,52($16)
 	.set	macro
 	.set	reorder
 
-$L239:
+$L367:
 	lw	$2,52($16)
 	sw	$2,52($16)
-$L233:
+$L361:
 	lw	$3,76($sp)
 	li	$2,6			# 0x6
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L241
+	bne	$3,$2,$L369
 	lui	$2,%hi(nf_ct_udp_timeout_stream)
 	.set	macro
 	.set	reorder
@@ -1310,45 +1578,45 @@ $L233:
 	jal	rtl_tcp_get_timeouts
 	.set	noreorder
 	.set	nomacro
-	j	$L299
+	j	$L428
 	sw	$2,60($16)
 	.set	macro
 	.set	reorder
 
-$L241:
+$L369:
 	lw	$2,%lo(nf_ct_udp_timeout_stream)($2)
 	sw	$2,60($16)
-$L299:
+$L428:
 	lui	$2,%hi(jiffies)
 	lw	$4,160($sp)
-	lw	$3,72($16)
+	lw	$3,80($16)
 	sw	$4,56($16)
 	lw	$2,%lo(jiffies)($2)
-	lw	$4,76($16)
+	lw	$4,84($16)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$0,$L244
+	beq	$3,$0,$L372
 	sw	$2,40($16)
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L245
-	sw	$4,76($3)
+	j	$L373
+	sw	$4,84($3)
 	.set	macro
 	.set	reorder
 
-$L244:
+$L372:
 	lui	$5,%hi(path_list_free)
 	addiu	$2,$5,%lo(path_list_free)
 	sw	$4,4($2)
-$L245:
-	lw	$3,76($16)
+$L373:
+	lw	$3,84($16)
 	lui	$5,%hi(path_list_free)
-	lw	$2,72($16)
+	lw	$2,80($16)
 	addiu	$5,$5,%lo(path_list_free)
-	addiu	$7,$16,72
+	addiu	$7,$16,80
 	lui	$6,%hi(table_path)
 	sw	$2,0($3)
 	lui	$3,%hi(path_list_inuse)
@@ -1359,24 +1627,24 @@ $L245:
 	sw	$2,8($5)
 	sll	$4,$8,1
 	lw	$9,72($sp)
-	addiu	$8,$16,64
-	sw	$0,72($16)
+	addiu	$8,$16,72
+	sw	$0,80($16)
 	lw	$2,4($3)
 	addu	$4,$4,$9
 	sll	$4,$4,2
-	sw	$2,76($16)
+	sw	$2,84($16)
 	lw	$2,4($3)
 	sw	$16,0($2)
 	lw	$2,8($3)
 	sw	$7,4($3)
 	addiu	$2,$2,1
 	sw	$2,8($3)
-	sw	$0,64($16)
+	sw	$0,72($16)
 	lw	$2,%lo(table_path)($6)
 	lw	$2,0($2)
 	addu	$2,$4,$2
 	lw	$2,4($2)
-	sw	$2,68($16)
+	sw	$2,76($16)
 	lw	$2,%lo(table_path)($6)
 	lw	$2,0($2)
 	addu	$2,$4,$2
@@ -1392,7 +1660,7 @@ $L245:
 	lw	$2,8($4)
 	addiu	$2,$2,1
 	sw	$2,8($4)
-$L217:
+$L344:
 	lw	$5,12($18)
 	lui	$8,%hi(path_list_free)
 	lw	$6,20($18)
@@ -1417,7 +1685,7 @@ $L217:
 	and	$3,$3,$2
 	.set	noreorder
 	.set	nomacro
-	beq	$16,$0,$L249
+	beq	$16,$0,$L377
 	sw	$3,72($sp)
 	.set	macro
 	.set	reorder
@@ -1448,28 +1716,35 @@ $L217:
 
 	sw	$2,44($16)
 	li	$2,2
-	lw	$4,20($16)
-	lw	$3,32($16)
 	sb	$2,2($16)
 	li	$2,-1
 	sb	$2,0($16)
+	lui	$2,%hi(rtl_init_bypass_packet_hook)
+	sb	$0,1($16)
+	lw	$2,%lo(rtl_init_bypass_packet_hook)($2)
+	beq	$2,$0,$L378
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$3,$L250
-	sb	$0,1($16)
+	jal	$2
+	move	$4,$16
 	.set	macro
 	.set	reorder
 
-	li	$2,4			# 0x4
+$L378:
+	lw	$3,20($16)
+	lw	$2,32($16)
+	beq	$3,$2,$L379
+	lbu	$2,1($16)
+	ori	$2,$2,0x4
 	sb	$2,1($16)
-$L250:
+$L379:
 	lw	$3,8($16)
 	lw	$2,36($16)
-	beq	$3,$2,$L251
+	beq	$3,$2,$L380
 	lbu	$2,1($16)
 	ori	$2,$2,0x8
 	sb	$2,1($16)
-$L251:
+$L380:
 	sw	$0,48($16)
 	addiu	$22,$sp,40
 	sw	$0,52($16)
@@ -1499,7 +1774,7 @@ $L251:
 	.set	macro
 	.set	reorder
 
-	beq	$21,$0,$L252
+	beq	$21,$0,$L381
 	lw	$4,20($18)
 	move	$5,$21
 	.set	noreorder
@@ -1511,7 +1786,7 @@ $L251:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L252
+	bne	$2,$0,$L381
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1525,7 +1800,7 @@ $L251:
 
 	move	$17,$2
 	li	$2,1			# 0x1
-	bne	$17,$2,$L253
+	bne	$17,$2,$L382
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_skb_mac_header_was_set
@@ -1533,7 +1808,7 @@ $L251:
 	.set	macro
 	.set	reorder
 
-	bne	$2,$17,$L253
+	bne	$2,$17,$L382
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1548,7 +1823,7 @@ $L251:
 	li	$3,2048			# 0x800
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L253
+	beq	$2,$3,$L382
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1560,7 +1835,7 @@ $L251:
 	.set	macro
 	.set	reorder
 
-$L253:
+$L382:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1589,7 +1864,7 @@ $L253:
 	lw	$3,100($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L254
+	bne	$3,$2,$L383
 	lui	$2,%hi(nf_hooks+128)
 	.set	macro
 	.set	reorder
@@ -1598,7 +1873,7 @@ $L253:
 	addiu	$2,$2,%lo(nf_hooks+128)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L254
+	beq	$3,$2,$L383
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1612,7 +1887,7 @@ $L253:
 	.set	macro
 	.set	reorder
 
-$L254:
+$L383:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1620,7 +1895,7 @@ $L254:
 	.set	macro
 	.set	reorder
 
-	beq	$2,$0,$L258
+	beq	$2,$0,$L387
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1630,15 +1905,15 @@ $L254:
 
 	.set	noreorder
 	.set	nomacro
-	j	$L252
+	j	$L381
 	sw	$2,48($16)
 	.set	macro
 	.set	reorder
 
-$L258:
+$L387:
 	lw	$2,48($16)
 	sw	$2,48($16)
-$L252:
+$L381:
 	lw	$2,20($18)
 	addiu	$22,$sp,40
 	move	$4,$22
@@ -1668,7 +1943,7 @@ $L252:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$20,$0,$L260
+	beq	$20,$0,$L389
 	move	$5,$20
 	.set	macro
 	.set	reorder
@@ -1683,7 +1958,7 @@ $L252:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L260
+	bne	$2,$0,$L389
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1697,7 +1972,7 @@ $L252:
 
 	move	$17,$2
 	li	$2,1			# 0x1
-	bne	$17,$2,$L261
+	bne	$17,$2,$L390
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_skb_mac_header_was_set
@@ -1705,7 +1980,7 @@ $L252:
 	.set	macro
 	.set	reorder
 
-	bne	$2,$17,$L261
+	bne	$2,$17,$L390
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1720,7 +1995,7 @@ $L252:
 	li	$3,2048			# 0x800
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L261
+	beq	$2,$3,$L390
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1732,7 +2007,7 @@ $L252:
 	.set	macro
 	.set	reorder
 
-$L261:
+$L390:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1761,7 +2036,7 @@ $L261:
 	lw	$9,100($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$9,$2,$L260
+	bne	$9,$2,$L389
 	lui	$2,%hi(nf_hooks+160)
 	.set	macro
 	.set	reorder
@@ -1770,7 +2045,7 @@ $L261:
 	addiu	$2,$2,%lo(nf_hooks+160)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L260
+	beq	$3,$2,$L389
 	move	$4,$19
 	.set	macro
 	.set	reorder
@@ -1784,7 +2059,7 @@ $L261:
 	.set	macro
 	.set	reorder
 
-$L260:
+$L389:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_skb_mark
@@ -1797,7 +2072,7 @@ $L260:
 	lw	$3,76($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L266
+	bne	$3,$2,$L395
 	lui	$2,%hi(nf_ct_udp_timeout_stream)
 	.set	macro
 	.set	reorder
@@ -1806,45 +2081,45 @@ $L260:
 	jal	rtl_tcp_get_timeouts
 	.set	noreorder
 	.set	nomacro
-	j	$L300
+	j	$L429
 	sw	$2,60($16)
 	.set	macro
 	.set	reorder
 
-$L266:
+$L395:
 	lw	$2,%lo(nf_ct_udp_timeout_stream)($2)
 	sw	$2,60($16)
-$L300:
+$L429:
 	lui	$2,%hi(jiffies)
 	lw	$4,160($sp)
-	lw	$3,72($16)
+	lw	$3,80($16)
 	sw	$4,56($16)
 	lw	$2,%lo(jiffies)($2)
-	lw	$4,76($16)
+	lw	$4,84($16)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$0,$L269
+	beq	$3,$0,$L398
 	sw	$2,40($16)
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L270
-	sw	$4,76($3)
+	j	$L399
+	sw	$4,84($3)
 	.set	macro
 	.set	reorder
 
-$L269:
+$L398:
 	lui	$5,%hi(path_list_free)
 	addiu	$2,$5,%lo(path_list_free)
 	sw	$4,4($2)
-$L270:
-	lw	$3,76($16)
+$L399:
+	lw	$3,84($16)
 	lui	$5,%hi(path_list_free)
-	lw	$2,72($16)
+	lw	$2,80($16)
 	addiu	$5,$5,%lo(path_list_free)
-	addiu	$7,$16,72
+	addiu	$7,$16,80
 	lui	$6,%hi(table_path)
 	sw	$2,0($3)
 	lui	$3,%hi(path_list_inuse)
@@ -1855,24 +2130,24 @@ $L270:
 	sw	$2,8($5)
 	sll	$4,$8,1
 	lw	$9,72($sp)
-	addiu	$8,$16,64
-	sw	$0,72($16)
+	addiu	$8,$16,72
+	sw	$0,80($16)
 	lw	$2,4($3)
 	addu	$4,$4,$9
 	sll	$4,$4,2
-	sw	$2,76($16)
+	sw	$2,84($16)
 	lw	$2,4($3)
 	sw	$16,0($2)
 	lw	$2,8($3)
 	sw	$7,4($3)
 	addiu	$2,$2,1
 	sw	$2,8($3)
-	sw	$0,64($16)
+	sw	$0,72($16)
 	lw	$2,%lo(table_path)($6)
 	lw	$2,0($2)
 	addu	$2,$4,$2
 	lw	$2,4($2)
-	sw	$2,68($16)
+	sw	$2,76($16)
 	lw	$2,%lo(table_path)($6)
 	lw	$2,0($2)
 	addu	$2,$4,$2
@@ -1888,7 +2163,7 @@ $L270:
 	lw	$2,8($4)
 	addiu	$2,$2,1
 	sw	$2,8($4)
-$L249:
+$L377:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_eth_hdr
@@ -1945,7 +2220,7 @@ $L249:
 	.set	macro
 	.set	reorder
 
-	beq	$20,$0,$L273
+	beq	$20,$0,$L402
 #APP
 	   
 
@@ -1961,8 +2236,8 @@ $L249:
 	   
 
 #NO_APP
-$L273:
-	beq	$21,$0,$L276
+$L402:
+	beq	$21,$0,$L405
 #APP
 	   
 
@@ -1978,19 +2253,19 @@ $L273:
 	   
 
 #NO_APP
-	j	$L276
-$L210:
+	j	$L405
+$L337:
 #APP
 	raw_local_irq_restore	$23
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	j	$L193
+	j	$L320
 	li	$3,-1			# 0xffffffff
 	.set	macro
 	.set	reorder
 
-$L276:
+$L405:
 #APP
 	raw_local_irq_restore	$23
 #NO_APP
@@ -2004,7 +2279,7 @@ $L276:
 	.set	reorder
 
 	move	$3,$0
-$L193:
+$L320:
 	lw	$31,148($sp)
 	move	$2,$3
 	lw	$fp,144($sp)
@@ -2083,7 +2358,7 @@ rtk_delNaptConnection:
 	lw	$5,0($2)
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L356
+	beq	$5,$0,$L485
 	lui	$2,%hi(napt_list_inuse)
 	.set	macro
 	.set	reorder
@@ -2092,47 +2367,47 @@ rtk_delNaptConnection:
 	addiu	$9,$2,%lo(napt_list_inuse)
 	lui	$2,%hi(napt_list_free)
 	addiu	$7,$2,%lo(napt_list_free)
-$L348:
+$L477:
 	lw	$2,4($5)
-	bne	$2,$22,$L307
+	bne	$2,$22,$L436
 	lw	$2,8($5)
-	bne	$2,$21,$L307
+	bne	$2,$21,$L436
 	lw	$2,12($5)
-	bne	$2,$20,$L307
+	bne	$2,$20,$L436
 	lw	$3,16($5)
 	lw	$2,12($16)
-	bne	$3,$2,$L307
+	bne	$3,$2,$L436
 	lw	$3,20($5)
 	lw	$2,16($16)
-	bne	$3,$2,$L307
+	bne	$3,$2,$L436
 	lw	$2,24($5)
-	bne	$2,$19,$L307
+	bne	$2,$19,$L436
 	lw	$2,28($5)
-	bne	$2,$18,$L307
+	bne	$2,$18,$L436
 	lw	$2,36($5)
 	sb	$0,0($5)
 	lw	$4,40($5)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L310
+	beq	$2,$0,$L439
 	addu	$3,$8,$6
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L311
+	j	$L440
 	sw	$4,40($2)
 	.set	macro
 	.set	reorder
 
-$L310:
+$L439:
 	lw	$2,%lo(table_napt)($10)
 	sll	$3,$3,2
 	lw	$2,0($2)
 	addu	$3,$3,$2
 	sw	$4,4($3)
-$L311:
+$L440:
 	lw	$2,36($5)
 	sll	$3,$6,1
 	lw	$4,40($5)
@@ -2148,17 +2423,17 @@ $L311:
 	sw	$2,8($3)
 	lw	$2,44($5)
 	lw	$3,48($5)
-	beq	$2,$0,$L313
+	beq	$2,$0,$L442
 	.set	noreorder
 	.set	nomacro
-	j	$L314
+	j	$L443
 	sw	$3,48($2)
 	.set	macro
 	.set	reorder
 
-$L313:
+$L442:
 	sw	$3,4($9)
-$L314:
+$L443:
 	lw	$3,48($5)
 	addiu	$4,$5,44
 	lw	$2,44($5)
@@ -2204,7 +2479,7 @@ $L314:
 	lw	$5,0($3)
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L318
+	beq	$5,$0,$L447
 	move	$4,$2
 	.set	macro
 	.set	reorder
@@ -2215,45 +2490,45 @@ $L314:
 	addiu	$9,$24,%lo(path_list_inuse)
 	li	$14,1			# 0x1
 	move	$15,$12
-$L328:
+$L457:
 	lw	$3,4($5)
 	lw	$2,0($16)
-	bne	$3,$2,$L319
+	bne	$3,$2,$L448
 	lbu	$2,2($5)
-	bne	$2,$14,$L319
+	bne	$2,$14,$L448
 	lw	$2,16($5)
-	bne	$2,$8,$L319
+	bne	$2,$8,$L448
 	lw	$2,12($5)
-	bne	$2,$11,$L319
+	bne	$2,$11,$L448
 	lw	$3,24($5)
 	lw	$2,12($16)
-	bne	$3,$2,$L319
+	bne	$3,$2,$L448
 	lw	$3,28($5)
 	lw	$2,16($16)
-	bne	$3,$2,$L319
+	bne	$3,$2,$L448
 	lw	$2,20($5)
-	bne	$2,$7,$L319
+	bne	$2,$7,$L448
 	lw	$2,8($5)
-	bne	$2,$10,$L319
-	lw	$2,64($5)
+	bne	$2,$10,$L448
+	lw	$2,72($5)
 	sb	$0,0($5)
-	lw	$3,68($5)
-	beq	$2,$0,$L322
+	lw	$3,76($5)
+	beq	$2,$0,$L451
 	.set	noreorder
 	.set	nomacro
-	j	$L323
-	sw	$3,68($2)
+	j	$L452
+	sw	$3,76($2)
 	.set	macro
 	.set	reorder
 
-$L322:
+$L451:
 	lw	$2,%lo(table_path)($12)
 	lw	$2,0($2)
 	addu	$2,$4,$2
 	sw	$3,4($2)
-$L323:
-	lw	$3,68($5)
-	lw	$2,64($5)
+$L452:
+	lw	$3,76($5)
+	lw	$2,72($5)
 	sw	$2,0($3)
 	lw	$2,%lo(table_path)($15)
 	lw	$3,0($2)
@@ -2261,29 +2536,29 @@ $L323:
 	lw	$2,8($3)
 	addiu	$2,$2,-1
 	sw	$2,8($3)
-	lw	$3,72($5)
-	lw	$2,76($5)
-	beq	$3,$0,$L325
+	lw	$3,80($5)
+	lw	$2,84($5)
+	beq	$3,$0,$L454
 	.set	noreorder
 	.set	nomacro
-	j	$L326
-	sw	$2,76($3)
+	j	$L455
+	sw	$2,84($3)
 	.set	macro
 	.set	reorder
 
-$L325:
+$L454:
 	sw	$2,4($9)
-$L326:
-	lw	$2,72($5)
-	addiu	$4,$5,72
-	lw	$3,76($5)
+$L455:
+	lw	$2,80($5)
+	addiu	$4,$5,80
+	lw	$3,84($5)
 	sw	$2,0($3)
 	lw	$2,8($9)
 	addiu	$2,$2,-1
 	sw	$2,8($9)
-	sw	$0,72($5)
+	sw	$0,80($5)
 	lw	$2,4($6)
-	sw	$2,76($5)
+	sw	$2,84($5)
 	lw	$2,4($6)
 	sw	$5,0($2)
 	lw	$2,8($6)
@@ -2291,15 +2566,15 @@ $L326:
 	addiu	$2,$2,1
 	.set	noreorder
 	.set	nomacro
-	j	$L318
+	j	$L447
 	sw	$2,8($6)
 	.set	macro
 	.set	reorder
 
-$L319:
-	lw	$5,64($5)
-	bne	$5,$0,$L328
-$L318:
+$L448:
+	lw	$5,72($5)
+	bne	$5,$0,$L457
+$L447:
 	lw	$8,20($16)
 	lui	$10,%hi(table_path)
 	lw	$7,12($16)
@@ -2326,7 +2601,7 @@ $L318:
 	sll	$2,$2,2
 	addu	$3,$2,$3
 	lw	$5,0($3)
-	beq	$5,$0,$L331
+	beq	$5,$0,$L460
 	move	$4,$2
 	lui	$2,%hi(path_list_free)
 	addiu	$9,$24,%lo(path_list_inuse)
@@ -2334,45 +2609,45 @@ $L318:
 	move	$13,$4
 	li	$14,2			# 0x2
 	move	$15,$10
-$L341:
+$L470:
 	lw	$3,4($5)
 	lw	$2,0($16)
-	bne	$3,$2,$L332
+	bne	$3,$2,$L461
 	lbu	$2,2($5)
-	bne	$2,$14,$L332
+	bne	$2,$14,$L461
 	lw	$2,20($5)
-	bne	$2,$7,$L332
+	bne	$2,$7,$L461
 	lw	$2,8($5)
-	bne	$2,$11,$L332
+	bne	$2,$11,$L461
 	lw	$2,24($5)
-	bne	$2,$8,$L332
+	bne	$2,$8,$L461
 	lw	$2,28($5)
-	bne	$2,$12,$L332
+	bne	$2,$12,$L461
 	lw	$3,32($5)
 	lw	$2,4($16)
-	bne	$3,$2,$L332
+	bne	$3,$2,$L461
 	lw	$3,36($5)
 	lw	$2,8($16)
-	bne	$3,$2,$L332
-	lw	$2,64($5)
+	bne	$3,$2,$L461
+	lw	$2,72($5)
 	sb	$0,0($5)
-	lw	$3,68($5)
-	beq	$2,$0,$L335
+	lw	$3,76($5)
+	beq	$2,$0,$L464
 	.set	noreorder
 	.set	nomacro
-	j	$L336
-	sw	$3,68($2)
+	j	$L465
+	sw	$3,76($2)
 	.set	macro
 	.set	reorder
 
-$L335:
+$L464:
 	lw	$2,%lo(table_path)($10)
 	lw	$2,0($2)
 	addu	$2,$4,$2
 	sw	$3,4($2)
-$L336:
-	lw	$3,68($5)
-	lw	$2,64($5)
+$L465:
+	lw	$3,76($5)
+	lw	$2,72($5)
 	sw	$2,0($3)
 	lw	$2,%lo(table_path)($15)
 	lw	$3,0($2)
@@ -2380,29 +2655,29 @@ $L336:
 	lw	$2,8($3)
 	addiu	$2,$2,-1
 	sw	$2,8($3)
-	lw	$3,72($5)
-	lw	$2,76($5)
-	beq	$3,$0,$L338
+	lw	$3,80($5)
+	lw	$2,84($5)
+	beq	$3,$0,$L467
 	.set	noreorder
 	.set	nomacro
-	j	$L339
-	sw	$2,76($3)
+	j	$L468
+	sw	$2,84($3)
 	.set	macro
 	.set	reorder
 
-$L338:
+$L467:
 	sw	$2,4($9)
-$L339:
-	lw	$2,72($5)
-	addiu	$4,$5,72
-	lw	$3,76($5)
+$L468:
+	lw	$2,80($5)
+	addiu	$4,$5,80
+	lw	$3,84($5)
 	sw	$2,0($3)
 	lw	$2,8($9)
 	addiu	$2,$2,-1
 	sw	$2,8($9)
-	sw	$0,72($5)
+	sw	$0,80($5)
 	lw	$2,4($6)
-	sw	$2,76($5)
+	sw	$2,84($5)
 	lw	$2,4($6)
 	sw	$5,0($2)
 	lw	$2,8($6)
@@ -2410,34 +2685,34 @@ $L339:
 	addiu	$2,$2,1
 	.set	noreorder
 	.set	nomacro
-	j	$L331
+	j	$L460
 	sw	$2,8($6)
 	.set	macro
 	.set	reorder
 
-$L332:
-	lw	$5,64($5)
-	bne	$5,$0,$L341
-$L331:
+$L461:
+	lw	$5,72($5)
+	bne	$5,$0,$L470
+$L460:
 #APP
 	raw_local_irq_restore	$17
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	j	$L301
+	j	$L430
 	move	$2,$0
 	.set	macro
 	.set	reorder
 
-$L307:
+$L436:
 	lw	$5,36($5)
-	bne	$5,$0,$L348
-$L356:
+	bne	$5,$0,$L477
+$L485:
 #APP
 	raw_local_irq_restore	$17
 #NO_APP
 	li	$2,-4			# 0xfffffffc
-$L301:
+$L430:
 	lw	$31,56($sp)
 	lw	$23,52($sp)
 	lw	$22,48($sp)
@@ -2507,60 +2782,60 @@ rtk_idleNaptConnection:
 	addu	$2,$2,$4
 	lw	$24,%lo(jiffies)($3)
 	lw	$6,0($2)
-$L378:
-	beq	$6,$0,$L364
+$L507:
+	beq	$6,$0,$L493
 	li	$2,-16777216			# 0xff000000
 
 	lw	$3,4($6)
 	ori	$4,$2,0xff00
-	bne	$3,$12,$L365
+	bne	$3,$12,$L494
 	ori	$7,$2,0x100
 
 	lw	$2,0($6)
 	and	$2,$2,$4
-	bne	$2,$7,$L365
+	bne	$2,$7,$L494
 	nop
 
 	lw	$2,16($6)
-	bne	$2,$10,$L365
+	bne	$2,$10,$L494
 	nop
 
 	lw	$2,12($6)
-	bne	$2,$14,$L365
+	bne	$2,$14,$L494
 	nop
 
 	lw	$3,24($6)
 	lw	$2,12($8)
-	bne	$3,$2,$L365
+	bne	$3,$2,$L494
 	nop
 
 	lw	$3,28($6)
 	lw	$2,16($8)
-	bne	$3,$2,$L365
+	bne	$3,$2,$L494
 	nop
 
 	lw	$2,20($6)
-	bne	$2,$9,$L365
+	bne	$2,$9,$L494
 	nop
 
 	lw	$2,8($6)
-	bne	$2,$11,$L365
+	bne	$2,$11,$L494
 	subu	$2,$24,$15
 
 	lw	$5,40($6)
 	subu	$2,$2,$5
-	bgez	$2,$L364
+	bgez	$2,$L493
 	nop
 
-	j	$L380
+	j	$L509
 	nop
 
-$L365:
-	lw	$6,64($6)
-	j	$L378
+$L494:
+	lw	$6,72($6)
+	j	$L507
 	nop
 
-$L364:
+$L493:
 	lw	$11,20($8)
 	lw	$10,12($8)
 	lw	$14,24($8)
@@ -2586,68 +2861,68 @@ $L364:
 	sll	$2,$2,2
 	addu	$2,$2,$3
 	lw	$6,0($2)
-$L379:
-	beq	$6,$0,$L371
+$L508:
+	beq	$6,$0,$L500
 	li	$2,-16777216			# 0xff000000
 
 	lw	$4,4($6)
 	lw	$3,0($8)
 	ori	$9,$2,0xff00
-	bne	$4,$3,$L372
+	bne	$4,$3,$L501
 	ori	$7,$2,0x200
 
 	lw	$2,0($6)
 	and	$2,$2,$9
-	bne	$2,$7,$L372
+	bne	$2,$7,$L501
 	nop
 
 	lw	$2,20($6)
-	bne	$2,$10,$L372
+	bne	$2,$10,$L501
 	nop
 
 	lw	$2,8($6)
-	bne	$2,$12,$L372
+	bne	$2,$12,$L501
 	nop
 
 	lw	$2,24($6)
-	bne	$2,$11,$L372
+	bne	$2,$11,$L501
 	nop
 
 	lw	$2,28($6)
-	bne	$2,$14,$L372
+	bne	$2,$14,$L501
 	nop
 
 	lw	$3,32($6)
 	lw	$2,4($8)
-	bne	$3,$2,$L372
+	bne	$3,$2,$L501
 	nop
 
 	lw	$3,36($6)
 	lw	$2,8($8)
-	bne	$3,$2,$L372
+	bne	$3,$2,$L501
 	subu	$2,$24,$15
 
 	lw	$5,40($6)
 	subu	$2,$2,$5
-	bgez	$2,$L371
+	bgez	$2,$L500
 	nop
 
-$L380:
+$L509:
 	lw	$4,56($6)
 	jal	rtl_set_ct_timeout_expires
 	addu	$5,$5,$15
 
-	j	$L359
+	j	$L488
 	li	$2,-1			# 0xffffffff
 
-$L372:
-	lw	$6,64($6)
-	j	$L379
+$L501:
+	lw	$6,72($6)
+	j	$L508
 	nop
 
-$L371:
+$L500:
 	move	$2,$0
-$L359:
+$L488:
 	lw	$31,20($sp)
 	lw	$16,16($sp)
 	j	$31
@@ -2684,39 +2959,39 @@ rtl_fpTimer_update:
 	nop
 
 	li	$3,17			# 0x11
-	bne	$2,$3,$L382
+	bne	$2,$3,$L511
 	move	$4,$17
 
 	jal	rtl_get_ct_udp_status
 	li	$19,1			# 0x1
 
 	andi	$2,$2,0x2
-	beq	$2,$0,$L383
+	beq	$2,$0,$L512
 	lui	$2,%hi(nf_ct_udp_timeout)
 
 	lui	$2,%hi(nf_ct_udp_timeout_stream)
 	lw	$18,%lo(nf_ct_udp_timeout_stream)($2)
-	j	$L397
+	j	$L526
 	move	$4,$17
 
-$L383:
+$L512:
 	lw	$18,%lo(nf_ct_udp_timeout)($2)
-	j	$L397
+	j	$L526
 	move	$4,$17
 
-$L382:
+$L511:
 	jal	rtl_get_ct_protonum
 	move	$5,$0
 
 	li	$3,6			# 0x6
-	bne	$2,$3,$L381
+	bne	$2,$3,$L510
 	li	$2,-1			# 0xffffffff
 
 	jal	rtl_get_ct_tcp_state
 	move	$4,$17
 
 	sltu	$2,$2,6
-	beq	$2,$0,$L381
+	beq	$2,$0,$L510
 	li	$2,-1			# 0xffffffff
 
 	move	$4,$17
@@ -2725,7 +3000,7 @@ $L382:
 
 	move	$18,$2
 	move	$4,$17
-$L397:
+$L526:
 	move	$5,$0
 	jal	rtl_get_ct_ip_by_dir
 	move	$6,$0
@@ -2736,7 +3011,7 @@ $L397:
 	jal	rtl_get_ct_ip_by_dir
 	move	$16,$2
 
-	bne	$16,$2,$L388
+	bne	$16,$2,$L517
 	move	$4,$17
 
 	li	$5,1			# 0x1
@@ -2769,10 +3044,10 @@ $L397:
 	sw	$2,32($sp)
 
 	move	$4,$17
-	j	$L396
+	j	$L525
 	move	$5,$0
 
-$L388:
+$L517:
 	move	$5,$0
 	jal	rtl_get_ct_ip_by_dir
 	li	$6,1			# 0x1
@@ -2783,7 +3058,7 @@ $L388:
 	jal	rtl_get_ct_ip_by_dir
 	move	$16,$2
 
-	bne	$16,$2,$L381
+	bne	$16,$2,$L510
 	li	$2,-1			# 0xffffffff
 
 	move	$4,$17
@@ -2818,7 +3093,7 @@ $L388:
 
 	move	$4,$17
 	li	$5,1			# 0x1
-$L396:
+$L525:
 	move	$6,$0
 	jal	rtl_get_ct_port_by_dir
 	sw	$2,36($sp)
@@ -2828,18 +3103,18 @@ $L396:
 	jal	rtk_idleNaptConnection
 	sw	$2,40($sp)
 
-	beq	$2,$0,$L393
+	beq	$2,$0,$L522
 	addu	$5,$20,$18
 
 	jal	rtl_check_for_acc
 	move	$4,$17
 
-	j	$L381
+	j	$L510
 	move	$2,$0
 
-$L393:
+$L522:
 	li	$2,-1			# 0xffffffff
-$L381:
+$L510:
 	lw	$31,68($sp)
 	lw	$20,64($sp)
 	lw	$19,60($sp)
@@ -2879,42 +3154,42 @@ rtl_br_fdb_time_update:
 	move	$3,$2
 	sltu	$5,$2,301
 	li	$2,300			# 0x12c
-	beq	$3,$2,$L401
+	beq	$3,$2,$L530
 	move	$4,$16
 
-	beq	$5,$0,$L404
+	beq	$5,$0,$L533
 	li	$2,450			# 0x1c2
 
 	li	$2,150			# 0x96
-	beq	$3,$2,$L402
+	beq	$3,$2,$L531
 	lui	$2,%hi(jiffies)
 
-	j	$L399
+	j	$L528
 	nop
 
-$L404:
-	bne	$3,$2,$L399
+$L533:
+	bne	$3,$2,$L528
 	move	$4,$16
 
 	lui	$2,%hi(jiffies)
 	lw	$5,%lo(jiffies)($2)
-	j	$L406
+	j	$L535
 	nop
 
-$L401:
+$L530:
 	lui	$2,%hi(jiffies)
 	lw	$5,%lo(jiffies)($2)
-	j	$L406
+	j	$L535
 	addiu	$5,$5,-15000
 
-$L402:
+$L531:
 	lw	$5,%lo(jiffies)($2)
 	addiu	$5,$5,-30000
-$L406:
+$L535:
 	jal	rtl_set_fdb_aging
 	nop
 
-$L399:
+$L528:
 	jal	rtl_get_fdb_aging
 	move	$4,$16
 
@@ -2977,55 +3252,55 @@ mark_path_invalid:
 	sll	$2,$2,2
 	addu	$2,$2,$3
 	lw	$4,0($2)
-	beq	$4,$0,$L430
+	beq	$4,$0,$L559
 	nop
 
 	li	$3,255			# 0xff
-$L415:
+$L544:
 	lw	$2,12($4)
-	bne	$2,$5,$L411
+	bne	$2,$5,$L540
 	nop
 
 	lw	$2,8($4)
-	bne	$2,$7,$L411
+	bne	$2,$7,$L540
 	nop
 
 	lw	$2,16($4)
-	bne	$2,$11,$L411
+	bne	$2,$11,$L540
 	nop
 
 	lw	$2,20($4)
-	bne	$2,$6,$L411
+	bne	$2,$6,$L540
 	nop
 
 	lbu	$2,0($4)
-	bne	$2,$3,$L411
+	bne	$2,$3,$L540
 	li	$2,1			# 0x1
 
 	lbu	$3,2($4)
-	beq	$3,$2,$L428
+	beq	$3,$2,$L557
 	sb	$0,0($4)
 
 	lw	$8,32($4)
 	lhu	$9,38($4)
-	j	$L410
+	j	$L539
 	nop
 
-$L411:
-	lw	$4,64($4)
-	bne	$4,$0,$L415
+$L540:
+	lw	$4,72($4)
+	bne	$4,$0,$L544
 	nop
 
-$L431:
+$L560:
 	j	$31
 	nop
 
-$L410:
-	beq	$8,$0,$L431
+$L539:
+	beq	$8,$0,$L560
 	li	$2,1			# 0x1
 
 	lbu	$3,2($4)
-	bne	$3,$2,$L417
+	bne	$3,$2,$L546
 	srl	$3,$11,16
 
 	srl	$2,$6,8
@@ -3035,16 +3310,16 @@ $L410:
 	xor	$2,$2,$3
 	srl	$3,$7,4
 	xor	$2,$2,$3
-	j	$L429
+	j	$L558
 	xor	$2,$2,$9
 
-$L428:
+$L557:
 	lw	$8,24($4)
 	lhu	$9,30($4)
-	j	$L410
+	j	$L539
 	nop
 
-$L417:
+$L546:
 	srl	$2,$8,8
 	xor	$3,$3,$11
 	xor	$2,$2,$8
@@ -3052,7 +3327,7 @@ $L417:
 	srl	$3,$9,4
 	xor	$2,$2,$3
 	xor	$2,$2,$5
-$L429:
+$L558:
 	xor	$2,$2,$10
 	lw	$3,%lo(path_table_list_max)($12)
 	srl	$4,$2,12
@@ -3066,38 +3341,38 @@ $L429:
 	sll	$3,$3,2
 	addu	$3,$3,$2
 	lw	$4,0($3)
-	beq	$4,$0,$L430
+	beq	$4,$0,$L559
 	nop
 
 	li	$3,255			# 0xff
-$L425:
+$L554:
 	lw	$2,24($4)
-	bne	$2,$6,$L423
+	bne	$2,$6,$L552
 	nop
 
 	lw	$2,28($4)
-	bne	$2,$7,$L423
+	bne	$2,$7,$L552
 	nop
 
 	lw	$2,32($4)
-	bne	$2,$11,$L423
+	bne	$2,$11,$L552
 	nop
 
 	lw	$2,36($4)
-	bne	$2,$5,$L423
+	bne	$2,$5,$L552
 	nop
 
 	lbu	$2,0($4)
-	bne	$2,$3,$L423
+	bne	$2,$3,$L552
 	nop
 
 	sb	$0,0($4)
-$L423:
-	lw	$4,64($4)
-	bne	$4,$0,$L425
+$L552:
+	lw	$4,72($4)
+	bne	$4,$0,$L554
 	nop
 
-$L430:
+$L559:
 	j	$31
 	nop
 
@@ -3233,14 +3508,14 @@ enter_fast_path:
 	addiu	$sp,$sp,-88
 	li	$2,1			# 0x1
 	sw	$31,84($sp)
-	sw	$21,68($sp)
-	move	$21,$0
+	sw	$22,72($sp)
+	move	$22,$0
 	sw	$18,56($sp)
 	sw	$16,48($sp)
 	sw	$4,24($sp)
 	sw	$fp,80($sp)
 	sw	$23,76($sp)
-	sw	$22,72($sp)
+	sw	$21,68($sp)
 	sw	$20,64($sp)
 	sw	$19,60($sp)
 	sw	$17,52($sp)
@@ -3266,32 +3541,32 @@ enter_fast_path:
 	sltu	$2,$2,2
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L433
+	bne	$2,$0,$L562
 	sw	$0,44($sp)
 	.set	macro
 	.set	reorder
 
-	lbu	$20,9($18)
+	lbu	$21,9($18)
 	li	$2,6			# 0x6
 	.set	noreorder
 	.set	nomacro
-	beq	$20,$2,$L435
+	beq	$21,$2,$L564
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
 
-	bne	$20,$2,$L433
-$L435:
+	bne	$21,$2,$L562
+$L564:
 	lbu	$2,0($18)
 	move	$4,$18
 	lw	$6,24($sp)
 	andi	$2,$2,0xf
 	sll	$2,$2,2
-	addu	$22,$18,$2
+	addu	$23,$18,$2
 	.set	noreorder
 	.set	nomacro
 	jal	fast_path_pre_process_check
-	move	$5,$22
+	move	$5,$23
 	.set	macro
 	.set	reorder
 
@@ -3300,7 +3575,7 @@ $L435:
 	li	$2,6			# 0x6
 	.set	noreorder
 	.set	nomacro
-	bne	$5,$2,$L433
+	bne	$5,$2,$L562
 	lui	$3,%hi($LC0)
 	.set	macro
 	.set	reorder
@@ -3323,48 +3598,50 @@ $L435:
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$0,$L433
+	beq	$3,$0,$L562
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-	lhu	$3,0($22)
-	lhu	$16,6($18)
+	lhu	$4,0($23)
+	lhu	$6,6($18)
 	lw	$19,12($18)
-	lw	$23,16($18)
-	sw	$3,28($sp)
-	lhu	$4,2($22)
+	lw	$20,16($18)
+	andi	$3,$6,0xffff
+	sw	$4,28($sp)
+	lhu	$2,2($23)
 	.set	noreorder
 	.set	nomacro
-	bne	$20,$5,$L448
-	sw	$4,32($sp)
+	bne	$21,$5,$L576
+	sw	$2,32($sp)
 	.set	macro
 	.set	reorder
 
-	andi	$2,$16,0x3fff
+	andi	$2,$3,0x3fff
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L443
-	li	$3,1			# 0x1
+	beq	$2,$0,$L572
+	li	$4,1			# 0x1
 	.set	macro
 	.set	reorder
 
-	xori	$2,$16,0x2000
-	sltu	$3,$2,1
-$L443:
+	xori	$2,$3,0x2000
+	sltu	$4,$2,1
+$L572:
 	li	$2,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L444
-	li	$2,65536			# 0x10000
+	bne	$4,$2,$L760
+	andi	$2,$6,0x3fff
 	.set	macro
 	.set	reorder
 
-	lw	$3,12($22)
-	and	$2,$3,$2
+	lw	$5,12($23)
+	li	$2,65536			# 0x10000
+	and	$2,$5,$2
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L445
+	beq	$2,$0,$L574
 	li	$2,393216			# 0x60000
 	.set	macro
 	.set	reorder
@@ -3372,81 +3649,60 @@ $L443:
 	lw	$5,28($sp)
 	move	$4,$19
 	lw	$7,32($sp)
-	move	$6,$23
+	move	$6,$20
 	.set	noreorder
 	.set	nomacro
 	jal	mark_path_invalid
-	sw	$20,16($sp)
+	sw	$21,16($sp)
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L433
+	j	$L562
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-$L445:
-	and	$2,$3,$2
+$L574:
+	and	$2,$5,$2
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L433
+	bne	$2,$0,$L562
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-$L444:
-	lw	$2,12($22)
-	li	$3,1048576			# 0x100000
-	and	$2,$2,$3
+$L576:
+	andi	$2,$6,0x3fff
+$L760:
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L448
-	li	$2,40			# 0x28
-	.set	macro
-	.set	reorder
-
-	lhu	$3,2($18)
-	bne	$3,$2,$L448
-	lw	$4,24($sp)
-	.set	noreorder
-	.set	nomacro
-	jal	skb_trim
-	li	$5,40			# 0x28
-	.set	macro
-	.set	reorder
-
-$L448:
-	lhu	$2,6($18)
-	andi	$2,$2,0x3fff
-	.set	noreorder
-	.set	nomacro
-	beq	$2,$0,$L449
+	beq	$2,$0,$L577
 	li	$2,8192			# 0x2000
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	bne	$16,$2,$L450
-	andi	$2,$16,0x2000
+	bne	$3,$2,$L578
+	andi	$2,$3,0x2000
 	.set	macro
 	.set	reorder
 
-	li	$2,1			# 0x1
+	li	$3,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	j	$L451
-	sw	$2,40($sp)
+	j	$L579
+	sw	$3,40($sp)
 	.set	macro
 	.set	reorder
 
-$L450:
+$L578:
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L451
-	andi	$3,$16,0x1fff
+	bne	$2,$0,$L579
+	andi	$3,$3,0x1fff
 	.set	macro
 	.set	reorder
 
@@ -3454,78 +3710,76 @@ $L450:
 	li	$2,1			# 0x1
 	movn	$4,$2,$3		#conditional move
 	sw	$4,44($sp)
-$L451:
-	lw	$6,12($18)
-	lui	$11,%hi(max_udp_frag_entry)
-	lw	$5,16($18)
-	lui	$12,%hi(negative_cache_table)
-	lhu	$9,4($18)
-	xor	$3,$6,$5
+$L579:
+	lhu	$6,4($18)
+	xor	$3,$19,$20
 	srl	$2,$3,16
-	andi	$10,$9,0xffff
-	xor	$2,$2,$10
-	lbu	$8,9($18)
+	lui	$9,%hi(max_udp_frag_entry)
+	andi	$8,$6,0xffff
+	lui	$10,%hi(negative_cache_table)
+	xor	$2,$2,$8
+	lbu	$7,9($18)
 	xor	$3,$3,$2
 	srl	$2,$3,8
-	andi	$7,$8,0x00ff
-	lw	$4,%lo(max_udp_frag_entry)($11)
-	xor	$2,$2,$7
+	andi	$5,$7,0x00ff
+	lw	$4,%lo(max_udp_frag_entry)($9)
+	xor	$2,$2,$5
 	xor	$3,$3,$2
 	addiu	$4,$4,-1
 	and	$3,$3,$4
 	sll	$2,$3,1
 	addu	$2,$2,$3
-	lw	$3,%lo(negative_cache_table)($12)
+	lw	$3,%lo(negative_cache_table)($10)
 	sll	$2,$2,2
 	addu	$2,$2,$3
 	lw	$3,0($2)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$0,$L460
+	beq	$3,$0,$L588
 	li	$4,3			# 0x3
 	.set	macro
 	.set	reorder
 
-$L459:
+$L587:
 	lhu	$2,2($3)
-	bne	$2,$10,$L456
+	bne	$2,$8,$L584
 	lw	$2,4($3)
-	bne	$2,$6,$L456
+	bne	$2,$19,$L584
 	lw	$2,8($3)
-	bne	$2,$5,$L456
+	bne	$2,$20,$L584
 	lbu	$2,1($3)
-	bne	$2,$7,$L456
+	bne	$2,$5,$L584
 	lbu	$2,0($3)
-	beq	$2,$4,$L609
-$L456:
+	beq	$2,$4,$L741
+$L584:
 	lw	$3,36($3)
-	bne	$3,$0,$L459
+	bne	$3,$0,$L587
 	.set	noreorder
 	.set	nomacro
-	j	$L626
-	xor	$3,$6,$5
+	j	$L759
+	xor	$3,$19,$20
 	.set	macro
 	.set	reorder
 
-$L609:
+$L741:
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$0,$L433
+	bne	$3,$0,$L562
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-$L460:
-	xor	$3,$6,$5
-$L626:
-	andi	$10,$9,0xffff
+$L588:
+	xor	$3,$19,$20
+$L759:
+	andi	$8,$6,0xffff
 	srl	$2,$3,16
-	andi	$7,$8,0x00ff
-	xor	$2,$2,$10
+	andi	$5,$7,0x00ff
+	xor	$2,$2,$8
 	xor	$3,$3,$2
 	srl	$2,$3,8
-	lw	$4,%lo(max_udp_frag_entry)($11)
-	xor	$2,$2,$7
+	lw	$4,%lo(max_udp_frag_entry)($9)
+	xor	$2,$2,$5
 	xor	$3,$3,$2
 	lui	$2,%hi(udp_cache_table)
 	addiu	$4,$4,-1
@@ -3539,38 +3793,38 @@ $L626:
 	lw	$4,0($2)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L606
+	beq	$4,$0,$L738
 	li	$3,1			# 0x1
 	.set	macro
 	.set	reorder
 
-$L468:
+$L596:
 	lhu	$2,2($4)
-	bne	$2,$10,$L465
+	bne	$2,$8,$L593
 	lw	$2,4($4)
-	bne	$2,$6,$L465
+	bne	$2,$19,$L593
 	lw	$2,8($4)
-	bne	$2,$5,$L465
+	bne	$2,$20,$L593
 	lbu	$2,1($4)
-	bne	$2,$7,$L465
+	bne	$2,$5,$L593
 	lbu	$2,0($4)
-	beq	$2,$3,$L610
-$L465:
+	beq	$2,$3,$L742
+$L593:
 	lw	$4,40($4)
-	bne	$4,$0,$L468
-$L606:
+	bne	$4,$0,$L596
+$L738:
 	.set	noreorder
 	.set	nomacro
-	j	$L469
-	move	$21,$0
+	j	$L597
+	move	$22,$0
 	.set	macro
 	.set	reorder
 
-$L610:
+$L742:
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L469
-	move	$21,$4
+	beq	$4,$0,$L597
+	move	$22,$4
 	.set	macro
 	.set	reorder
 
@@ -3580,42 +3834,42 @@ $L610:
 	lw	$4,40($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$4,$0,$L449
+	bne	$4,$0,$L577
 	sw	$3,32($sp)
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L449
+	j	$L577
 	sw	$0,36($sp)
 	.set	macro
 	.set	reorder
 
-$L469:
+$L597:
 	lw	$2,40($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L449
-	xor	$3,$19,$23
+	bne	$2,$0,$L577
+	xor	$3,$19,$20
 	.set	macro
 	.set	reorder
 
-	andi	$6,$9,0xffff
+	andi	$6,$6,0xffff
 	srl	$2,$3,16
-	andi	$8,$8,0x00ff
+	andi	$8,$7,0x00ff
 	xor	$2,$2,$6
 	lui	$5,%hi(negative_cache_list_free)
 	xor	$3,$3,$2
+	lw	$4,%lo(max_udp_frag_entry)($9)
 	srl	$2,$3,8
-	lw	$4,%lo(max_udp_frag_entry)($11)
 	xor	$2,$2,$8
 	lw	$7,%lo(negative_cache_list_free)($5)
 	xor	$3,$3,$2
 	addiu	$4,$4,-1
 	.set	noreorder
 	.set	nomacro
-	beq	$7,$0,$L621
+	beq	$7,$0,$L754
 	and	$9,$3,$4
 	.set	macro
 	.set	reorder
@@ -3624,27 +3878,27 @@ $L469:
 	li	$2,3
 	sh	$6,2($7)
 	sw	$19,4($7)
-	sw	$23,8($7)
+	sw	$20,8($7)
 	sb	$8,1($7)
 	sb	$2,0($7)
 	lw	$3,48($7)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L477
+	beq	$4,$0,$L605
 	addiu	$2,$5,%lo(negative_cache_list_free)
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L478
+	j	$L606
 	sw	$3,48($4)
 	.set	macro
 	.set	reorder
 
-$L477:
+$L605:
 	sw	$3,4($2)
-$L478:
+$L606:
 	lw	$4,48($7)
 	addiu	$5,$5,%lo(negative_cache_list_free)
 	lw	$2,44($7)
@@ -3658,18 +3912,18 @@ $L478:
 	addiu	$2,$2,-1
 	sw	$2,8($5)
 	sw	$0,36($7)
-	lw	$2,%lo(negative_cache_table)($12)
+	lw	$2,%lo(negative_cache_table)($10)
 	addu	$2,$3,$2
 	lw	$2,4($2)
 	sw	$2,40($7)
-	lw	$2,%lo(negative_cache_table)($12)
+	lw	$2,%lo(negative_cache_table)($10)
 	addu	$2,$3,$2
 	lw	$2,4($2)
 	sw	$7,0($2)
-	lw	$2,%lo(negative_cache_table)($12)
+	lw	$2,%lo(negative_cache_table)($10)
 	addu	$2,$3,$2
 	sw	$6,4($2)
-	lw	$2,%lo(negative_cache_table)($12)
+	lw	$2,%lo(negative_cache_table)($10)
 	addu	$3,$3,$2
 	lw	$2,8($3)
 	addiu	$2,$2,1
@@ -3686,24 +3940,24 @@ $L478:
 
 	.set	noreorder
 	.set	nomacro
-	j	$L433
+	j	$L562
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-$L449:
+$L577:
 	lw	$4,28($sp)
 	srl	$2,$19,8
-	srl	$fp,$23,16
+	srl	$fp,$20,16
 	xor	$2,$2,$19
-	xor	$3,$fp,$23
+	xor	$3,$fp,$20
 	xor	$2,$2,$3
 	srl	$3,$4,4
 	xor	$2,$2,$3
 	lw	$3,32($sp)
 	xor	$2,$2,$3
 	lui	$3,%hi(path_table_list_max)
-	xor	$2,$2,$20
+	xor	$2,$2,$21
 	lw	$4,%lo(path_table_list_max)($3)
 	srl	$3,$2,12
 	xor	$2,$2,$3
@@ -3716,37 +3970,37 @@ $L449:
 	lw	$3,0($3)
 	sll	$2,$2,2
 	addu	$2,$2,$3
-	lw	$17,0($2)
-$L616:
-	beq	$17,$0,$L608
-	lw	$2,12($17)
+	lw	$16,0($2)
+$L749:
+	beq	$16,$0,$L740
+	lw	$2,12($16)
 	lw	$4,28($sp)
-	bne	$2,$4,$L483
-	lw	$2,8($17)
+	bne	$2,$4,$L611
+	lw	$2,8($16)
 	lw	$3,32($sp)
-	bne	$2,$3,$L483
-	lw	$2,16($17)
-	bne	$2,$19,$L483
-	lw	$2,20($17)
+	bne	$2,$3,$L611
+	lw	$2,16($16)
+	bne	$2,$19,$L611
+	lw	$2,20($16)
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$23,$L483
+	bne	$2,$20,$L611
 	li	$2,255			# 0xff
 	.set	macro
 	.set	reorder
 
-	lbu	$3,0($17)
+	lbu	$3,0($16)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L483
+	bne	$3,$2,$L611
 	li	$2,2			# 0x2
 	.set	macro
 	.set	reorder
 
-	lw	$3,4($17)
+	lw	$3,4($16)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L627
+	bne	$3,$2,$L761
 	li	$2,1			# 0x1
 	.set	macro
 	.set	reorder
@@ -3754,23 +4008,41 @@ $L616:
 	li	$2,6			# 0x6
 	.set	noreorder
 	.set	nomacro
-	beq	$20,$2,$L485
+	beq	$21,$2,$L613
 	li	$2,1			# 0x1
 	.set	macro
 	.set	reorder
 
-$L627:
+$L761:
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L483
+	bne	$3,$2,$L611
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
 
-	bne	$20,$2,$L483
-$L485:
+	bne	$21,$2,$L611
+$L613:
+	lui	$2,%hi(rtl_check_bypass_packet_hook)
+	lw	$2,%lo(rtl_check_bypass_packet_hook)($2)
+	beq	$2,$0,$L615
+	.set	noreorder
+	.set	nomacro
+	jal	$2
+	move	$4,$16
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	bne	$2,$0,$L562
+	move	$4,$0
+	.set	macro
+	.set	reorder
+
+$L615:
 	lw	$4,24($sp)
-	lw	$5,32($17)
+	lw	$5,32($16)
 	lbu	$7,1($18)
 	.set	noreorder
 	.set	nomacro
@@ -3781,7 +4053,7 @@ $L485:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L433
+	bne	$2,$0,$L562
 	move	$4,$0
 	.set	macro
 	.set	reorder
@@ -3791,28 +4063,28 @@ $L485:
 	li	$3,-1			# 0xffffffff
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L612
+	beq	$2,$3,$L745
 	li	$2,6			# 0x6
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	beq	$20,$2,$L490
-	addiu	$16,$22,16
+	beq	$21,$2,$L620
+	addiu	$17,$23,16
 	.set	macro
 	.set	reorder
 
-	lhu	$3,6($22)
-	addiu	$2,$22,6
-	move	$16,$0
-	movn	$16,$2,$3		#conditional move  
-$L490:
+	lhu	$3,6($23)
+	addiu	$2,$23,6
+	move	$17,$0
+	movn	$17,$2,$3		#conditional move  
+$L620:
 	lw	$4,40($sp)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L493
-	xor	$3,$19,$23
+	beq	$4,$0,$L623
+	xor	$3,$19,$20
 	.set	macro
 	.set	reorder
 
@@ -3820,7 +4092,7 @@ $L490:
 	lhu	$11,4($18)
 	srl	$4,$3,16
 	lw	$5,%lo(max_udp_frag_entry)($2)
-	andi	$9,$20,0x00ff
+	andi	$9,$21,0x00ff
 	xor	$4,$4,$11
 	lui	$6,%hi(udp_cache_list_free)
 	xor	$3,$3,$4
@@ -3835,7 +4107,7 @@ $L490:
 	lw	$8,%lo(udp_cache_list_free)($6)
 	.set	noreorder
 	.set	nomacro
-	beq	$8,$0,$L612
+	beq	$8,$0,$L745
 	andi	$7,$4,0xffff
 	.set	macro
 	.set	reorder
@@ -3848,25 +4120,25 @@ $L490:
 	sh	$7,14($8)
 	sb	$2,0($8)
 	sw	$19,4($8)
-	sw	$23,8($8)
+	sw	$20,8($8)
 	lw	$3,52($8)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L499
+	beq	$4,$0,$L629
 	addiu	$2,$6,%lo(udp_cache_list_free)
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L500
+	j	$L630
 	sw	$3,52($4)
 	.set	macro
 	.set	reorder
 
-$L499:
+$L629:
 	sw	$3,4($2)
-$L500:
+$L630:
 	lw	$4,52($8)
 	addiu	$6,$6,%lo(udp_cache_list_free)
 	lw	$2,48($8)
@@ -3911,49 +4183,49 @@ $L500:
 	.set	macro
 	.set	reorder
 
-	j	$L502
-$L493:
+	j	$L632
+$L623:
 	lw	$2,44($sp)
-	beq	$2,$0,$L502
+	beq	$2,$0,$L632
 	.set	noreorder
 	.set	nomacro
 	jal	del_timer
-	addiu	$4,$21,16
+	addiu	$4,$22,16
 	.set	macro
 	.set	reorder
 
-	lw	$2,8($21)
-	lw	$3,4($21)
-	lhu	$4,2($21)
+	lw	$2,8($22)
+	lw	$3,4($22)
+	lhu	$4,2($22)
 	xor	$3,$3,$2
 	srl	$2,$3,16
 	xor	$2,$2,$4
 	xor	$3,$3,$2
 	lui	$2,%hi(max_udp_frag_entry)
-	lbu	$5,1($21)
+	lbu	$5,1($22)
 	srl	$4,$3,8
 	lw	$2,%lo(max_udp_frag_entry)($2)
 	xor	$4,$4,$5
-	lw	$6,40($21)
+	lw	$6,40($22)
 	xor	$3,$3,$4
 	addiu	$2,$2,-1
-	sb	$0,0($21)
-	lw	$4,44($21)
+	sb	$0,0($22)
+	lw	$4,44($22)
 	.set	noreorder
 	.set	nomacro
-	beq	$6,$0,$L506
+	beq	$6,$0,$L636
 	and	$5,$3,$2
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	j	$L507
+	j	$L637
 	sw	$4,44($6)
 	.set	macro
 	.set	reorder
 
-$L506:
+$L636:
 	lui	$3,%hi(udp_cache_table)
 	sll	$2,$5,1
 	lw	$3,%lo(udp_cache_table)($3)
@@ -3962,13 +4234,13 @@ $L506:
 	lw	$3,0($3)
 	addu	$2,$2,$3
 	sw	$4,4($2)
-$L507:
-	lw	$4,44($21)
+$L637:
+	lw	$4,44($22)
 	sll	$3,$5,1
-	lw	$2,40($21)
+	lw	$2,40($22)
 	addu	$3,$3,$5
 	sll	$3,$3,2
-	addiu	$5,$21,48
+	addiu	$5,$22,48
 	sw	$2,0($4)
 	lui	$2,%hi(udp_cache_table)
 	lw	$2,%lo(udp_cache_table)($2)
@@ -3979,67 +4251,95 @@ $L507:
 	lw	$2,8($3)
 	addiu	$2,$2,-1
 	sw	$2,8($3)
-	sw	$0,48($21)
+	sw	$0,48($22)
 	lw	$2,4($4)
-	sw	$2,52($21)
+	sw	$2,52($22)
 	lw	$2,4($4)
-	sw	$21,0($2)
+	sw	$22,0($2)
 	lw	$2,8($4)
 	sw	$5,4($4)
 	addiu	$2,$2,1
 	sw	$2,8($4)
-$L502:
+$L632:
 	lw	$4,24($sp)
 	move	$5,$18
 	.set	noreorder
 	.set	nomacro
 	jal	fast_path_before_nat_check
-	move	$6,$20
+	move	$6,$21
 	.set	macro
 	.set	reorder
 
 	li	$3,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L433
+	beq	$2,$3,$L562
 	li	$4,1			# 0x1
 	.set	macro
 	.set	reorder
 
-	lbu	$3,1($17)
+	li	$2,6			# 0x6
+	.set	noreorder
+	.set	nomacro
+	bne	$21,$2,$L642
+	li	$3,1048576			# 0x100000
+	.set	macro
+	.set	reorder
+
+	lw	$2,12($23)
+	and	$2,$2,$3
+	.set	noreorder
+	.set	nomacro
+	beq	$2,$0,$L642
+	li	$2,40			# 0x28
+	.set	macro
+	.set	reorder
+
+	lhu	$3,2($18)
+	bne	$3,$2,$L642
+	lw	$4,24($sp)
+	.set	noreorder
+	.set	nomacro
+	jal	skb_trim
+	li	$5,40			# 0x28
+	.set	macro
+	.set	reorder
+
+$L642:
+	lbu	$3,1($16)
 	sltu	$2,$3,13
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L574
+	beq	$2,$0,$L706
 	sll	$2,$3,2
 	.set	macro
 	.set	reorder
 
-	lui	$3,%hi($L597)
-	addiu	$3,$3,%lo($L597)
+	lui	$3,%hi($L729)
+	addiu	$3,$3,%lo($L729)
 	addu	$2,$2,$3
 	lw	$2,0($2)
 	lhu	$4,10($18)
 	j	$2
 	.rdata
 	.align	2
-$L597:
-	.word	$L512
-	.word	$L514
-	.word	$L530
-	.word	$L530
-	.word	$L545
-	.word	$L574
-	.word	$L574
-	.word	$L574
-	.word	$L560
-	.word	$L574
-	.word	$L574
-	.word	$L574
-	.word	$L560
+$L729:
+	.word	$L644
+	.word	$L646
+	.word	$L662
+	.word	$L662
+	.word	$L677
+	.word	$L706
+	.word	$L706
+	.word	$L706
+	.word	$L692
+	.word	$L706
+	.word	$L706
+	.word	$L706
+	.word	$L692
 	.section	.text.enter_fast_path
-$L514:
-	lw	$3,24($17)
+$L646:
+	lw	$3,24($16)
 	srl	$2,$19,16
 	andi	$6,$19,0xffff
 	andi	$4,$4,0xffff
@@ -4051,7 +4351,7 @@ $L514:
 	addu	$6,$6,$4
 	.set	noreorder
 	.set	nomacro
-	bgez	$6,$L516
+	bgez	$6,$L648
 	andi	$2,$6,0xffff
 	.set	macro
 	.set	reorder
@@ -4065,32 +4365,32 @@ $L514:
 	nor	$2,$0,$6
 	.set	noreorder
 	.set	nomacro
-	j	$L515
+	j	$L647
 	sh	$2,10($18)
 	.set	macro
 	.set	reorder
 
-$L516:
+$L648:
 	sra	$3,$6,16
 	addu	$6,$3,$2
 	sra	$2,$6,16
 	addu	$6,$6,$2
 	sh	$6,10($18)
-$L515:
+$L647:
 	lw	$3,36($sp)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$0,$L534
+	beq	$3,$0,$L666
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
 
-	bne	$20,$2,$L519
-	beq	$16,$0,$L534
-	lhu	$6,0($16)
-	beq	$6,$0,$L534
+	bne	$21,$2,$L651
+	beq	$17,$0,$L666
+	lhu	$6,0($17)
+	beq	$6,$0,$L666
 	lw	$2,12($18)
-	lw	$3,24($17)
+	lw	$3,24($16)
 	srl	$4,$2,16
 	andi	$5,$2,0xffff
 	addu	$5,$5,$4
@@ -4101,7 +4401,7 @@ $L515:
 	addu	$5,$5,$6
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L522
+	bgez	$5,$L654
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4115,38 +4415,38 @@ $L515:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L534
-	sh	$2,0($16)
+	j	$L666
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L522:
+$L654:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
 	.set	noreorder
 	.set	nomacro
-	j	$L534
-	sh	$5,0($16)
+	j	$L666
+	sh	$5,0($17)
 	.set	macro
 	.set	reorder
 
-$L519:
+$L651:
 	lw	$2,12($18)
-	lw	$3,24($17)
+	lw	$3,24($16)
 	srl	$4,$2,16
 	andi	$5,$2,0xffff
 	addu	$5,$5,$4
 	andi	$2,$3,0xffff
 	subu	$5,$5,$2
 	srl	$3,$3,16
-	lhu	$2,0($16)
+	lhu	$2,0($17)
 	subu	$5,$5,$3
 	addu	$5,$5,$2
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L526
+	bgez	$5,$L658
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4160,30 +4460,30 @@ $L519:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L525
-	sh	$2,0($16)
+	j	$L657
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L526:
+$L658:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
-	sh	$5,0($16)
-$L525:
-	lw	$2,12($22)
+	sh	$5,0($17)
+$L657:
+	lw	$2,12($23)
 	li	$3,1048576			# 0x100000
 	and	$2,$2,$3
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L534
+	beq	$2,$0,$L666
 	li	$2,40			# 0x28
 	.set	macro
 	.set	reorder
 
 	lhu	$3,2($18)
-	bne	$3,$2,$L534
+	bne	$3,$2,$L666
 	lw	$4,24($sp)
 	.set	noreorder
 	.set	nomacro
@@ -4192,9 +4492,9 @@ $L525:
 	.set	macro
 	.set	reorder
 
-	j	$L534
-$L530:
-	lw	$3,24($17)
+	j	$L666
+$L662:
+	lw	$3,24($16)
 	srl	$2,$19,16
 	andi	$6,$19,0xffff
 	andi	$4,$4,0xffff
@@ -4206,7 +4506,7 @@ $L530:
 	addu	$6,$6,$4
 	.set	noreorder
 	.set	nomacro
-	bgez	$6,$L532
+	bgez	$6,$L664
 	andi	$2,$6,0xffff
 	.set	macro
 	.set	reorder
@@ -4220,47 +4520,47 @@ $L530:
 	nor	$2,$0,$6
 	.set	noreorder
 	.set	nomacro
-	j	$L531
+	j	$L663
 	sh	$2,10($18)
 	.set	macro
 	.set	reorder
 
-$L532:
+$L664:
 	sra	$3,$6,16
 	addu	$6,$3,$2
 	sra	$2,$6,16
 	addu	$6,$6,$2
 	sh	$6,10($18)
-$L531:
+$L663:
 	lw	$4,36($sp)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L534
+	beq	$4,$0,$L666
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
 
-	bne	$20,$2,$L535
-	beq	$16,$0,$L540
-	lhu	$6,0($16)
-	beq	$6,$0,$L540
+	bne	$21,$2,$L667
+	beq	$17,$0,$L672
+	lhu	$6,0($17)
+	beq	$6,$0,$L672
 	lw	$2,12($18)
-	lw	$3,24($17)
+	lw	$3,24($16)
 	srl	$4,$2,16
 	andi	$5,$2,0xffff
 	addu	$5,$5,$4
 	andi	$2,$3,0xffff
 	subu	$5,$5,$2
 	srl	$3,$3,16
-	lhu	$4,0($22)
+	lhu	$4,0($23)
 	subu	$5,$5,$3
-	lw	$2,28($17)
+	lw	$2,28($16)
 	addu	$5,$5,$4
 	subu	$5,$5,$2
 	addu	$5,$5,$6
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L538
+	bgez	$5,$L670
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4274,42 +4574,42 @@ $L531:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L540
-	sh	$2,0($16)
+	j	$L672
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L538:
+$L670:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
 	.set	noreorder
 	.set	nomacro
-	j	$L540
-	sh	$5,0($16)
+	j	$L672
+	sh	$5,0($17)
 	.set	macro
 	.set	reorder
 
-$L535:
+$L667:
 	lw	$2,12($18)
-	lw	$3,24($17)
+	lw	$3,24($16)
 	srl	$4,$2,16
 	andi	$5,$2,0xffff
 	addu	$5,$5,$4
 	andi	$2,$3,0xffff
 	subu	$5,$5,$2
 	srl	$3,$3,16
-	lhu	$2,0($22)
+	lhu	$2,0($23)
 	subu	$5,$5,$3
-	lw	$3,28($17)
+	lw	$3,28($16)
 	addu	$5,$5,$2
-	lhu	$2,0($16)
+	lhu	$2,0($17)
 	subu	$5,$5,$3
 	addu	$5,$5,$2
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L542
+	bgez	$5,$L674
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4323,30 +4623,30 @@ $L535:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L541
-	sh	$2,0($16)
+	j	$L673
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L542:
+$L674:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
-	sh	$5,0($16)
-$L541:
-	lw	$2,12($22)
+	sh	$5,0($17)
+$L673:
+	lw	$2,12($23)
 	li	$3,1048576			# 0x100000
 	and	$2,$2,$3
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L540
+	beq	$2,$0,$L672
 	li	$2,40			# 0x28
 	.set	macro
 	.set	reorder
 
 	lhu	$3,2($18)
-	bne	$3,$2,$L540
+	bne	$3,$2,$L672
 	lw	$4,24($sp)
 	.set	noreorder
 	.set	nomacro
@@ -4355,21 +4655,21 @@ $L541:
 	.set	macro
 	.set	reorder
 
-$L540:
-	lw	$2,28($17)
-	sh	$2,0($22)
-$L534:
-	lw	$2,24($17)
+$L672:
+	lw	$2,28($16)
+	sh	$2,0($23)
+$L666:
+	lw	$2,24($16)
 	.set	noreorder
 	.set	nomacro
-	j	$L512
+	j	$L644
 	sw	$2,12($18)
 	.set	macro
 	.set	reorder
 
-$L545:
-	lw	$2,32($17)
-	andi	$6,$23,0xffff
+$L677:
+	lw	$2,32($16)
+	andi	$6,$20,0xffff
 	addu	$5,$6,$fp
 	andi	$4,$4,0xffff
 	andi	$3,$2,0xffff
@@ -4379,7 +4679,7 @@ $L545:
 	addu	$5,$5,$4
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L547
+	bgez	$5,$L679
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4393,57 +4693,57 @@ $L545:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L546
+	j	$L678
 	sh	$2,10($18)
 	.set	macro
 	.set	reorder
 
-$L547:
+$L679:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
 	sh	$5,10($18)
-$L546:
+$L678:
 	lw	$2,36($sp)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L620
+	beq	$2,$0,$L753
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
 
-	bne	$20,$2,$L550
-	beq	$16,$0,$L620
-	lhu	$4,0($16)
+	bne	$21,$2,$L682
+	beq	$17,$0,$L753
+	lhu	$4,0($17)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L620
+	beq	$4,$0,$L753
 	addu	$6,$6,$fp
 	.set	macro
 	.set	reorder
 
-	lw	$2,32($17)
+	lw	$2,32($16)
 	.set	noreorder
 	.set	nomacro
-	j	$L628
+	j	$L762
 	andi	$3,$2,0xffff
 	.set	macro
 	.set	reorder
 
-$L550:
-	lw	$2,32($17)
+$L682:
+	lw	$2,32($16)
 	addu	$6,$6,$fp
-	lhu	$4,0($16)
+	lhu	$4,0($17)
 	andi	$3,$2,0xffff
-$L628:
+$L762:
 	srl	$2,$2,16
 	subu	$6,$6,$3
 	subu	$6,$6,$2
 	addu	$6,$6,$4
 	.set	noreorder
 	.set	nomacro
-	bgez	$6,$L557
+	bgez	$6,$L689
 	andi	$2,$6,0xffff
 	.set	macro
 	.set	reorder
@@ -4457,26 +4757,26 @@ $L628:
 	nor	$2,$0,$6
 	.set	noreorder
 	.set	nomacro
-	j	$L620
-	sh	$2,0($16)
+	j	$L753
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L557:
+$L689:
 	sra	$3,$6,16
 	addu	$6,$3,$2
 	sra	$2,$6,16
 	addu	$6,$6,$2
 	.set	noreorder
 	.set	nomacro
-	j	$L620
-	sh	$6,0($16)
+	j	$L753
+	sh	$6,0($17)
 	.set	macro
 	.set	reorder
 
-$L560:
-	lw	$2,32($17)
-	andi	$6,$23,0xffff
+$L692:
+	lw	$2,32($16)
+	andi	$6,$20,0xffff
 	addu	$5,$6,$fp
 	andi	$4,$4,0xffff
 	andi	$3,$2,0xffff
@@ -4486,7 +4786,7 @@ $L560:
 	addu	$5,$5,$4
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L562
+	bgez	$5,$L694
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4500,69 +4800,69 @@ $L560:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L561
+	j	$L693
 	sh	$2,10($18)
 	.set	macro
 	.set	reorder
 
-$L562:
+$L694:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
 	sh	$5,10($18)
-$L561:
+$L693:
 	lw	$3,36($sp)
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$0,$L620
+	beq	$3,$0,$L753
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
 
-	bne	$20,$2,$L565
-	beq	$16,$0,$L570
-	lhu	$5,0($16)
+	bne	$21,$2,$L697
+	beq	$17,$0,$L702
+	lhu	$5,0($17)
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L570
+	beq	$5,$0,$L702
 	addu	$6,$6,$fp
 	.set	macro
 	.set	reorder
 
-	lw	$2,32($17)
-	lhu	$4,2($22)
+	lw	$2,32($16)
+	lhu	$4,2($23)
 	andi	$3,$2,0xffff
 	srl	$2,$2,16
 	subu	$6,$6,$3
 	subu	$6,$6,$2
-	lw	$2,36($17)
+	lw	$2,36($16)
 	addu	$6,$6,$4
 	subu	$6,$6,$2
 	.set	noreorder
 	.set	nomacro
-	j	$L623
+	j	$L756
 	addu	$6,$6,$5
 	.set	macro
 	.set	reorder
 
-$L565:
-	lw	$2,32($17)
+$L697:
+	lw	$2,32($16)
 	addu	$6,$6,$fp
-	lhu	$4,2($22)
+	lhu	$4,2($23)
 	andi	$3,$2,0xffff
 	srl	$2,$2,16
 	subu	$6,$6,$3
 	subu	$6,$6,$2
-	lw	$3,36($17)
+	lw	$3,36($16)
 	addu	$6,$6,$4
-	lhu	$2,0($16)
+	lhu	$2,0($17)
 	subu	$6,$6,$3
 	addu	$6,$6,$2
-$L623:
+$L756:
 	.set	noreorder
 	.set	nomacro
-	bgez	$6,$L572
+	bgez	$6,$L704
 	andi	$2,$6,0xffff
 	.set	macro
 	.set	reorder
@@ -4576,28 +4876,28 @@ $L623:
 	nor	$2,$0,$6
 	.set	noreorder
 	.set	nomacro
-	j	$L570
-	sh	$2,0($16)
+	j	$L702
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L572:
+$L704:
 	sra	$3,$6,16
 	addu	$6,$3,$2
 	sra	$2,$6,16
 	addu	$6,$6,$2
-	sh	$6,0($16)
-$L570:
-	lw	$2,36($17)
+	sh	$6,0($17)
+$L702:
+	lw	$2,36($16)
 	.set	noreorder
 	.set	nomacro
-	j	$L620
-	sh	$2,2($22)
+	j	$L753
+	sh	$2,2($23)
 	.set	macro
 	.set	reorder
 
-$L574:
-	lw	$2,24($17)
+$L706:
+	lw	$2,24($16)
 	srl	$6,$19,16
 	andi	$4,$19,0xffff
 	andi	$3,$2,0xffff
@@ -4609,7 +4909,7 @@ $L574:
 	addu	$5,$5,$3
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L576
+	bgez	$5,$L708
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4623,20 +4923,20 @@ $L574:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L575
+	j	$L707
 	sh	$2,10($18)
 	.set	macro
 	.set	reorder
 
-$L576:
+$L708:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
 	sh	$5,10($18)
-$L575:
-	lw	$2,32($17)
-	andi	$7,$23,0xffff
+$L707:
+	lw	$2,32($16)
+	andi	$7,$20,0xffff
 	addu	$5,$7,$fp
 	andi	$3,$2,0xffff
 	srl	$2,$2,16
@@ -4646,7 +4946,7 @@ $L575:
 	addu	$5,$5,$3
 	.set	noreorder
 	.set	nomacro
-	bgez	$5,$L579
+	bgez	$5,$L711
 	andi	$2,$5,0xffff
 	.set	macro
 	.set	reorder
@@ -4660,69 +4960,69 @@ $L575:
 	nor	$2,$0,$5
 	.set	noreorder
 	.set	nomacro
-	j	$L578
+	j	$L710
 	sh	$2,10($18)
 	.set	macro
 	.set	reorder
 
-$L579:
+$L711:
 	sra	$3,$5,16
 	addu	$5,$3,$2
 	sra	$2,$5,16
 	addu	$5,$5,$2
 	sh	$5,10($18)
-$L578:
+$L710:
 	lw	$2,36($sp)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L581
+	beq	$2,$0,$L713
 	li	$2,17			# 0x11
 	.set	macro
 	.set	reorder
 
-	bne	$20,$2,$L582
-	beq	$16,$0,$L590
-	lhu	$5,0($16)
+	bne	$21,$2,$L714
+	beq	$17,$0,$L722
+	lhu	$5,0($17)
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L590
+	beq	$5,$0,$L722
 	addu	$6,$4,$6
 	.set	macro
 	.set	reorder
 
-	lw	$2,24($17)
-	lhu	$4,0($22)
+	lw	$2,24($16)
+	lhu	$4,0($23)
 	andi	$3,$2,0xffff
 	srl	$2,$2,16
 	subu	$6,$6,$3
 	subu	$6,$6,$2
-	lw	$2,28($17)
+	lw	$2,28($16)
 	addu	$6,$6,$4
 	subu	$6,$6,$2
 	.set	noreorder
 	.set	nomacro
-	j	$L625
+	j	$L758
 	addu	$6,$6,$5
 	.set	macro
 	.set	reorder
 
-$L582:
-	lw	$2,24($17)
+$L714:
+	lw	$2,24($16)
 	addu	$6,$4,$6
-	lhu	$4,0($22)
+	lhu	$4,0($23)
 	andi	$3,$2,0xffff
 	srl	$2,$2,16
 	subu	$6,$6,$3
 	subu	$6,$6,$2
-	lw	$3,28($17)
+	lw	$3,28($16)
 	addu	$6,$6,$4
-	lhu	$2,0($16)
+	lhu	$2,0($17)
 	subu	$6,$6,$3
 	addu	$6,$6,$2
-$L625:
+$L758:
 	.set	noreorder
 	.set	nomacro
-	bgez	$6,$L592
+	bgez	$6,$L724
 	andi	$2,$6,0xffff
 	.set	macro
 	.set	reorder
@@ -4736,33 +5036,33 @@ $L625:
 	nor	$2,$0,$6
 	.set	noreorder
 	.set	nomacro
-	j	$L591
-	sh	$2,0($16)
+	j	$L723
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L592:
+$L724:
 	sra	$3,$6,16
 	addu	$6,$3,$2
 	sra	$2,$6,16
 	addu	$6,$6,$2
-	sh	$6,0($16)
-$L591:
-	lw	$2,32($17)
+	sh	$6,0($17)
+$L723:
+	lw	$2,32($16)
 	addu	$6,$7,$fp
-	lhu	$4,2($22)
+	lhu	$4,2($23)
 	andi	$3,$2,0xffff
 	srl	$2,$2,16
 	subu	$6,$6,$3
 	subu	$6,$6,$2
-	lw	$3,36($17)
+	lw	$3,36($16)
 	addu	$6,$6,$4
-	lhu	$2,0($16)
+	lhu	$2,0($17)
 	subu	$6,$6,$3
 	addu	$6,$6,$2
 	.set	noreorder
 	.set	nomacro
-	bgez	$6,$L595
+	bgez	$6,$L727
 	andi	$2,$6,0xffff
 	.set	macro
 	.set	reorder
@@ -4776,29 +5076,29 @@ $L591:
 	nor	$2,$0,$6
 	.set	noreorder
 	.set	nomacro
-	j	$L590
-	sh	$2,0($16)
+	j	$L722
+	sh	$2,0($17)
 	.set	macro
 	.set	reorder
 
-$L595:
+$L727:
 	sra	$3,$6,16
 	addu	$6,$3,$2
 	sra	$2,$6,16
 	addu	$6,$6,$2
-	sh	$6,0($16)
-$L590:
-	lw	$2,28($17)
-	sh	$2,0($22)
-	lw	$2,36($17)
-	sh	$2,2($22)
-$L581:
-	lw	$2,24($17)
+	sh	$6,0($17)
+$L722:
+	lw	$2,28($16)
+	sh	$2,0($23)
+	lw	$2,36($16)
+	sh	$2,2($23)
+$L713:
+	lw	$2,24($16)
 	sw	$2,12($18)
-$L620:
-	lw	$2,32($17)
+$L753:
+	lw	$2,32($16)
 	sw	$2,16($18)
-$L512:
+$L644:
 	lbu	$2,8($18)
 	lbu	$4,9($18)
 	addiu	$5,$2,-1
@@ -4813,7 +5113,7 @@ $L512:
 	addu	$6,$6,$2
 	.set	noreorder
 	.set	nomacro
-	bgez	$6,$L599
+	bgez	$6,$L731
 	sb	$5,8($18)
 	.set	macro
 	.set	reorder
@@ -4827,19 +5127,19 @@ $L512:
 	nor	$2,$0,$6
 	.set	noreorder
 	.set	nomacro
-	j	$L598
+	j	$L730
 	sh	$2,10($18)
 	.set	macro
 	.set	reorder
 
-$L599:
+$L731:
 	andi	$2,$6,0xffff
 	sra	$3,$6,16
 	addu	$6,$3,$2
 	sra	$2,$6,16
 	addu	$6,$6,$2
 	sh	$6,10($18)
-$L598:
+$L730:
 	lw	$4,24($sp)
 	.set	noreorder
 	.set	nomacro
@@ -4857,25 +5157,25 @@ $L598:
 	.set	reorder
 
 	lw	$4,24($sp)
-	lw	$5,48($17)
-	lw	$6,52($17)
+	lw	$5,48($16)
+	lw	$6,52($16)
 	jal	fastpath_set_qos_mark
 	lui	$2,%hi(jiffies)
 	lw	$2,%lo(jiffies)($2)
 	move	$4,$18
 	lw	$6,24($sp)
-	move	$5,$22
+	move	$5,$23
 	.set	noreorder
 	.set	nomacro
 	jal	fast_path_post_process_xmit_check
-	sw	$2,40($17)
+	sw	$2,40($16)
 	.set	macro
 	.set	reorder
 
 	li	$3,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L433
+	beq	$2,$3,$L562
 	li	$4,1			# 0x1
 	.set	macro
 	.set	reorder
@@ -4884,20 +5184,20 @@ $L598:
 	jal	ip_finish_output3
 	.set	noreorder
 	.set	nomacro
-	j	$L433
+	j	$L562
 	li	$4,1			# 0x1
 	.set	macro
 	.set	reorder
 
-$L483:
-	lw	$17,64($17)
-	j	$L616
-$L608:
+$L611:
+	lw	$16,72($16)
+	j	$L749
+$L740:
 	lw	$4,24($sp)
 	jal	rtl_set_skb_inDev
 	move	$4,$18
 	lw	$6,24($sp)
-	move	$5,$22
+	move	$5,$23
 	lw	$31,84($sp)
 	lw	$fp,80($sp)
 	lw	$23,76($sp)
@@ -4915,12 +5215,12 @@ $L608:
 	.set	macro
 	.set	reorder
 
-$L612:
+$L745:
 	lw	$4,24($sp)
 	jal	rtl_dst_release
-$L621:
+$L754:
 	move	$4,$0
-$L433:
+$L562:
 	lw	$31,84($sp)
 	move	$2,$4
 	lw	$fp,80($sp)
@@ -4964,26 +5264,26 @@ fastpath_dump_napt_entry_num:
 	sw	$31,20($sp)
 	move	$16,$5
 	lw	$2,%lo(path_list_inuse)($2)
-$L642:
-	beq	$2,$0,$L639
+$L776:
+	beq	$2,$0,$L773
 	move	$6,$0
 
-	lw	$2,72($2)
-	j	$L642
+	lw	$2,80($2)
+	j	$L776
 	addiu	$7,$7,1
 
-$L639:
+$L773:
 	lui	$2,%hi(napt_list_inuse)
 	lw	$2,%lo(napt_list_inuse)($2)
-$L643:
-	beq	$2,$0,$L641
+$L777:
+	beq	$2,$0,$L775
 	lui	$5,%hi($LC1)
 
 	lw	$2,44($2)
-	j	$L643
+	j	$L777
 	addiu	$6,$6,1
 
-$L641:
+$L775:
 	addu	$4,$4,$16
 	jal	sprintf
 	addiu	$5,$5,%lo($LC1)
@@ -5010,8 +5310,8 @@ init_table_napt:
 	.set	noreorder
 	.set	nomacro
 	
-$L649:
-$L690:
+$L783:
+$L824:
 	addiu	$sp,$sp,-64
 	lui	$2,%hi(malloc_sizes+4)
 	sw	$21,52($sp)
@@ -5031,11 +5331,11 @@ $L690:
 
 	li	$3,-1			# 0xffffffff
 	move	$17,$2
-	beq	$2,$0,$L644
+	beq	$2,$0,$L778
 	sw	$2,%lo(table_napt)($16)
 
-$L700:
-$L741:
+$L834:
+$L875:
 	lui	$2,%hi(napt_list_inuse)
 	lui	$20,%hi(napt_list_free)
 	sll	$4,$18,1
@@ -5057,22 +5357,22 @@ $L741:
 	sw	$2,0($17)
 	lw	$2,%lo(table_napt)($16)
 	lw	$2,0($2)
-	beq	$2,$0,$L644
+	beq	$2,$0,$L778
 	li	$3,-1			# 0xffffffff
 
-	j	$L744
+	j	$L878
 	move	$16,$0
 
-$L808:
-	j	$L644
+$L942:
+	j	$L778
 	li	$3,-2			# 0xfffffffe
 
-$L744:
-	blez	$18,$L805
+$L878:
+	blez	$18,$L939
 	nop
 
 	move	$4,$0
-$L749:
+$L883:
 	lw	$2,%lo(table_napt)($19)
 	addiu	$16,$16,1
 	slt	$3,$16,$18
@@ -5087,16 +5387,16 @@ $L749:
 	lw	$2,0($2)
 	addu	$2,$4,$2
 	addiu	$4,$4,12
-	bne	$3,$0,$L749
+	bne	$3,$0,$L883
 	sw	$2,4($2)
 
-$L805:
-	blez	$21,$L807
+$L939:
+	blez	$21,$L941
 	move	$16,$0
 
-$L803:
-$L757:
-$L798:
+$L937:
+$L891:
+$L932:
 	lui	$2,%hi(malloc_sizes+12)
 	li	$5,32			# 0x20
 	lw	$4,%lo(malloc_sizes+12)($2)
@@ -5106,7 +5406,7 @@ $L798:
 	addiu	$4,$20,%lo(napt_list_free)
 	move	$3,$2
 	addiu	$5,$2,44
-	beq	$2,$0,$L808
+	beq	$2,$0,$L942
 	slt	$6,$16,$21
 
 	sw	$0,44($2)
@@ -5117,12 +5417,12 @@ $L798:
 	lw	$2,8($4)
 	sw	$5,4($4)
 	addiu	$2,$2,1
-	bne	$6,$0,$L803
+	bne	$6,$0,$L937
 	sw	$2,8($4)
 
-$L807:
+$L941:
 	move	$3,$0
-$L644:
+$L778:
 	lw	$31,56($sp)
 	move	$2,$3
 	lw	$21,52($sp)
@@ -5150,8 +5450,8 @@ init_table_path:
 	.set	noreorder
 	.set	nomacro
 	
-$L814:
-$L855:
+$L948:
+$L989:
 	addiu	$sp,$sp,-64
 	lui	$2,%hi(malloc_sizes+4)
 	sw	$21,52($sp)
@@ -5171,11 +5471,11 @@ $L855:
 
 	li	$3,-1			# 0xffffffff
 	move	$17,$2
-	beq	$2,$0,$L809
+	beq	$2,$0,$L943
 	sw	$2,%lo(table_path)($16)
 
-$L865:
-$L906:
+$L999:
+$L1040:
 	lui	$2,%hi(path_list_inuse)
 	lui	$20,%hi(path_list_free)
 	sll	$4,$18,1
@@ -5197,22 +5497,22 @@ $L906:
 	sw	$2,0($17)
 	lw	$2,%lo(table_path)($16)
 	lw	$2,0($2)
-	beq	$2,$0,$L809
+	beq	$2,$0,$L943
 	li	$3,-1			# 0xffffffff
 
-	j	$L909
+	j	$L1043
 	move	$16,$0
 
-$L973:
-	j	$L809
+$L1107:
+	j	$L943
 	li	$3,-2			# 0xfffffffe
 
-$L909:
-	blez	$18,$L970
+$L1043:
+	blez	$18,$L1104
 	nop
 
 	move	$4,$0
-$L914:
+$L1048:
 	lw	$2,%lo(table_path)($19)
 	addiu	$16,$16,1
 	slt	$3,$16,$18
@@ -5227,16 +5527,16 @@ $L914:
 	lw	$2,0($2)
 	addu	$2,$4,$2
 	addiu	$4,$4,12
-	bne	$3,$0,$L914
+	bne	$3,$0,$L1048
 	sw	$2,4($2)
 
-$L970:
-	blez	$21,$L972
+$L1104:
+	blez	$21,$L1106
 	move	$16,$0
 
-$L968:
-$L922:
-$L963:
+$L1102:
+$L1056:
+$L1097:
 	lui	$2,%hi(malloc_sizes+20)
 	li	$5,32			# 0x20
 	lw	$4,%lo(malloc_sizes+20)($2)
@@ -5245,24 +5545,24 @@ $L963:
 
 	addiu	$4,$20,%lo(path_list_free)
 	move	$3,$2
-	addiu	$5,$2,72
-	beq	$2,$0,$L973
+	addiu	$5,$2,80
+	beq	$2,$0,$L1107
 	slt	$6,$16,$21
 
-	sw	$0,72($2)
+	sw	$0,80($2)
 	lw	$2,4($4)
-	sw	$2,76($3)
+	sw	$2,84($3)
 	lw	$2,4($4)
 	sw	$3,0($2)
 	lw	$2,8($4)
 	sw	$5,4($4)
 	addiu	$2,$2,1
-	bne	$6,$0,$L968
+	bne	$6,$0,$L1102
 	sw	$2,8($4)
 
-$L972:
+$L1106:
 	move	$3,$0
-$L809:
+$L943:
 	lw	$31,56($sp)
 	move	$2,$3
 	lw	$21,52($sp)
@@ -5305,204 +5605,19 @@ get_fastpath_module_info:
 	lui	$7,%hi($LC4)
 	addiu	$5,$5,%lo($LC2)
 	addiu	$6,$6,%lo($LC3)
-	beq	$4,$0,$L976
+	beq	$4,$0,$L1110
 	addiu	$7,$7,%lo($LC4)
 
 	j	sprintf
 	nop
 
-$L976:
+$L1110:
 	j	$31
 	nop
 
 	.set	macro
 	.set	reorder
 	.end	get_fastpath_module_info
-	.section	.text.negative_cache_timeout,"ax",@progbits
-	.align	2
-	.ent	negative_cache_timeout
-	.type	negative_cache_timeout, @function
-negative_cache_timeout:
-	.set	nomips16
-	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
-	.mask	0x00000000,0
-	.fmask	0x00000000,0
-	.set	noreorder
-	.set	nomacro
-	
-	lw	$2,8($4)
-	move	$7,$4
-	lw	$3,4($4)
-	lhu	$4,2($4)
-	xor	$3,$3,$2
-	srl	$2,$3,16
-	xor	$2,$2,$4
-	xor	$3,$3,$2
-	lui	$2,%hi(max_udp_frag_entry)
-	lbu	$5,1($7)
-	srl	$4,$3,8
-	lw	$2,%lo(max_udp_frag_entry)($2)
-	xor	$4,$4,$5
-	xor	$3,$3,$4
-	addiu	$2,$2,-1
-	and	$4,$3,$2
-	sll	$2,$4,1
-	lw	$6,36($7)
-	addu	$2,$2,$4
-	sb	$0,0($7)
-	lw	$3,40($7)
-	beq	$6,$0,$L980
-	sll	$5,$2,2
-
-	j	$L981
-	sw	$3,40($6)
-
-$L980:
-	lui	$2,%hi(negative_cache_table)
-	lw	$2,%lo(negative_cache_table)($2)
-	addu	$2,$5,$2
-	sw	$3,4($2)
-$L981:
-	lw	$2,36($7)
-	sll	$3,$4,1
-	lw	$5,40($7)
-	addu	$3,$3,$4
-	sll	$3,$3,2
-	lui	$4,%hi(negative_cache_list_free)
-	sw	$2,0($5)
-	lui	$2,%hi(negative_cache_table)
-	lw	$2,%lo(negative_cache_table)($2)
-	addiu	$4,$4,%lo(negative_cache_list_free)
-	addiu	$6,$7,44
-	addu	$3,$3,$2
-	lw	$2,8($3)
-	addiu	$2,$2,-1
-	sw	$2,8($3)
-	sw	$0,44($7)
-	lw	$2,4($4)
-	sw	$2,48($7)
-	lw	$2,4($4)
-	sw	$7,0($2)
-	lw	$2,8($4)
-	sw	$6,4($4)
-	addiu	$2,$2,1
-	j	$31
-	sw	$2,8($4)
-
-	.set	macro
-	.set	reorder
-	.end	negative_cache_timeout
-	.section	.text.negative_fragCache_init,"ax",@progbits
-	.align	2
-	.globl	negative_fragCache_init
-	.ent	negative_fragCache_init
-	.type	negative_fragCache_init, @function
-negative_fragCache_init:
-	.set	nomips16
-	.frame	$sp,56,$31		# vars= 16, regs= 5/0, args= 16, gp= 0
-	.mask	0x800f0000,-8
-	.fmask	0x00000000,0
-	.set	noreorder
-	.set	nomacro
-	
-$L989:
-$L1030:
-	addiu	$sp,$sp,-56
-	li	$5,32			# 0x20
-	sw	$19,44($sp)
-	lui	$19,%hi(malloc_sizes)
-	sw	$16,32($sp)
-	addiu	$2,$19,%lo(malloc_sizes)
-	sw	$31,48($sp)
-	sw	$18,40($sp)
-	sw	$17,36($sp)
-	lw	$4,60($2)
-	jal	kmem_cache_alloc
-	lui	$16,%hi(negative_cache_table)
-
-	move	$4,$16
-	sw	$2,%lo(negative_cache_table)($16)
-	beq	$2,$0,$L984
-	move	$3,$0
-
-	j	$L1099
-	lui	$18,%hi(negative_cache_list_free)
-
-$L1098:
-	j	$L984
-	move	$3,$0
-
-$L1099:
-	addiu	$2,$18,%lo(negative_cache_list_free)
-	li	$17,63			# 0x3f
-	sw	$2,4($2)
-	sw	$0,8($2)
-	sw	$0,%lo(negative_cache_list_free)($18)
-$L1039:
-	lw	$2,%lo(negative_cache_table)($4)
-	addiu	$17,$17,-1
-	addu	$2,$3,$2
-	sw	$0,8($2)
-	lw	$2,%lo(negative_cache_table)($4)
-	addu	$2,$3,$2
-	sw	$0,0($2)
-	lw	$2,%lo(negative_cache_table)($4)
-	addu	$2,$3,$2
-	addiu	$3,$3,12
-	bgez	$17,$L1039
-	sw	$2,4($2)
-
-	move	$17,$0
-$L1093:
-$L1047:
-$L1088:
-	addiu	$2,$19,%lo(malloc_sizes)
-	li	$5,32			# 0x20
-	lw	$4,12($2)
-	jal	kmem_cache_alloc
-	addiu	$17,$17,1
-
-	move	$5,$0
-	move	$16,$2
-	addiu	$4,$2,12
-	beq	$2,$0,$L1098
-	move	$6,$0
-
-	jal	init_timer_key
-	nop
-
-	lui	$2,%hi(negative_cache_timeout)
-	addiu	$2,$2,%lo(negative_cache_timeout)
-	addiu	$3,$18,%lo(negative_cache_list_free)
-	sw	$2,24($16)
-	addiu	$4,$16,44
-	sw	$16,28($16)
-	slt	$5,$17,64
-	sw	$0,44($16)
-	lw	$2,4($3)
-	sw	$2,48($16)
-	lw	$2,4($3)
-	sw	$16,0($2)
-	lw	$2,8($3)
-	sw	$4,4($3)
-	addiu	$2,$2,1
-	bne	$5,$0,$L1093
-	sw	$2,8($3)
-
-	li	$3,1			# 0x1
-$L984:
-	lw	$31,48($sp)
-	move	$2,$3
-	lw	$19,44($sp)
-	lw	$18,40($sp)
-	lw	$17,36($sp)
-	lw	$16,32($sp)
-	j	$31
-	addiu	$sp,$sp,56
-
-	.set	macro
-	.set	reorder
-	.end	negative_fragCache_init
 	.globl	route_list_inuse
 	.section	.bss
 	.align	2

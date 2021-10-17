@@ -1312,13 +1312,6 @@ eth_set_config (struct eth_dev *dev, unsigned number, gfp_t gfp_flags)
 					: (cdc_active(dev)
 						? "CDC Ethernet"
 						: "CDC Ethernet Subset"));
-
-{
-	extern int rndis_reset;
-	if (rndis_reset == 1 && number == 1)
-		rndis_reset = 2;
-}
-
 	}
 	return result;
 }
@@ -1904,13 +1897,11 @@ inline struct net_device *brsc_get_cached_dev(char from_usb, unsigned char *da)
 	spin_lock_irqsave(&brsc_cache_lock, flags);
 		if (cached_wlan.dev && !memcmp(da, cached_wlan.addr, MACADDRLEN)) {
 			BDBG_BRSC("BRSC: return cached_wlan\n");
-			spin_unlock_irqrestore(&brsc_cache_lock, flags);
 			return cached_wlan.dev;
 		}
 
 		if (cached_eth.dev && !memcmp(da, cached_eth.addr, MACADDRLEN)) {
 			BDBG_BRSC("BRSC: return cached_eth\n");
-			spin_unlock_irqrestore(&brsc_cache_lock, flags);
 			return cached_eth.dev;
 		}
 	spin_unlock_irqrestore(&brsc_cache_lock, flags);

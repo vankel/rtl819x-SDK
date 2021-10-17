@@ -1,5 +1,10 @@
 #include "rtk_voip.h"
 #include "voip_init.h"
+#include "voip_addrspace.h"
+
+#ifndef NO_SPECIAL_ADDRSPACE
+unsigned long physical_addr_offset = CONFIG_RTK_VOIP_2_PHYSICAL_OFFSET;
+#endif
 
 
 #if defined CONFIG_RTK_VOIP_DRIVERS_PCM8186
@@ -40,6 +45,7 @@ static int __init voip_con_start_setup_init( void )
 #endif
 	
 	extern void start_os_timer( void );
+	extern void init_rtl_hw_spi_IP( void );
 	
 #ifdef  RELAY_SW_CTRL_GPIOC//for gpioC used.pull relay high.	
 	#define GPCD_DIR  *((volatile unsigned int *)0xbd010134)
@@ -87,6 +93,10 @@ static int __init voip_con_start_setup_init( void )
 #endif /* CONFIG_RTK_VOIP_DRIVERS_PCM8676 */
 	
 	start_os_timer();
+
+#ifdef CONFIG_RTK_VOIP_HARDWARE_SPI	
+	init_rtl_hw_spi_IP();
+#endif
 	
 	return 0;
 }

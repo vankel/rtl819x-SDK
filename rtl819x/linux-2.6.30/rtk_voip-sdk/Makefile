@@ -9,6 +9,7 @@ endif
 
 export DIR_VOIP
 
+
 obj-y := main.o
 
 ifneq "$(CONFIG_RTK_VOIP_DRIVERS_11N_MP)" "y"
@@ -16,12 +17,17 @@ ifneq "$(CONFIG_RTK_VOIP_DRIVERS_11N_MP)" "y"
 obj-$(CONFIG_RTK_VOIP_RX) += voip_rx/
 obj-$(CONFIG_RTK_VOIP_TX) += voip_tx/
 obj-$(CONFIG_RTK_VOIP_SRTP) += srtp/
-obj-ipchost-y-sdk-y += voip_dsp/cpu_setup.obj
-obj-ipchost-y-sdk-  += voip_dsp/cpu_setup.o
-obj-ipchost--ac-y-sdk-y += voip_dsp/dsp_r1/t38.obj voip_dsp/cpu_setup.obj voip_dsp/Ntt_sRing_det.obj
+#obj-ipchost-y-sdk-y += voip_dsp/cpu_setup.obj
+obj-ipchost-y-sdk-  += voip_dsp/cpu_setup.o voip_dsp/cp3/
+
+obj-ipchost-y-sdk-y  += rtk_modules-ipchost.obj
+obj-ipchost--sdk-y  += rtk_modules.obj dsplib.obj
+#obj-ipchost--ac-y-sdk-y += voip_dsp/dsp_r1/t38.obj voip_dsp/cpu_setup.obj voip_dsp/Ntt_sRing_det.obj
 obj-ipchost--ac-y-sdk-  += voip_dsp/dsp_r1/t38/    voip_dsp/cpu_setup.o   voip_dsp/fsk_det/
 obj-ipchost--ac-y += voip_dsp/ivr/ voip_dsp/cp3/
 obj-ipchost--ac-  += voip_dsp/
+obj-$(CONFIG_RTK_VOIP_DSP) += $(obj-ipchost-$(CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST)-sdk-$(CONFIG_VOIP_SDK))
+obj-$(CONFIG_RTK_VOIP_DSP) += $(obj-ipchost-$(CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST)-ac-$(CONFIG_AUDIOCODES_VOIP)-sdk-$(CONFIG_VOIP_SDK))
 obj-$(CONFIG_RTK_VOIP_DSP) += $(obj-ipchost-$(CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST)-ac-$(CONFIG_AUDIOCODES_VOIP))
 obj-$(CONFIG_RTK_VOIP_MANAGER) += voip_manager/
 obj-$(CONFIG_RTK_VOIP_DRIVERS) += voip_drivers/

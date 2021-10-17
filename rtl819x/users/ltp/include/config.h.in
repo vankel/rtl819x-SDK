@@ -1,0 +1,127 @@
+/* include/config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* Define to 1 if you have the <asm/ldt.h> header file. */
+#undef HAVE_ASM_LDT_H
+
+/* Define to 1 if you have the <ifaddrs.h> header file. */
+#undef HAVE_IFADDRS_H
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `io_set_eventfd' function. */
+#undef HAVE_IO_SET_EVENTFD
+
+/* Define to 1 if you have the <libaio.h> header file. */
+#undef HAVE_LIBAIO_H
+
+/* Define to 1 if you have both SELinux libraries and headers. */
+#undef HAVE_LIBSELINUX_DEVEL
+
+/* Define to 1 if you have the <linux/cgroupstats.h> header file. */
+#undef HAVE_LINUX_CGROUPSTATS_H
+
+/* Define to 1 if you have the <linux/signalfd.h> header file. */
+#undef HAVE_LINUX_SIGNALFD_H
+
+/* Define to 1 if you have the <linux/types.h> header file. */
+#undef HAVE_LINUX_TYPES_H
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the `modify_ldt' function. */
+#undef HAVE_MODIFY_LDT
+
+/* Define to 1 if you have the <openssl/sha.h> header file. */
+#undef HAVE_OPENSSL_SHA_H
+
+/* Define to 1 if you have the <selinux/selinux.h> header file. */
+#undef HAVE_SELINUX_SELINUX_H
+
+/* Define to 1 if you have the `signalfd' function. */
+#undef HAVE_SIGNALFD
+
+/* Define to 1 if you have the <signalfd.h> header file. */
+#undef HAVE_SIGNALFD_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if the system has the type `struct modify_ldt_ldt_s'. */
+#undef HAVE_STRUCT_MODIFY_LDT_LDT_S
+
+/* Define to 1 if `signo' is member of `struct signalfd_siginfo'. */
+#undef HAVE_STRUCT_SIGNALFD_SIGINFO_SIGNO
+
+/* Define to 1 if `ssi_signo' is member of `struct signalfd_siginfo'. */
+#undef HAVE_STRUCT_SIGNALFD_SIGINFO_SSI_SIGNO
+
+/* Define to 1 if `freepages_count' is member of `struct taskstats'. */
+#undef HAVE_STRUCT_TASKSTATS_FREEPAGES_COUNT
+
+/* Define to 1 if `nvcsw' is member of `struct taskstats'. */
+#undef HAVE_STRUCT_TASKSTATS_NVCSW
+
+/* Define to 1 if `read_bytes' is member of `struct taskstats'. */
+#undef HAVE_STRUCT_TASKSTATS_READ_BYTES
+
+/* Define to 1 if the system has the type `struct user_desc'. */
+#undef HAVE_STRUCT_USER_DESC
+
+/* Define to 1 if you have the <sys/capability.h> header file. */
+#undef HAVE_SYS_CAPABILITY_H
+
+/* Define to 1 if you have the <sys/epoll.h> header file. */
+#undef HAVE_SYS_EPOLL_H
+
+/* Define to 1 if you have the <sys/inotify.h> header file. */
+#undef HAVE_SYS_INOTIFY_H
+
+/* Define to 1 if you have the <sys/signalfd.h> header file. */
+#undef HAVE_SYS_SIGNALFD_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 if you have the `unshare' function. */
+#undef HAVE_UNSHARE
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION

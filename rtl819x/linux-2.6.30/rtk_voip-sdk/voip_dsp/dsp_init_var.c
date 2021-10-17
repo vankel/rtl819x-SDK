@@ -6,6 +6,9 @@
 #include "voip_control.h"
 #include "tone_det_i.h"
 #endif
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
+#include "lec.h"
+#endif /* CONFIG_RTK_VOIP_DRIVERS_IP_PHONE */
 #ifdef CONFIG_RTK_VOIP_WIDEBAND_SUPPORT
 #include "resampler.h"
 #endif
@@ -54,25 +57,9 @@ TstVoipbusytone_det_data stVoipbusytone_det_data[DSP_RTK_CH_NUM];
 extern void* pstVoipbusytone_det[];
 
 
-typedef struct
-{
-	int data0 __attribute__((aligned(16))); /* aligned in a cache line */
-	int data1;
-	int data2;
-	unsigned int data3;
-	unsigned int data4;
-}
-TstVoip_dtmf_det_data;
-
-TstVoip_dtmf_det_data stVoip_dtmf_det_data[DSP_RTK_CH_NUM][2];
-
-extern void* pstVoip_dtmf_det[MAX_DSP_RTK_CH_NUM][2];
-
 int dsp_init_var(void)
 {
 	int chid;
-	extern void dtmf_det_init(int chid, unsigned int dir);
-	extern int dtmf_det_size(void);
 
 #ifdef FXO_BUSY_TONE_DET
 	for (chid=0 ; chid<DSP_RTK_CH_NUM ; chid++)
@@ -87,12 +74,6 @@ int dsp_init_var(void)
 
 	for (chid=0 ; chid<DSP_RTK_CH_NUM ; chid++)
 	{
-		int dir;
-		for (dir = 0; dir < 2; dir++)
-		{
-			pstVoip_dtmf_det[chid][dir] = &stVoip_dtmf_det_data[chid][dir];
-			dtmf_det_init(chid, dir);
-		}
 
 #ifdef SUPPORT_FAX_V21_DETECT
 		extern void init_fax_v21(unsigned int chid);
@@ -105,16 +86,13 @@ int dsp_init_var(void)
 		/* 80 is frame sample unit:, 1024 is tap length = 128ms */
 #endif
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-		extern void NLP_g168_init(unsigned int chid);
+		extern EcObj_t RtkEcObj[];
 		extern void NR_init(unsigned int chid);
-
-		NLP_g168_init(chid);
+		RtkEcObj[chid].EC_G168NlpInit(chid, 5, 5, 0);
 		NR_init(chid);
 #endif
 	}
 
-	if (dtmf_det_size() > sizeof(TstVoip_dtmf_det_data))
-		printk("ERROR size not correct\n");
 
 #if defined(SUPPORT_G722_TYPE_WN) || defined(CONFIG_RTK_VOIP_DRIVERS_IIS) || defined(CONFIG_RTK_VOIP_WIDEBAND_SUPPORT)
 
@@ -134,6 +112,10 @@ int dsp_init_var(void)
 	}
 
 #endif
+
+	// Change V.21 0x7e flag detedtion duration threshold, default is 4 (~0.1 sec)
+	extern int g_hdlc_cnt;
+	g_hdlc_cnt = 8; // ~ 0.2 sec
 
 	printk("INIT VAR OK\n");
 

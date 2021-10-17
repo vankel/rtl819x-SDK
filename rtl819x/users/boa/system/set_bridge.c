@@ -25,6 +25,9 @@ extern int apmib_initialized;
 #define DHCPD_CONF_FILE "/var/udhcpd.conf"
 #define DHCPD_LEASE_FILE "/var/lib/misc/udhcpd.leases"
 
+//#define SDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#define SDEBUG(fmt, args...) {}
+
 int SetWlan_idx(char * wlan_iface_name);
 
 char wlan_wan_iface[20];
@@ -171,16 +174,22 @@ void set_lan_dhcpd(char *interface, int mode)
 	int opmode;
 	int auto_wan;
 	apmib_get(MIB_OP_MODE,(void *)&opmode);
-	if (opmode==GATEWAY_MODE || opmode==WISP_MODE) {
+	if (opmode==GATEWAY_MODE) {
+		apmib_get(MIB_ULINKER_AUTO,(void *)&auto_wan);
 		system("brctl addif br0 usb0 > /dev/null 2>&1");
 	#if 0
-		apmib_get(MIB_ULINKER_AUTO,(void *)&auto_wan);
 		if (auto_wan == 0)
 			system("ifconfig usb0 0.0.0.0 > /dev/null 2>&1");
 	#endif
 	}
 }
 #endif
+
+#if defined(CONFIG_RTL_ULINKER_NOT_8881A)
+	system("ifconfig usb0 up");
+	system("brctl addif br0 usb0");
+#endif
+
 	sprintf(line_buffer,"interface %s\n",interface);
 	write_line_to_file(DHCPD_CONF_FILE, 1, line_buffer);
 
@@ -220,6 +229,12 @@ void set_lan_dhcpd(char *interface, int mode)
 			strtmp= inet_ntoa(*((struct in_addr *)tmp2));
 			sprintf(line_buffer,"opt router %s\n",strtmp);
 			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		}else
+		{
+			apmib_get(MIB_IP_ADDR,  (void *)tmp1);
+			strtmp= inet_ntoa(*((struct in_addr *)tmp1));
+			sprintf(line_buffer,"opt router %s\n",strtmp);
+			write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
 		}
 
 
@@ -241,7 +256,7 @@ void set_lan_dhcpd(char *interface, int mode)
 	||(mode==2 && dns_mode==1)
 #endif
 	){
-#if defined(HOME_GATEWAY) && !(defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_RTL_ULINKER))
+#if defined(HOME_GATEWAY) && !defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
 		apmib_get( MIB_DNS1,  (void *)tmpBuff1);
 		apmib_get( MIB_DNS2,  (void *)tmpBuff2);
 		apmib_get( MIB_DNS3,  (void *)tmpBuff3);
@@ -266,7 +281,7 @@ void set_lan_dhcpd(char *interface, int mode)
 		}
 #endif
 
-#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_RTL_ULINKER)
+#ifdef CONFIG_DOMAIN_NAME_QUERY_SUPPORT
 		apmib_get(MIB_IP_ADDR,  (void *)tmp1);
 		strtmp= inet_ntoa(*((struct in_addr *)tmp1));
 		sprintf(line_buffer,"opt dns %s\n",strtmp); /*now strtmp is ip address value */
@@ -322,11 +337,25 @@ void set_lan_dhcpd(char *interface, int mode)
 	sprintf(tmpBuff2, "%s", strtmp1);
 	RunSystemCmd(NULL_FILE, "ifconfig", interface, tmpBuff1, "netmask", tmpBuff2,  NULL_STR);
 	/*start dhcp server*/
-	char tmpBuff4[100];
-	sprintf(tmpBuff4,"udhcpd %s\n",DHCPD_CONF_FILE);
-	system(tmpBuff4);
+	#if defined(CONFIG_AUTO_DHCP_CHECK)
+		int opmode;
+		apmib_get(MIB_OP_MODE,(void *)&opmode);
+		if(opmode != BRIDGE_MODE)
+		{
+			char tmpBuff4[100];
+			sprintf(tmpBuff4,"udhcpd %s\n",DHCPD_CONF_FILE);
+			system(tmpBuff4);
+		}
+	#else
+		char tmpBuff4[100];
+		sprintf(tmpBuff4,"udhcpd %s\n",DHCPD_CONF_FILE);
+		system(tmpBuff4);
+	#endif
 	//RunSystemCmd(stdout, "udhcpd", DHCPD_CONF_FILE, NULL_STR);
 
+#if defined(CONFIG_APP_SIMPLE_CONFIG)
+	system("echo 1 > /var/sc_ip_status");
+#endif
 
 }
 void set_lan_dhcpc(char *iface)
@@ -359,6 +388,10 @@ void set_lan_dhcpc(char *iface)
 	//sprintf(cmdBuff, "udhcpc -i %s -p %s -s %s -n &", iface, pid_file, script_file);
 	sprintf(cmdBuff, "udhcpc -i %s -p %s -s %s &", iface, pid_file, script_file);
 	system(cmdBuff);
+
+#if defined(CONFIG_APP_SIMPLE_CONFIG)
+	system("echo 0 > /var/sc_ip_status");
+#endif
 }
 
 int setbridge(char *argv)
@@ -377,7 +410,7 @@ int setbridge(char *argv)
 	int vlan_enabled=0, wlan_disabled=0;
 	int wlan_mode=0, wisp_wan_id=0;
 	int iswlan_va=0, wlan_wds_enabled=0;
-	int wlan_wds_num=0, wlan_mesh_enabled=0;
+	int wlan_wds_num=0, wlan0_mesh_enabled=0, wlan1_mesh_enabled=0;
 	int br_stp_enabled=0, dhcp_mode=0;
 	char lanIp[30], lanMask[30], lanGateway[30];
 	int lan_addr,lan_mask;
@@ -401,18 +434,21 @@ int setbridge(char *argv)
 	int i;
 	int VlanisLan=0;
 #endif
+    int multiple_repeater=0;    /*for support multiple repeater*/ 
+#ifdef FOR_DUAL_BAND
+    int multiple_repeater2=0;
+#endif
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
-	//int vlan_wan_enable = 0;
+	int vlan_wan_enable = 0;
 	int vlan_wan_tag = 0;
-	//int vlan_wan_bridge_enable = 0; 
+	int vlan_wan_bridge_enable = 0; 
 	int vlan_wan_bridge_tag = 0; 
 	int vlan_wan_bridge_port = 0;
-	//int vlan_wan_bridge_multicast_enable = 0;
+	int vlan_wan_bridge_multicast_enable = 0;
 	int vlan_wan_bridge_multicast_tag = 0;
-	//int vlan_wan_host_enable = 0;
-	//int vlan_wan_host_tag = 0;
+	int vlan_wan_host_enable = 0;
+	int vlan_wan_host_tag = 0;
 	int vlan_wan_host_pri = 0;
-	/*
 	int vlan_wan_wifi_root_enable = 0;
 	int vlan_wan_wifi_root_tag = 0;
 	int vlan_wan_wifi_root_pri = 0;
@@ -428,13 +464,18 @@ int setbridge(char *argv)
 	int vlan_wan_wifi_vap3_enable = 0;
 	int vlan_wan_wifi_vap3_tag = 0;
 	int vlan_wan_wifi_vap3_pri = 0;
-	*/
+
 #endif
 #if defined(CONFIG_SMART_REPEATER)
 	char vlan_netif[16]={0};
 #endif
 
 	printf("Init bridge interface...\n");
+    apmib_get(MIB_REPEATER_ENABLED1,(void *)&multiple_repeater);/*for support multiple repeater*/ 
+#ifdef FOR_DUAL_BAND
+    apmib_get(MIB_REPEATER_ENABLED2,(void *)&multiple_repeater2);/*for support multiple repeater*/ 
+#endif    
+
 	apmib_get(MIB_OP_MODE,(void *)&opmode);
 	apmib_get(MIB_WISP_WAN_ID,(void *)&wisp_wan_id);
 	apmib_get(MIB_DHCP,(void *)&dhcp_mode);
@@ -457,9 +498,46 @@ int setbridge(char *argv)
 				if (token == NULL){
 					break;
 				}else{
-					RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
-					if( memcmp(token, "br0", 3) != 0 )
-						RunSystemCmd(NULL_FILE, "brctl", "delif", "br0" ,token, NULL_STR);
+                    /*for support multiple repeater*/ 
+                    if(multiple_repeater==2 ){
+    				    SDEBUG("\n");                        
+                        if( !strcmp(token,"wlan0-va0") ||!strcmp(token,"wlan0-va2") ){
+                            //RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
+                            RunSystemCmd(NULL_FILE, "brctl", "delif", "br1" ,token, NULL_STR);
+
+                        }else if( !strcmp(token,"wlan0") ||!strcmp(token,"wlan0-va1") ){
+
+                            if( !strcmp(token,"wlan0"))
+                                RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
+
+                            RunSystemCmd(NULL_FILE, "brctl", "delif", "br0" ,token, NULL_STR);
+
+                        }
+                    }
+                    #ifdef FOR_DUAL_BAND
+                    if(multiple_repeater2==2 ){
+                        SDEBUG("\n");                        
+                        if( !strcmp(token,"wlan1-va0") ||!strcmp(token,"wlan1-va2") ){
+                            //RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
+                            RunSystemCmd(NULL_FILE, "brctl", "delif", "br1" ,token, NULL_STR);
+
+                        }else if( !strcmp(token,"wlan1") ||!strcmp(token,"wlan1-va1") ){
+
+                            if( !strcmp(token,"wlan1"))
+                                RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
+
+                            RunSystemCmd(NULL_FILE, "brctl", "delif", "br0" ,token, NULL_STR);
+
+                        }
+                    }
+                    #endif                        
+                    else            /*for support multiple repeater*/        
+                    {
+						RunSystemCmd(NULL_FILE, "ifconfig", token, "down", NULL_STR);
+						if( memcmp(token, "br0", 3) != 0 )
+							RunSystemCmd(NULL_FILE, "brctl", "delif", "br0" ,token, NULL_STR);
+                    }
+
 				}
 				token = strtok_r(NULL, ":", &savestr1);
 			}while(token !=NULL);
@@ -526,13 +604,24 @@ int setbridge(char *argv)
 #endif
 
 	if(isFileExist(MESH_PATHSEL)){
-		apmib_get(MIB_MESH_ENABLE,(void *)&intVal);
-		if(intVal==1){
-			wlan_mesh_enabled=1;
-		}
-		RunSystemCmd(NULL_FILE,"ifconfig", "wlan0-msh0", "down", NULL_STR);
-		RunSystemCmd(NULL_FILE,"brctl", "delif", "br0" ,"wlan0-msh0", NULL_STR);
-
+        SetWlan_idx("wlan0");
+        apmib_get(MIB_WLAN_MODE, (void *)&wlan_mode);
+        apmib_get(MIB_WLAN_MESH_ENABLE,(void *)&wlan0_mesh_enabled);    
+        if(wlan_mode != AP_MESH_MODE && wlan_mode != MESH_MODE) {
+            wlan0_mesh_enabled = 0;
+        }
+    
+#if defined(FOR_DUAL_BAND)
+        SetWlan_idx("wlan1");
+        apmib_get(MIB_WLAN_MODE, (void *)&wlan_mode);
+        apmib_get(MIB_WLAN_MESH_ENABLE,(void *)&wlan1_mesh_enabled);
+        if(wlan_mode != AP_MESH_MODE && wlan_mode != MESH_MODE){
+            wlan1_mesh_enabled = 0;
+        }
+#endif
+        RunSystemCmd(NULL_FILE,"ifconfig", "wlan-msh", "down", NULL_STR);
+	    RunSystemCmd(NULL_FILE,"brctl", "delif", "br0" ,"wlan-msh", NULL_STR);
+        
 	}
 	if(setInAddr( "br0", 0,0,0, IFACE_FLAG_T)==0){
 		RunSystemCmd(NULL_FILE,"brctl", "delif", "br0" ,"eth1", NULL_STR);
@@ -542,6 +631,19 @@ int setbridge(char *argv)
 		RunSystemCmd(NULL_FILE,"brctl", "delbr", "br0", NULL_STR);
 		RunSystemCmd(NULL_FILE,"brctl", "addbr", "br0", NULL_STR);
 	}
+
+    /*for support multiple repeater*/ 
+    if(multiple_repeater==2){
+		RunSystemCmd(NULL_FILE,"brctl", "delbr", "br1", NULL_STR);
+		RunSystemCmd(NULL_FILE,"brctl", "addbr", "br1", NULL_STR);
+    }
+    /*for support multiple repeater*/ 
+    #ifdef FOR_DUAL_BAND    
+    if(multiple_repeater2==2){
+		RunSystemCmd(NULL_FILE,"brctl", "delbr", "br1", NULL_STR);
+		RunSystemCmd(NULL_FILE,"brctl", "addbr", "br1", NULL_STR);
+    }    
+    #endif
 	apmib_get(MIB_STP_ENABLED,(void *)&br_stp_enabled);
 	if(br_stp_enabled==1){
 		RunSystemCmd(NULL_FILE,"brctl", "setfd", "br0", "4", NULL_STR);
@@ -588,7 +690,32 @@ int setbridge(char *argv)
 #if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
 					sprintf(cmdBuffer,"echo \"1 %d %d %d %d %d %d 1\" > /proc/eth7/mib_vlan", VlanisLan,vlan_entry.enabled, vlan_entry.tagged, vlan_entry.vlanId, vlan_entry.priority, vlan_entry.cfi);
 					system(cmdBuffer);
+					
+#if !defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+					if(vlan_enabled==1){			
+						if(opmode == GATEWAY_MODE){
+							sprintf(cmdBuffer,"echo \"1 %d %d %d %d %d %d %d\" > /proc/peth0/mib_vlan", VlanisLan,vlan_entry.enabled, vlan_entry.tagged, vlan_entry.vlanId, vlan_entry.priority, vlan_entry.cfi,vlan_entry.forwarding_rule);
+							system(cmdBuffer);
+						}
+						else if(opmode == WISP_MODE)
+						{
+							//to-do :for wisp mode bridge vlan
+						}
+					}
+					else
+#endif		
+		 			{			
+						if(opmode == GATEWAY_MODE){
+							sprintf(cmdBuffer,"echo \"0 %d %d %d %d %d %d %d\" > /proc/peth0/mib_vlan", VlanisLan,vlan_entry.enabled, vlan_entry.tagged, vlan_entry.vlanId, vlan_entry.priority, vlan_entry.cfi,vlan_entry.forwarding_rule);
+							system(cmdBuffer);
+						}
+						else if(opmode == WISP_MODE)
+						{
+							//to-do :for wisp mode bridge vlan
+						}
+					}
 #endif
+
 				}
 				else
 				{
@@ -679,18 +806,16 @@ int setbridge(char *argv)
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT	
 	if(opmode == GATEWAY_MODE)
 	{
-		//apmib_get( MIB_VLAN_WAN_ENALE, (void *)&vlan_wan_enable);
+		apmib_get( MIB_VLAN_WAN_ENALE, (void *)&vlan_wan_enable);
 		apmib_get( MIB_VLAN_WAN_TAG, (void *)&vlan_wan_tag);
-		//apmib_get( MIB_VLAN_WAN_BRIDGE_ENABLE, (void *)&vlan_wan_bridge_enable);
+		apmib_get( MIB_VLAN_WAN_BRIDGE_ENABLE, (void *)&vlan_wan_bridge_enable);
 		apmib_get( MIB_VLAN_WAN_BRIDGE_TAG, (void *)&vlan_wan_bridge_tag);
 		apmib_get( MIB_VLAN_WAN_BRIDGE_PORT, (void *)&vlan_wan_bridge_port);
-		//apmib_get( MIB_VLAN_WAN_BRIDGE_MULTICAST_ENABLE, (void *)&vlan_wan_bridge_multicast_enable);
+		apmib_get( MIB_VLAN_WAN_BRIDGE_MULTICAST_ENABLE, (void *)&vlan_wan_bridge_multicast_enable);
 		apmib_get( MIB_VLAN_WAN_BRIDGE_MULTICAST_TAG, (void *)&vlan_wan_bridge_multicast_tag);
-		//apmib_get( MIB_VLAN_WAN_HOST_ENABLE, (void *)&vlan_wan_host_enable);
-		//apmib_get( MIB_VLAN_WAN_HOST_TAG, (void *)&vlan_wan_host_tag);
-		
+		apmib_get( MIB_VLAN_WAN_HOST_ENABLE, (void *)&vlan_wan_host_enable);
+		apmib_get( MIB_VLAN_WAN_HOST_TAG, (void *)&vlan_wan_host_tag);
 		apmib_get( MIB_VLAN_WAN_HOST_PRI, (void *)&vlan_wan_host_pri);
-		/*
 		apmib_get( MIB_VLAN_WAN_WIFI_ROOT_ENABLE, (void *)&vlan_wan_wifi_root_enable);
 		apmib_get( MIB_VLAN_WAN_WIFI_ROOT_TAG, (void *)&vlan_wan_wifi_root_tag);
 		apmib_get( MIB_VLAN_WAN_WIFI_ROOT_PRI, (void *)&vlan_wan_wifi_root_pri);
@@ -706,17 +831,12 @@ int setbridge(char *argv)
 		apmib_get( MIB_VLAN_WAN_WIFI_VAP3_ENABLE, (void *)&vlan_wan_wifi_vap3_enable);
 		apmib_get( MIB_VLAN_WAN_WIFI_VAP3_TAG, (void *)&vlan_wan_wifi_vap3_tag);
 		apmib_get( MIB_VLAN_WAN_WIFI_VAP3_PRI, (void *)&vlan_wan_wifi_vap3_pri);	
-		*/
-        sprintf(cmdBuffer,"echo \"%d %d %d %d %d\" > /proc/rtk_vlan_wan_tag", 
-        vlan_wan_tag,
-        vlan_wan_host_pri, 
-        vlan_wan_bridge_tag, 
-        vlan_wan_bridge_port, 
-        vlan_wan_bridge_multicast_tag   
-        );
+
+    sprintf(cmdBuffer,"echo \"%d %d %d %d %d %d %d\" > /proc/rtk_vlan_wan_tag", vlan_wan_enable, vlan_wan_tag, 
+    	vlan_wan_bridge_enable, vlan_wan_bridge_tag, vlan_wan_bridge_port,vlan_wan_bridge_multicast_enable,vlan_wan_bridge_multicast_tag);
 
 		system(cmdBuffer);
-	/*
+
 	  sprintf(cmdBuffer,"echo \"%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\" > /proc/rtk_vlan_wan_tag_cpu", 
     	vlan_wan_host_enable,      vlan_wan_host_tag,      vlan_wan_host_pri, 
       vlan_wan_wifi_root_enable, vlan_wan_wifi_root_tag,      vlan_wan_wifi_root_pri, 
@@ -725,7 +845,6 @@ int setbridge(char *argv)
       vlan_wan_wifi_vap2_enable, vlan_wan_wifi_vap2_tag, vlan_wan_wifi_vap2_pri,
       vlan_wan_wifi_vap3_enable, vlan_wan_wifi_vap3_tag, vlan_wan_wifi_vap3_pri);
 		system(cmdBuffer);
-	*/
 	}
 #endif
 	if(isFileExist(BR_IFACE_FILE)){
@@ -810,7 +929,8 @@ int setbridge(char *argv)
 		unlink(BR_IFACE_FILE2);
 	}
 	memset(bridge_iface2,0x00,sizeof(bridge_iface2));
-    if(opmode == GATEWAY_MODE && vlan_wan_bridge_tag)
+  
+  if(opmode == GATEWAY_MODE && vlan_wan_bridge_enable)
 	{
 		RunSystemCmd(NULL_FILE, "brctl", "addbr", "br1", NULL_STR);
 		RunSystemCmd(NULL_FILE, "brctl", "addif", "br1" ,"eth2", NULL_STR);		
@@ -866,7 +986,7 @@ int setbridge(char *argv)
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 									{
 										wlan_disabled=0;
-                                        if(opmode == GATEWAY_MODE && vlan_wan_bridge_tag)
+										if(opmode == GATEWAY_MODE && vlan_wan_bridge_enable)
 										{
 											wlan_disabled=0;
 									
@@ -889,14 +1009,23 @@ int setbridge(char *argv)
 							wlan_disabled=1;
 					}else
 						wlan_disabled=1;//root if is disabled
-				}
-				else
-				{
+				} 
+                else if(strstr(iface_name, "msh")) { /*search for wlan-msh, wlan0-msh0 or wlan1-msh0*/
+                    //for mesh interfaces
+                    if(wlan0_mesh_enabled || wlan1_mesh_enabled)                    
+                    {
+                        wlan_disabled=0;
+                    }
+                    else {
+                        wlan_disabled=1;
+                    }
+
+				} else {
 					if(SetWlan_idx( iface_name)){
 						apmib_get( MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
 						wlan_disabled=intVal;
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
-                        if(opmode == GATEWAY_MODE && vlan_wan_bridge_tag)
+            if(opmode == GATEWAY_MODE && vlan_wan_bridge_enable)
 						{
 							if(vlan_wan_bridge_port&(1<<(6+vwlan_idx)))
 								wlan_disabled=2;
@@ -915,7 +1044,20 @@ int setbridge(char *argv)
 						iswlan_va=1;
 
 					if((iswlan_va==1) || (opmode != WISP_MODE) || (strcmp(wlan_wan_iface, iface_name) != 0) ){//do not add wlan wan  iface to br0
-						RunSystemCmd(NULL_FILE, "brctl", "addif", "br0" ,iface_name, NULL_STR);
+                        if(multiple_repeater==2 && (!strcmp(iface_name,"wlan0-va0") || !strcmp(iface_name,"wlan0-va2"))){
+                            SDEBUG("    add if to br1 \n\n");                            
+                            RunSystemCmd(NULL_FILE, "brctl", "addif", "br1" ,iface_name, NULL_STR);     
+                        }
+                        #ifdef FOR_DUAL_BAND                            
+                        if(multiple_repeater2==2 && (!strcmp(iface_name,"wlan1-va0") || !strcmp(iface_name,"wlan1-va2"))){
+                            SDEBUG("    add if to br1 \n\n");                            
+                            RunSystemCmd(NULL_FILE, "brctl", "addif", "br1" ,iface_name, NULL_STR);     
+                        }                        
+                        #endif
+                        else      
+                        {
+	    					RunSystemCmd(NULL_FILE, "brctl", "addif", "br0" ,iface_name, NULL_STR);		
+                        }
 						RunSystemCmd(NULL_FILE, "ifconfig", iface_name, "0.0.0.0", NULL_STR);
 							if(bridge_iface[0]){
 								strcat(bridge_iface, iface_name);
@@ -924,7 +1066,8 @@ int setbridge(char *argv)
 								sprintf(bridge_iface, "%s", iface_name);
 								strcat(bridge_iface, ":");
 							}
-					}else{
+					}
+                    else{
 						RunSystemCmd(NULL_FILE, "ifconfig", iface_name, "up", NULL_STR);
 					}
 
@@ -971,44 +1114,6 @@ int setbridge(char *argv)
 		token = strtok_r(NULL, " ", &savestr1);
 	}while(token !=NULL);
 
-	if(wlan_mesh_enabled==1){
-		if(SetWlan_idx( "wlan0"))
-		{
-			apmib_get( MIB_WLAN_MODE, (void *)&wlan_mode); //get root if mode
-			sprintf(tmp_iface, "%s","wlan0-msh0");
-			if(wlan_mode > AP_WDS_MODE){
-				RunSystemCmd(NULL_FILE, "brctl", "addif", "br0" ,tmp_iface, NULL_STR);
-				RunSystemCmd(NULL_FILE, "ifconfig", tmp_iface, "0.0.0.0", NULL_STR);
-				if(bridge_iface[0]){
-					strcat(bridge_iface, tmp_iface);
-					strcat(bridge_iface, ":");
-				}else{
-					sprintf(bridge_iface, "%s", tmp_iface);
-					strcat(bridge_iface, ":");
-				}
-			}
-		}
-#if defined(CONFIG_RTL_92D_SUPPORT)		
-		if(SetWlan_idx( "wlan1"))
-		{
-			apmib_get( MIB_WLAN_MODE, (void *)&wlan_mode); //get root if mode
-			sprintf(tmp_iface, "%s","wlan1-msh0");
-			if(wlan_mode > AP_WDS_MODE){
-				RunSystemCmd(NULL_FILE, "brctl", "addif", "br0" ,tmp_iface, NULL_STR);
-				RunSystemCmd(NULL_FILE, "ifconfig", tmp_iface, "0.0.0.0", NULL_STR);
-				if(bridge_iface[0]){
-					strcat(bridge_iface, tmp_iface);
-					strcat(bridge_iface, ":");
-				}else{
-					sprintf(bridge_iface, "%s", tmp_iface);
-					strcat(bridge_iface, ":");
-				}
-			}
-		}
-#endif //#if defined(CONFIG_RTL_92D_SUPPORT)
-		
-	}
-
 
 #if defined(CONFIG_RTL_ULINKER)
 	if (opmode == 1) {
@@ -1031,14 +1136,14 @@ int setbridge(char *argv)
 	RunSystemCmd(BR_IFACE_FILE, "echo", bridge_iface, NULL_STR);
 
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
-    if(opmode == GATEWAY_MODE && vlan_wan_bridge_tag)
+  if(opmode == GATEWAY_MODE && vlan_wan_bridge_enable)
 	{
 		RunSystemCmd(BR_IFACE_FILE2, "echo", bridge_iface2, NULL_STR);
 		RunSystemCmd(NULL_FILE, "ifconfig", "br1", "up", NULL_STR); 
 	}
 #endif
 	
-	if(br_stp_enabled==0){
+	//if(br_stp_enabled==0){/* Comment here because Enable Spanning tree and Clone Mac Address, then Apply changes, cannot access DUT .*/
 
 		apmib_get(MIB_ELAN_MAC_ADDR,  (void *)tmpBuff);
 
@@ -1048,7 +1153,7 @@ int setbridge(char *argv)
 		}
 		sprintf(cmdBuffer, "%02x%02x%02x%02x%02x%02x", (unsigned char)tmpBuff[0], (unsigned char)tmpBuff[1], (unsigned char)tmpBuff[2], (unsigned char)tmpBuff[3], (unsigned char)tmpBuff[4], (unsigned char)tmpBuff[5]);
 		RunSystemCmd(NULL_FILE, "ifconfig", "br0", "hw", "ether",cmdBuffer, NULL_STR);
-	}
+	//}
 	if(isFileExist(BR_INIT_FILE)==0){//bridge init file is not exist
 		RunSystemCmd(NULL_FILE, "ifconfig", "br0", "0.0.0.0", NULL_STR);
 		RunSystemCmd(BR_INIT_FILE, "echo", "1", NULL_STR);
@@ -1106,26 +1211,127 @@ int setbridge(char *argv)
 	RunSystemCmd("/proc/sw_nat", "echo", "9", NULL_STR);
 #endif
 
+
+    if(multiple_repeater==2 ){
+        SDEBUG(" up br1 \n");
+        RunSystemCmd(NULL_FILE, "ifconfig", "br1", "up", NULL_STR);         
+    }
+    #ifdef FOR_DUAL_BAND                            
+    if(multiple_repeater2==2 ){
+        SDEBUG(" up br1 \n");
+        RunSystemCmd(NULL_FILE, "ifconfig", "br1", "up", NULL_STR);         
+    }
+    #endif
 	return 0;
 }
 
+void lan_connect(char *interface, char *option)
+{
+	char dns_server[2][32]={0};
+	char arg_buff[128]={0};
+	char line[128]={0};
+	char wanip[32]={0}, mask[32]={0},remoteip[32]={0};
+	char *token=NULL, *savestr1=NULL;
+	int index=0,x=0;
+	char dns_found=0;
+	
+	if(strcmp(interface,"br0")!=0)
+		return;	
+		   
+	sprintf(arg_buff, "%s", option);
+	
+		token = strtok_r(arg_buff," ", &savestr1);
+		index=1;
+		do{
+			dns_found=0;
+			if (token == NULL){/*check if the first arg is NULL*/
+				break;
+			}else{   
+				if(index==2)
+					sprintf(wanip, "%s", token); /*wan ip address */
+				if(index==3)
+					sprintf(mask, "%s", token); /*subnet mask*/
+				if(index==4)
+					sprintf(remoteip, "%s", token); /*gateway ip*/			
+				if(index > 4){
+					for(x=0;x<2;x++){
+						if(dns_server[x][0] != '\0'){
+							if(!strcmp(dns_server[x], token)){
+								dns_found = 1; 
+								break;
+							}
+						}
+					}
+					if(dns_found ==0){
+						for(x=0;x<2;x++){
+							if(dns_server[x][0] == '\0'){
+								sprintf(dns_server[x], "%s", token);
+								break;
+							}
+						}
+					}
+				}
+			}
+			index++;
+			token = strtok_r(NULL, " ", &savestr1);
+		}while(token !=NULL);  
+		
+		RunSystemCmd(NULL_FILE, "ifconfig", interface, wanip, "netmask", mask, NULL_STR);	
+		RunSystemCmd(NULL_FILE, "route", "del", "default", NULL_STR);
+		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR);
+		//printf("%s(%d): wan_type=%d,dns_mode=%d\n",__FUNCTION__,__LINE__, wan_type,dns_mode);//Added for test
+		for(x=0;x<2;x++){
+			if(dns_server[x][0] != '\0'){					
+				sprintf(line,"nameserver %s\n", dns_server[x]);
+				if(x==0)
+					write_line_to_file(RESOLV_CONF, 1, line);
+				else
+					write_line_to_file(RESOLV_CONF, 2, line);
+			}
+		}		
+#if defined(CONFIG_APP_SIMPLE_CONFIG)
+		system("echo 2 > /var/sc_ip_status");
+#endif
+}
 
+#ifdef SUPPORT_ZIONCOM_RUSSIA
 
+void check_l2tp_status()
+{	
+	FILE *fp=NULL;
+	if((fp=fopen("/var/dhcpc_route.conf", "r"))==NULL)
+		return;
+	
+	unsigned char routebuf[16];
+	unsigned char cmdbuf[128];
+		
+	fscanf(fp, "%s", routebuf);
+	fclose(fp);
 
+	system("route del default dev eth1 > /dev/null 2>&1");
+	system("route del default dev ppp0 > /dev/null 2>&1");
+	
+	sprintf(cmdbuf, "route add -net default gw %s dev eth1 > /dev/null 2>&1", routebuf);
+	system(cmdbuf);	
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	setFirewallIptablesRules(-1, NULL);
+//	RunSystemCmd(NULL_FILE, "killall", "-9", "l2tpd", NULL_STR);
+//	sleep(2);
+	
+//	system("l2tpd &");
+	system("echo c client > /var/run/l2tp-control 2>/dev/null");
+	
+#if 1
+	if((fp=fopen("/var/dnrd_cmd_line", "r"))!=NULL)
+	{
+		fgets(cmdbuf, 128, fp);
+		fclose(fp);
+		system(cmdbuf);
+	}	
+	
+	RunSystemCmd(NULL_FILE, "igmpproxy", "eth1", "br0", NULL_STR);
+#endif
+	
+	return;
+}
+#endif

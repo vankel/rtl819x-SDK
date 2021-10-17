@@ -3,7 +3,7 @@
 // rtpterm.cpp
 //
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 //#include <string.h>
@@ -12,6 +12,7 @@
 #include "Rtp.h"
 #include "../dsp_r0/dspcodec_0.h"
 #include "../dsp_r0/dspparam.h"
+#include "dsp_main.h"
 //#include "Slic_api.h"
 #include "snd_define.h"
 #include "voip_control.h"
@@ -38,6 +39,7 @@ RtpSessionState sessionState[MAX_DSP_RTK_SS_NUM];
 RtpSessionError sessionError[MAX_DSP_RTK_SS_NUM];
 #ifdef SUPPORT_RTCP
 unsigned char RtcpOpen[MAX_DSP_RTK_SS_NUM] = {0}; /* if RtcpOpen[sid] =1, it means Rtcp session sid if open. else if 0, close.*/
+unsigned char Rtcp_Bye[MAX_DSP_RTK_SS_NUM] = {0};
 #endif
 unsigned char RtpOpen[MAX_DSP_RTK_SS_NUM] = {0}; /* if RtpOpen[sid] =1, it means Rtp session sid if open. else if 0, close.*/
 ///////////////////////////////////////////////////////////////////
@@ -83,6 +85,9 @@ uint16 SID_payload_type_remote[ DSP_RTK_SS_NUM ];
 uint32 SID_count_tx[ DSP_RTK_SS_NUM ];
 uint32 SID_count_rx[ DSP_RTK_SS_NUM ];
 
+uint32 fResume_plc_wsola_later[MAX_DSP_RTK_SS_NUM] = {0};
+uint32 resume_cnt[MAX_DSP_RTK_SS_NUM]={0};
+
 // Support FaxModem RTP Removal Flag
 static uint32 Support_FaxModem_RFC2833RxPlay[MAX_DSP_RTK_CH_NUM] = {0};
 
@@ -97,11 +102,14 @@ int GetFaxModem_RFC2833RxPlay(uint32 chid)
 	return Support_FaxModem_RFC2833RxPlay[chid];
 }
 
+#ifdef SUPPORT_RTP_REDUNDANT	
 uint32 GetRtpRedundantStatus( uint32 sid )
 {
 	return RtpRedundantPT_local[ sid ];
 }
+#endif
 
+#ifdef SUPPORT_RTP_REDUNDANT	
 RtpPayloadType GetRtpRedundantPayloadType( uint32 sid, int local )
 {
 	if( local )
@@ -109,6 +117,7 @@ RtpPayloadType GetRtpRedundantPayloadType( uint32 sid, int local )
 		
 	return ( RtpPayloadType )RtpRedundantPT_remote[ sid ];
 }
+#endif
 
 void ResetSessionTxStatistics( uint32 sid )
 {
@@ -132,7 +141,7 @@ void RFC2833_receiver_init(uint32 sid)
 
 void CRtpTerminal_Init(uint32 sid, CRtpConfig *pConfig)
 {
-	const codec_payload_desc_t *pCodecPayloadDesc;
+	const codec_payload_desc_t *pTranCodecPayloadDesc;
 
 	//m_xConfig[sid] = *pConfig;
 //	m_uBufSize = 1600;
@@ -142,23 +151,23 @@ void CRtpTerminal_Init(uint32 sid, CRtpConfig *pConfig)
 	m_nFrameNum[sid] = 0;
 #endif
 
-	pCodecPayloadDesc = GetCodecPayloadDesc( pConfig ->m_uPktFormat );
+	pTranCodecPayloadDesc = GetCodecPayloadDesc( pConfig ->m_uTranPktFormat );
 	
-	if( pCodecPayloadDesc )
+	if( pTranCodecPayloadDesc )
 	{
 #ifdef UNUSED_RTP_TX_FRAME_PER_PACKET
 		m_nFramePerPacket[sid] = _idiv32(m_xConfig[sid].m_nTranFrameRate, 
-										 pCodecPayloadDesc ->nTranFrameRate );
+										 pTranCodecPayloadDesc ->nTranFrameRate );
 #endif
-		m_nSIDFrameLen[sid] = pCodecPayloadDesc ->nSidTxFrameBytes;
+		m_nSIDFrameLen[sid] = pTranCodecPayloadDesc ->nSidTxFrameBytes;
  #ifdef SUPPORT_RTCP
 		//m_xConfig[sid].m_nPeriod = m_nFramePerPacket[sid] * 
-		//						   pCodecPayloadDesc ->nFramePeriod;
+		//						   pTranCodecPayloadDesc ->nFramePeriod;
  #endif		
 	}
 	else
 	{
-		printk("[%s] Unknown frame type %d\n", __FUNCTION__, pConfig ->m_uPktFormat);
+		printk("[%s] Unknown Tran frame type %d\n", __FUNCTION__, pConfig ->m_uTranPktFormat);
 		assert(0);
 	}
 
@@ -174,8 +183,8 @@ void CRtpTerminal_Init(uint32 sid, CRtpConfig *pConfig)
 #endif
 	//sessionState[sid] = rtp_session_sendrecv;
 
-	RtpRx_setFormat(sid, pConfig ->m_uPktFormat, pConfig ->m_nRecvFrameRate);
-	RtpTx_setFormat(sid, pConfig ->m_uPktFormat, pConfig ->m_nTranFrameRate);
+	RtpRx_setFormat(sid, pConfig ->m_uRecvPktFormat, pConfig ->m_nRecvFrameRate);
+	RtpTx_setFormat(sid, pConfig ->m_uTranPktFormat, pConfig ->m_nTranFrameRate);
 	
 	RtpSession_setSessionState(sid, pConfig ->m_uTRMode);
 	
@@ -266,7 +275,7 @@ static int RtpTerminal_Read_ProcessRFC2833( uint32 chid, uint32 sid,
 	{
 		DspcodecWriteSkipSeqNo(sid, seqNo);
 		
-		if(timestamp == m_uTimestamp[sid])
+		if( (m_uTone[sid] == eventPayload->event) && (m_uTimestamp[sid] == timestamp))
 		{
 			if(eventPayload->edge)
 			{
@@ -283,38 +292,97 @@ static int RtpTerminal_Read_ProcessRFC2833( uint32 chid, uint32 sid,
 			else
 			{
 				if ( 16 != eventPayload->event )
-				Update_current_event_fifo_state(sid, eventPayload);
+					Update_current_event_fifo_state(sid, eventPayload);
 			}
 		}
 		else /* get another event, getRtpTime() != m_uTimestamp */
 		{
-			if ( (eventPayload->event < 0) ||((eventPayload->event >16) && 
-				(eventPayload->event <32))|| (eventPayload->event > 49))
+			// get the same event, but different timestamp
+			if ((m_uTone[sid] == eventPayload->event))
 			{
+				RtpTime delta_ts;
+				delta_ts = timestamp - m_uTimestamp[sid];
+				
+				if ( delta_ts > 0)
+				{
+					if (delta_ts == 65535)
+					{
+						//PRINT_MSG("%d, %d, %d\n", delta_ts, timestamp, m_uTimestamp[sid]);
+						goto ts_process_done;
+					}
+					else
+					{
+						PRINT_R("1: %d, %d, %d\n", delta_ts, timestamp, m_uTimestamp[sid]);
+						goto ts_err_process;
+					}
+				}
+				else if (delta_ts < 0)
+				{
+					if (( timestamp + (65535 - m_uTimestamp[sid])) == 65535)
+					{
+						//PRINT_MSG("%d, %d, %d\n", delta_ts, timestamp, m_uTimestamp[sid]);
+						goto ts_process_done;
+					}
+					else
+					{
+						PRINT_R("2: %d, %d, %d\n", delta_ts, timestamp, m_uTimestamp[sid]);
+						goto ts_err_process;
+					}
+				}
+
+ts_err_process:
+				/* Thlin: Should not go to here*/
 				rfc2833_event_fifo_read(sid);
-				m_bFlashEvent[sid] = false;
 				m_bPlayTone[sid] = false;
-				printk(AC_FORE_RED "Receive unrecognized RFC2833 event %d\n" AC_RESET, eventPayload->event);
-			}
-			else
-			{	/* Thlin: Should not go to here*/
-				rfc2833_event_fifo_read(sid);
-				m_bPlayTone[sid] = false;
-				printk(AC_FORE_RED "RFC2833 receive error, sid=%d, event=%d\n" AC_RESET, sid, eventPayload->event);
-			
+				PRINT_R("RFC2833 receive error, line%d, sid=%d, event=%d\n", __LINE__, sid, eventPayload->event);
+
 				// Get diff timestamp 2833 event, stop previous DTMF tone, and then accept this diff timestamp 2833 event as new one.
 				if ( 16 == eventPayload->event )// flash event
 					m_bFlashEvent[sid] = true;
 				else
 				{		
 					rfc2833_event_fifo_wrtie(sid, eventPayload->event);
-					Update_current_event_fifo_state(sid, eventPayload);
+					//Update_current_event_fifo_state(sid, eventPayload);
 					m_bPlayTone[sid] = true;
 				}
+				//m_uTimestamp[sid] = timestamp;
+
+ts_process_done:
+				if ( 16 != eventPayload->event )
+					Update_current_event_fifo_state(sid, eventPayload);
 				m_uTimestamp[sid] = timestamp;
-				m_uTone[sid] = eventPayload->event;
-				//printk(AC_FORE_RED "timestamp(sid=%d)= %u\n" AC_RESET, sid, m_uTimestamp[sid]);
-				//printk(AC_FORE_RED "get pkt timestamp= %u\n" AC_RESET, getRtpTime(p));
+
+			}
+			else // get another event
+			{
+				if ( (eventPayload->event < 0) ||((eventPayload->event >16) && 
+					(eventPayload->event <32))|| (eventPayload->event > 49))
+				{
+					rfc2833_event_fifo_read(sid);
+					m_bFlashEvent[sid] = false;
+					m_bPlayTone[sid] = false;
+					printk(AC_FORE_RED "Receive unrecognized RFC2833 event %d\n" AC_RESET, eventPayload->event);
+				}
+				else
+				{	/* Thlin: Should not go to here*/
+					rfc2833_event_fifo_read(sid);
+					m_bPlayTone[sid] = false;
+					PRINT_R("RFC2833 receive error, line%d, sid=%d, event=%d\n", __LINE__, sid, eventPayload->event);
+				
+					// Get diff timestamp 2833 event, stop previous DTMF tone, and then accept this diff timestamp 2833 event as new one.
+					if ( 16 == eventPayload->event )// flash event
+						m_bFlashEvent[sid] = true;
+					else
+					{		
+						rfc2833_event_fifo_wrtie(sid, eventPayload->event);
+						Update_current_event_fifo_state(sid, eventPayload);
+						m_bPlayTone[sid] = true;
+					}
+					m_uTimestamp[sid] = timestamp;
+					m_uTone[sid] = eventPayload->event;
+					//printk(AC_FORE_RED "timestamp(sid=%d)= %u\n" AC_RESET, sid, m_uTimestamp[sid]);
+					//printk(AC_FORE_RED "get pkt timestamp= %u\n" AC_RESET, getRtpTime(p));
+				}
 			}
 		}
 	}
@@ -400,6 +468,10 @@ int32 RtpTerminal_Read(uint32* pchid, uint32* psid, uint8 *pBuf, int32 nSize)
 	int32 nGet = 0, nPos;
 	uint32 chid, sid;
 	RtpSeqNumber seqNo;
+	RtpEventDTMFRFC2833 *p2833;
+	extern void InitAP(uint32 sid);
+	extern int jbc_disable_wsola[MAX_DSP_RTK_SS_NUM];
+	extern Flag fUsePLC[MAX_DSP_RTK_SS_NUM]; 
 
 	//if(++session >= DSP_RTK_SS_NUM)
 	//	session = 0;
@@ -418,7 +490,8 @@ int32 RtpTerminal_Read(uint32* pchid, uint32* psid, uint8 *pBuf, int32 nSize)
 #ifdef SUPPORT_RTP_REDUNDANT
 		// it may need further process after redundancy process, so
 		// we don't break follow checking 
-		if( rfc2833_dtmf_pt_local[sid] || rfc2833_fax_modem_pt_local[sid] )
+		if((getPayloadType(p) == GetRtpRedundantPayloadType( sid, 1 /* local */ )) 
+		  && (rfc2833_dtmf_pt_local[sid] || rfc2833_fax_modem_pt_local[sid]))
 		{
 			// because we process merely RFC2833 redundancy here!! 
 			RtpTerminal_Read_ProcessRedundant( chid, sid, 
@@ -438,12 +511,69 @@ int32 RtpTerminal_Read(uint32* pchid, uint32* psid, uint8 *pBuf, int32 nSize)
 						seqNo,
 						getRtpTime(p),
 						(RtpEventDTMFRFC2833*)(getPayloadLoc(p)) );
+
+			p2833 = (RtpEventDTMFRFC2833*)(getPayloadLoc(p));
+
+#if 1
+			if (p->header->marker == 1)
+			{
+				if (fResume_plc_wsola_later[sid] == 0)
+				{
+					InitAP(sid);
+					jbc_disable_wsola[sid] = 1;
+					fUsePLC[sid] = 0;
+					//PRINT_R( "0");
+				}
+				
+				if (fResume_plc_wsola_later[sid] == 1)
+				{
+					fResume_plc_wsola_later[sid] = 0;
+					resume_cnt[sid] = 0;
+				}
+			}
 			
+			if (p2833->edge == 1)
+			{
+				fResume_plc_wsola_later[sid] = 1;
+			}
+#endif
+			
+#if 1
 			/* invalid length to distinguish that it is an event packet */
 			nGet = -1;
+#else
+			
+			nGet = 160;
+			memset(pBuf, 0, nGet);
+
+			if(nGet & 0x00000003)		/* not align */
+				nPos = 4 - (nGet & 0x00000003) + nGet;
+			else
+				nPos = nGet;
+
+			*((uint32 *)(pBuf + nPos)) = getSequence(p);
+						//PRINT_R( "%d ", getSequence(p));
+			*((uint32 *)(pBuf + nPos + 4)) = getRtpTime(p) + p2833->duration;
+						//PRINT_G( "%x ", getRtpTime(p));
+#endif
 		}
 		else	/* non RFC2833 packet */
 		{
+				if (fResume_plc_wsola_later[sid] == 1)
+				{
+					resume_cnt[sid]++;
+					
+					if (resume_cnt[sid] > 60) // 60 RTP packets.
+					{
+						jbc_disable_wsola[sid] = nDspSessCfgBak[sid].jbc_disable_wsola_bak;
+						InitAP(sid);
+						fUsePLC[sid] = nDspSessCfgBak[sid].fUsePLC_bak;
+						//PRINT_R( "1");
+						
+						fResume_plc_wsola_later[sid] = 0;
+						resume_cnt[sid] = 0;
+					}
+				}
 
 				if(nSize >= getPayloadUsage(p) + 8)
 					nGet = getPayloadUsage(p);
@@ -616,10 +746,10 @@ int32 RtpTerminal_Write(uint32 chid, uint32 sid, uint8 *pBuf, int32 nSize)
 	}
 }
 
-void RtpTerminal_setFormat(uint32 sid, RtpPayloadType type, int recvRate, int tranRate)
+void RtpTerminal_setFormat(uint32 sid, RtpPayloadType tranType, RtpPayloadType recvType, int tranRate, int recvRate)
 {
-	RtpTx_setFormat(sid, type, tranRate);
-	RtpRx_setFormat(sid, type, recvRate);
+	RtpTx_setFormat(sid, tranType, tranRate);
+	RtpRx_setFormat(sid, recvType, recvRate);
 }
 
 /* The very function that used to config endpoint */
@@ -628,7 +758,7 @@ void RtpTerminal_SetConfig(uint32 chid, uint32 sid, CRtpConfig *pRtpConfig)
 	//bool rtpConfig_changed = false;
 	//bool rtcpConfig_changed = false;
 	//CRtpConfig* pRtpConfig = NULL;
-	const codec_payload_desc_t *pCodecPayloadDesc;
+	const codec_payload_desc_t *pTranCodecPayloadDesc;
 
 	assert(pRtpConfig);
 	//pRtpConfig = (CRtpConfig *)pConfig;
@@ -707,11 +837,17 @@ if(rtcpConfig_changed==true)
 
 	
 #endif //by bruce
-	//m_xConfig[sid].m_uPktFormat = pRtpConfig->m_uPktFormat;
+	//m_xConfig[sid].m_uRecvPktFormat = pRtpConfig->m_uRecvPktFormat;
+	//m_xConfig[sid].m_uTranPktFormat = pRtpConfig->m_uTranPktFormat;
 	//m_xConfig[sid].m_nRecvFrameRate = pRtpConfig->m_nRecvFrameRate;
 	//m_xConfig[sid].m_nTranFrameRate = pRtpConfig->m_nTranFrameRate;
 	//m_xConfig[sid].m_uTRMode = pRtpConfig->m_uTRMode;
-	RtpTerminal_setFormat(sid, pRtpConfig ->m_uPktFormat, pRtpConfig ->m_nRecvFrameRate, pRtpConfig ->m_nTranFrameRate);
+
+	RtpTerminal_setFormat( sid,	pRtpConfig ->m_uTranPktFormat, 
+								pRtpConfig ->m_uRecvPktFormat, 
+								pRtpConfig ->m_nTranFrameRate, 
+								pRtpConfig ->m_nRecvFrameRate );
+
 	RtpSession_setSessionState(sid, pRtpConfig ->m_uTRMode);
 
 #ifdef UNUSED_RTP_TX_FRAME_PER_PACKET
@@ -719,16 +855,16 @@ if(rtcpConfig_changed==true)
 	m_nFrameNum[sid] = 0;
 #endif
 
-	pCodecPayloadDesc = GetCodecPayloadDesc( pRtpConfig ->m_uPktFormat );
+	pTranCodecPayloadDesc = GetCodecPayloadDesc( pRtpConfig ->m_uTranPktFormat );
 	
-	if( pCodecPayloadDesc ) {
+	if( pTranCodecPayloadDesc ) {
 #ifdef UNUSED_RTP_TX_FRAME_PER_PACKET
 		m_nFramePerPacket[sid] = _idiv32(m_xConfig[sid].m_nTranFrameRate, 
-										 pCodecPayloadDesc ->nTranFrameRate );
+										 pTranCodecPayloadDesc ->nTranFrameRate );
 #endif
-		m_nSIDFrameLen[sid] = pCodecPayloadDesc ->nSidTxFrameBytes;
+		m_nSIDFrameLen[sid] = pTranCodecPayloadDesc ->nSidTxFrameBytes;
 	} else {
-		printk("[%s] Unknown frame type %d\n", __FUNCTION__, pRtpConfig ->m_uPktFormat);
+		printk("[%s] Unknown frame type %d\n", __FUNCTION__, pRtpConfig ->m_uTranPktFormat);
 		assert(0);
 	}
 
@@ -736,8 +872,8 @@ if(rtcpConfig_changed==true)
 	m_bPlayTone[sid] = false;
 	//m_nCount[sid] = 0;
 
-	RtpRx_setFormat(sid, pRtpConfig ->m_uPktFormat, pRtpConfig ->m_nRecvFrameRate);
-	RtpTx_setFormat(sid, pRtpConfig ->m_uPktFormat, pRtpConfig ->m_nTranFrameRate);
+	RtpRx_setFormat(sid, pRtpConfig ->m_uRecvPktFormat, pRtpConfig ->m_nRecvFrameRate);
+	RtpTx_setFormat(sid, pRtpConfig ->m_uTranPktFormat, pRtpConfig ->m_nTranFrameRate);
 #if 0
 	if (pRtpConfig->m_uTRMode == rtp_session_inactive)
 	{
@@ -838,7 +974,7 @@ void RtpSession_setSessionState (uint32 sid, RtpSessionState state)
 			//PRINT_MSG("+++++Debug:go to rtp_session_recvonly %d+++++\n",sid);
 			RtpRx_setMode(sid, rtprecv_normal);
 			RtpTx_setMode(sid, rtptran_droppacket);
-			RtcpTx_setMode(sid, rtptran_droppacket);
+			RtcpTx_setMode(sid, rtprecv_normal);
 			break;
 		case rtp_session_sendrecv:
 			//PRINT_MSG("+++++Debug:go to rtp_session_sendrecv %d+++++\n",sid);
@@ -861,6 +997,12 @@ void RtpSession_renew(uint32 sid,
 	
 	if( sid >= DSP_RTK_SS_NUM ) 
 		goto label_renew_rtp_session_done;
+
+	if (rtpcfg == NULL)
+	{
+		PRINT_R("%s, line%d, error, rtpcfg = %p\n", __FUNCTION__, __LINE__, rtpcfg);
+		return;
+	}
 	
 	// RTP Redundancy 
 #ifdef SUPPORT_RTP_REDUNDANT
@@ -899,10 +1041,16 @@ void RtpSession_renew(uint32 sid,
 	// RX frames per packet
 	rx_frames_per_packet[ sid ] = 0;
 	
+#ifdef SUPPORT_RTP_REDUNDANT
 	RtpTx_renewSession(sid, 
 				rtpcfg ->init_randomly, rtpcfg ->init_SSRC,
 				rtpcfg ->init_seqno, rtpcfg ->init_timestamp,
 				rtpcfg ->rtp_redundant_max_Audio, rtpcfg ->rtp_redundant_max_RFC2833 );
+#else
+	RtpTx_renewSession(sid, 
+				rtpcfg ->init_randomly, rtpcfg ->init_SSRC,
+				rtpcfg ->init_seqno, rtpcfg ->init_timestamp);
+#endif
 	/*
 	 * pkshih uncomment following. 
 	 * Because sourceSet[] is set, updateSource() will try to change 
@@ -921,7 +1069,13 @@ label_renew_rtp_session_done:
 #ifdef SUPPORT_RTCP
 	if( sid >= RTCP_SID_OFFSET ) {
 		sid -= RTCP_SID_OFFSET;
-		
+
+		if (rtcpcfg == NULL)
+		{
+			PRINT_R("%s, line%d, error, rtcpcfg = %p\n", __FUNCTION__, __LINE__, rtcpcfg);
+			return;
+		}
+
 		RtcpTx_InitByID( sid, rtcpcfg ->enableXR, rtcpcfg ->tx_interval );
 		RtcpRx_InitByID( sid, rtcpcfg ->enableXR );
 	}
@@ -931,11 +1085,24 @@ label_renew_rtp_session_done:
 #ifdef SUPPORT_RTCP
 void RtpSession_processRTCP (uint32 sid)
 {
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	extern int32 rtk_trap_unregister(uint32 s_id);
+#endif
 
 	if (RtcpTx_checkIntervalRTCP(sid))
 	{
 		RtcpTx_transmitRTCP(sid);
 		//printk("T%d\n", sid);
+	}
+	
+	if (Rtcp_Bye[sid])
+	{
+		RtcpTx_transmitRTCPBYE(sid);
+		Rtcp_Bye[sid] = 0;
+		RtcpOpen[sid] = 0;
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+		rtk_trap_unregister(sid+ RTCP_SID_OFFSET);
+#endif
 	}
 
 	RtcpRx_receiveRTCP(sid);

@@ -303,7 +303,7 @@ int32 rtk_SetPlayTone(uint32 chid, uint32 sid, DSPCODEC_TONE nTone, uint32 bFlag
     return 0;
 }
 
-int32 rtk_Set_Voice_Gain(uint32 chid, int spk_gain, int mic_gain)
+int32 rtk_SetVoiceGain(uint32 chid, int spk_gain, int mic_gain)
 {
 	TstVoipValue stVoipValue;
 

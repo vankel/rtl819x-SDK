@@ -114,6 +114,8 @@ typedef struct stRtpPacket	// RtpPacket
 	
 	int EventPktDuration;
 	
+	int bEventPktLongDuration;
+	
 	// RX only 
 	int ip_ttl;		// TTL in IP header  
 

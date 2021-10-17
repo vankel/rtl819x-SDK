@@ -90,6 +90,10 @@ struct qos_cmd_info_s{
 			unsigned int portmask;
 			unsigned int queuemask;
 		}queue_rate;
+		struct{
+			unsigned int portmask;
+			unsigned short apr[8];
+		}port_rate;
 	} qos_data;
 };
 
@@ -118,6 +122,8 @@ struct qos_cmd_info_s{
 #define FLOW_CONTROL_ENABLE 23
 #define FLOW_CONTROL_DISABLE 24
 #define FLOW_CONTROL_CONFIGURATION_SHOW 25
+#define PORT_RATE 26
+#define PORT_RATE_SHOW 27
 
 
 static inline void port_based_priority_show(void)
@@ -297,6 +303,21 @@ static inline void queue_rate_show(void)
 				printk("    Port[%d] queue[%d]'s  ppr is %d, burst is %d, apr is %d\n", i, j, ppr, burst, apr);
 		}
 
+	}
+
+	return;
+}
+
+static inline void port_rate_show(void)
+{
+	int i, ret;
+	unsigned int apr;
+
+	printk("PORT_RATE: \n");
+	for(i=0; i<8; i++){
+		ret = rtl8651_getAsicPortEgressBandwidth(i, &apr);
+		if(ret == SUCCESS)
+			printk("    Port[%d]'s apr is %d\n", i, apr);
 	}
 
 	return;
@@ -486,6 +507,17 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 			}
 			send_data.action = QUEUE_RATE;
 			break;
+		case PORT_RATE:
+			for(i=0; i<8; i++){
+				if((1<<i) & recv_data.qos_data.port_rate.portmask){
+					ret = rtl8651_setAsicPortEgressBandwidth(i, recv_data.qos_data.port_rate.apr[i]);
+					if(ret == FAILED){
+						printk("Port rate set to WFQRCRP0 register failed\n ");
+					}
+				}
+			}
+			send_data.action = PORT_RATE;
+			break;
 		case FLOW_CONTROL_ENABLE:
 			for(i=0; i<7; i++){
 				for(j=0; j<6; j++){
@@ -538,6 +570,9 @@ void hw_qos_netlink_receive (struct sk_buff *__skb)
 			break;
 		case QUEUE_RATE_SHOW:
 			queue_rate_show();
+			break;
+		case PORT_RATE_SHOW:
+			port_rate_show();
 			break;
 		case FLOW_CONTROL_CONFIGURATION_SHOW:
 			flow_control_config_show();

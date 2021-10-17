@@ -152,20 +152,18 @@ static int acNum;
 static int meshAclNum;
 //#endif Keith remove
 static int scheduleRuleNum;
-
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
+static int macRedirectNum;
+#endif
 #ifdef HOME_GATEWAY
 static int macFilterNum, portFilterNum, ipFilterNum, portFwNum, triggerPortNum;
 
 #if defined(GW_QOS_ENGINE) || defined(QOS_BY_BANDWIDTH)
 static int qosRuleNum;
 #endif
-
-#if defined(CONFIG_RTL_8198_AP_ROOT) || defined(HOME_GATEWAY) //defined(VLAN_CONFIG_SUPPORTED) Keith Modify
+#endif
 #if defined(VLAN_CONFIG_SUPPORTED)
 static int vlanRuleNum;
-#endif
-#endif
-
 #endif
 
 #ifdef HOME_GATEWAY
@@ -207,8 +205,12 @@ static void getVal5(char *value, char **p1, char **p2, char **p3, char **p4, cha
 static void getVal3(char *value, char **p1, char **p2, char **p3);
 static void getVal4(char *value, char **p1, char **p2, char **p3, char **p4);
 #endif
-#if defined(HOME_GATEWAY) || defined(CONFIG_RTL_8198_AP_ROOT)
+//#if defined(HOME_GATEWAY) || defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL_8197D_AP)
 static void getVal7(char *value, char **p1, char **p2, char **p3, char **p4, char **p5, char **p6, char **p7);
+//#endif
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+void getVal8(char *value, char **p1, char **p2, char **p3, char **p4, \
+	char **p5, char **p6, char **p7, char **p8);
 #endif
 #ifdef HOME_GATEWAY
 #ifdef VPN_SUPPORT
@@ -230,10 +232,18 @@ static void getVal19(char *value, char **p1, char **p2, char **p3, char **p4, ch
 		 char  **p7, char **p8,  char **p9, char **p10, char **p11, char **p12, char **p13,\
 		 char **p14, char **p15, char **p16,char **p17, char **p18, char **p19);
 
+static void getVal9(char *value, char **p1, char **p2, char **p3, char **p4, char **p5, char **p6,
+		 char  **p7, char **p8,  char **p9);
+
+
 #define RADVD_FORMAT ("%u, %s, %u, %u, %u, %u, %u, %u, %u, %u ,%u, %u, %s, %u, %u, %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x, %u, %u, %u, %u, %u, %u, %s, %u, %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x, %u, %u, %u, %u, %u, %u, %s, %u")
 #define DNSV6_FORMAT ("%d, %s")
 #define DHCPV6S_FORMAT ("%d, %s, %s, %s, %s")
+/*enable, ifname, pd's len, pd's id, pd's ifname*/
+#define DHCPV6C_FORMAT ("%d, %s, %d, %d, %s")
 #define ADDR6_FORMAT ("%d, %d, %d, %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x, %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x")
+#define ADDRV6_FORMAT ("%d, %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x")
+
 #endif
 #endif
 /////////////////////////////////////////////////////////////////////////////
@@ -594,6 +604,9 @@ back:
 static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//output set pMib
 {
 	int ver = -1;
+#ifdef HEADER_LEN_INT
+	HW_PARAM_HEADER_T hwHeader;
+#endif
 	PARAM_HEADER_T Header;
 	int i=0;
 
@@ -630,9 +643,18 @@ static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//outpu
 	outLen = Decode(pdata,compHeader.compLen,pOutData);	
 	//printf("indata=%s,outdata=%s,%s,%d\n",pdata,pOutData,__FUNCTION__,__LINE__);
 	//printf("inlen = %d,outlen=%d,sizeof(PARAM_HEADER_T):%d\n",compHeader.compLen,outLen,sizeof(PARAM_HEADER_T));
-
-	memcpy(&Header,pOutData,sizeof(PARAM_HEADER_T));
-	Header.len = WORD_SWAP(Header.len);//important!
+#ifdef HEADER_LEN_INT
+	if(type==HS_TYPE)
+	{
+		memcpy(&hwHeader,pOutData,sizeof(HW_PARAM_HEADER_T));
+		hwHeader.len = WORD_SWAP(hwHeader.len);//important!
+	}
+	else
+#endif
+	{
+		memcpy(&Header,pOutData,sizeof(PARAM_HEADER_T));
+		Header.len = HEADER_SWAP(Header.len);//important!
+	}
 #ifdef MIB_TLV
 	mib_table_entry_T *pmib_tl = NULL;
 	unsigned char *MibData = NULL;
@@ -667,7 +689,17 @@ static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//outpu
 	}	
 	unsigned int tlv_checksum = 0;	
 	if(pOutData != NULL)
+	{
+#ifdef HEADER_LEN_INT
+		if(type==HS_TYPE)
+		{
+			tlv_checksum = CHECKSUM_OK(pOutData+sizeof(HW_PARAM_HEADER_T), hwHeader.len);
+		}
+		else
+#endif
+
 		tlv_checksum = CHECKSUM_OK(pOutData+sizeof(PARAM_HEADER_T), Header.len);
+	}
 	if(0==tlv_checksum)
 	{
 		printf("Checksum fail!!\nInput file invalid!\n");
@@ -675,9 +707,39 @@ static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//outpu
 	}
 
 	#ifdef DEBUG_CVCFG
+	
+#ifdef HEADER_LEN_INT
+			if(type==HS_TYPE)
+			{
+				flash_write_file(pOutData+sizeof(HW_PARAM_HEADER_T),outLen-sizeof(HW_PARAM_HEADER_T)-1,"in_tlv.raw");
+			}
+			else
+#endif
 	flash_write_file(pOutData+sizeof(PARAM_HEADER_T),outLen-sizeof(PARAM_HEADER_T)-1,"in_tlv.raw");
 	#endif
 
+#ifdef HEADER_LEN_INT
+	if(type==HS_TYPE)
+	{
+		if(tlv_checksum == 1 && mib_tlv_init(pmib_tl, pOutData+sizeof(HW_PARAM_HEADER_T),
+		(void*)MibData, outLen-sizeof(HW_PARAM_HEADER_T)-1) == 1) //-1 for checksum
+		{
+
+			sprintf(&hwHeader.signature[TAG_LEN], "%02d", HW_SETTING_VER);
+			hwHeader.len = sizeof(HW_SETTING_T);
+			//MibData[Header.len-1]  = CHECKSUM(MibData, Header.len-1);		
+		
+			if(pOutData!= NULL)
+				free(pOutData);
+		
+			pOutData = malloc(sizeof(HW_PARAM_HEADER_T)+hwHeader.len);
+			memcpy(pOutData, &hwHeader, sizeof(HW_PARAM_HEADER_T));
+			memcpy(pOutData+sizeof(HW_PARAM_HEADER_T), MibData, hwHeader.len);
+		}	else{printf("mib_tlv_init fail!\n");}
+	}
+	else
+#endif
+{
 	if(tlv_checksum == 1 && mib_tlv_init(pmib_tl, pOutData+sizeof(PARAM_HEADER_T),
 	(void*)MibData, outLen-sizeof(PARAM_HEADER_T)-1) == 1) //-1 for checksum
 	{
@@ -711,7 +773,7 @@ static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//outpu
 		memcpy(pOutData, &Header, sizeof(PARAM_HEADER_T));
 		memcpy(pOutData+sizeof(PARAM_HEADER_T), MibData, Header.len);
 	}	else{printf("mib_tlv_init fail!\n");}
-	
+}
 	if(MibData != NULL)
 		free(MibData);
 	
@@ -720,6 +782,18 @@ static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//outpu
 
 	if(type& HS_TYPE)
 	{
+#ifdef HEADER_LEN_INT
+		if(hwHeader.len >  sizeof(HW_SETTING_T) + 100)
+		{
+			printf("hs length too large!sizeof(HW_SETTING_T)=%d\n",sizeof(HW_SETTING_T));
+			return -1;
+		}
+		memcpy(&pMib->hwmib,pOutData+sizeof(HW_PARAM_HEADER_T),hwHeader.len);
+		pMib->hwmib_exist = 1;
+		sscanf(&hwHeader.signature[TAG_LEN], "%02d", &ver);
+		pMib->hwmib_ver = ver;
+		pMib->hwmib_len = hwHeader.len;
+#else
 		if(Header.len >  sizeof(HW_SETTING_T) + 100)
 		{
 			printf("hs length too large!sizeof(HW_SETTING_T)=%d\n",sizeof(HW_SETTING_T));
@@ -730,6 +804,7 @@ static int parseBinSectionConfig(int type,int fh,struct all_config *pMib)//outpu
 		sscanf(&Header.signature[TAG_LEN], "%02d", &ver);
 		pMib->hwmib_ver = ver;
 		pMib->hwmib_len = Header.len;
+#endif
 	}else if(type& DS_TYPE)
 	{
 		if(Header.len >  sizeof(APMIB_T) + 100)
@@ -833,6 +908,9 @@ static int parseTxtConfig(const char *filename, struct all_config *pMib)
 //#if defined(CONFIG_RTK_MESH) && defined(_MESH_ACL_ENABLE_) Keith remove
 	meshAclNum = 0;
 //#endif Keith remove
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
+	macRedirectNum = 0;
+#endif
 
 #ifdef HOME_GATEWAY
 	portFilterNum = ipFilterNum = macFilterNum = portFwNum = triggerPortNum = 0;
@@ -841,10 +919,8 @@ static int parseTxtConfig(const char *filename, struct all_config *pMib)
 	qosRuleNum = 0;
 #endif
 
-#ifdef HOME_GATEWAY // defined(VLAN_CONFIG_SUPPORTED) Keith Modify
 #if defined(VLAN_CONFIG_SUPPORTED)
 	vlanRuleNum = 0;
-#endif
 #endif
 #endif
 
@@ -1053,9 +1129,8 @@ static int getToken(char *line, char *value, int *def_flag, int *hw_tbl, int *wl
 static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib, int hw_tbl, int idx, int v_idx)
 {
 	unsigned char key[180];
-	char *p1, *p2, *p3, *p4,*p5;
+	char *p1, *p2, *p3, *p4,*p5,*p6, *p7,*p8;
 #ifdef HOME_GATEWAY
-	char   *p6, *p7,*p8;
 #if defined(GW_QOS_ENGINE) || defined(VPN_SUPPORT) || defined(CONFIG_IPV6)
 	char  *p9, *p10, *p11, *p12;
 #endif
@@ -1072,6 +1147,12 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 	MACFILTER_Tp pWlAc;
 	SCHEDULE_Tp pscheduleRule;
 	WDS_Tp pWds;
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
+	MACREDIRECT_Tp pMacRedirect;
+#endif
+#if defined(VLAN_CONFIG_SUPPORTED)
+	VLAN_CONFIG_Tp pVlan;
+#endif
 
 #ifdef HOME_GATEWAY
 	PORTFW_Tp pPortFw;
@@ -1080,11 +1161,6 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 	MACFILTER_Tp pMacFilter;
 	TRIGGERPORT_Tp pTriggerPort;
 
-#ifdef HOME_GATEWAY //VLAN_CONFIG_SUPPORTED Keith Modify
-#if defined(VLAN_CONFIG_SUPPORTED)
-	VLAN_CONFIG_Tp pVlan;
-#endif
-#endif
 
 #ifdef GW_QOS_ENGINE
 	QOS_Tp pQos;
@@ -1104,7 +1180,9 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 	radvdCfgParam_Tp pradvdCfgParam;
 	dnsv6CfgParam_Tp pdnsv6CfgParam;
 	dhcp6sCfgParam_Tp pdhcp6sCfgParam;
+	dhcp6cCfgParam_Tp dhcp6cCfgParam_p;
 	daddrIPv6CfgParam_Tp daddrIPv6CfgParam;
+	addr6CfgParam_Tp addr6CfgParam_p;
 	tunnelCfgParam_Tp tunnelCfgParam;
 #endif
 #endif
@@ -1187,7 +1265,7 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 
 	case DWORD_T:
 	
-		*((unsigned long *)(((long)pMib) + pTbl[i].offset)) = (unsigned long)atoi(value);
+		*((unsigned int *)(((long)pMib) + pTbl[i].offset)) = (unsigned int)atoi(value);
 
 		break;
 
@@ -1207,6 +1285,17 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 		else if((id >= MIB_HW_TX_POWER_5G_HT40_1S_A &&  id <=MIB_HW_TX_POWER_DIFF_5G_OFDM))
 			max_chan = MAX_5G_CHANNEL_NUM_MIB;
 #endif
+
+#if defined(CONFIG_RTL_8812_SUPPORT)
+		if(((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_A) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_A)) 
+			|| ((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_B) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_B)) )
+			max_chan = MAX_2G_CHANNEL_NUM_MIB;
+
+		if(((id >= MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_A) && (id <= MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_A)) 
+			|| ((id >= MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_B) && (id <= MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_B)) )
+			max_chan = MAX_5G_DIFF_NUM;
+#endif
+
 
 #if defined(CONFIG_RTL_8196B)
 		if ( pTbl[i].id == MIB_HW_TX_POWER_CCK || pTbl[i].id == MIB_HW_TX_POWER_OFDM ) 
@@ -1302,7 +1391,20 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 			strcpy(pWds->comment, p2);
 		wdsNum++;
 		break;
-
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT	
+	case MAC_REDIRECT_ARRAY_T:
+		getVal((char *)value, &p1);
+		if (p1 == NULL) {
+			printf("Invalid MACREDIRECT entry in argument!\n");
+			break;
+		}
+		if (strlen(p1)!=12 || !string_to_hex(p1, key, 12))
+			return -1;
+		pMacRedirect = (MACREDIRECT_Tp)(((long)pMib)+pTbl[i].offset+macRedirectNum*sizeof(MACREDIRECT_T));
+		memcpy(pMacRedirect->macAddr, key, 6);
+		macRedirectNum++;
+		break;
+#endif
 
 #ifdef HOME_GATEWAY
 	case MACFILTER_ARRAY_T:
@@ -1341,8 +1443,12 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 		break;
 
 	case IPFILTER_ARRAY_T:
-		getVal3((char *)value, &p1, &p2, &p3);
-		if (p1 == NULL || p2 == NULL) {
+		getVal5((char *)value, &p1, &p2, &p3,&p4,&p5);
+		if (p1 == NULL || p2 == NULL
+#ifdef CONFIG_IPV6
+			|| p4 == NULL || p5 == NULL
+#endif
+		) {
 			printf("Invalid IPFILTER arguments!\n");
 			break;
 		}
@@ -1353,11 +1459,15 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 		pIpFilter->protoType = (unsigned char)atoi(p2);
 		if ( p3 )
 			strcpy( pIpFilter->comment, p3 );
+#ifdef CONFIG_IPV6
+		strcpy(pIpFilter->ip6Addr,p4);
+		pIpFilter->ipVer = (unsigned char)atoi(p5);
+#endif
 		ipFilterNum++;
 		break;
 
 	case PORTFILTER_ARRAY_T:
-		getVal4((char *)value, &p1, &p2, &p3, &p4);
+		getVal5((char *)value, &p1, &p2, &p3, &p4, &p5);
 		if (p1 == NULL || p2 == NULL || p3 == NULL) {
 			printf("Invalid PORTFILTER arguments!\n");
 			break;
@@ -1368,6 +1478,10 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 		pPortFilter->protoType = (unsigned char)atoi(p3);
 		if ( p4 )
 			strcpy( pPortFilter->comment, p4 );
+#ifdef CONFIG_IPV6
+		if ( p5 )
+			pPortFilter->ipVer = atoi(p5);
+#endif
 		portFilterNum++;
 		break;
 
@@ -1388,44 +1502,6 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 			strcpy( pTriggerPort->comment, p7);
 		triggerPortNum++;
 		break;
-#if defined(CONFIG_RTL_8198_AP_ROOT) || defined(HOME_GATEWAY) //VLAN_CONFIG_SUPPORTED Keith Modify
-#if defined(VLAN_CONFIG_SUPPORTED)
-	case VLANCONFIG_ARRAY_T:
-
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-		getVal8((char *)value, &p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8);
-		if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL || p5 == NULL || p6 == NULL || p7 == NULL || p8 == NULL) {
-#else
-		getVal7((char *)value, &p1, &p2, &p3, &p4, &p5, &p6, &p7);
-		if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL || p5 == NULL || p6 == NULL || p7 == NULL) {
-#endif
-			printf("Invalid VLAN arguments!\n",vlanRuleNum);
-
-			break;
-		}
-
-		vlanRuleNum = (unsigned short)atoi(p7);
-		vlanRuleNum -- ;
-		
-		if(vlanRuleNum >= MAX_IFACE_VLAN_CONFIG)
-			break;
-						
-		pVlan = (VLAN_CONFIG_Tp)(((long)pMib)+pTbl[i].offset+vlanRuleNum*sizeof(VLAN_CONFIG_T));
-		if ( p1 )
-			strcpy(pVlan->netIface, p1);
-		pVlan->enabled = (unsigned short)atoi(p2);
-		pVlan->tagged = (unsigned short)atoi(p3);
-		pVlan->priority = (unsigned short)atoi(p4);
-		pVlan->cfi = (unsigned short)atoi(p5);
-		pVlan->vlanId = (unsigned short)atoi(p6);
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-		pVlan->forwarding_rule = (unsigned short)atoi(p8);
-		//printf("%s:%d pVlan->netIface=%s pVlan->forwarding_rule=%d vlanRuleNum=%d\n",
-		//__FUNCTION__,__LINE__,pVlan->netIface,pVlan->forwarding_rule,vlanRuleNum);
-#endif
-		break;
-#endif
-#endif
 
 #ifdef GW_QOS_ENGINE
 	case QOS_ARRAY_T:
@@ -1666,6 +1742,20 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 		strcpy(pdhcp6sCfgParam->interfaceNameds,p5);
 		
 		break;
+	case DHCPV6C_T:
+		getVal5(value, &p1,&p2,&p3,&p4,&p5);
+		if(NULL == p1 || NULL ==p2 || NULL == p3 || NULL ==p4 ||NULL == p5)
+		{
+			printf("Invalid dhcp6c arguments!\n");
+			break;
+		}
+		dhcp6cCfgParam_p=(dhcp6cCfgParam_Tp)(((long)pMib)+pTbl[i].offset);
+		dhcp6cCfgParam_p->enabled=atoi(p1);
+		strncpy(dhcp6cCfgParam_p->ifName,p2,NAMSIZE);
+		dhcp6cCfgParam_p->dhcp6pd.sla_len=atoi(p3);
+		dhcp6cCfgParam_p->dhcp6pd.sla_id=atoi(p4);
+		strncpy(dhcp6cCfgParam_p->dhcp6pd.ifName,p5,NAMSIZE);		
+		break;
 	case ADDR6_T:
 		getVal19((char *)value,&p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8, &p9, &p10, &p11, &p12, &p13\
 		, &p14, &p15, &p16, &p17, &p18, &p19);
@@ -1701,11 +1791,66 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 		daddrIPv6CfgParam->addrIPv6[1][7]=atoi(p19);
 		
 		break;
+	case ADDRV6_T:
+		getVal9((char *)value,&p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8, &p9);
+		
+		if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL || p5 == NULL || p6 == NULL || p7 == NULL ||\
+		p9 == NULL)
+		{
+			printf("Invalid ipv6 address arguments!\n");
+			break;
+		}		
+		addr6CfgParam_p=(addr6CfgParam_Tp)(((long)pMib)+pTbl[i].offset);
+		
+		addr6CfgParam_p->prefix_len=atoi(p1);
+		addr6CfgParam_p->addrIPv6[0]=strtoul(p2,NULL,16);
+		addr6CfgParam_p->addrIPv6[1]=strtoul(p3,NULL,16);
+		addr6CfgParam_p->addrIPv6[2]=strtoul(p4,NULL,16);
+		addr6CfgParam_p->addrIPv6[3]=strtoul(p5,NULL,16);
+		addr6CfgParam_p->addrIPv6[4]=strtoul(p6,NULL,16);
+		addr6CfgParam_p->addrIPv6[5]=strtoul(p7,NULL,16);
+		addr6CfgParam_p->addrIPv6[6]=strtoul(p8,NULL,16);
+		addr6CfgParam_p->addrIPv6[7]=strtoul(p9,NULL,16);		
+		break;
 	case TUNNEL6_T:
 		getVal(value, &p1);
 		tunnelCfgParam->enabled=atoi(p1);
 		break;
 #endif
+#endif
+#if defined(VLAN_CONFIG_SUPPORTED)
+		case VLANCONFIG_ARRAY_T:
+	
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) ||defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+			getVal8((char *)value, &p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8);
+			if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL || p5 == NULL || p6 == NULL || p7 == NULL || p8 == NULL) {
+#else
+			getVal7((char *)value, &p1, &p2, &p3, &p4, &p5, &p6, &p7);
+			if (p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL || p5 == NULL || p6 == NULL || p7 == NULL) {
+#endif
+				printf("Invalid VLAN arguments!\n",vlanRuleNum);
+	
+				break;
+			}
+	
+			vlanRuleNum = (unsigned short)atoi(p7);
+			vlanRuleNum -- ;
+			
+			if(vlanRuleNum >= MAX_IFACE_VLAN_CONFIG)
+				break;
+							
+			pVlan = (VLAN_CONFIG_Tp)(((long)pMib)+pTbl[i].offset+vlanRuleNum*sizeof(VLAN_CONFIG_T));
+			if ( p1 )
+				strcpy(pVlan->netIface, p1);
+			pVlan->enabled = (unsigned short)atoi(p2);
+			pVlan->tagged = (unsigned short)atoi(p3);
+			pVlan->priority = (unsigned short)atoi(p4);
+			pVlan->cfi = (unsigned short)atoi(p5);
+			pVlan->vlanId = (unsigned short)atoi(p6);
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+			pVlan->forwarding_rule = (unsigned short)atoi(p8);
+#endif
+			break;
 #endif
 
 	default:
@@ -1719,6 +1864,9 @@ static int set_mib(struct all_config *pConfig, int id, void *value, int def_mib,
 static int generateBinFile(int type, const char *filename, int flag)
 {	int fh;
 	char *ptr, *pHsTag, *pDsTag, *pCsTag;
+#ifdef HEADER_LEN_INT
+	HW_PARAM_HEADER_T hwHeader;
+#endif
 	PARAM_HEADER_T header;
 	unsigned char checksum;
 	int mib_len, section_len;
@@ -1770,6 +1918,32 @@ static int generateBinFile(int type, const char *filename, int flag)
 	lseek(fh, 0, SEEK_SET);
 
 	if (config.hwmib_exist && !disable_hwsetting) {
+#ifdef HEADER_LEN_INT
+		if (config.hwmib_ver == 0) {
+			sprintf(hwHeader.signature, "%s%02d", pHsTag, HW_SETTING_VER);
+			hwHeader.len = sizeof(HW_SETTING_T) + sizeof(checksum);
+		}
+		else {
+			sprintf(hwHeader.signature, "%s%02d", pHsTag, config.hwmib_ver);
+			hwHeader.len = config.hwmib_len;
+		}
+		mib_len = hwHeader.len;
+		ptr = (char *)&config.hwmib;
+		checksum = CHECKSUM(ptr, hwHeader.len-1);
+		ptr[hwHeader.len-1] = checksum;
+		if ( type == PC_MODE )
+			lseek(fh, HW_SETTING_OFFSET, SEEK_SET);
+		else {
+#ifdef COMPRESS_MIB_SETTING
+#else
+			if ( !(flag & RAW_TYPE) ) {
+   				ENCODE_DATA(ptr, hwHeader.len);
+			}
+#endif
+                        hwHeader.len = WORD_SWAP(hwHeader.len);
+		}
+			
+#else
 		if (config.hwmib_ver == 0) {
 			sprintf(header.signature, "%s%02d", pHsTag, HW_SETTING_VER);
 			header.len = sizeof(HW_SETTING_T) + sizeof(checksum);
@@ -1791,9 +1965,9 @@ static int generateBinFile(int type, const char *filename, int flag)
    				ENCODE_DATA(ptr, header.len);
 			}
 #endif
-			header.len = WORD_SWAP(header.len);
+                        header.len = HEADER_SWAP(header.len);
 		}
-
+#endif
 #ifdef COMPRESS_MIB_SETTING
 		int comp_len=0;
 #ifdef MIB_TLV
@@ -1821,16 +1995,29 @@ static int generateBinFile(int type, const char *filename, int flag)
 		
 		if(mib_tlv_data != NULL)
 		{
+		#ifdef HEADER_LEN_INT
+			hwHeader.len = tlv_content_len+1;
+			ptr = mib_tlv_data;
+			checksum = CHECKSUM(ptr, hwHeader.len-1);
+			ptr[tlv_content_len] = CHECKSUM(ptr, tlv_content_len);
+//mib_display_tlv_content(HW_SETTING, ptr, header.len);	
+                        hwHeader.len = WORD_SWAP(hwHeader.len);
+		#else
 			header.len = tlv_content_len+1;
 			ptr = mib_tlv_data;
 			checksum = CHECKSUM(ptr, header.len-1);
 			ptr[tlv_content_len] = CHECKSUM(ptr, tlv_content_len);
 //mib_display_tlv_content(HW_SETTING, ptr, header.len);	
-			header.len = WORD_SWAP(header.len);
+                        header.len = HEADER_SWAP(header.len);
+		#endif
 		}
 
 #endif //#ifdef MIB_TLV
+#ifdef HEADER_LEN_INT
+		if(cvcfg_mib_compress_write(HW_SETTING, ptr, &hwHeader, fh, &comp_len) == 1)
+#else
 		if(cvcfg_mib_compress_write(HW_SETTING, ptr, &header, fh, &comp_len) == 1)
+#endif
 		{
 //			COMP_TRACE(stderr,"\r\n cvcfg_mib_compress_write HW_SETTING DONE, __[%s-%u]", __FILE__,__LINE__);			
 			if ( flag & RAW_TYPE ) { // raw type, pad 0
@@ -1842,11 +2029,19 @@ static int generateBinFile(int type, const char *filename, int flag)
 		}
 		else
 		{
-#endif		
+#endif	
+#ifdef HEADER_LEN_INT
+		write(fh, &hwHeader, sizeof(hwHeader));
+#else
 		write(fh, &header, sizeof(header));
+#endif
 		write(fh, ptr, mib_len);
 		if ( flag & RAW_TYPE ) { // raw type, pad 0
+#ifdef HEADER_LEN_INT
+			section_len = HW_SETTING_SECTOR_LEN - sizeof(hwHeader) - mib_len;
+#else
 			section_len = HW_SETTING_SECTOR_LEN - sizeof(header) - mib_len;
+#endif			
 			while (section_len-- >0) {
 				write(fh, "\x0", 1);
 			}
@@ -1880,7 +2075,7 @@ static int generateBinFile(int type, const char *filename, int flag)
 				ENCODE_DATA(ptr, header.len);
 			}
 #endif			
-			header.len = WORD_SWAP(header.len);
+                        header.len = HEADER_SWAP(header.len);
 		}
 #ifdef COMPRESS_MIB_SETTING
 		int comp_len=0;
@@ -1922,7 +2117,7 @@ static int generateBinFile(int type, const char *filename, int flag)
 			checksum = CHECKSUM(ptr, header.len-1);
 			ptr[tlv_content_len] = CHECKSUM(ptr, tlv_content_len);
 //mib_display_tlv_content(DEFAULT_SETTING, ptr, header.len);
-			header.len = WORD_SWAP(header.len); //for x86
+                        header.len = HEADER_SWAP(header.len);//for x86
 		}
 
 #endif //#ifdef MIB_TLV
@@ -1976,7 +2171,7 @@ static int generateBinFile(int type, const char *filename, int flag)
 				ENCODE_DATA(ptr, header.len);
 			}
 #endif
-			header.len = WORD_SWAP(header.len);
+                        header.len = HEADER_SWAP(header.len);
 		}
 #ifdef COMPRESS_MIB_SETTING
 		int comp_len=0;
@@ -2017,7 +2212,7 @@ static int generateBinFile(int type, const char *filename, int flag)
 			checksum = CHECKSUM(ptr, header.len-1);
 			ptr[tlv_content_len] = CHECKSUM(ptr, tlv_content_len);
 //mib_display_tlv_content(CURRENT_SETTING, ptr, header.len);
-			header.len = WORD_SWAP(header.len); //for x86
+                        header.len = HEADER_SWAP(header.len); //for x86
 
 			#ifdef DEBUG_CVCFG
 			flash_write_file(mib_tlv_data,tlv_content_len,"out_tlv.raw");
@@ -2075,19 +2270,21 @@ static int generateTxtFile(const char *filename)
 	WDS_Tp pWds;
 	SCHEDULE_Tp pscheduleRule;
 	int max_chan_num;
-#if defined(HOME_GATEWAY) || defined(CONFIG_RTL_8198_AP_ROOT)
 #if defined(VLAN_CONFIG_SUPPORTED)
 	VLAN_CONFIG_Tp pVlanConfig;
 #endif
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT	
+	MACREDIRECT_Tp pMacRedirect;
 #endif
-
 #ifdef HOME_GATEWAY
 	PORTFW_Tp pPortFw;
 	PORTFILTER_Tp pPortFilter;
 	IPFILTER_Tp pIpFilter;
 	MACFILTER_Tp pMacFilter;
 	TRIGGERPORT_Tp pTriggerPort;
-
+#ifdef CONFIG_IPV6
+	char ipVersion[10];
+#endif
 #ifdef GW_QOS_ENGINE
 	QOS_Tp pQos;
 	char LipS[20], LipE[20], RipS[20], RipE[20];
@@ -2328,7 +2525,7 @@ next_wlan:
 			break;
 //#if defined(CONFIG_RTK_MESH) && defined(_MESH_ACL_ENABLE_) // below code copy above ACL code Keith remove
 		case MESH_ACL_ARRAY_T:
-			for (j=0; j<pApMib->meshAclNum; j++) {
+			for (j=0; j<pApMib->wlan[wlan_inx][0].meshAclNum; j++) {
 				pWlAc = (MACFILTER_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(MACFILTER_T));
 				sprintf(buf, "%02x%02x%02x%02x%02x%02x", pWlAc->macAddr[0], pWlAc->macAddr[1],
 					pWlAc->macAddr[2], pWlAc->macAddr[3], pWlAc->macAddr[4], pWlAc->macAddr[5]);
@@ -2353,6 +2550,16 @@ next_wlan:
 				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 			}
 			break;
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT	
+		case MAC_REDIRECT_ARRAY_T:
+			for (j=0; j<pApMib->macRedirectNum; j++) {
+				pMacRedirect = (MACREDIRECT_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(MACREDIRECT_T));
+				sprintf(buf, "%02x%02x%02x%02x%02x%02x", pMacRedirect->macAddr[0], pMacRedirect->macAddr[1],
+					pMacRedirect->macAddr[2], pMacRedirect->macAddr[3], pMacRedirect->macAddr[4], pMacRedirect->macAddr[5]);
+				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
+			}
+			break;
+#endif
 
 #ifdef HOME_GATEWAY
 		case PORTFW_ARRAY_T:
@@ -2377,6 +2584,10 @@ next_wlan:
 					strcat(buf, ", ");
 					strcat(buf, pPortFilter->comment);
 				}
+#ifdef CONFIG_IPV6
+				sprintf(ipVersion,", %d",pPortFilter->ipVer);
+				strcat(buf, ipVersion);
+#endif
 				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 			}
 			break;
@@ -2389,6 +2600,10 @@ next_wlan:
 					strcat(buf, ", ");
 					strcat(buf, pIpFilter->comment);
 				}
+#ifdef CONFIG_IPV6
+				strcat(buf, ", ");
+				strcat(buf, pIpFilter->ip6Addr);
+#endif
 				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 			}
 			break;
@@ -2419,30 +2634,6 @@ next_wlan:
 				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 			}
 			break;
-#if defined(CONFIG_RTL_8198_AP_ROOT) || defined(HOME_GATEWAY) //VLAN_CONFIG_SUPPORTED Keith Modify
-#if defined(VLAN_CONFIG_SUPPORTED)
-		case VLANCONFIG_ARRAY_T:
-//			printf("%s:%d pApMib->VlanConfigNum=%d\n",__FUNCTION__,__LINE__,pApMib->VlanConfigNum);
-			for(j=0;j<pApMib->VlanConfigNum;j++)
-			{
-				pVlanConfig = (VLAN_CONFIG_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(VLAN_CONFIG_T));
-				sprintf(buf, "%s,%d,%d,%d,%d,%d,%d",pVlanConfig->netIface,pVlanConfig->enabled,
-						pVlanConfig->tagged,pVlanConfig->priority,pVlanConfig->cfi,
-						pVlanConfig->vlanId,j+1);
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-				{
-					char tmpBuffer[32]={0};
-					sprintf(tmpBuffer,",%d ;",pVlanConfig->forwarding_rule);
-					//fprintf(stderr,"###netInterface=%s tmpBuffer=%s %d\n",pVlanConfig->netIface,tmpBuffer,__LINE__);
-					strcat(buf,tmpBuffer);
-				}
-#endif
-				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
-			}
-			
-			break;
-#endif
-#endif
 
 #ifdef GW_QOS_ENGINE
 		case QOS_ARRAY_T:
@@ -2537,12 +2728,22 @@ next_wlan:
 				sprintf(buf,DNSV6_FORMAT,pEntry->enabled,pEntry->routerName);
 				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 		}
+		break;
 	case DHCPV6S_T:
 		{
 			dhcp6sCfgParam_Tp pEntry=(dhcp6sCfgParam_Tp)(((long)pMib) + pTbl[i].offset);
 			sprintf(buf,DHCPV6S_FORMAT,pEntry->enabled,pEntry->DNSaddr6,pEntry->addr6PoolS,pEntry->addr6PoolE,pEntry->interfaceNameds);
 			WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 		}
+		break;
+	case DHCPV6C_T:
+		{
+			dhcp6cCfgParam_Tp pEntry=(dhcp6cCfgParam_Tp)(((long)pMib) + pTbl[i].offset);
+			sprintf(buf,DHCPV6C_FORMAT,pEntry->enabled,pEntry->ifName,
+			pEntry->dhcp6pd.sla_len,pEntry->dhcp6pd.sla_id,pEntry->dhcp6pd.ifName);
+			WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
+		}
+		break;
 	case ADDR6_T:
 		{
 			daddrIPv6CfgParam_Tp pEntry=(daddrIPv6CfgParam_Tp)(((long)pMib) + pTbl[i].offset);
@@ -2554,6 +2755,17 @@ next_wlan:
 				);
 			WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
 		}
+		break;
+	case ADDRV6_T:
+		{
+			addr6CfgParam_Tp pEntry=(addr6CfgParam_Tp)(((long)pMib) + pTbl[i].offset);
+			sprintf(buf,ADDRV6_FORMAT,pEntry->prefix_len,
+				pEntry->addrIPv6[0],pEntry->addrIPv6[1],pEntry->addrIPv6[2],pEntry->addrIPv6[3],
+				pEntry->addrIPv6[4],pEntry->addrIPv6[5],pEntry->addrIPv6[6],pEntry->addrIPv6[7]
+				);
+			WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
+		}
+		break;
 	case TUNNEL6_T:
 		{
 			tunnelCfgParam_Tp pEntry=(tunnelCfgParam_Tp)(((long)pMib) + pTbl[i].offset);
@@ -2563,9 +2775,38 @@ next_wlan:
 		break;
 #endif
 		case TABLE_LIST_T:
+#ifdef TR181_SUPPORT
+#ifdef CONFIG_IPV6
+		case DHCPV6C_SENDOPT_ARRAY_T:
+#endif
+		case DNS_CLIENT_SERVER_ARRAY_T:
+#endif
 		case DHCPRSVDIP_ARRY_T:
 		case URLFILTER_ARRAY_T:
 		case STATICROUTE_ARRAY_T:
+			break;
+#endif
+#if defined(VLAN_CONFIG_SUPPORTED)
+		case VLANCONFIG_ARRAY_T:	
+			
+			fprintf(stderr,"###%s %d\n",__FUNCTION__,__LINE__);
+			for(j=0;j<pApMib->VlanConfigNum;j++)
+			{
+				pVlanConfig = (VLAN_CONFIG_Tp)(((long)pMib) + pTbl[i].offset + j*sizeof(VLAN_CONFIG_T));
+				sprintf(buf, "%s,%d,%d,%d,%d,%d,%d",pVlanConfig->netIface,pVlanConfig->enabled,
+						pVlanConfig->tagged,pVlanConfig->priority,pVlanConfig->cfi,
+						pVlanConfig->vlanId,j+1);
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+				{
+					char tmpBuffer[32]={0};
+					sprintf(tmpBuffer,",%d ;",pVlanConfig->forwarding_rule);
+					fprintf(stderr,"###netInterface=%s tmpBuffer=%s %d\n",pVlanConfig->netIface,tmpBuffer,__LINE__);
+					strcat(buf,tmpBuffer);
+				}
+#endif
+				WRITE_LINE("%s%s=%s\n", prefix, pTbl[i].name, buf);
+			}
+			
 			break;
 #endif
 
@@ -2643,13 +2884,11 @@ static void swap_mib_word_value(APMIB_Tp pMib)
 //	pMib->meshDefaultTTL    = WORD_SWAP(pMib->meshDefaultTTL) ;
 //	pMib->meshHelloInterval = WORD_SWAP(pMib->meshHelloInterval) ;
 //#endif Keith remove
-#ifdef HOME_GATEWAY// defined(VLAN_CONFIG_SUPPORTED) Keith Modify
 #if defined(VLAN_CONFIG_SUPPORTED)
 	for (i=0; i<pMib->VlanConfigNum; i++) {
 		pMib->VlanConfigArray[i].vlanId =WORD_SWAP(pMib->VlanConfigArray[i].vlanId); 
 	}
 #endif	
-#endif
 #ifdef HOME_GATEWAY
 	pMib->pppIdleTime = WORD_SWAP(pMib->pppIdleTime);
 	pMib->pptpMtuSize = WORD_SWAP(pMib->pptpMtuSize);
@@ -2885,7 +3124,61 @@ static void getVal5(char *value, char **p1, char **p2, char **p3, char **p4, cha
 		return;
 	getVal(value, p5);
 }
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+void getVal8(char *value, char **p1, char **p2, char **p3, char **p4, \
+	char **p5, char **p6, char **p7, char **p8)
+{
+	*p1 = *p2 = *p3 = *p4 = *p5 = *p6 = *p7 = *p8 = NULL;
+	value = getVal(value, p1);
+	if ( !value )
+		return;
+	value = getVal(value, p2);
+	if ( !value )
+		return;
+	value = getVal(value, p3);
+	if ( !value )
+		return;
+	value = getVal(value, p4);
+	if ( !value )
+		return;
+	value = getVal(value, p5);
+	if ( !value )
+		return;
+	value = getVal(value, p6);
+	if ( !value )
+		return;
+	value = getVal(value, p7);
+	if ( !value )
+		return;
+	value = getVal(value, p8);
+}
+#endif
 
+static void getVal7(char *value, char **p1, char **p2, char **p3, char **p4, \
+	char **p5, char **p6, char **p7)
+{
+	*p1 = *p2 = *p3 = *p4 = *p5 = *p6 = *p7 = NULL;
+
+	value = getVal(value, p1);
+	if ( !value )
+		return;
+	value = getVal(value, p2);
+	if ( !value )
+		return;
+	value = getVal(value, p3);
+	if ( !value )
+		return;
+	value = getVal(value, p4);
+	if ( !value )
+		return;
+	value = getVal(value, p5);
+	if ( !value )
+		return;
+	value = getVal(value, p6);
+	if ( !value )
+		return;
+	value = getVal(value, p7);
+}
 
 #ifdef HOME_GATEWAY
 ////////////////////////////////////////////////////////////////////////////////
@@ -2922,7 +3215,6 @@ static void getVal4(char *value, char **p1, char **p2, char **p3, char **p4)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-#ifdef HOME_GATEWAY //defined(VLAN_CONFIG_SUPPORTED) Keith Modify
 #if defined(VLAN_CONFIG_SUPPORTED)
 void getVal6(char *value, char **p1, char **p2, char **p3, char **p4, char **p5, char **p6)
 {
@@ -2947,10 +3239,11 @@ void getVal6(char *value, char **p1, char **p2, char **p3, char **p4, char **p5,
 	
 }
 #endif
-#endif
 ////////////////////////////////////////////////////////////////////////////////
-static void getVal7(char *value, char **p1, char **p2, char **p3, char **p4, \
-	char **p5, char **p6, char **p7)
+
+#ifdef CONFIG_IPV6
+static void getVal9(char *value, char **p1, char **p2, char **p3, char **p4, 
+	char **p5, char **p6, char **p7,char **p8,char **p9)
 {
 	*p1 = *p2 = *p3 = *p4 = *p5 = *p6 = *p7 = NULL;
 
@@ -2973,34 +3266,12 @@ static void getVal7(char *value, char **p1, char **p2, char **p3, char **p4, \
 	if ( !value )
 		return;
 	value = getVal(value, p7);
-}
-#if defined(CONFIG_RTK_VLAN_NEW_FEATURE) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
-void getVal8(char *value, char **p1, char **p2, char **p3, char **p4, \
-	char **p5, char **p6, char **p7, char **p8)
-{
-	*p1 = *p2 = *p3 = *p4 = *p5 = *p6 = *p7 = *p8 = NULL;
-	value = getVal(value, p1);
-	if ( !value )
-		return;
-	value = getVal(value, p2);
-	if ( !value )
-		return;
-	value = getVal(value, p3);
-	if ( !value )
-		return;
-	value = getVal(value, p4);
-	if ( !value )
-		return;
-	value = getVal(value, p5);
-	if ( !value )
-		return;
-	value = getVal(value, p6);
-	if ( !value )
-		return;
-	value = getVal(value, p7);
 	if ( !value )
 		return;
 	value = getVal(value, p8);
+	if ( !value )
+		return;
+	value = getVal(value, p9);
 }
 #endif
 #ifdef GW_QOS_ENGINE
@@ -3851,11 +4122,13 @@ int mib_write_to_raw(const mib_table_entry_T *mib_tbl, void *data, unsigned char
 			/* Tag */
 			tlv_tag = mib_tbl->id;
 			tlv_tag = WORD_SWAP(tlv_tag);
-			memcpy((unsigned char*)((int)pfile + *idx),&tlv_tag,sizeof(tlv_tag));
+			//memcpy((unsigned char*)((int)pfile + *idx),&tlv_tag,sizeof(tlv_tag));
+			memcpy((unsigned char*)(pfile + *idx),&tlv_tag,sizeof(tlv_tag));
 			*idx+=2;
 
 			/* addr for tlv_len */
-			ptlv = (unsigned char*)((int)pfile + *idx);
+			//ptlv = (unsigned char*)((int)pfile + *idx);
+			ptlv = (unsigned char*)(pfile + *idx);
 
 			/* we don't know exact len now */
 			tlv_len = 0;
@@ -4036,7 +4309,9 @@ printf("\r\n");
 		case RADVDPREFIX_T:
 		case DNSV6_T:
 		case DHCPV6S_T:
+		case DHCPV6C_T:
 		case ADDR6_T:
+		case ADDRV6_T:
 		case TUNNEL6_T:
 			memcpy(data, ptlv_data_value, mib_tbl->total_size);
 			break;		
@@ -4300,7 +4575,9 @@ int cvcfg_mib_compress_write(CONFIG_DATA_T type, char *data, PARAM_HEADER_T *phe
 {
 
 	unsigned char* pContent = NULL;
-
+#ifdef HEADER_LEN_INT
+	HW_PARAM_HEADER_T *phwHeader;
+#endif
 	COMPRESS_MIB_HEADER_T compHeader;
 	unsigned char *expPtr, *compPtr;
 	unsigned int expLen = 0;
@@ -4332,7 +4609,12 @@ int cvcfg_mib_compress_write(CONFIG_DATA_T type, char *data, PARAM_HEADER_T *phe
 			return 0;
 
 	}
-	expLen = WORD_SWAP(pheader->len)+sizeof(PARAM_HEADER_T); // for x86
+#ifdef HEADER_LEN_INT
+	if(type==HW_SETTING)
+		expLen = WORD_SWAP(phwHeader->len)+sizeof(HW_PARAM_HEADER_T);
+	else
+#endif
+	expLen = HEADER_SWAP(pheader->len)+sizeof(PARAM_HEADER_T); // for x86
 	if(expLen == 0)
 	{
 		printf("\r\n ERR!! no expLen! __[%s-%u]\n",__FILE__,__LINE__);
@@ -4359,13 +4641,20 @@ int cvcfg_mib_compress_write(CONFIG_DATA_T type, char *data, PARAM_HEADER_T *phe
 	
 	if(compPtr != NULL && expPtr!= NULL)
 	{
-
-		pContent = &expPtr[sizeof(PARAM_HEADER_T)];	// point to start of MIB data 
-
-		memcpy(pContent, data, WORD_SWAP(pheader->len)); // for x86
-		
-		memcpy(expPtr, pheader, sizeof(PARAM_HEADER_T));
-
+#ifdef HEADER_LEN_INT
+		if(type==HW_SETTING)
+		{
+			pContent = &expPtr[sizeof(HW_PARAM_HEADER_T)];	// point to start of MIB data 
+            memcpy(pContent, data, WORD_SWAP(phwHeader->len)); // for x86	
+			memcpy(expPtr, phwHeader, sizeof(HW_PARAM_HEADER_T));
+		}
+		else
+#endif
+		{
+			pContent = &expPtr[sizeof(PARAM_HEADER_T)];	// point to start of MIB data 
+	        memcpy(pContent, data, HEADER_SWAP(pheader->len)); // for x86		
+			memcpy(expPtr, pheader, sizeof(PARAM_HEADER_T));
+		}
 
 		compLen = Encode(expPtr, expLen, compPtr+sizeof(COMPRESS_MIB_HEADER_T));
 		sprintf(compHeader.signature,"%s",pcomp_sig);

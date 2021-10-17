@@ -14,6 +14,10 @@ TARGET := config
 # DIR_ROOT Used when .config not Exist
 #
 DIR_ROOT = $(shell pwd)
+DIR_USERS = $(DIR_ROOT)/users
+DIR_BZBOX = $(DIR_ROOT)/users/busybox-1.13
+DIR_LINUX = $(DIR_ROOT)/linux-2.6.30
+export DIR_ROOT DIR_USERS DIR_BZBOX DIR_LINUX
 else
 
 include .config
@@ -59,7 +63,9 @@ ERROR += '$(CONFIG_RSDKDIR) does not exist'
 endif
 
 ifeq ($(ERROR),)
+# for ramfs or MP build, rootfs must be ready before kernel
 TARGET := bins romfs modules linux image
+#TARGET := modules linux bins romfs image
 else
 TARGET := error
 endif
@@ -69,22 +75,29 @@ endif
 #add for 8198 and 8196c use the different toolchain
 TOOLCHAIN =
 ifeq ($(CONFIG_BOARD_rtl819xD),y)
-TOOLCHAIN = 5281
+TOOLCHAIN = 1.5.5-5281
+endif
+ifeq ($(CONFIG_BOARD_rtl8881a),y)
+TOOLCHAIN = 1.5.5-5281
 endif
 ifeq ($(CONFIG_BOARD_rtl8196e),y)
-TOOLCHAIN = 4181
+TOOLCHAIN = 1.5.5-4181
 endif
 ifeq ($(CONFIG_BOARD_rtl8196eu),y)
-TOOLCHAIN = 4181
+TOOLCHAIN = 1.5.5-4181
 endif
 ifeq ($(CONFIG_BOARD_rtl8198),y)
 TOOLCHAIN = 1.3.6-5281
 endif
 ifeq ($(CONFIG_BOARD_rtl8196c),y)
-TOOLCHAIN = 4181
+TOOLCHAIN = 1.3.6-4181
 endif
-
-
+ifeq ($(CONFIG_BOARD_rtl89xxC),y)
+TOOLCHAIN = 1.3.6-5281
+endif
+ifeq ($(CONFIG_BOARD_rtl89xxD),y)
+TOOLCHAIN = 1.5.5-5281
+endif
 all: $(TARGET)
 
 error:
@@ -138,7 +151,7 @@ config menuconfig:
 .PHONY: users bins
 users bins:
 	$(MAKE) -C $(DIR_LINUX) dep > /dev/null
-	$(MAKE) -C $(DIR_USERS) || exit $$?
+	$(MAKE) -C $(DIR_USERS) TOOLCHAIN=$(TOOLCHAIN) || exit $$?
 
 #
 #2.1 user menuconfig
@@ -201,14 +214,36 @@ image:
 	[ -d $(DIR_IMAGE) ] || mkdir $(DIR_IMAGE)
 	$(MAKE) -C $(DIR_BOARD) image
 
+
+#
+# x. short-cut to build and clean one application
+#
+linux-clean:
+	$(MAKE) -C $(DIR_LINUX) clean
+
+%_build:
+	$(MAKE) -C users $(@:_build=)
+
+%-build:
+	$(MAKE) -C users $(@:-build=)
+
+%_clean:
+	$(MAKE) -C users/$(@:_clean=) clean
+
+%-clean:
+	$(MAKE) -C users/$(@:-clean=) clean
+
 #.PHONY: version
 #version:
 #	$(MAKE) -C $(DIR_USERS)/goahead-2.1.1/LINUX release
 
-.PHONY: clean
+.PHONY: clean  distclean
 clean:
 	$(MAKE) -C $(DIR_USERS) clean
 	$(MAKE) -C $(DIR_LINUX) clean
 	rm -rf $(DIR_ROMFS)
 	mkdir -p $(DIR_ROMFS)
 	mkdir -p $(DIR_IMAGE)
+
+distclean:
+	$(MAKE) -C $(DIR_USERS) distclean

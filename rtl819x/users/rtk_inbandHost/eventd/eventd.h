@@ -43,7 +43,7 @@
 #define INTERFACE   "br0"
 //#define DEST_MAC    "00e04c819233"
 #define DEST_MAC    "00e04c819635"
-#define SLAVE_MAC ("001234567899")
+#define SLAVE_MAC ("ffffffffffff")
 #define ETH_P_RTK 0x8899
 #define ETH_P_RTK_NOTIFY 0x9001 //reserved ethertyoe
 #define BUFLEN 1518

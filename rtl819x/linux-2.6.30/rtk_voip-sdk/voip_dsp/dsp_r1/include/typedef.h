@@ -1,7 +1,7 @@
 #ifndef TYPEDEF_H
 #define TYPEDEF_H
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include "rtk_voip.h"
 #include "voip_types.h"
 

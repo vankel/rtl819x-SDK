@@ -132,6 +132,10 @@ config AUTO_PCIE_PHY_SCAN
 config RTL_FLASH_DUAL_IMAGE_ENABLE
 	bool "Enable Flash Dual Bank support"
 
+config RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE
+	bool "Enable Flash Dual Bank Webpage Backup Support"
+	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
+
 comment "Second Bank Offset"
 	depends on RTL_FLASH_DUAL_IMAGE_ENABLE
 config RTL_FLASH_DUAL_IMAGE_OFFSET
@@ -203,33 +207,18 @@ menuconfig RTL_ULINKER_CUSTOMIZATION
 
 if RTL_ULINKER_CUSTOMIZATION
 
-comment "ethernet mode vid/pid"
 config  RTL_ULINKER_VID
 	hex "vendor ID"
 	default "0x0BDA"
 	help
-		vendor ID for Universal Linker ethernet mode
+		vendor ID for Universal Linker
 
 config  RTL_ULINKER_PID
 	hex "product ID"
 	default "0x8196"
 	help
-		product ID for Universal Linker ethernet mode
+		product ID for Universal Linker
 
-comment "storage mode vid/pid"
-config  RTL_ULINKER_VID_S
-	hex "vendor ID"
-	default "0x0BDA"
-	help
-		vendor ID for Universal Linker storage mode
-
-config  RTL_ULINKER_PID_S
-	hex "product ID"
-	default "0x8197"
-	help
-		product ID for Universal Linker storage mode
-
-comment "----------------"
 config  RTL_ULINKER_MANUFACTURE
 	string "manufacture name"
 	default "Realtek Semicoonductor Corp."
@@ -377,6 +366,15 @@ config RTL_ROOT_IMAGE_OFFSET
         default "0xF0000"
         help
 	  root image store in flash from the offset.
+	  
+comment "Flatfs image offset,should be 128K alignment."
+	depends on RTL_FLASH_MAPPING_ENABLE
+config RTL_FLATFS_IMAGE_OFFSET
+        hex "FLATFS image offset in flash."
+        depends on RTL_819X  && RTL_FLASH_MAPPING_ENABLE
+        default "0x3E0000"
+        help
+	  flatfs image store in flash from the offset.
 
 # KERNE_STACK_SIZE = PAGE_SIZE<<KERNEL_STACK_SIZE_ORDER
 config KERNEL_STACK_SIZE_ORDER

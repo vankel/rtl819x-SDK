@@ -72,6 +72,11 @@ static void exit_server(int retval)
 {
 	pidfile_delete(server_config.pidfile);
 	CLOSE_LOG();
+	
+#ifdef TR069_ANNEX_F
+	clear_all_deviceId();
+#endif
+
 	exit(retval);
 }
 
@@ -164,7 +169,7 @@ int main(int argc, char *argv[])
 	u_int32_t server_id_align, requested_align;
 	unsigned long timeout_end;
 	struct option_set *option;
-	struct dhcpOfferedAddr *lease;
+	struct dhcpOfferedAddr *lease, static_lease, *exist_lease;
 	int pid_fd;
 	int max_sock;
 	int sig;
@@ -181,6 +186,8 @@ int main(int argc, char *argv[])
 	unsigned long sysTime_orig=0;
 	char tmpBuf2[100];
 		char token[60], value[60], *ptr, optdata[60];
+
+	unsigned long t1_time, t2_time;
 #if defined(CONFIG_RTL8186_KB) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196C_EC)
 	char *hostname;
 #endif
@@ -286,6 +293,16 @@ int main(int argc, char *argv[])
 	pidfile_write_release(pid_fd);
 #endif
 
+#ifdef SUPPORT_T1_T2_OPTION
+	t1_time= server_config.lease / 2;
+	t2_time= (server_config.lease * 0x7) >> 3;
+	server_config.t1_time[0]=DHCP_T1;
+	server_config.t1_time[1]=4;
+	memcpy(&server_config.t1_time[2], &t1_time, 4);
+	server_config.t2_time[0]=DHCP_T2;
+	server_config.t2_time[1]=4;
+	memcpy(&server_config.t2_time[2], &t2_time, 4);
+#endif
 
 	socketpair(AF_UNIX, SOCK_STREAM, 0, signal_pipe);
 	signal(SIGUSR1, signal_handler);
@@ -459,6 +476,10 @@ int main(int argc, char *argv[])
 		
 #ifdef STATIC_LEASE
 		/* Look for a static lease */
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+		static_lease_ip = getIpByPort(server_config.static_leases, packet.chaddr, &host);		
+		if(!static_lease_ip)
+#endif
 		static_lease_ip = getIpByMac(server_config.static_leases, packet.chaddr, &host);
 		sname = get_option(&packet, DHCP_HOST_NAME);
 		if (sname)
@@ -472,16 +493,18 @@ int main(int argc, char *argv[])
 		if(static_lease_ip && 
 			((host == NULL) || (host && (len==(int)strlen(host)) && !memcmp(sname, host, len))))
 		{
-//			printf("Found static lease: %x\n", static_lease_ip);
+			DEBUG(LOG_INFO, "Found static lease: %x\n",inet_ntoa(*((struct in_addr*)&static_lease_ip)));
 
-/*
+
 			memcpy(&static_lease.chaddr, &packet.chaddr, 16);
 			static_lease.yiaddr = static_lease_ip;
-			static_lease.expires = 0;
+			static_lease.expires = 0xffffffff;
 			lease = &static_lease;
-*/
-			lease = find_lease_by_chaddr(packet.chaddr);
-			if (lease == NULL) {
+
+			//lease = find_lease_by_chaddr(packet.chaddr);
+			//if (lease == NULL) {		
+				if(!find_lease_by_chaddr(packet.chaddr)){
+				DEBUG(LOG_INFO, "%s:%d##\n",__FUNCTION__,__LINE__);
 				if (!add_lease(packet.chaddr, static_lease_ip, 0xffffffff)) {
 					LOG(LOG_WARNING, "lease pool is full -- OFFER abandoned");
 					continue;
@@ -513,6 +536,15 @@ int main(int argc, char *argv[])
 #endif
 			if (requested) memcpy(&requested_align, requested, 4);
 			if (server_id) memcpy(&server_id_align, server_id, 4);
+			if (requested && (requested_align < server_config.start || 
+				requested_align > server_config.end ||
+				requested_align == server_config.server || 
+				((exist_lease = find_lease_by_yiaddr(requested_align)) !=NULL  && (!lease_expired(exist_lease)) && memcmp(exist_lease->chaddr, packet.chaddr, 16)!=0)) ) 
+			{							
+				//printf("%s:%d send NAK####\n",__FUNCTION__,__LINE__);
+				sendNAK(&packet);
+				break;
+			}			
 		
 			if (lease) { /*ADDME: or static lease */
 				if (server_id) {
@@ -761,15 +793,24 @@ int main(int argc, char *argv[])
 						{
 							packet.yiaddr = requested_align;
 						}
-							
-						if (!add_lease(packet.chaddr, packet.yiaddr, server_config.offer_time))
+
+						/* This ip leased already, NAK. */
+						if ((lease = find_lease_by_yiaddr(packet.yiaddr)))
 						{
-								LOG(LOG_WARNING, "lease pool is full -- OFFER abandoned");
-								sendNAK(&packet);
+							LOG(LOG_WARNING, "already leased -- OFFER abandoned");
+							sendNAK(&packet);						
 						}
-						else
+						else 
 						{
-							sendACK(&packet, packet.yiaddr);
+							if (!add_lease(packet.chaddr, packet.yiaddr, server_config.offer_time))
+							{
+									LOG(LOG_WARNING, "lease pool is full -- OFFER abandoned");
+									sendNAK(&packet);
+							}
+							else
+							{
+								sendACK(&packet, packet.yiaddr);
+							}
 						}
 					}				
 
@@ -804,7 +845,11 @@ int main(int argc, char *argv[])
 				 	isStatic_Lease_Entry = 0;
 				 	
 				}
-		#endif		
+		#endif	
+#ifdef TR069_ANNEX_F
+				del_deviceId(lease->yiaddr);
+				dump_deviceId();
+#endif
 			}
 			break;
 		case DHCPINFORM:

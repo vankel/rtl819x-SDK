@@ -37,8 +37,18 @@
 #define LAST_MEMBER_QUERY_COUNT		2
 // Kaohj --- group-specific query in periodical
 #ifdef PERIODICAL_QUERY
+#if defined (CONFIG_QUERIER_SELECTION)
+#define MEMBER_QUERY_INTERVAL		150	// second
+#else
 #define MEMBER_QUERY_INTERVAL		(PERIODICAL_GENERAL_QUERY_INTERVAL*2+10)	// second
+#endif
 #define MEMBER_QUERY_COUNT		3
+#endif
+
+#if defined (CONFIG_QUERIER_SELECTION)
+#define QUERIER_IS_ME 1
+#define QUERIER_IS_OTHER 0
+#define DEFAULT_OTHER_QUERIER_PRESENT_INTERVAL 255
 #endif
 
 /* IGMP group address */

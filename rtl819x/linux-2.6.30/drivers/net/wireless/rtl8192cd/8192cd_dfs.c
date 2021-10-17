@@ -16,108 +16,35 @@
 #include "./8192cd.h"
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
-
+#ifdef RTK_NL80211
+#include "8192cd_cfg80211.h" 
+#endif
 
 #ifdef DFS
+
+
+#define DFS_VERSION		"2.0.5"
+
 
 void rtl8192cd_dfs_chk_timer(unsigned long task_priv)
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+
+	if (!(priv->drv_state & DRV_STATE_OPEN))
+		return;
+	
 	if (timer_pending(&priv->dfs_chk_timer)){
 		del_timer_sync(&priv->dfs_chk_timer);
 	}
 	
-	PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
+	if (GET_CHIP_VER(priv) == VERSION_8192D)
+		PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
 	PRINT_INFO("DFS CP END.\n");
 }
 
-
-void rtl8192cd_DFS_timer(unsigned long task_priv)
+void set_CHXX_timer(struct rtl8192cd_priv *priv, unsigned int channel)
 {
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
-	unsigned int radar_type = 0;	/* 0 for short, 1 for long */
-	unsigned int dfs_chk;
-	int tp_th = ((priv->pshare->is_40m_bw)?45:20);
-
-	if (!(priv->drv_state & DRV_STATE_OPEN))
-		return;
-
-#ifdef PCIE_POWER_SAVING
-	if ((priv->pwr_state == L2) || (priv->pwr_state == L1))
-		goto exit_timer;
-#endif
-	if (((priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage)>>17)>tp_th){
-		dfs_chk = 1;
-		PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 0);
-	}else{
-		dfs_chk = 0;
-		PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
-	}
-
-	if (!(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI))
-	{
-		if (PHY_QueryBBReg(priv, 0xcf8, BIT(31))) {
-			radar_type++;
-			priv->pmib->dot11DFSEntry.DFS_detected = 1;
-		}
-	}
-
-	if (PHY_QueryBBReg(priv, 0xcf8, BIT(23)))
-		priv->pmib->dot11DFSEntry.DFS_detected = 1;
-
-	/*
-	 *	DFS debug mode for logo test
-	 */
-	if (!priv->pmib->dot11DFSEntry.disable_DFS && priv->pshare->rf_ft_var.dfsdbgmode 
-		&& priv->pmib->dot11DFSEntry.DFS_detected) {
-		if ((jiffies - priv->pshare->rf_ft_var.dfsrctime)>RTL_SECONDS_TO_JIFFIES(10))
-			priv->pshare->rf_ft_var.dfsdbgcnt = 1;
-		else
-			priv->pshare->rf_ft_var.dfsdbgcnt++;
-		panic_printk("[%d] DFS dbg mode, Radar is detected as %x%x (%d)!\n", priv->pshare->rf_ft_var.dfsdbgcnt,
-			radar_type, PHY_QueryBBReg(priv, 0xcf4, bMaskDWord)&0xffff, (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
-		priv->pshare->rf_ft_var.dfsrctime = jiffies;
-		priv->pmib->dot11DFSEntry.DFS_detected = 0;
-		PHY_SetBBReg(priv, 0xc84, BIT(25), 0);
-		PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
-		goto exit_timer;
-	}
-
-	if (!priv->pmib->dot11DFSEntry.disable_DFS && priv->pmib->dot11DFSEntry.DFS_detected) {
-
-		PRINT_INFO("Radar is detected as %x%x (%d)!\n", radar_type, PHY_QueryBBReg(priv, 0xcf4, bMaskDWord)&0xffff, RTL_JIFFIES_TO_MILISECONDS(jiffies));
-		
-		if (timer_pending(&priv->dfs_chk_timer)){
-			del_timer_sync(&priv->dfs_chk_timer);
-			PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
-			PRINT_INFO("DFS CP2. Switch channel!\n");
-		}else{
-			if (dfs_chk){
-				// reset dfs flag and counter
-				priv->pmib->dot11DFSEntry.DFS_detected = 0;
-				PHY_SetBBReg(priv, 0xc84, BIT(25), 0);
-				PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
-				
-				PRINT_INFO("DFS CP1.\n");
-				init_timer(&priv->dfs_chk_timer);
-				priv->dfs_chk_timer.data = (unsigned long) priv;
-				priv->dfs_chk_timer.function = rtl8192cd_dfs_chk_timer;
-				
-				mod_timer(&priv->dfs_chk_timer, jiffies + RTL_SECONDS_TO_JIFFIES(300));
-
-				goto exit_timer;
-			}
-		}
-		
-		RTL_W8(TXPAUSE, 0xf);	/* disable transmitter */
-		priv->pmib->dot11DFSEntry.disable_tx = 1;
-
-		if (timer_pending(&priv->ch_avail_chk_timer)) {
-			del_timer_sync(&priv->ch_avail_chk_timer);
-			RTL_W8(TXPAUSE, 0xff);
-		}
-
-		switch(priv->pmib->dot11RFEntry.dot11channel) {
+	switch(channel) {
 		case 52:
 			mod_timer(&priv->ch52_timer, jiffies + NONE_OCCUPANCY_PERIOD);
 			break;
@@ -163,71 +90,396 @@ void rtl8192cd_DFS_timer(unsigned long task_priv)
 		case 140:
 			mod_timer(&priv->ch140_timer, jiffies + NONE_OCCUPANCY_PERIOD);
 			break;
+		case 144:
+			mod_timer(&priv->ch144_timer, jiffies + NONE_OCCUPANCY_PERIOD);
+			break;
 		default:
 			DEBUG_ERR("DFS_timer: Channel match none!\n");
 			break;
+	}
+}
+
+void rtl8192cd_DFS_TXPAUSE_timer(unsigned long task_priv)
+{
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+	unsigned int which_channel;
+
+	printk("rtl8192cd_DFS_TXPAUSE_timer\n");
+
+	if (!(priv->drv_state & DRV_STATE_OPEN))
+		return;
+	
+	if (priv->available_chnl_num != 0) {
+		if (timer_pending(&priv->DFS_TXPAUSE_timer)) 
+			del_timer_sync(&priv->DFS_TXPAUSE_timer);
+		
+		printk("rtl8192cd_DFS_TXPAUSE_timer PATH2\n");
+#if defined(UNIVERSAL_REPEATER)
+		if (!under_apmode_repeater(priv))
+#endif
+		{
+
+		/* select a channel */
+		which_channel = DFS_SelectChannel(priv);
+
+		priv->pshare->dfsSwitchChannel = which_channel;
+
+		if (priv->pshare->dfsSwitchChannel == 0) {
+			panic_printk("It should not run to here\n");
+			return;
 		}
-
-		/* add the channel in the blocked-channel list */
-		InsertChannel(priv->NOP_chnl, &priv->NOP_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
-
-		/* select a non-DFS channel */
-		priv->pshare->dfsSwitchChannel = DFS_SelectChannel(priv);
+		else
+			priv->pmib->dot11DFSEntry.DFS_detected = 1;
+		panic_printk("rtl8192cd_DFS_TXPAUSE_timer,dfsSwitchChannel=%d\n",priv->pshare->dfsSwitchChannel);
 #ifdef MBSSID
 		if (priv->pmib->miscEntry.vap_enable)
 			priv->pshare->dfsSwitchChCountDown = 6;
 		else
 #endif
 			priv->pshare->dfsSwitchChCountDown = 5;
+		}
 
 		if (priv->pmib->dot11StationConfigEntry.dot11DTIMPeriod >= priv->pshare->dfsSwitchChCountDown)
 			priv->pshare->dfsSwitchChCountDown = priv->pmib->dot11StationConfigEntry.dot11DTIMPeriod+1;
 
-		if (timer_pending(&priv->DFS_timer))
-			del_timer_sync(&priv->DFS_timer);
+	}
+	else {
+		printk("rtl8192cd_DFS_TXPAUSE_timer PATH3\n");
+		mod_timer(&priv->DFS_TXPAUSE_timer, jiffies + DFS_TXPAUSE_TO);
+	}
 
+		
+}
+
+void rtl8192cd_DFS_timer(unsigned long task_priv)
+{
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+	unsigned int radar_type = 0;	/* 0 for short, 1 for long */
+	unsigned int dfs_chk = 0;
+	unsigned long throughput = 0;
+	int j;
+	int tp_th = ((priv->pshare->is_40m_bw)?45:20);
+#ifdef SMP_SYNC
+	unsigned long flags;
+#endif
+
+	SMP_LOCK(flags);
+	if (!(priv->drv_state & DRV_STATE_OPEN)) {
+		SMP_UNLOCK(flags);
+		return;
+	}
+
+#ifdef PCIE_POWER_SAVING
+	if ((priv->pwr_state == L2) || (priv->pwr_state == L1))
+		goto exit_timer;
+#endif
+	throughput = priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage;
+
+#ifdef MBSSID
+	if (priv->pmib->miscEntry.vap_enable) {
+		for (j=0; j<RTL8192CD_NUM_VWLAN; j++) {
+			if (IS_DRV_OPEN(priv->pvap_priv[j])) {
+				throughput += priv->pvap_priv[j]->ext_stats.tx_avarage+priv->pvap_priv[j]->ext_stats.rx_avarage;
+			}
+		}
+	}
+#endif
+
+	if (throughput>>17>tp_th) {
+		if (GET_CHIP_VER(priv) == VERSION_8192D){
+			dfs_chk = 1;
+			PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 0);
+		}
+	} else {
+		dfs_chk = 0;
+		if (GET_CHIP_VER(priv) == VERSION_8192D)
+			PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
+	}
+
+	if (!(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI))
+	{
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			if (PHY_QueryBBReg(priv, 0xcf8, BIT(31))) {
+				radar_type++;
+				priv->pmib->dot11DFSEntry.DFS_detected = 1;
+			}
+		}
+		else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+			if (priv->pshare->rf_ft_var.dfs_det_off == 1) {
+				if (PHY_QueryBBReg(priv, 0xf98, BIT(19))) {
+					radar_type++;
+					priv->pmib->dot11DFSEntry.DFS_detected = 1;
+
+				}
+			}
+		}
+	}
+
+	if (GET_CHIP_VER(priv) == VERSION_8192D) {
+		if (PHY_QueryBBReg(priv, 0xcf8, BIT(23)))
+			priv->pmib->dot11DFSEntry.DFS_detected = 1;
+	}
+	else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+		if (priv->pshare->rf_ft_var.dfs_det_off == 1) {
+			if (PHY_QueryBBReg(priv, 0xf98, BIT(17)))
+				priv->pmib->dot11DFSEntry.DFS_detected = 1;
+		}
+	}
+
+	
+	/*
+	 *	DFS debug mode for logo test
+	 */
+	if (!priv->pmib->dot11DFSEntry.disable_DFS && priv->pshare->rf_ft_var.dfsdbgmode 
+		&& priv->pmib->dot11DFSEntry.DFS_detected) {
+		if ((jiffies - priv->pshare->rf_ft_var.dfsrctime)>RTL_SECONDS_TO_JIFFIES(10))
+			priv->pshare->rf_ft_var.dfsdbgcnt = 1;
+		else
+			priv->pshare->rf_ft_var.dfsdbgcnt++;
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			if (priv->pshare->rf_ft_var.dfs_det_print1)
+				panic_printk("[%d] DFS dbg mode, Radar is detected as %x %08x (%d)!\n", priv->pshare->rf_ft_var.dfsdbgcnt,
+					radar_type, PHY_QueryBBReg(priv, 0xcf4, bMaskDWord), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
+		}
+		else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+			if (priv->pshare->rf_ft_var.dfs_det_print1)
+				panic_printk("[%d] DFS dbg mode, Radar is detected as %x %08x (%d)!\n", priv->pshare->rf_ft_var.dfsdbgcnt,
+					radar_type, PHY_QueryBBReg(priv, 0xf98, 0xffffffff), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
+			RTL_W32(0x920, RTL_R32(0x920) | (BIT(24) | BIT(25) | BIT(28)));
+			RTL_W32(0x920, RTL_R32(0x920) & ~(BIT(24) | BIT(25) | BIT(28)));
+		}
+		priv->pshare->rf_ft_var.dfsrctime = jiffies;
+		priv->pmib->dot11DFSEntry.DFS_detected = 0;
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			PHY_SetBBReg(priv, 0xc84, BIT(25), 0);
+			PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
+		}
+		goto exit_timer;
+	}
+
+
+	if (!priv->pmib->dot11DFSEntry.disable_DFS && priv->pmib->dot11DFSEntry.DFS_detected) {
+			if (GET_CHIP_VER(priv) == VERSION_8192D) {
+				PRINT_INFO("Radar is detected as %x %08x (%d)!\n",
+					radar_type, PHY_QueryBBReg(priv, 0xcf4, bMaskDWord), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
+			}
+			else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+				PRINT_INFO("Radar is detected as %x %08x (%d)!\n",
+					radar_type, PHY_QueryBBReg(priv, 0xf98, 0xffffffff), (unsigned int)RTL_JIFFIES_TO_MILISECONDS(jiffies));
+			}
+			
+			if (timer_pending(&priv->dfs_chk_timer)) {
+				del_timer(&priv->dfs_chk_timer);
+				if (GET_CHIP_VER(priv) == VERSION_8192D)
+					PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
+				PRINT_INFO("DFS CP2. Switch channel!\n");
+			} else {
+				if (dfs_chk){
+					// reset dfs flag and counter
+					priv->pmib->dot11DFSEntry.DFS_detected = 0;
+					if (GET_CHIP_VER(priv) == VERSION_8192D) {
+						PHY_SetBBReg(priv, 0xc84, BIT(25), 0);
+						PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
+					}
+					
+					PRINT_INFO("DFS CP1.\n");
+
+					init_timer(&priv->dfs_chk_timer);
+					priv->dfs_chk_timer.data = (unsigned long) priv;
+					priv->dfs_chk_timer.function = rtl8192cd_dfs_chk_timer;
+
+					mod_timer(&priv->dfs_chk_timer, jiffies + RTL_SECONDS_TO_JIFFIES(300));
+
+					goto exit_timer;
+				}
+			}
+			
+			priv->pmib->dot11DFSEntry.disable_tx = 1;
+
+			if (timer_pending(&priv->ch_avail_chk_timer)) {
+				del_timer(&priv->ch_avail_chk_timer);
+				RTL_W8(TXPAUSE, 0xff);
+			}
+			else
+				RTL_W8(TXPAUSE, 0xf);	/* disable transmitter */
+#if !defined(RTK_NL80211)
+			//For OpwenWRT SDK, do not consider block channel list
+			if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80 && 
+				priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
+				int i, channel;
+				channel = priv->pmib->dot11RFEntry.dot11channel;
+
+				if ((channel >= 104) && (channel <= 112))
+					channel = 100;
+				else if ((channel >= 120) && (channel <= 128))
+					channel = 116;
+				else if ((channel >= 136) && (channel <= 144))
+					channel = 132;
+
+				for(i=0;i<4;i++) {
+					set_CHXX_timer(priv, channel+i*4);
+				}
+			}
+			else {
+				set_CHXX_timer(priv,priv->pmib->dot11RFEntry.dot11channel);
+			}
+
+			/* add the channel in the blocked-channel list */
+			if(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80 && 
+				priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
+				int i, channel;
+				channel = priv->pmib->dot11RFEntry.dot11channel;
+
+				if ((channel >= 104) && (channel <= 112))
+					channel = 100;
+				else if ((channel >= 120) && (channel <= 128))
+					channel = 116;
+				else if ((channel >= 136) && (channel <= 144))
+					channel = 132;
+
+				for (i=0;i<4;i++) {
+					if (RemoveChannel(priv, priv->available_chnl, &priv->available_chnl_num, channel+i*4))
+						InsertChannel(priv->NOP_chnl, &priv->NOP_chnl_num, channel+i*4);									
+#ifdef UNIVERSAL_REPEATER
+				if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && (RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, channel+i*4)) )
+					InsertChannel(priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, channel+i*4);
+#endif
+				}			
+			}
+			else {
+				int j;
+				InsertChannel(priv->NOP_chnl, &priv->NOP_chnl_num, priv->pmib->dot11RFEntry.dot11channel);			
+				RemoveChannel(priv, priv->available_chnl, &priv->available_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
+#ifdef UNIVERSAL_REPEATER
+				if (IS_DRV_OPEN(GET_VXD_PRIV(priv))){
+					RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
+					InsertChannel(priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, priv->pmib->dot11RFEntry.dot11channel);
+				}			
+#endif
+			}
+#endif
+			if (timer_pending(&priv->DFS_timer))
+				del_timer_sync(&priv->DFS_timer);
+#if !defined(RTK_NL80211)
+			//For OpenWRT, do not select another channel automatically
+			/* select a channel */
+			priv->pshare->dfsSwitchChannel = DFS_SelectChannel(priv);
+			if(priv->pshare->dfsSwitchChannel == 0)
+#else
+			//Clear disable_tx here becoz turnkey do it at DFS_SelectChannel()
+			priv->pmib->dot11DFSEntry.disable_tx = 0;
+#endif
+			{
+				priv->pmib->dot11DFSEntry.DFS_detected = 0;		
+
+				if (priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3) {
+					// when band 2 is selected, AP does not come back to band2 
+					// even when NOP (NONE_OCCUPANCY_PERIOD) timer is expired.	
+					RTL_W8(TXPAUSE, 0xff);// after cac, still has to pause if channel is run out
+					mod_timer(&priv->DFS_TXPAUSE_timer, jiffies + DFS_TXPAUSE_TO);
+					
+				}
+			}
+
+#ifdef MBSSID
+			if (priv->pmib->miscEntry.vap_enable)
+				priv->pshare->dfsSwitchChCountDown = 6;
+			else
+#endif
+				priv->pshare->dfsSwitchChCountDown = 5;
+
+		if (priv->pmib->dot11StationConfigEntry.dot11DTIMPeriod >= priv->pshare->dfsSwitchChCountDown)
+			priv->pshare->dfsSwitchChCountDown = priv->pmib->dot11StationConfigEntry.dot11DTIMPeriod+1;						
+
+#if defined(RTK_NL80211)
+		event_indicate_cfg80211(priv, NULL, CFG80211_RADAR_DETECTED, NULL);
+#endif
+
+		SMP_UNLOCK(flags);
 		return;
 	}
 
 exit_timer:
 	mod_timer(&priv->DFS_timer, jiffies + DFS_TO);
+	SMP_UNLOCK(flags);
 }
 
+
 #ifdef CLIENT_MODE
-#ifdef __KERNEL__
 void rtl8192cd_dfs_cntdwn_timer(unsigned long task_priv)
-#elif defined(__ECOS)
-void rtl8192cd_dfs_cntdwn_timer(void *task_priv)
-#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+#ifdef SMP_SYNC
+	unsigned long flags;
+#endif
 
-	if (!(priv->drv_state & DRV_STATE_OPEN))
+	SMP_LOCK(flags);
+	if (!(priv->drv_state & DRV_STATE_OPEN)) {
+		SMP_UNLOCK(flags);
 		return;
+	}
 	
 	DEBUG_INFO("rtl8192cd_dfs_cntdwn_timer timeout!\n");
 
 	priv->pshare->dfsSwCh_ongoing = 0;	
+	SMP_UNLOCK(flags);
 }
 #endif
 
 void rtl8192cd_ch_avail_chk_timer(unsigned long task_priv)
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+#ifdef SMP_SYNC
+	unsigned long flags;
+#endif
 
-	if (!(priv->drv_state & DRV_STATE_OPEN))
+	SMP_LOCK(flags);
+	if (!(priv->drv_state & DRV_STATE_OPEN)) {
+		SMP_UNLOCK(flags);
 		return;
+	}
 
 	priv->pmib->dot11DFSEntry.disable_tx = 0;
 
-	if (GET_CHIP_VER(priv) == VERSION_8192D){
+if (GET_CHIP_VER(priv) == VERSION_8192D || GET_CHIP_VER(priv) == VERSION_8881A || GET_CHIP_VER(priv) == VERSION_8812E) {
+		if (GET_CHIP_VER(priv) == VERSION_8881A){
+			PHY_SetBBReg(priv, 0xcb0, 0x000000f0, 4);
+		}
 		if (priv->pshare->rf_ft_var.dfsdelayiqk)
-		PHY_IQCalibrate(priv);
+			PHY_IQCalibrate(priv);
+		if (GET_CHIP_VER(priv) == VERSION_8881A){		
+			PHY_SetBBReg(priv, 0xcb0, 0x000000f0, 5);
+		}
 	}
 
-        RTL_W16(PCIE_CTRL_REG, RTL_R16(PCIE_CTRL_REG)& (~BCNQSTOP));
+#ifdef DPK_92D
+	if (GET_CHIP_VER(priv) == VERSION_8192D){
+		if (priv->pshare->rf_ft_var.dfsdelayiqk && priv->pshare->rf_ft_var.dpk_on)
+			PHY_DPCalibrate(priv);
+	}
+#endif
 
+	if (GET_CHIP_VER(priv) == VERSION_8192D)
+		RTL_W16(PCIE_CTRL_REG, RTL_R16(PCIE_CTRL_REG) & (~BCNQSTOP));
+	else
+		RTL_W8(TXPAUSE, 0);
+
+	SMP_UNLOCK(flags);
+	if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI){
+		if((priv->pmib->dot11RFEntry.dot11channel >= 120) &&
+		(priv->pmib->dot11RFEntry.dot11channel <= 132)){
+			PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);			
+			PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+			PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
+			PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f69204);
+			priv->ch_120_132_CAC_end = 1;
+		}
+	}
+	priv->pmib->dot11DFSEntry.CAC_ss_counter = 3;
 	panic_printk("Transmitter is enabled!\n");
+#if defined(RTK_NL80211)
+	event_indicate_cfg80211(priv, NULL, CFG80211_RADAR_CAC_FINISHED, NULL);
+#endif
 }
 
 
@@ -245,13 +497,18 @@ void rtl8192cd_ch52_timer(unsigned long task_priv)
 		return;
 
 	//remove the channel from NOP_chnl[4] and place it in available_chnl[32]
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 52)) {
+	if (RemoveChannel(priv,priv->NOP_chnl, &priv->NOP_chnl_num, 52)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 52);
 		DEBUG_INFO("Channel 52 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 52)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 52);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch56_timer(unsigned long task_priv)
 {
@@ -264,13 +521,18 @@ void rtl8192cd_ch56_timer(unsigned long task_priv)
 		 (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK3)) &&
 		(OPMODE & WIFI_ADHOC_STATE))
 		return;
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 56)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 56)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 56);
 		DEBUG_INFO("Channel 56 is released!\n");
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 56)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 56);
+	}
+#endif
 	}
 }
-
 
 void rtl8192cd_ch60_timer(unsigned long task_priv)
 {
@@ -283,13 +545,18 @@ void rtl8192cd_ch60_timer(unsigned long task_priv)
 		 (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK3)) &&
 		(OPMODE & WIFI_ADHOC_STATE))
 		return;
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 60)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 60)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 60);
 		DEBUG_INFO("Channel 60 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 60)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 60);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch64_timer(unsigned long task_priv)
 {
@@ -302,13 +569,18 @@ void rtl8192cd_ch64_timer(unsigned long task_priv)
 		 (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK3)) &&
 		(OPMODE & WIFI_ADHOC_STATE))
 		return;
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 64)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 64)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 64);
 		DEBUG_INFO("Channel 64 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 64)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 64);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch100_timer(unsigned long task_priv)
 {
@@ -317,13 +589,18 @@ void rtl8192cd_ch100_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 100)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 100)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 100);
 		DEBUG_INFO("Channel 100 is released!\n");
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 100)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 100);
+	}
+#endif
 	}
 }
-
 
 void rtl8192cd_ch104_timer(unsigned long task_priv)
 {
@@ -332,13 +609,18 @@ void rtl8192cd_ch104_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 104)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 104)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 104);
 		DEBUG_INFO("Channel 104 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 104)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 104);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch108_timer(unsigned long task_priv)
 {
@@ -347,13 +629,18 @@ void rtl8192cd_ch108_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 108)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 108)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 108);
 		DEBUG_INFO("Channel 108 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 108)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 108);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch112_timer(unsigned long task_priv)
 {
@@ -362,13 +649,18 @@ void rtl8192cd_ch112_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 112)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 112)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 112);
 		DEBUG_INFO("Channel 112 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 112)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 112);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch116_timer(unsigned long task_priv)
 {
@@ -377,13 +669,18 @@ void rtl8192cd_ch116_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 116)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 116)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 116);
 		DEBUG_INFO("Channel 116 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 116)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 116);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch120_timer(unsigned long task_priv)
 {
@@ -392,13 +689,18 @@ void rtl8192cd_ch120_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 120)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 120)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 120);
 		DEBUG_INFO("Channel 120 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 120)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 120);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch124_timer(unsigned long task_priv)
 {
@@ -407,13 +709,18 @@ void rtl8192cd_ch124_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 124)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 124)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 124);
 		DEBUG_INFO("Channel 124 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 124)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 124);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch128_timer(unsigned long task_priv)
 {
@@ -422,13 +729,18 @@ void rtl8192cd_ch128_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 128)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 128)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 128);
 		DEBUG_INFO("Channel 128 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 128)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 128);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch132_timer(unsigned long task_priv)
 {
@@ -437,13 +749,18 @@ void rtl8192cd_ch132_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 132)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 132)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 132);
 		DEBUG_INFO("Channel 132 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 132)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 132);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch136_timer(unsigned long task_priv)
 {
@@ -452,13 +769,18 @@ void rtl8192cd_ch136_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 136)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 136)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 136);
 		DEBUG_INFO("Channel 136 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 136)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 136);
+	}
+#endif
 }
-
 
 void rtl8192cd_ch140_timer(unsigned long task_priv)
 {
@@ -467,65 +789,109 @@ void rtl8192cd_ch140_timer(unsigned long task_priv)
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
-	if (RemoveChannel(priv->NOP_chnl, &priv->NOP_chnl_num, 140)) {
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 140)) {
 		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
 			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 140);
 		DEBUG_INFO("Channel 140 is released!\n");
 	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 140)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 140);
+	}
+#endif
+}
+
+void rtl8192cd_ch144_timer(unsigned long task_priv)
+{
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+
+	if (!(priv->drv_state & DRV_STATE_OPEN))
+		return;
+
+	if (RemoveChannel(priv, priv->NOP_chnl, &priv->NOP_chnl_num, 144)) {
+		if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->available_chnl, &priv->available_chnl_num, 144);
+		DEBUG_INFO("Channel 144 is released!\n");
+	}
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)) && RemoveChannel(priv->pvxd_priv, priv->pvxd_priv->NOP_chnl, &priv->pvxd_priv->NOP_chnl_num, 144)) {
+		if (priv->pvxd_priv->pmib->dot11BssType.net_work_type & WIRELESS_11A)
+			InsertChannel(priv->pvxd_priv->available_chnl, &priv->pvxd_priv->available_chnl_num, 144);
+}
+#endif
 }
 
 
 unsigned int DFS_SelectChannel(struct rtl8192cd_priv *priv)
 {
-	unsigned char random;
-	unsigned int num, random_base, which_channel;
-	int reg = priv->pmib->dot11StationConfigEntry.dot11RegDomain;
+	unsigned int random;
+	unsigned int num, random_base, which_channel = -1;
+	int reg = priv->pmib->dot11StationConfigEntry.dot11RegDomain;	
 
-	if (priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20) {
-#ifdef __ECOS
+	if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80){ 
+		// When user select band 3 with 80M channel bandwidth 
+		which_channel = find80MChannel(priv->available_chnl,priv->available_chnl_num);
+
+		if(which_channel == -1) // select non-DFS band 80M (ch 36 or 149) or down to 40/20M
 		{
-			unsigned char random_buf[4];
-			get_random_bytes(random_buf, 4);
-			random = random_buf[3];
-		}
-#else
-		get_random_bytes(&random, 1);
-#endif
-		num = random % priv->Not_DFS_chnl_num;
-		which_channel = priv->Not_DFS_chnl[num];
-	} else {
-		//40M
-		if (reg == DOMAIN_FCC)
-			random_base = 4;
-		else if (reg == DOMAIN_IC)
-			random_base = 4;
-		else if (reg == DOMAIN_NCC)
-			random_base = 3;
-		else
-			random_base = 2;
-
 #ifdef __ECOS
-		{
-			unsigned char random_buf[4];
-			get_random_bytes(random_buf, 4);
-			random = random_buf[3];
-		}
+			// generate random number
+			{
+				unsigned int random_buf[4];
+				get_random_bytes(random_buf, 4);
+				random = random_buf[3];
+			}
 #else
-		get_random_bytes(&random, 1);
+			get_random_bytes(&random, 4);
 #endif
-		num = random % random_base;
-
-		if (reg == DOMAIN_NCC) {
-			if (priv->pshare->offset_2nd_chan == HT_2NDCH_OFFSET_BELOW)
-				which_channel = priv->Not_DFS_chnl[num*2+2];
-			else
-				which_channel = priv->Not_DFS_chnl[num*2+1];
+			if(random % 2 == 0){ // try ch155 if not available choose ch36
+				if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 149)){
+					which_channel = 149;
+				}
+				else{
+					if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 36)){
+						which_channel = 36;
+					}
+				}
+			}
+			else{
+				if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 36)){
+					which_channel = 36;
+				}
+				else{
+					if(is80MChannel(priv->available_chnl, priv->available_chnl_num, 149)){
+						which_channel = 149;
+					}
+				}
+			}
 		}
-		else {
-			if (priv->pshare->offset_2nd_chan == HT_2NDCH_OFFSET_BELOW)
-				which_channel = priv->Not_DFS_chnl[num*2+1];
-			else
-				which_channel = priv->Not_DFS_chnl[num*2];
+	}
+
+
+	if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80 || 
+		priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20_40) {
+		if(which_channel == -1){ // down to 40M
+			priv->pmib->dot11nConfigEntry.dot11nUse40M = HT_CHANNEL_WIDTH_20_40;	
+			which_channel = find40MChannel(priv->available_chnl,priv->available_chnl_num);
+		}
+	}
+
+
+	if(which_channel == -1){ // down to 20M
+		priv->pmib->dot11nConfigEntry.dot11nUse40M = HT_CHANNEL_WIDTH_20;		 
+#ifdef __ECOS
+		unsigned int random_buf[4];
+		get_random_bytes(random_buf, 4);
+		random = random_buf[3];
+#else
+		get_random_bytes(&random, 4);
+#endif
+		if(priv->available_chnl_num){
+			num = random % priv->available_chnl_num;
+			which_channel = priv->available_chnl[num];
+		}else{
+			which_channel = 0;
 		}
 	}
 
@@ -571,7 +937,7 @@ int InsertChannel(unsigned int chnl_list[], unsigned int *chnl_num, unsigned int
  *	remove the channel from the channel list
  *	if successful, return 1, else return 0
  */
-int RemoveChannel(unsigned int chnl_list[], unsigned int *chnl_num, unsigned int channel)
+int RemoveChannel(struct rtl8192cd_priv *priv, unsigned int chnl_list[], unsigned int *chnl_num, unsigned int channel)
 {
 	unsigned int i, j;
 
@@ -600,17 +966,13 @@ void DFS_SwChnl_clnt(struct rtl8192cd_priv *priv)
 	priv->pmib->dot11RFEntry.dot11channel = priv->pshare->dfsSwitchChannel;
 	priv->pshare->dfsSwitchChannel = 0;
 	RTL_W8(TXPAUSE, 0xff);
-	panic_printk("Swiching channel to %d!\n", priv->pmib->dot11RFEntry.dot11channel);
+	panic_printk("1. Swiching channel to %d!\n", priv->pmib->dot11RFEntry.dot11channel);
 	reload_txpwr_pg(priv);
 	SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
 	RTL_W8(TXPAUSE, 0x00);
-	if (((priv->pmib->dot11RFEntry.dot11channel >= 52) &&
-		(priv->pmib->dot11RFEntry.dot11channel <= 64)) || 
-		((priv->pmib->dot11RFEntry.dot11channel >= 100) &&
-		(priv->pmib->dot11RFEntry.dot11channel <= 140))) {
 
+	if (is_DFS_channel(priv->pmib->dot11RFEntry.dot11channel)) {
 			panic_printk("Switched to DFS band (ch %d) again!!\n", priv->pmib->dot11RFEntry.dot11channel);
-
 	 }
 
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -624,63 +986,260 @@ void DFS_SwChnl_clnt(struct rtl8192cd_priv *priv)
 
 void DFS_SwitchChannel(struct rtl8192cd_priv *priv)
 {
-#ifdef MBSSID
-	unsigned int i;
-#endif
-
-	/* signin non-DFS channel */
-	priv->pmib->dot11RFEntry.dot11channel = priv->pshare->dfsSwitchChannel;
-	//priv->pshare->dfsSwitchChannel = 0;
+	int ch = priv->pshare->dfsSwitchChannel;		
+	
+	if (!(priv->drv_state & DRV_STATE_OPEN)) 
+		return;
+	priv->pmib->dot11RFEntry.dot11channel = ch;
+	priv->pshare->dfsSwitchChannel = 0;
 	RTL_W8(TXPAUSE, 0xff);
 
-	panic_printk("Swiching channel to %d!\n", priv->pmib->dot11RFEntry.dot11channel);
-	priv->pmib->dot11OperationEntry.keep_rsnie = 1; // recovery in WPA case, david+2006-01-27
+	DEBUG_INFO("2. Swiching channel to %d!\n", priv->pmib->dot11RFEntry.dot11channel);
+	priv->pshare->CurrentChannelBW = priv->pshare->is_40m_bw = priv->pmib->dot11nConfigEntry.dot11nUse40M;
+	
+	if( (ch>144) ? ((ch-1)%8) : (ch%8)) {
+		GET_MIB(priv)->dot11nConfigEntry.dot11n2ndChOffset = HT_2NDCH_OFFSET_ABOVE;
+		priv->pshare->offset_2nd_chan	= HT_2NDCH_OFFSET_ABOVE;
+	} else {
+		GET_MIB(priv)->dot11nConfigEntry.dot11n2ndChOffset = HT_2NDCH_OFFSET_BELOW;
+		priv->pshare->offset_2nd_chan	= HT_2NDCH_OFFSET_BELOW;
+	}
+
+	//priv->pshare->No_RF_Write = 0;
+	SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+	SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+	PHY_IQCalibrate(priv); //FOR_8812_IQK
+
+	//priv->pshare->No_RF_Write = 1;
+	GET_ROOT(priv)->pmib->dot11DFSEntry.DFS_detected = priv->pshare->dfsSwitchChannel = 0;
+	GET_ROOT(priv)->pmib->dot11DFSEntry.disable_tx = priv->pmib->dot11DFSEntry.disable_tx = 0;
+	priv->ht_cap_len = 0;
+	update_beacon(priv);
+	RTL_W8(TXPAUSE, 0x00);
+}
+
+
+void rtl8192cd_dfs_det_chk_timer(unsigned long task_priv)
+{
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+	unsigned long throughput = 0;
+	int j;
+
+	if (!(priv->drv_state & DRV_STATE_OPEN)) 
+		return;
+	priv->ini_gain_cur = RTL_R8(0xc50);
+
+	priv->st_L2H_cur = PHY_QueryBBReg(priv, 0x91c, 0x000000ff);
+
+	throughput = priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage;
+
 #ifdef MBSSID
-	if (GET_ROOT(priv)->pmib->miscEntry.vap_enable) {
-		for (i=0; i<RTL8192CD_NUM_VWLAN; i++) {
-			if (IS_DRV_OPEN(priv->pvap_priv[i]))
-				priv->pvap_priv[i]->pmib->dot11OperationEntry.keep_rsnie = 1;
+	if (priv->pmib->miscEntry.vap_enable) {
+		for (j=0; j<RTL8192CD_NUM_VWLAN; j++) {
+			if (IS_DRV_OPEN(priv->pvap_priv[j])) {
+				throughput += priv->pvap_priv[j]->ext_stats.tx_avarage+priv->pvap_priv[j]->ext_stats.rx_avarage;
+			}
 		}
 	}
 #endif
-#if 0
-	reload_txpwr_pg(priv);
-	SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
- 	if (GET_CHIP_VER(priv) == VERSION_8192D)
-		PHY_IQCalibrate(priv);
-#else
-	rtl8192cd_close(priv->dev);
-	rtl8192cd_open(priv->dev);
+
+	if ((throughput >> 17) <= priv->pshare->rf_ft_var.dfs_psd_tp_th) {
+		priv->idle_flag = 1;
+		if(priv->pshare->rf_ft_var.dfs_force_TP_mode)
+			priv->idle_flag = 0;
+	}
+	else{
+		priv->idle_flag = 0;
+	}
+
+#if !defined(CONFIG_RTL_92D_SUPPORT)
+	// dfs_det.c
+	if((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A))
+	{
+		if (priv->pshare->rf_ft_var.dfs_det_off == 0) {
+			rtl8192cd_dfs_det_chk(priv);
+			rtl8192cd_dfs_dynamic_setting(priv);
+		}
+	}
 #endif
-	RTL_W8(TXPAUSE, 0x00);
+
+	// dynamic pwdb calibration
+	if (priv->ini_gain_pre != priv->ini_gain_cur) {
+		priv->pwdb_th = ((int)priv->st_L2H_cur - (int)priv->ini_gain_cur)/2 + priv->pshare->rf_ft_var.dfs_pwdb_scalar_factor;
+		priv->pwdb_th = MAX_NUM(priv->pwdb_th, (int)priv->pshare->rf_ft_var.dfs_pwdb_th); // limit the pwdb value to absoulte lower bound 0xa
+		priv->pwdb_th = MIN_NUM(priv->pwdb_th, 0x1f);    // limit the pwdb value to absoulte upper bound 0x1f
+		PHY_SetBBReg(priv, 0x918, 0x00001f00, priv->pwdb_th);
+	}
+
+	priv->ini_gain_pre = priv->ini_gain_cur;
+
+	if(((priv->pmib->dot11RFEntry.dot11channel >= 52) &&
+					(priv->pmib->dot11RFEntry.dot11channel <= 64)) && (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK)){
+		mod_timer(&priv->dfs_det_chk_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(priv->pshare->rf_ft_var.dfs_det_period_jp_w53*10));
+	}
+	else{
+		mod_timer(&priv->dfs_det_chk_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(priv->pshare->rf_ft_var.dfs_det_period*10));
+	}
 }
 
 
 void DFS_SetReg(struct rtl8192cd_priv *priv)
 {
-	PHY_SetBBReg(priv, 0xc38, BIT(23) | BIT(22), 2);
-	PHY_SetBBReg(priv, 0x814, bMaskDWord, 0x04cc4d10);
+	if (!(priv->drv_state & DRV_STATE_OPEN)) 
+		return;
+	if (GET_CHIP_VER(priv) == VERSION_8192D) {
+		PHY_SetBBReg(priv, 0xc38, BIT(23) | BIT(22), 2);
+		PHY_SetBBReg(priv, 0x814, bMaskDWord, 0x04cc4d10);
+	}
+	else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+		PHY_SetBBReg(priv, 0x814, 0x3fffffff, 0x04cc4d10);
+		PHY_SetBBReg(priv, 0x834, bMaskByte0, 0x06);
+		
+		if (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_FCC) {
+			if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20){
+				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x64741a20);
+			}
+			else{
+				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68741a20);
+			}
+			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
+				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67231);
+			}
+			else{
+				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d6d231);
+			}
+		}
+		else if (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI) {
+			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
+				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);				
+				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
+				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f57204);
+			}
+			else{
+				if((priv->pmib->dot11RFEntry.dot11channel >= 120) &&
+					(priv->pmib->dot11RFEntry.dot11channel <= 132)){
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);						
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
+						PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+						PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f87204);
+					priv->ch_120_132_CAC_end = 0;
+				}
+				else{
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);					
+					PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0fa21a20);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a400);
+					PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0f79204);
+				}
+			}
+		}
+		else if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_MKK){
+			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
+				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67234);
+				if((priv->pmib->dot11RFEntry.dot11channel >= 52) &&
+					(priv->pmib->dot11RFEntry.dot11channel <= 64)){
+						PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16ecdf);
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0f141a20);
+				}
+				else{
+					if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20){
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x64721a20);
+					}
+					else{
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68721a20);
+					}
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+				}
+			}
+			else{
+				if((priv->pmib->dot11RFEntry.dot11channel >= 52) &&
+					(priv->pmib->dot11RFEntry.dot11channel <= 64)){
+					PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0fe7234);
+					PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x0f141a20);					
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17ecdf);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				}
+				else{
+					PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67234);
+					PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+					PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x01528480);
+					if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20){
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x64721a20);
+					}
+					else{
+						PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68721a20);
+					}
+				}
+			}
+		}
+		else{   // default: FCC
+			if(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_20){
+				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x64741a20);
+			}
+			else{
+				PHY_SetBBReg(priv, 0x91c, bMaskDWord, 0x68741a20);
+			}
+			if(priv->pshare->rf_ft_var.dfs_det_off == 1){
+				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c16acdf);
+				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d67231);
+			}
+			else{
+				PHY_SetBBReg(priv, 0x918, bMaskDWord, 0x1c17acdf);
+				PHY_SetBBReg(priv, 0x924, bMaskDWord, 0x0152a480);
+				PHY_SetBBReg(priv, 0x920, bMaskDWord, 0xe0d6d231);
+			}
+		}
+
+		priv->st_L2H_cur = PHY_QueryBBReg(priv, 0x91c, 0x000000ff);
+		priv->pwdb_th = (int)PHY_QueryBBReg(priv, 0x918, 0x00001f00);
+		priv->peak_th = PHY_QueryBBReg(priv, 0x918, 0x00030000);
+		priv->short_pulse_cnt_th = PHY_QueryBBReg(priv, 0x920, 0x000f0000);
+		priv->long_pulse_cnt_th = PHY_QueryBBReg(priv, 0x920, 0x00f00000);
+		priv->peak_window = PHY_QueryBBReg(priv, 0x920, 0x00000300);
+		priv->nb2wb_th = PHY_QueryBBReg(priv, 0x920, 0x0000e000);
+
+		//panic_printk("peak_th: %d\n", priv->peak_th);
+
+		if (GET_CHIP_VER(priv) == VERSION_8881A)
+			PHY_SetBBReg(priv, 0xb00, 0xc0000000, 3);
+
+		RTL_W8(TXPAUSE, 0xff);
+	}
 
 	if (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI) {
-		PHY_SetBBReg(priv, 0xc8c, BIT(23) | BIT(22), 3);
-		PHY_SetBBReg(priv, 0xc30, 0xf, 0xa);
-		PHY_SetBBReg(priv, 0xcdc, 0xf0000, 4);
-		PHY_SetBBReg(priv, 0xcd8, 0xf0000, 0x3);
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			PHY_SetBBReg(priv, 0xc8c, BIT(23) | BIT(22), 3);
+			PHY_SetBBReg(priv, 0xc30, 0xf, 0xa);
+			PHY_SetBBReg(priv, 0xcdc, 0xf0000, 4);
+		}
 	} else {
-		PHY_SetBBReg(priv, 0xc8c, BIT(23) | BIT(22), 0);
-		PHY_SetBBReg(priv, 0xcd8, 0xffff, 0x1a1f);
-		PHY_SetBBReg(priv, 0xcd8, 0xf0000, 0x4);
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			PHY_SetBBReg(priv, 0xc8c, BIT(23) | BIT(22), 0);
+			PHY_SetBBReg(priv, 0xcd8, 0xffff, 0x1a1f);
+		}
 	}
 
 	/*
 	 *	Enable h/w DFS detect
 	 */
-	PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
+	if (GET_CHIP_VER(priv) == VERSION_8192D) {
+		PHY_SetBBReg(priv, 0xc84, BIT(25), 1);
 
-	if (!priv->pshare->rf_ft_var.dfsdbgmode){
-		PHY_SetBBReg(priv, 0xc7c, BIT(28), 1); // ynlin dbg
+		if (!priv->pshare->rf_ft_var.dfsdbgmode){
+			PHY_SetBBReg(priv, 0xc7c, BIT(28), 1); // ynlin dbg
+		}
 	}
+}
 
+unsigned char *get_DFS_version(void)
+{
+	return DFS_VERSION;
 }
 #endif
  

@@ -13,6 +13,14 @@ include $(DIR_USERS)/.config
 endif
 
 ifdef CONFIG_RTL_8198_AP_ROOT
+CONFIG_RTL_AP = CONFIG_RTL_8198_AP_ROOT
+endif
+
+ifdef CONFIG_RTL_8197D_AP
+CONFIG_RTL_AP = CONFIG_RTL_8197D_AP
+endif
+
+ifdef CONFIG_RTL_AP
 AP=1
 SKUTAG=ap
 else
@@ -57,6 +65,7 @@ DEPEND = ./.depend
 
 #------------------------------------------------------------------------------
 APMIB_DIR=../apmib
+RTKAPI_DIR=../../adapter-api/rtk_api
 
 #------------------------------------------------------------------------------
 # EXTRA_CFLAGS
@@ -72,8 +81,9 @@ REALTEK_FILES += fmddns.c fmroute.c fmipv6.c fmbt.c fmpocketap.c
 endif
 
 ifeq ($(CONFIG_HTTP_FILE_SERVER_SUPPORT),y)
-#REALTEK_FILES += http_files.c
+REALTEK_FILES += http_files.c
 #REALTEK_FILES += fmhttp_files.c
+REALTEK_FILES += http_file_dir.c
 endif
 
 ifeq ($(CONFIG_DOMAIN_NAME_QUERY_SUPPORT),y)
@@ -100,6 +110,9 @@ LDFLAGS += $(VOIP_LDFLAGS)
 CFLAGS += -DCONFIG_APP_BOA
 endif
 
+ifeq ($(CONFIG_RTL_8812AR_VN_SUPPORT),y)
+        COMMON_CFLAGS += -DCONFIG_RTL_8812AR_VN_SUPPORT
+endif
 #------------------------------------------------------------------------------
 # CFLAGS
 #------------------------------------------------------------------------------
@@ -111,6 +124,10 @@ ifdef	CONFIG_APP_MULTIPPPOE
 		CFLAGS += -D MULTI_PPPOE
 endif
 
+ifdef	CONFIG_APP_BOA_IPV6_SUPPORT
+CFLAGS +=-DINET6
+endif
+
 SOURCES = alias.c boa.c buffer.c cgi.c cgi_header.c config.c escape.c \
 	get.c hash.c ip.c log.c mmap_cache.c pipe.c queue.c range.c \
 	read.c request.c response.c signals.c util.c sublog.c \
@@ -120,12 +137,12 @@ SOURCES = alias.c boa.c buffer.c cgi.c cgi_header.c config.c escape.c \
 
 OBJS = $(SOURCES:.c=.o) timestamp.o 
 ifeq ($(CONFIG_HTTP_FILE_SERVER_SUPPORT),y)
-OBJS += http_files.o fmhttp_files.o
+OBJS += fmhttp_files.o 
 endif
 #------------------------------------------------------------------------------
 # targets
 #------------------------------------------------------------------------------
-all: fileserver  depend boa 
+all: depend fileserver boa release
 
 #boa:	$(OBJS) 
 #	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) 
@@ -134,7 +151,15 @@ all: fileserver  depend boa
 #	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 boa: Makefile $(OBJS) $(APMIB_DIR)/$(APMIB_LIB)
+ifdef CONFIG_APP_BOA_WITH_SSL
+	$(CC) -o boa $(OBJS) $(LDFLAGS) -L$(APMIB_DIR) -lapmib -L $(SSL_PATH) $(SSL_LIBS) -ldl
+else
+ifdef RTK_ADAPTER_API_SUPPORT
+	$(CC) -o boa $(OBJS) $(LDFLAGS) -L$(APMIB_DIR) -lapmib -L$(RTKAPI_DIR) -lrtk_adapter
+else
 	$(CC) -o boa $(OBJS) $(LDFLAGS) -L$(APMIB_DIR) -lapmib
+endif
+endif
 	$(STRIP) $@
 
 clean:
@@ -158,27 +183,38 @@ timestamp.o:	$(SOURCES)
 fileserver:
 ifeq ($(CONFIG_HTTP_FILE_SERVER_SUPPORT),y)
 ifeq ($(CONFIG_RTL_8198), y)
-	if [ ! -e http_files.o ]; then \
-		cp http_files_98 http_files.o;\
-		cp fmhttp_files_98 fmhttp_files.o;\
+	if [ ! -e fmhttp_files.o ]; then \
+		cp fmhttp_files_1.3.6-5281 fmhttp_files.o;\
 	fi
 endif
 ifeq ($(CONFIG_RTL_8196C),y)
-	if [ ! -e http_files.o ]; then \
-		cp http_files_4181 http_files.o;\
-		cp fmhttp_files_4181 fmhttp_files.o;\
+	if [ ! -e fmhttp_files.o ]; then \
+		cp fmhttp_files_1.3.6-4181 fmhttp_files.o;\
 	fi
 endif
 ifeq ($(CONFIG_RTL_8196E),y)
-	if [ ! -e http_files.o ]; then \
-		cp http_files_4181 http_files.o;\
-		cp fmhttp_files_4181 fmhttp_files.o;\
+	if [ ! -e fmhttp_files.o ]; then \
+		cp fmhttp_files_1.5.5-4181 fmhttp_files.o;\
 	fi
 endif
 ifeq ($(CONFIG_RTL_819XD),y)
-	if [ ! -e http_files.o ]; then \
-		cp http_files_9xD http_files.o;\
-		cp fmhttp_files_9xD fmhttp_files.o;\
+	if [ ! -e fmhttp_files.o ]; then \
+		cp fmhttp_files_1.5.5-5281 fmhttp_files.o;\
+	fi
+endif
+ifeq ($(CONFIG_RTL_8881A),y)
+	if [ ! -e fmhttp_files.o ]; then \
+		cp fmhttp_files_1.5.5-5281 fmhttp_files.o;\
+	fi
+endif
+ifeq ($(CONFIG_BOARD_rtl89xxC),y)
+	if [ ! -e fmhttp_files.o ]; then \
+		cp fmhttp_files_89xxC fmhttp_files.o;\
+	fi
+endif
+ifeq ($(CONFIG_BOARD_rtl89xxD),y)
+	if [ ! -e fmhttp_files.o ]; then \
+		cp fmhttp_files_89xxD fmhttp_files.o;\
 	fi
 endif
 endif

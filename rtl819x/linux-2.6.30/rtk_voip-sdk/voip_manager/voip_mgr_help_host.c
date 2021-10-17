@@ -1,9 +1,12 @@
 #include <asm/uaccess.h>
+#include <linux/interrupt.h>
+#include <linux/sched.h>
 #include "rtk_voip.h"
 #include "voip_types.h"
 #include "voip_control.h"
 #include "voip_init.h"
 #include "voip_limit.h"
+#include "voip_errno.h"
 #include "voip_mgr_define.h"
 #include "ipc_arch_tx.h"
 #include "con_mux.h"
@@ -45,11 +48,12 @@ int32 Host_pktRx( uint32 chid, uint32 sid, void* packet, uint32 pktLen, uint32 f
 
 	// Send RTP packet to DSP by voice packet.
 	TstTxPktCtrl stTxPktCtrl = { .seq_no = -1, .resend_flag = 0 };
-	unsigned char rtp_read_tmp[1500];
+	//unsigned char rtp_read_tmp[1500];
 	unsigned int chid_dsp/*, sid_dsp*/, mid;
 	int isRtcp = 0;
-	voice_rtp2dsp_content_t * const voice_rtp2dsp_content = 
-			( voice_rtp2dsp_content_t * )rtp_read_tmp;
+	//voice_rtp2dsp_content_t * const voice_rtp2dsp_content = 
+	//		( voice_rtp2dsp_content_t * )rtp_read_tmp;
+	voice_rtp2dsp_content_t voice_rtp2dsp_content_header;
 	
 	if( sid >= RTCP_SID_OFFSET ) {
 		sid -= RTCP_SID_OFFSET;
@@ -64,6 +68,10 @@ int32 Host_pktRx( uint32 chid, uint32 sid, void* packet, uint32 pktLen, uint32 f
 	//sid_dsp = API_GetSid_Dsp(chid_dsp, mid, stTxPktCtrl.dsp_id);
 
 #if 1
+	voice_rtp2dsp_content_header.chid = chid_dsp;
+	voice_rtp2dsp_content_header.mid = mid + ( isRtcp ? RTCP_MID_OFFSET : 0 );
+	voice_rtp2dsp_content_header.flags = flags;
+#elif 1
 	voice_rtp2dsp_content ->chid = chid_dsp;
 	voice_rtp2dsp_content ->mid = mid + ( isRtcp ? RTCP_MID_OFFSET : 0 );
 	voice_rtp2dsp_content ->flags = flags;
@@ -73,18 +81,19 @@ int32 Host_pktRx( uint32 chid, uint32 sid, void* packet, uint32 pktLen, uint32 f
 	*(uint32*)((unsigned char*)rtp_read_tmp+8)= flags;
 #endif
 	
-	if (pktLen > (1500-12))
-	{
-		PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
-		PRINT_R("Need %d bytes, sid=%d\n", pktLen, sid);
-	}
+	//if (pktLen > (1500-12))
+	//{
+	//	PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
+	//	PRINT_R("Need %d bytes, sid=%d\n", pktLen, sid);
+	//}
 	//memcpy(&rtp_read_tmp[12], packet, pktLen);
-	memcpy(voice_rtp2dsp_content ->voice, packet, pktLen);
+	//memcpy(voice_rtp2dsp_content ->voice, packet, pktLen);
 	
 	ipc_pkt_tx_final( 0, IPC_PROT_VOICE_TO_DSP, 
-						(unsigned char*)voice_rtp2dsp_content, 
-						pktLen + SIZE_OF_VOICE_RTP2DSP_CONT_HEADER, 
-						&stTxPktCtrl, NULL);
+						(unsigned char*)packet /*voice_rtp2dsp_content*/, 
+						pktLen /*+ SIZE_OF_VOICE_RTP2DSP_CONT_HEADER*/, 
+						&stTxPktCtrl, NULL,
+						( uint8 * )&voice_rtp2dsp_content_header);
 	
 	return SUCCESS;
 }
@@ -93,10 +102,11 @@ void ipc_Host2DSP_T38Tx( uint32 chid_pkt, uint32 sid_pkt, void* packet, uint32 p
 {
 	/* Send T.38 packet to DSP */
 	TstTxPktCtrl stTxPktCtrl;
-	unsigned char t38_read_tmp[1500];
+	//unsigned char t38_read_tmp[1500];
 	unsigned int chid, mid, /*sid,*/ len;
-	voice_content_t * const voice_content =
-				( voice_content_t * )t38_read_tmp;
+	//voice_content_t * const voice_content =
+	//			( voice_content_t * )t38_read_tmp;
+	voice_content_t voice_content_header;
 
 	stTxPktCtrl.dsp_cpuid = API_get_DSP_ID(0, chid_pkt);
 	stTxPktCtrl.seq_no = -1;
@@ -108,6 +118,9 @@ void ipc_Host2DSP_T38Tx( uint32 chid_pkt, uint32 sid_pkt, void* packet, uint32 p
 	//sid = API_GetSid(chid, mid);
 
 #if 1
+	voice_content_header.chid = chid;
+	voice_content_header.mid = mid;
+#elif 1
 	voice_content ->chid = chid;
 	voice_content ->mid = mid;
 #else	
@@ -117,30 +130,31 @@ void ipc_Host2DSP_T38Tx( uint32 chid_pkt, uint32 sid_pkt, void* packet, uint32 p
 	
 	len = pktLen;
 	
-	if ( len > (1500-8))
-	{
-		PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
-		PRINT_R("Need %d bytes, sid=%d\n", len, sid_pkt);
-	}
+	//if ( len > (1500-8))
+	//{
+	//	PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
+	//	PRINT_R("Need %d bytes, sid=%d\n", len, sid_pkt);
+	//}
 	//memcpy(&t38_read_tmp[8], skb->data + sizeof(struct udphdr), len);
-	memcpy(voice_content ->voice, packet, len);
+	//memcpy(voice_content ->voice, packet, len);
 	
 	ipc_pkt_tx_final( 0, IPC_PROT_T38_TO_DSP, 
-						(unsigned char*)voice_content, 
-						len + SIZE_OF_VOICE_CONT_HEADER, 
-						&stTxPktCtrl, NULL);
+						(unsigned char*)packet/*voice_content*/, 
+						len /*+ SIZE_OF_VOICE_CONT_HEADER*/, 
+						&stTxPktCtrl, NULL,
+						( uint8 * )&voice_content_header);
 	//printk("T%d ", ptr->c_id);
 }
 
 /************************************************************************/
-static void read_mgr_chid( uint32 *mgr_chid, void *user, unsigned int len, const voip_mgr_entry_t *p_entry )
+static int read_mgr_chid( uint32 *mgr_chid, void *user, unsigned int len, const voip_mgr_entry_t *p_entry )
 {
 	unsigned char *field;
 	
 	if( p_entry ->field_offset + p_entry ->field_size > len ) {
 		PRINT_R( "Bad field offset + size (%d > %d) in reading!\n",
 				 p_entry ->field_offset + p_entry ->field_size, len );
-		return;
+		return -EVOIP_IOCTL_IPC_HOST_CHID_CHECK_ERR;
 	}
 	
 	field = ( unsigned char * )user;
@@ -158,17 +172,20 @@ static void read_mgr_chid( uint32 *mgr_chid, void *user, unsigned int len, const
 		break;
 	default:
 		PRINT_R( "Bad field_size=%u in reading!\n", p_entry ->field_size );
+		return -EVOIP_IOCTL_IPC_HOST_CHID_CHECK_ERR;
 	}
+	
+	return 0;
 }
 
-static void write_mgr_chid( uint32 mgr_chid, void *user, unsigned int len, const voip_mgr_entry_t *p_entry )
+static int write_mgr_chid( uint32 mgr_chid, void *user, unsigned int len, const voip_mgr_entry_t *p_entry )
 {
 	unsigned char *field;
 	
 	if( p_entry ->field_offset + p_entry ->field_size > len ) {
 		PRINT_R( "Bad field offset + size (%d > %d) in writing!\n",
 				 p_entry ->field_offset + p_entry ->field_size, len );
-		return;
+		return -EVOIP_IOCTL_IPC_HOST_SIZE_CHECK_ERR;
 	}
 	
 	field = ( unsigned char * )user;
@@ -186,7 +203,10 @@ static void write_mgr_chid( uint32 mgr_chid, void *user, unsigned int len, const
 		break;
 	default:
 		PRINT_R( "Bad field_size=%u in writing!\n", p_entry ->field_size );
+		return -EVOIP_IOCTL_IPC_HOST_SIZE_CHECK_ERR;
 	}
+	
+	return 0;
 }
 
 #define HSND_PRINTK		PRINT_Y
@@ -196,12 +216,12 @@ static unsigned char user_buffer[ USER_BUFFER_SIZE ];
 
 int do_voip_mgr_ctl_in_host( int cmd, void *user, unsigned int len, const voip_mgr_entry_t *p_entry )
 {
-	uint32 flags = p_entry ->flags;
+	mgr_flags_t flags = p_entry ->flags;
 	int ret = 0;
 	uint32 mgr_chid;
 	int copy_to_user_buffer_ok = 0;
 	
-	static int entry = 0;
+	volatile static int entry = 0;
 
 #if 0	
 	switch( cmd ) {
@@ -218,11 +238,12 @@ int do_voip_mgr_ctl_in_host( int cmd, void *user, unsigned int len, const voip_m
 	//PRINT_MSG( "%s\n", p_entry ->cmd_name );
 	
 	// check re-entry. Because we have only one copy of user_buffer 
-	if( entry ) {
-		PRINT_R( "host voip_mgr_ctl re-entry!!\n" );
+	while( entry ) {
+		PRINT_R( "host voip_mgr_ctl re-entry!! (old=%d new=%d)\n", entry, cmd );
+		schedule();
 	}
 	
-	entry = 1;
+	entry = ( cmd ? cmd : 1 );
 	
 	// check type size 
 	if( ( flags & MF_AUTOFW ) ) {
@@ -230,11 +251,16 @@ int do_voip_mgr_ctl_in_host( int cmd, void *user, unsigned int len, const voip_m
 			;	// structure fill header only 
 		else {
 			if( ( flags & MF_CHANNEL ) && ( p_entry ->type_size != len ) ) 
+			{
 				PRINT_R( "cmd %d field size is different %d!=%d\n", cmd, p_entry ->type_size, len );
+				ret = -EVOIP_IOCTL_IPC_HOST_SIZE_CHECK_ERR;
+				goto label_err_return;
+			}
 		}
 		if( len > USER_BUFFER_SIZE ) {
 			PRINT_R( "cmd %d length is too long %d>%d\n", cmd, len, USER_BUFFER_SIZE );
-			return -EFBIG;
+			ret = -EVOIP_IOCTL_IPC_HOST_SIZE_CHECK_ERR;
+			goto label_err_return;
 		}
 	}
 	
@@ -243,11 +269,16 @@ int do_voip_mgr_ctl_in_host( int cmd, void *user, unsigned int len, const voip_m
 			   == ( MF_AUTOFW | MF_CHANNEL | MF_SNDCMD ) )
 	{
 		// channel: M_NORMAL_SND_MGR, M_FETCH_SND_MGR  
-		copy_from_user( user_buffer, user, len );
+		if (ret = copy_from_user( user_buffer, user, len ))
+		{
+			ret = -EVOIP_IOCTL_COPY_FROM_USER_ERR;
+			goto label_err_return;
+		}
 		copy_to_user_buffer_ok = 1;
 		
-		read_mgr_chid( &mgr_chid, user_buffer, len, p_entry );
-		
+		if (ret = read_mgr_chid( &mgr_chid, user_buffer, len, p_entry ))
+			goto label_err_return;
+
 		// if SND locates host 
 		if( snd_locate_host_cch( mgr_chid ) ) {
 			flags &= ~MF_AUTOFW;
@@ -266,30 +297,51 @@ int do_voip_mgr_ctl_in_host( int cmd, void *user, unsigned int len, const voip_m
 	if( flags & MF_AUTOFW ) {
 		
 		if( !copy_to_user_buffer_ok )
-			copy_from_user( user_buffer, user, len );
+		{
+			if (ret = copy_from_user( user_buffer, user, len ))
+			{
+				ret = -EVOIP_IOCTL_COPY_FROM_USER_ERR;
+				goto label_err_return;
+			}
+		}
 		
 		if( flags & MF_CHANNEL ) {
 			uint32 dsp_cpuid, dsp_cch;
 			
 			//mgr_chid = stVoipCfg.ch_id;
-			read_mgr_chid( &mgr_chid, user_buffer, len, p_entry );
+			if (ret = read_mgr_chid( &mgr_chid, user_buffer, len, p_entry ))
+				goto label_err_return;
+
 			//stVoipCfg.ch_id = API_get_DSP_CH(cmd, stVoipCfg.ch_id);	// convert to DSP chid
-			API_get_DSP_info( cmd, mgr_chid, &dsp_cpuid, &dsp_cch );
+			if (ret = API_get_DSP_info( cmd, mgr_chid, &dsp_cpuid, &dsp_cch ))
+				goto label_err_return;
+
 			PRINT_MSG( "%s ch_id=%d(%d:%d)\n", p_entry ->cmd_name, mgr_chid, dsp_cpuid, dsp_cch );
-			write_mgr_chid( dsp_cch, user_buffer, len, p_entry );
+			if (ret = write_mgr_chid( dsp_cch, user_buffer, len, p_entry ))
+				goto label_err_return;
+
 			//ret = ethernetDspSentL2ControlPacket(cmd, mgr_chid, &stVoipCfg, sizeof(TstVoipCfg));
-			ret = ipcSentControlPacket(cmd, mgr_chid, user_buffer, len );
+			if (ret = ipcSentControlPacket(cmd, mgr_chid, user_buffer, len, flags ))
+				goto label_err_return;
 			//stVoipCfg.ch_id = mgr_chid;
 			//write_mgr_chid( mgr_chid, user_buffer, len, p_entry );	// move to below 
 			//stVoipCfg.ret_val = ret;
 		} else {
 			PRINT_MSG( "%s\n", p_entry ->cmd_name );
-			ret = ipcSentControlPacketNoChannel( cmd, user_buffer, len );
+			if (ret = ipcSentControlPacketNoChannel( cmd, user_buffer, len, flags ))
+				goto label_err_return;
 		}
 	}
 	
 	if( flags & MF_BODY ) {
 		// do_mgr function do copy_from_user by itself 
+		if ((p_entry ->do_mgr) == NULL)
+		{
+			PRINT_R("IOCTL command %d has no do_mgr\n", cmd);
+			ret = -EVOIP_IOCTL_NO_MGR_ERR;
+			goto label_err_return;
+		}
+
 		ret = p_entry ->do_mgr( cmd, user, len, 0 );
 	}
 	
@@ -299,22 +351,35 @@ int do_voip_mgr_ctl_in_host( int cmd, void *user, unsigned int len, const voip_m
 			uint32 dsp_chid;
 			
 			//ethernetDspCheckL2RespPacket(cmd, &stSlicReg, &dsp_id);
-			ipcCheckRespPacket(cmd, user_buffer, &dsp_id);
+			ipcCheckRespPacket(cmd, user_buffer, &dsp_id); //always return 0
 			//stSlicReg.ch_id = API_get_Host_CH( dsp_id, stSlicReg.ch_id);/* Get Host chid */
-			read_mgr_chid( &dsp_chid, user_buffer, len, p_entry );
-			mgr_chid = API_get_Host_CH( dsp_id, dsp_chid );/* Get Host chid */
-			write_mgr_chid( mgr_chid, user_buffer, len, p_entry );
-			
+			if (ret = read_mgr_chid( &dsp_chid, user_buffer, len, p_entry ))
+				goto label_err_return;
+
+			if ( (mgr_chid = API_get_Host_CH( dsp_id, dsp_chid )) < 0 ) /* Get Host chid */
+			{
+				ret = mgr_chid;
+				goto label_err_return;
+			}
+			if (ret = write_mgr_chid( mgr_chid, user_buffer, len, p_entry ))
+				goto label_err_return;
+
 			//stSlicReg.ret_val = ret; // update ret_val must after check response ack      	
 			
-			copy_to_user( user, user_buffer, len );
+			if (ret = copy_to_user( user, user_buffer, len ))
+			{
+				ret = -EVOIP_IOCTL_COPY_TO_USER_ERR;
+				goto label_err_return;
+			}
 		} else if( flags & MF_CHANNEL ) {
-			write_mgr_chid( mgr_chid, user_buffer, len, p_entry );
+			if (ret = write_mgr_chid( mgr_chid, user_buffer, len, p_entry ))
+				goto label_err_return;
 		}
 	}
-	
+
+label_err_return:
+
 	entry = 0;
-	
 	return ret;
 }
 

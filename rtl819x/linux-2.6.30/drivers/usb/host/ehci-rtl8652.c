@@ -626,6 +626,39 @@ static int  ehci_rtl8652_init(void)
 #if defined(CONFIG_RTL_8196C)
 	synopsys_usb_patch();
 #endif
+#if defined(CONFIG_RTL_8881A)
+
+	SetUSBPhy(0xe0,0xb1);   if(GetUSBPhy(0xe0)!=0xb1) printk("reg 0xe0 not correct\n");
+    SetUSBPhy(0xe2,0x9e);   if(GetUSBPhy(0xe2)!=0x9e) printk("reg 0xe2 not correct\n");
+    SetUSBPhy(0xe4,0x01);   if(GetUSBPhy(0xe4)!=0x01) printk("reg 0xe4 not correct\n");
+    SetUSBPhy(0xe5,0x93);   if(GetUSBPhy(0xe5)!=0x93) printk("reg 0xe5 not correct\n");
+    SetUSBPhy(0xe6,0xc8);   if(GetUSBPhy(0xe6)!=0xc8) printk("reg 0xe6 not correct\n");
+
+
+			
+	// refine for B-cut and later
+	{
+	unsigned int val= REG32(0xb80000dc);
+	if ((val & 0x3) != 0x3)
+		REG32(0xb80000dc) |= 0x3; // wlanmac_control, set active_wlanmac_sys and active_wlanmac_lx for RF revision ID
+
+	if ((REG32(0xb86400f0) & 0x0000f000) >= 0x00001000)
+	{
+		//Recommand by Yozen 09272013 for FT parameters
+		SetUSBPhy(0xe2,0x9b);   if(GetUSBPhy(0xe2)!=0x9b) printk("reg 0xe2 not correct\n");
+		SetUSBPhy(0xe6,0xe8);   if(GetUSBPhy(0xe6)!=0xe8) printk("reg 0xe6 not correct\n");
+	}
+
+	REG32(0xb80000dc) = val; // restore value.
+	}
+
+
+
+
+
+#endif
+
+
 #if 1 //wei add
 
 //	disable Host chirp J-K
@@ -633,7 +666,28 @@ static int  ehci_rtl8652_init(void)
 	//if(oneportsel==1)
 	//SetUSBPhy(0xe6,0xb8);  //disconnect, work
 	//SetUSBPhy(0xe6,0xc8); 
-	
+	////////////////////////////////////////////////////////////////////////////////////////
+//       Patch from Realtek to force calibration once.
+///////////////////////////////////////////////////////////////////////////////////////
+        int temp=0;
+        temp=(GetUSBPhy(0xe3))&0xFF;
+        temp= temp&(~(1<<6));
+        SetUSBPhy(0xe3,(temp&0xFF));
+        temp = temp|((1<<6));
+        SetUSBPhy(0xe3,(temp&0xFF));
+
+        temp=(GetUSBPhy(0xe1))&0xFF;
+        temp= temp&(~(1<<7));
+        SetUSBPhy(0xe1,(temp&0xFF));
+        temp = temp|((1<<7));
+        SetUSBPhy(0xe1,(temp&0xFF));
+
+
+
+/////////////////////////////////////////////////////////////////////////////////
+//       End of the Pathc
+////////////////////////////////////////////////////////////////////////////////
+
 	//SetUSBPhy(0xe7,0x1c);  //jwen tell
 	//dump
 	int i;

@@ -10,24 +10,6 @@
 
 #DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
 
-L4_SUPPORT= 
-ifdef CONFIG_RTL_8198
-L4_SUPPORT=1
-endif
-
-ifdef CONFIG_RTL_8196CT
-L4_SUPPORT=1
-endif
-
-ifdef CONFIG_RTL_8198T
-L4_SUPPORT=1
-endif
-
-ifdef CONFIG_RTL_819XDT
-L4_SUPPORT=1
-endif
-
-
 ifeq ($(CONFIG_RTL_819XD),y)
 TARGET = 9xD
 endif
@@ -39,6 +21,9 @@ TARGET = 96C
 endif
 ifeq ($(CONFIG_RTL_8198),y)
 TARGET = 98
+endif
+ifeq ($(CONFIG_RTL_8881A),y)
+TARGET = 8881A
 endif
 
 ifeq ($(CONFIG_RTK_IPTABLES_FAST_PATH),m)
@@ -61,13 +46,11 @@ obj-y := \
 	rtl865xC_hs.o
 
 	ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER_L3
-		obj-y += $(TARGET)/rtl865x_asicL3.o
+		obj-y += rtl865x_asicL3.o
 	endif
 
-ifeq ($(L4_SUPPORT), 1) 
 	ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER_L4
-		obj-y += $(TARGET)/rtl865x_asicL4.o 
-	endif
+		obj-y += rtl865x_asicL4.o 
 endif
 
 #obj-$(CONFIG_RTL865X_CLE) += rtl8651_tblAsicDrv_cmd.o

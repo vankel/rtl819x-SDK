@@ -28,6 +28,8 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/timer.h>
+#include <linux/swab.h>
+	
 
 /*
  * fill ring buffer with silence
@@ -1640,13 +1642,29 @@ static int snd_pcm_lib_write_transfer(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	int err;
 	char __user *buf = (char __user *) data + frames_to_bytes(runtime, off);
+	int i, swap_len=0;
+	unsigned short *SwapStart;
+	
 	if (substream->ops->copy) {
 		if ((err = substream->ops->copy(substream, -1, hwoff, buf, frames)) < 0)
 			return err;
 	} else {
 		char *hwbuf = runtime->dma_area + frames_to_bytes(runtime, hwoff);
+		swap_len = frames_to_bytes(runtime, frames);
 		if (copy_from_user(hwbuf, buf, frames_to_bytes(runtime, frames)))
 			return -EFAULT;
+			
+	#if 0 //defined(CONFIG_SND_RTL819X_SOC)	
+			//Need byte Swap if necessary
+			if(SNDRV_PCM_FORMAT_S16_LE==runtime->format){
+				//panic_printk("%s,DoByteSwap,swap len=%d\n", __func__,(swap_len/2));
+				SwapStart =(unsigned short *)(hwbuf);
+				for(i=0;i<(swap_len/2);i++){
+					*SwapStart=swab16(*SwapStart);
+					SwapStart++;
+				}
+			}
+	#endif
 	}
 	return 0;
 }

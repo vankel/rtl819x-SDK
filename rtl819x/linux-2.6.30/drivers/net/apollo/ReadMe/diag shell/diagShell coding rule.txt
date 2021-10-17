@@ -1,0 +1,86 @@
+==========================================
+edit xxx.cli
+==========================================
+Please reference  
+apollo\ReadMe\diag shell\RTK_MS_SDK_DiagShell_CodingGuide_2.0.0(Chinese).doc
+apollo\ReadMe\diag shell\apollo_diagshell_rules.doc
+
+==========================================
+using code gen tool 產生  diag_xxx.c
+==========================================
+Please reference
+apollo\sdk\src\app\diag\config\autogen_tool\readme.txt
+
+
+
+==========================================
+Add command flow
+==========================================
+1.Add xxx.cli in sdk\src\app\diag\config\
+2.Add command in xxx.cli
+3.Add #include "./xxx.cli" in diag_shell.cli
+4.在目錄  
+  apollo\internal\apollo\diagShellCygwin
+make shell_tree 
+5.將code gen tool 產生  diag_xxx.c 放到
+  apollo\sdk\src\app\diag\src\diag_xxx.c
+
+
+6.修改make file
+  apollo\internal\apollo\diagShellCygwin\Makefile
+  將 diag_xxx.o 加入make
+7.make diag (確認之前已經執行過 make all)
+8.執行 diag 確認 新增command 可以執行
+9.開始coding function body
+
+
+==========================================
+coding diag_xxx.c function body
+==========================================
+1.display key word
+
+    為了讓 display string 統一, 我們的display string 統一定在
+    apollo\sdk\src\app\diag\include\diag_str.h
+    若大家有其它要display 的string 請自己define 在裡面
+  
+    而使用方式大家可以參考
+    apollo\sdk\src\app\diag\src\diag_svlan.c
+    請大家不要在code 裡面自己hard code印出string, 
+    以免以後要改display string 時會不好改
+ 
+
+2. display 請用 diag_util_mprintf and diag_util_printf 
+
+3. diag_util_mprintf display 問題
+
+    透過 diag_util_mprintf, 會有page 的功能
+    
+    但請在換行的地方才call diag_util_mprintf
+    其餘請call diag_util_printf
+    
+4.使用的utilty
+[portlist]
+IS_PORT_IN_PORT_MARSK(port, port_mask)
+
+    (將user input 轉成 port list)
+DIAG_UTIL_EXTRACT_PORTLIST(portlist, portlist_pos)
+      --> note: 目前utility 設計若輸入 all 並不包含 CPU port!!
+
+DIAG_UTIL_EXTRACT_DSLLIST(portlist, portlist_pos)
+DIAG_UTIL_EXTRACT_EXTLIST(portlist, portlist_pos)
+
+DIAG_UTIL_PORTMASK_SCAN(portlist, port)
+DIAG_UTIL_PORTMASK_UNSETSCAN(portlist, port) 
+
+
+[Token utility]
+TOKEN_STR(m)   
+TOKEN_CHAR(m,n)
+TOKEN_NUM      
+  
+note: 有需要增加utility 請report
+
+  
+5.
+ set command 只display error!
+ 

@@ -57,6 +57,7 @@
  *
  */
 #include <asm/unaligned.h>
+#include <linux/dma-mapping.h>
 #ifdef DEBUG
 #include <linux/jiffies.h>
 #endif
@@ -64,6 +65,9 @@
 #include "dwc_otg_plat.h"
 #include "dwc_otg_regs.h"
 #include "dwc_otg_cil.h"
+
+
+#include "dwc_otg_hcd.h"		
 
 /** 
  * This function is called to initialize the DWC_otg CSR data
@@ -1840,11 +1844,42 @@ void dwc_otg_hc_start_transfer(dwc_otg_core_if_t *_core_if, dwc_hc_t *_hc)
 	if (_core_if->dma_enable) 
 	{
 #endif	
+
+#if 0 //jason
 		//100415 cathy start, check if 4 bytes alignment at dma starting address
 		if((unsigned int)_hc->xfer_buff & 0x3)
 			printk("DWC_otg: dma address:0x%08x is not at alignment!\n", (unsigned int)_hc->xfer_buff);
 		/////100415 cathy end
+
 		dwc_write_reg32(&hc_regs->hcdma, (uint32_t)_hc->xfer_buff);
+#else
+#if 1 // jason 0317 // defined (CONFIG_DWC_OTG_HOST_ONLY)
+		if ((uint32_t)_hc->xfer_buff & 0x3) {
+			/* non DWORD-aligned buffer case*/
+			if(!_hc->qh->dw_align_buf) {
+				_hc->qh->dw_align_buf =
+					dma_alloc_coherent(NULL,
+					   		   _core_if->core_params->max_transfer_size,
+					   		   &_hc->qh->dw_align_buf_dma,
+					   		   GFP_ATOMIC | GFP_DMA);
+				if (!_hc->qh->dw_align_buf) {
+						
+					DWC_ERROR("%s: Failed to allocate memory to handle "
+						  "non-dword aligned buffer case\n", __func__);
+					return;
+				}
+			
+			}
+			if (!_hc->ep_is_in) {
+			    memcpy(_hc->qh->dw_align_buf, phys_to_virt((uint32_t)_hc->xfer_buff), _hc->xfer_len);
+			}
+
+			dwc_write_reg32(&hc_regs->hcdma, _hc->qh->dw_align_buf_dma);
+		}		
+		else
+#endif
+		dwc_write_reg32(&hc_regs->hcdma, (uint32_t)_hc->xfer_buff);
+#endif
 #ifndef DMA_ONLY
 	}
 #endif

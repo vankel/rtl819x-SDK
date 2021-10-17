@@ -64,12 +64,25 @@ function progress()
   myProgBar.setBar(time); 
 }
 
-
+function getFileType(str)
+{
+	if(str.value == "")
+		return;
+	var name = str.split(".");
+	var type = name[name.length-1];
+	return type;
+}
 function sendClicked(F)
 {
   if(document.upload.binary.value == ""){
       	document.upload.binary.focus();
   	alert('File name can not be empty !');
+  	return false;
+  }
+  var fileType = getFileType(document.upload.binary.value);
+  if(fileType != "bin"){      	
+  	document.upload.binary.focus();
+  	alert('Invalid file format !');
   	return false;
   }
   F.submit();

@@ -18,7 +18,7 @@ TARGET = 96E
 endif
 
 ifeq ($(CONFIG_RTL_8196C),y)
-TARGET = 96E
+TARGET = 96C
 endif
 
 ifeq ($(CONFIG_RTL_8198),y)
@@ -45,12 +45,14 @@ obj-$(CONFIG_RTL_IPTABLES_FAST_PATH) += $(TARGET)/fast_filter.o
 else
 obj-$(CONFIG_RTL_IPTABLES_FAST_PATH) += $(TARGET)/filter_v2.o
 endif
+
 ifeq ($(CONFIG_RTL_FAST_PPPOE), y)
 obj-$(CONFIG_RTL_IPTABLES_FAST_PATH) += $(TARGET)/fast_pppoe_core.o
 endif
+
 endif
 
-obj-$(CONFIG_RTL_FAST_BRIDGE) += fast_br.o 
+
 
 clean:
 	rm -rf *.o *.ko *.mod.c

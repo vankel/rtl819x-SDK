@@ -429,7 +429,10 @@ typedef struct ether_addr_s {
 
 #if defined(CONFIG_RTL_819X)
 	#if defined(CONFIG_RTL_ETH_PRIV_SKB)
-	#define DELAY_REFILL_ETH_RX_BUF	1
+	#define DELAY_REFILL_ETH_RX_BUF			1
+	#define PRIV_BUF_CAN_USE_KERNEL_BUF		1
+	#define INIT_RX_RING_ERR_HANDLE			1
+	//#define ALLOW_RX_RING_PARTIAL_EMPTY		1
 	#endif
 #endif
 
@@ -580,6 +583,19 @@ typedef struct ether_addr_s {
 
 #define DYN_THR_LINK_UP_PORTS			3
 
+#ifdef CONFIG_RTL_8881A
+/* IC default value */
+#define DYN_THR_DEF_fcON				0x1ac
+#define DYN_THR_DEF_fcOFF				0x1a0
+#define DYN_THR_DEF_sharedON			0x162
+#define DYN_THR_DEF_sharedOFF			0x14a
+
+/* aggressive value */
+#define DYN_THR_AGG_fcON				0x1d2
+#define DYN_THR_AGG_fcOFF				0x1ba
+#define DYN_THR_AGG_sharedON			0x190
+#define DYN_THR_AGG_sharedOFF			0x178
+#else
 /* IC default value */
 #define DYN_THR_DEF_fcON				0xac
 #define DYN_THR_DEF_fcOFF				0xa0
@@ -596,7 +612,7 @@ typedef struct ether_addr_s {
 #define DYN_THR_AGG_sharedON			0x88 // 0xc0
 #define DYN_THR_AGG_sharedOFF			0x70 // 0xa8
 #endif
-
+#endif
 #if defined(CONFIG_RTL_LOG_DEBUG)
 extern int scrlog_printk(const char * fmt, ...);
 

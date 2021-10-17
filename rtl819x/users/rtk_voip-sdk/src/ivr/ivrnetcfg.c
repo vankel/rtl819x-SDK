@@ -9,9 +9,7 @@
 #include "voip_manager.h"
 #include "ivrnetcfg.h"
 
-#ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxD
 #define USE_BOA
-#endif
 
 #ifdef NETWORK_SETTINGS_IN_RAM
 /*

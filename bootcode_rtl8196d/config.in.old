@@ -23,7 +23,9 @@ comment 'Choose a Vendor/Product combination.'
 #===========================================================================
 # Different IC decalre in here.
 
-choice 'Product' "RTL8196D CONFIG_RTL8196D  \
+choice 'Product' "RTL8196D CONFIG_RTL8196D_  \
+RTL8196E CONFIG_RTL8196E  \
+RTL89xxD CONFIG_RTL89xxD\
 " RTL8196D
 
 
@@ -31,7 +33,16 @@ choice 'Product' "RTL8196D CONFIG_RTL8196D  \
 # Different IC want contain with the different config in here 
 #
 
-if [ "$CONFIG_RTL8196D" = "y" ] ; then
+if [ "$CONFIG_RTL8196D_" = "y" ] || [ "$CONFIG_RTL89xxD" = "y" ]; then
+		define_bool RTL8196  y
+		define_bool RTL8198 y
+		define_bool CONFIG_HISTORY_KEYIN
+		define_bool CONFIG_RTL8198_REVISION_B y				
+		define_bool CONFIG_RTL8198 y
+		define_bool CONFIG_RTL8196D y
+fi
+
+if [ "$CONFIG_RTL8196E" = "y" ] ; then
 		define_bool RTL8196  y
 		define_bool RTL8198 y
 		define_bool CONFIG_HISTORY_KEYIN
@@ -40,12 +51,18 @@ if [ "$CONFIG_RTL8196D" = "y" ] ; then
 fi
 
 
-
-
 #===========================================================================
 # Common Config with every IC have this function in here. Don't litmit someone ic.
 #
+if [ "$CONFIG_RTL89xxD" = "y" ]; then
+choice 'VOIP Board version' " \
+v100_board RTK_VOIP_BOARD_V100 \
+" v100_board
+fi
 
+if [ "$CONFIG_RTL89xxD" = "y" ]; then
+        define_bool CONFIG_RTK_VOIP y
+fi
 
 
 choice 'is FLASH Type ' "NOR_FLASH  CONFIG_NOR_FLASH \
@@ -102,11 +119,11 @@ if [ "$CONFIG_DDR1_SDRAM" = "y" ] || [ "$CONFIG_DDR2_SDRAM" = "y" ]; then
 	define_bool CONFIG_DDR_SDRAM y
 fi
 
-if [ "$CONFIG_RTL8196D" = "y" ]; then
+if [ "$CONFIG_RTL8196D" = "y" ] || [ "$CONFIG_RTL8196E" = "y" ]; then
 choice 'is SWITCH Type ' "10M_100M  CONFIG_SW_100M \
 P0_GMII  CONFIG_SW_P0_GMII \
 P0_RGMII  CONFIG_SW_P0_RGMII \
-NONE  CONFIG_SW_NONE \
+P0_MII	CONFIG_SW_MII \
 " 10M_100M
 fi
 
@@ -148,7 +165,7 @@ bool 'Enable IIS Test'	CONFIG_IIS_TEST
 # Different IP module. If want to add test IP module, add in here. Can limmit some IC
 #
 bool 'Enable Test Host PCIE'	CONFIG_PCIE_MODULE
-
+bool 'Support OSK'     CONFIG_OSK
 
  if [ "$CONFIG_NONE_FLASH" = "y" ]; then
 bool 'Enable NFBI'	CONFIG_NFBI
@@ -169,6 +186,11 @@ bool 'Enable JTAG Function for code debugging'	CONFIG_USING_JTAG
 bool 'Enable NIC Loopback Feature'	CONFIG_NIC_LOOPBACK
 
 bool 'Enable DRAM CKE'   CONFIG_CKE_ENABLE
+
+if [ "$CONFIG_RTL8196E" = "y" ]; then
+bool 'Enable KLD Support'   CONFIG_RTL8196E_KLD
+bool 'Enable 96E ulinker boot led'   CONFIG_RTL8196E_ULINKER_BOOT_LED
+fi
 
 #---------------------------------------------------------------------------
 

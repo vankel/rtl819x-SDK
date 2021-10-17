@@ -15,6 +15,15 @@ mkdir /var/system
 mkdir /var/dnrd
 mkdir /var/lib
 mkdir /var/lib/misc
+
+###for tr069
+mkdir /var/cwmp_default
+mkdir /var/cwmp_config
+
+if [ ! -f /var/cwmp_default/DefaultCwmpNotify.txt ]; then
+	cp -p /etc/DefaultCwmpNotify.txt /var/cwmp_default/DefaultCwmpNotify.txt 2>/dev/null
+fi
+
 ##For miniigd
 mkdir /var/linuxigd
 cp /etc/tmp/pics* /var/linuxigd 2>/dev/null

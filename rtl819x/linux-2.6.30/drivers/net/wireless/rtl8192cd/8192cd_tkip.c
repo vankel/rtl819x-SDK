@@ -238,11 +238,12 @@ void michael(
 		num_blocks -= 2;
 	}
 
+#ifndef NOT_RTK_BSP
 	if ((priv->pshare->have_hw_mic) &&
 		!(priv->pmib->dot11StationConfigEntry.swTkipMic))
 	{
 		if (tx)
-			rtl_cache_sync_wback(priv, (unsigned int)message, (num_blocks*4), PCI_DMA_TODEVICE);
+			rtl_cache_sync_wback(priv, (unsigned long)message, (num_blocks*4), PCI_DMA_TODEVICE);
 		
 		*(volatile unsigned int *)GDMACNR  = 0;
 		*(volatile unsigned int *)GDMACNR  = GDMA_ENABLE;
@@ -250,13 +251,14 @@ void michael(
 		*(volatile unsigned int *)GDMAISR  = 0xffffffff;
 		*(volatile unsigned int *)GDMAICVL = (l);
 		*(volatile unsigned int *)GDMAICVR = (r);
-		*(volatile unsigned int *)GDMASBP0 = virt_to_bus(message);
+		*(volatile unsigned int *)GDMASBP0 = virt_to_bus(message)+CONFIG_LUNA_SLAVE_PHYMEM_OFFSET;
 		*(volatile unsigned int *)GDMASBL0 = GDMA_LDB|(num_blocks*4);
 		*(volatile unsigned int *)GDMADBP0 = 0;
 		*(volatile unsigned int *)GDMADBL0 = 0;
 		*(volatile unsigned int *)GDMACNR  = GDMA_ENABLE|GDMA_POLL|GDMA_MIC|internalUsedGDMACNR;
 	}
 	else
+#endif // NOT_RTK_BSP
 	{
 		for (block = 0; block < num_blocks; block++)
 		{
@@ -805,7 +807,8 @@ void tkip_encrypt(
 		{
 			ttkey = GET_GROUP_ENCRYP_KEY;
 			ptsc48 = GET_GROUP_ENCRYP_PN;
-			keyid = 1;
+			//keyid = 1;
+			keyid = priv->pmib->dot11GroupKeysTable.keyid;//use mib keyid
 		}
 		else
 		{
@@ -821,13 +824,22 @@ void tkip_encrypt(
 #ifdef CLIENT_MODE
 	else if (OPMODE & WIFI_STATION_STATE)
 	{
-		if (pstat == NULL) {
-			DEBUG_ERR("tx tkip pstat == NULL\n");
-			return;
+		if (IS_MCAST(ra))
+		{
+			ttkey = GET_GROUP_ENCRYP_KEY;
+			ptsc48 = GET_GROUP_ENCRYP_PN;
+			keyid = GET_ROOT(priv)->pmib->dot11GroupKeysTable.keyid;
 		}
-		ttkey = GET_UNICAST_ENCRYP_KEY;
-		ptsc48 = GET_UNICAST_ENCRYP_PN;
-		keyid = 0;
+		else
+		{
+			if (pstat == NULL) {
+				DEBUG_ERR("tx tkip pstat == NULL\n");
+				return;
+			}
+			ttkey = GET_UNICAST_ENCRYP_KEY;
+			ptsc48 = GET_UNICAST_ENCRYP_PN;
+			keyid = 0;
+		}
 	}
 	else if (OPMODE & WIFI_ADHOC_STATE)
 	{
@@ -878,7 +890,6 @@ unsigned int tkip_decrypt(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo
 {
 	union TSC48		tsc48;
 	unsigned char	*da;
-	unsigned char	*sa;
 	unsigned char	*ta;
 	unsigned int	keylen=0, hdr_len, pnh, crc;
 	unsigned short	pnl;
@@ -889,7 +900,6 @@ unsigned int tkip_decrypt(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo
 
 	pframe = get_pframe(pfrinfo);
 	da = pfrinfo->da;
-	sa = pfrinfo->sa;
 	hdr_len = pfrinfo->hdr_len;
 
 	ta = GetAddr2Ptr(pframe);
@@ -919,8 +929,14 @@ unsigned int tkip_decrypt(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo
 	{
 		if (IS_MCAST(da))
 		{
-			keylen = GET_GROUP_ENCRYP_KEYLEN;
-			ttkey  = GET_GROUP_ENCRYP_KEY;
+			if((pframe[WLAN_HDR_A3_LEN + 3]&BIT(7))){
+				keylen = GET_GROUP_IDX2_ENCRYP_KEYLEN;
+				ttkey = GET_GROUP_ENCRYP2_KEY;
+			}
+			else{				
+				keylen = GET_GROUP_ENCRYP_KEYLEN;
+				ttkey = GET_GROUP_ENCRYP_KEY;
+			}
 		}
 		else
 		{
@@ -989,7 +1005,7 @@ void wep_encrypt(struct rtl8192cd_priv *priv, unsigned char *pwlhdr, unsigned in
 	unsigned int keyid = 0;
 	unsigned char *iv = pwlhdr + hdrlen;
 	struct stat_info *pstat = NULL;
-	unsigned long *piv;
+	unsigned int *piv;
 	int keylen;
 #ifdef WDS
 	unsigned int to_fr_ds = (GetToDs(pwlhdr) << 1) | GetFrDs(pwlhdr);
@@ -1061,13 +1077,13 @@ void wep_encrypt(struct rtl8192cd_priv *priv, unsigned char *pwlhdr, unsigned in
 do_encrypt:
 #endif
 
-	piv = (unsigned long *)GET_GROUP_ENCRYP_PN;
+	piv = (unsigned int *)GET_GROUP_ENCRYP_PN;
 	if (type == _WEP_40_PRIVACY_)
 		keylen = 8;
 	else
 		keylen = 16;
 
-	*((unsigned long *)iv) = (htonl(*piv) << 8) | ((unsigned char) ((keyid&0x03)<<6));
+	*((unsigned int *)iv) = cpu_to_le32(((*piv) & 0x00FFFFFF) |((keyid&0x03)<<30));
 	*piv = *piv + 1;
 
 	memcpy(rc4key, iv, 3);
@@ -1077,11 +1093,9 @@ do_encrypt:
 {
 	char tmpbuf[400], tmp1[100];
 	int i;
-
-	tmp1[0] = '\0';
-	memcpy(&tmp1[1], iv, 3);
+	
 	sprintf(tmpbuf, "wep encrypt: iv=%d, keyid=%d, type=%s, key=",
-		(int)ntohl(*((unsigned long *)tmp1)), keyid,
+		(le32_to_cpup((u32 *)iv) & 0xFFFFFF), keyid,
 		(type==_WEP_40_PRIVACY_ ? "64b" : "128b"));
 
 	for (i=0; i<keylen-3; i++) {
@@ -1202,11 +1216,9 @@ do_decrypt:
 {
 	char tmpbuf[400], tmp1[100];
 	int i;
-
-	tmp1[0] = '\0';
-	memcpy(&tmp1[1], iv, 3);
+	
 	sprintf(tmpbuf, "wep decript: iv=%d, keyid=%d, type=%s, key=",
-		(int)ntohl(*((unsigned long *)tmp1)), (int)((iv[3]>>6)&3),
+		(le32_to_cpup((u32 *)iv) & 0xFFFFFF), (int)((iv[3]>>6)&3),
 		(type==_WEP_40_PRIVACY_ ? "64b" : "128b"));
 
 	for (i=0; i<keylen-3; i++) {
@@ -1283,8 +1295,21 @@ int tkip_rx_mic(struct rtl8192cd_priv *priv, unsigned char *pframe, unsigned cha
 	{
 		if (IS_MCAST(da))
 		{
-	 		keylen = GET_GROUP_MIC_KEYLEN;
-			mickey = GET_GROUP_TKIP_MIC1_KEY;
+	 		if((pframe[WLAN_HDR_A3_LEN + 3]&BIT(7))){
+				keylen = GET_GROUP_IDX2_MIC_KEYLEN;
+				mickey = GET_GROUP_TKIP_IDX2_MIC1_KEY;
+			}
+			else{
+				keylen = GET_GROUP_MIC_KEYLEN;
+				mickey = GET_GROUP_TKIP_MIC1_KEY;		
+			}
+
+#ifdef A4_STA
+            if(pstat && (pstat->state & WIFI_A4_STA)) {
+    	 		keylen = GET_UNICAST_MIC_KEYLEN;
+    			mickey = GET_UNICAST_TKIP_MIC1_KEY;
+            }
+#endif            
 		}
 		else
 		{
@@ -1327,6 +1352,7 @@ int tkip_rx_mic(struct rtl8192cd_priv *priv, unsigned char *pframe, unsigned cha
 	if ((16 + len + 5) & (4-1))
 		num_blocks++;
 
+#ifndef NOT_RTK_BSP
 	if ((priv->pshare->have_hw_mic) &&
 		!(priv->pmib->dot11StationConfigEntry.swTkipMic))
 	{
@@ -1354,6 +1380,7 @@ int tkip_rx_mic(struct rtl8192cd_priv *priv, unsigned char *pframe, unsigned cha
 		tkipmic[7] = (unsigned char)((r >> 24) & 0xff);
 	}
 	else
+#endif // NOT_RTK_BSP
 		michael(priv, mickey, hdr, pbuf, pbuf+8, (num_blocks << 2), tkipmic, 0);
 
 	return TRUE;

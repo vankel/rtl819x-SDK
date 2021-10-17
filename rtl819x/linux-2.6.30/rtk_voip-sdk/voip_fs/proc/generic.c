@@ -85,6 +85,32 @@ void create_voip_session_proc_read_entry(
 	}
 }
 
+void create_voip_session_proc_rw_entry(
+	const char * name,
+	read_proc_t * read_proc,
+	write_proc_t * write_proc )
+{
+	extern int sess_num;
+	struct proc_dir_entry *voip_proc;
+
+	int i;
+	char buf[ 256 ];
+		
+	for( i = 0; i < PROC_VOIP_SS_NUM; i ++ ) {	// 'voip/ss%u/'
+		sprintf( buf, PROC_VOIP_DIR "/" PROC_VOIP_SS_FORMAT "/%s", i, name );
+
+		voip_proc = create_proc_entry( buf, 0644, NULL);
+		
+		if (voip_proc == NULL) {
+			printk("voip_proc NULL!! \n");
+			return;
+		}
+		voip_proc->data = ( void * )PROC_DATA_FROM_SS( i );
+		voip_proc->read_proc = read_proc;
+		voip_proc->write_proc = write_proc;
+	}
+}
+
 /*
  * Remove entries from channel or session 
  */

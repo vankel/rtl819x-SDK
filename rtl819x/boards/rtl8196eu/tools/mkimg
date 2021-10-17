@@ -373,6 +373,13 @@ echo "/dev/mtdblock1 b 666 root root  31  1" >> squashfs-pf-list.txt
 echo "/dev/mtdblock2 b 666 root root  31  2" >> squashfs-pf-list.txt
 echo "/dev/mtdblock3 b 666 root root  31  3" >> squashfs-pf-list.txt
 
+###for tr069
+echo "/dev/mtd0 c 666 root root  90  0" >> squashfs-pf-list.txt
+echo "/dev/mtd1 c 666 root root  90  1" >> squashfs-pf-list.txt
+echo "/dev/mtd2 c 666 root root  90  2" >> squashfs-pf-list.txt
+echo "/dev/mtd3 c 666 root root  90  3" >> squashfs-pf-list.txt
+echo "/dev/mtd4 c 666 root root  90  4" >> squashfs-pf-list.txt
+
 if [ "$GW_VPN" = 1  ];then
 #DEVICES="$DEVICES  random,c,1,8"
 echo "/dev/random    c 666 root root   1  8" >> squashfs-pf-list.txt

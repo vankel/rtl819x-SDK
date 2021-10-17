@@ -7,7 +7,7 @@
  *
  *	Copyright 2005 Realtek Semiconductor Corp.
  */
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -27,58 +27,33 @@
 #define SUPPRESSION_PCM_INT_ORDER	2
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8651
-#define RTL865X_REG_BASE (0xBD010000)
 #elif defined CONFIG_RTK_VOIP_DRIVERS_PCM8186
 #include <asm/rtl8186.h>
 #define EXTERNEL_CLK
-#define USE_MEM64_OP
-#include "gpio/gpio.h"
 #elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM8671) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676)
-#include "gpio/gpio.h"
 #include "../include/rtl8671.h"
 #elif defined CONFIG_RTK_VOIP_DRIVERS_PCM865xC
-#include "gpio/gpio.h"
-
 #elif defined CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY
-#include "gpio/gpio.h"
-
 #elif defined CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
-//#include "gpio/gpio.h"
 #endif
 
+#include "rtk_voip.h"
 #include "voip_addrspace.h"
 #include "voip_types.h"
-#include "mem.h"
-#include "dmem_stack.h"
-#include "rtk_voip.h"
-
 #include "voip_init.h"
 #include "voip_proc.h"
+#include "voip_dev.h"
 
+#include "mem.h"
+#include "dmem_stack.h"
+#ifdef CONFIG_VOIP_RADIAX_BACKUP
 #include "radiax_save.h"
+#endif
 
 #include "cp3_profile.h"
 
 #include "bus_pcm_interface.h"
-//#include "spi.h"
-//#include "si3210init.h"
-//#include "Slic_api.h"
 #include "snd_define.h"
-//#include "Daa_api.h"
-//#ifndef AUDIOCODES_VOIP
-//#include "codec_def.h"
-//#include "codec_descriptor.h"
-//#include "../voip_dsp/include/dtmf_dec.h"
-
-//#include "../voip_dsp/dsp_r1/include/lexra_radiax.h"
-
-//#ifdef FXO_CALLER_ID_DET
-//#include "fsk_det.h"
-//extern long cid_type[MAX_VOIP_CH_NUM];
-//#endif
-//#include "fskcid_gen.h"
-
-//#endif /*AUDIOCODES_VOIP*/
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8651
 #include "voip_support.h"
@@ -86,26 +61,18 @@
 voip_callback_t toRegister[BUS_PCM_CH_NUM];
 #endif
 
-//#ifdef 	CONFIG_RTK_VOIP_LED
-//#include "led.h"
-//#endif
-
-//#include "../voip_dsp/ivr/ivr.h"
-
-
-//#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-//#include "./iphone/ipphone_interface.h"
-//#endif
 
 #if !defined( BUS_PCM_CH_NUM ) || \
 	( BUS_PCM_CH_NUM < 1 ) || ( BUS_PCM_CH_NUM > 8 )
 #error "BUS_PCM_CH_NUM value is invalid!!!"
 #endif
 
-#include "voip_dev.h"
 #include "con_register.h"
 #include "con_bus_handler.h"
 #include "con_mux.h"
+#ifdef SUPPORT_SILAB_FXO_TUNE
+#include "fxo_tune.h"
+#endif
 
 
 #ifndef SUPPORT_CUT_DSP_PROCESS
@@ -169,17 +136,13 @@ static uint32 IMR_fold = 0;		// which IMR fold is enabled
 // channel mapping architecture 
 // --------------------------------------------------------
 
-#include "rtk_voip.h"
 #include "voip_init.h"
 #include "con_register.h"
 
 static voip_bus_t bus_pcm[ BUS_PCM_CH_NUM ];
-static uint32 bus_pcm_wideband_bits = 0;
+static uint32 bus_pcm_wideband_hybrid_bits = 0;	//8k+8k wideband 
 
 /************************************************************************/
-/**********If you want to split off_hook and on_hook for solar(voip_mgr_netfilter.c),****/
-/**********you have to define macro SPLIT_DAA_ON_OFF_HOOK.*******************************/
-#define SPLIT_DAA_ON_OFF_HOOK
 /*********************************************/
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8186
 #define DEV_NAME	"pcmctrl"
@@ -305,6 +268,9 @@ static int pcm_set_page_size(unsigned int chid, unsigned int size)
 	//PDBUG("set channel %d page size = %d\n", chid, size);
 	// too many console message will cause R0, T0
 	//printk("set channel %d page size = %d\n", chid, size);
+	
+	pcmctrl_devices[ chid ].page_size = size;
+	
 	return 0;	
 }
 
@@ -329,7 +295,8 @@ static unsigned int pcm_get_page_size(unsigned int chid)
 	return pagesize;
 }
 #else
-#define pcm_get_page_size(x) (PCM_PERIOD*PCM_PERIOD_10MS_SIZE)
+//#define pcm_get_page_size(x) (PCM_PERIOD*PCM_PERIOD_10MS_SIZE)
+#define pcm_get_page_size( bch ) ( pcmctrl_devices[ bch ].page_size )
 #endif
 
 /* Set Tx, Rx own bit to PCM Controller. */
@@ -420,11 +387,13 @@ static unsigned int pcm_get_tx_base_addr(unsigned int chid)
 	unsigned int txbaseaddr;
 #if BUS_PCM_CH_NUM > 4
 	if (chid & 4) {/* chid 4~7 */
-	 	txbaseaddr = (pcm_inl(CH47TX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
+	 	//txbaseaddr = (pcm_inl(CH47TX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
+	 	txbaseaddr = Physical2NonCache(pcm_inl(CH47TX_BSA(chid)) & 0xFFFFFFFC); // to virtual non-cached address
 	} else
 #endif
 	{
-	 	txbaseaddr = (pcm_inl(TX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
+	 	//txbaseaddr = (pcm_inl(TX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
+	 	txbaseaddr = Physical2NonCache(pcm_inl(TX_BSA(chid)) & 0xFFFFFFFC); // to virtual non-cached address
 	}
 	PDBUG(" get Tx base addresss = 0x%x, ch=%d\n", txbaseaddr, chid);
 	return txbaseaddr;
@@ -437,12 +406,14 @@ static unsigned int pcm_get_rx_base_addr(unsigned int chid)
 	unsigned int rxbaseaddr;
 #if BUS_PCM_CH_NUM > 4
 	if (chid & 4) {/* chid 4~7 */
-	 	rxbaseaddr = (pcm_inl(CH47RX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
+	 	//rxbaseaddr = (pcm_inl(CH47RX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
+	 	rxbaseaddr = Physical2NonCache(pcm_inl(CH47RX_BSA(chid)) & 0xFFFFFFFC); // to virtual non-cached address
 	} else
 #endif
 	{
- 		rxbaseaddr = (pcm_inl(RX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
-	}
+ 		//rxbaseaddr = (pcm_inl(RX_BSA(chid)) & 0xFFFFFFFC)|0xA0000000; // to virtual non-cached address
+ 		rxbaseaddr = Physical2NonCache(pcm_inl(RX_BSA(chid)) & 0xFFFFFFFC); // to virtual non-cached address
+ 	}
  	PDBUG(" get Rx base addresss = 0x%x, ch=%d\n", rxbaseaddr, chid);
 	return rxbaseaddr;
 }
@@ -473,11 +444,11 @@ static void pcm_enable(void)
 #endif	//endif CONFIG_RTK_VOIP_DRIVERS_PCM8651_T
 #endif	
 	pcm_outl(PCMCR, PCM_ENABLE);		
-#if CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
+#ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
 	asm volatile ("nop\n\t");// add nop fix test chip cpu 5281 bug, formal chip is ok. advised by yen@rtk
 #endif
 	pcm_outl(PCMCR, 0);
-#if CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
+#ifdef CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
 	asm volatile ("nop\n\t");// add nop fix test chip cpu 5281 bug, formal chip is ok. advised by yen@rtk
 #endif
 	pcm_outl(PCMCR, PCM_ENABLE);		
@@ -559,7 +530,8 @@ void wlan_analog_disable(void)
 }
 #endif
 
-#if 0
+//#if 0
+#ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8672
 static void pcm_rx_enable( uint32 bch1, uint32 bch2 )
 {
 	uint32 bits;
@@ -626,8 +598,11 @@ static void pcm_isr_reset_tx_rx(unsigned int chid, int tx, int rx)
 
 static void pcm_imr_enable(unsigned int chid, unsigned char type)
 {
+#define PAGEOK_IMR			0x01	// rx only 
+//#define PAGEOK_IMR		0x05	// tx and rx 
+
 	//PDBUG("enable channel %d IMR\n", chid);
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) 
+#if PCM_VERSION == 0x0100	// 1.0 
 	switch(type)
 	{
 		case P0OK:
@@ -655,17 +630,17 @@ static void pcm_imr_enable(unsigned int chid, unsigned char type)
 			break;
 			
 	}
-#else //for 89xxC, 8972B, 8651C and 8652 used
+#elif PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
 	switch(type)
 	{
 		case P0OK:
 	#if BUS_PCM_CH_NUM > 4
 			if (chid & 4) {/* chid 4~7 */
-				pcm_outl(PCMIMR47, pcm_inl(PCMIMR47)|(0x05<<(31-8*(chid&3)-2)));
+				pcm_outl(PCMIMR47, pcm_inl(PCMIMR47)|(PAGEOK_IMR<<(31-8*(chid&3)-2)));
 			} else
 	#endif
 			{
-				pcm_outl(PCMIMR, pcm_inl(PCMIMR)|(0x05<<(31-8*chid-2)));
+				pcm_outl(PCMIMR, pcm_inl(PCMIMR)|(PAGEOK_IMR<<(31-8*chid-2)));
 			}
 			//PDBUG("enable channel %d IMR P0OK\n", chid);
 			break;
@@ -673,11 +648,11 @@ static void pcm_imr_enable(unsigned int chid, unsigned char type)
 		case P1OK:
 	#if BUS_PCM_CH_NUM > 4
 			if (chid & 4) {/* chid 4~7 */
-				pcm_outl(PCMIMR47, pcm_inl(PCMIMR47)|(0x05<<(31-8*(chid&3)-3)));
+				pcm_outl(PCMIMR47, pcm_inl(PCMIMR47)|(PAGEOK_IMR<<(31-8*(chid&3)-3)));
 			} else
 	#endif
 			{
-				pcm_outl(PCMIMR, pcm_inl(PCMIMR)|(0x05<<(31-8*chid-3)));
+				pcm_outl(PCMIMR, pcm_inl(PCMIMR)|(PAGEOK_IMR<<(31-8*chid-3)));
 			}
 			//PDBUG("enable channel %d IMR P1OK\n", chid);
 			break;
@@ -711,7 +686,9 @@ static void pcm_imr_enable(unsigned int chid, unsigned char type)
 			break;
 			
 	}
-	
+
+#else
+	#error 	
 #endif	
 //	print_pcm();
 	
@@ -720,7 +697,7 @@ static void pcm_imr_enable(unsigned int chid, unsigned char type)
 static void pcm_imr_disable(unsigned int chid, unsigned char type)
 {
 	//PDBUG("disable channel %d IMR\n", chid);
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) &&  !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#if PCM_VERSION == 0x0100	// 1.0 
 	switch(type)
 	{
 		case P0OK:
@@ -748,7 +725,7 @@ static void pcm_imr_disable(unsigned int chid, unsigned char type)
 			break;
 			
 	}
-#else
+#elif PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
 	switch(type)
 	{
 		case P0OK:
@@ -804,6 +781,8 @@ static void pcm_imr_disable(unsigned int chid, unsigned char type)
 			break;
 			
 	}
+#else
+	#error 
 #endif
 	
 }
@@ -1141,20 +1120,52 @@ static int32 pcm_ISR(uint32 pcm_isr)
 					#endif
 					} else {
 
-						if( bch == 0 ) {
-							ddinst_rw_auto( VOIP_DEV_PCM0_TX, ( char * )txbuf, 160 );
-							//printk(".");
+#ifdef SUPPORT_SILAB_FXO_TUNE
+						int tmp;
+						
+						if (FXO_tune_test_flag_get(p_con->cch))
+						{
+							//if (p_con->cch != 2)
+							//	printk(">%d ", p_con->cch);
+
+							memset(txbuf, 0, pcm_get_page_size(bch));
+							test_tone_gen( p_con->cch, ( Word16* )txbuf, 80);
+							FXO_tune_test_tone_cntr_add(p_con->cch);
+							tmp = tone_analysis(p_con->cch, (unsigned short*)txbuf, 80 );
+							//printk(">%d\n", tmp);
+							FXO_tune_test_tone_pwr_update(p_con->cch, tmp);
 						}
-						else if( bch == 2 ) {
-							ddinst_rw_auto( VOIP_DEV_PCM1_TX, ( char * )txbuf, 160 );
-							//printk("x");
-						}
+
+						// Debug						
+						//if( p_con->cch == 2 )
+						//	ddinst_rw_auto( VOIP_DEV_PCM1_TX, ( char * )txbuf, 160 );
+#endif
 
 #ifdef SUPPORT_VOIP_DBG_COUNTER
 						if (gVoipCounterEnable == 1)
 							PCM_tx_count(bch);
 #endif
 					}
+
+#if 0	// TX play tone test 
+					{
+						const short vpat[16]={32767,30272,23170,12539,0,-12539,-23170,-30272,-32767,-30272,-23170,-12539, 0,12539,23170,30272 };
+						short *tx_x = txbuf;
+						int x;
+						
+						if( p_bus ->enabled == 1 ) {
+							// narrowband 
+							for( x = 0; x < 80; x ++ ) {
+								*( tx_x + x ) = vpat[ x & 0xF ];	// '& 0xF' is '% 16'  
+							}
+						} else {
+							// wideband 
+							for( x = 0; x < 160; x ++ ) {
+								*( tx_x + x ) = vpat[ ( x >> 1 ) & 0xF ];	// '& 0xF' is '% 16'  
+							}
+						}
+					}
+#endif				
 
 #if defined (AUDIOCODES_VOTING_MECHANISM)	
 				}	// chanEnabled
@@ -1188,6 +1199,26 @@ static int32 pcm_ISR(uint32 pcm_isr)
 #else
 			if( pcm_isr & ChanRxPage[rx_isrpage] ) {
 #endif
+
+#if 0	// RX play tone test 
+					{
+						const short vpat[16]={32767,30272,23170,12539,0,-12539,-23170,-30272,-32767,-30272,-23170,-12539, 0,12539,23170,30272 };
+						short *rx_x = &pRxBuf[bch][rxpage[bch]*(pcm_get_page_size(bch)>>2)];
+						int x;
+						
+						if( p_bus ->enabled == 1 ) {
+							// narrowband 
+							for( x = 0; x < 80; x ++ ) {
+								*( rx_x + x ) = vpat[ x & 0xF ];	// '& 0xF' is '% 16'  
+							}
+						} else {
+							// wideband 
+							for( x = 0; x < 160; x ++ ) {
+								*( rx_x + x ) = vpat[ ( x >> 1 ) & 0xF ];	// '& 0xF' is '% 16'  
+							}
+						}
+					}
+#endif				
 				// pcm_set_rx_own_bit ASAP helps a lot!
 				if( p_con ->con_ops ->isr_bus_write_rx_TH( p_con, p_bus, 
 						( uint16 * )&pRxBuf[bch][rxpage[bch]*(pcm_get_page_size(bch)>>2)] )
@@ -1492,8 +1523,9 @@ static int32 pcm_ISR(uint32 pcm_isr)
 #endif
 
 
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)&&  !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
-#define CHECK_PCM_ISR_AGAIN
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) &&	!defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) &&	\
+	!defined(CONFIG_RTK_VOIP_PLATFORM_8686)
+//#define CHECK_PCM_ISR_AGAIN
 #endif
 
 #define CHECK_PCM_ISR_REENTRY
@@ -1503,7 +1535,7 @@ static int in_pcm_isr = 0;
 
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8672
-#define PCM_ISR_PERIOD_TEST
+//#define PCM_ISR_PERIOD_TEST
 #endif
 
 #ifdef PCM_ISR_PERIOD_TEST
@@ -1693,7 +1725,7 @@ int PcmClkCheck(void)
 
 
 __pcmIsr00 
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
 static irqreturn_t pcm_interrupt(int32 irq, void *dev_instance)
 #elif defined CONFIG_RTK_VOIP_DRIVERS_PCM8672 || defined CONFIG_RTK_VOIP_DRIVERS_PCM8676 
 __IRAM static irq_handler_t pcm_interrupt(int32 irq, void *dev_instance)
@@ -1702,9 +1734,11 @@ static void pcm_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 #endif
 
 {
+#ifdef CONFIG_VOIP_RADIAX_BACKUP
 #ifndef AUDIOCODES_VOIP
 	extern int save_radiax_reg(void);
 	extern int load_radiax_reg(void);
+#endif
 #endif
 #ifdef SUPPORT_SYS_DMEM_STACK
 	extern int dmem_size;
@@ -1717,7 +1751,7 @@ static void pcm_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 
 #if ! defined (AUDIOCODES_VOTING_MECHANISM)
 	unsigned int maskval;
-	int channel=0;
+	int channel;
 #endif
 	
 #ifdef CHECK_PCM_ISR_REENTRY
@@ -1728,11 +1762,13 @@ static void pcm_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 	in_pcm_isr = 1;	
 #endif	
 
+#ifdef CONFIG_VOIP_RADIAX_BACKUP
 #ifndef AUDIOCODES_VOIP
 	save_radiax_reg(); /* save radiax register value */
 #else
 	volatile struct pt_radiax radiax_regs;
 	save_radiax_reg(&radiax_regs); /* save radiax register value */
+#endif
 #endif
 	
 #ifdef SUPPORT_SYS_DMEM_STACK
@@ -1795,7 +1831,7 @@ static void pcm_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 	
 			
 #if ! defined (AUDIOCODES_VOTING_MECHANISM)
-	
+		channel = 1;	// remove here
 #if 1
 		//if((maskval = (status_val & ISR_MASK(channel))))
 		if((maskval = (status_val & 0x0F0F0F0F))) // Buffer Unavailable only
@@ -1933,10 +1969,12 @@ static void pcm_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 	sys_orig_sp = 0;
 #endif
 
+#ifdef CONFIG_VOIP_RADIAX_BACKUP
 #ifndef AUDIOCODES_VOIP
 	load_radiax_reg(); /* load saved radiax register value */
 #else
 	restore_radiax_reg(&radiax_regs);
+#endif
 #endif
 	
 #ifdef FEATURE_COP3_PCMISR
@@ -1948,7 +1986,7 @@ static void pcm_interrupt(int32 irq, void *dev_instance, struct pt_regs *regs)
 	in_pcm_isr = 0;	
 #endif
 
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
+#if defined(CONFIG_DEFAULTS_KERNEL_2_6) || defined(CONFIG_DEFAULTS_KERNEL_3_4)
 	return IRQ_HANDLED;
 #endif
 }
@@ -2051,7 +2089,7 @@ static inline void reset_pcm_BH_in_timer( void )
 
 void bus_pcm_checking_timer( void )
 {
-	if( bus_pcm_wideband_bits )
+	if( bus_pcm_wideband_hybrid_bits )
 		reset_pcm_BH_in_timer();
 }
 
@@ -2125,7 +2163,7 @@ void bus_pcm_processor_in_tasklet( void )
 #endif
 
 #if 1
-	if( bus_pcm_wideband_bits )
+	if( bus_pcm_wideband_hybrid_bits )
 		reset_pcm_in_tasklet();
 #endif
 }
@@ -2194,11 +2232,6 @@ struct file_operations pcmctrl_fops = {
 
 int __init pcmctrl_init(void)	
 {
-#if 0	// enable G.726 ITU test vector verification
-	extern int g726_itu_verify(void);
-	g726_itu_verify();
-#endif
-	
 #ifdef CONFIG_RTK_VOIP_DRIVERS_PCM8651
 	int i;
 	int ret;
@@ -2276,49 +2309,6 @@ int __init pcmctrl_init(void)
 		
 		init_var();
 
-#if 0 // chmap
-                //=================== SLIC Initialization ==============//
-		if (SLIC_init(law) != 0)
-		{
-			PRINT_R("<<< SLIC Init Fail >>>\n");
-			return -1;
-		}
-
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
-		//channel 1 compander enable
-		BOOT_MSG("set channel 1 compander\n");
-		pcm_outl(PCMCHCNR, pcm_inl(PCMCHCNR)|BIT((8*(MAXCH-2)+3))); //chiminer modify
-		BOOT_MSG("Set U-law, PCMCHCNR = 0x%x \n", pcm_inl(PCMCHCNR)); //chiminer modify
-#endif
-#endif // chmap 
-                //=================== DAA Initialization ==============//
-#if 0	// chmap
-#ifdef CONFIG_RTK_VOIP_DRIVERS_FXO
-#ifndef CONFIG_RTK_VOIP_DRIVERS_VIRTUAL_DAA
-#ifndef CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3217x
-		for (ch = slic_ch_num; ch < voip_ch_num; ch++)
-		{
-			if (ch == slic_ch_num)
-			{
-				init_spi(DAA0_SPI_DEV); //spi init for DAA port 0
-			}
-			else if (ch == (slic_ch_num+1))
-			{
-				init_spi(DAA1_SPI_DEV); //spi init for DAA port 1
-			}				
-			DAA_Init(ch, law);	// DAA initialization
-		}
-#endif
-#endif
-#endif
-#endif	
-
-//===================IP_phone Initialization======================//
-#if 0
-#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
-		ipphone_init( law );
-#endif	
-#endif
 		result = 0;
 	}
 	else
@@ -2557,8 +2547,39 @@ static void __exit PCM_shutdown(void)
 	
 }
 
+static void pcm_band_select( uint32 bch1, uint32 bch2, int bandfactor )
+{
+	// narrowband: bandfactor == 1, wideband: bandfactor == 2 
+	
+#if PCM_VERSION == 0x0400
+	uint32 bits;
+	
+#if BUS_PCM_CH_NUM > 4
+	if (bch1 & 4) {/* chid 4~7 */
+		bits =	BIT((8*(MAXCH-(bch1&3)-1)+3)) |
+				BIT((8*(MAXCH-(bch2&3)-1)+3));
+		
+		if( bandfactor == 2 )
+			pcm_outl(PCMCHCNR47, pcm_inl(PCMCHCNR47)|bits);
+		else
+			pcm_outl(PCMCHCNR47, pcm_inl(PCMCHCNR47)&~bits);
+	} else
+#endif
+	{
+		bits =	BIT((8*(MAXCH-(bch1&3)-1)+3)) |
+				BIT((8*(MAXCH-(bch2&3)-1)+3));
+		
+		if( bandfactor == 2 )
+			pcm_outl(PCMCHCNR, pcm_inl(PCMCHCNR)|bits);	
+		else
+			pcm_outl(PCMCHCNR, pcm_inl(PCMCHCNR)&~bits);	
+	}
+	
+#endif // PCM_VERSION == 0x0400
+}
+
 #if !defined (AUDIOCODES_VOTING_MECHANISM)
-static void pcm_enableChan( uint32 bch1, uint32 bch2 )
+static void pcm_enableChan( uint32 bch1, uint32 bch2, int bandfactor )
 {
 	int reg_pbsize;
 	Word16 nPeriod;
@@ -2598,7 +2619,7 @@ static void pcm_enableChan( uint32 bch1, uint32 bch2 )
 	nPeriod = nPcmIntPeriod[chid];
 #endif
 #endif
-	reg_pbsize = nPeriod * 8 * 2;		// 8 samples/ms * 2 bytes/sample
+	reg_pbsize = nPeriod * 8 * 2 * bandfactor;		// 8 samples/ms * 2 bytes/sample * bandfactor 
 	pcm_set_page_size( bch1, reg_pbsize);
 	pcm_set_page_size( bch2, reg_pbsize);
 	//pcm_get_page_size(chid);
@@ -2611,13 +2632,20 @@ static void pcm_enableChan( uint32 bch1, uint32 bch2 )
 		pcm_set_rx_own_bit( bch2, i);
 	}
 #endif
+	
+	pcm_band_select( bch1, bch2, bandfactor );
+	
+	if( reg_pbsize * 2 > BUFFER_SIZE ) {
+		PRINT_R( "PCM(%d,%d) page size is too large %d > %d.\n",
+					bch1, bch2, reg_pbsize * 2, BUFFER_SIZE );
+	}
 
 #if 1	// clean TX data 
 	memset( Virtual2NonCache( pcm_dma[ bch1 ].tx ), 0, BUFFER_SIZE );
 	if( bch1 != bch2 )
 		memset( Virtual2NonCache( pcm_dma[ bch2 ].tx ), 0, BUFFER_SIZE );
 #endif
-
+	
 	chanEnabled[ bch1 ] = chanEnabled[ bch2 ] = TRUE;
 	EnaPcmIntr( bch1 );
 	EnaPcmIntr( bch2 );
@@ -2754,14 +2782,14 @@ static void pcm_disableChan(unsigned int chid)
 }
 #endif
 
-static void PCM_restart( uint32 bch1, uint32 bch2 )
+static void PCM_restart( uint32 bch1, uint32 bch2, int bandfactor )
 {
 #if ! defined (AUDIOCODES_VOTING_MECHANISM)
 	txpage[ bch1 ] = txpage[ bch2 ] = 0;
 	rxpage[ bch1 ] = rxpage[ bch2 ] = 0;
 #endif	
 	tr_cnt[ bch1 ] = tr_cnt[ bch2 ] = 0;
-	pcm_enableChan( bch1, bch2 );
+	pcm_enableChan( bch1, bch2, bandfactor );
 
 }
 
@@ -2819,13 +2847,14 @@ static int bus_pcm_enable( voip_bus_t *this, int enable )
 		( enable == 2 || enable == 0 ? this ->bus_partner_ptr : NULL );
 	const uint32 bch2 = 
 		( p_bus_partner ? p_bus_partner ->bch : this ->bch );
+	const int bandfactor = ( p_bus_partner ? 1 : enable );
 	
 	// wideband bits mask 
-	if( enable == 2 ) {
-		bus_pcm_wideband_bits |= 
+	if( enable == 2 && p_bus_partner ) {
+		bus_pcm_wideband_hybrid_bits |= 
 					( ( 1 << this ->bch  ) | ( 1 << bch2 ) );
 	} else if( enable == 0 ) {
-		bus_pcm_wideband_bits &= 
+		bus_pcm_wideband_hybrid_bits &= 
 					~( ( 1 << this ->bch  ) | ( 1 << bch2 ) );
 	}
 	
@@ -2835,7 +2864,7 @@ static int bus_pcm_enable( voip_bus_t *this, int enable )
 	//	p_bus_partner ->role_var = p_bus_partner ->role_bind;
 	
 	if( enable ) {
-		PCM_restart( this ->bch, bch2 );
+		PCM_restart( this ->bch, bch2, bandfactor );
 	} else {
 		pcm_disableChan( this ->bch );
 		if( p_bus_partner )
@@ -2919,22 +2948,28 @@ static void bus_pcm_set_timeslot( voip_bus_t *this, uint32 ts1, uint32 ts2 )
 	const uint32 bch = this ->bch;
 	uint32 PCMTSR_tmp, mask, shift;
 	uint32 PCMTSR_sel;
+#if PCM_VERSION == 0x0400
+	uint32 PCMWTSR_tmp;
+	uint32 PCMWTSR_sel;
+#endif
 	
 	this ->TS1_var = ts1;
 	this ->TS2_var = ts2;
-	
-	if( this ->band_mode_bind == BAND_MODE_16K ) {
-		// for next generation 
-	}
-	
+
 	if( bch < 4 ) {
 		// 0:[24-28], 1:[16-20], 2:[8-12], 3:[0-4]
 		shift = ( ( 3 - bch ) * 8 );
 		PCMTSR_sel = PCMTSR;
+#if PCM_VERSION == 0x0400
+		PCMWTSR_sel = PCMWTSR03;
+#endif
 	} else if( bch < 8 ) {
 		// 4:[24-28], 5:[16-20], 6:[8-12], 7:[0-4]
 		shift = ( ( 7 - bch ) * 8 );
 		PCMTSR_sel = PCMTSR47;
+#if PCM_VERSION == 0x0400
+		PCMWTSR_sel = PCMWTSR47;
+#endif
 	} else {
 		printk( "set timeslot on bch (%d)!?\n", bch );
 		return;
@@ -2944,6 +2979,17 @@ static void bus_pcm_set_timeslot( voip_bus_t *this, uint32 ts1, uint32 ts2 )
 	PCMTSR_tmp = pcm_inl( PCMTSR_sel );
 	PCMTSR_tmp = ( PCMTSR_tmp & ~mask ) | ( ( ts1 & 0x1F ) << shift );
 	pcm_outl( PCMTSR_sel, PCMTSR_tmp );
+	
+#if PCM_VERSION == 0x0400
+	if( this ->band_mode_bind & BAND_MODE_16K ) {
+		PCMWTSR_tmp = pcm_inl( PCMWTSR_sel );
+		PCMWTSR_tmp = ( PCMWTSR_tmp & ~mask ) | ( ( ts2 & 0x1F ) << shift );
+		//printk( "PCMWTSR_tmp=%08X\n", PCMWTSR_tmp );
+		//printk( "PCMWTSR_sel=%08X\n", PCMWTSR_sel );
+		pcm_outl( PCMWTSR_sel, PCMWTSR_tmp );
+	}
+#endif	
+	
 }
 
 static void bus_pcm_set_format( voip_bus_t *this, uint32 _format )
@@ -2955,17 +3001,19 @@ static void bus_pcm_set_format( voip_bus_t *this, uint32 _format )
 	{
 		case BUSDATFMT_PCM_LINEAR:// Linear
 		case BUSDATFMT_PCM_WIDEBAND_LINEAR:// wideband linear 
-		#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) ||  defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+		#if PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
 		pcm_outl(PCMCR, pcm_inl(PCMCR)|BIT(13));
 		BOOT_MSG("Set linear mode, PCMCR = 0x%x \n", pcm_inl(PCMCR));
-		#else
+		#elif PCM_VERSION == 0x0100	// 1.0 
 		pcm_outl(PCMCHCNR,0);
 		BOOT_MSG("Set linear mode, PCMCHCNR = 0x%x \n", pcm_inl(PCMCHCNR));
+		#else
+			#error 
 		#endif
 		break;
 		case BUSDATFMT_PCM_ALAW:// A-law
 		case BUSDATFMT_PCM_WIDEBAND_ALAW:// wideband A-law
-		#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) ||  defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+		#if PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
 		pcm_outl(PCMCR, pcm_inl(PCMCR)&~BIT(13));
 #if BUS_PCM_CH_NUM > 4
 		if (ch & 4) {/* chid 4~7 */
@@ -2974,15 +3022,17 @@ static void bus_pcm_set_format( voip_bus_t *this, uint32 _format )
 		} else
 #endif
 			pcm_outl(PCMCHCNR, pcm_inl(PCMCHCNR)|BIT((8*(MAXCH-ch-1)+2)));
-		#else
+		#elif PCM_VERSION == 0x0100	// 1.0 
 		pcm_outl(PCMCHCNR, pcm_inl(PCMCHCNR)|BIT((8*(MAXCH-ch-1)+3))|BIT((8*(MAXCH-ch-1)+2)));
+		#else
+			#error 
 		#endif
 		BOOT_MSG("Set A-law, PCMCHCNR = 0x%x \n", pcm_inl(PCMCHCNR));
 		break;
 		
 		case BUSDATFMT_PCM_ULAW:// U-law
 		case BUSDATFMT_PCM_WIDEBAND_ULAW:// wideband U-law
-		#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8676) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+		#if PCM_VERSION >= 0x0200 && PCM_VERSION <= 0x0400	// 2.0  ~ 4.0 
 		pcm_outl(PCMCR, pcm_inl(PCMCR)&~BIT(13));
 #if BUS_PCM_CH_NUM > 4
 		if (ch & 4) {/* chid 4~7 */
@@ -2991,8 +3041,10 @@ static void bus_pcm_set_format( voip_bus_t *this, uint32 _format )
 		} else
 #endif
 			pcm_outl(PCMCHCNR, pcm_inl(PCMCHCNR) & (~BIT((8*(MAXCH-ch-1)+2)))  );
-		#else
+		#elif PCM_VERSION == 0x0100	// 1.0 
 		pcm_outl(PCMCHCNR, pcm_inl(PCMCHCNR)|BIT((8*(MAXCH-ch-1)+3)));
+		#else
+			#error 
 		#endif
 		BOOT_MSG("Set U-law, PCMCHCNR = 0x%x \n", pcm_inl(PCMCHCNR));
 		break;
@@ -3059,9 +3111,18 @@ static int __init voip_bus_pcm_init( void )
 		bus_pcm[ i ].bch = i;
 		bus_pcm[ i ].name = "pcm";
 		bus_pcm[ i ].bus_type = BUS_TYPE_PCM;
-		bus_pcm[ i ].band_mode_sup = BAND_MODE_8K;
+#if PCM_VERSION == 0x0400
+		if( i < 8 ) {	// wide/narrowband 
+			bus_pcm[ i ].band_mode_sup = BAND_MODE_8K | BAND_MODE_16K;
+		} else
+#endif
+		{
+			// narrowband only 
+			bus_pcm[ i ].band_mode_sup = BAND_MODE_8K;
+		}
 		bus_pcm[ i ].bus_group = ( i < 4 ? BUS_GROUP_PCM03 : BUS_GROUP_PCM47 );
 		bus_pcm[ i ].bus_ops = &bus_pcm_ops;
+		bus_pcm[ i ].priv = &pcmctrl_devices[ i ];
 	}
 	
 	register_voip_bus( &bus_pcm[ 0 ], BUS_PCM_CH_NUM );
@@ -3112,9 +3173,44 @@ static int voip_pcm_regs_read_proc( char *buf, char **start, off_t off, int coun
 	n += sprintf( buf + n, "PCMTSR47= 0x%08x\n", pcm_inl(PCMTSR47));
 	n += sprintf( buf + n, "PCMIMR47= 0x%08x (order:%d)\n", pcm_inl(PCMIMR47), SUPPRESSION_PCM_INT_ORDER);
 	n += sprintf( buf + n, "PCMISR47= 0x%08x\n", pcm_inl(PCMISR47));	
+#if PCM_VERSION == 0x0400
+	n += sprintf( buf + n, "PCMCHCNR811= 0x%08x\n", pcm_inl(PCMCHCNR811));	
+	n += sprintf( buf + n, "PCMTSR811= 0x%08x\n", pcm_inl(PCMTSR811));	
+	n += sprintf( buf + n, "PCMBSIZE811= 0x%08x\n", pcm_inl(PCMBSIZE811));	
+	n += sprintf( buf + n, "CH8TXBSA= 0x%08x\n", pcm_inl(CH8TXBSA));	
+	n += sprintf( buf + n, "CH8RXBSA= 0x%08x\n", pcm_inl(CH8RXBSA));	
+	n += sprintf( buf + n, "CH9TXBSA= 0x%08x\n", pcm_inl(CH9TXBSA));	
+	n += sprintf( buf + n, "CH9RXBSA= 0x%08x\n", pcm_inl(CH9RXBSA));	
+	n += sprintf( buf + n, "CH10TXBSA= 0x%08x\n", pcm_inl(CH10TXBSA));	
+	n += sprintf( buf + n, "CH10RXBSA= 0x%08x\n", pcm_inl(CH10RXBSA));	
+	n += sprintf( buf + n, "CH11TXBSA= 0x%08x\n", pcm_inl(CH11TXBSA));	
+	n += sprintf( buf + n, "CH11RXBSA= 0x%08x\n", pcm_inl(CH11RXBSA));	
+	n += sprintf( buf + n, "PCMIMR811= 0x%08x\n", pcm_inl(PCMIMR811));	
+	n += sprintf( buf + n, "PCMISR811= 0x%08x\n", pcm_inl(PCMISR811));	
+	
+	n += sprintf( buf + n, "PCMCHCNR1215= 0x%08x\n", pcm_inl(PCMCHCNR1215));	
+	n += sprintf( buf + n, "PCMTSR1215= 0x%08x\n", pcm_inl(PCMTSR1215));	
+	n += sprintf( buf + n, "PCMBSIZE1215= 0x%08x\n", pcm_inl(PCMBSIZE1215));	
+	n += sprintf( buf + n, "CH12TXBSA= 0x%08x\n", pcm_inl(CH12TXBSA));	
+	n += sprintf( buf + n, "CH12RXBSA= 0x%08x\n", pcm_inl(CH12RXBSA));	
+	n += sprintf( buf + n, "CH13TXBSA= 0x%08x\n", pcm_inl(CH13TXBSA));	
+	n += sprintf( buf + n, "CH13RXBSA= 0x%08x\n", pcm_inl(CH13RXBSA));	
+	n += sprintf( buf + n, "CH14TXBSA= 0x%08x\n", pcm_inl(CH14TXBSA));	
+	n += sprintf( buf + n, "CH14RXBSA= 0x%08x\n", pcm_inl(CH14RXBSA));	
+	n += sprintf( buf + n, "CH15TXBSA= 0x%08x\n", pcm_inl(CH15TXBSA));	
+	n += sprintf( buf + n, "CH15RXBSA= 0x%08x\n", pcm_inl(CH15RXBSA));	
+	n += sprintf( buf + n, "PCMIMR1215= 0x%08x\n", pcm_inl(PCMIMR1215));	
+	n += sprintf( buf + n, "PCMISR1215= 0x%08x\n", pcm_inl(PCMISR1215));	
+
+	n += sprintf( buf + n, "PCMINTMAP= 0x%08x\n", pcm_inl(PCMINTMAP));	
+	n += sprintf( buf + n, "PCMWTSR03= 0x%08x\n", pcm_inl(PCMWTSR03));	
+	n += sprintf( buf + n, "PCMWTSR47= 0x%08x\n", pcm_inl(PCMWTSR47));	
+	n += sprintf( buf + n, "PCMBUFOWCHK= 0x%08x\n", pcm_inl(PCMBUFOWCHK));	
+#endif // PCM_VERSION == 0x0400
+
 	
 	n += sprintf( buf + n, "\n" );
-	n += sprintf( buf + n, "wideband_bits=%08X\n", bus_pcm_wideband_bits );
+	n += sprintf( buf + n, "wideband_hybrid_bits=%08X\n", bus_pcm_wideband_hybrid_bits );
 	
 	*eof = 1;
 	return n;

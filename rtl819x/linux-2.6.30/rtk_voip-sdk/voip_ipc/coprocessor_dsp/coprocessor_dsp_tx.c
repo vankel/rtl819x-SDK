@@ -4,14 +4,10 @@
 #include "voip_types.h"
 #include "voip_init.h"
 #include "voip_ipc.h"
+#include "voip_debug.h"
 
-#ifdef CONFIG_RTK_VOIP_COPROCESS_DSP_IS_HOST
-#include "aipc_ctrl_cpu.h"
-#include "aipc_data_cpu.h"
-#else
-#include "aipc_ctrl_dsp.h"
-#include "aipc_data_dsp.h"
-#endif
+#include "aipc_api.h"
+#include "aipc_buffer.h"
 
 typedef enum {
 	ASHM_2DSP_CTRL,
@@ -55,36 +51,56 @@ ipc_ctrl_pkt_t *coprocessor_dsp_tx_allocate( unsigned int *len,
 											void **ipc_priv, uint8 protocol )
 {
 	// ipc_priv will pass to coprocessor_start_xmit() 
+	unsigned int buffer_size = 0;
+	
 	switch( get_aipc_shm_type( protocol ) ) {
 #ifdef CONFIG_RTK_VOIP_COPROCESS_DSP_IS_HOST
 	case ASHM_2DSP_CTRL:
-		if( ( *ipc_priv = aipc_ctrl_alloc( TYPE_POST ) ) == NULL )
+		buffer_size = CMD_SIZE;
+		
+		if( ( *ipc_priv = aipc_ctrl_2dsp_nofbk_alloc() ) == NULL )
 			return NULL;
 			
-		return ( ipc_ctrl_pkt_t * )
-				( ( ( aipc_ctrl_buf_t * )( *ipc_priv ) ) ->buf );
+		break;
 		
 	case ASHM_2DSP_MBOX:
-		*ipc_priv = aipc_todsp_bc_dequeue();
-		return ( ipc_ctrl_pkt_t * )( *ipc_priv );
+		buffer_size = MAIL_2DSP_SIZE;
+		
+		if( ( *ipc_priv = aipc_data_2dsp_alloc() ) == NULL )
+			return NULL;
+		
+		break;
 #else
 	case ASHM_2CPU_EVENT:
-		if( ( *ipc_priv = aipc_event_alloc( EVENT_POST ) ) == NULL )
+		buffer_size = EVENT_SIZE;
+		
+		if( ( *ipc_priv = aipc_ctrl_2cpu_alloc() ) == NULL )
 			return NULL;
 			
-		return ( ipc_ctrl_pkt_t * )
-				( ( ( aipc_event_buf_t * )( *ipc_priv ) ) ->buf );
+		break;
 		
 	case ASHM_2CPU_MBOX:
-		*ipc_priv = aipc_tocpu_bc_dequeue();
-		return ( ipc_ctrl_pkt_t * )( *ipc_priv );
+		buffer_size = MAIL_2CPU_SIZE;
+		
+		if( ( *ipc_priv = aipc_data_2cpu_alloc() ) == NULL )
+			return NULL;
+			
+		break;
 #endif
 	
 	default:
-		break;
+		return NULL;
 	}
-
-	return NULL;
+	
+	// check allocated size 
+	if( buffer_size < *len + 4 ) {
+		PRINT_R( "IPC allocated size is too small (%u < %u).\n", buffer_size, *len + 4 );
+	}
+	
+	// preserve 4 bytes for length 
+	*( ( unsigned long * )( *ipc_priv ) ) = *len;
+	
+	return ( ipc_ctrl_pkt_t * )( ( unsigned char * )( *ipc_priv ) + 4 );
 }
 
 void coprocessor_dsp_fill_tx_header( ipc_ctrl_pkt_t *ipc_pkt,
@@ -112,19 +128,19 @@ void coprocessor_start_xmit( void *ipc_priv, uint8 protocol )
 	switch( get_aipc_shm_type( protocol ) ) {
 #ifdef CONFIG_RTK_VOIP_COPROCESS_DSP_IS_HOST
 	case ASHM_2DSP_CTRL:
-		aipc_ctrl_xmit( ipc_priv, TYPE_POST, NULL );
+		aipc_ctrl_2dsp_send( ipc_priv, 0 );
 		break;
 		
 	case ASHM_2DSP_MBOX:
-		aipc_todsp_mb_enqueue( ipc_priv );
+		aipc_data_2dsp_send( ipc_priv );
 		break;
 #else
 	case ASHM_2CPU_EVENT:
-		aipc_event_xmit( ipc_priv, EVENT_POST, NULL );
+		aipc_ctrl_2cpu_send( ipc_priv );
 		break;
 		
 	case ASHM_2CPU_MBOX:
-		aipc_tocpu_mb_enqueue( ipc_priv );
+		aipc_data_2cpu_send( ipc_priv );
 		break;
 #endif
 

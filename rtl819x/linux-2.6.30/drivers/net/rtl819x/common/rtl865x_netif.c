@@ -53,7 +53,7 @@ static int (*rtl_get_drv_netifName_by_psName)(const char *psName,char *netifName
 static rtl865x_aclBuf_t freeAclList;
 static rtl865x_acl_chain_t *freeChainHead;
 
-#if defined(CONFIG_RTK_VLAN_SUPPORT)
+#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined(CONFIG_RTL_VLAN_8021Q)
 static uint32 rtl865x_acl_enable = 1; //default enable
 #endif
 
@@ -1228,7 +1228,19 @@ static int32 _rtl865x_setAsicNetif(rtl865x_netif_local_t *entry)
 	asicEntry.vid = entry->vid;
 	asicEntry.valid = entry->valid;
 
-
+#ifdef CONFIG_RTL_8367R_SUPPORT
+	{
+	/*
+	  Prevent port blocked.
+	  When 8367RB got attacked packet which source mac address
+	  is equal to DUT LAN/WAN MAC address, the 8367RB will learn 
+	  the SA to L2 table. Later, the incoming packet which DA =
+	  DUT LAN/WAN MAC will be dropped until this L2 entry timeout.
+	 */
+	extern void set_8367r_L2(uint8 *mac, int intf_wan, int is_static);
+	set_8367r_L2(&entry->macAddr.octet[0], entry->is_wan, 1);
+	}
+#endif
 
 	retval = rtl8651_setAsicNetInterface( entry->asicIdx, &asicEntry);
 	return retval;
@@ -3786,7 +3798,7 @@ int32 rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
 	return retval;
 }
 
-#if defined(CONFIG_RTK_VLAN_SUPPORT)
+#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined(CONFIG_RTL_VLAN_8021Q)
 int32 rtl865x_enable_acl(uint32 enable)
 {
 	if(enable)

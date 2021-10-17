@@ -120,7 +120,7 @@ label_do_init_only:
 		}	
 	}
 	
-	return 0;
+	return SUCCESS;
 }
 
 static void SLIC_reset_le88221( voip_snd_t *this, int codec_law )
@@ -195,6 +195,7 @@ static int __init voip_snd_zarlink_init_le88221( void )
 	extern const snd_ops_fxs_t snd_zarlink_fxs_ops;
 	int i;//, sch, daa;
 	int TS_base;
+	int rtn;
 #ifdef CONFIG_RTK_VOIP_DEFER_SNDDEV_INIT
 	static defer_init_t le88221_defer;
 #endif
@@ -217,8 +218,6 @@ static int __init voip_snd_zarlink_init_le88221( void )
 				2 /* fxs */, 0 /* daa */, (uint16)TS_base,
 				&LineObj_le88221[ i * 2 ] );
 		
-		register_voip_snd( &snd_zarlink_le88221[ i * 2 ], 2 );	
-		
 		TS_base += 4;
 	}
 	
@@ -229,10 +228,17 @@ static int __init voip_snd_zarlink_init_le88221( void )
 	le88221_defer.p1 = 0;
 	
 	add_defer_initialization( &le88221_defer );
+	rtn = 0; //success
 #else
-	SLIC_init_le88221( law, 0 /* allocate */ );
+	rtn = SLIC_init_le88221( law, 0 /* allocate */ );
 #endif
 	
+	if ( rtn == FAILED ) /* init Device fail */
+		return -1;
+
+	for( i = 0; i < CONFIG_RTK_VOIP_DRIVERS_SLIC_LE88221_NR; i ++ ) 
+		register_voip_snd( &snd_zarlink_le88221[ i * 2 ], 2 );	
+
 	return 0;
 }
 

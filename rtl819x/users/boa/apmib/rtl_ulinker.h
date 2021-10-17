@@ -183,6 +183,7 @@ static inline int kill_daemons(void)
 	system("killall -9 dnrd >/dev/null 2>&1");
 	system("killall -9 nmbserver >/dev/null 2>&1");
 	system("killall -9 igmpproxy >/dev/null 2>&1");
+	system("killall -9 hs2 >/dev/null 2>&1");
 	return 1;
 }
 

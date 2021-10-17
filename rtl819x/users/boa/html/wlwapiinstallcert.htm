@@ -112,11 +112,11 @@ function init()
  <tr><font size=2>
   This page allows you to install ASU and user certification for our AP. Please note, certification type 
  X.509 is supported at present.
- </tr>
+ </font></tr>
 </table>
 
 <table width="100%" border="0" cellpadding="0" cellspacing="4">
-        <tr><font size=2></tr>
+        <tr><font size=2></font></tr>
         <tr><hr size=1 noshade align=top></tr>
                 <tr>
                         <td width="30%"><font size="2"><b>Select WAPI Mode:</b></font></td>
@@ -130,15 +130,15 @@ function init()
  <!-- Only for Remote AS0 -->
 <form method="post" action="/boafrm/formUploadWapiCertAS0" enctype="multipart/form-data" name="uploadCACertAS0">
 <table border="0" cellspacing="0" width="500">
- <tr><font size=2></tr>
+ <tr><font size=2></font></tr>
  <tr><hr size=1 noshade align=top></tr>
   <tr>
-  <td width="55%"><font size=2><b>Certificate Type of Remote AS:</b></td>
-  <td width="45%"><font size=2> <input name="cert_type" type=radio value=0 checked>X.509</td>
+  <td width="55%"><font size=2><b>Certificate Type of Remote AS:</b></font></td>
+  <td width="45%"><font size=2> <input name="cert_type" type=radio value=0 checked>X.509</font></td>
   </tr>
   <tr>
-      <td width="55%"><font size=2><b>CA Certificate from Remote AS:</b></td>
-      <td width="45%"><font size=2><input type="file" name="ca_binary" size=20></td>
+      <td width="55%"><font size=2><b>CA Certificate from Remote AS:</b></font></td>
+      <td width="45%"><font size=2><input type="file" name="ca_binary" size=20></font></td>
   </tr>
   </table>
 	<input onclick=sendClicked(this.form) type=button value="Upload" name="send">&nbsp;&nbsp;
@@ -152,10 +152,10 @@ function init()
 <form method="post" action="/boafrm/formUploadWapiCertAS0" enctype="multipart/form-data" name="uploadASUCertAS0"\
 id="uploadASUCertAS0_asu" style="display:none">
 <table border="0" cellspacing="0" width="500">
- <tr><font size=2></tr>  
+ <tr><font size=2></font></tr>  
   <tr>
-      <td width="55%"><font size=2><b>ASU Certificate from Remote AS:</b></td>
-      <td width="45%"><font size=2><input type="file" name="asu_binary" size=20></td>
+      <td width="55%"><font size=2><b>ASU Certificate from Remote AS:</b></font></td>
+      <td width="45%"><font size=2><input type="file" name="asu_binary" size=20></font></td>
   </tr>
   </table> 
 	<input onclick=sendClicked(this.form) type=button value="Upload" name="send">&nbsp;&nbsp;    
@@ -167,10 +167,10 @@ id="uploadASUCertAS0_asu" style="display:none">
 
 <form method="post" action="/boafrm/formUploadWapiCertAS0" enctype="multipart/form-data" name="uploadUserCertAS0">
 <table border="0" cellspacing="0" width="500">
- <tr><font size=2></tr>
+ <tr><font size=2></font></tr>
   <tr>
-      <td width="55%"><font size=2><b>User Certificate from Remote AS:</b></td>
-      <td width="45%"><font size=2><input type="file" name="user_binary" size=20></td>
+      <td width="55%"><font size=2><b>User Certificate from Remote AS:</b></font></td>
+      <td width="45%"><font size=2><input type="file" name="user_binary" size=20></font></td>
   </tr>
   </table>
 	<input onclick=sendClicked(this.form) type=button value="Upload" name="send">&nbsp;&nbsp;

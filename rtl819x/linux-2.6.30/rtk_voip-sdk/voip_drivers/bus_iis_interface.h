@@ -11,7 +11,7 @@
 #ifndef _IIS_INTERFACE
 #define _IIS_INTERFACE
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include "rtk_voip.h"
 
 //#define CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY
@@ -56,7 +56,7 @@
 
 #elif defined CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY
 #define IIS_IRQ	26
-#elif defined CONFIG_RTK_VOIP_DRIVERS_PCM89xxC
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
   #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
 #include "bspchip.h"
 #define IIS_IRQ BSP_I2S_IRQ
@@ -102,6 +102,8 @@
 
 #if defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
 #define IIS_BASE (0xb8009000)
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#define IIS_BASE (0xb801f000)
 #endif
 
 #define IISCR		(IIS_BASE + 0x00)	//IIS Interface Control Register
@@ -164,7 +166,7 @@
 #define IISDBUG(fmt, args...)
 #endif
 
-
+#define IISDBUGG(fmt, args...)
 
 
 

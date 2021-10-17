@@ -55,6 +55,9 @@ static unsigned int cmd_counter = 0;
 
 static char CMD_UMOUNT_FMT[] = "/bin/umount %s";
 static char CMD_MOUNT_FMT[] = "/bin/mount -t %s /dev/%s %s";
+#ifdef CONFIG_EXFAT_FUSE
+static char CMD_MOUNT_FMT_EXFAT_FUSE[] = "/bin/mount.exfat-fuse /dev/%s %s";
+#endif
 #if NTFS_3G
 //static char  CMD_MOUNT_FMT_NTFS[] = "/bin/ntfs-3g /dev/%s %s -o silent,umask=0000";
 static char  CMD_MOUNT_FMT_NTFS[] = "/bin/ntfs-3g /dev/%s %s -o force";
@@ -255,7 +258,7 @@ static unsigned int get_umount_partition_id(const char *dev) {
 
 static int try_mount(const char *devnode, const char *mnt) {
 	char cmd_buffer[220];
-	const char *fstypes[] = { "vfat", "ntfs", 0 };
+	const char *fstypes[] = { "vfat", "ntfs", "exfat", "ext2", "ext3", 0 };
 	const char *fstype;
 	int rv, idx;
 	//int retry = 0;
@@ -274,13 +277,15 @@ static int try_mount(const char *devnode, const char *mnt) {
 		srand(expiry.tv_usec);
 		do {
 #if NTFS_3G
-	if(idx==0)
+	// modify for exfat
+//	if(idx==0)
+	if(idx != 1 && idx != 2)
 	{			
 		rv = mount(source, mnt, fstype, 
 			 MS_NODIRATIME | MS_NOATIME, 
 			0);
   	}
-	else
+	else if(idx == 1)
         {
 		snprintf(cmd_buffer, sizeof(cmd_buffer), CMD_MOUNT_FMT_NTFS,devnode,mnt);
 	  DEBUG("CMD: %s\n\n", cmd_buffer);
@@ -292,6 +297,24 @@ static int try_mount(const char *devnode, const char *mnt) {
 		system(cmd_bufferx);
                 #endif
         }
+	else if(idx == 2)
+	{
+#ifdef CONFIG_EXFAT_FUSE
+		snprintf(cmd_buffer, sizeof(cmd_buffer), CMD_MOUNT_FMT_EXFAT_FUSE, devnode, mnt);
+		DEBUG("CMD: %s\n\n", cmd_buffer);
+		rv = system(cmd_buffer);
+#ifdef devel_debug
+		snprintf(cmd_bufferx, sizeof(cmd_bufferx), 
+			"echo \"CMD:%s ret %d \" >> /tmp/log", 
+			cmd_buffer,rv);
+		system(cmd_bufferx);
+#endif
+#else //CONFIG_EXFAT_FUSE
+		rv = mount(source, mnt, fstype, 
+			 MS_NODIRATIME | MS_NOATIME, 
+			0);
+#endif //CONFIG_EXFAT_FUSE
+	}
 #else
 	rv = mount(source, mnt, fstype,
                          MS_NODIRATIME | MS_NOATIME,
@@ -438,6 +461,44 @@ static unsigned int fs_mount(unsigned int parition_id,const char *dev) {
 #endif
 	return mnt_map;	
 }
+static int try_umount(const char *mnt_buffer)
+{
+	struct timeval expiry={0}, now={0};
+	int rv=0;
+	gettimeofday(&expiry, 0);		
+	expiry.tv_sec += 1; // expire in 1 sec..
+	srand(expiry.tv_usec);
+	do
+	{
+		fsync();
+		//printf("%s:%d umount %s\n",__FUNCTION__,__LINE__,mnt_buffer);
+		rv = umount(mnt_buffer);
+		if(rv==0)
+		{
+			//printf("%s:%d rmdir %s\n",__FUNCTION__,__LINE__,mnt_buffer);
+			rmdir(mnt_buffer);
+			
+#ifdef devel_debug
+			snprintf(cmd_bufferx, sizeof(cmd_bufferx), 
+				"echo \"(%u) E umount %s success ret %d \" >> /tmp/log", 
+				++cmd_counter, mnt_buffer,	rv);
+			system(cmd_bufferx); 
+#endif
+			return 0;
+		}
+		//printf("%s:%d umount %s fail\n",__FUNCTION__,__LINE__,mnt_buffer);
+		usleep(rand() % 500000);
+		gettimeofday(&now, 0);
+	} while(timercmp(&expiry, &now, >));
+#ifdef devel_debug
+	snprintf(cmd_bufferx, sizeof(cmd_bufferx), 
+		"echo \"(%u) E umount %s fail ret %d \" >> /tmp/log", 
+		++cmd_counter, mnt_buffer,	rv);
+	system(cmd_bufferx); 
+#endif
+
+	return rv;
+}
 
 static unsigned int _umount(unsigned int parition_map, const char *base, const char *mnt_path) {
 	//char dev_buffer[10];
@@ -469,19 +530,15 @@ static unsigned int _umount(unsigned int parition_map, const char *base, const c
 			snprintf(mnt_buffer, sizeof(mnt_buffer), "%s/%s%d", mnt_path, base, tmp);
 			//snprintf(cmd_buffer, sizeof(cmd_buffer), "/bin/umount %s/%s%d", mnt_path, base, tmp);
 #endif
+			rv=try_umount(mnt_buffer);
+			if(rv==0)
+			{
+				mnt_map |= (1 << tmp);			
+			}	
 		
-		fsync();
-		rv = umount(mnt_buffer);
-		if (rv == 0) {
-			mnt_map |= (1 << tmp);
-			rmdir(mnt_buffer);
-		}
 		}else{
 			if(tmp==0){
-				sprintf(mnt_buffer, "%s/%s", mnt_path, base);
-				fsync();
-				rv = umount(mnt_buffer);
-				rmdir(mnt_buffer);
+				try_umount(mnt_buffer);
 			}
 		}
 		/*

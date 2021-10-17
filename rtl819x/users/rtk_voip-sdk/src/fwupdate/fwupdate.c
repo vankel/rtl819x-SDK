@@ -15,7 +15,7 @@
 #include <arpa/inet.h> 
 
 #include "kernel_config.h"
-#include "../../../goahead-2.1.1/LINUX/apmib.h"
+#include "../../../boa/apmib/apmib.h"
 #include "voip_manager.h"
 #include "voip_debug.h"
 
@@ -30,7 +30,7 @@ void print_msg(int dbg, unsigned char* module,unsigned char* string, ...)
 	vsprintf(buffer, string, marker);
 	va_end( marker );
 	
-	rtk_print(dbg, module, buffer);
+	rtk_Print(dbg, module, buffer);
 }
 
 
@@ -330,17 +330,17 @@ static int fxsEvent(){
 						rtk_SetPlayTone(i, 0, DSPCODEC_TONE_ROH, 0, DSPCODEC_TONEDIRECTION_LOCAL);
 						memset(input, 0 ,20);
 						index = 0;
-						rtk_Onhook_Action(i);
+						rtk_OnHookAction(i);
 					}
 					else{// Status :2
-						rtk_Onhook_Action(i);
+						rtk_OnHookAction(i);
 						return 0;
 					}
 					break;
 				case SIGN_OFFHOOK:
-					rtk_Offhook_Action(i);
+					rtk_OffHookAction(i);
 					if(Status == 1){
-						//rtk_SetRingFXS(i, 0);
+						//rtk_SetRingFxs(i, 0);
 						rtk_SetPlayTone(i, 0, DSPCODEC_TONE_ROH, 1, DSPCODEC_TONEDIRECTION_LOCAL);
 					}
 					
@@ -534,6 +534,8 @@ static int downloadFwFile(int fwNum)
 
 static int downloadVersion(){
 
+//when downloadVersion ver_file fail , return -1
+
 	FILE *fp=NULL;
 	unsigned char VerFile[STRINGLENGTH] = {0};
 	unsigned char FullVerFile[STRINGLENGTH]={0};
@@ -562,7 +564,7 @@ static int downloadVersion(){
 	system(SysCommand);
 	
         print_msg(RTK_DBG_INFO, "MISC", "command: %s \n", SysCommand);
-	
+
         /*open the file*/
         fp = fopen(FullVerFile, "r");
         
@@ -573,7 +575,7 @@ static int downloadVersion(){
 		return -1;
 	}
 	
-       	
+	
         while (fgets(ReadFile,LONGSTRINGLENGTH-1,fp)!=NULL){
                 print_msg(RTK_DBG_INFO, "MISC","Read %s \n", ReadFile);
         	sscanf(ReadFile,"Version:%s NAME:%s",Ver,FwFile);
@@ -613,8 +615,8 @@ static int downloadVersion(){
 	         {
 	         	system("killall solar_monitor");
 			system("killall solar");
-			unlink("/bin/solar");
-			unlink("/bin/solar_monitor");
+			//unlink("/bin/solar");
+			//unlink("/bin/solar_monitor");
 		        if(fxsEvent())
 		        {
 		 		goto FWUPDATE;		
@@ -628,15 +630,15 @@ static int downloadVersion(){
 
 FWUPDATE:
 	downloadFwFile(fwNum);
-    print_msg(RTK_DBG_INFO, "MISC", "FW update all finish\n");
+    	print_msg(RTK_DBG_INFO, "MISC", "FW update all finish\n");
 	system("reboot");
 	return 0;
 }   
 
 #define HTTP_AGENT_NAME         "RTK-FW" 
 static int setFWupdateTimeToWeb(void){
-
-	const char pHttpHeader[] = { "GET /goform/voip_fw_set HTTP/1.1\nUser-Agent: " HTTP_AGENT_NAME "\n\n" };
+	const char pHttpHeader[] = { "POST /goform/voip_fw_set HTTP/1.1\nUser-Agent: " HTTP_AGENT_NAME "\n" "Content-Length: 0" "\n\n" };
+	//const char pHttpHeader[] = { "GET /goform/voip_fw_set HTTP/1.1\nUser-Agent: " HTTP_AGENT_NAME "\n\n" };
 	unsigned char pHttpContent[ 512 ] = {0};
 	
 	int sockfd;
@@ -683,7 +685,7 @@ static int channelState(void){
 			continue;
 		
 		stVoipCfg.ch_id = chid;
-		rtk_Set_GetPhoneStat(&stVoipCfg);
+		rtk_GetPhoneState(&stVoipCfg);
 		ret += stVoipCfg.cfg;
 	}
 	return ret;
@@ -722,6 +724,13 @@ static void pidfile_write_release(int pid_fd)
         close(pid_fd);
 }
 
+static void fwupdateAbort( int sig )
+{
+    voip_flash_client_close();
+
+    exit( 0 );
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -732,37 +741,38 @@ int main(int argc, char *argv[])
 	struct timeval tv;
 	int h_max;
 	int h_control;
-	int download_time = 0;
-    // destroy old process and create a PID file
+	int boot_check = 1;
+
+	// destroy old process and create a PID file
     {
-            int pid_fd;
-            FILE *fp;
-            char line[20];
-            pid_t pid;
+	int pid_fd;
+	FILE *fp;
+	char line[20];
+	pid_t pid;
 
-            if ((fp = fopen(pidfile, "r")) != NULL) {
-                    fgets(line, sizeof(line), fp);
-                    if (sscanf(line, "%d", &pid)) {
-                           if (pid > 1){
-                                   kill(pid, SIGTERM);
-                           }
-                    }
-                    fclose(fp);
-            }
+	if ((fp = fopen(pidfile, "r")) != NULL) {
+	    fgets(line, sizeof(line), fp);
+	    if (sscanf(line, "%d", &pid)) {
+	           if (pid > 1){
+	                   kill(pid, SIGTERM);
+	           }
+	    }
+	    fclose(fp);
+	}
 
-            pid_fd = pidfile_acquire(pidfile);
-            if (pid_fd < 0)
-                    return 0;
+	pid_fd = pidfile_acquire(pidfile);
+	if (pid_fd < 0)
+	    return 0;
 
 		if (daemon(0,1) == -1) {
-                printf("fork auth error!\n");
-                exit(1);
-        }
+		printf("fork auth error!\n");
+		exit(1);
+	}
 
                     
             pidfile_write_release(pid_fd);
     }
-	if (access(FWUPDATE_FIFO, F_OK) == -1)
+    	if (access(FWUPDATE_FIFO, F_OK) == -1)
 	{
         	if (mkfifo(FWUPDATE_FIFO, 0755) == -1)
 	        	print_msg(RTK_DBG_WARNING, "MISC", "access %s failed: %s\n", FWUPDATE_FIFO, strerror(errno));
@@ -778,17 +788,11 @@ int main(int argc, char *argv[])
                 print_msg(RTK_DBG_WARNING, "MISC", "voip_flash_client_init failed.\n");
 		return -1;
 	}
+
+	signal( SIGINT, fwupdateAbort );
 	g_pVoIPCfg = &g_pVoIPShare->voip_cfg;
-	
-	if( (g_pVoIPCfg->fw_update_mode!=0) && g_pVoIPCfg ->fw_update_power_on != SCHEDULE)
-	{
-                print_msg(RTK_DBG_INFO, "MISC", "Powe on  to FW update \n");
-		while(downloadVersion() && download_time++<3)
-		{
-			sleep(5);
-		}
-	}
-	
+
+
 	while(1){
 		FD_ZERO(&fdset);
         	FD_SET(h_control, &fdset);
@@ -803,22 +807,30 @@ int main(int argc, char *argv[])
 			continue;
 		if (err == 0) // timeout
 		{
-			time( &now );
-			if( g_pVoIPCfg->fw_update_mode != 0 && g_pVoIPCfg ->fw_update_power_on != POWERON){
-				if(now > g_pVoIPCfg ->fw_update_next_time)
+			if( g_pVoIPCfg->fw_update_mode != 0)
+			{
+				if(g_pVoIPCfg ->fw_update_power_on != SCHEDULE && boot_check == 1 )
 				{
-	                                print_msg(RTK_DBG_INFO, "MISC", "Time to update \n");
-					if(channelState())
-					{	
-	                                        print_msg(RTK_DBG_WARNING, "MISC", "Some phones off-hook!! \n");
-						continue;
+					if(!downloadVersion())
+						boot_check = 0;
+				}
+				else if( g_pVoIPCfg ->fw_update_power_on != POWERON){
+					time( &now );
+					if(now > g_pVoIPCfg ->fw_update_next_time)
+					{
+		                                print_msg(RTK_DBG_INFO, "MISC", "Time to update \n");
+						if(channelState())
+						{	
+		                                        print_msg(RTK_DBG_WARNING, "MISC", "Some phones off-hook!! \n");
+							continue;
+						}
+						//update next update time 		
+						if(setFWupdateTimeToWeb()){
+		                                        print_msg(RTK_DBG_WARNING, "MISC", " setFWupdateTimeToWeb fail \n");
+							return -1;
+						}
+						downloadVersion();
 					}
-					//update next update time 		
-					if(setFWupdateTimeToWeb()){
-	                                        print_msg(RTK_DBG_WARNING, "MISC", " setFWupdateTimeToWeb fail \n");
-						return -1;
-					}
-					downloadVersion();
 				}
 			}
 		}
@@ -846,7 +858,8 @@ int main(int argc, char *argv[])
 					s = strtok(buffer, "\n");
 					while(s)
 					{
-						voip_flash_client_update();			
+						voip_flash_client_update();
+						boot_check = 1;
 						s = strtok(NULL, "\n");
 					}	
 				}

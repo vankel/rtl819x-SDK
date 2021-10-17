@@ -26,7 +26,11 @@ unsigned long return_addr;
 /*Cyrus Tsai*/
 unsigned long kernelsp;
 #if  defined(RTL8198)
+#if  defined(CONFIG_NAND_FLASH)
+	#define _SYSTEM_HEAP_SIZE	1024*64*4	//wei add
+#else
 	#define _SYSTEM_HEAP_SIZE	1024*64	//wei add
+#endif
 	char dl_heap[_SYSTEM_HEAP_SIZE];	//wei add
 #endif
 
@@ -52,7 +56,11 @@ unsigned long kernelsp;
 #define ROOT_FS_OFFSET_OP1		(0x10000)
 #define ROOT_FS_OFFSET_OP2		(0x40000)
 
-
+#if defined(CONFIG_WEBPAGE_CHECK)
+#define WEBPAGE_OFFSET		(0x10000)
+#define WEBPAGE_OFFSET_OP1	(0x10000)
+#define WEBPAGE_OFFSET_OP2	(0x10000)
+#endif
 
 int enable_10M_power_saving(int phyid , int regnum,int data);
 int user_interrupt(unsigned long time);

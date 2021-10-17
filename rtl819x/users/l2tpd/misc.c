@@ -185,8 +185,13 @@ inline void toss (struct buffer *buf)
      * Toss a frame and free up the buffer that contained it
      */
 
-    free (buf->rstart);
-    free (buf);
+	if(buf)
+	{
+		if(buf->rstart)
+			free (buf->rstart);
+		
+		free (buf);
+	}
 }
 
 inline void safe_copy (char *a, char *b, int size)

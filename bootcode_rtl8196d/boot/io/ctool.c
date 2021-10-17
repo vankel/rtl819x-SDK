@@ -7,7 +7,7 @@
 #define KEYCODE_SP			0x20
 #define KEYCODE_CR			0x0D
 #define KEYCODE_LF			0x0A
-#define KEYCODE_BS_7F		0x7F
+#define KEYCODE_CTRL_BS	0x7F
 
 #ifdef CONFIG_HISTORY_KEYIN
 //wei add
@@ -112,7 +112,7 @@ void GetLine( char * buffer, const unsigned int size, int EchoFlag )
 #endif
 		    break ;
 		}
-		else if( ch == KEYCODE_BS_7F )
+		else if ((ch == KEYCODE_BS) || (ch == KEYCODE_CTRL_BS))
 		{
 		    if( p != buffer )
 		    {

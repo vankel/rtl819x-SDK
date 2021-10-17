@@ -17,6 +17,7 @@
 #include <sys/uio.h> 
 #include <unistd.h> 
 #include <signal.h>
+#include <syslog.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h> 
 #include <sys/stat.h> //mark_file
@@ -36,7 +37,7 @@
 static int is_sys_init = 0;
 static int mdio_fd;
 int ioctl_sock=-1;
-#define RTK_NFBI_AP_HCM 1  //mark_test
+#define RTK_NFBI_AP_HCM 0  //mark_test
 #define WLAN_ROOT ("wlan0")
 #define HCD_WPS_CONFIG ("/tmp/wps_config")
 /* INBAND_HOST ---> */
@@ -46,7 +47,7 @@ static int event_channel = -1;
 #define INBAND_SLAVE	("001234567899")
 #define INBAND_HOST		("00e04c8196c1")
 #define INBAND_EVENT_TYPE 0x9001
-#define INBAND_DEBUG 0
+#define INBAND_DEBUG 1
 #define MAXDATALEN      1560
 #define DOT11_EVENT_REQUEST 2
 #define SIOCGIWIND 0x89ff
@@ -584,6 +585,22 @@ static void manual_cmd_handler(int sig_no)
 			print_port_stats(cmd_rsp);
 		}	
 	}
+	else if (num == 2 && !strcmp(t1, "getlanRate")) {	
+		printf("\n--------getlanRate---------- \n");
+		strcpy(cmd_rsp,t2);
+		if(do_cmd(id_getlanRate,cmd_rsp,strlen(t2)+1, 0) < 0)
+			DEBUG_ERR("getlanRate failed : [%s]!\n", t2);	
+		else//ok
+		{	
+			int cmd_len;
+			printf("getlanRate ok: [%s] \n", t2);	
+			if(!strncmp(t2,"all",2))
+				cmd_len =4;
+			else
+				cmd_len =1;
+			print_port_rate(cmd_rsp,cmd_len);
+		}	
+	}
 	else {
 		DEBUG_ERR("%s: invalid cmd! [num=%d, t1=%s, t2=%s, t3=%s]\n", 
 							__FUNCTION__, num, t1, t2, t3);
@@ -676,6 +693,24 @@ static int parse_argument(int argc, char *argv[])
 		}
 		sprintf(tmpbuf, "echo %s %s > %s", "getlanstatus", argv[argNum+1], CMD_FILE);			
 	}
+	else if(argv[argNum][0]=='-' && !strcmp(&argv[argNum][1], "getlanRate")) {
+		if (fp == NULL) 
+			goto daemon_not_start;		
+		if (argNum+2 > argc) {
+			printf("Invalid format! [%s mib_name]\n", "getlanRate");
+			goto show_sysinit_help;
+		}
+		sprintf(tmpbuf, "echo %s %s > %s", "getlanstatus", argv[argNum+1], CMD_FILE);			
+	}
+	else if(argv[argNum][0]=='-' && !strcmp(&argv[argNum][1], "setlanBandwidth")) {
+		if (fp == NULL) 
+			goto daemon_not_start;		
+		if (argNum+2 > argc) {
+			printf("Invalid format! [%s mib_name]\n", "setlanBandwidth");
+			goto show_sysinit_help;
+		}
+		sprintf(tmpbuf, "echo %s %s > %s", "setlanBandwidth", argv[argNum+1], CMD_FILE);			
+	}
 	else if (argv[argNum][0]=='-' && !strcmp(&argv[argNum][1], "getstainfo")) {
 		if (fp == NULL) 
 			goto daemon_not_start;				
@@ -746,8 +781,9 @@ static void sigchld_handler(int signo)
 	pid_t pid;
 	int stat;
 	
-	while ((pid = waitpid(-1, &stat, WNOHANG)) > 0)
-		printf("child %d termniated\n", pid);
+	while ((pid = waitpid(-1, &stat, WNOHANG)) > 0){
+		//printf("child %d termniated\n", pid);
+    }
 }
 
 static void inband_wait_event()
@@ -756,6 +792,7 @@ static void inband_wait_event()
 	char cmd_type;		
 	char *data_p;
 
+	inband_set_cmd_id_zero(hcd_inband_chan);
 	data_len = inband_rcv_data(hcd_inband_chan,&cmd_type,&data_p,-1); //try to rcv inband data 	
 
 	if(data_len < 0)
@@ -857,11 +894,13 @@ int main(int argc, char *argv[])
 	if (parse_argument(argc, argv) != 0) 
 		return 0;
 
+#if 0
 	// become daemon
 	if (daemon(0,1) == -1) {
 		printf("fork daemon error!\n");
 		return 0;
 	}
+#endif
 
 	// create pid file
 	pid_fd = pidfile_acquire(PID_FILE);
@@ -890,9 +929,9 @@ int main(int argc, char *argv[])
                 return 1;
         }
 #endif
-	  init_bridge();
-	  bring_up_lan();
-	  bring_up_br();
+	  //init_bridge();
+	  //bring_up_lan();
+	  //bring_up_br();
       sleep(1);
 	   chan = inband_open(INBAND_NETIF,NULL,ETH_P_RTK,INBAND_DEBUG);
 	   if(chan < 0)
@@ -906,7 +945,7 @@ int main(int argc, char *argv[])
 	// Set daemon pid to driver. 
 	// When this ioctl is set, driver will set AllSoftwareReady bit to 'CPU System Status' Register
 	pid =  getpid();
-#ifdef RTK_NFBI_AP_HCM
+#if 0 //def RTK_NFBI_AP_HCM
 	if (do_mdio_ioctl(id_set_host_pid, (void *)&pid)) //mark_issue , if it is need then mdio_open must be done 
 		return 1;
 #endif
@@ -924,12 +963,13 @@ int main(int argc, char *argv[])
 	pid = getpid();
 	wrq.u.data.pointer = (caddr_t)&pid;
 	wrq.u.data.length = sizeof(pid_t);
-
+#if 0
   	if(ioctl(ioctl_sock, SIOCSAPPPID, &wrq) < 0)
 	{
     	// If no wireless name : no wireless extensions
 		return(-1);
 	}
+#endif
 	event_channel = inband_open(INBAND_INTF,INBAND_HOST,INBAND_EVENT_TYPE,INBAND_DEBUG);
 	if( event_channel < 0 )
 		return -1;
@@ -937,6 +977,14 @@ int main(int argc, char *argv[])
 	/* INBAND_HOST <--- */
 
 	//init_system(INIT_ALL); //mark_debug
+#if defined(CONFIG_APP_ADAPTER_API)
+	if(apmib_init()==0)
+	{
+		printf("apmib_init fail");
+        syslog(LOG_DEBUG, "apmib init fail in inband");
+		return 0;
+	}
+#endif	
 	while(1){		
 	inband_wait_event();   
 	}	

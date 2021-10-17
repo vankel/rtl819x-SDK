@@ -105,6 +105,21 @@ typedef struct rtl_igmpPortInfo_s
 	uint32 linkPortMask;
 }rtl_igmpPortInfo_t;
 
+#define DEL_RESERVED_MULTICAST_FLAG	0
+#define ADD_RESERVED_MULTICAST_FLAG	1
+#define MAX_RESERVED_MULTICAST_NUM 16
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+#define RTL_IMGP_MAX_BRMODULE	8
+#endif
+struct rtl865x_ReservedMCastRecord
+{
+	unsigned int groupAddr;
+	unsigned int valid;
+};
+
+int rtl_add_ReservedMCastAddr(uint32 groupAddr, int flag);
+int rtl_check_ReservedMCastAddr(uint32 groupAddr);
+
 /******************************************************
 	Function called in the system initialization 
 ******************************************************/
@@ -147,5 +162,11 @@ int32 rtl_setIpv4UnknownMCastFloodMap(uint32 moduleIndex,uint32 unknownMCastFloo
 int32 rtl_getIpv4UnknownMCastFloodMap(uint32 moduleIndex,uint32 *unknownMCastFloodMap);
 int32 rtl_setIpv6UnknownMCastFloodMap(uint32 moduleIndex,uint32 unknownMCastFloodMap);
 int32 rtl_getIpv6UnknownMCastFloodMap(uint32 moduleIndex,uint32 *unknownMCastFloodMap);
+
+#ifndef M2U_DELETE_CHECK
+#define M2U_DELETE_CHECK
+#endif
+
+
 #endif 
 

@@ -173,7 +173,7 @@ int main (int argc, char **argv)
 #ifdef HAVE_SOCKADDR_SA_LEN
       addr.in.sin_len = sizeof(struct sockaddr_in);
 #endif
-      allocate_sfd(&addr, &daemon->sfds);
+      allocate_sfd(&addr, &daemon->sfds, daemon->wan_ifname);
 #ifdef HAVE_IPV6
       memset(&addr, 0, sizeof(addr));
       addr.in6.sin6_family = AF_INET6;
@@ -182,7 +182,7 @@ int main (int argc, char **argv)
 #ifdef HAVE_SOCKADDR_SA_LEN
       addr.in6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
-      allocate_sfd(&addr, &daemon->sfds);
+      allocate_sfd(&addr, &daemon->sfds, daemon->wan_ifname);
 #endif
     }
   
@@ -297,11 +297,13 @@ int main (int argc, char **argv)
 	  if (i <= maxfd && FD_ISSET(i, &test_set))
 	    continue;
 
+//#if 0
 	  /* open  stdout etc to /dev/null */
 	  if (i == STDOUT_FILENO || i == STDERR_FILENO || i == STDIN_FILENO)
 	    dup2(nullfd, i);
 	  else
 	    close(i);
+//#endif
 	}
 
       if (daemon->groupname || ent_pw)
@@ -685,13 +687,17 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
 
    for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
      if (FD_ISSET(serverfdp->fd, set))
-       reply_query(serverfdp, daemon, now);
-
+     {
+//          printf("%s:%d--server_sockfd=%d\n", __FUNCTION__, __LINE__, serverfdp->fd);
+          reply_query(serverfdp, daemon, now);
+     }
    for (listener = daemon->listeners; listener; listener = listener->next)
      {
        if (FD_ISSET(listener->fd, set))
-	 receive_query(listener, daemon, now);
-       
+       {       	
+//		printf("%s:%d--ipv6_sockfd=%d\n", __FUNCTION__, __LINE__, listener->fd);
+	 	receive_query(listener, daemon, now);
+       }
        if (FD_ISSET(listener->tcpfd, set))
 	 {
 	   int confd;

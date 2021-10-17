@@ -7,6 +7,7 @@ LOADDEF="$TOOL default"
 LOADDEFSW="$TOOL default-sw"
 LOADDS="$TOOL reset"
 # See if flash data is valid
+$TOOL virtual_flash_init
 $TOOL test-hwconf
 if [ $? != 0 ]; then
 	echo 'HW configuration invalid, reset default!'

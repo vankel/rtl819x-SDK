@@ -61,6 +61,9 @@ int isCFGUPGRADE=0;
 int isREBOOTASP=0;
 int Reboot_Wait=0;
 int isCFG_ONLY=0;
+#if defined(CONFIG_APP_FWD)
+int isCountDown=0;
+#endif
 #ifdef LOGIN_URL
 static void delete_user(request *wp);
 #endif
@@ -202,9 +205,200 @@ void swap_mib_word_value(APMIB_Tp pMib)
 ///////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////
+static int check_config_tag(unsigned char *data, int total_len)
+{
+	char tag_local[32],tag_config[32];
+	memset(tag_local,0,sizeof(tag_local));
+	apmib_get(MIB_CONFIG_TAG,tag_local);
+	printf("tag_local(%s)\n",tag_local);
+	if(strcmp(tag_local,"")==0) {
+		return 1;
+	}
+	memset(tag_config,0,sizeof(tag_config));
+	if(tlv_simple_mib_get(MIB_CONFIG_TAG,data,total_len,tag_config)<0)
+	{
+		return 0;
+	}
+	if(strcmp(tag_config,"")==0) {		
+		return 0;
+	}
+	if(strcmp(tag_local,tag_config)==0)
+	{		
+		return 1;
+	}
+	return 0;
+}
+static int check_config_valid(unsigned char *data, int total_len)
+{
+	int len=0, status=1;
+#ifdef HEADER_LEN_INT
+	HW_PARAM_HEADER_Tp phwHeader;
+#endif
+	int isHdware=0;
+	PARAM_HEADER_Tp pHeader;
+#ifdef COMPRESS_MIB_SETTING
+	COMPRESS_MIB_HEADER_Tp pCompHeader;
+	unsigned char *expFile=NULL;
+	unsigned int expandLen=0;
+	int complen=0;
+#endif
+	
+	unsigned char isValidfw = 0;
+	char *ptr;
+	do {
+		if (
+#ifdef COMPRESS_MIB_SETTING
+			memcmp(&data[complen], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN) &&
+			memcmp(&data[complen], COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) &&
+			memcmp(&data[complen], COMP_CS_SIGNATURE, COMP_SIGNATURE_LEN)
+#else
+			memcmp(&data[len], CURRENT_SETTING_HEADER_TAG, TAG_LEN) &&
+			memcmp(&data[len], CURRENT_SETTING_HEADER_FORCE_TAG, TAG_LEN) &&
+			memcmp(&data[len], CURRENT_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) &&
+			memcmp(&data[len], DEFAULT_SETTING_HEADER_TAG, TAG_LEN) &&
+			memcmp(&data[len], DEFAULT_SETTING_HEADER_FORCE_TAG, TAG_LEN) &&
+			memcmp(&data[len], DEFAULT_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) &&
+			memcmp(&data[len], HW_SETTING_HEADER_TAG, TAG_LEN) &&
+			memcmp(&data[len], HW_SETTING_HEADER_FORCE_TAG, TAG_LEN) &&
+			memcmp(&data[len], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN) 
+#endif
+		) {
+			if(isValidfw)			
+				break;
+		}
+
+	if(
+	#ifdef COMPRESS_MIB_SETTING
+		memcmp(&data[complen], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN)==0
+	#else
+		memcmp(&data[len], HW_SETTING_HEADER_TAG, TAG_LEN)==0 ||
+		memcmp(&data[len], HW_SETTING_HEADER_FORCE_TAG, TAG_LEN)==0 ||
+		memcmp(&data[len], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN)
+	#endif
+	)
+	{
+		isHdware=1;
+	}
+	else
+	{
+		isHdware=0;
+	}
+
+#ifdef COMPRESS_MIB_SETTING
+		pCompHeader =(COMPRESS_MIB_HEADER_Tp)&data[complen];
+#ifdef _LITTLE_ENDIAN_
+		pCompHeader->compRate = WORD_SWAP(pCompHeader->compRate);
+		pCompHeader->compLen = DWORD_SWAP(pCompHeader->compLen);
+#endif
+		expFile=malloc(pCompHeader->compLen*pCompHeader->compRate);
+		if (NULL==expFile) {
+			printf("malloc for expFile error!!\n");
+			return 0;
+		}
+		expandLen = Decode(data+complen+sizeof(COMPRESS_MIB_HEADER_T), pCompHeader->compLen, expFile);
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader = (HW_PARAM_HEADER_Tp)expFile;
+		else
+#endif
+		pHeader = (PARAM_HEADER_Tp)expFile;
+#else
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader = (HW_PARAM_HEADER_Tp)expFile;
+		else
+#endif
+		pHeader = (PARAM_HEADER_Tp)&data[len];
+#endif
+#ifdef _LITTLE_ENDIAN_
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader->len = DWORD_SWAP(phwHeader->len);
+		else
+#endif
+		pHeader->len = WORD_SWAP(pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			len += sizeof(HW_PARAM_HEADER_T);
+		else
+#endif
+		len += sizeof(PARAM_HEADER_T);
+#ifdef COMPRESS_MIB_SETTING
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				ptr = (char *)(expFile+sizeof(HW_PARAM_HEADER_T));
+			else
+#endif
+			ptr = (char *)(expFile+sizeof(PARAM_HEADER_T));
+#else
+			ptr = &data[len];
+#endif
+#ifdef COMPRESS_MIB_SETTING
+#else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				DECODE_DATA(ptr, phwHeader->len);
+			else
+#endif
+			DECODE_DATA(ptr, pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+			{
+				if ( !CHECKSUM_OK((unsigned char *)ptr, phwHeader->len)) {
+				status = 0;
+				break;
+				}
+			}
+			else
+#endif
+			if ( !CHECKSUM_OK((unsigned char *)ptr, pHeader->len)) {
+				status = 0;
+				break;
+			}
+#ifdef COMPRESS_MIB_SETTING
+			if(isHdware == 0) 
+			{
+				status=check_config_tag(ptr,pHeader->len);
+				if(0 == status) {					
+					break;
+				}	
+			}
+#endif			
+#ifdef COMPRESS_MIB_SETTING
+			complen += pCompHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T);
+			if (expFile) {
+				free(expFile);
+				expFile=NULL;
+			}
+#else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				len += phwHeader->len;
+			else
+#endif
+			len += pHeader->len;
+#endif
+			/*Found a valid config area*/
+			isValidfw=1;
+			continue;
+	}while (
+#ifdef COMPRESS_MIB_SETTING
+	(complen < total_len)
+#else
+	(len < total_len)
+#endif	
+	);
+	return status;
+}
 static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType, int *pStatus)
 {
 	int len=0, status=1, type=0, ver, force;
+#ifdef HEADER_LEN_INT
+	HW_PARAM_HEADER_Tp phwHeader;
+	int isHdware=0;
+#endif
 	PARAM_HEADER_Tp pHeader;
 #ifdef COMPRESS_MIB_SETTING
 	COMPRESS_MIB_HEADER_Tp pCompHeader;
@@ -214,6 +408,14 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #endif
 	char *ptr;
 	unsigned char isValidfw = 0;
+	#if 0
+	if(0 == check_config_valid(data,total_len))
+	{
+		printf("%s %d\n",__FUNCTION__,__LINE__);
+		pStatus=0;
+		return 0;
+	}
+	#endif
 
 	do {
 		if (
@@ -236,7 +438,20 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 			if (isValidfw == 1)
 				break;
 		}
-		
+#ifdef HEADER_LEN_INT
+	if(
+	#ifdef COMPRESS_MIB_SETTING
+		memcmp(&data[complen], COMP_HS_SIGNATURE, COMP_SIGNATURE_LEN)==0
+	#else
+		memcmp(&data[len], HW_SETTING_HEADER_TAG, TAG_LEN)==0 ||
+		memcmp(&data[len], HW_SETTING_HEADER_FORCE_TAG, TAG_LEN)==0 ||
+		memcmp(&data[len], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN)
+	#endif
+	)
+	{
+		isHdware=1;
+	}
+#endif
 #ifdef COMPRESS_MIB_SETTING
 		pCompHeader =(COMPRESS_MIB_HEADER_Tp)&data[complen];
 #ifdef _LITTLE_ENDIAN_
@@ -250,15 +465,58 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 			return 0;
 		}
 		expandLen = Decode(data+complen+sizeof(COMPRESS_MIB_HEADER_T), pCompHeader->compLen, expFile);
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader = (HW_PARAM_HEADER_Tp)expFile;
+		else
+#endif
 		pHeader = (PARAM_HEADER_Tp)expFile;
 #else
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader = (HW_PARAM_HEADER_Tp)expFile;
+		else
+#endif
 		pHeader = (PARAM_HEADER_Tp)&data[len];
 #endif
 		
 #ifdef _LITTLE_ENDIAN_
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			phwHeader->len = DWORD_SWAP(phwHeader->len);
+		else
+#endif
 		pHeader->len = WORD_SWAP(pHeader->len);
 #endif
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+			len += sizeof(HW_PARAM_HEADER_T);
+		else
+#endif
 		len += sizeof(PARAM_HEADER_T);
+
+        /*in case use wrong version config.dat*/
+        #define MAX_CONFIG_LEN 1024*1024
+        #define MIN_CONFIG_LEN 8*1024
+#ifdef HEADER_LEN_INT
+		if(isHdware)
+        {
+            if((phwHeader->len > MAX_CONFIG_LEN)||(phwHeader->len < MIN_CONFIG_LEN))
+            {
+                printf("INVALID config.data FILE\n");
+                status = 0;
+                break;
+            }
+        }else
+#endif
+        {
+            if((pHeader->len > MAX_CONFIG_LEN)||(pHeader->len < MIN_CONFIG_LEN))
+            {
+                printf("INVALID config.data FILE\n");
+                status = 0;
+                break;
+            }
+        }
 
 		if ( sscanf((char *)&pHeader->signature[TAG_LEN], "%02d", &ver) != 1)
 			ver = -1;
@@ -287,6 +545,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				ptr = (char *)(expFile+sizeof(HW_PARAM_HEADER_T));
+			else
+#endif
 			ptr = (char *)(expFile+sizeof(PARAM_HEADER_T));
 #else
 			ptr = &data[len];
@@ -294,7 +557,22 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 #ifdef COMPRESS_MIB_SETTING
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				DECODE_DATA(ptr, phwHeader->len);
+			else
+#endif
 			DECODE_DATA(ptr, pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+			{
+					if ( !CHECKSUM_OK((unsigned char *)ptr, phwHeader->len)) {
+						status = 0;
+						break;
+					}
+			}
+			else
 #endif
 			if ( !CHECKSUM_OK((unsigned char *)ptr, pHeader->len)) {
 				status = 0;
@@ -306,12 +584,19 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 // added by rock /////////////////////////////////////////
 #ifdef VOIP_SUPPORT
+		#ifndef VOIP_SUPPORT_TLV_CFG
 			flash_voip_import_fix(&((APMIB_Tp)ptr)->voipCfgParam, &pMib->voipCfgParam);
+#endif
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
 			apmib_updateFlash(CURRENT_SETTING, (char *)&data[complen], pCompHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T), force, ver);
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				apmib_updateFlash(CURRENT_SETTING, ptr, phwHeader->len-1, force, ver);
+			else
+#endif
 			apmib_updateFlash(CURRENT_SETTING, ptr, pHeader->len-1, force, ver);
 #endif
 
@@ -322,6 +607,12 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 				expFile=NULL;
 			}
 #else
+			
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				len += phwHeader->len;
+			else
+#endif
 			len += pHeader->len;
 #endif
 			type |= CURRENT_SETTING;
@@ -352,6 +643,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				ptr = (char *)(expFile+sizeof(HW_PARAM_HEADER_T));
+			else
+#endif
 			ptr = (char *)(expFile+sizeof(PARAM_HEADER_T));
 #else
 			ptr = &data[len];
@@ -359,7 +655,22 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 #ifdef COMPRESS_MIB_SETTING
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				DECODE_DATA(ptr, phwHeader->len);
+			else
+#endif
 			DECODE_DATA(ptr, pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+			{
+				if ( !CHECKSUM_OK((unsigned char *)ptr, phwHeader->len)) {
+				status = 0;
+				break;
+				}
+			}
+			else
 #endif
 			if ( !CHECKSUM_OK((unsigned char *)ptr, pHeader->len)) {
 				status = 0;
@@ -372,12 +683,20 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 // added by rock /////////////////////////////////////////
 #ifdef VOIP_SUPPORT
+		#ifndef VOIP_SUPPORT_TLV_CFG
 			flash_voip_import_fix(&((APMIB_Tp)ptr)->voipCfgParam, &pMibDef->voipCfgParam);
+#endif
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
 			apmib_updateFlash(DEFAULT_SETTING, (char *)&data[complen], pCompHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T), force, ver);
 #else
+		
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				apmib_updateFlash(DEFAULT_SETTING, ptr, phwHeader->len-1, force, ver);
+			else
+#endif
 			apmib_updateFlash(DEFAULT_SETTING, ptr, pHeader->len-1, force, ver);
 #endif
 
@@ -388,6 +707,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 				expFile=NULL;
 			}	
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				len += phwHeader->len;
+			else
+#endif
 			len += pHeader->len;
 #endif
 			type |= DEFAULT_SETTING;
@@ -416,6 +740,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 			}
 #endif
 #ifdef COMPRESS_MIB_SETTING
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				ptr = (char *)(expFile+sizeof(HW_PARAM_HEADER_T));
+			else
+#endif
 			ptr = (char *)(expFile+sizeof(PARAM_HEADER_T));
 #else
 			ptr = &data[len];
@@ -424,7 +753,22 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 
 #ifdef COMPRESS_MIB_SETTING
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				DECODE_DATA(ptr, phwHeader->len);
+			else
+#endif
 			DECODE_DATA(ptr, pHeader->len);
+#endif
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+			{
+				if ( !CHECKSUM_OK((unsigned char *)ptr, phwHeader->len)) {
+				status = 0;
+				break;
+				}
+			}
+			else
 #endif
 			if ( !CHECKSUM_OK((unsigned char *)ptr, pHeader->len)) {
 				status = 0;
@@ -433,6 +777,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 #ifdef COMPRESS_MIB_SETTING
 			apmib_updateFlash(HW_SETTING, (char *)&data[complen], pCompHeader->compLen+sizeof(COMPRESS_MIB_HEADER_T), force, ver);
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				apmib_updateFlash(HW_SETTING, ptr, phwHeader->len-1, force, ver);
+			else
+#endif
 			apmib_updateFlash(HW_SETTING, ptr, pHeader->len-1, force, ver);
 #endif
 
@@ -443,6 +792,11 @@ static int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType,
 				expFile=NULL;
 			}
 #else
+#ifdef HEADER_LEN_INT
+			if(isHdware)
+				len += phwHeader->len;
+			else
+#endif
 			len += pHeader->len;
 #endif
 
@@ -647,6 +1001,7 @@ void formSaveConfig(request *wp, char *path, char *query)
 	if (strRequest[0])
 		type |= HW_SETTING | DEFAULT_SETTING | CURRENT_SETTING;
 	if (type) {
+		printf("%s:%d\n",__FUNCTION__,__LINE__);
 		send_redirect_perm(wp, "/config.dat");
 		return;
 	}
@@ -707,6 +1062,14 @@ void formUploadConfig(request *wp, char *path, char *query)
 	char *submitUrl;
 	char lan_ip_buf[30], lan_ip[30];
 	int head_offset=0;
+
+#if defined(CONFIG_APP_FWD)
+#define FWD_CONF "/var/fwd.conf"
+	int newfile = 1;
+	extern int get_shm_id();
+	extern int clear_fwupload_shm();
+	int shm_id = get_shm_id();	
+#endif
 	
 	head_offset = find_head_offset((char *)wp->upload_data);
 	//fprintf(stderr,"####%s:%d head_offset=%d###\n",  __FILE__, __LINE__ , head_offset);
@@ -779,6 +1142,9 @@ void formUploadConfig(request *wp, char *path, char *query)
 		return;
 	}
 back:
+#if defined(CONFIG_APP_FWD)		
+	clear_fwupload_shm(shm_id);
+#endif
 	ERR_MSG(tmpBuf);
 	return;
 }
@@ -837,6 +1203,15 @@ char *Rootfs_dev_name[2]=
  {
    "/dev/mtdblock1", "/dev/mtdblock3"
  };
+
+#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE)
+#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
+char *Web_dev_name[2]=
+{
+	"/dev/mtdblock0", "/dev/mtdblock2"
+};
+#endif
+#endif
 
 static int get_actvie_bank()
 {
@@ -1051,10 +1426,12 @@ unsigned long get_next_bankmark(char *kernel_dev,int dual_enable)
 
 	if( bankmark < BASIC_BANK_MARK)
 		return BASIC_BANK_MARK;
-	else if( (bankmark ==  FORCEBOOT_BANK_MARK) || (dual_enable == 0)) //dual_enable = 0 ....	 	
+	else if( (bankmark ==  FORCEBOOT_BANK_MARK) || (dual_enable == 0)) //dual_enable = 0 ....
+	{
 		return FORCEBOOT_BANK_MARK;
+	}
 	else
-		return bankmark+1;  
+		return bankmark+1;
 	
 }
 
@@ -1203,7 +1580,7 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 	int newfile = 1;
 	extern int get_shm_id();
 	extern int clear_fwupload_shm();
-	int shm_id = get_shm_id();			
+	int shm_id = get_shm_id();
 #endif
 
 	if (isCFG_ONLY == 0) {
@@ -1346,10 +1723,26 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 		}
 		else //web
 		{
+#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE)
+#if defined(CONFIG_RTL_FLASH_DUAL_IMAGE_WEB_BACKUP_ENABLE)
+			fh = open(Web_dev_name[backup_bank-1],O_RDWR);
+#if defined(CONFIG_APP_FWD)			
+			write_line_to_file(FWD_CONF, (newfile==1?1:2), Web_dev_name[backup_bank-1]);
+			newfile = 2;
+#endif			
+#else		
+			fh = open(FLASH_DEVICE_NAME, O_RDWR);
+#if defined(CONFIG_APP_FWD)			
+			write_line_to_file(FWD_CONF, (newfile==1?1:2), FLASH_DEVICE_NAME);
+			newfile = 2;
+#endif	
+#endif		
+#else		
 			fh = open(FLASH_DEVICE_NAME, O_RDWR);		
 #if defined(CONFIG_APP_FWD)			
 			write_line_to_file(FWD_CONF, (newfile==1?1:2), FLASH_DEVICE_NAME);
 			newfile = 2;
+#endif
 #endif			
 		}
 #endif
@@ -1504,7 +1897,7 @@ int FirmwareUpgrade(char *upload_data, int upload_len, int is_root, char *buffer
 #endif
 
 	return 1;
-ret_upload:
+ret_upload:	
 	fprintf(stderr, "%s\n", buffer);
 	
 #if defined(CONFIG_APP_FWD)		
@@ -1575,8 +1968,36 @@ setReboot:
 	system("reboot");	
 }
 #endif
-
+#if defined(CONFIG_RTL_HTTP_REDIRECT)
+void formWelcomePage(request *wp, char * path, char * query)
+{
+	char cmdBuf[200] = {'\0'};
+	unsigned int mib_flag = 1;
+	unsigned int enable = 0;
+	char *submitUrl;
+	if(!apmib_set(MIB_USER_FIRST_LOGIN_FLAG,(void*)&mib_flag))
+		return;
+	sprintf(cmdBuf,"echo %d > /proc/http_redirect/enable",enable);
+	system(cmdBuf);
+	if(enable)
+	{
+		memset(cmdBuf,0,sizeof(cmdBuf));
+		sprintf(cmdBuf,"echo %d > /proc/rtl_dnstrap/enable",enable);
+		system(cmdBuf);
+	}
+	memset(cmdBuf,0,sizeof(cmdBuf));
+	sprintf(cmdBuf,"echo %d > /proc/rtl_dnstrap/first",enable);
+	system(cmdBuf);
+	submitUrl = req_get_cstream_var(wp, "submit-url", "");	 // hidden page
+	if (submitUrl[0])
+		send_redirect_perm(wp, submitUrl);
+	
+	apmib_update_web(CURRENT_SETTING);
+}
+#endif
 #if defined(CONFIG_USBDISK_UPDATE_IMAGE)
+extern int firmware_len;
+extern char *firmware_data;
 void formUploadFromUsb(request *wp, char * path, char * query)
 {
 	int oneReadMax = 4096;
@@ -1587,13 +2008,18 @@ void formUploadFromUsb(request *wp, char * path, char * query)
 	char *submitUrl;
 	char lan_ip[30];	
 	char lan_ip_buf[30];
-    	FILE *       fd;
-		
+    FILE *       fd;
+	
+	struct stat fileStat={0};
+	int readLen=0,i=0;
 	 if(!isFileExist(USB_UPLOAD_FORM_PATH))
 	 {
       		strcpy(tmpBuf, ("Error!form ware is not exist in usb storage!\n"));
 	 	goto ret_err;
 	 }
+	 stat(USB_UPLOAD_FORM_PATH,&fileStat);
+	 fileLen=fileStat.st_size;
+	 
 	fd = open(USB_UPLOAD_FORM_PATH, O_RDONLY);
 	if (!fd){
       		strcpy(tmpBuf, ("Open image file  failed!\n"));
@@ -1601,6 +2027,29 @@ void formUploadFromUsb(request *wp, char * path, char * query)
 	}
 	lseek(fd, 0L, SEEK_SET);
 	printf("		<read image from usb storage device>\n");
+
+	buff=malloc(fileLen+17);
+	if(buff == NULL)
+	{
+      	sprintf(tmpBuf, ("malloc %d failed !\n"),fileLen+17);
+	 		goto ret_err;
+	}
+	bzero(buff,fileLen+17);
+	
+	strcpy(buff,WINIE6_STR);
+	buff[13]=0x0d;
+	buff[14]=0x0a;
+	buff[15]=0x0d;
+	buff[16]=0x0a;
+	
+//	 printf("\n buff=%s len=%d\n",buff,17);
+	readLen=read(fd,buff+17,fileLen);
+	if(readLen!=fileLen)
+	{
+		sprintf(tmpBuf, ("read %d but file len is %d, read fail!\n"),readLen,fileLen);
+	 		goto ret_err;
+	}
+#if 0
 	/* read image from file to buff */
 	 do{
 		 buff = brealloc(B_L, buff, fileLen + oneReadMax);
@@ -1623,6 +2072,48 @@ void formUploadFromUsb(request *wp, char * path, char * query)
 	free(wp->post_data);
 	wp->post_data = buff;
 	wp->post_data_len = fileLen;
+#endif
+	wp->upload_data=buff;
+		
+	wp->upload_len=fileLen+17;
+		
+#if defined(CONFIG_APP_FWD)
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+	
+	extern int get_shm_id();
+	extern set_shm_id(int id);
+	extern int clear_fwupload_shm();
+	extern char *shm_memory;
+	int shm_id = get_shm_id();	
+	clear_fwupload_shm(shm_id);
+	//if(shm_id == 0)
+	{
+		/* Generate a System V IPC key */ 
+		key_t key;
+		key = ftok("/bin/fwd", 0xE04);
+			
+		/* Allocate a shared memory segment */
+		shm_id = shmget(key, wp->upload_len, IPC_CREAT | IPC_EXCL | 0666);	
+				 
+		if (shm_id == -1) {
+				
+			return -2;
+		}
+		set_shm_id(shm_id);
+		/* Attach the shared memory segment */
+		shm_memory = (char *)shmat(shm_id, NULL, 0);
+		//printf("%s:%d get_shm_id()=%d shm_memory=%p\n",__FUNCTION__,__LINE__,get_shm_id(),shm_memory);
+		memcpy(shm_memory,wp->upload_data,wp->upload_len);
+		free(wp->upload_data);
+		wp->upload_data=shm_memory;
+	}
+#endif
+	firmware_data=wp->upload_data;
+	firmware_len=wp->upload_len;
+
 	formUpload(wp, NULL, NULL);/*further check and upload */
 	return;
 ret_err:
@@ -1740,9 +2231,22 @@ void formUpload(request *wp, char * path, char * query)
 					head_offset +=  pHeader_cfg->compLen+sizeof(COMPRESS_MIB_HEADER_T);
 				}
 #else
-				PARAM_HEADER_Tp pHeader_cfg;
-				pHeader_cfg = (PARAM_HEADER_Tp)&wp->upload_data[head_offset];
-				head_offset +=  pHeader_cfg->len+sizeof(PARAM_HEADER_T);
+#ifdef HEADER_LEN_INT
+				if(!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_TAG, TAG_LEN) ||
+				!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_FORCE_TAG, TAG_LEN) ||
+				!memcmp(&wp->upload_data[head_offset], HW_SETTING_HEADER_UPGRADE_TAG, TAG_LEN))
+				{
+					HW_PARAM_HEADER_Tp phwHeader_cfg;
+					phwHeader_cfg = (HW_PARAM_HEADER_Tp)&wp->upload_data[head_offset];
+					head_offset +=  phwHeader_cfg->len+sizeof(HW_PARAM_HEADER_T);
+				}
+				else
+#endif
+				{
+					PARAM_HEADER_Tp pHeader_cfg;
+					pHeader_cfg = (PARAM_HEADER_Tp)&wp->upload_data[head_offset];
+					head_offset +=  pHeader_cfg->len+sizeof(PARAM_HEADER_T);
+				}
 #endif
 				isValidfw = 1;
 				update_cfg = 1;
@@ -1802,7 +2306,13 @@ void formUpload(request *wp, char * path, char * query)
 #endif
 
 #if defined(CONFIG_RTL_819X)
+#ifdef RTL_8367R_DUAL_BAND
+	Reboot_Wait = (wp->upload_len/69633)+57+5+15;
+#elif defined(RTL_8367R_8881a_DUAL_BAND)
+	Reboot_Wait = (wp->upload_len/69633)+57+5+25;
+#else
 	Reboot_Wait = (wp->upload_len/69633)+57+5;
+#endif
 	if (update_cfg==1 && update_fw==0) {
 		strcpy(tmpBuf, "<b>Update successfully!");
 		Reboot_Wait = (wp->upload_len/69633)+45+5;
@@ -1850,6 +2360,7 @@ void formPasswordSetup(request *wp, char *path, char *query)
 	}
 
 	if ( strUser[0] ) {
+#ifdef SUPER_NAME_SUPPORT
 		/* Check if user name is the same as supervisor name */
 		if ( !apmib_get(MIB_SUPER_NAME, (void *)tmpBuf)) {
 			strcpy(tmpBuf, ("ERROR: Get supervisor name MIB error!"));
@@ -1859,6 +2370,7 @@ void formPasswordSetup(request *wp, char *path, char *query)
 			strcpy(tmpBuf, ("ERROR: Cannot use the same user name as supervisor."));
 			goto setErr_pass;
 		}
+#endif
 	}
 	else {
 		/* Set NULL account */
@@ -2026,6 +2538,25 @@ void formNtp(request *wp, char *path, char *query)
 	submitUrl = req_get_cstream_var(wp, "submit-url", "");   // hidden page
 	strVal = req_get_cstream_var(wp, ("save"), "");   
 
+	tmpStr = req_get_cstream_var(wp, ("timeZone"), "");  
+	if(tmpStr[0]){
+		if ( apmib_set(MIB_NTP_TIMEZONE, (void *)tmpStr) == 0) {
+				strcpy(tmpBuf, ("Set Time Zone error!"));
+			goto setErr_end;
+		}
+	}
+//Brad add for daylight save		
+	tmpStr = req_get_cstream_var(wp, ("dlenabled"), "");  
+	if(!strcmp(tmpStr, "ON"))
+		dlenabled = 1 ;
+	else 
+		dlenabled = 0 ;
+	if ( apmib_set( MIB_DAYLIGHT_SAVE, (void *)&dlenabled) == 0) {
+		strcpy(tmpBuf, ("Set dl enabled flag error!"));
+		goto setErr_end;
+	}
+//Brad add end		
+	set_timeZone();
 	if(strVal[0]){		
 		struct tm tm_time;
 		time_t tm;
@@ -2069,13 +2600,7 @@ void formNtp(request *wp, char *path, char *query)
 		time_value = tm_time.tm_sec;
 		apmib_set( MIB_SYSTIME_SEC, (void *)&time_value);
 		
-		tmpStr = req_get_cstream_var(wp, ("timeZone"), "");  
-		if(tmpStr[0]){
-			if ( apmib_set(MIB_NTP_TIMEZONE, (void *)tmpStr) == 0) {
-					strcpy(tmpBuf, ("Set Time Zone error!"));
-				goto setErr_end;
-			}
-		}
+		
 
 		tmpStr = req_get_cstream_var(wp, ("enabled"), "");  
 		if(!strcmp(tmpStr, "ON"))
@@ -2086,17 +2611,7 @@ void formNtp(request *wp, char *path, char *query)
 			strcpy(tmpBuf, ("Set enabled flag error!"));
 			goto setErr_end;
 		}
-//Brad add for daylight save		
-		tmpStr = req_get_cstream_var(wp, ("dlenabled"), "");  
-		if(!strcmp(tmpStr, "ON"))
-			dlenabled = 1 ;
-		else 
-			dlenabled = 0 ;
-		if ( apmib_set( MIB_DAYLIGHT_SAVE, (void *)&dlenabled) == 0) {
-			strcpy(tmpBuf, ("Set dl enabled flag error!"));
-			goto setErr_end;
-		}
-//Brad add end		
+
 	}
 	if (enabled == 0)		
 		goto  set_ntp_end;
@@ -2197,8 +2712,12 @@ void formPocketWizard(request *wp, char *path, char *query)
 			sprintf(wlanif, "wlan%d",i);
 			if(SetWlan_idx(wlanif))
 			{
-				int intVal;
+				int intVal;	
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_92D_DMDP) && !defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)
 				intVal = DMACDPHY;
+#else
+				intVal = SMACSPHY;
+#endif
 				apmib_set(MIB_WLAN_MAC_PHY_MODE, (void *)&intVal);
 				intVal = 0;
 				apmib_set(MIB_WLAN_WLAN_DISABLED, (void *)&intVal);
@@ -2353,8 +2872,8 @@ void formPocketWizard(request *wp, char *path, char *query)
 			apmib_get(MIB_WLAN_WSC_UPNP_ENABLED, (void *)&isUpnpEnabled);
 			apmib_get(MIB_WLAN_MODE, (void *)&wlanvxd_mode);
 			
-									
-			ulinker_wlan_mib_copy(&pMib->wlan[wlan_idx][NUM_VWLAN_INTERFACE], &pMib->wlan[wlan_idx][0]);
+			if(!ulinker_auto_changed)						
+				ulinker_wlan_mib_copy(&pMib->wlan[wlan_idx][NUM_VWLAN_INTERFACE], &pMib->wlan[wlan_idx][0]);
 			
 			/* restore original setting in vxd interface and repeater ssid*/			
 			apmib_set(MIB_WLAN_WSC_UPNP_ENABLED, (void *)&isUpnpEnabled);
@@ -2365,17 +2884,18 @@ void formPocketWizard(request *wp, char *path, char *query)
 			/* add "-ext" at last of wlan ssid */
 			apmib_get( MIB_WLAN_SSID,  (void *)ssidBuf);
 
-			if(wlan_idx == 0)
-				apmib_set(MIB_REPEATER_SSID1, (void *)&ssidBuf);
-			else
-				apmib_set(MIB_REPEATER_SSID2, (void *)&ssidBuf);
-
-			
-			if(strlen(ssidBuf)<sizeof(ssidBuf)+4)
+			if(!ulinker_auto_changed)
 			{
-				strcat(ssidBuf,"-ext");
-				apmib_set( MIB_WLAN_SSID,  (void *)ssidBuf);
-				apmib_set( MIB_WLAN_WSC_SSID, (void *)ssidBuf);
+				if(wlan_idx == 0)
+					apmib_set(MIB_REPEATER_SSID1, (void *)&ssidBuf);
+				else
+					apmib_set(MIB_REPEATER_SSID2, (void *)&ssidBuf);
+				if(strlen(ssidBuf)<sizeof(ssidBuf)+4&&!ulinker_auto_changed)
+				{
+					strcat(ssidBuf,"-ext");
+					apmib_set( MIB_WLAN_SSID,  (void *)ssidBuf);
+					apmib_set( MIB_WLAN_WSC_SSID, (void *)ssidBuf);
+				}
 			}
 		}
 #endif	
@@ -2545,7 +3065,11 @@ void formWizard(request *wp, char *path, char *query)
 			if(SetWlan_idx(wlanif))
 			{
 				int intVal;
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_92D_DMDP) && !defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)
 				intVal = DMACDPHY;
+#else
+				intVal = SMACSPHY;
+#endif
 				apmib_set(MIB_WLAN_MAC_PHY_MODE, (void *)&intVal);				
 			}						
 		}
@@ -2580,8 +3104,8 @@ void formWizard(request *wp, char *path, char *query)
 		{
 			band2G5GSelect = atoi(tmpStr);			
 		}
-		//1:2g 2:5g
-		/* 92d rule, 5g must up in wlan0 if only one wlanif enable*/
+		
+		/* 92d rule, 5g must up in wlan0 */
 		/* phybandcheck */
 		if(whichWlanIfIs(band2G5GSelect) != 0)
 		{
@@ -2784,12 +3308,6 @@ ulinker_wlan_mib_copy(&pMib->wlan[0][0], &pMib->wlan[0][ULINKER_RPT_MIB]);
 						opmode = BRIDGE_MODE;
 						wlanMode = AP_MODE;
 						rpt_enabled = 1; 
-						break;
-					case 4:
-ulinker_wlan_mib_copy(&pMib->wlan[0][0], &pMib->wlan[0][ULINKER_RPT_MIB]);
-						opmode = WISP_MODE;
-						wlanMode = AP_MODE;
-						rpt_enabled = 1;
 						break;
 				}
 				apmib_set( MIB_OP_MODE, (void *)&opmode);
@@ -3749,6 +4267,46 @@ login_err:
 	ERR_MSG(tmpbuf);
 }
 #endif // LOGIN_URL
+
+#ifdef CONFIG_CPU_UTILIZATION
+void formCpuUtilization(request *wp, char *path, char *query)
+{
+	char *submitUrl, *tmpStr;
+	int enable, interval;
+	char tmpbuf[200];
+
+	submitUrl = req_get_cstream_var(wp, "submit-url", "");   // hidden page
+	
+	tmpStr = req_get_cstream_var(wp, ("enableCpuUtilization"), "");
+	if(!strcmp(tmpStr, "ON"))
+		enable = 1 ;
+	else 
+		enable = 0 ;
+	if ( apmib_set( MIB_ENABLE_CPU_UTILIZATION, (void *)&enable) == 0) {
+		strcpy(tmpbuf, ("Set cpu utilization enabled flag error!"));
+		goto setErr_end;
+	}
+	
+	tmpStr = req_get_cstream_var(wp, ("cpuUtilizationInterval"), "");
+	if(tmpStr[0])
+	{
+		interval = atoi(tmpStr);
+		if ( apmib_set( MIB_CPU_UTILIZATION_INTERVAL, (void *)&interval) == 0) {
+			strcpy(tmpbuf, ("Set cpu utilization interval error!"));
+			goto setErr_end;
+		}
+	}
+
+	apmib_update_web(CURRENT_SETTING);
+
+	OK_MSG(submitUrl);
+	return;
+
+setErr_end:
+	ERR_MSG(tmpbuf);
+}
+
+#endif // CONFIG_CPU_UTILIZATION
 
 #if defined(POWER_CONSUMPTION_SUPPORT)
 unsigned int pre_cpu_d4, pre_time_secs, max_cpu_delta=0;

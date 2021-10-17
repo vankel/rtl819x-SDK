@@ -1,0 +1,218 @@
+libc/inet/rpc/clnt_generic.os: libc/inet/rpc/clnt_generic.c \
+ include/libc-symbols.h include/bits/uClibc_arch_features.h \
+ include/features.h include/bits/uClibc_config.h include/sys/cdefs.h \
+ include/libc-internal.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h \
+ include/bits/stackinfo.h include/alloca.h include/errno.h \
+ include/bits/errno.h ../kernel/linux/errno.h ../kernel/asm/errno.h \
+ ../kernel/asm-generic/errno-base.h include/bits/uClibc_errno.h \
+ libpthread/linuxthreads/sysdeps/rlx/tls.h include/string.h \
+ include/rpc/rpc.h include/rpc/types.h include/stdlib.h \
+ include/bits/waitflags.h include/bits/waitstatus.h include/endian.h \
+ include/bits/endian.h include/byteswap.h include/bits/byteswap.h \
+ include/sys/types.h include/bits/types.h include/bits/wordsize.h \
+ include/bits/kernel_types.h include/bits/typesizes.h \
+ include/bits/pthreadtypes.h include/bits/sched.h include/time.h \
+ include/sys/select.h include/bits/select.h include/bits/sigset.h \
+ include/bits/time.h include/sys/sysmacros.h include/sys/time.h \
+ include/sys/param.h include/limits.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed/limits.h \
+ include/bits/posix1_lim.h include/bits/local_lim.h \
+ ../kernel/linux/limits.h include/bits/uClibc_local_lim.h \
+ include/bits/posix2_lim.h include/bits/xopen_lim.h \
+ include/bits/stdio_lim.h ../kernel/linux/param.h ../kernel/asm/param.h \
+ include/netinet/in.h include/stdint.h include/bits/wchar.h \
+ include/sys/socket.h include/sys/uio.h include/bits/uio.h \
+ include/bits/socket.h include/bits/sockaddr.h ../kernel/asm/socket.h \
+ ../kernel/asm/sockios.h ../kernel/asm/ioctl.h \
+ ../kernel/asm-generic/ioctl.h include/bits/in.h include/rpc/xdr.h \
+ include/stdio.h include/bits/uClibc_stdio.h include/wchar.h \
+ include/bits/uClibc_mutex.h include/pthread.h include/sched.h \
+ include/bits/uClibc_clk_tck.h include/signal.h include/bits/initspin.h \
+ include/bits/sigthread.h include/bits/uClibc_pthread.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h \
+ include/rpc/auth.h include/rpc/clnt.h include/sys/un.h \
+ include/rpc/rpc_msg.h include/rpc/auth_unix.h include/rpc/auth_des.h \
+ include/rpc/svc.h include/rpc/svc_auth.h include/rpc/netdb.h \
+ include/netdb.h include/bits/siginfo.h include/bits/netdb.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/sys/cdefs.h:
+
+include/libc-internal.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h:
+
+include/bits/stackinfo.h:
+
+include/alloca.h:
+
+include/errno.h:
+
+include/bits/errno.h:
+
+../kernel/linux/errno.h:
+
+../kernel/asm/errno.h:
+
+../kernel/asm-generic/errno-base.h:
+
+include/bits/uClibc_errno.h:
+
+libpthread/linuxthreads/sysdeps/rlx/tls.h:
+
+include/string.h:
+
+include/rpc/rpc.h:
+
+include/rpc/types.h:
+
+include/stdlib.h:
+
+include/bits/waitflags.h:
+
+include/bits/waitstatus.h:
+
+include/endian.h:
+
+include/bits/endian.h:
+
+include/byteswap.h:
+
+include/bits/byteswap.h:
+
+include/sys/types.h:
+
+include/bits/types.h:
+
+include/bits/wordsize.h:
+
+include/bits/kernel_types.h:
+
+include/bits/typesizes.h:
+
+include/bits/pthreadtypes.h:
+
+include/bits/sched.h:
+
+include/time.h:
+
+include/sys/select.h:
+
+include/bits/select.h:
+
+include/bits/sigset.h:
+
+include/bits/time.h:
+
+include/sys/sysmacros.h:
+
+include/sys/time.h:
+
+include/sys/param.h:
+
+include/limits.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed/limits.h:
+
+include/bits/posix1_lim.h:
+
+include/bits/local_lim.h:
+
+../kernel/linux/limits.h:
+
+include/bits/uClibc_local_lim.h:
+
+include/bits/posix2_lim.h:
+
+include/bits/xopen_lim.h:
+
+include/bits/stdio_lim.h:
+
+../kernel/linux/param.h:
+
+../kernel/asm/param.h:
+
+include/netinet/in.h:
+
+include/stdint.h:
+
+include/bits/wchar.h:
+
+include/sys/socket.h:
+
+include/sys/uio.h:
+
+include/bits/uio.h:
+
+include/bits/socket.h:
+
+include/bits/sockaddr.h:
+
+../kernel/asm/socket.h:
+
+../kernel/asm/sockios.h:
+
+../kernel/asm/ioctl.h:
+
+../kernel/asm-generic/ioctl.h:
+
+include/bits/in.h:
+
+include/rpc/xdr.h:
+
+include/stdio.h:
+
+include/bits/uClibc_stdio.h:
+
+include/wchar.h:
+
+include/bits/uClibc_mutex.h:
+
+include/pthread.h:
+
+include/sched.h:
+
+include/bits/uClibc_clk_tck.h:
+
+include/signal.h:
+
+include/bits/initspin.h:
+
+include/bits/sigthread.h:
+
+include/bits/uClibc_pthread.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h:
+
+include/rpc/auth.h:
+
+include/rpc/clnt.h:
+
+include/sys/un.h:
+
+include/rpc/rpc_msg.h:
+
+include/rpc/auth_unix.h:
+
+include/rpc/auth_des.h:
+
+include/rpc/svc.h:
+
+include/rpc/svc_auth.h:
+
+include/rpc/netdb.h:
+
+include/netdb.h:
+
+include/bits/siginfo.h:
+
+include/bits/netdb.h:
+cmd_libc_inet_rpc_clnt_generic.os := mips-linux-gcc -c libc/inet/rpc/clnt_generic.c -o libc/inet/rpc/clnt_generic.os -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -fPIC -fno-strict-aliasing -MT libc/inet/rpc/clnt_generic.os -MD -MP -MF libc/inet/rpc/.clnt_generic.os.dep

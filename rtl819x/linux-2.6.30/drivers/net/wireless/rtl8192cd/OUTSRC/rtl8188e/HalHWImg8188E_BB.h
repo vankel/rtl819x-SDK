@@ -19,39 +19,40 @@
 ******************************************************************************/
 
 #if (RTL8188E_SUPPORT == 1)
-#ifndef __INC_BB_8188E_HW_IMG_H
-#define __INC_BB_8188E_HW_IMG_H
+#ifndef __INC_MP_BB_HW_IMG_8188E_H
+#define __INC_MP_BB_HW_IMG_8188E_H
 
-#if 0
-static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
-#endif
 
 /******************************************************************************
-*                           AGC_TAB_1T.TXT
+*                           AGC_TAB.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_AGC_TAB_1T_8188E(
+ODM_ReadAndConfig_MP_8188E_AGC_TAB( // TC: Test Chip, MP: MP Chip
 	IN   PDM_ODM_T  pDM_Odm
 );
+u4Byte ODM_GetVersion_MP_8188E_AGC_TAB(void);
 
 /******************************************************************************
-*                           PHY_REG_1T.TXT
+*                           PHY_REG.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_PHY_REG_1T_8188E(
+ODM_ReadAndConfig_MP_8188E_PHY_REG( // TC: Test Chip, MP: MP Chip
 	IN   PDM_ODM_T  pDM_Odm
 );
+u4Byte ODM_GetVersion_MP_8188E_PHY_REG(void);
 
 /******************************************************************************
-*                           PHY_REG_MP.TXT
+*                           PHY_REG_PG.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_PHY_REG_MP_8188E(
+ODM_ReadAndConfig_MP_8188E_PHY_REG_PG( // TC: Test Chip, MP: MP Chip
 	IN   PDM_ODM_T  pDM_Odm
 );
+u4Byte ODM_GetVersion_MP_8188E_PHY_REG_PG(void);
 
 #endif
 #endif // end of HWIMG_SUPPORT
+

@@ -68,18 +68,25 @@
 	.endm							
 
 #NO_APP
+	.globl	l2tp_ppp_imagic
 	.data
 	.align	2
-	.type	res1, @object
-	.size	res1, 4
-res1:
+	.type	l2tp_ppp_imagic, @object
+	.size	l2tp_ppp_imagic, 4
+l2tp_ppp_imagic:
 	.word	0
+	.globl	l2tpInfo
 	.align	2
 	.type	l2tpInfo, @object
 	.size	l2tpInfo, 40
 l2tpInfo:
 	.word	0
 	.space	36
+	.align	2
+	.type	res1, @object
+	.size	res1, 4
+res1:
+	.word	0
 	.section	.text.is_l2tp_device,"ax",@progbits
 	.align	2
 	.globl	is_l2tp_device
@@ -288,11 +295,11 @@ l2tp_tx_id:
 	li	$2,1701			# 0x6a5
 	lhu	$6,0($4)
 	andi	$3,$6,0xffff
-	bne	$3,$2,$L27
+	bne	$3,$2,$L34
 	addiu	$5,$4,8
 
 	lhu	$2,2($4)
-	bne	$2,$3,$L27
+	bne	$2,$3,$L34
 	li	$2,1701			# 0x6a5
 
 	lhu	$3,8($4)
@@ -306,14 +313,14 @@ l2tp_tx_id:
 	movn	$17,$2,$3		#conditional move  
 	li	$2,4			# 0x4
 	lhu	$16,14($17)
-	bne	$16,$2,$L28
+	bne	$16,$2,$L35
 	li	$2,11			# 0xb
 
 	lui	$2,%hi(l2tpInfo)
 	addiu	$4,$2,%lo(l2tpInfo)
 	lhu	$3,20($4)
 	lhu	$2,0($17)
-	bne	$3,$2,$L28
+	bne	$3,$2,$L35
 	li	$2,11			# 0xb
 
 	move	$5,$0
@@ -328,13 +335,13 @@ l2tp_tx_id:
 	lui	$2,%hi(state)
 	sw	$0,%lo(state)($2)
 	li	$2,11			# 0xb
-$L28:
-	bne	$16,$2,$L29
+$L35:
+	bne	$16,$2,$L36
 	li	$2,12			# 0xc
 
 	lui	$21,%hi(state)
 	lw	$2,%lo(state)($21)
-	bne	$2,$0,$L29
+	bne	$2,$0,$L36
 	li	$2,12			# 0xc
 
 	jal	rtl_get_skb_dev_name
@@ -346,7 +353,7 @@ $L28:
 	jal	memcmp
 	li	$6,4			# 0x4
 
-	bne	$2,$0,$L29
+	bne	$2,$0,$L36
 	li	$2,12			# 0xc
 
 	jal	rtl_get_skb_dev
@@ -375,7 +382,7 @@ $L28:
 	li	$2,1			# 0x1
 	sw	$2,%lo(state)($21)
 	li	$2,12			# 0xc
-$L29:
+$L36:
 	bne	$16,$2,$L10
 	nop
 
@@ -414,21 +421,32 @@ $L29:
 $L11:
 	andi	$3,$6,0xffff
 	li	$2,1701			# 0x6a5
-$L27:
+$L34:
 	bne	$3,$2,$L10
 	nop
 
 	lhu	$2,2($4)
 	bne	$2,$3,$L10
-	lui	$3,%hi(l2tpInfo)
+	nop
 
-	addiu	$17,$5,2
 	lhu	$2,0($5)
-	addiu	$16,$3,%lo(l2tpInfo)
-	lw	$4,12($16)
-	addiu	$3,$5,4
 	andi	$2,$2,0x4000
-	movn	$17,$3,$2		#conditional move  
+	beq	$2,$0,$L22
+	addiu	$17,$5,2
+
+	j	$L21
+	addiu	$17,$5,4
+
+$L33:
+	lw	$3,2($3)
+	j	$L10
+	sw	$3,%lo(l2tp_ppp_imagic)($2)
+
+$L21:
+$L22:
+	lui	$2,%hi(l2tpInfo)
+	addiu	$16,$2,%lo(l2tpInfo)
+	lw	$4,12($16)
 	jal	filter_checkConnect
 	addiu	$18,$17,6
 
@@ -446,17 +464,17 @@ $L23:
 	li	$2,6			# 0x6
 
 	lbu	$3,2($18)
-	bne	$3,$2,$L10
-	nop
+	bne	$3,$2,$L37
+	li	$2,1			# 0x1
 
 	lhu	$3,20($16)
 	lhu	$2,0($17)
-	bne	$3,$2,$L10
+	bne	$3,$2,$L25
 	nop
 
 	lhu	$3,2($17)
 	lhu	$2,22($16)
-	bne	$2,$3,$L10
+	bne	$2,$3,$L25
 	move	$4,$16
 
 	move	$5,$0
@@ -465,6 +483,33 @@ $L23:
 
 	lui	$2,%hi(state)
 	sw	$0,%lo(state)($2)
+$L25:
+	lbu	$3,2($18)
+	li	$2,1			# 0x1
+$L37:
+	bne	$3,$2,$L10
+	nop
+
+	addiu	$7,$18,2
+	li	$5,4			# 0x4
+	lhu	$6,2($7)
+	slt	$2,$5,$6
+	beq	$2,$0,$L10
+	nop
+
+	li	$8,5			# 0x5
+$L31:
+	addu	$3,$7,$5
+	lbu	$2,0($3)
+	lbu	$4,1($3)
+	beq	$2,$8,$L33
+	lui	$2,%hi(l2tp_ppp_imagic)
+
+	addu	$5,$5,$4
+	slt	$2,$5,$6
+	bne	$2,$0,$L31
+	nop
+
 $L10:
 	lw	$31,40($sp)
 	lw	$21,36($sp)
@@ -494,147 +539,152 @@ fast_l2tp_rx:
 	
 	addiu	$sp,$sp,-48
 	sw	$31,44($sp)
-	sw	$22,40($sp)
-	sw	$20,32($sp)
-	sw	$17,20($sp)
-	move	$17,$4
-	sw	$16,16($sp)
 	sw	$21,36($sp)
+	sw	$20,32($sp)
+	move	$20,$4
 	sw	$19,28($sp)
-	jal	rtl_ip_hdr
+	sw	$16,16($sp)
+	sw	$22,40($sp)
 	sw	$18,24($sp)
+	jal	rtl_ip_hdr
+	sw	$17,20($sp)
 
-	move	$4,$17
-	move	$20,$2
+	move	$4,$20
+	move	$21,$2
 	lbu	$2,0($2)
 	andi	$2,$2,0xf
 	sll	$2,$2,2
 	jal	rtl_get_skb_data
-	addu	$16,$20,$2
+	addu	$16,$21,$2
 
-	move	$4,$17
+	move	$4,$20
 	jal	rtl_get_skb_len
-	move	$22,$2
+	move	$19,$2
 
 	sltu	$2,$2,40
-	bne	$2,$0,$L31
-	li	$2,1701			# 0x6a5
+	bne	$2,$0,$L39
+	move	$4,$0
 
 	lhu	$3,0($16)
-	bne	$3,$2,$L31
+	li	$2,1701			# 0x6a5
+	bne	$3,$2,$L39
 	nop
 
 	lhu	$2,2($16)
-	bne	$2,$3,$L31
-	lui	$21,%hi(l2tpInfo)
+	bne	$2,$3,$L39
+	lui	$22,%hi(l2tpInfo)
 
-	lw	$2,%lo(l2tpInfo)($21)
-	bne	$2,$0,$L34
+	lw	$2,%lo(l2tpInfo)($22)
+	bne	$2,$0,$L42
 	nop
 
 	jal	l2tp_tx_id
-	move	$4,$17
+	move	$4,$20
 
-$L34:
-	lbu	$2,28($22)
-	addiu	$19,$21,%lo(l2tpInfo)
-	lhu	$4,20($19)
+$L42:
+	lbu	$2,28($19)
+	move	$4,$19
+	move	$6,$20
 	srl	$3,$2,5
 	andi	$2,$2,0x2
 	andi	$18,$3,0x2
-	beq	$4,$0,$L31
 	addu	$18,$18,$2
+	jal	fast_l2tp_tx_lcp_echo_reply
+	move	$5,$18
 
-	lhu	$2,22($19)
-	beq	$2,$0,$L31
-	addu	$16,$22,$18
+	li	$3,1			# 0x1
+	beq	$2,$3,$L39
+	li	$4,1			# 0x1
+
+	addiu	$17,$22,%lo(l2tpInfo)
+	lhu	$2,20($17)
+	beq	$2,$0,$L41
+	nop
+
+	lhu	$2,22($17)
+	beq	$2,$0,$L41
+	addu	$16,$19,$18
 
 	lbu	$2,36($16)
-	bne	$2,$0,$L31
+	bne	$2,$0,$L41
 	li	$2,33			# 0x21
 
 	lbu	$3,37($16)
-	bne	$3,$2,$L31
+	bne	$3,$2,$L41
 	nop
 
-	lw	$2,%lo(l2tpInfo)($21)
-	beq	$2,$0,$L31
+	lw	$2,%lo(l2tpInfo)($22)
+	beq	$2,$0,$L41
 	nop
 
-	lw	$3,16($20)
-	lw	$2,16($19)
-	bne	$2,$3,$L31
+	lw	$3,16($21)
+	lw	$2,16($17)
+	bne	$2,$3,$L41
 	nop
 
-	lw	$2,4($19)
-	bne	$2,$0,$L38
-	nop
-
+	lw	$2,4($17)
+	bne	$2,$0,$L47
 	lui	$4,%hi($LC0)
+
 	jal	rtl_get_dev_by_name
 	addiu	$4,$4,%lo($LC0)
 
-	sw	$2,4($19)
-$L38:
-	lw	$5,4($19)
-	beq	$5,$0,$L31
-	li	$2,6			# 0x6
+	sw	$2,4($17)
+$L47:
+	lw	$5,4($17)
+	beq	$5,$0,$L39
+	move	$4,$0
 
-	lbu	$3,47($16)
-	beq	$3,$2,$L41
+	lbu	$4,47($16)
+	li	$2,6			# 0x6
+	beq	$4,$2,$L50
 	li	$2,17			# 0x11
 
-	bne	$3,$2,$L31
-	nop
+	bne	$4,$2,$L39
+	move	$4,$0
 
-$L41:
+$L50:
 	jal	rtl_set_skb_dev
-	move	$4,$17
+	move	$4,$20
 
 	addiu	$5,$18,38
 	jal	skb_pull
-	move	$4,$17
+	move	$4,$20
 
 	jal	rtl_skb_reset_network_header
-	move	$4,$17
+	move	$4,$20
 
 	jal	rtl_skb_reset_transport_header
-	move	$4,$17
+	move	$4,$20
 
-	lw	$4,4($19)
-	beq	$4,$0,$L31
+	lw	$4,4($17)
+	beq	$4,$0,$L41
 	nop
 
 	jal	rtl_get_ppp_dev_priv
 	nop
 
-	beq	$2,$0,$L31
-	nop
+	beq	$2,$0,$L39
+	move	$4,$0
 
-	lw	$4,4($19)
+	lw	$4,4($17)
 	jal	rtl_get_ppp_dev_priv
 	nop
 
-	move	$4,$17
+	move	$4,$20
 	jal	rtl_get_skb_len
 	move	$16,$2
 
 	move	$4,$16
-	lw	$31,44($sp)
 	move	$6,$2
-	lw	$22,40($sp)
+	jal	rtl_inc_ppp_stats
 	move	$5,$0
-	lw	$21,36($sp)
-	lw	$20,32($sp)
-	lw	$19,28($sp)
-	lw	$18,24($sp)
-	lw	$17,20($sp)
-	lw	$16,16($sp)
-	j	rtl_inc_ppp_stats
-	addiu	$sp,$sp,48
 
-$L31:
+$L41:
+	move	$4,$0
+$L39:
 	lw	$31,44($sp)
+	move	$2,$4
 	lw	$22,40($sp)
 	lw	$21,36($sp)
 	lw	$20,32($sp)
@@ -665,11 +715,11 @@ get_fast_l2tp_lastxmit:
 	addiu	$5,$2,%lo(l2tpInfo)
 	li	$2,1			# 0x1
 	lhu	$3,38($5)
-	bne	$3,$2,$L43
+	bne	$3,$2,$L52
 	move	$4,$0
 
 	lw	$4,8($5)
-$L43:
+$L52:
 	j	$31
 	move	$2,$4
 
@@ -698,7 +748,7 @@ check_for_fast_l2tp_to_wan:
 	move	$4,$16
 	lbu	$3,9($2)
 	li	$2,1			# 0x1
-	beq	$3,$2,$L45
+	beq	$3,$2,$L54
 	move	$5,$0
 
 	jal	rtl_ip_hdr
@@ -711,7 +761,7 @@ check_for_fast_l2tp_to_wan:
 	ori	$3,$3,0x4000
 	xor	$2,$2,$3
 	sltu	$5,$0,$2
-$L45:
+$L54:
 	lw	$31,20($sp)
 	move	$2,$5
 	lw	$16,16($sp)
@@ -721,12 +771,6 @@ $L45:
 	.set	macro
 	.set	reorder
 	.end	check_for_fast_l2tp_to_wan
-	.rdata
-	.align	2
-	.type	__func__.0, @object
-	.size	__func__.0, 17
-__func__.0:
-	.ascii	"fast_l2tp_to_wan\000"
 	.section	.text.fast_l2tp_to_wan,"ax",@progbits
 	.align	2
 	.globl	fast_l2tp_to_wan
@@ -748,7 +792,7 @@ fast_l2tp_to_wan:
 	lw	$2,%lo(fast_l2tp_fw)($2)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L50
+	beq	$2,$0,$L59
 	move	$17,$4
 	.set	macro
 	.set	reorder
@@ -758,34 +802,34 @@ fast_l2tp_to_wan:
 	lhu	$2,20($3)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L48
+	beq	$2,$0,$L57
 	move	$5,$0
 	.set	macro
 	.set	reorder
 
 	lhu	$2,22($3)
-	beq	$2,$0,$L48
+	beq	$2,$0,$L57
 	lw	$2,%lo(l2tpInfo)($18)
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L49
+	bne	$2,$0,$L58
 	li	$2,1			# 0x1
 	.set	macro
 	.set	reorder
 
-$L50:
+$L59:
 	.set	noreorder
 	.set	nomacro
-	j	$L48
+	j	$L57
 	move	$5,$0
 	.set	macro
 	.set	reorder
 
-$L49:
+$L58:
 	lhu	$3,38($3)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L48
+	bne	$3,$2,$L57
 	move	$5,$0
 	.set	macro
 	.set	reorder
@@ -803,7 +847,7 @@ $L49:
 	sltu	$2,$2,52
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L66
+	bne	$2,$0,$L74
 	li	$5,52			# 0x34
 	.set	macro
 	.set	reorder
@@ -817,7 +861,7 @@ $L49:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L66
+	bne	$2,$0,$L74
 	li	$5,52			# 0x34
 	.set	macro
 	.set	reorder
@@ -831,13 +875,13 @@ $L49:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L67
+	beq	$2,$0,$L75
 	move	$4,$17
 	.set	macro
 	.set	reorder
 
 	li	$5,52			# 0x34
-$L66:
+$L74:
 	.set	noreorder
 	.set	nomacro
 	jal	skb_realloc_headroom
@@ -847,7 +891,7 @@ $L66:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L48
+	beq	$2,$0,$L57
 	move	$5,$0
 	.set	macro
 	.set	reorder
@@ -861,7 +905,7 @@ $L66:
 	.set	reorder
 
 	move	$4,$17
-$L67:
+$L75:
 	li	$5,52			# 0x34
 	lbu	$16,1($16)
 	.set	noreorder
@@ -941,14 +985,14 @@ $L67:
 	addu	$5,$5,$3
 	sltu	$4,$5,$3
 	addu	$5,$5,$4
-$L56:
+$L64:
 	lw	$2,0($6)
 	addiu	$6,$6,4
 	addu	$5,$5,$2
 	sltu	$4,$5,$2
 	.set	noreorder
 	.set	nomacro
-	bne	$6,$7,$L56
+	bne	$6,$7,$L64
 	addu	$5,$5,$4
 	.set	macro
 	.set	reorder
@@ -1039,18 +1083,18 @@ $L56:
 	li	$3,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$3,$L61
+	beq	$2,$3,$L69
 	lui	$2,%hi(jiffies)
 	.set	macro
 	.set	reorder
 
 	lw	$2,%lo(jiffies)($2)
 	sw	$2,8($16)
-$L61:
+$L69:
 	lw	$4,4($16)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L68
+	beq	$4,$0,$L76
 	lui	$2,%hi(gQosEnabled)
 	.set	macro
 	.set	reorder
@@ -1058,7 +1102,7 @@ $L61:
 	jal	rtl_get_ppp_dev_priv
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L68
+	beq	$2,$0,$L76
 	lui	$2,%hi(gQosEnabled)
 	.set	macro
 	.set	reorder
@@ -1083,9 +1127,9 @@ $L61:
 	.set	reorder
 
 	lui	$2,%hi(gQosEnabled)
-$L68:
+$L76:
 	lw	$2,%lo(gQosEnabled)($2)
-	beq	$2,$0,$L63
+	beq	$2,$0,$L71
 	.set	noreorder
 	.set	nomacro
 	jal	dev_queue_xmit
@@ -1095,12 +1139,12 @@ $L68:
 
 	.set	noreorder
 	.set	nomacro
-	j	$L48
+	j	$L57
 	li	$5,1			# 0x1
 	.set	macro
 	.set	reorder
 
-$L63:
+$L71:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_call_skb_ndo_start_xmit
@@ -1109,7 +1153,7 @@ $L63:
 	.set	reorder
 
 	li	$5,1			# 0x1
-$L48:
+$L57:
 	lw	$31,84($sp)
 	move	$2,$5
 	lw	$20,80($sp)
@@ -1127,7 +1171,7 @@ $L48:
 	.end	fast_l2tp_to_wan
 	.rdata
 	.align	2
-$LC3:
+$LC2:
 	.ascii	"%c\n\000"
 	.section	.text.l2tp_read_proc,"ax",@progbits
 	.align	2
@@ -1146,9 +1190,9 @@ l2tp_read_proc:
 	sw	$19,28($sp)
 	move	$19,$5
 	sw	$18,24($sp)
-	lui	$5,%hi($LC3)
+	lui	$5,%hi($LC2)
 	sw	$17,20($sp)
-	addiu	$5,$5,%lo($LC3)
+	addiu	$5,$5,%lo($LC2)
 	sw	$16,16($sp)
 	move	$17,$6
 	sw	$31,32($sp)
@@ -1165,13 +1209,13 @@ l2tp_read_proc:
 	subu	$4,$4,$17
 	slt	$3,$16,$4
 	movn	$4,$16,$3		#conditional move
-	bne	$2,$0,$L70
+	bne	$2,$0,$L78
 	slt	$5,$4,0
 
 	lw	$2,56($sp)
 	li	$3,1			# 0x1
 	sw	$3,0($2)
-$L70:
+$L78:
 	sw	$18,0($19)
 	move	$2,$0
 	lw	$31,32($sp)
@@ -1202,7 +1246,7 @@ l2tp_write_proc:
 	sw	$31,28($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L73
+	bne	$2,$0,$L81
 	move	$16,$6
 	.set	macro
 	.set	reorder
@@ -1210,7 +1254,7 @@ l2tp_write_proc:
 	addiu	$2,$5,1
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L75
+	beq	$5,$0,$L83
 	or	$3,$5,$2
 	.set	macro
 	.set	reorder
@@ -1220,7 +1264,7 @@ l2tp_write_proc:
 	and	$2,$2,$3
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L75
+	bne	$2,$0,$L83
 	li	$6,1			# 0x1
 	.set	macro
 	.set	reorder
@@ -1235,7 +1279,7 @@ l2tp_write_proc:
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	bne	$6,$0,$L73
+	bne	$6,$0,$L81
 	li	$3,-14			# 0xfffffff2
 	.set	macro
 	.set	reorder
@@ -1247,7 +1291,7 @@ l2tp_write_proc:
 	li	$3,1			# 0x1
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$3,$L83
+	bne	$2,$3,$L91
 	lui	$4,%hi(l2tp_tx_id_hook)
 	.set	macro
 	.set	reorder
@@ -1256,16 +1300,16 @@ l2tp_write_proc:
 	addiu	$2,$2,%lo(l2tp_tx_id)
 	.set	noreorder
 	.set	nomacro
-	j	$L84
+	j	$L92
 	sw	$2,%lo(l2tp_tx_id_hook)($4)
 	.set	macro
 	.set	reorder
 
-$L83:
+$L91:
 	lui	$2,%hi(l2tpInfo+20)
 	sw	$0,%lo(l2tp_tx_id_hook)($4)
 	sh	$0,%lo(l2tpInfo+20)($2)
-$L84:
+$L92:
 	lui	$4,%hi(l2tpInfo)
 	move	$5,$0
 	li	$6,40			# 0x28
@@ -1280,14 +1324,14 @@ $L84:
 	move	$3,$16
 	.set	noreorder
 	.set	nomacro
-	j	$L73
+	j	$L81
 	sw	$0,%lo(state)($2)
 	.set	macro
 	.set	reorder
 
-$L75:
+$L83:
 	li	$3,-14			# 0xfffffff2
-$L73:
+$L81:
 	lw	$31,28($sp)
 	move	$2,$3
 	lw	$16,24($sp)
@@ -1301,7 +1345,7 @@ $L73:
 	.end	l2tp_write_proc
 	.rdata
 	.align	2
-$LC4:
+$LC3:
 	.ascii	"fast_l2tp\000"
 	.section	.init.text,"ax",@progbits
 	.align	2
@@ -1316,10 +1360,10 @@ fast_l2tp_init:
 	.set	noreorder
 	.set	nomacro
 	
-	lui	$4,%hi($LC4)
+	lui	$4,%hi($LC3)
 	addiu	$sp,$sp,-24
 	move	$5,$0
-	addiu	$4,$4,%lo($LC4)
+	addiu	$4,$4,%lo($LC3)
 	sw	$31,16($sp)
 	jal	create_proc_entry
 	move	$6,$0
@@ -1330,7 +1374,7 @@ fast_l2tp_init:
 	addiu	$4,$4,%lo(l2tpInfo)
 	move	$5,$0
 	li	$6,40			# 0x28
-	beq	$2,$0,$L86
+	beq	$2,$0,$L94
 	sw	$2,%lo(res1)($7)
 
 	lui	$2,%hi(l2tp_read_proc)
@@ -1340,7 +1384,7 @@ fast_l2tp_init:
 	lw	$3,%lo(res1)($7)
 	addiu	$2,$2,%lo(l2tp_write_proc)
 	sw	$2,68($3)
-$L86:
+$L94:
 	lui	$2,%hi(l2tp_tx_id_hook)
 	sw	$0,%lo(l2tp_tx_id_hook)($2)
 	lui	$2,%hi(fast_l2tp_fw)
@@ -1371,20 +1415,20 @@ fast_l2tp_exit:
 	.set	nomacro
 	
 	addiu	$sp,$sp,-24
-	lui	$4,%hi($LC4)
+	lui	$4,%hi($LC3)
 	sw	$16,16($sp)
 	lui	$16,%hi(res1)
 	lw	$2,%lo(res1)($16)
-	addiu	$4,$4,%lo($LC4)
+	addiu	$4,$4,%lo($LC3)
 	sw	$31,20($sp)
-	beq	$2,$0,$L87
+	beq	$2,$0,$L95
 	move	$5,$2
 
 	jal	remove_proc_entry
 	nop
 
 	sw	$0,%lo(res1)($16)
-$L87:
+$L95:
 	lw	$31,20($sp)
 	lw	$16,16($sp)
 	j	$31

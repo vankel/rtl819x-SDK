@@ -11,6 +11,9 @@ extern unsigned char FXS_Check_Ring( uint32 cch );
 extern void Set_SLIC_Tx_Gain( uint32 cch, int tx_gain );
 extern void Set_SLIC_Rx_Gain( uint32 cch, int rx_gain );
 extern void SLIC_Set_Ring_Cadence( uint32 cch, unsigned short OnMsec, unsigned short OffMsec );
+extern void SLIC_Set_Multi_Ring_Cadence( uint32 cch, 
+		unsigned short OnMsec1, unsigned short OffMsec1, unsigned short OnMsec2, unsigned short OffMsec2,
+		unsigned short OnMsec3, unsigned short OffMsec3, unsigned short OnMsec4, unsigned short OffMsec4 );
 extern void SLIC_Set_Ring_Freq_Amp( uint32 cch, char preset );
 extern void SLIC_Set_Impendance_Country( uint32 cch, unsigned short country, unsigned short impd );
 extern void SLIC_Set_Impendance( uint32 cch, unsigned short preset );
@@ -28,6 +31,8 @@ extern void SetOnHookTransmissionAndBackupRegister( uint32 cch ); // use for DTM
 extern void RestoreBackupRegisterWhenSetOnHookTransmission( uint32 cch ); // use for DTMF caller id
 extern void SLIC_Set_PCM_state( uint32 cch, int enable );
 extern unsigned char SLIC_Get_Hook_Status( uint32 cch, int directly );
+extern void SLIC_Set_Power_Save_Mode( uint32 cch);
+extern void SLIC_Set_FXS_Line_State( uint32 cch, int state);
 
 extern void SLIC_read_reg( uint32 cch, unsigned int num, unsigned char * len, unsigned char *val );
 extern void SLIC_write_reg( uint32 cch, unsigned int num, unsigned char * len, unsigned char *val );
@@ -38,6 +43,7 @@ extern void SLIC_dump_ram( uint32 cch );
 //extern void FXS_FXO_DTx_DRx_Loopback( uint32 cch, unsigned int enable );
 extern void FXS_FXO_DTx_DRx_Loopback_greedy( uint32 cch, unsigned int enable );
 extern void SLIC_OnHookTrans_PCM_start( uint32 cch );
+extern void SLIC_set_param(uint32 cch, unsigned int slic_type, unsigned int param_type, unsigned char* pParam, unsigned int param_size);
 
 #endif /* __SND_MUX_SLIC_H__ */
 

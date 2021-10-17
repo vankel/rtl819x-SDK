@@ -43,9 +43,9 @@ int lb_test_main(int argc, char *argv[])
 		if( !RTK_VOIP_IS_SLIC_CH( chid, g_VoIP_Feature ) )
 			continue;
 			
-		rtk_InitDSP(chid);
-		rtk_Set_flush_fifo(chid);	
-		rtk_SetDTMFMODE(chid, DTMF_INBAND);	// set dtmf mode
+		rtk_InitDsp(chid);
+		rtk_SetFlushFifo(chid);	
+		rtk_SetDtmfMode(chid, DTMF_INBAND);	// set dtmf mode
 	}
 	
 	while (1)
@@ -70,14 +70,14 @@ int lb_test_main(int argc, char *argv[])
 							state[chid ? 0 : 1] = 2; // ringing
 						}
 #else
-						rtk_SetRingFXS(chid ? 0 : 1, 1);
+						rtk_SetRingFxs(chid ? 0 : 1, 1);
 						state[chid ? 0 : 1] = 2; // ringing
 #endif
 						break;
 					case 1: // ring (caller)
 						break;
 					case 2: // ringing (callee)
-						rtk_SetRingFXS(chid, 0);
+						rtk_SetRingFxs(chid, 0);
 						if (mode == 0) // pcm loopback
 						{
 							rtk_Set_PCM_Loop_Mode(0, 1, 0, 1);
@@ -113,7 +113,7 @@ int lb_test_main(int argc, char *argv[])
 					case 0: // idle
 						break;
 					case 1: // ring (caller)
-						rtk_SetRingFXS(chid ? 0 : 1, 0);
+						rtk_SetRingFxs(chid ? 0 : 1, 0);
 						state[chid] = 0; // idle
 						state[chid ? 0 : 1] = 0; // idle
 						break;
@@ -161,7 +161,7 @@ int lb_test_main(int argc, char *argv[])
 							ring_start.tv_sec + ring_delay)
 							break; 
 
-						rtk_SetRingFXS(chid ? 0 : 1, 1);
+						rtk_SetRingFxs(chid ? 0 : 1, 1);
 						state[chid ? 0 : 1] = 2; // ringing
 						break;
 					case 2: // ringing (callee)

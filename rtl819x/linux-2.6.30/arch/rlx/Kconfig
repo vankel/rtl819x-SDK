@@ -88,6 +88,10 @@ config CPU_HAS_ULS
   bool
   default y if ARCH_CPU_ULS
 
+config CPU_HAS_TLS
+  bool
+  default y if ARCH_CPU_TLS
+
 config CPU_HAS_LLSC
   bool
   default y if ARCH_CPU_LLSC
@@ -175,6 +179,10 @@ config IRQ_VEC
 config GENERIC_HARDIRQS
     bool
     default y
+
+config CPU_HAS_WATCH
+    bool
+    default y if ARCH_CPU_WMPU
 
 config GENERIC_IRQ_PROBE
     bool
@@ -278,12 +286,6 @@ config GENERIC_GPIO
 config SWAP_IO_SPACE
 	bool
 
-#
-# Set to y for ptrace access to watch registers.
-#
-config HARDWARE_WATCHPOINTS
-       bool
-       default y if CPU_MIPSR1 || CPU_MIPSR2
 
 menu "Kernel type"
 
@@ -499,4 +501,5 @@ source "arch/rlx/Kconfig.debug"
 source "security/Kconfig"
 source "crypto/Kconfig"
 source "lib/Kconfig"
+source "rtk_voip/Kconfig"
 

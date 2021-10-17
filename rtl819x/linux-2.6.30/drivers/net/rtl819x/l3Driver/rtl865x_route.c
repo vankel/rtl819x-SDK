@@ -122,6 +122,7 @@ static int32 _rtl865x_synRouteToAsic(rtl865x_route_t *rt_t)
 	if(rt_t == NULL)
 	{
 		printk("%s(%d):NULL!!!!!!!!!!!!!!!!\n",__FUNCTION__,__LINE__);
+		return FAILED;
 	}
 	/*common information*/
 	asic_t.ipAddr	= rt_t->ipAddr;
@@ -139,8 +140,10 @@ static int32 _rtl865x_synRouteToAsic(rtl865x_route_t *rt_t)
 	else
 		dstNetif = rt_t->dstNetif;
 
-	if(dstNetif == NULL)
-			printk("%s(%d) BUG!!!!!!\n",__FUNCTION__,__LINE__);
+	if(dstNetif == NULL){
+		printk("%s(%d) BUG!!!!!!\n",__FUNCTION__,__LINE__);
+		return FAILED;
+	}
 	
 	asic_t.vidx = dstNetif->asicIdx;
 	asic_t.internal = rt_t->dstNetif->is_wan? 0 : 1;
@@ -553,8 +556,9 @@ static int32 _rtl865x_addRoute(ipaddr_t ipAddr, ipaddr_t ipMask, ipaddr_t nextHo
 					goto addFailed;
 				}
 
-				rt->un.arp.arpIpIdx = 0; /*FIXME_hyking[this field is invalid, right?]*/
-				
+				//rt->un.arp.arpIpIdx = 0; /*FIXME_hyking[this field is invalid, right?]*/
+				rtl865x_getIpIdxByIpRange(ipAddr, ipMask, &rt->un.arp.arpIpIdx);
+				//printk("%s %d ipAddr=0x%x ifName=%s rt->un.arp.arpIpIdx=%d\n", __FUNCTION__, __LINE__, ipAddr, ifName, rt->un.arp.arpIpIdx);
 				break;
 
 			case IF_PPPOE:

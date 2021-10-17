@@ -42,21 +42,40 @@ typedef struct rtl8190_priv DRV_PRIV;
 #define RTL_PRODUCT_CLEINT is_rtl8190_apclient
 #endif
 
-//#define proxy_debug panic_printk
-#define proxy_debug
-//#define txsc_debug panic_printk
-#define txsc_debug
-//#define txsc_debug_dump hex_dump
-#define txsc_debug_dump
-
-#define RELAY_11S 8
-
 /**
  *	@brief	define
  *
  */
 //#define _MESH_DEBUG_ 
 #undef _MESH_DEBUG_
+
+//#define MESH_LOG
+#undef MESH_LOG
+
+//#define mesh_proxy_debug panic_printk
+#if defined(MESH_DEBUG)
+#define mesh_tx_debug panic_printk
+#define mesh_txsc_debug panic_printk
+#define mesh_sme_debug panic_printk
+#define mesh_proxy_debug panic_printk
+#define mesh_route_debug panic_printk
+#elif defined(MESH_LOG)
+#define mesh_tx_debug scrlog_printk
+#define mesh_txsc_debug scrlog_printk
+#define mesh_sme_debug scrlog_printk
+#define mesh_proxy_debug scrlog_printk
+#define mesh_route_debug scrlog_printk
+#else
+#define mesh_tx_debug printk
+#define mesh_txsc_debug printk
+#define mesh_sme_debug printk
+#define mesh_proxy_debug printk
+#define mesh_route_debug printk
+#endif
+
+#define ONLY_ROOT_DO_AODV 0
+#define RELAY_11S 8
+#define XMIT_11S 4
 
 #ifdef __LINUX_2_6__
 #define DBG_NCTU_MESH 		0x1
@@ -124,7 +143,8 @@ typedef struct rtl8190_priv DRV_PRIV;
 #define CALC_TIME_TO_JIFFIES(time)		((time*HZ)/1000)
 
 // Define of time out jiffies
-#define MESH_EXPIRE_TO				CALC_TIME_TO_JIFFIES(15000)	// MP MAX  idle time
+#define MESH_EXPIRE_TO				CALC_TIME_TO_JIFFIES(4000)	// MP MAX  idle time
+#define MESH_EXPIRE_TO_STAGE2		CALC_TIME_TO_JIFFIES(1000)	// MP Prob req wai time
 #define MESH_TIMER_TO				CALC_TIME_TO_JIFFIES(250)	// MP mesh_unEstablish_hdr  peer link expire  timer.
 #define MESH_LocalLinkStateANNOU_TO	CALC_TIME_TO_JIFFIES(5000)	// MP Local Link State Announcement time.
 
@@ -151,6 +171,9 @@ typedef struct rtl8190_priv DRV_PRIV;
 #define MESH_AUTH_RETRY_LIMIT		6		// Retry AUTH count
 #define MESH_PEER_LINK_RETRY_LIMIT	6		// Retry PeerLink count
 
+
+//mesh channel switch counter
+#define MESH_CHANNEL_SWITCH_COUNTER  5
 /*
  *	Length setting
 */
@@ -180,20 +203,20 @@ typedef struct rtl8190_priv DRV_PRIV;
 #define	MESH_CAP_MDA_CAP_OFFSET		MESH_CAP_SYNC_CAP_OFFSET + MESH_CAP_SYNC_CAP_LEN
 #define	MESH_CAP_CH_PRECEDENCE_OFFSET	MESH_CAP_MDA_CAP_OFFSET + MESH_CAP_MDA_CAP_LEN
 
-#define NUM_AVAILABLE_PEER			32		// Hard code  system  peer link Maxium
+
 #define NUM_MESH					1		// How many /dev/meshX devices
 
 #define MESH_PEER_LINK_CAP_CAPACITY_MASK	(BIT(12)|BIT(11)|BIT(10)|BIT(9)|BIT(8)|BIT(7)|BIT(6)|BIT(5)|BIT(4)|BIT(3)|BIT(2)|BIT(1)|BIT(0))	// MASK of Peer capacity(capacity)
 #define MESH_PEER_LINK_CAP_FLAGS_MASK		(BIT(7)|BIT(6)|BIT(5))	// MASK of Peer capacity (flags, Because 1byte)
 
 
-#define MAX_MPP_NUM 				32
+#define MAX_MPP_NUM 				15
 #define DATA_SKB_BUFFER_SIZE 		7 		// acutal size is power of 2
 #define AODV_RREQ_TABLE_SIZE 		256 	// must equal 2^DATA_SKB_BUFFER_SIZE
 #define PROXY_TABLE_SIZE 			7  		// acutal size is power of 2
 // #define PATHSEL_TABLE_SIZE			128
 
-#define _MESH_HEADER_TTL_  			20
+#define _MESH_HEADER_TTL_  			MAX_MPP_NUM
 
 // the following two parameters must be power of 2
 #define SZ_HASH_IDX1 8
@@ -279,6 +302,10 @@ struct MESH_Neighbor_Entry {
 	UINT8			retry;			// retry counter
 
 	UINT32			metric;				// recorded metric
+    UINT16 seqNum;     // record for  recently sent multicast packet
+	#if defined(RTK_MESH_MANUALMETRIC)
+    UINT32			manual_metric;				// recorded metric
+    #endif
 #ifdef MESH_USE_METRICOP
 	UINT8                   retryMetric;
 	UINT8                   isAsym; // if neighbor is non-Realtek device
@@ -344,8 +371,7 @@ struct MESH_Profile { // mesh_profile Configure by WEB in the future, Maybe dele
 struct MESH_Share {
 	unsigned short	seq;
 	UINT8			PUseq;
-	unsigned short	RecentSeq[SZ_HASH_IDX1][SZ_HASH_IDX2];
-
+    
 #if (MESH_DBG_LV & MESH_DBG_COMPLEX)
 	struct timer_list		mesh_test_sme_timer; // issue one kind of mgt frame /sec
 #endif // (MESH_DBG_LV & MESH_DBG_COMPLEX)

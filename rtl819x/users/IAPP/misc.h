@@ -52,7 +52,7 @@ typedef enum
 typedef struct _DOT11_ASSOCIATION_IND{
         unsigned char   EventId;
         unsigned char   IsMoreEvent;
-        char            MACAddr[MacAddrLen];
+        unsigned char   MACAddr[MacAddrLen];
         unsigned short  RSNIELen;
         char            RSNIE[MAXRSNIELEN];
 }DOT11_ASSOCIATION_IND;
@@ -60,7 +60,7 @@ typedef struct _DOT11_ASSOCIATION_IND{
 typedef struct _DOT11_REASSOCIATION_IND{
         unsigned char   EventId;
         unsigned char   IsMoreEvent;
-        char            MACAddr[MacAddrLen];
+        unsigned char   MACAddr[MacAddrLen];
         unsigned short  RSNIELen;
         char            RSNIE[MAXRSNIELEN];
         char            OldAPaddr[MacAddrLen];

@@ -1,0 +1,68 @@
+//
+// Copyright (C) 2012 Realtek Semiconductor Corp.
+// All Rights Reserved.
+//
+// This program is the proprietary software of Realtek Semiconductor
+// Corporation and/or its licensors, and only be used, duplicated,
+// modified or distributed under the authorized license from Realtek.
+//
+// ANY USE OF THE SOFTWARE OTHER THAN AS AUTHORIZED UNDER
+// THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+//
+// $Revision: 18886 $
+// $Date: 2011-06-21 19:07:50 +0800 (星期二, 21 六月 2011) $
+//
+// Purpose : Define diag shell commands for trunk.
+//
+// Feature : The file have include the following module and sub-modules
+//           1) trap commands.
+//
+
+//trap configuration
+//init configuration
+trap init
+
+//trap configuration
+//set configuration
+//cisco discovery protocol configuration
+//cisco shared STP configuration
+//action
+//drop RMA packets
+//forward RMA packets
+//forward RMA packets exclude CPU port
+//trap RMA packets to CPU
+trap set ( cdp | csstp ) action ( drop | forward | forward-exclude-cpu | trap-to-cpu )
+
+//trap configuration
+//get configuration
+//cisco discovery protocol configuration
+//cisco shared STP configuration
+//action
+trap get ( cdp | csstp ) action
+
+//trap configuration
+//set configuration
+//cisco discovery protocol configuration
+//cisco shared STP configuration
+//VLAN leaky configuration
+//port isolation leaky configuration
+//keep c-vlan format
+//bypass storm filtering
+//state configuration
+//disable function
+//enable function
+trap set ( cdp | csstp ) ( vlan-leaky | isolation-leaky | keep-vlan-format | bypass-storm-control )  state ( disable | enable )
+
+//trap configuration
+//set configuration
+//cisco discovery protocol configuration
+//cisco shared STP configuration
+//VLAN leaky configuration
+//port isolation leaky configuration
+//keep c-vlan format
+//bypass storm filtering
+trap get ( cdp | csstp ) ( vlan-leaky | isolation-leaky | keep-vlan-format | bypass-storm-control )
+
+
+
+

@@ -22,8 +22,32 @@
 #ifndef __INC_FW_8188E_HW_IMG_H
 #define __INC_FW_8188E_HW_IMG_H
 
-#include "../odm_precomp.h"
 
+/******************************************************************************
+*                           FW_AP.TXT
+******************************************************************************/
+
+#define ArrayLength_8188E_FW_AP         11216
+extern u1Byte Array_8188E_FW_AP[ArrayLength_8188E_FW_AP];
+
+/******************************************************************************
+*                           FW_NIC.TXT
+******************************************************************************/
+
+#if 0
+#define ArrayLength_8188E_FW_NIC		14490
+extern u1Byte Array_8188E_FW_NIC[ArrayLength_8188E_FW_NIC];
+#endif
+
+/******************************************************************************
+*                           FW_WoWLAN.TXT
+******************************************************************************/
+
+#if 0
+#define ArrayLength_8188E_FW_WoWLAN	14702
+extern u1Byte Array_8188E_FW_WoWLAN[ArrayLength_8188E_FW_WoWLAN];
+#endif
 
 #endif
 #endif // end of HWIMG_SUPPORT
+

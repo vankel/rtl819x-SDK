@@ -23,6 +23,7 @@
 #ifdef __KERNEL__
 #include <linux/time.h>
 #include <linux/string.h>
+#include <linux/slab.h>
 #elif defined(__ECOS)
 #include <cyg/hal/plf_intr.h>
 #include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
@@ -573,7 +574,7 @@ typedef union _block                 // AES cipher block
 
 typedef struct _packet
     {
-    bool    encrypted;      // TRUE if encrypted
+    BOOLEAN    encrypted;      // TRUE if encrypted
     u08b    TA[6];          // xmit address
     int     micLength;      // # octets of MIC appended to plaintext (M)
     int     clrCount;       // # cleartext octets covered by MIC
@@ -654,11 +655,15 @@ void AES_UnWRAP(u08b * cipher, int cipher_len,
 #else
 	u08b	R[4][BLOCKSIZE8], A[BLOCKSIZE8], xor[BLOCKSIZE8];
 #endif
-	packet  p;
+	packet  *p;
 	block   m,x;
 
-	memcpy(&p.key.b , kek, kek_len);
-	AES_SetKey(p.key.x, BLK_SIZE*8);     // run the key schedule
+	p = (packet *)kmalloc(sizeof(packet), GFP_ATOMIC);
+	if (p == NULL)
+		return;
+
+	memcpy(p->key.b , kek, kek_len);
+	AES_SetKey(p->key.x, BLK_SIZE*8);     // run the key schedule
 
 	//Initialize Variable
 	memcpy(A, cipher, BLOCKSIZE8);
@@ -689,6 +694,7 @@ void AES_UnWRAP(u08b * cipher, int cipher_len,
 	memcpy(plain, A, BLOCKSIZE8);
 	for(i = 0; i < nblock ; i++)
 		memcpy(plain + (i+1)*BLOCKSIZE8, &R[i],  BLOCKSIZE8);
+	kfree(p);
 }
 
 #ifdef MODULE_TEST

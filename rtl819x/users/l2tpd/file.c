@@ -49,6 +49,15 @@ int init_config ()
     gconfig.debug_state = 0;
     lnslist = NULL;
     laclist = NULL;
+   gconfig.hello_count=0;
+   gconfig.hello_ns=0;
+   gconfig.hello_nr=0;
+   gconfig.hello_interval=60;
+   gconfig.hello_num=2;
+   
+   gconfig.check_ack=1;
+   gconfig.rx_pktnum=0;
+   gconfig.tx_pktnum=0;
     deflac = (struct lac *) malloc (sizeof (struct lac));
 
     f = fopen (gconfig.configfile, "r");

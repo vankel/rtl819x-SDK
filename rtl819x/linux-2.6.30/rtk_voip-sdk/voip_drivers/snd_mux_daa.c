@@ -147,6 +147,12 @@ void DAA_Set_PulseDial_cch(unsigned int cch, unsigned int pulse_enable)
 //IMPLEMENT_TYPE1_void( DAA_Set_PulseDial, unsigned int );
 #endif
 
+//void DAA_Set_Country(unsigned int chid, unsigned int country);
+IMPLEMENT_TYPE1_void( DAA_Set_Country, unsigned int );
+
+//void DAA_Set_Hybrid(int cch, unsigned char index)
+IMPLEMENT_TYPE1_void( DAA_Set_Hybrid, unsigned char );
+
 //void DAA_read_reg( uint32 cch, unsigned int num, unsigned char *val )
 IMPLEMENT_TYPE3_void( DAA_read_reg, unsigned int, unsigned char *, unsigned char * );
 //void DAA_write_reg( uint32 cch, unsigned char num, unsigned char val )

@@ -25,12 +25,17 @@
 #include <asm/rtl8196x.h>
 #endif
 
+
+
 #if defined(RTL8198)
 #include <asm/rtl8198.h>
 #define  REVR  0xB8000000
 #define  RTL8198_REVISION_A  0xc0000000
 #define  RTL8198_REVISION_B  0xc0000001
 #endif
+
+
+
 
 /*
 #ifdef RTL8196B
@@ -176,6 +181,17 @@ int CmdPHYregR(int argc, char* argv[]);
 int CmdPHYregW(int argc, char* argv[]);
 #endif
 
+//added by winfred_wang,param transmit used
+#ifdef CONFIG_PARAM_PASSING_ENABLE
+#ifdef CONFIG_NFJROM_RUN_IN_RAM_ENABLE
+extern unsigned long rootfs_start_addr,rootfs_end_addr;
+#endif
+#include "param_tag.h"
+int CmdPassingParam(int argc,char * argv[]);
+static struct param_tag* global_p = NULL;
+#endif
+
+
 /*Cyrus Tsai*/
 /*move to ehterboot.h
 #define TFTP_SERVER 0
@@ -213,6 +229,9 @@ extern unsigned long image_address;
 #define PCRP4                 (0x014+PCRAM_BASE)       /* Port Configuration Register of Port 4 */
 #define EnablePHYIf        (1<<0)                           /* Enable PHY interface.                    */
 #endif
+
+
+
  
 COMMAND_TABLE	MainCmdTable[] =
 {
@@ -310,7 +329,11 @@ COMMAND_TABLE	MainCmdTable[] =
 #endif
 #ifdef RTL8198
 	{ "EEE"   ,1, CmdEEEPatch			, "EEE :Set EEE Pathch "}, 
-#endif 
+#endif
+//added by winfred_wang
+#ifdef CONFIG_PARAM_PASSING_ENABLE
+	{ "BTPK"  ,1,CmdPassingParam			,"BTPK: boot transmit Paramter to kernel and Processing"},
+#endif
 };
 
 
@@ -428,7 +451,7 @@ __delay(unsigned long loops)
 */
 
 //---------------------------------------------------------------------------
-static unsigned long loops_per_jiffy = (1<<12);
+unsigned long loops_per_jiffy = (1<<12);
 #define LPS_PREC 8
 #define HZ 100
 #ifdef CONFIG_SERIAL_SC16IS7X0
@@ -531,6 +554,7 @@ void monitor(void)
 				else
 					retval = MainCmdTable[i].func( argc - 1 , argv+1 );
 #endif
+
 				retval = MainCmdTable[i].func( argc - 1 , argv+1 );
 				memset(argv[0],0,sizeof(argv[0]));
 				break;
@@ -3990,4 +4014,90 @@ unsigned int p[]={
 #endif
 //-----------------------------------------------------------------------------------------------
 
+//adde by winfred_wang,param transmit used
+#ifdef CONFIG_PARAM_PASSING_ENABLE
+#ifdef CONFIG_NFJROM_RUN_IN_RAM_ENABLE
+void setup_feature1_cmdline_tag(char* cmd)
+{
+	if(!cmd){
+		printf("command is NULL.\n");
+		return;
+		}
+
+	if(*cmd == '\0'){
+		printf("command no input.\n");
+		return;
+		}
+	
+	global_p->hdr.tag = TAG_FEATURE1_CMD;
+	global_p->hdr.size = (sizeof(struct tag_header)+CL_SIZE)>>2;
+	strcpy(global_p->param.cmdline.cmd,cmd);
+	
+	global_p = tag_next(global_p);
+	
+}
+
+void setup_feature1_initrd_tag()
+{
+	global_p->hdr.tag = TAG_FEATURE1_INITRD;
+	global_p->hdr.size = (sizeof(struct tag_header)+sizeof(struct tag_feature1_initrd))>>2;
+	global_p->param.initrd.initrd_start = rootfs_start_addr;
+	global_p->param.initrd.initrd_end = rootfs_end_addr;
+	
+	global_p = tag_next(global_p);
+}
+
+void test_feature1()
+{
+	char cmd[CL_SIZE];
+	memset(cmd,0,CL_SIZE);
+	struct param_tag* tags = (struct param_tag*)TAG_ADDR_START;
+	for(;tags->hdr.tag != TAG_END;tags=tag_next(tags)){
+		if(tags->hdr.tag == TAG_FEATURE1_CMD){
+			strcpy(cmd,tags->param.cmdline.cmd);
+			printf("dest:%s,cmd:%s.\n",tags->param.cmdline.cmd,cmd);
+			}
+		if(tags->hdr.tag == TAG_FEATURE1_INITRD){
+			printf("initrd_start:%x,initrd_end:%x.\n",tags->param.initrd.initrd_start,tags->param.initrd.initrd_end);
+			}
+		}
+}
+
+#endif
+
+void setup_end_tag()
+{
+	global_p->hdr.tag = TAG_END;
+	global_p->hdr.size = 0;
+}
+
+int CmdPassingParam(int argc,char * argv[])
+{
+	global_p = (struct param_tag*)TAG_ADDR_START;
+
+	#ifdef CONFIG_NFJROM_RUN_IN_RAM_ENABLE
+	char cmd[CL_SIZE];
+	memset(cmd,0,sizeof(cmd));
+	int i = 0,n = 0;
+	while(argc){
+		strcpy(cmd+n,argv[i]);
+		n = n+strlen(argv[i])+1;
+		cmd[n-1] = ' ';
+		i++;
+		argc--;
+		}
+	cmd[n-1] = '\0';
+
+	setup_feature1_cmdline_tag(cmd);
+	setup_feature1_initrd_tag();
+	#endif
+	
+	setup_end_tag();
+
+	//just read param info
+	#ifdef CONFIG_NFJROM_RUN_IN_RAM_ENABLE
+	test_feature1();
+	#endif
+}
+#endif
 

@@ -1,5 +1,6 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/string.h>
+//#include <linux/interrupt.h>
 #include "voip_types.h"
 #include "voip_control.h"
 #include "voip_ipc.h"
@@ -12,8 +13,10 @@
 
 #include "ipc_arch_tx.h"
 
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_RESEND_CTRL
 #define RESEND_THS	3
 //#define RESEND_ERR	-3	// replaced by -EVOIP_RESEND_ERR
+#endif
 
 
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
@@ -24,6 +27,8 @@
 
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
 #include "ipc_arch_help_dsp.h"
+#include "../voip_dsp/rtp/RtpPacket.h"
+#include "../voip_dsp/rtp/RtcpPacket.h"
 #endif
 
 #include "ipc_internal.h"
@@ -163,7 +168,8 @@ static inline void __ipc_pkt_tx_start_xmit( void *ipc_priv, uint8 protocol )
 
 int ipc_pkt_tx_final( uint16 category, uint8 protocol, 
 						uint8* pdata /* not const */, uint16 data_len, 
-						const TstTxPktCtrl* txCtrl, uint16 *psent_seq)
+						const TstTxPktCtrl* txCtrl, uint16 *psent_seq,
+						uint8* pconthdr )
 {
 	/* NOTE: pdata may be modified due to fetch data. */
 	/*
@@ -171,8 +177,9 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 	 * this function will fill txCtrl ->seq_no = global_seq_no;
 	 */
 	
-	unsigned int plhdr_len=0;
+	unsigned int plhdr_len = 0;
 	unsigned int pkt_len = 0;
+	unsigned int conthdr_len = 0;
 	unsigned short sent_seqno = ( unsigned short )-1;
 	ipc_ctrl_pkt_t *ipc_pkt;
 	
@@ -181,11 +188,16 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 	//PRINT_R("cat=%d, type=%d\n", category, pkt_type);
 	
 	switch( protocol ) {
-	case IPC_PROT_VOICE_TO_HOST:	// (ipc_voice_pkt_t)
 	case IPC_PROT_VOICE_TO_DSP:
+		plhdr_len = SIZE_VOICE_FROM_HEAD( voice_cont_len );
+		conthdr_len = SIZE_OF_VOICE_RTP2DSP_CONT_HEADER;
+		break;
+		
+	case IPC_PROT_VOICE_TO_HOST:	// (ipc_voice_pkt_t)
 	case IPC_PROT_T38_TO_HOST:
 	case IPC_PROT_T38_TO_DSP:
 		plhdr_len = SIZE_VOICE_FROM_HEAD( voice_cont_len );
+		conthdr_len = SIZE_OF_VOICE_CONT_HEADER;
 		break;
 		
 	case IPC_PROT_CTRL:	// control packet (ipc_ctrl_pkt_t)
@@ -194,6 +206,8 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 	case IPC_PROT_MIRROR_ACK:
 	case IPC_PROT_RPC:
 	case IPC_PROT_RPC_ACK:
+	case IPC_PROT_DDD_H2D:
+	case IPC_PROT_DDD_D2H:
 		plhdr_len = SIZE_CTRL_FROM_HEAD( cont_len );
 		break;
 
@@ -212,13 +226,16 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 
 	}
 	
-	pkt_len = plhdr_len + data_len;	// len_of_ether_frame
+	if( pconthdr == NULL )
+		conthdr_len = 0;
+	
+	pkt_len = plhdr_len + conthdr_len + data_len;	// len_of_ether_frame
 	
 	// allocate space 
 	ipc_pkt = __ipc_pkt_tx_allocate( &pkt_len, &ipc_priv, protocol );
 
 	if( ipc_pkt == NULL ) {
-		PRINT_R("ipc_pkt_tx_final :allocate return NULL.\n");
+		PRINT_R("ipc_pkt_tx_final :allocate return NULL. protocol %x\n", protocol);
 		return -1;
 	}
 	
@@ -309,9 +326,16 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 		
 		//PRINT_Y("%d \n", data_len);
 		//*((unsigned short*)&skb->data[VOICE_CONT_LEN_SHIFT]) = htons(data_len);	/* content length field*/
-		ipc_voice_pkt ->voice_cont_len = htons(data_len);	/* content length field*/
-		//memcpy(skb->data+VOICE_CONTENT_SHIFT, pdata, data_len);			/* content field */
-		memcpy(ipc_voice_pkt ->voice_content, pdata, data_len);			/* content field */
+		ipc_voice_pkt ->voice_cont_len = htons(data_len + conthdr_len);	/* content length field*/
+		
+		if( conthdr_len ) {
+			memcpy(ipc_voice_pkt ->voice_content, pconthdr, conthdr_len);	/* content header */
+			memcpy( ( uint8 * )ipc_voice_pkt ->voice_content + conthdr_len, 
+						pdata, data_len);			/* content field */
+		} else {
+			//memcpy(skb->data+VOICE_CONTENT_SHIFT, pdata, data_len);			/* content field */
+			memcpy(ipc_voice_pkt ->voice_content, pdata, data_len);			/* content field */
+		}
 	}
 	else if (protocol == IPC_PROT_ACK)
 	{
@@ -345,6 +369,21 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 		// store sent seq no 
 		sent_seqno = ipc_ctrl_pkt ->sequence;
 	}
+	else if( protocol == IPC_PROT_DDD_H2D || protocol == IPC_PROT_DDD_D2H )
+	{
+		ipc_ctrl_pkt_t * const ipc_ctrl_pkt = ( ipc_ctrl_pkt_t * )ipc_pkt;
+		ddd_content_t * const ipc_ddd_cont = 
+						( ddd_content_t * )ipc_ctrl_pkt ->content;
+		
+		ipc_ctrl_pkt ->category = htons( category );
+		ipc_ctrl_pkt ->sequence = htons( global_seq_no );
+		ipc_ctrl_pkt ->cont_len = htons( data_len );
+		
+		memcpy( ipc_ddd_cont, pdata, data_len );
+		
+		// store sent seq no 
+		sent_seqno = ipc_ctrl_pkt ->sequence;
+	}
 	
 	
 #if 0
@@ -355,7 +394,7 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 		int i;
 		printk( "TX\n" );
 		for( i = 0; i < 26; i ++ )
-			printk( "%02X ", *( ( unsigned char * )skb->data + i ) );
+			printk( "%02X ", *( ( unsigned char * )ipc_pkt + i ) );
 			
 		printk( "\n" );
 	}
@@ -383,7 +422,8 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 			stCheckAck.category = category;
 			stCheckAck.needAck = 1;
 		}
-		else if (protocol == IPC_PROT_MIRROR)
+		else if (protocol == IPC_PROT_MIRROR ||
+				 protocol == IPC_PROT_DDD_H2D || protocol == IPC_PROT_DDD_D2H)
 		{
 			global_seq_no++;
 		}
@@ -405,6 +445,11 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 	
 	// start send out 
 	__ipc_pkt_tx_start_xmit( ipc_priv, protocol );
+	
+#if 0
+	if( ( unsigned long )sent_seqno != 65535 )
+		printk( "%d\n", sent_seqno );
+#endif
 	
 	//PRINT_Y("send eth pkt...\n");
 
@@ -466,6 +511,10 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 		case IPC_PROT_RPC_ACK:
 			break;
 		
+		case IPC_PROT_DDD_H2D:
+		case IPC_PROT_DDD_D2H:
+			break;
+		
 		default:
 			PRINT_R("?? @ %s, %s, line-%d\n", __FUNCTION__, __FILE__, __LINE__);
 			break;
@@ -477,14 +526,21 @@ int ipc_pkt_tx_final( uint16 category, uint8 protocol,
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 
-int ipcSentControlPacket(unsigned short cmd, unsigned int chid, void* pMgr, unsigned short mgrLen)
+int ipcSentControlPacket(unsigned short cmd, unsigned int chid, void* pMgr, unsigned short mgrLen,
+							mgr_flags_t flags )
 {
 	// NOTE: Response data will be written to pMgr
+	
+	// flags - used to determine whether 'MF_FETCH' or not. 
+	//         If NO_COPY_TO_USR, MF_NONE is given. Otherwise, MF_FETCH is suggested. 
+	
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	timetick_t timestamp;
 	unsigned long timeout=500;	
 	TstTxPktCtrl stTxPktCtrl;
+ #ifdef CONFIG_RTK_VOIP_IPC_ARCH_RESEND_CTRL
 	unsigned int resend_cnt = 0;
+ #endif
 	uint16 resend_seqno;
 	
 	/* Host chid, DSP ID, DSP chid conversion */
@@ -493,18 +549,27 @@ int ipcSentControlPacket(unsigned short cmd, unsigned int chid, void* pMgr, unsi
 	stTxPktCtrl.resend_flag = 0;
 	
 	/* Send Control Packet*/
-	ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, &resend_seqno);
+	ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, &resend_seqno, NULL);
+	
+	/* Check if need reponse (fetch) */
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_ISSUE_TRIVIAL_ACK
+	if( flags & MF_FETCH )
+		;	// wait for response 
+	else
+		goto label_done;	// trivial ack (not issue) --> no response 
+#endif
 	
 	/* Wait Response */
 	timestamp = timetick + timeout;
 	while(host_need_response())
 	{
+ #ifdef CONFIG_RTK_VOIP_IPC_ARCH_RESEND_CTRL
 		if (timetick_after(timetick, timestamp) )
 		{
 			/* Re-send Control Packet*/
 			stTxPktCtrl.seq_no = resend_seqno;//0;
 			stTxPktCtrl.resend_flag = 1;
-			ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, NULL);
+			ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, NULL, NULL);
 			PRINT_R("%d ", cmd);
 			timestamp = timetick+timeout;
 			
@@ -515,14 +580,24 @@ int ipcSentControlPacket(unsigned short cmd, unsigned int chid, void* pMgr, unsi
 				return -EVOIP_RESEND_ERR;
 			}
 		}
+ #endif
+		//schedule();
 	}
+
+label_done:
+
 #endif
 	return 0;
 }
 
-int ipcSentControlPacketNoChannel(unsigned short cmd, void* pMgr, unsigned short mgrLen)
+int ipcSentControlPacketNoChannel(unsigned short cmd, void* pMgr, unsigned short mgrLen,
+									mgr_flags_t flags )
 {
 	// NOTE: Response data will be written to pMgr
+	
+	// flags - used to determine whether 'MF_FETCH' or not. 
+	//         If NO_COPY_TO_USR, 0 is given. Otherwise, MF_FETCH is suggested. 
+	
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	timetick_t timestamp;
 	unsigned long timeout=500;	
@@ -540,18 +615,27 @@ int ipcSentControlPacketNoChannel(unsigned short cmd, void* pMgr, unsigned short
 		resend_cnt = 0;
 
 		/* Send Control Packet*/
-		ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, &resend_seqno);
+		ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, &resend_seqno, NULL);
+		
+		/* Check if need reponse (fetch) */
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_ISSUE_TRIVIAL_ACK
+		if( flags & MF_FETCH )
+			;	// wait for response 
+		else
+			goto label_done;	// trivial ack (not issue) --> no response 
+#endif
 		
       	/* Wait Response */
       	timestamp = timetick + timeout;
       	while(host_need_response())
       	{
+ #ifdef CONFIG_RTK_VOIP_IPC_ARCH_RESEND_CTRL
       		if (timetick_after(timetick, timestamp) )
       		{
       			/* Re-send Control Packet*/
       			stTxPktCtrl.seq_no = resend_seqno;//0;
       			stTxPktCtrl.resend_flag = 1;
-      			ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, NULL);
+      			ipc_pkt_tx_final(cmd, IPC_PROT_CTRL, pMgr, mgrLen, &stTxPktCtrl, NULL, NULL);
       			PRINT_R("%d ", cmd);
       			timestamp = timetick+timeout;
       			
@@ -559,7 +643,11 @@ int ipcSentControlPacketNoChannel(unsigned short cmd, void* pMgr, unsigned short
   				if (resend_cnt > RESEND_THS)
   					return -EVOIP_RESEND_ERR;
       		}
+ #endif
+			//schedule();
       	}
+label_done:
+		;
 	}
 #endif
 	return 0;
@@ -603,6 +691,11 @@ int ipcSentResponsePacket(unsigned short cmd, unsigned short seq_no, void* pdata
 	TstTxPktCtrl stTxPktCtrl;
 	stTxPktCtrl.dsp_cpuid = Get_DSP_CPUID();
 	
+ #ifndef CONFIG_RTK_VOIP_IPC_ARCH_ISSUE_TRIVIAL_ACK
+	if( pdata == NULL || data_len == 0 )
+		return ret_val;		// trivial ack (not issue) --> no response 
+ #endif
+	
 	stTxPktCtrl.seq_no = seq_no;
 	if (last_process_seqno == seq_no)
 	{
@@ -613,7 +706,9 @@ int ipcSentResponsePacket(unsigned short cmd, unsigned short seq_no, void* pdata
 	else
 		stTxPktCtrl.resend_flag = 0;
 		
-	ipc_pkt_tx_final(cmd, IPC_PROT_RESP, pdata, data_len, &stTxPktCtrl, NULL);
+	ret_val = ipc_pkt_tx_final(cmd, IPC_PROT_RESP, pdata, data_len, &stTxPktCtrl, NULL, NULL);
+	if (ret_val < 0)
+		ret_val = -EVOIP_IPC_TX_ERR;
 	
 	return ret_val;
 #else
@@ -622,21 +717,25 @@ int ipcSentResponsePacket(unsigned short cmd, unsigned short seq_no, void* pdata
 	
 }
 
-void ipc_RtpTx(RtpPacket* pst)
+void ipc_RtpTx(/*RtpPacket*/struct stRtpPacket* pst)
 {
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
 	// Send RTP packet to Host by voice packet.
 	TstTxPktCtrl stTxPktCtrl;
-	unsigned char rtp_wrtie_tmp[500];
+	//unsigned char rtp_wrtie_tmp[500];
 	unsigned int len;
-	voice_content_t * const voice_content =
-			( voice_content_t * )rtp_wrtie_tmp;
+	//voice_content_t * const voice_content =
+	//		( voice_content_t * )rtp_wrtie_tmp;
+	voice_content_t voice_content_header;
 
 	stTxPktCtrl.dsp_cpuid = Get_DSP_CPUID();
 	stTxPktCtrl.seq_no = -1;
 	stTxPktCtrl.resend_flag = 0;
-	
-#if 1
+
+#if 1	
+	voice_content_header.chid = pst->chid;
+	voice_content_header.mid = API_GetMid( pst->chid, pst->sid );
+#elif 1
 	voice_content ->chid = pst->chid;
 	voice_content ->mid = API_GetMid( pst->chid, pst->sid );
 #else	
@@ -645,39 +744,44 @@ void ipc_RtpTx(RtpPacket* pst)
 #endif
 	len = getTotalUsage(pst);
 	
-	if (len > (500-8))
-	{
-		PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
-	}
+	//if (len > (500-8))
+	//{
+	//	PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
+	//}
 	//memcpy(&rtp_wrtie_tmp[8], pst->header, len);
-	memcpy(voice_content ->voice, pst->header, len);
+	//memcpy(voice_content ->voice, pst->header, len);
 	
 	ipc_pkt_tx_final( 0, IPC_PROT_VOICE_TO_HOST, 
-						(unsigned char*)voice_content, 
-						len + SIZE_OF_VOICE_CONT_HEADER, 
-						&stTxPktCtrl, NULL);
+						(unsigned char*)pst->header/*voice_content*/, 
+						len /*+ SIZE_OF_VOICE_CONT_HEADER*/, 
+						&stTxPktCtrl, NULL,
+						( uint8 * )&voice_content_header);
 	// Note: pst->header-pst_offset point to the chid address, so that receiver can get chid, sid, header info. Refer to the structure RtpPacket.
 	// sizeof(RtpPacket) = 1524 bytes > 1518 bytes
 	// PRINT_R("%d ", getTotalUsage(pst));
 #endif
 }
 
-void ipc_RtcpTx(RtcpPacket* pst)
+void ipc_RtcpTx(/*RtcpPacket*/struct stRtcpPacket* pst)
 {
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
 	//extern int rtcp_sid_offset;
 	// Send RTCP packet to Host by voice packet.
 	TstTxPktCtrl stTxPktCtrl;
-	unsigned char rtcp_wrtie_tmp[600];
+	//unsigned char rtcp_wrtie_tmp[600];
 	unsigned int len;
-	voice_content_t * const voice_content =
-			( voice_content_t * )rtcp_wrtie_tmp;
+	//voice_content_t * const voice_content =
+	//		( voice_content_t * )rtcp_wrtie_tmp;
+	voice_content_t voice_content_header;
 
 	stTxPktCtrl.dsp_cpuid = Get_DSP_CPUID();
 	stTxPktCtrl.seq_no = -1;
 	stTxPktCtrl.resend_flag = 0;
 
 #if 1
+	voice_content_header.chid = pst->chid;
+	voice_content_header.mid = API_GetMid( pst->chid, pst->sid ) + RTCP_MID_OFFSET;
+#elif 1
 	voice_content ->chid = pst->chid;
 	voice_content ->mid = API_GetMid( pst->chid, pst->sid ) + RTCP_MID_OFFSET;
 #else	
@@ -687,18 +791,19 @@ void ipc_RtcpTx(RtcpPacket* pst)
 	len = RtcpPkt_getTotalUsage(pst);
 	
 	//PRINT_Y("rtcp len=%d\n", len); //len=100
-	if (len > (600-8))
-	{
-		PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
-		PRINT_R("Need size: %d bytes.", len);
-	}
+	//if (len > (600-8))
+	//{
+	//	PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
+	//	PRINT_R("Need size: %d bytes.", len);
+	//}
 	//memcpy(&rtcp_wrtie_tmp[8], RtcpPkt_getPacketData(pst), len);
-	memcpy( voice_content ->voice, RtcpPkt_getPacketData(pst), len);
+	//memcpy( voice_content ->voice, RtcpPkt_getPacketData(pst), len);
 	
 	ipc_pkt_tx_final( 0, IPC_PROT_VOICE_TO_HOST, 
-						(unsigned char*)voice_content, 
-						len + SIZE_OF_VOICE_CONT_HEADER, 
-						&stTxPktCtrl, NULL);
+						(unsigned char*)RtcpPkt_getPacketData(pst)/*voice_content*/, 
+						len /*+ SIZE_OF_VOICE_CONT_HEADER*/, 
+						&stTxPktCtrl, NULL,
+						( uint8 * )&voice_content_header );
 	// Note: pst->header-pst_offset point to the chid address, so that receiver can get chid, sid, header info. Refer to the structure RtpPacket.
 	//PRINT_R("%d ", getTotalUsage(pst));
 #endif
@@ -710,16 +815,20 @@ void ipc_T38Tx( unsigned int chid, unsigned int sid, void* packet, unsigned int 
 
 	// Send T38 packet to Host
 	TstTxPktCtrl stTxPktCtrl;
-	unsigned char t38_tx_tmp[500];
+	//unsigned char t38_tx_tmp[500];
 	//unsigned int chid_new, sid_new, mid, len;
-	voice_content_t * const voice_content =
-			( voice_content_t * )t38_tx_tmp;
+	//voice_content_t * const voice_content =
+	//		( voice_content_t * )t38_tx_tmp;
+	voice_content_t voice_content_header;
 
 	stTxPktCtrl.dsp_cpuid = Get_DSP_CPUID();
 	stTxPktCtrl.seq_no = -1;
 	stTxPktCtrl.resend_flag = 0;
 
 #if 1
+	voice_content_header.chid = chid;
+	voice_content_header.mid = API_GetMid( chid, sid );
+#elif 1
 	voice_content ->chid = chid;
 	voice_content ->mid = API_GetMid( chid, sid );
 #else	
@@ -727,17 +836,18 @@ void ipc_T38Tx( unsigned int chid, unsigned int sid, void* packet, unsigned int 
 	*(unsigned int*)((unsigned char*)t38_tx_tmp+4) = sid;
 #endif
 	
-	if (pktLen > (500 - SIZE_OF_VOICE_CONT_HEADER))
-	{
-		PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
-	}
+	//if (pktLen > (500 - SIZE_OF_VOICE_CONT_HEADER))
+	//{
+	//	PRINT_R("Error! no enought buf size, %s-%s-%d\n", __FILE__, __FUNCTION__, __LINE__);
+	//}
 	//memcpy(&t38_tx_tmp[8], packet, pktLen);
-	memcpy(voice_content ->voice, packet, pktLen);
+	//memcpy(voice_content ->voice, packet, pktLen);
 	
 	ipc_pkt_tx_final( 0, IPC_PROT_T38_TO_HOST, 
-						(unsigned char*)voice_content, 
-						pktLen + SIZE_OF_VOICE_CONT_HEADER, 
-						&stTxPktCtrl, NULL);
+						(unsigned char*)packet /*voice_content*/, 
+						pktLen /*+ SIZE_OF_VOICE_CONT_HEADER*/, 
+						&stTxPktCtrl, NULL,
+						( uint8 * )&voice_content_header);
 	//printk("t%d ", chid);
 	
 #endif
@@ -759,7 +869,7 @@ int ipcSentMirrorPacket( unsigned short category, unsigned int host_cch, void* m
 	stTxPktCtrl.resend_flag = 0;
 	
 	/* Send Mirror Packet*/	
-	ipc_pkt_tx_final(category, IPC_PROT_MIRROR, mirror_data, mirror_len, &stTxPktCtrl, NULL);
+	ipc_pkt_tx_final(category, IPC_PROT_MIRROR, mirror_data, mirror_len, &stTxPktCtrl, NULL, NULL);
 #endif
 	return 0;
 }
@@ -777,7 +887,7 @@ int ipcSentMirrorAckPacket( unsigned short category, uint16 seq_no, void* mirror
 	stTxPktCtrl.resend_flag = 0;
 	
 	/* Send Mirror Ack Packet*/	
-	ipc_pkt_tx_final( category, IPC_PROT_MIRROR_ACK, mirror_ack_data, mirror_ack_len, &stTxPktCtrl, NULL );
+	ipc_pkt_tx_final( category, IPC_PROT_MIRROR_ACK, mirror_ack_data, mirror_ack_len, &stTxPktCtrl, NULL, NULL );
 #endif
 	return 0;
 }
@@ -794,7 +904,7 @@ int ipcSentRpcPacket( unsigned short category, void* rpc_data, unsigned short rp
 	stTxPktCtrl.resend_flag = 0;
 	
 	/* Send RPC Packet*/	
-	ipc_pkt_tx_final( category, IPC_PROT_RPC, rpc_data, rpc_len, &stTxPktCtrl, NULL );
+	ipc_pkt_tx_final( category, IPC_PROT_RPC, rpc_data, rpc_len, &stTxPktCtrl, NULL, NULL );
 #endif
 	return 0;
 }
@@ -814,7 +924,44 @@ int ipcSentRpcAckPacket( unsigned short category, uint16 seq_no, unsigned int ho
 	stTxPktCtrl.resend_flag = 0;
 	
 	/* Send RPC ACK Packet*/	
-	ipc_pkt_tx_final(category, IPC_PROT_RPC_ACK, rpc_ack_data, rpc_ack_len, &stTxPktCtrl, NULL);
+	ipc_pkt_tx_final(category, IPC_PROT_RPC_ACK, rpc_ack_data, rpc_ack_len, &stTxPktCtrl, NULL, NULL);
 #endif
 	return 0;
 }
+
+static int _ipcSendDddH2dPacket( uint16 category, ddd_content_t *ddd_cont, uint16 ddd_len, 
+									uint16 protocol )
+{
+#define DEFAULT_IPC_DDD_DSP_CPUID		0	// send to cpuid=0
+
+	TstTxPktCtrl stTxPktCtrl;
+	
+	stTxPktCtrl.dsp_cpuid = DEFAULT_IPC_DDD_DSP_CPUID;
+	
+	stTxPktCtrl.resend_flag = 0;
+	
+	/* Send DDD H2D packet */
+	ipc_pkt_tx_final( category, protocol, ( void * )ddd_cont, ddd_len, 
+						&stTxPktCtrl, NULL, NULL );
+	
+	return 0;
+}
+
+int ipcSendDddH2dPacket( uint16 category, ddd_content_t *ddd_cont, uint16 ddd_len )
+{
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	_ipcSendDddH2dPacket( category, ddd_cont, ddd_len, IPC_PROT_DDD_H2D );
+#endif
+	
+	return 0;
+}
+
+int ipcSendDddD2hPacket( uint16 category, ddd_content_t *ddd_cont, uint16 ddd_len )
+{
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+	_ipcSendDddH2dPacket( category, ddd_cont, ddd_len, IPC_PROT_DDD_D2H );
+#endif
+	
+	return 0;
+}
+

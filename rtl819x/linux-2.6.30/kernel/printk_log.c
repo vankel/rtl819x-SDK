@@ -1004,7 +1004,6 @@ asmlinkage int scrlog_printk(const char *fmt, ...)
 //{
 //}
 #endif
-
 EXPORT_SYMBOL(scrlog_printk);
 
 static int __add_preferred_console(char *name, int idx, char *options,

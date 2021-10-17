@@ -67,7 +67,7 @@ obj-$(CONFIG_USB_SPEEDTOUCH)	+= atm/
 obj-$(CONFIG_DWC_OTG)       += dwc_otg/
 
 #wei add for otg device mode
-ifeq ($(CONFIG_RTL_USB_OTG),y)
+ifeq ($(CONFIG_RTL_ULINKER_USB_SUPPORT),y)
 obj-$(CONFIG_USB_GADGET)	+= gadget_cathy/
 else
 obj-$(CONFIG_USB_GADGET)	+= gadget/

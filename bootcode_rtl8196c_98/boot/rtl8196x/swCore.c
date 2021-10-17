@@ -303,11 +303,12 @@ int32 rtl8651_getAsicEthernetPHYReg(uint32 phyId, uint32 regId, uint32 *rData)
 	status = READ_MEM32( MDCIOSR );
 #else
 #if defined(CONFIG_RTL8196C)
-	REG32(GIMR_REG) = REG32(GIMR_REG) | (0x1<<14);    //add by jiawenjian
-	delay_ms(10);   //wei add, for 8196C_test chip patch. mdio data read will delay 1 mdc clock.
+	if (REG32(REVR) == RTL8196C_REVISION_A)
+		mdelay(10);
+	
 #elif defined(CONFIG_RTL8198)
-	REG32(GIMR_REG) = REG32(GIMR_REG) | (0x1<<8);    //add by jiawenjian
-	delay_ms(10);   //wei add, for 8196C_test chip patch. mdio data read will delay 1 mdc clock.
+	if (REG32(REVR) == RTL8198_REVISION_A)
+		mdelay(10);
 #endif
 	do { status = READ_MEM32( MDCIOSR ); } while ( ( status & STATUS ) != 0 );
 #endif

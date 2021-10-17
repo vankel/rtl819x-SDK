@@ -1,0 +1,25 @@
+diff -uN bsp_rtl8686/bspchip_8686.h bsp_rtl8686_new/bspchip_8686.h
+--- bsp_rtl8686/bspchip_8686.h	2012-05-07 00:10:29.735174000 -0500
++++ bsp_rtl8686_new/bspchip_8686.h	2012-05-07 00:30:02.432410503 -0500
+@@ -80,7 +80,7 @@
+ #define BSP_USB_H3_IRQ      	13
+ #define BSP_PERIPHERAL_IRQ  	12
+ //#define BSP_USB_D_IRQ     11
+-//#define BSP_USB_H_IRQ     		10
++#define BSP_GPIO1_IRQ     		10
+ //#define BSP_TC1_IRQ       9
+ #define BSP_SWITCH_IRQ      	8
+ #define BSP_SATA_IRQ    		7
+Common subdirectories: bsp_rtl8686/CVS and bsp_rtl8686_new/CVS
+diff -uN bsp_rtl8686/irq.c bsp_rtl8686_new/irq.c
+--- bsp_rtl8686/irq.c	2012-05-07 00:28:23.973665401 -0500
++++ bsp_rtl8686_new/irq.c	2012-05-04 05:44:43.844791000 -0500
+@@ -144,7 +144,7 @@
+ 	BSP_SATA_IRQ,//7
+ 	BSP_SWITCH_IRQ,//8
+ 	-1,//9
+-	-1,//10
++	BSP_GPIO1_IRQ,//10
+ 	-1,//11
+ 	BSP_PERIPHERAL_IRQ,//12
+ 	BSP_USB_H3_IRQ,//13

@@ -197,7 +197,7 @@ static const struct serial8250_config uart_config[] = {
 		.fifo_size	= 16,
 		.tx_loadsz	= 16,
 		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_00,
-#ifdef CONFIG_SERIAL_RTL8198_UART1
+#ifdef CONFIG_SERIAL_RTL_UART1
 		.flags		= UART_CAP_FIFO | UART_CAP_AFE,
 #else
 		.flags		= UART_CAP_FIFO,
@@ -1249,9 +1249,13 @@ static unsigned int serial8250_get_divisor(struct uart_port *port, unsigned int 
 	else if ((port->flags & UPF_MAGIC_MULTIPLIER) &&
 		 baud == (port->uartclk/8))
 		quot = 0x8002;
-	else
+	else {
 		quot = uart_get_divisor(port, baud);
-
+		/*HF. Fix clock not match*/
+#ifdef  CONFIG_RTL_819X		
+		quot--;
+#endif
+	}
 	return quot;
 }
 
@@ -1318,12 +1322,19 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 	 * have sufficient FIFO entries for the latency of the remote
 	 * UART to respond.  IOW, at least 32 bytes of FIFO.
 	 */
-#ifdef CONFIG_SERIAL_RTL8198_UART1
+#ifdef CONFIG_SERIAL_RTL_UART1
 	if (up->capabilities & UART_CAP_AFE && up->port.fifosize >= 16) {
 #else
 	if (up->capabilities & UART_CAP_AFE && up->port.fifosize >= 32) {
 #endif
 		up->mcr &= ~UART_MCR_AFE;
+#if 0//def CONFIG_SERIAL_RTL_UART1
+		if (up->capabilities & UART_CAP_AFE && up->port.fifosize >= 16) {
+			/*always using AFE to trigger the rts to low to allow BT send packet to us*/
+			/*sine RTS on 96e is default high*/
+			up->mcr |= UART_MCR_AFE;
+		}
+#endif
 		if (termios->c_cflag & CRTSCTS)
 			up->mcr |= UART_MCR_AFE;
 	}

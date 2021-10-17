@@ -36,6 +36,202 @@
 #include <asm/bootinfo.h>
 #include <asm/reg.h>
 
+#ifdef CONFIG_CPU_HAS_WATCH
+/* WMPU APIs for kernel space Watchpoint/Memory Protection. */
+
+struct wmpu_reg_info wmpu_info;
+
+static int ptrace_wmpu_reg_alloc(int *reg_idx)
+{
+	unsigned long wmpctl;
+	unsigned long mask=0x10;
+	int num;
+	struct cpuinfo_mips *c = &current_cpu_data;
+
+	*reg_idx = -1;
+	wmpctl = read_lxc0_wmpctl();
+	wmpctl =  wmpctl >> 16;
+
+	/* Find a disable entry in the part of registers used for kernel space
+	 * and return register index. */
+	for (num = c->watch_reg_use_cnt; num < c->watch_reg_count; num++) {
+		if((wmpctl & mask) == 0x0){
+			*reg_idx = num;
+			break;
+		}
+		mask = mask << 1;
+	}
+
+	if (*reg_idx < 0)
+		return -EIO;
+	else
+		return 0;
+}
+
+static int ptrace_wmpu_mask(struct wmpu_addr *addr, int *wmpuhi, int *extra_mask)
+{
+	unsigned int wmpu_boundary = addr->end;
+	unsigned int mask_bit=0x1;
+	int size;
+        int shift=1;
+
+	if (addr->start > addr->end)
+                return -EIO;
+
+        size = ((int) (addr->end - addr->start));
+        size = size >> 3;
+
+        /* Set shift = 0 if size < 8 bytes */
+        if (mask_bit > size)
+                shift=0;
+        else {
+                while(mask_bit <= size) {
+                        mask_bit = mask_bit << 1;
+                        shift++;
+                }
+        }
+
+	/* Make sure that wmpu can cover all the range */
+        wmpu_boundary = wmpu_boundary | (mask_bit -1);
+        if (wmpu_boundary < addr->end)
+                shift++;
+
+        if (shift <= 9)
+                *wmpuhi = *wmpuhi | (mask_bit - 1);
+        else {
+                *wmpuhi = 0xff8;
+                *extra_mask |= ((mask_bit << 3) - 1);
+        }
+
+	return 0;
+}
+
+static int ptrace_wmpu_set(struct wmpu_addr *addr, unsigned char mode)
+{
+	unsigned int wmpuhi = 0x0;
+	unsigned int extra_mask = 0x0;
+	unsigned int wmpctl=0x0;
+	int err,reg_idx;
+
+	err = ptrace_wmpu_mask(addr, &wmpuhi, &extra_mask);
+	if (err) {
+		printk("set wmpu mask error!\n");
+		BUG();
+	}
+
+	err = ptrace_wmpu_reg_alloc(&reg_idx);
+	if (err) {
+		printk("wmpu register allocation error!\n");
+                BUG();
+	}
+
+	wmpu_info.watchhi[reg_idx] = wmpuhi << 3;
+	wmpu_info.watchlo[reg_idx] = (addr->start & 0xfffffff8) | addr->attr;
+	wmpu_info.wmpxmask[reg_idx] = extra_mask;
+
+	/* Set lo, hi, and extra_mask register */
+	switch (reg_idx) {
+	case 2:
+		write_c0_watchlo2(wmpu_info.watchlo[2]);
+		write_c0_watchhi2(0x40000000 | wmpu_info.watchhi[2]);
+		write_lxc0_wmpxmask2(extra_mask);
+		break;
+	case 3:
+		write_c0_watchlo3(wmpu_info.watchlo[3]);
+		write_c0_watchhi3(0x40000000 | wmpu_info.watchhi[3]);
+		write_lxc0_wmpxmask3(extra_mask);
+		break;
+	case 4:
+		write_c0_watchlo4(wmpu_info.watchlo[4]);
+		write_c0_watchhi4(0x40000000 | wmpu_info.watchhi[4]);
+		write_lxc0_wmpxmask4(extra_mask);
+		break;
+	case 5:
+		write_c0_watchlo5(wmpu_info.watchlo[5]);
+		write_c0_watchhi5(0x40000000 | wmpu_info.watchhi[5]);
+		write_lxc0_wmpxmask5(extra_mask);
+		break;
+	case 6:
+		write_c0_watchlo6(wmpu_info.watchlo[6]);
+		write_c0_watchhi6(0x40000000 | wmpu_info.watchhi[6]);
+		write_lxc0_wmpxmask6(extra_mask);
+		break;
+	case 7:
+		write_c0_watchlo7(wmpu_info.watchlo[7]);
+		write_c0_watchhi7(0x40000000 | wmpu_info.watchhi[7]);
+		write_lxc0_wmpxmask7(extra_mask);
+		break;
+	default:
+		BUG();
+		break;
+	}
+
+	/* Set wmpu ctrl register */
+	wmpctl |= (0x1 << (reg_idx + 16)) | 0x2 | mode;
+	set_lxc0_wmpctl(wmpctl);
+
+	return reg_idx;
+}
+
+int ptrace_wmpu_wp(struct wmpu_addr *addr)
+{
+	return  ptrace_wmpu_set(addr, MODE_WP);
+}
+
+int ptrace_wmpu_mp(struct wmpu_addr *addr)
+{
+	return ptrace_wmpu_set(addr, MODE_MP);
+}
+
+void ptrace_wmpu_clear(int reg_idx)
+{
+
+	switch (reg_idx) {
+	case 2:
+		write_c0_watchlo2(0);
+		write_c0_watchhi2(0);
+		write_lxc0_wmpxmask2(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE2);
+		break;
+	case 3:
+		write_c0_watchlo3(0);
+		write_c0_watchhi3(0);
+		write_lxc0_wmpxmask3(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE3);
+		break;
+	case 4:
+		write_c0_watchlo4(0);
+		write_c0_watchhi4(0);
+		write_lxc0_wmpxmask4(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE4);
+		break;
+	case 5:
+		write_c0_watchlo5(0);
+		write_c0_watchhi5(0);
+		write_lxc0_wmpxmask5(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE5);
+		break;
+	case 6:
+		write_c0_watchlo6(0);
+		write_c0_watchhi6(0);
+		write_lxc0_wmpxmask6(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE6);
+		break;
+	case 7:
+		write_c0_watchlo7(0);
+		write_c0_watchhi7(0);
+		write_lxc0_wmpxmask7(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE7);
+		break;
+	default:
+		printk("wmpu clear fail!\n");
+		BUG();
+		break;
+	}
+}
+
+#endif
+
 /*
  * Called by kernel/ptrace.c when detaching..
  *
@@ -43,8 +239,10 @@
  */
 void ptrace_disable(struct task_struct *child)
 {
+	#if defined(CONFIG_CPU_HAS_WATCH)
 	/* Don't load the watchpoint registers for the ex-child. */
-	//clear_tsk_thread_flag(child, TIF_LOAD_WATCH);
+	clear_tsk_thread_flag(child, TIF_LOAD_WATCH);
+	#endif
 }
 
 /*
@@ -99,6 +297,95 @@ int ptrace_setregs(struct task_struct *child, __s64 __user *data)
 
 	return 0;
 }
+#if defined(CONFIG_CPU_HAS_WATCH)
+int ptrace_get_watch_regs(struct task_struct *child,
+			  struct pt_watch_regs __user *addr)
+{
+	enum pt_watch_style style;
+	int i;
+
+	if (!cpu_has_watch || current_cpu_data.watch_reg_use_cnt == 0)
+		return -EIO;
+	if (!access_ok(VERIFY_WRITE, addr, sizeof(struct pt_watch_regs)))
+		return -EIO;
+
+#ifdef CONFIG_32BIT
+	style = pt_watch_style_rlx32;
+#define WATCH_STYLE rlx32
+#else
+	style = pt_watch_style_rlx64;
+#define WATCH_STYLE rlx64
+#endif
+
+	__put_user(style, &addr->style);
+	__put_user(current_cpu_data.watch_reg_use_cnt,
+		   &addr->WATCH_STYLE.num_valid);
+	for (i = 0; i < current_cpu_data.watch_reg_use_cnt; i++) {
+		__put_user(child->thread.watch.rlx3264.watchlo[i],
+			   &addr->WATCH_STYLE.watchlo[i]);
+		__put_user(child->thread.watch.rlx3264.watchhi[i] & 0xfff,
+			   &addr->WATCH_STYLE.watchhi[i]);
+		__put_user(current_cpu_data.watch_reg_masks[i],
+			   &addr->WATCH_STYLE.watch_masks[i]);
+	}
+	for (; i < 8; i++) {
+		__put_user(0, &addr->WATCH_STYLE.watchlo[i]);
+		__put_user(0, &addr->WATCH_STYLE.watchhi[i]);
+		__put_user(0, &addr->WATCH_STYLE.watch_masks[i]);
+	}
+	return 0;
+}
+
+
+int ptrace_set_watch_regs(struct task_struct *child,
+			  struct pt_watch_regs __user *addr)
+{
+	int i;
+	int watch_active = 0;
+	unsigned long lt[NUM_WATCH_REGS];
+	u16 ht[NUM_WATCH_REGS];
+
+	if (!cpu_has_watch || current_cpu_data.watch_reg_use_cnt == 0)
+		return -EIO;
+	if (!access_ok(VERIFY_READ, addr, sizeof(struct pt_watch_regs)))
+		return -EIO;
+	/* Check the values. */
+	for (i = 0; i < current_cpu_data.watch_reg_use_cnt; i++) {
+		__get_user(lt[i], &addr->WATCH_STYLE.watchlo[i]);
+#ifdef CONFIG_32BIT
+		if (lt[i] & __UA_LIMIT)
+			return -EINVAL;
+#else
+		if (test_tsk_thread_flag(child, TIF_32BIT_ADDR)) {
+			if (lt[i] & 0xffffffff80000000UL)
+				return -EINVAL;
+		} else {
+			if (lt[i] & __UA_LIMIT)
+				return -EINVAL;
+		}
+#endif
+		__get_user(ht[i], &addr->WATCH_STYLE.watchhi[i]);
+		if (ht[i] & ~0xff8)
+			return -EINVAL;
+	}
+	/* Install them. */
+	for (i = 0; i < current_cpu_data.watch_reg_use_cnt; i++) {
+		if (lt[i] & 7)
+			watch_active = 1;
+		child->thread.watch.rlx3264.watchlo[i] = lt[i];
+		/* Set the G bit. */
+		child->thread.watch.rlx3264.watchhi[i] = ht[i];
+	}
+
+
+	if (watch_active)
+		set_tsk_thread_flag(child, TIF_LOAD_WATCH);
+	else
+		clear_tsk_thread_flag(child, TIF_LOAD_WATCH);
+	return 0;
+}
+
+#endif/*CONFIG_CPU_HAS_WATCH*/
 
 long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 {
@@ -221,7 +508,23 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 		ret = put_user(task_thread_info(child)->tp_value,
 				(unsigned long __user *) data);
 		break;
+#if defined(CONFIG_CPU_HAS_WATCH)
+	case PTRACE_GET_WATCH_REGS:
+		ret = ptrace_get_watch_regs(child,
+					(struct pt_watch_regs __user *) addr);
+		break;
 
+	case PTRACE_SET_WATCH_REGS:
+                 /*return error if wmpu is in memory protection mode */
+                 if(read_lxc0_wmpctl() & 0x1)
+                 {
+                      printk("WMPU run in memory protection mode. Fail to set watch registers!\n");
+                      return -EIO;
+                 }
+		ret = ptrace_set_watch_regs(child,
+					(struct pt_watch_regs __user *) addr);
+		break;
+#endif
 	default:
 		ret = ptrace_request(child, request, addr, data);
 		break;

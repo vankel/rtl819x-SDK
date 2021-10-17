@@ -1565,6 +1565,13 @@ void SSL_CTX_free(SSL_CTX *a)
 	if (a == NULL) return;
 
 	i=CRYPTO_add(&a->references,-1,CRYPTO_LOCK_SSL_CTX);
+	
+	if(i<0)
+	{
+		printf("SSL_CTX_free, bad reference count!\n");
+		return;
+	}
+	
 #ifdef REF_PRINT
 	REF_PRINT("SSL_CTX",a);
 #endif

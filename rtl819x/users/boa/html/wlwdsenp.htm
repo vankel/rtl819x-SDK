@@ -13,7 +13,7 @@ var wlan_idx= <% getIndex("wlan_idx"); %> ;
 function updateFormatWds(form, wlan_idx)
 {
   format=form.elements["format"+wlan_idx];
-  if (form.elements["encrypt"+wlan_idx].selectedIndex == 1) {
+  if (form.elements["encrypt"+wlan_idx].value == 1) {
 	format.options[0].text = 'ASCII (5 characters)';
 	format.options[1].text = 'Hex (10 characters)';
   }
@@ -26,7 +26,7 @@ function updateFormatWds(form, wlan_idx)
 function setWepKeyLen(form)
 {
   updateFormatWds(form, wlan_idx);
-  if (form.elements["encrypt"+wlan_idx].selectedIndex == 1) {
+  if (form.elements["encrypt"+wlan_idx].value == 1) {
 	if ( form.elements["format"+wlan_idx].selectedIndex == 0) {
 		form.elements["wepKey"+wlan_idx].maxLength = 5;
 		form.elements["wepKey"+wlan_idx].value = "*****";
@@ -75,16 +75,17 @@ function enableWPA(form)
 
 function updateEncryptState(form)
 {
-  if (form.elements["encrypt"+wlan_idx].selectedIndex == 0) {
+  if (form.elements["encrypt"+wlan_idx].value == 0) 
+ 	{
   	disableWEP(form);
 	disableWPA(form);
   }
-  if (form.elements["encrypt"+wlan_idx].selectedIndex == 1 || form.elements["encrypt"+wlan_idx].selectedIndex == 2) {
+  if (form.elements["encrypt"+wlan_idx].value == 1 || form.elements["encrypt"+wlan_idx].value == 2) {
 	setWepKeyLen(document.formWdsEncrypt);
  	enableWEP(form);
 	disableWPA(form);
   }
-  if (form.elements["encrypt"+wlan_idx].selectedIndex == 3 || form.elements["encrypt"+wlan_idx].selectedIndex == 4) {
+  if (form.elements["encrypt"+wlan_idx].value == 3 || form.elements["encrypt"+wlan_idx].value == 4) {
  	disableWEP(form);
 	enableWPA(form);
   }
@@ -93,7 +94,7 @@ function updateEncryptState(form)
 function saveChangesWep(form)
 {
   var keyLen;
-  if (form.elements["encrypt"+wlan_idx].selectedIndex == 1) {
+  if (form.elements["encrypt"+wlan_idx].value == 1) {
   	if ( form.elements["format"+wlan_idx].selectedIndex == 0)
 		keyLen = 5;
 	else
@@ -114,9 +115,9 @@ function saveChangesWep(form)
 
 function saveChanges(form)
 {
-  if (form.elements["encrypt"+wlan_idx].selectedIndex == 0)
+  if (form.elements["encrypt"+wlan_idx].value == 0)
   	return true;
-  else if (form.elements["encrypt"+wlan_idx].selectedIndex == 1 || form.elements["encrypt"+wlan_idx].selectedIndex == 2)
+  else if (form.elements["encrypt"+wlan_idx].value == 1 || form.elements["encrypt"+wlan_idx].value == 2)
  	return saveChangesWep(form, wlan_idx);
   else
   	return check_wpa_psk(form,wlan_idx );
@@ -127,12 +128,21 @@ function Load_Setting()
 	var cf = document.formWdsEncrypt;
 	var wdsEncrypt = <% getIndex("wdsEncrypt"); %>;
 	
-	if (cf.elements["encrypt"+wlan_idx].options[3].text == "WPA (TKIP)") {
+	if (cf.elements["encrypt"+wlan_idx].options[3] && cf.elements["encrypt"+wlan_idx].options[3].text == "WPA (TKIP)") {
 		cf.elements["encrypt"+wlan_idx].selectedIndex = wdsEncrypt;
 	}
 	else {
-		if (wdsEncrypt == 4) 
-			cf.elements["encrypt"+wlan_idx].selectedIndex = 3;
+		if (wdsEncrypt == 4) // 4:WPA2 (AES)
+		{
+			
+
+			for(i=0;i<cf.elements["encrypt"+wlan_idx].length;i++)
+			{
+				if(cf.elements["encrypt"+wlan_idx].options[i].text == "WPA2 (AES)")
+					cf.elements["encrypt"+wlan_idx].selectedIndex = i;		
+			}
+			
+		}
 		else
 			cf.elements["encrypt"+wlan_idx].selectedIndex = wdsEncrypt;
 	}
@@ -142,10 +152,14 @@ function Load_Setting()
 	else
 		cf.elements["format"+wlan_idx].selectedIndex = 1;
 
-	if ( <% getIndex("wdsPskFormat"); %> == 0 )
+	if ( <% getIndex("wdsPskFormat"); %> == 0 ){
+		cf.elements["pskValue"+wlan_idx].maxLength = "63";
 		cf.elements["pskFormat"+wlan_idx].selectedIndex = 0;
-	else
+	}
+	else{
+		cf.elements["pskValue"+wlan_idx].maxLength = "64";
 		cf.elements["pskFormat"+wlan_idx].selectedIndex = 1;
+	}
 	updateEncryptState(cf);
 }
 
@@ -182,11 +196,11 @@ else
       <td width="70%"><font size=2><b>
       	<select size="1" name="encrypt<% getIndex("wlan_idx"); %>" onChange="updateEncryptState(document.formWdsEncrypt)">
 			<option value="0">None</option>
+	<!-- <% getInfo("onoff_tkip_comment_start");%>
 			<option value="1">WEP 64bits</option>
 			<option value="2">WEP 128bits</option>
-	<% getInfo("onoff_tkip_comment_start");%>
 			<option value="3">WPA (TKIP)</option>
-	<% getInfo("onoff_tkip_comment_end");%>          
+		<% getInfo("onoff_tkip_comment_end");%> -->        
 			<option value="4">WPA2 (AES)</option>
 
       </b></font></td>
@@ -206,14 +220,14 @@ else
   </tr>
   <tr>
       <td width="30%"><font size="2"><b>Pre-Shared Key Format:</b></font></td>
-      <td width="70%"><font size="2"><select size="1" name="pskFormat<% getIndex("wlan_idx"); %>">
+      <td width="70%"><font size="2"><select size="1" name="pskFormat<% getIndex("wlan_idx"); %>" onChange="pskFormatChange(formWdsEncrypt,<% getIndex("wlan_idx"); %>)">
           <option value="0">Passphrase</option>
           <option value="1">Hex (64 characters)</option>
       </select></font></td>
   </tr>
   <tr>
       <td width="30%"><font size="2"><b>Pre-Shared Key:</b></font></td>
-      <td width="70%"><font size="2"><input type="text" name="pskValue<% getIndex("wlan_idx"); %>" size="40" maxlength="64" value=<% getInfo("wdsPskValue");%>>
+      <td width="70%"><font size="2"><input type="password" name="pskValue<% getIndex("wlan_idx"); %>" size="40"  value=<% getInfo("wdsPskValue");%>>
       </font></td>
   </tr>
   <script>

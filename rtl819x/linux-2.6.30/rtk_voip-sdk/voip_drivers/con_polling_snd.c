@@ -38,7 +38,7 @@ static int Polling_Mirror_SND_con( voip_con_t *p_con, voip_snd_t *p_snd )
 		if( p_mirror_hstate ->slic.f_ring_chk ) {
 			// RPC FXS_Ring() will make f_ring_chk = 1
 			p_mirror_data ->udata.slic.ringing =
-				p_snd ->fxs_ops ->FXS_Check_Ring( p_snd );
+				(p_snd ->fxs_ops ->FXS_Check_Ring( p_snd ))&0x1;
 		}
 		
 		if( p_mirror_hstate ->slic.f_SendNTTCAR_chk ) {

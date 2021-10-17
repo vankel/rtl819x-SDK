@@ -62,6 +62,26 @@ typedef struct {
 }stPulseDetParam;
 
 
+typedef struct {
+	unsigned int step1_flag;
+	unsigned int step1_slic_type;
+	unsigned int step1_param_type;
+	unsigned int step1_param_size;
+	unsigned char step2_param[144]; 
+/*
+Proslic Driver V6.4.0 Si3226x structure size:
+	sizeof(Si3226x_Ring_Cfg) = 132
+	sizeof(Si3226x_DCfeed_Cfg) = 96
+	sizeof(Si3226x_Impedance_Cfg) = 128
+	sizeof(Si3226x_audioEQ_Cfg) = 32
+	sizeof(Si3226x_hybrid_Cfg) = 48
+	sizeof(Si3226x_Zsynth_Cfg) = 24
+	sizeof(Si3226x_PCM_Cfg) = 5
+	sizeof(Si3226x_General_Cfg) = 224
+*/
+
+}ProslicParam;
+
 #if 0
 /*Slic_api.c function prototype*/
 int SLIC_init(int pcm_mode);
@@ -74,6 +94,8 @@ void Hook_state(hook_struck *hook);
 void Set_SLIC_Tx_Gain(unsigned char chid, unsigned char tx_gain);
 void Set_SLIC_Rx_Gain(unsigned char chid, unsigned char rx_gain);
 void SLIC_Set_Ring_Cadence(unsigned char chid, unsigned short OnMsec, unsigned short OffMsec);
+void SLIC_Set_Multi_Ring_Cadence(unsigned char chid, unsigned short OnMsec1, unsigned short OffMsec1, unsigned short OnMsec2, unsigned short OffMsec2, 
+	unsigned short OnMsec3, unsigned short OffMsec3, unsigned short OnMsec4, unsigned short OffMsec4);
 void SLIC_Set_Ring_Freq_Amp(unsigned char chid, char preset);
 void Init_Event_Polling_Use_Timer(void);
 void SLIC_Hook_Polling(hook_struck *hook, unsigned int fhk_min_time, unsigned int fhk_time);
@@ -93,6 +115,8 @@ void ring_det_cad_set( unsigned int ring_on_msec, unsigned int first_ringoff_mse
 void ring_times_set(unsigned int chid, unsigned int ringOn, unsigned int ringOff);
 void vir_daa_ring_det_set(unsigned int on_ths, unsigned int off_ths);
 unsigned char SLIC_Get_Hook_Status(int chid);
+void SLIC_Set_Power_Save_Mode(int chid);
+void SLIC_Set_FXS_Line_State(int chid, int state);
 void SLIC_read_ram(unsigned char chid, unsigned short num, unsigned int *val);
 void SLIC_dump_reg(unsigned char chid);
 void SLIC_dump_ram(unsigned char chid);

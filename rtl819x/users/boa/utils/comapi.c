@@ -24,12 +24,10 @@
 #include "mibtbl.h"
 
 //#if defined(CONFIG_NET_RADIO)
-#if defined(CONFIG_RTL8192E)
-        #include "../../../linux-2.6.30/drivers/net/wireless/rtl8192e/ieee802_mib.h"
-#elif defined(CONFIG_RTL8192CD)
-	#include "../../../linux-2.6.30/drivers/net/wireless/rtl8192cd/ieee802_mib.h"
-#else
-	#include "../../../linux-2.6.30/drivers/net/wireless/rtl8190/ieee802_mib.h"
+#if defined(CONFIG_RTL_8196B)
+#include "../../../linux-2.6.30/drivers/net/wireless/rtl8190/ieee802_mib.h"
+#else /*rtl8196C*/
+#include "../../../linux-2.6.30/drivers/net/wireless/rtl8192cd/ieee802_mib.h"
 #endif
 //#endif //#if defined(CONFIG_NET_RADIO)
 
@@ -123,7 +121,7 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 #endif
 
 #if defined(CONFIG_RTL_819X) 
-  #if 0 //!defined(CONFIG_RTL_8196C)
+  #if !defined(CONFIG_RTL_8196C)
 	FPRINTF_INT("MIMO_TR_mode",			pmib->dot11RFEntry.MIMO_TR_mode);
 	fprintf_BArray(fp,"TxPowerCCK",ifname,pmib->dot11RFEntry.pwrlevelCCK,14);
 	fprintf_BArray(fp,"TxPowerOFDM_1SS",ifname,pmib->dot11RFEntry.pwrlevelOFDM_1SS,162);
@@ -201,6 +199,9 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 	FPRINTF_INT("macclone_enable",		pmib->ethBrExtInfo.macclone_enable);
 #ifdef WIFI_SIMPLE_CONFIG
 	FPRINTF_INT("wsc_enable",			pmib->wscEntry.wsc_enable);
+#endif
+#ifdef WLAN_HS2_CONFIG
+	FPRINTF_INT("hs_enable",			pmib->hs2Entry.hs_enable);
 #endif
 	FPRINTF_INT("use40M",				pmib->dot11nConfigEntry.dot11nUse40M);
 	FPRINTF_INT("2ndchoffset",			pmib->dot11nConfigEntry.dot11n2ndChOffset);
@@ -289,7 +290,7 @@ int dumpCfgFile(char *ifname, struct wifi_mib *pmib, int idx)
 	apmib_get(MIB_WLAN_WSC_REGISTRAR_ENABLED, (void *)&is_registrar);
 	if (is_client == CLIENT_MODE) {
 #ifdef CONFIG_RTL8186_KLD_REPEATER
-		if (is_repeater_enabled && is_config) {
+		if (is_repeater_enabled==1 && is_config) {
 			intVal = MODE_AP_PROXY_REGISTRAR;
 			wps_vxdAP_enabled = 1;
 			WRITE_WSC_PARAM(ptr, tmpbuf, "disable_configured_by_exReg = %d\n", 1);
@@ -641,7 +642,7 @@ int comapi_initWlan(char *ifname)
 		memcpy(pmib->dot11StationConfigEntry.dot11SSIDtoScan, buf1, intVal2);
 	}
 
-#if defined(CONFIG_RTL_92D_SUPPORT)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT)
 		apmib_get(MIB_WLAN_PHY_BAND_SELECT, (void *)&intVal);
 		pmib->dot11RFEntry.phyBandSelect = intVal;
 		apmib_get(MIB_WLAN_MAC_PHY_MODE, (void *)&intVal);
@@ -1103,6 +1104,14 @@ int comapi_initWlan(char *ifname)
 		pmib->wscEntry.wsc_enable = 0;
 #endif
 
+#ifdef WLAN_HS2_CONFIG
+	// enable/disable the notification for IAPP
+		apmib_get(MIB_WLAN_HS2_ENABLE, (void *)&intVal);
+		if (intVal == 0)
+			pmib->hs2Entry.hs_enable = 0;
+		else
+			pmib->hs2Entry.hs_enable = 1;
+#endif
 	// for 11n
 		apmib_get(MIB_WLAN_CHANNEL_BONDING, &channel_bound);
 		pmib->dot11nConfigEntry.dot11nUse40M = channel_bound;
@@ -1193,6 +1202,14 @@ int comapi_initWlan(char *ifname)
 		else if (wlan_band == 10) { // g+n
 			wlan_band += 1; // b+g+n
 			pmib->dot11StationConfigEntry.legacySTADeny = 1;
+		}
+		else if (wlan_band == 64) { //pure-11ac
+			wlan_band += 12; //ac+a+n
+			pmib->dot11StationConfigEntry.legacySTADeny = 12;
+		}
+		else if (wlan_band == 72) { //ac+n
+			wlan_band += 4; //a
+			pmib->dot11StationConfigEntry.legacySTADeny = 4;
 		}
 		else
 			pmib->dot11StationConfigEntry.legacySTADeny = 0;	
@@ -1552,6 +1569,14 @@ int comapi_initWlan(char *ifname)
 			}
 			pmib->dot1180211AuthEntry.dot11WPA2Cipher = intVal; 		
 		}
+
+#ifdef CONFIG_IEEE80211W
+		apmib_get(MIB_WLAN_IEEE80211W, , (void *)&intVal2);
+		pmib->dot1180211AuthEntry.dot11IEEE80211W = intVal2;
+		
+		apmib_get(MIB_WLAN_SHA256_ENABLE, , (void *)&intVal2);
+		pmib->dot1180211AuthEntry.dot11EnableSHA256 = intVal2;	
+#endif
 
 		apmib_get(MIB_WLAN_WPA_PSK, (void *)buf1);
 		strcpy(pmib->dot1180211AuthEntry.dot11PassPhrase, buf1);

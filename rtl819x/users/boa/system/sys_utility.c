@@ -98,15 +98,22 @@ int RunSystemCmd(char *filepath, ...)
 	char *para;
 	int argno = 0;
 	va_start(argp, filepath);
-
+    #ifdef DISPLAY_CMD
+	printf("\n"); 
+    #endif
 	while (1){ 
 		para = va_arg( argp, char*);
 		if ( strcmp(para, "") == 0 )
 			break;
 		argv[argno] = para;
-		//printf("Parameter %d is: %s\n", argno, para); 
+        #ifdef DISPLAY_CMD
+		printf(" %s ", para); 
+        #endif
 		argno++;
 	} 
+    #ifdef DISPLAY_CMD    
+	printf("\n");     
+    #endif
 	argv[argno+1] = NULL;
 	status = DoCmd(argv, filepath);
 	va_end(argp);
@@ -390,7 +397,7 @@ void Create_script(char *script_path, char *iface, int network, char *ipaddr, ch
 	}
 	close(fh);
 }
-
+#if 0
 unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned char symbol)
 {
 	static char tmp[50];
@@ -434,14 +441,18 @@ unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned cha
 		
 	return (unsigned char *)tmp;
 }
-
+#endif
 
 
 extern pid_t find_pid_by_name( char* pidName)
 {
 	DIR *dir;
 	struct dirent *next;
-
+	pid_t pid;
+	
+	if ( strcmp(pidName, "init")==0)
+		return 1;
+	
 	dir = opendir("/proc");
 	if (!dir) {
 		printf("Cannot open /proc");
@@ -476,13 +487,12 @@ extern pid_t find_pid_by_name( char* pidName)
 		sscanf(buffer, "%*s %s", name);
 		if (strcmp(name, pidName) == 0) {
 		//	pidList=xrealloc( pidList, sizeof(pid_t) * (i+2));
-			return((pid_t)strtol(next->d_name, NULL, 0));
-
+			pid=(pid_t)strtol(next->d_name, NULL, 0);
+			closedir(dir);
+			return pid;
 		}
-	}
-	if ( strcmp(pidName, "init")==0)
-		return 1;
-
+	}	
+	closedir(dir);
 	return 0;
 }
 

@@ -12,7 +12,6 @@ typedef struct {
 } TVoIPBox;
 
 extern int dbg_main(int argc, char *argv[]);
-extern int fskgen_main(int argc, char *argv[]);
 extern int pulse_dial_main(int argc, char *argv[]);
 extern int cp3_measure_main(int argc, char *argv[]);
 extern int led_main(int argc, char *argv[]);
@@ -20,9 +19,8 @@ extern int phonerecord_main(int argc, char *argv[]);
 extern int reg_main(int argc, char *argv[]);
 extern int ram_main(int argc, char *argv[]);
 extern int slic_reset_main(int argc, char *argv[]);
-extern int switchmii_main(int argc, char *argv[]);
+//extern int switchmii_main(int argc, char *argv[]);
 extern int test_main(int argc, char *argv[]);
-extern int vmwigen_main(int argc, char *argv[]);
 extern int voicerecord_main(int argc, char *argv[]);
 extern int voiceplay_main(int argc, char *argv[]);
 extern int ec_test_main(int argc, char *argv[]);
@@ -30,17 +28,15 @@ extern int rtcp_main(int argc, char *argv[]);
 extern int rtcp_logger_main(int argc, char *argv[]);
 extern int iphone_test_main(int argc, char *argv[]);
 extern int ring_test_main(int argc, char *argv[]);
-extern int clone_mac_main(int argc, char *arg[]);
+//extern int clone_mac_main(int argc, char *arg[]);
 extern int gpio_main(int argc, char *argv[]);
-extern int bandwidth_mgr_main(int argc, char *argv[]);
-extern int send_2833_main(int argc, char *argv[]);
+//extern int bandwidth_mgr_main(int argc, char *argv[]);
 extern int power_main(int argc, char *argv[]);
 extern int netmask_main(int argc, char *argv[]);
 extern int voip_cli_main(int argc, char *argv[]);
 extern int tone_main(int argc, char *argv[]);
 extern int lb_test_main(int argc, char *argv[]);
 extern int voip_event_main(int argc, char *argv[]);
-extern int dtmf_det_cfg_main(int argc, char *argv[]);
 
 #endif // __ECOS
 
@@ -77,9 +73,6 @@ VOIP_BOX_DECLARE_BEGIN	// TVoIPBox voip_box[] = {
 #ifdef VOIPBOX_DBG
 	VOIP_BOX_DECLARE("dbg", dbg_main)
 #endif
-#ifdef VOIPBOX_FSKGEN
-	VOIP_BOX_DECLARE("fskgen", fskgen_main)
-#endif
 #ifdef VOIPBOX_PULSE_DIAL
 	VOIP_BOX_DECLARE("pulse_dial", pulse_dial_main)
 #endif
@@ -110,9 +103,6 @@ VOIP_BOX_DECLARE_BEGIN	// TVoIPBox voip_box[] = {
 #ifdef VOIPBOX_TEST
 	VOIP_BOX_DECLARE("crash", test_main)
 #endif
-#ifdef VOIPBOX_VMWIGEN
-	VOIP_BOX_DECLARE("vmwigen", vmwigen_main)
-#endif
 #ifdef VOIPBOX_VOICERECORD
 	VOIP_BOX_DECLARE("voicerecord", voicerecord_main)
 #endif
@@ -123,7 +113,7 @@ VOIP_BOX_DECLARE_BEGIN	// TVoIPBox voip_box[] = {
 	VOIP_BOX_DECLARE("rtcp_statistic", rtcp_main)
 #endif
 #ifdef VOIPBOX_RTCP_LOGGER
-	{"rtcp_logger", rtcp_logger_main},
+	VOIP_BOX_DECLARE("rtcp_logger", rtcp_logger_main)
 #endif
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 	VOIP_BOX_DECLARE("iphone_test", iphone_test_main)
@@ -142,9 +132,6 @@ VOIP_BOX_DECLARE_BEGIN	// TVoIPBox voip_box[] = {
 #ifdef VOIPBOX_BANDWIDTH_MGR
 	VOIP_BOX_DECLARE("bandwidth_mgr", bandwidth_mgr_main)
 #endif
-#ifdef VOIPBOX_SEND_2833
-	VOIP_BOX_DECLARE("send_2833", send_2833_main)
-#endif
 #ifdef VOIPBOX_POWER
 	VOIP_BOX_DECLARE("power", power_main)
 #endif
@@ -162,9 +149,6 @@ VOIP_BOX_DECLARE_BEGIN	// TVoIPBox voip_box[] = {
 #endif
 #ifdef VOIPBOX_VOIPEVENT
 	VOIP_BOX_DECLARE("voip_event", voip_event_main)
-#endif
-#ifdef VOIPBOX_DTMF_DET_CFG
-	VOIP_BOX_DECLARE("dtmf_det_cfg", dtmf_det_cfg_main)
 #endif
 #ifndef __ECOS
 	VOIP_BOX_DECLARE("", NULL)

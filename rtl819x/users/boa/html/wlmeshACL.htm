@@ -22,16 +22,11 @@ function addClick()
 		document.formMeshACLSetup.aclmac.focus();
 		return false;
 	}
-
-	for (var i=0; i<str.length; i++) {
-		if ( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
-			(str.charAt(i) >= 'a' && str.charAt(i) <= 'f') ||
-			(str.charAt(i) >= 'A' && str.charAt(i) <= 'F') )
-			continue;
-
-		alert("Invalid MAC address. It should be in hex number (0-9 or a-f).");
-		document.formMeshACLSetup.aclmac.focus();
-		return false;
+	// add for "All MAC Address field can't reject 00:00:00:00:00:00/ff:ff:ff:ff:ff:ff MAC Address" issue
+	with(document.formMeshACLSetup)
+	{
+		if(!checkMacAddr(aclmac,"mac address invalid!"))
+			return false;
 	}
 	return true;
 }

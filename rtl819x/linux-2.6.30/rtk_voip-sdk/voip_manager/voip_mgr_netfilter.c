@@ -1,13 +1,17 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/poll.h>
+#include <linux/version.h>
+#include <linux/sched.h>
 
 #include "rtk_voip.h"
 #include "voip_types.h"
 #include "voip_control.h"
 #include "voip_init.h"
 #include "voip_dev.h"
+#include "voip_errno.h"
 
 #include "voip_mgr_define.h"
+#include "voip_mgr_log.h"
 
 #include "voip_mgr_do_protocol.h"
 #include "voip_mgr_do_dsp.h"
@@ -21,46 +25,46 @@ typedef struct {
 } DUMMY_T;
 
 // DO NOT use these 
-#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 #define _M_BASE_NAME( x )				x, do_mgr_ ## x, # x
-#else
-#define _M_BASE_NAME( x )				x, do_mgr_ ## x 
-#endif
 #define _M_BASE_FIELD( typ, fld )		sizeof( typ ), sizeof( ( ( typ * )0 )->fld ), ( uint32 )&( ( ( typ * )0 )->fld )
 
 // Use these: 
-//                      Regular  Ethdsp:host          Ethdsp:dsp
-//                      -------  -------------------  ---------------------
-//  M_NORMAL_MGR        normal   fw + ch              normal
-//  M_NORMAL_SND_MGR    normal   [fw + ch] | [body]   normal
-//  M_NORMALBODY_MGR    normal   fw + ch + body       normal 
-//  M_NOCHANNEL_MGR     normal   fw                   normal
-//  M_NOCHANNEL_SND_MGR normal   fw + body            normal
-//  M_FETCH_MGR         normal   fw + ch + ret        normal
-//  M_FETCH_SND_MGR     normal   [fw+ch+ret] | [body] normal 
-//  M_EVENT_MGR         normal   func call (no fw)    borrow ID to send event packet
-//  M_PUREEVENT_MGR     undef    undef                borrow ID to send event packet
-//  M_BODY_MGR          normal   func call fw         normal
-//  M_COMPLEX_MGR       normal   complex flags        complex flags
-//  M_UNDEF_MGR         undef    undef                undef 
-//  M_STANDALONE_MGR    normal   undef                undef 
-//  M_HOSTONLY_MGR      normal   func call (no fw)    undef  
+//                      		Regular  Ethdsp:host          		Ethdsp:dsp
+//                      		-------  -------------------  		---------------------
+//  M_NORMAL_MGR        		normal   fw + ch              		normal
+//  M_NORMAL_SND_MGR    		normal   [fw + ch] | [body]   		normal
+//  M_NORMALBODY_MGR    		normal   fw + ch + body       		normal 
+//  M_NOCHANNEL_MGR     		normal   fw                   		normal
+//  M_NOCHANNEL_SND_MGR 		normal   fw + body            		normal
+//  M_FETCH_MGR         		normal   fw + ch + ret        		normal
+//  M_FETCH_SND_MGR     		normal   [fw+ch+ret] | [body] 		normal 
+//  M_EVENT_MGR         		normal   func call (no fw)    		borrow ID to send event packet
+//  M_PUREEVENT_MGR     		undef    undef                		borrow ID to send event packet
+//  M_BODY_MGR          		normal   func call fw + ch        	normal
+//  M_BODY_NOCHANNEL_MGR		normal   func call fw		      	normal
+//  M_COMPLEX_MGR       		normal   complex flags        		complex flags
+//  M_UNDEF_MGR         		undef    undef                		undef 
+//  M_STANDALONE_MGR    		normal   undef                		undef 
+//  M_HOSTONLY_MGR      		normal   func call (no fw) + ch		undef
+//  M_HOSTONLY_NOCHANNEL_MGR	normal   func call (no fw)    		undef  
 //
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH
-#define M_NORMAL_MGR( x, typ, fld )			_M_BASE_NAME( x )
-#define M_NORMAL_SND_MGR( x, typ, fld )		_M_BASE_NAME( x )
-#define M_NORMALBODY_MGR( x, typ, fld )		_M_BASE_NAME( x )
+#define M_NORMAL_MGR( x, typ, fld )			_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_NORMAL_SND_MGR( x, typ, fld )		_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_NORMALBODY_MGR( x, typ, fld )		_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
 #define M_NOCHANNEL_MGR( x  )				_M_BASE_NAME( x )
 #define M_NOCHANNEL_SND_MGR( x  )			_M_BASE_NAME( x )
-#define M_FETCH_MGR( x, typ, fld )			_M_BASE_NAME( x )
-#define M_FETCH_SND_MGR( x, typ, fld )		_M_BASE_NAME( x )
-#define M_EVENT_MGR( x, typ, fld )			_M_BASE_NAME( x )
+#define M_FETCH_MGR( x, typ, fld )			_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_FETCH_SND_MGR( x, typ, fld )		_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_EVENT_MGR( x, typ, fld )			_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
 #define M_PUREEVENT_MGR( x )				M_UNDEF_MGR( x )
-#define M_BODY_MGR( x, typ, fld )			_M_BASE_NAME( x )
-#define M_COMPLEX_MGR( x, typ, fld, flg )	_M_BASE_NAME( x )
-#define M_UNDEF_MGR( x )					x, NULL
+#define M_BODY_MGR( x, typ, fld )			_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_BODY_NOCHANNEL_MGR( x, typ, fld )	_M_BASE_NAME( x )
+#define M_COMPLEX_MGR( x, typ, fld, flg )	_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_UNDEF_MGR( x )					x, NULL, NULL
 #define M_STANDALONE_MGR( x )				_M_BASE_NAME( x )
-#define M_HOSTONLY_MGR( x  )				_M_BASE_NAME( x )
+#define M_HOSTONLY_MGR( x, typ, fld  )		_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_HOSTONLY_NOCHANNEL_MGR( x )		_M_BASE_NAME( x )
 #elif defined( CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST )
 #define M_NORMAL_MGR( x, typ, fld )			_M_BASE_NAME( x ), 			\
 											_M_BASE_FIELD( typ, fld ), 	\
@@ -89,30 +93,38 @@ typedef struct {
 #define M_PUREEVENT_MGR( x )				M_UNDEF_MGR( x )
 #define M_BODY_MGR( x, typ, fld )			_M_BASE_NAME( x ), 			\
 											_M_BASE_FIELD( typ, fld ), 	\
+											MF_BODY | MF_CHANNEL
+#define M_BODY_NOCHANNEL_MGR( x, typ, fld )	_M_BASE_NAME( x ), 			\
+											_M_BASE_FIELD( typ, fld ), 	\
 											MF_BODY
 #define M_COMPLEX_MGR( x, typ, fld, flg )	_M_BASE_NAME( x ), 			\
 											_M_BASE_FIELD( typ, fld ), 	\
 											flg
-#define M_UNDEF_MGR( x )					x, NULL 
+#define M_UNDEF_MGR( x )					x, NULL, NULL
 #define M_STANDALONE_MGR( x )				M_UNDEF_MGR( x )
-#define M_HOSTONLY_MGR( x )					_M_BASE_NAME( x ), 			\
-											_M_BASE_FIELD( DUMMY_T, DUMMY_F ), 	\
-											MF_BODY
+#define M_HOSTONLY_MGR( x, typ, fld )		_M_BASE_NAME( x ), 			\
+											_M_BASE_FIELD( typ, fld ), 	\
+											MF_BODY | MF_CHANNEL
+#define M_HOSTONLY_NOCHANNEL_MGR( x )		_M_BASE_NAME( x ),			\
+											_M_BASE_FIELD( DUMMY_T, DUMMY_F ),  \
+                                            MF_BODY
 #elif defined( CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP )
-#define M_NORMAL_MGR( x, typ, fld )			_M_BASE_NAME( x ), 0
-#define M_NORMAL_SND_MGR( x, typ, fld )		_M_BASE_NAME( x ), 0
-#define M_NORMALBODY_MGR( x, typ, fld )		_M_BASE_NAME( x ), 0
-#define M_NOCHANNEL_MGR( x )				_M_BASE_NAME( x ), 0
-#define M_NOCHANNEL_SND_MGR( x )			_M_BASE_NAME( x ), 0
-#define M_FETCH_MGR( x, typ, fld )			_M_BASE_NAME( x ), 0
-#define M_FETCH_SND_MGR( x, typ, fld )		_M_BASE_NAME( x ), 0
-#define M_EVENT_MGR( x, typ, fld )			x, NULL, MF_EVENTCMD
-#define M_PUREEVENT_MGR( x )				x, NULL, MF_EVENTCMD
-#define M_BODY_MGR( x, typ, fld )			_M_BASE_NAME( x ), 0
-#define M_COMPLEX_MGR( x, typ, fld, flg )	_M_BASE_NAME( x ), flg 
-#define M_UNDEF_MGR( x )					x, NULL 
+#define M_NORMAL_MGR( x, typ, fld )			_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_NORMAL_SND_MGR( x, typ, fld )		_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_NORMALBODY_MGR( x, typ, fld )		_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_NOCHANNEL_MGR( x )				_M_BASE_NAME( x )
+#define M_NOCHANNEL_SND_MGR( x )			_M_BASE_NAME( x )
+#define M_FETCH_MGR( x, typ, fld )			_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_FETCH_SND_MGR( x, typ, fld )		_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_EVENT_MGR( x, typ, fld )			x, NULL, NULL, 0, 0, 0, MF_EVENTCMD
+#define M_PUREEVENT_MGR( x )				x, NULL, NULL, 0, 0, 0, MF_EVENTCMD
+#define M_BODY_MGR( x, typ, fld )			_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), MF_CHANNEL
+#define M_BODY_NOCHANNEL_MGR( x, typ, fld )	_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), 0
+#define M_COMPLEX_MGR( x, typ, fld, flg )	_M_BASE_NAME( x ), _M_BASE_FIELD( typ, fld ), flg 
+#define M_UNDEF_MGR( x )					x, NULL, NULL
 #define M_STANDALONE_MGR( x )				M_UNDEF_MGR( x )
-#define M_HOSTONLY_MGR( x )					M_UNDEF_MGR( x )
+#define M_HOSTONLY_MGR( x, typ, fld )		M_UNDEF_MGR( x )
+#define M_HOSTONLY_NOCHANNEL_MGR( x )		M_UNDEF_MGR( x )
 #else
 #error ""
 #endif
@@ -139,7 +151,7 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	{ M_NORMALBODY_MGR( VOIP_MGR_CTRL_RTPSESSION, TstVoipCfg, ch_id ), },
 	{ M_FETCH_MGR( VOIP_MGR_CTRL_TRANSESSION_ID, TstVoipCfg, ch_id ), },
 	{ M_NORMAL_MGR( VOIP_MGR_SETCONFERENCE, TstVoipMgr3WayCfg, ch_id ), },	
-	{ M_BODY_MGR( VOIP_MGR_GET_RTP_STATISTICS, TstVoipRtpStatistics, ch_id ), },
+	{ M_BODY_MGR( VOIP_MGR_GET_RTP_RTCP_STATISTICS, TstRtpRtcpStatistics, ch_id ), },
 	{ M_FETCH_MGR( VOIP_MGR_GET_SESSION_STATISTICS, TstVoipSessionStatistics, ch_id ), },
 
 	// Protocol - RTCP  
@@ -156,7 +168,7 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	{ M_NORMALBODY_MGR( VOIP_MGR_ON_HOOK_RE_INIT, TstVoipCfg, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_SET_VOICE_GAIN, TstVoipValue, ch_id ), }, 
 	{ M_FETCH_MGR( VOIP_MGR_ENERGY_DETECT, TstVoipValue, ch_id ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_GET_VOIP_EVENT ), }, 
+	{ M_HOSTONLY_MGR( VOIP_MGR_GET_VOIP_EVENT, TstVoipEvent, ch_id ), }, 
 	{ M_NORMALBODY_MGR( VOIP_MGR_FLUSH_VOIP_EVENT, TstFlushVoipEvent, ch_id ), }, 
 	
 	// DSP - Codec 
@@ -172,8 +184,8 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	{ M_FETCH_MGR( VOIP_MGR_FAX_END_DETECT, TstVoipCfg, ch_id ), }, 
 	{ M_NORMALBODY_MGR( VOIP_MGR_SET_FAX_MODEM_DET, TstVoipCfg, ch_id ), }, 
 	{ M_FETCH_MGR( VOIP_MGR_FAX_DIS_DETECT, TstVoipCfg, ch_id ), },
-	{ M_HOSTONLY_MGR( VOIP_MGR_FAX_DIS_TX_DETECT ), /*TstVoipCfg, ch_id ),*/ },
-	{ M_HOSTONLY_MGR( VOIP_MGR_FAX_DIS_RX_DETECT ), /*TstVoipCfg, ch_id ),*/ },
+	{ M_HOSTONLY_MGR( VOIP_MGR_FAX_DIS_TX_DETECT, TstVoipCfg, ch_id ), },
+	{ M_HOSTONLY_MGR( VOIP_MGR_FAX_DIS_RX_DETECT, TstVoipCfg, ch_id ), },
 	{ M_FETCH_MGR( VOIP_MGR_FAX_DCN_DETECT, TstVoipCfg, ch_id ), },
 	{ M_FETCH_MGR( VOIP_MGR_FAX_DCN_TX_DETECT, TstVoipCfg, ch_id ), },
 	{ M_FETCH_MGR( VOIP_MGR_FAX_DCN_RX_DETECT, TstVoipCfg, ch_id ), },
@@ -192,7 +204,7 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	//! @addtogroup VOIP_DSP_DTMF
 	//! @ingroup VOIP_CONTROL
 	{ M_NORMAL_MGR( VOIP_MGR_DTMF_DET_PARAM, TstDtmfDetPara, ch_id ), },  
-	{ M_NORMAL_MGR( VOIP_MGR_DTMF_CFG, TstVoipCfg, ch_id ), },  
+	{ M_NORMAL_MGR( VOIP_MGR_DTMF_CFG, TstDtmfDetPara, ch_id ), },  
 	{ M_NORMAL_MGR( VOIP_MGR_SET_DTMF_MODE, TstVoipCfg, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_SEND_RFC2833_PKT_CFG, TstVoip2833, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_SEND_RFC2833_BY_AP, TstVoipCfg, ch_id ), },  
@@ -206,8 +218,8 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	{ M_NORMAL_MGR( VOIP_MGR_DTMF_CID_GEN_CFG, TstVoipCID, ch_id ), }, 
 	{ M_FETCH_MGR( VOIP_MGR_GET_CID_STATE_CFG, TstVoipCID, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_FSK_CID_GEN_CFG, TstVoipCID, ch_id ), }, 
-	{ M_NORMAL_MGR( VOIP_MGR_SET_FSK_VMWI_STATE, TstVoipCID, ch_id ), }, 
-	{ M_NORMAL_MGR( VOIP_MGR_SET_FSK_AREA, TstVoipCID, ch_id ), }, 
+	{ M_NORMAL_MGR( VOIP_MGR_SET_FSK_VMWI_STATE, TstFskClid, ch_id ), }, 
+	{ M_NORMAL_MGR( VOIP_MGR_SET_FSK_AREA, TstVoipCfg, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_FSK_ALERT_GEN_CFG, TstVoipCID, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_SET_CID_DTMF_MODE, TstVoipCID, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_SET_CID_DET_MODE, TstVoipCfg, ch_id ), }, 
@@ -222,13 +234,15 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	//! @addtogroup VOIP_DSP_TONE
 	//! @ingroup VOIP_CONTROL
 	{ M_NORMAL_MGR( VOIP_MGR_SETPLAYTONE, TstVoipPlayToneConfig, ch_id ), }, 
-	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_COUNTRY ), },
+	{ M_NOCHANNEL_SND_MGR( VOIP_MGR_SET_COUNTRY ), },
 	{ M_NOCHANNEL_SND_MGR( VOIP_MGR_SET_COUNTRY_IMPEDANCE ), },
 	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_COUNTRY_TONE ), },
 	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_TONE_OF_CUSTOMIZE ), },  
 	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_CUST_TONE_PARAM ), }, 	// FIXED: Types of Realtek and Audiocodes are different 
 	{ M_NOCHANNEL_MGR( VOIP_MGR_USE_CUST_TONE ), }, 	// FIXED: Types of Realtek and Audiocodes are different 
 	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_DIS_TONE_DET ), }, 
+	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_TONE_OF_UPDATE ), }, 
+	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_UPDATE_TONE_PARAM ), },
 
 	// DSP - AGC  
 	//! @addtogroup VOIP_DSP_AGC
@@ -265,7 +279,7 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	{ M_NORMAL_MGR( VOIP_MGR_PCM_CFG, TstVoipCfg, ch_id ), },  
 	{ M_NORMAL_MGR( VOIP_MGR_SET_BUS_DATA_FORMAT, TstVoipBusDataFormat, ch_id ), },  
 	{ M_NORMAL_MGR( VOIP_MGR_SET_PCM_TIMESLOT, TstVoipPcmTimeslot, ch_id ), },  
-	{ M_STANDALONE_MGR( VOIP_MGR_SET_PCM_LOOP_MODE ), }, 
+	{ M_NOCHANNEL_MGR( VOIP_MGR_SET_PCM_LOOP_MODE ), }, 
 	
 	// Driver - SLIC  
 	//! @addtogroup VOIP_DRIVER_SLIC
@@ -317,44 +331,33 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	// Driver - GPIO  
 	//! @addtogroup VOIP_DRIVER_GPIO
 	//! @ingroup VOIP_CONTROL
-	{ M_HOSTONLY_MGR( VOIP_MGR_GPIO ), }, 
-	{ M_NORMAL_MGR( VOIP_MGR_SET_LED_DISPLAY, TstVoipLedDisplay, ch_id ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_GPIO ), }, 
+	{ M_NORMALBODY_MGR( VOIP_MGR_SET_LED_DISPLAY, TstVoipLedDisplay, ch_id ), }, 
 	{ M_NORMAL_MGR( VOIP_MGR_SET_SLIC_RELAY, TstVoipSlicRelay, ch_id ), }, 
 	
 	// Driver - Networking  
 	//! @addtogroup VOIP_DRIVER_NETWORK
 	//! @ingroup VOIP_CONTROL
-	{ M_HOSTONLY_MGR( VOIP_MGR_8305_SWITCH_VAL ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_WAN_VLAN_TAG ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_BRIDGE_MODE ), },  
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_DSCP_PRIORITY ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_WAN_2_VLAN_TAG ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_WAN_3_VLAN_TAG ), }, 
-	//add by Tim
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_WAN_CLONE_MAC ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_BANDWIDTH_MGR ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_GET_PORT_LINK_STATUS ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_RTP_TOS ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_RTP_DSCP ), }, 	
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_SIP_TOS ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_SIP_DSCP ), },
-	{ M_HOSTONLY_MGR( VOIP_MGR_PORT_DISABLE ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_PORT_PRIORITY ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_PORT_DISABLE_FLOWCONTROL ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_SET_DSCP_PRIORITY ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_SET_RTP_TOS ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_SET_RTP_DSCP ), }, 	
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_SET_SIP_TOS ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_SET_SIP_DSCP ), },
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_GET_PORT_LINK_STATUS ), }, 
 	
 	// Driver - DECT  
 	//! @addtogroup VOIP_DRIVER_DECT
 	//! @ingroup VOIP_CONTROL
-	{ M_HOSTONLY_MGR( VOIP_MGR_DECT_SET_POWER ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_DECT_GET_POWER ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_DECT_GET_PAGE ), }, 
-	{ M_HOSTONLY_MGR( VOIP_MGR_DECT_SET_LED ), },
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_DECT_SET_POWER ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_DECT_GET_POWER ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_DECT_GET_PAGE ), }, 
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_DECT_SET_LED ), },
 	
 	// Miscellanous  
 	//! @addtogroup VOIP_MISC
 	//! @ingroup VOIP_CONTROL
 	{ M_NORMAL_MGR( VOIP_MGR_SIP_REGISTER, TstVoipCfg, ch_id ), },
-	{ M_HOSTONLY_MGR( VOIP_MGR_GET_FEATURE ), },
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_GET_FEATURE ), },
 	{ M_FETCH_MGR( VOIP_MGR_VOIP_RESOURCE_CHECK, TstVoipCfg, ch_id ), },
 	{ M_STANDALONE_MGR( VOIP_MGR_SET_FW_UPDATE ), },
 		
@@ -370,22 +373,22 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	// Debug  
 	//! @addtogroup VOIP_DEBUG
 	//! @ingroup VOIP_CONTROL
-	{ M_BODY_MGR( VOIP_MGR_DEBUG, TstVoipValue, ch_id ), },
+	{ M_BODY_NOCHANNEL_MGR( VOIP_MGR_DEBUG, TstVoipValue, ch_id ), },
 	{ M_STANDALONE_MGR( VOIP_MGR_VOICE_PLAY ), },
 	{ M_UNDEF_MGR( VOIP_MGR_GET_T38_PCMIN ), },
 	{ M_UNDEF_MGR( VOIP_MGR_GET_T38_PACKETIN ), },
 	{ M_STANDALONE_MGR( VOIP_MGR_SET_GETDATA_MODE ), },
 	{ M_STANDALONE_MGR( VOIP_MGR_IPHONE_TEST ), },
 	{ M_NOCHANNEL_MGR( VOIP_MGR_PRINT ), },
-	{ M_NOCHANNEL_MGR( VOIP_MGR_COP3_CONIFG ), },
+	{ M_BODY_NOCHANNEL_MGR( VOIP_MGR_COP3_CONIFG, st_CP3_VoIP_param, cp3_dump_period), },
 	
 	// Ethernet DSP
 	//! @addtogroup VOIP_ETHERNET_DSP
 	//! @ingroup VOIP_CONTROL
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_DSP_ID_TO_DSP ), },
-	{ M_HOSTONLY_MGR( VOIP_MGR_SET_DSP_PHY_ID ), },
-	{ M_HOSTONLY_MGR( VOIP_MGR_CHECK_DSP_ALL_SW_READY ), },
-	{ M_HOSTONLY_MGR( VOIP_MGR_COMPLETE_DEFER_INIT ), },
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_SET_DSP_ID_TO_DSP ), },
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_SET_DSP_PHY_ID ), },
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_CHECK_DSP_ALL_SW_READY ), },
+	{ M_HOSTONLY_NOCHANNEL_MGR( VOIP_MGR_COMPLETE_DEFER_INIT ), },
 
 
 	// DSP - Codec 
@@ -403,12 +406,136 @@ static voip_mgr_entry_t voip_mgr_table[] = {
 	//! @ingroup VOIP_CONTROL
 	{ M_NORMAL_MGR( VOIP_MGR_STOP_CID, TstVoipCfg, ch_id ), },
 	
+	// Driver - SLIC  
+	//! @addtogroup VOIP_DRIVER_SLIC
+	//! @ingroup VOIP_CONTROL
+	{ M_NORMALBODY_MGR( VOIP_MGR_SET_MULTI_RING_CADENCE, TstVoipCadence, ch_id ), }, 
+
+	// Driver - DAA  
+	//! @addtogroup VOIP_DRIVER_DAA
+	//! @ingroup VOIP_CONTROL
+	{ M_NORMAL_MGR( VOIP_MGR_SET_DAA_HYBRID , TstVoipValue, ch_id ), }, 
+	{ M_NORMAL_MGR( VOIP_MGR_SET_FXO_TUNE , TstVoipCfg, ch_id ), }, 
+	{ M_NORMAL_MGR( VOIP_MGR_SET_RTP_PT_CHECKER, TstVoipCfg, ch_id ), }, 
+	
+	// Driver - SLIC  
+	//! @addtogroup VOIP_DRIVER_SLIC
+	//! @ingroup VOIP_CONTROL
+	{ M_NORMAL_SND_MGR( VOIP_MGR_SET_PROSLIC_PARAM_STEP1, TstVoipCfg, ch_id ), }, 
+	{ M_NOCHANNEL_SND_MGR( VOIP_MGR_SET_PROSLIC_PARAM_STEP2 ), }, 
+	
+	// Driver - Networking  
+	//! @addtogroup VOIP_DRIVER_NETWORK
+	//! @ingroup VOIP_CONTROL
+	{ M_HOSTONLY_MGR( VOIP_MGR_QOS_CFG, TstRtpQosRemark, chid ), },
+	
 };
 
 #define VOIP_MGR_TABLE_SIZE		( sizeof( voip_mgr_table ) / sizeof( voip_mgr_table[ 0 ] ) )
 
+static int voip_mgr_ch_check( int cmd, void *user, unsigned int len, const voip_mgr_entry_t *p_entry )
+{
+	uint32 chid = 0;
+	unsigned char *field;
+	mgr_flags_t flags = p_entry ->flags;
+	extern int con_ch_num;
+	
+	if( ( flags & ( MF_CHANNEL ) )
+			   == ( MF_CHANNEL ) )
+	{
+
+		if( p_entry ->field_offset + p_entry ->field_size > len ) {
+			PRINT_R( "%s, line%d, Bad field offset + size (%d > %d) in reading!\n",
+					 	__FUNCTION__, __LINE__, p_entry ->field_offset + p_entry ->field_size, len );
+			
+			return -EVOIP_IOCTL_SIZE_CHECK_ERR;
+		}
+		
+		field = ( unsigned char * )user;
+		field += p_entry ->field_offset;
+		
+		switch( p_entry ->field_size )
+		{
+			case 1:
+				chid = *( ( uint8 * )field );
+				break;
+			case 2:
+				if ((uint32)field%2)
+					chid = ((*((uint8 *)field))<<8) + ((*((uint8 *)field+1)));
+				else // 2-byte align
+					chid = *( ( uint16 * )field );
+				break;
+			case 4:
+				if ((uint32)field%4)
+				{
+					if ((uint32)field%2)
+						chid = ((*((uint8 *)field))<<24) + ((*((uint8 *)field+1))<<16) + 
+								((*((uint8 *)field+2))<<8) + ((*((uint8 *)field+3)));
+					else // 2-byte align
+						chid = ((*((uint16 *)field))<<16) + ((*((uint16 *)field+1)));
+				}
+				else // 4-byte align
+					chid = *( ( uint32 * )field );
+				break;
+			default:
+				PRINT_R( "%s, line%d, Bad field_size=%u in reading!\n", 
+							__FUNCTION__, __LINE__, p_entry ->field_size );
+				return -EVOIP_IOCTL_SIZE_CHECK_ERR;
+		}
+
+#if 0 // debug
+		if (cmd != VOIP_MGR_GET_VOIP_EVENT)
+			PRINT_Y("chid=%d\n", chid);
+#endif
+		
+		//Check IO ctrl chid ragne
+		if (chid > (con_ch_num-1))	
+		{
+			PRINT_R( "%s, line%d, cmd=%d, chid is error(=%d), the supported chid range is 0 to %d.\n", 
+						__FUNCTION__, __LINE__, cmd, chid, con_ch_num-1 );
+			
+			return -EVOIP_IOCTL_CHID_CHECK_ERR;
+		}
+	
+	}
+	else if( ( flags & ( MF_CHANNEL ) )
+					  == ( 0 ) )
+	{
+		// no channel
+	}
+
+	return 0;
+}
+
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH
+int do_voip_mgr_ctl_in_standalone( int cmd, void *user, unsigned int len, const voip_mgr_entry_t *p_entry )
+{
+	int ret = 0;
+	volatile static int entry = 0;
+	
+	// check re-entry. Because we have only one copy of user_buffer 
+	while( entry ) {
+		PRINT_R( "host voip_mgr_ctl re-entry!! (old=%d new=%d)\n", entry, cmd );
+		schedule();
+	}
+
+	entry = ( cmd ? cmd : 1 );
+
+	if( p_entry ->do_mgr == NULL )
+	{
+		PRINT_R("IOCTL command %d has no do_mgr\n", cmd);
+		ret = -EVOIP_IOCTL_NO_MGR_ERR;
+	}
+	else
+		ret = p_entry ->do_mgr( cmd, user, len, 0 );
+
+	entry = 0;
+
+	return ret;
+}
+#endif
+
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
-int last_process_seqno = -1;
 /* Note: the addr of para should be 4 byte-align to avoid emulate opcode xxx */ 
        int do_voip_mgr_set_ctl(unsigned short cmd, unsigned char* para, unsigned short length, unsigned short seq_no)
 #else
@@ -418,7 +545,11 @@ static int do_voip_mgr_set_ctl(int cmd, void *user, unsigned int len)
 #ifdef 	CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	extern int do_voip_mgr_ctl_in_host( int cmd, void *user, unsigned int len, const voip_mgr_entry_t *p_entry );
 #endif
+#ifdef 	CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+	extern int do_voip_mgr_ctl_in_dsp( unsigned short cmd, unsigned char* para, unsigned short length, unsigned short seq_no, const voip_mgr_entry_t *p_entry);
+#endif
 	int index;
+	int ret = 0;
 	const voip_mgr_entry_t *p_entry; 
 	
 	if( cmd <= VOIP_MGR_BASE_CTL || cmd >= VOIP_MGR_SET_MAX ) 
@@ -441,28 +572,38 @@ static int do_voip_mgr_set_ctl(int cmd, void *user, unsigned int len)
 	}
 #endif 
 	
+	// log ioctl 
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+	log_ioctl( cmd, para, length, 0 );
+#else
+	log_ioctl( cmd, user, len, 1 );
+#endif
+
+	// check chid range
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+	if (ret = voip_mgr_ch_check(cmd, para, length, p_entry))
+#else
+	if (ret = voip_mgr_ch_check(cmd, user, len, p_entry))
+#endif
+	{
+		return ret;
+	}
+	
+	// do ioctl 
 #ifdef 	CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	return do_voip_mgr_ctl_in_host( cmd, user, len, p_entry );
 #else
-	if( p_entry ->do_mgr ) {
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
-		return p_entry ->do_mgr( cmd, para, length, seq_no );
-		last_process_seqno = seq_no;
+	return do_voip_mgr_ctl_in_dsp( cmd, para, length, seq_no, p_entry );
 #else
-		return p_entry ->do_mgr( cmd, user, len, 0 );
+	return do_voip_mgr_ctl_in_standalone( cmd, user, len, p_entry );
 #endif
-	}
 #endif
-	
-	PRINT_Y("IOCTL command %d has no do_mgr\n", cmd);
-	
-	return -ENXIO;
 
 label_not_voip_mgr_cmd:
 
-	PRINT_MSG("IOCTL no %d command meet\n", cmd);
-	
-	return -EINVAL;
+	PRINT_R("IOCTL %d no command meet\n", cmd);
+	return -EVOIP_IOCTL_CMD_ERR;
 }
 
 #if 0
@@ -609,8 +750,13 @@ static int mgr_close( struct inode *node, struct file *filp )
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,35))
+static long mgr_ioctl( struct file *filp,
+	unsigned int cmd, unsigned long arg )
+#else
 static int mgr_ioctl( struct inode *node, struct file *filp,
 	unsigned int cmd, unsigned long arg )
+#endif
 {
 	//mgr_priv_t * const priv = filp->private_data;
 	const unsigned int nr = VOIP_MGR_IOC_NR( cmd );
@@ -641,7 +787,11 @@ static unsigned int mgr_poll( struct file *filp, struct poll_table_struct *wait 
 static struct file_operations mgr_fops = {
 	open:		mgr_open,
 	release:	mgr_close,
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,35))
+	unlocked_ioctl:		mgr_ioctl,
+#else
 	ioctl:		mgr_ioctl,
+#endif
 	poll:		mgr_poll,
 };
 

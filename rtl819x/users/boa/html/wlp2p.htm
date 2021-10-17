@@ -57,7 +57,8 @@ function init()
 			
 			for (chan=start; chan<=end; idx++, chan++) 
 			{
-		get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+			if(get_by_id("operationChannel_select"))
+				get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 				
 			}
 
@@ -72,6 +73,7 @@ function init()
 						idx--;
 						continue;
 					}
+					if(get_by_id("operationChannel_select"))
 			get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 				}
 			}
@@ -88,8 +90,8 @@ function init()
 						idx--;
 						continue;
 					}
-					
-			get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+					if(get_by_id("operationChannel_select"))					
+						get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 				}
 				
 				if ((regDomain == 1) || (regDomain == 2)) 
@@ -99,8 +101,9 @@ function init()
 					chan_end = 165;
 					
 					for (chan=chan_str; chan<=chan_end; idx++, chan+=inc_scale) 
-					{			
-				get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+					{		
+					if(get_by_id("operationChannel_select"))
+						get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 					}
 					
 				}
@@ -109,22 +112,26 @@ function init()
 				{
 					for (chan=183; chan<=190; idx++, chan+=1) 
 					{
-				get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+					if(get_by_id("operationChannel_select"))
+						get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 					}
 				
 					for (chan=192; chan<=196; idx++, chan+=2) 
 					{
-				get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+					if(get_by_id("operationChannel_select"))
+						get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 					}
 				
 					for (chan=207; chan<=212; idx++, chan+=1) 
 					{
-				get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+						if(get_by_id("operationChannel_select"))
+							get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 					}
 					
 					for (chan=214; chan<=216; idx++, chan+=2) 
 					{
-				get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
+						if(get_by_id("operationChannel_select"))
+							get_by_id("operationChannel_select").options[idx] = new Option(chan, chan, false, false);
 					}
 				}
 		
@@ -143,7 +150,8 @@ function loadSetting()
 		get_by_id("forcego").disabled = true;
 		get_by_id("intentValue_select").disabled = true;
 		get_by_id("listenChannel_select").disabled = true;
-		get_by_id("operationChannel_select").disabled = true;
+		if(get_by_id("operationChannel_select"))
+			get_by_id("operationChannel_select").disabled = true;
 		get_by_id("dev_name").disabled = true;
 		
 		get_by_id("save").disabled = true;
@@ -194,7 +202,7 @@ function intentValue_select_change(val)
 	form = document.formWiFiDirect;
 	
 	form.elements["p2p_intent"].value = val;
-	for (idx=0; idx<=15; idx++) 
+	for (idx=0; idx<get_by_id("intentValue_select").options.length; idx++) 
 	{
 		if(get_by_id("intentValue_select").options[idx].value == val)
 		{
@@ -209,7 +217,7 @@ function listenChannel_select_change(val)
 	form = document.formWiFiDirect;
 	
 	form.elements["p2p_listen_channel"].value = val;
-	for (idx=0; idx<=11; idx++) 
+	for (idx=0; idx<get_by_id("listenChannel_select").options.length; idx++) 
 	{
 		if(get_by_id("listenChannel_select").options[idx].value == val)
 		{
@@ -222,9 +230,11 @@ function listenChannel_select_change(val)
 function operationChannel_select_change(val)
 {
 	form = document.formWiFiDirect;
-	
+
+	if(form.elements["p2p_op_channel"])
 	form.elements["p2p_op_channel"].value = val;
-	for (idx=0; idx<=216; idx++) 
+	if(get_by_id("operationChannel_select"))
+	for (idx=0; idx<get_by_id("operationChannel_select").options.length; idx++) 
 	{
 		if(get_by_id("operationChannel_select").options[idx].value == val)
 		{
@@ -352,8 +362,11 @@ function __update_page()
 						get_by_id("p2p_role").innerHTML = "Role: Device";
 					else if(p2p_state[3] == "2" || p2p_state[3] == "3")
 						get_by_id("p2p_role").innerHTML = "Role: client";
-					else if(p2p_state[3] == "4" || p2p_state[3] == "5")
+					else if(p2p_state[3] == "4" || p2p_state[3] == "5"){
 						get_by_id("p2p_role").innerHTML = "Role: GO";
+						get_by_id("p2p_scan").disabled = true;
+						get_by_id("p2p_connect").disabled = true;
+					}
 					
 					
 					
@@ -419,14 +432,6 @@ function __update_page()
   </td>
 </tr>
 
-<input type=hidden name='p2p_op_channel' value='<% getInfo("p2p_op_channel"); %>'*1>
-<tr>
-	<td><font size=2><b>Operation channel:</b></td>
-  <td><font size=2>
-  	<select size="1" id="operationChannel_select"	onChange="operationChannel_select_change(this.value)">
-		</select>
-  </td>
-</tr>
   
 <tr>
   <td><font size=2><b>Device Name:</b></td>
@@ -516,8 +521,8 @@ function p2pBackToDevice()
 {
 	mf = document.formWiFiDirectConnect;
 	
-	get_by_id("action").value = "p2pBackToDevice";
-	
+	//get_by_id("action").value = "p2pBackToDevice";
+	mf.elements["p2p_action"].value="p2pBackToDevice";	
 	mf.submit();
 	
 }
@@ -526,11 +531,30 @@ function scanClick()
 {
 	get_by_id("p2p_status").innerHTML = "Status: Scanning";	
 }
+function bindButton()
+{
+    if (document.getElementById){
+        backToDevice_button = document.getElementById("backToDevice");
+        p2pScan_button = document.getElementById("p2p_scan");
+    }else{
+        eval('backToDevice_button = backToDevice;');
+        eval('p2pScan_button = p2p_scan;');		
+	}
+    backToDevice_button.onclick = function(){
+        backToDevice_button.onclick = null;
+        p2pBackToDevice();
+    };
+    p2pScan_button.onclick = function(){
+        p2pScan_button.onclick = null;
+        scanClick();
+        p2pScanList.window.p2pscan(<% getIndex("wlan_idx"); %>);
+    };
+}
 </script>
 
 <form action=/boafrm/formWiFiDirect method=POST name="formWiFiDirectConnect">	
 
-<input type=hidden name="action" value="">
+<input type=hidden name="p2p_action" value="">
 <input type="hidden" value="/wlp2p.htm" name="submit-url">	
 <input type=hidden id="selDeviceName" name="selDeviceName" value="">
 <input type=hidden id="selChannel" name="selChannel" value="">
@@ -540,11 +564,11 @@ function scanClick()
 
 
 
-<iframe id="p2pScanList" name="p2pScanList" onload="javascript:{dyniframesize('p2pScanList');}" marginwidth="0" marginheight="0" frameborder="0" scrolling="no" src="wlp2pscanlist.htm" width=800 height=0></iframe> 
+<iframe id="p2pScanList" name="p2pScanList" onload="javascript:{bindButton();dyniframesize('p2pScanList');}" marginwidth="0" marginheight="0" frameborder="0" scrolling="no" src="wlp2pscanlist.htm" width=800 height=0></iframe> 
 
- <br><input type="button" id="p2p_scan" value="Scan" onClick="scanClick();p2pScanList.window.p2pscan(<% getIndex("wlan_idx"); %>);">&nbsp;&nbsp;
+ <br><input type="button" id="p2p_scan" value="Scan" >&nbsp;&nbsp;
      <input type="button" id="p2p_connect" value="Connect" onClick="p2pConnect()">&nbsp;&nbsp;&nbsp;
-     <input type="button" id="backToDevice" value="Back to device mode" onClick="p2pBackToDevice()">
+     <input type="button" id="backToDevice" value="Back to device mode">
 </form>
 
 </td></tr></table>

@@ -35,6 +35,7 @@ int kernel_support;             /* Kernel Support there or not? */
 int init_network (void)
 {
     long arg;
+    int on=1;
     int length = sizeof (server);
     gethostname (hostname, sizeof (hostname));
     server.sin_family = AF_INET;
@@ -48,6 +49,13 @@ int init_network (void)
     };
     /* L2TP/IPSec: Set up SA for listening port here?  NTB 20011015
      */
+#if 1
+     if(setsockopt( server_socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) )==-1)	
+     {
+	      printf("Set socket option: SO_REUSEADDR fails!\n");
+	      exit(1);
+     }
+#endif
     if (bind (server_socket, (struct sockaddr *) &server, sizeof (server)))
     {
         close (server_socket);
@@ -377,6 +385,20 @@ int build_fdset (fd_set *readfds)
 	return max;
 }
 
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+static int check_wan_status()
+{
+	FILE *fp=NULL;
+	if((fp=fopen("/proc/eth1/link_status", "r"))==NULL)
+		return -1;	
+
+	int wan_status;
+	fscanf(fp, "%d", &wan_status);
+	fclose(fp);
+
+	return wan_status;
+}
+#endif
 void network_thread ()
 {
     /*
@@ -387,22 +409,41 @@ void network_thread ()
     int tunnel, call;           /* Tunnel and call */
     int recvsize;               /* Length of data received */
     struct buffer *buf;         /* Payload buffer */
-    struct call *c, *sc;        /* Call to send this off to */
+    struct call *c=NULL, *sc=NULL;        /* Call to send this off to */
     struct tunnel *st;          /* Tunnel */
     fd_set readfds;             /* Descriptors to watch for reading */
     int max;                    /* Highest fd */
     struct timeval tv;          /* Timeout for select */
+   int wan_status;
     /* This one buffer can be recycled for everything except control packets */
     buf = new_buf (MAX_RECV_SIZE);
 
-gconfig.debug_tunnel = 1;
+//    gconfig.debug_tunnel = 1;
     for (;;)
     {
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+    	 wan_status=check_wan_status();
+//		 fprintf(stderr, "wan_status=%d  ########call close!\n", wan_status);
+	 if(wan_status!=1 )
+	 {
+	 	if(c!=NULL)
+	 	{
+			call_close(c);
+			c=NULL;
+//				fprintf(stderr, "########call close!\n");
+	 	}
+		continue;
+	 }
+#endif
         max = build_fdset (&readfds);
-        tv.tv_sec = 1;
+        tv.tv_sec = 3;
         tv.tv_usec = 0;
         schedule_unlock ();
-        select (max + 1, &readfds, NULL, NULL, NULL);
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+        select (max + 1, &readfds, NULL, NULL, &tv);
+#else
+	 select (max + 1, &readfds, NULL, NULL, NULL);
+#endif
         schedule_lock ();
         if (FD_ISSET (control_fd, &readfds))
         {
@@ -496,7 +537,9 @@ gconfig.debug_tunnel = 1;
                     if (c->cnu)
                     {
                         /* Send Zero Byte Packet */
-                        control_zlb (buf, c->container, c);
+			   struct buffer *zlbbuf=new_outgoing(c->container);
+ //                       control_zlb (buf, c->container, c);
+ 				 control_zlb (zlbbuf, c->container, c);
                         c->cnu = 0;
                     }
                 }
@@ -516,8 +559,9 @@ gconfig.debug_tunnel = 1;
                     int result;
                     recycle_payload (buf, sc->container->peer);
 #ifdef DEBUG_FLOW_MORE
-                    log (LOG_DEBUG, "%s: rws = %d, pSs = %d, pLr = %d\n",
-                         __FUNCTION__, sc->rws, sc->pSs, sc->pLr);
+ //                   log (LOG_DEBUG, "%s: rws = %d, pSs = %d, pLr = %d\n",
+ //                        __FUNCTION__, sc->rws, sc->pSs, sc->pLr); 			
+			log (LOG_DEBUG, "%s:%d--receive data from pppd driver\n", __FUNCTION__, __LINE__);			 
 #endif
 /*					if ((sc->rws>0) && (sc->pSs > sc->pLr + sc->rws) && !sc->rbit) {
 #ifdef DEBUG_FLOW

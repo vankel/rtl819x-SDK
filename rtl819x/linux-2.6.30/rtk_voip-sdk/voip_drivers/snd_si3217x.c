@@ -44,21 +44,31 @@ static int SLIC_init_si3217x(int pcm_mode, int initonly);
 #define ts2count( ts )	( 1 + ( ts ) * 8 )		// Time slot to silab's count 
 
 #ifdef CONFIG_RTK_VOIP_SLIC_SI32176		// Daisy Chain
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176_PIN_CS_USE_SW
 static const uint32 * const pin_cs_si32176 = 
 		&snd_pin_cs[ CONFIG_RTK_VOIP_SLIC_SI32176_PIN_CS - 1 ];
 #endif
+#endif
 #ifdef CONFIG_RTK_VOIP_SLIC_SI32176_CS	// Chip Select 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
 static const uint32 * const pin_cs_si32176_CS = 
 		&snd_pin_cs[ CONFIG_RTK_VOIP_SLIC_SI32176_CS_PIN_CS - 1 ];
 #endif
+#endif
 #ifdef CONFIG_RTK_VOIP_SLIC_SI32178		// Chip Select 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32178_PIN_CS_USE_SW
 static const uint32 * const pin_cs_si32178 = 
 		&snd_pin_cs[ CONFIG_RTK_VOIP_SLIC_SI32178_PIN_CS - 1 ];
 #endif
+#endif
 #ifdef CONFIG_RTK_VOIP_SLIC_SI32176_SI32178	// Daisy Chain 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_SW
 static const uint32 * const pin_cs_si32176_32178 = 
 		&snd_pin_cs[ CONFIG_RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS - 1 ];
 #endif
+#endif
+
+#define HW_SPI_PIN_CS_MARKER	0xFFFF0000	// in GPIO ID domain 
 
 #if 0
 static const uint32 pin_cs[] = {
@@ -88,7 +98,7 @@ static inline void _SLIC_init_si3217x(
 		ProslicContainer_t gProslicContainer_3217x[],
 		voip_snd_t snd_proslic_3217x[],
 		ctrl_S *gSpiGciObj_3217x, 
-		uint32 pin_cs_3217x,
+		spi_type_t spi_type, uint32 pin_cs_3217x,
 		int pcm_mode, 
 		int initonly )
 {
@@ -99,7 +109,24 @@ static inline void _SLIC_init_si3217x(
 	//  - i_channel fxs channels
 	int j;
 	
-	init_spi_pins( &gSpiGciObj_3217x ->spi_dev, pin_cs_3217x, PIN_CLK, PIN_DO, PIN_DI);
+	switch( spi_type ) {
+#ifdef CONFIG_RTK_VOIP_SOFTWARE_SPI
+	case SPI_TYPE_SW:	// software SPI (GPIO)
+		init_spi_pins( &gSpiGciObj_3217x ->spi_dev, pin_cs_3217x, PIN_CLK, PIN_DO, PIN_DI);
+		break;
+#endif
+#ifdef CONFIG_RTK_VOIP_HARDWARE_SPI
+	case SPI_TYPE_HW:	// hardware SPI fully (SPI CS)
+		_init_rtl_spi_dev_type_hw( &gSpiGciObj_3217x ->spi_dev, pin_cs_3217x );
+		break;
+		
+	//case SPI_TYPE_HW2:	// hardware SPI + GPIO CS 
+	//	break;
+#endif
+	default:
+		printk( "%s error on line %d: spi type? %d\n", __FUNCTION__, __LINE__, spi_type );
+		break;
+	}
 	
 	if( initonly )
 		goto label_do_init_only;
@@ -155,7 +182,13 @@ static int SLIC_init_si3217x(int pcm_mode, int initonly)
 	
 #ifdef CONFIG_RTK_VOIP_SLIC_SI32176		// Daisy Chain
 	printk( "------------------------------\n" );
-	printk( "SLIC 32176 HW intf %d CS=%X\n", 0, pin_cs_si32176[ 0 ] );
+	printk( "SLIC 32176 HW intf %d CS=%X\n", 0, 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176_PIN_CS_USE_SW
+											pin_cs_si32176[ 0 ]
+#else
+											CONFIG_RTK_VOIP_SLIC_SI32176_PIN_CS
+#endif
+											);
 		
 	_SLIC_init_si3217x( 
 			CONFIG_RTK_VOIP_SLIC_SI32176_NR, 
@@ -164,7 +197,11 @@ static int SLIC_init_si3217x(int pcm_mode, int initonly)
 			gProslicContainer_32176,
 			snd_proslic_32176, 
 			&gSpiGciObj_32176[ 0 ], 
-			pin_cs_si32176[ 0 ],
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176_PIN_CS_USE_SW
+			SPI_TYPE_SW, pin_cs_si32176[ 0 ],
+#else
+			SPI_TYPE_HW, CONFIG_RTK_VOIP_SLIC_SI32176_PIN_CS,
+#endif
 			pcm_mode,
 			initonly );
 #endif
@@ -172,14 +209,24 @@ static int SLIC_init_si3217x(int pcm_mode, int initonly)
 #ifdef CONFIG_RTK_VOIP_SLIC_SI32176_CS	// Chip Select 
 	for( i = 0; i < CONFIG_RTK_VOIP_SLIC_SI32176_CS_NR; i ++ ) {
 		printk( "------------------------------\n" );
-		printk( "SLIC 32176 HW intf %d CS=%X\n", 0, pin_cs_si32176_CS[ i ] );
+		printk( "SLIC 32176 HW intf %d CS=%X\n", i, 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+												pin_cs_si32176_CS[ i ] 
+#else
+												CONFIG_RTK_VOIP_SLIC_SI32176_CS_PIN_CS + i
+#endif
+												);
 		
 		_SLIC_init_si3217x( 
 				1, 1, 1,
 				&gProslicContainer_32176_CS[ i ],
 				&snd_proslic_32176_CS[ i ],
 				&gSpiGciObj_32176_CS[ i ], 
-				pin_cs_si32176_CS[ i ],
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176CS_PIN_CS_USE_SW
+				SPI_TYPE_SW, pin_cs_si32176_CS[ i ],
+#else
+				SPI_TYPE_HW, CONFIG_RTK_VOIP_SLIC_SI32176_CS_PIN_CS + i,
+#endif
 				pcm_mode, 
 				initonly );
 	}
@@ -189,14 +236,25 @@ static int SLIC_init_si3217x(int pcm_mode, int initonly)
 	for( i = 0; i < CONFIG_RTK_VOIP_SLIC_SI32178_NR; i ++ ) {
 		
 		printk( "------------------------------\n" );
-		printk( "SLIC 31278 HW intf %d CS=%X\n", i, pin_cs_si32178[ i ] );
+		printk( "SLIC 31278 HW intf %d CS=%X\n", i, 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32178_PIN_CS_USE_SW
+												pin_cs_si32178[ i ] 
+#else
+												CONFIG_RTK_VOIP_SLIC_SI32178_PIN_CS + i
+#endif
+												);
+
 		
 		_SLIC_init_si3217x( 
 				2, 1, 1,
 				&gProslicContainer_32178[ i * 2 ],
 				&snd_proslic_32178[ i * 2 ],
 				&gSpiGciObj_32178[ i ], 
-				pin_cs_si32178[ i ],	// consider 32176 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32178_PIN_CS_USE_SW
+				SPI_TYPE_SW, pin_cs_si32178[ i ],	// consider 32176 
+#else
+				SPI_TYPE_HW, CONFIG_RTK_VOIP_SLIC_SI32178_PIN_CS + i,	// consider 32176 
+#endif
 				pcm_mode, 
 				initonly );
 		
@@ -205,7 +263,13 @@ static int SLIC_init_si3217x(int pcm_mode, int initonly)
 
 #ifdef CONFIG_RTK_VOIP_SLIC_SI32176_SI32178	// Daisy Chain 
 	printk( "------------------------------\n" );
-	printk( "SLIC 32176/78 HW intf %d CS=%X\n", 0, pin_cs_si32176_32178[ 0 ] );
+	printk( "SLIC 32176/78 HW intf %d CS=%X\n", 0, 
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_SW
+									pin_cs_si32176_32178[ 0 ] 
+#else
+									CONFIG_RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS
+#endif
+									);
 	
 	_SLIC_init_si3217x(
 			2 + CONFIG_RTK_VOIP_SLIC_SI32176_SI32178_NR,
@@ -214,7 +278,11 @@ static int SLIC_init_si3217x(int pcm_mode, int initonly)
 			gProslicContainer_32176_32178,
 			snd_proslic_32176_32178, 
 			&gSpiGciObj_32176_32178[ 0 ],
-			pin_cs_si32176_32178[ 0 ],
+#ifdef CONFIG_RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS_USE_SW
+			SPI_TYPE_SW, pin_cs_si32176_32178[ 0 ],
+#else
+			SPI_TYPE_HW, CONFIG_RTK_VOIP_SLIC_SI32176_SI32178_PIN_CS, 
+#endif
 			pcm_mode,
 			initonly );
 #endif

@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -15,14 +15,14 @@
 
 //extern void writeDAAReg(rtl_spi_dev_t *pDev, int chid, unsigned int address, unsigned int data);
 //extern unsigned char readDAAReg(int chid, unsigned int address);
-extern void cyg_thread_delay(int delay);
+//extern void cyg_thread_delay(int delay);
 
 //---static function prototype-----------------------------//
 //static void Resistor_ADC_calibration(int chid);
 //static void device_revision(int chid);
-static void tran_rec_full_scale(vdaaChanType *daas, unsigned char scale);
+//static void tran_rec_full_scale(vdaaChanType *daas, unsigned char scale);
 static unsigned char system_line_connect(vdaaChanType *daas);
-static void ring_validation_DAA(vdaaChanType *daas, unsigned char reg22, unsigned char reg23, unsigned char reg24);
+//static void ring_validation_DAA(vdaaChanType *daas, unsigned char reg22, unsigned char reg23, unsigned char reg24);
 //---------------------------------------------------------//
 
 /*********** Select the Si3018 or Si3019 Country Specific register 16,26,30 and 31 *******/
@@ -53,10 +53,9 @@ static void ring_validation_DAA(vdaaChanType *daas, unsigned char reg22, unsigne
 #define _Si3019_used_ 0
 /************************************/
 
-
-
 static void Resistor_ADC_calibration(vdaaChanType *daas)
 {
+#if 0
 	const int chid = daas ->channel;
 	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
 	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
@@ -73,11 +72,250 @@ static void Resistor_ADC_calibration(vdaaChanType *daas)
 	for (i=0;i<23000000;i++);
 	reg17 = readDAAReg(pdev, chid, 17) & 0xbf;//No ADC_calibration.MCAL
 	writeDAAReg(pdev, chid, 17,reg17);
+#else
+	Vdaa_ADCCal(daas, 0);
+#endif
 	return;
 	
 }
 
+
+static unsigned char system_line_connect(vdaaChanType *daas)
+{
 #if 0
+	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
+	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
+	const int chid = daas ->channel;
+	
+	if ((readDAAReg(pdev, chid, 12)>>6))
+		return 1; //DAA system-side and line-side connect ok;
+	else
+		return 0; //DAA system-side and line-side connect fail;
+#else
+	if (Vdaa_ReadFDTStatus(daas))
+		return 1; //DAA system-side and line-side connect ok;
+	else
+		return 0; //DAA system-side and line-side connect fail;
+#endif
+}
+
+
+int daa_line_check(vdaaChanType *daas)
+{
+	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
+	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
+	char line_voltage;
+	short loop_c;
+	const int daa_chid = daas ->channel;
+	
+	if (!(system_line_connect(daas))) 
+	{
+		PRINT_R("daa system-side and line-side not connect\n");
+		//daa_init_all(SLIC_CH_NUM);
+		return 0xff;
+	}
+	
+	/* Daa must going off-hook, and then we can judge line is connected or not. */
+#if 0
+	off_hook_daa(daas);
+#else
+	Vdaa_SetHookStatus(daas, VDAA_OFFHOOK);
+#endif
+	udelay(5000);//spec: delay > 250us
+	
+	Vdaa_ReadLinefeedStatus(daas, &line_voltage, &loop_c);
+	
+	if ((!loop_c) && (ReadReg(daas, daas->channel, INTL_CTRL4)&0x02)) 
+	{
+#if 0
+		on_hook_daa(daas);
+#else
+		Vdaa_SetHookStatus(daas, VDAA_ONHOOK);
+#endif
+		PRINT_MSG("phone line not connect\n");
+		return 1;	
+	}
+#if 0
+	on_hook_daa(daas);
+#else
+	Vdaa_SetHookStatus(daas, VDAA_ONHOOK);
+#endif
+	udelay(5000);
+	
+	/* line busy ~ 12V(0x0c) , otherwise >= 48V(0x30) */
+	//printk("--->%dV\n", readDAAReg(29));
+#if 0
+	line_voltage = daa_get_line_voltage(daas);
+#else
+	Vdaa_ReadLinefeedStatus(daas, &line_voltage, &loop_c);
+#endif
+	PRINT_MSG("DAA line voltage = %d, ch=%d\n", line_voltage, daas->channel);
+
+	if ( ((line_voltage >= 0) && (line_voltage < 26)) ||
+ 		((line_voltage < 0) && (line_voltage > -26)) )  /* 0x1a ~ 26V */
+	{
+		PRINT_MSG("phone line busy\n");
+		return 2; 
+	}
+
+	return 0;
+}
+
+
+unsigned char daa_polarity_reversal_det(vdaaChanType *daas, daa_det_t *daa_det)
+{
+	unsigned char ret;
+	//static timetick_t timeOut[VOIP_CH_NUM];
+	//static int need_to_clear[VOIP_CH_NUM];
+	
+	if ( 0 == (ReadReg(daas, daas ->channel, CTRL2)&0x80))
+		WriteReg(daas, daas ->channel, CTRL2, ReadReg(daas, daas ->channel, CTRL2)|0x80);	//enable INT pin
+
+	if ( 0 == (ReadReg(daas, daas ->channel, INTE_MSK)&0x01))
+		WriteReg(daas, daas ->channel, INTE_MSK, ReadReg(daas, daas ->channel, INTE_MSK)|0x01);	//enable Polarity Reversal Detect Mask
+
+	ret = ReadReg(daas, daas ->channel, INTE_SRC)&0x01;	// 0: has not changed states.
+										// 1: has transitioned from 0 to 1, or from 1 to 0, indicating the polarity of  TIP and RING is switched.
+	
+	if (ret && (daa_det ->polrev_need_to_clear==0))
+	{
+		//daa_det ->polrev_timeOut = jiffies + HZ*(1000/1000);
+		daa_det ->polrev_timeOut = timetick + 1000;	// 1000ms;
+		daa_det ->polrev_need_to_clear = 1;
+
+		return 1;
+	}
+
+    if ( ret && (timetick_after(timetick, daa_det ->polrev_timeOut)) ) // wait 0.5s, then clean 
+	{
+		WriteReg(daas, daas ->channel, INTE_SRC,  ReadReg(daas, daas ->channel, INTE_SRC)&0xFE);	//clear the interrup
+		daa_det ->polrev_need_to_clear = 0;
+
+	}
+
+	return 0;
+}
+
+void daa_disable_polarity_reversal_det(vdaaChanType *daas)
+{
+#if 0
+	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
+	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
+	const int chid = daas ->channel;
+	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)&0xFE);	//Disable Polarity Reversal Detect Mask
+#else
+	unsigned char reg;
+	reg = ReadReg(daas, daas ->channel, INTE_MSK);
+	Vdaa_SetInterruptMask(daas, reg&0xFE); // Disable POLM interrupt mask
+#endif
+}
+
+void daa_enable_polarity_reversal_det(vdaaChanType *daas)
+{
+#if 0
+	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
+	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
+	const int chid = daas ->channel;
+	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)|0x01);	//enable Polarity Reversal Detect Mask
+#else
+	unsigned char reg;
+	reg = ReadReg(daas, daas ->channel, INTE_MSK);
+	Vdaa_SetInterruptMask(daas, reg|POLM); // Enable POLM interrupt mask
+#endif
+}
+
+unsigned int daa_get_polarity(vdaaChanType *daas)
+{
+	return (unsigned int )((ReadReg(daas, daas ->channel, LINE_VOLT_STAT) & 0x80) >>7);
+}
+
+/* Only when daa off-hook, it can detect drou out */
+unsigned char daa_drop_out_det(vdaaChanType *daas, daa_det_t *daa_det)
+{
+	unsigned char ret;
+	//static timetick_t timeOut[VOIP_CH_NUM];
+	//static int need_to_clear[VOIP_CH_NUM];
+
+	if ( 0 == (ReadReg(daas, daas ->channel, CTRL2)&0x80))
+		WriteReg(daas, daas ->channel, CTRL2, ReadReg(daas, daas ->channel, CTRL2)|0x80);	//enable INT pin
+
+	if ( 0 == (ReadReg(daas, daas ->channel, INTE_MSK)&0x08))
+		WriteReg(daas, daas ->channel, INTE_MSK, ReadReg(daas, daas ->channel, INTE_MSK)|0x08);	//enable Drop Out Detect Mask
+
+	ret = ReadReg(daas, daas ->channel, INTE_SRC)&0x08;	// 0: has not changed states.
+						// 1: battery drop out
+	
+	if (ret && (daa_det ->dropout_need_to_clear==0))
+	{
+		//daa_det ->dropout_timeOut = jiffies + HZ*(500/1000);
+		daa_det ->dropout_timeOut = timetick + 500;	// 500ms
+		daa_det ->dropout_need_to_clear = 1;
+
+		return 1;
+	}
+
+	if ( ret && (timetick_after(timetick, daa_det ->dropout_timeOut)) ) // wait 0.5s, then clean 
+	{
+		WriteReg(daas, daas ->channel, INTE_SRC,  ReadReg(daas, daas ->channel, INTE_SRC)&0xF7);	//clear the interrup
+		daa_det ->dropout_need_to_clear = 0;
+
+	}
+
+	return 0;
+}
+
+void daa_disable_drop_out_det(vdaaChanType *daas)
+{
+#if 0
+	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
+	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
+	const int chid = daas ->channel;
+	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)&0xF7);	//Disable Drop Out Detect Mask
+#else
+	unsigned char reg;
+	reg = ReadReg(daas, daas ->channel, INTE_MSK);
+	Vdaa_SetInterruptMask(daas, reg&0xF7); // Disable DODM interrupt mask
+#endif
+}
+
+void daa_enable_drop_out_det(vdaaChanType *daas)
+{
+#if 0
+	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
+	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
+	const int chid = daas ->channel;
+	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)|0x08);	//enable Drop Out Detect Mask
+#else
+	unsigned char reg;
+	reg = ReadReg(daas, daas ->channel, INTE_MSK);
+	Vdaa_SetInterruptMask(daas, reg|DODM); // Enable DODM interrupt mask
+#endif
+}
+
+/* caller id detect need this. */
+unsigned int daa_line_stat(vdaaChanType *daas)
+{
+#if 0
+	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
+	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
+	const int chid = daas ->channel;
+	unsigned int temp;
+	/* for SI3050 register 5 */
+	/* bit0; 0= ON-HOOK, 1= OFF-HOOK */
+	/* bit2; 0= ringing off will delayed, 1= ringing occurring */
+	/* bit5; 0= no positive ring occuring, 1= positive ring occuring (realtime)*/
+	/* bit6; 0= no negative ring occuring, 1= negative ring occuring (realtime)*/
+	/* other bit don't care */
+	temp = readDAAReg(pdev, chid, 5);
+#else
+	unsigned int temp;
+	temp = ReadReg(daas, daas ->channel, DAA_CTRL1);
+#endif
+
+	return temp;
+}
+
+#if 0	// obsolete api
 static void device_revision(int chid)
 {
 	unsigned int reg11,reg13;
@@ -164,7 +402,6 @@ static void device_revision(int chid)
 	printk("\n");
 	return;
 }
-#endif
 
 static void tran_rec_full_scale(vdaaChanType *daas, unsigned char scale)
 {
@@ -187,18 +424,6 @@ static void tran_rec_full_scale(vdaaChanType *daas, unsigned char scale)
 	
 	return;
 	
-}
-
-static unsigned char system_line_connect(vdaaChanType *daas)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
-	
-	if ((readDAAReg(pdev, chid, 12)>>6))
-		return 1; //DAA system-side and line-side connect ok;
-	else
-		return 0; //DAA system-side and line-side connect fail;
 }
 
 void country_specific_termination(vdaaChanType *daas, unsigned char ohs,unsigned char ohs2,unsigned char rz,
@@ -254,10 +479,18 @@ void DAA_Tx_Gain_ctrl(vdaaChanType *daas, unsigned char tga2,unsigned char txg2,
 	const int chid = daas ->channel;
 	
 	reg38 = (tga2<<4) | txg2; //tga2 = 0 means gaining up, tga2 = 1 means attenuating
+#if 0
 	writeDAAReg(pdev, chid, 38,reg38);			   //txg2 = 0 means 0dB, txg2 = 1 means 1dB,...txg2 = 15 means 15dB
+#else
+	WriteReg(daas, daas ->channel, 38, reg38);
+#endif
 	
 	reg40 = (tga3<<4) | txg3; //tga3 = 0 means gaining up, tga3 = 1 means attenuating
+#if 0
 	writeDAAReg(pdev, chid, 40,reg40);			   //txg3 = 0 means 0dB, txg3 = 1 means 0.1dB,...txg3 = 15 means 0.15dB
+#else
+	WriteReg(daas, daas ->channel, 40, reg40);
+#endif
 	
 	return;
 }
@@ -270,10 +503,18 @@ void DAA_Rx_Gain_ctrl(vdaaChanType *daas, unsigned char rga2,unsigned char rxg2,
 	const int chid = daas ->channel;
 	
 	reg39 = (rga2<<4) | rxg2; //rga2 = 0 means gaining up, rga2 = 1 means attenuating
+#if 0
 	writeDAAReg(pdev, chid, 39,reg39);			   //rxg2 = 0 means 0dB, rxg2 = 1 means 1dB,...rxg2 = 15 means 15dB
+#else
+	WriteReg(daas, daas ->channel, 39, reg39);
+#endif
 	
 	reg41 = (rga3<<4) | rxg3; //rga3 = 0 means gaining up, rga3 = 1 means attenuating
+#if 0
 	writeDAAReg(pdev, chid, 41,reg41);			   //rxg3 = 0 means 0dB, rxg3 = 1 means 0.1dB,...rxg3 = 15 means 0.15dB
+#else
+	WriteReg(daas, daas ->channel, 41, reg41);
+#endif
 	
 	return;
 }
@@ -286,7 +527,6 @@ void DAA_Tx_Gain_Web(vdaaChanType *daas, unsigned char gain)
 		DAA_Tx_Gain_ctrl(daas, 0,(gain-7),0,0);
 	else 
 		DAA_Tx_Gain_ctrl(daas, 1,(7-gain),0,0);	
-	Vdaa_TXAudioGainSetup(daas, 3);
 	//printk("preset gain 3");
 	gain_before = gain;
 	return;	
@@ -306,6 +546,7 @@ void DAA_Rx_Gain_Web(vdaaChanType *daas, unsigned char gain)
 
 unsigned short daa_get_line_voltage(vdaaChanType *daas)
 {
+#if 0
 	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
 	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
 	const int daa_chid = daas ->channel;
@@ -328,51 +569,28 @@ unsigned short daa_get_line_voltage(vdaaChanType *daas)
 	//PRINT_MSG("DAA line voltage = %d, ch=%d\n", reg_29, daa_chid);
 	
 	return reg_29;
+#else
+	char volt;
+	short loop_c;
+	int ret;
+	ret = Vdaa_ReadLinefeedStatus(daas, &volt, &loop_c);
+
+	if (ret != RC_NONE )
+	{
+		PRINT_R("Vdaa_ReadLinefeedStatus return %d, ch%d\n", ret, daas ->channel);
+	}
+
+	PRINT_MSG("DAA line voltage = %d, ch=%d\n", volt, daas ->channel);
+	PRINT_MSG("DAA line loop_current = %d, ch=%d\n", loop_c, daas ->channel);
+	
+	if (volt < 0)
+		volt = -volt;
+
+	return volt;
+#endif
+
 }
 
-int daa_line_check(vdaaChanType *daas)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	unsigned short line_voltage;
-	const int daa_chid = daas ->channel;
-	
-	if (!(system_line_connect(daas))) 
-	{
-		PRINT_R("daa system-side and line-side not connect\n");
-		//daa_init_all(SLIC_CH_NUM);
-		return 0xff;
-	}
-	
-	/* Daa must going off-hook, and then we can judge line is connected or not. */
-	off_hook_daa(daas);
-	udelay(5000);//spec: delay > 250us
-	
-	if (!(readDAAReg(pdev, daa_chid, 12)&0x1f) && (readDAAReg(pdev, daa_chid, 19)&0x02)) 
-	{
-		on_hook_daa(daas);
-		PRINT_MSG("phone line not connect\n");
-		return 1;	
-	}
-	
-	on_hook_daa(daas);
-	udelay(5000);
-	
-	/* line busy ~ 12V(0x0c) , otherwise >= 48V(0x30) */
-	//printk("--->%dV\n", readDAAReg(29));
-	line_voltage = daa_get_line_voltage(daas);
-	PRINT_MSG("DAA line voltage = %d, ch=%d\n", line_voltage, daa_chid);
-
-	if (line_voltage < 26)  /* 0x1a ~ 26V */
-	{
-		PRINT_MSG("phone line busy\n");
-		return 2; 
-	}
-
-	return 0;
-}
-
-#if 0	// champ comment it
 unsigned char going_off_hook(int chid) 
 {
 	unsigned int i;
@@ -402,7 +620,6 @@ unsigned char going_off_hook(int chid)
 	return 1; //going off-hook ok
 	 	
 }
-#endif
 
 /* caller id detect need this. */
 void on_hook_daa(vdaaChanType *daas) 
@@ -428,133 +645,6 @@ unsigned char daa_hook_state(vdaaChanType *daas)
 	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
 	const int daa_ch = daas ->channel;
 	return readDAAReg(pdev, daa_ch, 5)&0x01; // 0: on-hook, 1: off-hook
-}
-
-unsigned char daa_polarity_reversal_det(vdaaChanType *daas, daa_det_t *daa_det)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int daa_ch = daas ->channel;
-	unsigned char ret;
-	//static timetick_t timeOut[VOIP_CH_NUM];
-	//static int need_to_clear[VOIP_CH_NUM];
-	
-	if ( 0 == (readDAAReg(pdev, daa_ch, 2)&0x80))
-		writeDAAReg(pdev, daa_ch, 2, readDAAReg(pdev, daa_ch, 2)|0x80);	//enable INT pin
-
-	if ( 0 == (readDAAReg(pdev, daa_ch, 3)&0x01))
-		writeDAAReg(pdev, daa_ch, 3, readDAAReg(pdev, daa_ch, 3)|0x01);	//enable Polarity Reversal Detect Mask
-
-	ret = readDAAReg(pdev, daa_ch, 4)&0x01;	// 0: has not changed states.
-										// 1: has transitioned from 0 to 1, or from 1 to 0, indicating the polarity of  TIP and RING is switched.
-	
-	if (ret && (daa_det ->polrev_need_to_clear==0))
-	{
-		//daa_det ->polrev_timeOut = jiffies + HZ*(1000/1000);
-		daa_det ->polrev_timeOut = timetick + 1000;	// 1000ms;
-		daa_det ->polrev_need_to_clear = 1;
-
-		return 1;
-	}
-
-    if ( ret && (timetick_after(timetick, daa_det ->polrev_timeOut)) ) // wait 0.5s, then clean 
-	{
-		writeDAAReg(pdev, daa_ch, 4,  readDAAReg(pdev, daa_ch, 4)&0xFE);	//clear the interrup
-		daa_det ->polrev_need_to_clear = 0;
-
-	}
-
-	return 0;
-}
-
-void daa_disable_polarity_reversal_det(vdaaChanType *daas)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
-	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)&0xFE);	//Disable Polarity Reversal Detect Mask
-}
-
-void daa_enable_polarity_reversal_det(vdaaChanType *daas)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
-	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)|0x01);	//enable Polarity Reversal Detect Mask
-}
-
-
-/* Only when daa off-hook, it can detect drou out */
-unsigned char daa_drop_out_det(vdaaChanType *daas, daa_det_t *daa_det)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int daa_ch = daas ->channel;
-	unsigned char ret;
-	//static timetick_t timeOut[VOIP_CH_NUM];
-	//static int need_to_clear[VOIP_CH_NUM];
-
-	if ( 0 == (readDAAReg(pdev, daa_ch, 2)&0x80))
-		writeDAAReg(pdev, daa_ch, 2, readDAAReg(pdev, daa_ch, 2)|0x80);	//enable INT pin
-
-	if ( 0 == (readDAAReg(pdev, daa_ch, 3)&0x08))
-		writeDAAReg(pdev, daa_ch, 3, readDAAReg(pdev, daa_ch, 3)|0x08);	//enable Drop Out Detect Mask
-
-	ret = readDAAReg(pdev, daa_ch, 4)&0x08;	// 0: has not changed states.
-						// 1: battery drop out
-	
-	if (ret && (daa_det ->dropout_need_to_clear==0))
-	{
-		//daa_det ->dropout_timeOut = jiffies + HZ*(500/1000);
-		daa_det ->dropout_timeOut = timetick + 500;	// 500ms
-		daa_det ->dropout_need_to_clear = 1;
-
-		return 1;
-	}
-
-	if ( ret && (timetick_after(timetick, daa_det ->dropout_timeOut)) ) // wait 0.5s, then clean 
-	{
-		writeDAAReg(pdev, daa_ch, 4,  readDAAReg(pdev, daa_ch, 4)&0xF7);	//clear the interrup
-		daa_det ->dropout_need_to_clear = 0;
-
-	}
-
-	return 0;
-}
-
-void daa_disable_drop_out_det(vdaaChanType *daas)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
-	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)&0xF7);	//Disable Drop Out Detect Mask
-}
-
-void daa_enable_drop_out_det(vdaaChanType *daas)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
-	writeDAAReg(pdev, chid, 3, readDAAReg(pdev, chid, 3)|0x08);	//enable Drop Out Detect Mask
-}
-
-/* caller id detect need this. */
-unsigned int daa_line_stat(vdaaChanType *daas)
-{
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
-	unsigned int temp;
-	/* for SI3050 register 5 */
-	/* bit0; 0= ON-HOOK, 1= OFF-HOOK */
-	/* bit2; 0= ringing off will delayed, 1= ringing occurring */
-	/* bit5; 0= no positive ring occuring, 1= positive ring occuring (realtime)*/
-	/* bit6; 0= no negative ring occuring, 1= negative ring occuring (realtime)*/
-	/* other bit don't care */
-
-	temp = readDAAReg(pdev, chid, 5);
-
-	return temp;
 }
 
 void caller_ID_pass(vdaaChanType *daas)
@@ -662,7 +752,6 @@ void daa_timeslot(vdaaChanType *daas, int timeslot, int bitOfTimeSlot)
 
 }
 
-#if 0	// chmap comment it 
 void daa_init_all(int pcm_channel, int pcm_mode)
 {
 	extern int slic_ch_num;
@@ -705,159 +794,7 @@ void daa_init_all(int pcm_channel, int pcm_mode)
 	return; 
 		
 }
-#endif
 
-#if 0
-//for dial out or ring incoming
-	
-	for (i=0;i<10000;i++) {
-	unsigned char temp;
-	do {
-		if (readDirectReg(chid, 68)&0x01)  {//detect on-hook or off-hook.
-			temp = 1;
-			//printk("temp=%d\n",temp);
-		} else if (ring_detection_DAA()) {//detect ring on or off.
-			temp = 2;
-			//printk("temp=%d\n",temp);
-		} else if (!ring_detection_DAA()) {
-			temp = 0;
-			writeDirectReg(chid, 64, 0x01);
-		} else {
-			temp = 0;
-			//printk("temp=%d\n",temp);
-		}	
-	
-	} while (temp == 0); 
-		
-	if (temp == 1) { //for dial out
-		printk("dial out\n");
-		going_off_hook();
-		while ((readDirectReg(chid, 68)&0x01));  //put the hook down
-		on_hook_daa();
-		printk("end dialing\n");
-	}
-	
-	if (temp == 2) { //for ring incoming
-		writeDirectReg(chid, 64, 0x04);
-		
-		for (;;) {
-									
-			//if ((readDirectReg(chid, 64)&0x20) || (readDirectReg(chid, 64)&0x40) || (readDirectReg(chid, 64)&0x10)) {
-				
-			if ((readDirectReg(chid, 68)&0x01)) {  //detect on-hook or off-hook.
-				printk("ring incoming\n");
-				going_off_hook();
-				while ((readDirectReg(chid, 68)&0x01));  //put the hook down
-				on_hook_daa();
-				printk("end ring incoming\n");
-				break;	
-				
-			} else {
-				break;
-			}
-			
-		
-		}
-		printk("out of for-loop\n");
-		
-		#if 0
-		while (!(readDirectReg(chid, 68)&0x01)); //take the hook on
-		going_off_hook();
-		while ((readDirectReg(chid, 68)&0x01));  //put the hook down
-		on_hook_daa();
-		printk("end ring incoming\n");
-		#endif
-		
-		
-	}
-	}
-	#if 0 //for dial out
-	while (!(readDirectReg(chid, 68)&0x01)); //take the hook on
-	going_off_hook();
-	while ((readDirectReg(chid, 68)&0x01));  //put the hook down
-	on_hook_daa();
-	#endif
-	
-	#if 0 //for ring incoming
-	for (i=0;i<20;i++) {
-	ring_detection_DAA();
-	writeDirectReg(chid, 64, 0x04);
-	going_off_hook();
-	while ((readDirectReg(chid, 68)&0x01));
-	//WaitKey();
-	on_hook_daa();
-	printk("Ring incoming\n");
-	printk("end\n");
-	}
-	#endif
-#endif
-
-#if 0
-	//for dial out or ring incoming
-	unsigned char temp;
-	do {
-		if ((readDirectReg(chid, 68)&0x01))  {//detect on-hook or off-hook.dial out
-			printk("off-hook\n");
-			printk("going_off_hook()=%d\n",going_off_hook());
-			//cyg_thread_delay(200);
-				
-			while ((readDirectReg(chid, 68)&0x01));  //put the hook down
-			on_hook_daa();
-			printk("on-hook\n");
-			
-			//printk("temp=%d\n",temp);
-		} else if (ring_detection_DAA() == 1) {//detect ring on or off.
-			//printk("incoming\n");
-			
-			writeDirectReg(chid, 64, 0x04);
-			if ((readDirectReg(chid, 68)&0x01)) {  //detect on-hook or off-hook.
-				printk("ring incoming\n");
-				going_off_hook();
-				while ((readDirectReg(chid, 68)&0x01));  //put the hook down
-				on_hook_daa();
-				printk("end ring incoming\n");
-			}
-			
-			//printk("temp=%d\n",temp);
-		} else if (!ring_detection_DAA()) {
-			//cyg_thread_delay(10);
-			temp = 0;
-			writeDirectReg(chid, 64, 0x01);
-		} else {
-			temp = 0;
-			//printk("temp=%d\n",temp);
-		}	
-	
-	} while (temp == 0); 
-		
-	#if 0 //for dial out
-	while (!(readDirectReg(chid, 68)&0x01)); //take the hook on
-	printk("off-hook\n");
-	going_off_hook();
-	//for pulse dialing
-	for (i=0;i<11;i++)
-		pulse_dial_gen(pulse_dialing_number());
-	
-	while ((readDirectReg(chid, 68)&0x01));  //put the hook down
-	on_hook_daa();
-	printk("on-hook\n");
-	#endif
-	
-	#if 0 //for ring incoming
-	for (i=0;i<20;i++) {
-	ring_detection_DAA();
-	writeDirectReg(chid, 64, 0x04);
-	going_off_hook();
-	while ((readDirectReg(chid, 68)&0x01));
-	//WaitKey();
-	on_hook_daa();
-	printk("Ring incoming\n");
-	printk("end\n");
-	}
-	#endif
-#endif
-
-#if 0
 //dial_number count
 unsigned char pulse_dialing_number(unsigned int chid)
 {

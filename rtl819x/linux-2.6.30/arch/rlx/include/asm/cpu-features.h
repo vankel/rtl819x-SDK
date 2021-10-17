@@ -82,7 +82,11 @@
 #define raw_cpu_has_fpu          0
 #define cpu_has_32fpr            0
 #define cpu_has_counter		     0
+#if defined(CONFIG_CPU_HAS_WATCH)
+#define cpu_has_watch	     	 1
+#else
 #define cpu_has_watch	     	 0
+#endif
 #define cpu_has_divec	     	 0
 #define cpu_has_vce              0	
 #define cpu_has_cache_cdex_p     0

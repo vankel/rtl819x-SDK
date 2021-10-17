@@ -1,3 +1,4 @@
+#include "voip_manager.h"
 #include "prmt_limit.h"
 #include "prmt_voice_profile_line.h"
 #include "prmt_capabilities.h"	/* for lstCodecs */
@@ -5,7 +6,7 @@
 #include "mib_tr104.h"
 #include "str_mib.h"
 #include "str_utility.h"
-#include "voip_manager.h"
+
 
 #include "cwmpevt.h"
 
@@ -569,23 +570,23 @@ static int getVoiceProfileLineStatusEntity(char *name, struct CWMP_LEAF *entity,
 #endif
 	
 	if( strcmp( pszLastname, "PacketsSent" ) == 0 ) {
-		if( rtk_Get_Rtp_Statistics( chid, 0, &s.rtpStatistics ) )
+		if( rtk_GetRtpStatistics( chid, 0, &s.rtpStatistics ) )
 			return ERR_9002;	/* Internal error */
 		*data = uintdup( s.rtpStatistics.nTxRtpStatsCountPacket );
 	} else if( strcmp( pszLastname, "PacketsReceived" ) == 0 ) {
-		if( rtk_Get_Rtp_Statistics( chid, 0, &s.rtpStatistics ) )
+		if( rtk_GetRtpStatistics( chid, 0, &s.rtpStatistics ) )
 			return ERR_9002;	/* Internal error */
 		*data = uintdup( s.rtpStatistics.nRxRtpStatsCountPacket );
 	} else if( strcmp( pszLastname, "BytesSent" ) == 0 ) {
-		if( rtk_Get_Rtp_Statistics( chid, 0, &s.rtpStatistics ) )
+		if( rtk_GetRtpStatistics( chid, 0, &s.rtpStatistics ) )
 			return ERR_9002;	/* Internal error */
 		*data = uintdup( s.rtpStatistics.nTxRtpStatsCountByte );
 	} else if( strcmp( pszLastname, "BytesReceived" ) == 0 ) {
-		if( rtk_Get_Rtp_Statistics( chid, 0, &s.rtpStatistics ) )
+		if( rtk_GetRtpStatistics( chid, 0, &s.rtpStatistics ) )
 			return ERR_9002;	/* Internal error */
 		*data = uintdup( s.rtpStatistics.nRxRtpStatsCountByte );
 	} else if( strcmp( pszLastname, "PacketsLost" ) == 0 ) {
-		if( rtk_Get_Rtp_Statistics( chid, 0, &s.rtpStatistics ) )
+		if( rtk_GetRtpStatistics( chid, 0, &s.rtpStatistics ) )
 			return ERR_9002;	/* Internal error */
 		*data = uintdup( s.rtpStatistics.nRxRtpStatsLostPacket );
 	} else if( strcmp( pszLastname, "IncomingCallsReceived" ) == 0 ) {

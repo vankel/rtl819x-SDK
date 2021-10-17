@@ -98,22 +98,25 @@ int reg_main(int argc, char *argv[])
 			
 			while( reg_start <= reg_end ) {
 			
-				len = rtk_Get_SLIC_Reg_Val(chid, reg_start, &regdata);
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB
-				if ((reg == 32260) || (reg == 32261)) {
-					; //do nothing
-				}else {
-					printf("read: chid = %d, reg =%d, val = 0x%02X\n", chid, reg_start, regdata[0] );
-				}
-#endif
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_ZARLINK
+				len = rtk_GetSlicRegVal(chid, reg_start, &regdata);
+				
+				// Both Silab and Zarlink will return correct 'len'. 
+				
+//#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB
+				//if ((reg == 32260) || (reg == 32261)) {
+				//	; //do nothing
+				//}else {
+				//	printf("read: chid = %d, reg =%d, val = 0x%02X\n", chid, reg_start, regdata[0] );
+				//}
+//#endif
+//#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_ZARLINK
 				if (len>0) {
 					printf("read: chid = %d, reg =0x%02X (%d)\n", chid, reg_start, reg_start);
-	
+
 					for (i=0;i<len;i++)
 						printf("val[%d] = 0x%02X (%d)\n",i , regdata[i], regdata[i]);
 				}
-#endif
+//#endif
 				reg_start ++;
 			} // while 
 		}
@@ -139,7 +142,7 @@ int reg_main(int argc, char *argv[])
 		}
 
 		/* value */
-		for (i=0; i<MIN((argc-3),16);i++) {
+		for (i=0; i<MIN(len,16);i++) {
 	
 			ptr = argv[i+3];
 			if (strlen(ptr)>2 && *ptr=='0' && *(ptr+1)=='x') {
@@ -150,29 +153,38 @@ int reg_main(int argc, char *argv[])
 			}
 		}
 
-		rtk_Set_SLIC_Reg_Val(chid, reg, len, &regdata);
-
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB
-		printf("write: chid = %d, reg = %d, val = 0x%02X\n", 
-			chid, reg, regdata[0]);
+#if 0
+		printf("reg=%d, len=%d\n", reg, len);
+		printf("data = ");
+		for (i=0; i<len; i++)
+			printf("%x ", regdata[i]);
+		printf("\n");
 #endif
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_ZARLINK
+		
+		// Both Silab and Zarlink will acquire desired length of data.  
+
+		rtk_SetSlicRegVal(chid, reg, len, &regdata);
+
+//#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB
+		//printf("write: chid = %d, reg = %d, val = 0x%02X\n", 
+		//	chid, reg, regdata[0]);
+//#endif
+//#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_ZARLINK
 		printf("write: chid = %d, reg = 0x%02X (%d)\n",chid, reg, reg);
 		for (i=0;i<len;i++)
 			printf("val[%d] = 0x%02X (%d)\n",i , regdata[i], regdata[i]);
-
-#endif
+//#endif
 	}
 	else
 	{
 		printf("Usage: %s chid reg_num [reg_val]\n", argv[0]);
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB
+//#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_SILAB
 		printf("If you want to enter(leave) user mode for Si3226,\n");
 		printf("you can use: reg chid 32261(32260)\n");
-#endif
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_ZARLINK
-		printf("use reg 0 <880|890> to dump Zarlink register\n");
-#endif
+//#endif
+//#ifdef CONFIG_RTK_VOIP_DRIVERS_SLIC_ZARLINK
+		printf("use reg chid <reg_num|880|890> to dump Zarlink register\n");
+//#endif
 	}
 
 	return 0;

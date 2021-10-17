@@ -1,9 +1,9 @@
 RM = rm
 #CC = gcc
-CC = rsdk-linux-gcc
+CC = $(CROSS_COMPILE)gcc
 #OBJS = challenge.o digest.o hmac-md5.o  mechinfo.o  server.o client.o gc-gnulib.o  md5.o memxor.o
 #OBJS = digest.o hmac-md5.o  gc-gnulib.o  md5.o memxor.o test.o blowfish.o oray_util.o oray.o libexception_handle.o
-OBJS = hmac-md5.o  md5.o memxor.o oray_util.o oray.o
+OBJS = main.o base64.o blowfish.o generate.o md5.o phglobal.o phsocket.o phupdate.o
 bin = orayddns 
 CFLAGS += -I. -D_MIPS_ -Os -mips16
 all : $(bin)

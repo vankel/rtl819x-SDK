@@ -62,6 +62,7 @@ void __init rlx_vec_irq_init(int irq_base)
 
 	write_lxc0_intvec(&rlx_vec_dispatch);
 
+#ifndef CONFIG_RTL_8198B
 	#if 1
 	/* enable global interrupt mask */
 	REG32(BSP_GIMR) = BSP_TC0_IE | BSP_UART0_IE ;
@@ -70,19 +71,12 @@ void __init rlx_vec_irq_init(int irq_base)
 	REG32(BSP_GIMR)	|= BSP_UART1_IE;
 	#endif
 	
-	#if defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
-	#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
-	REG32(BSP_GIMR) |= (BSP_PCIE_IE);
-	#if defined(CONFIG_RTL_8197D) || defined(CONFIG_RTL_8197DL)
-	REG32(BSP_GIMR) |= (BSP_PCIE2_IE);
-	#endif
-	#else // !CONFIG_RTL_819XD
-	#if (defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8196CT) || defined(CONFIG_RTL_8196CS) || !defined(CONFIG_RTL_92D_DMDP))|| defined(CONFIG_RTK_VOIP_BOARD)
+	#if defined(CONFIG_RTL8192CD)
+	#if defined(CONFIG_USE_PCIE_SLOT_0)
 	REG32(BSP_GIMR) |= (BSP_PCIE_IE);
 	#endif
-	#if defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D) || (defined(CONFIG_RTL_8198)&&defined(CONFIG_RTL_92D_SUPPORT))&&!defined(CONFIG_RTK_VOIP_BOARD)
+	#if defined(CONFIG_USE_PCIE_SLOT_1)
 	REG32(BSP_GIMR) |= (BSP_PCIE2_IE);
-	#endif
 	#endif
 	#endif
 	
@@ -102,12 +96,16 @@ void __init rlx_vec_irq_init(int irq_base)
 	setup_reboot_addr(0x80700000);
 	#endif
 	
+	#ifdef CONFIG_SND_RTL819XD_SOC_I2S
+	REG32(BSP_GIMR) |= BSP_I2S_IE;
+	#endif
+	
 	#if defined(CONFIG_RTK_VOIP)
 	REG32(BSP_GIMR) |= (BSP_PCM_IE | BSP_I2S_IE);
 	REG32(BSP_GIMR) |= (BSP_GPIO_ABCD_IE | BSP_GPIO_EFGH_IE); 
 	#endif
 	#endif
-
+#endif
 }
 
 __IRAM_GEN

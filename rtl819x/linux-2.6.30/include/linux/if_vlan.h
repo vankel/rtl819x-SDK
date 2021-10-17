@@ -121,6 +121,53 @@ extern int vlan_gro_frags(struct napi_struct *napi, struct vlan_group *grp,
 			  unsigned int vlan_tci,
 			  struct napi_gro_fraginfo *info);
 
+#ifdef CONFIG_RTL_VLAN_8021Q
+#include <net/rtl/rtl_types.h>
+typedef struct linux_vlan_group{
+	uint8 flag;
+#define VLAN_ENABLE	1
+#define VLAN_DISABLE	0
+	uint16 vid;
+	uint32 memberMask;	
+	/*bit mapping to physical port, bit16~31 reserved*/
+#define ETH_P0_MASK_BIT		0
+#define ETH_P1_MASK_BIT		1
+#define ETH_P2_MASK_BIT		2
+#define ETH_P3_MASK_BIT		3
+#define ETH_P4_MASK_BIT		4
+#define ETH_P5_MASK_BIT		5
+#define ETH_P6_MASK_BIT		6
+#define ETH_P7_MASK_BIT		7
+#define ETH_P8_MASK_BIT		8
+#define WLAN0_MASK_BIT		9
+#define WLAN0_VA0_MASK_BIT	10
+#define WLAN0_VA1_MASK_BIT	11
+#define WLAN0_VA2_MASK_BIT	12
+#define WLAN0_VA3_MASK_BIT	13
+#define WLAN0_VXD_MASK_BIT	14
+#define WLAN1_MASK_BIT		15
+#define WLAN1_VA0_MASK_BIT	16
+#define WLAN1_VA1_MASK_BIT	17
+#define WLAN1_VA2_MASK_BIT	18
+#define WLAN1_VA3_MASK_BIT	19
+#define WLAN1_VXD_MASK_BIT	20
+	/*bit mapping of tagMemberMask is same as memberMask*/
+	uint32 tagMemberMask;
+	uint8 reserved;
+}linux_vlan_group_t;
+	
+#define VLAN_GROUP_NUM	4096
+#define PVID_ARRAY_SIZE	32
+
+typedef struct linux_vlan_ctl{
+	uint8 flag;
+#define VLAN_CTL_ON 1
+#define VLAN_CTL_OFF 0
+	linux_vlan_group_t group[VLAN_GROUP_NUM];
+	uint16	pvid[PVID_ARRAY_SIZE];	/*pvid index mapping is the same as memberMask's*/
+}linux_vlan_ctl_t;
+#endif
+
 #else
 static inline struct net_device *vlan_dev_real_dev(const struct net_device *dev)
 {

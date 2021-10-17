@@ -91,32 +91,35 @@ static int iapp_init_fifo()
 {
 /* Here is an assumption that the fifo is created already by iwcontrol
  */
-	int flags;
-	struct stat status;
+    int flags;
+    struct stat status;
 
-	if(stat(DAEMON_FIFO, &status) == 0)
-		unlink(DAEMON_FIFO);
-	if((mkfifo(DAEMON_FIFO, FILE_MODE) < 0)){
-		printf("mkfifo %s fifo error: %s!\n", DAEMON_FIFO, strerror(errno));
-		return -1;
-	}
+    if(stat(DAEMON_FIFO, &status) != 0) { /*fifo do not exist, create it*/
+        if((mkfifo(DAEMON_FIFO, FILE_MODE) < 0)){
+            printf("mkfifo %s fifo error: %s!\n", DAEMON_FIFO, strerror(errno));
+            return -1;
+        }
+    }   
 
-	hapd->readfifo = open(DAEMON_FIFO, O_RDONLY, 0);
-	HOSTAPD_DEBUG(HOSTAPD_DEBUG_MSGDUMPS, "hapd->readfifo = %d\n", hapd->readfifo);
+    hapd->readfifo = open(DAEMON_FIFO, O_RDONLY, 0);
+    HOSTAPD_DEBUG(HOSTAPD_DEBUG_MSGDUMPS, "hapd->readfifo = %d\n", hapd->readfifo);
 
-	if ((flags = fcntl(hapd->readfifo, F_GETFL, 0)) < 0) {
-		printf("F_GETFL: error\n");
-		return -1;
-	}
-	else {
-		flags |= O_NONBLOCK;
-		if ((flags = fcntl(hapd->readfifo, F_SETFL, flags)) < 0) {
-			printf("F_SETFL: error\n");
-			return -1;
-		}
-	}
+    if ((flags = fcntl(hapd->readfifo, F_GETFL, 0)) < 0) {
+        printf("F_GETFL: error\n");
+        return -1;
+    }
+    else {
+        flags |= O_NONBLOCK;
+        if ((flags = fcntl(hapd->readfifo, F_SETFL, flags)) < 0) {
+            printf("F_SETFL: error\n");
+            return -1;
+        }
+    }
 
-	return 0;
+    /*flush fifo*/
+    while(read(hapd->readfifo, hapd->RecvBuf, MAX_MSG_SIZE) > 0);
+
+    return 0;
 }
 
 
@@ -312,7 +315,7 @@ static void iapp_process_add_notify(struct sockaddr_in *from,
 	if (hapd->driver_ver == DRIVER_8180)
 	{
 		memset(para, 0, 32);
-		sprintf(para, "delsta=%02x%02x%02x%02x%02x%02x",
+		sprintf((char *)para, "delsta=%02x%02x%02x%02x%02x%02x",
 			add->mac_addr[0],
 			add->mac_addr[1],
 			add->mac_addr[2],
@@ -320,7 +323,7 @@ static void iapp_process_add_notify(struct sockaddr_in *from,
 			add->mac_addr[4],
 			add->mac_addr[5]);
 		wrq.u.data.pointer = para;
-		wrq.u.data.length = strlen(para);
+		wrq.u.data.length = strlen((char *)para);
 		strncpy(wrq.ifr_name, hapd->wlan_iface[i], IFNAMSIZ);
 		ioctl(hapd->wlan_sock[i], 0x89f6/* RTL8180_IOCTL_SET_WLAN_PARA */, &wrq);
 	}
@@ -329,10 +332,10 @@ static void iapp_process_add_notify(struct sockaddr_in *from,
 		while(strlen(hapd->wlan_iface[i]) != 0)
 		{
 			memset(para, 0, 32);
-			sprintf(para, "%02x%02x%02x%02x%02x%02x", add->mac_addr[0], add->mac_addr[1],
+			sprintf((char *)para, "%02x%02x%02x%02x%02x%02xno", add->mac_addr[0], add->mac_addr[1],
 			add->mac_addr[2], add->mac_addr[3], add->mac_addr[4], add->mac_addr[5]);
 			wrq.u.data.pointer = para;
-			wrq.u.data.length = strlen(para);
+			wrq.u.data.length = strlen((char *)para);
 			strncpy(wrq.ifr_name, hapd->wlan_iface[i], IFNAMSIZ);
 			ioctl(hapd->wlan_sock[i], 0x89f7/* RTL8185_IOCTL_DEL_STA */, &wrq);
 			i++;
@@ -390,7 +393,39 @@ static void iapp_receive_udp(int sockGot)
 	else
 		printf("Unknown IAPP command %d\n", hdr->command);
 }
+static void check_lan_ip_state()
+{
+	struct ifreq ifr;
+	struct sockaddr_in *paddr;
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, hapd->iapp_iface, sizeof(ifr.ifr_name));
+	if (ioctl(hapd->iapp_udp_sock, SIOCGIFADDR, &ifr) != 0) {
+		HOSTAPD_DEBUG(HOSTAPD_DEBUG_MINIMAL,
+		       "iapp: ioctl(SIOCGIFADDR) failed!\n");
+		return;
+	}
+	paddr = (struct sockaddr_in *) &ifr.ifr_addr;
+	if (paddr->sin_family != AF_INET) {
+		printf("Invalid address family %i (SIOCGIFADDR)\n",
+		       paddr->sin_family);
+		return ;
+	}
+	hapd->iapp_own.s_addr = paddr->sin_addr.s_addr;
+	HOSTAPD_DEBUG(HOSTAPD_DEBUG_MSGDUMPS, "Got ip addr %s\n", inet_ntoa(hapd->iapp_own));
 
+	if (ioctl(hapd->iapp_udp_sock, SIOCGIFBRDADDR, &ifr) != 0) {
+		perror("ioctl(SIOCGIFBRDADDR)");
+		return ;
+	}
+	paddr = (struct sockaddr_in *) &ifr.ifr_addr;
+	if (paddr->sin_family != AF_INET) {
+		printf("Invalid address family %i (SIOCGIFBRDADDR)\n",
+		       paddr->sin_family);
+		return ;
+	}
+	hapd->iapp_broadcast.s_addr = paddr->sin_addr.s_addr;
+	HOSTAPD_DEBUG(HOSTAPD_DEBUG_MSGDUMPS, "Got bdcst addr %s\n", inet_ntoa(hapd->iapp_broadcast));
+}
 
 static void do_daemon()
 {
@@ -414,7 +449,6 @@ static void do_daemon()
 
 		FD_SET(hapd->readfifo, &netFD);
 		max_sock = (max_sock > hapd->readfifo)? max_sock : hapd->readfifo;
-
 		selret = select(max_sock+1, &netFD, NULL, NULL, NULL);
 		if (selret > 0)
 		{
@@ -434,10 +468,12 @@ static void do_daemon()
 
 					if (msg_type == DOT11_EVENT_ASSOCIATION_IND) {
 						DOT11_ASSOCIATION_IND *msg = (DOT11_ASSOCIATION_IND *)(hapd->RecvBuf + FIFO_HEADER_LEN);
+						check_lan_ip_state();
 						iapp_new_station(msg->MACAddr);
 					}
 					else if (msg_type == DOT11_EVENT_REASSOCIATION_IND) {
 						DOT11_REASSOCIATION_IND *msg = (DOT11_REASSOCIATION_IND *)(hapd->RecvBuf + FIFO_HEADER_LEN);
+						check_lan_ip_state();
 						iapp_new_station(msg->MACAddr);
 					}
 					else {

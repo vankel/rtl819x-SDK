@@ -1,0 +1,15 @@
+#!/bin/sh
+if [ -n "$1" ] ; then
+    [ $1 != "reboot" ] && echo "Invalid Argument, Usage: upImage [reboot] " && exit
+fi
+echo "wait user upload file named with fw.bin,please send."
+rm -f /var/fw.bin
+cd /var/
+lrz
+[ -f fw.bin ] && sleep 1
+[ -f fw.bin ] && echo "fw.bin upload complete ,start burn fw.bin, please wait..."
+[ -f fw.bin ] && image_upgrade fw.bin
+if [ $? -eq 0 ] && [ -f fw.bin ] && [ -n "$1" ] ; then
+    [ $1 == "reboot" ] && reboot
+fi
+[ -f fw.bin ] || echo "fw.bin not found,please upload Image named with fw.bin"

@@ -126,9 +126,6 @@ static const char rcsid[] = RCSID;
 /* interface vars */
 char ifname[32];		/* Interface name */
 int ifunit;			/* Interface unit number */
-
-
-
 #ifdef MULTI_PPPOE
 char demandifname[32];
 #endif
@@ -338,7 +335,6 @@ void check_v4_v6(char* optionfile);
 }
 #endif
 #endif
-
 //sync from rtl865x
 extern int	lcp_echo_interval;
 
@@ -446,6 +442,7 @@ main(argc, argv)
 #if 1 //def MULTI_PPPOE,shoud add forever
 	char *optionfile;
 #endif
+	system("rm -r /var/ppp_error 2> /dev/null");
     link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);
 
@@ -1250,6 +1247,7 @@ get_input()
     p += 2;				/* Skip address and control */
     GETSHORT(protocol, p);
     len -= PPP_HDRLEN;
+
     /*
      * Toss all non-LCP packets unless LCP is OPEN.
      */
@@ -1278,13 +1276,14 @@ get_input()
 	if (protp->protocol == protocol && protp->enabled_flag) {
 	    (*protp->input)(0, p, len);
 	    return;
-		}
+	}
         if (protocol == (protp->protocol & ~0x8000) && protp->enabled_flag
 	    && protp->datainput != NULL) {
 	    (*protp->datainput)(0, p, len);
 	    return;
 	}
     }
+
     if (debug) {
 	const char *pname = protocol_name(protocol);
 	if (pname != NULL)

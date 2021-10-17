@@ -60,7 +60,8 @@ int main(int argc, char *argv[])
 	stVoipPayLoadTypeConfig.m_id = 0;
 	stVoipPayLoadTypeConfig.uPktFormat = rtpPayloadPCMA;
 	stVoipPayLoadTypeConfig.nG723Type = 0;
-	stVoipPayLoadTypeConfig.nFramePerPacket = 1;
+	stVoipPayLoadTypeConfig.nLocalFramePerPacket = 1;
+	stVoipPayLoadTypeConfig.nRemoteFramePerPacket = 1;
 	stVoipPayLoadTypeConfig.bVAD = 0;
 	stVoipPayLoadTypeConfig.bPLC = 1;
 	SETSOCKOPT(VOIP_MGR_SETRTPPAYLOADTYPE, &stVoipPayLoadTypeConfig, TstVoipPayLoadTypeConfig, 1);

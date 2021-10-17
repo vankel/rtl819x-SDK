@@ -10,7 +10,7 @@ ifeq "$(CONFIG_RTK_VOIP_SLIC_ZARLINK_890_SERIES)" "y"
 #obj-y 	+= Le890NB_HV.o 
 obj-y 	+= Le890NB_LVHV.o 
 ifeq "$(CONFIG_RTK_VOIP_SLIC_ZARLINK_890_SERIES_WIDEBAND)" "y"
-obj-$(CONFIG_BOARD_011) += Le89156_100V_IB_Profile.o
+obj-$(CONFIG_BOARD_LE89156) += Le89156_100V_IB_Profile.o
 obj-y 	+= Le890WB_HV.o
 endif
 endif

@@ -82,6 +82,11 @@ config BLK_DEV_SD
 	  In this case, do not compile the driver for your SCSI host adapter
 	  (below) as a module either.
 
+config 4KB_HARDDISK_SUPPORT
+	bool "4kb sector size disk support"
+	depends on BLK_DEV_SD
+	default n
+
 config CHR_DEV_ST
 	tristate "SCSI tape support"
 	depends on SCSI
@@ -1820,6 +1825,13 @@ config SCSI_SRP
 	  module will be called libsrp.
 
 endif # SCSI_LOWLEVEL
+
+config KERNEL_POLLING
+	tristate "kernel polling support"
+	depends on SCSI
+	help
+	  Polling removable drives on the off chance that somebody might have
+	  removed or inserted a disk.
 
 source "drivers/scsi/pcmcia/Kconfig"
 

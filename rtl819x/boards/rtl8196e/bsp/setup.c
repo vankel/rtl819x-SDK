@@ -91,7 +91,7 @@ static void shutdown_netdev(void)
 			rtnl_unlock();
 		}
       	}
-#if defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
+#if defined(CONFIG_RTL8192CD)
 	{
 		extern void force_stop_wlan_hw(void);
 		force_stop_wlan_hw();

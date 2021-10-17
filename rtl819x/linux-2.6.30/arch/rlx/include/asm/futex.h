@@ -14,6 +14,11 @@
 #include <linux/uaccess.h>
 #include <asm/barrier.h>
 #include <asm/errno.h>
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
+#define LL_DELAYSLOT	"nop\n"
+#else
+#define LL_DELAYSLOT	"\n"
+#endif
 
 #ifdef CONFIG_CPU_HAS_LLSC
 #define __futex_atomic_op(insn, ret, oldval, uaddr, oparg)		\
@@ -22,9 +27,7 @@
 		"	.set	push				\n"	\
 		"	.set	noat				\n"	\
 		"1:	ll	    %1, %4	# __futex_atomic_op	\n"	\
-#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
-                "       nop                                     \n"	\
-#endif
+		LL_DELAYSLOT						\
 		"	" insn	"				\n"	\
 		"2:	sc	    $1, %2				\n"	\
 		"	beqz	$1, 1b				\n"	\
@@ -121,9 +124,7 @@ futex_atomic_cmpxchg_inatomic(int __user *uaddr, int oldval, int newval)
 		"	.set	push					\n"
 		"	.set	noat					\n"
 		"1:	ll	%0, %2					\n"
-#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
-                "       nop                                             \n"
-#endif
+		LL_DELAYSLOT
 		"	bne	%0, %z3, 3f				\n"
 		"	move	$1, %z4					\n"
 		"2:	sc	$1, %1					\n"

@@ -104,9 +104,10 @@
 #include <net/icmp.h>
 #include <net/route.h>
 #include <net/checksum.h>
+#ifdef CONFIG_RTK_VOIP_RX_LINUX_UDP_TRAP
 #ifdef CONFIG_RTK_VOIP_MODULE
 #include <linux/module.h>
-#define CONFIG_RTK_VOIP
+#endif
 #endif
 #include <net/xfrm.h>
 #include "udp_impl.h"
@@ -127,11 +128,9 @@ EXPORT_SYMBOL(udp_memory_allocated);
 
 #define PORTS_PER_CHAIN (65536 / UDP_HTABLE_SIZE)
 
-#ifdef CONFIG_RTK_VOIP
-void **udp_rtk_trap_profile_header = NULL;
-int (*udp_rtk_trap_hook)(struct sk_buff *skb) = NULL;
-#endif
-
+#ifdef CONFIG_RTK_VOIP_RX_LINUX_UDP_TRAP
+extern void **udp_rtk_trap_profile_header;
+extern int (*udp_rtk_trap_hook)(struct sk_buff *skb);
 #ifdef CONFIG_RTK_VOIP_MODULE
 extern unsigned long __nat_speedup_start;
 extern unsigned long __imem_start;
@@ -139,6 +138,7 @@ EXPORT_SYMBOL(__nat_speedup_start);
 EXPORT_SYMBOL(__imem_start);
 EXPORT_SYMBOL(udp_rtk_trap_profile_header);
 EXPORT_SYMBOL(udp_rtk_trap_hook);
+#endif
 #endif
 
 
@@ -1323,7 +1323,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 	saddr = ip_hdr(skb)->saddr;
 	daddr = ip_hdr(skb)->daddr;
 
-#ifdef CONFIG_RTK_VOIP
+#ifdef CONFIG_RTK_VOIP_RX_LINUX_UDP_TRAP
 	if( udp_rtk_trap_profile_header != NULL 
 	    && *udp_rtk_trap_profile_header != NULL 
 	    && udp_rtk_trap_hook != NULL)

@@ -108,6 +108,7 @@ void handle_udprequest()
     processed = 0;
     thisdns   = serv_act;
     for (i = 0; i < serv_cnt; i++) {
+#ifndef SUPPORT_ZIONCOM_RUSSIA
 	if (dnssend(serv_act, msg, len) == len) {
 	    if (i != 0) {
 		log_debug("switched to DNS server %s",
@@ -117,6 +118,10 @@ void handle_udprequest()
 	    break;
 	}
 	thisdns = (thisdns + 1) % serv_cnt;
+#else
+	if(dnssend(i, msg, len)==len)
+		processed=1;
+#endif
     }
 
     if (processed == 0) {

@@ -17,6 +17,13 @@ enum {		/* This is minor number */
 	VOIP_DEV_IVR8K		= 16,	
 	
 	// -------------------------- 
+	VOIP_CL_DEV_START	= 40,	/* circular log dev - start */
+	VOIP_DEV_LOG_IOCTL	= VOIP_CL_DEV_START, 
+	VOIP_CL_DEV_END_GUARD,		/* circular log dev - end */
+	VOIP_CL_DEV_END		= VOIP_CL_DEV_END_GUARD - 1,
+	// -------------------------- 
+	
+	// -------------------------- 
 	VOIP_DD_DEV_START	= 60,	/* data dump dev - start */
 	VOIP_DEV_JBC0		= VOIP_DD_DEV_START,
 	VOIP_DEV_JBC1,		// 61
@@ -34,6 +41,8 @@ enum {		/* This is minor number */
 	VOIP_DEV_PCM1_TX,	// 73
 	VOIP_DEV_PCM1_RX,	// 74
 	VOIP_DEV_RTCPTRACE,	// 75
+	VOIP_DEV_DTMF_DET0,	// 76
+	VOIP_DEV_DTMF_DET1,	// 77
 	VOIP_DD_DEV_END_GUARD,	/* data dump dev - end */
 	VOIP_DD_DEV_END		= VOIP_DD_DEV_END_GUARD - 1,	
 	// -------------------------- 
@@ -62,7 +71,15 @@ extern int ddinst_read( unsigned int minor, void *buff, size_t count );
 
 /* read or write data to data dump dev (fail: return < 0) */
 /* This function switch to ddinst_write() or ddinst_read() automatically. */
-extern int ddinst_rw_auto( unsigned int minor, const void *buff, size_t count );
+extern int ddinst_rw_auto( unsigned int minor, void *buff, size_t count );
+
+// ========================================================
+// circular log (CL) dev functions 
+// (minor = VOIP_CL_DEV_START ~ VOIP_CL_DEV_END)
+// ========================================================
+/* writing log to circular buffer (write fail: return < 0) */
+/* NOTE: If buffer overflow, it will overwrite old data */
+extern int cl_write_minor( unsigned int minor, const void *buff, size_t count );
 
 #endif /* __VOIP_DEV_H__ */
 

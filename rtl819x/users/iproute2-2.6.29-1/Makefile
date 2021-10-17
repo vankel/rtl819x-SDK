@@ -38,7 +38,9 @@ Config:
 
 romfs:
 	make romfs -C tc
-
+ifdef CONFIG_APP_IPROUTE_IPV6
+	make romfs -C ip
+endif
 snapshot:
 	echo "static const char SNAPSHOT[] = \""`date +%y%m%d`"\";" \
 		> include/SNAPSHOT.h

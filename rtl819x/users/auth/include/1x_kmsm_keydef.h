@@ -19,6 +19,9 @@
 #define GTK_LEN_CCMP            16
 #define GTK_LEN_WRAP            16
 #define GTK_LEN_WEP             16
+#ifdef CONFIG_IEEE80211W
+#define IGTK_LEN 16
+#endif /* CONFIG_IEEE80211W */
 
 
 #define INFO_ELEMENT_SIZE       128

@@ -39,6 +39,8 @@ int DAA_PulseDial_Gen_Cfg(unsigned int pps, unsigned int make_duration, unsigned
 //void DAA_PulseGenKill(unsigned int cch);
 unsigned char DAA_Polarity_Reversal_Det(int cch);
 unsigned char DAA_Bat_DropOut_Det(int cch);
+void DAA_Set_Country(int cch, unsigned int country);
+void DAA_Set_Hybrid(int cch, unsigned char index);
 
 extern void DAA_read_reg( int cch, unsigned int num, unsigned char *len, unsigned char *val );
 extern void DAA_write_reg( int cch, unsigned int num, unsigned char *len, unsigned char *val );

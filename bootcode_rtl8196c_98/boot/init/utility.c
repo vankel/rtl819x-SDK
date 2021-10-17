@@ -673,6 +673,39 @@ int check_image(IMG_HEADER_Tp pHeader,SETTING_HEADER_Tp psetting_header)
  	//only one bank
  #ifndef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE	
  	ret=check_image_header(pHeader,psetting_header,0); 
+
+	#ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_STATIC
+	#define DST_BUFFER_ADDR	0x80800000	// place to put flash read image
+
+	if (ret == 0
+		#ifdef CONFIG_BOOT_RESET_ENABLE
+			&& !gCHKKEY_HIT
+		#endif	
+		) {
+		printf("Checking bank2...\n");
+	 	ret = check_image_header(pHeader, psetting_header, CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET); 
+		if (ret) {
+			unsigned long src_addr = return_addr - FLASH_BASE;			
+			unsigned long length = CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET*2 - src_addr;
+
+			printf("Flash read from %X to %X with %X bytes ?\n",src_addr, DST_BUFFER_ADDR, length);
+			flashread(DST_BUFFER_ADDR, src_addr, length);
+		
+			printf("Flash Program from %X to %X with %X bytes ?\n",DST_BUFFER_ADDR, src_addr-CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET, length);
+			flashwrite(src_addr-CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET, DST_BUFFER_ADDR, length);
+			
+			ret = check_image_header(pHeader,psetting_header,0); 
+			if (ret == 0)
+				printf("Bank1 image is still invalid after update from bank2!!\n");	
+			else
+				printf("Copy bank2 to bank1 successfully!\n");				
+		}
+		else 
+			printf("Bank2 is corrupted!\n");
+		
+	}
+	#endif
+ 
  #else
        ret = check_dualbank_setting(IN_BOOTING_MODE);
 #endif
@@ -1035,12 +1068,12 @@ void Init_GPIO()
 
 	#ifdef RTK_VOIP_BOARD_V100
 	REG32(RTL_GPIO_MUX) = REG32(RTL_GPIO_MUX) | 0x00000300;  //bits 9:8
-	REG32(PABCDCNR_REG) = REG32(PEFGHCNR_REG)& (~(1<<7) );   //set byte E GPIO7 = gpio
-	REG32(PABCDDIR_REG) = REG32(PEFGHDIR_REG) & (~(1<<7) );  //0 input, 1 output, set E bit 7 input
+	REG32(PEFGHCNR_REG) = REG32(PEFGHCNR_REG)& (~(1<<7) );   //set byte E GPIO7 = gpio
+	REG32(PEFGHDIR_REG) = REG32(PEFGHDIR_REG) & (~(1<<7) );  //0 input, 1 output, set E bit 7 input
 	#else //RTK_VOIP_BOARD_V200 and RTK_VOIP_BOARD_V400
 	REG32(RTL_GPIO_MUX) = REG32(RTL_GPIO_MUX) | 0x00000300;   //bits 9:8
-	REG32(PABCDCNR_REG) = REG32(PEFGHCNR_REG)& (~(1<<12) );   //set byte F GPIO4 = gpio
-	REG32(PABCDDIR_REG) = REG32(PEFGHDIR_REG) & (~(1<<12) );  //0 input, 1 output, set F bit 4 input
+	REG32(PEFGHCNR_REG) = REG32(PEFGHCNR_REG)& (~(1<<12) );   //set byte F GPIO4 = gpio
+	REG32(PEFGHDIR_REG) = REG32(PEFGHDIR_REG) & (~(1<<12) );  //0 input, 1 output, set F bit 4 input
 	//do nothing
 	#endif
 #else

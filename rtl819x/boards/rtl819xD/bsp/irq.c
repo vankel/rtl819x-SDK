@@ -71,13 +71,16 @@ static void bsp_ictl_irq_dispatch(void)
 		do_IRQ(BSP_UART1_IRQ);
 	else if (pending & BSP_TC1_IP)
 		do_IRQ(BSP_TC1_IRQ);
-
 #ifdef CONFIG_RTL_USB_OTG  //wei add	
-    #if (BSP_OTG_IRQ >= BSP_IRQ_ICTL_BASE) // double check otg is ictl not lopi
 	else if (pending & BSP_OTG_IP)
-		do_IRQ(BSP_OTG_IRQ);
-	#endif	
+		do_IRQ(BSP_OTG_IRQ);	
 #endif	
+#if defined(CONFIG_SND_RTL819XD_SOC_I2S)  //jwsyu add
+  #if (BSP_I2S_IRQ >= BSP_IRQ_ICTL_BASE) // double check i2s is ictl not lopi
+	else if (pending & BSP_I2S_IP)
+		do_IRQ(BSP_I2S_IRQ);	
+#endif
+#endif
 	#if defined( CONFIG_RTK_VOIP ) || defined(CONFIG_PCIE_POWER_SAVING)
 	else if (pending & BSP_GPIO_ABCD_IP)
 		do_IRQ(BSP_GPIO_ABCD_IRQ);

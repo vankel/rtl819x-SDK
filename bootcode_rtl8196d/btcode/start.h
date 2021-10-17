@@ -2,6 +2,8 @@
 #define __RTL_START_H__
 
 
+#include "../autoconf.h"
+
 
 
 #define	BOOT_ADDR		0x80100000	//compress
@@ -95,6 +97,27 @@
 								2:	
 
 
+#ifdef CONFIG_NAND_FLASH
+
+ /*For showing NAND Flash booting DMA times*/
+#define UART_PRINT_DELAY(msg)		la   s5,msg;\									
+								1:	lbu  s6,0(s5);\		
+									beqz		s6,  2f;\
+									addu	s5, 1;\	
+									;\
+									sll s6,s6,24;\						
+									REG32_W(UART_THR, s6);\
+									li s4,800;\
+								3:	nop;\
+									subu s4,s4,1;\
+									bnez s4,3b;\
+									nop	;\									
+									j 1b;\
+									nop;\
+								2:	
+
+#else
+
 // Using register: t4, t5, t6, t7     t5=msg(idx), t4=delay loop count
 #define UART_PRINT_DELAY(msg)		la   t5,msg;\									
 								1:	lbu  t6,0(t5);\		
@@ -111,7 +134,7 @@
 									j 1b;\
 									nop;\																		
 								2:	
-
+#endif
 //0x00 show ascii '0'
 //0x0a show ascii 'a'
 //0x1a show ascii 'a', skip 1

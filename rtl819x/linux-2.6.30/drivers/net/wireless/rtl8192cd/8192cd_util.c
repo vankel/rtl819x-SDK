@@ -15,6 +15,12 @@
 #ifdef __KERNEL__
 #include <linux/circ_buf.h>
 #include <linux/sched.h>
+#include <linux/if_arp.h>
+#include <net/ipv6.h>
+#include <net/protocol.h>
+#include <net/ndisc.h>
+#include <linux/icmpv6.h>
+#include <linux/vmalloc.h>
 #elif defined(__ECOS)
 #include <pkgconf/system.h>
 #include <pkgconf/devs_eth_rltk_819x_wlan.h>
@@ -30,25 +36,34 @@
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#define ipv6_addr_copy(a1,a2) memcpy(a1, a2, sizeof(struct in6_addr))
+#endif
 #ifdef RTL8192CD_VARIABLE_USED_DMEM
 #include "./8192cd_dmem.h"
 #endif
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+#ifdef __KERNEL__
 #include <linux/if_vlan.h>
+#endif
 #endif
 #if defined(CONFIG_RTL_FASTBRIDGE)
 #include <net/rtl/features/fast_bridge.h>
 #endif
 
-#ifdef __ECOS
-extern void rtl8192cd_beq_timer(void *task_priv);
-extern void rtl8192cd_bkq_timer(void *task_priv);
-extern void rtl8192cd_viq_timer(void *task_priv);
-extern void rtl8192cd_voq_timer(void *task_priv);
+#if defined(CONFIG_RTL_SIMPLE_CONFIG)
+#if !defined(__ECOS)
+#include <linux/netdevice.h>
 #endif
+#include "./8192cd_profile.h"
+extern unsigned char g_sc_ifname[32];
+#endif
+
 
 #if defined(USE_PID_NOTIFY) && defined(LINUX_2_6_27_)
 struct pid *_wlanapp_pid;
+struct pid *_wlanwapi_pid;
 #endif
 
 UINT8 Realtek_OUI[]={0x00, 0xe0, 0x4c};
@@ -62,6 +77,12 @@ UINT8 dot11_rate_table[]={2,4,11,22,12,18,24,36,48,72,96,108,0}; // last element
 #define WLAN_PKT_FORMAT_IPX_TYPE4		0x04
 #define WLAN_PKT_FORMAT_APPLETALK		0x05
 #define WLAN_PKT_FORMAT_OTHERS			0x07
+#endif
+
+#ifdef __ECOS
+#ifndef VLAN_HLEN
+#define VLAN_HLEN 4
+#endif
 #endif
 
 unsigned char SNAP_ETH_TYPE_IPX[2] = {0x81, 0x37};
@@ -81,6 +102,126 @@ void mem_dump(unsigned char *ptitle, unsigned char *pbuf, int len)
 	printk("\n");
 }
 
+struct rtl_arphdr
+{
+	//for corss platform
+    __be16          ar_hrd;         /* format of hardware address   */
+    __be16          ar_pro;         /* format of protocol address   */
+    unsigned char   ar_hln;         /* length of hardware address   */
+    unsigned char   ar_pln;         /* length of protocol address   */
+    __be16          ar_op;          /* ARP opcode (command)         */
+};
+
+#ifdef DBG_MEMORY_LEAK
+#include <asm/atomic.h>
+atomic_t _malloc_cnt = ATOMIC_INIT(0);
+atomic_t _malloc_size = ATOMIC_INIT(0);
+#endif /* DBG_MEMORY_LEAK */
+
+#ifdef __KERNEL__
+inline u8* _rtw_vmalloc(u32 sz)
+{
+	u8 *pbuf;
+
+	pbuf = vmalloc(sz);
+
+#ifdef DBG_MEMORY_LEAK
+	if (pbuf != NULL) {
+		atomic_inc(&_malloc_cnt);
+		atomic_add(sz, &_malloc_size);
+	}
+#endif /* DBG_MEMORY_LEAK */
+
+	return pbuf;
+}
+
+inline u8* _rtw_zvmalloc(u32 sz)
+{
+	u8 	*pbuf;
+
+	pbuf = _rtw_vmalloc(sz);
+	if (pbuf != NULL) {
+		memset(pbuf, 0, sz);
+	}
+
+	return pbuf;
+}
+
+inline void _rtw_vmfree(const void *pbuf, u32 sz)
+{
+	if (pbuf)
+	{
+		vfree(pbuf);
+
+#ifdef DBG_MEMORY_LEAK
+		atomic_dec(&_malloc_cnt);
+		atomic_sub(sz, &_malloc_size);
+#endif /* DBG_MEMORY_LEAK */
+	}
+}
+#endif // __KERNEL__
+
+u8* _rtw_malloc(u32 sz)
+{
+	u8 *pbuf = NULL;
+
+	pbuf = kmalloc(sz, /*GFP_KERNEL*/GFP_ATOMIC);
+
+#ifdef DBG_MEMORY_LEAK
+	if (pbuf != NULL) {
+		atomic_inc(&_malloc_cnt);
+		atomic_add(sz, &_malloc_size);
+	}
+#endif /* DBG_MEMORY_LEAK */
+
+	return pbuf;
+}
+
+u8* _rtw_zmalloc(u32 sz)
+{
+	u8 *pbuf = _rtw_malloc(sz);
+
+	if (pbuf != NULL) {
+		memset(pbuf, 0, sz);
+	}
+
+	return pbuf;
+}
+
+void* rtw_malloc2d(int h, int w, int size)
+{
+	int j;
+
+	void **a = (void **) rtw_zmalloc( h*sizeof(void *) + h*w*size );
+	if(a == NULL)
+	{
+		return NULL;
+	}
+
+	for( j=0; j<h; j++ )
+		a[j] = ((char *)(a+h)) + j*w*size;
+
+	return a;
+}
+
+void rtw_mfree2d(void *pbuf, int h, int w, int size)
+{
+	rtw_mfree((u8 *)pbuf, h*sizeof(void*) + w*h*size);
+}
+
+void _rtw_mfree(const void *pbuf, u32 sz)
+{
+	if (pbuf)
+	{
+		kfree(pbuf);
+		
+#ifdef DBG_MEMORY_LEAK
+		atomic_dec(&_malloc_cnt);
+		atomic_sub(sz, &_malloc_size);
+#endif /* DBG_MEMORY_LEAK */
+	}
+}
+
 #ifndef _11s_TEST_MODE_
  static
 #endif
@@ -90,18 +231,27 @@ __inline__ void release_buf_to_poll(struct rtl8192cd_priv *priv, unsigned char *
 #ifdef SMP_SYNC
 	unsigned long flags;
 #endif
-	SMP_LOCK_BUF(flags);
+
+	if (pbuf == NULL)
+	{
+		DEBUG_ERR("Release Null Buf!\n");
+		return;
+	}
 
 #if 0
 	if (*count >= PRE_ALLOCATED_HDR) {
-		_DEBUG_ERR("over size free buf phead=%X, *count=%d\n", (unsigned int)phead, *count);
+		_DEBUG_ERR("over size free buf phead=%lX, *count=%d\n", (unsigned long)phead, *count);
 		return;
 	}
 #endif
 
+	plist = (struct list_head *)((unsigned long)pbuf - sizeof(struct list_head));
+
+	SMP_LOCK_BUF(flags);
+	
 	*count = *count + 1;
-	plist = (struct list_head *)((unsigned int)pbuf - sizeof(struct list_head));
 	list_add_tail(plist, phead);
+	
 	SMP_UNLOCK_BUF(flags);
 }
 
@@ -113,27 +263,33 @@ __inline__ unsigned char *get_buf_from_poll(struct rtl8192cd_priv *priv, struct 
 	unsigned char *buf;
 	struct list_head *plist;
 #ifdef SMP_SYNC
-	unsigned long flags;
+	unsigned long flags = 0;
 #endif
+	if(priv)
 	SMP_LOCK_BUF(flags);
 
 	if (list_empty(phead)) {
+		if(priv)
 		SMP_UNLOCK_BUF(flags);
-//		_DEBUG_ERR("phead=%X buf is empty now!\n", (unsigned int)phead);
+//		_DEBUG_ERR("phead=%lX buf is empty now!\n", (unsigned long)phead);
 		return NULL;
 	}
 
 	if (*count == 0) {
+		if(priv)
 		SMP_UNLOCK_BUF(flags);
-		_DEBUG_ERR("phead=%X under-run!\n", (unsigned int)phead);
+		_DEBUG_ERR("phead=%lX under-run!\n", (unsigned long)phead);
 		return NULL;
 	}
 
 	*count = *count - 1;
 	plist = phead->next;
 	list_del_init(plist);
-	buf = (UINT8 *)((unsigned int)plist + sizeof (struct list_head));
+
+	if(priv)
 	SMP_UNLOCK_BUF(flags);
+	
+	buf = (UINT8 *)((unsigned long)plist + sizeof (struct list_head));
 	return buf;
 }
 
@@ -160,7 +316,7 @@ struct priv_dz_mgt_que {
 };
 #endif
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 struct priv_wpa_buf {
 	unsigned char magic[8];
 	struct list_head	list;
@@ -192,7 +348,7 @@ static int free_obj_buf_num[NUM_WLAN_IFACE];
 	static int free_mgt_que_buf_num[NUM_WLAN_IFACE];
 #endif
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	#define MAX_PRIV_WPA_NUM	MAX_PRIV_OBJ_NUM
 	static struct priv_wpa_buf wpa_buf[NUM_WLAN_IFACE][MAX_PRIV_WPA_NUM];
 	static struct list_head wpabuf_list[NUM_WLAN_IFACE];
@@ -219,7 +375,7 @@ static int free_obj_buf_num;
 	static int free_mgt_que_buf_num;
 #endif
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	#define MAX_PRIV_WPA_NUM	MAX_PRIV_OBJ_NUM
 	static struct priv_wpa_buf wpa_buf[MAX_PRIV_WPA_NUM];
 	static struct list_head wpabuf_list;
@@ -228,6 +384,8 @@ static int free_obj_buf_num;
 #endif
 
 
+
+/* return 1 or 0*/
 void init_priv_sta_buf(struct rtl8192cd_priv *priv)
 {
 	int i;
@@ -264,7 +422,7 @@ void init_priv_sta_buf(struct rtl8192cd_priv *priv)
 	free_mgt_que_buf_num[idx] = i;
 #endif
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	memset(&wpa_buf[idx], '\0', sizeof(struct priv_wpa_buf)*MAX_PRIV_WPA_NUM);
 	INIT_LIST_HEAD(&wpabuf_list[idx]);
 	for (i=0; i<MAX_PRIV_WPA_NUM; i++)  {
@@ -306,7 +464,7 @@ void init_priv_sta_buf(struct rtl8192cd_priv *priv)
 	free_mgt_que_buf_num = i;
 #endif
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	memset(wpa_buf, '\0', sizeof(struct priv_wpa_buf)*MAX_PRIV_WPA_NUM);
 	INIT_LIST_HEAD(&wpabuf_list);
 	for (i=0; i<MAX_PRIV_WPA_NUM; i++)  {
@@ -321,16 +479,30 @@ void init_priv_sta_buf(struct rtl8192cd_priv *priv)
 
 struct aid_obj *alloc_sta_obj(struct rtl8192cd_priv *priv)
 {
-	unsigned long flags;
+#ifndef SMP_SYNC
+	unsigned long flags=0;
+#endif
 	struct aid_obj *priv_obj;
 
-	SAVE_INT_AND_CLI(flags);
+    if(priv)
+	    SAVE_INT_AND_CLI(flags);
+
+#if defined(__ECOS) && defined(CONFIG_SDIO_HCI)
+#ifdef CONCURRENT_MODE
+	priv_obj = (struct aid_obj  *)get_buf_from_poll(priv, &objbuf_list[priv->pshare->wlandev_idx], (unsigned int *)&free_obj_buf_num[priv->pshare->wlandev_idx]);
+#else	
+	priv_obj = (struct aid_obj  *)get_buf_from_poll(priv, &objbuf_list, (unsigned int *)&free_obj_buf_num);
+#endif
+#else
 #ifdef CONCURRENT_MODE
 	priv_obj = (struct aid_obj  *)get_buf_from_poll(NULL, &objbuf_list[priv->pshare->wlandev_idx], (unsigned int *)&free_obj_buf_num[priv->pshare->wlandev_idx]);
 #else	
 	priv_obj = (struct aid_obj  *)get_buf_from_poll(NULL, &objbuf_list, (unsigned int *)&free_obj_buf_num);
 #endif
-	RESTORE_INT(flags);
+#endif
+
+   if(priv)
+        RESTORE_INT(flags);
 
 #ifdef __KERNEL__
 	if (priv_obj == NULL)
@@ -344,7 +516,9 @@ void free_sta_obj(struct rtl8192cd_priv *priv, struct aid_obj *obj)
 {
 	unsigned long offset = (unsigned long)(&((struct priv_obj_buf *)0)->obj);
 	struct priv_obj_buf *priv_obj = (struct priv_obj_buf *)(((unsigned long)obj) - offset);
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if (!memcmp(priv_obj->magic, MAGIC_CODE_BUF, 4) &&
 			((unsigned long)&priv_obj->obj) ==  ((unsigned long)obj)) {
@@ -367,7 +541,9 @@ void free_sta_obj(struct rtl8192cd_priv *priv, struct aid_obj *obj)
 #if defined(WIFI_WMM) && defined(WMM_APSD)
 static struct apsd_pkt_queue *alloc_sta_que(struct rtl8192cd_priv *priv)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 	struct apsd_pkt_queue *priv_que;
 	SAVE_INT_AND_CLI(flags);
 #ifdef CONCURRENT_MODE
@@ -389,7 +565,9 @@ void free_sta_que(struct rtl8192cd_priv *priv, struct apsd_pkt_queue *que)
 {
 	unsigned long offset = (unsigned long)(&((struct priv_apsd_que *)0)->que);
 	struct priv_apsd_que *priv_que = (struct priv_apsd_que *)(((unsigned long)que) - offset);
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if (!memcmp(priv_que->magic, MAGIC_CODE_BUF, 4) &&
 			((unsigned long)&priv_que->que) ==  ((unsigned long)que)) {
@@ -413,8 +591,10 @@ void free_sta_que(struct rtl8192cd_priv *priv, struct apsd_pkt_queue *que)
 #if defined(WIFI_WMM)
 static struct dz_mgmt_queue *alloc_sta_mgt_que(struct rtl8192cd_priv *priv)
 {
-	struct dz_mgmt_queue *priv_que;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
+	struct dz_mgmt_queue *priv_que;
 
 	SAVE_INT_AND_CLI(flags);
 #ifdef CONCURRENT_MODE
@@ -436,7 +616,9 @@ void free_sta_mgt_que(struct rtl8192cd_priv *priv, struct dz_mgmt_queue *que)
 {
 	unsigned long offset = (unsigned long)(&((struct priv_dz_mgt_que *)0)->que);
 	struct priv_dz_mgt_que *priv_que = (struct priv_dz_mgt_que *)(((unsigned long)que) - offset);
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if (!memcmp(priv_que->magic, MAGIC_CODE_BUF, 4) &&
 			((unsigned long)&priv_que->que) ==  ((unsigned long)que)) {
@@ -454,10 +636,12 @@ void free_sta_mgt_que(struct rtl8192cd_priv *priv, struct dz_mgmt_queue *que)
 #endif // defined(WIFI_WMM) 
 
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 static WPA_STA_INFO *alloc_wpa_buf(struct rtl8192cd_priv *priv)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 	WPA_STA_INFO *priv_buf;
 	SAVE_INT_AND_CLI(flags);
 #ifdef CONCURRENT_MODE
@@ -483,7 +667,9 @@ void free_wpa_buf(struct rtl8192cd_priv *priv, WPA_STA_INFO *buf)
 {
 	unsigned long offset = (unsigned long)(&((struct priv_wpa_buf *)0)->wpa);
 	struct priv_wpa_buf *priv_buf = (struct priv_wpa_buf *)(((unsigned long)buf) - offset);
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if (!memcmp(priv_buf->magic, MAGIC_CODE_BUF, 4) &&
 			((unsigned long)&priv_buf->wpa) ==  ((unsigned long)buf)) {
@@ -505,6 +691,84 @@ void free_wpa_buf(struct rtl8192cd_priv *priv, WPA_STA_INFO *buf)
 #endif // INCLUDE_WPA_PSK
 #endif // PRIV_STA_BUF
 
+__inline__ unsigned int orSTABitMap(STA_BITMAP *map)
+{
+    return (
+        map->_staMap_
+#if (NUM_STAT >32)
+        | map->_staMap_ext_1 
+#if (NUM_STAT >64)		
+        |map->_staMap_ext_2 | map->_staMap_ext_3
+#endif
+#endif
+    );	
+}
+
+__inline__ unsigned int orForce20_Switch20Map(struct rtl8192cd_priv *priv)
+{
+    return (orSTABitMap(&priv->force_20_sta) | orSTABitMap(&priv->switch_20_sta));
+}
+
+/* return 1 or 0*/
+unsigned char getSTABitMap(STA_BITMAP *map, int bitIdx)
+{
+    unsigned int ret;
+    bitIdx--;
+
+    if (bitIdx < 32)
+        ret = map->_staMap_ & BIT(bitIdx);
+#if (NUM_STAT >32)		
+    else if (bitIdx <= 64)
+        ret = map->_staMap_ext_1 & BIT(bitIdx - 32);
+#if (NUM_STAT >64)		
+    else if (bitIdx <= 96)
+        ret  = map->_staMap_ext_2 & BIT(bitIdx - 64);
+    else if (bitIdx <= 128)
+        ret = map->_staMap_ext_3 & BIT(bitIdx -96);
+#endif	
+#endif	
+
+    return (ret?1:0);
+}
+
+
+void setSTABitMap(STA_BITMAP *map, int bitIdx)
+{
+    bitIdx--;
+
+    if (bitIdx < 32)
+        map->_staMap_ |= BIT(bitIdx);
+#if (NUM_STAT >32)		
+    else if (bitIdx <= 64)
+        map->_staMap_ext_1 |= BIT(bitIdx - 32);
+#if (NUM_STAT >64)		
+    else if (bitIdx <= 96)
+        map->_staMap_ext_2 |= BIT(bitIdx - 64);
+    else if (bitIdx <= 128)
+        map->_staMap_ext_3 |= BIT(bitIdx -96);
+#endif	
+#endif	
+}
+
+
+
+void clearSTABitMap(STA_BITMAP* map, int bitIdx)
+{
+    bitIdx--;
+
+    if (bitIdx < 32)
+        map->_staMap_ &= ~ BIT(bitIdx);
+#if (NUM_STAT >32)		
+    else if (bitIdx < 64)
+        map->_staMap_ext_1 &= ~ BIT(bitIdx - 32);
+#if (NUM_STAT >64)		
+    else if (bitIdx < 96)
+        map->_staMap_ext_2 &= ~ BIT(bitIdx - 64);
+    else if (bitIdx < 128)
+        map->_staMap_ext_3 &= ~ BIT(bitIdx - 96);
+#endif	
+#endif	
+}
 
 #ifdef CONFIG_RTL8190_PRIV_SKB
 #ifdef CONCURRENT_MODE
@@ -515,10 +779,12 @@ static struct sk_buff *dev_alloc_skb_priv(struct rtl8192cd_priv *priv, unsigned 
 #endif
 
 
-int	enque(struct rtl8192cd_priv *priv, int *head, int *tail, unsigned int ffptr, int ffsize, void *elm)
+int enque(struct rtl8192cd_priv *priv, int *head, int *tail, unsigned long ffptr, int ffsize, void *elm)
 {
 	// critical section!
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 	if (CIRC_SPACE(*head, *tail, ffsize) == 0) {
@@ -526,19 +792,23 @@ int	enque(struct rtl8192cd_priv *priv, int *head, int *tail, unsigned int ffptr,
 		return FALSE;
 	}
 
-	*(unsigned int *)(ffptr + (*head)*(sizeof(void *))) = (unsigned int)elm;
+	*(unsigned long *)(ffptr + (*head)*(sizeof(void *))) = (unsigned long)elm;
 	*head = (*head + 1) & (ffsize - 1);
 	RESTORE_INT(flags);
 	return TRUE;
 }
 
 
-unsigned int *deque(struct rtl8192cd_priv *priv, int *head, int *tail, unsigned int ffptr, int ffsize)
+void* deque(struct rtl8192cd_priv *priv, int *head, int *tail, unsigned long ffptr, int ffsize)
 {
 	// critical section!
 	unsigned int  i;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
+	void *elm;
+	
 	SAVE_INT_AND_CLI(flags);
 	if (CIRC_CNT(*head, *tail, ffsize) == 0) {
 		RESTORE_INT(flags);
@@ -547,15 +817,19 @@ unsigned int *deque(struct rtl8192cd_priv *priv, int *head, int *tail, unsigned 
 
 	i = *tail;
 	*tail = (*tail + 1) & (ffsize - 1);
+	elm = (void*)(*(unsigned long *)(ffptr + i*(sizeof(void *))));
 	RESTORE_INT(flags);
-	return (unsigned int *)(*(unsigned int *)(ffptr + i*(sizeof(void *))));
+	
+	return elm;
 }
 
 
 void initque(struct rtl8192cd_priv *priv, int *head, int *tail)
 {
 	// critical section!
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 	*head = *tail = 0;
@@ -568,6 +842,17 @@ int	isFFempty(int head, int tail)
 	return (head == tail);
 }
 
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+void _init_txservq(struct tx_servq *ptxservq, int q_num)
+{
+	_rtw_init_listhead(&ptxservq->tx_pending);
+	_rtw_init_queue(&ptxservq->xframe_queue);
+	ptxservq->q_num = q_num;
+#ifdef CONFIG_SDIO_HCI
+	ptxservq->ts_used = 0;
+#endif
+}
+#endif // CONFIG_USB_HCI || CONFIG_SDIO_HCI
 
 #ifdef CONFIG_RTK_MESH
 unsigned int find_rate_MP(struct rtl8192cd_priv *priv, struct stat_info *pstat, struct ht_cap_elmt * peer_ht_cap,  int peer_ht_cap_len, char *peer_rate,int peer_rate_len,int mode, int isBasicRate)
@@ -575,8 +860,12 @@ unsigned int find_rate_MP(struct rtl8192cd_priv *priv, struct stat_info *pstat, 
 	unsigned int len, i, hirate, lowrate, rate_limit, OFDM_only=0;
 	unsigned char *rateset, *p;
 
-	if ((get_rf_mimo_mode(priv)== MIMO_1T2R) || (get_rf_mimo_mode(priv)== MIMO_1T1R))
+	if ((get_rf_mimo_mode(priv)== MIMO_1T2R) || (get_rf_mimo_mode(priv)== MIMO_1T1R)) //eric-8814 ?? 3t3r ??
 		rate_limit = 8;
+	else if (get_rf_mimo_mode(priv)== MIMO_2T2R)
+		rate_limit = 16;
+	else if (get_rf_mimo_mode(priv)== MIMO_3T3R)
+		rate_limit = 24; 
 	else
 		rate_limit = 16;
 
@@ -620,7 +909,7 @@ unsigned int find_rate_MP(struct rtl8192cd_priv *priv, struct stat_info *pstat, 
 			{
 				if (pstat->ht_cap_buf.support_mcs[i/8] & BIT(i%8)) {
 					hirate = i;
-					hirate |= 0x80;
+					hirate += HT_RATE_ID;
 				}
 			}
 		}
@@ -631,7 +920,7 @@ unsigned int find_rate_MP(struct rtl8192cd_priv *priv, struct stat_info *pstat, 
 			{
 				if (peer_ht_cap->support_mcs[i/8] & BIT(i%8)) {
 					hirate = i;
-					hirate |= 0x80;
+					hirate += HT_RATE_ID;
 				}
 			}
 		}
@@ -657,8 +946,12 @@ unsigned int find_rate(struct rtl8192cd_priv *priv, struct stat_info *pstat, int
 	unsigned char totalrateset[32];
 #endif
 
-	if ((get_rf_mimo_mode(priv)== MIMO_1T2R) || (get_rf_mimo_mode(priv)== MIMO_1T1R))
+	if ((get_rf_mimo_mode(priv)== MIMO_1T2R) || (get_rf_mimo_mode(priv)== MIMO_1T1R)) //eric-8814 ?? 3t3r ??
 		rate_limit = 8;
+	else if (get_rf_mimo_mode(priv)== MIMO_2T2R)
+		rate_limit = 16;
+	else if (get_rf_mimo_mode(priv)== MIMO_3T3R)
+		rate_limit = 24; 
 	else
 		rate_limit = 16;
 
@@ -690,7 +983,7 @@ unsigned int find_rate(struct rtl8192cd_priv *priv, struct stat_info *pstat, int
 	hirate = _1M_RATE_;
 	lowrate = _54M_RATE_;
 	if (priv->pshare->curr_band == BAND_5G
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(RTK_5G_SUPPORT) 
 		|| priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G
 #endif
 		)
@@ -722,7 +1015,7 @@ unsigned int find_rate(struct rtl8192cd_priv *priv, struct stat_info *pstat, int
 			{
 				if (pstat->ht_cap_buf.support_mcs[i/8] & BIT(i&0x7)) {
 					hirate = i;
-					hirate |= 0x80;
+					hirate += HT_RATE_ID;
 				}
 			}
 		}
@@ -733,7 +1026,7 @@ unsigned int find_rate(struct rtl8192cd_priv *priv, struct stat_info *pstat, int
 			{
 				if (priv->ht_cap_buf.support_mcs[i/8] & BIT(i%8)) {
 					hirate = i;
-					hirate |= 0x80;
+					hirate += HT_RATE_ID;
 				}
 			}
 		}
@@ -752,6 +1045,17 @@ UINT8 get_rate_from_bit_value(int bit_val)
 
 	if (bit_val == 0)
 		return 0;
+	
+#ifdef RTK_AC_SUPPORT 	//vht rate 
+	if(bit_val & BIT(31)) {
+		i = bit_val - BIT(31);
+
+		if(i < VHT_RATE_NUM)
+			return (VHT_RATE_ID + i);
+		else
+			return _NSS1_MCS0_RATE_; //unknown rate value 
+	}
+#endif
 
 	i = 0;
 	while ((bit_val & BIT(i)) == 0)
@@ -760,7 +1064,15 @@ UINT8 get_rate_from_bit_value(int bit_val)
 	if (i < 12)
 		return dot11_rate_table[i];
 	else if (i < 28)
-		return ((i - 12) | 0x80);
+		return ((i - 12) + HT_RATE_ID);
+	if(bit_val & BIT(28)) {
+		i = bit_val - BIT(28);
+
+		if((i+16) < HT_RATE_NUM)
+			return (_MCS16_RATE_ + i);
+		else
+			return _MCS0_RATE_; //unknown rate value 
+	}
 	else
 		return 0;
 }
@@ -790,13 +1102,99 @@ int get_bit_value_from_ieee_value(UINT8 val)
 	return 0;
 }
 
+BOOLEAN CheckCts2SelfEnable(UINT8 rtsTxRate)
+{
+	return (rtsTxRate <= _11M_RATE_) ? 1 :0;
+}
+
+UINT8 find_rts_rate(struct rtl8192cd_priv *priv, UINT8 TxRate, BOOLEAN bErpProtect)
+{
+	UINT8 rtsTxRate = _6M_RATE_;
+
+	if(bErpProtect) // use CCK rate as RTS
+	{
+		rtsTxRate = _1M_RATE_;
+	}
+	else
+	{
+		switch (TxRate) 
+		{
+			case _NSS2_MCS9_RATE_:
+			case _NSS2_MCS8_RATE_:
+			case _NSS2_MCS7_RATE_:
+			case _NSS2_MCS6_RATE_:
+			case _NSS2_MCS5_RATE_:
+			case _NSS2_MCS4_RATE_:
+			case _NSS2_MCS3_RATE_:
+			case _NSS1_MCS9_RATE_:
+			case _NSS1_MCS8_RATE_:
+			case _NSS1_MCS7_RATE_:
+			case _NSS1_MCS6_RATE_:
+			case _NSS1_MCS5_RATE_:
+			case _NSS1_MCS4_RATE_:
+			case _NSS1_MCS3_RATE_:
+			case _MCS15_RATE_:
+			case _MCS14_RATE_:
+			case _MCS13_RATE_:
+			case _MCS12_RATE_:
+			case _MCS11_RATE_:
+			case _MCS7_RATE_:
+			case _MCS6_RATE_:
+			case _MCS5_RATE_:
+			case _MCS4_RATE_:
+			case _MCS3_RATE_:
+			case _54M_RATE_:
+			case _48M_RATE_:
+			case _36M_RATE_:
+			case _24M_RATE_:		
+				rtsTxRate = _24M_RATE_;
+				break;
+			case _NSS2_MCS2_RATE_:
+			case _NSS2_MCS1_RATE_:
+			case _NSS1_MCS2_RATE_:
+			case _NSS1_MCS1_RATE_:
+			case _MCS10_RATE_:
+			case _MCS9_RATE_:
+			case _MCS2_RATE_:
+			case _MCS1_RATE_:
+			case _18M_RATE_:
+			case _12M_RATE_:
+				rtsTxRate = _12M_RATE_;
+				break;
+			case _NSS2_MCS0_RATE_:
+			case _NSS1_MCS0_RATE_:
+			case _MCS8_RATE_:
+			case _MCS0_RATE_:
+			case _9M_RATE_:
+			case _6M_RATE_:
+				rtsTxRate = _6M_RATE_;
+				break;
+			case _11M_RATE_:
+			case _5M_RATE_:
+			case _2M_RATE_:
+			case _1M_RATE_:
+				rtsTxRate = _1M_RATE_;
+				break;
+			default:
+				rtsTxRate = _6M_RATE_;
+				break;
+		}
+	}
+
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) {
+	           if(rtsTxRate < _6M_RATE_)
+	                     rtsTxRate = _6M_RATE_;
+	}
+
+	return rtsTxRate;
+}
 
 void init_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
 	struct wifi_mib	*pmib = priv->pmib;
 	unsigned long	offset;
 	int i, j;
-#ifdef CONFIG_RTL_WAPI_SUPPORT
+#if !defined(SMP_SYNC) && defined(CONFIG_RTL_WAPI_SUPPORT)
 	unsigned long		flags;
 #endif
 
@@ -808,6 +1206,7 @@ void init_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	unsigned short	bk_aid;
 	unsigned char		bk_hwaddr[MACADDRLEN];
 
+
 	// init linked list header
 	// BUT do NOT init hash_list
 	INIT_LIST_HEAD(&pstat->asoc_list);
@@ -817,9 +1216,11 @@ void init_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	INIT_LIST_HEAD(&pstat->wakeup_list);
 	INIT_LIST_HEAD(&pstat->frag_list);
 
+#ifdef CONFIG_PCI_HCI
 	// to avoid add RAtid fail
 	INIT_LIST_HEAD(&pstat->addRAtid_list);
 	INIT_LIST_HEAD(&pstat->addrssi_list);
+#endif
 
 #ifdef CONFIG_RTK_MESH
 	INIT_LIST_HEAD(&pstat->mesh_mp_ptr);
@@ -828,28 +1229,31 @@ void init_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 #ifdef A4_STA
 	INIT_LIST_HEAD(&pstat->a4_sta_list);
 #endif
-
+#if defined(CONFIG_PCI_HCI)
 	skb_queue_head_init(&pstat->dz_queue);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	INIT_LIST_HEAD(&pstat->pspoll_list);
+
+	for (i = 0; i < MAX_STA_TX_SERV_QUEUE; ++i) {
+		_init_txservq(&pstat->tx_queue[i], i);
+	}
+	
+	pstat->pending_cmd = 0;
+	pstat->asoc_list_refcnt = 0;
+#ifdef __ECOS
+	cyg_flag_init(&pstat->asoc_unref_done);
+#else
+	init_completion(&pstat->asoc_unref_done);
+#endif
+#endif
 
 #ifdef SW_TX_QUEUE
-#ifdef __ECOS
-	init_timer(&pstat->swq.beq_timer, (unsigned long)pstat, rtl8192cd_beq_timer);
-	init_timer(&pstat->swq.bkq_timer, (unsigned long)pstat, rtl8192cd_bkq_timer);
-	init_timer(&pstat->swq.viq_timer, (unsigned long)pstat, rtl8192cd_viq_timer);
-	init_timer(&pstat->swq.voq_timer, (unsigned long)pstat, rtl8192cd_voq_timer);
-#else
-	init_timer(&pstat->swq.beq_timer);
-    init_timer(&pstat->swq.bkq_timer);
-    init_timer(&pstat->swq.viq_timer);
-    init_timer(&pstat->swq.voq_timer);
-#endif
-	skb_queue_head_init(&pstat->swq.be_queue);
-    skb_queue_head_init(&pstat->swq.bk_queue);
-    skb_queue_head_init(&pstat->swq.vi_queue);
-	skb_queue_head_init(&pstat->swq.vo_queue);
+    SMP_LOCK_XMIT(flags);  
 	for(i=BK_QUEUE;i<HIGH_QUEUE;i++) {	
-		pstat->swq.q_aggnum[i] = 1;	
+		pstat->swq.q_aggnum[i] = 2;			
+        skb_queue_head_init(&pstat->swq.swq_queue[i]);
 	}
+    SMP_UNLOCK_XMIT(flags);    
 #endif
 
 	// we do NOT reset MAC here
@@ -896,7 +1300,9 @@ void init_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			pstat->tpcache[i][j] = 0xffff;
 			// Stanldy mesh: pstat->tpcache[i][j] = j+1 is best solution, because its a hash table, fill slot[i] with i+1 can prevent collision,fix the packet loss of first unicast
 	pstat->tpcache_mgt = 0xffff;
-
+#ifdef CLIENT_MODE
+	pstat->tpcache_mcast = 0xffff;
+#endif
 #ifdef GBWC
 	for (i=0; i<priv->pmib->gbwcEntry.GBWCNum; i++) {
 		if (!memcmp(pstat->hwaddr, priv->pmib->gbwcEntry.GBWCAddr[i], MACADDRLEN)) {
@@ -915,16 +1321,22 @@ void init_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	pstat->mesh_neighbor_TBL.BSexpire_LLSAperiod = jiffies + MESH_EXPIRE_TO;
 #endif	//CONFIG_RTK_MESH
 
-	for (i=0; i<8; i++)
-		memset(&pstat->rc_entry[i], 0, sizeof(struct reorder_ctrl_entry));
+	memset(pstat->rc_entry, 0, sizeof(pstat->rc_entry));
 
 #ifdef SUPPORT_TX_AMSDU
 	for (i=0; i<8; i++)
 		skb_queue_head_init(&pstat->amsdu_tx_que[i]);
 #endif
 
-#ifdef HW_ANT_SWITCH
+#if defined (HW_ANT_SWITCH) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 	pstat->CurAntenna = priv->pshare->rf_ft_var.CurAntenna;
+#endif
+
+
+#ifdef CONFIG_IEEE80211W
+	init_timer(&pstat->SA_timer);
+	pstat->SA_timer.data = (unsigned long) pstat;
+	pstat->SA_timer.function = rtl8192cd_sa_query_timer;
 #endif
 
 #ifdef CONFIG_RTL_WAPI_SUPPORT
@@ -949,8 +1361,20 @@ void init_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 		RESTORE_INT(flags);
 	}
 #endif
+
 #ifdef USE_OUT_SRC		
+#ifdef _OUTSRC_COEXIST
+	if(IS_OUTSRC_CHIP(priv))
+#endif
 	ODM_CmnInfoPtrArrayHook(ODMPTR , ODM_CMNINFO_STA_STATUS, pstat->aid, pstat);
+#endif
+
+#ifdef MULTI_MAC_CLONE
+	if ((OPMODE & WIFI_STATION_STATE) && priv->pmib->ethBrExtInfo.macclone_enable) 
+	{
+		pstat->mclone_id = ACTIVE_ID;
+		memcpy(pstat->sa_addr, GET_MY_HWADDR, MACADDRLEN);		
+	}
 #endif
 }
 
@@ -964,13 +1388,15 @@ void dump_sta_dz_queue_num(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	// free all skb in dz_queue
 	
 	printk("---------------------------------------\n");
+#if defined(CONFIG_PCI_HCI)
 	printk("pstat->dz_queue:%d\n",skb_queue_len(&pstat->dz_queue));
+#endif
 
 #ifdef SW_TX_QUEUE
-	printk("swq.be_queue:%d\n",skb_queue_len(&pstat->swq.be_queue));
-	printk("swq.bk_queue:%d\n",skb_queue_len(&pstat->swq.bk_queue));
-	printk("swq.vi_queue:%d\n",skb_queue_len(&pstat->swq.vi_queue));
-	printk("swq.vo_queue:%d\n",skb_queue_len(&pstat->swq.vo_queue));
+	printk("swq.be_queue:%d\n",skb_queue_len(&pstat->swq.swq_queue[BE_QUEUE]));
+	printk("swq.bk_queue:%d\n",skb_queue_len(&pstat->swq.swq_queue[BK_QUEUE]));
+	printk("swq.vi_queue:%d\n",skb_queue_len(&pstat->swq.swq_queue[VI_QUEUE]));
+	printk("swq.vo_queue:%d\n",skb_queue_len(&pstat->swq.swq_queue[VO_QUEUE]));
 #endif
 
 #if defined(WIFI_WMM) && defined(WMM_APSD)
@@ -999,119 +1425,135 @@ void dump_sta_dz_queue_num(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 }
 #endif
 
+#ifdef CONFIG_PCI_HCI
 void free_sta_tx_skb(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
 #ifdef WIFI_WMM
-	int				hd, tl;
+    int				hd, tl;
 #endif
-	struct sk_buff	*pskb;
+    struct sk_buff	*pskb;
+#ifdef SW_TX_QUEUE
+    int i;
+#endif
+    SMP_LOCK_XMIT(x);    
 
-	// free all skb in dz_queue
-	while (skb_queue_len(&pstat->dz_queue)) {
-		pskb = skb_dequeue(&pstat->dz_queue);
-		rtl_kfree_skb(priv, pskb, _SKB_TX_);
-	}
+    // free all skb in dz_queue
+    while (skb_queue_len(&pstat->dz_queue)) {
+        pskb = skb_dequeue(&pstat->dz_queue);
+        rtl_kfree_skb(priv, pskb, _SKB_TX_);
+    }
 
 #ifdef SW_TX_QUEUE
-        while (skb_queue_len(&pstat->swq.be_queue)) {
-                pskb = skb_dequeue(&pstat->swq.be_queue);
-                rtl_kfree_skb(priv, pskb, _SKB_TX_);
+    for(i = BK_QUEUE; i < HIGH_QUEUE; i++) {
+        while (skb_queue_len(&pstat->swq.swq_queue[i])) {
+            pskb = skb_dequeue(&pstat->swq.swq_queue[i]);
+            rtl_kfree_skb(priv, pskb, _SKB_TX_);
         }
-	while (skb_queue_len(&pstat->swq.bk_queue)) {
-                pskb = skb_dequeue(&pstat->swq.bk_queue);
-                rtl_kfree_skb(priv, pskb, _SKB_TX_);
-        }
-	while (skb_queue_len(&pstat->swq.vi_queue)) {
-                pskb = skb_dequeue(&pstat->swq.vi_queue);
-                rtl_kfree_skb(priv, pskb, _SKB_TX_);
-        }
-	while (skb_queue_len(&pstat->swq.vo_queue)) {
-                pskb = skb_dequeue(&pstat->swq.vo_queue);
-                rtl_kfree_skb(priv, pskb, _SKB_TX_);
-        }
+    }
 #endif
 
 #if defined(WIFI_WMM) && defined(WMM_APSD)
-	hd = pstat->VO_dz_queue->head;
-	tl = pstat->VO_dz_queue->tail;
-	while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
-		pskb = pstat->VO_dz_queue->pSkb[tl];
-		rtl_kfree_skb(priv, pskb, _SKB_TX_);
-		tl++;
-		tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
-	}
-	pstat->VO_dz_queue->head = 0;
-	pstat->VO_dz_queue->tail = 0;
+    hd = pstat->VO_dz_queue->head;
+    tl = pstat->VO_dz_queue->tail;
+    while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
+        pskb = pstat->VO_dz_queue->pSkb[tl];
+        rtl_kfree_skb(priv, pskb, _SKB_TX_);
+        tl++;
+        tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
+    }
+    pstat->VO_dz_queue->head = 0;
+    pstat->VO_dz_queue->tail = 0;
 
-	hd = pstat->VI_dz_queue->head;
-	tl = pstat->VI_dz_queue->tail;
-	while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
-		pskb = pstat->VI_dz_queue->pSkb[tl];
-		rtl_kfree_skb(priv, pskb, _SKB_TX_);
-		tl++;
-		tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
-	}
-	pstat->VI_dz_queue->head = 0;
-	pstat->VI_dz_queue->tail = 0;
+    hd = pstat->VI_dz_queue->head;
+    tl = pstat->VI_dz_queue->tail;
+    while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
+        pskb = pstat->VI_dz_queue->pSkb[tl];
+        rtl_kfree_skb(priv, pskb, _SKB_TX_);
+        tl++;
+        tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
+    }
+    pstat->VI_dz_queue->head = 0;
+    pstat->VI_dz_queue->tail = 0;
 
-	hd = pstat->BE_dz_queue->head;
-	tl = pstat->BE_dz_queue->tail;
-	while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
-		pskb = pstat->BE_dz_queue->pSkb[tl];
-		rtl_kfree_skb(priv, pskb, _SKB_TX_);
-		tl++;
-		tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
-	}
-	pstat->BE_dz_queue->head = 0;
-	pstat->BE_dz_queue->tail = 0;
+    hd = pstat->BE_dz_queue->head;
+    tl = pstat->BE_dz_queue->tail;
+    while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
+        pskb = pstat->BE_dz_queue->pSkb[tl];
+        rtl_kfree_skb(priv, pskb, _SKB_TX_);
+        tl++;
+        tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
+    }
+    pstat->BE_dz_queue->head = 0;
+    pstat->BE_dz_queue->tail = 0;
 
-	hd = pstat->BK_dz_queue->head;
-	tl = pstat->BK_dz_queue->tail;
-	while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
-		pskb = pstat->BK_dz_queue->pSkb[tl];
-		rtl_kfree_skb(priv, pskb, _SKB_TX_);
-		tl++;
-		tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
-	}
-	pstat->BK_dz_queue->head = 0;
-	pstat->BK_dz_queue->tail = 0;
+    hd = pstat->BK_dz_queue->head;
+    tl = pstat->BK_dz_queue->tail;
+    while (CIRC_CNT(hd, tl, NUM_APSD_TXPKT_QUEUE)) {
+        pskb = pstat->BK_dz_queue->pSkb[tl];
+        rtl_kfree_skb(priv, pskb, _SKB_TX_);
+        tl++;
+        tl = tl & (NUM_APSD_TXPKT_QUEUE - 1);
+    }
+    pstat->BK_dz_queue->head = 0;
+    pstat->BK_dz_queue->tail = 0;
 #endif
 #if defined(WIFI_WMM)
-	hd = pstat->MGT_dz_queue->head;
-	tl = pstat->MGT_dz_queue->tail;
-	while (CIRC_CNT(hd, tl, NUM_DZ_MGT_QUEUE)) {
-		struct tx_insn *ptx_insn = pstat->MGT_dz_queue->ptx_insn[tl];
-		release_mgtbuf_to_poll(priv, ptx_insn->pframe);
-		release_wlanhdr_to_poll(priv, ptx_insn->phdr);
-		kfree(ptx_insn);
-		tl++;
-		tl = tl & (NUM_DZ_MGT_QUEUE - 1);
-	}
-	pstat->MGT_dz_queue->head = 0;
-	pstat->MGT_dz_queue->tail = 0;
+    hd = pstat->MGT_dz_queue->head;
+    tl = pstat->MGT_dz_queue->tail;
+    while (CIRC_CNT(hd, tl, NUM_DZ_MGT_QUEUE)) {
+        struct tx_insn *ptx_insn = pstat->MGT_dz_queue->ptx_insn[tl];
+        release_mgtbuf_to_poll(priv, ptx_insn->pframe);
+        release_wlanhdr_to_poll(priv, ptx_insn->phdr);
+        kfree(ptx_insn);
+        tl++;
+        tl = tl & (NUM_DZ_MGT_QUEUE - 1);
+    }
+    pstat->MGT_dz_queue->head = 0;
+    pstat->MGT_dz_queue->tail = 0;
 
-	
+
 #ifdef DZ_ADDBA_RSP
-	pstat->dz_addba.used = 0;
+    pstat->dz_addba.used = 0;
 #endif
-#endif	
+#endif
+
+    SMP_UNLOCK_XMIT(x);
+
 }
+#endif // CONFIG_PCI_HCI
+
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+void free_sta_tx_skb(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+	int i;
+	for (i = 0; i < MAX_STA_TX_SERV_QUEUE; ++i) {
+		rtw_txservq_flush(priv, &pstat->tx_queue[i]);
+	}
+}
+#endif
 
 void free_sta_skb(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
 	int	 i, j;
+	struct list_head frag_list;
 	struct sk_buff	*pskb;
+	unsigned long flags;
+	
 	free_sta_tx_skb(priv,pstat);
+	
 	// free all skb in frag_list
-	while (!list_empty(&(pstat->frag_list)))
-	{
-		pskb = get_skb_frlist((pstat->frag_list.next),
-			(unsigned long)(&((struct rx_frinfo *)0)->mpdu_list));
-		list_del((pstat->frag_list.next));
-		rtl_kfree_skb(priv, pskb, _SKB_RX_);
-	}
+	INIT_LIST_HEAD(&frag_list);
+
+#if 1//!defined(__ECOS)
+	DEFRAG_LOCK(flags);
+	list_splice_init(&pstat->frag_list, &frag_list);
+	DEFRAG_UNLOCK(flags);
+#endif
+	
+	unchainned_all_frag(priv, &frag_list);
 
 	// free all skb in rc queue
+	SMP_LOCK_REORDER_CTRL(flags);
 	for (i=0; i<8; i++) {
 		pstat->rc_entry[i].start_rcv = FALSE;
 		for (j=0; j<128; j++) {
@@ -1122,59 +1564,43 @@ void free_sta_skb(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			}
 		}
 	}
+	SMP_UNLOCK_REORDER_CTRL(flags);
 }
 
 
 void release_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
 	int				i;
-#ifdef CONFIG_RTL_WAPI_SUPPORT
 	unsigned long		flags;
-#endif
 
-#ifdef USE_OUT_SRC	
-	if (priv->pshare->is_40m_bw && (pstat->IOTPeer == HT_IOT_PEER_MARVELL)){
-#else
-	if (priv->pshare->is_40m_bw && pstat->is_marvell_sta == 1){
-#endif		
-#ifdef STA_EXT
-		if (pstat->aid > FW_NUM_STAT)
-			priv->pshare->marvellMapBitExt &= ~BIT(pstat->aid - FW_NUM_STAT - 1);
-		else
-#endif
-#ifdef CONFIG_RTL_88E_SUPPORT
-		if ((GET_CHIP_VER(priv) == VERSION_8188E) && (pstat->aid > 32))
-			priv->pshare->marvellMapBit_88e_hw_ext &= ~BIT(pstat->aid - 32 - 1);
-		else
-#endif
-			priv->pshare->marvellMapBit &= ~BIT(pstat->aid - 1);
+	if (priv->pshare->is_40m_bw && (pstat->IOTPeer == HT_IOT_PEER_MARVELL))
 
-#ifdef STA_EXT
-		if ( (priv->pshare->marvellMapBit == 0 && priv->pshare->marvellMapBitExt == 0) && (priv->pshare->Reg_RRSR_2 != 0) && (priv->pshare->Reg_81b != 0))
-#else
-		if (((priv->pshare->marvellMapBit == 0)
-#ifdef CONFIG_RTL_88E_SUPPORT
-			&& ((GET_CHIP_VER(priv) == VERSION_8188E)?(priv->pshare->marvellMapBit_88e_hw_ext == 0):1)
+	{
+	    clearSTABitMap(&priv->pshare->marvellMapBit, pstat->aid);
+
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
+		if((GET_CHIP_VER(priv)==VERSION_8812E)||(GET_CHIP_VER(priv)==VERSION_8881A)){
+		}
+        else
 #endif
-			) && (priv->pshare->Reg_RRSR_2 != 0) && (priv->pshare->Reg_81b != 0))
-#endif
+		if ((orSTABitMap(&priv->pshare->marvellMapBit) == 0) &&
+			 (priv->pshare->Reg_RRSR_2 != 0) && (priv->pshare->Reg_81b != 0))
 		{
+#if defined(CONFIG_PCI_HCI)
 			RTL_W8(RRSR+2, priv->pshare->Reg_RRSR_2);
 			RTL_W8(0x81b, priv->pshare->Reg_81b);
 			priv->pshare->Reg_RRSR_2 = 0;
 			priv->pshare->Reg_81b = 0;
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+			notify_40M_RRSR_SC_change(priv);
+#endif
 		}
 	}
 
-#ifdef SMART_CONCURRENT_92D
-	if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY) {
-		if (priv->assoc_num == 0 && priv->smcc_state == 1) {
-			printk("[%s]", __FUNCTION__);
-			priv->smcc_state = 0;
-			smcc_signin_linkstate(priv, 1, priv->pmib->dot11RFEntry.smcc_t, priv->smcc_state);
-		}
-	}
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+	update_40m_staMap(priv, pstat, 1);
 #endif
+
 	// flush the stainfo cache
 	//if (!memcmp(pstat->hwaddr, priv->stainfo_cache.hwaddr, MACADDRLEN))
 	//	memset(&(priv->stainfo_cache), 0, sizeof(priv->stainfo_cache));
@@ -1186,63 +1612,87 @@ void release_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 	// delete all list
 	// BUT do NOT delete hash list
-	if (!list_empty(&(pstat->asoc_list)))
-		list_del_init(&(pstat->asoc_list));
+	asoc_list_del(priv, pstat);
+	auth_list_del(priv, pstat);
+	sleep_list_del(priv, pstat);
+	wakeup_list_del(priv, pstat);
 
-	if (!list_empty(&(pstat->auth_list)))
-		list_del_init(&(pstat->auth_list));
-
-	if (!list_empty(&(pstat->sleep_list)))
-		list_del_init(&(pstat->sleep_list));
-
+	DEFRAG_LOCK(flags);
 	if (!list_empty(&(pstat->defrag_list)))
 		list_del_init(&(pstat->defrag_list));
+	DEFRAG_UNLOCK(flags);
 
-	if (!list_empty(&(pstat->wakeup_list)))
-		list_del_init(&(pstat->wakeup_list));
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	rtw_pspoll_sta_delete(priv, pstat);
+#endif
 
+#ifdef CONFIG_PCI_HCI
 	// to avoid add RAtid fail
 	if (!list_empty(&(pstat->addRAtid_list)))
 		list_del_init(&(pstat->addRAtid_list));
 
 	if (!list_empty(&(pstat->addrssi_list)))
 		list_del_init(&(pstat->addrssi_list));
+#endif
 
-#ifdef SW_TX_QUEUE
-	if (timer_pending(&pstat->swq.beq_timer))
-                del_timer_sync(&pstat->swq.beq_timer);
-	if (timer_pending(&pstat->swq.bkq_timer))
-                del_timer_sync(&pstat->swq.bkq_timer);
-	if (timer_pending(&pstat->swq.viq_timer))
-                del_timer_sync(&pstat->swq.viq_timer);
-	if (timer_pending(&pstat->swq.voq_timer))
-                del_timer_sync(&pstat->swq.voq_timer);
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
+	#if defined(CONFIG_USB_HCI)
+	rtw_flush_h2c_cmd_queue(priv, pstat);
+	#endif
+#elif defined(CONFIG_RTL_88E_SUPPORT)
+	#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	rtw_flush_cmd_queue(priv, pstat);
+	#endif
+#endif
+
+
+#ifdef CONFIG_IEEE80211W
+	if (timer_pending(&pstat->SA_timer))
+	    del_timer(&pstat->SA_timer);
+#endif
+
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	for (i = 0; i < MAX_STA_TX_SERV_QUEUE; ++i) {
+		_rtw_spinlock_free(&(pstat->tx_queue[i].xframe_queue.lock));
+	}
 #endif
 
 #ifdef CONFIG_RTK_MESH
+	SMP_LOCK_MESH_MP_HDR(flags);
 	if (!list_empty(&(pstat->mesh_mp_ptr)))
 		list_del_init(&(pstat->mesh_mp_ptr));
+	SMP_UNLOCK_MESH_MP_HDR(flags);
 
 	pstat->mesh_neighbor_TBL.State = MP_UNUSED;	// reset state (clean is high priority)
 
-	PathSelection_del_tbl_entry(priv, pstat->hwaddr);	// add by Galileo
 //yschen 2009-03-04
 #if defined(UNIVERSAL_REPEATER) || defined(MBSSID) // 1.Proxy_table in root interface NOW!! 2.Spare for Mesh work with Multiple AP (Please see Mantis 0000107 for detail)
     if(IS_ROOT_INTERFACE(priv))
 #endif
 	{
-		HASH_DELETE(priv->proxy_table, pstat->hwaddr);
+        remove_proxy_table(priv, pstat->hwaddr);
+        clear_route_info(priv, pstat->hwaddr); 
 	}
 #endif
 
 #ifdef A4_STA
-	if (!list_empty(&pstat->a4_sta_list))
-		list_del_init(&pstat->a4_sta_list);	
+    if(pstat->state & WIFI_A4_STA) {
+        a4_sta_cleanup(priv, pstat);
+    }
+
+    if (!list_empty(&pstat->a4_sta_list))
+        list_del_init(&pstat->a4_sta_list);	
+#endif
+
+#ifdef TV_MODE
+    if(priv->tv_mode_status & BIT1) { /*TV mode is auto, check if there is STA that support tv auto*/
+        tv_mode_auto_support_check(priv);
+    }
 #endif
 
 	// remove key in CAM
 	if (pstat->dot11KeyMapping.keyInCam == TRUE) {
-		if (priv->drv_state & DRV_STATE_OPEN) {
+		if (GET_ROOT(priv)->drv_state & DRV_STATE_OPEN) {
 			if (CamDeleteOneEntry(priv, pstat->hwaddr, 0, 0)) {
 				pstat->dot11KeyMapping.keyInCam = FALSE;
 				priv->pshare->CamEntryOccupied--;
@@ -1257,9 +1707,23 @@ void release_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 		}
 	}
 
-	for (i=0; i<RC_TIMER_NUM; i++)
+	SMP_LOCK_REORDER_CTRL(flags);
+	for (i=0; i<RC_TIMER_NUM; i++) {
 		if (priv->pshare->rc_timer[i].pstat == pstat)
 			priv->pshare->rc_timer[i].pstat = NULL;
+		if (priv->pshare->rc_timer_cli[i].pstat == pstat)
+			priv->pshare->rc_timer_cli[i].pstat = NULL;
+	}
+	SMP_UNLOCK_REORDER_CTRL(flags);
+#ifdef SW_TX_QUEUE
+    SMP_LOCK_XMIT(flags);  
+    for (i = BK_QUEUE; i <= VO_QUEUE; i++) {
+        if(pstat->swq.swq_timer_id[i]) {
+            rtl8192cd_swq_deltimer(priv, pstat, i);
+        }
+    }
+    SMP_UNLOCK_XMIT(flags);    
+#endif
 
 #ifdef WDS
 	pstat->state &= WIFI_WDS;
@@ -1268,24 +1732,26 @@ void release_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 #endif
 
 #ifdef TX_SHORTCUT
-	for (i=0; i<TX_SC_ENTRY_NUM; i++)
-		memset(&pstat->tx_sc_ent[i], 0, sizeof(struct tx_sc_entry));
+	memset(pstat->tx_sc_ent, 0, sizeof(pstat->tx_sc_ent));
 #endif
 
 #ifdef RX_SHORTCUT
-	pstat->rx_payload_offset = 0;
+	for (i=0; i<RX_SC_ENTRY_NUM; i++)
+		pstat->rx_sc_ent[i].rx_payload_offset = 0;
 #endif
 
 #ifdef INCLUDE_WPA_PSK
-	if (timer_pending(&pstat->wpa_sta_info->resendTimer))
-		del_timer_sync(&pstat->wpa_sta_info->resendTimer);
+	if (timer_pending(&pstat->wpa_sta_info->resendTimer)) {
+		del_timer(&pstat->wpa_sta_info->resendTimer);
+	}
 #endif
 
-#ifdef STA_EXT
 	release_remapAid(priv, pstat);
-#endif
 
 #ifdef USE_OUT_SRC
+#ifdef _OUTSRC_COEXIST
+	if(IS_OUTSRC_CHIP(priv))
+#endif
 	ODM_CmnInfoPtrArrayHook(ODMPTR , ODM_CMNINFO_STA_STATUS, pstat->aid, 0);
 #endif
 #ifdef SUPPORT_TX_AMSDU
@@ -1293,14 +1759,13 @@ void release_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 		free_skb_queue(priv, &pstat->amsdu_tx_que[i]);
 #endif
 
+#ifdef BEAMFORMING_SUPPORT
+	if (priv->pmib->dot11RFEntry.txbf == 1 && (GET_CHIP_VER(priv) == VERSION_8812E || GET_CHIP_VER(priv) == VERSION_8192E) )
+		Beamforming_DeInitEntry(priv, pstat->hwaddr);
+#endif
 #if 1
 #if defined(BR_SHORTCUT) && defined(RTL_CACHED_BR_STA)
-	{
-		extern unsigned char cached_br_sta_mac[MACADDRLEN];
-		extern struct net_device *cached_br_sta_dev;
-		memset(cached_br_sta_mac, 0, MACADDRLEN);
-		cached_br_sta_dev = NULL;
-	}
+	release_brsc_cache(pstat->hwaddr);
 #endif
 #if defined(CONFIG_RTL_FASTBRIDGE)
 		rtl_fb_del_entry(pstat->hwaddr);
@@ -1311,51 +1776,28 @@ void release_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 #endif
 #endif
 #ifdef CONFIG_RTL_WAPI_SUPPORT
-	SAVE_INT_AND_CLI(flags);
-	if (pstat->wapiInfo)
-	{
-		del_timer(&pstat->wapiInfo->waiResendTimer);
-		del_timer(&pstat->wapiInfo->waiUCastKeyUpdateTimer);
-		wapiReleaseFragementQueue(pstat->wapiInfo);
-		if (pstat->wapiInfo->waiCertCachedData!=NULL)
-		{
-			kfree(pstat->wapiInfo->waiCertCachedData);
-			pstat->wapiInfo->waiCertCachedData = NULL;
-		}
-		kfree( pstat->wapiInfo );
-		pstat->wapiInfo = NULL;
-	}
-	RESTORE_INT(flags);
+	free_sta_wapiInfo(priv, pstat);
 #endif
 }
 
 
 struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwaddr, int id)
 {
-	unsigned long	flags;
-	unsigned int	i,index;
-	struct list_head	*phead, *plist;
-	struct stat_info	*pstat;
-
-	SAVE_INT_AND_CLI(flags);
-#ifdef SMART_CONCURRENT_92D
-	if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY) {
-		if (priv->assoc_num == 0 && priv->smcc_state == 0) {
-			printk("[%s]", __FUNCTION__);
-			priv->smcc_state = 1;
-			smcc_signin_linkstate(priv, 1, priv->pmib->dot11RFEntry.smcc_t, priv->smcc_state);
-		}
-	}
+#if !defined(SMP_SYNC) || (defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI))
+    unsigned long	flags;
 #endif
+    unsigned int	i;
+    struct list_head	*phead, *plist;
+    struct stat_info	*pstat;
+
+    SAVE_INT_AND_CLI(flags);
 
 	if (id < 0) { // not from FAST_RECOVERY
 	// any free sta info?
 		for(i=0; i<NUM_STAT; i++) {
 			if (priv->pshare->aidarray[i] && (priv->pshare->aidarray[i]->used == FALSE))
 			{
-#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
 				priv->pshare->aidarray[i]->priv = priv;
-#endif
 				priv->pshare->aidarray[i]->used = TRUE;
 				pstat = &(priv->pshare->aidarray[i]->station);
 				memcpy(pstat->hwaddr, hwaddr, MACADDRLEN);
@@ -1372,10 +1814,7 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 #endif
 
 				// insert to hash list
-				index = wifi_mac_hash(hwaddr);
-				plist = priv->stat_hash;
-				plist += index;
-				list_add_tail(&(pstat->hash_list), plist);
+				hash_list_add(priv, pstat);
 
 				RESTORE_INT(flags);
 				return pstat;
@@ -1405,6 +1844,7 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 				goto no_free_memory;
 			memset(priv->pshare->aidarray[i], 0, sizeof(struct aid_obj));
 
+#ifdef CONFIG_PCI_HCI
 #if defined(WIFI_WMM) && defined(WMM_APSD)
 #ifdef PRIV_STA_BUF
 			priv->pshare->aidarray[i]->station.VO_dz_queue = alloc_sta_que(priv);
@@ -1453,8 +1893,9 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 				goto no_free_memory;
 			memset(priv->pshare->aidarray[i]->station.MGT_dz_queue, 0, sizeof(struct dz_mgmt_queue));
 #endif
+#endif // CONFIG_PCI_HCI
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 #ifdef PRIV_STA_BUF
 			priv->pshare->aidarray[i]->station.wpa_sta_info = alloc_wpa_buf(priv);
 #else
@@ -1465,16 +1906,14 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 			memset(priv->pshare->aidarray[i]->station.wpa_sta_info, 0, sizeof(WPA_STA_INFO));
 #endif
 
-#ifdef WIFI_HAPD
+#if defined(WIFI_HAPD) || defined(RTK_NL80211)
 			memset(priv->pshare->aidarray[i]->station.wpa_ie, 0, 256);
 #ifndef HAPD_DRV_PSK_WPS
 			memset(priv->pshare->aidarray[i]->station.wps_ie, 0, 256);
 #endif
 #endif
 
-#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
 			priv->pshare->aidarray[i]->priv = priv;
-#endif
 			INIT_LIST_HEAD(&(priv->pshare->aidarray[i]->station.hash_list));
 			priv->pshare->aidarray[i]->station.aid = i + 1; //aid 0 is reserved for AP
 			priv->pshare->aidarray[i]->used = TRUE;
@@ -1508,16 +1947,15 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 			init_stainfo(priv, pstat);
 
 			// insert to hash list
-			index = wifi_mac_hash(hwaddr);
-			plist = priv->stat_hash;
-			plist += index;
-			list_add_tail(&(pstat->hash_list), plist);
+			hash_list_add(priv, pstat);
 
 			RESTORE_INT(flags);
 			return pstat;
 	}
 
 	// no more free sta info, check idle sta
+	SMP_LOCK_ASOC_LIST(flags);
+	
 	phead = &priv->asoc_list;
 	plist = phead->next;
 
@@ -1535,14 +1973,14 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 #endif
 		)
 		{
+			SMP_UNLOCK_ASOC_LIST(flags);
+			
 			i = pstat->aid - 1;
 			release_stainfo(priv, pstat);
-			list_del_init(&(pstat->hash_list));
+			hash_list_del(priv, pstat);
 
 			priv->pshare->aidarray[i]->used = TRUE;
-#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
 			priv->pshare->aidarray[i]->priv = priv;
-#endif
 			memcpy(pstat->hwaddr, hwaddr, MACADDRLEN);
 			init_stainfo(priv, pstat);
 #if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
@@ -1554,10 +1992,7 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 #endif
 #endif
 			// insert to hash list
-			index = wifi_mac_hash(hwaddr);
-			plist = priv->stat_hash;
-			plist += index;
-			list_add_tail(&(pstat->hash_list), plist);
+			hash_list_add(priv, pstat);
 
 			RESTORE_INT(flags);
 			return pstat;
@@ -1566,6 +2001,7 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 			plist = plist->next;
 	}
 
+	SMP_UNLOCK_ASOC_LIST(flags);
 	RESTORE_INT(flags);
 	DEBUG_ERR("AID buf is not enough\n");
 	return	(struct stat_info *)NULL;
@@ -1573,7 +2009,7 @@ struct	stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwad
 no_free_memory:
 
 	if (priv->pshare->aidarray[i]) {
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 		if (priv->pshare->aidarray[i]->station.wpa_sta_info)
 #ifdef PRIV_STA_BUF
 			free_wpa_buf(priv, priv->pshare->aidarray[i]->station.wpa_sta_info);
@@ -1581,6 +2017,8 @@ no_free_memory:
 			kfree(priv->pshare->aidarray[i]->station.wpa_sta_info);
 #endif
 #endif
+
+#ifdef CONFIG_PCI_HCI
 #if defined(WIFI_WMM) && defined(WMM_APSD)
 #ifdef PRIV_STA_BUF
 		if (priv->pshare->aidarray[i]->station.VO_dz_queue)
@@ -1613,6 +2051,7 @@ no_free_memory:
 
 #endif
 #endif
+#endif // CONFIG_PCI_HCI
 
 #ifdef RTL8192CD_VARIABLE_USED_DMEM
 		rtl8192cd_dmem_free(AID_OBJ, &i);
@@ -1631,10 +2070,77 @@ no_free_memory:
 	return NULL;
 }
 
+#ifdef CONFIG_IEEE80211W
+int del_station(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+#ifndef SMP_SYNC
+	unsigned long flags;
+#endif
+	DOT11_DISASSOCIATION_IND Disassociation_Ind;
+
+	if (!netif_running(priv->dev))
+		return 0;
+
+	if (pstat == NULL)
+		return 0;
+
+	if (!list_empty(&pstat->asoc_list))
+	{
+		if (IEEE8021X_FUN)
+		{
+#ifndef WITHOUT_ENQUEUE
+			memcpy((void *)Disassociation_Ind.MACAddr, (void *)pstat->hwaddr, MACADDRLEN);
+			Disassociation_Ind.EventId = DOT11_EVENT_DISASSOCIATION_IND;
+			Disassociation_Ind.IsMoreEvent = 0;
+			Disassociation_Ind.Reason = _STATS_OTHER_;
+			Disassociation_Ind.tx_packets = pstat->tx_pkts;
+			Disassociation_Ind.rx_packets = pstat->rx_pkts;
+			Disassociation_Ind.tx_bytes   = pstat->tx_bytes;
+			Disassociation_Ind.rx_bytes   = pstat->rx_bytes;
+			DOT11_EnQueue((unsigned long)priv, priv->pevent_queue, (UINT8 *)&Disassociation_Ind,
+						sizeof(DOT11_DISASSOCIATION_IND));
+#endif
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+			psk_indicate_evt(priv, DOT11_EVENT_DISASSOCIATION_IND, pstat->hwaddr, NULL, 0);
+#endif
+
+#ifdef WIFI_HAPD
+			event_indicate_hapd(priv, pstat->hwaddr, HAPD_EXIRED, NULL);
+#ifdef HAPD_DRV_PSK_WPS
+			event_indicate(priv, pstat->hwaddr, 2);
+#endif
+#else
+			event_indicate(priv, pstat->hwaddr, 2);
+#endif
+		}
+
+		if (pstat->expire_to > 0)
+		{
+			SAVE_INT_AND_CLI(flags);
+			cnt_assoc_num(priv, pstat, DECREASE, (char *)__FUNCTION__);
+			check_sta_characteristic(priv, pstat, DECREASE);
+			RESTORE_INT(flags);			
+		}
+	}
+
+	free_stainfo(priv, pstat);
+
+#ifdef CLIENT_MODE
+	if (OPMODE & WIFI_STATION_STATE) {
+		OPMODE_VAL(OPMODE & ~(WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE));
+		start_clnt_lookup(priv, DONTRESCAN);
+	}
+#endif
+
+	return 1;
+}
+#endif
 
 int	free_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
+#ifndef SMP_SYNC
 	unsigned long	flags;
+#endif
 	unsigned int	i;
 
 	if (pstat == (struct stat_info *)NULL)
@@ -1667,8 +2173,7 @@ int	free_stainfo(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			{
 				priv->pshare->aidarray[i]->used = FALSE;
 				// remove from hash_list
-				if (!list_empty(&(pstat->hash_list)))
-					list_del_init(&(pstat->hash_list));
+				hash_list_del(priv, pstat);
 #if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT) && !defined(RATEADAPTIVE_BY_ODM)
 				if (GET_CHIP_VER(priv)==VERSION_8188E)
 					priv->pshare->RaInfo[pstat->aid].pstat = NULL;
@@ -1694,48 +2199,114 @@ __MIPS16
 __IRAM_IN_865X
 struct stat_info *get_stainfo(struct rtl8192cd_priv *priv, unsigned char *hwaddr)
 {
-	struct list_head	*plist;
+	struct list_head	*phead, *plist;
 	struct stat_info	*pstat;
 	unsigned int	index;
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
+
+#ifdef RTK_NL80211
+	if(hwaddr == NULL)
+		return (struct stat_info *)NULL;
+#endif
 
 	//if (!memcmp(hwaddr, priv->stainfo_cache.hwaddr, MACADDRLEN) &&  priv->stainfo_cache.pstat)
 	pstat = priv->pstat_cache;
-    if (pstat && !memcmp(hwaddr, pstat->hwaddr, MACADDRLEN))
+
+#ifdef MULTI_MAC_CLONE
+	if ((priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE) && MCLONE_NUM > 0) {
+	    if (pstat && !memcmp(hwaddr, pstat->hwaddr, MACADDRLEN) && pstat->mclone_id == ACTIVE_ID)
 		return pstat;
+	}
+	else
+#endif
+	{
+    if(pstat && isEqualMACAddr(hwaddr, pstat->hwaddr))
+		return pstat;
+	}
 
 	index = wifi_mac_hash(hwaddr);
-	plist = &priv->stat_hash[index];
+	phead = &priv->stat_hash[index];
+	
+	SMP_LOCK_HASH_LIST(flags);
 
-	while (plist->next != &(priv->stat_hash[index]))
+	plist = phead->next;
+	while (plist != phead)
 	{
-		plist = plist->next;
 		pstat = list_entry(plist, struct stat_info ,hash_list);
-
-		if (pstat == NULL) {
-			printk("%s: pstat=NULL!\n", __FUNCTION__);
-			break;
-		}
-
+		plist = plist->next;
+		
 		if (!(memcmp((void *)pstat->hwaddr, (void *)hwaddr, MACADDRLEN))) { // if found the matched address
-			//memcpy(priv->stainfo_cache.hwaddr, hwaddr, MACADDRLEN);
-			priv->pstat_cache = pstat;
-			return pstat;
+#ifdef MULTI_MAC_CLONE
+			if (!(priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE) ||
+				((priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE) &&
+										!priv->pmib->ethBrExtInfo.macclone_enable) ||
+					((priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE) &&
+						priv->pmib->ethBrExtInfo.macclone_enable & (pstat->mclone_id == ACTIVE_ID))) 
+#endif		
+			{
+				priv->pstat_cache = pstat;
+				goto exit;
+			}
 		}
+#ifdef CONFIG_PCI_HCI
 		if (plist == plist->next)
 			break;
+#endif
 	}
-	return (struct stat_info *)NULL;
+	
+	pstat = NULL;
+	
+exit:
+	SMP_UNLOCK_HASH_LIST(flags);
+	
+	return pstat;
 }
 
+
+#ifdef HW_FILL_MACID
+__MIPS16
+__IRAM_IN_865X
+struct stat_info *get_HW_mapping_sta(struct rtl8192cd_priv *priv, unsigned char macID)
+{
+    struct aid_obj  *obj;
+    
+    if(macID > 0)
+    {
+        if((macID >= 0x7E))
+            return (struct stat_info *)NULL;
+        else
+            return &(priv->pshare->aidarray[macID-1]->station);
+
+        /*
+        obj = priv->pshare->aidarray[macID-1];
+
+        if(obj->priv == priv)
+            return &(priv->pshare->aidarray[macID-1]->station);
+        else
+        {
+            printk("obj error at macID %x \n",macID);
+            return (struct stat_info *)NULL;
+        }*/
+        
+    }
+}
+#endif // #ifdef HW_FILL_MACID
 
 /* aid is only meaningful for assocated stations... */
 struct stat_info *get_aidinfo(struct rtl8192cd_priv *priv, unsigned int aid)
 {
 	struct list_head	*plist, *phead;
-	struct stat_info	*pstat;
+	struct stat_info	*pstat = NULL;
+#if defined(SMP_SYNC) && (defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI))
+	unsigned long flags = 0;
+#endif
 
 	if (aid == 0)
 		return (struct stat_info *)NULL;
+	
+	SMP_LOCK_ASOC_LIST(flags);
 
 	phead = &priv->asoc_list;
 	plist = phead->next;
@@ -1745,19 +2316,27 @@ struct stat_info *get_aidinfo(struct rtl8192cd_priv *priv, unsigned int aid)
 		pstat = list_entry(plist, struct stat_info, asoc_list);
 		plist = plist->next;
 		if (pstat->aid == aid)
-			return pstat;
+			goto exit;
 	}
-	return (struct stat_info *)NULL;
+exit:
+	SMP_UNLOCK_ASOC_LIST(flags);
+	
+	return pstat;
 }
 
-#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
+#if defined(TXREPORT)
 struct stat_info *get_macidinfo(struct rtl8192cd_priv *priv, unsigned int aid)
 {
 	struct list_head	*plist, *phead;
-	struct stat_info	*pstat;
+	struct stat_info	*pstat = NULL;
+#if defined(SMP_SYNC) && (defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI))
+	unsigned long flags = 0;
+#endif
 
 	if (aid == 0)
 		return (struct stat_info *)NULL;
+	
+	SMP_LOCK_ASOC_LIST(flags);
 
 	phead = &priv->asoc_list;
 	plist = phead->next;
@@ -1767,9 +2346,12 @@ struct stat_info *get_macidinfo(struct rtl8192cd_priv *priv, unsigned int aid)
 		pstat = list_entry(plist, struct stat_info, asoc_list);
 		plist = plist->next;
 		if (REMAP_AID(pstat) == aid)
-			return pstat;
+			goto exit;
 	}
-	return (struct stat_info *)NULL;
+exit:
+	SMP_UNLOCK_ASOC_LIST(flags);
+	
+	return pstat;
 }
 #endif
 
@@ -1778,7 +2360,8 @@ int IS_BSSID(struct rtl8192cd_priv *priv, unsigned char *da)
 	unsigned char *bssid;
 	bssid = priv->pmib->dot11StationConfigEntry.dot11Bssid;
 
-	if (!memcmp(da, bssid, 6))
+	//if (!memcmp(da, bssid, 6))
+	if (isEqualMACAddr(da, bssid))
 		return TRUE;
 	else
 		return FALSE;
@@ -1791,6 +2374,14 @@ int IS_MCAST(unsigned char *da)
 		return TRUE;
 	else
 		return FALSE;
+}
+
+int IS_BCAST2(unsigned char *da)
+{
+     if ((*da) == 0xff)
+         return TRUE;
+     else
+         return FALSE;
 }
 
 
@@ -1957,25 +2548,22 @@ int skb_p80211_to_ether(struct net_device *dev, int wep_mode, struct rx_frinfo *
 	int wlan_pkt_format;
 	struct sk_buff *skb = get_pskb(pfrinfo);
 
-	
+#ifdef RX_SHORTCUT
+	extern int get_rx_sc_free_entry(struct stat_info *pstat, unsigned char *pframe);
+	int privacy, idx=0;
+	struct rx_sc_entry *prxsc_entry = NULL;
+	struct wlan_hdr wlanhdr;
 
-#if defined(RX_SHORTCUT)
 #ifndef MESH_AMSDU
 	struct stat_info 	*pstat = get_stainfo(priv, GetAddr2Ptr(skb->data));
 #else
 	struct stat_info 	*pstat;
-	if( pfrinfo->is_11s &8 )
+
+	if (pfrinfo->is_11s & 8)
 		pstat = NULL;
 	else
 		pstat = get_stainfo(priv, GetAddr2Ptr(skb->data));
 #endif // MESH_AMSDU
-#endif
-
-#ifdef RX_SHORTCUT
-	int 				privacy;
-
-	if (pstat)
-		pstat->rx_payload_offset = 0;
 #endif // RX_SHORTCUT
 
 	pframe = get_pframe(pfrinfo);
@@ -2012,37 +2600,20 @@ int skb_p80211_to_ether(struct net_device *dev, int wep_mode, struct rx_frinfo *
 		memcpy(saddr, (const void *)w_hdr->addr2, WLAN_ETHADDR_LEN);
 	}
 	else if( to_fr_ds == 0x01) {
-		{
-			memcpy(daddr, (const void *)w_hdr->addr1, WLAN_ETHADDR_LEN);
-			memcpy(saddr, (const void *)w_hdr->addr3, WLAN_ETHADDR_LEN);
-		}
+		memcpy(daddr, (const void *)w_hdr->addr1, WLAN_ETHADDR_LEN);
+		memcpy(saddr, (const void *)w_hdr->addr3, WLAN_ETHADDR_LEN);
 	}
 	else if( to_fr_ds == 0x02) {
-		{
-			memcpy(daddr, (const void *)w_hdr->addr3, WLAN_ETHADDR_LEN);
-			memcpy(saddr, (const void *)w_hdr->addr2, WLAN_ETHADDR_LEN);
-		}
+		memcpy(daddr, (const void *)w_hdr->addr3, WLAN_ETHADDR_LEN);
+		memcpy(saddr, (const void *)w_hdr->addr2, WLAN_ETHADDR_LEN);
 	}
 	else {
 #ifdef CONFIG_RTK_MESH
 		// WIFI_11S_MESH = WIFI_QOS_DATA
-		if(pfrinfo->is_11s &1)
-		{
-	 		if( GetFrameSubType(pframe) == WIFI_11S_MESH)
-			{
-				if ( pfrinfo->mesh_header.mesh_flag &1)
-				{
-					memcpy(daddr, (const void *)pfrinfo->mesh_header.DestMACAddr, WLAN_ETHADDR_LEN);
-					memcpy(saddr, (const void *)pfrinfo->mesh_header.SrcMACAddr, WLAN_ETHADDR_LEN);
-					mesh_header_len = 16;
-				}
-				else
-				{
-					memcpy(daddr, (const void *)w_hdr->addr3, WLAN_ETHADDR_LEN);
-					memcpy(saddr, (const void *)w_hdr->addr4, WLAN_ETHADDR_LEN);
-					mesh_header_len = 4;
-				}
-			}
+		if(pfrinfo->is_11s &1) {
+			memcpy(daddr, (const void *)pfrinfo->mesh_header.DestMACAddr, WLAN_ETHADDR_LEN);
+			memcpy(saddr, (const void *)pfrinfo->mesh_header.SrcMACAddr, WLAN_ETHADDR_LEN);
+			mesh_header_len = 16;				
 		}
 		else
 #endif // CONFIG_RTK_MESH
@@ -2153,26 +2724,21 @@ int skb_p80211_to_ether(struct net_device *dev, int wep_mode, struct rx_frinfo *
 				privacy = get_sta_encrypt_algthm(priv, pstat);
 			if ((GetFragNum(pframe)==0) &&
 #if defined(CONFIG_RTK_MESH) && defined(RX_RL_SHORTCUT)
-				   (!pfrinfo->is_11s || !IS_MCAST(GetAddr1Ptr(pframe)))&&
+                (!pfrinfo->is_11s || !IS_MCAST(pfrinfo->da)) &&
 #endif
 				((privacy == 0) ||
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 				(privacy==_WAPI_SMS4_) ||
 #endif
-				(privacy && !UseSwCrypto(priv, pstat, IS_MCAST(GetAddr1Ptr(pframe))))))
-			{
-				memcpy((void *)&pstat->rx_wlanhdr, pframe, pfrinfo->hdr_len);
-				pstat->rx_payload_offset = payload_offset;
-				pstat->rx_trim_pad = trim_pad;
-				pstat->rx_privacy = GetPrivacy(pframe);
-
-#if defined(CONFIG_RTK_MESH) && defined(RX_RL_SHORTCUT)
-				if ( (pfrinfo->is_11s &3) && (pfrinfo->mesh_header.mesh_flag &1))
-				{
-					memcpy((void *)&pstat->rx_wlanhdr.wlanhdr.meshhdr.DestMACAddr, (const void *)pfrinfo->mesh_header.DestMACAddr, WLAN_ETHADDR_LEN);
-					memcpy((void *)&pstat->rx_wlanhdr.wlanhdr.meshhdr.SrcMACAddr, (const void *)pfrinfo->mesh_header.SrcMACAddr, WLAN_ETHADDR_LEN);
-				}
+#ifdef CONFIG_IEEE80211W
+			(privacy && !UseSwCrypto(priv, pstat, IS_MCAST(GetAddr1Ptr(pframe)), 0))))	
+#else
+			(privacy && !UseSwCrypto(priv, pstat, IS_MCAST(GetAddr1Ptr(pframe))))))
 #endif
+			{
+				idx = get_rx_sc_free_entry(pstat, pframe);
+				prxsc_entry = &pstat->rx_sc_ent[idx];
+				memcpy((void *)&wlanhdr, pframe, pfrinfo->hdr_len);
 			}
 		}
 #endif // RX_SHORTCUT
@@ -2209,17 +2775,26 @@ int skb_p80211_to_ether(struct net_device *dev, int wep_mode, struct rx_frinfo *
 		skb_trim(skb, payload_length + WLAN_ETHHDR_LEN);
 
 #ifdef RX_SHORTCUT
-		if (pstat && pstat->rx_payload_offset > 0) {
-			if ((cpu_to_be16(e_hdr->type) != 0x888e) && // for WIFI_SIMPLE_CONFIG
+		if (prxsc_entry) {
+			if ((e_hdr->type != htons(0x888e)) && // for WIFI_SIMPLE_CONFIG
 #ifdef CONFIG_RTL_WAPI_SUPPORT
-				 (cpu_to_be16(e_hdr->type)  != ETH_P_WAPI)&&
+				(e_hdr->type != htons(ETH_P_WAPI)) &&
 #endif
-				(cpu_to_be16(e_hdr->type) != ETH_P_ARP)&&
-				(wlan_pkt_format != WLAN_PKT_FORMAT_CDP))
-				memcpy((void *)&pstat->rx_ethhdr, (const void *)e_hdr, sizeof(struct wlan_ethhdr_t));
-			else {
-				//printk("reset rx_payload_offset e_hdr->type %04x\n", cpu_to_be16(e_hdr->type));
-				pstat->rx_payload_offset = 0;
+				(e_hdr->type != htons(ETH_P_ARP)) &&
+				(wlan_pkt_format != WLAN_PKT_FORMAT_CDP)) {
+				memcpy((void *)&prxsc_entry->rx_wlanhdr, &wlanhdr, pfrinfo->hdr_len);
+				memcpy((void *)&prxsc_entry->rx_ethhdr, (const void *)e_hdr, sizeof(struct wlan_ethhdr_t));
+				prxsc_entry->rx_payload_offset = payload_offset;
+				prxsc_entry->rx_trim_pad = trim_pad;
+				pstat->rx_privacy = GetPrivacy(pframe);
+
+#if defined(CONFIG_RTK_MESH) && defined(RX_RL_SHORTCUT)
+				if ( (pfrinfo->is_11s &3) && (pfrinfo->mesh_header.mesh_flag &1))
+				{
+					memcpy((void *)&prxsc_entry->rx_wlanhdr.meshhdr.DestMACAddr, (const void *)pfrinfo->mesh_header.DestMACAddr, WLAN_ETHADDR_LEN);
+					memcpy((void *)&prxsc_entry->rx_wlanhdr.meshhdr.SrcMACAddr, (const void *)pfrinfo->mesh_header.SrcMACAddr, WLAN_ETHADDR_LEN);
+				}
+#endif
 			}
 		}
 #endif
@@ -2498,11 +3073,15 @@ unsigned int get_privacy(struct rtl8192cd_priv *priv, struct stat_info *pstat,
 	case _WAPI_SMS4_:
 		*iv = WAPI_PN_LEN+2;
 		*icv = 0;
-#if defined(CONFIG_RTL_HW_WAPI_SUPPORT)
-		if(!(UseSwCrypto(priv, pstat, (pstat ? FALSE : TRUE))))
-			*mic = 0;	//HW will take care of the mic
-		else
-		*mic = SMS4_MIC_LEN;
+#if defined(CONFIG_RTL_HW_WAPI_SUPPORT)		
+	#ifdef CONFIG_IEEE80211W
+			if(!(UseSwCrypto(priv, pstat, (pstat ? FALSE : TRUE), 0)))
+	#else
+			if(!(UseSwCrypto(priv, pstat, (pstat ? FALSE : TRUE))))
+	#endif
+				*mic = 0;	//HW will take care of the mic
+			else
+				*mic = SMS4_MIC_LEN;
 #else
 		*mic = SMS4_MIC_LEN;
 #endif
@@ -2556,7 +3135,11 @@ unsigned int get_mcast_privacy(struct rtl8192cd_priv *priv, unsigned int *iv, un
 		*iv = WAPI_PN_LEN+2;
 		*icv = 0;
 #if defined(CONFIG_RTL_HW_WAPI_SUPPORT)
+#ifdef CONFIG_IEEE80211W
+		if(!(UseSwCrypto(priv, NULL, TRUE),0))
+#else
 		if(!(UseSwCrypto(priv, NULL, TRUE)))
+#endif			
 			*mic = 0;	//HW will take care of the mic
 		else
 		*mic = SMS4_MIC_LEN;
@@ -2713,7 +3296,9 @@ unsigned char get_hdrlen(struct rtl8192cd_priv *priv, UINT8 *pframe)
 unsigned char *get_mgtbuf_from_poll(struct rtl8192cd_priv *priv)
 {
 	unsigned char *ret;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 	
@@ -2726,7 +3311,9 @@ unsigned char *get_mgtbuf_from_poll(struct rtl8192cd_priv *priv)
 
 void release_mgtbuf_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2739,7 +3326,9 @@ void release_mgtbuf_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf)
 unsigned char *get_wlanhdr_from_poll(struct rtl8192cd_priv *priv)
 {
 	unsigned char *pbuf;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2755,8 +3344,16 @@ unsigned char *get_wlanhdr_from_poll(struct rtl8192cd_priv *priv)
 
 void release_wlanhdr_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
+	if (pbuf == NULL)
+	{
+		DEBUG_ERR("Err: Free Null Buf!\n");
+		return;
+	}
+	
 	SAVE_INT_AND_CLI(flags);
 
 #ifdef TX_EARLY_MODE
@@ -2773,7 +3370,9 @@ __IRAM_IN_865X
 unsigned char *get_wlanllchdr_from_poll(struct rtl8192cd_priv *priv)
 {
 	unsigned char *pbuf;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2789,7 +3388,9 @@ unsigned char *get_wlanllchdr_from_poll(struct rtl8192cd_priv *priv)
 
 void release_wlanllchdr_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2805,7 +3406,9 @@ void release_wlanllchdr_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf
 unsigned char *get_icv_from_poll(struct rtl8192cd_priv *priv)
 {
 	unsigned char *ret;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2818,7 +3421,9 @@ unsigned char *get_icv_from_poll(struct rtl8192cd_priv *priv)
 
 void release_icv_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2831,7 +3436,9 @@ void release_icv_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf)
 unsigned char *get_mic_from_poll(struct rtl8192cd_priv *priv)
 {
 	unsigned char *ret;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2844,7 +3451,9 @@ unsigned char *get_mic_from_poll(struct rtl8192cd_priv *priv)
 
 void release_mic_to_poll(struct rtl8192cd_priv *priv, unsigned char *pbuf)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -2869,16 +3478,25 @@ unsigned int get_pnh(union PN48 *ptsc)
 }
 
 
+#ifdef CONFIG_IEEE80211W
+int UseSwCrypto(struct rtl8192cd_priv *priv, struct stat_info *pstat, int isMulticast, int isPMF)
+#else
 int UseSwCrypto(struct rtl8192cd_priv *priv, struct stat_info *pstat, int isMulticast)
+#endif
 {
+#ifdef CONFIG_IEEE80211W
+		if(isPMF)
+			return 1;
+#endif
+
 	if (SWCRYPTO)
 		return 1;
 	else // hw crypto
 	{
 #ifdef CONFIG_RTK_MESH
 	if( isMeshPoint(pstat) )
-//		return 0;
-		return	(pstat->dot11KeyMapping.keyInCam || isMulticast) ? 0 : 1;
+		return 0;
+//		return	(pstat->dot11KeyMapping.keyInCam || isMulticast) ? 0 : 1;
 
 #endif
 
@@ -2893,12 +3511,16 @@ int UseSwCrypto(struct rtl8192cd_priv *priv, struct stat_info *pstat, int isMult
 		}
 #endif
 
-			if (priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm) {
+			if (priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm 
+#ifdef CONFIG_RTL_WAPI_SUPPORT
+			    ||	priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _WAPI_SMS4_
+#endif
+				) {
 				if (isMulticast) { // multicast
-				if (!priv->pmib->dot11GroupKeysTable.keyInCam)
-					return 1;
-				else
-					return 0;
+					if (!priv->pmib->dot11GroupKeysTable.keyInCam)
+						return 1;
+					else
+						return 0;
 				}
 				else {
 				if (!pstat->dot11KeyMapping.keyInCam)
@@ -2951,12 +3573,16 @@ int UseSwCrypto(struct rtl8192cd_priv *priv, struct stat_info *pstat, int isMult
 
 void check_protection_shortslot(struct rtl8192cd_priv *priv)
 {
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
+	if((GET_CHIP_VER(priv)== VERSION_8812E)||(GET_CHIP_VER(priv)== VERSION_8881A))
+		return;
+#endif
 	if (priv->pmib->dot11ErpInfo.nonErpStaNum == 0 &&
 			priv->pmib->dot11ErpInfo.olbcDetected == 0)
 	{
 		if (priv->pmib->dot11ErpInfo.protection) {
 			priv->pmib->dot11ErpInfo.protection = 0;
-			priv->pshare->phw->RTSInitRate_Candidate = 0x8;	// 24Mbps
+			//priv->pshare->phw->RTSInitRate_Candidate = 0x8;	// 24Mbps
 		}
 	}
 	else
@@ -2964,7 +3590,7 @@ void check_protection_shortslot(struct rtl8192cd_priv *priv)
 		if (!priv->pmib->dot11StationConfigEntry.protectionDisabled &&
 					priv->pmib->dot11ErpInfo.protection == 0) {
 			priv->pmib->dot11ErpInfo.protection = 1;
-			priv->pshare->phw->RTSInitRate_Candidate = 0x3; // 11Mbps
+			//priv->pshare->phw->RTSInitRate_Candidate = 0x3; // 11Mbps
 		}
 	}
 
@@ -3045,79 +3671,92 @@ int should_forbid_Nmode(struct rtl8192cd_priv *priv)
 		return 0;
 
 	// if pure TKIP, change N mode to G mode
-	if (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(1))	{
-                if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK == 0
-                        && priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm == 1) {
-                        if (priv->pmib->dot1180211AuthEntry.dot11WPACipher == 2
-                                || priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 2)
-                                return 1;
-                }
-		else if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK == 1) {
-			if (priv->pmib->dot1180211AuthEntry.dot11WPACipher == 2)
-				return 1;
-		}
-		else if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK == 2) {
-			if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 2)
-				return 1;
-		}
-		else if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK == 3) {
+	if (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(1)) {
+		if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK ||
+			priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm) {
+
 			if ((priv->pmib->dot1180211AuthEntry.dot11WPACipher == 2) &&
+				(priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 0))
+				return 1;
+			else if ((priv->pmib->dot1180211AuthEntry.dot11WPACipher == 0) &&
+				(priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 2))
+				return 1;
+			else if ((priv->pmib->dot1180211AuthEntry.dot11WPACipher == 2) &&
 				(priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 2))
 				return 1;
 		}
 	}
-	
+
 	// if WEP, forbid  N mode
 	if ((priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(0)) &&
-		 (priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm==_WEP_40_PRIVACY_ ||
-		  priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm==_WEP_104_PRIVACY_) )
+		((priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _WEP_40_PRIVACY_) ||
+		 (priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _WEP_104_PRIVACY_)))
 		return 1;
 
 	return 0;
 }
 
+#ifdef RTK_AC_SUPPORT //for 11ac logo
+int is_mixed_mode(struct rtl8192cd_priv *priv)
+{
+	if((priv->pmib->dot1180211AuthEntry.dot11EnablePSK == 3)
+		&& (priv->pmib->dot1180211AuthEntry.dot11WPACipher & BIT(1))
+		&& (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher & BIT(1))
+		&& (priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == 2))
+	{
+		return 1;
+	}
+	else
+		return 0;
+}
+#endif
 
 int should_restrict_Nrate(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
-	if (OPMODE & WIFI_AP_STATE)
-	{
-		if (pstat->is_legacy_encrpt == 1) {
-			if (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(1)) {
-				if (!pstat->is_realtek_sta || (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(2)))
-					return 1;
-			}
-		}
-		else if (pstat->is_legacy_encrpt == 2) {
-			if (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(0)) {
-				if (!pstat->is_realtek_sta || (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(2)))
-					return 1;
-			}
-		}
+    if (OPMODE & WIFI_AP_STATE)
+    {
+        if (pstat->is_legacy_encrpt == 1) {
+            if (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(1)) {
+                if (!pstat->is_realtek_sta || (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(2)))
+                    return 1;
+            }
+        }
+        else if (pstat->is_legacy_encrpt == 2) {
+            if (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(0)) {
+                if (!pstat->is_realtek_sta || (priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct & BIT(2)))
+                    return 1;
+            }
+        }
+
+#ifdef RTK_AC_SUPPORT //for 11ac logo  // Cheat for mixed mode
+        if(AC_SIGMA_MODE != AC_SIGMA_NONE) {
+            if(is_mixed_mode(priv))
+                return 1;
+        }
+#endif
+		
 #ifdef WDS
-		else if (pstat->state & WIFI_WDS) {
-#ifdef CONFIG_RTL_88E_SUPPORT
-			if ((priv->pmib->dot11WdsInfo.wdsPrivacy == _WEP_40_PRIVACY_) ||
-				(priv->pmib->dot11WdsInfo.wdsPrivacy == _WEP_104_PRIVACY_) ||
-				(priv->pmib->dot11WdsInfo.wdsPrivacy == _TKIP_PRIVACY_))
-				return 1;
+        else if (pstat->state & WIFI_WDS) {
+            if ((priv->pmib->dot11WdsInfo.wdsPrivacy == _WEP_40_PRIVACY_) ||
+                (priv->pmib->dot11WdsInfo.wdsPrivacy == _WEP_104_PRIVACY_) ||
+                (priv->pmib->dot11WdsInfo.wdsPrivacy == _TKIP_PRIVACY_))
+                return 1;
+        }
 #endif
-		}
-#endif
-	}
-// Client mode IOT issue, Button 2009.07.17
+    }
+    // Client mode IOT issue, Button 2009.07.17
 #ifdef CLIENT_MODE
-	else if(OPMODE & WIFI_STATION_STATE)
-	{
-#ifdef USE_OUT_SRC	
-		if(!pstat->is_realtek_sta && (pstat->IOTPeer != HT_IOT_PEER_MARVELL) && pstat->is_legacy_encrpt)				
-#else
-		if(!pstat->is_realtek_sta && !pstat->is_marvell_sta && pstat->is_legacy_encrpt)
-#endif			
-		return 1;
-	}
+    else if(OPMODE & WIFI_STATION_STATE)
+    {
+
+        if(!pstat->is_realtek_sta && (pstat->IOTPeer != HT_IOT_PEER_MARVELL) && pstat->is_legacy_encrpt)
+
+
+            return 1;
+    }
 #endif
 
-	return 0;
+    return 0;
 }
 
 
@@ -3332,6 +3971,47 @@ void validate_oper_rate(struct rtl8192cd_priv *priv)
 		}
 	}
 #endif
+#if defined(RTK_AC_SUPPORT)
+	if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11AC) {
+		
+		if (IS_TEST_CHIP(priv))	{
+			if(get_rf_mimo_mode(priv) == MIMO_1T1R) {
+				priv->pmib->dot11acConfigEntry.dot11VHT_TxMap &= 0x0ff;
+				priv->pmib->dot11acConfigEntry.dot11SupportedVHT = 0xfffc;
+			} else {
+				priv->pmib->dot11acConfigEntry.dot11VHT_TxMap &= 0x3fcff;
+				priv->pmib->dot11acConfigEntry.dot11SupportedVHT = 0xfff0;
+			}					
+		} else {
+			if(get_rf_mimo_mode(priv) == MIMO_1T1R) {
+				priv->pmib->dot11acConfigEntry.dot11VHT_TxMap &= 0x3ff;
+				priv->pmib->dot11acConfigEntry.dot11SupportedVHT |= 0xfffc;
+
+				if(!priv->pmib->dot11acConfigEntry.dot11VHT_TxMap)
+					priv->pmib->dot11acConfigEntry.dot11VHT_TxMap = 0x3ff;
+				if(priv->pmib->dot11acConfigEntry.dot11SupportedVHT == 0xffff)
+					priv->pmib->dot11acConfigEntry.dot11SupportedVHT = 0xfffe;
+			} else if (get_rf_mimo_mode(priv) == MIMO_2T2R) { //eric_8814
+				priv->pmib->dot11acConfigEntry.dot11VHT_TxMap &= 0xfffff;
+				priv->pmib->dot11acConfigEntry.dot11SupportedVHT |= 0xfff0;
+
+				if(!priv->pmib->dot11acConfigEntry.dot11VHT_TxMap)
+					priv->pmib->dot11acConfigEntry.dot11VHT_TxMap = 0xfffff;
+				if(priv->pmib->dot11acConfigEntry.dot11SupportedVHT == 0xffff)
+					priv->pmib->dot11acConfigEntry.dot11SupportedVHT = 0xfffa;
+			} else if (get_rf_mimo_mode(priv) == MIMO_3T3R) {  //eric_8814
+				priv->pmib->dot11acConfigEntry.dot11VHT_TxMap &= 0x3ffffff;
+				priv->pmib->dot11acConfigEntry.dot11SupportedVHT |= 0xffc0;
+				
+				if(!priv->pmib->dot11acConfigEntry.dot11VHT_TxMap)
+					priv->pmib->dot11acConfigEntry.dot11VHT_TxMap = 0x3ffffff;
+				if(priv->pmib->dot11acConfigEntry.dot11SupportedVHT == 0xffff)
+					priv->pmib->dot11acConfigEntry.dot11SupportedVHT = 0xffda;
+			}			
+		}
+	} 
+
+#endif	
 }
 
 
@@ -3397,14 +4077,14 @@ int get_bssrate_set(struct rtl8192cd_priv *priv, int bssrate_ie, unsigned char *
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
 #else
-	if (priv->pshare->curr_band == BAND_5G)
+	if ((priv->pshare->curr_band == BAND_5G)||(priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80)) //AC2G_256QAM
 #endif
 	{
 
 #ifdef P2P_SUPPORT			
 		if(bssrate_ie == _SUPPORTED_RATES_NO_CCK_ ){
 				*pbssrate = &dot11_rate_table[4];
-				*bssrate_len = 4;
+				*bssrate_len = 8;
 				return TRUE;
 		}
 #endif			
@@ -3440,7 +4120,7 @@ int get_bssrate_set(struct rtl8192cd_priv *priv, int bssrate_ie, unsigned char *
 #ifdef P2P_SUPPORT
 		else if( bssrate_ie == _SUPPORTED_RATES_NO_CCK_){
 				*pbssrate = &dot11_rate_table[4];
-				*bssrate_len = 4;
+				*bssrate_len = 8;
 				return TRUE;
 		}
 #endif		
@@ -3466,7 +4146,7 @@ static struct channel_list reg_channel_2_4g[] = {
 	/* FCC */		{{1,2,3,4,5,6,7,8,9,10,11},11},
 	/* IC */		{{1,2,3,4,5,6,7,8,9,10,11},11},
 	/* ETSI */		{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},
-	/* SPAIN */		{{10,11},2},
+	/* SPAIN */		{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},
 	/* FRANCE */	{{10,11,12,13},4},
 	/* MKK */		{{1,2,3,4,5,6,7,8,9,10,11,12,13,14},14},
 	/* ISRAEL */	{{3,4,5,6,7,8,9,10,11,12,13},11},
@@ -3475,9 +4155,10 @@ static struct channel_list reg_channel_2_4g[] = {
 	/* MKK3 */		{{1,2,3,4,5,6,7,8,9,10,11,12,13,14},14},
 	/* NCC (Taiwan) */	{{1,2,3,4,5,6,7,8,9,10,11},11},
 	/* RUSSIAN */	{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},
-	/* CN */		{{1,2,3,4,5,6,7,8,9,10,11},11},
-	/* Global */		{{1,2,3,4,5,6,7,8,9,10,11,12,13,14},14},	
-	/* World_wide */	{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},	
+	/* CN */		{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},
+	/* Global */		{{1,2,3,4,5,6,7,8,9,10,11,12,13,14},14},
+	/* World_wide */	{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},
+	/* Test */		{{1,2,3,4,5,6,7,8,9,10,11,12,13,14},14},
 };
 
 #ifdef DFS
@@ -3493,10 +4174,12 @@ static struct channel_list reg_channel_5g_full_band[] = {
 	/* MKK2 */		{{36,40,44,48},4},
 	/* MKK3 */		{{36,40,44,48,52,56,60,64},8},
 	/* NCC (Taiwan) */	{{56,60,64,100,104,108,112,116,136,140,149,153,157,161,165},15},
-	/* RUSSIAN */	{{36,40,44,48},4},
-	/* CN */		{{149,153,157,161,165},5},
+	/* RUSSIAN */	{{36,40,44,48,52,56,60,64,132,136,140,149,153,157,161,165},16},
+	/* CN */		{{36,40,44,48,52,56,60,64,149,153,157,161,165},13},
 	/* Global */		{{36,40,44,48,52,56,60,64,100,104,108,112,116,136,140,149,153,157,161,165},20},
-	/* World_wide */	{{36,40,44,48,52,56,60,64,100,104,108,112,116,136,140,149,153,157,161,165},20},	
+	/* World_wide */	{{36,40,44,48,52,56,60,64,100,104,108,112,116,136,140,149,153,157,161,165},20},
+	/* Test */		{{36,40,44,48, 52,56,60,64, 100,104,108,112, 116,120,124,128, 132,136,140,144, 149,153,157,161, 165,169,173,177}, 28},
+	/* 5M10M */		{{146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170}, 25},
 };
 
 struct channel_list reg_channel_5g_not_dfs_band[] = {
@@ -3510,11 +4193,13 @@ struct channel_list reg_channel_5g_not_dfs_band[] = {
 	/* MKK1 */		{{34,38,42,46},4},
 	/* MKK2 */		{{36,40,44,48},4},
 	/* MKK3 */		{{36,40,44,48},4},
-	/* NCC (Taiwan) */	{{149,153,157,161,165},5},
-	/* RUSSIAN */	{{36,40,44,48},4},
-	/* CN */		{{149,153,157,161,165},5},
+	/* NCC (Taiwan) */	{{56,60,64,149,153,157,161,165},8},
+	/* RUSSIAN */	{{36,40,44,48,149,153,157,161,165},9},
+	/* CN */		{{36,40,44,48,149,153,157,161,165},9},
 	/* Global */		{{36,40,44,48,149,153,157,161,165},9},
-	/* World_wide */	{{36,40,44,48,149,153,157,161,165},9},	
+	/* World_wide */	{{36,40,44,48,149,153,157,161,165},9},
+	/* Test */		{{36,40,44,48, 149,153,157,161, 165,169,173,177}, 12},
+	/* 5M10M */		{{146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170}, 25},
 };
 #else
 
@@ -3530,13 +4215,189 @@ static struct channel_list reg_channel_5g_full_band[] = {
 	/* MKK1 */		{{34,38,42,46},4},
 	/* MKK2 */		{{36,40,44,48},4},
 	/* MKK3 */		{{36,40,44,48},4},
-	/* NCC (Taiwan) */	{{149,153,157,161,165},5},
-	/* RUSSIAN */	{{36,40,44,48},4},
-	/* CN */		{{149,153,157,161,165},5},
+	/* NCC (Taiwan) */	{{56,60,64,149,153,157,161,165},8},
+	/* RUSSIAN */	{{36,40,44,48,149,153,157,161,165},9},
+	/* CN */		{{36,40,44,48,149,153,157,161,165},9},
 	/* Global */		{{36,40,44,48,149,153,157,161,165},9},
-	/* World_wide */	{{36,40,44,48,149,153,157,161,165},9},		
+	/* World_wide */	{{36,40,44,48,149,153,157,161,165},9},
+	/* Test */		{{36,40,44,48, 52,56,60,64, 100,104,108,112, 116,120,124,128, 132,136,140,144, 149,153,157,161, 165,169,173,177}, 28},
+	/* 5M10M */		{{146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170}, 25},
 };
 #endif
+
+
+int is_available_channel(struct rtl8192cd_priv *priv, unsigned char channel) {
+	
+	if(priv->pmib->dot11DFSEntry.disable_DFS == 1) {
+		if((channel >= 52 && channel <= 140))
+			return 0;
+	}
+	
+	if((priv->pmib->dot11RFEntry.band5GSelected & PHY_BAND_5G_1) &&
+				(channel >= 36 && channel <= 48))
+		return 1;
+	else if((priv->pmib->dot11RFEntry.band5GSelected & PHY_BAND_5G_2) &&
+				(channel >= 52 && channel <= 64))
+		return 1;
+	else if((priv->pmib->dot11RFEntry.band5GSelected & PHY_BAND_5G_3) &&
+				(channel >= 100 && channel <= 144))
+		return 1;
+	else if((priv->pmib->dot11RFEntry.band5GSelected & PHY_BAND_5G_4) &&
+				(channel >= 149 && channel <= 177))
+		return 1;
+	else if((priv->pmib->dot11RFEntry.band5GSelected & PHY_BAND_5G_4) &&
+				(channel >= 146 && channel <= 177) && 
+				(priv->pmib->dot11nConfigEntry.dot11nUse40M == 4 ||priv->pmib->dot11nConfigEntry.dot11nUse40M == 5))
+		return 1;
+	else
+		return 0;
+}
+
+
+int is_available_NonDFS_channel(struct rtl8192cd_priv *priv, unsigned char channel)
+{
+	if((priv->pmib->dot11RFEntry.band5GSelected == PHY_BAND_5G_3))
+		return 0;
+	else
+		return 1;
+}
+
+
+#define MAX_NUM_80M_CH 7
+unsigned int CH_80m[MAX_NUM_80M_CH]={36,52,100,116,132,149,165};
+
+int is80MChannel(unsigned int chnl_list[], unsigned int chnl_num,unsigned int channel)
+{
+	int idx;
+	int chNO;
+	int baseCH=0;
+	idx = -1;
+
+	if( (CH_80m[MAX_NUM_80M_CH-1] <= channel) && ((CH_80m[MAX_NUM_80M_CH-1]+8) >= channel))
+		baseCH = CH_80m[MAX_NUM_80M_CH-1];
+	else
+	{
+		for(chNO=0;chNO<MAX_NUM_80M_CH-1;chNO++) {
+			if(CH_80m[chNO] <= channel && CH_80m[chNO+1] > channel) {
+				baseCH = CH_80m[chNO];			
+				break;
+			}
+		}
+	}
+
+	if(baseCH == 0)
+		_DEBUG_ERR("Channel is out of scope\n");
+	
+	for(idx=0;idx<chnl_num;idx++) {
+		// available_chnl is sorted.
+		if(chnl_list[idx] == baseCH)
+			break;
+	}
+
+	if(idx == chnl_num || idx + 3 >= chnl_num)
+		return 0;
+
+	if(chnl_list[idx+1] == baseCH + 4 &&
+	   chnl_list[idx+2] == baseCH + 8 &&
+	   chnl_list[idx+3] == baseCH + 12)
+	   return 1;
+	else
+	   return 0;
+}
+
+
+#define MAX_NUM_40M_CH 14
+unsigned int CH_40m[MAX_NUM_40M_CH]={36,44,52,60,100,108,116,124,132,140,149,157,165,173};
+
+int is40MChannel(unsigned int chnl_list[], unsigned int chnl_num,unsigned int channel)
+{
+	int idx;
+	int chNO;
+	int baseCH=0;
+	idx = -1;
+
+	if( (CH_40m[MAX_NUM_40M_CH-1] <= channel) && ((CH_40m[MAX_NUM_40M_CH-1]+4) >= channel))
+		baseCH = CH_40m[MAX_NUM_40M_CH-1];
+	else
+	{
+		for(chNO=0;chNO<MAX_NUM_40M_CH-1;chNO++) {
+			if(CH_40m[chNO] <= channel && CH_40m[chNO+1] > channel) {
+				baseCH = CH_40m[chNO];			
+				break;
+			}
+		}
+	}
+
+	if(baseCH == 0)
+		_DEBUG_ERR("Channel is out of scope\n");
+	
+	for(idx=0;idx<chnl_num;idx++) {
+		// available_chnl is sorted.
+		if(chnl_list[idx] == baseCH)
+			break;
+	}
+
+	if(idx == chnl_num || idx + 1 >= chnl_num)
+		return 0;
+
+	if(chnl_list[idx+1] == baseCH + 4)
+	   return 1;
+	else
+	   return 0;
+}
+
+
+int find80MChannel(unsigned int chnl_list[], unsigned int chnl_num) {
+	int i,j;	
+	unsigned int random;
+	unsigned int num;
+#ifdef __ECOS
+	{
+		unsigned char random_buf[4];
+		get_random_bytes(random_buf, 4);
+		random = random_buf[3];
+	}
+#else
+		get_random_bytes(&random, 4);
+#endif
+		num = random % chnl_num;
+	for(i=num;i<chnl_num+num;i++) {
+		j=i;
+		if (j>=chnl_num)
+			j=j-chnl_num;
+		if(is80MChannel(chnl_list,chnl_num,chnl_list[j]))
+			return chnl_list[j];
+	}
+	return -1;
+}
+
+
+int find40MChannel(unsigned int chnl_list[], unsigned int chnl_num)
+{
+	int i,j;	
+	unsigned int random;
+	unsigned int num;
+#ifdef __ECOS
+	{
+		unsigned char random_buf[4];
+		get_random_bytes(random_buf, 4);
+		random = random_buf[3];
+	}
+#else
+		get_random_bytes(&random, 4);
+#endif
+		num = random % chnl_num;
+	
+	for(i=num;i<chnl_num+num;i++) {
+		j=i;
+		if (j>=chnl_num)
+			j=j-chnl_num;
+		if(is40MChannel(chnl_list,chnl_num,chnl_list[j]))
+			return chnl_list[j];
+	}
+	return -1;
+}
+
 
 int get_available_channel(struct rtl8192cd_priv *priv)
 {
@@ -3552,27 +4413,50 @@ int get_available_channel(struct rtl8192cd_priv *priv)
 	if (priv->pmib->dot11BssType.net_work_type & (WIRELESS_11B | WIRELESS_11G) || 
 		((priv->pmib->dot11BssType.net_work_type & WIRELESS_11N) &&
 			!(priv->pmib->dot11BssType.net_work_type & WIRELESS_11A))) {
-		for (i=0; i<reg_channel_2_4g[reg-1].len; i++)
-			priv->available_chnl[i] = reg_channel_2_4g[reg-1].channel[i];
-		priv->available_chnl_num += reg_channel_2_4g[reg-1].len;
+#if 0 //def AC2G_256QAM
+		if(is_ac2g(priv)) //if 2.4G + 11ac mode, force available channels = 1, 5, 9, 13
+		{
+				priv->available_chnl[0]=1;
+				priv->available_chnl[1]=5;
+				priv->available_chnl[2]=9;
+				priv->available_chnl[3]=13;
+				priv->available_chnl_num=4;
+		}
+		else
+#endif
+		{
+			for (i=0; i<reg_channel_2_4g[reg-1].len; i++)
+				priv->available_chnl[priv->available_chnl_num++] = reg_channel_2_4g[reg-1].channel[i];
+		}
 	}
 
 	if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11A) {
+
 		ch_5g_lst = reg_channel_5g_full_band;
 
-		for (i=0; i<ch_5g_lst[reg-1].len; i++)
-			priv->available_chnl[priv->available_chnl_num+i] = ch_5g_lst[reg-1].channel[i];
-		priv->available_chnl_num += ch_5g_lst[reg-1].len;
+		for (i=0; i<ch_5g_lst[reg-1].len; i++) {
+				if(is_available_channel(priv,ch_5g_lst[reg-1].channel[i]))
+					priv->available_chnl[priv->available_chnl_num++] = ch_5g_lst[reg-1].channel[i];
+		}
+		
+		//for (i=0; i<ch_5g_lst[reg-1].len; i++)
+		//	priv->available_chnl[priv->available_chnl_num+i] = ch_5g_lst[reg-1].channel[i];
+		//priv->available_chnl_num += ch_5g_lst[reg-1].len;
 
 #ifdef DFS
 		/* remove the blocked channels from available_chnl[32] */
 		if (priv->NOP_chnl_num)
 			for (i=0; i<priv->NOP_chnl_num; i++)
-				RemoveChannel(priv->available_chnl, &priv->available_chnl_num, priv->NOP_chnl[i]);
+				RemoveChannel(priv, priv->available_chnl, &priv->available_chnl_num, priv->NOP_chnl[i]);
 
-		for (i=0; i<reg_channel_5g_not_dfs_band[reg-1].len; i++)
-			priv->Not_DFS_chnl[i] = reg_channel_5g_not_dfs_band[reg-1].channel[i];
-		priv->Not_DFS_chnl_num = reg_channel_5g_not_dfs_band[reg-1].len;
+		priv->Not_DFS_chnl_num = 0;
+		for (i=0; i<reg_channel_5g_not_dfs_band[reg-1].len; i++) {
+			if(is_available_NonDFS_channel(priv,reg_channel_5g_not_dfs_band[reg-1].channel[i]))
+				priv->Not_DFS_chnl[priv->Not_DFS_chnl_num++] = reg_channel_5g_not_dfs_band[reg-1].channel[i];
+			
+		}
+		
+		
 #endif
 	}
 
@@ -3617,19 +4501,15 @@ void cnt_assoc_num(struct rtl8192cd_priv *priv, struct stat_info *pstat, int act
 #endif
 #if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
 			if (GET_CHIP_VER(priv) == VERSION_8188E) {
+				update_remapAid(priv, pstat);
 				priv->pshare->total_assoc_num++;
+	#if defined(CONFIG_PCI_HCI)
 				RTL8188E_AssignTxReportMacId(priv);
 				if (priv->pshare->total_assoc_num == 1)
 					RTL8188E_ResumeTxReport(priv);
-			}
-#endif
-#ifdef SMART_CONCURRENT_92D
-			if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY) {
-				if (priv->assoc_num == 1 && priv->smcc_state == 0) {
-					printk("[%s]", func);
-					priv->smcc_state = 1;
-					smcc_signin_linkstate(priv, 1, priv->pmib->dot11RFEntry.smcc_t, priv->smcc_state);
-				}
+	#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+				notify_tx_report_change(priv);
+	#endif
 			}
 #endif
 #if 0
@@ -3647,35 +4527,30 @@ void cnt_assoc_num(struct rtl8192cd_priv *priv, struct stat_info *pstat, int act
 #ifdef RTL_MANUAL_EDCA
 						&& (priv->pmib->dot11QosEntry.ManualEDCA == 0)
 #endif
-						)
+						) {
 #ifdef USE_OUT_SRC
+#ifdef _OUTSRC_COEXIST
+						if(IS_OUTSRC_CHIP(priv))
+#endif
 						ODM_IotEdcaSwitch(ODMPTR, priv->pshare->iot_mode_enable);
-#else
+#endif
+#if !defined(USE_OUT_SRC) || defined(_OUTSRC_COEXIST)
+#ifdef _OUTSRC_COEXIST
+						if(!IS_OUTSRC_CHIP(priv))
+#endif
 						IOT_EDCA_switch(priv, priv->pmib->dot11BssType.net_work_type, priv->pshare->iot_mode_enable);
 #endif
+				}
 
 #ifdef WIFI_11N_2040_COEXIST
 				if (priv->pmib->dot11nConfigEntry.dot11nCoexist && priv->pshare->is_40m_bw &&
 					(priv->pmib->dot11BssType.net_work_type & (WIRELESS_11N|WIRELESS_11G))) {
 					if (pstat->ht_cap_buf.ht_cap_info & cpu_to_le16(_HTCAP_40M_INTOLERANT_)) {
 						if (OPMODE & WIFI_AP_STATE) {
-#ifdef STA_EXT
-							if (pstat->aid <= FW_NUM_STAT)
-								priv->force_20_sta |= BIT(pstat->aid -1);
-							else
-								priv->force_20_sta_ext |= BIT(pstat->aid - 1 - FW_NUM_STAT);
-#else
-#ifdef CONFIG_RTL_88E_SUPPORT
-							if (GET_CHIP_VER(priv) == VERSION_8188E) {
-								if (pstat->aid <= 32)
-									priv->force_20_sta |= BIT(pstat->aid -1);
-								else
-									priv->force_20_sta_88e_hw_ext |= BIT(pstat->aid - 1 - 32);
-							} else
-#endif
-							{
-								priv->force_20_sta |= BIT(pstat->aid -1);
-							}
+                            setSTABitMap(&priv->force_20_sta, pstat->aid);
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+                            clearSTABitMap(&priv->pshare->_40m_staMap, pstat->aid);
+
 #endif
 						} 
 					}
@@ -3684,6 +4559,42 @@ void cnt_assoc_num(struct rtl8192cd_priv *priv, struct stat_info *pstat, int act
 
 				check_NAV_prot_len(priv, pstat, 0);
 			}
+#ifdef CONFIG_RTL_8812_SUPPORT				
+			if (GET_CHIP_VER(priv) == VERSION_8812E) {
+				UpdateHalMSRRPT8812(priv, pstat, INCREASE);			
+				RTL8812_MACID_PAUSE(priv, 0, REMAP_AID(pstat));
+			}
+#endif
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8192EE)
+            if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8192E)) {
+               if(pstat->aid <128)
+               {
+                    GET_HAL_INTERFACE(priv)->UpdateHalMSRRPTHandler(priv, pstat, INCREASE);				
+                    GET_HAL_INTERFACE(priv)->SetMACIDSleepHandler(priv, 0, REMAP_AID(pstat));
+                    pstat->txpause_flag = 0;                
+                    pstat->bDrop = 0; 
+                }
+            }
+#endif
+
+#if defined(CONFIG_WLAN_HAL_8813AE)
+#ifdef HW_FILL_MACID
+        // set Drop = 0;
+        if (GET_CHIP_VER(priv) == VERSION_8813A)  {
+//         if(pstat->aid <128)
+//            {
+//                 GET_HAL_INTERFACE(priv)->UpdateHalMSRRPTHandler(priv, pstat, INCREASE);
+//                 pstat->bDrop = 0;                          
+//            }
+
+        //Init fill mac address,Init fill CRC5
+        GET_HAL_INTERFACE(priv)->SetTxRPTHandler(priv, REMAP_AID(pstat), TXRPT_VAR_MAC_ADDRESS, &pstat->hwaddr);                         
+        GET_HAL_INTERFACE(priv)->SetCRC5ToRPTBufferHandler(priv,CRC5(&pstat->hwaddr,6), REMAP_AID(pstat),1);                           
+        }       
+#endif //#ifdef HW_FILL_MACID            
+#endif
+
+
 		} else {
 			DEBUG_ERR("Association Number Error (%d)!\n", NUM_STAT);
 		}
@@ -3693,34 +4604,34 @@ void cnt_assoc_num(struct rtl8192cd_priv *priv, struct stat_info *pstat, int act
 #if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
 			if (GET_CHIP_VER(priv) == VERSION_8188E) {
 				priv->pshare->total_assoc_num--;
+	#if defined(CONFIG_PCI_HCI)
 				if (!priv->pshare->total_assoc_num)
 					RTL8188E_SuspendTxReport(priv);
 				else
 					RTL8188E_AssignTxReportMacId(priv);
-			}
-#endif
-#ifdef SMART_CONCURRENT_92D
-			if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY) {
-				if (priv->assoc_num == 0 && priv->smcc_state == 1) {
-					printk("[%s]", func);
-					priv->smcc_state = 0;
-					smcc_signin_linkstate(priv, 1, priv->pmib->dot11RFEntry.smcc_t, priv->smcc_state);
-				}
+	#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+				notify_tx_report_change(priv);
+	#endif
 			}
 #endif
 
 #if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
 			if (IS_ROOT_INTERFACE(priv))
 #endif
+#if 0
 				if (!priv->assoc_num) {
 #ifdef INTERFERENCE_CONTROL
 					if (priv->pshare->rf_ft_var.nbi_filter_enable)
 						check_NBI_by_rssi(priv, 0xFF);	// force NBI on while no station associated
 #else
+	#if defined(CONFIG_PCI_HCI)
 					check_DIG_by_rssi(priv, 0);	// force DIG off while no station associated
+	#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+					notify_check_DIG_by_rssi(priv, 0);
+	#endif
 #endif
 				}
-
+#endif
 			if (pstat->ht_cap_len) {
 				if (--priv->pshare->ht_sta_num < 0) {
 					printk("ht_sta_num error\n");  // this should not happen
@@ -3729,35 +4640,31 @@ void cnt_assoc_num(struct rtl8192cd_priv *priv, struct stat_info *pstat, int act
 #ifdef RTL_MANUAL_EDCA
 							&& (priv->pmib->dot11QosEntry.ManualEDCA == 0)
 #endif
-							)
+							) {
 #ifdef USE_OUT_SRC
+#ifdef _OUTSRC_COEXIST
+							if(IS_OUTSRC_CHIP(priv))
+#endif
 							ODM_IotEdcaSwitch(ODMPTR, priv->pshare->iot_mode_enable);
-#else
+#endif
+
+#if !defined(USE_OUT_SRC) || defined(_OUTSRC_COEXIST)
+#ifdef _OUTSRC_COEXIST
+							if(!IS_OUTSRC_CHIP(priv))
+#endif
 							IOT_EDCA_switch(priv, priv->pmib->dot11BssType.net_work_type, priv->pshare->iot_mode_enable);
 #endif
+					}
 #ifdef WIFI_11N_2040_COEXIST
 					if (priv->pmib->dot11nConfigEntry.dot11nCoexist && priv->pshare->is_40m_bw &&
 						(priv->pmib->dot11BssType.net_work_type & (WIRELESS_11N|WIRELESS_11G))) {
 						if (pstat->ht_cap_buf.ht_cap_info & cpu_to_le16(_HTCAP_40M_INTOLERANT_)) {
 							if (OPMODE & WIFI_AP_STATE) {
-#ifdef STA_EXT
-								if (pstat->aid <= FW_NUM_STAT)
-									priv->force_20_sta &= ~BIT(pstat->aid -1);
-								else
-									priv->force_20_sta_ext &= ~BIT(pstat->aid - 1 - FW_NUM_STAT);
-#else
-#ifdef CONFIG_RTL_88E_SUPPORT
-								if (GET_CHIP_VER(priv) == VERSION_8188E) {
-									if (pstat->aid <= 32)
-										priv->force_20_sta &= ~BIT(pstat->aid -1);
-									else
-										priv->force_20_sta_88e_hw_ext &= ~BIT(pstat->aid - 1 - 32);
-								} else
+                                clearSTABitMap(&priv->force_20_sta, pstat->aid);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+                                update_RAMask_to_FW(priv, 0);
 #endif
-								{
-									priv->force_20_sta &= ~BIT(pstat->aid -1);
-								}
-#endif
+								SetTxPowerLevel(priv);
 							}
 						}
 					}
@@ -3766,6 +4673,36 @@ void cnt_assoc_num(struct rtl8192cd_priv *priv, struct stat_info *pstat, int act
 					check_NAV_prot_len(priv, pstat, 1);
 				}
 			}
+#ifdef CONFIG_RTL_8812_SUPPORT				
+			if (GET_CHIP_VER(priv) == VERSION_8812E) {
+				UpdateHalMSRRPT8812(priv, pstat, DECREASE);
+			}
+#endif
+#if defined(CONFIG_WLAN_HAL_8881A) || defined(CONFIG_WLAN_HAL_8192EE)
+            if ((GET_CHIP_VER(priv) == VERSION_8881A) || (GET_CHIP_VER(priv) == VERSION_8192E)) {
+                if(pstat->aid <127)
+                {
+                    GET_HAL_INTERFACE(priv)->UpdateHalMSRRPTHandler(priv, pstat, DECREASE);
+                    pstat->bDrop = 1;                      
+                }
+            }
+#endif
+#if defined(CONFIG_WLAN_HAL_8813AE)
+#ifdef HW_FILL_MACID
+        if (GET_CHIP_VER(priv) == VERSION_8813A)  {
+           // if(pstat->aid <127)
+           // {
+           //     GET_HAL_INTERFACE(priv)->UpdateHalMSRRPTHandler(priv, pstat, DECREASE);
+           //     pstat->bDrop = 1;                      
+           // }
+                               // Set hwaddr zero
+        u1Byte hwaddr = {0x00,0x00,0x00,0x00,0x00,0x00};
+        GET_HAL_INTERFACE(priv)->SetTxRPTHandler(priv, REMAP_AID(pstat), TXRPT_VAR_MAC_ADDRESS, &hwaddr);                         
+        GET_HAL_INTERFACE(priv)->SetCRC5ToRPTBufferHandler(priv,CRC5(&hwaddr,6), REMAP_AID(pstat),0); 
+        }
+#endif //#ifdef HW_FILL_MACID                                                  
+#endif
+
 		} else {
 			DEBUG_ERR("Association Number Error (0)!\n");
 		}
@@ -3802,21 +4739,38 @@ void cnt_assoc_num(struct rtl8192cd_priv *priv, struct stat_info *pstat, int act
  * Use this function to get the number of associated station, no matter
  * it is expired or not. And don't count WDS peers in.
  */
-int get_assoc_sta_num(struct rtl8192cd_priv *priv)
+int get_assoc_sta_num(struct rtl8192cd_priv *priv, int mode)
 {
 	struct list_head *phead, *plist;
 	struct stat_info *pstat;
 	int sta_num;
+#if defined(SMP_SYNC) && (defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI))
+	unsigned long flags = 0;
+#endif
 
 	sta_num = 0;
 	phead = &priv->asoc_list;
+	
+	SMP_LOCK_ASOC_LIST(flags);
+	
 	plist = phead->next;
 	while (plist != phead) {
 		pstat = list_entry(plist, struct stat_info, asoc_list);
-		if (pstat->state & WIFI_ASOC_STATE)
-			sta_num++;
 		plist = plist->next;
+
+#ifdef CONFIG_RTK_MESH        
+		if(mode == 1) {
+			if(isPossibleNeighbor(pstat))
+			continue;
+		}
+#endif
+
+		if (pstat->state & WIFI_ASOC_STATE) { 
+			sta_num++;
+		} 
 	}
+	
+	SMP_UNLOCK_ASOC_LIST(flags);
 	return sta_num;
 }
 
@@ -3852,13 +4806,18 @@ void event_indicate(struct rtl8192cd_priv *priv, unsigned char *mac, int event)
 #endif
 
 #ifdef __ECOS
+#ifdef RTLPKG_DEVS_ETH_RLTK_819X_IWCONTROL
+    extern cyg_flag_t iw_flag;
+    cyg_flag_setbits(&iw_flag, 0x1);
+
+#else
 #ifdef RTLPKG_DEVS_ETH_RLTK_819X_WLAN_WPS
 	extern cyg_flag_t wsc_flag;
 	cyg_flag_setbits(&wsc_flag, 0x1);
 #endif
 #endif
+#endif
 }
-
 
 #ifdef WIFI_HAPD
 int event_indicate_hapd(struct rtl8192cd_priv *priv, unsigned char *mac, int event, unsigned char *extra)
@@ -3982,13 +4941,53 @@ void wapi_event_indicate(struct rtl8192cd_priv *priv)
 	if (priv->pshare->wlanwapi_pid > 0)
 	{
 #ifdef LINUX_2_6_27_
-		rcu_read_lock();
-		pid = get_pid(find_vpid(priv->pshare->wlanwapi_pid));
-		rcu_read_unlock();
-		kill_pid(pid, SIGIO, 1);
+		kill_pid(_wlanwapi_pid, SIGIO, 1);
 #else
 		kill_proc(priv->pshare->wlanwapi_pid, SIGIO, 1);
 #endif
+	}
+}
+#endif
+
+#ifdef RSSI_MONITOR_NCR
+void rssi_event_indicate(struct rtl8192cd_priv *priv)
+{
+	if (priv->pshare->wlanrssim_pid > 0)
+	{
+#ifdef LINUX_2_6_27_
+		kill_pid(priv->pshare->_wlanrssim_pid, SIGIO, 1);
+#else
+		kill_proc(priv->pshare->wlanrssim_pid, SIGIO, 1);
+#endif
+	}
+}
+
+void rssi_monitor(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned char rssi)
+{
+	rssim_msg message;
+	message.event = 0;
+
+	if(rssi > priv->pshare->rf_ft_var.rssi_monitor_thd1 && pstat->rssi_report==0) {
+		message.event = 1;
+		pstat->rssi_report= rssi;
+	} else if(rssi < priv->pshare->rf_ft_var.rssi_monitor_thd1-5 && pstat->rssi_report!=0) {
+//		event = 2;			// not report leave event
+		pstat->rssi_report= 0;
+	} else if(pstat->rssi_report){
+		if(RTL_ABS(rssi, pstat->rssi_report) > priv->pshare->rf_ft_var.rssi_monitor_thd2) {
+			if(pstat->rssim_type !=1) {	// type 1: not report variation
+				message.event = 3;
+				pstat->rssi_report= rssi;
+			}
+		}
+	}
+
+	if(message.event) {		
+		memcpy(message.hwaddr, pstat->hwaddr, MACADDRLEN);
+		message.rssi = rssi;
+		message.timestamp = jiffies;
+		DOT11_EnQueue((unsigned long)priv, priv->rssimEvent_queue, &message, sizeof(message));
+		rssi_event_indicate(priv);
 	}
 }
 #endif
@@ -4026,7 +5025,9 @@ void init_DefaultKey_Enc(struct rtl8192cd_priv *priv, unsigned char *key, int al
 //
 void disable_vxd_ap(struct rtl8192cd_priv *priv)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if ((priv==NULL) || !(priv->pmib->dot11OperationEntry.opmode & WIFI_AP_STATE))
 		return;
@@ -4043,6 +5044,13 @@ void disable_vxd_ap(struct rtl8192cd_priv *priv)
 
 	SAVE_INT_AND_CLI(flags);
 
+#ifdef CONFIG_WLAN_HAL
+	if (IS_HAL_CHIP(priv)) {
+    	GET_HAL_INTERFACE(priv)->DisableVXDAPHandler(priv);
+	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif
+	{//not HAL
+#if defined(CONFIG_PCI_HCI) || (defined(CONFIG_USB_HCI) && defined(CONFIG_SUPPORT_USB_INT) && defined(CONFIG_INTERRUPT_BASED_TXBCN))
 #ifdef CONFIG_RTL_88E_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8188E) {
 		priv->pshare->InterruptMask &= ~(HIMR_88E_BcnInt | HIMR_88E_TBDOK | HIMR_88E_TBDER);
@@ -4052,9 +5060,11 @@ void disable_vxd_ap(struct rtl8192cd_priv *priv)
 	{
 		RTL_W32(HIMR, RTL_R32(HIMR) & ~(HIMR_BCNDOK0));
 	}
+#endif
 
 	//RTL_W16(ATIMWND, 2);
 	RTL_W32(CR, (RTL_R32(CR) & ~(NETYPE_Mask << NETYPE_SHIFT)) | ((NETYPE_NOLINK & NETYPE_Mask) << NETYPE_SHIFT));
+	}
 
 	RESTORE_INT(flags);
 }
@@ -4065,7 +5075,9 @@ void disable_vxd_ap(struct rtl8192cd_priv *priv)
 //
 void enable_vxd_ap(struct rtl8192cd_priv *priv)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if ((priv==NULL) || !(priv->pmib->dot11OperationEntry.opmode & WIFI_AP_STATE) ||
 		!(priv->drv_state & DRV_STATE_VXD_INIT))
@@ -4078,10 +5090,10 @@ void enable_vxd_ap(struct rtl8192cd_priv *priv)
 
 	DEBUG_INFO("Enable vxd AP\n");
 
-	priv->pmib->dot11RFEntry.dot11channel = GET_ROOT_PRIV(priv)->pmib->dot11Bss.channel;
+	priv->pmib->dot11RFEntry.dot11channel = GET_ROOT(priv)->pmib->dot11Bss.channel;
 	//priv->pmib->dot11BssType.net_work_type = GET_ROOT_PRIV(priv)->oper_band;
-	priv->pmib->dot11BssType.net_work_type = GET_ROOT_PRIV(priv)->pmib->dot11BssType.net_work_type &
-		GET_ROOT_PRIV(priv)->pmib->dot11Bss.network;
+	priv->pmib->dot11BssType.net_work_type = GET_ROOT(priv)->pmib->dot11BssType.net_work_type &
+		GET_ROOT(priv)->pmib->dot11Bss.network;
 
 	if (!IS_DRV_OPEN(priv))
 		rtl8192cd_open(priv->dev);
@@ -4091,7 +5103,7 @@ void enable_vxd_ap(struct rtl8192cd_priv *priv)
 		get_oper_rate(priv);
 	}
 
-	memcpy(priv->pmib->dot11StationConfigEntry.dot11Bssid, GET_ROOT_PRIV(priv)->pmib->dot11OperationEntry.hwaddr, MACADDRLEN);
+	memcpy(priv->pmib->dot11StationConfigEntry.dot11Bssid, GET_ROOT(priv)->pmib->dot11OperationEntry.hwaddr, MACADDRLEN);
 	memcpy(GET_MY_HWADDR, priv->pmib->dot11StationConfigEntry.dot11Bssid, MACADDRLEN);
 	memcpy(priv->pmib->dot11Bss.bssid, priv->pmib->dot11StationConfigEntry.dot11Bssid, MACADDRLEN);
 
@@ -4099,6 +5111,7 @@ void enable_vxd_ap(struct rtl8192cd_priv *priv)
 	priv->ht_cap_len = 0;
 	init_beacon(priv);
 
+#if defined(CONFIG_PCI_HCI) || (defined(CONFIG_USB_HCI) && defined(CONFIG_SUPPORT_USB_INT) && defined(CONFIG_INTERRUPT_BASED_TXBCN))
 #ifdef CONFIG_RTL_88E_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8188E) {
 		priv->pshare->InterruptMask |= HIMR_88E_BcnInt | HIMR_88E_TBDOK | HIMR_88E_TBDER;
@@ -4108,6 +5121,7 @@ void enable_vxd_ap(struct rtl8192cd_priv *priv)
 	{
 		RTL_W32(HIMR, RTL_R32(HIMR) | HIMR_BCNDOK0);
 	}
+#endif
 
 	//RTL_W16(ATIMWND, 0x0030);
 	RTL_W32(CR, (RTL_R32(CR) & ~(NETYPE_Mask << NETYPE_SHIFT)) | ((NETYPE_AP & NETYPE_Mask) << NETYPE_SHIFT));
@@ -4148,7 +5162,7 @@ void rtl8192cd_GBWC_timer(unsigned long task_priv)
 	while(1)
 	{
 		pskb = (struct sk_buff *)deque(priv, &(priv->GBWC_tx_queue.head), &(priv->GBWC_tx_queue.tail),
-			(unsigned int)(priv->GBWC_tx_queue.pSkb), NUM_TXPKT_QUEUE);
+			(unsigned long)(priv->GBWC_tx_queue.pSkb), NUM_TXPKT_QUEUE);
 
 		if (pskb == NULL)
 			break;
@@ -4165,7 +5179,7 @@ void rtl8192cd_GBWC_timer(unsigned long task_priv)
 	while(1)
 	{
 		pskb = (struct sk_buff *)deque(priv, &(priv->GBWC_rx_queue.head), &(priv->GBWC_rx_queue.tail),
-			(unsigned int)(priv->GBWC_rx_queue.pSkb), NUM_TXPKT_QUEUE);
+			(unsigned long)(priv->GBWC_rx_queue.pSkb), NUM_TXPKT_QUEUE);
 
 		if (pskb == NULL)
 			break;
@@ -4180,60 +5194,38 @@ void rtl8192cd_GBWC_timer(unsigned long task_priv)
 #endif
 
 
-#ifdef STA_EXT
 unsigned char fw_was_full(struct rtl8192cd_priv *priv)
 {
 	struct list_head *phead;
 	struct list_head *plist;
 	struct stat_info *pstat;
+#if defined(SMP_SYNC) && (defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI))
+	unsigned long flags = 0;
+#endif
+	unsigned char is_full;
 
-	if(list_empty(&priv->asoc_list))
+	phead = &priv->asoc_list;
+	if(list_empty(phead))
 		return 0;
 
-        phead = &priv->asoc_list;
-        plist = phead->next;
+	is_full = 0;
 
-        while (plist != phead) {
-			pstat = list_entry(plist, struct stat_info, asoc_list);
-			plist = plist->next;
-			if(
-#ifdef CONFIG_RTL_88E_SUPPORT
-				(GET_CHIP_VER(priv)==VERSION_8188E)?(pstat->remapped_aid == RTL8188E_NUM_STAT-1):
-#endif
-				(pstat->remapped_aid == FW_NUM_STAT-1))
-				return 1;
-	}
-	return 0;
-}
+	SMP_LOCK_ASOC_LIST(flags);
 
-
-// Support more STAs than fw could support
-// This function returns one free AID number for newly added rateid
-unsigned int find_reampped_aid(struct rtl8192cd_priv *priv, unsigned int rateid)
-{
-	int i, j;
-
-	for (i = 1; i < NUM_STAT; i++) {
-		if (priv->pshare->remapped_aidarray[i] == rateid)
-			break;
+	plist = phead->next;
+	while (plist != phead) {
+		pstat = list_entry(plist, struct stat_info, asoc_list);
+		plist = plist->next;
+        if(	pstat->sta_in_firmware != 1) 
+		{
+			is_full = 1;
+			goto exit;
+		}
 	}
 
-	for (j = 1; j < NUM_STAT; j++) {
-		if (priv->pshare->remapped_aidarray[j] == 0)
-			break;
-	}
-
-	if ((i == NUM_STAT) && (j == NUM_STAT))
-		return 0; //ERROR! this should not happen
-
-	if ((
-#ifdef CONFIG_RTL_88E_SUPPORT
-		(GET_CHIP_VER(priv)==VERSION_8188E)?(i < (RTL8188E_NUM_STAT-1)):
-#endif
-		(i < (FW_NUM_STAT-1))) || (j == NUM_STAT) || (i <= j))
-		return i;
-	else
-		return j;
+exit:
+	SMP_UNLOCK_ASOC_LIST(flags);
+	return is_full;
 }
 
 
@@ -4244,23 +5236,23 @@ int realloc_RATid(struct rtl8192cd_priv *priv)
 	struct stat_info *pstat =NULL, *pstat_chosen = NULL;
 	unsigned int max_through_put = 0;
 	unsigned int have_chosen = 0;
-
-	if(list_empty(&priv->asoc_list))
-		return 0;
+#if defined(SMP_SYNC) && (defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI))
+	unsigned long flags = 0;
+#endif
 
 	phead = &priv->asoc_list;
-	plist = phead->next;
+	if(list_empty(phead))
+		return 0;
 
+	SMP_LOCK_ASOC_LIST(flags);
+	
+	plist = phead->next;
 	while (plist != phead) {
 		int temp_through_put ;
 		pstat = list_entry(plist, struct stat_info, asoc_list);
 		plist = plist->next;
 
-		if (
-#ifdef CONFIG_RTL_88E_SUPPORT
-			(GET_CHIP_VER(priv)==VERSION_8188E)?(pstat->remapped_aid < RTL8188E_NUM_STAT-1):
-#endif
-			(pstat->remapped_aid < FW_NUM_STAT-1))// STA has rate adaptive
+        if (pstat->sta_in_firmware == 1)// STA has rate adaptive
 			continue;
 
 		temp_through_put =  pstat->tx_avarage + pstat->rx_avarage;
@@ -4272,16 +5264,13 @@ int realloc_RATid(struct rtl8192cd_priv *priv)
 		}
 	}
 
+	SMP_UNLOCK_ASOC_LIST(flags);
+	
 	if (have_chosen == 0)
 		return 0;
 
-	// for debug
-	//	printk("realloc_RATid, chosen aid is %d, throughput is %d\n", pstat_chosen->aid, max_through_put);
 
-#ifdef STA_EXT
-	release_remapAid(priv,pstat_chosen);
-#endif
-
+#if defined(CONFIG_PCI_HCI)
 #ifdef CONFIG_RTL_88E_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8188E) {
 #ifdef TXREPORT
@@ -4289,15 +5278,80 @@ int realloc_RATid(struct rtl8192cd_priv *priv)
 #endif
 	} else
 #endif
-	{
+	{	
 #if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)	
-		add_update_RATid(priv, pstat_chosen);
+		if(CHIP_VER_92X_SERIES(priv))
+			add_update_RATid(priv, pstat_chosen);
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+		if(GET_CHIP_VER(priv)== VERSION_8812E){
+			UpdateHalRAMask8812(priv, pstat_chosen, 3);			
+		}
+#endif
+#ifdef  CONFIG_WLAN_HAL
+		if (IS_HAL_CHIP(priv)){
+			GET_HAL_INTERFACE(priv)->UpdateHalRAMaskHandler(priv, pstat_chosen, 3);
+		}
 #endif
 	}
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+	update_STA_RATid(priv, pstat_chosen);
+#endif
 
 	return 1;
 }
-#endif
+
+
+void update_remapAid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+	int array_idx;
+
+    if(pstat->sta_in_firmware == 1)
+        return; /*already exists, just return*/
+
+    if(priv->pshare->fw_free_space) {
+        /*find an empty slot*/
+    	for (array_idx = 0; array_idx < NUM_STAT; array_idx++) {
+    		if (priv->pshare->remapped_aidarray[array_idx] == 0)
+    			break;
+    	}
+
+    	if (array_idx == NUM_STAT) {
+            /*WARNING:  THIS SHOULD NOT HAPPEN*/
+            printk("add AID fail!!\n");
+            BUG();
+    		return;
+        }
+        
+    
+        pstat->remapped_aid = array_idx + 1;
+        priv->pshare->remapped_aidarray[array_idx] = pstat->aid; 
+        pstat->sta_in_firmware = 1; // this value will updated in expire_timer
+        priv->pshare->fw_free_space --;
+    }
+    else { /* free space run out, share the same aid*/
+        pstat->remapped_aid = priv->pshare->fw_support_sta_num;
+        pstat->sta_in_firmware = 0;
+    }
+}
+
+
+void release_remapAid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+    int i;
+    if (pstat->sta_in_firmware == 1)
+    {
+        for(i = 0; i < NUM_STAT; i++) {
+            if(priv->pshare->remapped_aidarray[i] == pstat->aid){
+                priv->pshare->remapped_aidarray[i] = 0;                
+                break;
+            }
+        }        
+        priv->pshare->fw_free_space ++;
+        pstat->sta_in_firmware = -1;
+        DEBUG_INFO("Remove id %d from ratr\n", pstat->aid);        
+    }
+}
 
 
 unsigned int is_h2c_buf_occupy(struct rtl8192cd_priv *priv)
@@ -4314,6 +5368,33 @@ unsigned int is_h2c_buf_occupy(struct rtl8192cd_priv *priv)
 	return occupied;
 }
 
+#if defined(UNIVERSAL_REPEATER)
+int under_apmode_repeater(struct rtl8192cd_priv *priv)
+{
+	int ret = 0;
+
+	if(IS_ROOT_INTERFACE(priv))
+	{
+		if(IS_DRV_OPEN(GET_VXD_PRIV(priv))) 
+		{
+			if((priv->pmib->dot11OperationEntry.opmode & WIFI_AP_STATE) &&
+				(GET_VXD_PRIV(priv)->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE))
+					ret = 1;
+		}
+	}
+	else if(IS_VXD_INTERFACE(priv))
+	{
+		if(IS_DRV_OPEN(priv)) 
+		{
+			if((GET_ROOT(priv)->pmib->dot11OperationEntry.opmode & WIFI_AP_STATE) &&
+				(priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE))
+					ret = 1;
+		}
+	}
+
+	return ret;
+}
+#endif
 
 short signin_h2c_cmd(struct rtl8192cd_priv *priv, unsigned int content, unsigned short ext_content)
 {
@@ -4354,16 +5435,6 @@ short signin_h2c_cmd(struct rtl8192cd_priv *priv, unsigned int content, unsigned
 	RTL_W8(0x1c0+priv->pshare->fw_q_fifo_count, 1);
 #endif
 
-#if 0 // TESTCHIP_SUPPORT
-#ifdef SMART_CONCURRENT_92D // --fwdebug
-	if (priv->pshare->wlandev_idx != 0) {
-		//printk("wlan%d write 0x1cf\n", priv->pshare->wlandev_idx);
-		DMDP_RTL_W8(0, 0x663, DMDP_RTL_R8(0, 0x663)|BIT(0));  // write MAC'0 0x663 to notify firmware h2c cmd type
-		DMDP_RTL_W8(0, 0x1cf, DMDP_RTL_R8(0, 0x1cf)|BIT(4));  // write MAC'0 0x1cf to notify firmware INT
-	}
-#endif
-#endif
-
 	/*
 	 * rollover ring buffer count
 	 */
@@ -4379,8 +5450,13 @@ SigninFAIL:
 
 void set_ps_cmd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 	unsigned int content = 0;
+
+	if(! CHIP_VER_92X_SERIES(priv))
+		return;
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -4406,17 +5482,16 @@ void set_ps_cmd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 }
 
 
-#ifdef __KERNEL__
+#ifdef CONFIG_PCI_HCI
 void add_ps_timer(unsigned long task_priv)
-#elif defined(__ECOS)
-void add_ps_timer(void *task_priv)
-#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	struct stat_info *pstat = NULL;
 	unsigned int set_timer = 0;
-	unsigned long flags;
 
+#ifndef SMP_SYNC
+    unsigned long flags = 0;
+#endif
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
 
@@ -4455,39 +5530,16 @@ void add_ps_timer(void *task_priv)
 }
 
 
-#ifdef SMART_CONCURRENT_92D
-void smcc_prb_timer(unsigned long task_priv)
-{
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
-	struct stat_info *pstat = NULL;
-	unsigned int set_timer = 0;
-	unsigned long flags;
-
-	if (!(priv->drv_state & DRV_STATE_OPEN))
-		return;
-
-	if (timer_pending(&priv->smcc_prb_timer))
-		del_timer_sync(&priv->smcc_prb_timer);
-
-#ifdef PCIE_POWER_SAVING
-	if ((priv->pwr_state == L2) || (priv->pwr_state == L1))
-			return;
-#endif
-
-	if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY) {
-		if (priv->assoc_num == 0 && priv->smcc_state == 1) {
-			printk("[%s]", __FUNCTION__);
-			priv->smcc_state = 0;
-			smcc_signin_linkstate(priv, 1, priv->pmib->dot11RFEntry.smcc_t, priv->smcc_state);
-		}
-	}
-}
-#endif
-
 #if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
 void add_update_ps(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
+//#ifdef CONFIG_RTL_8812_SUPPORT
+	if(! CHIP_VER_92X_SERIES(priv))
+		return;
+//#endif		
 	if (is_h2c_buf_occupy(priv)) {
 		if (list_empty(&pstat->addps_list)) {
 			SAVE_INT_AND_CLI(flags);
@@ -4502,41 +5554,157 @@ void add_update_ps(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	}
 }
 #endif
+#endif // CONFIG_PCI_HCI
 
-#ifdef STA_EXT
-void release_remapAid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+
+void update_40m_staMap(struct rtl8192cd_priv *priv, struct stat_info *pstat, int release)
 {
-	if (
-#ifdef CONFIG_RTL_88E_SUPPORT
-		(GET_CHIP_VER(priv)==VERSION_8188E)?(pstat->remapped_aid != RTL8188E_NUM_STAT-1):
-#endif
-		(pstat->remapped_aid != FW_NUM_STAT-1)) {
-		int i;
-		for(i = 1; i < NUM_STAT; i++)
-			if(priv->pshare->remapped_aidarray[i] == pstat->aid){
-				priv->pshare->remapped_aidarray[i] = 0;
-				priv->pshare->fw_free_space ++;
-				break;
-			}
-	}
-	pstat->sta_in_firmware = -1;
+	if(pstat) {
+		if(release ||  (pstat->tx_bw == HT_CHANNEL_WIDTH_20)) {
+			clearSTABitMap(&priv->pshare->_40m_staMap, pstat->aid);
+			clearSTABitMap(&priv->pshare->_80m_staMap, pstat->aid);			
+		} else if (pstat->tx_bw == HT_CHANNEL_WIDTH_80) {
+			setSTABitMap(&priv->pshare->_80m_staMap, pstat->aid);
+			setSTABitMap(&priv->pshare->_40m_staMap, pstat->aid);
+		} else if(pstat->tx_bw == HT_CHANNEL_WIDTH_20_40){
+			setSTABitMap(&priv->pshare->_40m_staMap, pstat->aid);
+			clearSTABitMap(&priv->pshare->_80m_staMap, pstat->aid);	
+		} 
 
-	DEBUG_INFO("Remove id %d from ratr\n", pstat->aid);
+	}
+}
+
+void checkBandwidth(struct rtl8192cd_priv *priv)
+{
+	unsigned int _40m_stamap = orSTABitMap(&priv->pshare->_40m_staMap);
+	unsigned int _80m_stamap = orSTABitMap(&priv->pshare->_80m_staMap);
+		
+	int FA_counter = priv->pshare->FA_total_cnt;
+
+	if(!priv->pshare->rf_ft_var.bws_enable)
+		return;
+
+#ifdef DFS
+	if(is_DFS_channel(priv->pmib->dot11RFEntry.dot11channel))
+		return;
+#endif		
+
+#ifdef MP_TEST
+	if ( (OPMODE & WIFI_MP_STATE)|| priv->pshare->rf_ft_var.mp_specific)
+		return ;
+#endif
+
+#ifdef WDS
+	if (priv->pmib->dot11WdsInfo.wdsEnabled)
+		return;
+#endif
+
+	if (!(OPMODE & WIFI_AP_STATE))
+		return;
+
+#ifdef UNIVERSAL_REPEATER
+	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)))
+		return;
+#endif		
+
+    if (timer_pending(&priv->ss_timer))
+        return;
+
+#if	defined(USE_OUT_SRC)
+	if(IS_OUTSRC_CHIP(priv))
+		FA_counter = ODMPTR->FalseAlmCnt.Cnt_all;
+#endif
+
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
+	{
+		if ((priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80) && (_80m_stamap == 0) && (_40m_stamap != 0))
+		{
+			priv->pshare->CurrentChannelBW = HT_CHANNEL_WIDTH_20_40;
+			SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+			SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+			update_RAMask_to_FW(priv, 1);
+#endif
+			return;
+		}
+		else if ((priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_80) &&
+				(priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20_40) &&
+				(_80m_stamap != 0))
+		{
+			priv->pshare->CurrentChannelBW = HT_CHANNEL_WIDTH_80;
+			SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+			SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+			update_RAMask_to_FW(priv, 1);
+#endif
+			return;
+		}
+	}
+
+	if ((priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20_40)  && (!_40m_stamap) ) {
+		if (priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_10)
+			priv->pshare->CurrentChannelBW = HT_CHANNEL_WIDTH_10;
+		else if (priv->pmib->dot11nConfigEntry.dot11nUse40M == HT_CHANNEL_WIDTH_5)
+			priv->pshare->CurrentChannelBW = HT_CHANNEL_WIDTH_5;
+		else
+			priv->pshare->CurrentChannelBW = HT_CHANNEL_WIDTH_20;		
+		SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+		SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+		update_RAMask_to_FW(priv, 1);
+#endif					
+		SetTxPowerLevel(priv);
+	} 
+	if( priv->pmib->dot11nConfigEntry.dot11nCoexist) {
+		if((FA_counter> priv->pshare->rf_ft_var.bws_Thd)&&((RTL_R8(0xc50) & 0x7f) >= 0x32)) {
+			if(priv->pshare->is_40m_bw != HT_CHANNEL_WIDTH_20) {
+				priv->pshare->is_40m_bw = HT_CHANNEL_WIDTH_20;
+				priv->ht_cap_len = 0;	// reconstruct ie
+				if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11N)
+					construct_ht_ie(priv, priv->pshare->is_40m_bw, priv->pshare->offset_2nd_chan);				
+			}
+		} 
+#if 0		
+		else {
+			if(priv->pshare->is_40m_bw != priv->pmib->dot11nConfigEntry.dot11nUse40M) {
+				priv->pshare->is_40m_bw = priv->pmib->dot11nConfigEntry.dot11nUse40M;
+				priv->ht_cap_len = 0;				// reconstruct ie
+				if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11N)
+					construct_ht_ie(priv, priv->pshare->is_40m_bw, priv->pshare->offset_2nd_chan);
+			}
+		}		
+#endif		
+	}		
+	if (!priv->ss_req_ongoing)
+	if( _40m_stamap && (priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20)  &&
+		((priv->pmib->dot11nConfigEntry.dot11nUse40M != HT_CHANNEL_WIDTH_20))) {
+			if(priv->pmib->dot11nConfigEntry.dot11nCoexist) {
+				priv->pshare->is_40m_bw = priv->pmib->dot11nConfigEntry.dot11nUse40M;
+				priv->ht_cap_len = 0;				// reconstruct ie
+				if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11N)
+					construct_ht_ie(priv, priv->pshare->is_40m_bw, priv->pshare->offset_2nd_chan);				
+			}
+			priv->pshare->CurrentChannelBW = priv->pmib->dot11nConfigEntry.dot11nUse40M;
+			SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+			SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+			update_RAMask_to_FW(priv, 1);
+#endif
+	}
 }
 #endif
 
-#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
 
-#ifdef __KERNEL__
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
+#ifdef CONFIG_PCI_HCI
 void add_RATid_timer(unsigned long task_priv)
-#elif defined(__ECOS)
-void add_RATid_timer(void *task_priv)
-#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	struct stat_info *pstat = NULL;
 	unsigned int set_timer = 0;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (!(priv->drv_state & DRV_STATE_OPEN))
 		return;
@@ -4578,7 +5746,9 @@ void add_RATid_timer(void *task_priv)
 
 void add_update_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	if (is_h2c_buf_occupy(priv)) {
 		if (list_empty(&pstat->addRAtid_list)) {
@@ -4593,11 +5763,14 @@ void add_update_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			add_RATid(priv, pstat);
 	}
 }
+#endif // CONFIG_PCI_HCI
 #endif
 
 void send_h2c_cmd_detect_wps_gpio(struct rtl8192cd_priv *priv, unsigned int gpio_num, unsigned int enable, unsigned int high_active)
 {
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 	unsigned int content = 0;
 
 	SAVE_INT_AND_CLI(flags);
@@ -4707,17 +5880,84 @@ void free_rtk_queue(struct rtl8192cd_priv *priv, struct ring_que *skb_que)
 }
 #endif // RTK_QUE
 
+#ifdef DELAY_REFILL_RX_BUF
+#ifdef CONFIG_WLAN_HAL
+    extern int refill_rx_ring_88XX(struct rtl8192cd_priv * priv, struct sk_buff * skb, unsigned char * data, unsigned int q_num, PHCI_RX_DMA_QUEUE_STRUCT_88XX cur_q);
+#endif
+extern int refill_rx_ring(struct rtl8192cd_priv *priv, struct sk_buff *skb, unsigned char *data);
+#endif
 
+#ifdef __ECOS
+#ifdef DELAY_REFILL_RX_BUF
+int __MIPS16 rtk_wifi_delay_refill(struct sk_buff  *pskb)
+{
+	struct rtl8192cd_priv *priv;	
+	struct rtl8192cd_hw *phw;
+	struct sk_buff *skb=(struct sk_buff *)pskb;
+	int ret=0;
+	if(!(pskb && pskb->priv))
+		return ret;
+	
+	priv=(struct rtl8192cd_priv *)pskb->priv;
+ 	phw=GET_HW(priv);
+
+#ifdef CONFIG_WLAN_HAL
+	unsigned int					q_num;
+	PHCI_RX_DMA_MANAGER_88XX		prx_dma;
+	PHCI_RX_DMA_QUEUE_STRUCT_88XX	cur_q;
+#endif // CONFIG_WLAN_HAL
+
+#ifdef CONFIG_WLAN_HAL
+	if (IS_HAL_CHIP(priv)) {
+        if (!(priv->drv_state & DRV_STATE_OPEN)){
+            /* return 0 means can't refill (because interface be closed or not opened yet) to rx ring but relesae to skb_poll*/            
+            ret=0;
+        }else{        
+    	    q_num   = 0;
+    	    prx_dma = (PHCI_RX_DMA_MANAGER_88XX)(_GET_HAL_DATA(priv)->PRxDMA88XX);
+    	    cur_q   = &(prx_dma->rx_queue[q_num]);
+    	    ret = refill_rx_ring_88XX(priv, NULL, NULL, q_num, cur_q);
+    	    GET_HAL_INTERFACE(priv)->UpdateRXBDHostIdxHandler(priv, q_num, cur_q->rxbd_ok_cnt);
+    	    cur_q->rxbd_ok_cnt = 0;
+        }
+	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif
+	{
+		if (phw->cur_rx_refill != phw->cur_rx) {
+		   	ret=refill_rx_ring(priv, NULL, NULL); 
+		}
+	}
+	return ret;
+}
+#endif
+#endif
+
+#if !(defined(__ECOS) && defined(CONFIG_SDIO_HCI))
 void refill_skb_queue(struct rtl8192cd_priv *priv)
 {
 	struct sk_buff *skb;
-	#ifdef DELAY_REFILL_RX_BUF
- 	extern int refill_rx_ring(struct rtl8192cd_priv *priv, struct sk_buff *skb, unsigned char *data);  
+#ifdef DELAY_REFILL_RX_BUF
  	struct rtl8192cd_hw *phw=GET_HW(priv);
-	#endif 
 
+#ifdef CONFIG_WLAN_HAL
+    unsigned int                    q_num;
+    PHCI_RX_DMA_MANAGER_88XX        prx_dma;
+    PHCI_RX_DMA_QUEUE_STRUCT_88XX   cur_q;
 
-	while (priv->pshare->skb_queue.qlen < MAX_PRE_ALLOC_SKB_NUM) {
+    if (IS_HAL_CHIP(priv)) {
+        q_num   = 0;
+        prx_dma = (PHCI_RX_DMA_MANAGER_88XX)(_GET_HAL_DATA(priv)->PRxDMA88XX);
+        cur_q   = &(prx_dma->rx_queue[q_num]);
+    }
+#endif // CONFIG_WLAN_HAL
+#endif
+
+#ifdef NOT_RTK_BSP
+	while (skb_queue_len(&priv->pshare->skb_queue) < MAX_PRE_ALLOC_SKB_NUM) 
+#else
+	while (priv->pshare->skb_queue.qlen < MAX_PRE_ALLOC_SKB_NUM) 
+#endif
+	{
 
 	#ifdef CONFIG_RTL8190_PRIV_SKB
 			skb = dev_alloc_skb_priv(priv, RX_BUF_LEN);
@@ -4729,12 +5969,22 @@ void refill_skb_queue(struct rtl8192cd_priv *priv)
 //			DEBUG_ERR("dev_alloc_skb() failed!\n");
 			return;
 		}
-	#ifdef DELAY_REFILL_RX_BUF
-	  if  (phw->cur_rx_refill != phw->cur_rx) {
-	   refill_rx_ring(priv, skb, NULL); 
-	   continue;
-	  }
-	#endif
+#ifdef DELAY_REFILL_RX_BUF
+#ifdef CONFIG_WLAN_HAL
+		if (IS_HAL_CHIP(priv)) {
+	        if (cur_q->cur_host_idx != ((cur_q->host_idx + cur_q->rxbd_ok_cnt)%cur_q->total_rxbd_num)) {
+	            refill_rx_ring_88XX(priv, skb, NULL, q_num, cur_q);
+				continue;
+		  	}
+		} else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif // CONFIG_WLAN_HAL
+		{//not HAL
+			if (phw->cur_rx_refill != phw->cur_rx) {
+				refill_rx_ring(priv, skb, NULL); 
+				continue;
+			}
+		}
+#endif
 
 #ifdef RTK_QUE
 		rtk_queue_tail(priv, &priv->pshare->skb_queue, skb);
@@ -4746,19 +5996,30 @@ void refill_skb_queue(struct rtl8192cd_priv *priv)
 #endif
 #endif
 	}
+#ifdef DELAY_REFILL_RX_BUF
+#ifdef CONFIG_WLAN_HAL
+	if (IS_HAL_CHIP(priv)) {
+        GET_HAL_INTERFACE(priv)->UpdateRXBDHostIdxHandler(priv, q_num, cur_q->rxbd_ok_cnt);
+        cur_q->rxbd_ok_cnt = 0;
+	}
+#endif // CONFIG_WLAN_HAL
+#endif 
 }
 
 
-#ifndef __ECOS
 __MIPS16
-#endif
 __IRAM_IN_865X
 struct sk_buff *alloc_skb_from_queue(struct rtl8192cd_priv *priv)
 {
-	struct sk_buff *skb;
+	struct sk_buff *skb=NULL;
 
-	if (priv->pshare->skb_queue.qlen == 0) {
-		struct sk_buff *skb;
+#ifdef NOT_RTK_BSP
+	if (skb_queue_len(&priv->pshare->skb_queue) < 2)
+#else
+	if (priv->pshare->skb_queue.qlen == 0) 
+#endif
+	{
+//		struct sk_buff *skb;
 #ifdef CONFIG_RTL8190_PRIV_SKB
 #ifdef CONCURRENT_MODE
 		skb = dev_alloc_skb_priv(priv, RX_BUF_LEN);
@@ -4783,6 +6044,9 @@ struct sk_buff *alloc_skb_from_queue(struct rtl8192cd_priv *priv)
 	skb = __skb_dequeue(&priv->pshare->skb_queue);
 #endif
 #endif
+	if (skb == NULL) {
+		DEBUG_ERR("skb_dequeue() failed!\n");
+	}
 
 	return skb;
 }
@@ -4791,7 +6055,9 @@ struct sk_buff *alloc_skb_from_queue(struct rtl8192cd_priv *priv)
 void free_skb_queue(struct rtl8192cd_priv *priv, struct sk_buff_head	*skb_que)
 {
 	struct sk_buff *skb;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	while (skb_que->qlen > 0) {
 // 2009.09.08
@@ -4803,6 +6069,7 @@ void free_skb_queue(struct rtl8192cd_priv *priv, struct sk_buff_head	*skb_que)
 		dev_kfree_skb_any(skb);
 	}
 }
+#endif // !(__ECOS && CONFIG_SDIO_HCI)
 
 #ifdef FAST_RECOVERY
 struct backup_info {
@@ -4833,10 +6100,22 @@ void *backup_sta(struct rtl8192cd_priv *priv)
 			pBackup->sta[i] = (struct aid_obj *)kmalloc((sizeof(struct aid_obj)), GFP_ATOMIC);
 			if (pBackup->sta[i] == NULL) {
 				printk("%s: kmalloc(sta) failed!\n", __FUNCTION__);
+				for (--i; i>=0; --i) {
+					if (pBackup->sta[i]) {
+#ifdef CONFIG_RTL_WAPI_SUPPORT
+						free_sta_wapiInfo(priv, &pBackup->sta[i]->station);
+#endif
+						kfree(pBackup->sta[i]);
+					}
+				}
 				kfree(pBackup);
 				return NULL;
 			}
 			memcpy(pBackup->sta[i], priv->pshare->aidarray[i], sizeof(struct aid_obj));
+#ifdef CONFIG_RTL_WAPI_SUPPORT
+			// prevent backup station.wapiInfo from being freed during recovery preiod
+			priv->pshare->aidarray[i]->station.wapiInfo = NULL;
+#endif
 		}
 	}
 
@@ -4857,14 +6136,12 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 	struct backup_info *pBackup=(struct backup_info *)pInfo;
 #ifdef CONFIG_RTK_MESH
 	unsigned char	is_11s_MP = FALSE;
+	unsigned long flags;
 #endif
+	int retVal;
 
 	for (i=0; i<NUM_STAT; i++) {
 		if (pBackup->sta[i]) {
-#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
-			if (priv !=  pBackup->sta[i]->priv)
-				continue;
-#endif
 
 #ifdef CONFIG_RTK_MESH	// Restore Establish MP ONLY
 			if ((1 == GET_MIB(priv)->dot1180211sInfo.mesh_enable) && !isSTA2(pBackup->sta[i]->station)) {
@@ -4884,18 +6161,33 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 			pstat = alloc_stainfo(priv, pBackup->sta[i]->station.hwaddr, i);
 			if (!pstat) {
 				printk("%s: alloc_stainfo() failed!\n", __FUNCTION__);
+				for (; i<NUM_STAT; i++) {
+					if (pBackup->sta[i]) {
+#ifdef CONFIG_RTL_WAPI_SUPPORT
+						free_sta_wapiInfo(priv, &pBackup->sta[i]->station);
+#endif
+						kfree(pBackup->sta[i]);
+					}
+				}
+				kfree(pBackup);
 				return;
 			}
 
+#ifdef CONFIG_RTL_WAPI_SUPPORT
+			// free new allocated wapiInfo before restore backup wapiInfo
+			if (pstat->wapiInfo) free_sta_wapiInfo(priv, pstat);
+#endif
 			offset = (unsigned long)(&((struct stat_info *)0)->aid);
 			memcpy(((unsigned char *)pstat)+offset,
 				((unsigned char *)&pBackup->sta[i]->station)+offset, sizeof(struct stat_info)-offset);
-			list_add_tail(&pstat->asoc_list, &priv->asoc_list);
+			asoc_list_add(priv, pstat);
 
 #ifdef CONFIG_RTK_MESH
 			if (TRUE == is_11s_MP) {
 				is_11s_MP = FALSE;
+				SMP_LOCK_MESH_MP_HDR(flags);
 				list_add_tail(&pstat->mesh_mp_ptr, &priv->mesh_mp_hdr);
+				SMP_UNLOCK_MESH_MP_HDR(flags);
 				mesh_cnt_ASSOC_PeerLink_CAP(priv, pstat, INCREASE);
 			}
 #endif
@@ -4918,7 +6210,42 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 #ifndef USE_WEP_DEFAULT_KEY
 			set_keymapping_wep(priv, pstat);
 #endif
-			if (!SWCRYPTO && pstat->dot11KeyMapping.dot11Privacy && pstat->dot11KeyMapping.keyInCam == TRUE) {
+			if (!SWCRYPTO && pstat->dot11KeyMapping.keyInCam == TRUE) {
+#ifdef CONFIG_RTL_HW_WAPI_SUPPORT
+				if (pstat->wapiInfo && (pstat->wapiInfo->wapiType != wapiDisable)) {
+					wapiStaInfo *wapiInfo = pstat->wapiInfo;
+					
+					retVal = CamAddOneEntry(priv, 
+							pstat->hwaddr, 
+							wapiInfo->wapiUCastKeyId,	/* keyid */ 
+							DOT11_ENC_WAPI<<2,	/* type */
+							0,	/* use default key */
+							wapiInfo->wapiUCastKey[wapiInfo->wapiUCastKeyId].dataKey);
+					if (retVal) {
+						priv->pshare->CamEntryOccupied++;
+						
+						retVal = CamAddOneEntry(priv, 
+								pstat->hwaddr, 
+								wapiInfo->wapiUCastKeyId,	/* keyid */
+								DOT11_ENC_WAPI<<2,	/* type */
+								1,	/* use default key */
+								wapiInfo->wapiUCastKey[wapiInfo->wapiUCastKeyId].micKey);
+						if (retVal) {
+							//pstat->dot11KeyMapping.keyInCam = TRUE;
+							priv->pshare->CamEntryOccupied++;
+						} else {
+							retVal = CamDeleteOneEntry(priv, pstat->hwaddr, wapiInfo->wapiUCastKeyId, 0);
+							if (retVal) {
+								priv->pshare->CamEntryOccupied--;
+								pstat->dot11KeyMapping.keyInCam = FALSE;
+							}
+						}
+					} else {
+						pstat->dot11KeyMapping.keyInCam = FALSE;
+					}
+				} else
+#endif // CONFIG_RTL_HW_WAPI_SUPPORT
+				if (pstat->dot11KeyMapping.dot11Privacy) {
 				memcpy(key_combo,
 					pstat->dot11KeyMapping.dot11EncryptKey.dot11TTKey.skey,
 					pstat->dot11KeyMapping.dot11EncryptKey.dot11TTKeyLen);
@@ -4926,12 +6253,34 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 					pstat->dot11KeyMapping.dot11EncryptKey.dot11TMicKey1.skey,
 					pstat->dot11KeyMapping.dot11EncryptKey.dot11TMicKeyLen);
 
-				CamAddOneEntry(priv, pstat->hwaddr, pstat->dot11KeyMapping.keyid,
-					pstat->dot11KeyMapping.dot11Privacy<<2, 0, key_combo);
-				priv->pshare->CamEntryOccupied++;
+#ifdef MULTI_MAC_CLONE
+				if ((OPMODE & WIFI_STATION_STATE) && priv->pmib->ethBrExtInfo.macclone_enable) 
+					retVal = CamAddOneEntry(priv, pstat->sa_addr, pstat->dot11KeyMapping.keyid,
+						pstat->dot11KeyMapping.dot11Privacy<<2, 0, key_combo);
+				else
+#endif
+					retVal = CamAddOneEntry(priv, pstat->hwaddr, pstat->dot11KeyMapping.keyid,
+						pstat->dot11KeyMapping.dot11Privacy<<2, 0, key_combo);
+					
+					if (retVal)
+						priv->pshare->CamEntryOccupied++;
+					else
+						pstat->dot11KeyMapping.keyInCam = FALSE;
+				}
 			}
 			}
 			// to avoid add RAtid fail
+#if defined(CONFIG_PCI_HCI)
+#ifdef CONFIG_WLAN_HAL
+			if (IS_HAL_CHIP(priv)) {
+				GET_HAL_INTERFACE(priv)->UpdateHalRAMaskHandler(priv, pstat, 3);
+			} else
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+			if(GET_CHIP_VER(priv)== VERSION_8812E) {
+				UpdateHalRAMask8812(priv, pstat, 3);
+			} else
+#endif
 #ifdef CONFIG_RTL_88E_SUPPORT
 			if (GET_CHIP_VER(priv)==VERSION_8188E) {
 #ifdef TXREPORT
@@ -4940,28 +6289,26 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 			} else
 #endif
 			{
-#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)			
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
 				add_update_RATid(priv, pstat);
 #endif
 			}
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+			update_STA_RATid(priv, pstat);
+#endif
 			kfree(pBackup->sta[i]);
-#ifdef USE_OUT_SRC	
-			if (priv->pshare->is_40m_bw && (pstat->IOTPeer == HT_IOT_PEER_MARVELL)){
-#else
-			if ( priv->pshare->is_40m_bw && pstat->is_marvell_sta){
-#endif				
-#ifdef STA_EXT
-				if (pstat->aid > FW_NUM_STAT)
-					priv->pshare->marvellMapBitExt |= BIT(pstat->aid - FW_NUM_STAT - 1);
-				else
-#endif
-#ifdef CONFIG_RTL_88E_SUPPORT
-				if ((GET_CHIP_VER(priv) == VERSION_8188E) && (pstat->aid > 32))
-					priv->pshare->marvellMapBit_88e_hw_ext |= BIT(pstat->aid - 32 - 1);
-				else
-#endif
-					priv->pshare->marvellMapBit |= BIT(pstat->aid - 1);
 
+			if (priv->pshare->is_40m_bw && (pstat->IOTPeer == HT_IOT_PEER_MARVELL))
+
+			{
+			    setSTABitMap(&priv->pshare->marvellMapBit, pstat->aid);
+
+#if defined(CONFIG_RTL_8812_SUPPORT)||defined(CONFIG_WLAN_HAL)
+				if((GET_CHIP_VER(priv)== VERSION_8812E)||(IS_HAL_CHIP(priv))){
+				}
+                else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif
+				{//not HAL
 				if (priv->pshare->Reg_RRSR_2 == 0 && priv->pshare->Reg_81b == 0){
 					priv->pshare->Reg_RRSR_2 = RTL_R8(RRSR+2);
 					priv->pshare->Reg_81b = RTL_R8(0x81b);
@@ -4969,31 +6316,22 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 					RTL_W8(0x81b, priv->pshare->Reg_81b | 0x0E); 
 				} 
 			}
+			}
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+			update_40m_staMap(priv, pstat, 0);
+#endif
 		}
 	}
 
-	memcpy(&priv->pmib->dot11GroupKeysTable, &pBackup->gkey, sizeof(struct Dot11KeyMappingsEntry));
-#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
-	if (IS_ROOT_INTERFACE(priv))
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+	update_RAMask_to_FW(priv, 1);
 #endif
-	{
+	SetTxPowerLevel(priv);
+	memcpy(&priv->pmib->dot11GroupKeysTable, &pBackup->gkey, sizeof(struct Dot11KeyMappingsEntry));
 		if (!SWCRYPTO && priv->pmib->dot11GroupKeysTable.keyInCam) {
-			memcpy(key_combo,
-				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TTKey.skey,
-				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TTKeyLen);
-
-			memcpy(&key_combo[priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TTKeyLen],
-				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TMicKey1.skey,
-				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TMicKeyLen);
-
-			CamAddOneEntry(priv, (unsigned char *)"\xff\xff\xff\xff\xff\xff", priv->pmib->dot11GroupKeysTable.keyid,
-				priv->pmib->dot11GroupKeysTable.dot11Privacy<<2, 0, key_combo);
-			priv->pshare->CamEntryOccupied++;
-		}
-		#if defined(CONFIG_RTL_HW_WAPI_SUPPORT)
-		if (!SWCRYPTO)
+#ifdef CONFIG_RTL_HW_WAPI_SUPPORT
+		if (priv->pmib->wapiInfo.wapiType != wapiDisable)
 		{
-			int			retVal;
 			const uint8	CAM_CONST_BCAST[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 			retVal = CamAddOneEntry(priv, 
 								CAM_CONST_BCAST, 
@@ -5010,12 +6348,34 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 								priv->wapiMCastKey[priv->wapiMCastKeyId].micKey);
 				if (retVal) {
 					priv->pshare->CamEntryOccupied++;
-					priv->pmib->dot11GroupKeysTable.keyInCam = TRUE;
-				}
+//					priv->pmib->dot11GroupKeysTable.keyInCam = TRUE;
+				} else {
+					retVal = CamDeleteOneEntry(priv, CAM_CONST_BCAST, 1, 0);
+					if (retVal)
+						priv->pmib->dot11GroupKeysTable.keyInCam = FALSE;
 			}
+			} else {
+				priv->pmib->dot11GroupKeysTable.keyInCam = FALSE;
 		}
-		#endif
+		} else
+#endif // CONFIG_RTL_HW_WAPI_SUPPORT
+		{
+			memcpy(key_combo,
+				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TTKey.skey,
+				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TTKeyLen);
 
+			memcpy(&key_combo[priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TTKeyLen],
+				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TMicKey1.skey,
+				priv->pmib->dot11GroupKeysTable.dot11EncryptKey.dot11TMicKeyLen);
+
+			retVal = CamAddOneEntry(priv, (unsigned char *)"\xff\xff\xff\xff\xff\xff", priv->pmib->dot11GroupKeysTable.keyid,
+				priv->pmib->dot11GroupKeysTable.dot11Privacy<<2, 0, key_combo);
+			
+			if (retVal)
+				priv->pshare->CamEntryOccupied++;
+			else
+				priv->pmib->dot11GroupKeysTable.keyInCam = FALSE;
+		}
 	}
 
 #ifdef WDS
@@ -5026,39 +6386,6 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 #endif // FAST_RECOVERY
 
 #ifdef CONFIG_RTL8190_PRIV_SKB
-		#ifdef DELAY_REFILL_RX_BUF
-			#if defined(CONFIG_RTL8196B_GW_8M)
-				#define MAX_SKB_NUM		100
-			#elif defined(CONFIG_RTL8672)
-				#if defined(CONFIG_MEM_LIMITATION)
-					#if defined(LINUX_2_6_22_)
-						#define MAX_SKB_NUM		96
-					#else
-						#define MAX_SKB_NUM		160
-					#endif
-				#else
-					#define MAX_SKB_NUM		256
-				#endif
-			#elif defined(CONFIG_RTL_92D_SUPPORT)
-				#ifdef CONFIG_RTL_8198_AP_ROOT
-					#define MAX_SKB_NUM		210
-				#else
-					#define MAX_SKB_NUM		256
-				#endif
-			#elif defined( __ECOS)
-				#define MAX_SKB_NUM		256
-			#else
-				#define MAX_SKB_NUM		160
-			#endif
-
-			#if defined(CONFIG_RTL_8198_GW) || defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL_819XD) 
-				#undef  MAX_SKB_NUM
-				#define MAX_SKB_NUM		480
-			#endif			
-		#else
-			#define MAX_SKB_NUM		580
-		#endif
-
 	#if defined(CONFIG_RTL8196B_GW_8M) || defined(CONFIG_RTL8196C_AP_ROOT) || defined(CONFIG_RTL8196C_CLIENT_ONLY) || defined(CONFIG_RTL_8198_AP_ROOT) || defined(__ECOS)
 #ifdef __LINUX_2_6__
 		#define SKB_BUF_SIZE	(MIN_RX_BUF_LEN+sizeof(struct skb_shared_info)+128+128)
@@ -5067,7 +6394,7 @@ void restore_backup_sta(struct rtl8192cd_priv *priv, void *pInfo)
 #endif
 	#else
 #ifdef __LINUX_2_6__
-		#define SKB_BUF_SIZE	(MAX_RX_BUF_LEN+sizeof(struct skb_shared_info)+128+128)
+		#define SKB_BUF_SIZE	(MIN_RX_BUF_LEN+sizeof(struct skb_shared_info)+128+128)
 #else
 		#define SKB_BUF_SIZE	(MIN_RX_BUF_LEN+sizeof(struct skb_shared_info)+128)
 #endif
@@ -5118,32 +6445,39 @@ extern struct sk_buff *dev_alloc_8190_skb(unsigned char *data, int size);
 
 void init_priv_skb_buf(struct rtl8192cd_priv *priv)
 {
-	int i;
+    int i;    
 #ifdef CONCURRENT_MODE
-	int idx = priv->pshare->wlandev_idx;
-	memset(skb_buf[idx], '\0', sizeof(struct priv_skb_buf)*REAL_MAX_SKB);
+    int idx;
+#endif
 
-	INIT_LIST_HEAD(&skbbuf_list[idx]);
+    panic_printk("\n\n#######################################################\n");
+    panic_printk("SKB_BUF_SIZE=%d MAX_SKB_NUM=%d\n",SKB_BUF_SIZE,MAX_SKB_NUM);
+    panic_printk("#######################################################\n\n");
+#ifdef CONCURRENT_MODE
+    idx = priv->pshare->wlandev_idx;
+    memset(skb_buf[idx], '\0', sizeof(struct priv_skb_buf)*REAL_MAX_SKB);
 
-	for (i=0; i<REAL_MAX_SKB; i++)  {
-		memcpy(skb_buf[idx][i].magic, MAGIC_CODE, 4);
-		skb_buf[idx][i].root_priv = priv;
-		skb_buf[idx][i].buf_pointer = (unsigned int)&skb_buf[idx][i];
-		INIT_LIST_HEAD(&skb_buf[idx][i].list);
-		list_add_tail(&skb_buf[idx][i].list, &skbbuf_list[idx]);
-	}
+    INIT_LIST_HEAD(&skbbuf_list[idx]);
+
+    for (i=0; i<REAL_MAX_SKB; i++)  {
+        memcpy(skb_buf[idx][i].magic, MAGIC_CODE, 4);
+        skb_buf[idx][i].root_priv = priv;
+        skb_buf[idx][i].buf_pointer = (unsigned int)&skb_buf[idx][i];
+        INIT_LIST_HEAD(&skb_buf[idx][i].list);
+        list_add_tail(&skb_buf[idx][i].list, &skbbuf_list[idx]);
+    }
 #else
-	memset(skb_buf, '\0', sizeof(struct priv_skb_buf)*REAL_MAX_SKB);
+    memset(skb_buf, '\0', sizeof(struct priv_skb_buf)*REAL_MAX_SKB);
 
-	INIT_LIST_HEAD(&skbbuf_list);
+    INIT_LIST_HEAD(&skbbuf_list);
 
-	for (i=0; i<REAL_MAX_SKB; i++)  {
-		memcpy(skb_buf[i].magic, MAGIC_CODE, 4);
-		skb_buf[i].buf_pointer = (unsigned int)&skb_buf[i];				
-		INIT_LIST_HEAD(&skb_buf[i].list);
-		list_add_tail(&skb_buf[i].list, &skbbuf_list);
-	}
-	root_priv = priv;
+    for (i=0; i<REAL_MAX_SKB; i++)  {
+        memcpy(skb_buf[i].magic, MAGIC_CODE, 4);
+        skb_buf[i].buf_pointer = (unsigned int)&skb_buf[i];				
+        INIT_LIST_HEAD(&skb_buf[i].list);
+        list_add_tail(&skb_buf[i].list, &skbbuf_list);
+    }
+    root_priv = priv;
 #endif
 }
 
@@ -5152,11 +6486,15 @@ void init_priv_skb_buf(struct rtl8192cd_priv *priv)
 static __inline__ unsigned char *get_priv_skb_buf(struct rtl8192cd_priv *priv)
 {
 	int i;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
+	unsigned char *data;
+
 	SAVE_INT_AND_CLI(flags);
 
 	i = priv->pshare->wlandev_idx;
-	unsigned char *data = get_buf_from_poll(priv, &skbbuf_list[i], (unsigned int *)&skb_free_num[i]);
+	data = get_buf_from_poll(priv, &skbbuf_list[i], (unsigned int *)&skb_free_num[i]);
 
 	RESTORE_INT(flags);		
 	return data;
@@ -5167,7 +6505,9 @@ static __inline__ unsigned char *get_priv_skb_buf(struct rtl8192cd_priv *priv)
 static __inline__ unsigned char *get_priv_skb_buf(struct rtl8192cd_priv *priv)
 {
 	unsigned char *ret;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
@@ -5297,26 +6637,69 @@ void free_rtl8190_priv_buf(unsigned char *head)
 	unsigned long offset = (unsigned long)(&((struct priv_skb_buf *)0)->buf);
 	struct priv_skb_buf *priv_buf = (struct priv_skb_buf *)(((unsigned long)head) - offset);
 	struct rtl8192cd_priv *priv = priv_buf->root_priv;
-#ifdef DELAY_REFILL_RX_BUF
-	extern int refill_rx_ring(struct rtl8192cd_priv *priv, struct sk_buff *skb, unsigned char *data);
-	unsigned long x;
-	int ret;
 	int i = priv->pshare->wlandev_idx;
-
+#ifndef SMP_SYNC
+	unsigned long x;
+#endif	
+#ifdef DELAY_REFILL_RX_BUF
+	int ret;
+#ifdef SMP_SYNC		
+	unsigned long flags;
+	int locked;
+#endif
+#ifdef CONFIG_WLAN_HAL
+    unsigned int                    q_num;
+    PHCI_RX_DMA_MANAGER_88XX        prx_dma;
+    PHCI_RX_DMA_QUEUE_STRUCT_88XX   cur_q;
+#endif // CONFIG_WLAN_HAL
+#ifdef SMP_SYNC
+	locked = 0;		
+	SMP_TRY_LOCK_RECV(flags,locked);
+#endif	
 	SAVE_INT_AND_CLI(x);
-	ret = refill_rx_ring(priv, NULL, head);
+#ifdef CONFIG_WLAN_HAL
+	if (IS_HAL_CHIP(priv)) {
+        if (!(priv->drv_state & DRV_STATE_OPEN)){
+            /* return 0 means can't refill (because interface be closed or not opened yet) to rx ring but relesae to skb_poll*/            
+            ret=0;
+        }else{
+            q_num   = 0;
+            prx_dma = (PHCI_RX_DMA_MANAGER_88XX)(_GET_HAL_DATA(priv)->PRxDMA88XX);
+            cur_q   = &(prx_dma->rx_queue[q_num]);
+                        
+            ret = refill_rx_ring_88XX(priv, NULL, head, q_num, cur_q);
+            GET_HAL_INTERFACE(priv)->UpdateRXBDHostIdxHandler(priv, q_num, cur_q->rxbd_ok_cnt);
+            cur_q->rxbd_ok_cnt = 0;
+        }
+	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif
+	{//not HAL
+		ret = refill_rx_ring(priv, NULL, head);
+	}
+	
 	if (ret) {
+#ifdef SMP_SYNC		
+		if(locked)
+			SMP_UNLOCK_RECV(flags);
+#endif			
 		RESTORE_INT(x);
 		return;
 	}
-	else
+	else {
+    	release_buf_to_poll(priv, head, &skbbuf_list[i], (unsigned int *)&skb_free_num[i]);
+    }
+#ifdef SMP_SYNC
+    if(locked)
+			SMP_UNLOCK_RECV(flags);
+#endif			
+	RESTORE_INT(x);
+#else // ! DELAY_REFILL_RX_BUF
+	SAVE_INT_AND_CLI(x);
 	release_buf_to_poll(priv, head, &skbbuf_list[i], (unsigned int *)&skb_free_num[i]);
 	RESTORE_INT(x);
-#else
-	release_buf_to_poll(priv, head, &skbbuf_list[i], (unsigned int *)&skb_free_num[i]);
 #endif
 
-#else
+#else // ! CONCURRENT_MODE
 
 	unsigned long x;
 	struct rtl8192cd_priv *priv = root_priv;
@@ -5328,19 +6711,57 @@ void free_rtl8190_priv_buf(unsigned char *head)
 #endif
 
 #ifdef DELAY_REFILL_RX_BUF
-	extern int refill_rx_ring(struct rtl8192cd_priv *priv, struct sk_buff *skb, unsigned char *data);
+#ifdef CONFIG_WLAN_HAL
+    unsigned int                    q_num;
+    PHCI_RX_DMA_MANAGER_88XX        prx_dma;
+    PHCI_RX_DMA_QUEUE_STRUCT_88XX   cur_q;
+#endif
 	int ret;
 
+#ifdef SMP_SYNC
+	unsigned long flags;
+	int locked, cpuid;
+  	cpuid = smp_processor_id();
+	locked = 0;		
+	SMP_TRY_LOCK_RECV(flags,locked);
+#endif
 	SAVE_INT_AND_CLI(x);
-	ret = refill_rx_ring(priv, NULL, head);
+#ifdef CONFIG_WLAN_HAL
+	if (IS_HAL_CHIP(priv)) {
+	    // Currently, only one queue for rx...    
+        if (!(priv->drv_state & DRV_STATE_OPEN)){
+            /* return 0 means can't refill (because interface be closed or not opened yet) to rx ring but relesae to skb_poll*/            
+            ret=0;
+        }else{        
+    	    q_num   = 0;
+    	    prx_dma = (PHCI_RX_DMA_MANAGER_88XX)(_GET_HAL_DATA(priv)->PRxDMA88XX);
+    	    cur_q   = &(prx_dma->rx_queue[q_num]); 	
+    	    ret = refill_rx_ring_88XX(priv, NULL, head, q_num, cur_q);
+    	    GET_HAL_INTERFACE(priv)->UpdateRXBDHostIdxHandler(priv, q_num, cur_q->rxbd_ok_cnt);
+    	    cur_q->rxbd_ok_cnt = 0;
+        }
+	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif
+	{//not HAL
+		ret = refill_rx_ring(priv, NULL, head);
+	}
+	
 	if (ret) {
+#ifdef SMP_SYNC
+		if(locked)
+			SMP_UNLOCK_RECV(flags);
+#endif	
 		RESTORE_INT(x);
 		return;
 	} else {
 		release_buf_to_poll(root_priv, head, &skbbuf_list, (unsigned int *)&skb_free_num);
 	}
+#ifdef SMP_SYNC
+		if(locked)
+			SMP_UNLOCK_RECV(flags);
+#endif	
 	RESTORE_INT(x);
-#else
+#else // ! DELAY_REFILL_RX_BUF
 
 	SAVE_INT_AND_CLI(x);
 	release_buf_to_poll(root_priv, head, &skbbuf_list, (unsigned int *)&skb_free_num);
@@ -5410,27 +6831,15 @@ void set_fw_A2_entry(struct rtl8192cd_priv *priv, unsigned int cmd, unsigned cha
 }
 */
 
-#if (defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))) || defined(SW_ANT_SWITCH) || defined(USE_OUT_SRC)
+//#if defined(TXREPORT) || defined(SW_ANT_SWITCH) || defined(USE_OUT_SRC)
+#if 1
 struct stat_info* findNextSTA(struct rtl8192cd_priv *priv, int *idx)
 {
 	int i;
 	for(i= *idx; i<NUM_STAT; i++) {
 		if (priv->pshare->aidarray[i] && priv->pshare->aidarray[i]->used == TRUE) {
 			*idx = (i+1);
-#ifdef STA_EXT
-			if (
-#ifdef CONFIG_RTL_88E_SUPPORT
-				(GET_CHIP_VER(priv)==VERSION_8188E)?
-				(priv->pshare->aidarray[i]->station.remapped_aid == RTL8188E_NUM_STAT-1):
-#endif
-				(priv->pshare->aidarray[i]->station.remapped_aid == FW_NUM_STAT-1))
-#else
-			if (
-#ifdef CONFIG_RTL_88E_SUPPORT
-				(GET_CHIP_VER(priv)==VERSION_8188E)?(priv->pshare->aidarray[i]->station.aid == RTL8188E_NUM_STAT):
-#endif
-				(priv->pshare->aidarray[i]->station.aid == FW_NUM_STAT))
-#endif
+            if (priv->pshare->aidarray[i]->station.sta_in_firmware != 1)
 				continue;
 
 			return &(priv->pshare->aidarray[i]->station);
@@ -5439,7 +6848,41 @@ struct stat_info* findNextSTA(struct rtl8192cd_priv *priv, int *idx)
 	return NULL;
 }
 #endif
-#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
+
+int is_DFS_channel(int channelVal)
+{
+    if( channelVal >= 52  && channelVal <= 140 ){    
+        return 1;
+    }else{
+        return 0;
+    }
+}
+
+int is_passive_channel(struct rtl8192cd_priv *priv , int domain, int chan)
+{
+
+#ifdef DFS    
+	/*during DFS channel , do passive scan*/
+    if( (chan >= 52  && chan <= 140) && !priv->pmib->dot11DFSEntry.disable_DFS){  
+        return 1;
+    }
+#endif    	
+    #if 0/*when the mib "w52_passive_scan" enabled , do passive scan in ch W52(ch 36 40 44 48)*/
+	else if(((chan >= 36) && (chan <= 48)) 
+        && priv->pmib->dot11StationConfigEntry.w52_passive_scan ){
+		return 1;
+    }
+    #endif
+    #if 0
+	else if ((chan >= 12 && chan <= 14) && (domain == DOMAIN_GLOBAL || domain == DOMAIN_WORLD_WIDE)){
+		return 1;
+    }
+    #endif
+	return 0;
+}
+
+
+#if defined(TXREPORT)
 void requestTxReport(struct rtl8192cd_priv *priv)
 {
 	int h2ccmd, counter=20;
@@ -5477,6 +6920,274 @@ void requestTxReport(struct rtl8192cd_priv *priv)
 
 }
 
+/*
+inital tx rate report from fw
+---------------------------------------------------------
+0 -> cck 1		  12 -> MCS0	44 -> 1NSS-MCS0 
+1 -> cck 2        13 -> MCS1    45 -> 1NSS-MCS1 
+2 -> cck 5.5      14 -> MCS2    46 -> 1NSS-MCS2 
+3 -> cck 11       15 -> MCS3    47 -> 1NSS-MCS3 
+------------      16 -> MCS4    48 -> 1NSS-MCS4 
+4 ->  ofdm 6      17 -> MCS5    49 -> 1NSS-MCS5 
+5 ->  ofdm 9      18 -> MCS6    50 -> 1NSS-MCS6 
+6 ->  ofdm 12     19 -> MCS7    51 -> 1NSS-MCS7 
+7 ->  ofdm 18     20 -> MCS8    52 -> 1NSS-MCS8 
+8 ->  ofdm 24     21 -> MCS9    53 -> 1NSS-MCS9 
+9 ->  ofdm 36     22 -> MCS10   54 -> 2NSS-MCS0 
+10 -> ofdm 48     23 -> MCS11   55 -> 2NSS-MCS1 
+11 -> ofdm 54     24 -> MCS12   56 -> 2NSS-MCS2 
+                  25 -> MCS13   57 -> 2NSS-MCS3 
+                  26 -> MCS14   58 -> 2NSS-MCS4 
+                  27 -> MCS15   59 -> 2NSS-MCS5 
+                                60 -> 2NSS-MCS6 
+                                61 -> 2NSS-MCS7 
+                                62 -> 2NSS-MCS8 
+                                63 -> 2NSS-MCS9 
+---------------------------------------------------------                                
+*/
+#ifdef FOR_DISPLAY_RATE
+void get_inital_tx_rate2string(unsigned char txrate ){
+	static unsigned char rateStr[16];
+    if(txrate>=44 && txrate<=53){
+		printk("VHT 1SS-MCS%d\n",txrate-44);
+	}
+	else if(txrate>=54 && txrate<=63){
+		printk("VHT 2SS-MCS%d\n",txrate-54);
+	}
+	else if(txrate>=12 && txrate<=27){
+		printk("MCS%d\n",txrate-12);
+	}
+	else if(txrate>=0 && txrate<=3){
+		if(txrate==0)
+			printk("CCK-1\n");
+		else if(txrate==1)
+			printk("CCK-2\n");		
+		else if(txrate==2)
+			printk("CCK-5.5\n");
+		else if(txrate==3)
+			printk("CCK-11\n");
+	}
+	else if(txrate>=4 && txrate<=11){
+		if(txrate==4)
+			printk("OFDM-6\n");
+		else if(txrate==5)
+			printk("OFDM-9\n");
+		else if(txrate==6)
+			printk("OFDM-12\n");
+		else if(txrate==7)
+			printk("OFDM-18\n");
+		else if(txrate==8)
+			printk("OFDM-24\n");
+		else if(txrate==9)
+			printk("OFDM-36\n");
+		else if(txrate==10)
+			printk("OFDM-48\n");
+		else if(txrate==11)
+			printk("OFDM-54\n");		
+
+	}
+
+}
+
+//#define FDEBUG(fmt, args...) panic_printk("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#endif
+
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+
+void update_RAMask_to_FW(struct rtl8192cd_priv *priv, int forceUpdate)
+{
+	int idx = 0;
+	struct stat_info *pstat = NULL;
+
+	if( !IS_HAL_CHIP(priv) && GET_CHIP_VER(priv)!= VERSION_8812E)
+		return;
+
+
+	if (!forceUpdate && !( priv->pshare->is_40m_bw 
+#ifdef WIFI_11N_2040_COEXIST
+			&& !((((GET_MIB(priv))->dot11OperationEntry.opmode) & WIFI_AP_STATE) 
+			&& priv->pmib->dot11nConfigEntry.dot11nCoexist 
+			&& (priv->bg_ap_timeout || orForce20_Switch20Map(priv)
+			))
+#endif
+	))
+		return;
+
+	pstat = findNextSTA(priv, &idx);
+
+	while(pstat) {		
+		if(forceUpdate) {
+#ifdef CONFIG_RTL_8812_SUPPORT
+			if (GET_CHIP_VER(priv) == VERSION_8812E) 
+				UpdateHalRAMask8812(priv, pstat, 3);
+			 else
+#endif				
+			{
+#ifdef CONFIG_WLAN_HAL
+				GET_HAL_INTERFACE(priv)->UpdateHalRAMaskHandler(priv, pstat, 3);
+#endif
+			}
+		} else {
+				if(!pstat->tx_bw_fw && pstat->tx_bw) {
+#ifdef CONFIG_RTL_8812_SUPPORT
+					if (GET_CHIP_VER(priv) == VERSION_8812E)
+						UpdateHalRAMask8812(priv, pstat, 3);
+					else
+#endif
+					{
+#ifdef CONFIG_WLAN_HAL                                       
+						GET_HAL_INTERFACE(priv)->UpdateHalRAMaskHandler(priv, pstat, 3);
+#endif
+					}
+				}
+		}
+		pstat = findNextSTA(priv, &idx);
+
+	}		
+
+}
+
+// TODO: Filen, check 8192E code below
+void txrpt_handler_8812(struct rtl8192cd_priv *priv, struct tx_rpt *report, struct stat_info	*pstat)
+{
+	static unsigned char initial_rate = 0x7f;
+	static unsigned char legacyRA =0 ;
+	static unsigned int autoRate1=0;
+
+	/*under auto rate case , pstat->current_tx_rate just for display but it'll be changed, 
+	  so, take care! if under fixed rate case don't enter below block*/ 		
+
+	if(!pstat)
+		return;
+    if(pstat->sta_in_firmware == 1)
+	{
+		if( should_restrict_Nrate(priv, pstat) && is_fixedMCSTxRate(priv, pstat)){
+			legacyRA = 1;
+		}
+
+		autoRate1= is_auto_rate(priv, pstat);
+
+		if(	!(legacyRA || autoRate1) )
+			return;
+		
+		//FDEBUG("STA[%02x%02x%02x:%02x%02x%02x]auto rate ,txfail=%d , txok=%d , rate=",
+		//	pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5],
+		//	report->txfail, report->txok );
+		//get_inital_tx_rate2string(report->initil_tx_rate&0x3f);
+		
+		
+		initial_rate = report->initil_tx_rate ; 			
+		if ((initial_rate & 0x7f) == 0x7f)
+			return;
+
+		if ((initial_rate&0x3f) < 12) {
+			pstat->current_tx_rate = dot11_rate_table[initial_rate&0x3f];
+
+			pstat->ht_current_tx_info &= ~TX_USE_SHORT_GI;				
+		} else {
+			if((initial_rate&0x3f) >= 44){
+				pstat->current_tx_rate = VHT_RATE_ID+((initial_rate&0x3f) -44);
+			}else{
+				pstat->current_tx_rate = HT_RATE_ID+((initial_rate&0x3f) -12);
+			}
+								
+			if (initial_rate & BIT(7))
+				pstat->ht_current_tx_info |= TX_USE_SHORT_GI;
+			else
+				pstat->ht_current_tx_info &= ~TX_USE_SHORT_GI;
+		}
+			
+		priv->pshare->current_tx_rate    = pstat->current_tx_rate;
+		priv->pshare->ht_current_tx_info = pstat->ht_current_tx_info;
+
+	}
+}
+#endif
+#ifdef CONFIG_WLAN_HAL
+void APReqTXRptHandler(
+    struct rtl8192cd_priv   *priv,
+    pu1Byte                  pbuf
+)
+{
+    PAPREQTXRPT pparm = (PAPREQTXRPT)pbuf;
+  	struct tx_rpt rpt1;
+	unsigned char MacID = 0xff;        
+    unsigned char idx = 0;
+    int j;
+    {
+        for (j = 0; j < 2; j++) {
+
+            MacID = pparm->txrpt[j].RPT_MACID;
+            if (MacID == 0xff)
+                continue;
+
+            rpt1.macid =  MacID;
+
+            if (rpt1.macid) { 
+                rpt1.txok = le16_to_cpu(pparm->txrpt[j].RPT_TXOK);
+                rpt1.txfail = le16_to_cpu(pparm->txrpt[j].RPT_TXFAIL);                  
+                rpt1.initil_tx_rate = pparm->txrpt[j].RPT_InitialRate;
+              
+                txrpt_handler(priv, &rpt1); // add inital tx rate handle for 8812E
+            }
+            idx += 6;
+        }
+    }
+}
+#endif
+
+void _txrpt_handler(struct rtl8192cd_priv *priv, struct stat_info *pstat, struct tx_rpt *report)
+{
+#ifdef DONT_COUNT_PROBE_PACKET
+	if (pstat->tx_probe_rsp_pkts) {
+		if (pstat->tx_probe_rsp_pkts >= report->txok) {
+			pstat->tx_probe_rsp_pkts -= report->txok;
+			report->txok = 0;
+		} else {
+			report->txok -= pstat->tx_probe_rsp_pkts;
+			pstat->tx_probe_rsp_pkts = 0;
+		}
+	}
+#endif // DONT_COUNT_PROBE_PACKET
+
+#if defined(TXRETRY_CNT)
+	pstat->cur_tx_ok += report->txok;
+	pstat->cur_tx_fail += report->txfail;
+#endif
+
+	//panic_printk("_txrpt_handler: [%02X%02X%02X%02X%02X%02X]:id=%d,ok=%d,fail=%d rate=%d\n", 
+		//pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5],
+		//report->macid, report->txok, report->txfail, report->initil_tx_rate);
+
+	if ((0 == report->txok) && (0 == report->txfail)) {
+		return;
+	}
+
+	priv->net_stats.tx_errors += report->txfail;
+	pstat->tx_fail += report->txfail;
+	pstat->tx_pkts += report->txok+report->txfail;
+	
+#ifdef DETECT_STA_EXISTANCE
+#ifdef CONFIG_WLAN_HAL
+	if(IS_HAL_CHIP(priv))
+	{
+		DetectSTAExistance88XX(priv, report, pstat);
+	} else if(CONFIG_WLAN_NOT_HAL_EXIST)
+#endif
+	{//not HAL
+		// Check for STA existance; added by Annie, 2010-08-10.Not support now
+#if (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)|| defined(CONFIG_RTL_8812_SUPPORT))
+		if (CHIP_VER_92X_SERIES(priv) || (GET_CHIP_VER(priv)== VERSION_8812E))
+			DetectSTAExistance(priv, report, pstat);
+#endif
+	}
+#endif // DETECT_STA_EXISTANCE
+
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+	if( GET_CHIP_VER(priv)== VERSION_8812E || IS_HAL_CHIP(priv))
+		txrpt_handler_8812(priv, report, pstat);
+#endif
+}
 
 void txrpt_handler(struct rtl8192cd_priv *priv, struct tx_rpt *report)
 {
@@ -5484,32 +7195,19 @@ void txrpt_handler(struct rtl8192cd_priv *priv, struct tx_rpt *report)
 #ifdef MBSSID
 	int i;
 #endif
+
 	pstat = get_macidinfo(priv, report->macid);
 	if(pstat) {
-		priv->net_stats.tx_errors += report->txfail;
-		pstat->tx_fail += report->txfail;
-		pstat->tx_pkts += report->txok+report->txfail;
-
-		DEBUG_INFO("debug[%02X%02X%02X%02X%02X%02X]:id=%d,ok=%d,fail=%d\n", 
-		pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5],
-		report->macid, report->txok, report->txfail);
-#ifdef DETECT_STA_EXISTANCE
-		// Check for STA existance; added by Annie, 2010-08-10.
-		DetectSTAExistance(priv, report, pstat);
-#endif		
+		_txrpt_handler(priv, pstat, report);
+		return;
 	}
 
 #ifdef UNIVERSAL_REPEATER
 	if (IS_DRV_OPEN(GET_VXD_PRIV(priv)))	{
 		pstat = get_macidinfo(GET_VXD_PRIV(priv), report->macid);
 		if(pstat) {
-			GET_VXD_PRIV(priv)->net_stats.tx_errors += report->txfail;
-			pstat->tx_fail += report->txfail;
-			pstat->tx_pkts += report->txok+ report->txfail;						
-#ifdef DETECT_STA_EXISTANCE
-			// Check for STA existance; added by Annie, 2010-08-10.
-			DetectSTAExistance(GET_VXD_PRIV(priv), report, pstat);
-#endif			
+			_txrpt_handler(GET_VXD_PRIV(priv), pstat, report);
+			return;
 		}					
 	}
 #endif
@@ -5519,34 +7217,98 @@ void txrpt_handler(struct rtl8192cd_priv *priv, struct tx_rpt *report)
 			if (IS_DRV_OPEN(priv->pvap_priv[i])) {
 				pstat = get_macidinfo(priv->pvap_priv[i], report->macid);
 				if(pstat) {
-					priv->pvap_priv[i]->net_stats.tx_errors += report->txfail;
-					pstat->tx_fail += report->txfail;
-					pstat->tx_pkts += report->txok + report->txfail;
-#ifdef DETECT_STA_EXISTANCE
-					// Check for STA existance; added by Annie, 2010-08-10.
-					DetectSTAExistance(priv->pvap_priv[i], report, pstat);
-#endif
+					_txrpt_handler(priv->pvap_priv[i], pstat, report);
+					return;
 				}							
 			}
 		}
 	}
 #endif
+}
+
+#ifdef TXRETRY_CNT
+
+int is_support_TxRetryCnt(struct rtl8192cd_priv *priv)
+{
+	if ( GET_CHIP_VER(priv) == VERSION_8188E
+		 || GET_CHIP_VER(priv) == VERSION_8812E
+		 || GET_CHIP_VER(priv) == VERSION_8192E 
+		 || GET_CHIP_VER(priv) == VERSION_8881A )
+	return 1;
+		
+	return 0;
 
 }
+
+void txretry_handler(struct rtl8192cd_priv *priv, struct tx_retry *retry)
+{
+
+	struct stat_info	*pstat;	
+	unsigned char macid_idx = 0;
+
+	for(macid_idx=0; macid_idx<2; macid_idx++)
+	{
+		pstat = get_macidinfo(priv, priv->pshare->sta_query_retry_macid[macid_idx]);
+
+		if(!pstat)
+			break;
+
+		pstat->cur_tx_retry_pkts += retry->retry_pkt_macid[macid_idx];
+		pstat->cur_tx_retry_cnt += retry->retry_cnt_macid[macid_idx];
+
+		pstat->total_tx_retry_pkts += retry->retry_pkt_macid[macid_idx];
+		pstat->total_tx_retry_cnt += retry->retry_cnt_macid[macid_idx];
+		
+		priv->ext_stats.tx_retrys += pstat->cur_tx_retry_cnt;
+
+	}
+
+}
+
+
+void C2HTxTxRetryHandler(struct rtl8192cd_priv *priv, unsigned char *CmdBuf)
+{
+	struct tx_retry retry;
+	
+	retry.stat_idx= CmdBuf[0];
+	retry.retry_pkt_macid[0] = CmdBuf[1] | ((short)CmdBuf[2]<<8);
+	retry.retry_cnt_macid[0] = CmdBuf[3] | ((short)CmdBuf[4]<<8);
+	retry.retry_pkt_macid[1] = CmdBuf[5] | ((short)CmdBuf[6]<<8);
+	retry.retry_cnt_macid[1] = CmdBuf[7] | ((short)CmdBuf[8]<<8);
+
+#if 0
+	panic_printk("%s [%d] %d %d : %d %d\n", __FUNCTION__, retry.stat_idx, 
+		retry.retry_pkt_macid[0], retry.retry_cnt_macid[0], 
+		retry.retry_pkt_macid[1], retry.retry_cnt_macid[1] );
+#endif
+
+	txretry_handler(priv, &retry);
+}
+
+#endif
+
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 
 void C2H_isr(struct rtl8192cd_priv *priv)
 {
 	struct tx_rpt rpt1;
 	int j, tmp32, idx=0x1a2;
+#ifndef SMP_SYNC
 	unsigned long flags;
+#endif
 	SAVE_INT_AND_CLI(flags);
 	tmp32 = RTL_R16(0x1a0);
 	if( (tmp32&0xff)==0xc2 ) {
 		for(j=0; j<2; j++) {
 			rpt1.macid= (0x1f) & RTL_R8(idx+4);
 			if(rpt1.macid) {
+#ifdef _BIG_ENDIAN_
 				rpt1.txok = le16_to_cpu(RTL_R16(idx+2));
 				rpt1.txfail = le16_to_cpu(RTL_R16(idx));
+#else
+				rpt1.txok = be16_to_cpu(RTL_R16(idx+2));
+				rpt1.txfail = be16_to_cpu(RTL_R16(idx));
+#endif
 				txrpt_handler(priv, &rpt1);
 			}			
 			idx+=6;		
@@ -5557,10 +7319,25 @@ void C2H_isr(struct rtl8192cd_priv *priv)
 	RESTORE_INT(flags);
 }
 
-
 #endif
 
-#ifdef CONFIG_RTL_WAPI_SUPPORT
+#endif
+/*cfg p2p*/
+#if !defined(__ECOS)
+void convert_bin_to_str(unsigned char *bin, int len, char *out)
+{
+        int i;
+        char tmpbuf[10];
+
+        out[0] = '\0';
+
+        for (i=0; i<len; i++) {
+                sprintf(tmpbuf, "%02x", bin[i]);
+                strcat(out, tmpbuf);
+        }
+}
+#endif
+/*cfg p2p*/
 static int _is_hex(char c)
 {
     return (((c >= '0') && (c <= '9')) ||
@@ -5569,7 +7346,7 @@ static int _is_hex(char c)
 }
 
 
-int string_to_hex(char *string, unsigned char *key, int len)
+int rtl_string_to_hex(char *string, unsigned char *key, int len)
 {
 	char tmpBuf[4];
 	int idx, ii=0;
@@ -5584,14 +7361,22 @@ int string_to_hex(char *string, unsigned char *key, int len)
 	}
 	return 1;
 }
-#endif
+
 
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+#ifdef __ECOS
+INT32 rtl_isWlanPassthruFrame(UINT8 *data)
+#else
 INT32 rtl_isPassthruFrame(UINT8 *data)
+#endif
 {
 	int	ret;
 
+#ifdef __ECOS
+	ret = FAILED;
+#else
 	ret = FAIL;
+#endif
 	if (passThruStatusWlan)
 	{
 		if (passThruStatusWlan&IP6_PASSTHRU_MASK)
@@ -5616,6 +7401,969 @@ INT32 rtl_isPassthruFrame(UINT8 *data)
 
 	return ret;
 }
+#endif
+
+#if defined(HS2_SUPPORT) || defined(DOT11K)
+void rtl8192cd_cu_stop(struct rtl8192cd_priv *priv) {
+    unsigned char stop_cu = 1;
+    int i;
+    struct rtl8192cd_priv * root_priv = GET_ROOT(priv);
+    priv->cu_enable = 0;
+
+
+    /*check if other interface need channel utilization calcultation*/
+    if (IS_DRV_OPEN(root_priv) && root_priv->cu_enable) {
+        stop_cu = 0;
+    }
+#ifdef MBSSID
+    if (stop_cu == 1 && root_priv->pmib->miscEntry.vap_enable) {
+        for (i=0; i<RTL8192CD_NUM_VWLAN; i++) {
+            if (IS_DRV_OPEN(root_priv->pvap_priv[i]) && root_priv->pvap_priv[i]->cu_enable) {
+                stop_cu = 0;
+                break;
+            }
+        }
+    }
+#endif
+
+#ifdef UNIVERSAL_REPEATER    
+    if (stop_cu == 1 && IS_DRV_OPEN(GET_VXD_PRIV(root_priv)) &&
+        GET_VXD_PRIV(root_priv)->cu_enable) {
+        stop_cu = 0;
+    }
+#endif     
+    
+    if(stop_cu) {
+        if (timer_pending(&priv->pshare->cu_info.cu_cntdwn_timer)) {
+            del_timer_sync(&priv->pshare->cu_info.cu_cntdwn_timer);
+        }
+        priv->pshare->cu_info.cu_enable = 0;
+    }
+}
+
+
+void rtl8192cd_cu_start(struct rtl8192cd_priv *priv) {
+    priv->cu_enable = 1;    
+    if(priv->pshare->cu_info.cu_enable == 0) {
+        priv->pshare->cu_info.channel_utilization = 0;
+        init_timer(&priv->pshare->cu_info.cu_cntdwn_timer);
+        priv->pshare->cu_info.cu_cntdwn_timer.data = (unsigned long) priv;
+        priv->pshare->cu_info.cu_cntdwn_timer.function = rtl8192cd_cu_cntdwn_timer;
+        priv->pshare->cu_info.cu_cntdwn = priv->pshare->cu_info.cu_initialcnt 
+            = (priv->pmib->dot11StationConfigEntry.channel_utili_beaconIntval * priv->pmib->dot11StationConfigEntry.dot11BeaconPeriod)/CU_Intval;
+        start_bbp_ch_load(priv, 50000);
+        priv->pshare->cu_info.cu_cntdwn_timer.expires = jiffies + CU_TO;
+        mod_timer(&priv->pshare->cu_info.cu_cntdwn_timer, jiffies + CU_TO);
+        priv->pshare->cu_info.cu_enable = 1;
+    }
+}
+
+void rtl8192cd_cu_cntdwn_timer(unsigned long task_priv)
+{
+    struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+    int val;
+
+    if ((val = read_bbp_ch_load(priv)) == -1)
+    {
+        mod_timer(&priv->pshare->cu_info.cu_cntdwn_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(10));	
+    }
+    else
+    {
+        priv->pshare->cu_info.chbusytime += val;
+        priv->pshare->cu_info.cu_cntdwn--;
+        if (priv->pshare->cu_info.cu_cntdwn == 0)
+        {
+            priv->pshare->cu_info.channel_utilization = 
+                (priv->pshare->cu_info.chbusytime*255)/(priv->pmib->dot11StationConfigEntry.channel_utili_beaconIntval * priv->pmib->dot11StationConfigEntry.dot11BeaconPeriod * 1024);
+            priv->pshare->cu_info.chbusytime = 0;
+            priv->pshare->cu_info.cu_cntdwn = priv->pshare->cu_info.cu_initialcnt;
+        }
+        start_bbp_ch_load(priv, 50000);
+        mod_timer(&priv->pshare->cu_info.cu_cntdwn_timer, jiffies + CU_TO);
+    }
+}
+
+#endif
+#ifdef HS2_SUPPORT
+#ifdef __ECOS
+#define ipv6_addr_copy(a1,a2) memcpy(a1, a2, sizeof(struct in6_addr))
+static int ipv6_addr_equal(const struct in6_addr *a1,
+				  const struct in6_addr *a2)
+{
+	return (((a1->s6_addr32[0] ^ a2->s6_addr32[0]) |
+		 (a1->s6_addr32[1] ^ a2->s6_addr32[1]) |
+		 (a1->s6_addr32[2] ^ a2->s6_addr32[2]) |
+		 (a1->s6_addr32[3] ^ a2->s6_addr32[3])) == 0);
+}
+static int
+inet_cksum(u_short *addr, int len)
+{
+    register int nleft = len;
+    register u_short *w = addr;
+    register u_short answer;
+    register u_int sum = 0;
+    u_short odd_byte = 0;
+    while( nleft > 1 )  {
+        sum += *w++;
+        nleft -= 2;
+    }
+    if( nleft == 1 ) {
+        *(u_char *)(&odd_byte) = *(u_char *)w;
+        sum += odd_byte;
+    }
+    sum = (sum >> 16) + (sum & 0x0000ffff); /* add hi 16 to low 16 */
+    sum += (sum >> 16);                     /* add carry */
+    answer = ~sum;                          /* truncate to 16 bits */
+    return (answer);
+}
+#endif
+
+unsigned int getDSCP2UP(struct rtl8192cd_priv *priv, unsigned char DSCP)
+{
+	int i;
+
+	for(i=0;i<MAX_DSCP_EXCEPT;i++) {
+		if(DSCP == priv->pmib->hs2Entry.QoSMAP_except[i][0]) // EXCEPTION DSCP VALUE
+			return priv->pmib->hs2Entry.QoSMAP_except[i][1]; // PRIORITY
+	}
+
+	for(i=0;i<MAX_QOS_PRIORITY;i++) {
+		if(DSCP >= priv->pmib->hs2Entry.QoSMAP_range[i][0] &&  // DSCP LOWER BOUND
+			DSCP <= priv->pmib->hs2Entry.QoSMAP_range[i][1])   // DSCP UPPER BOUND
+			return i; // PRIORITY
+	}
+	return 0;
+}
+
+void setQoSMapConf(struct rtl8192cd_priv *priv)
+{
+	int i;
+	int curIndex;
+	int curQoSMap = priv->pmib->hs2Entry.curQoSMap;	
+	
+	for(i=0;i<MAX_DSCP_EXCEPT;i++)
+	{			
+		priv->pmib->hs2Entry.QoSMAP_except[i][0] = -1;
+		priv->pmib->hs2Entry.QoSMAP_except[i][1] = -1;
+		curIndex++;
+	}
+
+	if(priv->pmib->hs2Entry.QoSMap_ielen[curQoSMap] < 16) 
+	{	
+		HS2_DEBUG_ERR("QoSMAPIE length is too small\n");
+		return;
+	} else if(priv->pmib->hs2Entry.QoSMap_ielen[curQoSMap] > 16) 
+	{	
+		if(priv->pmib->hs2Entry.QoSMap_ielen[curQoSMap]-16 > MAX_DSCP_EXCEPT * 2) {
+			HS2_DEBUG_ERR("QoSMAP_except matrix supports %d except only, need enlarge QoSMAP_except matrix\n", MAX_DSCP_EXCEPT);
+			return;
+		}
+		curIndex = 0;	
+		// include DSCP exception
+		for(i=0;i<priv->pmib->hs2Entry.QoSMap_ielen[curQoSMap]-MAX_QOS_PRIORITY*2;i+=2)
+		{			
+			priv->pmib->hs2Entry.QoSMAP_except[curIndex][0] = priv->pmib->hs2Entry.QoSMap_ie[curQoSMap][i]; // DSCP
+			priv->pmib->hs2Entry.QoSMAP_except[curIndex][1] = priv->pmib->hs2Entry.QoSMap_ie[curQoSMap][i+1]; // UP
+			curIndex++;
+		}
+	}
+	
+	curIndex = 0;
+	for(i=priv->pmib->hs2Entry.QoSMap_ielen[curQoSMap]-MAX_QOS_PRIORITY*2;i<priv->pmib->hs2Entry.QoSMap_ielen[curQoSMap];i+=2)
+	{			
+		priv->pmib->hs2Entry.QoSMAP_range[curIndex][0] = priv->pmib->hs2Entry.QoSMap_ie[curQoSMap][i]; // DSCP
+		priv->pmib->hs2Entry.QoSMAP_range[curIndex][1] = priv->pmib->hs2Entry.QoSMap_ie[curQoSMap][i+1]; // UP
+		curIndex++;
+	}
+
+	for(i=0;i<MAX_DSCP_EXCEPT;i++)
+		HS2_DEBUG_INFO("DSCP Except[%d]=%x %x\n",i,priv->pmib->hs2Entry.QoSMAP_except[i][0],priv->pmib->hs2Entry.QoSMAP_except[i][1]);
+	for(i=0;i<MAX_QOS_PRIORITY;i++)
+		HS2_DEBUG_INFO("DSCP range[%d]=%x %x\n",i,priv->pmib->hs2Entry.QoSMAP_range[i][0],priv->pmib->hs2Entry.QoSMAP_range[i][1]);
+	
+		
+}
+void calcu_sta_v6ip(struct stat_info *pstat)
+{
+    int idx=0;
+	struct in6_addr addrp;
+	addrp.s6_addr[0] = 0xfe;
+	addrp.s6_addr[1] = 0x80;
+	addrp.s6_addr[2] = 0x00;
+	addrp.s6_addr[3] = 0x00;
+	addrp.s6_addr[4] = 0x00;
+	addrp.s6_addr[5] = 0x00;
+	addrp.s6_addr[6] = 0x00;
+	addrp.s6_addr[7] = 0x00;
+	addrp.s6_addr[8] = pstat->hwaddr[0] | 0x02;
+	addrp.s6_addr[9] = pstat->hwaddr[1];
+	addrp.s6_addr[10] = pstat->hwaddr[2];
+	addrp.s6_addr[11] = 0xff;
+	addrp.s6_addr[12] = 0xfe;
+	addrp.s6_addr[13] = pstat->hwaddr[3];
+    addrp.s6_addr[14] = pstat->hwaddr[4];
+    addrp.s6_addr[15] = pstat->hwaddr[5];
+
+    if(pstat->v6ipCount==0){
+    	ipv6_addr_copy(&pstat->sta_v6ip[pstat->v6ipCount], &addrp);
+        pstat->v6ipCount=1;
+
+        HS2DEBUG("v6ipCount[%d],sta[%02X%02X%02X:%02X%02X%02X]\n",pstat->v6ipCount
+             ,pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2]
+             ,pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5]);
+        HS2DEBUG("learn1 V6 IP[%02X%02X%02X%02X][%02X%02X%02X%02X][%02X%02X%02X%02X][%02X%02X%02X%02X]\n"
+            ,addrp.s6_addr[0],addrp.s6_addr[1],addrp.s6_addr[2],addrp.s6_addr[3]
+            ,addrp.s6_addr[4],addrp.s6_addr[5],addrp.s6_addr[6],addrp.s6_addr[7]
+            ,addrp.s6_addr[8],addrp.s6_addr[9],addrp.s6_addr[10],addrp.s6_addr[11]
+            ,addrp.s6_addr[12],addrp.s6_addr[13],addrp.s6_addr[14],addrp.s6_addr[15]);        
+    }else{
+        for(idx=0;idx<pstat->v6ipCount;idx++) {
+            if (ipv6_addr_equal(&pstat->sta_v6ip[idx], &addrp)){
+                return; /*has existed no need add*/ 
+            }
+        }
+
+    	ipv6_addr_copy(&pstat->sta_v6ip[pstat->v6ipCount], &addrp);
+        pstat->v6ipCount ++;
+        
+        /*didn't exist , add*/ 
+        HS2DEBUG("v6ipCount[%d],sta[%02X%02X%02X:%02X%02X%02X]\n",pstat->v6ipCount
+             ,pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2]
+             ,pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5]);
+        HS2DEBUG("learn2 V6 IP[%02X%02X%02X%02X][%02X%02X%02X%02X][%02X%02X%02X%02X][%02X%02X%02X%02X]\n"
+            ,addrp.s6_addr[0],addrp.s6_addr[1],addrp.s6_addr[2],addrp.s6_addr[3]
+            ,addrp.s6_addr[4],addrp.s6_addr[5],addrp.s6_addr[6],addrp.s6_addr[7]
+            ,addrp.s6_addr[8],addrp.s6_addr[9],addrp.s6_addr[10],addrp.s6_addr[11]
+            ,addrp.s6_addr[12],addrp.s6_addr[13],addrp.s6_addr[14],addrp.s6_addr[15]);
+
+        
+    }
+
+
+}
+
+void staip_snooping_byarp(struct sk_buff *pskb, struct stat_info *pstat)
+{
+	struct arphdr *arp = (struct arphdr *)(pskb->data + ETH_HLEN);
+	unsigned char *arp_ptr = (unsigned char *)(arp + 1);
+	if((arp->ar_pro == __constant_htons(ETH_P_IP)) && (arp->ar_op == htons(ARPOP_REQUEST))) {
+		//find sender ip
+		arp_ptr += arp->ar_hln;
+		//backup sender ip
+		if ((*arp_ptr == 0) && (*(arp_ptr+1) == 0) && (*(arp_ptr+2) == 0) && (*(arp_ptr+3) == 0))
+			return;
+		else {
+			memcpy(pstat->sta_ip, arp_ptr, 4);
+			//HS2DEBUG("ARP cache ip=%d.%d.%d.%d\n", pstat->sta_ip[0],pstat->sta_ip[1],pstat->sta_ip[2],pstat->sta_ip[3]);
+		}
+	}
+}
+#ifdef __ECOS
+void stav6ip_snooping_bynsolic(struct sk_buff *pskb, struct stat_info *pstat)
+{
+	struct ip6_hdr *hdr = (struct ip6_hdr *)(pskb->data+ETH_HLEN);
+    struct icmp6hdr *icmphdr;
+	int pkt_len, type;
+	if (hdr->ip6_vfc != 6)
+        return;
+
+	if (hdr->ip6_hlim != 255)
+		return;
+	pkt_len = ntohs(hdr->ip6_plen);
+	if (pkt_len>0)
+    {
+        icmphdr = (struct icmp6hdr *)(pskb->data+ETH_HLEN+sizeof(*hdr));
+        type = icmphdr->icmp6_type;
+		if (type == ND_NEIGHBOR_SOLICIT)
+		{
+			if ((hdr->ip6_src.s6_addr32[0] == 0) && (hdr->ip6_src.s6_addr32[1] == 0) && (hdr->ip6_src.s6_addr32[2] == 0) && (hdr->ip6_src.s6_addr32[3] == 0)) {
+				struct in6_addr *target = (struct in6_addr *) (icmphdr + 1);
+				if ((target->s6_addr32[0] == 0) && (target->s6_addr32[1] == 0) && (target->s6_addr32[2] == 0) && (target->s6_addr32[3] == 0)) {
+					return;
+				}
+				else {
+					printk("rcv multicast ns duplicate addr\n");
+					ipv6_addr_copy(&pstat->sta_v6ip, target);
+				}
+			}
+			else {
+				printk("rcv multicast ns\n");
+				ipv6_addr_copy(&pstat->sta_v6ip, &hdr->ip6_src);
+			}
+		}
+	}
+}
+#else
+void stav6ip_snooping_bynsolic(struct rtl8192cd_priv *priv,struct sk_buff *pskb, struct stat_info *pstat)
+{
+	struct ipv6hdr *hdr = (struct ipv6hdr *)(pskb->data+ETH_HLEN);
+    struct icmp6hdr *icmphdr;
+	int pkt_len, type;
+	int i;
+	struct stat_info *pstat1;
+	struct list_head *phead, *plist;
+	if (hdr->version != 6)
+        return;
+
+	if (hdr->hop_limit != 255)
+		return;
+
+	pkt_len = ntohs(hdr->payload_len);
+	if (pkt_len>0)
+    {
+        icmphdr = (struct icmp6hdr *)(pskb->data+ETH_HLEN+sizeof(*hdr));
+        type = icmphdr->icmp6_type;
+		if (type == NDISC_NEIGHBOUR_SOLICITATION)
+		{
+    		HS2DEBUG("rx neighbour solicitation from[%02X%02X%02X:%02X%02X%02X]\n",
+                pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5]);      
+		    /*20141209 , p Note ,when src ip=NULL && target IP!=NULL*/
+			if ((hdr->saddr.s6_addr32[0] == 0) && (hdr->saddr.s6_addr32[1] == 0) 
+                 && (hdr->saddr.s6_addr32[2] == 0) && (hdr->saddr.s6_addr32[3] == 0)) 
+            {
+                HS2DEBUG("src ip(v6)=NULL\n");
+				struct in6_addr *target = (struct in6_addr *) (icmphdr + 1);
+                
+				if ((target->s6_addr32[0] == 0) && (target->s6_addr32[1] == 0) 
+                    && (target->s6_addr32[2] == 0) && (target->s6_addr32[3] == 0)) 
+                {
+                    HS2DEBUG("tar ip(v6)=NULL\n");                
+					return;
+				}
+				else {
+
+                    HS2DEBUG("tar ip(v6) [%08X %08X %08X %08X]\n",target->s6_addr32[0],target->s6_addr32[1],
+                        target->s6_addr32[2],target->s6_addr32[3]);
+
+					phead = &priv->asoc_list;
+				    plist = phead->next;
+					
+				    while (phead && (plist != phead))
+				    {
+				    	pstat1 = list_entry(plist, struct stat_info, asoc_list);
+						plist = plist->next;
+						for(i=0;i<pstat1->v6ipCount;i++) {
+					    	if (ipv6_addr_equal(&pstat1->sta_v6ip[i], target)){
+								return;
+                            }
+						}
+				    }
+					if (pstat->v6ipCount<10){
+
+						ipv6_addr_copy(&pstat->sta_v6ip[pstat->v6ipCount++], target);
+
+						HS2DEBUG("learn tar ip(v6)[%08X %08X %08X %08X],v6ipCount[%d]\n",target->s6_addr32[0],target->s6_addr32[1],
+                            target->s6_addr32[2],target->s6_addr32[3],pstat->v6ipCount);
+                        
+					}else{
+						HS2DEBUG("the number of v6ipaddress > 10\n");
+					}
+				}
+			}
+			else {
+
+                HS2DEBUG("src ip(v6)[%08X %08X %08X %08X]\n",
+                    hdr->saddr.s6_addr32[0],hdr->saddr.s6_addr32[1],hdr->saddr.s6_addr32[2],hdr->saddr.s6_addr32[3]);
+                
+
+				phead = &priv->asoc_list;
+			    plist = phead->next;
+				
+			    while (phead && (plist != phead))
+			    {
+			    	pstat1 = list_entry(plist, struct stat_info, asoc_list);
+					plist = plist->next;
+					for(i=0;i<pstat1->v6ipCount;i++) {
+				    	if (ipv6_addr_equal(&pstat1->sta_v6ip[i], &hdr->saddr))
+							return;
+					}
+			    }
+				if(pstat->v6ipCount < 10){
+
+
+					ipv6_addr_copy(&pstat->sta_v6ip[pstat->v6ipCount++], &hdr->saddr);
+
+					HS2DEBUG("learn (src) v6 ip [%08X %08X %08X %08X],v6ipCount[%d]\n",
+                        hdr->saddr.s6_addr32[0],hdr->saddr.s6_addr32[1],hdr->saddr.s6_addr32[2],hdr->saddr.s6_addr32[3],pstat->v6ipCount);
+                    
+				}else{
+					HS2DEBUG("the number of v6ipaddress > 10\n");
+				}
+			}
+		}
+	}
+}
+#endif
+#if 0
+void stav6ip_snooping_bynadvert(struct sk_buff *pskb, struct stat_info *pstat)
+{
+    struct ipv6hdr *hdr = (struct ipv6hdr *)(pskb->data+ETH_HLEN);
+    struct icmp6hdr *icmphdr;
+    int pkt_len, type;
+    if (hdr->version != 6)
+        return;
+
+	if (hdr->hop_limit != 255)
+		return;
+
+    pkt_len = ntohs(hdr->payload_len);
+    if (pkt_len>0)
+    {
+        icmphdr = (struct icmp6hdr *)(pskb->data+ETH_HLEN+sizeof(*hdr));
+        type = icmphdr->icmp6_type;
+        if (type == NDISC_NEIGHBOUR_ADVERTISEMENT)
+        {
+            if ((hdr->saddr.s6_addr32[0] == 0) && (hdr->saddr.s6_addr32[1] == 0) && (hdr->saddr.s6_addr32[2] == 0) && (hdr->saddr.s6_addr32[3] == 0)) {
+				return;
+			}
+			else {
+				printk("rcv unsolicited neighbor advert multicast\n");
+                ipv6_addr_copy(&pstat->sta_v6ip, &hdr->saddr);
+            }
+        }
+    }
+}
+#endif
+
+void staip_snooping_bydhcp(struct sk_buff *pskb, struct rtl8192cd_priv *priv) //struct stat_info *pstat)
+{
+	#define DHCP_MAGIC 0x63825363
+
+struct iphdr {
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+	        __u8    ihl:4,
+	                version:4;
+#elif defined (__BIG_ENDIAN_BITFIELD)
+	        __u8    version:4,
+	                ihl:4;
+#else
+#error  "Please fix <asm/byteorder.h>"
+#endif
+	        __u8    tos;
+	        __u16   tot_len;
+	        __u16   id;
+	        __u16   frag_off;
+	        __u8    ttl;
+	        __u8    protocol;
+#if 0
+	        __u16   check;
+	        __u32   saddr;
+	        __u32   daddr;
+#endif
+};
+
+struct udphdr {
+	        __u16   source;
+	        __u16   dest;
+	        __u16   len;
+	        __u16   check;
+};
+
+struct dhcpMessage {
+		u_int8_t op;
+		u_int8_t htype;
+		u_int8_t hlen;
+		u_int8_t hops;
+		u_int32_t xid;
+		u_int16_t secs;
+		u_int16_t flags;
+		u_int32_t ciaddr;
+		u_int32_t yiaddr;
+		u_int32_t siaddr;
+		u_int32_t giaddr;
+		u_int8_t chaddr[16];
+		u_int8_t sname[64];
+		u_int8_t file[128];
+		u_int32_t cookie;
+#if 0
+		u_int8_t options[308]; /* 312 - cookie */
+#endif
+};
+
+	struct stat_info *pstat;
+	struct iphdr* iph;
+	struct udphdr *udph;
+	struct dhcpMessage *dhcph;
+	struct list_head *phead, *plist;
+	
+	iph = (struct iphdr *)(pskb->data + ETH_HLEN);
+	udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
+	dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+
+    phead = &priv->asoc_list;
+    plist = phead->next;
+    while (phead && (plist != phead))
+    {
+        pstat = list_entry(plist, struct stat_info, asoc_list);
+        plist = plist->next;
+
+        if (!memcmp(pstat->hwaddr, &dhcph->chaddr[0], 6)) {
+			if (dhcph->op == 2) //dhcp reply
+			{
+				if (dhcph->yiaddr == 0) 
+					return;
+				else {
+					memcpy(pstat->sta_ip, &dhcph->yiaddr, 4);
+					printk("dhcp give yip=%d.%d.%d.%d\n", pstat->sta_ip[0],pstat->sta_ip[1],pstat->sta_ip[2],pstat->sta_ip[3]);
+				}
+			}
+			return;
+		}
+	}
+}
+
+extern __MIPS16 __IRAM_IN_865X int __rtl8192cd_start_xmit_out(struct sk_buff *skb, struct stat_info *pstat);
+
+int check_nei_advt(struct rtl8192cd_priv *priv, struct sk_buff *skb)
+{
+#ifdef __ECOS
+	struct ip6_hdr *hdr = (struct ip6_hdr *)(skb->data+ETH_HLEN);
+#else
+	struct ipv6hdr *hdr = (struct ipv6hdr *)(skb->data+ETH_HLEN);
+#endif
+	struct icmp6hdr *icmpv6;
+	unsigned int pkt_len;
+    int type;
+#ifdef __ECOS
+	pkt_len = ntohs(hdr->ip6_plen);
+#else
+	pkt_len = ntohs(hdr->payload_len);
+#endif
+	if (pkt_len>0)
+    {
+        icmpv6 = (struct icmp6hdr *)(skb->data+ETH_HLEN+sizeof(*hdr));
+        type = icmpv6->icmp6_type;
+        //printk("pkt len=%d,type=%d\n", pkt_len, type);
+#ifdef __ECOS
+        if (type == ND_NEIGHBOR_ADVERT)
+#else
+        if (type == NDISC_NEIGHBOUR_ADVERTISEMENT)
+#endif
+		{
+			printk("drop nei advr\n");
+			return 1;	
+		}
+		else
+			return 0;
+	}
+	return 0;
+}
+
+int proxy_icmpv6_ndisc(struct rtl8192cd_priv *priv, struct sk_buff *skb)
+{
+	struct sk_buff *newskb = NULL;
+	struct in6_addr *addrp;
+#ifdef __ECOS
+	struct ip6_hdr *hdr = (struct ip6_hdr *)(skb->data+ETH_HLEN);
+	struct ip6_hdr *replyhdr;
+#else
+	struct ipv6hdr *hdr = (struct ipv6hdr *)(skb->data+ETH_HLEN);
+	struct ipv6hdr *replyhdr;
+#endif
+	struct icmp6hdr *icmpv6_nsolic;
+	struct icmp6hdr *icmpv6_nadvt;	
+	struct stat_info *pstat;
+    struct list_head *phead, *plist;
+	unsigned int pkt_len;
+	int type;
+	int idx=0;
+	int foundTarget=0;
+	//HS2DEBUG("proxy_icmpv6_ndisc\n");
+#ifdef __ECOS
+	if (hdr->ip6_vfc != 6)
+		return 0;
+	pkt_len = ntohs(hdr->ip6_plen);
+#else
+	if (hdr->version != 6)
+		return 0;
+	
+	pkt_len = ntohs(hdr->payload_len);
+#endif
+	if (pkt_len>0)
+	{
+		icmpv6_nsolic = (struct icmp6hdr *)(skb->data+ETH_HLEN+sizeof(*hdr));
+		type = icmpv6_nsolic->icmp6_type;
+		//printk("pkt len=%d,type=%d\n", pkt_len, type);
+#ifdef __ECOS
+		if (type == ND_NEIGHBOR_SOLICIT)
+#else
+		if (type == NDISC_NEIGHBOUR_SOLICITATION)
+#endif
+        {
+
+			addrp = (struct in6_addr *)(icmpv6_nsolic+1);
+
+  		    /*20141209 , p Note ,when src ip=NULL , need not reply*/
+			if ((hdr->saddr.s6_addr32[0] == 0) && (hdr->saddr.s6_addr32[1] == 0) 
+                 && (hdr->saddr.s6_addr32[2] == 0) && (hdr->saddr.s6_addr32[3] == 0)) 
+            {
+                HS2DEBUG("(src v6 ip is NULL)\n");
+                return 0;
+            }
+
+        	HS2DEBUG(" Neighbour Solicitation form [%02X%02X%02X:%02X%02X%02X]\n",
+                skb->data[6],skb->data[7],skb->data[8],skb->data[9],skb->data[10],skb->data[11]);
+            
+        	HS2DEBUG("search (tar v6 ip)[%08X %08X %08X %08X]\n",
+                addrp->s6_addr32[0],addrp->s6_addr32[1],addrp->s6_addr32[2],addrp->s6_addr32[3]);
+            
+			if (!memcmp(skb->data+ETH_ALEN, priv->pmib->dot11StationConfigEntry.dot11Bssid, ETH_ALEN))
+	        {
+		        HS2DEBUG("!!!  v6:arp req src mac=BSSID\n");
+			    return 0;
+	        }
+			#ifdef __ECOS
+			if((hdr->ip6_dst.s6_addr32[0] | hdr->ip6_dst.s6_addr32[1] |
+		 	hdr->ip6_dst.s6_addr32[2] | (hdr->ip6_dst.s6_addr32[3] ^ htonl(1))) == 0)
+			#else
+			if (ipv6_addr_loopback(&hdr->daddr))
+			#endif
+			{
+				HS2DEBUG("v6:loopback\n");
+		        return 0;
+			}
+
+			//search target ip mapping pstat mac
+			phead = &priv->asoc_list;
+	        plist = phead->next;
+		    while (phead && (plist != phead))
+			{
+	            pstat = list_entry(plist, struct stat_info, asoc_list);
+		        plist = plist->next;
+
+
+
+				foundTarget=0;
+				for(idx=0;idx<pstat->v6ipCount;idx++){
+					if (ipv6_addr_equal(&pstat->sta_v6ip[idx], addrp)){
+						foundTarget=1;
+						break;
+					}
+				}
+		        if (foundTarget)
+			    {
+					#if defined(CONFIG_RTL865X_ETH_PRIV_SKB) || defined(CONFIG_RTL_ETH_PRIV_SKB)
+				    extern struct sk_buff *priv_skb_copy(struct sk_buff *skb);
+	                newskb = priv_skb_copy(skb);
+					#else
+		            newskb = skb_copy(skb, GFP_ATOMIC);
+					#endif
+					//HS2DEBUG("compare ok!!\n");
+					if (newskb == NULL)
+	                {
+		                priv->ext_stats.tx_drops++;
+			            HS2DEBUG("alloc icmpv6 neighbor advertisement skb null!!\n");
+				        rtl_kfree_skb(priv, skb, _SKB_TX_);
+					    return 1;
+					}
+					else
+					{
+						unsigned char *opt;
+						int len;
+						//da
+						memcpy(newskb->data, newskb->data+ETH_ALEN, 6);
+						//sa
+						memcpy(newskb->data+ETH_ALEN, pstat->hwaddr, 6);
+#ifdef __ECOS
+						replyhdr = (struct ip6_hdr *)(newskb->data+ETH_HLEN);
+						ipv6_addr_copy(&replyhdr->ip6_src, &pstat->sta_v6ip);
+						ipv6_addr_copy(&replyhdr->ip6_dst, &hdr->ip6_src);
+						icmpv6_nadvt = (struct icmp6hdr *)(newskb->data+ETH_HLEN+sizeof(*hdr));
+				        icmpv6_nadvt->icmp6_type = ND_NEIGHBOR_ADVERT;
+						icmpv6_nadvt->icmp6_dataun.u_nd_advt.solicited = 1;
+						icmpv6_nadvt->icmp6_dataun.u_nd_advt.override = 0;
+						#else				
+						replyhdr = (struct ipv6hdr *)(newskb->data+ETH_HLEN);
+						ipv6_addr_copy(&replyhdr->saddr, &pstat->sta_v6ip[idx]);
+						ipv6_addr_copy(&replyhdr->daddr, &hdr->saddr);
+
+						icmpv6_nadvt = (struct icmp6hdr *)(newskb->data+ETH_HLEN+sizeof(*hdr));
+				        icmpv6_nadvt->icmp6_type = NDISC_NEIGHBOUR_ADVERTISEMENT;
+						icmpv6_nadvt->icmp6_solicited = 1;
+						icmpv6_nadvt->icmp6_override = 0;
+						#endif						
+						//target ip
+						opt = (unsigned char *)(newskb->data+ETH_HLEN+sizeof(*replyhdr)+sizeof(struct icmp6hdr));
+						ipv6_addr_copy((struct in6_addr *)opt, &pstat->sta_v6ip[idx]);
+						opt += sizeof(struct in6_addr);
+						//option
+						opt[0] = 2; // Type: Target link-layer addr
+						opt[1] = 1; // Length: 1 (8 bytes)
+						memcpy(opt+2, pstat->hwaddr, ETH_ALEN);
+						icmpv6_nadvt->icmp6_cksum = 0;
+						len = sizeof(struct icmp6hdr)+sizeof(struct in6_addr)+8;
+#ifdef __ECOS
+							icmpv6_nadvt->icmp6_cksum = inet_cksum( (unsigned short *)&replyhdr, len);
+#else
+						icmpv6_nadvt->icmp6_cksum = csum_ipv6_magic(&replyhdr->saddr, &replyhdr->daddr, len, 
+							IPPROTO_ICMPV6, csum_partial(icmpv6_nadvt, len, 0));
+#endif
+						
+						dev_kfree_skb_any(skb);
+						#ifdef __ECOS
+						if (ipv6_addr_equal(&replyhdr->ip6_src, &replyhdr->ip6_dst))
+						#else
+						if (ipv6_addr_equal(&replyhdr->saddr, &replyhdr->daddr))
+						#endif
+                        {
+                            HS2DEBUG("\n\n!!! v6:tip=sip!!\n\n\n");
+                            dev_kfree_skb_any(newskb);
+                            return 1;
+                        }
+
+						if ((pstat = get_stainfo(priv, newskb->data)) != NULL)
+	                    {
+	                        int i;
+							HS2DEBUG("v6:da in wlan\n\n");
+							newskb->cb[2] = (char)0xff;         // not do aggregation
+							memcpy(newskb->cb+10,newskb->data,6);
+							#if 0
+							HS2DEBUG("data=");
+							for(i=0;i<6;i++) {
+								panic_printk("%02x ",newskb->data[i]);
+							}
+							panic_printk("\n");
+							for(i=0;i<6;i++) {
+								panic_printk("%02x ",newskb->data[i+6]);
+							}
+							panic_printk("\n");
+							panic_printk("%02x %02x\n",newskb->data[12],newskb->data[13]); // type                            
+							for(i=0;i< 8 ;i++) {
+								panic_printk("%02x ",newskb->data[i+14]);
+							}
+							panic_printk("\n");                            
+							for(i=0;i< 16 ;i++) {
+								panic_printk("%02x ",newskb->data[i+14+8]);
+							}
+							panic_printk("\n");                            
+							for(i=0;i< 16 ;i++) {
+								panic_printk("%02x ",newskb->data[i+14+8+16]);
+							}   
+							panic_printk("\n");                            
+							for(i=0;i< 6 ;i++) {
+								panic_printk("%02x ",newskb->data[i+14+8+16+16]);
+							}                                                        
+							panic_printk("\n");                            
+							#endif
+
+							HS2DEBUG("rx Nei Solici relay Nei Adv\n\n");
+							//dev_kfree_skb_any(newskb);
+	                        __rtl8192cd_start_xmit(newskb, priv->dev, 1);
+						}
+						else
+						{				
+							HS2DEBUG("v6:da in lan\n");
+							#ifdef __KERNEL__
+	                        if (newskb->dev)
+							#ifdef __LINUX_2_6__
+		                        newskb->protocol = eth_type_trans(newskb, newskb->dev);
+			                else
+							#endif
+				                newskb->protocol = eth_type_trans(newskb, priv->dev);
+#endif
+
+#if defined(__LINUX_2_6__) && defined(RX_TASKLET) && !defined(CONFIG_RTL8672) && !defined(__LINUX_3_10__)
+					        netif_receive_skb(newskb);
+#else
+						    netif_rx(newskb);
+#endif		
+						}
+						return 1;
+					}
+				}
+                
+			}
+
+            HS2DEBUG("no found!\n");
+            
+		}
+	}
+	return 0;
+}
+
+int proxy_arp_handle(struct rtl8192cd_priv *priv, struct sk_buff *skb)
+{
+	struct sk_buff *newskb = NULL;
+	struct arphdr *arp = (struct arphdr *)(skb->data + ETH_HLEN);
+	unsigned char *arp_ptr = (unsigned char *)(arp + 1), *psender, *ptarget, *psender_bak;
+	struct stat_info *pstat;
+	struct list_head *phead, *plist;
+	int k;
+	unsigned char *tmp = (unsigned char *)(skb->data);
+	
+	/*if((arp->ar_pro == __constant_htons(ETH_P_IP)) && (arp->ar_op == htons(ARPOP_REQUEST)||arp->ar_op == htons(ARPOP_REPLY)))
+	{
+		arp_ptr += arp->ar_hln;
+		psender_bak = arp_ptr;
+		//target ip
+		arp_ptr += (arp->ar_hln + arp->ar_pln);
+		ptarget = arp_ptr;
+		if (!memcmp(psender_bak,ptarget,4))
+		{
+			printk("gratuitous ARP Request or Reply\n");
+			return 0;
+		}
+	}*/
+	HS2_DEBUG_TRACE(2, "Proxy ARP handle\n");
+	if((arp->ar_pro == __constant_htons(ETH_P_IP)) && (arp->ar_op == htons(ARPOP_REQUEST)))
+	{
+		//{
+		//	int j;
+		//	printk("orin==>");
+		//	for(j=0;j<skb->len;j++)
+		//		printk("0x%02x:",*(skb->data+j));
+		//	printk("\n");
+		//}
+		//sender ip
+		arp_ptr += arp->ar_hln;
+		psender_bak = arp_ptr;
+		//target ip
+		arp_ptr += (arp->ar_hln + arp->ar_pln);
+		ptarget = arp_ptr;
+	
+		if (!memcmp(skb->data+ETH_ALEN, priv->pmib->dot11StationConfigEntry.dot11Bssid, ETH_ALEN))
+		{
+			HS2_DEBUG_TRACE(1, "arp req src mac=BSSID\n");
+			return 0;
+		}
+#ifdef __ECOS
+		if( (((unsigned int )ptarget & htonl(0xff000000)) == htonl(0x7f000000)) ||
+			(((unsigned int )ptarget & htonl(0xf0000000)) == htonl(0xe0000000)))
+
+#else
+		if (ipv4_is_loopback(ptarget) || ipv4_is_multicast(ptarget))
+#endif
+		{
+			HS2_DEBUG_TRACE(1, "loopback or muticast!!\n");
+	        return 0;
+		}
+
+		//search target ip mapping pstat mac
+		phead = &priv->asoc_list;
+		plist = phead->next;
+		while (phead && (plist != phead)) 
+		{
+			pstat = list_entry(plist, struct stat_info, asoc_list);
+			plist = plist->next;
+			HS2_DEBUG_INFO("Proxy ARP: Find Destination in Assocation List, sta_ip=%d.%d.%d.%d\n",pstat->sta_ip[0],pstat->sta_ip[1],pstat->sta_ip[2],pstat->sta_ip[3]);
+			if (!memcmp(pstat->sta_ip, ptarget, 4))
+			{
+				panic_printk("Proxy ARP: Find Destination in Assocation List\n");
+#if defined(CONFIG_RTL865X_ETH_PRIV_SKB) || defined(CONFIG_RTL_ETH_PRIV_SKB)
+				extern struct sk_buff *priv_skb_copy(struct sk_buff *skb);
+				newskb = priv_skb_copy(skb);
+#else
+				newskb = skb_copy(skb, GFP_ATOMIC);
+#endif
+				if (newskb == NULL) 
+				{
+					priv->ext_stats.tx_drops++;
+					HS2_DEBUG_ERR("alloc arp rsp skb null!!\n");
+					rtl_kfree_skb(priv, skb, _SKB_TX_);
+					return 1;
+				}	
+				else
+				{
+					// ======================
+					// build new arp response
+					// ======================
+					//da
+					memcpy(newskb->data, newskb->data+ETH_ALEN, 6);
+					//memcpy(newskb->data, priv->pmib->dot11StationConfigEntry.dot11Bssid, 6);
+					//sa
+					memcpy(newskb->data+ETH_ALEN, pstat->hwaddr, 6);
+					//memcpy(newskb->data+ETH_ALEN, priv->pmib->dot11StationConfigEntry.dot11Bssid, 6);
+					//arp response			
+					arp = (struct arphdr *)(newskb->data + ETH_HLEN);
+					arp_ptr = (unsigned char *)(arp + 1);
+					arp->ar_op = htons(ARPOP_REPLY);
+					//sender mac and ip
+					memcpy(arp_ptr, pstat->hwaddr, 6);
+					arp_ptr += arp->ar_hln;
+					psender = (unsigned char *)arp_ptr;
+					memcpy(psender, ptarget, 4);
+					//printk("sender mac and ip:%02x:%02x:%02x:%02x:%02x:%02x,%d.%d.%d.%d\n",pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5],ptarget[0],ptarget[1],ptarget[2],ptarget[3]);
+					//target mac and ip
+					arp_ptr += arp->ar_pln;
+					memcpy(arp_ptr, newskb->data, 6);
+					//memcpy(newskb->data, priv->pmib->dot11StationConfigEntry.dot11Bssid, 6);
+
+					arp_ptr += arp->ar_hln;
+					ptarget = arp_ptr;
+					memcpy((unsigned char *)ptarget, (unsigned char *)psender_bak, 4);
+					//printk("target mac and ip:%02x:%02x:%02x:%02x:%02x:%02x,%d.%d.%d.%d\n",newskb->data[0],newskb->data[1],newskb->data[2],newskb->data[3],newskb->data[4],newskb->data[5],ptarget[0],ptarget[1],ptarget[2],ptarget[3]);
+							
+					rtl_kfree_skb(priv, skb, _SKB_TX_);
+					
+					if (!memcmp(ptarget, psender, 4))
+					{
+						HS2_DEBUG_TRACE(2, "target ip = sender ip!!\n");
+						dev_kfree_skb_any(newskb);
+						return 1;
+					}
+
+					if ((pstat = get_stainfo(priv, newskb->data)) != NULL)
+					{
+						//struct sk_buff_head *pqueue;
+					    //struct timer_list *ptimer;
+					    //void (*timer_hook)(unsigned long task_priv);
+
+						//if (newskb->dev)
+//#ifdef __LINUX_2_6__
+//							newskb->protocol = eth_type_trans(newskb, newskb->dev);
+//						else
+//#endif
+//							newskb->protocol = eth_type_trans(newskb, priv->dev);
+
+//						printk("enq\n");
+//						pqueue = &pstat->swq.be_queue;
+//			            ptimer = &pstat->swq.beq_timer;
+//						timer_hook = rtl8192cd_beq_timer;
+
+//					    skb_queue_tail(pqueue, newskb);
+//					    ptimer->data = (unsigned long)pstat;
+//						ptimer->function = timer_hook; //rtl8190_tmp_timer;
+//			            mod_timer(ptimer, jiffies + 1);
+
+//						 SAVE_INT_AND_CLI(x);
+						//pstat = get_stainfo(priv, newskb->data);
+						HS2_DEBUG_TRACE(1, "da in wlan\n");
+				        //__rtl8192cd_start_xmit_out(newskb, pstat);
+						newskb->cb[2] = (char)0xff;         // not do aggregation
+						memcpy(newskb->cb+10,newskb->data,6);
+                        __rtl8192cd_start_xmit(newskb, priv->dev, 1);
+//				        RESTORE_INT(x);
+	
+					}
+					else
+					{		
+						HS2_DEBUG_TRACE(1, "da in lan\n");
+#ifdef __KERNEL__
+						if (newskb->dev)
+#ifdef __LINUX_2_6__
+							newskb->protocol = eth_type_trans(newskb, newskb->dev);
+	                    else
+#endif
+		                    newskb->protocol = eth_type_trans(newskb, priv->dev);
+#endif
+			
+#if defined(__LINUX_2_6__) && defined(RX_TASKLET) && !defined(CONFIG_RTL8672)
+						netif_receive_skb(newskb);
+#else
+						netif_rx(newskb);
+#endif
+					}
+					return 1;
+				}			
+			}
+		}
+	}
+	
+	//drop packet
+	return 0;		
+}
+
+
 #endif
 
 #ifdef USE_TXQUEUE
@@ -5843,44 +8591,108 @@ void stats_conn_status_counts(struct rtl8192cd_priv *priv, unsigned int status)
 #ifdef SW_TX_QUEUE
 void adjust_swq_setting(struct rtl8192cd_priv *priv, struct stat_info *pstat, int i, int mode)
 {
-	int thd;
-	
-	if(pstat->swq.q_used[i]) {
-		if (mode == CHECK_DEC_AGGN) {
-			if (pstat->swq.q_aggnum[i] <= 2)
-				thd = priv->pshare->rf_ft_var.timeout_thd;
-			else if (pstat->swq.q_aggnum[i] <= 4)
-				thd = priv->pshare->rf_ft_var.timeout_thd2;
-			else
-				thd = priv->pshare->rf_ft_var.timeout_thd3;
-		
-			if ((pstat->swq.q_TOCount[i] >= thd)&& ((pstat->swq.q_TOCount[i] % thd) == 0)) {
-    			pstat->swq.q_aggnum[i] = pstat->swq.q_aggnum[i]-1; 
-    			if (pstat->swq.q_aggnum[i] <= 0)
-    				pstat->swq.q_aggnum[i] = 1;
-    			if (++pstat->swq.q_aggnumIncSlow[i] >= MAX_BACKOFF_CNT)
-    				pstat->swq.q_aggnumIncSlow[i] = MAX_BACKOFF_CNT;
-				DEBUG_INFO("dec,aid:%d,cnt:%d\n", pstat->aid, pstat->swq.q_TOCount[i]);
-    		}
-    	}
-    	else {
-    		if (pstat->swq.q_aggnum[i] <= 2)
-				thd = priv->pshare->rf_ft_var.timeout_thd-10;
-			else if (pstat->swq.q_aggnum[i] <= 4)
-				thd = priv->pshare->rf_ft_var.timeout_thd2-30;
-			else
-				thd = priv->pshare->rf_ft_var.timeout_thd3-50;
+    int thd, step;            
+    if(pstat->swq.q_used[i]) {
+        if (mode == CHECK_DEC_AGGN) {
+            if(priv->pshare->swq_use_hw_timer) {
+                thd = SWQ_TIMEOUT_THD / pstat->swq.swq_prev_timeout[i];    
+                if(thd > 100)
+                    thd = 100;
+                if ((pstat->swq.q_TOCount[i] >= thd)&& ((pstat->swq.q_TOCount[i] % thd) == 0)) {                   
+                    if (pstat->swq.q_aggnum[i] > 1) {
+                        --(pstat->swq.q_aggnum[i]); 
+                        pstat->swq.swq_keeptime[i] = priv->up_time + 3;
+                    }
+                    pstat->swq.swq_timeout_change[i] = 0;                    
+                }                
+            }
+            else {
+                if (pstat->swq.q_aggnum[i] <= 2)
+                    thd = priv->pshare->rf_ft_var.timeout_thd;
+                else if (pstat->swq.q_aggnum[i] <= 4)
+                    thd = priv->pshare->rf_ft_var.timeout_thd2;
+                else
+                    thd = priv->pshare->rf_ft_var.timeout_thd3;
 
-			if(pstat->swq.q_TOCount[i]< thd) {
-				pstat->swq.q_aggnum[i] = pstat->swq.q_aggnum[i]+1; 
-				if (pstat->swq.q_aggnum[i] > priv->pshare->rf_ft_var.swq_aggnum)
-					pstat->swq.q_aggnum[i] = priv->pshare->rf_ft_var.swq_aggnum;
-				DEBUG_INFO("inc,aid:%d,cnt:%d,%d\n", pstat->aid, pstat->swq.q_TOCount[i], pstat->swq.q_aggnum[BE_QUEUE]);
-			}
-		}
-	}
+                if ((pstat->swq.q_TOCount[i] >= thd)&& ((pstat->swq.q_TOCount[i] % thd) == 0)) {
+                    --(pstat->swq.q_aggnum[i]); 
+                    if (pstat->swq.q_aggnum[i] <= 2)
+                        pstat->swq.q_aggnum[i] = 2;
+                    if (++pstat->swq.q_aggnumIncSlow[i] >= MAX_BACKOFF_CNT)
+                        pstat->swq.q_aggnumIncSlow[i] = MAX_BACKOFF_CNT;
+                    DEBUG_INFO("dec,aid:%d,cnt:%d\n", pstat->aid, pstat->swq.q_TOCount[i]);
+                }
+            }
+        }
+        else {
+            if(priv->pshare->swq_use_hw_timer) {
+                if(pstat->swq.q_aggnum[i] < priv->pshare->rf_ft_var.swq_aggnum && 
+                   pstat->swq.q_TOCount[i] < SWQ_TIMEOUT_THD_LOWER) { 
+                    if(pstat->swq.swq_timeout_change[i]) {
+                        step = (priv->pshare->rf_ft_var.swq_aggnum - pstat->swq.q_aggnum[i] + 1)/2;
+                        if(step < 2)
+                            step = 2;
+                        pstat->swq.q_aggnum[i] += step;
+                        if (pstat->swq.q_aggnum[i] > priv->pshare->rf_ft_var.swq_aggnum) {                    
+                            pstat->swq.q_aggnum[i] = priv->pshare->rf_ft_var.swq_aggnum;
+                        }        
+                    }
+                    else {
+                        if(priv->up_time > pstat->swq.swq_keeptime[i])
+                            pstat->swq.q_aggnum[i]++;                        
+                    }
+                }
+            }
+            else {
+                if (pstat->swq.q_aggnum[i] <= 2)
+                    thd = priv->pshare->rf_ft_var.timeout_thd-10;
+                else if (pstat->swq.q_aggnum[i] <= 4)
+                    thd = priv->pshare->rf_ft_var.timeout_thd2-30;
+                else
+                    thd = priv->pshare->rf_ft_var.timeout_thd3-50;
+
+                if(pstat->swq.q_TOCount[i]< thd) {
+                    step = 1;
+                    if(pstat->swq.q_TOCount[i]< thd/5)
+                        step = 5;
+                    else if(pstat->swq.q_TOCount[i]< thd/3)
+                        step = 3;
+
+                    pstat->swq.q_aggnum[i] += step; 
+
+                    if (pstat->swq.q_aggnum[i] > priv->pshare->rf_ft_var.swq_aggnum)
+                        pstat->swq.q_aggnum[i] = priv->pshare->rf_ft_var.swq_aggnum;
+                    //panic_printk("inc,aid:%d,cnt:%d,%d\n", pstat->aid, pstat->swq.q_TOCount[i], pstat->swq.q_aggnum[BE_QUEUE]);
+                }
+            }
+        }
+    }
 }
-#endif
+
+void init_STA_SWQAggNum(struct rtl8192cd_priv *priv)
+{
+    struct stat_info *sta;
+    int i, Idx = 0;
+    while(1) {
+        sta = findNextSTA(priv, &Idx);
+        if(sta) {                 
+            for(i=BK_QUEUE;i<HIGH_QUEUE;i++) { 
+                if(sta->tx_avarage> (1<<16)) {
+                    sta->swq.q_aggnum[i] = priv->pshare->rf_ft_var.swq_aggnum>>1;                               
+                }
+                if(priv->pshare->swq_use_hw_timer) {
+                    sta->swq.swq_en[i] = 1;
+                    sta->swq.swq_prev_timeout[i] = 0;
+                    sta->swq.swq_timeout_change[i] = 0;
+                    sta->swq.swq_keeptime[i] = 0;         
+                }
+            }
+        } else {			
+            return; 	
+        }
+    }
+}
+#endif //SW_TX_QUEUE
 
 #if defined(CONFIG_RTL_ULINKER)
 int get_wlan_opmode(struct net_device *dev)
@@ -5900,3 +8712,1854 @@ int get_wlan_opmode(struct net_device *dev)
 #endif
 
 
+
+#ifdef RF_MIMO_SWITCH
+
+void Do_BB_Reset(struct rtl8192cd_priv *priv)
+{
+	unsigned char tmp_reg2 = 0;
+	tmp_reg2 = RTL_R8(0x2);
+			
+	tmp_reg2 &= (~BIT(0));
+	RTL_W8(0x2, tmp_reg2);
+	tmp_reg2 |= BIT(0);
+	RTL_W8(0x2, tmp_reg2);
+
+}
+
+void RF_MIMO_check_timer(unsigned long task_priv)
+{
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+	int i=0, assoc_num = priv->assoc_num;
+	
+	if (!(priv->drv_state & DRV_STATE_OPEN))
+		return;
+
+	if(get_rf_mimo_mode(priv) != MIMO_2T2R)
+		return;
+
+    if(priv->auto_channel || timer_pending(&priv->ss_timer)) {
+        goto end;
+    }
+    
+#ifdef MP_TEST
+	if (((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific))
+		return;
+#endif	
+		if(0 
+#ifdef WDS
+		|| (priv->pmib->dot11WdsInfo.wdsEnabled)
+#endif
+#ifdef DFS
+		|| is_DFS_channel(priv->pmib->dot11RFEntry.dot11channel)
+#endif
+#ifdef UNIVERSAL_REPEATER
+		|| (IS_DRV_OPEN(GET_VXD_PRIV(priv)))
+#endif
+		) {
+			if(MIMO_mode_switch(priv, MIMO_2T2R)) {
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+				if((priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20) && (priv->pmib->dot11nConfigEntry.dot11nUse40M != HT_CHANNEL_WIDTH_20)) {
+					priv->pshare->CurrentChannelBW = priv->pmib->dot11nConfigEntry.dot11nUse40M;
+					SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+					SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+					update_RAMask_to_FW(priv, 1);		
+#endif	
+					SetTxPowerLevel(priv);
+				}
+#endif			
+			}
+			return;
+		}
+
+	if(priv->pshare->rf_ft_var.rf_mode ==0) {
+#ifdef MBSSID
+		if (priv->pmib->miscEntry.vap_enable){
+			for (i=0; i<RTL8192CD_NUM_VWLAN; ++i)
+				assoc_num += priv->pvap_priv[i]-> assoc_num;
+		}
+#endif
+		if(assoc_num) {			
+			if(MIMO_mode_switch(priv, MIMO_2T2R)) {
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+				if((priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20) && (priv->pmib->dot11nConfigEntry.dot11nUse40M != HT_CHANNEL_WIDTH_20)) {
+					priv->pshare->CurrentChannelBW = priv->pmib->dot11nConfigEntry.dot11nUse40M;
+					SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+					SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+					update_RAMask_to_FW(priv, 1);
+#endif						
+					SetTxPowerLevel(priv);
+				}
+#endif		
+				// reset bb for 8812 to avoid rx hang
+				if (GET_CHIP_VER(priv) == VERSION_8812E)
+				Do_BB_Reset(priv);
+
+			}
+		}
+		else {
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+			if((priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20_40)|| (priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_80)) {
+				priv->pshare->CurrentChannelBW = HT_CHANNEL_WIDTH_20;
+				SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+				SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+			}
+#endif					
+			if(MIMO_mode_switch(priv, MIMO_1T1R)) {	
+				
+				// reset bb for 8812 to avoid rx hang
+				if (GET_CHIP_VER(priv) == VERSION_8812E)
+				Do_BB_Reset(priv);
+				
+			}	
+		}
+	} else if (priv->pshare->rf_ft_var.rf_mode == 2) {
+		if(MIMO_mode_switch(priv, MIMO_2T2R)) {
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+			if((priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20) && (priv->pmib->dot11nConfigEntry.dot11nUse40M != HT_CHANNEL_WIDTH_20)) {
+				priv->pshare->CurrentChannelBW = priv->pmib->dot11nConfigEntry.dot11nUse40M;
+				SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+				SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL)
+				update_RAMask_to_FW(priv, 1);
+#endif			
+				SetTxPowerLevel(priv);
+			}
+#endif			
+		}
+	} else 	if (priv->pshare->rf_ft_var.rf_mode == 1) {
+		MIMO_mode_switch(priv, MIMO_1T1R);
+	}
+
+ end:
+	mod_timer(&priv->ps_timer, jiffies + IDLE_T0);
+}
+
+int assign_MIMO_TR_Mode(struct rtl8192cd_priv *priv, unsigned char *data)
+{
+#define dprintf printk
+	int mode = _atoi(data, 16);
+	if (strlen(data) == 0) {
+		printk("tr mode.\n");
+		printk("mimo 1: swith to 1T\n");
+		printk("mimo 2: switch to 2T\n");
+		printk("mimo 0: auto\n");
+		return 0;
+	}
+	if (mode == 0x01)	{
+		MIMO_mode_switch(priv, MIMO_1T1R);
+		priv->pshare->rf_ft_var.rf_mode = 1;
+	} else if (mode == 0x02)	 {		
+		MIMO_mode_switch(priv, MIMO_2T2R);
+		priv->pshare->rf_ft_var.rf_mode = 2;
+	} else {
+		priv->pshare->rf_ft_var.rf_mode = 0;
+	}
+	return 0;
+}
+#endif
+
+#ifdef MULTI_MAC_CLONE
+int pack_to_profile(struct rtl8192cd_priv *priv)
+{
+	struct ap_profile profile;
+	int i;
+
+	priv->pmib->ap_profile.profile_num = 0;
+	memset(priv->pmib->ap_profile.profile, '\0', sizeof(profile)*PROFILE_NUM);
+
+	if (netif_running(priv->dev))
+	{
+		memset(&profile, 0, sizeof(struct ap_profile));
+		strcpy(profile.ssid, priv->pmib->dot11StationConfigEntry.dot11DesiredSSID);
+		profile.auth_type = priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm;
+		if (priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm==_NO_PRIVACY_)
+			profile.encryption = 0;
+		else if (priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm==_WEP_40_PRIVACY_) {
+			profile.encryption = 1;
+		}
+		else if (priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm==_WEP_104_PRIVACY_) {
+			profile.encryption = 2;
+		}
+		else if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher!=0) {
+			profile.encryption = 4;
+		}
+		else if (priv->pmib->dot1180211AuthEntry.dot11WPACipher!=0) {
+			profile.encryption = 3;
+		}
+
+		memset(&priv->pmib->ap_profile.profile[priv->pmib->ap_profile.profile_num], '\0', sizeof(profile));	
+		memcpy(&priv->pmib->ap_profile.profile[priv->pmib->ap_profile.profile_num], &profile, sizeof(profile));	
+		priv->pmib->ap_profile.profile_num++;
+		priv->pmib->ap_profile.enable_profile = 1;
+	}
+
+	return 0;
+}
+#endif	// SUPPORT_MULTI_PROFILE
+
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+struct list_head* asoc_list_get_next(struct rtl8192cd_priv *priv, struct list_head *plist)
+{
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
+	struct list_head *phead, *plist_next;
+	struct stat_info *pstat;
+	
+	phead = &priv->asoc_list;
+	
+	SMP_LOCK_ASOC_LIST(flags);
+	
+	plist_next = plist->next;
+	if (plist_next != phead) {
+		pstat = list_entry(plist_next, struct stat_info, asoc_list);
+		pstat->asoc_list_refcnt++;
+	}
+	
+	SMP_UNLOCK_ASOC_LIST(flags);
+	
+	if (plist != phead) {
+		pstat =  list_entry(plist, struct stat_info, asoc_list);
+		asoc_list_unref(priv, pstat);
+	}
+	
+	return plist_next;
+}
+
+void asoc_list_unref(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
+	int unlink = 0;
+	
+	SMP_LOCK_ASOC_LIST(flags);
+	
+	BUG_ON(0 == pstat->asoc_list_refcnt);
+	
+	pstat->asoc_list_refcnt--;
+	if (0 == pstat->asoc_list_refcnt) {
+		list_del_init(&pstat->asoc_list);
+		unlink = 1;
+	}
+	
+	SMP_UNLOCK_ASOC_LIST(flags);
+	
+	if (unlink) {
+#ifdef __ECOS
+		cyg_flag_setbits(&pstat->asoc_unref_done, 0x1);
+#else
+		complete(&pstat->asoc_unref_done);
+#endif
+	}
+}
+
+// The function returns whether it had linked to asoc_list before removing.
+int asoc_list_del(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
+	int ret = 0, wait = 0;
+	
+#ifdef __KERNEL__
+	might_sleep();
+#endif
+
+	SMP_LOCK_ASOC_LIST(flags);
+	
+	if (0 != pstat->asoc_list_refcnt) {
+		pstat->asoc_list_refcnt--;
+		if (0 ==pstat->asoc_list_refcnt) {
+//			if (!list_empty(&pstat->asoc_list)) {
+				list_del_init(&pstat->asoc_list);
+				ret = 1;
+//			}
+		} else {
+			wait = 1;
+		}
+	}
+	
+	SMP_UNLOCK_ASOC_LIST(flags);
+	
+	if (wait) {
+#ifdef __ECOS
+		cyg_flag_wait(&pstat->asoc_unref_done, 0x01, CYG_FLAG_WAITMODE_OR | CYG_FLAG_WAITMODE_CLR);
+#else
+		wait_for_completion(&pstat->asoc_unref_done);
+#endif
+		ret = 1;
+	}
+	
+	return ret;
+}
+
+int asoc_list_add(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
+	int ret = 0;
+	
+	SMP_LOCK_ASOC_LIST(flags);
+	
+	if (list_empty(&pstat->asoc_list)) {
+		list_add_tail(&pstat->asoc_list, &priv->asoc_list);
+		pstat->asoc_list_refcnt = 1;
+		ret = 1;
+	}
+	
+	SMP_UNLOCK_ASOC_LIST(flags);
+	
+	return ret;
+}
+#endif // CONFIG_USB_HCI || CONFIG_SDIO_HCI
+
+//return value: Auto site-survey level
+//0(SS_LV_WSTA), STA connect to root AP/VAP
+//1(SS_LV_WOSTA), No STA connected to root AP/VAP
+//2(SS_LV_ROOTFUNCOFF), root AP only and func_off=1
+int get_ss_level(struct rtl8192cd_priv *priv)
+{
+	int idx=0;
+  
+	if( GET_ROOT(priv)->pmib->miscEntry.func_off ){
+
+        #ifdef MBSSID                            
+        if(GET_ROOT(priv)->pmib->miscEntry.vap_enable==0)
+    		return  SS_LV_ROOTFUNCOFF;
+        else{
+			for (idx=0; idx<RTL8192CD_NUM_VWLAN; idx++) {
+				if (IS_DRV_OPEN(GET_ROOT(priv)->pvap_priv[idx])&& 
+                    (GET_ROOT(priv)->pvap_priv[idx]->pmib->dot11OperationEntry.opmode & WIFI_AP_STATE) &&
+                    (GET_ROOT(priv)->pvap_priv[idx]->assoc_num)){
+					return SS_LV_WSTA;
+				}
+			}
+        }
+        #else
+    		return SS_LV_ROOTFUNCOFF;        
+        #endif
+       
+	}
+    else{
+        
+		if((GET_ROOT(priv)->pmib->dot11OperationEntry.opmode & WIFI_AP_STATE)  &&  GET_ROOT(priv)->assoc_num)
+			return SS_LV_WSTA;
+
+        #ifdef MBSSID                    
+		if(GET_ROOT(priv)->pmib->miscEntry.vap_enable==1) {
+			for (idx=0; idx<RTL8192CD_NUM_VWLAN; idx++) {
+				if (IS_DRV_OPEN(GET_ROOT(priv)->pvap_priv[idx])&& 
+                    (GET_ROOT(priv)->pvap_priv[idx]->pmib->dot11OperationEntry.opmode & WIFI_AP_STATE) &&
+                    (GET_ROOT(priv)->pvap_priv[idx]->assoc_num))
+                {
+					return SS_LV_WSTA;
+				}
+			}
+		}
+        #endif
+	}
+
+    //default
+    return SS_LV_WOSTA;
+
+}
+
+void syncMulticastCipher(struct rtl8192cd_priv *priv, struct bss_desc *bss_target)
+{
+	int mcipher = 1;
+	// set Multicast Cipher as same as AP's
+	if (priv->pmib->dot11RsnIE.rsnie[0] == _RSN_IE_1_) {
+		if(bss_target->t_stamp[0] & BIT(4))
+			mcipher = 4;
+		else if(bss_target->t_stamp[0] & BIT(2))
+			mcipher = 2;									
+		priv->pmib->dot11RsnIE.rsnie[11] = mcipher;
+		priv->wpa_global_info->AuthInfoBuf[11] = mcipher;
+	} else if(priv->pmib->dot11RsnIE.rsnie[0] == _RSN_IE_2_) {
+		if(bss_target->t_stamp[0] & BIT(20))
+			mcipher = 4;
+		else if(bss_target->t_stamp[0] & BIT(18))
+			mcipher = 2;		
+		priv->pmib->dot11RsnIE.rsnie[7] = mcipher;
+		priv->wpa_global_info->AuthInfoBuf[7] = mcipher;		
+
+	#ifdef CONFIG_IEEE80211W_CLI
+		if((priv->wpa_global_info->rsnie_cap & BIT(6)) && (priv->wpa_global_info->rsnie_cap & BIT(7))){
+			PMFDEBUG("AP PMF capability = Required\n");
+			priv->support_pmf = TRUE;
+		}
+		else if(priv->wpa_global_info->rsnie_cap & BIT(7)){
+			PMFDEBUG("AP PMF capability = MFPC\n");
+			priv->support_pmf = TRUE;
+		}
+		else{
+			priv->support_pmf = FALSE;
+		}
+	#endif
+	}			
+}
+
+unsigned int isDHCPpkt(struct sk_buff *pskb)
+{
+#define DHCP_MAGIC 0x63825363
+
+	struct iphdr {
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+	        __u8    ihl:4,
+	                version:4;
+#elif defined (__BIG_ENDIAN_BITFIELD)
+	        __u8    version:4,
+	                ihl:4;
+#else
+#error  "Please fix <asm/byteorder.h>"
+#endif
+	        __u8    tos;
+	        __u16   tot_len;
+	        __u16   id;
+	        __u16   frag_off;
+	        __u8    ttl;
+	        __u8    protocol;
+#if 0
+	        __u16   check;
+	        __u32   saddr;
+	        __u32   daddr;
+#endif
+	};
+
+	struct udphdr {
+	        __u16   source;
+	        __u16   dest;
+	        __u16   len;
+	        __u16   check;
+	};
+
+	struct dhcpMessage {
+		u_int8_t op;
+		u_int8_t htype;
+		u_int8_t hlen;
+		u_int8_t hops;
+		u_int32_t xid;
+		u_int16_t secs;
+		u_int16_t flags;
+		u_int32_t ciaddr;
+		u_int32_t yiaddr;
+		u_int32_t siaddr;
+		u_int32_t giaddr;
+		u_int8_t chaddr[16];
+		u_int8_t sname[64];
+		u_int8_t file[128];
+		u_int32_t cookie;
+#if 0
+		u_int8_t options[308]; /* 312 - cookie */
+#endif
+	};
+
+	unsigned short protocol = 0;
+	struct iphdr* iph;
+	struct udphdr *udph;
+	struct dhcpMessage *dhcph;
+
+	protocol = *((unsigned short *)(pskb->data + 2 * ETH_ALEN));
+
+	if(protocol == __constant_htons(ETH_P_IP)) { /* IP */
+		iph = (struct iphdr *)(pskb->data + ETH_HLEN);
+
+		if(iph->protocol == 17) { /* UDP */
+			udph = (struct udphdr *)((unsigned long)iph + (iph->ihl << 2));
+			dhcph = (struct dhcpMessage *)((unsigned long)udph + sizeof(struct udphdr));
+
+			if ((unsigned long)dhcph & 0x03) { //not 4-byte alignment
+				u_int32_t cookie;
+				char *pdhcphcookie;
+				char *pcookie = (char *)&cookie;
+
+				pdhcphcookie = (char *)&dhcph->cookie;
+				pcookie[0] = pdhcphcookie[0];
+				pcookie[1] = pdhcphcookie[1];
+				pcookie[2] = pdhcphcookie[2];
+				pcookie[3] = pdhcphcookie[3];
+				if(cookie == htonl(DHCP_MAGIC))
+					return TRUE;
+			}
+			else {
+				if(dhcph->cookie == htonl(DHCP_MAGIC))
+					return TRUE;
+			}
+		}
+	}
+
+	return FALSE;
+}
+
+#ifdef UNIVERSAL_REPEATER
+#ifdef __ECOS //TBD
+int send_arp_response(struct rtl8192cd_priv *priv, unsigned int *dip, unsigned int *sip, unsigned char *dmac, unsigned char *smac)
+{
+	return -1;
+}
+#else
+int send_arp_response(struct rtl8192cd_priv *priv, unsigned int *dip, unsigned int *sip, unsigned char *dmac, unsigned char *smac)
+{
+	unsigned int ret = -1;
+	struct sk_buff *arp_skb = NULL;
+	struct rtl_arphdr *arp=NULL;
+	unsigned char *ptr;
+	int hlen, tlen;
+
+	hlen = LL_RESERVED_SPACE(priv->dev);
+	tlen = priv->dev->needed_tailroom;
+	arp_skb = __alloc_skb(arp_hdr_len(priv->dev) + hlen + tlen, GFP_ATOMIC, 0, -1);
+
+	if (arp_skb == NULL)
+		goto err_out;
+
+	skb_reserve(arp_skb, LL_RESERVED_SPACE(priv->dev));
+	skb_reset_network_header(arp_skb);
+	arp = (struct rtl_arphdr *) skb_put(arp_skb, arp_hdr_len(priv->dev));
+	arp_skb->dev = priv->dev;
+	arp_skb->protocol = htons(ETH_P_ARP);
+#if 0
+	//without consideration of VLAN
+//#ifdef CONFIG_RTK_VLAN_SUPPORT
+	arp_skb->tag = arp_tag;
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	arp_skb->src_info = arp_info;
+#endif
+#endif
+	if (dev_hard_header(arp_skb, priv->dev, htons(ETH_P_ARP), dmac, smac, arp_skb->len) < 0) {
+		kfree_skb(arp_skb);
+		goto err_out;
+	}
+	// ======================
+	// build new arp response
+	// ======================
+	//arp response
+	ptr = (unsigned char *)(arp + 1);
+	arp->ar_op = htons(ARPOP_REPLY);
+	arp->ar_hrd = htons(priv->dev->type);
+	arp->ar_pro = htons(ETH_P_IP);
+	arp->ar_hln = priv->dev->addr_len;;
+	arp->ar_pln = 4;	//for ipv4
+	//sender mac and ip
+	memcpy(ptr, smac, 6);
+	ptr += arp->ar_hln;
+	memcpy(ptr, sip, 4);
+	//printk("sender mac and ip:%02x:%02x:%02x:%02x:%02x:%02x,%d.%d.%d.%d\n",pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5],pstat->sta_ip[0],pstat->sta_ip[1],pstat->sta_ip[2],pstat->sta_ip[3]);
+	//target mac and ip
+	ptr += arp->ar_pln;
+	memcpy(ptr, dmac, MACADDRLEN);
+	ptr += arp->ar_hln;
+	memcpy(ptr, dip, 4);
+	//printk("target mac and ip:%02x:%02x:%02x:%02x:%02x:%02x,%d.%d.%d.%d\n",newskb->data[0],newskb->data[1],newskb->data[2],newskb->data[3],newskb->data[4],newskb->data[5],ptarget[0],ptarget[1],ptarget[2],ptarget[3]);
+#ifdef MULTI_MAC_CLONE
+	*(unsigned int *)&(arp_skb->cb[40]) = 0x86518192;
+#endif
+	if(arp_skb){
+		int i=0;       
+		arp_skb->cb[2] = (char)0xff;         // not do aggregation
+		memcpy(arp_skb->cb+10,arp_skb->data,6);
+		SMP_LOCK_XMIT(x);
+		if(__rtl8192cd_start_xmit(arp_skb, priv->dev, 1)) {
+			DEBUG_ERR("%s %d ARP response sent failed\n",__func__,__LINE__);
+		} else {
+			ret = 0;
+			DEBUG_INFO("%s %d ARP response for %02x:%02x:%02x:%02x:%02x:%02x to %s sent\n",__func__,__LINE__,
+				smac[0],smac[1],smac[2],smac[3],smac[4],smac[5],priv->dev->name);
+			for(i=0;i<arp_skb->len;i++){
+				DEBUG_INFO("%02x",arp_skb->data[i]);
+				if(i/16 && ((i%16) == 0))
+					DEBUG_INFO("\n");
+			}
+			DEBUG_INFO("\n");
+		}
+		SMP_UNLOCK_XMIT(x);
+	} else {
+		DEBUG_ERR("%s %d Alloc skb failed\n",__func__,__LINE__);
+	}
+
+	return ret;
+
+err_out:
+	return ret;
+}
+#endif
+
+void snoop_STA_IP(struct sk_buff *pskb, struct rtl8192cd_priv *priv)
+{
+	#define DHCP_MAGIC 0x63825363
+#ifdef MBSSID
+	int i;
+#endif
+struct iphdr {
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+	        __u8    ihl:4,
+	                version:4;
+#elif defined (__BIG_ENDIAN_BITFIELD)
+	        __u8    version:4,
+	                ihl:4;
+#else
+#error  "Please fix <asm/byteorder.h>"
+#endif
+	        __u8    tos;
+	        __u16   tot_len;
+	        __u16   id;
+	        __u16   frag_off;
+	        __u8    ttl;
+	        __u8    protocol;
+#if 0
+	        __u16   check;
+	        __u32   saddr;
+	        __u32   daddr;
+#endif
+};
+
+struct udphdr {
+	        __u16   source;
+	        __u16   dest;
+	        __u16   len;
+	        __u16   check;
+};
+
+struct dhcpMessage {
+		u_int8_t op;
+		u_int8_t htype;
+		u_int8_t hlen;
+		u_int8_t hops;
+		u_int32_t xid;
+		u_int16_t secs;
+		u_int16_t flags;
+		u_int32_t ciaddr;
+		u_int32_t yiaddr;
+		u_int32_t siaddr;
+		u_int32_t giaddr;
+		u_int8_t chaddr[16];
+		u_int8_t sname[64];
+		u_int8_t file[128];
+		u_int32_t cookie;
+#if 0
+		u_int8_t options[308]; /* 312 - cookie */
+#endif
+};
+	struct rtl8192cd_priv *ap_priv;
+	struct iphdr* iph;
+	struct udphdr *udph;
+	struct dhcpMessage *dhcph;
+	
+	iph = (struct iphdr *)(pskb->data + ETH_HLEN);
+	udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
+	dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+
+	if(IS_VXD_INTERFACE(priv)) {
+        ap_priv = GET_ROOT(priv);
+    } else {
+		DEBUG_INFO("Receive DHCP response but interface is not VXD\n");
+        return ;
+	}
+
+	//dhcp reply only
+	if(ap_priv && IS_DRV_OPEN(ap_priv) && (dhcph->op == 2)) {
+        unsigned char sta_ip[4];
+
+		memcpy(sta_ip,&dhcph->yiaddr,4);
+		DEBUG_INFO("[%s]External DHCP Server give IP[%d.%d.%d.%d]\n",priv->dev->name,sta_ip[0],sta_ip[1],sta_ip[2],sta_ip[3]);
+#ifdef MBSSID
+		unsigned char vap_asso_sta = 0;
+		if (GET_ROOT(priv)->pmib->miscEntry.vap_enable) {
+			for (i=0; i<RTL8192CD_NUM_VWLAN; i++) {
+				if (IS_DRV_OPEN(priv->pvap_priv[i]) && get_stainfo(priv->pvap_priv[i],&dhcph->chaddr[0]))
+					vap_asso_sta ++;
+			}
+		}
+#endif
+		if((get_stainfo(ap_priv, &dhcph->chaddr[0]) 
+#ifdef MBSSID
+			|| vap_asso_sta > 0
+#endif
+			) && send_arp_response(priv,&dhcph->siaddr,&dhcph->yiaddr,pskb->data+MACADDRLEN,&dhcph->chaddr[0]) )
+			DEBUG_ERR("Send ARP failed\n");		
+
+			return;
+
+	}
+}
+
+int changePreamble(struct rtl8192cd_priv *priv, unsigned int preamble)
+{
+	unsigned char *p = (unsigned char *)priv->beaconbuf;
+	unsigned short *bcn_cap = (unsigned short *)(p+BEACON_MACHDR_LEN+_TIMESTAMP_+_BEACON_ITERVAL_);
+
+	if(preamble)
+		*bcn_cap |= cpu_to_le16(BIT(5));
+	else
+		*bcn_cap &= ~(cpu_to_le16(BIT(5)));
+
+	return 0;
+}
+
+int HideAP(struct rtl8192cd_priv *priv)
+{
+	unsigned char *p = (unsigned char *)priv->beaconbuf;
+
+	memset(p + BEACON_MACHDR_LEN + _TIMESTAMP_ + _BEACON_ITERVAL_ + _CAPABILITY_ + 2, 0, SSID_LEN);
+
+	return 0;
+}
+
+int DehideAP(struct rtl8192cd_priv *priv)
+{
+	unsigned char *p = (unsigned char *)priv->beaconbuf;
+
+	memcpy(p + BEACON_MACHDR_LEN + _TIMESTAMP_ + _BEACON_ITERVAL_ + _CAPABILITY_ + 2, SSID, SSID_LEN);
+	*(p + BEACON_MACHDR_LEN + _TIMESTAMP_ + _BEACON_ITERVAL_ + _CAPABILITY_ + 1) = SSID_LEN;
+
+	return 0;
+}
+
+//priv must be root interface's priv
+int takeOverHidden(unsigned char active, struct rtl8192cd_priv *priv)
+{
+	if((OPMODE & WIFI_AP_STATE) && IS_DRV_OPEN(priv)) {
+		if(priv->take_over_hidden != active) {
+			if(active) {
+				HideAP(priv);
+				STADEBUG("Hidden take over!!\n");
+			} else {
+				DehideAP(priv);
+				STADEBUG("Hidden take over end!!\n");
+			}
+		} else {
+			//STADEBUG("Keep take_over_hidden:%d!!\n",priv->take_over_hidden);
+		}
+
+	    priv->take_over_hidden = active;
+	} else {
+		//do nothing exclude AP mode
+	}
+
+    return 0;
+}
+
+int zeroByteLength(unsigned char *p, int len)
+{
+	int ret=0;
+
+	for(ret=0;ret<len;ret++) {
+		if(p[ret]!=0)
+            break;
+	}
+
+	return ret;
+}
+
+int isHiddenAP(unsigned char *pframe, struct rx_frinfo *pfrinfo, struct stat_info *pstat, struct rtl8192cd_priv *priv)
+{
+	unsigned int len=0, ret=0;
+	unsigned char *p = get_ie(pframe + WLAN_HDR_A3_LEN + _BEACON_IE_OFFSET_, _SSID_IE_, &len, pfrinfo->pktlen - WLAN_HDR_A3_LEN - _BEACON_IE_OFFSET_);
+
+	if(p) {
+		if((len && (len==zeroByteLength(p+2,len))) || (len==0)) {
+#ifdef MBSSID
+			takeOverHidden(1,GET_VAP_PRIV(priv,CASE6_VAP_INDEX));
+#endif
+			ret = 1;
+		} else {
+#ifdef MBSSID
+			takeOverHidden(0,GET_VAP_PRIV(priv,CASE6_VAP_INDEX));
+#endif
+		}
+	} else {
+		ret = 1;
+		STADEBUG("SSID IE is not included, treat as hidden!!\n");
+#ifdef MBSSID
+		takeOverHidden(1,GET_VAP_PRIV(priv,CASE6_VAP_INDEX));
+#endif
+	}
+
+    return ret;
+}
+#endif	//UNIVERSAL_REPEATER
+
+/* Do defered channel scan when,
+   1.There is not any station connected to active AP interafce(Root AP/VAP)
+   2.Scan is not requested by wscd
+   3.Scan is not requested by Station mode without any VAP
+*/
+int should_defer_ss(struct rtl8192cd_priv *priv)
+{
+	int ret=0;
+
+	if(GET_ROOT(priv)->pmib->dot11OperationEntry.opmode & (WIFI_STATION_STATE|WIFI_ADHOC_STATE)) {
+		ret = 0;
+	} else {
+		if(get_ss_level(priv) < SS_LV_ROOTFUNCOFF) {
+			if((priv->site_survey->ss_channel == 100) && (priv->pmib->miscEntry.ss_delay)) {
+				ret=1;
+				DEBUG_INFO("%s Sitesurvey defered\n",priv->dev->name);
+			}
+		}
+	}
+
+	if(priv->ss_req_ongoing == SSFROM_WSC)
+		ret = 0;
+
+	return ret;
+}
+
+
+#ifdef USE_OUT_SRC
+unsigned char *Get_Adaptivity_Version(void)
+{
+	return ADAPTIVITY_VERSION;
+}
+#endif
+
+/*cfg p2p*/
+#ifdef P2P_SUPPORT
+void copy_p2p_ie(struct rtl8192cd_priv *priv, unsigned char *p2p_ie_input, unsigned char mgmt_type)
+{
+    /*T(1) L(1) V , wps_ie[1]==L => LEN = value of (L) + sizeof(T)+sizeof(L), cy wang note*/ 
+	int p2p_ie_len = (p2p_ie_input[1] + 2);
+
+	if(p2p_ie_len > 256)
+	{
+		NDEBUG("P2P_IE length > 256 !! Can NOT copy !!\n");
+		return;
+	}
+
+	if (mgmt_type == MGMT_BEACON) { /* Beacon */
+		NDEBUG2("P2P:Set Beacon IE[%d]\n",p2p_ie_len);
+		priv->p2pPtr->p2p_beacon_ie_len = p2p_ie_len;        
+		memcpy((void *)priv->p2pPtr->p2p_beacon_ie, p2p_ie_input, p2p_ie_len);
+	}
+	else if (mgmt_type == MGMT_PROBERSP) {  /* Probe Rsp */
+		NDEBUG2("P2P:Set Probe Rsp IE[%d]\n",p2p_ie_len);
+		priv->p2pPtr->p2p_probe_rsp_ie_len= p2p_ie_len;
+		memcpy((void *)priv->p2pPtr->p2p_probe_rsp_ie, p2p_ie_input, p2p_ie_len);        
+	}
+	else if (mgmt_type == MGMT_PROBEREQ) {  /* Probe Req */
+		NDEBUG2("P2P:Set Probe Req IE[%d]\n",p2p_ie_len);
+		priv->p2pPtr->p2p_probe_req_ie_len = p2p_ie_len;
+		memcpy((void *)priv->p2pPtr->p2p_probe_req_ie, p2p_ie_input, p2p_ie_len);        
+	}    
+	else if (mgmt_type == MGMT_ASSOCRSP ) { /*Assoc Rsp*/
+		NDEBUG2("P2P:Set Assoc Rsp IE[%d]\n",p2p_ie_len);
+        priv->p2pPtr->p2p_assoc_RspIe_len = p2p_ie_len;        
+		memcpy((void *)priv->p2pPtr->p2p_assoc_RspIe, p2p_ie_input, p2p_ie_len);
+	}
+	else if (mgmt_type == MGMT_ASSOCREQ) { /*Assoc Req*/	
+		NDEBUG2("P2P:Set Assoc Req IE[%d]\n",p2p_ie_len);        
+		priv->p2pPtr->p2p_assocReq_ie_len = p2p_ie_len;                
+        memcpy((void *)priv->p2pPtr->p2p_assocReq_ie, p2p_ie_input, p2p_ie_len);        
+	}else{
+		NDEBUG2("P2P: rtk set IE unknown type!!\n");
+    }
+    
+}
+
+/*cfg p2p*/
+void copy_wps_ie(struct rtl8192cd_priv *priv, unsigned char *wps_ie, unsigned char mgmt_type)
+{
+
+    /*T(1) L(1) V , wps_ie[1]==L => LEN = value of (L) + sizeof(T)+sizeof(L), cy wang note*/ 
+	unsigned int wps_ie_len = (wps_ie[1] + 2);  
+
+	if(wps_ie_len > 256){
+		NDEBUG2("WPS_IE length > 256 !! Can NOT copy !!\n");
+		return;
+	}
+
+	if(OPMODE & WIFI_AP_STATE)
+		priv->pmib->wscEntry.wsc_enable = 2; //Enable WPS for AP mode
+	else if(OPMODE & WIFI_STATION_STATE)
+		priv->pmib->wscEntry.wsc_enable = 1;
+
+	if (mgmt_type == MGMT_BEACON) {
+		NDEBUG2("WSC:Set Beacon IE[%d]\n",wps_ie_len);
+		priv->pmib->wscEntry.beacon_ielen = wps_ie_len;
+		memcpy((void *)priv->pmib->wscEntry.beacon_ie, wps_ie, wps_ie_len);
+	}
+	else if (mgmt_type == MGMT_PROBERSP) {
+		NDEBUG2("WSC:Set Probe Rsp IE[%d]\n",wps_ie_len);
+		priv->pmib->wscEntry.probe_rsp_ielen = wps_ie_len;
+		memcpy((void *)priv->pmib->wscEntry.probe_rsp_ie, wps_ie, wps_ie_len);
+	}
+	else if (mgmt_type == MGMT_PROBEREQ) {
+		NDEBUG2("WSC:Set Probe Req IE[%d]\n",wps_ie_len);
+		priv->pmib->wscEntry.probe_req_ielen= wps_ie_len;
+		memcpy((void *)priv->pmib->wscEntry.probe_req_ie, wps_ie, wps_ie_len);
+	}    
+	else if ((mgmt_type == MGMT_ASSOCRSP) || (mgmt_type == MGMT_ASSOCREQ)) { //wrt-wps-clnt
+		NDEBUG2("WSC:Set Assoc IE[%d]\n",wps_ie_len);
+		priv->pmib->wscEntry.assoc_ielen = wps_ie_len;
+		memcpy((void *)priv->pmib->wscEntry.assoc_ie, wps_ie, wps_ie_len);
+	}
+}
+#endif
+
+/**
+ * rtk_get_wps_ie - Search WPS IE from a series of IEs
+ * @in_ie: Address of IEs to search
+ * @in_len: Length limit from in_ie
+ * @wps_ie: If not NULL and WPS IE is found, WPS IE will be copied to the buf starting from wps_ie
+ * @wps_ielen: If not NULL and WPS IE is found, will set to the length of the entire WPS IE
+ *
+ * Returns: The address of the WPS IE found, or NULL
+ */
+
+u8* rtk_get_wps_ie(u8 *in_ie, int in_len, u8 *wps_ie, int *wps_ielen)
+{
+	int cnt=0;
+	u8 eid=0;
+	u8 *wpsie_ptr=NULL;    
+
+    u8 WSC_OUI[4] = {0x00, 0x50, 0xf2, 0x04};
+
+
+	if(wps_ielen){
+		*wps_ielen = 0;
+    }
+
+	if(!in_ie || in_len<=0)
+		return wpsie_ptr;
+
+	while(cnt<in_len)
+	{
+		eid = in_ie[cnt];
+		if((eid==_VENDOR_SPECIFIC_IE_)&&( !memcmp(&in_ie[cnt+2], WSC_OUI, 4)))
+		{
+			wpsie_ptr = &in_ie[cnt];
+			if(wps_ie){
+				memcpy(wps_ie, &in_ie[cnt], in_ie[cnt+1]+2);
+            }
+			
+			if(wps_ielen){
+				*wps_ielen = in_ie[cnt+1]+2;
+             }
+			
+			cnt+=in_ie[cnt+1]+2;
+
+			break;
+		}
+		else
+		{
+			cnt+=in_ie[cnt+1]+2; //goto next	
+		}		
+
+	}	
+
+	return wpsie_ptr;
+}
+
+/**
+ * rtk_get_p2p_ie - Search P2P IE from a series of IEs
+ * @in_ie: Address of IEs to search
+ * @in_len: Length limit from in_ie
+ * @p2p_ie: If not NULL and P2P IE is found, P2P IE will be copied to the buf starting from p2p_ie
+ * @p2p_ielen: If not NULL and P2P IE is found, will set to the length of the entire P2P IE
+ *
+ * Returns: The address of the P2P IE found, or NULL
+ */
+/*cfg p2p*/
+unsigned char*  rtk_get_p2p_ie(unsigned char*  in_ie, int in_len, unsigned char*  p2p_ie, int* p2p_ielen)
+{
+	int cnt=0;
+	unsigned char* p2p_ptr=NULL;
+	unsigned char eid=0;
+    unsigned char P2P_OUI[4]={0x50,0x6F,0x9A,0x09};
+
+	if(p2p_ielen){
+		*p2p_ielen = 0;
+    }
+
+	if(!in_ie || in_len<=0)
+		return p2p_ptr;
+
+	while(cnt<in_len)
+	{
+		eid = in_ie[cnt];
+		if((eid==_VENDOR_SPECIFIC_IE_)&&( !memcmp(&in_ie[cnt+2], P2P_OUI, 4)))
+		{
+			p2p_ptr = &in_ie[cnt];
+			if(p2p_ie){
+				memcpy(p2p_ie, &in_ie[cnt], in_ie[cnt+1]+2);
+            }
+			
+			if(p2p_ielen){
+				*p2p_ielen = in_ie[cnt+1]+2;
+             }
+			
+			cnt+=in_ie[cnt+1]+2;
+			break;
+		}
+        else
+		{
+			cnt+=in_ie[cnt+1]+2; //search next	
+		}		
+
+	}	
+
+	return p2p_ptr;
+}
+
+
+/*cfg p2p*/
+int rtk_get_wfd_ie(u8 *in_ie, int in_len, u8 *wfd_ie, int *wfd_ielen)
+{
+	int match;
+	int cnt = 0;	
+	u8 eid;
+    unsigned char WFD_OUI[4]={0x50,0x6F,0x9A,0x0A};
+
+
+	match=0;
+
+	if ( in_len < 0 )
+	{
+		return match;
+	}
+
+	while(cnt<in_len)
+	{
+		eid = in_ie[cnt];
+		
+		if( ( eid == _VENDOR_SPECIFIC_IE_ ) && ( !memcmp( &in_ie[cnt+2], WFD_OUI, 4)) )
+		{
+			if ( wfd_ie != NULL ){
+				memcpy( wfd_ie, &in_ie[ cnt ], in_ie[ cnt + 1 ] + 2 );			
+			}
+			else
+			{
+				if ( wfd_ielen != NULL ){
+					*wfd_ielen = 0;
+				}
+			}
+			
+			if ( wfd_ielen != NULL ){
+				*wfd_ielen = in_ie[ cnt + 1 ] + 2;
+			}
+			
+			cnt += in_ie[ cnt + 1 ] + 2;
+
+			match = 1;
+			break;
+		}
+		else
+		{
+			cnt += in_ie[ cnt + 1 ] +2; //search next	
+		}		
+		
+	}	
+
+	if ( match == 1 )
+	{
+		match = cnt;
+	}
+	
+	return match;
+
+}
+/*cfg p2p*/
+/**
+ * rtk_get_p2p_ie - Search P2P IE from a series of IEs
+ * @in_ie: Address of IEs to search
+ * @in_len: Length limit from in_ie
+ * @p2p_ie: If not NULL and P2P IE is found, P2P IE will be copied to the buf starting from p2p_ie
+ * @p2p_ielen: If not NULL and P2P IE is found, will set to the length of the entire P2P IE
+ *
+ * Returns: The address of the P2P IE found, or NULL
+ */
+
+u8* rtk_get_ie_with_oui(u8 *in_ie, int in_len, u8 ie_to_search, u8* oui_input ,int oui_len, int *report_ielen)
+{
+    int cnt=0;
+    u8 *tar_ie_ptr=NULL;
+    u8 eid=0;
+
+    if(report_ielen){
+        *report_ielen = 0;
+    }
+
+    if(!in_ie || in_len<=0)
+        return tar_ie_ptr;
+
+    while(cnt<in_len)
+    {
+        eid = in_ie[cnt];
+        if((eid==ie_to_search)&&( !memcmp(&in_ie[cnt+2], oui_input,oui_len)))
+        {
+            tar_ie_ptr = &in_ie[cnt];
+
+
+            if(report_ielen){
+                *report_ielen = in_ie[cnt+1]+2;
+            }
+
+            cnt+=in_ie[cnt+1]+2;
+            break;
+        }
+        else
+        {
+            cnt+=in_ie[cnt+1]+2; //search next	
+        }		
+
+    }	
+
+    return tar_ie_ptr;
+}
+/*cfg p2p*/
+
+#if defined(CONFIG_RTL_SIMPLE_CONFIG)
+int rtk_sc_start_simple_config(struct rtl8192cd_priv *priv)
+{
+	int i=0;
+	unsigned char null_mac[]={0,0,0,0,0,0};
+	
+#if defined(__ECOS)	
+#ifdef UNIVERSAL_REPEATER	
+	if(IS_VXD_INTERFACE(priv))
+		sprintf(g_sc_ifname, "%s0", priv->dev->name);
+	else
+#endif
+#endif
+	strcpy(g_sc_ifname, priv->dev->name);
+
+	rtk_sc_set_para(priv);
+	if(priv->pmib->dot11StationConfigEntry.sc_debug)
+		panic_printk("Start simple config now!\n");
+	rtk_sc_clean_profile_value();
+	
+#if 0 //eric-sc
+{
+	if(priv->pmib->dot11StationConfigEntry.sc_debug)
+	        panic_printk("\nFORCE ENABLE LDPC FOR SIMPLE CONFIG!!\n\n");
+	RTL_W8(0x913, RTL_R8(0x913)|0x02);
+}
+#endif
+	priv->simple_config_could_fix = 0;
+
+	rtk_sc_set_value(SC_FIX_CHANNEL, 0);
+	
+#ifdef UNIVERSAL_REPEATER	
+	if(IS_VXD_INTERFACE(priv))
+	{
+		if(priv->simple_config_status == 0)
+			memcpy(priv->pmib->dot11Bss.bssid, null_mac, MACADDRLEN);
+	}
+#endif
+
+	if(priv->simple_config_status == 0)
+		priv->simple_config_status = 1;
+
+	priv->pmib->dot11StationConfigEntry.sc_status = 1;
+	priv->pmib->dot11StationConfigEntry.sc_vxd_rescan_time = CHECK_VXD_SC_TIMEOUT;
+	priv->pmib->dot11StationConfigEntry.sc_fix_encrypt = 0;
+	
+	RTL_W32(RCR, RTL_R32(RCR) | RCR_AAP);	//Accept Destination Address packets.
+	return 0;
+}
+
+int rtk_sc_start_connect_target(struct rtl8192cd_priv *priv)
+{
+	int i=0;
+	//if(priv->pmib->dot11StationConfigEntry.sc_fix_channel >= 0)
+	//	priv->pmib->dot11StationConfigEntry.sc_fix_channel = 0;
+
+	if(priv->pmib->dot11StationConfigEntry.sc_reset_beacon_psk == 1)
+	{
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+		if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK) {
+			watchdog_stop(priv);
+			psk_init(priv);
+			watchdog_resume(priv);
+		} 
+#endif
+		if( (priv->pmib->dot11StationConfigEntry.sc_sync_vxd_to_root == 1) && IS_VXD_INTERFACE(priv))
+		{
+			watchdog_stop(GET_ROOT(priv));
+			if (GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11EnablePSK) {
+				psk_init(GET_ROOT(priv));
+			} 
+			init_beacon(GET_ROOT(priv));
+			watchdog_resume(GET_ROOT(priv));
+		}
+	}
+	else
+	{
+#ifdef UNIVERSAL_REPEATER		
+		if(IS_VXD_INTERFACE(priv))
+		{
+#ifdef MBSSID
+			if (GET_ROOT(priv)->pmib->miscEntry.vap_enable) {
+				for (i=0; i<RTL8192CD_NUM_VWLAN; i++) {
+					if (IS_DRV_OPEN(priv->pvap_priv[i]))
+						priv->pvap_priv[i]->pmib->dot11OperationEntry.keep_rsnie = 1;
+				}
+			}
+#endif
+		}
+#endif
+		RTL_W32(RCR, RTL_R32(RCR) & ~RCR_AAP);	// Disable Accept Destination Address packets.
+#ifdef CONFIG_RTL_8198C
+		/* rtl8192cd_ss_timer-->start_clnt_lookup-->rtk_sc_check_security-->rtk_sc_start_connect_target
+		 * ss_timer call SMP_LOCK, so we should call unlock before close interface	
+		 */
+		unsigned long flags;
+		SMP_UNLOCK(flags);
+#endif
+			if(priv->pmib->dot11StationConfigEntry.sc_fix_channel > 0)
+				priv->pmib->dot11StationConfigEntry.sc_fix_channel = 0;
+		RTL_W8(TXPAUSE, 0xff);
+		rtl8192cd_close(priv->dev);
+#ifdef UNIVERSAL_REPEATER	
+		if( (priv->pmib->dot11StationConfigEntry.sc_sync_vxd_to_root == 1) && IS_VXD_INTERFACE(priv))
+		{
+			GET_ROOT(priv)->pmib->dot11StationConfigEntry.sc_enabled = 0;
+			rtl8192cd_close(GET_ROOT(priv)->dev);
+			rtl8192cd_open(GET_ROOT(priv)->dev);
+			while(!netif_running(GET_ROOT(priv)->dev))
+				delay_ms(10);
+		}
+#endif
+		rtl8192cd_open(priv->dev);
+		RTL_W8(TXPAUSE, 0x00);
+#ifdef CONFIG_RTL_8198C
+		SMP_LOCK(flags);
+#endif
+	}
+	
+	rtk_sc_set_value(SC_PRIV_STATUS, 5);
+	rtk_sc_set_value(SC_STATUS, 5);
+
+	if(priv->pmib->dot11StationConfigEntry.sc_reset_beacon_psk == 1)
+	{
+	
+		extern void start_clnt_auth(struct rtl8192cd_priv *priv);
+	
+		//if(IS_VXD_INTERFACE(priv))
+			start_clnt_auth(priv);
+		//else
+		//	start_clnt_join(priv);
+	}
+
+	return 0;
+}
+#ifdef UNIVERSAL_REPEATER	
+int rtk_sc_sync_vxd_to_root(struct rtl8192cd_priv * priv)
+{
+	if(IS_VXD_INTERFACE(priv))
+	{
+		if(priv->pmib->dot11StationConfigEntry.sc_sync_vxd_to_root == 1)
+		{
+			GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11AuthAlgrthm = priv->pmib->dot1180211AuthEntry.dot11AuthAlgrthm;
+			GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm = priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm;
+			GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11EnablePSK = priv->pmib->dot1180211AuthEntry.dot11EnablePSK;
+			GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11PrivacyKeyIndex = priv->pmib->dot1180211AuthEntry.dot11PrivacyKeyIndex;
+			GET_ROOT(priv)->pmib->dot118021xAuthEntry.dot118021xAlgrthm = priv->pmib->dot118021xAuthEntry.dot118021xAlgrthm;
+			GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11WPA2Cipher = priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher;
+			GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11WPACipher = priv->pmib->dot1180211AuthEntry.dot11WPACipher;
+			strcpy(GET_ROOT(priv)->pmib->dot1180211AuthEntry.dot11PassPhrase, priv->pmib->dot1180211AuthEntry.dot11PassPhrase);
+			strcpy(&(GET_ROOT(priv)->pmib->dot11DefaultKeysTable.keytype[0]), &(priv->pmib->dot11DefaultKeysTable.keytype[0]));
+			strcpy(GET_ROOT(priv)->pmib->dot11StationConfigEntry.dot11DesiredSSID, priv->pmib->dot11StationConfigEntry.dot11DesiredSSID);
+			strcpy(GET_ROOT(priv)->pmib->dot11StationConfigEntry.dot11SSIDtoScan, priv->pmib->dot11StationConfigEntry.dot11SSIDtoScan);
+			GET_ROOT(priv)->pmib->dot11StationConfigEntry.dot11DesiredSSIDLen= priv->pmib->dot11StationConfigEntry.dot11DesiredSSIDLen;
+			GET_ROOT(priv)->pmib->dot11StationConfigEntry.dot11SSIDtoScanLen= priv->pmib->dot11StationConfigEntry.dot11SSIDtoScanLen;
+		}
+	}
+
+	return 0;
+}
+#else
+int rtk_sc_sync_vxd_to_root(struct rtl8192cd_priv * priv)
+{
+	return 0;
+}
+
+#endif
+
+int rtk_sc_stop_simple_config(struct rtl8192cd_priv *priv)
+{
+	int i=0, ack_num=0;
+	int sc_security_type = priv->pmib->dot11StationConfigEntry.sc_security_type;
+
+	if (OPMODE & WIFI_ASOC_STATE)
+	{
+		rtk_sc_set_value(SC_ENABLED, 0);
+		rtk_sc_set_value(SC_PRIV_STATUS, 0);
+		rtk_sc_set_value(SC_STATUS, 10+sc_security_type);
+	}
+	else
+		rtk_sc_set_value(SC_STATUS, -1);
+
+	rtk_sc_set_value(SC_FIX_CHANNEL, 0);
+	return 0;
+}
+
+struct net_device * rtl_get_dev_by_wlan_name(char *name)
+{
+#if defined(__ECOS)
+	return rtl_getDevByName(name);
+#else
+	return __dev_get_by_name(&init_net, name);
+#endif
+}
+
+int rtk_sc_set_value(unsigned int id, unsigned int value)
+{
+	struct net_device *dev;
+	dev=rtl_get_dev_by_wlan_name(g_sc_ifname);
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+
+	switch(id)
+	{
+		case SC_ENABLED:
+			priv->pmib->dot11StationConfigEntry.sc_enabled = value;
+			break;
+		case SC_DURATION_TIME:
+			priv->pmib->dot11StationConfigEntry.sc_duration_time = value;
+			break;
+		case SC_GET_SYNC_TIME:
+			priv->pmib->dot11StationConfigEntry.sc_get_sync_time = value;
+			break;
+		case SC_GET_PROFILE_TIME:
+			priv->pmib->dot11StationConfigEntry.sc_get_profile_time = value;
+			break;
+		case SC_VXD_RESCAN_TIME:
+			priv->pmib->dot11StationConfigEntry.sc_vxd_rescan_time = value;
+			break;
+		case SC_PIN_ENABLED:
+			priv->pmib->dot11StationConfigEntry.sc_pin_enabled = value;
+			break;
+		case SC_STATUS:
+			priv->pmib->dot11StationConfigEntry.sc_status = value;
+			break;
+		case SC_DEBUG:
+			priv->pmib->dot11StationConfigEntry.sc_debug = value;
+			break;	
+		case SC_CHECK_LINK_TIME:
+			priv->pmib->dot11StationConfigEntry.sc_check_link_time = value;
+			break;			
+		case SC_SYNC_VXD_TO_ROOT:
+			priv->pmib->dot11StationConfigEntry.sc_sync_vxd_to_root = value;
+			break;			
+		case SC_ACK_ROUND:
+			priv->pmib->dot11StationConfigEntry.sc_ack_round = value;
+			break;			
+		case SC_CONTROL_IP:
+			priv->pmib->dot11StationConfigEntry.sc_control_ip = value;
+			break;	
+		case SC_PRIV_STATUS:
+			priv->simple_config_status = value;
+			break;
+		case SC_CONFIG_TIME:
+			priv->simple_config_time = value;
+			break;
+		case SC_FIX_CHANNEL:
+			if(priv->pmib->dot11StationConfigEntry.sc_fix_channel >= 0){
+				if ( (value > 0) && priv->simple_config_could_fix)
+					priv->pmib->dot11StationConfigEntry.sc_fix_channel = value;
+				else 
+				priv->pmib->dot11StationConfigEntry.sc_fix_channel = value;
+			}
+			break;
+		case SC_FROM_TO_DS:
+			if(value == 2)
+			{
+				//if(priv->pmib->dot11StationConfigEntry.sc_debug)
+				//	panic_printk("receive fromDS is 0, toDS is 1 packet\n");
+				//priv->pmib->dot11StationConfigEntry.sc_get_sync_time = 120;
+			}
+			else if(value == 1)
+			{
+				//if(priv->pmib->dot11StationConfigEntry.sc_debug)
+				//	panic_printk("receive fromDS is 1, toDS is 0 packet\n");
+			}
+#if 0
+			if(priv->site_survey->ss_channel > 14 && priv->pmib->dot11StationConfigEntry.sc_fix_channel>=0)
+			{
+				priv->pmib->dot11StationConfigEntry.sc_fix_channel = PHY_QueryRFReg(priv,RF92CD_PATH_A,0x18,0xff,1);
+				if(priv->pmib->dot11StationConfigEntry.sc_debug)
+					panic_printk("Simple Config 5G switch to remote AP channel(center) %d\n", priv->pmib->dot11StationConfigEntry.sc_fix_channel );
+			}
+#endif
+			break;
+		case SC_FIX_ENCRYPT:
+			priv->pmib->dot11StationConfigEntry.sc_fix_encrypt = value;
+			break;
+		default:
+			break;
+	}
+	return 0;
+}
+
+int rtk_sc_get_value(unsigned int id)
+{
+	struct net_device *dev;
+	int value=0;
+	dev=rtl_get_dev_by_wlan_name(g_sc_ifname);
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+
+	switch(id)
+	{
+		case SC_ENABLED:
+			value = priv->pmib->dot11StationConfigEntry.sc_enabled;
+			break;
+		case SC_DURATION_TIME:
+			value = priv->pmib->dot11StationConfigEntry.sc_duration_time;
+			break;
+		case SC_GET_SYNC_TIME:
+			value = priv->pmib->dot11StationConfigEntry.sc_get_sync_time;
+			break;
+		case SC_GET_PROFILE_TIME:
+			value = priv->pmib->dot11StationConfigEntry.sc_get_profile_time;
+			break;
+		case SC_VXD_RESCAN_TIME:
+			value = priv->pmib->dot11StationConfigEntry.sc_vxd_rescan_time;
+			break;
+		case SC_PIN_ENABLED:
+			value = priv->pmib->dot11StationConfigEntry.sc_pin_enabled;
+			break;
+		case SC_STATUS:
+			value = priv->pmib->dot11StationConfigEntry.sc_status;
+			break;
+		case SC_DEBUG:
+			value = priv->pmib->dot11StationConfigEntry.sc_debug;
+			break;	
+		case SC_CHECK_LINK_TIME:
+			value = priv->pmib->dot11StationConfigEntry.sc_check_link_time;
+			break;			
+		case SC_SYNC_VXD_TO_ROOT:
+			value = priv->pmib->dot11StationConfigEntry.sc_sync_vxd_to_root;
+			break;			
+		case SC_ACK_ROUND:
+			value = priv->pmib->dot11StationConfigEntry.sc_ack_round;
+			break;			
+		case SC_CONTROL_IP:
+			value = priv->pmib->dot11StationConfigEntry.sc_control_ip;
+			break;	
+		case SC_PRIV_STATUS:
+			value = priv->simple_config_status;
+			break;
+		case SC_CONFIG_TIME:
+			value = priv->simple_config_time;
+			break;
+		case SC_CHECK_LEVEL:
+			value = priv->pmib->dot11StationConfigEntry.sc_check_level;
+			break;	
+		case SC_IGNORE_OVERLAP:
+			value = priv->pmib->dot11StationConfigEntry.sc_ignore_overlap;
+			break;	
+		case SC_FIX_CHANNEL:
+			value = priv->pmib->dot11StationConfigEntry.sc_fix_channel;
+			break;
+		case SC_FIX_ENCRYPT:
+			value = priv->pmib->dot11StationConfigEntry.sc_fix_encrypt;
+			break;
+		case SC_CONFIG_TYPE:
+			value = priv->pmib->dot11StationConfigEntry.sc_config_type;
+			break;
+		default:
+			break;
+	}
+	return value;
+}
+
+int rtk_sc_set_string_value(unsigned int id, unsigned char *value)
+{
+	struct net_device *dev;
+	int i=0;
+	dev=rtl_get_dev_by_wlan_name(g_sc_ifname);
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+	switch(id)
+	{
+		case SC_PIN:
+			strcpy(priv->pmib->dot11StationConfigEntry.sc_pin, value);
+			break;
+		case SC_DEFAULT_PIN:
+			strcpy(priv->pmib->dot11StationConfigEntry.sc_default_pin, value);
+			break;
+		case SC_PASSWORD:
+			strcpy(priv->pmib->dot11StationConfigEntry.sc_passwd, value);
+			break;
+		case SC_DEVICE_NAME:
+			strcpy(priv->pmib->dot11StationConfigEntry.sc_device_name, value);
+			break;
+		case SC_DEVICE_TYPE:
+			strcpy(priv->pmib->dot11StationConfigEntry.sc_device_type, value);
+			break;
+		case SC_SSID:
+			strcpy(priv->pmib->dot11StationConfigEntry.dot11DesiredSSID, value);
+			strcpy(priv->pmib->dot11StationConfigEntry.dot11SSIDtoScan, value);
+			priv->pmib->dot11StationConfigEntry.dot11DesiredSSIDLen= strlen(value);
+			priv->pmib->dot11StationConfigEntry.dot11SSIDtoScanLen= strlen(value);
+			break;
+		case SC_BSSID:
+			for(i=0; i<6; i++)
+			{
+				priv->pmib->dot11StationConfigEntry.dot11DesiredBssid[i] = value[i];
+				priv->pmib->dot11StationConfigEntry.dot11Bssid[i] = value[i];
+			}
+			break;
+		default:
+			panic_printk("RTL Simple Config don't support this mib setting now!\n");
+	}
+	return 0;
+}
+
+int rtk_sc_get_string_value(unsigned int id, unsigned char *value)
+{
+	struct net_device *dev;
+	dev=rtl_get_dev_by_wlan_name(g_sc_ifname);
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+	switch(id)
+	{
+		case SC_PIN:
+			strcpy(value, priv->pmib->dot11StationConfigEntry.sc_pin);
+			break;
+		case SC_DEFAULT_PIN:
+			strcpy(value, priv->pmib->dot11StationConfigEntry.sc_default_pin);
+			break;
+		case SC_PASSWORD:
+			strcpy(value, priv->pmib->dot11StationConfigEntry.sc_passwd);
+			break;
+		case SC_DEVICE_NAME:
+			strcpy(value, priv->pmib->dot11StationConfigEntry.sc_device_name);
+			break;
+		case SC_DEVICE_TYPE:
+			strcpy(value, priv->pmib->dot11StationConfigEntry.sc_device_type);
+			break;
+		default:
+			panic_printk("RTL Simple Config don't support this mib setting now!\n");
+			break;
+	}
+	return 0;
+}
+
+int set_wep_key(struct rtl8192cd_priv *priv, int type)
+{
+	int i, length;
+	unsigned char value;
+	unsigned char wep_key[26]={0};
+	if(type == 0)
+		length=10;
+	else if(type == 1)
+		length=26;
+	for(i=0; i<length; i++)
+	{
+		value = priv->pmib->dot11StationConfigEntry.sc_passwd[i];
+		if((value >=0x30) && (value <=0x39))
+			value -= 0x30;
+		else if((value >= 'a')&&(value <= 'z'))
+			value -= 0x57;
+		else if((value >= 'A')&&(value <= 'Z'))
+			value -= 0x37;
+		value &= 0xf;
+		if(i%2 == 0)
+			wep_key[i/2] = value<<4;
+		else
+			wep_key[i/2] += value;
+	}
+	memcpy(&(GET_MIB(priv)->dot11DefaultKeysTable.keytype[0]), wep_key, length/2);
+}
+
+int rtk_sc_check_security(struct rtl8192cd_priv * priv,struct bss_desc * bss)
+{
+	int length=0, i=0;
+	int status = rtk_sc_get_value(SC_STATUS);
+	length = strlen(priv->pmib->dot11StationConfigEntry.sc_passwd);
+	if ((bss->capability&BIT(4)) == 0)
+	{
+		GET_MIB(priv)->dot1180211AuthEntry.dot11AuthAlgrthm = 0;
+		GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm=_NO_PRIVACY_;
+		GET_MIB(priv)->dot1180211AuthEntry.dot11EnablePSK = 0;
+		rtk_sc_set_value(SC_CHECK_LINK_TIME, 2);
+		GET_MIB(priv)->dot11StationConfigEntry.sc_security_type= 0;
+		GET_MIB(priv)->dot11RsnIE.rsnielen = 0;
+		GET_MIB(priv)->dot118021xAuthEntry.dot118021xAlgrthm= 0;
+	}
+	else if((bss->capability&BIT(4)))
+	{
+		if(bss->t_stamp[0] == 0)
+		{
+			GET_MIB(priv)->dot1180211AuthEntry.dot11EnablePSK = 0;
+			if((length == 5) || (length == 10))
+			{
+				GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm = _WEP_40_PRIVACY_;
+				if(length == 5)
+				{
+					memcpy(&(GET_MIB(priv)->dot11DefaultKeysTable.keytype[0]), priv->pmib->dot11StationConfigEntry.sc_passwd, 5);
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 1;
+				}
+				else if(length == 10)
+				{
+					set_wep_key(priv, 0);
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 2;
+				}
+				GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyKeyIndex = 0;
+			}
+			else if((length == 13) || (length == 26))
+			{
+				GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm = _WEP_104_PRIVACY_;
+				if(length == 13)
+				{
+					memcpy(&(GET_MIB(priv)->dot11DefaultKeysTable.keytype[0]), priv->pmib->dot11StationConfigEntry.sc_passwd, 13);
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 3;
+				}
+				else
+				{
+					set_wep_key(priv, 1);
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 4;
+				}
+				GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyKeyIndex = 0;
+			}
+			GET_MIB(priv)->dot11RsnIE.rsnielen = 0;
+			GET_MIB(priv)->dot118021xAuthEntry.dot118021xAlgrthm= 0;
+			rtk_sc_set_value(SC_CHECK_LINK_TIME, 2);
+		}
+		else
+		{
+			GET_MIB(priv)->dot1180211AuthEntry.dot11AuthAlgrthm = 2;
+			GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm = 2;
+			strcpy((char *)GET_MIB(priv)->dot1180211AuthEntry.dot11PassPhrase, priv->pmib->dot11StationConfigEntry.sc_passwd);
+			if(bss->t_stamp[0] & 0xffff0000)
+			{
+				GET_MIB(priv)->dot1180211AuthEntry.dot11EnablePSK = 2;
+				if(((bss->t_stamp[0] & 0xf0000000) >> 28) == 0x4)
+				{
+					GET_MIB(priv)->dot118021xAuthEntry.dot118021xAlgrthm = 1;
+				}
+				if(((bss->t_stamp[0] & 0x0f000000) >> 24) == 0x5)
+				{
+					GET_MIB(priv)->dot1180211AuthEntry.dot11WPA2Cipher = 8;
+					GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm = _CCMP_PRIVACY_;
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 5;
+				}
+				else if(((bss->t_stamp[0] & 0x0f000000) >> 24) == 0x4)
+				{
+					GET_MIB(priv)->dot1180211AuthEntry.dot11WPA2Cipher = 8;
+					GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm = _CCMP_PRIVACY_;
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 5;
+				}
+				else if(((bss->t_stamp[0] & 0x0f000000) >> 24) == 0x1)
+				{
+					GET_MIB(priv)->dot1180211AuthEntry.dot11WPA2Cipher = 2;
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 6;
+				}
+			}
+			else if(bss->t_stamp[0] & 0x0000ffff)
+			{
+				GET_MIB(priv)->dot1180211AuthEntry.dot11EnablePSK = 1;
+				if(((bss->t_stamp[0] & 0x0000f000) >> 12) == 0x4)
+				{
+					GET_MIB(priv)->dot118021xAuthEntry.dot118021xAlgrthm = 0;
+				}
+				if(((bss->t_stamp[0] & 0x00000f00) >> 8) == 0x5)
+				{
+					GET_MIB(priv)->dot1180211AuthEntry.dot11WPACipher = 8;	
+					GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm = _CCMP_PRIVACY_;
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 7;
+				}
+				else if(((bss->t_stamp[0] & 0x00000f00) >> 8) == 0x4)
+				{
+					GET_MIB(priv)->dot1180211AuthEntry.dot11WPACipher = 8;
+					GET_MIB(priv)->dot1180211AuthEntry.dot11PrivacyAlgrthm = _CCMP_PRIVACY_;
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 7;
+					
+				}
+				else if(((bss->t_stamp[0] & 0x00000f00) >> 8) == 0x1)
+				{
+					GET_MIB(priv)->dot1180211AuthEntry.dot11WPACipher = 2;	
+					priv->pmib->dot11StationConfigEntry.sc_security_type= 8;
+				}
+			}
+		}
+	}
+	if(status == 3)
+	{
+		//if sc_security_type>0, status 3 jump to status 4, don't need to get security again.
+		if(bss->ssidlen != 0)
+		{
+			rtk_sc_set_string_value(SC_SSID,bss->ssid);
+		}
+		rtk_sc_set_value(SC_FIX_ENCRYPT, priv->pmib->dot11StationConfigEntry.sc_security_type+10);
+		
+		rtk_sc_set_value(SC_PRIV_STATUS, 4);
+		rtk_sc_set_value(SC_STATUS, 4);
+		
+		rtk_sc_sync_vxd_to_root(priv);
+		rtk_sc_set_value(SC_CONFIG_TIME, 0);
+		rtk_sc_start_connect_target(priv);
+	}
+	else if(status == 2)
+	{
+		if(bss->ssidlen != 0)
+		{
+			rtk_sc_set_string_value(SC_SSID,bss->ssid);
+		}
+		rtk_sc_set_value(SC_FIX_ENCRYPT, priv->pmib->dot11StationConfigEntry.sc_security_type+10);
+		if(0)//(priv->pmib->dot11StationConfigEntry.sc_security_type == 0)
+		{
+			rtk_sc_set_value(SC_PRIV_STATUS, 4);
+			rtk_sc_set_value(SC_STATUS, 4);
+			
+			rtk_sc_sync_vxd_to_root(priv);
+			rtk_sc_set_value(SC_CONFIG_TIME, 0);
+			rtk_sc_start_connect_target(priv);
+		}
+		//panic_printk("get the encrypt in status 2 and it is %d\n", priv->pmib->dot11StationConfigEntry.sc_security_type);
+		
+	}
+	return 0;
+}
+
+int rtk_sc_set_passwd(struct rtl8192cd_priv * priv)
+{
+	int sc_security_type;
+	sc_security_type = priv->pmib->dot11StationConfigEntry.sc_security_type;
+
+	switch(sc_security_type)
+	{
+		case 0:
+			break;
+		case 1:
+			memcpy(&(GET_MIB(priv)->dot11DefaultKeysTable.keytype[0]), priv->pmib->dot11StationConfigEntry.sc_passwd, 5);
+			break;
+		case 2:
+			set_wep_key(priv, 0);
+			break;
+		case 3:
+			memcpy(&(GET_MIB(priv)->dot11DefaultKeysTable.keytype[0]), priv->pmib->dot11StationConfigEntry.sc_passwd, 13);
+			break;
+		case 4:
+			set_wep_key(priv, 0);
+			break;
+		case 5:
+		case 6:
+		case 7:
+		case 8:	
+			strcpy((char *)GET_MIB(priv)->dot1180211AuthEntry.dot11PassPhrase, priv->pmib->dot11StationConfigEntry.sc_passwd);
+			break;
+		default:
+			break;
+	}
+	return 0;
+}
+int rtk_sc_get_magic(unsigned int *magic, unsigned int len)
+{
+	int i=0;
+	unsigned int magic_num[32] = {60, 62, 68, 70, 76, 78, 80, 82};
+	for(i=0; i<len; i++)
+		magic[i] = magic_num[i];
+	return 0;
+}
+
+int rtk_sc_is_channel_fixed(struct rtl8192cd_priv * priv)
+{
+	struct rtl8192cd_priv * priv_root = GET_ROOT(priv);
+
+	if(priv->pmib->dot11StationConfigEntry.sc_enabled == 1 && priv->simple_config_could_fix == 1) {
+		
+		if(priv->pmib->dot11StationConfigEntry.sc_fix_channel > 0)
+			return 1;
+		else if((priv->pmib->dot11StationConfigEntry.sc_fix_channel < 0) 
+				&& (priv->pmib->dot11StationConfigEntry.sc_status == 2 || priv->pmib->dot11StationConfigEntry.sc_status == 3)
+				)
+			return 1; 
+	}
+
+#ifdef UNIVERSAL_REPEATER
+	if(IS_DRV_OPEN(GET_VXD_PRIV(priv_root))&& 
+		GET_VXD_PRIV(priv_root)->pmib->dot11StationConfigEntry.sc_enabled && priv->simple_config_could_fix == 1) {
+			
+		if(GET_VXD_PRIV(priv_root)->pmib->dot11StationConfigEntry.sc_fix_channel > 0)
+			return 1;
+		else if((GET_VXD_PRIV(priv_root)->pmib->dot11StationConfigEntry.sc_fix_channel < 0) &&
+			(GET_VXD_PRIV(priv_root)->pmib->dot11StationConfigEntry.sc_status == 2 
+			|| GET_VXD_PRIV(priv_root)->pmib->dot11StationConfigEntry.sc_status == 3)
+			)
+			return 1;
+	}
+#endif
+
+	return 0;
+}
+
+
+int rtk_sc_get_scan_offset(struct rtl8192cd_priv * priv, int channel, int bw)
+{
+	int scan_offset = HT_2NDCH_OFFSET_DONTCARE;
+
+
+	
+	if(bw) {
+
+		if(channel >= 36) {
+		
+			if((channel>144) ? ((channel-1)%8) : (channel%8))
+				scan_offset = HT_2NDCH_OFFSET_ABOVE;
+			else
+				scan_offset = HT_2NDCH_OFFSET_BELOW;
+		} else {
+
+			if(channel < 5)
+				scan_offset = HT_2NDCH_OFFSET_ABOVE;
+			else if(channel > 9)
+				scan_offset = HT_2NDCH_OFFSET_BELOW;
+			else {
+
+				if(GET_ROOT(priv)->pshare->offset_2nd_chan == HT_2NDCH_OFFSET_ABOVE)
+					scan_offset = HT_2NDCH_OFFSET_BELOW;
+				else 
+					scan_offset = HT_2NDCH_OFFSET_ABOVE;
+			}
+		}
+	}
+
+	return scan_offset;
+}
+
+
+int rtk_sc_during_simple_config_scan(struct rtl8192cd_priv * priv)
+{
+	struct rtl8192cd_priv * priv_root = GET_ROOT(priv);
+
+	if(priv->pmib->dot11StationConfigEntry.sc_enabled == 1) {
+		
+		if(priv->simple_config_status == 1)
+			return 1;
+	}
+
+#ifdef UNIVERSAL_REPEATER
+	if(IS_DRV_OPEN(GET_VXD_PRIV(priv_root))&& 
+		GET_VXD_PRIV(priv_root)->pmib->dot11StationConfigEntry.sc_enabled) {
+			
+		if(GET_VXD_PRIV(priv_root)->simple_config_status == 1)
+			return 1;
+	}
+#endif
+
+	return 0;
+}
+
+
+#endif

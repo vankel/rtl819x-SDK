@@ -15,6 +15,9 @@
 #elif defined(RTL8198)
 	#define FW_SIGNATURE			((char *)"cs6c")	// fw signature
 	#define FW_SIGNATURE_WITH_ROOT	((char *)"cr6c")	// fw signature with root fs
+#if defined(CONFIG_WEBPAGE_CHECK)
+	#define WEBPAGE_SIGNATURE			((char *)"w6cg")	// webpage signature
+#endif
 	#define ROOT_SIGNATURE          ((char *)"r6cr")
 #else
 	#define FW_SIGNATURE			((char *)"csys")	// fw signature
@@ -66,6 +69,10 @@ typedef struct _signature__ {
 	int maxSize;
 	int reboot;
 } SIGN_T ;
+
+
+#define READ_LINUX_ONCE 1
+
 
 #endif
 

@@ -597,9 +597,11 @@ int Setting_RTL8196D_PHY(void)
 
 	Set_GPHYWB(999, 1, 25, 0, 0x00d0);  //enable pwdn10rx at pwr saving enable snr threshold = 18dB 
 	
+#if 0
 	Set_GPHYWB(999, 4, 16, 0, 0x737f);// enable EEE, fine tune EEE parameter 
 	Set_GPHYWB(999, 4, 24, 0, 0xc0f3);	//change EEE wake idle to 10us 
 	Set_GPHYWB(999, 4, 25, 0, 0x0730);	 // turn off tx/rx pwr at LPI state 
+#endif
 
 
 /*
@@ -641,7 +643,9 @@ int Setting_RTL8196D_PHY(void)
 	REG32(0xbb804908)=0xc0;
 	REG32(0xbb804910)=0x400b;
 
+#if 0
 	REG32(0xbb804160)=0x28739ce7;	
+#endif
 	//MAC PATCH END
 
 	for(i=0; i<5; i++)
@@ -695,6 +699,114 @@ int Setting_RTL8196E_PHY(void)
 #endif
 
 #define REG32_ANDOR(x,y,z)   (REG32(x)=(REG32(x)& (y))|(z))
+
+
+#if defined(CONFIG_8211E_SUPPORT)	
+extern __inline__ void __udelay(unsigned long usecs, unsigned long lps)
+{
+	unsigned long lo;
+
+	lo = ((usecs * 0x000010c6) >> 12) * (lps >> 20);
+	__delay(lo);
+}
+extern unsigned long loops_per_jiffy;
+
+#define __mdelay(x) { int i=x; while(i--) __udelay(1000, loops_per_jiffy * 100); }
+#define GPIOG2		18
+
+int init_p0(void)
+{
+	REG32(PCRP0) |=  (0x5 << ExtPHYID_OFFSET) | MIIcfg_RXER |  EnablePHYIf | MacSwReset;
+	
+	REG32(0xbb804000) |= (1<<12);
+	REG32_ANDOR(P0GMIICR, ~((1<<4)|(7<<0)) , (1<<4) | (3<<0) );			
+
+	// Reset 8211 ==> GPIOG2
+	REG32(PIN_MUX_SEL) |= (3<<10);
+	REG32(0xb800351c) &= ~(1<<GPIOG2);
+	REG32(0xb8003524) |= (1<<GPIOG2);
+	REG32(0xb8003528) &= ~(1<<GPIOG2);
+	__mdelay(500);
+	REG32(0xb8003528) |= (1<<GPIOG2);
+	__mdelay(300);
+
+	REG32(PITCR) |= (1<<0);
+	REG32(P0GMIICR) |=(Conf_done);
+
+	//printf(" --> config port 0 done.\n");
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_SW_8325D
+
+extern __inline__ void __udelay(unsigned long usecs, unsigned long lps)
+{
+	unsigned long lo;
+
+	lo = ((usecs * 0x000010c6) >> 12) * (lps >> 20);
+	__delay(lo);
+}
+extern unsigned long loops_per_jiffy;
+
+#define __mdelay(x) { int i=x; while(i--) __udelay(1000, loops_per_jiffy * 100); }
+
+extern int RTL8325D_init(void);
+
+enum GPIO_PORT
+{
+	GPIO_PORT_A = 0,
+	GPIO_PORT_B,
+	GPIO_PORT_C,
+	GPIO_PORT_D,
+	GPIO_PORT_E,
+	GPIO_PORT_F,
+	GPIO_PORT_G,
+	GPIO_PORT_H,
+	GPIO_PORT_I,
+	GPIO_PORT_MAX,
+};
+
+void init_8325d(void)
+{	
+	int ret;
+
+	// set to GPIO mode
+	REG32(PIN_MUX_SEL) |= (0xC00); // bit 11~10 = 0b11
+	
+	REG32(PEFGHCNR) &= (~(0x00020000)); //set GPIO pin, G1
+	REG32(PEFGHDIR) |= (0x00020000); //output pin
+
+	// for 8325d h/w reset pin
+	REG32(PEFGHDAT) &= ~(0x00020000); 
+	__mdelay(500);
+
+	REG32(PEFGHDAT) |= (0x00020000); 
+	__mdelay(300);
+
+	//I2C data¡GGPIOG6, P0_RXD5
+	//I2C clock¡GGPIOG7, P0_RXD4
+	REG32(PEFGHCNR) &= (~(0x00C00000)); //set GPIO pin, G6 and G7
+	REG32(PEFGHDIR) |= (0x00C00000); //output pin
+
+	smi_init(GPIO_PORT_G, 7, 6);
+
+	ret = RTL8325D_init();
+
+	REG32(PCRP0) = (REG32(PCRP0) & ~(ExtPHYID_MASK)) | (0x5 << ExtPHYID_OFFSET)
+					| MIIcfg_RXER |  EnablePHYIf | MacSwReset;	//external
+
+	REG32_ANDOR(P0GMIICR, ~(3<<23)  , LINK_RGMII<<23);
+	REG32_ANDOR(P0GMIICR, ~((1<<4)|(7<<0)) , (1<<4) | (5<<0) );
+
+	REG32(PCRP0) = (REG32(PCRP0) & ~AutoNegoSts_MASK) | (EnForceMode| ForceLink|ForceSpeed100M |ForceDuplex);
+		
+	REG32(PITCR) |= (1<<0);   //00: embedded , 01L GMII/MII/RGMII
+	REG32(MACCR) |= (1<<12);   //giga link
+	REG32(P0GMIICR) |=(Conf_done);	
+}
+#endif
+
 
 int32 swCore_init()
 {
@@ -826,11 +938,26 @@ int32 swCore_init()
 		P0phymode=1;
 		P0miimode=0;
 	#endif
+
+	#if defined(CONFIG_8211E_SUPPORT) || defined(CONFIG_SW_8325D)
+	P0phymode=0;
+	#endif
+	
 	printf("P0phymode=%02x, %s phy\n", P0phymode,   (P0phymode==0) ? "external" : "embedded");
 
-
+	#if defined(CONFIG_NAND_FLASH)	
+	//dprintf("\n\n=========Switch for NAND Flash mode setting========= \n");		
+	//dprintf("swcore.c:Set PIN_MUX to NAND Flash pin (No/Disable P0 GMII) ");
+	//dprintf("\nswcore.c:P5 Config as NAND Flash mode .");
+	//dprintf("\n========================================= \n");
+   	REG32(PIN_MUX_SEL) = (REG32(PIN_MUX_SEL) & 0xFFFFCCFF) | 0x1108;
+	/*Set to embedded 10/100*/
+	//return ;		
+	#endif
+	
 	if(P0phymode==1)  //embedded phy
 	{
+         
 #ifdef CONFIG_FPGA_ROMCODE	
 		REG32_ANDOR(0xbb804050, ~(0x1f<<0), 0x11<<0); 
 		REG32(PCRP0) |=  (0<< ExtPHYID_OFFSET) |  EnablePHYIf | MacSwReset;	//emabedded
@@ -840,6 +967,14 @@ int32 swCore_init()
 	}
 	else //external phy
 	{
+		#if defined(CONFIG_8211E_SUPPORT)	
+		init_p0();
+		
+		#elif defined(CONFIG_SW_8325D)
+		init_8325d();
+		
+		#else	
+
 		REG32(PCRP0) |=  (0x06 << ExtPHYID_OFFSET) | MIIcfg_RXER |  EnablePHYIf | MacSwReset;	//external
 		{
 		int reg;
@@ -884,6 +1019,7 @@ int32 swCore_init()
 		
 		REG32(PITCR) |= (1<<0);   //00: embedded , 01L GMII/MII/RGMII
 		REG32(P0GMIICR) |=(Conf_done);
+		#endif
 
 	}   
 #endif
@@ -952,14 +1088,23 @@ int32 swCore_init()
 		#LED = direct mode
 		set mode 0x0
 		swwb 0xbb804300 21-20 0x2 19-18 $mode 17-16 $mode 15-14 $mode 13-12 $mode 11-10 $mode 9-8 $mode
-	*/	
+	*/
+    #if defined(CONFIG_NAND_FLASH)
+		//REG32(PINMUX2)|= (1<<9); //Set led_s3 to Reset_button
+	
+	#elif defined(CONFIG_8211E_SUPPORT) || defined(CONFIG_SW_8325D)
+	REG32(PIN_MUX_SEL)&=~( (3<<8) | (3<<3) | (1<<15) );  //let P0 to mii mode
+	REG32(PIN_MUX_SEL2)&=~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+	#else	
 	REG32(PIN_MUX_SEL)&=~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
 	REG32(PIN_MUX_SEL2)&=~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
-
+    #endif
 	REG32(LEDCR)  = (2<<20) | (0<<18) | (0<<16) | (0<<14) | (0<<12) | (0<<10) | (0<<8);  //P0-P5
 #endif
 
-	
+#if defined(CONFIG_NAND_FLASH)	
+		goto NAND_SwitchInit_jump;
+#endif	
 	/*PHY FlowControl. Default enable*/
 	for(port=0;port<MAX_PORT_NUMBER;port++)
 	{
@@ -979,7 +1124,10 @@ int32 swCore_init()
 #endif			
 			
 	}
- 
+
+#if defined(CONFIG_NAND_FLASH)
+NAND_SwitchInit_jump: 
+#endif
 	
 #if ! (defined( CONFIG_NFBI) || defined(CONFIG_NONE_FLASH))
 

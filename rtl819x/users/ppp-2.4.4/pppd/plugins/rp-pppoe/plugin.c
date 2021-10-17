@@ -220,6 +220,7 @@ static void
 PPPOEDisconnectDevice(void)
 {
     struct sockaddr_pppox sp;
+
     sp.sa_family = AF_PPPOX;
     sp.sa_protocol = PX_PROTO_OE;
     sp.sa_addr.pppoe.sid = 0;
@@ -232,7 +233,6 @@ PPPOEDisconnectDevice(void)
     }
     close(conn->sessionSocket);
     /* don't send PADT?? */
-
 #ifdef PPPOE_DISC_FLOW_PATCH
 	extern void sendPADT(PPPoEConnection *conn, char const *msg);
 	sendPADT(conn, "User kill");

@@ -328,6 +328,11 @@ qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
 	qh->qh_state = QH_STATE_COMPLETING;
 	stopped = (state == QH_STATE_IDLE);
 
+ rescan:
+	last = NULL;
+	last_status = -EINPROGRESS;
+	qh->needs_rescan = 0;
+
 	/* remove de-activated QTDs from front of queue.
 	 * after faults (including short reads), cleanup this urb
 	 * then let the queue advance.
@@ -475,8 +480,20 @@ halt:
 			 * we must clear the TT buffer (11.17.5).
 			 */
 			if (unlikely(last_status != -EINPROGRESS &&
-					last_status != -EREMOTEIO))
-				ehci_clear_tt_buffer(ehci, qh, urb, token);
+					last_status != -EREMOTEIO)) {
+				/* The TT's in some hubs malfunction when they
+				 * receive this request following a STALL (they
+				 * stop sending isochronous packets).  Since a
+				 * STALL can't leave the TT buffer in a busy
+				 * state (if you believe Figures 11-48 - 11-51
+				 * in the USB 2.0 spec), we won't clear the TT
+				 * buffer in this case.  Strictly speaking this
+				 * is a violation of the spec.
+				 */
+				if (last_status != -EPIPE)
+					ehci_clear_tt_buffer(ehci, qh, urb,
+							token);
+			}
 		}
 
 		/* if we're removing something not at the queue head,
@@ -503,6 +520,21 @@ halt:
 		ehci_qtd_free (ehci, last);
 	}
 
+	/* Do we need to rescan for URBs dequeued during a giveback? */
+	if (unlikely(qh->needs_rescan)) {
+		/* If the QH is already unlinked, do the rescan now. */
+		if (state == QH_STATE_IDLE)
+			goto rescan;
+
+		/* Otherwise we have to wait until the QH is fully unlinked.
+		 * Our caller will start an unlink if qh->needs_rescan is
+		 * set.  But if an unlink has already started, nothing needs
+		 * to be done.
+		 */
+		if (state != QH_STATE_LINKED)
+			qh->needs_rescan = 0;
+	}
+
 	/* restore original state; caller must unlink or relink */
 	qh->qh_state = state;
 
@@ -527,12 +559,9 @@ halt:
 			 * That should be rare for interrupt transfers,
 			 * except maybe high bandwidth ...
 			 */
-			if ((cpu_to_hc32(ehci, QH_SMASK)
-					& qh->hw_info2) != 0) {
-				intr_deschedule (ehci, qh);
-				(void) qh_schedule (ehci, qh);
-			} else
-				unlink_async (ehci, qh);
+
+			/* Tell the caller to start an unlink */
+			qh->needs_rescan = 1;
 			break;
 		/* otherwise, unlink already started */
 		}
@@ -1220,6 +1249,8 @@ rescan:
 				qh = qh_get (qh);
 				qh->stamp = ehci->stamp;
 				temp = qh_completions (ehci, qh);
+				if (qh->needs_rescan)
+					unlink_async(ehci, qh);
 				qh_put (qh);
 				if (temp != 0) {
 					goto rescan;

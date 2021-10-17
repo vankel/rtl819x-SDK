@@ -58,6 +58,18 @@ endif
 ###################
 
 
+ifeq ($(CONFIG_RTL_MESH_SUPPORT),y)
+RTL_WPA_CFLAG += -DCONFIG_RTK_MESH
+endif
+
+ifeq ($(CONFIG_RTL_HS2_SUPPORT),y)
+RTL_WPA_CFLAG += -DHS2_SUPPORT
+endif
+
+ifeq ($(CONFIG_RTL_11W_SUPPORT),y)
+RTL_WPA_CFLAG += -DCONFIG_IEEE80211W
+endif
+
 ifeq ($(RTL8186_TR),1)
 RTL_WPA_CFLAG += -DCONFIG_RTL8186_TR
 ENABLE_WPA2_CLIENT = false
@@ -163,14 +175,14 @@ RTL_WPA_SRCS = auth_hcm.o \
 	1x_nal_hcm.o 1x_kxsm.o 1x_radius.o 1x_ptsm.o 1x_reauth_sm.o \
 	1x_cdsm.o 1x_config.o 1x_ioctl.o 1x_parser.o \
 	1x_kmsm_auth.o 1x_kmsm_supp.o 1x_kmsm_eapolkey.o \
-	1x_info_auth.o 1x_kmsm_hmac.o 1x_kmsm_prf.o 1x_kmsm_aes.o 1x_acct_sm.o 1x_md5c.o 1x_rc4.o libnet.o
+	1x_info_auth.o 1x_kmsm_hmac.o 1x_kmsm_prf.o 1x_kmsm_aes.o 1x_acct_sm.o 1x_md5c.o 1x_rc4.o libnet.o  sha256.o
 else
 RTL_WPA_SRCS = auth.o \
 			1x_auth_pae.o 1x_bauth_sm.o 1x_common.o 1x_krc_sm.o \
 			1x_nal.o 1x_kxsm.o 1x_radius.o 1x_ptsm.o 1x_reauth_sm.o \
 			1x_cdsm.o 1x_config.o 1x_ioctl.o 1x_parser.o \
 			1x_kmsm_auth.o 1x_kmsm_supp.o 1x_kmsm_eapolkey.o \
-			1x_info_auth.o 1x_kmsm_hmac.o 1x_kmsm_prf.o 1x_kmsm_aes.o 1x_acct_sm.o 1x_md5c.o 1x_rc4.o libnet.o
+			1x_info_auth.o 1x_kmsm_hmac.o 1x_kmsm_prf.o 1x_kmsm_aes.o 1x_acct_sm.o 1x_md5c.o 1x_rc4.o libnet.o  sha256.o
 endif
 
 ifeq ($(strip $(ENABLE_WPA2)),true)

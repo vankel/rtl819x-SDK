@@ -74,6 +74,9 @@ function manualDNSclicked()
 }
 function pptpConnectClick(connect)
 {
+  if( saveChanges_wan(document.tcpip,MultiPppoeEnable,dynamicWanIP) == false)
+	return false;
+  
   if (document.tcpip.pptpConnectType.selectedIndex == 2 && pppConnectStatus==connect) {
       if (document.tcpip.pptpUserName.value=="") {
           alert('PPTP user name cannot be empty!');
@@ -93,6 +96,9 @@ function pptpConnectClick(connect)
 }
 function l2tpConnectClick(connect)
 {
+  if( saveChanges_wan(document.tcpip,MultiPppoeEnable,dynamicWanIP) == false)
+	return false;
+  
   if (document.tcpip.l2tpConnectType.selectedIndex == 2 && pppConnectStatus==connect) {
       if (document.tcpip.l2tpUserName.value=="") {
           alert('L2TP user name cannot be empty!');
@@ -119,6 +125,9 @@ function USB3GConnectClick(connect)
 }
 function pppConnectClick(connect)
 {
+  if( saveChanges_wan(document.tcpip,MultiPppoeEnable,dynamicWanIP) == false)
+  	return false;
+  
   if (document.tcpip.pppConnectType.selectedIndex == 2 && pppConnectStatus==connect) {
       if (document.tcpip.pppUserName.value=="") {
           alert('PPP user name cannot be empty!');
@@ -305,8 +314,8 @@ function pppTypeSelection(wan_type)
 				enableTextField(document.tcpip.pppIdleTime4);
 			else
 				disableTextField(document.tcpip.pppIdleTime4);
-		  }			  
-*/
+		  }	
+*/		  
 	}
 	if(wan_type == 1){
 //for dynamic wan IP
@@ -465,6 +474,8 @@ function wanTypeSelection(field)
 	document.tcpip.dnsMode[1].checked = true ; // dns change to manual mode
   }
   else if(field.selectedIndex == 1){ //Dhcp
+  	document.tcpip.dnsMode[0].disabled = false;
+	document.tcpip.dnsMode[1].disabled = false;
   	wanShowDiv(0 ,1, 1, 0, 0, 0, 0);   
 	if(document.tcpip.dnsMode[0].checked)
 		disableDNSinput();	
@@ -477,6 +488,8 @@ function wanTypeSelection(field)
 
   	}
 */
+	document.tcpip.dnsMode[0].disabled = false;
+	document.tcpip.dnsMode[1].disabled = false;
   	wanShowDiv(0 ,1, 1, 1, 0, 0, 0); 
 /*
 	if(MultiPppoeEnable == 0)	//old mode
@@ -491,11 +504,90 @@ function wanTypeSelection(field)
   }else if(field.selectedIndex == 3){ //pptp
   	wanShowDiv(1, 1, 1, 0, 0, 0, 0); 
 	if(document.tcpip.dnsMode[0].checked)
-		disableDNSinput();
+		disableDNSinput();	
+
+	if(<%getIndex("enableGetServIpByDomainName")%>)
+	{
+		if(<%getIndex("pptpGetServIpByDomainName")%>)
+		{
+			document.tcpip.pptpGetServMode[0].checked = true;
+			pptpGetServByDomainNameClicked();
+			
+			if(document.tcpip.wan_pptp_use_dynamic_carrier_radio[1].checked)
+			{
+				document.tcpip.elements["dnsMode"][0].disabled = true;	
+				document.tcpip.elements["dnsMode"][1].checked = true;	
+				manualDNSclicked();
+			}
+			else
+			{
+				document.tcpip.elements["dnsMode"][0].disabled = false;	
+				document.tcpip.elements["dnsMode"][1].disabled = false;
+			}
+		}
+		else
+		{
+			document.tcpip.pptpGetServMode[1].checked = true;
+			pptpGetServByIpClicked();			
+			
+			document.tcpip.elements["dnsMode"][0].disabled = false;	
+			document.tcpip.elements["dnsMode"][1].disabled = false;
+		}
+	}
+	/*
+	if(document.tcpip.wan_pptp_use_dynamic_carrier_radio[1].checked)
+	{
+		document.tcpip.elements["dnsMode"][0].disabled = true;
+		document.tcpip.elements["dnsMode"][1].checked = true;
+		manualDNSclicked();
+	}
+	else
+		document.tcpip.elements["dnsMode"][0].disabled = false;
+	*/
   }else if(field.selectedIndex == 4){ //l2tp
   	wanShowDiv(0, 1, 1, 0, 0, 1, 0); 
 	if(document.tcpip.dnsMode[0].checked)
-		disableDNSinput();	
+		disableDNSinput();
+
+	if(<%getIndex("enableGetServIpByDomainName")%>)
+	{
+		if(<%getIndex("l2tpGetServIpByDomainName")%>)
+		{
+			document.tcpip.l2tpGetServMode[0].checked = true;
+			l2tpGetServByDomainNameClicked();
+
+			if(document.tcpip.wan_l2tp_use_dynamic_carrier_radio[1].checked)
+			{
+				document.tcpip.elements["dnsMode"][0].disabled = true;	
+				document.tcpip.elements["dnsMode"][1].checked = true;	
+				manualDNSclicked();
+			}
+			else
+			{
+				document.tcpip.elements["dnsMode"][0].disabled = false;	
+				document.tcpip.elements["dnsMode"][1].disabled = false;
+			}
+		}
+		else
+		{
+			document.tcpip.l2tpGetServMode[1].checked = true;
+			l2tpGetServByIpClicked();			
+			
+			document.tcpip.elements["dnsMode"][0].disabled = false;	
+			document.tcpip.elements["dnsMode"][1].disabled = false;
+		}
+	}
+	
+	/*
+	if(document.tcpip.wan_l2tp_use_dynamic_carrier_radio[1].checked)
+	{
+		document.tcpip.elements["dnsMode"][0].disabled = true;
+		document.tcpip.elements["dnsMode"][1].checked = true;
+		manualDNSclicked();
+	}
+	else
+		document.tcpip.elements["dnsMode"][0].disabled = false;
+	*/
   }else if(field.selectedIndex == 5){ //USB3G
   	wanShowDiv(0, 1, 1, 0, 0, 0, 1);
 	if(document.tcpip.dnsMode[0].checked)
@@ -592,17 +684,17 @@ function Load_Setting()
 		wanDhcp_selidx = 5;
 <% getInfo("usb3g_jscomment_end");%>
 	document.tcpip.wanType.selectedIndex = wanDhcp_selidx;
-	wanTypeSelection(document.tcpip.wanType);
+//	wanTypeSelection(document.tcpip.wanType);
 
-	if ( <% getIndex("wanDNS"); %> == 0) {
-		document.tcpip.elements["dnsMode"][0].checked = true;
-		autoDNSclicked();
-	}
+//	if ( <% getIndex("wanDNS"); %> == 0) {
+//		document.tcpip.elements["dnsMode"][0].checked = true;
+//		autoDNSclicked();
+//	}
 	
-	if ( <% getIndex("wanDNS"); %> == 1) {
-		document.tcpip.elements["dnsMode"][1].checked = true;
-		manualDNSclicked();
-	}
+//	if ( <% getIndex("wanDNS"); %> == 1) {
+//		document.tcpip.elements["dnsMode"][1].checked = true;
+//		manualDNSclicked();
+//	}
 
 	if ( <% getIndex("upnpEnabled"); %> )
 		document.tcpip.upnpEnabled.checked = true;
@@ -636,11 +728,14 @@ function Load_Setting()
 
 	//for dynamic wan IP
 	if(<% getIndex("pptp_wan_ip_mode"); %>)
-	{
+	{//static ip
 		dF.wan_pptp_use_dynamic_carrier_radio[1].checked = true;
 		dF.pptpIpAddr.disabled = false;
 		dF.pptpSubnetMask.disabled = false;
 		dF.pptpDefGw.disabled = false;
+		//dF.elements["dnsMode"][0].disabled = true;
+		//dF.elements["dnsMode"][1].checked = true;
+		//manualDNSclicked();
 	}
 	else
 	{
@@ -648,14 +743,18 @@ function Load_Setting()
 		dF.pptpIpAddr.disabled = true;
 		dF.pptpSubnetMask.disabled = true;
 		dF.pptpDefGw.disabled = true;
+		//dF.elements["dnsMode"][0].disabled = false;
 	}
 
 	if(<% getIndex("l2tp_wan_ip_mode"); %>)
-	{
+	{//static ip
 		dF.wan_l2tp_use_dynamic_carrier_radio[1].checked = true;
 		dF.l2tpIpAddr.disabled = false;
 		dF.l2tpSubnetMask.disabled = false;
 		dF.l2tpDefGw.disabled = false;
+		//dF.elements["dnsMode"][0].disabled = true;
+		//dF.elements["dnsMode"][1].checked = true;
+		//manualDNSclicked();
 	}
 	else
 	{
@@ -663,9 +762,53 @@ function Load_Setting()
 		dF.l2tpIpAddr.disabled = true;
 		dF.l2tpSubnetMask.disabled = true;
 		dF.l2tpDefGw.disabled = true;
+		//dF.elements["dnsMode"][0].disabled = false;
+	}
+	
+	if ( <% getIndex("wanDNS"); %> == 0) {		
+		document.tcpip.elements["dnsMode"][0].checked = true;
+		autoDNSclicked();
+	}
+	
+	if ( <% getIndex("wanDNS"); %> == 1) {
+		document.tcpip.elements["dnsMode"][1].checked = true;
+		manualDNSclicked();
 	}
 	//end
 
+	wanTypeSelection(document.tcpip.wanType);
+	
+	//move the follow to wanTypeSelection()
+	/*
+	if(<%getIndex("enableGetServIpByDomainName")%>)
+	{
+		if(<%getIndex("pptpGetServIpByDomainName")%>)
+		{
+			dF.pptpGetServMode[0].checked = true;
+			pptpGetServByDomainNameClicked();
+		}else
+		{
+			dF.pptpGetServMode[1].checked = true;
+			pptpGetServByIpClicked();
+		}
+		
+		if(<%getIndex("l2tpGetServIpByDomainName")%>)
+		{
+			dF.l2tpGetServMode[0].checked = true;
+			l2tpGetServByDomainNameClicked();
+		}else
+		{
+			dF.l2tpGetServMode[1].checked = true;
+			l2tpGetServByIpClicked();
+		}
+	}
+	*/
+
+	if(wanDhcp_==1 || wanDhcp_==3)
+	{
+		document.tcpip.dnsMode[0].disabled = false;
+		document.tcpip.dnsMode[1].disabled = false;
+	}
 }
 
 //for dynamic wan IP
@@ -677,17 +820,80 @@ function wan_pptp_use_dynamic_carrier_selector(index, mode){
 		dF.pptpIpAddr.disabled = true;
 		dF.pptpSubnetMask.disabled = true;
 		dF.pptpDefGw.disabled = true;
-		dyamicWanIP = 1;
+		dynamicWanIP = 1;
 		
+		dF.elements["dnsMode"][0].disabled = false;
+		dF.elements["dnsMode"][1].disabled = false;
 	} else {
 		dF.wan_pptp_use_dynamic_carrier_radio[index].checked = true;
 		dF.pptpIpAddr.disabled = false;
 		dF.pptpSubnetMask.disabled = false;
 		dF.pptpDefGw.disabled = false;
 		dynamicWanIP = 0;
+		
+		if(dF.pptpGetServMode[0].checked)
+		{
+			dF.elements["dnsMode"][0].disabled = true;
+			dF.elements["dnsMode"][1].checked = true;
+			manualDNSclicked();
+		}
+		else
+		{
+			dF.elements["dnsMode"][0].disabled = false;
+			dF.elements["dnsMode"][1].disabled = false;
+		}		
 	}
 }
+function pptpGetServByIpClicked()
+{
+	disableTextField(document.tcpip.pptpServerDomainName);
+	enableTextField(document.tcpip.pptpServerIpAddr);
 
+	document.tcpip.elements["dnsMode"][0].disabled = false;	
+	document.tcpip.elements["dnsMode"][1].disabled = false;
+}
+function pptpGetServByDomainNameClicked()
+{
+	disableTextField(document.tcpip.pptpServerIpAddr);
+	enableTextField(document.tcpip.pptpServerDomainName);
+
+	if(document.tcpip.wan_pptp_use_dynamic_carrier_radio[1].checked)
+	{
+		document.tcpip.elements["dnsMode"][0].disabled = true;	
+		document.tcpip.elements["dnsMode"][1].checked = true;	
+		manualDNSclicked();
+	}
+	else
+	{
+		document.tcpip.elements["dnsMode"][0].disabled = false;	
+		document.tcpip.elements["dnsMode"][1].disabled = false;
+	}
+}
+function l2tpGetServByIpClicked()
+{
+	disableTextField(document.tcpip.l2tpServerDomainName);
+	enableTextField(document.tcpip.l2tpServerIpAddr);
+
+	document.tcpip.elements["dnsMode"][0].disabled = false;	
+	document.tcpip.elements["dnsMode"][1].disabled = false;
+}
+function l2tpGetServByDomainNameClicked()
+{
+	disableTextField(document.tcpip.l2tpServerIpAddr);
+	enableTextField(document.tcpip.l2tpServerDomainName);
+
+	if(document.tcpip.wan_l2tp_use_dynamic_carrier_radio[1].checked)
+	{
+		document.tcpip.elements["dnsMode"][0].disabled = true;	
+		document.tcpip.elements["dnsMode"][1].checked = true;	
+		manualDNSclicked();
+	}
+	else
+	{
+		document.tcpip.elements["dnsMode"][0].disabled = false;	
+		document.tcpip.elements["dnsMode"][1].disabled = false;
+	}	
+}
 function wan_l2tp_use_dynamic_carrier_selector(index, mode){
 	var dF=document.tcpip;
 
@@ -697,12 +903,27 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
 		dF.l2tpSubnetMask.disabled = true;
 		dF.l2tpDefGw.disabled = true;
 		dynamicWanIP = 1;
+		
+		dF.elements["dnsMode"][0].disabled = false;
+		dF.elements["dnsMode"][1].disabled = false;
 	} else {
 		dF.wan_l2tp_use_dynamic_carrier_radio[index].checked = true;
 		dF.l2tpIpAddr.disabled = false;
 		dF.l2tpSubnetMask.disabled = false;
 		dF.l2tpDefGw.disabled = false;
 		dynamicWanIP = 0;
+		
+		if(dF.l2tpGetServMode[0].checked)
+		{
+			dF.elements["dnsMode"][0].disabled = true;
+			dF.elements["dnsMode"][1].checked = true;
+			manualDNSclicked();
+		}
+		else
+		{
+			dF.elements["dnsMode"][0].disabled = false;
+			dF.elements["dnsMode"][1].disabled = false;
+		}
 	}
 }
 //end
@@ -734,9 +955,13 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
 	<option value="fixedIp">Static IP</option>
 	<option value="autoIp">DHCP Client</option>
 	<option value="ppp">PPPoE</option>
+<% getInfo("pptp_comment_start");%>
 	<option value="pptp">PPTP</option>
+<% getInfo("pptp_comment_end");%>
 	<! -- keith: add l2tp support. 20080515  -- >
+<% getInfo("l2tp_comment_start");%>
 	<option value="l2tp">L2TP</option>
+<% getInfo("l2tp_comment_end");%>
 <% getInfo("usb3g_comment_start");%>
 	<option value="USB3G">USB3G</option>
 <% getInfo("usb3g_comment_end");%>
@@ -814,7 +1039,7 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
     </tr>  
     <tr>
       <td width="30%"><font size=2><b>MTU Size:</b></td>
-      <td width="70%"><font size=2><input type="text" name="dhcpMtuSize" size="10" maxlength="10" value="<% getInfo("dhcpMtuSize"); %>">&nbsp;(1400-1492 bytes)</td>
+      <td width="70%"><font size=2><input type="text" name="dhcpMtuSize" size="10" maxlength="10" value="<% getInfo("dhcpMtuSize"); %>">&nbsp;(1400-1500 bytes)</td>
     </tr>
   </table>  
   </span>
@@ -1106,13 +1331,31 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
       <td width="30%"><font size=2><b>Default Gateway:</b></td>
       <td width="70%"><font size=2><input type="text" name="pptpDefGw" size="18" maxlength="30" value="<% getInfo("pptpDefGw"); %>"></td>
     </tr>
+ <script type="text/javascript">  
+	if(<%getIndex("enableGetServIpByDomainName")%>)
+		{
+			document.write("\
+				    <tr>\
+				      	<td width=\"100%\" colspan=\"2\"><font size=2>\
+						<b><input type=\"radio\" value=\"pptpGetServByDomainName\" name=\"pptpGetServMode\" onClick=\"pptpGetServByDomainNameClicked()\">Attain Server By Domain Name</b>\
+				      	</td>\
+				    </tr>\
+				    <tr>\
+				    	<td width=\"100%\" colspan=\"2\"><font size=2>\
+						<b><input type=\"radio\" value=\"pptpGetServByIp\" name=\"pptpGetServMode\" onClick=\"pptpGetServByIpClicked()\">Attain Server By Ip Address</b>\
+				      	</td>\
+				    </tr>\
+				     <tr>\
+				      <td width=\"30%\"><font size=2><b>Domain Name:</b></td>\
+				      <td width=\"70%\"><font size=2><input type=\"text\" name=\"pptpServerDomainName\" size=\"18\" maxlength=\"30\" value=\"<% getInfo("pptpServerDomain"); %>\"></td>\
+				    </tr>\
+				 ");
+		}
+ </script>
     <tr>
-        <input type="hidden" value=<%getIndex("enableGetServIpByDomainName")%> name="pptpEnableGetServIpByDomainName">
-		<input type="hidden" value=0 name="pptpServerAddrIsDomainName">
-      <td width="30%"><font size=2><b>Server IP Address(Or Domain Name):</b></td>
-      <td width="70%"><font size=2><input type="text" name="pptpServerAddr" size="18" maxlength="30" value="<% getInfo("pptpServerAddr"); %>"></td>
+      <td width="30%"><font size=2><b>Server IP Address:</b></td>
+      <td width="70%"><font size=2><input type="text" name="pptpServerIpAddr" size="18" maxlength="30" value="<% getInfo("pptpServerIp"); %>"></td>
     </tr>
-
     <tr>
       <td width="30%"><font size=2><b>User Name:</b></td>
       <td width="70%"><font size=2><input type="text" name="pptpUserName" size="18" maxlength="128" value="<% getInfo("pptpUserName"); %>"></td>
@@ -1193,18 +1436,32 @@ function wan_l2tp_use_dynamic_carrier_selector(index, mode){
       <td width="30%"><font size=2><b>Default Gateway:</b></td>
       <td width="70%"><font size=2><input type="text" name="l2tpDefGw" size="18" maxlength="30" value="<% getInfo("l2tpDefGw"); %>"></td>
     </tr>
+<script type="text/javascript">  
+	if(<%getIndex("enableGetServIpByDomainName")%>)
+	{
+		document.write("\
+			    <tr>\
+			      	<td width=\"100%\" colspan=\"2\"><font size=2>\
+					<b><input type=\"radio\" value=\"l2tpGetServByDomainName\" name=\"l2tpGetServMode\" onClick=\"l2tpGetServByDomainNameClicked()\">Attain Server By Domain Name</b>\
+			      	</td>\
+			    </tr>\
+			    <tr>\
+			    	<td width=\"100%\" colspan=\"2\"><font size=2>\
+					<b><input type=\"radio\" value=\"l2tpGetServByIp\" name=\"l2tpGetServMode\" onClick=\"l2tpGetServByIpClicked()\">Attain Server By Ip Address</b>\
+			      	</td>\
+			    </tr>\
+			     <tr>\
+			      <td width=\"30%\"><font size=2><b>Domain Name:</b></td>\
+			      <td width=\"70%\"><font size=2><input type=\"text\" name=\"l2tpServerDomainName\" size=\"18\" maxlength=\"30\" value=\"<% getInfo("l2tpServerDomain"); %>\"></td>\
+			    </tr>\
+			 ");
+	}
+</script>
+   
     <tr>
-        <input type="hidden" value=<%getIndex("enableGetServIpByDomainName")%> name="l2tpEnableGetServIpByDomainName">
-        <input type="hidden" value=0 name="l2tpServerAddrIsDomainName">
-		<td width="30%"><font size=2><b>Server IP Address(Or Domain Name):</b></td>
-      	<td width="70%"><font size=2><input type="text" name="l2tpServerAddr" size="18" maxlength="30" value="<% getInfo("l2tpServerAddr"); %>"></td>
+      <td width="30%"><font size=2><b>Server IP Address:</b></td>
+      <td width="70%"><font size=2><input type="text" name="l2tpServerIpAddr" size="18" maxlength="30" value="<% getInfo("l2tpServerIp"); %>"></td>
     </tr>
-<!--
-    <tr>
-      <td width="30%"><font size=2><b>Server Domain Address:</b></td>
-      <td width="70%"><font size=2><input type="text" name="l2tpServerDomain" size="18" maxlength="30" value="<% getInfo("l2tpServerDomain"); %>"></td>
-    </tr>
--->
     <tr>
       <td width="30%"><font size=2><b>User Name:</b></td>
       <td width="70%"><font size=2><input type="text" name="l2tpUserName" size="18" maxlength="128" value="<% getInfo("l2tpUserName"); %>"></td>

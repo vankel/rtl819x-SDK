@@ -50,7 +50,7 @@ typedef enum	{ krcsm_No_Key_Receive, krcsm_Key_Receive }	KRC_SM;
 
 // david
 //typedef	enum 	{ role_Authenticator, role_Supplicant } ROLE;
-typedef	enum 	{ role_Authenticator, role_Supplicant_infra, role_Supplicant_adhoc,  role_wds } ROLE;
+typedef	enum 	{ role_Authenticator, role_Supplicant_infra, role_Supplicant_adhoc,  role_wds} ROLE;
 
 typedef enum    { acctsm_Acct_No_Action, acctsm_Acct_Start, acctsm_Acct_Stop, acctsm_Acct_On, acctsm_Interim_On, acctsm_Terminate_Cause } ACCT_SM;
 
@@ -58,13 +58,22 @@ typedef enum	{ acctsm_Start, acctsm_Stop } ACCT_SM_STATE;
 
 typedef enum    { akmsm_status_NotInDriverTable, akmsm_status_Idle , akmsm_status_NotIdle } AKM_SM_STATUS;
 
+
+#if defined( CONFIG_IEEE80211W) || defined(HS2_SUPPORT)
+enum mfp_options {
+	NO_MGMT_FRAME_PROTECTION = 0,
+	MGMT_FRAME_PROTECTION_OPTIONAL = 1,
+	MGMT_FRAME_PROTECTION_REQUIRED = 2
+};
+#endif
+
 typedef int	BOOLEAN;
 
 #define	FALSE 	0
 #define TRUE	1
 
 //Added to support WPA
-typedef enum    { key_desc_ver1 = 1, key_desc_ver2 = 2 } KeyDescVer;
+typedef enum    { key_desc_ver1 = 1, key_desc_ver2 = 2, key_desc_ver3 = 3 } KeyDescVer;
 #ifdef RTL_WPA2
 typedef enum    { desc_type_WPA2 = 2, desc_type_RSN = 254 } DescTypeRSN;
 #else

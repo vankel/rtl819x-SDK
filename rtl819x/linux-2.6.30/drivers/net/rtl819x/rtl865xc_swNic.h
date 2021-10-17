@@ -51,40 +51,107 @@
 //#define	RTL_MULTIPLE_RX_TX_RING		1	/*enable multiple input queue(multiple rx ring)*/
 #endif
 
+#if defined(DELAY_REFILL_ETH_RX_BUF)
+#define SKIP_ALLOC_RX_BUFF 1
+#endif
+
 #define RTL865X_SWNIC_RXRING_HW_PKTDESC	6
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define RTL865X_SWNIC_TXRING_HW_PKTDESC	4
 #else
 #define RTL865X_SWNIC_TXRING_HW_PKTDESC	2
 #endif
-
 #define RESERVERD_MBUF_RING_NUM			8
 
 #if defined(CONFIG_RTL_NFJROM_MP)
 	#define MAX_PRE_ALLOC_RX_SKB		64
 	#define NUM_RX_PKTHDR_DESC		8
 	#define NUM_TX_PKTHDR_DESC		64
-	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC
+	#define	ETH_REFILL_THRESHOLD		4	// must < NUM_RX_PKTHDR_DESC
+
+
 #elif defined(CONFIG_RTL_8198) && !defined(CONFIG_RTL_8198_AP_ROOT)
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB		0
+  	#ifdef CONFIG_RTL_ULINKER
+	#define NUM_RX_PKTHDR_DESC			1022	//512+510
+  	#else
+	#define NUM_RX_PKTHDR_DESC			1024	//512+512
+  	#endif
+	#else
 	#define MAX_PRE_ALLOC_RX_SKB		512
-  #ifdef CONFIG_RTL_ULINKER
+  	#ifdef CONFIG_RTL_ULINKER
 	#define NUM_RX_PKTHDR_DESC			510
-  #else
+  	#else
 	#define NUM_RX_PKTHDR_DESC			512
-  #endif
+  	#endif
+  	#endif
 	#define NUM_TX_PKTHDR_DESC			1024
 	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC
-#else
-	#ifdef DELAY_REFILL_ETH_RX_BUF
-	#define MAX_PRE_ALLOC_RX_SKB		192
-	#define NUM_RX_PKTHDR_DESC			256
-	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC
+#elif defined(CONFIG_RTL_8367R_SUPPORT)
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB			0
+	#define NUM_RX_PKTHDR_DESC			1412
 	#else
-	#define MAX_PRE_ALLOC_RX_SKB		256
-	#define NUM_RX_PKTHDR_DESC			256
+	#define MAX_PRE_ALLOC_RX_SKB		512
+	#define NUM_RX_PKTHDR_DESC			900
 	#endif
-	#define NUM_TX_PKTHDR_DESC			128
+	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC	
+	#define NUM_TX_PKTHDR_DESC			768	
+#elif defined(CONFIG_RTL_8881A)
+	#define ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
+	#if defined(CONFIG_USE_PCIE_SLOT_0)
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB		0	
+	#define NUM_RX_PKTHDR_DESC			912	//400+512
+	#else
+	#define MAX_PRE_ALLOC_RX_SKB		400//512	
+	#define NUM_RX_PKTHDR_DESC			512
+	#endif
+	#define NUM_TX_PKTHDR_DESC			1024 //768
+	#else	
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB		0			
+	#define NUM_RX_PKTHDR_DESC			556		//256+300
+	#else
+	#define MAX_PRE_ALLOC_RX_SKB		256	//512	
+	#define NUM_RX_PKTHDR_DESC			300	//512
+	#endif
+	#define NUM_TX_PKTHDR_DESC			512
+	#endif
+#elif defined(CONFIG_RTL_8196E)
+	#define ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
+	#ifdef CONFIG_RTL_SDRAM_GE_32M
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB		0
+	#define NUM_RX_PKTHDR_DESC			428	//128+300
+	#else
+	#define MAX_PRE_ALLOC_RX_SKB		128
+	#define NUM_RX_PKTHDR_DESC			300//160
+	#endif
+	#define NUM_TX_PKTHDR_DESC			400	
+	#else
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB		0 
+	#define NUM_RX_PKTHDR_DESC			292
+	#define NUM_TX_PKTHDR_DESC			284
+	#else
+	#define MAX_PRE_ALLOC_RX_SKB		192 
+	#define NUM_RX_PKTHDR_DESC			256
+	#define NUM_TX_PKTHDR_DESC			300	
+	#endif
+	#endif
+#else
+	#if defined(SKIP_ALLOC_RX_BUFF)
+	#define MAX_PRE_ALLOC_RX_SKB		0 
+	#define NUM_RX_PKTHDR_DESC			1024	//512+512
+	#else
+	#define MAX_PRE_ALLOC_RX_SKB		512 
+	#define NUM_RX_PKTHDR_DESC			512
+	#endif
+	#define ETH_REFILL_THRESHOLD			8	// must < NUM_RX_PKTHDR_DESC	
+	#define NUM_TX_PKTHDR_DESC			256 	
 #endif
 
 #if defined(RTL_MULTIPLE_RX_TX_RING)
@@ -142,7 +209,7 @@
 #define	QUEUEID5_RXRING_MAPPING		0
 #endif
 
-#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define	NUM_TX_PKTHDR_DESC2		2
 #define	NUM_TX_PKTHDR_DESC3		2
 #endif
@@ -167,6 +234,11 @@ typedef struct {
 #if defined(CONFIG_RTL_STP)
 	int8				isStpVirtualDev;
 #endif
+
+#ifdef CONFIG_RTL_VLAN_8021Q
+	uint16			srcvid;
+#endif
+
 }	rtl_nicRx_info;
 
 typedef struct {
@@ -240,13 +312,14 @@ int32 swNic_send(void *skb, void * output, uint32 len, rtl_nicTx_info *nicTx);
 int32 swNic_txDone(int idx);
 void swNic_freeRxBuf(void);
 int32	swNic_txRunout(void);
-#if defined(DELAY_REFILL_ETH_RX_BUF)
+#if defined(DELAY_REFILL_ETH_RX_BUF) || defined(ALLOW_RX_RING_PARTIAL_EMPTY)
 extern int check_rx_pkthdr_ring(int idx, int *return_idx);
 extern int check_and_return_to_rx_pkthdr_ring(void *skb, int idx);
 extern int return_to_rx_pkthdr_ring(unsigned char *head);
 #endif
 extern	uint32* rxMbufRing;
 extern unsigned char *alloc_rx_buf(void **skb, int buflen);
+extern unsigned char *alloc_rx_buf_init(void **skb, int buflen);
 extern void free_rx_buf(void *skb);
 #if defined(CONFIG_RTL_FAST_BRIDGE)
 extern void tx_done_callback(void *skb);
@@ -265,11 +338,15 @@ int32 swNic_setVlanPortTag(int portmask);
 #define	RTL8651_IOCTL_GETWANPORTLINKSTATUS		2004
 #define 	RTL8651_IOCTL_GETWANLINKSPEED 			2100
 //#define 	RTL8651_IOCTL_SETWANLINKSPEED 			2101
-
+#ifdef CONFIG_AUTO_DHCP_CHECK
+#define RTL8651_IOCTL_SET_GETLINKSTATUS_PID			2102
+#endif
 #define RTL8651_IOCTL_GETLANLINKSTATUSALL		2105
 
 #define	RTL8651_IOCTL_SETWANLINKSTATUS			2200
 
+#define	RTL8651_IOCTL_CLEARBRSHORTCUTENTRY		2210
+#define	RTL8651_IOCTL_GETPORTIDBYCLIENTMAC		2013
 
 #define	RTL_NICRX_OK	0
 #define	RTL_NICRX_REPEAT	-2

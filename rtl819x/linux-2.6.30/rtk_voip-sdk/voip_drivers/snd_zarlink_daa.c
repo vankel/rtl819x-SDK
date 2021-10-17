@@ -119,6 +119,19 @@ static void DAA_Set_PulseDial_zarlink(voip_snd_t *this, unsigned int pulse_enabl
 #endif // PULSE_DIAL_GEN
 }
 
+static void DAA_Set_Country_zarlink(voip_snd_t *this, unsigned int country)
+{
+	RTKLineObj * const pLine = (RTKLineObj * )this ->priv;
+	
+	PRINT_Y("%s(%d)Not support yet!\n",__FUNCTION__,__LINE__);
+}
+
+static void DAA_Set_Hybrid_zarlink(voip_snd_t *this, unsigned char index)
+{
+	printk("%s(%d)Not support yet!\n",__FUNCTION__,__LINE__);
+	// Zarlink may no requirement to set hybird.
+}
+
 static void DAA_read_reg_zarlink(voip_snd_t *this, unsigned int num, unsigned char *len, unsigned char *val)
 {
 	RTKLineObj * pLine = (RTKLineObj * )this ->priv;
@@ -196,19 +209,21 @@ const snd_ops_daa_t snd_zarlink_daa_ops = {
 	// for each snd_type 
 	.DAA_Set_Rx_Gain 					= DAA_Set_Rx_Gain_zarlink,
 	.DAA_Set_Tx_Gain 					= DAA_Set_Tx_Gain_zarlink,
-	.DAA_Check_Line_State 				= DAA_Check_Line_State_zarlink,
+	.DAA_Check_Line_State 					= DAA_Check_Line_State_zarlink,
 	.DAA_On_Hook 						= DAA_On_Hook_zarlink,
 	.DAA_Off_Hook 						= DAA_Off_Hook_zarlink,
 
 	.DAA_Hook_Status 					= DAA_Hook_Status_zarlink,
-	.DAA_Polarity_Reversal_Det 			= DAA_Polarity_Reversal_Det_zarlink,
-	.DAA_Bat_DropOut_Det 				= DAA_Bat_DropOut_Det_zarlink,
-	.DAA_Ring_Detection 				= DAA_Ring_Detection_zarlink,
-	.DAA_Positive_Negative_Ring_Detect 	= DAA_Positive_Negative_Ring_Detect_zarlink,
+	.DAA_Polarity_Reversal_Det 				= DAA_Polarity_Reversal_Det_zarlink,
+	.DAA_Bat_DropOut_Det 					= DAA_Bat_DropOut_Det_zarlink,
+	.DAA_Ring_Detection 					= DAA_Ring_Detection_zarlink,
+	.DAA_Positive_Negative_Ring_Detect			= DAA_Positive_Negative_Ring_Detect_zarlink,
 	.DAA_Get_Polarity 					= DAA_Get_Polarity_zarlink,
-	.DAA_Get_Line_Voltage 				= DAA_Get_Line_Voltage_zarlink,
-	.DAA_OnHook_Line_Monitor_Enable 	= DAA_OnHook_Line_Monitor_Enable_zarlink,
+	.DAA_Get_Line_Voltage					= DAA_Get_Line_Voltage_zarlink,
+	.DAA_OnHook_Line_Monitor_Enable				= DAA_OnHook_Line_Monitor_Enable_zarlink,
 	.DAA_Set_PulseDial 					= DAA_Set_PulseDial_zarlink,
+	.DAA_Set_Country					= DAA_Set_Country_zarlink,
+	.DAA_Set_Hybrid = DAA_Set_Hybrid_zarlink,
 	
 	// read/write register/ram
 	.DAA_read_reg 						= DAA_read_reg_zarlink,

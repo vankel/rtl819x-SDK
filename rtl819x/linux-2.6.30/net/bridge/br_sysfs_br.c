@@ -389,9 +389,15 @@ static ssize_t brforward_read(struct kobject *kobj,
 	if (off % sizeof(struct __fdb_entry) != 0)
 		return -EINVAL;
 
+#ifdef CONFIG_RTK_GUEST_ZONE
+	n =  br_fdb_fillbuf(br, buf,
+			    count / sizeof(struct __fdb_entry),
+			    off / sizeof(struct __fdb_entry), 0);
+#else
 	n =  br_fdb_fillbuf(br, buf,
 			    count / sizeof(struct __fdb_entry),
 			    off / sizeof(struct __fdb_entry));
+#endif
 
 	if (n > 0)
 		n *= sizeof(struct __fdb_entry);

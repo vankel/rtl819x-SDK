@@ -4,7 +4,10 @@
 struct rtl_hash_ctx {
 	s32 mode;
 	u8 *data;
-	u32 length;
+	u32 length;	
+	#if defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+	u8 *digest;
+	#endif
 };
 
 struct rtl_cipher_ctx {

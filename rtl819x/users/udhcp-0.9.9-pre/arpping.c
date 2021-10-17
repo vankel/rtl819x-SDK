@@ -25,6 +25,8 @@
 //#ifdef SEND_GRATUITOUS_ARP
 #include "dhcpc.h"
 //#endif
+
+
 /* args:	yiaddr - what IP to ping
  *		ip - our ip
  *		mac - our arp address
@@ -143,12 +145,12 @@ int sendArpPack(unsigned char *mac, u_int32_t srcIp, u_int32_t targetIp)
 	memcpy(arp.tInaddr, &targetIp, sizeof(targetIp));	/* target IP address */
 	
 	memset(&addr, 0, sizeof(addr));
-	strcpy(addr.sa_data, "eth1");//interface);
+	strcpy(addr.sa_data, client_config.interface);//interface);
 	if (sendto(s, &arp, sizeof(arp)-sizeof(arp.pad), 0, &addr, sizeof(addr)) < 0)
 		rv = -1;
 
 	close(s);
-
 	return rv;
 }
 #endif
+

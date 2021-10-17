@@ -51,7 +51,7 @@
 #include "lm.h"
 /* Ethan:: */
 //#include <asm/arch/irqs.h>
-
+#include <linux/dma-mapping.h>
 #include "dwc_otg_driver.h"
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
@@ -85,7 +85,7 @@ dwc_otg_qh_t *dwc_otg_hcd_qh_create (dwc_otg_hcd_t *_hcd, struct urb *_urb)
  *
  * @param[in] _qh The QH to free.
  */
-void dwc_otg_hcd_qh_free (dwc_otg_qh_t *_qh)
+void dwc_otg_hcd_qh_free (dwc_otg_hcd_t *hcd, dwc_otg_qh_t *_qh)
 {
 	dwc_otg_qtd_t *qtd;
 	struct list_head *pos;
@@ -102,7 +102,12 @@ void dwc_otg_hcd_qh_free (dwc_otg_qh_t *_qh)
 		dwc_otg_hcd_qtd_free (qtd);
 	}
 	local_irq_restore (flags);
-
+	if (_qh->dw_align_buf) {
+		dma_free_coherent((dwc_otg_hcd_to_hcd(hcd))->self.controller,
+				  hcd->core_if->core_params->max_transfer_size,
+				  _qh->dw_align_buf,
+				  _qh->dw_align_buf_dma);
+	}
 	kfree (_qh);
 	return;
 }
@@ -176,10 +181,10 @@ void dwc_otg_hcd_qh_init(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh, struct urb *_ur
 
 		/** @todo Account for split transfers in the bus time. */
 		int bytecount = dwc_hb_mult(_qh->maxp) * dwc_max_packet(_qh->maxp);
-		_qh->usecs = usb_calc_bus_time(_urb->dev->speed,
+		_qh->usecs = NS_TO_US(usb_calc_bus_time(_urb->dev->speed,
 					       usb_pipein(_urb->pipe),
 					       (_qh->ep_type == USB_ENDPOINT_XFER_ISOC),
-					       bytecount);
+					       bytecount));
 
 		/* Start in a slightly future (micro)frame. */
 		_qh->sched_frame = dwc_frame_num_inc(_hcd->frame_number,
@@ -234,6 +239,7 @@ void dwc_otg_hcd_qh_init(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh, struct urb *_ur
 	}
 #endif	
 #endif	
+        _qh->dw_align_buf = NULL;
 	return;
 }
 
@@ -289,7 +295,7 @@ static int check_periodic_bandwidth(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh)
 		 * High speed mode.
 		 * Max periodic usecs is 80% x 125 usec = 100 usec.
 		 */
-		max_claimed_usecs = 900 - _qh->usecs;
+		max_claimed_usecs = 100 - _qh->usecs;
 	} else {
 		/*
 		 * Full speed mode.

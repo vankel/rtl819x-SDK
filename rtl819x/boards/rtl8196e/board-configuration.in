@@ -13,6 +13,21 @@ config MODEL_RTL8196E_92C_GW
 config MODEL_RTL8196E_88E_GW
         bool "96E+88E GW"
 
+config MODEL_RTL8196E_92E_GW
+        bool "96E+92E GW"
+
+config MODEL_RTL8196E_8812_GW
+        bool "96E+8812 GW"
+
+config MODEL_RTL8196E_92E_GW_16M
+        bool "96E+92E GW 16M"
+
+config MODEL_RTL8196E_92E_AP
+        bool "96E+92E AP"
+
+config MODEL_RTL8196E_8812AR-VN_AP
+        bool "96E+8812AR-VN AP"
+
 config MODEL_RTL8196E_MP
         bool "MP"
 

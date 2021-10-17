@@ -20,51 +20,17 @@
 #ifndef	__ODM_RTL8188E_H__
 #define __ODM_RTL8188E_H__
 
-#define	ANTDIV_ANT_A	0
-#define	ANTDIV_ANT_B	1
+
+#define	MAIN_ANT_CG_TRX	1
+#define	AUX_ANT_CG_TRX	0
+#define	MAIN_ANT_CGCS_RX	0
+#define	AUX_ANT_CGCS_RX	1
 
 VOID
 ODM_DIG_LowerBound_88E(
 	IN		PDM_ODM_T		pDM_Odm
 );
 
-VOID
-odm_FastAntTrainingInit(
-	IN		PDM_ODM_T		pDM_Odm
-);
-
-VOID
-ODM_AntennaDiversityInit_88E(
-	IN		PDM_ODM_T		pDM_Odm
-);
-
-VOID
-ODM_AntennaDiversity_88E
-(
-	IN		PDM_ODM_T		pDM_Odm
-);
-
-VOID
-ODM_SetTxAntByAntDiv(
-	IN		PDM_ODM_T		pDM_Odm,
-	IN		pu1Byte			pDesc,
-	IN		u1Byte			macId	
-);
-
-VOID
-odm_FastAntTraining(
-	IN		PDM_ODM_T		pDM_Odm
-);
-
-VOID
-odm_FastAntTrainingCallback(
-	IN		PDM_ODM_T		pDM_Odm
-);
-
-VOID
-odm_FastAntTrainingWorkItemCallback(
-	IN		PDM_ODM_T		pDM_Odm
-);
 
 VOID
 odm_PrimaryCCA_Init(
@@ -79,3 +45,4 @@ odm_DynamicPrimaryCCA(
 	IN		PDM_ODM_T		pDM_Odm);
 
 #endif
+

@@ -61,15 +61,9 @@
         .macro  SAVE_RADIAX
         .set push
         .set at
-		mflxc0	$8,  $0
-		mflxc0  $9,  $1
-		mflxc0  $10, $2
 		mfru    $11, $0
 		mfru    $12, $1
 		mfru    $13, $2
-		sw      $8,  PT_ESTATUS(sp)
-		sw      $9,  PT_ECAUSE(sp)
-		sw      $10, PT_INTVEC(sp)
 		sw      $11, PT_CBS0(sp)
 		sw      $12, PT_CBS1(sp)
 		sw      $13, PT_CBS2(sp)
@@ -87,14 +81,10 @@
 		sw      $12, PT_LPE0(sp)
 		sw      $13, PT_LPC0(sp)
 		sw      $14, PT_MMD(sp)
-		mfa     $8,  $1
 		mfa     $9,  $1, 8
-		mfa     $10, $2
 		mfa     $11, $2, 8
-		sw	    $8,  PT_M0LL(sp)
 		srl     $12, $9,24
 		sw	    $12, PT_M0LH(sp)
-		sw	    $10, PT_M0HL(sp)
 		srl     $12, $11,24
 		sw	    $12, PT_M0HH(sp)
 		mfa     $8,  $5
@@ -130,17 +120,24 @@
         .set pop
         .endm
 
-        .macro  RESTORE_RADIAX
-        .set push
-        .set at
-    	lw      $8,  PT_ESTASUS(sp)
-		lw      $9,  PT_ECAUSE(sp)
-		lw      $10, PT_INTVEC(sp)
+		.macro RESTORE_M0LH_M0HH
+		.set push
+		.set at
+		lw      $9,  PT_M0LH(sp)
+		lw      $11, PT_M0HH(sp)
+		sll     $12, $9, 24
+		mta2.g  $12, $1
+		sll     $12, $11, 24
+		mta2.g  $12, $2
+		.set pop
+		.endm
+
+		.macro  RESTORE_RADIAX
+		.set push
+		.set at
 		lw      $11, PT_CBS0(sp)
 		lw      $12, PT_CBS1(sp)
 		lw      $13, PT_CBS2(sp)
-		mtlxc0  $8,  $0
-		mtlxc0  $10, $2
 		mtru    $11, $0
 		mtru    $12, $1
 		mtru    $13, $2
@@ -158,16 +155,6 @@
 		mtru    $12, $17
 		mtru    $13, $18
 		mtru    $14, $24
-		lw	    $8,  PT_M0LL(sp)
-		lw	    $9,  PT_M0LH(sp)
-		lw      $10, PT_M0HL(sp)
-		lw      $11, PT_M0HH(sp)
-		mta2 	$8,  $1
-		sll	    $12, $9, 24
-		mta2.g	$12, $1
-		mta2	$10, $2
-		sll	    $12, $11, 24
-		mta2.g	$12, $2
 		lw      $8,  PT_M1LL(sp)
 		lw      $9,  PT_M1LH(sp)
 		lw      $10, PT_M1HL(sp)
@@ -195,9 +182,9 @@
 		mta2 	$8,  $13
 		sll	    $12, $9, 24
 		mta2.g	$12, $13
-		mta2	$10, $13
+		mta2	$10, $14
 		sll	    $12, $11, 24
-		mta2.g	$12, $13
+		mta2.g	$12, $14
         .set pop
         .endm
 #endif
@@ -327,6 +314,9 @@
 		mtlo	$24
 		LONG_L	$24, PT_HI(sp)
 		mthi	$24
+#ifdef CONFIG_CPU_HAS_RADIAX
+		RESTORE_M0LH_M0HH
+#endif
 		LONG_L	$8, PT_R8(sp)
 		LONG_L	$9, PT_R9(sp)
 		LONG_L	$10, PT_R10(sp)

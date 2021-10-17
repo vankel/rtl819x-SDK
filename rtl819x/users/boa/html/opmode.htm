@@ -6,10 +6,9 @@
 <title>Operation Mode</title>
 <script type="text/javascript" src="util_gw.js"> </script>
 <script>
-wlan_num =<% getIndex("show_wlan_num"); %> ;
-wispWanId = <% getIndex("wispWanId"); %> ;
+var wlan_num =<% getIndex("show_wlan_num"); %> ;
+var wispWanId = <% getIndex("wispWanId"); %> ;
 var isPocketRouter="<% getInfo("isPocketRouter"); %>"*1;
-var isPureAP="<% getIndex("isPureAP"); %>"*1;
 function opModeClick()
 {
 	if(wlan_num > 1){
@@ -90,11 +89,6 @@ function opModeClick()
 	{
 		document.fmOpMode.opMode[0].disabled =true;
 		document.fmOpMode.opMode[1].disabled =true;
-		document.fmOpMode.opMode[2].disabled =true;
-	}
-	else if(isPureAP == 1)
-	{
-		document.fmOpMode.opMode[0].disabled =true;
 		document.fmOpMode.opMode[2].disabled =true;
 	}
 		

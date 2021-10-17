@@ -37,6 +37,8 @@
 #define CONFIG_RTL_INBOUND_COLLISION_AVOIDANCE
 #define CONFIG_RTL_HALF_NAPT_ACCELERATION
 
+#define RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT	1
+
 typedef struct _rtl865x_napt_entry
 {
 	uint32 protocol;	//RTL865X_PROTOCOL_UDP or RTL865X_PROTOCOL_TCP
@@ -116,6 +118,10 @@ int32 rtl865x_preReserveConn(rtl865x_napt_entry *naptEntry);
 #if defined(CONFIG_RTL_HARDWARE_NAT)
 int32 rtl_nat_expire_interval_update(int proto, int32 interval);
 int32 rtl865x_nat_reinit(void);
+#endif
+
+#if defined(RTL_REFRESH_HW_L2_ENTRY_DECIDE_BY_HW_NAT)
+int rtl865x_check_hw_nat_by_ip(ipaddr_t ip);
 #endif
 
 #endif

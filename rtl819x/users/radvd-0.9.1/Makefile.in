@@ -578,4 +578,5 @@ dist-hook:
 
 romfs:
 	$(ROMFSINST) radvd /bin/radvd;
+	$(ROMFSINST) radvdump /bin/radvdump;
 	$(ROMFSINST) radvd.conf.example /etc/radvd.conf

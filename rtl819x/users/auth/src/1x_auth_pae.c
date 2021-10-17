@@ -172,7 +172,7 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 	dev_txrx = (TxRx_Params * ) malloc ( sizeof(TxRx_Params) );
 
 	memcpy( dev_txrx->oursvr_addr, oursvr_addr, ETHER_ADDRLEN );
-        memcpy( dev_txrx->oursupp_addr, oursupp_addr, ETHER_ADDRLEN );
+	memcpy( dev_txrx->oursupp_addr, oursupp_addr, ETHER_ADDRLEN );
 	memcpy( dev_txrx->svr_addr, svr_addr, ETHER_ADDRLEN );
 
 #ifndef PSK_ONLY
@@ -204,7 +204,49 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 		dev_txrx->radsvraddr.sin_family = PF_INET;   // we need to 'connect' on udp to the server
 		dev_txrx->radsvraddr.sin_port = htons( udp_svrport );
 		dev_txrx->radsvraddr.sin_addr.s_addr = inet_addr( svrip_addr );
+		if ((auth->currentRole != role_Supplicant_adhoc) &&
+						(auth->currentRole != role_wds)) {
+#ifndef START_AUTH_IN_LIB
+			auth->GlobalTxRx = dev_txrx;
+			if(lib1x_init_fifo(auth, dev_supp)) {
+				printf("auth-%s:create fifo error \n", dev_supp);
+				return -1;
+			}
+#endif
+		}
 
+		
+		//---------------------------------
+		// wireless device initialization
+		//---------------------------------
+		dev_txrx->device_supp = (u_char*)malloc(IFNAMSIZ + 10);
+		memset( dev_txrx->device_supp, 0, sizeof(dev_txrx->device_supp));
+			strcpy( dev_txrx->device_supp, dev_supp );
+			dev_txrx->network_supp =  lib1x_nal_initialize( dev_txrx->device_supp, oursupp_addr, LIB1X_IT_PKTSOCK);
+		
+			//---------------------------------
+		// wireless device initialization
+		//---------------------------------
+			dev_txrx->device_wlan0 = (u_char*)malloc(IFNAMSIZ + 10);
+			memset( dev_txrx->device_wlan0, 0, sizeof(dev_txrx->device_wlan0));
+		//sc_yang
+		//strncpy( dev_txrx->device_wlan0, "wlan0", sizeof("wlan0") );
+		strcpy( dev_txrx->device_wlan0, dev_txrx->device_supp);
+		
+		
+		//---------------------------------
+		// driver interface initialization
+		//---------------------------------
+		dev_txrx->fd_control = lib1x_control_init();
+
+
+		
+#ifdef _RTL_WPA_UNIX
+		lib1x_init_authRSNConfig(auth);
+#endif
+#ifdef CONFIG_IEEE80211W
+		lib1x_control_InitPMF(auth);
+#endif
 
 		if(lib1x_nal_connect( dev_txrx->network_svr,  & dev_txrx->radsvraddr, sizeof(struct sockaddr_in ), LIB1X_IT_UDPSOCK_AUTH) < 0)
 		{
@@ -292,6 +334,7 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 
 #endif // !PSK_ONLY        
 
+#if 0
 	//---------------------------------
 	// wireless device initialization
 	//---------------------------------
@@ -314,7 +357,7 @@ TxRx_Params * lib1x_init_txrx(Dot1x_Authenticator * auth, u_char * oursvr_addr, 
 	// driver interface initialization
 	//---------------------------------
 	dev_txrx->fd_control = lib1x_control_init();
-
+#endif
 	return dev_txrx;
 }
 
@@ -366,7 +409,11 @@ int lib1x_init_auth(Dot1x_Authenticator * auth)
 
 	}
 #ifdef RTL_WPA2
-        INIT_LIST_HEAD(&auth->pmk_cache);
+	INIT_LIST_HEAD(&auth->pmksa_list.pmk_cache);
+	if(auth->RSNVariable.max_pmksa)
+		auth->pmksa_list.quota = auth->RSNVariable.max_pmksa;
+	else
+		auth->pmksa_list.quota = 0;
 #endif
 	return TRUE;
 
@@ -485,6 +532,10 @@ int lib1x_init_authGlobal(Dot1x_Authenticator *auth)
         auth->gk_sm->GNonce.Length = KEY_NONCE_LEN;
         auth->gk_sm->GN = 1;
         auth->gk_sm->GM = 2;
+#ifdef CONFIG_IEEE80211W
+		auth->gk_sm->GN_igtk = 4;
+		auth->gk_sm->GM_igtk = 5;
+#endif /* CONFIG_IEEE80211W */			
         auth->gk_sm->GKeyFailure = FALSE;
         auth->gk_sm->GTKRekey = FALSE;
         auth->gk_sm->GTKAuthenticator = TRUE;
@@ -696,6 +747,11 @@ Global_Params *  lib1x_init_authenticator(Dot1x_Authenticator *auth, TxRx_Params
 
 // Kenny
     //    global->KeyDescriptorVer = key_desc_ver1;
+#ifdef CONFIG_IEEE80211W	
+    if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_BIP)
+		global->KeyDescriptorVer = key_desc_ver3;
+	else 
+#endif	
 	if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_CCMP)
 		global->KeyDescriptorVer = key_desc_ver2;
 	else
@@ -753,13 +809,13 @@ Global_Params *  lib1x_init_authenticator(Dot1x_Authenticator *auth, TxRx_Params
 	global->bMacAuthEnabled = auth->RSNVariable.MacAuthEnabled;
 
 	//---- For Accounting
-	global->akm_sm->SessionTimeout = LIB1X_DEAFULT_SESSION_TIMEOUT;//Abocom
+	global->akm_sm->SessionTimeout = 0;//Abocom
 	global->akm_sm->SessionTimeoutCounter = 0;
-	global->akm_sm->SessionTimeoutEnabled = FALSE;
-	global->akm_sm->IdleTimeout = LIB1X_DEFAULT_IDLE_TIMEOUT;
-	global->akm_sm->IdleTimeoutCounter = LIB1X_DEFAULT_IDLE_TIMEOUT;
+	global->akm_sm->SessionTimeoutEnabled = 0;
+	global->akm_sm->IdleTimeout = 0;
+	global->akm_sm->IdleTimeoutCounter = 0;
 	global->akm_sm->IdleTimeoutEnabled = FALSE;
-	global->akm_sm->InterimTimeout = LIB1X_DEFAULT_INTERIM_TIMEOUT;
+	global->akm_sm->InterimTimeout = 0;
 	global->akm_sm->InterimTimeoutCounter = 0;
 	global->akm_sm->InterimTimeoutEnabled = FALSE;
 
@@ -807,12 +863,11 @@ void lib1x_reset_authenticator(Global_Params * global)
 #ifdef RTL_WPA2
 	if (global->RSNVariable.PMKCached) {
 		auth_pae->state = apsm_Authenticated;
-	} else {
+	} else
 #endif
-	auth_pae->state = apsm_Connecting;
-#ifdef RTL_WPA2
+	{
+		auth_pae->state = apsm_Connecting;
 	}
-#endif
 	auth_pae->eapLogoff = FALSE;
 	auth_pae->eapStart = FALSE;
 	auth_pae->portMode = pmt_Auto;
@@ -898,6 +953,11 @@ void lib1x_reset_authenticator(Global_Params * global)
 
 //Kenny
 	// global->KeyDescriptorVer = key_desc_ver1;
+#ifdef CONFIG_IEEE80211W	
+	if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_BIP)
+		global->KeyDescriptorVer = key_desc_ver3;
+	else 
+#endif	
 	if (global->auth->RSNVariable.MulticastCipher == DOT11_ENC_CCMP)
 		global->KeyDescriptorVer = key_desc_ver2;
 	else
@@ -943,13 +1003,13 @@ void lib1x_reset_authenticator(Global_Params * global)
 	global->bMacAuthEnabled = global->auth->RSNVariable.MacAuthEnabled;
 
 	//---- For Accounting
-	global->akm_sm->SessionTimeout = LIB1X_DEAFULT_SESSION_TIMEOUT;//Abocom
+	global->akm_sm->SessionTimeout = 0;//Abocom
 	global->akm_sm->SessionTimeoutCounter = 0;
 	global->akm_sm->SessionTimeoutEnabled = FALSE;
-	global->akm_sm->IdleTimeout = LIB1X_DEFAULT_IDLE_TIMEOUT;
-	global->akm_sm->IdleTimeoutCounter = LIB1X_DEFAULT_IDLE_TIMEOUT;
+	global->akm_sm->IdleTimeout = 0;
+	global->akm_sm->IdleTimeoutCounter = 0;
 	global->akm_sm->IdleTimeoutEnabled = FALSE;
-	global->akm_sm->InterimTimeout = LIB1X_DEFAULT_INTERIM_TIMEOUT;
+	global->akm_sm->InterimTimeout = 0;
 	global->akm_sm->InterimTimeoutCounter = 0;
 	global->akm_sm->InterimTimeoutEnabled = FALSE;
 
@@ -1645,6 +1705,11 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 	u_char	wpa2IETag[] = {0x01, 0x00};
 	BOOLEAN bWPA2 = FALSE;
 #endif
+#ifdef HS2_SUPPORT
+	u_char	OSENIETag[] = {0x50, 0x6F, 0x9A, 0x12};
+	BOOLEAN bOSEN = FALSE;
+	int i;
+#endif
 
         // The first byte is [event type]
         // The second byte is [more event] flag
@@ -1677,6 +1742,25 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 			global->RSNVariable.WPA2Enabled = bWPA2;
 
 
+            
+#ifdef HS2_SUPPORT
+			HS2DEBUG("bWPA2=%d\n",bWPA2);
+			if(global->auth->RSNVariable.bOSEN) 
+			{
+				bOSEN = (((u_char)pAssoInd->RSNIE[0] == 0xdd) && !strncmp(OSENIETag, (pAssoInd->RSNIE + 2), sizeof (OSENIETag)))? TRUE:FALSE;
+				bWPA2 = bOSEN;
+				global->RSNVariable.WPA2Enabled = bOSEN;
+			}
+
+			//printf("bOSEN=%d, compared1=%d, compare=%d, \nbOSEN=%d, usLength=%d, RSNIE[0]=%x, RSNIE[1]=%x\n",
+			//global->auth->RSNVariable.bOSEN, ((u_char)pAssoInd->RSNIE[0] == 0xdd), !strncmp(OSENIETag, (pAssoInd->RSNIE + 2), sizeof (OSENIETag)), bOSEN,usLength,pAssoInd->RSNIE[0],pAssoInd->RSNIE[1]);
+			#ifdef HS2DEBUGMSG
+			printf("RSNIE=");
+			for(i=0;i<usLength;i++)
+				printf("%02X ",pAssoInd->RSNIE[i]);
+			printf("\n");
+            #endif
+#endif
 			if(usLength && ( (!strncmp(wpaIETag, (pAssoInd->RSNIE + 2), sizeof (wpaIETag))) || bWPA2 ))
 
 #else
@@ -1716,6 +1800,7 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 					lib1x_message(MESS_DBG_RSNINFO, "lib1x_authRSN_parseIE return Fail");
 					lib1x_message(MESS_DBG_RSNINFO, lib1x_authRSN_err(retResult));
 #ifdef RTL_WPA2
+
 					lib1x_control_AssociationRsp(global, -retResult, event);
 #else
 					lib1x_control_AssociationRsp(global, -retResult);
@@ -1734,11 +1819,13 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 #else
 				retResult = lib1x_authRSN_match(global->auth, global);
 #endif
+
 				if(retResult)
 				{
 					lib1x_message(MESS_DBG_RSNINFO, "lib1x_authRSN_match return Fail\n");
 					lib1x_message(MESS_DBG_RSNINFO, "Error Reason:%s\n", lib1x_authRSN_err(retResult));
-#ifdef RTL_WPA2
+#ifdef RTL_WPA2              
+
 					lib1x_control_AssociationRsp(global, -retResult, event);
 #else
 					lib1x_control_AssociationRsp(global, -retResult);
@@ -1748,18 +1835,21 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 				}
 
 #ifdef RTL_WPA2
-				lib1x_control_AssociationRsp(global, 0, event);	// successful
+
+				PMFDEBUG("lib1x_control_AssociationRsp\n");
+ 				lib1x_control_AssociationRsp(global, 0, event);	// successful
 #else
 				lib1x_control_AssociationRsp(global, 0);	// successful
 #endif
 
-#ifdef RTL_WPA2_PREAUTH
+                #ifdef RTL_WPA2_PREAUTH
 				//printf("%s successful\n", event == DOT11_EVENT_ASSOCIATION_IND?"DOT11_EVENT_ASSOCIATION_IND":"DOT11_EVENT_REASSOCIATION_IND");
-#endif
+                #endif
+                
 				global->theAuthenticator->eapStart = TRUE;
 				global->akm_sm->AuthenticationRequest = TRUE;
-				// reset replay counter, david+12-01-2006				
-//				memset(&global->akm_sm->CurrentReplayCounter, '\0', sizeof(LARGE_INTEGER));
+				//reset replay counter, david+12-01-2006				
+                //memset(&global->akm_sm->CurrentReplayCounter, '\0', sizeof(LARGE_INTEGER));
 				
 				lib1x_message(MESS_DBG_RSNINFO, "lib1x_authRSN_match return Success\n");
 				// david+2006-03-31, add event to syslog
@@ -1800,6 +1890,7 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 			}else
 			//---- Not RSN Client. either STA without 802.1x or 802.1x client
 			{
+				
 				global->AuthKeyMethod = DOT11_AuthKeyType_PRERSN;
 
 				//---- If Association or Re-association happen within expire timeout or idle time-out
@@ -1831,6 +1922,7 @@ int lib1x_capture_control(Global_Params * global, struct lib1x_nal_intfdesc * na
 					lib1x_message(MESS_DBG_RSNINFO, "without RSNIE");
 					lib1x_message(MESS_DBG_RSNINFO, lib1x_authRSN_err(ERROR_INVALID_RSNIE));
 #ifdef RTL_WPA2
+
 					lib1x_control_AssociationRsp(global, -ERROR_INVALID_RSNIE, event);
 #else
 					lib1x_control_AssociationRsp(global, -ERROR_INVALID_RSNIE);
@@ -1971,12 +2063,67 @@ lib1x_capture_control_END:
 
 #endif //_RTL_WPA_UNIX
 
+void hex_dump(void *data, int size)
+{
+    /* dumps size bytes of *data to stdout. Looks like:
+     * [0000] 75 6E 6B 6E 6F 77 6E 20
+     *                  30 FF 00 00 00 00 39 00 unknown 0.....9.
+     * (in a single line of course)
+     */
 
+    unsigned char *p = data;
+    unsigned char c;
+    int n;
+    char bytestr[4] = {0};
+    char addrstr[10] = {0};
+    char hexstr[ 16*3 + 5] = {0};
+    char charstr[16*1 + 5] = {0};
+    for(n=1;n<=size;n++) {
+        if (n%16 == 1) {
+            /* store address for this line */
+            snprintf(addrstr, sizeof(addrstr), "%.4x",
+               ((unsigned int)p-(unsigned int)data) );
+        }
+
+        c = *p;
+        if (isalnum(c) == 0) {
+            c = '.';
+        }
+
+        /* store hex str (for left side) */
+        snprintf(bytestr, sizeof(bytestr), "%02X ", *p);
+        strncat(hexstr, bytestr, sizeof(hexstr)-strlen(hexstr)-1);
+
+        /* store char str (for right side) */
+        snprintf(bytestr, sizeof(bytestr), "%c", c);
+        strncat(charstr, bytestr, sizeof(charstr)-strlen(charstr)-1);
+
+        if(n%16 == 0) {
+            /* line completed */
+            printf("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
+            hexstr[0] = 0;
+			charstr[0] = 0;
+        } else if(n%8 == 0) {
+            /* half line: add whitespaces */
+            strncat(hexstr, "  ", sizeof(hexstr)-strlen(hexstr)-1);
+            strncat(charstr, " ", sizeof(charstr)-strlen(charstr)-1);
+        }
+        p++; /* next byte */
+    }
+
+    if (strlen(hexstr) > 0) {
+        /* print rest of buffer if not empty */
+        printf("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
+    }
+}
 
 //--------------------------------------------------
 // Callback handler for libpcap for packets from
 // authentication server BIG TODO HERE !!!!!!!
 //--------------------------------------------------
+/* compile error for 96c and 98 */
+void lib1x_process_radiusdisconreq( Global_Params * global, struct lib1x_packet * spkt);
+
 void lib1x_authsm_capture_svr( Global_Params * global, struct lib1x_nal_intfdesc * nal, struct lib1x_packet * pkt )
 {
 	struct lib1x_radiushdr * rhdr;
@@ -2029,6 +2176,11 @@ void lib1x_authsm_capture_svr( Global_Params * global, struct lib1x_nal_intfdesc
 						break;
 		case 	LIB1X_RAD_ACCTRSP:
 						lib1x_process_radiusacct(global, pkt);
+						lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATION RADIUS Accounting Respond");
+						break;
+		/*HS2 SUPPORT ; HS2_SUPPORT*/
+		case	LIB1X_RAD_DISCONNECT_REQ:
+						lib1x_process_radiusdisconreq(global, pkt);						
 						lib1x_message( MESS_DBG_SPECIAL, "AUTHENTICATION RADIUS Accounting Respond");
 						break;
 	}
@@ -2099,6 +2251,11 @@ void lib1x_process_radiusaccept( Global_Params * global, struct lib1x_packet * s
 			lib1x_N2L(vendor_ptr, vendor);
 			if(vendor == LIB1X_RADVENDOR_MS)
 				lib1x_rad_vendor_attr(global, ((u_char *)rattr) + 6, rattr->length - 6);
+#ifdef HS2_SUPPORT
+			else if(vendor == LIB1X_RADVENDOR_WFA)
+				lib1x_rad_vendor_attr_WFA(global, ((u_char *)rattr) + 6, rattr->length - 6);
+				
+#endif
                 }
 		//Accounting
 		if( rattr->type == LIB1X_RAD_SESSION_TIMEOUT)
@@ -2244,6 +2401,120 @@ void lib1x_process_radiuschallenge( Global_Params * global, struct lib1x_packet 
 	}
 
 }
+
+//--------------------------------------------------
+//HS2 SUPPORT
+// Process the radius Disconnect Request message
+//--------------------------------------------------
+void lib1x_process_radiusdisconreq( Global_Params * global, struct lib1x_packet * spkt)
+{
+
+	Auth_Pae		* auth_pae;
+	struct lib1x_radiushdr  * rhdr;
+	struct lib1x_radiusattr * rattr;
+	struct lib1x_eap        * eap;
+	struct lib1x_radius_das_attr das_attr;
+	u_char done;
+	u_short  unexplen;
+	int  tmplen;
+	u_char *eap_ptr;
+	u_char *vendor_ptr;
+	u_long vendor;
+	int error = 0;
+
+	lib1x_message( MESS_DBG_RAD, "lib1x_process_radiusaccept(1)");
+	auth_pae = global->theAuthenticator;
+
+	rhdr = ( struct lib1x_radiushdr * ) spkt->data ;
+	rattr = ( struct lib1x_radiusattr * ) ( spkt->data + LIB1X_RADHDRLEN );
+
+	done = 0;
+	unexplen = ntohs(rhdr->length) - LIB1X_RADHDRLEN;
+
+	// cycle through the attributes
+	eap_ptr = auth_pae->rinfo->eap_message_frmserver;
+	auth_pae->rinfo->eap_messlen_frmserver = 0;
+	auth_pae->rinfo->rad_stateavailable = FALSE;
+
+	while (!done )
+    {
+	    if ( rattr->type == LIB1X_RAD_VENDOR_SPECIFIC)
+	    {
+			vendor_ptr = ( ( u_char *  )rattr ) + 2;
+			lib1x_N2L(vendor_ptr, vendor);
+			if(vendor == LIB1X_RADVENDOR_MS)
+				lib1x_rad_vendor_attr(global, ((u_char *)rattr) + 6, rattr->length - 6);
+#ifdef HS2_SUPPORT
+			else if(vendor == LIB1X_RADVENDOR_WFA)
+				lib1x_rad_vendor_attr_WFA(global, ((u_char *)rattr) + 6, rattr->length - 6);
+				
+#endif
+	    }
+		if( rattr->type == LIB1X_RAD_USER_NAME)
+		{
+			das_attr.user_name = (u_char *)rattr+2;
+			das_attr.user_name_len = rattr->length;
+			printf("das_attr.user_name=%s\n",das_attr.user_name);
+			
+		}
+		if( rattr->type == LIB1X_RAD_CALLING_STID)
+		{
+			printf("LIB1X_RAD_CALLING_STID=%s\n",(u_char *)rattr+2);
+		}
+		if( rattr->type == LIB1X_RAD_ACCT_SESSION_ID)
+		{
+			u_char		szUTF8[6];
+			u_long		ulUTF8Len;
+			int i;
+			das_attr.acct_session_id = (u_char *)rattr+2;
+			das_attr.acct_session_id_len = rattr->length;
+			printf("das_attr.acct_session_id=%s, das_attr.acct_session_id_len=%d\n",das_attr.acct_session_id, das_attr.acct_session_id_len);
+			lib1x_acct_UCS4_TO_UTF8( auth_pae->acct_sm->sessionId, (u_char*)szUTF8, &ulUTF8Len);
+			printf("auth_pae->acct_sm->sessionId=\n");
+			for(i=0;i<ulUTF8Len;i++)
+				printf("%x\n",szUTF8[i]);
+			printf("\n");
+		}
+		//if( rattr->type == LIB1X_RAD_ACCT_EVT_TIMESTAMP)
+		//{
+		//	
+		//}
+		//if( rattr->type == LIB1X_RAD_MESS_AUTH)
+		//{
+		//	
+		//}
+		if( rattr->type == LIB1X_RAD_ACCT_CHARGEABLE_USER_ID)
+		{
+			das_attr.cui = (u_char *)rattr+2;
+			das_attr.cui_len = rattr->length;
+			printf("das_attr.cui=%s\n",das_attr.cui);
+		}
+		
+		if (!done )
+		{
+			unexplen -= rattr->length;
+			lib1x_message( MESS_DBG_RAD," -------  UNEXP LEN = %d", unexplen );
+			if ( unexplen <= 2 )
+			{		
+			    done = 1;
+			} else
+			{
+			    rattr = ( struct lib1x_radiusattr * )(  (  (u_char *) rattr ) + rattr->length );
+			    /* this should send rattr to the next rattr */
+			}
+			if (rattr->length <= 0 ) done =1 ;
+		}
+	}
+
+
+	global->EventId = akmsm_EVENT_Disconnect;
+	global->akm_sm->Disconnect = TRUE;
+	global->akm_sm->ErrorRsn = auth_not_valid;
+	lib1x_akmsm_Disconnect(global);
+
+	lib1x_rad_disconnect_type( auth_pae, error ? LIB1X_RAD_DISCONNECT_NACK : LIB1X_RAD_DISCONNECT_ACK);
+}
+
 
 //--------------------------------------------------
 // Process response from accounting server
@@ -3067,6 +3338,13 @@ void lib1x_auth_txReqId( Auth_Pae * auth_pae, int identifier )
 #else
 	eth_hdr->ether_type = htons(LIB1X_ETHER_EAPOL_TYPE);
 #endif
+
+#ifdef HS2_SUPPORT
+    if(auth_pae->global->auth->RSNVariable.bOSEN) {
+        HS2DEBUG("OSEN mode , protocol_version=2\n");
+        eapol->protocol_version = 2;
+    } else
+#endif
 	eapol->protocol_version = LIB1X_EAPOL_VER;
 
 	eapol->packet_type = LIB1X_EAPOL_EAPPKT;
@@ -3492,12 +3770,13 @@ int	lib1x_insert_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 		auth_pae = auth->Supp[i]->global->theAuthenticator;
 		global = auth->Supp[i]->global;
 
-		if( !memcmp( auth_pae->supp_addr, supp_addr, ETHER_ADDRLEN ) ){
+		if( !memcmp( &auth->Supp[i]->addr, supp_addr, ETHER_ADDRLEN ) ){
 			//supplicant exists in table
 
 //			PRINT_MAC_ADDRESS(supp_addr, "Supplicant exists in table");
 
 			auth->Supp[i]->isEnable = TRUE;
+			memcpy(auth_pae->supp_addr, supp_addr, ETHER_ADDRLEN);
 			lib1x_reset_authenticator(global);
 //			lib1x_control_RemovePTK(global, DOT11_KeyType_Pairwise);
 //   		lib1x_control_SetPORT(global, DOT11_PortStatus_Unauthorized);
@@ -3505,6 +3784,8 @@ int	lib1x_insert_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 //			global->akm_sm->AuthenticationRequest = TRUE;
 			global->index = i;
 			global->theAuthenticator->rinfo->global_identifier = &auth->GlobalTxRx->GlobalRadId;
+			auth->NumOfSupplicant++;
+			return i;
 		}
 		else{
 			//supplicant does NOT exist in table
@@ -3513,10 +3794,9 @@ int	lib1x_insert_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 				auth->Supp[i]->isEnable = TRUE;
 				auth_pae = auth->Supp[i]->global->theAuthenticator;
 				memcpy(auth_pae->supp_addr, supp_addr, ETHER_ADDRLEN);
+				memcpy(&auth->Supp[i]->addr, supp_addr, ETHER_ADDRLEN);
 				auth->NumOfSupplicant++;
-
 //				PRINT_MAC_ADDRESS(supp_addr, "lib1x_insert_supp->supp_addr");
-
 				lib1x_message(MESS_DBG_SPECIAL, "<lib1x_insert_supp> Number of Supplicant = %d\n",auth->NumOfSupplicant);
 				return i;
 			}
@@ -3561,7 +3841,7 @@ int lib1x_del_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 //			PRINT_MAC_ADDRESS(supp_addr, "lib1x_del_supp->supp_addr");
 //			printf("%s: global->index = %d\n", __FUNCTION__, global->index);
 
-			global->auth->Supp[global->index]->isEnable = FALSE;
+			global->auth->Supp[i]->isEnable = FALSE;
 			lib1x_message(MESS_DBG_KEY_MANAGE, "Delete STA from Table");
 
 			memcpy(auth_pae->supp_addr, EMPTY_ADDR, ETHER_ADDRLEN);
@@ -3570,6 +3850,11 @@ int lib1x_del_supp(Dot1x_Authenticator *auth, u_char * supp_addr)
 			global->akm_sm->CurrentReplayCounter.field.LowPart = 0;
 
 			auth->Supp[i]->isEnable = FALSE;
+			auth->Supp[i]->SessionTimeoutCounter = 0;
+			auth->Supp[i]->IdleTimeout = 0;
+			auth->Supp[i]->IdleTimeoutCounter = 0;
+			auth->Supp[i]->tx_packets = 0;
+			auth->Supp[i]->rx_packets = 0;
 			global->auth->NumOfSupplicant --;
 
 			lib1x_message(MESS_DBG_SPECIAL, "<lib1x_del_supp> Number of Supplicant = %d\n",auth->NumOfSupplicant);

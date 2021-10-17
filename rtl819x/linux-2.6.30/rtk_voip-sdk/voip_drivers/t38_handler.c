@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/signal.h>
 #include <linux/netdevice.h>
 #include <asm/io.h>

@@ -97,7 +97,15 @@ config RTL_IPTABLES_FAST_PATH
 
 config RTL_FAST_PPPOE
         tristate "Realtek Fast PPPOE support"
-        default y
+		depends on RTL_IPTABLES_FAST_PATH        
+		default y
+
+config RTL_PPPOE_DIRECT_REPLY
+        tristate "Realtek Fast PPPOE LCP echo reply support"
+		depends on RTL_IPTABLES_FAST_PATH
+        default n
+
+	
 config FAST_PATH_SPI_ENABLED
         bool "Realtek Fastpath SPI(stateful packet inspection) support"
         depends on RTL_IPTABLES_FAST_PATH
@@ -105,6 +113,14 @@ config FAST_PATH_SPI_ENABLED
 
 config RTL_FASTBRIDGE
         tristate "Realtek fast bridge"
+        default n
+
+config FP_BYPASS_PACKET
+        tristate "fast path support by pass packet"
+        default n
+
+config SUPPORT_RUSSIA_FEATURES
+        tristate "Support russia features"
         default n
 
 config IP_FIB_TRIE_STATS

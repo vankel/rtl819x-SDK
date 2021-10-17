@@ -2,11 +2,17 @@
 # Makefile for the enhance features modules on top of net
 #
  
+include $(DIR_ROOT)/.config
+
 #EXTRA_CFLAGS += -I $(DIR_LINUX)/drivers/net/rtl819x
 EXTRA_CFLAGS += -I $(DIR_LINUX)/net
 EXTRA_CFLAGS += -D__KERNEL__
 #EXTRA_CFLAGS += -Wno-implicit -Werror
-
+ 
+ifeq "$(CONFIG_MODEL_RTL89xxC_SDK)" "y"
+EXTRA_CFLAGS += --save-temps
+endif
+ 
 #EXTRA_CFLAGS += -DCONFIG_RTK_IPTABLES_FAST_PATH
 #EXTRA_CFLAGS += -DCONFIG_FAST_PATH_MODULE
 
@@ -23,7 +29,7 @@ TARGET = 98
 endif
 
 ifeq ($(CONFIG_RTL_8196C),y)
-TARGET = 96E
+TARGET = 96C
 endif
  
 EFEATURES_OBJ=rtl_features.o rtl_ps_hooks.o

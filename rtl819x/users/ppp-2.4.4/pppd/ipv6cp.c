@@ -456,7 +456,6 @@ ipv6cp_open(unit)
 /*
  * ipv6cp_close - Take IPV6CP down.
  */
-
 #ifdef PPPOE_DISC_FLOW_PATCH
 void 
 #else
@@ -1182,7 +1181,9 @@ ipv6cp_up(f)
     ipv6cp_options *ho = &ipv6cp_hisoptions[f->unit];
     ipv6cp_options *go = &ipv6cp_gotoptions[f->unit];
     ipv6cp_options *wo = &ipv6cp_wantoptions[f->unit];
-
+	char cmdBuffer[256];
+	FILE *fp=NULL;
+	
     IPV6CPDEBUG(("ipv6cp: up"));
 
     /*
@@ -1291,6 +1292,14 @@ ipv6cp_up(f)
     np_up(f->unit, PPP_IPV6);
     ipv6cp_is_up = 1;
 
+	sprintf(cmdBuffer,"/var/gateway_ipv6");
+	fp=fopen(cmdBuffer,"w+");
+	if(fp!=NULL){
+		fprintf(fp,"%s",llv6_ntoa(ho->hisid));
+		fclose(fp);
+	}
+	sprintf(cmdBuffer, "/bin/connect6.sh ppp0"); 	
+	system(cmdBuffer);	
     /*
      * Execute the ipv6-up script, like this:
      *	/etc/ppp/ipv6-up interface tty speed local-LL remote-LL

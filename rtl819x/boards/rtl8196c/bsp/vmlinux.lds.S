@@ -117,7 +117,7 @@ SECTIONS
 		*(.iram.1)
    	}
   
-   	. = ALIGN(8192);
+   	. = ALIGN(16384);
    	__dram = . ;
    	__dram_start = . ;
    	.dram	:
@@ -135,7 +135,7 @@ SECTIONS
 		*(.dram)		/* other usage */
 		*(.dram.1)
    	}
-   	. = ALIGN(8192);
+   	. = ALIGN(16384);
    	__dram_end = . ;
 
 	NOTES :text :note

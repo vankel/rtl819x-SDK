@@ -96,5 +96,7 @@ extern int dprintf(char *fmt, ...);
 #define ASSERT_CSP(x) if (!(x)) {dprintf("\nAssertion fail at file"); while(1);}
 #define ASSERT_ISR(x) if (!(x)) {dprintf("\nAssertion fail at file");   while(1);}
 
+extern unsigned long loops_per_jiffy;
+#define mdelay(n) ({unsigned int msec=(n); while (msec--) __delay(loops_per_jiffy / 10);})
 
 #endif

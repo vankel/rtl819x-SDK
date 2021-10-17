@@ -30,6 +30,10 @@
 #include <net/rtl/rtl865x_igmpsnooping.h>
 #include <net/rtl/rtl865x_netif.h>
 #include <net/rtl/rtl_nic.h>
+#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+#include <net/rtl/rtl865x_multicast.h>
+#endif
+
 extern int igmpsnoopenabled;
 extern unsigned int brIgmpModuleIndex;
 extern unsigned int br0SwFwdPortMask;
@@ -37,7 +41,12 @@ extern unsigned int br0SwFwdPortMask;
 extern int mldSnoopEnabled;
 #endif
 #endif
+#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+extern int rtl865x_ipMulticastHardwareAccelerate(struct net_bridge *br, unsigned int brFwdPortMask,
+												unsigned int srcPort,unsigned int srcVlanId, 
+												unsigned int srcIpAddr, unsigned int destIpAddr);
 
+#endif
 #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 extern unsigned int brIgmpModuleIndex_2;
 extern unsigned int br1SwFwdPortMask;
@@ -49,11 +58,48 @@ extern struct net_bridge *bridge1;
 #endif
 #include <net/rtl/features/rtl_ps_log.h>
 
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+extern int rtl_getPassthruMask(void);
 
+
+int32 rtl_checkisPassthruFrame(struct sk_buff *skb)
+{
+	int	ret;	
+	int passthruMask=rtl_getPassthruMask();
+	ret = FAILED;
+	
+	if (passthruMask)
+	{
+		if (passthruMask&IP6_PASSTHRU_MASK)
+		{
+			
+			if (eth_hdr(skb)->h_proto ==  ETH_P_IPV6)		
+			{
+				ret = SUCCESS;
+			}
+		}
+		#if defined(CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE)
+		if (passthruMask&PPPOE_PASSTHRU_MASK)
+		{
+			if ((eth_hdr(skb)->h_proto == __constant_htons(ETH_P_PPP_SES))||(eth_hdr(skb)->h_proto==__constant_htons(ETH_P_PPP_DISC))) 
+				
+			{
+				ret = SUCCESS;
+			}
+		}
+		#endif
+	}
+
+	return ret;
+}
+#endif
 /* Don't forward packets to originating port or forwarding diasabled */
 static inline int should_deliver(const struct net_bridge_port *p,
 				 const struct sk_buff *skb)
 {
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)	
+	const unsigned char *dest = eth_hdr(skb)->h_dest;
+#endif
 	if (skb->dev == p->dev ||
 	    p->state != BR_STATE_FORWARDING)
 		return 0;
@@ -61,7 +107,15 @@ static inline int should_deliver(const struct net_bridge_port *p,
 #if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
 		if (skb->src_info) {
 			struct vlan_info_item *pitem = rtl_get_vlan_info_item_by_dev(p->dev);
-
+			
+#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+			/*ipv6 known unicast from lan not check forwarding rule*/
+			if(!((skb->src_info->is_lan)
+				&& (rtl_checkisPassthruFrame(skb)==SUCCESS)
+				&&((dest[0]&0x1)==0 &&( __br_fdb_get(p->br, dest)))))
+				
+#endif	
+			{
 			/* index == 1, it means skb is cloned skb in rx_vlan_process */
 			if (skb->src_info->index) {
 				if (pitem && pitem->info.forwarding_rule!=1)
@@ -79,8 +133,45 @@ static inline int should_deliver(const struct net_bridge_port *p,
 				if (pitem && pitem->info.forwarding_rule==1)
 					return 0;
 			}
+			}
 		}
 #endif
+#ifdef CONFIG_RTK_GUEST_ZONE
+	if (skb->dev && skb->dev->br_port && p->br) {
+		// skb to/from different zone case, check zone isolation
+		if (p->br->is_zone_isolated &&
+			(((skb->dev->br_port->zone_type == ZONE_TYPE_HOST) && (p->zone_type == ZONE_TYPE_GUEST)) ||
+			 ((skb->dev->br_port->zone_type == ZONE_TYPE_GUEST) && (p->zone_type == ZONE_TYPE_HOST)))) {
+#ifdef DEBUG_GUEST_ZONE
+			GZDEBUG("zone block!\n");
+#endif
+			return 0;
+		}
+
+		// skb to/from guest zone case, check guest isolation
+		if (p->br->is_guest_isolated &&
+			(skb->dev->br_port->zone_type == ZONE_TYPE_GUEST) &&
+			(p->zone_type == ZONE_TYPE_GUEST)) {
+#ifdef DEBUG_GUEST_ZONE
+			GZDEBUG("guest block!\n");
+#endif
+			return 0;
+		}
+
+		// skb from guest zone and to gateway zone case, check gateway mac
+		if ((skb->dev->br_port->zone_type == ZONE_TYPE_GUEST) &&
+			(p->zone_type == ZONE_TYPE_GATEWAY)) {
+			if (p->br->gateway_mac_set &&
+				memcmp(eth_hdr(skb)->h_dest, p->br->gateway_mac, 6) &&
+				memcmp(eth_hdr(skb)->h_dest, "\xff\xff\xff\xff\xff\xff", 6)) {
+#ifdef DEBUG_GUEST_ZONE
+				GZDEBUG("un-gateway block!\n");
+#endif
+				return 0;
+			}
+		}
+	}
+#endif // CONFIG_RTK_GUEST_ZONE
 	return 1;
 }
 
@@ -210,7 +301,18 @@ static void br_flood(struct net_bridge *br, struct sk_buff *skb,
 				 }
 			}
 
-
+				/*patch for lan->wan duplicat packet(dmac=33:33:ff:xx:xx:xx) when pppoe/ipv6 passthrough enable*/
+			if((strcmp(skb->dev->name,"eth0")==0)&&(	
+			#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+				(rtk_vlan_support_enable==0)&&
+			#endif
+				(dest[0]==0x33&&dest[1]==0x33&&dest[2]==0xff)))
+			{
+				 if((strncmp(p->dev->name,"peth0",5)==0))
+				 {
+					continue;
+				 }
+			}
 
 			if (prev != NULL) {
 				struct sk_buff *skb2;
@@ -360,6 +462,10 @@ int rtl865x_checkUnknownMCastLoading(struct rtl_multicastDataInfo *mCastInfo)
 	{
 		return 0;
 	}
+	if(rtl_check_ReservedMCastAddr(mCastInfo->groupAddr[0])==SUCCESS)
+	{
+		return 0;
+	}
 	/*check entry existed or not*/
 	for(i=0; i<MAX_UNKNOWN_MULTICAST_NUM; i++)
 	{
@@ -420,6 +526,12 @@ int rtl865x_checkUnknownMCastLoading(struct rtl_multicastDataInfo *mCastInfo)
 
 	return 0;
 }
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+extern int rtl_check_brIgmpModuleName(char *name);
+extern int rtl_get_brIgmpModuleIndexbyName(char *name, int * index);
+extern struct net_bridge * rtl_get_brByIndex(int index);
+extern unsigned int rtl_get_brSwFwdPortMaskByIndex(int index);
+#endif
 int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 {
 	const unsigned char *dest = NULL;
@@ -443,14 +555,28 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 #if	defined (CONFIG_RTL_IGMP_PROXY)
 	struct net_device *dev=skb->dev;
 #endif
-#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
-	struct net_bridge *bridge = bridge0;
+#if defined (CONFIG_RTK_VLAN_WAN_TAG_SUPPORT) ||defined(CONFIG_RTL_HW_MCAST_WIFI)||defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+struct net_bridge * bridge=NULL;
+
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+	unsigned int igmpModuleIndex =0xFFFFFFFF;
+	int index = -1;
+	unsigned int swFwdPortMask =0xFFFFFFFF;	
+#endif
+#if defined (CONFIG_RTK_VLAN_WAN_TAG_SUPPORT) ||defined(CONFIG_RTL_HW_MCAST_WIFI)
 	unsigned int brSwFwdPortMask = br0SwFwdPortMask;
 #endif	
+#endif
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
 	unsigned int srcPort=skb->srcPort;
 	unsigned int srcVlanId=skb->srcVlanId;
+	rtl865x_tblDrv_mCast_t *existMulticastEntry=NULL;
 #endif
+
+#if defined (CONFIG_RTK_VLAN_WAN_TAG_SUPPORT) ||defined(CONFIG_RTL_HW_MCAST_WIFI)
+	bridge = bridge0;
+#endif
+
 	/*check fast forward enable or not*/
 	if(ipMulticastFastFwd==0)
 	{
@@ -469,7 +595,8 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 	{
 		return -1;
 	}
-
+	
+#if !defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
 	/*check bridge0 exist or not*/
 	if((bridge0==NULL) ||(bridge0->dev->flags & IFF_PROMISC))
 	{
@@ -480,6 +607,25 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 	{
 		return -1;
 	}
+#else
+
+	if(skb->dev==NULL)
+		return -1;
+	
+	ret=rtl_check_brIgmpModuleName(skb->dev->name);
+	
+	if(ret == -1)
+		return -1;
+
+	igmpModuleIndex=rtl_get_brIgmpModuleIndexbyName(RTL_PS_BR0_DEV_NAME,&index);
+	bridge =rtl_get_brByIndex(index);
+	
+	if((igmpModuleIndex ==0xFFFFFFFF)||(bridge==NULL))
+		return -1;
+	
+	swFwdPortMask=rtl_get_brSwFwdPortMaskByIndex(index);
+#endif
+
     #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 	if((strncmp(skb->dev->name,RTL_PS_BR1_DEV_NAME,3)==0))
 	{
@@ -506,7 +652,8 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 
 		iph=(struct iphdr *)(ptr+2);
 
-		if(iph->daddr== 0xEFFFFFFA)
+		if((iph->daddr== 0xEFFFFFFA)||
+			(rtl_check_ReservedMCastAddr(iph->daddr)==SUCCESS))
 		{
 			/*for microsoft upnp*/
 			reserved=1;
@@ -528,7 +675,7 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 				{
 					if(rtl865x_checkUnknownMCastLoading(&multicastDataInfo)==BLOCK_UNKNOWN_MULTICAST)
 					{
-#if defined( CONFIG_RTL865X_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
+#if defined(CONFIG_RTL_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
 						if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF))
 						{
 							rtl865x_blockMulticastFlow(srcVlanId, srcPort, iph->saddr,iph->daddr);
@@ -549,7 +696,10 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 			multicastDataInfo.ipVersion=4;
 			multicastDataInfo.sourceIp[0]=  (unsigned int)(iph->saddr);
 			multicastDataInfo.groupAddr[0]=  (unsigned int)(iph->daddr);
-
+			
+			#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+				ret= rtl_getMulticastDataFwdInfo(igmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
+			#else
             #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT //fix tim
 			if(!strcmp(skb->dev->name,RTL_PS_ETH_NAME_ETH2)){
 					ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex_2, &multicastDataInfo, &multicastFwdInfo);
@@ -559,7 +709,7 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 			else
 		    #endif
 			ret= rtl_getMulticastDataFwdInfo(brIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
-
+			#endif
 			//printk("%s:%d,ret is %d\n",__FUNCTION__,__LINE__,ret);
 			 if((ret!=0)||multicastFwdInfo.reservedMCast || multicastFwdInfo.unknownMCast)
 			{
@@ -567,7 +717,7 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 					(strncmp(skb->dev->name,RTL_PS_WAN0_DEV_NAME,4)==0) && 		//only block heavyloading multicast data from wan
 					(rtl865x_checkUnknownMCastLoading(&multicastDataInfo)==BLOCK_UNKNOWN_MULTICAST))
 				{
-#if defined( CONFIG_RTL865X_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
+#if defined(CONFIG_RTL_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
 					if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF))
 					{
 						rtl865x_blockMulticastFlow(srcVlanId, srcPort, iph->saddr,iph->daddr);
@@ -585,45 +735,107 @@ int rtl865x_ipMulticastFastFwd(struct sk_buff *skb)
 
 			//printk("%s:%d,br0SwFwdPortMask is 0x%x,multicastFwdInfo.fwdPortMask is 0x%x\n",__FUNCTION__,__LINE__,br0SwFwdPortMask,multicastFwdInfo.fwdPortMask);
 			#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
-			if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF))
+			
+			existMulticastEntry=rtl865x_findMCastEntry(iph->daddr, iph->saddr, srcVlanId, srcPort);
+			if(	(existMulticastEntry==NULL)||
+				((existMulticastEntry!=NULL) && (existMulticastEntry->inAsic)))
+			
 			{
-				/*multicast data comes from ethernet port*/
-				#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
-				if( (brSwFwdPortMask & multicastFwdInfo.fwdPortMask)==0)
-				#else
-				if( (br0SwFwdPortMask & multicastFwdInfo.fwdPortMask)==0)
-				#endif
+				
+				if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF))
 				{
-					/*hardware forwarding ,let slow path handle packets trapped to cpu*/
-					return -1;
+					/*multicast data comes from ethernet port*/
+					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+					
+					if( (swFwdPortMask & multicastFwdInfo.fwdPortMask)==0)
+					#else
+					#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+					if( (brSwFwdPortMask & multicastFwdInfo.fwdPortMask)==0)
+					#else
+					if( (br0SwFwdPortMask & multicastFwdInfo.fwdPortMask)==0)
+					#endif
+					#endif
+					{
+						/*hardware forwarding ,let slow path handle packets trapped to cpu*/
+						return -1;
+					}
+					#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+					#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+					else if(( ((~swFwdPortMask) & multicastFwdInfo.fwdPortMask)!=0)&&(ret==SUCCESS))
+					{
+						/*eth client , hw forwarding*/
+						#if defined(CONFIG_RTK_VLAN_SUPPORT)
+						if(rtk_vlan_support_enable == 0)
+						#endif
+						{
+							rtl865x_ipMulticastHardwareAccelerate(bridge, multicastFwdInfo.fwdPortMask,skb->srcPort,skb->srcVlanId, multicastDataInfo.sourceIp[0], multicastDataInfo.groupAddr[0]);
+						}
+					}
+					#else
+					else if(( ((~br0SwFwdPortMask) & multicastFwdInfo.fwdPortMask)!=0)&&(ret==SUCCESS))
+					{
+						/*eth client , hw forwarding*/
+						#if defined(CONFIG_RTK_VLAN_SUPPORT)
+						if(rtk_vlan_support_enable == 0)
+						#endif
+						{
+							rtl865x_ipMulticastHardwareAccelerate(bridge0, multicastFwdInfo.fwdPortMask,skb->srcPort,skb->srcVlanId, multicastDataInfo.sourceIp[0], multicastDataInfo.groupAddr[0]);
+						}
+					}
+					#endif
+					#endif
 				}
 			}
+			#if defined (CONFIG_RTL_HW_MCAST_WIFI)
+			existMulticastEntry=rtl865x_findMCastEntry((uint32)(iph->daddr), (uint32)(iph->saddr), (unsigned short)srcVlanId, (unsigned short)srcPort);
+			if(existMulticastEntry!=NULL)
+			{
+				#if defined (CONFIG_RTL_MACCLONE_SWMCAST)
+				
+				#else
+				/*it's already in cache, only forward to wlan */
+				#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+				multicastFwdInfo.fwdPortMask &= swFwdPortMask;
+				#else
+				multicastFwdInfo.fwdPortMask &= br0SwFwdPortMask;	
+				#endif
+				#endif
+			}
+			#endif
 			#endif
 
 			skb_push(skb, ETH_HLEN);
 
 			prev = NULL;
 			fwdCnt=0;
-
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+		
+		list_for_each_entry_safe(p, n, &bridge->port_list, list) 
+#else
         #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 			list_for_each_entry_safe(p, n, &bridge->port_list, list) 
 		#else
 			list_for_each_entry_safe(p, n, &bridge0->port_list, list)
 		#endif
+#endif		
 			{
 				port_bitmask = (1 << p->port_no);
-				if ((port_bitmask & multicastFwdInfo.fwdPortMask) && should_deliver(p, skb)) 
+				if ((port_bitmask & multicastFwdInfo.fwdPortMask) && should_deliver(p, skb))
 				{
 					if (prev != NULL)
 					{
 						if ((skb2 = skb_clone(skb, GFP_ATOMIC)) == NULL)
 						{
 							LOG_MEM_ERROR("%s(%d) skb clone failed, drop it\n", __FUNCTION__, __LINE__);
-                            #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+						#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+							bridge->dev->stats.tx_dropped++;
+						#else
+							#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
 							bridge->dev->stats.tx_dropped++;
 			    			#else
 							bridge0->dev->stats.tx_dropped++;
 							#endif
+						#endif
 							kfree_skb(skb);
 							return 0;
 						}

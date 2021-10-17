@@ -379,6 +379,97 @@ client6_script(scriptpath, state, optinfo)
 			strlcat(s, " ", elen);
 		}
 	}
+#ifdef TR181_SUPPORT
+{
+	int fdrcv=0;
+	
+	char* str=NULL;
+	//if((fp=fopen("/var/dhcp6c_rcvOpt","w"))==NULL)
+	if((fdrcv=open("/var/dhcp6c_rcvOpt",O_RDWR|O_CREAT|O_TRUNC))<0)
+	{
+		dprintf(LOG_ERR, FNAME, "can't open /var/dhcp6c_rcvOpt!\n");
+	}else
+	{
+		char buff[128]={0};
+		for(i=0;i<envc;i++)
+		{
+			if(!envp[i]||!envp[i][0]) break;
+			bzero(buff,sizeof(buff));
+			if((str=strstr(envp[i],sipserver_str))!=NULL)
+			{
+				str+=strlen(sipserver_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",sipserver_str,DH6OPT_SIP_SERVER_D,str);
+			}
+			else if((str=strstr(envp[i],sipname_str))!=NULL)
+			{
+				str+=strlen(sipname_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",sipname_str,DH6OPT_SIP_SERVER_A,str);
+			}
+			else if((str=strstr(envp[i],dnsserver_str))!=NULL)
+			{
+				str+=strlen(dnsserver_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",dnsserver_str,DH6OPT_DNS,str);
+			}
+			else if((str=strstr(envp[i],dnsname_str))!=NULL)
+			{
+				str+=strlen(dnsname_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",dnsname_str,DH6OPT_DNSNAME,str);
+			}
+			else if((str=strstr(envp[i],ntpserver_str))!=NULL)
+			{
+				str+=strlen(ntpserver_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",ntpserver_str,DH6OPT_NTP,str);
+			}
+			else if((str=strstr(envp[i],nisserver_str))!=NULL)
+			{
+				str+=strlen(nisserver_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",nisserver_str,DH6OPT_NIS_SERVERS,str);
+			}
+			else if((str=strstr(envp[i],nisname_str))!=NULL)
+			{
+				str+=strlen(nisname_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",nisname_str,DH6OPT_NIS_DOMAIN_NAME,str);
+			}
+			else if((str=strstr(envp[i],nispserver_str))!=NULL)
+			{
+				str+=strlen(nispserver_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",nispserver_str,DH6OPT_NISP_SERVERS,str);
+			}
+			else if((str=strstr(envp[i],nispname_str))!=NULL)
+			{
+				str+=strlen(nispname_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",nispname_str,DH6OPT_NISP_DOMAIN_NAME,str);
+			}
+			else if((str=strstr(envp[i],bcmcsserver_str))!=NULL)
+			{
+				str+=strlen(bcmcsserver_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",bcmcsserver_str,DH6OPT_BCMCS_SERVER_D,str);
+			}
+			else if((str=strstr(envp[i],bcmcsname_str))!=NULL)
+			{
+				str+=strlen(bcmcsname_str);
+				str++;//=
+				sprintf(buff,"%s	%d	%s\n",bcmcsname_str,DH6OPT_BCMCS_SERVER_A,str);
+			}else
+				continue;
+			dprintf(LOG_ERR, FNAME, "%s",buff);
+			write(fdrcv,buff,strlen(buff));
+			//fprintf(fp,"%s",buff);
+		}
+		close(fdrcv);
+	}
+}
+#endif
 
 	/* launch the script */
 	pid = fork();
@@ -412,7 +503,7 @@ client6_script(scriptpath, state, optinfo)
 			    scriptpath);
 			exit(1);
 		}
-
+#if 0
 		if (foreground == 0 && (fd = open("/dev/null", O_RDWR)) != -1) {
 			dup2(fd, STDIN_FILENO);
 			dup2(fd, STDOUT_FILENO);
@@ -420,7 +511,7 @@ client6_script(scriptpath, state, optinfo)
 			if (fd > STDERR_FILENO)
 				close(fd);
 		}
-
+#endif
 		execve(scriptpath, argv, envp);
 
 		dprintf(LOG_ERR, FNAME, "child: exec failed: %s",

@@ -8,6 +8,10 @@
 #include "base_gpio_8952.h"
 #elif defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V00 ) || defined( CONFIG_RTK_VOIP_GPIO_IPP_8972B_V99 )
 #include "base_gpio_8972b.h"
+#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXC_V00 ) 
+#include "base_gpio_89xxc.h"
+#elif defined( CONFIG_RTK_VOIP_GPIO_IPP_89XXD_CODEC ) 
+#include "base_gpio_89xxd.h"
 #else
   #error "include which one?"
 #endif

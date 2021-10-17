@@ -114,14 +114,12 @@ void lib1x_message( int type, char * msg, ... )
 #endif
 #ifdef ALLOW_DBG_BSM
 		 case MESS_DBG_BSM:
-	 				fprintf(stderr, "\n Bauthsm DEBUG: %s",buf );
-					fflush(stderr);
+					printf("\n Bauthsm DEBUG:%s\n", buf);
 				break;
 #endif
 #ifdef ALLOW_DBG_RAD
 		 case MESS_DBG_RAD:
-	 				fprintf(stderr, "\n Radius DEBUG: %s",buf );
-					fflush(stderr);
+					printf("\n Radius DEBUG:%s\n", buf);
 				break;
 #endif
 #ifdef ALLOW_DBG_PTSM
@@ -132,8 +130,7 @@ void lib1x_message( int type, char * msg, ... )
 #endif
 #ifdef ALLOW_DBG_DAEMON
 		case MESS_DBG_DAEMON:
-					fprintf(stderr, "\n DAEMON DEBUG: %s",buf );
-					fflush(stderr);
+					printf("\n DAEMON DEBUG: %s", buf);
 				break;
 #endif
 #ifdef ALLOW_DBG_SPECIAL

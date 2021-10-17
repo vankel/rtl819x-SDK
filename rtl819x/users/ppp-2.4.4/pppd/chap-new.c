@@ -485,11 +485,17 @@ chap_handle_status(struct chap_client_state *cs, int code, int id,
 				code = CHAP_FAILURE;
 		} else
 			msg = "CHAP authentication succeeded";
+		{
+			system("echo 0 > /var/ppp_error");
+		}
 	} else {
-		if (cs->digest->handle_failure != NULL)
+		if (cs->digest->handle_failure != NULL){
 			(*cs->digest->handle_failure)(pkt, len);
-		else
+		}
+		else{
 			msg = "CHAP authentication failed";
+			system("echo 691 > /var/ppp_error");
+		}
 	}
 	if (msg) {
 		if (len > 0)

@@ -1,12 +1,17 @@
 #ifndef _DAA_H_
 #define _DAA_H_
 
-#include "proslic_api/inc/proslic.h"
-#include "proslic_api/inc/vdaa.h"
-#include "proslic_api/inc/sys_driv_type.h"
+#include "proslic.h"
+#include "vdaa.h"
+#include "vdaa_registers.h"
+#include "rtk_sys_driv_type.h"
 
 #include "snd_proslic_type.h"
 
+#define WriteReg	daas->deviceId->ctrlInterface->WriteRegister_fptr 
+#define ReadReg		daas->deviceId->ctrlInterface->ReadRegister_fptr
+
+#if 0
 /* DAA Register Initial Value */
 #define	INIT_R1	0x00	//	Control 1
 #define	INIT_R2	0x03	//	Control 2
@@ -62,29 +67,30 @@
 
 #define RDTP	(1<<5)
 #define RDTN	(1<<6)
-
+#endif
 
 //void daa_init_all(int pcm_channel, int pcm_mode);
-void country_specific_termination(vdaaChanType *daas, unsigned char ohs,unsigned char ohs2,unsigned char rz,
-		unsigned char rt,unsigned char ilim,unsigned char dcv,unsigned char mini,unsigned char acim);
-unsigned char going_off_hook(int chid);
-void on_hook_daa(vdaaChanType *daas);
-void off_hook_daa(vdaaChanType *daas);
-unsigned char daa_hook_state(vdaaChanType *daas);
+//void country_specific_termination(vdaaChanType *daas, unsigned char ohs,unsigned char ohs2,unsigned char rz,
+//		unsigned char rt,unsigned char ilim,unsigned char dcv,unsigned char mini,unsigned char acim);
+//unsigned char going_off_hook(int chid);
+//void on_hook_daa(vdaaChanType *daas);
+//void off_hook_daa(vdaaChanType *daas);
+//unsigned char daa_hook_state(vdaaChanType *daas);
 unsigned char daa_polarity_reversal_det(vdaaChanType *daas, daa_det_t *daa_det);
 void daa_disable_polarity_reversal_det(vdaaChanType *daas);
 void daa_enable_polarity_reversal_det(vdaaChanType *daas);
+unsigned int daa_get_polarity(vdaaChanType *daas);
 unsigned int daa_line_stat(vdaaChanType *daas);
-unsigned char ring_detection_DAA(vdaaChanType *daas);
-void DAA_hybrid_coeff(vdaaChanType *daas, unsigned char acim,unsigned char coeff1,unsigned char coeff2,unsigned char coeff3,
-		unsigned char coeff4,unsigned char coeff5,unsigned char coeff6,unsigned char coeff7,unsigned char coeff8);
-void DAA_Tx_Gain_ctrl(vdaaChanType *daas, unsigned char tga2,unsigned char txg2,unsigned char tga3,unsigned char txg3);
-void DAA_Rx_Gain_ctrl(vdaaChanType *daas, unsigned char rga2,unsigned char rxg2,unsigned char rga3,unsigned char rxg3);
-void DAA_Tx_Gain_Web(vdaaChanType *daas, unsigned char gain);
-void DAA_Rx_Gain_Web(vdaaChanType *daas, unsigned char gain);
-void caller_ID_pass(vdaaChanType *daas);
+//unsigned char ring_detection_DAA(vdaaChanType *daas);
+//void DAA_hybrid_coeff(vdaaChanType *daas, unsigned char acim,unsigned char coeff1,unsigned char coeff2,unsigned char coeff3,
+//		unsigned char coeff4,unsigned char coeff5,unsigned char coeff6,unsigned char coeff7,unsigned char coeff8);
+//void DAA_Tx_Gain_ctrl(vdaaChanType *daas, unsigned char tga2,unsigned char txg2,unsigned char tga3,unsigned char txg3);
+//void DAA_Rx_Gain_ctrl(vdaaChanType *daas, unsigned char rga2,unsigned char rxg2,unsigned char rga3,unsigned char rxg3);
+//void DAA_Tx_Gain_Web(vdaaChanType *daas, unsigned char gain);
+//void DAA_Rx_Gain_Web(vdaaChanType *daas, unsigned char gain);
+//void caller_ID_pass(vdaaChanType *daas);
 
-unsigned short daa_get_line_voltage(vdaaChanType *daas);
+//unsigned short daa_get_line_voltage(vdaaChanType *daas);
 unsigned char daa_drop_out_det(vdaaChanType *daas, daa_det_t *daa_det);
 int daa_line_check(vdaaChanType *daas);
 

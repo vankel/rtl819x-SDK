@@ -4,8 +4,12 @@
  * for more details.
  *
  * Copyright (C) 2008 David Daney
+ *
+ * Modified for RLX Linux for RLX
+ * Copyright (C) 2011 Jethro Hsu (jethro@realtek.com)
+ * Copyright (C) 2011 Tony Wu (tonywu@realtek.com)
  */
-
+#ifdef CONFIG_CPU_HAS_WATCH
 #include <linux/sched.h>
 
 #include <asm/processor.h>
@@ -15,28 +19,46 @@
  * Install the watch registers for the current thread.  A maximum of
  * four registers are installed although the machine may have more.
  */
-void mips_install_watch_registers(void)
+void rlx_install_watch_registers(void)
 {
-	struct mips3264_watch_reg_state *watches =
-		&current->thread.watch.mips3264;
+	struct rlx3264_watch_reg_state *watches =
+		&current->thread.watch.rlx3264;
+	unsigned int ctrl;
 	switch (current_cpu_data.watch_reg_use_cnt) {
 	default:
 		BUG();
 	case 4:
 		write_c0_watchlo3(watches->watchlo[3]);
-		/* Write 1 to the I, R, and W bits to clear them, and
-		   1 to G so all ASIDs are trapped. */
-		write_c0_watchhi3(0x40000007 | watches->watchhi[3]);
+		write_c0_watchhi3(0x40000000 | watches->watchhi[3]);
+		write_lxc0_wmpxmask3(watches->wmpxmask[3]);
+		set_lxc0_wmpctl(WMPCTLF_EE3);
 	case 3:
 		write_c0_watchlo2(watches->watchlo[2]);
-		write_c0_watchhi2(0x40000007 | watches->watchhi[2]);
+		write_c0_watchhi2(0x40000000 | watches->watchhi[2]);
+		write_lxc0_wmpxmask2(watches->wmpxmask[2]);
+		set_lxc0_wmpctl(WMPCTLF_EE2);
 	case 2:
 		write_c0_watchlo1(watches->watchlo[1]);
-		write_c0_watchhi1(0x40000007 | watches->watchhi[1]);
+		write_c0_watchhi1(0x40000000 | watches->watchhi[1]);
+		write_lxc0_wmpxmask1(watches->wmpxmask[1]);
+		set_lxc0_wmpctl(WMPCTLF_EE1);
 	case 1:
 		write_c0_watchlo0(watches->watchlo[0]);
-		write_c0_watchhi0(0x40000007 | watches->watchhi[0]);
+		write_c0_watchhi0(0x40000000 | watches->watchhi[0]);
+		write_lxc0_wmpxmask0(watches->wmpxmask[0]);
+		set_lxc0_wmpctl(WMPCTLF_EE0);
 	}
+
+	/*
+	 * set WMPCTL register
+	 */
+	ctrl = read_lxc0_wmpctl();
+	if (current_cpu_data.watch_mode)
+		ctrl &= WMPCTLF_MS;
+
+	if (current_cpu_data.watch_kernel)
+		ctrl &= WMPCTLF_KE;
+	write_lxc0_wmpctl(ctrl);
 }
 
 /*
@@ -44,31 +66,35 @@ void mips_install_watch_registers(void)
  * access to the I, R, and W bits.  A maximum of four registers are
  * read although the machine may have more.
  */
-void mips_read_watch_registers(void)
+void rlx_read_watch_registers(void)
 {
-	struct mips3264_watch_reg_state *watches =
-		&current->thread.watch.mips3264;
+	struct rlx3264_watch_reg_state *watches =
+		&current->thread.watch.rlx3264;
+	unsigned int wmpstatus = read_lxc0_wmpstatus();
+
 	switch (current_cpu_data.watch_reg_use_cnt) {
 	default:
 		BUG();
 	case 4:
 		watches->watchhi[3] = (read_c0_watchhi3() & 0x0fff);
+		if (wmpstatus & WMPSTATUSF_EM3)
+			watches->watchhi[3] |= (wmpstatus & 0x7);
 	case 3:
 		watches->watchhi[2] = (read_c0_watchhi2() & 0x0fff);
+		if (wmpstatus & WMPSTATUSF_EM2)
+			watches->watchhi[2] |= (wmpstatus & 0x7);
 	case 2:
 		watches->watchhi[1] = (read_c0_watchhi1() & 0x0fff);
+		if (wmpstatus & WMPSTATUSF_EM1)
+			watches->watchhi[1] |= (wmpstatus & 0x7);
 	case 1:
 		watches->watchhi[0] = (read_c0_watchhi0() & 0x0fff);
+		if (wmpstatus & WMPSTATUSF_EM0)
+			watches->watchhi[0] |= (wmpstatus & 0x7);
 	}
-	if (current_cpu_data.watch_reg_use_cnt == 1 &&
-	    (watches->watchhi[0] & 7) == 0) {
-		/* Pathological case of release 1 architecture that
-		 * doesn't set the condition bits.  We assume that
-		 * since we got here, the watch condition was met and
-		 * signal that the conditions requested in watchlo
-		 * were met.  */
-		watches->watchhi[0] |= (watches->watchlo[0] & 7);
-	}
+
+	/* read badvaddr that caused watch or mpu exception */
+	watches->wmpvaddr = read_lxc0_wmpvaddr();
  }
 
 /*
@@ -76,31 +102,27 @@ void mips_read_watch_registers(void)
  * installed, all are cleared to eliminate the possibility of endless
  * looping in the watch handler.
  */
-void mips_clear_watch_registers(void)
+void rlx_clear_watch_registers(void)
 {
-	switch (current_cpu_data.watch_reg_count) {
+	switch (current_cpu_data.watch_reg_use_cnt) {
 	default:
 		BUG();
-	case 8:
-		write_c0_watchlo7(0);
-	case 7:
-		write_c0_watchlo6(0);
-	case 6:
-		write_c0_watchlo5(0);
-	case 5:
-		write_c0_watchlo4(0);
 	case 4:
 		write_c0_watchlo3(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE3);
 	case 3:
 		write_c0_watchlo2(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE2);
 	case 2:
 		write_c0_watchlo1(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE1);
 	case 1:
 		write_c0_watchlo0(0);
+		clear_lxc0_wmpctl(WMPCTLF_EE0);
 	}
 }
 
-__cpuinit void mips_probe_watch_registers(struct cpuinfo_mips *c)
+void __cpuinit rlx_probe_watch_registers(struct cpuinfo_mips *c)
 {
 	unsigned int t;
 
@@ -168,21 +190,55 @@ __cpuinit void mips_probe_watch_registers(struct cpuinfo_mips *c)
 	if ((t & 0x80000000) == 0)
 		return;
 
-	/* We use at most 4, but probe and report up to 8. */
+	/* taroko processor can be configured for more than 4
+	 * registers */
+
+	write_c0_watchlo4(7);
+        t = read_c0_watchlo4();
+        write_c0_watchlo4(0);
+
 	c->watch_reg_count = 5;
+        c->watch_reg_use_cnt = 5;
+        t = read_c0_watchhi4();
+        write_c0_watchhi4(t | 0xff8);
 	t = read_c0_watchhi4();
 	if ((t & 0x80000000) == 0)
 		return;
 
+	write_c0_watchlo5(7);
+        t = read_c0_watchlo5();
+        write_c0_watchlo5(0);
+
 	c->watch_reg_count = 6;
+        c->watch_reg_use_cnt = 6;
+        t = read_c0_watchhi5();
+        write_c0_watchhi5(t | 0xff8);
 	t = read_c0_watchhi5();
 	if ((t & 0x80000000) == 0)
 		return;
 
+	write_c0_watchlo6(7);
+        t = read_c0_watchlo6();
+        write_c0_watchlo6(0);
+
 	c->watch_reg_count = 7;
+        c->watch_reg_use_cnt = 7;
+        t = read_c0_watchhi6();
+        write_c0_watchhi6(t | 0xff8);
 	t = read_c0_watchhi6();
 	if ((t & 0x80000000) == 0)
 		return;
 
+	write_c0_watchlo7(7);
+        t = read_c0_watchlo7();
+        write_c0_watchlo7(0);
+
 	c->watch_reg_count = 8;
+        c->watch_reg_use_cnt = 8;
+        t = read_c0_watchhi7();
+        write_c0_watchhi7(t | 0xff8);
+        t = read_c0_watchhi7();
+        if ((t & 0x80000000) == 0)
+                return;
 }
+#endif

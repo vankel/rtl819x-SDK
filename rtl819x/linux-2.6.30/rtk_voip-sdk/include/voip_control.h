@@ -6,15 +6,21 @@
 #ifndef VOIP_CONTROL_H
 #define VOIP_CONTROL_H
 
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+#ifdef __KERNEL__
+#include <linux/in6.h>
+#endif
+#endif
+
 #include "voip_params.h"
 
-#define VOIP_MGR_BASE_CTL				64+1024+64+64+900
+#define VOIP_MGR_BASE_CTL				64+1024+64+64+900 //2116
 
 #define VOIP_MGR_IOC_CMD( nr, size )	( ( nr & 0xFFFF ) | ( ( size & 0xFFFF ) << 16 ) )
 #define VOIP_MGR_IOC_NR( cmd )			( ( cmd & 0xFFFF ) )
 #define VOIP_MGR_IOC_SIZE( cmd )		( ( cmd >> 16 ) & 0xFFFF )
 
-//! VoIP Control ID @addtogroup VOIP_CONTROL
+//! VoIP Control ID @ingroup VOIP_CONTROL
 //!@{
 enum {
 	// testing function
@@ -25,47 +31,47 @@ enum {
 	VOIP_MGR_GNET,
 	VOIP_MGR_SIGNALTEST,
 	VOIP_MGR_DSPSETCONFIG,
-	VOIP_MGR_DSPCODECSTART,
+	VOIP_MGR_DSPCODECSTART,				//2124
 
 	// Protocol - RTP
-	//! @addtogroup VOIP_PROTOCOL_RTP
+	//! @ingroup VOIP_PROTOCOL_RTP
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SET_SESSION,
 	VOIP_MGR_UNSET_SESSION,
 	VOIP_MGR_SETRTPSESSIONSTATE,
 	VOIP_MGR_RTP_CFG,
 	VOIP_MGR_HOLD,
-	VOIP_MGR_CTRL_RTPSESSION,
+	VOIP_MGR_CTRL_RTPSESSION,			//2130
 	VOIP_MGR_CTRL_TRANSESSION_ID,
 	VOIP_MGR_SETCONFERENCE,
-	VOIP_MGR_GET_RTP_STATISTICS,
-	VOIP_MGR_GET_SESSION_STATISTICS,
+	VOIP_MGR_GET_RTP_RTCP_STATISTICS,
+	VOIP_MGR_GET_SESSION_STATISTICS,	//2134
 
 	// Protocol - RTCP
-	//! @addtogroup VOIP_PROTOCOL_RTCP
+	//! @ingroup VOIP_PROTOCOL_RTCP
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SET_RTCP_SESSION, 
-	VOIP_MGR_UNSET_RTCP_SESSION, 
+	VOIP_MGR_UNSET_RTCP_SESSION,		//2136 
 	//VOIP_MGR_SET_RTCP_TX_INTERVAL, 	// merge into VOIP_MGR_SET_RTCP_SESSION
 	VOIP_MGR_GET_RTCP_LOGGER, 
 
 	// DSP - General
-	//! @addtogroup VOIP_DSP_GENERAL
+	//! @ingroup VOIP_DSP_GENERAL
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_ON_HOOK_RE_INIT,
 	VOIP_MGR_SET_VOICE_GAIN,
 	VOIP_MGR_ENERGY_DETECT,
-	VOIP_MGR_GET_VOIP_EVENT, 
+	VOIP_MGR_GET_VOIP_EVENT, 			//2141
 	VOIP_MGR_FLUSH_VOIP_EVENT, 
 
 	// DSP - Codec
-	//! @addtogroup VOIP_DSP_CODEC
+	//! @ingroup VOIP_DSP_CODEC
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SETRTPPAYLOADTYPE,
-	VOIP_MGR_DSPCODECSTOP,
+	VOIP_MGR_DSPCODECSTOP,				//2144
 
 	// DSP - FAX and Modem
-	//! @addtogroup VOIP_DSP_FAXMODEM
+	//! @ingroup VOIP_DSP_FAXMODEM
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_FAX_OFFHOOK,
 	VOIP_MGR_FAX_END_DETECT,
@@ -77,10 +83,10 @@ enum {
 	VOIP_MGR_FAX_DCN_TX_DETECT,
 	VOIP_MGR_FAX_DCN_RX_DETECT,
 	VOIP_MGR_SET_ANSWERTONE_DET,
-	VOIP_MGR_SET_FAX_SILENCE_DET,
+	VOIP_MGR_SET_FAX_SILENCE_DET,		//2155
 
 	// DSP - LEC
-	//! @addtogroup VOIP_DSP_LEC
+	//! @ingroup VOIP_DSP_LEC
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SET_ECHO_TAIL_LENGTH,
 	VOIP_MGR_SET_G168_LEC_CFG,
@@ -88,19 +94,19 @@ enum {
 	VOIP_MGR_GET_EC_DEBUG, //add by jwsyu, echo canceller debug
 
 	// DSP - DTMF
-	//! @addtogroup VOIP_DSP_DTMF
+	//! @ingroup VOIP_DSP_DTMF
 	//! @ingroup VOIP_CONTROL
-	VOIP_MGR_DTMF_DET_PARAM,
+	VOIP_MGR_DTMF_DET_PARAM,			//2160
 	VOIP_MGR_DTMF_CFG,
 	VOIP_MGR_SET_DTMF_MODE,
 	VOIP_MGR_SEND_RFC2833_PKT_CFG,
 	VOIP_MGR_SEND_RFC2833_BY_AP,
 	VOIP_MGR_PLAY_SIP_INFO,
 	VOIP_MGR_LIMIT_MAX_RFC2833_DTMF_DURATION,
-	VOIP_MGR_SET_RFC2833_TX_VOLUME,
+	VOIP_MGR_SET_RFC2833_TX_VOLUME,		//2167
 
 	// DSP - Caller ID
-	//! @addtogroup VOIP_DSP_CALLERID
+	//! @ingroup VOIP_DSP_CALLERID
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_DTMF_CID_GEN_CFG,
 	VOIP_MGR_GET_CID_STATE_CFG,
@@ -115,10 +121,10 @@ enum {
 	VOIP_MGR_FSK_CID_VMWI_GEN_CFG,
 	VOIP_MGR_SET_FSK_CLID_PARA,
 	VOIP_MGR_GET_FSK_CLID_PARA,
-	VOIP_MGR_FSK_CID_MDMF_GEN,
+	VOIP_MGR_FSK_CID_MDMF_GEN,			//2181
 
 	// DSP - Tone
-	//! @addtogroup VOIP_DSP_TONE
+	//! @ingroup VOIP_DSP_TONE
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SETPLAYTONE,
 	VOIP_MGR_SET_COUNTRY,
@@ -127,10 +133,12 @@ enum {
 	VOIP_MGR_SET_TONE_OF_CUSTOMIZE,
 	VOIP_MGR_SET_CUST_TONE_PARAM,
 	VOIP_MGR_USE_CUST_TONE,
-	VOIP_MGR_SET_DIS_TONE_DET,
+	VOIP_MGR_SET_DIS_TONE_DET,			//2189
+	VOIP_MGR_SET_TONE_OF_UPDATE,
+	VOIP_MGR_SET_UPDATE_TONE_PARAM,
 
 	// DSP - AGC
-	//! @addtogroup VOIP_DSP_AGC
+	//! @ingroup VOIP_DSP_AGC
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SET_SPK_AGC,
 	VOIP_MGR_SET_SPK_AGC_LVL,
@@ -139,35 +147,35 @@ enum {
 	VOIP_MGR_SET_MIC_AGC,
 	VOIP_MGR_SET_MIC_AGC_LVL,
 	VOIP_MGR_SET_MIC_AGC_GUP,
-	VOIP_MGR_SET_MIC_AGC_GDOWN,
+	VOIP_MGR_SET_MIC_AGC_GDOWN,			//2197
 
 	// DSP - Pluse Dial
-	//! @addtogroup VOIP_DSP_PLUSEDIAL
+	//! @ingroup VOIP_DSP_PLUSEDIAL
 	//! @ingroup VOIP_CONTROL
 	//TH: for pulse dial config
 	VOIP_MGR_SET_PULSE_DIGIT_DET,
 	VOIP_MGR_SET_DIAL_MODE,
-	VOIP_MGR_GET_DIAL_MODE,
+	VOIP_MGR_GET_DIAL_MODE,				//2200
 	VOIP_MGR_PULSE_DIAL_GEN_CFG,
 	VOIP_MGR_GEN_PULSE_DIAL,
 
 	// DSP - IVR
-	//! @addtogroup VOIP_DSP_IVR
+	//! @ingroup VOIP_DSP_IVR
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_PLAY_IVR,
 	VOIP_MGR_POLL_IVR,
 	VOIP_MGR_STOP_IVR,
 
 	// Driver - PCM ctrl
-	//! @addtogroup VOIP_DRIVER_PCM
+	//! @ingroup VOIP_DRIVER_PCM
 	//! @ingroup VOIP_CONTROL
-	VOIP_MGR_PCM_CFG,
+	VOIP_MGR_PCM_CFG,				//2206
 	VOIP_MGR_SET_BUS_DATA_FORMAT,
 	VOIP_MGR_SET_PCM_TIMESLOT,
 	VOIP_MGR_SET_PCM_LOOP_MODE,
 
 	// Driver - SLIC
-	//! @addtogroup VOIP_DRIVER_SLIC
+	//! @ingroup VOIP_DRIVER_SLIC
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SLIC_RING,
 	VOIP_MGR_SLIC_TONE,
@@ -179,7 +187,7 @@ enum {
 	VOIP_MGR_SET_SLIC_RING_CADENCE,
 	VOIP_MGR_SET_SLIC_RING_FRQ_AMP,
 	VOIP_MGR_SET_IMPEDANCE,
-	VOIP_MGR_SET_SLIC_REG_VAL,
+	VOIP_MGR_SET_SLIC_REG_VAL,			//2220
 	VOIP_MGR_GET_SLIC_STAT,
 	VOIP_MGR_SLIC_ONHOOK_ACTION, 	// only used in AudioCodes
 	VOIP_MGR_SLIC_OFFHOOK_ACTION, 	// only used in AudioCodes
@@ -190,13 +198,13 @@ enum {
 
 	VOIP_MGR_SET_RING_DETECTION,
 	VOIP_MGR_SET_FXS_FXO_LOOPBACK,
-	VOIP_MGR_SET_SLIC_ONHOOK_TRANS_PCM_START,
+	VOIP_MGR_SET_SLIC_ONHOOK_TRANS_PCM_START,	//2230
 
 	VOIP_MGR_SET_SLIC_LINE_VOLTAGE,
 	VOIP_MGR_GEN_SLIC_CPC,
 
 	// Driver - DAA
-	//! @addtogroup VOIP_DRIVER_DAA
+	//! @ingroup VOIP_DRIVER_DAA
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_DAA_RING,
 	VOIP_MGR_DAA_OFF_HOOK,
@@ -205,7 +213,7 @@ enum {
 	VOIP_MGR_SET_DAA_TX_GAIN,
 	VOIP_MGR_SET_DAA_RX_GAIN,
 	VOIP_MGR_SET_DAA_ISR_FLOW,
-	VOIP_MGR_GET_DAA_ISR_FLOW,
+	VOIP_MGR_GET_DAA_ISR_FLOW,			//2240
 	VOIP_MGR_SET_DAA_PCM_HOLD_CFG,
 	VOIP_MGR_GET_DAA_BUSY_TONE_STATUS,
 	VOIP_MGR_GET_DAA_CALLER_ID,
@@ -214,36 +222,24 @@ enum {
 	VOIP_MGR_FXO_OFF_HOOK,
 
 	// Driver - GPIO
-	//! @addtogroup VOIP_DRIVER_GPIO
+	//! @ingroup VOIP_DRIVER_GPIO
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_GPIO,
 	VOIP_MGR_SET_LED_DISPLAY,
 	VOIP_MGR_SET_SLIC_RELAY,
 
 	// Driver - Networking
-	//! @addtogroup VOIP_DRIVER_NETWORK
+	//! @ingroup VOIP_DRIVER_NETWORK
 	//! @ingroup VOIP_CONTROL
-	VOIP_MGR_8305_SWITCH_VAL,
-	VOIP_MGR_WAN_VLAN_TAG,
-	VOIP_MGR_BRIDGE_MODE,
-	VOIP_MGR_SET_DSCP_PRIORITY,
-	VOIP_MGR_WAN_2_VLAN_TAG,
-	VOIP_MGR_WAN_3_VLAN_TAG,
-	//add by Tim
-	VOIP_MGR_SET_WAN_CLONE_MAC,
-	VOIP_MGR_BANDWIDTH_MGR,
-	VOIP_MGR_GET_PORT_LINK_STATUS,
-	VOIP_MGR_SET_RTP_TOS,
+	VOIP_MGR_SET_DSCP_PRIORITY,			//2250
+	VOIP_MGR_SET_RTP_TOS,				//2251
 	VOIP_MGR_SET_RTP_DSCP,
 	VOIP_MGR_SET_SIP_TOS,
 	VOIP_MGR_SET_SIP_DSCP,
-
-	VOIP_MGR_PORT_DISABLE,
-	VOIP_MGR_PORT_PRIORITY,
-	VOIP_MGR_PORT_DISABLE_FLOWCONTROL,
+	VOIP_MGR_GET_PORT_LINK_STATUS,
 
 	// Driver - DECT
-	//! @addtogroup VOIP_DRIVER_DECT
+	//! @ingroup VOIP_DRIVER_DECT
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_DECT_SET_POWER,
 	VOIP_MGR_DECT_GET_POWER,
@@ -251,7 +247,7 @@ enum {
 	VOIP_MGR_DECT_SET_LED,
 
 	// Miscellanous
-	//! @addtogroup VOIP_MISC
+	//! @ingroup VOIP_MISC
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SIP_REGISTER,
 	VOIP_MGR_GET_FEATURE,
@@ -259,7 +255,7 @@ enum {
 	VOIP_MGR_SET_FW_UPDATE,
 
 	// IP Phone - keypad, LCM, Codec, LED and etc
-	//! @addtogroup VOIP_IPPHONE
+	//! @ingroup VOIP_IPPHONE
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_CTL_KEYPAD,
 	VOIP_MGR_CTL_LCM,
@@ -268,7 +264,7 @@ enum {
 	VOIP_MGR_CTL_MISC,
 
 	// Debug
-	//! @addtogroup VOIP_DEBUG
+	//! @ingroup VOIP_DEBUG
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_DEBUG,
 	VOIP_MGR_VOICE_PLAY,
@@ -280,7 +276,7 @@ enum {
 	VOIP_MGR_COP3_CONIFG,
 
 	// Ethernet DSP
-	//! @addtogroup VOIP_ETHERNET_DSP
+	//! @ingroup VOIP_ETHERNET_DSP
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_SET_DSP_ID_TO_DSP,
 	VOIP_MGR_SET_DSP_PHY_ID,
@@ -292,16 +288,39 @@ enum {
 	VOIP_MGR_SET_VAD_CNG_THRESHOLD,
 
 	// DSP - DTMF
-	//! @addtogroup VOIP_DSP_DTMF
+	//! @ingroup VOIP_DSP_DTMF
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_FAX_MODEM_RFC2833_CFG,
 	VOIP_MGR_RFC2833_PKT_INTERVAL_CFG,
 	
 	// DSP - Caller ID  
-	//! @addtogroup VOIP_DSP_CALLERID
+	//! @ingroup VOIP_DSP_CALLERID
 	//! @ingroup VOIP_CONTROL
 	VOIP_MGR_STOP_CID,
 	
+	// Driver - SLIC  
+	//! @ingroup VOIP_DRIVER_SLIC
+	//! @ingroup VOIP_CONTROL
+	VOIP_MGR_SET_MULTI_RING_CADENCE,
+	VOIP_MGR_SET_RTP_PT_CHECKER,
+	
+	// Driver - DAA  
+	//! @ingroup VOIP_DRIVER_DAA
+	//! @ingroup VOIP_CONTROL
+	VOIP_MGR_SET_DAA_HYBRID, 
+	VOIP_MGR_SET_FXO_TUNE,
+	
+	// Driver - SLIC  
+	//! @ingroup VOIP_DRIVER_SLIC
+	//! @ingroup VOIP_CONTROL
+	VOIP_MGR_SET_PROSLIC_PARAM_STEP1,
+	VOIP_MGR_SET_PROSLIC_PARAM_STEP2,
+	
+	// Driver - Networking  
+	//! @addtogroup VOIP_DRIVER_NETWORK
+	//! @ingroup VOIP_CONTROL
+	VOIP_MGR_QOS_CFG,
+
 	VOIP_MGR_SET_MAX, 	// keep it to be the last one 
 };
 //!@}
@@ -337,22 +356,33 @@ typedef struct
 	//Payload info
 	RtpPayloadType local_pt; 		///< Local payload type
 	RtpPayloadType remote_pt; 		///< Remote answer payload type
-	RtpPayloadType uPktFormat; 		///< RTK_VoIP predefined payload type
+	//RtpPayloadType uPktFormat; 		///< RTK_VoIP predefined payload type
+	RtpPayloadType uLocalPktFormat; 		///< RTK_VoIP predefined local payload type
+	RtpPayloadType uRemotePktFormat; 		///< RTK_VoIP predefined remote payload type
 	RtpPayloadType local_pt_vbd; 		///< VBD Local payload type
 	RtpPayloadType remote_pt_vbd; 		///< VBD Remote answer payload type
 	RtpPayloadType uPktFormat_vbd; 		///< VBD RTK_VoIP predefined payload type
 	int32 nG723Type;				///< G.723 bitrate
-	int32 nFramePerPacket;			///<  Frames per packet 
+	//int32 nFramePerPacket;			///<  Frames per packet 
+	int32 nLocalFramePerPacket;			///<  Local Frames per packet 
+	int32 nRemoteFramePerPacket;		///<  Remote Frames per packet 
 	int32 nFramePerPacket_vbd;		///<  Frames per packet for VBD
 	int32 bVAD;				///< VAD is on or off 
 	int32 bPLC;				///< PLC is on or off
 	uint32 nJitterDelay;			///< Jitter buffer delay 
 	uint32 nMaxDelay;			///< Maximum jitter buffer delay 
+	uint32 nMaxStrictDelay;			///< Maximum strict jitter buffer delay (10ms)
 	uint32 nJitterFactor;			///< fitter buffer factor 
 	// RTP session state
 	uint8	state;				///< RTP session state 
 	int32 result;				///< The result 
 	//int32	ret_val;
+
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	struct in6_addr ip6_src_addr;		///< Source IPv6 address 
+	struct in6_addr ip6_dst_addr;		///< Destination IPv6 address
+	uint32 ipv6;				///< IPv6 flag, 1: IPv6, 0: IPv4
+#endif
 }
 TstVoipMgrRtpCfg;
 
@@ -383,7 +413,7 @@ TstVoipMgr3WayCfg;
  */
 typedef struct
 {
-	uint32 ip_src_addr;				///< Source IP address 
+	uint32 ip_src_addr;								///< Source IP address 
 	uint32 ip_dst_addr;                             ///< Destination IP address
 	uint16 udp_src_port;                            ///< UDP Source port 
 	uint16 udp_dst_port;                            ///< UDP Destination port 
@@ -413,7 +443,13 @@ typedef struct
 	uint16 init_randomly;                           ///< Initialize seqno, SSRC and timestamp randomly, so below three parameters are ignored
 	uint16 init_seqno;                              ///< Initial seqno
 	uint32 init_SSRC;                               ///< SRC
-	uint32 init_timestamp;				///< Initial timestamp
+	uint32 init_timestamp;							///< Initial timestamp
+
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	struct in6_addr ip6_src_addr;					///< Source IPv6 address 
+	struct in6_addr ip6_dst_addr;					///< Destination IPv6 address
+	uint32 ipv6;									///< IPv6 flag, 1: IPv6, 0: IPv4
+#endif
 	//int32	ret_val;
 }
 TstVoipMgrSession;
@@ -449,6 +485,11 @@ typedef struct
 	int32 m_id;                                     ///< Media ID
 	uint32 enableXR;                                ///< Enable XR
 	uint32 tx_interval;				///< TX interval
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	struct in6_addr ip6_src_addr;					///< Source IPv6 address 
+	struct in6_addr ip6_dst_addr;					///< Destination IPv6 address
+	uint32 ipv6;									///< IPv6 flag, 1: IPv6, 0: IPv4
+#endif
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH
 	int result;					///< The result
 #endif
@@ -465,6 +506,7 @@ typedef struct
 	uint32 ch_id;					///< Channel ID
 	uint32 m_id;                                    ///< Media ID 
 	uint32 TX_packet_count;                         ///< RTCP TX packet count
+	uint32 TX_XR_packet_count;                      ///< RTCP-XR TX packet count
 	uint8  TX_loss_rate_max;                        ///< Maximum TX loss rate (RTCP)
 	uint8  TX_loss_rate_min;                        ///< Minimum TX loss rate (RTCP)
 	uint8  TX_loss_rate_avg;                        ///< Average TX loss rate (RTCP)
@@ -486,6 +528,7 @@ typedef struct
 	uint16  TX_MOS_LQ_avg_x10;                      ///< Average TX MOS LQ score*10 (RTCP XR)
 	uint16  TX_MOS_LQ_cur_x10;	                ///< Current TX MOS LQ score*10 (RTCP XR)
 	uint32 RX_packet_count;                         ///< RTCP RX packet count
+	uint32 RX_XR_packet_count;                      ///< RTCP-XR RX packet count
 	uint8  RX_loss_rate_max;                        ///< Maximum RX loss rate (RTCP)
 	uint8  RX_loss_rate_min;                        ///< Minimum RX loss rate (RTCP)
 	uint8  RX_loss_rate_avg;                        ///< Average RX loss rate (RTCP)
@@ -505,6 +548,21 @@ typedef struct
 	uint16 RX_MOS_LQ_avg_x10;                       ///< Maximum RX MOS LQ score*10 (RTCP XR)
 }
 TstVoipRtcpLogger;
+
+
+typedef struct
+{
+	uint32 ch_id;					///< Channel ID
+	uint32 m_id;					///< Media ID
+	uint32 ssrc;					///< Source being reported
+	uint32 fracLost;				///< Fraction lost since last report
+	uint32 cumLost;					///< Cumulative packet lost
+	uint32 lastSeqRecv;				///< Last seq number received
+	uint32 jitter;					///< Interval jitter (timestamp units)
+	uint32 lastSRTimeStamp;				///< Last SR (LSR) packet received from ssrc
+	uint32 lastSRDelay;				///< Delay since last SR (DLSR) packet
+}
+TstVoipRtcpReport;
 
 typedef struct
 {
@@ -527,18 +585,23 @@ typedef struct
 	uint32 m_id;					///< Media ID
 	RtpPayloadType local_pt; 			///< Local payload type
 	RtpPayloadType remote_pt; 			///< Remote payload type
-	RtpPayloadType uPktFormat; 			///< payload type in rtk_voip
+	//RtpPayloadType uPktFormat; 			///< payload type in rtk_voip
+	RtpPayloadType uLocalPktFormat;		///< Local payload type in rtk_voip
+	RtpPayloadType uRemotePktFormat;	///< Remote payload type in rtk_voip
 	RtpPayloadType local_pt_vbd; 			///< vbd payload type in local
 	RtpPayloadType remote_pt_vbd; 			///< vbd payload type in remote answer
 	RtpPayloadType uPktFormat_vbd; 			///< vbd payload type in rtk_voip
 	int32 nG723Type;					///< G.723 bitrate
-	int32 nFramePerPacket;                          ///<  Frames per packet 
+	//int32 nFramePerPacket;                          ///<  Frames per packet 
+	int32 nLocalFramePerPacket;                          ///<  Local Frames per packet 
+	int32 nRemoteFramePerPacket;                          ///<  Remote Frames per packet 
 	int32 nFramePerPacket_vbd;                      ///<  Frames per packet for VBD
 	int32 bVAD;                                     ///< VAD is on or off 
 	int32 bPLC;                                     ///< PLC is on or off
-	int32 result;                                   ///< Jitter buffer delay 
-	uint32 nJitterDelay;                            ///<  Frames per packet 
-	uint32 nMaxDelay;                               ///< Maximum jitter buffer delay 
+	//int32 result;                                 
+	uint32 nJitterDelay;                            ///< Jitter buffer delay (10ms)
+	uint32 nMaxDelay;                               ///< Maximum jitter buffer delay (10ms)
+	uint32 nMaxStrictDelay;							///< Maximum strict jitter buffer delay (10ms)
 	uint32 nJitterFactor;                           ///< fitter buffer factor 
 	uint32 nG726Packing;				///< G.726 packing method 
 	uint32 bT38ParamEnable;				///< If false, default settings are adopted and nT38MaxBuffer and nT38RateMgt are ignored. 
@@ -652,6 +715,7 @@ TstVoipFeature;
  *      do_mgr_VOIP_MGR_SET_ECHO_TAIL_LENGTH() do_mgr_VOIP_MGR_DTMF_GET()
  *      do_mgr_VOIP_MGR_PLAY_SIP_INFO() do_mgr_VOIP_MGR_SET_TONE_OF_COUNTRY()
  *      do_mgr_VOIP_MGR_SET_TONE_OF_CUSTOMIZE() do_mgr_VOIP_MGR_USE_CUST_TONE()
+ *      do_mgr_VOIP_MGR_SET_TONE_OF_UPDATE()
  *      do_mgr_VOIP_MGR_SET_SPK_AGC() do_mgr_VOIP_MGR_SET_SPK_AGC_LVL()
  *      do_mgr_VOIP_MGR_SET_SPK_AGC_GUP() do_mgr_VOIP_MGR_SET_SPK_AGC_GDOWN()
  *      do_mgr_VOIP_MGR_SET_MIC_AGC() do_mgr_VOIP_MGR_SET_MIC_AGC_LVL()
@@ -729,8 +793,8 @@ TstVoipSlicHook;
  */
 typedef struct
 {
-	unsigned char ch_id;          			///< Channel ID
-	unsigned char ring_set;       			///< Ring_ON: ring_set = 1 , Ring_OFF: ring_set = 0
+	uint32 ch_id;          			///< Channel ID
+	uint32 ring_set;       			///< Ring_ON: ring_set = 1 , Ring_OFF: ring_set = 0
 	//int32	ret_val;
 }
 TstVoipSlicRing;
@@ -785,6 +849,9 @@ typedef struct
 	char string2[9];					///< Caller ID - Date and time. For date & time sync
 	char cid_name[51];                               ///< Caller ID - Name
 	unsigned char cid_dtmf_mode;                    ///< Caller ID in DTMF mode.
+	unsigned int cid_dtmf_start;			///< DTMF Caller ID start digit
+	unsigned int cid_dtmf_end;			///< DTMF Caller ID end digit
+	unsigned int cid_dtmf_auto;			///< DTMF Caller ID auto control for auto Ringing, auto SLIC action, auto Start/End digit sending, etc.
 	unsigned int cid_dtmf_on_ms;
 	unsigned int cid_dtmf_pause_ms;
 	unsigned int cid_dtmf_pre_silence_ms;
@@ -832,11 +899,11 @@ TstVoipFskCid;
 typedef struct
 {
 	unsigned char ch_id;				///< Channel ID
-	TfskArea area;					///< Area -> 0:Bellcore 1:ETSI 2:BT 3:NTT 
+	TfskArea area;					///< [ Area ] 0:Bellcore 1:ETSI 2:BT 3:NTT 
 	unsigned int CS_cnt;				///< channel seizure signal bit count 
 	unsigned int mark_cnt;				///< mark signal bit count 
 	TfskClidGain mark_gain;				///< unit in dB 
-	TfskClidGain space_gain;				///< unit in dB 
+	TfskClidGain space_gain;			///< unit in dB 
 	unsigned int type2_expected_ack_tone;		///< DTMF A, or B, or C, or D
 	unsigned int delay_after_1st_ring;		///< unit in ms 
 	unsigned int delay_before_2nd_ring;		///< unit in ms 
@@ -848,6 +915,8 @@ typedef struct
 	unsigned int ack_waiting_time;			///< unit in ms 
 	unsigned int delay_after_ack_recv;		///< unit in ms 
 	unsigned int delay_after_type2_fsk;		///< unit in ms, range 40~640ms 
+	unsigned int RPAS_Duration;			///< The duration of RP-AS 200ms~300ms (may extend to 450ms):ETSI
+	unsigned int RPAS2FSK_Period;			///< From end of RP-AS to start of FSK data transmission (T3:ETSI)
 	//int32	ret_val;
 }
 TstVoipFskPara;
@@ -948,35 +1017,410 @@ TstVoipHook;
 
 /**
  * @brief Structure for tone configuration
- * @see do_mgr_VOIP_MGR_SET_CUST_TONE_PARAM()
+ * @see do_mgr_VOIP_MGR_SET_CUST_TONE_PARAM() do_mgr_VOIP_MGR_SET_UPDATE_TONE_PARAM()
  */
 typedef struct
 {
 	unsigned long	toneType;	///< see _TONE_TYPE_
 	unsigned short	cycle;		///< "<0": illegal value, "0": represent "continuous tone", ">0": cycle number
 
-	unsigned short	cadNUM;		///< Cadence number (in SUCC and SUCC_ADD mode, it represent repeat number of sequence)	
+	unsigned short	cadNUM;		///< Cadence number (in SUCC and SUCC_ADD mode, it represent repeat number of sequence, 
+	                            ///<  FOUR_FREQ support 32 cad)	
 	unsigned long	CadOn0;		///< Cadence On0 time (ms)
-	unsigned long	CadOn1;		///< Cadence On1 time (ms)
-	unsigned long	CadOn2;		///< Cadence On2 time (ms)
-	unsigned long	CadOn3;		///< Cadence On3 time (ms)
 	unsigned long	CadOff0;		///< Cadence Off0 time (ms)
+	unsigned long	CadOn1;		///< Cadence On1 time (ms)
 	unsigned long	CadOff1;		///< Cadence Off1 time (ms)
+	unsigned long	CadOn2;		///< Cadence On2 time (ms)
 	unsigned long	CadOff2;		///< Cadence Off2 time (ms)
+	unsigned long	CadOn3;		///< Cadence On3 time (ms)
 	unsigned long	CadOff3;		///< Cadence Off3 time (ms)
 
 	unsigned long PatternOff;	///< pattern Off time (ms)
 	unsigned long ToneNUM;		///< tone number (1..4)
 
+	unsigned long	Freq0;		///< Freq0 (Hz)
 	unsigned long	Freq1;		///< Freq1 (Hz)
 	unsigned long	Freq2;		///< Freq2 (Hz)
 	unsigned long	Freq3;		///< Freq3 (Hz)
-	unsigned long	Freq4;		///< Freq4 (Hz)
 
+	long Gain0;			///< Gain0 (db)
 	long Gain1;			///< Gain1 (db)
 	long Gain2;			///< Gain2 (db)
 	long Gain3;			///< Gain3 (db)
-	long Gain4;			///< Gain4 (db)
+
+	unsigned long	C1_Freq0;		///< C1_Freq0 (Hz)
+	unsigned long	C1_Freq1;		///< C1_Freq1 (Hz)
+	unsigned long	C1_Freq2;		///< C1_Freq2 (Hz)
+	unsigned long	C1_Freq3;		///< C1_Freq3 (Hz)
+
+	long C1_Gain0;			///< C1_Gain0 (db)
+	long C1_Gain1;			///< C1_Gain1 (db)
+	long C1_Gain2;			///< C1_Gain2 (db)
+	long C1_Gain3;			///< C1_Gain3 (db)
+
+	unsigned long	C2_Freq0;		///< C2_Freq0 (Hz)
+	unsigned long	C2_Freq1;		///< C2_Freq1 (Hz)
+	unsigned long	C2_Freq2;		///< C2_Freq2 (Hz)
+	unsigned long	C2_Freq3;		///< C2_Freq3 (Hz)
+
+	long C2_Gain0;			///< C2_Gain0 (db)
+	long C2_Gain1;			///< C2_Gain1 (db)
+	long C2_Gain2;			///< C2_Gain2 (db)
+	long C2_Gain3;			///< C2_Gain3 (db)
+
+	unsigned long	C3_Freq0;		///< C3_Freq0 (Hz)
+	unsigned long	C3_Freq1;		///< C3_Freq1 (Hz)
+	unsigned long	C3_Freq2;		///< C3_Freq2 (Hz)
+	unsigned long	C3_Freq3;		///< C3_Freq3 (Hz)
+
+	long C3_Gain0;			///< C3_Gain0 (db)
+	long C3_Gain1;			///< C3_Gain1 (db)
+	long C3_Gain2;			///< C3_Gain2 (db)
+	long C3_Gain3;			///< C3_Gain3 (db)
+
+	unsigned long	CadOn4;		///< Cadence On4 time (ms)
+	unsigned long	CadOff4;		///< Cadence Off4 time (ms)
+	unsigned long	CadOn5;		///< Cadence On5 time (ms)
+	unsigned long	CadOff5;		///< Cadence Off5 time (ms)
+	unsigned long	CadOn6;		///< Cadence On6 time (ms)
+	unsigned long	CadOff6;		///< Cadence Off6 time (ms)
+	unsigned long	CadOn7;		///< Cadence On7 time (ms)
+	unsigned long	CadOff7;		///< Cadence Off7 time (ms)
+
+	unsigned long	C4_Freq0;		///< C_4Freq0 (Hz)
+	unsigned long	C4_Freq1;		///< C_4Freq1 (Hz)
+	unsigned long	C4_Freq2;		///< C_4Freq2 (Hz)
+	unsigned long	C4_Freq3;		///< C_4Freq3 (Hz)
+
+	long C4_Gain0;			///< C_4Gain0 (db)
+	long C4_Gain1;			///< C_4Gain1 (db)
+	long C4_Gain2;			///< C_4Gain2 (db)
+	long C4_Gain3;			///< C_4Gain3 (db)
+
+	unsigned long	C5_Freq0;		///< C5_Freq0 (Hz)
+	unsigned long	C5_Freq1;		///< C5_Freq1 (Hz)
+	unsigned long	C5_Freq2;		///< C5_Freq2 (Hz)
+	unsigned long	C5_Freq3;		///< C5_Freq3 (Hz)
+
+	long C5_Gain0;			///< C5_Gain0 (db)
+	long C5_Gain1;			///< C5_Gain1 (db)
+	long C5_Gain2;			///< C5_Gain2 (db)
+	long C5_Gain3;			///< C5_Gain3 (db)
+
+	unsigned long	C6_Freq0;		///< C6_Freq0 (Hz)
+	unsigned long	C6_Freq1;		///< C6_Freq1 (Hz)
+	unsigned long	C6_Freq2;		///< C6_Freq2 (Hz)
+	unsigned long	C6_Freq3;		///< C6_Freq3 (Hz)
+
+	long C6_Gain0;			///< C6_Gain0 (db)
+	long C6_Gain1;			///< C6_Gain1 (db)
+	long C6_Gain2;			///< C6_Gain2 (db)
+	long C6_Gain3;			///< C6_Gain3 (db)
+
+	unsigned long	C7_Freq0;		///< C7_Freq0 (Hz)
+	unsigned long	C7_Freq1;		///< C7_Freq1 (Hz)
+	unsigned long	C7_Freq2;		///< C7_Freq2 (Hz)
+	unsigned long	C7_Freq3;		///< C7_Freq3 (Hz)
+
+	long C7_Gain0;			///< C7_Gain0 (db)
+	long C7_Gain1;			///< C7_Gain1 (db)
+	long C7_Gain2;			///< C7_Gain2 (db)
+	long C7_Gain3;			///< C7_Gain3 (db)
+
+	unsigned long	CadOn8;		///< Cadence On8 time (ms)
+	unsigned long	CadOff8;		///< Cadence Off8 time (ms)
+	unsigned long	CadOn9;		///< Cadence On9 time (ms)
+	unsigned long	CadOff9;		///< Cadence Off9 time (ms)
+	unsigned long	CadOn10;		///< Cadence On10 time (ms)
+	unsigned long	CadOff10;		///< Cadence Off10 time (ms)
+	unsigned long	CadOn11;		///< Cadence On11 time (ms)
+	unsigned long	CadOff11;		///< Cadence Off11 time (ms)
+
+	unsigned long	C8_Freq0;		///< C8_Freq0 (Hz)
+	unsigned long	C8_Freq1;		///< C8_Freq1 (Hz)
+	unsigned long	C8_Freq2;		///< C8_Freq2 (Hz)
+	unsigned long	C8_Freq3;		///< C8_Freq3 (Hz)
+
+	long C8_Gain0;			///< C8_Gain0 (db)
+	long C8_Gain1;			///< C8_Gain1 (db)
+	long C8_Gain2;			///< C8_Gain2 (db)
+	long C8_Gain3;			///< C8_Gain3 (db)
+
+	unsigned long	C9_Freq0;		///< C9_Freq0 (Hz)
+	unsigned long	C9_Freq1;		///< C9_Freq1 (Hz)
+	unsigned long	C9_Freq2;		///< C9_Freq2 (Hz)
+	unsigned long	C9_Freq3;		///< C9_Freq3 (Hz)
+
+	long C9_Gain0;			///< C9_Gain0 (db)
+	long C9_Gain1;			///< C9_Gain1 (db)
+	long C9_Gain2;			///< C9_Gain2 (db)
+	long C9_Gain3;			///< C9_Gain3 (db)
+
+	unsigned long	C10_Freq0;		///< C10_Freq0 (Hz)
+	unsigned long	C10_Freq1;		///< C10_Freq1 (Hz)
+	unsigned long	C10_Freq2;		///< C10_Freq2 (Hz)
+	unsigned long	C10_Freq3;		///< C10_Freq3 (Hz)
+
+	long C10_Gain0;			///< C10_Gain0 (db)
+	long C10_Gain1;			///< C10_Gain1 (db)
+	long C10_Gain2;			///< C10_Gain2 (db)
+	long C10_Gain3;			///< C10_Gain3 (db)
+
+	unsigned long	C11_Freq0;		///< C11_Freq0 (Hz)
+	unsigned long	C11_Freq1;		///< C11_Freq1 (Hz)
+	unsigned long	C11_Freq2;		///< C11_Freq2 (Hz)
+	unsigned long	C11_Freq3;		///< C11_Freq3 (Hz)
+
+	long C11_Gain0;			///< C11_Gain0 (db)
+	long C11_Gain1;			///< C11_Gain1 (db)
+	long C11_Gain2;			///< C11_Gain2 (db)
+	long C11_Gain3;			///< C11_Gain3 (db)
+
+	unsigned long	CadOn12;		///< Cadence On12 time (ms)
+	unsigned long	CadOff12;		///< Cadence Off12 time (ms)
+	unsigned long	CadOn13;		///< Cadence On13 time (ms)
+	unsigned long	CadOff13;		///< Cadence Off13 time (ms)
+	unsigned long	CadOn14;		///< Cadence On14 time (ms)
+	unsigned long	CadOff14;		///< Cadence Off14 time (ms)
+	unsigned long	CadOn15;		///< Cadence On15 time (ms)
+	unsigned long	CadOff15;		///< Cadence Off15 time (ms)
+
+	unsigned long	C12_Freq0;		///< C12_Freq0 (Hz)
+	unsigned long	C12_Freq1;		///< C12_Freq1 (Hz)
+	unsigned long	C12_Freq2;		///< C12_Freq2 (Hz)
+	unsigned long	C12_Freq3;		///< C12_Freq3 (Hz)
+
+	long C12_Gain0;			///< C12_Gain0 (db)
+	long C12_Gain1;			///< C12_Gain1 (db)
+	long C12_Gain2;			///< C12_Gain2 (db)
+	long C12_Gain3;			///< C12_Gain3 (db)
+
+	unsigned long	C13_Freq0;		///< C13_Freq0 (Hz)
+	unsigned long	C13_Freq1;		///< C13_Freq1 (Hz)
+	unsigned long	C13_Freq2;		///< C13_Freq2 (Hz)
+	unsigned long	C13_Freq3;		///< C13_Freq3 (Hz)
+
+	long C13_Gain0;			///< C13_Gain0 (db)
+	long C13_Gain1;			///< C13_Gain1 (db)
+	long C13_Gain2;			///< C13_Gain2 (db)
+	long C13_Gain3;			///< C13_Gain3 (db)
+
+	unsigned long	C14_Freq0;		///< C14_Freq0 (Hz)
+	unsigned long	C14_Freq1;		///< C14_Freq1 (Hz)
+	unsigned long	C14_Freq2;		///< C14_Freq2 (Hz)
+	unsigned long	C14_Freq3;		///< C14_Freq3 (Hz)
+
+	long C14_Gain0;			///< C14_Gain0 (db)
+	long C14_Gain1;			///< C14_Gain1 (db)
+	long C14_Gain2;			///< C14_Gain2 (db)
+	long C14_Gain3;			///< C14_Gain3 (db)
+
+	unsigned long	C15_Freq0;		///< C15_Freq0 (Hz)
+	unsigned long	C15_Freq1;		///< C15_Freq1 (Hz)
+	unsigned long	C15_Freq2;		///< C15_Freq2 (Hz)
+	unsigned long	C15_Freq3;		///< C15_Freq3 (Hz)
+
+	long C15_Gain0;			///< C15_Gain0 (db)
+	long C15_Gain1;			///< C15_Gain1 (db)
+	long C15_Gain2;			///< C15_Gain2 (db)
+	long C15_Gain3;			///< C15_Gain3 (db)
+
+	unsigned long	CadOn16;		///< Cadence On16 time (ms)
+	unsigned long	CadOff16;		///< Cadence Off16 time (ms)
+	unsigned long	CadOn17;		///< Cadence On17 time (ms)
+	unsigned long	CadOff17;		///< Cadence Off17 time (ms)
+	unsigned long	CadOn18;		///< Cadence On18 time (ms)
+	unsigned long	CadOff18;		///< Cadence Off18 time (ms)
+	unsigned long	CadOn19;		///< Cadence On19 time (ms)
+	unsigned long	CadOff19;		///< Cadence Off19 time (ms)
+
+	unsigned long	C16_Freq0;		///< C16_Freq0 (Hz)
+	unsigned long	C16_Freq1;		///< C16_Freq1 (Hz)
+	unsigned long	C16_Freq2;		///< C16_Freq2 (Hz)
+	unsigned long	C16_Freq3;		///< C16_Freq3 (Hz)
+
+	long C16_Gain0;			///< C16_Gain0 (db)
+	long C16_Gain1;			///< C16_Gain1 (db)
+	long C16_Gain2;			///< C16_Gain2 (db)
+	long C16_Gain3;			///< C16_Gain3 (db)
+
+	unsigned long	C17_Freq0;		///< C17_Freq0 (Hz)
+	unsigned long	C17_Freq1;		///< C17_Freq1 (Hz)
+	unsigned long	C17_Freq2;		///< C17_Freq2 (Hz)
+	unsigned long	C17_Freq3;		///< C17_Freq3 (Hz)
+
+	long C17_Gain0;			///< C17_Gain0 (db)
+	long C17_Gain1;			///< C17_Gain1 (db)
+	long C17_Gain2;			///< C17_Gain2 (db)
+	long C17_Gain3;			///< C17_Gain3 (db)
+
+	unsigned long	C18_Freq0;		///< C18_Freq0 (Hz)
+	unsigned long	C18_Freq1;		///< C18_Freq1 (Hz)
+	unsigned long	C18_Freq2;		///< C18_Freq2 (Hz)
+	unsigned long	C18_Freq3;		///< C18_Freq3 (Hz)
+
+	long C18_Gain0;			///< C18_Gain0 (db)
+	long C18_Gain1;			///< C18_Gain1 (db)
+	long C18_Gain2;			///< C18_Gain2 (db)
+	long C18_Gain3;			///< C18_Gain3 (db)
+
+	unsigned long	C19_Freq0;		///< C19_Freq0 (Hz)
+	unsigned long	C19_Freq1;		///< C19_Freq1 (Hz)
+	unsigned long	C19_Freq2;		///< C19_Freq2 (Hz)
+	unsigned long	C19_Freq3;		///< C19_Freq3 (Hz)
+
+	long C19_Gain0;			///< C19_Gain0 (db)
+	long C19_Gain1;			///< C19_Gain1 (db)
+	long C19_Gain2;			///< C19_Gain2 (db)
+	long C19_Gain3;			///< C19_Gain3 (db)
+
+	unsigned long	CadOn20;		///< Cadence On20 time (ms)
+	unsigned long	CadOff20;		///< Cadence Off20 time (ms)
+	unsigned long	CadOn21;		///< Cadence On21 time (ms)
+	unsigned long	CadOff21;		///< Cadence Off21 time (ms)
+	unsigned long	CadOn22;		///< Cadence On22 time (ms)
+	unsigned long	CadOff22;		///< Cadence Off22 time (ms)
+	unsigned long	CadOn23;		///< Cadence On23 time (ms)
+	unsigned long	CadOff23;		///< Cadence Off23 time (ms)
+
+	unsigned long	C20_Freq0;		///< C20_Freq0 (Hz)
+	unsigned long	C20_Freq1;		///< C20_Freq1 (Hz)
+	unsigned long	C20_Freq2;		///< C20_Freq2 (Hz)
+	unsigned long	C20_Freq3;		///< C20_Freq3 (Hz)
+
+	long C20_Gain0;			///< C20_Gain0 (db)
+	long C20_Gain1;			///< C20_Gain1 (db)
+	long C20_Gain2;			///< C20_Gain2 (db)
+	long C20_Gain3;			///< C20_Gain3 (db)
+
+	unsigned long	C21_Freq0;		///< C21_Freq0 (Hz)
+	unsigned long	C21_Freq1;		///< C21_Freq1 (Hz)
+	unsigned long	C21_Freq2;		///< C21_Freq2 (Hz)
+	unsigned long	C21_Freq3;		///< C21_Freq3 (Hz)
+
+	long C21_Gain0;			///< C21_Gain0 (db)
+	long C21_Gain1;			///< C21_Gain1 (db)
+	long C21_Gain2;			///< C21_Gain2 (db)
+	long C21_Gain3;			///< C21_Gain3 (db)
+
+	unsigned long	C22_Freq0;		///< C22_Freq0 (Hz)
+	unsigned long	C22_Freq1;		///< C22_Freq1 (Hz)
+	unsigned long	C22_Freq2;		///< C22_Freq2 (Hz)
+	unsigned long	C22_Freq3;		///< C22_Freq3 (Hz)
+
+	long C22_Gain0;			///< C22_Gain0 (db)
+	long C22_Gain1;			///< C22_Gain1 (db)
+	long C22_Gain2;			///< C22_Gain2 (db)
+	long C22_Gain3;			///< C22_Gain3 (db)
+
+	unsigned long	C23_Freq0;		///< C23_Freq0 (Hz)
+	unsigned long	C23_Freq1;		///< C23_Freq1 (Hz)
+	unsigned long	C23_Freq2;		///< C23_Freq2 (Hz)
+	unsigned long	C23_Freq3;		///< C23_Freq3 (Hz)
+
+	long C23_Gain0;			///< C23_Gain0 (db)
+	long C23_Gain1;			///< C23_Gain1 (db)
+	long C23_Gain2;			///< C23_Gain2 (db)
+	long C23_Gain3;			///< C23_Gain3 (db)
+
+	unsigned long	CadOn24;		///< Cadence On24 time (ms)
+	unsigned long	CadOff24;		///< Cadence Off24 time (ms)
+	unsigned long	CadOn25;		///< Cadence On25 time (ms)
+	unsigned long	CadOff25;		///< Cadence Off25 time (ms)
+	unsigned long	CadOn26;		///< Cadence On26 time (ms)
+	unsigned long	CadOff26;		///< Cadence Off26 time (ms)
+	unsigned long	CadOn27;		///< Cadence On27 time (ms)
+	unsigned long	CadOff27;		///< Cadence Off27 time (ms)
+
+	unsigned long	C24_Freq0;		///< C24_Freq0 (Hz)
+	unsigned long	C24_Freq1;		///< C24_Freq1 (Hz)
+	unsigned long	C24_Freq2;		///< C24_Freq2 (Hz)
+	unsigned long	C24_Freq3;		///< C24_Freq3 (Hz)
+
+	long C24_Gain0;			///< C24_Gain0 (db)
+	long C24_Gain1;			///< C24_Gain1 (db)
+	long C24_Gain2;			///< C24_Gain2 (db)
+	long C24_Gain3;			///< C24_Gain3 (db)
+
+	unsigned long	C25_Freq0;		///< C25_Freq0 (Hz)
+	unsigned long	C25_Freq1;		///< C25_Freq1 (Hz)
+	unsigned long	C25_Freq2;		///< C25_Freq2 (Hz)
+	unsigned long	C25_Freq3;		///< C25_Freq3 (Hz)
+
+	long C25_Gain0;			///< C25_Gain0 (db)
+	long C25_Gain1;			///< C25_Gain1 (db)
+	long C25_Gain2;			///< C25_Gain2 (db)
+	long C25_Gain3;			///< C25_Gain3 (db)
+
+	unsigned long	C26_Freq0;		///< C26_Freq0 (Hz)
+	unsigned long	C26_Freq1;		///< C26_Freq1 (Hz)
+	unsigned long	C26_Freq2;		///< C26_Freq2 (Hz)
+	unsigned long	C26_Freq3;		///< C26_Freq3 (Hz)
+
+	long C26_Gain0;			///< C26_Gain0 (db)
+	long C26_Gain1;			///< C26_Gain1 (db)
+	long C26_Gain2;			///< C26_Gain2 (db)
+	long C26_Gain3;			///< C26_Gain3 (db)
+
+	unsigned long	C27_Freq0;		///< C27_Freq0 (Hz)
+	unsigned long	C27_Freq1;		///< C27_Freq1 (Hz)
+	unsigned long	C27_Freq2;		///< C27_Freq2 (Hz)
+	unsigned long	C27_Freq3;		///< C27_Freq3 (Hz)
+
+	long C27_Gain0;			///< C27_Gain0 (db)
+	long C27_Gain1;			///< C27_Gain1 (db)
+	long C27_Gain2;			///< C27_Gain2 (db)
+	long C27_Gain3;			///< C27_Gain3 (db)
+
+	unsigned long	CadOn28;		///< Cadence On28 time (ms)
+	unsigned long	CadOff28;		///< Cadence Off28 time (ms)
+	unsigned long	CadOn29;		///< Cadence On29 time (ms)
+	unsigned long	CadOff29;		///< Cadence Off29 time (ms)
+	unsigned long	CadOn30;		///< Cadence On30 time (ms)
+	unsigned long	CadOff30;		///< Cadence Off30 time (ms)
+	unsigned long	CadOn31;		///< Cadence On31 time (ms)
+	unsigned long	CadOff31;		///< Cadence Off31 time (ms)
+
+	unsigned long	C28_Freq0;		///< C28_Freq0 (Hz)
+	unsigned long	C28_Freq1;		///< C28_Freq1 (Hz)
+	unsigned long	C28_Freq2;		///< C28_Freq2 (Hz)
+	unsigned long	C28_Freq3;		///< C28_Freq3 (Hz)
+
+	long C28_Gain0;			///< C28_Gain0 (db)
+	long C28_Gain1;			///< C28_Gain1 (db)
+	long C28_Gain2;			///< C28_Gain2 (db)
+	long C28_Gain3;			///< C28_Gain3 (db)
+
+	unsigned long	C29_Freq0;		///< C29_Freq0 (Hz)
+	unsigned long	C29_Freq1;		///< C29_Freq1 (Hz)
+	unsigned long	C29_Freq2;		///< C29_Freq2 (Hz)
+	unsigned long	C29_Freq3;		///< C29_Freq3 (Hz)
+
+	long C29_Gain0;			///< C29_Gain0 (db)
+	long C29_Gain1;			///< C29_Gain1 (db)
+	long C29_Gain2;			///< C29_Gain2 (db)
+	long C29_Gain3;			///< C29_Gain3 (db)
+
+	unsigned long	C30_Freq0;		///< C30_Freq0 (Hz)
+	unsigned long	C30_Freq1;		///< C30_Freq1 (Hz)
+	unsigned long	C30_Freq2;		///< C30_Freq2 (Hz)
+	unsigned long	C30_Freq3;		///< C30_Freq3 (Hz)
+
+	long C30_Gain0;			///< C30_Gain0 (db)
+	long C30_Gain1;			///< C30_Gain1 (db)
+	long C30_Gain2;			///< C30_Gain2 (db)
+	long C30_Gain3;			///< C30_Gain3 (db)
+
+	unsigned long	C31_Freq0;		///< C31_Freq0 (Hz)
+	unsigned long	C31_Freq1;		///< C31_Freq1 (Hz)
+	unsigned long	C31_Freq2;		///< C31_Freq2 (Hz)
+	unsigned long	C31_Freq3;		///< C31_Freq3 (Hz)
+
+	long C31_Gain0;			///< C31_Gain0 (db)
+	long C31_Gain1;			///< C31_Gain1 (db)
+	long C31_Gain2;			///< C31_Gain2 (db)
+	long C31_Gain3;			///< C31_Gain3 (db)
+
 	//int32	ret_val;
 }
 TstVoipToneCfg;
@@ -1033,19 +1477,6 @@ typedef struct
 }
 TstVoipdistonedet_parm;
 
-/**
- * @brief Structure for 8305/8306 manipulation 
- * @see do_mgr_VOIP_MGR_8305_SWITCH_VAL()
- */
-typedef struct
-{
-	unsigned short phy;			///< Physical ID 
-	unsigned short reg;                     ///< Resgiter number 
-	unsigned short value;                   ///< Register value 
-	unsigned short read_write;              ///< Read or write register value 
-	//int32	ret_val;
-} TstVoipSwitch;
-
 #define MAX_LEN_OF_IVR_TEXT		40
 /**
  * @brief Structure for playing textual IVR
@@ -1053,11 +1484,12 @@ typedef struct
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID 
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;					///< Type of codec == IVR_PLAY_TYPE_TEXT 
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;			///< How much data in buffer [output]
 	unsigned int ret1_unused;				///< Unused parameter [output]
 	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
-	IvrPlayDir_t direction;					///< Play IVR locally or remotely 
 	unsigned char szText2speech[ MAX_LEN_OF_IVR_TEXT + 1 ];	///< String for playing 
 	//int32	ret_val;
 } TstVoipPlayIVR_Text;
@@ -1070,7 +1502,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID 
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;					///< Type of codec == IVR_PLAY_TYPE_G723_63 
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;		   	///< How much data in buffer [output]
 	unsigned int nRetCopiedFrames;				///< Number of frames are copied, so the residual has to be given again [output] 
 	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
@@ -1088,7 +1522,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID 
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;					///< Type of codec == IVR_PLAY_TYPE_G729 
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;	                ///< How much data in buffer [output]
 	unsigned int nRetCopiedFrames;		                ///< Number of frames are copied, so the residual has to be given again [output]
 	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
@@ -1106,7 +1542,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID 
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;					///< Type of codec == IVR_PLAY_TYPE_G711A
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;	                ///< How much data in buffer [output]
 	unsigned int nRetCopiedFrames;		                ///< Number of frames are copied, so the residual has to be given again [output]
 	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
@@ -1116,6 +1554,26 @@ typedef struct {
 	//int32	ret_val;
 } TstVoipPlayIVR_G711;
 
+#define MAX_FRAMES_OF_G722	10
+/**
+ * @brief Structure for playing G.722 IVR
+ * @note nRetCopiedFrames should be smaller to equal to nFramesCount
+ * @see TstVoipPlayIVR_Header TstVoipPlayIVR_Header_v2
+ */
+typedef struct {
+	unsigned char ch_id;					///< Channel ID 
+	unsigned char m_id;					///< Media ID 
+	IvrPlayType_t type;					///< Type of codec == IVR_PLAY_TYPE_G722
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
+	unsigned int playing_period_10ms;	                ///< How much data in buffer [output]
+	unsigned int nRetCopiedFrames;		                ///< Number of frames are copied, so the residual has to be given again [output]
+	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
+	unsigned int  nFramesCount;				///< Number of frames in data buffer
+	unsigned char data[ 80 * MAX_FRAMES_OF_G722 *2];          ///< G.722 data
+	/* --- Above part should be identical to TstVoipPlayIVR_Header_v2 --- */
+	//int32	ret_val;
+} TstVoipPlayIVR_G722;
+
 #define MAX_FRAMES_OF_LINEAR_8K	10
 /**
  * @brief Structure for playing Linear 8k IVR
@@ -1124,7 +1582,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID                                                                 	
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;					///< Type of codec == IVR_PLAY_TYPE_LINEAR_8K
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;	                ///< How much data in buffer [output]
 	unsigned int nRetCopiedFrames;		                ///< Number of frames are copied, so the residual has to be given again [output]
 	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
@@ -1142,7 +1602,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID                                                                 	
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;					///< Type of codec == IVR_PLAY_TYPE_LINEAR_16K
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;	                ///< How much data in buffer [output]
 	unsigned int nRetCopiedFrames;		                ///< Number of frames are copied, so the residual has to be given again [output]
 	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
@@ -1158,7 +1620,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID    
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;                                     ///< Type of codec 
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;			///< How much data in buffer [output]
 	unsigned int ret1;					///< Used by various codec [output], each codec has different meaning 
 	//int32	ret_val;
@@ -1171,7 +1635,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID    
+	unsigned char m_id;					///< Media ID 
 	IvrPlayType_t type;                                     ///< Type of codec 
+	IvrPlayDir_t dir;					///< Play IVR locally or remotely 
 	unsigned int playing_period_10ms;	                ///< How much data in buffer [output]
 	unsigned int nRetCopiedFrames;				///< Number of frames are copied, so the residual has to be given again [output]
 	/* --- Above part should be identical to TstVoipPlayIVR_Header --- */
@@ -1185,6 +1651,7 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID   
+	unsigned char m_id;					///< Media ID 
 	unsigned char bPlaying;					///< If it is playing, 1 is given. Otherwise, 0 is given 
 	//int32	ret_val;
 } TstVoipPollIVR;
@@ -1196,53 +1663,9 @@ typedef struct {
  */
 typedef struct {
 	unsigned char ch_id;					///< Channel ID   
+	unsigned char m_id;					///< Media ID 
 	//int32	ret_val;
 } TstVoipStopIVR;
-
-/**
- * @brief Structure for WAN's VLAN tag 
- * @see do_mgr_VOIP_MGR_WAN_VLAN_TAG() 
- */
-typedef struct
-{
-	unsigned char enable;					///< Enable or disable VLAN 
-	unsigned short vlanId;                                  ///< VLAN ID
-	unsigned char priority;                                 ///< Priority 
-	unsigned char cfi;                                      ///< CFI 
-} TstVoipSwitch_VLAN_tag;
-
-/**
- * @brief Structure for WAN's 2 VLAN tag 
- * @see do_mgr_VOIP_MGR_WAN_2_VLAN_TAG() 
- */
-typedef struct
-{
-	unsigned char enable;					///< Enable or disable 2 VLAN
-	unsigned short vlanIdVoice;                             ///< VLAN ID for voice 
-	unsigned char priorityVoice;                            ///< Priority for voice 
-	unsigned char cfiVoice;                                 ///< CFI for voice 
-	unsigned short vlanIdData;                              ///< VLAN ID for data 
-	unsigned char priorityData;                             ///< Priority for data 
-	unsigned char cfiData;                                  ///<  CFI for data 
-} TstVoipSwitch_2_VLAN_tag;
-
-/**
- * @brief Structure for WAN's 3 VLAN tag 
- * @see do_mgr_VOIP_MGR_WAN_3_VLAN_TAG()
- */
-typedef struct
-{
-	unsigned char enable;					 ///< Enable or disable 3 VLAN 
-	unsigned short vlanIdVoice;                              ///< VLAN ID for voice 
-	unsigned char priorityVoice;                             ///< Priority for voice 
-	unsigned char cfiVoice;                                  ///< CFI for voice 
-	unsigned short vlanIdData;                               ///< VLAND ID for data 
-	unsigned char priorityData;                              ///< Priority for data 
-	unsigned char cfiData;                                   ///< CFI for data 
-	unsigned short vlanIdVideo;                              ///< VLAND ID for video 
-	unsigned char priorityVideo;                             ///< Priority for video
-	unsigned char cfiVideo;                                  ///< CFI for video 
-} TstVoipSwitch_3_VLAN_tag;
 
 /**
  * @brief Structure for T38 PCM-in debug 
@@ -1326,7 +1749,6 @@ TstVoipdataput;
 
 /**
  * @brief Structure for retrieving RTP statistics 
- * @see do_mgr_VOIP_MGR_GET_RTP_STATISTICS()
  */
 typedef struct {
 	unsigned char ch_id;					 ///< [in] Channel ID 
@@ -1358,6 +1780,41 @@ typedef struct {
 	//int32	ret_val;
 } TstVoipSessionStatistics;
 
+/**
+ * @brief Structure for retrieving RTP/RTCP statistics
+ * @see do_mgr_VOIP_MGR_GET_RTP_RTCP_STATISTICS()
+ */
+typedef struct
+{
+	unsigned char	ch_id;					///< [input] Channel ID 
+	unsigned char	m_id;					///< [input] Media ID 
+	unsigned char	bResetStatistics;			///< [input] Reset statistics 
+	/* follows are output */
+	unsigned long	nTxPkts;           			///< packets sent
+	unsigned long	nTxBytes;          			///< octets sent
+	unsigned long	nRxPkts;           			///< packets received
+	unsigned long	nRxBytes;          			///< octets received
+	unsigned long 	nLost;             			///< Number of packets lost
+	unsigned long 	nMaxFractionLost;             		///< Max. Fraction packets lost
+	unsigned long 	nMinFractionLost;             		///< Min. Fraction packets lost
+	unsigned long 	nAvgFractionLost;             		///< Avg. Fraction packets lost
+	unsigned long 	nCurFractionLost;             		///< Current Fraction packets lost
+	unsigned long	nDiscarded;        			///< discarded packets
+	unsigned long	nTxRtcpPkts;       			///< Number of ingress RTCP packets
+	unsigned long	nRxRtcpPkts;       			///< Number of egress RTCP packets
+	unsigned short	nTxRtcpXrPkts;     			///< Number of egress RTCP XR packets
+	unsigned short	nRxRtcpXrPkts;     			///< Number of egress RTCP XR packets
+	unsigned short	nOverRuns;         			///< Number of jitter buffer overruns
+	unsigned short	nUnderRuns;        			///< Number of jitter buffer underruns
+	unsigned long	nMaxJitter;           			///< Max. Interarrival jitter estimate from RTP service (in ms)
+	unsigned long	nMinJitter;           			///< Min. Interarrival jitter estimate from RTP service (in ms)
+	unsigned long	nAvgJitter;           			///< Avg. Interarrival jitter estimate from RTP service (in ms)
+	unsigned long	nCurJitter;           			///< Current Interarrival jitter estimate from RTP service (in ms)
+	unsigned long	nMaxRtcpTime;	  			///< maximum time between RTCP packets
+	//int32	ret_val;
+}TstRtpRtcpStatistics;
+
+
 typedef struct
 {
 	unsigned int event;						///< event
@@ -1378,16 +1835,6 @@ typedef struct
 } TstVoipResourceCheck;
 
 /**
- * @brief Structure for WAN's clone MAC. 
- * @see do_mgr_VOIP_MGR_SET_WAN_CLONE_MAC()
- */
-//add by Tim 1/8/2008
-typedef struct
-{
-	unsigned char CloneMACAddress[6];				///< lone MAC address 
-}TstVoipCloneMAC;
-
-/**
  * @brief Structure for port link status.
  * @param status Port link status, and its value is resolved by following:<br>
  *        PORT_LINK_LAN_ALL		0x0000000F	<br>
@@ -1406,29 +1853,6 @@ typedef struct
 typedef struct {
 	uint32 status;							///< Status
 } TstVoipPortLinkStatus;
-
-/**
- * @brief Structure for bandwidth management. 
- * @see do_mgr_VOIP_MGR_BANDWIDTH_MGR()
- */
-typedef struct
-{
-	unsigned int port;						///< Port ID 
-	unsigned int dir;						///< Direction. 0: ingress, 1: egress
-	unsigned int ban;                                               ///< Bandwidth 
-}TstVoipBandwidthMgr;
-
-/**
- * @brief Structure for Port Config. 
- * @see do_mgr_VOIP_MGR_PORT_HIGH_PRIORITY()
- * @see do_mgr_VOIP_MGR_PORT_DISABLE_FLOWCONTROL ()
- * @see do_mgr_VOIP_MGR_PORT_DISABLE()
-*/
-typedef struct
-{
-	unsigned int port;						///< Port ID
-	unsigned int config;						///< port conifg. 0: enable, 1: disable
-}TstVoipPortConfig;
 
 /**
  * @brief Structure for GPIO read, write and initialization
@@ -1508,19 +1932,43 @@ typedef struct
 */
 typedef struct
 {
-	unsigned int ch_id;		///< Channel ID
-	unsigned int m_id;		///< Media ID
-	unsigned int t_id;		///< Transaction (active) ID
-	unsigned int enable;		///< Enable or disable,  0-> off, 1->ON
-	unsigned int dir;		///< DTMF det enable
-	unsigned int thres;		///< DTMF det threshold
-	unsigned int on_time;		///< DTMF det on time (uint: 10ms)
-	unsigned int fore_twist;	///< DTMF det acceptable fore-twist (dB)
-	unsigned int rev_twist;		///< DTMF det acceptable rev-twist (dB)
+	unsigned int ch_id;				///< Channel ID
+	unsigned int m_id;				///< Reserved field for future used (Media ID)
+	unsigned int t_id;				///< Reserved field for future used (Transaction (active) ID)
+	unsigned int enable;			///< DTMF det enable or disable,  0-> off, 1->ON
+	unsigned int dir;				///< DTMF det direction, 0-> TDM, 1-> IP
+	unsigned int thres_upd;			///< Update DTMF det threshold flag, 0-> no update, 1-> update
+	unsigned int thres;				///< DTMF det threshold, Available range: 0 to 40 ( 0 ~ -40 dBm)
+	unsigned int on_time_upd;		///< Update DTMF det on time flag, 0-> no update, 1-> update
+	unsigned int on_time;			///< DTMF det on time (uint: 10ms)
+	unsigned int twist_upd;			///< Update DTMF det acceptable twist flag, 0-> no update, 1-> updates
+	unsigned int fore_twist;		///< DTMF det acceptable fore-twist (dB), Available range: 1 to 12 dB
+	unsigned int rev_twist;			///< DTMF det acceptable rev-twist (dB), Available range: 1 to 12 dB
+	unsigned int freq_offset_upd;	///< Update DTMF freq. offset flag, 0-> no update, 1-> update
+	unsigned int freq_offset;		///< DTMF freq. offset support flag, 0-> not support, 1-> support
 
 } TstDtmfDetPara;
 
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
+/**
+ * @brief Structure for cadence parameter ioctl
+ * @see do_mgr_VOIP_MGR_SET_MULTI_RING_CADENCE()
+*/
+typedef struct
+{
+	uint32  ch_id;		///< Channel ID
+	uint32  m_id;		///< Media ID
+	uint16	cadon1;		///< Cadence On1 time (ms)
+	uint16	cadoff1;	///< Cadence On1 time (ms)
+	uint16	cadon2;		///< Cadence On2 time (ms)
+	uint16	cadoff2;	///< Cadence On2 time (ms)
+	uint16	cadon3;		///< Cadence On3 time (ms)
+	uint16	cadoff3;	///< Cadence On3 time (ms)
+	uint16	cadon4;		///< Cadence On4 time (ms)
+	uint16  cadoff4;	///< Cadence On4 time (ms)
+}
+TstVoipCadence;
+
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
  #ifdef __KERNEL__
   #include <linux/types.h>	// pid_t
  #else
@@ -1766,7 +2214,7 @@ typedef struct TstMiscCtl_s {
 	unsigned long buildno;
 	unsigned long builddate;
 } TstMiscCtl_t;
-#endif /* CONFIG_RTK_VOIP_IP_PHONE */
+#endif /* CONFIG_RTK_VOIP_DRIVERS_IP_PHONE */
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 /**
@@ -1797,6 +2245,23 @@ typedef struct
 }
 TstVoipEcDebug;
 
+typedef struct
+{
+	uint8 dscpRemark;		///< DSCP Remark value
+	uint8 vlanPriorityRemark;	///< VLAN Priority Remakr value
+	uint8 queueNum;			///< Queue Number setting
+}
+TstQosCfg;
+
+typedef struct
+{
+	uint8 chid;					///< Channel ID
+	uint8 sid;					///< Session ID
+	SessionType sessiontype;	///< Session type
+	TstQosCfg qos;				///< QoS Config
+}
+TstRtpQosRemark;
+ 
 #endif
 
 

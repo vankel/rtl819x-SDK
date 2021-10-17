@@ -424,6 +424,51 @@ siteprefix_timo(arg)
 
 	return (NULL);
 }
+int create_Dhcp6pdCfgFile(struct in6_addr *addr,struct dhcp6_prefix *prefix,int sla_len)
+{
+	FILE *fp; /*for dhcp6pd.conf*/
+	struct in6_addr paddr;
+	int plen;
+	unsigned int	ptime;
+	unsigned int	vtime;
+	char tmpBuf[256]={0};
+	char tmpBufNew[256]={0};
+	int pid;
+	int size;
+	char * oldStr=NULL;
+	/*open /var/dhcp6pd.conf*/
+	
+	fp=fopen(DHCP6PD_CONF_FILE,"r");
+	if(fp!=NULL)
+	{
+		fgets(tmpBuf,sizeof(tmpBuf),fp);
+		fclose(fp);		
+	}
+	/*order is prefix,length,prefer time, valid time*/
+	sprintf(tmpBufNew,"%04x%04x%04x%04x%04x%04x%04x%04x %d	%u	%u",
+			addr->s6_addr16[0],addr->s6_addr16[1],addr->s6_addr16[2],	
+			addr->s6_addr16[3],addr->s6_addr16[4],addr->s6_addr16[5],	
+			addr->s6_addr16[6],addr->s6_addr16[7],prefix->plen+sla_len,prefix->pltime,prefix->vltime);
+	if(strcmp(tmpBufNew,tmpBuf)==0)
+	{//need not change
+		return 0;
+	}
+	else
+	{
+
+		fp = fopen(DHCP6PD_CONF_FILE, "w+");
+		if(NULL == fp)
+		{
+			return -1;
+		}
+		fprintf(fp,"%s",tmpBufNew);
+		fclose(fp);
+		//return 0;
+		system("echo \"not update\">/var/dhcp6pd_need_update");
+	}
+	return 0;	
+}
+
 
 static int
 add_ifprefix(siteprefix, prefix, pconf)
@@ -451,7 +496,29 @@ add_ifprefix(siteprefix, prefix, pconf)
 	ifpfx->paddr.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 	ifpfx->paddr.sin6_addr = prefix->addr;
+#ifdef RTK_AP_IPV6
+	if(prefix->plen>64)
+	{
+		dprintf(LOG_ERR, FNAME,
+		    "prefix is %d, over 64!",prefix->plen);
+		goto bad;
+	}
+	ifpfx->plen = 64;
+
+	/* copy prefix */
+	a = &ifpfx->paddr.sin6_addr;
+	b = prefix->plen;
+	for (i = 0, b = prefix->plen; b > 0; b -= 8, i++)
+		a->s6_addr[i] = prefix->addr.s6_addr[i];
+	/* configure the corresponding address */
+	ifpfx->ifaddr = ifpfx->paddr;
+	for (i = 15; i >= pconf->ifid_len / 8; i--)
+		ifpfx->ifaddr.sin6_addr.s6_addr[i] = pconf->ifid[i];
+	/*create file-"/var/dhcp6pd.conf" to record prefix for delegation */
+	create_Dhcp6pdCfgFile(&ifpfx->paddr.sin6_addr,prefix,pconf->sla_len);
+#else
 	ifpfx->plen = prefix->plen + pconf->sla_len;
+
 	/*
 	 * XXX: our current implementation assumes ifid len is a multiple of 8
 	 */
@@ -467,6 +534,7 @@ add_ifprefix(siteprefix, prefix, pconf)
 			prefix->plen, pconf->sla_len, pconf->ifid_len);
 		goto bad;
 	}
+
 
 	/* copy prefix and SLA ID */
 	a = &ifpfx->paddr.sin6_addr;
@@ -485,6 +553,9 @@ add_ifprefix(siteprefix, prefix, pconf)
 	ifpfx->ifaddr = ifpfx->paddr;
 	for (i = 15; i >= pconf->ifid_len / 8; i--)
 		ifpfx->ifaddr.sin6_addr.s6_addr[i] = pconf->ifid[i];
+#endif	
+	
+	
 	if (pd_ifaddrconf(IFADDRCONF_ADD, ifpfx))
 		goto bad;
 
@@ -512,6 +583,7 @@ pd_ifaddrconf(cmd, ifpfx)
 	struct prefix_ifconf *pconf;
 
 	pconf = ifpfx->ifconf;
+	dprintf(LOG_INFO, FNAME,"pconf->ifname=%s ifpfx->plen=%d\n",pconf->ifname,ifpfx->plen);
 	return (ifaddrconf(cmd, pconf->ifname, &ifpfx->ifaddr, ifpfx->plen, 
 	    ND6_INFINITE_LIFETIME, ND6_INFINITE_LIFETIME));
 }

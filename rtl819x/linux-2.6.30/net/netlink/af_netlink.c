@@ -1545,7 +1545,102 @@ int rtk_nlsendmsg (int _pid,struct sock *_nl_sk,int _len,void *_send_info)
         return 0;
 }
 EXPORT_SYMBOL(rtk_nlsendmsg);
+
+#ifdef CONFIG_AUTO_DHCP_CHECK
+static int rtk_eventd_pid=0;
+static struct sock *nl_eventd_sk=NULL;
+#define MAX_PAYLOAD 1024
+
+typedef struct __rtkEventHdr 
+{
+	int eventID;	
+	char name[16];
+	unsigned char data[0];
+}rtkEventHdr;
+
+#define RTK_EVENTD_HDR_LEN sizeof(rtkEventHdr)
+
+void rtk_eventd_netlink_receive(struct sk_buff *puskb)
+{
+	//int		pid;
+	rtkEventHdr *pEventdHdr=NULL;
+	char msgBuf[1024];
+	
+	rtk_eventd_pid = rtk_nlrecvmsg(puskb, sizeof(msgBuf), msgBuf);
+	if(rtk_eventd_pid<1)
+		return;
+	
+	pEventdHdr=(rtkEventHdr *)msgBuf;
+	
+	//panic_printk("%s:%d##pid=%d\n",__FUNCTION__,__LINE__,rtk_eventd_pid);
+	//panic_printk("%s:%d##eventID=%d\n",__FUNCTION__,__LINE__,pEventdHdr->eventID);
+	//panic_printk("%s:%d##msg=%s\n",__FUNCTION__,__LINE__,pEventdHdr->data);
+	
+  	return;
+}
+EXPORT_SYMBOL(rtk_eventd_netlink_receive);
+
+int get_nl_eventd_pid(void)
+{
+	return rtk_eventd_pid;
+}
+EXPORT_SYMBOL(get_nl_eventd_pid);
+
+struct sock *get_nl_eventd_sk(void)
+{
+	return nl_eventd_sk;
+}
+EXPORT_SYMBOL(get_nl_eventd_sk);
+
+void rtk_eventd_netlink_send(int pid, struct sock *nl_sk, int eventID, char *ifname, char *data, int data_len)
+{	
+	rtkEventHdr *pEventdHdr=NULL;
+
+	char *msgBuf=NULL;
+	if(data_len>MAX_PAYLOAD-RTK_EVENTD_HDR_LEN)
+	{
+		panic_printk("%s:%d##date len is too long!\n",__FUNCTION__,__LINE__);
+		return;
+	}
+	msgBuf = kmalloc(data_len+RTK_EVENTD_HDR_LEN+1, GFP_KERNEL);
+	if (msgBuf==NULL)
+	{
+		panic_printk("%s:%d##allocate memory fail!\n",__FUNCTION__,__LINE__);
+		return;
+	}	
+
+	memset(msgBuf, 0, sizeof(msgBuf));
+	pEventdHdr=(rtkEventHdr *)msgBuf;
+
+	pEventdHdr->eventID=eventID;
+	if(ifname!=NULL)
+		strcpy(pEventdHdr->name, ifname);
+	
+	strcpy(pEventdHdr->data, data);	
+	rtk_nlsendmsg(pid, nl_sk, data_len+RTK_EVENTD_HDR_LEN+1, msgBuf);
+
+	if(msgBuf!=NULL)
+		kfree(msgBuf);
+	
+  	return;
+}
+EXPORT_SYMBOL(rtk_eventd_netlink_send);
+
+struct sock *rtk_eventd_netlink_init(void) 
+{
+	
+  	nl_eventd_sk = netlink_kernel_create(&init_net, NETLINK_RTK_EVENTD, 0, rtk_eventd_netlink_receive, NULL, THIS_MODULE);
+
+  	if (!nl_eventd_sk) 
+	{
+    		panic_printk(KERN_ERR "kernel create eventd netlink socket fail!\n");
+  	}
+  	return nl_eventd_sk;
+}
+EXPORT_SYMBOL(rtk_eventd_netlink_init);
 #endif
+#endif
+
 void
 netlink_kernel_release(struct sock *sk)
 {

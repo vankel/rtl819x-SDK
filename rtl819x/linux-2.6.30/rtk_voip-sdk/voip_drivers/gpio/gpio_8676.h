@@ -47,7 +47,7 @@
 #define PIN_DO_DAA		GPIO_ID(GPIO_PORT_B,6)	//output
 #endif
 
-#if defined (CONFIG_RTK_VOIP_GPIO_8676P_IAD_2LAYER_DEMO_BOARD_V01A) || defined (CONFIG_RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01)
+#if defined (CONFIG_RTK_VOIP_GPIO_8676P_IAD_2LAYER_DEMO_BOARD_V01A) || defined (CONFIG_RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01) || defined (CONFIG_RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD)
 #define N8676_GPIO_SIM
 #ifdef N8676_GPIO_SIM
 #define GPIO "ABCDEFGH"
@@ -75,8 +75,23 @@
 #define PIN_CLK     GPIO_E_0 //32  //E0
 #define PIN_DI      GPIO_E_2 //34  //E2
 #define PIN_DO      GPIO_E_1 //33  //E1
+#ifdef CONFIG_RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD
+#define PIN_RELAY   GPIO_H_2
+#else
 #define PIN_RELAY   GPIO_D_6 //26  //D2
+#endif
 #elif defined CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226
+#define PIN_RESET1  GPIO_H_1 //57  //H1
+#define PIN_RESET2  GPIO_H_1 //57  //H1
+#define PIN_CS1     GPIO_D_0 //31  //D7
+#define PIN_CS2     GPIO_D_0 //31  //D7
+#define PIN_CS3     GPIO_D_0 //31  //D7
+#define PIN_CS4     GPIO_D_0 //31  //D7
+#define PIN_CLK     GPIO_D_1 //32  //E0
+#define PIN_DI      GPIO_D_3 //34  //E2
+#define PIN_DO      GPIO_D_2 //33  //E1
+#define PIN_RELAY   GPIO_D_6 //26  //D2
+#elif defined CONFIG_RTK_VOIP_DRIVERS_SLIC_SI3226x
 #define PIN_RESET1  GPIO_H_1 //57  //H1
 #define PIN_RESET2  GPIO_H_1 //57  //H1
 #define PIN_CS1     GPIO_D_0 //31  //D7
@@ -91,7 +106,7 @@
 #endif
 
 #ifdef CONFIG_8676_IAD_ZARLINK
-#ifndef CONFIG_BOARD_011 //someone EVB can not use this reset pin, it share with other reset pin
+#ifndef CONFIG_BOARD_LE89156 //someone EVB can not use this reset pin, it share with other reset pin
 #define PIN_RESET1  GPIO_H_1 //57 //H1 
 #define PIN_RESET2  GPIO_H_1 //57 //H1 
 #endif
@@ -159,6 +174,10 @@
 #if defined (CONFIG_RTK_VOIP_GPIO_8676P_IAD_2LAYER_DEMO_BOARD_V01A) || defined (CONFIG_RTK_VOIP_GPIO_8676PN_IAD_2LAYER_DEMO_BOARD_V01)
 /* 8676P IAD 1FXS EVB use below GPIO as SLIC CS */
 #define PIN_VOIP0_LED	GPIO_H_3
+#elif defined (CONFIG_RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD)
+#define PIN_VOIP0_LED	GPIO_H_4
+#define PIN_VOIP1_LED	GPIO_H_5
+//#define PIN_PSTN_LED	GPIO_H_3
 #endif
 
 /*====================END FOR RTL867x EVB gpio pin ==================*/

@@ -74,7 +74,38 @@
 #define ROUTED_CONF_FILE "/var/run/routed.conf"
 #define LAST_WAN_TYPE_FILE "/var/system/last_wan"
 #define PPTP_PEERS_FILE "/etc/ppp/peers/rpptp"
+#ifdef CONFIG_IPV6
+#define DHCP6S_PID_FILE "/var/run/dhcp6s.pid"
+#define DHCP6S_CONF_FILE "/var/dhcp6s.conf"
+#define DHCP6C_PID_FILE "/var/run/dhcp6c.pid"
+#define DHCP6C_CONF_FILE "/var/dhcp6c.conf"
+#define DNSV6_PID_FILE "/var/run/dnsmasq.pid"
+#define DNRD_PID_FILE "/var/run/dnrd.pid"
+#define DNSV6_CONF_FILE "/var/dnsmasq.conf"
 
+#define DNSV6_RESOLV_FILE "/var/dnsmasq_resolv.conf"
+
+#define RESOLV_CONF_FILE "/etc/resolv.conf"
+#define RADVD_CONF_FILE "/var/radvd.conf"
+#define RADVD_PID_FILE "/var/run/radvd.pid"
+#define ECMH_PID_FILE	"/var/run/ecmh.pid"
+#define DHCP6C_DUID_FILE  "/var/dhcpv6_duid"
+#define IPV6_ROUTE_PROC "/proc/net/ipv6_route"
+#define IPV6_ADDR_PROC "/proc/net/if_inet6"
+#define IPV6_GATEWAY_FILE	"/var/gateway_ipv6"
+#define DHCP6PD_CONF_FILE "/var/dhcp6pd.conf"
+#define DNSV6_ADDR_FILE	"/var/dns6.conf"
+//mldproxy
+#define PROC_BR_MLDPROXY "/proc/br_mldProxy"
+#define PROC_BR_MLDSNOOP "/proc/br_mldsnoop"
+#define PROC_BR_MLDVERSION "/proc/br_mldVersion"
+#define PROC_BR_MLDQUERY "/proc/br_mldquery"
+//#define PROC_MLD_MAX_MEMBERS "/proc/sys/net/ipv6/mld_max_memberships"
+
+#define MLDPROXY_PID_FILE "/var/run/mld_pid"
+
+
+#endif
 #ifdef MULTI_PPPOE
 #define PPP_PAP_FILE2 "/etc/ppp/pap-secrets2"
 #define PPP_CHAP_FILE2 "/etc/ppp/chap-secrets2"
@@ -103,7 +134,10 @@
 #define MANUAL_CONNECT_NOW "/var/ppp/manual_connect_now"
 #endif
 #define RESTART_IAPP "/var/restart_iapp"
+#define PREVIOUS_WAN_DHCP_INFO "/var/previous_wan_dhcp_info"
+#define PREVIOUS_LAN_DHCP_INFO "/var/previous_lan_dhcp_info"
 #endif
 
-
-
+#ifdef CONFIG_CPU_UTILIZATION
+#define CPU_LOAD_FILE "/web/cpu_data0.cpudat"
+#endif

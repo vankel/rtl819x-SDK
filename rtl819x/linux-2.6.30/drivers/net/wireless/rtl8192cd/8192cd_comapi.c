@@ -257,7 +257,7 @@ int rtl_siwmode(struct net_device *dev,
 		   So the net_dev->priv will be NULL in 2rd open */
 		return -ENETDOWN;
 	}
-
+#ifndef SUPPORT_MONITOR
 #ifndef WIFI_HAPD
 	//check if the interface is down
 	if (!netif_running(priv->dev))
@@ -266,27 +266,49 @@ int rtl_siwmode(struct net_device *dev,
 		return -ENETDOWN;
 	}
 #endif
+#endif
 	
 	switch(wrqu->mode)
 	{
 		case IW_MODE_AUTO: // 0
-			OPMODE &= WIFI_AP_STATE;
+			OPMODE_VAL(OPMODE & WIFI_AP_STATE);
 			printk("set_mode = IW_MODE_AUTO\n");
 			break;
 		case IW_MODE_ADHOC: // 1
-			OPMODE &= WIFI_ADHOC_STATE;
+			OPMODE_VAL(OPMODE & WIFI_ADHOC_STATE);
 			printk("set_mode = IW_MODE_ADHOC\n");
 			break;
 		case IW_MODE_MASTER: // 3
-			OPMODE &= WIFI_AP_STATE;
+			OPMODE_VAL(OPMODE & WIFI_AP_STATE);
+#ifdef SUPPORT_MONITOR			
+			priv->is_monitor_mode = FALSE;
+			panic_printk("priv->is_monitor_mode = %d,\n", priv->is_monitor_mode); 
+			del_timer(&priv->chan_switch_timer);
+#endif
 			printk("set_mode = IW_MODE_MASTER\n");
 //			setopmode_cmd(padapter, networkType);
 			break;
 		case IW_MODE_INFRA: // 2
-			OPMODE &= WIFI_STATION_STATE;
+			OPMODE_VAL(OPMODE & WIFI_STATION_STATE);
 			printk("set_mode = IW_MODE_INFRA\n");
 			break;
-
+#ifdef SUPPORT_MONITOR	
+		case IW_MODE_MONITOR:	
+			OPMODE |= WIFI_SITE_MONITOR;	
+			priv->is_monitor_mode = TRUE;	
+			priv->chan_num = 0;
+			RTL_W32(RCR, RCR_APP_FCS | RCR_APP_MIC | RCR_APP_ICV | RCR_APP_PHYSTS | RCR_HTC_LOC_CTRL
+					| RCR_AMF | RCR_ADF | RCR_AICV | RCR_ACRC32 | RCR_CBSSID_ADHOC | RCR_AB | RCR_AM | RCR_APM | RCR_AAP);
+			init_timer(&priv->chan_switch_timer);
+			priv->chan_switch_timer.data = (unsigned long) priv;
+			priv->chan_switch_timer.function = rtl8192cd_chan_switch_timer;
+			SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+			SwChnl(priv, priv->available_chnl[priv->chan_num], priv->pshare->offset_2nd_chan);
+			mod_timer(&priv->chan_switch_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(priv->pmib->miscEntry.chan_switch_time));
+			panic_printk("priv->is_monitor_mode = %d \n", priv->is_monitor_mode); 
+			panic_printk("set_mode = IW_MODE_MONITOR\n");
+			break;
+#endif
 		default :
 			ret = -EINVAL;
 	}
@@ -577,6 +599,9 @@ int rtl_iwaplist(struct net_device *dev,
 	int i;
 	struct list_head *phead, *plist;
 	struct stat_info *pstat;
+#ifdef SMP_SYNC
+	unsigned long flags = 0;
+#endif
 
 	if (priv == NULL)
 	{
@@ -594,9 +619,11 @@ int rtl_iwaplist(struct net_device *dev,
 	}
 #endif
 	
-	phead = &priv->asoc_list;
-	
 	i = 0;
+	phead = &priv->asoc_list;
+
+	SMP_LOCK_ASOC_LIST(flags);
+	
 	plist = phead->next;
 	while (plist != phead && i < IW_MAX_AP) {
 		pstat = list_entry(plist, struct stat_info, asoc_list);  
@@ -611,6 +638,8 @@ int rtl_iwaplist(struct net_device *dev,
 		plist = plist->next;
 		i++;
 	}
+
+	SMP_UNLOCK_ASOC_LIST(flags);
 
 	data->length = i;
 	memcpy(extra, &addr, i*sizeof(addr[0]));
@@ -1182,6 +1211,7 @@ int rtl_siwscan(struct net_device *dev,
 			struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra)
 {
+	INT8 ret=-1;
 #ifdef NETDEV_NO_PRIV
 	RTL_PRIV *priv = ((RTL_PRIV *)netdev_priv(dev))->wlan_priv;
 #else
@@ -1201,7 +1231,32 @@ int rtl_siwscan(struct net_device *dev,
 		//printk("\nFail: interface not opened\n");
 		return -ENETDOWN;
 	}
-	rtl8192cd_ss_req(priv, (unsigned char *) &wrqu->data, 0);
+	ret=rtl8192cd_ss_req(priv, (unsigned char *) &wrqu->data, 0);
+	if(0!=wrqu->data.length)
+	{	
+		if(extra!=NULL && (!strcmp(extra,"rtl8192cd_ioctl")))//called from rtl8192cd_ioctl
+		{	
+			#ifdef WIFI_WPAS //_Eric ??
+				if (ioctl_copy_to_user((void *)wrqu->data.pointer, (void *)&ret, 1))
+					memcpy(wrqu->data.pointer, &ret, 1);
+			#else
+				if (ioctl_copy_to_user((void *)wrqu->data.pointer, (void *)&ret, 1))
+					return -1;
+			#endif
+		}
+		else //called from iwhandler. 
+		{
+			#ifdef WIFI_WPAS //_Eric ??
+				if (copy_to_user((void *)wrqu->data.pointer, (void *)&ret, 1))
+					memcpy(data, &ret, 1);
+			#else
+				if (copy_to_user((void *)wrqu->data.pointer, (void *)&ret, 1))
+					return -1;
+			#endif
+
+		}
+	}
+
 	//wait ss done
 	wait_event_interruptible_timeout(priv->ss_wait,(!priv->ss_req_ongoing),RTL_SECONDS_TO_JIFFIES(5));
 	return 0;
@@ -1242,7 +1297,7 @@ int rtl_giwscan(struct net_device *dev,
 			return -ENETDOWN;
 		}
 	
-		if (priv->site_survey.count_backup== 0)
+		if (priv->site_survey->count_backup== 0)
 		{
 			wrqu->data.length = 0;
 			return 0;
@@ -1257,7 +1312,7 @@ int rtl_giwscan(struct net_device *dev,
 		end_buf = extra + IW_SCAN_MAX_DATA;
 #endif
 	
-		for (i = 0; i < priv->site_survey.count_backup; i++) 
+		for (i = 0; i < priv->site_survey->count_backup; i++) 
 		{
 				
 			if( (wrqu->data.length - (current_ev - extra)) <= 200)
@@ -1277,7 +1332,7 @@ int rtl_giwscan(struct net_device *dev,
 			memset(&iwe, 0, sizeof(iwe));
 			iwe.cmd = SIOCGIWAP;
 			iwe.u.ap_addr.sa_family = ARPHRD_ETHER;
-					memcpy(iwe.u.ap_addr.sa_data, &priv->site_survey.bss_backup[i].bssid, MACADDRLEN);
+			memcpy(iwe.u.ap_addr.sa_data, &priv->site_survey->bss_backup[i].bssid, MACADDRLEN);
 	
 			previous_ev = current_ev;
 			current_ev = IWE_STREAM_ADD_EVENT(info, current_ev,end_buf, &iwe, IW_EV_ADDR_LEN);
@@ -1303,7 +1358,7 @@ int rtl_giwscan(struct net_device *dev,
 			iwe.cmd = SIOCGIWNAME;
 	
 		{
-			struct bss_desc *pBss=&priv->site_survey.bss_backup[i];
+			struct bss_desc *pBss=&priv->site_survey->bss_backup[i];
 			//int rateCnt=0;
 	
 			if (pBss->network==WIRELESS_11B)
@@ -1337,13 +1392,13 @@ int rtl_giwscan(struct net_device *dev,
 			//================================
 			memset(&iwe, 0, sizeof(iwe));
 	
-			//printk("ESSID %s %d\n",priv->site_survey.bss[i].ssid, priv->site_survey.bss[i].ssidlen);
+			//printk("ESSID %s %d\n",priv->site_survey->bss[i].ssid, priv->site_survey->bss[i].ssidlen);
 			iwe.cmd = SIOCGIWESSID;
-			iwe.u.data.length = priv->site_survey.bss_backup[i].ssidlen;
+			iwe.u.data.length = priv->site_survey->bss_backup[i].ssidlen;
 			iwe.u.data.flags = 1;
 	 
 			previous_ev = current_ev;
-			current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey.bss_backup[i].ssid);
+			current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey->bss_backup[i].ssid);
 			if (current_ev == previous_ev)
 #if WIRELESS_EXT >= 17
 				return -E2BIG;
@@ -1355,15 +1410,15 @@ int rtl_giwscan(struct net_device *dev,
 			//================================
 			memset(&iwe, 0, sizeof(iwe));
 			iwe.cmd = SIOCGIWMODE;
-			if (priv->site_survey.bss_backup[i].bsstype & WIFI_ADHOC_STATE)
+			if (priv->site_survey->bss_backup[i].bsstype & WIFI_ADHOC_STATE)
 			{
 				iwe.u.mode = IW_MODE_ADHOC;
 			}
-			else if (priv->site_survey.bss_backup[i].bsstype & WIFI_STATION_STATE)
+			else if (priv->site_survey->bss_backup[i].bsstype & WIFI_STATION_STATE)
 			{
 				iwe.u.mode = IW_MODE_INFRA;
 			}
-			else if (priv->site_survey.bss_backup[i].bsstype & WIFI_AP_STATE)
+			else if (priv->site_survey->bss_backup[i].bsstype & WIFI_AP_STATE)
 			{
 				iwe.u.mode = IW_MODE_MASTER;
 			}
@@ -1387,7 +1442,7 @@ int rtl_giwscan(struct net_device *dev,
 			memset(&iwe, 0, sizeof(iwe));
 			iwe.cmd = SIOCGIWFREQ;
 			{
-				u8 ch = priv->site_survey.bss_backup[i].channel;
+				u8 ch = priv->site_survey->bss_backup[i].channel;
 				//u32	m = 0;
 				//MAP_CHANNEL_ID_TO_KHZ(ch, m);
 				//iwe.u.freq.m = m * 100;
@@ -1409,11 +1464,11 @@ int rtl_giwscan(struct net_device *dev,
 			//================================
 			memset(&iwe, 0, sizeof(iwe));
 			iwe.cmd = IWEVQUAL;
-			iwe.u.qual.qual = priv->site_survey.bss_backup[i].rssi;
+			iwe.u.qual.qual = priv->site_survey->bss_backup[i].rssi;
 
 			// not sure about signal level and noise level
-			//iwe.u.qual.level = (u8) priv->site_survey.bss[i].sq;	
-			//iwe.u.qual.noise = signal_todbm((u8)(100-priv->site_survey.bss[i].rssi)) -25;
+			//iwe.u.qual.level = (u8) priv->site_survey->bss[i].sq;	
+			//iwe.u.qual.noise = signal_todbm((u8)(100-priv->site_survey->bss[i].rssi)) -25;
 			iwe.u.qual.updated = IW_QUAL_QUAL_UPDATED | IW_QUAL_LEVEL_INVALID | IW_QUAL_NOISE_INVALID;
 			
 			current_ev = IWE_STREAM_ADD_EVENT(info, current_ev, end_buf, &iwe, IW_EV_QUAL_LEN);
@@ -1428,7 +1483,7 @@ int rtl_giwscan(struct net_device *dev,
 			//================================
 			memset(&iwe, 0, sizeof(iwe));
 			iwe.cmd = SIOCGIWENCODE;
-			if (priv->site_survey.bss[i].capability & 0x0010)
+			if (priv->site_survey->bss[i].capability & 0x0010)
 				iwe.u.data.flags =IW_ENCODE_ENABLED | IW_ENCODE_NOKEY;
 			else
 				iwe.u.data.flags = IW_ENCODE_DISABLED;
@@ -1445,65 +1500,59 @@ int rtl_giwscan(struct net_device *dev,
 
 
 //WIFI_WPAS ++
-
 //WPAIE 
-/*
-			printk("ESSID#%d=%s, wpa_ie_len = %d, rsn_ie_len = %d, wps_ie_len = %d\n",
-			i, priv->site_survey.bss_backup[i].ssid, 
-			priv->site_survey.wpa_ie_backup[i].wpa_ie_len,
-			priv->site_survey.rsn_ie_backup[i].rsn_ie_len,
-			priv->site_survey.ie_backup[i].data[1] + 2);
-*/		
 			//================================
-			if(priv->site_survey.wpa_ie_backup[i].wpa_ie_len > 0){
+/*cfg p2p cfg p2p*/
+			if(priv->site_survey->bss[i].wpa_ie_len > 0){
 				memset(&iwe, 0, sizeof(iwe));
 		
 				iwe.cmd = IWEVGENIE;
-				iwe.u.data.length = priv->site_survey.wpa_ie_backup[i].wpa_ie_len;
+				iwe.u.data.length = priv->site_survey->bss[i].wpa_ie_len;
 				iwe.u.data.flags = 1;
 		 
 				previous_ev = current_ev;
-				current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey.wpa_ie_backup[i].data);
-				if (current_ev == previous_ev)
+				current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey->bss[i].wpa_ie);
+				if (current_ev == previous_ev){
 #if WIRELESS_EXT >= 17
 					return -E2BIG;
 #else
 					break;
 #endif
+				}
 			}
-
-
+/*cfg p2p cfg p2p*/
 //RSNIE 
 			//================================
-			if(priv->site_survey.rsn_ie_backup[i].rsn_ie_len > 0){
+			if(priv->site_survey->bss[i].rsn_ie_len > 0)                
+            {
 				memset(&iwe, 0, sizeof(iwe));
 					
 				iwe.cmd = IWEVGENIE;
-				iwe.u.data.length = priv->site_survey.rsn_ie_backup[i].rsn_ie_len;
+				iwe.u.data.length = priv->site_survey->bss[i].rsn_ie_len;
 				iwe.u.data.flags = 1;
 					 
 				previous_ev = current_ev;
-				current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey.rsn_ie_backup[i].data);
-				if (current_ev == previous_ev)
+				current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey->bss[i].rsn_ie);
+				if (current_ev == previous_ev){
 #if WIRELESS_EXT >= 17
 					return -E2BIG;
 #else
 					break;
 #endif
+                }
 			}
-
-
-//WPSIE 
+/*cfg p2p cfg p2p*/
+            //WPSIE 
 			//================================
-			if(priv->site_survey.ie_backup[i].data[1] > 0){
+			if(priv->site_survey->wscie[i].data[1] > 0){
 				memset(&iwe, 0, sizeof(iwe));
 					
 				iwe.cmd = IWEVGENIE;
-				iwe.u.data.length = priv->site_survey.ie_backup[i].data[1] + 2;
+				iwe.u.data.length = priv->site_survey->wscie[i].data[1] + 2;
 				iwe.u.data.flags = 1;
 					 
 				previous_ev = current_ev;
-				current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey.ie_backup[i].data);
+				current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey->wscie[i].data);
 				if (current_ev == previous_ev)
 #if WIRELESS_EXT >= 17
 					return -E2BIG;
@@ -1557,7 +1606,7 @@ int rtl_giwscan(struct net_device *dev,
 		return -ENETDOWN;
 	}
 
-	if (priv->site_survey.count == 0)
+	if (priv->site_survey->count == 0)
 	{
 		wrqu->data.length = 0;
 		return 0;
@@ -1572,7 +1621,7 @@ int rtl_giwscan(struct net_device *dev,
     end_buf = extra + IW_SCAN_MAX_DATA;
 #endif
 
-	for (i = 0; i < priv->site_survey.count; i++) 
+	for (i = 0; i < priv->site_survey->count; i++) 
 	{
 		if (current_ev >= end_buf)
         {
@@ -1588,7 +1637,7 @@ int rtl_giwscan(struct net_device *dev,
 		memset(&iwe, 0, sizeof(iwe));
 		iwe.cmd = SIOCGIWAP;
 		iwe.u.ap_addr.sa_family = ARPHRD_ETHER;
-				memcpy(iwe.u.ap_addr.sa_data, &priv->site_survey.bss[i].bssid, MACADDRLEN);
+				memcpy(iwe.u.ap_addr.sa_data, &priv->site_survey->bss[i].bssid, MACADDRLEN);
 
         previous_ev = current_ev;
 		current_ev = IWE_STREAM_ADD_EVENT(info, current_ev,end_buf, &iwe, IW_EV_ADDR_LEN);
@@ -1614,7 +1663,7 @@ int rtl_giwscan(struct net_device *dev,
 		iwe.cmd = SIOCGIWNAME;
 
 	{
-		struct bss_desc *pBss=&priv->site_survey.bss[i];
+		struct bss_desc *pBss=&priv->site_survey->bss[i];
 		//int rateCnt=0;
 
 		if (pBss->network==WIRELESS_11B)
@@ -1648,13 +1697,13 @@ int rtl_giwscan(struct net_device *dev,
 		//================================
 		memset(&iwe, 0, sizeof(iwe));
 
-		//printk("ESSID %s %d\n",priv->site_survey.bss[i].ssid, priv->site_survey.bss[i].ssidlen);
+		//printk("ESSID %s %d\n",priv->site_survey->bss[i].ssid, priv->site_survey->bss[i].ssidlen);
 		iwe.cmd = SIOCGIWESSID;
-		iwe.u.data.length = priv->site_survey.bss[i].ssidlen;
+		iwe.u.data.length = priv->site_survey->bss[i].ssidlen;
 		iwe.u.data.flags = 1;
  
         previous_ev = current_ev;
-		current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey.bss[i].ssid);
+		current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf, &iwe, (char *)priv->site_survey->bss[i].ssid);
         if (current_ev == previous_ev)
 #if WIRELESS_EXT >= 17
             return -E2BIG;
@@ -1666,15 +1715,15 @@ int rtl_giwscan(struct net_device *dev,
 		//================================
 		memset(&iwe, 0, sizeof(iwe));
 		iwe.cmd = SIOCGIWMODE;
-		if (priv->site_survey.bss[i].bsstype & WIFI_ADHOC_STATE)
+		if (priv->site_survey->bss[i].bsstype & WIFI_ADHOC_STATE)
 		{
 			iwe.u.mode = IW_MODE_ADHOC;
 		}
-		else if (priv->site_survey.bss[i].bsstype & WIFI_STATION_STATE)
+		else if (priv->site_survey->bss[i].bsstype & WIFI_STATION_STATE)
 		{
 			iwe.u.mode = IW_MODE_INFRA;
 		}
-		else if (priv->site_survey.bss[i].bsstype & WIFI_AP_STATE)
+		else if (priv->site_survey->bss[i].bsstype & WIFI_AP_STATE)
 		{
 			iwe.u.mode = IW_MODE_MASTER;
 		}
@@ -1698,7 +1747,7 @@ int rtl_giwscan(struct net_device *dev,
 		memset(&iwe, 0, sizeof(iwe));
 		iwe.cmd = SIOCGIWFREQ;
 		{
-			u8 ch = priv->site_survey.bss[i].channel;
+			u8 ch = priv->site_survey->bss[i].channel;
 			//u32	m = 0;
 			//MAP_CHANNEL_ID_TO_KHZ(ch, m);
 			//iwe.u.freq.m = m * 100;
@@ -1720,11 +1769,11 @@ int rtl_giwscan(struct net_device *dev,
         //================================
         memset(&iwe, 0, sizeof(iwe));
     	iwe.cmd = IWEVQUAL;
-		iwe.u.qual.qual = priv->site_survey.bss[i].rssi;
+		iwe.u.qual.qual = priv->site_survey->bss[i].rssi;
 
 		// not sure about signal level and noise level
-		//iwe.u.qual.level = (u8) priv->site_survey.bss[i].sq;  
-		//iwe.u.qual.noise = signal_todbm((u8)(100-priv->site_survey.bss[i].rssi)) -25;
+		//iwe.u.qual.level = (u8) priv->site_survey->bss[i].sq;  
+		//iwe.u.qual.noise = signal_todbm((u8)(100-priv->site_survey->bss[i].rssi)) -25;
 		iwe.u.qual.updated = IW_QUAL_QUAL_UPDATED | IW_QUAL_LEVEL_INVALID | IW_QUAL_NOISE_INVALID;
 		
     	current_ev = IWE_STREAM_ADD_EVENT(info, current_ev, end_buf, &iwe, IW_EV_QUAL_LEN);
@@ -1739,7 +1788,7 @@ int rtl_giwscan(struct net_device *dev,
 		//================================
 		memset(&iwe, 0, sizeof(iwe));
 		iwe.cmd = SIOCGIWENCODE;
-		if (priv->site_survey.bss[i].capability & 0x0010)
+		if (priv->site_survey->bss[i].capability & 0x0010)
 			iwe.u.data.flags =IW_ENCODE_ENABLED | IW_ENCODE_NOKEY;
 		else
 			iwe.u.data.flags = IW_ENCODE_DISABLED;
@@ -1857,7 +1906,7 @@ static int rewrite_line (unsigned char **dst, unsigned char **src)
 		unsigned int i = strlen(*src);
 		vl_s=loc;
 		while (i>0){
-			char *t = (char *)((unsigned int)s+i-1);
+			char *t = (char *)((unsigned long)s+i-1);
 			if (*t=='"' && t > vl_s ){
 					vl_e = t;
 					quoted = 1;

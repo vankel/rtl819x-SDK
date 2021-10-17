@@ -17,7 +17,8 @@
 #define ROOT_IMAGE_OFFSET 0x130000		//default for 4M flash
 #endif
 
-#define FLASH_DEVICE_NAME0		("/dev/mtdblock0")
+//#define FLASH_DEVICE_NAME0		("/dev/mtdblock0")
+#define FLASH_DEVICE_NAME0		("/dev/mtdblock2")
 
 // For 8196C and 8198
 #define KERNEL_SIGNATURE	((char *)"cr6c")
@@ -31,7 +32,8 @@
 #define USER_CERT_MAX_SIZE 0x2000	// 8KB, note: user cert file include user cert and user private key.
 #define ROOT_CERT_MAX_SIZE 0x2000	// 8KB, note: root cert file only include root cert.
 
-#define CERT_AREA_BASE	(ROOT_IMAGE_OFFSET-CERT_SIZE)
+//#define CERT_AREA_BASE	(ROOT_IMAGE_OFFSET-CERT_SIZE)
+#define CERT_AREA_BASE		0
 #define USER_CERT_BASE_5G	(CERT_AREA_BASE+CERT_AREA_HEADER_SIZE)
 #define ROOT_CERT_BASE_5G	(USER_CERT_BASE_5G+USER_CERT_MAX_SIZE)
 #define USER_CERT_BASE_2G	(ROOT_CERT_BASE_5G+ROOT_CERT_MAX_SIZE)
@@ -101,7 +103,7 @@ void dumpStr(const char * buf, int bufLen);
 #endif
 
 int isFileExist(char *file_name);
-int kernelImageOverSize(void);
+//int kernelImageOverSize(void);
 int updateCertAreaHeader(const unsigned char certFlag);
 int storeFile(const unsigned long dstAddr, const char * srcFile, const char initFlag);
 int loadFile(const char * dstFile, const unsigned long srcAddr);

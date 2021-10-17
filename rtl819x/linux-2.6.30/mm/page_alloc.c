@@ -1687,11 +1687,11 @@ nofail_alloc:
 
 nopage:
 	if (!(gfp_mask & __GFP_NOWARN) && printk_ratelimit()) {
-		printk(KERN_WARNING "%s: page allocation failure."
+		printk(KERN_DEBUG "%s: page allocation failure."
 			" order:%d, mode:0x%x\n",
 			p->comm, order, gfp_mask);
-		dump_stack();
-		show_mem();
+		//dump_stack();
+		//show_mem();
 	}
 got_pg:
 	return page;

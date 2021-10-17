@@ -11,6 +11,14 @@ include $(DIR_USERS)/.config
 endif
 
 ifdef CONFIG_RTL_8198_AP_ROOT
+CONFIG_RTL_AP = CONFIG_RTL_8198_AP_ROOT
+endif
+
+ifdef CONFIG_RTL_8197D_AP
+CONFIG_RTL_AP = CONFIG_RTL_8197D_AP
+endif
+
+ifdef CONFIG_RTL_AP
 AP=1
 SKUTAG=ap
 else

@@ -11,7 +11,7 @@ int test_main(int argc, char *argv[])
 	//nMaxVoIPPorts = RTK_VOIP_SLIC_NUM(g_VoIP_Feature);
 	nMaxVoIPPorts = RTK_VOIP_CH_NUM(g_VoIP_Feature);
 
-	rtk_DisableRingFXS(1);
+	rtk_DisableRingFxs(1);
     for (i=0; i<nMaxVoIPPorts; i++)
     {
 		rtk_InitDSP(i);
@@ -19,9 +19,9 @@ int test_main(int argc, char *argv[])
 		if( !RTK_VOIP_IS_SLIC_CH( i, g_VoIP_Feature ) )
 			continue;
 
-		rtk_SetRingFXS(i, 1);
+		rtk_SetRingFxs(i, 1);
 		sleep(1);
-		rtk_SetRingFXS(i, 0);
+		rtk_SetRingFxs(i, 0);
 	}
 
 	chid = 0;
@@ -56,19 +56,19 @@ int test_main(int argc, char *argv[])
 				if (strcmp(buffer, "1000") == 0)
 				{
 					printf("Gen FSK Caller ID Type I\n");
-					rtk_Set_FSK_Area(chid == 0 ? 1 : 0, 0); /* area -> 0:Bellcore 1:ETSI 2:BT 3:NTT */
-					rtk_Gen_FSK_CID(chid == 0 ? 1 : 0, "9876543210", (void *) 0, (void *) 0, 0);
+					rtk_SetFskArea(chid == 0 ? 1 : 0, 0); /* area -> 0:Bellcore 1:ETSI 2:BT 3:NTT */
+					rtk_GenFskCid(chid == 0 ? 1 : 0, "9876543210", (void *) 0, (void *) 0, 0);
 				}
 				else if (strcmp(buffer, "2000") == 0)
 				{
 					printf("Gen FSK Caller ID Type II\n");
-					rtk_Set_FSK_Area(chid == 0 ? 1 : 0, 0); 
-					rtk_Gen_FSK_CID(chid == 0 ? 1 : 0, "9876543210", "06011200", (void *) 0, 1); // mmddHHMM
+					rtk_SetFskArea(chid == 0 ? 1 : 0, 0); 
+					rtk_GenFskCid(chid == 0 ? 1 : 0, "9876543210", "06011200", (void *) 0, 1); // mmddHHMM
 				}
 				else if (strcmp(buffer, "3000") == 0)
 				{
 					printf("Gen DTMF Caller ID\n");
-					rtk_Gen_Dtmf_CID(chid == 0 ? 1 : 0, buffer);
+					rtk_GenDtmfCid(chid == 0 ? 1 : 0, buffer);
 				}
 
 				buf_len = 0;

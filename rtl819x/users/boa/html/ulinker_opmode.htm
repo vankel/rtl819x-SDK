@@ -24,10 +24,6 @@ function ulinkerAutoClick(selValue)
 		{
 			document.fmUlkOpMode.ulinker_manual_Sel.selectedIndex=0;
 		}
-		else if(opmode == 2)//0:WISP
-		{
-			document.fmUlkOpMode.ulinker_manual_Sel.selectedIndex=4;
-		}
 		else//1:bridge
 		{
 			if(wlanMode == 0)//0:AP
@@ -88,7 +84,6 @@ function init()
 				<option value="0">AP</option>
 				<option value="1">Client</option>
 				<option value="3">Repeater</option>
-				<option value="4">WISP Repeater</option>
 			</select>
 		</td>
 	</tr>

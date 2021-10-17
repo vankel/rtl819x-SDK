@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "e_os.h"
+//#include "e_os.h"
 
 #include <openssl/crypto.h>
 #include <openssl/err.h>
@@ -12,12 +12,16 @@
 #ifdef OPENSSL_NO_RSA
 int main(int argc, char *argv[])
 {
-    printf("No RSA support\n");
+    fprintf(stderr,"No RSA support\n");
     return(0);
 }
 #else
 #include <openssl/rsa.h>
 
+#define SetKey \
+  key->n = BN_bin2bn(n, sizeof(n)-1, key->n); \
+  key->e = BN_bin2bn(e, sizeof(e)-1, key->e); 
+#if 0
 #define SetKey \
   key->n = BN_bin2bn(n, sizeof(n)-1, key->n); \
   key->e = BN_bin2bn(e, sizeof(e)-1, key->e); \
@@ -29,6 +33,7 @@ int main(int argc, char *argv[])
   key->iqmp = BN_bin2bn(iqmp, sizeof(iqmp)-1, key->iqmp); \
   memcpy(c, ctext_ex, sizeof(ctext_ex) - 1); \
   return (sizeof(ctext_ex) - 1);
+#endif
 
 static int key1(RSA *key, unsigned char *c)
     {
@@ -196,6 +201,50 @@ static int key3(RSA *key, unsigned char *c)
     SetKey;
     }
 
+
+
+static int key4(RSA *key, unsigned char *c,unsigned char *n,int n_len,unsigned int exponent)
+    {
+#if 0 
+   static unsigned char n[] =
+"\x00\xCD\x48\xD1\x3D\xB4\x8C\xC3\x06\x98\x8A\x71\x8A\x92\x02\xCD\x7C"
+"\xD7\xA7\x1E\xA8\x13\xB1\x9D\xEA\x68\x26\x27\xF2\xA5\xE7\xF4\x31"
+"\xCD\x1F\x25\x3B\xB4\x7B\x04\xC0\xFE\xAF\x54\x05\x52\x17\xEA\x6B"
+"\xE9\x6B\xF7\xCB\x96\x48\xC4\x38\xBA\x03\xA3\x97\xBE\x56\xCC\x91"
+"\xAD\xD0\xDC\x02\x99\xC8\x90\x8C\xAA\x3D\x53\xB9\x49\x10\x05\x82"
+"\x82\xCF\x4D\xD6\x76\xC6\xD1\x2E\x8E\xA7\xE2\x37\xFA\xA1\x6E\x55"
+"\x0F\x70\x86\xE2\xC3\x4F\x93\x36\x77\xF0\x4B\xA5\xC9\xB9\x06\x5C"
+"\x5C\x9E\x91\xFF\xDD\x85\x65\x9C\xB3\x76\xEF\xD1\xAD\xEB\xE8\x73";
+#endif
+    static unsigned char e[4] = {0};
+
+int i=1;
+memcpy(e,&exponent,4);
+/*fprintf(stderr,"\n");
+while(n[i])
+	fprintf(stderr,"%02x",n[i++]);
+fprintf(stderr,"\n");*/
+i=0;
+// fprintf(stderr,"%x\n",exponent);
+#if 1
+    static unsigned char d[] = "";
+
+    static unsigned char p[] = "";
+
+    static unsigned char q[] = "";
+
+    static unsigned char dmp1[] = "";
+
+    static unsigned char dmq1[] = "";
+
+    static unsigned char iqmp[] = "";
+    
+    static unsigned char ctext_ex[] ="";
+#endif
+	key->n = BN_bin2bn(n, n_len, key->n);
+	key->e = BN_bin2bn(e, sizeof(e), key->e);
+    }
+
 static int pad_unknown(void)
 {
     unsigned long l;
@@ -204,6 +253,64 @@ static int pad_unknown(void)
 	return(1);
     return(0);
 }
+
+unsigned char hexToChar(unsigned char c)
+{
+	if(c>='0' && c<='9') return c-'0';
+	if(c>='A' && c<='F') return 10+c-'A';
+	if(c>='a' && c<='f') return 10+c-'a';
+	fprintf(stderr,"invalid char!%c",c);
+	return 0;
+}
+int hexStrToArray(unsigned char *hexStr,unsigned char **pArray)
+{
+	unsigned char * array=NULL;
+	unsigned char * hex_str=NULL;
+	int arrayLen=0,i=0;
+	int len=strlen(hexStr);
+	if(len%2)
+	{
+		hex_str=(unsigned char *)malloc(len+4);
+		bzero(hex_str,len+4);
+		hex_str[0]='0';
+		hex_str[1]='0';
+		hex_str[2]='0';
+	}
+	else
+	{
+		hex_str=(unsigned char *)malloc(len+3);
+		bzero(hex_str,len+3);
+		hex_str[0]='0';
+		hex_str[1]='0';
+	}
+	strcat(hex_str,hexStr);
+	arrayLen=strlen(hex_str)/2+1;
+//fprintf(stderr," arrayLen=%d\n",arrayLen);	
+	array=(unsigned char *)malloc(arrayLen);
+	bzero(array,arrayLen);
+//fprintf(stderr,"hex_str=%s \n",hex_str);	
+	for(i=0;i<arrayLen-1;i++)
+	{
+		array[i]=hexToChar(hex_str[i*2])*16+hexToChar(hex_str[i*2+1]);
+		fprintf(stderr,"%02x",array[i]);	
+	}
+//fprintf(stderr,"\n");	
+	free(hex_str);
+	*pArray=array;
+	return arrayLen-1;
+/*	if(strlen(hexStr)==0) return 0;
+	if(strlen(hexStr)==1) 
+	{
+		Array[0]=hexToChar(hexStr[0]);
+		return 0
+	}
+	
+	Array[0]=hexToChar(hexStr[0])*16+hexToChar(hexStr[1]);
+	hexStrToArray(hexStr+2,Array+1);
+	return 0;
+*/
+}
+
 
 static const char rnd_seed[] = "string to make the random number generator think it has entropy";
 
@@ -214,24 +321,36 @@ int main(int argc, char *argv[])
     RSA *key;
     unsigned char ptext[256];
     unsigned char ctext[256];
-    static unsigned char ptext_ex[] = "\x54\x85\x9b\x34\x2c\x49\xea\x2a";
+    //static unsigned char ptext_ex[] = "\x54\x85\x9b\x34\x2c\x49\xea\x2a";
+    static unsigned char ptext_ex[64] = {0};
     unsigned char ctext_ex[256];
     int plen;
     int clen = 0;
     int num;
     int n;
+    int len;
+    unsigned char *moudle=NULL;
+    unsigned int exponent=0;
+    //CRYPTO_malloc_debug_init();
+    //CRYPTO_dbg_set_options(V_CRYPTO_MDEBUG_ALL);
+    //CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
 
-    CRYPTO_malloc_debug_init();
-    CRYPTO_dbg_set_options(V_CRYPTO_MDEBUG_ALL);
-    CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
-
-    RAND_seed(rnd_seed, sizeof rnd_seed); /* or OAEP may fail */
-
-    plen = sizeof(ptext_ex) - 1;
-
-    for (v = 0; v < 6; v++)
+    //RAND_seed(rnd_seed, sizeof rnd_seed); /* or OAEP may fail */
+    if(!argv[1]||!argv[2]||!argv[3])
+    {
+	fprintf(stderr,"input invalid! should be rsa_test [password] [moudle] [Exponent]");
+	return -1;
+    }
+    strcpy(ptext_ex,argv[1]);
+    plen = strlen(ptext_ex);
+    len=hexStrToArray(argv[2],&moudle);
+    exponent=strtol(argv[3],NULL,16);
+   // hexStrToArray(argv[3],&exponent);
+    
+    //for (v = 0; v < 6; v++)
 	{
 	key = RSA_new();
+	/*
 	switch (v%3) {
     case 0:
 	clen = key1(key, ctext_ex);
@@ -244,25 +363,64 @@ int main(int argc, char *argv[])
 	break;
 	}
 	if (v/3 >= 1) key->flags |= RSA_FLAG_NO_CONSTTIME;
-
+	*/	
+	clen= key4(key, ctext_ex,moudle,len,exponent);
+/*	fprintf(stderr,"plen %d\n",plen);
+        {
+                int i=0;
+                for(i=0;i<plen;i++) {
+                        if(i && (i%16 == 0))
+                                fprintf(stderr,"\n");
+                        fprintf(stderr,"%02x ",ptext_ex[i]);
+                }
+        }
+	RSA_print_fp(stdout,key,11);*/
 	num = RSA_public_encrypt(plen, ptext_ex, ctext, key,
 				 RSA_PKCS1_PADDING);
+/*        {
+                int i=0;
+                for(i=0;i<plen;i++) {
+                        if(i && (i%16 == 0))
+                                fprintf(stderr,"\n");
+                        fprintf(stderr,"%02x",ptext_ex[i]);
+                }
+        }	
+	fprintf(stderr,"num %d\n",num);*/
+	{
+		int i=0;
+		char buff_tmp[32]={0};
+		system("rm /tmp/rsa_pass;");
+		for(i=0;i<num;i++) {
+	//		if(i && (i%16 == 0))
+	//			fprintf(stderr,"\n");
+			sprintf(buff_tmp,"echo -n %02x >> /tmp/rsa_pass",ctext[i]);
+			system(buff_tmp);
+			
+		}
+//		fprintf(stderr,"\n");
+	}
+	free(moudle);
+	/*
 	if (num != clen)
 	    {
-	    printf("PKCS#1 v1.5 encryption failed!\n");
+	    fprintf(stderr,"PKCS#1 v1.5 encryption failed!\n");
 	    err=1;
 	    goto oaep;
 	    }
-  
+	*/
+	RSA_free(key);
+ 	return 0;
+
+	 
 	num = RSA_private_decrypt(num, ctext, ptext, key,
 				  RSA_PKCS1_PADDING);
 	if (num != plen || memcmp(ptext, ptext_ex, num) != 0)
 	    {
-	    printf("PKCS#1 v1.5 decryption failed!\n");
+	    fprintf(stderr,"PKCS#1 v1.5 decryption failed!\n");
 	    err=1;
 	    }
 	else
-	    printf("PKCS #1 v1.5 encryption/decryption ok\n");
+	    fprintf(stderr,"PKCS #1 v1.5 encryption/decryption ok\n");
 
     oaep:
 	ERR_clear_error();
@@ -270,12 +428,12 @@ int main(int argc, char *argv[])
 				 RSA_PKCS1_OAEP_PADDING);
 	if (num == -1 && pad_unknown())
 	    {
-	    printf("No OAEP support\n");
+	    fprintf(stderr,"No OAEP support\n");
 	    goto next;
 	    }
 	if (num != clen)
 	    {
-	    printf("OAEP encryption failed!\n");
+	    fprintf(stderr,"OAEP encryption failed!\n");
 	    err=1;
 	    goto next;
 	    }
@@ -284,11 +442,11 @@ int main(int argc, char *argv[])
 				  RSA_PKCS1_OAEP_PADDING);
 	if (num != plen || memcmp(ptext, ptext_ex, num) != 0)
 	    {
-	    printf("OAEP decryption (encrypted data) failed!\n");
+	    fprintf(stderr,"OAEP decryption (encrypted data) failed!\n");
 	    err=1;
 	    }
 	else if (memcmp(ctext, ctext_ex, num) == 0)
-	    printf("OAEP test vector %d passed!\n", v);
+	    fprintf(stderr,"OAEP test vector %d passed!\n", v);
     
 	/* Different ciphertexts (rsa_oaep.c without -DPKCS_TESTVECT).
 	   Try decrypting ctext_ex */
@@ -298,11 +456,11 @@ int main(int argc, char *argv[])
 
 	if (num != plen || memcmp(ptext, ptext_ex, num) != 0)
 	    {
-	    printf("OAEP decryption (test vector data) failed!\n");
+	    fprintf(stderr,"OAEP decryption (test vector data) failed!\n");
 	    err=1;
 	    }
 	else
-	    printf("OAEP encryption/decryption ok\n");
+	    fprintf(stderr,"OAEP encryption/decryption ok\n");
 
 	/* Try decrypting corrupted ciphertexts */
 	for(n = 0 ; n < clen ; ++n)
@@ -318,7 +476,7 @@ int main(int argc, char *argv[])
 					  RSA_PKCS1_OAEP_PADDING);
 		if(num > 0)
 		    {
-		    printf("Corrupt data decrypted!\n");
+		    fprintf(stderr,"Corrupt data decrypted!\n");
 		    err = 1;
 		    }
 		}
@@ -333,7 +491,7 @@ int main(int argc, char *argv[])
     CRYPTO_mem_leaks_fp(stderr);
 
 #ifdef OPENSSL_SYS_NETWARE
-    if (err) printf("ERROR: %d\n", err);
+    if (err) fprintf(stderr,"ERROR: %d\n", err);
 #endif
     return err;
     }

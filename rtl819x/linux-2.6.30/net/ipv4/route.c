@@ -113,15 +113,15 @@
 
 #define IP_MAX_MTU	0xFFF0
 
-//#define RT_GC_TIMEOUT (300*HZ)
-#define RT_GC_TIMEOUT (60*HZ)
+#define RT_GC_TIMEOUT (300*HZ)
+//#define RT_GC_TIMEOUT (60*HZ)
 
 //static int ip_rt_max_size;
 int ip_rt_max_size;
 
 static int ip_rt_gc_timeout __read_mostly	= RT_GC_TIMEOUT;
-//static int ip_rt_gc_interval __read_mostly	= 60 * HZ;
-static int ip_rt_gc_interval __read_mostly	= 12 * HZ;
+static int ip_rt_gc_interval __read_mostly	= 60 * HZ;
+//static int ip_rt_gc_interval __read_mostly	= 12 * HZ;
 static int ip_rt_gc_min_interval __read_mostly	= HZ / 2;
 static int ip_rt_redirect_number __read_mostly	= 9;
 static int ip_rt_redirect_load __read_mostly	= HZ / 50;

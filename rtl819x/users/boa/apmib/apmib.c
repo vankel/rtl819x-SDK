@@ -14,9 +14,15 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#ifdef CONFIG_IPV6
+#include <linux/if_addr.h>
+#endif
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "apmib.h"
 #include "mibtbl.h"
@@ -102,13 +108,26 @@ int mib_write_to_raw(const mib_table_entry_T *mib_tbl, void *data, unsigned char
 // local & global variable declaration
 APMIB_Tp pMib=NULL;
 APMIB_Tp pMibDef;
+#ifdef HEADER_LEN_INT
+HW_PARAM_HEADER_T hsHeader;
+PARAM_HEADER_T dsHeader, csHeader;
+#else
 PARAM_HEADER_T hsHeader, dsHeader, csHeader;
+#endif
 HW_SETTING_Tp pHwSetting;
 int compress_hw_setting = 1;
 int wlan_idx=0;	// interface index 
 int vwlan_idx=0;	// initially set interface index to root
 int wlan_idx_bak=0;
 int vwlan_idx_bak=0;
+#ifdef AP_CONTROLER_SUPPORT
+char *virtual_flash=NULL;
+#endif
+#ifdef HTTP_FILE_SERVER_HTM_UI
+char httpfile_dirpath[256]={0};
+char httpfile_type=0;
+char httpfile_order=0;
+#endif
 
 #ifdef MIB_TLV
 #else
@@ -134,7 +153,6 @@ static LINKCHAIN_T qosChain;
 #endif
 #endif
 static LINKCHAIN_T dhcpRsvdIpChain;
-
 #if defined(VLAN_CONFIG_SUPPORTED)
 static LINKCHAIN_T vlanConfigChain;
 #endif
@@ -238,7 +256,7 @@ int apmib_sem_lock(void)
 try_again:
 	if (semop(apmib_sem_id, sop, 1) == -1) {
 		if (errno == EINTR) {
-//			printf("APMIB Semaphore Lock semop() failed !! [%s]\n", strerror(errno));
+			//printf("APMIB Semaphore Lock semop() failed !! [%s]\n", strerror(errno));
 			goto try_again;
 		}
 		printf("APMIB Semaphore Lock semop() failed !! [%s]\n", strerror(errno));
@@ -324,7 +342,6 @@ char *apmib_hwconf(void)
 #endif
 
 	char hw_setting_start[6];
-	
 #if 1		
 	if ( flash_read(hw_setting_start, HW_SETTING_OFFSET, 6)==0 ) {
 			printf("Read hw setting header failed!\n");					
@@ -406,11 +423,11 @@ char *apmib_hwconf(void)
 		unsigned int tlv_checksum = 0;
 
 		if(expFile != NULL)
-			tlv_checksum = CHECKSUM_OK(expFile+sizeof(PARAM_HEADER_T), hsHeader.len);
+			tlv_checksum = CHECKSUM_OK(expFile+sizeof(hsHeader), hsHeader.len);
 
 //mib_display_tlv_content(HW_SETTING, expFile+sizeof(PARAM_HEADER_T), hsHeader.len);
 
-		if(tlv_checksum == 1 && mib_tlv_init(pmib_tl, expFile+sizeof(PARAM_HEADER_T), (void*)hwMibData, tlv_content_len) == 1) /* According to pmib_tl, get value from expFile to hwMibData. parse total len is  tlv_content_len*/
+		if(tlv_checksum == 1 && mib_tlv_init(pmib_tl, expFile+sizeof(hsHeader), (void*)hwMibData, tlv_content_len) == 1) /* According to pmib_tl, get value from expFile to hwMibData. parse total len is  tlv_content_len*/
 		{
 			sprintf((char *)&hsHeader.signature[TAG_LEN], "%02d", HW_SETTING_VER);
 			hsHeader.len = sizeof(HW_SETTING_T)+1;
@@ -419,9 +436,9 @@ char *apmib_hwconf(void)
 			if(expFile!= NULL)
 				free(expFile);
 
-			expFile = malloc(sizeof(PARAM_HEADER_T)+hsHeader.len);
-			memcpy(expFile, &hsHeader, sizeof(PARAM_HEADER_T));
-			memcpy(expFile+sizeof(PARAM_HEADER_T), hwMibData, hsHeader.len);
+			expFile = malloc(sizeof(hsHeader)+hsHeader.len);
+			memcpy(expFile, &hsHeader, sizeof(hsHeader));
+			memcpy(expFile+sizeof(hsHeader), hwMibData, hsHeader.len);
 
 //mib_display_data_content(HW_SETTING, expFile+sizeof(PARAM_HEADER_T), hsHeader.len-1);
 
@@ -438,12 +455,13 @@ char *apmib_hwconf(void)
 	else // not compress mib-data, get mib header from flash
 #endif //#ifdef COMPRESS_MIB_SETTING
 	// Read hw setting
-{
-	if ( flash_read((char *)&hsHeader, HW_SETTING_OFFSET, sizeof(hsHeader))==0 ) {
-//		printf("Read hw setting header failed!\n");
-		return NULL;
+	{
+		if ( flash_read((char *)&hsHeader, HW_SETTING_OFFSET, sizeof(hsHeader))==0 ) {
+//			printf("Read hw setting header failed!\n");
+			return NULL;
+		}
 	}
-}
+
 	if ( sscanf((char *)&hsHeader.signature[TAG_LEN], "%02d", &ver) != 1)
 		ver = -1;
 
@@ -526,7 +544,7 @@ char *apmib_hwconf(void)
 	{
 	if(expFile != NULL) //compress mib data, copy the mibdata body from expFile
 	{
-		memcpy(buff, expFile+sizeof(PARAM_HEADER_T), hsHeader.len);
+		memcpy(buff, expFile+sizeof(hsHeader), hsHeader.len);
 		free(expFile);
 		free(compFile);
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);		
@@ -544,6 +562,7 @@ char *apmib_hwconf(void)
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
 		return NULL;
 	}
+	
 	if ( !CHECKSUM_OK((unsigned char *)buff, hsHeader.len) ) {
 //		printf("Invalid checksum of hw setting!\n");
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
@@ -554,6 +573,7 @@ char *apmib_hwconf(void)
 #endif		
 		return NULL;
 	}
+	
 	return buff;
 }
 
@@ -580,6 +600,7 @@ char *apmib_dsconf(void)
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);	
 	if(memcmp(compHeader.signature, COMP_DS_SIGNATURE, COMP_SIGNATURE_LEN) == 0 ) //check whether compress mib data
 	{
+		
 		zipRate = compHeader.compRate;
 		compLen = compHeader.compLen;
 		if ( (compLen > 0) && (compLen <= DEFAULT_SETTING_SECTOR_LEN) ) {
@@ -604,7 +625,24 @@ char *apmib_dsconf(void)
 
 			// copy the mib header from expFile
 			memcpy((char *)&dsHeader, expFile, sizeof(dsHeader));
+
+
+			//check mib ver and tag
+			if ( sscanf((char *)&dsHeader.signature[TAG_LEN], "%02d", &ver) != 1)
+				ver = -1;
 			
+			if ( memcmp(dsHeader.signature, DEFAULT_SETTING_HEADER_TAG, TAG_LEN) || // invalid signatur
+				(ver != DEFAULT_SETTING_VER) // version not equal to current
+				) { 
+				
+				printf("Invalid default setting signature or version number [sig=%c%c, ver=%d, len=%d]!\n",
+					dsHeader.signature[0], dsHeader.signature[1], ver, dsHeader.len);
+				if(compFile != NULL)
+					free(compFile);
+				if(expFile != NULL)
+					free(expFile);
+				return NULL;
+			}
 		} 
 		else 
 		{
@@ -653,6 +691,7 @@ char *apmib_dsconf(void)
 			free(defMibData);
 		
 #endif // #ifdef MIB_TLV		
+
 	}
 	else // not compress mib-data, get mib header from flash
 #endif //#ifdef COMPRESS_MIB_SETTING
@@ -741,6 +780,7 @@ char *apmib_dsconf(void)
 #endif		
 		return NULL;
 	}
+	
 	return buff;
 }
 
@@ -814,8 +854,8 @@ int flash_write_raw_mib(unsigned char **compFile)
 
 char *apmib_csconf(void)
 {
-	int ver;
-	char *buff;
+	int ver=0;
+	char *buff=NULL;
 #if CONFIG_APMIB_SHARED_MEMORY == 1
 	int created;
 #endif
@@ -824,7 +864,7 @@ char *apmib_csconf(void)
 	int zipRate=0;
 	unsigned char *compFile=NULL, *expFile=NULL;
 	unsigned int expandLen=0, compLen=0;
-	COMPRESS_MIB_HEADER_T compHeader;
+	COMPRESS_MIB_HEADER_T compHeader={0};
 #endif
 
 #ifdef COMPRESS_MIB_SETTING
@@ -858,7 +898,22 @@ char *apmib_csconf(void)
 
 			// copy the mib header from expFile
 			memcpy((char *)&csHeader, expFile, sizeof(csHeader));
-			
+
+			// check version and tag
+			if ( sscanf((char *)&csHeader.signature[TAG_LEN], "%02d", &ver) != 1)
+				ver = -1;
+
+			if ( memcmp(csHeader.signature, CURRENT_SETTING_HEADER_TAG, TAG_LEN) || // invalid signatur
+				(ver != CURRENT_SETTING_VER)  // version not equal to current
+			       ) {
+			       printf("Invalid current setting signature or version number [sig=%c%c, ver=%d, len=%d]!\n",
+				   	csHeader.signature[0], csHeader.signature[1], ver, csHeader.len);
+				if(compFile != NULL)
+					free(compFile);
+				if(expFile != NULL)
+					free(expFile);
+				return NULL;
+			}	
 		} 
 		else 
 		{
@@ -866,6 +921,7 @@ char *apmib_csconf(void)
 			return 0;
 		}
 #ifdef MIB_TLV
+
 		mib_table_entry_T *pmib_tl = NULL;
 		unsigned char *curMibData;
 		unsigned int tlv_content_len = csHeader.len - 1; // last one is checksum
@@ -903,6 +959,7 @@ char *apmib_csconf(void)
 			free(curMibData);
 		
 #endif // #ifdef MIB_TLV		
+		
 	}
 	else // not compress mib-data, get mib header from flash
 #endif //#ifdef COMPRESS_MIB_SETTING
@@ -1006,6 +1063,68 @@ int apmib_init_HW(void)
 	pHwSetting = (HW_SETTING_Tp)buff;
 	return 1;
 }
+
+#ifdef AP_CONTROLER_SUPPORT
+int apmib_virtual_flash_read(char *buf, int offset, int len)
+{
+	if(virtual_flash==NULL && apmib_virtual_flash_malloc()<0)
+	{
+		fprintf(stderr,"\r\n virtual_flash is null__[%s-%u]",__FILE__,__LINE__);
+		return 0;
+	}
+	if(offset<HW_SETTING_OFFSET||offset>=WEB_PAGE_OFFSET || offset+len>WEB_PAGE_OFFSET)
+	{
+		fprintf(stderr,"\r\n apmib_virtual_flash_read fail! oversize __[%s-%u]",__FILE__,__LINE__);
+		return 0;
+	}
+	//apmib_sem_lock();
+	memcpy(buf,virtual_flash+(offset-HW_SETTING_OFFSET),len);
+	//fprintf(stderr,"\r\n virtual_flash=%p offset=0x%x len=%d__[%s-%u]",virtual_flash,offset,len,__FILE__,__LINE__);
+	//apmib_sem_unlock();
+	return 1;
+}
+int apmib_virtual_flash_write(char *buf, int offset, int len)
+{
+	if(virtual_flash==NULL && apmib_virtual_flash_malloc()<0)
+	{
+		fprintf(stderr,"\r\n virtual_flash is null__[%s-%u]",__FILE__,__LINE__);
+		return 0;
+	}
+	if(offset<HW_SETTING_OFFSET||offset>=WEB_PAGE_OFFSET || offset+len>WEB_PAGE_OFFSET)
+	{
+		fprintf(stderr,"\r\n apmib_virtual_flash_write fail! oversize __[%s-%u]",__FILE__,__LINE__);
+		return 0;
+	}
+//	fprintf(stderr,"\r\n virtual_flash=%p offset=0x%x len=%d__[%s-%u]",virtual_flash,offset,len,__FILE__,__LINE__);
+	//apmib_sem_lock();
+	memcpy(virtual_flash+(offset-HW_SETTING_OFFSET),buf,len);
+	//apmib_sem_unlock();
+	return 1;
+}
+
+int apmib_virtual_flash_malloc()
+{
+	int create=0;
+	//fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
+	
+	if(virtual_flash==NULL)	
+	{
+		//apmib_sem_lock();
+		virtual_flash=apmib_shm_calloc(1,WEB_PAGE_OFFSET-HW_SETTING_OFFSET,CONF_SHM_VFLASH_KEY,&create);		
+		//apmib_sem_unlock();
+		//fprintf(stderr,"\r\n virtual_flash=%p __[%s-%u]",virtual_flash,__FILE__,__LINE__);
+		if(virtual_flash==NULL)
+		{
+			fprintf(stderr,"\r\n apmib_virtual_flash_malloc fail! apmib_shm_calloc __[%s-%u]",__FILE__,__LINE__);
+			return -1;
+		}
+	}
+	
+	
+	//fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);
+	return 0;
+}
+#endif
 ////////////////////////////////////////////////////////////////////////////////
 int apmib_init(void)
 {
@@ -1664,11 +1783,11 @@ char *apmib_load_hwconf(void)
 		unsigned int tlv_checksum = 0;
 
 		if(expFile != NULL)
-			tlv_checksum = CHECKSUM_OK(expFile+sizeof(PARAM_HEADER_T), hsHeader.len);
+			tlv_checksum = CHECKSUM_OK(expFile+sizeof(hsHeader), hsHeader.len);
 
 //mib_display_tlv_content(HW_SETTING, expFile+sizeof(PARAM_HEADER_T), hsHeader.len);
 
-		if(tlv_checksum == 1 && mib_tlv_init(pmib_tl, expFile+sizeof(PARAM_HEADER_T), (void*)hwMibData, tlv_content_len) == 1) /* According to pmib_tl, get value from expFile to hwMibData. parse total len is  tlv_content_len*/
+		if(tlv_checksum == 1 && mib_tlv_init(pmib_tl, expFile+sizeof(hsHeader), (void*)hwMibData, tlv_content_len) == 1) /* According to pmib_tl, get value from expFile to hwMibData. parse total len is  tlv_content_len*/
 		{
 			sprintf((char *)&hsHeader.signature[TAG_LEN], "%02d", HW_SETTING_VER);
 			hsHeader.len = sizeof(HW_SETTING_T)+1;
@@ -1677,9 +1796,9 @@ char *apmib_load_hwconf(void)
 			if(expFile!= NULL)
 				free(expFile);
 
-			expFile = malloc(sizeof(PARAM_HEADER_T)+hsHeader.len);
-			memcpy(expFile, &hsHeader, sizeof(PARAM_HEADER_T));
-			memcpy(expFile+sizeof(PARAM_HEADER_T), hwMibData, hsHeader.len);
+			expFile = malloc(sizeof(hsHeader)+hsHeader.len);
+			memcpy(expFile, &hsHeader, sizeof(hsHeader));
+			memcpy(expFile+sizeof(hsHeader), hwMibData, hsHeader.len);
 
 //mib_display_data_content(HW_SETTING, expFile+sizeof(PARAM_HEADER_T), hsHeader.len);
 
@@ -1736,7 +1855,7 @@ char *apmib_load_hwconf(void)
 	if(expFile != NULL) //compress mib data, copy the mibdata body from expFile
 	{
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);	
-		memcpy(buff, expFile+sizeof(PARAM_HEADER_T), hsHeader.len);
+		memcpy(buff, expFile+sizeof(hsHeader), hsHeader.len);
 		free(expFile);
 		free(compFile);
 	}
@@ -1973,7 +2092,14 @@ char *apmib_load_csconf(void)
 			// copy the mib header from expFile
 //fprintf(stderr,"\r\n __[%s-%u]",__FILE__,__LINE__);				
 			memcpy((char *)&csHeader, expFile, sizeof(csHeader));
-			
+
+            #define MAX_CONFIG_LEN 1024*1024
+            #define MIN_CONFIG_LEN 8*1024
+            if((csHeader.len > MAX_CONFIG_LEN)||(csHeader.len < MIN_CONFIG_LEN))
+            {
+                printf("INVALID CONFIG FILE\n");
+                return NULL;
+            }
 		} 
 		else 
 		{
@@ -2172,6 +2298,175 @@ static int search_tbl(int id, mib_table_entry_T *pTbl, int *idx)
 }
 
 
+#if defined(CONFIG_APP_TR069) && defined(WLAN_SUPPORT)
+int swapWLANIdxForCwmp(unsigned char wlanifNumA, unsigned char wlanifNumB)
+{
+	
+	int ret=-1;
+	unsigned int i,num;
+	CWMP_WLANCONF_T *pwlanConf, wlanConf;
+	CWMP_WLANCONF_T target[2];
+	pwlanConf = &wlanConf;
+	apmib_get(MIB_CWMP_WLANCONF_TBL_NUM, (void *)&num);
+
+	for( i=1; i<=num;i++ )
+	{
+		*((char *)pwlanConf) = (char)i;
+		if(!apmib_get(MIB_CWMP_WLANCONF_TBL, (void *)pwlanConf))
+			continue;
+			
+		memcpy(&target[0], &wlanConf, sizeof(CWMP_WLANCONF_T));
+		if( pwlanConf->RootIdx==0)
+			pwlanConf->RootIdx=1;
+		else if(pwlanConf->RootIdx==1)
+			pwlanConf->RootIdx=0;
+			
+		if(pwlanConf->RfBandAvailable ==PHYBAND_5G)
+			pwlanConf->RfBandAvailable =PHYBAND_2G;
+		else if(pwlanConf->RfBandAvailable ==PHYBAND_2G)
+			pwlanConf->RfBandAvailable =PHYBAND_5G;
+			
+		memcpy(&target[1], &wlanConf, sizeof(CWMP_WLANCONF_T));
+		printf("%s:%d, do swap wlanCONF  mib\n", __FUNCTION__, __LINE__);
+		apmib_set(MIB_CWMP_WLANCONF_MOD, (void *)&target);	
+		
+	}	
+	return ret; 
+
+}		
+#endif
+void swapWlanMibSetting(unsigned char wlanifNumA, unsigned char wlanifNumB)
+{
+	unsigned char *wlanMibBuf=NULL;
+	unsigned int totalSize = sizeof(CONFIG_WLAN_SETTING_T)*(NUM_VWLAN_INTERFACE+1); // 4vap+1rpt+1root
+
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	apmib_sem_lock();
+#endif
+
+	wlanMibBuf = malloc(totalSize); 
+#if 0	
+	printf("\r\n wlanifNumA=[%u],__[%s-%u]\r\n",wlanifNumA,__FILE__,__LINE__);
+	printf("\r\n wlanifNumB=[%u],__[%s-%u]\r\n",wlanifNumB,__FILE__,__LINE__);
+	
+	printf("\r\n pMib->wlan[wlanifNumA]=[0x%x],__[%s-%u]\r\n",pMib->wlan[wlanifNumA],__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[wlanifNumB]=[0x%x],__[%s-%u]\r\n",pMib->wlan[wlanifNumB],__FILE__,__LINE__);
+	
+	printf("\r\n pMib->wlan[0][0].wlanDisabled=[%u],__[%s-%u]\r\n",pMib->wlan[0][0].wlanDisabled,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[0][0].phyBandSelect=[%u],__[%s-%u]\r\n",pMib->wlan[0][0].phyBandSelect,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[0][0].channel=[%u],__[%s-%u]\r\n",pMib->wlan[0][0].channel,__FILE__,__LINE__);
+	
+	printf("\r\n pMib->wlan[1][0].wlanDisabled=[%u],__[%s-%u]\r\n",pMib->wlan[1][0].wlanDisabled,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[1][0].phyBandSelect=[%u],__[%s-%u]\r\n",pMib->wlan[1][0].phyBandSelect,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[1][0].channel=[%u],__[%s-%u]\r\n",pMib->wlan[1][0].channel,__FILE__,__LINE__);
+#endif			
+	if(wlanMibBuf != NULL)
+	{
+		memcpy(wlanMibBuf, pMib->wlan[wlanifNumA], totalSize);
+		memcpy(pMib->wlan[wlanifNumA], pMib->wlan[wlanifNumB], totalSize);
+		memcpy(pMib->wlan[wlanifNumB], wlanMibBuf, totalSize);
+
+		free(wlanMibBuf);
+	}
+
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_sem_unlock();
+#endif
+
+
+#if defined(CONFIG_APP_TR069) && defined(WLAN_SUPPORT)
+	swapWLANIdxForCwmp(wlanifNumA, wlanifNumB);
+#endif
+
+	
+#if 0	
+	printf("\r\n pMib->wlan[0][0].wlanDisabled=[%u],__[%s-%u]\r\n",pMib->wlan[0][0].wlanDisabled,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[0][0].phyBandSelect=[%u],__[%s-%u]\r\n",pMib->wlan[0][0].phyBandSelect,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[0][0].channel=[%u],__[%s-%u]\r\n",pMib->wlan[0][0].channel,__FILE__,__LINE__);
+	
+	printf("\r\n pMib->wlan[1][0].wlanDisabled=[%u],__[%s-%u]\r\n",pMib->wlan[1][0].wlanDisabled,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[1][0].phyBandSelect=[%u],__[%s-%u]\r\n",pMib->wlan[1][0].phyBandSelect,__FILE__,__LINE__);
+	printf("\r\n pMib->wlan[1][0].channel=[%u],__[%s-%u]\r\n",pMib->wlan[1][0].channel,__FILE__,__LINE__);
+#endif	
+#ifdef UNIVERSAL_REPEATER
+	int rptEnable1, rptEnable2;
+	char rptSsid1[MAX_SSID_LEN], rptSsid2[MAX_SSID_LEN];
+	
+	memset(rptSsid1, 0x00, MAX_SSID_LEN);
+	memset(rptSsid2, 0x00, MAX_SSID_LEN);
+	
+	apmib_get(MIB_REPEATER_ENABLED1, (void *)&rptEnable1);
+	apmib_get(MIB_REPEATER_ENABLED2, (void *)&rptEnable2);
+	apmib_get(MIB_REPEATER_SSID1, (void *)rptSsid1);
+	apmib_get(MIB_REPEATER_SSID2, (void *)rptSsid2);
+
+	apmib_set(MIB_REPEATER_ENABLED1, (void *)&rptEnable2);
+	apmib_set(MIB_REPEATER_ENABLED2, (void *)&rptEnable1);
+	apmib_set(MIB_REPEATER_SSID1, (void *)rptSsid2);
+	apmib_set(MIB_REPEATER_SSID2, (void *)rptSsid1);
+#endif
+#if VLAN_CONFIG_SUPPORTED 
+	unsigned char *vlanMibBuf=NULL;
+	totalSize = sizeof(VLAN_CONFIG_T)*5; // 4vap+1root
+
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+	apmib_sem_lock();
+#endif
+
+	vlanMibBuf = malloc(totalSize);
+	if(vlanMibBuf != NULL)
+	{
+		memcpy(vlanMibBuf, pMib->VlanConfigArray+4, totalSize);
+		memcpy(pMib->VlanConfigArray+4, pMib->VlanConfigArray+9, totalSize);
+		memcpy(pMib->VlanConfigArray+9, vlanMibBuf, totalSize);
+
+		free(vlanMibBuf);
+	}
+
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+		apmib_sem_unlock();
+#endif
+	
+#endif
+}
+int clone_wlaninfo_get(CONFIG_WLAN_SETTING_T *wlanptr, int rootwlan_idx,int vwlan_idx)
+{
+	
+#if CONFIG_APMIB_SHARED_MEMORY == 1	
+		apmib_sem_lock();
+#endif
+	//printf("clone_wlaninfo_set get wlan mib<%d, %d>\n",rootwlan_idx,vwlan_idx );
+	memcpy(wlanptr, &pMib->wlan[rootwlan_idx][vwlan_idx], sizeof(CONFIG_WLAN_SETTING_T));
+
+#if CONFIG_APMIB_SHARED_MEMORY == 1	
+			apmib_sem_unlock();
+#endif
+
+	return 0;
+
+}
+int clone_wlaninfo_set(CONFIG_WLAN_SETTING_T *wlanptr, int rootwlan_idx,int vwlan_idx,int Newrootwlan_idx,int Newvwlan_idx, int ChangeRFBand )
+{
+	
+#if CONFIG_APMIB_SHARED_MEMORY == 1	
+		apmib_sem_lock();
+#endif
+
+	if(ChangeRFBand==1 && pMib->wlan[rootwlan_idx][vwlan_idx].wlanDisabled==0){
+		//printf("set old wlan if to disabled if enabled in orig\n");
+		pMib->wlan[rootwlan_idx][vwlan_idx].wlanDisabled=1;
+	}
+		//printf("clone_wlaninfo_set set wlan mib<%d, %d>\n",Newrootwlan_idx,Newvwlan_idx );
+	memcpy(&pMib->wlan[Newrootwlan_idx][Newvwlan_idx], wlanptr, sizeof(CONFIG_WLAN_SETTING_T));
+
+#if CONFIG_APMIB_SHARED_MEMORY == 1	
+			apmib_sem_unlock();
+#endif
+
+	return 0;
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 int apmib_get(int id, void *value)
 {
@@ -2305,7 +2600,13 @@ int apmib_get(int id, void *value)
 	case DHCPV6S_T:
 		memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), pTbl[i].size);
 		break;
+	case DHCPV6C_T:
+		memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), pTbl[i].size);
+		break;
 	case ADDR6_T:
+		memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), pTbl[i].size);
+		break;
+	case ADDRV6_T:
 		memcpy( (unsigned char *)value, (unsigned char *)(((long)pMibTbl) + pTbl[i].offset), pTbl[i].size);
 		break;
 	case TUNNEL6_T:
@@ -3178,6 +3479,17 @@ int apmib_set(int id, void *value)
 				max_chan_num = MAX_5G_CHANNEL_NUM_MIB;         
 
 #endif
+
+#if defined(CONFIG_RTL_8812_SUPPORT)
+			if(((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_A) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_A)) 
+				|| ((id >= MIB_HW_TX_POWER_DIFF_20BW1S_OFDM1T_B) && (id <= MIB_HW_TX_POWER_DIFF_OFDM4T_CCK4T_B)) )
+				max_chan_num = MAX_2G_CHANNEL_NUM_MIB;
+
+			if(((id >= MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_A) && (id <= MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_A)) 
+				|| ((id >= MIB_HW_TX_POWER_DIFF_5G_20BW1S_OFDM1T_B) && (id <= MIB_HW_TX_POWER_DIFF_5G_80BW4S_160BW4S_B)) )
+				max_chan_num = MAX_5G_DIFF_NUM;
+#endif
+
 			if(tmp[0]==2){
 				if(tmp[3] == 0xff){ // set one channel value
 					memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset + (long)tmp[1] -1), (unsigned char *)(tmp+2), 1);
@@ -3202,8 +3514,14 @@ int apmib_set(int id, void *value)
 	case DHCPV6S_T:
 		memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset), (unsigned char *)value,  sizeof(dhcp6sCfgParam_t));
 		break;
+	case DHCPV6C_T:
+		memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset), (unsigned char *)value,  sizeof(dhcp6cCfgParam_t));
+		break;
 	case ADDR6_T:
 		memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset), (unsigned char *)value,  sizeof(addrIPv6CfgParam_t));
+		break;
+	case ADDRV6_T:
+		memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset), (unsigned char *)value,  sizeof(addr6CfgParam_t));
 		break;
 	case TUNNEL6_T:
 		memcpy((unsigned char *)(((long)pMibTbl) + pTbl[i].offset), (unsigned char *)value,  sizeof(tunnelCfgParam_t));
@@ -3252,7 +3570,13 @@ int apmib_set(int id, void *value)
 	case CERTROOT_ARRAY_T:
 	case CERTUSER_ARRAY_T:
 #endif
-	case DHCPRSVDIP_ARRY_T:		
+#ifdef TR181_SUPPORT
+#ifdef CONFIG_IPV6
+	case DHCPV6C_SENDOPT_ARRAY_T:
+#endif
+	case DNS_CLIENT_SERVER_ARRAY_T:
+#endif
+	case DHCPRSVDIP_ARRY_T:	
 #if defined(VLAN_CONFIG_SUPPORTED)	
 	case VLANCONFIG_ARRAY_T:		
 #endif
@@ -3683,6 +4007,10 @@ int apmib_updateDef(void)
 	}
 #ifdef COMPRESS_MIB_SETTING
 	}
+	if(mib_tlv_data) {
+		free(mib_tlv_data);
+		mib_tlv_data=NULL;
+	}		
 #endif
 
 #if CONFIG_APMIB_SHARED_MEMORY == 1
@@ -3748,7 +4076,12 @@ int apmib_updateFlash(CONFIG_DATA_T type, char *data, int len, int force, int ve
 	}
 
 	if (force==2) { // replace by input mib
-		((PARAM_HEADER_Tp)pHdr)->len = len + 1;
+#ifdef HEADER_LEN_INT
+		if(type == HW_SETTING)
+			((HW_PARAM_HEADER_Tp)pHdr)->len = len + 1;
+		else
+#endif
+			((PARAM_HEADER_Tp)pHdr)->len = len + 1;
 		sprintf(tmpBuf, "%02d", ver);
 		memcpy(&pHdr[TAG_LEN], tmpBuf, SIGNATURE_LEN-TAG_LEN);
 		checksum = CHECKSUM(data, len);
@@ -3756,35 +4089,74 @@ int apmib_updateFlash(CONFIG_DATA_T type, char *data, int len, int force, int ve
 		curLen = len;
 	}
 	else if (force==1) { // update mib but keep not used mib
-		sscanf(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN], "%02d", &curVer);
+#ifdef HEADER_LEN_INT
+		if(type == HW_SETTING)
+			sscanf(&((HW_PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN], "%02d", &curVer);
+		else
+#endif
+			sscanf(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN], "%02d", &curVer);
 		if ( curVer < ver ) {
 			sprintf(tmpBuf, "%02d", ver);
-			memcpy(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN],
+#ifdef HEADER_LEN_INT
+			if(type == HW_SETTING)
+				memcpy(&((HW_PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN],
+					tmpBuf, SIGNATURE_LEN-TAG_LEN);
+			else
+#endif
+				memcpy(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN],
 					tmpBuf, SIGNATURE_LEN-TAG_LEN);
 		}
 		checksum = CHECKSUM(data, len);
 		if (curLen > len) {
-			((PARAM_HEADER_Tp)pHdr)->len = curLen + 1;
+#ifdef HEADER_LEN_INT
+			if(type == HW_SETTING)
+				((HW_PARAM_HEADER_Tp)pHdr)->len = curLen + 1;
+			else
+#endif
+				((PARAM_HEADER_Tp)pHdr)->len = curLen + 1;
 			ptr = pMibData + len;
 			offset = curLen - len;
 			checksum1 = CHECKSUM(ptr, offset);
 			checksum +=  checksum1;
 		}
 		else
-			((PARAM_HEADER_Tp)pHdr)->len = len + 1;
+		{
+#ifdef HEADER_LEN_INT
+			if(type == HW_SETTING)
+				((HW_PARAM_HEADER_Tp)pHdr)->len = len + 1;
+			else
+#endif
+				((PARAM_HEADER_Tp)pHdr)->len = len + 1;
+		}
 
 		curLen = len;
 		pMibData = data;
 	}
 	else { // keep old mib, only update new added portion
-		sscanf(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN], "%02d", &curVer);
+#ifdef HEADER_LEN_INT
+		if(type == HW_SETTING)
+			sscanf(&((HW_PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN], "%02d", &curVer);
+		else
+#endif
+			sscanf(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN], "%02d", &curVer);
 		if ( curVer < ver ) {
 			sprintf(tmpBuf, "%02d", ver);
-			memcpy(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN],
+#ifdef HEADER_LEN_INT
+			if(type == HW_SETTING)
+				memcpy(&((HW_PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN],
+					tmpBuf, SIGNATURE_LEN-TAG_LEN);
+			else
+#endif
+				memcpy(&((PARAM_HEADER_Tp)pHdr)->signature[TAG_LEN],
 					tmpBuf, SIGNATURE_LEN-TAG_LEN);
 		}
 		if ( len > curLen ) {
-			((PARAM_HEADER_Tp)pHdr)->len = len + 1;
+#ifdef HEADER_LEN_INT
+			if(type == HW_SETTING)
+				((HW_PARAM_HEADER_Tp)pHdr)->len = len + 1;
+			else
+#endif
+				((PARAM_HEADER_Tp)pHdr)->len = len + 1;
 			offset = len - curLen;
 			checksum = CHECKSUM(pMibData, curLen);
 			ptr = data + curLen;
@@ -3794,16 +4166,30 @@ int apmib_updateFlash(CONFIG_DATA_T type, char *data, int len, int force, int ve
 		else
 			checksum = CHECKSUM(pMibData, curLen);
 	}
-
-	if ( flash_write((char *)pHdr, i, sizeof(PARAM_HEADER_T))==0 ) {
-		printf("Write flash current-setting header failed!\n");
+#ifdef HEADER_LEN_INT
+	if(type == HW_SETTING)
+	{
+		if ( flash_write((char *)pHdr, i, sizeof(HW_PARAM_HEADER_T))==0 ) {
+			printf("Write flash current-setting header failed!\n");
 #if CONFIG_APMIB_SHARED_MEMORY == 1
-		apmib_sem_unlock();
+			apmib_sem_unlock();
 #endif
-		return 0;
+			return 0;
+		}
+		i += sizeof(HW_PARAM_HEADER_T);
 	}
-	i += sizeof(PARAM_HEADER_T);
-
+	else
+#endif
+	{
+		if ( flash_write((char *)pHdr, i, sizeof(PARAM_HEADER_T))==0 ) {
+			printf("Write flash current-setting header failed!\n");
+#if CONFIG_APMIB_SHARED_MEMORY == 1
+			apmib_sem_unlock();
+#endif
+			return 0;
+		}
+		i += sizeof(PARAM_HEADER_T);
+	}
 	if ( flash_write(pMibData, i, curLen)==0 ) {
 		printf("Write flash current-setting failed!\n");
 #if CONFIG_APMIB_SHARED_MEMORY == 1
@@ -3838,6 +4224,18 @@ int apmib_updateFlash(CONFIG_DATA_T type, char *data, int len, int force, int ve
 	return 1;
 }
 #endif
+#ifdef AP_CONTROLER_SUPPORT
+static int flash_read(char *buf, int offset, int len)
+{
+	return apmib_virtual_flash_read(buf,offset,len);
+}
+static int flash_write(char *buf, int offset, int len)
+{
+	return apmib_virtual_flash_write(buf,offset,len);
+}
+
+
+#else
 /////////////////////////////////////////////////////////////////////////////////
 static int flash_read(char *buf, int offset, int len)
 {
@@ -3880,7 +4278,7 @@ static int flash_write(char *buf, int offset, int len)
 
 	return ok;
 }
-
+#endif
 #ifdef MIB_TLV
 int add_tblentry(void *pmib, unsigned offset, int num,const mib_table_entry_T *mib_tbl,void *val)
 {
@@ -4507,8 +4905,10 @@ PARAM_HEADER_T* mib_get_header(CONFIG_DATA_T type)
 	
 	switch(type)
 	{
+#ifndef HEADER_LEN_INT
 		case HW_SETTING:
 			return &hsHeader;
+#endif
 		case DEFAULT_SETTING:
 			return &dsHeader;
 		case CURRENT_SETTING:
@@ -4528,6 +4928,9 @@ unsigned int mib_compress_write(CONFIG_DATA_T type, unsigned char *data)
 	unsigned int expLen = 0;
 	unsigned int compLen;
 	unsigned int real_size = 0;
+#ifdef HEADER_LEN_INT
+	HW_PARAM_HEADER_T *phwHeader;
+#endif
 	PARAM_HEADER_T *pheader;
 	int dst;
 
@@ -4536,9 +4939,18 @@ unsigned int mib_compress_write(CONFIG_DATA_T type, unsigned char *data)
 
 	dst = mib_get_flash_offset(type);
 	real_size = mib_get_flash_offset(type);
-	pheader = mib_get_header(type);
-	expLen = pheader->len+sizeof(PARAM_HEADER_T);
-
+#ifdef HEADER_LEN_INT
+	if(type==HW_SETTING)
+	{
+		phwHeader=&hsHeader;
+		expLen = phwHeader->len+sizeof(HW_PARAM_HEADER_T);
+	}
+	else
+#endif
+	{
+		pheader = mib_get_header(type);
+		expLen = pheader->len+sizeof(PARAM_HEADER_T);
+	}
 	if( (compPtr = malloc(real_size)) == NULL)
 	{
 		printf("\r\n ERR!! malloc  size %u failed! __[%s-%u]\n",real_size,__FILE__,__LINE__);
@@ -4552,11 +4964,22 @@ unsigned int mib_compress_write(CONFIG_DATA_T type, unsigned char *data)
 
 	if(compPtr != NULL && expPtr!= NULL)
 	{
-		pContent = &expPtr[sizeof(PARAM_HEADER_T)];	// point to start of MIB data 
+#ifdef HEADER_LEN_INT
+		if(type==HW_SETTING)
+		{
+			pContent = &expPtr[sizeof(HW_PARAM_HEADER_T)];	// point to start of MIB data 
 
-		memcpy(pContent, data, pheader->len);
-		memcpy(expPtr, pheader, sizeof(PARAM_HEADER_T));
+			memcpy(pContent, data, phwHeader->len);
+			memcpy(expPtr, phwHeader, sizeof(HW_PARAM_HEADER_T));
+		}
+		else
+#endif
+		{
+			pContent = &expPtr[sizeof(PARAM_HEADER_T)];	// point to start of MIB data 
 
+			memcpy(pContent, data, pheader->len);
+			memcpy(expPtr, pheader, sizeof(PARAM_HEADER_T));
+		}
 		compLen = Encode(expPtr, expLen, compPtr+sizeof(COMPRESS_MIB_HEADER_T));
 		
 		if(type == HW_SETTING)
@@ -4637,7 +5060,14 @@ int mib_updateDef_compress_write(CONFIG_DATA_T type, char *data, PARAM_HEADER_T 
 			return 0;
 
 	}
-	expLen = pheader->len+sizeof(PARAM_HEADER_T);
+#ifdef HEADER_LEN_INT
+		if(type==HW_SETTING)
+		{
+			expLen = ((HW_PARAM_HEADER_Tp)pheader)->len+sizeof(HW_PARAM_HEADER_T);
+		}
+		else
+#endif
+		expLen = pheader->len+sizeof(PARAM_HEADER_T);
 	if(expLen == 0)
 	{
 		printf("\r\n ERR!! no expLen! __[%s-%u]\n",__FILE__,__LINE__);
@@ -4665,11 +5095,20 @@ int mib_updateDef_compress_write(CONFIG_DATA_T type, char *data, PARAM_HEADER_T 
 	if(compPtr != NULL && expPtr!= NULL)
 	{
 		//int status;
-		pContent = &expPtr[sizeof(PARAM_HEADER_T)];	// point to start of MIB data 
-
-		memcpy(pContent, data, pheader->len);
-		memcpy(expPtr, pheader, sizeof(PARAM_HEADER_T));
-
+#ifdef HEADER_LEN_INT
+		if(type==HW_SETTING)
+		{
+			pContent = &expPtr[sizeof(HW_PARAM_HEADER_T)];	// point to start of MIB data 
+			memcpy(pContent, data, ((HW_PARAM_HEADER_Tp)pheader)->len);
+			memcpy(expPtr, pheader, sizeof(HW_PARAM_HEADER_T));
+		}
+		else
+#endif
+		{
+			pContent = &expPtr[sizeof(PARAM_HEADER_T)];	// point to start of MIB data 
+			memcpy(pContent, data, pheader->len);
+			memcpy(expPtr, pheader, sizeof(PARAM_HEADER_T));
+		}
 		compLen = Encode(expPtr, expLen, compPtr+sizeof(COMPRESS_MIB_HEADER_T));
 		sprintf((char *)compHeader.signature,"%s",pcomp_sig);
 		compHeader.compRate = (expLen/compLen)+1;
@@ -4846,6 +5285,35 @@ sync();
 
 #ifdef MIB_TLV
 
+/*get mib value directly from tlv Block. Note: only can get simple mib*/
+int tlv_simple_mib_get(unsigned int mib_id,unsigned char *from_data,unsigned int total_len, void *value)
+{
+	unsigned short tlv_tag;		
+	unsigned short tlv_len;
+	unsigned char *idx;
+	int i=0,ret=-1;
+
+	idx=from_data;	
+	while(i<total_len)	
+	{		
+		memcpy(&tlv_tag, idx+i, sizeof(tlv_tag));		
+		i+=sizeof(tlv_tag);					
+
+		memcpy(&tlv_len, idx+i, sizeof(tlv_len));
+		i+=sizeof(tlv_len);
+
+		if(mib_id == tlv_tag) {
+			/*found*/
+			memcpy(value,idx+i,tlv_len);
+			ret=0;
+			break;
+		}
+		/*skip to next header*/
+		i += tlv_len;
+	}
+	return ret;
+}
+
 int mib_search_by_id(const mib_table_entry_T *mib_tbl, unsigned short mib_id, unsigned char *pmib_num, const mib_table_entry_T **ppmib, unsigned int *offset)
 {
 	int i=0;
@@ -4957,7 +5425,9 @@ fprintf(stderr,"\r\n");
 		case RADVDPREFIX_T:
 		case DNSV6_T:
 		case DHCPV6S_T:
+		case DHCPV6C_T:
 		case ADDR6_T:
+		case ADDRV6_T:
 		case TUNNEL6_T:
 			memcpy(data, ptlv_data_value, mib_tbl->total_size);
 			break;		
@@ -5476,4 +5946,1190 @@ int mibtbl_check(void)
 	return 0;
 }
 
+#define TZ_FILE "/var/TZ"
+unsigned char *gettoken(const unsigned char *str,unsigned int index,unsigned char symbol)
+{
+	static char tmp[50];
+	unsigned char tk[50]; //save symbol index
+	char *ptmp;
+	int i,j,cnt=1,start,end;
+	//scan symbol and save index
+	
+	memset(tmp, 0x00, sizeof(tmp));
+	
+	for (i=0;i<strlen((char *)str);i++)
+	{          
+		if (str[i]==symbol)
+		{
+			tk[cnt]=i;
+			cnt++;
+		}
+	}
+	
+	if (index>cnt-1)
+	{
+		return NULL;
+	}
+			
+	tk[0]=0;
+	tk[cnt]=strlen((char *)str);
+	
+	if (index==0)
+		start=0;
+	else
+		start=tk[index]+1;
+
+	end=tk[index+1];
+	
+	j=0;
+	for(i=start;i<end;i++)
+	{
+		tmp[j]=str[i];
+		j++;
+	}
+		
+	return (unsigned char *)tmp;
+}
+
+void set_timeZone(void)
+{
+	unsigned int daylight_save = 1;
+	char daylight_save_str[5];
+	char time_zone[8];
+	char command[100], str_datnight[100],str_cmd[128]={0};
+	unsigned char *str_tz1;
+	
+	apmib_get( MIB_DAYLIGHT_SAVE,  (void *)&daylight_save);
+	memset(daylight_save_str, 0x00, sizeof(daylight_save_str));
+	sprintf(daylight_save_str,"%u",daylight_save);
+	
+	apmib_get( MIB_NTP_TIMEZONE,  (void *)&time_zone);
+
+	if(daylight_save == 0)
+		sprintf( str_datnight, "%s", "");
+	else if(strcmp(time_zone,"9 1") == 0)
+		sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"8 1") == 0)
+		sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"7 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"6 1") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"6 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"5 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"5 3") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"4 3") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M10.2.0/00:00:00,M3.2.0/00:00:00");
+	else if(strcmp(time_zone,"3 1") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M4.1.0/00:00:00,M10.5.0/00:00:00");
+	else if(strcmp(time_zone,"3 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M2.2.0/00:00:00,M10.2.0/00:00:00");
+	else if(strcmp(time_zone,"1 1") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/00:00:00,M10.5.0/01:00:00");
+	else if(strcmp(time_zone,"0 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/01:00:00,M10.5.0/02:00:00");
+	else if(strcmp(time_zone,"-1") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
+	else if(strcmp(time_zone,"-2 1") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
+	else if(strcmp(time_zone,"-2 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/03:00:00,M10.5.0/04:00:00");
+	else if(strcmp(time_zone,"-2 3") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M4.5.5/00:00:00,M9.5.5/00:00:00");
+	else if(strcmp(time_zone,"-2 5") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/03:00:00,M10.5.5/04:00:00");
+	else if(strcmp(time_zone,"-2 6") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.5/02:00:00,M10.1.0/02:00:00");
+	else if(strcmp(time_zone,"-3 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
+	else if(strcmp(time_zone,"-4 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/04:00:00,M10.5.0/05:00:00");
+	else if(strcmp(time_zone,"-9 4") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M10.5.0/02:00:00,M4.1.0/03:00:00");
+	else if(strcmp(time_zone,"-10 2") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M10.5.0/02:00:00,M4.1.0/03:00:00");
+	else if(strcmp(time_zone,"-10 4") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M10.1.0/02:00:00,M4.1.0/03:00:00");
+	else if(strcmp(time_zone,"-10 5") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
+	else if(strcmp(time_zone,"-12 1") == 0)
+	        sprintf( str_datnight, "%s", "PDT,M3.2.0/03:00:00,M10.1.0/02:00:00");
+	else
+	        sprintf( str_datnight, "%s", "");
+
+	str_tz1 = gettoken((unsigned char*)time_zone, 0, ' ');
+	
+	if(strcmp(time_zone,"3 1") == 0 ||
+		strcmp(time_zone,"-3 4") == 0 ||
+	 	strcmp(time_zone,"-4 3") == 0 ||
+	 	strcmp(time_zone,"-5 3") == 0 ||
+	 	strcmp(time_zone,"-9 4") == 0 ||
+	 	strcmp(time_zone,"-9 5") == 0
+		)
+	{
+         sprintf( command, "GMT%s:30%s", str_tz1, str_datnight);
+	}
+	else
+		sprintf( command, "GMT%s%s", str_tz1, str_datnight); 
+	unlink(TZ_FILE);
+	sprintf(str_cmd,"echo %s >%s",command,TZ_FILE);
+	system(str_cmd);
+}
+
 #endif
+#ifdef CONFIG_IPV6
+/*
+*	input:name(interface name) addrIndex(count index)
+*	output:v6 address,interface index,prefix len,
+*			scope(IFA_LINK|IFA_HOST|IFA_SITE),
+dad_status(IFA_F_NODAD|IFA_F_OPTIMISTIC|IFA_F_HOMEADDRESS|IFA_F_DEPRECATED|IFA_F_TENTATIVE|IFA_F_PERMANENT)
+*	output can be NULL
+*	return:
+	-1:fail
+	0:not find
+	1:find
+*/
+int get_inet6_stats(char * name,int addrIndex,char* address,int *pindex,int *pplen,int *pscope,int *pdad_status)
+{	
+	FILE * fh=NULL;
+	int plen, scope, dad_status, if_idx,addrIndex_count=0;
+	char addr6p[8][5];
+	char addressBuf[40]={0},nameBuf[16]={0};
+	fh = fopen(_PATH_PROCNET_IFINET6, "r");
+	if (!fh) {
+		printf("can't open %s\n",_PATH_PROCNET_IFINET6);
+		return -1;
+	}
+	
+	while(fscanf
+			   (fh, "%4s%4s%4s%4s%4s%4s%4s%4s %08x %02x %02x %02x %20s\n",
+				addr6p[0], addr6p[1], addr6p[2], addr6p[3], addr6p[4],
+				addr6p[5], addr6p[6], addr6p[7], &if_idx, &plen, &scope,
+				&dad_status, nameBuf) != EOF
+		)
+		{
+			//printf("nameBuf=%s\n",nameBuf);
+			if (strcmp(nameBuf, name)==0) 
+			{
+				if(addrIndex_count==addrIndex)
+				{
+					sprintf(addressBuf, "%s:%s:%s:%s:%s:%s:%s:%s",
+						addr6p[0], addr6p[1], addr6p[2], addr6p[3],
+						addr6p[4], addr6p[5], addr6p[6], addr6p[7]);
+					//printf("%s %d %xd %d %d\n",addressBuf,if_idx,plen,scope,dad_status);
+					if(address)
+						strcpy(address,addressBuf);
+					if(pindex)
+						*pindex=if_idx;
+					if(pplen)
+						*pplen=plen;
+					if(pscope)
+						*pscope=scope;
+					if(pdad_status)
+						*pdad_status=dad_status;
+					fclose(fh);
+					return 1;
+				}				
+				addrIndex_count++;
+			}			
+		}	
+	fclose(fh);
+	return 0;
+}
+#endif
+#ifdef TR181_SUPPORT
+#ifdef CONFIG_IPV6
+
+#define NS_INT16SZ   2
+#define NS_INADDRSZ  4
+#define NS_IN6ADDRSZ    16
+
+//add string to IPv4 address exchange
+int
+inet_pton4(src, dst)
+	const char *src;
+	unsigned char *dst;
+{
+	static const char digits[] = "0123456789";
+	int saw_digit, octets, ch;
+	unsigned char tmp[NS_INADDRSZ], *tp;
+	 
+	saw_digit = 0;
+	octets = 0;
+	*(tp = tmp) = 0;
+	while ((ch = *src++) != '\0') {
+		const char *pch;
+
+		if ((pch = strchr(digits, ch)) != NULL) {
+		unsigned int new = *tp * 10 + (pch - digits);
+ 
+		if (new > 255)
+			return (0);
+		*tp = new;
+		if (! saw_digit) {
+			if (++octets > 4)
+				return (0);
+			saw_digit = 1;
+			}
+		} else if (ch == '.' && saw_digit) {
+			if (octets == 4)
+				return (0);
+			*++tp = 0;
+			saw_digit = 0;
+		} else
+			return (0);
+	}
+	if (octets < 4)
+		return (0);
+	memcpy(dst, tmp, NS_INADDRSZ);
+	return (1);
+}
+
+//add string to IPv6 address exchange
+int
+inet_pton6(src, dst)
+	const char *src;
+	unsigned char *dst;
+{
+	static const char xdigits_l[] = "0123456789abcdef",
+		xdigits_u[] = "0123456789ABCDEF";
+	unsigned char tmp[NS_IN6ADDRSZ], *tp, *endp, *colonp;
+	const char *xdigits, *curtok;
+	int ch, saw_xdigit;
+	unsigned int val;
+ 
+	memset((tp = tmp), '\0', NS_IN6ADDRSZ);
+	endp = tp + NS_IN6ADDRSZ;
+	colonp = NULL;
+	/** Leading :: requires some special handling. */
+	if (*src == ':')
+		if (*++src != ':')
+			return (0);
+	curtok = src;
+	saw_xdigit = 0;
+	val = 0;
+	while ((ch = *src++) != '\0') {
+		const char *pch;
+	 
+		if ((pch = strchr((xdigits = xdigits_l), ch)) == NULL)
+			pch = strchr((xdigits = xdigits_u), ch);
+		if (pch != NULL) {
+			val <<= 4;
+			val |= (pch - xdigits);
+			if (val > 0xffff)
+				return (0);
+			saw_xdigit = 1;
+			continue;
+		}
+		if (ch == ':') {
+			curtok = src;
+		if (!saw_xdigit) {
+			if (colonp)
+				return (0);
+			colonp = tp;
+				continue;
+		}
+		if (tp + NS_INT16SZ > endp)
+			return (0);
+		*tp++ = (unsigned char) (val >> 8) & 0xff;
+		*tp++ = (unsigned char) val & 0xff;
+		saw_xdigit = 0;
+		val = 0;
+		continue;
+		}
+		if (ch == '.' && ((tp + NS_INADDRSZ) <= endp) &&
+			inet_pton4(curtok, tp) > 0) {
+			tp += NS_INADDRSZ;
+			saw_xdigit = 0;
+			break;  /** '\0' was seen by inet_pton4(). */
+		}
+		return (0);
+	}
+	if (saw_xdigit) {
+		if (tp + NS_INT16SZ > endp)
+			return (0);
+		*tp++ = (unsigned char) (val >> 8) & 0xff;
+		*tp++ = (unsigned char) val & 0xff;
+	}
+	if (colonp != NULL) {
+	/**
+	  * Since some memmove()'s erroneously fail to handle
+	  * overlapping regions, we'll do the shift by hand.
+	  */
+		const int n = tp - colonp;
+		int i;
+	 
+		for (i = 1; i <= n; i++) {
+			endp[- i] = colonp[n - i];
+			colonp[n - i] = 0;
+		}
+		tp = endp;
+	}
+	if (tp != endp)
+		return (0);
+	memcpy(dst, tmp, NS_IN6ADDRSZ);
+	return (1);
+}
+
+int get_wanif(char*wan_interface)
+{
+	int val=0;
+	if(!wan_interface) return -1;
+	if(apmib_get(MIB_IPV6_DHCPC_IFACE,(void*)wan_interface)==0)
+	{
+		printf("get MIB_IPV6_DHCPC_IFACE fail!\n");
+		return -1;
+	}
+	if(wan_interface[0])
+		return 0;
+	if(!apmib_get(MIB_IPV6_LINK_TYPE,&val)){	
+			fprintf(stderr, "get mib %d error!\n", MIB_IPV6_LINK_TYPE);
+			return -1;			
+	}
+			
+	if(val == IPV6_LINKTYPE_PPP)
+		sprintf(wan_interface,"ppp0");
+	else
+		sprintf(wan_interface,"eth1");
+	return 0;
+}
+#endif
+
+/***********************
+return value:
+-1:fail
+1:int
+2:string
+3:duid_t
+...
+***********************/
+int tr181_ipv6_get(char * name,void * value)
+{
+	int val=0;
+	if(!name||!value)
+	{
+		printf("tr181_get invalid input!\n");
+		return -1;
+	}
+#ifdef CONFIG_IPV6
+	if(strcmp(name,"Device.DHCPv6.Client.Enable")==0)
+	{
+		if(apmib_get(MIB_IPV6_WAN_ENABLE,(void*)&val)==0)
+		{
+			printf("get MIB_IPV6_WAN_ENABLE fail!\n");
+			return -1;
+		}
+		*((int*)value)=val;
+		return 1;
+	}
+	if(strcmp(name,"Device.DHCPv6.Client.Interface")==0)
+	{
+		
+		if(apmib_get(MIB_IPV6_DHCPC_IFACE,(void*)value)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_IFACE fail!\n");
+			return -1;
+		}
+		return 2;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.DUID")==0)
+	{
+		char wanIf[16]={0};
+		struct sockaddr hwaddr={0};
+		struct duid_t dhcp6c_duid={0};
+		struct ifreq ifr={0};
+    	int skfd=0;
+		if(get_wanif(wanIf)<0)
+			return -1;
+		
+    	skfd = socket(AF_INET, SOCK_DGRAM, 0);
+   		strcpy(ifr.ifr_name, wanIf);
+		if (ioctl(skfd, SIOCGIFHWADDR, &ifr) >= 0) {
+			memcpy(&hwaddr, &ifr.ifr_hwaddr, sizeof(struct sockaddr));
+		}else		
+		{
+				fprintf(stderr, "Read hwaddr Error\n");
+				return -1;	
+		}
+		dhcp6c_duid.duid_type=3;
+		dhcp6c_duid.hw_type=1;
+		memcpy(dhcp6c_duid.mac,hwaddr.sa_data,6);
+		*((struct duid_t*)value)=dhcp6c_duid;
+	//	sprintf(DUID_buff,"%04x%04x%02x%02x%02x%02x%02x%02x",3,1,hwaddr.sa_data[0],hwaddr.sa_data.mac[1],hwaddr.sa_data.mac[2],hwaddr.sa_data.mac[3],hwaddr.sa_data.mac[4],hwaddr.sa_data.mac[5]);
+		return 3;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.Status")==0)
+	{
+		if(apmib_get(MIB_IPV6_DHCP_MODE,(void*)&val)==0)
+		{
+			printf("get MIB_IPV6_DHCP_MODE fail!\n");
+			return -1;
+		}
+		if(val==IPV6_DHCP_STATELESS)
+		{//not enable
+			strcpy((char*)value,"Disabled");			
+			return 2;
+		}
+		if(val==IPV6_DHCP_STATEFUL)
+		{//enable
+			if(access("/var/dhcp6c_parse_fail",0)<0)
+				strcpy((char*)value,"Enabled");
+			else
+				strcpy((char*)value,"Error_Misconfigured");
+		}
+		return 2;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.RequestAddresses")==0)
+	{
+		if(apmib_get(MIB_IPV6_DHCPC_REQUEST_ADDR,(void*)&val)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_REQUEST_ADDR fail!\n");
+			return -1;
+		}
+		*((int*)value)=val;
+		return 1;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.RequestPrefixes")==0)
+	{
+		if(apmib_get(MIB_IPV6_DHCP_PD_ENABLE,(void*)&val)==0)
+		{
+			printf("get MIB_IPV6_DHCP_PD_ENABLE fail!\n");
+			return -1;
+		}
+		*((int*)value)=val;
+		return 1;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.RapidCommit")==0)
+	{
+		if(apmib_get(MIB_IPV6_DHCP_RAPID_COMMIT_ENABLE,(void*)&val)==0)
+		{
+			printf("get MIB_IPV6_DHCP_RAPID_COMMIT_ENABLE fail!\n");
+			return -1;
+		}
+		*((int*)value)=val;
+		return 1;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.Renew")==0)
+	{
+		*((int*)value)=0;
+		return 1;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.SuggestedT1")==0)
+	{
+		if(apmib_get(MIB_IPV6_DHCPC_SUGGESTEDT1,(void*)&val)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_SuggestedT1 fail!\n");
+			return -1;
+		}
+		*((int*)value)=val;
+		return 1;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.SuggestedT2")==0)
+	{
+		if(apmib_get(MIB_IPV6_DHCPC_SUGGESTEDT2,(void*)&val)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_SuggestedT2 fail!\n");
+			return -1;
+		}
+		*((int*)value)=val;
+		return 1;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.SupportedOptions")==0)
+	{
+		char *buff=(char*)value;
+		strcpy(buff,"1,2,3,5,6,8,14,21,22,23,27,28,29,30,31,33,34");
+		//OPTION_CLIENTID (1)	 OPTION_SERVERID (2) 	OPTION_IA_NA (3)	 OPTION_IAADDR (5)
+		// OPTION_ORO (6)	OPTION_ELAPSED_TIME (8)	OPTION_RAPID_COMMIT (14)	DH6OPT_SIP_SERVER_D 21
+		//DH6OPT_SIP_SERVER_A 22 DH6OPT_DNS 23 DH6OPT_NIS_SERVERS 27 DH6OPT_NISP_SERVERS 28 
+		//DH6OPT_NIS_DOMAIN_NAME 29 DH6OPT_NISP_DOMAIN_NAME 30 DH6OPT_NTP 31 DH6OPT_BCMCS_SERVER_D 33
+		//DH6OPT_BCMCS_SERVER_A 34
+		return 2;
+	}
+	
+	else if(strcmp(name,"Device.DHCPv6.Client.SentOptionNumberOfEntries")==0)
+	{
+		*((int*)value)=IPV6_DHCPC_SENDOPT_NUM;
+		return 1;
+	}
+	else if(strncmp(name,"Device.DHCPv6.Client.SentOption.{",strlen("Device.DHCPv6.Client.SentOption.{"))==0)
+	{
+		char index_buf[8]={0};
+		int idx=0,count=0,maxNum=IPV6_DHCPC_SENDOPT_NUM;
+		DHCPV6C_SENDOPT_T entry={0};
+		char*p=name+strlen("Device.DHCPv6.Client.SentOption.{");
+		
+		//get index
+		while((*p)>='0'&&(*p)<='9')
+		{
+			index_buf[count++]=*p;
+			p++;
+		}
+		idx=atoi(index_buf)+1;
+		if(idx>maxNum)
+		{
+			printf("invalid input idx %d must less than max:%d!\n",idx,IPV6_DHCPC_SENDOPT_NUM);
+			return -1;
+		}
+		apmib_set(MIB_IPV6_DHCPC_SENDOPT_TBL_NUM,(void*)&maxNum);
+		//get entry
+		*((char*)&entry)=(char)idx;
+		if(apmib_get(MIB_IPV6_DHCPC_SENDOPT_TBL,(void*)&entry)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_SENDOPT_TBL fail!\n");
+			return -1;
+		}
+
+		//get name		
+		if((*p)!='}'&&(*(p+1)!='.'))
+		{
+			printf("invalid input %s!\n",name);
+			return -1;
+		}
+		name=p+2;
+		
+		if(strcmp(name,"Enable")==0)
+		{
+			*((int*)value)=entry.enable;
+			return 1;
+		}
+		else if(strcmp(name,"Tag")==0)
+		{
+			*((int*)value)=entry.tag;
+			return 1;
+		}
+		else if(strcmp(name,"Value")==0)
+		{
+			strcpy((char*)value,entry.value);
+			return 2;
+		}else
+		{
+			printf("can't find handle of Device.DHCPv6.Client.SentOption.{%d}.%s\n",idx,name);
+			return -1;
+		}
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.ReceivedOptionNumberOfEntries")==0)
+	{
+		FILE*fp=fopen("/var/dhcp6c_rcvOpt","r");
+		int count=0;
+		char valueBuf[128]={0};
+		if(fp==NULL)
+		{
+			*((int*)value)=0;
+			return 1;
+		}
+		for(count=0;count<IPV6_DHCPC_RCVOPT_NUM+1;count++)
+		{
+			if(fgets(valueBuf,sizeof(valueBuf),fp)==NULL)
+			{
+				break;
+			}
+		}
+		fclose(fp);
+		if(count==IPV6_DHCPC_RCVOPT_NUM+1)
+		{
+			printf("over max!check /var/dhcp6c_rcvOpt\n");
+			return -1;
+		}
+		*((int*)value)=count;
+		return 1;
+	}
+	else if(strncmp(name,"Device.DHCPv6.Client.ReceivedOption.{",strlen("Device.DHCPv6.Client.ReceivedOption.{"))==0)
+	{
+		char index_buf[8]={0};
+		int idx=0,count=0;
+		int tag=0;
+		char valueBuf[128]={0};
+		char valueNameBuf[128]={0};
+		char valueValBuf[128]={0};
+		FILE*fp=NULL;
+		char*p=name+strlen("Device.DHCPv6.Client.ReceivedOption.{");
+		
+		//get index
+		while((*p)>='0'&&(*p)<='9')
+		{
+			index_buf[count++]=*p;
+			p++;
+		}
+		idx=atoi(index_buf);
+		if(idx>=IPV6_DHCPC_RCVOPT_NUM)
+		{
+			printf("invalid input idx %d must less than max:%d!\n",idx,IPV6_DHCPC_RCVOPT_NUM);
+			return -1;
+		}
+		fp=fopen("/var/dhcp6c_rcvOpt","r");
+		if(fp==NULL)
+		{
+			printf("can't get receive option!\n");
+			return -1;
+		}
+		for(count=0;count<=idx;count++)
+		{
+			bzero(valueBuf,sizeof(valueBuf));
+			if(fgets(valueBuf,sizeof(valueBuf),fp)==NULL)
+			{
+				printf("index max %d\n",count-1);
+				fclose(fp);
+				return -1;
+			}
+		}
+
+		fclose(fp);
+		//printf("%s\n",valueBuf);
+		sscanf(valueBuf,"%s	%d	%s\n",valueNameBuf,&tag,valueValBuf);
+		//printf("valueValBuf=%s\n",valueValBuf);
+
+		//get name		
+		if((*p)!='}'&&(*(p+1)!='.'))
+		{
+			printf("invalid input %s!\n",name);
+			return -1;
+		}
+		name=p+2;
+		
+		if(strcmp(name,"Tag")==0)
+		{
+			*((int*)value)=tag;
+			return 1;
+		}
+		else if(strcmp(name,"Value")==0)
+		{
+			strcpy((char*)value,valueValBuf);
+			return 2;
+		}else
+		{
+			printf("can't find handle of Device.DHCPv6.Client.ReceivedOption.{%d}.%s\n",idx,name);
+			return -1;
+		}		
+	}
+#endif
+	if(strncmp(name,"Device.DNS.SupportedRecordTypes",strlen("Device.DNS.SupportedRecordTypes"))==0)
+	{
+		char *buff=(char*)value;
+#ifdef CONFIG_IPV6
+		strcpy(buff,"A,AAAA");
+#else
+		strcpy(buff,"A");
+#endif
+		/* 
+		A ([RFC1035]) 
+		AAAA ([RFC3596]) 
+		SRV ([RFC2782]) 
+		PTR ([RFC1035]) 
+		*/
+		return 2;
+	}
+	else if(strncmp(name,"Device.DNS.Client.Enable",strlen("Device.DNS.Client.Enable"))==0)
+	{
+		if(apmib_get(MIB_DNS_CLIENT_ENABLE,(void*)&val)==0)
+		{
+			printf("get MIB_DNS_CLIENT_ENABLE fail!\n");
+			return -1;
+		}
+		*((int *)value) = val;
+		return 1;
+	}
+	else if(strncmp(name,"Device.DNS.Client.Status",strlen("Device.DNS.Client.Status"))==0)
+	{
+		if(apmib_get(MIB_DNS_CLIENT_ENABLE,(void*)&val)==0)
+		{
+			printf("get MIB_DNS_CLIENT_ENABLE fail!\n");
+			return -1;
+		}
+		if(val == 1)
+			strcpy((char*)value,"Enabled");
+		else
+			strcpy((char*)value,"Disabled");
+		return 2;
+	}
+	else if(strncmp(name,"Device.DNS.Client.ServerNumberOfEntries",strlen("Device.DNS.Client.ServerNumberOfEntries"))==0)
+	{
+		*((int *)value) = DNS_CLIENT_SERVER_NUM;
+		return 1;
+	}
+	else if(strncmp(name,"Device.DNS.Client.Server.{",strlen("Device.DNS.Client.Server.{"))==0)
+	{
+		char index_buf[8]={0};
+		int idx=0,count=0,maxNum=DNS_CLIENT_SERVER_NUM;
+		DNS_CLIENT_SERVER_T entry={0};
+		char*p=name+strlen("Device.DNS.Client.Server.{");
+		
+		//get index
+		while((*p)>='0'&&(*p)<='9')
+		{
+			index_buf[count++]=*p;
+			p++;
+		}
+		idx=atoi(index_buf)+1;
+		if(idx>maxNum)
+		{
+			printf("invalid input idx %d must less than max:%d!\n",idx,DNS_CLIENT_SERVER_NUM);
+			return -1;
+		}
+		apmib_set(MIB_DNS_CLIENT_SERVER_TBL_NUM,(void*)&maxNum);
+		//get entry
+		*((char*)&entry)=(char)idx;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)&entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return -1;
+		}
+
+		//get name		
+		if((*p)!='}'&&(*(p+1)!='.'))
+		{
+			printf("invalid input %s!\n",name);
+			return -1;
+		}
+		name=p+2;
+		
+		if(strcmp(name,"Enable")==0)
+		{
+			*((int*)value)=entry.enable;
+			return 1;
+		}
+		else if(strcmp(name,"Status")==0)
+		{
+			if(entry.status == 1)
+				strcpy((char*)value,"Enable");
+			else
+				strcpy((char*)value,"Disable");
+			return 2;
+		}
+		/*
+		else if(strcmp(name,"Alias")==0)
+		{
+			strcpy((char*)value,entry.alias);
+			return 2;
+		}
+		*/
+		else if(strcmp(name,"DNSServer")==0)
+		{
+			strcpy((char*)value,entry.ipAddr);
+			return 2;
+		}
+		/*
+		else if(strcmp(name,"Interface")==0)
+		{
+			strcpy((char*)value,entry.interface);
+			return 2;
+		}
+		*/
+		else if(strcmp(name,"Type")==0)
+		{
+			if(entry.type == 1)
+				strcpy((char*)value,"DHCPv4");
+			else if(entry.type == 2)
+				strcpy((char*)value,"DHCPv6");
+			else if(entry.type == 3)
+				strcpy((char*)value,"RouterAdvertisement");
+			else if(entry.type == 4)
+				strcpy((char*)value,"IPCP");
+			else if(entry.type == 5)
+				strcpy((char*)value,"Static");
+			else
+				strcpy((char*)value,"Unknown");
+			return 2;
+		}
+		else
+		{
+			printf("can't find handle of Device.DNS.Client.Server.{%d}.%s\n",idx,name);
+			return -1;
+		}
+	}
+	printf("can't find handle of %s\n",name);
+
+	return -1;
+}
+/*********************************
+return value:
+-1:fail
+1:OK
+2:need to reinit
+3.need to reboot
+********************************/
+int tr181_ipv6_set(char * name,void * value)
+{
+	int val=0;
+	int origVal=0;
+	if(!name||!value)
+	{
+		printf("tr181_get invalid input!\n");
+		return -1;
+	}
+#ifdef CONFIG_IPV6
+	if(strcmp(name,"Device.DHCPv6.Client.Enable")==0)
+	{
+		val=*((int*)value);
+		if(apmib_get(MIB_IPV6_WAN_ENABLE,(void*)&origVal)==0)
+		{
+			printf("get MIB_IPV6_WAN_ENABLE fail!\n");
+			return -1;
+		}
+		if(origVal==val)
+			return 1;
+		if(apmib_set(MIB_IPV6_WAN_ENABLE,(void*)&val)==0)
+		{
+			printf("set MIB_IPV6_WAN_ENABLE fail!\n");
+			return -1;
+		}
+		return 2;
+	}
+	if(strcmp(name,"Device.DHCPv6.Client.Interface")==0)
+	{
+		char buff[64]={0};
+		if(tr181_ipv6_get(name,(void*)buff)<0)
+		{
+			printf("can't set %s\n",name);
+			return -1;
+		}
+		if(strcmp(buff,(char*)value)==0)
+		{
+			return 1;
+		}
+		if(apmib_set(MIB_IPV6_DHCPC_IFACE,(void*)value)==0)
+		{
+			printf("set MIB_IPV6_DHCPC_IFACE fail!\n");
+			return -1;
+		}
+		return 2;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.RequestAddresses")==0)
+	{
+		val=*((int*)value);
+		if(apmib_get(MIB_IPV6_DHCPC_REQUEST_ADDR,(void*)&origVal)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_REQUEST_ADDR fail!\n");
+			return -1;
+		}
+		if(val==origVal)return 1;
+		if(apmib_set(MIB_IPV6_DHCPC_REQUEST_ADDR,(void*)&val)==0)
+		{
+			printf("set MIB_IPV6_DHCPC_REQUEST_ADDR fail!\n");
+			return -1;
+		}		
+		return 2;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.RequestPrefixes")==0)
+	{
+		val=*((int*)value);
+		if(apmib_get(MIB_IPV6_DHCP_PD_ENABLE,(void*)&origVal)==0)
+		{
+			printf("get MIB_IPV6_DHCP_PD_ENABLE fail!\n");
+			return -1;
+		}
+		if(val==origVal)return 1;
+		if(apmib_set(MIB_IPV6_DHCP_PD_ENABLE,(void*)&val)==0)
+		{
+			printf("set MIB_IPV6_DHCP_PD_ENABLE fail!\n");
+			return -1;
+		}		
+		return 2;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.RapidCommit")==0)
+	{
+		val=*((int*)value);
+		if(apmib_get(MIB_IPV6_DHCP_RAPID_COMMIT_ENABLE,(void*)&origVal)==0)
+		{
+			printf("get MIB_IPV6_DHCP_RAPID_COMMIT_ENABLE fail!\n");
+			return -1;
+		}
+		if(val==origVal)return 1;
+		if(apmib_set(MIB_IPV6_DHCP_RAPID_COMMIT_ENABLE,(void*)&val)==0)
+		{
+			printf("set MIB_IPV6_DHCP_RAPID_COMMIT_ENABLE fail!\n");
+			return -1;
+		}		
+		return 2;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.Renew")==0)
+	{
+		val=*((int*)value);
+		if(val)
+		{
+			FILE* fp=fopen("/var/run/dhcp6c.pid","r");
+			int pid=0;
+			if(fp==NULL)
+			{
+				printf("can't open pid file /var/run/dhcp6c.pid!\n");
+				return -1;
+			}
+			fscanf(fp,"%d",&pid);
+			fclose(fp);
+			if(pid<0 || pid>100000)
+			{
+				printf("invalid pid in file /var/run/dhcp6c.pid!\n");
+				return -1;
+			}
+			kill(pid,SIGHUP);
+		}
+		return 1;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.SuggestedT1")==0)
+	{
+		val=*((int*)value);
+		if(apmib_get(MIB_IPV6_DHCPC_SUGGESTEDT1,(void*)&origVal)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_REGGEST_T1 fail!\n");
+			return -1;
+		}
+		if(val==origVal)return 1;
+		if(apmib_set(MIB_IPV6_DHCPC_SUGGESTEDT1,(void*)&val)==0)
+		{
+			printf("set MIB_IPV6_DHCPC_REGGEST_T1 fail!\n");
+			return -1;
+		}
+		return 2;
+	}
+	else if(strcmp(name,"Device.DHCPv6.Client.SuggestedT2")==0)
+	{
+		val=*((int*)value);
+		if(apmib_get(MIB_IPV6_DHCPC_SUGGESTEDT2,(void*)&origVal)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_REGGEST_T2 fail!\n");
+			return -1;
+		}
+		if(val==origVal)return 1;
+		if(apmib_set(MIB_IPV6_DHCPC_SUGGESTEDT2,(void*)&val)==0)
+		{
+			printf("set MIB_IPV6_DHCPC_REGGEST_T2 fail!\n");
+			return -1;
+		}
+		return 2;
+	}
+	else if(strncmp(name,"Device.DHCPv6.Client.SentOption.{",strlen("Device.DHCPv6.Client.SentOption.{"))==0)
+	{
+		char index_buf[8]={0};
+		int idx=0,count=0,maxNum=IPV6_DHCPC_SENDOPT_NUM;
+		DHCPV6C_SENDOPT_T entry[2]={0};
+		char*p=name+strlen("Device.DHCPv6.Client.SentOption.{");
+		
+		//get index
+		while((*p)>='0'&&(*p)<='9')
+		{
+			index_buf[count++]=*p;
+			p++;
+		}
+		idx=atoi(index_buf)+1;
+		if(idx>maxNum)
+		{
+			printf("invalid input idx %d must less than max:%d!\n",idx,IPV6_DHCPC_SENDOPT_NUM);
+			return -1;
+		}
+		apmib_set(MIB_IPV6_DHCPC_SENDOPT_TBL_NUM,(void*)&maxNum);
+		//get entry
+		*((char*)entry)=(char)idx;
+		if(apmib_get(MIB_IPV6_DHCPC_SENDOPT_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_IPV6_DHCPC_SENDOPT_TBL fail!\n");
+			return -1;
+		}
+		entry[1]=entry[0];
+
+		//get name		
+		if((*p)!='}'&&(*(p+1)!='.'))
+		{
+			printf("invalid input %s!\n",name);
+			return -1;
+		}
+		name=p+2;
+		
+		if(strcmp(name,"Enable")==0)
+		{
+			if(*((int*)value)==entry[1].enable)
+				return 1;
+			entry[1].enable=*((int*)value);			
+		}
+		else if(strcmp(name,"Tag")==0)
+		{
+			//*((int*)value)=entry.tag;
+			//return 1;
+			//check other tag
+			int i=0,tagVal=0;
+			DHCPV6C_SENDOPT_T entryTmp={0};
+			tagVal=*((int*)value);
+			if(entry[1].tag==tagVal)
+				return 1;
+			for(i=1;i<=maxNum;i++)
+			{
+				*((char *)&entryTmp) = (char)i;
+				if ( !apmib_get(MIB_IPV6_DHCPC_SENDOPT_TBL, (void *)&entryTmp)){
+					printf("set %s fail!\n",name);
+					return -1;
+				}
+				if(entryTmp.tag==tagVal && tagVal!=0)
+				{
+					printf("set %s fail! Tag exist!\n",name);
+					return -1;
+				}
+			}
+			entry[1].tag=*((int*)value);
+		}
+		else if(strcmp(name,"Value")==0)
+		{
+			if(strcmp((char*)value,entry[1].value)==0)
+				return 1;
+			strcpy(entry[1].value,(char*)value);
+		}else
+		{
+			printf("can't find handle of Device.DHCPv6.Client.SentOption.{%d}.%s\n",idx,name);
+			return -1;
+		}
+		if(apmib_set(MIB_IPV6_DHCPC_SENDOPT_MOD,(void*)entry)==0)
+		{
+			printf("set %s fail!\n",name);
+			return -1;
+		}
+		return 2;
+	}
+#endif
+	if(strncmp(name,"Device.DNS.Client.Enable",strlen("Device.DNS.Client.Enable"))==0)
+	{
+		val=*((int*)value);
+		if(apmib_get(MIB_DNS_CLIENT_ENABLE,(void*)&origVal)==0)
+		{
+			printf("get MIB_DNS_CLIENT_ENABLE fail!\n");
+			return -1;
+		}
+		if(origVal==val)
+			return 1;
+		if(apmib_set(MIB_DNS_CLIENT_ENABLE,(void*)&val)==0)
+		{
+			printf("set MIB_IPV6_WAN_ENABLE fail!\n");
+			return -1;
+		}
+		return 2;
+	}
+	else if(strncmp(name,"Device.DNS.Client.Server.{",strlen("Device.DNS.Client.Server.{"))==0)
+	{
+		char index_buf[8]={0};
+		int idx=0,count=0,maxNum=DNS_CLIENT_SERVER_NUM;
+		DNS_CLIENT_SERVER_T entry[2]={0};
+		char*p=name+strlen("Device.DNS.Client.Server.{");
+		
+		//get index
+		while((*p)>='0'&&(*p)<='9')
+		{
+			index_buf[count++]=*p;
+			p++;
+		}
+		idx=atoi(index_buf)+1;
+		if(idx>maxNum)
+		{
+			printf("invalid input idx %d must less than max:%d!\n",idx,DNS_CLIENT_SERVER_NUM);
+			return -1;
+		}
+		apmib_set(MIB_DNS_CLIENT_SERVER_TBL_NUM,(void*)&maxNum);
+		//get entry
+		*((char*)entry)=(char)idx;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return -1;
+		}
+//		entry[1]=entry[0];
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+
+		//get name		
+		if((*p)!='}' || (*(p+1)!='.'))
+		{
+			printf("invalid input %s!\n",name);
+			return -1;
+		}
+		name=p+2;
+		
+		if(strcmp(name,"Enable")==0)
+		{
+			if(*((int*)value)==entry[1].enable)
+				return 1;
+			entry[1].enable=*((int*)value);
+			entry[1].status = *((int*)value);
+		}
+		/*
+		else if(strcmp(name,"Alias")==0)
+		{
+			if(strcmp((char*)value,entry[1].alias)==0)
+				return 1;
+			strcpy(entry[1].alias,(char*)value);
+		}
+		*/
+		else if(strcmp(name,"DNSServer")==0)
+		{
+			if(strcmp((char*)value,entry[1].ipAddr)==0)
+				return 1;
+			if(entry[1].type == 5)
+				strcpy(entry[1].ipAddr,(char*)value);
+			else
+			{
+				printf("DNSServer is automatically configured as result of DHCP, IPCP, or RA received DNS server information.\n");
+				return -1;
+			}
+			struct in_addr ia_val;
+#ifdef CONFIG_IPV6
+			addr6CfgParam_t addr6_dns;
+			addr6_dns.prefix_len = 64;
+			if ( inet_aton(value, &ia_val) == 0 &&
+				inet_pton6(value, addr6_dns.addrIPv6) ==0)
+#else
+			if ( inet_aton(value, &ia_val) == 0)
+#endif
+			{
+				printf("invalid internet address!\n");
+				return;
+			}
+				
+			if(idx == 4)
+			{
+				apmib_set(MIB_DNS1, (void *)&ia_val);
+			}
+			else if(idx == 5)
+			{
+				apmib_set(MIB_DNS2, (void *)&ia_val);
+			}
+			else if(idx == 6)
+			{
+				apmib_set(MIB_DNS3, (void *)&ia_val);
+			}
+#ifdef CONFIG_IPV6
+			else if(idx == 9)
+			{
+				if(!apmib_set(MIB_IPV6_ADDR_DNS_PARAM,  (void *)&addr6_dns))
+				{
+					printf("set MIB_IPV6_ADDR_DNS_PARAM failed\n");
+					return;
+				}
+			}
+#endif
+		}
+		/*
+		else if(strcmp(name,"Interface")==0)
+		{
+			if(strcmp((char*)value,entry[1].interface)==0)
+				return 1;
+			if(entry[1].type == 5)
+				strcpy(entry[1].interface,(char*)value);
+			else
+			{
+				printf("Interface is automatically configured as result of DHCP, IPCP, or RA received DNS server information.\n");
+				return -1;
+			}
+		}
+		*/
+		else
+		{
+			printf("can't find handle of Device.DNS.Client.Server.{%d}.%s\n",idx,name);
+			return -1;
+		}
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("set %s fail!\n",name);
+			return -1;
+		} 
+		return 2;
+	}
+	printf("can't find handle of %s\n",name);
+}
+#endif
+

@@ -1,0 +1,9 @@
+interface=wlan0
+driver=realtek
+ctrl_interface=/var/run/hostapd
+auth_algs=1
+wpa=0
+ssid=HAPD-will-5g
+bridge=br0
+ignore_broadcast_ssid=0
+wmm_enabled=1

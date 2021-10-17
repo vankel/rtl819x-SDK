@@ -4,6 +4,7 @@
 
 #include "rtk_voip.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "voip_control.h"
 #include "voip_params.h"
 #include "voip_mgr_define.h"
@@ -22,7 +23,7 @@
 #include "../voip_drivers/dsp_rtk_define.h"
 #include "../voip_drivers/led.h"
 //#include "../voip_drivers/Daa_api.h"
-
+#include "../voip_rx/rtk_trap.h"
 #ifdef CONFIG_RTK_VOIP_DRIVERS_ATA_DECT
 #include "../voip_drivers/dect_common/dect_ctrl.h"
 #endif
@@ -37,6 +38,9 @@
 #include "snd_define.h"
 #include "snd_help.h"
 #include "dsp_define.h"
+#ifdef SUPPORT_SILAB_FXO_TUNE
+#include "fxo_tune.h"
+#endif
 
 #if ! defined (AUDIOCODES_VOIP)
 
@@ -47,6 +51,8 @@
 #include "../voip_dsp/include/fsk_det.h"
 #include "../voip_dsp/include/dtmf_dec.h"
 #endif
+
+extern struct RTK_TRAP_profile *filter[];
 
 #else
 
@@ -103,6 +109,18 @@ extern uint32 g_rxVolumneGain[];
 int gRingCadOff[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 4000 };
 unsigned char ioctrl_ring_set[CON_CH_NUM] = {0};	// cch
 #endif
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+static int gIs_MultiRingCad[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 0 };
+static uint16 gCad_on1_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 2000};	// 2s on
+static uint16 gCad_off1_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 4000};	// 4s off
+static uint16 gCad_on2_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 2000};	// 2s on
+static uint16 gCad_off2_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 4000};
+static uint16 gCad_on3_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 2000};	// 2s on
+static uint16 gCad_off3_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 4000};	// 4s off
+static uint16 gCad_on4_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 2000};	// 2s on
+static uint16 gCad_off4_msec[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 4000};	// 4s off	// 4s off
+#endif
+
 extern unsigned int flash_hook_time[];
 extern unsigned int flash_hook_min_time[];
 static unsigned int external_mode = 0;
@@ -138,7 +156,7 @@ int sid_owner[MAX_DSP_RTK_SS_NUM]= {0};   /* Session own by 0: SLIC, 1: DAA */
 
 extern int Is_DAA_Channel(int chid);
 
-#ifdef CONFIG_RTK_VOIP_IP_PHONE
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
   #if defined(CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621)
 extern void Stereo_dac_volume_control_MUTE(unsigned short int DACMUTE);
   #endif
@@ -252,8 +270,7 @@ int do_mgr_VOIP_MGR_PCM_CFG( int cmd, void *user, unsigned int len, unsigned sho
 	if( con_enable_cch( stVoipCfg.ch_id, stVoipCfg.enable ) < 0 ) {
 		PRINT_MSG(" ===> Double PCM Restart(%d)\n", stVoipCfg.ch_id);
 		restore_flags(flags);
-		copy_to_user(user, &stVoipCfg, sizeof(TstVoipCfg));
-		return 0;
+		return COPY_TO_USER(user, &stVoipCfg, sizeof(TstVoipCfg), cmd, seq_no);
 	}
 	
 	restore_flags(flags);
@@ -277,7 +294,7 @@ int do_mgr_VOIP_MGR_PCM_CFG( int cmd, void *user, unsigned int len, unsigned sho
  */
 int do_mgr_VOIP_MGR_SET_BUS_DATA_FORMAT( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
-#ifndef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 #define _M_FMT_MAP( x )		{ AP_ ## x, x }
 	static const struct {
 		AP_BUS_DATA_FORMAT ap_format;
@@ -306,7 +323,7 @@ int do_mgr_VOIP_MGR_SET_BUS_DATA_FORMAT( int cmd, void *user, unsigned int len, 
 	PRINT_MSG("VOIP_MGR_SET_BUS_DATA_FORMAT:ch_id = %d, format = %d\n", 
 					stVoipBusDataFormat.ch_id, stVoipBusDataFormat.format);
 
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward 
 #else
 	
@@ -345,7 +362,7 @@ int do_mgr_VOIP_MGR_SET_PCM_TIMESLOT( int cmd, void *user, unsigned int len, uns
 					stVoipPcmTimeslot.ch_id, 
 					stVoipPcmTimeslot.timeslot1, stVoipPcmTimeslot.timeslot2);
 
-#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP_IS_HOST
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	// Host auto forward 
 #else
 	
@@ -715,7 +732,7 @@ int do_mgr_VOIP_MGR_GEN_SLIC_CPC( int cmd, void *user, unsigned int len, unsigne
 int do_mgr_VOIP_MGR_SET_FLASH_HOOK_TIME( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 	TstVoipHook stHookTime;
-	int ret;
+	int ret = 0;
 	
 	COPY_FROM_USER(&stHookTime, (TstVoipHook *)user, sizeof(TstVoipHook));
 
@@ -745,12 +762,14 @@ int do_mgr_VOIP_MGR_SET_FLASH_HOOK_TIME( int cmd, void *user, unsigned int len, 
 	{
 		flash_hook_time[stHookTime.ch_id] = 30;
 		PRINT_R("flash_hook_time[%d] setting is out of range. Set to default: 300 ms\n", stHookTime.ch_id);
+		ret = -EVOIP_IOCTL_CONFIG_RANGE_ERR;
 	}
 	
 	if( flash_hook_min_time[stHookTime.ch_id] < 8)
 	{
 		flash_hook_min_time[stHookTime.ch_id] = 10;
 		PRINT_R("flash_hook_min_time[%d] setting is out of range. Set to default: 100 ms\n", stHookTime.ch_id);
+		ret = -EVOIP_IOCTL_CONFIG_RANGE_ERR;
 	}
 	
 	if (flash_hook_min_time[stHookTime.ch_id] >= flash_hook_time[stHookTime.ch_id])
@@ -758,9 +777,10 @@ int do_mgr_VOIP_MGR_SET_FLASH_HOOK_TIME( int cmd, void *user, unsigned int len, 
 		flash_hook_time[stHookTime.ch_id] = 30;
 		flash_hook_min_time[stHookTime.ch_id] = 10;
 		PRINT_R("Error: flash_hook_min_time[%d] is larger or equal to flash_hook_time[%d]. Reset default.\n", stHookTime.ch_id, stHookTime.ch_id);
+		ret = -EVOIP_IOCTL_CONFIG_RANGE_ERR;
 	}
 #endif
-	return 0;
+	return ret;
 }
 
 /**
@@ -790,13 +810,74 @@ int do_mgr_VOIP_MGR_SET_SLIC_RING_CADENCE( int cmd, void *user, unsigned int len
 	/* For FXS Ring Cadence */
 	if( get_snd_type_cch( stVoipValue.ch_id ) == SND_TYPE_FXS )
 		SLIC_Set_Ring_Cadence(stVoipValue.ch_id, stVoipValue.value5 /* msec */, stVoipValue.value6 /* msec */);
+	gCad_on1_msec[stVoipValue.ch_id] = stVoipValue.value5;
+	gCad_off1_msec[stVoipValue.ch_id] = stVoipValue.value6;
+	gIs_MultiRingCad[stVoipValue.ch_id] = 0;
+	//PRINT_MSG("(%d, %d, %d, %d), ch%d\n", gCad_on1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id], gCad_on2_msec[stVoipValue.ch_id], gCad_off2_msec[stVoipValue.ch_id], stVoipValue.ch_id);
 #endif
 
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	gRingCadOff[stVoipValue.ch_id] = stVoipValue.value6;// After gen caller ID, for ring FXS usage.
-#ifndef FXO_RING_NO_DET_CADENCE
+#if defined( CONFIG_RTK_VOIP_DRIVERS_FXO ) && !defined( FXO_RING_NO_DET_CADENCE )
 	/* For FXO Ring Detection */
 	ring_det_cad_set(stVoipValue.value5 /* msec */, stVoipValue.value6 /* msec */, stVoipValue.value6 /* msec */);
+#endif
+#endif
+
+	return 0;
+}
+
+ /**
+ * @ingroup VOIP_DRIVER_SLIC
+ * @brief Set Multi-Ring Cadence(in unit of ms)
+ * @param stVoipCadence.ch_id Channel ID
+ * @param stVoipCadence.cadon1 Time for ring on 
+ * @param stVoipCadence.cadoff1 Time for ring off 
+ * @param stVoipCadence.cadon2 Time for ring on 
+ * @param stVoipCadence.cadoff2 Time for ring off 
+ * @see VOIP_MGR_SET_MULTI_RING_CADENCE TstVoipCadence  
+ */
+int do_mgr_VOIP_MGR_SET_MULTI_RING_CADENCE( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	TstVoipCadence stVoipCadence;
+	int ret;
+	
+	COPY_FROM_USER(&stVoipCadence, (TstVoipCadence *)user, sizeof(TstVoipCadence));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+	PRINT_MSG("Set Multi-Ring Cadence (%d, %d, %d, %d, %d, %d, %d, %d), ch%d\n", stVoipCadence.cadon1, stVoipCadence.cadoff1, stVoipCadence.cadon2, stVoipCadence.cadoff2, stVoipCadence.cadon3, stVoipCadence.cadoff3, stVoipCadence.cadon4, stVoipCadence.cadoff4,stVoipCadence.ch_id);
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward, and run this body 
+#endif
+
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+	/* For FXS Ring Cadence */
+	if( get_snd_type_cch( stVoipCadence.ch_id ) == SND_TYPE_FXS )
+		SLIC_Set_Multi_Ring_Cadence(stVoipCadence.ch_id, 
+			stVoipCadence.cadon1 /* msec */, stVoipCadence.cadoff1 /* msec */, 
+			stVoipCadence.cadon2 /* msec */, stVoipCadence.cadoff2 /* msec */,
+			stVoipCadence.cadon3 /* msec */, stVoipCadence.cadoff3 /* msec */, 
+			stVoipCadence.cadon4 /* msec */, stVoipCadence.cadoff4 /* msec */);
+
+	gCad_on1_msec[stVoipCadence.ch_id] = stVoipCadence.cadon1;
+	gCad_off1_msec[stVoipCadence.ch_id] = stVoipCadence.cadoff1;
+	gCad_on2_msec[stVoipCadence.ch_id] = stVoipCadence.cadon2;
+	gCad_off2_msec[stVoipCadence.ch_id] = stVoipCadence.cadoff2;
+	gCad_on3_msec[stVoipCadence.ch_id] = stVoipCadence.cadon3;
+	gCad_off3_msec[stVoipCadence.ch_id] = stVoipCadence.cadoff3;
+	gCad_on4_msec[stVoipCadence.ch_id] = stVoipCadence.cadon4;
+	gCad_off4_msec[stVoipCadence.ch_id] = stVoipCadence.cadoff4;
+	gIs_MultiRingCad[stVoipCadence.ch_id] = 1;
+	//PRINT_MSG("(%d, %d, %d, %d), ch%d\n", gCad_on1_msec[stVoipCadence.ch_id], gCad_off1_msec[stVoipCadence.ch_id], gCad_on2_msec[stVoipCadence.ch_id], gCad_off2_msec[stVoipCadence.ch_id], stVoipCadence.ch_id);
+#endif
+
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	gRingCadOff[stVoipCadence.ch_id] = stVoipCadence.cadoff1;// After gen caller ID, for ring FXS usage.
+#if defined( CONFIG_RTK_VOIP_DRIVERS_FXO ) && !defined( FXO_RING_NO_DET_CADENCE )
+	/* For FXO Ring Detection */
+	ring_det_cad_set(stVoipCadence.cadon1 /* msec */, stVoipCadence.cadoff1 /* msec */, stVoipCadence.cadoff1 /* msec */);
 #endif
 #endif
 
@@ -827,6 +908,40 @@ int do_mgr_VOIP_MGR_SET_SLIC_RING_FRQ_AMP( int cmd, void *user, unsigned int len
 	// Host auto forward (fully offload)
 #else
 	SLIC_Set_Ring_Freq_Amp(stVoipValue.ch_id, stVoipValue.value);
+	
+	if (gIs_MultiRingCad[stVoipValue.ch_id] == 1)
+	{
+		SLIC_Set_Multi_Ring_Cadence(stVoipValue.ch_id, 
+			gCad_on1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id], 
+			gCad_on2_msec[stVoipValue.ch_id], gCad_off2_msec[stVoipValue.ch_id],
+			gCad_on3_msec[stVoipValue.ch_id], gCad_off3_msec[stVoipValue.ch_id], 
+			gCad_on4_msec[stVoipValue.ch_id], gCad_off4_msec[stVoipValue.ch_id]);
+		PRINT_MSG("Set Multi-Ring Cadence (%d, %d, %d, %d), ch%d\n", 
+			gCad_on1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id], 
+			gCad_on2_msec[stVoipValue.ch_id], gCad_off2_msec[stVoipValue.ch_id], 
+			gCad_on3_msec[stVoipValue.ch_id], gCad_off3_msec[stVoipValue.ch_id], 
+			gCad_on4_msec[stVoipValue.ch_id], gCad_off4_msec[stVoipValue.ch_id],
+			stVoipValue.ch_id);
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+		gRingCadOff[stVoipValue.ch_id] = gCad_off1_msec[stVoipValue.ch_id];// After gen caller ID, for ring FXS usage.
+#endif
+#if defined( CONFIG_RTK_VOIP_DRIVERS_FXO ) && !defined( FXO_RING_NO_DET_CADENCE )
+		/* For FXO Ring Detection */
+		ring_det_cad_set(gCad_on1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id]);
+#endif
+	}
+	else
+	{
+		SLIC_Set_Ring_Cadence(stVoipValue.ch_id, gCad_on1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id]);
+		PRINT_MSG("Set Ring Cadence (%d, %d), ch%d\n", gCad_on1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id], stVoipValue.ch_id);
+#ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+		gRingCadOff[stVoipValue.ch_id] = gCad_off1_msec[stVoipValue.ch_id];// After gen caller ID, for ring FXS usage.
+#endif
+#if defined( CONFIG_RTK_VOIP_DRIVERS_FXO ) && !defined( FXO_RING_NO_DET_CADENCE )
+		/* For FXO Ring Detection */
+		ring_det_cad_set(gCad_on1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id], gCad_off1_msec[stVoipValue.ch_id]);
+#endif
+	}
 #endif
 
 	return 0;
@@ -1334,7 +1449,7 @@ int do_mgr_VOIP_MGR_DAA_ON_HOOK( int cmd, void *user, unsigned int len, unsigned
 /**
  * @ingroup VOIP_DRIVER_DAA
  * @brief Set DAA Tx Gain 
- * @param TstVoipValue.value DAA Tx gain. (x -7 = dB)
+ * @param TstVoipValue.value DAA Tx gain. (0 ~ -11 dB)
  * @see VOIP_MGR_SET_DAA_TX_GAIN TstVoipValue 
  * @see do_mgr_VOIP_MGR_SET_DAA_RX_GAIN()
  * @note This function is for virutal DAA 
@@ -1367,7 +1482,7 @@ int do_mgr_VOIP_MGR_SET_DAA_TX_GAIN( int cmd, void *user, unsigned int len, unsi
 			DAA_Set_Tx_Gain(cch, stVoipValue.value);
 	}
 
-	PRINT_MSG("Set DAA Tx Gain = %ddB \n", stVoipValue.value-7);
+	PRINT_MSG("Set DAA Tx Gain = %ddB \n", 0 - stVoipValue.value);
 	#endif
 #endif
 #else
@@ -1379,7 +1494,7 @@ int do_mgr_VOIP_MGR_SET_DAA_TX_GAIN( int cmd, void *user, unsigned int len, unsi
 /**
  * @ingroup VOIP_DRIVER_DAA
  * @brief Set DAA Rx Gain 
- * @param TstVoipValue.value DAA Tx gain. (x -7 = dB)
+ * @param TstVoipValue.value DAA Tx gain. (0 ~ -11 dB)
  * @see VOIP_MGR_SET_DAA_RX_GAIN TstVoipValue 
  * @see do_mgr_VOIP_MGR_SET_DAA_TX_GAIN()
  */
@@ -1411,7 +1526,7 @@ int do_mgr_VOIP_MGR_SET_DAA_RX_GAIN( int cmd, void *user, unsigned int len, unsi
 			DAA_Set_Rx_Gain(cch, stVoipValue.value);
 	}
 
-	PRINT_MSG("Set DAA Rx Gain = %ddB\n", stVoipValue.value-7);
+	PRINT_MSG("Set DAA Rx Gain = %ddB\n", 0 - stVoipValue.value);
 	#endif
 #endif
 #else
@@ -2007,6 +2122,167 @@ int do_mgr_VOIP_MGR_FXO_OFF_HOOK( int cmd, void *user, unsigned int len, unsigne
 }
 
 /**
+ * @ingroup VOIP_DRIVER_DAA
+ * @brief Set DAA Hybrid 
+ * @param stVoipValue.ch_id channel ID
+ * @param stVoipValue.value Hybrid index
+ * @see VOIP_MGR_SET_DAA_HYBRID TstVoipValue 
+ * @see do_mgr_VOIP_MGR_SET_DAA_HYBRID()
+ */
+int do_mgr_VOIP_MGR_SET_DAA_HYBRID( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+#ifdef CONFIG_RTK_VOIP_DRIVERS_FXO
+	TstVoipValue stVoipValue;
+	int ret;
+
+	// thlin +
+	COPY_FROM_USER(&stVoipValue, (TstVoipValue *)user, sizeof(TstVoipValue));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward 
+#else
+	#ifndef CONFIG_RTK_VOIP_DRIVERS_VIRTUAL_DAA
+	if( get_snd_type_cch( stVoipValue.ch_id ) == SND_TYPE_DAA )
+		DAA_Set_Hybrid(stVoipValue.ch_id, stVoipValue.value);
+
+	PRINT_MSG("Set DAA Hybrid Index%d, chid=%d\n", stVoipValue.value, stVoipValue.ch_id);
+	#endif
+#endif
+#else
+	return NO_COPY_TO_USER( cmd, seq_no );
+#endif
+	return 0;
+}
+
+/**
+ * @ingroup VOIP_DRIVER_DAA
+ * @brief FXO tune control (Onyl for Silab Si3050) 
+ * @param stVoipCfg.ch_id channel ID
+ * @param stVoipCfg.cfg control value
+ * @see VOIP_MGR_SET_FXO_TUNE TstVoipCfg 
+ * @see do_mgr_VOIP_MGR_SET_FXO_TUNE()
+ */
+int do_mgr_VOIP_MGR_SET_FXO_TUNE( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	int ret = 0;
+#ifdef CONFIG_RTK_VOIP_DRIVERS_FXO
+	TstVoipCfg stVoipCfg;
+
+	// thlin +
+	COPY_FROM_USER(&stVoipCfg, (TstVoipCfg *)user, sizeof(TstVoipCfg));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+	// Host auto forward 
+#else
+#ifdef SUPPORT_SILAB_FXO_TUNE
+	if( get_snd_type_cch( stVoipCfg.ch_id ) == SND_TYPE_DAA )
+	{
+		if (stVoipCfg.cfg == 0x0)
+			FXO_tune_timer_stop();
+		else if (stVoipCfg.cfg == 0x1)
+			FXO_tune_timer_start();
+		else if (stVoipCfg.cfg == 0x2)
+			FXO_tune_init(stVoipCfg.ch_id);
+		else if (stVoipCfg.cfg == 0x3)
+			FXO_tune_enable(stVoipCfg.ch_id);
+		else if (stVoipCfg.cfg == 0x4)
+			FXO_tune_disable(stVoipCfg.ch_id);
+		else if (stVoipCfg.cfg&FXO_TUNE_BUSY_SET_MASK)
+			FXO_tune_busy_timeout_set(stVoipCfg.ch_id, stVoipCfg.cfg&FXO_TUNE_BUSY_VAL_MASK);
+		else if (stVoipCfg.cfg&FXO_TUNE_DURA_SET_MASK)
+			FXO_tune_test_duration_set(stVoipCfg.ch_id, stVoipCfg.cfg&FXO_TUNE_DURA_VAL_MASK);
+	}
+
+	PRINT_MSG("FXO tune control, cfg=0x%8X, chid=%d\n", stVoipCfg.cfg, stVoipCfg.ch_id);
+#else
+	PRINT_R("VOIP_MGR_SET_FXO_TUNE is not support for this DAA, ch%d\n", stVoipCfg.ch_id);
+	ret = -EVOIP_IOCTL_NOT_SUPPORT_ERR;
+#endif
+#endif
+#else
+	return NO_COPY_TO_USER( cmd, seq_no );
+#endif
+	return ret;
+}
+
+/**
+ * @ingroup VOIP_DRIVER_SLIC
+ * @brief Set Silba proslic parameter step1: set SLIC type, and parameter type 
+ * @param stVoipCfg.ch_id channel ID
+ * @param stVoipCfg.cfg SLIC type
+ * @param stVoipCfg.cfg2 parameter type
+ * @param stVoipCfg.cfg3 parameter size
+ * @see VOIP_MGR_SET_PROSLIC_PARAM_STEP1 TstVoipCfg 
+ * @see do_mgr_VOIP_MGR_SET_PROSLIC_PARAM_STEP1()
+ */
+static ProslicParam proslic_param[CON_CH_NUM];
+int do_mgr_VOIP_MGR_SET_PROSLIC_PARAM_STEP1( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+	// Host auto forward, and run this body
+	return NO_COPY_TO_USER( cmd, seq_no );
+#else
+	int ret = 0;
+	TstVoipCfg stVoipCfg;
+	COPY_FROM_USER(&stVoipCfg, (TstVoipCfg *)user, sizeof(TstVoipCfg));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+	proslic_param[stVoipCfg.ch_id].step1_flag = 1;
+	proslic_param[stVoipCfg.ch_id].step1_slic_type = stVoipCfg.cfg;
+	proslic_param[stVoipCfg.ch_id].step1_param_type = stVoipCfg.cfg2;
+	proslic_param[stVoipCfg.ch_id].step1_param_size = stVoipCfg.cfg3;
+
+	return 0;
+#endif
+}
+
+/**
+ * @ingroup VOIP_DRIVER_SLIC
+ * @brief Set Silba proslic parameter step2: set the parameters
+ * @see VOIP_MGR_SET_PROSLIC_PARAM_STEP2
+ * @see do_mgr_VOIP_MGR_SET_PROSLIC_PARAM_STEP2()
+ */
+int do_mgr_VOIP_MGR_SET_PROSLIC_PARAM_STEP2( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_FULLY_OFFLOAD
+	// Host auto forward, and run this body
+	return NO_COPY_TO_USER( cmd, seq_no );
+#else
+	int cch;
+	int ret = 0;
+	
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+	for (cch = 0; cch < CON_CH_NUM; cch++)
+	{
+		if( get_snd_type_cch( cch ) == SND_TYPE_FXS )
+		{
+			if ( proslic_param[ cch ].step1_flag == 1 )
+			{
+				COPY_FROM_USER((char*)proslic_param[ cch ].step2_param, (char*)user, proslic_param[ cch ].step1_param_size);
+				SLIC_set_param( cch, proslic_param[ cch ].step1_slic_type,
+							proslic_param[ cch ].step1_param_type, 
+							proslic_param[ cch ].step2_param,
+							proslic_param[ cch ].step1_param_size);
+				proslic_param[ cch ].step1_flag = 0; 
+			}
+		}
+	}
+
+	return 0;
+#endif
+}
+
+/**
  * @ingroup VOIP_DRIVER_GPIO
  * @brief Initialize / read / write GPIO 
  * @see VOIP_MGR_GPIO TstVoipGPIO 
@@ -2144,182 +2420,6 @@ int do_mgr_VOIP_MGR_SET_SLIC_RELAY( int cmd, void *user, unsigned int len, unsig
 
 /**
  * @ingroup VOIP_DRIVER_NETWORK
- * @brief Control 8305 / 8306 switch 
- * @see VOIP_MGR_8305_SWITCH_VAL TstVoipSwitch 
- */
-int do_mgr_VOIP_MGR_8305_SWITCH_VAL( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-	unsigned long flags;
-	TstVoipSwitch switch_value;
-
-	copy_from_user(&switch_value, (TstVoipSwitch *)user, sizeof(TstVoipSwitch));
-	save_flags(flags); cli();
-	if (switch_value.read_write == 0)
-		MII_read(switch_value.phy,switch_value.reg,0);
-	else if (switch_value.read_write == 1)
-		MII_write(switch_value.phy,switch_value.reg,switch_value.value,0);
-#ifdef _8305SC_
-	else if (switch_value.read_write == 2)
-		rtl8305_init();
-#endif
-	else if (switch_value.read_write == 3)
-		rtl8306SD_init();
-	else if (switch_value.read_write == 4)
-		rtl8306_debug();
-	else if (switch_value.read_write == 5)
-		rtl8306_reset();
-#ifdef _8305SC_
-	else if (switch_value.read_write == 6)
-		rtl8305_wan_vlan(0x6ab,0x05,1);
-#endif
-	else if (switch_value.read_write == 7)
-		rtl8306_wan_vlan(0x6ab,0x05,1);
-#if 0
-#ifdef _8305SC_
-	else if (switch_value.read_write == 8)
-		rtl8305_WAN_LAN_VLAN_TAG(0x6ab,0x7cd);
-#endif
-	else if (switch_value.read_write == 9)
-		rtl8306_WAN_LAN_VLAN_TAG(0x6ab,0x7cd);
-#endif
-#ifdef _8305SC_
-	else if (switch_value.read_write == 10) {
-		rtl8305_restore_switch();
-		external_mode = 1;
-	}
-#endif
-	else if (switch_value.read_write == 11) {
-		rtl8306_restore_switch();
-		external_mode = 1;
-	}
-	/************ For Testing ************/
-	else if (switch_value.read_write == 12)
-		print_pcm();
-#ifdef CONFIG_RTK_VOIP_DRIVERS_SI3050
-	else if (switch_value.read_write == 13)
-		going_off_hook(0);
-	else if (switch_value.read_write == 14)
-		DAA_On_Hook(0);
-#endif
-	/**************************************/
-	else if (switch_value.read_write == 21)
-		rtl8306_bandwidth_control(4000,1);
-	else if (switch_value.read_write == 22)
-		rtl8306_bandwidth_control(8000,0);
-	else if (switch_value.read_write == 23)
-		rtl8306_QoS_restore();
-	else if (switch_value.read_write == 24)
-		rtl8306_QoS_mechanism();
-	else if (switch_value.read_write == 25) {
-		//rtl8306_wan_multi_vlan(0x6ab,0x7cd);
-		rtl8306_wan_2_vlan(
-					1707, 5, 0,
-					1997, 0, 0);
-	} else if (switch_value.read_write == 26)
-                    rtl8306_wan_3_vlan(
-					1707, 7, 0,
-					1997, 0, 0,
-					2287, 5, 0);
-	else if (switch_value.read_write == 27)
-		rtl8306_setAsicQosPortRate(5,0x9c,1,1);
-	else if (switch_value.read_write == 28)
-		rtl8306_setAsicQosPortRate(5,0x9c,1,0);
-	else if (switch_value.read_write == 29)
-		rtl8306_setAsicQosPortRate(0,0x4e,0,1);
-	else if (switch_value.read_write == 30)
-		rtl8306_setAsicQosPortRate(0,0x4e,0,0);
-	else if (switch_value.read_write == 31)
-		rtl8306_vlan_dump();
-
-	restore_flags(flags);
-#endif
-	return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Control 8305 / 8306 VLAN tag  
- * @see VOIP_MGR_WAN_VLAN_TAG TstVoipSwitch_VLAN_tag 
- */
-int do_mgr_VOIP_MGR_WAN_VLAN_TAG( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-	unsigned long flags;
-	TstVoipSwitch_VLAN_tag wan_vlan_tag;
-
-	copy_from_user(&wan_vlan_tag, (TstVoipSwitch_VLAN_tag *)user, sizeof(TstVoipSwitch_VLAN_tag));
-#if 1 // debug only
-	PRINT_MSG("wan_vlan_tag.enable =%d\n", wan_vlan_tag.enable);
-	PRINT_MSG("wan_vlan_tag.vlanId =%d\n", wan_vlan_tag.vlanId);
-	PRINT_MSG("wan_vlan_tag.priority =%d\n", wan_vlan_tag.priority);
-	PRINT_MSG("wan_vlan_tag.cfi =%d\n", wan_vlan_tag.cfi);
-#endif
-	save_flags(flags); cli();
-	if (external_mode == 0) {
-		if (wan_vlan_tag.enable == 1)
-		{
-		#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-		#ifdef _8305SC_
-			rtl8305_wan_vlan(wan_vlan_tag.vlanId,wan_vlan_tag.priority,wan_vlan_tag.cfi);
-		#endif
-		#ifdef _8306SD_
-			rtl8306_wan_vlan(wan_vlan_tag.vlanId,wan_vlan_tag.priority,wan_vlan_tag.cfi);
-		#endif
-		#endif
-		} else // if (wan_vlan_tag.enable == 2)
-		{
-		#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-		#ifdef _8305SC_
-			rtl8305_init();
-		#endif
-		#ifdef _8306SD_
-			rtl8306SD_init();
-		#endif
-		#endif
-		}
-	}
-	restore_flags(flags);
-	return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Control 8305 / 8306 bridge mode 
- * @param bridge_mode An 'unsigned char' variable. (1: restore switch, 2: initial)
- * @see VOIP_MGR_BRIDGE_MODE  
- */
-int do_mgr_VOIP_MGR_BRIDGE_MODE( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-	unsigned long flags;
-	unsigned char bridge_mode;
-
-	copy_from_user(&bridge_mode, (unsigned char *)user, sizeof(unsigned char));
-	save_flags(flags); cli();
-	if (bridge_mode == 1)
-	{
-	#ifdef _8305SC_
-		rtl8305_restore_switch();
-	#endif
-	#ifdef _8306SD_
-		rtl8306_restore_switch();
-	#endif
-	} else if (bridge_mode == 2)
-	{
-	#ifdef _8305SC_
-		rtl8305_init();
-	#endif
-	#ifdef _8306SD_
-		rtl8306SD_init();
-	#endif
-	}
-	restore_flags(flags);
-#endif /*CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER*/
-	return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
  * @brief Configure DSCP    
  * @param dscp An 'int' variable. <br>
  *        bit 0-7: RTP DSCP <br> 
@@ -2329,7 +2429,7 @@ int do_mgr_VOIP_MGR_BRIDGE_MODE( int cmd, void *user, unsigned int len, unsigned
 int do_mgr_VOIP_MGR_SET_DSCP_PRIORITY( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
 #ifdef SUPPORT_DSCP
-#ifdef CONFIG_DEFAULTS_KERNEL_2_6
+#if 1//def CONFIG_DEFAULTS_KERNEL_2_6
 #ifdef CONFIG_RTK_VOIP_QOS
 	extern int32 rtl8651_setAsicDscpPriority( uint32 dscp, uint32 priority);
 	extern int32 rtl8651_reset_dscp_priority( void );
@@ -2373,291 +2473,12 @@ int do_mgr_VOIP_MGR_SET_DSCP_PRIORITY( int cmd, void *user, unsigned int len, un
 
 /**
  * @ingroup VOIP_DRIVER_NETWORK
- * @brief Configure second VLAN tag    
- * @see VOIP_MGR_WAN_2_VLAN_TAG TstVoipSwitch_2_VLAN_tag
- */
-int do_mgr_VOIP_MGR_WAN_2_VLAN_TAG( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-	unsigned long flags;
-	TstVoipSwitch_2_VLAN_tag wan_2_vlan_tag;
-	
-	copy_from_user(&wan_2_vlan_tag, (TstVoipSwitch_2_VLAN_tag *)user, sizeof(TstVoipSwitch_2_VLAN_tag));
-#if 1 // debug only
-	PRINT_MSG("wan_2_vlan_tag.enable =%d\n", wan_2_vlan_tag.enable);
-	PRINT_MSG("wan_2_vlan_tag.vlanIdVoice =%d\n", wan_2_vlan_tag.vlanIdVoice);
-	PRINT_MSG("wan_2_vlan_tag.priorityVoice =%d\n", wan_2_vlan_tag.priorityVoice);
-	PRINT_MSG("wan_2_vlan_tag.cfiVoice =%d\n", wan_2_vlan_tag.cfiVoice);
-	PRINT_MSG("wan_2_vlan_tag.vlanIdData =%d\n", wan_2_vlan_tag.vlanIdData);
-	PRINT_MSG("wan_2_vlan_tag.priorityData =%d\n", wan_2_vlan_tag.priorityData);
-	PRINT_MSG("wan_2_vlan_tag.cfiData =%d\n", wan_2_vlan_tag.cfiData);
-#endif
-	save_flags(flags); cli();
-	if (external_mode == 0) {
-		if (wan_2_vlan_tag.enable == 1)
-		{
-		#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-			rtl8306_wan_2_vlan(
-				wan_2_vlan_tag.vlanIdVoice, wan_2_vlan_tag.priorityVoice, wan_2_vlan_tag.cfiVoice,
-				wan_2_vlan_tag.vlanIdData, wan_2_vlan_tag.priorityData, wan_2_vlan_tag.cfiData
-			);
-		#endif
-		} else // if (wan_2_vlan_tag.enable == 2)
-		{
-		#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-			rtl8306SD_init();
-		#endif
-		}
-	}
-	restore_flags(flags);
-	return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Configure third VLAN tag    
- * @see VOIP_MGR_WAN_3_VLAN_TAG TstVoipSwitch_3_VLAN_tag
- */
-int do_mgr_VOIP_MGR_WAN_3_VLAN_TAG( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-	extern void rtl865xC_wan_3_vlan(
-            unsigned int id_proto,
-            unsigned int priority_proto,
-            unsigned int cfi_proto,
-            unsigned int id_data,
-            unsigned int priority_data,
-            unsigned int cfi_data,
-            unsigned int id_video,
-            unsigned int priority_video,
-            unsigned int cfi_video
-            );
-	extern void rtl865xC_vlan_init( void );
-	
-	unsigned long flags;
-	TstVoipSwitch_3_VLAN_tag wan_3_vlan_tag;
-
-	copy_from_user(&wan_3_vlan_tag, (TstVoipSwitch_3_VLAN_tag *)user, sizeof(TstVoipSwitch_3_VLAN_tag));
-	PRINT_MSG("wan_3_vlan_tag.enable =%d\n", wan_3_vlan_tag.enable);
-	PRINT_MSG("wan_3_vlan_tag.vlanIdVoice =%d\n", wan_3_vlan_tag.vlanIdVoice);
-	PRINT_MSG("wan_3_vlan_tag.priorityVoice =%d\n", wan_3_vlan_tag.priorityVoice);
-	PRINT_MSG("wan_3_vlan_tag.cfiVoice =%d\n", wan_3_vlan_tag.cfiVoice);
-	PRINT_MSG("wan_3_vlan_tag.vlanIdData =%d\n", wan_3_vlan_tag.vlanIdData);
-	PRINT_MSG("wan_3_vlan_tag.priorityData =%d\n", wan_3_vlan_tag.priorityData);
-	PRINT_MSG("wan_3_vlan_tag.cfiData =%d\n", wan_3_vlan_tag.cfiData);
-	PRINT_MSG("wan_3_vlan_tag.vlanIdVideo =%d\n", wan_3_vlan_tag.vlanIdVideo);
-	PRINT_MSG("wan_3_vlan_tag.priorityVideo =%d\n", wan_3_vlan_tag.priorityVideo);
-	PRINT_MSG("wan_3_vlan_tag.cfiVideo =%d\n", wan_3_vlan_tag.cfiVideo);
-
-	save_flags(flags); cli();
-	if (external_mode == 0) {
-		if (wan_3_vlan_tag.enable == 1)
-		{
-		#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-			rtl8306_wan_3_vlan(
-				wan_3_vlan_tag.vlanIdVoice, wan_3_vlan_tag.priorityVoice, wan_3_vlan_tag.cfiVoice,
-				wan_3_vlan_tag.vlanIdData, wan_3_vlan_tag.priorityData, wan_3_vlan_tag.cfiData,
-				wan_3_vlan_tag.vlanIdVideo, wan_3_vlan_tag.priorityVideo, wan_3_vlan_tag.cfiVideo
-			);
-		#endif
-		#if defined(CONFIG_RTL865XC) && defined(CONFIG_RTK_VOIP_WAN_VLAN)
-			rtl865xC_wan_3_vlan(
-				wan_3_vlan_tag.vlanIdVoice, wan_3_vlan_tag.priorityVoice, wan_3_vlan_tag.cfiVoice,
-				wan_3_vlan_tag.vlanIdData, wan_3_vlan_tag.priorityData, wan_3_vlan_tag.cfiData,
-				wan_3_vlan_tag.vlanIdVideo, wan_3_vlan_tag.priorityVideo, wan_3_vlan_tag.cfiVideo
-			);
-		#endif
-			
-		} 
-		else
-		{
-		#ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
-			rtl8306SD_init();
-		#endif
-		#if defined(CONFIG_RTL865XC) && defined(CONFIG_RTK_VOIP_WAN_VLAN)
-			rtl865xC_vlan_init();
-		#endif
-			
-		}
-	}
-	restore_flags(flags);
-	return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Set WAN's clone MAC     
- * @see VOIP_MGR_SET_WAN_CLONE_MAC TstVoipCloneMAC
- */
-int do_mgr_VOIP_MGR_SET_WAN_CLONE_MAC( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-//added by Tim 1/8/2008 CLONE_MAC
-#ifdef CONFIG_RTK_VOIP_CLONE_MAC
-	unsigned long flags;
-	TstVoipCloneMAC stVoipCloneMAC;
-	
-	copy_from_user(&stVoipCloneMAC, (TstVoipCloneMAC *)user, sizeof(TstVoipCloneMAC));
-	PRINT_MSG("CONFIG_RTK_VOIP_CLONE_MAC: MAC = %x%x%x%x%x%x\n",
-		(unsigned char*)stVoipCloneMAC.CloneMACAddress[0],
-		(unsigned char*)stVoipCloneMAC.CloneMACAddress[1],
-		(unsigned char*)stVoipCloneMAC.CloneMACAddress[2],
-		(unsigned char*)stVoipCloneMAC.CloneMACAddress[3],
-		(unsigned char*)stVoipCloneMAC.CloneMACAddress[4],
-		(unsigned char*)stVoipCloneMAC.CloneMACAddress[5]);
-	save_flags(flags); cli();
-	rtl8306SD_CloneMac((void*)stVoipCloneMAC.CloneMACAddress);
-	restore_flags(flags);
-#endif
-	return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Configure bandwith      
- * @see VOIP_MGR_BANDWIDTH_MGR TstVoipBandwidthMgr
- */
-int do_mgr_VOIP_MGR_BANDWIDTH_MGR( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-	extern int32 rtl8651_setAsicPortIngressBandwidth( int /*enum PORTID*/ port, uint32 bandwidth );
-	extern int32 rtl8651_setAsicPortEgressBandwidth( int /*enum PORTID*/ port, uint32 bandwidth );
-	
-#ifdef CONFIG_RTK_VOIP_QOS
-	extern int voip_qos;
-	extern int32 rtl8651_cpu_tx_fc(int enable);
-#endif
-	unsigned long flags;
-	TstVoipBandwidthMgr stVoipBandwidthMgr;
-	
-	copy_from_user(&stVoipBandwidthMgr, (TstVoipBandwidthMgr *)user, sizeof(TstVoipBandwidthMgr));
-	/*PRINT_MSG("VOIP_MGR_BANDWIDTH_MGR: param = %d %d %d\n",
-	stVoipBandwidthMgr.port,
-	stVoipBandwidthMgr.dir,
-	stVoipBandwidthMgr.ban);*/
-
-	save_flags(flags); cli();
-#if defined (CONFIG_RTL865XC) || defined(CONFIG_RTL_819X)
-	if(stVoipBandwidthMgr.dir == 0)//ingress
-	{
-		rtl8651_setAsicPortIngressBandwidth(stVoipBandwidthMgr.port, stVoipBandwidthMgr.ban);//disable bandwidth mgr
-	}
-	else //egress
-	{
-		if(stVoipBandwidthMgr.ban == 0)
-			rtl8651_setAsicPortEgressBandwidth(stVoipBandwidthMgr.port, 0x3fff);//disable bandwidth mgr
-		else
-			//Rate = (1+ban)*64kbps, unlimit: ban = 0x3fff
-			rtl8651_setAsicPortEgressBandwidth(stVoipBandwidthMgr.port, stVoipBandwidthMgr.ban-1);
-	#ifdef CONFIG_DEFAULTS_KERNEL_2_6
-		#ifdef CONFIG_RTK_VOIP_QOS
-		#ifdef CONFIG_RTL_819X
-			if(stVoipBandwidthMgr.port == 4 )
-		#else //CONFIG_RTL865XC
-			if(stVoipBandwidthMgr.port == 0 )
-		#endif
-			{
-				if((voip_qos&VOIP_QOS_TX_DISABLE_FC)&&stVoipBandwidthMgr.ban < 161 && stVoipBandwidthMgr.ban > 0)
-				{
-					//turn off WAN port Queue 0 flow control to avoid voip packet dropped
-					//rtl8651_setAsicQueueFlowControlConfigureRegister(0,0,0);
-					rtl8651_cpu_tx_fc(0);
-				}
-				else
-				{
-					//turn on WAN port Queue 0 flow control
-					//rtl8651_setAsicQueueFlowControlConfigureRegister(0,0,1);
-					rtl8651_cpu_tx_fc(1);
-				}
-			}
-		#endif
-
-	#else
-		#ifdef CONFIG_RTK_VOIP_865xC_QOS
-			extern void Enable_VOIP_QoS(int enable);
-			#ifdef	CONFIG_FIX_WAN_TO_4
-				if(stVoipBandwidthMgr.port == 4 )
-				{
-					if(stVoipBandwidthMgr.ban < 40)
-						Enable_VOIP_QoS(1);
-					else
-						Enable_VOIP_QoS(0);
-				}	
-			#else
-				if(stVoipBandwidthMgr.port == 0 )
-				{
-					if(stVoipBandwidthMgr.ban < 40 && stVoipBandwidthMgr.ban > 0)
-						Enable_VOIP_QoS(1);
-					else
-						Enable_VOIP_QoS(0);
-				}
-			#endif
-		#endif
-	#endif
-	}
-#endif
-	restore_flags(flags);
-	return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Configure port disable 
- * @see VOIP_MGR_PORT_DISABLE TstVoipPortConfig
- */
-int do_mgr_VOIP_MGR_PORT_DISABLE( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676)
-	extern int32 rtl8651_setAsicEthernetPHYPowerDown( uint32 port, uint32 pwrDown );
-	TstVoipPortConfig stVoipPortConfig;
-
-	copy_from_user(&stVoipPortConfig, (TstVoipPortConfig *)user, sizeof(TstVoipPortConfig));
-
-	rtl8651_setAsicEthernetPHYPowerDown(stVoipPortConfig.port,stVoipPortConfig.config);
-#endif
-	return 0;	
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Configure high priority port 
- * @see VOIP_MGR_PORT_PRIORITY TstVoipPortConfig
- */
-int do_mgr_VOIP_MGR_PORT_PRIORITY( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
-	extern int32 rtl8651_setAsicPortPriority( uint32 port, uint32 priority );
-	TstVoipPortConfig stVoipPortConfig;
-	copy_from_user(&stVoipPortConfig, (TstVoipPortConfig *)user, sizeof(TstVoipPortConfig));
-	rtl8651_setAsicPortPriority(stVoipPortConfig.port,stVoipPortConfig.config);     
-#endif
-        return 0;
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
- * @brief Configure port flow control 
- * @see VOIP_MGR_PORT_DISABLE_FLOWCONTROL TstVoipPortConfig
- */
-int do_mgr_VOIP_MGR_PORT_DISABLE_FLOWCONTROL( int cmd, void *user, unsigned int len, unsigned short seq_no )
-{
-#ifdef CONFIG_RTL865X_LAYERED_ASIC_DRIVER
-	extern int32 rtl8651_setPortFlowControlConfigureRegister(uint32 port,uint32 enable);
-	TstVoipPortConfig stVoipPortConfig;
-	copy_from_user(&stVoipPortConfig, (TstVoipPortConfig *)user, sizeof(TstVoipPortConfig));
-
-	if( stVoipPortConfig.config)
-		rtl8651_setPortFlowControlConfigureRegister(stVoipPortConfig.port,0);
-	else
-		rtl8651_setPortFlowControlConfigureRegister(stVoipPortConfig.port,1);
-#endif
-	return 0;	
-
-}
-
-/**
- * @ingroup VOIP_DRIVER_NETWORK
  * @brief Get port link status 
  * @see VOIP_MGR_GET_PORT_LINK_STATUS TstVoipPortLinkStatus
  */
 int do_mgr_VOIP_MGR_GET_PORT_LINK_STATUS( int cmd, void *user, unsigned int len, unsigned short seq_no )
 {
+#if !defined( CONFIG_RTK_VOIP_PLATFORM_8686 )
 #ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
 	extern int32 rtl8306_getPHYLinkStatus(uint32 phy, uint32 *linkUp);
 #elif (defined(CONFIG_RTL865XC)|| defined(CONFIG_RTL_819X) )&& defined (CONFIG_RTK_VOIP_PORT_LINK)
@@ -2723,6 +2544,7 @@ int do_mgr_VOIP_MGR_GET_PORT_LINK_STATUS( int cmd, void *user, unsigned int len,
 	PRINT_MSG( "I don't know how to detect network status\n" );
 #endif		
   	copy_to_user( user, &stVoipPortLinkStatus, sizeof(TstVoipPortLinkStatus));
+#endif
 
 	return 0;
 }
@@ -2811,6 +2633,45 @@ int do_mgr_VOIP_MGR_SET_SIP_DSCP( int cmd, void *user, unsigned int len, unsigne
 	return 0;
 }
 
+/**
+ * @ingroup VOIP_DRIVER_NETWORK
+ * @brief inform kernel SIP DSCP 
+ * @param dscp An 'int' variable.
+ * @see VOIP_MGR_SET_SIP_TOS 
+ */
+int do_mgr_VOIP_MGR_QOS_CFG( int cmd, void *user, unsigned int len, unsigned short seq_no )
+{
+	int ret = 0;
+	TstRtpQosRemark stRtpQosRemark;
+
+#ifdef SUPPORT_QOS_REMARK_PER_SESSION
+	uint32 s_id; 
+	unsigned long flags;
+#endif
+
+	COPY_FROM_USER(&stRtpQosRemark, (TstRtpQosRemark *)user, sizeof(TstRtpQosRemark));
+
+	if( ( ret = NO_COPY_TO_USER( cmd, seq_no ) ) < 0 )
+		return ret;
+
+#ifdef SUPPORT_QOS_REMARK_PER_SESSION
+	s_id = API_GetSid(stRtpQosRemark.chid, stRtpQosRemark.sid);
+	if (stRtpQosRemark.sessiontype == session_type_rtcp )
+		s_id += RTCP_SID_OFFSET;
+
+	if(filter[s_id]==0){
+		PRINT_MSG("s_id %d in not setup!\n", s_id);
+		return 0;
+	}
+	save_flags(flags); cli();
+	filter[s_id]->qos = stRtpQosRemark.qos;
+	restore_flags(flags);	
+
+	PRINT_MSG("do_mgr_VOIP_MGR_QOS_CFG: c:%d s:%d s_id:%d dscp %d \n",stRtpQosRemark.chid, stRtpQosRemark.sid, s_id, stRtpQosRemark.qos.dscpRemark);
+#endif
+
+	return 0;
+}
 /**
  * @ingroup VOIP_DRIVER_DECT
  * @brief Set DECT power 

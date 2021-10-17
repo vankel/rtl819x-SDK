@@ -20,7 +20,7 @@
 //#define CONFIG_SPI_STD_MODE 1
 //#define SPI_KERNEL 1
 #ifdef SPI_KERNEL
-	#if defined(CONFIG_RTL8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	#if defined(CONFIG_RTL8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 		#define SPI_DRIVER_MODE	0
 	#elif defined(CONFIG_RTL_8196CS)
 		#define SPI_DRIVER_MODE 0
@@ -28,7 +28,7 @@
 		#define SPI_DRIVER_MODE	1
 	#endif
 #else
-	#if defined(CONFIG_RTL8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	#if defined(CONFIG_RTL8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 		#define SPI_DRIVER_MODE	0
 	#else
 		#ifdef CONFIG_SPI_STD_MODE

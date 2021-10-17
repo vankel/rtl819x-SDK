@@ -29,16 +29,13 @@ for(i=0;i < wlan_num ;i ++){
 </script>
 <tr><td><b>TCP/IP Settings</b></td></tr>
 <tr><td><a href="tcpiplan.htm" target="view">LAN Interface</a></td></tr>
-<!--
 <tr><td><a href="tcpipwan.htm" target="view">WAN Interface</a></td></tr>
--->
 
-<% getInfo("wan_Menu"); %>
 <% getInfo("IPv6_nojs_Menu"); %>
 
 <tr><td><b>Firewall</b></td></tr>
-<tr><td><a href="portfilter.htm" target="view">Port Filtering</a></td></tr>
-<tr><td><a href="ipfilter.htm" target="view">IP Filtering</a></td></tr>
+<% getInfo("portfilter_menu"); %>
+<% getInfo("ipfilter_menu"); %>
 <tr><td><a href="macfilter.htm" target="view">MAC Filtering</a></td></tr>
 <tr><td><a href="portfw.htm" target="view">Port Forwarding</a></td></tr>
 <tr><td><a href="urlfilter.htm" target="view">URL Filtering</a></td></tr>

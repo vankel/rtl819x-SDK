@@ -7,7 +7,7 @@
 #define G729_WEIGHT		3
 #define G723_WEIGHT		3
 #define GSMFR_WEIGHT		3
-#define AMRNB_WEIGHT		3
+//#define AMRNB_WEIGHT		3
 #define T38_WEIGHT		3
 #define ILBC_WEIGHT		4
 #define SPEEXNB_WEIGHT		4
@@ -21,6 +21,8 @@
 #define G722_WEIGHT		2 // G722 8k mode
 #endif
 #define G711_WB_WEIGHT	5
+#define AMRNB_WEIGHT	5
+#define AMRWB_WEIGHT	15
 
 /* Weight for Tone, Caller ID detection */
 #ifdef CONFIG_RTK_VOIP_DRIVERS_SI3050
@@ -58,6 +60,8 @@
 #elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC)
 #define RES_WEIGHT_THS	( 32 - FXO_WEIGHT )
 #elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY)
+#define RES_WEIGHT_THS	( 13 - FXO_WEIGHT )
+#elif defined (CONFIG_RTK_VOIP_PLATFORM_8686)
 #define RES_WEIGHT_THS	( 13 - FXO_WEIGHT )
 #elif defined (CONFIG_RTK_VOIP_DRIVERS_PCM8186)
 #define RES_WEIGHT_THS	( 7 - FXO_WEIGHT )

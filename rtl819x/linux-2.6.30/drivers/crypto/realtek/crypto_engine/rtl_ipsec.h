@@ -1,6 +1,23 @@
 #ifndef RTL_IPSEC_H
 #define RTL_IPSEC_H
 
+//#define CRYPTOTEST_DEBUG
+
+#define CRYPTOTEST_USE_UNCACHED_MALLOC
+#define CRYPTO_USE_SCHEDULE
+
+// MAX_AUTH_KEY is SW limited
+#define MAX_AUTH_KEY 1024
+
+#if defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+#define CRYPTOTEST_KEY_LEN	(32 + 32 + 32)    // 32 for AES-256
+#define CRYPTOTEST_IV_LEN	(32 + 16 + 32)    // 16 for AES
+#define CRYPTOTEST_AUTH_KEY_LEN	(32 + MAX_AUTH_KEY + 32)  // 20 for SHA1
+#define CRYPTOTEST_PAD_LEN	(32 + 128 + 32)//128 for ipad and opad 
+#define CRYPTOTEST_ASICORG_LEN	(32 + MAX_PKTLEN + 32)
+#define CRYPTOTEST_ASICENC_LEN	(32 + MAX_PKTLEN + 32)
+#define CRYPTOTEST_ASICDIGEST_LEN	(32 + SHA_DIGEST_LENGTH + 32)// 20 for SHA1 
+#endif
 // modeCrypto
 #define _MD_NOCRYPTO 			((uint32)-1)
 #define _MD_CBC					(0)
@@ -47,6 +64,67 @@
 #define HASH_SHA1		0x01
 #define HMAC_MD5		0x02
 #define HMAC_SHA1		0x03
+
+#define IPSEC_SYSTEM_BASE		0xB8000000
+#define CLK_MANAGE		(IPSEC_SYSTEM_BASE+0x0010)	/* 0xB8000010 */
+#define DLL_REG			(IPSEC_SYSTEM_BASE+0x0038)    /* 0xB8000038 */
+#define OTG_CONTROL		(IPSEC_SYSTEM_BASE+0x0098)    /* 0xB8000098 */
+
+/* System clock/reset manage */
+#define _ACTIVE_1X1		(1<<12)
+#define _ACTIVE_1X1_ARB (1<<13)
+#define _ACTIVE_IPSEC   (1<<17)
+#define _ACTIVE_1X2		(1<<19)
+#define _ACTIVE_1X2_ARB (1<<20)
+
+/* DLL and delay line control */
+#define _EN_IPSEC (1<<23)
+
+
+/* otg control */
+#define _ACTIVE_OTGCTRL      (1<<0)
+#define _OTGCTRL_STRAT       (1<<1)
+#define _OTGCTRL_MUX_SEL     (1<<2)
+#define _OTGCTRL_FORCE_DEV   (1<<3)
+#define _PJ_RESET_ENABLE     (1<<4)
+
+#if defined(CONFIG_SMP)
+#include <linux/spinlock.h>
+extern int lock_ipsec_owner;
+extern spinlock_t lock_ipsec_engine;
+#if 0
+/* ============ release version ============ */
+#define SMP_LOCK_IPSEC			spin_lock(&lock_ipsec_engine)
+#define SMP_UNLOCK_IPSEC 		spin_unlock(&lock_ipsec_engine)
+#else
+/* ============ debug version ============ */
+#define SMP_LOCK_IPSEC	\
+	do { \
+		if(lock_ipsec_owner!=smp_processor_id()) \
+			spin_lock(&lock_ipsec_engine); \
+		else \
+			printk("[%s %s %d] recursion detection in ipsec engine\n",__FILE__, __FUNCTION__,__LINE__); \
+		lock_ipsec_owner=smp_processor_id();\
+	} while(0)
+	
+#define SMP_UNLOCK_IPSEC \
+	do { \
+		lock_ipsec_owner=-1; \
+		spin_unlock(&lock_ipsec_engine); \
+	} while(0)
+
+#endif
+
+#else
+//undefine CONFIG_SMP
+#define SMP_LOCK_IPSEC \
+do { \
+} while(0)
+
+#define SMP_UNLOCK_IPSEC \	
+do { \
+} while(0)
+#endif 
 
 #if 0
 #ifdef RTL_IPSEC_DEBUG
@@ -121,6 +199,7 @@ typedef struct rtl_ipsec_dest_s
 
 int32 rtl_ipsecEngine_init(uint32 descNum, int8 mode32Bytes);
 int32 rtl_ipsecEngine_exit(void);
+int32 rtl_ipsecEngine_dma_mode(void);
 
 int32 rtl_ipsecEngine(uint32 modeCrypto, uint32 modeAuth, 
 	uint32 cntScatter, rtl_ipsecScatter_t *scatter, void *pCryptResult,
@@ -138,5 +217,10 @@ rtl_ipsec_dest_t *get_rtl_ipsec_ipsddar(void);
 void rtl_ipsec_info(void);
 
 extern int g_rtl_ipsec_dbg;
-
+#if 1//defined(CRYPTOTEST_USE_UNCACHED_MALLOC)
+static inline void *UNCACHED_MALLOC(int size)
+{
+	return ((void *)(((uint32)kmalloc(size, GFP_ATOMIC)) | UNCACHE_MASK));
+}
+#endif
 #endif

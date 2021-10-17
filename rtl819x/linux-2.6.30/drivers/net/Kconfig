@@ -3209,4 +3209,14 @@ config R8198EP_DEVICE
 
 
 source "drivers/net/rtl819x/Kconfig"
+
+config RTL8686_GMAC
+        tristate "Realtek RTL8686 NIC Ethernet support (EXPERIMENTAL)"
+        help
+          Say Y if your machine has this type of Ethernet network card.
+config RTL_ETH_PRIV_SKB
+	bool "Enable Ethernet Private Skb"
+	default n
+	depends on RTL8686_GMAC
+
 endif # NETDEVICES

@@ -10,6 +10,224 @@ struct igmp_timer	startupQueryTimer;
 static struct igmp_timer	generalQueryTimer;
 static struct igmp_timer	linkChangeQueryTimer;
 
+
+#if defined (CONFIG_QUERIER_SELECTION)
+//#define CONFIG_QUERIER_SELECTION_DEBUG
+static struct igmp_timer querierSelectionTimer;
+static struct timeval preOtherQueryTime;
+unsigned long otherQuerierQueryInterval=0;
+unsigned int otherQuerierIP=0;
+
+int rxIgmpFromDownStream=0;
+int querierSelectionResult=QUERIER_IS_ME;
+
+#define IFACE_FLAG_T 0x01
+#define IP_ADDR_T 0x02
+#define NET_MASK_T 0x04
+#define HW_ADDR_T 0x08
+
+#define BR_QUERIER_INFO "/proc/br_igmpQuerierInfo"
+int initQuerierSelection(void)
+{
+	memset(&preOtherQueryTime, 0 ,sizeof(struct timeval ));
+	querierSelectionResult=QUERIER_IS_ME;
+}
+
+int getInAddr( char *interface, int type, void *pAddr )
+{
+    struct ifreq ifr;
+    int skfd, found=0;
+	struct sockaddr_in *addr;
+    skfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    strcpy(ifr.ifr_name, interface);
+    if (ioctl(skfd, SIOCGIFFLAGS, &ifr) < 0){
+    		close( skfd );
+		return (0);
+	}
+    if (type == HW_ADDR_T) {
+    	if (ioctl(skfd, SIOCGIFHWADDR, &ifr) >= 0) {
+		memcpy(pAddr, &ifr.ifr_hwaddr, sizeof(struct sockaddr));
+		found = 1;
+	}
+    }
+    else if (type == IP_ADDR_T) {
+	if (ioctl(skfd, SIOCGIFADDR, &ifr) == 0) {
+		addr = ((struct sockaddr_in *)&ifr.ifr_addr);
+		*((struct in_addr *)pAddr) = *((struct in_addr *)&addr->sin_addr);
+		found = 1;
+	}
+    }
+    else if (type == NET_MASK_T) {
+	if (ioctl(skfd, SIOCGIFNETMASK, &ifr) >= 0) {
+		addr = ((struct sockaddr_in *)&ifr.ifr_addr);
+		*((struct in_addr *)pAddr) = *((struct in_addr *)&addr->sin_addr);
+		found = 1;
+	}
+    }else {
+    	
+    	if (ioctl(skfd, SIOCGIFDSTADDR, &ifr) >= 0) {
+		addr = ((struct sockaddr_in *)&ifr.ifr_addr);
+		*((struct in_addr *)pAddr) = *((struct in_addr *)&addr->sin_addr);
+		found = 1;
+	}
+    	
+    }
+    close( skfd );
+    return found;
+
+}
+
+
+
+int checkQuerierSelectionResult(void)
+{
+	
+	return querierSelectionResult;
+}
+
+void querierSelectionTimerExpired(void *arg)
+{
+	struct igmp_timer	*timerPtr=arg;
+	if(timerPtr!=NULL)
+	{	
+		untimeout(&timerPtr->ch);
+	}
+
+	memset(&preOtherQueryTime, 0 ,sizeof(struct timeval ));
+	querierSelectionResult=QUERIER_IS_ME;
+	
+#if defined (CONFIG_QUERIER_SELECTION_DEBUG)
+	printf("it's my turn to send query\n");
+#endif
+	igmp_query(ALL_SYSTEMS, 0, 1);
+	return;
+}
+
+int isQueryFromDownStream(char *ifName, unsigned int querierIp)
+{	 
+
+	FILE *fp=NULL;
+	unsigned char tempBuf[256];
+	unsigned char *strPtr;
+	unsigned char *tokPtr;
+	unsigned char tempIfName[32];
+	unsigned int tempQuerierIp[4];
+	unsigned long tempElapseTime;
+	int ret=0;
+	
+	fp = fopen(BR_QUERIER_INFO,"r");
+	if(fp==NULL)
+	{
+		return 0;
+	}
+	
+
+	fread(tempBuf,1,sizeof(tempBuf),fp);
+	strPtr=tempBuf;
+	
+	while((tokPtr = strsep(&strPtr,"\n"))!=NULL)
+	{	
+		
+		if(strlen(tokPtr)<8)
+		{
+			continue;
+		}
+		sscanf(tokPtr,"%s %d.%d.%d.%d %u\n",
+			tempIfName,
+			&(tempQuerierIp[0]),
+			&(tempQuerierIp[1]),
+			&(tempQuerierIp[2]),
+			&(tempQuerierIp[3]),
+			&tempElapseTime);	
+
+#if defined (CONFIG_QUERIER_SELECTION_DEBUG)
+		//printf("tempIfName is %s, %d.%d.%d.%d,tempElapseTime is %u\n",tempIfName,tempQuerierIp[0],tempQuerierIp[1],tempQuerierIp[2],tempQuerierIp[3],tempElapseTime);
+#endif
+		if((tempQuerierIp[0] == ((querierIp>>24)&0xFF))&&
+			(tempQuerierIp[1] == ((querierIp>>16)&0xFF))&&
+			(tempQuerierIp[2] == ((querierIp>>8)&0xFF))&&
+			(tempQuerierIp[3] == (querierIp&0xFF) ))
+		{
+			if(strcmp(ifName,tempIfName)==0)
+			{				
+				if(tempElapseTime<30)
+				{
+					ret=1;
+				}
+			}
+			
+		}
+
+	}
+
+out:	
+	fclose(fp); 		
+	return ret;	  
+}
+
+
+int querierSelection(char *ifName, struct iphdr *ip, struct igmphdr *igmp)
+{
+
+	struct in_addr downIfIpAddr;
+	unsigned long downStreamIp;
+
+	unsigned int otherQuerierIp;
+	int ret=0;
+
+	
+	if(isQueryFromDownStream(igmp_down_if_name, ip->saddr)==0)
+	{
+		return -1;
+	}
+
+	ret=getInAddr(ifName,IP_ADDR_T,(void *)&downIfIpAddr);
+
+	if(ret==0)
+	{
+		return -1;
+	}
+
+	downStreamIp = *((unsigned long *)&downIfIpAddr);
+	
+	otherQuerierIp = ip->saddr;
+
+	if(downStreamIp<otherQuerierIp)
+	{
+	
+
+		if((preOtherQueryTime.tv_sec !=0) || (preOtherQueryTime.tv_usec !=0))
+		{
+			/*receive other querier's query,wait for it leave or expired*/
+		}
+		else
+		{
+			querierSelectionResult=QUERIER_IS_ME;
+		}
+	}
+	else
+	{
+
+		otherQuerierIP=otherQuerierIp;
+		
+		gettimeofday(&preOtherQueryTime, NULL);
+		querierSelectionResult=QUERIER_IS_OTHER;
+		
+		untimeout(&querierSelectionTimer.ch);
+		otherQuerierQueryInterval=DEFAULT_OTHER_QUERIER_PRESENT_INTERVAL;
+		querierSelectionTimer.type=0;
+		querierSelectionTimer.retry_left=0;
+		querierSelectionTimer.timerInterval=DEFAULT_OTHER_QUERIER_PRESENT_INTERVAL;
+		timeout(querierSelectionTimerExpired , &querierSelectionTimer,	querierSelectionTimer.timerInterval, &querierSelectionTimer.ch);
+
+	}
+	
+	
+}
+#endif
+
+
 int igmp_query(__u32 dst, __u32 grp,__u8 mrt);
 
 #define IGMP_MCAST2UNI
@@ -614,7 +832,12 @@ int igmp_inf_create(char *ifname)
 	//ret = fcntl(dp->sock, F_SETFL, O_NONBLOCK);
 	//if(ret)
 	//	printf("fcntl O_NONBLOCK error!\n");
-
+	#if 0
+	if (setsockopt(dp->sock, SOL_SOCKET, SO_BINDTODEVICE, ifname,strlen(ifname) + 1) == -1)
+	{
+		printf("bind to %s error", ifname);
+	}
+	#endif
 	return 0;
 	
 }
@@ -1065,6 +1288,9 @@ int igmp_accept(int recvlen, struct IfDesc *dp)
 			// send General Query downstream
 			igmp_query(ALL_SYSTEMS, group, 1);
 			#endif
+			#if defined (CONFIG_QUERIER_SELECTION)
+				querierSelection(dp->Name,ip,igmp);
+			#endif
 			break;
 
 		case IGMP_HOST_MEMBERSHIP_REPORT:
@@ -1110,6 +1336,8 @@ int igmp_accept(int recvlen, struct IfDesc *dp)
 				//printf( "igmpv3grec[%d]->grec_mca:%s\n", rec_id, inet_ntoa(igmpv3grec->grec_mca) );
 			
 				group = igmpv3grec->grec_mca;
+				if(group == ALL_PRINTER)	/* It's MS-Windows UPNP all printers notify */
+					goto nextgrec;
 				
 				switch( igmpv3grec->grec_type )
 				{
@@ -1142,7 +1370,7 @@ int igmp_accept(int recvlen, struct IfDesc *dp)
 						//printf( "!!! can't handle the group record types: %d\n", igmpv3grec->grec_type );
 						break;
 				}
-			
+nextgrec:
 				rec_id++;
 				//printf( "count next: 0x%x %d %d %d %d\n", igmpv3grec, sizeof( struct igmpv3_grec ), igmpv3grec->grec_auxwords, ntohs(igmpv3grec->grec_nsrcs), sizeof( __u32 ) );
 				igmpv3grec = (struct igmpv3_grec *)( (char*)igmpv3grec + sizeof( struct igmpv3_grec ) + (igmpv3grec->grec_auxwords+ntohs(igmpv3grec->grec_nsrcs))*sizeof( __u32 ) );
@@ -1305,6 +1533,21 @@ int igmp_query(__u32 dst, __u32 grp,__u8 mrt)
 #endif
     struct sockaddr_in sdst;
     struct IfDesc *dp = getIfByName(igmp_down_if_name);
+
+#if defined (CONFIG_QUERIER_SELECTION)
+	if(querierSelectionResult==QUERIER_IS_OTHER)
+	{
+		#if defined (CONFIG_QUERIER_SELECTION_DEBUG)
+		printf("querier is %d.%d.%d.%d\n",
+		(otherQuerierIP>>24)&0xFF,(otherQuerierIP)>>16&0xFF,(otherQuerierIP>>8)&0xFF,otherQuerierIP&0xFF);
+		#endif
+		return 0;
+	}
+	
+	#if defined (CONFIG_QUERIER_SELECTION_DEBUG)
+	printf("querier is me\n");
+	#endif
+#endif
 
 	if(dp == NULL)
 	{
@@ -1651,6 +1894,11 @@ static int initMRouter(void)
 #endif
 
 	signal(SIGTERM, hup);
+
+#if defined (CONFIG_QUERIER_SELECTION)
+	initQuerierSelection();
+#endif
+
   //atexit( clean );
   	return 1;
 }

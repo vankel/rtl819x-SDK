@@ -13,6 +13,8 @@ function showWan()
 	var MultiPppoeEnable= <% getIndex("multiPppoe"); %>;
 	var number = <% getIndex("pppoeNo"); %>;
 	var dhcptype = <% getIndex("wanDhcp"); %>;
+	var ipv6Enable = <% getIndex("ipv6"); %>;
+	
 	if(dhcptype == 3 && MultiPppoeEnable == 1)
 	{
 	   if(number >= 1)
@@ -157,6 +159,63 @@ function showWan()
 	    <td width=40%><font size=2><b>MAC Address</b></td>\
 	    <td width=60%><font size=2><% getInfo("wan-hwaddr"); %></td>\
 	  </tr>');		
+	}
+	
+	if(ipv6Enable)
+	{
+		document.write('\
+		 <tr>\
+		 <td width=100% colspan=2 bgcolor="#008000"><font color="#FFFFFF" size=2><b>LAN IPv6 Configuration</b></font></td>\
+	  	</tr>');  	
+
+	  	document.write('<tr bgcolor="#DDDDDD">\
+	    	<td width=40%><font size=2><b>Global Address</b></td>\
+	    	<td width=60%><font size=2><% getIPv6Status("lan_addr6_global"); %></td>\
+	  		</tr>\
+	 		<tr bgcolor="#EEEEEE">\
+	    	<td width=40%><font size=2><b>LL Address</b></td>\
+	    	<td width=60%><font size=2><% getIPv6Status("lan_addr6_ll"); %></td>\
+	  		</tr>\
+	  		<tr bgcolor="#DDDDDD">\
+	    	<td width=40%><font size=2><b>Default Gateway</b></td>\
+	    	<td width=60%><font size=2><% getIPv6Status("lan_addr6_ll"); %></td>\
+	 		</tr>\
+	  		<tr bgcolor="#EEEEEE">\
+	    	<td width=40%><font size=2><b>MAC Address</b></td>\
+	    	<td width=60%><font size=2><% getInfo("hwaddr"); %></td>\
+	  		</tr>');	
+	  		
+		document.write('\
+		 <tr>\
+		 <td width=100% colspan=2 bgcolor="#008000"><font color="#FFFFFF" size=2><b>WAN IPv6 Configuration</b></font></td>\
+	  	</tr>');
+	
+	  		document.write('<tr bgcolor="#EEEEEE">\
+	    	<td width=40%><font size=2><b>Link Type</b></td>\
+	    	<td width=60%><font size=2><%getIPv6Status("ipv6LinkType");%></td>\
+	  		</tr>');
+		
+			document.write('<tr bgcolor="#DDDDDD">\
+	    	<td width=40%><font size=2><b>Connection Type</b></td>\
+	    	<td width=60%><font size=2><%getIPv6Status("ipv6Origin");%></td>\
+	  		</tr>');  	
+
+	  	document.write('<tr bgcolor="#EEEEEE">\
+	    	<td width=40%><font size=2><b>Global Address</b></td>\
+	    	<td width=60%><font size=2><% getIPv6Status("wan_addr6_global"); %></td>\
+	  		</tr>\
+	 		<tr bgcolor="#DDDDDD">\
+	    	<td width=40%><font size=2><b>LL Address</b></td>\
+	    	<td width=60%><font size=2><% getIPv6Status("wan_addr6_ll"); %></td>\
+	  		</tr>\
+	  		<tr bgcolor="#EEEEEE">\
+	    	<td width=40%><font size=2><b>Default Gateway</b></td>\
+	    	<td width=60%><font size=2><% getIPv6Status("gw_addr6"); %></td>\
+	 		</tr>\
+	  		<tr bgcolor="#DDDDDD">\
+	    	<td width=40%><font size=2><b>MAC Address</b></td>\
+	    	<td width=60%><font size=2><% getInfo("wan-hwaddr"); %></td>\
+	  		</tr>');	  	
 	}
 }
 </script>
@@ -466,7 +525,7 @@ function showWan()
 		if(wlanMode[i] == 0)
 			document.write("AP");
 		if (wlanMode[i] == 1) {
-			if (networkType[0] == 0)
+			if (networkType[i] == 0)
 				document.write( "Infrastructure Client");
 			else
 				document.write( "Ad-hoc Client");
@@ -501,29 +560,47 @@ function showWan()
 	    		<td width=60%><font size=2>');
 		if (band[i] == 1)
    			document.write( "2.4 GHz (B)");
-    		if (band[i] == 2)
+    	else
+    	if (band[i] == 2)
    			document.write( "2.4 GHz (G)");
-    
-    		if (band[i] == 8)
+    	else
+    	if (band[i] == 8)
    		{
     			if(channel_drv[i] > 14)
     				document.write( "5 GHz (N)");
     			else
    				document.write( "2.4 GHz (N)");   		
    		}
-   	
+   		else
    		if (band[i] == 3)
    			document.write( "2.4 GHz (B+G)");
-    		if (band[i] == 4)
+    	else
+    	if (band[i] == 4)
    			document.write( "5 GHz (A)");
+   		else
    		if (band[i] == 10)
    			document.write( "2.4 GHz (G+N)");
+   		else
    		if (band[i] == 11)
    			document.write( "2.4 GHz (B+G+N)");		
+   		else
    		if (band[i] == 12)
    			document.write( "5 GHz (A+N)");
+		else
 		if (band[i] == 15)
    			document.write( "2.4GHz+5 GHz (A+B+G+N)");
+   		else
+   		if (band[i] == 76)
+   			document.write( "5 GHz (A+N+AC)");
+   		else
+   		if (band[i] == 64)
+   			document.write( "5 GHz (AC)");
+   		else
+   		if (band[i] == 72)
+   			document.write( "5 GHz (N+AC)");
+   		else
+   		if (band[i] == 68)
+   			document.write( "5 GHz (A+AC)");
 		document.write('</tr>\
 			<tr bgcolor="#EEEEEE">\
     			<td width=40%><font size=2><b>SSID</b></td>\
@@ -585,8 +662,12 @@ function showWan()
 			   			document.write( "2.4 GHz (B)");
 					else if (mssid_band[i][idx] == 2)
 			   			document.write( "2.4 GHz (G)");
-					else if (mssid_band[i][idx] == 8)
-			   			document.write( "2.4 GHz (N)");  	
+					else if (mssid_band[i][idx] == 8){
+						if(channel_drv[i] > 14)
+							document.write( "5 GHz (N)"); 
+						else
+			   				document.write( "2.4 GHz (N)");  
+			   		}
 					else if (mssid_band[i][idx] == 3)
 			   			document.write( "2.4 GHz (B+G)");
 					else if (mssid_band[i][idx] == 4)
@@ -597,6 +678,14 @@ function showWan()
 			   			document.write( "2.4 GHz (B+G+N)");		
 					else if (mssid_band[i][idx] == 12)
 						document.write( "5 GHz (A+N)");
+					else if (mssid_band[i][idx] == 76)
+						document.write( "5 GHz (A+N+AC)");	
+					else if (mssid_band[i][idx] == 64)
+						document.write( "5 GHz (AC)");
+					else if (mssid_band[i][idx] == 68)
+						document.write( "5 GHz (A+AC)");
+					else if (mssid_band[i][idx] == 72)
+						document.write( "5 GHz (N+AC)");
 	
 					document.write('</td></tr>\
 						<tr bgcolor="#DDDDDD">\

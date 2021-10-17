@@ -26,7 +26,7 @@
 #define	ODM_AP		 	0x01	//BIT0 
 #define	ODM_ADSL	 	0x02	//BIT1
 #define	ODM_CE		 	0x04	//BIT2
-#define	ODM_MP		 	0x08	//BIT3
+#define	ODM_WIN		 	0x08	//BIT3
 
 #define	DM_ODM_SUPPORT_TYPE			ODM_AP
 
@@ -34,7 +34,7 @@
 #define	ODM_ENDIAN_BIG	0
 #define	ODM_ENDIAN_LITTLE	1	
 
-#if (DM_ODM_SUPPORT_TYPE != ODM_MP)
+#if (DM_ODM_SUPPORT_TYPE != ODM_WIN)
 #define 	RT_PCI_INTERFACE				1
 #define 	RT_USB_INTERFACE				2
 #define 	RT_SDIO_INTERFACE				3
@@ -96,24 +96,59 @@ typedef enum _RT_SPINLOCK_TYPE{
 	RT_GEN_TEMP_BUF_SPINLOCK = 31,
 	RT_AWB_SPINLOCK = 32,
 	RT_FW_PS_SPINLOCK = 33,
+	RT_HW_TIMER_SPIN_LOCK = 34,
+	RT_MPT_WI_SPINLOCK = 35
 }RT_SPINLOCK_TYPE;
 
 #endif
 
 
-#if (DM_ODM_SUPPORT_TYPE == ODM_MP)
+#if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 	#define	STA_INFO_T			RT_WLAN_STA
 	#define	PSTA_INFO_T			PRT_WLAN_STA
 
-    typedef unsigned long			u4Byte,*pu4Byte;
-	#define CONFIG_HW_ANTENNA_DIVERSITY 
+//    typedef unsigned long		u4Byte,*pu4Byte;
+#define CONFIG_HW_ANTENNA_DIVERSITY 
+#define CONFIG_SW_ANTENNA_DIVERSITY 
+
 #elif (DM_ODM_SUPPORT_TYPE == ODM_AP)
 
 	// To let ADSL/AP project compile ok; it should be removed after all conflict are solved. Added by Annie, 2011-10-07.
 	#define ADSL_AP_BUILD_WORKAROUND
 	#define AP_BUILD_WORKAROUND
-	//
+	
+	//2 [ Configure Antenna Diversity ]
+#if defined(CONFIG_RTL_8881A_ANT_SWITCH) || defined(CONFIG_SLOT_0_ANT_SWITCH) || defined(CONFIG_SLOT_1_ANT_SWITCH)
+	#define CONFIG_HW_ANTENNA_DIVERSITY 
+        //----------
+	#if(!defined(CONFIG_NO_2G_DIVERSITY) && !defined(CONFIG_2G5G_CG_TRX_DIVERSITY_8881A) && !defined(CONFIG_2G_CGCS_RX_DIVERSITY) && !defined(CONFIG_2G_CG_TRX_DIVERSITY) && !defined(CONFIG_2G_CG_SMART_ANT_DIVERSITY))
+		#define CONFIG_NO_2G_DIVERSITY
+	#endif
 
+	#ifdef CONFIG_NO_5G_DIVERSITY_8881A
+		#define CONFIG_NO_5G_DIVERSITY
+	#elif  defined(CONFIG_5G_CGCS_RX_DIVERSITY_8881A)
+		#define CONFIG_5G_CGCS_RX_DIVERSITY
+	#elif  defined(CONFIG_5G_CG_TRX_DIVERSITY_8881A)
+		#define CONFIG_5G_CG_TRX_DIVERSITY
+	#elif  defined(CONFIG_2G5G_CG_TRX_DIVERSITY_8881A)
+		#define CONFIG_2G5G_CG_TRX_DIVERSITY
+	#endif
+	#if(!defined(CONFIG_NO_5G_DIVERSITY) && !defined(CONFIG_5G_CGCS_RX_DIVERSITY) && !defined(CONFIG_5G_CG_TRX_DIVERSITY) && !defined(CONFIG_2G5G_CG_TRX_DIVERSITY) && !defined(CONFIG_5G_CG_SMART_ANT_DIVERSITY))
+		#define CONFIG_NO_5G_DIVERSITY
+	#endif	
+	//----------
+	#if ( defined(CONFIG_NO_2G_DIVERSITY) && defined(CONFIG_NO_5G_DIVERSITY) )
+		#define CONFIG_NOT_SUPPORT_ANTDIV 	
+	#elif( !defined(CONFIG_NO_2G_DIVERSITY) && defined(CONFIG_NO_5G_DIVERSITY) )
+		#define CONFIG_2G_SUPPORT_ANTDIV
+	#elif( defined(CONFIG_NO_2G_DIVERSITY) && !defined(CONFIG_NO_5G_DIVERSITY) )
+		#define CONFIG_5G_SUPPORT_ANTDIV
+	#elif( (!defined(CONFIG_NO_2G_DIVERSITY) && !defined(CONFIG_NO_5G_DIVERSITY)) || defined(CONFIG_2G5G_CG_TRX_DIVERSITY) )
+		#define CONFIG_2G5G_SUPPORT_ANTDIV 
+	#endif
+	//----------
+#endif
 	#ifdef AP_BUILD_WORKAROUND
 	#include "../typedef.h"
 	#else
@@ -123,7 +158,13 @@ typedef enum _RT_SPINLOCK_TYPE{
 	typedef unsigned short			u2Byte,*pu2Byte;
 	typedef unsigned int			u4Byte,*pu4Byte;
 	typedef unsigned long long		u8Byte,*pu8Byte;
+#if 1
+/* In ARM platform, system would use the type -- "char" as "unsigned char"
+ * And we only use s1Byte/ps1Byte as INT8 now, so changes the type of s1Byte.*/
+    typedef signed char				s1Byte,*ps1Byte;
+#else
 	typedef char					s1Byte,*ps1Byte;
+#endif
 	typedef short					s2Byte,*ps2Byte;
 	typedef long					s4Byte,*ps4Byte;
 	typedef long long				s8Byte,*ps8Byte;
@@ -132,10 +173,12 @@ typedef enum _RT_SPINLOCK_TYPE{
 	typedef struct rtl8192cd_priv	*prtl8192cd_priv;
 	typedef struct stat_info		STA_INFO_T,*PSTA_INFO_T;
 	typedef struct timer_list		RT_TIMER, *PRT_TIMER;
-	typedef  void *					RT_TIMER_CALL_BACK;
-	
-	#define 	DEV_BUS_TYPE  		RT_PCI_INTERFACE
-	
+	typedef  void *				RT_TIMER_CALL_BACK;
+
+#ifndef CONFIG_SDIO_HCI
+	#define DEV_BUS_TYPE		RT_PCI_INTERFACE
+#endif
+
 	#define _TRUE				1
 	#define _FALSE				0
 	
@@ -151,7 +194,13 @@ typedef enum _RT_SPINLOCK_TYPE{
 	typedef unsigned short			u2Byte,*pu2Byte;
 	typedef unsigned int			u4Byte,*pu4Byte;
 	typedef unsigned long long		u8Byte,*pu8Byte;
+#if 1
+/* In ARM platform, system would use the type -- "char" as "unsigned char"
+ * And we only use s1Byte/ps1Byte as INT8 now, so changes the type of s1Byte.*/
+    typedef signed char				s1Byte,*ps1Byte;
+#else
 	typedef char					s1Byte,*ps1Byte;
+#endif
 	typedef short					s2Byte,*ps2Byte;
 	typedef long					s4Byte,*ps4Byte;
 	typedef long long				s8Byte,*ps8Byte;
@@ -222,23 +271,20 @@ typedef enum _RT_SPINLOCK_TYPE{
 	#define TRUE 	_TRUE	
 	#define FALSE	_FALSE
 
-	//
-	// TX report 2 format in Rx desc
-	//
-	#define GET_TX_RPT2_DESC_PKT_LEN_88E(__pRxStatusDesc)				LE_BITS_TO_4BYTE( __pRxStatusDesc, 0, 9)
-	#define GET_TX_RPT2_DESC_MACID_VALID_1_88E(__pRxStatusDesc)		LE_BITS_TO_4BYTE( __pRxStatusDesc+16, 0, 32)
-	#define GET_TX_RPT2_DESC_MACID_VALID_2_88E(__pRxStatusDesc)		LE_BITS_TO_4BYTE( __pRxStatusDesc+20, 0, 32)
 
-	#define GET_TX_REPORT_TYPE1_RERTY_0(__pAddr)						LE_BITS_TO_4BYTE( __pAddr, 0, 16)
-	#define GET_TX_REPORT_TYPE1_RERTY_1(__pAddr)						LE_BITS_TO_1BYTE( __pAddr+2, 0, 8)
-	#define GET_TX_REPORT_TYPE1_RERTY_2(__pAddr)						LE_BITS_TO_1BYTE( __pAddr+3, 0, 8)
-	#define GET_TX_REPORT_TYPE1_RERTY_3(__pAddr)						LE_BITS_TO_1BYTE( __pAddr+4, 0, 8)
-	#define GET_TX_REPORT_TYPE1_RERTY_4(__pAddr)						LE_BITS_TO_1BYTE( __pAddr+4+1, 0, 8)
-	#define GET_TX_REPORT_TYPE1_DROP_0(__pAddr)						LE_BITS_TO_1BYTE( __pAddr+4+2, 0, 8)
-	#define GET_TX_REPORT_TYPE1_DROP_1(__pAddr)						LE_BITS_TO_1BYTE( __pAddr+4+3, 0, 8)
+	#define SET_TX_DESC_ANTSEL_A_88E(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+8, 24, 1, __Value)
+	#define SET_TX_DESC_ANTSEL_B_88E(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+8, 25, 1, __Value)
+	#define SET_TX_DESC_ANTSEL_C_88E(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+28, 29, 1, __Value)
 
+	//define useless flag to avoid compile warning
+	#define	USE_WORKITEM 0
+	#define 	FOR_BRAZIL_PRETEST 0
+	#define	BT_30_SUPPORT			0
+	#define   FPGA_TWO_MAC_VERIFICATION	0
 #endif
 
+#define COND_ELSE  2
+#define COND_ENDIF 3
 
 #endif // __ODM_TYPES_H__
 

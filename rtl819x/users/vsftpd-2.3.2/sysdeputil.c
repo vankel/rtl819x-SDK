@@ -61,7 +61,7 @@
 #define VSF_SYSDEP_HAVE_UTMPX
 
 #define __USE_GNU
-#include "dummyinc/utmpx.h" 
+#include "dummyinc/utmpx.h"
 
 /* BEGIN config */
 #if defined(__linux__)

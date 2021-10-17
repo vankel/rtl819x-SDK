@@ -25,7 +25,9 @@
 
 #include "boa.h"
 
+#if !defined(BOA_CGI_SUPPORT)
 #define EXCLUDE_CGI //david
+#endif
 
 #ifndef EXCLUDE_CGI
 static char *env_gen_extra(const char *key, const char *value,

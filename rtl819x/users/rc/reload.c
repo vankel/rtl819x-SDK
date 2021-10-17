@@ -4,12 +4,16 @@
 #include <signal.h>
 
 static char *tmp_file = "/tmp/tmp.txt";
+#if defined(TRAFFIC_METER_SUPPORT)	
+#define _PATH_PROCNET_DEV "/proc/net/dev"
+#endif
 
 //#define CBN_SPEC
 
 #define _DHCPD_PID_PATH "/var/run"
 #define _DHCPD_PROG_NAME "udhcpd"
 #define _CONFIG_SCRIPT_PROG "init.sh"
+#define WAN_DHCP_CONNECTED "/var/dhcp_connect"
 
 #ifdef CONFIG_RTL8186_KB
 #include <time.h>
@@ -49,6 +53,61 @@ typedef struct ps_info {
 	unsigned int tTime;
 	unsigned int date;
 }ps_info_T;
+#if defined(TRAFFIC_METER_SUPPORT)	
+typedef struct traffic{
+	int pos;
+	int minute;
+	unsigned long long total_traffic;
+	unsigned long long stats[24];
+}traffic_info_T;
+struct user_net_device_stats {
+	unsigned long long rx_packets;	/* total packets received       */
+	unsigned long long tx_packets;	/* total packets transmitted    */
+	unsigned long long rx_bytes;	/* total bytes received         */
+	unsigned long long tx_bytes;	/* total bytes transmitted      */
+	unsigned long rx_errors;	/* bad packets received         */
+	unsigned long tx_errors;	/* packet transmit problems     */
+	unsigned long rx_dropped;	/* no space in linux buffers    */
+	unsigned long tx_dropped;	/* no space available in linux  */
+	unsigned long rx_multicast;	/* multicast packets received   */
+	unsigned long tx_multicast;	/* multicast packets transmitted   */
+	unsigned long rx_unicast;	/* unicast packets received   */
+	unsigned long tx_unicast;	/* unicast packets transmitted   */
+	unsigned long rx_broadcast;	/* broadcast packets received   */
+	unsigned long tx_broadcast;	/* broadcast packets transmitted   */
+	unsigned long rx_compressed;
+	unsigned long tx_compressed;
+	unsigned long collisions;
+	unsigned long rx_length_errors;
+	unsigned long rx_over_errors;	/* receiver ring buff overflow  */
+	unsigned long rx_crc_errors;	/* recved pkt with crc error    */
+	unsigned long rx_frame_errors;	/* recv'd frame alignment error */
+	unsigned long rx_fifo_errors;	/* recv'r fifo overrun          */
+	unsigned long rx_missed_errors;	/* receiver missed packet     */
+	unsigned long tx_aborted_errors;
+	unsigned long tx_carrier_errors;
+	unsigned long tx_fifo_errors;
+	unsigned long tx_heartbeat_errors;
+	unsigned long tx_window_errors;
+};
+unsigned char g_wan_if[16];
+#ifdef CONFIG_APP_ADAPTER_API
+time_t tm_start;
+typedef struct load_statics{
+	unsigned long long rx_speed_max;
+	unsigned long long rx_speed_min;
+	unsigned long long rx_speed_avg;
+	unsigned long long rx_speed_cur;
+	unsigned long long rx_bytes;
+	unsigned long long tx_speed_max;
+	unsigned long long tx_speed_min;
+	unsigned long long tx_speed_avg;
+	unsigned long long tx_speed_cur;
+	unsigned long long tx_bytes;
+	time_t tm;
+}load_statics_T;
+#endif
+#endif
 
 enum _WLAN_INTERFACE_ {
 	WLAN_IF_ROOT,
@@ -105,9 +164,9 @@ static int get_flash_int_value(char *keyword, int *pVal)
 	
 	ptr = strchr(tmpbuf, '=');
 	if (ptr == NULL) {
-		printf("read %s value failed!\n", keyword);		
+		printf("get %s failed!!!!!!\n",keyword);
 		return 0;			
-	}
+	}else
 	
 	*pVal = atoi(ptr+1);
 	return 1;	
@@ -346,7 +405,7 @@ static void disable_wlan(int index)
 #endif	
 }
 
-#if defined(CONFIG_RTL_8196B) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_8196B) || defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)|| defined(CONFIG_RTL_8198B) || defined(CONFIG_RTL_8198C)
 static int test_gpio(void)
 {
 	FILE *fp;
@@ -707,6 +766,8 @@ void chk_wlanSch_ksRule(struct ps_info *ks, int index)
 		}
 		else
 		{
+			hit_time = 0;
+			hit_date = 0;
 			ps = &ks[i];
 			if(ps->date == 7) // 7:everyday
 			{
@@ -716,6 +777,8 @@ void chk_wlanSch_ksRule(struct ps_info *ks, int index)
 			{
 				hit_date = 1;
 			}
+			else
+				continue;
 			
 			DEBUG_PRINT("\r\n ps.date = [%u], ps.fTime = [%u], ps.tTime = [%u]__[%s-%u]\r\n",ps->date,ps->fTime,ps->tTime,__FILE__,__LINE__);
 
@@ -723,7 +786,7 @@ void chk_wlanSch_ksRule(struct ps_info *ks, int index)
 			int end = ps->tTime;
 			int current = tm_time.tm_hour * 60 + tm_time.tm_min;
 			DEBUG_PRINT("start=%d, end=%d, current=%d\n", start, end, current);
-		
+			
 			if (end >= start) {
 				if ((current >= start) && (current < end))
 					hit_time = 1;
@@ -904,6 +967,266 @@ void sigHandler_swreinit(int signo)
 }
 #endif	//CBN_SPEC
 
+int wisp_wan_connected()
+{
+    FILE *pfile = NULL;
+    char tmpBuf[128];
+    int wan_type;
+    
+	if((pfile = fopen(WAN_DHCP_CONNECTED,"r+"))!= NULL)
+    {
+        fgets(tmpBuf, sizeof(tmpBuf), pfile);
+        system(tmpBuf);
+        unlink(WAN_DHCP_CONNECTED);
+        fclose(pfile);
+    }
+    else
+    {
+        return -1;
+    }
+    return 0;
+}
+
+#if defined(TRAFFIC_METER_SUPPORT)	
+char *get_name(char *name, char *p)
+{
+    while (isspace(*p))
+	p++;
+    while (*p) {
+	if (isspace(*p))
+	    break;
+	if (*p == ':') {	/* could be an alias */
+	    char *dot = p, *dotname = name;
+	    *name++ = *p++;
+	    while (isdigit(*p))
+		*name++ = *p++;
+	    if (*p != ':') {	/* it wasn't, backup */
+		p = dot;
+		name = dotname;
+	    }
+	    if (*p == '\0')
+		return NULL;
+	    p++;
+	    break;
+	}
+	*name++ = *p++;
+    }
+    *name++ = '\0';
+    return p;
+}
+int getStats(char *interface, struct user_net_device_stats *pStats)
+{
+ 	FILE *fh;
+  	char buf[512];
+	int type;
+	fh = fopen(_PATH_PROCNET_DEV, "r");
+	if (!fh) {
+		printf("Warning: cannot open %s\n",_PATH_PROCNET_DEV);
+		return -1;
+	}
+	fgets(buf, sizeof buf, fh);	/* eat line */
+	fgets(buf, sizeof buf, fh);
+  	if (strstr(buf, "compressed"))
+		type = 3;
+	else if (strstr(buf, "bytes"))
+		type = 2;
+	else
+		type = 1;
+	while (fgets(buf, sizeof buf, fh)) {
+		char *s, name[40];
+		s = get_name(name, buf);
+		if ( strcmp(interface, name))
+			continue;
+		get_dev_fields(type, s, pStats);
+		fclose(fh);
+		return 0;
+    	}
+	fclose(fh);
+	return -1;
+}
+int get_dev_fields(int type, char *bp, struct user_net_device_stats *pStats)
+{
+    switch (type) {
+    case 3:
+	sscanf(bp,
+	"%Lu %Lu %lu %lu %lu %lu %lu %lu %Lu %Lu %lu %lu %lu %lu %lu %lu",
+	       &pStats->rx_bytes,
+	       &pStats->rx_packets,
+	       &pStats->rx_errors,
+	       &pStats->rx_dropped,
+	       &pStats->rx_fifo_errors,
+	       &pStats->rx_frame_errors,
+	       &pStats->rx_compressed,
+	       &pStats->rx_multicast,
+	       &pStats->tx_bytes,
+	       &pStats->tx_packets,
+	       &pStats->tx_errors,
+	       &pStats->tx_dropped,
+	       &pStats->tx_fifo_errors,
+	       &pStats->collisions,
+	       &pStats->tx_carrier_errors,
+	       &pStats->tx_compressed);
+	break;
+    case 2:
+	sscanf(bp, "%Lu %Lu %lu %lu %lu %lu %Lu %Lu %lu %lu %lu %lu %lu",
+	       &pStats->rx_bytes,
+	       &pStats->rx_packets,
+	       &pStats->rx_errors,
+	       &pStats->rx_dropped,
+	       &pStats->rx_fifo_errors,
+	       &pStats->rx_frame_errors,
+	       &pStats->tx_bytes,
+	       &pStats->tx_packets,
+	       &pStats->tx_errors,
+	       &pStats->tx_dropped,
+	       &pStats->tx_fifo_errors,
+	       &pStats->collisions,
+	       &pStats->tx_carrier_errors);
+	pStats->rx_multicast = 0;
+	break;
+    case 1:
+	sscanf(bp, "%Lu %lu %lu %lu %lu %Lu %lu %lu %lu %lu %lu",
+	       &pStats->rx_packets,
+	       &pStats->rx_errors,
+	       &pStats->rx_dropped,
+	       &pStats->rx_fifo_errors,
+	       &pStats->rx_frame_errors,
+	       &pStats->tx_packets,
+	       &pStats->tx_errors,
+	       &pStats->tx_dropped,
+	       &pStats->tx_fifo_errors,
+	       &pStats->collisions,
+	       &pStats->tx_carrier_errors);
+	pStats->rx_bytes = 0;
+	pStats->tx_bytes = 0;
+	pStats->rx_multicast = 0;
+	break;
+    }
+    return 0;
+}
+int get_wan_if(unsigned char *wan_if)
+{
+	int op_mode, wisp_id, wan_type, wlan_mode;
+	unsigned char value[64], cmd[128];
+	get_flash_int_value("WAN_DHCP", &wan_type);
+	if(wan_type == 3 || wan_type == 4 ||wan_type == 6 ||wan_type == 16 )
+		strcpy(wan_if, "ppp0");
+	else
+	{
+		get_flash_int_value("OP_MODE", &op_mode);
+		if(op_mode == 0)
+		{
+			strcpy(wan_if, "eth1");
+		}
+		else if(op_mode == 2)
+		{
+			get_flash_int_value("WISP_WAN_ID", &wisp_id);
+			sprintf(value, "WLAN%d_WLAN_MODE", wisp_id);
+			get_flash_int_value(value, &wlan_mode);
+			if(wlan_mode == 0)
+				sprintf(wan_if, "wlan%d-vxd", wisp_id);
+			else
+				sprintf(wan_if, "wlan%d", wisp_id);
+		}
+	}
+	return 0;
+}
+#if 0
+int get_traffic(traffic_info_T *traffic)
+{
+	time_t tm;
+	struct tm tm_time;
+	unsigned long long current_traffic;
+	struct user_net_device_stats pStats;
+	unsigned char bp;
+	int i=0;
+	unsigned char cmd[256], temp[64];
+	time(&tm);
+	memcpy(&tm_time, localtime(&tm), sizeof(tm_time));
+	if((tm_time.tm_min > traffic->minute)  || (tm_time.tm_min==0 && traffic->minute==59) || (tm_time.tm_min < traffic->minute))
+	{
+		getStats(g_wan_if, &pStats);
+		current_traffic = pStats.rx_bytes + pStats.tx_bytes;
+		traffic->minute = tm_time.tm_min;
+		if(current_traffic >= traffic->total_traffic)
+		{
+			if(tm_time.tm_hour == 0)
+			{
+				if(traffic->pos != -1)
+				{
+					if(tm_time.tm_min==0)
+						traffic->stats[23] = current_traffic - traffic->total_traffic;
+					else
+						traffic->stats[23] += current_traffic - traffic->total_traffic;
+				}
+				traffic->pos = 0;
+			}
+			else
+			{
+				if(traffic->pos != -1)
+				{
+					if(tm_time.tm_min==0)
+						traffic->stats[tm_time.tm_hour] = current_traffic - traffic->total_traffic;
+					else
+						traffic->stats[tm_time.tm_hour] += current_traffic - traffic->total_traffic;
+				}
+				traffic->pos = tm_time.tm_hour;
+			}
+			traffic->total_traffic = current_traffic;
+			sprintf(cmd, "echo \"");
+			for(i=0; i<24; i++)
+			{
+				sprintf(temp, "%Lu:", traffic->stats[i]);
+				strcat(cmd, temp);
+			}
+			strcat(cmd, " \" > /var/trafic_by_hour");
+			system(cmd);
+		}
+		else
+		{
+		}
+	}
+}
+#endif
+#ifdef CONFIG_APP_ADAPTER_API
+int get_load_statics(load_statics_T *load)
+{
+	unsigned long long current_speed;
+	unsigned int interval_tm;
+	time_t tm;
+	struct user_net_device_stats pStats;
+	unsigned char cmd[256];
+	time(&tm);
+	getStats(g_wan_if, &pStats);
+	interval_tm = tm - load->tm;
+	if(interval_tm > 0)
+	{
+		load->tm = tm;
+		current_speed = (pStats.rx_bytes - load->rx_bytes)/interval_tm;
+		load->rx_speed_cur = current_speed;
+		if(current_speed > load->rx_speed_max)
+			load->rx_speed_max = current_speed;
+		if(current_speed < load->rx_speed_min)
+			load->rx_speed_min = current_speed;
+		load->rx_speed_avg = pStats.rx_bytes/(tm - tm_start);
+		current_speed = (pStats.tx_bytes - load->tx_bytes)/interval_tm;
+		load->tx_speed_cur = current_speed;
+		if(current_speed > load->tx_speed_max)
+			load->tx_speed_max = current_speed;
+		if(current_speed < load->tx_speed_min)
+			load->tx_speed_min = current_speed;
+		load->tx_speed_avg = pStats.tx_bytes/(tm - tm_start);
+		load->rx_bytes = pStats.rx_bytes;
+		load->tx_bytes = pStats.tx_bytes;
+	}
+	sprintf(cmd, "echo \"%llu %llu %llu %llu %llu %llu %llu %llu %llu %llu\" > /var/load_statics",
+		load->rx_speed_max, load->rx_speed_min, load->rx_speed_avg, load->rx_speed_cur, pStats.rx_bytes,
+		load->tx_speed_max, load->tx_speed_min, load->tx_speed_avg, load->tx_speed_cur, pStats.tx_bytes);
+	system(cmd);
+	return 0;
+}
+#endif
+#endif
 int main(int argc, char *argv[])
 {
 	FILE *fp;
@@ -916,6 +1239,17 @@ int main(int argc, char *argv[])
 	keepalive[2]='8';
 	int i;
 	unsigned char line[20];
+#if defined(TRAFFIC_METER_SUPPORT)	
+	get_wan_if(g_wan_if);
+#ifdef CONFIG_APP_ADAPTER_API
+	load_statics_T g_load;
+	memset(&g_load, 0, sizeof(load_statics_T));
+	time(&tm_start);
+	g_load.tm = tm_start;
+	g_load.rx_speed_min = 0xffffffff;
+	g_load.tx_speed_min = 0xffffffff;
+#endif
+#endif
 
 #ifdef CONFIG_RTL8186_KB
 	struct ps_info ps;
@@ -1000,7 +1334,7 @@ int main(int argc, char *argv[])
 									wlan_schkmulti[i]=1;
 								}
 							}
-							
+							fclose(fp);
 						}
 					}
 				}
@@ -1035,6 +1369,12 @@ int main(int argc, char *argv[])
 #endif	//CBN_SPEC	
 	while(1)
 	{  	  
+#if defined(TRAFFIC_METER_SUPPORT)
+#ifdef CONFIG_APP_ADAPTER_API
+		get_load_statics(&g_load);
+#else
+#endif
+#endif
 #if defined(CONFIG_RTL_8196B)
 #else
 		fp=fopen("/proc/load_default","r");
@@ -1092,7 +1432,7 @@ int main(int argc, char *argv[])
 		fclose(fp1);
 #endif  
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)|| defined(CONFIG_RTL_8198B) || defined(CONFIG_RTL_8198C)
 		/* rtl8196C or rtl8198 do not need to check rf pin status*/
 		gpio_state = 1;
 		last_gpio_state =gpio_state; 
@@ -1223,6 +1563,7 @@ int main(int argc, char *argv[])
 				}
 		}
 
+		wisp_wan_connected();
 		sleep(3);
 	}
 }

@@ -62,13 +62,11 @@ void domain_query_start_dnrd(int wlan_mode, int start_dnrd)
 
 	//}
 	if(domanin_name[0]){
-		/*
 		if(getFilter_Type() == 0) //1:client
 		{
 			sprintf(cmdBuffer,"%s\\%s\n", Ip, "AlwaysHost");
 		}
 		else
-		*/
 		{
 			if(wlan_mode==0){//ap mode	
 				sprintf(cmdBuffer,"%s\\%s%s%s%s\n", Ip, domanin_name, "AP.com|",domanin_name, "AP.net");

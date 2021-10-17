@@ -51,6 +51,12 @@ static const uint32 leds_gpio_id[] = {
 static const uint32 leds_gpio_id[] = {
 	PIN_VOIP0_LED,
 };
+#elif defined (CONFIG_RTK_VOIP_GPIO_8676P_EWN_IAD_BOARD)
+static const uint32 leds_gpio_id[] = {
+	PIN_VOIP0_LED,  // CH0 - FXS1: output
+	PIN_VOIP1_LED,	// CH1 - FXS2: output
+	//PIN_PSTN_LED,	// DAA CH0
+};
 #endif
 
 #define NUM_OF_LEDS_GPIO	( sizeof( leds_gpio_id ) / sizeof( leds_gpio_id[ 0 ] ) )

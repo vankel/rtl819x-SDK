@@ -42,6 +42,7 @@
 #else
 #define FNAME ""
 #endif
+#define RTK_AP_IPV6
 
 /* XXX: bsdi4 does not have TAILQ_EMPTY */
 #ifndef TAILQ_EMPTY

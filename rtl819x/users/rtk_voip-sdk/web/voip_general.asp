@@ -787,6 +787,77 @@ function rtcp_click_check()
 		</td>
 	</tr>
 
+  	<tr>
+    	<td bgColor=#aaddff width=155>ANSTONE-V21DIS</td>
+		<td bgColor=#ddeeff width=140>
+			<input type=checkbox name=useANSTONE_V21DIS_TDM size=20 <%voip_general_get("useANSTONE_V21DIS_TDM");%>>Enable TDM
+		</td>
+		<td bgColor=#ddeeff>
+			<input type=checkbox name=useANSTONE_V21DIS_IP size=20 <%voip_general_get("useANSTONE_V21DIS_IP");%>>Enable IP
+		</td>
+	</tr>
+
+  	<tr>
+    	<td bgColor=#aaddff width=155>ANSTONE-V21DCN</td>
+		<td bgColor=#ddeeff width=140>
+			<input type=checkbox name=useANSTONE_V21DCN_TDM size=20 <%voip_general_get("useANSTONE_V21DCN_TDM");%>>Enable TDM
+		</td>
+		<td bgColor=#ddeeff>
+			<input type=checkbox name=useANSTONE_V21DCN_IP size=20 <%voip_general_get("useANSTONE_V21DCN_IP");%>>Enable IP
+		</td>
+	</tr>
+
+  	<tr>
+    	<td bgColor=#aaddff width=155>ANSTONE-BELL202_CP</td>
+		<td bgColor=#ddeeff width=140>
+			<input type=checkbox name=useANSTONE_BELL202_CP_TDM size=20 <%voip_general_get("useANSTONE_BELL202_CP_TDM");%>>Enable TDM
+		</td>
+		<td bgColor=#ddeeff>
+			<input type=checkbox name=useANSTONE_BELL202_CP_IP size=20 <%voip_general_get("useANSTONE_BELL202_CP_IP");%>>Enable IP
+		</td>
+	</tr>
+
+  	<tr>
+    	<td bgColor=#aaddff width=155>ANSTONE-BELL202_AP</td>
+		<td bgColor=#ddeeff width=140>
+			<input type=checkbox name=useANSTONE_BELL202_AP_TDM size=20 <%voip_general_get("useANSTONE_BELL202_AP_TDM");%>>Enable TDM
+		</td>
+		<td bgColor=#ddeeff>
+			<input type=checkbox name=useANSTONE_BELL202_AP_IP size=20 <%voip_general_get("useANSTONE_BELL202_AP_IP");%>>Enable IP
+		</td>
+	</tr>
+
+  	<tr>
+    	<td bgColor=#aaddff width=155>ANSTONE-V21CH1</td>
+		<td bgColor=#ddeeff width=140>
+			<input type=checkbox name=useANSTONE_V21CH1_TDM size=20 <%voip_general_get("useANSTONE_V21CH1_TDM");%>>Enable TDM
+		</td>
+		<td bgColor=#ddeeff>
+			<input type=checkbox name=useANSTONE_V21CH1_IP size=20 <%voip_general_get("useANSTONE_V21CH1_IP");%>>Enable IP
+		</td>
+	</tr>
+
+  	<tr>
+    	<td bgColor=#aaddff width=155>ANSTONE-V21CH2</td>
+		<td bgColor=#ddeeff width=140>
+			<input type=checkbox name=useANSTONE_V21CH2_TDM size=20 <%voip_general_get("useANSTONE_V21CH2_TDM");%>>Enable TDM
+		</td>
+		<td bgColor=#ddeeff>
+			<input type=checkbox name=useANSTONE_V21CH2_IP size=20 <%voip_general_get("useANSTONE_V21CH2_IP");%>>Enable IP
+		</td>
+	</tr>
+
+  	<tr>
+    	<td bgColor=#aaddff width=155>ANSTONE-V23</td>
+		<td bgColor=#ddeeff width=140>
+			<input type=checkbox name=useANSTONE_V23_TDM size=20 <%voip_general_get("useANSTONE_V23_TDM");%>>Enable TDM
+		</td>
+		<td bgColor=#ddeeff>
+			<input type=checkbox name=useANSTONE_V23_IP size=20 <%voip_general_get("useANSTONE_V23_IP");%>>Enable IP
+		</td>
+	</tr>
+
+
 	<tr>
     	<td bgColor=#aaddff width=155>RTCP</td>
 		<td bgColor=#ddeeff width=170>

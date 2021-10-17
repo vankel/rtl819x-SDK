@@ -22,7 +22,11 @@ u_int32_t reservedIp(struct static_lease *lease_struct, u_int32_t ip);
 void printStaticLeases(struct static_lease **lease_struct);
 #endif
 
+#ifdef SUPPORT_DHCP_PORT_IP_BIND
+u_int32_t getIpByMac(struct static_lease *lease_struct, void *arg, char **host);
+int addStaticLeaseWithPort(struct static_lease **lease_struct, int port_id, u_int32_t *ip, char *host);
 #endif
 
+#endif
 
 

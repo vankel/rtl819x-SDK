@@ -128,21 +128,6 @@ int voip_flash_server_start()
 	key_t key;
 	voipCfgParam_t *cfg;
 
-	if( voip_flash_get( &cfg ) < 0 ) {
-		return -1;
-	} else {
-		voip_feature_in_flash = 
-					VOIP_FLASH_2_SYSTEM_FEATURE( cfg ->feature, 
-												 cfg ->extend_feature );
-	}
-	
-	if ( voip_feature != voip_feature_in_flash )
-	{
-		fprintf(stderr, "VoIP Feature is invalid (%llx vs %llx)\n",
-			voip_feature_in_flash, voip_feature);
-		return -1;
-	}
-
 	// create 2 semaphore: 
 	//	0: event semaphore, using for checking server init is ok
 	//	1: mutex semaphore, using for protect share memory (voip flash)
@@ -187,7 +172,21 @@ int voip_flash_server_start()
 	// copy flash data to share memory
 	voip_flash_server_update();
 
-	sleep(1);
+	// check voip feature in flash
+	if( voip_flash_get( &cfg ) < 0 ) {
+		return -1;
+	} else {
+		voip_feature_in_flash = 
+					VOIP_FLASH_2_SYSTEM_FEATURE( cfg ->feature, 
+												 cfg ->extend_feature );
+	}
+	
+	if ( voip_feature != voip_feature_in_flash )
+	{
+		fprintf(stderr, "VoIP Feature is invalid (%llx vs %llx)\n",
+			voip_feature_in_flash, voip_feature);
+		return -1;
+	}
 
 	// signal waiting client
 	sem_signal(VOIP_SEM_EVENT);

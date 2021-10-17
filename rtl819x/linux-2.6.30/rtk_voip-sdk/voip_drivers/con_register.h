@@ -136,10 +136,17 @@ typedef struct {		// FXS - ops
 	unsigned int  ( *FXS_Line_Check )( struct voip_snd_s *this );	// Note: this API may cause watch dog timeout. Should it disable WTD?
 	void          ( *SLIC_Set_PCM_state )( struct voip_snd_s *this, int enable );
 	unsigned char ( *SLIC_Get_Hook_Status )( struct voip_snd_s *this, int directly );
+	void          ( *SLIC_Set_Power_Save_Mode )( struct voip_snd_s *this);
+	void          ( *SLIC_Set_FXS_Line_State )( struct voip_snd_s *this, int state );
 	
 	void ( *Set_SLIC_Tx_Gain )( struct voip_snd_s *this, int tx_gain );
 	void ( *Set_SLIC_Rx_Gain )( struct voip_snd_s *this, int rx_gain );
 	void ( *SLIC_Set_Ring_Cadence )( struct voip_snd_s *this, unsigned short OnMsec, unsigned short OffMsec );
+	void ( *SLIC_Set_Multi_Ring_Cadence )( struct voip_snd_s *this, 
+		unsigned short OnMsec1, unsigned short OffMsec1, 
+		unsigned short OnMsec2, unsigned short OffMsec2,
+		unsigned short OnMsec3, unsigned short OffMsec3, 
+		unsigned short OnMsec4, unsigned short OffMsec4 );
 	void ( *SLIC_Set_Ring_Freq_Amp )( struct voip_snd_s *this, char preset );
 	void ( *SLIC_Set_Impendance_Country )( struct voip_snd_s *this, unsigned short country, unsigned short impd );
 	void ( *SLIC_Set_Impendance )( struct voip_snd_s *this, unsigned short preset );
@@ -159,6 +166,7 @@ typedef struct {		// FXS - ops
 	
 	void ( *FXS_FXO_DTx_DRx_Loopback )( struct voip_snd_s *this, struct voip_snd_s *daa_snd, unsigned int enable );
 	void ( *SLIC_OnHookTrans_PCM_start )( struct voip_snd_s *this );
+	void ( *SLIC_set_param )( struct voip_snd_s *this, unsigned int slic_type, unsigned int param_type, unsigned char* pParam, unsigned int param_size );
 	
 	// read/write register/ram
 	void ( *SLIC_read_reg )( struct voip_snd_s *this, unsigned int num, unsigned char *len, unsigned char *val );
@@ -195,6 +203,8 @@ typedef struct {		// DAA - ops
 	unsigned short( *DAA_Get_Line_Voltage )( struct voip_snd_s *this );
 	void ( *DAA_OnHook_Line_Monitor_Enable )( struct voip_snd_s *this );
 	void ( *DAA_Set_PulseDial )( struct voip_snd_s *this, unsigned int pulse_enable );
+	void ( *DAA_Set_Country )( struct voip_snd_s *this, unsigned int country );
+	void ( *DAA_Set_Hybrid )( struct voip_snd_s *this, unsigned char index );
 	
 	// read/write register/ram
 	void ( *DAA_read_reg )( struct voip_snd_s *this, unsigned int num, unsigned char *len, unsigned char *val );
@@ -255,6 +265,7 @@ typedef struct {
 typedef union {
 	struct {
 		uint32 attenuateTx_6dB	:1;	// bus TX attenuate 6dB 
+		uint32 shadow			:1;	// this is shadow SND, so IPC should fw cmd 
 	} b;
 	uint32 all;
 } snd_flags_t;
@@ -508,6 +519,7 @@ struct voip_con_s {
 	// sub-system variable 
 	con_bus_fifo_t fifo;
 	con_ipc_t ipc;
+	void *mrc;
 };
 
 typedef struct voip_ioc_s voip_ioc_t;

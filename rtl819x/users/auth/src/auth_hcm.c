@@ -179,7 +179,7 @@ int lib1x_init_fifo(Dot1x_Authenticator *auth, char *wlan_name)
 		return -1;
 	}
 
-        auth->GlobalTxRx->readfifo = open(fifo_name, O_RDONLY, 0);
+	auth->GlobalTxRx->readfifo = open(fifo_name, O_RDONLY, 0);
 
 	if( (flags = fcntl(auth->GlobalTxRx->readfifo, F_GETFL, 0)) < 0)
 	{
@@ -464,7 +464,7 @@ int  main( int numArgs, char ** theArgs )
 		lib1x_init_supp(&RTLAuthenticator, &RTLClient);
 
 // david ----------------------
-	if ( (auth->currentRole == role_Supplicant_adhoc) || (auth->currentRole == role_wds) ) {
+	if ( (auth->currentRole == role_Supplicant_adhoc) || (auth->currentRole == role_wds)) {
 		lib1x_control_STA_SetGTK(auth->client->global, auth->RSNVariable.PassPhraseKey, 0);
 		if (auth->currentRole == role_Supplicant_adhoc) {
 			lib1x_control_RSNIE(auth, DOT11_Ioctl_Set);
@@ -597,7 +597,7 @@ int  main( int numArgs, char ** theArgs )
 				lib1x_do_supplicant(&RTLAuthenticator, RTLClient.global);
 
 			else if ( (auth->currentRole == role_Supplicant_adhoc) ||
-						(auth->currentRole == role_wds) )
+						(auth->currentRole == role_wds))
 				break;
 
 			else

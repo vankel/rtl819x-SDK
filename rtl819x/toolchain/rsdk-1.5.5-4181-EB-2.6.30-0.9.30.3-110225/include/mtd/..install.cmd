@@ -1,0 +1,1 @@
+cmd_/tmp/include/mtd/.install := perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/mtd /tmp/include/mtd rlx inftl-user.h jffs2-user.h mtd-abi.h mtd-user.h nftl-user.h ubi-user.h; perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/mtd /tmp/include/mtd rlx ; touch /tmp/include/mtd/.install

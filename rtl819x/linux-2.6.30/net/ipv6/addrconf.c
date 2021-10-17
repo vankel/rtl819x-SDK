@@ -87,6 +87,10 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
+#if defined(CONFIG_RTL_IPV6READYLOGO)&&defined(CONFIG_RTL_8367R_SUPPORT)
+#include <linux/delay.h>
+#endif
+
 /* Set to 3 to get tracing... */
 #define ACONF_DEBUG 2
 
@@ -155,7 +159,11 @@ static int ipv6_chk_same_addr(struct net *net, const struct in6_addr *addr,
 static ATOMIC_NOTIFIER_HEAD(inet6addr_chain);
 
 static struct ipv6_devconf ipv6_devconf __read_mostly = {
+#if defined(CONFIG_RTL_IPV6READYLOGO)&&defined(CONFIG_RTL_8367R_SUPPORT)
+	.forwarding		= 1,
+#else
 	.forwarding		= 0,
+#endif
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
 	.accept_ra		= 1,
@@ -198,7 +206,11 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 };
 
 static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
-	.forwarding		= 0,
+#if defined(CONFIG_RTL_IPV6READYLOGO)&&defined(CONFIG_RTL_8367R_SUPPORT)
+	.forwarding 	= 1,
+#else
+	.forwarding 	= 0,
+#endif
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
 	.accept_ra		= 1,
@@ -2320,6 +2332,11 @@ static void addrconf_add_linklocal(struct inet6_dev *idev, struct in6_addr *addr
 	ifp = ipv6_add_addr(idev, addr, 64, IFA_LINK, addr_flags);
 	if (!IS_ERR(ifp)) {
 		addrconf_prefix_route(&ifp->addr, ifp->prefix_len, idev->dev, 0, 0);
+#if defined(CONFIG_RTL_8367R_SUPPORT) && defined(CONFIG_RTL_IPV6READYLOGO)
+	if(!strcmp(idev->dev->name, "br0"))
+		mdelay(3000);
+#endif
+
 		addrconf_dad_start(ifp, 0);
 		in6_ifa_put(ifp);
 	}
@@ -2348,6 +2365,12 @@ static void addrconf_dev_config(struct net_device *dev)
                 return;
 				
        		if(!strncmp(dev->name,"wlan",strlen("wlan")))
+                return;
+
+			if(!strncmp(dev->name,"peth",strlen("peth")))
+                return;
+			
+			if(!strncmp(dev->name,"pwlan",strlen("pwlan")))
                 return;
 		}
 #endif
@@ -2832,6 +2855,8 @@ int check_lan_port_state(struct net_device *dev)
 			continue;
 		}	        	
 	}
+	else
+		return dev->br_port->state;
 	return 0;
 }
 
@@ -2847,7 +2872,7 @@ static void addrconf_dad_timer(unsigned long data)
 		goto out;
 	}
 	spin_lock_bh(&ifp->lock);
-	
+
 	if(check_lan_port_state(idev->dev) != BR_STATE_FORWARDING)
 	{
 		if(!ifp->probes) ifp->probes=1;
@@ -2875,7 +2900,6 @@ static void addrconf_dad_timer(unsigned long data)
 	}
 	else
 	{
-		
 		/* send a neighbour solicitation for our addr */		
 		if(delay_flag)
 		{

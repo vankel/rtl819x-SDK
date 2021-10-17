@@ -36,7 +36,11 @@ regdata:
 		//setup stack pointer
 		la	t0, __bss_end
 		nop
+#ifdef CONFIG_NAND_FLASH
+		addi 	t0, t0, 8192//For NAND Flash booting necessary
+#else
 		addi 	t0, t0, 4096
+#endif
 		nop
 		move 	sp, t0
 		nop

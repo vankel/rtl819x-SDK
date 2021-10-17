@@ -19,7 +19,7 @@
 #define SYS_TIME_NOT_SYNC_CA "/var/tmp/notSyncSysTime"
 #endif
 
-typedef enum { IP_ADDR, SUBNET_MASK, DEFAULT_GATEWAY, HW_ADDR } ADDR_T;
+typedef enum { IP_ADDR, DST_IP_ADDR, SUBNET_MASK, DEFAULT_GATEWAY, HW_ADDR } ADDR_T;
 
 /* type define */
 struct user_net_device_stats {
@@ -32,6 +32,11 @@ struct user_net_device_stats {
     unsigned long rx_dropped;	/* no space in linux buffers    */
     unsigned long tx_dropped;	/* no space available in linux  */
     unsigned long rx_multicast;	/* multicast packets received   */
+	unsigned long tx_multicast;	/* multicast packets transmitted   */
+	unsigned long rx_unicast;	/* unicast packets received   */
+	unsigned long tx_unicast;	/* unicast packets transmitted   */
+	unsigned long rx_broadcast;	/* broadcast packets received   */
+	unsigned long tx_broadcast;	/* broadcast packets transmitted   */
     unsigned long rx_compressed;
     unsigned long tx_compressed;
     unsigned long collisions;
@@ -148,7 +153,7 @@ typedef struct _BssDscr {
 	unsigned char	p2prole;	
 	unsigned short	p2pwscconfig;		
 	unsigned char	p2paddress[6];	
-
+	unsigned char	stage;	    
 } BssDscr, *pBssDscr;
 	// P2P_SUPPORT
 enum p2p_role_s {
@@ -333,7 +338,7 @@ int getMiscData(char *interface, struct _misc_data_ *pData);
 
 #ifdef CONFIG_RTK_MESH 
 	//GANTOE for site survey 2008/12/26
-int setWlJoinMesh (char*, unsigned char*, int, int, int); 
+int setWlJoinMesh (char*, unsigned char*, int, int, int, int); 
 int getWlMeshLink (char*, unsigned char*, int);	// This function might be removed when the mesh peerlink precedure has been completed
 int getWlMib (char*, unsigned char*, int);
 #endif
@@ -355,6 +360,10 @@ int fwChecksumOk(char *data, int len);
 void kill_processes(void);
 void killDaemon(int wait);
 //int updateConfigIntoFlash(unsigned char *data, int total_len, int *pType, int *pStatus);
+
+#if defined(CONFIG_APP_TR069) && defined(WLAN_SUPPORT)
+int swapWLANIdxForCwmp(unsigned char wlanifNumA, unsigned char wlanifNumB);
+#endif
 
 void swapWlanMibSetting(unsigned char wlanifNumA, unsigned char wlanifNumB);
 
@@ -400,7 +409,43 @@ typedef struct REG_DOMAIN_TABLE {
 	unsigned char       area[24];
 } REG_DOMAIN_TABLE_ELEMENT_T;
 
-int rmFile(char * path);
 int write_line_to_file(char *filename, int mode, char *line_data);
 
+#ifdef CONFIG_APP_TR069
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define IFNAMSIZ        16
+#ifdef _PRMT_TR143_
+struct TR143_UDPEchoConfig
+{
+	unsigned char	Enable;
+	unsigned char	EchoPlusEnabled;
+	unsigned short	UDPPort;
+	unsigned char	Interface[16];
+	unsigned char	SourceIPAddress[4];
+};
+extern const char gUDPEchoServerName[];
+extern const char gUDPEchoServerPid[];
+void UDPEchoConfigSave(struct TR143_UDPEchoConfig *p);
+int UDPEchoConfigStart( struct TR143_UDPEchoConfig *p );
+int UDPEchoConfigStop( struct TR143_UDPEchoConfig *p );
+int apply_UDPEchoConfig( int action_type, int id, void *olddata );
+#endif //_PRMT_TR143_
+
+struct net_link_info
+{
+	unsigned long	supported;	/* Features this interface supports: ports, link modes, auto-negotiation */
+	unsigned long	advertising;	/* Features this interface advertises: link modes, pause frame use, auto-negotiation */
+	unsigned short	speed;		/* The forced speed, 10Mb, 100Mb, gigabit */
+	unsigned char	duplex;		/* Duplex, half or full */
+	unsigned char	phy_address;
+	unsigned char	transceiver;	/* Which transceiver to use */
+	unsigned char	autoneg;	/* Enable or disable autonegotiation */
+};
+
+
+int list_net_device_with_flags(short flags, int nr_names, char (* const names)[IFNAMSIZ]);
+int get_net_link_status(const char *ifname);
+int get_net_link_info(const char *ifname, struct net_link_info *info);
+
+#endif
 #endif // INCLUDE_UTILITY_H

@@ -749,6 +749,14 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 			ifa->ifa_mask = inet_make_mask(32);
 		}
 		ret = inet_set_ifa(dev, ifa);
+#if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_WLAN_DOS_FILTER) ||defined(CONFIG_RTL_BATTLENET_ALG) || defined(CONFIG_RTL_USB_IP_HOST_SPEEDUP) || defined(CONFIG_HTTP_FILE_SERVER_SUPPORT) || defined(CONFIG_RTL_USB_UWIFI_HOST_SPEEDUP)
+		if (strcmp("br0", ifr.ifr_name) == 0) {
+			extern unsigned int _br0_ip;
+			extern unsigned int _br0_mask;
+			_br0_ip = ifa->ifa_address;
+			_br0_mask = ifa->ifa_mask;
+		}
+#endif
 		break;
 
 	case SIOCSIFBRDADDR:	/* Set the broadcast address */

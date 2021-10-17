@@ -11,13 +11,18 @@ Major Change History:
 	When       Who               What
 	---------- ---------------   -------------------------------	
 	2011-08-12 Page            Create.	
+	2015-04-23 Wilson		   Fine tune (SD9 Family)
 
 --*/
+
+#if !defined(__ECOS) && !defined(CPTCFG_CFG80211_MODULE)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
 
-#if( DM_ODM_SUPPORT_TYPE == ODM_MP) 
-#include "Mp_Precomp.h"
-#endif
+
 
 #if (RATE_ADAPTIVE_SUPPORT == 1)
 // Rate adaptive parameters
@@ -27,8 +32,14 @@ static u1Byte RETRY_PENALTY[PERENTRY][RETRYSIZE+1] = {{5,4,3,2,0,3},//92 , idx=0
 													{6,5,4,3,0,4},//86 , idx=1
 													{6,5,4,2,0,4},//81 , idx=2
 													{8,7,6,4,0,6},//75 , idx=3
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+													{10,9,7,6,0,8},//71	, idx=4
+													{10,9,7,4,0,8},//66	, idx=5
+#else
 													{10,9,8,6,0,8},//71	, idx=4
 													{10,9,8,4,0,8},//66	, idx=5
+#endif
 													{10,9,8,2,0,8},//62	, idx=6
 													{10,9,8,0,0,8},//59	, idx=7
 													{18,17,16,8,0,16},//53 , idx=8
@@ -62,13 +73,9 @@ static u1Byte RETRY_PENALTY[PERENTRY][RETRYSIZE+1] = {{5,4,3,2,0,3},//92 , idx=0
 													{49,22,18,14,0,48},//6 , idx=0x15
 													{49,16,16,0,0,48}};//3 //3, idx=0x16
 
-#if 0
 static u1Byte	RETRY_PENALTY_UP[RETRYSIZE+1]={49,44,16,16,0,48};  // 12% for rate up
-#endif
 
-#if POWER_TRAINING_ACTIVE == 1
 static u1Byte PT_PENALTY[RETRYSIZE+1]={34,31,30,24,0,32};
-#endif
 
 #if 0
 static u1Byte	RETRY_PENALTY_IDX[2][RATESIZE] = {{4,4,4,5,4,4,5,7,7,7,8,0x0a,	       // SS>TH
@@ -82,7 +89,11 @@ static u1Byte	RETRY_PENALTY_IDX[2][RATESIZE] = {{4,4,4,5,4,4,5,7,7,7,8,0x0a,	   
 
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)	
 static u1Byte	RETRY_PENALTY_IDX[2][RATESIZE] = 	{{4,4,4,5,4,4,5,7,7,7,8,0x0a,	       // SS>TH
+#if (DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE)
+													4,4,4,4,0x0d,0x0d,0x0f,0x0f,
+#else
 													4,4,4,4,6,0x0a,0x0b,0x0d,
+#endif
 													5,5,7,7,8,0x0b,0x0d,0x0f},	 		   // 0329 R01
 													{0x0a,0x0a,0x0a,0x0a,0x0c,0x0c,0x0e,0x10,0x11,0x12,0x12,0x13,	   // SS<TH
 													0x0e,0x0f,0x10,0x10,0x11,0x14,0x14,0x15,
@@ -94,7 +105,7 @@ static u1Byte	RETRY_PENALTY_UP_IDX[RATESIZE] = 	{0x10,0x10,0x10,0x10,0x11,0x11,0
 
 static u1Byte	RSSI_THRESHOLD[RATESIZE] = 			{0,0,0,0,
 													0,0,0,0,0,0x24,0x26,0x2a,
-													0x13,0x15,0x17,0x18,0x1a,0x1c,0x1d,0x1f,
+													0x17,0x1a,0x1c,0x1f,0x23,0x28,0x2a,0x2c,
 													0,0,0,0x1f,0x23,0x28,0x2a,0x2c};
 #else
 
@@ -121,7 +132,6 @@ static u1Byte	RSSI_THRESHOLD[RATESIZE] = 			{0,0,0,0,
 													0,0,0,0,0,0x24,0x26,0x2a,
 													0x1a,0x1c,0x1e,0x21,0x24,0x2a,0x2b,0x2d,
 													0,0,0,0x1f,0x23,0x28,0x2a,0x2c};*/
-
 static u2Byte	N_THRESHOLD_HIGH[RATESIZE] = {4,4,8,16,
 													24,36,48,72,96,144,192,216,
 													60,80,100,160,240,400,560,640,
@@ -130,11 +140,11 @@ static u2Byte 	N_THRESHOLD_LOW[RATESIZE] = {2,2,4,8,
 													12,18,24,36,48,72,96,108,
 													30,40,50,80,120,200,280,320,
 													150,160,240,360,500,600,800,1000};
-#if 0
 static u1Byte	 TRYING_NECESSARY[RATESIZE] = {2,2,2,2,
 													2,2,3,3,4,4,5,7,
 													4,4,7,10,10,12,12,18,
 													5,7,7,8,11,18,36,60};  // 0329 // 1207
+#if 0
 static u1Byte	 POOL_RETRY_TH[RATESIZE] = {30,30,30,30,
 													30,30,25,25,20,15,15,10,
 													30,25,25,20,15,10,10,10,
@@ -147,7 +157,6 @@ static u1Byte	DROPING_NECESSARY[RATESIZE] = {1,1,1,1,
 													5,6,7,8,9,10,11,12};
 
 
-#if 0
 static u4Byte	INIT_RATE_FALLBACK_TABLE[16]={0x0f8ff015,  // 0: 40M BGN mode
 											0x0f8ff010,   // 1: 40M GN mode
 											0x0f8ff005,   // 2: BN mode/ 40M BGN mode
@@ -166,11 +175,78 @@ static u4Byte	INIT_RATE_FALLBACK_TABLE[16]={0x0f8ff015,  // 0: 40M BGN mode
 											0,			// 15:
 											
 	};
-#endif
 static u1Byte PendingForRateUpFail[5]={2,10,24,40,60};
 static u2Byte DynamicTxRPTTiming[6]={0x186a, 0x30d4, 0x493e, 0x61a8, 0x7a12 ,0x927c}; // 200ms-1200ms
 
 // End Rate adaptive parameters
+
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+static int
+odm_RA_LearnBounding(
+	IN	PDM_ODM_T		pDM_Odm,
+	IN 	PODM_RA_INFO_T  	pRaInfo
+	)
+{
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, (" odm_RA_LearnBounding\n"));
+	if (DM_RA_RATE_UP != pRaInfo->RateDirection) {
+		// Check if previous RA adjustment trend as +++--- or ++++----
+		if (((3 == pRaInfo->RateUpCounter && pRaInfo->BoundingLearningTime <= 10)
+				|| (4 == pRaInfo->RateUpCounter && pRaInfo->BoundingLearningTime <= 16))
+				&& (pRaInfo->RateUpCounter == pRaInfo->RateDownCounter)) {
+			if (1 != pRaInfo->BoundingType) {
+				pRaInfo->BoundingType = 1;
+				pRaInfo->BoundingCounter = 0;
+			}
+			pRaInfo->BoundingCounter++;
+		// Check if previous RA adjustment trend as ++--
+		} else if ((2 == pRaInfo->RateUpCounter) && (pRaInfo->BoundingLearningTime <= 7)
+				&& (pRaInfo->RateUpCounter == pRaInfo->RateDownCounter)) {
+			if (2 != pRaInfo->BoundingType) {
+				pRaInfo->BoundingType = 2;
+				pRaInfo->BoundingCounter = 0;
+			}
+			pRaInfo->BoundingCounter++;
+		// Check if previous RA adjustment trend as +++++-----
+		} else if ((5 == pRaInfo->RateUpCounter) && (pRaInfo->BoundingLearningTime <= 17)
+				&& (pRaInfo->RateUpCounter == pRaInfo->RateDownCounter)) {
+			if (3 != pRaInfo->BoundingType) {
+				pRaInfo->BoundingType = 3;
+				pRaInfo->BoundingCounter = 0;
+			}
+			pRaInfo->BoundingCounter++;
+		} else {
+			pRaInfo->BoundingType = 0;
+		}
+		
+		pRaInfo->RateDownCounter = 0;
+		pRaInfo->RateUpCounter = 0;
+		pRaInfo->BoundingLearningTime = 1;
+	} else if (pRaInfo->BoundingType) {
+		// Check if RA adjustment trend as +++---++(+) or ++++----++(+)
+		if ((1 == pRaInfo->BoundingType) && (1 == pRaInfo->BoundingCounter)
+				&& (2 == pRaInfo->RateUpCounter)) {
+			pRaInfo->BoundingType = 0;
+			if (pRaInfo->BoundingLearningTime <= 5)
+				return 1;
+		// Check if RA adjustment trend as ++--++--+(+)
+		} else if ((2 == pRaInfo->BoundingType) && (2 == pRaInfo->BoundingCounter)
+				&& (1 == pRaInfo->RateUpCounter)) {
+			pRaInfo->BoundingType = 0;
+			if (pRaInfo->BoundingLearningTime <= 2)
+				return 1;
+		// Check if RA adjustment trend as +++++-----++(+)
+		} else if ((3 == pRaInfo->BoundingType) && (1 == pRaInfo->BoundingCounter)
+				&& (2 == pRaInfo->RateUpCounter)) {
+			pRaInfo->BoundingType = 0;
+			if (pRaInfo->BoundingLearningTime <= 4)
+				return 1;
+		}
+	}
+	
+	return 0;
+}
+#endif
 
 static void 
 odm_SetTxRPTTiming_8188E(
@@ -208,7 +284,7 @@ odm_RateDown_8188E(
 	)
 {
 	u1Byte RateID, LowestRate, HighestRate;
-	u1Byte i;
+	s1Byte i;
 
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_TRACE, ("=====>odm_RateDown_8188E()\n"));
 	if(NULL == pRaInfo)
@@ -235,10 +311,23 @@ odm_RateDown_8188E(
 	{
 		if (RateID > 0)
 		{
-			for (i=RateID-1; i>LowestRate;i--)
+			for (i=RateID-1; i>=LowestRate;i--)
 			{
 				if (pRaInfo->RAUseRate & BIT(i))
 				{
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+					pRaInfo->RateDownCounter++;
+					pRaInfo->RateDirection = DM_RA_RATE_DOWN;
+					
+					// Learning +(0)-(-)(-)+ and ++(0)--(-)(-)(0)+ after the persistence of learned TX rate expire
+					if (0xFF == pRaInfo->RateDownStartTime) {
+						if ((0 == pRaInfo->RateUpCounter) || (pRaInfo->RateUpCounter+2 < pRaInfo->BoundingLearningTime))
+							pRaInfo->RateDownStartTime = 0;
+						else
+							pRaInfo->RateDownStartTime = pRaInfo->BoundingLearningTime;
+					}
+#endif
 					RateID=i;
 					goto RateDownFinish;
 					
@@ -251,6 +340,29 @@ odm_RateDown_8188E(
 		RateID = LowestRate;
 	}
 RateDownFinish:
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+	/*if (pRaInfo->RTY[2] >= 100) {
+		pRaInfo->RAWaitingCounter = 2;
+		pRaInfo->RAPendingCounter += 1;
+	}
+	else*/ if ((0 != pRaInfo->RateDownStartTime) && (0xFF != pRaInfo->RateDownStartTime)) {
+		// Learning +(0)-(-)(-)+ and ++(0)--(-)(-)(0)+ after the persistence of learned TX rate expire
+		if (pRaInfo->RateDownCounter < pRaInfo->RateUpCounter) {
+			
+		} else if (pRaInfo->RateDownCounter == pRaInfo->RateUpCounter) {
+			pRaInfo->RAWaitingCounter = 2;
+			pRaInfo->RAPendingCounter += 1;
+		} else if (pRaInfo->RateDownCounter <= pRaInfo->RateUpCounter+2) {
+			RateID = pRaInfo->PreRate;
+		} else {
+			pRaInfo->RAWaitingCounter = 0;
+			pRaInfo->RAPendingCounter = 0;
+			pRaInfo->RateDownStartTime = 0;
+		}
+	}
+	else
+#endif
 	if (pRaInfo->RAWaitingCounter==1){
 		pRaInfo->RAWaitingCounter+=1;
 		pRaInfo->RAPendingCounter+=1;
@@ -264,11 +376,11 @@ RateDownFinish:
 
 	if(pRaInfo->RAPendingCounter>=4)
 		pRaInfo->RAPendingCounter=4;
-	
+	pRaInfo->RADropAfterDown=1;
 	pRaInfo->DecisionRate=RateID;
 	odm_SetTxRPTTiming_8188E(pDM_Odm,pRaInfo, 2);
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("Rate down, RPT Timing default\n"));
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_TRACE, ("RAWaitingCounter %d, RAPendingCounter %d",pRaInfo->RAWaitingCounter,pRaInfo->RAPendingCounter));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("Rate down, Decrease RPT Timing\n"));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_TRACE, ("RAWaitingCounter %d, RAPendingCounter %d RADrop %d",pRaInfo->RAWaitingCounter,pRaInfo->RAPendingCounter, pRaInfo->RADropAfterDown));
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("Rate down to RateID %d RateSGI %d\n", RateID, pRaInfo->RateSGI));
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_TRACE, ("<=====odm_RateDown_8188E() \n"));
 	return 0;
@@ -297,13 +409,17 @@ odm_RateUp_8188E(
 	if (pRaInfo->RAWaitingCounter==1){
 		pRaInfo->RAWaitingCounter=0;
 		pRaInfo->RAPendingCounter=0;
-	}	
+	}
 	else if (pRaInfo->RAWaitingCounter>1){
 		pRaInfo->PreRssiStaRA=pRaInfo->RssiStaRA;
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+		pRaInfo->RateDownStartTime = 0;
+#endif
 		goto RateUpfinish;
 	}
 	odm_SetTxRPTTiming_8188E(pDM_Odm,pRaInfo, 0);
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("odm_RateUp_8188E():Decrease RPT Timing\n"));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("odm_RateUp_8188E(): default RPT Timing\n"));
 	
 	if (RateID < HighestRate)
 	{
@@ -311,6 +427,16 @@ odm_RateUp_8188E(
 		{
 			if (pRaInfo->RAUseRate & BIT(i))
 			{
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+				if (odm_RA_LearnBounding(pDM_Odm, pRaInfo)) {
+					pRaInfo->RAWaitingCounter = 2;
+					pRaInfo->RAPendingCounter = 1;
+					goto RateUpfinish;
+				}
+				pRaInfo->RateUpCounter++;
+				pRaInfo->RateDirection = DM_RA_RATE_UP;
+#endif
 				RateID=i;
 				goto RateUpfinish;
 			}
@@ -331,7 +457,18 @@ odm_RateUp_8188E(
 RateUpfinish:
 	//if(pRaInfo->RAWaitingCounter==10)
 	if(pRaInfo->RAWaitingCounter==(4+PendingForRateUpFail[pRaInfo->RAPendingCounter]))
+	{
 		pRaInfo->RAWaitingCounter=0;
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+		// Mark persistence expiration state
+		pRaInfo->RateDownStartTime = 0xFF;
+		// Clear state to avoid wrong bounding check
+		pRaInfo->RateDownCounter = 0;
+		pRaInfo->RateUpCounter = 0;
+		pRaInfo->RateDirection = 0;
+#endif
+	}
 	else
 		pRaInfo->RAWaitingCounter++;
 
@@ -355,19 +492,43 @@ odm_RateDecision_8188E(
 	IN 	PODM_RA_INFO_T  pRaInfo
 	)
 {
-	u1Byte /* i,*/ RateID = 0, RtyPtID = 0, PenaltyID1 = 0, PenaltyID2 = 0;
-//	u4Byte pool_retry;
-//	u1Byte Try_Result=0;
+	u1Byte RateID = 0, RtyPtID = 0, PenaltyID1 = 0, PenaltyID2 = 0;
+	//u4Byte pool_retry;
 	static u1Byte DynamicTxRPTTimingCounter=0;
 	
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_TRACE, ("=====>odm_RateDecision_8188E() \n"));
 	
 	if (pRaInfo->Active && (pRaInfo->TOTAL > 0)) // STA used and data packet exits
 	{
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+		if (((pRaInfo->RssiStaRA <= 17) && (pRaInfo->RssiStaRA > pRaInfo->PreRssiStaRA))
+			|| ((pRaInfo->PreRssiStaRA <= 17) && (pRaInfo->PreRssiStaRA > pRaInfo->RssiStaRA))) {
+			// don't reset state in low signal due to the power different between CCK and MCS is large.
+		} else
+#endif
+		if (pRaInfo->RADropAfterDown) {
+			pRaInfo->RADropAfterDown--;
+			odm_ResetRaCounter_8188E(pRaInfo);
+			return;
+		}
 		if ( (pRaInfo->RssiStaRA<(pRaInfo->PreRssiStaRA-3))|| (pRaInfo->RssiStaRA>(pRaInfo->PreRssiStaRA+3))){
+			pRaInfo->PreRssiStaRA = pRaInfo->RssiStaRA;
 			pRaInfo->RAWaitingCounter=0;
 			pRaInfo->RAPendingCounter=0;
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+			pRaInfo->BoundingType = 0;
+#endif
 		}
+		
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)	
+		if (0xff != pDM_Odm->priv->pshare->rf_ft_var.txforce) {
+			pRaInfo->PreRate = pDM_Odm->priv->pshare->rf_ft_var.txforce;
+			odm_ResetRaCounter_8188E(pRaInfo);
+		}
+#endif
+		
 		// Start RA decision
 		if (pRaInfo->PreRate > pRaInfo->HighestRate)
 			RateID = pRaInfo->HighestRate;
@@ -415,11 +576,21 @@ odm_RateDecision_8188E(
 		ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE|ODM_COMP_INIT, ODM_DBG_LOUD, 
 					(" RssiStaRa= %d RtyPtID=%d PenaltyID1=0x%x  PenaltyID2=0x%x RateID=%d NscDown=%d NscUp=%d SGI=%d\n", 
 					pRaInfo->RssiStaRA,RtyPtID, PenaltyID1,PenaltyID2, RateID, pRaInfo->NscDown, pRaInfo->NscUp, pRaInfo->RateSGI));
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+		if (0xFF != pRaInfo->BoundingLearningTime)
+			pRaInfo->BoundingLearningTime++;
+#endif
 		if ((pRaInfo->NscDown < N_THRESHOLD_LOW[RateID]) ||(pRaInfo->DROP>DROPING_NECESSARY[RateID]))
 			odm_RateDown_8188E(pDM_Odm,pRaInfo);
 		//else if ((pRaInfo->NscUp > N_THRESHOLD_HIGH[RateID])&&(pool_retry<POOL_RETRY_TH[RateID]))
 		else if (pRaInfo->NscUp > N_THRESHOLD_HIGH[RateID])
 			odm_RateUp_8188E(pDM_Odm,pRaInfo);
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+		else if ((pRaInfo->RTY[2] >= 100) && (ODM_BW20M == *pDM_Odm->pBandWidth))
+			odm_RateDown_8188E(pDM_Odm,pRaInfo);
+#endif
 
 		if ((pRaInfo->DecisionRate)==(pRaInfo->PreRate)) 
 			DynamicTxRPTTimingCounter+=1;
@@ -450,19 +621,19 @@ odm_ARFBRefresh_8188E(
 
 	switch(pRaInfo->RateID){
 		case RATR_INX_WIRELESS_NGB:
-			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x0f8ff015;
+			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x0f8fe00f;
 			break;
 		case RATR_INX_WIRELESS_NG:
 			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x0f8ff010;
 			break;
 		case RATR_INX_WIRELESS_NB:
-			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x0f8ff005;
+			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x0f8fe00f;
 			break;
 		case RATR_INX_WIRELESS_N:
 			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x0f8ff000;
 			break;
 		case RATR_INX_WIRELESS_GB:
-			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x00000ff5;
+			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x00000fef;
 			break;
 		case RATR_INX_WIRELESS_G:
 			pRaInfo->RAUseRate=(pRaInfo->RateMask)&0x00000ff0;
@@ -649,7 +820,7 @@ odm_RATxRPTTimerSetting(
 	if(pDM_Odm->CurrminRptTime != minRptTime){
 		ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, 
 		(" CurrminRptTime =0x%04x minRptTime=0x%04x\n", pDM_Odm->CurrminRptTime, minRptTime));
-		#if(DM_ODM_SUPPORT_TYPE & (ODM_MP|ODM_AP))
+		#if(DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_AP))
 		ODM_RA_Set_TxRPT_Time(pDM_Odm,minRptTime);	
 		#else
 		rtw_rpt_timer_cfg_cmd(pDM_Odm->Adapter,minRptTime);
@@ -707,6 +878,7 @@ ODM_RAInfo_Init(
 	pRaInfo->TOTAL=0;
 	pRaInfo->RAWaitingCounter=0;
 	pRaInfo->RAPendingCounter=0;
+	pRaInfo->RADropAfterDown=0;
 #if POWER_TRAINING_ACTIVE == 1
 	pRaInfo->PTActive=1;   // Active when this STA is use
 	pRaInfo->PTTryState=0;
@@ -718,7 +890,17 @@ ODM_RAInfo_Init(
 	pRaInfo->PTModeSS=0;
 	pRaInfo->RAstage=0;
 #endif
-    return 0;
+#if (DM_ODM_SUPPORT_TYPE == ODM_AP) && \
+	((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+	pRaInfo->RateDownCounter = 0;
+	pRaInfo->RateUpCounter = 0;
+	pRaInfo->RateDirection = 0;
+	pRaInfo->BoundingType = 0;
+	pRaInfo->BoundingCounter = 0;
+	pRaInfo->BoundingLearningTime = 0;
+	pRaInfo->RateDownStartTime = 0;
+#endif
+	return 0;
 }
 
 int 
@@ -726,7 +908,7 @@ ODM_RAInfo_Init_all(
 	IN    PDM_ODM_T		pDM_Odm
 	)
 {
-	u1Byte MacID = 0;
+	u4Byte MacID = 0;
 
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("=====>\n"));
 	pDM_Odm->CurrminRptTime = 0;
@@ -833,7 +1015,13 @@ ODM_RA_Set_TxRPT_Time(
 #if(DM_ODM_SUPPORT_TYPE & (ODM_AP))
 	if (minRptTime != 0xffff)
 #endif
-	ODM_Write2Byte(pDM_Odm, REG_TX_RPT_TIME, minRptTime);
+	{
+#if defined(CONFIG_PCI_HCI)
+		ODM_Write2Byte(pDM_Odm, REG_TX_RPT_TIME, minRptTime);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+		notify_tx_report_interval_change(pDM_Odm->priv, minRptTime);
+#endif
+	}
 }
 
 
@@ -860,32 +1048,24 @@ ODM_RA_TxRPT2Handle_8188E(
 
 	do
 	{
-		if(MacId >= ASSOCIATE_ENTRY_NUM)
-			valid = 0;
-		else if(MacId >= 32)
-			valid = (1<<(MacId-32)) & MacIDValidEntry1;
-		else
+		valid = 0;
+		if(MacId < 32)
 			valid = (1<<MacId) & MacIDValidEntry0;
+		else if(MacId < 64)
+			valid = (1<<(MacId-32)) & MacIDValidEntry1;
 
 		pRAInfo = &(pDM_Odm->RAInfo[MacId]);
 		if(valid)
 		{
 
-#if (DM_ODM_SUPPORT_TYPE & (ODM_MP|ODM_CE))
+
 			pRAInfo->RTY[0] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_0(pBuffer);
 			pRAInfo->RTY[1] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_1(pBuffer);
 			pRAInfo->RTY[2] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_2(pBuffer);
 			pRAInfo->RTY[3] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_3(pBuffer);
 			pRAInfo->RTY[4] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_4(pBuffer);
 			pRAInfo->DROP =   (u2Byte)GET_TX_REPORT_TYPE1_DROP_0(pBuffer);
-#else
-			pRAInfo->RTY[0] = (unsigned short)(pBuffer[1] << 8 | pBuffer[0]);
-			pRAInfo->RTY[1] = pBuffer[2];
-			pRAInfo->RTY[2] = pBuffer[3];
-			pRAInfo->RTY[3] = pBuffer[4];
-			pRAInfo->RTY[4] = pBuffer[5];
-			pRAInfo->DROP  =  pBuffer[6];
-#endif
+
 			pRAInfo->TOTAL = pRAInfo->RTY[0] + \
 							  pRAInfo->RTY[1] + \
 							  pRAInfo->RTY[2] + \
@@ -932,18 +1112,26 @@ ODM_RA_TxRPT2Handle_8188E(
 #endif
 
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
-				{
 				extern void RTL8188E_SetStationTxRateInfo(PDM_ODM_T, PODM_RA_INFO_T, int);
 				RTL8188E_SetStationTxRateInfo(pDM_Odm, pRAInfo, MacId);
-				}
 #ifdef DETECT_STA_EXISTANCE
-				{
 				void RTL8188E_DetectSTAExistance(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRAInfo, int MacID);
 				RTL8188E_DetectSTAExistance(pDM_Odm, pRAInfo, MacId);
-				}
 #endif			
 #endif
 
+				ODM_RT_TRACE(pDM_Odm, ODM_COMP_INIT, ODM_DBG_LOUD, 
+							("macid=%d R0=%d R1=%d R2=%d R3=%d R4=%d drop=%d valid0=%x RateID=%d SGI=%d\n", 
+							MacId,
+							pRAInfo->RTY[0],
+							pRAInfo->RTY[1],
+							pRAInfo->RTY[2],
+							pRAInfo->RTY[3],
+							pRAInfo->RTY[4],
+							pRAInfo->DROP,
+							MacIDValidEntry0,
+							pRAInfo->DecisionRate,
+							pRAInfo->RateSGI));
 			}
 			else
 				ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, (" TOTAL=0!!!!\n"));

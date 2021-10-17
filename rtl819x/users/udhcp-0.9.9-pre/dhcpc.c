@@ -89,6 +89,7 @@ unsigned long dhcpc_seconds;
 #define GRATUITOUS_ARP_NUM 3
 #endif
 
+
 struct client_config_t client_config = {
 	/* Default options. */
 	abort_if_no_lease: 0,
@@ -124,7 +125,7 @@ void create_config_file(void)
 		fprintf(stderr, "Create /var/isp_dhcp.conf file error!\n");
 		return;
 	}
-#ifdef UDHCPC_PASS_DOMAINNAME2DHCPSERVER	
+#if defined(UDHCPC_PASS_DOMAINNAME2DHCPSERVER) && !defined(SUPPORT_OPTION_33_121_249) 	
 	sprintf(tmpbuf, "domain %s %d", isp_domain_name, client_config.wan_type);
 	write(fh, tmpbuf, strlen(tmpbuf));
 #endif	
@@ -730,6 +731,131 @@ Note:
 }
 #endif
 #endif
+
+#ifdef TR069_ANNEX_F
+static int tr069AnnexF2file(unsigned char *oui,
+					unsigned char *serialNo,
+					unsigned char *productClass)
+{
+	FILE *fp;
+	char tmp[160];
+
+	fp = fopen(TR069_ANNEX_F_FILE, "w");
+	if (!fp)
+		return 0;
+
+	if (productClass[0])
+		sprintf(tmp, "%s?%s?%s\n", oui, productClass, serialNo);
+	else
+		sprintf(tmp, "%s?%s\n", oui, serialNo);
+	
+	fwrite(tmp, 1, strlen(tmp), fp);
+
+	fclose(fp);
+	return 1;
+}
+
+static int Option_VendorSpecInfo(struct dhcpMessage *packet)
+{
+	int ret = 0;
+	unsigned char *pOpt125 = NULL;
+	
+#if 1
+	pOpt125 = get_option(packet, DHCP_VI_VENSPEC);
+#else
+
+#if 0
+	unsigned char testbuf[] = { 0x00, 0x00, 0x0d, 0xe9, 0x18, 0x01, 0x06, 0x30,
+				  0x30, 0x65, 0x30, 0x64, 0x34, 0x02, 0x09, 0x30,
+				  0x30, 0x30, 0x30, 0x2d, 0x30, 0x30, 0x30, 0x31,
+				  0x03, 0x03, 0x49, 0x47, 0x44, 0x00};
+#else
+	unsigned char testbuf[] = {
+	0x00 , 0x00 , 0x0d , 0xe9 , 0x2d , 0x04 , 0x06 , 0x30 , 0x30 , 0x30,
+	0x31 , 0x30 , 0x32 , 0x05 , 0x10 , 0x30 , 0x30 , 0x30 , 0x31 , 0x30 , 0x32 , 0x2d , 0x34 , 0x32 , 0x38 , 0x32,
+	0x38 , 0x38 , 0x38 , 0x32 , 0x39 , 0x06 , 0x11 , 0x43 , 0x44 , 0x52 , 0x6f , 0x75 , 0x74 , 0x65 , 0x72 , 0x20,
+	0x56 , 0x6f , 0x49 , 0x50 , 0x20 , 0x41 , 0x54 , 0x41 };
+#endif
+	pOpt125 = testbuf;
+#endif
+
+	if (pOpt125)
+	{
+		unsigned int ent_num, *pUInt;
+		unsigned short data_len;
+		unsigned char oui[7];
+		unsigned char serialNo[65];
+		unsigned char productClass[65];
+
+		pUInt = (unsigned int*)pOpt125;
+		ent_num = ntohl(*pUInt);
+		data_len = (unsigned short)pOpt125[4];
+
+		if (ent_num == 3561)
+		{
+			unsigned char *pStart;
+
+			// sub-option
+			pStart = &pOpt125[5];
+			while( data_len>0 )
+			{
+				unsigned char sub_code, sub_len, *sub_data;
+
+				sub_code = pStart[0];
+				sub_len = pStart[1];
+				sub_data = &pStart[2];
+
+				if( data_len < sub_len+2 )
+					break;
+
+				switch (sub_code)
+				{
+					case 4: // ManufacturerOUI
+						if (sub_len < 7)
+						{
+							strncpy(oui, sub_data, sub_len);
+							oui[sub_len] = 0;
+						}
+						break;
+						
+					case 5: // SerialNumber
+						if (sub_len < 65)
+						{
+							strncpy(serialNo, sub_data, sub_len);
+							serialNo[sub_len] = 0;
+						}
+						break;
+						
+					case 6: // ProductClass
+						if (sub_len < 65)
+						{
+							strncpy(productClass, sub_data, sub_len);
+							productClass[sub_len] = 0;
+						}
+						break;
+						
+					default:
+						//unknown suboption
+						break;
+				} // end switch
+				
+				pStart = pStart+2+sub_len;
+				data_len = data_len-sub_len-2;
+			} // end while
+
+			tr069AnnexF2file(oui, serialNo, productClass);
+		} // end if (ent_num == 3561)
+	} // end if (pOpt125)
+	else
+	{
+		/* no option 125, each Item must be empty */
+		unlink(TR069_ANNEX_F_FILE);
+	}
+
+	return ret;
+}
+#endif
+
 #ifndef IN_BUSYBOX
 static void __attribute__ ((noreturn)) show_usage(void)
 {
@@ -1344,6 +1470,7 @@ int main(int argc, char *argv[])
 	int max_fd;
 	int sig;
 	char filename[64];
+	unsigned char ret_hwaddr[6];
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
 	char logbuf[300];
 	char cmdBuf[60];
@@ -1358,6 +1485,9 @@ int main(int argc, char *argv[])
 #endif	
 #ifdef SEND_GRATUITOUS_ARP
 	int k;
+#endif
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	int first_flag=0;
 #endif
 	static struct option arg_options[] = {
 		{"clientid",	required_argument,	0, 'c'},
@@ -1538,6 +1668,17 @@ int main(int argc, char *argv[])
 		memcpy(client_config.clientid + 3, client_config.arp, 6);
 	}
 
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+
+#define MAX_MSG_SIZE 576
+
+	client_config.max_msg_size[OPT_CODE]=DHCP_MAX_SIZE;
+	client_config.max_msg_size[OPT_LEN]=2;
+	
+	unsigned short max_msg_size=MAX_MSG_SIZE;
+	memcpy(&(client_config.max_msg_size[OPT_DATA]), &max_msg_size, 2);
+	
+#endif
 	/* setup signal handlers */
 	socketpair(AF_UNIX, SOCK_STREAM, 0, signal_pipe);
 	signal(SIGUSR1, signal_handler);
@@ -1592,9 +1733,14 @@ int main(int argc, char *argv[])
 				if (packet_num < 3) {
 					if (packet_num == 0)
 						xid = random_xid();
-
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+system("route del default dev ppp0 > /dev/null 2>&1");
+#endif
 					/* send discover packet */
 					send_discover(xid, requested_ip); /* broadcast */
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	first_flag=0;
+#endif
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
 				system("exlog /tmp/log_web.lck /tmp/log_web \"tag:SYSACT;log_num:13;msg:DHCP Discover;\"");
 #endif
@@ -1717,9 +1863,9 @@ int main(int argc, char *argv[])
 					packet_num = 0;
 					change_mode(LISTEN_RAW);
 				} else {
-					/* send a request packet */	
+					/* send a request packet */
 					change_mode(LISTEN_RAW);
-				
+
 					send_renew(xid, 0, requested_ip); /* broadcast */
 
 					t2 = (lease - t2) / 2 + t2;
@@ -1779,6 +1925,19 @@ int main(int argc, char *argv[])
 					} else {
 						DEBUG(LOG_ERR, "No server ID in message");
 					}
+#ifdef TR069_ANNEX_F
+					/* handle option 125 */
+					Option_VendorSpecInfo(&packet);
+#endif
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+				if(strcmp(client_config.interface, "eth1")==0 &&
+					(temp = get_option(&packet, DHCP_ROUTER)))
+				{
+					unsigned char tmpbuf[64];
+					sprintf(tmpbuf, "echo %d.%d.%d.%d > /var/dhcpc_route.conf\n",temp[0],temp[1],temp[2],temp[3]);
+					system(tmpbuf);
+				}
+#endif
 				}
 				break;
 			case RENEW_REQUESTED:
@@ -1786,6 +1945,24 @@ int main(int argc, char *argv[])
 			case RENEWING:
 			case REBINDING:
 				if (*message == DHCPACK) {
+					//update server_addr to avoid server ip change and client does not known
+					if ((temp = get_option(&packet, DHCP_SERVER_ID)))
+  						memcpy(&server_addr, temp, 4);
+
+					if(!(state == RENEWING || state == REBINDING))
+					{
+						if (arpping(packet.yiaddr, 0, client_config.arp, client_config.interface, ret_hwaddr) == 0)
+						{
+							send_decline(server_addr, packet.yiaddr);
+							state = INIT_SELECTING;
+							LOG(LOG_INFO, "Lease lost, entering init state");
+							run_script(NULL, "deconfig");
+							timeout = now;
+							packet_num = 0;
+							change_mode(LISTEN_RAW);	
+							break;
+						}
+					}
 					if (!(temp = get_option(&packet, DHCP_LEASE_TIME))) {
 						LOG(LOG_ERR, "No lease time with ACK, using 1 hour lease");
 						lease = 60 * 60;
@@ -1793,19 +1970,40 @@ int main(int argc, char *argv[])
 						memcpy(&lease, temp, 4);
 						lease = ntohl(lease);
 					}
-						
+#ifdef SUPPORT_T1_T2_OPTION
+					if (!(temp = get_option(&packet, DHCP_T1))) {
+						LOG(LOG_ERR, "No t1 time with ACK, we locally calculate it's value\n");
+						t1 = lease / 2;
+					} else {
+						memcpy(&t1, temp, 4);
+						t1 = ntohl(t1);
+					}
+
+					if (!(temp = get_option(&packet, DHCP_T2))) {
+						LOG(LOG_ERR, "No t2 time with ACK, we locally calculate it's value\n");
+						t2 = (lease * 0x7) >> 3;
+					} else {
+						memcpy(&t2, temp, 4);
+						t2 = ntohl(t2);
+					}
+#else
 					/* enter bound state */
 					t1 = lease / 2;
 					
 					/* little fixed point for n * .875 */
 					t2 = (lease * 0x7) >> 3;
+#endif
 					temp_addr.s_addr = packet.yiaddr;
 					LOG(LOG_INFO, "Lease of %s obtained, lease time %ld", 
 						inet_ntoa(temp_addr), lease);
 					start = now;
 					timeout = t1 + start;
 					requested_ip = packet.yiaddr;
-#ifdef UDHCPC_PASS_DOMAINNAME2DHCPSERVER
+#ifdef TR069_ANNEX_F
+					/* handle option 125 */
+					Option_VendorSpecInfo(&packet);
+#endif
+#if defined(UDHCPC_PASS_DOMAINNAME2DHCPSERVER) && defined(CONFIG_RTL8186_TR)
 					/* 20080805 handle option 15 if needed */
 					OptionDomainName(&packet);
 #endif
@@ -1814,25 +2012,27 @@ int main(int argc, char *argv[])
 #endif
 					run_script(&packet,((state == RENEWING || state == REBINDING) ? "renew" : "bound"));
 #if defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC)					   	
-				if((client_config.wan_type == 7) || (client_config.wan_type == 8) || (client_config.wan_type == 9)){
+				if((client_config.wan_type == 7) || (client_config.wan_type == 8) || (client_config.wan_type == 9))
+#else if defined(SUPPORT_OPTION_33_121_249)
+				{
 #ifdef RFC3442			
 					sleep(10);	
 					// set to MIB. try to delete it first to avoid duplicate case
 #if defined(UDHCPC_STATIC_FLASH) 
 					apmib_init();
 #endif
-#ifdef UDHCPC_MS_CLASSLESS_STATIC_ROUTE
-					/* 20080508 handle option 249 if needed */
-					OptionMicroSoftClasslessStaticRoute(&packet);
-#endif
 #ifdef UDHCPC_RFC_CLASSLESS_STATIC_ROUTE
+					/* 20080508 handle option 249 if needed */
+					retval=OptionClasslessStaticRoute(&packet);
+#endif
+#ifdef UDHCPC_MS_CLASSLESS_STATIC_ROUTE
 					/* handle option 121 if needed */
-					OptionClasslessStaticRoute(&packet);
+						retval=OptionMicroSoftClasslessStaticRoute(&packet);
 #endif
 #endif
 #ifdef UDHCPC_STATIC_ROUTE
 					/* 20080508 handle option 33 if needed */				
-					OptionStaticRoute(&packet);
+						retval=OptionStaticRoute(&packet);
 #endif
 				}//for tr ru wan type
 				
@@ -1861,6 +2061,7 @@ int main(int argc, char *argv[])
 					/*hf add end 20101130*/
 					state = BOUND;
 					change_mode(LISTEN_NONE);
+					
 #ifdef SEND_GRATUITOUS_ARP
 					for(k=0;k<GRATUITOUS_ARP_NUM;k++)
 					{
@@ -1873,6 +2074,7 @@ int main(int argc, char *argv[])
 
 #if defined(CONFIG_RTL_ULINKER)
 {
+
 	/* dhcpc get ip */
 	if (detect) {
 		system("echo \"1\" > /var/ulinker_dhcps_discover_flag");
@@ -1897,6 +2099,32 @@ int main(int argc, char *argv[])
 #if defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD)
 				sprintf(logbuf, "exlog /tmp/log_web.lck /tmp/log_web \"tag:SYSACT;log_num:13;msg:DHCP request success;note:%u.%u.%u.%u;\"",((unsigned char*)&requested_ip)[0], ((unsigned char*)&requested_ip)[1], ((unsigned char*)&requested_ip)[2], ((unsigned char*)&requested_ip)[3] );
 				system(logbuf);
+#endif
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+if(first_flag==0)
+{
+	int i;
+	unsigned char *tmp_router, *tmp_dns;	
+	
+	if(strcmp(client_config.interface, "eth1")==0 &&
+		(tmp_dns = get_option(&packet, DHCP_DNS_SERVER)) &&
+		(tmp_router = get_option(&packet, DHCP_ROUTER)))
+	{
+		unsigned char tmpbuf[128];
+		for(i=0;i<tmp_dns[-1];i+=4)
+		{			
+			
+			sprintf(tmpbuf, "route del -host %d.%d.%d.%d > /dev/null 2>&1", tmp_dns[i],tmp_dns[i+1],tmp_dns[i+2],tmp_dns[i+3]);
+			system(tmpbuf);
+			
+			sprintf(tmpbuf, "route add -host %d.%d.%d.%d gw %d.%d.%d.%d dev eth1",tmp_dns[i],tmp_dns[i+1],tmp_dns[i+2],tmp_dns[i+3], tmp_router[0], tmp_router[1], tmp_router[2], tmp_router[3]);
+			system(tmpbuf);
+		}
+	}
+}
+#endif
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	first_flag++;
 #endif
 				} else if (*message == DHCPNAK) {
 					/* return to init state */

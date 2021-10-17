@@ -19,7 +19,6 @@ static inline void prefetch(const void *x) {;}
  * generate better code by using them directly rather than
  * using the generic single-entry routines.
  */
-
 struct list_head {
 	struct list_head *next, *prev;
 };

@@ -10,6 +10,9 @@
 #include "sysconf.h"
 #include "sys_utility.h"
 #include "syswan.h"
+#ifdef 	CONFIG_RTL_ULINKER
+#include <signal.h>
+#endif
 //extern int wlan_idx;	// interface index 
 //extern int vwlan_idx;	// initially set interface index to root   
 extern int set_QoS(int operation, int wan_type, int wisp_wan_id);
@@ -32,6 +35,12 @@ extern void domain_query_start_dnrd(int wlan_mode, int start_dnrd);
 #ifdef CONFIG_SMART_REPEATER
 int getWispRptIfaceName(char*pIface,int wlanId);
 #endif
+#if defined(CONFIG_APP_TR069)
+extern void start_tr069(void);
+#endif
+
+//#define SDEBUG(fmt, args...) printf("[%s %d]"fmt,__FUNCTION__,__LINE__,## args)
+#define SDEBUG(fmt, args...) {}
 
 /*
 
@@ -62,9 +71,19 @@ int num_wlan_interface=0;
 int num_wlan_virtual_interface=0;
 int num_wlan_vxd_interface=0;
 
+
+#if defined(CONFIG_RTK_MESH)
+char wlan_mesh_interface[22]={0};
+int num_wlan_mesh_interface=0;
+#endif
+
 #ifdef CONFIG_APP_TR069
 char acsURLStr[CWMP_ACS_URL_LEN+1];
 #endif //#ifdef CONFIG_APP_TR069
+
+#ifdef TR181_SUPPORT
+static int init_dns_client_server_table = 0;
+#endif
 
 void set_br_interface(unsigned char *brif)
 {
@@ -85,7 +104,7 @@ void set_br_interface(unsigned char *brif)
 		strcat(tmpBuff, wlan_virtual_interface);
 		strcat(tmpBuff, " ");
 	}
-#if defined(CONFIG_RTL_8198_AP_ROOT)
+#if defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL_8197D_AP)
 	if(br_lan2_interface[0]){
 		strcat(tmpBuff, br_lan2_interface);
 		strcat(tmpBuff, " ");
@@ -95,6 +114,12 @@ void set_br_interface(unsigned char *brif)
 		strcat(tmpBuff, wlan_vxd_interface);
 		strcat(tmpBuff, " ");
 	}
+#if defined(CONFIG_RTK_MESH)
+	if(wlan_mesh_interface[0]){
+		strcat(tmpBuff, wlan_mesh_interface);
+		strcat(tmpBuff, " ");
+	}
+#endif
 
 	strcat(tmpBuff, br_interface);
 	strcat(tmpBuff, " ");
@@ -244,7 +269,7 @@ void start_wlanapp(int action)
 	memset(tmpBuff, 0x00, sizeof(tmpBuff));
 	if(action==1){
 		if(wlan_interface[0] && wlan_virtual_interface[0] && wlan_vxd_interface[0] && br_interface[0])
-		    sprintf(tmpBuff, "%s %s %s %s", wlan_interface, wlan_virtual_interface, wlan_vxd_interface, br_interface); 			
+		sprintf(tmpBuff, "%s %s %s %s", wlan_interface, wlan_virtual_interface, wlan_vxd_interface, br_interface); 			
 		else if(wlan_interface[0] && wlan_virtual_interface[0] && !wlan_vxd_interface[0] && br_interface[0])
 			sprintf(tmpBuff, "%s %s %s", wlan_interface, wlan_virtual_interface, br_interface); 
 		else if(wlan_interface[0] && !wlan_virtual_interface[0] && wlan_vxd_interface[0] && br_interface[0])
@@ -258,7 +283,7 @@ void start_wlanapp(int action)
 	}
 
 	RunSystemCmd(PROC_GPIO, "echo", "I", NULL_STR);
-	
+
 //printf("\r\n tmpBuff=[%s],__[%s-%u]\r\n",tmpBuff,__FILE__,__LINE__);
 
 	if(tmpBuff[0])
@@ -397,6 +422,7 @@ int killDhcpcDaemons()
 			killDaemonByPidFile(dhcpPidPath);
 		}
 	}
+	closedir(dir);
 	return 0;
 }
 void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan, char *lanInterface, char *wlanInterface, char *wanInterface)
@@ -453,7 +479,7 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			unlink(RIP_PID_FILE);
 		}
 
-#if defined(CONFIG_APP_TR069)		
+#if 0 //defined(CONFIG_APP_TR069) // Move to webpage form handler when user modify setting
 		/* Keep Tr069 alive unless 1.ACSURL changed 2.Turn off tr069 */
 		if(isFileExist(TR069_PID_FILE))
 		{									
@@ -468,7 +494,7 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			pid=getPid_fromFile(TR069_PID_FILE);
 			if(pid != -1){
 				sprintf(strPID, "%d", pid);
-				RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);
+				RunSystemCmd(NULL_FILE, "kill", "-15", strPID, NULL_STR);
 			}
 			unlink(TR069_PID_FILE);
 		}
@@ -484,6 +510,12 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 		RunSystemCmd(NULL_FILE, "rm", "-f", "/etc/ppp/firstdemand", NULL_STR);
 		//RunSystemCmd(NULL_FILE, "disconnect.sh", "all", NULL_STR);
 		RunSystemCmd(NULL_FILE, "killall", "-9", "timelycheck", NULL_STR); //LZQ
+		#ifdef CONFIG_AUTO_DHCP_CHECK
+		RunSystemCmd(NULL_FILE, "killall", "-9", "Auto_DHCP_Check", NULL_STR);
+		#endif
+#if 0//def APP_WATCHDOG
+		RunSystemCmd(NULL_FILE, "killall", "-9", "watchdog", NULL_STR); //LZQ
+#endif
 
 #if defined(CONFIG_APP_FWD)
 		RunSystemCmd(NULL_FILE, "killall", "-9", "fwd", NULL_STR); //LZQ
@@ -501,6 +533,9 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 	RunSystemCmd(NULL_FILE, "killall", "-9", "klogd", NULL_STR);
 	RunSystemCmd(NULL_FILE, "killall", "-9", "mini_upnpd", NULL_STR);
 	RunSystemCmd(NULL_FILE, "killall", "-9", "reload", NULL_STR);
+#if defined(CONFIG_APP_RTK_INBAND_CTL)
+   	RunSystemCmd(NULL_FILE, "killall", "-9", "hcd", NULL_STR);
+#endif
 	//RunSystemCmd(NULL_FILE, "killall", "-9", "ntfs-3g", NULL_STR);
 	if(isFileExist(L2TPD_PID_FILE)){
 			pid=getPid_fromFile(L2TPD_PID_FILE);
@@ -577,7 +612,7 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 				RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);
 			}
 			unlink(IGMPPROXY_PID_FILE);
-			RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,0", NULL_STR);
+			RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,1", NULL_STR);
 	}
 	if(isFileExist(LLTD_PID_FILE)){
 			pid=getPid_fromFile(LLTD_PID_FILE);
@@ -598,6 +633,65 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 			unlink(DHCPD_PID_FILE);
 	}
 	
+	
+#ifdef CONFIG_IPV6
+	if(isFileExist(DHCP6S_PID_FILE)) {
+		pid=getPid_fromFile(DHCP6S_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);							
+		}
+		unlink(DHCP6S_PID_FILE);
+	}
+		
+	if(isFileExist(DHCP6C_PID_FILE)) {
+		pid=getPid_fromFile(DHCP6C_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-16", strPID, NULL_STR);/*inform dhcp server write lease table to file*/
+			sleep(1);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(DHCP6C_PID_FILE);
+	}
+			
+	if(isFileExist(DNSV6_PID_FILE)) {
+		pid=getPid_fromFile(DNSV6_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(DNSV6_PID_FILE);
+	}
+		
+	if(isFileExist(RADVD_PID_FILE)) {
+		pid=getPid_fromFile(RADVD_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(RADVD_PID_FILE);
+	}
+		
+	if(isFileExist(ECMH_PID_FILE)) {
+		pid=getPid_fromFile(ECMH_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(ECMH_PID_FILE);
+	}	
+
+	/*MLD proxy*/
+	if(isFileExist(MLDPROXY_PID_FILE)){
+			pid=getPid_fromFile(MLDPROXY_PID_FILE);
+			if(pid != 0){
+				sprintf(strPID, "%d", pid);
+				RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);
+			}
+			unlink(MLDPROXY_PID_FILE);			
+	}
+#endif
 /*end of clean the process before take new setting*/		
 	
 #if defined(CONFIG_POCKET_ROUTER_SUPPORT)
@@ -613,6 +707,9 @@ void clean_process(int sys_opmode,int wan_dhcp_mode,int gateway, int enable_wan,
 	}
 #endif	
 	
+#if defined(CONFIG_APP_SIMPLE_CONFIG)
+	system("killall simple_config");
+#endif
 	
 }
 #if defined(CONFIG_APP_USBMOUNT)
@@ -900,6 +997,27 @@ int setinit(int argc, char** argv)
 		RunSystemCmd(NULL_FILE, "flash", "settime", NULL_STR);
 	}
 
+#ifdef CONFIG_CPU_UTILIZATION
+	int enable_cpu=0;
+	apmib_get(MIB_ENABLE_CPU_UTILIZATION, (void *)&enable_cpu);
+	if(enable_cpu)
+	{
+		if(isFileExist(CPU_LOAD_FILE)==0)
+		{
+			RunSystemCmd(NULL_FILE, "cpu", NULL_STR);
+		}
+	}
+	else
+	{
+		if(isFileExist(CPU_LOAD_FILE)!=0)
+		{
+			RunSystemCmd(NULL_FILE, "killall", "cpu", NULL_STR);
+//			RunSystemCmd(NULL_FILE, "rm", "-f", "/web/*.cpudat", NULL_STR);
+			system("rm -f  /web/*.cpudat 2> /dev/null");
+		}
+	}
+#endif
+
 	if(isFileExist(REINIT_FILE)==0){
 		up_mib_value();
 		RunSystemCmd(REINIT_FILE, "echo", "1", NULL_STR);
@@ -950,9 +1068,37 @@ int setinit(int argc, char** argv)
 		unlink(MANUAL_CONNECT_NOW);
 #endif
 
+#ifdef TR181_SUPPORT
+	intValue = 1;
+	if(init_dns_client_server_table == 0)
+	{
+		for(i=0; i<DNS_CLIENT_SERVER_NUM; i++)
+		{
+			sprintf(tmpBuff, "Device.DNS.Client.Server.{%d}.Enable", i);
+			if(tr181_ipv6_set(tmpBuff ,(void *) &intValue) == -1)
+			{
+				printf("%s(%d): set %s fail!\n",__FUNCTION__,__LINE__, tmpBuff);
+				return -1;
+			}
+		}
+	}
+	init_dns_client_server_table = 1;
+#endif
+
 	printf("Init Start...\n");
 
+#if defined(CONFIG_APP_APPLE_MFI_WAC)
+	{
+        char wac_nameBuf[64]={0};
+        char hostname_cmd[80]={0};
 
+	apmib_get(MIB_MFI_WAC_DEVICE_NAME,  (void *)wac_nameBuf);
+	if(wac_nameBuf[0]){
+		sprintf(hostname_cmd,"hostname \'%s\'",wac_nameBuf);
+		system(hostname_cmd);
+	}
+	}		
+#endif
 	apmib_get(MIB_OP_MODE,(void *)&opmode);
 	apmib_get(MIB_WISP_WAN_ID,(void *)&wisp_wan_id);
 	apmib_get(MIB_DHCP,(void *)&lan_dhcp_mode);
@@ -973,8 +1119,10 @@ int setinit(int argc, char** argv)
 	if(strcmp(tmp_args, "ap") == 0){
 		sprintf(br_interface, "%s", "br0");
 		sprintf(br_lan1_interface, "%s" , "eth0");
+#if !defined(CONFIG_RTL_AP_PACKAGE) 
 		if(opmode==BRIDGE_MODE)
 			sprintf(br_lan2_interface, "%s", "eth1");
+#endif
 		gateway=0;
 	}	
 	if(!strcmp(tmp_args, "gw")){		
@@ -1061,11 +1209,13 @@ int setinit(int argc, char** argv)
 			strcat(wlan_interface, tmp_args); 
 		}
 	}
-	
 	/* collect all wlan interface for clean_process() */
 	num_wlan_interface=NUM_WLAN_INTERFACE;
 	num_wlan_virtual_interface=if_readlist_proc(wlan_virtual_interface, "va", 0);
 	num_wlan_vxd_interface=if_readlist_proc(wlan_vxd_interface, "vxd", 0);
+#if defined(CONFIG_RTK_MESH)
+	num_wlan_mesh_interface=if_readlist_proc(wlan_mesh_interface, "msh", 0);
+#endif
 	wlan_support = if_readlist_proc(wlan_valid_interface, "wlan", 0);
 	if(wlan_support==0)
 		memset(wlan_interface, 0x00, sizeof(wlan_interface));
@@ -1082,7 +1232,7 @@ int setinit(int argc, char** argv)
 		/*init wlan interface*/
 		if (wlan_support != 0)
 		{
-			//memset(wlan_interface, 0x00, sizeof(wlan_interface));
+			memset(wlan_interface, 0x00, sizeof(wlan_interface));
 			for(i=0;i<NUM_WLAN_INTERFACE;i++)
 			{
 				int wlan_disable = 1;			
@@ -1098,7 +1248,6 @@ int setinit(int argc, char** argv)
 					{
 						RunSystemCmd(NULL_FILE, "iwpriv", wlan_name, "radio_off", NULL_STR);					
 					}
-					/*
 					else
 					{
 						if(wlan_interface[0]==0x00)
@@ -1109,9 +1258,8 @@ int setinit(int argc, char** argv)
 							strcat(wlan_interface, tmp_args); 
 						}							
 					}
-					*/
 				}
-			}
+			}				
 		}
 	}
 #endif	//#if defined(CONFIG_POCKET_AP_SUPPORT) && defined(HOME_GATEWAY)
@@ -1132,6 +1280,7 @@ int setinit(int argc, char** argv)
 		return 0;
 	}
 
+	/*save the last wan type*/ /*no this operate in shell script*/
 
 
 #if defined(CONFIG_POCKET_ROUTER_SUPPORT)
@@ -1148,14 +1297,18 @@ int setinit(int argc, char** argv)
 	if(reinit == 1)
 	{
 		clean_process(opmode,wan_dhcp_mode,gateway, enable_wan, br_interface, wlan_interface, wan_interface);
+		
+#if !defined(CONFIG_RTL_AP_PACKAGE) 
 		//MUST down ppp related interface before eth1 down, otherwise it will cause some puzzling problems.
 		RunSystemCmd(NULL_FILE, "ifconfig", "eth1", "down", NULL_STR);
 		RunSystemCmd(NULL_FILE, "ifconfig", "peth0", "down", NULL_STR);
 #if defined(CONFIG_SMART_REPEATER)
 		if(strstr(wan_interface,"-vxd"))
 			RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "0.0.0.0", NULL_STR);
-		RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "down", NULL_STR);
-#endif		
+#endif
+		if(wan_interface[0])
+			RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "down", NULL_STR);
+#endif
 	}
 	else
 	{
@@ -1200,10 +1353,8 @@ int setinit(int argc, char** argv)
 	}
 #endif
 
-	/*save the last wan type*/ /*no this operate in shell script*/
 	sprintf(tmp_args, "%d", wan_dhcp_mode);
 	RunSystemCmd("/var/system/last_wan", "echo", tmp_args, NULL_STR);
-
 
 	apmib_get(MIB_REPEATER_ENABLED1,(void *)&repeater_enabled1);
 	apmib_get(MIB_REPEATER_ENABLED2,(void *)&repeater_enabled2);
@@ -1234,14 +1385,28 @@ int setinit(int argc, char** argv)
 	}
 	
 	memset(wlan_vxd_interface, 0x00, sizeof(wlan_vxd_interface));
-	if(repeater_enabled1 == 1)
-		strcat(wlan_vxd_interface,"wlan0-vxd");
+	if(repeater_enabled1 == 1 && !wlan_root_disabled){
+#if defined(CONFIG_SMART_REPEATER)
+		if(strcmp(wan_interface,"wlan0-vxd"))
+#endif
+		{
+			if(strlen(wlan_vxd_interface) != 0)
+				strcat(wlan_vxd_interface," ");	
+			strcat(wlan_vxd_interface,"wlan0-vxd");
+		}
+	}
 #if defined(CONFIG_RTL_92D_SUPPORT)
 	if(repeater_enabled2 == 1 && !wlan_root1_disabled)
 	{
-		if(strlen(wlan_vxd_interface) != 0)
-			strcat(wlan_vxd_interface," ");	
-		strcat(wlan_vxd_interface,"wlan1-vxd");
+#if defined(CONFIG_SMART_REPEATER)
+        if(strcmp(wan_interface,"wlan1-vxd"))
+#endif
+		{
+
+			if(strlen(wlan_vxd_interface) != 0)
+				strcat(wlan_vxd_interface," ");	
+			strcat(wlan_vxd_interface,"wlan1-vxd");
+		}	
 	}
 #endif
 
@@ -1269,7 +1434,7 @@ int setinit(int argc, char** argv)
 		apmib_get(MIB_ELAN_MAC_ADDR,  (void *)tmpBuff); // clone lan mac
 		if(!memcmp(tmpBuff, "\x00\x00\x00\x00\x00\x00", 6))
 		{
-#if defined(CONFIG_RTL_8198_AP_ROOT)
+#if defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL_8197D_AP)
 			apmib_get(MIB_HW_NIC0_ADDR,  (void *)tmpBuff);
 #else
 			apmib_get(MIB_HW_NIC1_ADDR,  (void *)tmpBuff);
@@ -1316,12 +1481,13 @@ int setinit(int argc, char** argv)
 	if (wlan_support != 0)
 #endif
 	{
-		//memset(wlan_interface, 0x00, sizeof(wlan_interface));
+		memset(wlan_interface, 0x00, sizeof(wlan_interface));
 		for(i=0;i<NUM_WLAN_INTERFACE;i++)
 		{
 			int wlan_disable = 1;
 			int wlan_blockrelay=0;
 			unsigned char wlan_name[10];
+			int mc2u_disabled = 0;
 			memset(wlan_name,0x00,sizeof(wlan_name));
 			sprintf(wlan_name, "wlan%d",i);
 			apmib_save_wlanIdx();
@@ -1335,16 +1501,13 @@ int setinit(int argc, char** argv)
 				}
 				else
 				{
-			/*
-				
 	        if(wlan_interface[0]==0x00)
 	            sprintf(wlan_interface, "%s", wlan_name);
 	      	else
 	        {
 						sprintf(tmp_args, " %s", wlan_name);
 		        strcat(wlan_interface, tmp_args); 
-	        }
-	        */
+	        }	
 						
 					//printf("%s:%d wlan_name=%s\n",__FUNCTION__,__LINE__,wlan_name);
 #if defined(CONFIG_SMART_REPEATER)
@@ -1359,10 +1522,21 @@ int setinit(int argc, char** argv)
 			
 					if(cmdRet != 0)
 					{
-						printf("init %s failed!\n", wlan_name);
+						printf("[%s %d]init %s failed!\n", __FUNCTION__, __LINE__ ,wlan_name);
 						continue;
 					}
-
+					apmib_get(MIB_WLAN_MC2U_DISABLED, (void *)&mc2u_disabled); 
+					if(mc2u_disabled)
+					{
+						//iwpriv wlan0 set_mib mc2u_disable=1
+						RunSystemCmd(NULL_FILE, "iwpriv", wlan_name,"set_mib","mc2u_disable=1", NULL_STR);
+					}
+					else
+					{
+						//iwpriv wlan0 set_mib mc2u_disable=0
+						RunSystemCmd(NULL_FILE, "iwpriv", wlan_name,"set_mib","mc2u_disable=0", NULL_STR);
+					}
+				
 				}
 				
 				apmib_get( MIB_WLAN_BLOCK_RELAY,(void *)&wlan_blockrelay);
@@ -1385,6 +1559,7 @@ int setinit(int argc, char** argv)
 			RunSystemCmd("/proc/br_wlanblock", "echo","0",NULL_STR);
 		}
 	}
+
 
 	if(wlan_interface[0]){				
 		if(wlan_vxd_interface[0]) {
@@ -1414,8 +1589,21 @@ int setinit(int argc, char** argv)
 				token = strtok_r(NULL, " ", &savestr1);
 			}while(token !=NULL);
 		}
+#if defined(CONFIG_SMART_REPEATER)
+		if(strstr(wan_interface,"-vxd")){
+			RunSystemCmd(NULL_FILE, "ifconfig", wan_interface, "down", NULL_STR);
+			RunSystemCmd(NULL_FILE, "flash", "set_mib", wan_interface, NULL_STR);
+		}
+#endif
 	}	
-	
+#ifdef 	CONFIG_RTL_ULINKER
+	if(reinit == 1){
+		int pid_boa = find_pid_by_name("boa");
+		if(pid_boa>0){
+			kill(pid_boa,SIGUSR2);
+		}
+	}
+#endif
 	if(gateway==1){
 		if(enable_br==1){
 			/*init bridge interface*/
@@ -1489,7 +1677,7 @@ int setinit(int argc, char** argv)
 			}else
 				if(lan_dhcp_mode==DHCP_LAN_SERVER //dhcp disabled or server mode or auto
 #ifdef CONFIG_DOMAIN_NAME_QUERY_SUPPORT		
-				|| lan_dhcp_mode==DHCP_AUTO	
+				|| lan_dhcp_mode==DHCP_AUTO
 #endif
 				)			
 				{		/*DHCP server enabled*/
@@ -1570,7 +1758,7 @@ int setinit(int argc, char** argv)
 				RunSystemCmd(PROC_FASTL2TP_FILE, "echo", "0", NULL_STR);
 			}
 	#ifdef HOME_GATEWAY		
-			if((wan_dhcp_mode !=DHCP_SERVER && wan_dhcp_mode < 7) || (wan_dhcp_mode == USB3G)){ /* */
+			if((wan_dhcp_mode !=DHCP_SERVER && wan_dhcp_mode < 7) || (wan_dhcp_mode == USB3G) || (wan_dhcp_mode == DHCP_NONE)){ /* */
 				start_wan(wan_dhcp_mode, opmode, wan_interface, br_interface, wisp_wan_id, 1);
 			}else
 				printf("Invalid wan type:wan_dhcp_mode=%d\n", wan_dhcp_mode);
@@ -1617,6 +1805,12 @@ int setinit(int argc, char** argv)
 		if(lan_dhcp_mode==DHCP_LAN_SERVER || lan_dhcp_mode==DHCP_LAN_NONE){	
 			start_wlanapp(v_wlan_app_enabled);
 		}	
+#if defined(CONFIG_APP_APPLE_MFI_WAC)		
+		if(lan_dhcp_mode==DHCP_LAN_NONE || lan_dhcp_mode==DHCP_LAN_CLIENT)
+		{
+			system("ifconfig br0 0.0.0.0");		
+		}		
+#endif	
 	}
 
 #ifndef STAND_ALONE_MINIUPNP
@@ -1646,6 +1840,7 @@ int setinit(int argc, char** argv)
 #endif
 
 #if defined(CONFIG_IPV6)
+	system("ip tunnel del tun 2> /dev/null");
 	set_ipv6();
 #endif
 
@@ -1666,7 +1861,7 @@ int setinit(int argc, char** argv)
 		RunSystemCmd(NULL_FILE, "brctl", "addif", "br0", "peth0", NULL_STR);
 		RunSystemCmd(NULL_FILE, "ifconfig", "peth0", "up", NULL_STR);
 	}
-#if defined(CONFIG_RTL_92D_SUPPORT)	
+#if defined(CONFIG_RTL_92D_SUPPORT)||defined (CONFIG_RTL_8881A)
 	if(opmode == WISP_MODE)
 	{
 		apmib_get(MIB_WISP_WAN_ID, (void *)&wispWanId);
@@ -1678,7 +1873,7 @@ int setinit(int argc, char** argv)
 			char tmpStr[16];
 			/*should also config wisp wlan index for dual band wireless interface*/
 			intValue=((wispWanId&0xF)<<4)|intValue;
-			if(repeater_enable1 || repeater_enable2)
+			if(repeater_enable1==1 || repeater_enable2==1)
 				intValue = intValue | 0x8;
 			memset(tmpStr,0,sizeof(tmpStr));
 			sprintf(tmpStr,"%d",intValue);
@@ -1700,7 +1895,7 @@ int setinit(int argc, char** argv)
 		if(intValue !=0)
 		{
 			char tmpStr[16];
-			if(repeater_enable1)
+			if(repeater_enable1==1)
 				intValue |= 0x8;
 			memset(tmpStr,0,sizeof(tmpStr));
 			sprintf(tmpStr,"%d",intValue);
@@ -1730,6 +1925,8 @@ int setinit(int argc, char** argv)
 	}
 #endif
 
+
+
 	/*enable igmp snooping*/
 	/*igmp snooping is independent with igmp proxy*/
 #if defined (CONFIG_IGMPV3_SUPPORT)
@@ -1744,6 +1941,9 @@ int setinit(int argc, char** argv)
 	RunSystemCmd(PROC_BR_MLDQUERY, "echo", "1", NULL_STR);
 #endif
 
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	RunSystemCmd("/proc/sys/net/ipv4/conf/eth1/force_igmp_version", "echo", "2", NULL_STR);
+#endif
 	//RunSystemCmd("/proc/sys/net/ipv4/ip_conntrack_max", "echo", "2048", NULL_STR);
 
 #if defined(CONFIG_APP_USBMOUNT)
@@ -1791,11 +1991,70 @@ int setinit(int argc, char** argv)
 		system("fwd &");
 #endif
 
+#ifdef CONFIG_APP_APPLE_MFI_WAC
+	if(isFileExist("/var/system/mdnsd_started")==0){
+		system("mdnsd");
+		system("echo 1 > /var/system/mdnsd_started");
+	}
+	system ("wfaudio &"); //some brach start in rcs
+#if defined(CONFIG_APPLE_HOMEKIT)
+	system("hapserver 1 0 0 &");
+#endif
+#endif
 	//reply only if the target IP address is local address configured on the incoming interface
 	RunSystemCmd("/proc/sys/net/ipv4/conf/eth1/arp_ignore", "echo", "1", NULL_STR);
 	/*increase routing cache rebuild count from 4 to 2048*/
 	RunSystemCmd(RT_CACHE_REBUILD_COUNT, "echo", "2048", NULL_STR);
 	system("timelycheck &");
+#if defined(CONFIG_AUTO_DHCP_CHECK)
+	if(opmode==BRIDGE_MODE && lan_dhcp_mode == DHCP_SERVER)
+	{
+		system("Auto_DHCP_Check &");
+	}
+#endif
+
+#if 0//def APP_WATCHDOG
+	system("watchdog 1000&");
+#endif
+
+#if defined(CONFIG_APP_TR069)
+	start_tr069();
+#endif
+
+#if defined(CONFIG_APP_RTK_INBAND_CTL)
+	//RunSystemCmd(PROC_INBAND_CTL_ACL, "echo", "0x8899", NULL_STR);
+	system("hcd -daemon &");
+#endif
+
+#ifdef CONFIG_RTL_MAC_BASED_HTTP_REDIRECT
+	MACREDIRECT_T entry;
+	int num;
+	char macAddr[20] = {0};
+	char redirect_url[] = "www.realsil.com.cn";/*set the redirect page for first visit*/
+	char cmd_str[256] = {0};
+
+	if(reinit)
+	{
+		sprintf(cmd_str,"echo flush dynamic > /proc/http_redirect/mac_list");
+		system(cmd_str);
+		sprintf(cmd_str,"echo flush fixed > /proc/http_redirect/mac_list");
+		system(cmd_str);
+	}
+	
+	memset(cmd_str,0,sizeof(cmd_str));
+	sprintf(cmd_str,"echo %s > /proc/http_redirect/url",redirect_url);
+	system(cmd_str);
+	apmib_get(MIB_MAC_REDIRECT_TBL_NUM, (void *)&num);
+	
+	for (index=1; index<=num; index++) {
+		memset(&entry, '\0', sizeof(entry));
+		*((char *)&entry) = (char)index;
+		apmib_get(MIB_MAC_REDIRECT_TBL, (void *)&entry);
+		sprintf(macAddr,"%02x%02x%02x%02x%02x%02x", entry.macAddr[0], entry.macAddr[1], entry.macAddr[2], entry.macAddr[3], entry.macAddr[4], entry.macAddr[5]);
+		sprintf(cmdBuffer,"echo add_fixed %s > /proc/http_redirect/mac_list",macAddr);
+		system(cmdBuffer);
+	}
+#endif
 	return 0;
 }
 
@@ -1870,7 +2129,7 @@ int getWispRptIfaceName(char*pIface,int wlanId)
 	SetWlan_idx(wlan_wanIfName);
 	//for wisp rpt mode,only care root ap
 	apmib_get(MIB_WLAN_MODE, (void *)&wlanMode);
-	if(AP_MODE==wlanMode && rptEnabled)
+	if((AP_MODE==wlanMode || AP_WDS_MODE==wlanMode || AP_MESH_MODE==wlanMode || MESH_MODE==wlanMode ) && rptEnabled)
 	{//root AP mode and rpt enabled, use -vxd as wanIf
 		if(!strstr(pIface,"-vxd"))
 		{

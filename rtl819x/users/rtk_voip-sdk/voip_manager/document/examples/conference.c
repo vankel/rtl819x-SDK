@@ -53,10 +53,10 @@ int main(int argc, char *argv[])
 		if( !RTK_VOIP_IS_SLIC_CH( i, g_VoIP_Feature ) )
 			continue;
 			
-		rtk_InitDSP(i);
-		rtk_Set_Flash_Hook_Time(i, 0, 300);		// 0~300 ms
-		rtk_Set_flush_fifo(i);					// flush kernel fifo before app run
-		rtk_SetDTMFMODE(i, DTMF_RFC2833);		// set dtmf mode
+		rtk_InitDsp(i);
+		rtk_SetFlashHookTime(i, 0, 300);		// 0~300 ms
+		rtk_SetFlushFifo(i);					// flush kernel fifo before app run
+		rtk_SetDtmfMode(i, DTMF_RFC2833);		// set dtmf mode
 		ActiveSession[i] = 0;
 		for (j=0; j<MAX_SESSION; j++)
 		{
@@ -90,7 +90,7 @@ main_loop:
 			ssid = ActiveSession[chid];
 			if (session_state[chid][ssid] == STATE_RTP)
 			{
-				rtk_SetRTPRFC2833(chid, ssid, dtmf_val[val], 100);
+				rtk_SetRtpRfc2833(chid, ssid, dtmf_val[val], 100);
 			}
 			else if (val == SIGN_HASH)
 			{
@@ -130,7 +130,12 @@ main_loop:
 				rtp_config[chid][ssid].rfc2833_payload_type_remote = 96;
 				rtp_config[chid][ssid].rfc2833_fax_modem_pt_local = 101;
 				rtp_config[chid][ssid].rfc2833_fax_modem_pt_remote = 101;
-#ifdef SUPPORT_RTP_REDUNDANT
+#if defined(SUPPORT_RTP_REDUNDANT_APP)
+				rtp_config[chid][ssid].rtp_redundant_payload_type_local = 0;
+				rtp_config[chid][ssid].rtp_redundant_payload_type_remote = 0;
+				rtp_config[chid][ssid].rtp_redundant_max_Audio = 0;
+				rtp_config[chid][ssid].rtp_redundant_max_RFC2833 = 0;
+#elif defined(SUPPORT_RTP_REDUNDANT)				
 				rtp_config[chid][ssid].rtp_redundant_payload_type_local = 0;
 				rtp_config[chid][ssid].rtp_redundant_payload_type_remote = 0;
 				rtp_config[chid][ssid].rtp_redundant_max_Audio = 0;
@@ -142,7 +147,9 @@ main_loop:
 				rtp_config[chid][ssid].init_seqno = 0;
 				rtp_config[chid][ssid].init_SSRC = 0;
 				rtp_config[chid][ssid].init_timestamp = 0;
-
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+				rtp_config[chid][ssid].ipv6	= 0;
+#endif
 				rtk_SetRtpConfig(&rtp_config[chid][ssid]);
 
 				// set rtp payload, and other session parameters.
@@ -150,20 +157,24 @@ main_loop:
 				codec_config[chid][ssid].sid = ssid;
 				codec_config[chid][ssid].local_pt = 0;		// PCMU use pt 0
 				codec_config[chid][ssid].remote_pt = 0;		// PCMU use pt 0
-				codec_config[chid][ssid].uPktFormat = rtpPayloadPCMU;
+				codec_config[chid][ssid].uLocalPktFormat = rtpPayloadPCMU;
+				codec_config[chid][ssid].uRemotePktFormat = rtpPayloadPCMU;
 				codec_config[chid][ssid].local_pt_vbd = rtpPayloadUndefined;
 				codec_config[chid][ssid].remote_pt_vbd = rtpPayloadUndefined;
 				codec_config[chid][ssid].uPktFormat_vbd = rtpPayloadUndefined;
 				codec_config[chid][ssid].nG723Type = 0;
-				codec_config[chid][ssid].nFramePerPacket = 1;
+				codec_config[chid][ssid].nLocalFramePerPacket = 1;
+				codec_config[chid][ssid].nRemoteFramePerPacket = 1;
 				codec_config[chid][ssid].nFramePerPacket_vbd = 1;
 				codec_config[chid][ssid].bVAD = 0;
 				codec_config[chid][ssid].bPLC = 1;
 				codec_config[chid][ssid].nJitterDelay = 4;
 				codec_config[chid][ssid].nMaxDelay = 13;
+				codec_config[chid][ssid].nMaxStrictDelay = 10000;
 				codec_config[chid][ssid].nJitterFactor = 7;
 				codec_config[chid][ssid].nG726Packing = 2;//pack right
-				if (codec_config[chid][ssid].uPktFormat == rtpPayloadG722)
+				if ((codec_config[chid][ssid].uLocalPktFormat == rtpPayloadG722) ||
+				    (codec_config[chid][ssid].uRemotePktFormat == rtpPayloadG722) )
 					codec_config[chid][ssid].nPcmMode = 3;	// wide-band
 				else
 					codec_config[chid][ssid].nPcmMode = 2;	// narrow-band
@@ -189,7 +200,7 @@ main_loop:
 		case SIGN_OFFHOOK:
 		{
 			// do rtk_SLIC_Offhook_Action at first
-			rtk_Offhook_Action(chid);
+			rtk_OffHookAction(chid);
 			rtk_SetTranSessionID(chid, 0);
 			ActiveSession[chid] = 0;
 			dial_index[chid] = 0;
@@ -215,7 +226,7 @@ main_loop:
 			stVoipMgr3WayCfg.enable = 0;
 			rtk_SetConference(&stVoipMgr3WayCfg);
 			// do rtk_SLIC_Onhook_Action at last
-			rtk_Onhook_Action(chid);		
+			rtk_OnHookAction(chid);		
 			break;
 
 		case SIGN_FLASHHOOK:
@@ -228,7 +239,7 @@ main_loop:
 				if (session_state[chid][!ssid] == STATE_IDLE) 
 				{
 					// hold current session
-					rtk_Hold_Rtp(chid, ssid, 1);
+					rtk_HoldRtp(chid, ssid, 1);
 					// change to new session 
 					ssid = !ssid;
 					ActiveSession[chid] = ssid;
@@ -239,7 +250,7 @@ main_loop:
 				else
 				{
 					// resume another session
-					rtk_Hold_Rtp(chid, !ssid, 0);
+					rtk_HoldRtp(chid, !ssid, 0);
 					// do conference
 					memset(&stVoipMgr3WayCfg, 0, sizeof(stVoipMgr3WayCfg));
 					stVoipMgr3WayCfg.ch_id = chid;
@@ -261,15 +272,21 @@ main_loop:
 							rtp_config[chid][i].rfc2833_payload_type_remote;
 						stVoipMgr3WayCfg.rtp_cfg[i].local_pt = codec_config[chid][i].local_pt;
 						stVoipMgr3WayCfg.rtp_cfg[i].remote_pt = codec_config[chid][i].remote_pt;
-						stVoipMgr3WayCfg.rtp_cfg[i].uPktFormat = codec_config[chid][i].uPktFormat;
+						stVoipMgr3WayCfg.rtp_cfg[i].uLocalPktFormat = codec_config[chid][i].uLocalPktFormat;
+						stVoipMgr3WayCfg.rtp_cfg[i].uRemotePktFormat = codec_config[chid][i].uRemotePktFormat;
 						stVoipMgr3WayCfg.rtp_cfg[i].nG723Type = codec_config[chid][i].nG723Type;
-						stVoipMgr3WayCfg.rtp_cfg[i].nFramePerPacket = codec_config[chid][i].nFramePerPacket; 
+						stVoipMgr3WayCfg.rtp_cfg[i].nLocalFramePerPacket = codec_config[chid][i].nLocalFramePerPacket; 
+						stVoipMgr3WayCfg.rtp_cfg[i].nRemoteFramePerPacket = codec_config[chid][i].nRemoteFramePerPacket; 
 						stVoipMgr3WayCfg.rtp_cfg[i].nFramePerPacket_vbd = codec_config[chid][i].nFramePerPacket_vbd;
 						stVoipMgr3WayCfg.rtp_cfg[i].bVAD = codec_config[chid][i].bVAD;
 						stVoipMgr3WayCfg.rtp_cfg[i].bPLC = codec_config[chid][i].bPLC;
 						stVoipMgr3WayCfg.rtp_cfg[i].nJitterDelay = codec_config[chid][i].nJitterDelay;
 						stVoipMgr3WayCfg.rtp_cfg[i].nMaxDelay = codec_config[chid][i].nMaxDelay;
+						stVoipMgr3WayCfg.rtp_cfg[i].nMaxStrictDelay = codec_config[chid][i].nMaxStrictDelay;
 						stVoipMgr3WayCfg.rtp_cfg[i].nJitterFactor = codec_config[chid][i].nJitterFactor;
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+						stVoipMgr3WayCfg.rtp_cfg[i].ipv6 = 0;
+#endif
 					}
 					rtk_SetConference(&stVoipMgr3WayCfg);
 				}
@@ -285,7 +302,7 @@ main_loop:
 					ActiveSession[chid] = ssid;
 					rtk_SetTranSessionID(chid, ssid);
 					// resume old session
-					rtk_Hold_Rtp(chid, ssid, 0);
+					rtk_HoldRtp(chid, ssid, 0);
 				}
 				else
 				{

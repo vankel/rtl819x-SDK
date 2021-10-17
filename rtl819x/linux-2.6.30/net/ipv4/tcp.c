@@ -1800,7 +1800,9 @@ void tcp_close(struct sock *sk, long timeout)
 	struct sk_buff *skb;
 	int data_was_unread = 0;
 	int state;
-
+#ifdef CONFIG_RTL_819X
+    	int flag = 0;
+#endif
 	lock_sock(sk);
 	sk->sk_shutdown = SHUTDOWN_MASK;
 
@@ -1868,7 +1870,19 @@ void tcp_close(struct sock *sk, long timeout)
 		 * Probably, I missed some more holelets.
 		 * 						--ANK
 		 */
+#ifdef CONFIG_RTL_819X		 
+		if(sk->sk_forward_alloc>0)
+			flag = 1;
+#endif			
 		tcp_send_fin(sk);
+		
+#ifdef CONFIG_RTL_819X		
+		if((sk->sk_forward_alloc<0)&&(flag==1)&&(atomic_read(sk->sk_prot->memory_allocated)>0))
+		{
+            sk->sk_forward_alloc = SK_MEM_QUANTUM;
+			sk_mem_reclaim(sk);
+		}
+#endif		
 	}
 
 	sk_stream_wait_close(sk, timeout);

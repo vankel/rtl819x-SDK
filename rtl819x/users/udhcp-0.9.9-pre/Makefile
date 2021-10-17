@@ -78,6 +78,15 @@ STATIC_LEASE=1
 RTL865x_TR_PKG=1
 endif
 
+ifeq ($(CONFIG_USER_CWMP_WITH_TR181), y)
+MIBLIBDIR	= $(PWD)/./boa/apmib
+MIBLIBINC	= $(MIBLIBDIR)
+MIBLIB		= $(MIBLIBDIR)/libapmib.so
+INCS = -I$(MIBLIBINC)
+LIBS += $(MIBLIB)
+CFLAGS += $(INCS) -DTR069_ANNEX_F
+endif
+
 ifeq ($(RTL865X_AC),1)
 CFLAGS+=-DCONFIG_RTL865X_AC 
 RTL865x_AC_PKG=1
@@ -128,6 +137,14 @@ CFLAGS  += -ffunction-sections -fdata-sections
 LDFLAGS += --static -Wl,--gc-sections
 endif
 
+CFLAGS += -DSUPPORT_T1_T2_OPTION
+
+ifeq ($(CONFIG_SUPPORT_RUSSIA_FEATURES),y)
+CFLAGS += -DSUPPORT_OPTION_33_121_249 -DSUPPORT_ZIONCOM_RUSSIA
+endif
+ifeq ($(CONFIG_RTK_SUPPORT_DHCP_PORT_IP_BIDN),y)
+CFLAGS += -DSUPPORT_DHCP_PORT_IP_BIND
+endif
 all: $(EXEC1) $(EXEC2) $(EXEC3)
 	$(STRIP) --remove-section=.note --remove-section=.comment $(EXEC1) $(EXEC2) $(EXEC3)
 
@@ -138,7 +155,7 @@ $(EXEC1) $(EXEC2) $(EXEC3): Makefile
 	$(CC) -c $(CFLAGS) $<
 	
 $(EXEC1): $(OBJS1)
-	$(LD) $(LDFLAGS) $(OBJS1) -o $(EXEC1)
+	$(LD) $(LDFLAGS) $(OBJS1) $(LIBS) -o $(EXEC1)
 
 $(EXEC2): $(OBJS2)
 	$(LD) $(LDFLAGS) $(OBJS2) -o $(EXEC2)
@@ -179,10 +196,15 @@ ifeq ($(CINIT), 1)
 	cp ../script/cinit/eth1.bound $(DIR_ROMFS)/usr/share/udhcpc/eth1.bound
 	cp ../script/cinit/eth1.renew $(DIR_ROMFS)/usr/share/udhcpc/eth1.renew
 	cp ../script/cinit/wlan0.bound $(DIR_ROMFS)/usr/share/udhcpc/wlan0.bound
+	cp ../script/cinit/wlan0.renew $(DIR_ROMFS)/usr/share/udhcpc/wlan0.renew
 	cp ../script/cinit/wlan1.bound $(DIR_ROMFS)/usr/share/udhcpc/wlan1.bound
+	cp ../script/cinit/wlan1.renew $(DIR_ROMFS)/usr/share/udhcpc/wlan1.renew
 	cp ../script/cinit/wlan0-vxd.bound $(DIR_ROMFS)/usr/share/udhcpc/wlan0-vxd.bound
+	cp ../script/cinit/wlan0-vxd.renew $(DIR_ROMFS)/usr/share/udhcpc/wlan0-vxd.renew
 	cp ../script/cinit/wlan1-vxd.bound $(DIR_ROMFS)/usr/share/udhcpc/wlan1-vxd.bound
+	cp ../script/cinit/wlan1-vxd.renew $(DIR_ROMFS)/usr/share/udhcpc/wlan1-vxd.renew
 	cp ../script/cinit/br0.bound $(DIR_ROMFS)/usr/share/udhcpc/br0.bound
+	cp ../script/cinit/br0.renew $(DIR_ROMFS)/usr/share/udhcpc/br0.renew
 endif
 	$(ROMFSINST) -s /var/udhcpc /etc/
 	rm $(DIR_ROMFS)/usr/share/udhcpc/*.deconfig

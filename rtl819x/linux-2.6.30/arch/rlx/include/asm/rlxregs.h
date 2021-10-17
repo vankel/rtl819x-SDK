@@ -188,15 +188,8 @@
 #if defined(CONFIG_CPU_RLX5281) || defined(CONFIG_CPU_RLX4281)
 #define __read_32bit_c0_register(source, sel)				\
 ({ int __res;								\
-	if (sel == 0)							\
 		__asm__ __volatile__(					\
-			"mfc0\t%0, " #source "\n\t"			\
-			: "=r" (__res));				\
-	else								\
-		__asm__ __volatile__(					\
-			".set\tmips32\n\t"				\
 			"mfc0\t%0, " #source ", " #sel "\n\t"		\
-			".set\tmips0\n\t"				\
 			: "=r" (__res));				\
 	__res;								\
 })
@@ -213,15 +206,8 @@
 #if defined(CONFIG_CPU_RLX5281) || defined(CONFIG_CPU_RLX4281)
 #define __write_32bit_c0_register(register, sel, value)			\
 do {									\
-	if (sel == 0)							\
 		__asm__ __volatile__(					\
-			"mtc0\t%z0, " #register "\n\t"			\
-			: : "Jr" ((unsigned int)(value)));		\
-	else								\
-		__asm__ __volatile__(					\
-			".set\tmips32\n\t"				\
 			"mtc0\t%z0, " #register ", " #sel "\n\t"	\
-			".set\tmips0"					\
 			: : "Jr" ((unsigned int)(value)));		\
 } while (0)
 #else
@@ -264,32 +250,17 @@ do {									\
 
 #define read_c0_info()		__read_32bit_c0_register($7, 0)
 
-#define read_c0_cache()		__read_32bit_c0_register($7, 0)	/* TX39xx */
-#define write_c0_cache(val)	__write_32bit_c0_register($7, 0, val)
-
 #define read_c0_badvaddr()	__read_ulong_c0_register($8, 0)
 #define write_c0_badvaddr(val)	__write_ulong_c0_register($8, 0, val)
 
 #define read_c0_count()		__read_32bit_c0_register($9, 0)
 #define write_c0_count(val)	__write_32bit_c0_register($9, 0, val)
 
-#define read_c0_count2()	__read_32bit_c0_register($9, 6) /* pnx8550 */
-#define write_c0_count2(val)	__write_32bit_c0_register($9, 6, val)
-
-#define read_c0_count3()	__read_32bit_c0_register($9, 7) /* pnx8550 */
-#define write_c0_count3(val)	__write_32bit_c0_register($9, 7, val)
-
 #define read_c0_entryhi()	__read_ulong_c0_register($10, 0)
 #define write_c0_entryhi(val)	__write_ulong_c0_register($10, 0, val)
 
 #define read_c0_compare()	__read_32bit_c0_register($11, 0)
 #define write_c0_compare(val)	__write_32bit_c0_register($11, 0, val)
-
-#define read_c0_compare2()	__read_32bit_c0_register($11, 6) /* pnx8550 */
-#define write_c0_compare2(val)	__write_32bit_c0_register($11, 6, val)
-
-#define read_c0_compare3()	__read_32bit_c0_register($11, 7) /* pnx8550 */
-#define write_c0_compare3(val)	__write_32bit_c0_register($11, 7, val)
 
 #define read_c0_status()	__read_32bit_c0_register($12, 0)
 
@@ -303,14 +274,59 @@ do {									\
 
 #define read_c0_prid()		__read_32bit_c0_register($15, 0)
 
+/*
+ * The WatchLo register.  There may be upto 8 of them.
+ */
+#define read_c0_watchlo0()	__read_ulong_c0_register($18, 0)
+#define read_c0_watchlo1()	__read_ulong_c0_register($18, 1)
+#define read_c0_watchlo2()	__read_ulong_c0_register($18, 2)
+#define read_c0_watchlo3()	__read_ulong_c0_register($18, 3)
+#define read_c0_watchlo4()	__read_ulong_c0_register($18, 4)
+#define read_c0_watchlo5()	__read_ulong_c0_register($18, 5)
+#define read_c0_watchlo6()	__read_ulong_c0_register($18, 6)
+#define read_c0_watchlo7()	__read_ulong_c0_register($18, 7)
+
+#define write_c0_watchlo0(val)	__write_ulong_c0_register($18, 0, val)
+#define write_c0_watchlo1(val)	__write_ulong_c0_register($18, 1, val)
+#define write_c0_watchlo2(val)	__write_ulong_c0_register($18, 2, val)
+#define write_c0_watchlo3(val)	__write_ulong_c0_register($18, 3, val)
+#define write_c0_watchlo4(val)	__write_ulong_c0_register($18, 4, val)
+#define write_c0_watchlo5(val)	__write_ulong_c0_register($18, 5, val)
+#define write_c0_watchlo6(val)	__write_ulong_c0_register($18, 6, val)
+#define write_c0_watchlo7(val)	__write_ulong_c0_register($18, 7, val)
+
+/*
+ * The WatchHi register.  There may be upto 8 of them.
+ */
+#define read_c0_watchhi0()	__read_32bit_c0_register($19, 0)
+#define read_c0_watchhi1()	__read_32bit_c0_register($19, 1)
+#define read_c0_watchhi2()	__read_32bit_c0_register($19, 2)
+#define read_c0_watchhi3()	__read_32bit_c0_register($19, 3)
+#define read_c0_watchhi4()	__read_32bit_c0_register($19, 4)
+#define read_c0_watchhi5()	__read_32bit_c0_register($19, 5)
+#define read_c0_watchhi6()	__read_32bit_c0_register($19, 6)
+#define read_c0_watchhi7()	__read_32bit_c0_register($19, 7)
+
+#define write_c0_watchhi0(val)	__write_32bit_c0_register($19, 0, val)
+#define write_c0_watchhi1(val)	__write_32bit_c0_register($19, 1, val)
+#define write_c0_watchhi2(val)	__write_32bit_c0_register($19, 2, val)
+#define write_c0_watchhi3(val)	__write_32bit_c0_register($19, 3, val)
+#define write_c0_watchhi4(val)	__write_32bit_c0_register($19, 4, val)
+#define write_c0_watchhi5(val)	__write_32bit_c0_register($19, 5, val)
+#define write_c0_watchhi6(val)	__write_32bit_c0_register($19, 6, val)
+#define write_c0_watchhi7(val)	__write_32bit_c0_register($19, 7, val)
+
 #define read_c0_xcontext()	__read_ulong_c0_register($20, 0)
 #define write_c0_xcontext(val)	__write_ulong_c0_register($20, 0, val)
 
-#define read_c0_intcontrol()	__read_32bit_c0_ctrl_register($20)
-#define write_c0_intcontrol(val) __write_32bit_c0_ctrl_register($20, val)
+#define read_c0_intcontrol()	__read_32bit_c0_ctrl_register($20, 0)
+#define write_c0_intcontrol(val) __write_32bit_c0_ctrl_register($20, 0, val)
 
 #define read_c0_framemask()	__read_32bit_c0_register($21, 0)
 #define write_c0_framemask(val)	__write_32bit_c0_register($21, 0, val)
+
+#define read_lxc0_userlocal()		__read_32bit_lxc0_register($8, 0)
+#define write_lxc0_userlocal(val)	__write_32bit_lxc0_register($8, 0, val)
 
 #define mfhi0()								\
 ({									\
@@ -625,8 +641,15 @@ __BUILD_SET_C0(cause)
 #define LXCP0_ESTATUS $0
 #define LXCP0_ECAUSE  $1
 #define LXCP0_INTVEC  $2
-
+#define LXCP0_CVSTAG		$3
+#define LXCP0_BPCTL			$4
+#define LXCP0_WMPCTL		$5
+#define LXCP0_WMPSTATUS		$6
+#define LXCP0_WMPVADDR		$7
+#define LXCP0_TLPTR			$8
+#define LXCP0_WMPEXTRAMASK	$19
 #define LXCP0_CCTL    $20
+ 
 #define CCTL_DInval    0x00000001
 #define CCTL_IInval    0x00000002
 #define CCTL_IMEM0FILL 0x00000010
@@ -660,34 +683,106 @@ __BUILD_SET_C0(cause)
 #define ECAUSEF_IP6		(_ULCAST_(1)   << 22)
 #define ECAUSEF_IP7		(_ULCAST_(1)   << 23)
 
+/*
+ * WMPU CTRL register
+ */
+#define WMPCTLF_MS		(_ULCAST_(1) << 0)
+#define WMPCTLF_KE		(_ULCAST_(1) << 1)
+
+#define WMPCTLF_EE0		(_ULCAST_(1) << 16)
+#define WMPCTLF_EE1		(_ULCAST_(1) << 17)
+#define WMPCTLF_EE2		(_ULCAST_(1) << 18)
+#define WMPCTLF_EE3		(_ULCAST_(1) << 19)
+#define WMPCTLF_EE4		(_ULCAST_(1) << 20)
+#define WMPCTLF_EE5		(_ULCAST_(1) << 21)
+#define WMPCTLF_EE6		(_ULCAST_(1) << 22)
+#define WMPCTLF_EE7		(_ULCAST_(1) << 23)
+
+/*
+ * WMPU status register
+ */
+#define WMPSTATUSF_II		(_ULCAST_(1) << 0)
+#define WMPSTATUSF_DR		(_ULCAST_(1) << 1)
+#define WMPSTATUSF_DW		(_ULCAST_(1) << 2)
+
+#define WMPSTATUSF_EM0		(_ULCAST_(1) << 16)
+#define WMPSTATUSF_EM1		(_ULCAST_(1) << 17)
+#define WMPSTATUSF_EM2		(_ULCAST_(1) << 18)
+#define WMPSTATUSF_EM3		(_ULCAST_(1) << 19)
+#define WMPSTATUSF_EM4		(_ULCAST_(1) << 20)
+#define WMPSTATUSF_EM5		(_ULCAST_(1) << 21)
+#define WMPSTATUSF_EM6		(_ULCAST_(1) << 22)
+#define WMPSTATUSF_EM7		(_ULCAST_(1) << 23)
+
 #ifndef __ASSEMBLY__
 
 /*
  * Macros to access the system control coprocessor
  */
 
-#define __read_32bit_lxc0_register(source)	\
+#define __read_32bit_lxc0_register(source, sel)			\
 ({ int __res;								\
+	if (sel == 0)						\
 	__asm__ __volatile__(					\
 		"mflxc0\t%0, " #source "\n\t"		\
 		: "=r" (__res));				\
+	else							\
+		__asm__ __volatile__(				\
+			"mflxc0\t%0, " #source ", " #sel "\n\t"	\
+			: "=r" (__res));			\
 	__res;								\
 })
 
-#define __write_32bit_lxc0_register(register, value)		\
+#define __write_32bit_lxc0_register(target, sel, value)		\
 do {									\
+	if (sel == 0)						\
 	__asm__ __volatile__(					\
-		"mtlxc0\t%z0, " #register "\n\t"			\
+			"mtlxc0\t%z0, " #target "\n\t"		\
+			: : "Jr" ((unsigned int)(value)));	\
+	else							\
+		__asm__ __volatile__(				\
+			"mtlxc0\t%z0, " #target ", " #sel "\n"	\
 		: : "Jr" ((unsigned int)(value)));		\
 } while (0)
 
 
-#define read_lxc0_estatus()	__read_32bit_lxc0_register($0)
-#define read_lxc0_ecause()	__read_32bit_lxc0_register($1)
-#define read_lxc0_intvec()	__read_32bit_lxc0_register($2)
-#define write_lxc0_estatus(val)	__write_32bit_lxc0_register($0, val)
-#define write_lxc0_ecause(val)	__write_32bit_lxc0_register($1, val)
-#define write_lxc0_intvec(val)	__write_32bit_lxc0_register($2, val)
+#define read_lxc0_estatus()	__read_32bit_lxc0_register($0, 0)
+#define read_lxc0_ecause()	__read_32bit_lxc0_register($1, 0)
+#define read_lxc0_intvec()	__read_32bit_lxc0_register($2, 0)
+#define write_lxc0_estatus(val)	__write_32bit_lxc0_register($0, 0, val)
+#define write_lxc0_ecause(val)	__write_32bit_lxc0_register($1, 0, val)
+#define write_lxc0_intvec(val)	__write_32bit_lxc0_register($2, 0, val)
+
+/*
+ * The WMPCTL, WMPSTATUS and WMPVADDR register
+ */
+#define read_lxc0_wmpctl()	__read_32bit_lxc0_register($5, 0)
+#define write_lxc0_wmpctl(val)	__write_32bit_lxc0_register($5, 0, val)
+
+#define read_lxc0_wmpstatus()	__read_32bit_lxc0_register($6, 0)
+#define read_lxc0_wmpvaddr()	__read_32bit_lxc0_register($7, 0)
+
+/*
+ * The WMPEXTRAMASK register.
+ */
+#define read_lxc0_wmpxmask0()	__read_32bit_lxc0_register($19, 0)
+#define read_lxc0_wmpxmask1()	__read_32bit_lxc0_register($19, 1)
+#define read_lxc0_wmpxmask2()	__read_32bit_lxc0_register($19, 2)
+#define read_lxc0_wmpxmask3()	__read_32bit_lxc0_register($19, 3)
+#define read_lxc0_wmpxmask4()	__read_32bit_lxc0_register($19, 4)
+#define read_lxc0_wmpxmask5()	__read_32bit_lxc0_register($19, 5)
+#define read_lxc0_wmpxmask6()	__read_32bit_lxc0_register($19, 6)
+#define read_lxc0_wmpxmask7()	__read_32bit_lxc0_register($19, 7)
+
+#define write_lxc0_wmpxmask0(val) __write_32bit_lxc0_register($19, 0, val)
+#define write_lxc0_wmpxmask1(val) __write_32bit_lxc0_register($19, 1, val)
+#define write_lxc0_wmpxmask2(val) __write_32bit_lxc0_register($19, 2, val)
+#define write_lxc0_wmpxmask3(val) __write_32bit_lxc0_register($19, 3, val)
+#define write_lxc0_wmpxmask4(val) __write_32bit_lxc0_register($19, 4, val)
+#define write_lxc0_wmpxmask5(val) __write_32bit_lxc0_register($19, 5, val)
+#define write_lxc0_wmpxmask6(val) __write_32bit_lxc0_register($19, 6, val)
+#define write_lxc0_wmpxmask7(val) __write_32bit_lxc0_register($19, 7, val)
+
 
 /*
  * Manipulate bits in a lxc0 register.
@@ -733,6 +828,7 @@ change_lxc0_##name(unsigned int change, unsigned int new)		\
 __BUILD_SET_LXC0(intvec)
 __BUILD_SET_LXC0(estatus)
 __BUILD_SET_LXC0(ecause)
+__BUILD_SET_LXC0(wmpctl)
 
 #endif /* !__ASSEMBLY__ */
 

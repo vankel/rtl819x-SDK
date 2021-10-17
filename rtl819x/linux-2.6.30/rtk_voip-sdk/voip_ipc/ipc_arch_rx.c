@@ -135,7 +135,10 @@ static void ipc_voice2dsp_parser(const ipc_voice_pkt_t* ipc_voice_pkt)
 #endif
 	//PRINT_G("v");
 	
-	sid = API_GetSid( chid, mid );
+	if( mid >= RTCP_MID_OFFSET )
+		sid = API_GetSid( chid, mid - RTCP_MID_OFFSET ) + RTCP_SID_OFFSET;
+	else
+		sid = API_GetSid( chid, mid );
 	
 	DSP_pktRx(chid, sid, packet, len - SIZE_OF_VOICE_RTP2DSP_CONT_HEADER, flags );
 	//PRINT_G("%d,%d\n", chid, len - SIZE_OF_VOICE_RTP2DSP_CONT_HEADER);
@@ -289,7 +292,7 @@ static void ipc_event_parser(uint32 dsp_cpuid, const ipc_ctrl_pkt_t * ipc_ctrl_p
 
 	uint16 category, length, seq_no;
 	const unsigned char * pContent = NULL;
-	TstTxPktCtrl pktCtrl;
+	//TstTxPktCtrl pktCtrl;
 	TstVoipEvent event;
 	
 	typedef struct {
@@ -350,6 +353,12 @@ static void ipc_event_parser(uint32 dsp_cpuid, const ipc_ctrl_pkt_t * ipc_ctrl_p
 	// convert event channel 
 	event.ch_id = API_get_Host_CH( dsp_cpuid, event.ch_id );
 	
+#if 0
+	extern int con_ch_num;
+	if (((int)event.ch_id < 0) || ((int)event.ch_id > con_ch_num))
+		return;
+#endif
+
 	// write to event manager 
 	voip_mgr_event_in_packed( &event );
 	
@@ -369,10 +378,13 @@ static void ipc_event_parser(uint32 dsp_cpuid, const ipc_ctrl_pkt_t * ipc_ctrl_p
 	
 	// send ACK packet which the same with category and seq_no of the event pkt
 label_send_event_ACK:
+ #ifdef CONFIG_RTK_VOIP_IPC_ARCH_ISSUE_TRIVIAL_ACK
 	pktCtrl.dsp_cpuid = dsp_cpuid;
 	pktCtrl.seq_no = seq_no;
 	pktCtrl.resend_flag = 0;
-	ipc_pkt_tx_final(category, IPC_PROT_ACK, NULL, 0, &pktCtrl, NULL);	
+	ipc_pkt_tx_final(category, IPC_PROT_ACK, NULL, 0, &pktCtrl, NULL, NULL);	
+ #endif
+	;
 #endif
 }
 
@@ -403,10 +415,12 @@ void ipc_pkt_rx_entry( ipc_ctrl_pkt_t * ipc_pkt, uint32 ipc_pkt_len )
 	extern void ethernet_dsp_update_source_MAC( const ipc_ctrl_pkt_t *ipc_pkt );
 	extern void ipc_mirror_parser( ipc_ctrl_pkt_t *ipc_ctrl );
 	extern void ipc_rpc_ack_parser( ipc_ctrl_pkt_t *ipc_ctrl );
+	extern void ipc_ddd_h2d_parser( const ipc_ctrl_pkt_t *ipc_ctrl );
 #endif
 #ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	extern void ipc_rpc_parser( ipc_ctrl_pkt_t *ipc_ctrl );
 	extern void ipc_mirror_ack_parser( const ipc_ctrl_pkt_t *ipc_ctrl );
+	extern void ipc_ddd_d2h_parser( const ipc_ctrl_pkt_t *ipc_ctrl );
 #endif
 
 	unsigned short pltype;
@@ -562,6 +576,18 @@ void ipc_pkt_rx_entry( ipc_ctrl_pkt_t * ipc_pkt, uint32 ipc_pkt_len )
 #ifdef IPC_ARCH_DEBUG_DSP
 			dsp_ack_rx_cnt++;
 #endif
+			break;
+#endif
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
+		case IPC_PROT_DDD_D2H:
+			ipc_ddd_d2h_parser( ipc_ctrl_pkt );
+			break;
+#endif
+
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_IS_DSP
+		case IPC_PROT_DDD_H2D:
+			ipc_ddd_h2d_parser( ipc_ctrl_pkt );
 			break;
 #endif
 

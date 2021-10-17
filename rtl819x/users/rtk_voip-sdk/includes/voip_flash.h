@@ -17,6 +17,9 @@
 
 /* Define below marco to  support TLV in VoIP configuration */
 #define VOIP_SUPPORT_TLV_CFG 1
+#ifdef CONFIG_RTK_VOIP_PACKAGE_867X
+#undef VOIP_SUPPORT_TLV_CFG
+#endif
 
 #ifndef CONFIG_RTK_VOIP_PACKAGE_867X //defined(CONFIG_RTK_VOIP_IP_PHONE) || defined(CONFIG_APP_TR104)
 #define SUPPORT_VOIP_FLASH_WRITE	/* flash write module */
@@ -34,7 +37,7 @@
 #define VOIP_FLASH_SIGNATURE			0x766f6970		// voip
 #define VOIP_CONFIG_SIGNATURE			0x08010806		// 8186
 
-#define VOIP_FLASH_VER					60
+#define VOIP_FLASH_VER					63
 // ver 2: add call_waiting_cid
 // ver 3: add funckey_transfer, funckey_pstn, off_hook_alarm, auto_dial
 // ver 4:
@@ -165,6 +168,10 @@
 // - add RTCP interval 
 // ver 61:
 // - add RFC2833 packet interval, Fax/Modem RFC2833 payload type
+// ver 62:
+// - add more customize tone data
+// ver 63:
+// - add more customize tone data (32 cadence)
 
 #define VOIP_FLASH_MIB_VER				0x0000
 
@@ -250,6 +257,8 @@ enum __CODEC_TYPE__
 	_CODEC_SPEEX_NB,
 	_CODEC_G711U_WB,
 	_CODEC_G711A_WB,
+	_CODEC_AMR_NB,
+	_CODEC_AMR_WB,
 	_CODEC_MAX
 };
 
@@ -441,7 +450,10 @@ enum _TONE_TYPE_
     TONE_TYPE_ADDITIVE = 0,
     TONE_TYPE_MODULATED,
     TONE_TYPE_SUCC,
-    //TONE_TYPE_SUCC_ADD,
+    TONE_TYPE_SUCC_ADD,
+    TONE_TYPE_FOUR_FREQ,
+    TONE_TYPE_STEP_INC,
+    TONE_TYPE_TWO_STEP,
     TONE_TYPE_MAX
 };
 
@@ -449,6 +461,7 @@ enum _TONE_TYPE_
  * @ingroup VOIP_PHONE_TONE
  * Enumeration for Tone Cycle
  */
+#if 0 // jwsyu 20121005 disable
 enum _TONE_CYCLE_
 {
     TONE_CYCLE_CONTINUOUS = 0,
@@ -456,6 +469,7 @@ enum _TONE_CYCLE_
     TONE_CYCLE_CADENCE,
     TONE_CYCLE_MAX
 };
+#endif
 
 /*
  * @ingroup VOIP_CONFIG
@@ -645,26 +659,407 @@ struct ToneCfgParam
 	unsigned short	cadNUM;
 
 	unsigned long	CadOn0;
-	unsigned long	CadOn1;
-	unsigned long	CadOn2;
-	unsigned long	CadOn3;
 	unsigned long	CadOff0;
+	unsigned long	CadOn1;
 	unsigned long	CadOff1;
+	unsigned long	CadOn2;
 	unsigned long	CadOff2;
+	unsigned long	CadOn3;
 	unsigned long	CadOff3;
 
 	unsigned long PatternOff;
 	unsigned long ToneNUM;
 
+	unsigned long	Freq0;
 	unsigned long	Freq1;
 	unsigned long	Freq2;
 	unsigned long	Freq3;
-	unsigned long	Freq4;
 
+	long Gain0;
 	long Gain1;
 	long Gain2;
 	long Gain3;
-	long Gain4;
+
+	unsigned long	C1_Freq0;
+	unsigned long	C1_Freq1;
+	unsigned long	C1_Freq2;
+	unsigned long	C1_Freq3;
+
+	long C1_Gain0;
+	long C1_Gain1;
+	long C1_Gain2;
+	long C1_Gain3;
+
+	unsigned long	C2_Freq0;
+	unsigned long	C2_Freq1;
+	unsigned long	C2_Freq2;
+	unsigned long	C2_Freq3;
+
+	long C2_Gain0;
+	long C2_Gain1;
+	long C2_Gain2;
+	long C2_Gain3;
+
+	unsigned long	C3_Freq0;
+	unsigned long	C3_Freq1;
+	unsigned long	C3_Freq2;
+	unsigned long	C3_Freq3;
+
+	long C3_Gain0;
+	long C3_Gain1;
+	long C3_Gain2;
+	long C3_Gain3;
+
+	unsigned long	CadOn4;
+	unsigned long	CadOff4;
+	unsigned long	CadOn5;
+	unsigned long	CadOff5;
+	unsigned long	CadOn6;
+	unsigned long	CadOff6;
+	unsigned long	CadOn7;
+	unsigned long	CadOff7;
+
+	unsigned long	C4_Freq0;
+	unsigned long	C4_Freq1;
+	unsigned long	C4_Freq2;
+	unsigned long	C4_Freq3;
+
+	long C4_Gain0;
+	long C4_Gain1;
+	long C4_Gain2;
+	long C4_Gain3;
+
+	unsigned long	C5_Freq0;
+	unsigned long	C5_Freq1;
+	unsigned long	C5_Freq2;
+	unsigned long	C5_Freq3;
+
+	long C5_Gain0;
+	long C5_Gain1;
+	long C5_Gain2;
+	long C5_Gain3;
+
+	unsigned long	C6_Freq0;
+	unsigned long	C6_Freq1;
+	unsigned long	C6_Freq2;
+	unsigned long	C6_Freq3;
+
+	long C6_Gain0;
+	long C6_Gain1;
+	long C6_Gain2;
+	long C6_Gain3;
+
+	unsigned long	C7_Freq0;
+	unsigned long	C7_Freq1;
+	unsigned long	C7_Freq2;
+	unsigned long	C7_Freq3;
+
+	long C7_Gain0;
+	long C7_Gain1;
+	long C7_Gain2;
+	long C7_Gain3;
+
+
+	unsigned long	CadOn8;
+	unsigned long	CadOff8;
+	unsigned long	CadOn9;
+	unsigned long	CadOff9;
+	unsigned long	CadOn10;
+	unsigned long	CadOff10;
+	unsigned long	CadOn11;
+	unsigned long	CadOff11;
+
+	unsigned long	C8_Freq0;
+	unsigned long	C8_Freq1;
+	unsigned long	C8_Freq2;
+	unsigned long	C8_Freq3;
+
+	long C8_Gain0;
+	long C8_Gain1;
+	long C8_Gain2;
+	long C8_Gain3;
+
+	unsigned long	C9_Freq0;
+	unsigned long	C9_Freq1;
+	unsigned long	C9_Freq2;
+	unsigned long	C9_Freq3;
+
+	long C9_Gain0;
+	long C9_Gain1;
+	long C9_Gain2;
+	long C9_Gain3;
+
+	unsigned long	C10_Freq0;
+	unsigned long	C10_Freq1;
+	unsigned long	C10_Freq2;
+	unsigned long	C10_Freq3;
+
+	long C10_Gain0;
+	long C10_Gain1;
+	long C10_Gain2;
+	long C10_Gain3;
+
+	unsigned long	C11_Freq0;
+	unsigned long	C11_Freq1;
+	unsigned long	C11_Freq2;
+	unsigned long	C11_Freq3;
+
+	long C11_Gain0;
+	long C11_Gain1;
+	long C11_Gain2;
+	long C11_Gain3;
+
+
+	unsigned long	CadOn12;
+	unsigned long	CadOff12;
+	unsigned long	CadOn13;
+	unsigned long	CadOff13;
+	unsigned long	CadOn14;
+	unsigned long	CadOff14;
+	unsigned long	CadOn15;
+	unsigned long	CadOff15;
+
+	unsigned long	C12_Freq0;
+	unsigned long	C12_Freq1;
+	unsigned long	C12_Freq2;
+	unsigned long	C12_Freq3;
+
+	long C12_Gain0;
+	long C12_Gain1;
+	long C12_Gain2;
+	long C12_Gain3;
+
+	unsigned long	C13_Freq0;
+	unsigned long	C13_Freq1;
+	unsigned long	C13_Freq2;
+	unsigned long	C13_Freq3;
+
+	long C13_Gain0;
+	long C13_Gain1;
+	long C13_Gain2;
+	long C13_Gain3;
+
+	unsigned long	C14_Freq0;
+	unsigned long	C14_Freq1;
+	unsigned long	C14_Freq2;
+	unsigned long	C14_Freq3;
+
+	long C14_Gain0;
+	long C14_Gain1;
+	long C14_Gain2;
+	long C14_Gain3;
+
+	unsigned long	C15_Freq0;
+	unsigned long	C15_Freq1;
+	unsigned long	C15_Freq2;
+	unsigned long	C15_Freq3;
+
+	long C15_Gain0;
+	long C15_Gain1;
+	long C15_Gain2;
+	long C15_Gain3;
+
+
+	unsigned long	CadOn16;
+	unsigned long	CadOff16;
+	unsigned long	CadOn17;
+	unsigned long	CadOff17;
+	unsigned long	CadOn18;
+	unsigned long	CadOff18;
+	unsigned long	CadOn19;
+	unsigned long	CadOff19;
+
+	unsigned long	C16_Freq0;
+	unsigned long	C16_Freq1;
+	unsigned long	C16_Freq2;
+	unsigned long	C16_Freq3;
+
+	long C16_Gain0;
+	long C16_Gain1;
+	long C16_Gain2;
+	long C16_Gain3;
+
+	unsigned long	C17_Freq0;
+	unsigned long	C17_Freq1;
+	unsigned long	C17_Freq2;
+	unsigned long	C17_Freq3;
+
+	long C17_Gain0;
+	long C17_Gain1;
+	long C17_Gain2;
+	long C17_Gain3;
+
+	unsigned long	C18_Freq0;
+	unsigned long	C18_Freq1;
+	unsigned long	C18_Freq2;
+	unsigned long	C18_Freq3;
+
+	long C18_Gain0;
+	long C18_Gain1;
+	long C18_Gain2;
+	long C18_Gain3;
+
+	unsigned long	C19_Freq0;
+	unsigned long	C19_Freq1;
+	unsigned long	C19_Freq2;
+	unsigned long	C19_Freq3;
+
+	long C19_Gain0;
+	long C19_Gain1;
+	long C19_Gain2;
+	long C19_Gain3;
+
+
+	unsigned long	CadOn20;
+	unsigned long	CadOff20;
+	unsigned long	CadOn21;
+	unsigned long	CadOff21;
+	unsigned long	CadOn22;
+	unsigned long	CadOff22;
+	unsigned long	CadOn23;
+	unsigned long	CadOff23;
+
+	unsigned long	C20_Freq0;
+	unsigned long	C20_Freq1;
+	unsigned long	C20_Freq2;
+	unsigned long	C20_Freq3;
+
+	long C20_Gain0;
+	long C20_Gain1;
+	long C20_Gain2;
+	long C20_Gain3;
+
+	unsigned long	C21_Freq0;
+	unsigned long	C21_Freq1;
+	unsigned long	C21_Freq2;
+	unsigned long	C21_Freq3;
+
+	long C21_Gain0;
+	long C21_Gain1;
+	long C21_Gain2;
+	long C21_Gain3;
+
+	unsigned long	C22_Freq0;
+	unsigned long	C22_Freq1;
+	unsigned long	C22_Freq2;
+	unsigned long	C22_Freq3;
+
+	long C22_Gain0;
+	long C22_Gain1;
+	long C22_Gain2;
+	long C22_Gain3;
+
+	unsigned long	C23_Freq0;
+	unsigned long	C23_Freq1;
+	unsigned long	C23_Freq2;
+	unsigned long	C23_Freq3;
+
+	long C23_Gain0;
+	long C23_Gain1;
+	long C23_Gain2;
+	long C23_Gain3;
+
+
+	unsigned long	CadOn24;
+	unsigned long	CadOff24;
+	unsigned long	CadOn25;
+	unsigned long	CadOff25;
+	unsigned long	CadOn26;
+	unsigned long	CadOff26;
+	unsigned long	CadOn27;
+	unsigned long	CadOff27;
+
+	unsigned long	C24_Freq0;
+	unsigned long	C24_Freq1;
+	unsigned long	C24_Freq2;
+	unsigned long	C24_Freq3;
+
+	long C24_Gain0;
+	long C24_Gain1;
+	long C24_Gain2;
+	long C24_Gain3;
+
+	unsigned long	C25_Freq0;
+	unsigned long	C25_Freq1;
+	unsigned long	C25_Freq2;
+	unsigned long	C25_Freq3;
+
+	long C25_Gain0;
+	long C25_Gain1;
+	long C25_Gain2;
+	long C25_Gain3;
+
+	unsigned long	C26_Freq0;
+	unsigned long	C26_Freq1;
+	unsigned long	C26_Freq2;
+	unsigned long	C26_Freq3;
+
+	long C26_Gain0;
+	long C26_Gain1;
+	long C26_Gain2;
+	long C26_Gain3;
+
+	unsigned long	C27_Freq0;
+	unsigned long	C27_Freq1;
+	unsigned long	C27_Freq2;
+	unsigned long	C27_Freq3;
+
+	long C27_Gain0;
+	long C27_Gain1;
+	long C27_Gain2;
+	long C27_Gain3;
+
+
+	unsigned long	CadOn28;
+	unsigned long	CadOff28;
+	unsigned long	CadOn29;
+	unsigned long	CadOff29;
+	unsigned long	CadOn30;
+	unsigned long	CadOff30;
+	unsigned long	CadOn31;
+	unsigned long	CadOff31;
+
+	unsigned long	C28_Freq0;
+	unsigned long	C28_Freq1;
+	unsigned long	C28_Freq2;
+	unsigned long	C28_Freq3;
+
+	long C28_Gain0;
+	long C28_Gain1;
+	long C28_Gain2;
+	long C28_Gain3;
+
+	unsigned long	C29_Freq0;
+	unsigned long	C29_Freq1;
+	unsigned long	C29_Freq2;
+	unsigned long	C29_Freq3;
+
+	long C29_Gain0;
+	long C29_Gain1;
+	long C29_Gain2;
+	long C29_Gain3;
+
+	unsigned long	C30_Freq0;
+	unsigned long	C30_Freq1;
+	unsigned long	C30_Freq2;
+	unsigned long	C30_Freq3;
+
+	long C30_Gain0;
+	long C30_Gain1;
+	long C30_Gain2;
+	long C30_Gain3;
+
+	unsigned long	C31_Freq0;
+	unsigned long	C31_Freq1;
+	unsigned long	C31_Freq2;
+	unsigned long	C31_Freq3;
+
+	long C31_Gain0;
+	long C31_Gain1;
+	long C31_Gain2;
+	long C31_Gain3;
+
+
 	//int dummy;	//thlin add for sync with struct TstVoipToneCfg in voip_control.h
 #endif
 };

@@ -15,18 +15,20 @@
 
 // Galardo test 2008.0901
 
-#define PROXY_TBL_AGING_LIMIT		100	//proxy table expire time
+#define PROXY_TBL_AGING_LIMIT		300	//proxy table expire time
 #define HWMP_ACTIVE_PATH_TIMEOUT	300	//pathsel table expire time, chuangch
 #define HWMP_PREQ_REFRESH_PERIOD	60	//route maintenance, chuangch 10.19
-#define HWMP_PREQ_REFRESH_PERIOD2	500	//route maintenance, chuangch 10.19
+#define HWMP_PREQ_REFRESH_PERIOD2	200	//route maintenance, chuangch 10.19
 
 // #define HWMP_MP_TRAVERSAL_TIME ((40 / 1000) * HZ)   // Process RREQ time per MP
 // #define HWMP_NET_DIAMETER 20 // rreq TTL
 // #define HWMP_NETDIAMTER_TRAVERSAL_TIME (HWMP_NET_DIAMETER * HWMP_MP_TRAVERSAL_TIME)
 // #define HWMP_NETDIAMETER_TRAVERSAL_TIME (2 * HWMP_NETDIAMTER_TRAVERSAL_TIME)
+#if defined(RTK_MESH_AODV_STANDALONE_TIMER)
+#define HWMP_NETDIAMETER_TRAVERSAL_TIME MESH_AODV_EXPIRE_TO*3 //miliseconds
+#else
 #define HWMP_NETDIAMETER_TRAVERSAL_TIME HZ
-
-
+#endif
 
 #ifdef PU_STANDARD	// For 802.11 Mesh proxy update
 enum PU_flag
@@ -58,11 +60,7 @@ __PACK struct proxy_table_entry	 {
 	unsigned char 	sta[MACADDRLEN];
 	unsigned char 	owner[MACADDRLEN];
 	// unsigned char	type; // 0: others, 1: my_sta, 2: my bridge
-	#ifdef __LINUX_2_6__
-	struct timespec 	update_time;
-	#else
-	struct timeval 	update_time;
-	#endif
+	short aging_time;
 };
 
 
@@ -73,6 +71,7 @@ __PACK struct proxyupdate_table_entry	 {
 	unsigned char	destproxymac[MACADDRLEN];
 	unsigned char 	proxymac[MACADDRLEN];
 	unsigned char   proxiedmac[MACADDRLEN];
+    DRV_PRIV *priv;    
 	#ifdef __LINUX_2_6__
 	struct timespec	update_time;
 	#else
@@ -82,23 +81,31 @@ __PACK struct proxyupdate_table_entry	 {
 
 
 __PACK struct path_sel_entry {
-	unsigned char destMAC[MACADDRLEN];
-	unsigned char nexthopMAC[MACADDRLEN];
-	unsigned int dsn;
-	unsigned int metric;
-	unsigned char hopcount;
-	// the following entries are NOT shared by daemon and driver
-//	unsigned char isvalid;
-//	unsigned char modify_time[8];
-	unsigned int start, end;
-	char flag;
-	#ifdef __LINUX_2_6__
-	struct timespec update_time;		// chuangch, for rreq retry
-	struct timespec routeMaintain;	// chuangch 10.19 timeout of maintenance rreq
-	#else
-	struct timeval update_time;		// chuangch, for rreq retry
-	struct timeval routeMaintain;	// chuangch 10.19 timeout of maintenance rreq
-	#endif
+    unsigned char destMAC[MACADDRLEN];
+    unsigned char nexthopMAC[MACADDRLEN];
+    unsigned int dsn;
+    unsigned int metric;
+    unsigned char hopcount;
+    // the following entries are NOT shared by daemon and driver
+    //	unsigned char isvalid;
+    //	unsigned char modify_time[8];
+    unsigned int start, end;
+    char flag;
+    unsigned short RecentSeq[SZ_HASH_IDX2];
+    DRV_PRIV *priv;
+#ifdef __LINUX_2_6__
+    struct timespec update_time;		// chuangch, for rreq retry
+
+    #ifdef MESH_ROUTE_MAINTENANCE
+    struct timespec routeMaintain;	// chuangch 10.19 timeout of maintenance rreq
+    #endif
+#else
+    struct timeval update_time;		// chuangch, for rreq retry
+
+    #ifdef MESH_ROUTE_MAINTENANCE
+    struct timeval routeMaintain;	// chuangch 10.19 timeout of maintenance rreq
+    #endif
+#endif
 } __WLAN_ATTRIB_PACK__;
 
 
@@ -158,12 +165,10 @@ typedef __PACK struct _DOT11s_RECV_PACKET{
 	unsigned char	MACAddr6[MACADDRLEN];
 }__WLAN_ATTRIB_PACK__ DOT11s_RECV_PACKET;
 
-
 #ifdef __LINUX_2_6__
 #else
 extern struct timeval 	xtime;
 #endif
-extern int pid_pathsel;
 
 #ifdef _11s_TEST_MODE_
 extern int pid_receiver;

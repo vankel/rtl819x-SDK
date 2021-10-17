@@ -1,0 +1,59 @@
+//
+// Copyright (C) 2012 Realtek Semiconductor Corp.
+// All Rights Reserved.
+//
+// This program is the proprietary software of Realtek Semiconductor
+// Corporation and/or its licensors, and only be used, duplicated,
+// modified or distributed under the authorized license from Realtek.
+//
+// ANY USE OF THE SOFTWARE OTHER THAN AS AUTHORIZED UNDER
+// THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+//
+// $Revision: 14584 $
+// $Date: 2010-12-03 13:29:43 +0800 (Fri, 03 Dec 2010) $
+//
+// Purpose : Define diag shell commands.
+//
+// Feature : The file have include the following module and sub-modules
+//           1) All diag shell commands.
+//
+
+
+//exit diag shell
+exit
+
+#include "./sdk.cli"
+#include "./classf.cli"
+#include "./acl.cli"
+#include "./svlan.cli"
+#include "./vlan.cli"
+#include "./l2.cli"
+#include "./classf.cli"
+#include "./igmp.cli"
+#include "./port.cli"
+#include "./mirror.cli"
+#include "./l34.cli"
+#include "./qos.cli"
+#include "./bandwidth.cli"
+#include "./meter.cli"
+#include "./storm_control.cli"
+#include "./switch.cli"
+#include "./dot1x.cli"
+#include "./stp.cli"
+#include "./counter.cli"
+#include "./trunk.cli"
+#include "./rma.cli"
+#include "./trap.cli"
+#include "./oam.cli"
+#include "./sec.cli"
+#include "./cpu.cli"
+#include "./iol.cli"
+#include "./debug.cli"
+#include "./reg.cli"
+#include "./auto_fallback.cli"
+#include "./rldp.cli"
+#include "./intr.cli"
+#include "./epon.cli"
+#include "./ponmac.cli"
+#include "./flowctrl.cli"
+#include "./gpon.cli"

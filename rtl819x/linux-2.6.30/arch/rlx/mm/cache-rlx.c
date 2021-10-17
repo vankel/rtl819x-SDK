@@ -53,6 +53,8 @@
   #define CACHE_DCACHE_WBACK	0x11
 #endif
 
+#define CACHE_DCACHE_INVAL	0x11
+
 #ifdef CONFIG_CPU_HAS_WBIC
   #define CACHE_ICACHE_FLUSH	0x1b
 #else
@@ -108,6 +110,19 @@
   #define ICACHE_OP(op,p)  CACHE16_UNROLL8(op,(p))
 #endif
 
+#if (cpu_dcache_line == 32)
+  #define DCACHE_UNROLL(op,p)  CACHE32_UNROLL4(op,(p))
+#else
+  #define DCACHE_UNROLL(op,p)  CACHE16_UNROLL8(op,(p))
+#endif
+
+#if (cpu_icache_line == 32)
+  #define ICACHE_UNROLL(op,p)  CACHE32_UNROLL4(op,(p))
+#else
+  #define ICACHE_UNROLL(op,p)  CACHE16_UNROLL8(op,(p))
+#endif
+
+
 /*
  *  CCTL OP
  *   0x1   = DInval
@@ -123,6 +138,8 @@
   #define CCTL_DCACHE_WBACK		0x1
   #define CCTL_DCACHE_FLUSH		0x1
 #endif
+
+#define CCTL_DCACHE_INVAL		0x1
 
 #if defined(CONFIG_CPU_RLX4281) || defined(CONFIG_CPU_RLX5281)
 #define CCTL_OP(op)		\
@@ -398,6 +415,42 @@ void __cpuinit rlx_cache_init(void)
  * DCACHE part 
  */
 #if defined(CONFIG_CPU_HAS_WBC) || defined(CONFIG_CPU_HAS_L2C)
+static inline void rlx_inval_dcache_fast(unsigned long start, unsigned long end)
+{
+	unsigned long p;
+
+	for (p = start; p < end; p += 0x080) {
+		DCACHE_UNROLL(CACHE_DCACHE_INVAL, p);
+	}
+
+	p = p & ~(cpu_dcache_line -1);
+	if (p < end) {
+		CACHE_OP(CACHE_DCACHE_INVAL, p);
+	}
+}
+
+static inline void rlx_inval_dcache_range(unsigned long start, unsigned long end)
+{
+#ifdef CONFIG_CPU_HAS_DCACHE_OP
+	if (end - start > cpu_dcache_size) {
+		CCTL_OP(CCTL_DCACHE_INVAL);
+		return;
+	}
+	rlx_inval_dcache_fast(start, end);
+#else
+	CCTL_OP(CCTL_DCACHE_INVAL);
+#endif
+}
+
+static void rlx_dma_cache_inv(unsigned long start, unsigned long size)
+{
+	/* Catch bad driver code */
+	BUG_ON(size == 0);
+
+	iob();
+	rlx_inval_dcache_range(start, start + size);
+}
+
 static void inline rlx_dcache_flush_all(void)
 {
     __asm__ __volatile__(
@@ -791,7 +844,8 @@ void __cpuinit rlx_cache_init(void)
 
 	_dma_cache_wback_inv = rlx_dma_cache_wback_inv;
 	_dma_cache_wback = rlx_dma_cache_wback_inv;
-	_dma_cache_inv = rlx_dma_cache_wback_inv;
+	//_dma_cache_inv = rlx_dma_cache_wback_inv;
+	_dma_cache_inv = rlx_dma_cache_inv;
 
     printk("icache: %dkB/%dB, dcache: %dkB/%dB, scache: %dkB/%dB\n",
            cpu_icache_size >> 10, cpu_icache_line,

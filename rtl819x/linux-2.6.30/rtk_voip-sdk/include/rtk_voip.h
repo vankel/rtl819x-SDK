@@ -3,7 +3,7 @@
 #define _RTK_VOIP_H
 
 #ifdef __KERNEL__
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/version.h>
 #endif
 
@@ -17,7 +17,11 @@
 #ifndef FEATURE_DMEM_STACK_CLI //add by timlee for compile warning
 #define FEATURE_DMEM_STACK_CLI
 #endif
-#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) &&!defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) &&!defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)/* !RTL8952/62 && !RTL8972B/82B && !RTL89xxC && !RTL89xxD */
+#if !defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) && !defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) && \
+	!defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) &&!defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) &&	\
+	!defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) && !defined( CONFIG_RTK_VOIP_PLATFORM_8686 ) && \
+	!defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+	/* !RTL8952/62 && !RTL8972B/82B && !RTL89xxC && !RTL89xxD */
 #define VOCODER_INT			/* Voice codec is interruptable by ISR in some conditions */
 #endif
 
@@ -51,7 +55,11 @@
 #else
 #define PCM_FIFO_SIZE 		10
 #endif
-#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) || (CONFIG_RTK_VOIP_DRIVERS_PCM89xxD) /* RTL8952/62 || RTL8972B/82B || RTL89xxC || RTL89xxD */
+#if defined(CONFIG_RTK_VOIP_DRIVERS_PCM865xC) || defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY) || 	\
+	defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxC) || defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672) || 	\
+	defined (CONFIG_RTK_VOIP_DRIVERS_PCM8676) || defined( CONFIG_RTK_VOIP_PLATFORM_8686 ) || \
+	defined (CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+	/* RTL8952/62 || RTL8972B/82B || RTL89xxC || RTL89xxD */
 #if defined (CONFIG_AUDIOCODES_VOIP) && defined (CONFIG_RTK_VOIP_DRIVERS_IP_PHONE)
 #define PCM_PERIOD		2	/* Unit: 10ms */
 #else
@@ -354,7 +362,7 @@
 #endif
 
 #ifdef DTMF_REMOVAL_FORWARD
-#define DTMF_REMOVAL_FORWARD_SIZE 3	/* removal length is (3 + PCM_PERIOD) */
+#define DTMF_REMOVAL_FORWARD_SIZE 0	/* removal length is (3 + PCM_PERIOD) */
 					/*
 					 * Forward remove DTMF_REMOVAL_FORWARD_SIZE*10 ms.
 					 * The larger size, DTMF removal more clean, but longer delay.
@@ -366,6 +374,23 @@
 
 #define DTMF_DET_DURATION_HIGH_ACCURACY
 
+#ifdef DTMF_DET_DURATION_HIGH_ACCURACY
+#define DTMF_DET_FREQ_OFFSET_REFINE
+#ifdef DTMF_DET_FREQ_OFFSET_REFINE
+//#define DTMF_DET_FREQ_OFFSET_1P8_DIV_4
+//#define DTMF_DET_FREQ_OFFSET_1P8_DIV_5
+#define DTMF_DET_FREQ_OFFSET_1P8_DIV_6
+#ifdef DTMF_DET_FREQ_OFFSET_1P8_DIV_4
+#define DTMF_FREQ_OFFSET_SIZE	7
+#elif defined (DTMF_DET_FREQ_OFFSET_1P8_DIV_5)
+#define DTMF_FREQ_OFFSET_SIZE	9
+#elif defined (DTMF_DET_FREQ_OFFSET_1P8_DIV_6)
+#define DTMF_FREQ_OFFSET_SIZE	11
+#endif
+#else
+#define DTMF_FREQ_OFFSET_SIZE	1
+#endif //DTMF_DET_FREQ_OFFSET_REFINE
+#endif //DTMF_DET_DURATION_HIGH_ACCURACY
 /* ==================== FAX DETECTION ==================== */
 #ifdef DTMF_DEC_ISR
 #define SUPPORT_FAX_PASS_ISR
@@ -411,6 +436,10 @@
 
 //#define SUPPORT_VOICE_QOS // replaced by SUPPORT_DSCP.
 #define SUPPORT_DSCP //  Move SIP and RTP QoS setting UI to VoIP "Other" page and support dynamic DSCP settings for SIP and RTP.
+
+//USER can set dscp/vlanpri/queueNum for per session
+//Now only dscp can be mark
+#define SUPPORT_QOS_REMARK_PER_SESSION
 
 #ifdef CONFIG_RTK_VOIP_DRIVERS_8186V_ROUTER
 #define CONFIG_RTK_VOIP_WAN_VLAN // Support VLAN setting of WAN port on Web UI!
@@ -469,7 +498,9 @@
 #define RTK_VOICE_PLAY_WAIT_CODEC_START
 #endif //#ifdef RTK_VOICE_PLAY
 /********** For new EC 128ms **********/
-//#define CONFIG_DEFAULT_NEW_EC128	1
+#ifndef CONFIG_RTK_VOIP_DRIVERS_PCM8672
+#define CONFIG_DEFAULT_NEW_EC128	1
+#endif
 /********** For experimental AEC ******/
 //#define EXPER_AEC
 /********** For experimental NR  *****/
@@ -493,7 +524,7 @@
 				// VOIP_RESOURCE_CHECK is only for Realtek Solution, AudioCodes always check resource(2 channel).
 
 // pkshih: move to voip_flash.h 
-//#if defined(CONFIG_RTK_VOIP_IP_PHONE) || defined(CONFIG_CWMP_TR069)
+//#if defined(CONFIG_RTK_VOIP_DRIVERS_IP_PHONE) || defined(CONFIG_CWMP_TR069)
 //#define SUPPORT_VOIP_FLASH_WRITE	/* flash write module */
 //#endif
 
@@ -507,11 +538,14 @@
 
 #define PCM_LOOP_MODE_DRIVER
 //#define PCM_LOOP_MODE_CONTROL
-
-#define SUPPORT_G722_ITU	// Support ITU Fixed G722. Note: Support G722 ITU, user need to change the dsp_r1/Makefile.
-//#define SUPPORT_G722_TYPE_NN		// G722 8k mode  
-#define SUPPORT_G722_TYPE_WW		// G722 16k mode  
-//#define SUPPORT_G722_TYPE_WN		// G722 16k mode + resampler
+#ifdef CONFIG_RTK_VOIP_G722_ITU_USE
+ #define SUPPORT_G722_ITU	// Support ITU Fixed G722. Note: Support G722 ITU, user need to change the dsp_r1/Makefile.
+ #define SUPPORT_G722_TYPE_WW		// G722 16k mode
+#else
+ //#define SUPPORT_G722_TYPE_NN		// G722 8k mode  
+ #define SUPPORT_G722_TYPE_WW		// G722 16k mode  
+ //#define SUPPORT_G722_TYPE_WN		// G722 16k mode + resampler
+#endif
 
 #define SUPPORT_FAX_V21_DETECT	1	// support fax preamble or DIS/DCN detect
 
@@ -519,7 +553,7 @@
 //#define NEW_REMOTE_TONE_ENTRY		/* mix remote tone in PCM RX (recommend: disable) */
 #define NEW_LOCAL_TONE_ENTRY		/* mix local tone in PCM TX (recommend: enable) */
 
-//#ifndef CONFIG_RTK_VOIP_IP_PHONE
+//#ifndef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 //#define DISABLE_NEW_REMOTE_TONE	/* disable new remote tone, so we suggest to comment it */
 //#endif
 
@@ -544,13 +578,35 @@
 #define SUPPORT_V152_VBD	1		// support V.152 
 #endif
 
-#define SUPPORT_RTP_REDUNDANT	1	// support RTP redundant 
+/* open source part. Allow user to disable rtp redundant */
+#ifdef CONFIG_RTK_VOIP_RTP_REDUNDANT
+#define SUPPORT_RTP_REDUNDANT_APP	1	// support RTP redundant 
+#endif
+
+/* Linux and DSP relative code */
+#define SUPPORT_RTP_REDUNDANT	1	// support RTP redundant in object code
 
 #ifdef CONFIG_RTK_VOIP_G7111
 #define G7111_10MS_BASE		// G.711.1 frame is 5ms. This define will see it as 10ms
 #endif
 
 #define SUPPORT_VOIP_DBG_COUNTER	// Support VoIP Debug Counter
+
+#if defined (CONFIG_RTK_VOIP_DRIVERS_FXO) && defined (CONFIG_RTK_VOIP_DRIVERS_DAA_SUPPORT) && defined (CONFIG_RTK_VOIP_DRIVERS_SI3050)
+#define SUPPORT_SILAB_FXO_TUNE	1
+#endif
+
+#ifdef CONFIG_RTK_VOIP_AMR_NB
+#define AMR_NB_WENGO // compatible to Wengo phone
+#endif
+
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+#define AMR_WB_WENGO // compatible to Wengo phone
+#endif
+
+#define DTMF_DIR_SIZE	3
+
+#define DTMF_ECHO_SUPPRESS			// To suppress DTMF echo (caused by RFC2833 or inband DTMF) to not to be detected.
 
 #endif //_RTK_VOIP_H
 

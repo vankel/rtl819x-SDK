@@ -59,7 +59,14 @@ int read_from_pipe(request * req)
         return 1;
     }
 
+    if(req -> filesize == 0)
+	sleep(2);
+
+
     bytes_read = read(req->data_fd, req->header_end, bytes_to_read);
+    if (req->cgi_type == CGI && bytes_read>0)
+	req -> filesize += bytes_read;
+
 #ifdef FASCIST_LOGGING
     if (bytes_read > 0) {
         *(req->header_end + bytes_read) = '\0';
@@ -175,12 +182,12 @@ int io_shuffle_sendfile(request * req)
 {
 #if defined(ENABLE_LFS)
 	off64_t bytes_written;
-    off64_t bytes_to_write;
-    off64_t sendfile_offset;
+    	off64_t bytes_to_write;
+    	off64_t sendfile_offset;
 #else
-    int bytes_written;
-    size_t bytes_to_write;
-    off_t sendfile_offset;
+    	int bytes_written;
+    	size_t bytes_to_write;
+    	off_t sendfile_offset;
 #endif
     if (req->method == M_HEAD) {
         return complete_response(req);
@@ -206,8 +213,13 @@ retrysendfile:
 	if (sendfile_offset < 0) {
 		req->status = DEAD;
 		log_error_doc(req);
+	#if defined(ENABLE_LFS)
+		fprintf(stderr, "impossible offset (%llu) requested of sendfile\n",
+				 req->ranges->start);
+	#else
 		fprintf(stderr, "impossible offset (%lu) requested of sendfile\n",
 				 req->ranges->start);
+	#endif
 		return 0;
 	}
         bytes_written = sendfile(req->fd, req->data_fd,
@@ -216,9 +228,15 @@ retrysendfile:
 	if (sendfile_offset < 0) {
 		req->status = DEAD;
 		log_error_doc(req);
+		#if defined(ENABLE_LFS)
+		fprintf(stderr,
+			"bad craziness in sendfile offset, returned %lld\n",
+			sendfile_offset);
+		#else
 		fprintf(stderr,
 			"bad craziness in sendfile offset, returned %ld\n",
 			(long) sendfile_offset);
+		#endif	
 		return 0;
 	}
 	req->ranges->start = sendfile_offset;
@@ -273,8 +291,8 @@ retrysendfile:
 int io_shuffle(request * req)
 {
 #if defined(ENABLE_LFS)
-	long long bytes_to_read;
-    long long bytes_written, bytes_to_write;
+	off64_t bytes_to_read;
+    off64_t bytes_written, bytes_to_write;
 #else
     int bytes_to_read;
     int bytes_written, bytes_to_write;
@@ -298,7 +316,7 @@ int io_shuffle(request * req)
 
     if (bytes_to_read > 0 && req->data_fd) {
 #if defined(ENABLE_LFS)
-		long long bytes_read;
+		off64_t bytes_read;
         off64_t temp;
 #else
         int bytes_read;

@@ -14,7 +14,10 @@
 #ifndef uint64	/*for compile warning in networking driver */
 typedef uint64_t	uint64;
 typedef int64_t		int64;
+#ifndef UINT32_TYPE		// avoid compile redefie with IAD sdk lib\libmd5\libmd5.h
+#define UINT32_TYPE
 typedef uint32_t	uint32;
+#endif
 typedef int32_t		int32;
 typedef uint16_t	uint16;
 typedef int16_t		int16;
@@ -71,13 +74,16 @@ typedef  short int   Flag;
 
 /* for 865xB only */
 #ifdef __KERNEL__
-#include <linux/config.h>
+//#include <linux/config.h>
 
 #ifdef CONFIG_RTL865XB
 #include "rtl865xb.h"
 #endif
 
 #endif 
+
+// linux kernel also using ALIGN, change rtkvoip macro name RTK_ALIGN
+#define RTK_ALIGN(x)			__attribute__((aligned(x)))
 
 #endif /* __VOIP_TYPES_H__ */
 

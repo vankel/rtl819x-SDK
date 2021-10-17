@@ -62,6 +62,22 @@ void func(int cch, v1type var1, v2type var2, v3type var3)	\
 	p_snd ->fxs_ops ->func( p_snd, var1, var2, var3 );	\
 }
 
+#define IMPLEMENT_TYPE4_void( func, v1type, v2type, v3type, v4type)	\
+void func(int cch, v1type var1, v2type var2, v3type var3, v4type var4)	\
+{										\
+	DECLARE_BASIC_SND_FXS( ; );			\
+										\
+	p_snd ->fxs_ops ->func( p_snd, var1, var2, var3, var4 );	\
+}
+
+#define IMPLEMENT_TYPE8_void( func, v1type, v2type, v3type, v4type, v5type, v6type, v7type, v8type)	\
+void func(int cch, v1type var1, v2type var2, v3type var3, v4type var4, v5type var5, v6type var6, v7type var7, v8type var8)	\
+{										\
+	DECLARE_BASIC_SND_FXS( ; );			\
+										\
+	p_snd ->fxs_ops ->func( p_snd, var1, var2, var3, var4, var5, var6, var7, var8 );	\
+}
+
 //void SLIC_reset(int CH, int codec_law)
 IMPLEMENT_TYPE1_void( SLIC_reset, int );
 //void FXS_Ring( uint32 cch, unsigned char ring_set )
@@ -75,6 +91,9 @@ IMPLEMENT_TYPE1_void( Set_SLIC_Tx_Gain, int );
 IMPLEMENT_TYPE1_void( Set_SLIC_Rx_Gain, int );
 //void SLIC_Set_Ring_Cadence( uint32 cch, unsigned short OnMsec, unsigned short OffMsec )
 IMPLEMENT_TYPE2_void( SLIC_Set_Ring_Cadence, unsigned short, unsigned short );
+//void SLIC_Set_Multi_Ring_Cadence( uint32 cch, unsigned short OnMsec1, unsigned short OffMsec1, unsigned short OnMsec2, unsigned short OffMsec2,
+//	unsigned short OnMsec3, unsigned short OffMsec3, unsigned short OnMsec4, unsigned short OffMsec4)
+IMPLEMENT_TYPE8_void( SLIC_Set_Multi_Ring_Cadence, unsigned short, unsigned short, unsigned short, unsigned short, unsigned short, unsigned short, unsigned short, unsigned short );
 //void SLIC_Set_Ring_Freq_Amp( uint32 cch, char preset )
 IMPLEMENT_TYPE1_void( SLIC_Set_Ring_Freq_Amp, char );
 //void SLIC_Set_Impendance_Country( uint32 cch, unsigned short country, unsigned short impd )
@@ -108,6 +127,10 @@ IMPLEMENT_TYPE0_void( RestoreBackupRegisterWhenSetOnHookTransmission );
 IMPLEMENT_TYPE1_void( SLIC_Set_PCM_state, int );
 //unsigned char SLIC_Get_Hook_Status( uint32 cch )
 IMPLEMENT_TYPE1( SLIC_Get_Hook_Status, unsigned char, int );
+//void SLIC_Set_Power_Save_Mode(int chid);
+IMPLEMENT_TYPE0_void( SLIC_Set_Power_Save_Mode );
+//void SLIC_Set_FXS_Line_State(int chid, int state);
+IMPLEMENT_TYPE1_void( SLIC_Set_FXS_Line_State, int );
 
 //void SLIC_read_reg( uint32 cch, unsigned int num, unsigned char len, unsigned char *val )
 IMPLEMENT_TYPE3_void( SLIC_read_reg, unsigned int, unsigned char *, unsigned char * );
@@ -139,4 +162,7 @@ void FXS_FXO_DTx_DRx_Loopback_greedy( uint32 cch, unsigned int enable )
 
 //void SLIC_OnHookTrans_PCM_start( uint32 cch )
 IMPLEMENT_TYPE0_void( SLIC_OnHookTrans_PCM_start );
+
+//void SLIC_set_param( uint32 cch, unsigned int slic_type, unsigned int param_type, unsigned char* pParam, unsigned int param_size );
+IMPLEMENT_TYPE4_void( SLIC_set_param, unsigned int, unsigned int, unsigned char*, unsigned int );
 

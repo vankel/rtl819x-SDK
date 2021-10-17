@@ -7,6 +7,10 @@
 #############################################################################
 
 comment "Applications"
+config APP_AP_CONTROLER
+	bool "ap controler"
+	help
+		config ap controler for remote host control ap
 
 config APP_AUTH
 	bool "auth"
@@ -18,6 +22,13 @@ config APP_AUTH_2NDSRV
 	depends on APP_AUTH
 	help
 	  Config auth daemon to support dual radius server
+source "adapter-api/Kconfig"
+
+config APP_AVAHI
+	bool "avahi-0.6.31"
+	select LIB_LIBDAEMON
+	help
+	  A daemon used for Zeroconf under linux.
 
 config APP_BRCTL
 	bool "brctl"
@@ -25,6 +36,12 @@ config APP_BRCTL
 	  Brctl is used to set up, maintain, and inspect the ethernet bridge 
 	  configuration in the linux kernel.
 
+config APP_BLUEZ
+	bool "bluez"
+	help
+	   bluez is bluetooth utility
+
+source "rtk_bluetooth_firmware/Kconfig"
 
 config APP_BUSYBOX
 	bool "busybox"
@@ -59,7 +76,6 @@ config APP_DISCOVER
 	bool  "discover"
 	help
 	  Auto Discovery Server
-
 config APP_DNRD
 	bool "dnrd"
 	help 
@@ -76,6 +92,11 @@ config APP_DOSFSCK
         help
           A tool to check dos file system.
 
+config APP_EXFAT_FUSE
+	bool "exfat-fuse"
+	help
+	  A tool for exfat file system
+
 config APP_GDBSERVER
         bool "gdbserver"
         help
@@ -91,10 +112,55 @@ config APP_BOA
 	bool "boa"
 	help
 	  A simple HTTPD Daemon. It provides web interface of the Wireless Gateway
+
+config APP_BOA_IPV6_SUPPORT
+	depends on APP_BOA
+	bool "boa IPv6 Support"
+	help
+	  Make boa web server to support ipv6.
+
 config APP_UWIFI
 	bool "uWiFi"
 	help
 	  A uWiFi package for customer
+	  
+config APP_ALSA_AUDIO
+	bool "alsa related"
+	help
+	  ALSA Audio
+
+config APP_APPLE_MFI_WAC
+	bool "Apple WAC Support"
+	select APP_AVAHI
+	select LIB_LIBDAEMON
+	help
+	    Apple Support Package, including WAC wifi audio
+
+config APP_APPLE_HOMEKIT
+	bool "Apple Homekit Support"
+    	depends on APP_APPLE_MFI_WAC
+	help
+	    Apple Support Package, including Homekit accessory protocol
+	choice 
+		prompt "Choose Homekit Services"
+		depends on APP_APPLE_HOMEKIT
+            config APP_HAP_SWITCH_SERVICE
+            bool "Homekit Switch Service"
+            depends on APP_APPLE_HOMEKIT
+            config APP_HAP_IP_CAM_SERVICE
+            bool "Homekit IP Camera Services"
+            depends on APP_APPLE_HOMEKIT
+    endchoice
+config APP_HAP_CAM_SERVICE
+bool "Homekit Camera Services"
+depends on APP_HAP_IP_CAM_SERVICE
+config APP_HAP_MICROPHONE_SERVICE
+bool "Homekit Microphone Services"
+depends on APP_HAP_IP_CAM_SERVICE
+config APP_HAP_SPEAKER_SERVICE
+bool "Homekit Speaker Services"
+depends on APP_HAP_IP_CAM_SERVICE
+
 config APP_GPROXY
 	bool "gproxy"
 	help
@@ -122,20 +188,45 @@ config IGMPPROXY_MULTIWAN
 config IGMPV3_SUPPORT
 	depends on APP_IGMPPROXY
 	bool "support igmpv3 proxy"
+
+config APP_MLDPROXY
+        bool "mld proxy"
+        help
+          The mld proxy daemon
+
+config MLDPROXY_MULTIWAN
+        depends on APP_MLDPROXY
+        bool "support mld proxy multiwan"
+
+#config MLDV2_SUPPORT
+#        depends on APP_MLDPROXY
+#        bool "support mldv2 proxy"
 	   			 
 config APP_IPROUTE
 	bool "iproute2"
 	help
 	  The iproute2 daemon
 
+config APP_IPROUTE_IPV6
+	depends on APP_IPROUTE
+	bool "iproute2 full support"
+	help
+	  Make iproute2 daemon support ip command
+
 config APP_IPTABLES
 	bool "iptables"
 	help
 	  The iptables daemon
 
+config APP_IP6TABLES
+        depends on APP_IPTABLES
+	bool "ip6tables"
+	help
+	  The ip6tables daemon
+
 config APP_L7FILTER_PAT
 	bool "l7filter_pat"
-	depends APP_IPTABLES
+	depends on APP_IPTABLES
 	help
 	  The l7filter pattern
 
@@ -154,6 +245,11 @@ config APP_LLTDD
 	help
 	  The Link Layer Topology Discovery (LLTD) daemon.
 
+config APP_UPIMAGE
+	bool "upImage"
+	help
+	  update Image through ttyS tool
+
 config APP_MINI_UPNP
 	bool "mini_upnp"
 	help
@@ -163,6 +259,13 @@ config APP_MINIIGD
 	bool "miniigd"
 	help
 	  A miniigd daemon.
+
+config APP_MINIIGD_IPV6
+    depends on APP_MINIIGD
+        bool "miniigd ipv6 support"
+    help
+           Make miniigd support ipv6.
+
 
 config APP_MKDOSFS
         bool "mkdosfs"
@@ -207,11 +310,11 @@ comment "Choose openssl version."
 					This version used for toolchain-1.5.5.
 	endchoice
 
-config APP_HOSTAPD_HCM
-	bool "hostapd in host controlled mode"
-	depends on APP_OPENSSL
-	help
-	  The hostap daemon is patched based on 0.6.10
+#config APP_HOSTAPD_HCM
+#	bool "hostapd in host controlled mode"
+#	depends on APP_OPENSSL
+#	help
+#	  The hostap daemon is patched based on 0.6.10
 
 config APP_WAPI
 	bool "wapi_utils"
@@ -235,11 +338,22 @@ config APP_PPPD
 	help
 	  A ppp daemon.
 
+config APP_PPPD_IPV6CP
+    depends on APP_PPPD
+        bool "IPv6 over PPP support"
+    help
+           Make ppp support ipv6.
+
 config  PPPOE_DISCONNECT_FLOW_PATCH
         bool "pppoe_disc_flow_patch"
         help
            A pppoe disconect flow patch.
- 
+
+config  PPP_REJECT_ERROR_SESSION_PATCH
+	bool "ppp reject error session patch"
+	help
+	  A  ppp reject error session patch.
+
 config APP_PPTP
 	bool "pptp"
 	help
@@ -296,9 +410,34 @@ config APP_SNMP
 config APP_TR069
 	bool "tr069"
 	select APP_ROUTED
+	select APP_FLATFSD
 	help
 	  TR069 Daemon for network management
-	#select USER_CWMP_WITH_SSL
+
+config USER_CWMP_WITH_TR181
+	depends on APP_TR069	
+	bool "support TR181 in TR069"
+
+config USER_CWMP_WITH_TR181_V6
+	depends on USER_CWMP_WITH_TR181	
+	bool "support TR181 V6 part in TR069"
+
+config USER_CWMP_WITH_TR143
+	depends on APP_TR069	
+	bool "support TR143 in TR069"
+
+config APP_TR104
+	bool "support TR104 in TR069"
+	depends on APP_TR069
+	depends on APP_RTK_VOIP
+	help
+		TR104 Parameters incorporated with TR069	
+		
+config APP_FLATFSD
+	bool "Flatfs support for TR069"
+	depends on APP_TR069
+	help
+	  flatfsd for tr069 daemon read/write flash in runtime
 	
 config USER_CWMP_WITH_SSL
 	bool
@@ -326,12 +465,10 @@ config USER_CWMP_WITH_MATRIXSSL
 	
 endchoice
 
-config APP_TR104
-	bool "tr104"
-	depends on APP_TR069
-	depends on APP_RTK_VOIP
+config APP_TRACEROUTE
+	bool "traceroute"
 	help
-		TR104 Parameters incorporated with TR069
+	  traceroute support
 
 config APP_UDHCPD
 	bool "udhcp" 
@@ -371,14 +508,21 @@ config APP_WSC
 	  The wireless WPS daemon
  
 config APP_HOSTAPD
-	bool "hostapd"
+	bool "hostapd 2.0"
+	select APP_OPENSSL
 	help
-	  The hostap daemon in vserion 0.6.9
+	  The hostap daemon in vserion 2.0
 
 config APP_RTK_VOIP
 	bool "rtk_voip"
 	help
 	  The rtk voip
+
+config APP_RTK_VOIP_E8C
+	bool "E8C"
+	depends on APP_RTK_VOIP
+	help
+	  The rtk voip-e8c
 
 config APP_PMC_UTILS
 	bool "pmc utils"
@@ -386,20 +530,52 @@ config APP_PMC_UTILS
 	help
 	  The pmc utils
 
-config APP_HOSTAPD_SLAVE
-        bool "hostapd_slave"
-        help
-          The hostap_slave daemon in support vserion 0.6.10
+#config APP_HOSTAPD_SLAVE
+#        bool "hostapd_slave"
+#        help
+#          The hostap_slave daemon in support vserion 0.6.10
 	
 config APP_RTK_INBAND_CTL
         bool "rtk_inband_ctl"
         help
           This daemon support realtek proprietary inband control
 
+config RTK_INBAND_CTL_AUTO_RECOVER
+	depends on APP_RTK_INBAND_CTL
+        bool "rtk inband ctl auto recover"
+        help
+          For rtk inband ctl auto recover when dead
+	default y
+# config APP_CLOUD_AUTO_RECOVER
+#	bool "cloud thread auto recover"
+#       depends on RTK_INBAND_CTL_AUTO_RECOVER
+#	default n
+#	help
+#		cloud_device and cloud_misc_app auto recover
+config APP_RTK_INBAND_CTL_REPORT_ERROR
+        depends on APP_RTK_INBAND_CTL
+        bool "report error information"
+        help
+          Report error information when inband commands failed
 config APP_RTK_INBAND_HOST
         bool "rtk inband Host utility sample"
         help
           rtk inband Host utility sample
+config APP_RTK_INBAND_HOST_LIBRARY
+        depends on APP_RTK_INBAND_HOST
+        bool "rtk inband Host as library"
+        help
+          rtk inband host as shared library
+config APP_RTK_INBANDHOST_PTHREAD_LOCK
+        depends on APP_RTK_INBAND_HOST
+        bool "rtk inband host pthread lock"
+        help
+          rtk inband host pthread lock, allow multi-thread send inband commands
+config APP_RTK_INBAND_HOST_LIBRARY_TEST
+        depends on APP_RTK_INBAND_HOST_LIBRARY
+        bool "Test rtk inband host library"
+        help
+          Test rtk inband host shared library
 
 config APP_NFBI
 	bool "nfbi"
@@ -425,6 +601,17 @@ config APP_AUTORUNIMG
 	bool "ulinker autorun image tool"
 	help
 	  Tool for generate ulinker auto install image.
+
+config APP_SIMPLE_CONFIG
+	bool "simple config support"
+	help
+	  Tool for client mode device connect to AP.
+
+config APP_UBUS
+	bool "ubus"
+	default n
+	help
+		ubus support	
 
 comment "USB3G support"
 config APP_COMGT
@@ -474,6 +661,10 @@ config APP_MNET
 
 comment "Libraries"
 
+config LIB_LIBDAEMON
+	bool "libdaemon-0.14"
+	help
+	  A lightweight C library that eases the writing of UNIX daemons.
 config LIB_PNG
     bool "libpng"
     select LIB_Z
@@ -489,13 +680,18 @@ config LIB_NL
     depends on APP_HOSTAPD
     bool "libnl-1.1"
 	help
-	  library requried by hostapd-0.6.9
+	  library requried by hostapd
 
 config APP_FLEX
 	bool "flex library"
 	help
 	  flex library.
 
+config LIB_FUSE
+	bool "fuse library"
+	help
+		library required by exfat-fuse
+		
 comment "Debug & Test"
 
 config APP_CLE_SHELL
@@ -540,16 +736,55 @@ config APP_RELOAD
 
 config APP_DLNA_DMS
 	bool "dlna_dms"
+	depends on !APP_MINIDLNA
 	help
 	 ushare daemon
-config APP_MT_DAAPD
-	bool "mt-daapd"
-	help
-	 mt-daapd is a program which acts as an iTunes(DAAP) server for Linux and other Posix unixes. It may eventually support Win32 as well.
+
 config APP_LIBICONV
 	bool "libiconv"
 	depends on APP_DLNA_DMS
 	help
 	 libiconv-1.14
 	default y
-##############################################################################
+
+config APP_MINIDLNA
+	bool "minidlna"
+	default n
+	help
+		minidlna deamon
+
+# config APP_CLOUD
+#	bool "cloud"
+#	default n
+#	help
+#		cloud daemon
+config APP_MT_DAAPD
+	bool "mt-daapd"
+	help
+	 mt-daapd is a program which acts as an iTunes(DAAP) server for Linux and other Posix unixes. It may eventually support Win32 as well.
+config APP_SIGMA_UTILS
+	bool  "sigma utils"
+	help
+	  for support sigma test
+choice
+	prompt "Sigma Program"
+	depends on APP_SIGMA_UTILS
+	default SIGMA_VHT
+	
+config SIGMA_VHT
+        bool "VHT5G"
+        
+config SIGMA_HS2
+        bool "HS2R1"
+
+config SIGMA_PMF
+        bool "PMF"
+
+endchoice
+	
+config APP_SPEEDTEST
+	bool "speedtest"
+    default n
+	help
+	 daemon for speed test
+#############################################################################

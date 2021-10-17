@@ -25,7 +25,8 @@ void __init bsp_serial_init(void)
 #ifdef CONFIG_SERIAL_SC16IS7X0
 	extern void __init sc16is7x0_get_port( struct uart_port *port );
 #endif
-#if defined( CONFIG_SERIAL_SC16IS7X0 ) || defined( CONFIG_SERIAL_RTL8198_UART1 )
+#if defined( CONFIG_SERIAL_SC16IS7X0 ) || defined( CONFIG_SERIAL_RTL_UART1 )
+
 	unsigned int line = 0; 
 #else
 	const unsigned int line = 0; 
@@ -64,11 +65,11 @@ void __init bsp_serial_init(void)
 		panic("RTL819xD: bsp_serial_init failed!");
 	}
 
-#ifdef CONFIG_SERIAL_RTL8198_UART1
+#ifdef CONFIG_SERIAL_RTL_UART1
 	// UART1 
 #define UART_BASE         0xB8000100  //0xb8002100 uart 1 
 #define REG32(reg)       (*(volatile unsigned int *)(reg))
- REG32(0xb8000040)= (REG32(0xb8000040) & ~(0x3<<3)) | (0x01<<3);   //pin mux to UART1 
+ REG32(0xb8000040)= (REG32(0xb8000040) & ~(0x7)) | (0x2);   //pin mux to UART1 
  REG32(0xb8002110) |= (1<<29);   //enable flow control
 	s.line = ++ line;
     s.irq = BSP_UART1_IRQ;

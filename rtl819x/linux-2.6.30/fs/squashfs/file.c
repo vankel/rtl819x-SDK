@@ -469,6 +469,7 @@ static int squashfs_readpage(struct file *file, struct page *page)
 		memset(pageaddr + avail, 0, PAGE_CACHE_SIZE - avail);
 		kunmap_atomic(pageaddr, KM_USER0);
 		flush_dcache_page(push_page);
+		__flush_cache_all();
 		SetPageUptodate(push_page);
 skip_page:
 		unlock_page(push_page);
@@ -488,6 +489,7 @@ out:
 	memset(pageaddr, 0, PAGE_CACHE_SIZE);
 	kunmap_atomic(pageaddr, KM_USER0);
 	flush_dcache_page(page);
+	__flush_cache_all();
 	if (!PageError(page))
 		SetPageUptodate(page);
 	unlock_page(page);

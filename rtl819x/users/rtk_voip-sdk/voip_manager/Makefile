@@ -5,6 +5,7 @@ CFLAGS += -I../includes
 DOXYFILE = ./document/Doxyfile.865x
 else
 CFLAGS += -I../includes
+DOXYFILE_INTERNAL = ./document/Doxyfile.internal
 DOXYFILE = ./document/Doxyfile
 endif
 
@@ -71,7 +72,7 @@ libso:
 	$(AR) -x ../$(LIBA);	\
 	mv -f keyb_data.o keyb_data.o-unused;			\
 	mv -f keyb_facility.o keyb_facility.o-unused;	\
-	$(LD) -shared *.o -o ../$(LIBSO) || exit $$?;	\
+	$(CC) -shared *.o -o ../$(LIBSO) || exit $$?;	\
 	cd .. 
 	rm -f $(LIBA)
 
@@ -86,8 +87,6 @@ clean:
 	make -C document/examples clean
 
 doc:
-	doxygen $(DOXYFILE)
-	-cp ./document/realtek.jpg ./document/html
 
 example:
 	make -C document/examples

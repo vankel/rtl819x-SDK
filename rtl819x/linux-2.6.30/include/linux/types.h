@@ -135,8 +135,13 @@ typedef		__s64		int64_t;
 typedef u64 sector_t;
 typedef u64 blkcnt_t;
 #else
+#ifdef CONFIG_4KB_HARDDISK_SUPPORT
+typedef u64 sector_t;
+typedef u64 blkcnt_t;
+#else
 typedef unsigned long sector_t;
 typedef unsigned long blkcnt_t;
+#endif
 #endif
 
 /*

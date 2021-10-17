@@ -74,6 +74,8 @@ static int crypto_ecb_crypt(struct blkcipher_desc *desc,
 				fn == crypto_cipher_alg(tfm)->cia_encrypt,
 				&ctx->rtl_ctx, wsrc, nbytes,
 				walk->iv, wdst);
+			wsrc += (walk->nbytes - nbytes);
+			wdst += (walk->nbytes - nbytes);
 			err = blkcipher_walk_done(desc, walk, nbytes);
 			continue;
 		}

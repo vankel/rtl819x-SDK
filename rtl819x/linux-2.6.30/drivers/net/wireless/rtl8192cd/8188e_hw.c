@@ -17,16 +17,17 @@
 #include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
-#ifdef CONFIG_RTL_88E_SUPPORT
 
 #define _8188E_HW_C_
 
-#include "8192cd.h"
 #include "8192cd_cfg.h"
+#include "8192cd.h"
 #include "8192cd_util.h"
 
 #include "8192c_reg.h"
 #include "8188e_reg.h"
+
+#ifdef CONFIG_RTL_88E_SUPPORT
 
 #ifdef TXREPORT
 #ifdef __KERNEL__
@@ -72,19 +73,29 @@ static unsigned int findout_max_macid(struct rtl8192cd_priv *priv)
 	struct stat_info	*pstat;
 	struct list_head	*phead, *plist;
 	unsigned int max_macid = 0;
+#if defined(SMP_SYNC)
+	unsigned long flags = 0;
+#endif
 
 	phead = &priv->asoc_list;
+#if defined(SMP_SYNC)
+	SMP_LOCK_ASOC_LIST(flags);
+#endif
 	plist = phead->next;
 	while(plist != phead) {
 		pstat = list_entry(plist, struct stat_info, asoc_list);
-		if (pstat && (REMAP_AID(pstat) > max_macid))
+        plist = plist->next;
+
+		update_remapAid(priv, pstat);
+        if(pstat->sta_in_firmware != 1)
+            continue;
+
+        if (REMAP_AID(pstat) > max_macid)
 			max_macid = REMAP_AID(pstat);
-
-		if (plist == plist->next)
-			break;
-		plist = plist->next;
 	}
-
+#if defined(SMP_SYNC)
+	SMP_UNLOCK_ASOC_LIST(flags);
+#endif
 	return max_macid;
 }
 
@@ -92,20 +103,18 @@ static unsigned int findout_max_macid(struct rtl8192cd_priv *priv)
 void RTL8188E_SetStationTxRateInfo(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRAInfo, int MacID)
 {
 	struct rtl8192cd_priv *priv = pDM_Odm->priv;
-	int i;
-
 	PSTA_INFO_T pstat = pDM_Odm->pODM_StaInfo[MacID];
+#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
+	struct aid_obj *aidobj;
+#endif
+	
 	if( !MacID || !pstat)
 		return;
 	
-	for(i=0;i<NUM_STAT;i++)
-	{
-		if(&(priv->pshare->aidarray[i]->station) == pstat)
-		{
-			priv = priv->pshare->aidarray[i]->priv;
-			break;
-		}
-	}
+#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
+	aidobj = container_of(pstat, struct aid_obj, station);
+	priv = aidobj->priv;
+#endif
 	
 	if (priv->pmib->dot11StationConfigEntry.autoRate) {
 		if (pRAInfo->RateSGI)
@@ -121,7 +130,7 @@ void RTL8188E_SetStationTxRateInfo(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRAInfo, in
 		}
 		
 		if ((pRAInfo->DecisionRate&0x3f) < 12)
-			pstat->current_tx_rate = dot11_rate_table[pRAInfo->DecisionRate];
+			pstat->current_tx_rate = dot11_rate_table[pRAInfo->DecisionRate&0x3f];
 		else if ((pRAInfo->DecisionRate&0x3f) <= 27)
 			pstat->current_tx_rate = 0x80|((pRAInfo->DecisionRate&0x3f) -12);
 		else
@@ -185,16 +194,15 @@ void RTL8188E_AssignTxReportMacId(struct rtl8192cd_priv *priv)
 	}
 #endif
 
-#ifdef STA_EXT
-	if (max_macid >= RTL8188E_NUM_STAT -1)
-		max_macid = RTL8188E_NUM_STAT -2;
-#endif
-
 	/* assign new macid for tx report setting iff it is different from the previous one */
 	if (max_macid && (priv->pshare->txRptMacid != max_macid)) {
-		RTL_W32(REG_88E_TXRPT_CTRL, (RTL_R32(REG_88E_TXRPT_CTRL) & (~(TXRPT_CTRL_88E_RPT_MACID_Mask 
-			<< TXRPT_CTRL_88E_RPT_MACID_SHIFT))) | (((max_macid+1) & TXRPT_CTRL_88E_RPT_MACID_Mask) 
-			<< TXRPT_CTRL_88E_RPT_MACID_SHIFT));
+		RTL_W32(REG_88E_TXRPT_CTRL, (RTL_R32(REG_88E_TXRPT_CTRL)
+			& (~(TXRPT_CTRL_88E_RPT_MACID_Mask << TXRPT_CTRL_88E_RPT_MACID_SHIFT)))
+			| (((max_macid+1) & TXRPT_CTRL_88E_RPT_MACID_Mask) << TXRPT_CTRL_88E_RPT_MACID_SHIFT)
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+			| TXRPT_CTRL_88E_TXRPT_TIM_EN
+#endif
+			);
 
 		DEBUG_INFO("%s %d, preTxRptMacid: %d, newTxRptMacid: %d\n", __FUNCTION__, __LINE__, priv->pshare->txRptMacid, max_macid);
 		priv->pshare->txRptMacid = max_macid;
@@ -208,6 +216,11 @@ void RTL8188E_DetectSTAExistance(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRaInfo, int 
 	struct rtl8192cd_priv *priv = pDM_Odm->priv;
 	PSTA_INFO_T pstat = pDM_Odm->pODM_StaInfo[MacID];
     const unsigned int  txFailSecThr= 3;            // threshold of Tx Fail Time (in second)
+	const unsigned char	TFRL = 7;					// New Retry Limit value
+	const unsigned char	TFRL_FailCnt = 2;			// Tx Fail Count threshold to set Retry Limit
+	const unsigned char	TFRL_SetTime = 2;			// Time to set Retry Limit (in second)
+	const unsigned char	TFRL_RcvTime = 10;			// Time to recover Retry Limit (in second)	
+
 	if(!pstat || !MacID)
 		return;
 #else
@@ -215,6 +228,10 @@ void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO p
 {
     struct stat_info    *pstat = pRaInfo->pstat;
     const unsigned int  txFailSecThr= 3;            // threshold of Tx Fail Time (in second)
+	const unsigned char	TFRL = 7;					// New Retry Limit value
+	const unsigned char	TFRL_FailCnt = 2;			// Tx Fail Count threshold to set Retry Limit
+	const unsigned char	TFRL_SetTime = 2;			// Time to set Retry Limit (in second)
+	const unsigned char	TFRL_RcvTime = 10;			// Time to recover Retry Limit (in second)	
 #endif
 
 	if(OPMODE & WIFI_STATION_STATE)
@@ -231,6 +248,17 @@ void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO p
     }
     else if(pRaInfo->DROP != 0)
     {
+		if (pstat->leave)
+			return;
+	
+		if((priv->up_time >= (pstat->tx_last_good_time+TFRL_SetTime)) &&
+			pstat->tx_conti_fail_cnt >= TFRL_FailCnt && 
+			!priv->pshare->bRLShortened )
+		{ // Shorten retry limit, because AP spending too much time to send out g mode STA pending packets in HW queue.
+			RTL_W16(RL, (TFRL&SRL_Mask)<<SRL_SHIFT|(TFRL&LRL_Mask)<<LRL_SHIFT);
+			priv->pshare->bRLShortened = TRUE;
+			DEBUG_WARN( "== Shorten RetryLimit to 0x%04X ==\n", RTL_R16(RL) );
+		}
         pstat->tx_conti_fail_cnt += pRaInfo->DROP;
         if((pstat->tx_conti_fail_cnt >= priv->pshare->rf_ft_var.max_pkt_fail) ||
             (pstat->tx_conti_fail_cnt >= priv->pshare->rf_ft_var.min_pkt_fail && priv->up_time >= (pstat->tx_last_good_time+txFailSecThr) )
@@ -242,6 +270,14 @@ void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO p
             // Reset Counter
             pstat->tx_conti_fail_cnt = 0;
             pstat->tx_last_good_time = priv->up_time;
+#if defined(BR_SHORTCUT) && defined(WDS)
+			if (pstat->state & WIFI_WDS) {
+				extern struct net_device *cached_wds_dev;
+				extern unsigned char cached_wds_mac[MACADDRLEN];
+				cached_wds_dev = NULL;
+				memset(cached_wds_mac, 0, MACADDRLEN);
+			}
+#endif
         }
     }
 }
@@ -280,22 +316,27 @@ void RTL8188E_TxReportHandler(struct rtl8192cd_priv *priv, struct sk_buff *pskb,
 		} else {
 			Buffer = pskb->data + offset;
 			if (!Buffer[0] && !Buffer[1] && !Buffer[2] && !Buffer[3] && !Buffer[4] && !Buffer[5] && !Buffer[6] && !Buffer[7]) {
-				printk("\n%s %d, rpt but not update for aid:%d\n", __FUNCTION__, __LINE__, i);
+				DEBUG_INFO("\n%s %d, rpt but not update for aid:%d\n", __FUNCTION__, __LINE__, i);
+#ifdef CONFIG_PCI_HCI
 				RTL_W8(0x3a, 0xff);	/* for CATC triggering only, meaningless */
-				printk("=====rxdesc=====\n");
-				printk("D0:0x%08x, D1:0x%08x, D2:0x%08x, D3:0x%08x, \nD4:0x%08x, D5:0x%08x, D6:0x%08x, D7:0x%08x\n",
+#endif
+				DEBUG_TRACE("=====rxdesc=====\n");
+				DEBUG_TRACE("D0:0x%08x, D1:0x%08x, D2:0x%08x, D3:0x%08x, \nD4:0x%08x, D5:0x%08x",
 					get_desc(pdesc->Dword0), get_desc(pdesc->Dword1), get_desc(pdesc->Dword2), get_desc(pdesc->Dword3), 
-					get_desc(pdesc->Dword4), get_desc(pdesc->Dword5), get_desc(pdesc->Dword6), get_desc(pdesc->Dword7));
-				printk("=====rxdesc=====\n");
-				printk("=====buffer=====\n");
+					get_desc(pdesc->Dword4), get_desc(pdesc->Dword5));
+#ifdef CONFIG_PCI_HCI
+				DEBUG_TRACE(", D6:0x%08x, D7:0x%08x", get_desc(pdesc->Dword6), get_desc(pdesc->Dword7));
+#endif
+				DEBUG_TRACE("\n=====rxdesc=====\n");
+				DEBUG_TRACE("=====buffer=====\n");
 	/*			printk("B0:0x%08x, B1:0x%08x, B2:0x%08x, B3:0x%08x\n",
 					(unsigned int)(pskb->data[0]), (unsigned int)(pskb->data[4]), (unsigned int)(pskb->data[8]), (unsigned int)(pskb->data[12]));*/
-				printk("B0:0x%02x, B1:0x%02x, B2:0x%02x, B3:0x%02x, B4:0x%02x, B5:0x%02x, B6:0x%02x, B7:0x%02x, B8:0x%02x, B9:0x%02x, B10:0x%02x, B11:0x%02x, B12:0x%02x, B13:0x%02x, B14:0x%02x, B15:0x%02x\n",
+				DEBUG_TRACE("B0:0x%02x, B1:0x%02x, B2:0x%02x, B3:0x%02x, B4:0x%02x, B5:0x%02x, B6:0x%02x, B7:0x%02x, B8:0x%02x, B9:0x%02x, B10:0x%02x, B11:0x%02x, B12:0x%02x, B13:0x%02x, B14:0x%02x, B15:0x%02x\n",
 					pskb->data[0], pskb->data[1], pskb->data[2], pskb->data[3], 
 					pskb->data[4], pskb->data[5], pskb->data[6], pskb->data[7], 
 					pskb->data[8], pskb->data[9], pskb->data[10], pskb->data[11], 
 					pskb->data[12], pskb->data[13], pskb->data[14], pskb->data[15]);
-				printk("=====buffer=====\n\n");
+				DEBUG_TRACE("=====buffer=====\n\n");
 				continue;
 			}
 				
@@ -335,17 +376,22 @@ void RTL8188E_TxReportHandler(struct rtl8192cd_priv *priv, struct sk_buff *pskb,
 			minRptTime = pRaInfo->RptTime;
 	}	
 
-	if (minRptTime != 0xffff)
+	if (minRptTime != 0xffff) {
+#if defined(CONFIG_PCI_HCI)
 		RTL_W16(REG_88E_TXRPT_TIM, minRptTime);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+		notify_tx_report_interval_change(priv, minRptTime);
+#endif
+	}
 }
 
 
 void RTL8188E_SetTxReportTimeByRA(struct rtl8192cd_priv *priv, int extend)
 {
-	extern unsigned short DynamicTxRPTTiming[];
+//	extern unsigned short DynamicTxRPTTiming[];
 	extern unsigned char TxRPTTiming_idx;
 
-	unsigned short WriteTxRPTTiming;
+//	unsigned short WriteTxRPTTiming;
 	unsigned char idx;
 
 	idx=TxRPTTiming_idx;
@@ -359,44 +405,67 @@ void RTL8188E_SetTxReportTimeByRA(struct rtl8192cd_priv *priv, int extend)
 		if(idx!=0)
 			idx-=1;
 	}
-	WriteTxRPTTiming=DynamicTxRPTTiming[idx];  
+//	WriteTxRPTTiming=DynamicTxRPTTiming[idx];  
 	TxRPTTiming_idx=idx;
 }
 #endif
 #endif
 
-void RTL8188E_MACID_NOLINK(struct rtl8192cd_priv *priv, unsigned int nolink, unsigned int aid)
+#ifdef CONFIG_PCI_HCI
+static inline
+#endif
+void __RTL8188E_MACID_NOLINK(struct rtl8192cd_priv *priv, unsigned int nolink, unsigned int aid)
 {
-	if (!priv->pshare->rf_ft_var.disable_pkt_nolink) {
-		if (nolink) {
-			if (aid > 31)
-				RTL_W32(REG_88E_MACID_NOLINK+4, RTL_R32(REG_88E_MACID_NOLINK+4) | BIT(aid -31));
-			else
-				RTL_W32(REG_88E_MACID_NOLINK, RTL_R32(REG_88E_MACID_NOLINK) | BIT(aid));
-		} else {
-			if (aid > 31)
-				RTL_W32(REG_88E_MACID_NOLINK+4, RTL_R32(REG_88E_MACID_NOLINK+4) & ~BIT(aid-31));
-			else
-				RTL_W32(REG_88E_MACID_NOLINK, RTL_R32(REG_88E_MACID_NOLINK) & ~BIT(aid));
-		}
+	if (nolink) {
+		if (aid > 31)
+			RTL_W32(REG_88E_MACID_NOLINK+4, RTL_R32(REG_88E_MACID_NOLINK+4) | BIT(aid -31));
+		else
+			RTL_W32(REG_88E_MACID_NOLINK, RTL_R32(REG_88E_MACID_NOLINK) | BIT(aid));
+	} else {
+		if (aid > 31)
+			RTL_W32(REG_88E_MACID_NOLINK+4, RTL_R32(REG_88E_MACID_NOLINK+4) & ~BIT(aid-31));
+		else
+			RTL_W32(REG_88E_MACID_NOLINK, RTL_R32(REG_88E_MACID_NOLINK) & ~BIT(aid));
 	}
 }
 
+void RTL8188E_MACID_NOLINK(struct rtl8192cd_priv *priv, unsigned int nolink, unsigned int aid)
+{
+	if (!priv->pshare->rf_ft_var.disable_pkt_nolink) {
+#if defined(CONFIG_PCI_HCI)
+		__RTL8188E_MACID_NOLINK(priv, nolink, aid);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+		notify_macid_no_link_change(priv, aid, nolink);
+#endif
+	}
+}
+
+#ifdef CONFIG_PCI_HCI
+static inline
+#endif
+void __RTL8188E_MACID_PAUSE(struct rtl8192cd_priv *priv, unsigned int pause, unsigned int aid)
+{
+	if (pause) {
+		if (aid > 31)
+			RTL_W32(REG_88E_MACID_PAUSE+4, RTL_R32(REG_88E_MACID_PAUSE+4) | BIT(aid -31));
+		else
+			RTL_W32(REG_88E_MACID_PAUSE, RTL_R32(REG_88E_MACID_PAUSE) | BIT(aid));
+	} else {
+		if (aid > 31)
+			RTL_W32(REG_88E_MACID_PAUSE+4, RTL_R32(REG_88E_MACID_PAUSE+4) & ~BIT(aid -31));
+		else
+			RTL_W32(REG_88E_MACID_PAUSE, RTL_R32(REG_88E_MACID_PAUSE) & ~BIT(aid));
+	}
+}
 
 void RTL8188E_MACID_PAUSE(struct rtl8192cd_priv *priv, unsigned int pause, unsigned int aid)
 {
 	if (!priv->pshare->rf_ft_var.disable_pkt_pause) {
-		if (pause) {
-			if (aid > 31)
-				RTL_W32(REG_88E_MACID_PAUSE+4, RTL_R32(REG_88E_MACID_PAUSE+4) | BIT(aid -31));
-			else
-				RTL_W32(REG_88E_MACID_PAUSE, RTL_R32(REG_88E_MACID_PAUSE) | BIT(aid));
-		} else {
-			if (aid > 31)
-				RTL_W32(REG_88E_MACID_PAUSE+4, RTL_R32(REG_88E_MACID_PAUSE+4) & ~BIT(aid -31));
-			else
-				RTL_W32(REG_88E_MACID_PAUSE, RTL_R32(REG_88E_MACID_PAUSE) & ~BIT(aid));
-		}
+#if defined(CONFIG_PCI_HCI)
+		__RTL8188E_MACID_PAUSE(priv, pause, aid);
+#elif defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
+		notify_macid_pause_change(priv, aid, pause);
+#endif
 	}
 }
 
@@ -420,17 +489,12 @@ void check_RTL8188E_testChip(struct rtl8192cd_priv *priv)
 
 #define bRFRegOffsetMask	0xfffff	
 
-#define	RF_PATH_A		0		//Radio Path A
-#define	RF_PATH_B		1		//Radio Path B
-#define	RF_PATH_C		2		//Radio Path C
-#define	RF_PATH_D		3		//Radio Path D
-
 
 void _PHY_PathAStandBy(struct rtl8192cd_priv *priv)
 {
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x0);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x0);
 	PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00010000);
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80800000);
+	PHY_SetBBReg(priv, 0xe28, 0xffffff00, 0x808000);
 }
 
 void _PHY_PathAFillIQKMatrix(struct rtl8192cd_priv *priv, char bIQKOK, int	result[][8], unsigned char final_candidate, char bTxOnly)
@@ -560,12 +624,12 @@ unsigned char phy_PathA_RxIQK(struct rtl8192cd_priv *priv, char configPathB)
 	//get TXIMR setting
 	//modify RXIQK mode table
 	DEBUG_INFO("Path-A Rx IQK modify RXIQK mode table!\n");
-	PHY_SetBBReg(priv, rFPGA0_IQK, bMaskDWord, 0x00000000);	
+	PHY_SetBBReg(priv, rFPGA0_IQK, 0xffffff00, 0);	
 	PHY_SetRFReg(priv, RF_PATH_A, RF_WE_LUT, bRFRegOffsetMask, 0x800a0 );
 	PHY_SetRFReg(priv, RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x30000 );
 	PHY_SetRFReg(priv, RF_PATH_A, RF_TXPA_G1, bRFRegOffsetMask, 0x0000f );
 	PHY_SetRFReg(priv, RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xf117B );
-	PHY_SetBBReg(priv, rFPGA0_IQK, bMaskDWord, 0x80800000);
+	PHY_SetBBReg(priv, rFPGA0_IQK, 0xffffff00, 0x808000);
 
 	//IQK setting
 	PHY_SetBBReg(priv, rTx_IQK, bMaskDWord, 0x01007c00);
@@ -613,12 +677,12 @@ unsigned char phy_PathA_RxIQK(struct rtl8192cd_priv *priv, char configPathB)
 	//RX IQK
 	//modify RXIQK mode table
 	DEBUG_INFO("Path-A Rx IQK modify RXIQK mode table 2!\n");
-	PHY_SetBBReg(priv, rFPGA0_IQK, bMaskDWord, 0x00000000);		
+	PHY_SetBBReg(priv, rFPGA0_IQK, 0xffffff00, 0);		
 	PHY_SetRFReg(priv, RF_PATH_A, RF_WE_LUT, bRFRegOffsetMask, 0x800a0 );
 	PHY_SetRFReg(priv, RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x30000 );
 	PHY_SetRFReg(priv, RF_PATH_A, RF_TXPA_G1, bRFRegOffsetMask, 0x0000f );
 	PHY_SetRFReg(priv, RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xf7ffa );
-	PHY_SetBBReg(priv, rFPGA0_IQK, bMaskDWord, 0x80800000);
+	PHY_SetBBReg(priv, rFPGA0_IQK, 0xffffff00, 0x808000);
 
 	//IQK setting
 	PHY_SetBBReg(priv, rRx_IQK, bMaskDWord, 0x01004800);
@@ -744,7 +808,7 @@ void phy_IQCalibrate_8188E(struct rtl8192cd_priv *priv, int result[][8], unsigne
 							rOFDM0_TRxPathEnable, 		rOFDM0_TRMuxPar,	
 							rFPGA0_XCD_RFInterfaceSW,	rConfig_AntA,	rConfig_AntB,
 							rFPGA0_XAB_RFInterfaceSW,	rFPGA0_XA_RFInterfaceOE,	
-							rFPGA0_XB_RFInterfaceOE,	rFPGA0_RFMOD	
+							rFPGA0_XB_RFInterfaceOE,	/*rFPGA0_RFMOD*/ rCCK0_AFESetting	
 							};	
 
 	unsigned int	retryCount = 0;
@@ -793,8 +857,12 @@ void phy_IQCalibrate_8188E(struct rtl8192cd_priv *priv, int result[][8], unsigne
 		_PHY_PIModeSwitch(priv, TRUE);
 	}
 	
+	//MAC settings
+	_PHY_MACSettingCalibration(priv, IQK_MAC_REG, priv->pshare->IQK_MAC_backup);
+	
 	//BB setting
-	PHY_SetBBReg(priv, rFPGA0_RFMOD, BIT(24), 0x00);		
+	//PHY_SetBBReg(priv, rFPGA0_RFMOD, BIT(24), 0x00);
+	PHY_SetBBReg(priv, rCCK0_AFESetting, bMaskDWord, (0x0f000000 | (PHY_QueryBBReg(priv, rCCK0_AFESetting, bMaskDWord))) );	
 	PHY_SetBBReg(priv, rOFDM0_TRxPathEnable, bMaskDWord, 0x03a05600);
 	PHY_SetBBReg(priv, rOFDM0_TRMuxPar, bMaskDWord, 0x000800e4);
 	PHY_SetBBReg(priv, rFPGA0_XCD_RFInterfaceSW, bMaskDWord, 0x22204000);
@@ -811,9 +879,6 @@ void phy_IQCalibrate_8188E(struct rtl8192cd_priv *priv, int result[][8], unsigne
 		PHY_SetBBReg(priv, rFPGA0_XB_LSSIParameter, bMaskDWord, 0x00010000);
 	}
 
-	//MAC settings
-	_PHY_MACSettingCalibration(priv, IQK_MAC_REG, priv->pshare->IQK_MAC_backup);
-
 	//Page B init
 	//AP or IQK
 	PHY_SetBBReg(priv, rConfig_AntA, bMaskDWord, 0x0f600000);
@@ -825,7 +890,7 @@ void phy_IQCalibrate_8188E(struct rtl8192cd_priv *priv, int result[][8], unsigne
 
 	// IQ calibration setting
 	DEBUG_INFO("IQK setting!\n");		
-	PHY_SetBBReg(priv, rFPGA0_IQK, bMaskDWord, 0x80800000);
+	PHY_SetBBReg(priv, rFPGA0_IQK, 0xffffff00, 0x808000);
 	PHY_SetBBReg(priv, rTx_IQK, bMaskDWord, 0x01007c00);
 	PHY_SetBBReg(priv, rRx_IQK, bMaskDWord, 0x81004800);
 
@@ -903,7 +968,7 @@ void phy_IQCalibrate_8188E(struct rtl8192cd_priv *priv, int result[][8], unsigne
 
 	//Back to BB mode, load original value
 	DEBUG_INFO("IQK:Back to BB mode, load original value!\n");
-	PHY_SetBBReg(priv, rFPGA0_IQK, bMaskDWord, 0);
+	PHY_SetBBReg(priv, rFPGA0_IQK, 0xffffff00, 0);
 
 	if(t != 0)
 	{
@@ -1194,7 +1259,7 @@ void PHY_IQCalibrate_8188E(struct rtl8192cd_priv *priv, char bReCovery)
 void ODM_ResetIQKResult(struct rtl8192cd_priv *priv)
 {
 /*
-#if (DM_ODM_SUPPORT_TYPE == ODM_MP || DM_ODM_SUPPORT_TYPE == ODM_CE)
+#if (DM_ODM_SUPPORT_TYPE == ODM_WIN || DM_ODM_SUPPORT_TYPE == ODM_CE)
 	PADAPTER	Adapter = pDM_Odm->Adapter;
 	u1Byte		i;
 
@@ -1228,7 +1293,6 @@ void ODM_ResetIQKResult(struct rtl8192cd_priv *priv)
 
 }
 
-#define	RF_PATH_A		0		//Radio Path A
 #define	OFDM_TABLE_SIZE_92D 	43
 
 #define bRFRegOffsetMask	0xfffff	
@@ -1251,14 +1315,14 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 	unsigned int			ThermalValue_AVG = 0;	
 	int						ele_A=0, ele_D, /* TempCCk,*/ X, value32;
 	int						Y, ele_C=0;
-	char					OFDM_index[2], CCK_index=0, OFDM_index_old[2]={0,0}, CCK_index_old=0, index;
+	s1Byte				OFDM_index[2]={0}, CCK_index=0, OFDM_index_old[2]={0}, CCK_index_old=0, index;
 	unsigned int			i = 0, j = 0;
 	char 					is2T = FALSE;
 //	char 					bInteralPA = FALSE;
 
 	unsigned char			OFDM_min_index = 6, rf; //OFDM BB Swing should be less than +3.0dB, which is required by Arthur
 	unsigned char			Indexforchannel = 0/*GetRightChnlPlaceforIQK(pHalData->CurrentChannel)*/;
-	char					OFDM_index_mapping[2][index_mapping_NUM_88E] = { 
+	s1Byte				OFDM_index_mapping[2][index_mapping_NUM_88E] = { 
 							{0,	0,	2,	3,	4,	4,			//2.4G, decrease power 
 							5, 	6, 	7, 	7,	8,	9,					
 							10,	10,	11}, // For lower temperature, 20120220 updated on 20120220.	
@@ -1278,7 +1342,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 	priv->pshare->TXPowerTrackingCallbackCnt++; //cosa add for debug
 	priv->pshare->bTXPowerTrackingInit = TRUE;
     
-#if (MP_DRIVER == 1)
+#if 1 //(MP_DRIVER == 1)      //_eric_??
     priv->pshare->TxPowerTrackControl = 1; //priv->pshare->TxPowerTrackControl; //_eric_?? // <Kordan> We should keep updating the control variable according to HalData.
     // <Kordan> pshare->RegA24 will be initialized when ODM HW configuring, but MP configures with para files.
     priv->pshare->RegA24 = 0x090e1317; 
@@ -1291,7 +1355,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 				return;
 		}
 #endif
-
+#if 0
 	if(priv->pshare->Power_tracking_on_88E == 0)
 	{
 		priv->pshare->Power_tracking_on_88E = 1;
@@ -1299,15 +1363,16 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 		return; 
 	}
 	else
+#endif
 	{
 
-		priv->pshare->Power_tracking_on_88E = 0;
+//	priv->pshare->Power_tracking_on_88E = 0;
 	
 		//printk("===>dm_TXPowerTrackingCallback_ThermalMeter_8188E txpowercontrol %d\n",  priv->pshare->TxPowerTrackControl);
 
 		ThermalValue = (unsigned char)PHY_QueryRFReg(priv, RF_PATH_A, RF_T_METER_88E, 0xfc00, 1);	//0x42: RF Reg[15:10] 88E
 
-		printk("\nReadback Thermal Meter = 0x%x pre thermal meter 0x%x EEPROMthermalmeter 0x%x\n", ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther);
+		//printk("\nReadback Thermal Meter = 0x%x pre thermal meter 0x%x EEPROMthermalmeter 0x%x\n", ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther);
 
 	}
 
@@ -1419,7 +1484,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 				if(ThermalValue_AVG_count)
 				{
 					ThermalValue = (unsigned char)(ThermalValue_AVG / ThermalValue_AVG_count);
-					printk("AVG Thermal Meter = 0x%x \n", ThermalValue);					
+					//printk("AVG Thermal Meter = 0x%x \n", ThermalValue);					
 				}
 			}			
 		}
@@ -1441,8 +1506,8 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 		delta_LCK = (ThermalValue > priv->pshare->ThermalValue_LCK)?(ThermalValue - priv->pshare->ThermalValue_LCK):(priv->pshare->ThermalValue_LCK - ThermalValue);
 		delta_IQK = (ThermalValue > priv->pshare->ThermalValue_IQK)?(ThermalValue - priv->pshare->ThermalValue_IQK):(priv->pshare->ThermalValue_IQK - ThermalValue);
 
-		printk("Readback Thermal Meter = 0x%x \npre thermal meter 0x%x EEPROMthermalmeter 0x%x delta 0x%x \ndelta_LCK 0x%x delta_IQK 0x%x \n",   ThermalValue, priv->pshare->ThermalValue, priv->pshare->EEPROMThermalMeter, delta, delta_LCK, delta_IQK);
-		printk("pre thermal meter LCK 0x%x \npre thermal meter IQK 0x%x \ndelta_LCK_bound 0x%x delta_IQK_bound 0x%x\n",   priv->pshare->ThermalValue_LCK, priv->pshare->ThermalValue_IQK, priv->pshare->Delta_LCK, priv->pshare->Delta_IQK);
+		//printk("Readback Thermal Meter = 0x%x \npre thermal meter 0x%x EEPROMthermalmeter 0x%x delta 0x%x \ndelta_LCK 0x%x delta_IQK 0x%x \n",   ThermalValue, priv->pshare->ThermalValue, priv->pshare->EEPROMThermalMeter, delta, delta_LCK, delta_IQK);
+		//printk("pre thermal meter LCK 0x%x \npre thermal meter IQK 0x%x \ndelta_LCK_bound 0x%x delta_IQK_bound 0x%x\n",   priv->pshare->ThermalValue_LCK, priv->pshare->ThermalValue_IQK, priv->pshare->Delta_LCK, priv->pshare->Delta_IQK);
 
 
 		//if((delta_LCK > pHalData->Delta_LCK) && (pHalData->Delta_LCK != 0))
@@ -1649,7 +1714,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 			ODM_ResetIQKResult(priv);		
 
 /*
-#if(DM_ODM_SUPPORT_TYPE  & ODM_MP)
+#if(DM_ODM_SUPPORT_TYPE  & ODM_WIN)
 #if (DEV_BUS_TYPE == RT_PCI_INTERFACE)	
 #if USE_WORKITEM
 			PlatformAcquireMutex(&pHalData->mxChnlBwControl);
@@ -1665,7 +1730,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 			PHY_IQCalibrate_8188E(priv, FALSE);
 
 /*
-#if(DM_ODM_SUPPORT_TYPE  & ODM_MP)
+#if(DM_ODM_SUPPORT_TYPE  & ODM_WIN)
 #if (DEV_BUS_TYPE == RT_PCI_INTERFACE)	
 #if USE_WORKITEM
 			PlatformReleaseMutex(&pHalData->mxChnlBwControl);

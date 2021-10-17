@@ -32,7 +32,9 @@ void ipc_mirror_parser( ipc_ctrl_pkt_t *ipc_ctrl )
 #endif
 	
 	// mirror ack 
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_ISSUE_TRIVIAL_ACK
 	ipcSentMirrorAckPacket( ipc_ctrl ->category, ipc_ctrl ->sequence, NULL, 0 );
+#endif
 	
 	// check cch 
 	if( cch >= CON_CH_NUM )

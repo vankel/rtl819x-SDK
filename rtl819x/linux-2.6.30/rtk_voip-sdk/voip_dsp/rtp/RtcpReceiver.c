@@ -164,8 +164,15 @@ void RtcpRx_InitByID (uint32 sid, uint32 enableXR)
 	pRxInfo->avgOneWayDelay = 0;
 	pRxInfo->accumRoundTripDelay = 0;
 	pRxInfo->accumRoundTripDelayCount = 0;
-    pRxInfo->avgRoundTripDelay = 0;
+	pRxInfo->avgRoundTripDelay = 0;
 	pRxInfo->tranInfoCnt = 0;
+	
+	pRxInfo->maxDeltaMs = 0;
+	pRxInfo->minDeltaMs = 0;
+	pRxInfo->avgDeltaMs = 0;
+	pRxInfo->lastDeltaMs = 0;
+	pRxInfo->deltaMsCount = 0;
+	pRxInfo->deltaMsSum = 0;
 	
 	rtcp_dd_write( "RTD: %s:%d %lu \n"
 						"\tpRxInfo->avgRoundTripDelay=%lu\n"
@@ -180,9 +187,9 @@ void RtcpRx_InitByID (uint32 sid, uint32 enableXR)
 	for(i=0; i<MAX_TRANINFO_LIST; i++)
 	{
 		info = &pRxInfo->tranInfoList[i];
-	    memset( info, 0, sizeof( *info ) );	// add to clean all info. 
+		memset( info, 0, sizeof( *info ) );	// add to clean all info. 
 		info->balloc = 0;
-	    info->ssrc = 0;
+		info->ssrc = 0;
 /*		info += sizeof(RtpTranInfo);*/
 /*	    	info++;*/
 	}
@@ -190,15 +197,15 @@ void RtcpRx_InitByID (uint32 sid, uint32 enableXR)
 	rtcp_cur_get[sid] = 0;
 
 #if  1 // tim add 
-		rtcp_cur_rx[sid] = 0;
+	rtcp_cur_rx[sid] = 0;
 		
-		for( i=0; i<RTCP_RX_DEC_NUM; i++)
-		{
-			RtcpPkt_Init(&RTCP_RX_DEC[sid][i]);
-			RTCP_RX_DEC[sid][i].packetState = PKT_FREE;
-			RTCP_RX_DEC[sid][i].chid = 0;
-			RTCP_RX_DEC[sid][i].sid = 0;
-		}
+	for( i=0; i<RTCP_RX_DEC_NUM; i++)
+	{
+		RtcpPkt_Init(&RTCP_RX_DEC[sid][i]);
+		RTCP_RX_DEC[sid][i].packetState = PKT_FREE;
+		RTCP_RX_DEC[sid][i].chid = 0;
+		RTCP_RX_DEC[sid][i].sid = 0;
+	}
 #endif
 	
 	memset( &pRxInfo ->rxLogger, 0, sizeof( pRxInfo ->rxLogger ) );
@@ -387,7 +394,7 @@ int RtcpRx_readRTCP (uint32 sid, RtcpPacket* p)
 	if( pRxInfo == NULL )
 		ret = -1;
 	else {
-		pRxInfo ->rxLogger.packet_count ++;
+		pRxInfo ->rxLogger.rtcp_packet_count ++;
 	}
 
 	//printk("--->RtcpRx_readRTCP, sid=%d\n", sid);
@@ -417,6 +424,7 @@ int RtcpRx_readRTCP (uint32 sid, RtcpPacket* p)
 #ifdef CONFIG_RTK_VOIP_RTCP_XR
 			case (rtcpTypeXR):
 				RtcpRx_readXR( sid, middle );
+				pRxInfo ->rxLogger.rtcp_xr_packet_count ++;
 				break;
 #endif
             default:
@@ -507,7 +515,7 @@ void RtcpRx_readSR_H (uint32 sid, RtcpHeader* head)
 
 		if(s == NULL) 
 		{
-			printk("RTCP: sid(%d) RtpTranInfo NULL \n",sid);
+			PRINT_R("%s, line%d: sid(%d), RtcpRx_findTranInfo return NULL \n",__FUNCTION__, __LINE__, sid);
 			return NULL;
 			
 		}
@@ -516,6 +524,45 @@ void RtcpRx_readSR_H (uint32 sid, RtcpHeader* head)
 /*        s->recvLastSRTimestamp = nowNtp; */
 
 		Ntp_cpy(&s->recvLastSRTimestamp, &nowNtp);
+
+#if 1
+		// For calc. received RTCP interval:
+		if (s->prevSRTimestamp)
+		{
+			delta_ntp32 = NTP32_sub( s->lastSRTimestamp, s->prevSRTimestamp);
+		
+			// update last delta ms
+			pRxInfo->lastDeltaMs = NTP32_diff2ms(delta_ntp32);
+			// update delta ms sum
+			pRxInfo->deltaMsSum += pRxInfo->lastDeltaMs;
+			// update delta ms counter
+			pRxInfo->deltaMsCount++;
+			// update avg. delta ms
+			pRxInfo->avgDeltaMs = (pRxInfo->deltaMsCount ? (pRxInfo->deltaMsSum)/(pRxInfo->deltaMsCount) : 0);
+
+			if (pRxInfo->lastDeltaMs)
+			{
+				// update max. delta ms
+				if (pRxInfo->lastDeltaMs > pRxInfo->maxDeltaMs)
+					pRxInfo->maxDeltaMs = pRxInfo->lastDeltaMs;
+				
+				// update min. delta ms
+				if (pRxInfo->minDeltaMs == 0)
+					pRxInfo->minDeltaMs = pRxInfo->lastDeltaMs;
+				else if (pRxInfo->lastDeltaMs < pRxInfo->minDeltaMs)
+					pRxInfo->minDeltaMs = pRxInfo->lastDeltaMs;
+			}
+#if 0 // debug
+			//PRINT_R("%u, %u, %u, %u\n", s->lastSRTimestamp, s->prevSRTimestamp, 
+				//	delta_ntp32, NTP32_diff2ms(delta_ntp32));
+			PRINT_Y("max: %u ms\n", pRxInfo->maxDeltaMs);
+			PRINT_Y("min: %u ms\n", pRxInfo->minDeltaMs);
+			PRINT_Y("avg: %u ms\n", pRxInfo->avgDeltaMs);
+			PRINT_Y("cur: %u ms\n", pRxInfo->lastDeltaMs);
+			PRINT_Y("cnt: %d\n", pRxInfo->deltaMsCount);
+#endif
+		}
+#endif
 
         //printSR (senderBlock);  // - debug
 
@@ -545,6 +592,8 @@ void RtcpRx_readSR_H (uint32 sid, RtcpHeader* head)
         pRxInfo->avgOneWayDelay = _idiv32(pRxInfo->accumOneWayDelay, pRxInfo->packetReceived);
 
         middle = (char*)head + sizeof(RtcpHeader) + sizeof(RtcpSender);
+        
+        s->prevSRTimestamp = s->lastSRTimestamp;
     }
     else
     {
@@ -564,7 +613,13 @@ void RtcpRx_readSR_H (uint32 sid, RtcpHeader* head)
 
 #ifdef CONFIG_RTK_VOIP_RTCP_XR
 		s = RtcpRx_findTranInfo(sid, ssrc);
-		
+
+		if(s == NULL) 
+		{
+			PRINT_R("%s, line%d: sid(%d), RtcpRx_findTranInfo return NULL \n",__FUNCTION__, __LINE__, sid);
+			return NULL;
+		}
+
 		Ntp_cpy(&s->recvLastRRTimestamp, &nowNtp);
 #endif
 
@@ -897,7 +952,15 @@ RtpTranInfo* RtcpRx_addTranFinal (uint32 sid, RtpTranInfo* s)
 			break;
 	}
 	if(i == MAX_TRANINFO_LIST)
+	{
+		PRINT_R("%s, line%d: sid(%d), return NULL\n",__FUNCTION__, __LINE__, sid);
+		for(i=0; i<MAX_TRANINFO_LIST; i++)
+		{
+			info = &pRxInfo->tranInfoList[i];
+			PRINT_R("ssrc=0x%x\n", info->ssrc);
+		}
 		return NULL;
+	}
 
 	info->balloc = 1;
 	info->recv =  s->recv;
@@ -940,9 +1003,9 @@ int RtcpRx_removeTranInfo (uint32 sid, RtpSrc ssrc, int flag)
     }
 
     /* remove from RTP stack */
-    if (!flag)
-        removeSource(sid, info->ssrc, 1);
-    info->balloc = 0;
+	if (!flag)
+		removeSource(sid, info->ssrc, 1);
+	info->balloc = 0;
 	info->recv = NULL;
 
     /* printk("RTCP: done removing\n"); */
@@ -1064,39 +1127,55 @@ int RtcpRx_getLogger( uint32 sid, TstVoipRtcpLogger *pLogger )
 	
 	// caller set pLogger data as zeros 
 	
-	pLogger ->RX_packet_count = pInfo ->rxLogger.packet_count;
-	if( pInfo ->rxLogger.fraction_loss.count ) {
-		pLogger ->RX_loss_rate_max = pInfo ->rxLogger.fraction_loss.max;
-		pLogger ->RX_loss_rate_min = pInfo ->rxLogger.fraction_loss.min;
-		pLogger ->RX_loss_rate_avg = pInfo ->rxLogger.fraction_loss.sum / 
-										pInfo ->rxLogger.fraction_loss.count;
-		pLogger ->RX_loss_rate_cur = pInfo ->rxLogger.fraction_loss.last;
-	}
-	if( pInfo ->rxLogger.inter_jitter.count ) {
-		pLogger ->RX_jitter_max = pInfo ->rxLogger.inter_jitter.max;
-		pLogger ->RX_jitter_min = pInfo ->rxLogger.inter_jitter.min;
-		pLogger ->RX_jitter_avg = pInfo ->rxLogger.inter_jitter.sum / 
-									pInfo ->rxLogger.inter_jitter.count;
-		pLogger ->RX_jitter_cur = pInfo ->rxLogger.inter_jitter.last;
-	}
-	if( pInfo ->rxLogger.round_trip_delay.count ) {
-		pLogger ->RX_round_trip_max = pInfo ->rxLogger.round_trip_delay.max;
-		pLogger ->RX_round_trip_min = pInfo ->rxLogger.round_trip_delay.min;
-		pLogger ->RX_round_trip_avg = pInfo ->rxLogger.round_trip_delay.sum / 
-										pInfo ->rxLogger.round_trip_delay.count;
-		pLogger ->RX_round_trip_cur = pInfo ->rxLogger.round_trip_delay.last;
-	}
-	if( pInfo ->rxLogger.MOS_LQ.count ) {
-		pLogger ->RX_MOS_LQ_max = pInfo ->rxLogger.MOS_LQ.max;
-		pLogger ->RX_MOS_LQ_min = pInfo ->rxLogger.MOS_LQ.min;
-		pLogger ->RX_MOS_LQ_avg = pInfo ->rxLogger.MOS_LQ.sum / pInfo ->rxLogger.MOS_LQ.count;
+	pLogger ->RX_packet_count = pInfo ->rxLogger.rtcp_packet_count;
+	pLogger ->RX_XR_packet_count = pInfo ->rxLogger.rtcp_xr_packet_count;
+
+	pLogger ->RX_loss_rate_max = pInfo ->rxLogger.fraction_loss.max;
+	pLogger ->RX_loss_rate_min = pInfo ->rxLogger.fraction_loss.min;
+	pLogger ->RX_loss_rate_avg = ( pInfo ->rxLogger.fraction_loss.count ? 
+		(pInfo ->rxLogger.fraction_loss.sum / pInfo ->rxLogger.fraction_loss.count) : 0 );
+	pLogger ->RX_loss_rate_cur = pInfo ->rxLogger.fraction_loss.last;
+
+	pLogger ->RX_jitter_max = pInfo ->rxLogger.inter_jitter.max;
+	pLogger ->RX_jitter_min = pInfo ->rxLogger.inter_jitter.min;
+	pLogger ->RX_jitter_avg = ( pInfo ->rxLogger.inter_jitter.count ? 
+		(pInfo ->rxLogger.inter_jitter.sum / pInfo ->rxLogger.inter_jitter.count) : 0 );
+	pLogger ->RX_jitter_cur = pInfo ->rxLogger.inter_jitter.last;
+
+	pLogger ->RX_round_trip_max = pInfo ->rxLogger.round_trip_delay.max;
+	pLogger ->RX_round_trip_min = pInfo ->rxLogger.round_trip_delay.min;
+	pLogger ->RX_round_trip_avg = ( pInfo ->rxLogger.round_trip_delay.count ? 
+		(pInfo ->rxLogger.round_trip_delay.sum / pInfo ->rxLogger.round_trip_delay.count) : 0 );
+	pLogger ->RX_round_trip_cur = pInfo ->rxLogger.round_trip_delay.last;
+
+	pLogger ->RX_MOS_LQ_max = pInfo ->rxLogger.MOS_LQ.max;
+	pLogger ->RX_MOS_LQ_min = pInfo ->rxLogger.MOS_LQ.min;
+	pLogger ->RX_MOS_LQ_avg = ( pInfo ->rxLogger.MOS_LQ.count ? 
+		(pInfo ->rxLogger.MOS_LQ.sum / pInfo ->rxLogger.MOS_LQ.count) : 0 );
+	pLogger ->RX_MOS_LQ_cur = pInfo ->rxLogger.MOS_LQ.last;	
+	if (pInfo ->rxLogger.MOS_LQ.count)
+	{
 		pLogger ->RX_MOS_LQ_avg_x10 = ( ( pInfo ->rxLogger.MOS_LQ.sum & 0xF0000000UL ) ?
-					( pInfo ->rxLogger.MOS_LQ.sum ) / ( pInfo ->rxLogger.MOS_LQ.count / 10 ) :	// large sum case 
-					( pInfo ->rxLogger.MOS_LQ.sum * 10 ) / ( pInfo ->rxLogger.MOS_LQ.count ) );
-		pLogger ->RX_MOS_LQ_cur = pInfo ->rxLogger.MOS_LQ.last;	
+				( pInfo ->rxLogger.MOS_LQ.sum ) / ( pInfo ->rxLogger.MOS_LQ.count / 10 ) :	// large sum case 
+				( pInfo ->rxLogger.MOS_LQ.sum * 10 ) / ( pInfo ->rxLogger.MOS_LQ.count ) );
 	}
-	
+	else
+		pLogger ->RX_MOS_LQ_avg_x10 = 0;
+
 	return 1;	
+}
+
+int RtcpRx_getMaxDeltaInterval( uint32 sid, uint32 *pMaxDeltaMs )
+{
+	RtcpReceiver *pInfo;
+
+	if(sid > DSP_RTK_SS_NUM)
+		return 0;
+	pInfo = &RtcpRxInfo[sid];
+
+	*pMaxDeltaMs = pInfo->maxDeltaMs;
+
+	return 1;
 }
 
 /* get the data for latency (ms) */

@@ -31,6 +31,9 @@ ifeq ($(CONFIG_RTL_PROC_DEBUG), y)
 	obj-y += rtl_utils.o
 endif
 
+ifeq ($(CONFIG_RTL_819XD), y)
+	obj-y += smi.o gpio.o
+endif
 
 EXTRA_CFLAGS += -O1 -DRTL_TBLDRV -D__linux__  -mno-memcpy -DRTL865X_OVER_KERNEL -DRTL865X_OVER_LINUX -Werror
 EXTRA_CFLAGS += -I$(DIR_RTLASIC)

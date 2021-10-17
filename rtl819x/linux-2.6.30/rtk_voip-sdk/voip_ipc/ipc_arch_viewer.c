@@ -2,7 +2,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <netinet/in.h>	// ntohs / ntohl 
-#include "linux/config.h"
+//#include "linux/config.h"
 #include "ipc_internal.h"
 #include "voip_ipc.h"
 #include "voip_debug.h"
@@ -44,6 +44,7 @@ typedef enum {
 	OUTFMT_HL_EVENT		= 0x00800000,	// highlight event/ack
 	OUTFMT_HL_MIRROR	= 0x01000000,	// highlight mirror/mirror_ack
 	OUTFMT_HL_RPC		= 0x02000000,	// highlight RPC/RPC_ack
+	OUTFMT_HL_DDD		= 0x04000000,	// highlight DDD_H2D/DDD_D2H	
 	
 	// Global options 
 	OUTFMT_VERBOSE		= 0x10000000,	// verbose mode 
@@ -91,6 +92,7 @@ static const struct {
 	{ OUTFMT_HL_EVENT,	2, "lE", "Highlight event/ack" }, 
 	{ OUTFMT_HL_MIRROR,	2, "lM", "Highlight mirror/mirror_ack" }, 
 	{ OUTFMT_HL_RPC,	2, "lR", "Highlight RPC/RPC_ack" }, 
+	{ OUTFMT_HL_DDD,	2, "lD", "Highlight DDD_H2D/DDD_D2H" }, 
 	
 	// Global options 
 	{ OUTFMT_VERBOSE,	0, "v", "Verbose mode" },
@@ -267,7 +269,7 @@ static void detail_outfmt_parameters( outfmt_t outfmt )
 	
 	for( i = 0; i < SIZE_OF_FMT_DETAIL; i ++ ) {
 
-		printf( "%s: %s\n", fmt_detail[ i ].meaning, 
+		printf( "%s (%s): %s\n", fmt_detail[ i ].meaning, fmt_detail[ i ].cmd, 
 							( ( outfmt & fmt_detail[ i ].bit ) ? "yes" : "no" ) );
 	}
 	
@@ -294,6 +296,8 @@ static void print_fancy_ipc_pkt( const ipc_ctrl_pkt_t * ipc_pkt, outfmt_t outfmt
 		{ IPC_PROT_MIRROR_ACK,		"MIR_ACK",	OUTFMT_HL_MIRROR,	AC_FORE_YELLOW },
 		{ IPC_PROT_RPC,				"RPC",		OUTFMT_HL_RPC,		AC_FORE_BlUE },
 		{ IPC_PROT_RPC_ACK,			"RPC_ACK",	OUTFMT_HL_RPC,		AC_FORE_BlUE },
+		{ IPC_PROT_DDD_H2D,			"DDD_H2D",	OUTFMT_HL_RPC,		AC_FORE_RED },
+		{ IPC_PROT_DDD_D2H,			"DDD_D2H",	OUTFMT_HL_RPC,		AC_FORE_RED },
 	};
 	#define SIZE_OF_PROT_STRING		( sizeof( protocol_string ) / sizeof( protocol_string[ 0 ] ) )
 	
@@ -310,6 +314,7 @@ static void print_fancy_ipc_pkt( const ipc_ctrl_pkt_t * ipc_pkt, outfmt_t outfmt
 	const voice_rtp2dsp_content_t * const voice_rtp2dsp_content = ( const voice_rtp2dsp_content_t * )ipc_voice_pkt ->voice_content;
 	const mirror_all_content_t * const mirror_all_content = ( const mirror_all_content_t * )ipc_ctrl_pkt ->content;
 	const rpc_content_t * const rpc_content = ( const rpc_content_t * )ipc_ctrl_pkt ->content;
+	const ddd_content_t * const ddd_content = ( const ddd_content_t * )ipc_ctrl_pkt ->content;
 	
 	// is voice packet ? 
 	if( outfmt & OUTFMT_NO_VOICE_PKT ) {
@@ -396,6 +401,8 @@ label_basic_info:
 	case IPC_PROT_ACK:				// b) host --> dsp 
 	case IPC_PROT_MIRROR:			// c) host <-- dsp
 	case IPC_PROT_MIRROR_ACK:		// c) host --> dsp
+	case IPC_PROT_DDD_H2D:			// e) host --> dsp 
+	case IPC_PROT_DDD_D2H:			// e) host <-- dsp 
 		printf( "cate=%u seq=%u len=%u ", 
 				ntohs( ipc_ctrl_pkt ->category ),
 				ntohs( ipc_ctrl_pkt ->sequence ),
@@ -408,6 +415,14 @@ label_basic_info:
 				printf( "cch=%u ", ntohs( mirror_all_content ->cch ) );
 				
 			i = SIZE_OF_MIRROR_CONT_PLUS_HEADER;
+		} else if( ipc_pkt ->protocol == IPC_PROT_DDD_H2D ||
+				   ipc_pkt ->protocol == IPC_PROT_DDD_D2H )
+		{
+			printf( "minor=%u offset=%04Xh ", 
+							ntohs( ddd_content ->minor ),
+							ntohs( ddd_content ->offset ) );
+			
+			i = SIZEOF_DDD_BASIC_CONT;
 		} else
 			i = 0;
 		
@@ -667,8 +682,8 @@ int main(int argc, char *argv[])
 			if( ( prev_fsm == FSM_TIMESTAMP ) &&
 				( ( outfmt & OUTFMT_NO_TIMESTAMP ) == 0 ) )
 			{
-				printf( "%02lu.%02lu ", ( timestamp / 100 ) % 100
-										, timestamp % 100 );
+				printf( "%02lu.%03lu ", ( timestamp / 1000 ) % 100
+										, timestamp % 1000 );
 			}
 			break;
 			

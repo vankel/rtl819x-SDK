@@ -26,9 +26,6 @@ extern unsigned int dsp_t38_tx_cnt;
 int voip_qos;
 #endif
 
-unsigned int add_delayed_echo;
-unsigned int ec_select;
-//#define ENABLE_ECHO128	1
 
 int get_voip_info( char *buf, char **start, off_t off, int count, int *eof, void *data )
 {
@@ -45,28 +42,43 @@ int get_voip_info( char *buf, char **start, off_t off, int count, int *eof, void
 		return 0;
 	}
 
-	n = sprintf(buf, "* VoIP Middleware	:");
-	if (RTK_VOIP_MW_REALTEK_FEATURE == VOIP_MW_REALTEK)
+	n = sprintf(buf, "* VoIP Middleware\t:");
+	if (RTK_VOIP_MW_CHK_IS_REALTEK( gVoipFeature ) )
 		n += sprintf(buf + n, "Realtek\n");
-	else if (RTK_VOIP_MW_AUDIOCODES_FEATURE == VOIP_MW_AUDIOCODES)
+	else if (RTK_VOIP_MW_CHK_IS_AUDIOCODES( gVoipFeature ) )
 		n += sprintf(buf + n, "AudioCodes\n");
 	
-	n += sprintf(buf + n, "* VoIP Version		:%s\n", VOIP_VERSION);
-	n += sprintf(buf + n, "* Board CFG Model	:%s\n", CONFIG_BOARD_CONFIG_MODEL);
+	n += sprintf(buf + n, "* VoIP Version\t\t:%s (Build Date/Time= %s, %s)\n", VOIP_VERSION, __DATE__, __TIME__);
+	n += sprintf(buf + n, "* System Version\t:%s\n", SYS_VERSION);
+    n += sprintf(buf + n, "* On-chip ROM Code\t:");
+#ifdef CONFIG_USE_ROMCODE
+	n += sprintf(buf + n, "Yes\n");
+#else
+	n += sprintf(buf + n, "No\n");
+#endif
+	n += sprintf(buf + n, "* Board CFG Model\t:%s\n", CONFIG_BOARD_CONFIG_MODEL);
 
-	n += sprintf(buf + n, "* VoIP Channel Number	:%d\n", RTK_VOIP_CH_NUM( gVoipFeature ));
-	n += sprintf(buf + n, "* Phone Number		:%d\n", RTK_VOIP_PHONE_NUM( gVoipFeature ));
-	n += sprintf(buf + n, "* DECT Number		:%d\n", RTK_VOIP_DECT_NUM( gVoipFeature ));
-	n += sprintf(buf + n, "* SLIC Number		:%d\n", RTK_VOIP_SLIC_NUM( gVoipFeature ));
-	n += sprintf(buf + n, "* DAA Number		:%d\n", RTK_VOIP_DAA_NUM( gVoipFeature ));
-	n += sprintf(buf + n, "* IVR Support		:");
-	if (RTK_VOIP_IVR_FEATURE == IVR_SUPPORT)
+	n += sprintf(buf + n, "* VoIP Channel Number\t:%d\n", RTK_VOIP_CH_NUM( gVoipFeature ));
+	n += sprintf(buf + n, "* Phone Number\t\t:%d\n", RTK_VOIP_PHONE_NUM( gVoipFeature ));
+	n += sprintf(buf + n, "* DECT Number\t\t:%d\n", RTK_VOIP_DECT_NUM( gVoipFeature ));
+	n += sprintf(buf + n, "* SLIC Number\t\t:%d\n", RTK_VOIP_SLIC_NUM( gVoipFeature ));
+	n += sprintf(buf + n, "* DAA Number\t\t:%d\n", RTK_VOIP_DAA_NUM( gVoipFeature ));
+#ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
+    #ifdef CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5621
+	n += sprintf(buf + n, "* IP-Phone Codec\t:%s\n", "ALC5621");
+    #endif
+    #ifdef CONFIG_RTK_VOIP_DRIVERS_CODEC_ALC5633Q
+	n += sprintf(buf + n, "* IP-Phone Codec\t:%s\n", "ALC5633Q");
+    #endif
+#endif
+	n += sprintf(buf + n, "* IVR Support\t\t:");
+	if (gVoipFeature & IVR_SUPPORT)
 		n += sprintf(buf + n, "Yes\n");
 	else
 		n += sprintf(buf + n, "No\n");
 	
-	n += sprintf(buf + n, "* T.38 Support		:");
-	if (RTK_VOIP_T38_FEATURE == CODEC_T38_SUPPORT) {
+	n += sprintf(buf + n, "* T.38 Support\t\t:");
+	if (gVoipFeature & CODEC_T38_SUPPORT) {
 		n += sprintf(buf + n, "Yes\n");
 #if !defined(CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST) && defined(CONFIG_RTK_VOIP_T38)
 		{
@@ -78,7 +90,7 @@ int get_voip_info( char *buf, char **start, off_t off, int count, int *eof, void
 		n += sprintf(buf + n, "No\n");
 
 	n += sprintf(buf + n, "* Codec Support\n");
-	n += sprintf(buf + n, "  - G.711u/a	:Yes\n");
+	n += sprintf(buf + n, "  - G.711u/a\t:Yes\n");
 
 #if !defined(CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST)
 #ifdef CONFIG_REALTEK_VOIP
@@ -90,32 +102,39 @@ int get_voip_info( char *buf, char **start, off_t off, int count, int *eof, void
 #endif
 
 	
-	if (RTK_VOIP_G729_FEATURE == CODEC_G729_SUPPORT)
-		n += sprintf(buf + n, "  - G.729	:Yes\n");
+	if (gVoipFeature & CODEC_G729_SUPPORT)
+		n += sprintf(buf + n, "  - G.729\t:Yes\n");
 	
-	if (RTK_VOIP_G723_FEATURE == CODEC_G723_SUPPORT)
-		n += sprintf(buf + n, "  - G.723	:Yes\n");
+	if (gVoipFeature & CODEC_G723_SUPPORT)
+		n += sprintf(buf + n, "  - G.723\t:Yes\n");
 		
-	if (RTK_VOIP_G726_FEATURE == CODEC_G726_SUPPORT)
-		n += sprintf(buf + n, "  - G.726	:Yes\n");
+	if (gVoipFeature & CODEC_G726_SUPPORT)
+		n += sprintf(buf + n, "  - G.726\t:Yes\n");
 		
-	if (RTK_VOIP_G722_FEATURE == CODEC_G722_SUPPORT)
-		n += sprintf(buf + n, "  - G.722	:Yes\n");
+	if (gVoipFeature & CODEC_G722_SUPPORT)
+#ifdef CONFIG_RTK_VOIP_G722_ITU_USE
+		n += sprintf(buf + n, "  - G.722-PLC\t:Yes\n");
+#else
+		n += sprintf(buf + n, "  - G.722\t:Yes\n");
+#endif		
 
-	if (RTK_VOIP_GSMFR_FEATURE == CODEC_GSMFR_SUPPORT)
-		n += sprintf(buf + n, "  - GSM-FR	:Yes\n");
+	if (gVoipFeature & CODEC_GSMFR_SUPPORT)
+		n += sprintf(buf + n, "  - GSM-FR\t:Yes\n");
 		
-	if (RTK_VOIP_iLBC_FEATURE == CODEC_iLBC_SUPPORT)
-		n += sprintf(buf + n, "  - iLBC	:Yes\n");
+	if (gVoipFeature & CODEC_iLBC_SUPPORT)
+		n += sprintf(buf + n, "  - iLBC\t:Yes\n");
 
-	if (RTK_VOIP_SPEEX_NB_FEATURE == CODEC_SPEEX_NB_SUPPORT)
-		n += sprintf(buf + n, "  - SPEEX-NB	:Yes\n");
+	if (gVoipFeature & CODEC_SPEEX_NB_SUPPORT)
+		n += sprintf(buf + n, "  - SPEEX-NB\t:Yes\n");
 	
-	if (RTK_VOIP_AMR_FEATURE == CODEC_AMR_SUPPORT)
-		n += sprintf(buf + n, "  - SPEEX-NB	:Yes\n");
+	if (gVoipFeature & CODEC_AMR_SUPPORT)
+		n += sprintf(buf + n, "  - AMR-NB\t:Yes\n");
 	
-	if (RTK_VOIP_G7111_FEATURE == CODEC_G7111_SUPPORT)
-		n += sprintf(buf + n, "  - G.711.1	:Yes\n");
+	if (gVoipFeature & CODEC_G7111_SUPPORT)
+		n += sprintf(buf + n, "  - G.711.1\t:Yes\n");
+	
+	if (gVoipFeature & CODEC_AMR_WB_SUPPORT)
+		n += sprintf(buf + n, "  - AMR-WB\t:Yes\n");
 
 #ifndef CONFIG_RTK_VOIP_IPC_ARCH_IS_HOST
 	n += sprintf(buf + n, "* FXS Line Status:\n");
@@ -361,137 +380,29 @@ voip_exitcall( voip_proc_qos_exit );
 
 #endif
 
-static int voip_add_echo_read(char *page, char **start, off_t off,
-        int count, int *eof, void *data)
+int get_voip_version( char *buf, char **start, off_t off, int count, int *eof, void *data )
 {
-	int len;
-	char tmp[300] = {0};
-	int index = 0;
-
-	if( off ) {	/* In our case, we write out all data at once. */
+	int n;
+	if( off ) { /* In our case, we write out all data at once. */
 		*eof = 1;
 		return 0;
 	}
-
-	if (!add_delayed_echo) {
-		len = sprintf(page, "delayed echo not enabled\n");
-	} else {
-		index += sprintf(tmp+index, "delayed echo: %x \n",
-		                                add_delayed_echo);
-		index += sprintf(tmp+index, "delayed sample: %d \n",
-		                                (add_delayed_echo>>16)&0x7fff);
-		index += sprintf(tmp+index, "delayed echo amp: %d \n",
-		                                add_delayed_echo&0x7fff);
-		len =  sprintf(page,tmp);
-	}
-
+	n = sprintf(buf, "%s\n", VOIP_VERSION);
 	*eof = 1;
-	return len;
-}
+	return n;
 
-static int voip_add_echo_write(struct file *file, const char *buffer, 
-                               unsigned long count, void *data)
+}
+int __init voip_version_init( void )
 {
-	char tmp[128];
-
-	if (count < 2)
-		return -EFAULT;
-
-	if (buffer && !copy_from_user(tmp, buffer, 128)) {
-		sscanf(tmp, "%x", &add_delayed_echo);
-	}
-
-	if ((add_delayed_echo) & 0xfc001000 ) /* max delay=1024, max amp=0x7fff */
-		add_delayed_echo = 0;
-	return count;
+	create_proc_read_entry( PROC_VOIP_DIR "/version",0, NULL, get_voip_version, NULL );
+	return  0;
 }
 
-static int __init voip_proc_add_echo_init(void)
+void __exit voip_version_exit( void )
 {
-	struct proc_dir_entry *voip_add_echo_proc;
-
-	add_delayed_echo=0;
-
-	voip_add_echo_proc = create_voip_proc_rw_entry(PROC_VOIP_DIR "/add_echo", 0644, 
-							NULL, voip_add_echo_read, voip_add_echo_write );
-	if (voip_add_echo_proc == NULL) {
-		printk("voip_add_echo_proc NULL!! \n;");
-		return -1;
-	}
-	
-	return 0;
+	remove_voip_proc_entry( PROC_VOIP_DIR "/version", NULL );
 }
 
-static void __exit voip_proc_add_echo_exit( void )
-{
-	remove_voip_proc_entry( PROC_VOIP_DIR "/add_echo", NULL );
-}
-
-voip_initcall_proc( voip_proc_add_echo_init );
-voip_exitcall( voip_proc_add_echo_exit );
-
-
-static int voip_echo_sel_read(char *page, char **start, off_t off,
-        int count, int *eof, void *data)
-{
-	int len;
-
-
-	if( off ) {	/* In our case, we write out all data at once. */
-		*eof = 1;
-		return 0;
-	}
-
-	if (ec_select) {
-		len = sprintf(page, "ec_select = echo128\n");
-	} else {
-		len = sprintf(page, "ec_select = original\n");
-	}
-
-	*eof = 1;
-	return len;
-}
-
-static int voip_echo_sel_write(struct file *file, const char *buffer, 
-                               unsigned long count, void *data)
-{
-	char tmp[128];
-
-	if (count < 2)
-		return -EFAULT;
-
-	if (buffer && !copy_from_user(tmp, buffer, 128)) {
-		sscanf(tmp,"%d",&ec_select);
-	}
-
-	return count;
-}
-
-static int __init voip_proc_echo_sel_init(void)
-{
-	struct proc_dir_entry *voip_echo_sel_proc;
-#if defined (CONFIG_DEFAULT_NEW_EC128)
-	ec_select = 1;
-#else
-	ec_select = 0;
-#endif
-
-	voip_echo_sel_proc = create_voip_proc_rw_entry(PROC_VOIP_DIR "/ec_select", 
-								0644, NULL,
-								voip_echo_sel_read, voip_echo_sel_write );
-	if (voip_echo_sel_proc == NULL) {
-		printk("voip_echo_sel_proc NULL!! \n");
-		return -1;
-	}
-	
-	return 0;
-}
-
-static void __exit voip_proc_echo_sel_exit( void )
-{
-	remove_voip_proc_entry( PROC_VOIP_DIR "/ec_select", NULL );
-}
-
-voip_initcall_proc( voip_proc_echo_sel_init );
-voip_exitcall( voip_proc_echo_sel_exit );
+voip_initcall_proc(voip_version_init);
+voip_exitcall(voip_version_exit);
 

@@ -44,8 +44,8 @@
 #define WEN	15              /* WAN-Error-Notify */
 /* PPP Sesssion Control */
 #define SLI	16              /* Set-Link-Info */
-
-#define MAX_MSG 16
+#define ACK	20
+#define MAX_MSG 20
 
 #define TBIT 0x8000
 #define LBIT 0x4000

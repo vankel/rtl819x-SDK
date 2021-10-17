@@ -598,6 +598,8 @@ void asp_voip_FwupdateSet(webs_t wp, char_t *path, char_t *query)
 	
 	web_flash_set(pVoIPCfg);
 #ifdef REBOOT_CHECK	
+	voip_flash_server_update();
+	system("echo 1 > /var/run/fwupdate.fifo");
 	OK_MSG("/voip_config.asp");
 #else
 	voip_flash_server_update();

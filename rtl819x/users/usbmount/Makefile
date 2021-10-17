@@ -1,5 +1,8 @@
 include ../../linux-2.6.30/.config
 
+ifeq ($(CONFIG_APP_EXFAT_FUSE), y)
+CFLAGS += -DCONFIG_EXFAT_FUSE
+endif
 CFLAGS += -Os
 
 EXEC = usbmount 

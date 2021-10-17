@@ -17,14 +17,14 @@ output:packetoutbuf
 24byte for 6.3kbps rate
 20byte for 5.3kbps rate
 */
-int g723_en_start(unsigned int sid, short* waveinbuf, char* packetoutbuf)
+int g723_en_start(unsigned int sid, short* waveinbuf, char* packetoutbuf);
 
 
 /*
 bad_frame_flag 1:packet lost, 0=> packet ok
 
 */
-int g723_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsigned int bad_frame_flag)
+int g723_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsigned int bad_frame_flag);
 
 
 
@@ -33,7 +33,7 @@ int g723_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsign
 /*
 	      vad 1: vad enable, 0: vad disable
 */
-void g729_init(unsigned int sid, unsigned int vad)
+void g729_init(unsigned int sid, unsigned int vad);
 
 /*
 input waveinbuf 160byte, 80sample 10ms frame voice
@@ -42,7 +42,7 @@ output:packetoutbuf
 2byte for voice non active(sid)
 0byte for silence
 */
-int g729_en_start(unsigned int sid, short* waveinbuf, char* packetoutbuf)
+int g729_en_start(unsigned int sid, short* waveinbuf, char* packetoutbuf);
 
 /*
 bad_frame_flag 1:packet lost, 0=> packet ok
@@ -50,7 +50,7 @@ active packet:packet_len = 10
 sid packet: packet_len = 2
 silence no packet packet_len = 0
 */
-int g729_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsigned int packet_len, unsigned int bad_frame_flag)
+int g729_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsigned int packet_len, unsigned int bad_frame_flag);
 
 
 
@@ -70,14 +70,46 @@ output: packetoutbuf
 0byte for Not tx
 1byte for sid packet
 */
-int g711_en_start(unsigned int sid, short* waveinbuf, char* packetoutbuf)
+int g711_en_start(unsigned int sid, short* waveinbuf, char* packetoutbuf);
 
 
 /*
 bad_frame_flag 1:packet lost, 0=> packet ok
 
 */
-int g711_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsigned int packet_len, unsigned int bad_frame_flag)
+int g711_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsigned int packet_len, unsigned int bad_frame_flag);
+
+
+/*
+ iLBC function , call init function in system startup, and between each VoIP call
+ sid: Session ID
+ mode: frame size mode
+		0: 30ms
+		1: 20ms
+*/
+void iLBC_init(unsigned int sid, unsigned int mode);
+
+
+/*
+ sid: Session ID
+ waveinbuf: Input buffer
+		480 byte, 240 sample for 30ms frame voice
+		320 byte, 160 sample for 20ms frame voice
+ packetoutbuf: Packet output buffer is stored encoded bitstream
+*/
+int iLBC_en_start(unsigned int sid, short* waveinbuf, char* packetoutbuf);
+
+
+/*
+ sid: Session ID
+ waveoutbuf: Output buffer is filled the iLBC decoding result
+ packetinbuf: Input packet buffer is stored encoded bitstream
+ packet_len: Packet length
+ bad_frame_flag:	 
+ 	0: Packet OK
+	1: Packet Lost	
+*/
+int iLBC_de_start(unsigned int sid, short* waveoutbuf, char* packetinbuf, unsigned int packet_len, unsigned int bad_frame_flag);
 
 
 #endif

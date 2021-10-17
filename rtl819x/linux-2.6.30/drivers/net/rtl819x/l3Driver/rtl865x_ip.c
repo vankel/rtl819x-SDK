@@ -299,5 +299,38 @@ int32 rtl865x_getIPIdx(rtl865x_ip_entry_t *entry, int32 *idx)
 	return FAILED;
 }
 
+/*
+@func int32 | rtl865x_getIpIdxByIpRange | get asic idex .
+@parm ipaddr_t | ip | ip address
+@parm ipaddr_t | mask | ip address
+@parm int32* | idx | index
+@rvalue SUCCESS | Success.
+@rvalue FAILED | Failed
+*/
+int32 rtl865x_getIpIdxByIpRange(ipaddr_t ip, ipaddr_t mask, int32 *idx)
+{
+	int32 retval = FAILED;
+	int32 i;
+	rtl865x_ip_entry_t *entry = NULL;
+
+	*idx = 0; //default point to index 0
+	for(i = 0; i < IP_NUMBER; i++)
+	{
+		if(rtl865x_ipTable[i].valid == 1 && ((rtl865x_ipTable[i].extIp & mask) == (ip&mask)))
+		{
+			entry = &rtl865x_ipTable[i];
+			break;
+		}
+	}
+
+	if(entry)
+	{
+		if(idx)
+			*idx = IP_TABLE_INDEX(entry);
+		retval = SUCCESS;
+	}
+
+	return retval;
+}
 
 

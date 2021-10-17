@@ -195,7 +195,7 @@ EXPORT_SYMBOL(local_bh_enable_ip);
  * should not be able to lock up the box.
  */
  #if defined(CONFIG_RTL_819X)
-#define MAX_SOFTIRQ_RESTART 2000
+#define MAX_SOFTIRQ_RESTART 10
 #else
 #define MAX_SOFTIRQ_RESTART 10
 #endif

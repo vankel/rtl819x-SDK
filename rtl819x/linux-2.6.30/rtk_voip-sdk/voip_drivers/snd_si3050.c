@@ -11,27 +11,23 @@
 #include "con_register.h"
 #include "snd_proslic_type.h"
 
-#if 0	// chmap comment it 
-static int DAA_Init(int chid, int pcm_mode)
-{
-	// call this, only si3050 
-	daa_init_all(chid, pcm_mode);
-	return 0;
-}
-#endif
+#define WriteReg	daas->deviceId->ctrlInterface->WriteRegister_fptr 
+#define ReadReg		daas->deviceId->ctrlInterface->ReadRegister_fptr
 
 static void DAA_Set_Rx_Gain_si3050(voip_snd_t *this, unsigned char rx_gain)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	DAA_Rx_Gain_Web(daas, rx_gain);
+
+	Vdaa_RXAudioGainSetup(daas, rx_gain); // 0dB to -11dB (Step: 1dB)
 }
 
 static void DAA_Set_Tx_Gain_si3050(voip_snd_t *this, unsigned char tx_gain)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	DAA_Tx_Gain_Web(daas, tx_gain);
+
+	Vdaa_TXAudioGainSetup(daas, tx_gain); // 0dB to -11dB (Step: 1dB)
 }
 
 static int DAA_Check_Line_State_si3050(voip_snd_t *this)	/* 0: connect, 1: not connect, 2: busy*/
@@ -45,15 +41,16 @@ static void DAA_On_Hook_si3050(voip_snd_t *this)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	on_hook_daa(daas);
+
+	Vdaa_SetHookStatus(daas, VDAA_ONHOOK_MONITOR);
 }
 
 static int DAA_Off_Hook_si3050(voip_snd_t *this)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	
-	off_hook_daa(daas);
+
+	Vdaa_SetHookStatus(daas, VDAA_OFFHOOK);
 	return 1;
 }
 
@@ -66,12 +63,16 @@ static unsigned char DAA_Hook_Status_si3050(voip_snd_t *this, int directly)
 	if( !directly && container ->user.hookStatus != INVALID_HOOK_STATUS ) {
 		return container ->user.hookStatus;
 	}
-	
-	state = daa_hook_state(daas);
+
+	state = Vdaa_GetHookStatus(daas);	
+	if ( (state == VDAA_ONHOOK) || (state == VDAA_ONHOOK_MONITOR) )
+		state = 0;
+	else if (state == VDAA_OFFHOOK)
+		state = 1;	
 	
 	container ->user.hookStatus = state;
 	
-	return state;
+	return state; //0: on-hook, 1: off-hook
 }
 
 
@@ -105,38 +106,49 @@ static int DAA_Ring_Detection_si3050(voip_snd_t *this)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	return ring_detection_DAA(daas);
+
+	vdaaRingDetectStatusType status;
+	Vdaa_ReadRingDetectStatus(daas, &status);
+	return status.ringDetected;
 }
 
 static unsigned int DAA_Positive_Negative_Ring_Detect_si3050(voip_snd_t *this)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	return (daa_line_stat(daas)&(RDTP|RDTN));
+
+	vdaaRingDetectStatusType status;
+	Vdaa_ReadRingDetectStatus(daas, &status);
+	return (status.ringDetectedPos|status.ringDetectedNeg);
 }
 
 static unsigned int DAA_Get_Polarity_si3050(voip_snd_t *this)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
-	return ((readDAAReg(pdev, chid, 29) & 0x80) >>7); // 1 or 0
+
+	return daa_get_polarity(daas); // 1 or 0
 }
 
 static unsigned short DAA_Get_Line_Voltage_si3050(voip_snd_t *this)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	return daa_get_line_voltage(daas);
+	short line_voltage;
+	short loop_c;
+	
+	Vdaa_ReadLinefeedStatus(daas, &line_voltage, &loop_c);
+	if (line_voltage < 0)
+		line_voltage = -line_voltage;
+	return line_voltage;
 }
 
 static void DAA_OnHook_Line_Monitor_Enable_si3050(voip_snd_t *this)
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	caller_ID_pass(daas);
+
+	Vdaa_SetHookStatus(daas, VDAA_ONHOOK_MONITOR);
 }
 
 #ifdef PULSE_DIAL_GEN // deinfe in rtk_voip.h
@@ -144,30 +156,45 @@ static void DAA_Set_PulseDial_si3050(voip_snd_t *this, unsigned int pulse_enable
 {
 	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
 	vdaaChanType * const daas = container ->daas;
-	ctrl_S * const ctrl = ( ctrl_S * )daas ->deviceId ->ctrlInterface ->hCtrl;
-	rtl_spi_dev_t * const pdev = &ctrl ->spi_dev;
-	const int chid = daas ->channel;
 	int reg31;
 
 	// Set the FOH bit (Fast Off-Hook)
 	reg31 = 3;//0:512ms 1:128ms 2:64ms 3:8ms.
-	reg31 = readDAAReg(pdev, chid, 31) | (reg31<<5);
-	writeDAAReg(pdev, chid, 31,reg31);
+	reg31 = ReadReg(daas, daas->channel, DAA_CTRL5) | (reg31<<5);
+	WriteReg(daas, daas->channel, DAA_CTRL5, reg31);
 
 	if (pulse_enable == 1)
 	{
 		// Set RCALD bit to 1 to disable internal resistor calibration
-		writeDAAReg(pdev, chid, 25,(readDAAReg(pdev, chid, 25)|0x20));
+		WriteReg(daas, daas->channel, RES_CALIB,(ReadReg(daas, daas->channel, RES_CALIB)|0x20));
 		//DAA_Set_Dial_Mode(chid, 1);
 	}
 	else if (pulse_enable == 0)
 	{
 		// Set RCALD bit to 0 to enable internal resistor calibration
-		writeDAAReg(pdev, chid, 25,(readDAAReg(pdev, chid, 25)&0xDF));
+		WriteReg(daas, daas->channel, RES_CALIB,(ReadReg(daas, daas->channel, RES_CALIB)&0xDF));
 		//DAA_Set_Dial_Mode(chid, 0);
 	}
 }
 #endif // PULSE_DIAL_GEN
+
+static void DAA_Set_Country_si3050(voip_snd_t *this, unsigned int country)
+{
+	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
+	vdaaChanType * const daas = container ->daas;
+	Vdaa_CountrySetup (daas, country);
+	//PRINT_MSG("DAA_Set_Country_si3050, ch%d, country=%d\n", daas->channel, country);
+}
+
+static void DAA_Set_Hybrid_si3050(voip_snd_t *this, unsigned char index)
+{
+	extern int Vdaa_HybridSetup2 (vdaaChanType *pVdaa,int32 preset);
+
+	ProslicContainer_t * const container = ( ProslicContainer_t * )this ->priv;
+	vdaaChanType * const daas = container ->daas;
+
+	Vdaa_HybridSetup2(daas, index);
+}
 
 static int enable_si3050( voip_snd_t *this, int enable )
 {
@@ -287,6 +314,7 @@ static void func##_si3050( voip_snd_t *this, v1type v1 )	\
 //IMPLEMENT_SI3050_OPS_type0( DAA_Get_Line_Voltage, unsigned short );
 //IMPLEMENT_SI3050_OPS_type0_void( DAA_OnHook_Line_Monitor_Enable );
 //IMPLEMENT_SI3050_OPS_type1_void( DAA_Set_PulseDial, unsigned int );
+//IMPLEMENT_SI3050_OPS_type1_void( DAA_Set_Hybrid, unsigned char );
 
 //__attribute__ ((section(".snd_desc_data")))
 const snd_ops_daa_t snd_si3050_daa_ops = {
@@ -308,6 +336,8 @@ const snd_ops_daa_t snd_si3050_daa_ops = {
 	.DAA_Get_Line_Voltage = DAA_Get_Line_Voltage_si3050,
 	.DAA_OnHook_Line_Monitor_Enable = DAA_OnHook_Line_Monitor_Enable_si3050,
 	.DAA_Set_PulseDial = DAA_Set_PulseDial_si3050,
+	.DAA_Set_Country = DAA_Set_Country_si3050,
+	.DAA_Set_Hybrid = DAA_Set_Hybrid_si3050,
 	
 	// read/write register/ram
 	.DAA_read_reg = DAA_read_reg_si3050,

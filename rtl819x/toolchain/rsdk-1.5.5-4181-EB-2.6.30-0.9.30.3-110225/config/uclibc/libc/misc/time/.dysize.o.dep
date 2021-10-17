@@ -1,0 +1,198 @@
+libc/misc/time/dysize.o: libc/misc/time/dysize.c include/libc-symbols.h \
+ include/bits/uClibc_arch_features.h libc/misc/time/time.c \
+ include/stdio.h include/features.h include/bits/uClibc_config.h \
+ include/sys/cdefs.h include/libc-internal.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h \
+ include/bits/stackinfo.h include/bits/types.h include/bits/wordsize.h \
+ include/bits/kernel_types.h include/bits/typesizes.h \
+ include/bits/pthreadtypes.h include/bits/sched.h \
+ include/bits/uClibc_stdio.h include/wchar.h include/bits/wchar.h \
+ include/bits/uClibc_mutex.h include/pthread.h include/sched.h \
+ include/time.h include/bits/time.h include/bits/uClibc_clk_tck.h \
+ include/signal.h include/bits/sigset.h include/bits/initspin.h \
+ include/bits/sigthread.h include/bits/uClibc_pthread.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h \
+ include/bits/stdio_lim.h include/stdlib.h include/bits/waitflags.h \
+ include/bits/waitstatus.h include/endian.h include/bits/endian.h \
+ include/byteswap.h include/bits/byteswap.h include/sys/types.h \
+ include/sys/select.h include/bits/select.h include/sys/sysmacros.h \
+ include/alloca.h include/string.h include/sys/time.h include/limits.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed/limits.h \
+ include/bits/posix1_lim.h include/bits/local_lim.h \
+ ../kernel/linux/limits.h include/bits/uClibc_local_lim.h \
+ include/bits/posix2_lim.h include/bits/xopen_lim.h include/assert.h \
+ include/errno.h include/bits/errno.h ../kernel/linux/errno.h \
+ ../kernel/asm/errno.h ../kernel/asm-generic/errno-base.h \
+ include/bits/uClibc_errno.h libpthread/linuxthreads/sysdeps/rlx/tls.h \
+ include/ctype.h include/bits/uClibc_touplow.h include/langinfo.h \
+ include/nl_types.h include/bits/uClibc_locale.h include/locale.h \
+ include/fcntl.h include/bits/fcntl.h include/sgidefs.h \
+ include/bits/uio.h include/sys/stat.h include/bits/stat.h \
+ include/unistd.h include/bits/posix_opt.h include/bits/environments.h \
+ include/bits/confname.h include/bits/getopt.h \
+ include/bits/uClibc_uintmaxtostr.h include/stdint.h include/paths.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+libc/misc/time/time.c:
+
+include/stdio.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/sys/cdefs.h:
+
+include/libc-internal.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h:
+
+include/bits/stackinfo.h:
+
+include/bits/types.h:
+
+include/bits/wordsize.h:
+
+include/bits/kernel_types.h:
+
+include/bits/typesizes.h:
+
+include/bits/pthreadtypes.h:
+
+include/bits/sched.h:
+
+include/bits/uClibc_stdio.h:
+
+include/wchar.h:
+
+include/bits/wchar.h:
+
+include/bits/uClibc_mutex.h:
+
+include/pthread.h:
+
+include/sched.h:
+
+include/time.h:
+
+include/bits/time.h:
+
+include/bits/uClibc_clk_tck.h:
+
+include/signal.h:
+
+include/bits/sigset.h:
+
+include/bits/initspin.h:
+
+include/bits/sigthread.h:
+
+include/bits/uClibc_pthread.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h:
+
+include/bits/stdio_lim.h:
+
+include/stdlib.h:
+
+include/bits/waitflags.h:
+
+include/bits/waitstatus.h:
+
+include/endian.h:
+
+include/bits/endian.h:
+
+include/byteswap.h:
+
+include/bits/byteswap.h:
+
+include/sys/types.h:
+
+include/sys/select.h:
+
+include/bits/select.h:
+
+include/sys/sysmacros.h:
+
+include/alloca.h:
+
+include/string.h:
+
+include/sys/time.h:
+
+include/limits.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed/limits.h:
+
+include/bits/posix1_lim.h:
+
+include/bits/local_lim.h:
+
+../kernel/linux/limits.h:
+
+include/bits/uClibc_local_lim.h:
+
+include/bits/posix2_lim.h:
+
+include/bits/xopen_lim.h:
+
+include/assert.h:
+
+include/errno.h:
+
+include/bits/errno.h:
+
+../kernel/linux/errno.h:
+
+../kernel/asm/errno.h:
+
+../kernel/asm-generic/errno-base.h:
+
+include/bits/uClibc_errno.h:
+
+libpthread/linuxthreads/sysdeps/rlx/tls.h:
+
+include/ctype.h:
+
+include/bits/uClibc_touplow.h:
+
+include/langinfo.h:
+
+include/nl_types.h:
+
+include/bits/uClibc_locale.h:
+
+include/locale.h:
+
+include/fcntl.h:
+
+include/bits/fcntl.h:
+
+include/sgidefs.h:
+
+include/bits/uio.h:
+
+include/sys/stat.h:
+
+include/bits/stat.h:
+
+include/unistd.h:
+
+include/bits/posix_opt.h:
+
+include/bits/environments.h:
+
+include/bits/confname.h:
+
+include/bits/getopt.h:
+
+include/bits/uClibc_uintmaxtostr.h:
+
+include/stdint.h:
+
+include/paths.h:
+cmd_libc_misc_time_dysize.o := mips-linux-gcc -c libc/misc/time/dysize.c -o libc/misc/time/dysize.o -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -MT libc/misc/time/dysize.o -MD -MP -MF libc/misc/time/.dysize.o.dep

@@ -109,6 +109,7 @@ static inline int ulinker_kill_wlan_applications(void)
 	system("killall -9 disc_server 2> /dev/null");
 	system("killall -9 iapp 2> /dev/null");
 	system("killall -9 mini_upnpd 2> /dev/null");
+	system("killall -9 hs2 2> /dev/null");
 	return 1;
 }
 
@@ -474,11 +475,7 @@ static int ulinker_domain_name_query_br(void)
 				stop_dhcpd();
 				stop_dhcpc();
 				set_lan_dhcpd("br0", 2);
-			#if 0 // disable always host
 				ulinker_start_dnrd(1);
-			#else
-				ulinker_start_dnrd(0);
-			#endif
 				sleep(1);
 				usb0_up();
 				set_domain_name_query_ready(1);
@@ -554,7 +551,7 @@ static int ulinker_domain_name_query(void)
 
 	if (op_mode == BRIDGE_MODE)
 		return ulinker_domain_name_query_br();
-	else if (op_mode == GATEWAY_MODE || op_mode == WISP_MODE)
+	else if (op_mode == GATEWAY_MODE)
 		return ulinker_domain_name_query_gw();
 	else
 		fprintf(stderr, "[%s:%d] unknow mode!!\n", __FUNC__, __LINE__);
@@ -579,7 +576,7 @@ int wlan_down_sleep(int sec)
 	return 0;
 }
 
-static int dhcps_discover(int val)
+int dhcps_discover(int val)
 {
 	int dhcps_exist = 0;
 	int round = val;
@@ -755,9 +752,10 @@ int reload_in_progress(void)
 
 
 int firmware_upgrading = 0;
+int wait_reinit = 0;
 int ulinker_process()
 {
-	static int wait_reinit = 0;
+	//static int wait_reinit = 0;
 	//static int switching = 0;
 
 	static int pre_status = -1;
@@ -768,26 +766,8 @@ int ulinker_process()
 
 	int ulinker_auto;
 
-	int rndis_reset = get_flag_value("/proc/rndis_reset");
-	static int set_rndis_reset = 0;
-
-	if (rndis_reset == 2) {
-		sleep(3);
-		set_rndis_reset = 0;
-		system("echo 0 > /proc/rndis_reset");
-		system("ifconfig usb0 up");
-	} else if (rndis_reset == 1 && set_rndis_reset%2 == 0) {
-		set_rndis_reset++;
-		system("ifconfig usb0 down");
-		sleep(1);
-		system("ew 0xb8030804 0x2000000");
-		sleep(2);
-		system("ew 0xb8030804 0x0");
-	}
-
 	if (reload_in_progress() > 0)
 		return 0;
-
 	if(wait_reinit == 0 && firmware_upgrading == 0)
 	{
 		ulinker_domain_name_query();

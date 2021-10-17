@@ -25,6 +25,11 @@
 #include <net/rtl/rtk_stp.h>
 #endif
 
+#if defined (CONFIG_RTL_IGMP_SNOOPING)
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+extern int br_register_igmpsnoopingmodule_process(struct net_bridge *br,int enable,int fldEnable);
+#endif
+#endif
 /* called with RTNL */
 static int get_bridge_ifindices(struct net *net, int *indices, int num)
 {
@@ -60,7 +65,11 @@ static void get_port_ifindices(struct net_bridge *br, int *ifindices, int num)
  * offset  -- number of records to skip
  */
 static int get_fdb_entries(struct net_bridge *br, void __user *userbuf,
-			   unsigned long maxnum, unsigned long offset)
+			   unsigned long maxnum, unsigned long offset
+#ifdef CONFIG_RTK_GUEST_ZONE
+			   ,int for_guest
+#endif
+			   )
 {
 	int num;
 	void *buf;
@@ -76,7 +85,11 @@ static int get_fdb_entries(struct net_bridge *br, void __user *userbuf,
 	if (!buf)
 		return -ENOMEM;
 
+#ifdef CONFIG_RTK_GUEST_ZONE
+	num = br_fdb_fillbuf(br, buf, maxnum, offset, for_guest);
+#else
 	num = br_fdb_fillbuf(br, buf, maxnum, offset);
+#endif
 	if (num > 0) {
 		if (copy_to_user(userbuf, buf, num*sizeof(struct __fdb_entry)))
 			num = -EFAULT;
@@ -335,8 +348,151 @@ static int old_dev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	}
 
 	case BRCTL_GET_FDB_ENTRIES:
+#ifdef CONFIG_RTK_GUEST_ZONE
+		return get_fdb_entries(br, (void __user *)args[1],
+				       args[2], args[3], 0);
+#else
 		return get_fdb_entries(br, (void __user *)args[1],
 				       args[2], args[3]);
+#endif
+
+#ifdef CONFIG_RTK_GUEST_ZONE
+	case 105:	// set zone
+	{
+		struct net_bridge_port *p;
+		if ((p = br_get_port(br, args[1])) == NULL)
+			return -EINVAL;
+		p->zone_type = args[2];
+#ifdef DEBUG_GUEST_ZONE
+		GZDEBUG("set device=%s zone_type=%d\n", p->dev->name, p->zone_type);
+#endif
+		return 0;
+	}
+
+	case 106:	// set zone isolation
+		br->is_zone_isolated = args[1];
+#ifdef DEBUG_GUEST_ZONE
+		GZDEBUG("set zone isolation=%d\n",	br->is_zone_isolated);
+#endif
+		return 0;
+
+	case 107:	// set guest isolation
+		br->is_guest_isolated = args[1];
+#ifdef DEBUG_GUEST_ZONE
+		GZDEBUG("set guest isolation=%d\n", br->is_guest_isolated);
+#endif
+		return 0;
+
+	case 108:	// set lock mac list
+	{
+		unsigned char mac[6];
+		int i;
+		if (copy_from_user(mac, (unsigned long*)args[1], 6))
+			return -EFAULT;
+#ifdef DEBUG_GUEST_ZONE
+		GZDEBUG("set lock client list=%02x:%02x:%02x:%02x:%02x:%02x\n", 
+							mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);	
+#endif
+		if (!memcmp(mac, "\x0\x0\x0\x0\x0\x0", 6)) {  // reset list
+#ifdef DEBUG_GUEST_ZONE
+			GZDEBUG("reset lock list!\n");
+#endif
+			br->lock_client_num = 0;
+			return 0;
+		}
+		for (i=0; i<br->lock_client_num; i++) {
+			if (!memcmp(mac, br->lock_client_list[i], 6)) {
+#ifdef DEBUG_GUEST_ZONE				
+				GZDEBUG("duplicated lock entry!\n");
+#endif
+				return 0;
+			}
+		}
+		if (br->lock_client_num >= MAX_LOCK_CLIENT) {
+#ifdef DEBUG_GUEST_ZONE
+			GZDEBUG("Add failed, lock list table full!\n");
+#endif
+			return 0;
+		}
+		memcpy(br->lock_client_list[br->lock_client_num], mac, 6);
+		br->lock_client_num++;
+		return 0;
+	}
+
+	case 109:	// show guest info
+	{
+		int i;
+		panic_printk("\n");
+		panic_printk("  zone isolation: %d\n", br->is_zone_isolated);
+		panic_printk("  guest isolation: %d\n", br->is_guest_isolated);
+		i = 1;
+		while (1) {
+			struct net_bridge_port *p;
+			if ((p = br_get_port(br, i++)) == NULL)
+				break;
+			switch (p->zone_type) {
+				case ZONE_TYPE_HOST:
+					panic_printk("  %s: host\n", p->dev->name);
+					break;
+				case ZONE_TYPE_GUEST:
+					panic_printk("  %s: guest\n", p->dev->name);
+					break;
+				case ZONE_TYPE_GATEWAY:
+					panic_printk("  %s: gateway\n", p->dev->name);
+					break;
+				default:
+					panic_printk("  %s: unknown\n", p->dev->name);
+					break;
+			}
+		}
+		panic_printk("  locked client no: %d\n", br->lock_client_num);
+		for (i=0; i< br->lock_client_num; i++) {
+			unsigned char *mac;
+			mac = br->lock_client_list[i];
+			panic_printk("    mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
+							mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+		}
+		panic_printk("  gateway mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
+			br->gateway_mac[0],br->gateway_mac[1],br->gateway_mac[2],
+			br->gateway_mac[3],br->gateway_mac[4],br->gateway_mac[5]);
+		panic_printk("\n");
+		return 0;
+	}	
+
+	case 110:
+		return get_fdb_entries(br, (void __user *)args[1],
+				       args[2], args[3], 1);
+	case 111:
+	{
+		unsigned char mac[6];
+
+		if (copy_from_user(mac, (unsigned long*)args[1], 6))
+			return -EFAULT;
+#ifdef DEBUG_GUEST_ZONE
+		GZDEBUG("set gateway mac=%02x:%02x:%02x:%02x:%02x:%02x\n",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+#endif
+		if (!memcmp(mac, "\x0\x0\x0\x0\x0\x0", 6)) {
+#ifdef DEBUG_GUEST_ZONE
+			GZDEBUG("reset gateway mac!\n");
+#endif
+			br->gateway_mac_set = 0;
+		}
+		else
+			br->gateway_mac_set = 1;
+
+		memcpy(br->gateway_mac, mac, 6);
+		return 0;
+	}
+#endif	// CONFIG_RTK_GUEST_ZONE
+#if defined (CONFIG_RTL_IGMP_SNOOPING)
+#if defined (CONFIG_RT_MULTIPLE_BR_SUPPORT)
+	case BRCTL_REGISTER_IGMPSNOOPING_MODULE:
+	{
+		br_register_igmpsnoopingmodule_process(br,args[1],args[2]);
+		return 0;
+	}
+#endif	
+#endif
 	}
 
 	return -EOPNOTSUPP;
@@ -346,7 +502,7 @@ static int old_dev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 extern int br_set_igmpProxy_pid(int pid);
 #endif
 
-#if defined (CONFIG_RTK_MESH)
+#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 int br_set_meshpathsel_pid(int pid);
 #endif
 
@@ -400,7 +556,7 @@ static int old_deviceless(struct net *net, void __user *uarg)
 		return br_del_bridge(net, buf);
 	}
 
-#if defined (CONFIG_RTK_MESH)
+#if defined(CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 	//by brian, dynamic portal enable
 	case BRCTL_SET_MESH_PATHSELPID:
 	{

@@ -23,6 +23,7 @@
 #include <asm/atomic.h>
 #include <asm/unaligned.h>
 #include "br_private.h"
+#include <linux/wireless.h>
 
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl865x_fdb_api.h>
@@ -45,11 +46,14 @@ static int fdb_entry_num = 0;
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
 #include <net/rtl/rtl865x_netif.h>
 #include <net/rtl/rtl_nic.h>
+#include <net/rtl/rtl865x_igmpsnooping.h>
 extern int IGMPProxyOpened;
 void add_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn);
 void update_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn);
-void del_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn );
+void del_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn , unsigned char expireFlag);
 //void br_igmp_fdb_expired(struct net_bridge_fdb_entry *ent);
+extern int rtl_M2UDeletecheck(unsigned char *dMac, unsigned char *sMac);
+
 #endif
 
 static struct kmem_cache *br_fdb_cache __read_mostly;
@@ -184,6 +188,10 @@ void br_fdb_changeaddr(struct net_bridge_port *p, const unsigned char *newaddr)
 
 				/*---for process wlan client expired start---*/								
 				#if defined	(MCAST_TO_UNICAST)
+                #ifdef M2U_DELETE_CHECK
+                if(rtl_M2UDeletecheck(DA,SA))
+                {
+                #endif
 				dev = __dev_get_by_name(&init_net, RTL_PS_WLAN0_DEV_NAME);	
 	
 				
@@ -204,7 +212,8 @@ void br_fdb_changeaddr(struct net_bridge_port *p, const unsigned char *newaddr)
 					}
 				}
 					
-				#if defined (CONFIG_RTL_92D_SUPPORT)
+				#if defined(CONFIG_RTL_92D_SUPPORT)|| defined(CONFIG_RTL_8812_SUPPORT)||defined (CONFIG_RTL_8881A)
+				
 				dev = __dev_get_by_name(&init_net, RTL_PS_WLAN1_DEV_NAME);	
 	
 				if (dev) {		
@@ -224,11 +233,14 @@ void br_fdb_changeaddr(struct net_bridge_port *p, const unsigned char *newaddr)
 					}
 				}
 				#endif
+                #ifdef M2U_DELETE_CHECK
+                }
+                #endif
 				#endif			
 				/*---for process wlan client expired end---*/
 
 			
-				del_igmp_ext_entry(ent , SA , ent->igmp_fdb_arr[i2].port);
+				del_igmp_ext_entry(ent , SA , ent->igmp_fdb_arr[i2].port, 1);
 
 	
 				if ( (ent->portlist & 0x7f)==0){
@@ -278,7 +290,12 @@ void br_fdb_cleanup(unsigned long _data)
 			#if defined	(CONFIG_RTL_IGMP_SNOOPING)
 			if(	f->is_static &&
 				f->igmpFlag &&
-				MULTICAST_MAC(f->addr.addr))
+				(
+				MULTICAST_MAC(f->addr.addr)
+				#if defined	(CONFIG_RTL_MLD_SNOOPING)
+				||IPV6_MULTICAST_MAC(f->addr.addr)
+				#endif
+				))
 			{
 										
 				br_igmp_fdb_expired(f);
@@ -339,7 +356,12 @@ void br_fdb_flush(struct net_bridge *br)
 		#if defined (CONFIG_RTL_IGMP_SNOOPING)
 			if(	f->is_static && 
 				f->igmpFlag &&
-				MULTICAST_MAC(f->addr.addr) )
+				(
+				MULTICAST_MAC(f->addr.addr)
+				#if defined	(CONFIG_RTL_MLD_SNOOPING)
+				||IPV6_MULTICAST_MAC(f->addr.addr)
+				#endif
+				) )
 			{
 				br_igmp_fdb_expired(f);
 				if(time_before_eq(f->ageing_timer + 300*HZ,  jiffies))
@@ -495,7 +517,11 @@ void br_fdb_put(struct net_bridge_fdb_entry *ent)
  * the API format.
  */
 int br_fdb_fillbuf(struct net_bridge *br, void *buf,
-		   unsigned long maxnum, unsigned long skip)
+		   unsigned long maxnum, unsigned long skip
+#ifdef CONFIG_RTK_GUEST_ZONE
+		   ,int for_guest
+#endif
+		   )
 {
 	struct __fdb_entry *fe = buf;
 	int i, num = 0;
@@ -512,6 +538,11 @@ int br_fdb_fillbuf(struct net_bridge *br, void *buf,
 
 			if (has_expired(br, f))
 				continue;
+
+#ifdef CONFIG_RTK_GUEST_ZONE
+			if (for_guest && (f->dst->zone_type != ZONE_TYPE_GUEST))
+				continue;
+#endif
 
 			if (skip) {
 				--skip;
@@ -538,6 +569,22 @@ int br_fdb_fillbuf(struct net_bridge *br, void *buf,
 
 	return num;
 }
+
+#ifdef A4_STA
+struct net_bridge_fdb_entry *fdb_find_for_driver(struct net_bridge *br, const unsigned char *addr)
+{    
+	struct hlist_node *h;
+	struct net_bridge_fdb_entry *fdb;
+	struct hlist_head *head = &br->hash[br_mac_hash(addr)];
+
+	hlist_for_each_entry_rcu(fdb, h, head, hlist) {
+		if (!compare_ether_addr(fdb->addr.addr, addr)) {
+			return fdb;
+        }
+	}
+	return NULL;
+}
+#endif
 
 static inline struct net_bridge_fdb_entry *fdb_find(struct hlist_head *head,
 						    const unsigned char *addr)
@@ -650,53 +697,99 @@ int br_fdb_insert(struct net_bridge *br, struct net_bridge_port *source,
 void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
 		   const unsigned char *addr)
 {
-	struct hlist_head *head = &br->hash[br_mac_hash(addr)];
-	struct net_bridge_fdb_entry *fdb;
+    struct hlist_head *head = &br->hash[br_mac_hash(addr)];
+    struct net_bridge_fdb_entry *fdb;
 
-	/* some users want to always flood. */
-	if (hold_time(br) == 0)
-		return;
+    struct ifreq frq; 
+    extern void update_hw_l2table(const char *srcName,const unsigned char *addr);    
+#if defined(A4_STA) || defined(CONFIG_RTK_MESH)
+    struct iwreq wrq;
+    unsigned char para[32];
+#endif
 
-	/* ignore packets unless we are using this port */
-	if (!(source->state == BR_STATE_LEARNING ||
-	      source->state == BR_STATE_FORWARDING))
-		return;
+    /* some users want to always flood. */
+    if (hold_time(br) == 0)
+        return;
 
-	fdb = fdb_find(head, addr);
-	if (likely(fdb)) 
-	{
-		
-		/* attempt to update an entry for a local interface */
-		if (unlikely(fdb->is_local)) 
-		{
-			if (net_ratelimit())
-				printk(KERN_WARNING "%s: received packet with "
-				       " own address as source address\n",
-				       source->dev->name);
-		} 
-		else 
-		{
+    /* ignore packets unless we are using this port */
+    if (!(source->state == BR_STATE_LEARNING ||
+            source->state == BR_STATE_FORWARDING))
+        return;
+
+    fdb = fdb_find(head, addr);
+    if (likely(fdb)) 
+    {
+
+        /* attempt to update an entry for a local interface */
+        if (unlikely(fdb->is_local)) 
+        {
+            if (net_ratelimit())
+                printk(KERN_WARNING "%s: received packet with "
+                        " own address as source address\n",
+                        source->dev->name);
+        } 
+        else 
+        {
 			/* fastpath: update of existing entry */
 			/* 02-17-2012: move to WLAN driver update_fwtbl_asoclst() to avoid hacking the Linux kernel or the other kernel */
 #if 0 //defined (CONFIG_RTL865X_ETH)
-//                       if (((unsigned long)fdb->dst) != ((unsigned long)source->br->dev->a)) { 
-			if (fdb->dst != source)
-			{	
-				update_hw_l2table(source->dev->name, addr);
-			}
+            //                       if (((unsigned long)fdb->dst) != ((unsigned long)source->br->dev->a)) { 
+            if (fdb->dst != source)
+            {	
+                update_hw_l2table(source->dev->name, addr);
+            }
 #endif			
-			fdb->dst = source;
-			fdb->ageing_timer = jiffies;
-		}
-	} else {
-		spin_lock(&br->hash_lock);
-		if (!fdb_find(head, addr))
-			fdb_create(head, source, addr, 0);
-		/* else  we lose race and someone else inserts
-		 * it first, don't bother updating
-		 */
-		spin_unlock(&br->hash_lock);
-	}
+
+            if (fdb->dst != source) {
+#if defined(A4_STA) || defined(CONFIG_RTK_MESH)
+                #if defined(CONFIG_RTK_MESH)
+                if(strstr(fdb->dst->dev->name, "msh")) {
+                    ; /* mesh device, do nothing*/
+                }
+                else
+                #endif
+                if (!memcmp(fdb->dst->dev->name, "wlan", 4)) { /*if it is a wlan device */
+                    // del sta
+                    memset(para, 0, 32);
+                    sprintf(para, "%02x%02x%02x%02x%02x%02xno", fdb->addr.addr[0], fdb->addr.addr[1],  
+                        fdb->addr.addr[2], fdb->addr.addr[3], fdb->addr.addr[4], fdb->addr.addr[5]);
+                    wrq.u.data.pointer = para;
+                    wrq.u.data.length = strlen(para);
+                    #if defined(CONFIG_COMPAT_NET_DEV_OPS)
+                    if (fdb->dst->dev->do_ioctl != NULL)
+                        fdb->dst->dev->do_ioctl(fdb->dst->dev, (struct ifreq *)&wrq, 0x89f7/* RTL8185_IOCTL_DEL_STA */);
+                    #else
+                    if (fdb->dst->dev->netdev_ops->ndo_do_ioctl != NULL)
+                        fdb->dst->dev->netdev_ops->ndo_do_ioctl(fdb->dst->dev, (struct ifreq *)&wrq, 0x89f7/* RTL8185_IOCTL_DEL_STA */);
+                    #endif
+				}
+                else
+#endif //defined(A4_STA) || defined(CONFIG_RTK_MESH)
+                if (!memcmp(fdb->dst->dev->name, "eth", 3)) {
+                    memset(&frq, 0, sizeof(struct ifreq));
+                    #if defined(CONFIG_COMPAT_NET_DEV_OPS)
+                    if (fdb->dst->dev->do_ioctl != NULL)
+                        fdb->dst->dev->do_ioctl(fdb->dst->dev, &frq, 2210);
+                    #else
+                    if (fdb->dst->dev->netdev_ops->ndo_do_ioctl != NULL)
+                        fdb->dst->dev->netdev_ops->ndo_do_ioctl(fdb->dst->dev, &frq, 2210);
+                    #endif
+                    update_hw_l2table("wlan", fdb->addr.addr); /* RTL_WLAN_NAME */
+                }
+            }
+
+            fdb->dst = source;
+            fdb->ageing_timer = jiffies;
+        }
+    } else {
+        spin_lock(&br->hash_lock);
+        if (!fdb_find(head, addr))
+            fdb_create(head, source, addr, 0);
+        /* else  we lose race and someone else inserts
+                * it first, don't bother updating
+                */
+        spin_unlock(&br->hash_lock);
+    }
 }
 
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
@@ -802,7 +895,7 @@ void update_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,
 }
 
 
-void del_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn )
+void del_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac , unsigned char portComeIn,unsigned char expireFlag )
 {
 	int i2;
 	unsigned char *add;
@@ -816,8 +909,16 @@ void del_igmp_ext_entry(	struct net_bridge_fdb_entry *fdb ,unsigned char *srcMac
 		if(fdb->igmp_fdb_arr[i2].valid == 1){
 			if(!memcmp(fdb->igmp_fdb_arr[i2].SrcMac , srcMac ,6))
 			{
-				fdb->igmp_fdb_arr[i2].ageing_time -=  300*HZ; // make it expired	
-				fdb->igmp_fdb_arr[i2].valid = 0;
+				if(expireFlag)
+				{
+					fdb->igmp_fdb_arr[i2].ageing_time -=  300*HZ; // make it expired	
+					fdb->igmp_fdb_arr[i2].valid =0;	
+				}
+				else
+				{
+					fdb->igmp_fdb_arr[i2].ageing_time = jiffies-(IGMP_EXPIRE_TIME-M2U_DELAY_DELETE_TIME); //delay 10s to expire	
+				}
+					
 				DEBUG_PRINT("\ndel_igmp_ext_entry,DA=%02x:%02x:%02x:%02x:%02x:%02x ; SA=%02x:%02x:%02x:%02x:%02x:%02x success!!!\n",
 				add[0],add[1],add[2],add[3],add[4],add[5],
 				srcMac[0],srcMac[1],srcMac[2],srcMac[3],srcMac[4],srcMac[5]);

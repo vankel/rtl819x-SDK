@@ -17,6 +17,7 @@
 #include "dsp_rtk_define.h"
 #include "dsp_rtk_mux.h"
 #include "dsp_main.h"
+#include "basic_op.h"
 
 #ifdef REDUCE_PCM_FIFO_MEMCPY
 uint32* pRxBufTmp; // For reducing memcpy
@@ -69,14 +70,14 @@ static stPcmLoopMode pcm_LoopMode[MAX_PCMLOOP_GROUP] = {{0}};
 #if defined( NEW_TONE_ENTRY_ARCH )
 #define TONE_FIFO_SIZE	6
 #ifdef NEW_REMOTE_TONE_ENTRY
-static uint32 RxToneBuf[ MAX_DSP_RTK_CH_NUM ][TONE_FIFO_SIZE*RX_BUF_SIZE/4*MAX_BAND_FACTOR];
-static uint32 rx_tone_r[ MAX_DSP_RTK_CH_NUM ], rx_tone_w[ MAX_DSP_RTK_CH_NUM ];
-static uint32 rx_tone_sid[ MAX_DSP_RTK_CH_NUM ];
+static uint32 RxToneBuf[ MAX_DSP_RTK_SS_NUM ][TONE_FIFO_SIZE*RX_BUF_SIZE/4*MAX_BAND_FACTOR];
+static uint32 rx_tone_r[ MAX_DSP_RTK_SS_NUM ], rx_tone_w[ MAX_DSP_RTK_SS_NUM ];
+static uint32 rx_tone_sid[ MAX_DSP_RTK_SS_NUM ];
 #endif
 #ifdef NEW_LOCAL_TONE_ENTRY
-static uint32 TxToneBuf[ MAX_DSP_RTK_CH_NUM ][TONE_FIFO_SIZE*TX_BUF_SIZE/4*MAX_BAND_FACTOR];
-static uint32 tx_tone_r[ MAX_DSP_RTK_CH_NUM ], tx_tone_w[ MAX_DSP_RTK_CH_NUM ];
-static uint32 tx_tone_sid[ MAX_DSP_RTK_CH_NUM ];
+static uint32 TxToneBuf[ MAX_DSP_RTK_SS_NUM ][TONE_FIFO_SIZE*TX_BUF_SIZE/4*MAX_BAND_FACTOR];
+static uint32 tx_tone_r[ MAX_DSP_RTK_SS_NUM ], tx_tone_w[ MAX_DSP_RTK_SS_NUM ];
+static uint32 tx_tone_sid[ MAX_DSP_RTK_SS_NUM ];
 #endif
 #endif
 
@@ -88,11 +89,16 @@ void V152_CheckFaxDetectFlagAndSwitchCodec( void )
 {
 	int sid;
 	extern int CED_routine_BySid( uint32 ssid );
+	extern int Modem_routine_BySid( uint32 ssid );
 	
 	for( sid = 0; sid < dsp_rtk_ss_num; sid ++ ) {
 		if( CED_routine_BySid( sid ) == 1 ) {
 			V152_StateTransition( sid, REASON_SIG_VBD_CED );
 		} 
+		
+		if( Modem_routine_BySid( sid ) == 1 ) {
+			V152_StateTransition( sid, REASON_SIG_VBD_MODEM );
+		}
 		
 		//if( V152_CheckBidirectionalSilence( sid ) ) {
 		//	V152_StateTransition( sid, REASON_VOC_BI_SILENCE );
@@ -308,23 +314,23 @@ static inline uint32 * GetToneWritingBaseAddr_Core( uint32 chid, uint32 sid,
 	
 	uint32 next_wi;
 	
-	if( tone_w[ chid ] == tone_r[ chid ] )
-		tone_sid[ chid ] = sid;	/* fifo is empty, so accept this sid */
-	else if( tone_sid[ chid ] == sid )
+	if( tone_w[ sid ] == tone_r[ sid ] )
+		tone_sid[ sid ] = sid;	/* fifo is empty, so accept this sid */
+	else if( tone_sid[ sid ] == sid )
 		;	/* fifo is not empty, so accept identical sid only */
 	else {
-		printk( "tone sid=%d,%d\n", tone_sid[ chid ], sid );	/* fifo is full, or sid not match */
+		printk( "tone sid=%d,%d\n", tone_sid[ sid ], sid );	/* fifo is full, or sid not match */
 		return NULL;
 	}
 	
-	next_wi = ( tone_w[ chid ] + 1 ) % TONE_FIFO_SIZE;
+	next_wi = ( tone_w[ sid ] + 1 ) % TONE_FIFO_SIZE;
 	
-	if( next_wi == tone_r[ chid ] ) {
-		printk( "tF(%d) ", chid );
+	if( next_wi == tone_r[ sid ] ) {
+		printk( "tF(%d) ", sid );
 		return NULL;
 	}
 	
-	return &ToneBuf[ chid ][tone_w[ chid ] * RX_BUF_SIZE/4 * MAX_BAND_FACTOR ];
+	return &ToneBuf[ sid ][tone_w[ sid ] * RX_BUF_SIZE/4 * MAX_BAND_FACTOR ];
 }
 
 #ifdef NEW_REMOTE_TONE_ENTRY
@@ -347,23 +353,23 @@ uint32 * GetTxToneWritingBaseAddr( uint32 chid, uint32 sid )
 }
 #endif
 
-static inline void ToneBufferWritingDone_Core( uint32 chid, 
+static inline void ToneBufferWritingDone_Core( uint32 sid, 
 			uint32 tone_w[] )
 {
-	tone_w[ chid ] = ( tone_w[ chid ] + 1 ) % TONE_FIFO_SIZE;
+	tone_w[ sid ] = ( tone_w[ sid ] + 1 ) % TONE_FIFO_SIZE;
 }
 
 #ifdef NEW_REMOTE_TONE_ENTRY
-void RxToneBufferWritingDone( uint32 chid )
+void RxToneBufferWritingDone( uint32 sid )
 {
-	ToneBufferWritingDone_Core( chid, rx_tone_w );
+	ToneBufferWritingDone_Core( sid, rx_tone_w );
 }
 #endif
 
 #ifdef NEW_LOCAL_TONE_ENTRY
-void TxToneBufferWritingDone( uint32 chid )
+void TxToneBufferWritingDone( uint32 sid )
 {
-	ToneBufferWritingDone_Core( chid, tx_tone_w );
+	ToneBufferWritingDone_Core( sid, tx_tone_w );
 }
 #endif
 
@@ -384,7 +390,7 @@ typedef enum {
 	MIX_TYPE_ASSIGN,
 } mix_type_t;
 
-static inline void MixToneBuffer_Core( uint32 chid, uint32 *pBuffer,
+static inline void MixToneBuffer_Core( uint32 chid, uint32 sid, uint32 *pBuffer,
 	uint32 ToneBuf[][TONE_FIFO_SIZE*RX_BUF_SIZE/4*MAX_BAND_FACTOR],
 	uint32 tone_r[], uint32 tone_w[],
 	uint32 tone_sid[] )
@@ -415,14 +421,17 @@ static inline void MixToneBuffer_Core( uint32 chid, uint32 *pBuffer,
 
 	CT_ASSERT( RX_BUF_SIZE == TX_BUF_SIZE );	// make sure the two are the same 
 	
-	if( tone_r[ chid ] == tone_w[ chid ] ) {
+	if ( sid == SESSION_NULL )
+		sid = chid;
+	
+	if( tone_r[ sid ] == tone_w[ sid ] ) {
 		//printk( "tE(%d) ", chid );
 		return;
 	}
 
 #ifndef CONFIG_RTK_VOIP_IP_PHONE
 	// decide mix type 	
-	sid_tone = tone_sid[ chid ];
+	sid_tone = tone_sid[ sid ];
 	
 	if( fWait[sid_tone] == 0 ) {
 		if( (1==fsk_cid_state[chid]) || (1==outband_dmtf_play_state[sid_tone]) ) {
@@ -433,7 +442,7 @@ static inline void MixToneBuffer_Core( uint32 chid, uint32 *pBuffer,
 		mix_type = MIX_TYPE_ASSIGN;
 #endif
 		
-	pToneBuf = (uint16 *)&ToneBuf[ chid ][ tone_r[ chid ] * RX_BUF_SIZE/4 * MAX_BAND_FACTOR ];
+	pToneBuf = (uint16 *)&ToneBuf[ sid ][ tone_r[ sid ] * RX_BUF_SIZE/4 * MAX_BAND_FACTOR ];
 
 	if( mix_type == MIX_TYPE_ADD ) {
 		for( i = 0; i < samples; i ++ ) {
@@ -449,13 +458,13 @@ static inline void MixToneBuffer_Core( uint32 chid, uint32 *pBuffer,
 		}
 	}
 
-	tone_r[ chid ] = ( tone_r[ chid ] + 1 ) % TONE_FIFO_SIZE;
+	tone_r[ sid ] = ( tone_r[ sid ] + 1 ) % TONE_FIFO_SIZE;
 }
 
 #ifdef NEW_REMOTE_TONE_ENTRY
-void MixRxToneBuffer( uint32 chid, uint32 *pRxBuffer )
+void MixRxToneBuffer( uint32 chid, uint32 sid, uint32 *pRxBuffer )
 {
-	MixToneBuffer_Core( chid, pRxBuffer,
+	MixToneBuffer_Core( chid, sid, pRxBuffer,
 			RxToneBuf, 
 			rx_tone_r, rx_tone_w,
 			rx_tone_sid );
@@ -463,9 +472,9 @@ void MixRxToneBuffer( uint32 chid, uint32 *pRxBuffer )
 #endif
 
 #ifdef NEW_LOCAL_TONE_ENTRY
-void MixTxToneBuffer( uint32 chid, uint32 *pTxBuffer )
+void MixTxToneBuffer( uint32 chid, uint32 sid, uint32 *pTxBuffer )
 {
-	MixToneBuffer_Core( chid, pTxBuffer,
+	MixToneBuffer_Core( chid, sid, pTxBuffer,
 			TxToneBuf,
 			tx_tone_r, tx_tone_w,
 			tx_tone_sid );
@@ -474,7 +483,8 @@ void MixTxToneBuffer( uint32 chid, uint32 *pTxBuffer )
 #endif /* NEW_TONE_ENTRY_ARCH */
 
 #if defined (CONFIG_RTK_VOIP_DRIVERS_PCM8672)
-__IRAM void dsp_rtk_bus_handler( void )
+//__IRAM void dsp_rtk_bus_handler( void )
+void dsp_rtk_bus_handler( void )
 #else
 void dsp_rtk_bus_handler( void )
 #endif
@@ -483,7 +493,7 @@ void dsp_rtk_bus_handler( void )
 	static unsigned int last_dch = 0;
 	unsigned int f_cnt;
 	unsigned int i;
-	extern Word16 add (Word16 var1,Word16 var2);
+	//extern Word16 add (Word16 var1,Word16 var2);
 
 #ifdef SUPPORT_V152_VBD
 	V152_CheckFaxDetectFlagAndSwitchCodec();
@@ -542,7 +552,8 @@ void dsp_rtk_bus_handler( void )
 #endif
 
 #ifdef NEW_REMOTE_TONE_ENTRY
-		MixRxToneBuffer( dch, pRxBufTmp );
+		// Postpone to voip_dsp/pcm_handler.c PCM_handler()
+		// MixRxToneBuffer( dch, -1, pRxBufTmp );
 #endif
 	
 #ifdef T38_STAND_ALONE_HANDLER
@@ -770,7 +781,18 @@ NO_PCM_LOOP:
 
 
 #ifdef NEW_LOCAL_TONE_ENTRY
-		MixTxToneBuffer( dch, pTxBufTmp );
+	{
+		int i;
+		uint32 sid_tmp;
+		uint32 SessNum;
+	  
+		SessNum = chanInfo_GetRegSessionNum(dch);
+		for(i=0; i<SessNum; i++) 
+		{
+			sid_tmp = chanInfo_GetRegSessionID(dch, i);
+			MixTxToneBuffer( dch, sid_tmp, pTxBufTmp );
+		}
+	}
 #endif
 
 #ifdef VOICE_GAIN_ADJUST_TONE_VOICE
@@ -848,10 +870,17 @@ static inline void _rtk_dsp_10ms_timer( voip_dsp_t * p_dsp )
 	uint32 pSessRank[2];
 	int i;
 	uint32 SessNum;
+#ifdef SUPPORT_RTCP
+	extern unsigned char Rtcp_Bye[];
+#endif
+	
+	if( !p_dsp ->enabled )
+		goto label_skip_timer_do_channel;
 	
 	// process this channel 
 	rtk_dsp_10ms_timer_do_channel( p_dsp );
-	
+
+label_skip_timer_do_channel:	
 	// process its session 
 	sid = chanInfo_GetTranSessionID(dch);
 
@@ -886,6 +915,16 @@ static inline void _rtk_dsp_10ms_timer( voip_dsp_t * p_dsp )
 		else
 			ssid = sid;
 		
+		if( !p_dsp ->enabled )
+		{
+#ifdef SUPPORT_RTCP
+			if (Rtcp_Bye[ssid])
+				goto label_timer_do_session;
+#endif
+			return;
+		}
+
+label_timer_do_session:
 		rtk_dsp_10ms_timer_do_session( p_dsp, ssid );
 	}
 }
@@ -898,8 +937,8 @@ void rtk_dsp_10ms_timer( void )
 	{
 		voip_dsp_t * const p_dsp = get_voip_rtk_dsp( dch );
 		
-		if( !p_dsp ->enabled )
-			continue;
+		//if( !p_dsp ->enabled )
+		//	continue;
 		
 		_rtk_dsp_10ms_timer( p_dsp );
 	}	

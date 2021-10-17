@@ -1,7 +1,7 @@
 /*
  * @file fxo_callerid_det.c
  * @brief example code for fxo callerid detect. run when fxo pcm enable
- *        rtk_Get_DAA_CallerID rtk_Set_CID_Det_Mode api example also in fxo.c
+ *        rtk_GetDaaCallerID rtk_SetCidDetMode api example also in fxo.c
  * jwsyu@realtek.com
  * 2011/05/12 PM 07:11:41
  * version 01
@@ -41,23 +41,23 @@ int main(int argc, char *argv[])
 	switch (test_mode)
 	{
 	case 1:
-		rtk_Get_DAA_CallerID(fxo_chid, str_cid, str_date, str_name);
+		rtk_GetDaaCallerID(fxo_chid, str_cid, str_date, str_name);
 		if (str_cid[0])
 			printf("caller id number:%s, date:%s, name:%s", str_cid, str_date, str_name);
 		else
 			printf("no caller id detect");
 		break;
 	case 2:
-		rtk_Set_CID_Det_Mode(fxo_chid, 0, 1);
+		rtk_SetCidDetMode(fxo_chid, 0, 1);
 		break;
 	case 3:
-		rtk_Set_CID_Det_Mode(fxo_chid, 0, 4);
+		rtk_SetCidDetMode(fxo_chid, 0, 4);
 		break;
 	case 4:
-		rtk_Set_CID_Det_Mode(fxo_chid, 2, 0);
+		rtk_SetCidDetMode(fxo_chid, 2, 0);
 		break;
 	case 5:
-		rtk_Set_CID_Det_Mode(fxo_chid, 1, 1);
+		rtk_SetCidDetMode(fxo_chid, 1, 1);
 	}
 	return 0;
 

@@ -21,7 +21,10 @@ extern int Last_WAN_Mode;
 void start_dns_relay(void);
 void start_igmpproxy(char *wan_iface, char *lan_iface);
 void del_routing(void);
+#ifdef CONFIG_IPV6
+extern void start_mldproxy(char *wan_iface, char *lan_iface);
 
+#endif
 #define DHCPD_CONF_FILE "/var/udhcpd.conf"
 
 #if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)
@@ -109,9 +112,9 @@ int sendArp()
 	sprintf(ip, "%s", inet_ntoa(wanaddr));
 
 	bzero(wanMacAddr,sizeof(wanMacAddr));
-	apmib_get(MIB_ELAN_MAC_ADDR,  (void *)wanMacAddr);
+	apmib_get(MIB_WAN_MAC_ADDR,  (void *)wanMacAddr);
 	if(!memcmp(wanMacAddr, "\x00\x00\x00\x00\x00\x00", 6)){
-		apmib_get(MIB_HW_NIC0_ADDR,  (void *)wanMacAddr);
+		apmib_get(MIB_HW_NIC1_ADDR,  (void *)wanMacAddr);
 	}
 	for(i=0;i<GRATUITOUS_ARP_NUM;i++)
 	{
@@ -149,6 +152,7 @@ int checkWanStatus()
 			RunSystemCmd(WAN_STATUS_FILE, "echo", "0", NULL_STR);	/*bridge mode with multiple vlan*/
 			sendArp();
 		}
+		fclose(pfile);
 	}
 	else
 	{
@@ -158,8 +162,6 @@ int checkWanStatus()
 }
 
 #endif
-
-
 int avoid_confliction_ip(char *wanIp, char *wanMask)
 {
 	char line_buffer[100]={0};
@@ -235,7 +237,7 @@ int avoid_confliction_ip(char *wanIp, char *wanMask)
 						
 		for(j=0; j<32; j++)
 		{
-			if((myMaskVal & (1<<j)) != 0)
+			if((maskVal & (1<<j)) != 0)
 				break;
 		}
 		
@@ -266,6 +268,22 @@ int avoid_confliction_ip(char *wanIp, char *wanMask)
 	
 //printf("\r\n subnet mask=[%s],__[%s-%u]\r\n",inet_ntoa(myMask),__FILE__,__LINE__);			
 		sprintf(line_buffer,"opt subnet %s\n",inet_ntoa(myMask));
+		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
+		
+		apmib_get(MIB_DHCP_LEASE_TIME, (void *)&tmp1Val);
+		if( (tmp1Val==0) || (tmp1Val<0) || (tmp1Val>10080))
+		{
+			tmp1Val = 480; //8 hours
+			if(!apmib_set(MIB_DHCP_LEASE_TIME, (void *)&tmp1Val))
+			{
+				printf("set MIB_DHCP_LEASE_TIME error\n");
+			}
+		
+			apmib_update(CURRENT_SETTING);
+		}
+		tmp1Val *= 60;
+
+		sprintf(line_buffer,"opt lease %ld\n",tmp1Val);
 		write_line_to_file(DHCPD_CONF_FILE, 2, line_buffer);
 
 //printf("\r\n gateway ip=[%s],__[%s-%u]\r\n",inet_ntoa(myIp),__FILE__,__LINE__);					
@@ -332,6 +350,127 @@ int translate_domain_to_ip(unsigned char *server_domain, struct in_addr *server_
 	}
 	return -1;
 }
+
+#endif
+
+#ifdef CONFIG_IPV6
+void ppp_connect_ipv6(char *ifname, char *option)
+{
+	char tmpStr[256];
+	char gateway[64];
+	FILE *fp =NULL;
+	int val;
+	addr6CfgParam_t	addr6_wan;
+	if(!apmib_get(MIB_IPV6_WAN_ENABLE,&val)){		
+		fprintf(stderr, "get mib %d error!\n", MIB_IPV6_WAN_ENABLE);			return ;			
+	}
+	else if(val==0)
+		return;
+		
+	sprintf(tmpStr,"/var/gateway_ipv6");
+	fp=fopen(tmpStr,"r");		
+	if(fp!=NULL){
+		fscanf(fp,"%s",gateway);
+		fclose(fp);
+		/*add default gateway*/					
+		sprintf(tmpStr,"route -A inet6 add default gw %s dev %s",gateway,ifname);
+		system(tmpStr);			
+	}
+
+	if(!apmib_get(MIB_IPV6_ORIGIN_TYPE,&val)){	
+		fprintf(stderr, "get mib %d error!\n", MIB_IPV6_ORIGIN_TYPE);
+		return;			
+	}
+
+		
+	switch(val){			
+		case IPV6_ORIGIN_DHCP:
+			/*disable forwarding proc to make slaac enable in kernel*/
+			sprintf(tmpStr,"echo 0 > /proc/sys/net/ipv6/conf/%s/forwarding",ifname);
+			system(tmpStr);
+			set_dhcp6c();								
+			break;
+	
+		case IPV6_ORIGIN_STATIC:					
+			/*ifconfig ipv6 address*/
+			if ( !apmib_get(MIB_IPV6_ADDR_WAN_PARAM,(void *)&addr6_wan)){
+				fprintf(stderr, "get mib %d error!\n", MIB_IPV6_ADDR_WAN_PARAM);
+				return ;        
+			}
+
+			sprintf(tmpStr,"ifconfig %s %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d",
+				ifname,
+				addr6_wan.addrIPv6[0],addr6_wan.addrIPv6[1],addr6_wan.addrIPv6[2],
+				addr6_wan.addrIPv6[3],addr6_wan.addrIPv6[4],addr6_wan.addrIPv6[5],
+				addr6_wan.addrIPv6[6],addr6_wan.addrIPv6[7],addr6_wan.prefix_len);
+			system(tmpStr);						
+			break;
+				
+		default:
+			break;
+	}	
+
+	//mldproxy
+	start_mldproxy(ifname,"br0");
+	return;
+}
+#endif
+
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+void appendDnsAddr(char *ppp_resolv_file, char *resolv_file)
+{	
+	if(!ppp_resolv_file || !resolv_file)
+		return ;
+	FILE *fp1=NULL, *fp2=NULL;
+	if((fp1=fopen(ppp_resolv_file, "r"))==NULL)
+		goto OUT;	
+	
+	char tmpbuf[64], tmpbuf1[64], tmpbuf2[64];
+	int found, i;
+	while(fgets(tmpbuf1, sizeof(tmpbuf1), fp1))
+	{
+		for(i=0;tmpbuf1[i]!='\n' && tmpbuf1[i]!='\0'; i++);
+		tmpbuf1[i]='\0';		
+		
+		found=0;
+		
+		if((fp2=fopen(resolv_file, "r+"))==NULL)
+			goto OUT;
+		
+		while(fgets(tmpbuf2, sizeof(tmpbuf2), fp2))
+		{
+			for(i=0;tmpbuf2[i]!='\n' && tmpbuf2[i]!='\0'; i++);
+			tmpbuf2[i]='\0';			
+			
+			if(strcmp(tmpbuf1, tmpbuf2)==0)
+			{
+				found=1;
+				break;
+			}
+		}
+		if(found==0)
+		{
+			sprintf(tmpbuf,"%s\n", tmpbuf1);
+			write_line_to_file(resolv_file, 2, tmpbuf);
+		}		
+		fclose(fp2);
+		fp2=NULL;
+	}
+	
+OUT:
+	
+	if(fp1!=NULL)
+	{
+		fclose(fp1);
+		fp1=NULL;
+	}
+	if(fp2!=NULL)
+	{
+		fclose(fp2);
+		fp2=NULL;
+	}
+	return;
+}
 #endif
 
 void wan_connect(char *interface, char *option)
@@ -340,6 +479,9 @@ void wan_connect(char *interface, char *option)
 	char *cmd_opt[16];
 	int cmd_cnt = 0, intValue=0, x, dns_mode=0, index=0;
 	int dns_found=0, wan_type=0, conn_type=0, ppp_mtu=0;
+#ifdef TR181_SUPPORT
+	int dnsEnable, value;
+#endif
 	struct in_addr wanaddr, lanaddr;
 	char *strtmp=NULL;
 	char wanip[32]={0}, mask[32]={0},remoteip[32]={0};
@@ -347,7 +489,7 @@ void wan_connect(char *interface, char *option)
 	char dns_server[5][32];
 	char tmp_args[16]={0};
 	char *token=NULL, *savestr1=NULL;
-	FILE *fp1;
+	FILE *fp1, *fp2;
 	unsigned char domanin_name[MAX_NAME_LEN]={0};
 	unsigned char cmdBuffer[100]={0};
 	unsigned char tmpBuff[200]={0};
@@ -356,7 +498,7 @@ void wan_connect(char *interface, char *option)
 	int op_mode=0;
 	int ret = 0;
 //	printf("%s(%d): wan_connect option=%s\n",__FUNCTION__,__LINE__, option);//Added for test
-//printf("%s(%d): wan_connect interface=%s\n",__FUNCTION__,__LINE__, interface);//Added for test
+//	printf("%s(%d): wan_connect interface=%s\n",__FUNCTION__,__LINE__, interface);//Added for test
 	#if defined(CONFIG_DYNAMIC_WAN_IP)
 	int opmode=0, wisp_wan_id=0;
 	char tmp_buf[64]={0};
@@ -369,7 +511,43 @@ void wan_connect(char *interface, char *option)
 	apmib_get( MIB_DNS_MODE, (void *)&dns_mode);
 	apmib_get(MIB_DHCP,(void *)&lan_type);
 	apmib_get(MIB_OP_MODE, (void *)&op_mode);
+#if defined(CONFIG_DYNAMIC_WAN_IP)
+	apmib_get(MIB_OP_MODE, (void *)&opmode);
+	apmib_get(MIB_WISP_WAN_ID,(void *)&wisp_wan_id);	
+#endif
 
+#ifdef TR181_SUPPORT
+	if ( !apmib_get(MIB_DNS_CLIENT_ENABLE,(void *)&dnsEnable)){
+			fprintf(stderr,"get MIB_DNS_CLIENT_ENABLE failed\n");
+			return;  
+	}
+	DNS_CLIENT_SERVER_T entry[2]={0};
+	int y = 0;
+	
+	for(x=0; x<6; x++)
+	{	
+		y = x+1;
+		*((char*)entry)=(char)y;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("%s(%d): get MIB_DNS_CLIENT_SERVER_TBL fail!\n",__FUNCTION__,__LINE__);
+			return;
+		}
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+		entry[1].index = x;
+		entry[1].enable = 0;
+		entry[1].status = 0;
+//		strcpy(entry[1].alias, "");
+//		strcpy(entry[1].ipAddr, "");
+//		strcpy(entry[1].interface, "");
+//		entry[1].type = 0; //Unknown
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("%s(%d): set MIB_DNS_CLIENT_SERVER_TBL fail!\n",__FUNCTION__,__LINE__);
+			return;
+		}
+	}
+#endif
 
 	//when lan set dhcp client,only br0 con allowed.wan conn make no sense
 	if(lan_type==DHCP_CLIENT && strcmp(interface, "br0")!=0)
@@ -483,17 +661,33 @@ void wan_connect(char *interface, char *option)
 #ifdef MULTI_PPPOE
 		/* Do not set mtu by ifconfig, pppd negotiates about mtu by itself */
 		//RunSystemCmd(NULL_FILE, "ifconfig", interface, "mtu", tmp_args, "txqueuelen", "25",NULL_STR);
-		RunSystemCmd(NULL_FILE, "ifconfig", interface, "txqueuelen", "25",NULL_STR);
+		RunSystemCmd(NULL_FILE, "ifconfig", interface, "txqueuelen", "64",NULL_STR);
 #else
 		/* Do not set mtu by ifconfig, pppd negotiates about mtu by itself */
 		//RunSystemCmd(NULL_FILE, "ifconfig", "ppp0", "mtu", tmp_args, "txqueuelen", "25",NULL_STR);
-		RunSystemCmd(NULL_FILE, "ifconfig", "ppp0", "txqueuelen", "25",NULL_STR);
+		RunSystemCmd(NULL_FILE, "ifconfig", "ppp0", "txqueuelen", "64",NULL_STR);
 #endif
 //		printf("%s(%d): wan_type=%d,dns_mode=%d\n",__FUNCTION__,__LINE__, wan_type,dns_mode);//Added for test
-		if(dns_mode==1){
+#ifdef TR181_SUPPORT
+		if(dnsEnable==1)
+#endif
+		{
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+		if(wan_type!=PPTP && wan_type!=L2TP && dns_mode==1)
+#else
+		if(dns_mode==1)
+#endif
+		{
 			start_dns_relay();
 		}else{
+#ifndef SUPPORT_ZIONCOM_RUSSIA
 			fp1= fopen(PPP_RESOLV_FILE, "r");
+#else
+			
+			appendDnsAddr(PPP_RESOLV_FILE, "/var/resolv.conf");
+//			system("cat /etc/ppp/resolv.conf >> /var/resolv.conf");
+			fp1= fopen("/var/resolv.conf", "r");
+#endif
 			if (fp1 != NULL){
 				for (x=0;x<5;x++){
 					memset(dns_server[x], '\0', 32);
@@ -514,7 +708,6 @@ void wan_connect(char *interface, char *option)
 							for(x=0;x<5;x++){
 								if(dns_server[x][0] == '\0'){
 									sprintf(dns_server[x], "%s", nameserver_ip);
-									//printf("---%s---\n",nameserver_ip);
 									break;
 								}
 							}
@@ -527,6 +720,33 @@ void wan_connect(char *interface, char *option)
 				
 				//printf("---%s---\n","168.95.1.1");
 			}
+#ifdef TR181_SUPPORT
+			for(x=0; x<3; x++)
+			{
+				if(dns_server[x][0] == '\0')
+					continue;
+				y = x+1;
+				*((char*)entry)=(char)y;
+
+				if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+				{
+					printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+					return;
+				}
+				memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+				entry[1].index = x;
+				entry[1].enable = 1;
+				entry[1].status = 1;
+				strcpy(entry[1].ipAddr, dns_server[x]);
+//				strcpy(entry[1].interface, interface);
+				entry[1].type = 6; //Unkown
+				if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+				{
+					printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+					return;
+				}
+			}
+#endif
 			//for (x=0;x<5;x++){
 			//	if(dns_server[x]){
 			//		fprintf(stderr, "name server=%s\n", dns_server[x]);
@@ -560,6 +780,17 @@ void wan_connect(char *interface, char *option)
 
 			for(x=0;x<5;x++){
 				if(dns_server[x][0] != '\0'){
+//#ifdef TR181_SUPPORT
+#if 0
+					sprintf(line, "Device.DNS.Client.Server.{%d}.Enable", x);
+					if(tr181_ipv6_get(line, (void*)&value) == -1)
+					{
+						printf("get %s fail!\n", line);
+						return;
+					}
+					if(value != 1)
+						continue;
+#endif
 					cmd_opt[cmd_cnt++]="-s";
 					cmd_opt[cmd_cnt++]=&dns_server[x][0];
 				}
@@ -569,8 +800,21 @@ void wan_connect(char *interface, char *option)
 			//for (x=0; x<cmd_cnt;x++)
 			//	fprintf(stderr, "cmd index=%d, opt=%s \n", x, cmd_opt[x]);
 			
-			RunSystemCmd(NULL_FILE, "cp", PPP_RESOLV_FILE, "/var/resolv.conf", NULL_STR);
+#ifndef SUPPORT_ZIONCOM_RUSSIA
+
+			RunSystemCmd(NULL_FILE, "cp", PPP_RESOLV_FILE, "/var/resolv.conf", NULL_STR);			
+#else			
+//			system("cat /etc/ppp/resolv.conf >> /var/resolv.conf");
+			strcpy(line, cmd_opt[0]);
+			for (x=1; x<cmd_cnt-1;x++)
+			{
+			   strcat(line, " ");
+			   strcat(line, cmd_opt[x]);
+			}			
+			write_line_to_file("/var/dnrd_cmd_line", 1, line);
+#endif
 			DoCmd(cmd_opt, NULL_FILE);
+		}
 		}
 	}else 
 #if defined(CONFIG_DYNAMIC_WAN_IP)
@@ -629,14 +873,21 @@ void wan_connect(char *interface, char *option)
 #endif
 
 		RunSystemCmd(NULL_FILE, "ifconfig", interface, wanip, "netmask", mask, NULL_STR);	
-		//RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR);
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+		if(strcmp(interface, "br0"))
+			setFirewallIptablesRules(-1, NULL);
+#endif
 #if defined(CONFIG_DYNAMIC_WAN_IP)
 		if(wan_type != PPTP && wan_type != L2TP) {
 #endif
 		RunSystemCmd(NULL_FILE, "route", "del", "default", NULL_STR);
 		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR);
 //		printf("%s(%d): wan_type=%d,dns_mode=%d\n",__FUNCTION__,__LINE__, wan_type,dns_mode);//Added for test
-			
+
+#ifdef TR181_SUPPORT
+		if(dnsEnable==1)
+#endif
+		{
 		if(dns_mode==1){
 			start_dns_relay();
 		}else{
@@ -662,11 +913,49 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 				sprintf((char *)cmdBuffer,"%s\\%s%s%s%s", dynip, "realtek", "AP.com|","realtek", "AP.net");
 			}
 			RunSystemCmd("/etc/hosts", "echo",cmdBuffer,NULL_STR);
-			
+#ifdef TR181_SUPPORT		
+			for(x=0; x<3; x++)
+			{
+				if(dns_server[x][0] == '\0')
+					continue;
+				
+				y = x+1;
+				*((char*)entry)=(char)y;
+				if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+				{
+					printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+					return;
+				}
+				memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+				entry[1].index = x;
+				entry[1].enable = 1;
+				entry[1].status = 1;
+				strcpy(entry[1].ipAddr, dns_server[x]);
+//				strcpy(entry[1].interface, interface);
+				entry[1].type = 1; //DHCPv4
+				if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+				{
+					printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+					return;
+				}
+			}		
+#endif
+
 			cmd_opt[cmd_cnt++]="dnrd";
 			cmd_opt[cmd_cnt++]="--cache=off";
 			for(x=0;x<5;x++){
 				if(dns_server[x][0] != '\0'){
+//#ifdef TR181_SUPPORT
+#if 0
+					sprintf(line, "Device.DNS.Client.Server.{%d}.Enable", x);
+					if(tr181_ipv6_get(line, (void*)&value) == -1)
+					{
+						printf("get %s fail!\n", line);
+						return;
+					}
+					if(value != 1)
+						continue;
+#endif
 					cmd_opt[cmd_cnt++]="-s";
 					cmd_opt[cmd_cnt++]=&dns_server[x][0];
 					sprintf(line,"nameserver %s\n", dns_server[x]);
@@ -683,6 +972,7 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 			DoCmd(cmd_opt, NULL_FILE);
 		}
 			
+		}
 		}
 #ifdef CONFIG_POCKET_AP_SUPPORT
 #else
@@ -711,23 +1001,31 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 #if defined(CONFIG_DYNAMIC_WAN_IP)
 	if(wan_type == PPTP || wan_type == L2TP){
 
-		for(x=0;x<5;x++){
-			if(dns_server[x][0] != '\0'){
-				sprintf(line,"nameserver %s\n", dns_server[x]);
-				if(x==0){
-					write_line_to_file(RESOLV_CONF, 1, line);
-	//						write_line_to_file(DHCP_RESOLV_FILE, 1, line);
-					
-				}else{
-					write_line_to_file(RESOLV_CONF, 2, line);
-	//						write_line_to_file(DHCP_RESOLV_FILE, 2, line);
+#ifdef TR181_SUPPORT
+		if(dnsEnable==1)
+#endif
+		{
+		if(dns_mode==1)
+			start_dns_relay();
+		else
+		{
+			for(x=0;x<5;x++){
+				if(dns_server[x][0] != '\0'){
+					sprintf(line,"nameserver %s\n", dns_server[x]);
+					if(x==0){
+						write_line_to_file(RESOLV_CONF, 1, line);
+		//						write_line_to_file(DHCP_RESOLV_FILE, 1, line);
+						
+					}else{
+						write_line_to_file(RESOLV_CONF, 2, line);
+		//						write_line_to_file(DHCP_RESOLV_FILE, 2, line);
+					}
 				}
 			}
 		}
-
+		}
 		
 		RunSystemCmd(NULL_FILE, "route", "del", "default", "dev", interface, NULL_STR);
-		//printf("%s:%d route del  default dev %s\n",__FUNCTION__,__LINE__,interface);
 #if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)	
 		//set tmp default gw for get ip from domain
 		sprintf(tmp_default_gw, "%s", remoteip);
@@ -751,6 +1049,7 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 						if(translate_domain_to_ip(pptp_server_domain, &server_ip) == 0)
 						{			
 							//printf("%s:%d server_ip=%s\n",__FUNCTION__,__LINE__,inet_ntoa(server_ip));
+						//	inet_aton("192.168.2.200",&server_ip);
 							apmib_set(MIB_PPTP_SERVER_IP_ADDR, (void *)&server_ip);
 							apmib_update(CURRENT_SETTING);
 						}else
@@ -782,8 +1081,6 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 					strtmp= inet_ntoa(*((struct in_addr *)tmp_buf));
 					sprintf(netIp, "%s", strtmp);
 					RunSystemCmd(NULL_FILE, "route", "add", "-net", netIp, "netmask", mask,"gw", remoteip,NULL_STR);
-					printf("%s:%d route add -net %s netmask %s gw %s\n",__FUNCTION__,__LINE__,netIp,mask,remoteip);
-
 				}
 			}
 			else if(wan_type == L2TP){			
@@ -800,6 +1097,7 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 					if(translate_domain_to_ip(l2tp_server_domain, &server_ip) == 0)
 					{
 						//printf("%s:%d server_ip=%s\n",__FUNCTION__,__LINE__,inet_ntoa(server_ip));
+						//inet_aton("192.168.2.200",&server_ip);
 						apmib_set(MIB_L2TP_SERVER_IP_ADDR, (void *)&server_ip);
 						apmib_update(CURRENT_SETTING);
 					}else
@@ -841,9 +1139,7 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 		if(isFileExist(PPP_CONNECT_FILE)){
 			unlink(PPP_CONNECT_FILE);
 		}
-		
-		//start pptp/l2tp dial up
-
+		//system("killall -9 udhcpc 2>/dev/null");	
 		if(wan_type == PPTP){
 			set_pptp(opmode, interface, "br0", wisp_wan_id, 1);
 		}
@@ -903,13 +1199,55 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 		RunSystemCmd(NULL_FILE, "ifconfig", interface, wanip, "netmask", mask, NULL_STR);	
 		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", remoteip, "dev", interface, NULL_STR);
 //		printf("%s(%d): wan_type=%d,dns_mode=%d\n",__FUNCTION__,__LINE__, wan_type,dns_mode);//Added for test
+#ifdef TR181_SUPPORT
+		if(dnsEnable==1)
+#endif
+		{
 		if(dns_mode==1){
 			start_dns_relay();
 		}else{
+#ifdef TR181_SUPPORT
+			for(x=0; x<3; x++)
+			{
+				if(dns_server[x][0] == '\0')
+					continue;
+				
+				y = x+1;
+				*((char*)entry)=(char)y;
+				if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+				{
+					printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+					return;
+				}
+				memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+				entry[1].index = x;
+				entry[1].enable = 1;
+				entry[1].status = 1;
+				strcpy(entry[1].ipAddr, dns_server[x]);
+//				strcpy(entry[1].interface, interface);
+				entry[1].type = 1; //DHCPv4
+				if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+				{
+					printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+					return;
+				}
+			}		
+#endif
 			cmd_opt[cmd_cnt++]="dnrd";
 			cmd_opt[cmd_cnt++]="--cache=off";
 			for(x=0;x<5;x++){
 				if(dns_server[x][0] != '\0'){
+//#ifdef TR181_SUPPORT
+#if 0
+					sprintf(line, "Device.DNS.Client.Server.{%d}.Enable", x);
+					if(tr181_ipv6_get(line, (void*)&value) == -1)
+					{
+						printf("get %s fail!\n", line);
+						return;
+					}
+					if(value != 1)
+						continue;
+#endif
 					cmd_opt[cmd_cnt++]="-s";
 					cmd_opt[cmd_cnt++]=&dns_server[x][0];
 					sprintf(line,"nameserver %s\n", dns_server[x]);
@@ -922,6 +1260,7 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 			cmd_opt[cmd_cnt++] = 0;
 			DoCmd(cmd_opt, NULL_FILE);
 
+		}
 		}
 		if(op_mode!=1)
 		{
@@ -939,30 +1278,34 @@ RunSystemCmd(NULL_FILE, "killall", "dnrd", NULL_STR);
 		if(ret == 1)
 #endif			
 		{
-			apmib_get(MIB_WLAN_BAND2G5G_SELECT,(void *)&intValue);
-			if(intValue == BANDMODEBOTH)
+			if(op_mode!=WISP_MODE)
 			{
-				system("ifconfig wlan1 down");
+				system("ifconfig wlan0 down");
+				apmib_get(MIB_WLAN_BAND2G5G_SELECT,(void *)&intValue);
+				if(intValue == BANDMODEBOTH)
+				{
+					system("ifconfig wlan1 down");
+				}
 			}
 			
 #if !defined(CONFIG_POCKET_ROUTER_SUPPORT)
 			//when op_mode== GATEWAY_MODE for pocket AP, there isn't interface eth0
 			system("ifconfig eth0 down");
-#endif
-			system("ifconfig wlan0 down");
-		
+#endif		
 			sleep(10);
 			
 #if !defined(CONFIG_POCKET_ROUTER_SUPPORT)
 			system("ifconfig eth0 up");
-#endif
-			system("ifconfig wlan0 up");
-			if(intValue == BANDMODEBOTH)
+#endif			
+			if(op_mode!=WISP_MODE)
 			{
-				system("ifconfig wlan1 up");
+				system("ifconfig wlan0 up");
+				if(intValue == BANDMODEBOTH)
+				{
+					system("ifconfig wlan1 up");
+				}
 			}
 		}
-
 
 		printf("WAN Connected\n");
 		start_ntp();
@@ -995,7 +1338,12 @@ void wan_disconnect(char *option)
 	int wan_type=0;
 	int Last_WAN_Mode=0;
 	FILE *fp;
-//	printf("WAN Disconnect option=%s\n", option);//Added for test
+	
+#ifdef CONFIG_IPV6
+	char strPID[10];
+	int pid=-1;
+#endif
+	//printf("WAN Disconnect option=%s\n", option);//Added for test
 
 	apmib_get( MIB_WAN_DHCP,(void *)&wan_type);
 
@@ -1233,20 +1581,83 @@ void wan_disconnect(char *option)
 	if(isFileExist(IGMPPROXY_PID_FILE)){
 		unlink(IGMPPROXY_PID_FILE);
 	}
-	RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,0", NULL_STR);
-//	printf("Last_WAN_Mode==%d\n", Last_WAN_Mode);//Added for test
+
+#ifdef CONFIG_IPV6
+	if(isFileExist(DHCP6S_PID_FILE)) {
+		pid=getPid_fromFile(DHCP6S_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);							
+		}
+		unlink(DHCP6S_PID_FILE);
+	}
+	
+	if(isFileExist(DHCP6C_PID_FILE)) {
+		pid=getPid_fromFile(DHCP6C_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-16", strPID, NULL_STR);/*inform dhcp server write lease table to file*/
+			sleep(1);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(DHCP6C_PID_FILE);
+	}
+		
+	if(isFileExist(DNSV6_PID_FILE)) {
+		pid=getPid_fromFile(DNSV6_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(DNSV6_PID_FILE);
+	}
+	
+	if(isFileExist(RADVD_PID_FILE)) {
+		pid=getPid_fromFile(RADVD_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(RADVD_PID_FILE);
+	}
+	
+	if(isFileExist(ECMH_PID_FILE)) {
+		pid=getPid_fromFile(ECMH_PID_FILE);
+		if(pid){
+			sprintf(strPID, "%d", pid);
+			RunSystemCmd(NULL_FILE, "kill", "-9", strPID, NULL_STR);						
+		}
+		unlink(ECMH_PID_FILE);
+	}	
+#endif
+
+#ifdef CONFIG_RTK_VOIP
+	RunSystemCmd(NULL_FILE, "killall", "-9", "fwupdate", NULL_STR);
+	if(isFileExist(FWUPDATE_PID_FILE)){
+		unlink(FWUPDATE_PID_FILE);
+	}
+#endif
+	RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,1", NULL_STR);
+	//printf("Last_WAN_Mode==%d\n", Last_WAN_Mode);//Added for test
 	if(!strcmp(option, "all"))
 		RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR); 
-
-	if(Last_WAN_Mode==PPPOE){
+	//if(Last_WAN_Mode==PPPOE)
+	if(1)
+	{
 		RunSystemCmd(NULL_FILE, "killall", "-15", "pppd", NULL_STR);
 	}else{
 		RunSystemCmd(NULL_FILE, "killall", "-9", "pppd", NULL_STR);
 	}
+	
+	if(wan_type==L2TP)
+	{
+		system("echo 0 >/proc/fast_l2tp");
+		system("echo 1 >/proc/fast_l2tp");
+	}
 	sleep(3);
 
 	if((wan_type!=L2TP)&&(Last_WAN_Mode==L2TP)){
-		RunSystemCmd(NULL_FILE, "killall", "-9", "l2tpd", NULL_STR);
+	RunSystemCmd(NULL_FILE, "killall", "-9", "l2tpd", NULL_STR);
 	}
 	RunSystemCmd(NULL_FILE, "killall", "-9", "pptp", NULL_STR);
 	RunSystemCmd(NULL_FILE, "killall", "-9", "pppoe", NULL_STR);
@@ -1281,7 +1692,8 @@ void wan_disconnect(char *option)
 	 	unlink(PPPLINKFILE);
 	}
 	/*in PPPOE and PPTP mode do this in pppd , not here !!*/
-	if(wan_type !=PPPOE || strcmp(option, "option")){
+	//if(wan_type !=PPPOE || strcmp(option, "option"))
+	{
 		if(isFileExist(PPP_CONNECT_FILE)){
 	 		unlink(PPP_CONNECT_FILE);
 		}
@@ -1299,16 +1711,293 @@ void wan_disconnect(char *option)
 	
 }
 
+#ifdef CONFIG_IPV6
+void checkDhcp6pd();
+void radvd_reconfig();
+void checkDnsv6();
+
+struct dhcp6_pd_t {		/* IA_PA */
+	uint32 pltime;
+	uint32 vltime;
+	uint16 addr6[8];
+	int plen;
+	uint8 flag;
+};
+
+struct dhcp6_pd_t dhcp6_pd;
+char dns_addr6[64];
+//note: set prefix/64 to br0 
+void checkDhcp6pd()
+{
+	FILE *fp=NULL;
+	uint32 pltime=0;
+	uint32 vltime=0;
+	char addr6[64]={0};
+	uint8	prefix[16]={0};
+	int plen=0;
+	//printf("%s:%d\n",__FUNCTION__,__LINE__);
+
+	if(access("/var/dhcp6pd_need_update",0)<0)
+		return;
+	//printf("%s:%d\n",__FUNCTION__,__LINE__);
+	fp=fopen(DHCP6PD_CONF_FILE, "r");
+	if(fp==NULL)
+		return;
+	//printf("%s:%d\n",__FUNCTION__,__LINE__);
+	fscanf(fp,"%s %d %u %u",addr6,&plen,&pltime,&vltime);
+	fclose(fp);
+	sscanf(addr6,"%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
+			&prefix[0],&prefix[1],&prefix[2],&prefix[3],
+			&prefix[4],&prefix[5],&prefix[6],&prefix[7],
+			&prefix[8],&prefix[9],&prefix[10],&prefix[11],
+			&prefix[12],&prefix[13],&prefix[14],&prefix[15]);
+		bzero(&dhcp6_pd,sizeof(dhcp6_pd));
+		memcpy(dhcp6_pd.addr6,prefix,16);
+		dhcp6_pd.plen=plen;
+		dhcp6_pd.pltime=pltime;
+		dhcp6_pd.vltime=vltime;
+		dhcp6_pd.flag=1;
+		//printf("%s:%d\n",__FUNCTION__,__LINE__);
+		radvd_reconfig();
+		system("rm /var/dhcp6pd_need_update");
+		//printf("%s:%d\n",__FUNCTION__,__LINE__);
+		return;
+}
+
+void checkDnsv6()
+{
+		dhcp6sCfgParam_t dhcp6sCfgParam;
+		char dns_server[64];
+		int pid=-1;
+		FILE *fp;
+		char prefix[64];
+		int flag=1;
+		char serverName[64]={0};
+
+		if(access("/var/dhcp6_dns_need_update",0)<0)
+			return;
+		if ( !apmib_get(MIB_IPV6_DHCPV6S_PARAM,(void *)&dhcp6sCfgParam)){
+			fprintf(stderr,"get MIB_IPV6_DHCPV6S_PARAM failed\n");
+			return;  
+		}
+
+		fp=fopen(DNSV6_ADDR_FILE,"r");
+		if(fp==NULL)
+			return;
+		memset(dns_server,0,64);
+		fscanf(fp,"%s %s",serverName,dns_server);
+		fclose(fp);
+		
+		
+		fp=fopen(DHCP6S_CONF_FILE,"w+");
+		if(fp==NULL)
+			return;
+		if(dhcp6sCfgParam.enabled){	
+			bzero(&dns_addr6,sizeof(dns_addr6));
+			strcpy(dns_addr6,dns_server);		
+			fprintf(fp, "option domain-name-servers %s;\n", dns_server);
+			fprintf(fp, "interface %s {\n", dhcp6sCfgParam.interfaceNameds);
+			fprintf(fp, "  address-pool pool1 3600;\n");
+			fprintf(fp, "};\n");
+			fprintf(fp, "pool pool1 {\n");
+			fprintf(fp, "  range %s to %s ;\n", dhcp6sCfgParam.addr6PoolS, dhcp6sCfgParam.addr6PoolE);
+			fprintf(fp, "};\n");	
+			flag=1;
+		}
+		else{
+			if(dhcp6_pd.flag){
+				strcpy(dns_addr6,dns_server);
+				fprintf(fp, "option domain-name-servers %s;\n", dns_server);
+				fprintf(fp, "interface br0 {\n");
+				fprintf(fp, "  address-pool pool1 3600;\n");
+				fprintf(fp, "};\n");
+				fprintf(fp, "pool pool1 {\n");
+				sprintf(dhcp6sCfgParam.addr6PoolS,"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+				dhcp6_pd.addr6[0],dhcp6_pd.addr6[1],
+				dhcp6_pd.addr6[2],dhcp6_pd.addr6[3],
+				dhcp6_pd.addr6[4],dhcp6_pd.addr6[5],
+				dhcp6_pd.addr6[6],dhcp6_pd.addr6[7]+1);
+				sprintf(dhcp6sCfgParam.addr6PoolE,"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+				dhcp6_pd.addr6[0],dhcp6_pd.addr6[1],
+				dhcp6_pd.addr6[2],dhcp6_pd.addr6[3],
+				dhcp6_pd.addr6[4],dhcp6_pd.addr6[5],
+				dhcp6_pd.addr6[6],dhcp6_pd.addr6[7]+254);			
+				fprintf(fp, "  range %s to %s ;\n", dhcp6sCfgParam.addr6PoolS, dhcp6sCfgParam.addr6PoolE);
+				fprintf(fp, "};\n");
+				flag=1;
+			}
+		}
+		fclose(fp);
+		
+		/*start daemon*/
+		if(flag){
+			if(isFileExist(DHCP6S_PID_FILE)) {
+				if ((fp = fopen(DHCP6S_PID_FILE, "r")) != NULL) {
+					fscanf(fp, "%d\n", &pid);
+					fclose(fp);
+					kill(pid,1);	/*sighup radvd to reload config file*/
+				}					
+			}
+			else{
+				system("dhcp6s br0 2> /dev/null");
+			}
+		}
+		//printf("%s:%d\n",__FUNCTION__,__LINE__);
+		system("rm /var/dhcp6_dns_need_update;");
+		return;
+}
+
+void radvd_reconfig()
+{
+		radvdCfgParam_t radvdCfgParam;
+		FILE *fp;
+		char tmpBuf[256];
+		unsigned short tmpNum[8];
+		int pid;
+		if ( !apmib_get(MIB_IPV6_RADVD_PARAM,(void *)&radvdCfgParam)){
+			fprintf(stderr,"get MIB_IPV6_RADVD_PARAM failed\n");
+			return;  
+		}
+
+		fp=fopen(RADVD_CONF_FILE,"w+");
+		if(fp==NULL){
+			fprintf(stderr, "Create %s file error!\n", RADVD_CONF_FILE);
+			return;
+		}
+		
+		if(radvdCfgParam.enabled){
+			fprintf(fp, "interface %s\n", radvdCfgParam.interface.Name);
+			fprintf(fp, "{\n");
+			fprintf(fp, "AdvSendAdvert on;\n");			
+			fprintf(fp, "MaxRtrAdvInterval %d;\n", radvdCfgParam.interface.MaxRtrAdvInterval);
+			fprintf(fp, "MinRtrAdvInterval %d;\n", radvdCfgParam.interface.MinRtrAdvInterval);
+			fprintf(fp, "MinDelayBetweenRAs %d;\n", radvdCfgParam.interface.MinDelayBetweenRAs);
+			if(radvdCfgParam.interface.AdvManagedFlag > 0) {
+				fprintf(fp, "AdvManagedFlag on;\n");					
+			}
+			if(radvdCfgParam.interface.AdvOtherConfigFlag > 0){
+				fprintf(fp, "AdvOtherConfigFlag on;\n");				
+			}
+			fprintf(fp, "AdvLinkMTU %d;\n", radvdCfgParam.interface.AdvLinkMTU);
+			fprintf(fp, "AdvReachableTime %u;\n", radvdCfgParam.interface.AdvReachableTime);
+			fprintf(fp, "AdvRetransTimer %u;\n", radvdCfgParam.interface.AdvRetransTimer);
+			fprintf(fp, "AdvCurHopLimit %d;\n", radvdCfgParam.interface.AdvCurHopLimit);
+			fprintf(fp, "AdvDefaultLifetime %d;\n", radvdCfgParam.interface.AdvDefaultLifetime);			
+			fprintf(fp, "AdvDefaultPreference %s;\n", radvdCfgParam.interface.AdvDefaultPreference);		
+			if(radvdCfgParam.interface.AdvSourceLLAddress > 0) {
+				fprintf(fp, "AdvSourceLLAddress on;\n");				
+			}		
+			if(radvdCfgParam.interface.UnicastOnly > 0){
+				fprintf(fp, "UnicastOnly on;\n");			
+			}
+
+			if(radvdCfgParam.interface.prefix[0].enabled > 0){
+				memcpy(tmpNum,radvdCfgParam.interface.prefix[0].Prefix, sizeof(radvdCfgParam.interface.prefix[0].Prefix));
+				sprintf(tmpBuf, "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", tmpNum[0], tmpNum[1], 
+					tmpNum[2], tmpNum[3], tmpNum[4], tmpNum[5],tmpNum[6],tmpNum[7]);
+				strcat(tmpBuf, "\0");
+				fprintf(fp, "prefix %s/%d\n", tmpBuf, radvdCfgParam.interface.prefix[0].PrefixLen);				
+				fprintf(fp, "{\n");				
+				if(radvdCfgParam.interface.prefix[0].AdvOnLinkFlag > 0){
+					fprintf(fp, "AdvOnLink on;\n");							
+				}
+				if(radvdCfgParam.interface.prefix[0].AdvAutonomousFlag > 0){
+					fprintf(fp, "AdvAutonomous on;\n");					
+				}
+				fprintf(fp, "AdvValidLifetime %u;\n", radvdCfgParam.interface.prefix[0].AdvValidLifetime);
+				fprintf(fp, "AdvPreferredLifetime %u;\n", radvdCfgParam.interface.prefix[0].AdvPreferredLifetime);
+				
+				if(radvdCfgParam.interface.prefix[0].AdvRouterAddr > 0){
+					fprintf(fp, "AdvRouterAddr on;\n");							
+				}
+				if(radvdCfgParam.interface.prefix[0].if6to4[0]){
+					fprintf(fp, "Base6to4Interface %s\n;", radvdCfgParam.interface.prefix[0].if6to4);									
+				}
+				fprintf(fp, "};\n");									
+			}
+
+			if(radvdCfgParam.interface.prefix[1].enabled > 0){
+				memcpy(tmpNum,radvdCfgParam.interface.prefix[1].Prefix, sizeof(radvdCfgParam.interface.prefix[1].Prefix));
+				sprintf(tmpBuf, "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", tmpNum[0], tmpNum[1], 
+					tmpNum[2], tmpNum[3], tmpNum[4], tmpNum[5],tmpNum[6],tmpNum[7]);
+				strcat(tmpBuf, "\0");
+				fprintf(fp, "prefix %s/%d\n", tmpBuf, radvdCfgParam.interface.prefix[1].PrefixLen);				
+				fprintf(fp, "{\n");				
+				if(radvdCfgParam.interface.prefix[1].AdvOnLinkFlag > 0){
+					fprintf(fp, "AdvOnLink on;\n");							
+				}
+				if(radvdCfgParam.interface.prefix[1].AdvAutonomousFlag > 0){
+					fprintf(fp, "AdvAutonomous on;\n");					
+				}
+				fprintf(fp, "AdvValidLifetime %u;\n", radvdCfgParam.interface.prefix[1].AdvValidLifetime);
+				fprintf(fp, "AdvPreferredLifetime %u;\n", radvdCfgParam.interface.prefix[1].AdvPreferredLifetime);
+				
+				if(radvdCfgParam.interface.prefix[1].AdvRouterAddr > 0){
+					fprintf(fp, "AdvRouterAddr on;\n");							
+				}
+				if(radvdCfgParam.interface.prefix[1].if6to4[0]){
+					fprintf(fp, "Base6to4Interface %s\n;", radvdCfgParam.interface.prefix[1].if6to4);									
+				}
+				fprintf(fp, "};\n");									
+			}			
+		}
+		else{
+			/*create radvd's configure file and set parameters to default value*/
+			fprintf(fp, "interface %s\n","br0");
+			fprintf(fp, "{\n");
+			fprintf(fp, "AdvSendAdvert on;\n");			
+			fprintf(fp, "MaxRtrAdvInterval 600;\n");
+			fprintf(fp, "MinRtrAdvInterval 198;\n");
+			fprintf(fp, "MinDelayBetweenRAs 3;\n");
+			fprintf(fp, "AdvLinkMTU 1500;\n");
+			fprintf(fp, "AdvCurHopLimit 64;\n");
+			fprintf(fp, "AdvDefaultLifetime 1800;\n");			
+			fprintf(fp, "AdvDefaultPreference medium;\n");			
+		}
+		/*add prefix information*/
+		sprintf(tmpBuf,"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x/%d",
+				dhcp6_pd.addr6[0],dhcp6_pd.addr6[1],
+				dhcp6_pd.addr6[2],dhcp6_pd.addr6[3],
+				dhcp6_pd.addr6[4],dhcp6_pd.addr6[5],
+				dhcp6_pd.addr6[6],dhcp6_pd.addr6[7],
+				64);
+		fprintf(fp, "prefix %s\n", tmpBuf);				
+		fprintf(fp, "{\n");	
+		fprintf(fp, "	AdvOnLink on;\n");	
+		fprintf(fp, "	AdvAutonomous on;\n");	
+		fprintf(fp, "	AdvValidLifetime %u;\n", dhcp6_pd.vltime);
+		fprintf(fp, "	AdvPreferredLifetime %u;\n", dhcp6_pd.pltime);
+		fprintf(fp, "	AdvRouterAddr on;\n");
+		fprintf(fp, "};\n");
+			
+		fprintf(fp, "};\n");
+		fclose(fp);
+		
+		if(isFileExist(RADVD_PID_FILE)){
+			if ((fp = fopen(RADVD_PID_FILE, "r")) != NULL) {
+				fscanf(fp, "%d\n", &pid);
+				fclose(fp);
+				kill(pid,1);	/*sighup radvd to reload config file*/
+			}		
+		} 
+		else{			
+			system("radvd -C /var/radvd.conf 2> /dev/null"); 						
+		}
+		
+		return;
+}
+#endif
 /*write dns server ip address to resolv.conf file and start dnrd
 * 
 */
 void start_dns_relay(void)
 {
 	char tmpBuff1[32]={0}, tmpBuff2[32]={0}, tmpBuff3[32]={0};
-	int intValue=0;
+	int intValue=0, cmd_cnt=0;
 	char line_buffer[100]={0};
 	char tmp1[32]={0}, tmp2[32]={0}, tmp3[32]={0};
 	char *strtmp=NULL;
+	char *cmd_opt[16];
 	
 	RunSystemCmd(NULL_FILE, "killall", "-9", "dnrd", NULL_STR);
 	apmib_get( MIB_DNS1,  (void *)tmpBuff1);
@@ -1321,42 +2010,219 @@ void start_dns_relay(void)
 		intValue++;
 	if (memcmp(tmpBuff3, "\x0\x0\x0\x0", 4))
 		intValue++;	
-			
+
+	cmd_opt[cmd_cnt++] = "dnrd";
+	cmd_opt[cmd_cnt++] = "--cache=off";
+		
+#ifdef TR181_SUPPORT
+		DNS_CLIENT_SERVER_T entry[2]={0};
+		int x, y=0;
+//		char interface[]="eth1";
+		
+	
+		for(x=0; x<6; x++)
+		{
+			y = x+1;
+			*((char*)entry)=(char)y;
+			if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+			{
+				printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+				return;
+			}
+			memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+			entry[1].index = x;
+			entry[1].enable =0;
+			entry[1].status = 0;
+//			strcpy(entry[1].alias, "");
+//			strcpy(entry[1].ipAddr, "");
+//			strcpy(entry[1].interface, "");
+//			entry[1].type = 0; //Unknown
+			if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+			{
+				printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+				return;
+			}
+		}
+#endif
+
 	if(intValue==1){
 		strtmp= inet_ntoa(*((struct in_addr *)tmpBuff1));
 		sprintf(tmp1,"%s",strtmp);
 		sprintf(line_buffer,"nameserver %s\n",strtmp);
+#ifdef TR181_SUPPORT
+		y = 4;
+		*((char*)entry)=(char)y;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+		entry[1].index = 3;
+		entry[1].enable = 1;
+		entry[1].status = 1;
+		strcpy(entry[1].ipAddr, strtmp);
+//		strcpy(entry[1].interface, interface);
+		entry[1].type = 5; //static
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+#endif
+		cmd_opt[cmd_cnt++] = "-s";
+		cmd_opt[cmd_cnt++] = tmp1;
 		write_line_to_file(RESOLV_CONF,1, line_buffer);
-		RunSystemCmd(NULL_FILE, "dnrd", "--cache=off", "-s", tmp1, NULL_STR);
-		
+//		RunSystemCmd(NULL_FILE, "dnrd", "--cache=off", "-s", tmp1, NULL_STR);
+		cmd_opt[cmd_cnt++]=0;
+		DoCmd(cmd_opt, NULL_FILE);	
 	}else if(intValue==2){
 		strtmp= inet_ntoa(*((struct in_addr *)tmpBuff1));
 		sprintf(tmp1,"%s",strtmp);
 		sprintf(line_buffer,"nameserver %s\n",strtmp);
+#ifdef TR181_SUPPORT
+		y = 4;
+		*((char*)entry)=(char)y;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+		entry[1].index = 3;
+		entry[1].enable = 1;
+		entry[1].status = 1;
+		strcpy(entry[1].ipAddr, strtmp);
+//		strcpy(entry[1].interface, interface);
+		entry[1].type = 5; //static
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+#endif
+		cmd_opt[cmd_cnt++] = "-s";
+		cmd_opt[cmd_cnt++] = tmp1;
 		write_line_to_file(RESOLV_CONF,1, line_buffer);
 		
 		strtmp= inet_ntoa(*((struct in_addr *)tmpBuff2));
 		sprintf(tmp2,"%s",strtmp);
 		sprintf(line_buffer,"nameserver %s\n", strtmp);
+#ifdef TR181_SUPPORT
+		y = 5;
+		*((char*)entry)=(char)y;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+		entry[1].index = 4;
+		entry[1].enable = 1;
+		entry[1].status = 1;
+		strcpy(entry[1].ipAddr, strtmp);
+//		strcpy(entry[1].interface, interface);
+		entry[1].type = 5; //static
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+#endif
+		cmd_opt[cmd_cnt++] = "-s";
+		cmd_opt[cmd_cnt++] = tmp2;
 		write_line_to_file(RESOLV_CONF,2, line_buffer);
-		RunSystemCmd(NULL_FILE, "dnrd", "--cache=off", "-s", tmp1, "-s", tmp2, NULL_STR);
+//		RunSystemCmd(NULL_FILE, "dnrd", "--cache=off", "-s", tmp1, "-s", tmp2, NULL_STR);
+		cmd_opt[cmd_cnt++]=0;
+		DoCmd(cmd_opt, NULL_FILE);
 	}else if(intValue==3){
 		strtmp= inet_ntoa(*((struct in_addr *)tmpBuff1));
 		sprintf(tmp1,"%s",strtmp);
 		sprintf(line_buffer,"nameserver %s\n",strtmp);
+#ifdef TR181_SUPPORT
+		y = 4;
+		*((char*)entry)=(char)y;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+		entry[1].index = 3;
+		entry[1].enable = 1;
+		entry[1].status = 1;
+		strcpy(entry[1].ipAddr, strtmp);
+//		strcpy(entry[1].interface, interface);
+		entry[1].type = 5; //static
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+#endif
+		cmd_opt[cmd_cnt++] = "-s";
+		cmd_opt[cmd_cnt++] = tmp1;
 		write_line_to_file(RESOLV_CONF,1, line_buffer);
 		
 		strtmp= inet_ntoa(*((struct in_addr *)tmpBuff2));
 		sprintf(tmp2,"%s",strtmp);
 		sprintf(line_buffer,"nameserver %s\n", strtmp);
+#ifdef TR181_SUPPORT
+		y = 5;
+		*((char*)entry)=(char)y;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+		entry[1].index = 4;
+		entry[1].enable = 1;
+		entry[1].status = 1;
+		strcpy(entry[1].ipAddr, strtmp);
+//		strcpy(entry[1].interface, interface);
+		entry[1].type = 5; //static
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+#endif
+		cmd_opt[cmd_cnt++] = "-s";
+		cmd_opt[cmd_cnt++] = tmp2;
 		write_line_to_file(RESOLV_CONF, 2, line_buffer);
 		
 		strtmp= inet_ntoa(*((struct in_addr *)tmpBuff3));
 		sprintf(tmp3,"%s",strtmp);
 		sprintf(line_buffer,"nameserver %s\n", strtmp);
+#ifdef TR181_SUPPORT
+		y = 6;
+		*((char*)entry)=(char)y;
+		if(apmib_get(MIB_DNS_CLIENT_SERVER_TBL,(void*)entry)==0)
+		{
+			printf("get MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+		memcpy(&(entry[1]), &(entry[0]), sizeof(DNS_CLIENT_SERVER_T));
+		entry[1].index = 5;
+		entry[1].enable = 1;
+		entry[1].status = 1;
+		strcpy(entry[1].ipAddr, strtmp);
+//		strcpy(entry[1].interface, interface);
+		entry[1].type = 5; //static
+		if(apmib_set(MIB_DNS_CLIENT_SERVER_MOD,(void*)entry)==0)
+		{
+			printf("set MIB_DNS_CLIENT_SERVER_TBL fail!\n");
+			return;
+		}
+#endif
+		cmd_opt[cmd_cnt++] = "-s";
+		cmd_opt[cmd_cnt++] = tmp3;
 		write_line_to_file(RESOLV_CONF, 2, line_buffer);
 		
-		RunSystemCmd(NULL_FILE, "dnrd", "--cache=off", "-s", tmp1, "-s", tmp2, "-s", tmp3, NULL_STR);
+//		RunSystemCmd(NULL_FILE, "dnrd", "--cache=off", "-s", tmp1, "-s", tmp2, "-s", tmp3, NULL_STR);
+		cmd_opt[cmd_cnt++]=0;
+		DoCmd(cmd_opt, NULL_FILE);
 	}else{
 		printf("Invalid DNS server setting\n");
 	}	
@@ -1439,7 +2305,7 @@ void start_ddns(void)
 }
 
 #define NTPTMP_FILE "/tmp/ntp_tmp"
-#define TZ_FILE "/var/TZ"
+
 void start_ntp(void)
 {
 	unsigned int ntp_onoff=0;
@@ -1447,16 +2313,11 @@ void start_ntp(void)
 
 	unsigned int ntp_server_id;
 	char	ntp_server[40];
-	unsigned int daylight_save = 1;
-	char daylight_save_str[5];
-	char time_zone[8];
-
-	char command[100], str_datnight[100];
-	unsigned char *str_tz1;
 	
 	apmib_get(MIB_NTP_ENABLED, (void *)&ntp_onoff);
 	RunSystemCmd(NULL_FILE, "rm", NTPTMP_FILE, NULL_STR);
-	RunSystemCmd(NULL_FILE, "rm", TZ_FILE, NULL_STR);
+	RunSystemCmd(NULL_FILE, "killall", "-9", "ntp_inet", "2>/dev/null", NULL_STR);	
+
 	if(ntp_onoff == 1)
 	{
 		RunSystemCmd(NULL_FILE, "echo", "Start NTP daemon", NULL_STR);
@@ -1469,88 +2330,8 @@ void start_ntp(void)
 			apmib_get( MIB_NTP_SERVER_IP2,  (void *)buffer);
 
 		sprintf(ntp_server, "%s", inet_ntoa(*((struct in_addr *)buffer)));
-
-		apmib_get( MIB_DAYLIGHT_SAVE,  (void *)&daylight_save);
-		memset(daylight_save_str, 0x00, sizeof(daylight_save_str));
-		sprintf(daylight_save_str,"%u",daylight_save);
-		
-		apmib_get( MIB_NTP_TIMEZONE,  (void *)&time_zone);
-
-		if(daylight_save == 0)
-			sprintf( str_datnight, "%s", "");
-		else if(strcmp(time_zone,"9 1") == 0)
-			sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
-		else if(strcmp(time_zone,"8 1") == 0)
-			sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
-		else if(strcmp(time_zone,"7 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
-               else if(strcmp(time_zone,"6 1") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
-               else if(strcmp(time_zone,"6 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
-               else if(strcmp(time_zone,"5 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
-               else if(strcmp(time_zone,"5 3") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M4.1.0/02:00:00,M10.5.0/02:00:00");
-               else if(strcmp(time_zone,"4 3") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M10.2.0/00:00:00,M3.2.0/00:00:00");
-               else if(strcmp(time_zone,"3 1") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M4.1.0/00:00:00,M10.5.0/00:00:00");
-               else if(strcmp(time_zone,"3 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M2.2.0/00:00:00,M10.2.0/00:00:00");
-               else if(strcmp(time_zone,"1 1") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/00:00:00,M10.5.0/01:00:00");
-               else if(strcmp(time_zone,"0 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/01:00:00,M10.5.0/02:00:00");
-               else if(strcmp(time_zone,"-1") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
-               else if(strcmp(time_zone,"-2 1") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
-               else if(strcmp(time_zone,"-2 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/03:00:00,M10.5.0/04:00:00");
-               else if(strcmp(time_zone,"-2 3") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M4.5.5/00:00:00,M9.5.5/00:00:00");
-               else if(strcmp(time_zone,"-2 5") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/03:00:00,M10.5.5/04:00:00");
-               else if(strcmp(time_zone,"-2 6") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.5/02:00:00,M10.1.0/02:00:00");
-               else if(strcmp(time_zone,"-3 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
-               else if(strcmp(time_zone,"-4 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/04:00:00,M10.5.0/05:00:00");
-               else if(strcmp(time_zone,"-9 4") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M10.5.0/02:00:00,M4.1.0/03:00:00");
-               else if(strcmp(time_zone,"-10 2") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M10.5.0/02:00:00,M4.1.0/03:00:00");
-               else if(strcmp(time_zone,"-10 4") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M10.1.0/02:00:00,M4.1.0/03:00:00");
-               else if(strcmp(time_zone,"-10 5") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.5.0/02:00:00,M10.5.0/03:00:00");
-               else if(strcmp(time_zone,"-12 1") == 0)
-                        sprintf( str_datnight, "%s", "PDT,M3.2.0/03:00:00,M10.1.0/02:00:00");
-               else
-                        sprintf( str_datnight, "%s", "");
-
-		str_tz1 = gettoken((unsigned char*)time_zone, 0, ' ');
-		
-		if(strcmp(time_zone,"3 1") == 0 ||
-			strcmp(time_zone,"-3 4") == 0 ||
-		 	strcmp(time_zone,"-4 3") == 0 ||
-		 	strcmp(time_zone,"-5 3") == 0 ||
-		 	strcmp(time_zone,"-9 4") == 0 ||
-		 	strcmp(time_zone,"-9 5") == 0
-		)
-		{
-                       sprintf( command, "GMT%s:30%s", str_tz1, str_datnight);
+		RunSystemCmd(NULL_FILE, "ntp_inet", "-x", ntp_server,NULL_STR);
 		}
-		else
-			sprintf( command, "GMT%s%s", str_tz1, str_datnight); 
-		
-		RunSystemCmd(NULL_FILE, "ntp_inet", "-x", ntp_server, command, daylight_save_str, NULL_STR);
-}
-
-
-
 }
 
 #if defined(ROUTE_SUPPORT)
@@ -1568,6 +2349,9 @@ void del_routing(void)
 			*((char *)&entry) = (char)i;
 			apmib_get(MIB_STATICROUTE_TBL, (void *)&entry);
 	
+			if(entry.metric < 0)				
+				continue;
+			
 			tmpStr = inet_ntoa(*((struct in_addr *)entry.dstAddr));
 			sprintf(ip, "%s", tmpStr);
 			tmpStr = inet_ntoa(*((struct in_addr *)entry.netmask));
@@ -1651,6 +2435,9 @@ void start_routing(char *interface)
 			*((char *)&entry) = (char)i;
 			apmib_get(MIB_STATICROUTE_TBL, (void *)&entry);
 	
+			if(entry.metric < 0)
+				continue;
+				
 			tmpStr = inet_ntoa(*((struct in_addr *)entry.dstAddr));
 			sprintf(ip, "%s", tmpStr);
 			tmpStr = inet_ntoa(*((struct in_addr *)entry.netmask));
@@ -1682,7 +2469,7 @@ void start_routing(char *interface)
 			unlink(IGMPPROXY_PID_FILE);
 		}
 		RunSystemCmd(NULL_FILE, "killall", "-9", "igmpproxy", NULL_STR);
-		RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,0", NULL_STR);
+		RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,1", NULL_STR);
 	}
 
 	if(rip_enabled)
@@ -1701,9 +2488,13 @@ void start_igmpproxy(char *wan_iface, char *lan_iface)
 	int intValue=0;
 	apmib_get(MIB_IGMP_PROXY_DISABLED, (void *)&intValue);
 	RunSystemCmd(NULL_FILE, "killall", "-9", "igmpproxy", NULL_STR);
-	RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,0", NULL_STR);
+	RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,1", NULL_STR);
 	if(intValue==0) {
+#ifdef SUPPORT_ZIONCOM_RUSSIA		
+		RunSystemCmd(NULL_FILE, "igmpproxy", "eth1", lan_iface, NULL_STR);
+#else
 		RunSystemCmd(NULL_FILE, "igmpproxy", wan_iface, lan_iface, NULL_STR);
+#endif
 		RunSystemCmd(PROC_IGMP_MAX_MEMBERS, "echo", "128", NULL_STR);
 		RunSystemCmd(PROC_BR_MCASTFASTFWD, "echo", "1,1", NULL_STR);
 	}
@@ -1733,17 +2524,49 @@ void start_wan_dhcp_client(char *iface)
 	system(cmdBuff);
 }
 void set_staticIP(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act_source)
-{
+{	
 	int intValue=0;
+#ifdef TR181_SUPPORT
+	int dnsEnable;
+#endif
 	char tmpBuff[200];
 	char tmp_args[16];
 	char Ip[32], Mask[32], Gateway[32];
+
+	int wan_type;
+	apmib_get( MIB_WAN_DHCP,  (void *)&wan_type);
+
+#ifdef TR181_SUPPORT
+	if ( !apmib_get(MIB_DNS_CLIENT_ENABLE,(void *)&dnsEnable)){
+			fprintf(stderr,"get MIB_DNS_CLIENT_ENABLE failed\n");
+			return;  
+	}
+#endif
 	
-	apmib_get( MIB_WAN_IP_ADDR,  (void *)tmpBuff);
+	if(wan_type==PPTP)
+		apmib_get( MIB_PPTP_IP_ADDR,  (void *)tmpBuff);
+	else if(wan_type==L2TP)
+		apmib_get( MIB_L2TP_IP_ADDR,  (void *)tmpBuff);	
+	else
+		apmib_get( MIB_WAN_IP_ADDR,  (void *)tmpBuff);
+	
 	sprintf(Ip, "%s", inet_ntoa(*((struct in_addr *)tmpBuff)));
-	apmib_get( MIB_WAN_SUBNET_MASK,  (void *)tmpBuff);
+
+	if(wan_type==PPTP)
+		apmib_get( MIB_PPTP_SUBNET_MASK,  (void *)tmpBuff);
+	else if(wan_type==L2TP)
+		apmib_get( MIB_L2TP_SUBNET_MASK,  (void *)tmpBuff);
+	else
+		apmib_get( MIB_WAN_SUBNET_MASK,  (void *)tmpBuff);
+	
 	sprintf(Mask, "%s", inet_ntoa(*((struct in_addr *)tmpBuff)));
-	apmib_get(MIB_WAN_DEFAULT_GATEWAY,  (void *)tmpBuff);
+
+	if(wan_type==PPTP)
+		apmib_get(MIB_PPTP_DEFAULT_GW,  (void *)tmpBuff);
+	else if(wan_type==L2TP)
+		apmib_get(MIB_L2TP_DEFAULT_GW,  (void *)tmpBuff);
+	else
+		apmib_get(MIB_WAN_DEFAULT_GATEWAY,  (void *)tmpBuff);
 				
 	if (!memcmp(tmpBuff, "\x0\x0\x0\x0", 4))
 		memset(Gateway, 0x00, 32);
@@ -1752,33 +2575,43 @@ void set_staticIP(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int
 			
 	RunSystemCmd(NULL_FILE, "ifconfig", wan_iface, Ip, "netmask", Mask, NULL_STR);
 		
-	if(Gateway[0]){
+	if(Gateway[0])
+	{
 		RunSystemCmd(NULL_FILE, "route", "del", "default", wan_iface, NULL_STR);
 		RunSystemCmd(NULL_FILE, "route", "add", "-net", "default", "gw", Gateway, "dev", wan_iface, NULL_STR);
-	}	
+	}
+	
+	if(wan_type!=PPTP && wan_type!=L2TP)
+	{
 		apmib_get(MIB_FIXED_IP_MTU_SIZE, (void *)&intValue);
 		sprintf(tmp_args, "%d", intValue);
 		RunSystemCmd(NULL_FILE, "ifconfig", wan_iface, "mtu", tmp_args, NULL_STR);
-		//RunSystemCmd(NULL_FILE, "killall", "-9", "dnrd", NULL_STR);
+	}
+#ifdef TR181_SUPPORT
+	if(dnsEnable==1)
+#endif
 		start_dns_relay();
-		start_upnp_igd(DHCP_DISABLED, sys_op, wisp_id, lan_iface);
-		setFirewallIptablesRules(0, NULL);
-		
-		start_ntp();
-		start_ddns();
-		start_igmpproxy(wan_iface, lan_iface);
+
+	if(wan_type==PPTP || wan_type==L2TP)
+		return ;
+	
+	start_upnp_igd(DHCP_DISABLED, sys_op, wisp_id, lan_iface);	
+	setFirewallIptablesRules(0, NULL);
+	
+	start_ntp();
+	start_ddns();
+	start_igmpproxy(wan_iface, lan_iface);
+	
 #if defined(ROUTE_SUPPORT)
 		del_routing();
 		start_routing(wan_iface);
 #endif
-
 #ifdef SEND_GRATUITOUS_ARP
 		//char tmpBuf[128];
 		snprintf(tmpBuff, 128, "%s/%s %s", _CONFIG_SCRIPT_PATH, _FIREWALL_SCRIPT_PROG, "Send_GARP"); 	
 		//printf("CMD is : %s \n", tmpBuff);
 		system(tmpBuff);
 #endif
-
 }
 void set_dhcp_client(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act_source)
 {
@@ -1833,7 +2666,8 @@ void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int ac
 	PSubNet = fopen("/etc/ppp/SubInfos","w+");
 	
 	fprintf(pAC,"%d\n",connnect_num);
-	fprintf(PSubNet,"%d\n",connnect_num);			
+	fprintf(PSubNet,"%d\n",connnect_num);	
+	
 	for(index = 0 ; index < connnect_num ; ++index)
 	{
 		if(0 == index)
@@ -1863,6 +2697,7 @@ void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int ac
 	close(pAC);
 	close(PSubNet);
 #endif
+
 	RunSystemCmd(NULL_FILE, "ifconfig", wan_iface, "0.0.0.0", NULL_STR);
 //	RunSystemCmd(NULL_FILE, "route", "del", "default", "gw", "0.0.0.0", NULL_STR);
 //	cmdRet = RunSystemCmd(NULL_FILE, "flash", "gen-pppoe", PPP_OPTIONS_FILE, PPP_PAP_FILE, PPP_CHAP_FILE,NULL_STR);
@@ -1954,7 +2789,7 @@ void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int ac
 				write_line_to_file(pppoe_file_list[index][2],2, line_buffer);
 				sprintf(line_buffer,"idle %d\n", idle_time);
 				write_line_to_file(pppoe_file_list[index][2],2, line_buffer);
-			}else if(connect_type==2 && act_source==1) //manual mode we do not dial up from init.sh
+			}else if(connect_type==2 && act_source==1 ) //manual mode we do not dial up from init.sh
 					return;				
 		}
 		
@@ -1997,6 +2832,13 @@ void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int ac
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 		sprintf(line_buffer,"%s\n", "holdoff 10");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+#ifdef CONFIG_IPV6
+		apmib_get(MIB_IPV6_WAN_ENABLE, (void *)&intValue);
+		if(intValue){
+			sprintf(line_buffer,"%s\n", "+ipv6");
+			write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+		}
+#endif
 		apmib_get( MIB_PPP_SERVICE_NAME,  (void *)tmp_args);
 		if(tmp_args[0]){
 			//sprintf(line_buffer,"plugin /etc/ppp/plubins/libplugin.a rp_pppoe_ac 62031090091393-Seednet_240_58 rp_pppoe_service %s %s\n",tmp_args, wan_iface);
@@ -2046,6 +2888,23 @@ void set_pppoe(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int ac
 		RunSystemCmd(NULL_FILE, "ppp_inet", "-t", tmp_args,  "-c", tmp_args1, "-x", NULL_STR);
 		start_upnp_igd(PPPOE, sys_op, wisp_id, lan_iface);
 }
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+void addOneRoute(struct in_addr *l2tp_server)
+{
+	FILE *fp=NULL;
+	if((fp=fopen("/var/dhcpc_route.conf", "r+"))==NULL)
+		return;
+	
+	unsigned char routebuf[16];
+	unsigned char cmdbuf[128];
+	
+	fscanf(fp, "%s", routebuf);
+	fclose(fp);
+	
+	sprintf(cmdbuf, "route add -host %s gw %s dev eth1", inet_ntoa(*l2tp_server), routebuf);
+	system(cmdbuf);
+}
+#endif
 void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act_source)
 {
 	int intValue=0, intValue1=0, cmdRet=-1;
@@ -2072,6 +2931,9 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	apmib_get(MIB_PPTP_DEFAULT_GW,  (void *)tmp_args);
 	strtmp= inet_ntoa(*((struct in_addr *)tmp_args));
 	sprintf(pptpDefGw, "%s", strtmp);
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	write_line_to_file("/var/dhcpc_route.conf", 1, strtmp);
+#endif
 #else
 	apmib_get(MIB_PPTP_SERVER_IP_ADDR,  (void *)tmp_args);
 	strtmp= inet_ntoa(*((struct in_addr *)tmp_args));
@@ -2105,6 +2967,12 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		}
 	} //end for pptp use static wan ip
 #endif
+	
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	struct in_addr saddr;
+	apmib_get(MIB_PPTP_SERVER_IP_ADDR,  (void *)&saddr);
+	addOneRoute(&saddr);
+#endif
 	cmdRet = RunSystemCmd(NULL_FILE, "flash", "gen-pptp", PPP_OPTIONS_FILE1, PPP_PAP_FILE1, PPP_CHAP_FILE1,NULL_STR);
 	
 	if(cmdRet==0){
@@ -2113,6 +2981,14 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		
 		sprintf(line_buffer,"%s\n", "noauth");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+
+		/*align the pptp packet*/
+		sprintf(line_buffer,"%s\n", "nopcomp");
+		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+		
+		sprintf(line_buffer,"%s\n", "noaccomp");
+		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);		
+		/***************************************************/
 		
 		sprintf(line_buffer,"%s\n", "nobsdcomp");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
@@ -2121,14 +2997,14 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 		
 		sprintf(line_buffer,"%s\n", "usepeerdns");
-		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-		
+		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);		
+#ifndef SUPPORT_ZIONCOM_RUSSIA
 		sprintf(line_buffer,"%s\n", "lcp-echo-interval 20");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 		
 		sprintf(line_buffer,"%s\n", "lcp-echo-failure 3");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-		
+#endif		
 		sprintf(line_buffer,"%s\n", "wantype 4");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 		
@@ -2206,6 +3082,9 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		
 		apmib_get(MIB_PPTP_CONNECTION_TYPE, (void *)&connect_type);
 		if(connect_type==1){
+
+			RunSystemCmd(NULL_FILE, "route", "del", "default", NULL_STR);
+			RunSystemCmd(NULL_FILE, "route", "add", "default", "gw", "10.112.112.112", wan_iface, NULL_STR);
 			
 			sprintf(line_buffer,"%s\n", "persist");
 			write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
@@ -2254,8 +3133,15 @@ void set_pptp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		if(isFileExist(PPP_FILE)){
 			unlink(PPP_FILE);
 		} 
+		RunSystemCmd(NULL_FILE, "killall", "pptp", NULL_STR);
+		RunSystemCmd(NULL_FILE, "killall", "ppp_inet", NULL_STR);		
+		sleep(2);
 		sprintf(tmp_args, "%s", "4");/*wan type*/
 		sprintf(tmp_args1, "%d", connect_type);/*connect type*/
+#if 0//def SUPPORT_ZIONCOM_RUSSIA
+		RunSystemCmd(NULL_FILE, "killall", "-9", "ppp_inet", NULL_STR);
+		sleep(2);
+#endif
 		RunSystemCmd(NULL_FILE, "ppp_inet", "-t", tmp_args,  "-c", tmp_args1, "-x", NULL_STR);
 	}
 	start_upnp_igd(PPTP, sys_op, wisp_id, lan_iface);
@@ -2290,6 +3176,9 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	apmib_get(MIB_L2TP_DEFAULT_GW,  (void *)tmp_args);
 	strtmp= inet_ntoa(*((struct in_addr *)tmp_args));
 	sprintf(l2tpDefGw, "%s", strtmp);
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	write_line_to_file("/var/dhcpc_route.conf", 1, strtmp);
+#endif
 #else
 	apmib_get(MIB_L2TP_SERVER_IP_ADDR,  (void *)tmp_args);
 	strtmp= inet_ntoa(*((struct in_addr *)tmp_args));
@@ -2321,6 +3210,12 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 			RunSystemCmd(NULL_FILE, "route", "add", "-net", netIp, "netmask", Mask,"gw", l2tpDefGw,NULL_STR);
 		}
 	} // end for l2tp static ip
+#endif	
+
+#ifdef SUPPORT_ZIONCOM_RUSSIA
+	struct in_addr saddr;
+	apmib_get(MIB_L2TP_SERVER_IP_ADDR,  (void *)&saddr);
+	addOneRoute(&saddr);
 #endif
 
 #if defined(RTL_L2TP_POWEROFF_PATCH)    //patch for l2tp by jiawenjan
@@ -2380,8 +3275,13 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 	sprintf(line_buffer,"%s\n", "usepeerdns");
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
-	sprintf(line_buffer,"%s\n", "lcp-echo-interval 0");
-	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+	
+    sprintf(line_buffer,"%s\n", "lcp-echo-interval 20");
+    write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+ 
+    sprintf(line_buffer,"%s\n", "lcp-echo-failure 3");
+    write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
+
 	sprintf(line_buffer,"%s\n", "wantype 6");
 	write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
 	
@@ -2460,6 +3360,7 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	write_line_to_file(L2TPCONF, 2, line_buffer);
 
 	RunSystemCmd(NULL_FILE, "killall", "l2tpd", NULL_STR);
+	RunSystemCmd(NULL_FILE, "killall", "ppp_inet", NULL_STR);
 	sleep(1);
 	//RunSystemCmd(NULL_FILE, "l2tpd", NULL_STR);	
 	system("l2tpd&");
@@ -2467,6 +3368,9 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 	
 	apmib_get(MIB_L2TP_CONNECTION_TYPE, (void *)&connect_type);
 	if(connect_type==1){
+
+		RunSystemCmd(NULL_FILE, "route", "del", "default", NULL_STR);
+		RunSystemCmd(NULL_FILE, "route", "add", "default", "gw", "10.112.112.112", wan_iface, NULL_STR);
 			
 		sprintf(line_buffer,"%s\n", "connect /etc/ppp/true");
 		write_line_to_file(PPP_OPTIONS_FILE1,2, line_buffer);
@@ -2497,6 +3401,43 @@ void set_l2tp(int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act
 		RunSystemCmd(NULL_FILE, "ppp_inet", "-t", tmp_args,  "-c", tmp_args1, "-x", NULL_STR);
 		start_upnp_igd(L2TP, sys_op, wisp_id, lan_iface);
 }
+void domain2ip(int wan_type)
+{	
+	unsigned char server_domain[32];
+	struct in_addr server_ip;
+	int enable_server_domain=0;
+
+	if(wan_type!=PPTP && wan_type!=L2TP)
+		return;
+	
+	if(wan_type==PPTP)
+		apmib_get(MIB_PPTP_GET_SERV_BY_DOMAIN,(void*)&enable_server_domain);
+	else if(wan_type==L2TP)
+		apmib_get(MIB_L2TP_GET_SERV_BY_DOMAIN,(void*)&enable_server_domain);
+	
+	if(enable_server_domain)
+	{	
+		if(wan_type==PPTP)
+			apmib_get(MIB_PPTP_SERVER_DOMAIN, server_domain);
+		else if(wan_type==L2TP)
+			apmib_get(MIB_L2TP_SERVER_DOMAIN, server_domain);
+		
+		if(translate_domain_to_ip(server_domain, &server_ip) == 0)
+		{			
+			if(wan_type==PPTP)
+				apmib_set(MIB_PPTP_SERVER_IP_ADDR, (void *)&server_ip);
+			else if(wan_type==L2TP)
+				apmib_set(MIB_L2TP_SERVER_IP_ADDR, (void *)&server_ip);
+			
+			apmib_update(CURRENT_SETTING);
+		}
+		else
+		{
+			printf("can't get ServerDomain:%s 's IP",server_domain);
+			return 0;
+		}
+	}
+}
 int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wisp_id, int act_source)
 {
 	int lan_type=0;
@@ -2512,34 +3453,6 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 	else if(wan_mode == DHCP_CLIENT)
 		set_dhcp_client(sys_op, wan_iface, lan_iface, wisp_id, act_source);
 	else if(wan_mode == PPPOE){
-
-		
-#if defined(PPPOE_DISC_FLOW_PATCH)
-		int sessid = 0;
-		char cmdBuf[50],tmpBuff[30];
-		int ppp_flag = 0;
-		memset(tmpBuff,0, sizeof(tmpBuff));
-		apmib_get(MIB_PPP_SESSION_NUM, (void *)&sessid);
-		apmib_get(MIB_PPP_SERVER_MAC,  (void *)tmpBuff);
-		apmib_get(MIB_PPP_NORMAL_FINISH,  (void *)&ppp_flag);	
-		if(!ppp_flag) //1:nomal	0:abnormal
-		{
-			if(memcmp(tmpBuff, "\x00\x00\x00\x00\x00\x00", MAC_ADDR_LEN))
-			{
-				sprintf(cmdBuf,"flash clearppp %d %02x%02x%02x%02x%02x%02x",
-					sessid,(unsigned char)tmpBuff[0],(unsigned char)tmpBuff[1],(unsigned char)tmpBuff[2],(unsigned char)tmpBuff[3],(unsigned char)tmpBuff[4],(unsigned char)tmpBuff[5]);
-				system(cmdBuf);
-				sessid = 0;
-				memset(tmpBuff,0,sizeof(tmpBuff));
-				apmib_set(MIB_PPP_SESSION_NUM, (void *)&sessid);
-				apmib_set(MIB_PPP_SERVER_MAC, (void *)tmpBuff); 								
-			}
-		}		
-		//system("flash set PPP_NORMAL_FINISH 0");		
-		ppp_flag = 0 ;
-		apmib_set(MIB_PPP_NORMAL_FINISH, (void *)&ppp_flag);		
-		apmib_update(CURRENT_SETTING);
-#else
 		int sessid = 0;
 		char cmdBuf[50],tmpBuff[30];
 		memset(tmpBuff,0, sizeof(tmpBuff));
@@ -2549,13 +3462,27 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 		sprintf(cmdBuf,"flash clearppp %d %02x%02x%02x%02x%02x%02x",sessid,(unsigned char)tmpBuff[0],(unsigned char)tmpBuff[1],(unsigned char)tmpBuff[2],(unsigned char)tmpBuff[3],(unsigned char)tmpBuff[4],(unsigned char)tmpBuff[5]);
 		system(cmdBuf);
 		sleep(2);	// Wait util pppoe server reply PADT, then start pppoe dialing, otherwise pppoe server will reply PADS with PPPoE tags: Generic-Error.
-#endif
 		
+		//RunSystemCmd(NULL_FILE, "pppoe.sh", "all", wan_iface, NULL_STR);
+		system("ifconfig eth5 up");
+
+		//vid 50
+		//system("echo 1 0 1 1 50 1 0 > /proc/eth1/mib_vlan_info");
+		//system("echo 1 1 1 0 50 1 0 > /proc/eth2/mib_vlan_info");
+		//vid 51
+		//system("echo 1 0 1 1 51 1 0 > /proc/eth5/mib_vlan_info");
+		//system("echo 1 1 1 0 51 1 0 > /proc/eth3/mib_vlan_info");
+		
+		//wan_iface = "eth1";		
 		set_pppoe(sys_op, wan_iface, lan_iface, wisp_id, act_source);
 	}else if(wan_mode == PPTP){
 #if defined(CONFIG_DYNAMIC_WAN_IP)
 		apmib_get(MIB_PPTP_WAN_IP_DYNAMIC, (void *)&pptp_wanip_dynamic);
 		if(pptp_wanip_dynamic==STATIC_IP){
+			set_staticIP(sys_op, wan_iface, lan_iface, wisp_id, act_source);
+#if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)	
+			domain2ip(wan_mode);
+#endif
 			set_pptp(sys_op, wan_iface, lan_iface, wisp_id, act_source);
 		}else{
 			RunSystemCmd(TEMP_WAN_CHECK, "echo", "dhcpc", NULL_STR);
@@ -2573,6 +3500,10 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 #if defined(CONFIG_DYNAMIC_WAN_IP)
 		apmib_get(MIB_L2TP_WAN_IP_DYNAMIC, (void *)&l2tp_wanip_dynamic);
 		if(l2tp_wanip_dynamic==STATIC_IP){
+			set_staticIP(sys_op, wan_iface, lan_iface, wisp_id, act_source);			
+#if defined(CONFIG_GET_SERVER_IP_BY_DOMAIN)	
+			domain2ip(wan_mode);
+#endif
 			set_l2tp(sys_op, wan_iface, lan_iface, wisp_id, act_source);
 		}else{
 			RunSystemCmd(TEMP_WAN_CHECK, "echo", "dhcpc", NULL_STR);	
@@ -2593,66 +3524,5 @@ int start_wan(int wan_mode, int sys_op, char *wan_iface, char *lan_iface, int wi
 	}
 	return 0;
 }
-///***************************************
-// to decide whether should reconn dhcp
-//***************************************/
-int wan_dhcpcNeedRenewConn(char *interface, char *option)
-{
-	struct in_addr ipAddr={0},netmask={0},router={0};
-	char new_ipAddr[32]={0},new_netmask[32]={0},new_router[32]={0};
-	char buf[256]={0};
-	char strDns1[64]={0};
-	char strDns2[64]={0};
-	char strDns3[64]={0};
-	int dns_mode=0;
-	if(!getInAddr(interface, IP_ADDR_T, (void *)&ipAddr))
-		return 1;
-	if(!getInAddr(interface, NET_MASK_T, (void *)&netmask))
-		return 1;
-	if(!getDefaultRoute(interface,&router))
-		return 1;
-	if(!getDataFormFile(RESOLV_CONF,"nameserver",&strDns1,1))
-		return 1;
 
-	sprintf(buf,"%s %s",interface,inet_ntoa(ipAddr));
-	
-	strcat(buf," ");
-	strcat(buf,inet_ntoa(netmask));
-
-	strcat(buf," ");
-	strcat(buf,inet_ntoa(router));
-
-	apmib_get( MIB_DNS_MODE, (void *)&dns_mode);
-	if(!dns_mode)
-	{//dns auto
-		strcat(buf," ");
-		strcat(buf,strDns1);
-		
-		if(getDataFormFile(RESOLV_CONF,"nameserver",&strDns2,2))
-		{
-			strcat(buf," ");
-			strcat(buf,strDns2);
-		}
-		if(getDataFormFile(RESOLV_CONF,"nameserver",&strDns3,3))
-		{
-			strcat(buf," ");
-			strcat(buf,strDns3);
-		}
-	}
-	//for dns manual, not compare dns
-//	printf("%s:%dbuf=%s option=%s\n",__FUNCTION__,__LINE__,buf,option);
-	if(!strncmp(option,buf,strlen(buf)))
-		return 0;
-	else
-		return 1;
-}
- 
- 
- 
- 
- 
- 
- 
- 
- 
  

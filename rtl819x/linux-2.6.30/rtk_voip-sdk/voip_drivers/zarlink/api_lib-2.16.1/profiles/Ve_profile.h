@@ -8,7 +8,7 @@
 //#include "Le890NB_HV.h"
 #include "Le890NB_LVHV.h"
 #ifdef CONFIG_RTK_VOIP_SLIC_ZARLINK_890_SERIES_WIDEBAND
-#ifdef CONFIG_BOARD_011
+#ifdef CONFIG_BOARD_LE89156
 #include "Le89156_100V_IB_Profile.h"
 #endif
 #include "Le890WB_HV.h"
@@ -37,7 +37,7 @@
 /*  LE 890 series profile                       */
 /* ******************************************** */ 
 #ifdef CONFIG_RTK_VOIP_SLIC_ZARLINK_890_SERIES
-#ifndef CONFIG_BOARD_011
+#ifndef CONFIG_BOARD_LE89156
 #define DEF_LE890_DEV_PROFILE_HV		LE890_DEV_PROFILE_Buck_Boost_HV
 #define DEF_LE890_DEV_PROFILE_LV 		LE890_DEV_PROFILE_Buck_Boost_LV
 /* FXS */

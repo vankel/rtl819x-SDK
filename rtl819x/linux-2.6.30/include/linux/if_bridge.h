@@ -57,6 +57,8 @@
 
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
 #define BRCTL_SET_IGMPPROXY_PID 200
+#define BRCTL_REGISTER_IGMPSNOOPING_MODULE 201
+
 #endif
 
 struct __bridge_info

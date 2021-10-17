@@ -1,0 +1,13 @@
+--- user/diagshell/Makefile	2012-05-11 10:57:41.466613734 +0800
++++ user/diagshell/Makefile_diag_new	2012-05-11 11:10:47.105611453 +0800
+@@ -15,6 +15,10 @@
+ 	$(MAKE) -C $(APOLLO_SDK_PATH)/unittest
+ 	$(MAKE) -C $(APOLLO_SDK_PATH)/src/app
+ 
++diag:
++	$(MAKE) -C $(APOLLO_SDK_PATH)/src
++	$(MAKE) -C $(APOLLO_SDK_PATH)/unittest
++	$(MAKE) -C $(APOLLO_SDK_PATH)/src/app
+ 
+ 
+ clean:

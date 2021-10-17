@@ -247,7 +247,7 @@ pptpconn_write_proc:
 	bne	$2,$0,$L15
 	move	$4,$sp
 #APP
- # 781 "net/rtl/fastpath/fast_pptp_core.c" 1
+ # 794 "net/rtl/fastpath/fast_pptp_core.c" 1
 	.set	noreorder
 	jal	__copy_user
 	.set	noat
@@ -362,7 +362,7 @@ $L21 = .
 	move	$4,$16
 	move	$6,$17
 #APP
- # 807 "net/rtl/fastpath/fast_pptp_core.c" 1
+ # 820 "net/rtl/fastpath/fast_pptp_core.c" 1
 	.set	noreorder
 	jal	__copy_user
 	.set	noat
@@ -620,7 +620,7 @@ sync_tx_pptp_gre_seqno:
 	.set	reorder
 
 #APP
- # 685 "net/rtl/fastpath/fast_pptp_core.c" 1
+ # 698 "net/rtl/fastpath/fast_pptp_core.c" 1
 	raw_local_irq_save	$17
  # 0 "" 2
 #NO_APP
@@ -807,7 +807,7 @@ $L45:
 
 	move	$2,$3
 #APP
- # 83 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
+ # 83 "/home/winfred_wang/trunk_code/sdk3.4.6/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
 		.set	push		# csum_fold
 	.set	noat		
 	sll	$1, $2, 16	
@@ -822,7 +822,7 @@ $L45:
 	sh	$2,10($16)
 $L40:
 #APP
- # 134 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/irqflags.h" 1
+ # 134 "/home/winfred_wang/trunk_code/sdk3.4.6/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/irqflags.h" 1
 	raw_local_irq_restore	$17
  # 0 "" 2
 #NO_APP
@@ -921,7 +921,7 @@ is_pptp_device:
 
 	jal	rtl_get_ppp_dev_name
 #APP
- # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home/winfred_wang/trunk_code/sdk3.4.6/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$3,($2)
@@ -1019,7 +1019,7 @@ fast_pptp_to_wan:
 	li	$2,16384			# 0x4000
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L68
+	bne	$3,$2,$L71
 	lui	$16,%hi(pptpAccInfo)
 	.set	macro
 	.set	reorder
@@ -1030,19 +1030,19 @@ fast_pptp_to_wan:
 	.set	noreorder
 	.set	nomacro
 	beq	$3,$2,$L62
-	move	$3,$0
+	move	$2,$0
 	.set	macro
 	.set	reorder
 
 $L58:
 	lui	$16,%hi(pptpAccInfo)
-$L68:
+$L71:
 	addiu	$16,$16,%lo(pptpAccInfo)
 	lw	$4,56($16)
 	.set	noreorder
 	.set	nomacro
 	beq	$4,$0,$L62
-	move	$3,$0
+	move	$2,$0
 	.set	macro
 	.set	reorder
 
@@ -1050,7 +1050,7 @@ $L68:
 	.set	noreorder
 	.set	nomacro
 	beq	$2,$0,$L62
-	move	$3,$0
+	move	$2,$0
 	.set	macro
 	.set	reorder
 
@@ -1059,7 +1059,7 @@ $L68:
 	lui	$3,%hi($LC3)
 	addiu	$4,$3,%lo($LC3)
 #APP
- # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home/winfred_wang/trunk_code/sdk3.4.6/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$3,($2)
@@ -1075,17 +1075,23 @@ $L68:
 	.set	reorder
  # 0 "" 2
 #NO_APP
-	bne	$3,$0,$L59
+	.set	noreorder
+	.set	nomacro
+	bne	$3,$0,$L62
+	move	$2,$0
+	.set	macro
+	.set	reorder
+
 	lw	$2,4($16)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L69
+	beq	$2,$0,$L72
 	lui	$2,%hi(pptpAccInfo+56)
 	.set	macro
 	.set	reorder
 
 	lw	$4,56($16)
-	beq	$4,$0,$L69
+	beq	$4,$0,$L72
 	jal	rtl_get_ppp_dev_priv
 	.set	noreorder
 	.set	nomacro
@@ -1108,7 +1114,7 @@ $L68:
 	.set	noreorder
 	.set	nomacro
 	beq	$2,$3,$L62
-	move	$3,$0
+	move	$2,$0
 	.set	macro
 	.set	reorder
 
@@ -1122,6 +1128,13 @@ $L68:
 	lbu	$19,1($2)
 	.set	noreorder
 	.set	nomacro
+	jal	rtl_ppp_xmit_lock
+	move	$4,$17
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
 	jal	rtl_get_ppp_xmit_pending
 	move	$4,$17
 	.set	macro
@@ -1129,11 +1142,26 @@ $L68:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L59
+	beq	$2,$0,$L61
 	lui	$5,%hi($LC4)
 	.set	macro
 	.set	reorder
 
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_ppp_xmit_unlock
+	move	$4,$17
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	j	$L62
+	move	$2,$0
+	.set	macro
+	.set	reorder
+
+$L61:
 	li	$6,3			# 0x3
 	move	$4,$18
 	.set	noreorder
@@ -1158,13 +1186,22 @@ $L68:
 	.set	macro
 	.set	reorder
 
+	bne	$2,$0,$L63
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L62
-	li	$3,1			# 0x1
+	jal	rtl_ppp_xmit_unlock
+	move	$4,$17
 	.set	macro
 	.set	reorder
 
+	.set	noreorder
+	.set	nomacro
+	j	$L62
+	li	$2,1			# 0x1
+	.set	macro
+	.set	reorder
+
+$L63:
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_get_ppp_xmit_pending
@@ -1172,12 +1209,19 @@ $L68:
 	.set	macro
 	.set	reorder
 
-	move	$4,$17
 	move	$5,$0
+	move	$4,$17
 	.set	noreorder
 	.set	nomacro
 	jal	rtl_set_ppp_xmit_pending
 	move	$16,$2
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_ppp_xmit_unlock
+	move	$4,$17
 	.set	macro
 	.set	reorder
 
@@ -1191,7 +1235,7 @@ $L68:
 	sltu	$2,$2,50
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L70
+	bne	$2,$0,$L73
 	move	$4,$16
 	.set	macro
 	.set	reorder
@@ -1205,7 +1249,7 @@ $L68:
 
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L70
+	bne	$2,$0,$L73
 	move	$4,$16
 	.set	macro
 	.set	reorder
@@ -1219,13 +1263,13 @@ $L68:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L71
+	beq	$2,$0,$L74
 	li	$5,50			# 0x32
 	.set	macro
 	.set	reorder
 
 	move	$4,$16
-$L70:
+$L73:
 	.set	noreorder
 	.set	nomacro
 	jal	skb_realloc_headroom
@@ -1235,11 +1279,26 @@ $L70:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L59
+	bne	$2,$0,$L66
 	move	$4,$16
 	.set	macro
 	.set	reorder
 
+	.set	noreorder
+	.set	nomacro
+	jal	consume_skb
+	move	$4,$16
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	j	$L62
+	li	$2,1			# 0x1
+	.set	macro
+	.set	reorder
+
+$L66:
 	.set	noreorder
 	.set	nomacro
 	jal	consume_skb
@@ -1250,7 +1309,7 @@ $L70:
 	lw	$2,56($sp)
 	move	$16,$2
 	li	$5,50			# 0x32
-$L71:
+$L74:
 	.set	noreorder
 	.set	nomacro
 	jal	skb_push
@@ -1348,14 +1407,14 @@ $L71:
 	sltu	$2,$6,$7
 	sh	$3,44($17)
 	addu	$2,$2,$6
-$L65:
+$L67:
 	lw	$6,0($5)
 	addiu	$5,$5,4
 	addu	$2,$2,$6
 	sltu	$6,$2,$6
 	.set	noreorder
 	.set	nomacro
-	bne	$5,$4,$L65
+	bne	$5,$4,$L67
 	addu	$2,$6,$2
 	.set	macro
 	.set	reorder
@@ -1365,7 +1424,7 @@ $L65:
 	addiu	$17,$18,%lo(pptpAccInfo)
 	sh	$3,46($17)
 #APP
- # 83 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
+ # 83 "/home/winfred_wang/trunk_code/sdk3.4.6/branch-rtl819x-sdk-v3.4.6/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
 		.set	push		# csum_fold
 	.set	noat		
 	sll	$1, $2, 16	
@@ -1413,8 +1472,8 @@ $L65:
 	addiu	$6,$3,1
 	lw	$5,40($17)
 	sw	$6,36($17)
-	sw	$3,24($sp)
 	sh	$7,22($sp)
+	sw	$3,24($sp)
 	sw	$5,28($sp)
 	.set	noreorder
 	.set	nomacro
@@ -1453,26 +1512,24 @@ $L65:
 	.set	noreorder
 	.set	nomacro
 	j	$L62
-	li	$3,1			# 0x1
+	li	$2,1			# 0x1
 	.set	macro
 	.set	reorder
 
 $L60:
-$L69:
+$L72:
 	lw	$4,%lo(pptpAccInfo+56)($2)
 	.set	noreorder
 	.set	nomacro
 	beq	$4,$0,$L62
-	move	$3,$0
+	move	$2,$0
 	.set	macro
 	.set	reorder
 
 	jal	rtl_get_ppp_dev_priv
-$L59:
-	move	$3,$0
+	move	$2,$0
 $L62:
 	lw	$31,84($sp)
-	move	$2,$3
 	lw	$19,80($sp)
 	lw	$18,76($sp)
 	lw	$17,72($sp)
@@ -1513,19 +1570,19 @@ fast_pptp_filter:
 	move	$19,$2
 
 	sltu	$2,$2,56
-	bne	$2,$0,$L77
+	bne	$2,$0,$L80
 	li	$2,6			# 0x6
 
 	lbu	$3,0($19)
 	lbu	$4,9($19)
-	bne	$4,$2,$L77
+	bne	$4,$2,$L80
 	andi	$3,$3,0xf
 
 	sll	$3,$3,2
 	li	$2,1723			# 0x6bb
 	addu	$3,$19,$3
 	lhu	$4,0($3)
-	bne	$4,$2,$L77
+	bne	$4,$2,$L80
 	nop
 
 	lw	$2,12($3)
@@ -1534,42 +1591,42 @@ fast_pptp_filter:
 	addu	$2,$3,$2
 	li	$3,1			# 0x1
 	lhu	$4,2($2)
-	bne	$4,$3,$L77
+	bne	$4,$3,$L80
 	li	$6,8			# 0x8
 
 	lhu	$3,8($2)
-	bne	$3,$6,$L74
+	bne	$3,$6,$L77
 	addiu	$5,$2,8
 
 	addiu	$3,$2,12
 	lbu	$5,4($3)
-	bne	$5,$4,$L77
+	bne	$5,$4,$L80
 	lui	$4,%hi(pptpAccInfo)
 
 	addiu	$4,$4,%lo(pptpAccInfo)
 	lw	$5,36($4)
-	beq	$5,$0,$L78
+	beq	$5,$0,$L81
 	lui	$5,%hi(pptp_tcp_finished)
 
 	lw	$5,20($4)
-	beq	$5,$0,$L78
+	beq	$5,$0,$L81
 	lui	$5,%hi(pptp_tcp_finished)
 
 	lw	$5,32($4)
-	beq	$5,$0,$L78
+	beq	$5,$0,$L81
 	lui	$5,%hi(pptp_tcp_finished)
 
 	lhu	$5,18($4)
 	lhu	$4,12($2)
-	bne	$5,$4,$L77
+	bne	$5,$4,$L80
 	lui	$4,%hi(pptpAccInfo+30)
 
 	lhu	$5,%lo(pptpAccInfo+30)($4)
 	lhu	$4,2($3)
-	bne	$5,$4,$L77
+	bne	$5,$4,$L80
 	lui	$5,%hi(pptp_tcp_finished)
 
-$L78:
+$L81:
 	li	$18,1			# 0x1
 	move	$4,$17
 	sw	$18,%lo(pptp_tcp_finished)($5)
@@ -1605,38 +1662,38 @@ $L78:
 	jal	memcpy
 	li	$6,6			# 0x6
 
-	j	$L77
+	j	$L80
 	sw	$18,4($16)
 
-$L74:
+$L77:
 	li	$2,13			# 0xd
-	bne	$3,$2,$L77
+	bne	$3,$2,$L80
 	lui	$2,%hi(pptpAccInfo)
 
 	addiu	$2,$2,%lo(pptpAccInfo)
 	lw	$3,36($2)
-	beq	$3,$0,$L76
+	beq	$3,$0,$L79
 	nop
 
 	lw	$3,20($2)
-	beq	$3,$0,$L76
+	beq	$3,$0,$L79
 	nop
 
 	lw	$3,32($2)
-	beq	$3,$0,$L76
+	beq	$3,$0,$L79
 	nop
 
 	lhu	$3,18($2)
 	lhu	$2,4($5)
-	bne	$3,$2,$L77
+	bne	$3,$2,$L80
 	nop
 
-$L76:
+$L79:
 	lui	$2,%hi(pptp_tcp_finished)
 	sw	$0,%lo(pptp_tcp_finished)($2)
 	lui	$2,%hi(pptpAccInfo+4)
 	sw	$0,%lo(pptpAccInfo+4)($2)
-$L77:
+$L80:
 	lw	$31,36($sp)
 	lw	$19,32($sp)
 	lw	$18,28($sp)
@@ -1681,25 +1738,25 @@ Check_GRE_rx_net_device:
 	lbu	$20,0($17)
 	move	$19,$2
 	lw	$17,8($16)
-	beq	$17,$0,$L80
+	beq	$17,$0,$L83
 	andi	$20,$20,0xf
 
 	jal	rtl_get_skb_dev
 	move	$4,$18
 
-	bne	$17,$2,$L80
+	bne	$17,$2,$L83
 	sll	$20,$20,2
 
 	lhu	$2,30($16)
 	addu	$19,$19,$20
 	lhu	$3,6($19)
 	xor	$2,$3,$2
-	j	$L81
+	j	$L84
 	sltu	$2,$2,1
 
-$L80:
+$L83:
 	move	$2,$0
-$L81:
+$L84:
 	lw	$31,36($sp)
 	lw	$20,32($sp)
 	lw	$19,28($sp)
@@ -1732,15 +1789,15 @@ fast_pptp_to_lan:
 	sw	$18,36($sp)
 	sw	$17,32($sp)
 	sw	$16,28($sp)
-	lui	$18,%hi(pptpAccInfo)
-	move	$17,$4
+	lui	$17,%hi(pptpAccInfo)
+	move	$18,$4
 	lw	$16,0($4)
-	addiu	$18,$18,%lo(pptpAccInfo)
+	addiu	$17,$17,%lo(pptpAccInfo)
 	jal	rtl_get_skb_dev
 	move	$4,$16
 
-	lw	$3,8($18)
-	bne	$3,$2,$L95
+	lw	$3,8($17)
+	bne	$3,$2,$L98
 	move	$2,$0
 
 	jal	rtl_ip_hdr
@@ -1748,14 +1805,14 @@ fast_pptp_to_lan:
 
 	lbu	$3,9($2)
 	li	$2,47			# 0x2f
-	bne	$3,$2,$L95
+	bne	$3,$2,$L98
 	move	$2,$0
 
 	jal	rtl_get_skb_len
 	move	$4,$16
 
 	sltu	$2,$2,20
-	bne	$2,$0,$L95
+	bne	$2,$0,$L98
 	move	$2,$0
 
 	jal	rtl_ip_hdr
@@ -1772,92 +1829,92 @@ fast_pptp_to_lan:
 	li	$2,1			# 0x1
 	lbu	$4,1($3)
 	andi	$4,$4,0x7
-	bne	$4,$2,$L95
+	bne	$4,$2,$L98
 	move	$2,$0
 
 	lhu	$4,2($3)
 	li	$2,34827			# 0x880b
-	bne	$4,$2,$L95
+	bne	$4,$2,$L98
 	move	$2,$0
 
 	lhu	$4,6($3)
-	lhu	$2,30($18)
-	bne	$4,$2,$L84
+	lhu	$2,30($17)
+	bne	$4,$2,$L87
 	nop
 
 	lbu	$4,0($3)
 	andi	$4,$4,0x10
-	beq	$4,$0,$L86
+	beq	$4,$0,$L89
 	li	$2,8			# 0x8
 
 	lw	$4,8($3)
 	li	$2,12			# 0xc
-	sw	$4,40($18)
-$L86:
+	sw	$4,40($17)
+$L89:
 	lb	$6,1($3)
 	addiu	$5,$2,4
 	lhu	$4,4($3)
 	slt	$6,$6,0
-	beq	$4,$0,$L84
+	beq	$4,$0,$L87
 	movn	$2,$5,$6
 
 	addu	$3,$3,$2
 	lbu	$4,0($3)
-	bne	$4,$0,$L88
+	bne	$4,$0,$L91
 	nop
 
 	addiu	$3,$3,1
-	j	$L89
+	j	$L92
 	li	$4,1			# 0x1
 
-$L88:
+$L91:
 	li	$5,255			# 0xff
-	bne	$4,$5,$L89
+	bne	$4,$5,$L92
 	move	$4,$0
 
 	lbu	$5,1($3)
 	li	$4,3			# 0x3
-	bne	$5,$4,$L90
+	bne	$5,$4,$L93
 	move	$4,$0
 
 	addiu	$3,$3,2
 	lbu	$5,0($3)
-	bne	$5,$0,$L89
+	bne	$5,$0,$L92
 	li	$4,2			# 0x2
 
 	addiu	$3,$3,1
 	li	$4,3			# 0x3
-$L90:
-$L89:
-	lbu	$18,0($3)
+$L93:
+$L92:
+	lbu	$17,0($3)
 	li	$3,33			# 0x21
-	beq	$18,$3,$L92
+	beq	$17,$3,$L95
 	li	$3,253			# 0xfd
 
-	bne	$18,$3,$L84
+	bne	$17,$3,$L87
 	nop
 
-$L92:
+$L95:
 	lbu	$5,0($19)
 	andi	$5,$5,0xf
 	sll	$5,$5,2
 	addiu	$5,$5,1
 	addu	$5,$5,$2
 	li	$2,33			# 0x21
-	beq	$18,$2,$L93
+	beq	$17,$2,$L96
 	addu	$5,$5,$4
 
 	lui	$19,%hi(pptpAccInfo)
 	addiu	$19,$19,%lo(pptpAccInfo)
 	lw	$4,56($19)
-	beq	$4,$0,$L95
+	beq	$4,$0,$L98
 	move	$2,$0
 
 	jal	rtl_get_ppp_dev_priv
 	sw	$5,16($sp)
 
 	lw	$5,16($sp)
-	beq	$2,$0,$L84
+	beq	$2,$0,$L87
 	addiu	$5,$5,-2
 
 	jal	skb_pull
@@ -1866,43 +1923,50 @@ $L92:
 	jal	rtl_get_skb_data
 	move	$4,$16
 
-	sb	$18,1($2)
+	sb	$17,1($2)
 	sb	$0,0($2)
 	lw	$4,56($19)
 	jal	rtl_get_ppp_dev_priv
 	nop
 
+	move	$17,$2
+	jal	rtl_ppp_recv_lock
+	move	$4,$2
+
 	move	$5,$16
 	li	$6,1			# 0x1
 	jal	rtl_ppp_receive_nonmp_frame
-	move	$4,$2
+	move	$4,$17
 
+	move	$4,$17
+	jal	rtl_ppp_recv_unlock
 	move	$16,$2
-	beq	$16,$0,$L95
+
+	beq	$16,$0,$L98
 	li	$2,-2			# 0xfffffffe
 
-	sw	$16,0($17)
-	j	$L96
+	sw	$16,0($18)
+	j	$L99
 	li	$18,1			# 0x1
 
-$L93:
+$L96:
 	move	$4,$16
 	jal	skb_pull
 	move	$18,$0
 
-$L96:
+$L99:
 	jal	rtl_get_skb_data
 	move	$4,$16
 
 	andi	$17,$2,0x3
-	beq	$17,$0,$L100
+	beq	$17,$0,$L103
 	move	$4,$16
 
 	jal	rtl_skb_headroom
 	move	$4,$16
 
 	sltu	$2,$2,$17
-	bne	$2,$0,$L97
+	bne	$2,$0,$L100
 	nop
 
 	jal	rtl_get_skb_data
@@ -1931,9 +1995,9 @@ $L96:
 	jal	rtl_set_skb_tail
 	move	$5,$17
 
-$L97:
-	move	$4,$16
 $L100:
+	move	$4,$16
+$L103:
 	jal	rtl_skb_reset_network_header
 	lui	$17,%hi(pptpAccInfo)
 
@@ -1942,16 +2006,16 @@ $L100:
 	move	$4,$16
 
 	lw	$4,56($17)
-	beq	$4,$0,$L95
+	beq	$4,$0,$L98
 	move	$2,$0
 
-	bne	$18,$0,$L101
+	bne	$18,$0,$L104
 	lui	$2,%hi(pptpAccInfo+56)
 
 	jal	rtl_get_ppp_dev_priv
 	nop
 
-	beq	$2,$0,$L98
+	beq	$2,$0,$L101
 	nop
 
 	lw	$4,56($17)
@@ -1967,19 +2031,19 @@ $L100:
 	jal	rtl_inc_ppp_stats
 	addiu	$6,$2,-2
 
-$L98:
-	lui	$2,%hi(pptpAccInfo+56)
 $L101:
+	lui	$2,%hi(pptpAccInfo+56)
+$L104:
 	lw	$5,%lo(pptpAccInfo+56)($2)
 	jal	rtl_set_skb_dev
 	move	$4,$16
 
-	j	$L95
+	j	$L98
 	li	$2,1			# 0x1
 
-$L84:
+$L87:
 	move	$2,$0
-$L95:
+$L98:
 	lw	$31,44($sp)
 	lw	$19,40($sp)
 	lw	$18,36($sp)
@@ -2009,7 +2073,7 @@ set_pptp_device:
 	sw	$31,20($sp)
 	lui	$2,%hi(fast_pptp_fw)
 	lw	$2,%lo(fast_pptp_fw)($2)
-	beq	$2,$0,$L104
+	beq	$2,$0,$L107
 	nop
 
 	jal	rtl_get_dev_by_name
@@ -2017,7 +2081,7 @@ set_pptp_device:
 
 	lui	$3,%hi(pptpAccInfo+56)
 	sw	$2,%lo(pptpAccInfo+56)($3)
-$L104:
+$L107:
 	lw	$31,20($sp)
 	j	$31
 	addiu	$sp,$sp,24

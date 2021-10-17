@@ -132,7 +132,7 @@ static inline void __dma_sync(unsigned long addr, size_t size,
 		break;
 
 	case DMA_FROM_DEVICE:
-		dma_cache_inv(addr, size);
+		dma_cache_wback_inv(addr, size);
 		break;
 
 	case DMA_BIDIRECTIONAL:

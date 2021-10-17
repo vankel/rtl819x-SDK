@@ -28,8 +28,10 @@
 #define RTL_EXTERN_INLINE
 #define RTL_STATIC_INLINE   static __inline__
 
+#ifdef CONFIG_OSK
 #define malloc(x) osk_malloc(x)
 #define free(x) osk_free(x)
+#endif
 
 //Our own assert macro, when condition not met, forces cygwin to create a stackdump file.
 #undef assert

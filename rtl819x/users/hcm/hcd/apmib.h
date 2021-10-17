@@ -1125,81 +1125,58 @@ typedef enum { HW_SETTING=1, DEFAULT_SETTING=2, CURRENT_SETTING=4 } CONFIG_DATA_
 
 #define TAG_LEN				2
 
-#if defined(CONFIG_RTL8196B)
+#if defined(CONFIG_RTL_8196B)
 
-	#if defined(CONFIG_RTL8198)
 		#define HW_SETTING_VER			1	// hw setting version
-		#define DEFAULT_SETTING_VER		1	// default setting version
+#define DEFAULT_SETTING_VER		2	// default setting version
 		#define CURRENT_SETTING_VER		DEFAULT_SETTING_VER // current setting version
 	
-	#elif defined(CONFIG_RTL8196C)
+#elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 		#define HW_SETTING_VER			1	// hw setting version
 		#define DEFAULT_SETTING_VER		1	// default setting version
 		#define CURRENT_SETTING_VER		DEFAULT_SETTING_VER // current setting version
 		
-	#else // 		if defined(CONFIG_RTL8196B)
-		#define HW_SETTING_VER			1	// hw setting version
-		#define DEFAULT_SETTING_VER		2	// default setting version
-		#define CURRENT_SETTING_VER		DEFAULT_SETTING_VER // current setting version
 
-	#endif
 
 #else
 
 #define HW_SETTING_VER			3	// hw setting version
-#define DEFAULT_SETTING_VER		5	// default setting version
+#define DEFAULT_SETTING_VER		4	// default setting version
 #define CURRENT_SETTING_VER		DEFAULT_SETTING_VER // current setting version
 
 #endif
 
-#if defined(CONFIG_RTL8196B)
+#if defined(CONFIG_RTL_8196B)
 
-	#if defined(CONFIG_RTL8198)
-		#define FW_HEADER_WITH_ROOT	((char *)"cr6c")
-		#define FW_HEADER			((char *)"cs6c")
-	
-	#elif defined(CONFIG_RTL8196C)
+#define FW_HEADER_WITH_ROOT	((char *)"cr6b")
+#define FW_HEADER			((char *)"cs6b")
+#elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 		#define FW_HEADER_WITH_ROOT	((char *)"cr6c")
 		#define FW_HEADER			((char *)"cs6c")
 		
-	#else // 		if defined(CONFIG_RTL8196B)
-		#define FW_HEADER_WITH_ROOT	((char *)"cr6b")
-		#define FW_HEADER			((char *)"cs6b")
-	#endif
 	
 #else
 #define FW_HEADER_WITH_ROOT	((char *)"csro")
 #define FW_HEADER			((char *)"csys")
 #endif //#if defined(CONFIG_RTL8196B)
 
-#if defined(CONFIG_RTL8196B)
+#if defined(CONFIG_RTL_8196B)
 
-	#if defined(CONFIG_RTL8198)
+		#if (defined(HOME_GATEWAY) && defined(VPN_SUPPORT))
+#define WEB_HEADER			((char *)"w6bv")
+		#elif (defined(HOME_GATEWAY))
+#define WEB_HEADER			((char *)"w6bg")
+		#else
+#define WEB_HEADER			((char *)"w6ba")
+		#endif
+#elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 		#if (defined(HOME_GATEWAY) && defined(VPN_SUPPORT))
 			#define WEB_HEADER			((char *)"w6cv")
 		#elif (defined(HOME_GATEWAY))
 			#define WEB_HEADER			((char *)"w6cg")
 		#else
 			#define WEB_HEADER			((char *)"w6ca")
-		#endif
-	
-	#elif defined(CONFIG_RTL8196C)
-		#if (defined(HOME_GATEWAY) && defined(VPN_SUPPORT))
-			#define WEB_HEADER			((char *)"w6cv")
-		#elif (defined(HOME_GATEWAY))
-			#define WEB_HEADER			((char *)"w6cg")
-		#else
-			#define WEB_HEADER			((char *)"w6ca")
-		#endif
 		
-	#else // 		if defined(CONFIG_RTL8196B)
-		#if (defined(HOME_GATEWAY) && defined(VPN_SUPPORT))
-			#define WEB_HEADER			((char *)"w6bv")
-		#elif (defined(HOME_GATEWAY))
-			#define WEB_HEADER			((char *)"w6bg")
-		#else
-			#define WEB_HEADER			((char *)"w6ba")
-		#endif
 	#endif
 #else
 #if (defined(HOME_GATEWAY) && defined(VPN_SUPPORT))
@@ -1211,14 +1188,10 @@ typedef enum { HW_SETTING=1, DEFAULT_SETTING=2, CURRENT_SETTING=4 } CONFIG_DATA_
 #endif
 #endif //#if defined(CONFIG_RTL8196B)
 
-#if defined(CONFIG_RTL8196B)
-	#if defined(CONFIG_RTL8198)
+#if defined(CONFIG_RTL_8196B)
+#define ROOT_HEADER			((char *)"r6br")
+#elif defined(CONFIG_RTL_8198C)||defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 		#define ROOT_HEADER			((char *)"r6cr")
-	#elif defined(CONFIG_RTL8196C)
-		#define ROOT_HEADER			((char *)"r6cr")
-	#else
-		#define ROOT_HEADER			((char *)"r6br")	
-	#endif
 
 #else
 #define ROOT_HEADER			((char *)"root")
@@ -1307,7 +1280,7 @@ typedef enum { AP_MODE=0, CLIENT_MODE=1, WDS_MODE=2, AP_WDS_MODE=3	} WLAN_MODE_T
 //=========add for MESH=========
 
 typedef enum { INFRASTRUCTURE=0, ADHOC=1 } NETWORK_TYPE_T;
-typedef enum { BAND_11B=1, BAND_11G=2, BAND_11BG=3, BAND_11A=4, BAND_11N=8 } BAND_TYPE_T;
+typedef enum { BAND_11B=1, BAND_11G=2, BAND_11BG=3, BAND_11A=4, BAND_11N=8,BAND_11AC=64 } BAND_TYPE_T;
 typedef enum { DISABLED=0, A_MPDU=1, A_MSDU=2, A_MIXED=3} AGGREGATION_MODE_T;	// GANTOE & epopen: DISABLED=0 original is DISABLE=0, Because conflict with ../../auth/include/1x_common.h in AP/net-snmp-5.x.x
 
 typedef enum { PHYBAND_OFF=0, PHYBAND_2G=1, PHYBAND_5G=2 } PHYBAND_TYPE_T; //mark_add
@@ -2216,6 +2189,7 @@ unsigned char wlan11nOnOffTKIP __PACK__;	//difu suggest
 	unsigned char ripWanTx __PACK__;
 	unsigned char ripWanRx __PACK__;
 	unsigned char natEnabled __PACK__;
+	unsigned char rip6Enabled __PACK__;
 #endif	
 #endif // #ifdef HOME_GATEWAY
 	unsigned char vpnPassthruIPv6 __PACK__;	

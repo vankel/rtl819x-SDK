@@ -44,7 +44,8 @@ struct _ieauth {
 typedef enum{ERROR_BUFFER_TOO_SMALL = -1, ERROR_INVALID_PARA = -2, ERROR_INVALID_RSNIE = -13,
 		ERROR_INVALID_MULTICASTCIPHER = -18, ERROR_INVALID_UNICASTCIPHER = -19,
 		ERROR_INVALID_AUTHKEYMANAGE = -20,
-		ERROR_UNSUPPORTED_RSNEVERSION = -21,  ERROR_INVALID_CAPABILITIES = -22}INFO_ERROR;
+		ERROR_UNSUPPORTED_RSNEVERSION = -21,  ERROR_INVALID_CAPABILITIES = -22,
+		ERROR_MGMT_FRAME_PROTECTION_VIOLATION = -31}INFO_ERROR;
 
 #define RSN_STRERROR_BUFFER_TOO_SMALL           "Input Buffer too small"
 #define RSN_STRERROR_INVALID_PARAMETER          "Invalid RSNIE Parameter"
@@ -54,6 +55,7 @@ typedef enum{ERROR_BUFFER_TOO_SMALL = -1, ERROR_INVALID_PARA = -2, ERROR_INVALID
 #define RSN_STRERROR_INVALID_AUTHKEYMANAGE      "Authentication Key Management Protocol is not valid"
 #define RSN_STRERROR_UNSUPPORTED_RSNEVERSION 	"Unsupported RSNE version"
 #define RSN_STRERROR_INVALID_CAPABILITIES 	"Invalid RSNE Capabilities"
+#define RSN_STRERROR_MGMT_FRAME_PROTECTION_VIOLATION "Robust management frame policy violation"
 
 #define RSN_ELEMENT_ID                          221
 #ifdef RTL_WPA2
@@ -71,6 +73,14 @@ typedef struct _DOT11_RSN_IE_HEADER {
         u_short Version;
 }DOT11_RSN_IE_HEADER;
 
+#ifdef HS2_SUPPORT
+typedef struct _DOT11_OSEN_IE_HEADER {
+    u_char  ElementID;
+    u_char  Length;
+	u_char  OUI[3];
+    u_char Type;
+}DOT11_OSEN_IE_HEADER;
+#endif
 #ifdef RTL_WPA2
 #define WPA2_ELEMENT_ID                          0x30
 typedef struct _DOT11_WPA2_IE_HEADER {
@@ -100,7 +110,8 @@ typedef union _DOT11_RSN_CAPABILITY{
 #ifdef RTL_WPA2
         struct
         {
-                u_short Reserved1:2; // B7 B6
+				u_short MFPC:1; // B7
+                u_short MFPR:1; // B6
                 u_short GtksaReplayCounter:2; // B5 B4
                 u_short PtksaReplayCounter:2; // B3 B2
                 u_short NoPairwise:1; // B1

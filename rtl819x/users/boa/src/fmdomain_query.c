@@ -399,13 +399,11 @@ static void start_dnrd()
 	memset(cmdBuffer, 0x00, sizeof(cmdBuffer));
 	if(strlen(domanin_name) == 0)
 	{
-		/*
 		if(getFilter_Type() == 0) //1:client
 		{
 			sprintf(cmdBuffer,"%s\\%s\n", Ip, "AlwaysHost");
 		}
 		else
-		*/
 		{
 			if(wlan_mode==0){//ap mode	
 				sprintf(cmdBuffer,"%s\\%s\n", Ip, "RealTekAP.com|RealTekAP.net");
@@ -418,13 +416,11 @@ static void start_dnrd()
 	}
 	else
 	{
-		/*
 		if(getFilter_Type() == 0) //1:client
 		{
 			sprintf(cmdBuffer,"%s\\%s\n", Ip, "AlwaysHost");
 		}
 		else
-		*/
 		{
 			if(wlan_mode==0){//ap mode	
 				sprintf(cmdBuffer,"%s\\%s%s%s%s\n", Ip, domanin_name, "AP.com|",domanin_name, "AP.net");
@@ -780,6 +776,7 @@ void Kill_Wlan_Applications(void)
 	system("killall -9 disc_server 2> /dev/null");
 	system("killall -9 iapp 2> /dev/null");	
 	system("killall -9 mini_upnpd 2> /dev/null");
+	system("killall -9 hs2 2> /dev/null");
 }
 
 void Start_Wlan_Applications(void)

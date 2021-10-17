@@ -404,7 +404,7 @@ lcp_close(unit, reason)
     char *reason;
 {
     fsm *f = &lcp_fsm[unit];
-	
+
     if (phase != PHASE_DEAD && phase != PHASE_MASTER)
 	new_phase(PHASE_TERMINATE);
     if (f->state == STOPPED && f->flags & (OPT_PASSIVE|OPT_SILENT)) {
@@ -491,8 +491,9 @@ lcp_input(unit, p, len)
     int unit;
     u_char *p;
     int len;
-{	
+{
     fsm *f = &lcp_fsm[unit];
+
     if (f->flags & DELAYED_UP) {
 	f->flags &= ~DELAYED_UP;
 	fsm_lowerup(f);
@@ -511,6 +512,10 @@ lcp_extcode(f, code, id, inp, len)
     int len;
 {
     u_char *magp;
+#ifdef REJECT_ERROR_SESSION_PATCH
+	unsigned int *magI;
+    lcp_options *ho = &lcp_hisoptions[f->unit];
+#endif
 
     switch( code ){
     case PROTREJ:
@@ -521,11 +526,26 @@ lcp_extcode(f, code, id, inp, len)
 	if (f->state != OPENED)
 	    break;
 	magp = inp;
+
+
+#if 0
+	notice("%s.%d.peer_magic_%u\n",__FUNCTION__,__LINE__,*magI);	
+	notice("%s.%d.client_magic_%u\n",__FUNCTION__,__LINE__,lcp_gotoptions[f->unit].magicnumber);
+	notice("%s.%d.acked_magic_%u\n",__FUNCTION__,__LINE__,ho->magicnumber);	
+#endif
+#ifdef REJECT_ERROR_SESSION_PATCH
+	/*if magic number won't be ack ,just skip it*/
+	magI = (unsigned int *)magp;
+	if(*magI != ho->magicnumber)
+		return 0;
+#endif
+
 	PUTLONG(lcp_gotoptions[f->unit].magicnumber, magp);
 	fsm_sdata(f, ECHOREP, id, inp, len);
 	break;
 
     case ECHOREP:
+		
 	lcp_received_echo_reply(f, id, inp, len);
 	break;
 
@@ -1761,9 +1781,10 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	     * He must have a different magic number.
 	     */
 	    if (go->neg_magicnumber &&
-		cilong == go->magicnumber) {
+		cilong == go->magicnumber) {		
 		cilong = magic();	/* Don't put magic() inside macro! */
 		orc = CONFNAK;
+		
 		PUTCHAR(CI_MAGICNUMBER, nakp);
 		PUTCHAR(CILEN_LONG, nakp);
 		PUTLONG(cilong, nakp);
@@ -1772,7 +1793,6 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    ho->neg_magicnumber = 1;
 	    ho->magicnumber = cilong;
 	    break;
-
 
 	case CI_PCOMPRESSION:
 	    if (!ao->neg_pcompression ||
@@ -1945,9 +1965,12 @@ static void
 lcp_down(f)
     fsm *f;
 {
-    lcp_options *go = &lcp_gotoptions[f->unit];	
+    lcp_options *go = &lcp_gotoptions[f->unit];
+
     lcp_echo_lowerdown(f->unit);
+
     link_down(f->unit);
+
     ppp_send_config(f->unit, PPP_MRU, 0xffffffff, 0, 0);
     ppp_recv_config(f->unit, PPP_MRU,
 		    (go->neg_asyncmap? go->asyncmap: 0xffffffff),
@@ -2271,6 +2294,7 @@ LcpEchoCheck (f)
      */
     if (lcp_echo_timer_running)
 	warn("assertion lcp_echo_timer_running==0 failed");
+	
     TIMEOUT (LcpEchoTimeout, f, lcp_echo_interval);
     lcp_echo_timer_running = 1;
 }
@@ -2318,10 +2342,13 @@ lcp_received_echo_reply (f, id, inp, len)
     lcp_echos_pending = 0;
 
 	//sync from rtl865x
+	#if 0
 	 if(wan_type_curr==3|| wan_type_curr==6){
 		    if(lcp_echo_interval != echo_lcp_interval_setting){
 		    	if(echo_lcp_interval_recover >= 2){
 		    			lcp_echo_interval = echo_lcp_interval_setting;
+				fprintf(stderr,"%s.%d.rcv echo_lcp_interval_recover(%d)\n"
+					,__FUNCTION__,__LINE__,lcp_echo_interval);
 		    			echo_lcp_interval_recover=0;
 		    		}else{
 		    			echo_lcp_interval_recover++;
@@ -2330,6 +2357,7 @@ lcp_received_echo_reply (f, id, inp, len)
 		    		echo_lcp_interval_recover=0;
 		    	}
 	}
+	#endif
 
 }
 
@@ -2396,8 +2424,8 @@ LcpSendEchoRequest (f)
             LcpLinkFailure(f);
 	    }
 	    lcp_echos_pending = 0;
-		return ;
 	}
+		#if 0
 		else if(lcp_echos_pending >= 1){//it means we do not get echo reply once
 			//we send echo request more aggressive
 			if(wan_type_curr==3){
@@ -2405,7 +2433,7 @@ LcpSendEchoRequest (f)
 			}
 			//info("LCP Request Lost :%d, send request in next %d seconds\n",lcp_echos_pending,lcp_echo_interval);
 		}
-
+		#endif
 
     }
 
@@ -2419,7 +2447,8 @@ LcpSendEchoRequest (f)
         fsm_sdata(f, ECHOREQ, lcp_echo_number++ & 0xFF, pkt, pktp - pkt);
 	if (lcp_echos_pending == 0)
 	    lcp_ppp_received_pktnr[f->unit] = get_ppp_pktnr(f->unit);
-	++lcp_echos_pending;
+
+	++lcp_echos_pending;	
     }
 }
 #else
@@ -2482,7 +2511,7 @@ lcp_echo_lowerdown (unit)
     int unit;
 {
     fsm *f = &lcp_fsm[unit];
-	
+
     if (lcp_echo_timer_running != 0) {
         UNTIMEOUT (LcpEchoTimeout, f);
         lcp_echo_timer_running = 0;

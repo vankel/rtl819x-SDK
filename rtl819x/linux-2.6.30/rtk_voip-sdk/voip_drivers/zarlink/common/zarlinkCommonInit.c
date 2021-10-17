@@ -8,9 +8,16 @@
  * Copyright (c) 2010, Realtek Semiconductor, Inc.
  *
  */
+#include <linux/timer.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include "zarlinkCommonSlic.h"
+
+//#define FEATURE_COP3_PROFILE 1
+#ifdef FEATURE_COP3_PROFILE
+#include "cp3/cp3_profile.h"
+extern st_CP3_VoIP_param cp3_voip_param;
+#endif
 
 #undef DEBUG_INT
 
@@ -81,6 +88,9 @@ static void zarlinkAlarmHandle(unsigned long args)
     int deviceNum;
     bool deviceEventStatus = FALSE;
     VpEventType pEvent;
+#ifdef FEATURE_COP3_PROFILE
+    unsigned long flags;
+#endif
 
 	/*
  	 * This loop will query the FXS device for events, and when an event is
@@ -89,7 +99,22 @@ static void zarlinkAlarmHandle(unsigned long args)
 	 */
     for (deviceNum = 0; deviceNum < gDevNum; deviceNum++) {
 
+#ifdef FEATURE_COP3_PROFILE
+	if (cp3_voip_param.bCp3Count_Temp206 == 1) {
+		save_flags(flags); cli();
+		ProfileEnterPoint(PROFILE_INDEX_TEMP206);
+	}
+#endif
+
         VpApiTick(RTKDevList[deviceNum]->pDevCtx, &deviceEventStatus);
+	
+#ifdef FEATURE_COP3_PROFILE
+	if (cp3_voip_param.bCp3Count_Temp206 == 1) {
+		ProfileExitPoint(PROFILE_INDEX_TEMP206);
+		restore_flags(flags);
+		ProfilePerDump(PROFILE_INDEX_TEMP206, cp3_voip_param.cp3_dump_period);
+	}
+#endif
 
 		RTKDevList[deviceNum]->UpdIOState(RTKDevList[deviceNum]->pLine[0]);
 
@@ -210,7 +235,14 @@ BOOL zarlinkInitDevice( RTKDevObj *pDev )
 	for (ch=0; ch < pDev->max_line; ch++) {
 
 		if (pDev->pLine[ch]->line_type == LINE_FXS ) 
+#ifdef SLIC_V890_FXS_LOW_POWER_MODE
+		{
+			 term_type = VP_TERM_FXS_LOW_PWR;
+			 PRINT_G("V890 FXS in LOW power mode");
+		}
+#else
 			 term_type = VP_TERM_FXS_GENERIC;
+#endif
 		else term_type = VP_TERM_FXO_GENERIC;
 
 		/* Create line objects */
@@ -391,7 +423,7 @@ static BOOL RtkInitFxsLine(RTKLineObj *pLine)
    	}
    
    	/* Thlin add for talk */
-   	status = VpSetLineState( pLine->pLineCtx, VP_LINE_OHT );
+   	//status = VpSetLineState( pLine->pLineCtx, VP_LINE_OHT );
    
 	if ( status != VP_STATUS_SUCCESS ) {
     	PRINT_R("VpSetLineState failed (%d) \n", status);

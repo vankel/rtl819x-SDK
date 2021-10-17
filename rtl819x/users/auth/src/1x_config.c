@@ -92,8 +92,8 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 
 	while( fgets( tmps, CONFIG_PARSE_TAG+CONFIG_PARSE_VALUE, confFile ) ){
 
-//		printf("%s", tmps);
-//		printf("[%c|0x%02x]",*ptr,*ptr);
+        //printf("%s", tmps);
+        //printf("[%c|0x%02x]",*ptr,*ptr);
 
 		ptr = &tmps[0];
 
@@ -108,19 +108,8 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 
 		ptr += 1 ;
 
-		if( *ptr == '"' ){
-// david -------------------------------
-#if 0
-			ptr++;
-			lenVal = 0;
-                        do{
-                                lenVal++;
-                        }while( *ptr++ != '"' && lenVal < CONFIG_PARSE_VALUE );
-	                lenVal -= 1;
-	                strncpy( tmpVal, &tmps[lenTag+4], lenVal );
-		        tmpVal[lenVal] = 0;
-#else
-		  { int idx;
+       if( *ptr == '"' ){
+		    int idx=0;
 		  	ptr++;
 			for (lenVal=0; ;lenVal++) {
 				if (ptr[lenVal] == '\n')
@@ -133,9 +122,7 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 			lenVal = idx;
  			strncpy( tmpVal, &tmps[lenTag+4], lenVal );
 		        tmpVal[lenVal] = 0;
-		  }
-#endif
-//---------------------------------------
+		  
 		}
 		else{
 			lenVal = 0;
@@ -151,13 +138,11 @@ int lib1x_config_parse(char *confFileName, char *confTag, char *confVal)
 		//printf("\n(b) lenVal = %d, tmpVal = <%s>", lenVal,  tmpVal);
 
 		if (strcmp(confTag, tmpTag) == 0 && strlen(tmpVal) < CONFIG_PARSE_VALUE) {
-                        //printf("\nconfTag = <%s>, tmpVal = <%s>\n", confTag,tmpVal);
+            //printf("\nconfTag = <%s>, tmpVal = <%s>\n", confTag,tmpVal);
 			//lib1x_message(MESS_DBG_CONFIG, "confTag = <%s>, tmpVal = <%s>", confTag,tmpVal);
-
-
 			strncpy(confVal, tmpVal, CONFIG_PARSE_VALUE);
-                        fclose(confFile);
-                        return 0;
+            fclose(confFile);
+            return 0;
 		}
 
 	}
@@ -363,6 +348,15 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 				pAuth->AlgoTable[DOT11_AuthKeyType_RSNPSK].Enabled = TRUE;
 				lib1x_message(MESS_DBG_CONFIG, "authentication = %s\n","DOT11_AuthKeyType_RSNPSK");
 			}
+#ifdef CONFIG_IEEE80211W
+			else  if(atoi(authVal) == DOT11_AuthKeyType_802_1X_SHA256)
+			{
+				
+				pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled = FALSE;
+				pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled = TRUE;
+				lib1x_message(MESS_DBG_CONFIG, "authentication = %s\n","DOT11_AuthKeyType_802_1X_SHA256");
+			}	
+#endif		
 
 		}else if(!strcmp(ConfigTag[tagIndex], "unicastCipher"))
 		{
@@ -371,6 +365,30 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 			pUnicast->AlgoTable[DOT11_ENC_TKIP].Enabled = (ulUnicastCipher & EncAlgoMap_TKIP) ? TRUE:FALSE;
 			pUnicast->AlgoTable[DOT11_ENC_CCMP].Enabled = (ulUnicastCipher & EncAlgoMap_AES ) ? TRUE:FALSE;
 		}
+#ifdef CONFIG_IEEE80211W
+		else if(!strcmp(ConfigTag[tagIndex], "ieee80211w"))
+		{						
+			auth->RSNVariable.ieee80211w = atoi(authVal);
+			if(MGMT_FRAME_PROTECTION_REQUIRED == auth->RSNVariable.ieee80211w)
+				pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled = FALSE;
+			PMFDEBUG("11w=[%d]\n",auth->RSNVariable.ieee80211w);
+		}
+
+		else if(!strcmp(ConfigTag[tagIndex], "sha256"))
+		{					
+			//if(MGMT_FRAME_PROTECTION_REQUIRED != auth->RSNVariable.ieee80211w)
+			auth->RSNVariable.sha256= atoi(authVal);
+			pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled = atoi(authVal);	
+			PMFDEBUG("sha256=[%d]\n",pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled);            
+		}
+#endif
+#ifdef HS2_SUPPORT
+		else if(!strcmp(ConfigTag[tagIndex], "OSEN"))
+		{						
+			auth->RSNVariable.bOSEN = atoi(authVal);
+			HS2DEBUG("OSEN=[%d]\n",auth->RSNVariable.bOSEN);
+		}
+#endif
 #ifdef RTL_WPA2
 		else if(!strcmp(ConfigTag[tagIndex], "wpa2UnicastCipher"))
 		{
@@ -382,6 +400,10 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 		else if(!strcmp(ConfigTag[tagIndex], "enablePreAuth"))
 		{
 			auth->RSNVariable.isSupportPreAuthentication = (atoi(authVal)==0? FALSE:TRUE);
+		}
+        else if(!strcmp(ConfigTag[tagIndex], "MaxPmksa"))
+		{
+			auth->RSNVariable.max_pmksa = atoi(authVal);
 		}
 #endif
 		//---- RSN/TSN Enabled
@@ -642,7 +664,11 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 #endif
 #endif
 		
-			if(pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled)
+			if(pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled
+#ifdef CONFIG_IEEE80211W
+			  || pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled	
+#endif
+			)
 				auth->RSNVariable.Dot1xEnabled = TRUE;
 			else if(pAuth->AlgoTable[DOT11_AuthKeyType_RSNPSK].Enabled)
 			{
@@ -759,6 +785,9 @@ int lib1x_load_config(Dot1x_Authenticator * auth, char *confFileName)
 // Fix the issue that Radius authentication will fail if WPA/WPA2 has been set 
 	if (ulEncryption < 2) { //not WPA/WPA2
 		pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled = FALSE;
+#ifdef CONFIG_IEEE80211W		
+		pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled = FALSE;
+#endif
 		pAuth->AlgoTable[DOT11_AuthKeyType_RSNPSK].Enabled = FALSE;	
 	}
 //---------------------------------------------- david+2008-03-04
@@ -901,7 +930,11 @@ int lib1x_load_config_param(Dot1x_Authenticator *auth, auth_param_t *pParam)
 	{
 		if(auth->RSNVariable.RSNEnabled)
 		{
-			if(pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled)
+			if(pAuth->AlgoTable[DOT11_AuthKeyType_RSN].Enabled
+#ifdef CONFIG_IEEE80211W
+			  || pAuth->AlgoTable[DOT11_AuthKeyType_802_1X_SHA256].Enabled
+#endif
+			)
 				auth->RSNVariable.Dot1xEnabled = TRUE;
 			else if(pAuth->AlgoTable[DOT11_AuthKeyType_RSNPSK].Enabled)
 			{

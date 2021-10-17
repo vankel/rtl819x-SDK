@@ -21,10 +21,14 @@ unsigned long old_pcm_gimr_value;
 unsigned short old_pcm_gimr_value;
 #define GIMR_PCM (0xb9c03010)
 #define GIMR_MASK_PCM (0x4020)
-#elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8672 ) || defined( CONFIG_RTK_VOIP_DRIVERS_PCM8676 )
+#elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8672 )
 unsigned long old_pcm_gimr_value;
 #define GIMR_PCM (0xb8003000)
 #define GIMR_MASK_PCM (0x00080000) //only PCM
+#elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8676 )
+unsigned long old_pcm_gimr_value;
+#define GIMR_PCM (0xb8003000)
+#define GIMR_MASK_PCM (0x80100)
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM865xC )
 unsigned long old_pcm_gimr_value;
 #define GIMR_PCM (0xB8003000)
@@ -37,6 +41,10 @@ unsigned long old_pcm_gimr_value;
 unsigned long old_pcm_gimr_value;
 #define GIMR_PCM (0xB8003000)
 #define GIMR_MASK_PCM (0x80100)
+#elif defined( CONFIG_RTK_VOIP_PLATFORM_8686 )
+unsigned long old_pcm_gimr_value;
+#define GIMR_PCM (0xB8003100)
+#define GIMR_MASK_PCM (0x00060000)
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM89xxD )
 unsigned long old_pcm_gimr_value;
 #define GIMR_PCM (0xB8003000)
@@ -58,9 +66,13 @@ static inline void cli_pcm(void){
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8671 )
 	old_pcm_gimr_value = *(volatile unsigned short *)GIMR_PCM;
 	*(volatile unsigned short *)GIMR_PCM = GIMR_MASK_PCM;
-#elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8672 ) ||  defined( CONFIG_RTK_VOIP_DRIVERS_PCM8676 )
+#elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8672 )
 	old_pcm_gimr_value = *(volatile unsigned long *)GIMR_PCM;
 	*(volatile unsigned long *)GIMR_PCM = GIMR_MASK_PCM;
+#elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8676 )
+	old_pcm_gimr_value = *(volatile unsigned long *)GIMR_PCM;
+	*(volatile unsigned long *)GIMR_PCM = GIMR_MASK_PCM;
+	*(volatile unsigned long *)GIMR_PCM; // force GIMR updated.
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM865xC )
 	old_pcm_gimr_value = *(volatile unsigned long *)GIMR_PCM;
 	*(volatile unsigned long *)GIMR_PCM = GIMR_MASK_PCM;
@@ -70,6 +82,10 @@ static inline void cli_pcm(void){
 	*(volatile unsigned long *)GIMR_PCM = GIMR_MASK_PCM;
 	*(volatile unsigned long *)GIMR_PCM; // force GIMR updated.
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM89xxC )
+	old_pcm_gimr_value = *(volatile unsigned long *)GIMR_PCM;
+	*(volatile unsigned long *)GIMR_PCM = GIMR_MASK_PCM;
+	*(volatile unsigned long *)GIMR_PCM; // force GIMR updated.
+#elif defined( CONFIG_RTK_VOIP_PLATFORM_8686 )
 	old_pcm_gimr_value = *(volatile unsigned long *)GIMR_PCM;
 	*(volatile unsigned long *)GIMR_PCM = GIMR_MASK_PCM;
 	*(volatile unsigned long *)GIMR_PCM; // force GIMR updated.
@@ -99,6 +115,8 @@ static inline void sti_pcm(void){
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY )
 	*(volatile unsigned long *)GIMR_PCM = old_pcm_gimr_value;
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM89xxC )
+	*(volatile unsigned long *)GIMR_PCM = old_pcm_gimr_value;
+#elif defined( CONFIG_RTK_VOIP_PLATFORM_8686 )
 	*(volatile unsigned long *)GIMR_PCM = old_pcm_gimr_value;
 #elif defined( CONFIG_RTK_VOIP_DRIVERS_PCM89xxD )
 	*(volatile unsigned long *)GIMR_PCM = old_pcm_gimr_value;

@@ -5,17 +5,16 @@ ifdef CONFIG_RTK_VOIP_DRIVERS_ATA_DECT
 LDFLAGS		=	-lpthread -ldl
 endif
 ifeq ($(CONFIG_RTK_VOIP_PACKAGE_867X), y)
-LDFLAGS += --static
+#LDFLAGS += --static
 endif
 #LIBS = ../voip_manager/libvoip_manager.a
 LDFLAGS += -L../voip_manager/ -lvoip_manager
 
-ifdef CONFIG_RTK_VOIP_IP_PHONE
+ifdef CONFIG_RTK_VOIP_DRIVERS_IP_PHONE
 CFLAGS 		+= -I../ui/include
 endif
 
 VOIPBOX_DBG=1
-VOIPBOX_FSKGEN=1
 VOIPBOX_PULSE_DIAL=1
 VOIPBOX_CP3_MEASURE=1
 #VOIPBOX_LED=1
@@ -23,19 +22,17 @@ VOIPBOX_CP3_MEASURE=1
 VOIPBOX_REG=1
 VOIPBOX_RAM=1
 VOIPBOX_SLIC_RESET=1
-VOIPBOX_SWITCHMII=1
+#VOIPBOX_SWITCHMII=1
 #VOIPBOX_TEST=1
-VOIPBOX_VMWIGEN=1
 #VOIPBOX_VOICERECORD=1
 #VOIPBOX_VOICEPLAY=1
 #VOIPBOX_EC_TEST=1
 VOIPBOX_RTCP_STATISTIC=1
 VOIPBOX_RTCP_LOGGER=1
 #VOIPBOX_RING_TEST=1
-VOIPBOX_CLONE_MAC=1
+#VOIPBOX_CLONE_MAC=1
 VOIPBOX_GPIO=1
-VOIPBOX_BANDWIDTH_MGR=1
-VOIPBOX_SEND_2833=1
+#VOIPBOX_BANDWIDTH_MGR=1
 #VOIPBOX_POWER=1
 ifeq ($(CONFIG_RTK_VOIP_PACKAGE_867X), y)
 VOIPBOX_CLI=1	#//thlin disable for 8672 shell login work correctly
@@ -43,12 +40,15 @@ else
 VOIPBOX_CLI=1
 endif
 VOIPBOX_TONE=1
+ifneq ($(ECOS_SHELL),y)
 VOIP_BOX_NETMASK=1
+endif
 VOIPBOX_IVR=1
+ifneq ($(ECOS_SHELL),y)
 VOIPBOX_LBTEST=1
+endif
 VOIP_DBG_UTIL=1
 VOIPBOX_VOIPEVENT=1
-VOIPBOX_DTMF_DET_CFG=1
 
 objs-shell = voipbox.o
 TARGET = voipbox
@@ -56,11 +56,6 @@ TARGET = voipbox
 ifdef VOIPBOX_DBG
 objs += dbg.o
 CFLAGS += -DVOIPBOX_DBG
-endif
-
-ifdef VOIPBOX_FSKGEN
-objs += fskgen.o
-CFLAGS += -DVOIPBOX_FSKGEN
 endif
 
 ifdef VOIPBOX_PULSE_DIAL
@@ -106,11 +101,6 @@ endif
 ifdef VOIPBOX_TEST
 objs += test.o
 CFLAGS += -DVOIPBOX_TEST
-endif
-
-ifdef VOIPBOX_VMWIGEN
-objs += vmwigen.o
-CFLAGS += -DVOIPBOX_VMWIGEN
 endif
 
 ifdef VOIPBOX_VOICERECORD
@@ -163,11 +153,6 @@ objs += gpio.o
 CFLAGS += -DVOIPBOX_GPIO
 endif
 
-ifdef VOIPBOX_SEND_2833
-objs += send_2833.o
-CFLAGS += -DVOIPBOX_SEND_2833
-endif
-
 ifdef VOIPBOX_POWER
 objs += power.o
 CFLAGS += -DVOIPBOX_POWER
@@ -200,11 +185,6 @@ endif
 
 CFLAGS += $(ECOS_SHELL_CFLAGS)
 
-ifdef VOIPBOX_DTMF_DET_CFG
-objs += dtmf_det_cfg.o
-CFLAGS += -DVOIPBOX_DTMF_DET_CFG
-endif
-
 #----------------------------------------------------------------------
 all: $(objs) $(objs-shell)
 	#make -C pcm-talk
@@ -218,9 +198,6 @@ endif
 	- mkdir build
 ifdef VOIPBOX_DBG
 	ln -fs $(TARGET) build/dbg
-endif
-ifdef VOIPBOX_FSKGEN
-	ln -fs $(TARGET) build/fskgen
 endif
 ifdef VOIPBOX_PULSE_DIAL
 	ln -fs $(TARGET) build/pulse_dial
@@ -248,9 +225,6 @@ ifdef VOIPBOX_SWITCHMII
 endif
 ifdef VOIPBOX_TEST
 	ln -fs $(TARGET) build/crash
-endif
-ifdef VOIPBOX_VMWIGEN
-	ln -fs $(TARGET) build/vmwigen
 endif
 ifdef VOIPBOX_VOICERECORD
 	ln -fs $(TARGET) build/voicerecord
@@ -288,10 +262,6 @@ ifdef VOIPBOX_GPIO
 	ln -fs $(TARGET) build/gpio_write
 endif
 
-ifdef VOIPBOX_SEND_2833
-	ln -fs $(TARGET) build/send_2833
-endif
-
 ifdef VOIPBOX_POWER
 	ln -fs $(TARGET) build/power
 endif
@@ -308,14 +278,12 @@ endif
 ifdef VOIPBOX_LBTEST
 	ln -fs $(TARGET) build/lb_test
 endif
-ifdef VOIPBOX_DTMF_DET_CFG
-	ln -fs $(TARGET) build/dtmf_det_cfg
-endif
 
 ifdef VOIPBOX_IVR
 	make -C ivr_file_play/test_g711
 	make -C ivr_file_play/test_g723
 	make -C ivr_file_play/test_g729
+	make -C ivr_file_play/test_g722
 endif
 ifdef VOIPBOX_VOIPEVENT
 	ln -fs $(TARGET) build/voip_event
@@ -341,9 +309,6 @@ ifdef VOIP_DBG_UTIL
 endif
 ifdef VOIPBOX_DBG
 	$(ROMFSINST)	-s $(TARGET)	/bin/dbg
-endif
-ifdef VOIPBOX_FSKGEN
-	$(ROMFSINST)    -s $(TARGET)	/bin/fskgen
 endif
 ifdef VOIPBOX_PULSE_DIAL
 	$(ROMFSINST)    -s $(TARGET)	/bin/pulse_dial
@@ -371,9 +336,6 @@ ifdef VOIPBOX_SWITCHMII
 endif
 ifdef VOIPBOX_TEST
 	$(ROMFSINST)    -s $(TARGET)	/bin/crash
-endif
-ifdef VOIPBOX_VMWIGEN
-	$(ROMFSINST)    -s $(TARGET)	/bin/vmwigen
 endif
 ifdef VOIPBOX_VOICERECORD
 	$(ROMFSINST)    -s $(TARGET)	/bin/voicerecord
@@ -411,10 +373,6 @@ ifdef VOIPBOX_GPIO
 	$(ROMFSINST)    -s $(TARGET)	/bin/gpio_write
 endif
 
-ifdef VOIPBOX_SEND_2833
-	$(ROMFSINST)    -s $(TARGET)	/bin/send_2833
-endif
-
 ifdef VOIPBOX_POWER
 	$(ROMFSINST)    -s $(TARGET)   /bin/power
 endif
@@ -443,15 +401,13 @@ ifdef VOIPBOX_IVR
 	make -C ivr_file_play/test_g711 romfs
 	make -C ivr_file_play/test_g723 romfs
 	make -C ivr_file_play/test_g729 romfs
+	make -C ivr_file_play/test_g722 romfs
 endif
 ifdef VOIPBOX_LBTEST
 	$(ROMFSINST)	-s $(TARGET)	/bin/lb_test
 endif
 ifdef VOIPBOX_VOIPEVENT
 	$(ROMFSINST)	-s $(TARGET)	/bin/voip_event
-endif
-ifdef VOIPBOX_DTMF_DET_CFG
-	$(ROMFSINST)	-s $(TARGET)	/bin/dtmf_det_cfg
 endif
 
 clean:

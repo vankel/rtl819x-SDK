@@ -10,6 +10,7 @@ EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/dsp_r1/include
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/v152
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_dsp/energy
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/
+EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_manager/
 
 ifeq ($(CONFIG_RTK_VOIP),m)
 EXTRA_CFLAGS += -mlong-calls

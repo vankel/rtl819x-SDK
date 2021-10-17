@@ -1,0 +1,21 @@
+config APP_ADAPTER_API
+	bool "adapter api"
+	help 
+		"this will enable adapter api for integration with RTK SDK"
+
+config APP_RTK_ADAPTER
+	bool "rtk api"
+	select APP_WAN_CHECKD
+	help
+		"this will enable basic rtk adatper api"
+	depends on APP_ADAPTER_API
+config APP_RTK_API_TEST_CASE
+	bool "Test case for rtk api"
+	help
+		"it support rtk api test case with CUnit"
+	depends on APP_RTK_ADAPTER
+
+config APP_WAN_CHECKD
+        bool "check wan status daemon"
+        help
+                "this will enable wan status check daemon"

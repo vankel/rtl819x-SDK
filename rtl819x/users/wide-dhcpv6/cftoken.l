@@ -222,6 +222,10 @@ ecl		\}
 <S_IA>{number} { DECHO; yylval.str = strdup(yytext); return(IAID); }
 <S_IA>{bcl} { DP("begin of closure"); BEGIN S_CNF; return (BCL); }
 
+	/* t1 and t2 */
+<S_CNF>t1 { DECHO; return(T1); }
+<S_CNF>t2 { DECHO; return(T2); }
+<S_CNF>suggest-t { DECHO; return(SUGGEST_T); }
 	/*
 	 * interface parameters for delegated prefix configuration.
 	 * when lex reads an interface name, the state will be back to

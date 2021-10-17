@@ -9,6 +9,7 @@
 #define RTL865X_MULTICAST_SWAP_THRESHOLD		400
 #define SINGLE_BITMASK_ISSET(x) ((x & (x - 1)) == 0)	/* chenyl: only 1 bit is set in vlanMask */
 
+#define RTL865X_HW_MCAST_SWAP_GAP  300
 
 /*================================================
   * Multicast Data Structure
@@ -303,14 +304,17 @@ typedef struct rtl865x_tblDrv_mCast_s {
 	/*above field is for asic table usage*/
 	mcast_fwd_descriptor_head_t fwdDescChain;
 	unsigned int	count;
-	unsigned int	maxPPS;
+	//unsigned int	maxPPS;
 	unsigned char	cpuHold;
 	unsigned char	flag;
 	unsigned char	inAsic;	
 	unsigned char	unKnownMCast;
 #if  defined(CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	unsigned short liveTime;
-#endif 
+#endif
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
+	unsigned int hashIndex;
+#endif
 	TAILQ_ENTRY(rtl865x_tblDrv_mCast_s) nextMCast;
 	
 } rtl865x_tblDrv_mCast_t;
@@ -355,6 +359,15 @@ int rtl865x_delMulticastEntry(unsigned int mcast_addr);
 
 int rtl865x_genVirtualMCastFwdDescriptor(unsigned int forceToCpu, unsigned int  fwdPortMask, rtl865x_mcast_fwd_descriptor_t *fwdDescriptor);
 int rtl865x_blockMulticastFlow(unsigned int srcVlanId, unsigned int srcPort,unsigned int srcIpAddr, unsigned int destIpAddr);
+int32 rtl865x_flushHWMulticastEntry(void);
+int rtl865x_getMCastHashMethod(unsigned int *hashMethod);
+int rtl865x_setMCastHashMethod(unsigned int hashMethod);
+#if defined (CONFIG_RTL_HW_MCAST_PATCH_FOR_MAC)
+#define MACCLONE_MODE_HW_REPLACE 1
+#define	MACCLONE_MODE_SW_REPLACE 2
+#define MACCLONE_MODE_HW_DISBLE 3
+#define	MACCLONE_MODE_ORI 0
+#endif
 
 #endif
 

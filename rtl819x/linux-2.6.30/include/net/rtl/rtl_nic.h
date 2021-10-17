@@ -15,10 +15,12 @@
 #define RTL819X_PRIV_IOCTL_ENABLE 1 	/* mark_add */
 #define CONFIG_RTL_PHY_PATCH		1
 #define RTK_QUE			1
-#if defined(CONFIG_NET_WIRELESS_AGN) || defined (CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192CD_MODULE) || defined(CONFIG_RTL8192E)
+#if defined(CONFIG_NET_WIRELESS_AGN) || defined (CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192CD_MODULE)
 #if !defined(CONFIG_RTL_FASTBRIDGE)
 #define BR_SHORTCUT         1
 #define BR_SHORTCUT_C2      1
+#define BR_SHORTCUT_C3      1
+#define BR_SHORTCUT_C4      1
 #endif
 #endif
 /*
@@ -172,7 +174,17 @@ struct port_statistics  {
        unsigned int  tx_error;			   
 };
 #endif
-
+#if defined (CONFIG_RTL_INBAND_CTL_API)
+struct port_stats
+{
+	unsigned long rx_bytes_last;
+	unsigned long tx_bytes_last;
+	unsigned long rx_bytes_current;
+	unsigned long tx_bytes_current;
+	unsigned long rx_rate;
+	unsigned long tx_rate;
+};
+#endif
 #if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
 #define	RTL_LANVLANID_1		9
 #define	RTL_LANVLANID_2		10
@@ -245,6 +257,12 @@ struct rtl865x_vlanConfig {
 }while(0)
 #endif
 
+#ifdef CONFIG_RTL8686_GMAC
+#define GATEWAY_MODE				0
+#define BRIDGE_MODE					1
+#define WISP_MODE					2
+#endif
+
 typedef struct _ps_drv_netif_mapping_s
 {
 	uint32 valid:1, //entry enable?
@@ -276,6 +294,19 @@ int  rtl865x_reChangeOpMode (void);
 
 #if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
 extern int rtl_hw_vlan_ignore_tagged_mc;
+#endif
+#ifndef CONFIG_RTL_CUSTOM_PASSTHRU
+#define CONFIG_RTL_CUSTOM_PASSTHRU
+//#define CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE
+#ifdef CONFIG_RTL_CUSTOM_PASSTHRU
+#define PASSTHRU_VLAN_ID 100
+
+#define IP6_PASSTHRU_RULEID 5
+#define PPPOE_PASSTHRU_RULEID1 3
+#define PPPOE_PASSTHRU_RULEID2 4
+#define IP6_PASSTHRU_MASK 0x1
+#define PPPOE_PASSTHRU_MASK 0x1<<1
+#endif
 #endif
 
 #endif

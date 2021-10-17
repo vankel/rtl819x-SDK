@@ -167,8 +167,7 @@
 
 #define SN_X9_62_prime_field		"prime-field"
 #define NID_X9_62_prime_field		406
-//#define OBJ_X9_62_prime_field		OBJ_X9_62_id_fieldType,1L
-#define OBJ_X9_62_prime_field		1L,2L,156L,11235L,1L,1L,2L,1L
+#define OBJ_X9_62_prime_field		OBJ_X9_62_id_fieldType,1L
 
 #define SN_X9_62_characteristic_two_field		"characteristic-two-field"
 #define NID_X9_62_characteristic_two_field		407

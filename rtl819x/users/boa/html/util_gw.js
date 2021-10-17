@@ -77,7 +77,74 @@ function manualDNSclicked()
   enableDNSinput();
 }
 
+// check whether the str is a right IPv6 address
+function checkIPv6(str) {
+    var idx = str.indexOf("::");
+    // there is no "::" in the ip address
+    if (idx == -1) {
+        var items = str.split(":");
+        if (items.length != 8) {
+            return false;
+        } else {
+            for (i in items) {
+                if (!isHex(items[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    } else {
+        // at least, there are two "::" in the ip address
+        if (idx != str.lastIndexOf("::")) {
+            return false;
+        } else {
+            var items = str.split("::");
+            var items0 = items[0].split(":");
+            var items1 = items[1].split(":");
+            if ((items0.length + items1.length) > 7) {
+                return false;
+            } else {
+                for (i in items0) {
+                    if (!isHex(items0[i])) {
+                        return false;
+                    }
+                }
+                for (i in items1) {
+                    if (!isHex(items1[i])) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+    }
+}
 
+function isHex(str) {
+    if(str.length == 0 || str.length > 4) {
+        return false;
+    }
+    str = str.toLowerCase();
+    var ch;
+    for(var i=0; i< str.length; i++) {
+        ch = str.charAt(i);
+        if(!(ch >= '0' && ch <= '9') && !(ch >= 'a' && ch <= 'f')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function validateNum(str)
+{
+  for (var i=0; i<str.length; i++) {
+   	if ( !(str.charAt(i) >='0' && str.charAt(i) <= '9')) {
+		alert("Invalid value. It should be in decimal number (0-9).");
+		return false;
+  	}
+  }
+  return true;
+}
 
 function skip () { this.blur(); }
 function disableTextField (field) {
@@ -115,11 +182,11 @@ function saveChanges_basic(form, wlan_id)
 {
 	
 	
-  mode =form.elements["mode"+wlan_id] ;
+  var mode =form.elements["mode"+wlan_id] ;
 
 	if (form.name=="wlanSetup") {
 		// for support WPS2DOTX  ; ap mode
-		hiddenSSIDEnabled = form.elements["hiddenSSID"+wlan_id] ;
+		var hiddenSSIDEnabled = form.elements["hiddenSSID"+wlan_id] ;
 
 		if(mode.selectedIndex==0 || mode.selectedIndex==3){
 			if ( hiddenSSIDEnabled.selectedIndex==0 ) {
@@ -130,7 +197,7 @@ function saveChanges_basic(form, wlan_id)
 		}
 	}
 
-  ssid =form.elements["ssid"+wlan_id] ;			//mode.selectedIndex=4 means AP+MESH
+  var ssid =form.elements["ssid"+wlan_id] ;			//mode.selectedIndex=4 means AP+MESH
   // P2P_SUPPORT
   if ( (mode.selectedIndex==0 || mode.selectedIndex==3 ) && ssid.value=="") {
 	alert('SSID cannot be empty');
@@ -143,19 +210,24 @@ function saveChanges_basic(form, wlan_id)
 	tx_restrict = form.elements["tx_restrict"+wlan_id];
 	if(tx_restrict)
 	{
+		if (validateNum(tx_restrict.value)==0)
+		{
+			tx_restrict.focus();
+			return false;
+		}
 		if (tx_restrict.value == "") 
 		{
 			alert('tx_restrict cannot be empty!');
 			tx_restrict.focus();
 			return false;
 		}
-		else if(tx_restrict.value >= 0 && tx_restrict.value <= 100)
+		else if(tx_restrict.value >= 0 && tx_restrict.value <= 1000)
 		{
 			
 		}
 		else
 		{
-			alert('tx_restrict value between 0 to 100!');
+			alert('tx_restrict value between 0 to 1000!');
 			tx_restrict.focus();
 			return false;
 		}
@@ -169,12 +241,12 @@ function saveChanges_basic(form, wlan_id)
 			rx_restrict.focus();
 			return false;
 		}
-		else if(rx_restrict.value >= 0 && rx_restrict.value <= 101)
+		else if(rx_restrict.value >= 0 && rx_restrict.value <= 1000)
 		{		
 		}
 		else
 		{
-			alert('rx_restrict value between 0 to 100!');
+			alert('rx_restrict value between 0 to 1000!');
 			rx_restrict.focus();
 			return false;
 		}	
@@ -198,8 +270,8 @@ function saveChanges_basic(form, wlan_id)
 			form.elements["Band2G5GSupport"].value = 2;//2:PHYBAND_5G										
 	}
 
-	basicRate=0;
-	operRate=0;
+	var basicRate=0;
+	var operRate=0;
 	if (band & 1) {
 		basicRate|=0xf;
 		operRate|=0xf;		
@@ -239,13 +311,12 @@ function saveChanges_basic(form, wlan_id)
 }
 /*==============================================================================*/
 function show_div(show,id) {
-	if(document.getElementById(id))
-	{
-		if(show)
-			document.getElementById(id).className  = "on" ;
-    	else	    
-    		document.getElementById(id).className  = "off" ;
-	}
+	var div=document.getElementById(id);
+	if(!div) return;
+	if(show)
+		div.className  = "on" ;
+    else	    
+    	div.className  = "off" ;
 }
 
 /*   tcpipwan.htm */
@@ -269,6 +340,7 @@ function wanShowDiv(pptp_bool, dns_bool, dnsMode_bool, pppoe_bool, static_bool, 
 function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 {
   var wanType = form.wanType.selectedIndex ;
+  
   if(form.pppoeNumber)
   var pppoeNumber = form.pppoeNumber.selectedIndex ; 
   else
@@ -296,6 +368,12 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	  else
 	      form.wan_gateway.value = '0.0.0.0';  
 
+	if(form.dns1.value!="" && form.dns1.value!="0.0.0.0")
+	{
+		form.dnsMode.value="dnsManual";
+		if ( checkIpAddr(form.dns1, 'Invalid DNS address') == false ) 
+              		return false;
+	}
 	  if (form.fixedIpMtuSize != null){
 	     d2 = getDigit(form.fixedIpMtuSize.value, 1);
 	     if ( validateKey(form.fixedIpMtuSize.value) == 0 ||
@@ -311,13 +389,42 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
   	  if (form.dhcpMtuSize != null){
 	     d2 = getDigit(form.dhcpMtuSize.value, 1);
 	     if ( validateKey(form.dhcpMtuSize.value) == 0 ||
-			(d2 > 1492 || d2 < 1400) ) {
+			(d2 > 1500 || d2 < 1400) ) {
 			alert("Invalid MTU size! You should set a value between 1400-1492.");
 			form.dhcpMtuSize.value = form.dhcpMtuSize.defaultValue;
 			form.dhcpMtuSize.focus();
 			return false;
 	     }
 	  } 
+	if(form.hostName!=null)
+	{ 
+	var str = form.hostName.value;
+		if(str.length > 63){
+  			alert("Invalid Host Name! Length of Domain Name shoule not more than 63");
+			form.hostName.focus();
+			return false;
+  		}
+	
+	  	for(var i=0; i<str.length; i++){
+  			if( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
+				(str.charAt(i) >= 'a' && str.charAt(i) <= 'z') ||
+				(str.charAt(i) >= 'A' && str.charAt(i) <= 'Z') ||
+				str.charAt(i) == '-')
+					continue;
+			alert("Invalid Host Name! Please enter characters in A(a)~Z(z) or 0-9 or '-' without spacing.");	
+			form.hostName.focus();
+			return false;
+  		}
+	  	if(str.charAt(0) == '-' ||
+	  		str.charAt(str.length - 1) == '-' ||
+	  		(str.charAt(0) >= '0' && str.charAt(0) <= '9')){
+			alert("Invalid Host Name! Host Name should begin with letter,end with letter or digits .");	
+			form.hostName.focus();
+			return false;
+	  	}
+	  
+	}
+	  
   }
   else if ( wanType == 2){ //pppoe wanType
 	   if (form.pppUserName.value=="") {
@@ -486,37 +593,16 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	   
   }
   else if ( wanType == 3){ //pptp wanType
-	  if ( checkIpAddr(form.pptpIpAddr, 'Invalid IP address') == false )
-	    return false;
-	  if (checkIPMask(form.pptpSubnetMask) == false)
-  			return false ;
-
-	  if(isIpAddress(form.pptpServerAddr)==true)
-	  {//is ip address
-	  	  if ( checkIpAddr(form.pptpServerAddr, 'Invalid server IP address') == false )
-	      	return false;
-		  form.pptpServerAddrIsDomainName.value=0;
-	  }
-	  else if(form.pptpEnableGetServIpByDomainName.value)
-	  {//is domain name
-	  	if(isDomainName(form.pptpServerAddr)==true)
-	  	  	form.pptpServerAddrIsDomainName.value=1;
-		else
-		{
-		  	 alert("Invalid input! Not ip address or domain name")
-			 form.pptpServerAddr.focus();
-			 return false;
-		 }
-	  }else
-	  {
-	  	 alert("Invalid server IP address")
-		 form.pptpServerAddr.focus();
-		 return false;
-	  }
-
-	 
 	  if(dynamicWanIP == 0)
-	  { 
+	  {	  	  
+	  	  if ( checkIpAddr(form.pptpIpAddr, 'Invalid IP address') == false )
+		    return false;
+		  if (checkIPMask(form.pptpSubnetMask) == false)
+	  			return false ;
+		  if (checkIpAddr(form.pptpDefGw,'Invalid IP address') == false )
+		  		return false;
+		  if ( checkIpAddr(form.pptpServerIpAddr, 'Invalid server IP address') == false )
+		      return false;
 		  if ( !checkSubnet(form.pptpIpAddr.value,form.pptpSubnetMask.value,form.pptpDefGw.value)) {
 		      alert('Invalid pptp default gateway IP address!\nIt should be located in the same subnet of local IP address.');
 		      form.pptpDefGw.value = form.pptpDefGw.defaultValue;
@@ -524,8 +610,16 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		      return false;
 		  }
 	  }
-	 
-
+	if(form.pptpServerDomainName)
+	{
+		if((!form.pptpServerDomainName.disabled) && 
+			!checkFieldEmpty(form.pptpServerDomainName,'domain name can not be emapy'))
+		  	return false;
+	}
+	if((!form.pptpServerIpAddr.disabled)&&
+		!checkIpAddr(form.pptpServerIpAddr, 'Invalid IP address'))
+		return false;
+	
 	  if (form.pptpUserName.value=="") {
 		  alert('User name cannot be empty!');
 		  form.pptpUserName.value = form.pptpUserName.defaultValue;
@@ -540,7 +634,7 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	  }
 	   if ( form.pptpConnectType != null){
 			     if ( form.pptpConnectType.selectedIndex == 1 ) {
-				d1 = getDigit(form.pptpIdleTime.value, 1);
+				var d1 = getDigit(form.pptpIdleTime.value, 1);
 				if ( validateKey(form.pptpIdleTime.value) == 0 ||
 					(d1 > 1000 || d1 < 1) ) {
 					alert("Invalid idle time value! You should set a value between 1-1000.");
@@ -550,7 +644,7 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 			     }
 	   }
 	  if ( form.pptpMtuSize != null){
-	  	d2 = getDigit(form.pptpMtuSize.value, 1);
+	  	var d2 = getDigit(form.pptpMtuSize.value, 1);
 	   	if ( validateKey(form.pptpMtuSize.value) == 0 ||
 			(d2 > 1460 || d2 < 1400) ) {
 			alert("Invalid MTU size! You should set a value between 1400-1460.");
@@ -562,37 +656,18 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
    } 
    /*-- keith: add l2tp support. 20080515  */
    else if ( wanType == 4){ //l2tp wanType
-	  if ( checkIpAddr(form.l2tpIpAddr, 'Invalid IP address') == false )
-	    return false;
-	  if (checkIPMask(form.l2tpSubnetMask) == false)
-  			return false ;
-
-	  if(isIpAddress(form.l2tpServerAddr)==true)
-	  {//is ip address
-	  	  if ( checkIpAddr(form.l2tpServerAddr, 'Invalid server IP address') == false )
-	      return false;
-		  form.l2tpServerAddrIsDomainName.value=0;
-	  }
-	  else if(form.pptpEnableGetServIpByDomainName.value)
-	  {//is domain name
-	  	if(isDomainName(form.l2tpServerAddr)==true)
-	  	  	form.l2tpServerAddrIsDomainName.value=1;
-		else
-		{
-		  	 alert("Invalid input! Not ip address or domain name")
-			 form.l2tpServerAddr.focus();
-			 return false;
-		 }
-	  }else
-	  {
-	  	 alert("Invalid server IP address")
-		 form.l2tpServerAddr.focus();
-		 return false;
-	  }
-	 
+	  
 	  
 	  if(dynamicWanIP == 0)
 	  {
+	  	  if ( checkIpAddr(form.l2tpIpAddr, 'Invalid IP address') == false )
+		    return false;
+		  if (checkIPMask(form.l2tpSubnetMask) == false)
+	  			return false ;
+		  if (checkIpAddr(form.l2tpDefGw,'Invalid IP address') == false)
+		  		return false;
+		  if ( checkIpAddr(form.l2tpServerIpAddr, 'Invalid server IP address') == false )
+		      return false;
 		  if ( !checkSubnet(form.l2tpIpAddr.value,form.l2tpSubnetMask.value,form.l2tpDefGw.value)) {
 		      alert('Invalid l2tp default gateway IP address!\nIt should be located in the same subnet of local IP address.');
 		      form.l2tpDefGw.value = form.l2tpDefGw.defaultValue;
@@ -600,7 +675,16 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		      return false;
 		  }
 	  }
-	  
+	if(form.l2tpServerDomainName)
+	{
+		if((!form.l2tpServerDomainName.disabled) && 
+			!checkFieldEmpty(form.l2tpServerDomainName,'domain name can not be emapy'))
+		  	return false;
+	}
+	if((!form.l2tpServerIpAddr.disabled)&&
+		!checkIpAddr(form.l2tpServerIpAddr, 'Invalid IP address'))
+		return false;
+	
 	  if (form.l2tpUserName.value=="") {
 		  alert('User name cannot be empty!');
 		  form.l2tpUserName.value = form.l2tpUserName.defaultValue;
@@ -673,7 +757,7 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
    } 
 
    if( wanType != 0 ) { // not static IP
-	   group = form.dnsMode;
+	   var group = form.dnsMode;
 	   for (var r = 0; r < group.length; r++)
 		  if (group[r].checked)
 		    break;
@@ -683,7 +767,12 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	      		alert('DNS1 address cannot be empty!');
 	      		return false;
 		}	
-	      if (form.dns1.value!="0.0.0.0") {
+	      if (form.dns1.value=="0.0.0.0")
+	      {
+	      		alert('DNS1 address cannot be 0.0.0.0!');
+			return false;
+	      }
+	      else{
 		  if ( checkIpAddr(form.dns1, 'Invalid DNS1 address') == false )
 		     return false;
 	      }		
@@ -710,7 +799,12 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 	  	alert('DNS1 address cannot be empty!');
 	      	return false;
 	  }
-	  if (form.dns1.value!="0.0.0.0") {
+	  if (form.dns1.value=="0.0.0.0")
+	  {
+	      	alert('DNS1 address cannot be 0.0.0.0!');
+		return false;
+	  }
+	  else {
 	     if ( checkIpAddr(form.dns1, 'Invalid DNS1 address') == false )
 	       return false;
 	  }
@@ -742,6 +836,26 @@ function saveChanges_wan(form , MultiPppoeFlag, dynamicWanIP)
 		form.wan_macAddr.focus();
 		return false;
   	}
+
+	// fixed "All MAC Address field can't reject 00:00:00:00:00:00/ff:ff:ff:ff:ff:ff MAC Address" issue
+	if(str == "ffffffffffff")
+	{
+		alert("Invalid MAC address. It should not be ff:ff:ff:ff:ff:ff.");
+		form.wan_macAddr.value = form.wan_macAddr.defaultValue;
+		form.wan_macAddr.focus();
+		return false;
+	}
+
+	//var reg = /01005[eE][0-7][0-9a-fA-F]{5}/;
+	//if(reg.exec(str))
+	if(parseInt(str.substr(0, 2), 16) & 0x01 != 0)
+	{
+		form.wan_macAddr.value = form.wan_macAddr.defaultValue;
+		form.wan_macAddr.focus();
+		alert("Invalid MAC address. It should not be multicast mac address.");
+		return false;
+	}
+	
    	for (var i=0; i<str.length; i++) {
      		if ( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
 			(str.charAt(i) >= 'a' && str.charAt(i) <= 'f') ||
@@ -797,7 +911,7 @@ function enableWLAN(form, wlan_id)
   	enableTextField(form.elements["chan"+wlan_id]);
   }
   else {	// mode == client
-    	if (disableSSID[wlan_id])
+    if (disableSSID[wlan_id])
   		disableTextField(form.elements["type"+wlan_id]);
   	else
    		enableTextField(form.elements["type"+wlan_id]);   	   	
@@ -844,11 +958,12 @@ function enableWLAN(form, wlan_id)
   		disableCheckBox(form.elements["wizardAddProfile"+wlan_id]);
   }
   	
-	if(band_value == 9 || band_value ==10 || band_value==7 || band_value==11 || band_value==14 ){
+//ac2g	
+	if(band_value == 9 || band_value ==10 || band_value==7 || band_value==11 || band_value==14 || band_value==63 || band_value==71 || band_value==75 || band_value==74 ){ //8812
 	  	enableTextField(form.elements["channelbound"+wlan_id]);
 	  
 	  	
-	  	if(chan_boundIdx == 1)
+	  	if(chan_boundIdx == 1) //8812
 	  		enableTextField(form.elements["controlsideband"+wlan_id]);
 	  	else 	
 	  		 disableTextField(form.elements["controlsideband"+wlan_id]);
@@ -917,7 +1032,8 @@ function showChannel5G(form, wlan_id)
 	var sideBand=form.elements["controlsideband"+wlan_id].value;
 	var dsf_enable=form.elements["dsf_enable"].value;
 	var idx=0;
-	
+	var wlan_support_8812e=form.elements["wlan_support_8812e"].value;
+	var defChanIdx;
 	form.elements["chan"+wlan_id].length=startChanIdx[wlan_id];
 	
 	if (startChanIdx[wlan_id] == 0)
@@ -940,181 +1056,212 @@ function showChannel5G(form, wlan_id)
 	
 	idx=startChanIdx[wlan_id];
 	
-	if (regDomain[wlan_id]==1 //FCC (1)
-	 || regDomain[wlan_id]==2 //IC (2)
-	 || regDomain[wlan_id]==3 //ETSI (3)
-	 || regDomain[wlan_id]==4 //SPAIN (4)
-	 || regDomain[wlan_id]==5 //FRANCE (5)
-	 || regDomain[wlan_id]==6 //MKK (6)
-	 || regDomain[wlan_id]==7 //ISREAL (7)
-	 || regDomain[wlan_id]==9 //MKK2 (9)
-	 || regDomain[wlan_id]==10 //MKK3 (10)
-	 || regDomain[wlan_id]==14 //GLOBAL (14)
-	 || regDomain[wlan_id]==15 //GLOBAL (15)	
-	) 
+
+	if(wlan_support_8812e ==1)
 	{
 		var bound = form.elements["channelbound"+wlan_id].selectedIndex;
 		var inc_scale;
+		var chan;
+		inc_scale = 4;
+		var chan_str = 36;
+		var chan_end = 64;
+
+		var reg_chan_8812_full =new Array(16);
+		var i;
+		var ii;
+		var iii;
+		var iiii;
+		var found; 
+		var chan_pair;
+		var reg_8812 = regDomain[wlan_id];
 		
-		if (bound == 0) //20MHz
+/* FCC */			reg_chan_8812_full[0]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","136","140","149","153","157","161","165");
+/* IC */				reg_chan_8812_full[1]= new Array("36","40","44","48","52","56","60","64","149","153","157","161");
+/* ETSI */			reg_chan_8812_full[2]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","120","124","128","132","136","140");                                         
+/* SPAIN */			reg_chan_8812_full[3]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","120","124","128","132","136","140");                                         
+/* FRANCE */			reg_chan_8812_full[4]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","120","124","128","132","136","140");                                          
+/* MKK */			reg_chan_8812_full[5]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","120","124","128","132","136","140");                                          
+/* ISRAEL */			reg_chan_8812_full[6]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","120","124","128","132","136","140");                                           
+/* MKK1 */			reg_chan_8812_full[7]= new Array("34","38","42","46");                                                                                                  
+/* MKK2 */			reg_chan_8812_full[8]= new Array("36","40","44","48");                                                                                               
+/* MKK3 */			reg_chan_8812_full[9]= new Array("36","40","44","48","52","56","60","64");                                                                                        
+/* NCC (Taiwan) */	reg_chan_8812_full[10]= new Array("56","60","64","100","104","108","112","116","136","140","149","153","157","161","165");                                                    
+/* RUSSIAN */		reg_chan_8812_full[11]= new Array("36","40","44","48","52","56","60","64","132","136","140","149","153","157","161","165");                                                                                                  
+/* CN */				reg_chan_8812_full[12]= new Array("36","40","44","48","52","56","60","64","149","153","157","161","165");                                                                                           
+/* Global */			reg_chan_8812_full[13]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","136","140","149","153","157","161","165");                                    
+/* World_wide */		reg_chan_8812_full[14]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","136","140","149","153","157","161","165");                                       
+/* Test */			reg_chan_8812_full[15]= new Array("36","40","44","48","52","56","60","64","100","104","108","112","116","120","124","128"," 132","136","140","144","149","153","157","161","165","169","173","177");		
+
+		if(reg_8812 > 0)
+			reg_8812 = reg_8812 - 1;
+		if(reg_8812 > 15)
+			reg_8812 = 15;
+
+		if(reg_8812==7) //MKK1 are special case
 		{
-			inc_scale = 4;
-			chan_str = 36;
-			chan_end = 48;
-		}
-		else //40MHz
-		{ 
-			inc_scale = 8;
-			if(sideBand == 0) // upper
-			{
-				chan_str = 40;
-				chan_end = 48;
-			}
-			else // lower
-			{
-				chan_str = 36;
-				chan_end = 44;
-			}
-		}
-		
-		for (chan=chan_str; chan<=chan_end; idx++, chan+=inc_scale) {
+			if(bound <= 2)
+			for(i = 0; i < reg_chan_8812_full[reg_8812].length; i++) {
+				chan = reg_chan_8812_full[reg_8812][i];
 			
 			form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
 			if (chan == defaultChan[wlan_id]) {
 				form.elements["chan"+wlan_id].selectedIndex = idx;
 				defChanIdx=idx;
 			}
+			idx ++;
+		}
+		}
+		else
+		{
+			for(i = 0; i < reg_chan_8812_full[reg_8812].length; i++) {
+				chan = reg_chan_8812_full[reg_8812][i];
+
+				if(reg_8812 != 15 && reg_8812 != 10)
+				if((dsf_enable == 0) && (chan >= 52) && (chan <= 144))
+					continue;
+				
+				if( reg_8812 == 10)
+					if((dsf_enable == 0) && (chan >= 100) && (chan <= 140))
+						continue;
+
+				if(reg_8812 != 15)
+				if(bound==1)
+				{
+					for(ii=0; ii < reg_chan_8812_full[15].length; ii++)
+					{
+						if(chan == reg_chan_8812_full[15][ii])
+							break;
+					}
+					
+					if(ii%2 == 0)
+						chan_pair = reg_chan_8812_full[15][ii+1];
+					else
+						chan_pair = reg_chan_8812_full[15][ii-1];
+
+					found = 0;
+					for(ii=0; ii < reg_chan_8812_full[reg_8812].length; ii++)
+					{
+						if(chan_pair == reg_chan_8812_full[reg_8812][ii])
+						{
+							found = 1;
+							break;
+						}
+					}
+
+					if(found == 0)
+						chan = 0;
+		
+				}
+				else if(bound==2)
+				{
+					for(ii=0; ii < reg_chan_8812_full[15].length; ii++)
+					{
+						if(chan == reg_chan_8812_full[15][ii])
+							break;
+					}
+
+					for(iii=(ii-(ii%4)); iii<((ii-(ii%4)+3)) ; iii++)
+					{
+						found = 0;
+						chan_pair = reg_chan_8812_full[15][iii];
+			
+						for(iiii=0; iiii < reg_chan_8812_full[reg_8812].length; iiii++)
+						{
+							if(chan_pair == reg_chan_8812_full[reg_8812][iiii])
+							{
+								found=1;
+								break;
+							}
+			}
+
+						if(found == 0)
+						{
+							chan = 0;
+							break;
+		}
+
+					}
+
+				}
+			
+				if(chan != 0)
+				{
+			form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
+			if (chan == defaultChan[wlan_id]) {
+				form.elements["chan"+wlan_id].selectedIndex = idx;
+				defChanIdx=idx;
+			}
+					idx++;
+		}
+
+			}
 		}
 		
-		if (regDomain[wlan_id]==1 //FCC (1)
-	 		|| regDomain[wlan_id]==2 //IC (2)
-	 		|| regDomain[wlan_id]==14 //GLOBAL (14)
-	 		|| regDomain[wlan_id]==15 //WORLD-WIDE (15)	 		
-	 	)
-	 	{
-	 		if (bound == 0) {		//20MHz
-					inc_scale = 4;
-					chan_str = 149;
-					chan_end = 161;
-			}	else {
-				inc_scale = 8;
-				if(sideBand == 0) // upper
-				{
-					chan_str = 153;
-					chan_end = 161;
+	}
+	else{
+		reg_chan_plan = new Array(17);
+		reg_chan_plan[0] = [2, [36,4],[149,5]]; //FCC
+		reg_chan_plan[1] = [2, [36,4],[149,4]]; //IC
+		reg_chan_plan[2] = [1, [36,4]]; //ETSI
+		reg_chan_plan[3] = [1, [36,4]]; //SPAIN
+		reg_chan_plan[4] = [1, [36,4]]; //FRANCE
+		reg_chan_plan[5] = [1, [36,4]]; //MKK
+		reg_chan_plan[6] = [1, [36,4]]; //ISRAEL
+		reg_chan_plan[7] = [1, [34,4]]; //MKK1
+		reg_chan_plan[8] = [1, [36,4]]; //MKK2
+		reg_chan_plan[9] = [1, [36,4]]; //MKK3
+		reg_chan_plan[10] = [2, [56,3],[149,5]]; //NCC
+		reg_chan_plan[11] = [2, [36,4],[149,5]]; //RUSSIAN
+		reg_chan_plan[12] = [2, [36,4],[149,5]]; //CN 
+		reg_chan_plan[13] = [2, [36,4],[149,5]]; //Global
+		reg_chan_plan[14] = [2, [36,4],[149,5]]; //World_wide		
+		if(!dsf_enable){
+			reg_chan_plan[15] = [3, [36,8],[100,12],[149,8]]; //Test
+		}else{
+			reg_chan_plan[15] = [2, [36,4],[149,8]]; //Test
+		}
+		reg_chan_plan[16] = [1, [146,170]]; //5M10M
+
+		var index = regDomain[wlan_id] - 1;
+		var seg_num = reg_chan_plan[index][0];
+		var bandstep;		
+		var bound = form.elements["channelbound"+wlan_id].selectedIndex;
+		var idx_value= form.elements["band"+wlan_id].selectedIndex;
+		var band_value= form.elements["band"+wlan_id].options[idx_value].value;
+		
+		if(regDomain[wlan_id]>=1 && regDomain[wlan_id]<17){ //step by 4
+			bandstep = 4;
+		}else if(regDomain[wlan_id]==17){ //step by 1
+			bandstep = 1;
+		}else{
+			return;
+		}
+
+		for(var bn=0; bn<seg_num; bn++){
+			var base = reg_chan_plan[index][bn+1][0];
+			var bandnum = reg_chan_plan[index][bn+1][1];
+			var startindex = 0;
+			var indexstep = 1;
+			if(regDomain[wlan_id]!=17){
+				if(band_value!=3){ // not 11a, maybe: 11AC,11n,11a+11n,...
+					if(bound==1){//40M
+						indexstep = 2;
+						if(sideBand==0){ //upper
+							startindex = 1;
+						}
+					}
 				}
-				else // lower
-				{
-					chan_str = 149;
-					chan_end = 157;
-				}
-			}					
-			for (chan=chan_str; chan<=chan_end; idx++, chan+=inc_scale) {
+			}
+			for(var bindex=startindex; bindex<bandnum; idx++, bindex+=indexstep){
+				var chan = base + bindex*bandstep;
 				form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
 				if (chan == defaultChan[wlan_id]) {
 					form.elements["chan"+wlan_id].selectedIndex = idx;
 					defChanIdx=idx;
 				}
-			}	 			 		
-	 	}
-	 	
-			/* You can not select channel 165 in 40MHz whether upper or lower. */
-	}
-	else if (regDomain[wlan_id]==8) //MKK1 (8)
-	{
-		var bound = form.elements["channelbound"+wlan_id].selectedIndex;
-		var inc_scale;
-		
-		if (bound == 0) //20MHz
-		{
-			inc_scale = 4;
-			chan_str = 34;
-			chan_end = 46;
-		}	
-		else //40MHz
-		{ 
-			inc_scale = 8;
-			if(sideBand == 0) // upper
-			{
-				chan_str = 38;
-				chan_end = 46;
-			}
-			else // lower
-			{
-				chan_str = 34;
-				chan_end = 42;
 			}
 		}
-		
-		for (chan=chan_str; chan<=chan_end; idx++, chan+=inc_scale) {
-			form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
-			if (chan == defaultChan[wlan_id]) {
-				form.elements["chan"+wlan_id].selectedIndex = idx;
-				defChanIdx=idx;
-			}
-		}		
-	}
-	else if (regDomain[wlan_id]==11) //NCC (11)
-	{
-		var bound = form.elements["channelbound"+wlan_id].selectedIndex;
-		var inc_scale;
-		if (bound == 0) //20MHz
-		{
-			inc_scale = 4;
-			chan_str = 56;
-			chan_end = 64;
-		}	
-		else //40MHz
-		{ 
-			inc_scale = 8;
-			if(sideBand == 0) // upper
-			{
-				chan_str = 60;
-				chan_end = 64;
-			}
-			else // lower
-			{
-				chan_str = 56;
-				chan_end = 64;
-			}
-		}				
-			
-		for (chan=chan_str; chan<=chan_end; idx++, chan+=inc_scale) {					
-			form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
-			if (chan == defaultChan[wlan_id]) {
-				form.elements["chan"+wlan_id].selectedIndex = idx;
-				defChanIdx=idx;
-			}
-		}
-		
-		if (bound == 0) //20MHz
-		{
-			inc_scale = 4;
-			chan_str = 149;
-			chan_end = 165;
-		}	
-		else //40MHz
-		{ 
-			inc_scale = 8;
-			if(sideBand == 0) // upper
-			{
-				chan_str = 153;
-				chan_end = 161;
-			}
-			else // lower
-			{
-				chan_str = 149;
-				chan_end = 157; /* You can not select channel 165 in 40MHz whether upper or lower. */
-			}
-		}				
-			
-		for (chan=chan_str; chan<=chan_end; idx++, chan+=inc_scale) {					
-			form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
-			if (chan == defaultChan[wlan_id]) {
-				form.elements["chan"+wlan_id].selectedIndex = idx;
-				defChanIdx=idx;
-			}
-		}
+		reg_chan_plan = null;
 	}
 		
 	form.elements["chan"+wlan_id].length = idx;
@@ -1127,27 +1274,29 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 {
 	var start = 1;
 	var end = 14;
-	if (regDomain[wlan_id]==1 || regDomain[wlan_id]==2) {
+	if (regDomain[wlan_id]==1 || regDomain[wlan_id]==2 || regDomain[wlan_id]==11) {
 		start = 1;
 		end = 11;
 	}
-	if (regDomain[wlan_id]==3 || regDomain[wlan_id]==15) {
+	if (regDomain[wlan_id]==3 || regDomain[wlan_id]==4 || regDomain[wlan_id]==12 || regDomain[wlan_id]==13 || regDomain[wlan_id]==15) {
 		start = 1;
 		end = 13;
-	}
-	if (regDomain[wlan_id]==4) {
-		start = 10;
-		end = 11;
 	}
 	if (regDomain[wlan_id]==5) {
 		start = 10;
 		end = 13;
 	}
-	if (regDomain[wlan_id]==6 || regDomain[wlan_id]==14) {
+	if (regDomain[wlan_id]==6  || regDomain[wlan_id]==8  || regDomain[wlan_id]==9  || regDomain[wlan_id]==10  || regDomain[wlan_id]==14  || regDomain[wlan_id]==16 ) {
 		start = 1;
 		end = 14;
 	}
-	if(band_value == 9 || band_value == 10 || band_value==7){
+	if (regDomain[wlan_id]==7) {
+		start = 3;
+		end = 13;
+	}
+
+
+	if(band_value == 9 || band_value == 10 || band_value==7 || band_value == 74){ //ac2g
 		if(bound_40 ==1){
 			var sideBand_idex = form.elements["controlsideband"+wlan_id].selectedIndex;
 			var sideBand=form.elements["controlsideband"+wlan_id].options[sideBand_idex].value;
@@ -1170,7 +1319,7 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 			}else{
 				if(sideBand ==0){  //upper
 					start = 5;
-					if (regDomain[wlan_id]==1 || regDomain[wlan_id]==2)
+					if (regDomain[wlan_id]==1 || regDomain[wlan_id]==2 || regDomain[wlan_id]==11)
 						end = 11;
 					else  				
 						end = 13;			
@@ -1178,12 +1327,15 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 				}else if(sideBand ==1){ //lower
 					end = 9;
 					//end = 7; orig
-					start = 1;
+					if(regDomain[wlan_id]==7)
+						start = 3;
+					else 
+						start = 1;
 				}
 			}
 		}
 	}
-	defChanIdx=0;
+	var defChanIdx=0;
 	form.elements["chan"+wlan_id].length=0;
 
 	idx=0;
@@ -1195,6 +1347,10 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 	}
 
 	idx++;	
+	var chan;
+	
+
+{
 	for (chan=start; chan<=end; chan++, idx++) {
 		form.elements["chan"+wlan_id].options[idx] = new Option(chan, chan, false, false);
 		if(chan == wlan_channel[wlan_id]){
@@ -1202,6 +1358,7 @@ function showChannel2G(form, wlan_id, bound_40, band_value)
 			defChanIdx = idx;
 		}
 	}
+}
 	form.elements["chan"+wlan_id].length=idx;
 	startChanIdx[wlan_id] = idx;
 }
@@ -1212,6 +1369,8 @@ function updateChan_channebound(form, wlan_id)
 	var bound = form.elements["channelbound"+wlan_id].selectedIndex;
 	var adjust_chan;
 	var Band2G5GSupport=form.elements["Band2G5GSupport"].value;
+	var wlBandMode=form.elements["wlBandMode"].value;
+	
 	
 if(form.name == "wizard")
 	{
@@ -1236,10 +1395,10 @@ if(form.name == "wizard")
 	}
 var currentBand;		
 
-	if(band_value ==3 || band_value ==11){
+	if(band_value ==3 || band_value ==11 || band_value ==63|| band_value ==71|| band_value ==75){
 		currentBand = 2;
 	}
-	else if(band_value ==0 || band_value ==1 || band_value ==2 || band_value == 9 || band_value ==10){
+	else if(band_value ==0 || band_value ==1 || band_value ==2 || band_value == 9 || band_value ==10||band_value==74){ //ac2g
 		currentBand = 1;
 	}
 	else if(band_value == 4 || band_value==5 || band_value==6 || band_value==14){
@@ -1251,12 +1410,22 @@ var currentBand;
 			currentBand = 1;
 		else
 			currentBand = 2;
+
+		if(wlBandMode == 3)
+		{
+			if(idx_value != 1)
+				currentBand =1;
+			else
+				currentBand =2;
+		}
 	}
-	if(band_value==9 || band_value==10 || band_value ==7){	
+	if(band_value==9 || band_value==10 || band_value ==7 || band_value==74){	 // 8812 ?? adjust channel ?? //ac2g
 		if(bound ==0)
 			adjust_chan=0;
 		if(bound ==1)
 			adjust_chan=1;	
+		if(bound ==2)
+			adjust_chan=2;
 	}else
 		adjust_chan=0;	  
     
@@ -1269,16 +1438,19 @@ var currentBand;
 	if (currentBand == 2) {
 		startChanIdx[wlan_id]=0;
 		showChannel5G(form, wlan_id);
+		Band2G5GSupport = 2;
 	}
 	
-  	if (currentBand == 1)
+  	if (currentBand == 1) {
 		showChannel2G(form, wlan_id, adjust_chan, band_value);
+		Band2G5GSupport = 1;
+  	}
  	
- 	if(band_value==9 || band_value==10 || band_value ==7 || band_value ==11 || band_value ==14){
+ 	/*if(band_value==9 || band_value==10 || band_value ==7 || band_value ==11 || band_value ==14){
 	  	if(form.elements["chan"+wlan_id].value == 0){ // 0:auto	  
 	  		disableTextField(form.elements["controlsideband"+wlan_id]);	
 		}
-	}
+	}*/
 }
 
 function updateChan(form, wlan_id)
@@ -1286,7 +1458,7 @@ function updateChan(form, wlan_id)
 	var idx_value= form.elements["band"+wlan_id].selectedIndex;
 	var band_value= form.elements["band"+wlan_id].options[idx_value].value;
 	var Band2G5GSupport=form.elements["Band2G5GSupport"].value;
-	
+	var currentBand;
 	if(form.name == "wizard")
 	{
 		switch(wlan_id)
@@ -1308,11 +1480,11 @@ function updateChan(form, wlan_id)
 		}
 		
 	}	
-
-	if(band_value ==3|| band_value ==11 || (band_value ==7 && Band2G5GSupport == 2)){ // 3:5g_a 11:5g_an 7:n 2:PHYBAND_5G
+//ac2g
+	if(band_value ==3|| band_value ==11 || (band_value ==7 && Band2G5GSupport == 2)|| band_value ==63|| band_value ==71 || band_value ==75){ // 3:5g_a 11:5g_an 7:n 2:PHYBAND_5G
 		currentBand = 2;
 	}
-	else if(band_value ==0 || band_value ==1 || band_value ==2 || band_value == 9 || band_value ==10 || (band_value ==7 && Band2G5GSupport == 1)){
+	else if(band_value ==0 || band_value ==1 || band_value ==2 || band_value == 9 || band_value ==10 || band_value == 74 || (band_value ==7 && Band2G5GSupport == 1)){
 		currentBand = 1;
 	}else if(band_value == 4 || band_value==5 || band_value==6 || band_value==14){
 		currentBand = 3;
@@ -1375,6 +1547,22 @@ function showBand_MultipleAP(form, wlan_id, band_root, index_id)
 	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
 }
+else if(band_root == 63){
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+}
+else if(band_root == 71){
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (N+AC)", "71", false, false);
+}
+else if(band_root == 75){
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (N+AC)", "71", false, false);
+	form.elements["wl_band_ssid"+index_id].options[idx++] = new Option("5 GHz (A+N+AC)", "75", false, false);
+}
 
 
 form.elements["wl_band_ssid"+index_id].selectedIndex = 0;
@@ -1389,7 +1577,15 @@ function showBandAP(form, wlan_id)
 	var Band2G5GSupport=form.elements["Band2G5GSupport"].value;
 	var wlBandMode=form.elements["wlBandMode"].value;
 	var i;
-
+	var wlan_support_8812e;
+	var wlan_support_8192f;
+	var wlan_support_ac2g; //ac2g
+	if(form.elements["wlan_support_8812e"])
+		wlan_support_8812e=form.elements["wlan_support_8812e"].value;
+	if(form.elements["wlan_support_8192f"])
+		wlan_support_8192f=form.elements["wlan_support_8192f"].value;
+	if(form.elements["wlan_support_ac2g"])
+		wlan_support_ac2g=form.elements["wlan_support_ac2g"].value;
 if(form.name == "wizard")
 {
 	switch(wlan_id)
@@ -1417,6 +1613,13 @@ if(form.name == "wizard")
 		form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
+
+		if( (wlan_support_8812e==1) &&  (wlan_support_8192f!=1))
+		{
+			form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+			form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (N+AC)", "71", false, false);
+			form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (A+N+AC)", "75", false, false); //8812
+		}
 	}
 	
 	if(Band2G5GSupport == 1 || wlBandMode == 3) // 1:PHYBAND_2G 3:BANDMODESIGNLE
@@ -1427,6 +1630,10 @@ if(form.name == "wizard")
 		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (B+G+N)", "10", false, false);
+
+		//ac2g
+		if(wlan_support_ac2g==1)
+		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (B+G+N+AC)", "74", false, false);
 	}
 
 
@@ -1465,7 +1672,15 @@ function showBandClient(form, wlan_id)
 var Band2G5GSupport=form.elements["Band2G5GSupport"].value;
 	var wlBandMode=form.elements["wlBandMode"].value;
 	var i;
-
+	var wlan_support_8812e;
+	var wlan_support_8192f;
+	var wlan_support_ac2g; //ac2g
+	if(form.elements["wlan_support_8812e"])
+		wlan_support_8812e=form.elements["wlan_support_8812e"].value;
+	if(form.elements["wlan_support_8192f"])
+		wlan_support_8192f=form.elements["wlan_support_8192f"].value;
+	if(form.elements["wlan_support_ac2g"])
+		wlan_support_ac2g=form.elements["wlan_support_ac2g"].value;
 if(form.name == "wizard")
 	{
 		switch(wlan_id)
@@ -1494,6 +1709,12 @@ if(form.name == "wizard")
 		form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (A)", "3", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (N)", "7", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (A+N)", "11", false, false);
+
+		if( (wlan_support_8812e==1) && (wlan_support_8192f!=1)){
+			form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (AC)", "63", false, false);
+			form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (N+AC)", "71", false, false);
+		form.elements["band"+wlan_id].options[idx++] = new Option("5 GHz (A+N+AC)", "75", false, false); //8812
+		}
 	}
 
 	if(Band2G5GSupport == 1 || wlBandMode == 3) // 1:PHYBAND_2G 3:BANDMODESIGNLE
@@ -1504,10 +1725,19 @@ if(form.name == "wizard")
 		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (B+G)", "2", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (G+N)", "9", false, false);
 		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (B+G+N)", "10", false, false);
+
+		//ac2g
+		if(wlan_support_ac2g==1)
+		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz (B+G+N+AC)", "74", false, false);
 	}
 
-	if (wlBandMode == 3)
+	if (wlBandMode == 3) //ac2g
+	{
 		form.elements["band"+wlan_id].options[idx++] = new Option("2.4GHz + 5 GHz (A+B+G+N)", "14", false, false);
+
+		if(wlan_support_ac2g==1)
+		form.elements["band"+wlan_id].options[idx++] = new Option("2.4 GHz + 5 GHz (A+B+G+N+AC)", "78", false, false);
+	}
 
 	for(i=0 ; i<idx ; i++)
 	{
@@ -1564,6 +1794,7 @@ function updateMode(form, wlan_id)
 	var mode_value = form.elements["mode"+wlan_id].options[mode_idx].value; 
 	var idx_value= form.elements["band"+wlan_id].selectedIndex;
 	var band_value= form.elements["band"+wlan_id].options[idx_value].value;
+		
 	if (form.elements["mode"+wlan_id].selectedIndex != 1) {
   		if (APMode[wlan_id] == 1) {
 			if (bandIdxAP[wlan_id] < 0){
@@ -1599,11 +1830,17 @@ function updateMode(form, wlan_id)
 		networktype.selectedIndex = networkType[wlan_id];
 		networktype.disabled = false;		
 	}
-	
- 	chan_boundid = get_by_id("channel_bounding");
-  	controlsidebandid = get_by_id("control_sideband");  
-  	
-	if(bandIdx[wlan_id] == 9 || bandIdx[wlan_id] == 10 ||  bandIdx[wlan_id] == 7 || bandIdx[wlan_id] == 11 || bandIdx[wlan_id] == 14){
+
+	if(form.name=="wlanSetup")
+	{
+		chan_boundid = get_by_id("channel_bounding");
+  		controlsidebandid = get_by_id("control_sideband");
+	}else
+	{
+ 		chan_boundid = get_by_id("channel_bounding"+wlan_id);
+  		controlsidebandid = get_by_id("control_sideband"+wlan_id);  
+	}
+	if(bandIdx[wlan_id] == 9 || bandIdx[wlan_id] == 10 ||  bandIdx[wlan_id] == 7 || bandIdx[wlan_id] == 11 || bandIdx[wlan_id] == 14 || bandIdx[wlan_id] == 63 || bandIdx[wlan_id] == 71 || bandIdx[wlan_id] == 75){
 		chan_boundid.style.display = "";
 	 	controlsidebandid.style.display = "";
 		 if(form == document.wlanSetup){
@@ -1627,6 +1864,8 @@ function updateMode(form, wlan_id)
 		else{
 			if(form.elements["channelbound"+wlan_id].selectedIndex == "0")
 	 			disableTextField(form.elements["controlsideband"+wlan_id]);	
+			else if(form.elements["channelbound"+wlan_id].selectedIndex == "2") //8812
+				disableTextField(form.elements["controlsideband"+wlan_id]);	
 	 		else
 				enableTextField(form.elements["controlsideband"+wlan_id]);		
 		}
@@ -1690,6 +1929,8 @@ function updateType(form, wlan_id)
 			index_channelbound=form.elements["channelbound"+wlan_id].selectedIndex;
 		if(index_channelbound ==0)
 			disableTextField(form.elements["controlsideband"+wlan_id]);	
+		else if(index_channelbound ==2)
+			disableTextField(form.elements["controlsideband"+wlan_id]);	
 		else
 			enableTextField(form.elements["controlsideband"+wlan_id]);
 		}
@@ -1702,11 +1943,21 @@ function updateType(form, wlan_id)
 		else{
 			if(form.elements["channelbound"+wlan_id].selectedIndex == "0")
 	 			disableTextField(form.elements["controlsideband"+wlan_id]);	
+			else if(form.elements["channelbound"+wlan_id].selectedIndex == "2")
+				disableTextField(form.elements["controlsideband"+wlan_id]);	
 	 		else
 				enableTextField(form.elements["controlsideband"+wlan_id]);		
 		}
 }
-
+function pskFormatChange(form,wlan_id)
+{
+	if (form.elements["pskFormat"+wlan_id].selectedIndex ==0){
+		form.elements["pskValue"+wlan_id].maxLength = "63";
+	}
+	else{
+		form.elements["pskValue"+wlan_id].maxLength = "64";
+	}
+}
 /*==============================================================================*/
 /*   wlwpa.htm */
 function disableRadioGroup (radioArrOrButton)
@@ -1845,7 +2096,7 @@ function validateKey(str)
 
 function getDigit(str, num)
 {
-  i=1;
+  var i=1;
   if ( num != 1 ) {
   	while (i!=num && str.length!=0) {
 		if ( str.charAt(0) == '.' ) {
@@ -1864,13 +2115,13 @@ function getDigit(str, num)
   }
   if ( str.length == 0)
   	return -1;
-  d = parseInt(str, 10);
+  var d = parseInt(str, 10);
   return d;
 }
 
 function checkDigitRange(str, num, min, max)
 {
-  d = getDigit(str,num);
+  var d = getDigit(str,num);
   if ( d > max || d < min )
       	return false;
   return true;
@@ -1964,10 +2215,37 @@ function saveChanges_wpa(form, wlan_id)
 /*   tcpiplan.htm  */
 function checkMask(str, num)
 {
-  d = getDigit(str,num);
-  if( !(d==0 || d==128 || d==192 || d==224 || d==240 || d==248 || d==252 || d==254 || d==255 ))
-  	return false;
+  var d = getDigit(str,num);  
+  if(num==1)
+  {
+  	if( !(d==128 || d==192 || d==224 || d==240 || d==248 || d==252 || d==254 || d==255 ))
+  		return false;
+  }
+  else
+  {
+  	if( !(d==0 || d==128 || d==192 || d==224 || d==240 || d==248 || d==252 || d==254 || d==255 ))
+  		return false;
+  }
   return true;
+}
+
+function checkWholeMask(str)
+{
+	if(str.length==0)
+		return false;
+	var d1 = getDigit(str,1);
+	var d2 = getDigit(str,2);
+	var d3 = getDigit(str,3);
+	var d4 = getDigit(str,4);
+	if(d1==-1||d2==-1||d3==-1||d4==-1||d1==0 || d1 !=255)
+		return false;
+	if(d1!=255&&d2!=0)
+		return false;
+	if(d2!=255&&d3!=0)
+		return false;
+	if(d3!=255&&d4!=0)
+		return false;
+	return true;
 }
 
 
@@ -2008,6 +2286,12 @@ function checkIPMask(field)
 	field.focus();
 	return false;
   }
+  if(field.value=="0.0.0.0"){
+  		alert("Subnet mask cannot be 0.0.0.0!");
+	field.value = field.defaultValue;
+	field.focus();
+	return false;
+  }
   if ( validateKey( field.value ) == 0 ) {
       	alert("Invalid subnet mask value. It should be the decimal number (0-9).");
       	field.value = field.defaultValue;
@@ -2015,7 +2299,7 @@ function checkIPMask(field)
 	return false;
   }
   if ( !checkMask(field.value,1) ) {
-      	alert('Invalid subnet mask in 1st digit.\nIt should be the number of 0, 128, 192, 224, 240, 248, 252 or 254');
+      	alert('Invalid subnet mask in 1st digit.\nIt should be the number of 128, 192, 224, 240, 248, 252 or 254');
 	field.value = field.defaultValue;
 	field.focus();
 	return false;
@@ -2039,6 +2323,13 @@ function checkIPMask(field)
 	field.focus();
 	return false;
   }
+   if(!checkWholeMask(field.value)){
+  		alert("Invalid subnet mask.");
+	field.value = field.defaultValue;
+	field.focus;
+	return false;
+  }
+
 }  
 function checkIpAddr(field, msg)
 {
@@ -2054,8 +2345,8 @@ function checkIpAddr(field, msg)
       field.focus();
       return false;
    }
-   if ( !checkDigitRange(field.value,1,0,255) ) {
-      alert(msg+' range in 1st digit. It should be 0-255.');
+   if ( !checkDigitRange(field.value,1,1,223) ) {
+      alert(msg+' range in 1st digit. It should be 1-223.');
       field.value = field.defaultValue;
       field.focus();
       return false;
@@ -2080,25 +2371,124 @@ function checkIpAddr(field, msg)
    }
    return true;
 }
-function isIpAddress(field)
+//check ipv6 addr available
+function checkIpv6DigitRange(ipField)
 {
-	var reg = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;	
-	if(field && field.value && reg.exec(field.value))//format x.x.x.x
+	var reg = /[0-9a-fA-F]{4}/;	
+	var value=parseInt(ipField.value,16);
+	if(value<0 || value>parseInt("ffff",16) || isNaN(value) || !reg.exec(ipField.value))
 	{
-		return true;
-	}
-	else
+		//ipField.value = ipField.defaultValue;
+      	ipField.focus();
+		ipField.select();
 		return false;
+	}
+	return true;
 }
-function isDomainName(field)
+function checkIpv6Addr(ipField0,ipField1,ipField2,ipField3,ipField4,ipField5,ipField6,ipField7,prefixField,msg)
 {
-	var reg=/[a-zA-Z0-9\.]{1,31}/;
-	if(field && field.value && reg.exec(field.value))
+	if(	!checkIpv6DigitRange(ipField0)||!checkIpv6DigitRange(ipField1)||!checkIpv6DigitRange(ipField2)||
+		!checkIpv6DigitRange(ipField3)||!checkIpv6DigitRange(ipField4)||!checkIpv6DigitRange(ipField5)||
+		!checkIpv6DigitRange(ipField6)||!checkIpv6DigitRange(ipField7))
+		{
+			alert(msg+' ipv6 address invalid!');
+			return false;	
+		}
+	var reg = /[^0-9]/;
+	if(reg.exec(prefixField.value)||prefixField.value<0 ||prefixField.value>128)
 	{
-		return true;
-	}
-	else
+		//prefixField.value = prefixField.defaultValue;
+      	prefixField.focus();
+		prefixField.select();
+		alert(msg+' ipv6 prefix must between 0-128!');
 		return false;
+	}
+	return true;
+}
+function isIntVal(strVal)
+{
+	var reg = /^[1-9][0-9]*$/;
+	if(!reg.exec(strVal))
+		return false;
+	else
+		return true;
+}
+function checkFieldDigitRange(field,start,end,msg)
+{
+	var value = parseInt(field.value,10);
+	if(value<start || value > end || isNaN(value)||!isIntVal(field.value))
+	{
+		//field.value = field.defaultValue;
+		field.focus();
+		field.select();
+		alert(msg+' must between '+start+'-'+end);
+		return false;
+	}
+	return true;
+}
+function checkFieldEmpty(field,msg)
+{
+	if(field.value=="")
+	{
+		//field.value = field.defaultValue;
+		field.focus();
+		field.select();
+		alert(msg);
+		return false;
+	}
+	return true;
+}
+// add for "All MAC Address field can't reject 00:00:00:00:00:00/ff:ff:ff:ff:ff:ff MAC Address" issue
+function checkMacAddr_is_legal(field)
+{
+	var reg = /[0-9a-fA-F]{12}/;
+	if(!reg.exec(field.value))
+	{
+		field.focus();
+		field.select();
+		alert("Invalid MAC address. It should be in hex number (0-9 or a-f).");
+		return false;
+	}
+	return true;
+}
+function checkMacAddr_is_zero(field)
+{
+	if(field.value == "000000000000")
+	{
+		field.focus();
+		field.select();
+		alert("Invalid MAC address. It should not be 00:00:00:00:00:00.");
+		return false;
+	}
+	return true;
+}
+function checkMacAddr_is_broadcast(field)
+{
+	if(field.value == "ffffffffffff")
+	{
+		field.focus();
+		field.select();
+		alert("Invalid MAC address. It should not be ff:ff:ff:ff:ff:ff.");
+		return false;
+	}
+	return true;
+}
+function checkMacAddr_is_muticast(field)
+{
+	//var reg = /01005[eE][0-7][0-9a-fA-F]{5}/;
+	//if(reg.exec(field.value))
+	if(parseInt(str.substr(0, 2), 16) & 0x01 != 0)
+	{
+		field.focus();
+		field.select();
+		alert("Invalid MAC address. It should not be multicast mac address between.");
+		return false;
+	}
+	return true;
+}
+function checkMacAddr(field,msg)
+{
+	return (checkMacAddr_is_legal(field) && checkMacAddr_is_zero(field) && checkMacAddr_is_broadcast(field) && checkMacAddr_is_muticast(field));
 }
 function ppp_checkSubNetFormat(field,msg)
 {
@@ -2499,11 +2889,64 @@ function setColour( a )
   theDiv.bgColor = a; theDiv.backgroundColor = a; theDiv.background = a;
 }
 
+
+function showcontrolsideband_updated(form, band, wlan_id, rf_num, index)
+{
+  var idx=0;
+  var i;
+  var controlsideband_str;
+
+  if((band==7 && index==1) || band ==11 || band ==63 || band ==71 || band ==75)
+  {
+	 form.elements["controlsideband"+wlan_id].options[idx++] = new Option("Auto", "0", false, false);
+	 form.elements["controlsideband"+wlan_id].options[idx++] = new Option("Auto", "1", false, false);
+  }
+  else
+  {
+	 form.elements["controlsideband"+wlan_id].options[idx++] = new Option("Upper", "0", false, false);
+	 form.elements["controlsideband"+wlan_id].options[idx++] = new Option("Lower", "1", false, false);
+  }
+  	
+  form.elements["controlsideband"+wlan_id].length = idx;
+  form.elements["controlsideband"+wlan_id].selectedIndex = 0;
+ 
+	 for (i=0; i<idx; i++) {
+	 	controlsideband_str = form.elements["controlsideband"+wlan_id].options[i].value;
+	 if(wlan_controlsideband[wlan_id]  == controlsideband_str)
+	 	form.elements["controlsideband"+wlan_id].selectedIndex = i;
+	 }
+}
+
+function showchannelbound_updated(form, band, wlan_id, rf_num)
+{
+  var idx=0;
+  var i;
+  var channelbound_str;
+
+ form.elements["channelbound"+wlan_id].options[idx++] = new Option("20MHz", "0", false, false);
+ form.elements["channelbound"+wlan_id].options[idx++] = new Option("40MHz", "1", false, false);
+ 
+ if(band == 75 || band ==71 || band ==63){ //ac2g
+ form.elements["channelbound"+wlan_id].options[idx++] = new Option("80MHz", "2", false, false);
+ }
+ 
+ form.elements["channelbound"+wlan_id].length = idx;
+ 
+ for (i=0; i<idx; i++) {
+ 	channelbound_str = form.elements["channelbound"+wlan_id].options[i].value;
+ if(wlan_channelbound[wlan_id]  == channelbound_str)
+ 	form.elements["channelbound"+wlan_id].selectedIndex = i;
+ }
+
+
+}
+
 function showtxrate_updated(form, band, wlan_id, rf_num)
 {
   var idx=0;
   var i;
   var txrate_str;
+  var channel_width_20M_flag = (form.elements["channelbound" + wlan_idx].selectedIndex == 0) ? 1 : 0;
 
  form.elements["txRate"+wlan_id].options[idx++] = new Option("Auto", "0", false, false);
  
@@ -2513,7 +2956,7 @@ function showtxrate_updated(form, band, wlan_id, rf_num)
  form.elements["txRate"+wlan_id].options[idx++] = new Option("5.5M", "3", false, false);
  form.elements["txRate"+wlan_id].options[idx++] = new Option("11M", "4", false, false);
 }
- if(band ==9 || band ==10 || band ==1 || band ==2 || band == 11 || band == 3){
+ if(band ==9 || band ==10 || band ==1 || band ==2 || band == 11 || band == 3 || band==75){
  form.elements["txRate"+wlan_id].options[idx++] = new Option("6M", "5", false, false);
  form.elements["txRate"+wlan_id].options[idx++] = new Option("9M", "6", false, false);
  form.elements["txRate"+wlan_id].options[idx++] = new Option("12M", "7", false, false);
@@ -2523,7 +2966,7 @@ function showtxrate_updated(form, band, wlan_id, rf_num)
  form.elements["txRate"+wlan_id].options[idx++] = new Option("48M", "11", false, false);
  form.elements["txRate"+wlan_id].options[idx++] = new Option("54M", "12", false, false);
 }
- if(band ==9 || band ==10 || band == 7 || band == 11){
+ if(band ==9 || band ==10 || band == 7 || band == 11 || band ==71|| band ==75){
  form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS0", "13", false, false);
  form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS1", "14", false, false);
  form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS2", "15", false, false);
@@ -2532,7 +2975,7 @@ function showtxrate_updated(form, band, wlan_id, rf_num)
  form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS5", "18", false, false);
  form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS6", "19", false, false); 
  form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS7", "20", false, false);
- if (rf_num >=2) {
+ if (rf_num >=2){ //8812_1t1r || band ==75) {
 	 form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS8", "21", false, false);
 	 form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS9", "22", false, false);
 	 form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS10", "23", false, false);
@@ -2543,12 +2986,42 @@ function showtxrate_updated(form, band, wlan_id, rf_num)
 	 form.elements["txRate"+wlan_id].options[idx++] = new Option("MCS15", "28", false, false);
  }
 }
+
+if(band ==63 || band ==71 || band == 75){
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS0", "30", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS1", "31", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS2", "32", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS3", "33", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS4", "34", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS5", "35", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS6", "36", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS7", "37", false, false);
+	 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS8", "38", false, false);
+	 if(!channel_width_20M_flag){
+	 	form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS1-MCS9", "39", false, false);
+	}
+	 
+	 if(rf_num >=2){//8812_1t1r
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS0", "40", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS1", "41", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS2", "42", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS3", "43", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS4", "44", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS5", "45", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS6", "46", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS7", "47", false, false);
+		 form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS8", "48", false, false);
+		if(!channel_width_20M_flag){
+		 	form.elements["txRate"+wlan_id].options[idx++] = new Option("NSS2-MCS9", "49", false, false);
+		 }
+	 }
+}
  form.elements["txRate"+wlan_id].length = idx;
  
  for (i=0; i<idx; i++) {
  	txrate_str = form.elements["txRate"+wlan_id].options[i].value;
- if(wlan_txrate[wlan_id]  == txrate_str)
- 	form.elements["txRate"+wlan_id].selectedIndex = i;
+ 	if(wlan_txrate[wlan_id]  == txrate_str)
+ 		form.elements["txRate"+wlan_id].selectedIndex = i;
  }
 
 
@@ -2562,8 +3035,12 @@ function mavis_write(string_name)
 function update_controlsideband(form, wlan_id)
 {
 	var index=form.elements["channelbound"+wlan_id].selectedIndex;
+	var wlan_support_8812e=form.elements["wlan_support_8812e"].value;
+	var idx_value= form.elements["band"+wlan_id].selectedIndex;
+	var band_value= form.elements["band"+wlan_id].options[idx_value].value;
 	
-	if(index ==0)
+//ac2g
+	if(index ==0 || index==2 || (wlan_support_8812e==1 && (band_value==11 || band_value==63 || band_value==71 || band_value==75 ||(band_value==7 && idx_value==1)))) //8812
 		disableTextField(form.elements["controlsideband"+wlan_id]);	
 	else
 		enableTextField(form.elements["controlsideband"+wlan_id]);
@@ -2580,13 +3057,22 @@ function updateChan_selectedIndex(form, wlan_id)
 {
 	var chan_number_idx=form.elements["chan"+wlan_id].selectedIndex;
 	var chan_number= form.elements["chan"+wlan_id].options[chan_number_idx].value;
+	var wlan_support_8812e=form.elements["wlan_support_8812e"].value;
+
+	
 	wlan_channel[wlan_id] = chan_number;
 	if(chan_number == 0)
 		disableTextField(form.elements["controlsideband"+wlan_id]);	
 	else{
 		if(form.elements["channelbound"+wlan_id].selectedIndex == "0")
  			disableTextField(form.elements["controlsideband"+wlan_id]);	
+		else if(form.elements["channelbound"+wlan_id].selectedIndex == "2")
+ 			disableTextField(form.elements["controlsideband"+wlan_id]);
  		else
 			enableTextField(form.elements["controlsideband"+wlan_id]);		
 		}
+	
+//ac2g	
+	if( ((wlan_support_8812e==1) && (chan_number > 14))) //8812
+		disableTextField(form.elements["controlsideband"+wlan_id]);	
 }

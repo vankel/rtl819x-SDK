@@ -27,7 +27,7 @@
 #define WLAN_CRC_LEN		4
 #define WLAN_BSSID_LEN		6
 #define WLAN_BSS_TS_LEN		8
-#define WLAN_HDR_PSPOLL	16
+#define WLAN_HDR_PSPOLL		16
 #define WLAN_HDR_A3_LEN		24
 #define WLAN_HDR_A4_LEN		30
 #define WLAN_HDR_A3_QOS_LEN	26
@@ -58,7 +58,7 @@
 #if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack(1)
 #endif
-
+#ifdef NOT_RTK_BSP
 __PACK struct wlan_ethhdr_t
 {
 	UINT8	daddr[WLAN_ETHADDR_LEN]		;
@@ -103,6 +103,78 @@ __PACK struct ht_info_elmt
 	UINT16	info2						__WLAN_ATTRIB_PACK__;
 	UINT8	basic_mcs[16]				;
 } __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_cap_elmt
+{
+	UINT32	vht_cap_info				__WLAN_ATTRIB_PACK__;
+	UINT32	vht_support_mcs[2]			__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_oper_elmt
+{
+	UINT8	vht_oper_info[3]			;
+	UINT16	vht_basic_msc				__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+#else
+
+__PACK struct wlan_ethhdr_t
+{
+	UINT8	daddr[WLAN_ETHADDR_LEN]		;
+	UINT8	saddr[WLAN_ETHADDR_LEN]		;
+	UINT16	type						__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct wlan_llc_t
+{
+	UINT8	dsap						;
+	UINT8	ssap						;
+	UINT8	ctl							;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct wlan_snap_t
+{
+	UINT8	oui[WLAN_IEEE_OUI_LEN]		;
+	UINT16	type						__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct llc_snap {
+	struct	wlan_llc_t	llc_hdr			;
+	struct	wlan_snap_t	snap_hdr		;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct ht_cap_elmt
+{
+	UINT16	ht_cap_info					__WLAN_ATTRIB_PACK__;
+	UINT8	ampdu_para					;
+	UINT8	support_mcs[16]				;
+	UINT16	ht_ext_cap					__WLAN_ATTRIB_PACK__;
+	UINT32	txbf_cap					__WLAN_ATTRIB_PACK__;
+	UINT8	asel_cap					;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct ht_info_elmt
+{
+	UINT8	primary_ch					;
+	UINT8	info0						;
+	UINT16	info1						__WLAN_ATTRIB_PACK__;
+	UINT16	info2						__WLAN_ATTRIB_PACK__;
+	UINT8	basic_mcs[16]				;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_cap_elmt
+{
+	UINT32	vht_cap_info				__WLAN_ATTRIB_PACK__;
+	UINT32	vht_support_mcs[2]			__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_oper_elmt
+{
+	UINT8	vht_oper_info[3]			;
+	UINT16	vht_basic_msc				__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+#endif
 
 #ifdef WIFI_11N_2040_COEXIST
 __PACK struct obss_scan_para_elmt
@@ -202,47 +274,11 @@ enum WIFI_FRAME_SUBTYPE {
 
 
 #endif
+/* cfg p2p*/
+#define _VENDOR_SPECIFIC_IE_	221
 
-
-
-#ifdef CONFIG_RTK_MESH
-
-// mesh action field
-enum CATEGORY_FIELD {
-  	_CATEGORY_MESH_ACTION_ = 5,
-
-#ifdef MESH_USE_METRICOP
-        _CATEGORY_11K_ACTION_ = 5, // oops, 11k also uses '5'
-#endif
-
-	// Use these define in the future (Refer: Draft 1.06, Page 18, 7.3.1.11, Table 7-24, 2007/08/13 by popen)
-	_CATEGORY_MESH_PEER_LINK_MANAGEMENT_	= 10,
-	_CATEGORY_MESH_LINK_METRIC_				= 11,
-	_CATEGORY_MESH_PATH_SELECTION_			= 12,
-	_CATEGORY_MESH_INTERWORKING_			= 13,
-	_CATEGORY_MESH_RESOURCE_COORDINATION_	= 14,
-	_CATEGORY_MESH_SECURITY_ARCHITECTURE_	= 15,
-};
-
-// mesh action field
-enum ACTION_FIELD {
-	ACTION_FIELD_LOCAL_LINK_STATE_ANNOUNCE	= 0,
-	ACTION_FIELD_PEER_LINK_DISCONNECT		= 1,
-	ACTION_FIELD_RREQ		= 2,
-	ACTION_FIELD_RREP		= 3,
-	ACTION_FIELD_RERR		= 4,
-	ACTION_FIELD_RREP_ACK	= 5,
-	ACTION_FIELD_HELLO		= 9,
-	ACTION_FIELD_PANN		= 17,		//add by mcinnis 20070415
-	ACTION_FIELD_RANN		= 18,		//add by chuangch 20070507
-	ACTION_FIELD_PU			= 19,		//add by pepsi 20080229
-	ACTION_FIELD_PUC		= 20,		//add by pepsi 20080229
-#ifdef MESH_USE_METRICOP
-        ACTION_FILED_11K_LINKME_REQ     = 52,           // 802.11k specifies '2'
-        ACTION_FILED_11K_LINKME_REP     = 53,           // 802.11k specifies '3'
-#endif
-};
-#endif // CONFIG_RTK_MESH
+/* cfg p2p*/
+#define MAX_IE_SZ 255 // no allow fragment now
 
 /**
  *	@brief	REASON CODE
@@ -285,17 +321,9 @@ enum WIFI_REASON_CODE	{
 	_RSON_INVALID_WAPI_CAPABILITY_	= 31,	/* Wapi capability not support */
 /*#endif*/
 
-#ifdef CONFIG_RTK_MESH	// CAUTION!! Below undefine and name!! (Refer: Draft 1.06, Page 16, 7.3.1.7, Table 7-22, 2007/08/13 by popen)
-	_RSON_MESH_LINK_CANCELLED_		= 46,
-	_RSON_MESH_MAX_NEIGHBORS_		= 47,
-	_RSON_MESH_CAPABILITY_POLICY_VIOLATION_			= 48,
-	_RSON_MESH_CLOSE_RCVD_							= 49,
-	_RSON_MESH_MAX_RETRIES_							= 50,
-	_RSON_MESH_CONFIRM_TIMEOUT_						= 51,
-	_RSON_MESH_SECURITY_ROLE_NEGOTIATION_DIFFERS_	= 52,
-	_RSON_MESH_SECURITY_AUTHENTICATION_IMPOSSIBLE_	= 53,
-	_RSON_MESH_SECURITY_FAILED_VERIFICATION_		= 54,
-#endif
+    //below are mesh definition
+    _RSON_MESH_CHANNEL_SWITCH_REGULATORY_REQUIREMENTS_ = 65,
+    _RSON_MESH_CHANNEL_SWITCH_UNSPECIFIED_ = 66,
 };
 
 enum WIFI_STATUS_CODE {
@@ -310,6 +338,7 @@ enum WIFI_STATUS_CODE {
 	_STATS_AUTH_TIMEOUT_			= 16,	// Denial authenticate, timeout.
 	_STATS_UNABLE_HANDLE_STA_		= 17,	// Denial authenticate, BS resoruce insufficient.
 	_STATS_RATE_FAIL_				= 18,	// Denial authenticate, STA not support BSS request datarate.
+	_STATS_ASSOC_REJ_TEMP_			= 30,	// Association request rejected temporarily; try again later
 	_STATS_REQ_DECLINED_		= 37,
 /*#if defined(CONFIG_RTL_WAPI_SUPPORT)*/
 	__STATS_INVALID_IE_ = 40,
@@ -343,8 +372,10 @@ enum WIFI_REG_DOMAIN {
 	DOMAIN_NCC		= 11,
 	DOMAIN_RUSSIAN	= 12,
 	DOMAIN_CN		= 13,
-	DOMAIN_GLOBAL	= 14,	
-	DOMAIN_WORLD_WIDE = 15,		
+	DOMAIN_GLOBAL	= 14,
+	DOMAIN_WORLD_WIDE = 15,
+	DOMAIN_TEST		= 16,
+	DOMAIN_5M10M	= 17,
 	DOMAIN_MAX
 };
 
@@ -456,53 +487,53 @@ enum WIFI_REG_DOMAIN {
 		*(unsigned short *)(pbuf) |= cpu_to_le16(type); \
 	} while(0)
 
-#define GetSequence(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 22)) >> 4)
+#define GetSequence(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 22)) >> 4)
 
-#define GetFragNum(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 22)) & 0x0f)
+#define GetFragNum(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 22)) & 0x0f)
 
-#define GetTupleCache(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 22)))
+#define GetTupleCache(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 22)))
 
 #define SetFragNum(pbuf, num) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 22) = \
-			((*(unsigned short *)((unsigned int)(pbuf) + 22)) & le16_to_cpu(~(0x000f))) | \
+		*(unsigned short *)((unsigned long)(pbuf) + 22) = \
+			((*(unsigned short *)((unsigned long)(pbuf) + 22)) & le16_to_cpu(~(0x000f))) | \
 			cpu_to_le16(0x0f & (num));     \
 	} while(0)
 
 #define SetSeqNum(pbuf, num) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 22) = \
-			((*(unsigned short *)((unsigned int)(pbuf) + 22)) & le16_to_cpu((unsigned short)~0xfff0)) | \
+		*(unsigned short *)((unsigned long)(pbuf) + 22) = \
+			((*(unsigned short *)((unsigned long)(pbuf) + 22)) & le16_to_cpu((unsigned short)~0xfff0)) | \
 			le16_to_cpu((unsigned short)(0xfff0 & (num << 4))); \
 	} while(0)
 
 #define SetDuration(pbuf, dur) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 2) |= cpu_to_le16(0xffff & (dur)); \
+		*(unsigned short *)((unsigned long)(pbuf) + 2) |= cpu_to_le16(0xffff & (dur)); \
 	} while(0)
 
-#define GetAid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 2)) & 0x3fff)
+#define GetAid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 2)) & 0x3fff)
 
-#define GetTid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x000f)
+#define GetTid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x000f)
 
 #define SetPsPollAid(pbuf, aid)  \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 2) |= cpu_to_le16(0xffff & (aid|0xc000)); \
+		*(unsigned short *)((unsigned long)(pbuf) + 2) |= cpu_to_le16(0xffff & (aid|0xc000)); \
 	} while(0)
 
 //WIFI_WMM
-#define GetQOSackPolicy(pbuf)	((cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x0060)>>5)
+#define GetQOSackPolicy(pbuf)	((cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x0060)>>5)
 
-#define GetAddr1Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 4))
+#define GetAddr1Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 4))
 
-#define GetAddr2Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 10))
+#define GetAddr2Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 10))
 
-#define GetAddr3Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 16))
+#define GetAddr3Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 16))
 
-#define GetAddr4Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 24))
+#define GetAddr4Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 24))
 
 //WIFI_WMM
-#define GetQosControl(pbuf) (unsigned char *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))
+#define GetQosControl(pbuf) (unsigned char *)((unsigned long)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))
 
 
 #ifdef CONFIG_RTK_MESH
@@ -510,11 +541,11 @@ enum WIFI_REG_DOMAIN {
 
 #define GetMeshHeaderTTLWithOutQOS(pbuf)	((unsigned char *)(pbuf) + 31)  	// mesh header ttl
 
-#define GetMeshHeaderSeqNumWithoutQOS(pbuf)	((unsigned short *)((unsigned int)(pbuf) + 32))	// Don't use cpu_to_le16(Other not use cpu_to_le16)
+#define GetMeshHeaderSeqNumWithoutQOS(pbuf)	((unsigned short *)((unsigned long)(pbuf) + 32))	// Don't use cpu_to_le16(Other not use cpu_to_le16)
 #define SetMeshHeaderSeqNum(pbuf, num) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 34) = \
-			((*(unsigned short *)((unsigned int)(pbuf) + 34)) & le16_to_cpu((unsigned short)~0xffff)) | \
+		*(unsigned short *)((unsigned long)(pbuf) + 34) = \
+			((*(unsigned short *)((unsigned long)(pbuf) + 34)) & le16_to_cpu((unsigned short)~0xffff)) | \
 			le16_to_cpu((unsigned short)(0xffff & num )); \
 	} while(0)
 
@@ -560,9 +591,15 @@ enum WIFI_REG_DOMAIN {
 #define _IBSS_PARA_IE_			6
 #define _COUNTRY_IE_			7	// for 802.11d
 #define _CHLGETXT_IE_			16
-#ifdef DFS
+
+#define	_PWR_CONSTRAINT_IE_		32
+#define	_PWR_CAPABILITY_IE_		33
+#define	_TPC_REQUEST_IE_	    34
+#define	_TPC_REPORT_IE_	    	35
+#define	_SUPPORTED_CHANNEL_IE_	36
 #define _CSA_IE_					37
-#endif
+#define _SECONDARY_CHANNEL_OFFSET_IE_					62
+
 #define _RSN_IE_2_				48
 #define _RSN_IE_1_				221	// Error, Shall be Wi-Fi protected access (802.11b)
 #define _ERPINFO_IE_			42	// [802.11g 7.3.2] ERP Information
@@ -571,27 +608,55 @@ enum WIFI_REG_DOMAIN {
 #define	_EID_WAPI_				68
 #endif
 #define _WPS_IE_				221
-
-#ifdef CONFIG_RTK_MESH    // CATUTION: below ALL undefine !!
-#define _OFDM_PARAMETER_SET_IE_		200
-#define _MESH_ID_IE_				201	// MESH ID infoemation element
-#define _ACT_PROFILE_ANNOUN_IE_		202	// Active profile announcement IE
-#define _LOCAL_LINK_STATE_ANNOU_IE_	203	// Local link state announcement IE
-#define _WLAN_MESH_CAP_IE_			204	// WLAN mesh capability IE
-#define _NEIGHBOR_LIST_IE_			205	// neighbor list IE
-#define _DTIM_IE_					206	// DTIM IE
-#define _MKDDIE_IE_					207
-#define _EMSAIE_IE_					208
-#define _BEACON_TIMING_IE_			209
-#define _UCG_SWITCH_ANNOU_IE_		210
-#define _MDAOP_ADVERTISMENTS_IE_	211
-#define _MOAOP_SET_TEARDOWN_IE_		212
-#define _PEER_LINK_OPEN_IE_			223
-#define _PEER_LINK_CONFIRM_IE_		224
-#define _PEER_LINK_CLOSE_IE_		225
-#define _PROXY_UPDATE_IE_			226 // add by pepsi 20080229
-#define _PROXY_UPDATE_CONFIRM_IE_	227
+#ifdef CONFIG_IEEE80211W_CLI
+#define _MMIC_IE_				0x4c
+#define _MMIC_LEN_				16
+#define MIC_LEN					8
+#define PMF_REQ					0x600
+#define PMF_CAP					0x400
+#define PMF_NONE				0x200
 #endif
+
+
+/*-----------------------------------------------------------------------------
+            Below is for mesh related definition
+------------------------------------------------------------------------------*/
+#define _MESH_CATEGORY_ID_             13
+#define _MULTIHOP_CATEGORY_ID_         14
+#define _SELF_PROTECTED_CATEGORY_ID_   15
+
+/*used in Mesh category */
+#define _MESH_LINK_REPORT_ACTION_ID_   0
+#define _HWMP_MESH_PATHSEL_ACTION_ID_  1
+#define _GANN_ACTION_ID_               2
+
+/*used in Multihop category */
+#define _PROXY_UPDATES_ACTION_ID_         0
+#define _PROXY_UPDATES_CONFIRM_ACTION_ID_ 1
+
+
+#define _WLAN_MESH_CAP_IE_			   113	// WLAN mesh configuration IE
+#define _MESH_ID_IE_				   114	// MESH ID infoemation element
+#define _MESH_LINK_METRIC_REPORT_IE_   115	// Local link state announcement IE
+#define _MESH_CHANNEL_SWITCH_IE_       118
+#define _MESH_GANN_IE_	               125
+#define _MESH_RANN_IE_	               126
+#define _MESH_PREQ_IE_	               130
+#define _MESH_PREP_IE_	               131
+#define _MESH_PERR_IE_	               132
+#define _PROXY_UPDATE_IE_			   137
+#define _PROXY_UPDATE_CONFIRM_IE_	   138
+
+// CATUTION: below ALL undefine !!
+#define _OFDM_PARAMETER_SET_IE_		   200
+#define _NEIGHBOR_LIST_IE_			   205	// neighbor list IE
+#define _UCG_SWITCH_ANNOU_IE_		   210
+#define _MDAOP_ADVERTISMENTS_IE_	   211
+#define _MOAOP_SET_TEARDOWN_IE_		   212
+#define _PEER_LINK_OPEN_IE_			   223
+#define _PEER_LINK_CONFIRM_IE_		   224
+#define _PEER_LINK_CLOSE_IE_		   225
+
 
 /* ---------------------------------------------------------------------------
 					Below is the fixed elements...
@@ -613,7 +678,7 @@ enum WIFI_REG_DOMAIN {
 #define WLAN_ETHCONV_ENCAP		1
 #define WLAN_ETHCONV_RFC1042	2
 #define WLAN_ETHCONV_8021h		3
-
+#define BEACON_MACHDR_LEN		24
 
 /*-----------------------------------------------------------------------------
 				Below is the definition for 802.11i / 802.1x
@@ -647,6 +712,16 @@ enum WIFI_REG_DOMAIN {
 #define _DELBA_ACTION_ID_			2
 #define _VENDOR_ACTION_ID_			0x7f	// add for P2P_SUPPORT
 
+/*-----------------------------------------------------------------------------			
+				Below is for PMF related definition
+------------------------------------------------------------------------------*/
+#define _SA_QUERY_CATEGORY_ID_		8
+#define _SA_QUERY_REQ_ACTION_ID_	0
+#define _SA_QUERY_RSP_ACTION_ID_	1
+#define EID_TIMEOUT_INTERVAL		56
+#define ASSOC_COMEBACK_TIME			3
+
+
 /*-----------------------------------------------------------------------------
 			Below is for HT related definition
 ------------------------------------------------------------------------------*/
@@ -669,16 +744,39 @@ enum WIFI_REG_DOMAIN {
 #define _2040_Intolerant_ChRpt_IE_	73
 #define _OBSS_SCAN_PARA_IE_		74
 
-#define _EXTENDED_CAP_IE_			127
+//#define _EXTENDED_CAP_IE_			127
 #define _2040_COEXIST_SUPPORT_	BIT(0)
 #endif
 #define _HT_CATEGORY_ID_			7
 #define _HT_MIMO_PS_ACTION_ID_		1
 
+#define _EXTENDED_CAP_IE_			127
+
+
+/*-----------------------------------------------------------------------------
+			Below is for VHT related definition
+------------------------------------------------------------------------------*/
+#define EID_VHTCapability			191	// Based on 802.11ac D2.0
+#define EID_VHTOperation			192	// Based on 802.11ac D2.0
+#define EID_VHTOperatingMode		199
+#define EID_VHTTxPwrEnvelope		195
+#define EID_WIDEBW_CH_SW			194
+#define EID_CH_SW_WRAPPER			196
+
+
+
+#define _VHT_ACTION_CATEGORY_ID_	21
+#define _VHT_ACTION_OPMNOTIF_ID_	2
+#define	_OPMNOTIF_Frame_Length_		3
+
+#define _VHTCAP_RX_STBC_CAP_			(BIT(8) | BIT(9)| BIT(10))
+#define _VHTCAP_RX_LDPC_CAP_			(BIT(4))
 
 /*-----------------------------------------------------------------------------
 			Below is the bit definition for HT Capabilities element
 ------------------------------------------------------------------------------*/
+#define _HTCAP_SUPPORT_RX_LDPC_		BIT(0)
+
 #define _HTCAP_SUPPORT_CH_WDTH_		BIT(1)
 #define _HTCAP_SMPWR_STATIC_		0
 #define _HTCAP_SMPWR_DYNAMIC_		BIT(2)
@@ -696,6 +794,12 @@ enum WIFI_REG_DOMAIN {
 #ifdef WIFI_11N_2040_COEXIST
 #define _HTCAP_40M_INTOLERANT_		BIT(14)
 #endif
+
+#ifdef BEAMFORMING_SUPPORT
+#define _HTCAP_RECEIVED_NDP            BIT(3)    
+#define _HTCAP_TRANSMIT_NDP           BIT(4)    
+#endif
+
 #define _HTCAP_AMPDU_FAC_8K_		0
 #define _HTCAP_AMPDU_FAC_16K_		BIT(0)
 #define _HTCAP_AMPDU_FAC_32K_		BIT(1)
@@ -726,6 +830,78 @@ enum WIFI_REG_DOMAIN {
 #define _HTIE_NGF_STA_				BIT(2)
 #define	_HTIE_TXBURST_LIMIT_		BIT(3)
 #define _HTIE_OBSS_NHT_STA_			BIT(4)
+
+/*-----------------------------------------------------------------------------
+            Below is for DLS related definition
+ ------------------------------------------------------------------------------*/
+#define _DLS_CATEGORY_ID_			2
+#define _DLS_REQ_ACTION_ID_			0
+#define _DLS_RSP_ACTION_ID_			1	
+#define _TDLS_CATEGORY_ID_ 			12
+
+/*-----------------------------------------------------------------------------
+            Below is for HS2.0 related definition
+------------------------------------------------------------------------------*/
+#define _GAS_INIT_REQ_ACTION_ID_	10
+#define _GAS_INIT_RSP_ACTION_ID_	11
+#define _GAS_COMBACK_REQ_ACTION_ID_	12
+#define _GAS_COMBACK_RSP_ACTION_ID_	13
+#define _BSS_LOAD_IE_				11
+#define _MUL_BSSID_IE_				71
+#define	_TIMEADVT_IE_				69
+#define	_TIMEZONE_IE_				98
+#define _INTERWORKING_IE_			107
+#define _ADVT_PROTO_IE_				108
+// HS2_SUPPORT
+#define _QOS_MAP_SET_IE_			110
+#define _ROAM_IE_					111
+#define _HS2_IE_					221
+/*20141204 modify */
+//#define _PROXY_ARP_				BIT(12)
+//#define _BSS_TRANSITION_            	BIT(19)
+//#define _UTC_TSF_OFFSET_			BIT(27)
+//#define _INTERWORKING_SUPPORT_	BIT(31)
+#define _INTERWORKING_SUPPORT_BY_DW_	BIT(31)
+
+
+
+#define _PROXY_ARP_					BIT(4)  /*byte1*/
+#define _BSS_TRANSITION_            BIT(3)	/*byte2*/
+#define _UTC_TSF_OFFSET_			BIT(3)  /*byte3*/
+#define _INTERWORKING_SUPPORT_		BIT(7)	/*byte3*/
+#define _QOS_MAP_ 					BIT(0)	/*byte4*/
+#define _WNM_NOTIFY_ 				BIT(6)	/*byte5*/
+
+
+// HS2_SUPPORT
+#define _QOS_CATEGORY_ID_			1
+#define _WNM_CATEGORY_ID_			10
+#define _WNM_TSMQUERY_ACTION_ID_	6
+#define _WNM_NOTIFICATION_ID_		26
+// HS2_SUPPORT
+#define _QOS_MAP_CONFIGURE_ID_		4
+#define _BSS_TSMREQ_ACTION_ID_		7
+#define _BSS_TSMRSP_ACTION_ID_		8
+#define _VENDOR_SPECIFIC_IE_	221
+#define MAX_IE_SZ 255 // no allow fragment now
+
+enum mgmt_type {
+	MGMT_BEACON = 0,
+	MGMT_PROBERSP = 1,
+	MGMT_ASSOCRSP = 2,
+	MGMT_ASSOCREQ = 3,
+	MGMT_PROBEREQ = 4,	
+};
+/*-----------------------------------------------------------------------------
+            Below is for Spectrum Management  related definition
+ ------------------------------------------------------------------------------*/
+#define _SPECTRUM_MANAGEMENT_CATEGORY_ID_			0
+#define _MEASUREMENT_REQEST_ACTION_ID_	0
+#define _MEASUREMENT_REPORT_ACTION_ID_	1
+#define _TPC_REQEST_ACTION_ID_          2
+#define _TPC_REPORT_ACTION_ID_	        3
+
+
 
 
 #endif // _WIFI_H_

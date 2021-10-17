@@ -214,4 +214,11 @@ NESTED(rlx_vec_dispatch, PT_SIZE, sp)
 	BUILD_HANDLER ri ri sti silent			/* #10 */
 	BUILD_HANDLER cpu cpu sti silent		/* #11 */
 	BUILD_HANDLER ov ov sti silent			/* #12 */
+#ifdef 	CONFIG_CPU_HAS_WATCH
+	/*
+	 * For watch, interrupts will be enabled after the watch
+	 * registers are read.
+	 */
+	BUILD_HANDLER watch watch cli silent		/* #23 */
+#endif
 	BUILD_HANDLER reserved reserved sti verbose	/* others */

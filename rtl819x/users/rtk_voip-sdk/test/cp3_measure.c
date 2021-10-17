@@ -39,6 +39,8 @@ static const struct {
 	{ M_CP3_ITEM( G7111WBEnc ), },
 	{ M_CP3_ITEM( G7111WBDec ), },
 	{ M_CP3_ITEM( PCM_HANDLER ), },
+	{ M_CP3_ITEM( G7222Enc ), },
+	{ M_CP3_ITEM( G7222Dec ), },
 };
 
 #define SIZE_OF_ITEM_LIST	( sizeof( item_list ) / sizeof( item_list[ 0 ] ) )
@@ -145,8 +147,8 @@ label_bits_set_done:
 CP3_ERROR:
 		printf("Error!\n\n");
 		printf("Usage: cp3_measure counter1 counter2 counter3 counter4 dump_per_count test_item\n\n");
-		printf(" - counterX:\n");
-#ifdef CONFIG_ARCH_CPU_RLX5281
+		printf(" - counterX (5281):\n");
+//#ifdef CONFIG_ARCH_CPU_RLX5281
 		printf("   - 1: count instruction fetches\n" );
 		printf("   - 2: count I-cache misses\n" );
 		printf("   - 3: count I-cache miss cycles\n" );
@@ -158,7 +160,8 @@ CP3_ERROR:
 		printf("   - 9: count I-cache soft miss\n" );
 		printf("   - 10: count D-cache misses\n" );
 		printf("   - 11: count D-cache miss cycles\n" );
-#else
+//#else
+		printf(" - counterX (5181):\n");
 		printf("   - 0: CP3CNT_CYCLES\n");
 		printf("   - 1: CP3CNT_NEW_INST_FECTH\n");
 		printf("   - 2: CP3CNT_NEW_INST_FETCH_CACHE_MISS\n");
@@ -171,7 +174,7 @@ CP3_ERROR:
 		printf("   - 9: CP3CNT_RETIRED_INST_FOR_PIPE_B(LX5181 don't support)\n");
 		printf("   - 10: CP3CNT_DATA_LOAD_OR_STORE_CACHE_MISS\n");
 		printf("   - 11: CP3CNT_DATA_LOAD_OR_STORE_MISS_BUSY_CYCLE\n\n");
-#endif
+//#endif
 		printf(" - dump_per_count: dump the result per N times count\n\n");
 		printf(" - test_item:\n");		
 		for( item_no = 0; item_no < SIZE_OF_ITEM_LIST; item_no ++ ) {

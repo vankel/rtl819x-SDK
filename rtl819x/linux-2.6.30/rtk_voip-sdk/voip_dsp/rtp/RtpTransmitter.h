@@ -67,8 +67,12 @@
 void RtpTx_Init (void);
 void RtpTx_InitbyID (uint32 sid);
 
+#ifdef SUPPORT_RTP_REDUNDANT	
 void RtpTx_renewSession (uint32 sid, int randomly, RtpSrc SSRC, RtpSeqNumber seqno, RtpTime timestamp,
 							int max_red_audio, int max_red_rfc2833);
+#else
+void RtpTx_renewSession (uint32 sid, int randomly, RtpSrc SSRC, RtpSeqNumber seqno, RtpTime timestamp);
+#endif
 /// Creates a packet with transmitter's payload type and SRC number
 //RtpPacket* createPacket (int npadSize = 0, int csrc_count = 0);
 

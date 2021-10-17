@@ -22,7 +22,9 @@
 // include files
 //============================================================
 
+#include "Mp_Precomp.h"
 #include "odm_precomp.h"
+
 
 VOID 
 ODM_InitDebugSetting(
@@ -30,6 +32,7 @@ ODM_InitDebugSetting(
 	)
 {
 pDM_Odm->DebugLevel				= 	ODM_DBG_TRACE;
+//pDM_Odm->DebugLevel				= 	ODM_DBG_LOUD;
 
 pDM_Odm->DebugComponents			= 
 \
@@ -48,19 +51,173 @@ pDM_Odm->DebugComponents			=
 //									ODM_COMP_PATH_DIV				|
 //									ODM_COMP_DYNAMIC_PRICCA		|
 //									ODM_COMP_RXHP					|
+//									ODM_COMP_MP					|
 
 //MAC Functions
 //									ODM_COMP_EDCA_TURBO			|
 //									ODM_COMP_EARLY_MODE			|
+//									ODM_FW_DEBUG_TRACE			|
 //RF Functions
 //									ODM_COMP_TX_PWR_TRACK		|
 //									ODM_COMP_RX_GAIN_TRACK		|
-									ODM_COMP_CALIBRATION			|
+//									ODM_COMP_CALIBRATION			|
 //Common
 //									ODM_COMP_COMMON				|
-									ODM_COMP_INIT					|
+//									ODM_COMP_INIT					|
 #endif
 									0;
+}
+
+VOID
+phydm_c2h_ra_report_handler(
+	IN PVOID		pDM_VOID,
+	IN pu1Byte   CmdBuf,
+	IN u1Byte   CmdLen
+)
+{
+	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	u1Byte	legacy_table[12] = {1,2,5,11,6,9,12,18,24,36,48,54};
+	u1Byte	macid = CmdBuf[1];
+	
+	u1Byte	rate = CmdBuf[0];
+	u1Byte	rate_idx = rate & 0x7f; /*remove bit7 SGI*/
+	u1Byte	vht_en=(rate_idx >= ODM_RATEVHTSS1MCS0)? 1 :0;	
+	u1Byte	b_sgi = (rate & 0x80)>>7;
+	
+	u1Byte	pre_rate = pDM_Odm->link_tx_rate[macid];
+	u1Byte	pre_rate_idx = pre_rate & 0x7f; /*remove bit7 SGI*/
+	u1Byte	pre_vht_en=(pre_rate_idx >= ODM_RATEVHTSS1MCS0)? 1 :0;	
+	u1Byte	pre_b_sgi = (pre_rate & 0x80)>>7;
+	
+	#if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
+	PADAPTER	Adapter = pDM_Odm->Adapter;
+	
+	GET_HAL_DATA(Adapter)->CurrentRARate = HwRateToMRate(rate);	
+	ODM_UpdateInitRate(pDM_Odm, rate);
+	#endif
+#if 0
+	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD,("RA: rate_idx=0x%x , sgi = %d\n", rate_idx, b_sgi));
+
+	ODM_RT_TRACE(pDM_Odm, (ODM_COMP_RATE_ADAPTIVE|ODM_COMP_COMMON), ODM_DBG_LOUD, ("Tx Rate Update, MACID[%d] ( %s%s%s%s%d%s%s ) -> ( %s%s%s%s%d%s%s)\n\n",
+		macid,
+		((pre_rate_idx >= ODM_RATEVHTSS1MCS0) && (pre_rate_idx <= ODM_RATEVHTSS1MCS9)) ? "VHT 1ss  " : "",
+		((pre_rate_idx >= ODM_RATEVHTSS2MCS0) && (pre_rate_idx <= ODM_RATEVHTSS2MCS9)) ? "VHT 2ss " : "",
+		((pre_rate_idx >= ODM_RATEVHTSS3MCS0) && (pre_rate_idx <= ODM_RATEVHTSS3MCS9)) ? "VHT 3ss " : "",
+		(pre_rate_idx >= ODM_RATEMCS0) ? "MCS " : "",
+		(pre_vht_en) ? ((pre_rate_idx - ODM_RATEVHTSS1MCS0)%10) : ((pre_rate_idx >= ODM_RATEMCS0)? (pre_rate_idx - ODM_RATEMCS0) : ((pre_rate_idx <= ODM_RATE54M)?legacy_table[pre_rate_idx]:0)),
+		(pre_b_sgi) ? "-S" : "  ",
+		(pre_rate_idx >= ODM_RATEMCS0) ? "" : "M",
+		((rate_idx >= ODM_RATEVHTSS1MCS0) && (rate_idx <= ODM_RATEVHTSS1MCS9)) ? "VHT 1ss  " : "",
+		((rate_idx >= ODM_RATEVHTSS2MCS0) && (rate_idx <= ODM_RATEVHTSS2MCS9)) ? "VHT 2ss " : "",
+		((rate_idx >= ODM_RATEVHTSS3MCS0) && (rate_idx <= ODM_RATEVHTSS3MCS9)) ? "VHT 3ss " : "",
+		(rate_idx >= ODM_RATEMCS0) ? "MCS " : "",
+		(vht_en) ? ((rate_idx - ODM_RATEVHTSS1MCS0)%10) : ((rate_idx >= ODM_RATEMCS0)? (rate_idx - ODM_RATEMCS0) : ((rate_idx <= ODM_RATE54M)?legacy_table[rate_idx]:0)),
+		(b_sgi) ? "-S" : "  ",
+		(rate_idx >= ODM_RATEMCS0) ? "" : "M" ));
+#endif
+	pDM_Odm->link_tx_rate[macid] = rate;
+
+
+	#if (DM_ODM_SUPPORT_TYPE == ODM_AP)
+	//if (pDM_Odm->SupportICType & (ODM_RTL8812|ODM_RTL8192E))
+	//	phydm_update_rate_id(pDM_Odm, rate, macid);
+	#endif
+
+}
+
+VOID
+phydm_fw_trace_handler_code(
+	IN	PVOID	pDM_VOID,
+	IN	pu1Byte	Buffer,
+	IN	u1Byte	CmdLen
+)
+{
+	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	u1Byte	function = Buffer[0];
+	u1Byte	dbg_num = Buffer[1];
+	u2Byte	content_0 = (((u2Byte)Buffer[3])<<8)|((u2Byte)Buffer[2]);
+	u2Byte	content_1 = (((u2Byte)Buffer[5])<<8)|((u2Byte)Buffer[4]);		
+	u2Byte	content_2 = (((u2Byte)Buffer[7])<<8)|((u2Byte)Buffer[6]);	
+	u2Byte	content_3 = (((u2Byte)Buffer[9])<<8)|((u2Byte)Buffer[8]);
+	u2Byte	content_4 = (((u2Byte)Buffer[11])<<8)|((u2Byte)Buffer[10]);
+
+	if(CmdLen >12) {
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW Msg] Invalid cmd length (( %d )) >12 \n", CmdLen));
+	}
+	
+	//ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW Msg] Func=((%d)),  num=((%d)), ct_0=((%d)), ct_1=((%d)), ct_2=((%d)), ct_3=((%d)), ct_4=((%d))\n", 
+	//	function, dbg_num, content_0, content_1, content_2, content_3, content_4));
+
+	if(function == RATE_DECISION) {
+		if(dbg_num == 0) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] RA_CNT=((%d))  Max_device=((%d))--------------------------->\n", content_1, content_2));
+			} else if(content_0 == 2) {
+				 ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] Check RA macid= ((%d)), MediaStatus=((%d)), Dis_RA=((%d)),  try_bit=((0x%x))\n", content_1, content_2, content_3, content_4));
+			} else if(content_0 == 3) {
+				 ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] Check RA  total=((%d)),  drop=((0x%x)), TXRPT_TRY_bit=((%x))\n", content_1, content_2, content_3));
+			}
+		} else if(dbg_num == 1) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] RTY[0,1,2,3]=[ %d,  %d,  %d,  %d ] \n", content_1, content_2, content_3, content_4));
+			} else if(content_0 == 2) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] RTY[4]=[ %d ], drop=((%d)), total=((%d)),  current_rate=((0x%x))\n", content_1, content_2, content_3, content_4));
+			} else if(content_0 == 3) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] penality_idx=((%d ))\n", content_1));
+			}
+		}
+		
+		else if(dbg_num == 3) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] Fast_RA (( DOWN ))  total=((%d)),  total>>1=((%d)), R4+R3+R2 = ((%d))\n", content_1, content_2, content_3));
+			} else if(content_0 == 2) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] Fast_RA (( UP ))  total=((%d)),  total>>1=((%d)), R4+R3+R2 = ((%d))\n", content_1, content_2, content_3));
+			} else if(content_0 == 3) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] Fast_RA (( UP )) ((force in))  RA_CNT=((%d))\n", content_1));
+			} else if(content_0 == 4) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin] Fast_RA (( UP )) ((total<5 skip))  RA_CNT=((%d))\n", content_1));
+			}
+		}
+		
+		else if(dbg_num == 5) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin]  (( UP))  Nsc=((%d)), N_High=((%d))\n", content_1, content_2));
+			} else if(content_0 == 2) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin]  ((DOWN))  Nsc=((%d)), N_Low=((%d))\n", content_1, content_2));
+			} else if(content_0 == 3) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDecisoin]  ((HOLD))  Nsc=((%d)), N_High=((%d)), N_Low=((%d)), Reset_CNT=((%d))\n", content_1, content_2, content_3, content_4));
+			}
+		}
+		
+	} else if (function == INIT_RA_TABLE){
+		if(dbg_num == 3) {
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][INIT_RA_INFO] Ra_init, RA_SKIP_CNT = (( %d )) \n", content_0));
+		}
+		
+	} else if (function == RATE_UP) {
+		if(dbg_num == 0) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateUp]  ((VHT 1SS MCS0)), bw_idx=((%d))  max_bw=((%d)), bw_setting=((%d))\n", content_1, content_2, content_3));
+			}
+		} else if(dbg_num == 2) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateUp]  ((Highest rate -> return)), macid=((%d))  Nsc=((%d))\n", content_1, content_2));
+			}
+		} else if(dbg_num == 5) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateUp]  ((Rate UP)), macid=((%d)),  up_rate=((%x)),  BW=((%d)),  Try_Bit=((%d)) \n", content_1, content_2, content_3, content_4));
+			}
+		}
+		
+	} else if (function == RATE_DOWN) {
+		 if(dbg_num == 5) {
+			if(content_0 == 1) {
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE,ODM_DBG_LOUD,("[FW][RateDownStep]  ((Rate Down)), macid=((%d)),  up_rate=((%x)),  BW=((%d)) \n", content_1, content_2, content_3));
+			}
+		}
+	}
+		
+
 }
 
 #if 0

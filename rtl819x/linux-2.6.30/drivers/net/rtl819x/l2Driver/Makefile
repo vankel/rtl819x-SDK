@@ -21,9 +21,7 @@ endif
 			obj-y += rtl865x_outputQueue.o
 		endif
 	endif
-	ifdef CONFIG_RTL_HW_QOS_SUPPORT
 	obj-y += rtl865x_hw_qos_config.o
-	endif
 ifeq ($(CONFIG_RTL_STP),y)
 	obj-y += rtl865x_stp.o
 endif

@@ -18,7 +18,7 @@
 
 #include "voip_ioctl.h"
 
-int rtk_SetIvrPlayG72363( int chid, unsigned int nCount, const unsigned char *pData )
+int rtk_SetIvrPlayG72363( int chid, unsigned int nCount, const unsigned char *pData, IvrPlayDir_t dir )
 {
 	TstVoipPlayIVR_G72363 stVoipPlayIVR;
 	
@@ -27,6 +27,7 @@ int rtk_SetIvrPlayG72363( int chid, unsigned int nCount, const unsigned char *pD
 	
 	stVoipPlayIVR.ch_id = chid;
 	stVoipPlayIVR.type = IVR_PLAY_TYPE_G723_63;
+	stVoipPlayIVR.dir = dir;
 	stVoipPlayIVR.nFramesCount = nCount;
 	memcpy( stVoipPlayIVR.data, pData, nCount * 24 );
 
@@ -61,7 +62,7 @@ void * main_thread( void *arg )
 			break;
 
 lable_put_g72363_data:
-		cWritten = rtk_SetIvrPlayG72363( chid, cRead, buffer + shift );
+		cWritten = rtk_SetIvrPlayG72363( chid, cRead, buffer + shift, IVR_DIR_LOCAL );
 		//printf( "Write:%d, %d\n", cRead, shift );
 		
 		/* buffer is full */
@@ -70,7 +71,7 @@ lable_put_g72363_data:
 			
 			printf( "Buffer is full.. Wait one second...\n" );
 			//printf( "[%d:%d:%d]\n", cRead, cWritten, shift );
-			rtk_SetIvrPlayG72363( chid, 0, buffer );	/* show current playing time */
+			rtk_SetIvrPlayG72363( chid, 0, buffer, IVR_DIR_LOCAL );	/* show current playing time */
 			
 			sleep( 1 );	
 			

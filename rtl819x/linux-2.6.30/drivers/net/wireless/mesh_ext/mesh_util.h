@@ -23,8 +23,8 @@
 #define MESH_LOCK(x,y)		{ y = save_and_cli(); }
 #define MESH_UNLOCK(x,y)	restore_flags(y)
 #else
-#define MESH_LOCK(x,y)		spin_lock_irqsave(&priv->pshare->x, y)
-#define MESH_UNLOCK(x,y)	spin_unlock_irqrestore(&priv->pshare->x, y)
+#define MESH_SPINLOCK(x)		spin_trylock(&priv->pshare->x)
+#define MESH_SPINUNLOCK(x)	spin_unlock(&priv->pshare->x)
 #endif // not GREEN_HILL
 
 
@@ -70,9 +70,9 @@ extern void mac12_to_6(unsigned char*, unsigned char*);
 #endif
 
 #ifdef CONFIG_RTL8192CD
-extern int PathSelection_del_tbl_entry(struct rtl8192cd_priv *priv, char *delMAC);
+extern int clear_route_info(struct rtl8192cd_priv *priv, char *delMAC);
 #else
-extern int PathSelection_del_tbl_entry(struct rtl8190_priv *priv, char *delMAC);
+extern int clear_route_info(struct rtl8190_priv *priv, char *delMAC);
 #endif
 
 /*

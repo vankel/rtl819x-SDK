@@ -57,58 +57,59 @@ function SetSSIDSettingOption()
 	
 	if (mode != 1) {	
 		var ssid="<% getInfo("ssid"); %>";
-		var val="Root AP - " + ssid;	
-		var disable=new Array()
-		disable[0] = 0;		
-		disable[1] = <% getVirtualIndex("wlanDisabled", "1"); %>;
-		disable[2] = <% getVirtualIndex("wlanDisabled", "2"); %>;
-		disable[3] = <% getVirtualIndex("wlanDisabled", "3"); %>;
-		disable[4] = <% getVirtualIndex("wlanDisabled", "4"); %>;
-		
-		for (i=0; i<=mssid_num; i++) {	
-			if (!disable[i]) {
-				document.write("<option value=\"" + i + "\"><font face=\"Arial\" style=\"font-size: 8pt\">");
-				document.write(val);
-				document.write("</font></option>");
+		var val="Root AP - " + ssid;
+		if(mode != 5) {/*MESH mode do not have ROOT AP option*/
+			var disable=new Array()
+			disable[0] = 0;		
+			disable[1] = <% getVirtualIndex("wlanDisabled", "1"); %>;
+			disable[2] = <% getVirtualIndex("wlanDisabled", "2"); %>;
+			disable[3] = <% getVirtualIndex("wlanDisabled", "3"); %>;
+			disable[4] = <% getVirtualIndex("wlanDisabled", "4"); %>;
+			
+			for (i=0; i<=mssid_num; i++) {	
+				if (!disable[i]) {
+					document.write("<option value=\"" + i + "\"><font face=\"Arial\" style=\"font-size: 8pt\">");
+					document.write(val);
+					document.write("</font></option>");
+				}
+				if (i != 4 && !disable[i+1]) {
+					id =  i+1;
+					if (id == 1)	
+						ssid =  " - <% getVirtualInfo("ssid", "1"); %>";
+					else if (id == 2)	
+						ssid =  " - <% getVirtualInfo("ssid", "2"); %>";
+					else if (id == 3)	
+						ssid =  " - <% getVirtualInfo("ssid", "3"); %>";
+					else
+					ssid =  " - <% getVirtualInfo("ssid", "4"); %>";	
+					val = "AP" + id + ssid;
+				}		
 			}
-			if (i != 4 && !disable[i+1]) {
-				id =  i+1;
-				if (id == 1)	
-					ssid =  " - <% getVirtualInfo("ssid", "1"); %>";
-				else if (id == 2)	
-					ssid =  " - <% getVirtualInfo("ssid", "2"); %>";
-				else if (id == 3)	
-					ssid =  " - <% getVirtualInfo("ssid", "3"); %>";
-				else
-				ssid =  " - <% getVirtualInfo("ssid", "4"); %>";	
-				val = "AP" + id + ssid;
-			}		
 		}
 		
-		
-	var is_adhoc = <% getIndex("networkType"); %>;
-if (rp_enable && ((mode == 0 || mode == 3) || (mode == 1 && !is_adhoc)) 
+		var is_adhoc = <% getIndex("networkType"); %>;
+		if (rp_enable==1 && ((mode == 0 || mode == 3 || mode == 4 || mode == 5) || (mode == 1 && !is_adhoc)) 
 			&& (wlEnableProfile == 0 || wlProfile_num == 0)
 		) 
 		{
-		ssid =  " - <% getInfo("repeaterSSID"); %>";
-		if (mode == 1)
-			val = "Repeater AP" + ssid;
-		else
-			val = "Repeater Client" + ssid;
-		document.write("<option value=5><font face=\"Arial\" style=\"font-size: 8pt\">");
-		document.write(val);
-		document.write("</font></option>");			
-	}	
+			ssid =  " - <% getInfo("repeaterSSID"); %>";
+			if (mode == 1)
+				val = "Repeater AP" + ssid;
+			else
+				val = "Repeater Client" + ssid;
+			document.write("<option value=5><font face=\"Arial\" style=\"font-size: 8pt\">");
+			document.write(val);
+			document.write("</font></option>");			
+		}	
 	}
 	else { // client mode has no vxd interface 
 		if(wlEnableProfile == 0 || wlProfile_num == 0)
 		{
 
-		var ssid="Root Client - " + "<% getInfo("ssid"); %>";
-		document.write("<option value=0><font face=\"Arial\" style=\"font-size: 8pt\">");
-		document.write(ssid);
-		document.write("</font></option>");		
+			var ssid="Root Client - " + "<% getInfo("ssid"); %>";
+			document.write("<option value=0><font face=\"Arial\" style=\"font-size: 8pt\">");
+			document.write(ssid);
+			document.write("</font></option>");		
 		}
 		
 			
@@ -143,11 +144,16 @@ if (rp_enable && ((mode == 0 || mode == 3) || (mode == 1 && !is_adhoc))
 			for (i=0; i<=wlProfile_num; i++, wlProfile_start++) 
 			{				
 				if (wlProfileEnable[i]) {
-					if(mode == 1) //client
+					if(mode == 1) {//client
 						var ssid="AP Profile - " + wlProfileSSID[i];
+						document.write("<option value=\"" + 0 + "\"><font face=\"Arial\" style=\"font-size: 8pt\">");
+
+					}
 					else
+					{
 						var ssid="Repeater Profile - " + wlProfileSSID[i];
-					document.write("<option value=\"" + wlProfile_start + "\"><font face=\"Arial\" style=\"font-size: 8pt\">");
+						document.write("<option value=\"" + wlProfile_start + "\"><font face=\"Arial\" style=\"font-size: 8pt\">");
+					}
 					document.write(ssid);
 					document.write("</font></option>");
 				}
@@ -164,7 +170,16 @@ if (rp_enable && ((mode == 0 || mode == 3) || (mode == 1 && !is_adhoc))
 //add for mesh 
 function apModeCheck()
 {
-	if( wlan_mode== 5 || wlan_mode==7 )
+	var disable = 0;
+	if(wlan_mode==7)
+		disable = 1;
+	else if(wlan_mode == 5) {/*MESH mode*/
+		var rp_enable = <% getIndex("repeaterEnabled"); %>;
+		if(rp_enable == 0) /*if repeater is disable*/
+			disable = 1;			
+	}
+
+	if(disable)
 	{
 		disableRadioGroup(document.formEncrypt.SSID_Setting);
 		disableButton(document.formEncrypt.save);
@@ -174,13 +189,23 @@ function apModeCheck()
 
 function SSIDSelected(index)
 {
-	//for mesh ; (!=mp  && !=mpp) ;
-	if( wlan_mode !=5 && wlan_mode !=7 )
-	{
-	var auth = get_by_id("SSIDAuthMode");
-	auth.src = SecurityTypePage[0];
+	var enable = 1;
+	if(wlan_mode == 7) {
+		enable = 0;
+	}
+	else if(wlan_mode == 5) { /*MESH mode*/
+		var rp_enable = <% getIndex("repeaterEnabled"); %>;
+		if(rp_enable == 0) /*if repeater is disable*/
+			enable = 0;	
+	}
+
+
+	if(enable) {
+		var auth = get_by_id("SSIDAuthMode");
+		auth.src = SecurityTypePage[0];
 	}
 }
+
 </script>
 
 </head>
@@ -243,6 +268,11 @@ function SSIDSelected(index)
 <input type="checkbox" name="ciphersuite<% getIndex("wlan_idx"); %>" value="aes" >AES
 <input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="tkip">TKIP
 <input type="checkbox" name="wpa2ciphersuite<% getIndex("wlan_idx"); %>" value="aes" >AES
+<input type="radio" name="wpa11w<% getIndex("wlan_idx"); %>" value="none">none
+<input type="radio" name="wpa11w<% getIndex("wlan_idx"); %>" value="capable">capable
+<input type="radio" name="wpa11w<% getIndex("wlan_idx"); %>" value="required">required
+<input type="radio" name="wpa2EnableSHA256<% getIndex("wlan_idx"); %>" value="disable">disable
+<input type="radio" name="wpa2EnableSHA256<% getIndex("wlan_idx"); %>" value="enable">enable
 </table>
 </span>
 <span id= "wapi_auth" class= "off" >

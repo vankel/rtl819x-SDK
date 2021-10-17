@@ -15,6 +15,7 @@ endif
 
 ifeq "$(CONFIG_RTK_VOIP_SLIC_ZARLINK_890_SERIES)" "y"
 obj-y	+= ve890/
+export SLIC_V890_FXS_LOW_POWER_MODE=y
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/zarlink/ve890/
 EXTRA_CFLAGS += -I$(DIR_VOIP)/voip_drivers/zarlink/$(ZARLINK_LIB)/vp890_api/
 endif

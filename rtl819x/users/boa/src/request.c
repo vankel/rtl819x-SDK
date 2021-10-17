@@ -53,6 +53,7 @@ int check_auth_flag=0;
 #ifdef HTTP_FILE_SERVER_SUPPORTED
 extern void http_file_server_req_init(request *wp);
 extern void http_file_server_req_free(request *wp);
+extern void CheckUA(request *wp);
 #endif
 
 #ifdef USE_AUTH
@@ -474,16 +475,25 @@ static void free_request(request * req)
 	if (req->buffer)
 	{
 		free(req->buffer);
-		req->buffer = NULL;
+		req->buffer=NULL;
 	}
 	
 // davidhsu -------------	
 	if (req->upload_data)
 	{
-//		fprintf(stderr, "free upload data..............................\n");	
-		//free(req->upload_data);	
+		#if defined(CONFIG_APP_FWD)		
+		fprintf(stderr, "free upload data..............................\n");
+		/*upload_data points to share memory*/
+		req->upload_data=NULL;
+		#else
+		fprintf(stderr, "free upload data..............................\n");	
+		free(req->upload_data);	
+		req->upload_data = NULL;
+		#endif
 	}
-//----------------------		
+//----------------------	
+
+
 #endif	
 
     if (req->multipart_boundary) {
@@ -987,16 +997,21 @@ int process_header_end(request * req)
 // davidhsu ----------------
 #ifdef USE_AUTH
 {
+#ifdef SUPER_NAME_SUPPORT
 	char admin_name[MAX_NAME_LEN], admin_password[MAX_NAME_LEN];
+#endif
 	char user_name[MAX_NAME_LEN], user_password[MAX_NAME_LEN];
-	
+	char hostName[MAX_NAME_LEN]={0};
+#ifdef SUPER_NAME_SUPPORT
 	apmib_get(MIB_SUPER_NAME, admin_name);
 	apmib_get(MIB_SUPER_PASSWORD, admin_password);
+#endif
 	apmib_get(MIB_USER_NAME, user_name);
 	apmib_get(MIB_USER_PASSWORD, user_password);
 	if (strcmp(user_name, "") || strcmp(user_password, "")) {
 		if (req->auth_flag == 0) {
 			if (req->userName) {
+#ifdef SUPER_NAME_SUPPORT
 				if (!strcmp(req->userName, admin_name)) {
 					if (req->password==NULL || req->password[0]==0) {
 						if (admin_password[0]==0)
@@ -1009,7 +1024,9 @@ int process_header_end(request * req)
 							check_auth_flag = 2;
 					}
 				}
-				else if (!strcmp(req->userName, user_name)) {
+				else
+#endif
+					if (!strcmp(req->userName, user_name)) {
 					if (req->password==NULL || req->password[0]==0) {
 						if (user_password[0]==0)
 							req->auth_flag = 1;
@@ -1025,11 +1042,11 @@ int process_header_end(request * req)
 		}
 		if (req->auth_flag == 0) {
 #ifdef HOME_GATEWAY
-			apmib_get(MIB_HOST_NAME, admin_name);
+			apmib_get(MIB_HOST_NAME, hostName);
 #else
-			strcpy(admin_name, "");
+			strcpy(hostName, "");
 #endif
-			send_r_unauthorized(req, admin_name);
+			send_r_unauthorized(req, hostName);
 			return 0;
 		}
 	}
@@ -1070,7 +1087,24 @@ int process_header_end(request * req)
 
 // davidhsu --------------------
 #ifdef SUPPORT_ASP
+#if defined(CONFIG_APP_TR069) && defined(_CWMP_WITH_SSL_)
+if (strstr(req->logline, FORM_FW_UPLOAD) || strstr(req->logline, FORM_CFG_UPLOAD) || strstr(req->logline, FORMTR069CACERT) || strstr(req->logline, FORMTR069CPECERT)) {
+#else
 	if (strstr(req->logline, FORM_FW_UPLOAD) || strstr(req->logline, FORM_CFG_UPLOAD)) {
+#endif
+
+#if defined(CONFIG_APP_FWD)
+	{
+		extern int get_shm_id();
+		extern int clear_fwupload_shm();
+		int shm_id = get_shm_id();
+		/* free upload share memory, if it is existed */
+		if (shm_id != 0) {
+			clear_fwupload_shm(shm_id);
+		}
+	}
+#endif
+
 		req->upload_data = malloc(MAX_UPLOAD_SIZE);
 		if (req->upload_data == NULL) {
 			boa_perror(req, "allocate upload buffer failed!");
@@ -1087,16 +1121,18 @@ int process_header_end(request * req)
 //fprintf(stderr,"####%s:%d req->host=%s req->header_host=%s default_vhost=%s###\n",  __FILE__, __LINE__ , req->host, req->header_host, default_vhost);
 #ifdef SUPPORT_ASP
 	if (strstr(req->request_uri, ".htm") ||	strstr(req->request_uri, ".asp")) {
-		req->cgi_type = 1;
+		req->cgi_type = ASP;
 	}
 #endif
 //fprintf(stderr,"####%s:%d req->request_uri=%s req->cgi_type=%d###\n",  __FILE__, __LINE__ , req->request_uri, req->cgi_type);
     if (req->cgi_type) {
 #ifdef SUPPORT_ASP
+	if (req->cgi_type == ASP)
 		return init_get2(req);
-#else
-        return init_cgi(req);
+	else
 #endif
+	return init_cgi(req);
+
     }
 
     req->status = WRITE;
@@ -1198,6 +1234,7 @@ int process_option_line(request * req)
             req->content_length = value;
 #ifdef HTTP_FILE_SERVER_SUPPORTED
             req->clen = boa_atoi(req->content_length);
+            req->TotalContentLen = req->clen;
 #endif
             return 1;
         } else if (!memcmp(line, "CONNECTION", 11) &&
@@ -1246,6 +1283,10 @@ int process_option_line(request * req)
     case 'U':
         if (!memcmp(line, "USER_AGENT", 11)) {
             req->header_user_agent = value;
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+		CheckUA(req);
+#endif            
+            
             if (!add_cgi_env(req, "USER_AGENT", value, 1)) {
                 /* errors already logged */
                 return 0;

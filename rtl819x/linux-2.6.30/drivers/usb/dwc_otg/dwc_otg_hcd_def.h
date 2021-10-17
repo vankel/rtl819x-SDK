@@ -145,6 +145,9 @@ typedef struct dwc_otg_qh {
 
 	/** Entry for QH in either the periodic or non-periodic schedule. */
 	struct list_head        qh_list_entry;
+	/* For non-dword aligned buffer support */
+	uint8_t			*dw_align_buf;
+	dma_addr_t		dw_align_buf_dma;
 } dwc_otg_qh_t;
 
 /**

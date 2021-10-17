@@ -12,6 +12,8 @@
 <SCRIPT>
 var wlan_channel=new Array();
 var wlan_txrate=new Array();
+var wlan_channelbound=new Array();
+var wlan_controlsideband=new Array();
 var regDomain=new Array();
 var defaultChan=new Array();
 var lastBand=new Array();
@@ -24,9 +26,12 @@ var bandIdxClient=new Array();
 var startChanIdx=new Array();
 var disableSSID=new Array();
 var networkType=new Array();
+var repeater_enable_val=<% getIndex("repeaterEnabled"); %>
+//var multi_AP_Repeater_Str=<% getIndex("multiAPRepeaterStr"); %>
 var countrystr= "<% getInfo("country_str"); %>";
 var wlan_idx= <% getIndex("wlan_idx"); %>;
 var opmode=<% getIndex("opMode"); %>;
+var wispWanId=<% getIndex("wispWanId"); %>;
 var WiFiTest=<% getIndex("WiFiTest"); %>;
 var ssid_2g="<% getIndex("2G_ssid"); %>";
 var ssid_5g="<% getIndex("5G_ssid"); %>";
@@ -164,33 +169,33 @@ function updateRepeaterState(form, wlan_id)
 	disableCheckBox(form.elements["repeaterEnabled"+wlan_id]);
 	disableTextField(form.elements["repeaterSSID"+wlan_id]);
 	get_by_id("wlProfileDiv").style.display = "none"; //disable wlProfileDiv first
-	
-  if(!form.elements["wlanDisabled"+wlan_id].checked)
-  {  	
-  	if( (form.elements["mode"+wlan_id].selectedIndex!=1)
-  		&& (form.elements["mode"+wlan_id].selectedIndex!=2) 
-    )
-    {     	
-	enableCheckBox(form.elements["repeaterEnabled"+wlan_id]);
-	
-	if (form.elements["repeaterEnabled"+wlan_id].checked)
-	{
- 		enableTextField(form.elements["repeaterSSID"+wlan_id]);
- 				enableButton(document.wlanSetup.elements["addRptProfile"]);
- 		
- 		if(wlProfileSupport == 1)
-		{
-			get_by_id("wlProfileDiv").style.display = "";
+
+	if(!form.elements["wlanDisabled"+wlan_id].checked)
+	{  	
+		if( (form.elements["mode"+wlan_id].selectedIndex!=1)
+			&& (form.elements["mode"+wlan_id].selectedIndex!=2) 
+		)
+		{     	
+			enableCheckBox(form.elements["repeaterEnabled"+wlan_id]);
+
+			if (form.elements["repeaterEnabled"+wlan_id].checked)
+			{
+				enableTextField(form.elements["repeaterSSID"+wlan_id]);
+				enableButton(document.wlanSetup.elements["addRptProfile"]);
+
+				if(wlProfileSupport == 1)
+				{
+					get_by_id("wlProfileDiv").style.display = "";
+				}
+			}
+			else
+			{
+				disableTextField(form.elements["repeaterSSID"+wlan_id]);
+				disableButton(document.wlanSetup.elements["addRptProfile"]);
+			}
 		}
- 	}
-  	else
-  	{
-  		disableTextField(form.elements["repeaterSSID"+wlan_id]);
-  		disableButton(document.wlanSetup.elements["addRptProfile"]);
-  }
-  }
-  	
-  	if(is_ulinker == 1)
+
+		if(is_ulinker == 1)
 		{
 			disableCheckBox(form.elements["repeaterEnabled"+wlan_id]);
 			if(ulinker_opMode == 3)
@@ -198,26 +203,26 @@ function updateRepeaterState(form, wlan_id)
 				form.elements["repeaterEnabled"+wlan_id].checked = true;
 				enableTextField(form.elements["repeaterSSID"+wlan_id]);
 			}
-		}
-  	
-  	
-  }
-// mesh check
-if(form.elements["mode"+wlan_id].selectedIndex>3)
-{
-  disableCheckBox(form.elements["repeaterEnabled"+wlan_id]);
-  disableTextField(form.elements["repeaterSSID"+wlan_id]);
-}
+		}	
+	}
 }
 
 function updateMode_basic(form, wlan_id)
 {
 	var mode_selected=0;
 	var Type_selected=0;
-	mode_selected=document.wlanSetup.elements["mode"+wlan_id].selectedIndex;
+	var mode_selected_idx=document.wlanSetup.elements["mode"+wlan_id].selectedIndex;
+	mode_selected = document.wlanSetup.elements["mode"+wlan_id].options[mode_selected_idx].value;
+	
 	if(mode_selected==0)
 		form.elements["repeaterEnabled"+wlan_id].checked = true;
-
+	else if(mode_selected == 4 || mode_selected == 5) {/*default disable repeater in AP+MESH mode and MESH mode*/
+		form.elements["repeaterEnabled"+wlan_id].checked = false;
+		if(opmode == 2 && wispWanId == wlan_id) {/*WISP*/		
+			form.elements["repeaterEnabled"+wlan_id].checked = true;
+		}
+	}
+	
 	updateRepeaterState(form, wlan_id);
 	updateMode(form, wlan_id);
 	Type_selected = document.wlanSetup.elements["type"+wlan_id].selectedIndex;
@@ -235,7 +240,7 @@ function updateMode_basic(form, wlan_id)
 		}else{
 			enableTextField(document.wlanSetup.elements["channelbound"+wlan_id]);
 			index_channelbound=document.wlanSetup.elements["channelbound"+wlan_id].selectedIndex;
-		if(index_channelbound ==0)
+		if(index_channelbound ==0 || index_channelbound ==2)
 			disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
 		else{
 			if(chan_number != 0)
@@ -251,10 +256,27 @@ function updateMode_basic(form, wlan_id)
 			enableButton(document.wlanSetup.elements["addWlProfile"]);
 				disableButton(document.wlanSetup.elements["addRptProfile"]);
 		}
+	}
+	else if(mode_selected ==8){
+		if(Type_selected == 0){
+			disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);
+			disableTextField(document.wlanSetup.elements["channelbound"+wlan_id]);
+		}else{
+			enableTextField(document.wlanSetup.elements["channelbound"+wlan_id]);
+			index_channelbound=document.wlanSetup.elements["channelbound"+wlan_id].selectedIndex;
+		if(index_channelbound ==0 || index_channelbound ==2)
+			disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
+		else{
+			if(chan_number != 0)
+				enableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);
+			else
+				disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);
+		}
+		}	
 	}else{
 		enableTextField(document.wlanSetup.elements["channelbound"+wlan_id]);
 			index_channelbound=document.wlanSetup.elements["channelbound"+wlan_id].selectedIndex;
-		if(index_channelbound ==0)
+		if(index_channelbound ==0 || index_channelbound ==2)
 			disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
 		else{
 			if(chan_number != 0)
@@ -265,22 +287,30 @@ function updateMode_basic(form, wlan_id)
 		
 		if(mode_selected != 2) //2:WDS
 		{
-		disableButton(document.wlanSetup.elements["addWlProfile"]);
-		if (form.elements["repeaterEnabled"+wlan_id].checked)
-		{
-			get_by_id("wlProfileDiv").style.display = ""; 
-			enableButton(document.wlanSetup.elements["addRptProfile"]);
+			disableButton(document.wlanSetup.elements["addWlProfile"]);
+			if (form.elements["repeaterEnabled"+wlan_id].checked)
+			{
+				get_by_id("wlProfileDiv").style.display = ""; 
+				enableButton(document.wlanSetup.elements["addRptProfile"]);
+			}
+			else
+			{
+				get_by_id("wlProfileDiv").style.display = "none";
+				disableButton(document.wlanSetup.elements["addRptProfile"]);
+			}
 		}
-		else
-		{
-			get_by_id("wlProfileDiv").style.display = "none";
-			disableButton(document.wlanSetup.elements["addRptProfile"]);
-		}
-}
-}
+	}
 	
 	if( mode_selected == 5 )	//6 should be MESH mode
 		disableTextField(document.wlanSetup.elements["ssid"+<% getIndex("wlan_idx"); %>]);
+
+	var wlan_support_8812e=<% getIndex("wlan_support_8812e"); %>;
+	var index = form.elements["band"+wlan_id].selectedIndex;
+	var selectText=form.elements["band"+wlan_id].options[index].text.substr(0,1);
+	var bandOption = form.elements["band"+wlan_id].options.value;
+	
+	if(wlan_support_8812e==1 && (bandOption == 3 || (bandOption == 7 && selectText=='5') || bandOption == 11 || bandOption == 63 || bandOption == 71 || bandOption == 75))
+		disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
 
 }
 
@@ -299,9 +329,47 @@ function Set_SSIDbyBand(form, wlan_id, band, index)
 	var bandOption = form.elements["band"+wlan_id].options.value;
 		
 	if(bandOption == 0 || bandOption == 1 || (bandOption == 7 && selectText=='2') || bandOption == 2 || bandOption == 9 || bandOption == 10)
-		form.elements["ssid"+wlan_idx].value = ssid_2g;
-	else if(bandOption == 3 || (bandOption == 7 && selectText=='5') || bandOption == 11)
-		form.elements["ssid"+wlan_idx].value = ssid_5g;
+	{
+		//form.elements["ssid"+wlan_idx].value = ssid_2g;
+		var tmpstr=ssid_2g;
+		if(ssid_2g.match("&quot;")!=null)
+			tmpstr=ssid_2g.replace(/&quot;/g, "\"");
+			
+		if(ssid_2g.match("&#39;")!=null)
+			tmpstr=tmpstr.replace(/&#39;/g, "'");
+		
+		if(ssid_2g.match("&#92;")!=null)
+			tmpstr=tmpstr.replace(/&#92;/g, "\\");
+
+		if(ssid_2g.match("&#62;")!=null)
+			tmpstr=tmpstr.replace(/&#62;/g, ">");
+
+		if(ssid_2g.match("&#60;")!=null)
+			tmpstr=tmpstr.replace(/&#60;/g, "<");
+		
+		form.elements["ssid"+wlan_idx].value = tmpstr;
+	}
+	else if(bandOption == 3 || (bandOption == 7 && selectText=='5') || bandOption == 11 || bandOption == 63 || bandOption == 71 || bandOption == 75)
+	{
+		//form.elements["ssid"+wlan_idx].value = ssid_5g;
+		var tmpstr=ssid_5g;
+		if(ssid_5g.match("&quot;")!=null)
+			tmpstr=ssid_5g.replace(/&quot;/g, "\"");
+			
+		if(ssid_5g.match("&#39;")!=null)
+			tmpstr=tmpstr.replace(/&#39;/g, "'");
+		
+		if(ssid_5g.match("&#92;")!=null)
+			tmpstr=tmpstr.replace(/&#92;/g, "\\");
+
+		if(ssid_5g.match("&#62;")!=null)
+			tmpstr=tmpstr.replace(/&#62;/g, ">");
+
+		if(ssid_5g.match("&#60;")!=null)
+			tmpstr=tmpstr.replace(/&#60;/g, "<");
+		
+		form.elements["ssid"+wlan_idx].value = tmpstr;
+	}
 }
 function Set_onChangeBand(form, wlan_id, band, index){
 	    var band;
@@ -317,17 +385,25 @@ function Set_onChangeBand(form, wlan_id, band, index){
 	 var mode_selected=0;
 	var Type_selected=0;
 	var index_channelbound=0;
+	var wlan_support_8812e=<% getIndex("wlan_support_8812e"); %>;
+	
 	if(wmm_value==0)
 		document.wlanSetup.elements["wlanwmm"+<% getIndex("wlan_idx"); %>].selectedIndex=0;
 	else
 		document.wlanSetup.elements["wlanwmm"+<% getIndex("wlan_idx"); %>].selectedIndex=1;	
 	value =band.options[index].value;
-	if(value ==9 || value ==10 || value ==7 || value ==11 || value ==14){
+	if(value ==9 || value ==10 || value ==7 || value ==11 || value ==14 || value ==63 || value ==71 || value ==75 ){
 		checkid_bound.style.display = "";
 		checkid_sideband.style.display = "";
 		document.wlanSetup.elements["wlanwmm"+<% getIndex("wlan_idx"); %>].selectedIndex = 1;
 	 	//checkid_wmm1.disabled = true;
 	 	checkid_wmm2.disabled = true;
+
+		var controlsideband_idx=form.elements["controlsideband"+wlan_idx].selectedIndex;
+		var wlan_controlsideband_value= form.elements["controlsideband"+wlan_idx].options[controlsideband_idx].value;
+		wlan_controlsideband[wlan_idx] = wlan_controlsideband_value;
+		document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>].length=0;
+		showcontrolsideband_updated(document.wlanSetup, value, wlan_idx, <% getIndex("rf_used"); %>, index);	
 	}else{
 		checkid_bound.style.display = "none";
 		checkid_sideband.style.display = "none";
@@ -342,9 +418,16 @@ function Set_onChangeBand(form, wlan_id, band, index){
 	document.wlanSetup.elements["txRate"+<% getIndex("wlan_idx"); %>].length=0;
 	showtxrate_updated(document.wlanSetup, value, wlan_idx, <% getIndex("rf_used"); %>);	
 	
+	var channelbound_idx=form.elements["channelbound"+wlan_idx].selectedIndex;
+	var wlan_channelbound_value= form.elements["channelbound"+wlan_idx].options[channelbound_idx].value;
+	wlan_channelbound[wlan_idx] = wlan_channelbound_value;
+	document.wlanSetup.elements["channelbound"+<% getIndex("wlan_idx"); %>].length=0;
+	showchannelbound_updated(document.wlanSetup, value, wlan_idx, <% getIndex("rf_used"); %>);	
+	
 	updateChan_channebound(form, wlan_id);
 	Type_selected = document.wlanSetup.elements["type"+wlan_id].selectedIndex;
-  	mode_selected=document.wlanSetup.elements["mode"+wlan_id].selectedIndex;
+	var mode_selected_idx=document.wlanSetup.elements["mode"+wlan_id].selectedIndex;
+	mode_selected = document.wlanSetup.elements["mode"+wlan_id].options[mode_selected_idx].value;
   	//if client and infrastructure mode
   	if(mode_selected ==1){
 		if(Type_selected == 0){
@@ -353,7 +436,7 @@ function Set_onChangeBand(form, wlan_id, band, index){
 		}else{
 			enableTextField(document.wlanSetup.elements["channelbound"+wlan_id]);
 			index_channelbound=document.wlanSetup.elements["channelbound"+wlan_id].selectedIndex;
-		if(index_channelbound ==0)
+		if(index_channelbound ==0 || index_channelbound ==2)
 			disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
 		else
 			enableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);
@@ -361,7 +444,7 @@ function Set_onChangeBand(form, wlan_id, band, index){
 	}else{
 		enableTextField(document.wlanSetup.elements["channelbound"+wlan_id]);
 			index_channelbound=document.wlanSetup.elements["channelbound"+wlan_id].selectedIndex;
-		if(index_channelbound ==0)
+		if(index_channelbound ==0 || index_channelbound ==2)
 			disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
 		else
 			enableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);
@@ -393,8 +476,126 @@ function Set_onChangeBand(form, wlan_id, band, index){
 	else{
 		if(document.wlanSetup.elements["channelbound"+wlan_id].selectedIndex == "0")
 		disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
+		else if(document.wlanSetup.elements["channelbound"+wlan_id].selectedIndex == "2")
+			disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);
  		else
 			enableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);		
+	}
+
+	if(wlan_support_8812e==1 && ((value==11 || value ==63|| value ==71|| value==75 ) || (value==7 && index==1)))
+		disableTextField(document.wlanSetup.elements["controlsideband"+wlan_id]);	
+}
+
+function updateDateRate()
+{
+	var band   = <% getIndex("band"); %>;
+	var auto   = <% getIndex("rateAdaptiveEnabled"); %>;
+	var txrate = <% getIndex("fixTxRate"); %>;
+	var rf_num = <% getIndex("rf_used"); %>;
+
+	var rate_mask = [15,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8];
+	var rate_name=["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", "MCS0", "MCS1",
+		"MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", "MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15"];
+	var vht_rate_name=["NSS1-MCS0","NSS1-MCS1","NSS1-MCS2","NSS1-MCS3","NSS1-MCS4",
+		"NSS1-MCS5","NSS1-MCS6","NSS1-MCS7","NSS1-MCS8","NSS1-MCS9",
+		"NSS2-MCS0","NSS2-MCS1","NSS2-MCS2","NSS2-MCS3","NSS2-MCS4",
+		"NSS2-MCS5","NSS2-MCS6","NSS2-MCS7","NSS2-MCS8","NSS2-MCS9"];
+	var mask=0;
+	var defidx=0;
+	var idx, i, rate;
+	var vht_num;
+	var option_num = 0;
+	
+	if (auto)
+		txrate=0;
+	if (band & 1)
+		mask |= 1;
+	if ((band&2) || (band&4))
+		mask |= 2;
+	if (band & 8) {
+		if (rf_num == 2)
+			mask |= 12;	
+		else
+			mask |= 4;
+	}	
+	document.write('<option value="' + 0 + '">' + rate_name[0] + '\n');
+	option_num++;
+	for (idx=1, i=1; i<=28; i++) {
+		if (rate_mask[i] & mask) {
+			rate = (1 << (i-1));
+		 	if(txrate == 0)
+            	defidx = 0;
+			 else if (txrate == rate)
+				defidx = idx;
+			document.write('<option value="' + i + '">' + rate_name[i] + '\n');
+			idx++;
+			option_num++;
+		}
+	}
+	if(band & 64){
+		if(rf_num==1)
+			vht_num = 9;
+		else
+			vht_num = 19; 
+		for (idx=30, i=0; i<=vht_num; i++) {		
+			rate = ((1 << 31) + i);
+			if (txrate == rate){
+				defidx = option_num;
+			}
+			if((i == 9) || (i == 19))
+			{
+				if(document.wlanSetup.elements["channelbound" + <% getIndex("wlan_idx"); %>].selectedIndex == 0)//channel width = 20M
+				{
+					idx++;
+					continue;
+				}
+			}
+			document.write('<option value="' + idx + '">' + vht_rate_name[i] + '\n');
+			idx++;
+			option_num++;
+		}
+	}
+	document.wlanSetup.elements["txRate"+ <% getIndex("wlan_idx"); %>].selectedIndex = defidx;
+}
+
+function ShowChannelInVxdMode()
+{
+	var channel_drv = <%getInfo("channel_drv")%>;
+	var repeaterState = "<%getInfo("repeaterState");%>";
+	var isRepeaterDisplay =  <% getIndex("isRepeaterDisplay"); %> ;
+	var sideband="<% getIndex("ControlSideBand"); %>";
+	
+	var i;
+	if(channel_drv){
+		if(repeaterState == "Connected"){
+			if(isRepeaterDisplay || (document.wlanSetup.elements["mode"+ wlan_idx].selectedIndex == 1)){
+				//if(document.wlanSetup.elements["chan"+wlan_idx].selectedIndex != 0){
+					if(channel_drv != defaultChan[wlan_idx]){
+						for(i=0; i<document.wlanSetup.elements["chan"+wlan_idx].length; i++){
+							if(document.wlanSetup.elements["chan"+wlan_idx].options[i].value == channel_drv){
+								document.wlanSetup.elements["chan"+wlan_idx].selectedIndex = i;
+								break;
+							}
+						}
+						if(i>= document.wlanSetup.elements["chan"+wlan_idx].length)
+						{//change the side band
+							if(sideband=="0")
+								document.wlanSetup.elements["controlsideband"+ wlan_idx].selectedIndex=1;
+							else
+								document.wlanSetup.elements["controlsideband"+ wlan_idx].selectedIndex=0;
+							updateChan_channebound(document.wlanSetup, wlan_idx);
+							for(i=0; i<document.wlanSetup.elements["chan"+wlan_idx].length; i++){
+								if(document.wlanSetup.elements["chan"+wlan_idx].options[i].value == channel_drv){
+									document.wlanSetup.elements["chan"+wlan_idx].selectedIndex = i;
+									break;
+								}
+							}
+							
+						}
+					}			
+				//}
+			}
+		}
 	}
 }
 
@@ -402,6 +603,15 @@ function LoadSetting()
  {
  	var form = document.wlanSetup;
 	var wlanband=<% getIndex("band"); %>; 
+
+
+	var channelbound_idx=form.elements["channelbound"+wlan_idx].selectedIndex;
+	var wlan_channelbound_value= form.elements["channelbound"+wlan_idx].options[channelbound_idx].value;
+	wlan_channelbound[wlan_idx] = wlan_channelbound_value;
+	document.wlanSetup.elements["channelbound"+<% getIndex("wlan_idx"); %>].length=0;
+	showchannelbound_updated(document.wlanSetup, (wlanband-1), wlan_idx, <% getIndex("rf_used"); %>);	
+
+	
 	if (wlanband < 7)
 		wlanband = "0";
 	else
@@ -412,6 +622,7 @@ function LoadSetting()
  	//var checkid_wmm1 = document.getElementById("wlan_wmm");
  	var checkid_wmm2 = document.wlanSetup.wlanwmm<% getIndex("wlan_idx"); %>;
  	var mode_index = document.wlanSetup.elements["mode"+<% getIndex("wlan_idx"); %>].selectedIndex;
+	var mode_selected = document.wlanSetup.elements["mode"+<% getIndex("wlan_idx"); %>].options[mode_index].value;
  	var nettype_index = document.wlanSetup.elements["type"+<% getIndex("wlan_idx"); %>].selectedIndex;
  	checkid_bound=document.getElementById("channel_bounding");
  	checkid_sideband=document.getElementById("control_sideband");
@@ -434,6 +645,7 @@ function LoadSetting()
  	}
  
 	var init_bound = "<% getIndex("ChannelBonding"); %>";
+
 	if (init_bound != "0")
 		init_bound = "";
 
@@ -443,14 +655,16 @@ function LoadSetting()
  
  	if(init_bound=="0")
  		document.wlanSetup.elements["channelbound"+<% getIndex("wlan_idx"); %>].selectedIndex=0;
- 	else
+ 	else if(init_bound=="1")
  		document.wlanSetup.elements["channelbound"+<% getIndex("wlan_idx"); %>].selectedIndex=1;
+	else if(init_bound=="2")
+		document.wlanSetup.elements["channelbound"+<% getIndex("wlan_idx"); %>].selectedIndex=2;
  		
  	if(init_sideband=="0")
  		document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>].selectedIndex=0;
  	else
  		document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>].selectedIndex=1;	
- 	if(init_bound == "0")
+ 	if(init_bound == "0" || init_bound == "2")
  		disableTextField(document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>]);	
  	else
  	{
@@ -459,14 +673,14 @@ function LoadSetting()
 	}
 		
 		//if client and infrastructure mode
-	if(mode_index==1){
+	if(mode_selected==1){
 	 	if(nettype_index ==0){
 	 		disableTextField(document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>]);
 			disableTextField(document.wlanSetup.elements["channelbound"+<% getIndex("wlan_idx"); %>]);
 	 	}
 	}
 
-	if( mode_index == 5 )
+	if( mode_selected == 5 )
 		disableTextField(document.wlanSetup.elements["ssid"+<% getIndex("wlan_idx"); %>]);
 		
 	var hiddenSSID_value = <% getIndex("hiddenSSID"); %>;
@@ -521,16 +735,34 @@ function LoadSetting()
  	if ( <% getIndex("wlanMacClone"); %> )
 		document.wlanSetup.elements["wlanMacClone"+wlan_idx].checked=true;	
 
- 	if ( <% getIndex("repeaterEnabled"); %> ) {
+ 	if (repeater_enable_val==1) {
 		document.wlanSetup.elements["repeaterEnabled"+wlan_idx].checked=true;
-		updateRepeaterState(document.wlanSetup, wlan_idx);
+		updateRepeaterState(document.wlanSetup, wlan_idx);	
+	}else if (repeater_enable_val==2) {
+		document.wlanSetup.elements["repeaterEnabled"+wlan_idx].disabled=true;			
 	}
+	
+	if(<% getInfo("wlProfile_value");%>)
+		document.wlanSetup.elements["wlProfileEnabled"].checked=true;
 
  	if ( <% getIndex("wlanDisabled"); %> ) {
 		document.wlanSetup.elements["wlanDisabled"+wlan_idx].checked=true;	
 		updateState(document.wlanSetup, wlan_idx);
 	}
+
+	var index_bound = form.elements["channelbound"+wlan_idx].selectedIndex;
+
+	if(index_bound == 0)
+		disableTextField(document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>]);
+	if(index_bound == 2)
+		disableTextField(document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>]);
+
+	var wlan_support_8812e=<% getIndex("wlan_support_8812e"); %>;
+	var phyband   = <% getIndex("Band2G5GSupport"); %>;
 	
+	if(wlan_support_8812e==1 && phyband==2)
+		disableTextField(document.wlanSetup.elements["controlsideband"+<% getIndex("wlan_idx"); %>]);	
+
 	if(mode_index==1)//client
 	{
 		get_by_id("wlProfileDiv").style.display = "";
@@ -543,9 +775,13 @@ function LoadSetting()
 	if(mode_index != 1 && mode_index != 2)//1:client 2:wds
 	{
 		if(document.wlanSetup.elements["repeaterEnabled"+wlan_idx].checked == 1)//enable rpt
+		{
+			if(mode_index != 4 && mode_index != 5) {//4:ap+mesh 5:mesh
+				ShowChannelInVxdMode();	
+			}
 			enableButton(document.wlanSetup.elements["addRptProfile"]);
+		}
 	}
-		
 }
 
 function resetForm()
@@ -584,6 +820,9 @@ else
 <INPUT type=hidden name=wlBandMode value=<% getIndex("wlanBand2G5GSelect"); %>>
 <INPUT type=hidden name="regdomain<% getIndex("wlan_idx");%>" value=<% getIndex("regDomain"); %>>
 <INPUT type=hidden name="countrystr<% getIndex("wlan_idx");%>" value=<% getInfo("country_str"); %>>
+<INPUT type=hidden name=wlan_support_8812e value=<% getIndex("wlan_support_8812e"); %>>
+<INPUT type=hidden name=wlan_support_8192f value=<% getIndex("wlan_support_8192f"); %>>
+<INPUT type=hidden name=wlan_support_ac2g value=<% getIndex("wlan_support_ac2g"); %>>
 
 <table border=0 width="500" cellspacing=4>
   <tr><font size=2>
@@ -600,7 +839,7 @@ else
 
   <tr style="display:none">
       <td width="26%"><font size=2><b>Country:</b></td>
-      <td width="74%"><font size=2><select size="1" name="country<% getIndex("wlan_idx"); %>" onChange="updateCountry(document.wlanSetup,wlan_idx);updateBand(document.wlanSetup, wlan_idx);updateChan(document.wlanSetup, wlan_idx)">
+      <td width="74%"><font size=2><select size="1" name="country<% getIndex("wlan_idx"); %>" onChange="updateCountry(document.wlanSetup,wlan_idx);updateBand(document.wlanSetup, wlan_idx);updateChan_channebound(document.wlanSetup, wlan_idx);update_controlsideband(document.wlanSetup, wlan_idx);">
       </select>
       </td>
   </tr>
@@ -633,7 +872,8 @@ else
 	<%  getModeCombobox(); %>   
 	 </select>
 
-	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type="button" value="Multiple AP" name="multipleAP<% getIndex("wlan_idx"); %>" onClick="showMultipleAP(document.wlanSetup, '/wlmultipleap.htm')">
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+	<input type="button" value=<% getIndex("multiAPRepeaterStr"); %> name="multipleAP<% getIndex("wlan_idx"); %>" 	onClick="showMultipleAP(document.wlanSetup, '/wlmultipleap.htm')">
 	  
       </td>
   </tr>
@@ -664,17 +904,41 @@ else
   </tr>
       <tr id="channel_bounding" style="display:none">
       <td width="26%"><font size=2><b>Channel Width:</b></td>
-      <td width="74%"><font size=2><select size="1" name="channelbound<% getIndex("wlan_idx"); %>" onChange="update_controlsideband(document.wlanSetup, wlan_idx)">
+      <td width="74%"><font size=2><select size="1" name="channelbound<% getIndex("wlan_idx"); %>" onChange="update_controlsideband(document.wlanSetup, wlan_idx); showtxrate_updated(document.wlanSetup,document.wlanSetup.band<% getIndex("wlan_idx"); %>.options[document.wlanSetup.band<% getIndex("wlan_idx"); %>.selectedIndex].value, wlan_idx, <% getIndex("rf_used"); %>)">
      <option value="0">20MHz</option>
 	<option value="1">40MHz</option>
+		<SCRIPT>
+		 	use_40m = <% getIndex("ChannelBonding"); %>;
+	  		wlan_support_8812e=<% getIndex("wlan_support_8812e"); %>;
+	  		wlan_support_8192f=<% getIndex("wlan_support_8192f"); %>;
+
+			if( (wlan_support_8812e==1) && (wlan_support_8192f==0) )
+				document.write('<option value="' + 2 + '">' + "80MHz" + '\n');
+				
+			document.wlanSetup.elements["channelbound" + <% getIndex("wlan_idx"); %>].selectedIndex=use_40m;
+		</SCRIPT>
 	 </select>
       </td>
   </tr>
   <tr id="control_sideband" style="display:none">
       <td width="26%"><font size=2><b>Control Sideband:</b></td>
       <td width="74%"><font size=2><select size="1" name="controlsideband<% getIndex("wlan_idx"); %>" onChange="updateChan_channebound(document.wlanSetup, wlan_idx);">
-     <option value="0">Upper</option>
-	<option value="1">Lower</option>
+		<SCRIPT>
+	  		wlan_support_8812e=<% getIndex("wlan_support_8812e"); %>;
+			phyband   = <% getIndex("Band2G5GSupport"); %>;
+
+			if((wlan_support_8812e==1) && (phyband==2))
+			{
+				document.write('<option value="' + 0 + '">' + "Auto" + '\n');
+				document.write('<option value="' + 0 + '">' + "Auto" + '\n');
+			}
+			else
+			{
+				document.write('<option value="' + 0 + '">' + "Upper" + '\n');
+				document.write('<option value="' + 1 + '">' + "Lower" + '\n');
+
+			}
+		</SCRIPT>
 	 </select>
       </td>
   </tr>
@@ -712,43 +976,7 @@ else
       <td width="26%"><font size=2><b>Data Rate:</b></td>
       <td width="74%"><font size=2><select size="1" name="txRate<% getIndex("wlan_idx"); %>" onChange="checkTurboState()"> 
 	 <SCRIPT>
-	band   = <% getIndex("band"); %>;
-	auto   = <% getIndex("rateAdaptiveEnabled"); %>;
-	txrate = <% getIndex("fixTxRate"); %>;
-	rf_num = <% getIndex("rf_used"); %>;
-
-	var rate_mask = [15,1,1,1,1,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8];
-	var rate_name=["Auto","1M","2M","5.5M","11M","6M","9M","12M","18M","24M","36M","48M","54M", "MCS0", "MCS1",
-		"MCS2", "MCS3", "MCS4", "MCS5", "MCS6", "MCS7", "MCS8", "MCS9", "MCS10", "MCS11", "MCS12", "MCS13", "MCS14", "MCS15"];
-	var mask=0;
-	var defidx=0;
-	var idx, i, rate;
-	
-	if (auto)
-		txrate=0;
-	if (band & 1)
-		mask |= 1;
-	if ((band&2) || (band&4))
-		mask |= 2;
-	if (band & 8) {
-		if (rf_num == 2)
-			mask |= 12;	
-		else
-			mask |= 4;
-	}	
-	for (idx=0, i=0; i<=28; i++) {
-		if (rate_mask[i] & mask) {
-			if (i == 0)
-				rate = 0;
-			else
-				rate = (1 << (i-1));
-			if (txrate == rate)
-				defidx = idx;
-			document.write('<option value="' + i + '">' + rate_name[i] + '\n');
-			idx++;
-		}
-	}
-	document.wlanSetup.elements["txRate"+ <% getIndex("wlan_idx"); %>].selectedIndex=defidx;
+	 updateDateRate();
 	</SCRIPT>
 	</select>
 	</td>
@@ -757,14 +985,14 @@ else
   <tr>
       <td width="26%"><font size=2><b>TX restrict:
       </b></td>
-      <td width="74%"><font size=2><input type="text" name="tx_restrict<% getIndex("wlan_idx"); %>" size="5" maxlength="3" value="<% getInfo("tx_restrict"); %>">&nbsp;Mbps&nbsp;(0:no restrict)
+      <td width="74%"><font size=2><input type="text" name="tx_restrict<% getIndex("wlan_idx"); %>" size="5" maxlength="4" value="<% getInfo("tx_restrict"); %>">&nbsp;Mbps&nbsp;(0:no restrict)
       </td>      
   </tr>
   
   <tr>
       <td width="26%"><font size=2><b>RX restrict:
       </b></td>
-      <td width="74%"><font size=2><input type="text" name="rx_restrict<% getIndex("wlan_idx"); %>" size="5" maxlength="3" value="<% getInfo("rx_restrict"); %>">&nbsp;Mbps&nbsp;(0:no restrict)
+      <td width="74%"><font size=2><input type="text" name="rx_restrict<% getIndex("wlan_idx"); %>" size="5" maxlength="4" value="<% getInfo("rx_restrict"); %>">&nbsp;Mbps&nbsp;(0:no restrict)
       </td>      
   </tr>
   
@@ -845,7 +1073,7 @@ else
   	
   	return true;
  	}
- 	
+
  	function addRptProfileClick()
  	{
  		if ( get_by_id("wlProfileEnabled").checked == false

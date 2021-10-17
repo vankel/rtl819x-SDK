@@ -59,6 +59,14 @@ static void __ipc_rpc_slic_parser( voip_con_t * p_con, voip_snd_t * p_snd, rpc_c
 		p_mirror_hstate ->slic.SendNTTCAR_check_timeout = *( ( unsigned long * )p_data );
 		break;
 	
+	case FXS_OPS_OFFSET( SLIC_Set_Power_Save_Mode ):
+		p_snd ->fxs_ops ->SLIC_Set_Power_Save_Mode( p_snd);
+		break;
+
+	case FXS_OPS_OFFSET( SLIC_Set_FXS_Line_State ):
+		p_snd ->fxs_ops ->SLIC_Set_FXS_Line_State( p_snd, *( ( unsigned char * )p_data ) );
+		break;
+
 	default:
 		PRINT_Y( "No handle RPC SLIC ops=%u\n", rpc_content ->ops_offset );
 		break;
@@ -105,12 +113,23 @@ void ipc_rpc_parser( ipc_ctrl_pkt_t *ipc_ctrl )
 	extern int ipcSentRpcAckPacket( unsigned short category, uint16 seq_no, unsigned int host_cch, void* rpc_ack_data, unsigned short rpc_ack_len );
 	
 	rpc_content_t * const rpc_content = ( rpc_content_t * )ipc_ctrl ->content;
-	const uint32 host_cch = API_get_Host_CH( ipc_ctrl ->dsp_cpuid, rpc_content ->cch );	
-	voip_con_t * const p_con = get_voip_con_ptr( host_cch );
-	voip_snd_t * const p_snd = p_con ->snd_ptr;
+	const int32 host_cch = API_get_Host_CH( ipc_ctrl ->dsp_cpuid, rpc_content ->cch );	
+	voip_con_t * p_con;
+	voip_snd_t * p_snd;
+	
+	if (host_cch < 0)
+	{
+		PRINT_R("Error, %s, line%d, host_cch < 0\n", __FUNCTION__, __LINE__);
+		return;
+	}
+	
+	p_con = get_voip_con_ptr( host_cch );
+	p_snd = p_con ->snd_ptr;
 	
 	// send ACK packet 
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_ISSUE_PURE_ACK
 	ipcSentRpcAckPacket( ipc_ctrl ->category, ipc_ctrl ->sequence, host_cch, NULL, 0 );
+#endif
 	
 	switch( ipc_ctrl ->category ) {
 	case IPC_RPC_SLIC:

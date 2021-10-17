@@ -249,11 +249,13 @@ static int create_ipv6_listener(struct listener **link, int port)
 
 struct listener *create_wildcard_listeners(int port)
 {
-  union mysockaddr addr;
-  int opt = 1;
-  struct listener *l, *l6 = NULL;
-  int tcpfd, fd;
 
+//  union mysockaddr addr;
+//  int opt = 1;
+  struct listener *l, *l6 = NULL;
+//  int tcpfd, fd;
+
+#if 0
   memset(&addr, 0, sizeof(addr));
   addr.in.sin_family = AF_INET;
   addr.in.sin_addr.s_addr = INADDR_ANY;
@@ -289,6 +291,16 @@ struct listener *create_wildcard_listeners(int port)
   l->fd = fd;
   l->tcpfd = tcpfd;
   l->next = l6;
+#endif
+
+#ifdef HAVE_IPV6
+//	printf("%s:%d--HAVE_IPV6\n", __FUNCTION__, __LINE__);
+	if(!create_ipv6_listener(&l6, port))
+		return NULL;
+	l = l6;
+//	printf("%s:%d--ipv6_sockfd=%d\n", __FUNCTION__, __LINE__, l->fd);
+	l->next=NULL;
+#endif 
 
   return l;
 }
@@ -352,10 +364,9 @@ struct listener *create_bound_listeners(struct daemon *daemon)
   return listeners;
 }
 
-struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
+struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds, char *wan_ifname)
 {
   struct serverfd *sfd;
-
   /* may have a suitable one already */
   for (sfd = *sfds; sfd; sfd = sfd->next )
     if (sockaddr_isequal(&sfd->source_addr, addr))
@@ -370,8 +381,11 @@ struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
     {
       free(sfd);
       return NULL;
-    }
-  
+    }  
+//  printf("%s:%d--ipv6_server_sockfd=%d\n", __FUNCTION__, __LINE__, sfd->fd);
+  setsockopt(sfd->fd, SOL_SOCKET, SO_BINDTODEVICE, wan_ifname, strlen(wan_ifname)+1);
+//  printf("%s:%d--wan_ifname=%s  len=%d\n", __FUNCTION__, __LINE__, wan_ifname, strlen(wan_ifname));
+
   if (bind(sfd->fd, (struct sockaddr *)addr, sa_len(addr)) == -1 ||
       !fix_fd(sfd->fd))
     {
@@ -414,7 +428,7 @@ void check_servers(struct daemon *daemon)
 	    }
 	  
 	  /* Do we need a socket set? */
-	  if (!new->sfd && !(new->sfd = allocate_sfd(&new->source_addr, &daemon->sfds)))
+	  if (!new->sfd && !(new->sfd = allocate_sfd(&new->source_addr, &daemon->sfds, daemon->wan_ifname)))
 	    {
 	      syslog(LOG_WARNING, 
 		     _("ignoring nameserver %s - cannot make/bind socket: %m"), daemon->namebuff);

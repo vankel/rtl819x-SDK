@@ -4,108 +4,126 @@
 <META HTTP-EQUIV="Pragma" CONTENT="no-cache">
 <META HTTP-EQUIV="Cache-Control" CONTENT="no-cache">
 <title>Configuring Router Advertisement</title>
-<SCRIPT LANGUAGE="JavaScript">
+<script type="text/javascript" src="util_gw.js"> </script>
+<SCRIPT>
 function onclick_func()
 {
-	if(Radvdform.enable_radvd.checked == false)
+	var fm = document.Radvdform;
+	if(fm.enable_radvd.checked == false)
 	{
-		Radvdform.interfacename.disabled=true;
-		Radvdform.MaxRtrAdvInterval.disabled=true;
-		Radvdform.MinRtrAdvInterval.disabled=true;
-		Radvdform.MinDelayBetweenRAs.disabled=true;
-		Radvdform.AdvManagedFlag.disabled=true;
-		Radvdform.AdvOtherConfigFlag.disabled=true;
-		Radvdform.AdvLinkMTU.disabled=true;
-		Radvdform.AdvReachableTime.disabled=true;
-		Radvdform.AdvRetransTimer.disabled=true;
-		Radvdform.AdvCurHopLimit.disabled=true;
-		Radvdform.AdvDefaultLifetime.disabled=true;
-		Radvdform.AdvDefaultPreference.disabled=true;
-		Radvdform.AdvSourceLLAddress.disabled=true;
-		Radvdform.UnicastOnly.disabled=true;
+		fm.interfacename.disabled=true;
+		fm.MaxRtrAdvInterval.disabled=true;
+		fm.MinRtrAdvInterval.disabled=true;
+		fm.MinDelayBetweenRAs.disabled=true;
+		fm.AdvManagedFlag.disabled=true;
+		fm.AdvOtherConfigFlag.disabled=true;
+		fm.AdvLinkMTU.disabled=true;
+		fm.AdvReachableTime.disabled=true;
+		fm.AdvRetransTimer.disabled=true;
+		fm.AdvCurHopLimit.disabled=true;
+		fm.AdvDefaultLifetime.disabled=true;
+		fm.AdvDefaultPreference.disabled=true;
+		fm.AdvSourceLLAddress.disabled=true;
+		fm.UnicastOnly.disabled=true;
 		
-		Radvdform.radvdprefix0_1.disabled=true;
-		Radvdform.radvdprefix0_2.disabled=true;
-		Radvdform.radvdprefix0_3.disabled=true;
-		Radvdform.radvdprefix0_4.disabled=true;
-		Radvdform.radvdprefix0_5.disabled=true;
-		Radvdform.radvdprefix0_6.disabled=true;
-		Radvdform.radvdprefix0_7.disabled=true;
-		Radvdform.radvdprefix0_8.disabled=true;
-		Radvdform.radvdprefix0_len.disabled=true;
-		Radvdform.AdvOnLinkFlag_0.disabled=true;
-		Radvdform.AdvAutonomousFlag_0.disabled=true;
-		Radvdform.AdvValidLifetime_0.disabled=true;
-		Radvdform.AdvPreferredLifetime_0.disabled=true;
-		Radvdform.AdvRouterAddr_0.disabled=true;
-		Radvdform.if6to4_0.disabled=true;
+		fm.radvdprefix0_1.disabled=true;
+		fm.radvdprefix0_2.disabled=true;
+		fm.radvdprefix0_3.disabled=true;
+		fm.radvdprefix0_4.disabled=true;
+		fm.radvdprefix0_5.disabled=true;
+		fm.radvdprefix0_6.disabled=true;
+		fm.radvdprefix0_7.disabled=true;
+		fm.radvdprefix0_8.disabled=true;
+		fm.radvdprefix0_len.disabled=true;
+		fm.AdvOnLinkFlag_0.disabled=true;
+		fm.AdvAutonomousFlag_0.disabled=true;
+		fm.AdvValidLifetime_0.disabled=true;
+		fm.AdvPreferredLifetime_0.disabled=true;
+		fm.AdvRouterAddr_0.disabled=true;
+		fm.if6to4_0.disabled=true;
 		
-		Radvdform.radvdprefix1_1.disabled=true;
-		Radvdform.radvdprefix1_2.disabled=true;
-		Radvdform.radvdprefix1_3.disabled=true;
-		Radvdform.radvdprefix1_4.disabled=true;
-		Radvdform.radvdprefix1_5.disabled=true;
-		Radvdform.radvdprefix1_6.disabled=true;
-		Radvdform.radvdprefix1_7.disabled=true;
-		Radvdform.radvdprefix1_8.disabled=true;
-		Radvdform.radvdprefix1_len.disabled=true;
-		Radvdform.AdvOnLinkFlag_1.disabled=true;
-		Radvdform.AdvAutonomousFlag_1.disabled=true;
-		Radvdform.AdvValidLifetime_1.disabled=true;
-		Radvdform.AdvPreferredLifetime_1.disabled=true;
-		Radvdform.AdvRouterAddr_1.disabled=true;
-		Radvdform.if6to4_1.disabled=true;
+		fm.radvdprefix1_1.disabled=true;
+		fm.radvdprefix1_2.disabled=true;
+		fm.radvdprefix1_3.disabled=true;
+		fm.radvdprefix1_4.disabled=true;
+		fm.radvdprefix1_5.disabled=true;
+		fm.radvdprefix1_6.disabled=true;
+		fm.radvdprefix1_7.disabled=true;
+		fm.radvdprefix1_8.disabled=true;
+		fm.radvdprefix1_len.disabled=true;
+		fm.AdvOnLinkFlag_1.disabled=true;
+		fm.AdvAutonomousFlag_1.disabled=true;
+		fm.AdvValidLifetime_1.disabled=true;
+		fm.AdvPreferredLifetime_1.disabled=true;
+		fm.AdvRouterAddr_1.disabled=true;
+		fm.if6to4_1.disabled=true;
 	}
 	else
 	{
-		Radvdform.interfacename.disabled=false;
-		Radvdform.MaxRtrAdvInterval.disabled=false;
-		Radvdform.MinRtrAdvInterval.disabled=false;
-		Radvdform.MinDelayBetweenRAs.disabled=false;
-		Radvdform.AdvManagedFlag.disabled=false;
-		Radvdform.AdvOtherConfigFlag.disabled=false;
-		Radvdform.AdvLinkMTU.disabled=false;
-		Radvdform.AdvReachableTime.disabled=false;
-		Radvdform.AdvRetransTimer.disabled=false;
-		Radvdform.AdvCurHopLimit.disabled=false;
-		Radvdform.AdvDefaultLifetime.disabled=false;
-		Radvdform.AdvDefaultPreference.disabled=false;
-		Radvdform.AdvSourceLLAddress.disabled=false;
-		Radvdform.UnicastOnly.disabled=false;
+		fm.interfacename.disabled=false;
+		fm.MaxRtrAdvInterval.disabled=false;
+		fm.MinRtrAdvInterval.disabled=false;
+		fm.MinDelayBetweenRAs.disabled=false;
+		fm.AdvManagedFlag.disabled=false;
+		fm.AdvOtherConfigFlag.disabled=false;
+		fm.AdvLinkMTU.disabled=false;
+		fm.AdvReachableTime.disabled=false;
+		fm.AdvRetransTimer.disabled=false;
+		fm.AdvCurHopLimit.disabled=false;
+		fm.AdvDefaultLifetime.disabled=false;
+		fm.AdvDefaultPreference.disabled=false;
+		fm.AdvSourceLLAddress.disabled=false;
+		fm.UnicastOnly.disabled=false;
 		
-		Radvdform.radvdprefix0_1.disabled=false;
-		Radvdform.radvdprefix0_2.disabled=false;
-		Radvdform.radvdprefix0_3.disabled=false;
-		Radvdform.radvdprefix0_4.disabled=false;
-		Radvdform.radvdprefix0_5.disabled=false;
-		Radvdform.radvdprefix0_6.disabled=false;
-		Radvdform.radvdprefix0_7.disabled=false;
-		Radvdform.radvdprefix0_8.disabled=false;
-		Radvdform.radvdprefix0_len.disabled=false;
-		Radvdform.AdvOnLinkFlag_0.disabled=false;
-		Radvdform.AdvAutonomousFlag_0.disabled=false;
-		Radvdform.AdvValidLifetime_0.disabled=false;
-		Radvdform.AdvPreferredLifetime_0.disabled=false;
-		Radvdform.AdvRouterAddr_0.disabled=false;
-		Radvdform.if6to4_0.disabled=false;
+		fm.radvdprefix0_1.disabled=false;
+		fm.radvdprefix0_2.disabled=false;
+		fm.radvdprefix0_3.disabled=false;
+		fm.radvdprefix0_4.disabled=false;
+		fm.radvdprefix0_5.disabled=false;
+		fm.radvdprefix0_6.disabled=false;
+		fm.radvdprefix0_7.disabled=false;
+		fm.radvdprefix0_8.disabled=false;
+		fm.radvdprefix0_len.disabled=false;
+		fm.AdvOnLinkFlag_0.disabled=false;
+		fm.AdvAutonomousFlag_0.disabled=false;
+		fm.AdvValidLifetime_0.disabled=false;
+		fm.AdvPreferredLifetime_0.disabled=false;
+		fm.AdvRouterAddr_0.disabled=false;
+		fm.if6to4_0.disabled=false;
 		
-		Radvdform.radvdprefix1_1.disabled=false;
-		Radvdform.radvdprefix1_2.disabled=false;
-		Radvdform.radvdprefix1_3.disabled=false;
-		Radvdform.radvdprefix1_4.disabled=false;
-		Radvdform.radvdprefix1_5.disabled=false;
-		Radvdform.radvdprefix1_6.disabled=false;
-		Radvdform.radvdprefix1_7.disabled=false;
-		Radvdform.radvdprefix1_8.disabled=false;
-		Radvdform.radvdprefix1_len.disabled=false;
-		Radvdform.AdvOnLinkFlag_1.disabled=false;
-		Radvdform.AdvAutonomousFlag_1.disabled=false;
-		Radvdform.AdvValidLifetime_1.disabled=false;
-		Radvdform.AdvPreferredLifetime_1.disabled=false;
-		Radvdform.AdvRouterAddr_1.disabled=false;
-		Radvdform.if6to4_1.disabled=false;
+		fm.radvdprefix1_1.disabled=false;
+		fm.radvdprefix1_2.disabled=false;
+		fm.radvdprefix1_3.disabled=false;
+		fm.radvdprefix1_4.disabled=false;
+		fm.radvdprefix1_5.disabled=false;
+		fm.radvdprefix1_6.disabled=false;
+		fm.radvdprefix1_7.disabled=false;
+		fm.radvdprefix1_8.disabled=false;
+		fm.radvdprefix1_len.disabled=false;
+		fm.AdvOnLinkFlag_1.disabled=false;
+		fm.AdvAutonomousFlag_1.disabled=false;
+		fm.AdvValidLifetime_1.disabled=false;
+		fm.AdvPreferredLifetime_1.disabled=false;
+		fm.AdvRouterAddr_1.disabled=false;
+		fm.if6to4_1.disabled=false;
 	
 	}
+}
+function radvd_save()
+{
+	with(document.Radvdform)
+	{
+		if(!checkIpv6Addr(radvdprefix0_1,radvdprefix0_2,radvdprefix0_3,radvdprefix0_4,radvdprefix0_5,
+			radvdprefix0_6,radvdprefix0_7,radvdprefix0_8,radvdprefix0_len,"First prefix address invalid!"))
+			return false;
+
+		if(!checkIpv6Addr(radvdprefix1_1,radvdprefix1_2,radvdprefix1_3,radvdprefix1_4,radvdprefix1_5,
+			radvdprefix1_6,radvdprefix1_7,radvdprefix1_8,radvdprefix1_len,"Second prefix address invalid!"))
+			return false;
+	}
+	
+	return true;
+	
 }
 </SCRIPT>
 </head>
@@ -174,7 +192,7 @@ function onclick_func()
 	<tr><td bgColor=#aaddff>if6to4</td><td bgColor=#ddeeff><input type=text name=if6to4_1 size=15 maxlength=15 value="<% getIPv6Info("if6to4_1"); %>"></td></tr>
 </table>
 <input type="hidden" value="/radvd.htm" name="submit-url">
-<tr><td colspan=2><input type=submit name="submit" value="Save"></td></tr>
+<tr><td colspan=2><input type=submit name="submit" value="Save" onclick="return radvd_save()"></td></tr>
 </form>
 </body>
 </html>

@@ -1,4 +1,4 @@
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -8,7 +8,7 @@
 #include "gpio/gpio.h"
 #include "spi.h"
 
-extern rtl_spi_dev_t spi_dev[SPI_DEV_NUM];
+//extern rtl_spi_dev_t spi_dev[SPI_DEV_NUM];
 
 
 /************************************* Set GPIO Pin to SPI ***********************************************************/
@@ -31,12 +31,12 @@ int32 __rtl8972B_spi_init( rtl_spi_dev_t* pDev, uint32 gpioSCLK, uint32 gpioCS_,
 //#endif
 {
 	
-	pDev->gpioSCLK = gpioSCLK;
-	pDev->gpioCS_ = gpioCS_;
-	pDev->gpioSDI = gpioSDI;
-	pDev->gpioSDO = gpioSDO;
+	pDev->sw.gpioSCLK = gpioSCLK;
+	pDev->sw.gpioCS_ = gpioCS_;
+	pDev->sw.gpioSDI = gpioSDI;
+	pDev->sw.gpioSDO = gpioSDO;
 #ifdef CONFIG_RTK_VOIP_DECT_SPI_SUPPORT
-	pDev->gpioINT = gpioINT;
+	pDev->sw.gpioINT = gpioINT;
 #endif
 	//pDev->SClkDelayLoop = SysClock / maxSpeed;
 	
@@ -113,14 +113,17 @@ void _rtl8972B_init_spi_channels(int size, rtl_spi_dev_t* pDev[], uint32 pin_cs[
 #endif
 }
 
+#if 0
 void init_channel(int channel, uint32 pin_cs, uint32 pin_reset, uint32 pin_clk, uint32 pin_do, uint32 pin_di)
 {
 	rtl_spi_dev_t * spi_devs[ 1 ] = { &spi_dev[channel] };
 	
 	_rtl8972B_init_spi_channels( 1, spi_devs, &pin_cs, pin_reset, pin_clk, pin_do, pin_di );
 }
+#endif
 
 //------------------------------------------
+#if 0
 void init_spi(int ch_spi)
 {
 	
@@ -198,5 +201,6 @@ void init_spi(int ch_spi)
 #endif
 	
 }
+#endif
 
 

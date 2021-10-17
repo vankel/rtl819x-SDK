@@ -50,6 +50,10 @@ if [ "$CONFIG_RTL8196E" = "y" ] ; then
 		define_bool CONFIG_RTL8198 y
 fi
 
+if [ "$CONFIG_RTL8196E" = "y" ] ; then
+bool "MCM Package Auto-Select Memory Parameters" CONFIG_RTL8196E_MCM
+
+fi
 
 #===========================================================================
 # Common Config with every IC have this function in here. Don't litmit someone ic.
@@ -86,22 +90,21 @@ fi
 
 choice 'is NAND Type'	"NAND_Flash_Large_Page_256MBto2GB_5cycles CONFIG_NAND_Flash_Large_Page_256MBto2GB_5cycles \
 					 NAND_Flash_Large_Page_128MB_4cycles CONFIG_NAND_Flash_Large_Page_128MB_4cycles \
-					 NAND_Flash_Small_Page_64MB_4cycles CONFIG_NAND_Flash_Small_Page_64MB_4cycles \
-					 NAND_Flash_Small_Page_32MB_3cycles CONFIG_NAND_Flash_Small_Page_32MB_3cycles \
 				      " NAND_Flash_Large_Page_256MBto2GB_5cycles
+	bool "NAND flash for BBT support" CONFIG_RTK_NAND_BBT
 fi
 			
 #fi
 
-#if [ "$CONFIG_RTL8196B" = "y" ]; then
+if [ "$CONFIG_RTL8196E_MCM" != "y" ]; then
 choice 'is SDRAM Type ' "NORMAL  CONFIG_SDRAM \
 DDR1 CONFIG_DDR1_SDRAM \
 DDR2 CONFIG_DDR2_SDRAM \
 "
-#fi
+fi
 
 
-#if [ "$CONFIG_RTL8196B" = "y" ]; then
+if [ "$CONFIG_RTL8196E_MCM" != "y" ]; then
 choice 'is the target of HW Setting ' "Dram8M_8Mx1_16bit	CONFIG_D8_16 \
 Dram16M_16Mx1_16bit	CONFIG_D16_16 \
 Dram32M_32Mx1_16bit	CONFIG_D32_16 \
@@ -113,7 +116,7 @@ Dram32M_32Mx2_16bit	CONFIG_D32_16x2 \
 Dram64M_64Mx2_16bit	CONFIG_D64_16x2 \
 Dram128M_128Mx2_16bit	CONFIG_D128_16x2 \
 " CONFIG_D32_16
-#fi
+fi
 
 if [ "$CONFIG_DDR1_SDRAM" = "y" ] || [ "$CONFIG_DDR2_SDRAM" = "y" ]; then
 	define_bool CONFIG_DDR_SDRAM y
@@ -142,11 +145,25 @@ hex 'lINUX image check step'         CONFIG_LINUX_IMAGE_OFFSET_STEP   0x1000
 hex 'ROOT image flash offset start'  CONFIG_ROOT_IMAGE_OFFSET_START  0xE0000
 hex 'ROOT image flash offset end'    CONFIG_ROOT_IMAGE_OFFSET_END    0x130000
 hex 'ROOT image check step'          CONFIG_ROOT_IMAGE_OFFSET_STEP   0x1000
+hex 'WEBPAGE image flash offset start'  CONFIG_WEBPAGE_IMAGE_OFFSET_START  0x10000
+hex 'WEBPAGE image flash offset end'    CONFIG_WEBPAGE_IMAGE_OFFSET_END    0x40000
+hex 'WEBPAGE image check step'          CONFIG_WEBPAGE_IMAGE_OFFSET_STEP   0x1000
 fi
 
-bool "Support Flash DualBank" CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
+bool "Support Flash DualBank" CONFIG_RTL_FLASH_DUAL_IMAGE
+if [ "$CONFIG_RTL_FLASH_DUAL_IMAGE" = "y" ]; then
+choice 'Mode' "Static CONFIG_RTL_FLASH_DUAL_IMAGE_STATIC  \
+Toggle CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
+" Static
 if [ "$CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE" = "y" ]; then
-hex 'Second Bank offset' CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET  0x200000
+bool 'Webpage Check' CONFIG_WEBPAGE_CHECK
+fi
+hex 'Second Bank offset' CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET  0x400000
+fi
+
+bool "Support DualImage(OpenWRT SDK)" CONFIG_RTK_BOOTINFO_DUALIMAGE
+if [ "$CONFIG_RTK_BOOTINFO_DUALIMAGE" = "y" ]; then
+hex 'Second Bank offset' CONFIG_RTK_DUALIMAGE_FLASH_OFFSET  0x400000
 fi
 
 bool 'LZMA Enable(Default GZip)'		CONFIG_LZMA_ENABLE
@@ -157,6 +174,8 @@ bool 'Boot Code Debug Command Enable'		CONFIG_BOOT_DEBUG_ENABLE
 bool 'Support reset botton feature'		CONFIG_BOOT_RESET_ENABLE
 bool 'Enable rtl8196d taroko cpu Test'	CONFIG_RTL8196D_TAROKO
 bool 'Enable IIS Test'	CONFIG_IIS_TEST
+bool 'Support TFTP client'    CONFIG_SUPPORT_TFTP_CLIENT
+bool 'Support new console'    CONFIG_NEW_CONSOLE_SUPPORT
 
 #bool 'Update Default Vendor Settings'		CONFIG_DEFAULTS_VENDOR_UPDATE
 #bool 'Support History Keyin'		CONFIG_HISTORY_KEYIN
@@ -183,13 +202,22 @@ bool 'Enable DRAM Test'	CONFIG_DRAM_TEST
 
 bool 'Enable JTAG Function for code debugging'	CONFIG_USING_JTAG
 
+bool 'Enable Config Upgrade Function' CONFIG_CONFIG_UPGRADE_ENABLED
+
 bool 'Enable NIC Loopback Feature'	CONFIG_NIC_LOOPBACK
 
 bool 'Enable DRAM CKE'   CONFIG_CKE_ENABLE
 
+bool 'Enable RTL8211E Support'	CONFIG_8211E_SUPPORT
+
+if [ "$CONFIG_RTL8196D" = "y" ]; then
+	bool 'Enable RTL8325D Support'	CONFIG_SW_8325D
+fi
+
 if [ "$CONFIG_RTL8196E" = "y" ]; then
 bool 'Enable KLD Support'   CONFIG_RTL8196E_KLD
 bool 'Enable 96E ulinker boot led'   CONFIG_RTL8196E_ULINKER_BOOT_LED
+bool 'Enable 96E GPIOB5 as Reset Button'	CONFIG_RTL8196E_GPIOB5_RESET
 fi
 
 #---------------------------------------------------------------------------

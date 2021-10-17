@@ -1,0 +1,652 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>WAN Interface Setup </title>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<% language=javascript %>
+<script type="text/javascript" src="util_gw.js"> </script>
+<SCRIPT>
+var initialDnsMode, pppConnectStatus=0;
+var wlan_num =  <% getIndex("show_wlan_num"); %> ;
+var ipv6WanEnable = <%getIPv6WanInfo("ipv6WanEnabled")%>;
+
+function setPPPConnected()
+{
+   pppConnectStatus = 1;
+}
+function resetClicked()
+{
+	document.tcpip.reset;
+
+	location=location;
+}
+
+function abortClicked()
+{
+	document.tcpip.ChangeNotSave.value = "yes";	
+}
+function disableDNSinput()
+{
+	//disable dns1
+   disableTextField(document.tcpip.wan_dns1_0);
+   disableTextField(document.tcpip.wan_dns1_1);
+   disableTextField(document.tcpip.wan_dns1_2);
+   disableTextField(document.tcpip.wan_dns1_3);
+   disableTextField(document.tcpip.wan_dns1_4);
+   disableTextField(document.tcpip.wan_dns1_5);
+   disableTextField(document.tcpip.wan_dns1_6);
+   disableTextField(document.tcpip.wan_dns1_7);
+   disableTextField(document.tcpip.prefix_len_dns1);	
+}
+
+function enableDNSinput()
+{
+   	//enable dns1
+   enableTextField(document.tcpip.wan_dns1_0);
+   enableTextField(document.tcpip.wan_dns1_1);
+   enableTextField(document.tcpip.wan_dns1_2);
+   enableTextField(document.tcpip.wan_dns1_3);
+   enableTextField(document.tcpip.wan_dns1_4);
+   enableTextField(document.tcpip.wan_dns1_5);
+   enableTextField(document.tcpip.wan_dns1_6);
+   enableTextField(document.tcpip.wan_dns1_7);
+   enableTextField(document.tcpip.prefix_len_dns1);
+	
+}
+
+function autoDNSclicked()
+{
+  disableDNSinput();
+  document.tcpip.dnsType.value=1;
+}
+
+function manualDNSclicked()
+{
+  enableDNSinput();
+  document.tcpip.dnsType.value=0;
+}
+function statelessDhcpClicked()
+{
+	document.tcpip.dhcpType.value=1;
+	document.tcpip.enable_dhcpv6pd.disabled=true;
+	document.tcpip.enable_dhcpv6RapidCommit.disabled=true;
+	show_div(0,"static_div");
+	show_div(1,"dhcp_div");
+	show_div(1,"dns_head_div");
+	show_div(0,"dns_mode_div");
+	show_div(1,"dns_div");
+	show_div(1,"other_div");
+	manualDNSclicked();
+}
+function statsfulDhcpClicked()
+{
+	document.tcpip.dhcpType.value=0;
+	document.tcpip.enable_dhcpv6pd.disabled=false;
+	document.tcpip.enable_dhcpv6RapidCommit.disabled=false;
+	show_div(0,"static_div");
+	show_div(1,"dhcp_div");
+	show_div(1,"dns_head_div");
+	show_div(1,"dns_mode_div");
+	show_div(1,"dns_div");
+	show_div(1,"other_div");
+	if(document.tcpip.elements["dnsMode"][0].checked == true)
+	{//auto
+		autoDNSclicked();
+	}else
+		manualDNSclicked();
+}
+function pppConnectClick(connect)
+{
+  if (document.tcpip.pppConnectType.selectedIndex == 2 && pppConnectStatus==connect) {
+      if (document.tcpip.pppUserName.value=="") {
+          alert('PPP user name cannot be empty!');
+	  document.tcpip.pppUserName.value = document.tcpip.pppUserName.defaultValue;
+	  document.tcpip.pppUserName.focus();
+	  return false;
+      }
+      if (document.tcpip.pppPassword.value=="") {
+          alert('PPP password cannot be empty!');
+	  document.tcpip.pppPassword.value = document.tcpip.pppPassword.defaultValue;
+	  document.tcpip.pppPassword.focus();
+	  return false;
+      }
+      return true;
+  }
+  return false;
+}
+function pppConnection_Init()
+{
+	disableButton(document.tcpip.pppConnect);
+	disableButton(document.tcpip.pppDisconnect);
+	disableTextField(document.tcpip.pppIdleTime);
+}
+function pppTypeSelection()
+{
+	
+		  if ( document.tcpip.pppConnectType.selectedIndex == 2) {
+		  	if (pppConnectStatus==0) {
+		  		enableButton(document.tcpip.pppConnect);
+				disableButton(document.tcpip.pppDisconnect);
+			}
+			else {
+		 		disableButton(document.tcpip.pppConnect);
+				enableButton(document.tcpip.pppDisconnect);
+			}
+			disableTextField(document.tcpip.pppIdleTime);
+		  }
+		  else {
+			disableButton(document.tcpip.pppConnect);
+			disableButton(document.tcpip.pppDisconnect);
+			if (document.tcpip.pppConnectType.selectedIndex == 1)
+				enableTextField(document.tcpip.pppIdleTime);
+			else
+				disableTextField(document.tcpip.pppIdleTime);
+		  }
+		 		  
+
+   
+}
+
+function linkTypeSelection(field)
+{
+  //document.tcpip.submit();
+	if(!document.getElementById){
+		alert('Error! Your browser must have CSS support !');
+		return;
+	}
+
+	if(field.selectedIndex == 0){ //IP
+		show_div(0,"pppoe_div");	
+	}else if(field.selectedIndex == 1){ //PPP
+		show_div(1,"pppoe_div");
+		disableTextField(document.tcpip.pppUserName);
+		disableTextField(document.tcpip.pppPassword);
+		disableTextField(document.tcpip.pppServiceName);
+		disableTextField(document.tcpip.pppAcName);
+		disableTextField(document.tcpip.pppConnectType);
+		disableTextField(document.tcpip.pppIdleTime);
+		disableTextField(document.tcpip.pppMtuSize);		
+		
+	}
+}
+
+function originTypeSelection(field)
+{
+	
+	if(field.selectedIndex == 0){//dhcp
+		show_div(0,"static_div");
+		show_div(1,"dhcp_div");
+		show_div(1,"dns_head_div");
+		if(document.tcpip.elements["dhcpMode"][0].checked == true)
+		{//stateless
+			show_div(0,"dns_mode_div");
+			statelessDhcpClicked();
+		}else
+		{//stateful
+			statsfulDhcpClicked();
+			show_div(1,"dns_mode_div");
+		}
+		show_div(1,"dns_div");
+		show_div(1,"other_div");
+		
+		
+	}else if(field.selectedIndex == 1){//static
+		show_div(1,"static_div");
+		show_div(0,"dhcp_div");
+		show_div(1,"dns_head_div");
+		show_div(0,"dns_mode_div");
+		show_div(1,"dns_div");
+		show_div(1,"other_div");
+		enableDNSinput();
+	}
+}
+ 
+
+function enableTextField (field) {
+  if (document.all || document.getElementById)
+    field.disabled = false;
+  else {
+    field.onfocus = field.oldOnFocus;
+  }
+}
+function disableButton (button) {
+  if (document.all || document.getElementById)
+    button.disabled = true;
+  else if (button) {
+    button.oldOnClick = button.onclick;
+    button.onclick = null;
+    button.oldValue = button.value;
+    button.value = 'DISABLED';
+  }
+}
+function disableTextField (field) {
+	if (document.all || document.getElementById)
+		field.disabled = true;
+	else {
+		field.oldOnFocus = field.onfocus;
+		field.onfocus = skip;
+	}
+}
+
+function onclick_enable_dhcpv6pd(checked)
+{
+	with(document.tcpip)
+	{
+		if(checked)
+		{
+			enable_dhcpv6pd.value=1;
+			
+		}else
+		{
+			enable_dhcpv6pd.value=0
+			
+		}
+	}
+}
+function ipv6_enable_wan_all()
+{
+
+	document.tcpip.linkType.disabled=false;
+	document.tcpip.OriginType.disabled=false;
+	document.tcpip.wan_enable.value=1;
+	ipv6WanEnable = 1;
+	Load_Setting();
+}
+function ipv6_disable_wan_all()
+{
+	show_div(0,"pppoe_div");
+
+	show_div(0,"static_div");
+	show_div(0,"dhcp_div");
+	show_div(0,"dns_head_div");
+	show_div(0,"dns_mode_div");
+	show_div(0,"dns_div");
+	show_div(0,"other_div");
+
+	document.tcpip.linkType.disabled=true;
+	document.tcpip.OriginType.disabled=true;
+}
+function ipv6_wan_enable_select(checked)
+{
+	if(checked)
+		ipv6_enable_wan_all();
+	else
+		ipv6_disable_wan_all();
+}
+function multiWanIpv6_saveChanges(form)
+{
+	if(!form.wan_enable.checked)
+	{
+		//save nothing
+		return true;
+	}
+	
+	if(document.getElementById("static_div").className  == "on")
+	{
+		with(document.tcpip)
+		{
+			if(!checkIpv6Addr(wan_ip_0,wan_ip_1,wan_ip_2,wan_ip_3,wan_ip_4,wan_ip_5,
+				wan_ip_6,wan_ip_7,prefix_len_ip,"static ip address invalid!"))
+				return false;
+			if(!checkIpv6Addr(wan_gw_0,wan_gw_1,wan_gw_2,wan_gw_3,wan_gw_4,wan_gw_5,
+				wan_gw_6,wan_gw_7,prefix_len_gw,"gateway address invalid!"))
+				return false;			
+		}
+	}
+	
+	if(document.getElementById("dhcp_div").className  == "on")
+	{
+		with(document.tcpip)
+		{
+			//if(!checkFieldEmpty(ifname_dhcpv6c,"client ifname can't be empty"))
+				//return false;
+		}
+	}
+
+	if(document.getElementById("pppoe_div").className  == "on")
+	{
+		with(document.tcpip)
+		{
+			if(!checkFieldEmpty(pppUserName,"pppoe usename can't be empty"))
+				return false;
+			if(!checkFieldEmpty(pppPassword,"pppoe password can't be empty"))
+				return false;
+			if(!checkFieldDigitRange(pppMtuSize,1360,1492,"Invalid pppoe mtu size!"))
+				return false;
+		}
+	}
+
+	if(document.getElementById("dns_div").className  == "on")
+	{
+		with(document.tcpip)
+		{
+			if(elements["dnsMode"][1].checked == true)
+			{
+				if(!checkIpv6Addr(wan_dns1_0,wan_dns1_1,wan_dns1_2,wan_dns1_3,wan_dns1_4,
+					wan_dns1_5,wan_dns1_6,wan_dns1_7,prefix_len_dns1,"dns1 address invalid!"))
+					return false;				
+			}
+		}
+	}
+
+	
+	return true;
+}
+
+function Load_Setting()
+{
+	
+	var ipv6Origin = <% getIPv6WanInfo("ipv6Origin"); %>;
+	//0:DHCP 1:STATIC
+
+	var ipv6LinkType = <%getIPv6WanInfo("ipv6LinkType");%>;
+	//0:IP 1:PPP
+	
+	var wanDnsAuto = <%getIPv6WanInfo("wan_ipv6DnsAuto");%>;
+	var dhcpMode=<%getIPv6WanInfo("wan_ipv6DhcpMode")%>;
+
+	if(ipv6WanEnable)
+	{
+		document.tcpip.wan_enable.checked=true;
+		document.tcpip.wan_enable.value=1;
+	}
+	else
+	{
+		document.tcpip.wan_enable.checked=false;
+		document.tcpip.wan_enable.value=0;
+		ipv6_disable_wan_all();
+		return;
+	}
+	//for dns
+	if(wanDnsAuto)
+	{
+		document.tcpip.elements["dnsMode"][0].checked = true;
+		//disableDNSinput();
+	}else
+	{
+		document.tcpip.elements["dnsMode"][1].checked = true;
+		//enableDNSinput();
+	}
+	if(dhcpMode==0)
+	{
+		document.tcpip.elements["dhcpMode"][0].checked = true;
+		statelessDhcpClicked();
+
+	}else
+	{
+		document.tcpip.elements["dhcpMode"][1].checked = true;
+		statsfulDhcpClicked();
+	}
+	document.tcpip.OriginType.selectedIndex = ipv6Origin;
+	originTypeSelection(document.tcpip.OriginType);
+	
+	document.tcpip.linkType.selectedIndex = ipv6LinkType;
+	linkTypeSelection(document.tcpip.linkType);
+
+	document.tcpip.enable_dhcpv6pd.checked = <%getIPv6WanInfo("enable_dhcpv6pd")%>;
+	document.tcpip.enable_dhcpv6RapidCommit.checked = <%getIPv6WanInfo("enable_dhcpv6RapidCommit")%>;
+	onclick_enable_dhcpv6pd(document.tcpip.enable_dhcpv6pd.checked);
+	disableTextField(document.tcpip.wan_macAddr);
+	//for mldproxy
+	if ( <% getIPv6WanInfo("mldproxyDisabled"); %>)
+		document.tcpip.mldproxyEnabled.checked = false;
+	else
+		document.tcpip.mldproxyEnabled.checked = true;
+
+
+}
+
+</SCRIPT>
+</head>
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2><font color="#0000FF">WAN Interface Setup</font></h2>
+<form action=/boafrm/formIpv6Setup method=POST name="tcpip">
+
+<table border=0 width="550" cellspacing=0 cellpadding=0>
+  <tr><font size=2>
+    This page is used to configure the parameters for Internet network which
+    connects to the WAN port of your Access Point. Here you may change the access
+    method to static IP, DHCP, PPPoE, Bridge by click the item value of WAN Access
+    type.
+  </tr>
+  <tr><hr size=1 noshade align=top></tr>
+  <tr>
+</table>
+<input name="wan_enable" type="checkbox" onclick='ipv6_wan_enable_select(this.checked);'><font size=4 color="#0000FF">Enable IPv6</font></b>
+  <table border="0" width=480>
+  <h3><font color="#0000FF">WAN</font></h3>
+	<tr>
+		<td width="30%" height=40><font size=2>
+	    <div align="right"><b>Origin Type :</b></div></td>
+		<td width="70%"><font size=2><select size="1" name="OriginType" onChange="originTypeSelection(this)">
+	<option value="0">DHCPv6</option>
+	<option value="1">STATIC</option>
+	</select></td>
+	</tr>
+    <tr>
+       <td width="30%" height=40><font size=2>
+        <div align="right"><b>WAN Link Type:</b></div></td>
+       <td width="70%"><font size=2><select size="1" name="linkType" onChange="linkTypeSelection(this)">
+	<option value="0">IP</option>
+	<option value="1">PPPoE</option>
+	</select></td>
+    </tr>    
+  </table>
+
+   <span id = "pppoe_div" class = "off" >  
+  <table border="0" width=480>
+  <h3><font color="#0000FF">Pppoe</font></h3>
+     <tr>
+      <td width="30%"><font size=2><b>User Name:</b></td>
+      <td width="70%"><font size=2><input type="text" name="pppUserName" size="18" maxlength="128" value="<% getInfo("pppUserName"); %>"></td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>Password:</b></td>
+      <td width="70%"><font size=2><input type="password" name="pppPassword" size="18" maxlength="128" value="<% getInfo("pppPassword"); %>"></td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>Service Name:</b></td>
+      <td width="70%"><font size=2><input type="text" name="pppServiceName" size="18" maxlength="40" value="<% getInfo("pppServiceName"); %>"></td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>AC Name:</b></td>
+      <td width="70%"><font size=2><input type="text" name="pppAcName" size="18" maxlength="40" value="<% getInfo("pppAcName"); %>"></td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>Connection Type:</b></td>
+      <td width="70%"><font size=2><select size="1" name="pppConnectType" onChange="pppTypeSelection()">
+<script type="text/javascript">
+        	var type = <% getIndex("pppConnectType"); %>;
+	     	if ( type == 0 ) {
+	      	  	document.write( "<option selected value=\"0\">Continuous</option>" );
+    	   	  	document.write( "<option value=\"1\">Connect on Demand</option>" );
+    		  	document.write( "<option value=\"2\">Manual</option>" );
+	     	}
+	     	if ( type == 1 ) {
+	      	  	document.write( "<option value=\"0\">Continuous</option>" );
+    	   	  	document.write( "<option selected value=\"1\">Connect on Demand</option>" );
+    		  	document.write( "<option value=\"2\">Manual</option>" );
+	     	}
+	     	if ( type == 2 ) {
+	      	  	document.write( "<option value=\"0\">Continuous</option>" );
+    	   	  	document.write( "<option value=\"1\">Connect on Demand</option>" );
+    		  	document.write( "<option selected value=\"2\">Manual</option>" );
+	     	}
+</script>
+        </select>&nbsp;&nbsp;
+	<input type="submit" value="Connect" name="pppConnect" onClick="return pppConnectClick(0)">&nbsp;&nbsp;
+	<input type="submit" value="Disconnect" name="pppDisconnect" onClick="return pppConnectClick(1)">
+<script type="text/javascript">
+	if ( <% getIndex("pppConnectStatus"); %> )
+		setPPPConnected();
+</script>
+	</td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>Idle Time:</b></td>
+      <td width="70%"><font size=2><input type="text" name="pppIdleTime" size="10" maxlength="10" value="<% getInfo("wan-ppp-idle"); %>">&nbsp;(1-1000 minutes)</td>
+    </tr>
+    <tr>
+      <td width="30%"><font size=2><b>MTU Size:</b></td>
+      <td width="70%"><font size=2><input type="text" name="pppMtuSize" size="10" maxlength="10" value="<% getInfo("pppMtuSize"); %>">&nbsp;(1360-1492 bytes)</td>
+    </tr>    
+  </table>
+  </span>
+ <!-- end of pppoe -->  
+  <span id = "static_div" class = "off" >  
+  <table cellSpacing=1 cellPadding=2 border=0>
+	<h3><font color="#0000FF">Static Ip</font></h3>
+    <tr>
+       <td bgColor=#aaddff><font size=2><b>IP Address:</b></td>
+	   <td bgColor=#aaddff>Prefix Length</td>
+	 </tr>
+	 <tr>
+       <td bgColor=#ddeeff>
+        <input type="text" name="wan_ip_0" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_0"); %>">:
+		<input type="text" name="wan_ip_1" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_1"); %>">:
+		<input type="text" name="wan_ip_2" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_2"); %>">:
+		<input type="text" name="wan_ip_3" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_3"); %>">:
+		<input type="text" name="wan_ip_4" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_4"); %>">:
+		<input type="text" name="wan_ip_5" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_5"); %>">:
+		<input type="text" name="wan_ip_6" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_6"); %>">:
+		<input type="text" name="wan_ip_7" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Addr_7"); %>">		
+      </td>
+	  <td bgColor=#ddeeff>
+		<input type=text name=prefix_len_ip size=4 maxlength=4 enable value=<% getIPv6WanInfo("wan_ipv6Addr_prefixLen"); %>>
+	  </td>
+    </tr>
+    <tr>
+      <td bgColor=#aaddff><font size=2><b>Default Gateway:</b></td>
+	  <td bgColor=#aaddff>Prefix Length</td>
+	 </tr>
+	  <tr>
+      <td bgColor=#ddeeff>
+        <input type="text" name="wan_gw_0" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_0"); %>">:
+		<input type="text" name="wan_gw_1" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_1"); %>">:
+		<input type="text" name="wan_gw_2" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_2"); %>">:
+		<input type="text" name="wan_gw_3" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_3"); %>">:
+		<input type="text" name="wan_gw_4" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_4"); %>">:
+		<input type="text" name="wan_gw_5" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_5"); %>">:
+		<input type="text" name="wan_gw_6" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_6"); %>">:
+		<input type="text" name="wan_gw_7" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Gw_7"); %>">		
+      </td>
+	  <td bgColor=#ddeeff>
+		<input type=text name=prefix_len_gw size=4 maxlength=4 enable value=<% getIPv6WanInfo("wan_ipv6Gw_prefixLen"); %>>
+	  </td>
+    </tr>
+  </table>  
+  </span>
+  
+  
+ 
+  <span id = "dhcp_div" class = "off" >  
+  <table cellSpacing=1 cellPadding=2 border=0>
+  <h3><font color="#0000FF">DHCP</font></h3>
+  <tr>
+		<input type="hidden" name="dhcpType">
+      <td width="100%" colspan="2"><font size=2>
+		<b><input type="radio" value="stateless" name="dhcpMode" onClick="statelessDhcpClicked()">Stateless Address Auto Configuration</b>
+      </font></td>
+    </tr>
+    <tr>
+      <td width="100%" colspan="2"><font size=2>
+        <b><input type="radio" value="stateful" name="dhcpMode" onClick="statsfulDhcpClicked()">Stateful Address Auto Configuration</b>
+      </font></td>
+    </tr>
+    <tr><td bgColor=#aaddff>DUID:</td><td bgColor=#ddeeff><font size=2><b><% getIPv6WanInfo("wan_duid"); %></b></font></td></tr>
+	
+	<tr><td bgColor=#aaddff>PD Enable:</td><td bgColor=#ddeeff>
+	<input type=checkbox name="enable_dhcpv6pd" size=32 maxlength=32 
+		value="on"	onclick=onclick_enable_dhcpv6pd(this.checked)></td></tr>
+	<tr><td bgColor=#aaddff>Rapid-commit Enable:</td><td bgColor=#ddeeff>
+	<input type=checkbox name="enable_dhcpv6RapidCommit" size=32 maxlength=32 
+		value="on"></td></tr>
+
+	</table> 
+  </span>
+  
+<span id="dns_head_div" class="off">
+	<h3><font color="#0000FF">Dns Setting</font></h3>
+	<BR>
+    <b>Configuring DNSv6</b><BR>
+</span>	
+<!--
+	<tr><td bgColor=#aaddff>router name</td><td bgColor=#ddeeff><input type=text name=routername size=15 maxlength=15 value="<% getIPv6Info("routername"); %>"></td></tr>
+-->
+	<span id= "dns_mode_div" class="off">
+	<table cellSpacing=1 cellPadding=2 border=0>
+	<tr>
+		<input type="hidden" name="dnsType">
+      <td width="100%" colspan="2"><font size=2>
+		<b><input type="radio" value="dnsAuto" name="dnsMode" onClick="autoDNSclicked()">Attain DNS Automatically</b>
+      </td>
+    </tr>
+    <tr>
+      <td width="100%" colspan="2"><font size=2>
+        <b><input type="radio" value="dnsManual" name="dnsMode" onClick="manualDNSclicked()">Set DNS Manually</b>
+      </td>
+    </tr>
+    </table>
+    </span>
+    <span id = "dns_div" class = "off" >
+    <table cellSpacing=1 cellPadding=2 border=0>
+	<tr>
+      <td bgColor=#aaddff><font size=2><b>DNS1:</b></td>
+	  <td bgColor=#aaddff>Prefix Length</td>
+	 </tr>
+	  <tr>
+      <td bgColor=#ddeeff>
+        <input type="text" name="wan_dns1_0" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_0"); %>">:
+		<input type="text" name="wan_dns1_1" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_1"); %>">:
+		<input type="text" name="wan_dns1_2" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_2"); %>">:
+		<input type="text" name="wan_dns1_3" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_3"); %>">:
+		<input type="text" name="wan_dns1_4" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_4"); %>">:
+		<input type="text" name="wan_dns1_5" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_5"); %>">:
+		<input type="text" name="wan_dns1_6" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_6"); %>">:
+		<input type="text" name="wan_dns1_7" size="4" maxlength="4" value="<% getIPv6WanInfo("wan_ipv6Dns1_7"); %>">		
+      </td>
+	  <td bgColor=#ddeeff>
+		<input type=text name=prefix_len_dns1 size=4 maxlength=4 enable value=<% getIPv6WanInfo("wan_ipv6Dns1_prefixLen"); %>>
+	  </td>
+    </tr>
+    </table>
+    </span> 
+    
+    <BR> 
+    
+         
+	    
+	<span id = "other_div" class = "off">
+    <table border="0" width=480>
+	<h3><font color="#0000FF">Others</font></h3>
+    <tr> 
+       <td width="30%"><font size=2><b>Clone MAC Address:</b></td>
+       <td width="70%"><font size=2><input type="text" name="wan_macAddr" size="18" maxlength="12" value=<% getInfo("wanMac"); %>></td>
+    </tr>
+    <tr>
+      <td width="100%" colspan="2"><font size=2>
+        <b><input type="checkbox" name="mldproxyEnabled" value="ON">&nbsp;&nbsp;Enable MLD Proxy</b></td>
+    </tr>
+   </table>
+	</span>
+   <SCRIPT> 	
+   		pppConnection_Init();
+  </SCRIPT>
+
+  <BR>
+  <input type="hidden" value="/ipv6_wan.htm" name="submit-url">
+  <input type="hidden" value="no" name="ChangeNotSave">
+  <p><input type="submit" value="Apply Changes" name="save" onClick="return multiWanIpv6_saveChanges(document.tcpip)">&nbsp;&nbsp;
+  <input type="reset" value="Reset" name="reset" onClick="resetClicked()">
+</p>
+</form>
+</blockquote>
+</body>
+</html>

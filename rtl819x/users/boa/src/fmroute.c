@@ -157,7 +157,10 @@ void formRoute(request *wp, char *path, char *query)
 	int check_ip2=0;
 	unsigned long ipAddr, curIpAddr, curSubnet;
 	int isExist=0;
-	int enable_igmpproxy=0;
+	int enable_igmpproxy=0;	
+#ifdef CONFIG_IPV6
+	int enable_mldproxy=0;
+#endif
 	apmib_get( MIB_WAN_DHCP, (void *)&dhcp);
 	apmib_get(MIB_OP_MODE, (void *)&opmode);
 	strAddRoute = req_get_cstream_var(wp, ("addRoute"), "");
@@ -189,6 +192,14 @@ void formRoute(request *wp, char *path, char *query)
 				goto setErr_route;
 			}
 			goto setOk_route;
+		
+#ifdef CONFIG_IPV6
+			enable_mldproxy = 0;	
+			if ( apmib_set(MIB_MLD_PROXY_DISABLED, (void *)&enable_mldproxy) == 0) {
+				strcpy(tmpBuf, ("\"Set MLD PROXY disabled error!\""));
+				goto setErr_route;
+			}
+#endif
 		}
 		
 		tmpStr = req_get_cstream_var(wp, ("nat_enabled"), "");  
@@ -202,14 +213,31 @@ void formRoute(request *wp, char *path, char *query)
 				strcpy(tmpBuf, ("\"Set NAT enabled error!\""));
 				goto setErr_route;
 			}
-			if(nat_mode==1)
+			if(nat_mode==1){
 				enable_igmpproxy = 0;
-			else
+#ifdef CONFIG_IPV6
+				enable_mldproxy=0;
+#endif
+			}
+			else{
 				enable_igmpproxy = 1;	
+				
+#ifdef CONFIG_IPV6
+				enable_mldproxy=1;
+#endif
+			}	
 			if ( apmib_set(MIB_IGMP_PROXY_DISABLED, (void *)&enable_igmpproxy) == 0) {
 				strcpy(tmpBuf, ("\"Set IGMP PROXY disabled error!\""));
 				goto setErr_route;
 			}
+
+			
+#ifdef CONFIG_IPV6
+			if ( apmib_set(MIB_MLD_PROXY_DISABLED, (void *)&enable_mldproxy) == 0) {
+				strcpy(tmpBuf, ("\"Set MLD PROXY disabled error!\""));
+				goto setErr_route;
+			}
+#endif
 			
 			
 		}	

@@ -154,6 +154,7 @@ bad:
 		system(tmpFile);
 	}
 
+#if 0
 	ret=kernelImageOverSize();
 	if((ret==FAILED)||(ret==1))
 	{
@@ -161,6 +162,7 @@ bad:
 		toRet=FAILED;
 		goto err;
 	}
+#endif
 
 	if(resetCert == 1)
 	{

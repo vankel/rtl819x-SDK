@@ -163,6 +163,15 @@ struct global
     int debug_network;		/* Print network debugging info? */
     int debug_tunnel;		/* Print tunnel debugging info? */
     int debug_state;		/* Print FSM debugging info? */
+    unsigned long hello_interval;
+    unsigned char hello_count;
+    unsigned short hello_ns;
+    unsigned short hello_nr;
+    unsigned char hello_num;
+    unsigned char check_ack;
+	
+    unsigned long rx_pktnum;
+    unsigned long tx_pktnum;
 };
 
 extern struct global gconfig;   /* Global configuration options */

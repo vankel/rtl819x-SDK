@@ -1,0 +1,28 @@
+libc/sysdeps/linux/rlx/pipe.os: libc/sysdeps/linux/rlx/pipe.S \
+ include/libc-symbols.h include/bits/uClibc_arch_features.h \
+ include/features.h include/bits/uClibc_config.h include/libc-internal.h \
+ include/sys/cdefs.h include/sys/asm.h include/sgidefs.h \
+ ../kernel/asm/unistd.h ../kernel/asm/sgidefs.h include/sys/regdef.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/libc-internal.h:
+
+include/sys/cdefs.h:
+
+include/sys/asm.h:
+
+include/sgidefs.h:
+
+../kernel/asm/unistd.h:
+
+../kernel/asm/sgidefs.h:
+
+include/sys/regdef.h:
+cmd_libc_sysdeps_linux_rlx_pipe.os := mips-linux-gcc -c libc/sysdeps/linux/rlx/pipe.S -o libc/sysdeps/linux/rlx/pipe.os -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -fPIC -MT libc/sysdeps/linux/rlx/pipe.os -MD -MP -MF libc/sysdeps/linux/rlx/.pipe.os.dep -D__ASSEMBLER__ -Wa,--noexecstack

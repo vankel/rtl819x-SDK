@@ -148,15 +148,21 @@ void channel_dial_local(channel_t *channel, channel_t *remote_channel)
 	{
 		rtk_SetPlayTone(channel->chid, 0, DSPCODEC_TONE_RINGING, 1, DSPCODEC_TONEDIRECTION_LOCAL);
 		// signal fxs
-		rtk_SetRingFXS(remote_channel->chid, 1);
+		rtk_SetRingFxs(remote_channel->chid, 1);
 	}
 	else
 	{	
 		// signal fxo
-		rtk_FXO_RingOn(remote_channel->chid);
+		rtk_FxoRingOn(remote_channel->chid);
 	}
 
 	remote_channel->state = STATE_RING;
+}
+
+void channel_resetup_local_rtp(channel_t *channel)
+{
+	channel_rtp_stop(channel);
+	channel_rtp_start(channel);
 }
 
 void channel_resetup_local_t38(channel_t *channel)
@@ -173,7 +179,7 @@ void channel_dial_out(channel_t *channel)
 
 void channel_switch_to_fxo(channel_t *channel)
 {
-	if (rtk_DAA_off_hook(channel->chid) == 0)
+	if (rtk_DaaOffHook(channel->chid) == 0)
 	{
 		printf("%s: ok.\n", __FUNCTION__);
 	}
@@ -204,7 +210,12 @@ void channel_rtp_start(channel_t *channel)
 	rtp_config.rfc2833_payload_type_remote = 0;		// use in-band
 	rtp_config.rfc2833_fax_modem_pt_local = 0;		// use in-band
 	rtp_config.rfc2833_fax_modem_pt_remote = 0;		// use in-band
-#ifdef SUPPORT_RTP_REDUNDANT
+#if defined(SUPPORT_RTP_REDUNDANT_APP)
+	rtp_config.rtp_redundant_payload_type_local = 0;
+	rtp_config.rtp_redundant_payload_type_remote = 0;
+	rtp_config.rtp_redundant_max_Audio = 0;
+	rtp_config.rtp_redundant_max_RFC2833 = 0;
+#elif defined(SUPPORT_RTP_REDUNDANT)
 	rtp_config.rtp_redundant_payload_type_local = 0;
 	rtp_config.rtp_redundant_payload_type_remote = 0;
 	rtp_config.rtp_redundant_max_Audio = 0;
@@ -223,20 +234,24 @@ void channel_rtp_start(channel_t *channel)
 	codec_config.sid = 0;
 	codec_config.local_pt = 0;
 	codec_config.remote_pt = 0;
-	codec_config.uPktFormat = rtpPayloadPCMU;
+	codec_config.uLocalPktFormat = rtpPayloadPCMU;
+	codec_config.uRemotePktFormat = rtpPayloadPCMU;
 	codec_config.local_pt_vbd = rtpPayloadUndefined;
 	codec_config.remote_pt_vbd = rtpPayloadUndefined;
 	codec_config.uPktFormat_vbd = rtpPayloadUndefined;
 	codec_config.nG723Type = 0;
-	codec_config.nFramePerPacket = 1;
+	codec_config.nLocalFramePerPacket = 1;
+	codec_config.nRemoteFramePerPacket = 1;
 	codec_config.nFramePerPacket_vbd = 1;
 	codec_config.bVAD = 0;
 	codec_config.bPLC = 1;
 	codec_config.nJitterDelay = 4;
 	codec_config.nMaxDelay = 13;
+	codec_config.nMaxStrictDelay = 10000;
 	codec_config.nJitterFactor = 7;
 	codec_config.nG726Packing = 2;//pack right
-	if (codec_config.uPktFormat == rtpPayloadG722)
+	if ((codec_config.uLocalPktFormat == rtpPayloadG722) ||
+	    (codec_config.uRemotePktFormat == rtpPayloadG722) )
 		codec_config.nPcmMode = 3;	// wide-band
 	else
 		codec_config.nPcmMode = 2;	// narrow-band
@@ -395,7 +410,7 @@ void channel_handle_onhook(channel_t *channel)
 		else
 		{
 			// daa
-			rtk_FXO_onhook(channel->chid);
+			rtk_FxoOnHook(channel->chid);
 		}
 
 		// check remote channel is terminated 
@@ -408,7 +423,7 @@ void channel_handle_onhook(channel_t *channel)
 			if(channel->remote->state == STATE_RING)
 			{
 				channel->remote->state = STATE_IDLE;
-				rtk_SetRingFXS(channel->remote->chid, 0);
+				rtk_SetRingFxs(channel->remote->chid, 0);
 			}
 			else if(channel->remote->state == STATE_CONNECT)
 			{
@@ -418,19 +433,19 @@ void channel_handle_onhook(channel_t *channel)
 		}
 		else
 		{
-			rtk_FXO_Busy(channel->remote->chid);
+			rtk_FxoBusy(channel->remote->chid);
 		}
 		break;
 	case STATE_DAA_CONNECT:
 		// virtual daa
-		rtk_DAA_on_hook(channel->chid);
+		rtk_DaaOnHook(channel->chid);
 		break;
 	default:
 		break;
 	}
 
 #ifdef CONFIG_RTK_VOIP_IVR
-	rtk_IvrStopPlaying(channel->chid); // clear ivr
+	rtk_IvrStopPlaying(channel->chid, 0); // clear ivr
 #endif
 	rtk_SetTranSessionID(channel->chid, 255);	// clear resource count
 	rtk_SetPlayTone(channel->chid, 0, DSPCODEC_TONE_HOLD, 0, DSPCODEC_TONEDIRECTION_LOCAL);	// clear tone
@@ -457,7 +472,7 @@ void channel_handle_offhook(channel_t *channel)
 			char caller_name[51];
 
 		#ifdef FXO_DIAL_FXS0_AUTO
-			rtk_Get_DAA_CallerID(channel->chid, caller_id, caller_date, caller_name);
+			rtk_GetDaaCallerID(channel->chid, caller_id, caller_date, caller_name);
 
 			if (caller_id[0])
 				printf("caller id is %s\n", caller_id);
@@ -469,9 +484,9 @@ void channel_handle_offhook(channel_t *channel)
 				
 #if 1	// Gen FSK CID
 
-			//rtk_Set_CID_FSK_GEN_MODE(channel->chid - 4, 1); // soft gen
-			rtk_Set_FSK_Area(channel->chid - 4, 0x108/*area*/);   /* area -> 0:Bellcore 1:ETSI 2:BT 3:NTT */
-			rtk_Gen_CID_And_FXS_Ring(channel->chid - 4, 1/*fsk*/, caller_id, caller_date, caller_name, 0/*type1*/, 0);
+			//rtk_SetCidFskGenMode(channel->chid - 4, 1); // soft gen
+			rtk_SetFskArea(channel->chid - 4, 0x108/*area*/);   /* area -> 0:Bellcore 1:ETSI 2:BT 3:NTT */
+			rtk_GenCidAndFxsRing(channel->chid - 4, 1/*fsk*/, caller_id, caller_date, caller_name, 0/*type1*/, 0);
 #endif
 
 //			channel_dial_local(channel, &channels[0]);	// dial fxs 0
@@ -480,9 +495,9 @@ void channel_handle_offhook(channel_t *channel)
 			char text[] = {IVR_TEXT_ID_PLZ_ENTER_NUMBER, '\0'};
 
 			usleep(500000); // after phone off-hook, wait for a second, and then play IVR
-			rtk_FXO_offhook(channel->chid);
+			rtk_FxoOffHook(channel->chid);
 		#ifdef CONFIG_RTK_VOIP_IVR
-			rtk_IvrStartPlaying(channel->chid, text);
+			rtk_IvrStartPlaying(channel->chid, 0, text);
 		#else
 			// use dial tone to replace if no IVR
 			rtk_SetPlayTone(channel->chid, 0, DSPCODEC_TONE_DIAL, 1, DSPCODEC_TONEDIRECTION_LOCAL);
@@ -494,7 +509,7 @@ void channel_handle_offhook(channel_t *channel)
 		if (CHANNEL_IS_FXS(channel->chid))
 		{
 			// fxs
-			rtk_SetRingFXS(channel->chid, 0);
+			rtk_SetRingFxs(channel->chid, 0);
 			rtk_SetPlayTone(channel->remote->chid, 0, DSPCODEC_TONE_RINGING, 0, DSPCODEC_TONEDIRECTION_LOCAL);
 			channel_rtp_start(channel);
 			channel->state = STATE_CONNECT;
@@ -502,7 +517,7 @@ void channel_handle_offhook(channel_t *channel)
 		else
 		{
 			// daa
-			rtk_FXO_offhook(channel->chid);
+			rtk_FxoOffHook(channel->chid);
 			channel_rtp_start(channel);
 			channel->state = STATE_CONNECT;
 		}
@@ -515,12 +530,12 @@ void channel_handle_offhook(channel_t *channel)
 		else
 		{
 			// daa
-			rtk_FXO_offhook(channel->remote->chid);
+			rtk_FxoOffHook(channel->remote->chid);
 		}
 		break;
 	case STATE_DAA_RING:
 		// virtual daa
-		rtk_DAA_off_hook(channel->chid);
+		rtk_DaaOffHook(channel->chid);
 		channel->state = STATE_DAA_CONNECT;
 		break;
 	default:
@@ -533,7 +548,9 @@ int main(void)
 	int i;
 	uint32 fax[CON_CH_NUM] = {0};
 	int fax_clear[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 1};
+#if 0
 	uint32 fax_end[CON_CH_NUM] = {0};
+#endif
 	int fax_end_clear[CON_CH_NUM] = {[0 ... CON_CH_NUM-1] = 1};
 
 	SIGNSTATE val;
@@ -550,44 +567,44 @@ int main(void)
 	for (i=0; i<CON_CH_NUM; i++)
 	{
 		// init dsp
-		rtk_InitDSP(i);
+		rtk_InitDsp(i);
 
 		// init phone
-		rtk_Set_Voice_Gain(i, 0, 0);	// 0db
-		rtk_Set_echoTail(i, 4, 1);			// 4ms, NLP on
+		rtk_SetVoiceGain(i, 0, 0);	// 0db
+		rtk_SetEchoTail(i, 1, 32, 1, 5, 5, 0);			// EC-128, 32ms, NLP on
 
 		// init fxs & fxo
 		if (CHANNEL_IS_FXS(i))
 		{
 			// fxs
-			rtk_Set_Flash_Hook_Time(i, 0, 300);		// 0~300 ms
-			rtk_Set_SLIC_Ring_Cadence(i, 1500, 1500);	// 1500 ms
-			rtk_Set_CID_DTMF_MODE(i, 0x40, 80, 80, 300, 300);	// priori 1st ring, auto AC, auto ring, digit duration = 80ms, inter digit pause = 80ms
+			rtk_SetFlashHookTime(i, 100, 300);		// 100~300 ms
+			rtk_SetSlicRingCadence(i, 1500, 1500);	// 1500 ms
+			rtk_SetDtmfCidParam(i, DTMF_DIGIT_A, DTMF_DIGIT_C, 0xf, 80, 80, 300, 300);	// priori 1st ring, auto AC, auto ring, digit duration = 80ms, inter digit pause = 80ms
 		}
 		else
 		{
 			// fxo
-			rtk_Set_FXO_Ring_Detection(300, 300, 4500);
-			rtk_Set_CID_Det_Mode(i,
+			rtk_SetFxoRingDetection(300, 300, 4500);
+			rtk_SetCidDetMode(i,
 				2,										// auto detect mode (NOT NTT)
 				CID_DTMF
 			);
 		}
 
 		// set dtmf mode
-		rtk_SetDTMFMODE(i, DTMF_INBAND);
+		rtk_SetDtmfMode(i, DTMF_INBAND);
 
 		// set fax modem det mode
 		rtk_SetFaxModemDet(i, 0); //0:auto-hi-speed-fax
 
 
 		// flush kernel fifo before app run
-		rtk_Set_flush_fifo(i);
+		rtk_SetFlushFifo(i);
 
 		// init local data
 		channel_init(&channels[i], i);
 
-		rtk_Onhook_Reinit(i);
+		rtk_OnHookReinit(i);
 	}
 
 	// main loop
@@ -606,16 +623,60 @@ main_loop:
 		/*************** FAX Det ****************/
 		if (CHANNEL_IS_FXS(i))
 		{
+#if 0
+			// Check FAX/Modem translated event
 			rtk_GetFaxModemEvent(i, &fax[i], NULL, 0);
 
 			if (((fax[i] == 1) || (fax[i] == 2))	//1:low-speed fax, 2: high-speed fax, 3:local-modem, 4: remote-modem
 				&& (fax_clear[i] ==1))
 			{
-				printf("Get FAX event, ch=%d\n", i);
+				printf("Get FAX event %d, ch=%d\n", fax[i], i);
 				channel_resetup_local_t38(channel);
 				channel_resetup_local_t38(channel->remote);
 				fax_clear[i] = 0;
 			}
+			
+			// Check DCN, and restore to voice
+			rtk_GetFaxEndDetect(i, &fax_end[i]); 
+			if ((fax_end[i] == 1) && (fax_end_clear[i] == 1))
+			{
+				printf("Get FAX End event, ch=%d\n", i);
+				fax_end_clear[i] = 0;
+				
+				channel_resetup_local_rtp(channel);
+				channel_resetup_local_rtp(channel->remote);
+			}
+#else
+			// Check FAX/Modem real event
+			rtk_GetFaxModemEvent(i, NULL, &fax[i], 0);
+			
+			if (((fax[i] == VEID_FAXMDM_FAX_CED) || 
+				(fax[i] == VEID_FAXMDM_FAX_DIS_RX) ||
+				(fax[i] == VEID_FAXMDM_V21FLAG_LOCAL) ||
+				(fax[i] == VEID_FAXMDM_ANSTONE_ANS_LOCAL))
+				&& (fax_clear[i] ==1))
+			{
+				printf("Get FAX event 0x%x, ch=%d\n", fax[i], i);
+				channel_resetup_local_t38(channel);
+				channel_resetup_local_t38(channel->remote);
+				fax_clear[i] = 0;
+			}
+			else
+			{
+				if ( fax[i] != 0 )
+					printf("Get FAX/Modem event 0x%x, ch=%d\n", fax[i], i);
+			}
+			
+			// Check DCN, and restore to voice
+			if ((fax[i] == VEID_FAXMDM_FAX_DCN_RX) && (fax_end_clear[i] == 1))
+			{
+				printf("Get FAX End event, ch=%d\n", i);
+				fax_end_clear[i] = 0;
+				
+				channel_resetup_local_rtp(channel);
+				channel_resetup_local_rtp(channel->remote);
+			}
+#endif
 		}
 		
 		uint32 dis = 0;
@@ -637,13 +698,6 @@ main_loop:
 		if (dis == 1)
 		{
 			printf("Get FAX DIS RX event, ch=%d\n", i);
-		}
-
-		rtk_GetFaxEndDetect(i, &fax_end[i]); 
-		if ((fax_end[i] == 1) && (fax_end_clear[i] == 1))
-		{
-			printf("Get FAX End event, ch=%d\n", i);
-			fax_end_clear[i] = 0;
 		}
 
 		/****************************************/
@@ -669,25 +723,25 @@ main_loop:
 			break;
 		case SIGN_ONHOOK:
 			channel_handle_onhook(channel);
-			rtk_Onhook_Action(i);	// rtk_Onhook_Action have to be the last step in SIGN_ONHOOK
+			rtk_OnHookAction(i);	// rtk_OnHookAction have to be the last step in SIGN_ONHOOK
 			fax_clear[i] = 1;
 			fax_end_clear[i] = 1;
 			break;
 		case SIGN_OFFHOOK:
-			rtk_Offhook_Action(i);	// rtk_Offhook_Action have to be the first step in SIGN_OFFHOOK
+			rtk_OffHookAction(i);	// rtk_OffHookAction have to be the first step in SIGN_OFFHOOK
 			channel_handle_offhook(channel);
 			break;
     	case SIGN_RING_ON:		// virtual daa ring on
 			if (channel->state == STATE_IDLE)
 			{
 				channel->state = STATE_DAA_RING;
-				rtk_SetRingFXS(channel->chid, 1);
+				rtk_SetRingFxs(channel->chid, 1);
 			}
 			break;
 		case SIGN_RING_OFF: 	// virtual daa ring off
 			if (channel->state == STATE_DAA_RING)
 			{
-				rtk_SetRingFXS(channel->chid, 0);
+				rtk_SetRingFxs(channel->chid, 0);
 				channel->state = STATE_IDLE;
 			}
 			break;

@@ -1,0 +1,102 @@
+==========================================
+unittest
+==========================================
+test yor S/W driver
+
+==========================================
+code location
+==========================================
+apollo\sdk\unittest\
+
+[for RTL API test]
+apollo\sdk\unittest\dal\dal_xxx_test_case.c
+apollo\sdk\unittest\dal\dal_xxx_test_case.h
+
+[for RAW driver API test]
+apollo\sdk\unittest\dal\raw\apollo\dal_raw_xxx_test_case.c
+apollo\sdk\unittest\dal\raw\apollo\dal_raw_xxx_test_case.h
+
+
+==========================================
+coding function body code
+==========================================
+在 dal_raw_xxx_test_case.c 中加入要測試的 raw driver test case
+
+
+
+===========================
+OSAL access Utility:
+===========================
+osal_alloc
+osal_free
+osal_printf
+
+osal_strlen 
+osal_strcmp 
+osal_strcpy 
+osal_strncpy
+osal_strcat 
+osal_strchr 
+osal_memset 
+osal_memcpy 
+osal_memcmp 
+
+
+==========================================
+Add your test function in test command
+==========================================
+1.add your test case in 
+  apollo\sdk\unittest\sdk\sdk_test.c
+
+ 
+unit_test_case_t unitTestCase[] = 
+{
+    ...
+    UNIT_TEST_CASE(28001, dal_gpon_sn_test, GRP_ALL|GRP_GPON),
+    ...
+    
+    UNIT_TEST_CASE([your test ID], [your_test_function_test], GRP_ALL|GRP_[your_module]),
+                   ^^^^^^ 請自行錯開
+}
+
+
+2.add 
+#include <dal/raw/apollo/dal_raw_xxx_test_case.h>
+in apollo\sdk\unittest\sdk\sdk_test.c
+
+note:
+確認你的module 有在 以下function內, 否則請自行加入你的module
+
+int32
+sdktest_run(uint32 unit, uint8 *pStr)
+{
+    ...
+    else if (!osal_strcmp(pStr, "qos"))
+        groupmask = GRP_QOS;
+    ...
+}
+
+==========================================
+make your code
+==========================================
+1.add your file in
+apollo\internal\apollo\diagShellCygwin\build\Makefile.ut
+
+2.在目錄  
+  apollo\internal\apollo\diagShellCygwin\
+make unittest
+ 
+3.make diag 
+(or make all, 若已經打過make all 可以用make diag 解省build code時間)
+
+
+==========================================
+How to Test
+==========================================
+用diag shell test
+
+RTK.0> sdk test case_id <UINT:start> { <UINT:end> }
+
+RTK.0> sdk test group <STRING:item>
+
+ 

@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 	{
 		ch = atoi(argv[1]);
 		reg = atoi(argv[2]);
-		rtk_sip_register(ch, reg);
+		rtk_SipRegister(ch, reg);
 	}
 
 	return 0;

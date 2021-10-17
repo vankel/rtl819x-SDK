@@ -4,6 +4,7 @@
 #include "voip_types.h"
 #include "con_register.h"
 #include "section_def.h"
+#include "voip_dev.h"
 
 // in order to share with two DSPs (used by dsp_xxx_handler_start)
 //#ifdef REDUCE_PCM_FIFO_MEMCPY
@@ -57,6 +58,14 @@ label_tx_done:
 	
 	if (dtmf_removal_flag[cch] == 1)
 		rx_fifo_cnt_w[cch]=3; 
+	else
+		rx_fifo_cnt_w[cch]=0; 
+#elif DTMF_REMOVAL_FORWARD_SIZE == 1
+	/* If odd removal length, one is given as initial value. */
+	extern unsigned char dtmf_removal_flag[];
+	
+	if (dtmf_removal_flag[cch] == 1)
+		rx_fifo_cnt_w[cch]=1; 
 	else
 		rx_fifo_cnt_w[cch]=0; 
 #elif PCM_PERIOD == 1
@@ -173,12 +182,20 @@ uint16 * isr_bus_read_tx( voip_con_t *this, voip_bus_t *p_bus, uint16 *bus_tx )
 		if( this ->fifo.tx_read_role == 0 ) {
 			p_dsp ->dsp_ops ->isr_bus_tx_process( p_dsp, tx );
 			this ->con_ops ->isr_lec_buf_tx_process( this, tx, i );
+			
+			// pcm tx dev 
+			if( cch == 0 ) {
+				ddinst_rw_auto( VOIP_DEV_PCM0_TX, ( char * )tx, PCM_PERIOD_10MS_SIZE * this ->band_factor_var );
+			}
+			else if( cch == 1 ) {
+				ddinst_rw_auto( VOIP_DEV_PCM1_TX, ( char * )tx, PCM_PERIOD_10MS_SIZE * this ->band_factor_var );
+			}			
 		}
 		
 		switch( p_bus ->role_var ) {
 		case BUS_ROLE_SINGLE:		// normal
 #ifdef USE_MEM64_OP
-			memcpy64s( ( void * )bus_tx+(i*PCM_PERIOD_10MS_SIZE), tx, PCM_PERIOD_10MS_SIZE/2 * this ->band_factor_var);
+			memcpy64( ( void * )bus_tx+(i*PCM_PERIOD_10MS_SIZE), tx, PCM_PERIOD_10MS_SIZE/2 * this ->band_factor_var);
 #else
 			memcpy( ( void * )bus_tx+(i*PCM_PERIOD_10MS_SIZE), tx, PCM_PERIOD_10MS_SIZE * this ->band_factor_var);
 #endif
@@ -270,7 +287,7 @@ uint16 * isr_bus_write_rx_TH( voip_con_t *this, voip_bus_t *p_bus, const uint16 
 		switch( p_bus ->role_var ) {
 		case BUS_ROLE_SINGLE:		// normal
 #ifdef USE_MEM64_OP
-			memcpy64s( rx, bus_rx+(i*PCM_PERIOD_10MS_SIZE/2), PCM_PERIOD_10MS_SIZE/2 * this ->band_factor_var);
+			memcpy64( rx, bus_rx+(i*PCM_PERIOD_10MS_SIZE/2), PCM_PERIOD_10MS_SIZE/2 * this ->band_factor_var);
 #else
 			memcpy( rx, bus_rx+(i*PCM_PERIOD_10MS_SIZE/2), PCM_PERIOD_10MS_SIZE * this ->band_factor_var);
 #endif

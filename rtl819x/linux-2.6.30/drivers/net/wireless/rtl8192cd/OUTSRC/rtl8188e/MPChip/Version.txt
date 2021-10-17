@@ -1,0 +1,1 @@
+CurrentVersion = RTL8188E_MAC_PHY_ForMPChip_v044

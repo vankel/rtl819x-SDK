@@ -49,7 +49,7 @@ extern void br_transmit_config(struct net_bridge_port *p);
 extern void br_transmit_tcn(struct net_bridge *br);
 extern void br_topology_change_detection(struct net_bridge *br);
 
-#if defined (CONFIG_RTK_MESH)
+#if defined (CONFIG_RTK_MESH) && defined(CONFIG_RTL_MESH_AUTOPORTAL_SUPPORT)
 extern void br_signal_pathsel(struct net_bridge *br);
 #if defined (STP_ADDCOST_ETH)
 extern void br_reset_cost(struct net_bridge_port * p);

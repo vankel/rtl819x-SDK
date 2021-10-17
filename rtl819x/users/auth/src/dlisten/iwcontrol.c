@@ -51,6 +51,11 @@ static Dot1x_RTLDListener RTLDListenerWscd[MAX_WLAN_INTF];
 #ifdef WLAN_CHR_MISC
 static int wl_chr_fd;
 #endif
+
+#ifdef HS2_SUPPORT
+static int link_hs2 = FALSE;
+static Dot1x_RTLDListener RTLDListenerHS2[MAX_WLAN_INTF];
+#endif
 //----------------------------------------------------------
 // Functions
 //----------------------------------------------------------
@@ -87,13 +92,15 @@ void iw_init_fifo(Dot1x_RTLDListener *listen, char *fifo_name)
 	while(1){
 		if((listen->WriteFIFO = open(fifo_name, O_WRONLY, 0)) < 0)
 		{
-			//iw_message(MESS_DBG_CONTROL, "open fifo %s error: %s", fifo_name, strerror(errno));
+			printf("open fifo %s error\n", fifo_name);
 			iw_message(MESS_DBG_CONTROL, "wait %s to create", fifo_name);
 			sleep(1);
 			//exit(0);
 		}
-		else
+		else{
+			printf("open fifo %s OK\n", fifo_name);
 			break;
+          }
 	}
 }
 
@@ -112,6 +119,10 @@ int ProcessRequestEvent(char *wlan_name)
 
 #ifdef WIFI_SIMPLE_CONFIG
 	int isWscdEvt = FALSE;
+#endif
+
+#ifdef HS2_SUPPORT
+	int isHS2Evt = FALSE;
 #endif
 
 	// Get message from wlan ioctl
@@ -287,8 +298,18 @@ int ProcessRequestEvent(char *wlan_name)
 			sprintf(szEvent, (char*)"Receive Event %s", "WSC_ASSOC_REQ_IE_IND");
 			isWscdEvt = TRUE;
 			break;
+		case	DOT11_EVENT_WSC_RM_PBC_STA:
+			sprintf(szEvent, (char*)"Receive Event %s", "WSC_ASSOC_REQ_IE_IND");
+			isWscdEvt = TRUE;
+			break;
 #endif
-
+#ifdef HS2_SUPPORT
+		case DOT11_EVENT_GAS_INIT_REQ:
+		case DOT11_EVENT_GAS_COMEBACK_REQ:	
+			sprintf(szEvent, (char*)"Receive Event %s", "GAS_QUERY_IND");
+            isHS2Evt = TRUE;
+            break;
+#endif            
 		default:
 			sprintf(szEvent, (char*)"Receive Invalid or Unhandled Event %d",
 				dlisten_SendBuf[5]);
@@ -296,7 +317,7 @@ int ProcessRequestEvent(char *wlan_name)
 			break;
 		}
 
-		iw_message(MESS_DBG_CONTROL, "[iwcontrol]: %s", szEvent);
+		//iw_message(MESS_DBG_CONTROL, "[iwcontrol]: %s", szEvent);
 		if(iSend)
 		{
 #ifdef AUTO_CONFIG
@@ -351,6 +372,27 @@ ret_process:
 				}
 			}
 			retVal = (dlisten_SendBuf[6] == TRUE)? TRUE : FALSE;	//If more event
+		}
+#endif
+#ifdef HS2_SUPPORT
+		if (isHS2Evt)
+		{
+			if(link_hs2 && isHS2Evt)
+            {
+            	for(i=0; i < link_hs2; i++)
+            	{
+            		if(!strcmp(RTLDListenerHS2[i].wlanName,wlan_name))
+            		{
+						//printf("i=%d,name=%s\n",i, wlan_name);
+                		if((iRet = write(RTLDListenerHS2[i].WriteFIFO, dlisten_SendBuf, RWFIFOSIZE)) < 0)
+                    		iw_message(MESS_DBG_CONTROL, "Write FIFO: %s", strerror(errno));
+                		else
+                    		iw_message(MESS_DBG_CONTROL, "Write %d bytes\n", iRet);
+                    }
+                }
+            }
+
+			retVal = (dlisten_SendBuf[6] == TRUE)? TRUE : FALSE;    //If more event
 		}
 #endif
 	}
@@ -409,7 +451,11 @@ static void pidfile_write_release(int pid_fd)
 }
 //-----------------------------------------------
 /* parsing var pid file for fifo create */
+#ifdef HS2_SUPPORT
+int parsing_var_pid(Dot1x_RTLDListener *auth, Dot1x_RTLDListener *autoconf, Dot1x_RTLDListener *wscd, Dot1x_RTLDListener *hs2)
+#else
 int parsing_var_pid(Dot1x_RTLDListener *auth, Dot1x_RTLDListener *autoconf, Dot1x_RTLDListener *wscd)
+#endif
 {
        DIR *dir;
         struct dirent *next;
@@ -451,11 +497,23 @@ int parsing_var_pid(Dot1x_RTLDListener *auth, Dot1x_RTLDListener *autoconf, Dot1
 			{			
 				iw_message(MESS_DBG_CONTROL,"next->d_name=%s\n", next->d_name);	
 
-				strcpy(wscd[0].wlanName,"wlan0");
-				strcpy(wscd[1].wlanName,"wlan1");
+				strcpy(wscd[link_wscd++].wlanName,"wlan0");
+				strcpy(wscd[link_wscd++].wlanName,"wlan1");
 				//printf("AP mode-->> \n\n");
-				link_wscd=2;				
 			}
+            else if(!strncmp(next->d_name, "wscd-wlan0-wlan1-c.pid", strlen("wscd-wlan0-wlan1-c.pid"))) {
+                unsigned char band = 0;
+                for(i=0 ;i < wlan_num; i ++){
+                    if(strstr(wlan_tbl[i], "vxd")) {
+                        strcpy(wscd[link_wscd++].wlanName, wlan_tbl[i]);
+                        band |= (1<<(wlan_tbl[i][4]-'0'));
+                    }
+                }
+                if((band & 0x01) == 0)
+    				strcpy(wscd[link_wscd++].wlanName,"wlan0");
+                if((band & 0x02) == 0)
+    				strcpy(wscd[link_wscd++].wlanName,"wlan1");
+            }
             else
             {
 	            sscanf(next->d_name, "wscd-%s.pid", wscd[link_wscd].wlanName);
@@ -487,7 +545,40 @@ int parsing_var_pid(Dot1x_RTLDListener *auth, Dot1x_RTLDListener *autoconf, Dot1
 		}
 #endif		
 #endif
+#ifdef HS2_SUPPORT
+		if(!strncmp(next->d_name, "hs2", strlen("hs2")))
+		{
+			unsigned char tmpstr[100], *pch;
+			if(!strncmp(next->d_name, "hs2-wlan0-wlan1.pid", strlen("hs2-wlan0-wlan1.pid")))
+            {
+                iw_message(MESS_DBG_CONTROL,"next->d_name=%s\n", next->d_name);
+
+                strcpy(hs2[0].wlanName,"wlan0");
+                strcpy(hs2[1].wlanName,"wlan1");
+                link_hs2=2;
+		    }
+			else
+			{
+                //sscanf(next->d_name, "hs2-%s.pid", hs2[link_hs2].wlanName);
+                sscanf(next->d_name, "hs2_%s.pid", tmpstr);
+				for (i=0; i<100; i++) 
+				{
+					if (tmpstr[i] == '.')
+						tmpstr[i] = 0;
+				}
+				pch = strtok(tmpstr, "_");
+				while (pch != NULL)
+				{
+					strcpy(hs2[link_hs2].wlanName, pch);
+					//printf("iwcontrol:%s\n", hs2[link_hs2].wlanName);
+					pch = strtok(NULL, "_");
+					link_hs2++;
+				}
+            }
+        }
+#endif        
 	}
+	closedir(dir);
 	return 0;
 }
 
@@ -497,6 +588,10 @@ int parsing_var_pid(Dot1x_RTLDListener *auth, Dot1x_RTLDListener *autoconf, Dot1
 
 #ifdef WIFI_SIMPLE_CONFIG
 #define	WSCD_FIFO			"/var/wscd-%s.fifo"
+#endif
+
+#ifdef HS2_SUPPORT
+#define	HS2_FIFO			"/var/hs2-%s.fifo"
 #endif
 
 int main(int argc, char *argv[])
@@ -559,7 +654,11 @@ int main(int argc, char *argv[])
 	}
 
 	/* parsing /var/iapp.pid or /var/auth*.pid , /var/autoconf*.conf */
+#ifdef HS2_SUPPORT
+	if(parsing_var_pid(RTLDListenerAuth, RTLDListenerAutoconf, RTLDListenerWscd, RTLDListenerHS2) < 0){
+#else
 	if(parsing_var_pid(RTLDListenerAuth, RTLDListenerAutoconf, RTLDListenerWscd) < 0){
+#endif
 		printf("parsing pid failed\n");
 		return -1;
 	}
@@ -585,6 +684,7 @@ int main(int argc, char *argv[])
 		for(i=0 ; i < link_auth; i++){
 			sprintf(fifo_buf, DAEMON_FIFO, RTLDListenerAuth[i].wlanName);
 			iw_message(MESS_DBG_CONTROL,"open auth fifo %s\n", fifo_buf);
+			printf("auth..\n");
 			iw_init_fifo(&RTLDListenerAuth[i], fifo_buf);
 		}
 	}
@@ -611,6 +711,19 @@ int main(int argc, char *argv[])
 			iw_init_fifo(&RTLDListenerWscd[i], fifo_buf);
 		}
 	}
+#endif
+
+#ifdef HS2_SUPPORT
+	if(link_hs2){
+		for(i=0 ; i < link_hs2; i++)
+		{
+			//printf("open hs2 fifo, %d\n",i);
+			sprintf(fifo_buf, HS2_FIFO, RTLDListenerHS2[i].wlanName);
+        	iw_message(MESS_DBG_CONTROL,"open hs2 fifo %s\n", fifo_buf);
+			printf("hs2..\n");
+        	iw_init_fifo(&RTLDListenerHS2[i], fifo_buf);
+        }
+    }
 #endif
 
 	RTLDListenerAuth[0].Iffd = get_info();

@@ -3,6 +3,7 @@
 
 #include "rtk_voip.h"
 #include "voip_types.h"
+#include "voip_errno.h"
 #include "voip_control.h"
 #include "voip_ipc.h"
 #include "voip_params.h"
@@ -18,9 +19,15 @@
 
 //#define EVENT_TX_DETAIL_DEBUG
 
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_ISSUE_TRIVIAL_ACK
+#define EVENT_ISSUE_TRIVIAL_ACK	1
+#endif
+
 // --------------------------------------------------------
 // DSP side send event to Host side (by timer)
 // --------------------------------------------------------
+
+#ifdef EVENT_ISSUE_TRIVIAL_ACK
 
 #define EVENT_TX_WINDOW_SIZE	( CON_CH_NUM * 10 )
 #define MAX_RESEND_EVENT		3
@@ -39,10 +46,15 @@ static struct {
 	uint32 resend_time_delay;
 } EventTx;
 
+#endif // EVENT_ISSUE_TRIVIAL_ACK
+
+int last_process_seqno = -1;
+
 extern int con_ch_num;
 
 void clean_event_cheak_ack(unsigned short category, unsigned short rev_seq)
 {
+#ifdef EVENT_ISSUE_TRIVIAL_ACK
 	int i;
 	uint32 ri = EventTx.ri;
 	EventTxElement_t *pelm;
@@ -95,9 +107,11 @@ label_reclaim_space:
 	EventTx.ri = ri;
 	
 	return;
+#endif // EVENT_ISSUE_TRIVIAL_ACK
 }
 
-static void event_tx( unsigned long data )
+#ifdef EVENT_ISSUE_TRIVIAL_ACK
+static void event_tx_issue_trivial_ack( unsigned long data )
 {
 	uint32 cch;
 	TstTxPktCtrl pktCtrl;
@@ -114,10 +128,14 @@ static void event_tx( unsigned long data )
 	
 	// -----------------------------------------------------------------------
 	// resend old events 
+#ifdef CONFIG_RTK_VOIP_IPC_ARCH_RESEND_CTRL
 	if( EventTx.resend_time_delay ++ >= RESEND_DELAY_COUNT )
 		EventTx.resend_time_delay = 0;	// reset and resend 
 	else
+#endif
+	{
 		goto label_resend_old_events_end;
+	}
 	
 	ri = EventTx.ri;
 	wi = EventTx.wi;
@@ -149,7 +167,7 @@ static void event_tx( unsigned long data )
 			
 			ipc_pkt_tx_final( IPC_EVT_VOIP_EVENT, IPC_PROT_EVENT, 
 								( uint8* )&pelm ->event, sizeof( pelm ->event ), 
-								&pktCtrl, NULL );
+								&pktCtrl, NULL, NULL );
 		}
 		
 		// next ri
@@ -216,13 +234,59 @@ label_resend_old_events_end:
 		EventTx.wi = wi_next;	// to avoid race condition 
 		ipc_pkt_tx_final( IPC_EVT_VOIP_EVENT, IPC_PROT_EVENT, 
 							( uint8* )&pelm ->event, sizeof( pelm ->event ), 
-							&pktCtrl, &pelm ->sent_seq );
+							&pktCtrl, &pelm ->sent_seq, NULL );
+		
+		// reset resnd delay 
+		EventTx.resend_time_delay = 0;
 		
 		// next wi 
 		wi_next = ( EventTx.wi + 1 >= EVENT_TX_WINDOW_SIZE ? 0 : EventTx.wi + 1 );
 		
 	}	// cch for loop
 	
+}
+#else
+static void event_tx_not_issue_trivial_ack( unsigned long data )
+{
+	uint32 cch;
+	TstTxPktCtrl pktCtrl;
+	TstVoipEvent event;
+	
+	pktCtrl.dsp_cpuid = Get_DSP_CPUID();
+	
+	for( cch = 0; cch < con_ch_num; cch ++ )
+	{
+		// fill event fields to retrieve event 
+		event.ch_id = cch;
+		event.type = VET_ALL;
+		event.mask = VEM_ALL;
+		
+		// event empty ? 
+		if( voip_mgr_event_out( &event ) < 0 || event.id == VEID_NONE )
+			continue;
+		
+		// fix event field
+		event.type = event.id & VET_MASK;
+		
+		// do it!! 
+		pktCtrl.dsp_cch = cch;
+		pktCtrl.seq_no = 0;	// ignore 
+		pktCtrl.resend_flag = 0;	// not resend event 
+		
+		ipc_pkt_tx_final( IPC_EVT_VOIP_EVENT, IPC_PROT_EVENT, 
+							( uint8* )&event, sizeof( event ), 
+							&pktCtrl, NULL, NULL );
+	}
+}
+#endif // EVENT_ISSUE_TRIVIAL_ACK
+
+static void event_tx( unsigned long data )
+{
+#ifdef EVENT_ISSUE_TRIVIAL_ACK
+	event_tx_issue_trivial_ack( data );
+#else
+	event_tx_not_issue_trivial_ack( data );
+#endif
 }
 
 static int Add_event_tx_timer( void )
@@ -241,6 +305,7 @@ voip_initcall_sync( Add_event_tx_timer );	// should after event manager
 // Proc 
 // -----------------------------------------------------------------
 
+#ifdef EVENT_ISSUE_TRIVIAL_ACK
 static int voip_event_tx_read_proc( char *buf, char **start, off_t off, int count, int *eof, void *data )
 {
 	int n = 0;
@@ -291,4 +356,23 @@ static void __exit voip_event_tx_proc_exit( void )
 
 voip_initcall_proc( voip_event_tx_proc_init );
 voip_exitcall( voip_event_tx_proc_exit );
+
+#endif // EVENT_ISSUE_TRIVIAL_ACK
+
+int do_voip_mgr_ctl_in_dsp( unsigned short cmd, unsigned char* para, unsigned short length, unsigned short seq_no, const voip_mgr_entry_t *p_entry )
+{
+	int ret = 0;
+
+	if( p_entry ->do_mgr == NULL )
+	{
+		PRINT_R("IOCTL command %d has no do_mgr\n", cmd);
+		ret = -EVOIP_IOCTL_NO_MGR_ERR;
+	}
+	else
+		ret = p_entry ->do_mgr( cmd, para, length, seq_no );
+
+	last_process_seqno = seq_no;
+	
+	return ret;
+}
 

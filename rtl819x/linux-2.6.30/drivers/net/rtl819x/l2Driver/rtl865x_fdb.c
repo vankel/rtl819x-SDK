@@ -934,6 +934,12 @@ void update_hw_l2table(const char *srcName,const unsigned char *addr)
 		}
 #endif
 
+#ifdef CONFIG_RTL_8367R_SUPPORT
+		{
+		extern void del_8367r_L2(const unsigned char *addr);
+		del_8367r_L2(addr);	
+		}	
+#endif
 	}
 
 		
@@ -2053,7 +2059,7 @@ int32 rtl865x_setRestrictPortNum(int32 port, uint8 isEnable, int32 number)
 
 #endif
 
-#ifdef CONFIG_RTL_LINKCHG_PROCESS
+#if defined(CONFIG_RTL_LINKCHG_PROCESS) || defined(CONFIG_RTL_IVL_SUPPORT)
 int32 _rtl865x_ClearFDBEntryByPort(int32 port_num)
 {
 	int i, j;
@@ -2084,7 +2090,6 @@ int32 _rtl865x_ClearFDBEntryByPort(int32 port_num)
 				rtl_delFdbByMac((unsigned char *)(&(L2buff->macAddr.octet)), name);
 			}
 			#endif
-
 			_rtl865x_removeFilterDatabaseEntry(RTL_LAN_FID, &(L2buff->macAddr), i);
 		}
 
@@ -2096,7 +2101,9 @@ int32 _rtl865x_ClearFDBEntryByPort(int32 port_num)
 	return SUCCESS;		
 
 }
+#endif
 
+#ifdef CONFIG_RTL_LINKCHG_PROCESS
 int32 rtl865x_LinkChange_Process(void)
 {
 	uint32 i, status;

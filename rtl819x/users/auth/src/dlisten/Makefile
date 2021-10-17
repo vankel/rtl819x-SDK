@@ -52,6 +52,11 @@ RTL_WPA_LDFLAG += --static
 endif
 endif
 
+ifeq ($(CONFIG_RTL_HS2_SUPPORT),y)
+RTL_WPA_CFLAG += -DHS2_SUPPORT
+endif
+
+
 #
 #	Transition rules (add -o to put object in right directory)
 #

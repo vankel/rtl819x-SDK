@@ -38,7 +38,8 @@ typedef unsigned char DOT11_KEY_RSC[8];
 
 typedef enum{
         DOT11_KeyType_Group = 0,
-        DOT11_KeyType_Pairwise = 1
+        DOT11_KeyType_Pairwise = 1,
+        DOT11_KeyType_IGTK = 2
 } DOT11_KEY_TYPE;
 
 typedef enum{
@@ -92,7 +93,9 @@ typedef enum{
 typedef enum{
         DOT11_AuthKeyType_RSN = 1,
         DOT11_AuthKeyType_PSK = 2,
-        DOT11_AuthKeyType_NonRSN802dot1x = 3
+        DOT11_AuthKeyType_NonRSN802dot1x = 3,
+         DOT11_AuthKeyType_802_1X_SHA256 = 5,		//CONFIG_IEEE80211W_CLI		
+         DOT11_AuthKeyType_PSK_SHA256 = 6
 } DOT11_AUTHKEY_TYPE;
 
 typedef enum{
@@ -113,6 +116,7 @@ typedef enum{
         DOT11_ENC_WRAP  = 3,
         DOT11_ENC_CCMP  = 4,
         DOT11_ENC_WEP104= 5,
+        DOT11_ENC_BIP=	  6,
         DOT11_ENC_WAPI= 6
 } DOT11_ENC_ALGO;
 
@@ -146,7 +150,10 @@ typedef enum{
         DOT11_EVENT_ASSOCIATION_INFO = 17,
         DOT11_EVENT_INIT_QUEUE = 18,
         DOT11_EVENT_EAPOLSTART = 19,
-
+#ifdef CONFIG_IEEE80211W
+		DOT11_EVENT_SA_QUERY=20,
+		DOT11_EVENT_SA_QUERY_RSP=21,
+#endif
         DOT11_EVENT_ACC_SET_EXPIREDTIME = 31,
         DOT11_EVENT_ACC_QUERY_STATS = 32,
         DOT11_EVENT_ACC_QUERY_STATS_ALL = 33,
@@ -217,7 +224,6 @@ typedef enum{
 	DOT11_EVENT_PATHSEL_RECV_RREQ = 61,
 	DOT11_EVENT_PATHSEL_RECV_RREP = 62,
 	DOT11_EVENT_PATHSEL_RECV_RERR = 63,
-	DOT11_EVENT_PATHSEL_RECV_RREP_ACK = 64,
 	DOT11_EVENT_PATHSEL_RECV_PANN = 65,
 	DOT11_EVENT_PATHSEL_RECV_RANN = 66,
 #endif // CONFIG_RTK_MESH
@@ -244,14 +250,54 @@ typedef enum{
 	DOT11_EVENT_WSC_STEP_IND = 74,
 	DOT11_EVENT_WSC_OOB_IND = 75,
 #endif
-
 #endif
-
+	DOT11_EVENT_WSC_RM_PBC_STA=106,
+#ifdef HS2_SUPPORT
+	DOT11_EVENT_WNM_NOTIFY = 109,
+	DOT11_EVENT_GAS_INIT_REQ = 110,
+	DOT11_EVENT_GAS_COMEBACK_REQ = 111,
+	DOT11_EVENT_HS2_SET_IE = 112,
+	DOT11_EVENT_HS2_GAS_RSP = 113,
+	DOT11_EVENT_HS2_GET_TSF = 114,
+	DOT11_EVENT_HS2_TSM_REQ = 115,
+	DOT11_EVENT_HS2_GET_RSN = 116,
+	DOT11_EVENT_HS2_GET_MMPDULIMIT=117,
+	DOT11_EVENT_WNM_DEAUTH_REQ = 118,
+	DOT11_EVENT_QOS_MAP_CONF = 119,
+#endif
+#ifdef CONFIG_IEEE80211W
+	DOT11_EVENT_SET_PMF = 120,
+	DOT11_EVENT_GET_IGTK_PN = 121,
+	DOT11_EVENT_INIT_PMF = 122,	// HS2 R2 logo test
+#endif
+#ifdef RSSI_MONITOR_NCR
+	DOT11_EVENT_RSSI_MONITOR_REPORT = 122,
+	DOT11_EVENT_RSSI_MONITOR_SETTYPE = 123,	
+#endif	
+#ifdef USER_ADDIE
+	DOT11_EVENT_USER_SETIE	= 130,
+#endif
+#if defined(SUPPORT_UCFGING_LED) 
+	DOT11_EVENT_UCFGING_LED	= 131,
+#endif	
+	DOT11_EVENT_UNKNOWN = 132
+	
 } DOT11_EVENT;
 
 #ifdef WIFI_SIMPLE_CONFIG
 enum {SET_IE_FLAG_BEACON=1, SET_IE_FLAG_PROBE_RSP=2, SET_IE_FLAG_PROBE_REQ=3,
 		SET_IE_FLAG_ASSOC_RSP=4, SET_IE_FLAG_ASSOC_REQ=5};
+#endif
+
+#ifdef HS2_SUPPORT
+/* Hotspot 2.0 Release 1 */
+enum {SET_IE_FLAG_INTERWORKING=1, SET_IE_FLAG_ADVT_PROTO=2, SET_IE_FLAG_ROAMING=3,
+		SET_IE_FLAG_HS2=4, SET_IE_FLAG_TIMEADVT=5, SET_IE_FLAG_TIMEZONE=6, SET_IE_FLAG_PROXYARP=7,
+        SET_IE_FLAG_MBSSID=8, SET_IE_FLAG_REMEDSVR=9, SET_IE_FLAG_MMPDULIMIT=10, SET_IE_FLAG_ICMPv4ECHO=11,
+        SET_IE_FLAG_SessionInfoURL=12, SET_IE_FLAG_QOSMAP=13};
+#endif
+#ifdef USER_ADDIE
+enum {SET_IE_FLAG_INSERT=1, SET_IE_FLAG_DELETE=2};
 #endif
 
 typedef struct _DOT11_GENERAL{
@@ -284,9 +330,9 @@ typedef struct _DOT11_WPA_MULTICAST_CIPHER{
 typedef struct _DOT11_ASSOCIATION_IND{
         unsigned char   EventId;
         unsigned char   IsMoreEvent;
-        char            MACAddr[MACADDRLEN];
+        unsigned char            MACAddr[MACADDRLEN];
         unsigned short  RSNIELen;
-        char            RSNIE[MAXRSNIELEN]; // include ID and Length by kenny
+        unsigned char            RSNIE[MAXRSNIELEN]; // include ID and Length by kenny
 }DOT11_ASSOCIATION_IND;
 
 typedef struct _DOT11_ASSOCIATION_RSP{
@@ -510,6 +556,13 @@ typedef struct _DOT11_WSC_IND{
 #endif  //CONFIG_RTL_COMAPI_CFGFILE
 #endif
 
+#ifdef RSSI_MONITOR_NCR
+typedef		struct _DOT11_RSSIM_SET_TYPE {
+	unsigned char 		EventId;
+	unsigned char		type;
+	unsigned char		hwaddr[MACADDRLEN];
+} DOT11_RSSIM_SET_TYPE;
+#endif
 #define DOT11_AI_REQFI_CAPABILITIES      1
 #define DOT11_AI_REQFI_LISTENINTERVAL    2
 #define DOT11_AI_REQFI_CURRENTAPADDRESS  4
@@ -548,7 +601,21 @@ typedef struct _DOT11_INIT_QUEUE
     unsigned char IsMoreEvent;
 } DOT11_INIT_QUEUE, *PDOT11_INIT_QUEUE;
 
-
+#ifdef USER_ADDIE
+typedef struct _DOT11_SET_USERIE{
+    unsigned char   EventId;
+    unsigned char   IsMoreEvent;
+	unsigned short	Flag;
+    unsigned short  USERIELen;
+    char            USERIE[256];
+}DOT11_SET_USERIE;
+#endif
+#if defined(SUPPORT_UCFGING_LED) 
+typedef struct _DOT11_SET_UCFGING_LED {
+	unsigned char	EventId;
+	unsigned int	State;
+}DOT11_SET_UCFGING_LED;
+#endif
 //*------The following are defined to handle the event Queue for security event--------*/
 //    For Event Queue related function
 void DOT11_InitQueue(DOT11_QUEUE *q);
@@ -571,7 +638,8 @@ typedef enum{
 	ERROR_INVALID_UNICASTCIPHER = -19,
 	ERROR_INVALID_AUTHKEYMANAGE = -20,
 	ERROR_UNSUPPORTED_RSNEVERSION = -21,
-	ERROR_INVALID_CAPABILITIES = -22
+	ERROR_INVALID_CAPABILITIES = -22,
+	ERROR_MGMT_FRAME_PROTECTION_VIOLATION = -31
 } INFO_ERROR;
 
 #define RSN_STRERROR_BUFFER_TOO_SMALL			"Input Buffer too small"
@@ -640,7 +708,7 @@ typedef struct _DOT11_RSN_IE_COUNT_SUITE{
 
 	UINT16	SuiteCount;
 	DOT11_RSN_IE_SUITE	dot11RSNIESuite[DOT11_MAX_CIPHER_ALGORITHMS];
-}DOT11_RSN_IE_COUNT_SUITE, *PDOT11_RSN_IE_COUNT_SUITE;
+} __WLAN_ATTRIB_PACK__ DOT11_RSN_IE_COUNT_SUITE, *PDOT11_RSN_IE_COUNT_SUITE;
 
 typedef	union _DOT11_RSN_CAPABILITY{
 
@@ -650,24 +718,151 @@ typedef	union _DOT11_RSN_CAPABILITY{
 #ifdef RTL_WPA2
 	struct
 	{
+#ifdef _BIG_ENDIAN_
+#ifdef CONFIG_IEEE80211W
+		unsigned short MFPC:1; // B7
+		unsigned short MFPR:1; // B6
+#else
 		unsigned short Reserved1:2; // B7 B6
+#endif		
 		unsigned short GtksaReplayCounter:2; // B5 B4
 		unsigned short PtksaReplayCounter:2; // B3 B2
 		unsigned short NoPairwise:1; // B1
 		unsigned short PreAuthentication:1; // B0
 		unsigned short Reserved2:8;
-	}field;
+#else
+		unsigned short PreAuthentication:1; // B0
+		unsigned short NoPairwise:1; // B1
+		unsigned short PtksaReplayCounter:2; // B3 B2
+		unsigned short GtksaReplayCounter:2; // B5 B4
+		unsigned short Reserved1:2; // B7 B6
+		unsigned short Reserved2:8;
+#endif
+	} __WLAN_ATTRIB_PACK__ field;
 #else
 	struct
 	{
+#ifdef _BIG_ENDIAN_
 		unsigned short PreAuthentication:1;
 		unsigned short PairwiseAsDefaultKey:1;
 		unsigned short NumOfReplayCounter:2;
 		unsigned short Reserved:12;
-	}field;
+#else
+		unsigned short Reserved1:4;
+		unsigned short NumOfReplayCounter:2;
+		unsigned short PairwiseAsDefaultKey:1;
+		unsigned short PreAuthentication:1;
+		unsigned short Reserved2:8;
+#endif
+	} __WLAN_ATTRIB_PACK__ field;
 #endif
 
-}DOT11_RSN_CAPABILITY;
+} __WLAN_ATTRIB_PACK__ DOT11_RSN_CAPABILITY;
+
+#ifdef HS2_SUPPORT
+/* Hotspot 2.0 Release 1 */
+#define MAX_GAS_CONTENTS_LEN	PRE_ALLOCATED_BUFSIZE*4
+typedef struct _DOT11_HS2_GAS_REQ{
+	unsigned char   EventId;
+	unsigned char   IsMoreEvent;
+	unsigned char	Dialog_token;
+	unsigned char   MACAddr[MACADDRLEN];
+	unsigned char	Advt_proto;
+	unsigned short	Reqlen;
+	unsigned char   Req[MAX_GAS_CONTENTS_LEN];
+}DOT11_HS2_GAS_REQ;
+/*==========HS2_SUPPORT==========*/ 
+typedef struct _DOT11_WNM_NOTIFY{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+		unsigned char   macAddr[6];
+        unsigned char   remedSvrURL[2048];
+#if 1		
+		unsigned char   serverMethod;
+#endif
+}DOT11_WNM_NOTIFY;
+
+typedef struct _DOT11_WNM_DEAUTH_REQ{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+		unsigned char   macAddr[6];
+		unsigned char   reason;
+		unsigned short  reAuthDelay;
+        unsigned char   URL[2048];
+}DOT11_WNM_DEAUTH_REQ;
+
+typedef struct _DOT11_QoSMAPConf{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+		unsigned char   macAddr[MACADDRLEN];
+		unsigned char   indexQoSMAP;
+}DOT11_QoSMAPConf;
+
+
+typedef struct _DOT11_BSS_SessInfo_URL{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+		unsigned char   macAddr[6];
+		unsigned char   SWT;
+        unsigned char   URL[2048];
+}DOT11_BSS_SessInfo_URL;
+
+/*==========HS2_SUPPORT==========*/ 
+
+typedef struct _DOT11_HS2_GAS_RSP{
+	unsigned char   EventId;
+	unsigned char   IsMoreEvent;
+	unsigned char	Dialog_token;
+	unsigned char	Action;
+	unsigned char   MACAddr[MACADDRLEN];
+	unsigned short	StatusCode;
+	unsigned short	Comeback_delay;
+	unsigned char	Rsp_fragment_id;
+	unsigned char	Advt_proto;
+	unsigned short	Rsplen;
+	unsigned char   Rsp[MAX_GAS_CONTENTS_LEN];
+}DOT11_HS2_GAS_RSP;
+
+typedef struct _DOT11_HS2_TSM_REQ{
+	unsigned char   EventId;
+	unsigned char   IsMoreEvent;
+	unsigned char   Dialog_token;
+	unsigned char   MACAddr[MACADDRLEN];
+	unsigned char   Req_mode;
+	unsigned char	Validity_intval;
+	unsigned char   Disassoc_timer; 	/*HS2 R2 logo test*/ 
+	unsigned char	term_len;
+	unsigned char	url_len;
+	unsigned char	list_len;
+	unsigned char	terminal_dur[12];
+		unsigned char	Session_url[256];	// HS2
+	unsigned char   Candidate_list[100];
+}DOT11_HS2_TSM_REQ;
+#endif
+
+#ifdef CONFIG_IEEE80211W
+/*HS2 R2 logo test*/ 
+typedef struct _DOT11_INIT_11W_Flags {
+	unsigned char	EventId;
+	unsigned char	IsMoreEvent;
+	unsigned char   dot11IEEE80211W;
+    unsigned char   dot11EnableSHA256;
+}DOT11_INIT_11W_Flags;
+
+typedef struct _DOT11_SET_11W_Flags {
+	unsigned char	EventId;
+	unsigned char	IsMoreEvent;
+	unsigned char	macAddr[MACADDRLEN];
+	unsigned char   isPMF;
+}DOT11_SET_11W_Flags;
+
+typedef struct _DOT11_SA_QUERY_RSP{
+        unsigned char   EventId;
+        unsigned char   IsMoreEvent;
+        char            MACAddr[MACADDRLEN];
+        unsigned char   trans_id[2];
+}DOT11_SA_QUERY_RSP;
+#endif // CONFIG_IEEE80211W
 
 #if defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack()

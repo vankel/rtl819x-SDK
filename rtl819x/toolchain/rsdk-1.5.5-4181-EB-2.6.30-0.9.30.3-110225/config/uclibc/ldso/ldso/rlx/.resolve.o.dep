@@ -1,0 +1,9 @@
+ldso/ldso/rlx/resolve.o: ldso/ldso/rlx/resolve.S include/libc-symbols.h \
+ include/bits/uClibc_arch_features.h include/sgidefs.h
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+include/sgidefs.h:
+cmd_ldso_ldso_rlx_resolve.o := mips-linux-gcc -c ldso/ldso/rlx/resolve.S -o ldso/ldso/rlx/resolve.o -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -DNOT_IN_libc -DIS_IN_rtld -fno-stack-protector -fno-omit-frame-pointer -Ildso/ldso/rlx -Ildso/include -Ildso/ldso -DUCLIBC_RUNTIME_PREFIX=\"/\" -DUCLIBC_LDSO=\"ld-uClibc.so.0\" -MT ldso/ldso/rlx/resolve.o -MD -MP -MF ldso/ldso/rlx/.resolve.o.dep -D__ASSEMBLER__ -Wa,--noexecstack

@@ -140,8 +140,12 @@ hex 'ROOT image flash offset end'    CONFIG_ROOT_IMAGE_OFFSET_END    0x130000
 hex 'ROOT image check step'          CONFIG_ROOT_IMAGE_OFFSET_STEP   0x1000
 fi
 
-bool "Support Flash DualBank" CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
-if [ "$CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE" = "y" ]; then
+bool "Support Flash DualBank" CONFIG_RTL_FLASH_DUAL_IMAGE
+if [ "$CONFIG_RTL_FLASH_DUAL_IMAGE" = "y" ]; then
+choice 'Mode' "Static CONFIG_RTL_FLASH_DUAL_IMAGE_STATIC  \
+Toggle CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
+" Static
+
 hex 'Second Bank offset' CONFIG_RTL_FLASH_DUAL_IMAGE_OFFSET  0x200000
 fi
 
@@ -181,6 +185,11 @@ fi
 bool 'Support OSK'	CONFIG_OSK
 bool 'Enable NFBI'	CONFIG_NFBI
 
+bool 'SUPPORT PARAM PASSING' CONFIG_PARAM_PASSING_ENABLE
+if [ "$CONFIG_PARAM_PASSING_ENABLE" = "y" ]; then
+	bool 'SUPPORT NFJROM RUN IN RAM' CONFIG_NFJROM_RUN_IN_RAM_ENABLE
+fi
+
  if [ "$CONFIG_NFBI" = "y" ]; then
 choice 'Switch Port5 Type is'		" NFBI_SWITCH_P5_MII_PHY_MODE	CONFIG_NFBI_SWITCH_P5_MII_PHY_MODE \
 							NFBI_SWITCH_P5_GMII_MAC_MODE	CONFIG_NFBI_SWITCH_P5_GMII_MAC_MODE \
@@ -197,6 +206,8 @@ fi
 #bool 'Enable PCM/IIS Test'	CONFIG_PCM_TEST
 
 bool 'Enable JTAG Function for code debugging'	CONFIG_USING_JTAG
+
+bool 'Enable Config Upgrade Function' CONFIG_CONFIG_UPGRADE_ENABLED
 #---------------------------------------------------------------------------
 
 

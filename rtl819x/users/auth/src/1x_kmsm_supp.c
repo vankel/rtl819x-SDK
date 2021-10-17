@@ -26,7 +26,12 @@ extern struct interface_data *int_list;
 #endif
 
 #ifdef RTL_WPA2_CLIENT
-extern void CalcPMKID(char* pmkid, char *pmk, char *aa, char *spa);
+extern void CalcPMKID(char* pmkid, char* pmk, char* aa, char* spa
+#ifdef CONFIG_IEEE80211W
+, int use_sha256
+#endif
+);
+
 #endif
 
 #if defined(CONFIG_RTL865X_KLD)
@@ -120,6 +125,11 @@ Supp_Global * lib1x_init_supp(Dot1x_Authenticator * pAuth, Dot1x_Client *pClient
 
 	pGlobal->DescriptorType = pGlobal->auth->Dot11RSNConfig.Version;
 //	pGlobal->KeyDescriptorVer = key_desc_ver1;
+#ifdef CONFIG_IEEE80211W
+	if (pGlobal->auth->RSNVariable.MulticastCipher == DOT11_ENC_BIP)
+		pGlobal->KeyDescriptorVer = key_desc_ver3; 
+	else 
+#endif	
 	if (pGlobal->auth->RSNVariable.MulticastCipher == DOT11_ENC_CCMP)
 		pGlobal->KeyDescriptorVer = key_desc_ver2;
 	else
@@ -337,11 +347,29 @@ void lib1x_suppsm_capture_control( Supp_Global * pGlobal, lib1x_nal_intfdesc_tag
 		//wpa2_hexdump("pGlobal->TxRx->oursupp_addr", pGlobal->TxRx->oursupp_addr, 6);
 		//wpa2_hexdump("pAssoInd->MACAddr", pAssoInd->MACAddr, 6);
 		if ( pGlobal->auth->RSNVariable.WPA2Enabled) {
-			CalcPMKID(
-					supp_kmsm->PMKID,
-					supp_kmsm->PMK, 	 // PMK
-					pAssoInd->MACAddr,   // AA
-					pGlobal->TxRx->oursupp_addr); // SPA
+#ifdef CONFIG_IEEE80211W
+			if(pGlobal->auth->RSNVariable.ieee80211w != NO_MGMT_FRAME_PROTECTION) {
+		
+				CalcPMKID(
+						supp_kmsm->PMKID,
+						supp_kmsm->PMK, 	 // PMK
+						pAssoInd->MACAddr,	 // AA
+						pGlobal->TxRx->oursupp_addr, // SPA
+						(pGlobal->AuthKeyMethod==DOT11_AuthKeyType_802_1X_SHA256)); 
+			} else
+#endif //CONFIG_IEEE80211W
+			{
+				CalcPMKID(
+						supp_kmsm->PMKID,
+						supp_kmsm->PMK, 	 // PMK
+						pAssoInd->MACAddr,   // AA
+						pGlobal->TxRx->oursupp_addr
+#ifdef CONFIG_IEEE80211W
+						,(pGlobal->AuthKeyMethod==DOT11_AuthKeyType_802_1X_SHA256)
+#endif
+
+						); // SPA
+			}
 		}
 #endif
 
@@ -710,7 +738,11 @@ WPA2_PMKID_CHECK_OK:
 
 			CalcPTK(pGlobal->EAPOLMsgRecvd.Octet, pGlobal->EAPOLMsgRecvd.Octet + 6,
 				pGlobal->supp_kmsm->ANonce.Octet, pGlobal->supp_kmsm->SNonce.Octet,
-				pGlobal->supp_kmsm->PMK, PMK_LEN, pGlobal->supp_kmsm->PTK, PTK_LEN_TKIP);
+				pGlobal->supp_kmsm->PMK, PMK_LEN, pGlobal->supp_kmsm->PTK, (pGlobal->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)?48:PTK_LEN_TKIP
+#ifdef CONFIG_IEEE80211W
+					, (pGlobal->AuthKeyMethod == DOT11_AuthKeyType_802_1X_SHA256)
+#endif				
+				);
 
 
 			memset(ocIV.Octet, 0, ocIV.Length);

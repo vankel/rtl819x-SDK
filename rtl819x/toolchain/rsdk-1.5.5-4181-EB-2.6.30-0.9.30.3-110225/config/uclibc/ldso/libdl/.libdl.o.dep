@@ -1,0 +1,191 @@
+ldso/libdl/libdl.o: ldso/libdl/libdl.c include/libc-symbols.h \
+ include/bits/uClibc_arch_features.h ldso/include/ldso.h \
+ include/features.h include/bits/uClibc_config.h include/sys/cdefs.h \
+ include/libc-internal.h include/bits/stackinfo.h include/stdlib.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h \
+ include/bits/waitflags.h include/bits/waitstatus.h include/endian.h \
+ include/bits/endian.h include/byteswap.h include/bits/byteswap.h \
+ include/sys/types.h include/bits/types.h include/bits/wordsize.h \
+ include/bits/kernel_types.h include/bits/typesizes.h \
+ include/bits/pthreadtypes.h include/bits/sched.h include/time.h \
+ include/sys/select.h include/bits/select.h include/bits/sigset.h \
+ include/bits/time.h include/sys/sysmacros.h include/alloca.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h \
+ include/bits/uClibc_page.h ldso/include/dl-syscall.h \
+ ldso/ldso/rlx/dl-syscalls.h include/sys/syscall.h include/bits/sysnum.h \
+ include/bits/syscalls.h include/sgidefs.h include/errno.h \
+ include/bits/errno.h ../kernel/linux/errno.h ../kernel/asm/errno.h \
+ ../kernel/asm-generic/errno-base.h include/bits/uClibc_errno.h \
+ libpthread/linuxthreads/sysdeps/rlx/tls.h include/bits/mman.h \
+ include/bits/kernel_stat.h ldso/include/dl-string.h \
+ ldso/ldso/rlx/dl-sysdep.h include/elf.h include/stdint.h \
+ include/bits/wchar.h include/link.h include/dlfcn.h include/bits/dlfcn.h \
+ include/bits/elfclass.h ldso/include/dl-elf.h ldso/include/dl-defs.h \
+ ldso/include/dl-hash.h include/assert.h include/stdio.h \
+ include/bits/uClibc_stdio.h include/wchar.h include/bits/uClibc_mutex.h \
+ include/pthread.h include/sched.h include/bits/uClibc_clk_tck.h \
+ include/signal.h include/bits/initspin.h include/bits/sigthread.h \
+ include/bits/uClibc_pthread.h include/bits/stdio_lim.h include/string.h \
+ /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdbool.h \
+ ldso/libdl/../ldso/dl-array.c ldso/libdl/../ldso/dl-debug.c \
+ ldso/ldso/rlx/elfinterp.c ldso/libdl/../ldso/dl-hash.c \
+ ldso/libdl/../ldso/dl-elf.c
+
+include/libc-symbols.h:
+
+include/bits/uClibc_arch_features.h:
+
+ldso/include/ldso.h:
+
+include/features.h:
+
+include/bits/uClibc_config.h:
+
+include/sys/cdefs.h:
+
+include/libc-internal.h:
+
+include/bits/stackinfo.h:
+
+include/stdlib.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stddef.h:
+
+include/bits/waitflags.h:
+
+include/bits/waitstatus.h:
+
+include/endian.h:
+
+include/bits/endian.h:
+
+include/byteswap.h:
+
+include/bits/byteswap.h:
+
+include/sys/types.h:
+
+include/bits/types.h:
+
+include/bits/wordsize.h:
+
+include/bits/kernel_types.h:
+
+include/bits/typesizes.h:
+
+include/bits/pthreadtypes.h:
+
+include/bits/sched.h:
+
+include/time.h:
+
+include/sys/select.h:
+
+include/bits/select.h:
+
+include/bits/sigset.h:
+
+include/bits/time.h:
+
+include/sys/sysmacros.h:
+
+include/alloca.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdarg.h:
+
+include/bits/uClibc_page.h:
+
+ldso/include/dl-syscall.h:
+
+ldso/ldso/rlx/dl-syscalls.h:
+
+include/sys/syscall.h:
+
+include/bits/sysnum.h:
+
+include/bits/syscalls.h:
+
+include/sgidefs.h:
+
+include/errno.h:
+
+include/bits/errno.h:
+
+../kernel/linux/errno.h:
+
+../kernel/asm/errno.h:
+
+../kernel/asm-generic/errno-base.h:
+
+include/bits/uClibc_errno.h:
+
+libpthread/linuxthreads/sysdeps/rlx/tls.h:
+
+include/bits/mman.h:
+
+include/bits/kernel_stat.h:
+
+ldso/include/dl-string.h:
+
+ldso/ldso/rlx/dl-sysdep.h:
+
+include/elf.h:
+
+include/stdint.h:
+
+include/bits/wchar.h:
+
+include/link.h:
+
+include/dlfcn.h:
+
+include/bits/dlfcn.h:
+
+include/bits/elfclass.h:
+
+ldso/include/dl-elf.h:
+
+ldso/include/dl-defs.h:
+
+ldso/include/dl-hash.h:
+
+include/assert.h:
+
+include/stdio.h:
+
+include/bits/uClibc_stdio.h:
+
+include/wchar.h:
+
+include/bits/uClibc_mutex.h:
+
+include/pthread.h:
+
+include/sched.h:
+
+include/bits/uClibc_clk_tck.h:
+
+include/signal.h:
+
+include/bits/initspin.h:
+
+include/bits/sigthread.h:
+
+include/bits/uClibc_pthread.h:
+
+include/bits/stdio_lim.h:
+
+include/string.h:
+
+/opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/../lib/gcc/mips-linux/4.4.5-1.5.5p2/include/stdbool.h:
+
+ldso/libdl/../ldso/dl-array.c:
+
+ldso/libdl/../ldso/dl-debug.c:
+
+ldso/ldso/rlx/elfinterp.c:
+
+ldso/libdl/../ldso/dl-hash.c:
+
+ldso/libdl/../ldso/dl-elf.c:
+cmd_ldso_libdl_libdl.o := mips-linux-gcc -c ldso/libdl/libdl.c -o ldso/libdl/libdl.o -include include/libc-symbols.h -Wall -Wstrict-prototypes -fno-strict-aliasing -mabi=32 -fno-stack-protector -fno-builtin -nostdinc -Iinclude -I. -Ilibc/sysdeps/linux/rlx -fno-asm -march=4181 -EB -fuse-uls -msoft-float -msoft-float -std=gnu99 -Os -funit-at-a-time -fstrict-aliasing -fstrict-overflow -fno-tree-loop-optimize -fno-tree-dominator-opts -fno-strength-reduce -mno-split-addresses -mno-split-addresses -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux/rlx -Ilibpthread/linuxthreads/sysdeps/rlx -Ilibpthread/linuxthreads/sysdeps/unix/sysv/linux -Ilibpthread/linuxthreads/sysdeps/pthread -Ilibpthread/linuxthreads -Ilibpthread -I.kernel/ -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include-fixed -isystem /opt/cadpc4/tonywu/repo/wrapper/toolchain/rsdk-1.5.5/linux/uclibc/bin/.lib/gcc/mips-linux/4.4.5-1.5.5p2/include -DNDEBUG "-mno-split-addresses" -DNOT_IN_libc -DIS_IN_libdl -Ildso/ldso/rlx -Ildso/include -Ildso/ldso -DUCLIBC_RUNTIME_PREFIX=\"/\" -DLDSO_ELFINTERP=\"rlx/elfinterp.c\" -MT ldso/libdl/libdl.o -MD -MP -MF ldso/libdl/.libdl.o.dep

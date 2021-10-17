@@ -51,7 +51,14 @@ void print_content_type(request * req)
 
     if (mime_type != NULL) {
         req_write(req, "Content-Type: ");
+	if( strcmp(mime_type, "application/x-httpd-cgi") == 0)
+		{
+		req_write(req, "text/html");
+		}
+	else
+	{
         req_write(req, mime_type);
+	}
         if (default_charset != NULL &&
             strncasecmp( mime_type, "text", 4)==0) {
 
@@ -75,6 +82,11 @@ void print_content_type(request * req)
 		}
 	}
 #endif
+		if(strcmp(req->request_uri,"/config.dat")==0)
+		{
+			req_write(req, "Content-Disposition: attachment\r\n");
+		}
+
     }
 }
 
@@ -228,7 +240,11 @@ void send_r_request_ok(request * req)
     req_write(req, "Cache-Control: no-cache" CRLF);
 
     if (!req->cgi_type) {
-        print_content_length(req);
+		
+	if(req->pathname != NULL && !strncmp(req->pathname, "/var/tmp/usb", strlen("/var/tmp/usb")))
+		print_content_length(req);
+	else
+        	print_content_length(req);
         print_last_modified(req);
         print_content_type(req);
         req_write(req, CRLF);
@@ -238,7 +254,10 @@ void send_r_request_ok(request * req)
 		req->content_type="text/html";
 //		if(get_reboot_close==1)
 //			req->filesize = 279;
+
+		if (req->cgi_type != CGI)
  		print_content_length(req);
+		
 		print_last_modified(req);
 		print_content_type(req);
 		req_write(req, CRLF);
@@ -255,23 +274,54 @@ void send_r_request_ok2(request * req)
     req_write(req, http_ver_string(req->http_version));
     req_write(req, " 200 OK" CRLF);
     print_http_headers(req);
-    req_write(req, "Pragma: no-cache" CRLF);
-    req_write(req, "Cache-Control: no-cache" CRLF);
-
-    print_last_modified(req);
-    print_content_type(req);
-    //---------------------------------------------------------------------
-    //put Content-Length at the end of header to make parsing happy
-    req_write(req, "Content-Length: ");
+#ifdef HTTP_FILE_SERVER_SUPPORTED  
+	if(req->FileUploadAct == 1){
+		
+		if(strstr(req->UserBrowser, "MSIE")){
+			req_write(req, "Pragma: no-cache" CRLF);
+	    		req_write(req, "Cache-Control: no-cache" CRLF);
+	
+	   		print_last_modified(req);
+	    		print_content_type(req);
+			//---------------------------------------------------------------------
+			//put Content-Length at the end of header to make parsing happy
+			req_write(req, "Content-Length: ");
 #if defined(ENABLE_LFS)
 		 req_write(req, simple_off64Toa(req->filesize));
 #else
            req_write(req, simple_itoa(req->filesize));
 #endif
-    req_write(req, "                      "); //reserve 22 characters long
-    req_write(req, CRLF);
-    //---------------------------------------------------------------------
-    req_write(req, CRLF);
+			req_write(req, "                      "); //reserve 22 characters long
+			req_write(req, CRLF);
+			//---------------------------------------------------------------------
+			req_write(req, CRLF);
+		}else{
+			 req_write(req, CRLF);
+		}
+		 return;
+	}
+	else  
+#endif    	
+	{
+	    req_write(req, "Pragma: no-cache" CRLF);
+	    req_write(req, "Cache-Control: no-cache" CRLF);
+	
+	    print_last_modified(req);
+	    print_content_type(req);
+	    //---------------------------------------------------------------------
+	    //put Content-Length at the end of header to make parsing happy
+	    req_write(req, "Content-Length: ");
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->filesize));
+#else
+           req_write(req, simple_itoa(req->filesize));
+#endif
+	    req_write(req, "                      "); //reserve 22 characters long
+	    req_write(req, CRLF);
+	    //---------------------------------------------------------------------
+	     req_write(req, CRLF);
+	}
+   
 }
 
 /* R_NO_CONTENT: 204 */
@@ -417,7 +467,7 @@ void send_redirect_perm(request * req, const char *url)
 	req_write_escape_html(req, url);
         req_write(req, "\">here</A>.\n</BODY></HTML>\n");
 	req_flush(req);
-
+	
 	if (buff)
 		free(buff);
 }

@@ -364,12 +364,28 @@ void br_cmd_set_zone(struct bridge *br, char *arg0, char *arg1)
 {
 	struct port *p;
 	int val;
+	//char tmpbuf[32];
+
 	if ((p = br_find_port(br, arg0)) == NULL) {
 		fprintf(stderr, "can't find port %s in bridge %s\n", arg0, br->ifname);
 		return;
 	}
-	sscanf(arg1, "%i", &val);	
+	sscanf(arg1, "%i", &val);
 	br_set_port_zone(p, val);
+
+#if 0
+	// Don't disable bridge shortcut for performance
+	if (!memcmp("wlan", arg0, 4)) {
+		if (val == 0) {
+			sprintf(tmpbuf, "iwpriv %s set_mib disable_brsc=0", arg0);
+			system(tmpbuf);
+		}
+		else {
+			sprintf(tmpbuf, "iwpriv %s set_mib disable_brsc=1", arg0);
+			system(tmpbuf);
+		}
+	}
+#endif
 }
 
 void br_cmd_set_isolation_zone(struct bridge *br, char *arg0, char *arg1)
@@ -456,6 +472,26 @@ void br_cmd_show_guestinfo(struct bridge *br, char *arg0, char *arg1)
 {
 	br_show_guestinfo(br);
 }
+
+void br_cmd_set_gatewaymac(struct bridge *br, char *arg0, char *arg1)
+{
+	unsigned char mac[6];
+	unsigned int tmp[6];
+
+	if (sscanf(arg0, "%02x%02x%02x%02x%02x%02x", 
+			&tmp[0], &tmp[1], &tmp[2], &tmp[3], &tmp[4], &tmp[5]) != 6) {
+		fprintf(stderr, "invalid mac address format [xxxxxxxxxxxx]!\n");
+		return;
+	}
+	mac[0] = (unsigned char)tmp[0];
+	mac[1] = (unsigned char)tmp[1];
+	mac[2] = (unsigned char)tmp[2];
+	mac[3] = (unsigned char)tmp[3];
+	mac[4] = (unsigned char)tmp[4];
+	mac[5] = (unsigned char)tmp[5];
+
+	br_set_gateway_mac(br, mac);
+}
 #endif // GUEST_ZONE
 
 static struct command commands[] = {
@@ -499,6 +535,7 @@ static struct command commands[] = {
 	{1, 2, "chkguestmac", br_cmd_chk_guestmac},
 	{1, 1, "setlockclient", br_cmd_set_lockclient},	
 	{1, 0, "showguestinfo", br_cmd_show_guestinfo},	
+	{1, 1, "setgatewaymac", br_cmd_set_gatewaymac},
 #endif
 };
 

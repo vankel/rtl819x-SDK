@@ -28,6 +28,7 @@
 
 #define 	MBUFTYPE_DATA		0x01	//not in use now. Keep for backward compatablity.
 
+#define _PKTHDR_CACHEABLE		1
 /*@struct m_buf | The mbuf header associated with each cluster */
 
 struct rtl_mBuf
@@ -46,6 +47,9 @@ struct rtl_mBuf
     uint16    m_extsize;                /* sizeof the cluster */
     int8      m_reserved[2];            /* padding */
     void			*skb;
+#if defined(_PKTHDR_CACHEABLE)
+    uint32	 pending0;	// for cache line alianment
+#endif
 };
 
 /*@struct rtl_pktHdr |  pkthdr records packet specific information. Each pkthdr is exactly 32 bytes.
@@ -180,6 +184,17 @@ struct rtl_pktHdr
 	uint8	ph_ptpVer:2;		/* PTP version, 0: 1588v1; 1: 1588v2 or 802.1as; others: reserved */
 	uint8	ph_ptpPkt:1;			/* 1: PTP */
 	int8		ph_reserved[3];		/* padding */
+#endif
+
+#if defined(_PKTHDR_CACHEABLE)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	uint32 	pending0;	//for cache line alianment
+	uint32	pending1;
+#else
+	uint32 	pending0;	//for cache line alianment
+	uint32	pending1;
+	uint32	pending2;
+#endif
 #endif
 };
 

@@ -1,0 +1,1 @@
+cmd_/tmp/include/linux/spi/.install := perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/linux/spi /tmp/include/linux/spi rlx spidev.h; perl scripts/headers_install.pl /opt/cadpc4/tonywu/repo/rlxlinux-2.6.30/linux-2.6.30/include/linux/spi /tmp/include/linux/spi rlx ; touch /tmp/include/linux/spi/.install

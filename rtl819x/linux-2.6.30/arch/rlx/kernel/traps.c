@@ -39,6 +39,7 @@
 #include <asm/tlbdebug.h>
 #include <asm/traps.h>
 #include <asm/uaccess.h>
+#include <asm/watch.h>
 #include <asm/mmu_context.h>
 #include <asm/types.h>
 #include <asm/stacktrace.h>
@@ -63,6 +64,9 @@ extern asmlinkage void handle_bp(void);
 extern asmlinkage void handle_ri(void);
 extern asmlinkage void handle_cpu(void);
 extern asmlinkage void handle_ov(void);
+#if defined(CONFIG_CPU_HAS_WATCH)
+extern asmlinkage void handle_watch(void);
+#endif
 extern asmlinkage void handle_reserved(void);
 
 static void show_raw_backtrace(unsigned long reg29)
@@ -187,6 +191,16 @@ void dump_uptime(void)
 			(idle.tv_nsec / (NSEC_PER_SEC / 100)));
 }
 
+
+unsigned int get_uptime_by_sec(void)
+{
+	struct timespec uptime;
+	
+	do_posix_clock_monotonic_gettime(&uptime);
+	monotonic_to_bootbased(&uptime);
+	return ((unsigned int) uptime.tv_sec);
+}
+
 /*
  * The architecture-independent dump_stack generator
  */
@@ -296,6 +310,15 @@ void show_registers(const struct pt_regs *regs)
 	       current->comm, current->pid, current_thread_info(), current,
 	      field, current_thread_info()->tp_value);
 
+#ifdef CONFIG_CPU_HAS_TLS
+	{
+		unsigned long tls;
+
+		tls = read_lxc0_userlocal();
+		if (tls != current_thread_info()->tp_value)
+			printk("*HwTLS: %0*lx\n", field, tls);
+	}
+#endif
 	show_stacktrace(current, regs);
 	show_code((unsigned int __user *) regs->cp0_epc);
 	printk("\n");
@@ -635,6 +658,59 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 	force_sig(SIGILL, current);
 }
 
+/*
+ * Called with interrupts disabled.
+ */
+asmlinkage void do_watch(struct pt_regs *regs)
+{
+#ifdef CONFIG_CPU_HAS_WATCH
+	unsigned int addr;
+	unsigned char entry, attr;
+	unsigned int reg_num=0x1;
+	struct cpuinfo_mips *c = &current_cpu_data;
+
+	/*
+	 * if exception from wmpu part registers, disable it and print out message.
+         * Otherwise, do what ptrace procedure have to followed.
+         */
+	addr = read_lxc0_wmpvaddr();
+	entry = read_lxc0_wmpstatus() >> 16;
+	attr = read_lxc0_wmpstatus() & 0x7;
+	reg_num = reg_num << c->watch_reg_use_cnt;
+
+	if (entry >= reg_num) {
+		clear_lxc0_wmpctl(entry << 16);
+		printk("WMPU exception Addr:0x%x\n", addr);
+		switch (attr) {
+		case WMPU_DW:
+			printk("WMPU exception Access Attribute: Data Write\n");
+			break;
+		case WMPU_DR:
+			printk("WMPU exception Access Attribute: Data Read\n");
+			break;
+		case WMPU_IX:
+			printk("WMPU exception Access Attribute: Instruction Excute\n");
+                        break;
+		}
+		printk("WMPU exception EPC:0x%x\n", (unsigned int) regs->cp0_epc);
+		BUG();
+	}
+	/*
+         * If the current thread has the watch registers loaded, save
+         * their values and send SIGTRAP.  Otherwise another thread
+         * left the registers set, clear them and continue.
+         */
+	if (test_tsk_thread_flag(current, TIF_LOAD_WATCH)) {
+		rlx_read_watch_registers();
+		local_irq_enable();
+		force_sig(SIGTRAP, current);
+	} else {
+		rlx_clear_watch_registers();
+		local_irq_enable();
+	}
+#endif
+}
+
 asmlinkage void do_reserved(struct pt_regs *regs)
 {
 	/*
@@ -711,6 +787,13 @@ void __init trap_init(void)
 	for (i = 0; i <= 31; i++)
 		set_except_vector(i, handle_reserved);
 
+	/*
+	 * Only some CPUs have the watch exceptions.
+	 */
+#ifdef CONFIG_CPU_HAS_WATCH
+	if (cpu_has_watch)
+		set_except_vector(23, handle_watch);
+#endif
 	/*
 	 * Initialise interrupt handlers
 	 */

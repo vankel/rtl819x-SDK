@@ -382,8 +382,7 @@ BOOL register_name(char *inbuf,char *outbuf,char *name,struct in_addr *ip)
   int count;
   static uint16 name_trn_id = 0x4242;
   char *p;
-  int ret;
-	
+
   Debug(1,"Registering name %s (%s) nb_flags=0x%x\n",
 	name, inet_ntoa(*ip) ,nb_flags);
 
@@ -421,9 +420,7 @@ BOOL register_name(char *inbuf,char *outbuf,char *name,struct in_addr *ip)
 
       show_nmb(outbuf);
       if (!send_packet(outbuf,nmb_len(outbuf),&bcast_ip,137,SOCK_DGRAM))
-      {
-			return False;
-      }
+	return False;
       if (receive_nmb(inbuf,3))
 	{
           int rec_name_trn_id = SVAL(inbuf,0);
@@ -487,12 +484,7 @@ BOOL register_name(char *inbuf,char *outbuf,char *name,struct in_addr *ip)
   Debug(2,"Sending reg demand for %s at (%s)\n",name,inet_ntoa(*ip));
 
   show_nmb(outbuf);
-  ret = (send_packet(outbuf,nmb_len(outbuf),&bcast_ip,137,SOCK_DGRAM));
-  if(!ret)
-  {
-	  //printf("%s:111 send_packet error!!\n", __FUNCTION__);
-  }
-  return ret;
+  return(send_packet(outbuf,nmb_len(outbuf),&bcast_ip,137,SOCK_DGRAM));
 }
 
 
@@ -508,7 +500,6 @@ void reply_reg_request(char *inbuf,char *outbuf)
   struct in_addr ip;
   int n=0;
   unsigned char nb_flags;
-  int ret;
   
   name_extract(inbuf,12,qname);
 
@@ -568,11 +559,8 @@ void reply_reg_request(char *inbuf,char *outbuf)
     }
 
   show_nmb(outbuf);
-  ret = send_packet(outbuf,nmb_len(outbuf),&ip,137,SOCK_DGRAM);
-  if(!ret)
-  {
-	  //printf("%s:send_packet error!!\n", __FUNCTION__);
-  }
+  send_packet(outbuf,nmb_len(outbuf),&ip,137,SOCK_DGRAM);
+
   return;
 }
 
@@ -587,8 +575,7 @@ void reply_name_query(char *inbuf,char *outbuf)
   unsigned char nb_flags = 0;
   struct in_addr tmpip;
   int tmpport;
-  int ret;
-  
+
   name_extract(inbuf,12,qname);
 
   /* if it's not my name then return */
@@ -624,11 +611,8 @@ void reply_name_query(char *inbuf,char *outbuf)
 
   tmpip = lastip;
   tmpport = lastport;
-  ret = send_packet(outbuf,nmb_len(outbuf),&tmpip,tmpport,SOCK_DGRAM);
-  if(!ret)
-  {
-	  //printf("%s:send_packet error!!\n", __FUNCTION__);
-  }
+  send_packet(outbuf,nmb_len(outbuf),&tmpip,tmpport,SOCK_DGRAM);
+
   return;
 }
 
@@ -642,7 +626,7 @@ void reply_name_query_status(char *inbuf,char *outbuf)
 	unsigned char mac[6];
 	size_t len;
 	int i;
-	int ret;
+	
 	int tmpport;	
 	char *p;
 	char *pTemp;
@@ -717,12 +701,7 @@ void reply_name_query_status(char *inbuf,char *outbuf)
 	tmpip = lastip;
 	tmpport = lastport;
 	len = 247;
-	ret = send_packet(outbuf,len,&tmpip,tmpport,SOCK_DGRAM);
-	if(!ret)
-	{
-		//printf("%s:send_packet error!!\n", __FUNCTION__);
-	}
-	return;
+	send_packet(outbuf,len,&tmpip,tmpport,SOCK_DGRAM);
 }
 /****************************************************************************
   construct a reply to the incoming packet

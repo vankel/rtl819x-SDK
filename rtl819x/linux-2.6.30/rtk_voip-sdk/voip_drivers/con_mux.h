@@ -29,6 +29,16 @@ extern snd_type_t get_snd_type_con( voip_con_t *p_con );
 extern void DAA_PulseGenProcess_msec(void);
 extern void DAA_PulseGenKill_cch(unsigned int cch);
 
+// Multi-Ring Cadence
+void MultiRingCadenceEnable(unsigned int cch, unsigned int enable, unsigned int on1, unsigned int off1, unsigned int on2, unsigned int off2,
+				unsigned int on3, unsigned int off3, unsigned int on4, unsigned int off4);
+uint32 MultiRingCadenceEnableCheck(unsigned int cch);
+void MultiRingStart(unsigned int cch);
+void MultiRingStop(unsigned int cch);
+uint32 MultiRingStatusCheck(unsigned int cch);
+uint32 MultiRingOffCheck(unsigned int cch);
+void MultiRingCadenceProcess(unsigned int cch);
+
 // IPC arch is host 
 extern int snd_locate_host_cch( uint32 cch );
 extern int API_get_DSP_info( int cmd, int host_cch, uint32 *dsp_cpuid, uint32 *dsp_cch );

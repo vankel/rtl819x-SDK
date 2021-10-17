@@ -26,6 +26,7 @@ static int __init voip_snd_init_shadow_slic( void )
 		snd_shadow_slic[ i ].TS1 = 0;
 		snd_shadow_slic[ i ].TS2 = 0;
 		snd_shadow_slic[ i ].band_mode_sup = BAND_MODE_8K;
+		snd_shadow_slic[ i ].snd_flags.b.shadow = 1;
 		snd_shadow_slic[ i ].fxs_ops = NULL;
 		snd_shadow_slic[ i ].priv = NULL;
 	}

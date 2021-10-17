@@ -84,13 +84,10 @@ asp_name_t root_asp[] = {
 #if defined(POWER_CONSUMPTION_SUPPORT)
 	{"getPowerConsumption", getPowerConsumption},
 #endif
-#if defined(CONFIG_RTL_8198_AP_ROOT) && defined(VLAN_CONFIG_SUPPORTED)
-	{"getVlanList", getVlanList},
-#endif
-#ifdef HOME_GATEWAY
 #if defined(VLAN_CONFIG_SUPPORTED)
 	{"getVlanList", getVlanList},
 #endif
+#ifdef HOME_GATEWAY
 #if 0  //sc_yang
 	{"showWanPage", showWanPage},
 #endif
@@ -112,9 +109,13 @@ asp_name_t root_asp[] = {
 #endif
 #ifdef CONFIG_IPV6
 	{"getIPv6Info", getIPv6Info},
+	{"getIPv6WanInfo", getIPv6WanInfo},
+	{"getIPv6Status", getIPv6Status},
 	{"getIPv6BasicInfo", getIPv6BasicInfo},	
 #endif
+#if defined(WLAN_PROFILE)
 	{"getWlProfileInfo", getWlProfileInfo},
+#endif
 #endif //HOME_GATEWAY
 	{"sysLogList", sysLogList},
 	{"sysCmdLog", sysCmdLog},
@@ -124,6 +125,13 @@ asp_name_t root_asp[] = {
 #ifdef HTTP_FILE_SERVER_SUPPORTED
 	{"dump_directory_index", dump_directory_index},
 	{"Check_directory_status", Check_directory_status},
+	{"Upload_st", Upload_st},
+#ifdef HTTP_FILE_SERVER_HTM_UI
+	{"dump_httpFileDir_init",dump_httpFileDir_init},
+	{"dump_ListHead",dump_ListHead},
+	{"dumpDirectList",dumpDirectList},
+	{"dump_uploadDiv",dump_uploadDiv},
+#endif
 #endif
 #ifdef VOIP_SUPPORT
 	{"voip_general_get", asp_voip_GeneralGet},
@@ -174,6 +182,9 @@ form_name_t root_form[] = {
 #if defined(CONFIG_USBDISK_UPDATE_IMAGE)
 	{"formUploadFromUsb", formUploadFromUsb},
 #endif
+#if defined(CONFIG_RTL_HTTP_REDIRECT)
+	{"formWelcomePage", formWelcomePage},
+#endif
 #ifdef CONFIG_RTL_WAPI_SUPPORT
 	{"formWapiReKey", formWapiReKey},
 	{"formUploadWapiCert", formUploadWapiCert},
@@ -193,17 +204,14 @@ form_name_t root_form[] = {
 	{"formReflashClientTbl", formReflashClientTbl},
 	{"formWlEncrypt", formWlEncrypt},
 	{"formStaticDHCP", formStaticDHCP},
-#if defined(CONFIG_RTL_92D_SUPPORT)
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8881A_SELECTIVE)
         {"formWlanBand2G5G", formWlanBand2G5G},
 #endif
 
-#if defined(CONFIG_RTL_8198_AP_ROOT) && defined(VLAN_CONFIG_SUPPORTED)
-	{"formVlan", formVlan},
-#endif
-#ifdef HOME_GATEWAY
 #if defined(VLAN_CONFIG_SUPPORTED)
 	{"formVlan", formVlan},
 #endif
+#ifdef HOME_GATEWAY
 #if defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
 	{"formVlanWAN", formVlanWAN},
 #endif
@@ -242,6 +250,7 @@ form_name_t root_form[] = {
 	{"formDnsv6", formDnsv6},
 	{"formDhcpv6s", formDhcpv6s},
 	{"formIPv6Addr", formIPv6Addr},
+	{"formIpv6Setup", formIpv6Setup},
 	{"formTunnel6", formTunnel6},	
 #endif
 #else
@@ -288,8 +297,10 @@ form_name_t root_form[] = {
 #endif
 #ifdef CONFIG_APP_TR069
 	{"formTR069Config", formTR069Config},
-#ifdef CONFIG_USER_CWMP_WITH_MATRIXSSL
-	{"formTR069CertUpload", formTR069CertUpload},
+#ifdef _CWMP_WITH_SSL_
+
+	{"formTR069CPECert", formTR069CPECert},
+	{"formTR069CACert", formTR069CACert},
 #endif
 #endif
 #ifdef HTTP_FILE_SERVER_SUPPORTED
@@ -311,8 +322,105 @@ form_name_t root_form[] = {
 	{voip_TLSCertUpload, asp_voip_TLSCertUpload},
 #endif
 #endif
+#ifdef CONFIG_CPU_UTILIZATION
+	{"formCpuUtilization",formCpuUtilization},
+#endif
 	{NULL, NULL}
 };
+
+
+#ifdef CSRF_SECURITY_PATCH
+#include <time.h>
+
+#define EXPIRE_TIME					300	// in sec
+#define MAX_TBL_SIZE				4
+
+struct goform_entry {
+	int	valid;		
+	char name[80];
+	time_t time;
+};
+
+struct goform_entry  security_tbl[MAX_TBL_SIZE] = {\
+		{0}, {0}, {0}, {0}};
+
+void log_boaform(char *form)
+{
+	int i, oldest_entry=-1;
+	time_t t, oldest_time=	-1;
+
+	for (i=0; i<MAX_TBL_SIZE; i++) {
+		if (!security_tbl[i].valid ||
+				(security_tbl[i].valid && 
+					(time(&t) - security_tbl[i].time) > EXPIRE_TIME) ||
+					(security_tbl[i].valid && !strcmp(form, security_tbl[i].name))) {	
+			break;					
+		}	
+		else {
+			if (security_tbl[i].valid) {
+				if (oldest_entry == -1 || security_tbl[i].time < oldest_time) {
+					oldest_entry = i;
+					oldest_time = security_tbl[i].time;
+				}				
+			}			
+		}		
+	}
+
+	if ((i < MAX_TBL_SIZE) || (i == MAX_TBL_SIZE && oldest_entry != -1)) {		
+		if (i == MAX_TBL_SIZE)
+			i = oldest_entry;
+		
+		strcpy(security_tbl[i].name, form);
+
+		security_tbl[i].time = time(&t);
+		security_tbl[i].valid = 1;		
+	}
+}
+
+static void delete_boaform(char *form)
+{
+	int i;
+//for allow save config multi-times 
+	if(strcmp(form,"formSaveConfig")==0)
+		return;
+	
+	for (i=0; i<MAX_TBL_SIZE; i++) {
+		if (security_tbl[i].valid && !strcmp(form, security_tbl[i].name)) {
+			security_tbl[i].valid = 0;
+			break;
+		}		
+	}
+}
+
+static int is_valid_boaform(char *form) 
+{
+	int i, valid=0;
+	time_t t;
+	
+	for (i=0; i<MAX_TBL_SIZE; i++) {
+		if (security_tbl[i].valid && !strcmp(form, security_tbl[i].name)) {
+			if	((time(&t) - security_tbl[i].time) > EXPIRE_TIME) {					
+				security_tbl[i].valid = 0;
+				break;
+			}				
+			valid = 1;
+			break;
+		}
+	}	
+	return valid;
+}
+
+static int is_any_log()
+{
+	int i;
+	for (i=0; i<MAX_TBL_SIZE; i++) {
+		if (security_tbl[i].valid)
+			return 1;
+	}
+	return 0;
+}
+#endif // CSRF_SECURITY_PATCH
+
 
 /******************************************************************************/
 int addTempStr(char *str)
@@ -352,9 +460,11 @@ int getcgiparam(char *dst,char *query_string,char *param,int maxlen)
 {
 	int len,plen;
 	int y;
-
+	char *end_str;
+	
+	end_str = query_string + strlen(query_string);
 	plen = strlen(param);
-	while (*query_string) {
+	while (*query_string && query_string <= end_str) {
 		len = strlen(query_string);
 		if ((len=strlen(query_string)) > plen) {
 			if (!strncmp(query_string,param,plen)) {
@@ -390,6 +500,8 @@ int getcgiparam(char *dst,char *query_string,char *param,int maxlen)
 		}
 		while ((*query_string)&&(*query_string!='&'))
 			query_string++;
+		if(!(*query_string))
+			break;
 		query_string++;
 	}
 	if (maxlen)
@@ -439,7 +551,9 @@ char *memstr(char *membuf, char *param, int memsize)
 int rtl_mime_get_boundry(char *query_string, int query_string_len)
 {
 	char *substr_start,*ptr;
-	char *substr="----------------------------";
+	//char *substr="----------------------------";
+	//for chrome to install wapi cert
+	char *substr="------";
 	substr_start=memstr(query_string,substr,query_string_len);
 	if(substr_start==NULL)
 	{
@@ -675,7 +789,7 @@ void asp_init(int argc,char **argv)
 	root_temp.str = NULL;	
 
 	if (apmib_init() == 0) {
-		printf("Initialize AP MIB failed!\n");
+		printf("Initialize AP MIB failed!%s:%d\n",__FUNCTION__,__LINE__);
 		return;
 	}
 
@@ -792,6 +906,31 @@ void handleForm(request *req)
 			now_form = &root_form[i];
 			if ((strlen(ptr) == strlen(now_form->name)) &&
 			    (memcmp(ptr,now_form->name,strlen(now_form->name))==0)) {
+					
+#ifdef CSRF_SECURITY_PATCH
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+				if(strcmp(now_form->name,"formusbdisk_uploadfile")==0)
+				{
+					log_boaform(now_form->name);	
+				}
+#endif
+				if ( !is_any_log() || !is_valid_boaform(now_form->name)) {
+				#if defined(CONFIG_APP_FWD)
+					{
+						if (!strcmp(now_form->name, "formUpload"))
+						{
+							extern int get_shm_id();
+							extern int clear_fwupload_shm();
+							int shm_id = get_shm_id();	
+							clear_fwupload_shm(shm_id);
+						}
+					}
+				#endif					
+					send_r_forbidden(req);
+					return;					
+				}
+				delete_boaform(now_form->name);				
+#endif			
 				send_r_request_ok2(req);		/* All's well */	
 /*#ifdef USE_AUTH
 				if (req->auth_flag == 1) { // user
@@ -834,6 +973,15 @@ void handleForm(request *req)
 				else
 #endif*/
 				now_form->function(req,NULL,NULL);
+
+#ifdef HTTP_FILE_SERVER_SUPPORTED  
+			if(req->FileUploadAct == 1){
+				if(strstr(req->UserBrowser, "MSIE")){
+					update_content_length(req);
+				}
+			}
+			else  
+#endif    	
 				update_content_length(req);
 				freeAllTempStr();
 				return;
@@ -929,13 +1077,13 @@ void handleScript(request *req,char *left1,char *right1)
 #endif
 
 extern request inner_req;
-extern char inner_req_buff[1024];
+extern char inner_req_buff[8*1064];
 extern int middle_segment; //Brad add for update content length
 int req_format_write(request *req, char *format, ...)
 {
 	int bob;
 	va_list args;
-	char temp[1024];
+	char temp[8*1064];
 
 	if (!req || !format)
 		return 0;

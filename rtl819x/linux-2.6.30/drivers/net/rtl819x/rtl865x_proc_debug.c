@@ -35,7 +35,7 @@
 #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER_L3
 #include "AsicDriver/rtl865x_asicL3.h"
 #endif
-#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
+#if defined(CONFIG_RTL_LAYERED_ASIC_DRIVER_L4)
 #include "AsicDriver/rtl865x_asicL4.h"
 #endif
 
@@ -57,13 +57,20 @@
 #include <net/rtl/rtl_nic.h>
 #endif
 
-#if defined(CONFIG_RTL_PROC_DEBUG)
+#if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
 extern unsigned int rx_noBuffer_cnt;
 extern unsigned int tx_ringFull_cnt;
+extern unsigned int tx_drop_cnt;
 #endif
 
+#define CONFIG_TR181_ETH  1
 
+#ifdef CONFIG_TR181_ETH
+struct proc_dir_entry *rtl865x_proc_dir;
+#else
 static struct proc_dir_entry *rtl865x_proc_dir;
+#endif
+
 #ifdef CONFIG_RTL_PROC_DEBUG	//proc debug flag
 static struct proc_dir_entry *vlan_entry,*netif_entry,*l2_entry, *arp_entry,
 		*nexthop_entry,*l3_entry,*ip_entry,*pppoe_entry,*napt_entry,
@@ -83,24 +90,35 @@ static struct proc_dir_entry *vlan_entry,*netif_entry,*l2_entry, *arp_entry,
 		*rxRing_entry, *txRing_entry, *mbuf_entry,
 		*hs_entry, *pvid_entry, *mirrorPort_entry,
 		
-#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
+#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 		*sw_napt_entry,
 #endif
 		*port_bandwidth_entry, *queue_bandwidth_entry,
 		*priority_decision_entry,
+#ifdef CONFIG_RTK_VOIP_QOS
+		*port_priority_entry, *dscp_priority_entry,
+#endif
+
 #if defined (CONFIG_RTL_HARDWARE_MULTICAST)
 		*swMCast_entry,
 #endif
 #if defined (CONFIG_RTL_ENABLE_RATELIMIT_TABLE)
 		*rateLimit_entry,
 #endif
-*hwMCast_entry,*stats_debug_entry;
+*hwMCast_entry;
 #endif
 
 #if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
+/*#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)*/
+static struct proc_dir_entry *prive_skb_debug_entry;
+/*#endif*/
 
 static struct proc_dir_entry *mmd_entry,	*mem_entry, *diagnostic_entry,	
-		*asicCnt_entry,*phyReg_entry,*port_status_entry,*mac_entry,*fc_threshold_entry;
+		*asicCnt_entry,*phyReg_entry,*port_status_entry,*mac_entry,*fc_threshold_entry,*stats_debug_entry
+#if defined (CONFIG_RTL_INBAND_CTL_API)
+		,*portRate_entry
+#endif
+;
 #define	PROC_READ_RETURN_VALUE		0
 extern int32 mmd_read(uint32 phyId, uint32 devId, uint32 regId, uint32 *rData);
 extern int32 mmd_write(uint32 phyId, uint32 devId, uint32 regId, uint32 wData);
@@ -194,9 +212,6 @@ static struct proc_dir_entry *eventMgr_entry;
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
 static struct proc_dir_entry *igmp_entry;
 #endif
-/*#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)*/
-static struct proc_dir_entry *prive_skb_debug_entry;
-/*#endif*/
 
 extern int32 rtl865x_sw_napt_proc_read( char *page, char **start, off_t off, int count, int *eof, void *data );
 extern int32  rtl865x_sw_napt_proc_write( struct file *filp, const char *buff,unsigned long len, void *data );
@@ -490,7 +505,8 @@ static int32 netif_read( char *page, char **start, off_t off, int count, int *eo
 	for ( i = 0; i < RTL865XC_NETIFTBL_SIZE; i++ )
 	{
 		rtl865x_tblAsicDrv_intfParam_t intf;
-		rtl865x_tblAsicDrv_vlanParam_t vlan;
+	  	rtl865x_tblAsicDrv_vlanParam_t vlan;
+		memset(&vlan, 0x00, sizeof(rtl865x_tblAsicDrv_vlanParam_t));
 
 		if ( rtl8651_getAsicNetInterface( i, &intf ) == FAILED )
 			continue;
@@ -3068,12 +3084,14 @@ static int32 rtl865x_proc_hw_mcast_read( char *page, char **start, off_t off, in
 	for(entry=0; entry<RTL8651_MULTICASTTBL_SIZE; entry++)
 	{
 			if (rtl8651_getAsicIpMulticastTable(entry, &asic) != SUCCESS) {
+				#if 0 
 				rtlglue_printf("\t[%d]  (INVALID)dip(%d.%d.%d.%d) sip(%d.%d.%d.%d) mbr(0x%x)\n", entry,
 					asic.dip>>24, (asic.dip&0x00ff0000)>>16, (asic.dip&0x0000ff00)>>8, (asic.dip&0xff),
 					asic.sip>>24, (asic.sip&0x00ff0000)>>16, (asic.sip&0x0000ff00)>>8, (asic.sip&0xff),
 					asic.mbr);
 				rtlglue_printf("\t       svid:%d, spa:%d, extIP:%d, age:%d, cpu:%d\n", asic.svid, asic.port, asic.extIdx,
 					asic.age, asic.cpu);
+				#endif
 				continue;
 			}
 			else
@@ -3235,6 +3253,7 @@ static int32 rtl865x_proc_hw_mcast_write( struct file *filp, const char *buff,un
 		}
 		srcPort= simple_strtol(tokptr, NULL, 0);
 #if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+		entry.srcPort 			= srcPort;
 #else
 
 		if (srcPort>= RTL8651_PORT_NUMBER)
@@ -3523,7 +3542,7 @@ static int32 pppoe_write( struct file *filp, const char *buff,unsigned long len,
 
 #endif
 
-#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
+#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 int32 napt_show(struct seq_file *s, void *v)
 {
 	int len;
@@ -3569,7 +3588,7 @@ struct file_operations napt_single_seq_file_operations = {
 };
 #endif
 
-#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
+#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 extern int32 rtl865x_sw_napt_seq_read(struct seq_file *s, void *v);
 extern int32 rtl865x_sw_napt_seq_write( struct file *filp, const char *buff,unsigned long len, loff_t *off );
 
@@ -3653,6 +3672,136 @@ static int32 port_bandwidth_write( struct file *filp, const char *buff,unsigned 
 	return len;
 }
 
+#ifdef CONFIG_RTK_VOIP_QOS
+static int32 port_priority_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+
+	extern int32 rtl8651_getAsicPortPriority( enum PORTID , enum PRIORITYVALUE*);
+
+
+	int		len;
+	int 		port;
+	int		priority;
+	len = sprintf(page, "Dump Port Priority Info:\n");
+        for(port=0;port<=CPU;port++)
+        {
+		rtl8651_getAsicPortPriority(port,(enum PRIORITYVALUE*)&priority);
+		len += sprintf(page+len, "Port %d Priority %d\n",port,priority);
+	}
+	return len;
+}
+static int32 port_priority_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	extern int32 rtl8651_setAsicPortPriority(enum PORTID, enum PRIORITYVALUE);
+        char tmpbuf[16], *tokptr, *strptr;
+        int     port;
+        int     priority;
+	int 	i;
+        memset(tmpbuf, 0, 16);
+	
+	if (buff && !copy_from_user(tmpbuf, buff, len)) {
+
+		tmpbuf[len] = '\0';
+		strptr = tmpbuf;
+		tokptr = strsep(&strptr," ");
+		if (tokptr==NULL || *tokptr=='\0')
+		{
+                        goto errout;
+		}
+		
+		port  = (uint32)simple_strtol(tokptr, NULL, 0);
+	
+		if(port == -1)
+		{
+			printk("Reset all port priority ro 0 \n");
+			for(i=0; i<= CPU; i++)
+				rtl8651_setAsicPortPriority( i,0);
+			return len;
+		}			
+	 
+		tokptr = strsep(&strptr," ");
+		if (tokptr==NULL || *tokptr=='\0')
+                {
+                        goto errout;
+                }
+		priority = (uint32)simple_strtol(tokptr, NULL, 0);
+		priority &=0x7;
+		
+		rtl8651_setAsicPortPriority( port,(enum PRIORITYVALUE)priority);
+		printk("set port %d priority %d\n",port,priority);
+		return len;
+
+	}
+
+errout:
+	printk("Input error: port(0-5) priority (0-7)\n");
+	printk("-1 to reset all port priority to 0\n");
+	return len;
+}
+
+static int32 dscp_priority_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int		len;
+	int 		dscp;
+	int 		priority;	
+	extern int32 rtl8651_getAsicDscpPriority( uint32 ,  enum PRIORITYVALUE*);
+	len = sprintf(page, "Dump DSCP Priority Info:\n");
+        for(dscp = 0;dscp < 64;dscp ++)
+        {
+		rtl8651_getAsicDscpPriority(dscp,(enum PRIORITYVALUE*)&priority);
+		if (priority)
+			len += sprintf(page+len, "DSCP %d Priority %d\n",dscp,priority);
+	}
+	return len;
+}
+static int32 dscp_priority_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+
+	extern int32 rtl8651_setAsicDscpPriority( uint32 , enum PRIORITYVALUE);
+	extern int32 rtl8651_reset_dscp_priority(void);
+        char tmpbuf[16], *tokptr, *strptr;
+        int     dscp;
+        int     priority;
+        memset(tmpbuf, 0, 16);
+	
+	if (buff && !copy_from_user(tmpbuf, buff, len)) {
+
+		tmpbuf[len] = '\0';
+		strptr = tmpbuf;
+		tokptr = strsep(&strptr," ");
+		if (tokptr==NULL || *tokptr=='\0')
+		{
+                        goto errout;
+		}
+		dscp  = (uint32)simple_strtol(tokptr, NULL, 0);
+		if(dscp == -1)
+		{
+			rtl8651_reset_dscp_priority();
+			printk("Reset all dscp priority ro 0 \n");
+			return len;
+		}			
+	 
+		dscp &= 0x3f;
+		tokptr = strsep(&strptr," ");
+		if (tokptr==NULL || *tokptr=='\0')
+                {
+                        goto errout;
+                }
+		priority = (uint32)simple_strtol(tokptr, NULL, 0);
+		priority &=0x7;
+		
+		rtl8651_setAsicDscpPriority( dscp,(enum PRIORITYVALUE)priority);
+		printk("set dscp %d priority %d\n", dscp, priority);
+		return len;
+
+	}
+
+errout:
+	printk("Input error: dscp(0-63) priority (0-7)\n");	
+	printk("-1 to reset all dscp priority to 0\n");
+	return len;
+}
+#endif
 static int32 queue_bandwidth_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -3822,91 +3971,6 @@ static int32 rate_limit_write( struct file *filp, const char *buff,unsigned long
 }
 #endif
 
-#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
-static int32 rtl819x_proc_priveSkbDebug_read( char *page, char **start, off_t off, int count, int *eof, void *data )
-{
-	return PROC_READ_RETURN_VALUE;
-}
-
-static int32 rtl819x_proc_priveSkbDebug_write( struct file *filp, const char *buff,unsigned long len, void *data )
-{
-	char  tmpbuf[32];
-	
-	if(len>32)
-	{
-		goto errout;
-	}
-	if (buff && !copy_from_user(tmpbuf, buff, len))
-	{
-		tmpbuf[len -1] = '\0';
-		if(tmpbuf[0] == '1')
-		{
-			unsigned long flags;
-			int cpu_queue_cnt,rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, mbuf_pending_cnt;
-			int rx_queue_cnt,poll_cnt;
-
-			rtlglue_printf("nic buf cnt(%d)\n",MAX_ETH_SKB_NUM);
-
-			local_irq_save(flags);
-			mbuf_pending_cnt = get_mbuf_pending_times();
-			cpu_queue_cnt = get_cpu_completion_queue_num();
-			rxRing_cnt = get_nic_rxRing_buf();
-			txRing_cnt = get_nic_txRing_buf();
-			wlan_txRing_cnt = get_nic_buf_in_wireless_tx("wlan0");
-			wlan_txRing_cnt1 = get_nic_buf_in_wireless_tx("wlan1");
-			rx_queue_cnt = get_buf_in_rx_skb_queue();
-			poll_cnt = get_buf_in_poll();
-			local_irq_restore(flags);
-
-			rtlglue_printf("cpu completion cnt(%d)\nnic rxring cnt(%d)\nnic txring cnt(%d)\nwlan0 txring(%d)\nwlan1 txring(%d)\nrx_queue_cnt(%d)\npoll_cnt(%d)\ntotal(%d)\nmbuf_pending_cnt(%d)\n",cpu_queue_cnt,
-			rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, rx_queue_cnt,poll_cnt,
-			cpu_queue_cnt+rxRing_cnt+txRing_cnt+wlan_txRing_cnt+wlan_txRing_cnt1+rx_queue_cnt+poll_cnt, mbuf_pending_cnt);
-		}
-		else if (tmpbuf[0] == '2')
-		{
-			dump_wlan_dz_queue_num("wlan0");
-			dump_wlan_dz_queue_num("wlan1");
-		}
-		else
-		{
-
-		}
-	}
-	else
-	{
-errout:
-		rtlglue_printf("error input\n");
-	}
-	return len;
-}
-#else
-static int32 rtl819x_proc_priveSkbDebug_read( char *page, char **start, off_t off, int count, int *eof, void *data )
-{
-	return PROC_READ_RETURN_VALUE;
-}
-
-static int32 rtl819x_proc_priveSkbDebug_write( struct file *filp, const char *buff,unsigned long len, void *data )
-{
-	char  tmpbuf[32];
-	if(len>32)
-	{
-		goto errout;
-	}
-	if (buff && !copy_from_user(tmpbuf, buff, len)) {
-		tmpbuf[len -1] = '\0';
-		if(tmpbuf[0] == '1') {
-			rtl_dumpIndexs();
-		}
-	}
-	else
-	{
-errout:
-		rtlglue_printf("error input\n");
-	}
-
-	return len;
-}
-#endif
 
 static int32 storm_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
@@ -3981,16 +4045,28 @@ errout:
 	return -EFAULT;
 }
 
+
+#endif
+
+#if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
+//the following proc default established
 static int32 stats_debug_entry_read( char *page, char **start, off_t off, int count, int *eof, void *data )
-	{
-		int 	len;
+{
+	int 	len;
+	
+	len = sprintf(page, "  Debug Statistics Info:\n");
+#if defined(CONFIG_RTL_ETH_PRIV_SKB)
+	len += sprintf(page+len,"    eth_skb_free_num:	%d (pool %d, rtk_que %d)\n",
+		get_buf_in_poll() + get_buf_in_rx_skb_queue(),
+		get_buf_in_poll() , get_buf_in_rx_skb_queue());
+#endif
+	len += sprintf(page+len,"    rx_noBuffer_cnt:	%d\n",rx_noBuffer_cnt);
+	len += sprintf(page+len,"    tx_ringFull_cnt:	%d\n",tx_ringFull_cnt);
+	len += sprintf(page+len,"    tx_drop_cnt:	%d\n",tx_drop_cnt);
+	return len;
 		
-		len = sprintf(page, "  Debug Statistics Info:\n");
-		len += sprintf(page+len,"    rx_noBuffer_cnt:	%d\n",rx_noBuffer_cnt);
-		len += sprintf(page+len,"    tx_ringFull_cnt:	%d\n",tx_ringFull_cnt);
-		return len;
-			
-	}
+}
+#endif
 /*echo clear > /proc/rtl865x/stats to clear the count of tx&rx no buffer count*/
 static int32 stats_debug_entry_write(struct file *file, const char *buffer,
 		      unsigned long len, void *data)
@@ -4016,6 +4092,7 @@ static int32 stats_debug_entry_write(struct file *file, const char *buffer,
 		{
 			rx_noBuffer_cnt=0;
 			tx_ringFull_cnt=0;
+			tx_drop_cnt=0;
 		}
 
 	}
@@ -4027,10 +4104,75 @@ errout:
 	return len;
 }
 
+
+#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
+static int32 rtl819x_proc_privSkbInfo_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	int cpu_queue_cnt,rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, mbuf_pending_cnt;
+	int rx_skb_queue_cnt,poll_buf_cnt;
+	unsigned long flags;
+
+	len = sprintf(page, "original eth private buf total(%d)\n",MAX_ETH_SKB_NUM);
+
+	local_irq_save(flags);
+	mbuf_pending_cnt = get_mbuf_pending_times();
+	cpu_queue_cnt = get_cpu_completion_queue_num();
+	rxRing_cnt = get_nic_rxRing_buf();
+	txRing_cnt = get_nic_txRing_buf();
+#if defined(CONFIG_RTL8192CD)
+	wlan_txRing_cnt = get_nic_buf_in_wireless_tx("wlan0");
+	wlan_txRing_cnt1 = get_nic_buf_in_wireless_tx("wlan1");
+#else
+	wlan_txRing_cnt = 0;
+	wlan_txRing_cnt1 = 0;
+#endif
+	rx_skb_queue_cnt = get_buf_in_rx_skb_queue();
+	poll_buf_cnt = get_buf_in_poll();
+	local_irq_restore(flags);
+
+	len+=sprintf(page + len,"cpu completion cnt(%d)\nnic rxring cnt(%d)\nnic txring cnt(%d)\nwlan0 txring cnt(%d)\nwlan1 txring cnt(%d)\nrx skb queue cnt(%d)\npool buf cnt(%d)\nmbuf pending times(%d)\nsum(%d)\n",
+	cpu_queue_cnt,rxRing_cnt,txRing_cnt,wlan_txRing_cnt,wlan_txRing_cnt1, rx_skb_queue_cnt,poll_buf_cnt,mbuf_pending_cnt,
+	cpu_queue_cnt+rxRing_cnt+txRing_cnt+wlan_txRing_cnt+wlan_txRing_cnt1+rx_skb_queue_cnt+poll_buf_cnt);
+
+	return len;
+}
+
+
+static int32 rtl819x_proc_privSkbInfo_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	return len;
+}
+#else
+static int32 rtl819x_proc_privSkbInfo_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	return PROC_READ_RETURN_VALUE;
+}
+
+static int32 rtl819x_proc_privSkbInfo_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	#if 0
+	char  tmpbuf[32];
+	if(len>32)
+	{
+		goto errout;
+	}
+	if (buff && !copy_from_user(tmpbuf, buff, len)) {
+		tmpbuf[len -1] = '\0';
+		if(tmpbuf[0] == '1') {
+			rtl_dumpIndexs();
+		}
+	}
+	else
+	{
+errout:
+		rtlglue_printf("error input\n");
+	}
+	#endif
+	return len;
+}
 #endif
 
-#if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
-//the following proc default established
 static int32 diagnostic_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int		len;
@@ -4181,14 +4323,39 @@ errout:
 
 static int32 port_status_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
-	int		len;
-	uint32	regData;
-	uint32	data0;
-	int		port;
-	uint32  regData_PCR;
+	int		len, port;
 	
+#if defined(CONFIG_RTL_8367R_SUPPORT)
 	len = sprintf(page, "Dump Port Status:\n");
 
+	for(port=PHY0;port<=PHY4;port++)
+	{
+		extern int  rtk_port_macStatus_get(int port, rtk_port_mac_ability_t *pPortstatus);
+		rtk_port_mac_ability_t sts;
+		if ((rtk_port_macStatus_get(port, &sts)) == 0) {
+			len += sprintf(page+len, "Port%d ", port);
+
+			if (sts.link == 0) {
+				len += sprintf(page+len, "LinkDown\n\n");
+				continue;
+			}
+			else {
+				len += sprintf(page+len, "LinkUp | ");
+			}
+			len += sprintf(page+len, "NWay Mode %s\n", (sts.nway) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "	RXPause %s | ", (sts.rxpause) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "TXPause %s\n", (sts.txpause) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "	Duplex %s | ", (sts.duplex) ?"Enabled":"Disabled");
+			len += sprintf(page+len, "Speed %s\n\n", (sts.speed) ==PortStatusLinkSpeed100M?"100M":
+				((sts.speed) ==PortStatusLinkSpeed1000M?"1G":
+					((sts.speed) ==PortStatusLinkSpeed10M?"10M":"Unkown")));
+					
+		}
+	}
+#else
+	uint32	regData, data0, regData_PCR;
+
+	len = sprintf(page, "Dump Port Status:\n");
 	for(port=PHY0;port<=CPU;port++)
 	{
 		regData = READ_MEM32(PSRP0+((port)<<2));
@@ -4241,6 +4408,7 @@ static int32 port_status_read( char *page, char **start, off_t off, int count, i
 			(data0==PortStatusLinkSpeed1000M?"1G":
 				(data0==PortStatusLinkSpeed10M?"10M":"Unkown")));
 	}
+#endif
 
 	return len;
 }
@@ -4253,11 +4421,13 @@ static int32 port_status_write( struct file *filp, const char *buff,unsigned lon
 	char		*tokptr;
 	int 	type;
 	int 		port;
+#if !defined(CONFIG_RTL_8367R_SUPPORT)
 	int forceMode = 0;
 	int forceLink = 0;
 	int forceLinkSpeed = 0;
 	int forceDuplex = 0;
 	uint32 advCapability = 0;
+#endif
 
 #define SPEED10M 	0
 #define SPEED100M 	1
@@ -4302,9 +4472,23 @@ static int32 port_status_write( struct file *filp, const char *buff,unsigned lon
 				type = DUPLEX_100M;
 			else if(strcmp(tokptr,"1000_full") == 0)
 				type = DUPLEX_1000M;
+			else if(strcmp(tokptr,"down") == 0)
+				type = PORT_DOWN;
+			else if(strcmp(tokptr,"up") == 0)
+				type = PORT_UP;
 			else
 				type = PORT_AUTO;
 
+#if defined(CONFIG_RTL_8367R_SUPPORT)
+			for(port = 0; port < 5; port++)
+			{
+				extern int set_8367r_speed_mode(int port, int type);
+				if (((1<<port) & port_mask) && (type != HALF_DUPLEX_1000M))
+				{
+					set_8367r_speed_mode(port, type);
+				}
+			}
+#else
 			switch(type)
 			{
 				case HALF_DUPLEX_10M:
@@ -4375,16 +4559,27 @@ static int32 port_status_write( struct file *filp, const char *buff,unsigned lon
 			{
 				if((1<<port) & port_mask)
 				{
-					rtl865xC_setAsicEthernetForceModeRegs(port, forceMode, forceLink, forceLinkSpeed, forceDuplex);
+					if (type == PORT_DOWN) {
+						rtl8651_setAsicEthernetPHYPowerDown(port, 1);
+					}
+					else if (type == PORT_UP) {
+						rtl8651_setAsicEthernetPHYPowerDown(port, 0);
+					}
+					else {
+						/*Set PHY Register*/
+						rtl8651_setAsicEthernetPHYSpeed(port,forceLinkSpeed);
+						rtl8651_setAsicEthernetPHYDuplex(port,forceDuplex);
+						rtl8651_setAsicEthernetPHYAutoNeg(port,forceMode?FALSE:TRUE);
+						rtl8651_setAsicEthernetPHYAdvCapality(port,advCapability);
 
-					/*Set PHY Register*/
-					rtl8651_setAsicEthernetPHYSpeed(port,forceLinkSpeed);
-					rtl8651_setAsicEthernetPHYDuplex(port,forceDuplex);
-					rtl8651_setAsicEthernetPHYAutoNeg(port,forceMode?FALSE:TRUE);
-					rtl8651_setAsicEthernetPHYAdvCapality(port,advCapability);
-					rtl8651_restartAsicEthernetPHYNway(port);
+						rtl865xC_setAsicEthernetForceModeRegs(port, forceMode, forceLink, forceLinkSpeed, forceDuplex);
+							
+						rtl8651_restartAsicEthernetPHYNway(port);
+						mdelay(10);
+					}
 				}
 			}
+#endif
 
 		}
 		else
@@ -4412,6 +4607,67 @@ static int32 rtl865x_proc_mibCounter_read( char *page, char **start, off_t off, 
 	return len;
 }
 
+#ifdef CONFIG_RTL_8367R_SUPPORT
+extern uint32 r8367_cpu_port;
+extern rtk_stat_port_cntr_t  port_cntrs;
+
+void display_8367r_port_stat(uint32 port, rtk_stat_port_cntr_t *pPort_cntrs)
+{
+	if ( port > 4 )
+		rtlglue_printf("\n<CPU port>\n");
+	else
+		rtlglue_printf("\n<Port: %d>\n", port);
+
+	rtlglue_printf("Rx counters\n");
+
+	rtlglue_printf("   ifInOctets  %llu\n", pPort_cntrs->ifInOctets);
+	rtlglue_printf("   etherStatsOctets  %llu\n", pPort_cntrs->etherStatsOctets);
+	rtlglue_printf("   ifInUcastPkts  %u\n", pPort_cntrs->ifInUcastPkts);
+	rtlglue_printf("   etherStatsMcastPkts  %u\n", pPort_cntrs->etherStatsMcastPkts);
+	rtlglue_printf("   etherStatsBcastPkts  %u\n", pPort_cntrs->etherStatsBcastPkts);
+	
+	rtlglue_printf("   StatsFCSErrors  %u\n", pPort_cntrs->dot3StatsFCSErrors);
+	rtlglue_printf("   StatsSymbolErrors  %u\n", pPort_cntrs->dot3StatsSymbolErrors);
+	rtlglue_printf("   InPauseFrames  %u\n", pPort_cntrs->dot3InPauseFrames);
+	rtlglue_printf("   ControlInUnknownOpcodes  %u\n", pPort_cntrs->dot3ControlInUnknownOpcodes);
+	rtlglue_printf("   etherStatsFragments  %u\n", pPort_cntrs->etherStatsFragments);
+	rtlglue_printf("   etherStatsJabbers  %u\n", pPort_cntrs->etherStatsJabbers);
+	rtlglue_printf("   etherStatsDropEvents  %u\n", pPort_cntrs->etherStatsDropEvents);
+
+	rtlglue_printf("   etherStatsUndersizePkts  %u\n", pPort_cntrs->etherStatsUndersizePkts);
+	rtlglue_printf("   etherStatsOversizePkts  %u\n", pPort_cntrs->etherStatsOversizePkts);
+
+	rtlglue_printf("   Len= 64: %u pkts, 65 - 127: %u pkts, 128 - 255: %u pkts\n",
+		pPort_cntrs->etherStatsPkts64Octets,
+		pPort_cntrs->etherStatsPkts65to127Octets,
+		pPort_cntrs->etherStatsPkts128to255Octets);
+	rtlglue_printf("       256 - 511: %u pkts, 512 - 1023: %u pkts, 1024 - 1518: %u pkts\n",
+		pPort_cntrs->etherStatsPkts256to511Octets,
+		pPort_cntrs->etherStatsPkts512to1023Octets,
+		pPort_cntrs->etherStatsPkts1024toMaxOctets);
+
+	rtlglue_printf("\nOutput counters\n");
+
+	rtlglue_printf("   ifOutOctets  %llu\n", pPort_cntrs->ifOutOctets);
+	rtlglue_printf("   ifOutUcastPkts  %u\n", pPort_cntrs->ifOutUcastPkts);
+	rtlglue_printf("   ifOutMulticastPkts  %u\n", pPort_cntrs->ifOutMulticastPkts);
+	rtlglue_printf("   ifOutBrocastPkts  %u\n", pPort_cntrs->ifOutBrocastPkts);
+	
+	rtlglue_printf("   StatsSingleCollisionFrames  %u\n", pPort_cntrs->dot3StatsSingleCollisionFrames);
+	rtlglue_printf("   StatsMultipleCollisionFrames  %u\n", pPort_cntrs->dot3StatsMultipleCollisionFrames);
+	rtlglue_printf("   StatsDeferredTransmissions  %u\n", pPort_cntrs->dot3StatsDeferredTransmissions);
+	rtlglue_printf("   StatsLateCollisions  %u\n", pPort_cntrs->dot3StatsLateCollisions);
+	rtlglue_printf("   etherStatsCollisions  %u\n", pPort_cntrs->etherStatsCollisions);
+	rtlglue_printf("   StatsExcessiveCollisions  %u\n", pPort_cntrs->dot3StatsExcessiveCollisions);
+	rtlglue_printf("   OutPauseFrames  %u\n", pPort_cntrs->dot3OutPauseFrames);
+	rtlglue_printf("   dot1dBasePortDelayExceededDiscards  %u\n", pPort_cntrs->dot1dBasePortDelayExceededDiscards);
+	rtlglue_printf("   dot1dTpPortInDiscards  %u\n", pPort_cntrs->dot1dTpPortInDiscards);
+	rtlglue_printf("   outOampduPkts  %u\n", pPort_cntrs->outOampduPkts);
+	rtlglue_printf("   inOampduPkts  %u\n", pPort_cntrs->inOampduPkts);
+	rtlglue_printf("   pktgenPkts  %u\n", pPort_cntrs->pktgenPkts);
+
+}
+#endif
 
 static int32 rtl865x_proc_mibCounter_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
@@ -4445,6 +4701,10 @@ static int32 rtl865x_proc_mibCounter_write( struct file *filp, const char *buff,
 		if(strncmp(cmdptr, "clear",5) == 0)
 		{
 			rtl8651_clearAsicCounter();
+
+#ifdef CONFIG_RTL_8367R_SUPPORT
+			rtk_stat_global_reset();
+#endif
 		}
 		else if(strncmp(cmdptr, "dump",4) == 0)
 		{
@@ -4454,6 +4714,19 @@ static int32 rtl865x_proc_mibCounter_write( struct file *filp, const char *buff,
 				goto errout;
 			}
 
+#ifdef CONFIG_RTL_8367R_SUPPORT
+			if(strncmp(cmdptr, "8367",4) == 0) {
+
+				for (portNum=0; portNum<7; portNum++) {
+					if ((portNum > 4) && (portNum != r8367_cpu_port))	// skip port 6 in 8367R; skip port 5 in 8367RB
+						continue;
+
+					rtk_stat_port_getAll(portNum, &port_cntrs);
+					display_8367r_port_stat(portNum, &port_cntrs);
+				}
+				return len;
+			}
+#endif
 			if(strncmp(cmdptr, "port",4) != 0)
 			{
 				goto errout;
@@ -4539,7 +4812,54 @@ errout:
 	return len;
 }
 
+#if defined (CONFIG_RTL_INBAND_CTL_API)
+extern int rtl_get_portRate(unsigned int port,unsigned long* rxRate, unsigned long *txRate);
 
+#ifdef CONFIG_RTL_PROC_NEW
+static int32 rtl865x_proc_portRate_read(struct seq_file *s, void *v)
+{
+	
+	unsigned int port;
+	unsigned long rxRate=0;
+	unsigned long txRate=0;
+	seq_printf(s, "Port Rate Info:\n");
+	for(port=0;port<4;port++)
+	{
+		rtl_get_portRate(port,&rxRate,&txRate);
+		seq_printf(s, "port%d rx:%ld tx:%ld(kbps)\n",port,rxRate,txRate);
+	}
+	
+	
+	return 0;
+
+}
+#else
+static int32 rtl865x_proc_portRate_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int		len;
+	
+	int port;
+	unsigned long rxRate=0;
+	unsigned long txRate=0;
+	len = sprintf(page, "Port Rate Info:\n");
+	for(port=0;port<4;port++)
+	{
+		rtl_get_portRate(port,&rxRate,&txRate);
+		len += sprintf(page+len, "port%d rx:%ld tx:%ld(kbps)\n",port,rxRate,txRate);
+	}
+	
+	
+	return len;
+
+}
+#endif
+
+static int32 rtl865x_proc_portRate_write(struct file *filp, const char *buff,unsigned long len, void *data )
+{
+		return len;
+}
+
+#endif
 static int32 proc_phyReg_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	return PROC_READ_RETURN_VALUE;
@@ -4831,6 +5151,145 @@ static int32 proc_phyReg_write( struct file *filp, const char *buff,unsigned lon
 			{
 				rtlglue_printf("set fail %d\n", ret);
 			}
+		}
+#endif
+#ifdef CONFIG_RTL_8367R_SUPPORT
+		else if (!memcmp(cmd_addr, "8367read", 8))
+		{
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 16);
+			ret = rtl8367b_getAsicReg(regId, &regData);
+
+			if(ret==0)
+			{
+				rtlglue_printf("rtl8367b_getAsicReg: reg= %x, data= %x\n", regId, regData);
+			}
+			else
+			{
+				rtlglue_printf("get fail %d\n", ret);
+			}
+		}
+		else if (!memcmp(cmd_addr, "8367write", 9))
+		{
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 16);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regData=simple_strtol(tokptr, NULL, 16);
+
+			ret = rtl8367b_setAsicReg(regId, regData);
+
+			if(ret==0)
+			{
+				rtlglue_printf("rtl8367b_setAsicReg: reg= %x, data= %x\n", regId, regData);
+			}
+			else
+			{
+				rtlglue_printf("set fail %d\n", ret);
+			}
+		}
+		else if (!memcmp(cmd_addr, "8367phyr", 8))
+		{
+			extern int rtl8367b_getAsicPHYReg(uint32 phyNo, uint32 phyAddr, uint32 *pRegData );
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 0);
+
+			ret=rtl8367b_getAsicPHYReg(phyId, regId, &regData);
+			if(ret==SUCCESS)
+			{
+				rtlglue_printf("read 8367R/RB phyId(%d), regId(%d), regData:0x%x\n", phyId, regId, regData);
+			}
+			else
+			{
+				rtlglue_printf("error input!\n");
+			}		
+		}
+		else if (!memcmp(cmd_addr, "8367phyw", 8))
+		{
+			extern int rtl8367b_setAsicPHYReg(uint32 phyNo, uint32 phyAddr, uint32 phyData );
+			
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regData=simple_strtol(tokptr, NULL, 16);
+
+			ret=rtl8367b_setAsicPHYReg(phyId, regId, regData);
+			if(ret==SUCCESS)
+			{
+				rtlglue_printf("Write 8367R/RB phyId(%d), regId(%d), regData:0x%x\n", phyId, regId, regData);
+			}
+			else
+			{
+				rtlglue_printf("error input!\n");
+			}
+		}
+		else if (!memcmp(cmd_addr, "8367test", 8))
+		{
+			extern int rtk_port_phyTestMode_set(uint32 port, int mode);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			phyId=simple_strtol(tokptr, NULL, 0);
+
+			tokptr = strsep(&strptr," ");
+			if (tokptr==NULL)
+			{
+				goto errout;
+			}
+			regId=simple_strtol(tokptr, NULL, 0);
+
+			ret=rtk_port_phyTestMode_set(phyId, regId);
+			if(ret==SUCCESS)
+			{
+				rtlglue_printf("set  8367RB phyId(%d) to mode: %d\n", phyId, regId);
+			}
+			else
+			{
+				rtlglue_printf("rtk_port_phyTestMode_set return error\n");
+			}		
 		}
 #endif
 		else if (!memcmp(cmd_addr, "extRead", 7))
@@ -5210,6 +5669,27 @@ static int32 fc_threshold_write(struct file *filp, const char *buff,unsigned lon
 	return len;
 }
 
+#ifdef CONFIG_RTL_PROC_DEBUG
+#if defined (CONFIG_RTL_INBAND_CTL_API)
+#ifdef CONFIG_RTL_PROC_NEW
+int portRate_single_open(struct inode *inode, struct file *file)
+{
+    return(single_open(file, rtl865x_proc_portRate_read, NULL));
+}
+static ssize_t portRate_single_write(struct file * file, const char __user * userbuf,
+		     size_t count, loff_t * off)
+{
+	    return rtl865x_proc_portRate_write(file, userbuf,count, off);
+}
+struct file_operations portRate_proc_fops= {
+        .open           = portRate_single_open,
+        .write		    = portRate_single_write,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = single_release,
+};
+#endif
+#endif
 #endif
 
 
@@ -5225,24 +5705,7 @@ int32 rtl865x_proc_debug_init(void)
 	if(rtl865x_proc_dir)
 	{
 		#ifdef CONFIG_RTL_PROC_DEBUG
-		/*stats*/
-		{
-			stats_debug_entry = create_proc_entry("stats",0,rtl865x_proc_dir);
-			if(stats_debug_entry != NULL)
-			{
-				stats_debug_entry->read_proc = stats_debug_entry_read;
-				stats_debug_entry->write_proc= stats_debug_entry_write;
-				
-				retval = SUCCESS;
-			}
-			else
-			{
-				rtlglue_printf("can't create proc entry for stats");
-				retval = FAILED;
-				goto out;
-			}
-		}
-
+		
 		/*vlan*/
 		{
 			vlan_entry = create_proc_entry("vlan",0,rtl865x_proc_dir);
@@ -5626,7 +6089,7 @@ int32 rtl865x_proc_debug_init(void)
 		}
 
 #endif
-#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
+#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 		/*napt*/
 		{
 			napt_entry= create_proc_entry("napt", 0, rtl865x_proc_dir);
@@ -5726,7 +6189,42 @@ int32 rtl865x_proc_debug_init(void)
 				goto out;
 			}
 		}
+#ifdef CONFIG_RTK_VOIP_QOS
+		/*port_priority*/
+		{
+			port_priority_entry= create_proc_entry("port_priority", 0, rtl865x_proc_dir);
+			if(port_priority_entry != NULL)
+			{
+				port_priority_entry->read_proc = port_priority_read;
+				port_priority_entry->write_proc = port_priority_write;
 
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for port_priority");
+				retval = FAILED;
+				goto out;
+			}
+		}
+		/*dscp_priority*/
+		{
+			dscp_priority_entry= create_proc_entry("dscp_priority", 0, rtl865x_proc_dir);
+			if(dscp_priority_entry != NULL)
+			{
+				dscp_priority_entry->read_proc = dscp_priority_read;
+				dscp_priority_entry->write_proc = dscp_priority_write;
+
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for dscp_priority");
+				retval = FAILED;
+				goto out;
+			}
+		}
+#endif
 		/*queue_bandwidth*/
 		{
 			queue_bandwidth_entry= create_proc_entry("queue_bandwidth", 0, rtl865x_proc_dir);
@@ -5790,7 +6288,7 @@ int32 rtl865x_proc_debug_init(void)
 		}
 		#endif
 
-#if defined CONFIG_RTL_IGMP_SNOOPING
+#if defined(CONFIG_RTL_IGMP_SNOOPING)
 		igmp_entry=create_proc_entry("igmp", 0, rtl865x_proc_dir);
 		if(igmp_entry != NULL)
 		{
@@ -5803,18 +6301,37 @@ int32 rtl865x_proc_debug_init(void)
 			retval = SUCCESS;
 		}
 #endif
+#endif
 
-		/*	#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)	*/
-		prive_skb_debug_entry = create_proc_entry("priveSkbDebug", 0, rtl865x_proc_dir);
-		if(prive_skb_debug_entry != NULL)
-		{
-			prive_skb_debug_entry->read_proc = rtl819x_proc_priveSkbDebug_read;
-			prive_skb_debug_entry->write_proc = rtl819x_proc_priveSkbDebug_write;
-			retval = SUCCESS;
-		}
-		#endif
 
 #if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
+		
+		/*stats*/
+		{
+			stats_debug_entry = create_proc_entry("stats",0,rtl865x_proc_dir);
+			if(stats_debug_entry != NULL)
+			{
+				stats_debug_entry->read_proc = stats_debug_entry_read;
+				stats_debug_entry->write_proc= stats_debug_entry_write;
+				
+				retval = SUCCESS;
+			}
+			else
+			{
+				rtlglue_printf("can't create proc entry for stats");
+				retval = FAILED;
+				goto out;
+			}
+		}
+		/*	#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)	*/
+		prive_skb_debug_entry = create_proc_entry("privSkbInfo", 0, rtl865x_proc_dir);
+		if(prive_skb_debug_entry != NULL)
+		{
+			prive_skb_debug_entry->read_proc = rtl819x_proc_privSkbInfo_read;
+			prive_skb_debug_entry->write_proc = rtl819x_proc_privSkbInfo_write;
+			retval = SUCCESS;
+		}
+
 		/*memory*/
 		{
 			mem_entry = create_proc_entry("memory",0,rtl865x_proc_dir);
@@ -5894,7 +6411,23 @@ int32 rtl865x_proc_debug_init(void)
 				retval = SUCCESS;
 			}
 		}
+		#if defined (CONFIG_RTL_INBAND_CTL_API)
+		/*trafficRate*/
+		{
+#ifdef CONFIG_RTL_PROC_NEW
+            proc_create_data("portRate",0,rtl865x_proc_dir,&portRate_proc_fops,NULL);
+#else
+            portRate_entry=create_proc_entry("portRate", 0, rtl865x_proc_dir);
+			if(portRate_entry != NULL)
+			{
+				portRate_entry->read_proc = rtl865x_proc_portRate_read;
+				portRate_entry->write_proc = rtl865x_proc_portRate_write;
+				retval = SUCCESS;
+			}
+#endif
+		}
 
+#endif
 		/* indirect access for special phy register */
 		{
 			mmd_entry= create_proc_entry("mmd", 0, rtl865x_proc_dir);
@@ -5968,11 +6501,7 @@ int32 rtl865x_proc_debug_cleanup(void)
 	{
 #ifdef CONFIG_RTL_PROC_DEBUG
 		
-		if(stats_debug_entry)
-		{
-			remove_proc_entry("stats",rtl865x_proc_dir);
-			stats_debug_entry = NULL;
-		}	
+		
 		if(vlan_entry)
 		{
 			remove_proc_entry("vlan",rtl865x_proc_dir);
@@ -6096,7 +6625,18 @@ int32 rtl865x_proc_debug_cleanup(void)
 		{
 			remove_proc_entry("priority_decision", rtl865x_proc_dir);
 		}
-#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && defined(CONFIG_RTL_8198)||defined(CONFIG_RTL_8196CT) || defined(CONFIG_RTL_819XDT)
+#ifdef CONFIG_RTK_VOIP_QOS
+		if (port_priority_entry)
+		{
+			remove_proc_entry("port_priority", rtl865x_proc_dir);
+		}
+		
+		if (dscp_priority_entry)
+		{
+			remove_proc_entry("dscp_priority", rtl865x_proc_dir);
+		}
+#endif
+#if defined(CONFIG_RTL_LAYERED_DRIVER_L4)
 		if(sw_napt_entry)
 		{
 			remove_proc_entry("sw_napt", rtl865x_proc_dir);
@@ -6150,15 +6690,24 @@ int32 rtl865x_proc_debug_cleanup(void)
 		}
 #endif
 
-		/*#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)*/
-		if(prive_skb_debug_entry != NULL)
-		{
-			remove_proc_entry("priveSkbDebug", rtl865x_proc_dir);
-		}
-		/*#endif*/
+		
 #endif
 
 #if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
+
+		if(stats_debug_entry)
+		{
+			remove_proc_entry("stats",rtl865x_proc_dir);
+			stats_debug_entry = NULL;
+		}	
+		
+		/*#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)*/
+		if(prive_skb_debug_entry != NULL)
+		{
+			remove_proc_entry("privSkbInfo", rtl865x_proc_dir);
+		}
+		/*#endif*/
+
 		if(mem_entry)
 		{
 			remove_proc_entry("memory", mem_entry);

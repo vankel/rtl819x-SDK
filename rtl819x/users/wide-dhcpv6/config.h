@@ -29,6 +29,9 @@
  * SUCH DAMAGE.
  */
 
+/* add suggest */
+#define SUGGESTED_T
+
 /* definitions of tail-queue types */
 TAILQ_HEAD(ia_conflist, ia_conf);
 TAILQ_HEAD(pifc_list, prefix_ifconf);
@@ -183,6 +186,10 @@ struct ia_conf {
 	/*struct ia_conf *next;*/
 	iatype_t type;
 	u_int32_t iaid;
+#ifdef SUGGESTED_T
+	u_int32_t t1;
+	u_int32_t t2;
+#endif
 
 	TAILQ_HEAD(, ia) iadata; /* struct ia is an opaque type */
 
@@ -266,6 +273,9 @@ enum { DECL_SEND, DECL_ALLOW, DECL_INFO_ONLY, DECL_REQUEST, DECL_DUID,
        DECL_PREFIX, DECL_PREFERENCE, DECL_SCRIPT, DECL_DELAYEDKEY,
        DECL_ADDRESS,
        DECL_RANGE, DECL_ADDRESSPOOL,
+#ifdef SUGGESTED_T
+       IASUGGEST_T, IAPARAM_T1, IAPARAM_T2,
+#endif
        IFPARAM_SLA_ID, IFPARAM_SLA_LEN,
        DHCPOPT_RAPID_COMMIT, DHCPOPT_AUTHINFO,
        DHCPOPT_DNS, DHCPOPT_DNSNAME,

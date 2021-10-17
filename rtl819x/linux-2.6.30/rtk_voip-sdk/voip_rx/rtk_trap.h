@@ -3,6 +3,9 @@
 
 #include <linux/skbuff.h> /* for struct sk_buff */
 #include <linux/in.h> /* for struct sockaddr_in*/
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+#include <linux/in6.h>
+#endif
 
 #include "../include/voip_types.h"
 #include "../voip_manager/voip_mgr_netfilter.h"
@@ -55,6 +58,15 @@ struct RTK_TRAP_profile
 
 #ifdef SUPPORT_VOICE_QOS
 	uint8 tos;	
+#endif
+#ifdef SUPPORT_QOS_REMARK_PER_SESSION
+	TstQosCfg qos;	
+#endif
+
+#ifdef CONFIG_RTK_VOIP_IPV6_SUPPORT
+	struct in6_addr ip6_src_addr;
+	struct in6_addr ip6_dst_addr;
+	uint32 ipv6;
 #endif
 };
 //extern int32 rtk_trap_register(TstVoipMgrSession *stVoipMgrSession, uint8 ch_id, int32 m_id, int32(*callback)(uint8t ch_id, int32 m_id, void *ptr_data, uint32 data_len, uint32 flags));

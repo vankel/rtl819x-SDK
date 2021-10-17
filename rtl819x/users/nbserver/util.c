@@ -1729,16 +1729,13 @@ BOOL send_packet(char *buf,int len,struct in_addr *ip,int port,int type)
 
   Debug(3,"sending a packet of len %d to (%s) on port %d of type %s\n",
 	len,inet_ntoa(*ip),port,type==SOCK_DGRAM?"DGRAM":"STREAM");
-	 
-/* send it */
+	 //printf("sending a packet of len %d to (%s) on port %d of type %s\n",
+	//len,inet_ntoa(*ip),port,type==SOCK_DGRAM?"DGRAM":"STREAM");
+  /* send it */
   ret = (sendto(out_fd,buf,len,0,(struct sockaddr *)&sock_out,sizeof(sock_out)) >= 0);
 
   if (!ret){
-  	//printf("sending a packet of len %d to (%s) on port %d of type %s\n",
-	//len,inet_ntoa(*ip),port,type==SOCK_DGRAM?"DGRAM":"STREAM");
-	//printf("%s:out_fd[%d]\n", __FUNCTION__,out_fd); 
-	
-   //printf("Send packet failed. ERRNO=%d\n",errno);
+   printf("Send packet failed. ERRNO=%d\n",errno);
 }
   close(out_fd);
   return(ret);
@@ -2011,7 +2008,6 @@ BOOL name_query(char *inbuf,char *outbuf,char *name,struct in_addr *ip)
       show_nmb(outbuf);
       if (!send_packet(outbuf,nmb_len(outbuf),&bcast_ip,137,SOCK_DGRAM))
 	{
-		//printf("%s: send_packet error!!\n", __FUNCTION__);
 	  NeedSwap = saved_swap;
 	  return False;
 	}

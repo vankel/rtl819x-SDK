@@ -179,7 +179,7 @@ int lib1x_init_fifo(Dot1x_Authenticator *auth, char *wlan_name)
 		return -1;
 	}
 
-        auth->GlobalTxRx->readfifo = open(fifo_name, O_RDONLY, 0);
+	auth->GlobalTxRx->readfifo = open(fifo_name, O_RDONLY, 0);
 
 	if( (flags = fcntl(auth->GlobalTxRx->readfifo, F_GETFL, 0)) < 0)
 	{
@@ -952,6 +952,7 @@ int  main( int numArgs, char ** theArgs )
 	}
 //-------------------------------
 
+	
 	lib1x_print_etheraddr( eth, oursvr_addr );
 	lib1x_print_etheraddr( eth, oursupp_addr );
 
@@ -963,7 +964,7 @@ int  main( int numArgs, char ** theArgs )
 					AUTH_865XPLATFORM_M,
 					AUTH_865XPLATFORM_D);
 #else
-	printf("IEEE 802.1x (WPA) daemon, version 1.8e \n");
+	printf("IEEE 802.1x (WPA) daemon, version 1.8f \n");
 #endif	/* CONFIG_RTL865X */
 
 	RTLAuthenticator.GlobalTxRx = (TxRx_Params *)lib1x_init_txrx(
@@ -983,7 +984,7 @@ int  main( int numArgs, char ** theArgs )
 
 
 #ifdef _RTL_WPA_UNIX
-	lib1x_init_authRSNConfig(&RTLAuthenticator);
+	//lib1x_init_authRSNConfig(&RTLAuthenticator);
 	lib1x_init_authGlobal(&RTLAuthenticator);
 #endif
 
@@ -992,7 +993,7 @@ int  main( int numArgs, char ** theArgs )
 	if ((RTLAuthenticator.currentRole != role_Supplicant_adhoc) &&
 					(RTLAuthenticator.currentRole != role_wds)) {
 
-#ifndef START_AUTH_IN_LIB
+#if 0 //ndef START_AUTH_IN_LIB
 		if(lib1x_init_fifo(&RTLAuthenticator, dev_supp)) {
 			printf("auth-%s:create fifo error \n", dev_supp);
 			return -1;
@@ -1020,13 +1021,19 @@ int  main( int numArgs, char ** theArgs )
 #endif
 #endif
 
+/*HS2 SUPPORT*/
+#ifdef CONFIG_IEEE80211W
+	//lib1x_control_InitPMF(auth);
+#endif
+/*HS2 SUPPORT*/
+
 #ifdef RTL_WPA_CLIENT
 	if ( auth->currentRole !=  role_Authenticator){
 		lib1x_init_supp(&RTLAuthenticator, &RTLClient);
 	}
 // david ----------------------
-	if ( (auth->currentRole == role_Supplicant_adhoc) || (auth->currentRole == role_wds) ) {
-		lib1x_control_STA_SetGTK(auth->client->global, auth->RSNVariable.PassPhraseKey, 0);
+	if ( (auth->currentRole == role_Supplicant_adhoc) || (auth->currentRole == role_wds)) {
+        lib1x_control_STA_SetGTK(auth->client->global, auth->RSNVariable.PassPhraseKey, 0);
 		if (auth->currentRole == role_Supplicant_adhoc) {
 			lib1x_control_RSNIE(auth, DOT11_Ioctl_Set);
 			lib1x_control_InitQueue(auth);
@@ -1038,11 +1045,11 @@ int  main( int numArgs, char ** theArgs )
 		// from /var/wpa-wlan0.conf to /var/1x/1x.conf
 		// "/var/1x/1x_module.conf" for test only!
 		if(prepareClientMode1xConf(&RTLAuthenticator, xsup_conf) == FAILED){
-			printf("%s(%d): prepareClientMode1xConf() failed.\n",__FUNCTION__,__LINE__);//Added for test
+			AUTHDEBUG("prepare ClientMode1xConf fail!\n");//Added for test
 		}
 	}
 #endif
-//----------------------------
+    //----------------------------
 #endif
 
 // david
@@ -1167,32 +1174,25 @@ int  main( int numArgs, char ** theArgs )
 #endif /* CLIENT_TLS */
 
 
-// david ---------------------------
-#if 0
-			if(auth->currentRole == role_Supplicant)
-				lib1x_do_supplicant(&RTLAuthenticator, RTLClient.global);
-			else
-#endif
-//			printf("%s(%d): auth->currentRole(%d), RTLClient.global->AuthKeyMethod(%d)=============== \n",__FUNCTION__,__LINE__,
-//				auth->currentRole,RTLClient.global->AuthKeyMethod);//Added for test
+
 			if(auth->currentRole == role_Supplicant_infra)
 				lib1x_do_supplicant(&RTLAuthenticator, RTLClient.global);
 
 			else if ( (auth->currentRole == role_Supplicant_adhoc) ||
-						(auth->currentRole == role_wds) )
+						(auth->currentRole == role_wds))
 				break;
 
 			else
-//----------------------------------
 #endif
-			lib1x_do_authenticator( &RTLAuthenticator );
+            {
+    			lib1x_do_authenticator( &RTLAuthenticator );
+            }
 
-
-// david ---------
-// kenny
-/*
-			if (!(cnt++%10))
-				lib1x_timer_authenticator(SIGALRM);
+            // david ---------
+            // kenny
+            /*
+            			if (!(cnt++%10))
+            				lib1x_timer_authenticator(SIGALRM);
 
 			usleep(10000);
 */
@@ -1204,7 +1204,7 @@ int  main( int numArgs, char ** theArgs )
 			sleep(1000);
 
 	}
-
+    sleep(1);//for wds & adhoc role
 	unlink(pid_name);
 
 	return 0;

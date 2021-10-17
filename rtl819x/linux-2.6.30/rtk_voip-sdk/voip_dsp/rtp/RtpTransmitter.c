@@ -33,13 +33,14 @@
 
 //#define RFC2833_TX_FLOW_DEBUG_PRINT
 #define RFC2833_PROC_DEBUG_SUPPORT
+#define RFC2833_EDGE_SEQ_NUM_INC	//sequence number of three edge packets increased.
 
 #ifdef RFC2833_PROC_DEBUG_SUPPORT
 static uint16 rfc2833_proc_event_cnt[DSP_RTK_SS_NUM][50] = {0}; /* 16 DTMF digit */
 static uint16 rfc2833_proc_ret_cnt[DSP_RTK_SS_NUM][8][50] = {0};
 static uint16 rfc2833_proc_add_cnt[DSP_RTK_SS_NUM][50] = {0};
 static uint16 rfc2833_proc_fifo_read_cnt[DSP_RTK_SS_NUM][50] = {0};
-extern int g_digit[];
+extern int g_digit[MAX_DSP_RTK_SS_NUM];
 #endif
 
 ///////////////////////////////////////////////////////////////////////
@@ -57,7 +58,8 @@ static BOOL bCreate;
 extern int dsp_rtk_ch_num;
 
 #ifdef SUPPORT_MULTI_FRAME
-extern unsigned char MFFrameNo[MAX_DSP_RTK_SS_NUM];
+extern unsigned char MFLocalFrameNo[MAX_DSP_RTK_SS_NUM];
+extern unsigned char MFRemoteFrameNo[MAX_DSP_RTK_SS_NUM];
 #endif
 
 extern unsigned char rfc2833_dtmf_pt_remote[MAX_DSP_SS_NUM];    /* 0: Don't send 2833 packets. 96 or 101 or ..: send 2833 packets */	// move to dsp_define.c
@@ -71,8 +73,8 @@ static int send_edge_flag[MAX_DSP_SS_NUM] = {0};             /* 0: not send. 1: 
 static int timestamp_2833[MAX_DSP_SS_NUM] = {0};
 static unsigned short edge_sequence_2833[MAX_DSP_SS_NUM] = {0};
 int send_2833_by_ap[MAX_DSP_RTK_CH_NUM] = {0};		/* 0: by DSP 1: by AP */	
-extern int g_dynamic_pt_remote[];
-extern int g_dynamic_pt_remote_vbd[];
+extern int g_dynamic_pt_local[];
+extern int g_dynamic_pt_local_vbd[];
 
 
 #if defined( SUPPORT_RFC_2833 ) && defined( SEND_RFC2833_ISR )
@@ -152,7 +154,9 @@ void RtpTx_Init (void)
 void RtpTx_InitbyID (uint32 sid)
 {
 	RtpTransmitter* pInfo = NULL;
+#ifdef SUPPORT_RTP_REDUNDANT	
 	RtpRedundantTx_t *pRtpRedundantTx = &RtpRedundantTx[ sid ];
+#endif
 
 	if(sid >= DSP_RTK_SS_NUM)
 		return;
@@ -185,11 +189,17 @@ void RtpTx_InitbyID (uint32 sid)
 #endif
 }
 
+#ifdef SUPPORT_RTP_REDUNDANT	
 void RtpTx_renewSession (uint32 sid, int randomly, RtpSrc SSRC, RtpSeqNumber seqno, RtpTime timestamp,
 							int max_red_audio, int max_red_rfc2833)
+#else					
+void RtpTx_renewSession (uint32 sid, int randomly, RtpSrc SSRC, RtpSeqNumber seqno, RtpTime timestamp)
+#endif
 {
 	RtpTransmitter* pInfo = NULL;
+#ifdef SUPPORT_RTP_REDUNDANT	
 	RtpRedundantTx_t *pRtpRedundantTx = &RtpRedundantTx[ sid ];
+#endif
 
 	if(sid >= DSP_RTK_SS_NUM)
 		return;
@@ -348,6 +358,7 @@ static int RtpRedundantTransmitProcessRFC2833( RtpPacket* p )
 	const int primLen = getPayloadUsage( p );
 	const RtpPayloadType primPT = getPayloadType(p);
 	const RtpTime primTimestamp = getRtpTime( p );
+	RtpEventDTMFRFC2833 primEvent;	// backup for later checking due to unalign issue.  
 	
 	RtpRedundantTxRFC2833_t * const pRtpRedTx2833 = &RtpRedundantTx[ sid ].rfc2833;
 	RtpRedundantTxRFC2833Element_t * pRtpRedTx2833Element;
@@ -401,6 +412,8 @@ static int RtpRedundantTransmitProcessRFC2833( RtpPacket* p )
 	// fill packet to transmit (1) - primary payload (memmove to tail)
 	pDst = getPayloadLoc(p);
 	
+	primEvent = *( ( RtpEventDTMFRFC2833 * )pDst );
+	
 	memmove( pDst + nTotalPayloadLen - primLen, pDst, primLen );	// move primary data to tail 
 	
 	// fill packet to transmit (2) - redundancy header  
@@ -447,8 +460,17 @@ static int RtpRedundantTransmitProcessRFC2833( RtpPacket* p )
 	
 //label_pocess_event:
 	// Process DTMF digits only  
-	if( ( ( RtpEventDTMFRFC2833 * )pDst ) ->edge != 1 )
+	
+	//printk( "%s:%d pDst=%p primEvent=%08X\n", __FUNCTION__, __LINE__, pDst, primEvent );
+	
+#if 0
+	if( ( ( RtpEventDTMFRFC2833 * )pDst ) ->edge != 1 )	// pDst may be unalign 
+#else
+	if( primEvent.edge != 1 )
+#endif
+	{
 		goto lable_process_modulation;
+	}
 	
 	// check the newest element 
 	pRtpRedTx2833Element = &pRtpRedTx2833 ->element[ elements - 1 ];
@@ -523,6 +545,13 @@ static int transmit(RtpPacket* packet, BOOL eventFlag )
 			//printk("tx: %u, sid=%d\n", timestamp_2833[p->sid], p->sid);
 		}
 	}
+	else
+	{
+		if ((true == p->EventPktBody) && ( true == p->bEventPktLongDuration))
+		{
+			timestamp_2833[p->sid] += 65535;
+		}
+	}
 	
 	if (eventFlag)
 		setRtpTime( p, timestamp_2833[p->sid] );
@@ -537,6 +566,23 @@ static int transmit(RtpPacket* packet, BOOL eventFlag )
 			if (p->EventPktEdge == true)
 			{
 				edge_sequence_2833[p->sid] = pInfo->prevSequence - 1;
+
+ 				// for end packet which seq. NO. increased case
+				if (p->EventPktEdge == true)
+				{
+					static int cnt[MAX_DSP_RTK_SS_NUM] = {0};
+				
+					cnt[p->sid]++;
+					//printk("->%d\n", cnt[p->sid]);
+		
+					if (cnt[p->sid] == 3)
+					{
+						_2833_terminate[p->sid] = 1;
+						cnt[p->sid] = 0;
+						//printk("_2833_terminate[%d]=%d\n", p->sid, _2833_terminate[p->sid]);
+						//printk("1:%d\n", _2833_pkt_cnt[p->sid]);
+					}
+				}
 			}
 		}
 		else
@@ -546,6 +592,7 @@ static int transmit(RtpPacket* packet, BOOL eventFlag )
 	{
 		if ( (eventFlag == 1) && (p->EventPktEdge == true) )
 		{
+			// for end packet which seq. NO. the same case
 			static int cnt[MAX_DSP_RTK_SS_NUM] = {0};
 			
 			cnt[p->sid]++;
@@ -619,6 +666,16 @@ static int transmit(RtpPacket* packet, BOOL eventFlag )
 			_2833_terminate[p->sid] = 0;
 
 			//printk("2:0%x\n", pInfo->prevRtpTime);
+		}
+		else
+		{
+			// Get Event Marker, update previous TS
+			if (true == p->EventPktMarker)
+				pInfo->prevRtpTime = timestamp_2833[p->sid];
+
+			// Get long duration Event, update previous TS
+			if ((true == p->EventPktBody) && ( true == p->bEventPktLongDuration))
+				pInfo->prevRtpTime +=  65535;
 		}
 
 		/*
@@ -777,10 +834,11 @@ int RtpTx_transmitRaw (uint32 chid, uint32 sid, char* data, int len)
 
 	extern uint32 rtpConfigOK[];
 #ifdef SUPPORT_COMFORT_NOISE
-	extern int m_nSIDFrameLen[MAX_DSP_RTK_SS_NUM];                                            // the length of SID frame
+	extern int m_nSIDFrameLen[MAX_DSP_RTK_SS_NUM];	// the length of SID frame
+	enum START_CODEC_TYPE ct;	
 #endif
-	extern uint16 SID_payload_type_remote[ DSP_RTK_SS_NUM ];
-	extern uint32 SID_count_tx[ DSP_RTK_SS_NUM ];
+	extern uint16 SID_payload_type_local[ MAX_DSP_RTK_SS_NUM ];
+	extern uint32 SID_count_tx[ MAX_DSP_RTK_SS_NUM ];
 	// create packet
 	RtpPacket* p = &RTP_TX_DEC[cur_send];
 
@@ -809,26 +867,49 @@ int RtpTx_transmitRaw (uint32 chid, uint32 sid, char* data, int len)
 	assert (p);
 	setSSRC (p, pInfo->ssrc);
 #ifdef SUPPORT_COMFORT_NOISE
-	if ((len == m_nSIDFrameLen[sid]) && (g_dynamic_pt_remote[sid] != rtpPayload_AMR_NB) && (g_dynamic_pt_remote[sid] != rtpPayloadG729))
+#if 1
+	ct = GetGlobalStartRecvCodecType(sid);
+	if ((len == m_nSIDFrameLen[sid]) && 
+	#ifdef CONFIG_RTK_VOIP_AMR_NB
+			(ct != nCodecTypeID_AMR_NB) && 
+	#endif
+	#ifdef CONFIG_RTK_VOIP_AMR_WB
+			(ct != nCodecTypeID_AMR_WB) && 
+	#endif
+	#ifdef CONFIG_RTK_VOIP_G729AB
+			(ct != nCodecTypeID_G729) &&
+	#endif
+			(1))
 	{
-		if( SID_payload_type_remote[ sid ] )
-			setPayloadType( p, SID_payload_type_remote[ sid ] );
+		if( SID_payload_type_local[ sid ] ) 
+			setPayloadType( p, SID_payload_type_local[ sid ] );
+		else
+			setPayloadType (p, 13);
+		
+		SID_count_tx[ sid ] ++;
+	} else
+#else
+	if ((len == m_nSIDFrameLen[sid]) && (g_dynamic_pt_local[sid] != rtpPayload_AMR_NB) && (g_dynamic_pt_local[sid] != rtpPayloadG729))
+	{
+		if( SID_payload_type_local[ sid ] ) 
+			setPayloadType( p, SID_payload_type_local[ sid ] );
 		else
 			setPayloadType (p, 13);
 		
 		SID_count_tx[ sid ] ++;
 	} else
 #endif
+#endif
 	{
 		RtpPayloadType type;
 
 #ifdef SUPPORT_V152_VBD		
 		if( V152_CheckIfSendVBD( sid ) )
-			type = g_dynamic_pt_remote_vbd[sid];
+			type = g_dynamic_pt_local_vbd[sid];
 		else
 #endif
 		{
-			type = g_dynamic_pt_remote[sid];
+			type = g_dynamic_pt_local[sid];
 		}
 			
 		setPayloadType (p, type); // support dynamic payload.
@@ -930,6 +1011,8 @@ int RtpTx_transmitEvent( uint32 chid, uint32 sid, int event, int delay_ms)
 
 
 static unsigned short duration[DSP_RTK_SS_NUM] = {0};
+static unsigned short duration_max_flag[DSP_RTK_SS_NUM] = {0};
+static unsigned short duration_max_prev[DSP_RTK_SS_NUM] = {0};
 static unsigned short duration_end[DSP_RTK_SS_NUM] = {0};
 static unsigned int rfc2833_dtmf_interval[DSP_RTK_SS_NUM] = {[0 ... DSP_RTK_SS_NUM-1] = 10}; // default: 10ms
 static unsigned int rfc2833_vbd_interval[DSP_RTK_SS_NUM] = {[0 ... DSP_RTK_SS_NUM-1] = 10}; // default: 10ms
@@ -1203,7 +1286,7 @@ uint32 rfc2833_count_add(uint32 sid, uint32 cnt)
 	extern uint32 chanInfo_GetChannelbySession(uint32 sid);
 	int chid;
 	chid = chanInfo_GetChannelbySession(sid);
-	rfc2833_proc_add_cnt[sid][g_digit[chid]] += cnt;
+	rfc2833_proc_add_cnt[sid][g_digit[sid]] += cnt;
 #endif
 
 	return send_2833_count_down_dsp[sid];
@@ -1446,14 +1529,15 @@ int RtpTx_transmitEvent_ISR( uint32 chid, uint32 sid, int event)
 	setPayloadUsage( eventPacket, sizeof( RtpEventDTMFRFC2833 ) );
 	RtpEventDTMFRFC2833* eventPayload = (RtpEventDTMFRFC2833*)( getPayloadLoc(eventPacket) );
 
-	extern char get_dtmf_dBFS(int chid, int dir, int reset);
+	extern char get_dtmf_dBFS(int chid, int dir, int reset, unsigned char coef_idx);
+	extern unsigned char dtmf_det_get_index(unsigned int chid, unsigned dir);
 
 	if ((event >= 0) && (event <= 16)) // DTMF 2833 event
 	{
 		// RFC2833 TX mode is sent by DSP, and volume is DSP auto.
 		if ((send_2833_by_ap[chid] == 0) && (gRfc2833_volume_dsp_auto[sid] == 1))
 		{
-			rfc2833_volume = (-1)*get_dtmf_dBFS(chid, 0/*dir*/, 0/*reset*/);
+			rfc2833_volume = (-1)*get_dtmf_dBFS(chid, 0/*dir*/, 0/*reset*/, dtmf_det_get_index(chid, 0));
 			//printk("%d ", rfc2833_volume);
 		}
 		else
@@ -1474,6 +1558,7 @@ int RtpTx_transmitEvent_ISR( uint32 chid, uint32 sid, int event)
 	eventPacket->EventPktBody = false;
 	eventPacket->EventPktEdge = false;
 	eventPacket->EventPktDuration = 0;
+	eventPacket->bEventPktLongDuration = 0;
 
 
 	/* Send Marker Packet */
@@ -1516,7 +1601,27 @@ int RtpTx_transmitEvent_ISR( uint32 chid, uint32 sid, int event)
 	/* Send 2833 Event Packet */
 	if (send_2833_flag[sid] == 1)
 	{
-		duration[sid] += 80*PCM_PERIOD*rfc2833_interval;
+		if (duration_max_flag[sid] == 1)
+		{
+			duration_max_flag[sid] = 0;
+			duration[sid] = (80*PCM_PERIOD*rfc2833_interval) - 
+							(65535 - duration_max_prev[sid]);
+
+			eventPacket->bEventPktLongDuration = 1;
+		}
+		else
+		{
+			if ((65535 - duration[sid]) > (80*PCM_PERIOD*rfc2833_interval))
+			{
+				duration[sid] += 80*PCM_PERIOD*rfc2833_interval;
+			}
+			else
+			{
+				duration_max_prev[sid] = duration[sid];
+				duration[sid] = 65535;
+				duration_max_flag[sid] = 1;
+			}
+		}
 		eventPayload->duration = duration[sid];
 		eventPacket->timestampSet = true;
 		eventPacket->sequenceSet = false ;
@@ -1532,6 +1637,20 @@ int RtpTx_transmitEvent_ISR( uint32 chid, uint32 sid, int event)
 		printk("st%d\n", sid);	
 		//PRINT_R("int_cnt=%d\n", int_cnt);
 #endif
+		if (duration_max_flag[sid] == 1)
+		{
+			for(i=0; i<2; i++)
+			{
+				eventPkt_fifoWrite(sid, eventPacket);
+#ifdef RFC2833_PROC_DEBUG_SUPPORT
+				rfc2833_proc_event_cnt[sid][event]++;
+#endif
+#ifdef RFC2833_TX_FLOW_DEBUG_PRINT
+				printk("st%d\n", sid);	
+				//PRINT_R("int_cnt=%d\n", int_cnt);
+#endif
+			}
+		}
 
 	}
 	
@@ -1562,7 +1681,11 @@ int RtpTx_transmitEvent_ISR( uint32 chid, uint32 sid, int event)
 		for(i=0; i<2; i++)
 		{
 			eventPacket->timestampSet = true;
+#ifdef RFC2833_EDGE_SEQ_NUM_INC
+			eventPacket->sequenceSet = false;
+#else
 			eventPacket->sequenceSet = true;
+#endif
 			eventPacket->EventPktEdge = true;
 			eventPacket->RFC2833 = TRUE;
 			//transmit( eventPacket, true );
@@ -1595,7 +1718,9 @@ void RtpTx_setFormat (uint32 sid, RtpPayloadType newtype, int frameRate)
 {
 	const codec_payload_desc_t *pCodecPayloadDesc;
 	RtpTransmitter* pInfo = NULL;
+#ifdef SUPPORT_RTP_REDUNDANT	
 	RtpRedundantTx_t *pRtpRedundantTx = &RtpRedundantTx[ sid ];
+#endif
 	if(sid >= DSP_RTK_SS_NUM)	// Sandro+
 		return;
 
@@ -1612,7 +1737,7 @@ void RtpTx_setFormat (uint32 sid, RtpPayloadType newtype, int frameRate)
 			_imul32(pCodecPayloadDesc ->nFrameBytes, 
 					_idiv32(frameRate, pCodecPayloadDesc ->nTranFrameRate));
 	#ifdef SUPPORT_MULTI_FRAME
-		pInfo->pktSampleSize = pCodecPayloadDesc ->nFrameTimestamp * MFFrameNo[sid];
+		pInfo->pktSampleSize = pCodecPayloadDesc ->nFrameTimestamp * MFLocalFrameNo[sid];
 	#else
 		pInfo->pktSampleSize = pCodecPayloadDesc ->nFrameTimestamp;
 	#endif		
@@ -1660,7 +1785,7 @@ void RtpTx_addTimestampOfOneFrame (uint32 sid)
     	 pInfo->prevRtpTime += 80;		// 10ms
 #else
  #ifdef SUPPORT_MULTI_FRAME
-     pInfo->prevRtpTime += ( pInfo->pktSampleSize / MFFrameNo[sid] );
+     pInfo->prevRtpTime += ( pInfo->pktSampleSize / MFLocalFrameNo[sid] );
  #else
 	 pInfo->prevRtpTime += pInfo->pktSampleSize;
  #endif
@@ -1716,10 +1841,10 @@ void RtpTx_subTimestampIfNecessary( uint32 sid, char *pBuf, int32 size )
 	}
 
 	// ok. a normal packet
-	if( nNumOfFrame == MFFrameNo[sid] )
+	if( nNumOfFrame == MFLocalFrameNo[sid] )
 		return;
 			
-	nDeltaOfTimestamp = ( MFFrameNo[sid] - nNumOfFrame ) * nFrameTimestamp;
+	nDeltaOfTimestamp = ( MFLocalFrameNo[sid] - nNumOfFrame ) * nFrameTimestamp;
 	
 	pInfo->prevRtpTime -= nDeltaOfTimestamp;
 }

@@ -311,6 +311,15 @@ int br_show_guestinfo(struct bridge *br)
 
 	return 0;
 }
+
+int br_set_gateway_mac(struct bridge *br, unsigned char *mac)
+{
+	if (br_device_ioctl(br, 111, (unsigned long)mac,
+			    0, 0) < 0)
+		return errno;
+
+	return 0;
+}
 #endif // GUEST_ZONE
 
 

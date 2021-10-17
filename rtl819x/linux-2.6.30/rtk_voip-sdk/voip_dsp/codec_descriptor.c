@@ -1,9 +1,6 @@
 #include <linux/kernel.h>
 #include "codec_descriptor.h"
-#include <linux/config.h>		/*for module disable dmem*/
-#ifdef CONFIG_RTK_VOIP_AMR_NB
-#include "dsp_r1/amr_nb/include/amr_nb.h"
-#endif
+//#include <linux/config.h>		/*for module disable dmem*/
 
 /* ==================================================================
  * Codec classified by algorithm (711a, 711u, 726 16k/24k/32k/40k ...)
@@ -43,6 +40,7 @@ extern uint32 GSMfrGetFrameInfo_FrameLength( const unsigned char *pBuffer );
 extern uint32 iLBC30msGetFrameInfo_FrameLength( const unsigned char *pBuffer );
 extern uint32 iLBC20msGetFrameInfo_FrameLength( const unsigned char *pBuffer );
 extern uint32 AMRGetFrameInfo_FrameLength( const unsigned char *pBuffer );
+extern uint32 AMR_WBGetFrameInfo_FrameLength( const unsigned char *pBuffer );
 extern uint32 T38GetFrameInfo_FrameLength( const unsigned char *pBuffer );
 extern uint32 SPEEX_NBGetFrameInfo_FrameLength( const unsigned char *pBuffer );
 extern uint32 PcmLinear8KGetFrameInfo_FrameLength( const unsigned char *pBuffer );
@@ -61,6 +59,7 @@ extern uint32 G723GetFrameInfo_SidLength( uint32 nSize );
 extern uint32 GSMfrGetFrameInfo_SidLength( uint32 nSize );
 extern uint32 iLBCGetFrameInfo_SidLength( uint32 nSize );
 extern uint32 AMRGetFrameInfo_SidLength( uint32 nSize );
+extern uint32 AMR_WBGetFrameInfo_SidLength( uint32 nSize );
 #define iLBC30msGetFrameInfo_SidLength iLBCGetFrameInfo_SidLength
 #define iLBC20msGetFrameInfo_SidLength iLBCGetFrameInfo_SidLength
 extern uint32 T38GetFrameInfo_SidLength( uint32 nSize );
@@ -80,6 +79,7 @@ extern void GSMfrCmdParserInitialize( uint32 sid, const CDspcodecInitializeParm 
 extern void iLBC30msCmdParserInitialize( uint32 sid, const CDspcodecInitializeParm *pInitializeParam );
 extern void iLBC20msCmdParserInitialize( uint32 sid, const CDspcodecInitializeParm *pInitializeParam );
 extern void AMR_NB_CmdParserInitialize( uint32 sid, const CDspcodecInitializeParm *pInitializeParam );
+extern void AMR_WB_CmdParserInitialize( uint32 sid, const CDspcodecInitializeParm *pInitializeParam );
 extern void T38CmdParserInitialize( uint32 sid, const CDspcodecInitializeParm *pInitializeParam );
 extern void SPEEX_NBCmdParserInitialize( uint32 sid, const CDspcodecInitializeParm *pInitializeParam );
 extern void PCM_Linear8KCmdParserInitialize( uint32 sid, const CDspcodecInitializeParm *pInitializeParam );
@@ -256,57 +256,45 @@ const codec_algo_desc_t g_codecAlgoDesc[] = {
 	},
 #endif /* CONFIG_RTK_VOIP_ILBC */
 #ifdef CONFIG_RTK_VOIP_G722
-    {	/* G722 48k */
-    	DSPCODEC_ALGORITHM_G72248,		/* DSPCODEC_ALGORITHM */
-	G722GetFrameInfo_FrameLength,		/* R0: FN: get frame length */
-	0, /* volatile */			/* R0: N: volatile frame length */
-	0, /* not bit length */			/* R0: N: FrameLengthinbit*/
-	0, /* not payload shift */		/* R0: N: Payload Shift */
-	0,					/* R0: N: Payload Shift Byte */
-	G722GetFrameInfo_SidLength,		/* R0: FN: get SID length */
-#ifdef SUPPORT_BASEFRAME_10MS							
-		160, 			/* 10ms (16k)*/			/* R0: N: frame timestamp */		
-#else		
-		320,				/* 20ms (16k)*/			/* R0: N: frame timestamp */	
-#endif		
-    	GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
-    	G722CmdParserInitialize,		/* R1: FN: CmdParser Initialize */
-		M_MOS( 4.3 ),						/* R1: N: mos */
-    },
-    {	/* G722 56k */
-    	DSPCODEC_ALGORITHM_G72256,		/* DSPCODEC_ALGORITHM */
-	G722GetFrameInfo_FrameLength,		/* R0: FN: get frame length */
-	0, /* volatile */			/* R0: N: volatile frame length */
-	0, /* not bit length */			/* R0: N: FrameLengthinbit*/
-	0, /* not payload shift */		/* R0: N: Payload Shift */
-	0,					/* R0: N: Payload Shift Byte */
-	G722GetFrameInfo_SidLength,		/* R0: FN: get SID length */
-#ifdef SUPPORT_BASEFRAME_10MS							
-		160, 			/* 10ms (16k)*/			/* R0: N: frame timestamp */		
-#else		
-		320,				/* 20ms (16k)*/			/* R0: N: frame timestamp */	
-#endif		
-    	GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
-    	G722CmdParserInitialize,		/* R1: FN: CmdParser Initialize */
-		M_MOS( 4.3 ),						/* R1: N: mos */
-    },
-    {	/* G722 64k */
-    	DSPCODEC_ALGORITHM_G72264,		/* DSPCODEC_ALGORITHM */
-	G722GetFrameInfo_FrameLength,		/* R0: FN: get frame length */
-	0, /* volatile */			/* R0: N: volatile frame length */
-	0, /* not bit length */			/* R0: N: FrameLengthinbit*/
-	0, /* not payload shift */		/* R0: N: Payload Shift */
-	0,					/* R0: N: Payload Shift Byte */
-	G722GetFrameInfo_SidLength,		/* R0: FN: get SID length */
-#ifdef SUPPORT_BASEFRAME_10MS							
-		160, 			/* 10ms (16k)*/			/* R0: N: frame timestamp */		
-#else		
-		320,				/* 20ms (16k)*/			/* R0: N: frame timestamp */
-#endif		
-    	GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
-    	G722CmdParserInitialize,		/* R1: FN: CmdParser Initialize */
-		M_MOS( 4.3 ),						/* R1: N: mos */
-    },
+	{	/* G722 48k */
+		DSPCODEC_ALGORITHM_G72248,		/* DSPCODEC_ALGORITHM */
+		G722GetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		0, /* volatile */			/* R0: N: volatile frame length */
+		0, /* not bit length */			/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */		/* R0: N: Payload Shift */
+		0,					/* R0: N: Payload Shift Byte */
+		G722GetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		80, 			/* 10ms (8k)*/	/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		G722CmdParserInitialize,		/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),				/* R1: N: mos */
+	},
+	{	/* G722 56k */
+		DSPCODEC_ALGORITHM_G72256,		/* DSPCODEC_ALGORITHM */
+		G722GetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		0, /* volatile */			/* R0: N: volatile frame length */
+		0, /* not bit length */			/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */		/* R0: N: Payload Shift */
+		0,					/* R0: N: Payload Shift Byte */
+		G722GetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		80, 			/* 10ms (8k)*/	/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		G722CmdParserInitialize,		/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),				/* R1: N: mos */
+	},
+	{	/* G722 64k */
+		DSPCODEC_ALGORITHM_G72264,		/* DSPCODEC_ALGORITHM */
+		G722GetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		0, /* volatile */			/* R0: N: volatile frame length */
+		0, /* not bit length */			/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */		/* R0: N: Payload Shift */
+		0,					/* R0: N: Payload Shift Byte */
+		G722GetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		80, 			/* 10ms (8k)*/	/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		G722CmdParserInitialize,		/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),				/* R1: N: mos */
+	},
 #endif /* CONFIG_RTK_VOIP_G722 */
 #ifdef CONFIG_RTK_VOIP_G7111
 	{	/* G711.1 u-law */
@@ -447,20 +435,230 @@ const codec_algo_desc_t g_codecAlgoDesc[] = {
 	},
 #endif /* CONFIG_RTK_VOIP_G7111 */
 #ifdef CONFIG_RTK_VOIP_AMR_NB
-    {	/* AMR NB */
-    	DSPCODEC_ALGORITHM_AMR_NB,		/* DSPCODEC_ALGORITHM */
-	AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
-	1, /* volatile */			/* R0: N: volatile frame length */
-	0, /* not bit length */			/* R0: N: FrameLengthinbit*/
-	0, /* not payload shift */		/* R0: N: Payload Shift */
-	0,					/* R0: N: Payload Shift Byte */
-	AMRGetFrameInfo_SidLength,		/* R0: FN: get SID length */
-	160,					/* R0: N: frame timestamp */
-    	GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
-    	AMR_NB_CmdParserInitialize,		/* R1: FN: CmdParser Initialize */
-		M_MOS( 3.87 ),	/* 7.95k */			/* R1: N: mos */
+    {	/* AMR NB 4.75K */
+    	DSPCODEC_ALGORITHM_AMR_NB_4P75,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 3.51 ),						/* R1: N: mos */
+    },
+	{	/* AMR NB 5.15K */
+    	DSPCODEC_ALGORITHM_AMR_NB_5P15,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 3.59 ),						/* R1: N: mos */
+    },
+    {	/* AMR NB 5.90K */
+    	DSPCODEC_ALGORITHM_AMR_NB_5P90,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 3.76 ),						/* R1: N: mos */
+    },
+    {	/* AMR NB 6.70K */
+    	DSPCODEC_ALGORITHM_AMR_NB_6P70,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 3.88 ),						/* R1: N: mos */
+    },
+    {	/* AMR NB 7.40K */
+    	DSPCODEC_ALGORITHM_AMR_NB_7P40,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.0 ),						/* R1: N: mos */
+    },
+    {	/* AMR NB 7.95K */
+    	DSPCODEC_ALGORITHM_AMR_NB_7P95,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.02 ),						/* R1: N: mos */
+    },
+    {	/* AMR NB 10.2K */
+    	DSPCODEC_ALGORITHM_AMR_NB_10P2,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.14 ),						/* R1: N: mos */
+    },
+    {	/* AMR NB 12.2K */
+    	DSPCODEC_ALGORITHM_AMR_NB_12P2,		/* DSPCODEC_ALGORITHM */
+		AMRGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMRGetFrameInfo_SidLength,			/* R0: FN: get SID length */
+		160,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_NB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.26 ),						/* R1: N: mos */
     },
 #endif /* CONFIG_RTK_VOIP_AMR_NB */
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+    {	/* AMR WB 6.6k */
+		DSPCODEC_ALGORITHM_AMR_WB_6P6,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 3.7 ),						/* R1: N: mos */
+    },
+	{	/* AMR WB 8.85k */
+		DSPCODEC_ALGORITHM_AMR_WB_8P85,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.0 ),						/* R1: N: mos */
+    },
+    {	/* AMR WB 12.65k */
+		DSPCODEC_ALGORITHM_AMR_WB_12P65,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.1 ),						/* R1: N: mos */
+    },
+    {	/* AMR WB 14.25k */
+		DSPCODEC_ALGORITHM_AMR_WB_14P25,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.2 ),						/* R1: N: mos */
+    },
+    {	/* AMR WB 15.85k */
+		DSPCODEC_ALGORITHM_AMR_WB_15P85,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),						/* R1: N: mos */
+    },
+    {	/* AMR WB 18.25k */
+		DSPCODEC_ALGORITHM_AMR_WB_18P25,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),						/* R1: N: mos */
+    },
+    {	/* AMR WB 19.85k */
+		DSPCODEC_ALGORITHM_AMR_WB_19P85,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),						/* R1: N: mos */
+    },
+    {	/* AMR WB 23.05k */
+		DSPCODEC_ALGORITHM_AMR_WB_23P05,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),						/* R1: N: mos */
+    },
+    {	/* AMR WB 23.85k */
+		DSPCODEC_ALGORITHM_AMR_WB_23P85,		/* DSPCODEC_ALGORITHM */
+		AMR_WBGetFrameInfo_FrameLength,		/* R0: FN: get frame length */
+		1, /* volatile */					/* R0: N: volatile frame length */
+		0, /* not bit length */				/* R0: N: FrameLengthinbit*/
+		0, /* not payload shift */			/* R0: N: Payload Shift */
+		0,									/* R0: N: Payload Shift Byte */
+		AMR_WBGetFrameInfo_SidLength,		/* R0: FN: get SID length */
+		320,								/* R0: N: frame timestamp */
+		GetNumberOfFramesInCurrentPacket,	/* R0: FN: calculate frames # */
+		AMR_WB_CmdParserInitialize,			/* R1: FN: CmdParser Initialize */
+		M_MOS( 4.3 ),						/* R1: N: mos */
+    },
+#endif /* CONFIG_RTK_VOIP_AMR_WB */
 #ifdef CONFIG_RTK_VOIP_T38
 	{	/* T.38 */
 		DSPCODEC_ALGORITHM_T38,				/* DSPCODEC_ALGORITHM */
@@ -647,6 +845,7 @@ extern enum CODEC_STATE gsmfr_state[MAX_DSP_RTK_SS_NUM];
 extern enum CODEC_STATE iLBC20ms_state[MAX_DSP_RTK_SS_NUM];
 extern enum CODEC_STATE iLBC30ms_state[MAX_DSP_RTK_SS_NUM];
 extern enum CODEC_STATE amr_nb_state[MAX_DSP_RTK_SS_NUM];
+extern enum CODEC_STATE amr_wb_state[MAX_DSP_RTK_SS_NUM];
 extern enum CODEC_STATE t38_state[MAX_DSP_RTK_SS_NUM];
 extern enum CODEC_STATE speex_nb_state[MAX_DSP_RTK_SS_NUM];
 extern enum CODEC_STATE pcm_linear8k_state[MAX_DSP_RTK_SS_NUM];
@@ -664,6 +863,7 @@ extern void GSMfrDecPhaseProcess( uint32 sid );
 extern void iLBC30msDecPhaseProcess( uint32 sid );
 extern void iLBC20msDecPhaseProcess( uint32 sid );
 extern void AMR_NB_DecPhaseProcess( uint32 sid );
+extern void AMR_WB_DecPhaseProcess( uint32 sid );
 extern void T38DecPhaseProcess( uint32 sid );
 extern void SPEEX_NB_DecPhaseProcess( uint32 sid );
 extern void PCM_Linear8kDecPhaseProcess( uint32 sid );
@@ -681,6 +881,7 @@ extern void GSMfrEncPhaseProcess( uint32 sid );
 extern void iLBC30msEncPhaseProcess( uint32 sid );
 extern void iLBC20msEncPhaseProcess( uint32 sid );
 extern void AMR_NB_EncPhaseProcess( uint32 sid );
+extern void AMR_WB_EncPhaseProcess( uint32 sid );
 extern void T38EncPhaseProcess( uint32 sid );
 extern void SPEEX_NB_EncPhaseProcess( uint32 sid );
 extern void PCM_Linear8kEncPhaseProcess( uint32 sid );
@@ -698,6 +899,7 @@ extern void GSMfrAddDecPlaytoneBuffer( uint32 sid, int *pFrameLen );
 extern void iLBC30msAddDecPlaytoneBuffer( uint32 sid, int *pFrameLen );
 extern void iLBC20msAddDecPlaytoneBuffer( uint32 sid, int *pFrameLen );
 extern void AMR_NB_AddDecPlaytoneBuffer( uint32 sid, int *pFrameLen );
+extern void AMR_WB_AddDecPlaytoneBuffer( uint32 sid, int *pFrameLen );
 #define T38AddDecPlaytoneBuffer	G711AddDecPlaytoneBuffer	/* T.38 and G711 are identical */
 extern void SPEEX_NB_AddDecPlaytoneBuffer( uint32 sid, int *pFrameLen );
 extern void PCM_Linear8kAddDecPlaytoneBuffer( uint32 sid, int *pFrameLen );
@@ -715,6 +917,7 @@ extern void G729HighPassFiltering( uint32 sid );
 #define iLBCHighPassFiltering	DummyHighPassFiltering
 #define T38HighPassFiltering	DummyHighPassFiltering
 #define AMR_NB_HighPassFiltering	DummyHighPassFiltering
+#define AMR_WB_HighPassFiltering	DummyHighPassFiltering
 #define SPEEX_NB_HighPassFiltering	DummyHighPassFiltering
 #define PCM_Linear8kHighPassFiltering	DummyHighPassFiltering
 #define PCM_Linear16kHighPassFiltering	DummyHighPassFiltering
@@ -731,6 +934,7 @@ extern void GSMfrCmdParserStart( uint32 sid, const CDspcodecStartParm *pStartPar
 extern void iLBC30msCmdParserStart( uint32 sid, const CDspcodecStartParm *pStartParam );
 extern void iLBC20msCmdParserStart( uint32 sid, const CDspcodecStartParm *pStartParam );
 extern void AMR_NB_CmdParserStart( uint32 sid, const CDspcodecStartParm *pStartParam );
+extern void AMR_WB_CmdParserStart( uint32 sid, const CDspcodecStartParm *pStartParam );
 extern void T38CmdParserStart( uint32 sid, const CDspcodecStartParm *pStartParam );
 extern void SPEEX_NB_CmdParserStart( uint32 sid, const CDspcodecStartParm *pStartParam );
 extern void PCM_Linear8kCmdParserStart( uint32 sid, const CDspcodecStartParm *pStartParam );
@@ -748,6 +952,7 @@ extern void GSMfrCmdParserStop( uint32 sid );
 extern void iLBC30msCmdParserStop( uint32 sid );
 extern void iLBC20msCmdParserStop( uint32 sid );
 extern void AMR_NB_CmdParserStop( uint32 sid );
+extern void AMR_WB_CmdParserStop( uint32 sid );
 #define T38CmdParserStop	G711CmdParserStop	/* T.38 and G711 are identical */
 extern void SPEEX_NB_CmdParserStop( uint32 sid );
 extern void PCM_Linear8kCmdParserStop( uint32 sid );
@@ -766,6 +971,7 @@ extern int GSMfrIsJbcSidFrame( uint32 sid, uint32 nSize );
 extern int iLBC30msIsJbcSidFrame( uint32 sid, uint32 nSize );
 extern int iLBC20msIsJbcSidFrame( uint32 sid, uint32 nSize );
 extern int AMR_NB_IsJbcSidFrame( uint32 sid, uint32 nSize );
+extern int AMR_WB_IsJbcSidFrame( uint32 sid, uint32 nSize );
 extern int T38IsJbcSidFrame( uint32 sid, uint32 nSize );
 extern int SPEEX_NB_IsJbcSidFrame( uint32 sid, uint32 nSize );
 extern int PCM_Linear8kIsJbcSidFrame( uint32 sid, uint32 nSize );
@@ -784,6 +990,7 @@ extern void G726_set_codec_mem(int state, int g726_rate);
 extern void GSMfr_set_codec_mem(int state, int g726_rate);
 extern void iLBC_set_codec_mem(int state, int g726_rate);
 extern void AMR_NB_set_codec_mem(int state, int g726_rate);
+extern void AMR_WB_set_codec_mem(int state, int g726_rate);
 extern void T38_set_codec_mem(int state, int g726_rate);
 extern void SPEEX_NB_set_codec_mem(int state, int g726_rate);
 #define PCM_Linear8k_set_codec_mem	set_codec_mem_to_common
@@ -802,14 +1009,10 @@ extern void T38SetLecG168SyncPoint( unsigned int chid );
 extern void PCM_Linear8kSetLecG168SyncPoint( unsigned int chid );
 extern void PCM_Linear16kSetLecG168SyncPoint( unsigned int chid );
 
-#ifdef SUPPORT_G722_ITU			// force it to become wide band when the itu g.722 is used
+#ifdef SUPPORT_G722_TYPE_WW
 #define G722_SAMPLE_BAND		SAMPLE_WIDE_BAND
 #else
- #ifdef SUPPORT_G722_TYPE_WW
- #define G722_SAMPLE_BAND		SAMPLE_WIDE_BAND
- #else
- #define G722_SAMPLE_BAND		SAMPLE_NARROW_BAND
- #endif
+#define G722_SAMPLE_BAND		SAMPLE_NARROW_BAND
 #endif
 
 const codec_type_desc_t g_codecTypeDesc[] = {
@@ -831,6 +1034,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,								/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		80,						/* N: RTP timestamp */
 	},
 #ifdef CONFIG_RTK_VOIP_G7231
 	{
@@ -851,6 +1055,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		2,	/* 0, 1, 2 */				/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		240,						/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_G729AB
@@ -872,6 +1077,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,								/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		80,						/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_G726
@@ -893,6 +1099,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,								/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		80,						/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_GSMFR
@@ -914,6 +1121,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		1,	/* 0, 1 */					/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		160,						/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_ILBC
@@ -935,6 +1143,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		2,	/* 0, 1, 2 */					/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		240,						/* N: RTP timestamp */
 	},
 	{
 		CODEC_TYPE_ILBC20MS, 				/* START_CODEC_TYPE */
@@ -954,31 +1163,30 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		1,	/* 0, 1 */					/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		160,						/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_G722
 	{
-		CODEC_TYPE_G722,  				/* START_CODEC_TYPE */
+		CODEC_TYPE_G722,  			/* START_CODEC_TYPE */
 		g722WB_state,				/* CODEC_STATE pointer */
-		G722DecPhaseProcess,				/* FN: decode phase */
-		G722EncPhaseProcess,				/* FN: encode phase */
+		G722DecPhaseProcess,			/* FN: decode phase */
+		G722EncPhaseProcess,			/* FN: encode phase */
 		G722AddDecPlaytoneBuffer,		/* FN: add buffer */
 		G722HighPassFiltering,			/* FN: high pass filtering */
-		80,	/* 10ms */			/* N: NB budget size for tone */
+		80,		/* 10ms */			/* N: NB budget size for tone */
 		G722CmdParserStart,			/* FN: CmdParser Start */
 		G722CmdParserStop,			/* FN: CmdParser Stop */
 		//G722IsJbcSidFrame,			/* FN: JBC: Is SID frame */               
- #ifdef SUPPORT_BASEFRAME_10MS	
 		10,					/* N: JBC: frame period */
- #else
-		20, 
- #endif	
  #ifndef CONFIG_RTK_VOIP_MODULE 
 		G722_set_codec_mem,			/* FN: set codec mem */
  #endif /* !CONFIG_RTK_VOIP_MODULE */
-		0,	/* 0, 1, 2 */							/* N: DSP process cut step */
+		0,	/* 0, 1, 2 */			/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,			/* N: UDP carry type */
-		G722_SAMPLE_BAND,				/* N: sampling rate */
+		G722_SAMPLE_BAND,			/* N: sampling rate */
+		//Due to a historical error, it needs to maintain backward compatibility. RTP clock rate: 8kHz
+		80,					/* N: RTP timestamp */ 
 	},
 #endif 
 #ifdef CONFIG_RTK_VOIP_G7111
@@ -1008,6 +1216,12 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,	/* 0, 1, 2 */			/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,			/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,			/* N: sampling rate */
+		// a 16-kHz RTP clock rate MUST always be used
+	#ifdef G7111_10MS_BASE
+		160,					/* N: RTP timestamp */
+	#else		
+		80,					/* N: RTP timestamp */
+	#endif		
 	},
 	{
 		CODEC_TYPE_G7111WB,  			/* START_CODEC_TYPE */
@@ -1035,6 +1249,12 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,	/* 0, 1, 2 */			/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,			/* N: UDP carry type */
 		SAMPLE_WIDE_BAND,			/* N: sampling rate */
+		
+	#ifdef G7111_10MS_BASE
+		160,					/* N: RTP timestamp */
+	#else		
+		80,					/* N: RTP timestamp */
+	#endif		
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_AMR_NB
@@ -1055,7 +1275,30 @@ const codec_type_desc_t g_codecTypeDesc[] = {
  #endif /* !CONFIG_RTK_VOIP_MODULE */
 		1,	/* 0, 1, 2 */			/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,			/* N: UDP carry type */
-		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		SAMPLE_NARROW_BAND,				/* N: sampling rate */		
+		80,					/* N: RTP timestamp */
+	},
+#endif
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+	{
+		CODEC_TYPE_AMR_WB,  			/* START_CODEC_TYPE */
+		amr_wb_state,					/* CODEC_STATE pointer */
+		AMR_WB_DecPhaseProcess,			/* FN: decode phase */
+		AMR_WB_EncPhaseProcess,			/* FN: encode phase */
+		AMR_WB_AddDecPlaytoneBuffer,	/* FN: add buffer */
+		AMR_WB_HighPassFiltering,		/* FN: high pass filtering */
+		160,	/* 20ms */				/* N: NB budget size for tone */
+		AMR_WB_CmdParserStart,			/* FN: CmdParser Start */
+		AMR_WB_CmdParserStop,			/* FN: CmdParser Stop */
+		//AMR_WB_IsJbcSidFrame,			/* FN: JBC: Is SID frame */
+		20,								/* N: JBC: frame period */
+ #ifndef CONFIG_RTK_VOIP_MODULE 
+		AMR_WB_set_codec_mem,			/* FN: set codec mem */
+ #endif /* !CONFIG_RTK_VOIP_MODULE */
+		1,	/* 0, 1, 2 */				/* N: DSP process cut step */
+		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
+		SAMPLE_WIDE_BAND,				/* N: sampling rate */		
+		320,							/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_T38
@@ -1077,6 +1320,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,	/* 0 */						/* N: DSP process cut step */
 		UDP_CARRY_TYPE_T38,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		80,					/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_SPEEX_NB
@@ -1098,6 +1342,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		1,	/* 0, 1 */					/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,				/* N: sampling rate */
+		160,					/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_PCM_LINEAR_8K
@@ -1119,6 +1364,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,								/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_NARROW_BAND,					/* N: sampling rate */
+		80,					/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_PCM_LINEAR_16K
@@ -1140,6 +1386,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,								/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_WIDE_BAND,					/* N: sampling rate */
+		80,					/* N: RTP timestamp */
 	},
 #endif
 #ifdef CONFIG_RTK_VOIP_SILENCE
@@ -1161,6 +1408,7 @@ const codec_type_desc_t g_codecTypeDesc[] = {
 		0,								/* N: DSP process cut step */
 		UDP_CARRY_TYPE_RTP,				/* N: UDP carry type */
 		SAMPLE_IGNORE,					/* N: sampling rate */
+		80,					/* N: RTP timestamp */
 	},
 #endif
 };
@@ -1186,6 +1434,7 @@ CT_ASSERT( CODEC_TYPE_NUMBER == NUM_OF_CODEC_TYPE_DESC );
 #define iLBC30ms_FRAME_RATE	30000
 #define iLBC20ms_FRAME_RATE	20000
 #define AMR_NB_FRAME_RATE		20000
+#define AMR_WB_FRAME_RATE		20000
 #define T38_FRAME_RATE			10000
 #define SPEEX_NB_FRAME_RATE		20000
 #define PCM_LINEAR_FRAME_REATE          10000
@@ -1205,11 +1454,62 @@ CT_ASSERT( CODEC_TYPE_NUMBER == NUM_OF_CODEC_TYPE_DESC );
 #define iLBC30ms_FRAME_RATE	30000
 #define iLBC20ms_FRAME_RATE	20000
 #define AMR_NB_FRAME_RATE		20000
+#define AMR_WB_FRAME_RATE		20000
 #define T38_FRAME_RATE			10000
 #define SPEEX_NB_FRAME_RATE		20000
 #define PCM_LINEAR_FRAME_REATE          10000
 #define SILENCE_FRAME_RATE		10000
 #endif /* SUPPORT_BASEFRAME_10MS */
+
+#ifdef CONFIG_RTK_VOIP_AMR_NB
+#ifdef AMR_NB_WENGO
+#define AMR_NB_FRAME_BYTES_4P75		15
+#define AMR_NB_FRAME_BYTES_5P15		16
+#define AMR_NB_FRAME_BYTES_5P90		18
+#define AMR_NB_FRAME_BYTES_6P70		20
+#define AMR_NB_FRAME_BYTES_7P40		22
+#define AMR_NB_FRAME_BYTES_7P95		23
+#define AMR_NB_FRAME_BYTES_10P2		29
+#define AMR_NB_FRAME_BYTES_12P2		34
+#define AMR_NB_SID_BYTES			8
+#else
+#define AMR_NB_FRAME_BYTES_4P75		14
+#define AMR_NB_FRAME_BYTES_5P15		15
+#define AMR_NB_FRAME_BYTES_5P90		17
+#define AMR_NB_FRAME_BYTES_6P70		19
+#define AMR_NB_FRAME_BYTES_7P40		21
+#define AMR_NB_FRAME_BYTES_7P95		22
+#define AMR_NB_FRAME_BYTES_10P2		28
+#define AMR_NB_FRAME_BYTES_12P2		33
+#define AMR_NB_SID_BYTES			7
+#endif
+#endif
+
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+#ifdef AMR_WB_WENGO
+#define FRAME_BYTES_6P6			20
+#define FRAME_BYTES_8P85		26
+#define FRAME_BYTES_12P65		35
+#define FRAME_BYTES_14P25		39
+#define FRAME_BYTES_15P85		43
+#define FRAME_BYTES_18P25		49
+#define FRAME_BYTES_19P85		53
+#define FRAME_BYTES_23P05		61
+#define FRAME_BYTES_23P85		63
+#define SID_BYTES				8
+#else
+#define FRAME_BYTES_6P6			19
+#define FRAME_BYTES_8P85		25
+#define FRAME_BYTES_12P65		34
+#define FRAME_BYTES_14P25		38
+#define FRAME_BYTES_15P85		42
+#define FRAME_BYTES_18P25		48
+#define FRAME_BYTES_19P85		52
+#define FRAME_BYTES_23P05		60
+#define FRAME_BYTES_23P85		62
+#define SID_BYTES				7
+#endif
+#endif
 
 extern uint32 G729GetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
 extern uint32 G711GetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
@@ -1224,6 +1524,7 @@ extern uint32 GSMfrGetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
 extern uint32 iLBC30msGetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
 extern uint32 iLBC20msGetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
 extern uint32 AMR_NB_GetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
+extern uint32 AMR_WB_GetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
 extern uint32 T38GetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
 extern uint32 SPEEX_NB_GetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
 extern uint32 PcmLinear8kGetTxNumberOfFrame( uint32 nSize, const char *pBuffer );
@@ -1432,8 +1733,8 @@ const codec_payload_desc_t g_codecPayloadDesc[] = {
 	{
 		rtpPayloadG722,				/* RtpPayloadType */	
 		DSPCODEC_ALGORITHM_G72264,		/* DSPCODEC_ALGORITHM */
-		DSPCODEC_ALGORITHM_G72256,		/* DSPCODEC_ALGORITHM */
-		DSPCODEC_ALGORITHM_G72248,		/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_G72264,		/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_G72264,		/* DSPCODEC_ALGORITHM */
 		DSPCODEC_ALGORITHM_G72264,		/* DSPCODEC_ALGORITHM */
 		G722_FRAME_RATE,			/* N: recv rate */
 		G722_FRAME_RATE,			/* N: transfer rate */
@@ -1442,17 +1743,8 @@ const codec_payload_desc_t g_codecPayloadDesc[] = {
 		6,					/* N: h-thres Tx frame per packet */
 		1,					/* N: tx SID frame bytes */
 		10,					/* N: frame period (ms) */
- #ifdef SUPPORT_G722_ITU				
-  #ifdef SUPPORT_BASEFRAME_10MS							
- 		160,		/* 10ms (16k)*/			/* N: frame timestamp */
-  #else
-  		320,		/* 20ms (16k)*/			/* N: frame timestamp */
-  #endif				 		
-		16000,							/* N: timestamp rate (timestamp/sec) */		
- #else 
-		80,/* 10ms (16k)*/			/* N: frame timestamp */
-		8000,							/* N: timestamp rate (timestamp/sec) */
- #endif		
+		80,/* 10ms (RTP clock 8k)*/		/* N: frame timestamp */ 		//duncan <-- here
+		8000,					/* N: timestamp rate (timestamp/sec) */
 		G722GetTxNumberOfFrame,			/* FN: Get Tx number of frame */
 	},
 #endif /* CONFIG_RTK_VOIP_G722 */
@@ -1512,15 +1804,134 @@ const codec_payload_desc_t g_codecPayloadDesc[] = {
 #endif /* CONFIG_RTK_VOIP_G7111 */
 #ifdef CONFIG_RTK_VOIP_AMR_NB
 	{
-		rtpPayload_AMR_NB,				/* RtpPayloadType */
-		DSPCODEC_ALGORITHM_AMR_NB,		/* DSPCODEC_ALGORITHM */
-		DSPCODEC_ALGORITHM_AMR_NB,		/* DSPCODEC_ALGORITHM */
-		DSPCODEC_ALGORITHM_AMR_NB,		/* DSPCODEC_ALGORITHM */
-		DSPCODEC_ALGORITHM_AMR_NB,		/* DSPCODEC_ALGORITHM */
+		rtpPayload_AMR_NB_RATE4P75,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_4P75,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_4P75,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_4P75,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_4P75,	/* DSPCODEC_ALGORITHM */
 		AMR_NB_FRAME_RATE,				/* N: recv rate */
 		AMR_NB_FRAME_RATE,				/* N: transfer rate */
-		"Set codec on AMR_NB RTP\n",	/* C: set codec prompt */
-		AMR_NB_FRAME_BYTES,				/* N: frame bytes */
+		"Set codec on AMR_NB 4.75k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_4P75,		/* N: frame bytes */
+		9,								/* N: h-thres Tx frame per packet */
+		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		160,							/* N: frame timestamp */
+		8000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_NB_RATE5P15,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_5P15,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_5P15,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_5P15,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_5P15,	/* DSPCODEC_ALGORITHM */
+		AMR_NB_FRAME_RATE,				/* N: recv rate */
+		AMR_NB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_NB 5.15k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_5P15,		/* N: frame bytes */
+		9,								/* N: h-thres Tx frame per packet */
+		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		160,							/* N: frame timestamp */
+		8000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_NB_RATE5P90,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_5P90,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_5P90,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_5P90,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_5P90,	/* DSPCODEC_ALGORITHM */
+		AMR_NB_FRAME_RATE,				/* N: recv rate */
+		AMR_NB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_NB 5.90k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_5P90,		/* N: frame bytes */
+		9,								/* N: h-thres Tx frame per packet */
+		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		160,							/* N: frame timestamp */
+		8000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_NB_RATE6P70,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_6P70,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_6P70,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_6P70,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_6P70,	/* DSPCODEC_ALGORITHM */
+		AMR_NB_FRAME_RATE,				/* N: recv rate */
+		AMR_NB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_NB 6.70k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_6P70,		/* N: frame bytes */
+		9,								/* N: h-thres Tx frame per packet */
+		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		160,							/* N: frame timestamp */
+		8000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_NB_RATE7P40,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_7P40,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_7P40,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_7P40,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_7P40,	/* DSPCODEC_ALGORITHM */
+		AMR_NB_FRAME_RATE,				/* N: recv rate */
+		AMR_NB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_NB 7.40k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_7P40,		/* N: frame bytes */
+		9,								/* N: h-thres Tx frame per packet */
+		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		160,							/* N: frame timestamp */
+		8000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_NB_RATE7P95,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_7P95,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_7P95,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_7P95,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_7P95,	/* DSPCODEC_ALGORITHM */
+		AMR_NB_FRAME_RATE,				/* N: recv rate */
+		AMR_NB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_NB 7.95k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_7P95,		/* N: frame bytes */
+		9,								/* N: h-thres Tx frame per packet */
+		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		160,							/* N: frame timestamp */
+		8000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_NB_RATE10P2,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_10P2,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_10P2,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_10P2,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_10P2,	/* DSPCODEC_ALGORITHM */
+		AMR_NB_FRAME_RATE,				/* N: recv rate */
+		AMR_NB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_NB 10.2k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_10P2,		/* N: frame bytes */
+		9,								/* N: h-thres Tx frame per packet */
+		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		160,							/* N: frame timestamp */
+		8000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_NB_RATE12P2,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_NB_12P2,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_12P2,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_12P2,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_NB_12P2,	/* DSPCODEC_ALGORITHM */
+		AMR_NB_FRAME_RATE,				/* N: recv rate */
+		AMR_NB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_NB 12.2k RTP\n",	/* C: set codec prompt */
+		AMR_NB_FRAME_BYTES_12P2,		/* N: frame bytes */
 		9,								/* N: h-thres Tx frame per packet */
 		AMR_NB_SID_BYTES,				/* N: tx SID frame bytes */
 		20,								/* N: frame period (ms) */
@@ -1529,6 +1940,161 @@ const codec_payload_desc_t g_codecPayloadDesc[] = {
 		AMR_NB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
 	},
 #endif /* CONFIG_RTK_VOIP_AMR_NB */
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+	{
+		rtpPayload_AMR_WB_RATE6P6,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_6P6,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_6P6,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_6P6,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_6P6,	/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 6.6k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_6P6,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE8P85,		/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_8P85,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_8P85,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_8P85,	/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_8P85,	/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 8.85k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_8P85,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE12P65,	/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_12P65,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_12P65,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_12P65,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_12P65,/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 12.65k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_12P65,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE14P25,	/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_14P25,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_14P25,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_14P25,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_14P25,/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 14.25k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_14P25,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE15P85,	/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_15P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_15P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_15P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_15P85,/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 15.85k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_15P85,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE18P25,	/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_18P25,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_18P25,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_18P25,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_18P25,/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 18.25k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_18P25,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE19P85,	/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_19P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_19P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_19P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_19P85,/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 19.85k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_19P85,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE23P05,	/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_23P05,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_23P05,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_23P05,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_23P05,/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,				/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 23.05k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_23P05,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+	{
+		rtpPayload_AMR_WB_RATE23P85,	/* RtpPayloadType */
+		DSPCODEC_ALGORITHM_AMR_WB_23P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_23P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_23P85,/* DSPCODEC_ALGORITHM */
+		DSPCODEC_ALGORITHM_AMR_WB_23P85,/* DSPCODEC_ALGORITHM */
+		AMR_WB_FRAME_RATE,			/* N: recv rate */
+		AMR_WB_FRAME_RATE,				/* N: transfer rate */
+		"Set codec on AMR_WB 23.85k RTP\n",	/* C: set codec prompt */
+		FRAME_BYTES_23P85,				/* N: frame bytes */
+		4,								/* N: h-thres Tx frame per packet */
+		SID_BYTES,						/* N: tx SID frame bytes */
+		20,								/* N: frame period (ms) */
+		320,							/* N: frame timestamp */
+		16000,							/* N: timestamp rate (timestamp/sec) */
+		AMR_WB_GetTxNumberOfFrame,		/* FN: Get Tx number of frame */
+	},
+#endif /* CONFIG_RTK_VOIP_AMR_WB */
 #ifdef CONFIG_RTK_VOIP_T38
 	{
 		rtpPayloadT38_Virtual,			/* RtpPayloadType */
@@ -1751,7 +2317,8 @@ CT_ASSERT( ( sizeof( g_codecPayloadDesc ) / sizeof( g_codecPayloadDesc[ 0 ] ) ) 
 /* ******************************************************************
  * Assistant functions
  * ****************************************************************** */
-extern const codec_type_desc_t *ppStartCodecTypeDesc[MAX_DSP_RTK_SS_NUM];
+extern const codec_type_desc_t *ppStartTranCodecTypeDesc[MAX_DSP_RTK_SS_NUM];
+extern const codec_type_desc_t *ppStartRecvCodecTypeDesc[MAX_DSP_RTK_SS_NUM];
 
 
 /* ---------------- Check functions ---------------- */
@@ -1771,7 +2338,7 @@ int IsJbcSidFrameOfThisCodec( uint32 sid, uint32 nSize )
 {
 	const codec_type_desc_t *pCodecTypeDesc;
 
-	pCodecTypeDesc = ppStartCodecTypeDesc[ sid ];
+	pCodecTypeDesc = ppStartRecvCodecTypeDesc[ sid ];
 	
 	if( pCodecTypeDesc )
 		return ( *pCodecTypeDesc ->fnIsJbcSidFrame )( sid, nSize );
@@ -1780,11 +2347,11 @@ int IsJbcSidFrameOfThisCodec( uint32 sid, uint32 nSize )
 }
 #endif
 
-enum START_CODEC_TYPE GetGlobalStartCodecType( uint32 sid )
+enum START_CODEC_TYPE GetGlobalStartRecvCodecType( uint32 sid )
 {
 	const codec_type_desc_t *pCodecTypeDesc;
 	
-	pCodecTypeDesc = ppStartCodecTypeDesc[ sid ];
+	pCodecTypeDesc = ppStartRecvCodecTypeDesc[ sid ];
 	
 	if( pCodecTypeDesc )
 		return pCodecTypeDesc ->codecStartType;
@@ -1792,49 +2359,61 @@ enum START_CODEC_TYPE GetGlobalStartCodecType( uint32 sid )
 	return CODEC_TYPE_UNKNOW;
 }
 
-int CheckG711StartCodecType( uint32 sid )
+int CheckG711StartRecvCodecType( uint32 sid )
 {
-	return ( GetGlobalStartCodecType( sid ) == CODEC_TYPE_G711 );
+	return ( GetGlobalStartRecvCodecType( sid ) == CODEC_TYPE_G711 );
 }
 
 #ifdef CONFIG_RTK_VOIP_G722
-int CheckG722StartCodecType( uint32 sid )
+int CheckG722StartRecvCodecType( uint32 sid )
 {
-	return ( GetGlobalStartCodecType( sid ) == CODEC_TYPE_G722 );
+	return ( GetGlobalStartRecvCodecType( sid ) == CODEC_TYPE_G722 );
 }
 #else
-int CheckG722StartCodecType( uint32 sid )
+int CheckG722StartRecvCodecType( uint32 sid )
 {
 	return 0;
 }
 #endif
 
 #ifdef CONFIG_RTK_VOIP_AMR_NB
-int Check_AMR_NB_StartCodecType( uint32 sid )
+int Check_AMR_NB_StartRecvCodecType( uint32 sid )
 {
-	return ( GetGlobalStartCodecType( sid ) == CODEC_TYPE_AMR_NB );
+	return ( GetGlobalStartRecvCodecType( sid ) == CODEC_TYPE_AMR_NB );
 }
 #else
-int Check_AMR_NB_StartCodecType( uint32 sid )
+int Check_AMR_NB_StartRecvCodecType( uint32 sid )
+{
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+int Check_AMR_WB_StartRecvCodecType( uint32 sid )
+{
+	return ( GetGlobalStartRecvCodecType( sid ) == CODEC_TYPE_AMR_WB );
+}
+#else
+int Check_AMR_WB_StartRecvCodecType( uint32 sid )
 {
 	return 0;
 }
 #endif
 
 #ifdef CONFIG_RTK_VOIP_G7231
-int CheckG723StartCodecType( uint32 sid )
+int CheckG723StartRecvCodecType( uint32 sid )
 {
-	return ( GetGlobalStartCodecType( sid ) == CODEC_TYPE_G7231 );
+	return ( GetGlobalStartRecvCodecType( sid ) == CODEC_TYPE_G7231 );
 }
 #endif
 
 #ifdef CONFIG_RTK_VOIP_G729AB
-int CheckG729StartCodecType( uint32 sid )
+int CheckG729StartRecvCodecType( uint32 sid )
 {
-	return ( GetGlobalStartCodecType( sid ) == CODEC_TYPE_G729 );
+	return ( GetGlobalStartRecvCodecType( sid ) == CODEC_TYPE_G729 );
 }
 #else
-int CheckG729StartCodecType( uint32 sid )
+int CheckG729StartRecvCodecType( uint32 sid )
 {
 	return 0;
 }
@@ -1879,6 +2458,9 @@ const enum START_CODEC_TYPE nCodecTypeID_iLBC20ms = CODEC_TYPE_ILBC20MS;
 #ifdef CONFIG_RTK_VOIP_AMR_NB
 const enum START_CODEC_TYPE nCodecTypeID_AMR_NB = CODEC_TYPE_AMR_NB;
 #endif
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+const enum START_CODEC_TYPE nCodecTypeID_AMR_WB = CODEC_TYPE_AMR_WB;
+#endif
 #ifdef CONFIG_RTK_VOIP_T38
 const enum START_CODEC_TYPE nCodecTypeID_T38 = CODEC_TYPE_T38;
 #endif
@@ -1896,6 +2478,9 @@ const enum START_CODEC_TYPE nCodecTypeID_Silence = CODEC_TYPE_SILENCE;
 #endif
 
 /* ---------------- codec algorithm ID declare ---------------- */ 
+const DSPCODEC_ALGORITHM nCodecAlgorithm_G711U = DSPCODEC_ALGORITHM_G711U;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_G711A = DSPCODEC_ALGORITHM_G711A;
+
 #ifdef CONFIG_RTK_VOIP_G722
 const DSPCODEC_ALGORITHM nCodecAlgorithm_G72264 = DSPCODEC_ALGORITHM_G72264;
 const DSPCODEC_ALGORITHM nCodecAlgorithm_G72256 = DSPCODEC_ALGORITHM_G72256;
@@ -1914,6 +2499,7 @@ const DSPCODEC_ALGORITHM nCodecAlgorithm_G7111R3A = DSPCODEC_ALGORITHM_G7111R3A;
 #endif
 
 #ifdef CONFIG_RTK_VOIP_G7231
+const DSPCODEC_ALGORITHM nCodecAlgorithm_G7231A53 = DSPCODEC_ALGORITHM_G7231A53;
 const DSPCODEC_ALGORITHM nCodecAlgorithm_G7231A63 = DSPCODEC_ALGORITHM_G7231A63;
 #endif
 
@@ -1924,8 +2510,40 @@ const DSPCODEC_ALGORITHM nCodecAlgorithm_G72632 = DSPCODEC_ALGORITHM_G72632;
 const DSPCODEC_ALGORITHM nCodecAlgorithm_G72640 = DSPCODEC_ALGORITHM_G72640;
 #endif
 
+#ifdef CONFIG_RTK_VOIP_G729AB
+const DSPCODEC_ALGORITHM nCodecAlgorithm_G729 = DSPCODEC_ALGORITHM_G729;
+#endif
+
+#ifdef CONFIG_RTK_VOIP_GSMFR
+const DSPCODEC_ALGORITHM nCodecAlgorithm_GSMFR = DSPCODEC_ALGORITHM_GSMFR;
+#endif
+
+#ifdef CONFIG_RTK_VOIP_ILBC
+const DSPCODEC_ALGORITHM nCodecAlgorithm_ILBC30MS = DSPCODEC_ALGORITHM_ILBC30MS;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_ILBC20MS = DSPCODEC_ALGORITHM_ILBC20MS;
+#endif
+
 #ifdef CONFIG_RTK_VOIP_AMR_NB
-const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB = DSPCODEC_ALGORITHM_AMR_NB;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_4P75 = DSPCODEC_ALGORITHM_AMR_NB_4P75;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_5P15 = DSPCODEC_ALGORITHM_AMR_NB_5P15;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_5P90 = DSPCODEC_ALGORITHM_AMR_NB_5P90;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_6P70 = DSPCODEC_ALGORITHM_AMR_NB_6P70;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_7P40 = DSPCODEC_ALGORITHM_AMR_NB_7P40;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_7P95 = DSPCODEC_ALGORITHM_AMR_NB_7P95;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_10P2 = DSPCODEC_ALGORITHM_AMR_NB_10P2;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_NB_12P2 = DSPCODEC_ALGORITHM_AMR_NB_12P2;
+#endif
+
+#ifdef CONFIG_RTK_VOIP_AMR_WB
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_6P6 = DSPCODEC_ALGORITHM_AMR_WB_6P6;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_8P85 = DSPCODEC_ALGORITHM_AMR_WB_8P85;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_12P65 = DSPCODEC_ALGORITHM_AMR_WB_12P65;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_14P25 = DSPCODEC_ALGORITHM_AMR_WB_14P25;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_15P85 = DSPCODEC_ALGORITHM_AMR_WB_15P85;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_18P25 = DSPCODEC_ALGORITHM_AMR_WB_18P25;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_19P85 = DSPCODEC_ALGORITHM_AMR_WB_19P85;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_23P05 = DSPCODEC_ALGORITHM_AMR_WB_23P05;
+const DSPCODEC_ALGORITHM nCodecAlgorithm_AMR_WB_23P85 = DSPCODEC_ALGORITHM_AMR_WB_23P85;
 #endif
 
 #ifdef CONFIG_RTK_VOIP_SPEEX_NB
@@ -1937,6 +2555,10 @@ const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_15 = DSPCODEC_ALGORITHM_SPEEX_
 const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_18P2 = DSPCODEC_ALGORITHM_SPEEX_NB_18P2;
 const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_24P6 = DSPCODEC_ALGORITHM_SPEEX_NB_24P6;
 const DSPCODEC_ALGORITHM nCodecAlgorithm_SPEEX_NB_3P95 = DSPCODEC_ALGORITHM_SPEEX_NB_3P95;
+#endif
+
+#ifdef CONFIG_RTK_VOIP_T38
+const DSPCODEC_ALGORITHM nCodecAlgorithm_T38 = DSPCODEC_ALGORITHM_T38;
 #endif
 
 /* ---------------- Get descriptor functions ---------------- */
@@ -1980,5 +2602,23 @@ void DoAllCodecEncPhase( uint32 sid )
 
 	for( i = 0; i < NUM_OF_CODEC_TYPE_DESC; i ++ )
 		( *g_codecTypeDesc[ i ].fnCodecEncPhase )( sid );
+}
+
+//vincent debug
+
+void dump_codec_state()
+{
+	int i,j;
+	int codec_num = sizeof(g_codecTypeDesc)/sizeof(codec_type_desc_t);
+
+	printk("\nTotal %d codecs\n",codec_num);
+	for (i=0;i<codec_num;i++) {
+		printk("codec %d: ",g_codecTypeDesc[i].codecStartType);
+		for (j=0;j<MAX_DSP_RTK_SS_NUM;j++) {
+			printk("%d ",g_codecTypeDesc[i].pCodecState[j]);
+		}
+		printk("\n");
+	}
+	printk("==========================\n");
 }
 
