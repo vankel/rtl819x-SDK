@@ -1,0 +1,10 @@
+*.a
+*.o
+*.o.d
+*.cmd
+*.la
+*.lo
+*.so
+
+/.config
+/.config.old

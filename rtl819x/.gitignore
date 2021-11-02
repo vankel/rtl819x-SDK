@@ -1,0 +1,10 @@
+*.cmd
+*.o
+
+/.config
+/.oldconfig
+/Kconfig
+/image
+/romfs
+/target
+/tmpfs

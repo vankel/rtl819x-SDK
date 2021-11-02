@@ -1,0 +1,9 @@
+/ld.script
+/linux.bin
+/memload-full
+/memload-partial
+/nfjrom
+/system.map
+/vmlinux-stripped
+/vmlinux_img
+/vmlinux_img.gz

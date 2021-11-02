@@ -1,0 +1,11 @@
+*.o
+*.a
+*.s
+*.old
+*.cmd
+modules.order
+/.missing-syscalls.d
+/.version
+/System.map
+/linux
+/vmlinux*

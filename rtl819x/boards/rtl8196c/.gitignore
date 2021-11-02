@@ -1,0 +1,8 @@
+/Kconfig.ictest
+/board_config_model.in
+/image
+/romfs
+/root.bin
+/squashfs-lzma.o
+/squashfs-pf-list.txt
+/tmpfs

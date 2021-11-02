@@ -1,0 +1,16 @@
+/iwconfig
+/iwevent
+/iwgetid
+/iwlist
+/iwpriv
+/iwspy
+/iwconfig.o
+/iwevent.o
+/iwgetid.o
+/iwlib.o
+/iwlib.so
+/iwlist.o
+/iwpriv.o
+/iwspy.o
+/libiw.a
+/libiw.so.25

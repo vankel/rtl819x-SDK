@@ -1,0 +1,6 @@
+/.deps
+/.libs
+/config.log
+/iptables-static
+/iptables-xml
+/iptables_config_done
