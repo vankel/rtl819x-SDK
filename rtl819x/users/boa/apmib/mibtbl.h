@@ -155,4 +155,5 @@ struct _mib_table_entry {
 
 extern mib_table_entry_T mib_table[], mib_wlan_table[], hwmib_table[], hwmib_wlan_table[];
 
+extern mib_table_entry_T* mib_get_table(CONFIG_DATA_T type);
 #endif // INCLUDE_MIBTBL_H

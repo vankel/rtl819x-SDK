@@ -81,7 +81,7 @@ romfs:
 ifdef CONFIG_APP_LOGIN_CONSOLE
 	$(ROMFSINST) -s /var/shadow /etc/shadow
 endif
-	$(ROMFSINST) home /home
+	$(ROMFSINST) romfs/home /home
 	$(ROMFSINST) -s bin/init /init
 ifneq ($(CONFIG_APP_BOA), y)
 ifdef CONFIG_RTL_WEBPAGES_IN_ROOTFS

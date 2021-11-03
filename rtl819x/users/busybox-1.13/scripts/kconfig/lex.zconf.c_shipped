@@ -941,6 +941,7 @@ extern int zconflex (void);
 
 /** The main scanner function which does all the work.
  */
+extern struct kconf_id *kconf_id_lookup (register const char *str, register unsigned int len);
 YY_DECL
 {
 	register yy_state_type yy_current_state;

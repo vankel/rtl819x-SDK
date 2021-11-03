@@ -47,6 +47,7 @@
 #include <regex.h>
 #include <fnmatch.h>
 #include <sys/wait.h>
+#include <sys/sysmacros.h>
 
 #ifndef linux
 #define __BYTE_ORDER BYTE_ORDER
@@ -709,13 +710,13 @@ void cache_block_put(struct file_buffer *entry)
 			+ (((char *)A) - data_cache)))
 
 
-inline void inc_progress_bar()
+static inline void inc_progress_bar()
 {
 	cur_uncompressed ++;
 }
 
 
-inline void update_progress_bar()
+static inline void update_progress_bar()
 {
 	pthread_mutex_lock(&progress_mutex);
 	pthread_cond_signal(&progress_wait);
@@ -723,7 +724,7 @@ inline void update_progress_bar()
 }
 
 
-inline void waitforthread(int i)
+static inline void waitforthread(int i)
 {
 	TRACE("Waiting for thread %d\n", i);
 	while(thread[i] != 0)
@@ -1285,25 +1286,25 @@ int create_inode(squashfs_inode *i_no, struct dir_ent *dir_ent, int type,
 	}
 	else if(type == SQUASHFS_CHRDEV_TYPE || type == SQUASHFS_BLKDEV_TYPE) {
 		squashfs_dev_inode_header *dev = &inode_header.dev;
-		unsigned int major = major(buf->st_rdev);
-		unsigned int minor = minor(buf->st_rdev);
+		unsigned int majorN = major(buf->st_rdev);
+		unsigned int minorN = minor(buf->st_rdev);
 
-		if(major > 0xfff) {
+		if(majorN > 0xfff) {
 			ERROR("Major %d out of range in device node %s, "
-				"truncating to %d\n", major, filename,
-				major & 0xfff);
-			major &= 0xfff;
+				"truncating to %d\n", majorN, filename,
+				majorN & 0xfff);
+			majorN &= 0xfff;
 		}
-		if(minor > 0xfffff) {
+		if(minorN > 0xfffff) {
 			ERROR("Minor %d out of range in device node %s, "
-				"truncating to %d\n", minor, filename,
-				minor & 0xfffff);
-			minor &= 0xfffff;
+				"truncating to %d\n", minorN, filename,
+				minorN & 0xfffff);
+			minorN &= 0xfffff;
 		}
 		inode = get_inode(sizeof(*dev));
 		dev->nlink = nlink;
-		dev->rdev = (major << 8) | (minor & 0xff) |
-				((minor & ~0xff) << 12);
+		dev->rdev = (majorN << 8) | (minorN & 0xff) |
+				((minorN & ~0xff) << 12);
 		SQUASHFS_SWAP_DEV_INODE_HEADER(dev,
 			(squashfs_dev_inode_header *) inode);
 		TRACE("Device inode, rdev 0x%x, nlink %d\n", dev->rdev, nlink);
@@ -3177,7 +3178,7 @@ struct inode_info *lookup_inode(struct stat *buf)
 }
 
 
-inline void add_dir_entry(char *name, char *pathname, struct dir_info *sub_dir,
+static inline void add_dir_entry(char *name, char *pathname, struct dir_info *sub_dir,
 	struct inode_info *inode_info, struct dir_info *dir)
 {
 	if((dir->count % DIR_ENTRIES) == 0) {

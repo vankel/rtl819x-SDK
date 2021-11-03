@@ -3032,7 +3032,7 @@ static void swap_mib_word_value(APMIB_Tp pMib)
 static int _mib_swap_value(const mib_table_entry_T *mib, void *data)
 {
 	short *pShort;
-	int *pInt;
+	long *pInt;
 	switch (mib->type)
 	{
 	case WORD_T:
@@ -3042,7 +3042,7 @@ static int _mib_swap_value(const mib_table_entry_T *mib, void *data)
 		// = htons(*pShort);
 		break;
 	case DWORD_T:
-		pInt = (int *) data;
+		pInt = (long *) data;
 		*pInt = DWORD_SWAP(*pInt);		
 		break;
 	default:
@@ -3075,7 +3075,7 @@ static int _mibtbl_swap_value(const mib_table_entry_T *mib_tbl, void *data, int 
 			}
 			else
 			{
-				_mib_swap_value(mib, (void *)((int) data + new_offset));
+				_mib_swap_value(mib, (void *)((long) data + new_offset));
 			}
 			new_offset += mib->unit_size;
 		}
@@ -4066,7 +4066,7 @@ int mib_write_to_raw(const mib_table_entry_T *mib_tbl, void *data, unsigned char
 
 			if(mib[i].type < TABLE_LIST_T)			
 			{		
-				mib_write_to_raw(pmib, (void *)((int) data + offset), pfile, idx);				
+				mib_write_to_raw(pmib, (void *)((long) data + offset), pfile, idx);				
 				offset += pmib->total_size;
 			}
 			else
@@ -4093,7 +4093,7 @@ int mib_write_to_raw(const mib_table_entry_T *mib_tbl, void *data, unsigned char
 				for(j=0 ; j<tlv_num ; j++)				
 				{
 				
-					mib_write_to_raw(pmib, (void *)((int) data + offset), pfile, idx);
+					mib_write_to_raw(pmib, (void *)((long) data + offset), pfile, idx);
 					offset += pmib->unit_size;					
 				}											
 				tlv_len = (*idx-ori_idx);
@@ -4187,7 +4187,7 @@ unsigned int mib_tlv_save(CONFIG_DATA_T type, void *mib_data, unsigned char *mib
 	{
 		return 0;
 	}
-	mib_write_to_raw(pmib_tl, (void *)((int) mib_data), mib_tlvfile, tlv_content_len);
+	mib_write_to_raw(pmib_tl, (void *)((long) mib_data), mib_tlvfile, tlv_content_len);
 
 	return 1;
 
@@ -4470,7 +4470,7 @@ unsigned int mib_tlv_init_from(const mib_table_entry_T *mib_root_tbl, unsigned c
 	//			printf("###%d\n",__LINE__);
 				if(mib_tbl != NULL)
 				{
-					if(mib_init_value(ptlv_data_value, tlv_len, mib_tbl, (void *)((int) pfile + mib_offset)) != 1)
+					if(mib_init_value(ptlv_data_value, tlv_len, mib_tbl, (void *)((long) pfile + mib_offset)) != 1)
 					{
 						printf("\r\n Assign mib_name[%s] fail!", mib_tbl->name);
 						printf("\r\n mibtbl->id (%08x) unitsize (%d) totoal size (%d) mibtbl->nextbl %p",mib_tbl->id,mib_tbl->unit_size,mib_tbl->total_size,mib_tbl->next_mib_table);
