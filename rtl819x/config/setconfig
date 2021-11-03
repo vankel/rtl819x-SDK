@@ -293,7 +293,7 @@ if [ ! -d $BOARDDIR/etc ] || [ -L $BOARDDIR/etc ]; then
 		ln -s etc.${MODEL} $BOARDDIR/etc
 	else
 		echo "$BOARDDIR/etc.${MODEL} not exist. Use $BOARDDIR/etc.default." >&2
-		ln -s etc.default target/etc
+		ln -s etc.default $BOARDDIR/etc
 	fi
 fi
 
