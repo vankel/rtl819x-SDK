@@ -117,22 +117,34 @@ echo
 # select toolchain version 
 #
 
-echo "if BOARD_rtl8196e||BOARD_rtl8196eu"
-echo "choice"
-echo "  prompt \"Selected toolchain\""
-echo "config RSDK_rsdk-1.5.5-4181-EB-2.6.30-0.9.30.3-110225"
-echo "	bool \"rsdk-1.5.5-4181-EB-2.6.30-0.9.30.3-110225\""
-echo "config RSDK_rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129"
-echo "	bool \"rsdk-4.4.7-4181-EB-2.6.30-0.9.30-m32u-140129\""
-echo "endchoice"
-echo "endif"
-
-echo "if  !BOARD_rtl8196e && !BOARD_rtl8196eu "
+echo "if BOARD_rtl8196c || BOARD_rtl8196e || BOARD_rtl8196eu"
 echo "choice"
 echo "  prompt \"Selected toolchain\""
 GOTDEFAULT="no"
 
-find toolchain -maxdepth 1 -mindepth 1 -type d -name '[r|m]sdk-*' -print | \
+find toolchain -maxdepth 1 -mindepth 1 -type d -print | \
+       grep -E '[rm]sdk-[^-]*-4181-.*' | \
+       sed -e 's?^toolchain/??' -e 's?/[^/]*$??' -e 's?/? ?g' | \
+       (sort; echo "END END") | while read v p 
+
+do
+   [ "$v" = END ] && break
+	CFG="RSDK_$v"
+	DEF="$v"
+	echo "config ${CFG}"
+	echo "	bool \"${DEF}\""
+done
+                                                                                                    
+echo "endchoice"
+echo "endif"
+
+echo "if !BOARD_rtl8196c && !BOARD_rtl8196e && !BOARD_rtl8196eu"
+echo "choice"
+echo "  prompt \"Selected toolchain\""
+GOTDEFAULT="no"
+
+find toolchain -maxdepth 1 -mindepth 1 -type d -print | \
+       grep -E '[rm]sdk-[^-]*-5281-.*' | \
        sed -e 's?^toolchain/??' -e 's?/[^/]*$??' -e 's?/? ?g' | \
        (sort; echo "END END") | while read v p 
 
