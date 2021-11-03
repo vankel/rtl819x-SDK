@@ -29,7 +29,7 @@ echo "choice"
 echo "  prompt \"Selected Target\""
 GOTDEFAULT="no"
 
-find boards -type d -maxdepth 1 -mindepth 1 -print | grep -v .svn | \
+find boards -maxdepth 1 -mindepth 1 -type d -print | grep -v .svn | \
        sed -e 's?^boards/??' -e 's?/[^/]*$??' -e 's?/? ?g' | \
        (sort; echo "END END") | while read v p 
 
@@ -95,7 +95,7 @@ echo "choice"
 echo "  prompt \"Selected Busybox\""
 GOTDEFAULT="no"
 
-find users -type d -name 'busybox-*' -maxdepth 1 -mindepth 1 -print | \
+find users -maxdepth 1 -mindepth 1 -type d -name 'busybox-*' -print | \
        sed -e 's?^users/??' -e 's?/[^/]*$??' -e 's?/? ?g' | \
        (sort; echo "END END") | while read v p 
 
@@ -132,7 +132,7 @@ echo "choice"
 echo "  prompt \"Selected toolchain\""
 GOTDEFAULT="no"
 
-find toolchain -type d -name '[r|m]sdk-*' -maxdepth 1 -mindepth 1 -print | \
+find toolchain -maxdepth 1 -mindepth 1 -type d -name '[r|m]sdk-*' -print | \
        sed -e 's?^toolchain/??' -e 's?/[^/]*$??' -e 's?/? ?g' | \
        (sort; echo "END END") | while read v p 
 
@@ -153,7 +153,7 @@ echo "config RSDKDIR"
 echo " string"
 echo
 
-find boards -type d -maxdepth 1 -mindepth 1 -print | grep -v .svn | \
+find boards -maxdepth 1 -mindepth 1 -type d -print | grep -v .svn | \
        sed -e 's?^boards/??' -e 's?/[^/]*$??' -e 's?/? ?g' | \
        (sort; echo "END END") | while read v p 
 
