@@ -743,7 +743,7 @@ sub check_elf_type
   local($line) = '';
   local(@LINE) = ();
 
-  open(PIPE, "readelf -h $file 2>&1 |") or die "ERROR: unable to readelf";
+  open(PIPE, "LANG=C readelf -h $file 2>&1 |") or die "ERROR: unable to readelf";
   @LINE = <PIPE>;
   close(PIPE);
  
