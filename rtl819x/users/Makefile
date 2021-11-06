@@ -854,7 +854,7 @@ distclean:
 	if [ -e dbus-1.8.0/Makefile ]; then \
 		make -C dbus-1.8.0  distclean; \
 	fi
-	if [ -e libusb-1.0.9/Makefile]; then \
+	if [ -e libusb-1.0.9/Makefile ]; then \
 		make -C libusb-1.0.9 distclean; \
 	fi
 	if [ -e libffi-3.0.13/Makefile ]; then \
