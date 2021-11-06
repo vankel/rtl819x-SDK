@@ -16,6 +16,12 @@ DIR_SOURCE := samba-3.2.15
 endif
 endif
 
+ifeq ($(DIR_SOURCE),)
+all:
+samba:
+romfs:
+clean:
+else
 all: samba
 
 samba:
@@ -30,3 +36,4 @@ romfs:
 
 clean:
 	make -C $(DIR_SOURCE)/source clean
+endif
