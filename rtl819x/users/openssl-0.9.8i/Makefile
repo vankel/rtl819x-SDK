@@ -70,10 +70,10 @@ ARFLAGS=
 AR=ar $(ARFLAGS) r
 RANLIB= rsdk-linux-ranlib
 
-PERL=/usr/local/bin/perl
-if [ ! -e /usr/local/bin/perl ]; then \
-PERL=/usr/bin/perl; \
-fi
+PERL = $(realpath /usr/local/bin/perl)
+ifeq ($(PERL),)
+PERL = /usr/bin/perl
+endif
 
 TAR= tar
 TARFLAGS= --no-recursion
