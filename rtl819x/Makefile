@@ -41,9 +41,9 @@ ROMFSINST = $(DIR_ROOT)/config/romfsinst
 
 RCSCONFIG = $(DIR_ROMFS)/etc/init.d/rcS.conf
 
-MAKE = PATH=$(DIR_RSDK)/bin:$(PATH); make
-LSTRIP = PATH=$(DIR_RSDK)/bin:$(PATH); rsdk-linux-lstrip
-SSTRIP = PATH=$(DIR_RSDK)/bin:$(PATH); rsdk-linux-sstrip
+MAKE = PATH="$(DIR_RSDK)/bin:$(PATH)"; make
+LSTRIP = PATH="$(DIR_RSDK)/bin:$(PATH)"; rsdk-linux-lstrip
+SSTRIP = PATH="$(DIR_RSDK)/bin:$(PATH)"; rsdk-linux-sstrip
 
 export DIR_ROOT DIR_RSDK DIR_ROMFS DIR_IMAGE DIR_BOARD DIR_TMPFS
 export DIR_LINUX DIR_BZBOX ROMFSINST DIR_TOOLS DIR_USERS 
