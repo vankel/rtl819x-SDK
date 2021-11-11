@@ -307,7 +307,7 @@ echo default "'$MODEL'" 		>> $BOARDDIR/board_config_model.in
 # Now install the configs,  careful not dump on them unless they asked us to
 #
 
-export PATH=`pwd`/$RSDKDIR/bin:$PATH
+export PATH="`pwd`/$RSDKDIR/bin:$PATH"
 CLEAN="0"
 
 if [ "$PASS" != "final" ]; then
