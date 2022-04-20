@@ -206,7 +206,7 @@ ifeq ($(CINIT), 1)
 	cp ../script/cinit/br0.bound $(DIR_ROMFS)/usr/share/udhcpc/br0.bound
 	cp ../script/cinit/br0.renew $(DIR_ROMFS)/usr/share/udhcpc/br0.renew
 endif
-	$(ROMFSINST) -s /var/udhcpc /etc/
+	$(ROMFSINST) -s /var/udhcpc /etc/udhcpc
 	rm $(DIR_ROMFS)/usr/share/udhcpc/*.deconfig
 	$(ROMFSINST) -s /var/udhcpc/br0.deconfig /usr/share/udhcpc/br0.deconfig
 	$(ROMFSINST) -s /var/udhcpc/eth0.deconfig /usr/share/udhcpc/eth0.deconfig
@@ -216,7 +216,7 @@ endif
 	$(ROMFSINST) -s /var/udhcpc/wlan0-vxd.deconfig /usr/share/udhcpc/wlan0-vxd.deconfig
 	$(ROMFSINST) -s /var/udhcpc/wlan1-vxd.deconfig /usr/share/udhcpc/wlan1-vxd.deconfig
 	$(ROMFSINST) -s udhcpd /bin/udhcpc
-	$(ROMFSINST) -s /var/udhcpd /etc
+	$(ROMFSINST) -s /var/udhcpd /etc/udhcpd
 endif
 
 clean:
