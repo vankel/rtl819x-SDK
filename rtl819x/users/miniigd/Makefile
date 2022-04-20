@@ -154,7 +154,7 @@ upnppinhole.o: upnppinhole.h upnpredirect.h upnpglobalvars.h upnpevents.h linux/
 linux/iptpinhole.o: linux/iptpinhole.h  upnpglobalvars.h
 romfs:
 	$(ROMFSINST) /bin/$(EXECUTABLES)
-	$(ROMFSINST) -s /var/linuxigd /etc/
+	$(ROMFSINST) -s /var/linuxigd /etc/linuxigd
 	@mkdir -p $(DIR_ROMFS)/etc/tmp
 	@cp ./picsdesc.* $(DIR_ROMFS)/etc/tmp
 ifeq ($(CONFIG_APP_MINIIGD_IPV6),y)
