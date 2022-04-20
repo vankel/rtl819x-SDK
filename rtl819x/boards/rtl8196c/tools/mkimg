@@ -409,7 +409,7 @@ ln -s /tmp/log $RAMFSDIR/dev/log
 # At Last: Copy debugging scripts
 DBG_SCRPT="ib iw idd irf ob ow od orf rssi acltd setmib getmib"
 for scrpt in $DBG_SCRPT ; do
-	cp ./script/script_dbg/$scrpt $RAMFSDIR/bin
+	cp $USERS_DIR/script/script_dbg/$scrpt $RAMFSDIR/bin
 done
 
 # Friendly API
