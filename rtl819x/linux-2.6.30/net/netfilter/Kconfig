@@ -625,8 +625,6 @@ config NETFILTER_XT_MATCH_CONNLIMIT
 config RTL_NETFILTER_XT_MATCH_CONNLIMIT_PATCH
 	bool '"rtl patch for connlimit" match support'
 	default y
-        depends on NF_CONNTRACK
-        depends on NETFILTER_ADVANCED
 	depends on NETFILTER_XT_MATCH_CONNLIMIT
 
 config NETFILTER_XT_MATCH_CONNMARK
