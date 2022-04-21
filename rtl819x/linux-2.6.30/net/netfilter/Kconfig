@@ -623,8 +623,7 @@ config NETFILTER_XT_MATCH_CONNLIMIT
 	  connections to a server per client IP address (or address block).
 
 config RTL_NETFILTER_XT_MATCH_CONNLIMIT_PATCH
-	tristate '"rtl patch for connlimit" match support'
-	bool
+	bool '"rtl patch for connlimit" match support'
 	default y
         depends on NF_CONNTRACK
         depends on NETFILTER_ADVANCED
