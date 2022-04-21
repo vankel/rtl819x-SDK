@@ -615,7 +615,7 @@ config NETFILTER_XT_MATCH_CONNBYTES
 	  <file:Documentation/kbuild/modules.txt>.  If unsure, say `N'.
 
 config NETFILTER_XT_MATCH_CONNLIMIT
-	tristate '"connlimit" match support"'
+	tristate '"connlimit" match support'
 	depends on NF_CONNTRACK
 	depends on NETFILTER_ADVANCED
 	---help---
@@ -623,7 +623,7 @@ config NETFILTER_XT_MATCH_CONNLIMIT
 	  connections to a server per client IP address (or address block).
 
 config RTL_NETFILTER_XT_MATCH_CONNLIMIT_PATCH
-	tristate '"rtl patch for connlimit" match support"'
+	tristate '"rtl patch for connlimit" match support'
 	bool
 	default y
         depends on NF_CONNTRACK
